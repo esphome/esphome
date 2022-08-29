@@ -1,10 +1,12 @@
 from esphome.components import text_sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from . import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
+
 from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
+
+from . import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
 
 DEPENDENCIES = ["uart"]
 

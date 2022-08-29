@@ -179,8 +179,8 @@ enum SmLimitValue : uint32_t {
   MAX_ENERGY_PURCHASE_VALUE = 999999,  // kWh
 };
 
-struct limit_and_purchase_data {
-  unsigned long time = 0;
+struct LimitAndPurchaseData {
+  uint32_t time = 0;
 
   float energy_purchase_value = 0;
   uint32_t energy_purchase_value_tmp = SmLimitValue::MIN_ENERGY_PURCHASE_VALUE;
@@ -196,8 +196,8 @@ struct limit_and_purchase_data {
   uint16_t min_voltage_limit = 0;
 };
 
-struct meter_state_data {
-  unsigned long time = 0;
+struct MeterStateData {
+  uint32_t time = 0;
 
   uint8_t phase_count = 0;
 
@@ -233,7 +233,7 @@ struct meter_state_data {
 #define DXS238XW_SWITCH(name) DXS238XW_ENTITY_(switch_::Switch, name, switch)
 #define DXS238XW_BUTTON(name) DXS238XW_ENTITY_(button::Button, name, button)
 
-class dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
+class Dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
   DXS238XW_SENSOR(current_phase_1)
   DXS238XW_SENSOR(current_phase_2)
   DXS238XW_SENSOR(current_phase_3)
@@ -286,7 +286,7 @@ class dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
   DXS238XW_BUTTON(reset_data)
 
  public:
-  dxs238xwComponent() = default;
+  Dxs238xwComponent() = default;
 
   void setup() override;
   void loop() override;
@@ -305,11 +305,11 @@ class dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
   void set_number_value(SmIdEntity entity, float value);
 
  protected:
-  limit_and_purchase_data lp_data;
-  meter_state_data ms_data;
+  LimitAndPurchaseData lp_data_;
+  MeterStateData ms_data_;
 
   ESPPreferenceObject preference_energy_purchase_value_;
-  ESPPreferenceObject preference_energy_purchase_Alarm_;
+  ESPPreferenceObject preference_energy_purchase_alarm_;
   ESPPreferenceObject preference_delay_value_set_;
 
   SmErrorType error_type_ = SmErrorType::NO_ERROR;
@@ -349,51 +349,39 @@ class dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 //////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
 
-class dxs238xwSwitch : public switch_::Switch {
+class Dxs238xwSwitch : public switch_::Switch {
  public:
   void set_entity_id(SmIdEntity entity_id) { this->entity_id_ = entity_id; }
-  void set_dxs238xw_parent(dxs238xwComponent *parent) { this->parent_ = parent; }
+  void set_dxs238xw_parent(Dxs238xwComponent *parent) { this->parent_ = parent; }
 
  protected:
-  void write_state(bool state) override {
-    if (this->state != state) {
-      this->parent_->set_switch_value(this->entity_id_, state);
-    } else {
-      ESP_LOGD(TAG, "* Switch not sending unchanged value %s:", ONOFF(state));
-    }
-  }
+  void write_state(bool state) override;
 
-  dxs238xwComponent *parent_;
+  Dxs238xwComponent *parent_;
   SmIdEntity entity_id_ = SmIdEntity::ID_NULL;
 };
 
-class dxs238xwButton : public button::Button {
+class Dxs238xwButton : public button::Button {
  public:
   void set_entity_id(SmIdEntity entity_id) { this->entity_id_ = entity_id; }
-  void set_dxs238xw_parent(dxs238xwComponent *parent) { this->parent_ = parent; }
+  void set_dxs238xw_parent(Dxs238xwComponent *parent) { this->parent_ = parent; }
 
  protected:
-  void press_action() override { this->parent_->set_button_value(this->entity_id_); }
+  void press_action() override;
 
-  dxs238xwComponent *parent_;
+  Dxs238xwComponent *parent_;
   SmIdEntity entity_id_ = SmIdEntity::ID_NULL;
 };
 
-class dxs238xwNumber : public number::Number {
+class Dxs238xwNumber : public number::Number {
  public:
   void set_entity_id(SmIdEntity entity_id) { this->entity_id_ = entity_id; }
-  void set_dxs238xw_parent(dxs238xwComponent *parent) { this->parent_ = parent; }
+  void set_dxs238xw_parent(Dxs238xwComponent *parent) { this->parent_ = parent; }
 
  protected:
-  void control(float value) override {
-    if (this->state != value) {
-      this->parent_->set_number_value(this->entity_id_, value);
-    } else {
-      ESP_LOGD(TAG, "* Number not sending unchanged value %f:", value);
-    }
-  }
+  void control(float value) override;
 
-  dxs238xwComponent *parent_;
+  Dxs238xwComponent *parent_;
   SmIdEntity entity_id_ = SmIdEntity::ID_NULL;
 };
 

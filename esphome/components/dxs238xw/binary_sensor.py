@@ -1,12 +1,14 @@
 from esphome.components import binary_sensor
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from . import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
+
 from esphome.const import (
     DEVICE_CLASS_PROBLEM,
     ENTITY_CATEGORY_DIAGNOSTIC,
     DEVICE_CLASS_POWER,
 )
+
+from . import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
 
 DEPENDENCIES = ["uart"]
 

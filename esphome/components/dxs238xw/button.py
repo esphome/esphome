@@ -1,27 +1,34 @@
 from esphome.components import button
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from . import dxs238xw_ns, CONF_DXS238XW_ID, SmIdEntity, DXS238XW_COMPONENT_SCHEMA
+
 from esphome.const import (
     CONF_ICON,
     CONF_ENTITY_CATEGORY,
     ENTITY_CATEGORY_CONFIG,
 )
 
+from . import dxs238xw_ns, CONF_DXS238XW_ID, SmIdEntity, DXS238XW_COMPONENT_SCHEMA
+
 DEPENDENCIES = ["uart"]
 
-dxs238xwButton = dxs238xw_ns.class_("dxs238xwButton", button.Button)
+dxs238xwButton = dxs238xw_ns.class_("Dxs238xwButton", button.Button)
 
 RESET_DATA = "reset_data"
 
 TYPES = {
-    RESET_DATA: (button.BUTTON_SCHEMA.extend(
-        {
-            cv.GenerateID(): cv.declare_id(dxs238xwButton),
-            cv.Optional(CONF_ICON, default="mdi:backup-restore"): cv.icon,
-            cv.Optional(CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG): cv.entity_category,
-        }),
-        SmIdEntity.BUTTON_RESET_DATA),
+    RESET_DATA: (
+        button.BUTTON_SCHEMA.extend(
+            {
+                cv.GenerateID(): cv.declare_id(dxs238xwButton),
+                cv.Optional(CONF_ICON, default="mdi:backup-restore"): cv.icon,
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
+                ): cv.entity_category,
+            }
+        ),
+        SmIdEntity.BUTTON_RESET_DATA
+    ),
 }
 
 CONFIG_SCHEMA = DXS238XW_COMPONENT_SCHEMA.extend(
