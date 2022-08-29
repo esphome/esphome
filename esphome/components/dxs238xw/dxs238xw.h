@@ -332,7 +332,7 @@ class Dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
   bool put_command_data_(uint8_t cmd_send, uint8_t cmd_receive, uint8_t frame_size_send, uint8_t frame_size_receive,
                          uint8_t *array);
 
-  bool incoming_messages_(bool print_error_ = true);
+  bool incoming_messages_(bool print_error = true);
 
   std::string get_delay_value_remaining_string_(uint16_t value);
   std::string get_meter_state_string_(SmErrorMeterStateType error);

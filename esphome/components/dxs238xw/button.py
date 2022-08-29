@@ -27,7 +27,7 @@ TYPES = {
                 ): cv.entity_category,
             }
         ),
-        SmIdEntity.BUTTON_RESET_DATA
+        SmIdEntity.BUTTON_RESET_DATA,
     ),
 }
 

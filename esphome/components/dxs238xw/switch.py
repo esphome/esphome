@@ -30,7 +30,7 @@ TYPES = {
                 ): cv.entity_category,
             }
         ),
-        SmIdEntity.SWITCH_ENERGY_PURCHASE_STATE
+        SmIdEntity.SWITCH_ENERGY_PURCHASE_STATE,
     ),
     METER_STATE: (
         switch.SWITCH_SCHEMA.extend(
@@ -42,7 +42,7 @@ TYPES = {
                 ): cv.entity_category,
             }
         ),
-        SmIdEntity.SWITCH_METER_STATE
+        SmIdEntity.SWITCH_METER_STATE,
     ),
     DELAY_STATE: (
         switch.SWITCH_SCHEMA.extend(
@@ -54,7 +54,7 @@ TYPES = {
                 ): cv.entity_category,
             }
         ),
-        SmIdEntity.SWITCH_DELAY_STATE
+        SmIdEntity.SWITCH_DELAY_STATE,
     ),
 }
 

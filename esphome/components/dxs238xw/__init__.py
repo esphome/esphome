@@ -47,11 +47,11 @@ CONFIG_SCHEMA = cv.All(
 def valid_uart(conf):
     rx_pin = UART_CONFIG_RX_PIN
     if conf[CONF_RX_PIN][CONF_NUMBER] != rx_pin:
-        _LOGGER.warning(f"Usually rx pin is GPIO{rx_pin}")
+        _LOGGER.warning("Usually rx pin is GPIO%d", rx_pin)
 
     tx_pin = UART_CONFIG_TX_PIN
     if conf[CONF_TX_PIN][CONF_NUMBER] != tx_pin:
-        _LOGGER.warning(f"Usually tx pin is GPIO{tx_pin}")
+        _LOGGER.warning("Usually tx pin is GPIO%d", tx_pin)
 
     baud_rate = UART_CONFIG_BAUD_RATE
     if conf[CONF_BAUD_RATE] != baud_rate:

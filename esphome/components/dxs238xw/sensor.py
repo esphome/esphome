@@ -37,17 +37,17 @@ CONF_VOLTAGE_PHASE_1 = "voltage_phase_1"
 CONF_VOLTAGE_PHASE_2 = "voltage_phase_2"
 CONF_VOLTAGE_PHASE_3 = "voltage_phase_3"
 
-CONF_REACTIVE_POWER_PHASE_TOTAL = "reactive_power_total"
+CONF_REACTIVE_POWER_TOTAL = "reactive_power_total"
 CONF_REACTIVE_POWER_PHASE_1 = "reactive_power_phase_1"
 CONF_REACTIVE_POWER_PHASE_2 = "reactive_power_phase_2"
 CONF_REACTIVE_POWER_PHASE_3 = "reactive_power_phase_3"
 
-CONF_ACTIVE_POWER_PHASE_TOTAL = "active_power_total"
+CONF_ACTIVE_POWER_TOTAL = "active_power_total"
 CONF_ACTIVE_POWER_PHASE_1 = "active_power_phase_1"
 CONF_ACTIVE_POWER_PHASE_2 = "active_power_phase_2"
 CONF_ACTIVE_POWER_PHASE_3 = "active_power_phase_3"
 
-CONF_POWER_FACTOR_PHASE_TOTAL = "power_factor_total"
+CONF_POWER_FACTOR_TOTAL = "power_factor_total"
 CONF_POWER_FACTOR_PHASE_1 = "power_factor_phase_1"
 CONF_POWER_FACTOR_PHASE_2 = "power_factor_phase_2"
 CONF_POWER_FACTOR_PHASE_3 = "power_factor_phase_3"
@@ -107,7 +107,7 @@ TYPES = {
         device_class=DEVICE_CLASS_FREQUENCY,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
-    CONF_REACTIVE_POWER_PHASE_TOTAL: sensor.sensor_schema(
+    CONF_REACTIVE_POWER_TOTAL: sensor.sensor_schema(
         unit_of_measurement=UNIT_KILOVOLT_AMPS_REACTIVE,
         accuracy_decimals=4,
         device_class=DEVICE_CLASS_REACTIVE_POWER,
@@ -131,7 +131,7 @@ TYPES = {
         device_class=DEVICE_CLASS_REACTIVE_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
-    CONF_ACTIVE_POWER_PHASE_TOTAL: sensor.sensor_schema(
+    CONF_ACTIVE_POWER_TOTAL: sensor.sensor_schema(
         unit_of_measurement=UNIT_KILOWATT,
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_POWER,
@@ -155,7 +155,7 @@ TYPES = {
         device_class=DEVICE_CLASS_POWER,
         state_class=STATE_CLASS_MEASUREMENT,
     ),
-    CONF_POWER_FACTOR_PHASE_TOTAL: sensor.sensor_schema(
+    CONF_POWER_FACTOR_TOTAL: sensor.sensor_schema(
         accuracy_decimals=3,
         device_class=DEVICE_CLASS_POWER_FACTOR,
         state_class=STATE_CLASS_MEASUREMENT,

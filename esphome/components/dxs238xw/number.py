@@ -19,7 +19,7 @@ from . import (
     CONF_DXS238XW_ID,
     SmIdEntity,
     SmLimitValue,
-    DXS238XW_COMPONENT_SCHEMA
+    DXS238XW_COMPONENT_SCHEMA,
 )
 
 DEPENDENCIES = ["uart"]
@@ -50,7 +50,7 @@ TYPES = {
         ),
         SmLimitValue.MIN_CURRENT,
         SmLimitValue.MAX_CURRENT,
-        SmIdEntity.NUMBER_MAX_CURRENT_LIMIT
+        SmIdEntity.NUMBER_MAX_CURRENT_LIMIT,
     ),
     MAX_VOLTAGE_LIMIT: (
         number.NUMBER_SCHEMA.extend(
@@ -68,7 +68,7 @@ TYPES = {
         ),
         SmLimitValue.MIN_VOLTAGE,
         SmLimitValue.MAX_VOLTAGE,
-        SmIdEntity.NUMBER_MAX_VOLTAGE_LIMIT
+        SmIdEntity.NUMBER_MAX_VOLTAGE_LIMIT,
     ),
     MIN_VOLTAGE_LIMIT: (
         number.NUMBER_SCHEMA.extend(
@@ -86,7 +86,7 @@ TYPES = {
         ),
         SmLimitValue.MIN_VOLTAGE,
         SmLimitValue.MAX_VOLTAGE,
-        SmIdEntity.NUMBER_MIN_VOLTAGE_LIMIT
+        SmIdEntity.NUMBER_MIN_VOLTAGE_LIMIT,
     ),
     ENERGY_PURCHASE_VALUE: (
         number.NUMBER_SCHEMA.extend(
@@ -104,7 +104,7 @@ TYPES = {
         ),
         SmLimitValue.MIN_ENERGY_PURCHASE_VALUE,
         SmLimitValue.MAX_ENERGY_PURCHASE_VALUE,
-        SmIdEntity.NUMBER_ENERGY_PURCHASE_VALUE
+        SmIdEntity.NUMBER_ENERGY_PURCHASE_VALUE,
     ),
     ENERGY_PURCHASE_ALARM: (
         number.NUMBER_SCHEMA.extend(
@@ -122,7 +122,7 @@ TYPES = {
         ),
         SmLimitValue.MIN_ENERGY_PURCHASE_ALARM,
         SmLimitValue.MAX_ENERGY_PURCHASE_ALARM,
-        SmIdEntity.NUMBER_ENERGY_PURCHASE_ALARM
+        SmIdEntity.NUMBER_ENERGY_PURCHASE_ALARM,
     ),
     DELAY_VALUE_SET: (
         number.NUMBER_SCHEMA.extend(
@@ -140,7 +140,7 @@ TYPES = {
         ),
         SmLimitValue.MIN_DELAY_SET,
         SmLimitValue.MAX_DELAY_SET,
-        SmIdEntity.NUMBER_DELAY_VALUE_SET
+        SmIdEntity.NUMBER_DELAY_VALUE_SET,
     ),
 }
 

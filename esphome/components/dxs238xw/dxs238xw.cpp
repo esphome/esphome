@@ -550,22 +550,26 @@ void Dxs238xwComponent::process_and_update_data_(uint8_t *receive_array) {
         this->ms_data_.warning_off_by_user = false;
       }
 
-      if (!this->ms_data_.warning_off_by_over_voltage)
+      if (!this->ms_data_.warning_off_by_over_voltage) {
         this->ms_data_.warning_off_by_over_voltage = (receive_array[11] == 1);
+      }
 
-      if (!this->ms_data_.warning_off_by_under_voltage)
+      if (!this->ms_data_.warning_off_by_under_voltage) {
         this->ms_data_.warning_off_by_under_voltage = (receive_array[11] == 2);
+      }
 
-      if (!this->ms_data_.warning_off_by_over_current)
+      if (!this->ms_data_.warning_off_by_over_current) {
         this->ms_data_.warning_off_by_over_current = receive_array[15];
+      }
 
-      if (!this->ms_data_.warning_off_by_end_purchase)
+      if (!this->ms_data_.warning_off_by_end_purchase) {
         this->ms_data_.warning_off_by_end_purchase = receive_array[19];
+      }
 
-      if (!this->ms_data_.warning_off_by_end_delay)
+      if (!this->ms_data_.warning_off_by_end_delay) {
         this->ms_data_.warning_off_by_end_delay =
             (this->ms_data_.delay_value_remaining == 0 && this->ms_data_.delay_state);
-
+      }
       this->set_delay_state_();
 
       /////////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -1009,7 +1013,7 @@ uint8_t Dxs238xwComponent::calculate_crc_(uint8_t *array, uint8_t size) {
 
 void Dxs238xwComponent::print_error_() {
   const char *string_type = nullptr;
-  const char *string_Code = nullptr;
+  const char *string_code = nullptr;
 
   switch (this->error_type_) {
     case SmErrorType::NO_ERROR:
@@ -1025,32 +1029,32 @@ void Dxs238xwComponent::print_error_() {
 
   switch (this->error_code_) {
     case SmErrorCode::NO_ERROR:
-      string_Code = SM_STR_CODE_NO_ERROR;
+      string_code = SM_STR_CODE_NO_ERROR;
       break;
     case SmErrorCode::CRC:
-      string_Code = SM_STR_CODE_CRC;
+      string_code = SM_STR_CODE_CRC;
       break;
     case SmErrorCode::WRONG_BYTES:
-      string_Code = SM_STR_CODE_WRONG_BYTES;
+      string_code = SM_STR_CODE_WRONG_BYTES;
       break;
     case SmErrorCode::NOT_ENOUGHT_BYTES:
-      string_Code = SM_STR_CODE_NOT_ENOUGH_BYTES;
+      string_code = SM_STR_CODE_NOT_ENOUGH_BYTES;
       break;
     case SmErrorCode::EXCEEDS_BYTES:
-      string_Code = SM_STR_CODE_EXCEEDED_BYTES;
+      string_code = SM_STR_CODE_EXCEEDED_BYTES;
       break;
     case SmErrorCode::TIMEOUT:
-      string_Code = SM_STR_CODE_TIMED_OUT;
+      string_code = SM_STR_CODE_TIMED_OUT;
       break;
     case SmErrorCode::WRONG_MSG:
-      string_Code = SM_STR_CODE_WRONG_MSG;
+      string_code = SM_STR_CODE_WRONG_MSG;
       break;
     case SmErrorCode::MESSAGE_LENGTH:
-      string_Code = SM_STR_CODE_MESSAGE_LENGTH;
+      string_code = SM_STR_CODE_MESSAGE_LENGTH;
       break;
   }
 
-  ESP_LOGE(TAG, "* Error, Type: %s, Description: %s", string_type, string_Code);
+  ESP_LOGE(TAG, "* Error, Type: %s, Description: %s", string_type, string_code);
 
   this->error_type_ = SmErrorType::NO_ERROR;
   this->error_code_ = SmErrorCode::NO_ERROR;
