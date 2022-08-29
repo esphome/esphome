@@ -34,6 +34,7 @@ esphome/components/binary_sensor/* @esphome/core
 esphome/components/bl0939/* @ziceva
 esphome/components/bl0940/* @tobias-
 esphome/components/ble_client/* @buxtronix
+esphome/components/bluetooth_proxy/* @jesserockz
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bmp3xx/* @martgras
 esphome/components/button/* @esphome/core
@@ -122,6 +123,7 @@ esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp3204/* @rsumner
 esphome/components/mcp4728/* @berfenger
 esphome/components/mcp47a1/* @jesserockz
+esphome/components/mcp9600/* @MrEditor97
 esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
