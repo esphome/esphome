@@ -65,6 +65,7 @@ esphome/components/dht/* @OttoWinter
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/dsmr/* @glmnet @zuidwijk
+esphome/components/dxs238xw/* @rodgon81
 esphome/components/ektf2232/* @jesserockz
 esphome/components/ens210/* @itn3rd77
 esphome/components/esp32/* @esphome/core
