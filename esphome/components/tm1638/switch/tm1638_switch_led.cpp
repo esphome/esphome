@@ -6,7 +6,10 @@ namespace tm1638 {
 
 static const char *const TAG = "tm1638.led";
 
-void TM1638SwitchLed::write_state(bool state) { tm1638_->set_led(led_, state);  publish_state(state);}
+void TM1638SwitchLed::write_state(bool state) {
+  tm1638_->set_led(led_, state);
+  publish_state(state);
+}
 
 void TM1638SwitchLed::dump_config() {
   LOG_SWITCH("", "TM1638 LED", this);
