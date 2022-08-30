@@ -483,8 +483,8 @@ async def register_binary_sensor(var, config):
     await setup_binary_sensor_core_(var, config)
 
 
-async def new_binary_sensor(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_binary_sensor(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_binary_sensor(var, config)
     return var
 
