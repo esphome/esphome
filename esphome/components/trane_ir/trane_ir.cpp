@@ -69,6 +69,8 @@ void TraneClimate::transmit_state() {
     case climate::CLIMATE_MODE_FAN_ONLY:
       mode_state = MODE_FAN;
       break;
+    default:
+      mode_state = MODE_AUTO;
   }
 
   uint8_t temperature_state = 0;
@@ -92,6 +94,8 @@ void TraneClimate::transmit_state() {
     case climate::CLIMATE_FAN_HIGH:
       fan_speed_state = SPEED_HIGH;
       break;
+    default:
+      fan_speed_state = SPEED_AUTO;
   }
 
   // Will try to implement more swing states if I have the time
@@ -99,6 +103,8 @@ void TraneClimate::transmit_state() {
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
       vertical_swing_state = SWING_FULL;
+    default:
+      vertical_swing_state = SWING_OFF;
   }
 
   // ############ FIRST WORD OF TRANE PROTOCOL ############
