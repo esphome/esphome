@@ -57,7 +57,8 @@ void TraneProtocol::encode(RemoteTransmitData *dst, const TraneData &data) {
 }
 
 void TraneProtocol::dump(const TraneData &data) {
-  ESP_LOGD(TAG, "Received Trane: mode=0x%03X, word1=0x%09X, word2=0x%08X", data.mode, data.trane_data_1 data.trane_data_2);
+  ESP_LOGD(TAG, "Received Trane: mode=0x%03X, word1=0x%09X, word2=0x%08X", data.mode, data.trane_data_1,
+           data.trane_data_2);
 }
 
 }  // namespace remote_base
