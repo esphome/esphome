@@ -99,10 +99,11 @@ void TraneClimate::transmit_state() {
   }
 
   // Will try to implement more swing states if I have the time
-  TraneFanVerticalSwing vertical_swing_state = SWING_OFF;
+  TraneFanVerticalSwing vertical_swing_state;
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
       vertical_swing_state = SWING_FULL;
+      break;
     default:
       vertical_swing_state = SWING_OFF;
   }
