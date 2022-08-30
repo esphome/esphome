@@ -76,6 +76,7 @@ def switch_schema(
     *,
     entity_category: str = _UNDEF,
     device_class: str = _UNDEF,
+    block_inverted: bool = False,
 ):
     schema = SWITCH_SCHEMA
     if class_ is not _UNDEF:
@@ -94,6 +95,14 @@ def switch_schema(
                 cv.Optional(
                     CONF_DEVICE_CLASS, default=device_class
                 ): validate_device_class
+            }
+        )
+    if block_inverted:
+        schema = schema.extend(
+            {
+                cv.Optional(CONF_INVERTED): cv.invalid(
+                    "Inverted is not supported for this platform!"
+                )
             }
         )
     return schema
