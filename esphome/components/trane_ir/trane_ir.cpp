@@ -15,7 +15,7 @@ static const uint32_t TRANE_LED = 0xB5F5A5;
 static const uint32_t TRANE_SILENCE_FP = 0xB5F5B6;
 
 static const uint8_t TRANE_MODE_NBITS = 3;
-enum TRANE_MODE{
+enum TraneMode{
   MODE_AUTO,
   MODE_COOL,
   MODE_DRY,
@@ -24,7 +24,7 @@ enum TRANE_MODE{
 };
 
 static const uint8_t TRANE_FAN_SPEED_NBITS = 3;
-enum TRANE_FAN_SPEED{
+enum TraneFanSpeed{
   SPEED_AUTO,
   SPEED_LOW,
   SPEED_MED,
@@ -33,7 +33,7 @@ enum TRANE_FAN_SPEED{
 
 // Vertical swing mode. To be implemented other than full swing
 static const uint8_t TRANE_VERTICAL_SWING_NBITS = 4;
-enum TRANE_FAN_VERTICAL_SWING{
+enum TraneFanVerticalSwing{
   SWING_OFF,
   SWING_FULL,
   SWING_POSITION1,
@@ -55,7 +55,7 @@ static const uint8_t TRANE_TEMP_RANGE = TRANE_TEMP_MAX - TRANE_TEMP_MIN + 1;
 static const uint8_t CHECKSUM_NBITS = 4;
 
 void TraneClimate::transmit_state() {
-  enum TRANE_MODE mode_state = MODE_AUTO;
+  enum TraneMode mode_state = MODE_AUTO;
   switch(this->mode){
     case climate::CLIMATE_MODE_COOL:
       mode_state = MODE_COOL;
@@ -78,7 +78,7 @@ void TraneClimate::transmit_state() {
     temperature_state = (temp-16);
   }
 
-  TRANE_FAN_SPEED fan_speed_state = SPEED_AUTO;
+  TraneFanSpeed fan_speed_state = SPEED_AUTO;
   switch(this->fan_mode.value()){
     case climate::CLIMATE_FAN_AUTO:
       fan_speed_state = SPEED_AUTO;
@@ -95,7 +95,7 @@ void TraneClimate::transmit_state() {
   }
 
   // Will try to implement more swing states if I have the time
-  TRANE_FAN_VERTICAL_SWING vertical_swing_state = SWING_OFF;
+  TraneFanVerticalSwing vertical_swing_state = SWING_OFF;
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
       vertical_swing_state = SWING_FULL;
@@ -146,5 +146,5 @@ void TraneClimate::transmit_state() {
   transmit.perform();
 }
 
-}  // namespace TRANE
+}  // namespace trane_ir
 }  // namespace esphome

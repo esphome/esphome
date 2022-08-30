@@ -61,7 +61,8 @@ optional<TraneData> TraneProtocol::decode(RemoteReceiveData src) {
   TraneData data{
       .trane_data_1 = 0,
       .trane_data_2 = 0,
-  };
+  }
+
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
 
@@ -96,5 +97,5 @@ optional<TraneData> TraneProtocol::decode(RemoteReceiveData src) {
 void TraneProtocol::dump(const TraneData &data) {
   ESP_LOGD(TAG, "Received Trane: data=0x%09X, word2=0x%08X", data.trane_data_1, data.trane_data_2);
 }
-}
-}
+}  // namespace remote_base
+}  // namespace esphome

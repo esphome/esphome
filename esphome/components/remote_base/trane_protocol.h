@@ -21,7 +21,7 @@ struct TraneData {
 class TraneProtocol : public RemoteProtocol<TraneData>{
  public:
   void encode(RemoteTransmitData *dst, const TraneData &data) override;
-  optional<TraneData> decode(RemoteReceiveData data) override;
+  optional<TraneData> decode(RemoteReceiveData src) override;
   void dump(const TraneData &data) override;
 };
 
@@ -41,5 +41,5 @@ template<typename... Ts> class TraneAction : public RemoteTransmitterActionBase<
   }
 };
 
-}
-}
+}  // namespace remote_base
+}  // namespace esphome

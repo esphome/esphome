@@ -34,5 +34,5 @@ class TraneClimate : public climate_ir::ClimateIR {
   climate::ClimateMode mode_before_{climate::CLIMATE_MODE_OFF};
 };
 
-}  // namespace coolix
+}  // namespace trane_ir
 }  // namespace esphome
