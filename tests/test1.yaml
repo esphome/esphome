@@ -1921,6 +1921,8 @@ climate:
     heat_mode: extended
   - platform: whynter
     name: Whynter
+  - platform: trane_ir
+    name: Trane
 
 script:
   - id: climate_custom
@@ -2033,6 +2035,13 @@ switch:
           rc_code_2: 0xA506
           repeat:
             times: 2
+  - platform: template
+    name: Trane
+    turn_on_action:
+      remote_transmitter.transmit_trane:
+        mode: 1
+        A: 0x4A0634EE
+        B: 0x70004301
   - platform: template
     name: RC Switch Raw
     turn_on_action:
