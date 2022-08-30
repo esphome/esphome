@@ -56,6 +56,54 @@ void TraneProtocol::encode(RemoteTransmitData *dst, const TraneData &data) {
   dst->space(PAUSE_US);
 }
 
+optional<TraneData> TraneProtocol::decode(esphome::remote_base::RemoteReceiveData src) {
+  TraneData out{
+      .mode = 0,
+      .trane_data_1 = 0,
+      .trane_data_2 = 0,
+  };
+
+  if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
+    return {};
+
+  uint32_t mask;
+  for (mask = 1; mask <= 4; mask <<= 1) {
+    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+      out.mode |= mask;
+    } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+      out.mode &= ~mask;
+    } else {
+      return {};
+    }
+  }
+
+  for (mask = 1; mask; mask <<= 1) {
+    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+      out.trane_data_1 |= mask;
+    } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+      out.trane_data_1 &= ~mask;
+    } else {
+      return {};
+    }
+  }
+  src.expect_mark(BIT_HIGH_US);
+  src.expect_space(PAUSE_US);
+
+  for (uint32_t mask = 1; mask; mask <<= 1) {
+    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+      out.trane_data_2 |= mask;
+    } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+      out.trane_data_2 &= ~mask;
+    } else {
+      return {};
+    }
+  }
+
+  src.expect_mark(BIT_HIGH_US);
+  src.expect_space(PAUSE_US);
+
+  return out;
+}
 void TraneProtocol::dump(const TraneData &data) {
   ESP_LOGD(TAG, "Received Trane: mode=0x%03X, word1=0x%09X, word2=0x%08X", data.mode, data.trane_data_1,
            data.trane_data_2);
