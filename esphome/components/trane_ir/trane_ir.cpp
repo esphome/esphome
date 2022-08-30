@@ -107,37 +107,37 @@ void TraneClimate::transmit_state() {
       vertical_swing_state = SWING_OFF;
   }
 
-  // ############ FIRST WORD OF TRANE PROTOCOL ############
-
-  // constant that has to do with unit light, power, and something else I haven't figured out in the protocol yet
-  uint32_t remote_state_1 = TRANE_CONSTANT_1;
-  remote_state_1 |= (temperature_state << (9 - TRANE_TEMP_NBITS));
-  // Implicit 0 for sleep
-  // I believe there must be a 1 here for a boolean on whether swing mode is on or off
-  remote_state_1 |= (1 << 3);
-  remote_state_1 |= (fan_speed_state << (4 - TRANE_FAN_SPEED_NBITS));
-  // power boolean
-  remote_state_1 |= 1;
-
-  // ############ CHECKSUM CALCULATION ############
-  uint8_t checksum_a = mode_state | (1 << 3) | (fan_speed_state << 4) | (1 << 6);
-  uint8_t checksum_b = temperature_state;
-  uint8_t checksum_c = 0;
-  uint8_t checksum = (14 + checksum_a + checksum_b + checksum_c) & 15;
-
-  // ############ SECOND WORD OF TRANE PROTOCOL ############
-  uint32_t remote_state_2 = TRANE_CONSTANT_2;
-  remote_state_2 |= (checksum << (32 - CHECKSUM_NBITS));
-  // TEMP DISPLAY
-  remote_state_2 |= (2 << 8);
-  remote_state_2 |= vertical_swing_state;
-
-  // #######################################################
-
   if (this->mode == climate::CLIMATE_MODE_OFF) {
     mode_state = MODE_COOL;
     remote_state_1 = 0x4A0634EE;
     remote_state_2 = 0x70004301;
+  }  else {
+    // ############ FIRST WORD OF TRANE PROTOCOL ############
+
+    // constant that has to do with unit light, power, and something else I haven't figured out in the protocol yet
+    uint32_t remote_state_1 = TRANE_CONSTANT_1;
+    remote_state_1 |= (temperature_state << (9 - TRANE_TEMP_NBITS));
+    // Implicit 0 for sleep
+    // I believe there must be a 1 here for a boolean on whether swing mode is on or off
+    remote_state_1 |= (1 << 3);
+    remote_state_1 |= (fan_speed_state << (4 - TRANE_FAN_SPEED_NBITS));
+    // power boolean
+    remote_state_1 |= 1;
+
+    // ############ CHECKSUM CALCULATION ############
+    uint8_t checksum_a = mode_state | (1 << 3) | (fan_speed_state << 4) | (1 << 6);
+    uint8_t checksum_b = temperature_state;
+    uint8_t checksum_c = 0;
+    uint8_t checksum = (14 + checksum_a + checksum_b + checksum_c) & 15;
+
+    // ############ SECOND WORD OF TRANE PROTOCOL ############
+    uint32_t remote_state_2 = TRANE_CONSTANT_2;
+    remote_state_2 |= (checksum << (32 - CHECKSUM_NBITS));
+    // TEMP DISPLAY
+    remote_state_2 |= (2 << 8);
+    remote_state_2 |= vertical_swing_state;
+
+    // #######################################################
   }
 
   remote_base::TraneData remote_state;
