@@ -15,7 +15,7 @@ static const uint32_t TRANE_LED = 0xB5F5A5;
 static const uint32_t TRANE_SILENCE_FP = 0xB5F5B6;
 
 static const uint8_t TRANE_MODE_NBITS = 3;
-enum TraneMode{
+enum TraneMode {
   MODE_AUTO,
   MODE_COOL,
   MODE_DRY,
@@ -24,7 +24,7 @@ enum TraneMode{
 };
 
 static const uint8_t TRANE_FAN_SPEED_NBITS = 3;
-enum TraneFanSpeed{
+enum TraneFanSpeed {
   SPEED_AUTO,
   SPEED_LOW,
   SPEED_MED,
@@ -33,7 +33,7 @@ enum TraneFanSpeed{
 
 // Vertical swing mode. To be implemented other than full swing
 static const uint8_t TRANE_VERTICAL_SWING_NBITS = 4;
-enum TraneFanVerticalSwing{
+enum TraneFanVerticalSwing {
   SWING_OFF,
   SWING_FULL,
   SWING_POSITION1,
@@ -56,7 +56,7 @@ static const uint8_t CHECKSUM_NBITS = 4;
 
 void TraneClimate::transmit_state() {
   enum TraneMode mode_state = MODE_AUTO;
-  switch(this->mode){
+  switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
       mode_state = MODE_COOL;
       break;
@@ -73,13 +73,13 @@ void TraneClimate::transmit_state() {
 
   uint8_t temperature_state = 0;
 
-  if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT){
+  if (this->mode == climate::CLIMATE_MODE_COOL || this->mode == climate::CLIMATE_MODE_HEAT) {
     auto temp = roundf(clamp<float>(this->target_temperature, TRANE_TEMP_MIN, TRANE_TEMP_MAX));
-    temperature_state = (temp-16);
+    temperature_state = (temp - 16);
   }
 
   TraneFanSpeed fan_speed_state = SPEED_AUTO;
-  switch(this->fan_mode.value()){
+  switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_AUTO:
       fan_speed_state = SPEED_AUTO;
       break;
@@ -99,19 +99,18 @@ void TraneClimate::transmit_state() {
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
       vertical_swing_state = SWING_FULL;
-
   }
 
   // ############ FIRST WORD OF TRANE PROTOCOL ############
 
-  //constant that has to do with unit light, power, and something else I haven't figured out in the protocol yet
+  // constant that has to do with unit light, power, and something else I haven't figured out in the protocol yet
   uint32_t remote_state_1 = TRANE_CONSTANT_1;
   remote_state_1 |= (temperature_state << (9 - TRANE_TEMP_NBITS));
-  //Implicit 0 for sleep
-  //I believe there must be a 1 here for a boolean on whether swing mode is on or off
+  // Implicit 0 for sleep
+  // I believe there must be a 1 here for a boolean on whether swing mode is on or off
   remote_state_1 |= (1 << 3);
   remote_state_1 |= (fan_speed_state << (4 - TRANE_FAN_SPEED_NBITS));
-  //power boolean
+  // power boolean
   remote_state_1 |= 1;
 
   // ############ CHECKSUM CALCULATION ############
@@ -129,7 +128,7 @@ void TraneClimate::transmit_state() {
 
   // #######################################################
 
-  if(this->mode == climate::CLIMATE_MODE_OFF){
+  if (this->mode == climate::CLIMATE_MODE_OFF) {
     mode_state = MODE_COOL;
     remote_state_1 = 0x4A0634EE;
     remote_state_2 = 0x70004301;

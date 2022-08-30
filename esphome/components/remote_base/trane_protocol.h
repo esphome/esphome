@@ -18,7 +18,7 @@ struct TraneData {
   uint32_t trane_data_2;
 };
 
-class TraneProtocol : public RemoteProtocol<TraneData>{
+class TraneProtocol : public RemoteProtocol<TraneData> {
  public:
   void encode(RemoteTransmitData *dst, const TraneData &data) override;
   optional<TraneData> decode(RemoteReceiveData src) override;
