@@ -64,17 +64,13 @@ uint8_t MLX90614Component::crc8_pec_(const uint8_t *data, uint8_t len) {
 }
 
 bool MLX90614Component::write_bytes_(uint8_t reg, uint16_t data) {
-  uint8_t buf[4];
+  uint8_t buf[5];
   buf[0] = this->address_;
   buf[1] = reg;
   buf[2] = data & 0xFF;
   buf[3] = data >> 8;
-  uint8_t pec = this->crc8_pec_(buf, 4);
-
-  buf[0] = buf[2];
-  buf[1] = buf[3];
-  buf[2] = pec;
-  return this->write_bytes(reg, buf, 3);
+  buf[4] = this->crc8_pec_(buf, 4);
+  return this->write_bytes(reg, buf + 2, 3);
 }
 
 void MLX90614Component::dump_config() {
