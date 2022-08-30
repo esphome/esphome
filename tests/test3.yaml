@@ -298,8 +298,60 @@ wled:
 
 adalight:
 
+dxs238xw:
+  update_interval: 3s
+  uart_id: uart5
 
 sensor:
+  - platform: dxs238xw
+    current_phase_1:
+      name: "Current Phase 1"
+    current_phase_2:
+      name: "Current Phase 2"
+    current_phase_3:
+      name: "Current Phase 3"
+    voltage_phase_1:
+      name: "Voltage Phase 1"
+    voltage_phase_2:
+      name: "Voltage Phase 2"
+    voltage_phase_3:
+      name: "Voltage Phase 3"
+    frequency:
+      name: "Frequency"
+    reactive_power_phase_1:
+      name: "Reactive Power Phase 1"
+    reactive_power_phase_2:
+      name: "Reactive Power Phase 2"
+    reactive_power_phase_3:
+      name: "Reactive Power Phase 3"
+    reactive_power_total:
+      name: "Reactive Power Total"
+    active_power_phase_1:
+      name: "Active Power Phase 1"
+    active_power_phase_2:
+      name: "Active Power Phase 2"
+    active_power_phase_3:
+      name: "Active Power Phase 3"
+    active_power_total:
+      name: "Active Power Total"
+    power_factor_phase_1:
+      name: "Power Factor Phase 1"
+    power_factor_phase_2:
+      name: "Power Factor Phase 2"
+    power_factor_phase_3:
+      name: "Power Factor Phase 3"
+    power_factor_total:
+      name: "Power Factor Total"
+    import_active_energy:
+      name: "Import Active Energy"
+    export_active_energy:
+      name: "Export Active Energy"
+    total_energy:
+      name: "Total Energy"
+    energy_purchase_balance:
+      name: "Energy Purchase - Balance"
+    phase_count:
+      name: "Phases N°"
   - platform: daly_bms
     voltage:
       name: "Battery Voltage"
@@ -784,6 +836,23 @@ mpr121:
   address: 0x5A
 
 binary_sensor:
+  - platform: dxs238xw
+    warning_off_by_over_voltage:
+      name: "Over Voltage Alert"
+    warning_off_by_under_voltage:
+      name: "Under Voltage Alert"
+    warning_off_by_over_current:
+      name: "Over Current Alert"
+    warning_off_by_end_purchase:
+      name: "End Purchase Alert"
+    warning_off_by_end_delay:
+      name: "End Delay Alert"
+    warning_off_by_user:
+      name: "Off by User Alert"
+    warning_purchase_alarm:
+      name: "Balance Purchase Alert"
+    meter_state:
+      name: "Relay State"
   - platform: daly_bms
     charging_mos_enabled:
       name: "Charging MOS"
@@ -889,6 +958,23 @@ status_led:
   pin: GPIO2
 
 text_sensor:
+  - platform: dxs238xw
+    meter_state_detail:
+      name: "State - Detail"
+      filters:
+        - substitute:
+          - "Off by Over Voltage -> INACTIVE - Over Voltage"
+          - "Off by Under Voltage -> INACTIVE - Under Voltage"
+          - "Off by Over Current -> INACTIVE - Over Current"
+          - "Off by End Purchase -> INACTIVE - End Purchase"
+          - "Off by End Delay -> INACTIVE - End Delay"
+          - "Off by User -> INACTIVE - By User"
+          - "Off by Unknown -> INACTIVE - Unknown"
+          - "Power Ok -> ACTIVE"
+    delay_value_remaining:
+      name: "Remaining Delay Time"
+    meter_id:
+      name: "Serial N°"
   - platform: daly_bms
     status:
       name: "BMS Status"
@@ -946,7 +1032,29 @@ sm2135:
   data_pin: GPIO12
   clock_pin: GPIO14
 
+number:
+  - platform: dxs238xw
+    max_current_limit:
+      name: "Maximum Current"
+    max_voltage_limit:
+      name: "Maximum Voltage"
+    min_voltage_limit:
+      name: "Minimum Voltage"
+    energy_purchase_value:
+      name: "Energy Purchase"
+    energy_purchase_alarm:
+      name: "Energy Purchase Alarm"
+    delay_value_set:
+      name: "Delay Time"
+
 switch:
+  - platform: dxs238xw
+    energy_purchase_state:
+      name: "Activate Energy Purchase"
+    meter_state:
+      name: "State SmartMeter"
+    delay_state:
+      name: "Activate Delay"
   - platform: template
     name: 'mpr121_toggle'
     id: mpr121_toggle
@@ -1502,6 +1610,9 @@ qr_code:
     value: https://esphome.io/index.html
 
 button:
+  - platform: dxs238xw
+    reset_data:
+      name: "Restart Consumption"
   - platform: output
     id: output_button
     output: out
