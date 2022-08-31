@@ -98,14 +98,14 @@ void MLX90614Component::update() {
     return;
   }
 
-  float ambient = encode_uint16(raw_ambient[1], raw_ambient[0]) * 0.02f - 273.15f;
-  float object = encode_uint16(raw_object[1], raw_object[0]) * 0.02f - 273.15f;
+  float ambient = raw_ambient[1] & 0x80 ? NAN : encode_uint16(raw_ambient[1], raw_ambient[0]) * 0.02f - 273.15f;
+  float object = raw_object[1] & 0x80 ? NAN : encode_uint16(raw_object[1], raw_object[0]) * 0.02f - 273.15f;
 
   ESP_LOGD(TAG, "Got Temperature=%.1f°C Ambient=%.1f°C", object, ambient);
 
-  if (this->ambient_sensor_ != nullptr)
+  if (this->ambient_sensor_ != nullptr && std::isnan(ambient))
     this->ambient_sensor_->publish_state(ambient);
-  if (this->object_sensor_ != nullptr)
+  if (this->object_sensor_ != nullptr && std::isnan(object))
     this->object_sensor_->publish_state(object);
   this->status_clear_warning();
 }
