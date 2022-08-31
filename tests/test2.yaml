@@ -96,6 +96,9 @@ sensor:
   - platform: ble_rssi
     service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
     name: 'BLE Test Service 128'
+  - platform: ble_rssi
+    service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    name: 'BLE Test iBeacon UUID'
   - platform: b_parasite
     mac_address: F0:CA:F0:CA:01:01
     humidity:
