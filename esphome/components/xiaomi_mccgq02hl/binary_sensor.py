@@ -12,7 +12,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@JordyH66"]
 DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["xiaomi_ble",'sensor']
+AUTO_LOAD = ["xiaomi_ble", "sensor"]
 
 xiaomi_mccgq02hl_ns = cg.esphome_ns.namespace("xiaomi_mccgq02hl")
 XiaomiMCCGQ02HL = xiaomi_mccgq02hl_ns.class_(
