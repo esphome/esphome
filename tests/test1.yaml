@@ -2088,6 +2088,13 @@ switch:
       remote_transmitter.transmit_raw:
         code: [1000, -1000]
   - platform: template
+    name: AEHA
+    id: eaha_hitachi_climate_power_on
+    turn_on_action:
+      remote_transmitter.transmit_aeha:
+        address: 0x8008
+        data: [0x00, 0x02, 0xFD, 0xFF, 0x00, 0x33, 0xCC, 0x49, 0xB6, 0xC8, 0x37, 0x16, 0xE9, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0xCA, 0x35, 0x8F, 0x70, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF]
+  - platform: template
     name: Living Room Lights
     id: livingroom_lights
     optimistic: True
@@ -2221,6 +2228,9 @@ fan:
     on_speed_set:
       then:
         - logger.log: "Fan speed was changed!"
+  - platform: bedjet
+    name: My Bedjet fan
+    bedjet_id: my_bedjet_client
   - platform: copy
     source_id: fan_speed
     name: "Fan Speed Copy"

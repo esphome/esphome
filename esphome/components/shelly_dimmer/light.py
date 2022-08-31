@@ -73,7 +73,7 @@ def get_firmware(value):
 
     def dl(url):
         try:
-            req = requests.get(url)
+            req = requests.get(url, timeout=30)
             req.raise_for_status()
         except requests.exceptions.RequestException as e:
             raise cv.Invalid(f"Could not download firmware file ({url}): {e}")
