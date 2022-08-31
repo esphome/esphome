@@ -89,7 +89,7 @@ void ILI9341Display::display_() {
   uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
 
   // check if something was displayed
-  if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_ )) {
+  if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
     return;
   }
 
