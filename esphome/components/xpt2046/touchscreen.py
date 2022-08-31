@@ -73,7 +73,7 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
             ),
             cv.Optional(CONF_THRESHOLD, default=400): cv.int_range(min=0, max=4095),
             cv.Optional(CONF_REPORT_INTERVAL, default="never"): report_interval,
-            # cv.Optional(CONF_SWAP_X_Y, default=False): cv.boolean,
+            cv.Optional(CONF_SWAP_X_Y, default=False): cv.boolean,
         }
     )
     # .extend(cv.polling_component_schema("50ms"))
