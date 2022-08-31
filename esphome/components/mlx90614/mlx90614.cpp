@@ -87,6 +87,11 @@ void MLX90614Component::dump_config() {
 float MLX90614Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void MLX90614Component::update() {
+  uint8_t emissivity[3];
+  this->read_register(MLX90614_EMISSIVITY, raw_object, 3, false) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
   uint8_t raw_object[3];
   if (this->read_register(MLX90614_TEMPERATURE_OBJECT_1, raw_object, 3, false) != i2c::ERROR_OK) {
     this->status_set_warning();
