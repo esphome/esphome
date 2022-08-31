@@ -89,12 +89,12 @@ void ILI9341Display::display_() {
   uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
 
   // check if something was displayed
-  if ((this->x_high_ < this->x_low_ ) || (this->y_high_ < this->y_low_ )) return; // NOLINT
+  if ((this->x_high_ < this->x_low_ ) || (this->y_high_ < this->y_low_ )) {return;}
 
   set_addr_window_(this->x_low_, this->y_low_, w, h);
 
   ESP_LOGD("ILI9341", "Start ILI9341Display::display_(xl:%d, xh:%d, yl:%d, yh:%d, w:%d, h:%d, start_pos:%d)",
-           this->x_low_, this->x_high_, this->y_low_, this->y_high_, w, h, start_pos );
+           this->x_low_, this->x_high_, this->y_low_, this->y_high_, w, h, start_pos);
 
   this->start_data_();
   for (uint16_t row = 0; row < h; row++) {
@@ -132,7 +132,7 @@ void ILI9341Display::fill(Color color) {
 void ILI9341Display::fill_internal_(uint8_t color) {
   memset(transfer_buffer_, color, sizeof(transfer_buffer_));
 
-  uint32_t rem = (this->get_buffer_length_()*2);
+  uint32_t rem = (this->get_buffer_length_() * 2);
 
   this->set_addr_window_(0, 0, this->get_width_internal(), this->get_height_internal());
   this->start_data_();
@@ -149,7 +149,7 @@ void ILI9341Display::fill_internal_(uint8_t color) {
 }
 
 void ILI9341Display::rotate_my_(uint8_t m) {
-  uint8_t rotation = m & 3; // can't be higher than 3
+  uint8_t rotation = m & 3;  // can't be higher than 3
   switch (rotation) {
     case 0:
       m = (MADCTL_MX | MADCTL_BGR);
@@ -192,7 +192,7 @@ void HOT ILI9341Display::draw_absolute_pixel_internal(int x, int y, Color color)
 
   if (buffer_[pos] != new_color) {
     buffer_[pos] = new_color;
-  // low and high watermark may speed up drawing from buffer
+    // low and high watermark may speed up drawing from buffer
     this->x_low_ = (x < this->x_low_) ? x : this->x_low_;
     this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
     this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
