@@ -11,7 +11,6 @@ static const char *const TAG = "xpt2046";
 
 void XPT2046TouchscreenStore::gpio_intr(XPT2046TouchscreenStore *store) { store->touch = true; }
 
-
 void XPT2046Component::setup() {
   if (this->irq_pin_ != nullptr) {
     // The pin reports a touch with a falling edge. Unfortunately the pin goes also changes state
@@ -23,28 +22,13 @@ void XPT2046Component::setup() {
     this->irq_pin_->setup();
 
     this->store_.pin = this->irq_pin_->to_isr();
-    this->irq_pin_->attach_interrupt(XPT2046TouchscreenStore::gpio_intr, &this->store_,
-                                          gpio::INTERRUPT_FALLING_EDGE);
-
+    this->irq_pin_->attach_interrupt(XPT2046TouchscreenStore::gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
   }
   spi_setup();
   read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
 }
 
 void XPT2046Component::loop() {
-  /** replaced by real interupt handler.
-   * 
-  if (this->irq_pin_ != nullptr) {
-    // Force immediate update if a falling edge (= touched is seen) Ignore if still active
-    // (that would mean that we missed the release because of a too long update interval)
-    bool val = this->irq_pin_->digital_read();
-    if (!val && this->last_irq_ && !this->touched) {
-      ESP_LOGD(TAG, "Falling penirq edge, forcing update");
-      update();
-    }
-    this->last_irq_ = val;
-  }
-  **/
   if ((this->irq_pin_ == nullptr) || (!this->store_.touch))
     return;
   this->store_.touch = false;
@@ -65,7 +49,7 @@ void XPT2046Component::check_touch_(){
 
   // In case the penirq pin is present only do the SPI transaction if it reports a touch (is low).
   // The touch has to be also confirmed with checking the pressure over threshold
-  if (this->irq_pin_ == nullptr || !this->irq_pin_->digital_read()) {
+  if ((this->irq_pin_ == nullptr) || !this->irq_pin_->digital_read()) {
     enable();
 
     int16_t z1 = read_adc_(0xB1 /* Z1 */);
@@ -88,7 +72,6 @@ void XPT2046Component::check_touch_(){
     disable();
 
     if (touch) {
-
       this->x_raw = best_two_avg(data[0], data[2], data[4]);
       this->y_raw = best_two_avg(data[1], data[3], data[5]);
 
@@ -98,7 +81,7 @@ void XPT2046Component::check_touch_(){
       tp.y = normalize(this->y_raw, this->y_raw_min_, this->y_raw_max_);
 
       if (this->swap_x_y_) {
-          std::swap(tp.x, tp.y);
+        std::swap(tp.x, tp.y);
       }
 
       switch (this->rotation_) {
@@ -130,20 +113,12 @@ void XPT2046Component::check_touch_(){
         this->y = tp.x;
         this->touched = true;
         this->last_pos_ms_ = now;
-
-        this->on_state_trigger_->process(this->x, this->y, true);
       }
-      for (auto *button : this->touch_listeners_)
-        button->touch(tp);
     } else {
       this->x_raw = this->y_raw = 0;
       if (this->touched) {
         ESP_LOGD(TAG, "Released [%d, %d]", this->x, this->y);
         this->touched = false;
-
-        this->on_state_trigger_->process(this->x, this->y, false);
-        for (auto *listener : this->touch_listeners_)
-          listener->release();
       }
     }
   }
@@ -154,8 +129,8 @@ void XPT2046Component::set_calibration(int16_t x_min, int16_t x_max, int16_t y_m
   this->x_raw_max_ = std::max(x_min, x_max);
   this->y_raw_min_ = std::min(y_min, y_max);
   this->y_raw_max_ = std::max(y_min, y_max);
- // this->invert_x_ = (x_min > x_max);
- // this->invert_y_ = (y_min > y_max);
+  // this->invert_x_ = (x_min > x_max);
+  // this->invert_y_ = (y_min > y_max);
 }
 
 void XPT2046Component::dump_config() {
@@ -221,8 +196,6 @@ int16_t XPT2046Component::read_adc_(uint8_t ctrl) {
 
   return ((data[0] << 8) | data[1]) >> 3;
 }
-
-void XPT2046OnStateTrigger::process(int x, int y, bool touched) { this->trigger(x, y, touched); }
 
 }  // namespace xpt2046
 }  // namespace esphome

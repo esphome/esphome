@@ -11,18 +11,12 @@ namespace xpt2046 {
 
 using namespace touchscreen;
 
-class XPT2046OnStateTrigger : public Trigger<int, int, bool> {
- public:
-  void process(int x, int y, bool touched);
-};
-
 struct XPT2046TouchscreenStore {
   volatile bool touch;
   ISRInternalGPIOPin pin;
 
   static void gpio_intr(XPT2046TouchscreenStore *store);
 };
-
 
 class XPT2046Component : public Touchscreen,
                          public PollingComponent,
@@ -47,8 +41,6 @@ class XPT2046Component : public Touchscreen,
   void set_threshold(int16_t threshold) { this->threshold_ = threshold; }
   /// Set the pin used to detect the touch.
   void set_irq_pin(InternalGPIOPin *pin) { this->irq_pin_ = pin; }
-  /// Get an access to the on_state automation trigger
-  XPT2046OnStateTrigger *get_on_state_trigger() const { return this->on_state_trigger_; }
 
   void setup() override;
   void dump_config() override;
@@ -92,7 +84,6 @@ class XPT2046Component : public Touchscreen,
   int16_t x_raw{0}, y_raw{0}, z_raw{0};
   /**@}*/
 
-
  protected:
   static int16_t best_two_avg(int16_t x, int16_t y, int16_t z);
   static int16_t normalize(int16_t val, int16_t min_val, int16_t max_val);
@@ -109,9 +100,7 @@ class XPT2046Component : public Touchscreen,
   uint32_t last_pos_ms_{0};
 
   InternalGPIOPin *irq_pin_{nullptr};
-  //bool last_irq_{true}; <= replaced by real interup handler
   XPT2046TouchscreenStore store_;
-  XPT2046OnStateTrigger *on_state_trigger_{new XPT2046OnStateTrigger()};
 };
 
 }  // namespace xpt2046
