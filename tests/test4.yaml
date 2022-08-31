@@ -618,6 +618,7 @@ touchscreen:
           args: ["touch.x", "touch.y"]
   - platform: xpt2046
     id: xpt_touchscreen
+    display: inkplate_display
     cs_pin: 17
     interrupt_pin: 16
     update_interval: 50ms
