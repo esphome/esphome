@@ -6,6 +6,7 @@ from esphome.components import mqtt
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_INVERTED,
     CONF_MQTT_ID,
@@ -45,7 +46,6 @@ SwitchTurnOffTrigger = switch_ns.class_(
     "SwitchTurnOffTrigger", automation.Trigger.template()
 )
 
-icon = cv.icon
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
@@ -76,6 +76,8 @@ def switch_schema(
     *,
     entity_category: str = _UNDEF,
     device_class: str = _UNDEF,
+    icon: str = _UNDEF,
+    block_inverted: bool = False,
 ):
     schema = SWITCH_SCHEMA
     if class_ is not _UNDEF:
@@ -94,6 +96,16 @@ def switch_schema(
                 cv.Optional(
                     CONF_DEVICE_CLASS, default=device_class
                 ): validate_device_class
+            }
+        )
+    if icon is not _UNDEF:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
+    if block_inverted:
+        schema = schema.extend(
+            {
+                cv.Optional(CONF_INVERTED): cv.invalid(
+                    "Inverted is not supported for this platform!"
+                )
             }
         )
     return schema
