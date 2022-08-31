@@ -26,16 +26,7 @@ void EE895Component::setup() {
     this->mark_failed();
     return;
   }
-  uint32_t serial_number1 =
-      (serial_number[2] << 24) + (serial_number[3] << 16) + (serial_number[4] << 8) + serial_number[5];
-  uint32_t serial_number2 =
-      (serial_number[6] << 24) + (serial_number[7] << 16) + (serial_number[8] << 8) + serial_number[9];
-  uint32_t serial_number3 =
-      (serial_number[10] << 24) + (serial_number[11] << 16) + (serial_number[12] << 8) + serial_number[13];
-  uint32_t serial_number4 =
-      (serial_number[14] << 24) + (serial_number[15] << 16) + (serial_number[16] << 8) + serial_number[17];
-  ESP_LOGV(TAG, "    Serial Number: 0x%08X%08X%08X%08X", serial_number1, serial_number2, serial_number3,
-           serial_number4);
+  ESP_LOGV(TAG, "    Serial Number: 0x%s", format_hex(serial_number + 2, 16).c_str());
 }
 
 void EE895Component::dump_config() {

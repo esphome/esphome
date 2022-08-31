@@ -17,11 +17,7 @@ void HTE501Component::setup() {
     this->mark_failed();
     return;
   }
-  uint32_t serial_number1 =
-      (identification[0] << 24) + (identification[1] << 16) + (identification[2] << 8) + identification[3];
-  uint32_t serial_number2 =
-      (identification[4] << 24) + (identification[5] << 16) + (identification[6] << 8) + identification[7];
-  ESP_LOGV(TAG, "    Serial Number: 0x%08X%08X", serial_number1, serial_number2);
+  ESP_LOGV(TAG, "    Serial Number: 0x%s", format_hex(identification + 0, 7).c_str());
 }
 
 void HTE501Component::dump_config() {
