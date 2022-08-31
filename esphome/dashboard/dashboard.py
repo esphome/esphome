@@ -823,7 +823,9 @@ class LoginHandler(BaseHandler):
             "password": self.get_argument("password", ""),
         }
         try:
-            req = requests.post("http://supervisor/auth", headers=headers, data=data)
+            req = requests.post(
+                "http://supervisor/auth", headers=headers, data=data, timeout=30
+            )
             if req.status_code == 200:
                 self.set_secure_cookie("authenticated", cookie_authenticated_yes)
                 self.redirect("/")
