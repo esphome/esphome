@@ -5,7 +5,7 @@ from esphome import pins
 from esphome.components import spi, touchscreen
 from esphome.const import CONF_ID, CONF_THRESHOLD
 
-CODEOWNERS = ["@nielsnl68"]
+CODEOWNERS = ["@numo68", "@nielsnl68"]
 DEPENDENCIES = ["spi"]
 
 XPT2046_ns = cg.esphome_ns.namespace("xpt2046")
@@ -13,7 +13,6 @@ XPT2046Component = XPT2046_ns.class_(
     "XPT2046Component", touchscreen.Touchscreen, cg.PollingComponent, spi.SPIDevice
 )
 
-CONF_XPT2046_ID = "XPT2046_ID"
 CONF_INTERRUPT_PIN = "interrupt_pin"
 
 CONF_REPORT_INTERVAL = "report_interval"
@@ -76,9 +75,9 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
             cv.Optional(CONF_SWAP_X_Y, default=False): cv.boolean,
         }
     )
-    # .extend(cv.polling_component_schema("50ms"))
+    .extend(cv.polling_component_schema("50ms"))
     .extend(spi.spi_device_schema()),
-    # validate_xpt2046,
+    validate_xpt2046,
 )
 
 

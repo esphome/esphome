@@ -619,7 +619,7 @@ touchscreen:
   - platform: xpt2046
     id: xpt_touchscreen
     cs_pin: 17
-    irq_pin: 16
+    interrupt_pin: 16
     update_interval: 50ms
     report_interval: 1s
     threshold: 400
