@@ -13,7 +13,7 @@ XPT2046Component = XPT2046_ns.class_(
     "XPT2046Component", touchscreen.Touchscreen, cg.PollingComponent, spi.SPIDevice
 )
 
-CONF_XPT2046_ID = "XPT2046_id"
+CONF_XPT2046_ID = "XPT2046_ID"
 CONF_INTERRUPT_PIN = "interrupt_pin"
 
 CONF_REPORT_INTERVAL = "report_interval"
