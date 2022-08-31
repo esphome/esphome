@@ -636,9 +636,8 @@ touchscreen:
     calibration_x_max: 280
     calibration_y_min: 340
     calibration_y_max: 3860
-    swap_x_y: false
-    on_state:
-      # yamllint disable rule:line-length
+    swap_x_y: False
+    on_touch:
       - lambda: |-
           ESP_LOGI("main", "args x=%d, y=%d, touched=%s", x, y, (touched ? "touch" : "release"));
           ESP_LOGI("main", "member x=%d, y=%d, touched=%d, x_raw=%d, y_raw=%d, z_raw=%d",
