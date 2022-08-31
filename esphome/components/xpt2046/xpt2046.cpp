@@ -40,7 +40,7 @@ void XPT2046Component::update() {
     check_touch_();
 }
 
-void XPT2046Component::check_touch_(){
+void XPT2046Component::check_touch_() {
   int16_t data[6];
   bool touch = false;
   uint32_t now = millis();
