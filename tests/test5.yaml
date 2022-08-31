@@ -344,8 +344,6 @@ switch:
     address: 2
     bitmask: 1
 
-
-
 display:
   - platform: tm1638
     id: primarydisplay
@@ -356,3 +354,4 @@ display:
     intensity: 5
     lambda: |-
       it.print("81818181");
+
