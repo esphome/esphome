@@ -14,7 +14,7 @@ from esphome.const import (
     UNIT_MINUTE,
 )
 
-from . import (
+from .. import (
     dxs238xw_ns,
     CONF_DXS238XW_ID,
     SmIdEntity,

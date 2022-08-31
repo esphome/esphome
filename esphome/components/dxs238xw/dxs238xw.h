@@ -16,8 +16,6 @@
 namespace esphome {
 namespace dxs238xw {
 
-static const char *const TAG = "dxs238xw";
-
 //------------------------------------------------------------------------------
 // DEFAULTS
 //------------------------------------------------------------------------------
@@ -354,7 +352,7 @@ class Dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
   bool receive_serial_data_(uint8_t *array, uint8_t size, uint8_t cmd, uint8_t type_message);
   bool pre_receive_serial_data_(uint8_t cmd, uint8_t frame_size);
 
-  void process_and_update_data_(uint8_t *receive_array);
+  void process_and_update_data_(const uint8_t *receive_array);
 
   bool send_command_(SmCommandSend cmd, bool state = false);
 
@@ -375,47 +373,7 @@ class Dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
 
   void load_initial_number_value_(ESPPreferenceObject &preference, const std::string &preference_name,
                                   uint32_t *value_store);
-  void save_initial_number_value_(ESPPreferenceObject &preference, uint32_t *value);
-};
-
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-//////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////////
-
-class Dxs238xwSwitch : public switch_::Switch {
- public:
-  void set_entity_id(SmIdEntity entity_id) { this->entity_id_ = entity_id; }
-  void set_dxs238xw_parent(Dxs238xwComponent *parent) { this->parent_ = parent; }
-
- protected:
-  void write_state(bool state) override;
-
-  Dxs238xwComponent *parent_;
-  SmIdEntity entity_id_ = SmIdEntity::ID_NULL;
-};
-
-class Dxs238xwButton : public button::Button {
- public:
-  void set_entity_id(SmIdEntity entity_id) { this->entity_id_ = entity_id; }
-  void set_dxs238xw_parent(Dxs238xwComponent *parent) { this->parent_ = parent; }
-
- protected:
-  void press_action() override;
-
-  Dxs238xwComponent *parent_;
-  SmIdEntity entity_id_ = SmIdEntity::ID_NULL;
-};
-
-class Dxs238xwNumber : public number::Number {
- public:
-  void set_entity_id(SmIdEntity entity_id) { this->entity_id_ = entity_id; }
-  void set_dxs238xw_parent(Dxs238xwComponent *parent) { this->parent_ = parent; }
-
- protected:
-  void control(float value) override;
-
-  Dxs238xwComponent *parent_;
-  SmIdEntity entity_id_ = SmIdEntity::ID_NULL;
+  void save_initial_number_value_(ESPPreferenceObject &preference, const uint32_t *value);
 };
 
 }  // namespace dxs238xw

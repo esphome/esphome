@@ -8,7 +8,7 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
 )
 
-from . import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
+from .. import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
 
 DEPENDENCIES = ["uart"]
 

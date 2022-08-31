@@ -10,8 +10,8 @@ from esphome.const import CONF_ID, CONF_RX_PIN, CONF_TX_PIN, CONF_BAUD_RATE, CON
 _LOGGER = logging.getLogger(__name__)
 
 CODEOWNERS = ["@rodgon81"]
+
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["sensor", "text_sensor", "number", "switch", "button", "binary_sensor"]
 
 CONF_DXS238XW_ID = "dxs238xw_id"
 COMPONENT_NAME = "dxs238xw"

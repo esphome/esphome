@@ -25,7 +25,7 @@ from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
-from . import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
+from .. import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
 
 DEPENDENCIES = ["uart"]
 

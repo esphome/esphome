@@ -3,6 +3,8 @@
 namespace esphome {
 namespace dxs238xw {
 
+static const char *const TAG = "dxs238xw";
+
 #define UPDATE_SENSOR(sensor, value) \
   if (this->sensor##_sensor_ != nullptr) { \
     if (this->sensor##_sensor_->get_raw_state() != (value) || this->get_component_state() == COMPONENT_STATE_SETUP) { \
@@ -48,28 +50,6 @@ namespace dxs238xw {
       this->sensor##_switch_->publish_state(value); \
     } \
   }
-
-//------------------------------------------------------------------------------
-////////////////////////////////////////////////////////////////////////////////
-//------------------------------------------------------------------------------
-
-void Dxs238xwSwitch::write_state(bool state) {
-  if (this->state != state) {
-    this->parent_->set_switch_value(this->entity_id_, state);
-  } else {
-    ESP_LOGD(TAG, "* Switch not sending unchanged value %s:", ONOFF(state));
-  }
-}
-
-void Dxs238xwButton::press_action() { this->parent_->set_button_value(this->entity_id_); }
-
-void Dxs238xwNumber::control(float value) {
-  if (this->state != value) {
-    this->parent_->set_number_value(this->entity_id_, value);
-  } else {
-    ESP_LOGD(TAG, "* Number not sending unchanged value %f:", value);
-  }
-}
 
 //------------------------------------------------------------------------------
 ////////////////////////////////////////////////////////////////////////////////
@@ -529,7 +509,7 @@ bool Dxs238xwComponent::pre_receive_serial_data_(uint8_t cmd, uint8_t frame_size
   return false;
 }
 
-void Dxs238xwComponent::process_and_update_data_(uint8_t *receive_array) {
+void Dxs238xwComponent::process_and_update_data_(const uint8_t *receive_array) {
   uint8_t cmd = receive_array[4];
 
   switch (cmd) {
@@ -1079,7 +1059,7 @@ void Dxs238xwComponent::load_initial_number_value_(ESPPreferenceObject &preferen
   *value_store = initial_state;
 }
 
-void Dxs238xwComponent::save_initial_number_value_(ESPPreferenceObject &preference, uint32_t *value) {
+void Dxs238xwComponent::save_initial_number_value_(ESPPreferenceObject &preference, const uint32_t *value) {
   if (preference.save(value)) {
     ESP_LOGD(TAG, "* Save number value: %u", *value);
   } else {
