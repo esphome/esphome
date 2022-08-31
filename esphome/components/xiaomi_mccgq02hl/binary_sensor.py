@@ -7,7 +7,7 @@ from esphome.const import (
     CONF_LIGHT,
     DEVICE_CLASS_LIGHT,
     DEVICE_CLASS_DOOR,
-    CONF_ON_LOCK,
+    CONF_DOOR,
 )
 
 CODEOWNERS = ["@JordyH66"]
@@ -28,7 +28,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Required(CONF_BINDKEY): cv.bind_key,
-            cv.Optional(CONF_ON_LOCK, default=True): binary_sensor.binary_sensor_schema(
+            cv.Optional(CONF_DOOR, default=True): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_DOOR
             ),
             cv.Optional(CONF_LIGHT): binary_sensor.binary_sensor_schema(
@@ -49,8 +49,8 @@ async def to_code(config):
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_bindkey(config[CONF_BINDKEY]))
 
-    if CONF_ON_LOCK in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_ON_LOCK])
+    if CONF_DOOR in config:
+        sens = await binary_sensor.new_binary_sensor(config[CONF_DOOR])
         cg.add(var.set_lock(sens))
     if CONF_LIGHT in config:
         sens = await binary_sensor.new_binary_sensor(config[CONF_LIGHT])
