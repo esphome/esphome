@@ -28,11 +28,9 @@ void ILI9341Display::setup_pins_() {
 
 void ILI9341Display::dump_config() {
   LOG_DISPLAY("", "ili9341", this);
-  //ESP_LOGCONFIG(TAG, "  Width: %d, Height: %d,  Rotation: %d", this->width_, this->height_, this->rotation_); // already shown in the line above.
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
- // LOG_PIN("  Backlight Pin: ", this->led_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -90,11 +88,13 @@ void ILI9341Display::display_() {
   uint16_t h = this->y_high_ - this->y_low_ + 1;
   uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
 
-  if ((this->x_high_ < this->x_low_ ) || (this->y_high_ < this->y_low_ )) return; // check i something was displayed
+  // check if something was displayed
+  if ((this->x_high_ < this->x_low_ ) || (this->y_high_ < this->y_low_ )) return; // NOLINT
 
   set_addr_window_(this->x_low_, this->y_low_, w, h);
 
-  ESP_LOGD("ILI9341", "Start ILI9341Display::display_(xl:%d, xh:%d, yl:%d, yh:%d, w:%d, h:%d, start_pos:%d)",this->x_low_, this->x_high_, this->y_low_, this->y_high_, w, h, start_pos );
+  ESP_LOGD("ILI9341", "Start ILI9341Display::display_(xl:%d, xh:%d, yl:%d, yh:%d, w:%d, h:%d, start_pos:%d)",
+           this->x_low_, this->x_high_, this->y_low_, this->y_high_, w, h, start_pos );
 
   this->start_data_();
   for (uint16_t row = 0; row < h; row++) {
@@ -149,28 +149,28 @@ void ILI9341Display::fill_internal_(uint8_t color) {
 }
 
 void ILI9341Display::rotate_my_(uint8_t m) {
-  uint8_t rotation = m && 3; // can't be higher than 3
+  uint8_t rotation = m & 3; // can't be higher than 3
   switch (rotation) {
-  case 0:
-    m = (MADCTL_MX | MADCTL_BGR);
-   // _width = ILI9341_TFTWIDTH;
-   // _height = ILI9341_TFTHEIGHT;
-    break;
-  case 1:
-    m = (MADCTL_MV | MADCTL_BGR);
-    //_width = ILI9341_TFTHEIGHT;
-    //_height = ILI9341_TFTWIDTH;
-    break;
-  case 2:
-    m = (MADCTL_MY | MADCTL_BGR);
-    //_width = ILI9341_TFTWIDTH;
-    //_height = ILI9341_TFTHEIGHT;
-    break;
-  case 3:
-    m = (MADCTL_MX | MADCTL_MY | MADCTL_MV | MADCTL_BGR);
-    //_width = ILI9341_TFTHEIGHT;
-    //_height = ILI9341_TFTWIDTH;
-    break;
+    case 0:
+      m = (MADCTL_MX | MADCTL_BGR);
+      // _width = ILI9341_TFTWIDTH;
+      // _height = ILI9341_TFTHEIGHT;
+      break;
+    case 1:
+      m = (MADCTL_MV | MADCTL_BGR);
+      // _width = ILI9341_TFTHEIGHT;
+      // _height = ILI9341_TFTWIDTH;
+      break;
+    case 2:
+      m = (MADCTL_MY | MADCTL_BGR);
+      // _width = ILI9341_TFTWIDTH;
+      // _height = ILI9341_TFTHEIGHT;
+      break;
+    case 3:
+      m = (MADCTL_MX | MADCTL_MY | MADCTL_MV | MADCTL_BGR);
+      // _width = ILI9341_TFTHEIGHT;
+      // _height = ILI9341_TFTWIDTH;
+      break;
   }
 
   this->command(ILI9341_MADCTL);
@@ -190,11 +190,11 @@ void HOT ILI9341Display::draw_absolute_pixel_internal(int x, int y, Color color)
     new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
   }
 
-  if (buffer_[pos] != new_color) { //
+  if (buffer_[pos] != new_color) {
     buffer_[pos] = new_color;
   // low and high watermark may speed up drawing from buffer
-    this->x_low_  = (x < this->x_low_)  ? x : this->x_low_;
-    this->y_low_  = (y < this->y_low_)  ? y : this->y_low_;
+    this->x_low_ = (x < this->x_low_) ? x : this->x_low_;
+    this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
     this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
     this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
   }
