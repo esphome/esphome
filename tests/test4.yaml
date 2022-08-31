@@ -334,7 +334,7 @@ binary_sensor:
       then:
         - lambda: 'ESP_LOGI("ar1:", "%d", x);'
   - platform: touchscreen
-    xpt2046_id: xpt_touchscreen
+    touchscreen_id: xpt_touchscreen
     id: touch_key0
     x_min: 80
     x_max: 160
