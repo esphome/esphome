@@ -171,7 +171,52 @@ struct Rect {
 =======
   inline Rect() ALWAYS_INLINE : x(1), y(1), w(0), h(0) {}  // NOLINT
   inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
+  inline bool is_set() ALWAYS_INLINE { return (this->h != 32766) && (this->w != 32766); }
+
+  void expand(int16_t width, int16_t height){
+    if ((*this).is_set() && ((*this).w >= (-2 * width)) && ( (*this).h >= (-2 * height))) { 
+      (*this).x = (*this).x - width;
+      (*this).y = (*this).y - height;
+      (*this).w = (*this).w + (2 * width);
+      (*this).h = (*this).h + (2 * height);
+    }
+  }
+
+  void join(Rect rect) {
+    if (!this->is_set()) {
+      this->x = rect.x;
+      this->y = rect.y;
+      this->w = rect.w;
+      this->h = rect.h;
+    } else {
+      if (this->x > rect.x) { this->x = rect.x; }
+      if (this->y > rect.y) { this->y = rect.y; }
+      if (this->w < rect.w) { this->w = rect.w; }
+      if (this->h < rect.h) { this->h = rect.h; }
+    }
+  }
+  void intersect(Rect rect) {
+    if (!this->is_set()) {
+      this->x = rect.x;
+      this->y = rect.y;
+      this->w = rect.w;
+      this->h = rect.h;
+    } else {
+      if (this->x < rect.x) { this->x = rect.x; }
+      if (this->y < rect.y) { this->y = rect.y; }
+      if (this->w > rect.w) { this->w = rect.w; }
+      if (this->h > rect.h) { this->h = rect.h; }
+    }
+  }
+
+  bool inside(int16_t x, int16_t y, bool absolute ) {
+    if (!this->is_set()) return true;
+    if (absolute) {
+      return ((x >= this->x) && (x <= this->w) && (y >= this->y) && (y <= this->h));
+    } else {
+      return ((x >= 0) && (x <= this->w - this->x) && (y >= 0) && (y <= this->h - this->y));
+    }
+  }
 };
 
 class Font;
@@ -205,7 +250,6 @@ class DisplayBuffer {
   void draw_pixel_at(int x, int y, Color color = COLOR_ON);
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
-<<<<<<< HEAD
   void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON){
     line(x1, y1, x2, y2, color, color, GRADIENT_NONE);
   }
@@ -223,25 +267,6 @@ class DisplayBuffer {
   }
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
   void vertical_line(int x, int y, int height, Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
-=======
-  void line(int x1, int y1, int x2, int y2, Color color, Color grandient_to);
-  void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON){
-    this->line(x1, y1, x2, y2, color, color);
-  }
-
-  /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
-  void horizontal_line(int x, int y, int width, Color color = COLOR_ON) {
-    horizontal_line(x, y, width, color, color);
-  }
-  void horizontal_line(int x, int y, int width, Color color , Color grandient_to);
-
-  /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  void vertical_line(int x, int y, int height, Color color = COLOR_ON){
-    vertical_line(x, y, height, color, color);
-  }
-  /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  void vertical_line(int x, int y, int height, Color color, Color grandient_to);
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
 
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
@@ -251,7 +276,6 @@ class DisplayBuffer {
   void rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON) {
     rectangle(x, y, width, height, radius, color, color, GRADIENT_NONE);
   };
-<<<<<<< HEAD
   void rectangle(int x1, int y1, int width, int height, Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL){
     rectangle(x1, y1, width, height, 0, grandient_from, grandient_to, direction);
   }
@@ -269,24 +293,6 @@ class DisplayBuffer {
   }
   void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from , Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
-=======
-  void rectangle(int x1, int y1, int width, int height, Color color, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL){
-    rectangle(x1, y1, width, height, 0, color, grandient_to, direction);
-  }
-  void rectangle(int x, int y, int width, int height, int16_t radius, Color color , Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
-
-  /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
-  void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON) {
-    filled_rectangle(x1, y1, width, height, 0, color, color, GRADIENT_NONE);
-  }
-  void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON) {
-    filled_rectangle(x, y, width, height, radius, color, color, GRADIENT_NONE);
-  }
-  void filled_rectangle(int x1, int y1, int width, int height, Color color, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL){
-    filled_rectangle(x1, y1, width, height, 0, color, grandient_to, direction);
-  }
-  void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
   void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON){
@@ -356,6 +362,7 @@ class DisplayBuffer {
 <<<<<<< HEAD
 =======
 
+<<<<<<< HEAD
 
   ///
   /// Expand or contract a rectangle in width and/or height (equal
@@ -533,6 +540,8 @@ class DisplayBuffer {
 
 >>>>>>> a51a83e8 (Add more UI functions to display_buffer)
 
+=======
+>>>>>>> 6ab0cdbc (fixes to the DisplayBuffer class:)
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
@@ -903,10 +912,7 @@ class DisplayBuffer {
   void swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1);
   std::vector<Rect> clipping_rectangle_;
 
-<<<<<<< HEAD
 
-=======
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
   uint8_t *buffer_{nullptr};
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
   optional<display_writer_t> writer_{};

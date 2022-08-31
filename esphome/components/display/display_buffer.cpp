@@ -58,8 +58,7 @@ void DisplayBuffer::set_rotation(DisplayRotation rotation) {
   this->rotation_ = rotation;
 }
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
-
-  if (this->is_clipped(x, y))  return; // NOLINT
+  if (this->is_clipped(x, y)) return;  // NOLINT
 
   switch (this->rotation_) {
     case DISPLAY_ROTATION_0_DEGREES:
@@ -81,7 +80,6 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
   App.feed_wdt();
 }
 
-<<<<<<< HEAD
 void DisplayBuffer::line(int x1, int y1, int x2, int y2, Color grandient_from, Color grandient_to, GradientDirection direction) {
   const int32_t delta_x = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
   const int32_t delta_y = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
@@ -90,15 +88,6 @@ void DisplayBuffer::line(int x1, int y1, int x2, int y2, Color grandient_from, C
   while (true) {
     this->draw_pixel_at(x1, y1, grandient_from.gradient(grandient_to, (uint16_t) gradient_pos));
     gradient_pos += gradient_step;
-=======
-void DisplayBuffer::line(int x1, int y1, int x2, int y2, Color color, Color grandient_to) {
-  const int32_t delta_x = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
-  const int32_t delta_y = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
-  const int32_t gradient_step = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2))/255, gradient_pos = 0;
-  int32_t err = delta_x + delta_y;
-  while (true) {
-    this->draw_pixel_at(x1, y1, color.gradient(grandient_to, gradient_pos));
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
     if (x1 == x2 && y1 == y2)
       break;
     int32_t e2 = 2 * err;
@@ -113,31 +102,19 @@ void DisplayBuffer::line(int x1, int y1, int x2, int y2, Color color, Color gran
   }
 }
 /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
-<<<<<<< HEAD
 void HOT DisplayBuffer::horizontal_line(int x, int y, int width, Color grandient_from , Color grandient_to, GradientDirection direction) {
-=======
-void HOT DisplayBuffer::horizontal_line(int x, int y, int width, Color color , Color grandient_to) {
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = x; i < x + width; i++)
     this->draw_pixel_at(i, y, grandient_from);
 }
 /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-<<<<<<< HEAD
 void HOT DisplayBuffer::vertical_line(int x, int y, int height, Color grandient_from, Color grandient_to, GradientDirection direction) {
-=======
-void HOT DisplayBuffer::vertical_line(int x, int y, int height, Color color, Color grandient_to) {
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = y; i < y + height; i++)
-    this->draw_pixel_at(x, i, color);
+    this->draw_pixel_at(x, i, grandient_from);
 }
 
-<<<<<<< HEAD
 void DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from, Color grandient_to, GradientDirection direction) {
-=======
-void DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radius, Color color, Color grandient_to, GradientDirection direction) {
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
   int delta_x = -radius;
   int delta_y = 0;
   int err = 2 - 2 * radius;
@@ -147,11 +124,7 @@ void DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radiu
   y = y + radius;
   height = height - (radius * 2);
   width = width - (radius * 2);
-<<<<<<< HEAD
   Color color = grandient_from;
-=======
-
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
   this->horizontal_line(x, y - radius, width, color);
   this->horizontal_line(x, y + radius + height - 1, width, color);
   this->vertical_line(x - radius, y, height, color);
@@ -175,10 +148,6 @@ void DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radiu
     } while (delta_x <= 0);
   }
 }
-<<<<<<< HEAD
-
-=======
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
 void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color, Color grandient_to, GradientDirection direction) {
   // Future: Use vertical_line and horizontal_line methods depending on rotation to reduce memory accesses.
   int delta_x = -radius;
@@ -190,30 +159,7 @@ void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_
   y = y + radius;
   height = height - (radius * 2);
   width = width - (radius * 2);
-<<<<<<< HEAD
 //this->filled_rectangle(x - radius, y, width + (radius * 2), height, color);
-
-  for (int i = y; i < y + height; i++) {
-    this->horizontal_line(x- radius, i, width + (radius * 2), color);
-  }
-  if (radius>0) {
-    do {
-      int hline_width = width + (2 * (-delta_x) + 1) - 1;
-      this->horizontal_line(x + delta_x, y + height + delta_y, hline_width, color);
-      this->horizontal_line(x + delta_x, y - delta_y, hline_width, color);
-      e2 = err;
-      if (e2 < delta_y) {
-        err += ++delta_y * 2 + 1;
-        if (-delta_x == delta_y && e2 <= delta_x) {
-          e2 = 0;
-        }
-      }
-      if (e2 > delta_x) {
-        err += ++delta_x * 2 + 1;
-      }
-    } while (delta_x <= 0);
-  }
-=======
 
   this->filled_rectangle(x - radius, y, width + (radius * 2), height, color);
   do {
@@ -326,13 +272,7 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
 <<<<<<< HEAD
   int16_t x01 = x0 - x1, y01 = y0 - y1, x20 = x2 - x0, y20 = y2 - y0, x21 = x2 - x1, y21 = y2 - y1;
 =======
-  int16_t x01, x20, y01, y20, x21, y21;
-  x01 = x0 - x1;
-  y01 = y0 - y1;
-  x20 = x2 - x0;
-  y20 = y2 - y0;
-  x21 = x2 - x1;
-  y21 = y2 - y1;
+  int16_t x01 = x0 - x1, y01 = y0 - y1, x20 = x2 - x0, y20 = y2 - y0, x21 = x2 - x1, y21 = y2 - y1;
 >>>>>>> a51a83e8 (Add more UI functions to display_buffer)
 
   // Flat bottom scenario
@@ -672,7 +612,6 @@ void DisplayBuffer::do_update_() {
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
   }
-  this->clear_clipping();
 }
 void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
@@ -795,26 +734,20 @@ bool DisplayBuffer::is_inside(int16_t x, int16_t y, uint16_t width, uint16_t hei
 
 void DisplayBuffer::clear_clipping() {
   if (this->clipping_rectangle_.empty()) {
-    ESP_LOGW(TAG, "Clipping is not set.");
+    ESP_LOGW(TAG, "clear: Clipping is not set.");
   } else {
+    //ESP_LOGW(TAG, "clear: Pop back old clipping");
     this->clipping_rectangle_.pop_back();
   }
 }
-
 void DisplayBuffer::add_clipping(Rect add_rect) {
   if (this->clipping_rectangle_.empty()) {
-    ESP_LOGW(TAG, "Clipping is not set.");
+    ESP_LOGW(TAG, "add: Clipping is not set.");
   } else {
-    Rect rect = this->get_clipping();
-    rect = this->union_rect(rect, add_rect);
-    this->clipping_rectangle_.back() = rect;
+    //ESP_LOGW(TAG, "add: join new clipping");
+    this->clipping_rectangle_.back().join(add_rect);
   }
 }
-
-void DisplayBuffer::set_clipping(Rect rect) {
-  this->clipping_rectangle_.push_back( rect);
-}
-
 Rect DisplayBuffer::get_clipping() {
   if (this->clipping_rectangle_.empty()) {
     return Rect(1, 1, 0, 0);
@@ -836,11 +769,9 @@ bool DisplayBuffer::is_clipped(Rect rect) {
 
 bool DisplayBuffer::is_clipped(int16_t x, int16_t y) {
   Rect clip = this->get_clipping();
-  if ((clip.w == 0) || (clip.h == 0))
-    return false;
+  if (!clip.is_set()) {  return false; }
   return ((x < clip.x) || (x > clip.w) || (y < clip.y) || (y > clip.h));
 }
-
 bool DisplayBuffer::is_clipped(Rect rect) {
   Rect clip = this->get_clipping();
   if ((clip.w == 0) || (clip.h == 0))
