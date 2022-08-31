@@ -1,7 +1,9 @@
 #include "display_buffer.h"
 
+#include <utility>
 #include "esphome/core/application.h"
 #include "esphome/core/color.h"
+#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include <cmath>
