@@ -630,8 +630,6 @@ touchscreen:
     update_interval: 50ms
     report_interval: 1s
     threshold: 400
-    dimension_x: 240
-    dimension_y: 320
     calibration_x_min: 3860
     calibration_x_max: 280
     calibration_y_min: 340
