@@ -147,8 +147,8 @@ void XPT2046Component::set_calibration(int16_t x_min, int16_t x_max, int16_t y_m
   this->x_raw_max_ = std::max(x_min, x_max);
   this->y_raw_min_ = std::min(y_min, y_max);
   this->y_raw_max_ = std::max(y_min, y_max);
- // this->invert_x_ = (x_min > x_max);
- // this->invert_y_ = (y_min > y_max);
+  // this->invert_x_ = (x_min > x_max);
+  // this->invert_y_ = (y_min > y_max);
 }
 
 void XPT2046Component::dump_config() {
