@@ -6,6 +6,7 @@ from esphome.components import mqtt
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_INVERTED,
     CONF_MQTT_ID,
@@ -76,6 +77,7 @@ def switch_schema(
     *,
     entity_category: str = _UNDEF,
     device_class: str = _UNDEF,
+    icon: str = _UNDEF,
     block_inverted: bool = False,
 ):
     schema = SWITCH_SCHEMA
@@ -97,6 +99,8 @@ def switch_schema(
                 ): validate_device_class
             }
         )
+    if icon is not _UNDEF:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
     if block_inverted:
         schema = schema.extend(
             {
