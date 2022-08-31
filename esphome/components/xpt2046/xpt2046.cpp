@@ -9,18 +9,31 @@ namespace xpt2046 {
 
 static const char *const TAG = "xpt2046";
 
+void XPT2046TouchscreenStore::gpio_intr(XPT2046TouchscreenStore *store) { store->touch = true; }
+
+
 void XPT2046Component::setup() {
   if (this->irq_pin_ != nullptr) {
     // The pin reports a touch with a falling edge. Unfortunately the pin goes also changes state
     // while the channels are read and wiring it as an interrupt is not straightforward and would
     // need careful masking. A GPIO poll is cheap so we'll just use that.
+
     this->irq_pin_->setup();  // INPUT
+    this->irq_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+    this->irq_pin_->setup();
+
+    this->store_.pin = this->irq_pin_->to_isr();
+    this->irq_pin_->attach_interrupt(XPT2046TouchscreenStore::gpio_intr, &this->store_,
+                                          gpio::INTERRUPT_FALLING_EDGE);
+
   }
   spi_setup();
   read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
 }
 
 void XPT2046Component::loop() {
+  /** replaced by real interupt handler.
+   * 
   if (this->irq_pin_ != nullptr) {
     // Force immediate update if a falling edge (= touched is seen) Ignore if still active
     // (that would mean that we missed the release because of a too long update interval)
@@ -31,9 +44,19 @@ void XPT2046Component::loop() {
     }
     this->last_irq_ = val;
   }
+  **/
+  if ((this->irq_pin_ == nullptr) || (!this->store_.touch))
+    return;
+  this->store_.touch = false;
+  check_touch_();
 }
 
 void XPT2046Component::update() {
+  if (this->irq_pin_ == nullptr)
+    check_touch_();
+}
+
+void XPT2046Component::check_touch_(){
   int16_t data[6];
   bool touch = false;
   uint32_t now = millis();
@@ -63,59 +86,65 @@ void XPT2046Component::update() {
     data[5] = read_adc_(0x90 /* Y */);  // Last Y touch power down
 
     disable();
-  }
 
-  if (touch) {
-    this->x_raw = best_two_avg(data[0], data[2], data[4]);
-    this->y_raw = best_two_avg(data[1], data[3], data[5]);
-  } else {
-    this->x_raw = this->y_raw = 0;
-  }
+    if (touch) {
 
-  ESP_LOGV(TAG, "Update [x, y] = [%d, %d], z = %d%s", this->x_raw, this->y_raw, this->z_raw, (touch ? " touched" : ""));
+      this->x_raw = best_two_avg(data[0], data[2], data[4]);
+      this->y_raw = best_two_avg(data[1], data[3], data[5]);
 
-  if (touch) {
-    // Normalize raw data according to calibration min and max
+      TouchPoint tp;
 
-    int16_t x_val = normalize(this->x_raw, this->x_raw_min_, this->x_raw_max_);
-    int16_t y_val = normalize(this->y_raw, this->y_raw_min_, this->y_raw_max_);
+      tp.x = normalize(this->x_raw, this->x_raw_min_, this->x_raw_max_);
+      tp.y = normalize(this->y_raw, this->y_raw_min_, this->y_raw_max_);
 
-    if (this->swap_x_y_) {
-      std::swap(x_val, y_val);
-    }
+      if (this->swap_x_y_) {
+          std::swap(tp.x, tp.y);
+      }
 
-    if (this->invert_x_) {
-      x_val = 0x7fff - x_val;
-    }
+      switch (this->rotation_) {
+        case ROTATE_0_DEGREES:
+          break;
+        case ROTATE_90_DEGREES:
+          tp.y = 0x7fff - tp.y;
+          break;
+        case ROTATE_180_DEGREES:
+          tp.x = 0x7fff - tp.x;
+          break;
+        case ROTATE_270_DEGREES:
+          tp.x = 0x7fff - tp.x;
+          tp.y = 0x7fff - tp.y;
+          break;
+      }
 
-    if (this->invert_y_) {
-      y_val = 0x7fff - y_val;
-    }
+      tp.x = (int16_t)((int) tp.x * this->display_width_ / 0x7fff);
+      tp.y = (int16_t)((int) tp.y * this->display_height_ / 0x7fff);
 
-    x_val = (int16_t)((int) x_val * this->x_dim_ / 0x7fff);
-    y_val = (int16_t)((int) y_val * this->y_dim_ / 0x7fff);
+      this->defer([this, tp]() { this->send_touch_(tp); });
 
-    if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
-      ESP_LOGD(TAG, "Raw [x, y] = [%d, %d], transformed = [%d, %d]", this->x_raw, this->y_raw, x_val, y_val);
+      ESP_LOGV(TAG, "Update [x, y] = [%d, %d], z = %d", this->x_raw, this->y_raw, this->z_raw);
 
-      this->x = x_val;
-      this->y = y_val;
-      this->touched = true;
-      this->last_pos_ms_ = now;
+      if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
+        ESP_LOGD(TAG, "Raw [x, y] = [%d, %d], transformed = [%d, %d]", this->x_raw, this->y_raw, tp.x, tp.y);
 
-      this->on_state_trigger_->process(this->x, this->y, true);
-      for (auto *button : this->buttons_)
-        button->touch(this->x, this->y);
-    }
-  } else {
-    if (this->touched) {
-      ESP_LOGD(TAG, "Released [%d, %d]", this->x, this->y);
+        this->x = tp.x;
+        this->y = tp.x;
+        this->touched = true;
+        this->last_pos_ms_ = now;
 
-      this->touched = false;
+        this->on_state_trigger_->process(this->x, this->y, true);
+      }
+      for (auto *button : this->touch_listeners_)
+        button->touch(tp);
+    } else {
+      this->x_raw = this->y_raw = 0;
+      if (this->touched) {
+        ESP_LOGD(TAG, "Released [%d, %d]", this->x, this->y);
+        this->touched = false;
 
-      this->on_state_trigger_->process(this->x, this->y, false);
-      for (auto *button : this->buttons_)
-        button->release();
+        this->on_state_trigger_->process(this->x, this->y, false);
+        for (auto *listener : this->touch_listeners_)
+          listener->release();
+      }
     }
   }
 }
@@ -125,8 +154,8 @@ void XPT2046Component::set_calibration(int16_t x_min, int16_t x_max, int16_t y_m
   this->x_raw_max_ = std::max(x_min, x_max);
   this->y_raw_min_ = std::min(y_min, y_max);
   this->y_raw_max_ = std::max(y_min, y_max);
-  this->invert_x_ = (x_min > x_max);
-  this->invert_y_ = (y_min > y_max);
+ // this->invert_x_ = (x_min > x_max);
+ // this->invert_y_ = (y_min > y_max);
 }
 
 void XPT2046Component::dump_config() {
@@ -194,24 +223,6 @@ int16_t XPT2046Component::read_adc_(uint8_t ctrl) {
 }
 
 void XPT2046OnStateTrigger::process(int x, int y, bool touched) { this->trigger(x, y, touched); }
-
-void XPT2046Button::touch(int16_t x, int16_t y) {
-  bool touched = (x >= this->x_min_ && x <= this->x_max_ && y >= this->y_min_ && y <= this->y_max_);
-
-  if (touched) {
-    this->publish_state(true);
-    this->state_ = true;
-  } else {
-    release();
-  }
-}
-
-void XPT2046Button::release() {
-  if (this->state_) {
-    this->publish_state(false);
-    this->state_ = false;
-  }
-}
 
 }  // namespace xpt2046
 }  // namespace esphome
