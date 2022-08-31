@@ -20,7 +20,6 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
-
 #define POLAR_2PI 6.28318530718F
 
 namespace esphome {
@@ -116,8 +115,54 @@ struct Rect {
   int16_t w;  ///< Width of region
   int16_t h;  ///< Height of region
 
-  inline Rect() ALWAYS_INLINE : x(1), y(1), w(0), h(0) {}  // NOLINT
+  inline Rect() ALWAYS_INLINE : x(32766), y(32766), w(32766), h(32766) {}  // NOLINT
   inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
+  inline bool is_set() ALWAYS_INLINE { return (this->h != 32766) && (this->w != 32766); }
+
+  void expand(int16_t width, int16_t height){
+    if ((*this).is_set() && ((*this).w >= (-2 * width)) && ( (*this).h >= (-2 * height))) { 
+      (*this).x = (*this).x - width;
+      (*this).y = (*this).y - height;
+      (*this).w = (*this).w + (2 * width);
+      (*this).h = (*this).h + (2 * height);
+    }
+  }
+
+  void join(Rect rect) {
+    if (!this->is_set()) {
+      this->x = rect.x;
+      this->y = rect.y;
+      this->w = rect.w;
+      this->h = rect.h;
+    } else {
+      if (this->x > rect.x) { this->x = rect.x; }
+      if (this->y > rect.y) { this->y = rect.y; }
+      if (this->w < rect.w) { this->w = rect.w; }
+      if (this->h < rect.h) { this->h = rect.h; }
+    }
+  }
+  void intersect(Rect rect) {
+    if (!this->is_set()) {
+      this->x = rect.x;
+      this->y = rect.y;
+      this->w = rect.w;
+      this->h = rect.h;
+    } else {
+      if (this->x < rect.x) { this->x = rect.x; }
+      if (this->y < rect.y) { this->y = rect.y; }
+      if (this->w > rect.w) { this->w = rect.w; }
+      if (this->h > rect.h) { this->h = rect.h; }
+    }
+  }
+
+  bool inside(int16_t x, int16_t y, bool absolute ) {
+    if (!this->is_set()) return true;
+    if (absolute) {
+      return ((x >= this->x) && (x <= this->w) && (y >= this->y) && (y <= this->h));
+    } else {
+      return ((x >= 0) && (x <= this->w - this->x) && (y >= 0) && (y <= this->h - this->y));
+    }
+  }
 };
 
 class Font;
@@ -151,23 +196,23 @@ class DisplayBuffer {
   void draw_pixel_at(int x, int y, Color color = COLOR_ON);
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
-  void line(int x1, int y1, int x2, int y2, Color color, Color grandient_to);
   void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON){
-    this->line(x1, y1, x2, y2, color, color);
+    line(x1, y1, x2, y2, color, color, GRADIENT_NONE);
   }
+  void line(int x1, int y1, int x2, int y2, Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
   void horizontal_line(int x, int y, int width, Color color = COLOR_ON) {
-    horizontal_line(x, y, width, color, color);
+    horizontal_line(x, y, width, color, color, GRADIENT_NONE);
   }
-  void horizontal_line(int x, int y, int width, Color color , Color grandient_to);
+  void horizontal_line(int x, int y, int width, Color grandient_from , Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
   void vertical_line(int x, int y, int height, Color color = COLOR_ON){
-    vertical_line(x, y, height, color, color);
+    vertical_line(x, y, height, color, color, GRADIENT_NONE);
   }
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  void vertical_line(int x, int y, int height, Color color, Color grandient_to);
+  void vertical_line(int x, int y, int height, Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
@@ -177,22 +222,23 @@ class DisplayBuffer {
   void rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON) {
     rectangle(x, y, width, height, radius, color, color, GRADIENT_NONE);
   };
-  void rectangle(int x1, int y1, int width, int height, Color color, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL){
-    rectangle(x1, y1, width, height, 0, color, grandient_to, direction);
+  void rectangle(int x1, int y1, int width, int height, Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL){
+    rectangle(x1, y1, width, height, 0, grandient_from, grandient_to, direction);
   }
-  void rectangle(int x, int y, int width, int height, int16_t radius, Color color , Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+  void rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from , Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
-  /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
+
   void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON) {
     filled_rectangle(x1, y1, width, height, 0, color, color, GRADIENT_NONE);
   }
   void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON) {
     filled_rectangle(x, y, width, height, radius, color, color, GRADIENT_NONE);
+  };
+  void filled_rectangle(int x1, int y1, int width, int height, Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL){
+    filled_rectangle(x1, y1, width, height, 0, grandient_from, grandient_to, direction);
   }
-  void filled_rectangle(int x1, int y1, int width, int height, Color color, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL){
-    filled_rectangle(x1, y1, width, height, 0, color, grandient_to, direction);
-  }
-  void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+  void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from , Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
   void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON){
@@ -259,182 +305,6 @@ class DisplayBuffer {
   }
   void filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2, int16_t angle_start, int16_t angle_end,
                   Color color, Color grandient_to, int16_t gradient_angle_start, int16_t gradient_angle_range, int16_t quality = 255);
-
-
-  ///
-  /// Expand or contract a rectangle in width and/or height (equal
-  /// amounts on both side), based on the centerpoint of the rectangle.
-  ///
-  /// \param[in]  rect:       Rectangular region before resizing
-  /// \param[in]  width:    Number of pixels to expand the width (if positive)
-  ///                          of contract the width (if negative)
-  /// \param[in]  height:    Number of pixels to expand the height (if positive)
-  ///                          of contract the height (if negative)
-  ///
-  /// \return new rect with resized dimensions
-  ///
-  Rect expand_rect(Rect rect, int16_t width, int16_t height);
-
-  ///
-  /// Expand a rect to include another rect
-  /// - This routine can be useful to modify an invalidation region to
-  ///   include another modified element
-  ///
-  /// \param[in]  pRect:    Initial rect region
-  /// \param[in]  rAddRect: Rectangle to add to the rect region
-  ///
-  /// \return none
-  ///
-  Rect union_rect(Rect rect, Rect add_rect);
-
-  Rect intersect_rect(Rect rect, Rect add_rect);
-
-  ///
-  /// Determine if a coordinate is inside of a rectangular region.
-  /// - This routine is useful in determining if a touch
-  ///   coordinate is inside of a button.
-  ///
-  /// \param[in]  X:       X coordinate to test
-  /// \param[in]  Y:       X coordinate to test
-  /// \param[in]  rect:       Rectangular region to compare against
-  ///
-  /// \return true if inside region, false otherwise
-  ///
-  bool in_rect(int16_t x, int16_t y, Rect rect);  //*//
-
-  ///
-  /// Determine if a coordinate is inside of a width x height region.
-  /// - This routine is useful in determining if a relative coordinate
-  ///   is within a given W x H dimension
-  ///
-  /// \param[in]  nSelX:       X coordinate to test
-  /// \param[in]  nSelY:       X coordinate to test
-  /// \param[in]  nWidth:      Width to test against
-  /// \param[in]  nHeight:     Height to test against
-  ///
-  /// \return true if inside region, false otherwise
-  ///
-  bool is_inside(int16_t x, int16_t y, uint16_t width, uint16_t height);
-
-  ///
-  /// Set the clipping rectangle for further drawing
-  ///
-  /// \param[in]  rect:       Pointer to Rect for clipping (or NULL for entire screen)
-  ///
-  /// \return true if success, false if error
-  ///
-  void set_clipping(Rect rect);
-  void set_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
-    set_clipping(Rect(left, top, right, bottom));
-  };
-
-  ///
-  /// Add a rectangular region to the invalidation region
-  /// - This is usually called when an element has been modified
-  ///
-  /// \param[in]  rect: Rectangle to add to the invalidation region
-  ///
-  /// \return none
-  ///
-  void add_clipping(Rect rect);
-  void add_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
-    this->add_clipping(Rect(left, top, right, bottom));
-  };
-
-  ///
-  /// intersect a rectangular region to the invalidation region
-  /// - This is usually called when an element has been modified
-  ///
-  /// \param[in]  rect: Rectangle to add to the invalidation region
-  ///
-  /// \return none
-  ///
-  void sub_clipping(Rect rect);
-  void sub_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
-    this->sub_clipping(Rect(left, top, right, bottom));
-  };
-
-  ///
-  /// Reset the invalidation region
-  ///
-  /// \return none
-  ///
-  void clear_clipping();
-
-  ///
-  /// Get the current the clipping rectangle
-  ///
-  ///
-  /// \return rect for active clipping region
-  ///
-  Rect get_clipping();
-
-  ///
-  /// Perform basic clipping of a single point to a clipping region
-  ///
-  /// \param[in]  X:          X coordinate of point
-  /// \param[in]  Y:          Y coordinate of point
-  ///
-  /// \return true if point is visible, false if it should be discarded
-  ///
-  bool is_clipped(int16_t x, int16_t y);
-  bool is_clipped(Rect rect);
-
-  ///
-  /// Convert polar coordinate to cartesian
-  ///
-  /// \param[in]   rad         Radius of ray
-  /// \param[in]   angle       Angle of ray (in units of 1/64 degrees, 0 is up)
-  /// \param[out]  nDX          X offset for ray end
-  /// \param[out]  nDY          Y offset for ray end
-  ///
-  /// \return none
-  ///
-  void calc_polar(uint16_t rad, int16_t angle, int16_t *x, int16_t *y);
-
-  ///
-  /// Calculate fixed-point sine function from fractional degrees
-  /// - Depending on configuration, the result is derived from either
-  ///   floating point math library or fixed point lookup table.
-  /// - get_sin(nAngDeg*64)/32768.0 = sin(nAngDeg*2pi/360)
-  ///
-  /// \param[in]   angle       Angle (in units of 1/64 degrees)
-  ///
-  /// \return Fixed-point sine result. Signed 16-bit; divide by 32768
-  ///         to get the actual value.
-  ///
-  int16_t get_sin(int16_t angle);
-
-  ///
-  /// Calculate fixed-point cosine function from fractional degrees
-  /// - Depending on configuration, the result is derived from either
-  ///   floating point math library or fixed point lookup table.
-  /// - get_cos(nAngDeg*64)/32768.0 = cos(nAngDeg*2pi/360)
-  ///
-  /// \param[in]   angle       Angle (in units of 1/64 degrees)
-  ///
-  /// \return Fixed-point cosine result. Signed 16-bit; divide by 32768
-  ///         to get the actual value.
-  ///
-  int16_t get_cos(int16_t angle);
-
-  ///
-  /// Draw a polar ray segment
-  ///
-  /// \param[in]  pGui:        Pointer to GUI
-  /// \param[in]  x:          X coordinate of line startpoint
-  /// \param[in]  y:          Y coordinate of line startpoint
-  /// \param[in]  nRadStart:   Starting radius of line
-  /// \param[in]  nRadEnd:     Ending radius of line
-  /// \param[in]  n64Ang:      Angle of ray (degrees * 64). 0 is up, +90*64 is to right
-  ///                          From -180*64 to +180*64
-  /// \param[in]  color:        Color RGB value for the line
-  ///
-  /// \return none
-  ///
-  void polar_line(int16_t x, int16_t y, uint16_t radius_start, uint16_t radius_end, int16_t angle,
-                  Color color = COLOR_ON);
-
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -643,21 +513,155 @@ class DisplayBuffer {
   const DisplayPage *get_active_page() const { return this->page_; }
 
   void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
-
-  /// Internal method to set the display rotation with.
-  void set_rotation(DisplayRotation rotation);
-
+ 
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
+
+  /// Internal method to set the display rotation with.
+  virtual void set_rotation(DisplayRotation rotation);
   DisplayRotation get_rotation() const { return this->rotation_; }
 
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.
    */
   virtual DisplayType get_display_type() = 0;
+
+  ///
+  /// Expand or contract a rectangle in width and/or height (equal
+  /// amounts on both side), based on the centerpoint of the rectangle.
+  ///
+  /// \param[in]  rect:       Rectangular region before resizing
+  /// \param[in]  width:    Number of pixels to expand the width (if positive)
+  ///                          of contract the width (if negative)
+  /// \param[in]  height:    Number of pixels to expand the height (if positive)
+  ///                          of contract the height (if negative)
+  ///
+  /// \return new rect with resized dimensions
+  ///
+
+  ///
+  /// Set the clipping rectangle for further drawing
+  ///
+  /// \param[in]  rect:       Pointer to Rect for clipping (or NULL for entire screen)
+  ///
+  /// \return true if success, false if error
+  ///
+  void set_clipping(Rect rect);
+  void set_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
+    set_clipping(Rect(left, top, right, bottom));
+  };
+
+  ///
+  /// Add a rectangular region to the invalidation region
+  /// - This is usually called when an element has been modified
+  ///
+  /// \param[in]  rect: Rectangle to add to the invalidation region
+  ///
+  /// \return none
+  ///
+  void add_clipping(Rect rect);
+  void add_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
+    this->add_clipping(Rect(left, top, right, bottom));
+  };
+
+  ///
+  /// intersect a rectangular region to the invalidation region
+  /// - This is usually called when an element has been modified
+  ///
+  /// \param[in]  rect: Rectangle to add to the invalidation region
+  ///
+  /// \return none
+  ///
+  void sub_clipping(Rect rect);
+  void sub_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
+    this->sub_clipping(Rect(left, top, right, bottom));
+  };
+
+  ///
+  /// Reset the invalidation region
+  ///
+  /// \return none
+  ///
+  void clear_clipping();
+
+  ///
+  /// Get the current the clipping rectangle
+  ///
+  ///
+  /// \return rect for active clipping region
+  ///
+  Rect get_clipping();
+
+  ///
+  /// Perform basic clipping of a single point to a clipping region
+  ///
+  /// \param[in]  X:          X coordinate of point
+  /// \param[in]  Y:          Y coordinate of point
+  ///
+  /// \return true if point is visible, false if it should be discarded
+  ///
+  bool is_clipped(int16_t x, int16_t y);
+  bool is_clipped(Rect rect);
+
+  ///
+  /// Convert polar coordinate to cartesian
+  ///
+  /// \param[in]   rad         Radius of ray
+  /// \param[in]   angle       Angle of ray (in units of 1/64 degrees, 0 is up)
+  /// \param[out]  nDX          X offset for ray end
+  /// \param[out]  nDY          Y offset for ray end
+  ///
+  /// \return none
+  ///
+  void calc_polar(uint16_t rad, int16_t angle, int16_t *x, int16_t *y);
+
+  ///
+  /// Calculate fixed-point sine function from fractional degrees
+  /// - Depending on configuration, the result is derived from either
+  ///   floating point math library or fixed point lookup table.
+  /// - get_sin(nAngDeg*64)/32768.0 = sin(nAngDeg*2pi/360)
+  ///
+  /// \param[in]   angle       Angle (in units of 1/64 degrees)
+  ///
+  /// \return Fixed-point sine result. Signed 16-bit; divide by 32768
+  ///         to get the actual value.
+  ///
+  int16_t get_sin(int16_t angle);
+
+  ///
+  /// Calculate fixed-point cosine function from fractional degrees
+  /// - Depending on configuration, the result is derived from either
+  ///   floating point math library or fixed point lookup table.
+  /// - get_cos(nAngDeg*64)/32768.0 = cos(nAngDeg*2pi/360)
+  ///
+  /// \param[in]   angle       Angle (in units of 1/64 degrees)
+  ///
+  /// \return Fixed-point cosine result. Signed 16-bit; divide by 32768
+  ///         to get the actual value.
+  ///
+  int16_t get_cos(int16_t angle);
+
+  ///
+  /// Draw a polar ray segment
+  ///
+  /// \param[in]  pGui:        Pointer to GUI
+  /// \param[in]  x:          X coordinate of line startpoint
+  /// \param[in]  y:          Y coordinate of line startpoint
+  /// \param[in]  nRadStart:   Starting radius of line
+  /// \param[in]  nRadEnd:     Ending radius of line
+  /// \param[in]  n64Ang:      Angle of ray (degrees * 64). 0 is up, +90*64 is to right
+  ///                          From -180*64 to +180*64
+  /// \param[in]  color:        Color RGB value for the line
+  ///
+  /// \return none
+  ///
+  void polar_line(int16_t x, int16_t y, uint16_t radius_start, uint16_t radius_end, int16_t angle,
+                  Color color = COLOR_ON);
+
+
 
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
@@ -670,6 +674,7 @@ class DisplayBuffer {
 
   void swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1);
   std::vector<Rect> clipping_rectangle_;
+
 
   uint8_t *buffer_{nullptr};
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
