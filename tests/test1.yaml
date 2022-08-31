@@ -543,8 +543,10 @@ sensor:
   - platform: dht
     pin: GPIO26
     temperature:
+      id: dht_temperature
       name: "Living Room Temperature 3"
     humidity:
+      id: dht_humudity
       name: "Living Room Humidity 3"
     model: AM2302
     update_interval: 15s
@@ -565,14 +567,14 @@ sensor:
     temperature:
       name: "Living Room Temperature 5"
     humidity:
-      name: 'Living Room Humidity 5'
+      name: "Living Room Humidity 5"
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: hdc1080
     temperature:
-      name: 'Living Room Temperature 6'
+      name: "Living Room Temperature 6"
     humidity:
-      name: 'Living Room Humidity 5'
+      name: "Living Room Humidity 5"
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: hlw8012
@@ -2461,6 +2463,17 @@ display:
       it.print_sad(true);
       it.print_bracket(true);
       it.print_battery(true);
+  - platform: tm1621
+    id: tm1621_display
+    cs_pin: GPIO17
+    data_pin: GPIO5
+    read_pin: GPIO23
+    write_pin: GPIO18
+    lambda: |-
+      it.printf(0, "%.1f", id(dht_temperature).state);
+      it.display_celsius(true);
+      it.printf(1, "%.1f", id(dht_humidity).state);
+      it.display_humidity(true);
 
 tm1651:
   id: tm1651_battery
