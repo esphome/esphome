@@ -816,15 +816,16 @@ class LoginHandler(BaseHandler):
         import requests
 
         headers = {
-            "Authentication": f"Bearer {os.getenv('SUPERVISOR_TOKEN')}",
+            "Authorization": f"Bearer {os.getenv('SUPERVISOR_TOKEN')}",
         }
+
         data = {
             "username": self.get_argument("username", ""),
             "password": self.get_argument("password", ""),
         }
         try:
             req = requests.post(
-                "http://supervisor/auth", headers=headers, data=data, timeout=30
+                "http://supervisor/auth", headers=headers, json=data, timeout=30
             )
             if req.status_code == 200:
                 self.set_secure_cookie("authenticated", cookie_authenticated_yes)
