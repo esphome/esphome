@@ -342,7 +342,7 @@ binary_sensor:
     on_state:
       then:
         - lambda: 'ESP_LOGI("ar1:", "%d", x);'
-  - platform: xpt2046
+  - platform: touchscreen
     xpt2046_id: xpt_touchscreen
     id: touch_key0
     x_min: 80
@@ -591,34 +591,7 @@ external_components:
     refresh: 1d
     components: [bh1750]
   - source: ../esphome/components
-    components: [sntp]
-xpt2046:
-  id: xpt_touchscreen
-  cs_pin: 17
-  irq_pin: 16
-  update_interval: 50ms
-  report_interval: 1s
-  threshold: 400
-  dimension_x: 240
-  dimension_y: 320
-  calibration_x_min: 3860
-  calibration_x_max: 280
-  calibration_y_min: 340
-  calibration_y_max: 3860
-  swap_x_y: false
-  on_state:
-    # yamllint disable rule:line-length
-    - lambda: |-
-        ESP_LOGI("main", "args x=%d, y=%d, touched=%s", x, y, (touched ? "touch" : "release"));
-        ESP_LOGI("main", "member x=%d, y=%d, touched=%d, x_raw=%d, y_raw=%d, z_raw=%d",
-            id(xpt_touchscreen).x,
-            id(xpt_touchscreen).y,
-            (int) id(xpt_touchscreen).touched,
-            id(xpt_touchscreen).x_raw,
-            id(xpt_touchscreen).y_raw,
-            id(xpt_touchscreen).z_raw
-            );
-    # yamllint enable rule:line-length
+    components: ["sntp"]
 
 button:
   - platform: restart
@@ -649,7 +622,34 @@ touchscreen:
     on_touch:
       - logger.log:
           format: Touch at (%d, %d)
-          args: [touch.x, touch.y]
+          args: ["touch.x", "touch.y"]
+  - platform: xpt2046
+    id: xpt_touchscreen
+    cs_pin: 17
+    irq_pin: 16
+    update_interval: 50ms
+    report_interval: 1s
+    threshold: 400
+    dimension_x: 240
+    dimension_y: 320
+    calibration_x_min: 3860
+    calibration_x_max: 280
+    calibration_y_min: 340
+    calibration_y_max: 3860
+    swap_x_y: false
+    on_state:
+      # yamllint disable rule:line-length
+      - lambda: |-
+          ESP_LOGI("main", "args x=%d, y=%d, touched=%s", x, y, (touched ? "touch" : "release"));
+          ESP_LOGI("main", "member x=%d, y=%d, touched=%d, x_raw=%d, y_raw=%d, z_raw=%d",
+              id(xpt_touchscreen).x,
+              id(xpt_touchscreen).y,
+              (int) id(xpt_touchscreen).touched,
+              id(xpt_touchscreen).x_raw,
+              id(xpt_touchscreen).y_raw,
+              id(xpt_touchscreen).z_raw
+              );
+
 
 media_player:
   - platform: i2s_audio
