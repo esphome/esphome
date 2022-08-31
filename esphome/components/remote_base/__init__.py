@@ -1338,3 +1338,48 @@ def midea_dumper(var, config):
 )
 async def midea_action(var, config, args):
     cg.add(var.set_code(config[CONF_CODE]))
+
+
+# AEHA
+AEHAData, AEHABinarySensor, AEHATrigger, AEHAAction, AEHADumper = declare_protocol(
+    "AEHA"
+)
+AEHA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Required(CONF_DATA): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=2, max=35),
+        ),
+    }
+)
+
+
+@register_binary_sensor("aeha", AEHABinarySensor, AEHA_SCHEMA)
+def aeha_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                AEHAData,
+                ("address", config[CONF_ADDRESS]),
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("aeha", AEHATrigger, AEHAData)
+def aeha_trigger(var, config):
+    pass
+
+
+@register_dumper("aeha", AEHADumper)
+def aeha_dumper(var, config):
+    pass
+
+
+@register_action("aeha", AEHAAction, AEHA_SCHEMA)
+async def aeha_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    cg.add(var.set_address(template_))
+    cg.add(var.set_data(config[CONF_DATA]))
