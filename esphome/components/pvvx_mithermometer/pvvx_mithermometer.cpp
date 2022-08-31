@@ -43,6 +43,8 @@ bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
       this->battery_level_->publish_state(*res->battery_level);
     if (res->battery_voltage.has_value() && this->battery_voltage_ != nullptr)
       this->battery_voltage_->publish_state(*res->battery_voltage);
+    if (this->signal_strength_ != nullptr)
+      this->signal_strength_->publish_state(device.get_rssi());
     success = true;
   }
 

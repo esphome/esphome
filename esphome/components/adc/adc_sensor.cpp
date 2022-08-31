@@ -62,10 +62,6 @@ void ADCSensor::setup() {
     }
   }
 
-  // adc_gpio_init doesn't exist on ESP32-S2, ESP32-C3 or ESP32-H2
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32H2) && !defined(USE_ESP32_VARIANT_ESP32S2)
-  adc_gpio_init(ADC_UNIT_1, (adc_channel_t) channel_);
-#endif
 #endif  // USE_ESP32
 }
 

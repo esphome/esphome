@@ -73,8 +73,11 @@ void WiFiComponent::setup() {
       ESP_LOGV(TAG, "Setting Output Power Option failed!");
     }
 #ifdef USE_CAPTIVE_PORTAL
-    if (captive_portal::global_captive_portal != nullptr)
+    if (captive_portal::global_captive_portal != nullptr) {
+      this->wifi_sta_pre_setup_();
+      this->start_scanning();
       captive_portal::global_captive_portal->start();
+    }
 #endif
   }
 #ifdef USE_IMPROV
@@ -166,6 +169,10 @@ WiFiComponent::WiFiComponent() { global_wifi_component = this; }
 bool WiFiComponent::has_ap() const { return this->has_ap_; }
 bool WiFiComponent::has_sta() const { return !this->sta_.empty(); }
 void WiFiComponent::set_fast_connect(bool fast_connect) { this->fast_connect_ = fast_connect; }
+#ifdef USE_WIFI_11KV_SUPPORT
+void WiFiComponent::set_btm(bool btm) { this->btm_ = btm; }
+void WiFiComponent::set_rrm(bool rrm) { this->rrm_ = rrm; }
+#endif
 network::IPAddress WiFiComponent::get_ip_address() {
   if (this->has_sta())
     return this->wifi_sta_ip();
@@ -366,6 +373,10 @@ void WiFiComponent::print_connect_params_() {
   ESP_LOGCONFIG(TAG, "  Gateway: %s", wifi_gateway_ip_().str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS1: %s", wifi_dns_ip_(0).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS2: %s", wifi_dns_ip_(1).str().c_str());
+#ifdef USE_WIFI_11KV_SUPPORT
+  ESP_LOGCONFIG(TAG, "  BTM: %s", this->btm_ ? "enabled" : "disabled");
+  ESP_LOGCONFIG(TAG, "  RRM: %s", this->rrm_ ? "enabled" : "disabled");
+#endif
 }
 
 void WiFiComponent::start_scanning() {

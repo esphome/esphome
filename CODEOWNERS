@@ -29,11 +29,14 @@ esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/bedjet/* @jhansche
+esphome/components/bedjet/climate/* @jhansche
+esphome/components/bedjet/fan/* @jhansche
 esphome/components/bh1750/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/bl0939/* @ziceva
 esphome/components/bl0940/* @tobias-
 esphome/components/ble_client/* @buxtronix
+esphome/components/bluetooth_proxy/* @jesserockz
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bmp3xx/* @martgras
 esphome/components/button/* @esphome/core
@@ -59,6 +62,7 @@ esphome/components/debug/* @OttoWinter
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
+esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/ektf2232/* @jesserockz
@@ -73,6 +77,7 @@ esphome/components/esp8266/* @esphome/core
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
 esphome/components/fastled_base/* @OttoWinter
+esphome/components/feedback/* @ianchi
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
@@ -119,6 +124,7 @@ esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp3204/* @rsumner
 esphome/components/mcp4728/* @berfenger
 esphome/components/mcp47a1/* @jesserockz
+esphome/components/mcp9600/* @MrEditor97
 esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
@@ -189,9 +195,11 @@ esphome/components/shutdown/* @esphome/core @jsuanet
 esphome/components/sim800l/* @glmnet
 esphome/components/sm2135/* @BoukeHaarsma23
 esphome/components/sml/* @alengwenus
+esphome/components/smt100/* @piechade
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/spi/* @esphome/core
+esphome/components/sprinkler/* @kbx81
 esphome/components/sps30/* @martgras
 esphome/components/ssd1322_base/* @kbx81
 esphome/components/ssd1322_spi/* @kbx81
@@ -237,6 +245,7 @@ esphome/components/version/* @esphome/core
 esphome/components/wake_on_lan/* @willwill2will54
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
+esphome/components/whynter/* @aeonsablaze
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
