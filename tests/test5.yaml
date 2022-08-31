@@ -343,3 +343,16 @@ switch:
     register_type: coil
     address: 2
     bitmask: 1
+
+
+
+display:
+  - platform: tm1638
+    id: primarydisplay
+    stb_pin: 5 #TM1638 STB
+    clk_pin: 18 #TM1638 CLK
+    dio_pin: 23 #TM1638 DIO
+    update_interval: 5s
+    intensity: 5
+    lambda: |-
+      it.print("81818181");
