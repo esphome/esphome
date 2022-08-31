@@ -84,6 +84,7 @@ class XPT2046Component : public Touchscreen,
   int16_t x_raw{0}, y_raw{0}, z_raw{0};
   /**@}*/
 
+
  protected:
   static int16_t best_two_avg(int16_t x, int16_t y, int16_t z);
   static int16_t normalize(int16_t val, int16_t min_val, int16_t max_val);
