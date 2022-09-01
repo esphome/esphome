@@ -5,6 +5,7 @@
 #include "esphome/components/display/display_buffer.h"
 #include "ili9341_defines.h"
 #include "ili9341_init.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ili9341 {
@@ -45,8 +46,17 @@ class ILI9341Display : public PollingComponent,
 
   void dump_config() override;
   void setup() override {
+
     this->setup_pins_();
     this->initialize();
+
+    this->x_low_ = this->width_;
+    this->y_low_ = this->height_;
+    this->x_high_ = 0;
+    this->y_high_ = 0;
+
+    this->init_internal_(this->get_buffer_length_());
+    this->fill_internal_(0x00);
   }
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }

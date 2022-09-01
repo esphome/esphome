@@ -10,7 +10,6 @@ namespace ili9341 {
 static const char *const TAG = "ili9341";
 
 void ILI9341Display::setup_pins_() {
-  this->init_internal_(this->get_buffer_length_());
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
   if (this->reset_pin_ != nullptr) {
@@ -34,7 +33,8 @@ void ILI9341Display::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-float ILI9341Display::get_setup_priority() const { return setup_priority::PROCESSOR; }
+float ILI9341Display::get_setup_priority() const { return setup_priority::HARDWARE; }
+
 void ILI9341Display::command(uint8_t value) {
   this->start_command_();
   this->write_byte(value);
@@ -95,7 +95,7 @@ void ILI9341Display::display_() {
 
   set_addr_window_(this->x_low_, this->y_low_, w, h);
 
-  ESP_LOGD("ILI9341", "Start ILI9341Display::display_(xl:%d, xh:%d, yl:%d, yh:%d, w:%d, h:%d, start_pos:%d)",
+  ESP_LOGVV("ILI9341", "Start ILI9341Display::display_(xl:%d, xh:%d, yl:%d, yh:%d, w:%d, h:%d, start_pos:%d)",
            this->x_low_, this->x_high_, this->y_low_, this->y_high_, w, h, start_pos);
 
   this->start_data_();
@@ -113,8 +113,7 @@ void ILI9341Display::display_() {
     App.feed_wdt();
   }
   this->end_data_();
-  ESP_LOGD("ILI9341", "Finish ILI9341Display::display_()");
-
+ 
   // invalidate watermarks
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
@@ -284,7 +283,6 @@ void ILI9341M5Stack::initialize() {
   this->width_ = 320;
   this->height_ = 240;
   this->invert_display_(true);
-  this->fill_internal_(0x00);
 }
 
 //   24_TFT display
@@ -292,7 +290,6 @@ void ILI9341TFT24::initialize() {
   this->init_lcd_(INITCMD_TFT);
   this->width_ = 240;
   this->height_ = 320;
-  this->fill_internal_(0x00);
 }
 
 //   24_TFT rotated display
@@ -300,7 +297,6 @@ void ILI9341TFT24R::initialize() {
   this->init_lcd_(INITCMD_TFT);
   this->width_ = 320;
   this->height_ = 240;
-  this->fill_internal_(0x00);
 }
 
 }  // namespace ili9341
