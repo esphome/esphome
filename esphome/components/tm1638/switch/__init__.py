@@ -13,7 +13,7 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
         cv.GenerateID(CONF_TM1638_ID): cv.use_id(TM1638Component),
         cv.Required(CONF_LED): cv.int_range(min=0, max=7),
     }
-)
+).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):
