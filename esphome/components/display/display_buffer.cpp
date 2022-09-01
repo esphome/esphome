@@ -16,15 +16,22 @@ static const char *const TAG = "display";
 const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
 
-void DisplayBuffer::init_internal_(uint32_t buffer_length) {
+uint8_t DisplayBuffer::init_internal_(uint32_t buffer_length, uint8_t bytes_per_pixel) {
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
-  this->buffer_ = allocator.allocate(buffer_length);
-  if (this->buffer_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate buffer for display!");
-    return;
+
+  if (bytes_per_pixel == 0) bytes_per_pixel = 1;
+  if (bytes_per_pixel > 3) bytes_per_pixel = 3;
+
+  while (bytes_per_pixel>0) {
+    this->buffer_ = allocator.allocate(buffer_length * bytes_per_pixel);
+    if (this->buffer_ != nullptr) {
+      return bytes_per_pixel;
+    }
   }
-  //this->clear();
+  ESP_LOGE(TAG, "Could not allocate buffer for display!");
+  return 0;
 }
+
 void DisplayBuffer::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void DisplayBuffer::clear() { this->fill(COLOR_OFF); }
 int DisplayBuffer::get_width() {
