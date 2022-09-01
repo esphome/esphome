@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 
 from esphome.const import (
-    CONF_ID,
     CONF_ICON,
     CONF_ENTITY_CATEGORY,
     ENTITY_CATEGORY_CONFIG,

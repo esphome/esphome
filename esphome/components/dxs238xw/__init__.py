@@ -102,9 +102,7 @@ async def to_code(config):
 
 # ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-MeterStateToggleAction = dxs238xw_ns.class_(
-    "MeterStateToggleAction", automation.Action
-)
+MeterStateToggleAction = dxs238xw_ns.class_("MeterStateToggleAction", automation.Action)
 
 
 @automation.register_action(
