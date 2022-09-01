@@ -55,6 +55,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
+    cg.add(var.set_device_id(str(config[CONF_ID])))
     cg.add(var.set_temperature_offset(config[CONF_TEMPERATURE_OFFSET]))
     cg.add(var.set_iaq_mode(config[CONF_IAQ_MODE]))
     cg.add(var.set_sample_rate(config[CONF_SAMPLE_RATE]))

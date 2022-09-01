@@ -31,6 +31,7 @@ enum SampleRate {
 
 class BME680BSECComponent : public Component, public i2c::I2CDevice {
  public:
+  void set_device_id(const std::string &devid) { this->device_id_.assign(devid); }
   void set_temperature_offset(float offset) { this->temperature_offset_ = offset; }
   void set_iaq_mode(IAQMode iaq_mode) { this->iaq_mode_ = iaq_mode; }
   void set_state_save_interval(uint32_t interval) { this->state_save_interval_ms_ = interval; }
@@ -50,7 +51,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   void set_co2_equivalent_sensor(sensor::Sensor *sensor) { this->co2_equivalent_sensor_ = sensor; }
   void set_breath_voc_equivalent_sensor(sensor::Sensor *sensor) { this->breath_voc_equivalent_sensor_ = sensor; }
 
-  static std::map<uint8_t, BME680BSECComponent *> instances;
+  static std::vector<BME680BSECComponent *> instances;
   static int8_t read_bytes_wrapper(uint8_t devid, uint8_t a_register, uint8_t *data, uint16_t len);
   static int8_t write_bytes_wrapper(uint8_t devid, uint8_t a_register, uint8_t *data, uint16_t len);
   static void delay_ms(uint32_t period);
@@ -105,6 +106,7 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   uint32_t last_state_save_ms_ = 0;
   bsec_bme_settings_t bme680_settings_;
 
+  std::string device_id_;
   float temperature_offset_{0};
   IAQMode iaq_mode_{IAQ_MODE_STATIC};
 
