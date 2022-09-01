@@ -344,7 +344,8 @@ void BME680BSECComponent::read_() {
     ESP_LOGW(TAG, "BSEC failed to process signals (BSEC Error Code %d)", this->bsec_status_);
     return;
   }
-  ESP_LOGV(TAG, "%s: after bsec_do_steps: num_inputs=%d num_outputs=%d", this->device_id_.c_str(), num_inputs, num_outputs);
+  ESP_LOGV(TAG, "%s: after bsec_do_steps: num_inputs=%d num_outputs=%d", this->device_id_.c_str(), num_inputs,
+           num_outputs);
 
   // Since we are about to go "out of scope" in the loop, take a snapshot of the state now so we can restore it later
   if (BME680BSECComponent::instances.size() > 1)
@@ -449,8 +450,8 @@ void BME680BSECComponent::snapshot_state_() {
   this->bsec_status_ = bsec_get_state(0, this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, this->work_buffer_,
                                       sizeof(this->work_buffer_), &num_serialized_state);
   if (this->bsec_status_ != BSEC_OK) {
-    ESP_LOGW(TAG, "%s: Failed to fetch BSEC library state for snapshot (BSEC Error Code %d)",
-             this->device_id_.c_str(), this->bsec_status_);
+    ESP_LOGW(TAG, "%s: Failed to fetch BSEC library state for snapshot (BSEC Error Code %d)", this->device_id_.c_str(),
+             this->bsec_status_);
     return;
   }
   this->bsec_state_data_valid_ = true;
