@@ -27,7 +27,7 @@ from esphome.const import (
 
 from .. import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
 
-DEPENDENCIES = ["uart"]
+DEPENDENCIES = ["dxs238xw"]
 
 CONF_CURRENT_PHASE_1 = "current_phase_1"
 CONF_CURRENT_PHASE_2 = "current_phase_2"

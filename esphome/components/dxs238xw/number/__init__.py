@@ -22,9 +22,9 @@ from .. import (
     DXS238XW_COMPONENT_SCHEMA,
 )
 
-DEPENDENCIES = ["uart"]
+DEPENDENCIES = ["dxs238xw"]
 
-dxs238xwNumber = dxs238xw_ns.class_("Dxs238xwNumber", number.Number)
+Dxs238xwNumber = dxs238xw_ns.class_("Dxs238xwNumber", number.Number)
 
 MAX_CURRENT_LIMIT = "max_current_limit"
 MAX_VOLTAGE_LIMIT = "max_voltage_limit"
@@ -37,7 +37,7 @@ TYPES = {
     MAX_CURRENT_LIMIT: (
         number.NUMBER_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(dxs238xwNumber),
+                cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
                 cv.Optional(CONF_ICON, default="mdi:current-ac"): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_AMPERE
@@ -55,7 +55,7 @@ TYPES = {
     MAX_VOLTAGE_LIMIT: (
         number.NUMBER_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(dxs238xwNumber),
+                cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
                 cv.Optional(CONF_ICON, default="mdi:sine-wave"): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_VOLT
@@ -73,7 +73,7 @@ TYPES = {
     MIN_VOLTAGE_LIMIT: (
         number.NUMBER_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(dxs238xwNumber),
+                cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
                 cv.Optional(CONF_ICON, default="mdi:sine-wave"): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_VOLT
@@ -91,7 +91,7 @@ TYPES = {
     ENERGY_PURCHASE_VALUE: (
         number.NUMBER_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(dxs238xwNumber),
+                cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
                 cv.Optional(CONF_ICON, default="mdi:lightning-bolt"): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_KILOWATT_HOURS
@@ -109,7 +109,7 @@ TYPES = {
     ENERGY_PURCHASE_ALARM: (
         number.NUMBER_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(dxs238xwNumber),
+                cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
                 cv.Optional(CONF_ICON, default="mdi:lightning-bolt"): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_KILOWATT_HOURS
@@ -127,7 +127,7 @@ TYPES = {
     DELAY_VALUE_SET: (
         number.NUMBER_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(dxs238xwNumber),
+                cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
                 cv.Optional(CONF_ICON, default="mdi:timer-cog-outline"): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_MINUTE

@@ -1,17 +1,29 @@
 #pragma once
 
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#include "esphome/components/button/button.h"
-#include "esphome/components/number/number.h"
-#include "esphome/components/sensor/sensor.h"
-#include "esphome/components/switch/switch.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
-#include "esphome/core/util.h"
+
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 
 namespace esphome {
 namespace dxs238xw {
@@ -25,13 +37,6 @@ static const uint16_t SM_WAIT_TO_LOOP_AND_UPDATE_STATE = 2000;
 
 static const uint16_t SM_MAX_MILLIS_TO_CONFIRM = 200;
 static const uint16_t SM_MAX_MILLIS_TO_RESPONSE = 1000;
-
-//------------------------------------------------------------------------------
-
-static const uint16_t SM_UART_CONFIG_BAUD_RATE = 9600;
-static const uart::UARTParityOptions SM_UART_CONFIG_PARITY = uart::UARTParityOptions::UART_CONFIG_PARITY_NONE;
-static const uint8_t SM_UART_CONFIG_STOP_BITS = 1;
-static const uint8_t SM_UART_CONFIG_DATA_BITS = 8;
 
 //------------------------------------------------------------------------------
 
@@ -217,13 +222,18 @@ struct MeterStateData {
   uint32_t delay_value_set = SmLimitValue::MAX_DELAY_SET;
 };
 
+#ifdef USE_SENSOR
 #define DXS238XW_SENSOR(name) \
  protected: \
   sensor::Sensor *name##_sensor_; \
 \
  public: \
   void set_##name##_sensor(sensor::Sensor *name##_sensor) { this->name##_sensor_ = name##_sensor; }
+#else
+#define DXS238XW_SENSOR(name)
+#endif
 
+#ifdef USE_BINARY_SENSOR
 #define DXS238XW_BINARY_SENSOR(name) \
  protected: \
   binary_sensor::BinarySensor *name##_binary_sensor_; \
@@ -232,7 +242,11 @@ struct MeterStateData {
   void set_##name##_binary_sensor(binary_sensor::BinarySensor *name##_binary_sensor) { \
     this->name##_binary_sensor_ = name##_binary_sensor; \
   }
+#else
+#define DXS238XW_BINARY_SENSOR(name)
+#endif
 
+#ifdef USE_TEXT_SENSOR
 #define DXS238XW_TEXT_SENSOR(name) \
  protected: \
   text_sensor::TextSensor *name##_text_sensor_; \
@@ -241,27 +255,42 @@ struct MeterStateData {
   void set_##name##_text_sensor(text_sensor::TextSensor *name##_text_sensor) { \
     this->name##_text_sensor_ = name##_text_sensor; \
   }
+#else
+#define DXS238XW_TEXT_SENSOR(name)
+#endif
 
+#ifdef USE_NUMBER
 #define DXS238XW_NUMBER(name) \
  protected: \
   number::Number *name##_number_; \
 \
  public: \
   void set_##name##_number(number::Number *name##_number) { this->name##_number_ = name##_number; }
+#else
+#define DXS238XW_NUMBER(name)
+#endif
 
+#ifdef USE_SWITCH
 #define DXS238XW_SWITCH(name) \
  protected: \
   switch_::Switch *name##_switch_; \
 \
  public: \
   void set_##name##_switch(switch_::Switch *name##_switch) { this->name##_switch_ = name##_switch; }
+#else
+#define DXS238XW_SWITCH(name)
+#endif
 
+#ifdef USE_BUTTON
 #define DXS238XW_BUTTON(name) \
  protected: \
   button::Button *name##_button_; \
 \
  public: \
   void set_##name##_button(button::Button *name##_button) { this->name##_button_ = name##_button; }
+#else
+#define DXS238XW_BUTTON(name)
+#endif
 
 class Dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
   DXS238XW_SENSOR(current_phase_1)
@@ -325,10 +354,10 @@ class Dxs238xwComponent : public PollingComponent, public uart::UARTDevice {
 
   float get_setup_priority() const override { return setup_priority::AFTER_CONNECTION; }
 
-  void set_meter_state_toogle();
-  void set_meter_state_on();
-  void set_meter_state_off();
-  void send_hex_message(const char *message, bool check_crc = true);
+  void meter_state_toggle();
+  void meter_state_on();
+  void meter_state_off();
+  void hex_message(std::string message, bool check_crc = true);
 
   void set_switch_value(SmIdEntity entity, bool value);
   void set_button_value(SmIdEntity entity);

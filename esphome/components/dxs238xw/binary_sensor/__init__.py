@@ -10,7 +10,7 @@ from esphome.const import (
 
 from .. import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
 
-DEPENDENCIES = ["uart"]
+DEPENDENCIES = ["dxs238xw"]
 
 CONF_WARNING_OFF_BY_OVER_VOLTAGE = "warning_off_by_over_voltage"
 CONF_WARNING_OFF_BY_UNDER_VOLTAGE = "warning_off_by_under_voltage"

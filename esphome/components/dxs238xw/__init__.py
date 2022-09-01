@@ -25,7 +25,7 @@ UART_CONFIG_STOP_BITS = 1
 UART_CONFIG_DATA_BITS = 8
 
 dxs238xw_ns = cg.esphome_ns.namespace(COMPONENT_NAME)
-dxs238xwComponent = dxs238xw_ns.class_(
+Dxs238xwComponent = dxs238xw_ns.class_(
     "Dxs238xwComponent", cg.PollingComponent, uart.UARTDevice
 )
 SmIdEntity = dxs238xw_ns.enum("SmIdEntity", True)
@@ -33,12 +33,12 @@ SmLimitValue = dxs238xw_ns.enum("SmLimitValue")
 
 DXS238XW_COMPONENT_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_DXS238XW_ID): cv.use_id(dxs238xwComponent),
+        cv.GenerateID(CONF_DXS238XW_ID): cv.use_id(Dxs238xwComponent),
     }
 )
 
 CONFIG_SCHEMA = cv.All(
-    cv.Schema({cv.GenerateID(): cv.declare_id(dxs238xwComponent)})
+    cv.Schema({cv.GenerateID(): cv.declare_id(Dxs238xwComponent)})
     .extend(uart.UART_DEVICE_SCHEMA)
     .extend(cv.polling_component_schema("3s"))
 )
@@ -102,83 +102,83 @@ async def to_code(config):
 
 # ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-setMeterStateToogleAction = dxs238xw_ns.class_(
-    "setMeterStateToogleAction", automation.Action
+MeterStateToggleAction = dxs238xw_ns.class_(
+    "MeterStateToggleAction", automation.Action
 )
 
 
 @automation.register_action(
-    "dxs238xw.meterStateToogle",
-    setMeterStateToogleAction,
+    "dxs238xw.meter_state_toggle",
+    MeterStateToggleAction,
     maybe_simple_id(
         {
-            cv.GenerateID(): cv.use_id(dxs238xwComponent),
+            cv.GenerateID(): cv.use_id(Dxs238xwComponent),
         }
     ),
 )
-async def setMeterStateToogleAction_to_code(config, action_id, template_arg, args):
+async def MeterStateToggleAction_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 # ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-setMeterStateOnAction = dxs238xw_ns.class_("setMeterStateOnAction", automation.Action)
+MeterStateOnAction = dxs238xw_ns.class_("MeterStateOnAction", automation.Action)
 
 
 @automation.register_action(
-    "dxs238xw.meterStateOn",
-    setMeterStateOnAction,
+    "dxs238xw.meter_state_on",
+    MeterStateOnAction,
     maybe_simple_id(
         {
-            cv.GenerateID(): cv.use_id(dxs238xwComponent),
+            cv.GenerateID(): cv.use_id(Dxs238xwComponent),
         }
     ),
 )
-async def setMeterStateOnAction_to_code(config, action_id, template_arg, args):
+async def MeterStateOnAction_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 # ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-setMeterStateOffAction = dxs238xw_ns.class_("setMeterStateOffAction", automation.Action)
+MeterStateOffAction = dxs238xw_ns.class_("MeterStateOffAction", automation.Action)
 
 
 @automation.register_action(
-    "dxs238xw.meterStateOff",
-    setMeterStateOffAction,
+    "dxs238xw.meter_state_off",
+    MeterStateOffAction,
     maybe_simple_id(
         {
-            cv.GenerateID(): cv.use_id(dxs238xwComponent),
+            cv.GenerateID(): cv.use_id(Dxs238xwComponent),
         }
     ),
 )
-async def setMeterStateOffAction_to_code(config, action_id, template_arg, args):
+async def MeterStateOffAction_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
 # ////////////////////////////////////////////////////////////////////////////////////////////////////
 
-sendHexMessageAction = dxs238xw_ns.class_("sendHexMessageAction", automation.Action)
+HexMessageAction = dxs238xw_ns.class_("HexMessageAction", automation.Action)
 
 MESSAGE_VALUE = "message"
 CHECK_CRC = "check_crc"
 
 
 @automation.register_action(
-    "dxs238xw.sendHexMessage",
-    sendHexMessageAction,
-    maybe_simple_id(
+    "dxs238xw.hex_message",
+    HexMessageAction,
+    cv.Schema(
         {
-            cv.GenerateID(): cv.use_id(dxs238xwComponent),
+            cv.GenerateID(): cv.use_id(Dxs238xwComponent),
             cv.Required(MESSAGE_VALUE): cv.templatable(cv.string),
             cv.Optional(CHECK_CRC, default=True): cv.templatable(cv.boolean),
         }
     ),
 )
-async def sendHexMessageAction_to_code(config, action_id, template_arg, args):
+async def HexMessageAction_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 

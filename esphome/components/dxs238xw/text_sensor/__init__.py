@@ -8,7 +8,7 @@ from esphome.const import (
 
 from .. import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
 
-DEPENDENCIES = ["uart"]
+DEPENDENCIES = ["dxs238xw"]
 
 CONF_METER_STATE_DETAIL = "meter_state_detail"
 CONF_DELAY_VALUE_REMAINING = "delay_value_remaining"

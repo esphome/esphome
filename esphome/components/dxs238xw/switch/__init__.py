@@ -11,9 +11,9 @@ from esphome.const import (
 
 from .. import dxs238xw_ns, CONF_DXS238XW_ID, SmIdEntity, DXS238XW_COMPONENT_SCHEMA
 
-DEPENDENCIES = ["uart"]
+DEPENDENCIES = ["dxs238xw"]
 
-dxs238xwSwitch = dxs238xw_ns.class_("Dxs238xwSwitch", switch.Switch)
+Dxs238xwSwitch = dxs238xw_ns.class_("Dxs238xwSwitch", switch.Switch)
 
 ENERGY_PURCHASE_STATE = "energy_purchase_state"
 METER_STATE = "meter_state"
@@ -23,7 +23,7 @@ TYPES = {
     ENERGY_PURCHASE_STATE: (
         switch.SWITCH_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(dxs238xwSwitch),
+                cv.GenerateID(): cv.declare_id(Dxs238xwSwitch),
                 cv.Optional(CONF_ICON, default="mdi:lightning-bolt"): cv.icon,
                 cv.Optional(
                     CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
@@ -35,7 +35,7 @@ TYPES = {
     METER_STATE: (
         switch.SWITCH_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(dxs238xwSwitch),
+                cv.GenerateID(): cv.declare_id(Dxs238xwSwitch),
                 cv.Optional(CONF_ICON, default="mdi:power-plug"): cv.icon,
                 cv.Optional(
                     CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
@@ -47,7 +47,7 @@ TYPES = {
     DELAY_STATE: (
         switch.SWITCH_SCHEMA.extend(
             {
-                cv.GenerateID(): cv.declare_id(dxs238xwSwitch),
+                cv.GenerateID(): cv.declare_id(Dxs238xwSwitch),
                 cv.Optional(CONF_ICON, default="mdi:timer-cog-outline"): cv.icon,
                 cv.Optional(
                     CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
@@ -69,8 +69,7 @@ async def to_code(config):
     for type, (_, number_id) in TYPES.items():
         if type in config:
             conf = config[type]
-            var = cg.new_Pvariable(conf[CONF_ID])
-            await switch.register_switch(var, conf)
+            var = await switch.new_switch(conf)
             cg.add(var.set_dxs238xw_parent(paren))
             cg.add(var.set_entity_id(number_id))
             cg.add(getattr(paren, f"set_{type}_switch")(var))

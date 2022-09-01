@@ -6,46 +6,46 @@
 namespace esphome {
 namespace dxs238xw {
 
-template<typename... Ts> class sendHexMessageAction : public Action<Ts...> {
+template<typename... Ts> class HexMessageAction : public Action<Ts...> {
  public:
-  explicit sendHexMessageAction(Dxs238xwComponent *parent) : parent_(parent) {}
+  explicit HexMessageAction(Dxs238xwComponent *parent) : parent_(parent) {}
 
-  TEMPLATABLE_VALUE(const char *, message)
+  TEMPLATABLE_VALUE(std::string, message)
   TEMPLATABLE_VALUE(bool, check_crc)
 
   void play(Ts... x) override {
-    this->parent_->send_hex_message(this->message_.value(x...), this->check_crc_.value_or(x..., true));
+    this->parent_->hex_message(this->message_.value(x...), this->check_crc_.value_or(x..., true));
   }
 
  protected:
   Dxs238xwComponent *parent_;
 };
 
-template<typename... Ts> class setMeterStateToogleAction : public Action<Ts...> {
+template<typename... Ts> class MeterStateToggleAction : public Action<Ts...> {
  public:
-  explicit setMeterStateToogleAction(Dxs238xwComponent *parent) : parent_(parent) {}
+  explicit MeterStateToggleAction(Dxs238xwComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->set_meter_state_toogle(); }
+  void play(Ts... x) override { this->parent_->meter_state_toggle(); }
 
  protected:
   Dxs238xwComponent *parent_;
 };
 
-template<typename... Ts> class setMeterStateOnAction : public Action<Ts...> {
+template<typename... Ts> class MeterStateOnAction : public Action<Ts...> {
  public:
-  explicit setMeterStateOnAction(Dxs238xwComponent *parent) : parent_(parent) {}
+  explicit MeterStateOnAction(Dxs238xwComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->set_meter_state_on(); }
+  void play(Ts... x) override { this->parent_->meter_state_on(); }
 
  protected:
   Dxs238xwComponent *parent_;
 };
 
-template<typename... Ts> class setMeterStateOffAction : public Action<Ts...> {
+template<typename... Ts> class MeterStateOffAction : public Action<Ts...> {
  public:
-  explicit setMeterStateOffAction(Dxs238xwComponent *parent) : parent_(parent) {}
+  explicit MeterStateOffAction(Dxs238xwComponent *parent) : parent_(parent) {}
 
-  void play(Ts... x) override { this->parent_->set_meter_state_off(); }
+  void play(Ts... x) override { this->parent_->meter_state_off(); }
 
  protected:
   Dxs238xwComponent *parent_;

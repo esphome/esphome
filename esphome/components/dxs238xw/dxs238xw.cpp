@@ -5,51 +5,75 @@ namespace dxs238xw {
 
 static const char *const TAG = "dxs238xw";
 
-#define UPDATE_SENSOR(sensor, value) \
-  if (this->sensor##_sensor_ != nullptr) { \
-    if (this->sensor##_sensor_->get_raw_state() != (value) || this->get_component_state() == COMPONENT_STATE_SETUP) { \
-      this->sensor##_sensor_->publish_state(value); \
+#ifdef USE_SENSOR
+#define UPDATE_SENSOR(name, value) \
+  if (this->name##_sensor_ != nullptr) { \
+    if (this->name##_sensor_->get_raw_state() != (value) || this->get_component_state() == COMPONENT_STATE_SETUP) { \
+      this->name##_sensor_->publish_state(value); \
     } \
   }
+#else
+#define UPDATE_SENSOR(name, value)
+#endif
 
-#define UPDATE_SENSOR_MEASUREMENTS(sensor, value) \
-  if (this->sensor##_sensor_ != nullptr) { \
+#ifdef USE_SENSOR
+#define UPDATE_SENSOR_MEASUREMENTS(name, value) \
+  if (this->name##_sensor_ != nullptr) { \
     float value_float = value; \
 \
-    if (this->sensor##_sensor_->get_raw_state() != value_float || \
+    if (this->name##_sensor_->get_raw_state() != value_float || \
         this->get_component_state() == COMPONENT_STATE_SETUP) { \
-      this->sensor##_sensor_->publish_state(value_float); \
+      this->name##_sensor_->publish_state(value_float); \
     } \
   }
+#else
+#define UPDATE_SENSOR_MEASUREMENTS(name, value)
+#endif
 
-#define UPDATE_TEXT_SENSOR(sensor, value) \
-  if (this->sensor##_text_sensor_ != nullptr) { \
-    if (this->sensor##_text_sensor_->get_raw_state() != (value) || \
+#ifdef USE_TEXT_SENSOR
+#define UPDATE_TEXT_SENSOR(name, value) \
+  if (this->name##_text_sensor_ != nullptr) { \
+    if (this->name##_text_sensor_->get_raw_state() != (value) || \
         this->get_component_state() == COMPONENT_STATE_SETUP) { \
-      this->sensor##_text_sensor_->publish_state(value); \
+      this->name##_text_sensor_->publish_state(value); \
     } \
   }
+#else
+#define UPDATE_TEXT_SENSOR(name, value)
+#endif
 
-#define UPDATE_BINARY_SENSOR(sensor, value) \
-  if (this->sensor##_binary_sensor_ != nullptr) { \
-    if (this->sensor##_binary_sensor_->state != (value) || this->get_component_state() == COMPONENT_STATE_SETUP) { \
-      this->sensor##_binary_sensor_->publish_state(value); \
+#ifdef USE_BINARY_SENSOR
+#define UPDATE_BINARY_SENSOR(name, value) \
+  if (this->name##_binary_sensor_ != nullptr) { \
+    if (this->name##_binary_sensor_->state != (value) || this->get_component_state() == COMPONENT_STATE_SETUP) { \
+      this->name##_binary_sensor_->publish_state(value); \
     } \
   }
+#else
+#define UPDATE_BINARY_SENSOR(name, value)
+#endif
 
-#define UPDATE_NUMBER(sensor, value) \
-  if (this->sensor##_number_ != nullptr) { \
-    if (this->sensor##_number_->state != (value) || this->get_component_state() == COMPONENT_STATE_SETUP) { \
-      this->sensor##_number_->publish_state(value); \
+#ifdef USE_NUMBER
+#define UPDATE_NUMBER(name, value) \
+  if (this->name##_number_ != nullptr) { \
+    if (this->name##_number_->state != (value) || this->get_component_state() == COMPONENT_STATE_SETUP) { \
+      this->name##_number_->publish_state(value); \
     } \
   }
+#else
+#define UPDATE_NUMBER(name, value)
+#endif
 
-#define UPDATE_SWITCH(sensor, value) \
-  if (this->sensor##_switch_ != nullptr) { \
-    if (this->sensor##_switch_->state != (value) || this->get_component_state() == COMPONENT_STATE_SETUP) { \
-      this->sensor##_switch_->publish_state(value); \
+#ifdef USE_SWITCH
+#define UPDATE_SWITCH(name, value) \
+  if (this->name##_switch_ != nullptr) { \
+    if (this->name##_switch_->state != (value) || this->get_component_state() == COMPONENT_STATE_SETUP) { \
+      this->name##_switch_->publish_state(value); \
     } \
   }
+#else
+#define UPDATE_SWITCH(name, value)
+#endif
 
 //------------------------------------------------------------------------------
 ////////////////////////////////////////////////////////////////////////////////
@@ -98,9 +122,6 @@ void Dxs238xwComponent::update() {
 }
 
 void Dxs238xwComponent::dump_config() {
-  this->check_uart_settings(SM_UART_CONFIG_BAUD_RATE, SM_UART_CONFIG_STOP_BITS, SM_UART_CONFIG_PARITY,
-                            SM_UART_CONFIG_DATA_BITS);
-
   ESP_LOGCONFIG(TAG, "* energy_purchase_value: %u", this->lp_data_.energy_purchase_value_tmp);
   ESP_LOGCONFIG(TAG, "* energy_purchase_Alarm: %u", this->lp_data_.energy_purchase_alarm_tmp);
   ESP_LOGCONFIG(TAG, "* delay_value_set: %u", this->ms_data_.delay_value_set);
@@ -110,33 +131,33 @@ void Dxs238xwComponent::dump_config() {
 ////////////////////////////////////////////////////////////////////////////////
 //------------------------------------------------------------------------------
 
-void Dxs238xwComponent::set_meter_state_toogle() {
+void Dxs238xwComponent::meter_state_toggle() {
   bool state = !this->ms_data_.meter_state;
 
   this->send_command_(SmCommandSend::SET_POWER_STATE, state);
 }
 
-void Dxs238xwComponent::set_meter_state_on() {
+void Dxs238xwComponent::meter_state_on() {
   bool state = true;
 
   this->send_command_(SmCommandSend::SET_POWER_STATE, state);
 }
 
-void Dxs238xwComponent::set_meter_state_off() {
+void Dxs238xwComponent::meter_state_off() {
   bool state = false;
 
   this->send_command_(SmCommandSend::SET_POWER_STATE, state);
 }
 
-void Dxs238xwComponent::send_hex_message(const char *message, bool check_crc) {
+void Dxs238xwComponent::hex_message(std::string message, bool check_crc) {
   ESP_LOGD(TAG, "In --- send_hex_message");
 
-  ESP_LOGD(TAG, "* message in = %s", message);
+  ESP_LOGD(TAG, "* message in = %s", message.c_str());
 
   this->error_type_ = SmErrorType::NO_ERROR;
   this->error_code_ = SmErrorCode::NO_ERROR;
 
-  uint8_t length_message = strlen(message);
+  uint8_t length_message = message.length();
 
   if (length_message == 0 || length_message > SM_MAX_HEX_MSG_LENGTH) {
     this->error_type_ = SmErrorType::INPUT_DATA;
@@ -994,8 +1015,8 @@ uint8_t Dxs238xwComponent::calculate_crc_(const uint8_t *array, uint8_t size) {
 }
 
 void Dxs238xwComponent::print_error_() {
-  const char *string_type = nullptr;
-  const char *string_code = nullptr;
+  std::string string_type;
+  std::string string_code;
 
   switch (this->error_type_) {
     case SmErrorType::NO_ERROR:
@@ -1036,7 +1057,7 @@ void Dxs238xwComponent::print_error_() {
       break;
   }
 
-  ESP_LOGE(TAG, "* Error, Type: %s, Description: %s", string_type, string_code);
+  ESP_LOGE(TAG, "* Error, Type: %s, Description: %s", string_type.c_str(), string_code.c_str());
 
   this->error_type_ = SmErrorType::NO_ERROR;
   this->error_code_ = SmErrorCode::NO_ERROR;
