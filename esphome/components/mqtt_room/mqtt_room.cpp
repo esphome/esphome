@@ -1,5 +1,9 @@
 #include "mqtt_room.h"
 
+#include <cmath>
+
+#ifdef USE_ESP32
+
 namespace esphome {
 namespace mqtt_room {
 static const char *const TAG = "mqtt_room";
@@ -15,7 +19,7 @@ void MqttRoom::set_topic(const std::string &topic) { this->mqtt_topic_ = topic; 
 void MqttRoom::add_tracker(ble_rssi::BLERSSISensor *sensor, const std::string &id, const std::string &name) {
   this->tracker_count_++;
   sensor->add_on_state_callback([this, id, name](float rssi) {
-    float distance = this->calculateDistance(rssi);
+    float distance = this->calculate_distance_(rssi);
     ESP_LOGD(TAG, "Got distance of '%0.1fm' for '%s'", distance, id.c_str());
 
     mqtt::global_mqtt_client->publish_json(this->mqtt_topic_, [=](ArduinoJson::JsonObject root) -> void {
@@ -26,7 +30,7 @@ void MqttRoom::add_tracker(ble_rssi::BLERSSISensor *sensor, const std::string &i
   });
 }
 
-float MqttRoom::calculateDistance(float rssi) {
+float MqttRoom::calculate_distance_(float rssi) {
   const float ratio = rssi * 1.0 / -72;
   float distance;
 
@@ -36,8 +40,10 @@ float MqttRoom::calculateDistance(float rssi) {
     distance = (0.89976) * pow(ratio, 7.7095) + 0.111;
   }
 
-  return round(distance * 100) / 100;
+  return std::round(distance * 100) / 100;
 }
 
 }  // namespace mqtt_room
 }  // namespace esphome
+
+#endif

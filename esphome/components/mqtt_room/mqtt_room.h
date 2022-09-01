@@ -4,6 +4,8 @@
 #include "esphome/components/ble_rssi/ble_rssi_sensor.h"
 #include "esphome/components/mqtt/mqtt_client.h"
 
+#ifdef USE_ESP32
+
 namespace esphome {
 namespace mqtt_room {
 class MqttRoom : public Component {
@@ -16,7 +18,9 @@ class MqttRoom : public Component {
   std::string mqtt_topic_;
   int tracker_count_ = 0;
 
-  float calculateDistance(float rssi);
+  float calculate_distance_(float rssi);
 };
 }  // namespace mqtt_room
 }  // namespace esphome
+
+#endif
