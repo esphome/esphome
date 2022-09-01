@@ -93,7 +93,8 @@ class XPT2046Component : public Touchscreen,
 
   int16_t threshold_;
   int16_t x_raw_min_, x_raw_max_, y_raw_min_, y_raw_max_;
-  int16_t x_dim_, y_dim_;
+
+  bool invert_x_, invert_y_;
   bool swap_x_y_;
 
   uint32_t report_millis_;
