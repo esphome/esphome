@@ -507,8 +507,8 @@ void BME680BSECComponent::load_state_() {
   }
 
   ESP_LOGV(TAG, "%s: Loading BSEC library state", this->device_id_.c_str());
-  this->bsec_status_ = bsec_set_state(this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, this->work_buffer_,
-                                      sizeof(this->work_buffer_));
+  this->bsec_status_ =
+      bsec_set_state(this->bsec_state_data_, BSEC_MAX_STATE_BLOB_SIZE, this->work_buffer_, sizeof(this->work_buffer_));
   if (this->bsec_status_ != BSEC_OK) {
     ESP_LOGW(TAG, "%s: Failed to load BSEC library state (BSEC Error Code %d)", this->device_id_.c_str(),
              this->bsec_status_);
