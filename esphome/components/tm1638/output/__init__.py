@@ -4,7 +4,7 @@ from esphome.components import output
 from esphome.const import CONF_ID, CONF_LED
 from ..display import tm1638_ns, TM1638Component, CONF_TM1638_ID
 
-TM1638OutputLed = tm1638_ns.class_("TM1638OutputLed", output.BinaryOutput)
+TM1638OutputLed = tm1638_ns.class_("TM1638OutputLed", output.BinaryOutput, cg.Component)
 
 
 CONFIG_SCHEMA = output.BINARY_OUTPUT_SCHEMA.extend(
