@@ -138,6 +138,7 @@ void XPT2046Component::check_touch_() {
         for (auto *listener : this->touch_listeners_)
           listener->release();
       }
+
     }
   }
 }
