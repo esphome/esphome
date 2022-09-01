@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_TYPE_ID,
     CONF_TIME,
 )
-from esphome.jsonschema import jschema_extractor
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry
 
 
@@ -23,11 +23,10 @@ def maybe_simple_id(*validators):
 def maybe_conf(conf, *validators):
     validator = cv.All(*validators)
 
-    @jschema_extractor("maybe")
+    @schema_extractor("maybe")
     def validate(value):
-        # pylint: disable=comparison-with-callable
-        if value == jschema_extractor:
-            return validator
+        if value == SCHEMA_EXTRACT:
+            return (validator, conf)
 
         if isinstance(value, dict):
             return validator(value)
@@ -111,11 +110,9 @@ def validate_automation(extra_schema=None, extra_validators=None, single=False):
         # This should only happen with invalid configs, but let's have a nice error message.
         return [schema(value)]
 
-    @jschema_extractor("automation")
+    @schema_extractor("automation")
     def validator(value):
-        # hack to get the schema
-        # pylint: disable=comparison-with-callable
-        if value == jschema_extractor:
+        if value == SCHEMA_EXTRACT:
             return schema
 
         value = validator_(value)
@@ -262,21 +259,16 @@ async def repeat_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-def validate_wait_until(value):
-    schema = cv.Schema(
-        {
-            cv.Required(CONF_CONDITION): validate_potentially_and_condition,
-            cv.Optional(CONF_TIMEOUT): cv.templatable(
-                cv.positive_time_period_milliseconds
-            ),
-        }
-    )
-    if isinstance(value, dict) and CONF_CONDITION in value:
-        return schema(value)
-    return validate_wait_until({CONF_CONDITION: value})
+_validate_wait_until = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_CONDITION): validate_potentially_and_condition,
+        cv.Optional(CONF_TIMEOUT): cv.templatable(cv.positive_time_period_milliseconds),
+    },
+    key=CONF_CONDITION,
+)
 
 
-@register_action("wait_until", WaitUntilAction, validate_wait_until)
+@register_action("wait_until", WaitUntilAction, _validate_wait_until)
 async def wait_until_action_to_code(config, action_id, template_arg, args):
     conditions = await build_condition(config[CONF_CONDITION], template_arg, args)
     var = cg.new_Pvariable(action_id, template_arg, conditions)

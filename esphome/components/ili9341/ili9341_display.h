@@ -12,6 +12,12 @@ namespace ili9341 {
 enum ILI9341Model {
   M5STACK = 0,
   TFT_24,
+  TFT_24R,
+};
+
+enum ILI9341ColorMode {
+  BITS_8,
+  BITS_8_INDEXED,
 };
 
 class ILI9341Display : public PollingComponent,
@@ -24,6 +30,8 @@ class ILI9341Display : public PollingComponent,
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_led_pin(GPIOPin *led) { this->led_pin_ = led; }
   void set_model(ILI9341Model model) { this->model_ = model; }
+  void set_palette(const uint8_t *palette) { this->palette_ = palette; }
+  void set_buffer_color_mode(ILI9341ColorMode color_mode) { this->buffer_color_mode_ = color_mode; }
 
   void command(uint8_t value);
   void data(uint8_t value);
@@ -41,6 +49,8 @@ class ILI9341Display : public PollingComponent,
     this->initialize();
   }
 
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void setup_pins_();
@@ -51,8 +61,6 @@ class ILI9341Display : public PollingComponent,
   void reset_();
   void fill_internal_(Color color);
   void display_();
-  uint16_t convert_to_16bit_color_(uint8_t color_8bit);
-  uint8_t convert_to_8bit_color_(uint16_t color_16bit);
 
   ILI9341Model model_;
   int16_t width_{320};   ///< Display width as modified by current rotation
@@ -61,6 +69,9 @@ class ILI9341Display : public PollingComponent,
   uint16_t y_low_{0};
   uint16_t x_high_{0};
   uint16_t y_high_{0};
+  const uint8_t *palette_;
+
+  ILI9341ColorMode buffer_color_mode_{BITS_8};
 
   uint32_t get_buffer_length_();
   int get_width_internal() override;
@@ -92,5 +103,12 @@ class ILI9341TFT24 : public ILI9341Display {
  public:
   void initialize() override;
 };
+
+//-----------   ILI9341_24_TFT rotated display --------------
+class ILI9341TFT24R : public ILI9341Display {
+ public:
+  void initialize() override;
+};
+
 }  // namespace ili9341
 }  // namespace esphome

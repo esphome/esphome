@@ -310,6 +310,32 @@ bool APIServerConnectionBase::send_list_entities_button_response(const ListEntit
 #endif
 #ifdef USE_BUTTON
 #endif
+#ifdef USE_MEDIA_PLAYER
+bool APIServerConnectionBase::send_list_entities_media_player_response(const ListEntitiesMediaPlayerResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_media_player_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesMediaPlayerResponse>(msg, 63);
+}
+#endif
+#ifdef USE_MEDIA_PLAYER
+bool APIServerConnectionBase::send_media_player_state_response(const MediaPlayerStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_media_player_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<MediaPlayerStateResponse>(msg, 64);
+}
+#endif
+#ifdef USE_MEDIA_PLAYER
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+bool APIServerConnectionBase::send_bluetooth_le_advertisement_response(const BluetoothLEAdvertisementResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_bluetooth_le_advertisement_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<BluetoothLEAdvertisementResponse>(msg, 67);
+}
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -566,6 +592,26 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 65: {
+#ifdef USE_MEDIA_PLAYER
+      MediaPlayerCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_media_player_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_media_player_command_request(msg);
+#endif
+      break;
+    }
+    case 66: {
+      SubscribeBluetoothLEAdvertisementsRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_subscribe_bluetooth_le_advertisements_request: %s", msg.dump().c_str());
+#endif
+      this->on_subscribe_bluetooth_le_advertisements_request(msg);
+      break;
+    }
     default:
       return false;
   }
@@ -661,6 +707,18 @@ void APIServerConnection::on_subscribe_home_assistant_states_request(const Subsc
     return;
   }
   this->subscribe_home_assistant_states(msg);
+}
+void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(
+    const SubscribeBluetoothLEAdvertisementsRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->subscribe_bluetooth_le_advertisements(msg);
 }
 void APIServerConnection::on_get_time_request(const GetTimeRequest &msg) {
   if (!this->is_connection_setup()) {
@@ -811,6 +869,19 @@ void APIServerConnection::on_lock_command_request(const LockCommandRequest &msg)
     return;
   }
   this->lock_command(msg);
+}
+#endif
+#ifdef USE_MEDIA_PLAYER
+void APIServerConnection::on_media_player_command_request(const MediaPlayerCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->media_player_command(msg);
 }
 #endif
 

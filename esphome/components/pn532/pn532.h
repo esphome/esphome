@@ -5,6 +5,7 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/nfc/nfc_tag.h"
 #include "esphome/components/nfc/nfc.h"
+#include "esphome/components/nfc/automation.h"
 
 namespace esphome {
 namespace pn532 {
@@ -16,7 +17,6 @@ static const uint8_t PN532_COMMAND_INDATAEXCHANGE = 0x40;
 static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
 
 class PN532BinarySensor;
-class PN532OnTagTrigger;
 
 class PN532 : public PollingComponent {
  public:
@@ -30,8 +30,8 @@ class PN532 : public PollingComponent {
   void loop() override;
 
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
-  void register_ontag_trigger(PN532OnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
-  void register_ontagremoved_trigger(PN532OnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
+  void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
+  void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
   void add_on_finished_write_callback(std::function<void()> callback) {
     this->on_finished_write_callback_.add(std::move(callback));
@@ -79,8 +79,8 @@ class PN532 : public PollingComponent {
 
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
-  std::vector<PN532OnTagTrigger *> triggers_ontag_;
-  std::vector<PN532OnTagTrigger *> triggers_ontagremoved_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
   enum NfcTask {
@@ -113,11 +113,6 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
  protected:
   std::vector<uint8_t> uid_;
   bool found_{false};
-};
-
-class PN532OnTagTrigger : public Trigger<std::string, nfc::NfcTag> {
- public:
-  void process(const std::unique_ptr<nfc::NfcTag> &tag);
 };
 
 class PN532OnFinishedWriteTrigger : public Trigger<> {

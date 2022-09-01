@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import switch
-from esphome.const import CONF_ID, CONF_INTERLOCK, CONF_PIN, CONF_RESTORE_MODE
+from esphome.const import CONF_INTERLOCK, CONF_PIN, CONF_RESTORE_MODE
 from .. import gpio_ns
 
 GPIOSwitch = gpio_ns.class_("GPIOSwitch", switch.Switch, cg.Component)
@@ -18,25 +18,27 @@ RESTORE_MODES = {
 }
 
 CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
-CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(GPIOSwitch),
-        cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_OFF"): cv.enum(
-            RESTORE_MODES, upper=True, space="_"
-        ),
-        cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
-        cv.Optional(
-            CONF_INTERLOCK_WAIT_TIME, default="0ms"
-        ): cv.positive_time_period_milliseconds,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    switch.switch_schema(GPIOSwitch)
+    .extend(
+        {
+            cv.Required(CONF_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_OFF"): cv.enum(
+                RESTORE_MODES, upper=True, space="_"
+            ),
+            cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
+            cv.Optional(
+                CONF_INTERLOCK_WAIT_TIME, default="0ms"
+            ): cv.positive_time_period_milliseconds,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await switch.new_switch(config)
     await cg.register_component(var, config)
-    await switch.register_switch(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_PIN])
     cg.add(var.set_pin(pin))

@@ -1,5 +1,6 @@
 # pylint: disable=wrong-import-position
 
+import base64
 import codecs
 import collections
 import functools
@@ -283,6 +284,18 @@ class EsphomeLogsHandler(EsphomeCommandWebSocket):
         ]
 
 
+class EsphomeRenameHandler(EsphomeCommandWebSocket):
+    def build_command(self, json_message):
+        config_file = settings.rel_path(json_message["configuration"])
+        return [
+            "esphome",
+            "--dashboard",
+            "rename",
+            config_file,
+            json_message["newName"],
+        ]
+
+
 class EsphomeUploadHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
@@ -366,6 +379,8 @@ class WizardRequestHandler(BaseHandler):
             if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
         kwargs["ota_password"] = secrets.token_hex(16)
+        noise_psk = secrets.token_bytes(32)
+        kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
         destination = settings.rel_path(f"{kwargs['name']}.yaml")
         wizard.wizard_write(path=destination, **kwargs)
         self.set_status(200)
@@ -808,7 +823,9 @@ class LoginHandler(BaseHandler):
             "password": self.get_argument("password", ""),
         }
         try:
-            req = requests.post("http://supervisor/auth", headers=headers, data=data)
+            req = requests.post(
+                "http://supervisor/auth", headers=headers, data=data, timeout=30
+            )
             if req.status_code == 200:
                 self.set_secure_cookie("authenticated", cookie_authenticated_yes)
                 self.redirect("/")
@@ -932,9 +949,12 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
     class StaticFileHandler(tornado.web.StaticFileHandler):
         def set_extra_headers(self, path):
-            self.set_header(
-                "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
-            )
+            if "favicon.ico" in path:
+                self.set_header("Cache-Control", "max-age=84600, public")
+            else:
+                self.set_header(
+                    "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
+                )
 
     app_settings = {
         "debug": debug,
@@ -971,6 +991,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
             (f"{rel}secret_keys", SecretKeysRequestHandler),
+            (f"{rel}rename", EsphomeRenameHandler),
         ],
         **app_settings,
     )

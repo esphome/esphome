@@ -145,6 +145,20 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_BUTTON
   virtual void on_button_command_request(const ButtonCommandRequest &value){};
 #endif
+#ifdef USE_MEDIA_PLAYER
+  bool send_list_entities_media_player_response(const ListEntitiesMediaPlayerResponse &msg);
+#endif
+#ifdef USE_MEDIA_PLAYER
+  bool send_media_player_state_response(const MediaPlayerStateResponse &msg);
+#endif
+#ifdef USE_MEDIA_PLAYER
+  virtual void on_media_player_command_request(const MediaPlayerCommandRequest &value){};
+#endif
+  virtual void on_subscribe_bluetooth_le_advertisements_request(
+      const SubscribeBluetoothLEAdvertisementsRequest &value){};
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_le_advertisement_response(const BluetoothLEAdvertisementResponse &msg);
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
@@ -161,6 +175,7 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void subscribe_logs(const SubscribeLogsRequest &msg) = 0;
   virtual void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) = 0;
   virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
+  virtual void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
   virtual GetTimeResponse get_time(const GetTimeRequest &msg) = 0;
   virtual void execute_service(const ExecuteServiceRequest &msg) = 0;
 #ifdef USE_COVER
@@ -193,6 +208,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_LOCK
   virtual void lock_command(const LockCommandRequest &msg) = 0;
 #endif
+#ifdef USE_MEDIA_PLAYER
+  virtual void media_player_command(const MediaPlayerCommandRequest &msg) = 0;
+#endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
   void on_connect_request(const ConnectRequest &msg) override;
@@ -204,6 +222,7 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_subscribe_logs_request(const SubscribeLogsRequest &msg) override;
   void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) override;
   void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) override;
+  void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
   void on_get_time_request(const GetTimeRequest &msg) override;
   void on_execute_service_request(const ExecuteServiceRequest &msg) override;
 #ifdef USE_COVER
@@ -235,6 +254,9 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_LOCK
   void on_lock_command_request(const LockCommandRequest &msg) override;
+#endif
+#ifdef USE_MEDIA_PLAYER
+  void on_media_player_command_request(const MediaPlayerCommandRequest &msg) override;
 #endif
 };
 

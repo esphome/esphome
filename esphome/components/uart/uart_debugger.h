@@ -38,7 +38,7 @@ class UARTDebugger : public Component, public Trigger<UARTDirection, std::vector
 
   /// Add a delimiter byte. This can be called multiple times to setup a
   /// multi-byte delimiter (a typical example would be '\r\n').
-  /// When the constructued byte sequence is found in the data stream,
+  /// When the constructed byte sequence is found in the data stream,
   /// logging will be triggered.
   void add_delimiter_byte(uint8_t byte) { this->after_delimiter_.push_back(byte); }
 
