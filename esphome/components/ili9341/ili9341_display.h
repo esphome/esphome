@@ -46,6 +46,7 @@ class ILI9341Display : public PollingComponent,
 
   void dump_config() override;
   void setup() override {
+
     this->setup_pins_();
     this->initialize();
 
