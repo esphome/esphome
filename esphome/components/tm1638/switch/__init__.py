@@ -17,8 +17,8 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await switch.register_switch(var, config)
+    var = await switch.new_switch(config)
+    await cg.register_component(var, config)
     cg.add(var.set_lednum(config[CONF_LED]))
     hub = await cg.get_variable(config[CONF_TM1638_ID])
     cg.add(var.set_tm1638(hub))
