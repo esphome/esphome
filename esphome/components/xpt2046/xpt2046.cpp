@@ -32,7 +32,6 @@ void XPT2046Component::setup() {
     this->display_height_ = display_->get_height();
     this->rotation_ = static_cast<TouchRotation>(display_->get_rotation());
   }
-
 }
 
 void XPT2046Component::loop() {
@@ -139,7 +138,6 @@ void XPT2046Component::check_touch_() {
         for (auto *listener : this->touch_listeners_)
           listener->release();
       }
-
     }
   }
 }
@@ -162,9 +160,9 @@ void XPT2046Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Y min: %d", this->y_raw_min_);
   ESP_LOGCONFIG(TAG, "  Y max: %d", this->y_raw_max_);
 
-  ESP_LOGCONFIG(TAG, "  Swap X/Y: %s",YESNO(this->swap_x_y_));
-  ESP_LOGCONFIG(TAG, "  Invert X: %s",YESNO(this->invert_x_));
-  ESP_LOGCONFIG(TAG, "  Invert Y: %s",YESNO(this->invert_y_));
+  ESP_LOGCONFIG(TAG, "  Swap X/Y: %s", YESNO(this->swap_x_y_));
+  ESP_LOGCONFIG(TAG, "  Invert X: %s", YESNO(this->invert_x_));
+  ESP_LOGCONFIG(TAG, "  Invert Y: %s", YESNO(this->invert_y_));
 
   ESP_LOGCONFIG(TAG, "  threshold: %d", this->threshold_);
   ESP_LOGCONFIG(TAG, "  Report interval: %u", this->report_millis_);
