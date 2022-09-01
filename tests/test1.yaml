@@ -1161,6 +1161,9 @@ sensor:
     temperature:
       name: Max9611 Temp
     update_interval: 1s
+  - platform: ble_rssi
+    ibeacon_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    id: ble_rssi_tracker
 
 esp32_touch:
   setup_mode: False
@@ -2937,3 +2940,9 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+
+mqtt_room:
+  room: Example Room
+  trackers:
+    - device_id: ble_rssi_tracker
+      name: BLE Tracker

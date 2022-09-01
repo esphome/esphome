@@ -6,7 +6,7 @@ static const char *const TAG = "mqtt_room";
 
 void MqttRoom::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Room:");
-  ESP_LOGCONFIG(TAG, "  Room name: '%s'", this->mqtt_topic_.c_str());
+  ESP_LOGCONFIG(TAG, "  MQTT topic: '%s'", this->mqtt_topic_.c_str());
   ESP_LOGCONFIG(TAG, "  Number of trackers: %i", this->tracker_count_);
 }
 
