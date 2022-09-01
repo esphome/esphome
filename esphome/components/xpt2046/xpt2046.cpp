@@ -84,41 +84,49 @@ void XPT2046Component::check_touch_() {
         std::swap(tp.x, tp.y);
       }
 
-      switch (this->rotation_) {
+      if (this->invert_x_) {
+        tp.x = 0xfff - tp.x;
+      }
+
+      if (this->invert_y_) {
+        tp.y = 0xfff - tp.y;
+      }
+
+      switch (this->display_->get_rotation()) {
         case ROTATE_0_DEGREES:
           break;
         case ROTATE_90_DEGREES:
-          tp.y = 0x7fff - tp.y;
+          std::swap(tp.x, tp.y);
+          tp.y = 0xfff - tp.y;
           break;
         case ROTATE_180_DEGREES:
-          tp.x = 0x7fff - tp.x;
+          tp.x = 0xfff - tp.x;
+          tp.y = 0xfff - tp.y;
           break;
         case ROTATE_270_DEGREES:
-          tp.x = 0x7fff - tp.x;
-          tp.y = 0x7fff - tp.y;
+          std::swap(tp.x, tp.y);
+          tp.x = 0xfff - tp.x;
           break;
       }
 
-      tp.x = (int16_t)((int) tp.x * this->display_width_ / 0x7fff);
-      tp.y = (int16_t)((int) tp.y * this->display_height_ / 0x7fff);
-
-      this->defer([this, tp]() { this->send_touch_(tp); });
-
-      ESP_LOGV(TAG, "Update [x, y] = [%d, %d], z = %d", this->x_raw, this->y_raw, this->z_raw);
+      tp.x = (int16_t)((int) tp.x * this->display_->get_width() / 0xfff);
+      tp.y = (int16_t)((int) tp.y * this->display_->get_height() / 0xfff);
 
       if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
-        ESP_LOGD(TAG, "Raw [x, y] = [%d, %d], transformed = [%d, %d]", this->x_raw, this->y_raw, tp.x, tp.y);
-
+        ESP_LOGD(TAG, "Raw [x, y] = [%03X, %03X], transformed = [%3d, %3d]", this->x_raw, this->y_raw, tp.x, tp.y);
+        this->defer([this, tp]() { this->send_touch_(tp); });
         this->x = tp.x;
-        this->y = tp.x;
+        this->y = tp.y;
         this->touched = true;
         this->last_pos_ms_ = now;
       }
     } else {
       this->x_raw = this->y_raw = 0;
       if (this->touched) {
-        ESP_LOGD(TAG, "Released [%d, %d]", this->x, this->y);
+        ESP_LOGV(TAG, "Released [%d, %d]", this->x, this->y);
         this->touched = false;
+        for (auto *listener : this->touch_listeners_)
+          listener->release();
       }
     }
   }
@@ -129,8 +137,8 @@ void XPT2046Component::set_calibration(int16_t x_min, int16_t x_max, int16_t y_m
   this->x_raw_max_ = std::max(x_min, x_max);
   this->y_raw_min_ = std::min(y_min, y_max);
   this->y_raw_max_ = std::max(y_min, y_max);
-  // this->invert_x_ = (x_min > x_max);
-  // this->invert_y_ = (y_min > y_max);
+  this->invert_x_ = (x_min > x_max);
+  this->invert_y_ = (y_min > y_max);
 }
 
 void XPT2046Component::dump_config() {
@@ -141,8 +149,6 @@ void XPT2046Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  X max: %d", this->x_raw_max_);
   ESP_LOGCONFIG(TAG, "  Y min: %d", this->y_raw_min_);
   ESP_LOGCONFIG(TAG, "  Y max: %d", this->y_raw_max_);
-  ESP_LOGCONFIG(TAG, "  X dim: %d", this->x_dim_);
-  ESP_LOGCONFIG(TAG, "  Y dim: %d", this->y_dim_);
   if (this->swap_x_y_) {
     ESP_LOGCONFIG(TAG, "  Swap X/Y");
   }
@@ -179,9 +185,9 @@ int16_t XPT2046Component::normalize(int16_t val, int16_t min_val, int16_t max_va
   if (val <= min_val) {
     ret = 0;
   } else if (val >= max_val) {
-    ret = 0x7fff;
+    ret = 0xfff;
   } else {
-    ret = (int16_t)((int) 0x7fff * (val - min_val) / (max_val - min_val));
+    ret = (int16_t)((int) 0xfff * (val - min_val) / (max_val - min_val));
   }
 
   return ret;
