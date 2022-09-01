@@ -12,6 +12,7 @@ static const char *const TAG = "xpt2046";
 void XPT2046TouchscreenStore::gpio_intr(XPT2046TouchscreenStore *store) { store->touch = true; }
 
 void XPT2046Component::setup() {
+  ESP_LOGD("xpt2046", "=================================--------- Do setup");
   if (this->irq_pin_ != nullptr) {
     // The pin reports a touch with a falling edge. Unfortunately the pin goes also changes state
     // while the channels are read and wiring it as an interrupt is not straightforward and would
@@ -26,6 +27,12 @@ void XPT2046Component::setup() {
   }
   spi_setup();
   read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
+  if (display_ != nullptr) {
+    this->display_width_ = display_->get_width();
+    this->display_height_ = display_->get_height();
+    this->rotation_ = static_cast<TouchRotation>(display_->get_rotation());
+  }
+
 }
 
 void XPT2046Component::loop() {
@@ -75,6 +82,8 @@ void XPT2046Component::check_touch_() {
       this->x_raw = best_two_avg(data[0], data[2], data[4]);
       this->y_raw = best_two_avg(data[1], data[3], data[5]);
 
+      ESP_LOGVV(TAG, "Update [x, y] = [%d, %d], z = %d", this->x_raw, this->y_raw, this->z_raw);
+
       TouchPoint tp;
 
       tp.x = normalize(this->x_raw, this->x_raw_min_, this->x_raw_max_);
@@ -92,7 +101,7 @@ void XPT2046Component::check_touch_() {
         tp.y = 0xfff - tp.y;
       }
 
-      switch (this->display_->get_rotation()) {
+      switch (static_cast<TouchRotation>(this->display_->get_rotation())) {
         case ROTATE_0_DEGREES:
           break;
         case ROTATE_90_DEGREES:
@@ -113,8 +122,10 @@ void XPT2046Component::check_touch_() {
       tp.y = (int16_t)((int) tp.y * this->display_->get_height() / 0xfff);
 
       if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
-        ESP_LOGD(TAG, "Raw [x, y] = [%03X, %03X], transformed = [%3d, %3d]", this->x_raw, this->y_raw, tp.x, tp.y);
+        ESP_LOGD(TAG, "Touching at [%03X, %03X] => [%3d, %3d]", this->x_raw, this->y_raw, tp.x, tp.y);
+
         this->defer([this, tp]() { this->send_touch_(tp); });
+
         this->x = tp.x;
         this->y = tp.y;
         this->touched = true;
@@ -128,6 +139,7 @@ void XPT2046Component::check_touch_() {
         for (auto *listener : this->touch_listeners_)
           listener->release();
       }
+
     }
   }
 }
@@ -149,9 +161,11 @@ void XPT2046Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  X max: %d", this->x_raw_max_);
   ESP_LOGCONFIG(TAG, "  Y min: %d", this->y_raw_min_);
   ESP_LOGCONFIG(TAG, "  Y max: %d", this->y_raw_max_);
-  if (this->swap_x_y_) {
-    ESP_LOGCONFIG(TAG, "  Swap X/Y");
-  }
+
+  ESP_LOGCONFIG(TAG, "  Swap X/Y: %s",YESNO(this->swap_x_y_));
+  ESP_LOGCONFIG(TAG, "  Invert X: %s",YESNO(this->invert_x_));
+  ESP_LOGCONFIG(TAG, "  Invert Y: %s",YESNO(this->invert_y_));
+
   ESP_LOGCONFIG(TAG, "  threshold: %d", this->threshold_);
   ESP_LOGCONFIG(TAG, "  Report interval: %u", this->report_millis_);
 
