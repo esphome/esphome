@@ -23,6 +23,8 @@ from esphome.const import (
     UNIT_KILOWATT,
     UNIT_KILOWATT_HOURS,
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_LIGHTNING_BOLT,
+    ICON_ALPHA_F_BOX_OUTLINE,
 )
 
 from .. import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
@@ -195,12 +197,12 @@ TYPES = {
     ),
     CONF_ENERGY_PURCHASE_BALANCE: sensor.sensor_schema(
         unit_of_measurement=UNIT_KILOWATT_HOURS,
-        icon="mdi:lightning-bolt",
+        icon=ICON_LIGHTNING_BOLT,
         accuracy_decimals=2,
     ),
     CONF_PHASE_COUNT: sensor.sensor_schema(
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-        icon="mdi:alpha-f-box-outline",
+        icon=ICON_ALPHA_F_BOX_OUTLINE,
         accuracy_decimals=0,
     ),
 }

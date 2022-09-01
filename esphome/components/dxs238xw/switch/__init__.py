@@ -3,9 +3,10 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 
 from esphome.const import (
-    CONF_ICON,
-    CONF_ENTITY_CATEGORY,
     ENTITY_CATEGORY_CONFIG,
+    ICON_LIGHTNING_BOLT,
+    ICON_POWER_PLUG,
+    ICON_TIMER_COG_OUTLINE,
 )
 
 from .. import dxs238xw_ns, CONF_DXS238XW_ID, SmIdEntity, DXS238XW_COMPONENT_SCHEMA
@@ -20,38 +21,26 @@ DELAY_STATE = "delay_state"
 
 TYPES = {
     ENERGY_PURCHASE_STATE: (
-        switch.SWITCH_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(Dxs238xwSwitch),
-                cv.Optional(CONF_ICON, default="mdi:lightning-bolt"): cv.icon,
-                cv.Optional(
-                    CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
-                ): cv.entity_category,
-            }
+        switch.switch_schema(
+            Dxs238xwSwitch,
+            icon=ICON_LIGHTNING_BOLT,
+            entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         SmIdEntity.SWITCH_ENERGY_PURCHASE_STATE,
     ),
     METER_STATE: (
-        switch.SWITCH_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(Dxs238xwSwitch),
-                cv.Optional(CONF_ICON, default="mdi:power-plug"): cv.icon,
-                cv.Optional(
-                    CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
-                ): cv.entity_category,
-            }
+        switch.switch_schema(
+            Dxs238xwSwitch,
+            icon=ICON_POWER_PLUG,
+            entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         SmIdEntity.SWITCH_METER_STATE,
     ),
     DELAY_STATE: (
-        switch.SWITCH_SCHEMA.extend(
-            {
-                cv.GenerateID(): cv.declare_id(Dxs238xwSwitch),
-                cv.Optional(CONF_ICON, default="mdi:timer-cog-outline"): cv.icon,
-                cv.Optional(
-                    CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
-                ): cv.entity_category,
-            }
+        switch.switch_schema(
+            Dxs238xwSwitch,
+            icon=ICON_TIMER_COG_OUTLINE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
         ),
         SmIdEntity.SWITCH_DELAY_STATE,
     ),

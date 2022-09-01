@@ -12,6 +12,10 @@ from esphome.const import (
     UNIT_VOLT,
     UNIT_KILOWATT_HOURS,
     UNIT_MINUTE,
+    ICON_CURRENT_AC,
+    ICON_SINE_WAVE,
+    ICON_LIGHTNING_BOLT,
+    ICON_TIMER_COG_OUTLINE,
 )
 
 from .. import (
@@ -38,7 +42,7 @@ TYPES = {
         number.NUMBER_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
-                cv.Optional(CONF_ICON, default="mdi:current-ac"): cv.icon,
+                cv.Optional(CONF_ICON, default=ICON_CURRENT_AC): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_AMPERE
                 ): cv.string_strict,
@@ -56,7 +60,7 @@ TYPES = {
         number.NUMBER_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
-                cv.Optional(CONF_ICON, default="mdi:sine-wave"): cv.icon,
+                cv.Optional(CONF_ICON, default=ICON_SINE_WAVE): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_VOLT
                 ): cv.string_strict,
@@ -74,7 +78,7 @@ TYPES = {
         number.NUMBER_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
-                cv.Optional(CONF_ICON, default="mdi:sine-wave"): cv.icon,
+                cv.Optional(CONF_ICON, default=ICON_SINE_WAVE): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_VOLT
                 ): cv.string_strict,
@@ -92,7 +96,7 @@ TYPES = {
         number.NUMBER_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
-                cv.Optional(CONF_ICON, default="mdi:lightning-bolt"): cv.icon,
+                cv.Optional(CONF_ICON, default=ICON_LIGHTNING_BOLT): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_KILOWATT_HOURS
                 ): cv.string_strict,
@@ -110,7 +114,7 @@ TYPES = {
         number.NUMBER_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
-                cv.Optional(CONF_ICON, default="mdi:lightning-bolt"): cv.icon,
+                cv.Optional(CONF_ICON, default=ICON_LIGHTNING_BOLT): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_KILOWATT_HOURS
                 ): cv.string_strict,
@@ -128,7 +132,7 @@ TYPES = {
         number.NUMBER_SCHEMA.extend(
             {
                 cv.GenerateID(): cv.declare_id(Dxs238xwNumber),
-                cv.Optional(CONF_ICON, default="mdi:timer-cog-outline"): cv.icon,
+                cv.Optional(CONF_ICON, default=ICON_TIMER_COG_OUTLINE): cv.icon,
                 cv.Optional(
                     CONF_UNIT_OF_MEASUREMENT, default=UNIT_MINUTE
                 ): cv.string_strict,

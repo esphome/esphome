@@ -4,6 +4,9 @@ import esphome.codegen as cg
 
 from esphome.const import (
     ENTITY_CATEGORY_DIAGNOSTIC,
+    ICON_POWER_PLUG,
+    ICON_TIMER_COG_OUTLINE,
+    ICON_ALPHA_S_BOX_OUTLINE,
 )
 
 from .. import CONF_DXS238XW_ID, DXS238XW_COMPONENT_SCHEMA
@@ -16,13 +19,13 @@ CONF_METER_ID = "meter_id"
 
 TYPES = {
     CONF_METER_STATE_DETAIL: text_sensor.text_sensor_schema(
-        icon="mdi:power-plug",
+        icon=ICON_POWER_PLUG,
     ),
     CONF_DELAY_VALUE_REMAINING: text_sensor.text_sensor_schema(
-        icon="mdi:timer-cog-outline",
+        icon=ICON_TIMER_COG_OUTLINE,
     ),
     CONF_METER_ID: text_sensor.text_sensor_schema(
-        icon="mdi:alpha-s-box-outline",
+        icon=ICON_ALPHA_S_BOX_OUTLINE,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ),
 }
