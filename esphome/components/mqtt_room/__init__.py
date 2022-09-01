@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME, CONF_SENSOR, CONF_TOPIC
+from esphome.const import CONF_ID, CONF_NAME, CONF_STATE_TOPIC
 from esphome.components.ble_rssi import sensor as ble_rssi_sensor
 
 DEPENDENCIES = ["mqtt", "esp32_ble_tracker"]
@@ -9,6 +9,7 @@ CODEOWNERS = ["@wjtje"]
 
 CONF_ROOM = "room"
 CONF_TRACKERS = "trackers"
+CONF_DEVICE_ID = "device_id"
 
 mqtt_room_ns = cg.esphome_ns.namespace("mqtt_room")
 MqttRoom = mqtt_room_ns.class_("MqttRoom", cg.Component)
@@ -18,16 +19,16 @@ def validate_config(config):
     sensors = []
 
     for tracker in config[CONF_TRACKERS]:
-        if tracker[CONF_SENSOR] in sensors:
+        if tracker[CONF_DEVICE_ID] in sensors:
             raise cv.Invalid(
-                f"'{tracker[CONF_SENSOR]}' can only be used in one tracker"
+                f"'{tracker[CONF_DEVICE_ID]}' can only be used in one tracker"
             )
 
-        sensors.append(tracker[CONF_SENSOR])
+        sensors.append(tracker[CONF_DEVICE_ID])
 
-    if config[CONF_TOPIC][-1] != "/":
+    if config[CONF_STATE_TOPIC][-1] == "/":
         raise cv.Invalid(
-            f"Topic '{config[CONF_TOPIC]}' is invalid, all topics should end with '/'"
+            f"Topic '{config[CONF_STATE_TOPIC]}' is invalid, all topics shouldn't end with '/'"
         )
 
     return config
@@ -36,7 +37,7 @@ def validate_config(config):
 TRACKER_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_NAME): cv.string,
-        cv.Required(CONF_SENSOR): cv.use_id(ble_rssi_sensor.BLERSSISensor),
+        cv.Required(CONF_DEVICE_ID): cv.use_id(ble_rssi_sensor.BLERSSISensor),
     }
 )
 
@@ -44,7 +45,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MqttRoom),
-            cv.Optional(CONF_TOPIC, "esphome/rooms/"): cv.string,
+            cv.Optional(CONF_STATE_TOPIC, "esphome/rooms"): cv.string,
             cv.Required(CONF_ROOM): cv.string,
             cv.Required(CONF_TRACKERS): cv.ensure_list(TRACKER_SCHEMA),
         }
@@ -56,10 +57,10 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    cg.add(var.set_topic(config[CONF_TOPIC] + config[CONF_ROOM]))
+    cg.add(var.set_topic(f"{config[CONF_STATE_TOPIC]}/{config[CONF_ROOM]}"))
 
     for tracker in config[CONF_TRACKERS]:
-        tracker_sensor = await cg.get_variable(tracker[CONF_SENSOR])
+        tracker_sensor = await cg.get_variable(tracker[CONF_DEVICE_ID])
         tracker_sensor_id = str(tracker_sensor.base)
 
         if CONF_NAME in tracker:
