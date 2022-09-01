@@ -9,11 +9,12 @@ namespace mqtt_room {
 class MqttRoom : public Component {
  public:
   void dump_config() override;
-  void set_room(const std::string &room);
+  void set_topic(const std::string &topic);
   void add_tracker(ble_rssi::BLERSSISensor *sensor, const std::string &id, const std::string &name);
 
  protected:
-  std::string room_;
+  std::string mqtt_topic_;
+  int tracker_count_ = 0;
 
   float calculateDistance(float rssi);
 };

@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME, CONF_SENSOR
+from esphome.const import CONF_ID, CONF_NAME, CONF_SENSOR, CONF_TOPIC
 from esphome.components.ble_rssi import sensor as ble_rssi_sensor
 
 DEPENDENCIES = ["mqtt", "esp32_ble_tracker"]
@@ -19,9 +19,16 @@ def validate_config(config):
 
     for tracker in config[CONF_TRACKERS]:
         if tracker[CONF_SENSOR] in sensors:
-            raise cv.Invalid(f"{tracker[CONF_SENSOR]} can only be used in one tracker")
+            raise cv.Invalid(
+                f"'{tracker[CONF_SENSOR]}' can only be used in one tracker"
+            )
 
         sensors.append(tracker[CONF_SENSOR])
+
+    if config[CONF_TOPIC][-1] != "/":
+        raise cv.Invalid(
+            f"Topic '{config[CONF_TOPIC]}' is invalid, all topics should end with '/'"
+        )
 
     return config
 
@@ -37,6 +44,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MqttRoom),
+            cv.Optional(CONF_TOPIC, "esphome/rooms/"): cv.string,
             cv.Required(CONF_ROOM): cv.string,
             cv.Required(CONF_TRACKERS): cv.ensure_list(TRACKER_SCHEMA),
         }
@@ -48,7 +56,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    cg.add(var.set_room(config[CONF_ROOM]))
+    cg.add(var.set_topic(config[CONF_TOPIC] + config[CONF_ROOM]))
 
     for tracker in config[CONF_TRACKERS]:
         tracker_sensor = await cg.get_variable(tracker[CONF_SENSOR])
