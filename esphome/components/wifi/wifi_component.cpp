@@ -73,8 +73,11 @@ void WiFiComponent::setup() {
       ESP_LOGV(TAG, "Setting Output Power Option failed!");
     }
 #ifdef USE_CAPTIVE_PORTAL
-    if (captive_portal::global_captive_portal != nullptr)
+    if (captive_portal::global_captive_portal != nullptr) {
+      this->wifi_sta_pre_setup_();
+      this->start_scanning();
       captive_portal::global_captive_portal->start();
+    }
 #endif
   }
 #ifdef USE_IMPROV
