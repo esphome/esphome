@@ -55,8 +55,8 @@ class MAX6956 : public Component, public i2c::I2CDevice {
 
   // void dump_config() override;
 
-  void write_brightness_global_();
-  void write_brightness_mode_();
+  void write_brightness_global();
+  void write_brightness_mode();
 
  protected:
   // read a given register
