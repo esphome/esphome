@@ -823,7 +823,9 @@ class LoginHandler(BaseHandler):
             "password": self.get_argument("password", ""),
         }
         try:
-            req = requests.post("http://supervisor/auth", headers=headers, data=data)
+            req = requests.post(
+                "http://supervisor/auth", headers=headers, data=data, timeout=30
+            )
             if req.status_code == 200:
                 self.set_secure_cookie("authenticated", cookie_authenticated_yes)
                 self.redirect("/")
@@ -947,9 +949,12 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
     class StaticFileHandler(tornado.web.StaticFileHandler):
         def set_extra_headers(self, path):
-            self.set_header(
-                "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
-            )
+            if "favicon.ico" in path:
+                self.set_header("Cache-Control", "max-age=84600, public")
+            else:
+                self.set_header(
+                    "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
+                )
 
     app_settings = {
         "debug": debug,

@@ -288,6 +288,8 @@ adalight:
 
 esp32_ble_tracker:
 
+bluetooth_proxy:
+
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:FF
     id: ble_foo
@@ -767,6 +769,14 @@ sensor:
       name: "MPU6886 Gyro z"
     temperature:
       name: "MPU6886 Temperature"
+    i2c_id: i2c_bus
+  - platform: dps310
+    temperature:
+      name: "DPS310 Temperature"
+    pressure:
+      name: "DPS310 Pressure"
+    address: 0x77
+    update_interval: 15s
     i2c_id: i2c_bus
   - platform: ms5611
     temperature:
@@ -2076,6 +2086,13 @@ switch:
       remote_transmitter.transmit_raw:
         code: [1000, -1000]
   - platform: template
+    name: AEHA
+    id: eaha_hitachi_climate_power_on
+    turn_on_action:
+      remote_transmitter.transmit_aeha:
+        address: 0x8008
+        data: [0x00, 0x02, 0xFD, 0xFF, 0x00, 0x33, 0xCC, 0x49, 0xB6, 0xC8, 0x37, 0x16, 0xE9, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0xCA, 0x35, 0x8F, 0x70, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF]
+  - platform: template
     name: Living Room Lights
     id: livingroom_lights
     optimistic: True
@@ -2209,6 +2226,9 @@ fan:
     on_speed_set:
       then:
         - logger.log: "Fan speed was changed!"
+  - platform: bedjet
+    name: My Bedjet fan
+    bedjet_id: my_bedjet_client
   - platform: copy
     source_id: fan_speed
     name: "Fan Speed Copy"
@@ -2436,6 +2456,21 @@ display:
         it.fill(Color::WHITE);
         id(glob_bool_processed) = true;
       }
+  - platform: pvvx_mithermometer
+    ble_client_id: ble_foo
+    time_id: sntp_time
+    disconnect_delay: 3s
+    update_interval: 10min
+    validity_period: 20min
+    lambda: |-
+      it.print_bignum(188.8);
+      it.print_unit(pvvx_mithermometer::UNIT_DEG_E);
+      it.print_smallnum(88);
+      it.print_percent(true);
+      it.print_happy(true);
+      it.print_sad(true);
+      it.print_bracket(true);
+      it.print_battery(true);
 
 tm1651:
   id: tm1651_battery
