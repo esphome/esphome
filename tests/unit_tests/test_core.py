@@ -513,6 +513,16 @@ class TestEsphomeCore:
 
         assert t == other
 
+    def test_platformio_options(self, target):
+        target.add_platformio_option("list", ["value1"])
+        target.add_platformio_option("list", ["value2"])
+
+        assert target.platformio_options["list"] == ["value1", "value2"]
+
+        target.add_platformio_option("list", "only1", True)
+
+        assert target.platformio_options["list"] == "only1"
+
     def test_address__none(self, target):
         target.config = {}
         assert target.address is None
@@ -530,14 +540,35 @@ class TestEsphomeCore:
 
         assert target.address == "4.3.2.1"
 
+    def test_is_esp8266(self, target):
+        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp8266"}
+
+        assert target.is_esp32 is False
+        assert target.is_esp8266 is True
+
     def test_is_esp32(self, target):
         target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp32"}
 
         assert target.is_esp32 is True
         assert target.is_esp8266 is False
 
-    def test_is_esp8266(self, target):
-        target.data[const.KEY_CORE] = {const.KEY_TARGET_PLATFORM: "esp8266"}
 
-        assert target.is_esp32 is False
-        assert target.is_esp8266 is True
+#   def test_is_esp32_arduino(self, target):
+#       target.data[const.KEY_CORE] = {const.KEY_TARGET_FRAMEWORK: "arduino"}
+#
+#       assert target.using_arduino is True
+#       assert target.using_esp_idf is False
+#
+#   def test_is_esp32_espidf(self, target):
+#       target.data[const.KEY_CORE] = {const.KEY_TARGET_FRAMEWORK: "esp-idf"}
+#
+#       assert target.using_arduino is False
+#       assert target.using_esp_idf is True
+#
+#   def test_is_esp32_arduino_espidf(self, target):
+#       target.data[const.KEY_CORE] = {
+#           const.KEY_TARGET_FRAMEWORK: ["arduino", "esp-idf"]
+#       }
+#
+#       assert target.using_arduino is True
+#       assert target.using_esp_idf is True

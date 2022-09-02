@@ -11,6 +11,9 @@ esphome:
   board: nodemcu-32s
   platformio_options:
     board_build.partitions: huge_app.csv
+    platform_packages:
+      value: ""
+      override: true
   on_boot:
     priority: 150.0
     then:
@@ -565,14 +568,14 @@ sensor:
     temperature:
       name: "Living Room Temperature 5"
     humidity:
-      name: 'Living Room Humidity 5'
+      name: "Living Room Humidity 5"
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: hdc1080
     temperature:
-      name: 'Living Room Temperature 6'
+      name: "Living Room Temperature 6"
     humidity:
-      name: 'Living Room Humidity 5'
+      name: "Living Room Humidity 5"
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: hlw8012
@@ -2091,7 +2094,44 @@ switch:
     turn_on_action:
       remote_transmitter.transmit_aeha:
         address: 0x8008
-        data: [0x00, 0x02, 0xFD, 0xFF, 0x00, 0x33, 0xCC, 0x49, 0xB6, 0xC8, 0x37, 0x16, 0xE9, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0xCA, 0x35, 0x8F, 0x70, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF, 0x00, 0xFF]
+        data:
+          [
+            0x00,
+            0x02,
+            0xFD,
+            0xFF,
+            0x00,
+            0x33,
+            0xCC,
+            0x49,
+            0xB6,
+            0xC8,
+            0x37,
+            0x16,
+            0xE9,
+            0x00,
+            0xFF,
+            0x00,
+            0xFF,
+            0x00,
+            0xFF,
+            0x00,
+            0xFF,
+            0x00,
+            0xFF,
+            0xCA,
+            0x35,
+            0x8F,
+            0x70,
+            0x00,
+            0xFF,
+            0x00,
+            0xFF,
+            0x00,
+            0xFF,
+            0x00,
+            0xFF,
+          ]
   - platform: template
     name: Living Room Lights
     id: livingroom_lights
