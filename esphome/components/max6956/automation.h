@@ -24,7 +24,7 @@ template<typename... Ts> class SetCurrentModeAction : public Action<Ts...> {
   SetCurrentModeAction(MAX6956 *max6956) : max6956_(max6956) {}
 
   TEMPLATABLE_VALUE(max6956::MAX6956CURRENTMODE, brightness_mode)
-  
+
   void play(Ts... x) override { this->max6956_->set_brightness_mode(this->brightness_mode_.value(x...)); this->max6956_->write_brightness_mode_();}
 
  protected:
