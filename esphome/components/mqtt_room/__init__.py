@@ -28,7 +28,7 @@ def validate_config(config):
 
     if config[CONF_STATE_TOPIC][-1] == "/":
         raise cv.Invalid(
-            f"Topic '{config[CONF_STATE_TOPIC]}' is invalid, all topics shouldn't end with '/'"
+            f"Topic '{config[CONF_STATE_TOPIC]}' is invalid, it shouldn't end with '/'"
         )
 
     return config
