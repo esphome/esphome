@@ -400,11 +400,6 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
     this->filled_quad(x0, y0, x1, y1, x2, y2, x3, y3, color.gradient(grandient_to, gradient_pos));
   }
 }
-<<<<<<< HEAD
-}
-=======
->>>>>>> 0c3c83bd2c2916bac64e502dd09058bd8eee3fb4
-
 
 
 void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align, const char *text) {

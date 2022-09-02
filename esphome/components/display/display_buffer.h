@@ -306,8 +306,6 @@ class DisplayBuffer {
   void filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2, int16_t angle_start, int16_t angle_end,
                   Color color, Color grandient_to, int16_t gradient_angle_start, int16_t gradient_angle_range, int16_t quality = 255);
 
-=======
->>>>>>> 6ab0cdbc (fixes to the DisplayBuffer class:)
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
