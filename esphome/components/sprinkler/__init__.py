@@ -223,13 +223,7 @@ SPRINKLER_ACTION_QUEUE_VALVE_SCHEMA = cv.Schema(
 SPRINKLER_VALVE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ENABLE_SWITCH): cv.maybe_simple_value(
-            switch.SWITCH_SCHEMA.extend(
-                cv.Schema(
-                    {
-                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
-                    }
-                )
-            ),
+            switch.switch_schema(SprinklerControllerSwitch),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_PUMP_OFF_SWITCH_ID): cv.use_id(switch.Switch),
@@ -237,13 +231,7 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
         cv.Optional(CONF_PUMP_SWITCH_ID): cv.use_id(switch.Switch),
         cv.Required(CONF_RUN_DURATION): cv.positive_time_period_seconds,
         cv.Required(CONF_VALVE_SWITCH): cv.maybe_simple_value(
-            switch.SWITCH_SCHEMA.extend(
-                cv.Schema(
-                    {
-                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
-                    }
-                )
-            ),
+            switch.switch_schema(SprinklerControllerSwitch),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_VALVE_OFF_SWITCH_ID): cv.use_id(switch.Switch),
@@ -256,43 +244,19 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sprinkler),
         cv.Optional(CONF_AUTO_ADVANCE_SWITCH): cv.maybe_simple_value(
-            switch.SWITCH_SCHEMA.extend(
-                cv.Schema(
-                    {
-                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
-                    }
-                )
-            ),
+            switch.switch_schema(SprinklerControllerSwitch),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_MAIN_SWITCH): cv.maybe_simple_value(
-            switch.SWITCH_SCHEMA.extend(
-                cv.Schema(
-                    {
-                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
-                    }
-                )
-            ),
+            switch.switch_schema(SprinklerControllerSwitch),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_QUEUE_ENABLE_SWITCH): cv.maybe_simple_value(
-            switch.SWITCH_SCHEMA.extend(
-                cv.Schema(
-                    {
-                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
-                    }
-                )
-            ),
+            switch.switch_schema(SprinklerControllerSwitch),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_REVERSE_SWITCH): cv.maybe_simple_value(
-            switch.SWITCH_SCHEMA.extend(
-                cv.Schema(
-                    {
-                        cv.GenerateID(): cv.declare_id(SprinklerControllerSwitch),
-                    }
-                )
-            ),
+            switch.switch_schema(SprinklerControllerSwitch),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_MANUAL_SELECTION_DELAY): cv.positive_time_period_seconds,
