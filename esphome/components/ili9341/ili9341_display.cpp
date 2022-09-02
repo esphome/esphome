@@ -96,7 +96,7 @@ void ILI9341Display::display_() {
   set_addr_window_(this->x_low_, this->y_low_, w, h);
 
   ESP_LOGVV("ILI9341", "Start ILI9341Display::display_(xl:%d, xh:%d, yl:%d, yh:%d, w:%d, h:%d, start_pos:%d)",
-           this->x_low_, this->x_high_, this->y_low_, this->y_high_, w, h, start_pos);
+            this->x_low_, this->x_high_, this->y_low_, this->y_high_, w, h, start_pos);
 
   this->start_data_();
   for (uint16_t row = 0; row < h; row++) {
@@ -113,7 +113,7 @@ void ILI9341Display::display_() {
     App.feed_wdt();
   }
   this->end_data_();
- 
+
   // invalidate watermarks
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
