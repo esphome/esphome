@@ -16,7 +16,7 @@ template<typename... Ts> class SetCurrentGlobalAction : public Action<Ts...> {
   void play(Ts... x) override {
     this->max6956_->set_brightness_global(15 * this->brightness_global_.value(x...));
     this->max6956_->write_brightness_global_();
-}
+  }
 
  protected:
   MAX6956 *max6956_;
@@ -31,7 +31,7 @@ template<typename... Ts> class SetCurrentModeAction : public Action<Ts...> {
   void play(Ts... x) override {
     this->max6956_->set_brightness_mode(this->brightness_mode_.value(x...));
     this->max6956_->write_brightness_mode_();
-}
+  }
 
  protected:
   MAX6956 *max6956_;

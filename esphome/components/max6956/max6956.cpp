@@ -111,9 +111,7 @@ void MAX6956::write_brightness_global_() {
   ESP_LOGD(TAG, "write_brightness_global_ reg[0x%.2X] = 0x%.2X", MAX6956_GLOBAL_CURRENT, global_brightness_);
 }
 
-void MAX6956::set_brightness_mode(max6956::MAX6956CURRENTMODE brightness_mode) {
-  brightness_mode_ = brightness_mode;
-};
+void MAX6956::set_brightness_mode(max6956::MAX6956CURRENTMODE brightness_mode) { brightness_mode_ = brightness_mode; };
 
 void MAX6956::write_brightness_mode_() {
   uint8_t reg_addr = MAX6956_CONFIGURATION;
