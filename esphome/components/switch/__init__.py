@@ -5,6 +5,8 @@ from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
     CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_INVERTED,
     CONF_MQTT_ID,
@@ -16,6 +18,7 @@ from esphome.const import (
     DEVICE_CLASS_SWITCH,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 
 CODEOWNERS = ["@esphome/core"]
@@ -43,7 +46,8 @@ SwitchTurnOffTrigger = switch_ns.class_(
     "SwitchTurnOffTrigger", automation.Trigger.template()
 )
 
-icon = cv.icon
+
+validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
 
 SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
@@ -60,9 +64,51 @@ SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(SwitchTurnOffTrigger),
             }
         ),
-        cv.Optional(CONF_DEVICE_CLASS): cv.one_of(*DEVICE_CLASSES, lower=True),
+        cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
     }
 )
+
+_UNDEF = object()
+
+
+def switch_schema(
+    class_: MockObjClass = _UNDEF,
+    *,
+    entity_category: str = _UNDEF,
+    device_class: str = _UNDEF,
+    icon: str = _UNDEF,
+    block_inverted: bool = False,
+):
+    schema = SWITCH_SCHEMA
+    if class_ is not _UNDEF:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
+    if entity_category is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=entity_category
+                ): cv.entity_category
+            }
+        )
+    if device_class is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_DEVICE_CLASS, default=device_class
+                ): validate_device_class
+            }
+        )
+    if icon is not _UNDEF:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
+    if block_inverted:
+        schema = schema.extend(
+            {
+                cv.Optional(CONF_INVERTED): cv.invalid(
+                    "Inverted is not supported for this platform!"
+                )
+            }
+        )
+    return schema
 
 
 async def setup_switch_core_(var, config):
@@ -90,6 +136,12 @@ async def register_switch(var, config):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_switch(var))
     await setup_switch_core_(var, config)
+
+
+async def new_switch(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
+    await register_switch(var, config)
+    return var
 
 
 SWITCH_ACTION_SCHEMA = maybe_simple_id(

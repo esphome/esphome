@@ -52,8 +52,6 @@ class Number : public EntityBase {
    */
   virtual void control(float value) = 0;
 
-  uint32_t hash_base() override;
-
   CallbackManager<void(float)> state_callback_;
   bool has_state_{false};
 };

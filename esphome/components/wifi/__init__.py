@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_DNS1,
     CONF_DNS2,
     CONF_DOMAIN,
+    CONF_ENABLE_BTM,
+    CONF_ENABLE_RRM,
     CONF_FAST_CONNECT,
     CONF_GATEWAY,
     CONF_HIDDEN,
@@ -32,9 +34,9 @@ from esphome.const import (
     CONF_EAP,
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
+from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.network import IPAddress
 from . import wpa2_eap
-
 
 AUTO_LOAD = ["network"]
 
@@ -272,6 +274,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)
             ),
+            cv.SplitDefault(CONF_ENABLE_BTM, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
+            ),
+            cv.SplitDefault(CONF_ENABLE_RRM, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
+            ),
             cv.Optional("enable_mdns"): cv.invalid(
                 "This option has been removed. Please use the [disabled] option under the "
                 "new mdns component instead."
@@ -372,6 +380,15 @@ async def to_code(config):
         cg.add_library("ESP8266WiFi", None)
     elif CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
+
+    if CORE.is_esp32 and CORE.using_esp_idf:
+        if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:
+            add_idf_sdkconfig_option("CONFIG_WPA_11KV_SUPPORT", True)
+            cg.add_define("USE_WIFI_11KV_SUPPORT")
+        if config[CONF_ENABLE_BTM]:
+            cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
+        if config[CONF_ENABLE_RRM]:
+            cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
 
     cg.add_define("USE_WIFI")
 

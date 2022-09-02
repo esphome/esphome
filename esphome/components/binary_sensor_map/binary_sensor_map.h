@@ -9,6 +9,7 @@ namespace binary_sensor_map {
 
 enum BinarySensorMapType {
   BINARY_SENSOR_MAP_TYPE_GROUP,
+  BINARY_SENSOR_MAP_TYPE_SUM,
 };
 
 struct BinarySensorMapChannel {
@@ -50,8 +51,10 @@ class BinarySensorMap : public sensor::Sensor, public Component {
   /**
    * methods to process the types of binary_sensor_maps
    * GROUP: process_group_() just map to a value
+   * ADD: process_add_() adds all the values
    * */
   void process_group_();
+  void process_sum_();
 };
 
 }  // namespace binary_sensor_map
