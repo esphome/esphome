@@ -22,6 +22,11 @@ CONF_CALIBRATION_Y_MIN = "calibration_y_min"
 CONF_CALIBRATION_Y_MAX = "calibration_y_max"
 CONF_SWAP_X_Y = "swap_x_y"
 
+# obsolete Keys
+CONF_DIMENSION_X = "dimension_x"
+CONF_DIMENSION_Y = "dimension_y"
+CONF_IRQ_PIN = "irq_pin"
+
 
 def validate_xpt2046(config):
     if (
@@ -73,6 +78,14 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
             cv.Optional(CONF_THRESHOLD, default=400): cv.int_range(min=0, max=4095),
             cv.Optional(CONF_REPORT_INTERVAL, default="never"): report_interval,
             cv.Optional(CONF_SWAP_X_Y, default=False): cv.boolean,
+            # obsolete Keys
+            cv.Optional(CONF_IRQ_PIN): cv.invalid("Rename IRQ_PIN to INTERUPT_PIN"),
+            cv.Optional(CONF_DIMENSION_X): cv.invalid(
+                "This key is now obsolete, please remove it"
+            ),
+            cv.Optional(CONF_DIMENSION_Y): cv.invalid(
+                "This key is now obsolete, please remove it"
+            ),
         },
     )
     .extend(cv.polling_component_schema("50ms"))
