@@ -972,9 +972,9 @@ def ipv4(value):
     elif isinstance(value, IPAddress):
         return value
     else:
-        raise Invalid("IPv4 address must consist of either string or " "integer list")
+        raise Invalid("IPv4 address must consist of either string or integer list")
     if len(parts) != 4:
-        raise Invalid("IPv4 address must consist of four point-separated " "integers")
+        raise Invalid("IPv4 address must consist of four point-separated integers")
     parts_ = list(map(int, parts))
     if not all(0 <= x < 256 for x in parts_):
         raise Invalid("IPv4 address parts must be in range from 0 to 255")
@@ -994,10 +994,10 @@ def _valid_topic(value):
         raise Invalid("MQTT topic name/filter must not be empty.")
     if len(raw_value) > 65535:
         raise Invalid(
-            "MQTT topic name/filter must not be longer than " "65535 encoded bytes."
+            "MQTT topic name/filter must not be longer than 65535 encoded bytes."
         )
     if "\0" in value:
-        raise Invalid("MQTT topic name/filter must not contain null " "character.")
+        raise Invalid("MQTT topic name/filter must not contain null character.")
     return value
 
 
@@ -1009,7 +1009,7 @@ def subscribe_topic(value):
             i < len(value) - 1 and value[i + 1] != "/"
         ):
             raise Invalid(
-                "Single-level wildcard must occupy an entire " "level of the filter"
+                "Single-level wildcard must occupy an entire level of the filter"
             )
 
     index = value.find("#")
@@ -1021,9 +1021,7 @@ def subscribe_topic(value):
                 "character in the topic filter."
             )
         if len(value) > 1 and value[index - 1] != "/":
-            raise Invalid(
-                "Multi-level wildcard must be after a topic " "level separator."
-            )
+            raise Invalid("Multi-level wildcard must be after a topic level separator.")
 
     return value
 

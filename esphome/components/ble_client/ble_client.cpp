@@ -54,6 +54,7 @@ bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
   this->remote_bda[3] = (addr >> 16) & 0xFF;
   this->remote_bda[4] = (addr >> 8) & 0xFF;
   this->remote_bda[5] = (addr >> 0) & 0xFF;
+  this->remote_addr_type = device.get_address_type();
   return true;
 }
 
@@ -83,7 +84,7 @@ void BLEClient::set_enabled(bool enabled) {
 
 void BLEClient::connect() {
   ESP_LOGI(TAG, "Attempting BLE connection to %s", this->address_str().c_str());
-  auto ret = esp_ble_gattc_open(this->gattc_if, this->remote_bda, BLE_ADDR_TYPE_PUBLIC, true);
+  auto ret = esp_ble_gattc_open(this->gattc_if, this->remote_bda, this->remote_addr_type, true);
   if (ret) {
     ESP_LOGW(TAG, "esp_ble_gattc_open error, address=%s status=%d", this->address_str().c_str(), ret);
     this->set_states_(espbt::ClientState::IDLE);
@@ -113,6 +114,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
     }
     case ESP_GATTC_OPEN_EVT: {
       ESP_LOGV(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->address_str().c_str());
+      this->conn_id = param->open.conn_id;
       if (param->open.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "connect to %s failed, status=%d", this->address_str().c_str(), param->open.status);
         this->set_states_(espbt::ClientState::IDLE);
@@ -122,7 +124,10 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
     }
     case ESP_GATTC_CONNECT_EVT: {
       ESP_LOGV(TAG, "[%s] ESP_GATTC_CONNECT_EVT", this->address_str().c_str());
-      this->conn_id = param->connect.conn_id;
+      if (this->conn_id != param->connect.conn_id) {
+        ESP_LOGD(TAG, "[%s] Unexpected conn_id in CONNECT_EVT: param conn=%d, open conn=%d",
+                 this->address_str().c_str(), param->connect.conn_id, this->conn_id);
+      }
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if, param->connect.conn_id);
       if (ret) {
         ESP_LOGW(TAG, "esp_ble_gattc_send_mtu_req failed, status=%x", ret);
@@ -183,9 +188,10 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
                  descr->uuid.to_string().c_str());
         break;
       }
-      uint8_t notify_en = 1;
-      auto status = esp_ble_gattc_write_char_descr(this->gattc_if, this->conn_id, descr->handle, sizeof(notify_en),
-                                                   &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+      uint16_t notify_en = 1;
+      auto status =
+          esp_ble_gattc_write_char_descr(this->gattc_if, this->conn_id, descr->handle, sizeof(notify_en),
+                                         (uint8_t *) &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
       if (status) {
         ESP_LOGW(TAG, "esp_ble_gattc_write_char_descr error, status=%d", status);
       }

@@ -8,7 +8,7 @@ namespace esphome {
 namespace bl0939 {
 
 // https://datasheet.lcsc.com/lcsc/2108071830_BL-Shanghai-Belling-BL0939_C2841044.pdf
-// (unfortunatelly chinese, but the formulas can be easily understood)
+// (unfortunately chinese, but the formulas can be easily understood)
 // Sonoff Dual R3 V2 has the exact same resistor values for the current shunts (RL=1miliOhm)
 // and for the voltage divider (R1=0.51kOhm, R2=5*390kOhm)
 // as in the manufacturer's reference circuit, so the same formulas were used here (Vref=1.218V)
