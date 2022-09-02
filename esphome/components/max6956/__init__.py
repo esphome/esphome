@@ -29,6 +29,7 @@ MAX6956GPIOPin = max6956_ns.class_("MAX6956GPIOPin", cg.GPIOPin)
 
 # Actions
 SetCurrentGlobalAction = max6956_ns.class_("SetCurrentGlobalAction", automation.Action)
+SetCurrentModeAction = max6956_ns.class_("SetCurrentModeAction", automation.Action)
 
 MAX6956_CURRENTMODE = max6956_ns.enum("MAX6956CURRENTMODE")
 CURRENT_MODES = {
@@ -120,4 +121,24 @@ async def max6956_set_brightness_global_to_code(config, action_id, template_arg,
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_BRIGHTNESS_GLOBAL], args, float)
     cg.add(var.set_brightness_global(template_))
+    return var
+
+
+@automation.register_action(
+    "max6956.set_brightness_mode",
+    SetCurrentModeAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(MAX6956),
+            cv.Required(CONF_BRIGHTNESS_MODE): cv.templatable(
+                cv.enum(CURRENT_MODES, lower=True)
+            ),
+        }
+    ),
+)
+async def max6956_set_brightness_mode_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_BRIGHTNESS_MODE], args, float)
+    cg.add(var.set_brightness_mode(template_))
     return var

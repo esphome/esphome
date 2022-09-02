@@ -49,11 +49,14 @@ class MAX6956 : public Component, public i2c::I2CDevice {
 
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  void set_brightness_global(uint8_t current) { global_brightness_ = current; };
-  void set_brightness_mode(max6956::MAX6956CURRENTMODE brightness_mode) { brightness_mode_ = brightness_mode; };
+  void set_brightness_global(uint8_t current);
+  void set_brightness_mode(max6956::MAX6956CURRENTMODE brightness_mode);
   void set_pin_brightness(uint8_t pin, float brightness);
 
   // void dump_config() override;
+
+  void write_brightness_global_();
+  void write_brightness_mode_();
 
  protected:
   // read a given register
@@ -65,8 +68,6 @@ class MAX6956 : public Component, public i2c::I2CDevice {
 
  private:
   int8_t prev_bright_[28] = {0};
-  void write_brightness_global_(uint8_t current);
-  void write_brightness_mode_(max6956::MAX6956CURRENTMODE brightness_mode);
 };
 
 class MAX6956GPIOPin : public GPIOPin {
@@ -76,7 +77,6 @@ class MAX6956GPIOPin : public GPIOPin {
   bool digital_read() override;
   void digital_write(bool value) override;
   std::string dump_summary() const override;
-  //  void turn_on() override;
 
   void set_parent(MAX6956 *parent) { parent_ = parent; }
   void set_pin(uint8_t pin) { pin_ = pin; }

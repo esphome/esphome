@@ -13,11 +13,22 @@ template<typename... Ts> class SetCurrentGlobalAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(float, brightness_global)
 
-  void play(Ts... x) override { this->max6956_->set_brightness_global(16 * this->brightness_global_.value(x...)); }
+  void play(Ts... x) override { this->max6956_->set_brightness_global(15 * this->brightness_global_.value(x...)); this->max6956_->write_brightness_global_();}
 
  protected:
   MAX6956 *max6956_;
 };
 
+template<typename... Ts> class SetCurrentModeAction : public Action<Ts...> {
+ public:
+  SetCurrentModeAction(MAX6956 *max6956) : max6956_(max6956) {}
+
+  TEMPLATABLE_VALUE(max6956::MAX6956CURRENTMODE, brightness_mode)
+  
+  void play(Ts... x) override { this->max6956_->set_brightness_mode(this->brightness_mode_.value(x...)); this->max6956_->write_brightness_mode_();}
+
+ protected:
+  MAX6956 *max6956_;
+};
 }  // namespace max6956
 }  // namespace esphome
