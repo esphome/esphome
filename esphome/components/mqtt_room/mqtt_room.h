@@ -12,7 +12,8 @@ class MqttRoom : public Component {
  public:
   void dump_config() override;
   void set_topic(const std::string &topic);
-  void add_tracker(ble_rssi::BLERSSISensor *sensor, const std::string &id, const std::string &name);
+  void add_tracker(ble_rssi::BLERSSISensor *sensor, const std::string &name);
+  void add_tracker(ble_rssi::BLERSSISensor *sensor);
 
  protected:
   std::string mqtt_topic_;

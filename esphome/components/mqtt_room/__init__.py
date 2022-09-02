@@ -61,15 +61,10 @@ async def to_code(config):
 
     for tracker in config[CONF_TRACKERS]:
         tracker_sensor = await cg.get_variable(tracker[CONF_DEVICE_ID])
-        tracker_sensor_id = str(tracker_sensor.base)
 
         if CONF_NAME in tracker:
-            cg.add(
-                var.add_tracker(tracker_sensor, tracker_sensor_id, tracker[CONF_NAME])
-            )
+            cg.add(var.add_tracker(tracker_sensor, tracker[CONF_NAME]))
         else:
-            cg.add(
-                var.add_tracker(tracker_sensor, tracker_sensor_id, tracker_sensor_id)
-            )
+            cg.add(var.add_tracker(tracker_sensor))
 
     await cg.register_component(var, config)

@@ -16,19 +16,21 @@ void MqttRoom::dump_config() {
 
 void MqttRoom::set_topic(const std::string &topic) { this->mqtt_topic_ = topic; }
 
-void MqttRoom::add_tracker(ble_rssi::BLERSSISensor *sensor, const std::string &id, const std::string &name) {
+void MqttRoom::add_tracker(ble_rssi::BLERSSISensor *sensor, const std::string &name) {
   this->tracker_count_++;
-  sensor->add_on_state_callback([this, id, name](float rssi) {
+  sensor->add_on_state_callback([this, sensor, name](float rssi) {
     float distance = this->calculate_distance_(rssi);
-    ESP_LOGD(TAG, "Got distance of '%0.1fm' for '%s'", distance, id.c_str());
+    ESP_LOGD(TAG, "'%s': Sending state %.2f m with 2 decimals of accuracy", sensor->get_object_id().c_str(), distance);
 
     mqtt::global_mqtt_client->publish_json(this->mqtt_topic_, [=](ArduinoJson::JsonObject root) -> void {
       root["distance"] = distance;
-      root["id"] = id;
+      root["id"] = sensor->get_object_id();
       root["name"] = name;
     });
   });
 }
+
+void MqttRoom::add_tracker(ble_rssi::BLERSSISensor *sensor) { this->add_tracker(sensor, sensor->get_name()); }
 
 float MqttRoom::calculate_distance_(float rssi) {
   const float ratio = rssi * 1.0 / -72;
