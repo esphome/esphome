@@ -93,12 +93,12 @@ void DisplayBuffer::line(int x1, int y1, int x2, int y2, Color grandient_from, C
     if (x1 == x2 && y1 == y2)
       break;
     int32_t e2 = 2 * err;
-    if (e2 >= dy) {
-      err += dy;
+    if (e2 >= delta_y) {
+      err += delta_y;
       x1 += sx;
     }
-    if (e2 <= dx) {
-      err += dx;
+    if (e2 <= delta_x) {
+      err += delta_x;
       y1 += sy;
     }
   }
@@ -150,6 +150,7 @@ void DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radiu
     } while (delta_x <= 0);
   }
 }
+
 void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color, Color grandient_to, GradientDirection direction) {
   // Future: Use vertical_line and horizontal_line methods depending on rotation to reduce memory accesses.
   int delta_x = -radius;
@@ -163,23 +164,26 @@ void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_
   width = width - (radius * 2);
 //this->filled_rectangle(x - radius, y, width + (radius * 2), height, color);
 
-  this->filled_rectangle(x - radius, y, width + (radius * 2), height, color);
-  do {
-    int hline_width = width + (2 * (-delta_x) + 1) - 1;
-    this->horizontal_line(x + delta_x, y + height + delta_y, hline_width, color);
-    this->horizontal_line(x + delta_x, y - delta_y, hline_width, color);
-    e2 = err;
-    if (e2 < delta_y) {
-      err += ++delta_y * 2 + 1;
-      if (-delta_x == delta_y && e2 <= delta_x) {
-        e2 = 0;
+  for (int i = y; i < y + height; i++) {
+    this->horizontal_line(x- radius, i, width + (radius * 2), color);
+  }
+  if (radius>0) {
+    do {
+      int hline_width = width + (2 * (-delta_x) + 1) - 1;
+      this->horizontal_line(x + delta_x, y + height + delta_y, hline_width, color);
+      this->horizontal_line(x + delta_x, y - delta_y, hline_width, color);
+      e2 = err;
+      if (e2 < delta_y) {
+        err += ++delta_y * 2 + 1;
+        if (-delta_x == delta_y && e2 <= delta_x) {
+          e2 = 0;
+        }
       }
-    }
-    if (e2 > delta_x) {
-      err += ++delta_x * 2 + 1;
-    }
-  } while (delta_x <= 0);
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
+      if (e2 > delta_x) {
+        err += ++delta_x * 2 + 1;
+      }
+    } while (delta_x <= 0);
+  }
 }
 
 void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color color, Color grandient_to, GradientDirection direction) {
@@ -271,11 +275,7 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
   // using incremental additions instead of multiplies/divides
 
   int16_t xa, xb, xc, yos;
-<<<<<<< HEAD
   int16_t x01 = x0 - x1, y01 = y0 - y1, x20 = x2 - x0, y20 = y2 - y0, x21 = x2 - x1, y21 = y2 - y1;
-=======
-  int16_t x01 = x0 - x1, y01 = y0 - y1, x20 = x2 - x0, y20 = y2 - y0, x21 = x2 - x1, y21 = y2 - y1;
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
 
   // Flat bottom scenario
   // NOTE: Due to vertex sorting and loop range, it shouldn't
@@ -342,11 +342,7 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
                                Color color, Color grandient_to, int16_t gradient_angle_start, int16_t gradient_angle_range, int16_t quality) {
   int16_t x0, y0, x1, y1, x2, y2, x3, y3;
   int16_t gradient_pos = 0;
-<<<<<<< HEAD
 
-=======
-  
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
   // Calculate degrees per step (based on quality setting)
   int16_t step_angle = 360 / quality;
   int16_t step = 64 * step_angle;
@@ -404,7 +400,11 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
     this->filled_quad(x0, y0, x1, y1, x2, y2, x3, y3, color.gradient(grandient_to, gradient_pos));
   }
 }
+<<<<<<< HEAD
 }
+=======
+>>>>>>> 0c3c83bd2c2916bac64e502dd09058bd8eee3fb4
+
 
 
 void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align, const char *text) {
@@ -638,7 +638,6 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 }
 #endif
 
-<<<<<<< HEAD
 void DisplayBuffer::set_clipping(Rect rect) {
   //ESP_LOGW(TAG, "set: Push new clipping");
   this->clipping_rectangle_.push_back( rect);
@@ -662,103 +661,10 @@ void DisplayBuffer::add_clipping(Rect add_rect) {
 Rect DisplayBuffer::get_clipping() {
   if (this->clipping_rectangle_.empty()) {
     return Rect();
-=======
-
-// Expand or contract a rectangle in width and/or height (equal
-// amounts on both side), based on the centerpoint of the rectangle.
-Rect DisplayBuffer::expand_rect(Rect rect, int16_t width, int16_t height) {
-  Rect new_rect = {1, 1, 0, 0};
-
-  // Detect error case of contracting region too far
-  if (((int16_t) rect.w < (-2 * width)) || ((int16_t) rect.h < (-2 * height))) {
-    // Return an empty coordinate box (which won't be drawn)
-    return new_rect;
-  }
-
-  // Adjust the rectangle coordinate to allow for new dimensions
-  // Note that this moves the coordinate in the opposite
-  // direction of the expansion/contraction.
-  new_rect.x = rect.x - width;
-  new_rect.y = rect.y - height;
-  // Adjust the new width/height
-  // Note that the overall width/height changes by a factor of
-  // two since we are applying the adjustment on both sides (ie.
-  // top/bottom or left/right) equally.
-  new_rect.w = rect.w + (2 * width);
-  new_rect.h = rect.h + (2 * height);
-
-  return new_rect;
-}
-
-// Expand the current rect (pRect) to enclose the additional rect region (radd_rect)
-Rect DisplayBuffer::union_rect(Rect rect, Rect add_rect) {
-  // If the source rect has zero dimensions, then treat as empty
-  if ((rect.w == 0) || (rect.h == 0)) {
-    // No source region defined, simply copy add region
-    return add_rect;
-  }
-
-  // Source region valid, so increase dimensions
-
-  // Find the new maximal dimensions
-  uint16_t source_x0 = (rect.x < add_rect.x) ? rect.x : add_rect.x;
-  uint16_t source_y0 = (rect.y < add_rect.y) ? rect.x : add_rect.y;
-  uint16_t source_x1 = (rect.w > add_rect.w) ? rect.x : add_rect.w;
-  uint16_t source_y1 = (rect.h > add_rect.h) ? rect.x : add_rect.h;
-
-  // Update the original rect region
-  return Rect(source_x0, source_y0, source_x1, source_y1);
-}
-
-Rect DisplayBuffer::intersect_rect(Rect rect, Rect add_rect) {
-  // If the source rect has zero dimensions, then treat as empty
-  if ((rect.w == 0) || (rect.h == 0)) {
-    // No source region defined, simply copy add region
-    return add_rect;
-  }
-  // Find the new minimum dimensions
-  uint16_t source_x0 = (rect.x > add_rect.x) ? rect.x : add_rect.x;
-  uint16_t source_y0 = (rect.y > add_rect.y) ? rect.x : add_rect.y;
-  uint16_t source_x1 = (rect.w < add_rect.w) ? rect.x : add_rect.w;
-  uint16_t source_y1 = (rect.h < add_rect.h) ? rect.x : add_rect.h;
-
-  // Update the original rect region
-  return Rect(source_x0, source_y0, source_x1, source_y1);
-}
-
-bool DisplayBuffer::in_rect(int16_t x, int16_t y, Rect rect) {
-  return ((x >= rect.x) && (x <= rect.w) && (y >= rect.y) && (y <= rect.h));
-}
-
-bool DisplayBuffer::is_inside(int16_t x, int16_t y, uint16_t width, uint16_t height) {
-  return ((x >= 0) && (x <= (int16_t)(width) -1) && (y >= 0) && (y <= (int16_t)(height) -1));
-}
-
-void DisplayBuffer::clear_clipping() {
-  if (this->clipping_rectangle_.empty()) {
-    ESP_LOGW(TAG, "clear: Clipping is not set.");
-  } else {
-    //ESP_LOGW(TAG, "clear: Pop back old clipping");
-    this->clipping_rectangle_.pop_back();
-  }
-}
-void DisplayBuffer::add_clipping(Rect add_rect) {
-  if (this->clipping_rectangle_.empty()) {
-    ESP_LOGW(TAG, "add: Clipping is not set.");
-  } else {
-    //ESP_LOGW(TAG, "add: join new clipping");
-    this->clipping_rectangle_.back().join(add_rect);
-  }
-}
-Rect DisplayBuffer::get_clipping() {
-  if (this->clipping_rectangle_.empty()) {
-    return Rect(1, 1, 0, 0);
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
   } else {
     return this->clipping_rectangle_.back();
   }
 }
-<<<<<<< HEAD
 bool DisplayBuffer::is_clipped(int16_t x, int16_t y) {
   Rect clip = this->get_clipping();
   if (!clip.is_set()) {  return false; }
@@ -767,18 +673,6 @@ bool DisplayBuffer::is_clipped(int16_t x, int16_t y) {
 bool DisplayBuffer::is_clipped(Rect rect) {
   Rect clip = this->get_clipping();
   if (!clip.is_set()) { return false; }
-=======
-
-bool DisplayBuffer::is_clipped(int16_t x, int16_t y) {
-  Rect clip = this->get_clipping();
-  if (!clip.is_set()) {  return false; }
-  return ((x < clip.x) || (x > clip.w) || (y < clip.y) || (y > clip.h));
-}
-bool DisplayBuffer::is_clipped(Rect rect) {
-  Rect clip = this->get_clipping();
-  if ((clip.w == 0) || (clip.h == 0))
-    return true;
->>>>>>> a51a83e8 (Add more UI functions to display_buffer)
   return ((rect.w < clip.x) || (rect.x > clip.w) || (rect.h < clip.y) || (rect.y > clip.h));
 }
 
