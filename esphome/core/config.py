@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_SOURCE,
     CONF_TRIGGER_ID,
     CONF_TYPE,
+    CONF_VALUE,
     CONF_VERSION,
     KEY_CORE,
     TARGET_PLATFORMS,
@@ -96,6 +97,7 @@ def valid_project_name(value: str):
     return value
 
 
+CONF_OVERRIDE = "override"
 CONF_ESP8266_RESTORE_FROM_FLASH = "esp8266_restore_from_flash"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -105,7 +107,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {
-                    cv.string_strict: cv.Any([cv.string], cv.string),
+                    cv.string_strict: cv.Any(
+                        [cv.string],
+                        cv.string,
+                        cv.Schema(
+                            {
+                                cv.Required(CONF_VALUE): cv.Any([cv.string], cv.string),
+                                cv.Optional(CONF_OVERRIDE, default=False): cv.boolean,
+                            }
+                        ),
+                    ),
                 }
             ),
             cv.Optional(CONF_ON_BOOT): automation.validate_automation(
@@ -281,7 +292,10 @@ async def add_includes(includes):
 async def _add_platformio_options(pio_options):
     # Add includes at the very end, so that they override everything
     for key, val in pio_options.items():
-        cg.add_platformio_option(key, val)
+        if isinstance(val, dict):
+            cg.add_platformio_option(key, val["value"], val["override"])
+        else:
+            cg.add_platformio_option(key, val, False)
 
 
 @coroutine_with_priority(30.0)

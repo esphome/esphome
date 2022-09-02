@@ -701,12 +701,18 @@ class EsphomeCore:
         _LOGGER.debug("Adding define: %s", define)
         return define
 
-    def add_platformio_option(self, key: str, value: Union[str, List[str]]) -> None:
+    def add_platformio_option(
+        self,
+        key: str,
+        value: Union[str, List[str]],
+        force_override: Optional[bool] = None,
+    ) -> None:
         new_val = value
-        old_val = self.platformio_options.get(key)
-        if isinstance(old_val, list):
-            assert isinstance(value, list)
-            new_val = old_val + value
+        if not force_override:
+            old_val = self.platformio_options.get(key)
+            if isinstance(old_val, list):
+                assert isinstance(value, list)
+                new_val = old_val + value
         self.platformio_options[key] = new_val
 
     def _get_variable_generator(self, id):

@@ -590,8 +590,8 @@ def add_define(name: str, value: SafeExpType = None):
         CORE.add_define(Define(name, safe_exp(value)))
 
 
-def add_platformio_option(key: str, value: Union[str, List[str]]):
-    CORE.add_platformio_option(key, value)
+def add_platformio_option(key: str, value: Union[str, List[str]], force_override: Optional[bool] = None):
+    CORE.add_platformio_option(key, value, force_override)
 
 
 async def get_variable(id_: ID) -> "MockObj":
