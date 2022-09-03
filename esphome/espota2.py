@@ -92,7 +92,6 @@ def receive_exactly(sock, amount, msg, expect, decode=True):
     try:
         check_error(data, expect)
     except OTAError as err:
-        sock.close()
         raise OTAError(f"Error {msg}: {err}") from err
 
     while len(data) < amount:
@@ -268,8 +267,16 @@ def perform_ota(sock, password, file_handle, filename):
 
         try:
             sock.sendall(chunk)
+            # try to receive any error codes
+            try:
+                sock.settimeout(0)
+                error = sock.recv(1)
+                check_error(error, expect=-1)
+            except BlockingIOError:
+                pass  # no additional data
+            finally:
+                sock.settimeout(20.0)
         except OSError as err:
-            sys.stderr.write("\n")
             raise OTAError(f"Error sending data: {err}") from err
 
         progress.update(offset / upload_size)
@@ -323,7 +330,15 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
         try:
             perform_ota(sock, password, file_handle, filename)
         except OTAError as err:
+            sys.stderr.write("\n")
             _LOGGER.error(str(err))
+            # receive additional error info, if available
+            sock.settimeout(0.5)
+            try:
+                data = sock.recv(2)
+                _LOGGER.error(f"Backend error code: 0x{data.hex()}")
+            except (TimeoutError, OSError):
+                pass
             return 1
         finally:
             sock.close()

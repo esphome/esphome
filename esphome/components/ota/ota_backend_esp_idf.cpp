@@ -15,6 +15,7 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
     return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
   }
   esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
+  this->last_errno_ = err;
   if (err != ESP_OK) {
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;
@@ -33,6 +34,7 @@ void IDFOTABackend::set_update_md5(const char *expected_md5) { memcpy(this->expe
 
 OTAResponseTypes IDFOTABackend::write(uint8_t *data, size_t len) {
   esp_err_t err = esp_ota_write(this->update_handle_, data, len);
+  this->last_errno_ = err;
   this->md5_.add(data, len);
   if (err != ESP_OK) {
     if (err == ESP_ERR_OTA_VALIDATE_FAILED) {
@@ -52,6 +54,7 @@ OTAResponseTypes IDFOTABackend::end() {
     return OTA_RESPONSE_ERROR_MD5_MISMATCH;
   }
   esp_err_t err = esp_ota_end(this->update_handle_);
+  this->last_errno_ = err;
   this->update_handle_ = 0;
   if (err == ESP_OK) {
     err = esp_ota_set_boot_partition(this->partition_);

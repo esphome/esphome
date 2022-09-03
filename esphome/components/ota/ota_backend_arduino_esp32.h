@@ -16,6 +16,10 @@ class ArduinoESP32OTABackend : public OTABackend {
   OTAResponseTypes end() override;
   void abort() override;
   bool supports_compression() override { return false; }
+  int get_backend_errno() override { return last_errno_; }
+
+ private:
+  int last_errno_;
 };
 
 }  // namespace ota

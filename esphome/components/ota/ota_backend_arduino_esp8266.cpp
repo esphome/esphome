@@ -20,6 +20,7 @@ OTAResponseTypes ArduinoESP8266OTABackend::begin(size_t image_size) {
   }
 
   uint8_t error = Update.getError();
+  this->last_errno_ = error;
   if (error == UPDATE_ERROR_BOOTSTRAP)
     return OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
   if (error == UPDATE_ERROR_NEW_FLASH_CONFIG)
@@ -36,14 +37,17 @@ void ArduinoESP8266OTABackend::set_update_md5(const char *md5) { Update.setMD5(m
 OTAResponseTypes ArduinoESP8266OTABackend::write(uint8_t *data, size_t len) {
   size_t written = Update.write(data, len);
   if (written != len) {
+    this->last_errno_ = Update.getError();
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
   }
   return OTA_RESPONSE_OK;
 }
 
 OTAResponseTypes ArduinoESP8266OTABackend::end() {
-  if (!Update.end())
+  if (!Update.end()) {
+    this->last_errno_ = Update.getError();
     return OTA_RESPONSE_ERROR_UPDATE_END;
+  }
   return OTA_RESPONSE_OK;
 }
 

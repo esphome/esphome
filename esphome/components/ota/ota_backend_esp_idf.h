@@ -18,12 +18,14 @@ class IDFOTABackend : public OTABackend {
   OTAResponseTypes end() override;
   void abort() override;
   bool supports_compression() override { return false; }
+  int get_backend_errno() override { return last_errno_; }
 
  private:
   esp_ota_handle_t update_handle_{0};
   const esp_partition_t *partition_;
   md5::MD5Digest md5_{};
   char expected_bin_md5_[32];
+  int last_errno_;
 };
 
 }  // namespace ota

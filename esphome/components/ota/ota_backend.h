@@ -13,6 +13,7 @@ class OTABackend {
   virtual OTAResponseTypes end() = 0;
   virtual void abort() = 0;
   virtual bool supports_compression() = 0;
+  virtual int get_backend_errno() = 0;
 };
 
 }  // namespace ota
