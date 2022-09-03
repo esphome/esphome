@@ -16,14 +16,6 @@ DEPENDENCIES = ["uart"]
 CONF_DXS238XW_ID = "dxs238xw_id"
 COMPONENT_NAME = "dxs238xw"
 
-UART_CONFIG_RX_PIN = 3
-UART_CONFIG_TX_PIN = 1
-UART_CONFIG_BAUD_RATE = 9600
-UART_CONFIG_PARITY = "NONE"
-UART_CONFIG_RX_BUFFER_SIZE = 256
-UART_CONFIG_STOP_BITS = 1
-UART_CONFIG_DATA_BITS = 8
-
 dxs238xw_ns = cg.esphome_ns.namespace(COMPONENT_NAME)
 Dxs238xwComponent = dxs238xw_ns.class_(
     "Dxs238xwComponent", cg.PollingComponent, uart.UARTDevice
@@ -44,53 +36,83 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def valid_uart(conf):
-    rx_pin = UART_CONFIG_RX_PIN
-    if conf[CONF_RX_PIN][CONF_NUMBER] != rx_pin:
-        _LOGGER.warning("Usually rx pin is GPIO%d", rx_pin)
+def validate_uart(
+    component: str,
+    tx_pin: int,
+    rx_pin: int,
+    baud_rate: int,
+    parity: str,
+    rx_buffer_size: int,
+    stop_bits: int,
+    data_bits: int,
+):
+    def validate_data(opt, required_value):
+        def validator(value):
+            if value != required_value:
+                raise cv.Invalid(
+                    f"Component {component} required {opt} {required_value} for the uart bus"
+                )
+            return value
+        return validator
 
-    tx_pin = UART_CONFIG_TX_PIN
-    if conf[CONF_TX_PIN][CONF_NUMBER] != tx_pin:
-        _LOGGER.warning("Usually tx pin is GPIO%d", tx_pin)
+    def validate_pin(opt, device, pin, value_other_pin):
+        def validator(value):
+            if value[CONF_NUMBER] != pin:
+                _LOGGER.warning("Component %s usually uart %s is GPIO%d", component, opt, pin)
+            if value[CONF_NUMBER] == value_other_pin[CONF_NUMBER]:
+                raise cv.Invalid(
+                    f"Component {component} required {CONF_TX_PIN} and {CONF_RX_PIN} not be the same"
+                )
+            if opt in device:
+                raise cv.Invalid(
+                    f"The uart {opt} is used both by {component} and {device[opt]}, "
+                    f"but can only be used by one. Please create a new uart bus for {component}."
+                )
+            device[opt] = component
+            return value
+        return validator
 
-    baud_rate = UART_CONFIG_BAUD_RATE
-    if conf[CONF_BAUD_RATE] != baud_rate:
-        raise cv.Invalid(
-            f"Component {COMPONENT_NAME} required baud_rate {baud_rate} for the uart bus"
-        )
+    def validate_hub(conf):
+        if CONF_TX_PIN not in conf:
+            raise cv.Invalid(
+                f"Component {component} requires this uart bus to declare a {CONF_TX_PIN}"
+            )
 
-    parity = UART_CONFIG_PARITY
-    if conf[uart.CONF_PARITY] != parity:
-        raise cv.Invalid(
-            f"Component {COMPONENT_NAME} required parity {parity} for the uart bus"
-        )
+        if CONF_RX_PIN not in conf:
+            raise cv.Invalid(
+                f"Component {component} requires this uart bus to declare a {CONF_RX_PIN}"
+            )
 
-    rx_buffer_size = UART_CONFIG_RX_BUFFER_SIZE
-    if conf[uart.CONF_RX_BUFFER_SIZE] < rx_buffer_size:
-        raise cv.Invalid(
-            f"Component {COMPONENT_NAME} required minimum rx_buffer_size {rx_buffer_size} for the uart bus"
-        )
+        hub_schema = {}
+        uart_id = conf[CONF_ID]
+        devices = fv.full_config.get().data.setdefault(uart.KEY_UART_DEVICES, {})
+        device = devices.setdefault(uart_id, {})
 
-    stop_bits = UART_CONFIG_STOP_BITS
-    if conf[uart.CONF_STOP_BITS] != stop_bits:
-        raise cv.Invalid(
-            f"Component {COMPONENT_NAME} required stop_bits {stop_bits} for the uart bus"
-        )
+        hub_schema[cv.Required(CONF_TX_PIN)] = validate_pin(CONF_TX_PIN, device, tx_pin, conf[CONF_RX_PIN])
+        hub_schema[cv.Required(CONF_RX_PIN)] = validate_pin(CONF_RX_PIN, device, rx_pin, conf[CONF_TX_PIN])
+        hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_data(CONF_BAUD_RATE, baud_rate)
+        hub_schema[cv.Optional(uart.CONF_PARITY)] = validate_data(uart.CONF_PARITY, parity)
+        hub_schema[cv.Optional(uart.CONF_RX_BUFFER_SIZE)] = validate_data(uart.CONF_RX_BUFFER_SIZE, rx_buffer_size)
+        hub_schema[cv.Optional(uart.CONF_STOP_BITS)] = validate_data(uart.CONF_STOP_BITS, stop_bits)
+        hub_schema[cv.Optional(uart.CONF_DATA_BITS)] = validate_data(uart.CONF_DATA_BITS, data_bits)
 
-    data_bits = UART_CONFIG_DATA_BITS
-    if conf[uart.CONF_DATA_BITS] != data_bits:
-        raise cv.Invalid(
-            f"Component {COMPONENT_NAME} required data_bits {data_bits} for the uart bus"
-        )
+        return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(conf)
 
-    return conf
-
-
-FINAL_VALIDATE_SCHEMA = cv.All(
-    cv.Schema(
-        {cv.Required(uart.CONF_UART_ID): fv.id_declaration_match_schema(valid_uart)},
+    return cv.Schema(
+        {cv.Required(uart.CONF_UART_ID): fv.id_declaration_match_schema(validate_hub)},
         extra=cv.ALLOW_EXTRA,
-    ),
+    )
+
+
+FINAL_VALIDATE_SCHEMA = validate_uart(
+    component=COMPONENT_NAME,
+    tx_pin=1,
+    rx_pin=3,
+    baud_rate=9600,
+    parity="NONE",
+    rx_buffer_size=256,
+    stop_bits=1,
+    data_bits=8,
 )
 
 
@@ -114,7 +136,7 @@ MeterStateToggleAction = dxs238xw_ns.class_("MeterStateToggleAction", automation
         }
     ),
 )
-async def MeterStateToggleAction_to_code(config, action_id, template_arg, args):
+async def meter_state_toggle_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -133,7 +155,7 @@ MeterStateOnAction = dxs238xw_ns.class_("MeterStateOnAction", automation.Action)
         }
     ),
 )
-async def MeterStateOnAction_to_code(config, action_id, template_arg, args):
+async def meter_state_on_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -152,7 +174,7 @@ MeterStateOffAction = dxs238xw_ns.class_("MeterStateOffAction", automation.Actio
         }
     ),
 )
-async def MeterStateOffAction_to_code(config, action_id, template_arg, args):
+async def meter_state_off_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
@@ -176,7 +198,7 @@ CHECK_CRC = "check_crc"
         }
     ),
 )
-async def HexMessageAction_to_code(config, action_id, template_arg, args):
+async def hex_message_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
