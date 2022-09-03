@@ -274,6 +274,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart11
+    tx_pin: GPIO1
+    rx_pin: GPIO3
+    baud_rate: 9600
 
 modbus:
   uart_id: uart1
@@ -300,7 +304,7 @@ adalight:
 
 dxs238xw:
   update_interval: 3s
-  uart_id: uart5
+  uart_id: uart11
 
 sensor:
   - platform: dxs238xw

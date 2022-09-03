@@ -53,12 +53,15 @@ def validate_uart(
                     f"Component {component} required {opt} {required_value} for the uart bus"
                 )
             return value
+
         return validator
 
     def validate_pin(opt, device, pin, value_other_pin):
         def validator(value):
             if value[CONF_NUMBER] != pin:
-                _LOGGER.warning("Component %s usually uart %s is GPIO%d", component, opt, pin)
+                _LOGGER.warning(
+                    "Component %s usually uart %s is GPIO%d", component, opt, pin
+                )
             if value[CONF_NUMBER] == value_other_pin[CONF_NUMBER]:
                 raise cv.Invalid(
                     f"Component {component} required {CONF_TX_PIN} and {CONF_RX_PIN} not be the same"
@@ -70,6 +73,7 @@ def validate_uart(
                 )
             device[opt] = component
             return value
+
         return validator
 
     def validate_hub(conf):
@@ -88,13 +92,27 @@ def validate_uart(
         devices = fv.full_config.get().data.setdefault(uart.KEY_UART_DEVICES, {})
         device = devices.setdefault(uart_id, {})
 
-        hub_schema[cv.Required(CONF_TX_PIN)] = validate_pin(CONF_TX_PIN, device, tx_pin, conf[CONF_RX_PIN])
-        hub_schema[cv.Required(CONF_RX_PIN)] = validate_pin(CONF_RX_PIN, device, rx_pin, conf[CONF_TX_PIN])
-        hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_data(CONF_BAUD_RATE, baud_rate)
-        hub_schema[cv.Optional(uart.CONF_PARITY)] = validate_data(uart.CONF_PARITY, parity)
-        hub_schema[cv.Optional(uart.CONF_RX_BUFFER_SIZE)] = validate_data(uart.CONF_RX_BUFFER_SIZE, rx_buffer_size)
-        hub_schema[cv.Optional(uart.CONF_STOP_BITS)] = validate_data(uart.CONF_STOP_BITS, stop_bits)
-        hub_schema[cv.Optional(uart.CONF_DATA_BITS)] = validate_data(uart.CONF_DATA_BITS, data_bits)
+        hub_schema[cv.Required(CONF_TX_PIN)] = validate_pin(
+            CONF_TX_PIN, device, tx_pin, conf[CONF_RX_PIN]
+        )
+        hub_schema[cv.Required(CONF_RX_PIN)] = validate_pin(
+            CONF_RX_PIN, device, rx_pin, conf[CONF_TX_PIN]
+        )
+        hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_data(
+            CONF_BAUD_RATE, baud_rate
+        )
+        hub_schema[cv.Optional(uart.CONF_PARITY)] = validate_data(
+            uart.CONF_PARITY, parity
+        )
+        hub_schema[cv.Optional(uart.CONF_RX_BUFFER_SIZE)] = validate_data(
+            uart.CONF_RX_BUFFER_SIZE, rx_buffer_size
+        )
+        hub_schema[cv.Optional(uart.CONF_STOP_BITS)] = validate_data(
+            uart.CONF_STOP_BITS, stop_bits
+        )
+        hub_schema[cv.Optional(uart.CONF_DATA_BITS)] = validate_data(
+            uart.CONF_DATA_BITS, data_bits
+        )
 
         return cv.Schema(hub_schema, extra=cv.ALLOW_EXTRA)(conf)
 
