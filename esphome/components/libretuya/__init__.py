@@ -44,7 +44,7 @@ def _set_core_data(config):
 ARDUINO_VERSIONS = {
     "dev": (cv.Version(0, 0, 0), "https://github.com/kuba2k2/libretuya.git"),
     "latest": (cv.Version(0, 0, 0), None),
-    "recommended": (cv.Version(0, 7, 0), None),
+    "recommended": (cv.Version(0, 10, 0), None),
 }
 
 
@@ -125,7 +125,9 @@ async def to_code(config):
         LT_LOGGER_CALLER=0,
         LT_LOGGER_TASK=0,
         LT_LOGGER_COLOR=1,
+        LT_DEBUG_ALL=1,
         LT_UART_SILENT_ALL=int(config[CONF_SDK_SILENT]),
+        LT_USE_TIME=1,
     )
     lt_config.update(config[CONF_LT_CONFIG])
 
