@@ -5000,6 +5000,38 @@ void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+void BluetoothListAddressesRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothListAddressesRequest::dump_to(std::string &out) const { out.append("BluetoothListAddressesRequest {}"); }
+#endif
+bool BluetoothListAddressesResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->addresses.push_back(value.as_uint64());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothListAddressesResponse::encode(ProtoWriteBuffer buffer) const {
+  for (auto &it : this->addresses) {
+    buffer.encode_uint64(1, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothListAddressesResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothListAddressesResponse {\n");
+  for (const auto &it : this->addresses) {
+    out.append("  addresses: ");
+    sprintf(buffer, "%llu", it);
+    out.append(buffer);
+    out.append("\n");
+  }
+  out.append("}");
+}
+#endif
 
 }  // namespace api
 }  // namespace esphome

@@ -1127,3 +1127,18 @@ message BluetoothLEAdvertisementResponse {
   repeated BluetoothServiceData service_data = 5;
   repeated BluetoothServiceData manufacturer_data = 6;
 }
+
+message BluetoothListAddressesRequest {
+  option (id) = 68;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  // Empty
+}
+
+message BluetoothListAddressesResponse {
+  option (id) = 69;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  repeated uint64 addresses = 1;
+}

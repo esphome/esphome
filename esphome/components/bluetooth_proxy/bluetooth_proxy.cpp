@@ -13,7 +13,42 @@ namespace bluetooth_proxy {
 
 static const char *const TAG = "bluetooth_proxy";
 
+void BluetoothProxy::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up Bluetooth Proxy...");
+#ifdef USE_API
+  api::global_api_server->request_bluetooth_address_list([this](const std::vector<uint64_t> &addresses) {
+    for (const auto &address : addresses) {
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+      esp_bd_addr_t addr;
+      addr[0] = (address >> 40) & 0xFF;
+      addr[1] = (address >> 32) & 0xFF;
+      addr[2] = (address >> 24) & 0xFF;
+      addr[3] = (address >> 16) & 0xFF;
+      addr[4] = (address >> 8) & 0xFF;
+      addr[5] = (address >> 0) & 0xFF;
+
+      ESP_LOGV(TAG, "Adding %02X:%02X:%02X:%02X:%02X:%02X to whitelist", addr[0], addr[1], addr[2], addr[3], addr[4],
+               addr[5]);
+#endif
+      this->whitelist_[address] = -1;
+    }
+  });
+#endif
+}
+
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+  uint64_t addr64 = device.address_uint64();
+  if (this->whitelist_.size() > 0) {
+    if (this->whitelist_.find(addr64) == this->whitelist_.end()) {
+      this->whitelist_[addr64] = 0;
+    }
+    int8_t v = this->whitelist_[addr64];
+    if (v >= 3) {
+      return false;
+    } else if (v != -1) {
+      this->whitelist_[addr64] = v + 1;
+    }
+  }
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
   this->send_api_packet_(device);

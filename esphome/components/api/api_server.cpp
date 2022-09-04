@@ -297,6 +297,18 @@ void APIServer::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementRe
     client->send_bluetooth_le_advertisement(call);
   }
 }
+
+void APIServer::request_bluetooth_address_list(std::function<void(const std::vector<uint64_t> &)> &&callback) {
+  this->bluetooth_address_list_callback_ = std::move(callback);
+  for (auto &client : this->clients_) {
+    client->request_bluetooth_address_list();
+  }
+}
+void APIServer::on_bluetooth_list_addresses_response(const BluetoothListAddressesResponse &msg) {
+  if (this->bluetooth_address_list_callback_ != nullptr) {
+    this->bluetooth_address_list_callback_(msg.addresses);
+  }
+}
 #endif
 APIServer::APIServer() { global_api_server = this; }
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,

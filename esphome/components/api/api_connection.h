@@ -104,6 +104,12 @@ class APIConnection : public APIServerConnection {
       return false;
     return this->send_bluetooth_le_advertisement_response(call);
   }
+  bool request_bluetooth_address_list() {
+    return this->send_bluetooth_list_addresses_request(BluetoothListAddressesRequest());
+  }
+  void on_bluetooth_list_addresses_response(const BluetoothListAddressesResponse &msg) override {
+    this->parent_->on_bluetooth_list_addresses_response(msg);
+  }
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void send_time_request() {
@@ -190,7 +196,7 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
-  bool bluetooth_le_advertisement_subscription_{true};
+  bool bluetooth_le_advertisement_subscription_{false};
   bool next_close_ = false;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
