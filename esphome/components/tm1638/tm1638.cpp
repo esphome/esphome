@@ -99,12 +99,12 @@ void TM1638Component::display() {
   }
 }
 
-void TM1638Component::reset_(bool on_off) {
+void TM1638Component::reset_() {
   uint8_t num_commands = 16;  // 16 addresses, 8 for 7seg and 8 for LEDs
   uint8_t commands[num_commands];
 
   for (uint8_t i = 0; i < num_commands; i++) {
-    commands[i] = on_off ? 255 : 0;
+    commands[i] = 0;
   }
 
   this->send_command_sequence_(commands, num_commands, TM1638_REGISTER_7SEG_0);
