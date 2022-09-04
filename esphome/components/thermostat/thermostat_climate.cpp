@@ -28,7 +28,7 @@ void ThermostatClimate::setup() {
 
   auto use_default_preset = true;
 
-  if (!this->restore_default_preset_on_boot_) {
+  if (this->startup_behavior_ == thermostat::StartupBehavior::RESTORE_FROM_MEMORY) {
     // restore all climate data, if possible
     auto restore = this->restore_state_();
     if (restore.has_value()) {
@@ -1081,8 +1081,8 @@ void ThermostatClimate::set_default_preset(const std::string &custom_preset) {
 
 void ThermostatClimate::set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
 
-void ThermostatClimate::set_restore_default_preset_on_boot(bool restore_preset) {
-  this->restore_default_preset_on_boot_ = restore_preset;
+void ThermostatClimate::set_startup_behavior(thermostat::StartupBehavior startup_behavior) {
+  this->startup_behavior_ = startup_behavior;
 }
 void ThermostatClimate::set_set_point_minimum_differential(float differential) {
   this->set_point_minimum_differential_ = differential;
