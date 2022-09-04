@@ -16,8 +16,7 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await binary_sensor.register_binary_sensor(var, config)
+    var = await binary_sensor.new_binary_sensor(config)
     cg.add(var.set_keycode(config[CONF_KEY]))
     hub = await cg.get_variable(config[CONF_TM1638_ID])
     cg.add(hub.register_listener(var))
