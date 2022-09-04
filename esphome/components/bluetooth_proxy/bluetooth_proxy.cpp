@@ -40,7 +40,7 @@ void BluetoothProxy::setup() {
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   uint64_t addr64 = device.address_uint64();
-  if (this->ignore_list_.size() > 0) {
+  if (!this->ignore_list_.empty()) {
     if (std::find(this->ignore_list_.begin(), this->ignore_list_.end(), addr64) != this->ignore_list_.end()) {
       ESP_LOGV(TAG, "Ignoring packet from %s - %s. RSSI: %d dB", device.get_name().c_str(),
                device.address_str().c_str(), device.get_rssi());
