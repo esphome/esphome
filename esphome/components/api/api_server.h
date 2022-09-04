@@ -75,8 +75,8 @@ class APIServer : public Component, public Controller {
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
 #ifdef USE_BLUETOOTH_PROXY
   void send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &call);
-  void request_bluetooth_address_list(std::function<void(const std::vector<uint64_t> &)> &&callback);
-  void on_bluetooth_list_addresses_response(const BluetoothListAddressesResponse &msg);
+  void request_bluetooth_address_ignore_list(std::function<void(const std::vector<uint64_t> &)> &&callback);
+  void on_bluetooth_address_ignore_list_response(const BluetoothAddressIgnoreListResponse &msg);
 #endif
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #ifdef USE_HOMEASSISTANT_TIME
@@ -111,7 +111,7 @@ class APIServer : public Component, public Controller {
 #endif  // USE_API_NOISE
 
 #ifdef USE_BLUETOOTH_PROXY
-  std::function<void(const std::vector<uint64_t> &)> bluetooth_address_list_callback_;
+  std::function<void(const std::vector<uint64_t> &)> bluetooth_address_ignore_list_callback_;
 #endif
 };
 

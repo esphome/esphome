@@ -23,7 +23,7 @@ class BluetoothProxy : public Component, public esp32_ble_tracker::ESPBTDeviceLi
  protected:
   void send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device);
 
-  std::map<uint64_t, int8_t> whitelist_;
+  std::vector<uint64_t> ignore_list_;
 };
 
 }  // namespace bluetooth_proxy

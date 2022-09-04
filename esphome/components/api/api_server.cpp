@@ -298,15 +298,15 @@ void APIServer::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementRe
   }
 }
 
-void APIServer::request_bluetooth_address_list(std::function<void(const std::vector<uint64_t> &)> &&callback) {
-  this->bluetooth_address_list_callback_ = std::move(callback);
+void APIServer::request_bluetooth_address_ignore_list(std::function<void(const std::vector<uint64_t> &)> &&callback) {
+  this->bluetooth_address_ignore_list_callback_ = std::move(callback);
   for (auto &client : this->clients_) {
-    client->request_bluetooth_address_list();
+    client->request_bluetooth_address_ignore_list();
   }
 }
-void APIServer::on_bluetooth_list_addresses_response(const BluetoothListAddressesResponse &msg) {
-  if (this->bluetooth_address_list_callback_ != nullptr) {
-    this->bluetooth_address_list_callback_(msg.addresses);
+void APIServer::on_bluetooth_address_ignore_list_response(const BluetoothAddressIgnoreListResponse &msg) {
+  if (this->bluetooth_address_ignore_list_callback_ != nullptr) {
+    this->bluetooth_address_ignore_list_callback_(msg.addresses);
   }
 }
 #endif

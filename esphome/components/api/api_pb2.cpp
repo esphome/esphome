@@ -5000,11 +5000,13 @@ void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
-void BluetoothListAddressesRequest::encode(ProtoWriteBuffer buffer) const {}
+void BluetoothAddressIgnoreListRequest::encode(ProtoWriteBuffer buffer) const {}
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void BluetoothListAddressesRequest::dump_to(std::string &out) const { out.append("BluetoothListAddressesRequest {}"); }
+void BluetoothAddressIgnoreListRequest::dump_to(std::string &out) const {
+  out.append("BluetoothAddressIgnoreListRequest {}");
+}
 #endif
-bool BluetoothListAddressesResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool BluetoothAddressIgnoreListResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
       this->addresses.push_back(value.as_uint64());
@@ -5014,15 +5016,15 @@ bool BluetoothListAddressesResponse::decode_varint(uint32_t field_id, ProtoVarIn
       return false;
   }
 }
-void BluetoothListAddressesResponse::encode(ProtoWriteBuffer buffer) const {
+void BluetoothAddressIgnoreListResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->addresses) {
     buffer.encode_uint64(1, it, true);
   }
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void BluetoothListAddressesResponse::dump_to(std::string &out) const {
+void BluetoothAddressIgnoreListResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
-  out.append("BluetoothListAddressesResponse {\n");
+  out.append("BluetoothAddressIgnoreListResponse {\n");
   for (const auto &it : this->addresses) {
     out.append("  addresses: ");
     sprintf(buffer, "%llu", it);

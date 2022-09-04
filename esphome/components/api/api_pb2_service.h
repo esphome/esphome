@@ -159,10 +159,10 @@ class APIServerConnectionBase : public ProtoService {
   bool send_bluetooth_le_advertisement_response(const BluetoothLEAdvertisementResponse &msg);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_list_addresses_request(const BluetoothListAddressesRequest &msg);
+  bool send_bluetooth_address_ignore_list_request(const BluetoothAddressIgnoreListRequest &msg);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  virtual void on_bluetooth_list_addresses_response(const BluetoothListAddressesResponse &value){};
+  virtual void on_bluetooth_address_ignore_list_response(const BluetoothAddressIgnoreListResponse &value){};
 #endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;

@@ -104,11 +104,11 @@ class APIConnection : public APIServerConnection {
       return false;
     return this->send_bluetooth_le_advertisement_response(call);
   }
-  bool request_bluetooth_address_list() {
-    return this->send_bluetooth_list_addresses_request(BluetoothListAddressesRequest());
+  bool request_bluetooth_address_ignore_list() {
+    return this->send_bluetooth_address_ignore_list_request(BluetoothAddressIgnoreListRequest());
   }
-  void on_bluetooth_list_addresses_response(const BluetoothListAddressesResponse &msg) override {
-    this->parent_->on_bluetooth_list_addresses_response(msg);
+  void on_bluetooth_address_ignore_list_response(const BluetoothAddressIgnoreListResponse &msg) override {
+    this->parent_->on_bluetooth_address_ignore_list_response(msg);
   }
 #endif
 #ifdef USE_HOMEASSISTANT_TIME

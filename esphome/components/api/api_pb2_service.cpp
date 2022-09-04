@@ -336,11 +336,11 @@ bool APIServerConnectionBase::send_bluetooth_le_advertisement_response(const Blu
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-bool APIServerConnectionBase::send_bluetooth_list_addresses_request(const BluetoothListAddressesRequest &msg) {
+bool APIServerConnectionBase::send_bluetooth_address_ignore_list_request(const BluetoothAddressIgnoreListRequest &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  ESP_LOGVV(TAG, "send_bluetooth_list_addresses_request: %s", msg.dump().c_str());
+  ESP_LOGVV(TAG, "send_bluetooth_address_ignore_list_request: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<BluetoothListAddressesRequest>(msg, 68);
+  return this->send_message_<BluetoothAddressIgnoreListRequest>(msg, 68);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
@@ -623,12 +623,12 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
     }
     case 69: {
 #ifdef USE_BLUETOOTH_PROXY
-      BluetoothListAddressesResponse msg;
+      BluetoothAddressIgnoreListResponse msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_bluetooth_list_addresses_response: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_bluetooth_address_ignore_list_response: %s", msg.dump().c_str());
 #endif
-      this->on_bluetooth_list_addresses_response(msg);
+      this->on_bluetooth_address_ignore_list_response(msg);
 #endif
       break;
     }

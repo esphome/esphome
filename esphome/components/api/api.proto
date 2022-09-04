@@ -1128,14 +1128,14 @@ message BluetoothLEAdvertisementResponse {
   repeated BluetoothServiceData manufacturer_data = 6;
 }
 
-message BluetoothListAddressesRequest {
+message BluetoothAddressIgnoreListRequest {
   option (id) = 68;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
   // Empty
 }
 
-message BluetoothListAddressesResponse {
+message BluetoothAddressIgnoreListResponse {
   option (id) = 69;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
