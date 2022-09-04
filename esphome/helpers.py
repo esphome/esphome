@@ -296,7 +296,7 @@ _TYPE_OVERLOADS = {
     int: type("EInt", (int,), {}),
     float: type("EFloat", (float,), {}),
     str: type("EStr", (str,), {}),
-    dict: type("EDict", (str,), {}),
+    dict: type("EDict", (dict,), {}),
     list: type("EList", (list,), {}),
 }
 

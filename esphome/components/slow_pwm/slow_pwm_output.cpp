@@ -42,12 +42,12 @@ void SlowPWMOutput::loop() {
   uint32_t now = millis();
   float scaled_state = this->state_ * this->period_;
 
-  if (now >= this->period_start_time_ + this->period_) {
+  if (now - this->period_start_time_ >= this->period_) {
     ESP_LOGVV(TAG, "End of period. State: %f, Scaled state: %f", this->state_, scaled_state);
     this->period_start_time_ += this->period_;
   }
 
-  this->set_output_state_(now < this->period_start_time_ + scaled_state);
+  this->set_output_state_(scaled_state > now - this->period_start_time_);
 }
 
 void SlowPWMOutput::dump_config() {

@@ -40,7 +40,7 @@ void SDP3XComponent::setup() {
     }
 
     uint16_t data[6];
-    if (this->read_data(data, 6) != i2c::ERROR_OK) {
+    if (!this->read_data(data, 6)) {
       ESP_LOGE(TAG, "Read ID SDP3X failed!");
       this->mark_failed();
       return;
@@ -78,8 +78,7 @@ void SDP3XComponent::setup() {
       }
     }
 
-    if (this->write_command(measurement_mode_ == DP_AVG ? SDP3X_START_DP_AVG : SDP3X_START_MASS_FLOW_AVG) !=
-        i2c::ERROR_OK) {
+    if (!this->write_command(measurement_mode_ == DP_AVG ? SDP3X_START_DP_AVG : SDP3X_START_MASS_FLOW_AVG)) {
       ESP_LOGE(TAG, "Start Measurements SDP3X failed!");
       this->mark_failed();
       return;
@@ -98,7 +97,7 @@ void SDP3XComponent::dump_config() {
 
 void SDP3XComponent::read_pressure_() {
   uint16_t data[3];
-  if (this->read_data(data, 3) != i2c::ERROR_OK) {
+  if (!this->read_data(data, 3)) {
     ESP_LOGW(TAG, "Couldn't read SDP3X data!");
     this->status_set_warning();
     return;

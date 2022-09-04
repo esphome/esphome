@@ -14,6 +14,10 @@ void MCP23017::setup() {
     return;
   }
 
+  // Read current output register state
+  this->read_reg(mcp23x17_base::MCP23X17_OLATA, &this->olat_a_);
+  this->read_reg(mcp23x17_base::MCP23X17_OLATB, &this->olat_b_);
+
   if (this->open_drain_ints_) {
     // enable open-drain interrupt pins, 3.3V-safe
     this->write_reg(mcp23x17_base::MCP23X17_IOCONA, 0x04);

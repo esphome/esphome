@@ -177,7 +177,6 @@ class Cover : public EntityBase {
   virtual std::string device_class();
 
   optional<CoverRestoreState> restore_state_();
-  uint32_t hash_base() override;
 
   CallbackManager<void()> state_callback_{};
   optional<std::string> device_class_override_{};
