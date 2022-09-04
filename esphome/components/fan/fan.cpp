@@ -152,7 +152,6 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
   if (this->get_traits().supports_direction())
     ESP_LOGCONFIG(tag, "%s  Direction: YES", prefix);
 }
-uint32_t Fan::hash_base() { return 418001110UL; }
 
 }  // namespace fan
 }  // namespace esphome

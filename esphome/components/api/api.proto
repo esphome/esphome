@@ -27,6 +27,7 @@ service APIConnection {
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
   rpc subscribe_homeassistant_services (SubscribeHomeassistantServicesRequest) returns (void) {}
   rpc subscribe_home_assistant_states (SubscribeHomeAssistantStatesRequest) returns (void) {}
+  rpc subscribe_bluetooth_le_advertisements (SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc get_time (GetTimeRequest) returns (GetTimeResponse) {
     option (needs_authentication) = false;
   }
@@ -190,6 +191,8 @@ message DeviceInfoResponse {
   string project_version = 9;
 
   uint32 webserver_port = 10;
+
+  bool has_bluetooth_proxy = 11;
 }
 
 message ListEntitiesRequest {
@@ -473,6 +476,7 @@ enum SensorStateClass {
   STATE_CLASS_NONE = 0;
   STATE_CLASS_MEASUREMENT = 1;
   STATE_CLASS_TOTAL_INCREASING = 2;
+  STATE_CLASS_TOTAL = 3;
 }
 
 enum SensorLastResetType {
@@ -1097,4 +1101,29 @@ message MediaPlayerCommandRequest {
 
   bool has_media_url = 6;
   string media_url = 7;
+}
+
+// ==================== BLUETOOTH ====================
+message SubscribeBluetoothLEAdvertisementsRequest {
+  option (id) = 66;
+  option (source) = SOURCE_CLIENT;
+}
+
+message BluetoothServiceData {
+  string uuid = 1;
+  repeated uint32 data = 2 [packed=false];
+}
+message BluetoothLEAdvertisementResponse {
+  option (id) = 67;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (no_delay) = true;
+
+  uint64 address = 1;
+  string name = 2;
+  sint32 rssi = 3;
+
+  repeated string service_uuids = 4;
+  repeated BluetoothServiceData service_data = 5;
+  repeated BluetoothServiceData manufacturer_data = 6;
 }
