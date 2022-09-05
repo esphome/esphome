@@ -558,15 +558,6 @@ sensor:
   - platform: duty_cycle
     pin: GPIO25
     name: Duty Cycle Sensor
-  - platform: ee895
-    co2:
-      name: "Office CO2 1"
-    temperature:
-      name: "Office Temperature 1"
-    pressure:
-      name: "Office Pressure 1"
-    address: 0x5F
-    i2c_id: i2c_bus
   - platform: esp32_hall
     name: "ESP32 Hall Sensor"
     update_interval: 15s
@@ -1043,10 +1034,6 @@ sensor:
     calculated_lux:
       name: "tsl2591 calculated_lux"
       id: tsl2591_cl
-    i2c_id: i2c_bus
-  - platform: tee501
-    name: "Office Temperature 3"
-    address: 0x48
     i2c_id: i2c_bus
   - platform: ultrasonic
     trigger_pin: GPIO25
