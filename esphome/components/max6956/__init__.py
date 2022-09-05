@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLUP,
 )
-from esphome.core import coroutine
 
 CODEOWNERS = ["@looping40"]
 
@@ -42,7 +41,9 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(MAX6956),
-            cv.Optional(CONF_BRIGHTNESS_GLOBAL, default="6%"): cv.percentage,
+            cv.Optional(CONF_BRIGHTNESS_GLOBAL, default="0"): cv.int_range(
+                min=0, max=15
+            ),
             cv.Optional(CONF_BRIGHTNESS_MODE, default="global"): cv.enum(
                 CURRENT_MODES, lower=True
             ),
@@ -53,7 +54,6 @@ CONFIG_SCHEMA = (
 )
 
 
-@coroutine
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
@@ -109,11 +109,14 @@ async def max6956_pin_to_code(config):
 @automation.register_action(
     "max6956.set_brightness_global",
     SetCurrentGlobalAction,
-    cv.Schema(
+    cv.maybe_simple_value(
         {
-            cv.Required(CONF_ID): cv.use_id(MAX6956),
-            cv.Required(CONF_BRIGHTNESS_GLOBAL): cv.templatable(cv.percentage),
-        }
+            cv.GenerateID(CONF_ID): cv.use_id(MAX6956),
+            cv.Required(CONF_BRIGHTNESS_GLOBAL): cv.templatable(
+                cv.int_range(min=0, max=15)
+            ),
+        },
+        key=CONF_BRIGHTNESS_GLOBAL,
     ),
 )
 async def max6956_set_brightness_global_to_code(config, action_id, template_arg, args):

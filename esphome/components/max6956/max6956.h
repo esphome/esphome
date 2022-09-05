@@ -53,7 +53,7 @@ class MAX6956 : public Component, public i2c::I2CDevice {
   void set_brightness_mode(max6956::MAX6956CURRENTMODE brightness_mode);
   void set_pin_brightness(uint8_t pin, float brightness);
 
-  // void dump_config() override;
+  void dump_config() override;
 
   void write_brightness_global();
   void write_brightness_mode();
