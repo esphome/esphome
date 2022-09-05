@@ -73,6 +73,8 @@ jobs:
             name: Run script/clang-tidy for ESP32 IDF
             options: --environment esp32-idf-tidy --grep USE_ESP_IDF
             pio_cache_key: tidyesp32-idf
+          - id: yamllint
+            name: Run yamllint
 
     steps:
       - uses: actions/checkout@v3
@@ -160,6 +162,10 @@ jobs:
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
+
+      - name: Run yamllint
+        if: matrix.id == 'yamllint'
+        uses: frenck/action-yamllint@v1.2.0
 
       - name: Suggested changes
         run: script/ci-suggest-changes
