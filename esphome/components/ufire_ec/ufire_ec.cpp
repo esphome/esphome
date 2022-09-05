@@ -10,7 +10,7 @@ void UFireECComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up uFire_ec...");
 
   uint8_t version;
-  if (!this->read_byte(REGISTER_VERSION, &version, 10) && version != 0xFF) {
+  if (!this->read_byte(REGISTER_VERSION, &version) && version != 0xFF) {
     this->mark_failed();
     this->status_set_error();
     return;
@@ -19,11 +19,12 @@ void UFireECComponent::setup() {
 
   // Write option for temperature adjustments
   uint8_t config;
-  this->read_byte(REGISTER_CONFIG, &config, 10);
-  if (this->temperature_sensor_ == nullptr && this->temperature_sensor_external_ == nullptr)
+  this->read_byte(REGISTER_CONFIG, &config);
+  if (this->temperature_sensor_ == nullptr && this->temperature_sensor_external_ == nullptr) {
     config &= ~CONFIG_TEMP_COMPENSATION;
-  else
+  } else {
     config |= CONFIG_TEMP_COMPENSATION;
+  }
   this->write_byte(REGISTER_CONFIG, config);
 
   // Update temperature compensation
