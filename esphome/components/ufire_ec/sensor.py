@@ -15,7 +15,6 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
-CODEOWNERS = ["@pvizeli"]
 
 CONF_SOLUTION = "solution"
 CONF_TEMPERATURE_SENSOR = "temperature_sensor"
