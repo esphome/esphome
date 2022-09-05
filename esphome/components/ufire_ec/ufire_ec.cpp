@@ -84,7 +84,7 @@ float UFireECComponent::read_data_(uint8_t reg) {
   float f;
   uint8_t temp[4];
 
-  this->write_bytes_raw(&reg, 1);
+  this->write(&reg, 1);
   delay(10);
 
   for (uint8_t i = 0; i < 4; i++) {
