@@ -1,3 +1,4 @@
+---
 esphome:
   name: test5
   build_path: build/test5
@@ -60,8 +61,10 @@ mqtt:
     topic: testing/sensor/testing_sensor/state
     qos: 0
     then:
+      # yamllint disable rule:line-length
       - lambda: |-
-          ESP_LOGD("Mqtt Test","testing/sensor/testing_sensor/state=[%s]",x.c_str());
+          ESP_LOGD("Mqtt Test", "testing/sensor/testing_sensor/state=[%s]", x.c_str());
+      # yamllint enable rule:line-length
 
 binary_sensor:
   - platform: gpio
@@ -74,7 +77,7 @@ binary_sensor:
     id: modbus_binsensortest
     register_type: read
     address: 0x3200
-    bitmask: 0x80 #(bit 8)
+    bitmask: 0x80  # (bit 8)
     lambda: !lambda "{ return x ;}"
 
 tlc5947:
