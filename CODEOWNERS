@@ -65,7 +65,6 @@ esphome/components/dht/* @OttoWinter
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/dsmr/* @glmnet @zuidwijk
-esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/* @jesserockz
 esphome/components/ens210/* @itn3rd77
 esphome/components/esp32/* @esphome/core
@@ -93,7 +92,6 @@ esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/honeywellabp/* @RubyBailey
 esphome/components/hrxl_maxsonar_wr/* @netmikey
-esphome/components/hte501/* @Stock-M
 esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/i2c/* @esphome/core
 esphome/components/i2s_audio/* @jesserockz
