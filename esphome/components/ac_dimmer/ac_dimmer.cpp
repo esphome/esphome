@@ -203,7 +203,7 @@ void AcDimmer::setup() {
 #endif
 }
 void AcDimmer::write_state(float state) {
-  state = acos(1 - (2 * state)) / 3.14159;  // RMS power compensation
+  state = std::acos(1 - (2 * state)) / 3.14159;  // RMS power compensation
   auto new_value = static_cast<uint16_t>(roundf(state * 65535));
   if (new_value != 0 && this->store_.value == 0)
     this->store_.init_cycle = this->init_with_half_cycle_;
