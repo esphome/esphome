@@ -816,7 +816,7 @@ class LoginHandler(BaseHandler):
         import requests
 
         headers = {
-            "Authorization": f"Bearer {os.getenv('SUPERVISOR_TOKEN')}",
+            "X-Supervisor-Token": os.getenv("SUPERVISOR_TOKEN"),
         }
 
         data = {
