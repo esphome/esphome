@@ -563,7 +563,6 @@ output:
     dac7678_id: dac7678_hub1
     channel: 7
     id: dac7678_1_ch7
-
 esp32_camera:
   name: ESP-32 Camera
   data_pins: [GPIO17, GPIO35, GPIO34, GPIO5, GPIO39, GPIO18, GPIO36, GPIO19]
