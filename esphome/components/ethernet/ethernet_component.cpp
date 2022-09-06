@@ -24,6 +24,7 @@ EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-
   }
 
 EthernetComponent::EthernetComponent() { global_eth_component = this; }
+
 void EthernetComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ethernet...");
 
@@ -69,6 +70,10 @@ void EthernetComponent::setup() {
     }
     case ETHERNET_TYPE_DP83848: {
       phy = esp_eth_phy_new_dp83848(&phy_config);
+      break;
+    }
+    case ETHERNET_TYPE_IP101: {
+      memcpy(&this->eth_config_, &phy_ip101_default_ethernet_config, sizeof(eth_config_t));
       break;
     }
     default: {
@@ -140,16 +145,39 @@ void EthernetComponent::loop() {
       break;
   }
 }
+
 void EthernetComponent::dump_config() {
+  std::string eth_type;
+  switch (this->type_) {
+    case ETHERNET_TYPE_LAN8720:
+      eth_type = "LAN8720";
+      break;
+
+    case ETHERNET_TYPE_TLK110:
+      eth_type = "TLK110";
+      break;
+
+    case ETHERNET_TYPE_IP101:
+      eth_type = "IP101";
+      break;
+
+    default:
+      eth_type = "Unknown";
+      break;
+  }
+
   ESP_LOGCONFIG(TAG, "Ethernet:");
   this->dump_connect_params_();
   LOG_PIN("  Power Pin: ", this->power_pin_);
   ESP_LOGCONFIG(TAG, "  MDC Pin: %u", this->mdc_pin_);
   ESP_LOGCONFIG(TAG, "  MDIO Pin: %u", this->mdio_pin_);
-  ESP_LOGCONFIG(TAG, "  Type: %s", this->type_ == ETHERNET_TYPE_LAN8720 ? "LAN8720" : "TLK110");
+  ESP_LOGCONFIG(TAG, "  Type: %s", eth_type.c_str());
 }
+
 float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
+
 bool EthernetComponent::can_proceed() { return this->is_connected(); }
+
 network::IPAddress EthernetComponent::get_ip_address() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip);
@@ -246,7 +274,9 @@ esp_err_t EthernetComponent::eth_phy_power_control(esp_eth_phy_t *phy, bool enab
   delay(1);
   return global_eth_component->orig_power_control_fun_(phy, enable);
 }
+
 bool EthernetComponent::is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
+
 void EthernetComponent::dump_connect_params_() {
   tcpip_adapter_ip_info_t ip;
   tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip);
@@ -278,6 +308,7 @@ void EthernetComponent::dump_connect_params_() {
   ESPHL_ERROR_CHECK(err, "ETH_CMD_G_SPEED error");
   ESP_LOGCONFIG(TAG, "  Link Speed: %u", speed == ETH_SPEED_100M ? 100 : 10);
 }
+
 void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
 void EthernetComponent::set_power_pin(GPIOPin *power_pin) { this->power_pin_ = power_pin; }
 void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin; }
@@ -285,12 +316,14 @@ void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
 void EthernetComponent::set_clk_mode(emac_rmii_clock_gpio_t clk_mode) { this->clk_mode_ = clk_mode; }
 void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
+
 std::string EthernetComponent::get_use_address() const {
   if (this->use_address_.empty()) {
     return App.get_name() + ".local";
   }
   return this->use_address_;
 }
+
 void EthernetComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
 
 }  // namespace ethernet
