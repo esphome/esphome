@@ -52,7 +52,7 @@ CONFIG_SCHEMA = (
             cv.Exclusive(CONF_TEMPERATURE_SENSOR, "temperature"): cv.use_id(
                 sensor.Sensor
             ),
-            cv.Optional(CONF_TEMPERATURE_COMPENSATION, default=25.0): cv.temperature,
+            cv.Optional(CONF_TEMPERATURE_COMPENSATION, default=21.0): cv.temperature,
             cv.Optional(CONF_TEMPERATURE_COEFFICIENT, default=0.019): cv.float_range(
                 min=0.01, max=0.04
             ),
