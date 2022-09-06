@@ -63,25 +63,25 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
+    await cg.register_component(var, config)
     cg.add(var.set_temperature_compensation(config[CONF_TEMPERATURE_COMPENSATION]))
     cg.add(var.set_temperature_coefficient(config[CONF_TEMPERATURE_COEFFICIENT]))
 
     if CONF_TEMPERATURE in config:
-        sens = yield sensor.new_sensor(config[CONF_TEMPERATURE])
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
 
     if CONF_EC in config:
-        sens = yield sensor.new_sensor(config[CONF_EC])
+        sens = await sensor.new_sensor(config[CONF_EC])
         cg.add(var.set_ec_sensor(sens))
 
     if CONF_TEMPERATURE_SENSOR in config:
-        sens = yield cg.get_variable(config[CONF_TEMPERATURE_SENSOR])
+        sens = await cg.get_variable(config[CONF_TEMPERATURE_SENSOR])
         cg.add(var.set_temperature_sensor_external(sens))
 
-    yield i2c.register_i2c_device(var, config)
+    await i2c.register_i2c_device(var, config)
 
 
 UFIRE_EC_CALIBRATE_PROBE_SCHEMA = cv.Schema(
