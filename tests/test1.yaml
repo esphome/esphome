@@ -288,6 +288,8 @@ adalight:
 
 esp32_ble_tracker:
 
+bluetooth_proxy:
+
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:FF
     id: ble_foo
