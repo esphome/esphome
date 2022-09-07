@@ -85,16 +85,6 @@ dac7678:
   address: 0x4A
   id: dac7678_hub1
   internal_reference: true
-  
-esp32_ble_tracker:
-  scan_parameters:
-    duration: 1min
-    active: false
-    
-ble_client:
-  - mac_address: AA:BB:CC:DD:EE:FF
-    id: radiator_pump
-
 
 sensor:
   - platform: homeassistant
@@ -253,16 +243,6 @@ sensor:
   - platform: copy
     source_id: mcp_sensor
     name: MCP binary sensor copy
-  - platform: alpha3
-    ble_client_id: radiator_pump
-    flow:
-      name: "Radiator Pump Flow"
-    head:
-      name: "Radiator Pump Head"
-    power:
-      name: "Radiator Pump Power"
-    speed:
-      name: "Radiator Pump Speed"
 
 #
 # platform sensor.apds9960 requires component apds9960
