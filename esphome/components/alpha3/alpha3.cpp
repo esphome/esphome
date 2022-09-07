@@ -145,7 +145,6 @@ void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
     }
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.handle == this->geni_handle_){
-        ESP_LOGD(TAG, "[%s] notify",this->get_addr_c_str());
         this->handle_geni_response_(param->notify.value, param->notify.value_len);
       }
       break;
