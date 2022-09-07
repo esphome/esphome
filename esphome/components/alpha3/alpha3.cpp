@@ -9,6 +9,10 @@ namespace esphome {
 namespace alpha3 {
 
 static const char *const TAG = "alpha3";
+
+static uint8_t GENI_REQUEST_FLOW_HEAD[] = {39, 7, 231, 248, 10, 3, 93, 1, 33, 82, 31};
+static uint8_t GENI_REQUEST_POWER[] = {39, 7, 231, 248, 10, 3, 87, 0, 69, 138, 205};
+
 void Alpha3::dump_config() {
   ESP_LOGCONFIG(TAG, "ALPHA3");
   LOG_SENSOR(" ", "Flow", this->flow_sensor_);
