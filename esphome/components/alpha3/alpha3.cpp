@@ -98,7 +98,7 @@ void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
       break;
     }
     case ESP_GATTC_CONNECT_EVT: {
-      if (std::memcmp(param->connect.remote_bda, this->parent()->remote_bda, 6))
+      if (std::memcmp(param->connect.remote_bda, this->parent()->remote_bda, 6) != 0)
         return;
       auto ret = esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT);
       if (ret) {
