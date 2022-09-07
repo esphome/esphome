@@ -17,16 +17,15 @@ namespace espbt = esphome::esp32_ble_tracker;
 static const espbt::ESPBTUUID ALPHA3_GENI_SERVICE_UUID = espbt::ESPBTUUID::from_uint16(0xfe5d);
 static const espbt::ESPBTUUID ALPHA3_GENI_CHARACTERISTIC_UUID = espbt::ESPBTUUID::from_raw(
     {0xa9, 0x7b, 0xb8, 0x85, 0x0, 0x1a, 0x28, 0xaa, 0x2a, 0x43, 0x6e, 0x3, 0xd1, 0xff, 0x9c, 0x85});
-//{0x85, 0x9c, 0xff, 0xd1, 0x03, 0x6e, 0x43, 0x2a, 0xaa, 0x28, 0x1a, 0x00, 0x85, 0xb8, 0x7b, 0xa9});
 static const int16_t GENI_RESPONSE_HEADER_LENGTH = 13;
 static const size_t GENI_RESPONSE_TYPE_LENGTH = 8;
 
-static const uint8_t GENI_REQUEST_FLOW_HEAD[] = {39, 7, 231, 248, 10, 3, 93, 1, 33, 82, 31};
+static uint8_t GENI_REQUEST_FLOW_HEAD[] = {39, 7, 231, 248, 10, 3, 93, 1, 33, 82, 31};
 static const uint8_t GENI_RESPONSE_TYPE_FLOW_HEAD[GENI_RESPONSE_TYPE_LENGTH] = {31, 0, 1, 48, 1, 0, 0, 24};
 static const int16_t GENI_RESPONSE_FLOW_OFFSET = 0;
 static const int16_t GENI_RESPONSE_HEAD_OFFSET = 4;
 
-static const uint8_t GENI_REQUEST_POWER[] = {39, 7, 231, 248, 10, 3, 87, 0, 69, 138, 205};
+static uint8_t GENI_REQUEST_POWER[] = {39, 7, 231, 248, 10, 3, 87, 0, 69, 138, 205};
 static const uint8_t GENI_RESPONSE_TYPE_POWER[GENI_RESPONSE_TYPE_LENGTH] = {44, 0, 1, 0, 1, 0, 0, 37};
 static const int16_t GENI_RESPONSE_VOLTAGE_AC_OFFSET = 0;
 static const int16_t GENI_RESPONSE_VOLTAGE_DC_OFFSET = 4;
