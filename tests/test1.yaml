@@ -564,11 +564,11 @@ sensor:
     name: Duty Cycle Sensor
   - platform: ee895
     co2:
-      name: "Office CO2 1"
+      name: Office CO2 1
     temperature:
-      name: "Office Temperature 1"
+      name: Office Temperature 1
     pressure:
-      name: "Office Pressure 1"
+      name: Office Pressure 1
     address: 0x5F
     i2c_id: i2c_bus
   - platform: esp32_hall

@@ -1,5 +1,6 @@
 #include "ee895.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace ee895 {
@@ -96,35 +97,19 @@ float EE895Component::read_float_() {
     this->status_set_warning();
     return 0;
   }
-  uint32_t x = (i2c_response[4] << 24 | i2c_response[5] << 16 | i2c_response[2] << 8 | i2c_response[3]);
-  float value = *(float *) &x;  // convert uin32_t IEEE-754 format to float
+  uint32_t x = encode_uint32(i2c_response[4], i2c_response[5], i2c_response[2], i2c_response[3]);
+  float value;
+  memcpy(&value, &x, sizeof(value));  // convert uin32_t IEEE-754 format to float
   return value;
 }
 
 uint16_t EE895Component::calc_crc16_(const unsigned char buf[], unsigned char len) {
-  uint16_t crc = CRC16_ONEWIRE_START;
-  unsigned char i;
-  unsigned char j;
   unsigned char crc_check_buf[22];
-  for (i = 0; i < len; i++) {
+  for (int i = 0; i < len; i++) {
     crc_check_buf[i + 1] = buf[i];
   }
   crc_check_buf[0] = 0x5F;
-
-  for (i = 0; i < len; i++) {
-    crc ^= (uint16_t) crc_check_buf[i];  // XOR byte into least sig. byte of crc
-    for (j = 8; j != 0; j--) {           // Loop over each bit
-      if ((crc & 0x0001) != 0)           // If the LSB is set
-      {
-        crc >>= 1;  // Shift right and XOR 0xA001
-        crc ^= 0xA001;
-      } else  // Else LSB is not set
-      {
-        crc >>= 1;  // Just shift right
-      }
-    }
-  }
-  return crc;
+  return crc16(crc_check_buf, len);
 }
 }  // namespace ee895
 }  // namespace esphome
