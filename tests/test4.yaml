@@ -85,12 +85,12 @@ dac7678:
   address: 0x4A
   id: dac7678_hub1
   internal_reference: true
-
+  
 esp32_ble_tracker:
   scan_parameters:
     duration: 1min
     active: false
-
+    
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:FF
     id: radiator_pump
