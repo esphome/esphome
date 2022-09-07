@@ -21,13 +21,13 @@ static const espbt::ESPBTUUID ALPHA3_GENI_CHARACTERISTIC_UUID = espbt::ESPBTUUID
 static const int16_t GENI_RESPONSE_HEADER_LENGTH = 13;
 static const size_t GENI_RESPONSE_TYPE_LENGTH = 8;
 
-static uint8_t GENI_REQUEST_FLOW_HEAD[] = { 39, 7, 231, 248, 10, 3, 93, 1, 33, 82, 31 };
+static const uint8_t GENI_REQUEST_FLOW_HEAD[] = { 39, 7, 231, 248, 10, 3, 93, 1, 33, 82, 31 };
 static const uint8_t GENI_RESPONSE_TYPE_FLOW_HEAD[GENI_RESPONSE_TYPE_LENGTH] = { 31, 0, 1, 48, 1, 0, 0, 24};
 static const int16_t GENI_RESPONSE_FLOW_OFFSET = 0;
 static const int16_t GENI_RESPONSE_HEAD_OFFSET = 4;
 
-static uint8_t GENI_REQUEST_POWER[] = { 39, 7, 231, 248, 10, 3, 87, 0, 69, 138, 205 };
-static uint8_t GENI_RESPONSE_TYPE_POWER[GENI_RESPONSE_TYPE_LENGTH] = { 44, 0, 1, 0, 1, 0, 0, 37 };
+static const uint8_t GENI_REQUEST_POWER[] = { 39, 7, 231, 248, 10, 3, 87, 0, 69, 138, 205 };
+static const uint8_t GENI_RESPONSE_TYPE_POWER[GENI_RESPONSE_TYPE_LENGTH] = { 44, 0, 1, 0, 1, 0, 0, 37 };
 static const int16_t GENI_RESPONSE_VOLTAGE_AC_OFFSET = 0;
 static const int16_t GENI_RESPONSE_VOLTAGE_DC_OFFSET = 4;
 static const int16_t GENI_RESPONSE_CURRENT_OFFSET = 8;
@@ -62,11 +62,11 @@ class Alpha3 : public esphome::ble_client::BLEClientNode, public PollingComponen
     int16_t response_offset_;
     uint8_t response_type_[GENI_RESPONSE_TYPE_LENGTH];
     uint8_t buffer_[4];
-    const char* get_addr_c_str() { return this->parent()->address_str().c_str(); };
+    const char* get_addr_c_str_() { return this->parent()->address_str().c_str(); };
     void extract_publish_sensor_value_(const uint8_t *response, int16_t length,
                                     int16_t response_offset, int16_t value_offset,
                                     sensor::Sensor *sensor, float factor);
-    void handle_geni_response_(const uint8_t *value, uint16_t length);
+    void handle_geni_response_(const uint8_t *response, uint16_t length);
     void send_request_(uint8_t *request, size_t len);
     bool is_current_response_type_(const uint8_t *response_type);
 };
