@@ -359,7 +359,7 @@ binary_sensor:
       - logger.log: "Touched"
 
   - platform: gpio
-    name: "MaxIn Pin 4"
+    name: MaxIn Pin 4
     pin:
       max6956: max6956_1
       number: 4
