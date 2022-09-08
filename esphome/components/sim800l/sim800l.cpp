@@ -27,6 +27,9 @@ void Sim800LComponent::update() {
       this->connect_pending_ = false;
       this->send_cmd_("ATA");
       this->state_ = STATE_ATA_SENT;
+    } else if (this->registered_ && this->send_ussd_pending_) {
+      this->send_cmd_("AT+CSCS=\"GSM\"");
+      this->state_ = STATE_SEND_USSD1;
     } else if (this->registered_ && this->disconnect_pending_) {
       this->disconnect_pending_ = false;
       this->send_cmd_("ATH");
@@ -90,6 +93,9 @@ void Sim800LComponent::parse_cmd_(std::string message) {
             this->call_state_ = 6;
             this->call_disconnected_callback_.call();
           }
+        }else if (message.compare(0, 6, "+CUSD:") == 0) {
+          // Incoming USSD MESSAGE
+          this->state_ = STATE_CHECK_USSD;
         }
         break;
       }
@@ -115,6 +121,43 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       send_cmd_("AT+CLIP=1");
       this->state_ = STATE_CREG;
       this->expect_ack_ = true;
+      break;
+    case STATE_SETUP_USSD:
+      send_cmd_("AT+CUSD=1");
+      this->state_ = STATE_CREG;
+      this->expect_ack_ = true;
+      break;
+    case STATE_SEND_USSD1:
+     this->send_cmd_("AT+CUSD=1, \"" + this->ussd_ + "\"");
+      this->state_ = STATE_SEND_USSD2;
+      break;
+    case STATE_SEND_USSD2:
+      ESP_LOGD(TAG, "SendUssd2: '%s'", message.c_str());
+      if (message == "OK") {
+        // Dialing
+        ESP_LOGD(TAG, "Dialing ussd code: '%s' done.", this->ussd_.c_str());
+        this->state_ = STATE_CHECK_USSD;
+        this->send_ussd_pending_ = false;
+      } else {
+        this->set_registered_(false);
+        this->state_ = STATE_INIT;
+        this->send_cmd_("AT+CMEE=2");
+        this->write(26);
+      }
+      break;
+    case STATE_CHECK_USSD:
+      ESP_LOGD(TAG, "Check ussd code: '%s'", message.c_str());
+      if (message.compare(0, 6, "+CUSD:") == 0 && this->parse_index_ == 0) {
+        size_t start = 10;
+        size_t end = message.find_last_of(',');
+        uint8_t item = 0;
+        this->state_ = STATE_RECEIVED_USSD;
+        this->ussd_ = message.substr(start+1, end-start-2);
+        this->ussd_received_callback_.call(this->ussd_);
+      }
+      // Otherwise we receive another OK, we do nothing just wait polling to continuously check for SMS
+      if (message == "OK")
+        this->state_ = STATE_INIT;
       break;
     case STATE_CREG:
       send_cmd_("AT+CREG?");
@@ -258,6 +301,9 @@ void Sim800LComponent::parse_cmd_(std::string message) {
     case STATE_RECEIVED_SMS:
       // Let the buffer flush. Next poll will request to delete the parsed index message.
       break;
+    case STATE_RECEIVED_USSD:
+      // Let the buffer flush. Next poll will request to delete the parsed index message.
+      break;
     case STATE_SENDING_SMS_1:
       this->send_cmd_("AT+CMGS=\"" + this->recipient_ + "\"");
       this->state_ = STATE_SENDING_SMS_2;
@@ -374,6 +420,13 @@ void Sim800LComponent::send_sms(const std::string &recipient, const std::string 
   this->recipient_ = recipient;
   this->outgoing_message_ = message;
   this->send_pending_ = true;
+  this->update();
+}
+
+void Sim800LComponent::send_ussd(const std::string &ussdCode) {
+  ESP_LOGD(TAG, "Sending USSD code: %s", ussdCode.c_str());
+  this->ussd_ = ussdCode;
+  this->send_ussd_pending_ = true;
   this->update();
 }
 void Sim800LComponent::dump_config() {
