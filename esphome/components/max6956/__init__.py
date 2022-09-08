@@ -130,13 +130,14 @@ async def max6956_set_brightness_global_to_code(config, action_id, template_arg,
 @automation.register_action(
     "max6956.set_brightness_mode",
     SetCurrentModeAction,
-    cv.Schema(
+    cv.maybe_simple_value(
         {
             cv.Required(CONF_ID): cv.use_id(MAX6956),
             cv.Required(CONF_BRIGHTNESS_MODE): cv.templatable(
                 cv.enum(CURRENT_MODES, lower=True)
             ),
-        }
+        },
+        key=CONF_BRIGHTNESS_MODE,
     ),
 )
 async def max6956_set_brightness_mode_to_code(config, action_id, template_arg, args):
