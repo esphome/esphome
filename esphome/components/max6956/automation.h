@@ -11,7 +11,7 @@ template<typename... Ts> class SetCurrentGlobalAction : public Action<Ts...> {
  public:
   SetCurrentGlobalAction(MAX6956 *max6956) : max6956_(max6956) {}
 
-  TEMPLATABLE_VALUE(float, brightness_global)
+  TEMPLATABLE_VALUE(uint8_t, brightness_global)
 
   void play(Ts... x) override {
     this->max6956_->set_brightness_global(this->brightness_global_.value(x...));
