@@ -14,7 +14,6 @@ void MAX6956LedChannel::write_state(float state) {
 
 void MAX6956LedChannel::write_state(bool state) {
   this->parent_->digital_write(this->pin_, state);
-  ESP_LOGD(TAG, "write_state bool pin[%u]=%u", this->pin_, state);
 }
 
 void MAX6956LedChannel::setup() {
