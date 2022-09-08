@@ -9,7 +9,6 @@ static const char *const TAG = "max6956_led_channel";
 
 void MAX6956LedChannel::write_state(float state) {
   this->parent_->set_pin_brightness(this->pin_, state);
-  ESP_LOGD(TAG, "write_state float pin[%u]=%f", this->pin_, state);
 }
 
 void MAX6956LedChannel::write_state(bool state) {
