@@ -366,7 +366,7 @@ binary_sensor:
       mode:
         input: true
         pullup: true
-      inverted: False
+      inverted: false
 
 climate:
   - platform: tuya
