@@ -29,13 +29,17 @@ from esphome.const import (
     CONF_WINDOW_SIZE,
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATE,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
@@ -50,6 +54,7 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
@@ -58,18 +63,23 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATE,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
@@ -84,6 +94,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
@@ -98,6 +109,7 @@ STATE_CLASSES = {
     "": StateClasses.STATE_CLASS_NONE,
     "measurement": StateClasses.STATE_CLASS_MEASUREMENT,
     "total_increasing": StateClasses.STATE_CLASS_TOTAL_INCREASING,
+    "total": StateClasses.STATE_CLASS_TOTAL,
 }
 validate_state_class = cv.enum(STATE_CLASSES, lower=True, space="_")
 
@@ -211,8 +223,8 @@ SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
         cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                cv.Optional(CONF_ABOVE): cv.float_,
-                cv.Optional(CONF_BELOW): cv.float_,
+                cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+                cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
             },
             cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
         ),
@@ -223,6 +235,8 @@ _UNDEF = object()
 
 
 def sensor_schema(
+    class_: MockObjClass = _UNDEF,
+    *,
     unit_of_measurement: str = _UNDEF,
     icon: str = _UNDEF,
     accuracy_decimals: int = _UNDEF,
@@ -231,6 +245,8 @@ def sensor_schema(
     entity_category: str = _UNDEF,
 ) -> cv.Schema:
     schema = SENSOR_SCHEMA
+    if class_ is not _UNDEF:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if unit_of_measurement is not _UNDEF:
         schema = schema.extend(
             {
@@ -403,18 +419,30 @@ async def sliding_window_moving_average_filter_to_code(config, filter_id):
     )
 
 
-@FILTER_REGISTRY.register(
-    "exponential_moving_average",
-    ExponentialMovingAverageFilter,
+EXPONENTIAL_AVERAGE_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_ALPHA, default=0.1): cv.positive_float,
             cv.Optional(CONF_SEND_EVERY, default=15): cv.positive_not_null_int,
+            cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
         }
     ),
+    validate_send_first_at,
+)
+
+
+@FILTER_REGISTRY.register(
+    "exponential_moving_average",
+    ExponentialMovingAverageFilter,
+    EXPONENTIAL_AVERAGE_SCHEMA,
 )
 async def exponential_moving_average_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id, config[CONF_ALPHA], config[CONF_SEND_EVERY])
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_ALPHA],
+        config[CONF_SEND_EVERY],
+        config[CONF_SEND_FIRST_AT],
+    )
 
 
 @FILTER_REGISTRY.register(
@@ -587,8 +615,8 @@ async def register_sensor(var, config):
     await setup_sensor_core_(var, config)
 
 
-async def new_sensor(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_sensor(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_sensor(var, config)
     return var
 

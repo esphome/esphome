@@ -17,6 +17,7 @@ namespace ethernet {
 enum EthernetType {
   ETHERNET_TYPE_LAN8720 = 0,
   ETHERNET_TYPE_TLK110,
+  ETHERNET_TYPE_IP101,
 };
 
 struct ManualIP {

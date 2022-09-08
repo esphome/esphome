@@ -26,11 +26,6 @@ namespace binary_sensor {
 class BinarySensor : public EntityBase {
  public:
   explicit BinarySensor();
-  /** Construct a binary sensor with the specified name
-   *
-   * @param name Name of this binary sensor.
-   */
-  explicit BinarySensor(const std::string &name);
 
   /** Add a callback to be notified of state changes.
    *
@@ -63,6 +58,8 @@ class BinarySensor : public EntityBase {
   void add_filter(Filter *filter);
   void add_filters(const std::vector<Filter *> &filters);
 
+  void set_publish_initial_state(bool publish_initial_state) { this->publish_initial_state_ = publish_initial_state; }
+
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   void send_state_internal(bool state, bool is_initial);
@@ -81,12 +78,11 @@ class BinarySensor : public EntityBase {
   virtual std::string device_class();
 
  protected:
-  uint32_t hash_base() override;
-
   CallbackManager<void(bool)> state_callback_{};
   optional<std::string> device_class_{};  ///< Stores the override of the device class
   Filter *filter_list_{nullptr};
   bool has_state_{false};
+  bool publish_initial_state_{false};
   Deduplicator<bool> publish_dedup_;
 };
 

@@ -117,6 +117,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_SHUTDOWN): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ShutdownTrigger),
+                    cv.Optional(CONF_PRIORITY, default=600.0): cv.float_,
                 }
             ),
             cv.Optional(CONF_ON_LOOP): automation.validate_automation(
@@ -291,7 +292,7 @@ async def _add_automations(config):
         await automation.build_automation(trigger, [], conf)
 
     for conf in config.get(CONF_ON_SHUTDOWN, []):
-        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], conf.get(CONF_PRIORITY))
         await cg.register_component(trigger, conf)
         await automation.build_automation(trigger, [], conf)
 

@@ -70,7 +70,7 @@ void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
     ESP_LOGE(TAG,
-             "Modbus error - last command: function code=0x%X  register adddress = 0x%X  "
+             "Modbus error - last command: function code=0x%X  register address = 0x%X  "
              "registers count=%d "
              "payload size=%zu",
              function_code, current_command->register_address, current_command->register_count,
@@ -105,12 +105,12 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
 }
 
 void ModbusController::queue_command(const ModbusCommandItem &command) {
-  // check if this commmand is already qeued.
+  // check if this command is already qeued.
   // not very effective but the queue is never really large
   for (auto &item : command_queue_) {
-    if (item->register_address == command.register_address && item->register_count == command.register_count &&
-        item->register_type == command.register_type && item->function_code == command.function_code) {
-      ESP_LOGW(TAG, "Duplicate modbus command found");
+    if (item->is_equal(command)) {
+      ESP_LOGW(TAG, "Duplicate modbus command found: type=0x%x address=%u count=%u",
+               static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
       // update the payload of the queued command
       // replaces a previous command
       item->payload = command.payload;
@@ -236,7 +236,7 @@ size_t ModbusController::create_register_ranges_() {
       }
     }
 
-    if (curr->start_address == r.start_address) {
+    if (curr->start_address == r.start_address && curr->register_type == r.register_type) {
       // use the lowest non zero value for the whole range
       // Because zero is the default value for skip_updates it is excluded from getting the min value.
       if (curr->skip_updates != 0) {
@@ -298,7 +298,7 @@ void ModbusController::loop() {
     incoming_queue_.pop();
 
   } else {
-    // all messages processed send pending commmands
+    // all messages processed send pending commands
     send_next_command_();
   }
 }
@@ -360,8 +360,9 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_command(ModbusControl
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
   for (auto v : values) {
-    cmd.payload.push_back((v / 256) & 0xFF);
-    cmd.payload.push_back(v & 0xFF);
+    auto decoded_value = decode_value(v);
+    cmd.payload.push_back(decoded_value[0]);
+    cmd.payload.push_back(decoded_value[1]);
   }
   return cmd;
 }
@@ -416,7 +417,7 @@ ModbusCommandItem ModbusCommandItem::create_write_multiple_coils(ModbusControlle
 }
 
 ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusController *modbusdevice, uint16_t start_address,
-                                                                 int16_t value) {
+                                                                 uint16_t value) {
   ModbusCommandItem cmd;
   cmd.modbusdevice = modbusdevice;
   cmd.register_type = ModbusRegisterType::HOLDING;
@@ -427,8 +428,10 @@ ModbusCommandItem ModbusCommandItem::create_write_single_command(ModbusControlle
                                          const std::vector<uint8_t> &data) {
     modbusdevice->on_write_register_response(cmd.register_type, start_address, data);
   };
-  cmd.payload.push_back((value / 256) & 0xFF);
-  cmd.payload.push_back((value % 256) & 0xFF);
+
+  auto decoded_value = decode_value(value);
+  cmd.payload.push_back(decoded_value[0]);
+  cmd.payload.push_back(decoded_value[1]);
   return cmd;
 }
 
@@ -451,6 +454,28 @@ ModbusCommandItem ModbusCommandItem::create_custom_command(
   return cmd;
 }
 
+ModbusCommandItem ModbusCommandItem::create_custom_command(
+    ModbusController *modbusdevice, const std::vector<uint16_t> &values,
+    std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+        &&handler) {
+  ModbusCommandItem cmd = {};
+  cmd.modbusdevice = modbusdevice;
+  cmd.function_code = ModbusFunctionCode::CUSTOM;
+  if (handler == nullptr) {
+    cmd.on_data_func = [](ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data) {
+      ESP_LOGI(TAG, "Custom Command sent");
+    };
+  } else {
+    cmd.on_data_func = handler;
+  }
+  for (auto v : values) {
+    cmd.payload.push_back((v >> 8) & 0xFF);
+    cmd.payload.push_back(v & 0xFF);
+  }
+
+  return cmd;
+}
+
 bool ModbusCommandItem::send() {
   if (this->function_code != ModbusFunctionCode::CUSTOM) {
     modbusdevice->send(uint8_t(this->function_code), this->register_address, this->register_count, this->payload.size(),
@@ -463,84 +488,79 @@ bool ModbusCommandItem::send() {
   return true;
 }
 
-std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
-  union {
-    float float_value;
-    uint32_t raw;
-  } raw_to_float;
+bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) {
+  // for custom commands we have to check for identical payloads, since
+  // address/count/type fields will be set to zero
+  return this->function_code == ModbusFunctionCode::CUSTOM
+             ? this->payload == other.payload
+             : other.register_address == this->register_address && other.register_count == this->register_count &&
+                   other.register_type == this->register_type && other.function_code == this->function_code;
+}
 
-  std::vector<uint16_t> data;
-  int32_t val;
-
+void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type) {
   switch (value_type) {
     case SensorValueType::U_WORD:
     case SensorValueType::S_WORD:
-      // cast truncates the float do some rounding here
-      data.push_back(lroundf(value) & 0xFFFF);
+      data.push_back(value & 0xFFFF);
       break;
     case SensorValueType::U_DWORD:
     case SensorValueType::S_DWORD:
-      val = lroundf(value);
-      data.push_back((val & 0xFFFF0000) >> 16);
-      data.push_back(val & 0xFFFF);
+    case SensorValueType::FP32:
+    case SensorValueType::FP32_R:
+      data.push_back((value & 0xFFFF0000) >> 16);
+      data.push_back(value & 0xFFFF);
       break;
     case SensorValueType::U_DWORD_R:
     case SensorValueType::S_DWORD_R:
-      val = lroundf(value);
-      data.push_back(val & 0xFFFF);
-      data.push_back((val & 0xFFFF0000) >> 16);
+      data.push_back(value & 0xFFFF);
+      data.push_back((value & 0xFFFF0000) >> 16);
       break;
-    case SensorValueType::FP32:
-      raw_to_float.float_value = value;
-      data.push_back((raw_to_float.raw & 0xFFFF0000) >> 16);
-      data.push_back(raw_to_float.raw & 0xFFFF);
+    case SensorValueType::U_QWORD:
+    case SensorValueType::S_QWORD:
+      data.push_back((value & 0xFFFF000000000000) >> 48);
+      data.push_back((value & 0xFFFF00000000) >> 32);
+      data.push_back((value & 0xFFFF0000) >> 16);
+      data.push_back(value & 0xFFFF);
       break;
-    case SensorValueType::FP32_R:
-      raw_to_float.float_value = value;
-      data.push_back(raw_to_float.raw & 0xFFFF);
-      data.push_back((raw_to_float.raw & 0xFFFF0000) >> 16);
+    case SensorValueType::U_QWORD_R:
+    case SensorValueType::S_QWORD_R:
+      data.push_back(value & 0xFFFF);
+      data.push_back((value & 0xFFFF0000) >> 16);
+      data.push_back((value & 0xFFFF00000000) >> 32);
+      data.push_back((value & 0xFFFF000000000000) >> 48);
       break;
     default:
-      ESP_LOGE(TAG, "Invalid data type for modbus float to payload conversation");
+      ESP_LOGE(TAG, "Invalid data type for modbus number to payload conversation: %d",
+               static_cast<uint16_t>(value_type));
       break;
   }
-  return data;
 }
 
-float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
-                       uint32_t bitmask) {
-  union {
-    float float_value;
-    uint32_t raw;
-  } raw_to_float;
-
+int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
+                          uint32_t bitmask) {
   int64_t value = 0;  // int64_t because it can hold signed and unsigned 32 bits
-  float result = NAN;
 
   switch (sensor_value_type) {
     case SensorValueType::U_WORD:
       value = mask_and_shift_by_rightbit(get_data<uint16_t>(data, offset), bitmask);  // default is 0xFFFF ;
-      result = static_cast<float>(value);
       break;
     case SensorValueType::U_DWORD:
+    case SensorValueType::FP32:
       value = get_data<uint32_t>(data, offset);
       value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
-      result = static_cast<float>(value);
       break;
     case SensorValueType::U_DWORD_R:
+    case SensorValueType::FP32_R:
       value = get_data<uint32_t>(data, offset);
       value = static_cast<uint32_t>(value & 0xFFFF) << 16 | (value & 0xFFFF0000) >> 16;
       value = mask_and_shift_by_rightbit((uint32_t) value, bitmask);
-      result = static_cast<float>(value);
       break;
     case SensorValueType::S_WORD:
       value = mask_and_shift_by_rightbit(get_data<int16_t>(data, offset),
                                          bitmask);  // default is 0xFFFF ;
-      result = static_cast<float>(value);
       break;
     case SensorValueType::S_DWORD:
       value = mask_and_shift_by_rightbit(get_data<int32_t>(data, offset), bitmask);
-      result = static_cast<float>(value);
       break;
     case SensorValueType::S_DWORD_R: {
       value = get_data<uint32_t>(data, offset);
@@ -549,18 +569,14 @@ float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_
       uint32_t sign_bit = (value & 0x8000) << 16;
       value = mask_and_shift_by_rightbit(
           static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), bitmask);
-      result = static_cast<float>(value);
     } break;
     case SensorValueType::U_QWORD:
       // Ignore bitmask for U_QWORD
       value = get_data<uint64_t>(data, offset);
-      result = static_cast<float>(value);
       break;
-
     case SensorValueType::S_QWORD:
       // Ignore bitmask for S_QWORD
       value = get_data<int64_t>(data, offset);
-      result = static_cast<float>(value);
       break;
     case SensorValueType::U_QWORD_R:
       // Ignore bitmask for U_QWORD
@@ -568,32 +584,16 @@ float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_
       value = static_cast<uint64_t>(value & 0xFFFF) << 48 | (value & 0xFFFF000000000000) >> 48 |
               static_cast<uint64_t>(value & 0xFFFF0000) << 32 | (value & 0x0000FFFF00000000) >> 32 |
               static_cast<uint64_t>(value & 0xFFFF00000000) << 16 | (value & 0x00000000FFFF0000) >> 16;
-      result = static_cast<float>(value);
       break;
-
     case SensorValueType::S_QWORD_R:
       // Ignore bitmask for S_QWORD
       value = get_data<int64_t>(data, offset);
-      result = static_cast<float>(value);
       break;
-    case SensorValueType::FP32:
-      raw_to_float.raw = get_data<uint32_t>(data, offset);
-      ESP_LOGD(TAG, "FP32 = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
-      result = raw_to_float.float_value;
-      break;
-    case SensorValueType::FP32_R: {
-      auto tmp = get_data<uint32_t>(data, offset);
-      raw_to_float.raw = static_cast<uint32_t>(tmp & 0xFFFF) << 16 | (tmp & 0xFFFF0000) >> 16;
-      ESP_LOGD(TAG, "FP32_R = 0x%08X => %f", raw_to_float.raw, raw_to_float.float_value);
-      result = raw_to_float.float_value;
-    } break;
     case SensorValueType::RAW:
-      result = NAN;
-      break;
     default:
       break;
   }
-  return result;
+  return value;
 }
 
 }  // namespace modbus_controller

@@ -37,12 +37,10 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     ICON_BLUETOOTH,
     ICON_BLUR,
-    ICON_EMPTY,
     ICON_THERMOMETER,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
-    UNIT_EMPTY,
     UNIT_PERCENT,
     UNIT_WATT_HOURS,
 )
@@ -134,12 +132,8 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+            binary_sensor.binary_sensor_schema(DemoBinarySensor).extend(
                 cv.polling_component_schema("60s")
-            ).extend(
-                {
-                    cv.GenerateID(): cv.declare_id(DemoBinarySensor),
-                }
             )
         ],
         cv.Optional(
@@ -339,12 +333,8 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            sensor.sensor_schema(UNIT_EMPTY, ICON_EMPTY, 0)
-            .extend(cv.polling_component_schema("60s"))
-            .extend(
-                {
-                    cv.GenerateID(): cv.declare_id(DemoSensor),
-                }
+            sensor.sensor_schema(DemoSensor, accuracy_decimals=0).extend(
+                cv.polling_component_schema("60s")
             )
         ],
         cv.Optional(
@@ -359,13 +349,7 @@ CONFIG_SCHEMA = cv.Schema(
                     CONF_ICON: ICON_BLUETOOTH,
                 },
             ],
-        ): [
-            switch.SWITCH_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
-                {
-                    cv.GenerateID(): cv.declare_id(DemoSwitch),
-                }
-            )
-        ],
+        ): [switch.switch_schema(DemoSwitch).extend(cv.COMPONENT_SCHEMA)],
         cv.Optional(
             CONF_TEXT_SENSORS,
             default=[
@@ -378,12 +362,8 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            text_sensor.TEXT_SENSOR_SCHEMA.extend(
+            text_sensor.text_sensor_schema(DemoTextSensor).extend(
                 cv.polling_component_schema("60s")
-            ).extend(
-                {
-                    cv.GenerateID(): cv.declare_id(DemoTextSensor),
-                }
             )
         ],
     }
@@ -392,9 +372,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     for conf in config[CONF_BINARY_SENSORS]:
-        var = cg.new_Pvariable(conf[CONF_ID])
+        var = await binary_sensor.new_binary_sensor(conf)
         await cg.register_component(var, conf)
-        await binary_sensor.register_binary_sensor(var, conf)
 
     for conf in config[CONF_CLIMATES]:
         var = cg.new_Pvariable(conf[CONF_ID])
@@ -433,16 +412,13 @@ async def to_code(config):
         cg.add(var.set_type(conf[CONF_TYPE]))
 
     for conf in config[CONF_SENSORS]:
-        var = cg.new_Pvariable(conf[CONF_ID])
+        var = await sensor.new_sensor(conf)
         await cg.register_component(var, conf)
-        await sensor.register_sensor(var, conf)
 
     for conf in config[CONF_SWITCHES]:
-        var = cg.new_Pvariable(conf[CONF_ID])
+        var = await switch.new_switch(conf)
         await cg.register_component(var, conf)
-        await switch.register_switch(var, conf)
 
     for conf in config[CONF_TEXT_SENSORS]:
-        var = cg.new_Pvariable(conf[CONF_ID])
+        var = await text_sensor.new_text_sensor(conf)
         await cg.register_component(var, conf)
-        await text_sensor.register_text_sensor(var, conf)

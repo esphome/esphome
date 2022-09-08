@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_DNS1,
     CONF_DNS2,
     CONF_DOMAIN,
+    CONF_ENABLE_BTM,
+    CONF_ENABLE_RRM,
     CONF_FAST_CONNECT,
     CONF_GATEWAY,
     CONF_HIDDEN,
@@ -32,9 +34,9 @@ from esphome.const import (
     CONF_EAP,
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
+from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.network import IPAddress
 from . import wpa2_eap
-
 
 AUTO_LOAD = ["network"]
 
@@ -125,6 +127,13 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
         ): cv.positive_time_period_milliseconds,
     }
 )
+
+
+def wifi_network_ap(value):
+    if value is None:
+        value = {}
+    return WIFI_NETWORK_AP(value)
+
 
 WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
     {
@@ -225,11 +234,11 @@ def _validate(config):
         if CONF_MANUAL_IP in config:
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
         elif CONF_NETWORKS in config:
-            ips = set(
+            ips = {
                 str(net[CONF_MANUAL_IP][CONF_STATIC_IP])
                 for net in config[CONF_NETWORKS]
                 if CONF_MANUAL_IP in net
-            )
+            }
             if len(ips) > 1:
                 raise cv.Invalid(
                     "Must specify use_address when using multiple static IP addresses."
@@ -252,7 +261,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD): validate_password,
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
-            cv.Optional(CONF_AP): WIFI_NETWORK_AP,
+            cv.Optional(CONF_AP): wifi_network_ap,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
@@ -263,7 +272,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
-                cv.decibel, cv.float_range(min=10.0, max=20.5)
+                cv.decibel, cv.float_range(min=8.5, max=20.5)
+            ),
+            cv.SplitDefault(CONF_ENABLE_BTM, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
+            ),
+            cv.SplitDefault(CONF_ENABLE_RRM, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
             ),
             cv.Optional("enable_mdns"): cv.invalid(
                 "This option has been removed. Please use the [disabled] option under the "
@@ -365,6 +380,15 @@ async def to_code(config):
         cg.add_library("ESP8266WiFi", None)
     elif CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
+
+    if CORE.is_esp32 and CORE.using_esp_idf:
+        if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:
+            add_idf_sdkconfig_option("CONFIG_WPA_11KV_SUPPORT", True)
+            cg.add_define("USE_WIFI_11KV_SUPPORT")
+        if config[CONF_ENABLE_BTM]:
+            cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
+        if config[CONF_ENABLE_RRM]:
+            cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
 
     cg.add_define("USE_WIFI")
 

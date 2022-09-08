@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
+from esphome.components import i2c, sensor, sensirion_common
 from esphome.const import (
     CONF_ID,
     CONF_TEMPERATURE,
@@ -16,10 +16,13 @@ from esphome.const import (
 
 CODEOWNERS = ["@sjtrny"]
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensirion_common"]
 
 sht4x_ns = cg.esphome_ns.namespace("sht4x")
 
-SHT4XComponent = sht4x_ns.class_("SHT4XComponent", cg.PollingComponent, i2c.I2CDevice)
+SHT4XComponent = sht4x_ns.class_(
+    "SHT4XComponent", cg.PollingComponent, sensirion_common.SensirionI2CDevice
+)
 
 CONF_PRECISION = "precision"
 SHT4XPRECISION = sht4x_ns.enum("SHT4XPRECISION")

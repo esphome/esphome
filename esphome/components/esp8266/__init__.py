@@ -17,11 +17,17 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.helpers import copy_file_if_changed
 
-from .const import CONF_RESTORE_FROM_FLASH, KEY_BOARD, KEY_ESP8266, esp8266_ns
+from .const import (
+    CONF_RESTORE_FROM_FLASH,
+    CONF_EARLY_PIN_INIT,
+    KEY_BOARD,
+    KEY_ESP8266,
+    KEY_PIN_INITIAL_STATES,
+    esp8266_ns,
+)
 from .boards import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
 
-# force import gpio to register pin schema
-from .gpio import esp8266_pin_to_code  # noqa
+from .gpio import PinInitialState, add_pin_initial_states_array
 
 
 CODEOWNERS = ["@esphome/core"]
@@ -37,6 +43,9 @@ def set_core_data(config):
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
     CORE.data[KEY_ESP8266][KEY_BOARD] = config[CONF_BOARD]
+    CORE.data[KEY_ESP8266][KEY_PIN_INITIAL_STATES] = [
+        PinInitialState() for _ in range(16)
+    ]
     return config
 
 
@@ -140,6 +149,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BOARD): cv.string_strict,
             cv.Optional(CONF_FRAMEWORK, default={}): ARDUINO_FRAMEWORK_SCHEMA,
             cv.Optional(CONF_RESTORE_FROM_FLASH, default=False): cv.boolean,
+            cv.Optional(CONF_EARLY_PIN_INIT, default=True): cv.boolean,
             cv.Optional(CONF_BOARD_FLASH_MODE, default="dout"): cv.one_of(
                 *BUILD_FLASH_MODES, lower=True
             ),
@@ -166,6 +176,7 @@ async def to_code(config):
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
     cg.add_build_flag("-DUSE_ESP8266_FRAMEWORK_ARDUINO")
+    cg.add_build_flag("-Wno-nonnull-compare")
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
@@ -187,6 +198,9 @@ async def to_code(config):
 
     if config[CONF_RESTORE_FROM_FLASH]:
         cg.add_define("USE_ESP8266_PREFERENCES_FLASH")
+
+    if config[CONF_EARLY_PIN_INIT]:
+        cg.add_define("USE_ESP8266_EARLY_PIN_INIT")
 
     # Arduino 2 has a non-standards conformant new that returns a nullptr instead of failing when
     # out of memory and exceptions are disabled. Since Arduino 2.6.0, this flag can be used to make
@@ -219,6 +233,8 @@ async def to_code(config):
 
         if ld_script is not None:
             cg.add_platformio_option("board_build.ldscript", ld_script)
+
+    CORE.add_job(add_pin_initial_states_array)
 
 
 # Called by writer.py

@@ -2,12 +2,12 @@
 
 #include "esphome/core/component.h"
 
-#include "esphome/core/automation.h"
 #include "esphome/components/modbus/modbus.h"
+#include "esphome/core/automation.h"
 
 #include <list>
-#include <set>
 #include <queue>
+#include <set>
 #include <vector>
 
 namespace esphome {
@@ -185,8 +185,8 @@ inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
 
 /** Extract bits from value and shift right according to the bitmask
  * if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
- * the result is then shifted right by the postion if the first right set bit in the mask
- * Usefull for modbus data where more than one value is packed in a 16 bit register
+ * the result is then shifted right by the position if the first right set bit in the mask
+ * Useful for modbus data where more than one value is packed in a 16 bit register
  * Example: on Epever the "Length of night" register 0x9065 encodes values of the whole night length of time as
  * D15 - D8 =  hour, D7 - D0 = minute
  * To get the hours use mask 0xFF00 and  0x00FF for the minute
@@ -195,7 +195,7 @@ inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
  */
 template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
   auto result = (mask & data);
-  if (result == 0) {
+  if (result == 0 || mask == 0xFFFFFFFF) {
     return result;
   }
   for (size_t pos = 0; pos < sizeof(N) << 3; pos++) {
@@ -205,22 +205,23 @@ template<typename N> N mask_and_shift_by_rightbit(N data, uint32_t mask) {
   return 0;
 }
 
-/** convert float value to vector<uint16_t> suitable for sending
- * @param value float value to cconvert
+/** Convert float value to vector<uint16_t> suitable for sending
+ * @param data target for payload
+ * @param value float value to convert
  * @param value_type defines if 16/32 or FP32 is used
  * @return vector containing the modbus register words in correct order
  */
-std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type);
+void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type);
 
-/** convert vector<uint8_t> response payload to float
- * @param value float value to cconvert
+/** Convert vector<uint8_t> response payload to number.
+ * @param data payload with the data to convert
  * @param sensor_value_type defines if 16/32/64 bits or FP32 is used
  * @param offset offset to the data in data
  * @param bitmask bitmask used for masking and shifting
- * @return float version of the input
+ * @return 64-bit number of the payload
  */
-float payload_to_float(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
-                       uint32_t bitmask);
+int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sensor_value_type, uint8_t offset,
+                          uint32_t bitmask);
 
 class ModbusController;
 
@@ -348,11 +349,11 @@ class ModbusCommandItem {
    * @param modbusdevice pointer to the device to execute the command
    * @param start_address modbus address of the first register to read
    * @param register_count number of registers to read
-   * @param values uint16_t array to be written to the registers
+   * @param value uint16_t single register value to write
    * @return ModbusCommandItem with the prepared command
    */
   static ModbusCommandItem create_write_single_command(ModbusController *modbusdevice, uint16_t start_address,
-                                                       int16_t value);
+                                                       uint16_t value);
   /** Create modbus write single registers command
    *  Function 05 (05hex) Write Single Coil
    * @param modbusdevice pointer to the device to execute the command
@@ -373,8 +374,8 @@ class ModbusCommandItem {
                                                        const std::vector<bool> &values);
   /** Create custom modbus command
    * @param modbusdevice pointer to the device to execute the command
-   * @param values byte vector of data to be sent to the device. The compplete payload must be provided with the
-   * exception of the crc codess
+   * @param values byte vector of data to be sent to the device. The complete payload must be provided with the
+   * exception of the crc codes
    * @param handler function called when the response is received. Default is just logging a response
    * @return ModbusCommandItem with the prepared command
    */
@@ -382,6 +383,20 @@ class ModbusCommandItem {
       ModbusController *modbusdevice, const std::vector<uint8_t> &values,
       std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler = nullptr);
+
+  /** Create custom modbus command
+   * @param modbusdevice pointer to the device to execute the command
+   * @param values word vector of data to be sent to the device. The complete payload must be provided with the
+   * exception of the crc codes
+   * @param handler function called when the response is received. Default is just logging a response
+   * @return ModbusCommandItem with the prepared command
+   */
+  static ModbusCommandItem create_custom_command(
+      ModbusController *modbusdevice, const std::vector<uint16_t> &values,
+      std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
+          &&handler = nullptr);
+
+  bool is_equal(const ModbusCommandItem &other);
 };
 
 /** Modbus controller class.
@@ -434,7 +449,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void dump_sensors_();
   /// Collection of all sensors for this component
   SensorSet sensorset_;
-  /// Continous range of modbus registers
+  /// Continuous range of modbus registers
   std::vector<RegisterRange> register_ranges_;
   /// Hold the pending requests to be sent
   std::list<std::unique_ptr<ModbusCommandItem>> command_queue_;
@@ -446,13 +461,36 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   uint16_t command_throttle_;
 };
 
-/** convert vector<uint8_t> response payload to float
- * @param value float value to cconvert
+/** Convert vector<uint8_t> response payload to float.
+ * @param data payload with data
  * @param item SensorItem object
- * @return float version of the input
+ * @return float value of data
  */
 inline float payload_to_float(const std::vector<uint8_t> &data, const SensorItem &item) {
-  return payload_to_float(data, item.sensor_value_type, item.offset, item.bitmask);
+  int64_t number = payload_to_number(data, item.sensor_value_type, item.offset, item.bitmask);
+
+  float float_value;
+  if (item.sensor_value_type == SensorValueType::FP32 || item.sensor_value_type == SensorValueType::FP32_R) {
+    float_value = bit_cast<float>(static_cast<uint32_t>(number));
+  } else {
+    float_value = static_cast<float>(number);
+  }
+
+  return float_value;
+}
+
+inline std::vector<uint16_t> float_to_payload(float value, SensorValueType value_type) {
+  int64_t val;
+
+  if (value_type == SensorValueType::FP32 || value_type == SensorValueType::FP32_R) {
+    val = bit_cast<uint32_t>(value);
+  } else {
+    val = llroundf(value);
+  }
+
+  std::vector<uint16_t> data;
+  number_to_payload(data, val, value_type);
+  return data;
 }
 
 }  // namespace modbus_controller
