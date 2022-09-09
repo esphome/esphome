@@ -93,7 +93,12 @@ class StartupTrigger : public Trigger<>, public Component {
 
 class ShutdownTrigger : public Trigger<>, public Component {
  public:
+  explicit ShutdownTrigger(float setup_priority) : setup_priority_(setup_priority) {}
   void on_shutdown() override { this->trigger(); }
+  float get_setup_priority() const override { return this->setup_priority_; }
+
+ protected:
+  float setup_priority_;
 };
 
 class LoopTrigger : public Trigger<>, public Component {

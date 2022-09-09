@@ -2,7 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/sensirion_common/i2c_sensirion.h"
 
 namespace esphome {
 namespace sht4x {
@@ -13,7 +13,7 @@ enum SHT4XHEATERPOWER { SHT4X_HEATERPOWER_HIGH, SHT4X_HEATERPOWER_MED, SHT4X_HEA
 
 enum SHT4XHEATERTIME { SHT4X_HEATERTIME_LONG = 1100, SHT4X_HEATERTIME_SHORT = 110 };
 
-class SHT4XComponent : public PollingComponent, public i2c::I2CDevice {
+class SHT4XComponent : public PollingComponent, public sensirion_common::SensirionI2CDevice {
  public:
   float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;

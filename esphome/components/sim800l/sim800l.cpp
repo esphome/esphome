@@ -44,6 +44,7 @@ void Sim800LComponent::send_cmd_(const std::string &message) {
   ESP_LOGV(TAG, "S: %s - %d", message.c_str(), this->state_);
   this->watch_dog_ = 0;
   this->write_str(message.c_str());
+  this->write_byte(ASCII_CR);
   this->write_byte(ASCII_LF);
 }
 

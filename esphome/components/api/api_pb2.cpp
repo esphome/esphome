@@ -108,6 +108,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "STATE_CLASS_MEASUREMENT";
     case enums::STATE_CLASS_TOTAL_INCREASING:
       return "STATE_CLASS_TOTAL_INCREASING";
+    case enums::STATE_CLASS_TOTAL:
+      return "STATE_CLASS_TOTAL";
     default:
       return "UNKNOWN";
   }
@@ -308,6 +310,36 @@ template<> const char *proto_enum_to_string<enums::LockCommand>(enums::LockComma
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::MediaPlayerState value) {
+  switch (value) {
+    case enums::MEDIA_PLAYER_STATE_NONE:
+      return "MEDIA_PLAYER_STATE_NONE";
+    case enums::MEDIA_PLAYER_STATE_IDLE:
+      return "MEDIA_PLAYER_STATE_IDLE";
+    case enums::MEDIA_PLAYER_STATE_PLAYING:
+      return "MEDIA_PLAYER_STATE_PLAYING";
+    case enums::MEDIA_PLAYER_STATE_PAUSED:
+      return "MEDIA_PLAYER_STATE_PAUSED";
+    default:
+      return "UNKNOWN";
+  }
+}
+template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::MediaPlayerCommand value) {
+  switch (value) {
+    case enums::MEDIA_PLAYER_COMMAND_PLAY:
+      return "MEDIA_PLAYER_COMMAND_PLAY";
+    case enums::MEDIA_PLAYER_COMMAND_PAUSE:
+      return "MEDIA_PLAYER_COMMAND_PAUSE";
+    case enums::MEDIA_PLAYER_COMMAND_STOP:
+      return "MEDIA_PLAYER_COMMAND_STOP";
+    case enums::MEDIA_PLAYER_COMMAND_MUTE:
+      return "MEDIA_PLAYER_COMMAND_MUTE";
+    case enums::MEDIA_PLAYER_COMMAND_UNMUTE:
+      return "MEDIA_PLAYER_COMMAND_UNMUTE";
+    default:
+      return "UNKNOWN";
+  }
+}
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -463,6 +495,10 @@ bool DeviceInfoResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->webserver_port = value.as_uint32();
       return true;
     }
+    case 11: {
+      this->has_bluetooth_proxy = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -512,6 +548,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(8, this->project_name);
   buffer.encode_string(9, this->project_version);
   buffer.encode_uint32(10, this->webserver_port);
+  buffer.encode_bool(11, this->has_bluetooth_proxy);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -556,6 +593,10 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append("  webserver_port: ");
   sprintf(buffer, "%u", this->webserver_port);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_bluetooth_proxy: ");
+  out.append(YESNO(this->has_bluetooth_proxy));
   out.append("\n");
   out.append("}");
 }
@@ -4571,6 +4612,391 @@ void ButtonCommandRequest::dump_to(std::string &out) const {
   sprintf(buffer, "%u", this->key);
   out.append(buffer);
   out.append("\n");
+  out.append("}");
+}
+#endif
+bool ListEntitiesMediaPlayerResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 6: {
+      this->disabled_by_default = value.as_bool();
+      return true;
+    }
+    case 7: {
+      this->entity_category = value.as_enum<enums::EntityCategory>();
+      return true;
+    }
+    case 8: {
+      this->supports_pause = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesMediaPlayerResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->object_id = value.as_string();
+      return true;
+    }
+    case 3: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->unique_id = value.as_string();
+      return true;
+    }
+    case 5: {
+      this->icon = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool ListEntitiesMediaPlayerResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 2: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void ListEntitiesMediaPlayerResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->object_id);
+  buffer.encode_fixed32(2, this->key);
+  buffer.encode_string(3, this->name);
+  buffer.encode_string(4, this->unique_id);
+  buffer.encode_string(5, this->icon);
+  buffer.encode_bool(6, this->disabled_by_default);
+  buffer.encode_enum<enums::EntityCategory>(7, this->entity_category);
+  buffer.encode_bool(8, this->supports_pause);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void ListEntitiesMediaPlayerResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("ListEntitiesMediaPlayerResponse {\n");
+  out.append("  object_id: ");
+  out.append("'").append(this->object_id).append("'");
+  out.append("\n");
+
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  unique_id: ");
+  out.append("'").append(this->unique_id).append("'");
+  out.append("\n");
+
+  out.append("  icon: ");
+  out.append("'").append(this->icon).append("'");
+  out.append("\n");
+
+  out.append("  disabled_by_default: ");
+  out.append(YESNO(this->disabled_by_default));
+  out.append("\n");
+
+  out.append("  entity_category: ");
+  out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  supports_pause: ");
+  out.append(YESNO(this->supports_pause));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool MediaPlayerStateResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->state = value.as_enum<enums::MediaPlayerState>();
+      return true;
+    }
+    case 4: {
+      this->muted = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool MediaPlayerStateResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    case 3: {
+      this->volume = value.as_float();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void MediaPlayerStateResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_enum<enums::MediaPlayerState>(2, this->state);
+  buffer.encode_float(3, this->volume);
+  buffer.encode_bool(4, this->muted);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void MediaPlayerStateResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("MediaPlayerStateResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  state: ");
+  out.append(proto_enum_to_string<enums::MediaPlayerState>(this->state));
+  out.append("\n");
+
+  out.append("  volume: ");
+  sprintf(buffer, "%g", this->volume);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  muted: ");
+  out.append(YESNO(this->muted));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool MediaPlayerCommandRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->has_command = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->command = value.as_enum<enums::MediaPlayerCommand>();
+      return true;
+    }
+    case 4: {
+      this->has_volume = value.as_bool();
+      return true;
+    }
+    case 6: {
+      this->has_media_url = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool MediaPlayerCommandRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 7: {
+      this->media_url = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool MediaPlayerCommandRequest::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    case 5: {
+      this->volume = value.as_float();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void MediaPlayerCommandRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  buffer.encode_bool(2, this->has_command);
+  buffer.encode_enum<enums::MediaPlayerCommand>(3, this->command);
+  buffer.encode_bool(4, this->has_volume);
+  buffer.encode_float(5, this->volume);
+  buffer.encode_bool(6, this->has_media_url);
+  buffer.encode_string(7, this->media_url);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void MediaPlayerCommandRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("MediaPlayerCommandRequest {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_command: ");
+  out.append(YESNO(this->has_command));
+  out.append("\n");
+
+  out.append("  command: ");
+  out.append(proto_enum_to_string<enums::MediaPlayerCommand>(this->command));
+  out.append("\n");
+
+  out.append("  has_volume: ");
+  out.append(YESNO(this->has_volume));
+  out.append("\n");
+
+  out.append("  volume: ");
+  sprintf(buffer, "%g", this->volume);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  has_media_url: ");
+  out.append(YESNO(this->has_media_url));
+  out.append("\n");
+
+  out.append("  media_url: ");
+  out.append("'").append(this->media_url).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+void SubscribeBluetoothLEAdvertisementsRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void SubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const {
+  out.append("SubscribeBluetoothLEAdvertisementsRequest {}");
+}
+#endif
+bool BluetoothServiceData::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->data.push_back(value.as_uint32());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool BluetoothServiceData::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->uuid = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothServiceData::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->uuid);
+  for (auto &it : this->data) {
+    buffer.encode_uint32(2, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothServiceData::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothServiceData {\n");
+  out.append("  uuid: ");
+  out.append("'").append(this->uuid).append("'");
+  out.append("\n");
+
+  for (const auto &it : this->data) {
+    out.append("  data: ");
+    sprintf(buffer, "%u", it);
+    out.append(buffer);
+    out.append("\n");
+  }
+  out.append("}");
+}
+#endif
+bool BluetoothLEAdvertisementResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 3: {
+      this->rssi = value.as_sint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool BluetoothLEAdvertisementResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->name = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->service_uuids.push_back(value.as_string());
+      return true;
+    }
+    case 5: {
+      this->service_data.push_back(value.as_message<BluetoothServiceData>());
+      return true;
+    }
+    case 6: {
+      this->manufacturer_data.push_back(value.as_message<BluetoothServiceData>());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothLEAdvertisementResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_string(2, this->name);
+  buffer.encode_sint32(3, this->rssi);
+  for (auto &it : this->service_uuids) {
+    buffer.encode_string(4, it, true);
+  }
+  for (auto &it : this->service_data) {
+    buffer.encode_message<BluetoothServiceData>(5, it, true);
+  }
+  for (auto &it : this->manufacturer_data) {
+    buffer.encode_message<BluetoothServiceData>(6, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothLEAdvertisementResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  name: ");
+  out.append("'").append(this->name).append("'");
+  out.append("\n");
+
+  out.append("  rssi: ");
+  sprintf(buffer, "%d", this->rssi);
+  out.append(buffer);
+  out.append("\n");
+
+  for (const auto &it : this->service_uuids) {
+    out.append("  service_uuids: ");
+    out.append("'").append(it).append("'");
+    out.append("\n");
+  }
+
+  for (const auto &it : this->service_data) {
+    out.append("  service_data: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+
+  for (const auto &it : this->manufacturer_data) {
+    out.append("  manufacturer_data: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
   out.append("}");
 }
 #endif

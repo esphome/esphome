@@ -187,7 +187,7 @@ void MQTTClientComponent::start_connect_() {
 
   this->mqtt_backend_.set_credentials(username, password);
 
-  this->mqtt_backend_.set_server((uint32_t) this->ip_, this->credentials_.port);
+  this->mqtt_backend_.set_server(this->credentials_.address.c_str(), this->credentials_.port);
   if (!this->last_will_.topic.empty()) {
     this->mqtt_backend_.set_will(this->last_will_.topic.c_str(), this->last_will_.qos, this->last_will_.retain,
                                  this->last_will_.payload.c_str());
@@ -556,7 +556,12 @@ void MQTTClientComponent::disable_last_will() { this->last_will_.topic = ""; }
 
 void MQTTClientComponent::disable_discovery() {
   this->discovery_info_ = MQTTDiscoveryInfo{
-      .prefix = "", .retain = false, .clean = false, .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR};
+      .prefix = "",
+      .retain = false,
+      .clean = false,
+      .unique_id_generator = MQTT_LEGACY_UNIQUE_ID_GENERATOR,
+      .object_id_generator = MQTT_NONE_OBJECT_ID_GENERATOR,
+  };
 }
 void MQTTClientComponent::on_shutdown() {
   if (!this->shutdown_message_.topic.empty()) {
@@ -565,6 +570,14 @@ void MQTTClientComponent::on_shutdown() {
     yield();
   }
   this->mqtt_backend_.disconnect();
+}
+
+void MQTTClientComponent::set_on_connect(mqtt_on_connect_callback_t &&callback) {
+  this->mqtt_backend_.set_on_connect(std::forward<mqtt_on_connect_callback_t>(callback));
+}
+
+void MQTTClientComponent::set_on_disconnect(mqtt_on_disconnect_callback_t &&callback) {
+  this->mqtt_backend_.set_on_disconnect(std::forward<mqtt_on_disconnect_callback_t>(callback));
 }
 
 #if ASYNC_TCP_SSL_ENABLED

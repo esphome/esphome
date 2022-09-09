@@ -88,12 +88,12 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
 
-#ifdef WEBSERVER_CSS_INCLUDE
+#ifdef USE_WEBSERVER_CSS_INCLUDE
   /// Handle included css request under '/0.css'.
   void handle_css_request(AsyncWebServerRequest *request);
 #endif
 
-#ifdef WEBSERVER_JS_INCLUDE
+#ifdef USE_WEBSERVER_JS_INCLUDE
   /// Handle included js request under '/0.js'.
   void handle_js_request(AsyncWebServerRequest *request);
 #endif
@@ -185,7 +185,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_SELECT
-  void on_select_update(select::Select *obj, const std::string &state) override;
+  void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
   /// Handle a select request under '/select/<id>'.
   void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
