@@ -144,6 +144,7 @@ esphome/components/modbus_controller/switch/* @martgras
 esphome/components/modbus_controller/text_sensor/* @martgras
 esphome/components/mopeka_ble/* @spbrogan
 esphome/components/mopeka_pro_check/* @spbrogan
+esphome/components/mpl3115a2/* @kbickar
 esphome/components/mpu6886/* @fabaff
 esphome/components/network/* @esphome/core
 esphome/components/nextion/* @senexcrenshaw
