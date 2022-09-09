@@ -1,7 +1,7 @@
 #include "esphome/core/log.h"
 #include "ufire_ph.h"
 
-#include <math.h>
+#include <cmath>
 
 namespace esphome {
 namespace ufire_ph {
