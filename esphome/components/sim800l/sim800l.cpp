@@ -251,8 +251,9 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->sms_received_callback_.call(this->message_, this->sender_);
         this->state_ = STATE_RECEIVED_SMS;
       } else {
+        if (this->message_.length() > 0)
+          this->message_ += "\n";
         this->message_ += message;
-        this->message_ += "\n";
       }
       break;
     case STATE_RECEIVED_SMS:
