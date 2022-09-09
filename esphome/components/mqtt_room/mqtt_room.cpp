@@ -14,7 +14,9 @@ void MqttRoom::dump_config() {
 void MqttRoom::set_topic(const std::string &topic) { this->mqtt_topic_ = topic; }
 
 void MqttRoom::send_tracker_update(const std::string id, int rssi, int signal_power) {
-  float distance = 0.0f;  // TODO: Caculate distance
+  // TODO: Meadian of last 3
+  float ratio = (signal_power - rssi) / (35.0f);
+  float distance = pow(10, ratio);
   ESP_LOGD(TAG, "'%s': Sending state %.2f m with 2 decimals of accuracy", id.c_str(), distance);
 
   mqtt::global_mqtt_client->publish_json(this->mqtt_topic_, [=](ArduinoJson::JsonObject root) -> void {
@@ -25,6 +27,7 @@ void MqttRoom::send_tracker_update(const std::string id, int rssi, int signal_po
 
 bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   std::string id;
+  int signal_power = (!device.get_tx_powers().empty()) ? -65 + device.get_tx_powers().at(0) : -71;
 
   if (!device.get_name().empty()) {
     id = std::string("name:") + this->format_device_name_(device.get_name());
@@ -46,8 +49,9 @@ bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
         sprintf(str, "ibeacon:%s-%u-%u", ibeacon.get_uuid().to_string().c_str(), ibeacon.get_major(),
                 ibeacon.get_minor());
         id = std::string(str);
+        signal_power = ibeacon.get_signal_power();
       } else {
-        ESP_LOGD(TAG, "Found unknown apple device");
+        // TODO
       }
     } else if (it.uuid == SONOS_UUID) {
       id = std::string("sonos:") + this->format_device_address_(device.address());
@@ -56,15 +60,16 @@ bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     } else if (it.uuid == GOOGLE_UUID) {
       id = std::string("google:") + this->format_device_address_(device.address());
     } else {
-      ESP_LOGI(TAG, "Found device with a unknown manufacture id: '%s' and mac: '%s'", it.uuid.to_string().c_str(),
+      ESP_LOGV(TAG, "Found device with a unknown manufacture id: '%s' and mac: '%s'", it.uuid.to_string().c_str(),
                device.address_str().c_str());
     }
   }
 
   if (!id.empty()) {
-    ESP_LOGD(TAG, "Found device with id: '%s'", id.c_str());
+    ESP_LOGV(TAG, "Found device with id: '%s'", id.c_str());
+    this->send_tracker_update(id, device.get_rssi(), signal_power);
   } else {
-    ESP_LOGW(TAG, "Unknown BLE Device found with adress: '%s'", device.address_str().c_str());
+    ESP_LOGV(TAG, "Unknown BLE Device found with adress: '%s'", device.address_str().c_str());
   }
 
   return false;
