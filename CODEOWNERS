@@ -143,6 +143,7 @@ esphome/components/modbus_controller/switch/* @martgras
 esphome/components/modbus_controller/text_sensor/* @martgras
 esphome/components/mopeka_ble/* @spbrogan
 esphome/components/mopeka_pro_check/* @spbrogan
+esphome/components/mpl3115a2/* @kbickar
 esphome/components/mpu6886/* @fabaff
 esphome/components/mqtt_room/* @wjtje
 esphome/components/network/* @esphome/core
@@ -226,6 +227,7 @@ esphome/components/teleinfo/* @0hax
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
 esphome/components/tlc5947/* @rnauber
+esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
 esphome/components/tmp102/* @timsavage
 esphome/components/tmp117/* @Azimath
@@ -241,6 +243,7 @@ esphome/components/tuya/sensor/* @jesserockz
 esphome/components/tuya/switch/* @jesserockz
 esphome/components/tuya/text_sensor/* @dentra
 esphome/components/uart/* @esphome/core
+esphome/components/ufire_ec/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/version/* @esphome/core
 esphome/components/wake_on_lan/* @willwill2will54
