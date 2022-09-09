@@ -376,11 +376,16 @@ sensor:
     temperature_sensor: ha_hello_world_temperature
     temperature_compensation: 20.0
     temperature_coefficient: 0.019
+  - platform: ufire_ph
+    id: ufire_e_board
+    temperature_sensor: ha_hello_world_temperature
+    ph:
+      name: Ufire pH
 
 time:
   - platform: homeassistant
     on_time:
-      - at: '16:00:00'
+      - at: "16:00:00"
         then:
           - logger.log: It's 16:00
 
@@ -490,7 +495,6 @@ ble_client:
   - mac_address: 01:02:03:04:05:06
     id: radon_eye_ble_id
 
-
 airthings_ble:
 
 radon_eye_ble:
@@ -504,7 +508,7 @@ mopeka_ble:
 xiaomi_rtcgq02lm:
   - id: motion_rtcgq02lm
     mac_address: 01:02:03:04:05:06
-    bindkey: '48403ebe2d385db8d0c187f81e62cb64'
+    bindkey: "48403ebe2d385db8d0c187f81e62cb64"
 
 status_led:
   pin: GPIO2
