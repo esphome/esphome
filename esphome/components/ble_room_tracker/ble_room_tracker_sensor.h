@@ -13,35 +13,6 @@ class BLERoomTracker : public Component,
                        public esp32_ble_tracker::ESPBTDeviceListener,
                        public mqtt_room::MqttRoomTracker {
  public:
-  void set_address(uint64_t address) {
-    this->match_by_ = MATCH_BY_MAC_ADDRESS;
-    this->address_ = address;
-  }
-  void set_service_uuid16(uint16_t uuid) {
-    this->match_by_ = MATCH_BY_SERVICE_UUID;
-    this->uuid_ = esp32_ble_tracker::ESPBTUUID::from_uint16(uuid);
-  }
-  void set_service_uuid32(uint32_t uuid) {
-    this->match_by_ = MATCH_BY_SERVICE_UUID;
-    this->uuid_ = esp32_ble_tracker::ESPBTUUID::from_uint32(uuid);
-  }
-  void set_service_uuid128(uint8_t *uuid) {
-    this->match_by_ = MATCH_BY_SERVICE_UUID;
-    this->uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw(uuid);
-  }
-  void set_ibeacon_uuid(uint8_t *uuid) {
-    this->match_by_ = MATCH_BY_IBEACON_UUID;
-    this->ibeacon_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw(uuid);
-  }
-  void set_ibeacon_major(uint16_t major) {
-    this->check_ibeacon_major_ = true;
-    this->ibeacon_major_ = major;
-  }
-  void set_ibeacon_minor(uint16_t minor) {
-    this->check_ibeacon_minor_ = true;
-    this->ibeacon_minor_ = minor;
-  }
-
   void set_rssi_sensor(sensor::Sensor *rssi_sensor) { this->rssi_sensor_ = rssi_sensor; }
   void set_signal_power_sensor(sensor::Sensor *signal_power_sensor) {
     this->signal_power_sensor_ = signal_power_sensor;
@@ -60,50 +31,7 @@ class BLERoomTracker : public Component,
 
     this->found_ = false;
   }
-  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override {
-    // TODO: Rewrite to support more devices
-    switch (this->match_by_) {
-      case MATCH_BY_MAC_ADDRESS:
-        if (device.address_uint64() == this->address_) {
-          this->update_tracker(device.get_rssi());
-          this->found_ = true;
-          return true;
-        }
-        break;
-      case MATCH_BY_SERVICE_UUID:
-        for (auto uuid : device.get_service_uuids()) {
-          if (this->uuid_ == uuid) {
-            this->update_tracker(device.get_rssi());
-            this->found_ = true;
-            return true;
-          }
-        }
-        break;
-      case MATCH_BY_IBEACON_UUID:
-        if (!device.get_ibeacon().has_value()) {
-          return false;
-        }
-
-        auto ibeacon = device.get_ibeacon().value();
-
-        if (this->ibeacon_uuid_ != ibeacon.get_uuid()) {
-          return false;
-        }
-
-        if (this->check_ibeacon_major_ && this->ibeacon_major_ != ibeacon.get_major()) {
-          return false;
-        }
-
-        if (this->check_ibeacon_minor_ && this->ibeacon_minor_ != ibeacon.get_minor()) {
-          return false;
-        }
-
-        this->update_tracker(device.get_rssi(), ibeacon.get_signal_power());
-        this->found_ = true;
-        return true;
-    }
-    return false;
-  }
+  bool parse_device(const esp32_ble_tracker::ESPBTDevice &device);
 
   void update_tracker(int rssi, int signal_power = 0);
 
@@ -116,19 +44,19 @@ class BLERoomTracker : public Component,
 
   bool found_{false};
 
-  uint64_t address_;
-
-  esp32_ble_tracker::ESPBTUUID uuid_;
-
-  esp32_ble_tracker::ESPBTUUID ibeacon_uuid_;
-  uint16_t ibeacon_major_;
-  bool check_ibeacon_major_;
-  uint16_t ibeacon_minor_;
-  bool check_ibeacon_minor_;
-
   sensor::Sensor *rssi_sensor_;
   sensor::Sensor *signal_power_sensor_;
   sensor::Sensor *distance_sensor_;
+
+  // String helper function
+  static std::string format_device_name_(const std::string &device_name);
+  static std::string format_device_address_(const uint8_t *device_address);
+
+  // Device manufacture UUID
+  const esp32_ble_tracker::ESPBTUUID APPLE_UUID = esp32_ble_tracker::ESPBTUUID::from_uint32(0x004C);
+  const esp32_ble_tracker::ESPBTUUID SONOS_UUID = esp32_ble_tracker::ESPBTUUID::from_uint32(0x05A7);
+  const esp32_ble_tracker::ESPBTUUID SAMSUNG_UUID = esp32_ble_tracker::ESPBTUUID::from_uint32(0x0075);
+  const esp32_ble_tracker::ESPBTUUID GOOGLE_UUID = esp32_ble_tracker::ESPBTUUID::from_uint32(0x00E0);
 };
 }  // namespace ble_room_tracker
 }  // namespace esphome

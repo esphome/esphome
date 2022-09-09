@@ -471,10 +471,10 @@ std::string ESPBTUUID::to_string() const {
     default:
     case ESP_UUID_LEN_128:
       char *bpos = sbuf;
-      for (int8_t i = 15; i >= 0; i--) {
+      for (int8_t i = 0; i < 16; i++) {
         sprintf(bpos, "%02X", this->uuid_.uuid.uuid128[i]);
         bpos += 2;
-        if (i == 6 || i == 8 || i == 10 || i == 12)
+        if (i == 3 || i == 5 || i == 7 || i == 9)
           sprintf(bpos++, "-");
       }
       sbuf[47] = '\0';

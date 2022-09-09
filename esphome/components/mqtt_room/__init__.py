@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_NAME, CONF_STATE_TOPIC
+from esphome.const import CONF_ID, CONF_STATE_TOPIC
 
 DEPENDENCIES = ["mqtt"]
 
@@ -38,8 +38,6 @@ CONFIG_SCHEMA = cv.All(
 MQTT_ROOM_DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_MQTT_ROOM_ID): cv.use_id(MqttRoom),
-        cv.Required(CONF_TRACKER_ID): cv.string,
-        cv.Required(CONF_NAME): cv.string,
     }
 )
 
@@ -53,8 +51,6 @@ async def to_code(config):
 
 async def register_room_tracker(var, config):
     paren = await cg.get_variable(config[CONF_MQTT_ROOM_ID])
-    cg.add(paren.add_tracker(var))
-    cg.add(var.set_id(config[CONF_TRACKER_ID]))
-    cg.add(var.set_name(config[CONF_NAME]))
+    cg.add(var.set_mqtt_room(paren))
 
     return var
