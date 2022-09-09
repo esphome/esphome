@@ -80,10 +80,10 @@ void LibreTuyaUARTComponent::setup() {
 }
 
 void LibreTuyaUARTComponent::dump_config() {
-  bool is_hardware = this->hardware_idx_ == -1;
+  bool is_software = this->hardware_idx_ == -1;
   ESP_LOGCONFIG(TAG, "UART Bus:");
-  ESP_LOGCONFIG(TAG, "  Type: %s", UART_TYPE[is_hardware]);
-  if (is_hardware) {
+  ESP_LOGCONFIG(TAG, "  Type: %s", UART_TYPE[is_software]);
+  if (!is_software) {
     ESP_LOGCONFIG(TAG, "  Port number: %d", this->hardware_idx_);
   }
   LOG_PIN("  TX Pin: ", tx_pin_);
