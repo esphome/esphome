@@ -88,9 +88,9 @@ float UFirePHComponent::measure_ph_(float temperature) {
   ph += temp_multiplier;
   if ((ph <= 0.0) || (ph > 14.0))
     ph = -1;
-  if (isinf(ph))
+  if (std::isinf(ph))
     ph = -1;
-  if (isnan(ph))
+  if (std::isnan(ph))
     ph = -1;
 
   return ph;
