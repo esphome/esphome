@@ -2985,7 +2985,5 @@ button:
       midea_ac.power_toggle:
 
 mqtt_room:
-  room: Example Room
-  trackers:
-    - device_id: ble_rssi_tracker
-      name: BLE Tracker
+  state_topic: esphome/rooms
+  room: $roomname

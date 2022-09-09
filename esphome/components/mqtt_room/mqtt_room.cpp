@@ -13,7 +13,7 @@ void MqttRoom::dump_config() {
 
 void MqttRoom::set_topic(const std::string &topic) { this->mqtt_topic_ = topic; }
 
-void MqttRoom::send_tracker_update(const std::string id, int rssi, int signal_power) {
+void MqttRoom::send_tracker_update(const std::string &id, int rssi, int signal_power) {
   // TODO: Meadian of last 3
   float ratio = (signal_power - rssi) / (35.0f);
   float distance = pow(10, ratio);
@@ -30,19 +30,18 @@ bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   int signal_power = (!device.get_tx_powers().empty()) ? -65 + device.get_tx_powers().at(0) : -71;
 
   if (!device.get_name().empty()) {
-    id = std::string("name:") + this->format_device_name_(device.get_name());
+    id = std::string("name:") + MqttRoom::format_device_name(device.get_name());
   }
 
-  for (auto &it : device.get_service_uuids()) {
-    // TODO
-  }
+  // TODO: Better device detection
+  // for (auto &it : device.get_service_uuids()) {
+  // }
 
-  for (auto &it : device.get_service_datas()) {
-    // TODO
-  }
+  // for (auto &it : device.get_service_datas()) {
+  // }
 
   for (auto &it : device.get_manufacturer_datas()) {
-    if (it.uuid == APPLE_UUID) {
+    if (it.uuid == this->apple_uuid_) {
       if (device.get_ibeacon().has_value()) {
         auto ibeacon = device.get_ibeacon().value();
         char str[56];
@@ -53,12 +52,12 @@ bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
       } else {
         // TODO
       }
-    } else if (it.uuid == SONOS_UUID) {
-      id = std::string("sonos:") + this->format_device_address_(device.address());
-    } else if (it.uuid == SAMSUNG_UUID) {
-      id = std::string("samsung:") + this->format_device_address_(device.address());
-    } else if (it.uuid == GOOGLE_UUID) {
-      id = std::string("google:") + this->format_device_address_(device.address());
+    } else if (it.uuid == this->sonos_uuid_) {
+      id = std::string("sonos:") + MqttRoom::format_device_address(device.address());
+    } else if (it.uuid == this->samsung_uuid_) {
+      id = std::string("samsung:") + MqttRoom::format_device_address(device.address());
+    } else if (it.uuid == this->google_uuid_) {
+      id = std::string("google:") + MqttRoom::format_device_address(device.address());
     } else {
       ESP_LOGV(TAG, "Found device with a unknown manufacture id: '%s' and mac: '%s'", it.uuid.to_string().c_str(),
                device.address_str().c_str());
@@ -75,7 +74,7 @@ bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   return false;
 }
 
-std::string MqttRoom::format_device_name_(const std::string &device_name) {
+std::string MqttRoom::format_device_name(const std::string &device_name) {
   char cstr[256];
   int i = 0;
   bool previous_is_space = false;
@@ -95,7 +94,7 @@ std::string MqttRoom::format_device_name_(const std::string &device_name) {
   return str.substr(str.find_first_not_of('-'), str.find_last_not_of('-') + 1);
 }
 
-std::string MqttRoom::format_device_address_(const uint8_t *device_address) {
+std::string MqttRoom::format_device_address(const uint8_t *device_address) {
   char mac[13];
   snprintf(mac, sizeof(mac), "%02x%02x%02x%02x%02x%02x", device_address[0], device_address[1], device_address[2],
            device_address[3], device_address[4], device_address[5]);
