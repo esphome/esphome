@@ -6,28 +6,68 @@ namespace esphome {
 namespace mqtt_room {
 static const char *const TAG = "mqtt_room";
 
+void MqttRoomTracker::set_rssi_sensor(sensor::Sensor *rssi_sensor) {
+  this->rssi_sensor_ = rssi_sensor;
+  this->rssi_sensor_->add_on_state_callback([this](float rssi) { this->update_distance_sensor(rssi); });
+}
+
+void MqttRoomTracker::set_distance_sensor(sensor::Sensor *distance_sensor) {
+  this->distance_sensor_ = distance_sensor;
+  distance_sensor->add_on_state_callback(
+      [this](float distance) { this->mqtt_room_->send_tracker_update(this->device_id_, this->name_, distance); });
+}
+
+void MqttRoomTracker::dump_config() {
+  ESP_LOGCONFIG(TAG, "MQTT Room Tracker:");
+  ESP_LOGCONFIG(TAG, "  Device ID: '%s'", this->device_id_.c_str());
+  if (!this->name_.empty())
+    ESP_LOGCONFIG(TAG, "  Name: '%s'", this->name_.c_str());
+  LOG_SENSOR("  ", "RSSI", this->rssi_sensor_);
+  LOG_SENSOR("  ", "Distance", this->distance_sensor_);
+}
+
+void MqttRoomTracker::update_rssi_sensor(int rssi, int signal_power) {
+  if (signal_power != 0) {
+    this->signal_power_ = signal_power;
+  }
+
+  if (this->rssi_sensor_ == nullptr) {
+    this->update_distance_sensor(rssi);
+  } else {
+    this->rssi_sensor_->publish_state(rssi);
+  }
+}
+
+void MqttRoomTracker::update_distance_sensor(int rssi) {
+  float ratio = (this->signal_power_ - rssi) / (35.0f);
+  float distance = pow(10, ratio);
+
+  if (this->distance_sensor_ == nullptr) {
+    this->mqtt_room_->send_tracker_update(this->device_id_, this->name_, distance);
+  } else {
+    this->distance_sensor_->publish_state(distance);
+  }
+}
+
 void MqttRoom::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT Room:");
   ESP_LOGCONFIG(TAG, "  MQTT topic: '%s'", this->mqtt_topic_.c_str());
 }
 
-void MqttRoom::set_topic(const std::string &topic) { this->mqtt_topic_ = topic; }
-
-void MqttRoom::send_tracker_update(const std::string &id, int rssi, int signal_power) {
-  // TODO: Meadian of last 3
-  float ratio = (signal_power - rssi) / (35.0f);
-  float distance = pow(10, ratio);
-  ESP_LOGD(TAG, "'%s': Sending state %.2f m with 2 decimals of accuracy", id.c_str(), distance);
+void MqttRoom::send_tracker_update(std::string &id, std::string &name, float distance) {
+  ESP_LOGD(TAG, "'%s': Sending state %f m with 2 decimals of accuracy", id.c_str(), distance);
+  distance = std::round(distance * 100) / 100;
 
   mqtt::global_mqtt_client->publish_json(this->mqtt_topic_, [=](ArduinoJson::JsonObject root) -> void {
     root["distance"] = distance;
     root["id"] = id;
+    root["name"] = (name.empty()) ? id : name;
   });
 }
 
 bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   std::string id;
-  int signal_power = (!device.get_tx_powers().empty()) ? -65 + device.get_tx_powers().at(0) : -71;
+  int signal_power = (!device.get_tx_powers().empty()) ? -65 + device.get_tx_powers().at(0) : 0;
 
   if (!device.get_name().empty()) {
     id = std::string("name:") + MqttRoom::format_device_name(device.get_name());
@@ -53,7 +93,7 @@ bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
         // TODO
       }
     } else if (it.uuid == this->sonos_uuid_) {
-      id = std::string("sonos:") + MqttRoom::format_device_address(device.address());
+      id = std::string("sonos:") + MqttRoom::format_device_name(device.get_name());
     } else if (it.uuid == this->samsung_uuid_) {
       id = std::string("samsung:") + MqttRoom::format_device_address(device.address());
     } else if (it.uuid == this->google_uuid_) {
@@ -65,8 +105,12 @@ bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   }
 
   if (!id.empty()) {
-    ESP_LOGV(TAG, "Found device with id: '%s'", id.c_str());
-    this->send_tracker_update(id, device.get_rssi(), signal_power);
+    ESP_LOGD(TAG, "Found device with id: '%s'", id.c_str());
+    for (MqttRoomTracker *tracker : this->trackers_) {
+      if (tracker->get_device_id() == id) {
+        tracker->update_rssi_sensor(device.get_rssi(), signal_power);
+      }
+    }
   } else {
     ESP_LOGV(TAG, "Unknown BLE Device found with adress: '%s'", device.address_str().c_str());
   }
