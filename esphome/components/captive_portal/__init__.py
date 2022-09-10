@@ -38,3 +38,5 @@ async def to_code(config):
         cg.add_library("WiFi", None)
     if CORE.is_esp8266:
         cg.add_library("DNSServer", None)
+    if CORE.is_libretuya:
+        cg.add_library("DNSServer", None)

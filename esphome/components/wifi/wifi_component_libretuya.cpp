@@ -431,8 +431,15 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
     return false;
 
+  if (!this->wifi_ap_ip_config_(ap.get_manual_ip())) {
+    ESP_LOGV(TAG, "wifi_ap_ip_config_ failed!");
+    return false;
+  }
+
+  yield();
+
   return WiFi.softAP(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
-                     ap.get_channel().has_value() ? *ap.get_channel() : 1, ap.get_hidden());
+                     ap.get_channel().value_or(1), ap.get_hidden());
 }
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; }
 bool WiFiComponent::wifi_disconnect_() { return WiFi.disconnect(); }
