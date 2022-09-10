@@ -3007,3 +3007,11 @@ button:
 mqtt_room:
   state_topic: esphome/rooms
   room: $roomname
+  trackers:
+    - device_id: ibeacon:11223344-5566-7788-99aa-bbccddeeff00-1-100
+      name: Personal Tracker
+      signal_power: -72
+      rssi:
+        name: Tracker RSSI
+      distance:
+        name: Distance RSSI
