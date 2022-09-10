@@ -7,7 +7,7 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace ufire_ph {
+namespace ufire_ise {
 
 static const float PROBE_MV_TO_PH = 59.2;
 static const float PROBE_TMP_CORRECTION = 0.03;
@@ -30,7 +30,7 @@ static const uint8_t COMMAND_CALIBRATE_LOW = 10;
 static const uint8_t COMMAND_MEASURE_TEMP = 40;
 static const uint8_t COMMAND_MEASURE_MV = 80;
 
-class UFirePHComponent : public PollingComponent, public i2c::I2CDevice {
+class UFireISEComponent : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
@@ -59,37 +59,37 @@ class UFirePHComponent : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *ph_sensor_{nullptr};
 };
 
-template<typename... Ts> class UFirePHCalibrateProbeLowAction : public Action<Ts...> {
+template<typename... Ts> class UFireISECalibrateProbeLowAction : public Action<Ts...> {
  public:
-  UFirePHCalibrateProbeLowAction(UFirePHComponent *parent) : parent_(parent) {}
+  UFireISECalibrateProbeLowAction(UFireISEComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, solution)
 
   void play(Ts... x) override { this->parent_->calibrate_probe_low(this->solution_.value(x...)); }
 
  protected:
-  UFirePHComponent *parent_;
+  UFireISEComponent *parent_;
 };
 
-template<typename... Ts> class UFirePHCalibrateProbeHighAction : public Action<Ts...> {
+template<typename... Ts> class UFireISECalibrateProbeHighAction : public Action<Ts...> {
  public:
-  UFirePHCalibrateProbeHighAction(UFirePHComponent *parent) : parent_(parent) {}
+  UFireISECalibrateProbeHighAction(UFireISEComponent *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, solution)
 
   void play(Ts... x) override { this->parent_->calibrate_probe_high(this->solution_.value(x...)); }
 
  protected:
-  UFirePHComponent *parent_;
+  UFireISEComponent *parent_;
 };
 
-template<typename... Ts> class UFirePHResetAction : public Action<Ts...> {
+template<typename... Ts> class UFireISEResetAction : public Action<Ts...> {
  public:
-  UFirePHResetAction(UFirePHComponent *parent) : parent_(parent) {}
+  UFireISEResetAction(UFireISEComponent *parent) : parent_(parent) {}
 
   void play(Ts... x) override { this->parent_->reset_board(); }
 
  protected:
-  UFirePHComponent *parent_;
+  UFireISEComponent *parent_;
 };
 
-}  // namespace ufire_ph
+}  // namespace ufire_ise
 }  // namespace esphome

@@ -1,15 +1,15 @@
 #include "esphome/core/log.h"
-#include "ufire_ph.h"
+#include "ufire_ise.h"
 
 #include <cmath>
 
 namespace esphome {
-namespace ufire_ph {
+namespace ufire_ise {
 
-static const char *const TAG = "ufire_ph";
+static const char *const TAG = "ufire_ise";
 
-void UFirePHComponent::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up uFire_ph...");
+void UFireISEComponent::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up uFire_ise...");
 
   uint8_t version;
   if (!this->read_byte(REGISTER_VERSION, &version) && version != 0xFF) {
@@ -17,7 +17,7 @@ void UFirePHComponent::setup() {
     this->status_set_error();
     return;
   }
-  ESP_LOGI(TAG, "Found uFire_ph board version 0x%02X", version);
+  ESP_LOGI(TAG, "Found uFire_ise board version 0x%02X", version);
 
   // Write option for temperature adjustments
   uint8_t config;
@@ -30,7 +30,7 @@ void UFirePHComponent::setup() {
   this->write_byte(REGISTER_CONFIG, config);
 }
 
-void UFirePHComponent::update() {
+void UFireISEComponent::update() {
   int wait = 0;
   if (this->temperature_sensor_ != nullptr) {
     this->write_byte(REGISTER_TASK, COMMAND_MEASURE_TEMP);
@@ -45,7 +45,7 @@ void UFirePHComponent::update() {
   this->set_timeout("data", wait, [this]() { this->update_internal_(); });
 }
 
-void UFirePHComponent::update_internal_() {
+void UFireISEComponent::update_internal_() {
   float temperature = 0;
 
   // Read temperature internal and populate it
@@ -63,11 +63,11 @@ void UFirePHComponent::update_internal_() {
   }
 }
 
-float UFirePHComponent::measure_temperature_() { return this->read_data_(REGISTER_TEMP); }
+float UFireISEComponent::measure_temperature_() { return this->read_data_(REGISTER_TEMP); }
 
-float UFirePHComponent::measure_mv_() { return this->read_data_(REGISTER_MV); }
+float UFireISEComponent::measure_mv_() { return this->read_data_(REGISTER_MV); }
 
-float UFirePHComponent::measure_ph_(float temperature) {
+float UFireISEComponent::measure_ph_(float temperature) {
   float mv, ph;
 
   mv = this->measure_mv_();
@@ -96,29 +96,29 @@ float UFirePHComponent::measure_ph_(float temperature) {
   return ph;
 }
 
-void UFirePHComponent::set_solution_(float solution) {
+void UFireISEComponent::set_solution_(float solution) {
   solution = (7 - solution) * PROBE_MV_TO_PH;
   this->write_data_(REGISTER_SOLUTION, solution);
 }
 
-void UFirePHComponent::calibrate_probe_low(float solution) {
+void UFireISEComponent::calibrate_probe_low(float solution) {
   this->set_solution_(solution);
   this->write_byte(REGISTER_TASK, COMMAND_CALIBRATE_LOW);
 }
 
-void UFirePHComponent::calibrate_probe_high(float solution) {
+void UFireISEComponent::calibrate_probe_high(float solution) {
   this->set_solution_(solution);
   this->write_byte(REGISTER_TASK, COMMAND_CALIBRATE_HIGH);
 }
 
-void UFirePHComponent::reset_board() {
+void UFireISEComponent::reset_board() {
   this->write_data_(REGISTER_REFHIGH, NAN);
   this->write_data_(REGISTER_REFLOW, NAN);
   this->write_data_(REGISTER_READHIGH, NAN);
   this->write_data_(REGISTER_READLOW, NAN);
 }
 
-float UFirePHComponent::read_data_(uint8_t reg) {
+float UFireISEComponent::read_data_(uint8_t reg) {
   float f;
   uint8_t temp[4];
 
@@ -133,7 +133,7 @@ float UFirePHComponent::read_data_(uint8_t reg) {
   return f;
 }
 
-void UFirePHComponent::write_data_(uint8_t reg, float data) {
+void UFireISEComponent::write_data_(uint8_t reg, float data) {
   uint8_t temp[4];
 
   memcpy(temp, &data, sizeof(data));
@@ -141,8 +141,8 @@ void UFirePHComponent::write_data_(uint8_t reg, float data) {
   delay(10);
 }
 
-void UFirePHComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "uFire-PH");
+void UFireISEComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "uFire-ISE");
   LOG_I2C_DEVICE(this)
   LOG_UPDATE_INTERVAL(this)
   LOG_SENSOR("  ", "PH Sensor", this->ph_sensor_)
@@ -150,5 +150,5 @@ void UFirePHComponent::dump_config() {
   LOG_SENSOR("  ", "Temperature Sensor external", this->temperature_sensor_external_)
 }
 
-}  // namespace ufire_ph
+}  // namespace ufire_ise
 }  // namespace esphome

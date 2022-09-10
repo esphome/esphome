@@ -19,24 +19,24 @@ DEPENDENCIES = ["i2c"]
 CONF_SOLUTION = "solution"
 CONF_TEMPERATURE_SENSOR = "temperature_sensor"
 
-ufire_ph_ns = cg.esphome_ns.namespace("ufire_ph")
-UFirePHComponent = ufire_ph_ns.class_(
-    "UFirePHComponent", cg.PollingComponent, i2c.I2CDevice
+ufire_ise_ns = cg.esphome_ns.namespace("ufire_ise")
+UFireISEComponent = ufire_ise_ns.class_(
+    "UFireISEComponent", cg.PollingComponent, i2c.I2CDevice
 )
 
 # Actions
-UFirePHCalibrateProbeLowAction = ufire_ph_ns.class_(
-    "UFirePHCalibrateProbeLowAction", automation.Action
+UFireISECalibrateProbeLowAction = ufire_ise_ns.class_(
+    "UFireISECalibrateProbeLowAction", automation.Action
 )
-UFirePHCalibrateProbeHighAction = ufire_ph_ns.class_(
-    "UFirePHCalibrateProbeHighAction", automation.Action
+UFireISECalibrateProbeHighAction = ufire_ise_ns.class_(
+    "UFireISECalibrateProbeHighAction", automation.Action
 )
-UFirePHResetAction = ufire_ph_ns.class_("UFirePHResetAction", automation.Action)
+UFireISEResetAction = ufire_ise_ns.class_("UFireISEResetAction", automation.Action)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(UFirePHComponent),
+            cv.GenerateID(): cv.declare_id(UFireISEComponent),
             cv.Exclusive(CONF_TEMPERATURE, "temperature"): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 device_class=DEVICE_CLASS_TEMPERATURE,
@@ -81,18 +81,18 @@ async def to_code(config):
 
 UFIRE_ISE_CALIBRATE_PROBE_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.use_id(UFirePHComponent),
+        cv.GenerateID(): cv.use_id(UFireISEComponent),
         cv.Required(CONF_SOLUTION): cv.templatable(float),
     }
 )
 
 
 @automation.register_action(
-    "ufire_ph.calibrate_probe_low",
-    UFirePHCalibrateProbeLowAction,
+    "ufire_ise.calibrate_probe_low",
+    UFireISECalibrateProbeLowAction,
     UFIRE_ISE_CALIBRATE_PROBE_SCHEMA,
 )
-async def ufire_ph_calibrate_probe_low_to_code(config, action_id, template_arg, args):
+async def ufire_ise_calibrate_probe_low_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_SOLUTION], args, float)
@@ -101,11 +101,11 @@ async def ufire_ph_calibrate_probe_low_to_code(config, action_id, template_arg, 
 
 
 @automation.register_action(
-    "ufire_ph.calibrate_probe_high",
-    UFirePHCalibrateProbeHighAction,
+    "ufire_ise.calibrate_probe_high",
+    UFireISECalibrateProbeHighAction,
     UFIRE_ISE_CALIBRATE_PROBE_SCHEMA,
 )
-async def ufire_ph_calibrate_probe_high_to_code(config, action_id, template_arg, args):
+async def ufire_ise_calibrate_probe_high_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_SOLUTION], args, float)
@@ -113,15 +113,15 @@ async def ufire_ph_calibrate_probe_high_to_code(config, action_id, template_arg,
     return var
 
 
-UFIRE_ISE_RESET_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(UFirePHComponent)})
+UFIRE_ISE_RESET_SCHEMA = cv.Schema({cv.GenerateID(): cv.use_id(UFireISEComponent)})
 
 
 @automation.register_action(
-    "ufire_ph.reset",
-    UFirePHResetAction,
+    "ufire_ise.reset",
+    UFireISEResetAction,
     UFIRE_ISE_RESET_SCHEMA,
 )
-async def ufire_ph_reset_to_code(config, action_id, template_arg, args):
+async def ufire_ise_reset_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     return var
