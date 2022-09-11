@@ -21,7 +21,7 @@ CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
         cv.Optional(CONF_INVERTED): cv.invalid(
             "Factory Reset switches do not support inverted mode!"
         ),
-        cv.Optional(CONF_ICON, default=ICON_RESTART_ALERT): switch.icon,
+        cv.Optional(CONF_ICON, default=ICON_RESTART_ALERT): cv.icon,
         cv.Optional(
             CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
         ): cv.entity_category,
