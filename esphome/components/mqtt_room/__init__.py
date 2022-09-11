@@ -67,7 +67,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(MqttRoom),
             cv.Optional(CONF_STATE_TOPIC, "esphome/rooms"): cv.string,
             cv.Required(CONF_ROOM): cv.string,
-            cv.Required(CONF_TRACKERS): cv.ensure_list(TRACKER_SCHEMA),
+            cv.Optional(CONF_TRACKERS): cv.ensure_list(TRACKER_SCHEMA),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
