@@ -29,11 +29,15 @@ esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
 esphome/components/bang_bang/* @OttoWinter
 esphome/components/bedjet/* @jhansche
+esphome/components/bedjet/climate/* @jhansche
+esphome/components/bedjet/fan/* @jhansche
 esphome/components/bh1750/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
 esphome/components/bl0939/* @ziceva
 esphome/components/bl0940/* @tobias-
+esphome/components/bl0942/* @dbuezas
 esphome/components/ble_client/* @buxtronix
+esphome/components/bluetooth_proxy/* @jesserockz
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bmp3xx/* @martgras
 esphome/components/button/* @esphome/core
@@ -59,6 +63,7 @@ esphome/components/debug/* @OttoWinter
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
+esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/ektf2232/* @jesserockz
@@ -121,6 +126,7 @@ esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp3204/* @rsumner
 esphome/components/mcp4728/* @berfenger
 esphome/components/mcp47a1/* @jesserockz
+esphome/components/mcp9600/* @MrEditor97
 esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
@@ -139,6 +145,7 @@ esphome/components/modbus_controller/switch/* @martgras
 esphome/components/modbus_controller/text_sensor/* @martgras
 esphome/components/mopeka_ble/* @spbrogan
 esphome/components/mopeka_pro_check/* @spbrogan
+esphome/components/mpl3115a2/* @kbickar
 esphome/components/mpu6886/* @fabaff
 esphome/components/network/* @esphome/core
 esphome/components/nextion/* @senexcrenshaw
@@ -221,6 +228,7 @@ esphome/components/teleinfo/* @0hax
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
 esphome/components/tlc5947/* @rnauber
+esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
 esphome/components/tmp102/* @timsavage
 esphome/components/tmp117/* @Azimath
@@ -236,6 +244,7 @@ esphome/components/tuya/sensor/* @jesserockz
 esphome/components/tuya/switch/* @jesserockz
 esphome/components/tuya/text_sensor/* @dentra
 esphome/components/uart/* @esphome/core
+esphome/components/ufire_ec/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
 esphome/components/version/* @esphome/core
 esphome/components/wake_on_lan/* @willwill2will54
