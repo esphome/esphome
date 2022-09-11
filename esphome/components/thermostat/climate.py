@@ -70,7 +70,7 @@ from esphome.const import (
 
 CONF_PRESET_CHANGE = "preset_change"
 CONF_DEFAULT_PRESET = "default_preset"
-CONF_STARTUP_BEHAVIOR = "startup_behavior"
+CONF_ON_BOOT_RESTORE_FROM = "on_boot_restore_from"
 
 CODEOWNERS = ["@kbx81"]
 
@@ -82,12 +82,12 @@ ThermostatClimate = thermostat_ns.class_(
 ThermostatClimateTargetTempConfig = thermostat_ns.struct(
     "ThermostatClimateTargetTempConfig"
 )
-StartupBehavior = thermostat_ns.enum("StartupBehavior")
-STARTUP_BEHAVIOR = {
-    "RESTORE_FROM_MEMORY": StartupBehavior.RESTORE_FROM_MEMORY,
-    "APPLY_DEFAULT_PRESET": StartupBehavior.APPLY_DEFAULT_PRESET,
+OnBootRestoreFrom = thermostat_ns.enum("OnBootRestoreFrom")
+ON_BOOT_RESTORE_FROM = {
+    "MEMORY": OnBootRestoreFrom.MEMORY,
+    "DEFAULT_PRESET": OnBootRestoreFrom.DEFAULT_PRESET,
 }
-validate_startup_behavior = cv.enum(STARTUP_BEHAVIOR, upper=True)
+validate_on_boot_restore_from = cv.enum(ON_BOOT_RESTORE_FROM, upper=True)
 
 ClimateMode = climate_ns.enum("ClimateMode")
 CLIMATE_MODES = {
@@ -471,12 +471,12 @@ def validate_thermostat(config):
 
     # If restoring default preset on boot is true then ensure we have a default preset
     if (
-        CONF_STARTUP_BEHAVIOR in config
-        and config[CONF_STARTUP_BEHAVIOR] is StartupBehavior.APPLY_DEFAULT_PRESET
+        CONF_ON_BOOT_RESTORE_FROM in config
+        and config[CONF_ON_BOOT_RESTORE_FROM] is OnBootRestoreFrom.DEFAULT_PRESET
     ):
         if CONF_DEFAULT_PRESET not in config:
             raise cv.Invalid(
-                f"{CONF_DEFAULT_PRESET} must be defined to use {CONF_STARTUP_BEHAVIOR} in APPLY_DEFAULT_PRESET mode"
+                f"{CONF_DEFAULT_PRESET} must be defined to use {CONF_ON_BOOT_RESTORE_FROM} in DEFAULT_PRESET mode"
             )
 
     if config[CONF_FAN_WITH_COOLING] is True and CONF_FAN_ONLY_ACTION not in config:
@@ -617,7 +617,7 @@ CONFIG_SCHEMA = cv.All(
                 }
             ),
             cv.Optional(CONF_PRESET): cv.ensure_list(PRESET_CONFIG_SCHEMA),
-            cv.Optional(CONF_STARTUP_BEHAVIOR): validate_startup_behavior,
+            cv.Optional(CONF_ON_BOOT_RESTORE_FROM): validate_on_boot_restore_from,
             cv.Optional(CONF_PRESET_CHANGE): automation.validate_automation(
                 single=True
             ),
@@ -922,8 +922,8 @@ async def to_code(config):
         else:
             cg.add(var.set_default_preset(default_preset_name))
 
-    if CONF_STARTUP_BEHAVIOR in config:
-        cg.add(var.set_startup_behavior(config[CONF_STARTUP_BEHAVIOR]))
+    if CONF_ON_BOOT_RESTORE_FROM in config:
+        cg.add(var.set_on_boot_restore_from(config[CONF_ON_BOOT_RESTORE_FROM]))
 
     if CONF_PRESET_CHANGE in config:
         await automation.build_automation(

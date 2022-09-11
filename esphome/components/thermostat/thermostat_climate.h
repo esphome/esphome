@@ -22,7 +22,7 @@ enum ThermostatClimateTimerIndex : size_t {
   TIMER_IDLE_ON = 9,
 };
 
-enum StartupBehavior : size_t { RESTORE_FROM_MEMORY = 0, APPLY_DEFAULT_PRESET = 1 };
+enum OnBootRestoreFrom : size_t { MEMORY = 0, DEFAULT_PRESET = 1 };
 struct ThermostatClimateTimer {
   const std::string name;
   bool active;
@@ -60,7 +60,7 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   void set_default_preset(const std::string &custom_preset);
   void set_default_preset(climate::ClimatePreset preset);
-  void set_startup_behavior(thermostat::StartupBehavior startup_behavior);
+  void set_on_boot_restore_from(thermostat::OnBootRestoreFrom on_boot_restore_from);
   void set_set_point_minimum_differential(float differential);
   void set_cool_deadband(float deadband);
   void set_cool_overrun(float overrun);
@@ -450,9 +450,9 @@ class ThermostatClimate : public climate::Climate, public Component {
   /// Default custom preset to use on start up
   std::string default_custom_preset_{};
 
-  /// If set to APPLY_DEFAULT_PRESET then the default preset is always used. When RESTORE_FROM_MEMORY prior
+  /// If set to DEFAULT_PRESET then the default preset is always used. When MEMORY prior
   /// state will attempt to be restored if possible
-  thermostat::StartupBehavior startup_behavior_{thermostat::StartupBehavior::RESTORE_FROM_MEMORY};
+  thermostat::OnBootRestoreFrom on_boot_restore_from_{thermostat::OnBootRestoreFrom::MEMORY};
 };
 
 }  // namespace thermostat
