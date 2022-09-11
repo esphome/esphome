@@ -1,3 +1,4 @@
+---
 esphome:
   name: test5
   build_path: build/test5
@@ -38,6 +39,7 @@ uart:
     baud_rate: 19200
 
 i2c:
+  frequency: 100khz
 
 modbus:
   uart_id: uart1
@@ -59,8 +61,10 @@ mqtt:
     topic: testing/sensor/testing_sensor/state
     qos: 0
     then:
+      # yamllint disable rule:line-length
       - lambda: |-
-          ESP_LOGD("Mqtt Test","testing/sensor/testing_sensor/state=[%s]",x.c_str());
+          ESP_LOGD("Mqtt Test", "testing/sensor/testing_sensor/state=[%s]", x.c_str());
+      # yamllint enable rule:line-length
 
 binary_sensor:
   - platform: gpio
@@ -73,8 +77,8 @@ binary_sensor:
     id: modbus_binsensortest
     register_type: read
     address: 0x3200
-    bitmask: 0x80 #(bit 8)
-    lambda: !lambda "{ return x ;}"
+    bitmask: 0x80  # (bit 8)
+    lambda: "return x;"
 
 tlc5947:
   data_pin: GPIO12
@@ -107,8 +111,8 @@ demo:
 esp32_ble:
 
 esp32_ble_server:
-  manufacturer: "ESPHome"
-  model: "Test5"
+  manufacturer: ESPHome
+  model: Test5
 
 esp32_improv:
   authorizer: io0_button
@@ -127,12 +131,12 @@ number:
     mode: slider
     on_value:
       - logger.log:
-          format: "Number changed to %f"
-          args: ["x"]
+          format: Number changed to %f
+          args: [x]
     set_action:
       - logger.log:
-          format: "Template Number set to %f"
-          args: ["x"]
+          format: Template Number set to %f
+          args: [x]
       - number.set:
           id: template_number_id
           value: 50
@@ -162,10 +166,10 @@ number:
   - id: modbus_numbertest
     platform: modbus_controller
     modbus_controller_id: modbus_controller_test
-    name: "ModbusNumber"
+    name: ModbusNumber
     address: 0x9002
     value_type: U_WORD
-    lambda: "return  x * 1.0; "
+    lambda: "return  x * 1.0;"
     write_lambda: |-
       return x * 1.0 ;
     multiply: 1.0
@@ -179,11 +183,11 @@ select:
     restore_value: true
     on_value:
       - logger.log:
-          format: "Select changed to %s (index %d)"
+          format: Select changed to %s (index %d)"
           args: ["x.c_str()", "i"]
     set_action:
       - logger.log:
-          format: "Template Select set to %s"
+          format: Template Select set to %s
           args: ["x.c_str()"]
       - select.set:
           id: template_select_id
@@ -215,7 +219,7 @@ select:
       - three
 
   - platform: modbus_controller
-    name: "Modbus Select Register 1000"
+    name: Modbus Select Register 1000
     address: 1000
     value_type: U_WORD
     optionsmap:
@@ -227,41 +231,41 @@ select:
 sensor:
   - platform: selec_meter
     total_active_energy:
-      name: "SelecEM2M Total Active Energy"
+      name: SelecEM2M Total Active Energy
     import_active_energy:
-      name: "SelecEM2M Import Active Energy"
+      name: SelecEM2M Import Active Energy
     export_active_energy:
-      name: "SelecEM2M Export Active Energy"
+      name: SelecEM2M Export Active Energy
     total_reactive_energy:
-      name: "SelecEM2M Total Reactive Energy"
+      name: SelecEM2M Total Reactive Energy
     import_reactive_energy:
-      name: "SelecEM2M Import Reactive Energy"
+      name: SelecEM2M Import Reactive Energy
     export_reactive_energy:
-      name: "SelecEM2M Export Reactive Energy"
+      name: SelecEM2M Export Reactive Energy
     apparent_energy:
-      name: "SelecEM2M Apparent Energy"
+      name: SelecEM2M Apparent Energy
     active_power:
-      name: "SelecEM2M Active Power"
+      name: SelecEM2M Active Power
     reactive_power:
-      name: "SelecEM2M Reactive Power"
+      name: SelecEM2M Reactive Power
     apparent_power:
-      name: "SelecEM2M Apparent Power"
+      name: SelecEM2M Apparent Power
     voltage:
-      name: "SelecEM2M Voltage"
+      name: SelecEM2M Voltage
     current:
-      name: "SelecEM2M Current"
+      name: SelecEM2M Current
     power_factor:
-      name: "SelecEM2M Power Factor"
+      name: SelecEM2M Power Factor
     frequency:
-      name: "SelecEM2M Frequency"
+      name: SelecEM2M Frequency
     maximum_demand_active_power:
-      name: "SelecEM2M Maximum Demand Active Power"
+      name: SelecEM2M Maximum Demand Active Power
       disabled_by_default: true
     maximum_demand_reactive_power:
-      name: "SelecEM2M Maximum Demand Reactive Power"
+      name: SelecEM2M Maximum Demand Reactive Power
       disabled_by_default: true
     maximum_demand_apparent_power:
-      name: "SelecEM2M Maximum Demand Apparent Power"
+      name: SelecEM2M Maximum Demand Apparent Power
       disabled_by_default: true
 
   - id: modbus_sensortest
@@ -278,41 +282,41 @@ sensor:
 
   - platform: bmp3xx
     temperature:
-      name: "BMP Temperature"
+      name: BMP Temperature
       oversampling: 16x
     pressure:
-      name: "BMP Pressure"
+      name: BMP Pressure
     address: 0x77
     iir_filter: 2X
 
   - platform: sen5x
     id: sen54
     temperature:
-      name: "Temperature"
+      name: Temperature
       accuracy_decimals: 1
     humidity:
-      name: "Humidity"
+      name: Humidity
       accuracy_decimals: 0
     pm_1_0:
-      name: " PM <1µm Weight concentration"
+      name: PM <1µm Weight concentration
       id: pm_1_0
       accuracy_decimals: 1
     pm_2_5:
-      name: " PM <2.5µm Weight concentration"
+      name: PM <2.5µm Weight concentration
       id: pm_2_5
       accuracy_decimals: 1
     pm_4_0:
-      name: " PM <4µm Weight concentration"
+      name: PM <4µm Weight concentration
       id: pm_4_0
       accuracy_decimals: 1
     pm_10_0:
-      name: " PM <10µm Weight concentration"
+      name: PM <10µm Weight concentration
       id: pm_10_0
       accuracy_decimals: 1
     nox:
-      name: "NOx"
+      name: NOx
     voc:
-      name: "VOC"
+      name: VOC
       algorithm_tuning:
         index_offset: 100
         learning_time_offset_hours: 12
@@ -328,13 +332,20 @@ sensor:
     store_baseline: true
     address: 0x69
 
+  - platform: mcp9600
+    thermocouple_type: K
+    hot_junction:
+      name: Thermocouple Temperature
+    cold_junction:
+      name: Ambient Temperature
+
 script:
   - id: automation_test
     then:
       - repeat:
           count: 5
           then:
-            - logger.log: "looping!"
+            - logger.log: looping!
 
 switch:
   - platform: modbus_controller

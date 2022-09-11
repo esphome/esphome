@@ -1,6 +1,7 @@
 import functools
 from pathlib import Path
 import hashlib
+import os
 import re
 
 import requests
@@ -9,6 +10,7 @@ from esphome import core
 from esphome.components import display
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome.helpers import copy_file_if_changed
 from esphome.const import (
     CONF_FAMILY,
     CONF_FILE,
@@ -88,21 +90,33 @@ def validate_truetype_file(value):
     return cv.file_(value)
 
 
-def _compute_gfonts_local_path(value) -> Path:
-    name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
+def _compute_local_font_dir(name) -> Path:
     base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN
     h = hashlib.new("sha256")
     h.update(name.encode())
-    return base_dir / h.hexdigest()[:8] / "font.ttf"
+    return base_dir / h.hexdigest()[:8]
+
+
+def _compute_gfonts_local_path(value) -> Path:
+    name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
+    return _compute_local_font_dir(name) / "font.ttf"
 
 
 TYPE_LOCAL = "local"
+TYPE_LOCAL_BITMAP = "local_bitmap"
 TYPE_GFONTS = "gfonts"
 LOCAL_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_PATH): validate_truetype_file,
     }
 )
+
+LOCAL_BITMAP_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_PATH): cv.file_,
+    }
+)
+
 CONF_ITALIC = "italic"
 FONT_WEIGHTS = {
     "thin": 100,
@@ -132,7 +146,7 @@ def download_gfonts(value):
     if path.is_file():
         return value
     try:
-        req = requests.get(url)
+        req = requests.get(url, timeout=30)
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(
@@ -148,7 +162,7 @@ def download_gfonts(value):
 
     ttf_url = match.group(1)
     try:
-        req = requests.get(ttf_url)
+        req = requests.get(ttf_url, timeout=30)
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(f"Could not download ttf file for {name} ({ttf_url}): {e}")
@@ -185,6 +199,15 @@ def validate_file_shorthand(value):
         if weight is not None:
             data[CONF_WEIGHT] = weight[1:]
         return FILE_SCHEMA(data)
+
+    if value.endswith(".pcf") or value.endswith(".bdf"):
+        return FILE_SCHEMA(
+            {
+                CONF_TYPE: TYPE_LOCAL_BITMAP,
+                CONF_PATH: value,
+            }
+        )
+
     return FILE_SCHEMA(
         {
             CONF_TYPE: TYPE_LOCAL,
@@ -197,6 +220,7 @@ TYPED_FILE_SCHEMA = cv.typed_schema(
     {
         TYPE_LOCAL: LOCAL_SCHEMA,
         TYPE_GFONTS: GFONTS_SCHEMA,
+        TYPE_LOCAL_BITMAP: LOCAL_BITMAP_SCHEMA,
     }
 )
 
@@ -228,27 +252,121 @@ FONT_SCHEMA = cv.Schema(
 
 CONFIG_SCHEMA = cv.All(validate_pillow_installed, FONT_SCHEMA)
 
+# PIL doesn't provide a consistent interface for both TrueType and bitmap
+# fonts. So, we use our own wrappers to give us the consistency that we need.
 
-async def to_code(config):
+
+class TrueTypeFontWrapper:
+    def __init__(self, font):
+        self.font = font
+
+    def getoffset(self, glyph):
+        _, (offset_x, offset_y) = self.font.font.getsize(glyph)
+        return offset_x, offset_y
+
+    def getmask(self, glyph, **kwargs):
+        return self.font.getmask(glyph, **kwargs)
+
+    def getmetrics(self, glyphs):
+        return self.font.getmetrics()
+
+
+class BitmapFontWrapper:
+    def __init__(self, font):
+        self.font = font
+        self.max_height = 0
+
+    def getoffset(self, glyph):
+        return 0, 0
+
+    def getmask(self, glyph, **kwargs):
+        return self.font.getmask(glyph, **kwargs)
+
+    def getmetrics(self, glyphs):
+        max_height = 0
+        for glyph in glyphs:
+            mask = self.getmask(glyph, mode="1")
+            _, height = mask.size
+            if height > max_height:
+                max_height = height
+        return (max_height, 0)
+
+
+def convert_bitmap_to_pillow_font(filepath):
+    from PIL import PcfFontFile, BdfFontFile
+
+    local_bitmap_font_file = _compute_local_font_dir(filepath) / os.path.basename(
+        filepath
+    )
+
+    copy_file_if_changed(filepath, local_bitmap_font_file)
+
+    with open(local_bitmap_font_file, "rb") as fp:
+        try:
+            try:
+                p = PcfFontFile.PcfFontFile(fp)
+            except SyntaxError:
+                fp.seek(0)
+                p = BdfFontFile.BdfFontFile(fp)
+
+            # Convert to pillow-formatted fonts, which have a .pil and .pbm extension.
+            p.save(local_bitmap_font_file)
+        except (SyntaxError, OSError) as err:
+            raise core.EsphomeError(
+                f"Failed to parse as bitmap font: '{filepath}': {err}"
+            )
+
+    local_pil_font_file = os.path.splitext(local_bitmap_font_file)[0] + ".pil"
+    return cv.file_(local_pil_font_file)
+
+
+def load_bitmap_font(filepath):
     from PIL import ImageFont
 
-    conf = config[CONF_FILE]
-    if conf[CONF_TYPE] == TYPE_LOCAL:
-        path = CORE.relative_config_path(conf[CONF_PATH])
-    elif conf[CONF_TYPE] == TYPE_GFONTS:
-        path = _compute_gfonts_local_path(conf)
+    # Convert bpf and pcf files to pillow fonts, first.
+    pil_font_path = convert_bitmap_to_pillow_font(filepath)
+
     try:
-        font = ImageFont.truetype(str(path), config[CONF_SIZE])
+        font = ImageFont.load(str(pil_font_path))
+    except Exception as e:
+        raise core.EsphomeError(
+            f"Failed to load bitmap font file: {pil_font_path} : {e}"
+        )
+
+    return BitmapFontWrapper(font)
+
+
+def load_ttf_font(path, size):
+    from PIL import ImageFont
+
+    try:
+        font = ImageFont.truetype(str(path), size)
     except Exception as e:
         raise core.EsphomeError(f"Could not load truetype file {path}: {e}")
 
-    ascent, descent = font.getmetrics()
+    return TrueTypeFontWrapper(font)
+
+
+async def to_code(config):
+    conf = config[CONF_FILE]
+    if conf[CONF_TYPE] == TYPE_LOCAL_BITMAP:
+        font = load_bitmap_font(CORE.relative_config_path(conf[CONF_PATH]))
+    elif conf[CONF_TYPE] == TYPE_LOCAL:
+        path = CORE.relative_config_path(conf[CONF_PATH])
+        font = load_ttf_font(path, config[CONF_SIZE])
+    elif conf[CONF_TYPE] == TYPE_GFONTS:
+        path = _compute_gfonts_local_path(conf)
+        font = load_ttf_font(path, config[CONF_SIZE])
+    else:
+        raise core.EsphomeError(f"Could not load font: unknown type: {conf[CONF_TYPE]}")
+
+    ascent, descent = font.getmetrics(config[CONF_GLYPHS])
 
     glyph_args = {}
     data = []
     for glyph in config[CONF_GLYPHS]:
         mask = font.getmask(glyph, mode="1")
-        _, (offset_x, offset_y) = font.font.getsize(glyph)
+        offset_x, offset_y = font.getoffset(glyph)
         width, height = mask.size
         width8 = ((width + 7) // 8) * 8
         glyph_data = [0] * (height * width8 // 8)

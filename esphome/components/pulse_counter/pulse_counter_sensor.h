@@ -24,36 +24,51 @@ using pulse_counter_t = int16_t;
 using pulse_counter_t = int32_t;
 #endif
 
-struct PulseCounterStorage {
-  bool pulse_counter_setup(InternalGPIOPin *pin);
-  pulse_counter_t read_raw_value();
-
-  static void gpio_intr(PulseCounterStorage *arg);
-
-#ifndef HAS_PCNT
-  volatile pulse_counter_t counter{0};
-  volatile uint32_t last_pulse{0};
-#endif
+struct PulseCounterStorageBase {
+  virtual bool pulse_counter_setup(InternalGPIOPin *pin) = 0;
+  virtual pulse_counter_t read_raw_value() = 0;
 
   InternalGPIOPin *pin;
-#ifdef HAS_PCNT
-  pcnt_unit_t pcnt_unit;
-#else
-  ISRInternalGPIOPin isr_pin;
-#endif
   PulseCounterCountMode rising_edge_mode{PULSE_COUNTER_INCREMENT};
   PulseCounterCountMode falling_edge_mode{PULSE_COUNTER_DISABLE};
   uint32_t filter_us{0};
   pulse_counter_t last_value{0};
 };
 
+struct BasicPulseCounterStorage : public PulseCounterStorageBase {
+  static void gpio_intr(BasicPulseCounterStorage *arg);
+
+  bool pulse_counter_setup(InternalGPIOPin *pin) override;
+  pulse_counter_t read_raw_value() override;
+
+  volatile pulse_counter_t counter{0};
+  volatile uint32_t last_pulse{0};
+
+  ISRInternalGPIOPin isr_pin;
+};
+
+#ifdef HAS_PCNT
+struct HwPulseCounterStorage : public PulseCounterStorageBase {
+  bool pulse_counter_setup(InternalGPIOPin *pin) override;
+  pulse_counter_t read_raw_value() override;
+
+  pcnt_unit_t pcnt_unit;
+};
+#endif
+
+PulseCounterStorageBase *get_storage(bool hw_pcnt = false);
+
 class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
  public:
+  explicit PulseCounterSensor(bool hw_pcnt = false) : storage_(*get_storage(hw_pcnt)) {}
+
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
   void set_rising_edge_mode(PulseCounterCountMode mode) { storage_.rising_edge_mode = mode; }
   void set_falling_edge_mode(PulseCounterCountMode mode) { storage_.falling_edge_mode = mode; }
   void set_filter_us(uint32_t filter) { storage_.filter_us = filter; }
   void set_total_sensor(sensor::Sensor *total_sensor) { total_sensor_ = total_sensor; }
+
+  void set_total_pulses(uint32_t pulses);
 
   /// Unit of measurement is "pulses/min".
   void setup() override;
@@ -63,7 +78,7 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
 
  protected:
   InternalGPIOPin *pin_;
-  PulseCounterStorage storage_;
+  PulseCounterStorageBase &storage_;
   uint32_t last_time_{0};
   uint32_t current_total_{0};
   sensor::Sensor *total_sensor_;
