@@ -19,10 +19,12 @@ const Color COLOR_ON(255, 255, 255, 255);
 uint8_t DisplayBuffer::init_internal_(uint32_t buffer_length, uint8_t bytes_per_pixel) {
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
 
-  if (bytes_per_pixel == 0) bytes_per_pixel = 1;
-  if (bytes_per_pixel > 3) bytes_per_pixel = 3;
+  if (bytes_per_pixel == 0)
+    bytes_per_pixel = 1;
+  if (bytes_per_pixel > 3)
+    bytes_per_pixel = 3;
 
-  while (bytes_per_pixel>0) {
+  while (bytes_per_pixel > 0) {
     this->buffer_ = allocator.allocate(buffer_length * bytes_per_pixel);
     if (this->buffer_ != nullptr) {
       return bytes_per_pixel;
@@ -56,11 +58,10 @@ int DisplayBuffer::get_height() {
       return this->get_width_internal();
   }
 }
-void DisplayBuffer::set_rotation(DisplayRotation rotation) {
-  this->rotation_ = rotation;
-}
+void DisplayBuffer::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
-  if (this->is_clipped(x, y)) return;  // NOLINT
+ if (this->is_clipped(x, y))
+    return;  // NOLINT
 
   switch (this->rotation_) {
     case DISPLAY_ROTATION_0_DEGREES:
@@ -82,10 +83,11 @@ void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
   App.feed_wdt();
 }
 
-void DisplayBuffer::line(int x1, int y1, int x2, int y2, Color grandient_from, Color grandient_to, GradientDirection direction) {
+void DisplayBuffer::line(int x1, int y1, int x2, int y2, Color grandient_from, Color grandient_to,
+                         GradientDirection direction) {
   const int32_t delta_x = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
   const int32_t delta_y = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
-  float gradient_step = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2))/255, gradient_pos = 0;
+  float gradient_step = sqrt(pow(x2 - x1, 2) + pow(y2 - y1, 2)) / 255, gradient_pos = 0;
   int32_t err = delta_x + delta_y;
   while (true) {
     this->draw_pixel_at(x1, y1, grandient_from.gradient(grandient_to, (uint16_t) gradient_pos));
@@ -104,19 +106,22 @@ void DisplayBuffer::line(int x1, int y1, int x2, int y2, Color grandient_from, C
   }
 }
 /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
-void HOT DisplayBuffer::horizontal_line(int x, int y, int width, Color grandient_from , Color grandient_to, GradientDirection direction) {
+void HOT DisplayBuffer::horizontal_line(int x, int y, int width, Color grandient_from, Color grandient_to,
+                                        GradientDirection direction) {
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = x; i < x + width; i++)
     this->draw_pixel_at(i, y, grandient_from);
 }
 /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-void HOT DisplayBuffer::vertical_line(int x, int y, int height, Color grandient_from, Color grandient_to, GradientDirection direction) {
+void HOT DisplayBuffer::vertical_line(int x, int y, int height, Color grandient_from, Color grandient_to,
+                                      GradientDirection direction) {
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = y; i < y + height; i++)
     this->draw_pixel_at(x, i, grandient_from);
 }
 
-void DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from, Color grandient_to, GradientDirection direction) {
+void DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from,
+                              Color grandient_to, GradientDirection direction) {
   int delta_x = -radius;
   int delta_y = 0;
   int err = 2 - 2 * radius;
@@ -151,7 +156,8 @@ void DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radiu
   }
 }
 
-void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color, Color grandient_to, GradientDirection direction) {
+void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color,
+                                     Color grandient_to, GradientDirection direction) {
   // Future: Use vertical_line and horizontal_line methods depending on rotation to reduce memory accesses.
   int delta_x = -radius;
   int delta_y = 0;
@@ -162,12 +168,10 @@ void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_
   y = y + radius;
   height = height - (radius * 2);
   width = width - (radius * 2);
-//this->filled_rectangle(x - radius, y, width + (radius * 2), height, color);
-
   for (int i = y; i < y + height; i++) {
-    this->horizontal_line(x- radius, i, width + (radius * 2), color);
+    this->horizontal_line(x - radius, i, width + (radius * 2), color);
   }
-  if (radius>0) {
+  if (radius > 0) {
     do {
       int hline_width = width + (2 * (-delta_x) + 1) - 1;
       this->horizontal_line(x + delta_x, y + height + delta_y, hline_width, color);
@@ -186,7 +190,8 @@ void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_
   }
 }
 
-void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color color, Color grandient_to, GradientDirection direction) {
+void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color color, Color grandient_to,
+                               GradientDirection direction) {
   int delta_x = -radius;
   int delta_y = 0;
   int err = 2 - 2 * radius;
@@ -209,7 +214,8 @@ void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color co
     }
   } while (delta_x <= 0);
 }
-void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color color, Color grandient_to, GradientDirection direction) {
+void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color color, Color grandient_to,
+                                  GradientDirection direction) {
   int delta_x = -int32_t(radius);
   int delta_y = 0;
   int err = 2 - 2 * radius;
@@ -242,8 +248,8 @@ void DisplayBuffer::triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int
 }
 
 // Draw a filled triangle
-void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2,
-                                    Color color, Color grandient_to, GradientDirection direction) {
+void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color,
+                                    Color grandient_to, GradientDirection direction) {
   // Emulate triangle fill
 
   // Algorithm:
@@ -255,7 +261,7 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
   //   1) ensures that the division between the flat bottom
   //      and flat top triangles occurs at Y=Y1
   //   2) ensure that we avoid division-by-zero in the for loops
-  // - Walk each scan line and determine the intersection
+  // - Walk each scan line and determine the substraction
   //   between triangle side A & B (flat bottom triangle)
   //   and then C and B (flat top triangle) using line slopes.
 
@@ -334,12 +340,13 @@ void DisplayBuffer::quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t
 // we can avoid leaving a thin seam between the two triangles.
 void DisplayBuffer::filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3,
                                 int16_t y3, Color color, Color grandient_to, GradientDirection direction) {
-  this->filled_triangle(x0, y0, x1, y1, x2, y2, color,grandient_to, direction);
-  this->filled_triangle(x2, y2, x0, y0, x3, y3, color,grandient_to, direction);
+  this->filled_triangle(x0, y0, x1, y1, x2, y2, color, grandient_to, direction);
+  this->filled_triangle(x2, y2, x0, y0, x3, y3, color, grandient_to, direction);
 }
 
-void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2, int16_t angle_start, int16_t angle_end, 
-                               Color color, Color grandient_to, int16_t gradient_angle_start, int16_t gradient_angle_range, int16_t quality) {
+void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2, int16_t angle_start,
+                               int16_t angle_end, Color color, Color grandient_to, int16_t gradient_angle_start,
+                               int16_t gradient_angle_range, int16_t quality) {
   int16_t x0, y0, x1, y1, x2, y2, x3, y3;
   int16_t gradient_pos = 0;
 
@@ -350,7 +357,6 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
   int16_t angle;
   int16_t calc_x, calc_y;
   int16_t segment_start, segment_end;
-
 
   segment_start = angle_start * (int32_t) quality / 360;
   segment_end = angle_end * (int32_t) quality / 360;
@@ -375,7 +381,7 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
     // Remap from the step to the segment index, depending on direction
     segment_index = (clockwise) ? (segment_start + step_index) : (segment_start - step_index - 1);
 
-    angle = (int32_t)(segment_index * step) % (int32_t)(23040);
+    angle = (int32_t) (segment_index * step) % (int32_t) (23040);
 
     this->calc_polar(radius1, angle, &calc_x, &calc_y);
     x0 = x + calc_x;
@@ -393,14 +399,13 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
     x3 = x + calc_x;
     y3 = y + calc_y;
 
-    if  (grandient_to == color) {
+    if (grandient_to == color) {
       // Gradient coloring
-      gradient_pos = 255 * (int32_t)(segment_index - segment_gradient_start) / segment_gradient_range;
+      gradient_pos = 255 * (int32_t) (segment_index - segment_gradient_start) / segment_gradient_range;
     }
     this->filled_quad(x0, y0, x1, y1, x2, y2, x3, y3, color.gradient(grandient_to, gradient_pos));
   }
 }
-
 
 void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align, const char *text) {
   int x_start, y_start;
@@ -634,22 +639,19 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 #endif
 
 void DisplayBuffer::set_clipping(Rect rect) {
-  //ESP_LOGW(TAG, "set: Push new clipping");
-  this->clipping_rectangle_.push_back( rect);
+  this->clipping_rectangle_.push_back(rect);
 }
-void DisplayBuffer::clear_clipping() {
+void DisplayBuffer::pop_clipping() {
   if (this->clipping_rectangle_.empty()) {
-    ESP_LOGW(TAG, "clear: Clipping is not set.");
+    ESP_LOGE(TAG, "clear: Clipping is not set.");
   } else {
-    //ESP_LOGW(TAG, "clear: Pop back old clipping");
     this->clipping_rectangle_.pop_back();
   }
 }
 void DisplayBuffer::add_clipping(Rect add_rect) {
   if (this->clipping_rectangle_.empty()) {
-    ESP_LOGW(TAG, "add: Clipping is not set.");
+    ESP_LOGE(TAG, "add: Clipping is not set.");
   } else {
-    //ESP_LOGW(TAG, "add: join new clipping");
     this->clipping_rectangle_.back().join(add_rect);
   }
 }
@@ -875,7 +877,7 @@ bool Animation::get_pixel(int x, int y) const {
     return false;
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t frame_index = this->height_ * width_8 * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return false;
   const uint32_t pos = x + y * width_8 + frame_index;
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
@@ -884,7 +886,7 @@ Color Animation::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
   const uint32_t color32 = (progmem_read_byte(this->data_start_ + pos + 2) << 0) |
@@ -896,7 +898,7 @@ Color Animation::get_rgb565_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 2;
   uint16_t rgb565 =
@@ -910,7 +912,7 @@ Color Animation::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);

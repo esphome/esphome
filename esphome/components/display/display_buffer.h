@@ -139,8 +139,8 @@ struct Rect {
       if (this->y > rect.y) { this->y = rect.y; }
       if (this->w < rect.w) { this->w = rect.w; }
       if (this->h < rect.h) { this->h = rect.h; }
-    }
   }
+}
   void intersect(Rect rect) {
     if (!this->is_set()) {
       this->x = rect.x;
@@ -155,7 +155,7 @@ struct Rect {
     }
   }
 
-  bool inside(int16_t x, int16_t y, bool absolute ) {
+  bool inside(int16_t x, int16_t y, bool absolute) {
     if (!this->is_set()) return true;
     if (absolute) {
       return ((x >= this->x) && (x <= this->w) && (y >= this->y) && (y <= this->h));
@@ -181,7 +181,7 @@ using display_writer_t = std::function<void(DisplayBuffer &)>;
   }
 
 class DisplayBuffer {
- public:
+public:
   /// Fill the entire screen with the given color.
   virtual void fill(Color color);
   /// Clear the entire screen by filling it with OFF pixels.
@@ -568,7 +568,7 @@ class DisplayBuffer {
   };
 
   ///
-  /// intersect a rectangular region to the invalidation region
+  /// substract a rectangular region to the invalidation region
   /// - This is usually called when an element has been modified
   ///
   /// \param[in]  rect: Rectangle to add to the invalidation region
@@ -661,21 +661,17 @@ class DisplayBuffer {
   void polar_line(int16_t x, int16_t y, uint16_t radius_start, uint16_t radius_end, int16_t angle,
                   Color color = COLOR_ON);
 
-
-
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
 
   uint8_t init_internal_(uint32_t buffer_length, uint8_t bytes_per_pixel = 1);
-
-
+ 
   void do_update_();
 
   void swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1);
   std::vector<Rect> clipping_rectangle_;
-
 
   uint8_t *buffer_{nullptr};
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
