@@ -117,9 +117,13 @@ struct Rect {
 
   inline Rect() ALWAYS_INLINE : x(32766), y(32766), w(32766), h(32766) {}  // NOLINT
   inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
+  inline int16_t x2() { return this->x + this->w;};  ///< X coordinate of corner
+  inline int16_t y2() { return this->y + this->h;};;  ///< Y coordinate of corner
+
+
   inline bool is_set() ALWAYS_INLINE { return (this->h != 32766) && (this->w != 32766); }
 
-  void expand(int16_t width, int16_t height){
+  inline void expand(int16_t width, int16_t height){
     if ((*this).is_set() && ((*this).w >= (-2 * width)) && ( (*this).h >= (-2 * height))) { 
       (*this).x = (*this).x - width;
       (*this).y = (*this).y - height;
@@ -128,7 +132,7 @@ struct Rect {
     }
   }
 
-  void join(Rect rect) {
+  inline void join(Rect rect) {
     if (!this->is_set()) {
       this->x = rect.x;
       this->y = rect.y;
@@ -137,32 +141,48 @@ struct Rect {
     } else {
       if (this->x > rect.x) { this->x = rect.x; }
       if (this->y > rect.y) { this->y = rect.y; }
-      if (this->w < rect.w) { this->w = rect.w; }
-      if (this->h < rect.h) { this->h = rect.h; }
+      if (this->x2() < rect.x2()) { this->w = rect.x2()-this->x; }
+      if (this->y2() < rect.y2()) { this->h = rect.y2()-this->y; }
+    }
   }
-}
-  void intersect(Rect rect) {
-    if (!this->is_set()) {
-      this->x = rect.x;
-      this->y = rect.y;
-      this->w = rect.w;
-      this->h = rect.h;
+  inline void substract(Rect rect) {
+    if (!this->inside(rect)) {
+      (*this) = Rect();
     } else {
       if (this->x < rect.x) { this->x = rect.x; }
       if (this->y < rect.y) { this->y = rect.y; }
-      if (this->w > rect.w) { this->w = rect.w; }
-      if (this->h > rect.h) { this->h = rect.h; }
+      if (this->x2() > rect.x2()) { this->w = rect.x2()-this->x; }
+      if (this->y2() > rect.y2()) { this->h = rect.y2()-this->y; }
     }
   }
 
-  bool inside(int16_t x, int16_t y, bool absolute) {
+  inline bool inside(int16_t x, int16_t y, bool absolute = false) {
     if (!this->is_set()) return true;
     if (absolute) {
-      return ((x >= this->x) && (x <= this->w) && (y >= this->y) && (y <= this->h));
+      return ((x >= 0) && (x <= this->w) && (y >= 0) && (y <= this->h));
     } else {
-      return ((x >= 0) && (x <= this->w - this->x) && (y >= 0) && (y <= this->h - this->y));
+      return ((x >= this->x) && (x <= this->x2()) && (y >= this->y) && (y <= this->y2()));
     }
   }
+  inline bool inside(Rect rect, bool absolute = false) {
+    if (!this->is_set() || !rect.is_set()) return true;
+    if (absolute) {
+      return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
+    } else {
+      ESP_LOGVV("TAG2", "rect inside = %s , %s , %s , %s", YESNO(rect.x <= this->x2()) , YESNO(rect.x2() >= this->x), YESNO(rect.y <= this->y2()) , YESNO(rect.y2() >= this->y));
+      return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
+    }
+  }
+
+  //  rect           x--------------w
+  //  this        x--------------w
+  inline void info(std::string prefix = "rect info:") {
+    if (this->is_set()) {
+      ESP_LOGI("Rect", "%s [%3d,%3d,%3d,%3d]",prefix.c_str(), this->x, this->y, this->w, this->h);
+    } else
+      ESP_LOGI("Rect", "%s ** NOT SET **",prefix.c_str());
+  }
+
 };
 
 class Font;
@@ -743,7 +763,7 @@ class Font {
   int match_next_glyph(const char *str, int *match_length);
 
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
-
+ 
   const std::vector<Glyph> &get_glyphs() const;
 
  protected:
