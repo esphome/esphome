@@ -630,11 +630,10 @@ touchscreen:
     calibration_y_max: 3860
     swap_x_y: false
     on_touch:
-      # yamllint disable rule:line-length
       - logger.log:
           format: Touch at (%d, %d)
           args: [touch.x, touch.y]
-      # yamllint enable rule:line-length
+
 
   - platform: lilygo_t5_47
     id: lilygo_touchscreen
