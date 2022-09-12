@@ -632,14 +632,9 @@ touchscreen:
     on_touch:
       # yamllint disable rule:line-length
       - lambda: |-
-          ESP_LOGI("main", "member x=%d, y=%d, touched=%d, x_raw=%d, y_raw=%d, z_raw=%d",
-              id(xpt_touchscreen).x,
-              id(xpt_touchscreen).y,
-              (int) id(xpt_touchscreen).touched,
-              id(xpt_touchscreen).x_raw,
-              id(xpt_touchscreen).y_raw,
-              id(xpt_touchscreen).z_raw
-              );
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: [touch.x, touch.y]
       # yamllint enable rule:line-length
 
   - platform: lilygo_t5_47

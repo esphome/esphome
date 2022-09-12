@@ -166,8 +166,8 @@ void XPT2046Component::dump_config() {
 
 float XPT2046Component::get_setup_priority() const { return setup_priority::DATA; }
 
-int16_t XPT2046Component::best_two_avg(int16_t x, int16_t y, int16_t z) { // NOLINT
-  int16_t da, db, dc; // NOLINT
+int16_t XPT2046Component::best_two_avg(int16_t x, int16_t y, int16_t z) {  // NOLINT
+  int16_t da, db, dc;                                                      // NOLINT
   int16_t reta = 0;
 
   da = (x > y) ? x - y : y - x;
@@ -193,13 +193,13 @@ int16_t XPT2046Component::normalize(int16_t val, int16_t min_val, int16_t max_va
   } else if (val >= max_val) {
     ret = 0xfff;
   } else {
-    ret = (int16_t) ((int) 0xfff * (val - min_val) / (max_val - min_val));
+    ret = (int16_t)((int) 0xfff * (val - min_val) / (max_val - min_val));
   }
 
   return ret;
 }
 
-int16_t XPT2046Component::read_adc_(uint8_t ctrl) { // NOLINT
+int16_t XPT2046Component::read_adc_(uint8_t ctrl) {  // NOLINT
   uint8_t data[2];
 
   write_byte(ctrl);
