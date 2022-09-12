@@ -60,7 +60,7 @@ int DisplayBuffer::get_height() {
 }
 void DisplayBuffer::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
- if (this->is_clipped(x, y))
+  if (!this->get_clipping().inside(x, y))
     return;  // NOLINT
 
   switch (this->rotation_) {
@@ -638,7 +638,12 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 }
 #endif
 
-void DisplayBuffer::set_clipping(Rect rect) {
+void DisplayBuffer::push_clipping(Rect rect) {
+  // ESP_LOGW(TAG, "set: Push new clipping");
+  if (!this->clipping_rectangle_.empty()) {
+    Rect r = this->clipping_rectangle_.back();
+    rect.substract(r);
+  }
   this->clipping_rectangle_.push_back(rect);
 }
 void DisplayBuffer::pop_clipping() {
@@ -655,22 +660,20 @@ void DisplayBuffer::add_clipping(Rect add_rect) {
     this->clipping_rectangle_.back().join(add_rect);
   }
 }
+void DisplayBuffer::substract_clipping(Rect add_rect) {
+  if (this->clipping_rectangle_.empty()) {
+    ESP_LOGE(TAG, "add: Clipping is not set.");
+  } else {
+    // ESP_LOGW(TAG, "add: join new clipping");
+    this->clipping_rectangle_.back().substract(add_rect);
+  }
+}
 Rect DisplayBuffer::get_clipping() {
   if (this->clipping_rectangle_.empty()) {
     return Rect();
   } else {
     return this->clipping_rectangle_.back();
   }
-}
-bool DisplayBuffer::is_clipped(int16_t x, int16_t y) {
-  Rect clip = this->get_clipping();
-  if (!clip.is_set()) {  return false; }
-  return ((x < clip.x) || (x > clip.w) || (y < clip.y) || (y > clip.h));
-}
-bool DisplayBuffer::is_clipped(Rect rect) {
-  Rect clip = this->get_clipping();
-  if (!clip.is_set()) { return false; }
-  return ((rect.w < clip.x) || (rect.x > clip.w) || (rect.h < clip.y) || (rect.y > clip.h));
 }
 
 // -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- -- --

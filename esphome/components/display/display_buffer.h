@@ -569,9 +569,9 @@ public:
   ///
   /// \return true if success, false if error
   ///
-  void set_clipping(Rect rect);
-  void set_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
-    set_clipping(Rect(left, top, right, bottom));
+  void push_clipping(Rect rect);
+  void push_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
+    push_clipping(Rect(left, top, right, bottom));
   };
 
   ///
@@ -595,9 +595,9 @@ public:
   ///
   /// \return none
   ///
-  void sub_clipping(Rect rect);
-  void sub_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
-    this->sub_clipping(Rect(left, top, right, bottom));
+  void substract_clipping(Rect rect);
+  void substract_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
+    this->substract_clipping(Rect(left, top, right, bottom));
   };
 
   ///
@@ -605,7 +605,7 @@ public:
   ///
   /// \return none
   ///
-  void clear_clipping();
+  void pop_clipping();
 
   ///
   /// Get the current the clipping rectangle
@@ -614,17 +614,6 @@ public:
   /// \return rect for active clipping region
   ///
   Rect get_clipping();
-
-  ///
-  /// Perform basic clipping of a single point to a clipping region
-  ///
-  /// \param[in]  X:          X coordinate of point
-  /// \param[in]  Y:          Y coordinate of point
-  ///
-  /// \return true if point is visible, false if it should be discarded
-  ///
-  bool is_clipped(int16_t x, int16_t y);
-  bool is_clipped(Rect rect);
 
   ///
   /// Convert polar coordinate to cartesian
@@ -687,7 +676,7 @@ public:
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
 
   uint8_t init_internal_(uint32_t buffer_length, uint8_t bytes_per_pixel = 1);
- 
+
   void do_update_();
 
   void swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1);
@@ -763,7 +752,7 @@ class Font {
   int match_next_glyph(const char *str, int *match_length);
 
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
- 
+
   const std::vector<Glyph> &get_glyphs() const;
 
  protected:
