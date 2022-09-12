@@ -123,7 +123,7 @@ struct Rect {
   inline bool is_set() ALWAYS_INLINE { return (this->h != 32766) && (this->w != 32766); }
 
   inline void expand(int16_t width, int16_t height) {
-    if ((*this).is_set() && ((*this).w >= (-2 * width)) && ((*this).h >= (-2 * height))) { 
+    if ((*this).is_set() && ((*this).w >= (-2 * width)) && ((*this).h >= (-2 * height))) {
       (*this).x = (*this).x - width;
       (*this).y = (*this).y - height;
       (*this).w = (*this).w + (2 * width);
@@ -145,10 +145,10 @@ struct Rect {
         this->y = rect.y;
       }
       if (this->x2() < rect.x2()) {
-        this->w = rect.x2()-this->x;
+        this->w = rect.x2() - this->x;
       }
       if (this->y2() < rect.y2()) {
-        this->h = rect.y2()-this->y;
+        this->h = rect.y2() - this->y;
       }
     }
   }
@@ -163,10 +163,10 @@ struct Rect {
         this->y = rect.y;
       }
       if (this->x2() > rect.x2()) {
-        this->w = rect.x2()-this->x;
+        this->w = rect.x2() - this->x;
       }
       if (this->y2() > rect.y2()) {
-        this->h = rect.y2()-this->y;
+        this->h = rect.y2() - this->y;
       }
     }
   }
@@ -198,7 +198,6 @@ struct Rect {
     } else
       ESP_LOGI("Rect", "%s ** IS NOT SET **", prefix.c_str());
   }
-
 };
 
 class Font;
@@ -217,7 +216,7 @@ using display_writer_t = std::function<void(DisplayBuffer &)>;
   }
 
 class DisplayBuffer {
-public:
+ public:
   /// Fill the entire screen with the given color.
   virtual void fill(Color color);
   /// Clear the entire screen by filling it with OFF pixels.
@@ -242,7 +241,7 @@ public:
   void horizontal_line(int x, int y, int width, Color color = COLOR_ON) {
     horizontal_line(x, y, width, color, color, GRADIENT_NONE);
   }
-  void horizontal_line(int x, int y, int width, Color grandient_from , Color grandient_to,
+  void horizontal_line(int x, int y, int width, Color grandient_from, Color grandient_to,
                        GradientDirection direction = GRADIENT_HORIZONTAL);
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
@@ -265,7 +264,7 @@ public:
                  GradientDirection direction = GRADIENT_HORIZONTAL) {
     rectangle(x1, y1, width, height, 0, grandient_from, grandient_to, direction);
   }
-  void rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from , Color grandient_to,
+  void rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from, Color grandient_to,
                  GradientDirection direction = GRADIENT_HORIZONTAL);
 
   void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON) {
@@ -278,14 +277,13 @@ public:
                         GradientDirection direction = GRADIENT_HORIZONTAL) {
     filled_rectangle(x1, y1, width, height, 0, grandient_from, grandient_to, direction);
   }
-  void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from , Color grandient_to,
+  void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from, Color grandient_to,
                         GradientDirection direction = GRADIENT_HORIZONTAL);
-
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
   void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON) {
     circle(center_x, center_xy, radius, color, color, GRADIENT_NONE);
- }
+  }
   void circle(int center_x, int center_xy, int radius, Color grandient_from, Color grandient_to,
               GradientDirection direction = GRADIENT_HORIZONTAL);
 
@@ -296,8 +294,7 @@ public:
   void filled_circle(int center_x, int center_y, int radius, Color grandient_from, Color grandient_to,
                      GradientDirection direction = GRADIENT_HORIZONTAL);
 
-  void triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color = COLOR_ON)
-  {
+  void triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color = COLOR_ON) {
     triangle(x0, y0, x1, y1, x2, y2, color, color, GRADIENT_NONE);
   }
   void triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color grandient_from,
@@ -310,7 +307,7 @@ public:
   void filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2,
                       Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
- ///
+  ///
   /// Draw a framed quadrilateral
   ///
   /// \param[in]  points:        Pointer to array of 4 points
@@ -325,7 +322,6 @@ public:
 
   void quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3,
             Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
-
 
   ///
   /// Draw a filled quadrilateral
@@ -348,7 +344,8 @@ public:
     filled_arc(x, y, radius1, radius2,  angle_start, angle_end, color, color, 0, 0, quality);
   }
   void filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2, int16_t angle_start, int16_t angle_end,
-                  Color grandient_from, Color grandient_to, int16_t gradient_angle_start, int16_t gradient_angle_range, int16_t quality = 255);
+                  Color grandient_from, Color grandient_to, int16_t gradient_angle_start, int16_t gradient_angle_range,
+                  int16_t quality = 255);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -557,7 +554,7 @@ public:
   const DisplayPage *get_active_page() const { return this->page_; }
 
   void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
- 
+
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
@@ -622,7 +619,7 @@ public:
   void substract_clipping(Rect rect);
   void substract_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
     this->substract_clipping(Rect(left, top, right, bottom));
- };
+  };
 
   ///
   /// Reset the invalidation region
@@ -694,7 +691,7 @@ public:
   void polar_line(int16_t x, int16_t y, uint16_t radius_start, uint16_t radius_end, int16_t angle,
                   Color color = COLOR_ON);
 
-  void call_update ();
+  void call_update();
 
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
@@ -702,7 +699,7 @@ public:
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
 
   uint8_t init_internal_(uint32_t buffer_length, uint8_t bytes_per_pixel = 1);
-  virtual void display_() {};
+  virtual void display_(){};
 
   void do_update_();
 
@@ -779,9 +776,9 @@ class Font {
   int match_next_glyph(const char *str, int *match_length);
 
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
-  int get_baseline() {return this->baseline_;}
-  int get_height() {return this->height_;}
-  
+  int get_baseline()  {return this->baseline_; }
+  int get_height() { return this->height_; }
+
   const std::vector<Glyph> &get_glyphs() const;
 
  protected:

@@ -383,7 +383,7 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
     // Remap from the step to the segment index, depending on direction
     segment_index = (clockwise) ? (segment_start + step_index) : (segment_start - step_index - 1);
 
-    angle = (int32_t) (segment_index * step) % (int32_t) (23040);
+    angle = (int32_t)(segment_index * step) % (int32_t)(23040);
 
     this->calc_polar(radius1, angle, &calc_x, &calc_y);
     x0 = x + calc_x;
@@ -403,7 +403,7 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
 
     if (grandient_to == color) {
       // Gradient coloring
-      gradient_pos = 255 * (int32_t) (segment_index - segment_gradient_start) / segment_gradient_range;
+      gradient_pos = 255 * (int32_t)(segment_index - segment_gradient_start) / segment_gradient_range;
     }
     this->filled_quad(x0, y0, x1, y1, x2, y2, x3, y3, color.gradient(grandient_to, gradient_pos));
   }
