@@ -26,11 +26,6 @@ void XPT2046Component::setup() {
   }
   spi_setup();
   read_adc_(0xD0);  // ADC powerdown, enable PENIRQ pin
-  if (display_ != nullptr) {
-    this->display_width_ = display_->get_width();
-    this->display_height_ = display_->get_height();
-    this->rotation_ = static_cast<TouchRotation>(display_->get_rotation());
-  }
 }
 
 void XPT2046Component::loop() {
@@ -57,10 +52,10 @@ void XPT2046Component::check_touch_() {
   if ((this->irq_pin_ == nullptr) || !this->irq_pin_->digital_read()) {
     enable();
 
-    int16_t z1 = read_adc_(0xB1 /* Z1 */);
-    int16_t z2 = read_adc_(0xC1 /* Z2 */);
+    int16_t touch_pressure_1 = read_adc_(0xB1 /* touch_pressure_1 */);
+    int16_t touch_pressure_2 = read_adc_(0xC1 /* touch_pressure_2 */);
 
-    this->z_raw = z1 + 4095 - z2;
+    this->z_raw = touch_pressure_1 + 4095 - touch_pressure_2;
 
     touch = (this->z_raw >= this->threshold_);
     if (touch) {
@@ -82,50 +77,50 @@ void XPT2046Component::check_touch_() {
 
       ESP_LOGVV(TAG, "Update [x, y] = [%d, %d], z = %d", this->x_raw, this->y_raw, this->z_raw);
 
-      TouchPoint tp;
+      TouchPoint touchpoint;
 
-      tp.x = normalize(this->x_raw, this->x_raw_min_, this->x_raw_max_);
-      tp.y = normalize(this->y_raw, this->y_raw_min_, this->y_raw_max_);
+      touchpoint.x = normalize(this->x_raw, this->x_raw_min_, this->x_raw_max_);
+      touchpoint.y = normalize(this->y_raw, this->y_raw_min_, this->y_raw_max_);
 
       if (this->swap_x_y_) {
-        std::swap(tp.x, tp.y);
+        std::swap(touchpoint.x, touchpoint.y);
       }
 
       if (this->invert_x_) {
-        tp.x = 0xfff - tp.x;
+        touchpoint.x = 0xfff - touchpoint.x;
       }
 
       if (this->invert_y_) {
-        tp.y = 0xfff - tp.y;
+        touchpoint.y = 0xfff - touchpoint.y;
       }
 
       switch (static_cast<TouchRotation>(this->display_->get_rotation())) {
         case ROTATE_0_DEGREES:
           break;
         case ROTATE_90_DEGREES:
-          std::swap(tp.x, tp.y);
-          tp.y = 0xfff - tp.y;
+          std::swap(touchpoint.x, touchpoint.y);
+          touchpoint.y = 0xfff - touchpoint.y;
           break;
         case ROTATE_180_DEGREES:
-          tp.x = 0xfff - tp.x;
-          tp.y = 0xfff - tp.y;
+          touchpoint.x = 0xfff - touchpoint.x;
+          touchpoint.y = 0xfff - touchpoint.y;
           break;
         case ROTATE_270_DEGREES:
-          std::swap(tp.x, tp.y);
-          tp.x = 0xfff - tp.x;
+          std::swap(touchpoint.x, touchpoint.y);
+          touchpoint.x = 0xfff - touchpoint.x;
           break;
       }
 
-      tp.x = (int16_t)((int) tp.x * this->display_->get_width() / 0xfff);
-      tp.y = (int16_t)((int) tp.y * this->display_->get_height() / 0xfff);
+      touchpoint.x = (int16_t) ((int) touchpoint.x * this->display_->get_width() / 0xfff);
+      touchpoint.y = (int16_t) ((int) touchpoint.y * this->display_->get_height() / 0xfff);
 
       if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
-        ESP_LOGD(TAG, "Touching at [%03X, %03X] => [%3d, %3d]", this->x_raw, this->y_raw, tp.x, tp.y);
+        ESP_LOGD(TAG, "Touching at [%03X, %03X] => [%3d, %3d]", this->x_raw, this->y_raw, touchpoint.x, touchpoint.y);
 
-        this->defer([this, tp]() { this->send_touch_(tp); });
+        this->defer([this, touchpoint]() { this->send_touch_(touchpoint); });
 
-        this->x = tp.x;
-        this->y = tp.y;
+        this->x = touchpoint.x;
+        this->y = touchpoint.y;
         this->touched = true;
         this->last_pos_ms_ = now;
       }
@@ -141,7 +136,7 @@ void XPT2046Component::check_touch_() {
   }
 }
 
-void XPT2046Component::set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) {
+void XPT2046Component::set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) { // NOLINT
   this->x_raw_min_ = std::min(x_min, x_max);
   this->x_raw_max_ = std::max(x_min, x_max);
   this->y_raw_min_ = std::min(y_min, y_max);
@@ -171,8 +166,8 @@ void XPT2046Component::dump_config() {
 
 float XPT2046Component::get_setup_priority() const { return setup_priority::DATA; }
 
-int16_t XPT2046Component::best_two_avg(int16_t x, int16_t y, int16_t z) {
-  int16_t da, db, dc;
+int16_t XPT2046Component::best_two_avg(int16_t x, int16_t y, int16_t z) { // NOLINT
+  int16_t da, db, dc; // NOLINT
   int16_t reta = 0;
 
   da = (x > y) ? x - y : y - x;
@@ -198,13 +193,13 @@ int16_t XPT2046Component::normalize(int16_t val, int16_t min_val, int16_t max_va
   } else if (val >= max_val) {
     ret = 0xfff;
   } else {
-    ret = (int16_t)((int) 0xfff * (val - min_val) / (max_val - min_val));
+    ret = (int16_t) ((int) 0xfff * (val - min_val) / (max_val - min_val));
   }
 
   return ret;
 }
 
-int16_t XPT2046Component::read_adc_(uint8_t ctrl) {
+int16_t XPT2046Component::read_adc_(uint8_t ctrl) { // NOLINT
   uint8_t data[2];
 
   write_byte(ctrl);
