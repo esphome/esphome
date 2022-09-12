@@ -50,14 +50,14 @@ class ILI9341Display : public PollingComponent,
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void setup_pins_();
-  virtual void initialize_() = 0;
+  virtual void initialize() = 0;
 
   void init_lcd_(const uint8_t *init_cmd);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void invert_display_(bool invert);
   void reset_();
   void fill_internal_(uint8_t color);
-  void display_();
+  void display() override;
   void rotate_my_(uint8_t m);
 
   ILI9341Model model_;
@@ -93,19 +93,19 @@ class ILI9341Display : public PollingComponent,
 //-----------   M5Stack display --------------
 class ILI9341M5Stack : public ILI9341Display {
  protected:
-  void initialize_() override;
+  void initialize() override;
 };
 
 //-----------   ILI9341_24_TFT display --------------
 class ILI9341TFT24 : public ILI9341Display {
  protected:
-  void initialize_() override;
+  void initialize() override;
 };
 
 //-----------   ILI9341_24_TFT rotated display --------------
 class ILI9341TFT24R : public ILI9341Display {
  protected:
-  void initialize_() override;
+  void initialize() override;
 };
 
 }  // namespace ili9341

@@ -11,7 +11,7 @@ static const char *const TAG = "ili9341";
 
 void ILI9341Display::setup() {
   this->setup_pins_();
-  this->initialize_();
+  this->initialize();
 
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
@@ -47,7 +47,7 @@ void ILI9341Display::dump_config() {
 
 void ILI9341Display::update() {
   this->do_update_();
-  this->display_();
+  this->display();
 }
 
 float ILI9341Display::get_setup_priority() const { return setup_priority::HARDWARE; }
@@ -94,7 +94,7 @@ uint8_t ILI9341Display::read_command(uint8_t command_byte, uint8_t index) {
   return result;
 }
 
-void ILI9341Display::display_() {
+void ILI9341Display::display() {
   // we will only update the changed window to the display
   uint16_t w = this->x_high_ - this->x_low_ + 1;  // NOLINT
   uint16_t h = this->y_high_ - this->y_low_ + 1;  // NOLINT
@@ -161,7 +161,7 @@ void ILI9341Display::fill_internal_(uint8_t color) {
   memset(buffer_, color, this->get_buffer_length_());
 }
 
-void ILI9341Display::rotate_my_(uint8_t m) {
+void ILI9341Display::rotate_my_(uint8_t m) {  // NOLINT
   uint8_t rotation = m & 3;  // can't be higher than 3
   switch (rotation) {
     case 0:
@@ -290,7 +290,7 @@ uint32_t ILI9341Display::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
 }
 
 //   M5Stack display
-void ILI9341M5Stack::initialize_() {
+void ILI9341M5Stack::initialize() {
   this->init_lcd_(INITCMD_M5STACK);
   this->width_ = 320;
   this->height_ = 240;
@@ -298,14 +298,14 @@ void ILI9341M5Stack::initialize_() {
 }
 
 //   24_TFT display
-void ILI9341TFT24::initialize_() {
+void ILI9341TFT24::initialize() {
   this->init_lcd_(INITCMD_TFT);
   this->width_ = 240;
   this->height_ = 320;
 }
 
 //   24_TFT rotated display
-void ILI9341TFT24R::initialize_() {
+void ILI9341TFT24R::initialize() {
   this->init_lcd_(INITCMD_TFT);
   this->width_ = 320;
   this->height_ = 240;
