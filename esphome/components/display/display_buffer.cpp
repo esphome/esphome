@@ -156,7 +156,7 @@ void DisplayBuffer::rectangle(int x, int y, int width, int height, int16_t radiu
   }
 }
 
-void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color,
+void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from,
                                      Color grandient_to, GradientDirection direction) {
   // Future: Use vertical_line and horizontal_line methods depending on rotation to reduce memory accesses.
   int delta_x = -radius;
@@ -168,16 +168,14 @@ void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_
   y = y + radius;
   height = height - (radius * 2);
   width = width - (radius * 2);
-  // this->filled_rectangle(x - radius, y, width + (radius * 2), height, color);
-
   for (int i = y; i < y + height; i++) {
-    this->horizontal_line(x - radius, i, width + (radius * 2), color);
+    this->horizontal_line(x - radius, i, width + (radius * 2), grandient_from);
   }
   if (radius > 0) {
     do {
       int hline_width = width + (2 * (-delta_x) + 1) - 1;
-      this->horizontal_line(x + delta_x, y + height + delta_y, hline_width, color);
-      this->horizontal_line(x + delta_x, y - delta_y, hline_width, color);
+      this->horizontal_line(x + delta_x, y + height + delta_y, hline_width, grandient_from);
+      this->horizontal_line(x + delta_x, y - delta_y, hline_width, grandient_from);
       e2 = err;
       if (e2 < delta_y) {
         err += ++delta_y * 2 + 1;
@@ -192,7 +190,7 @@ void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_
   }
 }
 
-void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color color, Color grandient_to,
+void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color grandient_from, Color grandient_to,
                                GradientDirection direction) {
   int delta_x = -radius;
   int delta_y = 0;
@@ -200,10 +198,10 @@ void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color co
   int e2;
 
   do {
-    this->draw_pixel_at(center_x - delta_x, center_xy + delta_y, color);
-    this->draw_pixel_at(center_x + delta_x, center_xy + delta_y, color);
-    this->draw_pixel_at(center_x + delta_x, center_xy - delta_y, color);
-    this->draw_pixel_at(center_x - delta_x, center_xy - delta_y, color);
+    this->draw_pixel_at(center_x - delta_x, center_xy + delta_y, grandient_from);
+    this->draw_pixel_at(center_x + delta_x, center_xy + delta_y, grandient_from);
+    this->draw_pixel_at(center_x + delta_x, center_xy - delta_y, grandient_from);
+    this->draw_pixel_at(center_x - delta_x, center_xy - delta_y, grandient_from);
     e2 = err;
     if (e2 < delta_y) {
       err += ++delta_y * 2 + 1;
@@ -216,7 +214,7 @@ void HOT DisplayBuffer::circle(int center_x, int center_xy, int radius, Color co
     }
   } while (delta_x <= 0);
 }
-void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color color, Color grandient_to,
+void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color grandient_from, Color grandient_to,
                                   GradientDirection direction) {
   int delta_x = -int32_t(radius);
   int delta_y = 0;
@@ -225,8 +223,8 @@ void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color 
 
   do {
     int hline_width = 2 * (-delta_x) + 1;
-    this->horizontal_line(center_x + delta_x, center_y + delta_y, hline_width, color);
-    this->horizontal_line(center_x + delta_x, center_y - delta_y, hline_width, color);
+    this->horizontal_line(center_x + delta_x, center_y + delta_y, hline_width, grandient_from);
+    this->horizontal_line(center_x + delta_x, center_y - delta_y, hline_width, grandient_from);
     e2 = err;
     if (e2 < delta_y) {
       err += ++delta_y * 2 + 1;
@@ -241,16 +239,16 @@ void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color 
 }
 
 // Draw a triangle
-void DisplayBuffer::triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color,
+void DisplayBuffer::triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color grandient_from,
                              Color grandient_to, GradientDirection direction) {
   // Draw triangle with three lines
-  this->line(x0, y0, x1, y1, color);
-  this->line(x1, y1, x2, y2, color);
-  this->line(x2, y2, x0, y0, color);
+  this->line(x0, y0, x1, y1, grandient_from);
+  this->line(x1, y1, x2, y2, grandient_from);
+  this->line(x2, y2, x0, y0, grandient_from);
 }
 
 // Draw a filled triangle
-void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color,
+void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color grandient_from,
                                     Color grandient_to, GradientDirection direction) {
   // Emulate triangle fill
 
@@ -303,7 +301,7 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
     xb /= 2 * y20;
 
     // Draw horizontal line between endpoints
-    this->line(x1 + xa, y1 + yos, x0 + xb, y1 + yos, color);
+    this->line(x1 + xa, y1 + yos, x0 + xb, y1 + yos, grandient_from);
   }
 
   // Flat top scenario
@@ -324,16 +322,16 @@ void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t 
     xb /= 2 * y20;
 
     // Draw horizontal line between endpoints
-    this->line(x1 + xc, y1 + yos, x0 + xb, y1 + yos, color);
+    this->line(x1 + xc, y1 + yos, x0 + xb, y1 + yos, grandient_from);
   }
 }
 
 void DisplayBuffer::quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3,
-                         Color color, Color grandient_to, GradientDirection direction) {
-  this->line(x0, y0, x1, y1, color);
-  this->line(x1, y1, x2, y2, color);
-  this->line(x2, y2, x3, y3, color);
-  this->line(x3, y3, x0, y0, color);
+                         Color grandient_from, Color grandient_to, GradientDirection direction) {
+  this->line(x0, y0, x1, y1, grandient_from);
+  this->line(x1, y1, x2, y2, grandient_from);
+  this->line(x2, y2, x3, y3, grandient_from);
+  this->line(x3, y3, x0, y0, grandient_from);
 }
 
 // Filling a quadrilateral is done by breaking it down into
@@ -341,13 +339,13 @@ void DisplayBuffer::quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t
 // about the triangle fill routine (ie. using rounding) so that
 // we can avoid leaving a thin seam between the two triangles.
 void DisplayBuffer::filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3,
-                                int16_t y3, Color color, Color grandient_to, GradientDirection direction) {
-  this->filled_triangle(x0, y0, x1, y1, x2, y2, color, grandient_to, direction);
-  this->filled_triangle(x2, y2, x0, y0, x3, y3, color, grandient_to, direction);
+                                int16_t y3, Color grandient_from, Color grandient_to, GradientDirection direction) {
+  this->filled_triangle(x0, y0, x1, y1, x2, y2, grandient_from, grandient_to, direction);
+  this->filled_triangle(x2, y2, x0, y0, x3, y3, grandient_from, grandient_to, direction);
 }
 
 void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2, int16_t angle_start,
-                               int16_t angle_end, Color color, Color grandient_to, int16_t gradient_angle_start,
+                               int16_t angle_end, Color grandient_from, Color grandient_to, int16_t gradient_angle_start,
                                int16_t gradient_angle_range, int16_t quality) {
   int16_t x0, y0, x1, y1, x2, y2, x3, y3;
   int16_t gradient_pos = 0;
@@ -401,11 +399,11 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
     x3 = x + calc_x;
     y3 = y + calc_y;
 
-    if (grandient_to == color) {
+    if (grandient_to != grandient_from) {
       // Gradient coloring
       gradient_pos = 255 * (int32_t)(segment_index - segment_gradient_start) / segment_gradient_range;
     }
-    this->filled_quad(x0, y0, x1, y1, x2, y2, x3, y3, color.gradient(grandient_to, gradient_pos));
+    this->filled_quad(x0, y0, x1, y1, x2, y2, x3, y3, grandient_from.gradient(grandient_to, gradient_pos));
   }
 }
 

@@ -182,7 +182,10 @@ struct Rect {
     }
   }
   inline bool inside(Rect rect, bool absolute = false) {
-    if (!this->is_set() || !rect.is_set()) return true;
+    if (!this->is_set() || !rect.is_set())
+    {
+      return true;
+    }
     if (absolute) {
       return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
     } else {
@@ -304,8 +307,8 @@ class DisplayBuffer {
   void filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color = COLOR_ON) {
     filled_triangle(x0, y0, x1, y1, x2, y2, color, color, GRADIENT_NONE);
   }
-  void filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2,
-                      Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+  void filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color grandient_from,
+                       Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
   ///
   /// Draw a framed quadrilateral
@@ -339,9 +342,9 @@ class DisplayBuffer {
   void filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3,
                    Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
-  void filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2,
-                  int16_t angle_start, int16_t angle_end, Color color = COLOR_ON, int16_t quality = 255) {
-    filled_arc(x, y, radius1, radius2,  angle_start, angle_end, color, color, 0, 0, quality);
+  void filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2, int16_t angle_start, int16_t angle_end,
+                  Color color = COLOR_ON, int16_t quality = 255) {
+    filled_arc(x, y, radius1, radius2, angle_start, angle_end, color, color, 0, 0, quality);
   }
   void filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2, int16_t angle_start, int16_t angle_end,
                   Color grandient_from, Color grandient_to, int16_t gradient_angle_start, int16_t gradient_angle_range,
@@ -771,12 +774,12 @@ class Font {
    * @param baseline The y-offset from the top of the text to the baseline.
    * @param bottom The y-offset from the top of the text to the bottom (i.e. height).
    */
-  Font(const GlyphData *data, int data_nr, int baseline, int bottom);
+  Font(const GlyphData *data, int data_nr, int baseline, int height);
 
   int match_next_glyph(const char *str, int *match_length);
 
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
-  int get_baseline()  {return this->baseline_; }
+  int get_baseline() { return this->baseline_; }
   int get_height() { return this->height_; }
 
   const std::vector<Glyph> &get_glyphs() const;
