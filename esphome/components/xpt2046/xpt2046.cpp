@@ -12,7 +12,6 @@ static const char *const TAG = "xpt2046";
 void XPT2046TouchscreenStore::gpio_intr(XPT2046TouchscreenStore *store) { store->touch = true; }
 
 void XPT2046Component::setup() {
-  ESP_LOGD("xpt2046", "=================================--------- Do setup");
   if (this->irq_pin_ != nullptr) {
     // The pin reports a touch with a falling edge. Unfortunately the pin goes also changes state
     // while the channels are read and wiring it as an interrupt is not straightforward and would
