@@ -239,8 +239,8 @@ void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color 
 }
 
 // Draw a triangle
-void DisplayBuffer::triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color grandient_from,
-                             Color grandient_to, GradientDirection direction) {
+void DisplayBuffer::triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2,
+                             Color grandient_from, Color grandient_to, GradientDirection direction) {
   // Draw triangle with three lines
   this->line(x0, y0, x1, y1, grandient_from);
   this->line(x1, y1, x2, y2, grandient_from);
@@ -248,8 +248,8 @@ void DisplayBuffer::triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int
 }
 
 // Draw a filled triangle
-void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color grandient_from,
-                                    Color grandient_to, GradientDirection direction) {
+void DisplayBuffer::filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2,
+                                    Color grandient_from, Color grandient_to, GradientDirection direction) {
   // Emulate triangle fill
 
   // Algorithm:
@@ -345,8 +345,8 @@ void DisplayBuffer::filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, 
 }
 
 void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2, int16_t angle_start,
-                               int16_t angle_end, Color grandient_from, Color grandient_to, int16_t gradient_angle_start,
-                               int16_t gradient_angle_range, int16_t quality) {
+                               int16_t angle_end, Color grandient_from, Color grandient_to,
+                               int16_t gradient_angle_start, int16_t gradient_angle_range, int16_t quality) {
   int16_t x0, y0, x1, y1, x2, y2, x3, y3;
   int16_t gradient_pos = 0;
 

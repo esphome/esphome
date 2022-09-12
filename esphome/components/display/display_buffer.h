@@ -182,8 +182,7 @@ struct Rect {
     }
   }
   inline bool inside(Rect rect, bool absolute = false) {
-    if (!this->is_set() || !rect.is_set())
-    {
+    if (!this->is_set() || !rect.is_set()) {
       return true;
     }
     if (absolute) {
