@@ -168,6 +168,8 @@ void DisplayBuffer::filled_rectangle(int x, int y, int width, int height, int16_
   y = y + radius;
   height = height - (radius * 2);
   width = width - (radius * 2);
+  // this->filled_rectangle(x - radius, y, width + (radius * 2), height, color);
+
   for (int i = y; i < y + height; i++) {
     this->horizontal_line(x - radius, i, width + (radius * 2), color);
   }
@@ -605,16 +607,32 @@ void DisplayBuffer::show_page(DisplayPage *page) {
 }
 void DisplayBuffer::show_next_page() { this->page_->show_next(); }
 void DisplayBuffer::show_prev_page() { this->page_->show_prev(); }
+
+void DisplayBuffer::call_update() { this->do_update_(); }
+
 void DisplayBuffer::do_update_() {
-  if (this->auto_clear_enabled_) {
-    this->clear();
+  static bool prossing_update = false, need_update = false;
+  if (prossing_update) {
+    need_update = true;
+    return;
   }
-  if (this->page_ != nullptr) {
-    this->page_->get_writer()(*this);
-  } else if (this->writer_.has_value()) {
-    (*this->writer_)(*this);
-  }
+  do {
+    prossing_update = true;
+    need_update = false;
+    if (this->auto_clear_enabled_) {
+      this->clear();
+    }
+    if (this->page_ != nullptr) {
+      this->page_->get_writer()(*this);
+    } else if (this->writer_.has_value()) {
+      (*this->writer_)(*this);
+    }
+    if (!need_update)
+      this->display_();
+  } while (need_update);
+  prossing_update = false;
 }
+
 void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
     this->trigger(from, to);
