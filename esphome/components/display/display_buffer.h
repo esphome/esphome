@@ -701,7 +701,7 @@ class DisplayBuffer {
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
 
   uint8_t init_internal_(uint32_t buffer_length, uint8_t bytes_per_pixel = 1);
-  virtual void display_(){};
+  virtual void display(){};
 
   void do_update_();
 
