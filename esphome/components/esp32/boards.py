@@ -984,6 +984,9 @@ ESP32_BOARD_PINS = {
         "D13": 2,
     },
     "xinabox_cw02": {"LED": 27},
+    "upesy_wroom": {"LED": 2},
+    "upesy_wroom_lp": {},
+    "upesy_wrover": {"LED": 2},
 }
 
 """
@@ -1180,4 +1183,7 @@ BOARD_TO_VARIANT = {
     "wipy3": VARIANT_ESP32,
     "wt32-eth01": VARIANT_ESP32,
     "xinabox_cw02": VARIANT_ESP32,
+    "upesy_wroom": VARIANT_ESP32,
+    "upesy_wroom_lp": VARIANT_ESP32,
+    "upesy_wrover": VARIANT_ESP32,
 }
