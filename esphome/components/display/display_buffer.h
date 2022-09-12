@@ -117,14 +117,13 @@ struct Rect {
 
   inline Rect() ALWAYS_INLINE : x(32766), y(32766), w(32766), h(32766) {}  // NOLINT
   inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
-  inline int16_t x2() { return this->x + this->w;};  ///< X coordinate of corner
-  inline int16_t y2() { return this->y + this->h;};;  ///< Y coordinate of corner
-
+  inline int16_t x2() { return this->x + this->w; };  ///< X coordinate of corner
+  inline int16_t y2() { return this->y + this->h; };  ///< Y coordinate of corner
 
   inline bool is_set() ALWAYS_INLINE { return (this->h != 32766) && (this->w != 32766); }
 
-  inline void expand(int16_t width, int16_t height){
-    if ((*this).is_set() && ((*this).w >= (-2 * width)) && ( (*this).h >= (-2 * height))) { 
+  inline void expand(int16_t width, int16_t height) {
+    if ((*this).is_set() && ((*this).w >= (-2 * width)) && ((*this).h >= (-2 * height))) { 
       (*this).x = (*this).x - width;
       (*this).y = (*this).y - height;
       (*this).w = (*this).w + (2 * width);
@@ -139,25 +138,43 @@ struct Rect {
       this->w = rect.w;
       this->h = rect.h;
     } else {
-      if (this->x > rect.x) { this->x = rect.x; }
-      if (this->y > rect.y) { this->y = rect.y; }
-      if (this->x2() < rect.x2()) { this->w = rect.x2()-this->x; }
-      if (this->y2() < rect.y2()) { this->h = rect.y2()-this->y; }
+      if (this->x > rect.x) {
+        this->x = rect.x;
+      }
+      if (this->y > rect.y) {
+        this->y = rect.y;
+      }
+      if (this->x2() < rect.x2()) {
+        this->w = rect.x2()-this->x;
+      }
+      if (this->y2() < rect.y2()) {
+        this->h = rect.y2()-this->y;
+      }
     }
   }
   inline void substract(Rect rect) {
     if (!this->inside(rect)) {
       (*this) = Rect();
     } else {
-      if (this->x < rect.x) { this->x = rect.x; }
-      if (this->y < rect.y) { this->y = rect.y; }
-      if (this->x2() > rect.x2()) { this->w = rect.x2()-this->x; }
-      if (this->y2() > rect.y2()) { this->h = rect.y2()-this->y; }
+      if (this->x < rect.x) {
+        this->x = rect.x;
+      }
+      if (this->y < rect.y) {
+        this->y = rect.y;
+      }
+      if (this->x2() > rect.x2()) {
+        this->w = rect.x2()-this->x;
+      }
+      if (this->y2() > rect.y2()) {
+        this->h = rect.y2()-this->y;
+      }
     }
   }
 
   inline bool inside(int16_t x, int16_t y, bool absolute = false) {
-    if (!this->is_set()) return true;
+    if (!this->is_set()) {
+      return true;
+    }
     if (absolute) {
       return ((x >= 0) && (x <= this->w) && (y >= 0) && (y <= this->h));
     } else {
@@ -169,7 +186,6 @@ struct Rect {
     if (absolute) {
       return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
     } else {
-      ESP_LOGVV("TAG2", "rect inside = %s , %s , %s , %s", YESNO(rect.x <= this->x2()) , YESNO(rect.x2() >= this->x), YESNO(rect.y <= this->y2()) , YESNO(rect.y2() >= this->y));
       return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
     }
   }
@@ -178,9 +194,9 @@ struct Rect {
   //  this        x--------------w
   inline void info(std::string prefix = "rect info:") {
     if (this->is_set()) {
-      ESP_LOGI("Rect", "%s [%3d,%3d,%3d,%3d]",prefix.c_str(), this->x, this->y, this->w, this->h);
+      ESP_LOGI("Rect", "%s [%3d,%3d,%3d,%3d]", prefix.c_str(), this->x, this->y, this->w, this->h);
     } else
-      ESP_LOGI("Rect", "%s ** NOT SET **",prefix.c_str());
+      ESP_LOGI("Rect", "%s ** IS NOT SET **", prefix.c_str());
   }
 
 };
@@ -216,23 +232,26 @@ public:
   void draw_pixel_at(int x, int y, Color color = COLOR_ON);
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
-  void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON){
+  void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON) {
     line(x1, y1, x2, y2, color, color, GRADIENT_NONE);
   }
-  void line(int x1, int y1, int x2, int y2, Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+  void line(int x1, int y1, int x2, int y2, Color grandient_from, Color grandient_to,
+            GradientDirection direction = GRADIENT_HORIZONTAL);
 
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
   void horizontal_line(int x, int y, int width, Color color = COLOR_ON) {
     horizontal_line(x, y, width, color, color, GRADIENT_NONE);
   }
-  void horizontal_line(int x, int y, int width, Color grandient_from , Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+  void horizontal_line(int x, int y, int width, Color grandient_from , Color grandient_to,
+                       GradientDirection direction = GRADIENT_HORIZONTAL);
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  void vertical_line(int x, int y, int height, Color color = COLOR_ON){
+  void vertical_line(int x, int y, int height, Color color = COLOR_ON) {
     vertical_line(x, y, height, color, color, GRADIENT_NONE);
   }
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  void vertical_line(int x, int y, int height, Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+  void vertical_line(int x, int y, int height, Color grandient_from, Color grandient_to,
+                     GradientDirection direction = GRADIENT_HORIZONTAL);
 
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
@@ -242,11 +261,12 @@ public:
   void rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON) {
     rectangle(x, y, width, height, radius, color, color, GRADIENT_NONE);
   };
-  void rectangle(int x1, int y1, int width, int height, Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL){
+  void rectangle(int x1, int y1, int width, int height, Color grandient_from, Color grandient_to,
+                 GradientDirection direction = GRADIENT_HORIZONTAL) {
     rectangle(x1, y1, width, height, 0, grandient_from, grandient_to, direction);
   }
-  void rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from , Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
-
+  void rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from , Color grandient_to,
+                 GradientDirection direction = GRADIENT_HORIZONTAL);
 
   void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON) {
     filled_rectangle(x1, y1, width, height, 0, color, color, GRADIENT_NONE);
@@ -254,37 +274,41 @@ public:
   void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color color = COLOR_ON) {
     filled_rectangle(x, y, width, height, radius, color, color, GRADIENT_NONE);
   };
-  void filled_rectangle(int x1, int y1, int width, int height, Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL){
+  void filled_rectangle(int x1, int y1, int width, int height, Color grandient_from, Color grandient_to,
+                        GradientDirection direction = GRADIENT_HORIZONTAL) {
     filled_rectangle(x1, y1, width, height, 0, grandient_from, grandient_to, direction);
   }
-  void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from , Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+  void filled_rectangle(int x, int y, int width, int height, int16_t radius, Color grandient_from , Color grandient_to,
+                        GradientDirection direction = GRADIENT_HORIZONTAL);
 
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON){
+  void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON) {
     circle(center_x, center_xy, radius, color, color, GRADIENT_NONE);
  }
-  void circle(int center_x, int center_xy, int radius, Color color, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+  void circle(int center_x, int center_xy, int radius, Color grandient_from, Color grandient_to,
+              GradientDirection direction = GRADIENT_HORIZONTAL);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON){
+  void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON) {
     filled_circle(center_x, center_y, radius, color, color, GRADIENT_NONE);
   }
-  void filled_circle(int center_x, int center_y, int radius, Color color, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+  void filled_circle(int center_x, int center_y, int radius, Color grandient_from, Color grandient_to,
+                     GradientDirection direction = GRADIENT_HORIZONTAL);
 
   void triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color = COLOR_ON)
   {
     triangle(x0, y0, x1, y1, x2, y2, color, color, GRADIENT_NONE);
   }
-  void triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color,
+  void triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color grandient_from,
                 Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
   // Draw a filled triangle
-  void filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color = COLOR_ON){
+  void filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, Color color = COLOR_ON) {
     filled_triangle(x0, y0, x1, y1, x2, y2, color, color, GRADIENT_NONE);
   }
   void filled_triangle(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2,
-                      Color color, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+                      Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
  ///
   /// Draw a framed quadrilateral
@@ -300,7 +324,7 @@ public:
   }
 
   void quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3,
-            Color color, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+            Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
 
   ///
@@ -317,14 +341,14 @@ public:
   }
 
   void filled_quad(int16_t x0, int16_t y0, int16_t x1, int16_t y1, int16_t x2, int16_t y2, int16_t x3, int16_t y3,
-                   Color color, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
+                   Color grandient_from, Color grandient_to, GradientDirection direction = GRADIENT_HORIZONTAL);
 
   void filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2,
                   int16_t angle_start, int16_t angle_end, Color color = COLOR_ON, int16_t quality = 255) {
     filled_arc(x, y, radius1, radius2,  angle_start, angle_end, color, color, 0, 0, quality);
   }
   void filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t radius2, int16_t angle_start, int16_t angle_end,
-                  Color color, Color grandient_to, int16_t gradient_angle_start, int16_t gradient_angle_range, int16_t quality = 255);
+                  Color grandient_from, Color grandient_to, int16_t gradient_angle_start, int16_t gradient_angle_range, int16_t quality = 255);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
