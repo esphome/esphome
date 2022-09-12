@@ -22,7 +22,7 @@ class EE895Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   void write_command_(uint16_t addr, uint16_t reg_cnt);
   float read_float_();
-  uint16_t calc_crc16_(const unsigned char buf[], unsigned char len);
+  uint16_t calc_crc16_(const uint8_t buf[], uint8_t len);
   sensor::Sensor *co2_sensor_;
   sensor::Sensor *temperature_sensor_;
   sensor::Sensor *pressure_sensor_;

@@ -103,12 +103,12 @@ float EE895Component::read_float_() {
   return value;
 }
 
-uint16_t EE895Component::calc_crc16_(const unsigned char buf[], unsigned char len) {
-  unsigned char crc_check_buf[22];
+uint16_t EE895Component::calc_crc16_(const uint8_t buf[], uint8_t len) {
+  uint8_t crc_check_buf[22];
   for (int i = 0; i < len; i++) {
     crc_check_buf[i + 1] = buf[i];
   }
-  crc_check_buf[0] = 0x5F;
+  crc_check_buf[0] = this->address_;
   return crc16(crc_check_buf, len);
 }
 }  // namespace ee895
