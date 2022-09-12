@@ -18,7 +18,7 @@ void ILI9341Display::setup() {
   this->x_high_ = 0;
   this->y_high_ = 0;
 
-  this->init_internal_();
+  this->init_internal_(this->get_buffer_length_());
 }
 
 void ILI9341Display::setup_pins_() {
