@@ -1,5 +1,7 @@
+---
 name: CI
 
+# yamllint disable-line rule:truthy
 on:
   push:
     branches: [dev, beta, release]
@@ -10,6 +12,7 @@ permissions:
   contents: read
 
 concurrency:
+  # yamllint disable-line rule:line-length
   group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
   cancel-in-progress: true
 
@@ -73,24 +76,28 @@ jobs:
             name: Run script/clang-tidy for ESP32 IDF
             options: --environment esp32-idf-tidy --grep USE_ESP_IDF
             pio_cache_key: tidyesp32-idf
+          - id: yamllint
+            name: Run yamllint
 
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v2
+        uses: actions/setup-python@v4
         id: python
         with:
-          python-version: '3.8'
+          python-version: "3.8"
 
       - name: Cache virtualenv
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: .venv
+          # yamllint disable-line rule:line-length
           key: venv-${{ steps.python.outputs.python-version }}-${{ hashFiles('requirements*.txt') }}
           restore-keys: |
             venv-${{ steps.python.outputs.python-version }}-
 
       - name: Set up virtualenv
+        # yamllint disable rule:line-length
         run: |
           python -m venv .venv
           source .venv/bin/activate
@@ -99,12 +106,14 @@ jobs:
           pip install -e .
           echo "$GITHUB_WORKSPACE/.venv/bin" >> $GITHUB_PATH
           echo "VIRTUAL_ENV=$GITHUB_WORKSPACE/.venv" >> $GITHUB_ENV
+        # yamllint enable rule:line-length
 
       # Use per check platformio cache because checks use different parts
       - name: Cache platformio
-        uses: actions/cache@v2
+        uses: actions/cache@v3
         with:
           path: ~/.platformio
+          # yamllint disable-line rule:line-length
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
         if: matrix.id == 'test' || matrix.id == 'clang-tidy'
 
@@ -131,7 +140,7 @@ jobs:
         if: matrix.id == 'ci-custom'
 
       - name: Lint Python
-        run: script/lint-python
+        run: script/lint-python -a
         if: matrix.id == 'lint-python'
 
       - run: esphome compile ${{ matrix.file }}
@@ -145,8 +154,9 @@ jobs:
           pytest -vv --tb=native tests
         if: matrix.id == 'pytest'
 
-      # Also run git-diff-index so that the step is marked as failed on formatting errors,
-      # since clang-format doesn't do anything but change files if -i is passed.
+      # Also run git-diff-index so that the step is marked as failed on
+      # formatting errors, since clang-format doesn't do anything but
+      # change files if -i is passed.
       - name: Run clang-format
         run: |
           script/clang-format -i
@@ -161,6 +171,11 @@ jobs:
           # Also cache libdeps, store them in a ~/.platformio subfolder
           PLATFORMIO_LIBDEPS_DIR: ~/.platformio/libdeps
 
+      - name: Run yamllint
+        if: matrix.id == 'yamllint'
+        uses: frenck/action-yamllint@v1.2.0
+
       - name: Suggested changes
         run: script/ci-suggest-changes
-        if: always() && (matrix.id == 'clang-tidy' || matrix.id == 'clang-format')
+        # yamllint disable-line rule:line-length
+        if: always() && (matrix.id == 'clang-tidy' || matrix.id == 'clang-format' || matrix.id == 'lint-python')

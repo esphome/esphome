@@ -149,6 +149,9 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 /// Calculate a CRC-8 checksum of \p data with size \p len.
 uint8_t crc8(uint8_t *data, uint8_t len);
 
+/// Calculate a CRC-16 checksum of \p data with size \p len.
+uint16_t crc16(const uint8_t *data, uint8_t len);
+
 /// Calculate a FNV-1 hash of \p str.
 uint32_t fnv1_hash(const std::string &str);
 
@@ -258,10 +261,10 @@ inline std::string to_string(const std::string &val) { return val; }
 /// Truncate a string to a specific length.
 std::string str_truncate(const std::string &str, size_t length);
 
-/// Extract the part of the string until either the first occurence of the specified character, or the end (requires str
-/// to be null-terminated).
+/// Extract the part of the string until either the first occurrence of the specified character, or the end
+/// (requires str to be null-terminated).
 std::string str_until(const char *str, char ch);
-/// Extract the part of the string until either the first occurence of the specified character, or the end.
+/// Extract the part of the string until either the first occurrence of the specified character, or the end.
 std::string str_until(const std::string &str, char ch);
 
 /// Convert the string to lower case.
@@ -414,6 +417,9 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
 
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
+
+/// Derive accuracy in decimals from an increment step.
+int8_t step_to_accuracy_decimals(float step);
 
 ///@}
 
@@ -600,7 +606,7 @@ template<class T> class ExternalRAMAllocator {
 
   ExternalRAMAllocator() = default;
   ExternalRAMAllocator(Flags flags) : flags_{flags} {}
-  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags} {}
+  template<class U> constexpr ExternalRAMAllocator(const ExternalRAMAllocator<U> &other) : flags_{other.flags_} {}
 
   T *allocate(size_t n) {
     size_t size = n * sizeof(T);

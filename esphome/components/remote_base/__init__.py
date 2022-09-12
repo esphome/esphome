@@ -32,7 +32,7 @@ from esphome.const import (
     CONF_LEVEL,
 )
 from esphome.core import coroutine
-from esphome.jsonschema import jschema_extractor
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 from esphome.util import Registry, SimpleRegistry
 
 AUTO_LOAD = ["binary_sensor"]
@@ -195,14 +195,14 @@ def validate_dumpers(value):
 def validate_triggers(base_schema):
     assert isinstance(base_schema, cv.Schema)
 
-    @jschema_extractor("triggers")
+    @schema_extractor("triggers")
     def validator(config):
         added_keys = {}
         for key, (_, valid) in TRIGGER_REGISTRY.items():
             added_keys[cv.Optional(key)] = valid
         new_schema = base_schema.extend(added_keys)
-        # pylint: disable=comparison-with-callable
-        if config == jschema_extractor:
+
+        if config == SCHEMA_EXTRACT:
             return new_schema
         return new_schema(config)
 
@@ -744,7 +744,8 @@ def rc6_binary_sensor(var, config):
         var.set_data(
             cg.StructInitializer(
                 RC6Data,
-                ("device", config[CONF_DEVICE]),
+                ("mode", 0),
+                ("toggle", 0),
                 ("address", config[CONF_ADDRESS]),
                 ("command", config[CONF_COMMAND]),
             )
@@ -1337,3 +1338,48 @@ def midea_dumper(var, config):
 )
 async def midea_action(var, config, args):
     cg.add(var.set_code(config[CONF_CODE]))
+
+
+# AEHA
+AEHAData, AEHABinarySensor, AEHATrigger, AEHAAction, AEHADumper = declare_protocol(
+    "AEHA"
+)
+AEHA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Required(CONF_DATA): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=2, max=35),
+        ),
+    }
+)
+
+
+@register_binary_sensor("aeha", AEHABinarySensor, AEHA_SCHEMA)
+def aeha_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                AEHAData,
+                ("address", config[CONF_ADDRESS]),
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("aeha", AEHATrigger, AEHAData)
+def aeha_trigger(var, config):
+    pass
+
+
+@register_dumper("aeha", AEHADumper)
+def aeha_dumper(var, config):
+    pass
+
+
+@register_action("aeha", AEHAAction, AEHA_SCHEMA)
+async def aeha_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    cg.add(var.set_address(template_))
+    cg.add(var.set_data(config[CONF_DATA]))

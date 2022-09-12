@@ -73,6 +73,9 @@ class APIServer : public Component, public Controller {
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
+#ifdef USE_BLUETOOTH_PROXY
+  void send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &call);
+#endif
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();

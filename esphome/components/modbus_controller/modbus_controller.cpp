@@ -70,7 +70,7 @@ void ModbusController::on_modbus_error(uint8_t function_code, uint8_t exception_
   auto &current_command = this->command_queue_.front();
   if (current_command != nullptr) {
     ESP_LOGE(TAG,
-             "Modbus error - last command: function code=0x%X  register adddress = 0x%X  "
+             "Modbus error - last command: function code=0x%X  register address = 0x%X  "
              "registers count=%d "
              "payload size=%zu",
              function_code, current_command->register_address, current_command->register_count,
@@ -105,11 +105,10 @@ void ModbusController::on_register_data(ModbusRegisterType register_type, uint16
 }
 
 void ModbusController::queue_command(const ModbusCommandItem &command) {
-  // check if this commmand is already qeued.
+  // check if this command is already qeued.
   // not very effective but the queue is never really large
   for (auto &item : command_queue_) {
-    if (item->register_address == command.register_address && item->register_count == command.register_count &&
-        item->register_type == command.register_type && item->function_code == command.function_code) {
+    if (item->is_equal(command)) {
       ESP_LOGW(TAG, "Duplicate modbus command found: type=0x%x address=%u count=%u",
                static_cast<uint8_t>(command.register_type), command.register_address, command.register_count);
       // update the payload of the queued command
@@ -237,7 +236,7 @@ size_t ModbusController::create_register_ranges_() {
       }
     }
 
-    if (curr->start_address == r.start_address) {
+    if (curr->start_address == r.start_address && curr->register_type == r.register_type) {
       // use the lowest non zero value for the whole range
       // Because zero is the default value for skip_updates it is excluded from getting the min value.
       if (curr->skip_updates != 0) {
@@ -299,7 +298,7 @@ void ModbusController::loop() {
     incoming_queue_.pop();
 
   } else {
-    // all messages processed send pending commmands
+    // all messages processed send pending commands
     send_next_command_();
   }
 }
@@ -487,6 +486,15 @@ bool ModbusCommandItem::send() {
   ESP_LOGV(TAG, "Command sent %d 0x%X %d", uint8_t(this->function_code), this->register_address, this->register_count);
   send_countdown--;
   return true;
+}
+
+bool ModbusCommandItem::is_equal(const ModbusCommandItem &other) {
+  // for custom commands we have to check for identical payloads, since
+  // address/count/type fields will be set to zero
+  return this->function_code == ModbusFunctionCode::CUSTOM
+             ? this->payload == other.payload
+             : other.register_address == this->register_address && other.register_count == this->register_count &&
+                   other.register_type == this->register_type && other.function_code == this->function_code;
 }
 
 void number_to_payload(std::vector<uint16_t> &data, int64_t value, SensorValueType value_type) {
