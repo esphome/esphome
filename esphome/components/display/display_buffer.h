@@ -598,7 +598,7 @@ public:
   void substract_clipping(Rect rect);
   void substract_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
     this->substract_clipping(Rect(left, top, right, bottom));
-  };
+ };
 
   ///
   /// Reset the invalidation region
@@ -755,13 +755,15 @@ class Font {
   int match_next_glyph(const char *str, int *match_length);
 
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
-
+  int get_baseline() {return this->baseline_;}
+  int get_height() {return this->height_;}
+  
   const std::vector<Glyph> &get_glyphs() const;
 
  protected:
   std::vector<Glyph> glyphs_;
   int baseline_;
-  int bottom_;
+  int height_;
 };
 
 class Image {

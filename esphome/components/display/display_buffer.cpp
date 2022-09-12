@@ -817,7 +817,7 @@ int Font::match_next_glyph(const char *str, int *match_length) {
 }
 void Font::measure(const char *str, int *width, int *x_offset, int *baseline, int *height) {
   *baseline = this->baseline_;
-  *height = this->bottom_;
+  *height = this->height_;
   int i = 0;
   int min_x = 0;
   bool has_char = false;
@@ -848,7 +848,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   *width = x - min_x;
 }
 const std::vector<Glyph> &Font::get_glyphs() const { return this->glyphs_; }
-Font::Font(const GlyphData *data, int data_nr, int baseline, int bottom) : baseline_(baseline), bottom_(bottom) {
+Font::Font(const GlyphData *data, int data_nr, int baseline, int height) : baseline_(baseline), height_(height) {
   for (int i = 0; i < data_nr; ++i)
     glyphs_.emplace_back(data + i);
 }
