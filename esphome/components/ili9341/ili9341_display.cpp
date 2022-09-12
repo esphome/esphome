@@ -50,7 +50,6 @@ void ILI9341Display::update() {
   this->display_();
 }
 
-
 float ILI9341Display::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void ILI9341Display::command(uint8_t value) {
@@ -109,7 +108,7 @@ void ILI9341Display::display_() {
   set_addr_window_(this->x_low_, this->y_low_, w, h);
 
   ESP_LOGVV("ILI9341", "Start ILI9341Display::display_(xl:%d, xh:%d, yl:%d, yh:%d, w:%d, h:%d, start_pos:%d)",
-           this->x_low_, this->x_high_, this->y_low_, this->y_high_, w, h, start_pos);
+            this->x_low_, this->x_high_, this->y_low_, this->y_high_, w, h, start_pos);
 
   this->start_data_();
   for (uint16_t row = 0; row < h; row++) {
