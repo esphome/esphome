@@ -136,7 +136,7 @@ void XPT2046Component::check_touch_() {
   }
 }
 
-void XPT2046Component::set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) { // NOLINT
+void XPT2046Component::set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) {  // NOLINT
   this->x_raw_min_ = std::min(x_min, x_max);
   this->x_raw_max_ = std::max(x_min, x_max);
   this->y_raw_min_ = std::min(y_min, y_max);

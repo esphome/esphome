@@ -350,7 +350,7 @@ binary_sensor:
     y_min: 106
     y_max: 212
     on_press:
-      - lambda: 'ESP_LOGI("main", "key0: %s", (x ? "touch" : "release"));'
+      - logger.log: Touched
 
   - platform: gpio
     name: GPIO SX1509 test
