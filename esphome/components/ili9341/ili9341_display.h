@@ -5,7 +5,6 @@
 #include "esphome/components/display/display_buffer.h"
 #include "ili9341_defines.h"
 #include "ili9341_init.h"
-#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ili9341 {
@@ -26,6 +25,17 @@ class ILI9341Display : public PollingComponent,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                              spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_40MHZ> {
  public:
+
+  void dump_config() override;
+  void setup() override;
+
+  void update() override ;
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
+  void fill(Color color) override;
+
+
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
@@ -38,31 +48,11 @@ class ILI9341Display : public PollingComponent,
   void data(uint8_t value);
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);
   uint8_t read_command(uint8_t command_byte, uint8_t index);
-  virtual void initialize() = 0;
-
-  void update() override;
-
-  void fill(Color color) override;
-
-  void dump_config() override;
-  void setup() override {
-    this->setup_pins_();
-    this->initialize();
-
-    this->x_low_ = this->width_;
-    this->y_low_ = this->height_;
-    this->x_high_ = 0;
-    this->y_high_ = 0;
-
-    this->init_internal_(this->get_buffer_length_());
-    this->fill_internal_(0x00);
-  }
-
-  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void setup_pins_();
+  virtual void initialize_() = 0;
 
   void init_lcd_(const uint8_t *init_cmd);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
@@ -104,20 +94,20 @@ class ILI9341Display : public PollingComponent,
 
 //-----------   M5Stack display --------------
 class ILI9341M5Stack : public ILI9341Display {
- public:
-  void initialize() override;
+ protected:
+  void initialize_() override;
 };
 
 //-----------   ILI9341_24_TFT display --------------
 class ILI9341TFT24 : public ILI9341Display {
- public:
-  void initialize() override;
+ protected:
+  void initialize_() override;
 };
 
 //-----------   ILI9341_24_TFT rotated display --------------
 class ILI9341TFT24R : public ILI9341Display {
- public:
-  void initialize() override;
+ protected:
+  void initialize_() override;
 };
 
 }  // namespace ili9341

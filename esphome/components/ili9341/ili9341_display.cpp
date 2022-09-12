@@ -9,6 +9,18 @@ namespace ili9341 {
 
 static const char *const TAG = "ili9341";
 
+void ILI9341Display::setup() {
+  this->setup_pins_();
+  this->initialize_();
+
+  this->x_low_ = this->width_;
+  this->y_low_ = this->height_;
+  this->x_high_ = 0;
+  this->y_high_ = 0;
+
+  this->init_internal_();
+}
+
 void ILI9341Display::setup_pins_() {
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
@@ -32,6 +44,12 @@ void ILI9341Display::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+
+void ILI9341Display::update() {
+  this->do_update_();
+  this->display_();
+}
+
 
 float ILI9341Display::get_setup_priority() const { return setup_priority::HARDWARE; }
 
@@ -77,15 +95,10 @@ uint8_t ILI9341Display::read_command(uint8_t command_byte, uint8_t index) {
   return result;
 }
 
-void ILI9341Display::update() {
-  this->do_update_();
-  this->display_();
-}
-
 void ILI9341Display::display_() {
   // we will only update the changed window to the display
-  uint16_t w = this->x_high_ - this->x_low_ + 1;
-  uint16_t h = this->y_high_ - this->y_low_ + 1;
+  uint16_t w = this->x_high_ - this->x_low_ + 1;  // NOLINT
+  uint16_t h = this->y_high_ - this->y_low_ + 1;  // NOLINT
   uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
 
   // check if something was displayed
@@ -96,7 +109,7 @@ void ILI9341Display::display_() {
   set_addr_window_(this->x_low_, this->y_low_, w, h);
 
   ESP_LOGVV("ILI9341", "Start ILI9341Display::display_(xl:%d, xh:%d, yl:%d, yh:%d, w:%d, h:%d, start_pos:%d)",
-            this->x_low_, this->x_high_, this->y_low_, this->y_high_, w, h, start_pos);
+           this->x_low_, this->x_high_, this->y_low_, this->y_high_, w, h, start_pos);
 
   this->start_data_();
   for (uint16_t row = 0; row < h; row++) {
@@ -139,7 +152,7 @@ void ILI9341Display::fill_internal_(uint8_t color) {
   this->start_data_();
 
   while (rem > 0) {
-    size_t sz = rem <= sizeof(transfer_buffer_) ? rem : sizeof(transfer_buffer_);
+    size_t sz = rem <= sizeof(transfer_buffer_) ? rem : sizeof(transfer_buffer_);  // NOLINT
     this->write_array(transfer_buffer_, sz);
     rem -= sz;
   }
@@ -278,7 +291,7 @@ uint32_t ILI9341Display::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
 }
 
 //   M5Stack display
-void ILI9341M5Stack::initialize() {
+void ILI9341M5Stack::initialize_() {
   this->init_lcd_(INITCMD_M5STACK);
   this->width_ = 320;
   this->height_ = 240;
@@ -286,14 +299,14 @@ void ILI9341M5Stack::initialize() {
 }
 
 //   24_TFT display
-void ILI9341TFT24::initialize() {
+void ILI9341TFT24::initialize_() {
   this->init_lcd_(INITCMD_TFT);
   this->width_ = 240;
   this->height_ = 320;
 }
 
 //   24_TFT rotated display
-void ILI9341TFT24R::initialize() {
+void ILI9341TFT24R::initialize_() {
   this->init_lcd_(INITCMD_TFT);
   this->width_ = 320;
   this->height_ = 240;
