@@ -631,7 +631,6 @@ touchscreen:
     swap_x_y: false
     on_touch:
       # yamllint disable rule:line-length
-      - lambda: |-
       - logger.log:
           format: Touch at (%d, %d)
           args: [touch.x, touch.y]
