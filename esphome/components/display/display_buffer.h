@@ -5,7 +5,7 @@
 #include "esphome/core/automation.h"
 #include "display_color_utils.h"
 #include "esphome/core/helpers.h"
-
+#include "esphome/core/log.h"
 #include <cstdarg>
 
 #ifdef USE_TIME
