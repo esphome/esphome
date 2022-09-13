@@ -340,6 +340,20 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::Me
       return "UNKNOWN";
   }
 }
+template<> const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
+  switch (value) {
+    case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
+      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT";
+    case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT:
+      return "BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT";
+    case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
+      return "BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR";
+    case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
+      return "BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR";
+    default:
+      return "UNKNOWN";
+  }
+}
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -4999,6 +5013,312 @@ void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
   }
   out.append("}");
 }
+#endif
+bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->request_type = value.as_enum<enums::BluetoothDeviceRequestType>();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothDeviceRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_enum<enums::BluetoothDeviceRequestType>(2, this->request_type);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothDeviceRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothDeviceRequest {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  request_type: ");
+  out.append(proto_enum_to_string<enums::BluetoothDeviceRequestType>(this->request_type));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothGATTGetServicesRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothGATTGetServicesRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_uint64(1, this->address); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTGetServicesRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothGATTGetServicesRequest {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothGATTService::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->is_primary = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->instance_id = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool BluetoothGATTService::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->uuid = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothGATTService::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->uuid);
+  buffer.encode_bool(2, this->is_primary);
+  buffer.encode_uint32(3, this->instance_id);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTService::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothGATTService {\n");
+  out.append("  uuid: ");
+  out.append("'").append(this->uuid).append("'");
+  out.append("\n");
+
+  out.append("  is_primary: ");
+  out.append(YESNO(this->is_primary));
+  out.append("\n");
+
+  out.append("  instance_id: ");
+  sprintf(buffer, "%u", this->instance_id);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothGATTGetServicesResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool BluetoothGATTGetServicesResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->services.push_back(value.as_message<BluetoothGATTService>());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothGATTGetServicesResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  for (auto &it : this->services) {
+    buffer.encode_message<BluetoothGATTService>(2, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTGetServicesResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothGATTGetServicesResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  for (const auto &it : this->services) {
+    out.append("  services: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+  out.append("}");
+}
+#endif
+bool BluetoothGATTReadRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->is_descriptor = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool BluetoothGATTReadRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 3: {
+      this->service_uuid = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->characteristic_uuid = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothGATTReadRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->is_descriptor);
+  buffer.encode_string(3, this->service_uuid);
+  buffer.encode_string(4, this->characteristic_uuid);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTReadRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothGATTReadRequest {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  is_descriptor: ");
+  out.append(YESNO(this->is_descriptor));
+  out.append("\n");
+
+  out.append("  service_uuid: ");
+  out.append("'").append(this->service_uuid).append("'");
+  out.append("\n");
+
+  out.append("  characteristic_uuid: ");
+  out.append("'").append(this->characteristic_uuid).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothGATTReadResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->data.push_back(value.as_uint32());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothGATTReadResponse::encode(ProtoWriteBuffer buffer) const {
+  for (auto &it : this->data) {
+    buffer.encode_uint32(1, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTReadResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothGATTReadResponse {\n");
+  for (const auto &it : this->data) {
+    out.append("  data: ");
+    sprintf(buffer, "%u", it);
+    out.append(buffer);
+    out.append("\n");
+  }
+  out.append("}");
+}
+#endif
+bool BluetoothGATTWriteRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->is_descriptor = value.as_bool();
+      return true;
+    }
+    case 5: {
+      this->data.push_back(value.as_uint32());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool BluetoothGATTWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 3: {
+      this->service_uuid = value.as_string();
+      return true;
+    }
+    case 4: {
+      this->characteristic_uuid = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothGATTWriteRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->is_descriptor);
+  buffer.encode_string(3, this->service_uuid);
+  buffer.encode_string(4, this->characteristic_uuid);
+  for (auto &it : this->data) {
+    buffer.encode_uint32(5, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTWriteRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothGATTWriteRequest {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  is_descriptor: ");
+  out.append(YESNO(this->is_descriptor));
+  out.append("\n");
+
+  out.append("  service_uuid: ");
+  out.append("'").append(this->service_uuid).append("'");
+  out.append("\n");
+
+  out.append("  characteristic_uuid: ");
+  out.append("'").append(this->characteristic_uuid).append("'");
+  out.append("\n");
+
+  for (const auto &it : this->data) {
+    out.append("  data: ");
+    sprintf(buffer, "%u", it);
+    out.append(buffer);
+    out.append("\n");
+  }
+  out.append("}");
+}
+#endif
+void BluetoothGATTWriteResponse::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTWriteResponse::dump_to(std::string &out) const { out.append("BluetoothGATTWriteResponse {}"); }
 #endif
 
 }  // namespace api

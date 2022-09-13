@@ -12,6 +12,9 @@
 #ifdef USE_HOMEASSISTANT_TIME
 #include "esphome/components/homeassistant/time/homeassistant_time.h"
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+#include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
+#endif
 
 namespace esphome {
 namespace api {
@@ -820,6 +823,18 @@ void APIConnection::camera_image(const CameraImageRequest &msg) {
 void APIConnection::on_get_time_response(const GetTimeResponse &value) {
   if (homeassistant::global_homeassistant_time != nullptr)
     homeassistant::global_homeassistant_time->set_epoch_time(value.epoch_seconds);
+}
+#endif
+
+#ifdef USE_BLUETOOTH_PROXY
+void APIConnection::bluetooth_device_request(const BluetoothDeviceRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_device_request(msg);
+}
+void APIConnection::bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_read(msg);
+}
+void APIConnection::bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_write(msg);
 }
 #endif
 

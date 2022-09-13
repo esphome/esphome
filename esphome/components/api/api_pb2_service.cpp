@@ -185,8 +185,7 @@ bool APIServerConnectionBase::send_homeassistant_service_response(const Homeassi
 #endif
   return this->send_message_<HomeassistantServiceResponse>(msg, 35);
 }
-bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
-    const SubscribeHomeAssistantStateResponse &msg) {
+bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_subscribe_home_assistant_state_response: %s", msg.dump().c_str());
 #endif
@@ -334,6 +333,38 @@ bool APIServerConnectionBase::send_bluetooth_le_advertisement_response(const Blu
   ESP_LOGVV(TAG, "send_bluetooth_le_advertisement_response: %s", msg.dump().c_str());
 #endif
   return this->send_message_<BluetoothLEAdvertisementResponse>(msg, 67);
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+bool APIServerConnectionBase::send_bluetooth_gatt_get_services_response(const BluetoothGATTGetServicesResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_bluetooth_gatt_get_services_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<BluetoothGATTGetServicesResponse>(msg, 72);
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+bool APIServerConnectionBase::send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_bluetooth_gatt_read_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<BluetoothGATTReadResponse>(msg, 74);
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+bool APIServerConnectionBase::send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_bluetooth_gatt_write_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<BluetoothGATTWriteResponse>(msg, 76);
 }
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
@@ -612,6 +643,50 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       this->on_subscribe_bluetooth_le_advertisements_request(msg);
       break;
     }
+    case 70: {
+#ifdef USE_BLUETOOTH_PROXY
+      BluetoothDeviceRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_bluetooth_device_request: %s", msg.dump().c_str());
+#endif
+      this->on_bluetooth_device_request(msg);
+#endif
+      break;
+    }
+    case 71: {
+#ifdef USE_BLUETOOTH_PROXY
+      BluetoothGATTGetServicesRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_bluetooth_gatt_get_services_request: %s", msg.dump().c_str());
+#endif
+      this->on_bluetooth_gatt_get_services_request(msg);
+#endif
+      break;
+    }
+    case 73: {
+#ifdef USE_BLUETOOTH_PROXY
+      BluetoothGATTReadRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_bluetooth_gatt_read_request: %s", msg.dump().c_str());
+#endif
+      this->on_bluetooth_gatt_read_request(msg);
+#endif
+      break;
+    }
+    case 75: {
+#ifdef USE_BLUETOOTH_PROXY
+      BluetoothGATTWriteRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_bluetooth_gatt_write_request: %s", msg.dump().c_str());
+#endif
+      this->on_bluetooth_gatt_write_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -685,8 +760,7 @@ void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &
   }
   this->subscribe_logs(msg);
 }
-void APIServerConnection::on_subscribe_homeassistant_services_request(
-    const SubscribeHomeassistantServicesRequest &msg) {
+void APIServerConnection::on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -707,18 +781,6 @@ void APIServerConnection::on_subscribe_home_assistant_states_request(const Subsc
     return;
   }
   this->subscribe_home_assistant_states(msg);
-}
-void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(
-    const SubscribeBluetoothLEAdvertisementsRequest &msg) {
-  if (!this->is_connection_setup()) {
-    this->on_no_setup_connection();
-    return;
-  }
-  if (!this->is_authenticated()) {
-    this->on_unauthenticated_access();
-    return;
-  }
-  this->subscribe_bluetooth_le_advertisements(msg);
 }
 void APIServerConnection::on_get_time_request(const GetTimeRequest &msg) {
   if (!this->is_connection_setup()) {
@@ -882,6 +944,56 @@ void APIServerConnection::on_media_player_command_request(const MediaPlayerComma
     return;
   }
   this->media_player_command(msg);
+}
+#endif
+void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->subscribe_bluetooth_le_advertisements(msg);
+}
+#ifdef USE_BLUETOOTH_PROXY
+void APIServerConnection::on_bluetooth_device_request(const BluetoothDeviceRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->bluetooth_device_request(msg);
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+void APIServerConnection::on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->bluetooth_gatt_read(msg);
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+void APIServerConnection::on_bluetooth_gatt_write_request(const BluetoothGATTWriteRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->bluetooth_gatt_write(msg);
 }
 #endif
 

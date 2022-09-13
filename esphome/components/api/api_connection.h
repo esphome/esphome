@@ -7,10 +7,6 @@
 #include "api_server.h"
 #include "api_frame_helper.h"
 
-#ifdef USE_BLUETOOTH_PROXY
-#include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
-#endif
-
 namespace esphome {
 namespace api {
 
@@ -104,6 +100,9 @@ class APIConnection : public APIServerConnection {
       return false;
     return this->send_bluetooth_le_advertisement_response(call);
   }
+  void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
+  void bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) override;
+  void bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) override;
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void send_time_request() {
