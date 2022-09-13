@@ -162,7 +162,7 @@ void ILI9341Display::fill_internal_(uint8_t color) {
 }
 
 void ILI9341Display::rotate_my_(uint8_t m) {  // NOLINT
-  uint8_t rotation = m & 3;  // can't be higher than 3
+  uint8_t rotation = m & 3;                   // can't be higher than 3
   switch (rotation) {
     case 0:
       m = (MADCTL_MX | MADCTL_BGR);
