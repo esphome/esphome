@@ -101,6 +101,7 @@ async def to_code(config):
 
     cg.add(var.set_threshold(config[CONF_THRESHOLD]))
     cg.add(var.set_report_interval(config[CONF_REPORT_INTERVAL]))
+    cg.add(var.set_swap_x_y(config[CONF_SWAP_X_Y]))
     cg.add(
         var.set_calibration(
             config[CONF_CALIBRATION_X_MIN],
@@ -109,9 +110,6 @@ async def to_code(config):
             config[CONF_CALIBRATION_Y_MAX],
         )
     )
-
-    if CONF_SWAP_X_Y in config:
-        cg.add(var.set_swap_x_y(config[CONF_SWAP_X_Y]))
 
     if CONF_INTERRUPT_PIN in config:
         pin = await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
