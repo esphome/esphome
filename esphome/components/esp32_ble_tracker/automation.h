@@ -76,6 +76,14 @@ class BLEManufacturerDataAdvertiseTrigger : public Trigger<const adv_data_t &>, 
   ESPBTUUID uuid_;
 };
 
+class BLEEndOfScanTrigger : public Trigger<>, public ESPBTDeviceListener {
+ public:
+  explicit BLEEndOfScanTrigger(ESP32BLETracker *parent) { parent->register_listener(this); }
+
+  bool parse_device(const ESPBTDevice &device) override { return false; }
+  void on_scan_end() override { this->trigger(); }
+};
+
 }  // namespace esp32_ble_tracker
 }  // namespace esphome
 

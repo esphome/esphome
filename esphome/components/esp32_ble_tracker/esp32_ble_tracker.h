@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 #include "queue.h"
 
@@ -171,6 +172,7 @@ class ESP32BLETracker : public Component {
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
   void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
   void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
+  void set_scan_continuous(bool scan_continuous) { scan_continuous_ = scan_continuous; }
 
   /// Setup the FreeRTOS task and the Bluetooth stack.
   void setup() override;
@@ -188,11 +190,15 @@ class ESP32BLETracker : public Component {
 
   void print_bt_device_info(const ESPBTDevice &device);
 
+  void start_scan();
+
  protected:
   /// The FreeRTOS task managing the bluetooth interface.
   static bool ble_setup();
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.
   void start_scan_(bool first);
+  /// Called when a scan ends
+  void end_of_scan_();
   /// Callback that will handle all GAP events and redistribute them to other callbacks.
   static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
   void real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
@@ -221,7 +227,9 @@ class ESP32BLETracker : public Component {
   uint32_t scan_duration_;
   uint32_t scan_interval_;
   uint32_t scan_window_;
+  bool scan_continuous_;
   bool scan_active_;
+  bool scanner_idle_;
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};
@@ -234,6 +242,19 @@ class ESP32BLETracker : public Component {
 
 // NOLINTNEXTLINE
 extern ESP32BLETracker *global_esp32_ble_tracker;
+
+template<typename... Ts> class ESP32BLEStartScanAction : public Action<Ts...> {
+ public:
+  ESP32BLEStartScanAction(ESP32BLETracker *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(bool, continuous)
+  void play(Ts... x) override {
+    this->parent_->set_scan_continuous(this->continuous_.value(x...));
+    this->parent_->start_scan();
+  }
+
+ protected:
+  ESP32BLETracker *parent_;
+};
 
 }  // namespace esp32_ble_tracker
 }  // namespace esphome
