@@ -1,3 +1,4 @@
+---
 # Uptime sensor.
 platform: uptime
 id: ${devicename}_uptime_pcg
