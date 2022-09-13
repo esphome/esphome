@@ -57,7 +57,7 @@ class ILI9341Display : public PollingComponent,
   void invert_display_(bool invert);
   void reset_();
   void fill_internal_(uint8_t color);
-  void display() override;
+  void display();
   void rotate_my_(uint8_t m);
 
   ILI9341Model model_;
