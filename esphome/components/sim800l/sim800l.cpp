@@ -16,6 +16,9 @@ void Sim800LComponent::update() {
     this->write(26);
   }
 
+  if (this->expect_ack_)
+    return;
+
   if (state_ == STATE_INIT) {
     if (this->registered_ && this->send_pending_) {
       this->send_cmd_("AT+CSCS=\"GSM\"");
@@ -25,6 +28,7 @@ void Sim800LComponent::update() {
       this->state_ = STATE_DIALING1;
     } else if (this->registered_ && this->connect_pending_) {
       this->connect_pending_ = false;
+      ESP_LOGI(TAG, "Connecting...");
       this->send_cmd_("ATA");
       this->state_ = STATE_ATA_SENT;
     } else if (this->registered_ && this->send_ussd_pending_) {
@@ -32,14 +36,18 @@ void Sim800LComponent::update() {
       this->state_ = STATE_SEND_USSD1;
     } else if (this->registered_ && this->disconnect_pending_) {
       this->disconnect_pending_ = false;
+      ESP_LOGI(TAG, "Disconnecting...");
       this->send_cmd_("ATH");
+    } else if (this->registered_ && this->call_state_ != 6) {
+      send_cmd_("AT+CLCC");
+      this->state_ = STATE_CHECK_CALL;
+      return;
     } else {
       this->send_cmd_("AT");
       this->state_ = STATE_SETUP_CMGF;
     }
     this->expect_ack_ = true;
-  }
-  if (state_ == STATE_RECEIVED_SMS) {
+  } else if (state_ == STATE_RECEIVED_SMS) {
     // Serial Buffer should have flushed.
     // Send cmd to delete received sms
     char delete_cmd[20];
@@ -54,6 +62,7 @@ void Sim800LComponent::send_cmd_(const std::string &message) {
   ESP_LOGV(TAG, "S: %s - %d", message.c_str(), this->state_);
   this->watch_dog_ = 0;
   this->write_str(message.c_str());
+  this->write_byte(ASCII_CR);
   this->write_byte(ASCII_LF);
 }
 
@@ -63,8 +72,21 @@ void Sim800LComponent::parse_cmd_(std::string message) {
 
   ESP_LOGV(TAG, "R: %s - %d", message.c_str(), this->state_);
 
+  if (this->state_ != STATE_RECEIVE_SMS) {
+    if (message == "RING") {
+      // Incoming call...
+      this->state_ = STATE_PARSE_CLIP;
+      this->expect_ack_ = false;
+    } else if (message == "NO CARRIER") {
+      if (this->call_state_ != 6) {
+        this->call_state_ = 6;
+        this->call_disconnected_callback_.call();
+      }
+    }
+  }
+
+  bool ok = message == "OK";
   if (this->expect_ack_) {
-    bool ok = message == "OK";
     this->expect_ack_ = false;
     if (!ok) {
       if (this->state_ == STATE_SETUP_CMGF && message == "AT") {
@@ -77,6 +99,10 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         return;
       }
     }
+  } else if (ok && (this->state_ != STATE_PARSE_SMS_RESPONSE && this->state_ != STATE_CHECK_CALL &&
+                    this->state_ != STATE_RECEIVE_SMS && this->state_ != STATE_DIALING2)) {
+    ESP_LOGW(TAG, "Received unexpected OK. Ignoring");
+    return;
   }
 
   switch (this->state_) {
@@ -182,7 +208,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
           this->state_ = STATE_SETUP_CMGF;
         } else {
           // Keep waiting registration
-          this->state_ = STATE_CREG;
+          this->state_ = STATE_INIT;
         }
       }
       set_registered_(registered);
@@ -242,13 +268,14 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->state_ = STATE_RECEIVE_SMS;
       }
       // Otherwise we receive another OK
-      if (message == "OK") {
-        this->state_ = STATE_CHECK_CALL;
+      if (ok) {
         send_cmd_("AT+CLCC");
+        this->state_ = STATE_CHECK_CALL;
       }
       break;
     case STATE_CHECK_CALL:
       if (message.compare(0, 6, "+CLCC:") == 0 && this->parse_index_ == 0) {
+        this->expect_ack_ = true;
         size_t start = 7;
         size_t end = message.find(',', start);
         uint8_t item = 0;
@@ -276,8 +303,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
           ESP_LOGD(TAG, "Invalid message %d %s", this->state_, message.c_str());
           return;
         }
-        this->state_ = STATE_RECEIVE_SMS;
-      } else if (message == "OK") {
+      } else if (ok) {
         if (this->call_state_ != 6) {
           // no call in progress
           this->call_state_ = 6;  // Disconnect
@@ -290,14 +316,15 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       /* Our recipient is set and the message body is in message
         kick ESPHome callback now
       */
-      if (message == "OK" || message.compare(0, 6, "+CMGL:") == 0) {
+      if (ok || message.compare(0, 6, "+CMGL:") == 0) {
         ESP_LOGD(TAG, "Received SMS from: %s", this->sender_.c_str());
         ESP_LOGD(TAG, "%s", this->message_.c_str());
         this->sms_received_callback_.call(this->message_, this->sender_);
         this->state_ = STATE_RECEIVED_SMS;
       } else {
+        if (this->message_.length() > 0)
+          this->message_ += "\n";
         this->message_ += message;
-        this->message_ += "\n";
       }
       break;
     case STATE_RECEIVED_SMS:
@@ -313,7 +340,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
     case STATE_SENDING_SMS_2:
       if (message == ">") {
         // Send sms body
-        ESP_LOGD(TAG, "Sending message: '%s'", this->outgoing_message_.c_str());
+        ESP_LOGI(TAG, "Sending to %s message: '%s'", this->recipient_.c_str(), this->outgoing_message_.c_str());
         this->write_str(this->outgoing_message_.c_str());
         this->write(26);
         this->state_ = STATE_SENDING_SMS_3;
@@ -337,7 +364,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       this->state_ = STATE_DIALING2;
       break;
     case STATE_DIALING2:
-      if (message == "OK") {
+      if (ok) {
         ESP_LOGI(TAG, "Dialing: '%s'", this->recipient_.c_str());
         this->dial_pending_ = false;
       } else {
@@ -385,7 +412,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       ESP_LOGW(TAG, "Unhandled: %s - %d", message.c_str(), this->state_);
       break;
   }
-}
+}  // namespace sim800l
 
 void Sim800LComponent::loop() {
   // Read message
@@ -415,14 +442,17 @@ void Sim800LComponent::loop() {
       this->read_pos_++;
     }
   }
+  if (state_ == STATE_INIT && this->registered_ &&
+      (this->call_state_ != 6  // A call is in progress
+       || this->send_pending_ || this->dial_pending_ || this->connect_pending_ || this->disconnect_pending_)) {
+    this->update();
+  }
 }
 
 void Sim800LComponent::send_sms(const std::string &recipient, const std::string &message) {
-  ESP_LOGD(TAG, "Sending to %s: %s", recipient.c_str(), message.c_str());
   this->recipient_ = recipient;
   this->outgoing_message_ = message;
   this->send_pending_ = true;
-  this->update();
 }
 
 void Sim800LComponent::send_ussd(const std::string &ussdCode) {
@@ -441,21 +471,11 @@ void Sim800LComponent::dump_config() {
 #endif
 }
 void Sim800LComponent::dial(const std::string &recipient) {
-  ESP_LOGD(TAG, "Dialing %s", recipient.c_str());
   this->recipient_ = recipient;
   this->dial_pending_ = true;
-  this->update();
 }
-void Sim800LComponent::connect() {
-  ESP_LOGD(TAG, "Connecting");
-  this->connect_pending_ = true;
-  this->update();
-}
-void Sim800LComponent::disconnect() {
-  ESP_LOGD(TAG, "Disconnecting");
-  this->disconnect_pending_ = true;
-  this->update();
-}
+void Sim800LComponent::connect() { this->connect_pending_ = true; }
+void Sim800LComponent::disconnect() { this->disconnect_pending_ = true; }
 
 void Sim800LComponent::set_registered_(bool registered) {
   this->registered_ = registered;

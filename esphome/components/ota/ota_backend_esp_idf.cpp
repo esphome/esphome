@@ -49,7 +49,7 @@ OTAResponseTypes IDFOTABackend::end() {
   this->md5_.calculate();
   if (!this->md5_.equals_hex(this->expected_bin_md5_)) {
     this->abort();
-    return OTA_RESPONSE_ERROR_UPDATE_END;
+    return OTA_RESPONSE_ERROR_MD5_MISMATCH;
   }
   esp_err_t err = esp_ota_end(this->update_handle_);
   this->update_handle_ = 0;

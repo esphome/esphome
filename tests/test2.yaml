@@ -1,3 +1,4 @@
+---
 esphome:
   name: $devicename
   platform: ESP32
@@ -28,7 +29,7 @@ api:
 i2c:
   sda: 21
   scl: 22
-  scan: False
+  scan: false
 
 spi:
   clk_pin: GPIO21
@@ -47,7 +48,7 @@ uart:
       - lambda: UARTDebug::log_hex(direction, bytes, ':');
 
 ota:
-  safe_mode: True
+  safe_mode: true
   port: 3286
   num_attempts: 15
 
@@ -67,7 +68,7 @@ as3935_i2c:
   irq_pin: GPIO12
 
 mcp3008:
-  - id: 'mcp3008_hub'
+  - id: mcp3008_hub
     cs_pin: GPIO12
 
 output:
@@ -86,32 +87,35 @@ sensor:
     id: ha_hello_world_temperature
   - platform: ble_rssi
     mac_address: AC:37:43:77:5F:4C
-    name: 'BLE Google Home Mini RSSI value'
+    name: BLE Google Home Mini RSSI value
   - platform: ble_rssi
-    service_uuid: '11aa'
-    name: 'BLE Test Service 16'
+    service_uuid: 11aa
+    name: BLE Test Service 16
   - platform: ble_rssi
-    service_uuid: '11223344'
-    name: 'BLE Test Service 32'
+    service_uuid: "11223344"
+    name: BLE Test Service 32
   - platform: ble_rssi
-    service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
-    name: 'BLE Test Service 128'
+    service_uuid: 11223344-5566-7788-99aa-bbccddeeff00
+    name: BLE Test Service 128
+  - platform: ble_rssi
+    service_uuid: 11223344-5566-7788-99aa-bbccddeeff00
+    name: BLE Test iBeacon UUID
   - platform: b_parasite
     mac_address: F0:CA:F0:CA:01:01
     humidity:
-      name: 'b-parasite Air Humidity'
+      name: b-parasite Air Humidity
     temperature:
-      name: 'b-parasite Air Temperature'
+      name: b-parasite Air Temperature
     moisture:
-      name: 'b-parasite Soil Moisture'
+      name: b-parasite Soil Moisture
     battery_voltage:
-      name: 'b-parasite Battery Voltage'
+      name: b-parasite Battery Voltage
     illuminance:
-      name: 'b-parasite Illuminance'
+      name: b-parasite Illuminance
   - platform: senseair
     id: senseair0
     co2:
-      name: 'SenseAir CO2 Value'
+      name: SenseAir CO2 Value
       on_value:
         then:
           - senseair.background_calibration: senseair0
@@ -123,167 +127,167 @@ sensor:
   - platform: ruuvitag
     mac_address: FF:56:D3:2F:7D:E8
     humidity:
-      name: 'RuuviTag Humidity'
+      name: RuuviTag Humidity
     temperature:
-      name: 'RuuviTag Temperature'
+      name: RuuviTag Temperature
     pressure:
-      name: 'RuuviTag Pressure'
+      name: RuuviTag Pressure
     acceleration_x:
-      name: 'RuuviTag Acceleration X'
+      name: RuuviTag Acceleration X
     acceleration_y:
-      name: 'RuuviTag Acceleration Y'
+      name: RuuviTag Acceleration Y
     acceleration_z:
-      name: 'RuuviTag Acceleration Z'
+      name: RuuviTag Acceleration Z
     battery_voltage:
-      name: 'RuuviTag Battery Voltage'
+      name: RuuviTag Battery Voltage
     tx_power:
-      name: 'RuuviTag TX Power'
+      name: RuuviTag TX Power
     movement_counter:
-      name: 'RuuviTag Movement Counter'
+      name: RuuviTag Movement Counter
     measurement_sequence_number:
-      name: 'RuuviTag Measurement Sequence Number'
+      name: RuuviTag Measurement Sequence Number
   - platform: as3935
     lightning_energy:
-      name: 'Lightning Energy'
+      name: Lightning Energy
     distance:
-      name: 'Distance Storm'
+      name: Distance Storm
   - platform: xiaomi_hhccjcy01
     mac_address: 94:2B:FF:5C:91:61
     temperature:
-      name: 'Xiaomi HHCCJCY01 Temperature'
+      name: Xiaomi HHCCJCY01 Temperature
     moisture:
-      name: 'Xiaomi HHCCJCY01 Moisture'
+      name: Xiaomi HHCCJCY01 Moisture
     illuminance:
-      name: 'Xiaomi HHCCJCY01 Illuminance'
+      name: Xiaomi HHCCJCY01 Illuminance
     conductivity:
-      name: 'Xiaomi HHCCJCY01 Soil Conductivity'
+      name: Xiaomi HHCCJCY01 Soil Conductivity
     battery_level:
-      name: 'Xiaomi HHCCJCY01 Battery Level'
+      name: Xiaomi HHCCJCY01 Battery Level
   - platform: xiaomi_lywsdcgq
     mac_address: 7A:80:8E:19:36:BA
     temperature:
-      name: 'Xiaomi LYWSDCGQ Temperature'
+      name: Xiaomi LYWSDCGQ Temperature
     humidity:
-      name: 'Xiaomi LYWSDCGQ Humidity'
+      name: Xiaomi LYWSDCGQ Humidity
     battery_level:
-      name: 'Xiaomi LYWSDCGQ Battery Level'
+      name: Xiaomi LYWSDCGQ Battery Level
   - platform: xiaomi_lywsd02
     mac_address: 3F:5B:7D:82:58:4E
     temperature:
-      name: 'Xiaomi LYWSD02 Temperature'
+      name: Xiaomi LYWSD02 Temperature
     humidity:
-      name: 'Xiaomi LYWSD02 Humidity'
+      name: Xiaomi LYWSD02 Humidity
     battery_level:
-      name: 'Xiaomi LYWSD02 Battery Level'
+      name: Xiaomi LYWSD02 Battery Level
   - platform: xiaomi_cgg1
     mac_address: 7A:80:8E:19:36:BA
     temperature:
-      name: 'Xiaomi CGG1 Temperature'
+      name: Xiaomi CGG1 Temperature
     humidity:
-      name: 'Xiaomi CGG1 Humidity'
+      name: Xiaomi CGG1 Humidity
     battery_level:
-      name: 'Xiaomi CGG1 Battery Level'
+      name: Xiaomi CGG1 Battery Level
   - platform: xiaomi_gcls002
-    mac_address: '94:2B:FF:5C:91:61'
+    mac_address: 94:2B:FF:5C:91:61
     temperature:
-      name: 'GCLS02 Temperature'
+      name: GCLS02 Temperature
     moisture:
-      name: 'GCLS02 Moisture'
+      name: GCLS02 Moisture
     conductivity:
-      name: 'GCLS02 Soil Conductivity'
+      name: GCLS02 Soil Conductivity
     illuminance:
-      name: 'GCLS02 Illuminance'
+      name: GCLS02 Illuminance
   - platform: xiaomi_hhccpot002
-    mac_address: '94:2B:FF:5C:91:61'
+    mac_address: 94:2B:FF:5C:91:61
     moisture:
-      name: 'HHCCPOT002 Moisture'
+      name: HHCCPOT002 Moisture
     conductivity:
-      name: 'HHCCPOT002 Soil Conductivity'
+      name: HHCCPOT002 Soil Conductivity
   - platform: xiaomi_lywsd03mmc
-    mac_address: 'A4:C1:38:4E:16:78'
-    bindkey: 'e9efaa6873f9f9c87a5e75a5f814801c'
+    mac_address: A4:C1:38:4E:16:78
+    bindkey: e9efaa6873f9f9c87a5e75a5f814801c
     temperature:
-      name: 'Xiaomi LYWSD03MMC Temperature'
+      name: Xiaomi LYWSD03MMC Temperature
     humidity:
-      name: 'Xiaomi LYWSD03MMC Humidity'
+      name: Xiaomi LYWSD03MMC Humidity
     battery_level:
-      name: 'Xiaomi LYWSD03MMC Battery Level'
+      name: Xiaomi LYWSD03MMC Battery Level
   - platform: xiaomi_cgd1
-    mac_address: 'A4:C1:38:D1:61:7D'
-    bindkey: 'c99d2313182473b38001086febf781bd'
+    mac_address: A4:C1:38:D1:61:7D
+    bindkey: c99d2313182473b38001086febf781bd
     temperature:
-      name: 'Xiaomi CGD1 Temperature'
+      name: Xiaomi CGD1 Temperature
     humidity:
-      name: 'Xiaomi CGD1 Humidity'
+      name: Xiaomi CGD1 Humidity
     battery_level:
-      name: 'Xiaomi CGD1 Battery Level'
+      name: Xiaomi CGD1 Battery Level
   - platform: xiaomi_jqjcy01ym
-    mac_address: '7A:80:8E:19:36:BA'
+    mac_address: 7A:80:8E:19:36:BA
     temperature:
-      name: 'JQJCY01YM Temperature'
+      name: JQJCY01YM Temperature
     humidity:
-      name: 'JQJCY01YM Humidity'
+      name: JQJCY01YM Humidity
     formaldehyde:
-      name: 'JQJCY01YM Formaldehyde'
+      name: JQJCY01YM Formaldehyde
     battery_level:
-      name: 'JQJCY01YM Battery Level'
+      name: JQJCY01YM Battery Level
   - platform: xiaomi_mhoc303
-    mac_address: 'E7:50:59:32:A0:1C'
+    mac_address: E7:50:59:32:A0:1C
     temperature:
-      name: 'MHO-C303 Temperature'
+      name: MHO-C303 Temperature
     humidity:
-      name: 'MHO-C303 Humidity'
+      name: MHO-C303 Humidity
     battery_level:
-      name: 'MHO-C303 Battery Level'
+      name: MHO-C303 Battery Level
   - platform: atc_mithermometer
-    mac_address: 'A4:C1:38:4E:16:78'
+    mac_address: A4:C1:38:4E:16:78
     temperature:
-      name: 'ATC Temperature'
+      name: ATC Temperature
     humidity:
-      name: 'ATC Humidity'
+      name: ATC Humidity
     battery_level:
-      name: 'ATC Battery-Level'
+      name: ATC Battery-Level
     battery_voltage:
-      name: 'ATC Battery-Voltage'
+      name: ATC Battery-Voltage
   - platform: pvvx_mithermometer
-    mac_address: 'A4:C1:38:4E:16:78'
+    mac_address: A4:C1:38:4E:16:78
     temperature:
-      name: 'PVVX Temperature'
+      name: PVVX Temperature
     humidity:
-      name: 'PVVX Humidity'
+      name: PVVX Humidity
     battery_level:
-      name: 'PVVX Battery-Level'
+      name: PVVX Battery-Level
     battery_voltage:
-      name: 'PVVX Battery-Voltage'
+      name: PVVX Battery-Voltage
   - platform: inkbird_ibsth1_mini
     mac_address: 38:81:D7:0A:9C:11
     temperature:
-      name: 'Inkbird IBS-TH1 Temperature'
+      name: Inkbird IBS-TH1 Temperature
     humidity:
-      name: 'Inkbird IBS-TH1 Humidity'
+      name: Inkbird IBS-TH1 Humidity
     battery_level:
-      name: 'Inkbird IBS-TH1 Battery Level'
+      name: Inkbird IBS-TH1 Battery Level
   - platform: xiaomi_rtcgq02lm
     id: motion_rtcgq02lm
     battery_level:
-      name: 'Mi Motion Sensor 2 Battery level'
+      name: Mi Motion Sensor 2 Battery level
   - platform: ltr390
     uv:
-      name: "LTR390 UV"
+      name: LTR390 UV
     uv_index:
-      name: "LTR390 UVI"
+      name: LTR390 UVI
     light:
-      name: "LTR390 Light"
+      name: LTR390 Light
     ambient_light:
-      name: "LTR390 ALS"
-    gain: "X3"
+      name: LTR390 ALS
+    gain: X3
     resolution: 18
     window_correction_factor: 1.0
     address: 0x53
     update_interval: 60s
   - platform: sgp4x
     voc:
-      name: "VOC Index"
+      name: VOC Index
       id: sgp40_voc_index
       algorithm_tuning:
         index_offset: 100
@@ -293,7 +297,7 @@ sensor:
         std_initial: 50
         gain_factor: 230
     nox:
-      name: "NOx"
+      name: NOx
       algorithm_tuning:
         index_offset: 100
         learning_time_offset_hours: 12
@@ -304,7 +308,7 @@ sensor:
     update_interval: 5s
   - platform: mcp3008
     update_interval: 5s
-    mcp3008_id: 'mcp3008_hub'
+    mcp3008_id: mcp3008_hub
     id: freezer_temp_source
     reference_voltage: 3.19
     number: 0
@@ -312,59 +316,66 @@ sensor:
     ble_client_id: airthings01
     update_interval: 5min
     temperature:
-      name: "Wave Plus Temperature"
+      name: Wave Plus Temperature
     radon:
-      name: "Wave Plus Radon"
+      name: Wave Plus Radon
     radon_long_term:
-      name: "Wave Plus Radon Long Term"
+      name: Wave Plus Radon Long Term
     pressure:
-      name: "Wave Plus Pressure"
+      name: Wave Plus Pressure
     humidity:
-      name: "Wave Plus Humidity"
+      name: Wave Plus Humidity
     co2:
-      name: "Wave Plus CO2"
+      name: Wave Plus CO2
     tvoc:
-      name: "Wave Plus VOC"
+      name: Wave Plus VOC
   - platform: airthings_wave_mini
     ble_client_id: airthingsmini01
     update_interval: 5min
     temperature:
-      name: "Wave Mini Temperature"
+      name: Wave Mini Temperature
     humidity:
-      name: "Wave Mini Humidity"
+      name: Wave Mini Humidity
     pressure:
-      name: "Wave Mini Pressure"
+      name: Wave Mini Pressure
     tvoc:
-      name: "Wave Mini VOC"
+      name: Wave Mini VOC
   - platform: ina260
     address: 0x40
     current:
-      name: "INA260 Current"
+      name: INA260 Current
     power:
-      name: "INA260 Power"
+      name: INA260 Power
     bus_voltage:
-      name: "INA260 Voltage"
+      name: INA260 Voltage
     update_interval: 60s
   - platform: radon_eye_rd200
     ble_client_id: radon_eye_ble_id
     update_interval: 10min
     radon:
-      name: "RD200 Radon"
+      name: RD200 Radon
     radon_long_term:
-      name: "RD200 Radon Long Term"
+      name: RD200 Radon Long Term
   - platform: mopeka_pro_check
     mac_address: D3:75:F2:DC:16:91
     tank_type: CUSTOM
     custom_distance_full: 40cm
     custom_distance_empty: 10mm
     temperature:
-      name: "Propane test temp"
+      name: Propane test temp
     level:
-      name: "Propane test level"
+      name: Propane test level
     distance:
-      name: "Propane test distance"
+      name: Propane test distance
     battery_level:
-      name: "Propane test battery level"
+      name: Propane test battery level
+  - platform: ufire_ec
+    id: ufire_ec_board
+    ec:
+      name: Ufire EC
+    temperature_sensor: ha_hello_world_temperature
+    temperature_compensation: 20.0
+    temperature_coefficient: 0.019
 
 time:
   - platform: homeassistant
@@ -374,7 +385,7 @@ time:
           - logger.log: It's 16:00
 
 esp32_touch:
-  setup_mode: True
+  setup_mode: true
 
 binary_sensor:
   - platform: homeassistant
@@ -386,76 +397,80 @@ binary_sensor:
     id: ha_hello_world_binary_attribute
   - platform: ble_presence
     mac_address: AC:37:43:77:5F:4C
-    name: 'ESP32 BLE Tracker Google Home Mini'
+    name: ESP32 BLE Tracker Google Home Mini
   - platform: ble_presence
-    service_uuid: '11aa'
-    name: 'BLE Test Service 16 Presence'
+    service_uuid: 11aa
+    name: BLE Test Service 16 Presence
   - platform: ble_presence
-    service_uuid: '11223344'
-    name: 'BLE Test Service 32 Presence'
+    service_uuid: "11223344"
+    name: BLE Test Service 32 Presence
   - platform: ble_presence
-    service_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
-    name: 'BLE Test Service 128 Presence'
+    service_uuid: 11223344-5566-7788-99aa-bbccddeeff00
+    name: BLE Test Service 128 Presence
   - platform: ble_presence
-    ibeacon_uuid: '11223344-5566-7788-99aa-bbccddeeff00'
+    ibeacon_uuid: 11223344-5566-7788-99aa-bbccddeeff00
     ibeacon_major: 100
     ibeacon_minor: 1
-    name: 'BLE Test iBeacon Presence'
+    name: BLE Test iBeacon Presence
   - platform: esp32_touch
-    name: 'ESP32 Touch Pad GPIO27'
+    name: ESP32 Touch Pad GPIO27
     pin: GPIO27
     threshold: 1000
   - platform: as3935
-    name: 'Storm Alert'
+    name: Storm Alert
   - platform: xiaomi_mue4094rt
-    name: 'MUE4094RT Motion'
-    mac_address: '7A:80:8E:19:36:BA'
-    timeout: '5s'
+    name: MUE4094RT Motion
+    mac_address: 7A:80:8E:19:36:BA
+    timeout: 5s
   - platform: xiaomi_mjyd02yla
-    name: 'MJYD02YL-A Motion'
-    mac_address: '50:EC:50:CD:32:02'
-    bindkey: '48403ebe2d385db8d0c187f81e62cb64'
+    name: MJYD02YL-A Motion
+    mac_address: 50:EC:50:CD:32:02
+    bindkey: 48403ebe2d385db8d0c187f81e62cb64
     idle_time:
-      name: 'MJYD02YL-A Idle Time'
+      name: MJYD02YL-A Idle Time
     light:
-      name: 'MJYD02YL-A Light Status'
+      name: MJYD02YL-A Light Status
     battery_level:
-      name: 'MJYD02YL-A Battery Level'
+      name: MJYD02YL-A Battery Level
   - platform: xiaomi_wx08zm
-    name: 'WX08ZM Activation State'
-    mac_address: '74:a3:4a:b5:07:34'
+    name: WX08ZM Activation State
+    mac_address: 74:a3:4a:b5:07:34
     tablet:
-      name: 'WX08ZM Tablet Resource'
+      name: WX08ZM Tablet Resource
     battery_level:
-      name: 'WX08ZM Battery Level'
+      name: WX08ZM Battery Level
   - platform: xiaomi_cgpr1
-    name: 'CGPR1 Motion'
-    mac_address: '12:34:56:12:34:56'
-    bindkey: '48403ebe2d385db8d0c187f81e62cb64'
+    name: CGPR1 Motion
+    mac_address: "12:34:56:12:34:56"
+    bindkey: 48403ebe2d385db8d0c187f81e62cb64
     battery_level:
-      name: 'CGPR1 battery Level'
+      name: CGPR1 battery Level
     idle_time:
-      name: 'CGPR1 Idle Time'
+      name: CGPR1 Idle Time
     illuminance:
-      name: 'CGPR1 Illuminance'
+      name: CGPR1 Illuminance
   - platform: xiaomi_rtcgq02lm
     id: motion_rtcgq02lm
     motion:
-      name: 'Mi Motion Sensor 2'
+      name: Mi Motion Sensor 2
     light:
-      name: 'Mi Motion Sensor 2 Light'
+      name: Mi Motion Sensor 2 Light
     button:
-      name: 'Mi Motion Sensor 2 Button'
+      name: Mi Motion Sensor 2 Button
 
 esp32_ble_tracker:
   on_ble_advertise:
     - mac_address: AC:37:43:77:5F:4C
       then:
+        # yamllint disable rule:line-length
         - lambda: !lambda |-
             ESP_LOGD("main", "The device address is %s", x.address_str().c_str());
+        # yamllint enable rule:line-length
     - then:
+        # yamllint disable rule:line-length
         - lambda: !lambda |-
             ESP_LOGD("main", "The device address is %s", x.address_str().c_str());
+        # yamllint enable rule:line-length
   on_ble_service_data_advertise:
     - service_uuid: ABCD
       then:
@@ -491,16 +506,12 @@ xiaomi_rtcgq02lm:
     mac_address: 01:02:03:04:05:06
     bindkey: '48403ebe2d385db8d0c187f81e62cb64'
 
-#esp32_ble_beacon:
-#  type: iBeacon
-#  uuid: 'c29ce823-e67a-4e71-bff2-abaa32e77a98'
-
 status_led:
   pin: GPIO2
 
 text_sensor:
   - platform: version
-    name: 'ESPHome Version'
+    name: ESPHome Version
     icon: mdi:icon
     id: version_sensor
     on_value:
@@ -508,8 +519,10 @@ text_sensor:
           condition:
             - api.connected:
           then:
+            # yamllint disable rule:line-length
             - lambda: !lambda |-
                 ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
+            # yamllint enable rule:line-length
       - script.execute: my_script
       - homeassistant.service:
           service: notify.html5
@@ -534,19 +547,19 @@ text_sensor:
       - deep_sleep.enter:
           sleep_duration: !lambda "return 30 * 60 * 1000;"
   - platform: template
-    name: 'Template Text Sensor'
+    name: Template Text Sensor
     lambda: |-
       return {"Hello World"};
     filters:
       - to_upper:
       - to_lower:
-      - append: "xyz"
-      - prepend: "abcd"
+      - append: xyz
+      - prepend: abcd
       - substitute:
           - Hello -> Goodbye
       - map:
           - red -> green
-      - lambda: return {"1234"};
+      - lambda: 'return {"1234"};'
   - platform: homeassistant
     entity_id: sensor.hello_world2
     id: ha_hello_world2
@@ -584,7 +597,7 @@ stepper:
     pin_b: GPIO27
     pin_c: GPIO25
     pin_d: GPIO26
-    sleep_when_done: no
+    sleep_when_done: false
     step_mode: HALF_STEP
     max_speed: 250 steps/s
 
@@ -595,7 +608,7 @@ stepper:
 interval:
   interval: 5s
   then:
-    - logger.log: 'Interval Run'
+    - logger.log: Interval Run
 
 display:
 
@@ -605,3 +618,19 @@ cap1188:
   touch_threshold: 0x20
   allow_multiple_touches: true
   reset_pin: 14
+
+switch:
+  - platform: template
+    name: Test BLE Write Action
+    turn_on_action:
+      - ble_client.ble_write:
+          id: airthings01
+          service_uuid: F61E3BE9-2826-A81B-970A-4D4DECFABBAE
+          characteristic_uuid: 6490FAFE-0734-732C-8705-91B653A081FC
+          value: [0x01, 0xab, 0xff]
+      - ble_client.ble_write:
+          id: airthings01
+          service_uuid: F61E3BE9-2826-A81B-970A-4D4DECFABBAE
+          characteristic_uuid: 6490FAFE-0734-732C-8705-91B653A081FC
+          value: !lambda |-
+            return {0x13, 0x37};

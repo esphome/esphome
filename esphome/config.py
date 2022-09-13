@@ -244,6 +244,8 @@ def iter_ids(config, path=None):
             yield from iter_ids(item, path + [i])
     elif isinstance(config, dict):
         for key, value in config.items():
+            if isinstance(key, core.ID):
+                yield key, path
             yield from iter_ids(value, path + [key])
 
 
