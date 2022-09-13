@@ -246,7 +246,11 @@ extern ESP32BLETracker *global_esp32_ble_tracker;
 template<typename... Ts> class ESP32BLEStartScanAction : public Action<Ts...> {
  public:
   ESP32BLEStartScanAction(ESP32BLETracker *parent) : parent_(parent) {}
-  void play(Ts... x) override { this->parent_->start_scan(); }
+  TEMPLATABLE_VALUE(continuous, bool)
+  void play(Ts... x) override {
+    this->parent_->set_scan_continuous(this->continuous_.value(x...));
+    this->parent_->start_scan();
+  }
 
  protected:
   ESP32BLETracker *parent_;

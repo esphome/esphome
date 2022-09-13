@@ -45,7 +45,7 @@ BLEManufacturerDataAdvertiseTrigger = esp32_ble_tracker_ns.class_(
     automation.Trigger.template(adv_data_t_const_ref),
 )
 BLEEndOfScanTrigger = esp32_ble_tracker_ns.class_(
-    "BLEEndOfScanTrigger", automation.Trigger.template(adv_data_t_const_ref)
+    "BLEEndOfScanTrigger", automation.Trigger.template()
 )
 # Actions
 ESP32BLEStartScanAction = esp32_ble_tracker_ns.class_(
@@ -255,6 +255,7 @@ async def esp32_ble_tracker_start_scan_action_to_code(
 ):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_continuous(config[CONF_CONTINUOUS]))
     return var
 
 
