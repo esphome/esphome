@@ -626,7 +626,7 @@ void DisplayBuffer::do_update_() {
       (*this->writer_)(*this);
     }
     if (!need_update)
-      this->display_();
+      this->display();
   } while (need_update);
   prossing_update = false;
 }
