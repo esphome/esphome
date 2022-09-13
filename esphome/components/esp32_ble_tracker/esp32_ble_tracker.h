@@ -246,7 +246,7 @@ extern ESP32BLETracker *global_esp32_ble_tracker;
 template<typename... Ts> class ESP32BLEStartScanAction : public Action<Ts...> {
  public:
   ESP32BLEStartScanAction(ESP32BLETracker *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(continuous, bool)
+  TEMPLATABLE_VALUE(bool, continuous)
   void play(Ts... x) override {
     this->parent_->set_scan_continuous(this->continuous_.value(x...));
     this->parent_->start_scan();
