@@ -236,7 +236,7 @@ size_t ModbusController::create_register_ranges_() {
       }
     }
 
-    if (curr->start_address == r.start_address) {
+    if (curr->start_address == r.start_address && curr->register_type == r.register_type) {
       // use the lowest non zero value for the whole range
       // Because zero is the default value for skip_updates it is excluded from getting the min value.
       if (curr->skip_updates != 0) {
