@@ -12,7 +12,6 @@ void UFireECComponent::setup() {
   uint8_t version;
   if (!this->read_byte(REGISTER_VERSION, &version) && version != 0xFF) {
     this->mark_failed();
-    this->status_set_error();
     return;
   }
   ESP_LOGI(TAG, "Found ufire_ec board version 0x%02X", version);
