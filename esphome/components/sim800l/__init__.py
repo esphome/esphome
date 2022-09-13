@@ -87,7 +87,7 @@ CONFIG_SCHEMA = cv.All(
                     ),
                 }
             ),
-			cv.Optional(CONF_ON_USSD_RECEIVED): automation.validate_automation(
+            cv.Optional(CONF_ON_USSD_RECEIVED): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                         Sim800LReceivedUssdTrigger
@@ -124,7 +124,7 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-	for conf in config.get(CONF_ON_USSD_RECEIVED, []):
+    for conf in config.get(CONF_ON_USSD_RECEIVED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.std_string, "ussd")], conf)
 
