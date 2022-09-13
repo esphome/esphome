@@ -42,8 +42,6 @@ class ST7735 : public PollingComponent,
   void dump_config() override;
   void setup() override;
 
-  void display();
-
   void update() override;
 
   void set_model(ST7735Model model) { this->model_ = model; }
@@ -56,13 +54,13 @@ class ST7735 : public PollingComponent,
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
  protected:
+  void display();
+
   void sendcommand_(uint8_t cmd, const uint8_t *data_bytes, uint8_t num_data_bytes);
   void senddata_(const uint8_t *data_bytes, uint8_t num_data_bytes);
 
   void writecommand_(uint8_t value);
   void writedata_(uint8_t value);
-
-  void write_display_data_();
 
   void init_reset_();
   void display_init_(const uint8_t *addr);

@@ -293,7 +293,7 @@ void ST7735::setup() {
 
 void ST7735::update() {
   this->do_update_();
-  this->write_display_data_();
+  this->display();
 }
 
 int ST7735::get_height_internal() { return height_; }
@@ -417,7 +417,7 @@ void HOT ST7735::senddata_(const uint8_t *data_bytes, uint8_t num_data_bytes) {
   this->disable();
 }
 
-void HOT ST7735::write_display_data_() {
+void HOT ST7735::display() {
   uint16_t offsetx = colstart_;
   uint16_t offsety = rowstart_;
 
