@@ -51,6 +51,9 @@ BLEEndOfScanTrigger = esp32_ble_tracker_ns.class_(
 ESP32BLEStartScanAction = esp32_ble_tracker_ns.class_(
     "ESP32BLEStartScanAction", automation.Action
 )
+ESP32BLEStopScanAction = esp32_ble_tracker_ns.class_(
+    "ESP32BLEStopScanAction", automation.Action
+)
 
 
 def validate_scan_parameters(config):
@@ -256,6 +259,28 @@ async def esp32_ble_tracker_start_scan_action_to_code(
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     cg.add(var.set_continuous(config[CONF_CONTINUOUS]))
+    return var
+
+
+ESP32_BLE_STOP_SCAN_ACTION_SCHEMA = automation.maybe_simple_id(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(ESP32BLETracker),
+        }
+    )
+)
+
+
+@automation.register_action(
+    "esp32_ble_tracker.stop_scan",
+    ESP32BLEStopScanAction,
+    ESP32_BLE_STOP_SCAN_ACTION_SCHEMA,
+)
+async def esp32_ble_tracker_stop_scan_action_to_code(
+    config, action_id, template_arg, args
+):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
     return var
 
 
