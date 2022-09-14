@@ -8,7 +8,6 @@
 
 namespace esphome {
 namespace sen5x {
-
 enum ERRORCODE {
   COMMUNICATION_FAILED,
   SERIAL_NUMBER_IDENTIFICATION_FAILED,
@@ -93,6 +92,8 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
     temperature_compensation_.value().time_constant = time_constant;
   }
   bool start_fan_cleaning();
+  bool start_measurement();
+  bool stop_measurement();
 
  protected:
   bool write_tuning_parameters_(uint16_t i2c_command, const GasTuning &tuning);

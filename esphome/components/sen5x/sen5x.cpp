@@ -46,11 +46,7 @@ void SEN5XComponent::setup() {
     // In order to query the device periodic measurement must be ceased
     if (raw_read_status) {
       ESP_LOGD(TAG, "Sensor has data available, stopping periodic measurement");
-      if (!this->write_command(SEN5X_CMD_STOP_MEASUREMENTS)) {
-        ESP_LOGE(TAG, "Failed to stop measurements");
-        this->mark_failed();
-        return;
-      }
+      this->stop_measurement();
       // According to the SEN5x datasheet the sensor will only respond to other commands after waiting 200 ms after
       // issuing the stop_periodic_measurement command
       stop_measurement_delay = 200;
@@ -204,19 +200,6 @@ void SEN5XComponent::setup() {
       if (this->temperature_compensation_.has_value())
         this->write_temperature_compensation_(this->temperature_compensation_.value());
 
-      // Finally start sensor measurements
-      auto cmd = SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY;
-      if (this->pm_1_0_sensor_ || this->pm_2_5_sensor_ || this->pm_4_0_sensor_ || this->pm_10_0_sensor_) {
-        // if any of the gas sensors are active we need a full measurement
-        cmd = SEN5X_CMD_START_MEASUREMENTS;
-      }
-
-      if (!this->write_command(cmd)) {
-        ESP_LOGE(TAG, "Error starting continuous measurements.");
-        this->error_code_ = MEASUREMENT_INIT_FAILED;
-        this->mark_failed();
-        return;
-      }
       initialized_ = true;
       ESP_LOGD(TAG, "Sensor initialized");
     });
@@ -252,7 +235,7 @@ void SEN5XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Firmware version: %d", this->firmware_version_);
   ESP_LOGCONFIG(TAG, "  Serial number %02d.%02d.%02d", serial_number_[0], serial_number_[1], serial_number_[2]);
   if (this->auto_cleaning_interval_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Auto auto cleaning interval %d seconds", auto_cleaning_interval_.value());
+    ESP_LOGCONFIG(TAG, "  Auto cleaning interval %d seconds", auto_cleaning_interval_.value());
   }
   if (this->acceleration_mode_.has_value()) {
     switch (this->acceleration_mode_.value()) {
@@ -408,6 +391,38 @@ bool SEN5XComponent::start_fan_cleaning() {
   }
   return true;
 }
+
+
+bool SEN5XComponent::start_measurement() {
+  // Finally start sensor measurements
+  auto cmd = SEN5X_CMD_START_MEASUREMENTS_RHT_ONLY;
+  if (this->pm_1_0_sensor_ || this->pm_2_5_sensor_ || this->pm_4_0_sensor_ || this->pm_10_0_sensor_) {
+    // if any of the gas sensors are active we need a full measurement
+    cmd = SEN5X_CMD_START_MEASUREMENTS;
+  }
+
+  if (!this->write_command(cmd)) {
+    ESP_LOGE(TAG, "Error starting continuous measurements.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return false;
+  }
+  ESP_LOGI(TAG, "Switched to measurement mode");
+  return true;
+}
+
+
+bool SEN5XComponent::stop_measurement() {
+  if (!this->write_command(SEN5X_CMD_STOP_MEASUREMENTS)) {
+    ESP_LOGE(TAG, "Error stopping continuous measurements.");
+    this->mark_failed();
+    return false;
+  }
+  ESP_LOGI(TAG, "Switched to idle mode");
+  return true;
+}
+
+
 
 }  // namespace sen5x
 }  // namespace esphome
