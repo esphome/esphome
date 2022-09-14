@@ -281,7 +281,7 @@ class ConfigValidationStep(abc.ABC):
 class LoadValidationStep(ConfigValidationStep):
     """Load step, this step is called once for each domain config fragment.
 
-    Responsibilties:
+    Responsibilities:
     - Load component code
     - Ensure all AUTO_LOADs are added
     - Set output paths of result
