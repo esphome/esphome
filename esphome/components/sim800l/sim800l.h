@@ -39,7 +39,12 @@ enum State {
   STATE_DIALING2,
   STATE_PARSE_CLIP,
   STATE_ATA_SENT,
-  STATE_CHECK_CALL
+  STATE_CHECK_CALL,
+  STATE_SETUP_USSD,
+  STATE_SEND_USSD1,
+  STATE_SEND_USSD2,
+  STATE_CHECK_USSD,
+  STATE_RECEIVED_USSD
 };
 
 class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
@@ -68,7 +73,11 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
   void add_on_call_disconnected_callback(std::function<void()> callback) {
     this->call_disconnected_callback_.add(std::move(callback));
   }
+  void add_on_ussd_received_callback(std::function<void(std::string)> callback) {
+    this->ussd_received_callback_.add(std::move(callback));
+  }
   void send_sms(const std::string &recipient, const std::string &message);
+  void send_ussd(const std::string &ussdCode);
   void dial(const std::string &recipient);
   void connect();
   void disconnect();
@@ -97,16 +106,19 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
 
   std::string recipient_;
   std::string outgoing_message_;
+  std::string ussd_;
   bool send_pending_;
   bool dial_pending_;
   bool connect_pending_;
   bool disconnect_pending_;
+  bool send_ussd_pending_;
   uint8_t call_state_{6};
 
   CallbackManager<void(std::string, std::string)> sms_received_callback_;
   CallbackManager<void(std::string)> incoming_call_callback_;
   CallbackManager<void()> call_connected_callback_;
   CallbackManager<void()> call_disconnected_callback_;
+  CallbackManager<void(std::string)> ussd_received_callback_;
 };
 
 class Sim800LReceivedMessageTrigger : public Trigger<std::string, std::string> {
@@ -137,6 +149,12 @@ class Sim800LCallDisconnectedTrigger : public Trigger<> {
     parent->add_on_call_disconnected_callback([this]() { this->trigger(); });
   }
 };
+class Sim800LReceivedUssdTrigger : public Trigger<std::string> {
+ public:
+  explicit Sim800LReceivedUssdTrigger(Sim800LComponent *parent) {
+    parent->add_on_ussd_received_callback([this](const std::string &ussd) { this->trigger(ussd); });
+  }
+};
 
 template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
  public:
@@ -148,6 +166,20 @@ template<typename... Ts> class Sim800LSendSmsAction : public Action<Ts...> {
     auto recipient = this->recipient_.value(x...);
     auto message = this->message_.value(x...);
     this->parent_->send_sms(recipient, message);
+  }
+
+ protected:
+  Sim800LComponent *parent_;
+};
+
+template<typename... Ts> class Sim800LSendUssdAction : public Action<Ts...> {
+ public:
+  Sim800LSendUssdAction(Sim800LComponent *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(std::string, ussd)
+
+  void play(Ts... x) {
+    auto ussdCode = this->ussd_.value(x...);
+    this->parent_->send_ussd(ussdCode);
   }
 
  protected:
