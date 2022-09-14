@@ -172,7 +172,9 @@ class Config(OrderedDict, fv.FinalValidateConfig):
         for item_index in path:
             try:
                 if item_index in data:
-                    doc_range = [x for x in data.keys() if x == item_index][0].esp_range
+                    key_data = [x for x in data.keys() if x == item_index][0]
+                    if isinstance(key_data, ESPHomeDataBase):
+                        doc_range = key_data.esp_range
                 data = data[item_index]
             except (KeyError, IndexError, TypeError, AttributeError):
                 return doc_range
