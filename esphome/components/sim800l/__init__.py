@@ -178,13 +178,18 @@ async def sim800l_connect_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     return var
 
+
 SIM800L_SEND_USSD_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(Sim800LComponent),
         cv.Required(CONF_USSD): cv.templatable(cv.string_strict),
     }
 )
-@automation.register_action("sim800l.send_ussd", Sim800LSendUssdAction, SIM800L_SEND_USSD_SCHEMA)
+
+
+@automation.register_action(
+    "sim800l.send_ussd", Sim800LSendUssdAction, SIM800L_SEND_USSD_SCHEMA
+)
 async def sim800l_send_ussd_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)

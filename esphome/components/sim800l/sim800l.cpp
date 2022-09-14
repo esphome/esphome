@@ -119,7 +119,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
             this->call_state_ = 6;
             this->call_disconnected_callback_.call();
           }
-        }else if (message.compare(0, 6, "+CUSD:") == 0) {
+        } else if (message.compare(0, 6, "+CUSD:") == 0) {
           // Incoming USSD MESSAGE
           this->state_ = STATE_CHECK_USSD;
         }
@@ -154,7 +154,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       this->expect_ack_ = true;
       break;
     case STATE_SEND_USSD1:
-     this->send_cmd_("AT+CUSD=1, \"" + this->ussd_ + "\"");
+      this->send_cmd_("AT+CUSD=1, \"" + this->ussd_ + "\"");
       this->state_ = STATE_SEND_USSD2;
       break;
     case STATE_SEND_USSD2:
@@ -178,8 +178,8 @@ void Sim800LComponent::parse_cmd_(std::string message) {
         this->ussd_ = "";
         size_t start = 10;
         size_t end = message.find_last_of(',');
-        if (end > start){
-          this->ussd_ = message.substr(start+1, end-start-2);
+        if (end > start) {
+          this->ussd_ = message.substr(start + 1, end - start - 2);
           this->ussd_received_callback_.call(this->ussd_);
         }
       }
