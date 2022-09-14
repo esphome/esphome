@@ -890,6 +890,7 @@ int Image::get_height() const { return this->height_; }
 ImageType Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
+int Image::get_current_frame() const { return 0; }
 
 bool Animation::get_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)

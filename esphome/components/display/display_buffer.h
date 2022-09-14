@@ -800,6 +800,8 @@ class Image {
   int get_height() const;
   ImageType get_type() const;
 
+  virtual int get_current_frame() const;
+
  protected:
   int width_;
   int height_;
@@ -816,7 +818,7 @@ class Animation : public Image {
   Color get_grayscale_pixel(int x, int y) const override;
 
   int get_animation_frame_count() const;
-  int get_current_frame() const;
+  int get_current_frame() const override;
   void next_frame();
   void prev_frame();
 
