@@ -644,6 +644,33 @@ def _ping_func(filename, address):
     return filename, rc == 0
 
 
+class PrometheusServiceDiscoveryHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        entries = _list_dashboard_entries()
+        self.set_header("content-type", "application/json")
+        sd = []
+        for entry in entries:
+            if entry.web_port is None:
+                continue
+            labels = {
+                "__meta_name": entry.name,
+                "__meta_esp_platform": entry.target_platform,
+                "__meta_esphome_version": entry.storage.esphome_version,
+            }
+            for integration in entry.storage.loaded_integrations:
+                labels[f"__meta_integration_{integration}"] = "true"
+            sd.append(
+                {
+                    "targets": [
+                        f"{entry.address}:{entry.web_port}",
+                    ],
+                    "labels": labels,
+                }
+            )
+        self.write(json.dumps(sd))
+
+
 class MDNSStatusThread(threading.Thread):
     def run(self):
         global IMPORT_RESULT
@@ -816,14 +843,17 @@ class LoginHandler(BaseHandler):
         import requests
 
         headers = {
-            "Authentication": f"Bearer {os.getenv('SUPERVISOR_TOKEN')}",
+            "X-Supervisor-Token": os.getenv("SUPERVISOR_TOKEN"),
         }
+
         data = {
             "username": self.get_argument("username", ""),
             "password": self.get_argument("password", ""),
         }
         try:
-            req = requests.post("http://supervisor/auth", headers=headers, data=data)
+            req = requests.post(
+                "http://supervisor/auth", headers=headers, json=data, timeout=30
+            )
             if req.status_code == 200:
                 self.set_secure_cookie("authenticated", cookie_authenticated_yes)
                 self.redirect("/")
@@ -947,9 +977,12 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
     class StaticFileHandler(tornado.web.StaticFileHandler):
         def set_extra_headers(self, path):
-            self.set_header(
-                "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
-            )
+            if "favicon.ico" in path:
+                self.set_header("Cache-Control", "max-age=84600, public")
+            else:
+                self.set_header(
+                    "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
+                )
 
     app_settings = {
         "debug": debug,
@@ -987,6 +1020,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}import", ImportRequestHandler),
             (f"{rel}secret_keys", SecretKeysRequestHandler),
             (f"{rel}rename", EsphomeRenameHandler),
+            (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
         ],
         **app_settings,
     )

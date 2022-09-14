@@ -9,19 +9,17 @@ from esphome.const import (
     CONF_RECEIVE_TIMEOUT,
     CONF_TIME_ID,
 )
-from . import (
+from .. import (
     BEDJET_CLIENT_SCHEMA,
+    bedjet_ns,
     register_bedjet_child,
 )
 
 _LOGGER = logging.getLogger(__name__)
 CODEOWNERS = ["@jhansche"]
-DEPENDENCIES = ["ble_client"]
+DEPENDENCIES = ["bedjet"]
 
-bedjet_ns = cg.esphome_ns.namespace("bedjet")
-BedJetClimate = bedjet_ns.class_(
-    "BedJetClimate", climate.Climate, ble_client.BLEClientNode, cg.PollingComponent
-)
+BedJetClimate = bedjet_ns.class_("BedJetClimate", climate.Climate, cg.PollingComponent)
 BedjetHeatMode = bedjet_ns.enum("BedjetHeatMode")
 BEDJET_HEAT_MODES = {
     "heat": BedjetHeatMode.HEAT_MODE_HEAT,
