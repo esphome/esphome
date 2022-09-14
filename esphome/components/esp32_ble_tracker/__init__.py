@@ -239,6 +239,8 @@ async def to_code(config):
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
 
+    cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
+
 
 ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
     {

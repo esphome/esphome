@@ -1,10 +1,11 @@
 #ifdef USE_ESP32
 
 #include "esp32_ble_tracker.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
-#include "esphome/core/helpers.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #include <nvs_flash.h>
 #include <freertos/FreeRTOSConfig.h>
@@ -14,6 +15,10 @@
 #include <freertos/task.h>
 #include <esp_gap_ble_api.h>
 #include <esp_bt_defs.h>
+
+#ifdef USE_OTA
+#include "esphome/components/ota/ota_component.h"
+#endif
 
 #ifdef USE_ARDUINO
 #include <esp32-hal-bt.h>
@@ -52,8 +57,16 @@ void ESP32BLETracker::setup() {
     return;
   }
 
+#ifdef USE_OTA
+  ota::global_ota_component->add_on_state_callback([this](ota::OTAState state, float progress, uint8_t error) {
+    if (state == ota::OTA_STARTED) {
+      this->stop_scan();
+    }
+  });
+#endif
+
   if (this->scan_continuous_) {
-    global_esp32_ble_tracker->start_scan_(true);
+    this->start_scan_(true);
   }
 }
 
@@ -83,10 +96,10 @@ void ESP32BLETracker::loop() {
   if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
     xSemaphoreGive(this->scan_end_lock_);
     if (this->scan_continuous_) {
-      global_esp32_ble_tracker->start_scan_(false);
+      this->start_scan_(false);
     } else if (xSemaphoreTake(this->scan_end_lock_, 0L) && !this->scanner_idle_) {
       xSemaphoreGive(this->scan_end_lock_);
-      global_esp32_ble_tracker->end_of_scan_();
+      this->end_of_scan_();
       return;
     }
   }
@@ -150,7 +163,7 @@ void ESP32BLETracker::loop() {
 void ESP32BLETracker::start_scan() {
   if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
     xSemaphoreGive(this->scan_end_lock_);
-    global_esp32_ble_tracker->start_scan_(true);
+    this->start_scan_(true);
   } else {
     ESP_LOGW(TAG, "Scan requested when a scan is already in progress. Ignoring.");
   }
@@ -299,21 +312,21 @@ void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_ga
 void ESP32BLETracker::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
     case ESP_GAP_BLE_SCAN_RESULT_EVT:
-      global_esp32_ble_tracker->gap_scan_result_(param->scan_rst);
+      this->gap_scan_result_(param->scan_rst);
       break;
     case ESP_GAP_BLE_SCAN_PARAM_SET_COMPLETE_EVT:
-      global_esp32_ble_tracker->gap_scan_set_param_complete_(param->scan_param_cmpl);
+      this->gap_scan_set_param_complete_(param->scan_param_cmpl);
       break;
     case ESP_GAP_BLE_SCAN_START_COMPLETE_EVT:
-      global_esp32_ble_tracker->gap_scan_start_complete_(param->scan_start_cmpl);
+      this->gap_scan_start_complete_(param->scan_start_cmpl);
       break;
     case ESP_GAP_BLE_SCAN_STOP_COMPLETE_EVT:
-      global_esp32_ble_tracker->gap_scan_stop_complete_(param->scan_stop_cmpl);
+      this->gap_scan_stop_complete_(param->scan_stop_cmpl);
       break;
     default:
       break;
   }
-  for (auto *client : global_esp32_ble_tracker->clients_) {
+  for (auto *client : this->clients_) {
     client->gap_event_handler(event, param);
   }
 }
@@ -351,7 +364,7 @@ void ESP32BLETracker::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 
 void ESP32BLETracker::real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                                 esp_ble_gattc_cb_param_t *param) {
-  for (auto *client : global_esp32_ble_tracker->clients_) {
+  for (auto *client : this->clients_) {
     client->gattc_event_handler(event, gattc_if, param);
   }
 }
