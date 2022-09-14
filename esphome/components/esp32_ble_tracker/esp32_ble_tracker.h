@@ -191,6 +191,7 @@ class ESP32BLETracker : public Component {
   void print_bt_device_info(const ESPBTDevice &device);
 
   void start_scan();
+  void stop_scan();
 
  protected:
   /// The FreeRTOS task managing the bluetooth interface.
@@ -242,19 +243,6 @@ class ESP32BLETracker : public Component {
 
 // NOLINTNEXTLINE
 extern ESP32BLETracker *global_esp32_ble_tracker;
-
-template<typename... Ts> class ESP32BLEStartScanAction : public Action<Ts...> {
- public:
-  ESP32BLEStartScanAction(ESP32BLETracker *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(bool, continuous)
-  void play(Ts... x) override {
-    this->parent_->set_scan_continuous(this->continuous_.value(x...));
-    this->parent_->start_scan();
-  }
-
- protected:
-  ESP32BLETracker *parent_;
-};
 
 }  // namespace esp32_ble_tracker
 }  // namespace esphome

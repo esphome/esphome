@@ -156,6 +156,13 @@ void ESP32BLETracker::start_scan() {
   }
 }
 
+void ESP32BLETracker::stop_scan() {
+  ESP_LOGD(TAG, "Stopping scan.");
+  this->scan_continuous_ = false;
+  esp_ble_gap_stop_scanning();
+  this->cancel_timeout("scan");
+}
+
 bool ESP32BLETracker::ble_setup() {
   // Initialize non-volatile storage for the bluetooth controller
   esp_err_t err = nvs_flash_init();
