@@ -328,8 +328,6 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       }
       break;
     case STATE_RECEIVED_SMS:
-      // Let the buffer flush. Next poll will request to delete the parsed index message.
-      break;
     case STATE_RECEIVED_USSD:
       // Let the buffer flush. Next poll will request to delete the parsed index message.
       break;
