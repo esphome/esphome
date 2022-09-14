@@ -62,6 +62,21 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   }
   return crc;
 }
+uint16_t crc16(const uint8_t *data, uint8_t len) {
+  uint16_t crc = 0xFFFF;
+  while (len--) {
+    crc ^= *data++;
+    for (uint8_t i = 0; i < 8; i++) {
+      if ((crc & 0x01) != 0) {
+        crc >>= 1;
+        crc ^= 0xA001;
+      } else {
+        crc >>= 1;
+      }
+    }
+  }
+  return crc;
+}
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {

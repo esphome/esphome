@@ -195,6 +195,11 @@ class SPIComponent : public Component {
 
   template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, uint32_t DATA_RATE>
   void enable(GPIOPin *cs) {
+    if (cs != nullptr) {
+      this->active_cs_ = cs;
+      this->active_cs_->digital_write(false);
+    }
+
 #ifdef USE_SPI_ARDUINO_BACKEND
     if (this->hw_spi_ != nullptr) {
       uint8_t data_mode = SPI_MODE0;
@@ -215,11 +220,6 @@ class SPIComponent : public Component {
 #ifdef USE_SPI_ARDUINO_BACKEND
     }
 #endif  // USE_SPI_ARDUINO_BACKEND
-
-    if (cs != nullptr) {
-      this->active_cs_ = cs;
-      this->active_cs_->digital_write(false);
-    }
   }
 
   void disable();
