@@ -77,7 +77,7 @@ class Sim800LComponent : public uart::UARTDevice, public PollingComponent {
     this->ussd_received_callback_.add(std::move(callback));
   }
   void send_sms(const std::string &recipient, const std::string &message);
-  void send_ussd(const std::string &ussdCode);
+  void send_ussd(const std::string &ussd_code);
   void dial(const std::string &recipient);
   void connect();
   void disconnect();
@@ -178,8 +178,8 @@ template<typename... Ts> class Sim800LSendUssdAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, ussd)
 
   void play(Ts... x) {
-    auto ussdCode = this->ussd_.value(x...);
-    this->parent_->send_ussd(ussdCode);
+    auto ussd_code = this->ussd_.value(x...);
+    this->parent_->send_ussd(ussd_code);
   }
 
  protected:

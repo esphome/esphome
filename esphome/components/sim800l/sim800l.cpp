@@ -455,9 +455,9 @@ void Sim800LComponent::send_sms(const std::string &recipient, const std::string 
   this->send_pending_ = true;
 }
 
-void Sim800LComponent::send_ussd(const std::string &ussdCode) {
-  ESP_LOGD(TAG, "Sending USSD code: %s", ussdCode.c_str());
-  this->ussd_ = ussdCode;
+void Sim800LComponent::send_ussd(const std::string &ussd_code) {
+  ESP_LOGD(TAG, "Sending USSD code: %s", ussd_code.c_str());
+  this->ussd_ = ussd_code;
   this->send_ussd_pending_ = true;
   this->update();
 }
