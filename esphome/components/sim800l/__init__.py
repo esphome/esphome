@@ -53,7 +53,7 @@ CONF_ON_CALL_CONNECTED = "on_call_connected"
 CONF_ON_CALL_DISCONNECTED = "on_call_disconnected"
 CONF_RECIPIENT = "recipient"
 CONF_MESSAGE = "message"
-CONF_USSD_CODE = "ussd"
+CONF_USSD = "ussd"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -181,14 +181,14 @@ async def sim800l_connect_to_code(config, action_id, template_arg, args):
 SIM800L_SEND_USSD_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(Sim800LComponent),
-        cv.Required(CONF_USSD_CODE): cv.templatable(cv.string_strict),
+        cv.Required(CONF_USSD): cv.templatable(cv.string_strict),
     }
 )
 @automation.register_action("sim800l.send_ussd", Sim800LSendUssdAction, SIM800L_SEND_USSD_SCHEMA)
 async def sim800l_send_ussd_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    template_ = await cg.templatable(config[CONF_USSD_CODE], args, cg.std_string)
+    template_ = await cg.templatable(config[CONF_USSD], args, cg.std_string)
     cg.add(var.set_ussd(template_))
     return var
 
