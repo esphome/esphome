@@ -19,6 +19,7 @@ void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
 
 void arch_init() {
   libretuya::setup_preferences();
+  LT.wdtEnable();
 #if LT_GPIO_RECOVER
   LT.gpioRecover();
 #endif
@@ -29,9 +30,7 @@ void arch_restart() {
   while (1) {
   }
 }
-void IRAM_ATTR HOT arch_feed_wdt() {
-  // TODO reset watchdog
-}
+void IRAM_ATTR HOT arch_feed_wdt() { LT.wdtFeed(); }
 uint32_t arch_get_cpu_cycle_count() { return LT.getCycleCount(); }
 uint32_t arch_get_cpu_freq_hz() { return LT.getCpuFreq(); }
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
