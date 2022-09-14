@@ -21,6 +21,8 @@ static const char *const TAG = "ota";
 
 static const uint8_t OTA_VERSION_1_0 = 1;
 
+OTAComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 std::unique_ptr<OTABackend> make_ota_backend() {
 #ifdef USE_ARDUINO
 #ifdef USE_ESP8266
@@ -34,6 +36,8 @@ std::unique_ptr<OTABackend> make_ota_backend() {
   return make_unique<IDFOTABackend>();
 #endif  // USE_ESP_IDF
 }
+
+OTAComponent::OTAComponent() { global_ota_component = this; }
 
 void OTAComponent::setup() {
   server_ = socket::socket_ip(SOCK_STREAM, 0);
