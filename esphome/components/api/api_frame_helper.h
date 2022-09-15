@@ -116,9 +116,9 @@ class APINoiseFrameHelper : public APIFrameHelper {
   std::vector<uint8_t> prologue_;
 
   std::shared_ptr<APINoiseContext> ctx_;
-  NoiseHandshakeState *handshake_ = nullptr;
-  NoiseCipherState *send_cipher_ = nullptr;
-  NoiseCipherState *recv_cipher_ = nullptr;
+  NoiseHandshakeState *handshake_{nullptr};
+  NoiseCipherState *send_cipher_{nullptr};
+  NoiseCipherState *recv_cipher_{nullptr};
   NoiseProtocolId nid_;
 
   enum class State {
