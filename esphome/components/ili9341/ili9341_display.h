@@ -29,7 +29,7 @@ class ILI9341Display : public PollingComponent,
   void setup() override;
 
   void update() override;
-
+  void display();
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
   void fill(Color color) override;
@@ -57,7 +57,7 @@ class ILI9341Display : public PollingComponent,
   void invert_display_(bool invert);
   void reset_();
   void fill_internal_(uint8_t color);
-  void display();
+
   void rotate_my_(uint8_t m);
 
   ILI9341Model model_;
