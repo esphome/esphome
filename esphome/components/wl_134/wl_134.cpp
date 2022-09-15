@@ -77,7 +77,7 @@ Wl134Component::Rfid134Error Wl134Component::read_packet_() {
   sprintf(buf, "%03d%012lld", reading.country, reading.id);
   this->publish_state(buf);
   if (this->do_reset_) {
-    this->publish_state("");
+    this->set_timeout(1000, [this](){ this->publish_state(""); });
   }
 
   return RFID134_ERROR_NONE;
