@@ -194,7 +194,7 @@ struct Rect {
 
   //  rect           x--------------w
   //  this        x--------------w
-  inline void info(const std::string prefix = "rect info:") {
+  inline void info(const std::string& prefix = "rect info:") {
     if (this->is_set()) {
       ESP_LOGI("Rect", "%s [%3d,%3d,%3d,%3d]", prefix.c_str(), this->x, this->y, this->w, this->h);
     } else
@@ -694,14 +694,14 @@ class DisplayBuffer {
                   Color color = COLOR_ON);
 
   void call_update();
-
+  void display(){};
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
 
   uint8_t init_internal_(uint32_t buffer_length, uint8_t bytes_per_pixel = 1);
-  virtual void display(){};
+  //virtual 
 
   void do_update_();
 
