@@ -25,7 +25,8 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   if (this->address_ == 0)
     return true;
-  return BLEClientBase::parse_device(device);
+  BLEClientBase::parse_device(device);
+  return true;
 }
 
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -59,17 +60,36 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
 }
 
 void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                         esp_ble_gattc_cb_param_t *param) {}
+                                         esp_ble_gattc_cb_param_t *param) {
+  BLEClientBase::gattc_event_handler(event, gattc_if, param);
+  switch (event) {
+    case ESP_GATTC_DISCONNECT_EVT: {
+      this->address_ = 0;
+    }
+    default:
+      break;
+  }
+}
 
 void BluetoothProxy::dump_config() { ESP_LOGCONFIG(TAG, "Bluetooth Proxy:"); }
 
 #ifdef USE_API
 void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
   switch (msg.request_type) {
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
+      this->address_ = msg.address;
       break;
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT:
+    }
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT: {
+      if (this->state() != espbt::ClientState::IDLE) {
+        ESP_LOGI(TAG, "[%s] Disconnecting.", this->address_str().c_str());
+        auto ret = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
+        if (ret) {
+          ESP_LOGW(TAG, "esp_ble_gattc_close error, address=%s status=%d", this->address_str().c_str(), ret);
+        }
+      }
       break;
+    }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
       break;
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
