@@ -17,7 +17,7 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
     auto ip = tcpip.ip.addr;
     if (ip != this->last_ip_) {
       this->last_ip_ = ip;
-      this->publish_state(network::IPAddress(ip).str().c_str());
+      this->publish_state(network::IPAddress(ip).str());
     }
   }
 
