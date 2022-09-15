@@ -29,8 +29,8 @@ class HONEYWELLABPSensor : public PollingComponent,
   uint8_t status_ = 0;         // byte to hold status information.
   int pressure_count_ = 0;     // hold raw pressure data (14 - bit, 0 - 16384)
   int temperature_count_ = 0;  // hold raw temperature data (11 - bit, 0 - 2048)
-  sensor::Sensor *pressure_sensor_;
-  sensor::Sensor *temperature_sensor_;
+  sensor::Sensor *pressure_sensor_{nullptr};
+  sensor::Sensor *temperature_sensor_{nullptr};
   uint8_t readsensor_();
   uint8_t readstatus_();
   int rawpressure_();
