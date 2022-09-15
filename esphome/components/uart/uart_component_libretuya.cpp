@@ -10,7 +10,9 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
+#ifdef LT_ARD_HAS_SOFTSERIAL
 #include <SoftwareSerial.h>
+#endif
 
 namespace esphome {
 namespace uart {
@@ -73,7 +75,13 @@ void LibreTuyaUARTComponent::setup() {
   }
 #endif
   else {
+#ifdef LT_ARD_HAS_SOFTSERIAL
     this->serial_ = new SoftwareSerial(rx_pin, tx_pin, rx_inverted || tx_inverted);
+#else
+    this->serial_ = &Serial;
+    ESP_LOGE(TAG, "  SoftwareSerial is not implemented for this chip. Please fix your config.");
+    return;
+#endif
   }
 
   this->serial_->begin(this->baud_rate_, get_config());
