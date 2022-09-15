@@ -156,6 +156,15 @@ class LibreTuyaPreferences : public ESPPreferences {
     }
     return to_save.data != stored_data.data;
   }
+
+  bool reset() override {
+    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    s_pending_save.clear();
+
+    fdb_kv_set_default(&db);
+    fdb_kvdb_deinit(&db);
+    return true;
+  }
 };
 
 void setup_preferences() {
