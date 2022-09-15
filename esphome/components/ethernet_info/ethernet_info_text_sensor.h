@@ -10,7 +10,6 @@ namespace ethernet_info {
 class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
   void update() override {
-
     tcpip_adapter_ip_info_t tcpip;
     tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &tcpip);
 
@@ -20,7 +19,6 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
       this->last_ip_ = ip;
       this->publish_state(network::IPAddress(ip).str().c_str());
     }
-
   }
 
   float get_setup_priority() const override { return setup_priority::ETHERNET; }
