@@ -12,9 +12,7 @@ class IPAddressEthernetInfo : public PollingComponent, public text_sensor::TextS
   void update() override {
     tcpip_adapter_ip_info_t tcpip;
     tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &tcpip);
-
     auto ip = tcpip.ip.addr;
-
     if (ip != this->last_ip_) {
       this->last_ip_ = ip;
       this->publish_state(network::IPAddress(ip).str().c_str());
