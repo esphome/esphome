@@ -13,13 +13,19 @@ namespace bluetooth_proxy {
 
 static const char *const TAG = "bluetooth_proxy";
 
-BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
+BluetoothProxy::BluetoothProxy() {
+  global_bluetooth_proxy = this;
+  this->address_ = 0;
+}
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
   this->send_api_packet_(device);
-  return true;
+
+  if (this->address_ == 0)
+    return true;
+  return BLEClientBase::parse_device(device);
 }
 
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -55,22 +61,18 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
 void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                          esp_ble_gattc_cb_param_t *param) {}
 
-void BluetoothProxy::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {}
-
-void BluetoothProxy::connect() {}
-
 void BluetoothProxy::dump_config() { ESP_LOGCONFIG(TAG, "Bluetooth Proxy:"); }
 
 #ifdef USE_API
 void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
   switch (msg.request_type) {
-    case BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
       break;
-    case BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT:
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT:
       break;
-    case BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
       break;
-    case BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
       break;
   }
 }

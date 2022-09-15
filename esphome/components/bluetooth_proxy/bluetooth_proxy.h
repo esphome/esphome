@@ -4,6 +4,7 @@
 
 #include <map>
 
+#include "esphome/components/esp32_ble_client/ble_client_base.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -16,7 +17,9 @@
 namespace esphome {
 namespace bluetooth_proxy {
 
-class BluetoothProxy : public Component, public esp32_ble_tracker::ESPBTClient {
+using namespace esp32_ble_client;
+
+class BluetoothProxy : public BLEClientBase {
  public:
   BluetoothProxy();
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
@@ -24,10 +27,6 @@ class BluetoothProxy : public Component, public esp32_ble_tracker::ESPBTClient {
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
-
-  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
-
-  void connect() override;
 
 #ifdef USE_API
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);
