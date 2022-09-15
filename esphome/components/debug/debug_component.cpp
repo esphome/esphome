@@ -19,7 +19,7 @@
 
 #endif  // USE_ESP32
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_LIBRETUYA)
 #include <Esp.h>
 #endif
 
@@ -29,7 +29,7 @@ namespace debug {
 static const char *const TAG = "debug";
 
 static uint32_t get_free_heap() {
-#if defined(USE_ESP8266)
+#if defined(USE_ESP8266) || defined(USE_LIBRETUYA)
   return ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
 #elif defined(USE_ESP32)
   return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
@@ -64,7 +64,7 @@ void DebugComponent::dump_config() {
   this->free_heap_ = get_free_heap();
   ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_LIBRETUYA)
   const char *flash_mode;
   switch (ESP.getFlashChipMode()) {  // NOLINT(readability-static-accessed-through-instance)
     case FM_QIO:
@@ -96,7 +96,7 @@ void DebugComponent::dump_config() {
   device_info += "|Flash: " + to_string(ESP.getFlashChipSize() / 1024) +                    // NOLINT
                  "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) + "MHz Mode:";  // NOLINT
   device_info += flash_mode;
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO && !USE_LIBRETUYA
 
 #ifdef USE_ESP32
   esp_chip_info_t info;
@@ -272,6 +272,25 @@ void DebugComponent::dump_config() {
   device_info += ESP.getResetInfo().c_str();
 #endif
 
+#ifdef USE_LIBRETUYA
+  ESP_LOGD(TAG, "LT Framework Version: %s", LT.getVersion());
+  ESP_LOGD(TAG, "Chip: %s (%04x) @ %u MHz", LT.getChipModel(), LT.getChipType(), LT.getCpuFreqMHz());
+  ESP_LOGD(TAG, "Chip ID: 0x%06X", LT.getChipId());
+  ESP_LOGD(TAG, "Board: %s", LT.getBoard());
+  ESP_LOGD(TAG, "Flash: %u KiB / RAM: %u KiB", LT.getFlashChipSize() / 1024, LT.getRamSize() / 1024);
+  ESP_LOGD(TAG, "Reset Reason: %s", LT.getResetReasonName());
+
+  device_info += "|LT Version: ";
+  device_info += LT.getVersion();
+  device_info += "|Reset Reason: ";
+  device_info += LT.getResetReasonName();
+  device_info += "|Chip Name: ";
+  device_info += LT.getChipModel();
+  device_info += "|Chip ID: 0x" + format_hex(LT.getChipId());
+  device_info += "|Flash: " + to_string(LT.getFlashChipSize() / 1024) + " KiB";
+  device_info += "|RAM: " + to_string(LT.getRamSize() / 1024) + " KiB";
+#endif
+
 #ifdef USE_TEXT_SENSOR
   if (this->device_info_ != nullptr) {
     if (device_info.length() > 255)
@@ -308,7 +327,7 @@ void DebugComponent::update() {
   }
 
   if (this->block_sensor_ != nullptr) {
-#if defined(USE_ESP8266)
+#if defined(USE_ESP8266) || defined(USE_LIBRETUYA)
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
 #elif defined(USE_ESP32)
