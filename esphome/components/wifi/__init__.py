@@ -252,7 +252,7 @@ def _validate(config):
 
 
 CONF_OUTPUT_POWER = "output_power"
-CONF_KEEP_CREDENTIALS = "keep_user_credentials"
+CONF_KEEP_USER_CREDENTIALS = "keep_user_credentials"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -272,7 +272,7 @@ CONFIG_SCHEMA = cv.All(
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional(CONF_KEEP_CREDENTIALS, default=False): cv.boolean,
+            cv.Optional(CONF_KEEP_USER_CREDENTIALS, default=False): cv.boolean,
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)
             ),
@@ -378,7 +378,7 @@ async def to_code(config):
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
 
-    if CONF_KEEP_CREDENTIALS in config:
+    if CONF_KEEP_USER_CREDENTIALS in config:
         cg.add_define("USE_WIFI_USER_CREDENTIALS")
 
     if CORE.is_esp8266:
