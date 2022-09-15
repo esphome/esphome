@@ -343,7 +343,7 @@ def wizard(path):
     sleep(1)
 
     safe_print_step(3, WIFI_BIG)
-    safe_print("In this step, I'm going to create the configuration for " "WiFi.")
+    safe_print("In this step, I'm going to create the configuration for WiFi.")
     safe_print()
     sleep(1)
     safe_print(

@@ -8,7 +8,7 @@ namespace esphome {
 namespace bl0939 {
 
 // https://datasheet.lcsc.com/lcsc/2108071830_BL-Shanghai-Belling-BL0939_C2841044.pdf
-// (unfortunatelly chinese, but the formulas can be easily understood)
+// (unfortunately chinese, but the formulas can be easily understood)
 // Sonoff Dual R3 V2 has the exact same resistor values for the current shunts (RL=1miliOhm)
 // and for the voltage divider (R1=0.51kOhm, R2=5*390kOhm)
 // as in the manufacturer's reference circuit, so the same formulas were used here (Vref=1.218V)
@@ -75,16 +75,16 @@ class BL0939 : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
-  sensor::Sensor *voltage_sensor_;
-  sensor::Sensor *current_sensor_1_;
-  sensor::Sensor *current_sensor_2_;
+  sensor::Sensor *voltage_sensor_{nullptr};
+  sensor::Sensor *current_sensor_1_{nullptr};
+  sensor::Sensor *current_sensor_2_{nullptr};
   // NB This may be negative as the circuits is seemingly able to measure
   // power in both directions
-  sensor::Sensor *power_sensor_1_;
-  sensor::Sensor *power_sensor_2_;
-  sensor::Sensor *energy_sensor_1_;
-  sensor::Sensor *energy_sensor_2_;
-  sensor::Sensor *energy_sensor_sum_;
+  sensor::Sensor *power_sensor_1_{nullptr};
+  sensor::Sensor *power_sensor_2_{nullptr};
+  sensor::Sensor *energy_sensor_1_{nullptr};
+  sensor::Sensor *energy_sensor_2_{nullptr};
+  sensor::Sensor *energy_sensor_sum_{nullptr};
 
   // Divide by this to turn into Watt
   float power_reference_ = BL0939_PREF;

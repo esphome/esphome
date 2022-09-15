@@ -62,6 +62,21 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   }
   return crc;
 }
+uint16_t crc16(const uint8_t *data, uint8_t len) {
+  uint16_t crc = 0xFFFF;
+  while (len--) {
+    crc ^= *data++;
+    for (uint8_t i = 0; i < 8; i++) {
+      if ((crc & 0x01) != 0) {
+        crc >>= 1;
+        crc ^= 0xA001;
+      } else {
+        crc >>= 1;
+      }
+    }
+  }
+  return crc;
+}
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -256,6 +271,19 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
   snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
   return std::string(tmp);
+}
+
+int8_t step_to_accuracy_decimals(float step) {
+  // use printf %g to find number of digits based on temperature step
+  char buf[32];
+  sprintf(buf, "%.5g", step);
+
+  std::string str{buf};
+  size_t dot_pos = str.find('.');
+  if (dot_pos == std::string::npos)
+    return 0;
+
+  return str.length() - dot_pos - 1;
 }
 
 // Colors
