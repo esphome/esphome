@@ -5,6 +5,7 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
+    CONF_ID,
     CONF_NAME,
     CONF_PROJECT,
     CONF_SOURCE,
@@ -17,7 +18,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
-from .const import KEY_BOARD, KEY_LIBRETUYA
+from .const import KEY_BOARD, KEY_LIBRETUYA, LTComponent
 
 # force import gpio to register pin schema
 from .gpio import libretuya_pin_to_code  # noqa
@@ -96,6 +97,7 @@ FRAMEWORK_SCHEMA = cv.All(
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
+            cv.GenerateID(): cv.declare_id(LTComponent),
             cv.Required(CONF_BOARD): cv.string_strict,
             cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
             cv.Optional(CONF_LT_CONFIG, default={}): {
@@ -113,6 +115,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    var = cg.new_Pvariable(config[CONF_ID])
+
     # setup board config
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_LIBRETUYA")
@@ -175,3 +179,5 @@ async def to_code(config):
         cg.add_platformio_option("custom_fw_name", "esphome")
         cg.add_platformio_option("custom_fw_version", __version__)
     cg.add_platformio_option("custom_fw_output", "firmware.uf2")
+
+    await cg.register_component(var, config)

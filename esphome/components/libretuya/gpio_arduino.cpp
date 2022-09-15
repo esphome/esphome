@@ -6,7 +6,7 @@
 namespace esphome {
 namespace libretuya {
 
-static const char *const TAG = "libretuya";
+static const char *const TAG = "lt.gpio";
 
 static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
   if (flags == gpio::FLAG_INPUT) {
