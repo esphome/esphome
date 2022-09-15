@@ -291,6 +291,8 @@ void DebugComponent::dump_config() {
   device_info += "|Chip ID: 0x" + format_hex(LT.getChipId());
   device_info += "|Flash: " + to_string(LT.getFlashChipSize() / 1024) + " KiB";
   device_info += "|RAM: " + to_string(LT.getRamSize() / 1024) + " KiB";
+
+  reset_reason = LT.getResetReasonName();
 #endif
 
 #ifdef USE_TEXT_SENSOR
