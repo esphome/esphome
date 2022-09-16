@@ -22,7 +22,6 @@ void MCP23S17::setup() {
   this->transfer_byte(mcp23x17_base::MCP23X17_IOCONA);
   this->transfer_byte(0b00011000);  // Enable HAEN pins for addressing
   this->disable();
-  
   this->enable();
   cmd = 0b01001000;
   this->transfer_byte(cmd);
