@@ -6,17 +6,15 @@
 #ifdef USE_ARDUINO
 #include <esp32-hal-ledc.h>
 #endif
-#ifdef USE_ESP_IDF
 #include <driver/ledc.h>
-#endif
 
 namespace esphome {
 namespace ledc {
 
 static const char *const TAG = "ledc.output";
 
-#ifdef USE_ESP_IDF
 static const int MAX_RES_BITS = LEDC_TIMER_BIT_MAX - 1;
+#ifdef USE_ESP_IDF
 #if SOC_LEDC_SUPPORT_HS_MODE
 // Only ESP32 has LEDC_HIGH_SPEED_MODE
 inline ledc_mode_t get_speed_mode(uint8_t channel) { return channel < 8 ? LEDC_HIGH_SPEED_MODE : LEDC_LOW_SPEED_MODE; }
@@ -26,8 +24,6 @@ inline ledc_mode_t get_speed_mode(uint8_t channel) { return channel < 8 ? LEDC_H
 // https://docs.espressif.com/projects/esp-idf/en/latest/esp32c3/api-reference/peripherals/ledc.html#functionality-overview
 inline ledc_mode_t get_speed_mode(uint8_t) { return LEDC_LOW_SPEED_MODE; }
 #endif
-#else
-static const int MAX_RES_BITS = 20;
 #endif
 
 float ledc_max_frequency_for_bit_depth(uint8_t bit_depth) { return 80e6f / float(1 << bit_depth); }
