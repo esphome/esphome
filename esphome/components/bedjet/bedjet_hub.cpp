@@ -138,13 +138,13 @@ uint8_t BedJetHub::write_bedjet_packet_(BedjetPacket *pkt) {
 uint8_t BedJetHub::set_notify_(const bool enable) {
   uint8_t status;
   if (enable) {
-    status = esp_ble_gattc_register_for_notify(this->parent_->get_gattc_if(), this->parent_->remote_bda,
+    status = esp_ble_gattc_register_for_notify(this->parent_->get_gattc_if(), this->parent_->get_remote_bda(),
                                                this->char_handle_status_);
     if (status) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_register_for_notify failed, status=%d", this->get_name().c_str(), status);
     }
   } else {
-    status = esp_ble_gattc_unregister_for_notify(this->parent_->get_gattc_if(), this->parent_->remote_bda,
+    status = esp_ble_gattc_unregister_for_notify(this->parent_->get_gattc_if(), this->parent_->get_remote_bda(),
                                                  this->char_handle_status_);
     if (status) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_unregister_for_notify failed, status=%d", this->get_name().c_str(), status);
