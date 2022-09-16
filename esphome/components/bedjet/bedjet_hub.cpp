@@ -230,22 +230,6 @@ void BedJetHub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       this->dispatch_state_(false);
       break;
     }
-    case ESP_GATTC_OPEN_EVT: {
-      // FIXME: bug in BLEClient
-      this->parent_->get_conn_id() = param->open.conn_id;
-      this->open_conn_id_ = param->open.conn_id;
-      break;
-    }
-
-    case ESP_GATTC_CONNECT_EVT: {
-      if (this->parent_->get_conn_id() != param->connect.conn_id && this->open_conn_id_ != 0xff) {
-        // FIXME: bug in BLEClient
-        ESP_LOGW(TAG, "[%s] CONNECT_EVT unexpected conn_id; open=%d, parent=%d, param=%d", this->get_name().c_str(),
-                 this->open_conn_id_, this->parent_->get_conn_id(), param->connect.conn_id);
-        this->parent_->get_conn_id() = this->open_conn_id_;
-      }
-      break;
-    }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto result = this->discover_characteristics_();
 
