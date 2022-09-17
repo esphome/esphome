@@ -82,7 +82,7 @@ class ADE7953 : public i2c::I2CDevice, public PollingComponent {
     return i2c::ERROR_OK;
   }
 
-  InternalGPIOPin *irq_pin_ = nullptr;
+  InternalGPIOPin *irq_pin_{nullptr};
   bool is_setup_{false};
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_a_sensor_{nullptr};
