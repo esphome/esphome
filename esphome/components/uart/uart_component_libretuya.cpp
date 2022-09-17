@@ -79,7 +79,16 @@ void LibreTuyaUARTComponent::setup() {
     this->serial_ = new SoftwareSerial(rx_pin, tx_pin, rx_inverted || tx_inverted);
 #else
     this->serial_ = &Serial;
-    ESP_LOGE(TAG, "  SoftwareSerial is not implemented for this chip. Please fix your config.");
+    ESP_LOGE(TAG, "  SoftwareSerial is not implemented for this chip. Only hardware pins are supported:");
+#ifdef PIN_SERIAL0_TX
+    ESP_LOGE(TAG, "    TX=D%u, RX=D%u", PIN_SERIAL0_TX, PIN_SERIAL0_RX);
+#endif
+#ifdef PIN_SERIAL1_TX
+    ESP_LOGE(TAG, "    TX=D%u, RX=D%u", PIN_SERIAL1_TX, PIN_SERIAL1_RX);
+#endif
+#ifdef PIN_SERIAL2_TX
+    ESP_LOGE(TAG, "    TX=D%u, RX=D%u", PIN_SERIAL2_TX, PIN_SERIAL2_RX);
+#endif
     return;
 #endif
   }
