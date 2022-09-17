@@ -117,12 +117,12 @@ async def to_code(config):
                 data[pos // 8] |= 0x80 >> (pos % 8)
 
     elif config[CONF_TYPE] == "TRANSPARENT_BINARY":
-        image = image.convert("RGBA")
+        image = image.convert("1", dither=dither)
         width8 = ((width + 7) // 8) * 8
         data = [0 for _ in range(height * width8 // 8)]
         for y in range(height):
             for x in range(width):
-                if not image.getpixel((x, y))[3]:
+                if image.getpixel((x, y)):
                     continue
                 pos = x + y * width8
                 data[pos // 8] |= 0x80 >> (pos % 8)
