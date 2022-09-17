@@ -200,6 +200,13 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 def _validate(config):
+    if config.get(CONF_KEEP_USER_CREDENTIALS, False) and (
+        CONF_SSID in config or CONF_PASSWORD in config or CONF_NETWORKS in config
+    ):
+        raise cv.Invalid(
+            f"WiFi credentials cannot be used together with {CONF_KEEP_USER_CREDENTIALS}"
+        )
+
     if CONF_PASSWORD in config and CONF_SSID not in config:
         raise cv.Invalid("Cannot have WiFi password without SSID!")
 
@@ -378,7 +385,7 @@ async def to_code(config):
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
 
-    if CONF_KEEP_USER_CREDENTIALS in config:
+    if config.get(CONF_KEEP_USER_CREDENTIALS, False):
         cg.add_define("USE_WIFI_USER_CREDENTIALS")
 
     if CORE.is_esp8266:
