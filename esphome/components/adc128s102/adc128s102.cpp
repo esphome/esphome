@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace adc128s102{
+namespace adc128s102 {
 
 static const char *const TAG = "adc128s102";
 
@@ -18,7 +18,7 @@ void ADC128S102::dump_config() {
   LOG_PIN("  CS Pin:", this->cs_);
 }
 
-uint16_t ADC128S102::read_data(uint8_t channel){
+uint16_t ADC128S102::read_data(uint8_t channel) {
   uint8_t control = channel << 3;
 
   this->enable();
@@ -31,5 +31,5 @@ uint16_t ADC128S102::read_data(uint8_t channel){
   return digital_value;
 }
 
-}
-}
+}  // namespace adc128s102
+}  // namespace esphome

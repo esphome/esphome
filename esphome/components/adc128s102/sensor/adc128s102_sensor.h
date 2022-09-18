@@ -8,15 +8,13 @@
 #include "../adc128s102.h"
 
 namespace esphome {
-namespace adc128s102{
-
+namespace adc128s102 {
 
 class ADC128S102Sensor : public PollingComponent,
-                      public Parented<ADC128S102>,
-                      public sensor::Sensor,
-                      public voltage_sampler::VoltageSampler{
-
-public:
+                         public Parented<ADC128S102>,
+                         public sensor::Sensor,
+                         public voltage_sampler::VoltageSampler {
+ public:
   ADC128S102Sensor(uint8_t channel);
 
   void update() override;
@@ -24,8 +22,8 @@ public:
   float get_setup_priority() const override;
   float sample() override;
 
-protected:
+ protected:
   uint8_t channel_;
 };
-}
-}
+}  // namespace adc128s102
+}  // namespace esphome
