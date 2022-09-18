@@ -12,11 +12,9 @@ from esphome.const import (
     UNIT_METER,
 )
 
-DEPENDENCIES = ["mqtt"]
+DEPENDENCIES = ["mqtt", "esp32_ble_tracker"]
 
 CODEOWNERS = ["@wjtje"]
-
-DEPENDENCIES = ["esp32_ble_tracker"]
 
 CONF_ROOM = "room"
 CONF_TRACKERS = "trackers"
