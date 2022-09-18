@@ -27,6 +27,7 @@ uint8_t DisplayBuffer::init_internal_(uint32_t buffer_length, uint8_t bytes_per_
   while (bytes_per_pixel > 0) {
     this->buffer_ = allocator.allocate(buffer_length * bytes_per_pixel);
     if (this->buffer_ != nullptr) {
+      this->clear();
       return bytes_per_pixel;
     }
   }
