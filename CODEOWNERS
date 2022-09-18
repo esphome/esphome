@@ -13,6 +13,7 @@ esphome/core/* @esphome/core
 # Integrations
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
+esphome/components/adc128s102/* @DeerMaximum
 esphome/components/addressable_light/* @justfalter
 esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_mini/* @ncareau
