@@ -13,21 +13,6 @@ namespace esphome {
 namespace online_image {
 
 /**
- * @brief Converts an RGB color (ignoring alpha) to a 1-bit grayscale color.
- *
- * @param color The color to convert from; the alpha channel will be ignored.
- * @return Whether the 8-bit grayscale equivalent color is brighter than average (i.e. brighter than 0x7F).
- */
-static bool isColorOn(Color color) {
-  // This produces the most accurate monochrome conversion, but is slightly slower.
-  //  return (0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b) > 127;
-
-  // Approximation using fast integer computations; produces acceptable results
-  // Would be equivalent to 0.25 * R + 0.5 * G + 0.25 * B
-  return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
-}
-
-/**
  * @brief Callback method that will be called by the PNGLE engine when a chunk
  * of the image is decoded.
  *
@@ -41,15 +26,7 @@ static bool isColorOn(Color color) {
 static void drawCallback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uint32_t h, uint8_t rgba[4]) {
   PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
   Color color(rgba[0], rgba[1], rgba[2], rgba[3]);
-  if (decoder->display()->get_display_type() == display::DisplayType::DISPLAY_TYPE_BINARY) {
-    color = isColorOn(color) ? decoder->color_on() : decoder->color_off();
-  }
-
-  if (rgba[3]) {
-    x += decoder->x0();
-    y += decoder->y0();
-    decoder->display()->filled_rectangle(x, y, w, h, color);
-  }
+  decoder->draw(x, y, w, h, color);
 }
 
 PngDecoder::PngDecoder(display::DisplayBuffer *display) : ImageDecoder(display), pngle(pngle_new()) {}

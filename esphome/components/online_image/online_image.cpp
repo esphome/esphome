@@ -72,6 +72,39 @@ void OnlineImage::draw(int x, int y, DisplayBuffer *display, Color color_on, Col
   http.end();
 }
 
+bool ImageDecoder::is_color_on(const Color &color) {
+  // This produces the most accurate monochrome conversion, but is slightly slower.
+  //  return (0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b) > 127;
+
+  // Approximation using fast integer computations; produces acceptable results
+  // Equivalent to 0.25 * R + 0.5 * G + 0.25 * B
+  return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
+}
+
+void ImageDecoder::draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, Color color) {
+  if (display_->get_display_type() == display::DisplayType::DISPLAY_TYPE_BINARY) {
+    color = is_color_on(color) ? color_on() : color_off();
+  }
+
+  static uint16_t display_width = display_->get_width();
+  static uint16_t display_height = display_->get_height();
+
+  if (color.w) {
+    x += x0();
+    y += y0();
+    if (x >= display_width || y >= display_height) {
+      return;
+    }
+    if (x + w >= display_width) {
+      w = display_width - x;
+    }
+    if (y + h >= display_height) {
+      h = display_height - y;
+    }
+    display_->filled_rectangle(x, y, w, h, color);
+  }
+}
+
 }  // namespace online_image
 }  // namespace esphome
 

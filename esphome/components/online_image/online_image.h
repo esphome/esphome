@@ -123,11 +123,32 @@ class ImageDecoder {
   /**
    * @return the color for on pixels.
    */
-  Color color_on() { return color_on_; }
+  const Color &color_on() { return color_on_; }
   /**
    * @return the color for off pixels.
    */
-  Color color_off() { return color_off_; }
+  const Color &color_off() { return color_off_; }
+
+  /**
+   * @brief Draw a rectangle on the display_buffer using the defined color.
+   * Will check the given coordinates for out-of-bounds, and clip the rectangle accordingly.
+   * In case of binary displays, the color will be converted to binary as well.
+   *
+   * @param x The left-most coordinate of the rectangle.
+   * @param y The top-most coordinate of the rectangle.
+   * @param w The width of the rectangle.
+   * @param h The height of the rectangle.
+   * @param color The color to draw the rectangle with.
+   */
+  void draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, Color color);
+
+  /**
+   * @brief Converts an RGB color (ignoring alpha) to a 1-bit grayscale color.
+   *
+   * @param color The color to convert from; the alpha channel will be ignored.
+   * @return Whether the 8-bit grayscale equivalent color is brighter than average (i.e. brighter than 0x7F).
+   */
+  bool is_color_on(const Color &color);
 
  protected:
   display::DisplayBuffer *display_;
