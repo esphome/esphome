@@ -41,6 +41,7 @@ enum OTAState { OTA_COMPLETED = 0, OTA_STARTED, OTA_IN_PROGRESS, OTA_ERROR };
 /// OTAComponent provides a simple way to integrate Over-the-Air updates into your app using ArduinoOTA.
 class OTAComponent : public Component {
  public:
+  OTAComponent();
 #ifdef USE_OTA_PASSWORD
   void set_auth_password(const std::string &password) { password_ = password; }
 #endif  // USE_OTA_PASSWORD
@@ -102,6 +103,8 @@ class OTAComponent : public Component {
   CallbackManager<void(OTAState, float, uint8_t)> state_callback_{};
 #endif
 };
+
+extern OTAComponent *global_ota_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace ota
 }  // namespace esphome

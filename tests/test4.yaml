@@ -243,6 +243,20 @@ sensor:
   - platform: copy
     source_id: mcp_sensor
     name: MCP binary sensor copy
+  - platform: ufire_ec
+    id: ufire_ec_board
+    temperature:
+      name: Ufire Temperature
+    ec:
+      name: Ufire EC
+    temperature_compensation: 20.0
+    temperature_coefficient: 0.019
+  - platform: ufire_ise
+    id: ufire_ise_board
+    temperature:
+      name: Ufire Temperature
+    ph:
+      name: Ufire pH
 
 #
 # platform sensor.apds9960 requires component apds9960
