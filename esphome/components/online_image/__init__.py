@@ -14,6 +14,8 @@ DEPENDENCIES = ["display"]
 CODEOWNERS = ["@guillempages"]
 MULTI_CONF = True
 
+CONF_SLOW_DRAWING = "slow_drawing"
+
 online_image_ns = cg.esphome_ns.namespace("online_image")
 
 ImageFormat = online_image_ns.enum("ImageFormat")
@@ -27,6 +29,7 @@ IMAGE_SCHEMA = cv.Schema(
         cv.Required(CONF_URL): cv.string,
         cv.Optional(CONF_FORMAT, default="PNG"): cv.enum(IMAGE_FORMAT, upper=True),
         cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(256, 65536),
+        cv.Optional(CONF_SLOW_DRAWING, default=False): cv.boolean,
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
     }
 )
@@ -60,3 +63,6 @@ async def to_code(config):
     if config[CONF_FORMAT] in ["PNG"]:
         cg.add_define("ONLINE_IMAGE_PNG_SUPPORT")
         cg.add_library("pngle", None)
+
+    if config[CONF_SLOW_DRAWING]:
+        cg.add_define("ONLINE_IMAGE_WATCHDOG_ON_DECODE")

@@ -89,6 +89,10 @@ void ImageDecoder::draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, Color co
   static uint16_t display_width = display_->get_width();
   static uint16_t display_height = display_->get_height();
 
+#ifdef ONLINE_IMAGE_WATCHDOG_ON_DECODE
+  App.feed_wdt();
+#endif
+
   if (color.w) {
     x += x0();
     y += y0();
