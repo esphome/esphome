@@ -19,7 +19,7 @@ void ADC128S102::dump_config() {
 }
 
 uint16_t ADC128S102::read_data(uint8_t channel){
-  byte control = channel << 3;
+  uint8_t control = channel << 3;
 
   this->enable();
   uint8_t adc_primary_byte = this->transfer_byte(control);
