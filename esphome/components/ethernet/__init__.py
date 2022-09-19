@@ -27,11 +27,16 @@ CONF_MDIO_PIN = "mdio_pin"
 CONF_CLK_MODE = "clk_mode"
 CONF_POWER_PIN = "power_pin"
 
-EthernetType = ethernet_ns.enum("EthernetType")
+EthernetType = cg.global_ns.enum("eth_phy_type_t")
 ETHERNET_TYPES = {
-    "LAN8720": EthernetType.ETHERNET_TYPE_LAN8720,
-    "TLK110": EthernetType.ETHERNET_TYPE_TLK110,
-    "IP101": EthernetType.ETHERNET_TYPE_IP101,
+    "LAN8720": EthernetType.ETH_PHY_LAN8720,
+    "TLK110": EthernetType.ETH_PHY_TLK110,
+    "IP101": EthernetType.ETH_PHY_IP101,
+    "RTL8201": EthernetType.ETH_PHY_RTL8201,
+    "DP83848": EthernetType.ETH_PHY_DP83848,
+    "DM9051": EthernetType.ETH_PHY_DM9051,
+    "KSZ8041": EthernetType.ETH_PHY_KSZ8041,
+    "KSZ8081": EthernetType.ETH_PHY_KSZ8081,
 }
 
 eth_clock_mode_t = cg.global_ns.enum("eth_clock_mode_t")
@@ -127,3 +132,4 @@ async def to_code(config):
 
     if CORE.is_esp32:
         cg.add_library("WiFi", None)
+        cg.add_library("Ethernet", None)

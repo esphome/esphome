@@ -5,9 +5,6 @@
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
-#include <eth_phy/phy_lan8720.h>
-#include <eth_phy/phy_ip101.h>
-#include <eth_phy/phy_tlk110.h>
 #include <lwip/dns.h>
 
 /// Macro for IDF version comparison
@@ -15,7 +12,7 @@
 #define ESP_IDF_VERSION_VAL(major, minor, patch) (((major) << 16) | ((minor) << 8) | (patch))
 #endif
 
-// Defined in WiFiGeneric.cpp, sets global initialized flag, starts network event task queue and calls
+// Defined in ETH.cpp, sets global initialized flag, starts network event task queue and calls
 // tcpip_adapter_init()
 extern void tcpipInit();  // NOLINT(readability-identifier-naming)
 
@@ -35,52 +32,50 @@ EthernetComponent *global_eth_component;  // NOLINT(cppcoreguidelines-avoid-non-
 
 EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
+void EthernetComponent::on_wifi_event_(WiFiEvent_t event) {
+  const char *event_name;
+
+  switch (event) {
+    case SYSTEM_EVENT_ETH_START:
+      event_name = "ETH started";
+      global_eth_component->started_ = true;
+      break;
+    case SYSTEM_EVENT_ETH_STOP:
+      event_name = "ETH stopped";
+      global_eth_component->started_ = false;
+      global_eth_component->connected_ = false;
+      break;
+    case SYSTEM_EVENT_ETH_CONNECTED:
+      event_name = "ETH connected";
+      break;
+    case SYSTEM_EVENT_ETH_DISCONNECTED:
+      event_name = "ETH disconnected";
+      global_eth_component->connected_ = false;
+      break;
+    case SYSTEM_EVENT_ETH_GOT_IP:
+      event_name = "ETH Got IP";
+      global_eth_component->connected_ = true;
+      break;
+    default:
+      return;
+  }
+
+  ESP_LOGV(TAG, "[Ethernet event] %s (num=%d)", event_name, event);
+}
+
+
+
 void EthernetComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ethernet...");
 
-  auto f = std::bind(&EthernetComponent::on_wifi_event_, this, std::placeholders::_1, std::placeholders::_2);
-  WiFi.onEvent(f);
+  WiFi.onEvent(on_wifi_event_);
 
   if (this->power_pin_ != nullptr) {
     this->power_pin_->setup();
   }
 
-  switch (this->type_) {
-    case ETHERNET_TYPE_LAN8720: {
-      memcpy(&this->eth_config_, &phy_lan8720_default_ethernet_config, sizeof(eth_config_t));
-      break;
-    }
-    case ETHERNET_TYPE_TLK110: {
-      memcpy(&this->eth_config_, &phy_tlk110_default_ethernet_config, sizeof(eth_config_t));
-      break;
-    }
-    case ETHERNET_TYPE_IP101: {
-      memcpy(&this->eth_config_, &phy_ip101_default_ethernet_config, sizeof(eth_config_t));
-      break;
-    }
-    default: {
-      this->mark_failed();
-      return;
-    }
-  }
+  ETH.begin(this->phy_addr_, this->power_pin_ != nullptr ? *(uint8_t*)((this->power_pin_)) : -1, this->mdc_pin_, this->mdio_pin_, this->type_, this->clk_mode_);
 
-  this->eth_config_.phy_addr = static_cast<eth_phy_base_t>(this->phy_addr_);
-  this->eth_config_.clock_mode = this->clk_mode_;
-  this->eth_config_.gpio_config = EthernetComponent::eth_phy_config_gpio;
-  this->eth_config_.tcpip_input = tcpip_adapter_eth_input;
-
-  if (this->power_pin_ != nullptr) {
-    this->orig_power_enable_fun_ = this->eth_config_.phy_power_enable;
-    this->eth_config_.phy_power_enable = EthernetComponent::eth_phy_power_enable;
-  }
-
-  tcpipInit();
-
-  esp_err_t err;
-  err = esp_eth_init(&this->eth_config_);
-  ESPHL_ERROR_CHECK(err, "ETH init error");
-  err = esp_eth_enable();
-  ESPHL_ERROR_CHECK(err, "ETH enable error");
 }
 
 void EthernetComponent::loop() {
@@ -126,16 +121,32 @@ void EthernetComponent::loop() {
 void EthernetComponent::dump_config() {
   std::string eth_type;
   switch (this->type_) {
-    case ETHERNET_TYPE_LAN8720:
+    case ETH_PHY_LAN8720:
       eth_type = "LAN8720";
       break;
 
-    case ETHERNET_TYPE_TLK110:
-      eth_type = "TLK110";
+    case ETH_PHY_TLK110:
+      eth_type = "TLK110 / IP101";
       break;
 
-    case ETHERNET_TYPE_IP101:
-      eth_type = "IP101";
+    case ETH_PHY_RTL8201:
+      eth_type = "RTL8201";
+      break;
+
+    case ETH_PHY_DP83848:
+      eth_type = "DP83848";
+      break;
+
+    case ETH_PHY_DM9051:
+      eth_type = "DM9051";
+      break;
+
+    case ETH_PHY_KSZ8041:
+      eth_type = "KSZ8041";
+      break;
+
+    case ETH_PHY_KSZ8081:
+      eth_type = "KSZ8081";
       break;
 
     default:
@@ -161,36 +172,7 @@ network::IPAddress EthernetComponent::get_ip_address() {
   return {ip.ip.addr};
 }
 
-void EthernetComponent::on_wifi_event_(system_event_id_t event, system_event_info_t info) {
-  const char *event_name;
 
-  switch (event) {
-    case SYSTEM_EVENT_ETH_START:
-      event_name = "ETH started";
-      this->started_ = true;
-      break;
-    case SYSTEM_EVENT_ETH_STOP:
-      event_name = "ETH stopped";
-      this->started_ = false;
-      this->connected_ = false;
-      break;
-    case SYSTEM_EVENT_ETH_CONNECTED:
-      event_name = "ETH connected";
-      break;
-    case SYSTEM_EVENT_ETH_DISCONNECTED:
-      event_name = "ETH disconnected";
-      this->connected_ = false;
-      break;
-    case SYSTEM_EVENT_ETH_GOT_IP:
-      event_name = "ETH Got IP";
-      this->connected_ = true;
-      break;
-    default:
-      return;
-  }
-
-  ESP_LOGV(TAG, "[Ethernet event] %s (num=%d)", event_name, event);
-}
 
 void EthernetComponent::start_connect_() {
   this->connect_begin_ = millis();
@@ -244,17 +226,6 @@ void EthernetComponent::start_connect_() {
   this->status_set_warning();
 }
 
-void EthernetComponent::eth_phy_config_gpio() {
-  phy_rmii_configure_data_interface_pins();
-  phy_rmii_smi_configure_pins(global_eth_component->mdc_pin_, global_eth_component->mdio_pin_);
-}
-
-void EthernetComponent::eth_phy_power_enable(bool enable) {
-  global_eth_component->power_pin_->digital_write(enable);
-  // power up takes some time, datasheet says max 300µs
-  delay(1);
-  global_eth_component->orig_power_enable_fun_(enable);
-}
 
 bool EthernetComponent::is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
@@ -278,18 +249,18 @@ void EthernetComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->u_addr.ip4.addr).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->u_addr.ip4.addr).str().c_str());
   uint8_t mac[6];
-  esp_eth_get_mac(mac);
+  ETH.macAddress(mac);
   ESP_LOGCONFIG(TAG, "  MAC Address: %02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
-  ESP_LOGCONFIG(TAG, "  Is Full Duplex: %s", YESNO(this->eth_config_.phy_get_duplex_mode()));
-  ESP_LOGCONFIG(TAG, "  Link Up: %s", YESNO(this->eth_config_.phy_check_link()));
-  ESP_LOGCONFIG(TAG, "  Link Speed: %u", this->eth_config_.phy_get_speed_mode() ? 100 : 10);
+  ESP_LOGCONFIG(TAG, "  Is Full Duplex: %s", YESNO(ETH.fullDuplex()));
+  ESP_LOGCONFIG(TAG, "  Link Up: %s", YESNO(ETH.linkUp()));
+  ESP_LOGCONFIG(TAG, "  Link Speed: %u", ETH.linkSpeed());
 }
 
 void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
 void EthernetComponent::set_power_pin(GPIOPin *power_pin) { this->power_pin_ = power_pin; }
 void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin; }
 void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
-void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
+void EthernetComponent::set_type(eth_phy_type_t type) { this->type_ = type; }
 void EthernetComponent::set_clk_mode(eth_clock_mode_t clk_mode) { this->clk_mode_ = clk_mode; }
 void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
 

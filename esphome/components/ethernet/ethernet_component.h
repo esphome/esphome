@@ -6,19 +6,10 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
 
-#include "esp_eth.h"
-#include <esp_wifi.h>
-#include <WiFiType.h>
-#include <WiFi.h>
+#include "ETH.h"
 
 namespace esphome {
 namespace ethernet {
-
-enum EthernetType {
-  ETHERNET_TYPE_LAN8720 = 0,
-  ETHERNET_TYPE_TLK110,
-  ETHERNET_TYPE_IP101,
-};
 
 struct ManualIP {
   network::IPAddress static_ip;
@@ -48,7 +39,7 @@ class EthernetComponent : public Component {
   void set_power_pin(GPIOPin *power_pin);
   void set_mdc_pin(uint8_t mdc_pin);
   void set_mdio_pin(uint8_t mdio_pin);
-  void set_type(EthernetType type);
+  void set_type(eth_phy_type_t type);
   void set_clk_mode(eth_clock_mode_t clk_mode);
   void set_manual_ip(const ManualIP &manual_ip);
 
@@ -57,19 +48,16 @@ class EthernetComponent : public Component {
   void set_use_address(const std::string &use_address);
 
  protected:
-  void on_wifi_event_(system_event_id_t event, system_event_info_t info);
+  static void on_wifi_event_(WiFiEvent_t event);
   void start_connect_();
   void dump_connect_params_();
-
-  static void eth_phy_config_gpio();
-  static void eth_phy_power_enable(bool enable);
 
   std::string use_address_;
   uint8_t phy_addr_{0};
   GPIOPin *power_pin_{nullptr};
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
-  EthernetType type_{ETHERNET_TYPE_LAN8720};
+  eth_phy_type_t type_{ETH_PHY_LAN8720};
   eth_clock_mode_t clk_mode_{ETH_CLOCK_GPIO0_IN};
   optional<ManualIP> manual_ip_{};
 
@@ -77,8 +65,6 @@ class EthernetComponent : public Component {
   bool connected_{false};
   EthernetComponentState state_{EthernetComponentState::STOPPED};
   uint32_t connect_begin_;
-  eth_config_t eth_config_;
-  eth_phy_power_enable_func orig_power_enable_fun_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
