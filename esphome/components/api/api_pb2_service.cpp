@@ -971,6 +971,22 @@ void APIServerConnection::on_bluetooth_device_request(const BluetoothDeviceReque
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
+void APIServerConnection::on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  BluetoothGATTGetServicesResponse ret = this->bluetooth_gatt_get_services(msg);
+  if (!this->send_bluetooth_gatt_get_services_response(ret)) {
+    this->on_fatal_error();
+  }
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();

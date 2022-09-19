@@ -46,6 +46,7 @@ service APIConnection {
 
   rpc subscribe_bluetooth_le_advertisements (SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
+  rpc bluetooth_gatt_get_services(BluetoothGATTGetServicesRequest) returns (BluetoothGATTGetServicesResponse) {}
   rpc bluetooth_gatt_read(BluetoothGATTReadRequest) returns (void) {}
   rpc bluetooth_gatt_write(BluetoothGATTWriteRequest) returns (void) {}
 
@@ -1157,10 +1158,23 @@ message BluetoothGATTGetServicesRequest {
   uint64 address = 1;
 }
 
+message BluetoothGATTDescriptor {
+  string uuid = 1;
+  uint32 handle = 2;
+  string description = 3;
+}
+
+message BluetoothGATTCharacteristic {
+  string uuid = 1;
+  uint32 handle = 2;
+  uint32 properties = 3;
+  repeated BluetoothGATTDescriptor descriptors = 4;
+}
+
 message BluetoothGATTService {
   string uuid = 1;
-  bool is_primary = 2;
-  uint32 instance_id = 3;
+  uint32 handle = 2;
+  repeated BluetoothGATTCharacteristic characteristics = 3;
 }
 
 message BluetoothGATTGetServicesResponse {
@@ -1190,7 +1204,13 @@ message BluetoothGATTReadResponse {
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
-  repeated uint32 data = 1 [packed=true];
+  uint64 address = 1;
+  bool is_descriptor = 2;
+  string service_uuid = 3;
+  string characteristic_uuid = 4;
+
+  repeated uint32 data = 5 [packed=true];
+
 }
 
 message BluetoothGATTWriteRequest {
