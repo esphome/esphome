@@ -769,7 +769,7 @@ void Sprinkler::resume() {
     ESP_LOGD(TAG, "Resuming valve %u with %u seconds remaining", this->paused_valve_.value_or(0),
              this->resume_duration_.value_or(0));
     this->fsm_request_(this->paused_valve_.value(), this->resume_duration_.value());
-    this->reset_resume_();
+    this->reset_resume();
   } else {
     ESP_LOGD(TAG, "No valve to resume!");
   }
@@ -781,6 +781,11 @@ void Sprinkler::resume_or_start_full_cycle() {
   } else {
     this->start_full_cycle();
   }
+}
+
+void Sprinkler::reset_resume() {
+  this->paused_valve_.reset();
+  this->resume_duration_.reset();
 }
 
 const char *Sprinkler::valve_name(const size_t valve_number) {
@@ -1099,11 +1104,6 @@ void Sprinkler::reset_cycle_states_() {
   for (auto &valve : this->valve_) {
     valve.valve_cycle_complete = false;
   }
-}
-
-void Sprinkler::reset_resume_() {
-  this->paused_valve_.reset();
-  this->resume_duration_.reset();
 }
 
 void Sprinkler::fsm_request_(size_t requested_valve, uint32_t requested_run_duration) {
