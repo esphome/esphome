@@ -48,10 +48,10 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 }
 
 std::string BLEClientBase::address_str() const {
-  return str_snprintf("%02x:%02x:%02x:%02x:%02x:%02x", 17, (uint8_t) (this->address_ >> 40) & 0xff,
-                      (uint8_t) (this->address_ >> 32) & 0xff, (uint8_t) (this->address_ >> 24) & 0xff,
-                      (uint8_t) (this->address_ >> 16) & 0xff, (uint8_t) (this->address_ >> 8) & 0xff,
-                      (uint8_t) (this->address_ >> 0) & 0xff);
+  return str_snprintf("%02x:%02x:%02x:%02x:%02x:%02x", 17, (uint8_t)(this->address_ >> 40) & 0xff,
+                      (uint8_t)(this->address_ >> 32) & 0xff, (uint8_t)(this->address_ >> 24) & 0xff,
+                      (uint8_t)(this->address_ >> 16) & 0xff, (uint8_t)(this->address_ >> 8) & 0xff,
+                      (uint8_t)(this->address_ >> 0) & 0xff);
 }
 
 void BLEClientBase::connect() {
@@ -236,7 +236,7 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
       }
     case 0xF:  // int24.
       if (length > 3) {
-        return (float) ((int32_t)(value[1] << 16) + (int32_t) (value[2] << 8) + (int32_t) (value[3]));
+        return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
       }
     case 0x10:  // int32.
       if (length > 4) {
