@@ -194,7 +194,11 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
     ESP_LOGW(TAG, "Cannot read GATT characteristic, not found.");
     return;
   }
-  characteristic->write_value(msg.data.data(), msg.data.size());
+  std::vector<uint8_t> data;
+  data.reserve(msg.data.size());
+  for (uint32_t d : msg.data)
+    data.push_back((uint8_t) d);
+  characteristic->write_value(data.data(), data.size());
 }
 
 api::BluetoothGATTGetServicesResponse BluetoothProxy::bluetooth_gatt_get_services(

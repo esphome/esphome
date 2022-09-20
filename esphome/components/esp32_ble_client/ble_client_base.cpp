@@ -217,32 +217,31 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
     case 0x5:  // uint12.
     case 0x6:  // uint16.
       if (length > 2) {
-        return (float) ((uint16_t) (value[1] << 8) + (uint16_t) value[2]);
+        return (float) encode_uint16(value[1], value[2]);
       }
     case 0x7:  // uint24.
       if (length > 3) {
-        return (float) ((uint32_t) (value[1] << 16) + (uint32_t) (value[2] << 8) + (uint32_t) (value[3]));
+        return (float) encode_uint24(value[1], value[2], value[3]);
       }
     case 0x8:  // uint32.
       if (length > 4) {
-        return (float) ((uint32_t) (value[1] << 24) + (uint32_t) (value[2] << 16) + (uint32_t) (value[3] << 8) +
-                        (uint32_t) (value[4]));
+        return (float) encode_uint32(value[1], value[2], value[3], value[4]);
       }
     case 0xC:  // int8.
       return (float) ((int8_t) value[1]);
     case 0xD:  // int12.
     case 0xE:  // int16.
       if (length > 2) {
-        return (float) ((int16_t) (value[1] << 8) + (int16_t) value[2]);
+        return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
       }
     case 0xF:  // int24.
       if (length > 3) {
-        return (float) ((int32_t) (value[1] << 16) + (int32_t) (value[2] << 8) + (int32_t) (value[3]));
+        return (float) ((int32_t)(value[1] << 16) + (int32_t) (value[2] << 8) + (int32_t) (value[3]));
       }
     case 0x10:  // int32.
       if (length > 4) {
-        return (float) ((int32_t) (value[1] << 24) + (int32_t) (value[2] << 16) + (int32_t) (value[3] << 8) +
-                        (int32_t) (value[4]));
+        return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
+                        (int32_t)(value[4]));
       }
   }
   ESP_LOGW(TAG, "Cannot parse characteristic value of type 0x%x length %d", value[0], length);

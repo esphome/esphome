@@ -154,7 +154,8 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_MEDIA_PLAYER
   virtual void on_media_player_command_request(const MediaPlayerCommandRequest &value){};
 #endif
-  virtual void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &value){};
+  virtual void on_subscribe_bluetooth_le_advertisements_request(
+      const SubscribeBluetoothLEAdvertisementsRequest &value){};
 #ifdef USE_BLUETOOTH_PROXY
   bool send_bluetooth_le_advertisement_response(const BluetoothLEAdvertisementResponse &msg);
 #endif
