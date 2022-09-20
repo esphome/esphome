@@ -147,7 +147,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
-      break;
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
       break;
   }
