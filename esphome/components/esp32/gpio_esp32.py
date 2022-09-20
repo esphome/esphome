@@ -29,7 +29,8 @@ def esp32_validate_gpio_pin(value):
         _LOGGER.warning(
             "Pin %s might already be used by the "
             "flash interface (function: %s).",
-            value, _ESP_SDIO_PINS[value]
+            value,
+            _ESP_SDIO_PINS[value],
         )
     if 9 <= value <= 10:
         _LOGGER.warning(
