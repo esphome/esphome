@@ -297,6 +297,11 @@ void APIServer::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementRe
     client->send_bluetooth_le_advertisement(call);
   }
 }
+void APIServer::send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &call) {
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_gatt_read_response(call);
+  }
+}
 #endif
 APIServer::APIServer() { global_api_server = this; }
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,

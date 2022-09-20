@@ -10,6 +10,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 
+#include <map>
+
 #ifdef USE_API
 #include "esphome/components/api/api_pb2.h"
 #endif  // USE_API
@@ -32,10 +34,13 @@ class BluetoothProxy : public BLEClientBase {
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);
   void bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg);
   void bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg);
+  api::BluetoothGATTGetServicesResponse bluetooth_gatt_get_services(const api::BluetoothGATTGetServicesRequest &msg);
 #endif
 
  protected:
   void send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device);
+
+  std::map<uint64_t, esp_ble_addr_type_t> address_type_map_;
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

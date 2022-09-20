@@ -103,6 +103,8 @@ class APIConnection : public APIServerConnection {
   void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
   void bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) override;
   void bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) override;
+  BluetoothGATTGetServicesResponse bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) override;
+
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void send_time_request() {

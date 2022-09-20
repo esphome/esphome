@@ -836,6 +836,11 @@ void APIConnection::bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) {
 void APIConnection::bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_write(msg);
 }
+BluetoothGATTGetServicesResponse APIConnection::bluetooth_gatt_get_services(
+    const BluetoothGATTGetServicesRequest &msg) {
+  return bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_get_services(msg);
+}
+
 #endif
 
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
