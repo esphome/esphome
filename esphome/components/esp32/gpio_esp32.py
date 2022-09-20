@@ -27,8 +27,7 @@ def esp32_validate_gpio_pin(value):
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-39)")
     if value in _ESP_SDIO_PINS:
         _LOGGER.warning(
-            "Pin %s might already be used by the "
-            "flash interface (function: %s).",
+            "Pin %s might already be used by the flash interface (function: %s).",
             value,
             _ESP_SDIO_PINS[value],
         )
