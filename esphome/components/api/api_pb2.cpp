@@ -5048,6 +5048,39 @@ void BluetoothDeviceRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool BluetoothDeviceConnectionResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->connected = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothDeviceConnectionResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->connected);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothDeviceConnectionResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothDeviceConnectionResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  connected: ");
+  out.append(YESNO(this->connected));
+  out.append("\n");
+  out.append("}");
+}
+#endif
 bool BluetoothGATTGetServicesRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {

@@ -339,13 +339,21 @@ bool APIServerConnectionBase::send_bluetooth_le_advertisement_response(const Blu
 #ifdef USE_BLUETOOTH_PROXY
 #endif
 #ifdef USE_BLUETOOTH_PROXY
+bool APIServerConnectionBase::send_bluetooth_device_connection_response(const BluetoothDeviceConnectionResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_bluetooth_device_connection_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<BluetoothDeviceConnectionResponse>(msg, 71);
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 bool APIServerConnectionBase::send_bluetooth_gatt_get_services_response(const BluetoothGATTGetServicesResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_bluetooth_gatt_get_services_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<BluetoothGATTGetServicesResponse>(msg, 72);
+  return this->send_message_<BluetoothGATTGetServicesResponse>(msg, 73);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
@@ -355,7 +363,7 @@ bool APIServerConnectionBase::send_bluetooth_gatt_read_response(const BluetoothG
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_bluetooth_gatt_read_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<BluetoothGATTReadResponse>(msg, 74);
+  return this->send_message_<BluetoothGATTReadResponse>(msg, 75);
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
@@ -365,7 +373,7 @@ bool APIServerConnectionBase::send_bluetooth_gatt_write_response(const Bluetooth
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_bluetooth_gatt_write_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<BluetoothGATTWriteResponse>(msg, 76);
+  return this->send_message_<BluetoothGATTWriteResponse>(msg, 77);
 }
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
@@ -655,7 +663,7 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
-    case 71: {
+    case 72: {
 #ifdef USE_BLUETOOTH_PROXY
       BluetoothGATTGetServicesRequest msg;
       msg.decode(msg_data, msg_size);
@@ -666,7 +674,7 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
-    case 73: {
+    case 74: {
 #ifdef USE_BLUETOOTH_PROXY
       BluetoothGATTReadRequest msg;
       msg.decode(msg_data, msg_size);
@@ -677,7 +685,7 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
-    case 75: {
+    case 76: {
 #ifdef USE_BLUETOOTH_PROXY
       BluetoothGATTWriteRequest msg;
       msg.decode(msg_data, msg_size);
