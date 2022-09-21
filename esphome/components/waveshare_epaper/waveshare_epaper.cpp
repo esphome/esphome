@@ -938,6 +938,8 @@ void WaveshareEPaper5P8In::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 void WaveshareEPaper7P5InBV2::initialize() {
+  this->reset_();
+  
   // COMMAND POWER SETTING
   this->command(0x01);
   this->data(0x07);
