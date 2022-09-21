@@ -165,15 +165,19 @@ class Config(OrderedDict, fv.FinalValidateConfig):
                 return err
         return None
 
-    def get_deepest_document_range_for_path(self, path):
-        # type: (ConfigPath) -> Optional[ESPHomeDataBase]
+    def get_deepest_document_range_for_path(self, path, get_key=False):
+        # type: (ConfigPath, bool) -> Optional[ESPHomeDataBase]
         data = self
         doc_range = None
-        for item_index in path:
+        for index, path_item in enumerate(path):
             try:
-                if item_index in data:
-                    doc_range = [x for x in data.keys() if x == item_index][0].esp_range
-                data = data[item_index]
+                if path_item in data:
+                    key_data = [x for x in data.keys() if x == path_item][0]
+                    if isinstance(key_data, ESPHomeDataBase):
+                        doc_range = key_data.esp_range
+                        if get_key and index == len(path) - 1:
+                            return doc_range
+                data = data[path_item]
             except (KeyError, IndexError, TypeError, AttributeError):
                 return doc_range
             if isinstance(data, core.ID):
@@ -244,6 +248,8 @@ def iter_ids(config, path=None):
             yield from iter_ids(item, path + [i])
     elif isinstance(config, dict):
         for key, value in config.items():
+            if isinstance(key, core.ID):
+                yield key, path
             yield from iter_ids(value, path + [key])
 
 
@@ -279,7 +285,7 @@ class ConfigValidationStep(abc.ABC):
 class LoadValidationStep(ConfigValidationStep):
     """Load step, this step is called once for each domain config fragment.
 
-    Responsibilties:
+    Responsibilities:
     - Load component code
     - Ensure all AUTO_LOADs are added
     - Set output paths of result
@@ -735,6 +741,10 @@ def validate_config(config, command_line_substitutions) -> Config:
         if key in config:
             result.add_validation_step(LoadValidationStep(key, config[key]))
     result.run_validation_steps()
+
+    if result.errors:
+        # do not try to validate further as we don't know what the target is
+        return result
 
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))

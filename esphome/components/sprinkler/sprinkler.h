@@ -308,6 +308,9 @@ class Sprinkler : public Component, public EntityBase {
   /// if a cycle was suspended using pause(), resumes it. otherwise calls start_full_cycle()
   void resume_or_start_full_cycle();
 
+  /// resets resume state
+  void reset_resume();
+
   /// returns a pointer to a valve's name string object; returns nullptr if valve_number is invalid
   const char *valve_name(size_t valve_number);
 
@@ -400,9 +403,6 @@ class Sprinkler : public Component, public EntityBase {
 
   /// resets the cycle state for all valves
   void reset_cycle_states_();
-
-  /// resets resume state
-  void reset_resume_();
 
   /// make a request of the state machine
   void fsm_request_(size_t requested_valve, uint32_t requested_run_duration = 0);
