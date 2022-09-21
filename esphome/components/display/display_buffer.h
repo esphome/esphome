@@ -21,6 +21,7 @@
 #endif
 
 #define POLAR_2PI 6.28318530718F
+#define EXTENDED_DISPLAYBUFFER
 
 namespace esphome {
 namespace display {
@@ -217,7 +218,7 @@ using display_writer_t = std::function<void(DisplayBuffer &)>;
     ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
   }
 
-class DisplayBuffer {
+class DisplayBuffer: public PollingComponent {
  public:
   /// Fill the entire screen with the given color.
   virtual void fill(Color color);
@@ -694,7 +695,7 @@ class DisplayBuffer {
                   Color color = COLOR_ON);
 
   void call_update();
-  void display(){};
+  
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
@@ -702,8 +703,8 @@ class DisplayBuffer {
 
   uint8_t init_internal_(uint32_t buffer_length, uint8_t bytes_per_pixel = 1);
   //virtual 
-
-  void do_update_();
+  virtual void display(){};
+  void update() override;
 
   void swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1);
   std::vector<Rect> clipping_rectangle_;
