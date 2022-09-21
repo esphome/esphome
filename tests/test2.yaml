@@ -369,6 +369,18 @@ sensor:
       name: Propane test distance
     battery_level:
       name: Propane test battery level
+  - platform: ufire_ec
+    id: ufire_ec_board
+    ec:
+      name: Ufire EC
+    temperature_sensor: ha_hello_world_temperature
+    temperature_compensation: 20.0
+    temperature_coefficient: 0.019
+  - platform: ufire_ise
+    id: ufire_ise_board
+    temperature_sensor: ha_hello_world_temperature
+    ph:
+      name: Ufire pH
 
 time:
   - platform: homeassistant
