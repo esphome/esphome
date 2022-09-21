@@ -1,12 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
-from esphome.const import (
-    CONF_ID,
-    CONF_INVERTED,
-    CONF_ICON,
-    ICON_POWER,
-)
+from esphome.const import ICON_POWER
 from .. import CONF_PIPSOLAR_ID, PIPSOLAR_COMPONENT_SCHEMA, pipsolar_ns
 
 DEPENDENCIES = ["uart"]
@@ -29,14 +24,8 @@ TYPES = {
 
 PipsolarSwitch = pipsolar_ns.class_("PipsolarSwitch", switch.Switch, cg.Component)
 
-PIPSWITCH_SCHEMA = switch.SWITCH_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(PipsolarSwitch),
-        cv.Optional(CONF_INVERTED): cv.invalid(
-            "Pipsolar switches do not support inverted mode!"
-        ),
-        cv.Optional(CONF_ICON, default=ICON_POWER): switch.icon,
-    }
+PIPSWITCH_SCHEMA = switch.switch_schema(
+    PipsolarSwitch, icon=ICON_POWER, block_inverted=True
 ).extend(cv.COMPONENT_SCHEMA)
 
 CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
@@ -50,9 +39,8 @@ async def to_code(config):
     for type, (on, off) in TYPES.items():
         if type in config:
             conf = config[type]
-            var = cg.new_Pvariable(conf[CONF_ID])
+            var = await switch.new_switch(conf)
             await cg.register_component(var, conf)
-            await switch.register_switch(var, conf)
             cg.add(getattr(paren, f"set_{type}_switch")(var))
             cg.add(var.set_parent(paren))
             cg.add(var.set_on_command(on))
