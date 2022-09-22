@@ -1,5 +1,5 @@
 namespace esphome {
-namespace mr24d11c10 {
+namespace mr24hpb1 {
 
 const unsigned char cuc_CRCHi[256] = {
     0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41, 0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80,
@@ -45,5 +45,5 @@ unsigned short int us_CalculateCrc16(unsigned char *lpuc_Frame, unsigned short i
   return (unsigned short int) (luc_CRCLo << 8 | luc_CRCHi);
 }
 
-}  // namespace mr24d11c10
+}  // namespace mr24hpb1
 }  // namespace esphome
