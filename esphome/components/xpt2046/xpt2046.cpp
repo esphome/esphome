@@ -115,7 +115,7 @@ void XPT2046Component::check_touch_() {
       touchpoint.y = (int16_t)((int) touchpoint.y * this->display_->get_height() / 0xfff);
 
       if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
-        ESP_LOGD(TAG, "Touching at [%03X, %03X] => [%3d, %3d]", this->x_raw, this->y_raw, touchpoint.x, touchpoint.y);
+        ESP_LOGV(TAG, "Touching at [%03X, %03X] => [%3d, %3d]", this->x_raw, this->y_raw, touchpoint.x, touchpoint.y);
 
         this->defer([this, touchpoint]() { this->send_touch_(touchpoint); });
 
