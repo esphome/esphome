@@ -607,9 +607,9 @@ void DisplayBuffer::show_page(DisplayPage *page) {
 void DisplayBuffer::show_next_page() { this->page_->show_next(); }
 void DisplayBuffer::show_prev_page() { this->page_->show_prev(); }
 
-void DisplayBuffer::call_update() { this->do_update_(); }
+//void DisplayBuffer::call_update() { this->update(); }
 
-void DisplayBuffer::do_update_() {
+void DisplayBuffer::update() {
   static bool prossing_update = false, need_update = false;
   if (prossing_update) {
     need_update = true;

@@ -694,7 +694,8 @@ class DisplayBuffer: public PollingComponent {
   void polar_line(int16_t x, int16_t y, uint16_t radius_start, uint16_t radius_end, int16_t angle,
                   Color color = COLOR_ON);
 
-  void call_update();
+  void call_update() { update(); }
+  void update() override;
   
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
@@ -702,9 +703,8 @@ class DisplayBuffer: public PollingComponent {
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
 
   uint8_t init_internal_(uint32_t buffer_length, uint8_t bytes_per_pixel = 1);
-  //virtual 
   virtual void display(){};
-  void update() override;
+
 
   void swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1);
   std::vector<Rect> clipping_rectangle_;
