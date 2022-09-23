@@ -134,7 +134,6 @@ static const AddressCode2 PR_OTH_FALL_SENSITIVITY_SETTING = 0x0E;
 static const AddressCode2 PR_OTH_START_OTA_UPGRADE = 0x08;
 static const AddressCode2 PR_OTH_UPGRADE_PACKAGE = 0x09;
 
-
 // Proactive reporting of commands
 static const FunctionCode PROACTIVE_REPORTING = 0x04;
 
@@ -171,7 +170,7 @@ static const AddressCode2 SLP_BREA_DETECTION_SIGNAL = 0x06;
 
 static const AddressCode1 SLP_SCENARIO_ASSESMENT = 0x03;
 static const AddressCode2 SLP_SCEN_BED_OCCUPATION = 0x07;
-static const AddressCode2 SLP_SCEN_SLEEP_STATE_ASSESMENT = 0x07; // unsure, hex code is missing from documentation
+static const AddressCode2 SLP_SCEN_SLEEP_STATE_ASSESMENT = 0x07;  // unsure, hex code is missing from documentation
 
 static const AddressCode1 SLP_SLEEP_DURATIONS = 0x04;
 static const AddressCode2 SLP_SLE_DURATION_WAKEFUL = 0x01;

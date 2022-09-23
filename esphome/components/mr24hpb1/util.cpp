@@ -46,10 +46,10 @@ std::string packet_data_to_string(std::vector<uint8_t> &packet) {
   return str;
 }
 
-typedef union {
+using Float_Byte = union {
   uint32_t Byte;
   float Float;
-} Float_Byte;
+};
 
 float packet_data_to_float(std::vector<uint8_t> &packet) {
   Float_Byte converted_data;
@@ -62,7 +62,7 @@ float packet_data_to_float(std::vector<uint8_t> &packet) {
   return converted_data.Float;
 }
 
-const char *SceneSetting_to_string(SceneSetting setting) {
+const char *scene_setting_to_string(SceneSetting setting) {
   switch (setting) {
     case SCENE_DEFAULT:
       return "DEFAULT";
@@ -83,7 +83,7 @@ const char *SceneSetting_to_string(SceneSetting setting) {
   }
 }
 
-const char *EnvironmentStatus_to_string(EnvironmentStatus status) {
+const char *environment_status_to_string(EnvironmentStatus status) {
   switch (status) {
     case UNOCCUPIED:
       return "UNOCCUPIED";
@@ -96,7 +96,7 @@ const char *EnvironmentStatus_to_string(EnvironmentStatus status) {
   }
 }
 
-const char *ForcedUnoccupied_to_string(ForcedUnoccupied value) {
+const char *forced_unoccupied_to_string(ForcedUnoccupied value) {
   switch (value) {
     case ForcedUnoccupied::NONE:
       return "None";
@@ -121,7 +121,7 @@ const char *ForcedUnoccupied_to_string(ForcedUnoccupied value) {
   }
 }
 
-const char *MovementType_to_string(MovementType type) {
+const char *movement_type_to_string(MovementType type) {
   switch (type) {
     case MovementType::NONE:
       return "NONE";

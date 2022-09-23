@@ -8,10 +8,10 @@ namespace esphome {
 namespace mr24hpb1 {
 void MR24HPB1Component::setup() {
   // creating a list of all system information that needs to be fetched only once after startup
-  this->system_information_sensors.push_back(std::make_tuple(this->device_id_sensor_, RC_MARKING_SEARCH, RC_MS_DEVICE_ID));
-  this->system_information_sensors.push_back(std::make_tuple(this->software_version_sensor_, RC_MARKING_SEARCH, RC_MS_SOFTWARE_VERSION));
-  this->system_information_sensors.push_back(std::make_tuple(this->hardware_version_sensor_, RC_MARKING_SEARCH, RC_MS_HARDWARE_VERSION));
-  this->system_information_sensors.push_back(std::make_tuple(this->protocol_version_sensor_, RC_MARKING_SEARCH, RC_MS_PROTOCOL_VERSION));
+  this->system_information_sensors_.emplace_back(this->device_id_sensor_, RC_MARKING_SEARCH, RC_MS_DEVICE_ID);
+  this->system_information_sensors_.emplace_back(this->software_version_sensor_, RC_MARKING_SEARCH, RC_MS_SOFTWARE_VERSION);
+  this->system_information_sensors_.emplace_back(this->hardware_version_sensor_, RC_MARKING_SEARCH, RC_MS_HARDWARE_VERSION);
+  this->system_information_sensors_.emplace_back(this->protocol_version_sensor_, RC_MARKING_SEARCH, RC_MS_PROTOCOL_VERSION);
 
   ESP_LOGCONFIG(TAG, "Setting up MR24HPB1");
 
@@ -20,8 +20,8 @@ void MR24HPB1Component::setup() {
   // read device ID
   uint8_t num_tries = 0;
   while (num_tries < 5) {
-    std::string device_id = this->read_device_id();
-    if (device_id != "") {
+    std::string device_id = this->read_device_id_();
+    if (!device_id.empty()) {
       this->device_id_sensor_->publish_state(device_id);
       break;
     }
@@ -32,10 +32,10 @@ void MR24HPB1Component::setup() {
   }
 
   // set threshold gear
-  this->write_threshold_gear(this->threshold_gear_);
+  this->write_threshold_gear_(this->threshold_gear_);
   std::vector<uint8_t> recv_packet;
   bool received =
-      this->wait_for_packet(recv_packet, PASSIVE_REPORTING, PR_REPORTING_SYSTEM_INFO, PR_RSI_THRESHOLD_GEAR, 10);
+      this->wait_for_packet_(recv_packet, PASSIVE_REPORTING, PR_REPORTING_SYSTEM_INFO, PR_RSI_THRESHOLD_GEAR, 10);
   if (!received) {
     ESP_LOGE(TAG, "Threshold gear write not acknowledged!");
     this->mark_failed();
@@ -50,9 +50,9 @@ void MR24HPB1Component::setup() {
   }
 
   // set scene setting
-  this->write_scene_setting(this->scene_setting_);
+  this->write_scene_setting_(this->scene_setting_);
   recv_packet.clear();
-  received = this->wait_for_packet(recv_packet, PASSIVE_REPORTING, PR_REPORTING_SYSTEM_INFO, PR_RSI_SCENE_SETTINGS, 10);
+  received = this->wait_for_packet_(recv_packet, PASSIVE_REPORTING, PR_REPORTING_SYSTEM_INFO, PR_RSI_SCENE_SETTINGS, 10);
   if (!received) {
     ESP_LOGE(TAG, "Scene setting write not acknowledged!");
     this->mark_failed();
@@ -67,9 +67,10 @@ void MR24HPB1Component::setup() {
   }
 
   // set force unoccupied time
-  this->write_force_unoccupied_setting(this->forced_unoccupied_);
+  this->write_force_unoccupied_setting_(this->forced_unoccupied_);
   recv_packet.clear();
-  received = this->wait_for_packet(recv_packet, PASSIVE_REPORTING, PR_REPORTING_SYSTEM_INFO, PR_RSI_FORCED_UNOCCUPIED_SETTINGS, 10);
+  received = this->wait_for_packet_(recv_packet, PASSIVE_REPORTING, PR_REPORTING_SYSTEM_INFO,
+                                   PR_RSI_FORCED_UNOCCUPIED_SETTINGS, 10);
   if (!received) {
     ESP_LOGE(TAG, "Forced unoccupied write not acknowledged!");
     this->mark_failed();
@@ -78,7 +79,8 @@ void MR24HPB1Component::setup() {
     if (this->forced_unoccupied_ == forced_unoccupied_setting) {
       ESP_LOGD(TAG, "Forced unoccupied set acknowledged");
     } else {
-      ESP_LOGE(TAG, "Reported forced unoccupied not equal to written value, got: %d!", static_cast<uint8_t>(forced_unoccupied_setting));
+      ESP_LOGE(TAG, "Reported forced unoccupied not equal to written value, got: %d!",
+               static_cast<uint8_t>(forced_unoccupied_setting));
       this->mark_failed();
     }
   }
@@ -93,7 +95,7 @@ void MR24HPB1Component::dump_config() {
     ESP_LOGE(TAG, "Communication with MR24HPB1 failed!");
   }
 
-  ESP_LOGCONFIG(TAG, "Scene Setting: %s", SceneSetting_to_string(this->scene_setting_));
+  ESP_LOGCONFIG(TAG, "Scene Setting: %s", scene_setting_to_string(this->scene_setting_));
   ESP_LOGCONFIG(TAG, "Threshold Gear: %d", this->threshold_gear_);
   LOG_TEXT_SENSOR("  ", "Device ID:", this->device_id_sensor_);
   LOG_TEXT_SENSOR("  ", "Software Version:", this->software_version_sensor_);
@@ -106,51 +108,51 @@ void MR24HPB1Component::dump_config() {
 }
 
 void MR24HPB1Component::loop() {
-  if (!info_fully_populated) {
-    this->get_general_infos();
+  if (!info_fully_populated_) {
+    this->get_general_infos_();
   }
-  reception_status stat = this->receive_packet(this->current_packet);
+  ReceptionStatus stat = this->receive_packet_(this->current_packet_);
   if (stat == MR24HPB1Component::COMPLETE) {
-    FunctionCode current_func_code = get_packet_function_code(this->current_packet);
+    FunctionCode current_func_code = get_packet_function_code(this->current_packet_);
     switch (current_func_code) {
       case PASSIVE_REPORTING:
-        this->handle_passive_reporting(this->current_packet);
+        this->handle_passive_reporting_(this->current_packet_);
         break;
       case PROACTIVE_REPORTING:
-        this->handle_active_reporting(this->current_packet);
+        this->handle_active_reporting_(this->current_packet_);
         break;
       case SLEEPING_DATA_REPORTING:
-        this->handle_sleep_data_report(this->current_packet);
+        this->handle_sleep_data_report_(this->current_packet_);
         break;
       case FALL_DETECTION_DATA_REPORTING:
-        this->handle_fall_data_report(this->current_packet);
+        this->handle_fall_data_report_(this->current_packet_);
         break;
       default:
         ESP_LOGW(TAG, "Packet had unkown function code: 0x%x", current_func_code);
-        this->log_packet(this->current_packet);
+        this->log_packet_(this->current_packet_);
         break;
     }
     // ESP_LOGD(TAG, "Packet fully received");
-    this->current_packet.clear();
+    this->current_packet_.clear();
   }
 }
 
-void MR24HPB1Component::get_general_infos() {
-  info_fully_populated = true;
-  for(auto item : this->system_information_sensors) {
-    text_sensor::TextSensor* current_sesnor = std::get<0>(item);
-    if(current_sesnor != nullptr && current_sesnor->get_state() == "" && this->respone_requested == 0) {
-      this->respone_requested = millis();
-      this->write_packet(READ_COMMAND, std::get<1>(item), std::get<2>(item));
+void MR24HPB1Component::get_general_infos_() {
+  info_fully_populated_ = true;
+  for (auto item : this->system_information_sensors_) {
+    text_sensor::TextSensor *current_sesnor = std::get<0>(item);
+    if (current_sesnor != nullptr && current_sesnor->get_state().empty() && this->respone_requested_ == 0) {
+      this->respone_requested_ = millis();
+      this->write_packet_(READ_COMMAND, std::get<1>(item), std::get<2>(item));
     }
-    info_fully_populated = false;
+    info_fully_populated_ = false;
   }
-  if (millis() > this->respone_requested + PACKET_WAIT_TIMEOUT_MS) {
-    this->respone_requested = 0;
+  if (millis() > this->respone_requested_ + PACKET_WAIT_TIMEOUT_MS) {
+    this->respone_requested_ = 0;
   }
 }
 
-void MR24HPB1Component::write_packet(FunctionCode function_code, AddressCode1 address_code_1,
+void MR24HPB1Component::write_packet_(FunctionCode function_code, AddressCode1 address_code_1,
                                      AddressCode2 address_code_2, std::vector<uint8_t> &data) {
   uint16_t packet_size = data.size() + 8;
   std::vector<uint8_t> packet;
@@ -164,24 +166,24 @@ void MR24HPB1Component::write_packet(FunctionCode function_code, AddressCode1 ad
   packet.push_back(address_code_2);
   packet.insert(std::end(packet), std::begin(data), std::end(data));
 
-  uint16_t crc = us_CalculateCrc16(packet.data(), packet_size - 2);
+  uint16_t crc = us_calculate_crc16(packet.data(), packet_size - 2);
 
   packet.push_back(crc >> 8);
   packet.push_back(crc & 0x00FF);
 
   this->write_array(packet);
 
-  this->log_packet(packet);
+  this->log_packet_(packet);
 }
 
-void MR24HPB1Component::write_packet(FunctionCode function_code, AddressCode1 address_code_1,
+void MR24HPB1Component::write_packet_(FunctionCode function_code, AddressCode1 address_code_1,
                                      AddressCode2 address_code_2) {
   std::vector<uint8_t> empty_data;
-  MR24HPB1Component::write_packet(function_code, address_code_1, address_code_2, empty_data);
+  MR24HPB1Component::write_packet_(function_code, address_code_1, address_code_2, empty_data);
 }
 
-void MR24HPB1Component::log_packet(std::vector<uint8_t> &packet) {
-  char* buf = new char[packet.size() * 5 + 8];
+void MR24HPB1Component::log_packet_(std::vector<uint8_t> &packet) {
+  char *buf = new char[packet.size() * 5 + 8];
   uint16_t counter = 7;
 
   sprintf(buf, "Packet:");
@@ -190,16 +192,16 @@ void MR24HPB1Component::log_packet(std::vector<uint8_t> &packet) {
     counter += 5;
   }
 
-  ESP_LOGD(TAG, buf);
+  ESP_LOGD(TAG, "%s", buf);
   delete[] buf;
 }
 
-bool MR24HPB1Component::wait_for_packet(std::vector<uint8_t> &packet, FunctionCode function_code,
+bool MR24HPB1Component::wait_for_packet_(std::vector<uint8_t> &packet, FunctionCode function_code,
                                         AddressCode1 address_code_1, AddressCode2 address_code_2, uint8_t timeout_s) {
   uint32_t starting_timestamp = millis();
-  reception_status stat;
+  ReceptionStatus stat;
   while (millis() < starting_timestamp + timeout_s * 1000) {
-    stat = this->receive_packet(packet);
+    stat = this->receive_packet_(packet);
     if (stat == MR24HPB1Component::COMPLETE) {
       if (get_packet_function_code(packet) == function_code && get_packet_address_code_1(packet) == address_code_1 &&
           get_packet_address_code_2(packet) == address_code_2) {
@@ -218,7 +220,7 @@ bool MR24HPB1Component::wait_for_packet(std::vector<uint8_t> &packet, FunctionCo
   return false;
 }
 
-MR24HPB1Component::reception_status MR24HPB1Component::receive_packet(std::vector<uint8_t> &packet) {
+MR24HPB1Component::ReceptionStatus MR24HPB1Component::receive_packet_(std::vector<uint8_t> &packet) {
   // Frame strucutre:
   // +----------+---------------------+----------------+----------------+----------------+---------+-------------------+
   // | Starting | Length of data      | Function codes | Address code 1 | Address code 2 | Data    | Check code        |
@@ -229,7 +231,7 @@ MR24HPB1Component::reception_status MR24HPB1Component::receive_packet(std::vecto
   // | 1 Byte   | 1 Byte   | 1 Byte   | 1 Byte         | 1 Byte         | 1 Byte         | n Bytes | 1 Byte  | 1 Byte  |
   // +----------+----------+----------+----------------+----------------+----------------+---------+---------+---------+
   if (!this->available()) {
-    return this->current_receive_status;
+    return this->current_receive_status_;
   }
 
   uint8_t byte = this->read();
@@ -237,15 +239,15 @@ MR24HPB1Component::reception_status MR24HPB1Component::receive_packet(std::vecto
   // ESP_LOGD(TAG, "vector size: %d", packet.size());
 
   // detect malformed message start
-  if (this->current_receive_status == MR24HPB1Component::WAITING && byte != PACKET_START) {
+  if (this->current_receive_status_ == MR24HPB1Component::WAITING && byte != PACKET_START) {
     ESP_LOGW(TAG, "Malformed message, did not receive PACKET_START, received: 0x%x", byte);
     return MR24HPB1Component::MALFORMED_PACKET;
   }
 
-  if (this->current_receive_status == MR24HPB1Component::WAITING) {
+  if (this->current_receive_status_ == MR24HPB1Component::WAITING) {
     // start new packet
-    this->current_receive_status = MR24HPB1Component::RECEIVING;
-    this->expected_length = 0;
+    this->current_receive_status_ = MR24HPB1Component::RECEIVING;
+    this->expected_length_ = 0;
     // ESP_LOGD(TAG, "Start of new packet detected");
   }
 
@@ -258,20 +260,20 @@ MR24HPB1Component::reception_status MR24HPB1Component::receive_packet(std::vecto
 
   if (packet_size == 3) {
     // read expected packet length
-    this->expected_length = get_packet_length(packet);
+    this->expected_length_ = get_packet_length(packet);
     // ESP_LOGD(TAG, "Expected packet length (including MSG_HEAD): %d", this->expected_length);
   }
 
-  if (this->expected_length > 0 && packet_size >= this->expected_length) {
+  if (this->expected_length_ > 0 && packet_size >= this->expected_length_) {
     // packet fully received
 
-    this->current_receive_status = MR24HPB1Component::WAITING;
+    this->current_receive_status_ = MR24HPB1Component::WAITING;
 
     // check CRC checksum
     uint16_t packet_crc = get_packet_crc(packet);
 
     uint8_t *data = packet.data();
-    uint16_t calculated_crc = us_CalculateCrc16(data, packet_size - 2);
+    uint16_t calculated_crc = us_calculate_crc16(data, packet_size - 2);
 
     ESP_LOGV(TAG, "Packet CRC: 0x%x, Calc. CRC: 0x%x", packet_crc, calculated_crc);
 
@@ -279,11 +281,11 @@ MR24HPB1Component::reception_status MR24HPB1Component::receive_packet(std::vecto
       ESP_LOGW(TAG, "CRC checksum failed, discarding received packet!");
       return MR24HPB1Component::CRC_ERROR;
     } else {
-      this->current_receive_status = MR24HPB1Component::WAITING;
+      this->current_receive_status_ = MR24HPB1Component::WAITING;
       return MR24HPB1Component::COMPLETE;
     }
   }
-  return this->current_receive_status;
+  return this->current_receive_status_;
 }
 
 }  // namespace mr24hpb1
