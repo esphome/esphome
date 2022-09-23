@@ -1,3 +1,5 @@
+#pragma once
+
 #include "mr24hpb1.h"
 
 namespace esphome {
