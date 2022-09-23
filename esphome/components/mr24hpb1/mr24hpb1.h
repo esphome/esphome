@@ -6,6 +6,8 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/sensor/sensor.h"
 #include <vector>
+#include <tuple>
+#include <stdio.h>
 
 namespace esphome {
 namespace mr24hpb1 {
@@ -30,6 +32,30 @@ const char *SceneSetting_to_string(SceneSetting setting);
 enum EnvironmentStatus { UNOCCUPIED = 0x00FFFF, STATIONARY = 0x0100FF, MOVING = 0x010101 };
 
 const char *EnvironmentStatus_to_string(EnvironmentStatus status);
+
+enum class MovementType { NONE = 0x01, APPROACHING = 0x02, FAR_AWAY = 0x03, U1 = 0x04, U2 = 0x05 };
+
+const char *MovementType_to_string(MovementType type);
+
+enum class ForcedUnoccupied {
+  NONE = 0x00,
+  SEC_10 = 0x01,
+  SEC_30 = 0x02,
+  MIN_1 = 0x03,
+  MIN_2 = 0x04,
+  MIN_5 = 0x05,
+  MIN_10 = 0x06,
+  MIN_30 = 0x07,
+  MIN_60 = 0x08
+};
+
+enum class BreathingSigns {NORMAL = 0x00, BREATHING_ABNORMALLY = 0x01, NO_SIGNAL = 0x02, MOVEMENT_ANOMALY = 0x04, SHORTNESS_OF_BREATH = 0x05};
+enum class BedOccupation {OUT_OF_BED = 0x00, IN_BED = 0x01, NA = 0x02};
+enum class SleepState {AWAKE = 0x00, LIGHT_SLEEP = 0x01, DEEP_SLEEP = 0x02, NA = 0x03};
+
+
+
+const char *ForcedUnoccupied_to_string(ForcedUnoccupied value);
 
 FunctionCode get_packet_function_code(std::vector<uint8_t> &packet);
 AddressCode1 get_packet_address_code_1(std::vector<uint8_t> &packet);
@@ -63,10 +89,15 @@ class MR24HPB1Component : public Component, public uart::UARTDevice {
   void set_environment_status_sensor(text_sensor::TextSensor *environment_sensor) {
     this->environment_status_sensor_ = environment_sensor;
   }
+  void set_movement_type_sensor(text_sensor::TextSensor *sensor) {
+    this->movement_type_sensor_ = sensor;
+  }
   void set_occupancy_sensor(binary_sensor::BinarySensor *sensor) { this->occupancy_sensor_ = sensor; }
-  void set_movement_sensor(sensor::Sensor *sensor) { this->movement_sensor_ = sensor; }
+  void set_movement_rate_sensor(sensor::Sensor *sensor) { this->movement_rate_sensor_ = sensor; }
+  void set_movement_sensor(binary_sensor::BinarySensor *sensor) { this->movement_sensor_ = sensor; }
 
   void set_scene_setting(SceneSetting setting) { this->scene_setting_ = setting; };
+  void set_forced_unoccupied(ForcedUnoccupied setting) { this->forced_unoccupied_ = setting; };
   void set_threshold_gear(uint8_t gear) { this->threshold_gear_ = gear; };
 
  protected:
@@ -97,6 +128,7 @@ class MR24HPB1Component : public Component, public uart::UARTDevice {
 
   void write_threshold_gear(uint8_t gear);
   void write_scene_setting(SceneSetting setting);
+  void write_force_unoccupied_setting(ForcedUnoccupied setting);
 
   enum reception_status { WAITING, RECEIVING, MALFORMED_PACKET, CRC_ERROR, COMPLETE };
   void write_packet(FunctionCode function_code, AddressCode1 address_code_1, AddressCode2 address_code_2,
@@ -113,16 +145,20 @@ class MR24HPB1Component : public Component, public uart::UARTDevice {
   void get_general_infos();
   void handle_active_reporting(std::vector<uint8_t> &packet);
   void handle_passive_reporting(std::vector<uint8_t> &packet);
+  void handle_sleep_data_report(std::vector<uint8_t> &packet);
+  void handle_fall_data_report(std::vector<uint8_t> &current_packet);
   void handle_radar_report(std::vector<uint8_t> &packet);
   void handle_module_id_report(std::vector<uint8_t> &packet);
   void handle_other_information(std::vector<uint8_t> &packet);
   void handle_system_report(std::vector<uint8_t> &packet);
+  void handle_other_function_report(std::vector<uint8_t> &packet);
 
   std::vector<uint8_t> current_packet;
   reception_status current_receive_status = WAITING;
   uint32_t respone_requested = 0;
   bool info_fully_populated = false;
   uint16_t expected_length = 0;
+  std::vector<std::tuple<text_sensor::TextSensor*, AddressCode1, AddressCode2>> system_information_sensors;
 
   text_sensor::TextSensor *device_id_sensor_{nullptr};
   text_sensor::TextSensor *software_version_sensor_{nullptr};
@@ -130,10 +166,13 @@ class MR24HPB1Component : public Component, public uart::UARTDevice {
   text_sensor::TextSensor *protocol_version_sensor_{nullptr};
   text_sensor::TextSensor *environment_status_sensor_{nullptr};
   binary_sensor::BinarySensor *occupancy_sensor_{nullptr};
-  sensor::Sensor *movement_sensor_{nullptr};
+  binary_sensor::BinarySensor *movement_sensor_{nullptr};
+  sensor::Sensor *movement_rate_sensor_{nullptr};
+  text_sensor::TextSensor *movement_type_sensor_{nullptr};
 
   SceneSetting scene_setting_;
   uint8_t threshold_gear_;
+  ForcedUnoccupied forced_unoccupied_;
 };
 }  // namespace mr24hpb1
 }  // namespace esphome

@@ -24,5 +24,16 @@ void MR24HPB1Component::write_scene_setting(SceneSetting setting) {
  std::vector<uint8_t> data = {static_cast<uint8_t>(setting)};
  this->write_packet(COPY_ORDER, CO_SYSTEM_PARAMETERS, CO_SP_SCENE_SETTING, data);
 }
+
+void MR24HPB1Component::write_force_unoccupied_setting(ForcedUnoccupied setting) {
+ if(setting < ForcedUnoccupied::NONE || setting > ForcedUnoccupied::MIN_60) {
+    ESP_LOGE(TAG, "Forced unoccupied value out of range! Got: %x", static_cast<uint8_t>(setting));
+    return;
+ }
+
+ ESP_LOGD(TAG, "Setting forced unoccupied to %s", ForcedUnoccupied_to_string(setting));
+ std::vector<uint8_t> data = {static_cast<uint8_t>(setting)};
+ this->write_packet(COPY_ORDER, CO_SYSTEM_PARAMETERS, CO_SP_FORCED_UNOCCUPIED_SETTING, data);
+}
 }  // namespace mr24hpb1
 }  // namespace esphome

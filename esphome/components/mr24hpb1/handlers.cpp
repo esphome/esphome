@@ -12,9 +12,13 @@ void MR24HPB1Component::handle_active_reporting(std::vector<uint8_t> &packet) {
     case PROREP_REPORT_OTHER_INFORMATION:
       this->handle_other_information(packet);
       break;
+    case PROREP_REPORTING_MODULE_ID:
+      this->handle_module_id_report(packet);
+      break;
 
     default:
       ESP_LOGW(TAG, "Active reporting packet had unkown address code 1: 0x%x", current_addr_code_1);
+      this->log_packet(packet);
       break;
   }
 }
@@ -31,9 +35,52 @@ void MR24HPB1Component::handle_passive_reporting(std::vector<uint8_t> &packet) {
     case PR_REPORTING_SYSTEM_INFO:
       this->handle_system_report(packet);
       break;
+    case PR_OTHER_FUNCTIONS:
+      this->handle_other_function_report(packet);
+      break;
 
     default:
       ESP_LOGW(TAG, "Passive reporting packet had unkown address code 1: 0x%x", current_addr_code_1);
+      this->log_packet(packet);
+      break;
+  }
+}
+
+void MR24HPB1Component::handle_sleep_data_report(std::vector<uint8_t> &packet) {
+  AddressCode1 current_addr_code_1 = get_packet_address_code_1(packet);
+  switch (current_addr_code_1) {
+    case SLP_BREATHING_REPORTING_PARAMETERS:
+      ESP_LOGD(TAG, "Breathing reporting is not implemented!");
+      break;
+    case SLP_SCENARIO_ASSESMENT:
+      ESP_LOGD(TAG, "Sleep scenario reporting is not implemented!");
+      break;
+    case SLP_SLEEP_DURATIONS:
+      ESP_LOGD(TAG, "Sleep duration reporting is not implemented!");
+      break;
+    case SLP_SLEEP_QUALITY_PARAMETER:
+      ESP_LOGD(TAG, "Sleep quality reporting is not implemented!");
+      break;
+    case SLP_HEART_RATE_PARAMETER:
+      ESP_LOGD(TAG, "Heart rate reporting is not implemented!");
+      break;
+
+    default:
+      ESP_LOGW(TAG, "Sleep data reporting packet had unkown address code 1: 0x%x", current_addr_code_1);
+      this->log_packet(packet);
+      break;
+  }
+}
+
+void MR24HPB1Component::handle_fall_data_report(std::vector<uint8_t> &packet) {
+  AddressCode1 current_addr_code_1 = get_packet_address_code_1(packet);
+  switch (current_addr_code_1) {
+    case FAL_ALARM:
+      ESP_LOGD(TAG, "Fall detection reporting is not implemented!");
+      break;
+    default:
+      ESP_LOGW(TAG, "Fall detection reporting packet had unkown address code 1: 0x%x", current_addr_code_1);
+      this->log_packet(packet);
       break;
   }
 }
@@ -41,6 +88,7 @@ void MR24HPB1Component::handle_passive_reporting(std::vector<uint8_t> &packet) {
 void MR24HPB1Component::handle_radar_report(std::vector<uint8_t> &packet) {
   AddressCode2 current_addr_code_2 = get_packet_address_code_2(packet);
   bool occupied = false;
+  bool movement = false;
   switch (current_addr_code_2) {
     case PROREP_RRI_ENVIRONMENT_STATUS: {
       uint32_t data = packet_data_to_int(packet);
@@ -52,6 +100,7 @@ void MR24HPB1Component::handle_radar_report(std::vector<uint8_t> &packet) {
           break;
         case MOVING:
           occupied = true;
+          movement = true;
           break;
 
         default:
@@ -62,6 +111,9 @@ void MR24HPB1Component::handle_radar_report(std::vector<uint8_t> &packet) {
       if (this->occupancy_sensor_ != nullptr) {
         this->occupancy_sensor_->publish_state(occupied);
       }
+      if (this->movement_sensor_ != nullptr) {
+        this->movement_sensor_->publish_state(movement);
+      }
       if (this->environment_status_sensor_ != nullptr) {
         const char *status = EnvironmentStatus_to_string(EnvironmentStatus(data));
         ESP_LOGD(TAG, "Got environment status=%s", status);
@@ -70,32 +122,26 @@ void MR24HPB1Component::handle_radar_report(std::vector<uint8_t> &packet) {
     } break;
     case PROREP_RRI_MOVEMENT_SIGNS_PARAMETERS: {
       float float_data = packet_data_to_float(packet);
-      if (this->movement_sensor_ != nullptr) {
-        this->movement_sensor_->publish_state(float_data);
+      if (this->movement_rate_sensor_ != nullptr) {
+        this->movement_rate_sensor_->publish_state(float_data);
       }
     } break;
     case PROREP_RRI_APPROACHING_AWAY_STATE: {
-      std::vector<uint8_t> packet_data = get_packet_data(packet);
-      switch (packet_data.at(2)) {
-        case NONE:
-          ESP_LOGI(TAG, "Approaching away is: None");
-          break;
-        case CLOSE_TO:
-          ESP_LOGI(TAG, "Approaching away is: CLOSE_TO");
-          break;
-        case STAY_AWAY:
-          ESP_LOGI(TAG, "Approaching away is: STAY_AWAY");
-          break;
+      if (this->movement_type_sensor_ != nullptr) {
+        std::vector<uint8_t> packet_data = get_packet_data(packet);
+        uint8_t value = packet_data.at(2);
+        MovementType type = static_cast<MovementType>(value);
+        const char *type_str = MovementType_to_string(type);
 
-        default:
-          ESP_LOGW(TAG, "Approaching away state data was invalid: 0x%x", packet_data.at(2));
-          break;
+        ESP_LOGD(TAG, "Got movement type=0x%x (%s)", value, type_str);
+        this->movement_type_sensor_->publish_state(type_str);
       }
     }
 
     break;
     default:
       ESP_LOGW(TAG, "Radar report -> Packet had unkown address code 2: 0x%x", current_addr_code_2);
+      this->log_packet(packet);
       break;
   }
 }
@@ -140,6 +186,7 @@ void MR24HPB1Component::handle_other_information(std::vector<uint8_t> &packet) {
       break;
     default:
       ESP_LOGW(TAG, "Other Information -> Packet had unkown address code 2: 0x%x", current_addr_code_2);
+      this->log_packet(packet);
       break;
   }
 }
@@ -177,6 +224,7 @@ void MR24HPB1Component::handle_module_id_report(std::vector<uint8_t> &packet) {
       break;
     default:
       ESP_LOGW(TAG, "Module ID report -> Packet had unkown address code 2: 0x%x", current_addr_code_2);
+      this->log_packet(packet);
       break;
   }
 }
@@ -185,14 +233,47 @@ void MR24HPB1Component::handle_system_report(std::vector<uint8_t> &packet) {
   AddressCode2 current_addr_code_2 = get_packet_address_code_2(packet);
   switch (current_addr_code_2) {
     case PR_RSI_THRESHOLD_GEAR:
-      ESP_LOGI(TAG, "Threshold gear changed to: %d", packet_data_to_int(packet));
+      ESP_LOGD(TAG, "Threshold gear changed to: %d", packet_data_to_int(packet));
       break;
     case PR_RSI_SCENE_SETTINGS:
-      ESP_LOGI(TAG, "Scene setting changed to: %s",
+      ESP_LOGD(TAG, "Scene setting changed to: %s",
                SceneSetting_to_string(static_cast<SceneSetting>(packet_data_to_int(packet))));
+      break;
+    case PR_RSI_FORCED_UNOCCUPIED_SETTINGS:
+      ESP_LOGD(TAG, "Force unoccupied setting changed to: %s",
+               ForcedUnoccupied_to_string(static_cast<ForcedUnoccupied>(packet_data_to_int(packet))));
       break;
     default:
       ESP_LOGW(TAG, "System report -> Packet had unkown address code 2: 0x%x", current_addr_code_2);
+      this->log_packet(packet);
+      break;
+  }
+}
+
+void MR24HPB1Component::handle_other_function_report(std::vector<uint8_t> &packet) {
+  AddressCode2 current_addr_code_2 = get_packet_address_code_2(packet);
+  switch (current_addr_code_2) {
+    case PR_OTH_SLEEP_FUNCTION_SWITCH:
+      ESP_LOGD(TAG, "Sleep function is switchted to: %d", packet_data_to_int(packet));
+      break;
+    case PR_OTH_START_OTA_UPGRADE:
+      ESP_LOGD(TAG, "Start OTA upgrade status is: %d", packet_data_to_int(packet));
+      break;
+    case PR_OTH_UPGRADE_PACKAGE:
+      ESP_LOGD(TAG, "OTA upgrade package transfer: %d", packet_data_to_int(packet));
+      break;
+    case PR_OTH_FALL_ALARM_TIME:
+      ESP_LOGD(TAG, "Fall alarm time package transfer: %d", packet_data_to_int(packet));
+      break;
+    case PR_OTH_FALL_FUNCTION_SWITCH:
+      ESP_LOGD(TAG, "Fall function switch package transfer: %d", packet_data_to_int(packet));
+      break;
+    case PR_OTH_FALL_SENSITIVITY_SETTING:
+      ESP_LOGD(TAG, "Fall sensitivity setting package transfer: %d", packet_data_to_int(packet));
+      break;
+    default:
+      ESP_LOGW(TAG, "Other function report -> Packet had unkown address code 2: 0x%x", current_addr_code_2);
+      this->log_packet(packet);
       break;
   }
 }

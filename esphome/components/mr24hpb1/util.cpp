@@ -38,12 +38,12 @@ std::vector<uint8_t> get_packet_data(std::vector<uint8_t> &packet) {
 }
 
 std::string packet_data_to_string(std::vector<uint8_t> &packet) {
-  std::stringstream ss;
+  std::string str = "";
   std::vector<uint8_t> data = get_packet_data(packet);
   for (uint8_t &byte : data) {
-    ss << byte;
+    str += byte;
   }
-  return ss.str();
+  return str;
 }
 
 typedef union {
@@ -55,8 +55,7 @@ float packet_data_to_float(std::vector<uint8_t> &packet) {
   Float_Byte converted_data;
   converted_data.Byte = 0x00;
   std::vector<uint8_t> data = get_packet_data(packet);
-  for (auto i = data.rbegin(); i != data.rend(); ++i)
-  {
+  for (auto i = data.rbegin(); i != data.rend(); ++i) {
     converted_data.Byte <<= 8;
     converted_data.Byte |= *i;
   }
@@ -92,6 +91,48 @@ const char *EnvironmentStatus_to_string(EnvironmentStatus status) {
       return "STATIONARY";
     case MOVING:
       return "MOVING";
+    default:
+      return "UNDEFINED";
+  }
+}
+
+const char *ForcedUnoccupied_to_string(ForcedUnoccupied value) {
+  switch (value) {
+    case ForcedUnoccupied::NONE:
+      return "None";
+    case ForcedUnoccupied::SEC_10:
+      return "10s";
+    case ForcedUnoccupied::SEC_30:
+      return "30s";
+    case ForcedUnoccupied::MIN_1:
+      return "1min";
+    case ForcedUnoccupied::MIN_2:
+      return "2min";
+    case ForcedUnoccupied::MIN_5:
+      return "5min";
+    case ForcedUnoccupied::MIN_10:
+      return "10min";
+    case ForcedUnoccupied::MIN_30:
+      return "30min";
+    case ForcedUnoccupied::MIN_60:
+      return "60min";
+    default:
+      return "UNDEFINED";
+  }
+}
+
+const char *MovementType_to_string(MovementType type) {
+  switch (type) {
+    case MovementType::NONE:
+      return "NONE";
+    case MovementType::APPROACHING:
+      return "APPROACHING";
+    case MovementType::FAR_AWAY:
+      return "FAR_AWAY";
+    case MovementType::U1:
+      return "U1";
+    case MovementType::U2:
+      return "U2";
     default:
       return "UNDEFINED";
   }
