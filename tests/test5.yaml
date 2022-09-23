@@ -487,3 +487,26 @@ display:
     lambda: |-
       it.print("81818181");
 
+mr24hpb1:
+  uart_id: uart1
+  threshold_gear: 7
+  scene_setting: DEFAULT
+  force_unoccupied: NONE
+  environment_status:
+    name: Environment Status
+  occupancy:
+    name: Occupancy
+  movement:
+    name: Movement
+  movement_rate:
+    name: Movement Rate
+  movement_type:
+    name: Movement Type
+  device_id:
+    name: Device ID
+  software_version:
+    name: Software version
+  protocol_version:
+    name: Protocol Version
+  hardware_version:
+    name: Hardware Version
