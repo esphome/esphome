@@ -8,7 +8,7 @@ from esphome.const import (
     ICON_MOTION_SENSOR,
 )
 
-CODEOWNERS = ["lorki97", "florianL21"]
+CODEOWNERS = ["@lorki97", "@florianL21"]
 
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["text_sensor", "binary_sensor", "sensor"]
