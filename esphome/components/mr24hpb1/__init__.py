@@ -82,9 +82,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_OCCUPANCY): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_OCCUPANCY,
             ),
-            cv.Optional(
-                CONF_MOVEMENT
-            ): binary_sensor.binary_sensor_schema(
+            cv.Optional(CONF_MOVEMENT): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_MOTION,
                 icon=ICON_MOTION_SENSOR,
             ),
@@ -141,9 +139,7 @@ async def to_code(config):
         cg.add(var.set_occupancy_sensor(sens))
 
     if CONF_MOVEMENT in config:
-        sens = await binary_sensor.new_binary_sensor(
-            config[CONF_MOVEMENT]
-        )
+        sens = await binary_sensor.new_binary_sensor(config[CONF_MOVEMENT])
         cg.add(var.set_movement_sensor(sens))
 
     if CONF_MOVEMENT_RATE in config:
