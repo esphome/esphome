@@ -66,7 +66,7 @@ static const uint8_t PROGMEM INITCMD_TFT[] = {
 };
 
 static const uint8_t PROGMEM INITCMD_ST7796[] = {
-  // This ST7796S initilization routine was copied from this library https://github.com/prenticedavid/Adafruit_ST7796S_kbv
+  // This ST7796S initilization routine was copied from https://github.com/prenticedavid/Adafruit_ST7796S_kbv/blob/master/Adafruit_ST7796S_kbv.cpp
   0x01, 0x80,         // Soft reset, then delay 150 ms
   0xF0, 1, 0xC3,              // ?? Unlock Manufacturer 
   0xF0, 1, 0x96,
