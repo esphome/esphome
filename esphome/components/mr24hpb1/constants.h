@@ -5,6 +5,8 @@ namespace mr24hpb1 {
 
 static const int PACKET_START = 0x55;
 
+static const uint16_t PACKET_WAIT_TIMEOUT_MS = 5000;
+
 // Read Commands
 static const FunctionCode READ_COMMAND = 0x01;
 
@@ -29,7 +31,6 @@ static const AddressCode2 RC_OI_FALL_FUNCTION_SWITCH = 0x0B;
 static const AddressCode2 RC_OI_FALL_ALARM_TIME = 0x0C;
 // Enquiry current fall sensitivity.
 static const AddressCode2 RC_OI_FALL_SENSITIVITY = 0x0E;
-
 
 // Copy order
 static const FunctionCode COPY_ORDER = 0x02;
@@ -81,7 +82,6 @@ static const AddressCode2 CO_OF_START_OTA_UPGRADE = 0x08;
 static const AddressCode2 CO_OF_UPGRADE_PACKAGE_TRANSFER = 0x09;
 static const AddressCode2 CO_OF_END_OF_UPGRADE_INFORMATION = 0x0A;
 
-
 // Passive reporting of orders
 static const FunctionCode PASSIVE_REPORTING = 0x03;
 
@@ -111,16 +111,34 @@ static const AddressCode2 PR_RMI_HARDWARE_VERSION = 0x03;
  */
 static const AddressCode2 PR_RMI_PROTOCOL_VERSION = 0x04;
 
+static const AddressCode1 PR_REPORT_RADAR_INFO = 0x03;
 
-enum class SceneSetting {
-    SCENE_DEFAULT = 0x00,
-    AREA = 0x01,
-    BATHROOM = 0x02,
-    BEDROOM = 0x03,
-    LIVING_ROOM = 0x04,
-    OFFICE = 0x05,
-    HOTEL = 0x06
-};
+static const AddressCode1 PR_REPORTING_SYSTEM_INFO = 0x04;
+
+static const AddressCode2 PR_RSI_THRESHOLD_GEAR = 0x0C;
+static const AddressCode2 PR_RSI_SCENE_SETTINGS = 0x10;
+
+
+// Proactive reporting of commands
+static const FunctionCode PROACTIVE_REPORTING = 0x04;
+
+static const AddressCode1 PROREP_REPORT_RADAR_INFO = 0x03;
+static const AddressCode2 PROREP_RRI_ENVIRONMENT_STATUS = 0x05;
+static const AddressCode2 PROREP_RRI_MOVEMENT_SIGNS_PARAMETERS = 0x06;
+static const AddressCode2 PROREP_RRI_APPROACHING_AWAY_STATE = 0x07;
+
+static const AddressCode1 PROREP_REPORT_OTHER_INFORMATION = 0x05;
+static const AddressCode2 PROREP_ROI_HEARTBEAT_PACK = 0x01;
+/**
+ * Abnormal reset.
+ *
+ * 1 byte of data (always 0x0F).
+ */
+static const AddressCode2 PROREP_ROI_ABNORMAL_RESET = 0x02;
+
+
+enum ApproachingAwayState { NONE = 0x01, CLOSE_TO = 0x02, STAY_AWAY = 0x03 };
+
 
 enum class FallFunctionSwitch { OFF = 0x00, ON = 0x01 };
 
