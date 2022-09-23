@@ -179,7 +179,11 @@ def preload_core_config(config, result):
     ]
 
     if not has_oldstyle and not newstyle_found:
-        raise cv.Invalid("Platform missing for core options!", [CONF_ESPHOME])
+        raise cv.Invalid(
+            "Platform missing. You must include one of the available platform keys: "
+            + ", ".join(TARGET_PLATFORMS),
+            [CONF_ESPHOME],
+        )
     if has_oldstyle and newstyle_found:
         raise cv.Invalid(
             f"Please remove the `platform` key from the [esphome] block. You're already using the new style with the [{conf[CONF_PLATFORM]}] block",
