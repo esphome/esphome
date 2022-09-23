@@ -9,9 +9,12 @@ namespace mr24hpb1 {
 void MR24HPB1Component::setup() {
   // creating a list of all system information that needs to be fetched only once after startup
   this->system_information_sensors_.emplace_back(this->device_id_sensor_, RC_MARKING_SEARCH, RC_MS_DEVICE_ID);
-  this->system_information_sensors_.emplace_back(this->software_version_sensor_, RC_MARKING_SEARCH, RC_MS_SOFTWARE_VERSION);
-  this->system_information_sensors_.emplace_back(this->hardware_version_sensor_, RC_MARKING_SEARCH, RC_MS_HARDWARE_VERSION);
-  this->system_information_sensors_.emplace_back(this->protocol_version_sensor_, RC_MARKING_SEARCH, RC_MS_PROTOCOL_VERSION);
+  this->system_information_sensors_.emplace_back(this->software_version_sensor_, RC_MARKING_SEARCH,
+                                                 RC_MS_SOFTWARE_VERSION);
+  this->system_information_sensors_.emplace_back(this->hardware_version_sensor_, RC_MARKING_SEARCH,
+                                                 RC_MS_HARDWARE_VERSION);
+  this->system_information_sensors_.emplace_back(this->protocol_version_sensor_, RC_MARKING_SEARCH,
+                                                 RC_MS_PROTOCOL_VERSION);
 
   ESP_LOGCONFIG(TAG, "Setting up MR24HPB1");
 
@@ -52,7 +55,8 @@ void MR24HPB1Component::setup() {
   // set scene setting
   this->write_scene_setting_(this->scene_setting_);
   recv_packet.clear();
-  received = this->wait_for_packet_(recv_packet, PASSIVE_REPORTING, PR_REPORTING_SYSTEM_INFO, PR_RSI_SCENE_SETTINGS, 10);
+  received =
+      this->wait_for_packet_(recv_packet, PASSIVE_REPORTING, PR_REPORTING_SYSTEM_INFO, PR_RSI_SCENE_SETTINGS, 10);
   if (!received) {
     ESP_LOGE(TAG, "Scene setting write not acknowledged!");
     this->mark_failed();
@@ -70,7 +74,7 @@ void MR24HPB1Component::setup() {
   this->write_force_unoccupied_setting_(this->forced_unoccupied_);
   recv_packet.clear();
   received = this->wait_for_packet_(recv_packet, PASSIVE_REPORTING, PR_REPORTING_SYSTEM_INFO,
-                                   PR_RSI_FORCED_UNOCCUPIED_SETTINGS, 10);
+                                    PR_RSI_FORCED_UNOCCUPIED_SETTINGS, 10);
   if (!received) {
     ESP_LOGE(TAG, "Forced unoccupied write not acknowledged!");
     this->mark_failed();
@@ -153,7 +157,7 @@ void MR24HPB1Component::get_general_infos_() {
 }
 
 void MR24HPB1Component::write_packet_(FunctionCode function_code, AddressCode1 address_code_1,
-                                     AddressCode2 address_code_2, std::vector<uint8_t> &data) {
+                                      AddressCode2 address_code_2, std::vector<uint8_t> &data) {
   uint16_t packet_size = data.size() + 8;
   std::vector<uint8_t> packet;
   packet.reserve(packet_size);
@@ -177,27 +181,24 @@ void MR24HPB1Component::write_packet_(FunctionCode function_code, AddressCode1 a
 }
 
 void MR24HPB1Component::write_packet_(FunctionCode function_code, AddressCode1 address_code_1,
-                                     AddressCode2 address_code_2) {
+                                      AddressCode2 address_code_2) {
   std::vector<uint8_t> empty_data;
   MR24HPB1Component::write_packet_(function_code, address_code_1, address_code_2, empty_data);
 }
 
 void MR24HPB1Component::log_packet_(std::vector<uint8_t> &packet) {
-  char *buf = new char[packet.size() * 5 + 8];
-  uint16_t counter = 7;
-
-  sprintf(buf, "Packet:");
+  std::string output = "Packet:";
+  char buf[6];
   for (uint8_t &byte : packet) {
-    sprintf(&(buf[counter]), " 0x%02x", byte);
-    counter += 5;
+    sprintf(buf, " 0x%02x", byte);
+    output += buf;
   }
 
-  ESP_LOGD(TAG, "%s", buf);
-  delete[] buf;
+  ESP_LOGD(TAG, "%s", output.c_str());
 }
 
 bool MR24HPB1Component::wait_for_packet_(std::vector<uint8_t> &packet, FunctionCode function_code,
-                                        AddressCode1 address_code_1, AddressCode2 address_code_2, uint8_t timeout_s) {
+                                         AddressCode1 address_code_1, AddressCode2 address_code_2, uint8_t timeout_s) {
   uint32_t starting_timestamp = millis();
   ReceptionStatus stat;
   while (millis() < starting_timestamp + timeout_s * 1000) {

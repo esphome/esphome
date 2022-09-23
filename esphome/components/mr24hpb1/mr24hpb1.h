@@ -134,11 +134,11 @@ class MR24HPB1Component : public Component, public uart::UARTDevice {
 
   enum ReceptionStatus { WAITING, RECEIVING, MALFORMED_PACKET, CRC_ERROR, COMPLETE };
   void write_packet_(FunctionCode function_code, AddressCode1 address_code_1, AddressCode2 address_code_2,
-                    std::vector<uint8_t> &data);
+                     std::vector<uint8_t> &data);
   void write_packet_(FunctionCode function_code, AddressCode1 address_code_1, AddressCode2 address_code_2);
 
   bool wait_for_packet_(std::vector<uint8_t> &packet, uint8_t function_code, uint8_t address_code_1,
-                       uint8_t address_code_2, uint8_t timeout_s);
+                        uint8_t address_code_2, uint8_t timeout_s);
 
   ReceptionStatus receive_packet_(std::vector<uint8_t> &packet);
 

@@ -150,6 +150,7 @@ void MR24HPB1Component::handle_other_information_(std::vector<uint8_t> &packet) 
   AddressCode2 current_addr_code_2 = get_packet_address_code_2(packet);
   uint32_t data = packet_data_to_int(packet);
   bool occupied = false;
+  bool movement = false;
   switch (current_addr_code_2) {
     case PROREP_ROI_HEARTBEAT_PACK:
       switch (data) {
@@ -160,6 +161,7 @@ void MR24HPB1Component::handle_other_information_(std::vector<uint8_t> &packet) 
           break;
         case MOVING:
           occupied = true;
+          movement = true;
           break;
 
         default:
@@ -169,6 +171,9 @@ void MR24HPB1Component::handle_other_information_(std::vector<uint8_t> &packet) 
 
       if (this->occupancy_sensor_ != nullptr) {
         this->occupancy_sensor_->publish_state(occupied);
+      }
+      if (this->movement_sensor_ != nullptr) {
+        this->movement_sensor_->publish_state(movement);
       }
 
       if (this->environment_status_sensor_ != nullptr) {

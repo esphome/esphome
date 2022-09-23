@@ -1,3 +1,5 @@
+#include "crc.h"
+
 namespace esphome {
 namespace mr24hpb1 {
 
@@ -33,7 +35,7 @@ const unsigned char CUC_CRC_LO[256] = {
     0x4B, 0x8B, 0x8A, 0x4A, 0x4E, 0x8E, 0x8F, 0x4F, 0x8D, 0x4D, 0x4C, 0x8C, 0x44, 0x84, 0x85, 0x45, 0x87, 0x47, 0x46,
     0x86, 0x82, 0x42, 0x43, 0x83, 0x41, 0x81, 0x80, 0x40};
 
-unsigned short int us_calculate_crc16(unsigned char *lpuc_frame, unsigned short int lus_len) {
+uint16_t us_calculate_crc16(unsigned char *lpuc_frame, uint16_t lus_len) {
   unsigned char luc_crc_hi = 0xFF;
   unsigned char luc_crc_lo = 0xFF;
   int li_index = 0;
@@ -42,7 +44,7 @@ unsigned short int us_calculate_crc16(unsigned char *lpuc_frame, unsigned short 
     luc_crc_lo = (unsigned char) (luc_crc_hi ^ CUC_CRC_HI[li_index]);
     luc_crc_hi = CUC_CRC_LO[li_index];
   }
-  return (unsigned short int) (luc_crc_lo << 8 | luc_crc_hi);
+  return (uint16_t)(luc_crc_lo << 8 | luc_crc_hi);
 }
 
 }  // namespace mr24hpb1
