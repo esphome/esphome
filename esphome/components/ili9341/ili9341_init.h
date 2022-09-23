@@ -65,6 +65,26 @@ static const uint8_t PROGMEM INITCMD_TFT[] = {
   0x00                                   // End of list
 };
 
+static const uint8_t PROGMEM INITCMD_ST7796[] = {
+  // This ST7796S initilization routine was copied from this library https://github.com/prenticedavid/Adafruit_ST7796S_kbv
+  0x01, 0x80,         // Soft reset, then delay 150 ms
+  0xF0, 1, 0xC3,              // ?? Unlock Manufacturer 
+  0xF0, 1, 0x96,
+  0xC5, 1, 0x1C,              //VCOM  Control 1 [1C]
+  0x36, 1, 0x48,              //Memory Access [00]
+  0x3A, 1, 0x55,              //565
+  0xB0, 1, 0x80,              //Interface     [00]
+  0xB4, 1, 0x01,              //Inversion Control [01]
+  0xB6, 3, 0x80, 0x02, 0x3B,  // Display Function Control [80 02 3B] .kbv SS=1, NL=480
+  0xB7, 1, 0xC6,              //Entry Mode      [06]
+
+  0xF0, 1, 0x69,              //?? lock manufacturer commands
+  0xF0, 1, 0x3C,              //
+  0x11, 0x80, // Exit Sleep, then delay 150 ms
+  0x29, 0x80, // Main screen turn on, delay 150 ms
+  0x00                                   // End of list
+};
+
 // clang-format on
 }  // namespace ili9341
 }  // namespace esphome

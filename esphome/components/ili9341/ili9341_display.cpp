@@ -299,5 +299,12 @@ void ILI9341TFT24R::initialize() {
   this->height_ = 240;
 }
 
+//   ST7796 display
+void ILI9341ST7796::initialize() {
+  this->init_lcd_(INITCMD_ST7796);
+  this->width_ = 480;
+  this->height_ = 320;
+}
+
 }  // namespace ili9341
 }  // namespace esphome

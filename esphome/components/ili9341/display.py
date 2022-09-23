@@ -25,6 +25,7 @@ ili9341 = ili9341_ns.class_(
 ILI9341M5Stack = ili9341_ns.class_("ILI9341M5Stack", ili9341)
 ILI9341TFT24 = ili9341_ns.class_("ILI9341TFT24", ili9341)
 ILI9341TFT24R = ili9341_ns.class_("ILI9341TFT24R", ili9341)
+ILI9341ST7796 = ili9341_ns.class_("ILI9341ST7796", ili9341)
 
 ILI9341Model = ili9341_ns.enum("ILI9341Model")
 ILI9341ColorMode = ili9341_ns.enum("ILI9341ColorMode")
@@ -33,6 +34,7 @@ MODELS = {
     "M5STACK": ILI9341Model.M5STACK,
     "TFT_2.4": ILI9341Model.TFT_24,
     "TFT_2.4R": ILI9341Model.TFT_24R,
+    "ST7796": ILI9341Model.ST7796,
 }
 
 ILI9341_MODEL = cv.enum(MODELS, upper=True, space="_")
@@ -64,6 +66,8 @@ async def to_code(config):
         lcd_type = ILI9341TFT24
     if config[CONF_MODEL] == "TFT_2.4R":
         lcd_type = ILI9341TFT24R
+    if config[CONF_MODEL] == "ST7796":
+        lcd_type = ILI9341ST7796
     rhs = lcd_type.new()
     var = cg.Pvariable(config[CONF_ID], rhs)
 
