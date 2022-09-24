@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
-from esphome.const import CONF_FREQUENCY, CONF_ID
+from esphome.const import CONF_FREQUENCY, CONF_ID, CONF_EXTERNAL_CLOCK
 
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
@@ -13,9 +13,10 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PCA9685Output),
-            cv.Required(CONF_FREQUENCY): cv.All(
+            cv.Optional(CONF_FREQUENCY, default=1000): cv.All(
                 cv.frequency, cv.Range(min=23.84, max=1525.88)
             ),
+            cv.Optional(CONF_EXTERNAL_CLOCK, default=False): cv.boolean
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -25,5 +26,6 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID], config[CONF_FREQUENCY])
+    cg.add(var.set_extclk(config[CONF_EXTERNAL_CLOCK]))
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)

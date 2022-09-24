@@ -21,6 +21,7 @@ static const uint8_t PCA9685_REGISTER_LED0 = 0x06;
 static const uint8_t PCA9685_REGISTER_PRE_SCALE = 0xFE;
 
 static const uint8_t PCA9685_MODE1_RESTART = 0b10000000;
+static const uint8_t PCA9685_MODE1_EXTCLK = 0b01000000;
 static const uint8_t PCA9685_MODE1_AUTOINC = 0b00100000;
 static const uint8_t PCA9685_MODE1_SLEEP = 0b00010000;
 
@@ -28,10 +29,13 @@ void PCA9685Output::setup() {
   ESP_LOGCONFIG(TAG, "Setting up PCA9685OutputComponent...");
 
   ESP_LOGV(TAG, "  Resetting devices...");
+  uint8_t addressTmp_ = this->address_;
+  this->set_i2c_address(0x00);
   if (!this->write_bytes(PCA9685_REGISTER_SOFTWARE_RESET, nullptr, 0)) {
     this->mark_failed();
     return;
   }
+  this->set_i2c_address(addressTmp_);
 
   if (!this->write_byte(PCA9685_REGISTER_MODE1, PCA9685_MODE1_RESTART | PCA9685_MODE1_AUTOINC)) {
     this->mark_failed();
@@ -60,6 +64,14 @@ void PCA9685Output::setup() {
     this->mark_failed();
     return;
   }
+  if ( this->extclk_ ) {
+    pre_scaler = 3;
+    mode1 = mode1 | PCA9685_MODE1_EXTCLK;
+    if (!this->write_byte(PCA9685_REGISTER_MODE1, mode1)) {
+      this->mark_failed();
+      return;
+    }
+  }
   if (!this->write_byte(PCA9685_REGISTER_PRE_SCALE, pre_scaler)) {
     this->mark_failed();
     return;
@@ -78,7 +90,12 @@ void PCA9685Output::setup() {
 void PCA9685Output::dump_config() {
   ESP_LOGCONFIG(TAG, "PCA9685:");
   ESP_LOGCONFIG(TAG, "  Mode: 0x%02X", this->mode_);
-  ESP_LOGCONFIG(TAG, "  Frequency: %.0f Hz", this->frequency_);
+  if ( this->extclk_ ) {
+    ESP_LOGCONFIG(TAG, "  EXTCLK: enabled");
+  } else {
+    ESP_LOGCONFIG(TAG, "  EXTCLK: disabled");
+    ESP_LOGCONFIG(TAG, "  Frequency: %.0f Hz", this->frequency_);
+  }
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Setting up PCA9685 failed!");
   }

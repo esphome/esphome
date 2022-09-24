@@ -46,6 +46,7 @@ class PCA9685Output : public Component, public i2c::I2CDevice {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
   void loop() override;
+  void set_extclk(bool extclk) { extclk_ = extclk; }
 
  protected:
   friend PCA9685Channel;
@@ -58,6 +59,7 @@ class PCA9685Output : public Component, public i2c::I2CDevice {
 
   float frequency_;
   uint8_t mode_;
+  bool extclk_ = false;
 
   uint8_t min_channel_{0xFF};
   uint8_t max_channel_{0x00};
