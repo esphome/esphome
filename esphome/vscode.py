@@ -12,7 +12,9 @@ from typing import Optional
 
 def _get_invalid_range(res, invalid):
     # type: (Config, cv.Invalid) -> Optional[DocumentRange]
-    return res.get_deepest_document_range_for_path(invalid.path)
+    return res.get_deepest_document_range_for_path(
+        invalid.path, invalid.error_message == "extra keys not allowed"
+    )
 
 
 def _dump_range(range):

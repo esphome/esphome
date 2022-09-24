@@ -52,7 +52,7 @@ class MLX90393Cls : public PollingComponent, public i2c::I2CDevice, public MLX90
   uint8_t temperature_oversampling_ = 0;
   uint8_t filter_;
   uint8_t resolutions_[3] = {0};
-  GPIOPin *drdy_pin_ = nullptr;
+  GPIOPin *drdy_pin_{nullptr};
 };
 
 }  // namespace mlx90393

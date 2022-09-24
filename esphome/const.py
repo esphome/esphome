@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2022.9.0-dev"
+__version__ = "2022.10.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -493,6 +493,7 @@ CONF_PAYLOAD = "payload"
 CONF_PAYLOAD_AVAILABLE = "payload_available"
 CONF_PAYLOAD_NOT_AVAILABLE = "payload_not_available"
 CONF_PERIOD = "period"
+CONF_PH = "ph"
 CONF_PHASE_ANGLE = "phase_angle"
 CONF_PHASE_BALANCER = "phase_balancer"
 CONF_PIN = "pin"
@@ -888,6 +889,7 @@ UNIT_PARTS_PER_BILLION = "ppb"
 UNIT_PARTS_PER_MILLION = "ppm"
 UNIT_PASCAL = "Pa"
 UNIT_PERCENT = "%"
+UNIT_PH = "pH"
 UNIT_PULSES = "pulses"
 UNIT_PULSES_PER_MINUTE = "pulses/min"
 UNIT_SECOND = "s"
