@@ -64,7 +64,7 @@ void PCA9685Output::setup() {
     this->mark_failed();
     return;
   }
-  if ( this->extclk_ ) {
+  if (this->extclk_) {
     pre_scaler = 3;
     mode1 = mode1 | PCA9685_MODE1_EXTCLK;
     if (!this->write_byte(PCA9685_REGISTER_MODE1, mode1)) {
@@ -90,7 +90,7 @@ void PCA9685Output::setup() {
 void PCA9685Output::dump_config() {
   ESP_LOGCONFIG(TAG, "PCA9685:");
   ESP_LOGCONFIG(TAG, "  Mode: 0x%02X", this->mode_);
-  if ( this->extclk_ ) {
+  if (this->extclk_) {
     ESP_LOGCONFIG(TAG, "  EXTCLK: enabled");
   } else {
     ESP_LOGCONFIG(TAG, "  EXTCLK: disabled");

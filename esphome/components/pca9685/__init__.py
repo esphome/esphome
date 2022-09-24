@@ -16,7 +16,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_FREQUENCY, default=1000): cv.All(
                 cv.frequency, cv.Range(min=23.84, max=1525.88)
             ),
-            cv.Optional(CONF_EXTCLK, default=False): cv.boolean
+            cv.Optional(CONF_EXTCLK, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
