@@ -72,7 +72,16 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
   BLEClientBase::gattc_event_handler(event, gattc_if, param);
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
+#ifdef USE_API
+      api::global_api_server->send_bluetooth_device_connection(this->address_, false);
+#endif
       this->address_ = 0;
+    }
+    case ESP_GATTC_SEARCH_CMPL_EVT: {
+#ifdef USE_API
+      api::global_api_server->send_bluetooth_device_connection(this->address_, true);
+#endif
+      break;
     }
     case ESP_GATTC_READ_CHAR_EVT: {
       if (param->read.conn_id != this->conn_id_)

@@ -297,6 +297,16 @@ void APIServer::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementRe
     client->send_bluetooth_le_advertisement(call);
   }
 }
+void APIServer::send_bluetooth_device_connection(const uint64_t address, bool connected) {
+  BluetoothDeviceConnectionResponse call;
+  call.address = address;
+  call.connected = connected;
+
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_device_connection_response(call);
+  }
+}
+
 void APIServer::send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &call) {
   for (auto &client : this->clients_) {
     client->send_bluetooth_gatt_read_response(call);
