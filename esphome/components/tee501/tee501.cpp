@@ -50,7 +50,7 @@ void TEE501Component::update() {
       this->status_set_warning();
       return;
     }
-    float temperature = ((float) (i2c_response[0]) * 256 + i2c_response[1]);
+    float temperature = (float) encode_uint16(i2c_response[0], i2c_response[1]);
     if (temperature > 55536) {
       temperature = (temperature - 65536) / 100;
     } else {

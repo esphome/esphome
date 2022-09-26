@@ -1029,7 +1029,7 @@ sensor:
       id: tsl2591_cl
     i2c_id: i2c_bus
   - platform: tee501
-    name: "Office Temperature 3"
+    name: Office Temperature 3
     address: 0x48
     i2c_id: i2c_bus
   - platform: ultrasonic
