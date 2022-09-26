@@ -18,8 +18,6 @@ static const char *const TAG = "mr24hpb1";
 const char *forced_unoccupied_to_string(ForcedUnoccupied value);
 
 class MR24HPB1Component : public Component, public uart::UARTDevice {
-  friend class Packet;
-
  public:
   MR24HPB1Component() = default;
 

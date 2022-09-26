@@ -1,7 +1,6 @@
 #pragma once
 #include <cstdint>
 
-
 namespace esphome {
 namespace mr24hpb1 {
 
@@ -50,5 +49,5 @@ enum class BreathingSigns {
 };
 enum class BedOccupation { OUT_OF_BED = 0x00, IN_BED = 0x01, NA = 0x02 };
 enum class SleepState { AWAKE = 0x00, LIGHT_SLEEP = 0x01, DEEP_SLEEP = 0x02, NA = 0x03 };
-}
-}
+}  // namespace mr24hpb1
+}  // namespace esphome
