@@ -1,3 +1,4 @@
+---
 esphome:
   name: $device_name
   comment: $device_comment
@@ -9,38 +10,38 @@ esphome:
           - wifi.connected
           - time.has_time
         then:
-          - logger.log: "Have time"
+          - logger.log: Have time
   includes:
     - custom.h
 
 esp8266:
   board: d1_mini
-  early_pin_init: True
+  early_pin_init: true
 
 substitutions:
   device_name: test3
   device_comment: test3 device
-  min_sub: '0.03'
-  max_sub: '12.0%'
+  min_sub: "0.03"
+  max_sub: "12.0%"
 
 api:
   port: 8000
-  password: 'pwd'
+  password: pwd
   reboot_timeout: 0min
   encryption:
-    key: 'bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU='
+    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
   services:
     - service: hello_world
       variables:
         name: string
       then:
         - logger.log:
-            format: 'Hello World %s!'
+            format: Hello World %s!
             args:
               - name.c_str()
     - service: empty_service
       then:
-        - logger.log: 'Service Called'
+        - logger.log: Service Called
     - service: all_types
       variables:
         bool_: bool
@@ -48,7 +49,7 @@ api:
         float_: float
         string_: string
       then:
-        - logger.log: 'Something happened'
+        - logger.log: Something happened
         - stepper.set_target:
             id: my_stepper2
             target: !lambda 'return int_;'
@@ -60,7 +61,9 @@ api:
         string_arr: string[]
       then:
         - logger.log:
+            # yamllint disable rule:line-length
             format: 'Bool: %s (%u), Int: %d (%u), Float: %f (%u), String: %s (%u)'
+            # yamllint enable rule:line-length
             args:
               - YESNO(bool_arr[0])
               - bool_arr.size()
@@ -104,7 +107,7 @@ api:
       then:
         - dfplayer.play_folder:
             folder: !lambda 'return folder;'
-            loop: True
+            loop: true
 
     - service: dfplayer_set_device
       variables:
@@ -122,7 +125,9 @@ api:
       variables:
         preset: int
       then:
+        # yamllint disable rule:line-length
         - dfplayer.set_eq: !lambda 'return static_cast<dfplayer::EqPreset>(preset);'
+        # yamllint enable rule:line-length
 
     - service: dfplayer_sleep
       then:
@@ -220,7 +225,7 @@ wifi:
 i2c:
   sda: 4
   scl: 5
-  scan: False
+  scan: false
 
 spi:
   clk_pin: GPIO12
@@ -231,7 +236,7 @@ uart:
   - id: uart1
     tx_pin:
       number: GPIO1
-      inverted: yes
+      inverted: true
     rx_pin: GPIO3
     baud_rate: 115200
   - id: uart2
@@ -279,7 +284,7 @@ modbus:
   uart_id: uart1
 
 ota:
-  safe_mode: True
+  safe_mode: true
   port: 3286
   reboot_timeout: 15min
 
@@ -302,40 +307,40 @@ adalight:
 sensor:
   - platform: daly_bms
     voltage:
-      name: "Battery Voltage"
+      name: Battery Voltage
     current:
-      name: "Battery Current"
+      name: Battery Current
     battery_level:
-      name: "Battery Level"
+      name: Battery Level
     max_cell_voltage:
-      name: "Max Cell Voltage"
+      name: Max Cell Voltage
     max_cell_voltage_number:
-      name: "Max Cell Voltage Number"
+      name: Max Cell Voltage Number
     min_cell_voltage:
-      name: "Min Cell Voltage"
+      name: Min Cell Voltage
     min_cell_voltage_number:
-      name: "Min Cell Voltage Number"
+      name: Min Cell Voltage Number
     max_temperature:
-      name: "Max Temperature"
+      name: Max Temperature
     max_temperature_probe_number:
-      name: "Max Temperature Probe Number"
+      name: Max Temperature Probe Number
     min_temperature:
-      name: "Min Temperature"
+      name: Min Temperature
     min_temperature_probe_number:
-      name: "Min Temperature Probe Number"
+      name: Min Temperature Probe Number
     remaining_capacity:
-      name: "Remaining Capacity"
+      name: Remaining Capacity
     cells_number:
-      name: "Cells Number"
+      name: Cells Number
     temperature_1:
-      name: "Temperature 1"
+      name: Temperature 1
     temperature_2:
-      name: "Temperature 2"
+      name: Temperature 2
   - platform: apds9960
     type: proximity
     name: APDS9960 Proximity
   - platform: vl53l0x
-    name: 'VL53L0x Distance'
+    name: VL53L0x Distance
     address: 0x29
     update_interval: 60s
     enable_pin: GPIO13
@@ -357,32 +362,32 @@ sensor:
     id: ha_hello_world
   - platform: aht10
     temperature:
-      name: 'Temperature'
+      name: Temperature
     humidity:
-      name: 'Humidity'
+      name: Humidity
   - platform: am2320
     temperature:
-      name: 'Temperature'
+      name: Temperature
     humidity:
-      name: 'Humidity'
+      name: Humidity
   - platform: hydreon_rgxx
-    model: "RG 9"
+    model: RG 9
     uart_id: uart6
-    id: "hydreon_rg9"
+    id: hydreon_rg9
     moisture:
-      name: "hydreon_rain"
+      name: hydreon_rain
       id: hydreon_rain
   - platform: hydreon_rgxx
-    model: "RG_15"
+    model: RG_15
     uart_id: uart6
     acc:
-      name: "hydreon_acc"
+      name: hydreon_acc
     event_acc:
-      name: "hydreon_event_acc"
+      name: hydreon_event_acc
     total_acc:
-      name: "hydreon_total_acc"
+      name: hydreon_total_acc
     r_int:
-      name: "hydreon_r_int"
+      name: hydreon_r_int
   - platform: adc
     pin: VCC
     id: my_sensor
@@ -496,281 +501,293 @@ sensor:
   - platform: bl0939
     uart_id: uart8
     voltage:
-      name: 'BL0939 Voltage'
+      name: BL0939 Voltage
     current_1:
-      name: 'BL0939 Current 1'
+      name: BL0939 Current 1
     current_2:
-      name: 'BL0939 Current 2'
+      name: BL0939 Current 2
     active_power_1:
-      name: 'BL0939 Active Power 1'
+      name: BL0939 Active Power 1
     active_power_2:
-      name: 'BL0939 Active Power 2'
+      name: BL0939 Active Power 2
     energy_1:
-      name: 'BL0939 Energy 1'
+      name: BL0939 Energy 1
     energy_2:
-      name: 'BL0939 Energy 2'
+      name: BL0939 Energy 2
     energy_total:
-      name: 'BL0939 Total energy'
+      name: BL0939 Total energy
   - platform: bl0940
     uart_id: uart3
     voltage:
-      name: 'BL0940 Voltage'
+      name: BL0940 Voltage
     current:
-      name: 'BL0940 Current'
+      name: BL0940 Current
     power:
-      name: 'BL0940 Power'
+      name: BL0940 Power
     energy:
-      name: 'BL0940 Energy'
+      name: BL0940 Energy
     internal_temperature:
-      name: 'BL0940 Internal temperature'
+      name: BL0940 Internal temperature
     external_temperature:
-      name: 'BL0940 External temperature'
+      name: BL0940 External temperature
+  - platform: bl0942
+    uart_id: uart3
+    voltage:
+      name: 'BL0942 Voltage'
+    current:
+      name: 'BL0942 Current'
+    power:
+      name: 'BL0942 Power'
+    energy:
+      name: 'BL0942 Energy'
+    frequency:
+      name: "BL0942 Frequency"
   - platform: pzem004t
     uart_id: uart3
     voltage:
-      name: 'PZEM004T Voltage'
+      name: PZEM004T Voltage
     current:
-      name: 'PZEM004T Current'
+      name: PZEM004T Current
     power:
-      name: 'PZEM004T Power'
+      name: PZEM004T Power
   - platform: pzemac
     id: pzemac1
     voltage:
-      name: 'PZEMAC Voltage'
+      name: PZEMAC Voltage
     current:
-      name: 'PZEMAC Current'
+      name: PZEMAC Current
     power:
-      name: 'PZEMAC Power'
+      name: PZEMAC Power
     energy:
-      name: 'PZEMAC Energy'
+      name: PZEMAC Energy
     frequency:
-      name: 'PZEMAC Frequency'
+      name: PZEMAC Frequency
     power_factor:
-      name: 'PZEMAC Power Factor'
+      name: PZEMAC Power Factor
   - platform: pzemdc
     voltage:
-      name: 'PZEMDC Voltage'
+      name: PZEMDC Voltage
     current:
-      name: 'PZEMDC Current'
+      name: PZEMDC Current
     power:
-      name: 'PZEMDC Power'
+      name: PZEMDC Power
   - platform: tmp102
-    name: 'TMP102 Temperature'
+    name: TMP102 Temperature
   - platform: hm3301
     pm_1_0:
-      name: 'PM1.0'
+      name: PM1.0
     pm_2_5:
-      name: 'PM2.5'
+      name: PM2.5
     pm_10_0:
-      name: 'PM10.0'
+      name: PM10.0
     aqi:
-      name: 'AQI'
-      calculation_type: 'AQI'
+      name: AQI
+      calculation_type: AQI
   - platform: pmsx003
     uart_id: uart9
     type: PMSX003
     pm_1_0:
-      name: 'PM 1.0 Concentration'
+      name: PM 1.0 Concentration
     pm_2_5:
-      name: 'PM 2.5 Concentration'
+      name: PM 2.5 Concentration
     pm_10_0:
-      name: 'PM 10.0 Concentration'
+      name: PM 10.0 Concentration
     pm_1_0_std:
-      name: 'PM 1.0 Standard Atmospher Concentration'
+      name: PM 1.0 Standard Atmospher Concentration
     pm_2_5_std:
-      name: 'PM 2.5 Standard Atmospher Concentration'
+      name: PM 2.5 Standard Atmospher Concentration
     pm_10_0_std:
-      name: 'PM 10.0 Standard Atmospher Concentration'
+      name: PM 10.0 Standard Atmospher Concentration
     pm_0_3um:
-      name: 'Particulate Count >0.3um'
+      name: Particulate Count >0.3um
     pm_0_5um:
-      name: 'Particulate Count >0.5um'
+      name: Particulate Count >0.5um
     pm_1_0um:
-      name: 'Particulate Count >1.0um'
+      name: Particulate Count >1.0um
     pm_2_5um:
-      name: 'Particulate Count >2.5um'
+      name: Particulate Count >2.5um
     pm_5_0um:
-      name: 'Particulate Count >5.0um'
+      name: Particulate Count >5.0um
     pm_10_0um:
-      name: 'Particulate Count >10.0um'
+      name: Particulate Count >10.0um
     update_interval: 30s
   - platform: pmsx003
     uart_id: uart5
     type: PMS5003T
     pm_2_5:
-      name: 'PM 2.5 Concentration'
+      name: PM 2.5 Concentration
     temperature:
-      name: 'PMS Temperature'
+      name: PMS Temperature
     humidity:
-      name: 'PMS Humidity'
+      name: PMS Humidity
   - platform: pmsx003
     uart_id: uart6
     type: PMS5003ST
     pm_1_0:
-      name: 'PM 1.0 Concentration'
+      name: PM 1.0 Concentration
     pm_2_5:
-      name: 'PM 2.5 Concentration'
+      name: PM 2.5 Concentration
     pm_10_0:
-      name: 'PM 10.0 Concentration'
+      name: PM 10.0 Concentration
     pm_1_0_std:
-      name: 'PM 1.0 Standard Atmospher Concentration'
+      name: PM 1.0 Standard Atmospher Concentration
     pm_2_5_std:
-      name: 'PM 2.5 Standard Atmospher Concentration'
+      name: PM 2.5 Standard Atmospher Concentration
     pm_10_0_std:
-      name: 'PM 10.0 Standard Atmospher Concentration'
+      name: PM 10.0 Standard Atmospher Concentration
     pm_0_3um:
-      name: 'Particulate Count >0.3um'
+      name: Particulate Count >0.3um
     pm_0_5um:
-      name: 'Particulate Count >0.5um'
+      name: Particulate Count >0.5um
     pm_1_0um:
-      name: 'Particulate Count >1.0um'
+      name: Particulate Count >1.0um
     pm_2_5um:
-      name: 'Particulate Count >2.5um'
+      name: Particulate Count >2.5um
     pm_5_0um:
-      name: 'Particulate Count >5.0um'
+      name: Particulate Count >5.0um
     pm_10_0um:
-      name: 'Particulate Count >10.0um'
+      name: Particulate Count >10.0um
     temperature:
-      name: 'PMS Temperature'
+      name: PMS Temperature
     humidity:
-      name: 'PMS Humidity'
+      name: PMS Humidity
     formaldehyde:
-      name: 'PMS Formaldehyde Concentration'
+      name: PMS Formaldehyde Concentration
   - platform: cse7761
     uart_id: uart7
     voltage:
-      name: 'CSE7761 Voltage'
+      name: CSE7761 Voltage
     current_1:
-      name: 'CSE7761 Current 1'
+      name: CSE7761 Current 1
     current_2:
-      name: 'CSE7761 Current 2'
+      name: CSE7761 Current 2
     active_power_1:
-      name: 'CSE7761 Active Power 1'
+      name: CSE7761 Active Power 1
     active_power_2:
-      name: 'CSE7761 Active Power 2'
+      name: CSE7761 Active Power 2
   - platform: cse7766
     uart_id: uart3
     voltage:
-      name: 'CSE7766 Voltage'
+      name: CSE7766 Voltage
     current:
-      name: 'CSE7766 Current'
+      name: CSE7766 Current
     power:
-      name: 'CSE776 Power'
+      name: CSE776 Power
   - platform: ezo
     id: ph_ezo
     address: 99
-    unit_of_measurement: 'pH'
+    unit_of_measurement: pH
   - platform: tof10120
-    name: "Distance sensor"
+    name: Distance sensor
     update_interval: 5s
   - platform: fingerprint_grow
     fingerprint_count:
-      name: "Fingerprint Count"
+      name: Fingerprint Count
     status:
-      name: "Fingerprint Status"
+      name: Fingerprint Status
     capacity:
-      name: "Fingerprint Capacity"
+      name: Fingerprint Capacity
     security_level:
-      name: "Fingerprint Security Level"
+      name: Fingerprint Security Level
     last_finger_id:
-      name: "Fingerprint Last Finger ID"
+      name: Fingerprint Last Finger ID
     last_confidence:
-      name: "Fingerprint Last Confidence"
+      name: Fingerprint Last Confidence
   - platform: sdm_meter
     phase_a:
       current:
-        name: 'Phase A Current'
+        name: Phase A Current
       voltage:
-        name: 'Phase A Voltage'
+        name: Phase A Voltage
       active_power:
-        name: 'Phase A Power'
+        name: Phase A Power
       power_factor:
-        name: 'Phase A Power Factor'
+        name: Phase A Power Factor
       apparent_power:
-        name: 'Phase A Apparent Power'
+        name: Phase A Apparent Power
       reactive_power:
-        name: 'Phase A Reactive Power'
+        name: Phase A Reactive Power
       phase_angle:
-        name: 'Phase A Phase Angle'
+        name: Phase A Phase Angle
     phase_b:
       current:
-        name: 'Phase B Current'
+        name: Phase B Current
       voltage:
-        name: 'Phase B Voltage'
+        name: Phase B Voltage
       active_power:
-        name: 'Phase B Power'
+        name: Phase B Power
       power_factor:
-        name: 'Phase B Power Factor'
+        name: Phase B Power Factor
       apparent_power:
-        name: 'Phase B Apparent Power'
+        name: Phase B Apparent Power
       reactive_power:
-        name: 'Phase B Reactive Power'
+        name: Phase B Reactive Power
       phase_angle:
-        name: 'Phase B Phase Angle'
+        name: Phase B Phase Angle
     phase_c:
       current:
-        name: 'Phase C Current'
+        name: Phase C Current
       voltage:
-        name: 'Phase C Voltage'
+        name: Phase C Voltage
       active_power:
-        name: 'Phase C Power'
+        name: Phase C Power
       power_factor:
-        name: 'Phase C Power Factor'
+        name: Phase C Power Factor
       apparent_power:
-        name: 'Phase C Apparent Power'
+        name: Phase C Apparent Power
       reactive_power:
-        name: 'Phase C Reactive Power'
+        name: Phase C Reactive Power
       phase_angle:
-        name: 'Phase C Phase Angle'
+        name: Phase C Phase Angle
     frequency:
-      name: 'Frequency'
+      name: Frequency
     import_active_energy:
-      name: 'Import Active Energy'
+      name: Import Active Energy
     export_active_energy:
-      name: 'Export Active Energy'
+      name: Export Active Energy
     import_reactive_energy:
-      name: 'Import Reactive Energy'
+      name: Import Reactive Energy
     export_reactive_energy:
-      name: 'Export Reactive Energy'
+      name: Export Reactive Energy
   - platform: dsmr
     energy_delivered_tariff1:
       name: dsmr_energy_delivered_tariff1
 
   - platform: nextion
     id: testnumber
-    name: 'testnumber'
+    name: testnumber
     variable_name: testnumber
   - platform: nextion
     id: testwave
-    name: 'testwave'
+    name: testwave
     component_id: 2
     wave_channel_id: 1
   - platform: mlx90393
     oversampling: 1
     filter: 0
-    gain: "3X"
+    gain: 3X
     x_axis:
-      name: "mlxxaxis"
+      name: mlxxaxis
     y_axis:
-      name: "mlxyaxis"
+      name: mlxyaxis
     z_axis:
-      name: "mlxzaxis"
+      name: mlxzaxis
       resolution: 17BIT
     temperature:
-      name: "mlxtemp"
+      name: mlxtemp
       oversampling: 2
   - platform: smt100
     uart_id: uart10
     counts:
-      name: "Counts"
+      name: Counts
     dielectric_constant:
-      name: "Dielectric Constant"
+      name: Dielectric Constant
     temperature:
-      name: "Temperature"
+      name: Temperature
     moisture:
-      name: "Moisture"
+      name: Moisture
     voltage:
-      name: "Voltage"
+      name: Voltage
     update_interval: 60s
 time:
   - platform: homeassistant
@@ -786,9 +803,9 @@ mpr121:
 binary_sensor:
   - platform: daly_bms
     charging_mos_enabled:
-      name: "Charging MOS"
+      name: Charging MOS
     discharging_mos_enabled:
-      name: "Discharging MOS"
+      name: Discharging MOS
   - platform: apds9960
     direction: up
     name: APDS9960 Up
@@ -816,18 +833,18 @@ binary_sensor:
   - platform: mpr121
     id: touchkey0
     channel: 0
-    name: 'touchkey0'
+    name: touchkey0
   - platform: mpr121
     channel: 1
-    name: 'touchkey1'
+    name: touchkey1
     id: bin1
   - platform: mpr121
     channel: 2
-    name: 'touchkey2'
+    name: touchkey2
     id: bin2
   - platform: mpr121
     channel: 3
-    name: 'touchkey3'
+    name: touchkey3
     id: bin3
     on_press:
       then:
@@ -839,7 +856,7 @@ binary_sensor:
     channel: 1
     name: TTP229 BSF Test
   - platform: fingerprint_grow
-    name: "Fingerprint Enrolling"
+    name: Fingerprint Enrolling
   - platform: custom
     lambda: |-
       auto s = new CustomBinarySensor();
@@ -851,27 +868,27 @@ binary_sensor:
   - platform: nextion
     page_id: 0
     component_id: 2
-    name: 'Nextion Component 2 Touch'
+    name: Nextion Component 2 Touch
   - platform: nextion
     id: r0_sensor
-    name: 'R0 Sensor'
+    name: R0 Sensor
     component_name: page0.r0
   - platform: template
-    id: 'cover_toggle'
+    id: cover_toggle
     on_press:
       then:
         - cover.toggle: time_based_cover
         - cover.toggle: endstop_cover
   - platform: hydreon_rgxx
-    hydreon_rgxx_id: "hydreon_rg9"
+    hydreon_rgxx_id: hydreon_rg9
     too_cold:
-      name: "rg9_toocold"
+      name: rg9_toocold
     em_sat:
-      name: "rg9_emsat"
+      name: rg9_emsat
     lens_bad:
-      name: "rg9_lens_bad"
+      name: rg9_lens_bad
   - platform: template
-    id: 'pzemac_reset_energy'
+    id: pzemac_reset_energy
     on_press:
       then:
         - pzemac.reset_energy: pzemac1
@@ -891,14 +908,16 @@ status_led:
 text_sensor:
   - platform: daly_bms
     status:
-      name: "BMS Status"
+      name: BMS Status
   - platform: version
-    name: 'ESPHome Version'
+    name: ESPHome Version
     icon: mdi:icon
     id: version_sensor
     on_value:
+      # yamllint disable rule:line-length
       - lambda: !lambda |-
           ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
+      # yamllint enable rule:line-length
       - script.execute: my_script
       - script.wait: my_script
       - script.stop: my_script
@@ -912,7 +931,7 @@ text_sensor:
             my_variable: |-
               return id(version_sensor).state;
   - platform: template
-    name: 'Template Text Sensor'
+    name: Template Text Sensor
     lambda: |-
       return {"Hello World"};
   - platform: homeassistant
@@ -933,9 +952,9 @@ text_sensor:
     component_name: text0
   - platform: dsmr
     identification:
-      name: "dsmr_identification"
+      name: dsmr_identification
     p1_version:
-      name: "dsmr_p1_version"
+      name: dsmr_p1_version
 
 script:
   - id: my_script
@@ -948,9 +967,9 @@ sm2135:
 
 switch:
   - platform: template
-    name: 'mpr121_toggle'
+    name: mpr121_toggle
     id: mpr121_toggle
-    optimistic: True
+    optimistic: true
   - platform: gpio
     id: gpio_switch1
     pin:
@@ -978,7 +997,7 @@ switch:
         name: Custom Switch
   - platform: nextion
     id: r0
-    name: 'R0 Switch'
+    name: R0 Switch
     component_name: page0.r0
 
 custom_component:
@@ -994,7 +1013,7 @@ stepper:
     pin_b: GPIO13
     pin_c: GPIO14
     pin_d: GPIO15
-    sleep_when_done: no
+    sleep_when_done: false
     step_mode: HALF_STEP
     max_speed: 250 steps/s
     acceleration: inf
@@ -1010,7 +1029,7 @@ stepper:
 interval:
   interval: 5s
   then:
-    - logger.log: 'Interval Run'
+    - logger.log: Interval Run
     - stepper.set_target:
         id: my_stepper2
         target: 500
@@ -1042,8 +1061,13 @@ climate:
   - platform: thermostat
     name: Thermostat Climate
     sensor: ha_hello_world
-    default_target_temperature_low: 18°C
-    default_target_temperature_high: 24°C
+    preset:
+    - name: Default Preset
+      default_target_temperature_low: 18°C
+      default_target_temperature_high: 24°C
+    - name: Away
+      default_target_temperature_low: 16°C
+      default_target_temperature_high: 20°C
     idle_action:
       - switch.turn_on: gpio_switch1
     cool_action:
@@ -1118,12 +1142,9 @@ climate:
     fan_only_cooling: true
     fan_with_cooling: true
     fan_with_heating: true
-    away_config:
-      default_target_temperature_low: 16°C
-      default_target_temperature_high: 20°C
   - platform: pid
     id: pid_climate
-    name: 'PID Climate Controller'
+    name: PID Climate Controller
     sensor: ha_hello_world
     default_target_temperature: 21°C
     heat_output: my_slow_pwm
@@ -1134,42 +1155,42 @@ climate:
 
 sprinkler:
   - id: yard_sprinkler_ctrlr
-    main_switch: "Yard Sprinklers"
-    auto_advance_switch: "Yard Sprinklers Auto Advance"
-    reverse_switch: "Yard Sprinklers Reverse"
+    main_switch: Yard Sprinklers
+    auto_advance_switch: Yard Sprinklers Auto Advance
+    reverse_switch: Yard Sprinklers Reverse
     pump_start_pump_delay: 2s
     pump_stop_valve_delay: 4s
     pump_switch_off_during_valve_open_delay: true
     valve_open_delay: 5s
     valves:
-      - valve_switch: "Yard Valve 0"
-        enable_switch: "Enable Yard Valve 0"
+      - valve_switch: Yard Valve 0
+        enable_switch: Enable Yard Valve 0
         pump_switch_id: gpio_switch1
         run_duration: 10s
         valve_switch_id: gpio_switch2
-      - valve_switch: "Yard Valve 1"
-        enable_switch: "Enable Yard Valve 1"
+      - valve_switch: Yard Valve 1
+        enable_switch: Enable Yard Valve 1
         pump_switch_id: gpio_switch1
         run_duration: 10s
         valve_switch_id: gpio_switch2
-      - valve_switch: "Yard Valve 2"
-        enable_switch: "Enable Yard Valve 2"
+      - valve_switch: Yard Valve 2
+        enable_switch: Enable Yard Valve 2
         pump_switch_id: gpio_switch1
         run_duration: 10s
         valve_switch_id: gpio_switch2
   - id: garden_sprinkler_ctrlr
-    main_switch: "Garden Sprinklers"
-    auto_advance_switch: "Garden Sprinklers Auto Advance"
-    reverse_switch: "Garden Sprinklers Reverse"
+    main_switch: Garden Sprinklers
+    auto_advance_switch: Garden Sprinklers Auto Advance
+    reverse_switch: Garden Sprinklers Reverse
     valve_overlap: 5s
     valves:
-      - valve_switch: "Garden Valve 0"
-        enable_switch: "Enable Garden Valve 0"
+      - valve_switch: Garden Valve 0
+        enable_switch: Enable Garden Valve 0
         pump_switch_id: gpio_switch1
         run_duration: 10s
         valve_switch_id: gpio_switch2
-      - valve_switch: "Garden Valve 1"
-        enable_switch: "Enable Garden Valve 1"
+      - valve_switch: Garden Valve 1
+        enable_switch: Enable Garden Valve 1
         pump_switch_id: gpio_switch1
         run_duration: 10s
         valve_switch_id: gpio_switch2
@@ -1219,7 +1240,7 @@ cover:
       - switch.turn_on: gpio_switch2
     close_duration: 4.5min
   - platform: current_based
-    name: "Current Based Cover"
+    name: Current Based Cover
     open_sensor: ade7953_current_a
     open_moving_current_threshold: 0.5
     open_obstacle_current_threshold: 0.8
@@ -1240,7 +1261,7 @@ cover:
     malfunction_detection: true
     malfunction_action:
       then:
-        - logger.log: "Malfunction Detected"
+        - logger.log: Malfunction Detected
   - platform: template
     name: Template Cover with Tilt
     tilt_lambda: 'return 0.5;'
@@ -1326,7 +1347,7 @@ light:
     pin_b: out2
   - platform: sonoff_d1
     uart_id: uart2
-    use_rm433_remote: False
+    use_rm433_remote: false
     name: Sonoff D1 Dimmer
     id: d1_light
     restore_mode: RESTORE_DEFAULT_OFF
@@ -1352,7 +1373,7 @@ sim800l:
         str = sender;
         str = message;
     - sim800l.send_sms:
-        message: 'hello you'
+        message: hello you
         recipient: '+1234'
     - sim800l.dial:
         recipient: '+1234'
@@ -1365,7 +1386,7 @@ dfplayer:
         condition:
           not: dfplayer.is_playing
         then:
-          logger.log: 'Playback finished event'
+          logger.log: Playback finished event
 tm1651:
   id: tm1651_battery
   clk_pin: D6
@@ -1394,8 +1415,8 @@ rf_bridge:
         test = data.length;
         test = data.protocol;
         test_code = data.code;
-    - rf_bridge.start_advanced_sniffing
-    - rf_bridge.stop_advanced_sniffing
+    - rf_bridge.start_advanced_sniffing:
+    - rf_bridge.stop_advanced_sniffing:
     - rf_bridge.send_advanced_code:
         length: 0x04
         protocol: 0x01
@@ -1413,13 +1434,13 @@ rf_bridge:
         json:
           key: !lambda |-
             return id(version_sensor).state;
-          greeting: 'Hello World'
+          greeting: Hello World
     - http_request.send:
         method: PUT
         url: https://esphome.io
         headers:
           Content-Type: application/json
-        body: 'Some data'
+        body: Some data
         verify_ssl: false
 
 display:
@@ -1428,13 +1449,13 @@ display:
     num_chips: 4
     rotate_chip: 0
     intensity: 10
-    scroll_mode: 'STOP'
+    scroll_mode: STOP
     id: my_matrix
     lambda: |-
       it.printdigit("hello");
   - platform: nextion
     uart_id: uart1
-    tft_url: 'http://esphome.io/default35.tft'
+    tft_url: http://esphome.io/default35.tft
     update_interval: 5s
     on_sleep:
       then:
@@ -1510,6 +1531,9 @@ button:
     target_mac_address: 12:34:56:78:90:ab
     name: wol_test_1
     id: wol_1
+  - platform: factory_reset
+    name: Restart Button (Factory Default Settings)
+
 
 cd74hc4067:
   pin_s0: GPIO12
