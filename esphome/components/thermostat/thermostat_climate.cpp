@@ -1235,8 +1235,9 @@ Trigger<> *ThermostatClimate::get_preset_change_trigger() const { return this->p
 void ThermostatClimate::dump_config() {
   LOG_CLIMATE("", "Thermostat", this);
 
-  if (this->supports_two_points_)
+  if (this->supports_two_points_) {
     ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
+  }
   ESP_LOGCONFIG(TAG, "  Start-up Delay Enabled: %s", YESNO(this->use_startup_delay_));
   if (this->supports_cool_) {
     ESP_LOGCONFIG(TAG, "  Cooling Parameters:");
@@ -1316,6 +1317,8 @@ void ThermostatClimate::dump_config() {
     ESP_LOGCONFIG(TAG, "    Supports %s: %s", preset_name, YESNO(true));
     this->dump_preset_config_(preset_name, it.second, it.first == this->default_custom_preset_);
   }
+  ESP_LOGCONFIG(TAG, "  On boot, restore from: %s",
+                this->on_boot_restore_from_ == thermostat::DEFAULT_PRESET ? "DEFAULT_PRESET" : "MEMORY");
 }
 
 ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig() = default;
