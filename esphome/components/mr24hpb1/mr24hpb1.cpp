@@ -3,7 +3,7 @@
 #include "esphome/core/application.h"
 #include "crc.h"
 #include "constants.h"
-#include <iomanip>
+
 namespace esphome {
 namespace mr24hpb1 {
 void MR24HPB1Component::setup() {
@@ -36,14 +36,14 @@ void MR24HPB1Component::setup() {
 
   // set threshold gear
   this->write_threshold_gear_(this->threshold_gear_);
-  std::vector<uint8_t> recv_packet;
+  Packet recv_packet;
   bool received =
       this->wait_for_packet_(recv_packet, PASSIVE_REPORTING, PR_REPORTING_SYSTEM_INFO, PR_RSI_THRESHOLD_GEAR, 10);
   if (!received) {
     ESP_LOGE(TAG, "Threshold gear write not acknowledged!");
     this->mark_failed();
   } else {
-    uint8_t threshold_gear = packet_data_to_int(recv_packet);
+    uint8_t threshold_gear = recv_packet.data_as_int();
     if (this->threshold_gear_ == threshold_gear) {
       ESP_LOGD(TAG, "Threshold gear set acknowledged");
     } else {
@@ -61,7 +61,7 @@ void MR24HPB1Component::setup() {
     ESP_LOGE(TAG, "Scene setting write not acknowledged!");
     this->mark_failed();
   } else {
-    uint8_t scene_setting = packet_data_to_int(recv_packet);
+    uint8_t scene_setting = recv_packet.data_as_int();
     if (this->scene_setting_ == scene_setting) {
       ESP_LOGD(TAG, "Scene setting set acknowledged");
     } else {
@@ -79,7 +79,7 @@ void MR24HPB1Component::setup() {
     ESP_LOGE(TAG, "Forced unoccupied write not acknowledged!");
     this->mark_failed();
   } else {
-    ForcedUnoccupied forced_unoccupied_setting = static_cast<ForcedUnoccupied>(packet_data_to_int(recv_packet));
+    ForcedUnoccupied forced_unoccupied_setting = static_cast<ForcedUnoccupied>(recv_packet.data_as_int());
     if (this->forced_unoccupied_ == forced_unoccupied_setting) {
       ESP_LOGD(TAG, "Forced unoccupied set acknowledged");
     } else {
@@ -117,7 +117,7 @@ void MR24HPB1Component::loop() {
   }
   ReceptionStatus stat = this->receive_packet_(this->current_packet_);
   if (stat == MR24HPB1Component::COMPLETE) {
-    FunctionCode current_func_code = get_packet_function_code(this->current_packet_);
+    FunctionCode current_func_code = this->current_packet_.function_code();
     switch (current_func_code) {
       case PASSIVE_REPORTING:
         this->handle_passive_reporting_(this->current_packet_);
@@ -133,7 +133,7 @@ void MR24HPB1Component::loop() {
         break;
       default:
         ESP_LOGW(TAG, "Packet had unkown function code: 0x%x", current_func_code);
-        this->log_packet_(this->current_packet_);
+        this->current_packet_.log();
         break;
     }
     // ESP_LOGD(TAG, "Packet fully received");
@@ -159,25 +159,24 @@ void MR24HPB1Component::get_general_infos_() {
 void MR24HPB1Component::write_packet_(FunctionCode function_code, AddressCode1 address_code_1,
                                       AddressCode2 address_code_2, std::vector<uint8_t> &data) {
   uint16_t packet_size = data.size() + 8;
-  std::vector<uint8_t> packet;
-  packet.reserve(packet_size);
+  Packet packet(packet_size);
 
-  packet.push_back(PACKET_START);
-  packet.push_back(packet_size & 0x00FF);
-  packet.push_back(packet_size >> 8);
-  packet.push_back(function_code);
-  packet.push_back(address_code_1);
-  packet.push_back(address_code_2);
-  packet.insert(std::end(packet), std::begin(data), std::end(data));
+  packet.push_data(PACKET_START);
+  packet.push_data(packet_size & 0x00FF);
+  packet.push_data(packet_size >> 8);
+  packet.push_data(function_code);
+  packet.push_data(address_code_1);
+  packet.push_data(address_code_2);
+  packet.append_data(data);
 
-  uint16_t crc = us_calculate_crc16(packet.data(), packet_size - 2);
+  uint16_t crc = us_calculate_crc16(packet.raw_data(), packet_size - 2);
 
-  packet.push_back(crc >> 8);
-  packet.push_back(crc & 0x00FF);
+  packet.push_data(crc >> 8);
+  packet.push_data(crc & 0x00FF);
 
-  this->write_array(packet);
+  this->write_array(packet.raw_vect());
 
-  this->log_packet_(packet);
+  packet.log();
 }
 
 void MR24HPB1Component::write_packet_(FunctionCode function_code, AddressCode1 address_code_1,
@@ -186,26 +185,15 @@ void MR24HPB1Component::write_packet_(FunctionCode function_code, AddressCode1 a
   MR24HPB1Component::write_packet_(function_code, address_code_1, address_code_2, empty_data);
 }
 
-void MR24HPB1Component::log_packet_(std::vector<uint8_t> &packet) {
-  std::string output = "Packet:";
-  char buf[6];
-  for (uint8_t &byte : packet) {
-    sprintf(buf, " 0x%02x", byte);
-    output += buf;
-  }
-
-  ESP_LOGD(TAG, "%s", output.c_str());
-}
-
-bool MR24HPB1Component::wait_for_packet_(std::vector<uint8_t> &packet, FunctionCode function_code,
-                                         AddressCode1 address_code_1, AddressCode2 address_code_2, uint8_t timeout_s) {
+bool MR24HPB1Component::wait_for_packet_(Packet &packet, FunctionCode function_code, AddressCode1 address_code_1,
+                                         AddressCode2 address_code_2, uint8_t timeout_s) {
   uint32_t starting_timestamp = millis();
   ReceptionStatus stat;
   while (millis() < starting_timestamp + timeout_s * 1000) {
     stat = this->receive_packet_(packet);
     if (stat == MR24HPB1Component::COMPLETE) {
-      if (get_packet_function_code(packet) == function_code && get_packet_address_code_1(packet) == address_code_1 &&
-          get_packet_address_code_2(packet) == address_code_2) {
+      if (packet.function_code() == function_code && packet.address_code_1() == address_code_1 &&
+          packet.address_code_2() == address_code_2) {
         ESP_LOGD(TAG, "Found expected packet");
 
         return true;
@@ -221,7 +209,7 @@ bool MR24HPB1Component::wait_for_packet_(std::vector<uint8_t> &packet, FunctionC
   return false;
 }
 
-MR24HPB1Component::ReceptionStatus MR24HPB1Component::receive_packet_(std::vector<uint8_t> &packet) {
+MR24HPB1Component::ReceptionStatus MR24HPB1Component::receive_packet_(Packet &packet) {
   // Frame strucutre:
   // +----------+---------------------+----------------+----------------+----------------+---------+-------------------+
   // | Starting | Length of data      | Function codes | Address code 1 | Address code 2 | Data    | Check code        |
@@ -253,15 +241,15 @@ MR24HPB1Component::ReceptionStatus MR24HPB1Component::receive_packet_(std::vecto
   }
 
   // add received byte to packet
-  packet.push_back(byte);
+  packet.push_data(byte);
 
-  uint16_t packet_size = packet.size();
+  uint16_t packet_size = packet.raw_size();
 
   // ESP_LOGD(TAG, "packet_size=%d, expected_size=%d", packet_size, this->expected_length);
 
   if (packet_size == 3) {
     // read expected packet length
-    this->expected_length_ = get_packet_length(packet);
+    this->expected_length_ = packet.length();
     // ESP_LOGD(TAG, "Expected packet length (including MSG_HEAD): %d", this->expected_length);
   }
 
@@ -271,9 +259,9 @@ MR24HPB1Component::ReceptionStatus MR24HPB1Component::receive_packet_(std::vecto
     this->current_receive_status_ = MR24HPB1Component::WAITING;
 
     // check CRC checksum
-    uint16_t packet_crc = get_packet_crc(packet);
+    uint16_t packet_crc = packet.crc();
 
-    uint8_t *data = packet.data();
+    uint8_t *data = packet.raw_data();
     uint16_t calculated_crc = us_calculate_crc16(data, packet_size - 2);
 
     ESP_LOGV(TAG, "Packet CRC: 0x%x, Calc. CRC: 0x%x", packet_crc, calculated_crc);

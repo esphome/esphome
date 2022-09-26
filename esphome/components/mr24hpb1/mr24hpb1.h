@@ -5,6 +5,8 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/component.h"
+#include "types.h"
+#include "packet.h"
 #include <cstdio>
 #include <tuple>
 #include <vector>
@@ -13,65 +15,11 @@ namespace esphome {
 namespace mr24hpb1 {
 static const char *const TAG = "mr24hpb1";
 
-using FunctionCode = uint8_t;
-using AddressCode1 = uint8_t;
-using AddressCode2 = uint8_t;
-
-enum SceneSetting {
-  SCENE_DEFAULT = 0x00,
-  AREA = 0x01,
-  BATHROOM = 0x02,
-  BEDROOM = 0x03,
-  LIVING_ROOM = 0x04,
-  OFFICE = 0x05,
-  HOTEL = 0x06
-};
-
-const char *scene_setting_to_string(SceneSetting setting);
-
-enum EnvironmentStatus { UNOCCUPIED = 0x00FFFF, STATIONARY = 0x0100FF, MOVING = 0x010101 };
-
-const char *environment_status_to_string(EnvironmentStatus status);
-
-enum class MovementType { NONE = 0x01, APPROACHING = 0x02, FAR_AWAY = 0x03, U1 = 0x04, U2 = 0x05 };
-
-const char *movement_type_to_string(MovementType type);
-
-enum class ForcedUnoccupied {
-  NONE = 0x00,
-  SEC_10 = 0x01,
-  SEC_30 = 0x02,
-  MIN_1 = 0x03,
-  MIN_2 = 0x04,
-  MIN_5 = 0x05,
-  MIN_10 = 0x06,
-  MIN_30 = 0x07,
-  MIN_60 = 0x08
-};
-
-enum class BreathingSigns {
-  NORMAL = 0x00,
-  BREATHING_ABNORMALLY = 0x01,
-  NO_SIGNAL = 0x02,
-  MOVEMENT_ANOMALY = 0x04,
-  SHORTNESS_OF_BREATH = 0x05
-};
-enum class BedOccupation { OUT_OF_BED = 0x00, IN_BED = 0x01, NA = 0x02 };
-enum class SleepState { AWAKE = 0x00, LIGHT_SLEEP = 0x01, DEEP_SLEEP = 0x02, NA = 0x03 };
-
 const char *forced_unoccupied_to_string(ForcedUnoccupied value);
 
-FunctionCode get_packet_function_code(std::vector<uint8_t> &packet);
-AddressCode1 get_packet_address_code_1(std::vector<uint8_t> &packet);
-AddressCode2 get_packet_address_code_2(std::vector<uint8_t> &packet);
-uint16_t get_packet_length(std::vector<uint8_t> &packet);
-uint16_t get_packet_crc(std::vector<uint8_t> &packet);
-uint32_t packet_data_to_int(std::vector<uint8_t> &packet);
-std::vector<uint8_t> get_packet_data(std::vector<uint8_t> &packet);
-std::string packet_data_to_string(std::vector<uint8_t> &packet);
-float packet_data_to_float(std::vector<uint8_t> &packet);
-
 class MR24HPB1Component : public Component, public uart::UARTDevice {
+  friend class Packet;
+
  public:
   MR24HPB1Component() = default;
 
@@ -137,25 +85,23 @@ class MR24HPB1Component : public Component, public uart::UARTDevice {
                      std::vector<uint8_t> &data);
   void write_packet_(FunctionCode function_code, AddressCode1 address_code_1, AddressCode2 address_code_2);
 
-  bool wait_for_packet_(std::vector<uint8_t> &packet, uint8_t function_code, uint8_t address_code_1,
-                        uint8_t address_code_2, uint8_t timeout_s);
+  bool wait_for_packet_(Packet &packet, uint8_t function_code, uint8_t address_code_1, uint8_t address_code_2,
+                        uint8_t timeout_s);
 
-  ReceptionStatus receive_packet_(std::vector<uint8_t> &packet);
-
-  void log_packet_(std::vector<uint8_t> &packet);
+  ReceptionStatus receive_packet_(Packet &packet);
 
   void get_general_infos_();
-  void handle_active_reporting_(std::vector<uint8_t> &packet);
-  void handle_passive_reporting_(std::vector<uint8_t> &packet);
-  void handle_sleep_data_report_(std::vector<uint8_t> &packet);
-  void handle_fall_data_report_(std::vector<uint8_t> &current_packet);
-  void handle_radar_report_(std::vector<uint8_t> &packet);
-  void handle_module_id_report_(std::vector<uint8_t> &packet);
-  void handle_other_information_(std::vector<uint8_t> &packet);
-  void handle_system_report_(std::vector<uint8_t> &packet);
-  void handle_other_function_report_(std::vector<uint8_t> &packet);
+  void handle_active_reporting_(Packet &packet);
+  void handle_passive_reporting_(Packet &packet);
+  void handle_sleep_data_report_(Packet &packet);
+  void handle_fall_data_report_(Packet &packet);
+  void handle_radar_report_(Packet &packet);
+  void handle_module_id_report_(Packet &packet);
+  void handle_other_information_(Packet &packet);
+  void handle_system_report_(Packet &packet);
+  void handle_other_function_report_(Packet &packet);
 
-  std::vector<uint8_t> current_packet_;
+  Packet current_packet_;
   ReceptionStatus current_receive_status_ = WAITING;
   uint32_t respone_requested_ = 0;
   bool info_fully_populated_ = false;
