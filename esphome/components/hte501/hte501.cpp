@@ -51,13 +51,13 @@ void HTE501Component::update() {
       this->status_set_warning();
       return;
     }
-    float temperature = ((float) (i2c_response[0]) * 256 + i2c_response[1]);
+    float temperature = (float) encode_uint16(i2c_response[0], i2c_response[1]);
     if (temperature > 55536) {
       temperature = (temperature - 65536) / 100;
     } else {
       temperature = temperature / 100;
     }
-    float humidity = ((float) (i2c_response[3]) * 256 + i2c_response[4]) / 100;
+    float humidity = ((float) encode_uint16(i2c_response[3], i2c_response[4])) / 100.0f;
 
     ESP_LOGD(TAG, "Got temperature=%.2f°C humidity=%.2f%%", temperature, humidity);
     if (this->temperature_sensor_ != nullptr)
