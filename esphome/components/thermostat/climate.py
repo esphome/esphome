@@ -135,12 +135,12 @@ def validate_temperature_preset(preset, root_config, name, requirements):
 
 
 def generate_comparable_preset(config, name):
-    comparable_preset = f"{CONF_PRESET}:\n" f"-  {CONF_NAME}: {name}\n"
+    comparable_preset = f"{CONF_PRESET}:\n" f"  -  {CONF_NAME}: {name}\n"
 
     if CONF_DEFAULT_TARGET_TEMPERATURE_LOW in config:
-        comparable_preset += f"  {CONF_DEFAULT_TARGET_TEMPERATURE_LOW}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]}\n"
+        comparable_preset += f"     {CONF_DEFAULT_TARGET_TEMPERATURE_LOW}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_LOW]}\n"
     if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in config:
-        comparable_preset += f"  {CONF_DEFAULT_TARGET_TEMPERATURE_HIGH}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]}\n"
+        comparable_preset += f"     {CONF_DEFAULT_TARGET_TEMPERATURE_HIGH}: {config[CONF_DEFAULT_TARGET_TEMPERATURE_HIGH]}\n"
 
     return comparable_preset
 
@@ -302,14 +302,14 @@ def validate_thermostat(config):
         comparable_preset = generate_comparable_preset(config, "Your new preset")
 
         raise cv.Invalid(
-            f"{CONF_DEFAULT_TARGET_TEMPERATURE_LOW} is no longer valid. Please switch to using a preset for an equivalent experience. Equivalent configuration;\n\n"
+            f"{CONF_DEFAULT_TARGET_TEMPERATURE_LOW} is no longer valid. Please switch to using a preset for an equivalent experience.\nEquivalent configuration:\n\n"
             f"{comparable_preset}"
         )
     if CONF_DEFAULT_TARGET_TEMPERATURE_HIGH in config:
         comparable_preset = generate_comparable_preset(config, "Your new preset")
 
         raise cv.Invalid(
-            f"{CONF_DEFAULT_TARGET_TEMPERATURE_HIGH} is no longer valid. Please switch to using a preset for an equivalent experience. Equivalent configuration;\n\n"
+            f"{CONF_DEFAULT_TARGET_TEMPERATURE_HIGH} is no longer valid. Please switch to using a preset for an equivalent experience.\nEquivalent configuration:\n\n"
             f"{comparable_preset}"
         )
 
@@ -320,7 +320,7 @@ def validate_thermostat(config):
         raise cv.Invalid(
             f"{CONF_AWAY_CONFIG} is no longer valid. Please switch to using a preset named "
             "Away"
-            " for an equivalent experience. Equivalent configuration;\n\n"
+            " for an equivalent experience.\nEquivalent configuration:\n\n"
             f"{comparable_preset}"
         )
 
