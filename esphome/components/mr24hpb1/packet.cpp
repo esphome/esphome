@@ -4,31 +4,31 @@ namespace esphome {
 namespace mr24hpb1 {
 
 Packet::Packet(uint16_t size) {
-	this->packet_data_.reserve(size);
+  this->packet_data_.reserve(size);
 }
 
 void Packet::clear() {
-	this->packet_data_.clear();
+  this->packet_data_.clear();
 }
 
 void Packet::append_data(std::vector<uint8_t> &data) {
-	this->packet_data_.insert(std::end(this->packet_data_), std::begin(data), std::end(data));
+  this->packet_data_.insert(std::end(this->packet_data_), std::begin(data), std::end(data));
 }
 
 void Packet::push_data(uint8_t data) {
-	this->packet_data_.push_back(data);
+  this->packet_data_.push_back(data);
 }
 
 uint8_t* Packet::raw_data() {
-	return this->packet_data_.data();
+  return this->packet_data_.data();
 }
 
 uint16_t Packet::raw_size() {
-	return this->packet_data_.size();
+  return this->packet_data_.size();
 }
 
 std::vector<uint8_t>& Packet::raw_vect() {
-	return this->packet_data_;
+  return this->packet_data_;
 }
 
 FunctionCode Packet::function_code() { return this->packet_data_.at(3); }
