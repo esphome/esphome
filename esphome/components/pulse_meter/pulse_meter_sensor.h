@@ -31,11 +31,11 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
  protected:
   static void gpio_intr(PulseMeterSensor *sensor);
 
-  InternalGPIOPin *pin_ = nullptr;
+  InternalGPIOPin *pin_{nullptr};
   ISRInternalGPIOPin isr_pin_;
   uint32_t filter_us_ = 0;
   uint32_t timeout_us_ = 1000000UL * 60UL * 5UL;
-  sensor::Sensor *total_sensor_ = nullptr;
+  sensor::Sensor *total_sensor_{nullptr};
   InternalFilterMode filter_mode_{FILTER_EDGE};
 
   Deduplicator<uint32_t> pulse_width_dedupe_;
