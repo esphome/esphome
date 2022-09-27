@@ -74,7 +74,7 @@ class SM2135 : public Component {
   };
 
  protected:
-  const uint8_t s_m2135_delay_ = 4;
+  const uint8_t sm2135_delay_ = 4;
 
   void set_channel_value_(uint8_t channel, uint8_t value) {
     if (this->pwm_amounts_[channel] != value) {
@@ -96,17 +96,17 @@ class SM2135 : public Component {
 
   void sm2135_start_() {
     sm2135_set_low_(this->data_pin_);
-    delayMicroseconds(s_m2135_delay_);
+    delayMicroseconds(sm2135_delay_);
     sm2135_set_low_(this->clock_pin_);
   }
 
   void sm2135_stop_() {
     sm2135_set_low_(this->data_pin_);
-    delayMicroseconds(s_m2135_delay_);
+    delayMicroseconds(sm2135_delay_);
     sm2135_set_high_(this->clock_pin_);
-    delayMicroseconds(s_m2135_delay_);
+    delayMicroseconds(sm2135_delay_);
     sm2135_set_high_(this->data_pin_);
-    delayMicroseconds(s_m2135_delay_);
+    delayMicroseconds(sm2135_delay_);
   }
 
   void write_byte_(uint8_t data) {
@@ -118,15 +118,15 @@ class SM2135 : public Component {
       }
 
       sm2135_set_high_(clock_pin_);
-      delayMicroseconds(s_m2135_delay_);
+      delayMicroseconds(sm2135_delay_);
       sm2135_set_low_(clock_pin_);
     }
 
     sm2135_set_high_(this->data_pin_);
     sm2135_set_high_(this->clock_pin_);
-    delayMicroseconds(s_m2135_delay_ / 2);
+    delayMicroseconds(sm2135_delay_ / 2);
     sm2135_set_low_(this->clock_pin_);
-    delayMicroseconds(s_m2135_delay_ / 2);
+    delayMicroseconds(sm2135_delay_ / 2);
     sm2135_set_low_(this->data_pin_);
   }
 
