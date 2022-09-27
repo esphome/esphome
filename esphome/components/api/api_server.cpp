@@ -297,7 +297,7 @@ void APIServer::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementRe
     client->send_bluetooth_le_advertisement(call);
   }
 }
-void APIServer::send_bluetooth_device_connection(const uint64_t address, bool connected) {
+void APIServer::send_bluetooth_device_connection(uint64_t address, bool connected) {
   BluetoothDeviceConnectionResponse call;
   call.address = address;
   call.connected = connected;
