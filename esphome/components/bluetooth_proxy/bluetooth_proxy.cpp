@@ -29,7 +29,7 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     return true;
 
   if (this->state_ == espbt::ClientState::DISCOVERED) {
-    ESP_LOGD(TAG, "Connecting to address %s", this->address_str().c_str());
+    ESP_LOGV(TAG, "Connecting to address %s", this->address_str().c_str());
     return true;
   }
 
@@ -73,13 +73,13 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
 #ifdef USE_API
-      api::global_api_server->send_bluetooth_device_connection(this->address_, false);
+      api::global_api_server->send_bluetooth_device_connection(this->address_, false, this->mtu_);
 #endif
       this->address_ = 0;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
 #ifdef USE_API
-      api::global_api_server->send_bluetooth_device_connection(this->address_, true);
+      api::global_api_server->send_bluetooth_device_connection(this->address_, true, this->mtu_);
 #endif
       break;
     }
@@ -90,30 +90,32 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
         ESP_LOGW(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
         break;
       }
-      BLECharacteristic *characteristic = nullptr;
-      for (auto &svc : this->services_) {
-        for (auto &chr : svc->characteristics) {
-          if (chr->handle == param->read.handle) {
-            characteristic = chr;
-            break;
-          }
-        }
-        if (characteristic != nullptr)
-          break;
-      }
-      if (characteristic == nullptr) {
-        ESP_LOGW(TAG, "Got read response for unknown handle %d", param->read.handle);
-        break;
-      }
 #ifdef USE_API
       api::BluetoothGATTReadResponse resp;
       resp.address = this->address_;
-      resp.characteristic_uuid = characteristic->uuid.to_string();
-      resp.service_uuid = characteristic->service->uuid.to_string();
+      resp.handle = param->read.handle;
+      resp.data.reserve(param->read.value_len);
       for (uint16_t i = 0; i < param->read.value_len; i++) {
         resp.data.push_back(param->read.value[i]);
       }
       api::global_api_server->send_bluetooth_gatt_read_response(resp);
+#endif
+      break;
+    }
+    case ESP_GATTC_NOTIFY_EVT: {
+      if (param->notify.conn_id != this->conn_id_)
+        break;
+      ESP_LOGV(TAG, "ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%s", param->notify.handle,
+               format_hex(param->notify.value, param->notify.value_len).c_str());
+#ifdef USE_API
+      api::BluetoothGATTNotifyDataResponse resp;
+      resp.address = this->address_;
+      resp.handle = param->notify.handle;
+      resp.data.reserve(param->notify.value_len);
+      for (uint16_t i = 0; i < param->notify.value_len; i++) {
+        resp.data.push_back(param->notify.value[i]);
+      }
+      api::global_api_server->send_bluetooth_gatt_notify_data_response(resp);
 #endif
       break;
     }
@@ -148,9 +150,9 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT: {
       if (this->state() != espbt::ClientState::IDLE) {
         ESP_LOGI(TAG, "[%s] Disconnecting.", this->address_str().c_str());
-        auto ret = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
-        if (ret) {
-          ESP_LOGW(TAG, "esp_ble_gattc_close error, address=%s status=%d", this->address_str().c_str(), ret);
+        auto err = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
+        if (err != ERR_OK) {
+          ESP_LOGW(TAG, "esp_ble_gattc_close error, address=%s err=%d", this->address_str().c_str(), err);
         }
       }
       break;
@@ -170,43 +172,102 @@ void BluetoothProxy::bluetooth_gatt_read(const api::BluetoothGATTReadRequest &ms
     ESP_LOGW(TAG, "Address mismatch for read GATT characteristic request");
     return;
   }
-  ESP_LOGD(TAG, "Reading GATT characteristic %s", msg.characteristic_uuid.c_str());
 
-  auto *characteristic = this->get_characteristic(espbt::ESPBTUUID::from_raw(msg.service_uuid),
-                                                  espbt::ESPBTUUID::from_raw(msg.characteristic_uuid));
+  auto *characteristic = this->get_characteristic(msg.handle);
   if (characteristic == nullptr) {
     ESP_LOGW(TAG, "Cannot read GATT characteristic, not found.");
     return;
   }
-  esp_err_t ret =
+
+  ESP_LOGV(TAG, "Reading GATT characteristic %s", characteristic->uuid.to_string().c_str());
+
+  esp_err_t err =
       esp_ble_gattc_read_char(this->gattc_if_, this->conn_id_, characteristic->handle, ESP_GATT_AUTH_REQ_NONE);
-  if (ret) {
-    ESP_LOGW(TAG, "esp_ble_gattc_read_char error, status=%d", ret);
+  if (err != ERR_OK) {
+    ESP_LOGW(TAG, "esp_ble_gattc_read_char error, err=%d", err);
   }
 }
 
 void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg) {
   if (this->state_ != espbt::ClientState::ESTABLISHED) {
-    ESP_LOGW(TAG, "Cannot read GATT characteristic, not connected.");
+    ESP_LOGW(TAG, "Cannot write GATT characteristic, not connected.");
     return;
   }
   if (this->address_ != msg.address) {
-    ESP_LOGW(TAG, "Address mismatch for read GATT characteristic request");
+    ESP_LOGW(TAG, "Address mismatch for write GATT characteristic request");
     return;
   }
-  ESP_LOGD(TAG, "Reading GATT characteristic %s", msg.characteristic_uuid.c_str());
 
-  auto *characteristic = this->get_characteristic(espbt::ESPBTUUID::from_raw(msg.service_uuid),
-                                                  espbt::ESPBTUUID::from_raw(msg.characteristic_uuid));
+  auto *characteristic = this->get_characteristic(msg.handle);
   if (characteristic == nullptr) {
-    ESP_LOGW(TAG, "Cannot read GATT characteristic, not found.");
+    ESP_LOGW(TAG, "Cannot write GATT characteristic, not found.");
     return;
   }
+
   std::vector<uint8_t> data;
   data.reserve(msg.data.size());
   for (uint32_t d : msg.data)
     data.push_back((uint8_t) d);
-  characteristic->write_value(data.data(), data.size());
+
+  ESP_LOGV(TAG, "Writing GATT characteristic %s -> %s", characteristic->uuid.to_string().c_str(),
+           format_hex_pretty(data).c_str());
+  characteristic->write_value(data.data(), data.size(),
+                              msg.response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP);
+}
+
+void BluetoothProxy::bluetooth_gatt_read_descriptor(const api::BluetoothGATTReadDescriptorRequest &msg) {
+  if (this->state_ != espbt::ClientState::ESTABLISHED) {
+    ESP_LOGW(TAG, "Cannot read GATT characteristic descriptor, not connected.");
+    return;
+  }
+  if (this->address_ != msg.address) {
+    ESP_LOGW(TAG, "Address mismatch for read GATT characteristic descriptor request");
+    return;
+  }
+
+  auto *descriptor = this->get_descriptor(msg.handle);
+  if (descriptor == nullptr) {
+    ESP_LOGW(TAG, "Cannot read GATT characteristic descriptor, not found.");
+    return;
+  }
+
+  ESP_LOGV(TAG, "Reading GATT characteristic descriptor %s -> %s", descriptor->characteristic->uuid.to_string().c_str(),
+           descriptor->uuid.to_string().c_str());
+
+  esp_err_t err =
+      esp_ble_gattc_read_char_descr(this->gattc_if_, this->conn_id_, descriptor->handle, ESP_GATT_AUTH_REQ_NONE);
+  if (err != ERR_OK) {
+    ESP_LOGW(TAG, "esp_ble_gattc_read_char error, err=%d", err);
+  }
+}
+
+void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg) {
+  if (this->state_ != espbt::ClientState::ESTABLISHED) {
+    ESP_LOGW(TAG, "Cannot write GATT characteristic descriptor, not connected.");
+    return;
+  }
+  if (this->address_ != msg.address) {
+    ESP_LOGW(TAG, "Address mismatch for write GATT characteristic descriptor request");
+    return;
+  }
+
+  auto *descriptor = this->get_descriptor(msg.handle);
+  if (descriptor == nullptr) {
+    ESP_LOGW(TAG, "Cannot write GATT characteristic descriptor, not found.");
+    return;
+  }
+
+  std::vector<uint8_t> data;
+  data.reserve(msg.data.size());
+  for (uint32_t d : msg.data)
+    data.push_back((uint8_t) d);
+
+  ESP_LOGV(TAG, "Writing GATT characteristic descriptor %s -> %s -> %s",
+           descriptor->characteristic->uuid.to_string().c_str(), descriptor->uuid.to_string().c_str(),
+           format_hex_pretty(data).c_str());
+
+  esp_err_t err = esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descriptor->handle, data.size(),
+                                                 data.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
 }
 
 api::BluetoothGATTGetServicesResponse BluetoothProxy::bluetooth_gatt_get_services(
@@ -237,6 +298,33 @@ api::BluetoothGATTGetServicesResponse BluetoothProxy::bluetooth_gatt_get_service
     resp.services.push_back(service_resp);
   }
   return resp;
+}
+
+void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg) {
+  if (this->address_ != msg.address) {
+    ESP_LOGW(TAG, "Addres mismatch for notify");
+    return;
+  }
+
+  auto *characteristic = this->get_characteristic(msg.handle);
+
+  if (characteristic == nullptr) {
+    ESP_LOGW(TAG, "Cannot notify GATT characteristic, not found.");
+    return;
+  }
+
+  esp_err_t err;
+  if (msg.enable) {
+    err = esp_ble_gattc_register_for_notify(this->gattc_if_, this->remote_bda_, characteristic->handle);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, err=%d", err);
+    }
+  } else {
+    err = esp_ble_gattc_unregister_for_notify(this->gattc_if_, this->remote_bda_, characteristic->handle);
+    if (err != ESP_OK) {
+      ESP_LOGW(TAG, "esp_ble_gattc_unregister_for_notify failed, err=%d", err);
+    }
+  }
 }
 
 #endif

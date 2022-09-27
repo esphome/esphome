@@ -1,10 +1,10 @@
 #include "api_connection.h"
-#include "esphome/core/entity_base.h"
-#include "esphome/core/log.h"
-#include "esphome/components/network/util.h"
-#include "esphome/core/version.h"
-#include "esphome/core/hal.h"
 #include <cerrno>
+#include "esphome/components/network/util.h"
+#include "esphome/core/entity_base.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
@@ -836,9 +836,19 @@ void APIConnection::bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) {
 void APIConnection::bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_write(msg);
 }
+void APIConnection::bluetooth_gatt_read_descriptor(const BluetoothGATTReadDescriptorRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_read_descriptor(msg);
+}
+void APIConnection::bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_write_descriptor(msg);
+}
 BluetoothGATTGetServicesResponse APIConnection::bluetooth_gatt_get_services(
     const BluetoothGATTGetServicesRequest &msg) {
   return bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_get_services(msg);
+}
+
+void APIConnection::bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_notify(msg);
 }
 
 #endif

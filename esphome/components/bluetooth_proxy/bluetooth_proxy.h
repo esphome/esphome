@@ -34,7 +34,10 @@ class BluetoothProxy : public BLEClientBase {
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);
   void bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg);
   void bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg);
+  void bluetooth_gatt_read_descriptor(const api::BluetoothGATTReadDescriptorRequest &msg);
+  void bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg);
   api::BluetoothGATTGetServicesResponse bluetooth_gatt_get_services(const api::BluetoothGATTGetServicesRequest &msg);
+  void bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg);
 #endif
 
  protected:

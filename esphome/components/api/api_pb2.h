@@ -1276,6 +1276,7 @@ class BluetoothDeviceConnectionResponse : public ProtoMessage {
  public:
   uint64_t address{0};
   bool connected{false};
+  uint32_t mtu{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1354,24 +1355,19 @@ class BluetoothGATTGetServicesResponse : public ProtoMessage {
 class BluetoothGATTReadRequest : public ProtoMessage {
  public:
   uint64_t address{0};
-  bool is_descriptor{false};
-  std::string service_uuid{};
-  std::string characteristic_uuid{};
+  uint32_t handle{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class BluetoothGATTReadResponse : public ProtoMessage {
  public:
   uint64_t address{0};
-  bool is_descriptor{false};
-  std::string service_uuid{};
-  std::string characteristic_uuid{};
+  uint32_t handle{0};
   std::vector<uint32_t> data{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1379,15 +1375,13 @@ class BluetoothGATTReadResponse : public ProtoMessage {
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class BluetoothGATTWriteRequest : public ProtoMessage {
  public:
   uint64_t address{0};
-  bool is_descriptor{false};
-  std::string service_uuid{};
-  std::string characteristic_uuid{};
+  uint32_t handle{0};
+  bool response{false};
   std::vector<uint32_t> data{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1395,10 +1389,60 @@ class BluetoothGATTWriteRequest : public ProtoMessage {
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class BluetoothGATTWriteResponse : public ProtoMessage {
+class BluetoothGATTReadDescriptorRequest : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTWriteDescriptorRequest : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  std::vector<uint32_t> data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTNotifyRequest : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  bool enable{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothGATTNotifyDataResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  uint32_t handle{0};
+  std::vector<uint32_t> data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class SubscribeBluetoothConnectionsFreeRequest : public ProtoMessage {
  public:
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1406,6 +1450,18 @@ class BluetoothGATTWriteResponse : public ProtoMessage {
 #endif
 
  protected:
+};
+class BluetoothConnectionsFreeResponse : public ProtoMessage {
+ public:
+  uint32_t free{0};
+  uint32_t limit{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 
 }  // namespace api

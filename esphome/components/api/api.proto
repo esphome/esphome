@@ -49,6 +49,9 @@ service APIConnection {
   rpc bluetooth_gatt_get_services(BluetoothGATTGetServicesRequest) returns (BluetoothGATTGetServicesResponse) {}
   rpc bluetooth_gatt_read(BluetoothGATTReadRequest) returns (void) {}
   rpc bluetooth_gatt_write(BluetoothGATTWriteRequest) returns (void) {}
+  rpc bluetooth_gatt_read_descriptor(BluetoothGATTReadDescriptorRequest) returns (void) {}
+  rpc bluetooth_gatt_write_descriptor(BluetoothGATTWriteDescriptorRequest) returns (void) {}
+  rpc bluetooth_gatt_notify(BluetoothGATTNotifyRequest) returns (void) {}
 
 }
 
@@ -1142,7 +1145,7 @@ enum BluetoothDeviceRequestType {
 }
 
 message BluetoothDeviceRequest {
-  option (id) = 70;
+  option (id) = 68;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
@@ -1151,16 +1154,17 @@ message BluetoothDeviceRequest {
 }
 
 message BluetoothDeviceConnectionResponse {
-  option (id) = 71;
+  option (id) = 69;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
   uint64 address = 1;
   bool connected = 2;
+  uint32 mtu = 3;
 }
 
 message BluetoothGATTGetServicesRequest {
-  option (id) = 72;
+  option (id) = 70;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
@@ -1187,7 +1191,7 @@ message BluetoothGATTService {
 }
 
 message BluetoothGATTGetServicesResponse {
-  option (id) = 73;
+  option (id) = 71;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
   option (no_delay) = true;
@@ -1197,48 +1201,90 @@ message BluetoothGATTGetServicesResponse {
 }
 
 message BluetoothGATTReadRequest {
+  option (id) = 72;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+}
+
+message BluetoothGATTReadResponse {
+  option (id) = 73;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+
+  repeated uint32 data = 3 [packed=true];
+
+}
+
+message BluetoothGATTWriteRequest {
   option (id) = 74;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
   uint64 address = 1;
-  bool is_descriptor = 2;
+  uint32 handle = 2;
+  bool response = 3;
 
-  string service_uuid = 3;
-  string characteristic_uuid = 4;
+  repeated uint32 data = 4 [packed=true];
 }
 
-message BluetoothGATTReadResponse {
+message BluetoothGATTReadDescriptorRequest {
   option (id) = 75;
-  option (source) = SOURCE_SERVER;
+  option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
   uint64 address = 1;
-  bool is_descriptor = 2;
-  string service_uuid = 3;
-  string characteristic_uuid = 4;
-
-  repeated uint32 data = 5 [packed=true];
-
+  uint32 handle = 2;
 }
 
-message BluetoothGATTWriteRequest {
+message BluetoothGATTWriteDescriptorRequest {
   option (id) = 76;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
   uint64 address = 1;
-  bool is_descriptor = 2;
+  uint32 handle = 2;
 
-  string service_uuid = 3;
-  string characteristic_uuid = 4;
-
-  repeated uint32 data = 5 [packed=true];
+  repeated uint32 data = 3 [packed=true];
 }
 
-message BluetoothGATTWriteResponse {
+message BluetoothGATTNotifyRequest {
   option (id) = 77;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+  bool enable = 3;
+}
+
+message BluetoothGATTNotifyDataResponse {
+  option (id) = 78;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
+  uint64 address = 1;
+  uint32 handle = 2;
+
+  repeated uint32 data = 3 [packed=true];
+}
+
+message SubscribeBluetoothConnectionsFreeRequest {
+  option (id) = 79;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+}
+
+message BluetoothConnectionsFreeResponse {
+  option (id) = 80;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint32 free = 1;
+  uint32 limit = 2;
 }

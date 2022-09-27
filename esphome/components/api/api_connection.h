@@ -1,11 +1,11 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/application.h"
+#include "api_frame_helper.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "api_server.h"
-#include "api_frame_helper.h"
+#include "esphome/core/application.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace api {
@@ -103,7 +103,10 @@ class APIConnection : public APIServerConnection {
   void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
   void bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) override;
   void bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) override;
+  void bluetooth_gatt_read_descriptor(const BluetoothGATTReadDescriptorRequest &msg) override;
+  void bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) override;
   BluetoothGATTGetServicesResponse bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) override;
+  void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) override;
 
 #endif
 #ifdef USE_HOMEASSISTANT_TIME

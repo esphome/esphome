@@ -112,6 +112,7 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         break;
       }
       ESP_LOGV(TAG, "cfg_mtu status %d, mtu %d", param->cfg_mtu.status, param->cfg_mtu.mtu);
+      this->mtu_ = param->cfg_mtu.mtu;
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
     }
@@ -269,15 +270,22 @@ BLECharacteristic *BLEClientBase::get_characteristic(uint16_t service, uint16_t 
   return this->get_characteristic(espbt::ESPBTUUID::from_uint16(service), espbt::ESPBTUUID::from_uint16(chr));
 }
 
+BLECharacteristic *BLEClientBase::get_characteristic(uint16_t handle) {
+  for (auto *svc : this->services_) {
+    for (auto *chr : svc->characteristics) {
+      if (chr->handle == handle)
+        return chr;
+    }
+  }
+  return nullptr;
+}
+
 BLEDescriptor *BLEClientBase::get_config_descriptor(uint16_t handle) {
-  for (auto &svc : this->services_) {
-    for (auto &chr : svc->characteristics) {
-      if (chr->handle == handle) {
-        for (auto &desc : chr->descriptors) {
-          if (desc->uuid == espbt::ESPBTUUID::from_uint16(0x2902))
-            return desc;
-        }
-      }
+  auto *chr = this->get_characteristic(handle);
+  if (chr != nullptr) {
+    for (auto &desc : chr->descriptors) {
+      if (desc->uuid == espbt::ESPBTUUID::from_uint16(0x2902))
+        return desc;
     }
   }
   return nullptr;
@@ -296,6 +304,18 @@ BLEDescriptor *BLEClientBase::get_descriptor(espbt::ESPBTUUID service, espbt::ES
 BLEDescriptor *BLEClientBase::get_descriptor(uint16_t service, uint16_t chr, uint16_t descr) {
   return this->get_descriptor(espbt::ESPBTUUID::from_uint16(service), espbt::ESPBTUUID::from_uint16(chr),
                               espbt::ESPBTUUID::from_uint16(descr));
+}
+
+BLEDescriptor *BLEClientBase::get_descriptor(uint16_t handle) {
+  for (auto *svc : this->services_) {
+    for (auto *chr : svc->characteristics) {
+      for (auto *desc : chr->descriptors) {
+        if (desc->handle == handle)
+          return desc;
+      }
+    }
+  }
+  return nullptr;
 }
 
 }  // namespace esp32_ble_client

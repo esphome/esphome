@@ -40,8 +40,10 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   BLEService *get_service(uint16_t uuid);
   BLECharacteristic *get_characteristic(espbt::ESPBTUUID service, espbt::ESPBTUUID chr);
   BLECharacteristic *get_characteristic(uint16_t service, uint16_t chr);
+  BLECharacteristic *get_characteristic(uint16_t handle);
   BLEDescriptor *get_descriptor(espbt::ESPBTUUID service, espbt::ESPBTUUID chr, espbt::ESPBTUUID descr);
   BLEDescriptor *get_descriptor(uint16_t service, uint16_t chr, uint16_t descr);
+  BLEDescriptor *get_descriptor(uint16_t handle);
   // Get the configuration descriptor for the given characteristic handle.
   BLEDescriptor *get_config_descriptor(uint16_t handle);
 
@@ -59,6 +61,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   esp_ble_addr_type_t remote_addr_type_;
   uint16_t conn_id_;
   uint64_t address_;
+  uint16_t mtu_{23};
 
   std::vector<BLEService *> services_;
 };

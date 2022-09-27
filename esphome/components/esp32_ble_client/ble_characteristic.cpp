@@ -56,6 +56,13 @@ BLEDescriptor *BLECharacteristic::get_descriptor(espbt::ESPBTUUID uuid) {
 BLEDescriptor *BLECharacteristic::get_descriptor(uint16_t uuid) {
   return this->get_descriptor(espbt::ESPBTUUID::from_uint16(uuid));
 }
+BLEDescriptor *BLECharacteristic::get_descriptor_by_handle(uint16_t handle) {
+  for (auto &desc : this->descriptors) {
+    if (desc->handle == handle)
+      return desc;
+  }
+  return nullptr;
+}
 
 void BLECharacteristic::write_value(uint8_t *new_val, int16_t new_val_size, esp_gatt_write_type_t write_type) {
   auto *client = this->service->client;
