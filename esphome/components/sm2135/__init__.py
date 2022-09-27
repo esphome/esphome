@@ -8,7 +8,7 @@ from esphome.const import (
 )
 
 AUTO_LOAD = ["output"]
-CODEOWNERS = ["@BoukeHaarsma23","@matika77","@dd32"]
+CODEOWNERS = ["@BoukeHaarsma23", "@matika77", "@dd32"]
 
 sm2135_ns = cg.esphome_ns.namespace("sm2135")
 SM2135 = sm2135_ns.class_("SM2135", cg.Component)
@@ -27,8 +27,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(SM2135),
         cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_RGB_CURRENT, default=20): cv.one_of(*DRIVE_STRENGTHS_RGB, int=True),
-        cv.Optional(CONF_CW_CURRENT, default=10): cv.one_of(*DRIVE_STRENGTHS_CW, int=True),
+        cv.Optional(CONF_RGB_CURRENT, default=20): cv.one_of(
+            *DRIVE_STRENGTHS_RGB, int=True
+        ),
+        cv.Optional(CONF_CW_CURRENT, default=10): cv.one_of(
+            *DRIVE_STRENGTHS_CW, int=True
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
