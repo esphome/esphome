@@ -107,6 +107,8 @@ class APIConnection : public APIServerConnection {
   void bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) override;
   BluetoothGATTGetServicesResponse bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) override;
   void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) override;
+  BluetoothConnectionsFreeResponse bluetooth_connections_free(
+      const SubscribeBluetoothConnectionsFreeRequest &msg) override;
 
 #endif
 #ifdef USE_HOMEASSISTANT_TIME

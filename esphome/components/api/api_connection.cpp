@@ -851,6 +851,13 @@ void APIConnection::bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg)
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_notify(msg);
 }
 
+BluetoothConnectionsFreeResponse APIConnection::bluetooth_connections_free(
+    const SubscribeBluetoothConnectionsFreeRequest &msg) {
+  BluetoothConnectionsFreeResponse resp;
+  resp.free = bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_connections_free();
+  resp.limit = bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_connections_limit();
+  return resp;
+}
 #endif
 
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {

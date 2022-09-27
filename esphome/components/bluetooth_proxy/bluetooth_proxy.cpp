@@ -74,12 +74,26 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
     case ESP_GATTC_DISCONNECT_EVT: {
 #ifdef USE_API
       api::global_api_server->send_bluetooth_device_connection(this->address_, false, this->mtu_);
+      api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
+                                                              this->get_bluetooth_connections_limit());
 #endif
       this->address_ = 0;
+    }
+    case ESP_GATTC_OPEN_EVT: {
+      if (param->open.status != ESP_GATT_OK) {
+#ifdef USE_API
+        api::global_api_server->send_bluetooth_device_connection(this->address_, false, this->mtu_, param->open.status);
+
+#endif
+        break;
+      }
+      break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
 #ifdef USE_API
       api::global_api_server->send_bluetooth_device_connection(this->address_, true, this->mtu_);
+      api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
+                                                              this->get_bluetooth_connections_limit());
 #endif
       break;
     }

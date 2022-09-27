@@ -5062,6 +5062,10 @@ bool BluetoothDeviceConnectionResponse::decode_varint(uint32_t field_id, ProtoVa
       this->mtu = value.as_uint32();
       return true;
     }
+    case 4: {
+      this->error = value.as_int32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5070,6 +5074,7 @@ void BluetoothDeviceConnectionResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_bool(2, this->connected);
   buffer.encode_uint32(3, this->mtu);
+  buffer.encode_int32(4, this->error);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothDeviceConnectionResponse::dump_to(std::string &out) const {
@@ -5086,6 +5091,11 @@ void BluetoothDeviceConnectionResponse::dump_to(std::string &out) const {
 
   out.append("  mtu: ");
   sprintf(buffer, "%u", this->mtu);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  error: ");
+  sprintf(buffer, "%d", this->error);
   out.append(buffer);
   out.append("\n");
   out.append("}");

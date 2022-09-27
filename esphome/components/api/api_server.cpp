@@ -297,14 +297,25 @@ void APIServer::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementRe
     client->send_bluetooth_le_advertisement(call);
   }
 }
-void APIServer::send_bluetooth_device_connection(uint64_t address, bool connected, uint16_t mtu) {
+void APIServer::send_bluetooth_device_connection(uint64_t address, bool connected, uint16_t mtu, esp_err_t error) {
   BluetoothDeviceConnectionResponse call;
   call.address = address;
   call.connected = connected;
   call.mtu = mtu;
+  call.error = error;
 
   for (auto &client : this->clients_) {
     client->send_bluetooth_device_connection_response(call);
+  }
+}
+
+void APIServer::send_bluetooth_connections_free(uint8_t free, uint8_t limit) {
+  BluetoothConnectionsFreeResponse call;
+  call.free = free;
+  call.limit = limit;
+
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_connections_free_response(call);
   }
 }
 

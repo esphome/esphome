@@ -1122,6 +1122,23 @@ void APIServerConnection::on_bluetooth_gatt_notify_request(const BluetoothGATTNo
   this->bluetooth_gatt_notify(msg);
 }
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
+    const SubscribeBluetoothConnectionsFreeRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  BluetoothConnectionsFreeResponse ret = this->subscribe_bluetooth_connections_free(msg);
+  if (!this->send_bluetooth_connections_free_response(ret)) {
+    this->on_fatal_error();
+  }
+}
+#endif
 
 }  // namespace api
 }  // namespace esphome

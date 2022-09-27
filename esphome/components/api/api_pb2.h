@@ -1277,6 +1277,7 @@ class BluetoothDeviceConnectionResponse : public ProtoMessage {
   uint64_t address{0};
   bool connected{false};
   uint32_t mtu{0};
+  int32_t error{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

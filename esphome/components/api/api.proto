@@ -44,7 +44,7 @@ service APIConnection {
   rpc lock_command (LockCommandRequest) returns (void) {}
   rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
 
-  rpc subscribe_bluetooth_le_advertisements (SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
+  rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
   rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
   rpc bluetooth_gatt_get_services(BluetoothGATTGetServicesRequest) returns (BluetoothGATTGetServicesResponse) {}
   rpc bluetooth_gatt_read(BluetoothGATTReadRequest) returns (void) {}
@@ -52,7 +52,7 @@ service APIConnection {
   rpc bluetooth_gatt_read_descriptor(BluetoothGATTReadDescriptorRequest) returns (void) {}
   rpc bluetooth_gatt_write_descriptor(BluetoothGATTWriteDescriptorRequest) returns (void) {}
   rpc bluetooth_gatt_notify(BluetoothGATTNotifyRequest) returns (void) {}
-
+  rpc subscribe_bluetooth_connections_free(SubscribeBluetoothConnectionsFreeRequest) returns (BluetoothConnectionsFreeResponse) {}
 }
 
 
@@ -1161,6 +1161,7 @@ message BluetoothDeviceConnectionResponse {
   uint64 address = 1;
   bool connected = 2;
   uint32 mtu = 3;
+  int32 error = 4;
 }
 
 message BluetoothGATTGetServicesRequest {

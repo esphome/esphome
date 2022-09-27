@@ -40,6 +40,9 @@ class BluetoothProxy : public BLEClientBase {
   void bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg);
 #endif
 
+  int get_bluetooth_connections_free() { return this->state_ == STATE_IDLE ? 1 : 0; }
+  int get_bluetooth_connections_limit() { return 1; }
+
  protected:
   void send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device);
 
