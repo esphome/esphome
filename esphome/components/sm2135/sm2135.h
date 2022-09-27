@@ -24,19 +24,11 @@ static const uint8_t SM2135_ADDR_W = 0xC6;   // Warm
 static const uint8_t SM2135_RGB = 0x00;  // RGB channel
 static const uint8_t SM2135_CW = 0x80;   // CW channel (Chip default)
 
-static const std::map<uint8_t,uint8_t> SM2135_CURRENT = {
-  { 10, 0x00 },
-  { 15, 0x01 },
-  { 20, 0x02 },
-  { 25, 0x03 },
-  { 30, 0x04 },
-  { 35, 0x05 },
-  { 40, 0x06 },
-  { 45, 0x07 },  // Max value for RGB
-  { 50, 0x08 },
-  { 55, 0x09 },
-  { 60, 0x0A },
-};
+static const std::map<uint8_t, uint8_t> SM2135_CURRENT = {
+    {10, 0x00}, {15, 0x01}, {20, 0x02}, {25, 0x03},
+    {30, 0x04}, {35, 0x05}, {40, 0x06}, {45, 0x07},  // Max value for RGB
+    {50, 0x08}, {55, 0x09}, {60, 0x0A},
+ };
 
 #define SM2135_CURRENT_LOOKUP(ma) ( SM2135_CURRENT.find(ma)->second )
 
