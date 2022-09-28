@@ -97,11 +97,12 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
 #endif
       break;
     }
+    case ESP_GATTC_READ_DESCR_EVT:
     case ESP_GATTC_READ_CHAR_EVT: {
       if (param->read.conn_id != this->conn_id_)
         break;
       if (param->read.status != ESP_GATT_OK) {
-        ESP_LOGW(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
+        ESP_LOGW(TAG, "Error reading char/descriptor at handle %d, status=%d", param->read.handle, param->read.status);
         break;
       }
 #ifdef USE_API
