@@ -222,6 +222,7 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
   data.reserve(msg.data.size());
   for (uint32_t d : msg.data)
     data.push_back((uint8_t) d);
+  ESP_LOGV(TAG, "##### GATT WRITE size=%d -> %s", data.size(), format_hex_pretty(data).c_str());
 
   ESP_LOGV(TAG, "Writing GATT characteristic %s -> %s", characteristic->uuid.to_string().c_str(),
            format_hex_pretty(data).c_str());
