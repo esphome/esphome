@@ -315,6 +315,9 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
   esp_err_t err =
       esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descriptor->handle, msg.data.size(),
                                      (uint8_t *) msg.data.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  if (err != ERR_OK) {
+    ESP_LOGW(TAG, "esp_ble_gattc_write_char_descr error, err=%d", err);
+  }
 }
 
 void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg) {
