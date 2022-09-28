@@ -47,18 +47,18 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
     resp.name = device.get_name();
   resp.rssi = device.get_rssi();
   for (auto uuid : device.get_service_uuids()) {
-    resp.service_uuids.push_back(uuid.to_string());
+    resp.service_uuids.push_back(str_lower_case(uuid.to_string()));
   }
   for (auto &data : device.get_service_datas()) {
     api::BluetoothServiceData service_data;
-    service_data.uuid = data.uuid.to_string();
+    service_data.uuid = str_lower_case(data.uuid.to_string());
     for (auto d : data.data)
       service_data.data.push_back(d);
     resp.service_data.push_back(service_data);
   }
   for (auto &data : device.get_manufacturer_datas()) {
     api::BluetoothServiceData manufacturer_data;
-    manufacturer_data.uuid = data.uuid.to_string();
+    manufacturer_data.uuid = str_lower_case(data.uuid.to_string());
     for (auto d : data.data)
       manufacturer_data.data.push_back(d);
     resp.manufacturer_data.push_back(manufacturer_data);
