@@ -285,16 +285,16 @@ api::BluetoothGATTGetServicesResponse BluetoothProxy::bluetooth_gatt_get_service
   resp.address = msg.address;
   for (BLEService *service : this->services_) {
     api::BluetoothGATTService service_resp;
-    service_resp.uuid = service->uuid.to_string();
+    service_resp.uuid = std::move(service->uuid.to_string());
     service_resp.handle = service->start_handle;
     for (BLECharacteristic *characteristic : service->characteristics) {
       api::BluetoothGATTCharacteristic characteristic_resp;
-      characteristic_resp.uuid = characteristic->uuid.to_string();
+      characteristic_resp.uuid = std::move(characteristic->uuid.to_string());
       characteristic_resp.handle = characteristic->handle;
       characteristic_resp.properties = characteristic->properties;
       for (BLEDescriptor *descriptor : characteristic->descriptors) {
         api::BluetoothGATTDescriptor descriptor_resp;
-        descriptor_resp.uuid = descriptor->uuid.to_string();
+        descriptor_resp.uuid = std::move(descriptor->uuid.to_string());
         descriptor_resp.handle = descriptor->handle;
         characteristic_resp.descriptors.push_back(descriptor_resp);
       }
