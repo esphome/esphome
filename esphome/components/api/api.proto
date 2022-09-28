@@ -1218,7 +1218,7 @@ message BluetoothGATTReadResponse {
   uint64 address = 1;
   uint32 handle = 2;
 
-  repeated uint32 data = 3 [packed=true];
+  bytes data = 3;
 
 }
 
@@ -1231,7 +1231,7 @@ message BluetoothGATTWriteRequest {
   uint32 handle = 2;
   bool response = 3;
 
-  repeated uint32 data = 4 [packed=true];
+  bytes data = 4;
 }
 
 message BluetoothGATTReadDescriptorRequest {
@@ -1251,7 +1251,7 @@ message BluetoothGATTWriteDescriptorRequest {
   uint64 address = 1;
   uint32 handle = 2;
 
-  repeated uint32 data = 3 [packed=true];
+  bytes data = 3;
 }
 
 message BluetoothGATTNotifyRequest {
@@ -1272,7 +1272,7 @@ message BluetoothGATTNotifyDataResponse {
   uint64 address = 1;
   uint32 handle = 2;
 
-  repeated uint32 data = 3 [packed=true];
+  bytes data = 3;
 }
 
 message SubscribeBluetoothConnectionsFreeRequest {

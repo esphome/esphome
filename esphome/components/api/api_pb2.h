@@ -1369,13 +1369,14 @@ class BluetoothGATTReadResponse : public ProtoMessage {
  public:
   uint64_t address{0};
   uint32_t handle{0};
-  std::vector<uint32_t> data{};
+  std::string data{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class BluetoothGATTWriteRequest : public ProtoMessage {
@@ -1383,13 +1384,14 @@ class BluetoothGATTWriteRequest : public ProtoMessage {
   uint64_t address{0};
   uint32_t handle{0};
   bool response{false};
-  std::vector<uint32_t> data{};
+  std::string data{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class BluetoothGATTReadDescriptorRequest : public ProtoMessage {
@@ -1408,13 +1410,14 @@ class BluetoothGATTWriteDescriptorRequest : public ProtoMessage {
  public:
   uint64_t address{0};
   uint32_t handle{0};
-  std::vector<uint32_t> data{};
+  std::string data{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class BluetoothGATTNotifyRequest : public ProtoMessage {
@@ -1434,13 +1437,14 @@ class BluetoothGATTNotifyDataResponse : public ProtoMessage {
  public:
   uint64_t address{0};
   uint32_t handle{0};
-  std::vector<uint32_t> data{};
+  std::string data{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class SubscribeBluetoothConnectionsFreeRequest : public ProtoMessage {

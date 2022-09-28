@@ -5372,8 +5372,14 @@ bool BluetoothGATTReadResponse::decode_varint(uint32_t field_id, ProtoVarInt val
       this->handle = value.as_uint32();
       return true;
     }
+    default:
+      return false;
+  }
+}
+bool BluetoothGATTReadResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
     case 3: {
-      this->data.push_back(value.as_uint32());
+      this->data = value.as_string();
       return true;
     }
     default:
@@ -5383,9 +5389,7 @@ bool BluetoothGATTReadResponse::decode_varint(uint32_t field_id, ProtoVarInt val
 void BluetoothGATTReadResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_uint32(2, this->handle);
-  for (auto &it : this->data) {
-    buffer.encode_uint32(3, it, true);
-  }
+  buffer.encode_string(3, this->data);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothGATTReadResponse::dump_to(std::string &out) const {
@@ -5401,12 +5405,9 @@ void BluetoothGATTReadResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  for (const auto &it : this->data) {
-    out.append("  data: ");
-    sprintf(buffer, "%u", it);
-    out.append(buffer);
-    out.append("\n");
-  }
+  out.append("  data: ");
+  out.append("'").append(this->data).append("'");
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -5424,8 +5425,14 @@ bool BluetoothGATTWriteRequest::decode_varint(uint32_t field_id, ProtoVarInt val
       this->response = value.as_bool();
       return true;
     }
+    default:
+      return false;
+  }
+}
+bool BluetoothGATTWriteRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
     case 4: {
-      this->data.push_back(value.as_uint32());
+      this->data = value.as_string();
       return true;
     }
     default:
@@ -5436,9 +5443,7 @@ void BluetoothGATTWriteRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_uint32(2, this->handle);
   buffer.encode_bool(3, this->response);
-  for (auto &it : this->data) {
-    buffer.encode_uint32(4, it, true);
-  }
+  buffer.encode_string(4, this->data);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothGATTWriteRequest::dump_to(std::string &out) const {
@@ -5458,12 +5463,9 @@ void BluetoothGATTWriteRequest::dump_to(std::string &out) const {
   out.append(YESNO(this->response));
   out.append("\n");
 
-  for (const auto &it : this->data) {
-    out.append("  data: ");
-    sprintf(buffer, "%u", it);
-    out.append(buffer);
-    out.append("\n");
-  }
+  out.append("  data: ");
+  out.append("'").append(this->data).append("'");
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -5511,8 +5513,14 @@ bool BluetoothGATTWriteDescriptorRequest::decode_varint(uint32_t field_id, Proto
       this->handle = value.as_uint32();
       return true;
     }
+    default:
+      return false;
+  }
+}
+bool BluetoothGATTWriteDescriptorRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
     case 3: {
-      this->data.push_back(value.as_uint32());
+      this->data = value.as_string();
       return true;
     }
     default:
@@ -5522,9 +5530,7 @@ bool BluetoothGATTWriteDescriptorRequest::decode_varint(uint32_t field_id, Proto
 void BluetoothGATTWriteDescriptorRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_uint32(2, this->handle);
-  for (auto &it : this->data) {
-    buffer.encode_uint32(3, it, true);
-  }
+  buffer.encode_string(3, this->data);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothGATTWriteDescriptorRequest::dump_to(std::string &out) const {
@@ -5540,12 +5546,9 @@ void BluetoothGATTWriteDescriptorRequest::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  for (const auto &it : this->data) {
-    out.append("  data: ");
-    sprintf(buffer, "%u", it);
-    out.append(buffer);
-    out.append("\n");
-  }
+  out.append("  data: ");
+  out.append("'").append(this->data).append("'");
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -5602,8 +5605,14 @@ bool BluetoothGATTNotifyDataResponse::decode_varint(uint32_t field_id, ProtoVarI
       this->handle = value.as_uint32();
       return true;
     }
+    default:
+      return false;
+  }
+}
+bool BluetoothGATTNotifyDataResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
     case 3: {
-      this->data.push_back(value.as_uint32());
+      this->data = value.as_string();
       return true;
     }
     default:
@@ -5613,9 +5622,7 @@ bool BluetoothGATTNotifyDataResponse::decode_varint(uint32_t field_id, ProtoVarI
 void BluetoothGATTNotifyDataResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_uint32(2, this->handle);
-  for (auto &it : this->data) {
-    buffer.encode_uint32(3, it, true);
-  }
+  buffer.encode_string(3, this->data);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothGATTNotifyDataResponse::dump_to(std::string &out) const {
@@ -5631,12 +5638,9 @@ void BluetoothGATTNotifyDataResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  for (const auto &it : this->data) {
-    out.append("  data: ");
-    sprintf(buffer, "%u", it);
-    out.append(buffer);
-    out.append("\n");
-  }
+  out.append("  data: ");
+  out.append("'").append(this->data).append("'");
+  out.append("\n");
   out.append("}");
 }
 #endif

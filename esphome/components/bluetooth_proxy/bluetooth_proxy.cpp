@@ -218,15 +218,9 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
     return;
   }
 
-  std::vector<uint8_t> data;
-  data.reserve(msg.data.size());
-  for (uint32_t d : msg.data)
-    data.push_back((uint8_t) d);
-  ESP_LOGV(TAG, "##### GATT WRITE size=%d -> %s", data.size(), format_hex_pretty(data).c_str());
-
   ESP_LOGV(TAG, "Writing GATT characteristic %s -> %s", characteristic->uuid.to_string().c_str(),
-           format_hex_pretty(data).c_str());
-  characteristic->write_value(data.data(), data.size(),
+           format_hex_pretty(msg.data.data(), msg.data.size()).c_str());
+  characteristic->write_value(msg.data.data(), msg.data.size(),
                               msg.response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP);
 }
 
@@ -272,17 +266,12 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
     return;
   }
 
-  std::vector<uint8_t> data;
-  data.reserve(msg.data.size());
-  for (uint32_t d : msg.data)
-    data.push_back((uint8_t) d);
-
   ESP_LOGV(TAG, "Writing GATT characteristic descriptor %s -> %s -> %s",
            descriptor->characteristic->uuid.to_string().c_str(), descriptor->uuid.to_string().c_str(),
-           format_hex_pretty(data).c_str());
+           format_hex_pretty(msg.data.data(), msg.data.size()).c_str());
 
-  esp_err_t err = esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descriptor->handle, data.size(),
-                                                 data.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  esp_err_t err = esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descriptor->handle, msg.data.size(),
+                                                 msg.data.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
 }
 
 api::BluetoothGATTGetServicesResponse BluetoothProxy::bluetooth_gatt_get_services(
