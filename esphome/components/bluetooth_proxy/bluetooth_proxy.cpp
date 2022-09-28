@@ -142,6 +142,7 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
 void BluetoothProxy::dump_config() { ESP_LOGCONFIG(TAG, "Bluetooth Proxy:"); }
 
 void BluetoothProxy::loop() {
+  BLEClientBase::loop();
 #ifdef USE_API
   if (this->state_ != espbt::ClientState::IDLE && !api::global_api_server->is_connected()) {
     ESP_LOGI(TAG, "[%s] Disconnecting.", this->address_str().c_str());
