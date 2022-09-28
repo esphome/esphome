@@ -54,14 +54,14 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
     service_data.uuid = std::move(data.uuid.to_string());
     for (auto d : data.data)
       service_data.data.push_back(d);
-    resp.service_data.push_back(service_data);
+    resp.service_data.push_back(std::move(service_data));
   }
   for (auto &data : device.get_manufacturer_datas()) {
     api::BluetoothServiceData manufacturer_data;
     manufacturer_data.uuid = std::move(data.uuid.to_string());
     for (auto d : data.data)
       manufacturer_data.data.push_back(d);
-    resp.manufacturer_data.push_back(manufacturer_data);
+    resp.manufacturer_data.push_back(std::move(manufacturer_data));
   }
   api::global_api_server->send_bluetooth_le_advertisement(resp);
 #endif
@@ -162,18 +162,17 @@ void BluetoothProxy::loop() {
     api::BluetoothGATTGetServicesResponse resp;
     resp.address = this->address_;
     api::BluetoothGATTService service_resp;
-    service_resp.uuid = std::move(service->uuid.to_string());
+    service_resp.uuid = {service->uuid.get_128bit_high(), service->uuid.get_128bit_low()};
     service_resp.handle = service->start_handle;
     for (BLECharacteristic *characteristic : service->characteristics) {
       api::BluetoothGATTCharacteristic characteristic_resp;
-      characteristic_resp.uuid = std::move(characteristic->uuid.to_string());
+      characteristic_resp.uuid = {characteristic->uuid.get_128bit_high(), characteristic->uuid.get_128bit_low()};
       characteristic_resp.handle = characteristic->handle;
       characteristic_resp.properties = characteristic->properties;
       for (BLEDescriptor *descriptor : characteristic->descriptors) {
         api::BluetoothGATTDescriptor descriptor_resp;
-        descriptor_resp.uuid = std::move(descriptor->uuid.to_string());
+        descriptor_resp.uuid = {descriptor->uuid.get_128bit_high(), descriptor->uuid.get_128bit_low()};
         descriptor_resp.handle = descriptor->handle;
-        descriptor_resp.description = "";
         characteristic_resp.descriptors.push_back(std::move(descriptor_resp));
       }
       service_resp.characteristics.push_back(std::move(characteristic_resp));

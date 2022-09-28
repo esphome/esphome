@@ -41,6 +41,9 @@ class ESPBTUUID {
 
   std::string to_string() const;
 
+  uint64_t get_128bit_high() const;
+  uint64_t get_128bit_low() const;
+
  protected:
   esp_bt_uuid_t uuid_;
 };

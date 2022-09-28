@@ -1173,20 +1173,19 @@ message BluetoothGATTGetServicesRequest {
 }
 
 message BluetoothGATTDescriptor {
-  string uuid = 1;
+  repeated uint64 uuid = 1;
   uint32 handle = 2;
-  string description = 3;
 }
 
 message BluetoothGATTCharacteristic {
-  string uuid = 1;
+  repeated uint64 uuid = 1;
   uint32 handle = 2;
   uint32 properties = 3;
   repeated BluetoothGATTDescriptor descriptors = 4;
 }
 
 message BluetoothGATTService {
-  string uuid = 1;
+  repeated uint64 uuid = 1;
   uint32 handle = 2;
   repeated BluetoothGATTCharacteristic characteristics = 3;
 }

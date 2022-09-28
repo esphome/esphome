@@ -1299,21 +1299,19 @@ class BluetoothGATTGetServicesRequest : public ProtoMessage {
 };
 class BluetoothGATTDescriptor : public ProtoMessage {
  public:
-  std::string uuid{};
+  std::vector<uint64_t> uuid{};
   uint32_t handle{0};
-  std::string description{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
-  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class BluetoothGATTCharacteristic : public ProtoMessage {
  public:
-  std::string uuid{};
+  std::vector<uint64_t> uuid{};
   uint32_t handle{0};
   uint32_t properties{0};
   std::vector<BluetoothGATTDescriptor> descriptors{};
@@ -1328,7 +1326,7 @@ class BluetoothGATTCharacteristic : public ProtoMessage {
 };
 class BluetoothGATTService : public ProtoMessage {
  public:
-  std::string uuid{};
+  std::vector<uint64_t> uuid{};
   uint32_t handle{0};
   std::vector<BluetoothGATTCharacteristic> characteristics{};
   void encode(ProtoWriteBuffer buffer) const override;
