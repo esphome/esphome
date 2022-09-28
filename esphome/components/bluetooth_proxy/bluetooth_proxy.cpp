@@ -307,7 +307,7 @@ void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetSer
 
 void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg) {
   if (this->address_ != msg.address) {
-    ESP_LOGW(TAG, "Addres mismatch for notify");
+    ESP_LOGW(TAG, "Address mismatch for notify");
     return;
   }
 
