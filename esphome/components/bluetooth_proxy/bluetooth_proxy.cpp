@@ -172,11 +172,11 @@ void BluetoothProxy::loop() {
         descriptor_resp.uuid = std::move(descriptor->uuid.to_string());
         descriptor_resp.handle = descriptor->handle;
         descriptor_resp.description = "";
-        characteristic_resp.descriptors.push_back(descriptor_resp);
+        characteristic_resp.descriptors.push_back(std::move(descriptor_resp));
       }
-      service_resp.characteristics.push_back(characteristic_resp);
+      service_resp.characteristics.push_back(std::move(characteristic_resp));
     }
-    resp.services.push_back(service_resp);
+    resp.services.push_back(std::move(service_resp));
     api::global_api_server->send_bluetooth_gatt_services(resp);
     this->send_service_++;
   }
