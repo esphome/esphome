@@ -26,6 +26,7 @@ class BluetoothProxy : public BLEClientBase {
   BluetoothProxy();
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
+  void loop() override;
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
@@ -47,6 +48,7 @@ class BluetoothProxy : public BLEClientBase {
   void send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device);
 
   std::map<uint64_t, esp_ble_addr_type_t> address_type_map_;
+  int16_t send_service_{-1};
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

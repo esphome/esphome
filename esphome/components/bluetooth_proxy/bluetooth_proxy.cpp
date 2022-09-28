@@ -141,6 +141,46 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
 
 void BluetoothProxy::dump_config() { ESP_LOGCONFIG(TAG, "Bluetooth Proxy:"); }
 
+void BluetoothProxy::loop() {
+#ifdef USE_API
+  if (this->state_ != espbt::ClientState::IDLE && !api::global_api_server->is_connected()) {
+    ESP_LOGI(TAG, "[%s] Disconnecting.", this->address_str().c_str());
+    auto err = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
+    if (err != ERR_OK) {
+      ESP_LOGW(TAG, "esp_ble_gattc_close error, address=%s err=%d", this->address_str().c_str(), err);
+    }
+  }
+
+  if (this->send_service_ == this->services_.size()) {
+    this->send_service_ = -1;
+    api::global_api_server->send_bluetooth_gatt_services_done(this->address_);
+  } else if (this->send_service_ >= 0) {
+    auto *service = this->services_[this->send_service_];
+    api::BluetoothGATTGetServicesResponse resp;
+    resp.address = this->address_;
+    api::BluetoothGATTService service_resp;
+    service_resp.uuid = service->uuid.to_string();
+    service_resp.handle = service->start_handle;
+    for (BLECharacteristic *characteristic : service->characteristics) {
+      api::BluetoothGATTCharacteristic characteristic_resp;
+      characteristic_resp.uuid = characteristic->uuid.to_string();
+      characteristic_resp.handle = characteristic->handle;
+      characteristic_resp.properties = characteristic->properties;
+      for (BLEDescriptor *descriptor : characteristic->descriptors) {
+        api::BluetoothGATTDescriptor descriptor_resp;
+        descriptor_resp.uuid = descriptor->uuid.to_string();
+        descriptor_resp.handle = descriptor->handle;
+        characteristic_resp.descriptors.push_back(descriptor_resp);
+      }
+      service_resp.characteristics.push_back(characteristic_resp);
+    }
+    resp.services.push_back(service_resp);
+    api::global_api_server->send_bluetooth_gatt_services(resp);
+    this->send_service_++;
+  }
+#endif
+}
+
 #ifdef USE_API
 void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
   switch (msg.request_type) {
@@ -281,29 +321,7 @@ void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetSer
     ESP_LOGW(TAG, "Address mismatch for service list request");
     return;
   }
-  for (BLEService *service : this->services_) {
-    api::BluetoothGATTGetServicesResponse resp;
-    resp.address = msg.address;
-    api::BluetoothGATTService service_resp;
-    service_resp.uuid = service->uuid.to_string();
-    service_resp.handle = service->start_handle;
-    for (BLECharacteristic *characteristic : service->characteristics) {
-      api::BluetoothGATTCharacteristic characteristic_resp;
-      characteristic_resp.uuid = characteristic->uuid.to_string();
-      characteristic_resp.handle = characteristic->handle;
-      characteristic_resp.properties = characteristic->properties;
-      for (BLEDescriptor *descriptor : characteristic->descriptors) {
-        api::BluetoothGATTDescriptor descriptor_resp;
-        descriptor_resp.uuid = descriptor->uuid.to_string();
-        descriptor_resp.handle = descriptor->handle;
-        characteristic_resp.descriptors.push_back(descriptor_resp);
-      }
-      service_resp.characteristics.push_back(characteristic_resp);
-    }
-    resp.services.push_back(service_resp);
-    api::global_api_server->send_bluetooth_gatt_services(resp);
-  }
-  api::global_api_server->send_bluetooth_gatt_services_done(this->address_);
+  this->send_service_ = 0;
 }
 
 void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg) {
