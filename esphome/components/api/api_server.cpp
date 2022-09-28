@@ -329,6 +329,19 @@ void APIServer::send_bluetooth_gatt_notify_data_response(const BluetoothGATTNoti
     client->send_bluetooth_gatt_notify_data_response(call);
   }
 }
+void APIServer::send_bluetooth_gatt_services(const BluetoothGATTGetServicesResponse &call) {
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_gatt_get_services_response(call);
+  }
+}
+void APIServer::send_bluetooth_gatt_services_done(uint64_t address) {
+  BluetoothGATTGetServicesDoneResponse call;
+  call.address = address;
+
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_gatt_get_services_done_response(call);
+  }
+}
 #endif
 APIServer::APIServer() { global_api_server = this; }
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,

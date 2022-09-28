@@ -105,7 +105,7 @@ class APIConnection : public APIServerConnection {
   void bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) override;
   void bluetooth_gatt_read_descriptor(const BluetoothGATTReadDescriptorRequest &msg) override;
   void bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) override;
-  BluetoothGATTGetServicesResponse bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) override;
+  void bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) override;
   void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) override;
   BluetoothConnectionsFreeResponse subscribe_bluetooth_connections_free(
       const SubscribeBluetoothConnectionsFreeRequest &msg) override;

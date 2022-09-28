@@ -842,9 +842,8 @@ void APIConnection::bluetooth_gatt_read_descriptor(const BluetoothGATTReadDescri
 void APIConnection::bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_write_descriptor(msg);
 }
-BluetoothGATTGetServicesResponse APIConnection::bluetooth_gatt_get_services(
-    const BluetoothGATTGetServicesRequest &msg) {
-  return bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_get_services(msg);
+void APIConnection::bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_send_services(msg);
 }
 
 void APIConnection::bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) {

@@ -275,34 +275,34 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
                                      (uint8_t *) msg.data.data(), ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
 }
 
-api::BluetoothGATTGetServicesResponse BluetoothProxy::bluetooth_gatt_get_services(
-    const api::BluetoothGATTGetServicesRequest &msg) {
+void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg) {
   if (this->address_ != msg.address) {
     ESP_LOGW(TAG, "Address mismatch for service list request");
-    return {};
+    return;
   }
-  api::BluetoothGATTGetServicesResponse resp;
-  resp.address = msg.address;
   for (BLEService *service : this->services_) {
+    api::BluetoothGATTGetServicesResponse resp;
+    resp.address = msg.address;
     api::BluetoothGATTService service_resp;
-    service_resp.uuid = std::move(service->uuid.to_string());
+    service_resp.uuid = service->uuid.to_string();
     service_resp.handle = service->start_handle;
     for (BLECharacteristic *characteristic : service->characteristics) {
       api::BluetoothGATTCharacteristic characteristic_resp;
-      characteristic_resp.uuid = std::move(characteristic->uuid.to_string());
+      characteristic_resp.uuid = characteristic->uuid.to_string();
       characteristic_resp.handle = characteristic->handle;
       characteristic_resp.properties = characteristic->properties;
       for (BLEDescriptor *descriptor : characteristic->descriptors) {
         api::BluetoothGATTDescriptor descriptor_resp;
-        descriptor_resp.uuid = std::move(descriptor->uuid.to_string());
+        descriptor_resp.uuid = descriptor->uuid.to_string();
         descriptor_resp.handle = descriptor->handle;
         characteristic_resp.descriptors.push_back(descriptor_resp);
       }
       service_resp.characteristics.push_back(characteristic_resp);
     }
     resp.services.push_back(service_resp);
+    api::global_api_server->send_bluetooth_gatt_services(resp);
   }
-  return resp;
+  api::global_api_server->send_bluetooth_gatt_services_done(this->address_);
 }
 
 void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg) {

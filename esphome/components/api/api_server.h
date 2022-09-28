@@ -79,6 +79,8 @@ class APIServer : public Component, public Controller {
   void send_bluetooth_connections_free(uint8_t free, uint8_t limit);
   void send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &call);
   void send_bluetooth_gatt_notify_data_response(const BluetoothGATTNotifyDataResponse &call);
+  void send_bluetooth_gatt_services(const BluetoothGATTGetServicesResponse &call);
+  void send_bluetooth_gatt_services_done(uint64_t address);
 #endif
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #ifdef USE_HOMEASSISTANT_TIME

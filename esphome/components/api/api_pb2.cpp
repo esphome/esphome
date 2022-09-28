@@ -5328,6 +5328,30 @@ void BluetoothGATTGetServicesResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool BluetoothGATTGetServicesDoneResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothGATTGetServicesDoneResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTGetServicesDoneResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothGATTGetServicesDoneResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
 bool BluetoothGATTReadRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {

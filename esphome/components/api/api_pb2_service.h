@@ -172,6 +172,9 @@ class APIServerConnectionBase : public ProtoService {
   bool send_bluetooth_gatt_get_services_response(const BluetoothGATTGetServicesResponse &msg);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_gatt_get_services_done_response(const BluetoothGATTGetServicesDoneResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
   virtual void on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &value){};
 #endif
 #ifdef USE_BLUETOOTH_PROXY
@@ -254,7 +257,7 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void bluetooth_device_request(const BluetoothDeviceRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  virtual BluetoothGATTGetServicesResponse bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) = 0;
+  virtual void bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   virtual void bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) = 0;
