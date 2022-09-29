@@ -4884,20 +4884,14 @@ void SubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const 
   out.append("SubscribeBluetoothLEAdvertisementsRequest {}");
 }
 #endif
-bool BluetoothServiceData::decode_varint(uint32_t field_id, ProtoVarInt value) {
-  switch (field_id) {
-    case 2: {
-      this->data.push_back(value.as_uint32());
-      return true;
-    }
-    default:
-      return false;
-  }
-}
 bool BluetoothServiceData::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
       this->uuid = value.as_string();
+      return true;
+    }
+    case 2: {
+      this->data = value.as_string();
       return true;
     }
     default:
@@ -4906,9 +4900,7 @@ bool BluetoothServiceData::decode_length(uint32_t field_id, ProtoLengthDelimited
 }
 void BluetoothServiceData::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->uuid);
-  for (auto &it : this->data) {
-    buffer.encode_uint32(2, it, true);
-  }
+  buffer.encode_string(2, this->data);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothServiceData::dump_to(std::string &out) const {
@@ -4918,12 +4910,9 @@ void BluetoothServiceData::dump_to(std::string &out) const {
   out.append("'").append(this->uuid).append("'");
   out.append("\n");
 
-  for (const auto &it : this->data) {
-    out.append("  data: ");
-    sprintf(buffer, "%u", it);
-    out.append(buffer);
-    out.append("\n");
-  }
+  out.append("  data: ");
+  out.append("'").append(this->data).append("'");
+  out.append("\n");
   out.append("}");
 }
 #endif

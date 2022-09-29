@@ -1120,7 +1120,7 @@ message SubscribeBluetoothLEAdvertisementsRequest {
 
 message BluetoothServiceData {
   string uuid = 1;
-  repeated uint32 data = 2 [packed=true];
+  bytes data = 2;
 }
 message BluetoothLEAdvertisementResponse {
   option (id) = 67;
