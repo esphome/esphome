@@ -637,14 +637,11 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
     // (called CSS here)
 
     switch (record_type) {
+      case ESP_BLE_AD_TYPE_NAME_SHORT:
       case ESP_BLE_AD_TYPE_NAME_CMPL: {
         // CSS 1.2 LOCAL NAME
         // "The Local Name data type shall be the same as, or a shortened version of, the local name assigned to the
         // device." CSS 1: Optional in this context; shall not appear more than once in a block.
-        this->name_ = std::string(reinterpret_cast<const char *>(record), record_length);
-        break;
-      }
-      case ESP_BLE_AD_TYPE_NAME_SHORT: {
         // SHORTENED LOCAL NAME
         // "The Shortened Local Name data type defines a shortened version of the Local Name data type. The Shortened
         // Local Name data type shall not be used to advertise a name that is longer than the Local Name data type."
