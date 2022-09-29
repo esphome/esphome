@@ -203,7 +203,7 @@ message DeviceInfoResponse {
 
   uint32 webserver_port = 10;
 
-  bool has_bluetooth_proxy = 11;
+  uint32 bluetooth_proxy_flags = 11;
 }
 
 message ListEntitiesRequest {
