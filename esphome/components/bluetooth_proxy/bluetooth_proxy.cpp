@@ -73,7 +73,8 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
 #ifdef USE_API
-      api::global_api_server->send_bluetooth_device_connection(this->address_, false, this->mtu_);
+      api::global_api_server->send_bluetooth_device_connection(this->address_, false, this->mtu_,
+                                                               param->disconnect.reason);
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
 #endif
