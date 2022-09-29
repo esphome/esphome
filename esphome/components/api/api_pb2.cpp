@@ -539,7 +539,7 @@ bool DeviceInfoResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return true;
     }
     case 11: {
-      this->bluetooth_proxy_flags = value.as_uint32();
+      this->bluetooth_proxy_version = value.as_uint32();
       return true;
     }
     default:
@@ -591,7 +591,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(8, this->project_name);
   buffer.encode_string(9, this->project_version);
   buffer.encode_uint32(10, this->webserver_port);
-  buffer.encode_uint32(11, this->bluetooth_proxy_flags);
+  buffer.encode_uint32(11, this->bluetooth_proxy_version);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -638,8 +638,8 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  bluetooth_proxy_flags: ");
-  sprintf(buffer, "%u", this->bluetooth_proxy_flags);
+  out.append("  bluetooth_proxy_version: ");
+  sprintf(buffer, "%u", this->bluetooth_proxy_version);
   out.append(buffer);
   out.append("\n");
   out.append("}");

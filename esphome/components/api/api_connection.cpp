@@ -942,7 +942,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  resp.bluetooth_proxy_flags = 2;
+  resp.bluetooth_proxy_version = 2;
 #endif
   return resp;
 }
