@@ -158,18 +158,18 @@ void BluetoothProxy::loop() {
   } else if (this->send_service_ >= 0) {
     ESP_LOGD(TAG, "Start send: Free Heap Size: %u bytes", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
 
-    auto *service = this->services_[this->send_service_];
+    auto &service = this->services_[this->send_service_];
     api::BluetoothGATTGetServicesResponse resp;
     resp.address = this->address_;
     api::BluetoothGATTService service_resp;
     service_resp.uuid = {service->uuid.get_128bit_high(), service->uuid.get_128bit_low()};
     service_resp.handle = service->start_handle;
-    for (BLECharacteristic *characteristic : service->characteristics) {
+    for (auto &characteristic : service->characteristics) {
       api::BluetoothGATTCharacteristic characteristic_resp;
       characteristic_resp.uuid = {characteristic->uuid.get_128bit_high(), characteristic->uuid.get_128bit_low()};
       characteristic_resp.handle = characteristic->handle;
       characteristic_resp.properties = characteristic->properties;
-      for (BLEDescriptor *descriptor : characteristic->descriptors) {
+      for (auto &descriptor : characteristic->descriptors) {
         api::BluetoothGATTDescriptor descriptor_resp;
         descriptor_resp.uuid = {descriptor->uuid.get_128bit_high(), descriptor->uuid.get_128bit_low()};
         descriptor_resp.handle = descriptor->handle;
