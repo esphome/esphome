@@ -644,6 +644,13 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
         this->name_ = std::string(reinterpret_cast<const char *>(record), record_length);
         break;
       }
+      case ESP_BLE_AD_TYPE_NAME_SHORT: {
+        // SHORTENED LOCAL NAME
+        // "The Shortened Local Name data type defines a shortened version of the Local Name data type. The Shortened
+        // Local Name data type shall not be used to advertise a name that is longer than the Local Name data type."
+        this->name_ = std::string(reinterpret_cast<const char *>(record), record_length);
+        break;
+      }
       case ESP_BLE_AD_TYPE_TX_PWR: {
         // CSS 1.5 TX POWER LEVEL
         // "The TX Power Level data type indicates the transmitted power level of the packet containing the data type."
