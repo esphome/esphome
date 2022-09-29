@@ -95,11 +95,8 @@ class APIConnection : public APIServerConnection {
     this->send_homeassistant_service_response(call);
   }
 #ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &call) {
-    if (!this->bluetooth_le_advertisement_subscription_)
-      return false;
-    return this->send_bluetooth_le_advertisement_response(call);
-  }
+  bool send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg);
+
   void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
   void bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) override;
   void bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) override;
@@ -187,6 +184,8 @@ class APIConnection : public APIServerConnection {
   std::unique_ptr<APIFrameHelper> helper_;
 
   std::string client_info_;
+  uint32_t client_api_version_major_{0};
+  uint32_t client_api_version_minor_{0};
 #ifdef USE_ESP32_CAMERA
   esp32_camera::CameraImageReader image_reader_;
 #endif

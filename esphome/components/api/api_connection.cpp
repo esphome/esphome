@@ -827,6 +827,21 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 #endif
 
 #ifdef USE_BLUETOOTH_PROXY
+bool APIConnection::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg) {
+  if (!this->bluetooth_le_advertisement_subscription_)
+    return false;
+  if (this->client_api_version_major_ < 1 || this->client_api_version_minor_ < 7) {
+    for (auto service : msg.service_data) {
+      service.legacy_data.assign(service.data.begin(), service.data.end());
+      service.data.clear();
+    }
+    for (auto manufacturer_data : msg.manufacturer_data) {
+      manufacturer_data.legacy_data.assign(manufacturer_data.data.begin(), manufacturer_data.data.end());
+      manufacturer_data.data.clear();
+    }
+  }
+  return this->send_bluetooth_le_advertisement_response(msg);
+}
 void APIConnection::bluetooth_device_request(const BluetoothDeviceRequest &msg) {
   bluetooth_proxy::global_bluetooth_proxy->bluetooth_device_request(msg);
 }
@@ -876,11 +891,14 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
   this->client_info_ = msg.client_info + " (" + this->helper_->getpeername() + ")";
   this->helper_->set_log_info(client_info_);
-  ESP_LOGV(TAG, "Hello from client: '%s'", this->client_info_.c_str());
+  this->client_api_version_major_ = msg.api_version_major;
+  this->client_api_version_minor_ = msg.api_version_minor;
+  ESP_LOGV(TAG, "Hello from client: '%s' | API Version %d.%d", this->client_info_.c_str(),
+           this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 6;
+  resp.api_version_minor = 7;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.name = App.get_name();
 

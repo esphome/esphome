@@ -355,6 +355,20 @@ const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::Bluet
       return "UNKNOWN";
   }
 }
+bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->api_version_major = value.as_uint32();
+      return true;
+    }
+    case 3: {
+      this->api_version_minor = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
@@ -365,13 +379,27 @@ bool HelloRequest::decode_length(uint32_t field_id, ProtoLengthDelimited value) 
       return false;
   }
 }
-void HelloRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_string(1, this->client_info); }
+void HelloRequest::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->client_info);
+  buffer.encode_uint32(2, this->api_version_major);
+  buffer.encode_uint32(3, this->api_version_minor);
+}
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void HelloRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("HelloRequest {\n");
   out.append("  client_info: ");
   out.append("'").append(this->client_info).append("'");
+  out.append("\n");
+
+  out.append("  api_version_major: ");
+  sprintf(buffer, "%u", this->api_version_major);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  api_version_minor: ");
+  sprintf(buffer, "%u", this->api_version_minor);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -4884,13 +4912,23 @@ void SubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const 
   out.append("SubscribeBluetoothLEAdvertisementsRequest {}");
 }
 #endif
+bool BluetoothServiceData::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 2: {
+      this->legacy_data.push_back(value.as_uint32());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
 bool BluetoothServiceData::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {
       this->uuid = value.as_string();
       return true;
     }
-    case 2: {
+    case 3: {
       this->data = value.as_string();
       return true;
     }
@@ -4900,7 +4938,10 @@ bool BluetoothServiceData::decode_length(uint32_t field_id, ProtoLengthDelimited
 }
 void BluetoothServiceData::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(1, this->uuid);
-  buffer.encode_string(2, this->data);
+  for (auto &it : this->legacy_data) {
+    buffer.encode_uint32(2, it, true);
+  }
+  buffer.encode_string(3, this->data);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothServiceData::dump_to(std::string &out) const {
@@ -4909,6 +4950,13 @@ void BluetoothServiceData::dump_to(std::string &out) const {
   out.append("  uuid: ");
   out.append("'").append(this->uuid).append("'");
   out.append("\n");
+
+  for (const auto &it : this->legacy_data) {
+    out.append("  legacy_data: ");
+    sprintf(buffer, "%u", it);
+    out.append(buffer);
+    out.append("\n");
+  }
 
   out.append("  data: ");
   out.append("'").append(this->data).append("'");

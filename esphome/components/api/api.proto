@@ -87,6 +87,8 @@ message HelloRequest {
   // Not strictly necessary to send but nice for debugging
   // purposes.
   string client_info = 1;
+  uint32 api_version_major = 2;
+  uint32 api_version_minor = 3;
 }
 
 // Confirmation of successful connection request.
@@ -1120,7 +1122,8 @@ message SubscribeBluetoothLEAdvertisementsRequest {
 
 message BluetoothServiceData {
   string uuid = 1;
-  bytes data = 2;
+  repeated uint32 legacy_data = 2;
+  bytes data = 3; // Changed in proto version 1.7
 }
 message BluetoothLEAdvertisementResponse {
   option (id) = 67;

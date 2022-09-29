@@ -167,6 +167,8 @@ enum BluetoothDeviceRequestType : uint32_t {
 class HelloRequest : public ProtoMessage {
  public:
   std::string client_info{};
+  uint32_t api_version_major{0};
+  uint32_t api_version_minor{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -174,6 +176,7 @@ class HelloRequest : public ProtoMessage {
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class HelloResponse : public ProtoMessage {
  public:
@@ -1233,6 +1236,7 @@ class SubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
 class BluetoothServiceData : public ProtoMessage {
  public:
   std::string uuid{};
+  std::vector<uint32_t> legacy_data{};
   std::string data{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
@@ -1241,6 +1245,7 @@ class BluetoothServiceData : public ProtoMessage {
 
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class BluetoothLEAdvertisementResponse : public ProtoMessage {
  public:
