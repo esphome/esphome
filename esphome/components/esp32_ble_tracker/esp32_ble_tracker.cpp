@@ -645,7 +645,9 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
         // SHORTENED LOCAL NAME
         // "The Shortened Local Name data type defines a shortened version of the Local Name data type. The Shortened
         // Local Name data type shall not be used to advertise a name that is longer than the Local Name data type."
-        this->name_ = std::string(reinterpret_cast<const char *>(record), record_length);
+        if (record_length > this->name_.length()) {
+          this->name_ = std::string(reinterpret_cast<const char *>(record), record_length);
+        }
         break;
       }
       case ESP_BLE_AD_TYPE_TX_PWR: {
