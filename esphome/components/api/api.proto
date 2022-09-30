@@ -1122,7 +1122,7 @@ message SubscribeBluetoothLEAdvertisementsRequest {
 
 message BluetoothServiceData {
   string uuid = 1;
-  repeated uint32 legacy_data = 2;
+  repeated uint32 legacy_data = 2 [deprecated = true];
   bytes data = 3; // Changed in proto version 1.7
 }
 message BluetoothLEAdvertisementResponse {

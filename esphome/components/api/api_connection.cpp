@@ -831,14 +831,16 @@ bool APIConnection::send_bluetooth_le_advertisement(const BluetoothLEAdvertiseme
   if (!this->bluetooth_le_advertisement_subscription_)
     return false;
   if (this->client_api_version_major_ < 1 || this->client_api_version_minor_ < 7) {
-    for (auto service : msg.service_data) {
+    BluetoothLEAdvertisementResponse resp = msg;
+    for (auto &service : resp.service_data) {
       service.legacy_data.assign(service.data.begin(), service.data.end());
       service.data.clear();
     }
-    for (auto manufacturer_data : msg.manufacturer_data) {
+    for (auto &manufacturer_data : resp.manufacturer_data) {
       manufacturer_data.legacy_data.assign(manufacturer_data.data.begin(), manufacturer_data.data.end());
       manufacturer_data.data.clear();
     }
+    return this->send_bluetooth_le_advertisement_response(resp);
   }
   return this->send_bluetooth_le_advertisement_response(msg);
 }
