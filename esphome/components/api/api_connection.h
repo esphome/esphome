@@ -195,7 +195,7 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
-  bool bluetooth_le_advertisement_subscription_{true};
+  bool bluetooth_le_advertisement_subscription_{false};
   bool next_close_ = false;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
