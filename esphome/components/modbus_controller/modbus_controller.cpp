@@ -579,9 +579,7 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
     case SensorValueType::S_QWORD_R: {
       // Ignore bitmask for QWORD
       uint64_t tmp = get_data<uint64_t>(data, offset);
-      tmp = (tmp & 0xFFFF) << 48 | (tmp & 0xFFFF000000000000) >> 48 | (tmp & 0xFFFF0000) << 16 |
-            (tmp & 0xFFFF00000000) >> 16;
-      value = tmp;
+      value = (tmp << 48) | (tmp >> 48) | ((tmp & 0xFFFF0000) << 16) | ((tmp >> 16) & 0xFFFF0000);
     } break;
     case SensorValueType::RAW:
     default:
