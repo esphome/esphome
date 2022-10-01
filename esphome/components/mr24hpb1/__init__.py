@@ -6,6 +6,7 @@ from esphome.const import (
     DEVICE_CLASS_OCCUPANCY,
     DEVICE_CLASS_MOTION,
     ICON_MOTION_SENSOR,
+    ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
 CODEOWNERS = ["@lorki97", "@florianL21"]
@@ -74,10 +75,10 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(MR24HPB1Component),
-            cv.Optional(CONF_DEVICE_ID): text_sensor.text_sensor_schema(),
-            cv.Optional(CONF_SOFTWARE_VERSION): text_sensor.text_sensor_schema(),
-            cv.Optional(CONF_HARDWARE_VERSION): text_sensor.text_sensor_schema(),
-            cv.Optional(CONF_PROTOCOL_VERSION): text_sensor.text_sensor_schema(),
+            cv.Optional(CONF_DEVICE_ID): text_sensor.text_sensor_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC),
+            cv.Optional(CONF_SOFTWARE_VERSION): text_sensor.text_sensor_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC),
+            cv.Optional(CONF_HARDWARE_VERSION): text_sensor.text_sensor_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC),
+            cv.Optional(CONF_PROTOCOL_VERSION): text_sensor.text_sensor_schema(entity_category=ENTITY_CATEGORY_DIAGNOSTIC),
             cv.Optional(CONF_ENVIRONMENT_STATUS): text_sensor.text_sensor_schema(),
             cv.Optional(CONF_OCCUPANCY): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_OCCUPANCY,
