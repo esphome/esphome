@@ -155,8 +155,6 @@ void BluetoothProxy::loop() {
     this->send_service_ = -1;
     api::global_api_server->send_bluetooth_gatt_services_done(this->address_);
   } else if (this->send_service_ >= 0) {
-    ESP_LOGD(TAG, "Start send: Free Heap Size: %u bytes", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
-
     auto &service = this->services_[this->send_service_];
     api::BluetoothGATTGetServicesResponse resp;
     resp.address = this->address_;
@@ -179,8 +177,6 @@ void BluetoothProxy::loop() {
     resp.services.push_back(std::move(service_resp));
     api::global_api_server->send_bluetooth_gatt_services(resp);
     this->send_service_++;
-
-    ESP_LOGD(TAG, "End send: Free Heap Size: %u bytes", heap_caps_get_free_size(MALLOC_CAP_INTERNAL));
   }
 #endif
 }
