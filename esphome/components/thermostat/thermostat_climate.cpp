@@ -1024,11 +1024,9 @@ void ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTem
   }
 
   // Fire any preset changed trigger if defined
-  if (this->preset != preset) {
-    Trigger<> *trig = this->preset_change_trigger_;
-    assert(trig != nullptr);
-    trig->trigger();
-  }
+  Trigger<> *trig = this->preset_change_trigger_;
+  assert(trig != nullptr);
+  trig->trigger();
 
   this->refresh();
 }
