@@ -29,8 +29,10 @@ static const char *const TAG = "FT6336UTouchscreen";
 
 void FT6336UTouchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up FT6336UTouchscreen Touchscreen...");
-  this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-  this->interrupt_pin_->setup();
+  if (this->interrupt_pin_ != nullptr) {
+		this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+		this->interrupt_pin_->setup();
+	}
 
   if (this->reset_pin_ != nullptr) {
 		this->reset_pin_->setup();
