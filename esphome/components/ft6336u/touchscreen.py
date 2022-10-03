@@ -18,7 +18,7 @@ FT6336UTouchscreen = ft6336u_ns.class_(
 
 CONF_FT6336U_ID = "ft6336u_id"
 CONF_INTERRUPT_PIN = "interrupt_pin"
-CONF_RTS_PIN = "rts_pin"
+CONF_RESET_PIN = "reset_pin"
 
 
 CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
@@ -28,7 +28,7 @@ CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
             cv.Required(CONF_INTERRUPT_PIN): cv.All(
                 pins.internal_gpio_input_pin_schema
             ),
-            cv.Required(CONF_RTS_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
         }
     )
     .extend(i2c.i2c_device_schema(0x38))
@@ -44,5 +44,6 @@ async def to_code(config):
 
     interrupt_pin = await cg.gpio_pin_expression(config[CONF_INTERRUPT_PIN])
     cg.add(var.set_interrupt_pin(interrupt_pin))
-    rts_pin = await cg.gpio_pin_expression(config[CONF_RTS_PIN])
-    cg.add(var.set_rts_pin(rts_pin))
+    if CONF_RESET_PIN in config:
+        reset_pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+        cg.add(var.set_reset_pin(reset_pin))

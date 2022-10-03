@@ -32,7 +32,9 @@ void FT6336UTouchscreen::setup() {
   this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
   this->interrupt_pin_->setup();
 
-  this->rts_pin_->setup();
+  if (this->reset_pin_ != nullptr) {
+		this->reset_pin_->setup();
+	}
 
   this->hard_reset_();
 
@@ -97,17 +99,19 @@ bool FT6336UTouchscreen::get_power_state() {
 }
 
 void FT6336UTouchscreen::hard_reset_() {
-  this->rts_pin_->digital_write(false);
-  delay(10);
-  this->rts_pin_->digital_write(true);
-  delay(500);
+  if (this->reset_pin_ != nullptr) {
+	  this->reset_pin_->digital_write(false);
+	  delay(10);
+	  this->reset_pin_->digital_write(true);
+	  delay(500);
+	}
 }
 
 void FT6336UTouchscreen::dump_config() {
   ESP_LOGCONFIG(TAG, "FT6336U Touchscreen:");
   LOG_I2C_DEVICE(this);
   LOG_PIN("  Interrupt Pin: ", this->interrupt_pin_);
-  LOG_PIN("  RTS Pin: ", this->rts_pin_);
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
 uint8_t FT6336UTouchscreen::read_td_status(void) {
