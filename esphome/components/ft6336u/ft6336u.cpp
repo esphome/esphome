@@ -11,6 +11,17 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
+// Registers
+#define FT6336U_ADDR_TD_STATUS 		0x02
+
+#define FT6336U_ADDR_TOUCH1_ID 		0x05
+#define FT6336U_ADDR_TOUCH1_X 		0x03
+#define FT6336U_ADDR_TOUCH1_Y 		0x05
+
+#define FT6336U_ADDR_TOUCH2_ID 		0x0B
+#define FT6336U_ADDR_TOUCH2_X 		0x09
+#define FT6336U_ADDR_TOUCH2_Y 		0x0B
+
 namespace esphome {
 namespace ft6336u {
 
@@ -30,7 +41,6 @@ void FT6336UTouchscreen::setup() {
   this->y_resolution_ = 480;
 
   this->set_power_state(true);
-  ESP_LOGCONFIG(TAG, "display_height = %d, display_width = %d", this->display_height_, this->display_width_);
 }
 
 void FT6336UTouchscreen::loop() {
@@ -100,20 +110,8 @@ void FT6336UTouchscreen::dump_config() {
   LOG_PIN("  RTS Pin: ", this->rts_pin_);
 }
 
-uint8_t FT6336UTouchscreen::read_device_mode(void) {
-    return (readByte(FT6336U_ADDR_DEVICE_MODE) & 0x70) >> 4;
-}
-void FT6336UTouchscreen::write_device_mode(DEVICE_MODE_Enum mode) {
-    writeByte(FT6336U_ADDR_DEVICE_MODE, (mode & 0x07) << 4);
-}
-uint8_t FT6336UTouchscreen::read_gesture_id(void) {
-    return readByte(FT6336U_ADDR_GESTURE_ID);
-}
 uint8_t FT6336UTouchscreen::read_td_status(void) {
     return readByte(FT6336U_ADDR_TD_STATUS);
-}
-uint8_t FT6336UTouchscreen::read_touch_number(void) {
-    return readByte(FT6336U_ADDR_TD_STATUS) & 0x0F;
 }
 // Touch 1 functions
 uint16_t FT6336UTouchscreen::read_touch1_x(void) {
@@ -128,17 +126,8 @@ uint16_t FT6336UTouchscreen::read_touch1_y(void) {
     read_buf[1] = readByte(FT6336U_ADDR_TOUCH1_Y + 1);
 	return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
-uint8_t FT6336UTouchscreen::read_touch1_event(void) {
-    return readByte(FT6336U_ADDR_TOUCH1_EVENT) >> 6;
-}
 uint8_t FT6336UTouchscreen::read_touch1_id(void) {
     return readByte(FT6336U_ADDR_TOUCH1_ID) >> 4;
-}
-uint8_t FT6336UTouchscreen::read_touch1_weight(void) {
-    return readByte(FT6336U_ADDR_TOUCH1_WEIGHT);
-}
-uint8_t FT6336UTouchscreen::read_touch1_misc(void) {
-    return readByte(FT6336U_ADDR_TOUCH1_MISC) >> 4;
 }
 // Touch 2 functions
 uint16_t FT6336UTouchscreen::read_touch2_x(void) {
@@ -153,113 +142,9 @@ uint16_t FT6336UTouchscreen::read_touch2_y(void) {
     read_buf[1] = readByte(FT6336U_ADDR_TOUCH2_Y + 1);
 	return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
-uint8_t FT6336UTouchscreen::read_touch2_event(void) {
-    return readByte(FT6336U_ADDR_TOUCH2_EVENT) >> 6;
-}
 uint8_t FT6336UTouchscreen::read_touch2_id(void) {
     return readByte(FT6336U_ADDR_TOUCH2_ID) >> 4;
 }
-uint8_t FT6336UTouchscreen::read_touch2_weight(void) {
-    return readByte(FT6336U_ADDR_TOUCH2_WEIGHT);
-}
-uint8_t FT6336UTouchscreen::read_touch2_misc(void) {
-    return readByte(FT6336U_ADDR_TOUCH2_MISC) >> 4;
-}
-
-// Mode Parameter Register
-uint8_t FT6336UTouchscreen::read_touch_threshold(void) {
-    return readByte(FT6336U_ADDR_THRESHOLD);
-}
-uint8_t FT6336UTouchscreen::read_filter_coefficient(void) {
-    return readByte(FT6336U_ADDR_FILTER_COE);
-}
-uint8_t FT6336UTouchscreen::read_ctrl_mode(void) {
-    return readByte(FT6336U_ADDR_CTRL);
-}
-void FT6336UTouchscreen::write_ctrl_mode(CTRL_MODE_Enum mode) {
-    writeByte(FT6336U_ADDR_CTRL, mode);
-}
-uint8_t FT6336UTouchscreen::read_time_period_enter_monitor(void) {
-    return readByte(FT6336U_ADDR_TIME_ENTER_MONITOR);
-}
-uint8_t FT6336UTouchscreen::read_active_rate(void) {
-    return readByte(FT6336U_ADDR_ACTIVE_MODE_RATE);
-}
-uint8_t FT6336UTouchscreen::read_monitor_rate(void) {
-    return readByte(FT6336U_ADDR_MONITOR_MODE_RATE);
-}
-
-// Gesture Parameters
-uint8_t FT6336UTouchscreen::read_radian_value(void) {
-	return readByte(FT6336U_ADDR_RADIAN_VALUE);
-}
-void FT6336UTouchscreen::write_radian_value(uint8_t val) {
-	writeByte(FT6336U_ADDR_RADIAN_VALUE, val); 
-}
-uint8_t FT6336UTouchscreen::read_offset_left_right(void) {
-	return readByte(FT6336U_ADDR_OFFSET_LEFT_RIGHT);
-}
-void FT6336UTouchscreen::write_offset_left_right(uint8_t val) {
-	writeByte(FT6336U_ADDR_OFFSET_LEFT_RIGHT, val); 
-}
-uint8_t FT6336UTouchscreen::read_offset_up_down(void) {
-	return readByte(FT6336U_ADDR_OFFSET_UP_DOWN);
-}
-void FT6336UTouchscreen::write_offset_up_down(uint8_t val) {
-	writeByte(FT6336U_ADDR_OFFSET_UP_DOWN, val); 
-}
-uint8_t FT6336UTouchscreen::read_distance_left_right(void) {
-	return readByte(FT6336U_ADDR_DISTANCE_LEFT_RIGHT);
-}
-void FT6336UTouchscreen::write_distance_left_right(uint8_t val) {
-	writeByte(FT6336U_ADDR_DISTANCE_LEFT_RIGHT, val); 
-}
-uint8_t FT6336UTouchscreen::read_distance_up_down(void) {
-	return readByte(FT6336U_ADDR_DISTANCE_UP_DOWN);
-}
-void FT6336UTouchscreen::write_distance_up_down(uint8_t val) {
-	writeByte(FT6336U_ADDR_DISTANCE_UP_DOWN, val); 
-}
-uint8_t FT6336UTouchscreen::read_distance_zoom(void) {
-	return readByte(FT6336U_ADDR_DISTANCE_ZOOM);
-}
-void FT6336UTouchscreen::write_distance_zoom(uint8_t val) {
-	writeByte(FT6336U_ADDR_DISTANCE_ZOOM, val); 
-}
-
-
-// System Information
-uint16_t FT6336UTouchscreen::read_library_version(void) {
-    uint8_t read_buf[2];
-    read_buf[0] = readByte(FT6336U_ADDR_LIBRARY_VERSION_H);
-    read_buf[1] = readByte(FT6336U_ADDR_LIBRARY_VERSION_L);
-	return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
-}
-uint8_t FT6336UTouchscreen::read_chip_id(void) {
-    return readByte(FT6336U_ADDR_CHIP_ID);
-}
-uint8_t FT6336UTouchscreen::read_g_mode(void) {
-    return readByte(FT6336U_ADDR_G_MODE);
-}
-void FT6336UTouchscreen::write_g_mode(G_MODE_Enum mode){
-	writeByte(FT6336U_ADDR_G_MODE, mode); 
-}
-uint8_t FT6336UTouchscreen::read_pwrmode(void) {
-    return readByte(FT6336U_ADDR_POWER_MODE);
-}
-uint8_t FT6336UTouchscreen::read_firmware_id(void) {
-    return readByte(FT6336U_ADDR_FIRMARE_ID);
-}
-uint8_t FT6336UTouchscreen::read_focaltech_id(void) {
-    return readByte(FT6336U_ADDR_FOCALTECH_ID);
-}
-uint8_t FT6336UTouchscreen::read_release_code_id(void) {
-    return readByte(FT6336U_ADDR_RELEASE_CODE_ID);
-}
-uint8_t FT6336UTouchscreen::read_state(void) {
-    return readByte(FT6336U_ADDR_STATE);
-}
-
 
 //coordinate diagram（FPC downwards）
 ////y ////////////////////264x176
