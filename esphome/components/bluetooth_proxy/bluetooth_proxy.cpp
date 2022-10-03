@@ -119,8 +119,7 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.conn_id != this->conn_id_)
         break;
-      ESP_LOGV(TAG, "ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%s", param->notify.handle,
-               format_hex(param->notify.value, param->notify.value_len).c_str());
+      ESP_LOGV(TAG, "ESP_GATTC_NOTIFY_EVT: handle=0x%x", param->notify.handle);
 #ifdef USE_API
       api::BluetoothGATTNotifyDataResponse resp;
       resp.address = this->address_;
@@ -259,8 +258,7 @@ void BluetoothProxy::bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &
     return;
   }
 
-  ESP_LOGV(TAG, "Writing GATT characteristic %s -> %s", characteristic->uuid.to_string().c_str(),
-           format_hex_pretty((uint8_t *) msg.data.data(), msg.data.size()).c_str());
+  ESP_LOGV(TAG, "Writing GATT characteristic %s", characteristic->uuid.to_string().c_str());
   characteristic->write_value((uint8_t *) msg.data.data(), msg.data.size(),
                               msg.response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP);
 }
@@ -307,9 +305,8 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
     return;
   }
 
-  ESP_LOGV(TAG, "Writing GATT characteristic descriptor %s -> %s -> %s",
-           descriptor->characteristic->uuid.to_string().c_str(), descriptor->uuid.to_string().c_str(),
-           format_hex_pretty((uint8_t *) msg.data.data(), msg.data.size()).c_str());
+  ESP_LOGV(TAG, "Writing GATT characteristic descriptor %s -> %s", descriptor->characteristic->uuid.to_string().c_str(),
+           descriptor->uuid.to_string().c_str());
 
   esp_err_t err =
       esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descriptor->handle, msg.data.size(),
