@@ -93,6 +93,10 @@
 #define USE_SOCKET_IMPL_LWIP_TCP
 #endif
 
+#ifdef USE_LIBRETUYA
+#define USE_SOCKET_IMPL_LWIP_SOCKETS
+#endif
+
 // Disabled feature flags
 //#define USE_BSEC  // Requires a library with proprietary license.
 
