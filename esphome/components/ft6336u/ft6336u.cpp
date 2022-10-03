@@ -1,9 +1,7 @@
 /**************************************************************************/
 /*!
-  @file     FT6336UTouchscreen.cpp
   Author: Gustavo Ambrozio
-  Based on work by: Atsushi Sasaki(https://github.com/aselectroworks)
-  License: MIT (see LICENSE)
+  Based on work by: Atsushi Sasaki (https://github.com/aselectroworks/Arduino-FT6336U)
 */
 /**************************************************************************/
 
