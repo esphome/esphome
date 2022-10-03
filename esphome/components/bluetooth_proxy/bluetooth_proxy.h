@@ -44,11 +44,15 @@ class BluetoothProxy : public BLEClientBase {
   int get_bluetooth_connections_free() { return this->state_ == espbt::ClientState::IDLE ? 1 : 0; }
   int get_bluetooth_connections_limit() { return 1; }
 
+  void set_active(bool active) { this->active_ = active; }
+  bool has_active() { return this->active_; }
+
  protected:
   void send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device);
 
   std::map<uint64_t, esp_ble_addr_type_t> address_type_map_;
   int16_t send_service_{-1};
+  bool active_;
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
