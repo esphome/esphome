@@ -284,7 +284,7 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
       Color col = display::ColorUtil::index8_to_color_palette888(*src++, this->palette_);
       color = display::ColorUtil::color_to_565(col);
     }
-    *dst++ = (uint8_t) (color >> 8);
+    *dst++ = (uint8_t)(color >> 8);
     *dst++ = (uint8_t) color;
   }
 
