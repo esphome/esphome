@@ -974,8 +974,11 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   auto config = this->preset_config_.find(preset);
 
   if (config != this->preset_config_.end()) {
+    ESP_LOGI(TAG, "Preset %s requested", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
     if (this->change_preset_internal_(config->second)) {
-      ESP_LOGI(TAG, "Applied preset %s", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
+      ESP_LOGI(TAG, "Preset %s applied", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
+    } else {
+      ESP_LOGI(TAG, "No changes required to apply preset %s", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
     }
     this->custom_preset.reset();
     this->preset = preset;
@@ -988,8 +991,11 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
   auto config = this->custom_preset_config_.find(custom_preset);
 
   if (config != this->custom_preset_config_.end()) {
+    ESP_LOGI(TAG, "Custom preset %s requested", custom_preset.c_str());
     if (this->change_preset_internal_(config->second)) {
-      ESP_LOGI(TAG, "Applied custom preset %s", custom_preset.c_str());
+      ESP_LOGI(TAG, "Custom preset %s applied", custom_preset.c_str());
+    } else {
+      ESP_LOGI(TAG, "No changes required to apply custom preset %s", custom_preset.c_str());
     }
     this->preset.reset();
     this->custom_preset = custom_preset;
