@@ -22,15 +22,17 @@ enum class TouchStatusEnum: uint8_t {
   stream, 
   release, 
 }; 
+
 typedef struct {
     TouchStatusEnum status; 
     uint16_t x; 
     uint16_t y; 
 } TouchPointType;
+
 typedef struct {
     uint8_t touch_count; 
     TouchPointType tp[2]; 
-} FT6336U_TouchPointType; 
+} FT6336UTouchPoint; 
 
 using namespace touchscreen;
 
@@ -47,7 +49,7 @@ class FT6336UTouchscreen : public Touchscreen, public Component, public i2c::I2C
   void hard_reset_();
   uint8_t readByte(uint8_t addr); 
   void writeByte(uint8_t addr, uint8_t data); 
-  FT6336U_TouchPointType scan();
+  FT6336UTouchPoint scan();
 
   InternalGPIOPin *interrupt_pin_;
   GPIOPin *reset_pin_;
@@ -62,7 +64,7 @@ class FT6336UTouchscreen : public Touchscreen, public Component, public i2c::I2C
   uint16_t read_touch2_y();
   uint8_t read_touch2_id();
 
-  FT6336U_TouchPointType touchPoint; 
+  FT6336UTouchPoint touchPoint; 
 };
 
 }  // namespace ft6336u

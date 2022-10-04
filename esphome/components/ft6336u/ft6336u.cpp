@@ -44,7 +44,7 @@ void FT6336UTouchscreen::setup() {
 }
 
 void FT6336UTouchscreen::loop() {
-  FT6336U_TouchPointType tp = scan();
+  FT6336UTouchPoint tp = scan();
 
   if (tp.touch_count == 0) {
     for (auto *listener : this->touch_listeners_)
@@ -138,7 +138,7 @@ uint8_t FT6336UTouchscreen::read_touch2_id() {
   return readByte(FT6336U_ADDR_TOUCH2_ID) >> 4;
 }
 
-FT6336U_TouchPointType FT6336UTouchscreen::scan(){
+FT6336UTouchPoint FT6336UTouchscreen::scan(){
   touchPoint.touch_count = read_touch_count();
 
   if(touchPoint.touch_count == 0) {
