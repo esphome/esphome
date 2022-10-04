@@ -974,9 +974,9 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
   auto config = this->preset_config_.find(preset);
 
   if (config != this->preset_config_.end()) {
-    ESP_LOGI(TAG, "Switching to preset  %s", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
-    this->change_preset_internal_(config->second);
-
+    if (this->change_preset_internal_(config->second)) {
+      ESP_LOGI(TAG, "Applied preset %s", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
+    }
     this->custom_preset.reset();
     this->preset = preset;
   } else {
@@ -988,9 +988,9 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
   auto config = this->custom_preset_config_.find(custom_preset);
 
   if (config != this->custom_preset_config_.end()) {
-    ESP_LOGI(TAG, "Switching to custom preset  %s", custom_preset.c_str());
-    this->change_preset_internal_(config->second);
-
+    if (this->change_preset_internal_(config->second)) {
+      ESP_LOGI(TAG, "Applied custom preset %s", custom_preset.c_str());
+    }
     this->preset.reset();
     this->custom_preset = custom_preset;
   } else {
@@ -998,37 +998,55 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
   }
 }
 
-void ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTempConfig &config) {
+bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTempConfig &config) {
+  bool something_changed = false;
+
   if (this->supports_two_points_) {
-    this->target_temperature_low = config.default_temperature_low;
-    this->target_temperature_high = config.default_temperature_high;
+    if (this->target_temperature_low != config.default_temperature_low) {
+      this->target_temperature_low = config.default_temperature_low;
+      something_changed = true;
+    }
+    if (this->target_temperature_high != config.default_temperature_high) {
+      this->target_temperature_high = config.default_temperature_high;
+      something_changed = true;
+    }
   } else {
-    this->target_temperature = config.default_temperature;
+    if (this->target_temperature != config.default_temperature) {
+      this->target_temperature = config.default_temperature;
+      something_changed = true;
+    }
   }
 
-  // Note: The mode, fan_mode, and swing_mode can all be defined on the preset but if the climate.control call
-  // also specifies them then the control's version will override these for that call
-  if (config.mode_.has_value()) {
-    this->mode = *config.mode_;
+  // Note: The mode, fan_mode and swing_mode can all be defined in the preset but if the climate.control call
+  //  also specifies them then the climate.control call's values will override the preset's values for that call
+  if (config.mode_.has_value() && (this->mode != config.mode_.value())) {
     ESP_LOGV(TAG, "Setting mode to %s", LOG_STR_ARG(climate::climate_mode_to_string(*config.mode_)));
+    this->mode = *config.mode_;
+    something_changed = true;
   }
 
-  if (config.fan_mode_.has_value()) {
-    this->fan_mode = *config.fan_mode_;
+  if (config.fan_mode_.has_value() && (this->fan_mode != config.fan_mode_.value())) {
     ESP_LOGV(TAG, "Setting fan mode to %s", LOG_STR_ARG(climate::climate_fan_mode_to_string(*config.fan_mode_)));
+    this->fan_mode = *config.fan_mode_;
+    something_changed = true;
   }
 
-  if (config.swing_mode_.has_value()) {
+  if (config.swing_mode_.has_value() && (this->swing_mode != config.swing_mode_.value())) {
     ESP_LOGV(TAG, "Setting swing mode to %s", LOG_STR_ARG(climate::climate_swing_mode_to_string(*config.swing_mode_)));
     this->swing_mode = *config.swing_mode_;
+    something_changed = true;
   }
 
   // Fire any preset changed trigger if defined
-  Trigger<> *trig = this->preset_change_trigger_;
-  assert(trig != nullptr);
-  trig->trigger();
+  if (something_changed) {
+    Trigger<> *trig = this->preset_change_trigger_;
+    assert(trig != nullptr);
+    trig->trigger();
 
-  this->refresh();
+    this->refresh();
+  }
+
+  return something_changed;
 }
 
 void ThermostatClimate::set_preset_config(climate::ClimatePreset preset,
