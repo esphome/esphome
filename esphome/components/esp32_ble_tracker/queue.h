@@ -72,13 +72,13 @@ class BLEEvent {
     // Need to also make a copy of relevant event data.
     switch (e) {
       case ESP_GATTC_NOTIFY_EVT:
-        memcpy(this->event_.gattc.data, p->notify.value, p->notify.value_len);
-        this->event_.gattc.gattc_param.notify.value = this->event_.gattc.data;
+        this->data.assign(p->notify.value, p->notify.value + p->notify.value_len);
+        this->event_.gattc.gattc_param.notify.value = this->data.data();
         break;
       case ESP_GATTC_READ_CHAR_EVT:
       case ESP_GATTC_READ_DESCR_EVT:
-        memcpy(this->event_.gattc.data, p->read.value, p->read.value_len);
-        this->event_.gattc.gattc_param.read.value = this->event_.gattc.data;
+        this->data.assign(p->read.value, p->read.value + p->read.value_len);
+        this->event_.gattc.gattc_param.read.value = this->data.data();
         break;
       default:
         break;
@@ -96,9 +96,9 @@ class BLEEvent {
       esp_gattc_cb_event_t gattc_event;
       esp_gatt_if_t gattc_if;
       esp_ble_gattc_cb_param_t gattc_param;
-      uint8_t data[64];
     } gattc;
   } event_;
+  std::vector<uint8_t> data{};
   uint8_t type_;  // 0=gap 1=gattc
 };
 
