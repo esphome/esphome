@@ -16,7 +16,7 @@ from esphome.core import HexInt
 
 DEPENDENCIES = ["spi"]
 
-CODEOWNER = ["@NIELSNL68"]
+CODEOWNERS = ["@nielsnl68"]
 
 ili9XXX_ns = cg.esphome_ns.namespace("ili9xxx")
 ili9XXXSPI = ili9XXX_ns.class_(
