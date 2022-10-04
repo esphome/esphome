@@ -102,43 +102,43 @@ void FT6336UTouchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-uint8_t FT6336UTouchscreen::read_td_status(void) {
+uint8_t FT6336UTouchscreen::read_td_status() {
   return readByte(FT6336U_ADDR_TD_STATUS);
 }
 // Touch 1 functions
-uint16_t FT6336UTouchscreen::read_touch1_x(void) {
+uint16_t FT6336UTouchscreen::read_touch1_x() {
   uint8_t read_buf[2];
   read_buf[0] = readByte(FT6336U_ADDR_TOUCH1_X);
   read_buf[1] = readByte(FT6336U_ADDR_TOUCH1_X + 1);
 	return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
-uint16_t FT6336UTouchscreen::read_touch1_y(void) {
+uint16_t FT6336UTouchscreen::read_touch1_y() {
   uint8_t read_buf[2];
   read_buf[0] = readByte(FT6336U_ADDR_TOUCH1_Y);
   read_buf[1] = readByte(FT6336U_ADDR_TOUCH1_Y + 1);
 	return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
-uint8_t FT6336UTouchscreen::read_touch1_id(void) {
+uint8_t FT6336UTouchscreen::read_touch1_id() {
   return readByte(FT6336U_ADDR_TOUCH1_ID) >> 4;
 }
 // Touch 2 functions
-uint16_t FT6336UTouchscreen::read_touch2_x(void) {
+uint16_t FT6336UTouchscreen::read_touch2_x() {
   uint8_t read_buf[2];
   read_buf[0] = readByte(FT6336U_ADDR_TOUCH2_X);
   read_buf[1] = readByte(FT6336U_ADDR_TOUCH2_X + 1);
 	return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
-uint16_t FT6336UTouchscreen::read_touch2_y(void) {
+uint16_t FT6336UTouchscreen::read_touch2_y() {
   uint8_t read_buf[2];
   read_buf[0] = readByte(FT6336U_ADDR_TOUCH2_Y);
   read_buf[1] = readByte(FT6336U_ADDR_TOUCH2_Y + 1);
 	return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
-uint8_t FT6336UTouchscreen::read_touch2_id(void) {
+uint8_t FT6336UTouchscreen::read_touch2_id() {
   return readByte(FT6336U_ADDR_TOUCH2_ID) >> 4;
 }
 
-FT6336U_TouchPointType FT6336UTouchscreen::scan(void){
+FT6336U_TouchPointType FT6336UTouchscreen::scan(){
   touchPoint.touch_count = read_td_status();
 
   if(touchPoint.touch_count == 0) {

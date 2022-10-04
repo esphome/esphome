@@ -47,20 +47,20 @@ class FT6336UTouchscreen : public Touchscreen, public Component, public i2c::I2C
   void hard_reset_();
   uint8_t readByte(uint8_t addr); 
   void writeByte(uint8_t addr, uint8_t data); 
-  FT6336U_TouchPointType scan(void);
+  FT6336U_TouchPointType scan();
 
   InternalGPIOPin *interrupt_pin_;
   GPIOPin *reset_pin_;
   uint16_t x_resolution_;
   uint16_t y_resolution_;
 
-  uint8_t read_td_status(void);
-  uint16_t read_touch1_x(void);
-  uint16_t read_touch1_y(void);
-  uint8_t read_touch1_id(void);
-  uint16_t read_touch2_x(void);
-  uint16_t read_touch2_y(void);
-  uint8_t read_touch2_id(void);
+  uint8_t read_td_status();
+  uint16_t read_touch1_x();
+  uint16_t read_touch1_y();
+  uint8_t read_touch1_id();
+  uint16_t read_touch2_x();
+  uint16_t read_touch2_y();
+  uint8_t read_touch2_id();
 
   FT6336U_TouchPointType touchPoint; 
 };
