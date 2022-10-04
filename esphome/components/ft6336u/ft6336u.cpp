@@ -142,23 +142,23 @@ FT6336U_TouchPointType FT6336UTouchscreen::scan(){
   touchPoint.touch_count = read_td_status();
 
   if(touchPoint.touch_count == 0) {
-    touchPoint.tp[0].status = release;
-    touchPoint.tp[1].status = release;
+    touchPoint.tp[0].status = TouchStatusEnum::release;
+    touchPoint.tp[1].status = TouchStatusEnum::release;
   }
   else if(touchPoint.touch_count == 1) {
     uint8_t id1 = read_touch1_id(); // id1 = 0 or 1
-    touchPoint.tp[id1].status = (touchPoint.tp[id1].status == release) ? touch : stream;
+    touchPoint.tp[id1].status = (touchPoint.tp[id1].status == TouchStatusEnum::release) ? TouchStatusEnum::touch : TouchStatusEnum::stream;
     touchPoint.tp[id1].x = read_touch1_x();
     touchPoint.tp[id1].y = read_touch1_y();
-    touchPoint.tp[~id1 & 0x01].status = release;
+    touchPoint.tp[~id1 & 0x01].status = TouchStatusEnum::release;
   }
   else {
     uint8_t id1 = read_touch1_id(); // id1 = 0 or 1
-    touchPoint.tp[id1].status = (touchPoint.tp[id1].status == release) ? touch : stream;
+    touchPoint.tp[id1].status = (touchPoint.tp[id1].status == TouchStatusEnum::release) ? TouchStatusEnum::touch : TouchStatusEnum::stream;
     touchPoint.tp[id1].x = read_touch1_x();
     touchPoint.tp[id1].y = read_touch1_y();
     uint8_t id2 = read_touch2_id(); // id2 = 0 or 1(~id1 & 0x01)
-    touchPoint.tp[id2].status = (touchPoint.tp[id2].status == release) ? touch : stream;
+    touchPoint.tp[id2].status = (touchPoint.tp[id2].status == TouchStatusEnum::release) ? TouchStatusEnum::touch : TouchStatusEnum::stream;
     touchPoint.tp[id2].x = read_touch2_x();
     touchPoint.tp[id2].y = read_touch2_y();
   }

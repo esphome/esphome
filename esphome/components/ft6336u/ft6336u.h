@@ -17,11 +17,11 @@ namespace esphome {
 namespace ft6336u {
 
 // Function Specific Type
-typedef enum {
-    touch = 0, 
-    stream, 
-    release, 
-} TouchStatusEnum; 
+enum class TouchStatusEnum: uint8_t {
+  touch = 0, 
+  stream, 
+  release, 
+}; 
 typedef struct {
     TouchStatusEnum status; 
     uint16_t x; 
