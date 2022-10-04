@@ -51,9 +51,9 @@ void ILI9XXXDisplay::update() {
 #endif
 
 #ifndef EXTENDED_DISPLAYBUFFER
-  void ILI9XXXDisplay::display_() {
+void ILI9XXXDisplay::display_() {
 #else
-  void ILI9XXXDisplay::display() {}
+void ILI9XXXDisplay::display() {}
 #endif
   // we will only update the changed window to the display
   uint16_t w = this->x_high_ - this->x_low_ + 1;  // NOLINT
@@ -284,7 +284,7 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
       Color col = display::ColorUtil::index8_to_color_palette888(*src++, this->palette_);
       color = display::ColorUtil::color_to_565(col);
     }
-    *dst++ = (uint8_t)(color >> 8);
+    *dst++ = (uint8_t) (color >> 8);
     *dst++ = (uint8_t) color;
   }
 
