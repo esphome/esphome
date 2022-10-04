@@ -88,43 +88,43 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
 };
 
 //-----------   M5Stack display --------------
-class ILI9XXX_M5Stack : public ILI9XXXDisplay {
+class ILI9XXXM5Stack : public ILI9XXXDisplay {
  protected:
   void initialize() override;
 };
 
 //-----------   ILI9XXX_24_TFT display --------------
-class ILI9XXX_ILI9341 : public ILI9XXXDisplay {
+class ILI9XXXILI9341 : public ILI9XXXDisplay {
  protected:
   void initialize() override;
 };
 
 //-----------   ILI9XXX_24_TFT rotated display --------------
-class ILI9XXX_ILI9342 : public ILI9XXXDisplay {
+class ILI9XXXILI9342 : public ILI9XXXDisplay {
  protected:
   void initialize() override;
 };
 
 //-----------   ILI9XXX_??_TFT rotated display --------------
-class ILI9XXX_ILI9481 : public ILI9XXXDisplay {
+class ILI9XXXILI9481 : public ILI9XXXDisplay {
  protected:
   void initialize() override;
 };
 
 //-----------   ILI9XXX_35_TFT rotated display --------------
-class ILI9XXX_ILI9486 : public ILI9XXXDisplay {
+class ILI9XXXILI9486 : public ILI9XXXDisplay {
  protected:
   void initialize() override;
 };
 
 //-----------   ILI9XXX_35_TFT rotated display --------------
-class ILI9XXX_ILI9488 : public ILI9XXXDisplay {
+class ILI9XXXILI9488 : public ILI9XXXDisplay {
  protected:
   void initialize() override;
 };
 
 //-----------   ILI9XXX_35_TFT rotated display --------------
-class ILI9XXX_ST7796 : public ILI9XXXDisplay {
+class ILI9XXXST7796 : public ILI9XXXDisplay {
  protected:
   void initialize() override;
 };
