@@ -1,7 +1,7 @@
 from esphome.components import esp32_ble_tracker, esp32_ble_client
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ACTIVE, CONF_ID
+from esphome.const import CONF_ACTIVE, CONF_ID, CONF_MIN_RSSI
 
 AUTO_LOAD = ["esp32_ble_client", "esp32_ble_tracker"]
 DEPENDENCIES = ["esp32"]
@@ -18,6 +18,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BluetoothProxy),
         cv.Optional(CONF_ACTIVE, default=False): cv.boolean,
+        cv.Optional(CONF_MIN_RSSI, default=-80): cv.int_range(-100, -50),
     }
 ).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
 
@@ -27,6 +28,7 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
+    cg.add(var.set_min_rssi(config[CONF_MIN_RSSI]))
 
     await esp32_ble_tracker.register_client(var, config)
 
