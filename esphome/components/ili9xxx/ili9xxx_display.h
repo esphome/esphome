@@ -48,7 +48,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void setup_pins_();
   virtual void initialize() = 0;
 #ifndef EXTENDED_DISPLAYBUFFER
-  void display();
+  void display_();
 #else
   void display() override;
 #endif

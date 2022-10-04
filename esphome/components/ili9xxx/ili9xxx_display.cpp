@@ -46,11 +46,15 @@ float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWA
 #ifndef EXTENDED_DISPLAYBUFFER
 void ILI9XXXDisplay::update() {
   this->do_update_();
-  this->display();
+  this->display_();
 }
 #endif
 
-void ILI9XXXDisplay::display() {
+#ifndef EXTENDED_DISPLAYBUFFER
+  void ILI9XXXDisplay::display_() {
+#else
+  void ILI9XXXDisplay::display() {}
+#endif
   // we will only update the changed window to the display
   uint16_t w = this->x_high_ - this->x_low_ + 1;  // NOLINT
   uint16_t h = this->y_high_ - this->y_low_ + 1;  // NOLINT
