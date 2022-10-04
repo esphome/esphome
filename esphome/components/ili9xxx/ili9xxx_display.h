@@ -26,7 +26,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void dump_config() override;
   void setup() override;
 #ifndef EXTENDED_DISPLAYBUFFER
-  void update() override ;
+  void update() override;
 #endif
   float get_setup_priority() const override;
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
@@ -51,7 +51,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void display();
 #else
   void display() override;
-#endif 
+#endif
   void init_lcd_(const uint8_t *init_cmd);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void invert_display_(bool invert);

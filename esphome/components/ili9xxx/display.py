@@ -24,16 +24,16 @@ ili9XXXSPI = ili9XXX_ns.class_(
 ILI9XXXColorMode = ili9XXX_ns.enum("ILI9XXXColorMode")
 
 MODELS = {
-    "M5STACK": ili9XXX_ns.class_("ILI9XXX_M5Stack", ili9XXXSPI),
-    "TFT_2.4": ili9XXX_ns.class_("ILI9XXX_ILI9341", ili9XXXSPI),
-    "TFT_2.4R": ili9XXX_ns.class_("ILI9XXX_ILI9342", ili9XXXSPI),
-    "TFT_3.5": ili9XXX_ns.class_("ILI9XXX_ILI9486", ili9XXXSPI),
-    "ILI9341": ili9XXX_ns.class_("ILI9XXX_ILI9341", ili9XXXSPI),
-    "ILI9342": ili9XXX_ns.class_("ILI9XXX_ILI9342", ili9XXXSPI),
-    "ILI9481": ili9XXX_ns.class_("ILI9XXX_ILI9481", ili9XXXSPI),
-    "ILI9486": ili9XXX_ns.class_("ILI9XXX_ILI9486", ili9XXXSPI),
-    "ILI9488": ili9XXX_ns.class_("ILI9XXX_ILI9488", ili9XXXSPI),
-    "ST7796": ili9XXX_ns.class_("ILI9XXX_ST7796", ili9XXXSPI),
+    "M5STACK": ili9XXX_ns.class_("ILI9XXXM5Stack", ili9XXXSPI),
+    "TFT_2.4": ili9XXX_ns.class_("ILI9XXXILI9341", ili9XXXSPI),
+    "TFT_2.4R": ili9XXX_ns.class_("ILI9XXXILI9342", ili9XXXSPI),
+    "TFT_3.5": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
+    "ILI9341": ili9XXX_ns.class_("ILI9XXXILI9341", ili9XXXSPI),
+    "ILI9342": ili9XXX_ns.class_("ILI9XXXILI9342", ili9XXXSPI),
+    "ILI9481": ili9XXX_ns.class_("ILI9XXXILI9481", ili9XXXSPI),
+    "ILI9486": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
+    "ILI9488": ili9XXX_ns.class_("ILI9XXXILI9488", ili9XXXSPI),
+    "ST7796": ili9XXX_ns.class_("ILI9XXXST7796", ili9XXXSPI),
 }
 
 ILI9XXX_MODEL = cv.enum(MODELS, upper=True, space="_")

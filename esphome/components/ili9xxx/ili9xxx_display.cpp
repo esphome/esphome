@@ -52,8 +52,8 @@ void ILI9XXXDisplay::update() {
 
 void ILI9XXXDisplay::display() {
   // we will only update the changed window to the display
-  uint16_t w = this->x_high_ - this->x_low_ + 1; // NOLINT
-  uint16_t h = this->y_high_ - this->y_low_ + 1; // NOLINT
+  uint16_t w = this->x_high_ - this->x_low_ + 1;  // NOLINT
+  uint16_t h = this->y_high_ - this->y_low_ + 1;  // NOLINT
   uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
 
   // check if something was displayed
@@ -63,8 +63,8 @@ void ILI9XXXDisplay::display() {
 
   set_addr_window_(this->x_low_, this->y_low_, w, h);
 
-  ESP_LOGVV(TAG, "Start display(xlow:%d, ylow:%d, xhigh:%d, yhigh:%d, width:%d, heigth:%d, start_pos:%d)",
-            this->x_low_, this->y_low_, this->x_high_, this->y_high_, w, h, start_pos);
+  ESP_LOGVV(TAG, "Start display(xlow:%d, ylow:%d, xhigh:%d, yhigh:%d, width:%d, heigth:%d, start_pos:%d)", this->x_low_,
+            this->y_low_, this->x_high_, this->y_high_, w, h, start_pos);
 
   this->start_data_();
   for (uint16_t row = 0; row < h; row++) {
@@ -106,7 +106,7 @@ void ILI9XXXDisplay::fill_internal_(uint8_t color) {
   this->start_data_();
 
   while (rem > 0) {
-    size_t sz = rem <= sizeof(transfer_buffer_) ? rem : sizeof(transfer_buffer_); // NOLINT
+    size_t sz = rem <= sizeof(transfer_buffer_) ? rem : sizeof(transfer_buffer_);  // NOLINT
     this->write_array(transfer_buffer_, sz);
     rem -= sz;
   }
@@ -164,8 +164,8 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
     this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
     this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
-    ESP_LOGVV(TAG, "=>>> pixel (x:%d, y:%d) (xl:%d, xh:%d, yl:%d, yh:%d",
-             x, y, this->x_low_, this->x_high_, this->y_low_, this->y_high_);
+    ESP_LOGVV(TAG, "=>>> pixel (x:%d, y:%d) (xl:%d, xh:%d, yl:%d, yh:%d", x, y, this->x_low_, this->x_high_,
+              this->y_low_, this->y_high_);
   }
 }
 
@@ -280,7 +280,7 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
       Color col = display::ColorUtil::index8_to_color_palette888(*src++, this->palette_);
       color = display::ColorUtil::color_to_565(col);
     }
-    *dst++ = (uint8_t)(color >> 8);
+    *dst++ = (uint8_t) (color >> 8);
     *dst++ = (uint8_t) color;
   }
 
@@ -332,7 +332,6 @@ void ILI9XXX_ST7796::initialize() {
   this->width_ = 320;
   this->height_ = 480;
 }
-
 
 }  // namespace ili9xxx
 }  // namespace esphome
