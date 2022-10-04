@@ -149,13 +149,6 @@ uint8_t FT6336UTouchscreen::read_touch2_id(void) {
   return readByte(FT6336U_ADDR_TOUCH2_ID) >> 4;
 }
 
-//coordinate diagram（FPC downwards）
-////y ////////////////////264x176
-						//
-						//
-						//x
-						//
-						//
 FT6336U_TouchPointType FT6336UTouchscreen::scan(void){
   touchPoint.touch_count = read_td_status();
 
