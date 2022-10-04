@@ -128,9 +128,9 @@ uint8_t BedJetHub::write_bedjet_packet_(BedjetPacket *pkt) {
     }
     return -1;
   }
-  auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_cmd_,
-                                         pkt->data_length + 1, (uint8_t *) &pkt->command, ESP_GATT_WRITE_TYPE_NO_RSP,
-                                         ESP_GATT_AUTH_REQ_NONE);
+  auto status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(),
+                                         this->char_handle_cmd_, pkt->data_length + 1, (uint8_t *) &pkt->command,
+                                         ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
   return status;
 }
 
@@ -138,13 +138,13 @@ uint8_t BedJetHub::write_bedjet_packet_(BedjetPacket *pkt) {
 uint8_t BedJetHub::set_notify_(const bool enable) {
   uint8_t status;
   if (enable) {
-    status = esp_ble_gattc_register_for_notify(this->parent_->gattc_if, this->parent_->remote_bda,
+    status = esp_ble_gattc_register_for_notify(this->parent_->get_gattc_if(), this->parent_->get_remote_bda(),
                                                this->char_handle_status_);
     if (status) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_register_for_notify failed, status=%d", this->get_name().c_str(), status);
     }
   } else {
-    status = esp_ble_gattc_unregister_for_notify(this->parent_->gattc_if, this->parent_->remote_bda,
+    status = esp_ble_gattc_unregister_for_notify(this->parent_->get_gattc_if(), this->parent_->get_remote_bda(),
                                                  this->char_handle_status_);
     if (status) {
       ESP_LOGW(TAG, "[%s] esp_ble_gattc_unregister_for_notify failed, status=%d", this->get_name().c_str(), status);
@@ -204,8 +204,8 @@ bool BedJetHub::discover_characteristics_() {
       result = false;
     } else {
       this->char_handle_name_ = chr->handle;
-      auto status = esp_ble_gattc_read_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_name_,
-                                            ESP_GATT_AUTH_REQ_NONE);
+      auto status = esp_ble_gattc_read_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(),
+                                            this->char_handle_name_, ESP_GATT_AUTH_REQ_NONE);
       if (status) {
         ESP_LOGI(TAG, "[%s] Unable to read name characteristic: %d", this->get_name().c_str(), status);
       }
@@ -228,22 +228,6 @@ void BedJetHub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       ESP_LOGV(TAG, "Disconnected: reason=%d", param->disconnect.reason);
       this->status_set_warning();
       this->dispatch_state_(false);
-      break;
-    }
-    case ESP_GATTC_OPEN_EVT: {
-      // FIXME: bug in BLEClient
-      this->parent_->conn_id = param->open.conn_id;
-      this->open_conn_id_ = param->open.conn_id;
-      break;
-    }
-
-    case ESP_GATTC_CONNECT_EVT: {
-      if (this->parent_->conn_id != param->connect.conn_id && this->open_conn_id_ != 0xff) {
-        // FIXME: bug in BLEClient
-        ESP_LOGW(TAG, "[%s] CONNECT_EVT unexpected conn_id; open=%d, parent=%d, param=%d", this->get_name().c_str(),
-                 this->open_conn_id_, this->parent_->conn_id, param->connect.conn_id);
-        this->parent_->conn_id = this->open_conn_id_;
-      }
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
@@ -301,7 +285,7 @@ void BedJetHub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_READ_CHAR_EVT: {
-      if (param->read.conn_id != this->parent_->conn_id)
+      if (param->read.conn_id != this->parent_->get_conn_id())
         break;
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
@@ -358,9 +342,9 @@ void BedJetHub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       if (this->processing_)
         break;
 
-      if (param->notify.conn_id != this->parent_->conn_id) {
+      if (param->notify.conn_id != this->parent_->get_conn_id()) {
         ESP_LOGW(TAG, "[%s] Received notify event for unexpected parent conn: expect %x, got %x",
-                 this->get_name().c_str(), this->parent_->conn_id, param->notify.conn_id);
+                 this->get_name().c_str(), this->parent_->get_conn_id(), param->notify.conn_id);
         // FIXME: bug in BLEClient holding wrong conn_id.
       }
 
@@ -394,7 +378,7 @@ void BedJetHub::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         if (needs_extra) {
           // This means the packet was partial, so read the status characteristic to get the second part.
           // Ideally this will complete quickly. We won't process additional notification events until it does.
-          auto status = esp_ble_gattc_read_char(this->parent_->gattc_if, this->parent_->conn_id,
+          auto status = esp_ble_gattc_read_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(),
                                                 this->char_handle_status_, ESP_GATT_AUTH_REQ_NONE);
           if (status) {
             ESP_LOGI(TAG, "[%s] Unable to read extended status packet", this->get_name().c_str());
@@ -438,15 +422,15 @@ uint8_t BedJetHub::write_notify_config_descriptor_(bool enable) {
 
   // NOTE: BLEClient uses `uint8_t*` of length 1, but BLE spec requires 16 bits.
   uint16_t notify_en = enable ? 1 : 0;
-  auto status =
-      esp_ble_gattc_write_char_descr(this->parent_->gattc_if, this->parent_->conn_id, handle, sizeof(notify_en),
-                                     (uint8_t *) &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+  auto status = esp_ble_gattc_write_char_descr(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), handle,
+                                               sizeof(notify_en), (uint8_t *) &notify_en, ESP_GATT_WRITE_TYPE_RSP,
+                                               ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "esp_ble_gattc_write_char_descr error, status=%d", status);
     return status;
   }
   ESP_LOGD(TAG, "[%s] wrote notify=%s to status config 0x%04x, for conn %d", this->get_name().c_str(),
-           enable ? "true" : "false", handle, this->parent_->conn_id);
+           enable ? "true" : "false", handle, this->parent_->get_conn_id());
   return ESP_GATT_OK;
 }
 
@@ -500,7 +484,7 @@ void BedJetHub::update() { this->dispatch_status_(); }
 void BedJetHub::dump_config() {
   ESP_LOGCONFIG(TAG, "BedJet Hub '%s'", this->get_name().c_str());
   ESP_LOGCONFIG(TAG, "  ble_client.app_id: %d", this->parent()->app_id);
-  ESP_LOGCONFIG(TAG, "  ble_client.conn_id: %d", this->parent()->conn_id);
+  ESP_LOGCONFIG(TAG, "  ble_client.conn_id: %d", this->parent()->get_conn_id());
   LOG_UPDATE_INTERVAL(this)
   ESP_LOGCONFIG(TAG, "  Child components (%d):", this->children_.size());
   for (auto *child : this->children_) {
