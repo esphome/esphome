@@ -2490,9 +2490,6 @@ display:
     cs_pin: GPIO5
     dc_pin: GPIO4
     reset_pin: GPIO22
-    led_pin:
-      number: GPIO15
-      inverted: true
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: ili9xxx
@@ -2500,9 +2497,6 @@ display:
     cs_pin: GPIO5
     dc_pin: GPIO4
     reset_pin: GPIO22
-    led_pin:
-      number: GPIO15
-      inverted: true
     auto_clear_enabled: false
     rotation: 90
     lambda: |-
