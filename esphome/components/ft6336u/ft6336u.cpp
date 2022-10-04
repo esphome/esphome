@@ -66,8 +66,6 @@ void FT6336UTouchscreen::loop() {
     uint32_t raw_y = tp.tp[i].y * h / this->y_resolution_;
 
     TouchPoint tp;
-    // tp.x = raw_x;
-    // tp.y = raw_y;
     switch (this->rotation_) {
       case ROTATE_0_DEGREES:
         tp.x = raw_x;
