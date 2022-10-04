@@ -2485,7 +2485,7 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: ili9341
+  - platform: ili9xxx
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4
@@ -2495,7 +2495,7 @@ display:
       inverted: true
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: ili9341
+  - platform: ili9xxx
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4
