@@ -13,7 +13,7 @@
 static const uint8_t FT6336U_ADDR_TD_STATUS = 0x02;
 
 static const uint8_t FT6336U_ADDR_TOUCH1_ID = 0x05;
-static const uint8_t FT6336U_ADDR_TOUCH1_X = = 0x03;
+static const uint8_t FT6336U_ADDR_TOUCH1_X = 0x03;
 static const uint8_t FT6336U_ADDR_TOUCH1_Y = 0x05;
 
 static const uint8_t FT6336U_ADDR_TOUCH2_ID = 0x0B;
