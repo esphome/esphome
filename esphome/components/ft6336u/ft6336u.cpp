@@ -41,8 +41,6 @@ void FT6336UTouchscreen::setup() {
   // Get touch resolution
   this->x_resolution_ = 320;
   this->y_resolution_ = 480;
-
-  this->set_power_state(true);
 }
 
 void FT6336UTouchscreen::loop() {
@@ -87,13 +85,6 @@ void FT6336UTouchscreen::loop() {
 
     this->defer([this, tp]() { this->send_touch_(tp); });
   }
-}
-
-void FT6336UTouchscreen::set_power_state(bool enable) {
-}
-
-bool FT6336UTouchscreen::get_power_state() {
-  return true;
 }
 
 void FT6336UTouchscreen::hard_reset_() {

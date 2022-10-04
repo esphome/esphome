@@ -43,9 +43,6 @@ class FT6336UTouchscreen : public Touchscreen, public Component, public i2c::I2C
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
   void set_reset_pin(GPIOPin *pin) { this->reset_pin_ = pin; }
 
-  void set_power_state(bool enable);
-  bool get_power_state();
-
  protected:
   void hard_reset_();
   uint8_t readByte(uint8_t addr); 
