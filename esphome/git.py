@@ -2,7 +2,7 @@ from pathlib import Path
 import subprocess
 import hashlib
 import logging
-from typing import Callable
+from typing import Callable, Optional
 import urllib.parse
 
 from datetime import datetime
@@ -47,7 +47,7 @@ def clone_or_update(
     domain: str,
     username: str = None,
     password: str = None,
-) -> tuple[Path, Callable[[], None] | None]:
+) -> tuple[Path, Optional[Callable[[], None]]]:
     key = f"{url}@{ref}"
 
     if username is not None and password is not None:
