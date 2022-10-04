@@ -5,7 +5,17 @@ import re
 from esphome.yaml_util import ESPHomeDataBase
 
 # pylint: disable=unused-import, wrong-import-order
-from typing import Any, Generator, List, Optional, Tuple, Type, Union, Sequence
+from typing import (
+    Any,
+    Callable,
+    Generator,
+    List,
+    Optional,
+    Tuple,
+    Type,
+    Union,
+    Sequence,
+)
 
 from esphome.core import (  # noqa
     CORE,
@@ -468,7 +478,9 @@ def statement(expression: Union[Expression, Statement]) -> Statement:
     return ExpressionStatement(expression)
 
 
-def variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
+def variable(
+    id_: ID, rhs: SafeExpType, type_: "MockObj" = None, register=True
+) -> "MockObj":
     """Declare a new variable, not pointer type, in the code generation.
 
     :param id_: The ID used to declare the variable.
@@ -485,8 +497,35 @@ def variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         id_.type = type_
     assignment = AssignmentExpression(id_.type, "", id_, rhs)
     CORE.add(assignment)
-    CORE.register_variable(id_, obj)
+    if register:
+        CORE.register_variable(id_, obj)
     return obj
+
+
+def with_local_variable(
+    id_: ID, rhs: SafeExpType, callback: Callable[["MockObj"], None], *args
+) -> None:
+    """Declare a new variable, not pointer type, in the code generation, within a scoped block
+    The variable is only usable within the callback
+    The callback cannot be async.
+
+    :param id_: The ID used to declare the variable.
+    :param rhs: The expression to place on the right hand side of the assignment.
+    :param callback: The function to invoke that will receive the temporary variable
+    :param args: args to pass to the callback in addition to the temporary variable
+
+    """
+
+    # throw if the callback is async:
+    assert not inspect.iscoroutinefunction(
+        callback
+    ), "with_local_variable() callback cannot be async!"
+
+    CORE.add(RawStatement("{"))  # output opening curly brace
+    obj = variable(id_, rhs, None, True)
+    # invoke user-provided callback to generate code with this local variable
+    callback(obj, *args)
+    CORE.add(RawStatement("}"))  # output closing curly brace
 
 
 def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
