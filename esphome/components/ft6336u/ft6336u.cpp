@@ -10,7 +10,7 @@
 #include "esphome/core/log.h"
 
 // Registers
-static const uint8_t FT6336U_ADDR_TD_STATUS = 0x02;
+static const uint8_t FT6336U_ADDR_TOUCH_COUNT = 0x02;
 
 static const uint8_t FT6336U_ADDR_TOUCH1_ID = 0x05;
 static const uint8_t FT6336U_ADDR_TOUCH1_X = 0x03;
@@ -102,8 +102,8 @@ void FT6336UTouchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-uint8_t FT6336UTouchscreen::read_td_status() {
-  return readByte(FT6336U_ADDR_TD_STATUS);
+uint8_t FT6336UTouchscreen::read_touch_count() {
+  return readByte(FT6336U_ADDR_TOUCH_COUNT);
 }
 // Touch 1 functions
 uint16_t FT6336UTouchscreen::read_touch1_x() {
@@ -139,7 +139,7 @@ uint8_t FT6336UTouchscreen::read_touch2_id() {
 }
 
 FT6336U_TouchPointType FT6336UTouchscreen::scan(){
-  touchPoint.touch_count = read_td_status();
+  touchPoint.touch_count = read_touch_count();
 
   if(touchPoint.touch_count == 0) {
     touchPoint.tp[0].status = TouchStatusEnum::release;

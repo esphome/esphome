@@ -54,7 +54,7 @@ class FT6336UTouchscreen : public Touchscreen, public Component, public i2c::I2C
   uint16_t x_resolution_;
   uint16_t y_resolution_;
 
-  uint8_t read_td_status();
+  uint8_t read_touch_count();
   uint16_t read_touch1_x();
   uint16_t read_touch1_y();
   uint8_t read_touch1_id();
