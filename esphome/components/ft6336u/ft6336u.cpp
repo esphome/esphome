@@ -28,13 +28,13 @@ static const char *const TAG = "FT6336UTouchscreen";
 void FT6336UTouchscreen::setup() {
   ESP_LOGCONFIG(TAG, "Setting up FT6336UTouchscreen Touchscreen...");
   if (this->interrupt_pin_ != nullptr) {
-		this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
-		this->interrupt_pin_->setup();
-	}
 
+    this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
+    this->interrupt_pin_->setup();
+  }
   if (this->reset_pin_ != nullptr) {
-		this->reset_pin_->setup();
-	}
+    this->reset_pin_->setup();
+  }
 
   this->hard_reset_();
 
@@ -55,8 +55,8 @@ void FT6336UTouchscreen::loop() {
   std::vector<TouchPoint> touches;
   uint8_t touch_count = std::min<uint8_t>(tp.touch_count, 2);
 
-	uint16_t w = this->display_->get_width_internal();
-	uint16_t h = this->display_->get_height_internal()
+  uint16_t w = this->display_->get_width_internal();
+  uint16_t h = this->display_->get_height_internal()
   ESP_LOGV(TAG, "Touch count: %d", touch_count);
 
   for (int i = 0; i < touch_count; i++) {
@@ -89,10 +89,10 @@ void FT6336UTouchscreen::loop() {
 
 void FT6336UTouchscreen::hard_reset_() {
   if (this->reset_pin_ != nullptr) {
-	  this->reset_pin_->digital_write(false);
-	  delay(10);
-	  this->reset_pin_->digital_write(true);
-	}
+    this->reset_pin_->digital_write(false);
+    delay(10);
+    this->reset_pin_->digital_write(true);
+  }
 }
 
 void FT6336UTouchscreen::dump_config() {
@@ -110,13 +110,13 @@ uint16_t FT6336UTouchscreen::read_touch1_x() {
   uint8_t read_buf[2];
   read_buf[0] = readByte(FT6336U_ADDR_TOUCH1_X);
   read_buf[1] = readByte(FT6336U_ADDR_TOUCH1_X + 1);
-	return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
+  return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
 uint16_t FT6336UTouchscreen::read_touch1_y() {
   uint8_t read_buf[2];
   read_buf[0] = readByte(FT6336U_ADDR_TOUCH1_Y);
   read_buf[1] = readByte(FT6336U_ADDR_TOUCH1_Y + 1);
-	return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
+  return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
 uint8_t FT6336UTouchscreen::read_touch1_id() {
   return readByte(FT6336U_ADDR_TOUCH1_ID) >> 4;
@@ -126,13 +126,13 @@ uint16_t FT6336UTouchscreen::read_touch2_x() {
   uint8_t read_buf[2];
   read_buf[0] = readByte(FT6336U_ADDR_TOUCH2_X);
   read_buf[1] = readByte(FT6336U_ADDR_TOUCH2_X + 1);
-	return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
+  return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
 uint16_t FT6336UTouchscreen::read_touch2_y() {
   uint8_t read_buf[2];
   read_buf[0] = readByte(FT6336U_ADDR_TOUCH2_Y);
   read_buf[1] = readByte(FT6336U_ADDR_TOUCH2_Y + 1);
-	return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
+  return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
 uint8_t FT6336UTouchscreen::read_touch2_id() {
   return readByte(FT6336U_ADDR_TOUCH2_ID) >> 4;
@@ -174,7 +174,7 @@ uint8_t FT6336UTouchscreen::readByte(uint8_t addr) {
 }
 
 void FT6336UTouchscreen::writeByte(uint8_t addr, uint8_t data) {
-	this->write_byte(addr, data);
+  this->write_byte(addr, data);
   ESP_LOGD(TAG, "writeI2C reg 0x%x -> 0x%x", addr, data);
 }
 
