@@ -1,6 +1,7 @@
 #include "bluetooth_proxy.h"
 
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 #ifdef USE_ESP32
 
@@ -19,14 +20,34 @@ BluetoothProxy::BluetoothProxy() {
 }
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+  
   if (device.get_rssi() < this->min_rssi_) {
+    // ignore devices below the rssi threshold
+    ESP_LOGVV(TAG, "Ignoring packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
+           device.get_rssi());
     return true;
   }
-  ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
+
+  adv_data_t prev_data{};
+  if (this->prev_data_map_.find(device.address_uint64()) != this->prev_data_map_.end()) {
+    prev_data = this->prev_data_map_[device.address_uint64()];
+  }
+
+  for (auto &data : device.get_manufacturer_datas()) {
+      // ignore duplicate data
+      if (data.data == prev_data) {
+        ESP_LOGV(TAG, "Ignoring packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
+            device.get_rssi());
+        return true;
+      }
+
+      this->prev_data_map_[device.address_uint64()] = data.data;
+    }
+  
+  ESP_LOGD(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
   
   this->send_api_packet_(device);
-
   this->address_type_map_[device.address_uint64()] = device.get_address_type();
 
   if (this->address_ == 0)

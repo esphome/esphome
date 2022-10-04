@@ -18,7 +18,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BluetoothProxy),
         cv.Optional(CONF_ACTIVE, default=False): cv.boolean,
-        cv.Optional(CONF_MIN_RSSI, default=-80): cv.int_range(-100, -50),
+        cv.Optional(CONF_MIN_RSSI, default=-80): cv.int_range(-100, -30),
     }
 ).extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
 

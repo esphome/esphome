@@ -20,6 +20,7 @@ namespace esphome {
 namespace bluetooth_proxy {
 
 using namespace esp32_ble_client;
+using adv_data_t = std::vector<uint8_t>;
 
 class BluetoothProxy : public BLEClientBase {
  public:
@@ -55,6 +56,7 @@ class BluetoothProxy : public BLEClientBase {
   int16_t send_service_{-1};
   bool active_;
   int min_rssi_{-80};
+  std::map<uint64_t, adv_data_t> prev_data_map_;
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
