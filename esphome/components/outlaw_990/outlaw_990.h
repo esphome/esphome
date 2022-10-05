@@ -17,7 +17,7 @@ namespace esphome {
 namespace outlaw_990 {
 
 class Outlaw990 : public PollingComponent, public uart::UARTDevice, public api::CustomAPIDevice {
-public:
+ public:
   Outlaw990();
 
   void setup() override;
@@ -46,7 +46,7 @@ public:
   bool power, mute;
   int volume;
 
-protected:
+ protected:
   binary_sensor::BinarySensor *power_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *mute_binary_sensor_{nullptr};
   sensor::Sensor *volume_sensor_{nullptr};
@@ -70,5 +70,5 @@ protected:
   bool powering_off_;
 };
 
-} // namespace
-} // namespace
+}  // namespace outlaw_990
+}  // namespace esphome
