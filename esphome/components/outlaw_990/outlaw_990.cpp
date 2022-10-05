@@ -14,7 +14,7 @@
 namespace esphome {
 namespace outlaw_990 {
 
-static const char *TAG = "outlaw_990.component";
+static const char *const TAG = "outlaw_990.component";
 
 Outlaw990::Outlaw990() : PollingComponent(1000), rx_state_(0), polling_enabled_(true), powering_off_(false) {}
 
