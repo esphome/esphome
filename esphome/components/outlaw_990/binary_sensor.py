@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_ICON, ICON_POWER
 from . import CONF_OUTLAW_990_ID, Outlaw990
 
 DEPENDENCIES = ["outlaw_990"]
