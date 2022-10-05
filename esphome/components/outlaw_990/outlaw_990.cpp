@@ -29,42 +29,42 @@ void Outlaw990::dump_config() {
 }
 
 void Outlaw990::setup() {
-  register_service(&Outlaw990::on_volume_adj, "outlaw_volume_adj", {"up"});
-  register_service(&Outlaw990::on_power, "outlaw_power", {"power"});
-  register_service(&Outlaw990::on_mute, "outlaw_mute");
-  register_service(&Outlaw990::on_cmd, "outlaw_command", {"cmd"});
+  register_service(&Outlaw990::on_volume_adj_, "outlaw_volume_adj", {"up"});
+  register_service(&Outlaw990::on_power_, "outlaw_power", {"power"});
+  register_service(&Outlaw990::on_mute_, "outlaw_mute");
+  register_service(&Outlaw990::on_cmd_, "outlaw_command", {"cmd"});
 }
 
 void Outlaw990::update() {
   if (polling_enabled_ || powering_off_) {
     ESP_LOGD(TAG, "update() polling %s powering_off_ %s", polling_enabled_ ? "enabled" : "disabled",
              powering_off_ ? "true" : "false");
-    send_pkt(0x53);
+    send_pkt_(0x53);
   }
 }
 
-void Outlaw990::send_pkt(uint8_t cmd) {
+void Outlaw990::send_pkt_(uint8_t cmd) {
   uint8_t obuf[4];
   obuf[0] = 0x83;
   obuf[1] = 0x45;
   obuf[2] = cmd;
   obuf[3] = obuf[0] + obuf[1] + obuf[2];
 
-  for (int i = 0; i < 4; i++) {
-    write(obuf[i]);
+  for (unsigned char i : obuf) {
+    write(i);
   }
 
   ESP_LOGD(TAG, "sent serial pkt %2X %2X %2X %2X", obuf[0], obuf[1], obuf[2], obuf[3]);
 }
 
-void Outlaw990::on_cmd(int cmd) {
+void Outlaw990::on_cmd_(int cmd) {
   ESP_LOGD(TAG, "cmd service: %02X", cmd);
-  send_pkt(cmd);
+  send_pkt_(cmd);
 }
 
-void Outlaw990::on_volume_adj(bool up) {
+void Outlaw990::on_volume_adj_(bool up) {
   ESP_LOGD(TAG, "volume adjust service: %s", up ? "UP" : "DOWN");
-  send_pkt(up ? 0x0F : 0x10);
+  send_pkt_(up ? 0x0F : 0x10);
 
   if (up && volume < 14)
     volume++;
@@ -75,11 +75,11 @@ void Outlaw990::on_volume_adj(bool up) {
     this->volume_sensor_->publish_state(volume);
 }
 
-void Outlaw990::on_power(bool p) {
+void Outlaw990::on_power_(bool p) {
   ESP_LOGD(TAG, "power service: %s", p ? "ON" : "OFF");
-  send_pkt(p ? 0x01 : 0x02);
+  send_pkt_(p ? 0x01 : 0x02);
 
-  powering_off_ = (p == false);
+  powering_off_ = (!p);
 
   if (p != power) {
     disp = power ? "POWERING OFF" : "POWERING ON";
@@ -89,12 +89,12 @@ void Outlaw990::on_power(bool p) {
   }
 }
 
-void Outlaw990::on_mute() {
+void Outlaw990::on_mute_() {
   ESP_LOGD(TAG, "mute service: TOGGLE");
-  send_pkt(0x11);
+  send_pkt_(0x11);
 }
 
-void Outlaw990::send_idle_values() {
+void Outlaw990::send_idle_values_() {
   power = false;
   mute = false;
   volume = -76;
@@ -122,7 +122,7 @@ void Outlaw990::send_idle_values() {
     this->display_text_sensor_->publish_state(disp);
 }
 
-void Outlaw990::parse_packet() {
+void Outlaw990::parse_packet_() {
   uint8_t *text = &rx_buf_[0];
   uint8_t *status = &rx_buf_[13];
 
@@ -168,14 +168,14 @@ void Outlaw990::parse_packet() {
       uint8_t a_in = (mav & 0x0F);
       uint8_t v_in = (mav & 0xF0) >> 4;
 
-      const char *AUDIO_LABELS[16] = {"FM",      "AM",   "IN_0x02",      "Tuner",   "CD",      "Aux/USB",
+      const char *audio_labels[16] = {"FM",      "AM",   "IN_0x02",      "Tuner",   "CD",      "Aux/USB",
                                       "Phono",   "DVD",  "Video 1",      "Video 2", "Video 3", "Video 4",
                                       "Video 5", "Tape", "7.1CH Direct", "IN_0x0F"};
-      const char *VIDEO_LABELS[16] = {"IN_0x00", "IN_0x01",      "IN_0x02", "IN_0x03", "IN_0x04", "IN_0x05",
+      const char *video_labels[16] = {"IN_0x00", "IN_0x01",      "IN_0x02", "IN_0x03", "IN_0x04", "IN_0x05",
                                       "IN_0x06", "Video 1",      "Video 2", "Video 3", "DVD",     "Video 4",
                                       "Video 5", "Video Direct", "IN_0x0E", "IN_0x0F"};
-      audio_in = std::string(AUDIO_LABELS[a_in]);
-      video_in = std::string(VIDEO_LABELS[v_in]);
+      audio_in = std::string(audio_labels[a_in]);
+      video_in = std::string(video_labels[v_in]);
 
       if (this->audio_in_text_sensor_ != nullptr)
         this->audio_in_text_sensor_->publish_state(audio_in);
@@ -201,7 +201,7 @@ void Outlaw990::parse_packet() {
     }
   } else {
     ESP_LOGD(TAG, "Power is off, sending off values");
-    send_idle_values();
+    send_idle_values_();
 
     powering_off_ = false;
   }
@@ -225,7 +225,7 @@ void Outlaw990::loop() {
     case RX_STATE_INIT:
       flush();
       polling_enabled_ = true;
-      send_idle_values();
+      send_idle_values_();
       rx_state_ = RX_STATE_HEADER_BYTE1;
       break;
 
@@ -281,7 +281,7 @@ void Outlaw990::loop() {
       break;
 
     case RX_STATE_PARSE:
-      parse_packet();
+      parse_packet_();
       rx_state_ = RX_STATE_HEADER_BYTE1;
       break;
 

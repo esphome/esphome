@@ -32,7 +32,7 @@ class Outlaw990 : public PollingComponent, public uart::UARTDevice, public api::
   void set_audio_in_text_sensor(text_sensor::TextSensor *ts) { this->audio_in_text_sensor_ = ts; }
   void set_video_in_text_sensor(text_sensor::TextSensor *ts) { this->video_in_text_sensor_ = ts; }
 
-  enum RX_STATES {
+  enum RxStates {
     RX_STATE_INIT = 0,
     RX_STATE_HEADER_BYTE1,
     RX_STATE_HEADER_BYTE2,
@@ -54,15 +54,15 @@ class Outlaw990 : public PollingComponent, public uart::UARTDevice, public api::
   text_sensor::TextSensor *audio_in_text_sensor_{nullptr};
   text_sensor::TextSensor *video_in_text_sensor_{nullptr};
 
-  void send_pkt(uint8_t cmd);
+  void send_pkt_(uint8_t cmd);
 
-  void on_cmd(int cmd);
-  void on_volume_adj(bool up);
-  void on_power(bool p);
-  void on_mute();
+  void on_cmd_(int cmd);
+  void on_volume_adj_(bool up);
+  void on_power_(bool p);
+  void on_mute_();
 
-  void send_idle_values();
-  void parse_packet();
+  void send_idle_values_();
+  void parse_packet_();
 
   int rx_state_;
   uint8_t rx_buf_[25];
