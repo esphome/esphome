@@ -41,6 +41,9 @@ class ESPBTUUID {
 
   std::string to_string() const;
 
+  uint64_t get_128bit_high() const;
+  uint64_t get_128bit_low() const;
+
  protected:
   esp_bt_uuid_t uuid_;
 };
@@ -158,7 +161,7 @@ class ESPBTClient : public ESPBTDeviceListener {
                                    esp_ble_gattc_cb_param_t *param) = 0;
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
   virtual void connect() = 0;
-  void set_state(ClientState st) { this->state_ = st; }
+  virtual void set_state(ClientState st) { this->state_ = st; }
   ClientState state() const { return state_; }
   int app_id;
 

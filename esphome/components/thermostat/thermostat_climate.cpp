@@ -935,10 +935,8 @@ bool ThermostatClimate::supplemental_heating_required_() {
           (this->supplemental_action_ == climate::CLIMATE_ACTION_HEATING));
 }
 
-void ThermostatClimate::dump_preset_config_(const std::string &preset, const ThermostatClimateTargetTempConfig &config,
+void ThermostatClimate::dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config,
                                             bool is_default_preset) {
-  const auto *preset_name = preset.c_str();
-
   ESP_LOGCONFIG(TAG, "      %s Is Default: %s", preset_name, YESNO(is_default_preset));
 
   if (this->supports_heat_) {
