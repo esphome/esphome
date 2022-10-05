@@ -82,10 +82,10 @@ bool PCF85063Component::read_rtc_() {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  CH:%s CLKOUT:%0u", pcf85063_.reg.hour_10,
+  ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  OSC:%s CLKOUT:%0u", pcf85063_.reg.hour_10,
            pcf85063_.reg.hour, pcf85063_.reg.minute_10, pcf85063_.reg.minute, pcf85063_.reg.second_10,
            pcf85063_.reg.second, pcf85063_.reg.year_10, pcf85063_.reg.year, pcf85063_.reg.month_10, pcf85063_.reg.month,
-           pcf85063_.reg.day_10, pcf85063_.reg.day, ONOFF(pcf85063_.reg.osc_stop), pcf85063_.reg.clkout_control);
+           pcf85063_.reg.day_10, pcf85063_.reg.day, ONOFF(!pcf85063_.reg.osc_stop), pcf85063_.reg.clkout_control);
 
   return true;
 }
@@ -95,10 +95,10 @@ bool PCF85063Component::write_rtc_() {
     ESP_LOGE(TAG, "Can't write I2C data.");
     return false;
   }
-  ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  CH:%s RS:%0u", pcf85063_.reg.hour_10,
+  ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  OSC:%s CLKOUT:%0u", pcf85063_.reg.hour_10,
            pcf85063_.reg.hour, pcf85063_.reg.minute_10, pcf85063_.reg.minute, pcf85063_.reg.second_10,
            pcf85063_.reg.second, pcf85063_.reg.year_10, pcf85063_.reg.year, pcf85063_.reg.month_10, pcf85063_.reg.month,
-           pcf85063_.reg.day_10, pcf85063_.reg.day, ONOFF(pcf85063_.reg.osc_stop), pcf85063_.reg.clkout_control);
+           pcf85063_.reg.day_10, pcf85063_.reg.day, ONOFF(!pcf85063_.reg.osc_stop), pcf85063_.reg.clkout_control);
   return true;
 }
 }  // namespace pcf85063
