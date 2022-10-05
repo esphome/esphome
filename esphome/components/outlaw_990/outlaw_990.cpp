@@ -8,7 +8,7 @@
  * See http://outlawaudio.com/outlaw/docs/990rs232protocol.pdf for protocol details
  */
 
-#include "esphome.h"
+
 #include "esphome/core/log.h"
 #include "outlaw_990.h"
 
