@@ -46,8 +46,8 @@ void Outlaw990::update() {
   }
 }
 
-void Outlaw990::send_pkt(byte cmd) {
-  byte obuf[4];
+void Outlaw990::send_pkt(uint8_t cmd) {
+  uint8_t obuf[4];
   obuf[0] = 0x83;
   obuf[1] = 0x45;
   obuf[2] = cmd;
@@ -126,8 +126,8 @@ void Outlaw990::send_idle_values() {
 }
 
 void Outlaw990::parse_packet() {
-  byte* text = &rx_buf_[0];
-  byte* status = &rx_buf_[13];
+  uint8_t* text = &rx_buf_[0];
+  uint8_t* status = &rx_buf_[13];
 
   bool just_turned_on = false;
 
@@ -164,12 +164,12 @@ void Outlaw990::parse_packet() {
         this->volume_sensor_->publish_state(volume);
     }
 
-    byte mav = status[1];
+    uint8_t mav = status[1];
     if ((main_av_in != mav) || just_turned_on) {
       ESP_LOGI(TAG, "main AV state changed: %2X->%2X", main_av_in, mav);
       main_av_in = mav;
-      byte a_in = (mav & 0x0F);
-      byte v_in = (mav & 0xF0) >> 4;
+      uint8_t a_in = (mav & 0x0F);
+      uint8_t v_in = (mav & 0xF0) >> 4;
 
       const char* AUDIO_LABELS[16] = {
         "FM", "AM", "IN_0x02", "Tuner", "CD", "Aux/USB", "Phono", "DVD",
@@ -270,7 +270,7 @@ void Outlaw990::loop() {
         read_array(rx_buf_, 25);
 
         // calculate checksum over payload
-        byte checksum = 0;
+        uint8_t checksum = 0;
         for (int i=0; i<24; i++) {
           checksum += rx_buf_[i];
         }

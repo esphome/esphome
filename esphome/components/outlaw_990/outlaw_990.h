@@ -42,7 +42,7 @@ public:
   };
 
   std::string disp, audio_in, video_in;
-  byte main_av_in;
+  uint8_t main_av_in;
   bool power, mute;
   int volume;
 
@@ -54,7 +54,7 @@ protected:
   text_sensor::TextSensor *audio_in_text_sensor_{nullptr};
   text_sensor::TextSensor *video_in_text_sensor_{nullptr};
 
-  void send_pkt(byte cmd);
+  void send_pkt(uint8_t cmd);
 
   void on_cmd(int cmd);
   void on_volume_adj(bool up);
@@ -65,7 +65,7 @@ protected:
   void parse_packet();
 
   int rx_state_;
-  byte rx_buf_[25];
+  uint8_t rx_buf_[25];
   bool polling_enabled_;
   bool powering_off_;
 };
