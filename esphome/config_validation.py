@@ -1689,7 +1689,7 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> "Version":
-        match = re.match(r"(\d+).(\d+).(\d+)", value)
+        match = re.match(r"^(\d+).(\d+).(\d+)-?\w*$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])
@@ -1703,7 +1703,7 @@ def version_number(value):
     try:
         return str(Version.parse(value))
     except ValueError as e:
-        raise Invalid("Not a version number") from e
+        raise Invalid("Not a valid version number") from e
 
 
 def platformio_version_constraint(value):

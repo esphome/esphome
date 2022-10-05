@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import esp32_ble_tracker
+from esphome.components import esp32_ble_tracker, esp32_ble_client
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
     CONF_ID,
@@ -14,13 +14,12 @@ from esphome.const import (
 )
 from esphome import automation
 
+AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
-BLEClient = ble_client_ns.class_(
-    "BLEClient", cg.Component, esp32_ble_tracker.ESPBTClient
-)
+BLEClient = ble_client_ns.class_("BLEClient", esp32_ble_client.BLEClientBase)
 BLEClientNode = ble_client_ns.class_("BLEClientNode")
 BLEClientNodeConstRef = BLEClientNode.operator("ref").operator("const")
 # Triggers

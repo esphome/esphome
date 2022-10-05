@@ -228,7 +228,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool supplemental_cooling_required_();
   bool supplemental_heating_required_();
 
-  void dump_preset_config_(const std::string &preset_name, const ThermostatClimateTargetTempConfig &config,
+  void dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config,
                            bool is_default_preset);
 
   /// The sensor used for getting the current temperature
