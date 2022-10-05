@@ -15,14 +15,12 @@ TYPES = [
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_OUTLAW_990_ID): cv.use_id(Outlaw990),
-
-        cv.Required(CONF_SENSOR_VOLUME):
-            sensor.sensor_schema(
-                unit_of_measurement=UNIT_DECIBEL,
-                accuracy_decimals=0
-            )
+        cv.Required(CONF_SENSOR_VOLUME): sensor.sensor_schema(
+            unit_of_measurement=UNIT_DECIBEL, accuracy_decimals=0
+        ),
     }
 )
+
 
 async def to_code(config):
     comp = await cg.get_variable(config[CONF_OUTLAW_990_ID])

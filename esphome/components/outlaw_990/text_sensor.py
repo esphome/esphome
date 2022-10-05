@@ -9,24 +9,17 @@ CONF_SENSOR_DISPLAY = "sensor_display"
 CONF_SENSOR_AUDIO_IN = "sensor_audio_in"
 CONF_SENSOR_VIDEO_IN = "sensor_video_in"
 
-TYPES = [
-    CONF_SENSOR_DISPLAY,
-    CONF_SENSOR_AUDIO_IN,
-    CONF_SENSOR_VIDEO_IN
-]
+TYPES = [CONF_SENSOR_DISPLAY, CONF_SENSOR_AUDIO_IN, CONF_SENSOR_VIDEO_IN]
 
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_OUTLAW_990_ID): cv.use_id(Outlaw990),
-
-        cv.Required(CONF_SENSOR_DISPLAY):
-            text_sensor.text_sensor_schema(),
-        cv.Required(CONF_SENSOR_AUDIO_IN):
-            text_sensor.text_sensor_schema(),
-        cv.Required(CONF_SENSOR_VIDEO_IN):
-            text_sensor.text_sensor_schema()
+        cv.Required(CONF_SENSOR_DISPLAY): text_sensor.text_sensor_schema(),
+        cv.Required(CONF_SENSOR_AUDIO_IN): text_sensor.text_sensor_schema(),
+        cv.Required(CONF_SENSOR_VIDEO_IN): text_sensor.text_sensor_schema(),
     }
 )
+
 
 async def to_code(config):
     comp = await cg.get_variable(config[CONF_OUTLAW_990_ID])
