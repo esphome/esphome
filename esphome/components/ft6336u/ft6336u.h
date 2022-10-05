@@ -34,12 +34,20 @@ typedef struct {
     TouchPointType tp[2]; 
 } FT6336UTouchPoint; 
 
+struct FT6336UTouchscreenStore {
+  volatile bool touch;
+  ISRInternalGPIOPin pin;
+
+  static void gpio_intr(FT6336UTouchscreenStore *store);
+};
+
 using namespace touchscreen;
 
-class FT6336UTouchscreen : public Touchscreen, public Component, public i2c::I2CDevice {
+class FT6336UTouchscreen : public Touchscreen, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void loop() override;
+  void update() override;
   void dump_config() override;
 
   void set_interrupt_pin(InternalGPIOPin *pin) { this->interrupt_pin_ = pin; }
@@ -49,7 +57,7 @@ class FT6336UTouchscreen : public Touchscreen, public Component, public i2c::I2C
   void hard_reset_();
   uint8_t readByte(uint8_t addr); 
   void writeByte(uint8_t addr, uint8_t data); 
-  FT6336UTouchPoint scan();
+  void check_touch_();
 
   InternalGPIOPin *interrupt_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
@@ -64,6 +72,7 @@ class FT6336UTouchscreen : public Touchscreen, public Component, public i2c::I2C
   uint16_t read_touch2_y();
   uint8_t read_touch2_id();
 
+  FT6336UTouchscreenStore store_;
   FT6336UTouchPoint touchPoint; 
 };
 
