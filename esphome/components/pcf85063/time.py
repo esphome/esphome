@@ -5,7 +5,7 @@ from esphome.components import i2c, time
 from esphome.const import CONF_ID
 
 
-CODEOWNERS = ["@badbadc0ffee"]
+CODEOWNERS = ["@brogon"]
 DEPENDENCIES = ["i2c"]
 pcf85063_ns = cg.esphome_ns.namespace("pcf85063")
 PCF85063Component = pcf85063_ns.class_(
