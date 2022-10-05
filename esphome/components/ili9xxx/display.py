@@ -8,8 +8,8 @@ from esphome.const import (
     CONF_ID,
     CONF_LAMBDA,
     CONF_MODEL,
-    CONF_PAGES,
     CONF_RAW_DATA_ID,
+    CONF_PAGES,
     CONF_RESET_PIN,
 )
 from esphome.core import HexInt
@@ -42,6 +42,9 @@ ILI9XXX_MODEL = cv.enum(MODELS, upper=True, space="_")
 
 COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE")
 
+CONF_LED_PIN = "led_pin"
+
+
 CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
@@ -49,6 +52,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MODEL): ILI9XXX_MODEL,
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_LED_PIN): cv.invalid(
+                "The led_pin is obsolete, please remove it."
+            ),
             cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
         }

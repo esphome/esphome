@@ -53,7 +53,7 @@ void ILI9XXXDisplay::update() {
 #ifndef EXTENDED_DISPLAYBUFFER
 void ILI9XXXDisplay::display_() {
 #else
-void ILI9XXXDisplay::display() {}
+void ILI9XXXDisplay::display() {
 #endif
   // we will only update the changed window to the display
   uint16_t w = this->x_high_ - this->x_low_ + 1;  // NOLINT
