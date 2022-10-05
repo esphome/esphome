@@ -67,29 +67,29 @@ std::string Switch::get_device_class() {
 }
 void Switch::set_device_class(const std::string &device_class) { this->device_class_ = device_class; }
 
-void LOG_SWITCH_(const char *TAG, const char *prefix, const char *type, Switch *obj) {
+void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj) {
   if (obj != nullptr) {
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), obj->get_name().c_str());
+    ESP_LOGCONFIG(tag, "%s%s '%s'", prefix, type, obj->get_name().c_str());
     if (!obj->get_icon().empty()) {
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, obj->get_icon().c_str());
+      ESP_LOGCONFIG(tag, "%s  Icon: '%s'", prefix, obj->get_icon().c_str());
     }
     if (obj->assumed_state()) {
-      ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix);
+      ESP_LOGCONFIG(tag, "%s  Assumed State: YES", prefix);
     }
     if (obj->is_inverted()) {
-      ESP_LOGCONFIG(TAG, "%s  Inverted: YES", prefix);
+      ESP_LOGCONFIG(tag, "%s  Inverted: YES", prefix);
     }
     if (!obj->get_device_class().empty()) {
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str());
+      ESP_LOGCONFIG(tag, "%s  Device Class: '%s'", prefix, obj->get_device_class().c_str());
     }
-  }
-  const LogString *onoff = obj->restore_mode & RESTORE_MODE_ON_MASK ? LOG_STR("ON") : LOG_STR("OFF");
-  const LogString *inverted = obj->restore_mode & RESTORE_MODE_INVERTED_MASK ? LOG_STR("inverted ") : LOG_STR("");
-  const LogString *restore =
-      obj->restore_mode & RESTORE_MODE_PERSISTENT_MASK ? LOG_STR("restore defaults to") : LOG_STR("always");
+    const LogString *onoff = obj->restore_mode & RESTORE_MODE_ON_MASK ? LOG_STR("ON") : LOG_STR("OFF");
+    const LogString *inverted = obj->restore_mode & RESTORE_MODE_INVERTED_MASK ? LOG_STR("inverted ") : LOG_STR("");
+    const LogString *restore =
+        obj->restore_mode & RESTORE_MODE_PERSISTENT_MASK ? LOG_STR("restore defaults to") : LOG_STR("always");
 
-  ESP_LOGCONFIG(TAG, "%s  Restore Mode: %s%s %s", prefix, LOG_STR_ARG(inverted), LOG_STR_ARG(restore),
-                LOG_STR_ARG(onoff));
+    ESP_LOGCONFIG(tag, "%s  Restore Mode: %s%s %s", prefix, LOG_STR_ARG(inverted), LOG_STR_ARG(restore),
+                  LOG_STR_ARG(onoff));
+  }
 }
 
 }  // namespace switch_

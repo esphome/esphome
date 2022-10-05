@@ -122,8 +122,8 @@ class Switch : public EntityBase {
   optional<std::string> device_class_;
 };
 
-#define LOG_SWITCH(prefix, type, obj) LOG_SWITCH_((TAG), (prefix), (type), (obj))
-void LOG_SWITCH_(const char *TAG, const char *prefix, const char *type, Switch *obj);
+#define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))
+void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj);
 
 }  // namespace switch_
 }  // namespace esphome
