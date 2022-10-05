@@ -975,7 +975,14 @@ void ThermostatClimate::change_preset_(climate::ClimatePreset preset) {
 
   if (config != this->preset_config_.end()) {
     ESP_LOGI(TAG, "Preset %s requested", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
-    if (this->change_preset_internal_(config->second)) {
+    if (this->change_preset_internal_(config->second) || (!this->preset.has_value()) ||
+        this->preset.value() != preset) {
+      // Fire any preset changed trigger if defined
+      Trigger<> *trig = this->preset_change_trigger_;
+      assert(trig != nullptr);
+      trig->trigger();
+
+      this->refresh();
       ESP_LOGI(TAG, "Preset %s applied", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
     } else {
       ESP_LOGI(TAG, "No changes required to apply preset %s", LOG_STR_ARG(climate::climate_preset_to_string(preset)));
@@ -992,7 +999,14 @@ void ThermostatClimate::change_custom_preset_(const std::string &custom_preset) 
 
   if (config != this->custom_preset_config_.end()) {
     ESP_LOGI(TAG, "Custom preset %s requested", custom_preset.c_str());
-    if (this->change_preset_internal_(config->second)) {
+    if (this->change_preset_internal_(config->second) || (!this->custom_preset.has_value()) ||
+        this->custom_preset.value() != custom_preset) {
+      // Fire any preset changed trigger if defined
+      Trigger<> *trig = this->preset_change_trigger_;
+      assert(trig != nullptr);
+      trig->trigger();
+
+      this->refresh();
       ESP_LOGI(TAG, "Custom preset %s applied", custom_preset.c_str());
     } else {
       ESP_LOGI(TAG, "No changes required to apply custom preset %s", custom_preset.c_str());
@@ -1041,15 +1055,6 @@ bool ThermostatClimate::change_preset_internal_(const ThermostatClimateTargetTem
     ESP_LOGV(TAG, "Setting swing mode to %s", LOG_STR_ARG(climate::climate_swing_mode_to_string(*config.swing_mode_)));
     this->swing_mode = *config.swing_mode_;
     something_changed = true;
-  }
-
-  // Fire any preset changed trigger if defined
-  if (something_changed) {
-    Trigger<> *trig = this->preset_change_trigger_;
-    assert(trig != nullptr);
-    trig->trigger();
-
-    this->refresh();
   }
 
   return something_changed;
