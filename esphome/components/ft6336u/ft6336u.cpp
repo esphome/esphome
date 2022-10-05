@@ -6,7 +6,6 @@
 /**************************************************************************/
 
 #include "ft6336u.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 // Registers
