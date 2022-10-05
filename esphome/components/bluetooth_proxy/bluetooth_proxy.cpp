@@ -36,7 +36,7 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   for (auto &data : device.get_manufacturer_datas()) {
       // ignore duplicate data
       if (data.data == prev_data) {
-        ESP_LOGV(TAG, "Ignoring packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
+        ESP_LOGV(TAG, "Ignoring duplicate packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
             device.get_rssi());
         return true;
       }
