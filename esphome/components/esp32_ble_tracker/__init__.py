@@ -3,6 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import (
+    CONF_ACTIVE,
     CONF_ID,
     CONF_INTERVAL,
     CONF_DURATION,
@@ -22,7 +23,6 @@ DEPENDENCIES = ["esp32"]
 CONF_ESP32_BLE_ID = "esp32_ble_id"
 CONF_SCAN_PARAMETERS = "scan_parameters"
 CONF_WINDOW = "window"
-CONF_ACTIVE = "active"
 CONF_CONTINUOUS = "continuous"
 CONF_ON_SCAN_END = "on_scan_end"
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")

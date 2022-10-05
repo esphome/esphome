@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2022.9.2"
+__version__ = "2022.9.3"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -23,6 +23,7 @@ CONF_ACCURACY = "accuracy"
 CONF_ACCURACY_DECIMALS = "accuracy_decimals"
 CONF_ACTION_ID = "action_id"
 CONF_ACTION_STATE_TOPIC = "action_state_topic"
+CONF_ACTIVE = "active"
 CONF_ACTIVE_POWER = "active_power"
 CONF_ADDRESS = "address"
 CONF_ADDRESSABLE_LIGHT_ID = "addressable_light_id"
