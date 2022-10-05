@@ -6,7 +6,7 @@ namespace modbus_controller {
 
 static const char *const TAG = "modbus_controller.switch";
 
-void ModbusSwitch::setup() { this->set_restore_mode(switch_::SWITCH_ALWAYS_OFF); }
+void ModbusSwitch::setup() {}
 void ModbusSwitch::dump_config() { LOG_SWITCH(TAG, "Modbus Controller Switch", this); }
 
 void ModbusSwitch::parse_and_publish(const std::vector<uint8_t> &data) {

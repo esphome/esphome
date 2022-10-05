@@ -63,7 +63,7 @@ SwitchTurnOffTrigger = switch_ns.class_(
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
 
-SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
+_SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
         cv.Optional(CONF_INVERTED): cv.boolean,
@@ -78,9 +78,6 @@ SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
             }
         ),
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
-        cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_OFF"): cv.enum(
-            RESTORE_MODES, upper=True, space="_"
-        ),
     }
 )
 
@@ -94,8 +91,15 @@ def switch_schema(
     device_class: str = _UNDEF,
     icon: str = _UNDEF,
     block_inverted: bool = False,
+    default_restore_mode: str = "RESTORE_DEFAULT_OFF",
 ):
-    schema = SWITCH_SCHEMA
+    schema = _SWITCH_SCHEMA.extend(
+        {
+            cv.Optional(CONF_RESTORE_MODE, default=default_restore_mode): cv.enum(
+                RESTORE_MODES, upper=True, space="_"
+            ),
+        }
+    )
     if class_ is not _UNDEF:
         schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if entity_category is not _UNDEF:
@@ -125,6 +129,9 @@ def switch_schema(
             }
         )
     return schema
+
+
+SWITCH_SCHEMA = switch_schema()  # for compatibility
 
 
 async def setup_switch_core_(var, config):
