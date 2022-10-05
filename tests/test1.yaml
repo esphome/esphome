@@ -82,6 +82,8 @@ wifi:
   reboot_timeout: 120s
   power_save_mode: light
 
+api:
+
 mdns:
   disabled: false
 
@@ -319,7 +321,14 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+outlaw_990:
+  id: outlaw
+  uart_id: uart0
+
 sensor:
+  - platform: outlaw_990
+    sensor_volume:
+      name: "Outlaw Volume Status"
   - platform: ble_client
     ble_client_id: ble_foo
     name: Green iTag btn
@@ -1185,6 +1194,11 @@ esp32_touch:
   voltage_attenuation: 1.5V
 
 binary_sensor:
+  - platform: outlaw_990
+    sensor_power:
+      name: "Outlaw Power Status"
+    sensor_mute:
+      name: "Outlaw Mute Status"
   - platform: gpio
     name: "MCP23S08 Pin #1"
     pin:
@@ -2757,6 +2771,13 @@ globals:
     initial_value: "false"
 
 text_sensor:
+  - platform: outlaw_990
+    sensor_display:
+      name: "Outlaw Display"
+    sensor_audio_in:
+      name: "Outlaw Audio Input"
+    sensor_video_in:
+      name: "Outlaw Video Input"
   - platform: ble_client
     ble_client_id: ble_foo
     name: Sensor Location
@@ -3002,3 +3023,6 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+
+
+
