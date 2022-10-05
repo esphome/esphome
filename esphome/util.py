@@ -1,5 +1,4 @@
-import typing
-from typing import Union, List
+from typing import Union
 
 import collections
 import io
@@ -242,7 +241,7 @@ def is_dev_esphome_version():
     return "dev" in const.__version__
 
 
-def parse_esphome_version() -> typing.Tuple[int, int, int]:
+def parse_esphome_version() -> tuple[int, int, int]:
     match = re.match(r"^(\d+).(\d+).(\d+)(-dev\d*|b\d*)?$", const.__version__)
     if match is None:
         raise ValueError(f"Failed to parse ESPHome version '{const.__version__}'")
@@ -282,7 +281,7 @@ class SerialPort:
 
 
 # from https://github.com/pyserial/pyserial/blob/master/serial/tools/list_ports.py
-def get_serial_ports() -> List[SerialPort]:
+def get_serial_ports() -> list[SerialPort]:
     from serial.tools.list_ports import comports
 
     result = []
