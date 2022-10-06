@@ -70,7 +70,7 @@ class FT6336UTouchscreen : public Touchscreen, public PollingComponent, public i
   uint8_t read_touch2_id_();
 
   FT6336UTouchscreenStore store_;
-  FT6336UTouchPoint touchPoint;
+  FT6336UTouchPoint touch_point_;
 };
 
 }  // namespace ft6336u

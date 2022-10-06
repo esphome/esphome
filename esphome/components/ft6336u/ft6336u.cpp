@@ -60,47 +60,47 @@ void FT6336UTouchscreen::update() {
 }
 
 void FT6336UTouchscreen::check_touch_() {
-  touchPoint.touch_count = read_touch_count_();
+  touch_point_.touch_count = read_touch_count_();
 
-  if (touchPoint.touch_count == 0) {
-    touchPoint.tp[0].status = TouchStatusEnum::RELEASE;
-    touchPoint.tp[1].status = TouchStatusEnum::RELEASE;
-  } else if (touchPoint.touch_count == 1) {
+  if (touch_point_.touch_count == 0) {
+    touch_point_.tp[0].status = TouchStatusEnum::RELEASE;
+    touch_point_.tp[1].status = TouchStatusEnum::RELEASE;
+  } else if (touch_point_.touch_count == 1) {
     uint8_t id1 = read_touch1_id_();  // id1 = 0 or 1
-    touchPoint.tp[id1].status =
-        (touchPoint.tp[id1].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
-    touchPoint.tp[id1].x = read_touch1_x_();
-    touchPoint.tp[id1].y = read_touch1_y_();
-    touchPoint.tp[~id1 & 0x01].status = TouchStatusEnum::RELEASE;
+    touch_point_.tp[id1].status =
+        (touch_point_.tp[id1].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
+    touch_point_.tp[id1].x = read_touch1_x_();
+    touch_point_.tp[id1].y = read_touch1_y_();
+    touch_point_.tp[~id1 & 0x01].status = TouchStatusEnum::RELEASE;
   } else {
     uint8_t id1 = read_touch1_id_();  // id1 = 0 or 1
-    touchPoint.tp[id1].status =
-        (touchPoint.tp[id1].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
-    touchPoint.tp[id1].x = read_touch1_x_();
-    touchPoint.tp[id1].y = read_touch1_y_();
+    touch_point_.tp[id1].status =
+        (touch_point_.tp[id1].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
+    touch_point_.tp[id1].x = read_touch1_x_();
+    touch_point_.tp[id1].y = read_touch1_y_();
     uint8_t id2 = read_touch2_id_();  // id2 = 0 or 1(~id1 & 0x01)
-    touchPoint.tp[id2].status =
-        (touchPoint.tp[id2].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
-    touchPoint.tp[id2].x = read_touch2_x_();
-    touchPoint.tp[id2].y = read_touch2_y_();
+    touch_point_.tp[id2].status =
+        (touch_point_.tp[id2].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
+    touch_point_.tp[id2].x = read_touch2_x_();
+    touch_point_.tp[id2].y = read_touch2_y_();
   }
 
-  if (touchPoint.touch_count == 0) {
+  if (touch_point_.touch_count == 0) {
     for (auto *listener : this->touch_listeners_)
       listener->release();
     return;
   }
 
   std::vector<TouchPoint> touches;
-  uint8_t touch_count = std::min<uint8_t>(touchPoint.touch_count, 2);
+  uint8_t touch_count = std::min<uint8_t>(touch_point_.touch_count, 2);
   ESP_LOGV(TAG, "Touch count: %d", touch_count);
 
   uint16_t w = this->display_->get_width_internal();
   uint16_t h = this->display_->get_height_internal();
 
   for (int i = 0; i < touch_count; i++) {
-    uint32_t raw_x = touchPoint.tp[i].x * w / this->x_resolution_;
-    uint32_t raw_y = touchPoint.tp[i].y * h / this->y_resolution_;
+    uint32_t raw_x = touch_point_.tp[i].x * w / this->x_resolution_;
+    uint32_t raw_y = touch_point_.tp[i].y * h / this->y_resolution_;
 
     TouchPoint tp;
     switch (this->rotation_) {
