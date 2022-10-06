@@ -1,4 +1,3 @@
-from typing import List
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -60,7 +59,7 @@ SELECT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
 )
 
 
-async def setup_select_core_(var, config, *, options: List[str]):
+async def setup_select_core_(var, config, *, options: list[str]):
     await setup_entity(var, config)
 
     cg.add(var.traits.set_options(options))
@@ -76,14 +75,14 @@ async def setup_select_core_(var, config, *, options: List[str]):
         await mqtt.register_mqtt_component(mqtt_, config)
 
 
-async def register_select(var, config, *, options: List[str]):
+async def register_select(var, config, *, options: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_select(var))
     await setup_select_core_(var, config, options=options)
 
 
-async def new_select(config, *, options: List[str]):
+async def new_select(config, *, options: list[str]):
     var = cg.new_Pvariable(config[CONF_ID])
     await register_select(var, config, options=options)
     return var

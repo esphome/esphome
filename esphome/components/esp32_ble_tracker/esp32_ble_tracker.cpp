@@ -518,28 +518,39 @@ bool ESPBTUUID::operator==(const ESPBTUUID &uuid) const {
 }
 esp_bt_uuid_t ESPBTUUID::get_uuid() const { return this->uuid_; }
 std::string ESPBTUUID::to_string() const {
-  char sbuf[64];
   switch (this->uuid_.len) {
     case ESP_UUID_LEN_16:
-      sprintf(sbuf, "0x%02X%02X", this->uuid_.uuid.uuid16 >> 8, this->uuid_.uuid.uuid16 & 0xff);
-      break;
+      return str_snprintf("0x%02X%02X", 6, this->uuid_.uuid.uuid16 >> 8, this->uuid_.uuid.uuid16 & 0xff);
     case ESP_UUID_LEN_32:
-      sprintf(sbuf, "0x%02X%02X%02X%02X", this->uuid_.uuid.uuid32 >> 24, (this->uuid_.uuid.uuid32 >> 16 & 0xff),
-              (this->uuid_.uuid.uuid32 >> 8 & 0xff), this->uuid_.uuid.uuid32 & 0xff);
-      break;
+      return str_snprintf("0x%02X%02X%02X%02X", 10, this->uuid_.uuid.uuid32 >> 24,
+                          (this->uuid_.uuid.uuid32 >> 16 & 0xff), (this->uuid_.uuid.uuid32 >> 8 & 0xff),
+                          this->uuid_.uuid.uuid32 & 0xff);
     default:
     case ESP_UUID_LEN_128:
-      char *bpos = sbuf;
+      std::string buf;
       for (int8_t i = 15; i >= 0; i--) {
-        sprintf(bpos, "%02X", this->uuid_.uuid.uuid128[i]);
-        bpos += 2;
+        buf += str_snprintf("%02X", 2, this->uuid_.uuid.uuid128[i]);
         if (i == 6 || i == 8 || i == 10 || i == 12)
-          sprintf(bpos++, "-");
+          buf += "-";
       }
-      sbuf[47] = '\0';
-      break;
+      return buf;
   }
-  return sbuf;
+  return "";
+}
+
+uint64_t ESPBTUUID::get_128bit_high() const {
+  esp_bt_uuid_t uuid = this->as_128bit().get_uuid();
+  return ((uint64_t) uuid.uuid.uuid128[15] << 56) | ((uint64_t) uuid.uuid.uuid128[14] << 48) |
+         ((uint64_t) uuid.uuid.uuid128[13] << 40) | ((uint64_t) uuid.uuid.uuid128[12] << 32) |
+         ((uint64_t) uuid.uuid.uuid128[11] << 24) | ((uint64_t) uuid.uuid.uuid128[10] << 16) |
+         ((uint64_t) uuid.uuid.uuid128[9] << 8) | ((uint64_t) uuid.uuid.uuid128[8]);
+}
+uint64_t ESPBTUUID::get_128bit_low() const {
+  esp_bt_uuid_t uuid = this->as_128bit().get_uuid();
+  return ((uint64_t) uuid.uuid.uuid128[7] << 56) | ((uint64_t) uuid.uuid.uuid128[6] << 48) |
+         ((uint64_t) uuid.uuid.uuid128[5] << 40) | ((uint64_t) uuid.uuid.uuid128[4] << 32) |
+         ((uint64_t) uuid.uuid.uuid128[3] << 24) | ((uint64_t) uuid.uuid.uuid128[2] << 16) |
+         ((uint64_t) uuid.uuid.uuid128[1] << 8) | ((uint64_t) uuid.uuid.uuid128[0]);
 }
 
 ESPBLEiBeacon::ESPBLEiBeacon(const uint8_t *data) { memcpy(&this->beacon_data_, data, sizeof(beacon_data_)); }

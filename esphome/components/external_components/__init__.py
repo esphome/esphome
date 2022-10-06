@@ -98,7 +98,7 @@ async def to_code(config):
 
 
 def _process_git_config(config: dict, refresh) -> str:
-    repo_dir = git.clone_or_update(
+    repo_dir, _ = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
         refresh=refresh,
