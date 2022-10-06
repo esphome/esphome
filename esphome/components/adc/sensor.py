@@ -35,6 +35,7 @@ ATTENUATION_MODES = {
 }
 
 adc1_channel_t = cg.global_ns.enum("adc1_channel_t")
+adc2_channel_t = cg.global_ns.enum("adc2_channel_t")
 
 # From https://github.com/espressif/esp-idf/blob/master/components/driver/include/driver/adc_common.h
 # pin to adc1 channel mapping
@@ -60,6 +61,16 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         8: adc1_channel_t.ADC1_CHANNEL_7,
         9: adc1_channel_t.ADC1_CHANNEL_8,
         10: adc1_channel_t.ADC1_CHANNEL_9,
+        11: adc2_channel_t.ADC2_CHANNEL_0,
+        12: adc2_channel_t.ADC2_CHANNEL_1,
+        13: adc2_channel_t.ADC2_CHANNEL_2,
+        14: adc2_channel_t.ADC2_CHANNEL_3,
+        15: adc2_channel_t.ADC2_CHANNEL_4,
+        16: adc2_channel_t.ADC2_CHANNEL_5,
+        17: adc2_channel_t.ADC2_CHANNEL_6,
+        18: adc2_channel_t.ADC2_CHANNEL_7,
+        19: adc2_channel_t.ADC2_CHANNEL_8,
+        20: adc2_channel_t.ADC2_CHANNEL_9,
     },
     VARIANT_ESP32S3: {
         1: adc1_channel_t.ADC1_CHANNEL_0,

@@ -30,6 +30,18 @@ static const int SOC_ADC_RTC_MAX_BITWIDTH = 12;
 
 static const int ADC_MAX = (1 << SOC_ADC_RTC_MAX_BITWIDTH) - 1;    // 4095 (12 bit) or 8191 (13 bit)
 static const int ADC_HALF = (1 << SOC_ADC_RTC_MAX_BITWIDTH) >> 1;  // 2048 (12 bit) or 4096 (13 bit)
+
+void config_channel_atten(const adc1_channel_t& channel1, const adc2_channel_t& channel2, const adc_atten_t& attenuation, ADCSensor::Channel channel_num)
+{
+  if (channel_num == ADCSensor::Channel::channel1)
+  {
+    adc1_config_channel_atten(channel1, attenuation);
+  }
+  else
+  {
+    adc2_config_channel_atten(channel2, attenuation);
+  }
+}
 #endif
 
 void ADCSensor::setup() {
@@ -41,7 +53,7 @@ void ADCSensor::setup() {
 #ifdef USE_ESP32
   adc1_config_width(ADC_WIDTH_MAX_SOC_BITS);
   if (!autorange_) {
-    adc1_config_channel_atten(channel_, attenuation_);
+    config_channel_atten(channel1_, channel2_, attenuation_, channel_num_);
   }
 
   // load characteristics for each attenuation
@@ -123,10 +135,21 @@ float ADCSensor::sample() {
 #endif
 
 #ifdef USE_ESP32
+esp_err_t get_adc_raw(const adc1_channel_t& channel1, const adc2_channel_t& channel2, ADCSensor::Channel channel_num, int& raw)
+{
+  if (channel_num == ADCSensor::Channel::channel1)
+  {
+    raw = adc1_get_raw(channel1);
+    return (raw != -1) ? ESP_OK : ESP_FAIL;
+  }
+  return adc2_get_raw(channel2, ADC_WIDTH_MAX_SOC_BITS, &raw);
+}
+
 float ADCSensor::sample() {
   if (!autorange_) {
-    int raw = adc1_get_raw(channel_);
-    if (raw == -1) {
+    int raw;
+    esp_err_t ret = get_adc_raw(channel1_, channel2_, channel_num_, raw);
+    if (ret != ESP_OK) {
       return NAN;
     }
     if (output_raw_) {
@@ -137,22 +160,21 @@ float ADCSensor::sample() {
   }
 
   int raw11, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
-  adc1_config_channel_atten(channel_, ADC_ATTEN_DB_11);
-  raw11 = adc1_get_raw(channel_);
-  if (raw11 < ADC_MAX) {
-    adc1_config_channel_atten(channel_, ADC_ATTEN_DB_6);
-    raw6 = adc1_get_raw(channel_);
-    if (raw6 < ADC_MAX) {
-      adc1_config_channel_atten(channel_, ADC_ATTEN_DB_2_5);
-      raw2 = adc1_get_raw(channel_);
-      if (raw2 < ADC_MAX) {
-        adc1_config_channel_atten(channel_, ADC_ATTEN_DB_0);
-        raw0 = adc1_get_raw(channel_);
+  config_channel_atten(channel1_, channel2_, ADC_ATTEN_DB_11, channel_num_);
+  esp_err_t ret = get_adc_raw(channel1_, channel2_, channel_num_, raw11);
+  if (raw11 < ADC_MAX && ret == ESP_OK) {
+    config_channel_atten(channel1_, channel2_, ADC_ATTEN_DB_6, channel_num_);
+    ret = get_adc_raw(channel1_, channel2_, channel_num_, raw6);
+    if (raw6 < ADC_MAX && ret == ESP_OK) {
+      config_channel_atten(channel1_, channel2_, ADC_ATTEN_DB_2_5, channel_num_);
+      ret = get_adc_raw(channel1_, channel2_, channel_num_, raw2);
+      if (raw2 < ADC_MAX && ret == ESP_OK) {
+        config_channel_atten(channel1_, channel2_, ADC_ATTEN_DB_0, channel_num_);
+        ret = get_adc_raw(channel1_, channel2_, channel_num_, raw0);
       }
     }
   }
-
-  if (raw0 == -1 || raw2 == -1 || raw6 == -1 || raw11 == -1) {
+  if(ret != ESP_OK) {
     return NAN;
   }
 
