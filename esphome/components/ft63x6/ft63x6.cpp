@@ -105,19 +105,19 @@ void FT63X6Touchscreen::check_touch_() {
 
     TouchPoint tp;
     switch (this->display_->get_rotation()) {
-      case ROTATE_0_DEGREES:
+      case DISPLAY_ROTATE_0_DEGREES:
         tp.x = raw_x;
         tp.y = raw_y;
         break;
-      case ROTATE_90_DEGREES:
+      case DISPLAY_ROTATE_90_DEGREES:
         tp.x = raw_y;
         tp.y = w - std::min<uint32_t>(raw_x, w);
         break;
-      case ROTATE_180_DEGREES:
+      case DISPLAY_ROTATE_180_DEGREES:
         tp.x = w - std::min<uint32_t>(raw_x, w);
         tp.y = h - std::min<uint32_t>(raw_y, h);
         break;
-      case ROTATE_270_DEGREES:
+      case DISPLAY_ROTATE_270_DEGREES:
         tp.x = h - std::min<uint32_t>(raw_y, h);
         tp.y = raw_x;
         break;
