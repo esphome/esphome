@@ -16,7 +16,7 @@ FT63X6Touchscreen = ft6336u_ns.class_(
     i2c.I2CDevice,
 )
 
-CONF_FT63X6_ID = "ft6336u_id"
+CONF_FT63X6_ID = "ft63x6_id"
 CONF_INTERRUPT_PIN = "interrupt_pin"
 
 
