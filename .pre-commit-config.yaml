@@ -30,4 +30,4 @@ repos:
     rev: v3.0.0
     hooks:
       - id: pyupgrade
-        args: [--py38-plus]
+        args: [--py39-plus]
