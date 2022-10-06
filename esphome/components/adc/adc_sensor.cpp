@@ -32,8 +32,7 @@ static const int ADC_MAX = (1 << SOC_ADC_RTC_MAX_BITWIDTH) - 1;    // 4095 (12 b
 static const int ADC_HALF = (1 << SOC_ADC_RTC_MAX_BITWIDTH) >> 1;  // 2048 (12 bit) or 4096 (13 bit)
 
 void config_channel_atten(const adc1_channel_t& channel1, const adc2_channel_t& channel2,
-                          const adc_atten_t& attenuation, ADCSensor::Channel channel_num)
-{
+                          const adc_atten_t& attenuation, ADCSensor::Channel channel_num) {
   if (channel_num == ADCSensor::Channel::channel1) {
     adc1_config_channel_atten(channel1, attenuation);
   } else {
@@ -133,9 +132,8 @@ float ADCSensor::sample() {
 #endif
 
 #ifdef USE_ESP32
-esp_err_t get_adc_raw(const adc1_channel_t& channel1, const adc2_channel_t& channel2,
-                      ADCSensor::Channel channel_num, int& raw)
-{
+esp_err_t get_adc_raw(const adc1_channel_t& channel1, const adc2_channel_t& channel2, ADCSensor::Channel channel_num,
+                      int& raw) {
   if (channel_num == ADCSensor::Channel::channel1) {
     raw = adc1_get_raw(channel1);
     return (raw != -1) ? ESP_OK : ESP_FAIL;
