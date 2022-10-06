@@ -32,7 +32,7 @@ void FT6336UTouchscreen::setup() {
     this->interrupt_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     this->interrupt_pin_->setup();
     this->store_.pin = this->interrupt_pin_->to_isr();
-    this->interrupt_pin_->attach_interrupt(FT6336UTouchscreenStore::gpio_intr, &this->store_, 
+    this->interrupt_pin_->attach_interrupt(FT6336UTouchscreenStore::gpio_intr, &this->store_,
                                            gpio::INTERRUPT_FALLING_EDGE);
   }
 
@@ -66,21 +66,21 @@ void FT6336UTouchscreen::check_touch_() {
     touchPoint.tp[0].status = TouchStatusEnum::RELEASE;
     touchPoint.tp[1].status = TouchStatusEnum::RELEASE;
   } else if (touchPoint.touch_count == 1) {
-    uint8_t id1 = read_touch1_id_(); // id1 = 0 or 1
-    touchPoint.tp[id1].status = 
-      (touchPoint.tp[id1].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
+    uint8_t id1 = read_touch1_id_();  // id1 = 0 or 1
+    touchPoint.tp[id1].status =
+        (touchPoint.tp[id1].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
     touchPoint.tp[id1].x = read_touch1_x_();
     touchPoint.tp[id1].y = read_touch1_y_();
     touchPoint.tp[~id1 & 0x01].status = TouchStatusEnum::RELEASE;
   } else {
-    uint8_t id1 = read_touch1_id_(); // id1 = 0 or 1
-    touchPoint.tp[id1].status = 
-      (touchPoint.tp[id1].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
+    uint8_t id1 = read_touch1_id_();  // id1 = 0 or 1
+    touchPoint.tp[id1].status =
+        (touchPoint.tp[id1].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
     touchPoint.tp[id1].x = read_touch1_x_();
     touchPoint.tp[id1].y = read_touch1_y_();
-    uint8_t id2 = read_touch2_id_(); // id2 = 0 or 1(~id1 & 0x01)
-    touchPoint.tp[id2].status = 
-      (touchPoint.tp[id2].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
+    uint8_t id2 = read_touch2_id_();  // id2 = 0 or 1(~id1 & 0x01)
+    touchPoint.tp[id2].status =
+        (touchPoint.tp[id2].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
     touchPoint.tp[id2].x = read_touch2_x_();
     touchPoint.tp[id2].y = read_touch2_y_();
   }

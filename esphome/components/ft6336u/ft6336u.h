@@ -15,21 +15,21 @@ namespace esphome {
 namespace ft6336u {
 
 // Function Specific Type
-enum class TouchStatusEnum: uint8_t {
+enum class TouchStatusEnum : uint8_t {
   TOUCH = 0,
   STREAM,
   RELEASE,
 };
 
 struct TouchPointType {
-    TouchStatusEnum status;
-    uint16_t x;
-    uint16_t y;
+  TouchStatusEnum status;
+  uint16_t x;
+  uint16_t y;
 };
 
 struct FT6336UTouchPoint {
-    uint8_t touch_count;
-    TouchPointType tp[2];
+  uint8_t touch_count;
+  TouchPointType tp[2];
 };
 
 struct FT6336UTouchscreenStore {
