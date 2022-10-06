@@ -16,21 +16,21 @@ namespace ft6336u {
 
 // Function Specific Type
 enum class TouchStatusEnum: uint8_t {
-  touch = 0, 
-  stream, 
-  release, 
-}; 
+  TOUCH = 0,
+  STREAM,
+  RELEASE,
+};
 
-typedef struct {
-    TouchStatusEnum status; 
-    uint16_t x; 
-    uint16_t y; 
-} TouchPointType;
+struct TouchPointType {
+    TouchStatusEnum status;
+    uint16_t x;
+    uint16_t y;
+};
 
-typedef struct {
-    uint8_t touch_count; 
-    TouchPointType tp[2]; 
-} FT6336UTouchPoint; 
+struct FT6336UTouchPoint {
+    uint8_t touch_count;
+    TouchPointType tp[2];
+};
 
 struct FT6336UTouchscreenStore {
   volatile bool touch;
@@ -53,8 +53,7 @@ class FT6336UTouchscreen : public Touchscreen, public PollingComponent, public i
 
  protected:
   void hard_reset_();
-  uint8_t readByte(uint8_t addr); 
-  void writeByte(uint8_t addr, uint8_t data); 
+  uint8_t read_byte_(uint8_t addr);
   void check_touch_();
 
   InternalGPIOPin *interrupt_pin_{nullptr};
@@ -62,7 +61,7 @@ class FT6336UTouchscreen : public Touchscreen, public PollingComponent, public i
   uint16_t x_resolution_;
   uint16_t y_resolution_;
 
-  uint8_t read_touch_count();
+  uint8_t read_touch_count_();
   uint16_t read_touch1_x();
   uint16_t read_touch1_y();
   uint8_t read_touch1_id();
@@ -71,7 +70,7 @@ class FT6336UTouchscreen : public Touchscreen, public PollingComponent, public i
   uint8_t read_touch2_id();
 
   FT6336UTouchscreenStore store_;
-  FT6336UTouchPoint touchPoint; 
+  FT6336UTouchPoint touchPoint;
 };
 
 }  // namespace ft6336u

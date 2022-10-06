@@ -34,7 +34,7 @@ void FT6336UTouchscreen::setup() {
     this->store_.pin = this->interrupt_pin_->to_isr();
     this->interrupt_pin_->attach_interrupt(FT6336UTouchscreenStore::gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
   }
-  
+
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->setup();
   }
@@ -59,26 +59,26 @@ void FT6336UTouchscreen::update() {
 }
 
 void FT6336UTouchscreen::check_touch_() {
-  touchPoint.touch_count = read_touch_count();
+  touchPoint.touch_count = read_touch_count_();
 
   if (touchPoint.touch_count == 0) {
-    touchPoint.tp[0].status = TouchStatusEnum::release;
-    touchPoint.tp[1].status = TouchStatusEnum::release;
+    touchPoint.tp[0].status = TouchStatusEnum::RELEASE;
+    touchPoint.tp[1].status = TouchStatusEnum::RELEASE;
   }
   else if (touchPoint.touch_count == 1) {
     uint8_t id1 = read_touch1_id(); // id1 = 0 or 1
-    touchPoint.tp[id1].status = (touchPoint.tp[id1].status == TouchStatusEnum::release) ? TouchStatusEnum::touch : TouchStatusEnum::stream;
+    touchPoint.tp[id1].status = (touchPoint.tp[id1].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
     touchPoint.tp[id1].x = read_touch1_x();
     touchPoint.tp[id1].y = read_touch1_y();
-    touchPoint.tp[~id1 & 0x01].status = TouchStatusEnum::release;
+    touchPoint.tp[~id1 & 0x01].status = TouchStatusEnum::RELEASE;
   }
   else {
     uint8_t id1 = read_touch1_id(); // id1 = 0 or 1
-    touchPoint.tp[id1].status = (touchPoint.tp[id1].status == TouchStatusEnum::release) ? TouchStatusEnum::touch : TouchStatusEnum::stream;
+    touchPoint.tp[id1].status = (touchPoint.tp[id1].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
     touchPoint.tp[id1].x = read_touch1_x();
     touchPoint.tp[id1].y = read_touch1_y();
     uint8_t id2 = read_touch2_id(); // id2 = 0 or 1(~id1 & 0x01)
-    touchPoint.tp[id2].status = (touchPoint.tp[id2].status == TouchStatusEnum::release) ? TouchStatusEnum::touch : TouchStatusEnum::stream;
+    touchPoint.tp[id2].status = (touchPoint.tp[id2].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::STREAM;
     touchPoint.tp[id2].x = read_touch2_x();
     touchPoint.tp[id2].y = read_touch2_y();
   }
@@ -139,53 +139,48 @@ void FT6336UTouchscreen::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
 }
 
-uint8_t FT6336UTouchscreen::read_touch_count() {
-  return readByte(FT6336U_ADDR_TOUCH_COUNT);
+uint8_t FT6336UTouchscreen::read_touch_count_() {
+  return read_byte_(FT6336U_ADDR_TOUCH_COUNT);
 }
 // Touch 1 functions
 uint16_t FT6336UTouchscreen::read_touch1_x() {
   uint8_t read_buf[2];
-  read_buf[0] = readByte(FT6336U_ADDR_TOUCH1_X);
-  read_buf[1] = readByte(FT6336U_ADDR_TOUCH1_X + 1);
+  read_buf[0] = read_byte_(FT6336U_ADDR_TOUCH1_X);
+  read_buf[1] = read_byte_(FT6336U_ADDR_TOUCH1_X + 1);
   return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
 uint16_t FT6336UTouchscreen::read_touch1_y() {
   uint8_t read_buf[2];
-  read_buf[0] = readByte(FT6336U_ADDR_TOUCH1_Y);
-  read_buf[1] = readByte(FT6336U_ADDR_TOUCH1_Y + 1);
+  read_buf[0] = read_byte_(FT6336U_ADDR_TOUCH1_Y);
+  read_buf[1] = read_byte_(FT6336U_ADDR_TOUCH1_Y + 1);
   return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
 uint8_t FT6336UTouchscreen::read_touch1_id() {
-  return readByte(FT6336U_ADDR_TOUCH1_ID) >> 4;
+  return read_byte_(FT6336U_ADDR_TOUCH1_ID) >> 4;
 }
 // Touch 2 functions
 uint16_t FT6336UTouchscreen::read_touch2_x() {
   uint8_t read_buf[2];
-  read_buf[0] = readByte(FT6336U_ADDR_TOUCH2_X);
-  read_buf[1] = readByte(FT6336U_ADDR_TOUCH2_X + 1);
+  read_buf[0] = read_byte_(FT6336U_ADDR_TOUCH2_X);
+  read_buf[1] = read_byte_(FT6336U_ADDR_TOUCH2_X + 1);
   return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
 uint16_t FT6336UTouchscreen::read_touch2_y() {
   uint8_t read_buf[2];
-  read_buf[0] = readByte(FT6336U_ADDR_TOUCH2_Y);
-  read_buf[1] = readByte(FT6336U_ADDR_TOUCH2_Y + 1);
+  read_buf[0] = read_byte_(FT6336U_ADDR_TOUCH2_Y);
+  read_buf[1] = read_byte_(FT6336U_ADDR_TOUCH2_Y + 1);
   return ((read_buf[0] & 0x0f) << 8) | read_buf[1];
 }
 uint8_t FT6336UTouchscreen::read_touch2_id() {
-  return readByte(FT6336U_ADDR_TOUCH2_ID) >> 4;
+  return read_byte_(FT6336U_ADDR_TOUCH2_ID) >> 4;
 }
 
 // Private Function
-uint8_t FT6336UTouchscreen::readByte(uint8_t addr) {
-  uint8_t rdData = 0;
-  this->read_byte(addr, &rdData);
-  return rdData;
+uint8_t FT6336UTouchscreen::read_byte_(uint8_t addr) {
+  uint8_t byte = 0;
+  this->read_byte(addr, &byte);
+  return byte;
 }
 
-void FT6336UTouchscreen::writeByte(uint8_t addr, uint8_t data) {
-  this->write_byte(addr, data);
-  ESP_LOGD(TAG, "writeI2C reg 0x%x -> 0x%x", addr, data);
-}
-
-}  // namespace FT6336UTouchscreen
+}  // namespace ft6336u
 }  // namespace esphome
