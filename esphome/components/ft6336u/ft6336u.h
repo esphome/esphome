@@ -17,7 +17,7 @@ namespace ft6336u {
 // Function Specific Type
 enum class TouchStatusEnum : uint8_t {
   TOUCH = 0,
-  STREAM,
+  REPEAT,
   RELEASE,
 };
 
@@ -62,12 +62,8 @@ class FT6336UTouchscreen : public Touchscreen, public PollingComponent, public i
   uint16_t y_resolution_;
 
   uint8_t read_touch_count_();
-  uint16_t read_touch1_x_();
-  uint16_t read_touch1_y_();
-  uint8_t read_touch1_id_();
-  uint16_t read_touch2_x_();
-  uint16_t read_touch2_y_();
-  uint8_t read_touch2_id_();
+  uint16_t read_touch_coordinate_(uint8_t coordinate);
+  uint8_t read_touch_id_(uint8_t id_address);
 
   FT6336UTouchscreenStore store_;
   FT6336UTouchPoint touch_point_;
