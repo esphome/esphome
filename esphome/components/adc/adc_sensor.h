@@ -17,16 +17,16 @@ namespace adc {
 class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
 #ifdef USE_ESP32
-  enum class Channel { channel1, channel2 };
+  enum class Channel { CHANNEL1, CHANNEL2 };
   /// Set the attenuation for this pin. Only available on the ESP32.
   void set_attenuation(adc_atten_t attenuation) { attenuation_ = attenuation; }
   void set_channel(adc1_channel_t channel) {
     channel1_ = channel;
-    channel_num_ = Channel::channel1;
+    channel_num_ = Channel::CHANNEL1;
   }
   void set_channel(adc2_channel_t channel) {
     channel2_ = channel;
-    channel_num_ = Channel::channel2;
+    channel_num_ = Channel::CHANNEL2;
   }
   void set_autorange(bool autorange) { autorange_ = autorange; }
 #endif
@@ -54,7 +54,7 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   adc_atten_t attenuation_{ADC_ATTEN_DB_0};
   adc1_channel_t channel1_{};
   adc2_channel_t channel2_{};
-  Channel channel_num_{Channel::channel1};
+  Channel channel_num_{Channel::CHANNEL1};
   bool autorange_{false};
   esp_adc_cal_characteristics_t cal_characteristics_[(int) ADC_ATTEN_MAX] = {};
 #endif
