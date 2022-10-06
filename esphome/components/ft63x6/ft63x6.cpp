@@ -87,10 +87,15 @@ void FT63X6Touchscreen::check_touch_() {
   }
 
   if (touch_point_.touch_count == 0) {
-    for (auto *listener : this->touch_listeners_)
-      listener->release();
+    if (touched_) {
+      touched_ = false;
+      for (auto *listener : this->touch_listeners_)
+        listener->release();
+    }
     return;
   }
+  
+  touched_ = true;
 
   std::vector<TouchPoint> touches;
   uint8_t touch_count = std::min<uint8_t>(touch_point_.touch_count, 2);
@@ -104,20 +109,20 @@ void FT63X6Touchscreen::check_touch_() {
     uint32_t raw_y = touch_point_.tp[i].y * h / this->y_resolution_;
 
     TouchPoint tp;
-    switch (this->display_->get_rotation()) {
-      case DISPLAY_ROTATE_0_DEGREES:
+    switch (static_cast<TouchRotation>(this->display_->get_rotation())) {
+      case ROTATE_0_DEGREES:
         tp.x = raw_x;
         tp.y = raw_y;
         break;
-      case DISPLAY_ROTATE_90_DEGREES:
+      case ROTATE_90_DEGREES:
         tp.x = raw_y;
         tp.y = w - std::min<uint32_t>(raw_x, w);
         break;
-      case DISPLAY_ROTATE_180_DEGREES:
+      case ROTATE_180_DEGREES:
         tp.x = w - std::min<uint32_t>(raw_x, w);
         tp.y = h - std::min<uint32_t>(raw_y, h);
         break;
-      case DISPLAY_ROTATE_270_DEGREES:
+      case ROTATE_270_DEGREES:
         tp.x = h - std::min<uint32_t>(raw_y, h);
         tp.y = raw_x;
         break;

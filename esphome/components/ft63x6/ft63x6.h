@@ -67,6 +67,7 @@ class FT63X6Touchscreen : public Touchscreen, public PollingComponent, public i2
 
   FT63X6TouchscreenStore store_;
   FT63X6TouchPoint touch_point_;
+  bool touched_{false};
 };
 
 }  // namespace ft63x6
