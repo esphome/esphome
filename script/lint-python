@@ -109,7 +109,7 @@ def main():
         print_error(file_, linno, msg)
         errors += 1
 
-    PYUPGRADE_TARGET = "--py38-plus"
+    PYUPGRADE_TARGET = "--py39-plus"
     cmd = ["pyupgrade", PYUPGRADE_TARGET] + files
     print()
     print("Running pyupgrade...")
