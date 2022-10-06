@@ -17,10 +17,7 @@ namespace adc {
 class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage_sampler::VoltageSampler {
  public:
 #ifdef USE_ESP32
-  enum class Channel {
-    channel1,
-    channel2
-  };
+  enum class Channel { channel1, channel2 };
   /// Set the attenuation for this pin. Only available on the ESP32.
   void set_attenuation(adc_atten_t attenuation) { attenuation_ = attenuation; }
   void set_channel(adc1_channel_t channel) {
