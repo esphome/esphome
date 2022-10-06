@@ -62,12 +62,12 @@ class FT6336UTouchscreen : public Touchscreen, public PollingComponent, public i
   uint16_t y_resolution_;
 
   uint8_t read_touch_count_();
-  uint16_t read_touch1_x();
-  uint16_t read_touch1_y();
-  uint8_t read_touch1_id();
-  uint16_t read_touch2_x();
-  uint16_t read_touch2_y();
-  uint8_t read_touch2_id();
+  uint16_t read_touch1_x_();
+  uint16_t read_touch1_y_();
+  uint8_t read_touch1_id_();
+  uint16_t read_touch2_x_();
+  uint16_t read_touch2_y_();
+  uint8_t read_touch2_id_();
 
   FT6336UTouchscreenStore store_;
   FT6336UTouchPoint touchPoint;
