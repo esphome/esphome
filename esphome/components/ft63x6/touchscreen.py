@@ -8,22 +8,22 @@ from esphome.const import CONF_ID, CONF_RESET_PIN
 CODEOWNERS = ["@gpambrozio"]
 DEPENDENCIES = ["i2c"]
 
-ft6336u_ns = cg.esphome_ns.namespace("ft6336u")
-FT6336UTouchscreen = ft6336u_ns.class_(
-    "FT6336UTouchscreen",
+ft6336u_ns = cg.esphome_ns.namespace("ft63x6")
+FT63X6Touchscreen = ft6336u_ns.class_(
+    "FT63X6Touchscreen",
     touchscreen.Touchscreen,
     cg.Component,
     i2c.I2CDevice,
 )
 
-CONF_FT6336U_ID = "ft6336u_id"
+CONF_FT63X6_ID = "ft6336u_id"
 CONF_INTERRUPT_PIN = "interrupt_pin"
 
 
 CONFIG_SCHEMA = touchscreen.TOUCHSCREEN_SCHEMA.extend(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(FT6336UTouchscreen),
+            cv.GenerateID(): cv.declare_id(FT63X6Touchscreen),
             cv.Optional(CONF_INTERRUPT_PIN): cv.All(
                 pins.internal_gpio_input_pin_schema
             ),

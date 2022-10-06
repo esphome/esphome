@@ -12,7 +12,7 @@
 #include "esphome/core/component.h"
 
 namespace esphome {
-namespace ft6336u {
+namespace ft63x6 {
 
 // Function Specific Type
 enum class TouchStatusEnum : uint8_t {
@@ -27,21 +27,21 @@ struct TouchPointType {
   uint16_t y;
 };
 
-struct FT6336UTouchPoint {
+struct FT63X6TouchPoint {
   uint8_t touch_count;
   TouchPointType tp[2];
 };
 
-struct FT6336UTouchscreenStore {
+struct FT63X6TouchscreenStore {
   volatile bool touch;
   ISRInternalGPIOPin pin;
 
-  static void gpio_intr(FT6336UTouchscreenStore *store);
+  static void gpio_intr(FT63X6TouchscreenStore *store);
 };
 
 using namespace touchscreen;
 
-class FT6336UTouchscreen : public Touchscreen, public PollingComponent, public i2c::I2CDevice {
+class FT63X6Touchscreen : public Touchscreen, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
   void loop() override;
@@ -65,9 +65,9 @@ class FT6336UTouchscreen : public Touchscreen, public PollingComponent, public i
   uint16_t read_touch_coordinate_(uint8_t coordinate);
   uint8_t read_touch_id_(uint8_t id_address);
 
-  FT6336UTouchscreenStore store_;
-  FT6336UTouchPoint touch_point_;
+  FT63X6TouchscreenStore store_;
+  FT63X6TouchPoint touch_point_;
 };
 
-}  // namespace ft6336u
+}  // namespace ft63x6
 }  // namespace esphome
