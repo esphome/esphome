@@ -395,11 +395,22 @@ class ImportRequestHandler(BaseHandler):
         args = json.loads(self.request.body.decode())
         try:
             name = args["name"]
+
+            imported_device = next(
+                (res for res in IMPORT_RESULT.values() if res.device_name == name), None
+            )
+
+            if imported_device is not None:
+                network = imported_device.network
+            else:
+                network = const.CONF_WIFI
+
             import_config(
                 settings.rel_path(f"{name}.yaml"),
                 name,
                 args["project_name"],
                 args["package_import_url"],
+                network,
             )
         except FileExistsError:
             self.set_status(500)
