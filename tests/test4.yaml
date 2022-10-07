@@ -657,6 +657,15 @@ touchscreen:
           format: Touch at (%d, %d)
           args: [touch.x, touch.y]
 
+  - platform: ft63x6
+    interrupt_pin: GPIO39
+    reset_pin: GPIO5
+    display: inkplate_display
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: [touch.x, touch.y]
+
 media_player:
   - platform: i2s_audio
     name: ${friendly_name}
