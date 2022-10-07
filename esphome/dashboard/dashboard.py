@@ -400,11 +400,10 @@ class ImportRequestHandler(BaseHandler):
                 (res for res in IMPORT_RESULT.values() if res.device_name == name), None
             )
 
-            network = (
-                imported_device.network
-                if imported_device is not None
-                else const.CONF_WIFI
-            )
+            if imported_device is not None:
+                network = imported_device.network
+            else:
+                network = const.CONF_WIFI
 
             import_config(
                 settings.rel_path(f"{name}.yaml"),

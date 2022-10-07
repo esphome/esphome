@@ -72,7 +72,9 @@ def import_config(
                 "name_add_mac_suffix": False,
             },
         }
-        p.write_text(
-            dump(config) + (WIFI_CONFIG if network == CONF_WIFI else ""),
-            encoding="utf8",
-        )
+        output = dump(config)
+
+        if network == CONF_WIFI:
+            output += WIFI_CONFIG
+
+        p.write_text(output, encoding="utf8")
