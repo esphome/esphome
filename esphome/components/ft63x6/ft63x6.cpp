@@ -94,7 +94,7 @@ void FT63X6Touchscreen::check_touch_() {
     }
     return;
   }
-  
+
   touched_ = true;
 
   std::vector<TouchPoint> touches;
