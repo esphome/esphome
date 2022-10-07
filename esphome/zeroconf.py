@@ -118,6 +118,7 @@ ESPHOME_SERVICE_TYPE = "_esphomelib._tcp.local."
 TXT_RECORD_PACKAGE_IMPORT_URL = b"package_import_url"
 TXT_RECORD_PROJECT_NAME = b"project_name"
 TXT_RECORD_PROJECT_VERSION = b"project_version"
+TXT_RECORD_NETWORK = b"network"
 
 
 @dataclass
@@ -126,6 +127,7 @@ class DiscoveredImport:
     package_import_url: str
     project_name: str
     project_version: str
+    network: str
 
 
 class DashboardImportDiscovery:
@@ -134,7 +136,7 @@ class DashboardImportDiscovery:
         self.service_browser = ServiceBrowser(
             self.zc, ESPHOME_SERVICE_TYPE, [self._on_update]
         )
-        self.import_state = {}
+        self.import_state: dict[str, DiscoveredImport] = {}
 
     def _on_update(
         self,
@@ -171,12 +173,14 @@ class DashboardImportDiscovery:
         import_url = info.properties[TXT_RECORD_PACKAGE_IMPORT_URL].decode()
         project_name = info.properties[TXT_RECORD_PROJECT_NAME].decode()
         project_version = info.properties[TXT_RECORD_PROJECT_VERSION].decode()
+        network = info.properties[TXT_RECORD_NETWORK].decode()
 
         self.import_state[name] = DiscoveredImport(
             device_name=node_name,
             package_import_url=import_url,
             project_name=project_name,
             project_version=project_version,
+            network=network,
         )
 
     def cancel(self) -> None:

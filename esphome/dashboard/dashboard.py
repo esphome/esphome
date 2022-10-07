@@ -613,6 +613,7 @@ class ListDevicesHandler(BaseHandler):
                             "package_import_url": res.package_import_url,
                             "project_name": res.project_name,
                             "project_version": res.project_version,
+                            "network": res.network,
                         }
                         for res in IMPORT_RESULT.values()
                         if res.device_name not in configured
