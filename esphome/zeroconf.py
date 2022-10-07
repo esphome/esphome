@@ -173,7 +173,7 @@ class DashboardImportDiscovery:
         import_url = info.properties[TXT_RECORD_PACKAGE_IMPORT_URL].decode()
         project_name = info.properties[TXT_RECORD_PROJECT_NAME].decode()
         project_version = info.properties[TXT_RECORD_PROJECT_VERSION].decode()
-        network = info.properties[TXT_RECORD_NETWORK].decode()
+        network = info.properties.get(TXT_RECORD_NETWORK, b"wifi").decode()
 
         self.import_state[name] = DiscoveredImport(
             device_name=node_name,
