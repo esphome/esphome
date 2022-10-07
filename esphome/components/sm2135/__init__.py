@@ -16,9 +16,29 @@ SM2135 = sm2135_ns.class_("SM2135", cg.Component)
 CONF_RGB_CURRENT = "rgb_current"
 CONF_CW_CURRENT = "cw_current"
 
-DRIVE_STRENGTHS_CW = {10, 15, 20, 25, 30, 35, 40, 45, 50, 55, 60}
-
-DRIVE_STRENGTHS_RGB = {10, 15, 20, 25, 30, 35, 40, 45}
+DRIVE_STRENGTHS_CW = {
+    "10mA": 10,
+    "15mA": 15,
+    "20mA": 20,
+    "25mA": 25,
+    "30mA": 30,
+    "35mA": 35,
+    "40mA": 40,
+    "45mA": 45,
+    "50mA": 50,
+    "55mA": 55,
+    "60mA": 60,
+}
+DRIVE_STRENGTHS_RGB = {
+    "10mA": 10,
+    "15mA": 15,
+    "20mA": 20,
+    "25mA": 25,
+    "30mA": 30,
+    "35mA": 35,
+    "40mA": 40,
+    "45mA": 45,
+}
 
 
 MULTI_CONF = True
@@ -27,12 +47,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(SM2135),
         cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_RGB_CURRENT, default=20): cv.one_of(
-            *DRIVE_STRENGTHS_RGB, int=True
-        ),
-        cv.Optional(CONF_CW_CURRENT, default=10): cv.one_of(
-            *DRIVE_STRENGTHS_CW, int=True
-        ),
+        cv.Optional(CONF_RGB_CURRENT, "20mA"): cv.enum(DRIVE_STRENGTHS_RGB),
+        cv.Optional(CONF_CW_CURRENT, "10mA"): cv.enum(DRIVE_STRENGTHS_CW),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
