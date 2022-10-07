@@ -3,6 +3,7 @@ from pathlib import Path
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components.packages import validate_source_shorthand
+from esphome.const import CONF_WIFI
 from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
 
@@ -43,7 +44,9 @@ async def to_code(config):
     cg.add(dashboard_import_ns.set_package_import_url(config[CONF_PACKAGE_IMPORT_URL]))
 
 
-def import_config(path: str, name: str, project_name: str, import_url: str) -> None:
+def import_config(
+    path: str, name: str, project_name: str, import_url: str, network: str = CONF_WIFI
+) -> None:
     p = Path(path)
 
     if p.exists():
@@ -70,6 +73,6 @@ def import_config(path: str, name: str, project_name: str, import_url: str) -> N
             },
         }
         p.write_text(
-            dump(config) + WIFI_CONFIG,
+            dump(config) + (WIFI_CONFIG if network == CONF_WIFI else ""),
             encoding="utf8",
         )
