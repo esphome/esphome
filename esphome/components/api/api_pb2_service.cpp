@@ -401,6 +401,14 @@ bool APIServerConnectionBase::send_bluetooth_connections_free_response(const Blu
   return this->send_message_<BluetoothConnectionsFreeResponse>(msg, 81);
 }
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+bool APIServerConnectionBase::send_bluetooth_gatt_error_response(const BluetoothGATTErrorResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_bluetooth_gatt_error_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<BluetoothGATTErrorResponse>(msg, 82);
+}
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
