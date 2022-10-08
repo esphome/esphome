@@ -19,6 +19,9 @@ void SharpMem::setup() {
   this->spi_setup();
   this->init_internal_(this->get_buffer_length_());
   this->cs_->digital_write(false);
+  this->extmode_->digital_write(false);
+  this->extcomin_->digital_write(false);
+  this->disp_->digital_write(true);
 
   display_init_();
 }

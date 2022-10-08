@@ -14,11 +14,18 @@ SharpMem = sharpMem_ns.class_(
 )
 SharpMemRef = SharpMem.operator("ref")
 
+CONF_DISP_PIN = "disp_pin"
+CONF_EXTMODE_PIN = "extmode_pin"
+CONF_EXTCOMIN_PIN = "extcomin_pin"
+
 CONFIG_SCHEMA = (
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(SharpMem),
             cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_DISP_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_EXTMODE_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_EXTCOMIN_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_WIDTH): cv.int_,
             cv.Required(CONF_HEIGHT): cv.int_,
         }
@@ -39,8 +46,12 @@ async def to_code(config):
             config[CONF_LAMBDA], [(SharpMemRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
-    #cs = await cg.gpio_pin_expression(config[CONF_CS_PIN])
-    #cg.add(var.set_cs_pin(cs))
+    disp_pin = await cg.gpio_pin_expression(config[CONF_DISP_PIN])
+    cg.add(var.set_disp_pin(disp_pin))
+    extmode_pin = await cg.gpio_pin_expression(config[CONF_EXTMODE_PIN])
+    cg.add(var.set_extmode_pin(extmode_pin))
+    extcomin_pin = await cg.gpio_pin_expression(config[CONF_EXTCOMIN_PIN])
+    cg.add(var.set_extcomin_pin(extcomin_pin))
     
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
