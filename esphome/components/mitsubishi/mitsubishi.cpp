@@ -276,7 +276,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       }
       break;
   }
-  
+
   this->publish_state();
   return true;
 }
