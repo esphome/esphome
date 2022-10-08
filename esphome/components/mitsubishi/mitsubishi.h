@@ -10,7 +10,7 @@ const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
 const uint8_t MITSUBISHI_TEMP_MAX = 31;  // Celsius
 
 // Fan speeds
-enum Setfanspeed {
+enum SetFanSpeed {
   MITSUBISHI_FAN_1 = 0x01,
   MITSUBISHI_FAN_2 = 0x02,
   MITSUBISHI_FAN_3 = 0x03,
@@ -51,9 +51,9 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
         }
       ) {}
 
-  void set_fan_low(Setfanspeed fan_low) { this->fan_low_ = fan_low; }
-  void set_fan_medium(Setfanspeed fan_medium) { this->fan_medium_ = fan_medium; }
-  void set_fan_hi(Setfanspeed fan_hi) { this->fan_hi_ = fan_hi; }
+  void set_fan_low(SetFanSpeed fan_low) { this->fan_low_ = fan_low; }
+  void set_fan_medium(SetFanSpeed fan_medium) { this->fan_medium_ = fan_medium; }
+  void set_fan_hi(SetFanSpeed fan_hi) { this->fan_hi_ = fan_hi; }
 
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
     this->default_horizontal_direction_ = horizontal_direction;
@@ -70,9 +70,9 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   bool parse_state_frame_(const uint8_t frame[]);
 
 //  Setfanspeeds setfanspeeds_;
-  Setfanspeed fan_low_;
-  Setfanspeed fan_medium_;
-  Setfanspeed fan_hi_;
+  SetFanSpeed fan_low_;
+  SetFanSpeed fan_medium_;
+  SetFanSpeed fan_hi_;
 
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;

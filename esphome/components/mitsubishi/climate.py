@@ -14,13 +14,13 @@ CONF_FAN_LOW = "fan_low"
 CONF_FAN_MEDIUM = "fan_medium"
 CONF_FAN_HI = "fan_hi"
 
-Setfanspeeds = mitsubishi_ns.enum("Setfanspeeds")
+SetFanSpeeds = mitsubishi_ns.enum("SetFanSpeeds")
 SETFANSPEEDS = {
-    "fan1": Setfanspeeds.MITSUBISHI_FAN_1,
-    "fan2": Setfanspeeds.MITSUBISHI_FAN_2,
-    "fan3": Setfanspeeds.MITSUBISHI_FAN_3,
-    "fan4": Setfanspeeds.MITSUBISHI_FAN_4,
-    "fan5": Setfanspeeds.MITSUBISHI_FAN_5,
+    "fan1": SetFanSpeeds.MITSUBISHI_FAN_1,
+    "fan2": SetFanSpeeds.MITSUBISHI_FAN_2,
+    "fan3": SetFanSpeeds.MITSUBISHI_FAN_3,
+    "fan4": SetFanSpeeds.MITSUBISHI_FAN_4,
+    "fan5": SetFanSpeeds.MITSUBISHI_FAN_5,
 }
 
 
