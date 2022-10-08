@@ -76,9 +76,8 @@ void FT63X6Touchscreen::check_touch_() {
 
   uint8_t touch_id = read_touch_id_(FT63X6_ADDR_TOUCH1_ID);  // id1 = 0 or 1
   uint8_t first_touch_id = touch_id;
-  touch_point_.tp[touch_id].status = (touch_point_.tp[touch_id].status == TouchStatusEnum::RELEASE)
-                                         ? TouchStatusEnum::TOUCH
-                                         : TouchStatusEnum::REPEAT;
+  touch_point_.tp[touch_id].status =
+      (touch_point_.tp[touch_id].status == TouchStatusEnum::RELEASE) ? TouchStatusEnum::TOUCH : TouchStatusEnum::REPEAT;
   touch_point_.tp[touch_id].x = read_touch_coordinate_(FT63X6_ADDR_TOUCH1_X);
   touch_point_.tp[touch_id].y = read_touch_coordinate_(FT63X6_ADDR_TOUCH1_Y);
 
