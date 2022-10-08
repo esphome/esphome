@@ -54,7 +54,7 @@ void HOT SharpMem::write_display_data() {
     line[0] = currentline;
     // copy over this line
     memcpy(line + 1, this->buffer_ + i, bytes_per_line);
-    for(j = 0; j < bytes_per_line; j++){
+    for(uint8_t j = 0; j < bytes_per_line; j++){
       uint8_t currentByte = line[j+1];
       line[j+1] = ((currentByte * 0x0802LU & 0x22110LU) | (currentByte * 0x8020LU & 0x88440LU)) * 0x10101LU >> 16; 
     }
