@@ -29,6 +29,7 @@ class SharpMem : public PollingComponent,
   void set_extmode_pin(GPIOPin *extmode) { extmode_ = extmode; }
   void set_extcomin_pin(GPIOPin *extcomin) { extcomin_ = extcomin; }
   void set_disp_pin(GPIOPin *disp) { disp_ = disp; }
+  void set_sharp5v_on_pin(GPIOPin *sharp5v_on) { sharp5v_on_ = sharp5v_on; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -58,6 +59,7 @@ class SharpMem : public PollingComponent,
   GPIOPin *extmode_;
   GPIOPin *extcomin_;
   GPIOPin *disp_;
+  GPIOPin *sharp5v_on_;
   optional<sharpMem_writer_t> writer_local_{};
 
   uint8_t _sharpmem_vcom;

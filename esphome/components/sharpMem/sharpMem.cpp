@@ -22,6 +22,7 @@ void SharpMem::setup() {
   this->extmode_->digital_write(false);
   this->extcomin_->digital_write(false);
   this->disp_->digital_write(true);
+  this->sharp5v_on_->digital_write(true);
 
   display_init_();
 }
