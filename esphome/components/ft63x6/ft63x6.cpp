@@ -63,29 +63,6 @@ void FT63X6Touchscreen::update() {
 void FT63X6Touchscreen::check_touch_() {
   touch_point_.touch_count = read_touch_count_();
 
-  uint8_t touch_id = 0;
-  if (touch_point_.touch_count >= 1) {
-    touch_id = read_touch_id_(FT63X6_ADDR_TOUCH1_ID);  // id1 = 0 or 1
-    touch_point_.tp[touch_id].status = (touch_point_.tp[touch_id].status == TouchStatusEnum::RELEASE)
-                                           ? TouchStatusEnum::TOUCH
-                                           : TouchStatusEnum::REPEAT;
-    touch_point_.tp[touch_id].x = read_touch_coordinate_(FT63X6_ADDR_TOUCH1_X);
-    touch_point_.tp[touch_id].y = read_touch_coordinate_(FT63X6_ADDR_TOUCH1_Y);
-  } else {
-    touch_point_.tp[touch_id].status = TouchStatusEnum::RELEASE;
-  }
-
-  if (touch_point_.touch_count >= 2) {
-    touch_id = read_touch_id_(FT63X6_ADDR_TOUCH2_ID);  // id2 = 0 or 1(~id1 & 0x01)
-    touch_point_.tp[touch_id].status = (touch_point_.tp[touch_id].status == TouchStatusEnum::RELEASE)
-                                           ? TouchStatusEnum::TOUCH
-                                           : TouchStatusEnum::REPEAT;
-    touch_point_.tp[touch_id].x = read_touch_coordinate_(FT63X6_ADDR_TOUCH2_X);
-    touch_point_.tp[touch_id].y = read_touch_coordinate_(FT63X6_ADDR_TOUCH2_Y);
-  } else {
-    touch_point_.tp[~touch_id & 0x01].status = TouchStatusEnum::RELEASE;
-  }
-
   if (touch_point_.touch_count == 0) {
     if (touched_) {
       touched_ = false;
@@ -97,14 +74,33 @@ void FT63X6Touchscreen::check_touch_() {
 
   touched_ = true;
 
-  std::vector<TouchPoint> touches;
+  uint8_t touch_id = read_touch_id_(FT63X6_ADDR_TOUCH1_ID);  // id1 = 0 or 1
+  uint8_t first_touch_id = touch_id;
+  touch_point_.tp[touch_id].status = (touch_point_.tp[touch_id].status == TouchStatusEnum::RELEASE)
+                                         ? TouchStatusEnum::TOUCH
+                                         : TouchStatusEnum::REPEAT;
+  touch_point_.tp[touch_id].x = read_touch_coordinate_(FT63X6_ADDR_TOUCH1_X);
+  touch_point_.tp[touch_id].y = read_touch_coordinate_(FT63X6_ADDR_TOUCH1_Y);
+
+  if (touch_point_.touch_count >= 2) {
+    touch_id = read_touch_id_(FT63X6_ADDR_TOUCH2_ID);  // id2 = 0 or 1(~id1 & 0x01)
+    touch_point_.tp[touch_id].status = (touch_point_.tp[touch_id].status == TouchStatusEnum::RELEASE)
+                                           ? TouchStatusEnum::TOUCH
+                                           : TouchStatusEnum::REPEAT;
+    touch_point_.tp[touch_id].x = read_touch_coordinate_(FT63X6_ADDR_TOUCH2_X);
+    touch_point_.tp[touch_id].y = read_touch_coordinate_(FT63X6_ADDR_TOUCH2_Y);
+    first_touch_id = 0;
+  } else {
+    touch_point_.tp[~touch_id & 0x01].status = TouchStatusEnum::RELEASE;
+  }
+
   uint8_t touch_count = std::min<uint8_t>(touch_point_.touch_count, 2);
   ESP_LOGV(TAG, "Touch count: %d", touch_count);
 
   uint16_t w = this->display_->get_width_internal();
   uint16_t h = this->display_->get_height_internal();
 
-  for (int i = 0; i < touch_count; i++) {
+  for (uint8_t i = first_touch_id; i < (touch_count + first_touch_id); i++) {
     uint32_t raw_x = touch_point_.tp[i].x * w / this->x_resolution_;
     uint32_t raw_y = touch_point_.tp[i].y * h / this->y_resolution_;
 
