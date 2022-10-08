@@ -40,17 +40,25 @@ void HOT SharpMem::write_display_data() {
 
   uint16_t i, currentline;
 
+  ESP_LOGD(TAG, "Enable...");
   this->enable();
   // Send the write command
+  ESP_LOGD(TAG, "Digi write...");
   this->cs_->digital_write(true);
 
+  ESP_LOGD(TAG, "Transfer byte...");
   this->transfer_byte(_sharpmem_vcom | SHARPMEM_BIT_WRITECMD); // eventually transfer_array
   TOGGLE_VCOM;
 
   uint8_t width = this->get_width_internal();
   uint8_t height = this->get_height_internal();
+  ESP_LOGD(TAG, "Width: %u, height: %u...", width, height);
+
   uint8_t bytes_per_line = width / 8;
+  ESP_LOGD(TAG, "bytes_per_line: %u...", bytes_per_line);
+
   uint16_t totalbytes = (width * height) / 8;
+  ESP_LOGD(TAG, "totalbytes: %u...", totalbytes);
 
   for (i = 0; i < totalbytes; i += bytes_per_line) {
     uint8_t line[bytes_per_line + 2];
@@ -66,6 +74,7 @@ void HOT SharpMem::write_display_data() {
     this->transfer_array(line, bytes_per_line + 2);
     App.feed_wdt();
   }
+  ESP_LOGD(TAG, "Loop done...");
 
   // Send another trailing 8 bits for the last line
   this->transfer_byte(0x00);
