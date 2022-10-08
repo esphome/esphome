@@ -16,21 +16,13 @@ static const char *const TAG = "sharpMem";
 void SharpMem::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SharpMem...");
   this->dump_config();
-  ESP_LOGD(TAG, "1...");
   this->spi_setup();
-  ESP_LOGD(TAG, "1...");
   this->init_internal_(this->get_buffer_length_());
-  ESP_LOGD(TAG, "2...");
   this->cs_->digital_write(false);
-  ESP_LOGD(TAG, "3...");
   this->extmode_->digital_write(false);
-  ESP_LOGD(TAG, "4...");
   this->extcomin_->digital_write(false);
-  ESP_LOGD(TAG, "5...");
   this->disp_->digital_write(false);
-  ESP_LOGD(TAG, "6...");
   this->sharp5v_on_->digital_write(true);
-  ESP_LOGD(TAG, "7...");
 
   display_init_();
 }
@@ -40,25 +32,19 @@ void HOT SharpMem::write_display_data() {
 
   uint16_t i, currentline;
 
-  ESP_LOGD(TAG, "Enable...");
   this->enable();
   // Send the write command
-  ESP_LOGD(TAG, "Digi write...");
   this->cs_->digital_write(true);
 
-  ESP_LOGD(TAG, "Transfer byte...");
   this->transfer_byte(_sharpmem_vcom | SHARPMEM_BIT_WRITECMD); // eventually transfer_array
   TOGGLE_VCOM;
 
   uint16_t width = this->get_width_internal();
   uint16_t height = this->get_height_internal();
-  ESP_LOGD(TAG, "Width: %i, height: %i...", width, height);
 
   uint8_t bytes_per_line = width / 8;
-  ESP_LOGD(TAG, "bytes_per_line: %u...", bytes_per_line);
 
   uint16_t totalbytes = (width * height) / 8;
-  ESP_LOGD(TAG, "totalbytes: %u...", totalbytes);
 
   for (i = 0; i < totalbytes; i += bytes_per_line) {
     uint8_t line[bytes_per_line + 2];
@@ -68,6 +54,10 @@ void HOT SharpMem::write_display_data() {
     line[0] = currentline;
     // copy over this line
     memcpy(line + 1, this->buffer_ + i, bytes_per_line);
+    for(j = 0; j < bytes_per_line; j++){
+      uint8_t currentByte = line[j+1];
+      line[j+1] = ((currentByte * 0x0802LU & 0x22110LU) | (currentByte * 0x8020LU & 0x88440LU)) * 0x10101LU >> 16; 
+    }
     // Send end of line
     line[bytes_per_line + 1] = 0x00;
     // send it!
