@@ -189,8 +189,8 @@ async def register_text_sensor(var, config):
     await setup_text_sensor_core_(var, config)
 
 
-async def new_text_sensor(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_text_sensor(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_text_sensor(var, config)
     return var
 

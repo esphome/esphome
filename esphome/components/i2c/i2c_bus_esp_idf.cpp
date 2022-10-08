@@ -142,7 +142,7 @@ ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
 
   return ERROR_OK;
 }
-ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
+ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) {
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them
   if (!initialized_) {
@@ -285,7 +285,7 @@ void IDFI2CBus::recover_() {
   }
 
   // By now, any stuck device ought to have sent all remaining bits of its
-  // transation, meaning that it should have freed up the SDA line, resulting
+  // transaction, meaning that it should have freed up the SDA line, resulting
   // in SDA being pulled up.
   if (gpio_get_level(sda_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");

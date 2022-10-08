@@ -2,6 +2,8 @@
 
 #ifdef USE_ARDUINO
 
+#include "list_entities.h"
+
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
@@ -32,7 +34,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
  */
 class WebServer : public Controller, public Component, public AsyncWebHandler {
  public:
-  WebServer(web_server_base::WebServerBase *base) : base_(base) {}
+  WebServer(web_server_base::WebServerBase *base) : base_(base), entities_iterator_(ListEntitiesIterator(this)) {}
 
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
    * https://esphome.io/_static/webserver-v1.min.css
@@ -76,6 +78,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   // (In most use cases you won't need these)
   /// Setup the internal web server and register handlers.
   void setup() override;
+  void loop() override;
 
   void dump_config() override;
 
@@ -85,12 +88,12 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
 
-#ifdef WEBSERVER_CSS_INCLUDE
+#ifdef USE_WEBSERVER_CSS_INCLUDE
   /// Handle included css request under '/0.css'.
   void handle_css_request(AsyncWebServerRequest *request);
 #endif
 
-#ifdef WEBSERVER_JS_INCLUDE
+#ifdef USE_WEBSERVER_JS_INCLUDE
   /// Handle included js request under '/0.js'.
   void handle_js_request(AsyncWebServerRequest *request);
 #endif
@@ -182,7 +185,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_SELECT
-  void on_select_update(select::Select *obj, const std::string &state) override;
+  void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
   /// Handle a select request under '/select/<id>'.
   void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -217,8 +220,10 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   bool isRequestHandlerTrivial() override;
 
  protected:
+  friend ListEntitiesIterator;
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
+  ListEntitiesIterator entities_iterator_;
   const char *css_url_{nullptr};
   const char *css_include_{nullptr};
   const char *js_url_{nullptr};

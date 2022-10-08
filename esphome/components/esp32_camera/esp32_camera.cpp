@@ -282,8 +282,20 @@ void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
 void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&f) {
   this->new_image_callback_.add(std::move(f));
 }
-void ESP32Camera::start_stream(CameraRequester requester) { this->stream_requesters_ |= (1U << requester); }
-void ESP32Camera::stop_stream(CameraRequester requester) { this->stream_requesters_ &= ~(1U << requester); }
+void ESP32Camera::add_stream_start_callback(std::function<void()> &&callback) {
+  this->stream_start_callback_.add(std::move(callback));
+}
+void ESP32Camera::add_stream_stop_callback(std::function<void()> &&callback) {
+  this->stream_stop_callback_.add(std::move(callback));
+}
+void ESP32Camera::start_stream(CameraRequester requester) {
+  this->stream_start_callback_.call();
+  this->stream_requesters_ |= (1U << requester);
+}
+void ESP32Camera::stop_stream(CameraRequester requester) {
+  this->stream_stop_callback_.call();
+  this->stream_requesters_ &= ~(1U << requester);
+}
 void ESP32Camera::request_image(CameraRequester requester) { this->single_requesters_ |= (1U << requester); }
 void ESP32Camera::update_camera_parameters() {
   sensor_t *s = esp_camera_sensor_get();
@@ -305,12 +317,11 @@ void ESP32Camera::update_camera_parameters() {
   s->set_gainceiling(s, (gainceiling_t) this->agc_gain_ceiling_);
   /* update white balance mode */
   s->set_wb_mode(s, (int) this->wb_mode_);  // 0 to 4
-  /* update test patern */
+  /* update test pattern */
   s->set_colorbar(s, this->test_pattern_);
 }
 
 /* ---------------- Internal methods ---------------- */
-uint32_t ESP32Camera::hash_base() { return 3010542557UL; }
 bool ESP32Camera::has_requested_image_() const { return this->single_requesters_ || this->stream_requesters_; }
 bool ESP32Camera::can_return_image_() const { return this->current_image_.use_count() == 1; }
 void ESP32Camera::framebuffer_task(void *pv) {
