@@ -49,7 +49,7 @@ class SharpMem : public PollingComponent,
   void end_transaction_();
 
   int16_t width_ = 400, height_ = 240;
-  InternalGPIOPin *cs_;
+  GPIOPin *cs_;
   optional<sharpMem_writer_t> writer_local_{};
 
   uint8_t _sharpmem_vcom;
