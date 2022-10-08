@@ -44,7 +44,6 @@ const uint8_t MITSUBISHI_BYTE04 = 0X00;
 const uint8_t MITSUBISHI_BYTE13 = 0X00;
 const uint8_t MITSUBISHI_BYTE16 = 0X00;
 
-
 void MitsubishiClimate::transmit_state() {
   // Byte 0-4: Constant: 0x23, 0xCB, 0x26, 0x01, 0x00
   // Byte 5: On=0x20, Off: 0x00
@@ -138,11 +137,13 @@ void MitsubishiClimate::transmit_state() {
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
     case climate::CLIMATE_SWING_BOTH:
-      remote_state[9] = remote_state[9] | MITSUBISHI_VERTICAL_VANE_SWING | MITSUBISHI_OTHERWISE;  // Vane Swing
+      remote_state[9] = remote_state[9] | MITSUBISHI_VERTICAL_VANE_SWING |
+        MITSUBISHI_OTHERWISE;  // Vane Swing
       break;
     case climate::CLIMATE_SWING_OFF:
     default:
-      remote_state[9] = remote_state[9] | this->default_vertical_direction_ | MITSUBISHI_OTHERWISE;  // Off--> vertical default position
+      remote_state[9] = remote_state[9] | this->default_vertical_direction_ |
+        MITSUBISHI_OTHERWISE;  // Off--> vertical default position
       break;
   }
 
@@ -155,10 +156,10 @@ void MitsubishiClimate::transmit_state() {
 
 
   ESP_LOGV(TAG, "Sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X",
-  remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4],
-  remote_state[5], remote_state[6], remote_state[7], remote_state[8], remote_state[9],
-  remote_state[10], remote_state[11], remote_state[12], remote_state[13],remote_state[14], remote_state[15],
-  remote_state[16], remote_state[17]);
+    remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4],
+    remote_state[5], remote_state[6], remote_state[7], remote_state[8], remote_state[9],
+    remote_state[10], remote_state[11], remote_state[12], remote_state[13],remote_state[14], remote_state[15],
+    remote_state[16], remote_state[17]);
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();

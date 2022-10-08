@@ -54,7 +54,7 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   void set_fan_low(SetFanSpeed fan_low) { this->fan_low_ = fan_low; }
 
   void set_fan_medium(SetFanSpeed fan_medium) { this->fan_medium_ = fan_medium; }
-  
+
   void set_fan_hi(SetFanSpeed fan_hi) { this->fan_hi_ = fan_hi; }
 
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
