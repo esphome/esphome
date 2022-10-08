@@ -24,7 +24,7 @@ void HOT SharpMem::write_display_data() {
   this->cs_->digital_write(true);
 
   this->transfer_byte(_sharpmem_vcom | SHARPMEM_BIT_WRITECMD); // eventually transfer_array
-  TOGGLE_VCOM;
+  //TOGGLE_VCOM;
 
   uint8_t width = this->get_width_internal();
   uint8_t height = this->get_height_internal();
