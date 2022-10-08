@@ -21,7 +21,7 @@ void HOT SharpMem::write_display_data() {
 
   this->enable();
   // Send the write command
-  digitalWrite(this->cs_, HIGH);
+  this->cs_->digital_write(true);
 
   this->transfer_byte(_sharpmem_vcom | SHARPMEM_BIT_WRITECMD); // eventually transfer_array
   TOGGLE_VCOM;
@@ -48,7 +48,7 @@ void HOT SharpMem::write_display_data() {
 
   // Send another trailing 8 bits for the last line
   this->transfer_byte(0x00);
-  digitalWrite(this->cs_, LOW);
+  this->cs_->digital_write(false);
   this->disable();
 }
 
