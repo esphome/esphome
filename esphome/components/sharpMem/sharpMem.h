@@ -54,7 +54,7 @@ class SharpMem : public PollingComponent,
   void start_transaction_();
   void end_transaction_();
 
-  int16_t width_ = 400, height_ = 240;
+  uint8_t width_ = 400, height_ = 240;
   GPIOPin *cs_;
   GPIOPin *extmode_;
   GPIOPin *extcomin_;

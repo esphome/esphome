@@ -52,7 +52,7 @@ void HOT SharpMem::write_display_data() {
 
   uint8_t width = this->get_width_internal();
   uint8_t height = this->get_height_internal();
-  ESP_LOGD(TAG, "Width: %u, height: %u...", width, height);
+  ESP_LOGD(TAG, "Width: %i, height: %i...", width, height);
 
   uint8_t bytes_per_line = width / 8;
   ESP_LOGD(TAG, "bytes_per_line: %u...", bytes_per_line);
