@@ -142,13 +142,13 @@ void HeatpumpIRClimate::transmit_state() {
 
   switch (this->fan_mode.value_or(climate::CLIMATE_FAN_AUTO)) {
     case climate::CLIMATE_FAN_LOW:
-      fan_speed_cmd = FAN_2;
+      fan_speed_cmd = FAN_1;
       break;
     case climate::CLIMATE_FAN_MEDIUM:
-      fan_speed_cmd = FAN_3;
+      fan_speed_cmd = FAN_2;
       break;
     case climate::CLIMATE_FAN_HIGH:
-      fan_speed_cmd = FAN_4;
+      fan_speed_cmd = FAN_3;
       break;
     case climate::CLIMATE_FAN_AUTO:
     default:
