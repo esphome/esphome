@@ -8,6 +8,11 @@ namespace sharpMem {
 
 static const char *const TAG = "sharpMem";
 
+#define TOGGLE_VCOM                                                            \
+  do {                                                                         \
+    _sharpmem_vcom = _sharpmem_vcom ? 0x00 : SHARPMEM_BIT_VCOM;                \
+  } while (0);
+
 void SharpMem::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SharpMem...");
   this->dump_config();
@@ -24,7 +29,7 @@ void HOT SharpMem::write_display_data() {
   this->cs_->digital_write(true);
 
   this->transfer_byte(_sharpmem_vcom | SHARPMEM_BIT_WRITECMD); // eventually transfer_array
-  //TOGGLE_VCOM;
+  TOGGLE_VCOM;
 
   uint8_t width = this->get_width_internal();
   uint8_t height = this->get_height_internal();
