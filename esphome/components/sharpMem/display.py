@@ -31,6 +31,7 @@ CONFIG_SCHEMA = (
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+    await display.register_display(var, config)
     await spi.register_spi_device(var, config)
 
     if CONF_LAMBDA in config:
@@ -41,5 +42,3 @@ async def to_code(config):
     cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
-
-    await display.register_display(var, config)
