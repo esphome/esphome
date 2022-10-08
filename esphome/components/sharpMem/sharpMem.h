@@ -23,7 +23,7 @@ class SharpMem : public PollingComponent,
   void set_writer(sharpMem_writer_t &&writer) { this->writer_local_ = writer; }
   void set_height(uint16_t height) { this->height_ = height; }
   void set_width(uint16_t width) { this->width_ = width; }
-  void set_cs(uint8_t cs) { this->cs_ = cs; }
+  void set_cs(GPIOPin cs) { this->cs_ = cs; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

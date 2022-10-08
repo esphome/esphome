@@ -16,30 +16,12 @@ void SharpMem::setup() {
   display_init_();
 }
 
-void SharpMem::command_(uint8_t value) {
-  this->enable();
-  this->send_(LCD_COMMAND, value);
-  this->disable();
-}
-
-void SharpMem::data_(uint8_t value) {
-  this->enable();
-  this->send_(LCD_DATA, value);
-  this->disable();
-}
-
-void SharpMem::send_(uint8_t type, uint8_t value) {
-  this->write_byte(type);
-  this->write_byte(value & 0xF0);
-  this->write_byte(value << 4);
-}
-
 void HOT SharpMem::write_display_data() {
   uint16_t i, currentline;
 
   this->enable();
   // Send the write command
-  digitalWrite(_cs, HIGH);
+  digitalWrite(this->_cs, HIGH);
 
   this->transfer_byte(_sharpmem_vcom | SHARPMEM_BIT_WRITECMD); // eventually transfer_array
   TOGGLE_VCOM;
@@ -66,7 +48,7 @@ void HOT SharpMem::write_display_data() {
 
   // Send another trailing 8 bits for the last line
   this->transfer_byte(0x00);
-  digitalWrite(_cs, LOW);
+  digitalWrite(this->_cs, LOW);
   this->disable();
 }
 
