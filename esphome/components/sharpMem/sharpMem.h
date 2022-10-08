@@ -26,9 +26,9 @@ class SharpMem : public PollingComponent,
   void set_height(uint16_t height) { this->height_ = height; }
   void set_width(uint16_t width) { this->width_ = width; }
   void set_cs(GPIOPin *cs) { cs_ = cs; }
-  void set_extmode(GPIOPin *extmode) { extmode_ = extmode; }
-  void set_extcomin(GPIOPin *extcomin) { extcomin_ = extcomin; }
-  void set_disp(GPIOPin *disp) { disp_ = disp; }
+  void set_extmode_pin(GPIOPin *extmode) { extmode_ = extmode; }
+  void set_extcomin_pin(GPIOPin *extcomin) { extcomin_ = extcomin; }
+  void set_disp_pin(GPIOPin *disp) { disp_ = disp; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
