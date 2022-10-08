@@ -134,7 +134,6 @@ void MitsubishiClimate::transmit_state() {
 
   ESP_LOGD(TAG, "fan1: %02x fan2: %02x fan3: %02x", this->fan_low_, this->fan_medium_, this->fan_hi_);
 
-
   // Verical Vane
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_VERTICAL:
@@ -155,11 +154,11 @@ void MitsubishiClimate::transmit_state() {
   }
 
 
-  //ESP_LOGD(TAG, "sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X", 
-  //remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], 
-  //remote_state[5], remote_state[6], remote_state[7], remote_state[8], remote_state[9], 
-  //remote_state[10], remote_state[11], remote_state[12], remote_state[13],remote_state[14], remote_state[15],
-  //remote_state[16], remote_state[17]);
+  ESP_LOGV(TAG, "Sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X", 
+  remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], 
+  remote_state[5], remote_state[6], remote_state[7], remote_state[8], remote_state[9], 
+  remote_state[10], remote_state[11], remote_state[12], remote_state[13],remote_state[14], remote_state[15],
+  remote_state[16], remote_state[17]);
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
