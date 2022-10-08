@@ -111,7 +111,7 @@ void MitsubishiClimate::transmit_state() {
       break;
   }
 
-  ESP_LOGD(TAG, "default_horizontal_direction_: %02X" ,this->default_horizontal_direction_);
+  ESP_LOGD(TAG, "default_horizontal_direction_: %02X", this->default_horizontal_direction_);
 
   // Fan Speed & Vertical Vane
   // Fan First
