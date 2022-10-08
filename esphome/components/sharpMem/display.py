@@ -39,6 +39,8 @@ async def to_code(config):
             config[CONF_LAMBDA], [(SharpMemRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
-    cg.add(var.set_cs_pin(config[CONF_CS_PIN]))
+    cs = await cg.gpio_pin_expression(config[CONF_CS_PIN])
+    cg.add(var.set_cs_pin(cs))
+    
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
