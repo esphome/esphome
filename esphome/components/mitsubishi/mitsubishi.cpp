@@ -277,8 +277,6 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
   }
   
-  ESP_LOGD(TAG, "Data: %02X", state_frame[9]);
-
   this->publish_state();
   return true;
 }
