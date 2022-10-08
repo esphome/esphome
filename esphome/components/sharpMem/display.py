@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import pins
 from esphome.components import display, spi
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_WIDTH, CONF_HEIGHT, CONF_CS_PIN
 
@@ -17,6 +18,7 @@ CONFIG_SCHEMA = (
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(SharpMem),
+            cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_WIDTH): cv.int_,
             cv.Required(CONF_HEIGHT): cv.int_,
         }
