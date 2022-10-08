@@ -52,7 +52,9 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
       ) {}
 
   void set_fan_low(SetFanSpeed fan_low) { this->fan_low_ = fan_low; }
+
   void set_fan_medium(SetFanSpeed fan_medium) { this->fan_medium_ = fan_medium; }
+  
   void set_fan_hi(SetFanSpeed fan_hi) { this->fan_hi_ = fan_hi; }
 
   void set_horizontal_default(HorizontalDirection horizontal_direction) {
@@ -69,11 +71,12 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
 
-  // Setfanspeeds
+  // SetFanSpeed
   SetFanSpeed fan_low_;
   SetFanSpeed fan_medium_;
   SetFanSpeed fan_hi_;
 
+  // Horizontal and Vertical
   HorizontalDirection default_horizontal_direction_;
   VerticalDirection default_vertical_direction_;
 };
