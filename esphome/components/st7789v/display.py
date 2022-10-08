@@ -69,7 +69,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_MODEL): ST7789V_MODEL,
             cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_CS_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_EIGHTBITCOLOR, default=False): cv.boolean,
             cv.Optional(CONF_HEIGHT): cv.int_,
@@ -79,7 +79,7 @@ CONFIG_SCHEMA = cv.All(
         }
     )
     .extend(cv.polling_component_schema("5s"))
-    .extend(spi.spi_device_schema()),
+    .extend(spi.spi_device_schema(cs_pin_required=False)),
     validate_st7789v,
 )
 
