@@ -18,6 +18,8 @@ void SharpMem::setup() {
   this->dump_config();
   this->spi_setup();
   this->init_internal_(this->get_buffer_length_());
+  this->cs_->digital_write(false);
+
   display_init_();
 }
 
