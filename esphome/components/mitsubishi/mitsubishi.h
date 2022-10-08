@@ -69,7 +69,7 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);
 
-//  Setfanspeeds setfanspeeds_;
+  // Setfanspeeds
   SetFanSpeed fan_low_;
   SetFanSpeed fan_medium_;
   SetFanSpeed fan_hi_;
