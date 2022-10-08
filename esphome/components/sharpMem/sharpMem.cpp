@@ -16,21 +16,21 @@ static const char *const TAG = "sharpMem";
 void SharpMem::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SharpMem...");
   this->dump_config();
-  ESP_LOGCONFIG(TAG, "1...");
+  ESP_LOGD(TAG, "1...");
   this->spi_setup();
-  ESP_LOGCONFIG(TAG, "1...");
+  ESP_LOGD(TAG, "1...");
   this->init_internal_(this->get_buffer_length_());
-  ESP_LOGCONFIG(TAG, "2...");
+  ESP_LOGD(TAG, "2...");
   this->cs_->digital_write(false);
-  ESP_LOGCONFIG(TAG, "3...");
+  ESP_LOGD(TAG, "3...");
   this->extmode_->digital_write(false);
-  ESP_LOGCONFIG(TAG, "4...");
+  ESP_LOGD(TAG, "4...");
   this->extcomin_->digital_write(false);
-  ESP_LOGCONFIG(TAG, "5...");
+  ESP_LOGD(TAG, "5...");
   this->disp_->digital_write(true);
-  ESP_LOGCONFIG(TAG, "6...");
+  ESP_LOGD(TAG, "6...");
   this->sharp5v_on_->digital_write(true);
-  ESP_LOGCONFIG(TAG, "7...");
+  ESP_LOGD(TAG, "7...");
 
   display_init_();
 }
