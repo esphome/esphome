@@ -40,7 +40,7 @@ def indent(text, padding="  "):
 
 # From https://stackoverflow.com/a/14945195/8924614
 def cpp_string_escape(string, encoding="utf-8"):
-    def _should_escape(byte):  # type: (int) -> bool
+    def _should_escape(byte: int) -> bool:
         if not 32 <= byte < 127:
             return True
         if byte in (ord("\\"), ord('"')):
