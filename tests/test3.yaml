@@ -530,6 +530,18 @@ sensor:
       name: BL0940 Internal temperature
     external_temperature:
       name: BL0940 External temperature
+  - platform: bl0942
+    uart_id: uart3
+    voltage:
+      name: 'BL0942 Voltage'
+    current:
+      name: 'BL0942 Current'
+    power:
+      name: 'BL0942 Power'
+    energy:
+      name: 'BL0942 Energy'
+    frequency:
+      name: "BL0942 Frequency"
   - platform: pzem004t
     uart_id: uart3
     voltage:
@@ -1049,8 +1061,13 @@ climate:
   - platform: thermostat
     name: Thermostat Climate
     sensor: ha_hello_world
-    default_target_temperature_low: 18°C
-    default_target_temperature_high: 24°C
+    preset:
+    - name: Default Preset
+      default_target_temperature_low: 18°C
+      default_target_temperature_high: 24°C
+    - name: Away
+      default_target_temperature_low: 16°C
+      default_target_temperature_high: 20°C
     idle_action:
       - switch.turn_on: gpio_switch1
     cool_action:
@@ -1125,9 +1142,6 @@ climate:
     fan_only_cooling: true
     fan_with_cooling: true
     fan_with_heating: true
-    away_config:
-      default_target_temperature_low: 16°C
-      default_target_temperature_high: 20°C
   - platform: pid
     id: pid_climate
     name: PID Climate Controller
@@ -1517,6 +1531,9 @@ button:
     target_mac_address: 12:34:56:78:90:ab
     name: wol_test_1
     id: wol_1
+  - platform: factory_reset
+    name: Restart Button (Factory Default Settings)
+
 
 cd74hc4067:
   pin_s0: GPIO12

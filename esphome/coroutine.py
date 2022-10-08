@@ -48,7 +48,8 @@ import heapq
 import inspect
 import logging
 import types
-from typing import Any, Awaitable, Callable, Generator, Iterator, List, Tuple
+from typing import Any, Callable
+from collections.abc import Awaitable, Generator, Iterator
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -177,7 +178,7 @@ class _Task:
         return _Task(priority, self.id_number, self.iterator, self.original_function)
 
     @property
-    def _cmp_tuple(self) -> Tuple[float, int]:
+    def _cmp_tuple(self) -> tuple[float, int]:
         return (-self.priority, self.id_number)
 
     def __eq__(self, other):
@@ -194,7 +195,7 @@ class FakeEventLoop:
     """Emulate an asyncio EventLoop to run some registered coroutine jobs in sequence."""
 
     def __init__(self):
-        self._pending_tasks: List[_Task] = []
+        self._pending_tasks: list[_Task] = []
         self._task_counter = 0
 
     def add_job(self, func, *args, **kwargs):

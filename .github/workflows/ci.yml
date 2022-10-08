@@ -85,7 +85,7 @@ jobs:
         uses: actions/setup-python@v4
         id: python
         with:
-          python-version: "3.8"
+          python-version: "3.9"
 
       - name: Cache virtualenv
         uses: actions/cache@v3
@@ -173,7 +173,7 @@ jobs:
 
       - name: Run yamllint
         if: matrix.id == 'yamllint'
-        uses: frenck/action-yamllint@v1.2.0
+        uses: frenck/action-yamllint@v1.3.0
 
       - name: Suggested changes
         run: script/ci-suggest-changes
