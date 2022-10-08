@@ -19,7 +19,7 @@ using sharpMem_writer_t = std::function<void(SharpMem &)>;
 
 class SharpMem : public PollingComponent,
                public display::DisplayBuffer,
-               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
+               public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_RISING,
                                      spi::DATA_RATE_2MHZ> {
  public:
   void set_writer(sharpMem_writer_t &&writer) { this->writer_local_ = writer; }
