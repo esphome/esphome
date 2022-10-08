@@ -43,10 +43,10 @@ class MitsubishiClimate : public climate_ir::ClimateIR {
   MitsubishiClimate()
       : climate_ir::ClimateIR(
         MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, true, false,{
-          climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, 
+          climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
           climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH
         },
-        {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, 
+        {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
           climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL
         }
       ) {}

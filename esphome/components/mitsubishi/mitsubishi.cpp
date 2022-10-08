@@ -57,7 +57,7 @@ void MitsubishiClimate::transmit_state() {
   // Byte 9: FAN/Vertical Vane/Switch To Auto
   //          FAN (Speed) bits 0,1,2
   //          Vertical Vane bits 3,4,5 (Auto = 0x00)
-  //          Switch To Auto bits 6,7 
+  //          Switch To Auto bits 6,7
   // Byte 10: CLOCK Current time as configured on remote (0x00=Not used)
   // Byte 11: END CLOCK Stop time of HVAC (0x00 for no setting)
   // Byte 12: START CLOCK Start time of HVAC (0x00 for no setting)
@@ -154,9 +154,9 @@ void MitsubishiClimate::transmit_state() {
   }
 
 
-  ESP_LOGV(TAG, "Sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X", 
-  remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4], 
-  remote_state[5], remote_state[6], remote_state[7], remote_state[8], remote_state[9], 
+  ESP_LOGV(TAG, "Sending: %02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X,%02X",
+  remote_state[0], remote_state[1], remote_state[2], remote_state[3], remote_state[4],
+  remote_state[5], remote_state[6], remote_state[7], remote_state[8], remote_state[9],
   remote_state[10], remote_state[11], remote_state[12], remote_state[13],remote_state[14], remote_state[15],
   remote_state[16], remote_state[17]);
 
@@ -247,11 +247,11 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
   if (fan == MITSUBISHI_FAN_AUTO) {
     this->fan_mode = climate::CLIMATE_FAN_AUTO;
   } else if (fan <= this->fan_low_) {
-    this->fan_mode = climate::CLIMATE_FAN_LOW;   
+    this->fan_mode = climate::CLIMATE_FAN_LOW;
   } else if (fan > this->fan_low_ && fan < this->fan_hi_) {
-    this->fan_mode = climate::CLIMATE_FAN_MEDIUM;   
+    this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
   } else if (fan >= this->fan_hi_){
-    this->fan_mode = climate::CLIMATE_FAN_HIGH;   
+    this->fan_mode = climate::CLIMATE_FAN_HIGH;
   }
 
   // Wide Vane
@@ -277,7 +277,7 @@ bool MitsubishiClimate::on_receive(remote_base::RemoteReceiveData data) {
       break;
   }
   
-  // ESP_LOGD(TAG, "Data: %02X", state_frame[9]);
+  ESP_LOGD(TAG, "Data: %02X", state_frame[9]);
 
   this->publish_state();
   return true;
