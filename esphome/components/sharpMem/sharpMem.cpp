@@ -50,8 +50,8 @@ void HOT SharpMem::write_display_data() {
   this->transfer_byte(_sharpmem_vcom | SHARPMEM_BIT_WRITECMD); // eventually transfer_array
   TOGGLE_VCOM;
 
-  uint8_t width = this->get_width_internal();
-  uint8_t height = this->get_height_internal();
+  uint16_t width = this->get_width_internal();
+  uint16_t height = this->get_height_internal();
   ESP_LOGD(TAG, "Width: %i, height: %i...", width, height);
 
   uint8_t bytes_per_line = width / 8;
