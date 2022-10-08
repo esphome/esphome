@@ -27,7 +27,7 @@ void SharpMem::setup() {
   ESP_LOGD(TAG, "4...");
   this->extcomin_->digital_write(false);
   ESP_LOGD(TAG, "5...");
-  this->disp_->digital_write(true);
+  this->disp_->digital_write(false);
   ESP_LOGD(TAG, "6...");
   this->sharp5v_on_->digital_write(true);
   ESP_LOGD(TAG, "7...");
