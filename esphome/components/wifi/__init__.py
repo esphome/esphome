@@ -200,13 +200,6 @@ FINAL_VALIDATE_SCHEMA = cv.All(
 
 
 def _validate(config):
-    if config.get(CONF_KEEP_USER_CREDENTIALS, False) and (
-        CONF_SSID in config or CONF_PASSWORD in config or CONF_NETWORKS in config
-    ):
-        raise cv.Invalid(
-            f"WiFi credentials cannot be used together with {CONF_KEEP_USER_CREDENTIALS}"
-        )
-
     if CONF_PASSWORD in config and CONF_SSID not in config:
         raise cv.Invalid("Cannot have WiFi password without SSID!")
 
@@ -259,7 +252,6 @@ def _validate(config):
 
 
 CONF_OUTPUT_POWER = "output_power"
-CONF_KEEP_USER_CREDENTIALS = "keep_user_credentials"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -279,7 +271,6 @@ CONFIG_SCHEMA = cv.All(
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
-            cv.Optional(CONF_KEEP_USER_CREDENTIALS, default=False): cv.boolean,
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)
             ),
@@ -384,9 +375,6 @@ async def to_code(config):
     cg.add(var.set_fast_connect(config[CONF_FAST_CONNECT]))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
-
-    if config.get(CONF_KEEP_USER_CREDENTIALS, False):
-        cg.add_define("USE_WIFI_USER_CREDENTIALS")
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
