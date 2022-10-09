@@ -104,16 +104,16 @@ class KelvinatorIR : public climate_ir::ClimateIR {
                                climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL}) {}
 
-  void set_light(const bool enabled);
+  void set_light(bool enabled);
 
  protected:
   void transmit_state() override;
   bool on_receive(remote_base::RemoteReceiveData data) override;
 
-  uint8_t getMode_();
-  uint8_t getTemperature_();
-  uint8_t getPower_();
-  uint8_t getBasicFan_();
+  uint8_t get_mode_();
+  uint8_t get_temperature_();
+  uint8_t get_power_();
+  uint8_t get_basic_fan_();
 
   bool light_{true};
 };

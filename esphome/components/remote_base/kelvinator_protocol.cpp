@@ -15,7 +15,7 @@ static const int32_t BIT_ZERO_SPACE_US = 6 * TICK_US;
 static const int32_t GAP_SPACE_US = 235 * TICK_US;
 static const int32_t DOUBLE_GAP_SPACE_US = 2 * GAP_SPACE_US;
 
-void KelvinatorProtocol::encode_data(RemoteTransmitData *dst, const uint32_t data) {
+void KelvinatorProtocol::encode_data_(RemoteTransmitData *dst, const uint32_t data) {
   const uint8_t *p = reinterpret_cast<const uint8_t *>(&data);
 
   for (unsigned n = 0; n < 4; n++) {
@@ -36,7 +36,7 @@ void KelvinatorProtocol::encode_data(RemoteTransmitData *dst, const uint32_t dat
   }
 }
 
-void KelvinatorProtocol::encode_footer(RemoteTransmitData *dst) {
+void KelvinatorProtocol::encode_footer_(RemoteTransmitData *dst) {
   dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
   dst->item(BIT_MARK_US, BIT_ONE_SPACE_US);
   dst->item(BIT_MARK_US, BIT_ZERO_SPACE_US);
@@ -53,9 +53,9 @@ void KelvinatorProtocol::encode(RemoteTransmitData *dst, const KelvinatorData &d
     const uint32_t *p = reinterpret_cast<const uint32_t *>(&block);
 
     dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-    encode_data(dst, p[0]);
-    encode_footer(dst);
-    encode_data(dst, p[1]);
+    encode_data_(dst, p[0]);
+    encode_footer_(dst);
+    encode_data_(dst, p[1]);
 
     if (i != size - 1) {
       dst->item(BIT_MARK_US, DOUBLE_GAP_SPACE_US);
@@ -63,12 +63,12 @@ void KelvinatorProtocol::encode(RemoteTransmitData *dst, const KelvinatorData &d
   }
 }
 
-bool KelvinatorProtocol::decode_footer(RemoteReceiveData &src) {
+bool KelvinatorProtocol::decode_footer_(RemoteReceiveData &src) {
   return src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US) && src.expect_item(BIT_MARK_US, BIT_ONE_SPACE_US) &&
          src.expect_item(BIT_MARK_US, BIT_ZERO_SPACE_US) && src.expect_item(BIT_MARK_US, GAP_SPACE_US);
 }
 
-bool KelvinatorProtocol::decode_data(RemoteReceiveData &src, uint32_t *data) {
+bool KelvinatorProtocol::decode_data_(RemoteReceiveData &src, uint32_t *data) {
   uint8_t *p = reinterpret_cast<uint8_t *>(data);
 
   for (unsigned n = 0; n < 4; n++) {
@@ -93,39 +93,39 @@ bool KelvinatorProtocol::decode_data(RemoteReceiveData &src, uint32_t *data) {
   return true;
 }
 
-bool KelvinatorProtocol::decode_data(RemoteReceiveData &src, uint64_t *data) {
+bool KelvinatorProtocol::decode_data_(RemoteReceiveData &src, uint64_t *data) {
   u_int32_t *p = reinterpret_cast<u_int32_t *>(data);
 
-  return src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data(src, &p[0]) && decode_footer(src) &&
-         decode_data(src, &p[1]);
+  return src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data_(src, &p[0]) && decode_footer_(src) &&
+         decode_data_(src, &p[1]);
 }
 
 optional<KelvinatorData> KelvinatorProtocol::decode(RemoteReceiveData data) {
-  KelvinatorData kelvinatorData;
+  KelvinatorData kelvinator_data;
   do {
     uint64_t block;
-    if (!decode_data(data, &block)) {
+    if (!decode_data_(data, &block)) {
       return {};
     }
-    kelvinatorData.data.push_back(block);
+    kelvinator_data.data.push_back(block);
 
   } while (data.expect_item(BIT_MARK_US, DOUBLE_GAP_SPACE_US));
 
-  if (!kelvinatorData.isValidChecksum()) {
+  if (!kelvinator_data.is_valid_checksum()) {
     return {};
   }
 
   ESP_LOGD(TAG, "Kelvinator data valid!");
-  kelvinatorData.log();
-  return kelvinatorData;
+  kelvinator_data.log();
+  return kelvinator_data;
 }
 
-const uint8_t kKelvinatorChecksumStart = 10;
+const uint8_t KELVINATOR_CHECKSUM_START = 10;
 
-uint8_t KelvinatorData::caclulateBlockChecksum(const uint64_t block) {
+uint8_t KelvinatorData::caclulate_block_checksum(const uint64_t block) {
   const uint8_t *p = reinterpret_cast<const uint8_t *>(&block);
 
-  uint8_t sum = kKelvinatorChecksumStart;
+  uint8_t sum = KELVINATOR_CHECKSUM_START;
 
   // Sum the lower half of the first 4 bytes of this block.
   for (uint8_t i = 0; i < 4; i++, p++)
@@ -139,10 +139,10 @@ uint8_t KelvinatorData::caclulateBlockChecksum(const uint64_t block) {
   return sum & 0b1111;
 }
 
-void KelvinatorData::applyChecksum() {
+void KelvinatorData::apply_checksum() {
   for (size_t i = 0; i < data.size(); i++) {
     auto block = data[i];
-    auto checksum = caclulateBlockChecksum(block);
+    auto checksum = caclulate_block_checksum(block);
 
     uint8_t *state = reinterpret_cast<uint8_t *>(&block);
     state[7] = (state[7] & 0b1111) | checksum << 4;
@@ -151,15 +151,14 @@ void KelvinatorData::applyChecksum() {
   }
 }
 
-bool KelvinatorData::isValidChecksum() {
-  for (size_t i = 0; i < data.size(); i++) {
-    auto block = data[i];
-    auto expectedChecksum = caclulateBlockChecksum(block);
+bool KelvinatorData::is_valid_checksum() {
+  for (auto block : this->data) {
+    auto expected_checksum = caclulate_block_checksum(block);
 
     const uint8_t *state = reinterpret_cast<const uint8_t *>(&block);
 
     const uint8_t checksum = (state[7] >> 4) & 0b1111;
-    if (checksum != expectedChecksum) {
+    if (checksum != expected_checksum) {
       return false;
     }
   }
@@ -172,11 +171,11 @@ void KelvinatorProtocol::dump(const KelvinatorData &data) {
 
   KelvinatorData copy;
 
-  for (size_t i = 0; i < data.data.size(); i++) {
-    copy.data.push_back(data.data[i]);
+  for (auto block : data.data) {
+    copy.data.push_back(block);
   }
 
-  copy.applyChecksum();
+  copy.apply_checksum();
 
   copy.log();
 }

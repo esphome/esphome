@@ -7,7 +7,7 @@ namespace kelvinator_ir {
 
 static const char *const TAG = "climate.kelvinator_ir";
 
-uint8_t KelvinatorIR::getMode_() {
+uint8_t KelvinatorIR::get_mode_() {
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
       return KELVINATOR_MODE_COOL;
@@ -17,43 +17,41 @@ uint8_t KelvinatorIR::getMode_() {
       return KELVINATOR_MODE_FAN;
     case climate::CLIMATE_MODE_HEAT:
       return KELVINATOR_MODE_HEAT;
-    case climate::CLIMATE_MODE_HEAT_COOL:
-      return KELVINATOR_MODE_AUTO;
-    default:
+    default:  // climate::CLIMATE_MODE_HEAT_COOL:
       return KELVINATOR_MODE_AUTO;
   }
+
+  return KELVINATOR_MODE_AUTO;
 }
 
-uint8_t KelvinatorIR::getTemperature_() { return this->target_temperature - KELVINATOR_TEMPERATURE_MIN; }
+uint8_t KelvinatorIR::get_temperature_() { return this->target_temperature - KELVINATOR_TEMPERATURE_MIN; }
 
-uint8_t KelvinatorIR::getPower_() { return this->mode != climate::CLIMATE_MODE_OFF; }
+uint8_t KelvinatorIR::get_power_() { return this->mode != climate::CLIMATE_MODE_OFF; }
 
-uint8_t KelvinatorIR::getBasicFan_() {
+uint8_t KelvinatorIR::get_basic_fan_() {
   if (this->fan_mode.has_value()) {
     switch (this->fan_mode.value()) {
-      case climate::CLIMATE_FAN_AUTO:
-        return KELVINATOR_BASICFAN_AUTO;
       case climate::CLIMATE_FAN_HIGH:
         return KELVINATOR_BASICFAN_MAX;
       case climate::CLIMATE_FAN_MEDIUM:
         return KELVINATOR_BASICFAN_MEDIUM;
       case climate::CLIMATE_FAN_LOW:
         return KELVINATOR_BASICFAN_MIN;
-      default:
+      default:  // climate::CLIMATE_FAN_AUTO:
         return KELVINATOR_BASICFAN_AUTO;
     }
   }
   return KELVINATOR_BASICFAN_AUTO;
-}
+}  // namespace kelvinator_ir
 
 void KelvinatorIR::transmit_state() {
   auto command = KelvinatorCommand();
 
-  command.power = this->getPower_();
-  command.mode = this->getMode_();
-  command.temperature = this->getTemperature_();
+  command.power = this->get_power_();
+  command.mode = this->get_mode_();
+  command.temperature = this->get_temperature_();
   command.light = this->light_;
-  command.basicfan = this->getBasicFan_();
+  command.basicfan = this->get_basic_fan_();
   command.swingauto = this->swing_mode == climate::CLIMATE_SWING_VERTICAL;
   command.swingv = this->swing_mode == climate::CLIMATE_SWING_VERTICAL;
 
@@ -64,16 +62,16 @@ void KelvinatorIR::transmit_state() {
   command.raw8[3] = 0x50;
   command.raw8[11] = 0x70;
 
-  remote_base::KelvinatorData kelvinatorData;
-  kelvinatorData.data.push_back(command.raw64[0]);
-  kelvinatorData.data.push_back(command.raw64[1]);
-  kelvinatorData.applyChecksum();
+  remote_base::KelvinatorData kelvinator_data;
+  kelvinator_data.data.push_back(command.raw64[0]);
+  kelvinator_data.data.push_back(command.raw64[1]);
+  kelvinator_data.apply_checksum();
 
-  kelvinatorData.log();
+  kelvinator_data.log();
 
   auto transmit = this->transmitter_->transmit();
   auto *data = transmit.get_data();
-  remote_base::KelvinatorProtocol().encode(data, kelvinatorData);
+  remote_base::KelvinatorProtocol().encode(data, kelvinator_data);
   transmit.perform();
 }
 
@@ -83,15 +81,15 @@ bool KelvinatorIR::on_receive(remote_base::RemoteReceiveData data) {
     return false;
   }
 
-  auto kelvinatorData = decoded.value();
+  auto kelvinator_data = decoded.value();
 
-  if (kelvinatorData.data.size() < 2) {
+  if (kelvinator_data.data.size() < 2) {
     return false;
   }
 
   KelvinatorCommand command;
-  command.raw64[0] = kelvinatorData.data[0];
-  command.raw64[1] = kelvinatorData.data[1];
+  command.raw64[0] = kelvinator_data.data[0];
+  command.raw64[1] = kelvinator_data.data[1];
 
   if (command.power != 0) {
     switch (command.mode) {
@@ -146,7 +144,7 @@ bool KelvinatorIR::on_receive(remote_base::RemoteReceiveData data) {
   return true;
 }
 
-void KelvinatorIR::set_light(const bool enabled) { this->light_ = enabled; }
+void KelvinatorIR::set_light(bool enabled) { this->light_ = enabled; }
 
 }  // namespace kelvinator_ir
 }  // namespace esphome

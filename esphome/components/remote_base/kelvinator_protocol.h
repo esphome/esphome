@@ -15,9 +15,9 @@ namespace remote_base {
 class KelvinatorData {
  public:
   std::vector<uint64_t> data;
-  bool isValidChecksum();
-  void applyChecksum();
-  uint8_t caclulateBlockChecksum(const uint64_t block);
+  bool is_valid_checksum();
+  void apply_checksum();
+  uint8_t caclulate_block_checksum(uint64_t block);
   void log() const;
 };
 
@@ -28,11 +28,11 @@ class KelvinatorProtocol : public RemoteProtocol<KelvinatorData> {
   void dump(const KelvinatorData &data) override;
 
  private:
-  void encode_data(RemoteTransmitData *dst, const uint32_t data);
-  void encode_footer(RemoteTransmitData *dst);
-  bool decode_data(RemoteReceiveData &src, uint64_t* data);
-  bool decode_data(RemoteReceiveData &src, uint32_t* data);
-  bool decode_footer(RemoteReceiveData &src);
+  void encode_data_(RemoteTransmitData *dst, uint32_t data);
+  void encode_footer_(RemoteTransmitData *dst);
+  bool decode_data_(RemoteReceiveData &src, uint64_t *data);
+  bool decode_data_(RemoteReceiveData &src, uint32_t *data);
+  bool decode_footer_(RemoteReceiveData &src);
 };
 
 DECLARE_REMOTE_PROTOCOL(Kelvinator)
