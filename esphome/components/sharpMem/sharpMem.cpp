@@ -84,6 +84,7 @@ void SharpMem::dump_config() {
   LOG_PIN("  DISP Pin: ", this->disp_);
   ESP_LOGCONFIG(TAG, "  Height: %d", this->height_);
   ESP_LOGCONFIG(TAG, "  Width: %d", this->width_);
+  ESP_LOGCONFIG(TAG, "  Inverted colors: %s", this->invert_color_ ? "true" : "false");
 }
 
 void SharpMem::update() {
