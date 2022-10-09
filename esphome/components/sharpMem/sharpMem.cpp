@@ -65,7 +65,7 @@ void HOT SharpMem::write_display_data() {
   this->disable();
 }
 
-void SharpMem::fill(Color color) { memset(this->buffer_, color.is_on() ? 0xFF : 0x00, this->get_buffer_length_()); }
+void SharpMem::fill(Color color) { memset(this->buffer_, color.is_on() ? 0x00 : 0xFF, this->get_buffer_length_()); }
 
 void SharpMem::dump_config() {
   LOG_DISPLAY("", "SharpMem", this);
@@ -101,9 +101,9 @@ void HOT SharpMem::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
   int width = this->get_width_internal() / 8u;
   if (color.is_on()) {
-    this->buffer_[y * width + x / 8] |= (0x01 << (x & 7));
-  } else {
     this->buffer_[y * width + x / 8] &= ~(0x01 << (x & 7));
+  } else {
+    this->buffer_[y * width + x / 8] |= (0x01 << (x & 7));
   }
 }
 
