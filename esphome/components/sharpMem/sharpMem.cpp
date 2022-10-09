@@ -32,10 +32,10 @@ void HOT SharpMem::write_display_data() {
   uint16_t i, currentline;
 
   this->enable();
-  // Send the write command
+  // Send the write command, this display has active HIGH
   this->cs_->digital_write(true);
 
-  this->transfer_byte(_sharpmem_vcom | SHARPMEM_BIT_WRITECMD); // eventually transfer_array
+  this->transfer_byte(_sharpmem_vcom | SHARPMEM_BIT_WRITECMD);
   TOGGLE_VCOM;
 
   uint16_t width = this->get_width_internal();

@@ -20,7 +20,7 @@ using sharpMem_writer_t = std::function<void(SharpMem &)>;
 class SharpMem : public PollingComponent,
                public display::DisplayBuffer,
                public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                     spi::DATA_RATE_2MHZ> {
+                                     spi::DATA_RATE_4MHZ> {
  public:
   void set_writer(sharpMem_writer_t &&writer) { this->writer_local_ = writer; }
   void set_height(uint16_t height) { this->height_ = height; }
