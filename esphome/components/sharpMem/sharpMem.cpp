@@ -1,5 +1,6 @@
 #include "sharpMem.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/application.h"
 #include "esphome/components/display/display_buffer.h"
 
@@ -54,11 +55,10 @@ void HOT SharpMem::write_display_data() {
     // Copy over this line
     memcpy(line + 1, this->buffer_ + i, bytes_per_line);
     // Reorder bits on every byte of the line (MSB -> LSB)
+    // Invert byte => write black on white
     for(uint8_t j = 0; j < bytes_per_line; j++){
       uint8_t currentByte = line[j+1];
-      //line[j+1] = ((currentByte * 0x0802LU & 0x22110LU) | (currentByte * 0x8020LU & 0x88440LU)) * 0x10101LU >> 16; 
-      // Invert byte => write black on white
-      line[j+1] = ~line[j+1];
+      line[j+1] = ~byteswap(line[j+1]);
     }
     // Attach end of line and send it
     line[bytes_per_line + 1] = 0x00;
