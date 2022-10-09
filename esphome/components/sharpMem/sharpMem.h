@@ -9,9 +9,9 @@
 namespace esphome {
 namespace sharpMem {
 
-#define SHARPMEM_BIT_WRITECMD (0x01) // 0x80 in LSB format
-#define SHARPMEM_BIT_VCOM (0x02)     // 0x40 in LSB format
-#define SHARPMEM_BIT_CLEAR (0x04)    // 0x20 in LSB format
+#define SHARPMEM_BIT_WRITECMD (0x80) // 0x01 in MSB format
+#define SHARPMEM_BIT_VCOM (0x40)     // 0x02 in MSB format
+#define SHARPMEM_BIT_CLEAR (0x20)    // 0x04 in MSB format
 
 class SharpMem;
 
@@ -19,7 +19,7 @@ using sharpMem_writer_t = std::function<void(SharpMem &)>;
 
 class SharpMem : public PollingComponent,
                public display::DisplayBuffer,
-               public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
+               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
                                      spi::DATA_RATE_2MHZ> {
  public:
   void set_writer(sharpMem_writer_t &&writer) { this->writer_local_ = writer; }
