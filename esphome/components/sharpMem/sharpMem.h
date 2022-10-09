@@ -29,7 +29,7 @@ class SharpMem : public PollingComponent,
   void set_extmode_pin(GPIOPin *extmode) { extmode_ = extmode; }
   void set_extcomin_pin(GPIOPin *extcomin) { extcomin_ = extcomin; }
   void set_disp_pin(GPIOPin *disp) { disp_ = disp; }
-  void set_invert_color(GPIOPin *inver_color) { invert_color_ = inver_color; }
+  void set_invert_color(bool *invert_color) { invert_color_ = invert_color; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -54,7 +54,7 @@ class SharpMem : public PollingComponent,
   GPIOPin *extmode_;
   GPIOPin *extcomin_;
   GPIOPin *disp_;
-  bool invert_color_;
+  bool invert_color_ = false;
 
   optional<sharpMem_writer_t> writer_local_{};
 
