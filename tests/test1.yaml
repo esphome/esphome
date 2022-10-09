@@ -1938,6 +1938,9 @@ climate:
     heat_mode: extended
   - platform: whynter
     name: Whynter
+  - platform: kelvinator_ir
+    name: Kelvinator IR
+    light: true
 
 script:
   - id: climate_custom

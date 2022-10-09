@@ -352,6 +352,45 @@ async def jvc_action(var, config, args):
     cg.add(var.set_data(template_))
 
 
+# Kelvinator
+(
+    KelvinatorData,
+    KelvinatorBinarySensor,
+    KelvinatorTrigger,
+    KelvinatorAction,
+    KelvinatorDumper,
+) = declare_protocol("Kelvinator")
+KELVINATOR_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint32_t})
+
+
+@register_binary_sensor("kelvinator", KelvinatorBinarySensor, KELVINATOR_SCHEMA)
+def kelvinator_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                KelvinatorData,
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("kelvinator", KelvinatorTrigger, KelvinatorData)
+def kelvinator_trigger(var, config):
+    pass
+
+
+@register_dumper("kelvinator", KelvinatorDumper)
+def kelvinator_dumper(var, config):
+    pass
+
+
+@register_action("kelvinator", KelvinatorAction, KELVINATOR_SCHEMA)
+async def kelvinator_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
+    cg.add(var.set_data(template_))
+
+
 # LG
 LGData, LGBinarySensor, LGTrigger, LGAction, LGDumper = declare_protocol("LG")
 LG_SCHEMA = cv.Schema(
