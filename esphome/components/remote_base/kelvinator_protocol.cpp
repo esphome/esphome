@@ -94,7 +94,7 @@ bool KelvinatorProtocol::decode_data_(RemoteReceiveData &src, uint32_t *data) {
 }
 
 bool KelvinatorProtocol::decode_data_(RemoteReceiveData &src, uint64_t *data) {
-  u_int32_t *p = reinterpret_cast<u_int32_t *>(data);
+  uint32_t *p = reinterpret_cast<uint32_t *>(data);
 
   return src.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data_(src, &p[0]) && decode_footer_(src) &&
          decode_data_(src, &p[1]);
@@ -140,17 +140,18 @@ uint8_t KelvinatorData::caclulate_block_checksum(const uint64_t block) {
 }
 
 void KelvinatorData::apply_checksum() {
-  for (size_t i = 0; i < data.size(); i++) {
-    auto block = data[i];
+  auto i = 0;
+  for (auto block : this->data) {
     auto checksum = caclulate_block_checksum(block);
 
     uint8_t *state = reinterpret_cast<uint8_t *>(&block);
     state[7] = (state[7] & 0b1111) | checksum << 4;
 
     data[i] = block;
+
+    ++i;
   }
 }
-
 bool KelvinatorData::is_valid_checksum() {
   for (auto block : this->data) {
     auto expected_checksum = caclulate_block_checksum(block);

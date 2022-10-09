@@ -1,12 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import climate_ir
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_LIGHT
 
 AUTO_LOAD = ["climate_ir"]
 CODEOWNERS = ["@michael-horne"]
-
-CONF_LIGHT = "light"
 
 kelvinator_ir_ns = cg.esphome_ns.namespace("kelvinator_ir")
 KelvinatorIR = kelvinator_ir_ns.class_("KelvinatorIR", climate_ir.ClimateIR)
