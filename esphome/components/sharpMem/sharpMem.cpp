@@ -66,11 +66,11 @@ void HOT SharpMem::write_display_data() {
 }
 
 void SharpMem::fill(Color color) { 
-  uint8_t color = color.is_on() ? 0x00 : 0xFF;
+  uint8_t fill = color.is_on() ? 0x00 : 0xFF;
   if(this->invert_color_){
-    color = ~color;
+    fill = ~fill;
   }
-  memset(this->buffer_, color, this->get_buffer_length_());
+  memset(this->buffer_, fill, this->get_buffer_length_());
 }
 
 void SharpMem::dump_config() {
