@@ -57,7 +57,7 @@ void HOT SharpMem::write_display_data() {
     // Invert byte to paint black on white
     for(uint8_t j = 0; j < bytes_per_line; j++){
       uint8_t currentByte = line[j+1];
-      //line[j+1] = ((currentByte * 0x0802LU & 0x22110LU) | (currentByte * 0x8020LU & 0x88440LU)) * 0x10101LU >> 16;
+      line[j+1] = ((currentByte * 0x0802LU & 0x22110LU) | (currentByte * 0x8020LU & 0x88440LU)) * 0x10101LU >> 16;
       if(!this->invert_color_){
         line[j+1] = ~line[j+1];
       }
@@ -110,9 +110,9 @@ void HOT SharpMem::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
   int width = this->get_width_internal() / 8u;
   if (color.is_on()) {
-    this->buffer_[y * width + x / 8] |= (x & 7);
+    this->buffer_[y * width + x / 8] |= (0x01 >> (x & 7));
   } else {
-    this->buffer_[y * width + x / 8] &= ~(x & 7);
+    this->buffer_[y * width + x / 8] &= ~(0x01 >> (x & 7));
   }
 }
 
