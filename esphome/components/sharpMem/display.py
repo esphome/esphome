@@ -62,5 +62,5 @@ async def to_code(config):
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
 
-    if CONF_RAW in config:
+    if CONF_INVERT_COLOR in config:
         cg.add(var.set_invert_color(config[CONF_INVERT_COLOR]))
