@@ -53,15 +53,6 @@ void HOT SharpMem::write_display_data() {
     line[0] = currentline;
     // Copy over this line
     memcpy(line + 1, this->buffer_ + i, bytes_per_line);
-    // Reorder bits on every byte of the line (MSB -> LSB)
-    // Invert byte to paint black on white
-    for(uint8_t j = 0; j < bytes_per_line; j++){
-      uint8_t currentByte = line[j+1];
-      //line[j+1] = ((currentByte * 0x0802LU & 0x22110LU) | (currentByte * 0x8020LU & 0x88440LU)) * 0x10101LU >> 16;
-      if(!this->invert_color_){
-        line[j+1] = ~line[j+1];
-      }
-    }
     // Attach end of line and send it
     line[bytes_per_line + 1] = 0x00;
     this->transfer_array(line, bytes_per_line + 2);
