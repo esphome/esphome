@@ -57,7 +57,7 @@ class BluetoothProxy : public BLEClientBase {
   int16_t send_service_{-1};
   bool active_;
   int min_rssi_{-80};
-  cache::lru_cache<uint64_t, adv_data_t> prev_data_(25);
+  cache::lru_cache<uint64_t, adv_data_t> prev_mnf_data_{50};
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

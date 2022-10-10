@@ -28,17 +28,19 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     return true;
   }
 
-  const adv_data_t& prev_data = this->prev_data_.get(device.address_uint64());
+ 
 
   for (auto &data : device.get_manufacturer_datas()) {
-      // ignore duplicate data
-      if (data.data == prev_data) {
-        ESP_LOGV(TAG, "Ignoring duplicate packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
-            device.get_rssi());
-        return true;
+      // ignore duplicate packet
+      if (this->prev_mnf_data_.exists(device.address_uint64())) {
+        const adv_data_t& prev_data = this->prev_mnf_data_.get(device.address_uint64());
+        if (data.data == prev_data) {
+          ESP_LOGV(TAG, "Ignoring duplicate packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
+              device.get_rssi());
+          return true;
+        }
       }
-
-      this->prev_data_map_[device.address_uint64()] = data.data;
+      this->prev_mnf_data_.put(device.address_uint64(), data.data);
     }
   
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
