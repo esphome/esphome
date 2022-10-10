@@ -28,8 +28,6 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     return true;
   }
 
- 
-
   for (auto &data : device.get_manufacturer_datas()) {
       // ignore duplicate packet
       if (this->prev_mnf_data_.exists(device.address_uint64())) {
