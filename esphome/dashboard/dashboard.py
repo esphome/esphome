@@ -395,11 +395,22 @@ class ImportRequestHandler(BaseHandler):
         args = json.loads(self.request.body.decode())
         try:
             name = args["name"]
+
+            imported_device = next(
+                (res for res in IMPORT_RESULT.values() if res.device_name == name), None
+            )
+
+            if imported_device is not None:
+                network = imported_device.network
+            else:
+                network = const.CONF_WIFI
+
             import_config(
                 settings.rel_path(f"{name}.yaml"),
                 name,
                 args["project_name"],
                 args["package_import_url"],
+                network,
             )
         except FileExistsError:
             self.set_status(500)
@@ -522,7 +533,7 @@ class DashboardEntry:
         return os.path.basename(self.path)
 
     @property
-    def storage(self):  # type: () -> Optional[StorageJSON]
+    def storage(self) -> Optional[StorageJSON]:
         if not self._loaded_storage:
             self._storage = StorageJSON.load(
                 ext_storage_path(settings.config_dir, self.filename)
@@ -613,6 +624,7 @@ class ListDevicesHandler(BaseHandler):
                             "package_import_url": res.package_import_url,
                             "project_name": res.project_name,
                             "project_version": res.project_version,
+                            "network": res.network,
                         }
                         for res in IMPORT_RESULT.values()
                         if res.device_name not in configured
@@ -817,7 +829,7 @@ class UndoDeleteRequestHandler(BaseHandler):
         shutil.move(os.path.join(trash_path, configuration), config_file)
 
 
-PING_RESULT = {}  # type: dict
+PING_RESULT: dict = {}
 IMPORT_RESULT = {}
 STOP_EVENT = threading.Event()
 PING_REQUEST = threading.Event()
@@ -933,7 +945,7 @@ def get_static_path(*args):
     return os.path.join(get_base_frontend_path(), "static", *args)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def get_static_file_url(name):
     base = f"./static/{name}"
 

@@ -107,8 +107,9 @@ async def setup_entity(var, config):
         add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
 
 
-def extract_registry_entry_config(registry, full_config):
-    # type: (Registry, ConfigType) -> RegistryEntry
+def extract_registry_entry_config(
+    registry: Registry, full_config: ConfigType
+) -> RegistryEntry:
     key, config = next((k, v) for k, v in full_config.items() if k in registry)
     return registry[key], config
 
