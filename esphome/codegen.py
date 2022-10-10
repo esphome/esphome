@@ -22,6 +22,7 @@ from esphome.cpp_generator import (  # noqa
     static_const_array,
     statement,
     variable,
+    with_local_variable,
     new_variable,
     Pvariable,
     new_Pvariable,
