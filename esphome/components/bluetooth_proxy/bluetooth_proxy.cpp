@@ -28,10 +28,7 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     return true;
   }
 
-  adv_data_t prev_data{};
-  if (this->prev_data_map_.find(device.address_uint64()) != this->prev_data_map_.end()) {
-    prev_data = this->prev_data_map_[device.address_uint64()];
-  }
+  const adv_data_t& prev_data = this->prev_data_.get(device.address_uint64());
 
   for (auto &data : device.get_manufacturer_datas()) {
       // ignore duplicate data

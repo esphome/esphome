@@ -9,6 +9,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "esphome/core/lrucache.hpp"
 
 #include <map>
 
@@ -56,7 +57,7 @@ class BluetoothProxy : public BLEClientBase {
   int16_t send_service_{-1};
   bool active_;
   int min_rssi_{-80};
-  std::map<uint64_t, adv_data_t> prev_data_map_;
+  cache::lru_cache<uint64_t, adv_data_t> prev_data_(25);
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
