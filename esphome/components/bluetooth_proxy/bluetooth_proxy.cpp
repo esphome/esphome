@@ -20,30 +20,29 @@ BluetoothProxy::BluetoothProxy() {
 }
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
-  
   if (device.get_rssi() < this->min_rssi_) {
     // ignore devices below the rssi threshold
     ESP_LOGVV(TAG, "Ignoring packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
-           device.get_rssi());
+              device.get_rssi());
     return true;
   }
 
   for (auto &data : device.get_manufacturer_datas()) {
-      // ignore duplicate packet
-      if (this->prev_mnf_data_.exists(device.address_uint64())) {
-        const adv_data_t& prev_data = this->prev_mnf_data_.get(device.address_uint64());
-        if (data.data == prev_data) {
-          ESP_LOGV(TAG, "Ignoring duplicate packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
-              device.get_rssi());
-          return true;
-        }
+    // ignore duplicate packet
+    if (this->prev_mnf_data_.exists(device.address_uint64())) {
+      const adv_data_t &prev_data = this->prev_mnf_data_.get(device.address_uint64());
+      if (data.data == prev_data) {
+        ESP_LOGV(TAG, "Ignoring duplicate packet from %s - %s. RSSI: %d dB", device.get_name().c_str(),
+                 device.address_str().c_str(), device.get_rssi());
+        return true;
       }
-      this->prev_mnf_data_.put(device.address_uint64(), data.data);
     }
-  
+    this->prev_mnf_data_.put(device.address_uint64(), data.data);
+  }
+
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
-  
+
   this->send_api_packet_(device);
   this->address_type_map_[device.address_uint64()] = device.get_address_type();
 
