@@ -17,6 +17,7 @@ SharpMemoryLCDRef = SharpMemoryLCD.operator("ref")
 CONF_DISP_PIN = "disp_pin"
 CONF_EXTMODE_PIN = "extmode_pin"
 CONF_EXTCOMIN_PIN = "extcomin_pin"
+CS_PIN = "sharp_cs_pin"
 CONF_INVERT_COLOR = "invert_color"
 
 CONFIG_SCHEMA = (
@@ -24,9 +25,10 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SharpMemoryLCD),
             cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_DISP_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_EXTMODE_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_EXTCOMIN_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CS_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_DISP_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_EXTMODE_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_EXTCOMIN_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_WIDTH): cv.int_,
             cv.Required(CONF_HEIGHT): cv.int_,
             cv.Optional(CONF_INVERT_COLOR): cv.boolean,
@@ -54,9 +56,9 @@ async def to_code(config):
     cg.add(var.set_extmode_pin(extmode_pin))
     extcomin_pin = await cg.gpio_pin_expression(config[CONF_EXTCOMIN_PIN])
     cg.add(var.set_extcomin_pin(extcomin_pin))
-    sharp_cs_pin = await cg.gpio_pin_expression(config[CONF_CS_PIN])
+    sharp_cs_pin = await cg.gpio_pin_expression(config[CS_PIN])
     cg.add(var.set_cs(sharp_cs_pin))
-
+    
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
 
