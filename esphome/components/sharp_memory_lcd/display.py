@@ -24,7 +24,6 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SharpMemoryLCD),
             cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CS_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_DISP_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_EXTMODE_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_EXTCOMIN_PIN): pins.gpio_output_pin_schema,
