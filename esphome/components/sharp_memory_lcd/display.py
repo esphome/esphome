@@ -59,7 +59,7 @@ async def to_code(config):
     if CONF_EXTCOMIN_PIN in config:
         extcomin_pin = await cg.gpio_pin_expression(config[CONF_EXTCOMIN_PIN])
         cg.add(var.set_extcomin_pin(extcomin_pin))
-    
+
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
 
