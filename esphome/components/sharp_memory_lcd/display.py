@@ -8,11 +8,11 @@ AUTO_LOAD = ["display"]
 CODEOWNERS = ["@skaldo"]
 DEPENDENCIES = ["spi"]
 
-sharpMem_ns = cg.esphome_ns.namespace("sharpMem")
-SharpMem = sharpMem_ns.class_(
-    "SharpMem", cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice
+sharp_memory_lcd_ns = cg.esphome_ns.namespace("sharp_memory_lcd")
+SharpMemoryLCD = sharp_memory_lcd_ns.class_(
+    "SharpMemoryLCD", cg.PollingComponent, display.DisplayBuffer, spi.SPIDevice
 )
-SharpMemRef = SharpMem.operator("ref")
+SharpMemoryLCDRef = SharpMemoryLCD.operator("ref")
 
 CONF_DISP_PIN = "disp_pin"
 CONF_EXTMODE_PIN = "extmode_pin"
@@ -23,7 +23,7 @@ CONF_INVERT_COLOR = "invert_color"
 CONFIG_SCHEMA = (
     display.FULL_DISPLAY_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.declare_id(SharpMem),
+            cv.GenerateID(): cv.declare_id(SharpMemoryLCD),
             cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
             cv.Required(CS_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_DISP_PIN): pins.gpio_output_pin_schema,
@@ -47,7 +47,7 @@ async def to_code(config):
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(SharpMemRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA], [(SharpMemoryLCDRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
     disp_pin = await cg.gpio_pin_expression(config[CONF_DISP_PIN])

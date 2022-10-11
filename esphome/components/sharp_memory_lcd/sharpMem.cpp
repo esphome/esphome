@@ -1,20 +1,20 @@
-#include "sharpMem.h"
+#include "sharp_memory_lcd.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/components/display/display_buffer.h"
 
 namespace esphome {
-namespace sharpMem {
+namespace sharp_memory_lcd {
 
-static const char *const TAG = "sharpMem";
+static const char *const TAG = "sharp_memory_lcd";
 
 #define TOGGLE_VCOM                                                            \
   do {                                                                         \
     _sharpmem_vcom = _sharpmem_vcom ? 0x00 : SHARPMEM_BIT_VCOM;                \
   } while (0);
 
-void SharpMem::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SharpMem...");
+void SharpMemoryLCD::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up SharpMemoryLCD...");
   this->dump_config();
   this->spi_setup();
   this->init_internal_(this->get_buffer_length_());
@@ -26,7 +26,7 @@ void SharpMem::setup() {
   display_init_();
 }
 
-void HOT SharpMem::write_display_data() {
+void HOT SharpMemoryLCD::write_display_data() {
   ESP_LOGD(TAG, "Writing display data...");
 
   uint16_t i, currentline;
@@ -65,7 +65,7 @@ void HOT SharpMem::write_display_data() {
   this->disable();
 }
 
-void SharpMem::fill(Color color) { 
+void SharpMemoryLCD::fill(Color color) { 
   uint8_t fill = color.is_on() ? 0x00 : 0xFF;
   if(this->invert_color_){
     fill = ~fill;
@@ -73,8 +73,8 @@ void SharpMem::fill(Color color) {
   memset(this->buffer_, fill, this->get_buffer_length_());
 }
 
-void SharpMem::dump_config() {
-  LOG_DISPLAY("", "SharpMem", this);
+void SharpMemoryLCD::dump_config() {
+  LOG_DISPLAY("", "SharpMemoryLCD", this);
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  EXTMODE Pin: ", this->extmode_);
   LOG_PIN("  EXTCOMIN Pin: ", this->extcomin_);
@@ -84,7 +84,7 @@ void SharpMem::dump_config() {
   ESP_LOGCONFIG(TAG, "  Inverted colors: %s", this->invert_color_ ? "true" : "false");
 }
 
-void SharpMem::update() {
+void SharpMemoryLCD::update() {
   ESP_LOGD(TAG, "Updating display...");
   this->clear();
   if (this->writer_local_.has_value())  // call lambda function if available
@@ -92,15 +92,15 @@ void SharpMem::update() {
   this->write_display_data();
 }
 
-int SharpMem::get_width_internal() { return this->width_; }
+int SharpMemoryLCD::get_width_internal() { return this->width_; }
 
-int SharpMem::get_height_internal() { return this->height_; }
+int SharpMemoryLCD::get_height_internal() { return this->height_; }
 
-size_t SharpMem::get_buffer_length_() {
+size_t SharpMemoryLCD::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
 }
 
-void HOT SharpMem::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT SharpMemoryLCD::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     ESP_LOGW(TAG, "Position out of area: %dx%d", x, y);
     return;
@@ -122,12 +122,12 @@ void HOT SharpMem::draw_absolute_pixel_internal(int x, int y, Color color) {
   }
 }
 
-void SharpMem::display_init_() {
+void SharpMemoryLCD::display_init_() {
   ESP_LOGD(TAG, "Initializing display...");
   // Set the vcom bit to a defined state
   _sharpmem_vcom = SHARPMEM_BIT_VCOM;
   this->write_display_data();
 }
 
-}  // namespace sharpMem
+}  // namespace sharp_memory_lcd
 }  // namespace esphome
