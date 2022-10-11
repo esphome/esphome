@@ -33,7 +33,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_INVERT_COLOR): cv.boolean,
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.polling_component_schema("1s"))
     .extend(spi.spi_device_schema())
 )
 
