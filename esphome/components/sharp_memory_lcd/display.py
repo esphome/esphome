@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import display, spi
-from esphome.const import CONF_ID, CONF_LAMBDA, CONF_WIDTH, CONF_HEIGHT
+from esphome.const import CONF_ID, CONF_LAMBDA, CONF_WIDTH, CONF_HEIGHT, CONF_CS_PIN
 
 AUTO_LOAD = ["display"]
 CODEOWNERS = ["@skaldo"]
@@ -17,7 +17,6 @@ SharpMemoryLCDRef = SharpMemoryLCD.operator("ref")
 CONF_DISP_PIN = "disp_pin"
 CONF_EXTMODE_PIN = "extmode_pin"
 CONF_EXTCOMIN_PIN = "extcomin_pin"
-CONF_CS_PIN = "sharp_cs_pin"
 CONF_INVERT_COLOR = "invert_color"
 
 CONFIG_SCHEMA = (
@@ -25,9 +24,9 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(SharpMemoryLCD),
             cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_DISP_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_EXTMODE_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_EXTCOMIN_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_DISP_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_EXTMODE_PIN): pins.gpio_output_pin_schema,
+            cv.Required(CONF_EXTCOMIN_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_WIDTH): cv.int_,
             cv.Required(CONF_HEIGHT): cv.int_,
             cv.Optional(CONF_INVERT_COLOR): cv.boolean,
