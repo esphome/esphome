@@ -324,7 +324,7 @@ void APIServer::send_bluetooth_gatt_read_response(const BluetoothGATTReadRespons
     client->send_bluetooth_gatt_read_response(call);
   }
 }
-void APIServer::send_bluetooth_gatt_read_response(const BluetoothGATTWriteResponse &call) {
+void APIServer::send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &call) {
   for (auto &client : this->clients_) {
     client->send_bluetooth_gatt_write_response(call);
   }
@@ -332,6 +332,11 @@ void APIServer::send_bluetooth_gatt_read_response(const BluetoothGATTWriteRespon
 void APIServer::send_bluetooth_gatt_notify_data_response(const BluetoothGATTNotifyDataResponse &call) {
   for (auto &client : this->clients_) {
     client->send_bluetooth_gatt_notify_data_response(call);
+  }
+}
+void APIServer::send_bluetooth_gatt_notify_response(const BluetoothGATTNotifyResponse &call) {
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_gatt_notify_response(call);
   }
 }
 void APIServer::send_bluetooth_gatt_services(const BluetoothGATTGetServicesResponse &call) {

@@ -93,7 +93,8 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       if (param->read.conn_id != this->conn_id_)
         break;
       if (param->read.status != ESP_GATT_OK) {
-        ESP_LOGW(TAG, "Error reading char/descriptor at handle %d, status=%d", param->read.handle, param->read.status);
+        ESP_LOGW(TAG, "Error reading char/descriptor at handle 0x%2X, status=%d", param->read.handle,
+                 param->read.status);
         api::global_api_server->send_bluetooth_gatt_error(this->address_, param->read.handle, param->read.status);
         break;
       }
@@ -112,7 +113,7 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       if (param->write.conn_id != this->conn_id_)
         break;
       if (param->write.status != ESP_GATT_OK) {
-        ESP_LOGW(TAG, "Error writing char/descriptor at handle %d, status=%d", param->write.handle,
+        ESP_LOGW(TAG, "Error writing char/descriptor at handle 0x%2X, status=%d", param->write.handle,
                  param->write.status);
         api::global_api_server->send_bluetooth_gatt_error(this->address_, param->write.handle, param->write.status);
         break;
@@ -123,10 +124,38 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       api::global_api_server->send_bluetooth_gatt_write_response(resp);
       break;
     }
+    case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
+      if (param->unreg_for_notify.status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "Error unregistering notifications for handle 0x%2X, status=%d", param->unreg_for_notify.handle,
+                 param->unreg_for_notify.status);
+        api::global_api_server->send_bluetooth_gatt_error(this->address_, param->unreg_for_notify.handle,
+                                                          param->unreg_for_notify.status);
+        break;
+      }
+      api::BluetoothGATTNotifyResponse resp;
+      resp.address = this->address_;
+      resp.handle = param->unreg_for_notify.handle;
+      api::global_api_server->send_bluetooth_gatt_notify_response(resp);
+      break;
+    }
+    case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
+      if (param->reg_for_notify.status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "Error registering notifications for handle 0x%2X, status=%d", param->reg_for_notify.handle,
+                 param->reg_for_notify.status);
+        api::global_api_server->send_bluetooth_gatt_error(this->address_, param->reg_for_notify.handle,
+                                                          param->reg_for_notify.status);
+        break;
+      }
+      api::BluetoothGATTNotifyResponse resp;
+      resp.address = this->address_;
+      resp.handle = param->reg_for_notify.handle;
+      api::global_api_server->send_bluetooth_gatt_notify_response(resp);
+      break;
+    }
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.conn_id != this->conn_id_)
         break;
-      ESP_LOGV(TAG, "ESP_GATTC_NOTIFY_EVT: handle=0x%x", param->notify.handle);
+      ESP_LOGV(TAG, "ESP_GATTC_NOTIFY_EVT: handle=0x%2X", param->notify.handle);
       api::BluetoothGATTNotifyDataResponse resp;
       resp.address = this->address_;
       resp.handle = param->notify.handle;
