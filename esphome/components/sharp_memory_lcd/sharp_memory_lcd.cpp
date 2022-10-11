@@ -8,9 +8,9 @@ namespace sharp_memory_lcd {
 
 static const char *const TAG = "sharp_memory_lcd";
 
-#define TOGGLE_VCOM                                                            \
-  do {                                                                         \
-    _sharpmem_vcom = _sharpmem_vcom ? 0x00 : SHARPMEM_BIT_VCOM;                \
+#define TOGGLE_VCOM \
+  do { \
+    _sharpmem_vcom = _sharpmem_vcom ? 0x00 : SHARPMEM_BIT_VCOM; \
   } while (0);
 
 void SharpMemoryLCD::setup() {
@@ -48,7 +48,7 @@ void HOT SharpMemoryLCD::write_display_data() {
   for (i = 0; i < totalbytes; i += bytes_per_line) {
     uint8_t line[bytes_per_line + 2];
 
-    // Send address byte
+    // Send address _byte
     currentline = ((i + 1) / (width / 8)) + 1;
     line[0] = currentline;
     // Copy over this line
@@ -65,9 +65,9 @@ void HOT SharpMemoryLCD::write_display_data() {
   this->disable();
 }
 
-void SharpMemoryLCD::fill(Color color) { 
+void SharpMemoryLCD::fill(Color color) {
   uint8_t fill = color.is_on() ? 0x00 : 0xFF;
-  if(this->invert_color_){
+  if (this->invert_color_) {
     fill = ~fill;
   }
   memset(this->buffer_, fill, this->get_buffer_length_());
@@ -107,7 +107,7 @@ void HOT SharpMemoryLCD::draw_absolute_pixel_internal(int x, int y, Color color)
   }
   int width = this->get_width_internal() / 8u;
 
-  if(this->invert_color_){
+  if (this->invert_color_) {
     if (color.is_on()) {
       this->buffer_[y * width + x / 8] |= (0x01 << (x & 7));
     } else {

@@ -58,7 +58,7 @@ async def to_code(config):
     cg.add(var.set_extcomin_pin(extcomin_pin))
     sharp_cs_pin = await cg.gpio_pin_expression(config[CS_PIN])
     cg.add(var.set_cs(sharp_cs_pin))
-    
+
     cg.add(var.set_width(config[CONF_WIDTH]))
     cg.add(var.set_height(config[CONF_HEIGHT]))
 
