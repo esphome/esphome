@@ -50,12 +50,16 @@ async def to_code(config):
             config[CONF_LAMBDA], [(SharpMemoryLCDRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
-    disp_pin = await cg.gpio_pin_expression(config[CONF_DISP_PIN])
-    cg.add(var.set_disp_pin(disp_pin))
-    extmode_pin = await cg.gpio_pin_expression(config[CONF_EXTMODE_PIN])
-    cg.add(var.set_extmode_pin(extmode_pin))
-    extcomin_pin = await cg.gpio_pin_expression(config[CONF_EXTCOMIN_PIN])
-    cg.add(var.set_extcomin_pin(extcomin_pin))
+
+    if CONF_DISP_PIN in config:
+        disp_pin = await cg.gpio_pin_expression(config[CONF_DISP_PIN])
+        cg.add(var.set_disp_pin(disp_pin))
+    if CONF_EXTMODE_PIN in config:
+        extmode_pin = await cg.gpio_pin_expression(config[CONF_EXTMODE_PIN])
+        cg.add(var.set_extmode_pin(extmode_pin))
+    if CONF_EXTCOMIN_PIN in config:
+        extcomin_pin = await cg.gpio_pin_expression(config[CONF_EXTCOMIN_PIN])
+        cg.add(var.set_extcomin_pin(extcomin_pin))
     sharp_cs_pin = await cg.gpio_pin_expression(config[CS_PIN])
     cg.add(var.set_cs(sharp_cs_pin))
     
