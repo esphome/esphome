@@ -20,6 +20,8 @@ BluetoothProxy::BluetoothProxy() {
 }
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
+  if (!api::global_api_server->is_connected())
+    return false;
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
   this->send_api_packet_(device);
