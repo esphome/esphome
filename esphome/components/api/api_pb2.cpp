@@ -5790,6 +5790,40 @@ void BluetoothGATTErrorResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool BluetoothGATTWriteResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->handle = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothGATTWriteResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_uint32(2, this->handle);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTWriteResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothGATTWriteResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  handle: ");
+  sprintf(buffer, "%u", this->handle);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
 
 }  // namespace api
 }  // namespace esphome

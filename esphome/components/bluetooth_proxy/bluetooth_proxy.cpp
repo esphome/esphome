@@ -105,6 +105,22 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
       api::global_api_server->send_bluetooth_gatt_read_response(resp);
       break;
     }
+    case ESP_GATTC_WRITE_CHAR_EVT:
+    case ESP_GATTC_WRITE_DESCR_EVT: {
+      if (param->write.conn_id != this->conn_id_)
+        break;
+      if (param->write.status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "Error writing char/descriptor at handle %d, status=%d", param->write.handle,
+                 param->write.status);
+        api::global_api_server->send_bluetooth_gatt_error(this->address_, param->write.handle, param->write.status);
+        break;
+      }
+      api::BluetoothGATTWriteResponse resp;
+      resp.address = this->address_;
+      resp.handle = param->write.handle;
+      api::global_api_server->send_bluetooth_gatt_write_response(resp);
+      break;
+    }
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.conn_id != this->conn_id_)
         break;
