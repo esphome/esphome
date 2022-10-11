@@ -9,18 +9,18 @@
 namespace esphome {
 namespace sharp_memory_lcd {
 
-#define SHARPMEM_BIT_WRITECMD (0x01) // 0x80 in LSB format
-#define SHARPMEM_BIT_VCOM (0x02)     // 0x40 in LSB format
-#define SHARPMEM_BIT_CLEAR (0x04)    // 0x20 in LSB format
+#define SHARPMEM_BIT_WRITECMD (0x01)  // 0x80 in LSB format
+#define SHARPMEM_BIT_VCOM (0x02)      // 0x40 in LSB format
+#define SHARPMEM_BIT_CLEAR (0x04)     // 0x20 in LSB format
 
 class SharpMemoryLCD;
 
 using sharp_memory_lcd_writer_t = std::function<void(SharpMemoryLCD &)>;
 
 class SharpMemoryLCD : public PollingComponent,
-               public display::DisplayBuffer,
-               public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW, spi::CLOCK_PHASE_LEADING,
-                                     spi::DATA_RATE_20MHZ> {
+                       public display::DisplayBuffer,
+                       public spi::SPIDevice<spi::BIT_ORDER_LSB_FIRST, spi::CLOCK_POLARITY_LOW,
+                                             spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_20MHZ> {
  public:
   void set_writer(sharp_memory_lcd_writer_t &&writer) { this->writer_local_ = writer; }
   void set_height(uint16_t height) { this->height_ = height; }
