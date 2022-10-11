@@ -49,7 +49,6 @@ class SharpMemoryLCD : public PollingComponent,
   void display_init_();
 
   uint16_t width_ = 400, height_ = 240;
-  GPIOPin *cs_;
   GPIOPin *extmode_;
   GPIOPin *extcomin_;
   GPIOPin *disp_;

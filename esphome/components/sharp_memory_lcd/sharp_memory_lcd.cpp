@@ -65,7 +65,6 @@ void HOT SharpMemoryLCD::write_display_data() {
     this->transfer_array(line, bytes_per_line + 2);
     App.feed_wdt();
   }
-
   // Send another trailing 8 bits for the last line
   this->transfer_byte(0x00);
   this->cs_->digital_write(false);
