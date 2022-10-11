@@ -25,7 +25,6 @@ class SharpMemoryLCD : public PollingComponent,
   void set_writer(sharp_memory_lcd_writer_t &&writer) { this->writer_local_ = writer; }
   void set_height(uint16_t height) { this->height_ = height; }
   void set_width(uint16_t width) { this->width_ = width; }
-  void set_cs(GPIOPin *cs) { cs_ = cs; }
   void set_extmode_pin(GPIOPin *extmode) { extmode_ = extmode; }
   void set_extcomin_pin(GPIOPin *extcomin) { extcomin_ = extcomin; }
   void set_disp_pin(GPIOPin *disp) { disp_ = disp; }
