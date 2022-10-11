@@ -40,6 +40,7 @@ void Am43Component::loop() {
 
 CoverTraits Am43Component::get_traits() {
   auto traits = CoverTraits();
+  traits.set_supports_stop(true);
   traits.set_supports_position(true);
   traits.set_supports_tilt(false);
   traits.set_is_assumed_state(false);
