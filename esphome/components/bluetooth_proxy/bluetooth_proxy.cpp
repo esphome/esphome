@@ -4,9 +4,7 @@
 
 #ifdef USE_ESP32
 
-#ifdef USE_API
 #include "esphome/components/api/api_server.h"
-#endif
 
 namespace esphome {
 namespace bluetooth_proxy {
@@ -41,9 +39,6 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 }
 
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
-#ifndef USE_API
-  return;
-#else
   api::BluetoothLEAdvertisementResponse resp;
   resp.address = device.address_uint64();
   if (!device.get_name().empty())
@@ -65,7 +60,6 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
     resp.manufacturer_data.push_back(std::move(manufacturer_data));
   }
   api::global_api_server->send_bluetooth_le_advertisement(resp);
-#endif
 }
 
 void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -73,30 +67,23 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
   BLEClientBase::gattc_event_handler(event, gattc_if, param);
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
-#ifdef USE_API
       api::global_api_server->send_bluetooth_device_connection(this->address_, false, this->mtu_,
                                                                param->disconnect.reason);
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
-#endif
       this->address_ = 0;
     }
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
-#ifdef USE_API
         api::global_api_server->send_bluetooth_device_connection(this->address_, false, this->mtu_, param->open.status);
-
-#endif
         break;
       }
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-#ifdef USE_API
       api::global_api_server->send_bluetooth_device_connection(this->address_, true, this->mtu_);
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
-#endif
       break;
     }
     case ESP_GATTC_READ_DESCR_EVT:
@@ -105,12 +92,9 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
         break;
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "Error reading char/descriptor at handle %d, status=%d", param->read.handle, param->read.status);
-#ifdef USE_API
         api::global_api_server->send_bluetooth_gatt_error(this->address_, param->read.handle, param->read.status);
-#endif
         break;
       }
-#ifdef USE_API
       api::BluetoothGATTReadResponse resp;
       resp.address = this->address_;
       resp.handle = param->read.handle;
@@ -119,14 +103,12 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
         resp.data.push_back(param->read.value[i]);
       }
       api::global_api_server->send_bluetooth_gatt_read_response(resp);
-#endif
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
       if (param->notify.conn_id != this->conn_id_)
         break;
       ESP_LOGV(TAG, "ESP_GATTC_NOTIFY_EVT: handle=0x%x", param->notify.handle);
-#ifdef USE_API
       api::BluetoothGATTNotifyDataResponse resp;
       resp.address = this->address_;
       resp.handle = param->notify.handle;
@@ -135,7 +117,6 @@ void BluetoothProxy::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if
         resp.data.push_back(param->notify.value[i]);
       }
       api::global_api_server->send_bluetooth_gatt_notify_data_response(resp);
-#endif
       break;
     }
     default:
@@ -147,7 +128,6 @@ void BluetoothProxy::dump_config() { ESP_LOGCONFIG(TAG, "Bluetooth Proxy:"); }
 
 void BluetoothProxy::loop() {
   BLEClientBase::loop();
-#ifdef USE_API
   if (this->state_ != espbt::ClientState::IDLE && !api::global_api_server->is_connected()) {
     ESP_LOGI(TAG, "[%s] Disconnecting.", this->address_str().c_str());
     auto err = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
@@ -183,10 +163,8 @@ void BluetoothProxy::loop() {
     api::global_api_server->send_bluetooth_gatt_services(resp);
     this->send_service_++;
   }
-#endif
 }
 
-#ifdef USE_API
 void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
   switch (msg.request_type) {
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
@@ -390,8 +368,6 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
     }
   }
 }
-
-#endif
 
 BluetoothProxy *global_bluetooth_proxy = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
