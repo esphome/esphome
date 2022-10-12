@@ -1065,8 +1065,13 @@ climate:
   - platform: thermostat
     name: Thermostat Climate
     sensor: ha_hello_world
-    default_target_temperature_low: 18°C
-    default_target_temperature_high: 24°C
+    preset:
+    - name: Default Preset
+      default_target_temperature_low: 18°C
+      default_target_temperature_high: 24°C
+    - name: Away
+      default_target_temperature_low: 16°C
+      default_target_temperature_high: 20°C
     idle_action:
       - switch.turn_on: gpio_switch1
     cool_action:
@@ -1141,9 +1146,6 @@ climate:
     fan_only_cooling: true
     fan_with_cooling: true
     fan_with_heating: true
-    away_config:
-      default_target_temperature_low: 16°C
-      default_target_temperature_high: 20°C
   - platform: pid
     id: pid_climate
     name: PID Climate Controller
