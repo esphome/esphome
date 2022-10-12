@@ -247,7 +247,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);
 
-    if (this->model_ == DHT_MODEL_MS01)
+    if (this->model_ == DHT_MODEL_MS01) {
       // Logic taken from Tasmota
       *temperature = 0.0f;
       float x;
