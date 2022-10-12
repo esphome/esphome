@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_DNS1,
     CONF_DNS2,
     CONF_DOMAIN,
+    CONF_ENABLE_BTM,
+    CONF_ENABLE_RRM,
     CONF_FAST_CONNECT,
     CONF_GATEWAY,
     CONF_HIDDEN,
@@ -32,9 +34,9 @@ from esphome.const import (
     CONF_EAP,
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
+from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.network import IPAddress
 from . import wpa2_eap
-
 
 AUTO_LOAD = ["network"]
 
@@ -272,6 +274,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)
             ),
+            cv.SplitDefault(CONF_ENABLE_BTM, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
+            ),
+            cv.SplitDefault(CONF_ENABLE_RRM, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
+            ),
             cv.Optional("enable_mdns"): cv.invalid(
                 "This option has been removed. Please use the [disabled] option under the "
                 "new mdns component instead."
@@ -324,8 +332,7 @@ def manual_ip(config):
     )
 
 
-def wifi_network(config, static_ip):
-    ap = cg.variable(config[CONF_ID], WiFiAP())
+def wifi_network(config, ap, static_ip):
     if CONF_SSID in config:
         cg.add(ap.set_ssid(config[CONF_SSID]))
     if CONF_PASSWORD in config:
@@ -352,14 +359,21 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
-    for network in config.get(CONF_NETWORKS, []):
+    def add_sta(ap, network):
         ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-        cg.add(var.add_sta(wifi_network(network, ip_config)))
+        cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
+
+    for network in config.get(CONF_NETWORKS, []):
+        cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
         conf = config[CONF_AP]
         ip_config = conf.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-        cg.add(var.set_ap(wifi_network(conf, ip_config)))
+        cg.with_local_variable(
+            conf[CONF_ID],
+            WiFiAP(),
+            lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
+        )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
@@ -372,6 +386,15 @@ async def to_code(config):
         cg.add_library("ESP8266WiFi", None)
     elif CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
+
+    if CORE.is_esp32 and CORE.using_esp_idf:
+        if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:
+            add_idf_sdkconfig_option("CONFIG_WPA_11KV_SUPPORT", True)
+            cg.add_define("USE_WIFI_11KV_SUPPORT")
+        if config[CONF_ENABLE_BTM]:
+            cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
+        if config[CONF_ENABLE_RRM]:
+            cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
 
     cg.add_define("USE_WIFI")
 

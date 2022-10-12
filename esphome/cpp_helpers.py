@@ -1,4 +1,3 @@
-from typing import Tuple
 import logging
 
 from esphome.const import (
@@ -111,7 +110,7 @@ async def setup_entity(var, config):
 def extract_registry_entry_config(
     registry: Registry,
     full_config: ConfigType,
-) -> Tuple[RegistryEntry, ConfigFragmentType]:
+) -> tuple[RegistryEntry, ConfigFragmentType]:
     key, config = next((k, v) for k, v in full_config.items() if k in registry)
     return registry[key], config
 
