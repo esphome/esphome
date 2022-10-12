@@ -7,16 +7,15 @@ namespace dht {
 
 static const char *const TAG = "dht";
 
-double FastPrecisePow(double a, double b)
-{
+double FastPrecisePow(double a, double b) {
   // https://martin.ankerl.com/2012/01/25/optimized-approximative-pow-in-c-and-cpp/
   // calculate approximation with fraction of the exponent
-  int e = abs((int)b);
+  int e = abs((int) b);
   union {
     double d;
     int x[2];
-  } u = { a };
-  u.x[1] = (int)((b - e) * (u.x[1] - 1072632447) + 1072632447);
+  } u = {a};
+  u.x[1] = (int) ((b - e) * (u.x[1] - 1072632447) + 1072632447);
   u.x[0] = 0;
   // exponentiation by squaring with the exponent's integer part
   // double r = u.d makes everything much slower, not sure why
@@ -31,10 +30,8 @@ double FastPrecisePow(double a, double b)
   return r * u.d;
 }
 
-float FastPrecisePowf(const float x, const float y)
-{
-//  return (float)(pow((double)x, (double)y));
-  return (float)FastPrecisePow(x, y);
+float FastPrecisePowf(const float x, const float y) {
+  return (float) FastPrecisePow(x, y);
 }
 
 void DHT::setup() {
@@ -253,14 +250,12 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
       float x;
       if (raw_humidity < 15037) {
         x = raw_humidity - 15200;
-        *humidity = - FastPrecisePowf(0.0024 * x, 3) - 0.0004 * x + 20.1;
-      }
-      else if (raw_humidity < 22300) {
-        *humidity = - 0.00069 * raw_humidity + 30.6;
-      }
-      else {
+        *humidity = -FastPrecisePowf(0.0024 * x, 3) - 0.0004 * x + 20.1;
+      } else if (raw_humidity < 22300) {
+        *humidity = -0.00069 * raw_humidity + 30.6;
+      } else {
         x = raw_humidity - 22800;
-        *humidity = - FastPrecisePowf(0.00046 * x, 3) - 0.0004 * x + 15;
+        *humidity = -FastPrecisePowf(0.00046 * x, 3) - 0.0004 * x + 15;
       }
       return true;
     }
