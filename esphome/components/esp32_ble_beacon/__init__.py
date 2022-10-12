@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TYPE, CONF_UUID, CONF_TX_POWER
-from esphome.core import CORE
+from esphome.core import CORE, TimePeriod
 from esphome.components.esp32 import add_idf_sdkconfig_option
 
 DEPENDENCIES = ["esp32"]
@@ -31,17 +31,23 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_UUID): cv.uuid,
             cv.Optional(CONF_MAJOR, default=10167): cv.uint16_t,
             cv.Optional(CONF_MINOR, default=61958): cv.uint16_t,
-            cv.Optional(CONF_MIN_INTERVAL, default=100): cv.int_range(
-                min=20, max=10240
+            cv.Optional(CONF_MIN_INTERVAL, default="100ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=TimePeriod(milliseconds=20), max=TimePeriod(milliseconds=10240)
+                ),
             ),
-            cv.Optional(CONF_MAX_INTERVAL, default=100): cv.int_range(
-                min=20, max=10240
+            cv.Optional(CONF_MAX_INTERVAL, default="100ms"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(
+                    min=TimePeriod(milliseconds=20), max=TimePeriod(milliseconds=10240)
+                ),
             ),
             cv.Optional(CONF_MEASURED_POWER, default=-59): cv.int_range(
                 min=-128, max=0
             ),
-            cv.Optional(CONF_TX_POWER, default=3): cv.one_of(
-                -12, -9, -6, -3, 0, 3, 6, 9, int=True
+            cv.Optional(CONF_TX_POWER, default="3dBm"): cv.All(
+                cv.decibel, cv.one_of(-12, -9, -6, -3, 0, 3, 6, 9, int=True)
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),

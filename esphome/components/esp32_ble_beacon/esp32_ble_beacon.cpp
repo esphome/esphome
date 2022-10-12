@@ -49,8 +49,11 @@ void ESP32BLEBeacon::dump_config() {
     }
   }
   uuid[36] = '\0';
-  ESP_LOGCONFIG(TAG, "  UUID: %s, Major: %u, Minor: %u, Min Interval: %ums, Max Interval: %ums, Measured Power: %d",
-                uuid, this->major_, this->minor_, this->min_interval_, this->max_interval_, this->measured_power_);
+  ESP_LOGCONFIG(TAG,
+                "  UUID: %s, Major: %u, Minor: %u, Min Interval: %ums, Max Interval: %ums, Measured Power: %d"
+                ", TX Power: %ddBm",
+                uuid, this->major_, this->minor_, this->min_interval_, this->max_interval_, this->measured_power_,
+                this->tx_power_);
 }
 
 void ESP32BLEBeacon::setup() {
@@ -131,7 +134,8 @@ void ESP32BLEBeacon::ble_setup() {
     ESP_LOGE(TAG, "esp_bluedroid_enable failed: %d", err);
     return;
   }
-  err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV, global_esp32_ble_beacon->tx_power_);
+  err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,
+                             static_cast<esp_power_level_t>((global_esp32_ble_beacon->tx_power_ + 12) / 3));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_tx_power_set failed: %s", esp_err_to_name(err));
     return;
