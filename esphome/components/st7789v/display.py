@@ -4,7 +4,6 @@ from esphome import pins
 from esphome.components import display, spi
 from esphome.const import (
     CONF_BACKLIGHT_PIN,
-    CONF_CS_PIN,
     CONF_DC_PIN,
     CONF_HEIGHT,
     CONF_ID,
