@@ -6,7 +6,7 @@ namespace esphome {
 namespace dht {
 
 static const char *const TAG = "dht";
-  
+
 double FastPrecisePow(double a, double b)
 {
   // https://martin.ankerl.com/2012/01/25/optimized-approximative-pow-in-c-and-cpp/
