@@ -30,9 +30,7 @@ double fast_precise_pow(double a, double b) {
   return r * u.d;
 }
 
-float fast_precise_powf(const float x, const float y) {
-  return (float) fast_precise_pow(x, y);
-}
+float fast_precise_powf(const float x, const float y) { return (float) fast_precise_pow(x, y); }
 
 void DHT::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DHT...");
