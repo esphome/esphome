@@ -25,15 +25,27 @@ void ThermostatClimate::setup() {
     this->publish_state();
   });
   this->current_temperature = this->sensor_->state;
-  // restore all climate data, if possible
-  auto restore = this->restore_state_();
-  if (restore.has_value()) {
-    restore->to_call(this).perform();
-  } else {
-    // restore from defaults, change_away handles temps for us
-    this->mode = this->default_mode_;
-    this->change_preset_(climate::CLIMATE_PRESET_HOME);
+
+  auto use_default_preset = true;
+
+  if (this->on_boot_restore_from_ == thermostat::OnBootRestoreFrom::MEMORY) {
+    // restore all climate data, if possible
+    auto restore = this->restore_state_();
+    if (restore.has_value()) {
+      use_default_preset = false;
+      restore->to_call(this).perform();
+    }
   }
+
+  // Either we failed to restore state or the user has requested we always apply the default preset
+  if (use_default_preset) {
+    if (this->default_preset_ != climate::ClimatePreset::CLIMATE_PRESET_NONE) {
+      this->change_preset_(this->default_preset_);
+    } else if (!this->default_custom_preset_.empty()) {
+      this->change_custom_preset_(this->default_custom_preset_);
+    }
+  }
+
   // refresh the climate action based on the restored settings, we'll publish_state() later
   this->switch_to_action_(this->compute_action_(), false);
   this->switch_to_supplemental_action_(this->compute_supplemental_action_());
@@ -923,9 +935,9 @@ bool ThermostatClimate::supplemental_heating_required_() {
           (this->supplemental_action_ == climate::CLIMATE_ACTION_HEATING));
 }
 
-void ThermostatClimate::dump_preset_config_(const std::string &preset,
-                                            const ThermostatClimateTargetTempConfig &config) {
-  const auto *preset_name = preset.c_str();
+void ThermostatClimate::dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config,
+                                            bool is_default_preset) {
+  ESP_LOGCONFIG(TAG, "      %s Is Default: %s", preset_name, YESNO(is_default_preset));
 
   if (this->supports_heat_) {
     if (this->supports_two_points_) {
@@ -1061,7 +1073,15 @@ ThermostatClimate::ThermostatClimate()
       temperature_change_trigger_(new Trigger<>()),
       preset_change_trigger_(new Trigger<>()) {}
 
-void ThermostatClimate::set_default_mode(climate::ClimateMode default_mode) { this->default_mode_ = default_mode; }
+void ThermostatClimate::set_default_preset(const std::string &custom_preset) {
+  this->default_custom_preset_ = custom_preset;
+}
+
+void ThermostatClimate::set_default_preset(climate::ClimatePreset preset) { this->default_preset_ = preset; }
+
+void ThermostatClimate::set_on_boot_restore_from(thermostat::OnBootRestoreFrom on_boot_restore_from) {
+  this->on_boot_restore_from_ = on_boot_restore_from;
+}
 void ThermostatClimate::set_set_point_minimum_differential(float differential) {
   this->set_point_minimum_differential_ = differential;
 }
@@ -1213,8 +1233,9 @@ Trigger<> *ThermostatClimate::get_preset_change_trigger() const { return this->p
 void ThermostatClimate::dump_config() {
   LOG_CLIMATE("", "Thermostat", this);
 
-  if (this->supports_two_points_)
+  if (this->supports_two_points_) {
     ESP_LOGCONFIG(TAG, "  Minimum Set Point Differential: %.1f°C", this->set_point_minimum_differential_);
+  }
   ESP_LOGCONFIG(TAG, "  Start-up Delay Enabled: %s", YESNO(this->use_startup_delay_));
   if (this->supports_cool_) {
     ESP_LOGCONFIG(TAG, "  Cooling Parameters:");
@@ -1284,7 +1305,7 @@ void ThermostatClimate::dump_config() {
     const auto *preset_name = LOG_STR_ARG(climate::climate_preset_to_string(it.first));
 
     ESP_LOGCONFIG(TAG, "    Supports %s: %s", preset_name, YESNO(true));
-    this->dump_preset_config_(preset_name, it.second);
+    this->dump_preset_config_(preset_name, it.second, it.first == this->default_preset_);
   }
 
   ESP_LOGCONFIG(TAG, "  Supported CUSTOM PRESETS: ");
@@ -1292,8 +1313,10 @@ void ThermostatClimate::dump_config() {
     const auto *preset_name = it.first.c_str();
 
     ESP_LOGCONFIG(TAG, "    Supports %s: %s", preset_name, YESNO(true));
-    this->dump_preset_config_(preset_name, it.second);
+    this->dump_preset_config_(preset_name, it.second, it.first == this->default_custom_preset_);
   }
+  ESP_LOGCONFIG(TAG, "  On boot, restore from: %s",
+                this->on_boot_restore_from_ == thermostat::DEFAULT_PRESET ? "DEFAULT_PRESET" : "MEMORY");
 }
 
 ThermostatClimateTargetTempConfig::ThermostatClimateTargetTempConfig() = default;
