@@ -17,7 +17,7 @@ NextionTextSensor = nextion_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    text_sensor.text_sensor_schema(klass=NextionTextSensor)
+    text_sensor.text_sensor_schema(NextionTextSensor)
     .extend(CONFIG_TEXT_COMPONENT_SCHEMA)
     .extend(cv.polling_component_schema("never"))
 )

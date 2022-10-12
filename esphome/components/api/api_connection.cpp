@@ -1,10 +1,10 @@
 #include "api_connection.h"
-#include "esphome/core/entity_base.h"
-#include "esphome/core/log.h"
-#include "esphome/components/network/util.h"
-#include "esphome/core/version.h"
-#include "esphome/core/hal.h"
 #include <cerrno>
+#include "esphome/components/network/util.h"
+#include "esphome/core/entity_base.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
@@ -12,8 +12,8 @@
 #ifdef USE_HOMEASSISTANT_TIME
 #include "esphome/components/homeassistant/time/homeassistant_time.h"
 #endif
-#ifdef USE_FAN
-#include "esphome/components/fan/fan_helpers.h"
+#ifdef USE_BLUETOOTH_PROXY
+#include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
 #endif
 
 namespace esphome {
@@ -23,7 +23,7 @@ static const char *const TAG = "api.connection";
 static const int ESP32_CAMERA_STOP_STREAM = 5000;
 
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
-    : parent_(parent), initial_state_iterator_(parent, this), list_entities_iterator_(parent, this) {
+    : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
   this->proto_write_buffer_.reserve(64);
 
 #if defined(USE_API_PLAINTEXT)
@@ -105,6 +105,7 @@ void APIConnection::loop() {
       ESP_LOGW(TAG, "%s didn't respond to ping request in time. Disconnecting...", this->client_info_.c_str());
     }
   } else if (now - this->last_traffic_ > keepalive) {
+    ESP_LOGVV(TAG, "Sending keepalive PING...");
     this->sent_ping_ = true;
     this->send_ping_request(PingRequest());
   }
@@ -252,9 +253,6 @@ void APIConnection::cover_command(const CoverCommandRequest &msg) {
 #endif
 
 #ifdef USE_FAN
-// Shut-up about usage of deprecated speed_level_to_enum/speed_enum_to_level functions for a bit.
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
 bool APIConnection::send_fan_state(fan::Fan *fan) {
   if (!this->state_subscription_)
     return false;
@@ -267,7 +265,6 @@ bool APIConnection::send_fan_state(fan::Fan *fan) {
     resp.oscillating = fan->oscillating;
   if (traits.supports_speed()) {
     resp.speed_level = fan->speed;
-    resp.speed = static_cast<enums::FanSpeed>(fan::speed_level_to_enum(fan->speed, traits.supported_speed_count()));
   }
   if (traits.supports_direction())
     resp.direction = static_cast<enums::FanDirection>(fan->direction);
@@ -294,8 +291,6 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   if (fan == nullptr)
     return;
 
-  auto traits = fan->get_traits();
-
   auto call = fan->make_call();
   if (msg.has_state)
     call.set_state(msg.state);
@@ -304,14 +299,11 @@ void APIConnection::fan_command(const FanCommandRequest &msg) {
   if (msg.has_speed_level) {
     // Prefer level
     call.set_speed(msg.speed_level);
-  } else if (msg.has_speed) {
-    call.set_speed(fan::speed_enum_to_level(static_cast<fan::FanSpeed>(msg.speed), traits.supported_speed_count()));
   }
   if (msg.has_direction)
     call.set_direction(static_cast<fan::FanDirection>(msg.direction));
   call.perform();
 }
-#pragma GCC diagnostic pop
 #endif
 
 #ifdef USE_LIGHT
@@ -744,6 +736,52 @@ void APIConnection::lock_command(const LockCommandRequest &msg) {
 }
 #endif
 
+#ifdef USE_MEDIA_PLAYER
+bool APIConnection::send_media_player_state(media_player::MediaPlayer *media_player) {
+  if (!this->state_subscription_)
+    return false;
+
+  MediaPlayerStateResponse resp{};
+  resp.key = media_player->get_object_id_hash();
+  resp.state = static_cast<enums::MediaPlayerState>(media_player->state);
+  resp.volume = media_player->volume;
+  resp.muted = media_player->is_muted();
+  return this->send_media_player_state_response(resp);
+}
+bool APIConnection::send_media_player_info(media_player::MediaPlayer *media_player) {
+  ListEntitiesMediaPlayerResponse msg;
+  msg.key = media_player->get_object_id_hash();
+  msg.object_id = media_player->get_object_id();
+  msg.name = media_player->get_name();
+  msg.unique_id = get_default_unique_id("media_player", media_player);
+  msg.icon = media_player->get_icon();
+  msg.disabled_by_default = media_player->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(media_player->get_entity_category());
+
+  auto traits = media_player->get_traits();
+  msg.supports_pause = traits.get_supports_pause();
+
+  return this->send_list_entities_media_player_response(msg);
+}
+void APIConnection::media_player_command(const MediaPlayerCommandRequest &msg) {
+  media_player::MediaPlayer *media_player = App.get_media_player_by_key(msg.key);
+  if (media_player == nullptr)
+    return;
+
+  auto call = media_player->make_call();
+  if (msg.has_command) {
+    call.set_command(static_cast<media_player::MediaPlayerCommand>(msg.command));
+  }
+  if (msg.has_volume) {
+    call.set_volume(msg.volume);
+  }
+  if (msg.has_media_url) {
+    call.set_media_url(msg.media_url);
+  }
+  call.perform();
+}
+#endif
+
 #ifdef USE_ESP32_CAMERA
 void APIConnection::send_camera_state(std::shared_ptr<esp32_camera::CameraImage> image) {
   if (!this->state_subscription_)
@@ -788,6 +826,56 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 }
 #endif
 
+#ifdef USE_BLUETOOTH_PROXY
+bool APIConnection::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg) {
+  if (!this->bluetooth_le_advertisement_subscription_)
+    return false;
+  if (this->client_api_version_major_ < 1 || this->client_api_version_minor_ < 7) {
+    BluetoothLEAdvertisementResponse resp = msg;
+    for (auto &service : resp.service_data) {
+      service.legacy_data.assign(service.data.begin(), service.data.end());
+      service.data.clear();
+    }
+    for (auto &manufacturer_data : resp.manufacturer_data) {
+      manufacturer_data.legacy_data.assign(manufacturer_data.data.begin(), manufacturer_data.data.end());
+      manufacturer_data.data.clear();
+    }
+    return this->send_bluetooth_le_advertisement_response(resp);
+  }
+  return this->send_bluetooth_le_advertisement_response(msg);
+}
+void APIConnection::bluetooth_device_request(const BluetoothDeviceRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_device_request(msg);
+}
+void APIConnection::bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_read(msg);
+}
+void APIConnection::bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_write(msg);
+}
+void APIConnection::bluetooth_gatt_read_descriptor(const BluetoothGATTReadDescriptorRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_read_descriptor(msg);
+}
+void APIConnection::bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_write_descriptor(msg);
+}
+void APIConnection::bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_send_services(msg);
+}
+
+void APIConnection::bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_notify(msg);
+}
+
+BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_free(
+    const SubscribeBluetoothConnectionsFreeRequest &msg) {
+  BluetoothConnectionsFreeResponse resp;
+  resp.free = bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_connections_free();
+  resp.limit = bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_connections_limit();
+  return resp;
+}
+#endif
+
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
   if (this->log_subscription_ < level)
     return false;
@@ -805,11 +893,14 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
   this->client_info_ = msg.client_info + " (" + this->helper_->getpeername() + ")";
   this->helper_->set_log_info(client_info_);
-  ESP_LOGV(TAG, "Hello from client: '%s'", this->client_info_.c_str());
+  this->client_api_version_major_ = msg.api_version_major;
+  this->client_api_version_minor_ = msg.api_version_minor;
+  ESP_LOGV(TAG, "Hello from client: '%s' | API Version %d.%d", this->client_info_.c_str(),
+           this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 6;
+  resp.api_version_minor = 7;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.name = App.get_name();
 
@@ -851,6 +942,9 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
 #endif
 #ifdef USE_WEBSERVER
   resp.webserver_port = USE_WEBSERVER_PORT;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  resp.bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->has_active() ? 2 : 1;
 #endif
   return resp;
 }
@@ -908,7 +1002,7 @@ bool APIConnection::send_buffer(ProtoWriteBuffer buffer, uint32_t message_type) 
     }
     return false;
   }
-  this->last_traffic_ = millis();
+  // Do not set last_traffic_ on send
   return true;
 }
 void APIConnection::on_unauthenticated_access() {

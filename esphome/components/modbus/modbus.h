@@ -40,8 +40,6 @@ class Modbus : public uart::UARTDevice, public Component {
   std::vector<ModbusDevice *> devices_;
 };
 
-uint16_t crc16(const uint8_t *data, uint8_t len);
-
 class ModbusDevice {
  public:
   void set_parent(Modbus *parent) { parent_ = parent; }

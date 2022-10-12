@@ -9,6 +9,10 @@
 #include <esp_sleep.h>
 #endif
 
+#ifdef USE_TIME
+#include "esphome/components/time/real_time_clock.h"
+#endif
+
 namespace esphome {
 namespace deep_sleep {
 
@@ -57,23 +61,28 @@ class DeepSleepComponent : public Component {
  public:
   /// Set the duration in ms the component should sleep once it's in deep sleep mode.
   void set_sleep_duration(uint32_t time_ms);
-#ifdef USE_ESP32
+#if defined(USE_ESP32)
   /** Set the pin to wake up to on the ESP32 once it's in deep sleep mode.
    * Use the inverted property to set the wakeup level.
    */
   void set_wakeup_pin(InternalGPIOPin *pin) { this->wakeup_pin_ = pin; }
 
   void set_wakeup_pin_mode(WakeupPinMode wakeup_pin_mode);
+#endif
+
+#if defined(USE_ESP32)
+#if !defined(USE_ESP32_VARIANT_ESP32C3)
 
   void set_ext1_wakeup(Ext1Wakeup ext1_wakeup);
 
   void set_touch_wakeup(bool touch_wakeup);
 
+#endif
   // Set the duration in ms for how long the code should run before entering
   // deep sleep mode, according to the cause the ESP32 has woken.
   void set_run_duration(WakeupCauseToRunDuration wakeup_cause_to_run_duration);
-
 #endif
+
   /// Set a duration in ms for how long the code should run before entering deep sleep mode.
   void set_run_duration(uint32_t time_ms);
 
@@ -87,6 +96,7 @@ class DeepSleepComponent : public Component {
   void begin_sleep(bool manual = false);
 
   void prevent_deep_sleep();
+  void allow_deep_sleep();
 
  protected:
   // Returns nullopt if no run duration is set. Otherwise, returns the run
@@ -113,25 +123,81 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
   EnterDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
   TEMPLATABLE_VALUE(uint32_t, sleep_duration);
 
+#ifdef USE_TIME
+  void set_until(uint8_t hour, uint8_t minute, uint8_t second) {
+    this->hour_ = hour;
+    this->minute_ = minute;
+    this->second_ = second;
+  }
+
+  void set_time(time::RealTimeClock *time) { this->time_ = time; }
+#endif
+
   void play(Ts... x) override {
     if (this->sleep_duration_.has_value()) {
       this->deep_sleep_->set_sleep_duration(this->sleep_duration_.value(x...));
     }
+#ifdef USE_TIME
+
+    if (this->hour_.has_value()) {
+      auto time = this->time_->now();
+      const uint32_t timestamp_now = time.timestamp;
+
+      bool after_time = false;
+      if (time.hour > this->hour_) {
+        after_time = true;
+      } else {
+        if (time.hour == this->hour_) {
+          if (time.minute > this->minute_) {
+            after_time = true;
+          } else {
+            if (time.minute == this->minute_) {
+              if (time.second > this->second_) {
+                after_time = true;
+              }
+            }
+          }
+        }
+      }
+
+      time.hour = *this->hour_;
+      time.minute = *this->minute_;
+      time.second = *this->second_;
+      time.recalc_timestamp_utc();
+
+      time_t timestamp = time.timestamp;  // timestamp in local time zone
+
+      if (after_time)
+        timestamp += 60 * 60 * 24;
+
+      int32_t offset = time::ESPTime::timezone_offset();
+      timestamp -= offset;  // Change timestamp to utc
+      const uint32_t ms_left = (timestamp - timestamp_now) * 1000;
+      this->deep_sleep_->set_sleep_duration(ms_left);
+    }
+#endif
     this->deep_sleep_->begin_sleep(true);
   }
 
  protected:
   DeepSleepComponent *deep_sleep_;
+#ifdef USE_TIME
+  optional<uint8_t> hour_;
+  optional<uint8_t> minute_;
+  optional<uint8_t> second_;
+
+  time::RealTimeClock *time_;
+#endif
 };
 
-template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...> {
+template<typename... Ts> class PreventDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
  public:
-  PreventDeepSleepAction(DeepSleepComponent *deep_sleep) : deep_sleep_(deep_sleep) {}
+  void play(Ts... x) override { this->parent_->prevent_deep_sleep(); }
+};
 
-  void play(Ts... x) override { this->deep_sleep_->prevent_deep_sleep(); }
-
- protected:
-  DeepSleepComponent *deep_sleep_;
+template<typename... Ts> class AllowDeepSleepAction : public Action<Ts...>, public Parented<DeepSleepComponent> {
+ public:
+  void play(Ts... x) override { this->parent_->allow_deep_sleep(); }
 };
 
 }  // namespace deep_sleep

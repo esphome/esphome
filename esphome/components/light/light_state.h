@@ -22,6 +22,8 @@ enum LightRestoreMode {
   LIGHT_ALWAYS_ON,
   LIGHT_RESTORE_INVERTED_DEFAULT_OFF,
   LIGHT_RESTORE_INVERTED_DEFAULT_ON,
+  LIGHT_RESTORE_AND_OFF,
+  LIGHT_RESTORE_AND_ON,
 };
 
 /** This class represents the communication layer between the front-end MQTT layer and the
@@ -147,8 +149,6 @@ class LightState : public EntityBase, public Component {
   friend LightOutput;
   friend LightCall;
   friend class AddressableLight;
-
-  uint32_t hash_base() override;
 
   /// Internal method to start an effect with the given index
   void start_effect_(uint32_t effect_index);

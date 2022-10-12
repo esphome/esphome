@@ -62,6 +62,21 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   }
   return crc;
 }
+uint16_t crc16(const uint8_t *data, uint8_t len) {
+  uint16_t crc = 0xFFFF;
+  while (len--) {
+    crc ^= *data++;
+    for (uint8_t i = 0; i < 8; i++) {
+      if ((crc & 0x01) != 0) {
+        crc >>= 1;
+        crc ^= 0xA001;
+      } else {
+        crc >>= 1;
+      }
+    }
+  }
+  return crc;
+}
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -213,6 +228,25 @@ std::string format_hex_pretty(const uint8_t *data, size_t length) {
 }
 std::string format_hex_pretty(const std::vector<uint8_t> &data) { return format_hex_pretty(data.data(), data.size()); }
 
+std::string format_hex_pretty(const uint16_t *data, size_t length) {
+  if (length == 0)
+    return "";
+  std::string ret;
+  ret.resize(5 * length - 1);
+  for (size_t i = 0; i < length; i++) {
+    ret[5 * i] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
+    ret[5 * i + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
+    ret[5 * i + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
+    ret[5 * i + 3] = format_hex_pretty_char(data[i] & 0x000F);
+    if (i != length - 1)
+      ret[5 * i + 2] = '.';
+  }
+  if (length > 4)
+    return ret + " (" + to_string(length) + ")";
+  return ret;
+}
+std::string format_hex_pretty(const std::vector<uint16_t> &data) { return format_hex_pretty(data.data(), data.size()); }
+
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   if (on == nullptr && strcasecmp(str, "on") == 0)
     return PARSE_ON;
@@ -237,6 +271,19 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
   snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
   return std::string(tmp);
+}
+
+int8_t step_to_accuracy_decimals(float step) {
+  // use printf %g to find number of digits based on temperature step
+  char buf[32];
+  sprintf(buf, "%.5g", step);
+
+  std::string str{buf};
+  size_t dot_pos = str.find('.');
+  if (dot_pos == std::string::npos)
+    return 0;
+
+  return str.length() - dot_pos - 1;
 }
 
 // Colors

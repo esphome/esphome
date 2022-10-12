@@ -1,5 +1,4 @@
 #include "esphome/core/log.h"
-#include "esphome/components/fan/fan_helpers.h"
 #include "tuya_fan.h"
 
 namespace esphome {

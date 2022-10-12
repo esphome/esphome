@@ -29,7 +29,10 @@
 #define USE_LOCK
 #define USE_LOGGER
 #define USE_MDNS
+#define USE_MEDIA_PLAYER
+#define USE_MQTT
 #define USE_NUMBER
+#define USE_OTA
 #define USE_OTA_PASSWORD
 #define USE_OTA_STATE_CALLBACK
 #define USE_POWER_SUPPLY
@@ -40,6 +43,7 @@
 #define USE_SWITCH
 #define USE_TEXT_SENSOR
 #define USE_TIME
+#define USE_TOUCHSCREEN
 #define USE_UART_DEBUGGER
 #define USE_WIFI
 
@@ -48,20 +52,27 @@
 #define USE_CAPTIVE_PORTAL
 #define USE_JSON
 #define USE_NEXTION_TFT_UPLOAD
-#define USE_MQTT
 #define USE_PROMETHEUS
 #define USE_WEBSERVER
 #define USE_WEBSERVER_PORT 80  // NOLINT
 #define USE_WIFI_WPA2_EAP
 #endif
 
+// IDF-specific feature flags
+#ifdef USE_ESP_IDF
+#define USE_MQTT_IDF_ENQUEUE
+#endif
+
 // ESP32-specific feature flags
 #ifdef USE_ESP32
+#define USE_ESP32_BLE_CLIENT
 #define USE_ESP32_BLE_SERVER
 #define USE_ESP32_CAMERA
 #define USE_ESP32_IGNORE_EFUSE_MAC_CRC
 #define USE_IMPROV
 #define USE_SOCKET_IMPL_BSD_SOCKETS
+#define USE_WIFI_11KV_SUPPORT
+#define USE_BLUETOOTH_PROXY
 
 #ifdef USE_ARDUINO
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(1, 0, 6)
@@ -86,3 +97,9 @@
 //#define USE_BSEC  // Requires a library with proprietary license.
 
 #define USE_DASHBOARD_IMPORT
+
+// Dummy firmware payload for shelly_dimmer
+#define USE_SHD_FIRMWARE_MAJOR_VERSION 56
+#define USE_SHD_FIRMWARE_MINOR_VERSION 5
+#define USE_SHD_FIRMWARE_DATA \
+  {}

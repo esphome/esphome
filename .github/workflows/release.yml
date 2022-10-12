@@ -1,5 +1,7 @@
+---
 name: Publish Release
 
+# yamllint disable-line rule:truthy
 on:
   workflow_dispatch:
   release:
@@ -17,9 +19,10 @@ jobs:
     outputs:
       tag: ${{ steps.tag.outputs.tag }}
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Get tag
         id: tag
+        # yamllint disable rule:line-length
         run: |
           if [[ "$GITHUB_EVENT_NAME" = "release" ]]; then
             TAG="${GITHUB_REF#refs/tags/}"
@@ -29,17 +32,18 @@ jobs:
             TAG="${TAG}${today}"
           fi
           echo "::set-output name=tag::${TAG}"
+        # yamllint enable rule:line-length
 
   deploy-pypi:
     name: Build and publish to PyPi
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v2
+      - uses: actions/checkout@v3
       - name: Set up Python
-        uses: actions/setup-python@v1
+        uses: actions/setup-python@v4
         with:
-          python-version: '3.x'
+          python-version: "3.x"
       - name: Set up python environment
         run: |
           script/setup
@@ -65,37 +69,37 @@ jobs:
         arch: [amd64, armv7, aarch64]
         build_type: ["ha-addon", "docker", "lint"]
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.9'
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
 
-    - name: Set up Docker Buildx
-      uses: docker/setup-buildx-action@v1
-    - name: Set up QEMU
-      uses: docker/setup-qemu-action@v1
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v2
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
 
-    - name: Log in to docker hub
-      uses: docker/login-action@v1
-      with:
-        username: ${{ secrets.DOCKER_USER }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Log in to the GitHub container registry
-      uses: docker/login-action@v1
-      with:
+      - name: Log in to docker hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Log in to the GitHub container registry
+        uses: docker/login-action@v2
+        with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Build and push
-      run: |
-        docker/build.py \
-          --tag "${{ needs.init.outputs.tag }}" \
-          --arch "${{ matrix.arch }}" \
-          --build-type "${{ matrix.build_type }}" \
-          build \
-          --push
+      - name: Build and push
+        run: |
+          docker/build.py \
+            --tag "${{ needs.init.outputs.tag }}" \
+            --arch "${{ matrix.arch }}" \
+            --build-type "${{ matrix.build_type }}" \
+            build \
+            --push
 
   deploy-docker-manifest:
     if: github.repository == 'esphome/esphome'
@@ -108,34 +112,34 @@ jobs:
       matrix:
         build_type: ["ha-addon", "docker", "lint"]
     steps:
-    - uses: actions/checkout@v2
-    - name: Set up Python
-      uses: actions/setup-python@v2
-      with:
-        python-version: '3.9'
-    - name: Enable experimental manifest support
-      run: |
-        mkdir -p ~/.docker
-        echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
+      - uses: actions/checkout@v3
+      - name: Set up Python
+        uses: actions/setup-python@v4
+        with:
+          python-version: "3.9"
+      - name: Enable experimental manifest support
+        run: |
+          mkdir -p ~/.docker
+          echo "{\"experimental\": \"enabled\"}" > ~/.docker/config.json
 
-    - name: Log in to docker hub
-      uses: docker/login-action@v1
-      with:
-        username: ${{ secrets.DOCKER_USER }}
-        password: ${{ secrets.DOCKER_PASSWORD }}
-    - name: Log in to the GitHub container registry
-      uses: docker/login-action@v1
-      with:
+      - name: Log in to docker hub
+        uses: docker/login-action@v2
+        with:
+          username: ${{ secrets.DOCKER_USER }}
+          password: ${{ secrets.DOCKER_PASSWORD }}
+      - name: Log in to the GitHub container registry
+        uses: docker/login-action@v2
+        with:
           registry: ghcr.io
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-    - name: Run manifest
-      run: |
-        docker/build.py \
-          --tag "${{ needs.init.outputs.tag }}" \
-          --build-type "${{ matrix.build_type }}" \
-          manifest
+      - name: Run manifest
+        run: |
+          docker/build.py \
+            --tag "${{ needs.init.outputs.tag }}" \
+            --build-type "${{ matrix.build_type }}" \
+            manifest
 
   deploy-ha-addon-repo:
     if: github.repository == 'esphome/esphome' && github.event_name == 'release'
@@ -144,6 +148,7 @@ jobs:
     steps:
       - env:
           TOKEN: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
+        # yamllint disable rule:line-length
         run: |
           TAG="${GITHUB_REF#refs/tags/}"
           curl \
@@ -152,3 +157,4 @@ jobs:
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/esphome/home-assistant-addon/actions/workflows/bump-version.yml/dispatches \
             -d "{\"ref\":\"main\",\"inputs\":{\"version\":\"$TAG\"}}"
+        # yamllint enable rule:line-length
