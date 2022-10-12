@@ -31,7 +31,7 @@ double fast_precise_pow(double a, double b) {
 }
 
 float fast_precise_powf(const float x, const float y) {
-  return (float) FastPrecisePow(x, y);
+  return (float) fast_precise_pow(x, y);
 }
 
 void DHT::setup() {
