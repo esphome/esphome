@@ -27,6 +27,7 @@ DHT_MODELS = {
     "RHT03": DHTModel.DHT_MODEL_RHT03,
     "SI7021": DHTModel.DHT_MODEL_SI7021,
     "DHT22_TYPE2": DHTModel.DHT_MODEL_DHT22_TYPE2,
+    "MS01": DHTModel.DHT_MODEL_MS01
 }
 DHT = dht_ns.class_("DHT", cg.PollingComponent)
 
