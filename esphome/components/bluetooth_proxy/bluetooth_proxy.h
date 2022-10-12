@@ -4,6 +4,7 @@
 
 #include <map>
 
+#include "esphome/components/api/api_pb2.h"
 #include "esphome/components/esp32_ble_client/ble_client_base.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/core/automation.h"
@@ -11,10 +12,6 @@
 #include "esphome/core/defines.h"
 
 #include <map>
-
-#ifdef USE_API
-#include "esphome/components/api/api_pb2.h"
-#endif  // USE_API
 
 namespace esphome {
 namespace bluetooth_proxy {
@@ -31,7 +28,6 @@ class BluetoothProxy : public BLEClientBase {
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
 
-#ifdef USE_API
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);
   void bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg);
   void bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg);
@@ -39,7 +35,6 @@ class BluetoothProxy : public BLEClientBase {
   void bluetooth_gatt_write_descriptor(const api::BluetoothGATTWriteDescriptorRequest &msg);
   void bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg);
   void bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg);
-#endif
 
   int get_bluetooth_connections_free() { return this->state_ == espbt::ClientState::IDLE ? 1 : 0; }
   int get_bluetooth_connections_limit() { return 1; }
