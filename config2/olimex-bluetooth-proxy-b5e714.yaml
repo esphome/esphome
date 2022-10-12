@@ -1,7 +1,0 @@
-substitutions:
-  name: olimex-bluetooth-proxy-b5e714
-packages:
-  esphome.bluetooth-proxy: github://esphome/bluetooth-proxies/olimex-esp32-poe-iso.yaml@main
-esphome:
-  name: ${name}
-  name_add_mac_suffix: false
