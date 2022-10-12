@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import json
-from typing import List, Union
+from typing import Union
 from pathlib import Path
 
 import logging
@@ -310,7 +310,7 @@ class IDEData:
         return str(Path(self.firmware_elf_path).with_suffix(".bin"))
 
     @property
-    def extra_flash_images(self) -> List[FlashImage]:
+    def extra_flash_images(self) -> list[FlashImage]:
         return [
             FlashImage(path=entry["path"], offset=entry["offset"])
             for entry in self.raw["extra"]["flash_images"]
