@@ -31,7 +31,6 @@ EthernetType = ethernet_ns.enum("EthernetType")
 ETHERNET_TYPES = {
     "LAN8720": EthernetType.ETHERNET_TYPE_LAN8720,
     "RTL8201": EthernetType.ETHERNET_TYPE_RTL8201,
-    "IP101": EthernetType.ETHERNET_TYPE_IP101,
     "DP83848": EthernetType.ETHERNET_TYPE_DP83848,
     "IP101": EthernetType.ETHERNET_TYPE_IP101,
 }

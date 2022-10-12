@@ -60,10 +60,6 @@ void EthernetComponent::setup() {
       phy = esp_eth_phy_new_lan87xx(&phy_config);
       break;
     }
-    case ETHERNET_TYPE_IP101: {
-      phy = esp_eth_phy_new_ip101(&phy_config);
-      break;
-    }
     case ETHERNET_TYPE_RTL8201: {
       phy = esp_eth_phy_new_rtl8201(&phy_config);
       break;
@@ -73,7 +69,7 @@ void EthernetComponent::setup() {
       break;
     }
     case ETHERNET_TYPE_IP101: {
-      memcpy(&this->eth_config_, &phy_ip101_default_ethernet_config, sizeof(eth_config_t));
+      phy = esp_eth_phy_new_ip101(&phy_config);
       break;
     }
     default: {
@@ -153,8 +149,12 @@ void EthernetComponent::dump_config() {
       eth_type = "LAN8720";
       break;
 
-    case ETHERNET_TYPE_TLK110:
-      eth_type = "TLK110";
+    case ETHERNET_TYPE_RTL8201:
+      eth_type = "RTL8201";
+      break;
+
+    case ETHERNET_TYPE_DP83848:
+      eth_type = "DP83848";
       break;
 
     case ETHERNET_TYPE_IP101:
