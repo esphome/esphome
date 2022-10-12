@@ -23,7 +23,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
-from typing import List, Optional, Tuple, Union
+from typing import Optional, Union
 from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
@@ -50,10 +50,10 @@ def iter_components(config):
                 yield p_name, platform, p_config
 
 
-ConfigPath = List[Union[str, int]]
+ConfigPath = list[Union[str, int]]
 
 
-def _path_begins_with(path, other):  # type: (ConfigPath, ConfigPath) -> bool
+def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
     if len(path) < len(other):
         return False
     return path[: len(other)] == other
@@ -67,7 +67,7 @@ class _ValidationStepTask:
         self.step = step
 
     @property
-    def _cmp_tuple(self) -> Tuple[float, int]:
+    def _cmp_tuple(self) -> tuple[float, int]:
         return (-self.priority, self.id_number)
 
     def __eq__(self, other):
@@ -84,21 +84,20 @@ class Config(OrderedDict, fv.FinalValidateConfig):
     def __init__(self):
         super().__init__()
         # A list of voluptuous errors
-        self.errors = []  # type: List[vol.Invalid]
+        self.errors: list[vol.Invalid] = []
         # A list of paths that should be fully outputted
         # The values will be the paths to all "domain", for example (['logger'], 'logger')
         # or (['sensor', 'ultrasonic'], 'sensor.ultrasonic')
-        self.output_paths = []  # type: List[Tuple[ConfigPath, str]]
+        self.output_paths: list[tuple[ConfigPath, str]] = []
         # A list of components ids with the config path
-        self.declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
+        self.declare_ids: list[tuple[core.ID, ConfigPath]] = []
         self._data = {}
         # Store pending validation tasks (in heap order)
-        self._validation_tasks: List[_ValidationStepTask] = []
+        self._validation_tasks: list[_ValidationStepTask] = []
         # ID to ensure stable order for keys with equal priority
         self._validation_tasks_id = 0
 
-    def add_error(self, error):
-        # type: (vol.Invalid) -> None
+    def add_error(self, error: vol.Invalid) -> None:
         if isinstance(error, vol.MultipleInvalid):
             for err in error.errors:
                 self.add_error(err)
@@ -132,20 +131,16 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             e.prepend(path)
             self.add_error(e)
 
-    def add_str_error(self, message, path):
-        # type: (str, ConfigPath) -> None
+    def add_str_error(self, message: str, path: ConfigPath) -> None:
         self.add_error(vol.Invalid(message, path))
 
-    def add_output_path(self, path, domain):
-        # type: (ConfigPath, str) -> None
+    def add_output_path(self, path: ConfigPath, domain: str) -> None:
         self.output_paths.append((path, domain))
 
-    def remove_output_path(self, path, domain):
-        # type: (ConfigPath, str) -> None
+    def remove_output_path(self, path: ConfigPath, domain: str) -> None:
         self.output_paths.remove((path, domain))
 
-    def is_in_error_path(self, path):
-        # type: (ConfigPath) -> bool
+    def is_in_error_path(self, path: ConfigPath) -> bool:
         for err in self.errors:
             if _path_begins_with(err.path, path):
                 return True
@@ -157,16 +152,16 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             conf = conf[key]
         conf[path[-1]] = value
 
-    def get_error_for_path(self, path):
-        # type: (ConfigPath) -> Optional[vol.Invalid]
+    def get_error_for_path(self, path: ConfigPath) -> Optional[vol.Invalid]:
         for err in self.errors:
             if self.get_deepest_path(err.path) == path:
                 self.errors.remove(err)
                 return err
         return None
 
-    def get_deepest_document_range_for_path(self, path, get_key=False):
-        # type: (ConfigPath, bool) -> Optional[ESPHomeDataBase]
+    def get_deepest_document_range_for_path(
+        self, path: ConfigPath, get_key: bool = False
+    ) -> Optional[ESPHomeDataBase]:
         data = self
         doc_range = None
         for index, path_item in enumerate(path):
@@ -207,8 +202,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
                 return {}
         return data
 
-    def get_deepest_path(self, path):
-        # type: (ConfigPath) -> ConfigPath
+    def get_deepest_path(self, path: ConfigPath) -> ConfigPath:
         """Return the path that is the deepest reachable by following path."""
         data = self
         part = []
@@ -532,7 +526,7 @@ class IDPassValidationStep(ConfigValidationStep):
             # because the component that did not validate doesn't have any IDs set
             return
 
-        searching_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
+        searching_ids: list[tuple[core.ID, ConfigPath]] = []
         for id, path in iter_ids(result):
             if id.is_declaration:
                 if id.id is not None:
@@ -780,8 +774,7 @@ def _get_parent_name(path, config):
     return path[-1]
 
 
-def _format_vol_invalid(ex, config):
-    # type: (vol.Invalid, Config) -> str
+def _format_vol_invalid(ex: vol.Invalid, config: Config) -> str:
     message = ""
 
     paren = _get_parent_name(ex.path[:-1], config)
@@ -862,8 +855,9 @@ def _print_on_next_line(obj):
     return False
 
 
-def dump_dict(config, path, at_root=True):
-    # type: (Config, ConfigPath, bool) -> Tuple[str, bool]
+def dump_dict(
+    config: Config, path: ConfigPath, at_root: bool = True
+) -> tuple[str, bool]:
     conf = config.get_nested_item(path)
     ret = ""
     multiline = False
