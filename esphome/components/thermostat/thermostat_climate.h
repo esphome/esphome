@@ -168,7 +168,8 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// Applies the temperature, mode, fan, and swing modes of the provided config.
   /// This is agnostic of custom vs built in preset
-  void change_preset_internal_(const ThermostatClimateTargetTempConfig &config);
+  /// Returns true if something was changed
+  bool change_preset_internal_(const ThermostatClimateTargetTempConfig &config);
 
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
