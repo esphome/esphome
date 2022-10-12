@@ -64,6 +64,13 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
   }
 }
 
+void BLEClient::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+  BLEClientBase::gap_event_handler(event, param);
+
+  for (auto *node : this->nodes_)
+    node->gap_event_handler(event, param);
+}
+
 void BLEClient::set_state(espbt::ClientState state) {
   BLEClientBase::set_state(state);
   for (auto &node : nodes_)
