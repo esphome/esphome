@@ -85,7 +85,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
 
   if (this->model_ == DHT_MODEL_DHT11) {
     delayMicroseconds(18000);
-  } else if (this->model_ == DHT_MODEL_SI7021) {
+  } else if (this->model_ == DHT_MODEL_SI7021 || this->model_ == DHT_MODEL_MS01) {
     delayMicroseconds(500);
     this->pin_->digital_write(true);
     delayMicroseconds(40);
@@ -216,6 +216,24 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
   } else {
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);
+
+    if (this->model_ == DHT_MODEL_MS01)
+      // Logic taken from Tasmota
+      *temperature = 0.0f;
+      float x;
+      if (raw_humidity < 15037) {
+        x = raw_humidity - 15200;
+        *humidity = - FastPrecisePowf(0.0024 * x, 3) - 0.0004 * x + 20.1;
+      }
+      else if (raw_humidity < 22300) {
+        *humidity = - 0.00069 * raw_humidity + 30.6;
+      }
+      else {
+        x = raw_humidity - 22800;
+        *humidity = - FastPrecisePowf(0.00046 * x, 3) - 0.0004 * x + 15;
+      }
+      return true;
+    }
 
     if (this->model_ != DHT_MODEL_DHT22_TYPE2 && (raw_temperature & 0x8000) != 0)
       raw_temperature = ~(raw_temperature & 0x7FFF);
