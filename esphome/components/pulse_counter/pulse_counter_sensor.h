@@ -81,7 +81,7 @@ class PulseCounterSensor : public sensor::Sensor, public PollingComponent {
   PulseCounterStorageBase &storage_;
   uint32_t last_time_{0};
   uint32_t current_total_{0};
-  sensor::Sensor *total_sensor_;
+  sensor::Sensor *total_sensor_{nullptr};
 };
 
 }  // namespace pulse_counter

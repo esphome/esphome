@@ -518,28 +518,39 @@ bool ESPBTUUID::operator==(const ESPBTUUID &uuid) const {
 }
 esp_bt_uuid_t ESPBTUUID::get_uuid() const { return this->uuid_; }
 std::string ESPBTUUID::to_string() const {
-  char sbuf[64];
   switch (this->uuid_.len) {
     case ESP_UUID_LEN_16:
-      sprintf(sbuf, "0x%02X%02X", this->uuid_.uuid.uuid16 >> 8, this->uuid_.uuid.uuid16 & 0xff);
-      break;
+      return str_snprintf("0x%02X%02X", 6, this->uuid_.uuid.uuid16 >> 8, this->uuid_.uuid.uuid16 & 0xff);
     case ESP_UUID_LEN_32:
-      sprintf(sbuf, "0x%02X%02X%02X%02X", this->uuid_.uuid.uuid32 >> 24, (this->uuid_.uuid.uuid32 >> 16 & 0xff),
-              (this->uuid_.uuid.uuid32 >> 8 & 0xff), this->uuid_.uuid.uuid32 & 0xff);
-      break;
+      return str_snprintf("0x%02X%02X%02X%02X", 10, this->uuid_.uuid.uuid32 >> 24,
+                          (this->uuid_.uuid.uuid32 >> 16 & 0xff), (this->uuid_.uuid.uuid32 >> 8 & 0xff),
+                          this->uuid_.uuid.uuid32 & 0xff);
     default:
     case ESP_UUID_LEN_128:
-      char *bpos = sbuf;
-      for (int8_t i = 0; i < 16; i++) {
-        sprintf(bpos, "%02X", this->uuid_.uuid.uuid128[i]);
-        bpos += 2;
-        if (i == 3 || i == 5 || i == 7 || i == 9)
-          sprintf(bpos++, "-");
+      std::string buf;
+      for (int8_t i = 15; i >= 0; i--) {
+        buf += str_snprintf("%02X", 2, this->uuid_.uuid.uuid128[i]);
+        if (i == 6 || i == 8 || i == 10 || i == 12)
+          buf += "-";
       }
-      sbuf[47] = '\0';
-      break;
+      return buf;
   }
-  return sbuf;
+  return "";
+}
+
+uint64_t ESPBTUUID::get_128bit_high() const {
+  esp_bt_uuid_t uuid = this->as_128bit().get_uuid();
+  return ((uint64_t) uuid.uuid.uuid128[15] << 56) | ((uint64_t) uuid.uuid.uuid128[14] << 48) |
+         ((uint64_t) uuid.uuid.uuid128[13] << 40) | ((uint64_t) uuid.uuid.uuid128[12] << 32) |
+         ((uint64_t) uuid.uuid.uuid128[11] << 24) | ((uint64_t) uuid.uuid.uuid128[10] << 16) |
+         ((uint64_t) uuid.uuid.uuid128[9] << 8) | ((uint64_t) uuid.uuid.uuid128[8]);
+}
+uint64_t ESPBTUUID::get_128bit_low() const {
+  esp_bt_uuid_t uuid = this->as_128bit().get_uuid();
+  return ((uint64_t) uuid.uuid.uuid128[7] << 56) | ((uint64_t) uuid.uuid.uuid128[6] << 48) |
+         ((uint64_t) uuid.uuid.uuid128[5] << 40) | ((uint64_t) uuid.uuid.uuid128[4] << 32) |
+         ((uint64_t) uuid.uuid.uuid128[3] << 24) | ((uint64_t) uuid.uuid.uuid128[2] << 16) |
+         ((uint64_t) uuid.uuid.uuid128[1] << 8) | ((uint64_t) uuid.uuid.uuid128[0]);
 }
 
 ESPBLEiBeacon::ESPBLEiBeacon(const uint8_t *data) { memcpy(&this->beacon_data_, data, sizeof(beacon_data_)); }
@@ -637,11 +648,17 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
     // (called CSS here)
 
     switch (record_type) {
+      case ESP_BLE_AD_TYPE_NAME_SHORT:
       case ESP_BLE_AD_TYPE_NAME_CMPL: {
         // CSS 1.2 LOCAL NAME
         // "The Local Name data type shall be the same as, or a shortened version of, the local name assigned to the
         // device." CSS 1: Optional in this context; shall not appear more than once in a block.
-        this->name_ = std::string(reinterpret_cast<const char *>(record), record_length);
+        // SHORTENED LOCAL NAME
+        // "The Shortened Local Name data type defines a shortened version of the Local Name data type. The Shortened
+        // Local Name data type shall not be used to advertise a name that is longer than the Local Name data type."
+        if (record_length > this->name_.length()) {
+          this->name_ = std::string(reinterpret_cast<const char *>(record), record_length);
+        }
         break;
       }
       case ESP_BLE_AD_TYPE_TX_PWR: {

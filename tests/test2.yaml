@@ -506,6 +506,9 @@ xiaomi_ble:
 
 mopeka_ble:
 
+bluetooth_proxy:
+  active: true
+
 xiaomi_rtcgq02lm:
   - id: motion_rtcgq02lm
     mac_address: 01:02:03:04:05:06
