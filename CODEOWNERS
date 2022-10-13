@@ -94,7 +94,7 @@ esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/honeywellabp/* @RubyBailey
-esphome/components/hrxl_maxsonar_wr/* @netmikey
+esphome/components/hrxl_maxsonar_wr/* @Worschi @netmikey
 esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/i2c/* @esphome/core
 esphome/components/i2s_audio/* @jesserockz
@@ -258,4 +258,5 @@ esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz
+esphome/components/xl_maxsonar_wr/* @netmikey
 esphome/components/xpt2046/* @nielsnl68 @numo68
