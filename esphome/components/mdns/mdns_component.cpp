@@ -45,6 +45,12 @@ void MDNSComponent::compile_records_() {
 
     service.txt_records.push_back({"board", ESPHOME_BOARD});
 
+#if defined(USE_WIFI)
+    service.txt_records.push_back({"network", "wifi"});
+#elif defined(USE_ETHERNET)
+    service.txt_records.push_back({"network", "ethernet"});
+#endif
+
 #ifdef ESPHOME_PROJECT_NAME
     service.txt_records.push_back({"project_name", ESPHOME_PROJECT_NAME});
     service.txt_records.push_back({"project_version", ESPHOME_PROJECT_VERSION});
