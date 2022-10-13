@@ -368,7 +368,7 @@ async def to_code(config):
 
     if CONF_AP in config:
         conf = config[CONF_AP]
-        ip_config = conf.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
+        ip_config = conf.get(CONF_MANUAL_IP, conf.get(CONF_MANUAL_IP))
         cg.with_local_variable(
             conf[CONF_ID],
             WiFiAP(),
