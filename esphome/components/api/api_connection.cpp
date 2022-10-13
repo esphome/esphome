@@ -1,16 +1,19 @@
 #include "api_connection.h"
-#include "esphome/core/entity_base.h"
-#include "esphome/core/log.h"
-#include "esphome/components/network/util.h"
-#include "esphome/core/version.h"
-#include "esphome/core/hal.h"
 #include <cerrno>
+#include "esphome/components/network/util.h"
+#include "esphome/core/entity_base.h"
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_DEEP_SLEEP
 #include "esphome/components/deep_sleep/deep_sleep_component.h"
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
 #include "esphome/components/homeassistant/time/homeassistant_time.h"
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+#include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
 #endif
 
 namespace esphome {
@@ -823,6 +826,56 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 }
 #endif
 
+#ifdef USE_BLUETOOTH_PROXY
+bool APIConnection::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg) {
+  if (!this->bluetooth_le_advertisement_subscription_)
+    return false;
+  if (this->client_api_version_major_ < 1 || this->client_api_version_minor_ < 7) {
+    BluetoothLEAdvertisementResponse resp = msg;
+    for (auto &service : resp.service_data) {
+      service.legacy_data.assign(service.data.begin(), service.data.end());
+      service.data.clear();
+    }
+    for (auto &manufacturer_data : resp.manufacturer_data) {
+      manufacturer_data.legacy_data.assign(manufacturer_data.data.begin(), manufacturer_data.data.end());
+      manufacturer_data.data.clear();
+    }
+    return this->send_bluetooth_le_advertisement_response(resp);
+  }
+  return this->send_bluetooth_le_advertisement_response(msg);
+}
+void APIConnection::bluetooth_device_request(const BluetoothDeviceRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_device_request(msg);
+}
+void APIConnection::bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_read(msg);
+}
+void APIConnection::bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_write(msg);
+}
+void APIConnection::bluetooth_gatt_read_descriptor(const BluetoothGATTReadDescriptorRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_read_descriptor(msg);
+}
+void APIConnection::bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_write_descriptor(msg);
+}
+void APIConnection::bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_send_services(msg);
+}
+
+void APIConnection::bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->bluetooth_gatt_notify(msg);
+}
+
+BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_free(
+    const SubscribeBluetoothConnectionsFreeRequest &msg) {
+  BluetoothConnectionsFreeResponse resp;
+  resp.free = bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_connections_free();
+  resp.limit = bluetooth_proxy::global_bluetooth_proxy->get_bluetooth_connections_limit();
+  return resp;
+}
+#endif
+
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
   if (this->log_subscription_ < level)
     return false;
@@ -840,11 +893,14 @@ bool APIConnection::send_log_message(int level, const char *tag, const char *lin
 HelloResponse APIConnection::hello(const HelloRequest &msg) {
   this->client_info_ = msg.client_info + " (" + this->helper_->getpeername() + ")";
   this->helper_->set_log_info(client_info_);
-  ESP_LOGV(TAG, "Hello from client: '%s'", this->client_info_.c_str());
+  this->client_api_version_major_ = msg.api_version_major;
+  this->client_api_version_minor_ = msg.api_version_minor;
+  ESP_LOGV(TAG, "Hello from client: '%s' | API Version %d.%d", this->client_info_.c_str(),
+           this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 6;
+  resp.api_version_minor = 7;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.name = App.get_name();
 
@@ -888,7 +944,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  resp.has_bluetooth_proxy = true;
+  resp.bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->has_active() ? 2 : 1;
 #endif
   return resp;
 }

@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 #include "queue.h"
 
@@ -39,6 +40,9 @@ class ESPBTUUID {
   esp_bt_uuid_t get_uuid() const;
 
   std::string to_string() const;
+
+  uint64_t get_128bit_high() const;
+  uint64_t get_128bit_low() const;
 
  protected:
   esp_bt_uuid_t uuid_;
@@ -157,7 +161,7 @@ class ESPBTClient : public ESPBTDeviceListener {
                                    esp_ble_gattc_cb_param_t *param) = 0;
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
   virtual void connect() = 0;
-  void set_state(ClientState st) { this->state_ = st; }
+  virtual void set_state(ClientState st) { this->state_ = st; }
   ClientState state() const { return state_; }
   int app_id;
 
@@ -171,6 +175,7 @@ class ESP32BLETracker : public Component {
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
   void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
   void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
+  void set_scan_continuous(bool scan_continuous) { scan_continuous_ = scan_continuous; }
 
   /// Setup the FreeRTOS task and the Bluetooth stack.
   void setup() override;
@@ -188,11 +193,16 @@ class ESP32BLETracker : public Component {
 
   void print_bt_device_info(const ESPBTDevice &device);
 
+  void start_scan();
+  void stop_scan();
+
  protected:
   /// The FreeRTOS task managing the bluetooth interface.
   static bool ble_setup();
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.
   void start_scan_(bool first);
+  /// Called when a scan ends
+  void end_of_scan_();
   /// Callback that will handle all GAP events and redistribute them to other callbacks.
   static void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
   void real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
@@ -221,7 +231,9 @@ class ESP32BLETracker : public Component {
   uint32_t scan_duration_;
   uint32_t scan_interval_;
   uint32_t scan_window_;
+  bool scan_continuous_;
   bool scan_active_;
+  bool scanner_idle_;
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};
