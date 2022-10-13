@@ -61,6 +61,12 @@ class MqttRoom : public Component, public esp32_ble_tracker::ESPBTDeviceListener
   static std::string format_device_name(const std::string &device_name);
   static std::string format_device_address(const uint8_t *device_address);
 
+  // Device manufacture service UUID
+  const esp32_ble_tracker::ESPBTUUID tile_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uint32(0xFEED);
+
+  // Device manufacture service Data UUID
+  const esp32_ble_tracker::ESPBTUUID exposure_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uint32(0xFD6F);
+
   // Device manufacture UUID
   const esp32_ble_tracker::ESPBTUUID apple_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uint32(0x004C);
   const esp32_ble_tracker::ESPBTUUID sonos_uuid_ = esp32_ble_tracker::ESPBTUUID::from_uint32(0x05A7);

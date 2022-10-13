@@ -73,24 +73,40 @@ bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     id = std::string("name:") + MqttRoom::format_device_name(device.get_name());
   }
 
-  // TODO: Better device detection
-  // for (auto &it : device.get_service_uuids()) {
-  // }
+  for (auto &it : device.get_service_uuids()) {
+    if (this->tile_uuid_ == it) {
+      id = std::string("tile:") + MqttRoom::format_device_address(device.address());
+    } else {
+      ESP_LOGV(TAG, "Found device with a unknown service uuid: '%s' and mac: '%s'", it.to_string().c_str(),
+               device.address_str().c_str());
+    }
+  }
 
-  // for (auto &it : device.get_service_datas()) {
-  // }
+  for (auto &it : device.get_service_datas()) {
+    if (it.uuid == this->exposure_uuid_) {
+      char str[12];
+      sprintf(str, "exp:%u", it.data.size());
+      id = std::string(str);
+    } else {
+      ESP_LOGV(TAG, "Found device with a unknown service datas uuid: '%s' and mac: '%s'", it.uuid.to_string().c_str(),
+               device.address_str().c_str());
+    }
+  }
 
   for (auto &it : device.get_manufacturer_datas()) {
     if (it.uuid == this->apple_uuid_) {
-      if (device.get_ibeacon().has_value()) {
+      if (it.data.size() == 23 && it.data[0] == 0x02 && it.data[1] == 0x15) {
         auto ibeacon = device.get_ibeacon().value();
         char str[56];
         sprintf(str, "ibeacon:%s-%u-%u", ibeacon.get_uuid().to_string().c_str(), ibeacon.get_major(),
                 ibeacon.get_minor());
         id = std::string(str);
         signal_power = ibeacon.get_signal_power();
+      } else if (it.data.size() == 27 && it.data[0] == 0x12) {
+        id = "apple:findmy";
       } else {
-        // TODO
+        char str[16];
+        sprintf(str, "apple:%02x%02x:%u", it.data[0], it.data[1], it.data.size());
       }
     } else if (it.uuid == this->sonos_uuid_) {
       id = std::string("sonos:") + MqttRoom::format_device_name(device.get_name());
