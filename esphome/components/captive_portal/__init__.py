@@ -59,4 +59,4 @@ async def to_code(config):
         cg.add_library("DNSServer", None)
 
     if config.get(CONF_KEEP_USER_CREDENTIALS, False):
-        cg.add_define("USE_WIFI_USER_CREDENTIALS")
+        cg.add_define("USE_CAPTIVE_PORTAL_KEEP_USER_CREDENTIALS")
