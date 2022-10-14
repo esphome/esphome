@@ -31,6 +31,8 @@ class RP2040Preferences : public ESPPreferences {
   }
 
   bool sync() override { return true; }
+
+  bool reset() override { return true; }
 };
 
 void setup_preferences() {
