@@ -26,15 +26,8 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
            device.get_rssi());
   this->send_api_packet_(device);
 
-  this->address_type_map_[device.address_uint64()] = device.get_address_type();
-
   if (this->address_ == 0)
     return true;
-
-  if (this->state_ == espbt::ClientState::DISCOVERED) {
-    ESP_LOGV(TAG, "Connecting to address %s", this->address_str().c_str());
-    return true;
-  }
 
   BLEClientBase::parse_device(device);
   return true;
@@ -216,20 +209,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
   switch (msg.request_type) {
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
       this->address_ = msg.address;
-      if (this->address_type_map_.find(this->address_) != this->address_type_map_.end()) {
-        // Utilise the address type cache
-        this->remote_addr_type_ = this->address_type_map_[this->address_];
-      } else {
-        this->remote_addr_type_ = BLE_ADDR_TYPE_PUBLIC;
-      }
-      this->remote_bda_[0] = (this->address_ >> 40) & 0xFF;
-      this->remote_bda_[1] = (this->address_ >> 32) & 0xFF;
-      this->remote_bda_[2] = (this->address_ >> 24) & 0xFF;
-      this->remote_bda_[3] = (this->address_ >> 16) & 0xFF;
-      this->remote_bda_[4] = (this->address_ >> 8) & 0xFF;
-      this->remote_bda_[5] = (this->address_ >> 0) & 0xFF;
-      this->set_state(espbt::ClientState::DISCOVERED);
-      esp_ble_gap_stop_scanning();
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT: {
