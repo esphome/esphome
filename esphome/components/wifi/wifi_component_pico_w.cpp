@@ -21,8 +21,7 @@ static const char *const TAG = "wifi_pico_w";
 bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   if (sta.has_value()) {
     if (sta.value()) {
-      // cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
-      cyw43_arch_enable_sta_mode();
+      cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
     }
   }
   return true;
@@ -38,11 +37,10 @@ bool WiFiComponent::wifi_apply_power_save_() {
       pm = CYW43_DEFAULT_PM;
       break;
     case WIFI_POWER_SAVE_HIGH:
-      pm = CYW43_PERFORMANCE_PM;
+      pm = CYW43_AGGRESSIVE_PM;
       break;
   }
-  int ret = 0;
-  // cyw43_wifi_pm(&cyw43_state, pm);
+  int ret = cyw43_wifi_pm(&cyw43_state, pm);
   return ret == 0;
 }
 
@@ -62,17 +60,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     bssid = ap.get_bssid().value().data();
   }
 
-  // int err = cyw43_wifi_join(&cyw43_state, ap.get_ssid().length(), (const uint8_t *) ap.get_ssid().c_str(),
-  //                           ap.get_password().length(), (const uint8_t *) ap.get_password().c_str(), auth_mode,
-  //                           bssid, ap.get_channel().value_or(0));
+  int err = cyw43_wifi_join(&cyw43_state, ap.get_ssid().length(), (const uint8_t *) ap.get_ssid().c_str(),
+                            ap.get_password().length(), (const uint8_t *) ap.get_password().c_str(), auth_mode, bssid,
+                            ap.get_channel().value_or(0));
 
-  // return err == 0;
-
-  // int err = cyw43_arch_wifi_connect_async(ap.get_ssid().c_str(), ap.get_password().c_str(), auth_mode);
-  // return err == 0;
-  return true;
-
-  // WiFi.begin(ap.get_ssid().c_str(), ap.get_password().c_str());
+  return err == 0;
 }
 bool WiFiComponent::wifi_sta_pre_setup_() { return this->wifi_mode_(true, {}); }
 
@@ -99,8 +91,7 @@ const char *get_disconnect_reason_str(uint8_t reason) {
 }
 
 WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
-  int status = 0;
-  // cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
+  int status = cyw43_tcpip_link_status(&cyw43_state, CYW43_ITF_STA);
   switch (status) {
     case CYW43_LINK_JOIN:
     case CYW43_LINK_NOIP:
@@ -134,12 +125,12 @@ void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *re
 bool WiFiComponent::wifi_scan_start_() {
   this->scan_result_.clear();
   this->scan_done_ = false;
-  // cyw43_wifi_scan_options_t scan_options = {0};
-  // int err = cyw43_wifi_scan(&cyw43_state, &scan_options, nullptr, &s_wifi_scan_result);
-  // if (err) {
-  //   ESP_LOGV(TAG, "cyw43_wifi_scan failed!");
-  // }
-  // return err == 0;
+  cyw43_wifi_scan_options_t scan_options = {0};
+  int err = cyw43_wifi_scan(&cyw43_state, &scan_options, nullptr, &s_wifi_scan_result);
+  if (err) {
+    ESP_LOGV(TAG, "cyw43_wifi_scan failed!");
+  }
+  return err == 0;
   return true;
 }
 
@@ -158,17 +149,18 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   const char *ssid = ap.get_ssid().c_str();
 
-  // cyw43_wifi_ap_set_ssid(&cyw43_state, strlen(ssid), (const uint8_t *) ssid);
+  cyw43_wifi_ap_set_ssid(&cyw43_state, strlen(ssid), (const uint8_t *) ssid);
 
-  // if (!ap.get_password().empty()) {
-  //   const char *password = ap.get_password().c_str();
-  //   cyw43_wifi_ap_set_password(&cyw43_state, strlen(password), (const uint8_t *) password);
-  //   cyw43_wifi_ap_set_auth(&cyw43_state, CYW43_AUTH_WPA2_MIXED_PSK);
-  // } else {
-  //   cyw43_wifi_ap_set_auth(&cyw43_state, CYW43_AUTH_OPEN);
-  // }
-  cyw43_arch_enable_ap_mode(ssid, ap.get_password().c_str(), CYW43_AUTH_WPA2_MIXED_PSK);
-  // cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
+  if (!ap.get_password().empty()) {
+    const char *password = ap.get_password().c_str();
+    cyw43_wifi_ap_set_password(&cyw43_state, strlen(password), (const uint8_t *) password);
+    cyw43_wifi_ap_set_auth(&cyw43_state, CYW43_AUTH_WPA2_MIXED_PSK);
+  } else {
+    cyw43_wifi_ap_set_auth(&cyw43_state, CYW43_AUTH_OPEN);
+  }
+  cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
+
+  // cyw43_arch_enable_ap_mode(ssid, ap.get_password().c_str(), CYW43_AUTH_WPA2_MIXED_PSK);
   return true;
 }
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.localIP()}; }

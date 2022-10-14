@@ -25,13 +25,13 @@ extern "C" {
 #endif
 
 #ifdef USE_RP2040
-#include <WiFi.h>
-
 extern "C" {
 #include "cyw43.h"
 #include "cyw43_country.h"
 #include "pico/cyw43_arch.h"
 }
+
+#include <WiFi.h>
 #endif
 
 namespace esphome {
