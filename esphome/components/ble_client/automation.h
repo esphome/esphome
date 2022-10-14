@@ -28,7 +28,8 @@ class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
   void loop() override {}
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
-    if (event == ESP_GATTC_DISCONNECT_EVT && memcmp(param->disconnect.remote_bda, this->parent_->remote_bda, 6) == 0)
+    if (event == ESP_GATTC_DISCONNECT_EVT &&
+        memcmp(param->disconnect.remote_bda, this->parent_->get_remote_bda(), 6) == 0)
       this->trigger();
     if (event == ESP_GATTC_SEARCH_CMPL_EVT)
       this->node_state = espbt::ClientState::ESTABLISHED;
@@ -45,9 +46,13 @@ class BLEWriterClientNode : public BLEClientNode {
   // Attempts to write the contents of value to char_uuid_.
   void write(const std::vector<uint8_t> &value);
 
-  void set_char_uuid128(uint8_t *uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
-
+  void set_service_uuid16(uint16_t uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_uint16(uuid); }
+  void set_service_uuid32(uint32_t uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
   void set_service_uuid128(uint8_t *uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
+
+  void set_char_uuid16(uint16_t uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_uint16(uuid); }
+  void set_char_uuid32(uint32_t uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
+  void set_char_uuid128(uint8_t *uuid) { this->char_uuid_ = espbt::ESPBTUUID::from_raw(uuid); }
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
