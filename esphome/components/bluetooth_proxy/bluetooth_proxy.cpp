@@ -26,7 +26,11 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
            device.get_rssi());
   this->send_api_packet_(device);
 
-  this->address_type_map_[device.address_uint64()] = device.get_address_type();
+  uint64_t address = device.address_uint64();
+
+  if (this->address_type_map_.find(address) == this->address_type_map_.end()) {
+    this->address_type_map_.insert(std::make_pair(address, device.get_address_type()));
+  }
 
   if (this->address_ == 0)
     return true;
