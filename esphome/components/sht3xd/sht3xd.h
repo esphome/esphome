@@ -19,8 +19,8 @@ class SHT3XDComponent : public PollingComponent, public sensirion_common::Sensir
   void update() override;
 
  protected:
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *humidity_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
 };
 
 }  // namespace sht3xd

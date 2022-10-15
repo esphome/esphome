@@ -9,7 +9,7 @@ CONFIG_SCHEMA = button.BUTTON_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(TemplateButton),
     }
-).extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

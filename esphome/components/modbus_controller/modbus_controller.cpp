@@ -236,7 +236,7 @@ size_t ModbusController::create_register_ranges_() {
       }
     }
 
-    if (curr->start_address == r.start_address) {
+    if (curr->start_address == r.start_address && curr->register_type == r.register_type) {
       // use the lowest non zero value for the whole range
       // Because zero is the default value for skip_updates it is excluded from getting the min value.
       if (curr->skip_updates != 0) {
@@ -571,24 +571,16 @@ int64_t payload_to_number(const std::vector<uint8_t> &data, SensorValueType sens
           static_cast<int32_t>(((value & 0x7FFF) << 16 | (value & 0xFFFF0000) >> 16) | sign_bit), bitmask);
     } break;
     case SensorValueType::U_QWORD:
-      // Ignore bitmask for U_QWORD
-      value = get_data<uint64_t>(data, offset);
-      break;
     case SensorValueType::S_QWORD:
-      // Ignore bitmask for S_QWORD
-      value = get_data<int64_t>(data, offset);
+      // Ignore bitmask for QWORD
+      value = get_data<uint64_t>(data, offset);
       break;
     case SensorValueType::U_QWORD_R:
-      // Ignore bitmask for U_QWORD
-      value = get_data<uint64_t>(data, offset);
-      value = static_cast<uint64_t>(value & 0xFFFF) << 48 | (value & 0xFFFF000000000000) >> 48 |
-              static_cast<uint64_t>(value & 0xFFFF0000) << 32 | (value & 0x0000FFFF00000000) >> 32 |
-              static_cast<uint64_t>(value & 0xFFFF00000000) << 16 | (value & 0x00000000FFFF0000) >> 16;
-      break;
-    case SensorValueType::S_QWORD_R:
-      // Ignore bitmask for S_QWORD
-      value = get_data<int64_t>(data, offset);
-      break;
+    case SensorValueType::S_QWORD_R: {
+      // Ignore bitmask for QWORD
+      uint64_t tmp = get_data<uint64_t>(data, offset);
+      value = (tmp << 48) | (tmp >> 48) | ((tmp & 0xFFFF0000) << 16) | ((tmp >> 16) & 0xFFFF0000);
+    } break;
     case SensorValueType::RAW:
     default:
       break;
