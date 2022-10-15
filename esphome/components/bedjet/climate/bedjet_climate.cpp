@@ -15,13 +15,13 @@ float bedjet_temp_to_c(const uint8_t temp) {
 }
 
 static const std::string *bedjet_fan_step_to_fan_mode(const uint8_t fan_step) {
-  if (fan_step <= 19)
+  if (fan_step < BEDJET_FAN_SPEED_COUNT)
     return &BEDJET_FAN_STEP_NAME_STRINGS[fan_step];
   return nullptr;
 }
 
 static uint8_t bedjet_fan_speed_to_step(const std::string &fan_step_percent) {
-  for (int i = 0; i < sizeof(BEDJET_FAN_STEP_NAME_STRINGS); i++) {
+  for (int i = 0; i < BEDJET_FAN_SPEED_COUNT; i++) {
     if (fan_step_percent == BEDJET_FAN_STEP_NAME_STRINGS[i]) {
       return i;
     }

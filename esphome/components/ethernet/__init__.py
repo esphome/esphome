@@ -31,6 +31,7 @@ EthernetType = ethernet_ns.enum("EthernetType")
 ETHERNET_TYPES = {
     "LAN8720": EthernetType.ETHERNET_TYPE_LAN8720,
     "TLK110": EthernetType.ETHERNET_TYPE_TLK110,
+    "IP101": EthernetType.ETHERNET_TYPE_IP101,
 }
 
 eth_clock_mode_t = cg.global_ns.enum("eth_clock_mode_t")

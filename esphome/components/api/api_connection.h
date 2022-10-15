@@ -1,15 +1,11 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/application.h"
+#include "api_frame_helper.h"
 #include "api_pb2.h"
 #include "api_pb2_service.h"
 #include "api_server.h"
-#include "api_frame_helper.h"
-
-#ifdef USE_BLUETOOTH_PROXY
-#include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
-#endif
+#include "esphome/core/application.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace api {
@@ -99,11 +95,18 @@ class APIConnection : public APIServerConnection {
     this->send_homeassistant_service_response(call);
   }
 #ifdef USE_BLUETOOTH_PROXY
-  bool send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &call) {
-    if (!this->bluetooth_le_advertisement_subscription_)
-      return false;
-    return this->send_bluetooth_le_advertisement_response(call);
-  }
+  bool send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg);
+
+  void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
+  void bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) override;
+  void bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) override;
+  void bluetooth_gatt_read_descriptor(const BluetoothGATTReadDescriptorRequest &msg) override;
+  void bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) override;
+  void bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) override;
+  void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) override;
+  BluetoothConnectionsFreeResponse subscribe_bluetooth_connections_free(
+      const SubscribeBluetoothConnectionsFreeRequest &msg) override;
+
 #endif
 #ifdef USE_HOMEASSISTANT_TIME
   void send_time_request() {
@@ -181,6 +184,8 @@ class APIConnection : public APIServerConnection {
   std::unique_ptr<APIFrameHelper> helper_;
 
   std::string client_info_;
+  uint32_t client_api_version_major_{0};
+  uint32_t client_api_version_minor_{0};
 #ifdef USE_ESP32_CAMERA
   esp32_camera::CameraImageReader image_reader_;
 #endif
@@ -190,7 +195,7 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
-  bool bluetooth_le_advertisement_subscription_{true};
+  bool bluetooth_le_advertisement_subscription_{false};
   bool next_close_ = false;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
