@@ -4,7 +4,7 @@ import esphome.codegen as cg
 from esphome.const import CONF_ACTIVE, CONF_ID
 
 AUTO_LOAD = ["esp32_ble_client", "esp32_ble_tracker"]
-DEPENDENCIES = ["esp32"]
+DEPENDENCIES = ["api", "esp32"]
 CODEOWNERS = ["@jesserockz"]
 
 
