@@ -190,38 +190,24 @@ void EZOSensor::set_address(unsigned int address) {
   }
 }
 
-void EZOSensor::get_device_information() {
-  this->add_command_("i", EzoCommandType::EZO_DEVICE_INFORMATION);
-}
+void EZOSensor::get_device_information() { this->add_command_("i", EzoCommandType::EZO_DEVICE_INFORMATION); }
 
-void EZOSensor::set_sleep() {
-  this->add_command_("Sleep", EzoCommandType::EZO_SLEEP);
-}
+void EZOSensor::set_sleep() { this->add_command_("Sleep", EzoCommandType::EZO_SLEEP); }
 
-void EZOSensor::get_state() {
-  this->add_command_("R", EzoCommandType::EZO_READ, 900);
-}
+void EZOSensor::get_state() { this->add_command_("R", EzoCommandType::EZO_READ, 900); }
 
-void EZOSensor::get_slope() {
-  this->add_command_("Slope,?", EzoCommandType::EZO_SLOPE);
-}
+void EZOSensor::get_slope() { this->add_command_("Slope,?", EzoCommandType::EZO_SLOPE); }
 
-void EZOSensor::get_t() {
-  this->add_command_("T,?", EzoCommandType::EZO_T);
-}
+void EZOSensor::get_t() { this->add_command_("T,?", EzoCommandType::EZO_T); }
 
 void EZOSensor::set_t(float value) {
   std::string payload = str_sprintf("T,%0.2f", value);
   this->add_command_(payload, EzoCommandType::EZO_T);
 }
 
-void EZOSensor::set_tempcomp_value(float temp) {
-  this->set_t(temp);
-}
+void EZOSensor::set_tempcomp_value(float temp) { this->set_t(temp); }
 
-void EZOSensor::get_calibration() {
-  this->add_command_("Cal,?", EzoCommandType::EZO_CALIBRATION);
-}
+void EZOSensor::get_calibration() { this->add_command_("Cal,?", EzoCommandType::EZO_CALIBRATION); }
 
 void EZOSensor::set_calibration_point_low(float value) {
   this->set_calibration_point_(EzoCalibrationType::EZO_CAL_LOW, value);
@@ -240,13 +226,9 @@ void EZOSensor::set_calibration_generic(float value) {
   this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
 }
 
-void EZOSensor::clear_calibration() {
-  this->add_command_("Cal,clear", EzoCommandType::EZO_CALIBRATION);
-}
+void EZOSensor::clear_calibration() { this->add_command_("Cal,clear", EzoCommandType::EZO_CALIBRATION); }
 
-void EZOSensor::get_led_state() {
-  this->add_command_("L,?", EzoCommandType::EZO_LED);
-}
+void EZOSensor::get_led_state() { this->add_command_("L,?", EzoCommandType::EZO_LED); }
 
 void EZOSensor::set_led_state(bool on) {
   std::string to_send = "L,";
@@ -254,9 +236,7 @@ void EZOSensor::set_led_state(bool on) {
   this->add_command_(to_send, EzoCommandType::EZO_LED);
 }
 
-void EZOSensor::send_custom(const std::string &to_send) {
-  this->add_command_(to_send, EzoCommandType::EZO_CUSTOM);
-}
+void EZOSensor::send_custom(const std::string &to_send) { this->add_command_(to_send, EzoCommandType::EZO_CUSTOM); }
 
 }  // namespace ezo
 }  // namespace esphome
