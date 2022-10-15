@@ -64,7 +64,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
   // T
   void get_t();
   void set_t(float value);
-  void set_tempcomp_value(float temp); // For backwards compatibility
+  void set_tempcomp_value(float temp);  // For backwards compatibility
   void add_t_callback(std::function<void(std::string)> &&callback) { this->t_callback_.add(std::move(callback)); }
 
   // Calibration
