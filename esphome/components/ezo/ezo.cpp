@@ -5,6 +5,12 @@
 namespace esphome {
 namespace ezo {
 
+static const char *const EZO_COMMAND_TYPE_STRINGS[] = {"EZO_READ",  "EZO_LED",         "EZO_DEVICE_INFORMATION",
+                                                       "EZO_SLOPE", "EZO_CALIBRATION", "EZO_SLEEP",
+                                                       "EZO_I2C",   "EZO_T",           "EZO_CUSTOM"};
+
+static const char *const EZO_CALIBRATION_TYPE_STRINGS[] = {"LOW", "MID", "HIGH"};
+
 void EZOSensor::dump_config() {
   LOG_SENSOR("", "EZO", this);
   LOG_I2C_DEVICE(this);
@@ -28,15 +34,14 @@ void EZOSensor::update() {
     }
 
     if (!found) {
-      // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-      EzoCommand *ezo_command = new EzoCommand;
+      std::unique_ptr<EzoCommand> ezo_command(new EzoCommand);
       ezo_command->command = "R";
       ezo_command->command_type = EzoCommandType::EZO_READ;
       ezo_command->delay_ms = 900;
 
-      std::deque<EzoCommand *>::iterator it = this->commands_.begin();
+      auto it = this->commands_.begin();
       ++it;
-      this->commands_.insert(it, ezo_command);
+      this->commands_.insert(it, std::move(ezo_command));
     }
 
     return;
@@ -50,7 +55,7 @@ void EZOSensor::loop() {
     return;
   }
 
-  EzoCommand *to_run = this->commands_.front();
+  EzoCommand *to_run = this->commands_.front().get();
 
   if (!to_run->command_sent) {
     const uint8_t *data = reinterpret_cast<const uint8_t *>(to_run->command.c_str());
@@ -60,7 +65,6 @@ void EZOSensor::loop() {
 
     if (to_run->command_type == EzoCommandType::EZO_SLEEP ||
         to_run->command_type == EzoCommandType::EZO_I2C) {  // Commands with no return data
-      delete to_run;                                        // NOLINT(cppcoreguidelines-owning-memory)
       this->commands_.pop_front();
       return;
     }
@@ -79,7 +83,6 @@ void EZOSensor::loop() {
 
   if (!this->read_bytes_raw(buf, 32)) {
     ESP_LOGE(TAG, "read error");
-    delete to_run;  // NOLINT(cppcoreguidelines-owning-memory)
     this->commands_.pop_front();
     return;
   }
@@ -162,17 +165,98 @@ void EZOSensor::loop() {
     }
   }
 
-  delete to_run;  // NOLINT(cppcoreguidelines-owning-memory)
   this->commands_.pop_front();
 }
 
-void EZOSensor::set_i2c(unsigned int address) {
+void EZOSensor::add_command_(const std::string &command, EzoCommandType command_type, uint16_t delay_ms) {
+  std::unique_ptr<EzoCommand> ezo_command(new EzoCommand);
+  ezo_command->command = command;
+  ezo_command->command_type = command_type;
+  ezo_command->delay_ms = delay_ms;
+  this->commands_.push_back(std::move(ezo_command));
+};
+
+void EZOSensor::set_calibration_point_(EzoCalibrationType type, float value) {
+  std::string payload = str_sprintf("Cal,%s,%0.2f", EZO_CALIBRATION_TYPE_STRINGS[type], value);
+  this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
+}
+
+void EZOSensor::set_address(unsigned int address) {
   if (address > 0 && address < 128) {
     std::string payload = str_sprintf("I2C,%u", address);
     this->add_command_(payload, EzoCommandType::EZO_I2C);
   } else {
     ESP_LOGE(TAG, "Invalid I2C address");
   }
-}  // NOLINT otherwise we get set_i2_c
+}
+
+void EZOSensor::get_device_information() {
+  this->add_command_("i", EzoCommandType::EZO_DEVICE_INFORMATION);
+}
+
+void EZOSensor::set_sleep() {
+  this->add_command_("Sleep", EzoCommandType::EZO_SLEEP);
+}
+
+void EZOSensor::get_state() {
+  this->add_command_("R", EzoCommandType::EZO_READ, 900);
+}
+
+void EZOSensor::get_slope() {
+  this->add_command_("Slope,?", EzoCommandType::EZO_SLOPE);
+}
+
+void EZOSensor::get_t() {
+  this->add_command_("T,?", EzoCommandType::EZO_T);
+}
+
+void EZOSensor::set_t(float value) {
+  std::string payload = str_sprintf("T,%0.2f", value);
+  this->add_command_(payload, EzoCommandType::EZO_T);
+}
+
+void EZOSensor::set_tempcomp_value(float temp) {
+  this->set_t(temp);
+}
+
+void EZOSensor::get_calibration() {
+  this->add_command_("Cal,?", EzoCommandType::EZO_CALIBRATION);
+}
+
+void EZOSensor::set_calibration_point_low(float value) {
+  this->set_calibration_point_(EzoCalibrationType::EZO_CAL_LOW, value);
+}
+
+void EZOSensor::set_calibration_point_mid(float value) {
+  this->set_calibration_point_(EzoCalibrationType::EZO_CAL_MID, value);
+}
+
+void EZOSensor::set_calibration_point_high(float value) {
+  this->set_calibration_point_(EzoCalibrationType::EZO_CAL_HIGH, value);
+}
+
+void EZOSensor::set_calibration_generic(float value) {
+  std::string payload = str_sprintf("Cal,%0.2f", value);
+  this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
+}
+
+void EZOSensor::clear_calibration() {
+  this->add_command_("Cal,clear", EzoCommandType::EZO_CALIBRATION);
+}
+
+void EZOSensor::get_led_state() {
+  this->add_command_("L,?", EzoCommandType::EZO_LED);
+}
+
+void EZOSensor::set_led_state(bool on) {
+  std::string to_send = "L,";
+  to_send += on ? "1" : "0";
+  this->add_command_(to_send, EzoCommandType::EZO_LED);
+}
+
+void EZOSensor::send_custom(const std::string &to_send) {
+  this->add_command_(to_send, EzoCommandType::EZO_CUSTOM);
+}
+
 }  // namespace ezo
 }  // namespace esphome
