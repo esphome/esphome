@@ -1,0 +1,35 @@
+esphome:
+  name: esphome-web-c0b554
+
+esp32:
+  board: esp32dev
+  framework:
+    type: arduino
+
+# Enable logging
+logger:
+
+# Enable Home Assistant API
+api:
+
+ota:
+
+
+wifi:
+  ssid: !secret wifi_ssid
+  password: !secret wifi_password
+
+  # Enable fallback hotspot (captive portal) in case wifi connection fails
+  ap:
+    ssid: "Esphome-Web-C0B554"
+    password: "Y2pLWWa2PBFg"
+
+captive_portal:
+    
+switch:
+   - platform: m5stack4relay
+     sync_mode: true
+     relay1: ${device_name} relay 1
+     led1: 
+       name: ${device_name} led 1
+       assume_state: true # not good implemented yet.
