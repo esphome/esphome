@@ -14,7 +14,6 @@ api:
 
 ota:
 
-
 wifi:
   ssid: !secret wifi_ssid
   password: !secret wifi_password
@@ -25,11 +24,18 @@ wifi:
     password: "Y2pLWWa2PBFg"
 
 captive_portal:
-    
+
+i2c:
+  - id: i2c_0
+    sda: GPIO32
+    scl: GPIO26
+
 switch:
-   - platform: m5stack4relay
-     sync_mode: true
-     relay1: ${device_name} relay 1
-     led1: 
-       name: ${device_name} led 1
-       assume_state: true # not good implemented yet.
+  - platform: m5stack4relay
+    sync_mode: true
+    id: fourRelays
+    relay1: relay 1
+    led1:
+      name: led 1
+      assumed_state: true # not good implemented yet.
+      id: led_1

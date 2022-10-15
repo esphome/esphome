@@ -6,7 +6,7 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace m5stack_relay4 {
+namespace m5stack_4relay {
 
 static constexpr uint8_t UNIT_4RELAY_CONFIG_REG = 0X10;
 static constexpr uint8_t UNIT_4RELAY_RELAY_REG = 0X11;
@@ -61,5 +61,5 @@ class M5Relay4Switch : public switch_::Switch,
   relay_bit bit_{relay_bit::NONE};
 }
 
-}  // namespace m5stack_relay4
+}  // namespace m5stack_4relay
 }  // namespace esphome

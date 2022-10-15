@@ -128,3 +128,4 @@ tests/.esphome/
 
 sdkconfig.*
 !sdkconfig.defaults
+secrets.yaml

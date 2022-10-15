@@ -37,25 +37,31 @@ ENUM_COMP_SWITCHES = {
 
 def check_relayswitch():
     return cv.maybe_simple_value(
-        switch.switch_schema(M5Relay4Switch),
+        switch.switch_schema(M5Relay4Switch).extend(
+            {cv.Optional(CONF_ASSUMED_STATE): cv.boolean}
+        ),
         key=CONF_NAME,
-    ).extend({cv.Optional(CONF_ASSUMED_STATE): cv.boolean})
+    )
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(M5Relay4Control),
-        cv.Optional(CONF_SYNC_MODE): cv.boolean(),
-        cv.Optional(CONF_RELAY0): check_relayswitch(),
-        cv.Optional(CONF_RELAY1): check_relayswitch(),
-        cv.Optional(CONF_RELAY2): check_relayswitch(),
-        cv.Optional(CONF_RELAY3): check_relayswitch(),
-        cv.Optional(CONF_LED0): check_relayswitch(),
-        cv.Optional(CONF_LED1): check_relayswitch(),
-        cv.Optional(CONF_LED2): check_relayswitch(),
-        cv.Optional(CONF_LED3): check_relayswitch(),
-    }
-).extend(cv.component().extend(i2c.i2c_device_schema(0x26)))
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(M5Relay4Control),
+            cv.Optional(CONF_SYNC_MODE): cv.boolean,
+            cv.Optional(CONF_RELAY0): check_relayswitch(),
+            cv.Optional(CONF_RELAY1): check_relayswitch(),
+            cv.Optional(CONF_RELAY2): check_relayswitch(),
+            cv.Optional(CONF_RELAY3): check_relayswitch(),
+            cv.Optional(CONF_LED0): check_relayswitch(),
+            cv.Optional(CONF_LED1): check_relayswitch(),
+            cv.Optional(CONF_LED2): check_relayswitch(),
+            cv.Optional(CONF_LED3): check_relayswitch(),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(i2c.i2c_device_schema(0x26))
+)
 
 
 def to_code(config):
@@ -65,7 +71,7 @@ def to_code(config):
     if CONF_SYNC_MODE in config:
         cg.add(var.set_sync_mode(config[CONF_SYNC_MODE]))
 
-    for key, value in ENUM_COMP_SWITCHES:
+    for key, value in ENUM_COMP_SWITCHES.items():
         if key in config:
             conf = config[key]
             sens = yield switch.new_switch(conf, value)
