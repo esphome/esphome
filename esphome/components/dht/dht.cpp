@@ -245,7 +245,7 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
   } else {
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);
-    
+
     ESP_LOGD(TAG, "Humidity Voltage: %d", raw_humidity);
 
     if (this->model_ == DHT_MODEL_MS01) {
