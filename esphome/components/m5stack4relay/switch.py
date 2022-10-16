@@ -5,7 +5,7 @@ from esphome.const import CONF_ID, CONF_NAME, CONF_ASSUMED_STATE
 
 DEPENDENCIES = ["i2c"]
 
-M5RELAY4_ns = cg.esphome_ns.namespace("m5stack_4relay")
+M5RELAY4_ns = cg.esphome_ns.namespace("m5stack4relay")
 M5Relay4Control = M5RELAY4_ns.class_("M5Relay4Control", cg.Component, i2c.I2CDevice)
 M5Relay4Switch = M5RELAY4_ns.class_("M5Relay4Switch", switch.Switch, cg.Component)
 

@@ -3,7 +3,7 @@
 #include <bitset>
 
 namespace esphome {
-namespace m5stack_4relay {
+namespace m5stack4relay {
 
 static const char *TAG = "m5stack_4relay.switch";
 
@@ -52,5 +52,5 @@ void M5Relay4Switch::write_state(bool state) {
   }
 }
 
-}  // namespace m5stack_4relay
+}  // namespace m5stack4relay
 }  // namespace esphome
