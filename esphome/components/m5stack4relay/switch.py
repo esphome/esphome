@@ -9,28 +9,28 @@ M5RELAY4_ns = cg.esphome_ns.namespace("m5stack_4relay")
 M5Relay4Control = M5RELAY4_ns.class_("M5Relay4Control", cg.Component, i2c.I2CDevice)
 M5Relay4Switch = M5RELAY4_ns.class_("M5Relay4Switch", switch.Switch, cg.Component)
 
-CONF_RELAY0 = "relay1"
-CONF_RELAY1 = "relay2"
-CONF_RELAY2 = "relay3"
-CONF_RELAY3 = "relay4"
+CONF_RELAY1 = "relay1"
+CONF_RELAY2 = "relay2"
+CONF_RELAY3 = "relay3"
+CONF_RELAY4 = "relay4"
 
-CONF_LED0 = "led1"
-CONF_LED1 = "led2"
-CONF_LED2 = "led3"
-CONF_LED3 = "led4"
+CONF_LED1 = "led1"
+CONF_LED2 = "led2"
+CONF_LED3 = "led3"
+CONF_LED4 = "led4"
 
 CONF_SYNC_MODE = "sync_mode"
 
 RelayBit_ = M5RELAY4_ns.enum("RelayBit", is_class=True)
 ENUM_COMP_SWITCHES = {
-    CONF_LED0: RelayBit_.LED0,
     CONF_LED1: RelayBit_.LED1,
     CONF_LED2: RelayBit_.LED2,
     CONF_LED3: RelayBit_.LED3,
-    CONF_RELAY0: RelayBit_.RELAY0,
+    CONF_LED4: RelayBit_.LED4,
     CONF_RELAY1: RelayBit_.RELAY1,
     CONF_RELAY2: RelayBit_.RELAY2,
     CONF_RELAY3: RelayBit_.RELAY3,
+    CONF_RELAY4: RelayBit_.RELAY4,
 }
 
 
@@ -48,14 +48,14 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(M5Relay4Control),
             cv.Optional(CONF_SYNC_MODE): cv.boolean,
-            cv.Optional(CONF_RELAY0): check_relayswitch(),
             cv.Optional(CONF_RELAY1): check_relayswitch(),
             cv.Optional(CONF_RELAY2): check_relayswitch(),
             cv.Optional(CONF_RELAY3): check_relayswitch(),
-            cv.Optional(CONF_LED0): check_relayswitch(),
+            cv.Optional(CONF_RELAY4): check_relayswitch(),
             cv.Optional(CONF_LED1): check_relayswitch(),
             cv.Optional(CONF_LED2): check_relayswitch(),
             cv.Optional(CONF_LED3): check_relayswitch(),
+            cv.Optional(CONF_LED4): check_relayswitch(),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

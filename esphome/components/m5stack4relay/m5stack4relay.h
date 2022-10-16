@@ -12,14 +12,14 @@ static constexpr uint8_t UNIT_4RELAY_CONFIG_REG = 0X10;
 static constexpr uint8_t UNIT_4RELAY_RELAY_REG = 0X11;
 
 enum class RelayBit : uint8_t {
-  LED0 = 7,
-  LED1 = 6,
-  LED2 = 5,
-  LED3 = 4,
-  RELAY0 = 3,
-  RELAY1 = 2,
-  RELAY2 = 1,
-  RELAY3 = 0,
+  LED1 = 7,
+  LED2 = 6,
+  LED3 = 5,
+  LED4 = 4,
+  RELAY1 = 3,
+  RELAY2 = 2,
+  RELAY3 = 1,
+  RELAY4 = 0,
   NONE = 255
 };
 
@@ -32,7 +32,7 @@ class M5Relay4Control : public i2c::I2CDevice, public Component {
   void setup() override;
   void dump_config() override;
 
-  bool set_relay(RelayBit number, bool state);
+  bool set_relay(RelayBit bit, bool state);
   void set_sync_mode(bool mode);
 
  protected:
