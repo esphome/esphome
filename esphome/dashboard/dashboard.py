@@ -932,10 +932,11 @@ class JsonConfigRequestHandler(BaseHandler):
     @bind_config
     def get(self, configuration=None):
         filename = settings.rel_path(configuration)
-        content = ""
-        if os.path.isfile(filename):
-            content = yaml_util.load_yaml(filename, clear_secrets=False)
+        if not os.path.isfile(filename):
+            self.send_error(404)
+            return
 
+        content = yaml_util.load_yaml(filename, clear_secrets=False)
         self.set_header("content-type", "application/json")
         self.write(json.dumps(content))
 
