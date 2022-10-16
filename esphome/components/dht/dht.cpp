@@ -245,18 +245,20 @@ bool HOT IRAM_ATTR DHT::read_sensor_(float *temperature, float *humidity, bool r
   } else {
     uint16_t raw_humidity = (uint16_t(data[0] & 0xFF) << 8) | (data[1] & 0xFF);
     uint16_t raw_temperature = (uint16_t(data[2] & 0xFF) << 8) | (data[3] & 0xFF);
+    
+    ESP_LOGW(TAG, "Humidity Voltage: %d", raw_humidity);
 
     if (this->model_ == DHT_MODEL_MS01) {
       // Logic taken from Tasmota
       *temperature = 0.0f;
       float x;
       if (raw_humidity < 15037) {
-        x = int16_t(raw_humidity) - 15200;
+        x = raw_humidity - 15200;
         *humidity = -fast_precise_powf(0.0024 * x, 3) - 0.0004 * x + 20.1;
       } else if (raw_humidity < 22300) {
-        *humidity = -0.00069 * int16_t(raw_humidity) + 30.6;
+        *humidity = -0.00069 * raw_humidity + 30.6;
       } else {
-        x = int16_t(raw_humidity) - 22800;
+        x = raw_humidity - 22800;
         *humidity = -fast_precise_powf(0.00046 * x, 3) - 0.0004 * x + 15;
       }
       return true;
