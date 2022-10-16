@@ -16,16 +16,16 @@ void M5Relay4Control::setup() {
   ESP_LOGCONFIG(TAG, "Setting up M5STACK4RELAY (0x%02X)...", this->address_);
   uint8_t component_status = get_relay_states_();
   ESP_LOGD(TAG, "Setup Status 0x%02X", component_status);
-  has_been_setup = true;
+  has_been_setup_ = true;
 }
 
 uint8_t M5Relay4Control::get_relay_states_() {
-  uint8_t result = 0;
+  uint8_t * result;
   this->read_byte(UNIT_4RELAY_RELAY_REG, result);
-  return result;
+  return *result;
 }
 
-bool M5Relay4Control::set_relay(relay_bit bit, bool state) {
+bool M5Relay4Control::set_relay(RelayBit bit, bool state) {
   uint8_t org = get_relay_states_();
 
   ESP_LOGD(TAG, "Current status 0x%02X", org);
@@ -46,7 +46,7 @@ bool M5Relay4Control::set_relay(relay_bit bit, bool state) {
 void M5Relay4Control::set_sync_mode (bool mode) {
     this->sync_mode_ = mode;
     if (has_been_setup_) {
-      write_byte(UNIT_4RELAY_REG, this->sync_mode_);
+      write_byte(UNIT_4RELAY_CONFIG_REG, this->sync_mode_);
     }
   }
 

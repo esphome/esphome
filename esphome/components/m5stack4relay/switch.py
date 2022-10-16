@@ -23,15 +23,16 @@ CONF_LED3 = "led4"
 
 CONF_SYNC_MODE = "sync_mode"
 
+RelayBit_ = M5RELAY4_ns.enum("RelayBit", is_class=True)
 ENUM_COMP_SWITCHES = {
-    CONF_LED0: 7,
-    CONF_LED1: 6,
-    CONF_LED2: 5,
-    CONF_LED3: 4,
-    CONF_RELAY0: 3,
-    CONF_RELAY1: 2,
-    CONF_RELAY2: 1,
-    CONF_RELAY3: 0,
+    CONF_LED0: RelayBit_.LED0,
+    CONF_LED1: RelayBit_.LED1,
+    CONF_LED2: RelayBit_.LED2,
+    CONF_LED3: RelayBit_.LED3,
+    CONF_RELAY0: RelayBit_.RELAY0,
+    CONF_RELAY1: RelayBit_.RELAY1,
+    CONF_RELAY2: RelayBit_.RELAY2,
+    CONF_RELAY3: RelayBit_.RELAY3,
 }
 
 
