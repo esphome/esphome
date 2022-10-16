@@ -927,6 +927,19 @@ class SecretKeysRequestHandler(BaseHandler):
         self.write(json.dumps(secret_keys))
 
 
+class JsonConfigRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
+        filename = settings.rel_path(configuration)
+        content = ""
+        if os.path.isfile(filename):
+            content = yaml_util.load_yaml(filename, clear_secrets=False)
+
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(content))
+
+
 def get_base_frontend_path():
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -1031,6 +1044,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
             (f"{rel}secret_keys", SecretKeysRequestHandler),
+            (f"{rel}json-config", JsonConfigRequestHandler),
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
         ],
