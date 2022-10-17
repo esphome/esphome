@@ -17,5 +17,5 @@ class Q3DATextSensor : public Q3DAListener, public text_sensor::TextSensor, publ
   Q3DAType format_;
 };
 
-}  // namespace sml
+}  // namespace q3da
 }  // namespace esphome

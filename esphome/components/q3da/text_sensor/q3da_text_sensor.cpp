@@ -8,7 +8,7 @@ namespace q3da {
 
 static const char *const TAG = "q3da_text_sensor";
 
-Q3DATextSensor::Q3DATextSensor(std::string server_id, std::string obis_code, Q3DAType format)
+Q3DATextSensor::Q3DATextSensor(std::string server_id, std::string obis_code)
     : Q3DAListener(std::move(server_id), std::move(obis_code)), format_(format) {}
 
 void Q3DATextSensor::publish_val(const ObisInfo &obis_info) {

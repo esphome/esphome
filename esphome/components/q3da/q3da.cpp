@@ -42,7 +42,7 @@ void q3da::loop() {
             break;
 
           // remove footer bytes
-          //this->q3da_data_.resize(this->q3da_data_.size() - 2);
+          // this->q3da_data_.resize(this->q3da_data_.size() - 2);
           this->process_q3da_telegram_(this->q3da_data_);
         }
         break;
@@ -52,7 +52,7 @@ void q3da::loop() {
 }
 
 void q3da::process_q3da_telegram_(const bytes &q3da_data) {
-  //ESP_LOGV(TAG, "Received a telegram: %d", q3da_data.size());
+  // ESP_LOGV(TAG, "Received a telegram: %d", q3da_data.size());
   Q3DATelegram q3da_file = Q3DATelegram(q3da_data);
   std::vector<ObisInfo> obis_info = q3da_file.get_obis_info();
   this->publish_obis_info_(obis_info);
@@ -66,7 +66,7 @@ void q3da::log_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
     std::string info;
     info += "  (" + bytes_repr(obis_info.server_id) + ") ";
     info += obis_info.code_repr();
-    //info += " [0x" + bytes_repr(obis_info.value) + "]";
+    // info += " [0x" + bytes_repr(obis_info.value) + "]";
     ESP_LOGD(TAG, "%s", info.c_str());
   }
 }
@@ -79,7 +79,7 @@ void q3da::publish_obis_info_(const std::vector<ObisInfo> &obis_info_vec) {
 
 void q3da::publish_value_(const ObisInfo &obis_info) {
   for (auto const &q3da_listener : q3da_listeners_) {
-    //if ((!q3da_listener->server_id.empty()) && (bytes_repr(obis_info.server_id) != q3da_listener->server_id))
+    // if ((!q3da_listener->server_id.empty()) && (bytes_repr(obis_info.server_id) != q3da_listener->server_id))
     //  continue;
     if (obis_info.code_repr() != q3da_listener->obis_code)
       continue;
