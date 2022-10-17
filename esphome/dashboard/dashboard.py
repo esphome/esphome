@@ -936,9 +936,14 @@ class JsonConfigRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        content = yaml_util.load_yaml(filename, clear_secrets=False)
-        self.set_header("content-type", "application/json")
-        self.write(json.dumps(content))
+        try:
+            content = yaml_util.load_yaml(filename, clear_secrets=False)
+            json_content = json.dumps(content, default=lambda o: f"{repr(o)}")
+            self.set_header("content-type", "application/json")
+            self.write(json_content)
+        except Exception as err:  # pylint: disable=broad-except
+            _LOGGER.warning("Error translating file %s to JSON: %s", filename, err)
+            self.send_error(500)
 
 
 def get_base_frontend_path():
