@@ -70,6 +70,11 @@ class RotaryEncoderSensor : public sensor::Sensor, public Component {
     this->store_.counter = value;
     this->loop();
   }
+  
+  // get the value of the counter.
+  int get_value() {
+    return this->store_.counter;
+  }
 
   void set_reset_pin(GPIOPin *pin_i) { this->pin_i_ = pin_i; }
   void set_min_value(int32_t min_value);
