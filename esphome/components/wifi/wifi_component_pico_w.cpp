@@ -44,28 +44,20 @@ bool WiFiComponent::wifi_apply_power_save_() {
   return ret == 0;
 }
 
-bool WiFiComponent::wifi_apply_output_power_(float output_power) {
-  // TODO:
+// TODO: The driver doesnt seem to have an API for this
+bool WiFiComponent::wifi_apply_output_power_(float output_power) { return true; }
+
+bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
+  if (!this->wifi_sta_ip_config_(ap.get_manual_ip()))
+    return false;
+
+  auto ret = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().c_str());
+  if (ret != WL_CONNECTED)
+    return false;
+
   return true;
 }
 
-bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
-  uint32_t auth_mode = CYW43_AUTH_OPEN;
-  if (!ap.get_password().empty()) {
-    auth_mode = CYW43_AUTH_WPA2_MIXED_PSK;
-  }
-
-  const uint8_t *bssid = nullptr;
-  if (ap.get_bssid().has_value()) {
-    bssid = ap.get_bssid().value().data();
-  }
-
-  int err = cyw43_wifi_join(&cyw43_state, ap.get_ssid().length(), (const uint8_t *) ap.get_ssid().c_str(),
-                            ap.get_password().length(), (const uint8_t *) ap.get_password().c_str(), auth_mode, bssid,
-                            ap.get_channel().value_or(0));
-
-  return err == 0;
-}
 bool WiFiComponent::wifi_sta_pre_setup_() { return this->wifi_mode_(true, {}); }
 
 bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
@@ -73,7 +65,13 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
     return true;
   }
 
-  // TODO:
+  IPAddress ip_address = IPAddress(manual_ip->static_ip);
+  IPAddress gateway = IPAddress(manual_ip->gateway);
+  IPAddress subnet = IPAddress(manual_ip->subnet);
+
+  IPAddress dns = IPAddress(manual_ip->dns1);
+
+  WiFi.config(ip_address, dns, gateway, subnet);
   return true;
 }
 
@@ -160,7 +158,6 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   }
   cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
 
-  // cyw43_arch_enable_ap_mode(ssid, ap.get_password().c_str(), CYW43_AUTH_WPA2_MIXED_PSK);
   return true;
 }
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.localIP()}; }
@@ -169,22 +166,21 @@ bool WiFiComponent::wifi_disconnect_() {
   int err = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
   return err == 0;
 }
+// NOTE: The driver does not provide an interface to get this
 bssid_t WiFiComponent::wifi_bssid() {
-  // TODO: The driver does not provide an interface to get this
-  return {};
+  bssid_t bssid{};
+  uint8_t raw_bssid[6];
+  WiFi.BSSID(raw_bssid);
+  for (size_t i = 0; i < bssid.size(); i++)
+    bssid[i] = raw_bssid[i];
+  return bssid;
 }
-std::string WiFiComponent::wifi_ssid() {
-  // TODO: The driver does not provide an interface to get this
-  return "";
-}
-int8_t WiFiComponent::wifi_rssi() {
-  // TODO: The driver does not provide an interface to get this
-  return 0;
-}
-int32_t WiFiComponent::wifi_channel_() {
-  // TODO: The driver does not provide an interface to get this
-  return 0;
-}
+// NOTE: The driver does not provide an interface to get this
+std::string WiFiComponent::wifi_ssid() { return WiFi.SSID(); }
+// NOTE: The driver does not provide an interface to get this
+int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
+// NOTE: The driver does not provide an interface to get this
+int32_t WiFiComponent::wifi_channel_() { return 0; }
 network::IPAddress WiFiComponent::wifi_sta_ip() { return {WiFi.localIP()}; }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
@@ -194,20 +190,13 @@ network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
 }
 
 void WiFiComponent::wifi_loop_() {
-  cyw43_arch_poll();
-
   if (this->state_ == WIFI_COMPONENT_STATE_STA_SCANNING && !cyw43_wifi_scan_active(&cyw43_state)) {
     this->scan_done_ = true;
     ESP_LOGV(TAG, "Scan done!");
   }
 }
 
-void WiFiComponent::wifi_pre_setup_() {
-  if (cyw43_arch_init()) {
-    ESP_LOGE(TAG, "Failed to initialize CYW43");
-    return;
-  }
-}
+void WiFiComponent::wifi_pre_setup_() {}
 
 }  // namespace wifi
 }  // namespace esphome
