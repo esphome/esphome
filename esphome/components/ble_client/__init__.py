@@ -100,12 +100,40 @@ async def ble_write_to_code(config, action_id, template_arg, args):
     else:
         cg.add(var.set_value_simple(value))
 
-    serv_uuid128 = esp32_ble_tracker.as_reversed_hex_array(config[CONF_SERVICE_UUID])
-    cg.add(var.set_service_uuid128(serv_uuid128))
-    char_uuid128 = esp32_ble_tracker.as_reversed_hex_array(
-        config[CONF_CHARACTERISTIC_UUID]
-    )
-    cg.add(var.set_char_uuid128(char_uuid128))
+    if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
+        cg.add(
+            var.set_service_uuid16(esp32_ble_tracker.as_hex(config[CONF_SERVICE_UUID]))
+        )
+    elif len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid32_format):
+        cg.add(
+            var.set_service_uuid32(esp32_ble_tracker.as_hex(config[CONF_SERVICE_UUID]))
+        )
+    elif len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
+        uuid128 = esp32_ble_tracker.as_reversed_hex_array(config[CONF_SERVICE_UUID])
+        cg.add(var.set_service_uuid128(uuid128))
+
+    if len(config[CONF_CHARACTERISTIC_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
+        cg.add(
+            var.set_char_uuid16(
+                esp32_ble_tracker.as_hex(config[CONF_CHARACTERISTIC_UUID])
+            )
+        )
+    elif len(config[CONF_CHARACTERISTIC_UUID]) == len(
+        esp32_ble_tracker.bt_uuid32_format
+    ):
+        cg.add(
+            var.set_char_uuid32(
+                esp32_ble_tracker.as_hex(config[CONF_CHARACTERISTIC_UUID])
+            )
+        )
+    elif len(config[CONF_CHARACTERISTIC_UUID]) == len(
+        esp32_ble_tracker.bt_uuid128_format
+    ):
+        uuid128 = esp32_ble_tracker.as_reversed_hex_array(
+            config[CONF_CHARACTERISTIC_UUID]
+        )
+        cg.add(var.set_char_uuid128(uuid128))
+
     return var
 
 

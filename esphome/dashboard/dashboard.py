@@ -533,7 +533,7 @@ class DashboardEntry:
         return os.path.basename(self.path)
 
     @property
-    def storage(self):  # type: () -> Optional[StorageJSON]
+    def storage(self) -> Optional[StorageJSON]:
         if not self._loaded_storage:
             self._storage = StorageJSON.load(
                 ext_storage_path(settings.config_dir, self.filename)
@@ -829,7 +829,7 @@ class UndoDeleteRequestHandler(BaseHandler):
         shutil.move(os.path.join(trash_path, configuration), config_file)
 
 
-PING_RESULT = {}  # type: dict
+PING_RESULT: dict = {}
 IMPORT_RESULT = {}
 STOP_EVENT = threading.Event()
 PING_REQUEST = threading.Event()
@@ -945,7 +945,7 @@ def get_static_path(*args):
     return os.path.join(get_base_frontend_path(), "static", *args)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def get_static_file_url(name):
     base = f"./static/{name}"
 
