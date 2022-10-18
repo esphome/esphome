@@ -139,10 +139,9 @@ class SPIComponent : public Component {
     if (this->hw_spi_ != nullptr) {
       for (size_t i = 0; i < length; i++) {
 #ifdef USE_RP2040
-        auto *data_c = const_cast<uint8_t *>(data);
-        this->hw_spi_->transfer16(data_c);
+        this->hw_spi_->transfer16(data[i]);
 #else
-        this->hw_spi_->write16(data);
+        this->hw_spi_->write16(data[i]);
 #endif
       }
       return;
