@@ -1,7 +1,7 @@
 import socket
 import threading
 import time
-from typing import Dict, Optional
+from typing import Optional
 import logging
 from dataclasses import dataclass
 
@@ -71,12 +71,12 @@ class DashboardStatus(threading.Thread):
         threading.Thread.__init__(self)
         self.zc = zc
         self.query_hosts: set[str] = set()
-        self.key_to_host: Dict[str, str] = {}
+        self.key_to_host: dict[str, str] = {}
         self.stop_event = threading.Event()
         self.query_event = threading.Event()
         self.on_update = on_update
 
-    def request_query(self, hosts: Dict[str, str]) -> None:
+    def request_query(self, hosts: dict[str, str]) -> None:
         self.query_hosts = set(hosts.values())
         self.key_to_host = hosts
         self.query_event.set()
@@ -118,6 +118,7 @@ ESPHOME_SERVICE_TYPE = "_esphomelib._tcp.local."
 TXT_RECORD_PACKAGE_IMPORT_URL = b"package_import_url"
 TXT_RECORD_PROJECT_NAME = b"project_name"
 TXT_RECORD_PROJECT_VERSION = b"project_version"
+TXT_RECORD_NETWORK = b"network"
 
 
 @dataclass
@@ -126,6 +127,7 @@ class DiscoveredImport:
     package_import_url: str
     project_name: str
     project_version: str
+    network: str
 
 
 class DashboardImportDiscovery:
@@ -134,7 +136,7 @@ class DashboardImportDiscovery:
         self.service_browser = ServiceBrowser(
             self.zc, ESPHOME_SERVICE_TYPE, [self._on_update]
         )
-        self.import_state = {}
+        self.import_state: dict[str, DiscoveredImport] = {}
 
     def _on_update(
         self,
@@ -171,12 +173,14 @@ class DashboardImportDiscovery:
         import_url = info.properties[TXT_RECORD_PACKAGE_IMPORT_URL].decode()
         project_name = info.properties[TXT_RECORD_PROJECT_NAME].decode()
         project_version = info.properties[TXT_RECORD_PROJECT_VERSION].decode()
+        network = info.properties.get(TXT_RECORD_NETWORK, b"wifi").decode()
 
         self.import_state[name] = DiscoveredImport(
             device_name=node_name,
             package_import_url=import_url,
             project_name=project_name,
             project_version=project_version,
+            network=network,
         )
 
     def cancel(self) -> None:

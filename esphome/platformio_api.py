@@ -1,6 +1,6 @@
 from dataclasses import dataclass
 import json
-from typing import List, Union
+from typing import Union
 from pathlib import Path
 
 import logging
@@ -20,7 +20,7 @@ def patch_structhash():
     # removed/added. This might have unintended consequences, but this improves compile
     # times greatly when adding/removing components and a simple clean build solves
     # all issues
-    from platformio.commands.run import helpers, command
+    from platformio.run import helpers, cli
     from os.path import join, isdir, getmtime
     from os import makedirs
 
@@ -39,7 +39,7 @@ def patch_structhash():
 
     # pylint: disable=protected-access
     helpers.clean_build_dir = patched_clean_build_dir
-    command.clean_build_dir = patched_clean_build_dir
+    cli.clean_build_dir = patched_clean_build_dir
 
 
 IGNORE_LIB_WARNINGS = f"(?:{'|'.join(['Hash', 'Update'])})"
@@ -310,7 +310,7 @@ class IDEData:
         return str(Path(self.firmware_elf_path).with_suffix(".bin"))
 
     @property
-    def extra_flash_images(self) -> List[FlashImage]:
+    def extra_flash_images(self) -> list[FlashImage]:
         return [
             FlashImage(path=entry["path"], offset=entry["offset"])
             for entry in self.raw["extra"]["flash_images"]

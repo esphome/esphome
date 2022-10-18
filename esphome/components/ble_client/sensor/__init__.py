@@ -2,20 +2,26 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, ble_client, esp32_ble_tracker
 from esphome.const import (
+    CONF_CHARACTERISTIC_UUID,
     CONF_LAMBDA,
     CONF_TRIGGER_ID,
+    CONF_TYPE,
     CONF_SERVICE_UUID,
+    DEVICE_CLASS_SIGNAL_STRENGTH,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_DECIBEL_MILLIWATT,
 )
 from esphome import automation
 from .. import ble_client_ns
 
 DEPENDENCIES = ["ble_client"]
 
-CONF_CHARACTERISTIC_UUID = "characteristic_uuid"
 CONF_DESCRIPTOR_UUID = "descriptor_uuid"
 
 CONF_NOTIFY = "notify"
 CONF_ON_NOTIFY = "on_notify"
+TYPE_CHARACTERISTIC = "characteristic"
+TYPE_RSSI = "rssi"
 
 adv_data_t = cg.std_vector.template(cg.uint8)
 adv_data_t_const_ref = adv_data_t.operator("ref").operator("const")
@@ -27,33 +33,67 @@ BLESensorNotifyTrigger = ble_client_ns.class_(
     "BLESensorNotifyTrigger", automation.Trigger.template(cg.float_)
 )
 
-CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(
-        BLESensor,
-        accuracy_decimals=0,
-    )
-    .extend(
-        {
-            cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
-            cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
-            cv.Optional(CONF_DESCRIPTOR_UUID): esp32_ble_tracker.bt_uuid,
-            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-            cv.Optional(CONF_NOTIFY, default=False): cv.boolean,
-            cv.Optional(CONF_ON_NOTIFY): automation.validate_automation(
-                {
-                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
-                        BLESensorNotifyTrigger
-                    ),
-                }
-            ),
-        }
-    )
-    .extend(cv.polling_component_schema("60s"))
-    .extend(ble_client.BLE_CLIENT_SCHEMA)
+BLEClientRssiSensor = ble_client_ns.class_(
+    "BLEClientRSSISensor", sensor.Sensor, cg.PollingComponent, ble_client.BLEClientNode
 )
 
 
-async def to_code(config):
+def checkType(value):
+    if CONF_TYPE not in value and CONF_SERVICE_UUID in value:
+        raise cv.Invalid(
+            "Looks like you're trying to create a ble characteristic sensor. Please add `type: characteristic` to your sensor config."
+        )
+    return value
+
+
+CONFIG_SCHEMA = cv.All(
+    checkType,
+    cv.typed_schema(
+        {
+            TYPE_CHARACTERISTIC: sensor.sensor_schema(
+                BLESensor,
+                accuracy_decimals=0,
+            )
+            .extend(cv.polling_component_schema("60s"))
+            .extend(ble_client.BLE_CLIENT_SCHEMA)
+            .extend(
+                {
+                    cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
+                    cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
+                    cv.Optional(CONF_DESCRIPTOR_UUID): esp32_ble_tracker.bt_uuid,
+                    cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+                    cv.Optional(CONF_NOTIFY, default=False): cv.boolean,
+                    cv.Optional(CONF_ON_NOTIFY): automation.validate_automation(
+                        {
+                            cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                                BLESensorNotifyTrigger
+                            ),
+                        }
+                    ),
+                }
+            ),
+            TYPE_RSSI: sensor.sensor_schema(
+                BLEClientRssiSensor,
+                accuracy_decimals=0,
+                unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
+                device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
+                state_class=STATE_CLASS_MEASUREMENT,
+            )
+            .extend(cv.polling_component_schema("60s"))
+            .extend(ble_client.BLE_CLIENT_SCHEMA),
+        },
+        lower=True,
+    ),
+)
+
+
+async def rssi_sensor_to_code(config):
+    var = await sensor.new_sensor(config)
+    await cg.register_component(var, config)
+    await ble_client.register_ble_node(var, config)
+
+
+async def characteristic_sensor_to_code(config):
     var = await sensor.new_sensor(config)
     if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
         cg.add(
@@ -125,3 +165,10 @@ async def to_code(config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await ble_client.register_ble_node(trigger, config)
         await automation.build_automation(trigger, [(float, "x")], conf)
+
+
+async def to_code(config):
+    if config[CONF_TYPE] == TYPE_RSSI:
+        await rssi_sensor_to_code(config)
+    elif config[CONF_TYPE] == TYPE_CHARACTERISTIC:
+        await characteristic_sensor_to_code(config)

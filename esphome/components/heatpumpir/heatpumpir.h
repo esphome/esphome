@@ -53,6 +53,7 @@ enum Protocol {
   PROTOCOL_SHARP,
   PROTOCOL_TOSHIBA_DAISEIKAI,
   PROTOCOL_TOSHIBA,
+  PROTOCOL_ZHLT01,
 };
 
 // Simple enum to represent horizontal directios

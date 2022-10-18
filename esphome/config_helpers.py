@@ -5,8 +5,7 @@ from esphome.core import CORE
 from esphome.helpers import read_file
 
 
-def read_config_file(path):
-    # type: (str) -> str
+def read_config_file(path: str) -> str:
     if CORE.vscode and (
         not CORE.ace or os.path.abspath(path) == os.path.abspath(CORE.config_path)
     ):

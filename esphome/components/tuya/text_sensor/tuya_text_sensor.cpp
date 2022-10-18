@@ -20,7 +20,7 @@ void TuyaTextSensor::setup() {
         break;
       }
       default:
-        ESP_LOGW(TAG, "Unsupported data type for tuya text sensor %u: %#02hhX", datapoint.id, datapoint.type);
+        ESP_LOGW(TAG, "Unsupported data type for tuya text sensor %u: %#02hhX", datapoint.id, (uint8_t) datapoint.type);
         break;
     }
   });

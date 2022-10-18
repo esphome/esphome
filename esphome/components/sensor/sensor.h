@@ -36,6 +36,7 @@ enum StateClass : uint8_t {
   STATE_CLASS_NONE = 0,
   STATE_CLASS_MEASUREMENT = 1,
   STATE_CLASS_TOTAL_INCREASING = 2,
+  STATE_CLASS_TOTAL = 3,
 };
 
 std::string state_class_to_string(StateClass state_class);
@@ -173,8 +174,6 @@ class Sensor : public EntityBase {
    * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
    */
   virtual StateClass state_class();  // NOLINT
-
-  uint32_t hash_base() override;
 
   CallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
   CallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.

@@ -42,6 +42,17 @@ service APIConnection {
   rpc select_command (SelectCommandRequest) returns (void) {}
   rpc button_command (ButtonCommandRequest) returns (void) {}
   rpc lock_command (LockCommandRequest) returns (void) {}
+  rpc media_player_command (MediaPlayerCommandRequest) returns (void) {}
+
+  rpc subscribe_bluetooth_le_advertisements(SubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
+  rpc bluetooth_device_request(BluetoothDeviceRequest) returns (void) {}
+  rpc bluetooth_gatt_get_services(BluetoothGATTGetServicesRequest) returns (void) {}
+  rpc bluetooth_gatt_read(BluetoothGATTReadRequest) returns (void) {}
+  rpc bluetooth_gatt_write(BluetoothGATTWriteRequest) returns (void) {}
+  rpc bluetooth_gatt_read_descriptor(BluetoothGATTReadDescriptorRequest) returns (void) {}
+  rpc bluetooth_gatt_write_descriptor(BluetoothGATTWriteDescriptorRequest) returns (void) {}
+  rpc bluetooth_gatt_notify(BluetoothGATTNotifyRequest) returns (void) {}
+  rpc subscribe_bluetooth_connections_free(SubscribeBluetoothConnectionsFreeRequest) returns (BluetoothConnectionsFreeResponse) {}
 }
 
 
@@ -76,6 +87,8 @@ message HelloRequest {
   // Not strictly necessary to send but nice for debugging
   // purposes.
   string client_info = 1;
+  uint32 api_version_major = 2;
+  uint32 api_version_minor = 3;
 }
 
 // Confirmation of successful connection request.
@@ -189,6 +202,8 @@ message DeviceInfoResponse {
   string project_version = 9;
 
   uint32 webserver_port = 10;
+
+  uint32 bluetooth_proxy_version = 11;
 }
 
 message ListEntitiesRequest {
@@ -472,6 +487,7 @@ enum SensorStateClass {
   STATE_CLASS_NONE = 0;
   STATE_CLASS_MEASUREMENT = 1;
   STATE_CLASS_TOTAL_INCREASING = 2;
+  STATE_CLASS_TOTAL = 3;
 }
 
 enum SensorLastResetType {
@@ -991,7 +1007,7 @@ message ListEntitiesLockResponse {
   bool supports_open = 9;
   bool requires_code = 10;
 
-  # Not yet implemented:
+  // Not yet implemented:
   string code_format = 11;
 }
 message LockStateResponse {
@@ -1010,7 +1026,7 @@ message LockCommandRequest {
   fixed32 key = 1;
   LockCommand command = 2;
 
-  # Not yet implemented:
+  // Not yet implemented:
   bool has_code = 3;
   string code = 4;
 }
@@ -1040,3 +1056,273 @@ message ButtonCommandRequest {
   fixed32 key = 1;
 }
 
+// ==================== MEDIA PLAYER ====================
+enum MediaPlayerState {
+  MEDIA_PLAYER_STATE_NONE = 0;
+  MEDIA_PLAYER_STATE_IDLE = 1;
+  MEDIA_PLAYER_STATE_PLAYING = 2;
+  MEDIA_PLAYER_STATE_PAUSED = 3;
+}
+enum MediaPlayerCommand {
+  MEDIA_PLAYER_COMMAND_PLAY = 0;
+  MEDIA_PLAYER_COMMAND_PAUSE = 1;
+  MEDIA_PLAYER_COMMAND_STOP = 2;
+  MEDIA_PLAYER_COMMAND_MUTE = 3;
+  MEDIA_PLAYER_COMMAND_UNMUTE = 4;
+}
+message ListEntitiesMediaPlayerResponse {
+  option (id) = 63;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_MEDIA_PLAYER";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+
+  bool supports_pause = 8;
+}
+message MediaPlayerStateResponse {
+  option (id) = 64;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_MEDIA_PLAYER";
+  option (no_delay) = true;
+  fixed32 key = 1;
+  MediaPlayerState state = 2;
+  float volume = 3;
+  bool muted = 4;
+}
+message MediaPlayerCommandRequest {
+  option (id) = 65;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_MEDIA_PLAYER";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+
+  bool has_command = 2;
+  MediaPlayerCommand command = 3;
+
+  bool has_volume = 4;
+  float volume = 5;
+
+  bool has_media_url = 6;
+  string media_url = 7;
+}
+
+// ==================== BLUETOOTH ====================
+message SubscribeBluetoothLEAdvertisementsRequest {
+  option (id) = 66;
+  option (source) = SOURCE_CLIENT;
+}
+
+message BluetoothServiceData {
+  string uuid = 1;
+  repeated uint32 legacy_data = 2 [deprecated = true];
+  bytes data = 3; // Changed in proto version 1.7
+}
+message BluetoothLEAdvertisementResponse {
+  option (id) = 67;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (no_delay) = true;
+
+  uint64 address = 1;
+  string name = 2;
+  sint32 rssi = 3;
+
+  repeated string service_uuids = 4;
+  repeated BluetoothServiceData service_data = 5;
+  repeated BluetoothServiceData manufacturer_data = 6;
+}
+
+enum BluetoothDeviceRequestType {
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT = 0;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR = 2;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3;
+}
+
+message BluetoothDeviceRequest {
+  option (id) = 68;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  BluetoothDeviceRequestType request_type = 2;
+}
+
+message BluetoothDeviceConnectionResponse {
+  option (id) = 69;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  bool connected = 2;
+  uint32 mtu = 3;
+  int32 error = 4;
+}
+
+message BluetoothGATTGetServicesRequest {
+  option (id) = 70;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+}
+
+message BluetoothGATTDescriptor {
+  repeated uint64 uuid = 1;
+  uint32 handle = 2;
+}
+
+message BluetoothGATTCharacteristic {
+  repeated uint64 uuid = 1;
+  uint32 handle = 2;
+  uint32 properties = 3;
+  repeated BluetoothGATTDescriptor descriptors = 4;
+}
+
+message BluetoothGATTService {
+  repeated uint64 uuid = 1;
+  uint32 handle = 2;
+  repeated BluetoothGATTCharacteristic characteristics = 3;
+}
+
+message BluetoothGATTGetServicesResponse {
+  option (id) = 71;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  repeated BluetoothGATTService services = 2;
+}
+
+message BluetoothGATTGetServicesDoneResponse {
+  option (id) = 72;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+}
+
+message BluetoothGATTReadRequest {
+  option (id) = 73;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+}
+
+message BluetoothGATTReadResponse {
+  option (id) = 74;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+
+  bytes data = 3;
+
+}
+
+message BluetoothGATTWriteRequest {
+  option (id) = 75;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+  bool response = 3;
+
+  bytes data = 4;
+}
+
+message BluetoothGATTReadDescriptorRequest {
+  option (id) = 76;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+}
+
+message BluetoothGATTWriteDescriptorRequest {
+  option (id) = 77;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+
+  bytes data = 3;
+}
+
+message BluetoothGATTNotifyRequest {
+  option (id) = 78;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+  bool enable = 3;
+}
+
+message BluetoothGATTNotifyDataResponse {
+  option (id) = 79;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+
+  bytes data = 3;
+}
+
+message SubscribeBluetoothConnectionsFreeRequest {
+  option (id) = 80;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+}
+
+message BluetoothConnectionsFreeResponse {
+  option (id) = 81;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint32 free = 1;
+  uint32 limit = 2;
+}
+
+message BluetoothGATTErrorResponse {
+  option (id) = 82;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+  int32 error = 3;
+}
+
+message BluetoothGATTWriteResponse {
+  option (id) = 83;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+}
+
+message BluetoothGATTNotifyResponse {
+  option (id) = 84;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  uint32 handle = 2;
+}

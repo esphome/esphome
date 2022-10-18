@@ -88,10 +88,12 @@ def main():
                 sys.exit(1)
 
     # detect channel from tag
-    match = re.match(r'^\d+\.\d+(?:\.\d+)?(b\d+)?$', args.tag)
+    match = re.match(r"^(\d+\.\d+)(?:\.\d+)?(b\d+)?$", args.tag)
+    major_minor_version = None
     if match is None:
         channel = CHANNEL_DEV
-    elif match.group(1) is None:
+    elif match.group(2) is None:
+        major_minor_version = match.group(1)
         channel = CHANNEL_RELEASE
     else:
         channel = CHANNEL_BETA
@@ -105,6 +107,11 @@ def main():
         # Additionally push to beta
         tags_to_push.append("beta")
         tags_to_push.append("latest")
+
+        # Compatibility with HA tags
+        if major_minor_version:
+            tags_to_push.append("stable")
+            tags_to_push.append(major_minor_version)
 
     if args.command == "build":
         # 1. pull cache image
