@@ -271,33 +271,34 @@ def upload_using_esptool(config, port):
 
 
 def upload_program(config, args, host):
-    if CORE.target_platform in (PLATFORM_RP2040):
-        from esphome import platformio_api
-
-        upload_args = ["-t", "upload"]
-        if args.device is not None:
-            upload_args += ["--upload-port", args.device]
-        return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
-
-    if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
-        # if upload is to a serial port use platformio, otherwise assume ota
-        if get_port_type(host) == "SERIAL":
+    if get_port_type(host) == "SERIAL":
+        if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
             return upload_using_esptool(config, host)
 
-        from esphome import espota2
+        if CORE.target_platform in (PLATFORM_RP2040):
+            from esphome import platformio_api
 
-        if CONF_OTA not in config:
-            raise EsphomeError(
-                "Cannot upload Over the Air as the config does not include the ota: "
-                "component"
+            upload_args = ["-t", "upload"]
+            if args.device is not None:
+                upload_args += ["--upload-port", args.device]
+            return platformio_api.run_platformio_cli_run(
+                config, CORE.verbose, *upload_args
             )
 
-        ota_conf = config[CONF_OTA]
-        remote_port = ota_conf[CONF_PORT]
-        password = ota_conf.get(CONF_PASSWORD, "")
-        return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
+        return 1  # Unknown target platform
 
-    return 1
+    from esphome import espota2
+
+    if CONF_OTA not in config:
+        raise EsphomeError(
+            "Cannot upload Over the Air as the config does not include the ota: "
+            "component"
+        )
+
+    ota_conf = config[CONF_OTA]
+    remote_port = ota_conf[CONF_PORT]
+    password = ota_conf.get(CONF_PASSWORD, "")
+    return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
 def show_logs(config, args, port):
