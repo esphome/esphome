@@ -159,6 +159,57 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_BLUETOOTH_PROXY
   bool send_bluetooth_le_advertisement_response(const BluetoothLEAdvertisementResponse &msg);
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_bluetooth_device_request(const BluetoothDeviceRequest &value){};
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_device_connection_response(const BluetoothDeviceConnectionResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &value){};
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_gatt_get_services_response(const BluetoothGATTGetServicesResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_gatt_get_services_done_response(const BluetoothGATTGetServicesDoneResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &value){};
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_bluetooth_gatt_write_request(const BluetoothGATTWriteRequest &value){};
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_bluetooth_gatt_read_descriptor_request(const BluetoothGATTReadDescriptorRequest &value){};
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_bluetooth_gatt_write_descriptor_request(const BluetoothGATTWriteDescriptorRequest &value){};
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &value){};
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_gatt_notify_data_response(const BluetoothGATTNotifyDataResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &value){};
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_connections_free_response(const BluetoothConnectionsFreeResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_gatt_error_response(const BluetoothGATTErrorResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_gatt_notify_response(const BluetoothGATTNotifyResponse &msg);
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
@@ -175,7 +226,6 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void subscribe_logs(const SubscribeLogsRequest &msg) = 0;
   virtual void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) = 0;
   virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
-  virtual void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
   virtual GetTimeResponse get_time(const GetTimeRequest &msg) = 0;
   virtual void execute_service(const ExecuteServiceRequest &msg) = 0;
 #ifdef USE_COVER
@@ -211,6 +261,32 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_MEDIA_PLAYER
   virtual void media_player_command(const MediaPlayerCommandRequest &msg) = 0;
 #endif
+  virtual void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void bluetooth_device_request(const BluetoothDeviceRequest &msg) = 0;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void bluetooth_gatt_get_services(const BluetoothGATTGetServicesRequest &msg) = 0;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void bluetooth_gatt_read(const BluetoothGATTReadRequest &msg) = 0;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void bluetooth_gatt_write(const BluetoothGATTWriteRequest &msg) = 0;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void bluetooth_gatt_read_descriptor(const BluetoothGATTReadDescriptorRequest &msg) = 0;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void bluetooth_gatt_write_descriptor(const BluetoothGATTWriteDescriptorRequest &msg) = 0;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) = 0;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  virtual BluetoothConnectionsFreeResponse subscribe_bluetooth_connections_free(
+      const SubscribeBluetoothConnectionsFreeRequest &msg) = 0;
+#endif
  protected:
   void on_hello_request(const HelloRequest &msg) override;
   void on_connect_request(const ConnectRequest &msg) override;
@@ -222,7 +298,6 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_subscribe_logs_request(const SubscribeLogsRequest &msg) override;
   void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) override;
   void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) override;
-  void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
   void on_get_time_request(const GetTimeRequest &msg) override;
   void on_execute_service_request(const ExecuteServiceRequest &msg) override;
 #ifdef USE_COVER
@@ -257,6 +332,31 @@ class APIServerConnection : public APIServerConnectionBase {
 #endif
 #ifdef USE_MEDIA_PLAYER
   void on_media_player_command_request(const MediaPlayerCommandRequest &msg) override;
+#endif
+  void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
+#ifdef USE_BLUETOOTH_PROXY
+  void on_bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  void on_bluetooth_gatt_get_services_request(const BluetoothGATTGetServicesRequest &msg) override;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  void on_bluetooth_gatt_read_request(const BluetoothGATTReadRequest &msg) override;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  void on_bluetooth_gatt_write_request(const BluetoothGATTWriteRequest &msg) override;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  void on_bluetooth_gatt_read_descriptor_request(const BluetoothGATTReadDescriptorRequest &msg) override;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  void on_bluetooth_gatt_write_descriptor_request(const BluetoothGATTWriteDescriptorRequest &msg) override;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  void on_bluetooth_gatt_notify_request(const BluetoothGATTNotifyRequest &msg) override;
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  void on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &msg) override;
 #endif
 };
 

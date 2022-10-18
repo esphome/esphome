@@ -58,6 +58,7 @@ PROTOCOLS = {
     "sharp": Protocol.PROTOCOL_SHARP,
     "toshiba_daiseikai": Protocol.PROTOCOL_TOSHIBA_DAISEIKAI,
     "toshiba": Protocol.PROTOCOL_TOSHIBA,
+    "zhlt01": Protocol.PROTOCOL_ZHLT01,
 }
 
 CONF_HORIZONTAL_DEFAULT = "horizontal_default"
