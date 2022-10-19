@@ -1880,6 +1880,9 @@ climate:
     name: Fujitsu General Climate
   - platform: daikin
     name: Daikin Climate
+  - platform: daikin_brc
+    name: Daikin BRC Climate
+    use_fahrenheit: true
   - platform: delonghi
     name: Delonghi Climate
   - platform: yashima
