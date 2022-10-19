@@ -487,3 +487,5 @@ display:
     lambda: |-
       it.print("81818181");
 
+time:
+  - platform: pcf85063
