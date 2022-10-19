@@ -2945,6 +2945,23 @@ select:
     source_id: test_select
     name: Test Select Copy
 
+hdmi_cec:
+  address: 0x05
+  promiscuous_mode: false
+  physical_address: 0x4000
+  pin: 5
+  on_message:
+    - opcode: 0xC3
+      source: 0x00
+      destination: 0x05
+      then:
+        - hdmi_cec.send:
+            destination: 0x0
+            data: [ 0xC1 ]
+    - data: [0x44, 0x41]
+      then:
+        - logger.log: "Volume up"
+
 qr_code:
   - id: homepage_qr
     value: https://esphome.io/index.html
