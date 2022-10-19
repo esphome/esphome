@@ -15,59 +15,89 @@ LD2410Component = ld2410_ns.class_(
 
 LD2410SetConfigMode = ld2410_ns.class_("LD2410SetConfigMode", automation.Action)
 CONF_LD2410_ID = "ld2410_id"
-CONF_LD2410_MAXMOVEDISTANCE = "max_move_distance"
-CONF_LD2410_MAXSTILLDISTANCE = "max_still_distance"
-CONF_LD2410_NONE_DURATION = "no_one_duration"
-CONF_LD2410_G0_MOVE = "g0_move_sensitivity"
-CONF_LD2410_G0_STILL = "g0_still_sensitivity"
-CONF_LD2410_G1_MOVE = "g1_move_sensitivity"
-CONF_LD2410_G1_STILL = "g1_still_sensitivity"
-CONF_LD2410_G2_MOVE = "g2_move_sensitivity"
-CONF_LD2410_G2_STILL = "g2_still_sensitivity"
-CONF_LD2410_G3_MOVE = "g3_move_sensitivity"
-CONF_LD2410_G3_STILL = "g3_still_sensitivity"
-CONF_LD2410_G4_MOVE = "g4_move_sensitivity"
-CONF_LD2410_G4_STILL = "g4_still_sensitivity"
-CONF_LD2410_G5_MOVE = "g5_move_sensitivity"
-CONF_LD2410_G5_STILL = "g5_still_sensitivity"
-CONF_LD2410_G6_MOVE = "g6_move_sensitivity"
-CONF_LD2410_G6_STILL = "g6_still_sensitivity"
-CONF_LD2410_G7_MOVE = "g7_move_sensitivity"
-CONF_LD2410_G7_STILL = "g7_still_sensitivity"
-CONF_LD2410_G8_MOVE = "g8_move_sensitivity"
-CONF_LD2410_G8_STILL = "g8_still_sensitivity"
+CONF_MAX_MOVE_DISTANCE = "max_move_distance"
+CONF_MAX_STILL_DISTANCE = "max_still_distance"
+CONF_NONE_DURATION = "none_duration"
+CONF_G0_MOVE_SENSITIVITY = "g0_move_sensitivity"
+CONF_G0_STILL_SENSITIVITY = "g0_still_sensitivity"
+CONF_G1_MOVE_SENSITIVITY = "g1_move_sensitivity"
+CONF_G1_STILL_SENSITIVITY = "g1_still_sensitivity"
+CONF_G2_MOVE_SENSITIVITY = "g2_move_sensitivity"
+CONF_G2_STILL_SENSITIVITY = "g2_still_sensitivity"
+CONF_G3_MOVE_SENSITIVITY = "g3_move_sensitivity"
+CONF_G3_STILL_SENSITIVITY = "g3_still_sensitivity"
+CONF_G4_MOVE_SENSITIVITY = "g4_move_sensitivity"
+CONF_G4_STILL_SENSITIVITY = "g4_still_sensitivity"
+CONF_G5_MOVE_SENSITIVITY = "g5_move_sensitivity"
+CONF_G5_STILL_SENSITIVITY = "g5_still_sensitivity"
+CONF_G6_MOVE_SENSITIVITY = "g6_move_sensitivity"
+CONF_G6_STILL_SENSITIVITY = "g6_still_sensitivity"
+CONF_G7_MOVE_SENSITIVITY = "g7_move_sensitivity"
+CONF_G7_STILL_SENSITIVITY = "g7_still_sensitivity"
+CONF_G8_MOVE_SENSITIVITY = "g8_move_sensitivity"
+CONF_G8_STILL_SENSITIVITY = "g8_still_sensitivity"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(LD2410Component),
-            cv.Optional(CONF_LD2410_MAXMOVEDISTANCE, default=6): cv.int_range(
-                min=1, max=8
+            cv.Optional(CONF_MAX_MOVE_DISTANCE, default=6): cv.int_range(min=1, max=8),
+            cv.Optional(CONF_MAX_STILL_DISTANCE, default=6): cv.int_range(min=1, max=8),
+            cv.Optional(CONF_NONE_DURATION, default=5): cv.int_range(min=0, max=32767),
+            cv.Optional(CONF_G0_MOVE_SENSITIVITY, default=50): cv.int_range(
+                min=0, max=100
             ),
-            cv.Optional(CONF_LD2410_MAXSTILLDISTANCE, default=6): cv.int_range(
-                min=1, max=8
+            cv.Optional(CONF_G0_STILL_SENSITIVITY, default=0): cv.int_range(
+                min=0, max=100
             ),
-            cv.Optional(CONF_LD2410_NONE_DURATION, default=5): cv.int_range(
-                min=0, max=32767
+            cv.Optional(CONF_G1_MOVE_SENSITIVITY, default=50): cv.int_range(
+                min=0, max=100
             ),
-            cv.Optional(CONF_LD2410_G0_MOVE, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G0_STILL, default=0): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G1_MOVE, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G1_STILL, default=0): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G2_MOVE, default=40): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G2_STILL, default=40): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G3_MOVE, default=40): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G3_STILL, default=40): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G4_MOVE, default=40): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G4_STILL, default=40): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G5_MOVE, default=40): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G5_STILL, default=40): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G6_MOVE, default=30): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G6_STILL, default=15): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G7_MOVE, default=30): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G7_STILL, default=15): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G8_MOVE, default=30): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G8_STILL, default=15): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_G1_STILL_SENSITIVITY, default=0): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G2_MOVE_SENSITIVITY, default=40): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G2_STILL_SENSITIVITY, default=40): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G3_MOVE_SENSITIVITY, default=40): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G3_STILL_SENSITIVITY, default=40): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G4_MOVE_SENSITIVITY, default=40): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G4_STILL_SENSITIVITY, default=40): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G5_MOVE_SENSITIVITY, default=40): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G5_STILL_SENSITIVITY, default=40): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G6_MOVE_SENSITIVITY, default=30): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G6_STILL_SENSITIVITY, default=15): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G7_MOVE_SENSITIVITY, default=30): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G7_STILL_SENSITIVITY, default=15): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G8_MOVE_SENSITIVITY, default=30): cv.int_range(
+                min=0, max=100
+            ),
+            cv.Optional(CONF_G8_STILL_SENSITIVITY, default=15): cv.int_range(
+                min=0, max=100
+            ),
         }
     ).extend(uart.UART_DEVICE_SCHEMA)
 )
@@ -77,29 +107,29 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.setNoneDuration(config[CONF_LD2410_NONE_DURATION]))
-    cg.add(var.setMaxMoveDistance(config[CONF_LD2410_MAXMOVEDISTANCE]))
-    cg.add(var.setMaxStillDistance(config[CONF_LD2410_MAXSTILLDISTANCE]))
+    cg.add(var.setNoneDuration(config[CONF_NONE_DURATION]))
+    cg.add(var.setMaxMoveDistance(config[CONF_MAX_MOVE_DISTANCE]))
+    cg.add(var.setMaxStillDistance(config[CONF_MAX_STILL_DISTANCE]))
     cg.add(
         var.setRangeConfig(
-            config[CONF_LD2410_G0_MOVE],
-            config[CONF_LD2410_G0_STILL],
-            config[CONF_LD2410_G1_MOVE],
-            config[CONF_LD2410_G1_STILL],
-            config[CONF_LD2410_G2_MOVE],
-            config[CONF_LD2410_G2_STILL],
-            config[CONF_LD2410_G3_MOVE],
-            config[CONF_LD2410_G3_STILL],
-            config[CONF_LD2410_G4_MOVE],
-            config[CONF_LD2410_G4_STILL],
-            config[CONF_LD2410_G5_MOVE],
-            config[CONF_LD2410_G5_STILL],
-            config[CONF_LD2410_G6_MOVE],
-            config[CONF_LD2410_G6_STILL],
-            config[CONF_LD2410_G7_MOVE],
-            config[CONF_LD2410_G7_STILL],
-            config[CONF_LD2410_G8_MOVE],
-            config[CONF_LD2410_G8_STILL],
+            config[CONF_G0_MOVE_SENSITIVITY],
+            config[CONF_G0_STILL_SENSITIVITY],
+            config[CONF_G1_MOVE_SENSITIVITY],
+            config[CONF_G1_STILL_SENSITIVITY],
+            config[CONF_G2_MOVE_SENSITIVITY],
+            config[CONF_G2_STILL_SENSITIVITY],
+            config[CONF_G3_MOVE_SENSITIVITY],
+            config[CONF_G3_STILL_SENSITIVITY],
+            config[CONF_G4_MOVE_SENSITIVITY],
+            config[CONF_G4_STILL_SENSITIVITY],
+            config[CONF_G5_MOVE_SENSITIVITY],
+            config[CONF_G5_STILL_SENSITIVITY],
+            config[CONF_G6_MOVE_SENSITIVITY],
+            config[CONF_G6_STILL_SENSITIVITY],
+            config[CONF_G7_MOVE_SENSITIVITY],
+            config[CONF_G7_STILL_SENSITIVITY],
+            config[CONF_G8_MOVE_SENSITIVITY],
+            config[CONF_G8_STILL_SENSITIVITY],
         )
     )
 

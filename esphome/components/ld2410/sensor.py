@@ -10,27 +10,27 @@ from esphome.const import (
 from . import CONF_LD2410_ID, LD2410Component
 
 DEPENDENCIES = ["ld2410"]
-CONF_MOVINGTARGETDISTANCE = "moving_distance"
-CONF_STILLTARGETDISTANCE = "still_distance"
-CONF_MOVINGTARGETENERGY = "moving_energy"
-CONF_STILLTARGETENERGY = "still_energy"
-CONF_DETECTIONDISTANCE = "detection_distance"
+CONF_MOVING_DISTANCE = "moving_distance"
+CONF_STILL_DISTANCE = "still_distance"
+CONF_MOVING_ENERGY = "moving_energy"
+CONF_STILL_ENERGY = "still_energy"
+CONF_DETECTION_DISTANCE = "detection_distance"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
-    cv.Optional(CONF_MOVINGTARGETDISTANCE): sensor.sensor_schema(
+    cv.Optional(CONF_MOVING_DISTANCE): sensor.sensor_schema(
         device_class=DEVICE_CLASS_DISTANCE, unit_of_measurement=UNIT_CENTIMETER
     ),
-    cv.Optional(CONF_STILLTARGETDISTANCE): sensor.sensor_schema(
+    cv.Optional(CONF_STILL_DISTANCE): sensor.sensor_schema(
         device_class=DEVICE_CLASS_DISTANCE, unit_of_measurement=UNIT_CENTIMETER
     ),
-    cv.Optional(CONF_MOVINGTARGETENERGY): sensor.sensor_schema(
+    cv.Optional(CONF_MOVING_ENERGY): sensor.sensor_schema(
         device_class=DEVICE_CLASS_ENERGY, unit_of_measurement=UNIT_PERCENT
     ),
-    cv.Optional(CONF_STILLTARGETENERGY): sensor.sensor_schema(
+    cv.Optional(CONF_STILL_ENERGY): sensor.sensor_schema(
         device_class=DEVICE_CLASS_ENERGY, unit_of_measurement=UNIT_PERCENT
     ),
-    cv.Optional(CONF_DETECTIONDISTANCE): sensor.sensor_schema(
+    cv.Optional(CONF_DETECTION_DISTANCE): sensor.sensor_schema(
         device_class=DEVICE_CLASS_DISTANCE, unit_of_measurement=UNIT_CENTIMETER
     ),
 }
@@ -38,18 +38,18 @@ CONFIG_SCHEMA = {
 
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
-    if CONF_MOVINGTARGETDISTANCE in config:
-        sens = await sensor.new_sensor(config[CONF_MOVINGTARGETDISTANCE])
+    if CONF_MOVING_DISTANCE in config:
+        sens = await sensor.new_sensor(config[CONF_MOVING_DISTANCE])
         cg.add(ld2410_component.setmovingdistancesensor(sens))
-    if CONF_STILLTARGETDISTANCE in config:
-        sens = await sensor.new_sensor(config[CONF_STILLTARGETDISTANCE])
+    if CONF_STILL_DISTANCE in config:
+        sens = await sensor.new_sensor(config[CONF_STILL_DISTANCE])
         cg.add(ld2410_component.setstilldistancesensor(sens))
-    if CONF_MOVINGTARGETENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_MOVINGTARGETENERGY])
+    if CONF_MOVING_ENERGY in config:
+        sens = await sensor.new_sensor(config[CONF_MOVING_ENERGY])
         cg.add(ld2410_component.setmovingenergysensor(sens))
-    if CONF_STILLTARGETENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_STILLTARGETENERGY])
+    if CONF_STILL_ENERGY in config:
+        sens = await sensor.new_sensor(config[CONF_STILL_ENERGY])
         cg.add(ld2410_component.setstillenergysensor(sens))
-    if CONF_DETECTIONDISTANCE in config:
-        sens = await sensor.new_sensor(config[CONF_DETECTIONDISTANCE])
+    if CONF_DETECTION_DISTANCE in config:
+        sens = await sensor.new_sensor(config[CONF_DETECTION_DISTANCE])
         cg.add(ld2410_component.setdetectiondistancesensor(sens))
