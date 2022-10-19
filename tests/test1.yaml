@@ -3026,7 +3026,7 @@ button:
       midea_ac.power_toggle:
 ld2410:
   id: my_ld2410
-  no_one_duration: 150
+  none_duration: 150
   max_move_distance: 8
   max_still_distance: 1
   g0_move_sensitivity: 10
