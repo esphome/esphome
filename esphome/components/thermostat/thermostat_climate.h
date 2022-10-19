@@ -168,7 +168,8 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// Applies the temperature, mode, fan, and swing modes of the provided config.
   /// This is agnostic of custom vs built in preset
-  void change_preset_internal_(const ThermostatClimateTargetTempConfig &config);
+  /// Returns true if something was changed
+  bool change_preset_internal_(const ThermostatClimateTargetTempConfig &config);
 
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
@@ -228,7 +229,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool supplemental_cooling_required_();
   bool supplemental_heating_required_();
 
-  void dump_preset_config_(const std::string &preset_name, const ThermostatClimateTargetTempConfig &config,
+  void dump_preset_config_(const char *preset_name, const ThermostatClimateTargetTempConfig &config,
                            bool is_default_preset);
 
   /// The sensor used for getting the current temperature
