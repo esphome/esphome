@@ -2,8 +2,8 @@
 image: ghcr.io/esphome/esphome-lint:dev
 ports:
   - port: 6052
-    onOpen: open-preview
+    onOpen: open-browser
 tasks:
   # yamllint disable-line rule:line-length
-  - before: pyenv local $(pyenv version | grep '^3\.' | cut -d ' ' -f 1) && script/setup
-    command: python -m esphome dashboard config
+  - before: script/devcontainer-post-create
+    command: python3 -m esphome dashboard config
