@@ -52,13 +52,13 @@ bool Alpha3::is_current_response_type_(const uint8_t *response_type) {
 
 void Alpha3::handle_geni_response_(const uint8_t *response, uint16_t length) {
   if (this->response_offset_ >= this->response_length_) {
-    ESP_LOGD(TAG, "[%s] GENI response begin", this->parent()->address_str().c_str());
+    ESP_LOGD(TAG, "[%s] GENI response begin", this->parent_->address_str().c_str());
     if (length < GENI_RESPONSE_HEADER_LENGTH) {
-      ESP_LOGW(TAG, "[%s] response to short", this->parent()->address_str().c_str());
+      ESP_LOGW(TAG, "[%s] response to short", this->parent_->address_str().c_str());
       return;
     }
     if (response[0] != 36 || response[2] != 248 || response[3] != 231 || response[4] != 10) {
-      ESP_LOGW(TAG, "[%s] response bytes %d %d %d %d %d don't match GENI HEADER", this->parent()->address_str().c_str(),
+      ESP_LOGW(TAG, "[%s] response bytes %d %d %d %d %d don't match GENI HEADER", this->parent_->address_str().c_str(),
                response[0], response[1], response[2], response[3], response[4]);
       return;
     }
@@ -73,11 +73,11 @@ void Alpha3::handle_geni_response_(const uint8_t *response, uint16_t length) {
   };
 
   if (this->is_current_response_type_(GENI_RESPONSE_TYPE_FLOW_HEAD)) {
-    ESP_LOGD(TAG, "[%s] FLOW HEAD Response", this->parent()->address_str().c_str());
+    ESP_LOGD(TAG, "[%s] FLOW HEAD Response", this->parent_->address_str().c_str());
     extract_publish_sensor_value(GENI_RESPONSE_FLOW_OFFSET, this->flow_sensor_, 3600.0F);
     extract_publish_sensor_value(GENI_RESPONSE_HEAD_OFFSET, this->head_sensor_, .0001F);
   } else if (this->is_current_response_type_(GENI_RESPONSE_TYPE_POWER)) {
-    ESP_LOGD(TAG, "[%s] POWER Response", this->parent()->address_str().c_str());
+    ESP_LOGD(TAG, "[%s] POWER Response", this->parent_->address_str().c_str());
     extract_publish_sensor_value(GENI_RESPONSE_POWER_OFFSET, this->power_sensor_, 1.0F);
     extract_publish_sensor_value(GENI_RESPONSE_CURRENT_OFFSET, this->current_sensor_, 1.0F);
     extract_publish_sensor_value(GENI_RESPONSE_MOTOR_SPEED_OFFSET, this->speed_sensor_, 1.0F);
@@ -95,11 +95,11 @@ void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
     case ESP_GATTC_OPEN_EVT: {
       this->response_offset_ = 0;
       this->response_length_ = 0;
-      ESP_LOGI(TAG, "[%s] connection open", this->parent()->address_str().c_str());
+      ESP_LOGI(TAG, "[%s] connection open", this->parent_->address_str().c_str());
       break;
     }
     case ESP_GATTC_CONNECT_EVT: {
-      if (std::memcmp(param->connect.remote_bda, this->parent()->remote_bda, 6) != 0)
+      if (std::memcmp(param->connect.remote_bda, this->parent_->get_remote_bda(), 6) != 0)
         return;
       auto ret = esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT);
       if (ret) {
@@ -126,11 +126,11 @@ void Alpha3::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto *chr = this->parent_->get_characteristic(ALPHA3_GENI_SERVICE_UUID, ALPHA3_GENI_CHARACTERISTIC_UUID);
       if (chr == nullptr) {
-        ESP_LOGE(TAG, "[%s] No GENI service found at device, not an Alpha3..?", this->parent()->address_str().c_str());
+        ESP_LOGE(TAG, "[%s] No GENI service found at device, not an Alpha3..?", this->parent_->address_str().c_str());
         break;
       }
-      auto status =
-          esp_ble_gattc_register_for_notify(this->parent()->gattc_if, this->parent()->remote_bda, chr->handle);
+      auto status = esp_ble_gattc_register_for_notify(this->parent_->get_gattc_if(), this->parent_->get_remote_bda(),
+                                                      chr->handle);
       if (status) {
         ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
       }
@@ -157,12 +157,12 @@ void Alpha3::send_request_(uint8_t *request, size_t len) {
   auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->geni_handle_, len,
                                          request, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
   if (status)
-    ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent()->address_str().c_str(), status);
+    ESP_LOGW(TAG, "[%s] esp_ble_gattc_write_char failed, status=%d", this->parent_->address_str().c_str(), status);
 }
 
 void Alpha3::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
-    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->parent()->address_str().c_str());
+    ESP_LOGW(TAG, "[%s] Cannot poll, not connected", this->parent_->address_str().c_str());
     return;
   }
 
