@@ -32,13 +32,7 @@ CONFIG_SCHEMA = {
     ),
     cv.Optional(CONF_DETECTIONDISTANCE): sensor.sensor_schema(
         device_class=DEVICE_CLASS_DISTANCE, unit_of_measurement=UNIT_CENTIMETER
-    )
-    # cv.Optional(CONF_HASMOVINGTARGET): binary_sensor.binary_sensor_schema(
-    #     device_class=DEVICE_CLASS_MOTION
-    # ),
-    # cv.Optional(CONF_HASSTILLTARGET): binary_sensor.binary_sensor_schema(
-    #     device_class=DEVICE_CLASS_PRESENCE
-    # ),
+    ),
 }
 
 
