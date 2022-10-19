@@ -303,8 +303,6 @@ ble_client:
         - switch.turn_on: ble1_status
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
-  - mac_address: FF:AA:BB:CC:DD:EE
-    id: radiator_pump
 
 bedjet:
   - ble_client_id: my_bedjet_ble_client
@@ -1182,7 +1180,7 @@ sensor:
       name: "MPL3115A2 Pressure"
     update_interval: 10s
   - platform: alpha3
-    ble_client_id: radiator_pump
+    ble_client_id: ble_foo
     flow:
       name: "Radiator Pump Flow"
     head:
