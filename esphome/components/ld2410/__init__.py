@@ -16,7 +16,7 @@ LD2410SetConfigMode = ld2410_ns.class_("LD2410SetConfigMode", automation.Action)
 CONF_LD2410_ID = "ld2410_id"
 CONF_LD2410_MAXMOVEDISTANCE = "max_move_distance"
 CONF_LD2410_MAXSTILLDISTANCE = "max_still_distance"
-CONF_LD2410_TEMPO = "tempo"
+CONF_LD2410_NONE_DURATION = "no_one_duration"
 CONF_LD2410_G0_MOVE = "g0_move_sensibility"
 CONF_LD2410_G0_STILL = "g0_still_sensibility"
 CONF_LD2410_G1_MOVE = "g1_move_sensibility"
@@ -40,31 +40,33 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(LD2410Component),
-            cv.Optional(CONF_LD2410_MAXMOVEDISTANCE, default=8): cv.int_range(
+            cv.Optional(CONF_LD2410_MAXMOVEDISTANCE, default=6): cv.int_range(
                 min=1, max=8
             ),
-            cv.Optional(CONF_LD2410_MAXSTILLDISTANCE, default=8): cv.int_range(
+            cv.Optional(CONF_LD2410_MAXSTILLDISTANCE, default=6): cv.int_range(
                 min=1, max=8
             ),
-            cv.Optional(CONF_LD2410_TEMPO, default=5): cv.int_range(min=0, max=32767),
+            cv.Optional(CONF_LD2410_NONE_DURATION, default=5): cv.int_range(
+                min=0, max=32767
+            ),
             cv.Optional(CONF_LD2410_G0_MOVE, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G0_STILL, default=50): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G0_STILL, default=0): cv.int_range(min=0, max=100),
             cv.Optional(CONF_LD2410_G1_MOVE, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G1_STILL, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G2_MOVE, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G2_STILL, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G3_MOVE, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G3_STILL, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G4_MOVE, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G4_STILL, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G5_MOVE, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G5_STILL, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G6_MOVE, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G6_STILL, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G7_MOVE, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G7_STILL, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G8_MOVE, default=50): cv.int_range(min=0, max=100),
-            cv.Optional(CONF_LD2410_G8_STILL, default=50): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G1_STILL, default=0): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G2_MOVE, default=40): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G2_STILL, default=40): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G3_MOVE, default=40): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G3_STILL, default=40): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G4_MOVE, default=40): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G4_STILL, default=40): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G5_MOVE, default=40): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G5_STILL, default=40): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G6_MOVE, default=30): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G6_STILL, default=15): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G7_MOVE, default=30): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G7_STILL, default=15): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G8_MOVE, default=30): cv.int_range(min=0, max=100),
+            cv.Optional(CONF_LD2410_G8_STILL, default=15): cv.int_range(min=0, max=100),
         }
     ).extend(uart.UART_DEVICE_SCHEMA)
 )
@@ -74,7 +76,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.setNoneDuration(config[CONF_LD2410_TEMPO]))
+    cg.add(var.setNoneDuration(config[CONF_LD2410_NONE_DURATION]))
     cg.add(var.setMaxMoveDistance(config[CONF_LD2410_MAXMOVEDISTANCE]))
     cg.add(var.setMaxStillDistance(config[CONF_LD2410_MAXSTILLDISTANCE]))
     cg.add(
