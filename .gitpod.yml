@@ -1,4 +1,5 @@
 ---
+image: ghcr.io/esphome/esphome-lint:dev
 ports:
   - port: 6052
     onOpen: open-preview
