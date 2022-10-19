@@ -6,6 +6,7 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 
 DEPENDENCIES = ["uart"]
+CODEOWNERS = ["@sebcaps"]
 
 ld2410_ns = cg.esphome_ns.namespace("ld2410")
 LD2410Component = ld2410_ns.class_(
