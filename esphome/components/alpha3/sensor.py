@@ -55,31 +55,31 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield ble_client.register_ble_node(var, config)
+    await cg.register_component(var, config)
+    await ble_client.register_ble_node(var, config)
 
     if CONF_FLOW in config:
-        sens = yield sensor.new_sensor(config[CONF_FLOW])
+        sens = await sensor.new_sensor(config[CONF_FLOW])
         cg.add(var.set_flow_sensor(sens))
 
     if CONF_HEAD in config:
-        sens = yield sensor.new_sensor(config[CONF_HEAD])
+        sens = await sensor.new_sensor(config[CONF_HEAD])
         cg.add(var.set_head_sensor(sens))
 
     if CONF_POWER in config:
-        sens = yield sensor.new_sensor(config[CONF_POWER])
+        sens = await sensor.new_sensor(config[CONF_POWER])
         cg.add(var.set_power_sensor(sens))
 
     if CONF_CURRENT in config:
-        sens = yield sensor.new_sensor(config[CONF_CURRENT])
+        sens = await sensor.new_sensor(config[CONF_CURRENT])
         cg.add(var.set_current_sensor(sens))
 
     if CONF_SPEED in config:
-        sens = yield sensor.new_sensor(config[CONF_SPEED])
+        sens = await sensor.new_sensor(config[CONF_SPEED])
         cg.add(var.set_speed_sensor(sens))
 
     if CONF_VOLTAGE in config:
-        sens = yield sensor.new_sensor(config[CONF_VOLTAGE])
+        sens = await sensor.new_sensor(config[CONF_VOLTAGE])
         cg.add(var.set_voltage_sensor(sens))
