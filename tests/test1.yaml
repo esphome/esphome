@@ -1178,6 +1178,17 @@ sensor:
     pressure:
       name: "MPL3115A2 Pressure"
     update_interval: 10s
+  - platform: ld2410
+    moving_distance:
+      name: "Moving distance (cm)"
+    still_distance:
+      name: "Still Distance (cm)"
+    moving_energy:
+      name: "Move Energy"
+    still_energy:
+      name: "Still Energy"
+    detection_distance:
+      name: "Distance Detection"
 
 esp32_touch:
   setup_mode: false
@@ -1422,6 +1433,13 @@ binary_sensor:
     id: close_sensor
   - platform: template
     id: close_obstacle_sensor
+  - platform: ld2410
+    has_target:
+      name: presence
+    has_moving_target:
+      name: movement
+    has_still_target:
+      name: still
 
 pca9685:
   frequency: 500
@@ -3006,3 +3024,14 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+ld2410:
+  id: my_ld2410
+  no_one_duration: 150
+  max_move_distance: 8
+  max_still_distance: 1
+  g0_move_sensitivity: 10
+  g0_still_sensitivity: 20
+  g2_move_sensitivity: 20
+  g2_still_sensitivity: 21
+  g8_move_sensitivity: 80
+  g8_still_sensitivity: 81
