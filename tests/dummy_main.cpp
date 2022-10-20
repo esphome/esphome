@@ -13,8 +13,9 @@ using namespace esphome;
 
 void setup() {
   App.pre_setup("livingroom", __DATE__ ", " __TIME__, false);
-  auto *log = new logger::Logger(115200, 512, logger::UART_SELECTION_UART0);  // NOLINT
+  auto *log = new logger::Logger(115200, 512);  // NOLINT
   log->pre_setup();
+  log->set_uart_selection(logger::UART_SELECTION_UART0);
   App.register_component(log);
 
   auto *wifi = new wifi::WiFiComponent();  // NOLINT

@@ -428,21 +428,27 @@ class DownloadBinaryRequestHandler(BaseHandler):
     def get(self, configuration=None):
         type = self.get_argument("type", "firmware.bin")
 
-        if type == "firmware.bin":
-            storage_path = ext_storage_path(settings.config_dir, configuration)
-            storage_json = StorageJSON.load(storage_path)
-            if storage_json is None:
-                self.send_error(404)
-                return
+        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is None:
+            self.send_error(404)
+            return
+
+        if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
+            filename = f"{storage_json.name}.uf2"
+            path = storage_json.firmware_bin_path.replace(
+                "firmware.bin", "firmware.uf2"
+            )
+
+        elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
+            filename = f"{storage_json.name}.bin"
+            path = storage_json.firmware_bin_path
+
+        elif type == "firmware.bin":
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
         elif type == "firmware-factory.bin":
-            storage_path = ext_storage_path(settings.config_dir, configuration)
-            storage_json = StorageJSON.load(storage_path)
-            if storage_json is None:
-                self.send_error(404)
-                return
             filename = f"{storage_json.name}-factory.bin"
             path = storage_json.firmware_bin_path.replace(
                 "firmware.bin", "firmware-factory.bin"
