@@ -48,6 +48,10 @@ jobs:
             file: tests/test5.yaml
             name: Test tests/test5.yaml
             pio_cache_key: test5
+          - id: test
+            file: tests/test6.yaml
+            name: Test tests/test6.yaml
+            pio_cache_key: test6
           - id: pytest
             name: Run pytest
           - id: clang-format
