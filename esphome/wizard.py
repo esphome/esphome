@@ -6,7 +6,6 @@ import unicodedata
 import voluptuous as vol
 
 import esphome.config_validation as cv
-from esphome.core import EsphomeError
 from esphome.helpers import get_bool_env, write_file
 from esphome.log import color, Fore
 
@@ -174,7 +173,6 @@ captive_portal:
 
 def wizard_write(path, **kwargs):
     from esphome.components.esp8266 import boards as esp8266_boards
-    from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.rp2040 import boards as rp2040_boards
 
     name = kwargs["name"]
@@ -187,12 +185,10 @@ def wizard_write(path, **kwargs):
     if "platform" not in kwargs:
         if board in esp8266_boards.ESP8266_BOARD_PINS:
             platform = "ESP8266"
-        elif board in esp32_boards.ESP32_BOARD_PINS:
-            platform = "ESP32"
         elif board in rp2040_boards.RP2040_BOARD_PINS:
             platform = "RP2040"
         else:
-            raise EsphomeError(f"Invalid board {board}")
+            platform = "ESP32"
         kwargs["platform"] = platform
     hardware = kwargs["platform"]
 
