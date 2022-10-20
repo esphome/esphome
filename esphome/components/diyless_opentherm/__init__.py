@@ -18,16 +18,13 @@ DiyLessOpenThermComponent = diyless_opentherm.class_(
     "DiyLessOpenThermComponent", cg.PollingComponent
 )
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(DiyLessOpenThermComponent),
-            cv.Required(CONF_PIN_IN): cv.uint8_t,
-            cv.Required(CONF_PIN_OUT): cv.uint8_t,
-        }
-    )
-    .extend(cv.polling_component_schema("5s"))
-)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(DiyLessOpenThermComponent),
+        cv.Required(CONF_PIN_IN): cv.uint8_t,
+        cv.Required(CONF_PIN_OUT): cv.uint8_t,
+    }
+).extend(cv.polling_component_schema("5s"))
 
 
 async def to_code(config):

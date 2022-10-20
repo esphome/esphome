@@ -4,7 +4,9 @@ from esphome.components import switch
 from esphome.const import (
     ICON_RADIATOR,
 )
-from esphome.components.diyless_opentherm import DiyLessOpenThermComponent, CONF_DIYLESS_OPENTHERM_ID
+from esphome.components.diyless_opentherm import (
+    DiyLessOpenThermComponent, CONF_DIYLESS_OPENTHERM_ID
+)
 from .. import diyless_opentherm
 
 CustomSwitch = diyless_opentherm.class_("CustomSwitch", switch.Switch, cg.Component)
@@ -25,7 +27,9 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_DIYLESS_OPENTHERM_ID): cv.use_id(DiyLessOpenThermComponent),
+            cv.GenerateID(CONF_DIYLESS_OPENTHERM_ID): cv.use_id(
+                DiyLessOpenThermComponent
+            ),
             cv.Optional(CONF_CH_ENABLED): switch.switch_schema(
                 class_=CustomSwitch,
                 icon=ICON_RADIATOR,
