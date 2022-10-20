@@ -439,42 +439,37 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 "firmware.bin", "firmware.uf2"
             )
 
-        elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
+        elif type == "firmware.bin":
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
+        elif type == "firmware-factory.bin":
+            filename = f"{storage_json.name}-factory.bin"
+            path = storage_json.firmware_bin_path.replace(
+                "firmware.bin", "firmware-factory.bin"
+            )
+
         else:
-            if type == "firmware.bin":
-                filename = f"{storage_json.name}.bin"
-                path = storage_json.firmware_bin_path
+            args = ["esphome", "idedata", settings.rel_path(configuration)]
+            rc, stdout, _ = run_system_command(*args)
 
-            elif type == "firmware-factory.bin":
-                filename = f"{storage_json.name}-factory.bin"
-                path = storage_json.firmware_bin_path.replace(
-                    "firmware.bin", "firmware-factory.bin"
-                )
+            if rc != 0:
+                self.send_error(404 if rc == 2 else 500)
+                return
 
-            else:
-                args = ["esphome", "idedata", settings.rel_path(configuration)]
-                rc, stdout, _ = run_system_command(*args)
+            idedata = platformio_api.IDEData(json.loads(stdout))
 
-                if rc != 0:
-                    self.send_error(404 if rc == 2 else 500)
-                    return
+            found = False
+            for image in idedata.extra_flash_images:
+                if image.path.endswith(type):
+                    path = image.path
+                    filename = type
+                    found = True
+                    break
 
-                idedata = platformio_api.IDEData(json.loads(stdout))
-
-                found = False
-                for image in idedata.extra_flash_images:
-                    if image.path.endswith(type):
-                        path = image.path
-                        filename = type
-                        found = True
-                        break
-
-                if not found:
-                    self.send_error(404)
-                    return
+            if not found:
+                self.send_error(404)
+                return
 
         self.set_header("Content-Type", "application/octet-stream")
         self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
