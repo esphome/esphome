@@ -8,8 +8,8 @@ namespace diyless_opentherm {
 
 extern ihormelnyk::OpenTherm *openTherm;
 
-IRAM_ATTR void handleInterrupt();
-void responseCallback(unsigned long response, ihormelnyk::OpenThermResponseStatus responseStatus);
+IRAM_ATTR void handle_interrupt();
+void response_callback(unsigned long response, ihormelnyk::OpenThermResponseStatus response_status);
 
 }  // namespace diyless_opentherm
 }  // namespace esphome

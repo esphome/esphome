@@ -6,56 +6,56 @@ namespace diyless_opentherm {
 
 ihormelnyk::OpenTherm *openTherm;
 
-IRAM_ATTR void handleInterrupt() { openTherm->handleInterrupt(); }
+IRAM_ATTR void handle_interrupt() { openTherm->handle_interrupt(); }
 
-void responseCallback(unsigned long response, ihormelnyk::OpenThermResponseStatus responseStatus) {
-  if (responseStatus == ihormelnyk::OpenThermResponseStatus::SUCCESS) {
-    component->logMessage(ESP_LOG_DEBUG, "Received response", response);
-    switch (openTherm->getDataID(response)) {
-      case ihormelnyk::OpenThermMessageID::Status:
-        component->publish_binary_sensor_state(component->ch_active_, openTherm->isCentralHeatingActive(response));
-        component->publish_binary_sensor_state(component->dhw_active_, openTherm->isHotWaterActive(response));
-        component->publish_binary_sensor_state(component->cooling_active_, openTherm->isCoolingActive(response));
-        component->publish_binary_sensor_state(component->flame_active_, openTherm->isFlameOn(response));
-        component->publish_binary_sensor_state(component->fault_, openTherm->isFault(response));
-        component->publish_binary_sensor_state(component->diagnostic_, openTherm->isDiagnostic(response));
+void response_callback(unsigned long response, ihormelnyk::OpenThermResponseStatus response_status) {
+  if (response_status == ihormelnyk::OpenThermResponseStatus::SUCCESS) {
+    component->log_message(ESP_LOG_DEBUG, "Received response", response);
+    switch (openTherm->get_data_id(response)) {
+      case ihormelnyk::OpenThermMessageID::STATUS:
+        component->publish_binary_sensor_state(component->ch_active_, openTherm->is_central_heating_active(response));
+        component->publish_binary_sensor_state(component->dhw_active_, openTherm->is_hot_water_active(response));
+        component->publish_binary_sensor_state(component->cooling_active_, openTherm->is_cooling_active(response));
+        component->publish_binary_sensor_state(component->flame_active_, openTherm->is_flame_on(response));
+        component->publish_binary_sensor_state(component->fault_, openTherm->is_fault(response));
+        component->publish_binary_sensor_state(component->diagnostic_, openTherm->is_diagnostic(response));
         break;
-      case ihormelnyk::OpenThermMessageID::Tret:
-        component->publish_sensor_state(component->return_temperature_, openTherm->getFloat(response));
+      case ihormelnyk::OpenThermMessageID::TRET:
+        component->publish_sensor_state(component->return_temperature_, openTherm->get_float(response));
         break;
-      case ihormelnyk::OpenThermMessageID::Tboiler:
-        component->publish_sensor_state(component->boiler_temperature_, openTherm->getFloat(response));
+      case ihormelnyk::OpenThermMessageID::TBOILER:
+        component->publish_sensor_state(component->boiler_temperature_, openTherm->get_float(response));
         break;
-      case ihormelnyk::OpenThermMessageID::CHPressure:
-        component->publish_sensor_state(component->pressure_, openTherm->getFloat(response));
+      case ihormelnyk::OpenThermMessageID::CH_PRESSURE:
+        component->publish_sensor_state(component->pressure_, openTherm->get_float(response));
         break;
-      case ihormelnyk::OpenThermMessageID::RelModLevel:
-        component->publish_sensor_state(component->modulation_, openTherm->getFloat(response));
+      case ihormelnyk::OpenThermMessageID::REL_MOD_LEVEL:
+        component->publish_sensor_state(component->modulation_, openTherm->get_float(response));
         break;
-      case ihormelnyk::OpenThermMessageID::TdhwSetUBTdhwSetLB:
-        component->DHWMinMaxRead = true;
+      case ihormelnyk::OpenThermMessageID::TDHW_SET_UB_TDHW_SET_LB:
+        component->dhw_min_max_read = true;
         component->publish_sensor_state(component->dhw_max_temperature_, response >> 8 & 0xFF);
         component->publish_sensor_state(component->dhw_min_temperature_, response & 0xFF);
         break;
-      case ihormelnyk::OpenThermMessageID::MaxTSetUBMaxTSetLB:
-        component->CHMinMaxRead = true;
+      case ihormelnyk::OpenThermMessageID::MAX_T_SET_UB_MAX_T_SET_LB:
+        component->ch_min_max_read = true;
         component->publish_sensor_state(component->ch_max_temperature_, response >> 8 & 0xFF);
         component->publish_sensor_state(component->ch_min_temperature_, response & 0xFF);
         break;
-      case ihormelnyk::OpenThermMessageID::TdhwSet:
-        if (openTherm->getMessageType(response) == ihormelnyk::OpenThermMessageType::WRITE_ACK) {
-          component->confirmedDHWSetpoint = openTherm->getFloat(response);
+      case ihormelnyk::OpenThermMessageID::TDHW_SET:
+        if (openTherm->get_message_type(response) == ihormelnyk::OpenThermMessageType::WRITE_ACK) {
+          component->confirmed_dhw_setpoint = openTherm->get_float(response);
         }
         break;
       default:
         break;
     }
-  } else if (responseStatus == ihormelnyk::OpenThermResponseStatus::NONE) {
+  } else if (response_status == ihormelnyk::OpenThermResponseStatus::NONE) {
     ESP_LOGW(TAG, "OpenTherm is not initialized");
-  } else if (responseStatus == ihormelnyk::OpenThermResponseStatus::TIMEOUT) {
+  } else if (response_status == ihormelnyk::OpenThermResponseStatus::TIMEOUT) {
     ESP_LOGW(TAG, "Request timeout");
-  } else if (responseStatus == ihormelnyk::OpenThermResponseStatus::INVALID) {
-    component->logMessage(ESP_LOG_WARN, "Received invalid response", response);
+  } else if (response_status == ihormelnyk::OpenThermResponseStatus::INVALID) {
+    component->log_message(ESP_LOG_WARN, "Received invalid response", response);
   }
 }
 

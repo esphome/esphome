@@ -21,8 +21,8 @@ Frame Structure:
 
 #pragma once
 
-#include <stdint.h>
 #include <Arduino.h>
+#include <cstdint>
 
 namespace esphome {
 namespace ihormelnyk {
@@ -43,61 +43,61 @@ enum OpenThermMessageType {
 };
 
 enum OpenThermMessageID {
-  Status,                   // flag8 / flag8  Master and Slave Status flags.
-  TSet,                     // f8.8  Control setpoint  ie CH  water temperature setpoint (°C)
-  MConfigMMemberIDcode,     // flag8 / u8  Master Configuration Flags /  Master MemberID Code
-  SConfigSMemberIDcode,     // flag8 / u8  Slave Configuration Flags /  Slave MemberID Code
-  Command,                  // u8 / u8  Remote Command
-  ASFflags,                 // / OEM-fault-code  flag8 / u8  Application-specific fault flags and OEM fault code
-  RBPflags,                 // flag8 / flag8  Remote boiler parameter transfer-enable & read/write flags
-  CoolingControl,           // f8.8  Cooling control signal (%)
-  TsetCH2,                  // f8.8  Control setpoint for 2e CH circuit (°C)
-  TrOverride,               // f8.8  Remote override room setpoint
-  TSP,                      // u8 / u8  Number of Transparent-Slave-Parameters supported by slave
-  TSPindexTSPvalue,         // u8 / u8  Index number / Value of referred-to transparent slave parameter.
-  FHBsize,                  // u8 / u8  Size of Fault-History-Buffer supported by slave
-  FHBindexFHBvalue,         // u8 / u8  Index number / Value of referred-to fault-history buffer entry.
-  MaxRelModLevelSetting,    // f8.8  Maximum relative modulation level setting (%)
-  MaxCapacityMinModLevel,   // u8 / u8  Maximum boiler capacity (kW) / Minimum boiler modulation level(%)
-  TrSet,                    // f8.8  Room Setpoint (°C)
-  RelModLevel,              // f8.8  Relative Modulation Level (%)
-  CHPressure,               // f8.8  Water pressure in CH circuit  (bar)
-  DHWFlowRate,              // f8.8  Water flow rate in DHW circuit. (litres/minute)
-  DayTime,                  // special / u8  Day of Week and Time of Day
-  Date,                     // u8 / u8  Calendar date
-  Year,                     // u16  Calendar year
-  TrSetCH2,                 // f8.8  Room Setpoint for 2nd CH circuit (°C)
-  Tr,                       // f8.8  Room temperature (°C)
-  Tboiler,                  // f8.8  Boiler flow water temperature (°C)
-  Tdhw,                     // f8.8  DHW temperature (°C)
-  Toutside,                 // f8.8  Outside temperature (°C)
-  Tret,                     // f8.8  Return water temperature (°C)
-  Tstorage,                 // f8.8  Solar storage temperature (°C)
-  Tcollector,               // f8.8  Solar collector temperature (°C)
-  TflowCH2,                 // f8.8  Flow water temperature CH2 circuit (°C)
-  Tdhw2,                    // f8.8  Domestic hot water temperature 2 (°C)
-  Texhaust,                 // s16  Boiler exhaust temperature (°C)
-  TdhwSetUBTdhwSetLB = 48,  // s8 / s8  DHW setpoint upper & lower bounds for adjustment  (°C)
-  MaxTSetUBMaxTSetLB,       // s8 / s8  Max CH water setpoint upper & lower bounds for adjustment  (°C)
-  HcratioUBHcratioLB,       // s8 / s8  OTC heat curve ratio upper & lower bounds for adjustment
-  TdhwSet = 56,             // f8.8  DHW setpoint (°C)    (Remote parameter 1)
-  MaxTSet,                  // f8.8  Max CH water setpoint (°C)  (Remote parameters 2)
-  Hcratio,                  // f8.8  OTC heat curve ratio (°C)  (Remote parameter 3)
-  RemoteOverrideFunction =
-      100,                     // flag8 / -  Function of manual and program changes in master and remote room setpoint.
-  OEMDiagnosticCode = 115,     // u16  OEM-specific diagnostic/service code
-  BurnerStarts,                // u16  Number of starts burner
-  CHPumpStarts,                // u16  Number of starts CH pump
-  DHWPumpValveStarts,          // u16  Number of starts DHW pump/valve
-  DHWBurnerStarts,             // u16  Number of starts burner during DHW mode
-  BurnerOperationHours,        // u16  Number of hours that burner is in operation (i.e. flame on)
-  CHPumpOperationHours,        // u16  Number of hours that CH pump has been running
-  DHWPumpValveOperationHours,  // u16  Number of hours that DHW pump has been running or DHW valve has been opened
-  DHWBurnerOperationHours,     // u16  Number of hours that burner is in operation during DHW mode
-  OpenThermVersionMaster,      // f8.8  The implemented version of the OpenTherm Protocol Specification in the master.
-  OpenThermVersionSlave,       // f8.8  The implemented version of the OpenTherm Protocol Specification in the slave.
-  MasterVersion,               // u8 / u8  Master product version number and type
-  SlaveVersion,                // u8 / u8  Slave product version number and type
+  STATUS,                          // flag8 / flag8  Master and Slave Status flags.
+  T_SET,                           // f8.8  Control setpoint  ie CH  water temperature setpoint (°C)
+  M_CONFIG_M_MEMBER_I_DCODE,       // flag8 / u8  Master Configuration Flags /  Master MemberID Code
+  S_CONFIG_S_MEMBER_I_DCODE,       // flag8 / u8  Slave Configuration Flags /  Slave MemberID Code
+  COMMAND,                         // u8 / u8  Remote Command
+  AS_FFLAGS,                       // / OEM-fault-code  flag8 / u8  Application-specific fault flags and OEM fault code
+  RB_PFLAGS,                       // flag8 / flag8  Remote boiler parameter transfer-enable & read/write flags
+  COOLING_CONTROL,                 // f8.8  Cooling control signal (%)
+  TSET_C_H2,                       // f8.8  Control setpoint for 2e CH circuit (°C)
+  TR_OVERRIDE,                     // f8.8  Remote override room setpoint
+  TSP,                             // u8 / u8  Number of Transparent-Slave-Parameters supported by slave
+  TS_PINDEX_TS_PVALUE,             // u8 / u8  Index number / Value of referred-to transparent slave parameter.
+  FH_BSIZE,                        // u8 / u8  Size of Fault-History-Buffer supported by slave
+  FH_BINDEX_FH_BVALUE,             // u8 / u8  Index number / Value of referred-to fault-history buffer entry.
+  MAX_REL_MOD_LEVEL_SETTING,       // f8.8  Maximum relative modulation level setting (%)
+  MAX_CAPACITY_MIN_MOD_LEVEL,      // u8 / u8  Maximum boiler capacity (kW) / Minimum boiler modulation level(%)
+  TR_SET,                          // f8.8  Room Setpoint (°C)
+  REL_MOD_LEVEL,                   // f8.8  Relative Modulation Level (%)
+  CH_PRESSURE,                     // f8.8  Water pressure in CH circuit  (bar)
+  DHW_FLOW_RATE,                   // f8.8  Water flow rate in DHW circuit. (litres/minute)
+  DAY_TIME,                        // special / u8  Day of Week and Time of Day
+  DATE,                            // u8 / u8  Calendar date
+  YEAR,                            // u16  Calendar year
+  TR_SET_C_H2,                     // f8.8  Room Setpoint for 2nd CH circuit (°C)
+  TR,                              // f8.8  Room temperature (°C)
+  TBOILER,                         // f8.8  Boiler flow water temperature (°C)
+  TDHW,                            // f8.8  DHW temperature (°C)
+  TOUTSIDE,                        // f8.8  Outside temperature (°C)
+  TRET,                            // f8.8  Return water temperature (°C)
+  TSTORAGE,                        // f8.8  Solar storage temperature (°C)
+  TCOLLECTOR,                      // f8.8  Solar collector temperature (°C)
+  TFLOW_C_H2,                      // f8.8  Flow water temperature CH2 circuit (°C)
+  TDHW2,                           // f8.8  Domestic hot water temperature 2 (°C)
+  TEXHAUST,                        // s16  Boiler exhaust temperature (°C)
+  TDHW_SET_UB_TDHW_SET_LB = 48,    // s8 / s8  DHW setpoint upper & lower bounds for adjustment  (°C)
+  MAX_T_SET_UB_MAX_T_SET_LB,       // s8 / s8  Max CH water setpoint upper & lower bounds for adjustment  (°C)
+  HCRATIO_UB_HCRATIO_LB,           // s8 / s8  OTC heat curve ratio upper & lower bounds for adjustment
+  TDHW_SET = 56,                   // f8.8  DHW setpoint (°C)    (Remote parameter 1)
+  MAX_T_SET,                       // f8.8  Max CH water setpoint (°C)  (Remote parameters 2)
+  HCRATIO,                         // f8.8  OTC heat curve ratio (°C)  (Remote parameter 3)
+  REMOTE_OVERRIDE_FUNCTION =
+      100,                         // flag8 / -  Function of manual and program changes in master and remote room setpoint.
+  OEM_DIAGNOSTIC_CODE = 115,       // u16  OEM-specific diagnostic/service code
+  BURNER_STARTS,                   // u16  Number of starts burner
+  CH_PUMP_STARTS,                  // u16  Number of starts CH pump
+  DHW_PUMP_VALVE_STARTS,           // u16  Number of starts DHW pump/valve
+  DHW_BURNER_STARTS,               // u16  Number of starts burner during DHW mode
+  BURNER_OPERATION_HOURS,          // u16  Number of hours that burner is in operation (i.e. flame on)
+  CH_PUMP_OPERATION_HOURS,         // u16  Number of hours that CH pump has been running
+  DHW_PUMP_VALVE_OPERATION_HOURS,  // u16  Number of hours that DHW pump has been running or DHW valve has been opened
+  DHW_BURNER_OPERATION_HOURS,      // u16  Number of hours that burner is in operation during DHW mode
+  OPEN_THERM_VERSION_MASTER,       // f8.8  The implemented version of the OpenTherm Protocol Specification in the master.
+  OPEN_THERM_VERSION_SLAVE,        // f8.8  The implemented version of the OpenTherm Protocol Specification in the slave.
+  MASTER_VERSION,                  // u8 / u8  Master product version number and type
+  SLAVE_VERSION,                   // u8 / u8  Slave product version number and type
 };
 
 enum OpenThermStatus {
@@ -114,59 +114,59 @@ enum OpenThermStatus {
 
 class OpenTherm {
  public:
-  OpenTherm(int inPin = 4, int outPin = 5, bool isSlave = false);
+  OpenTherm(int in_pin = 4, int out_pin = 5, bool is_slave = false);
   volatile OpenThermStatus status;
-  void begin(void (*handleInterruptCallback)(void));
-  void begin(void (*handleInterruptCallback)(void),
-             void (*processResponseCallback)(unsigned long, OpenThermResponseStatus));
-  bool isReady();
-  bool sendResponse(unsigned long request);
-  bool sendRequestAsync(unsigned long request);
-  unsigned long buildRequest(OpenThermMessageType type, OpenThermMessageID id, unsigned int data);
-  unsigned long buildResponse(OpenThermMessageType type, OpenThermMessageID id, unsigned int data);
-  unsigned long getLastResponse();
-  OpenThermResponseStatus getLastResponseStatus();
-  const char *statusToString(OpenThermResponseStatus status);
-  void handleInterrupt();
+  void begin(void (*handle_interrupt_callback)());
+  void begin(void (*handle_interrupt_callback)(),
+             void (*process_response_callback)(unsigned long, OpenThermResponseStatus));
+  bool is_ready();
+  bool send_response(unsigned long request);
+  bool send_request_async(unsigned long request);
+  unsigned long build_request(OpenThermMessageType type, OpenThermMessageID id, unsigned int data);
+  unsigned long build_response(OpenThermMessageType type, OpenThermMessageID id, unsigned int data);
+  unsigned long get_last_response();
+  OpenThermResponseStatus get_last_response_status();
+  const char *status_to_string(OpenThermResponseStatus status);
+  void handle_interrupt();
   void process();
   void end();
 
   bool parity(unsigned long frame);
-  OpenThermMessageType getMessageType(unsigned long message);
-  OpenThermMessageID getDataID(unsigned long frame);
-  const char *messageTypeToString(OpenThermMessageType message_type);
-  bool isValidRequest(unsigned long request);
-  bool isValidResponse(unsigned long response);
+  OpenThermMessageType get_message_type(unsigned long message);
+  OpenThermMessageID get_data_id(unsigned long frame);
+  const char *message_type_to_string(OpenThermMessageType message_type);
+  bool is_valid_request(unsigned long request);
+  bool is_valid_response(unsigned long response);
 
   // Responses
-  bool isFault(unsigned long response);
-  bool isCentralHeatingActive(unsigned long response);
-  bool isHotWaterActive(unsigned long response);
-  bool isFlameOn(unsigned long response);
-  bool isCoolingActive(unsigned long response);
-  bool isDiagnostic(unsigned long response);
-  uint16_t getUInt(const unsigned long response) const;
-  float getFloat(const unsigned long response) const;
-  unsigned int temperatureToData(float temperature);
+  bool is_fault(unsigned long response);
+  bool is_central_heating_active(unsigned long response);
+  bool is_hot_water_active(unsigned long response);
+  bool is_flame_on(unsigned long response);
+  bool is_cooling_active(unsigned long response);
+  bool is_diagnostic(unsigned long response);
+  uint16_t get_u_int(unsigned long response) const;
+  float get_float(unsigned long response) const;
+  unsigned int temperature_to_data(float temperature);
 
  private:
-  const int inPin;
-  const int outPin;
-  const bool isSlave;
+  const int in_pin_;
+  const int out_pin_;
+  const bool is_slave_;
 
-  volatile unsigned long response;
-  volatile OpenThermResponseStatus responseStatus;
-  volatile unsigned long responseTimestamp;
-  volatile byte responseBitIndex;
+  volatile unsigned long response_;
+  volatile OpenThermResponseStatus response_status_;
+  volatile unsigned long response_timestamp_;
+  volatile byte response_bit_index_;
 
-  int readState();
-  void setActiveState();
-  void setIdleState();
-  void activateBoiler();
+  int read_state_();
+  void set_active_state_();
+  void set_idle_state_();
+  void activate_boiler_();
 
-  void sendBit(bool high);
-  void (*handleInterruptCallback)();
-  void (*processResponseCallback)(unsigned long, OpenThermResponseStatus);
+  void send_bit_(bool high);
+  void (*handle_interrupt_callback_)();
+  void (*process_response_callback_)(unsigned long, OpenThermResponseStatus);
 };
 
 #ifndef IRAM_ATTR

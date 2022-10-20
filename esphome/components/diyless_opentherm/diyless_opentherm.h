@@ -18,9 +18,9 @@ static const char *const TAG = "diyless_opentherm";
 
 class DiyLessOpenThermComponent : public PollingComponent {
  public:
-  bool CHMinMaxRead = false;
-  bool DHWMinMaxRead = false;
-  float confirmedDHWSetpoint = 0;
+  bool ch_min_max_read = false;
+  bool dhw_min_max_read = false;
+  float confirmed_dhw_setpoint = 0;
 
   DiyLessOpenThermComponent() = default;
 
@@ -52,8 +52,8 @@ class DiyLessOpenThermComponent : public PollingComponent {
   void update() override;
   void loop() override;
 
-  void initialize(char pinIn, char pinOut);
-  void logMessage(esp_log_level_t level, const char *preMessage, unsigned long message);
+  void initialize(char pin_in, char pin_out);
+  void log_message(esp_log_level_t level, const char *pre_message, unsigned long message);
   void publish_sensor_state(sensor::Sensor *sensor, float state);
   void publish_binary_sensor_state(binary_sensor::BinarySensor *sensor, bool state);
 
@@ -78,15 +78,15 @@ class DiyLessOpenThermComponent : public PollingComponent {
   diyless_opentherm::CustomNumber *dhw_setpoint_temperature_{nullptr};
 
  private:
-  std::queue<unsigned long> buffer;
-  unsigned long lastMillis = 0;
-  bool CHEnabled = 0;
-  bool DHWEnabled = 0;
-  bool coolingEnabled = 0;
+  std::queue<unsigned long> buffer_;
+  unsigned long last_millis_ = 0;
+  bool wanted_ch_enabled_ = false;
+  bool wanted_dhw_enabled_ = false;
+  bool wanted_cooling_enabled_ = false;
 
-  void processStatus();
-  void enqueueRequest(unsigned long request);
-  const char *formatMessageType(unsigned long message);
+  void process_status_();
+  void enqueue_request_(unsigned long request);
+  const char *format_message_type_(unsigned long message);
 };
 
 extern DiyLessOpenThermComponent *component;
