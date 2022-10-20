@@ -7,13 +7,13 @@ namespace sm2335 {
 static const char *const TAG = "sm2335";
 
 // 11 = identification | 0 = reserved | 00 = Standby | 000 = start at OUT1/5
-static const uint8_t SM2335_ADDR_STANDBY = 0xC0; // 11000000 0xC0
+static const uint8_t SM2335_ADDR_STANDBY = 0xC0;  // 11000000 0xC0
 // 11 = identification | 0 = reserved | 01 = 3 channels (RGB) | 000 = start at OUT1/5
-static const uint8_t SM2335_ADDR_START_3CH = 0xC8; // 11001000 0xC8
+static const uint8_t SM2335_ADDR_START_3CH = 0xC8;  // 11001000 0xC8
 // 11 = identification | 0 = reserved | 10 = 2 channels (CW) | 000 = start at OUT1/5
-static const uint8_t SM2335_ADDR_START_2CH = 0xD0; // 11010000 0xD0
+static const uint8_t SM2335_ADDR_START_2CH = 0xD0;  // 11010000 0xD0
 // 11 = identification | 0 = reserved | 11 = 5 channels (RGB+CW) | 000 = start at OUT1/5
-static const uint8_t SM2335_ADDR_START_5CH = 0xD8; // 11011000 0xD8
+static const uint8_t SM2335_ADDR_START_5CH = 0xD8;  // 11011000 0xD8
 
 // Power current values
 // HEX | Binary | RGB level | White level | Config value
@@ -55,28 +55,31 @@ void SM2335::loop() {
     return;
 
   uint8_t data[12];
-  if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 && this->pwm_amounts_[3] == 0 && this->pwm_amounts_[4] == 0) {
+  if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
+      this->pwm_amounts_[3] == 0 && this->pwm_amounts_[4] == 0) {
     // Off / Sleep
     data[0] = SM2335_ADDR_STANDBY;
     for (int i = 1; i < 12; i++)
       data[i] = 0;
     this->write_buffer_(data, 12);
-  } else if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 && (this->pwm_amounts_[3] > 0 || this->pwm_amounts_[4] > 0)) {
+  } else if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
+             (this->pwm_amounts_[3] > 0 || this->pwm_amounts_[4] > 0)) {
     // Only data on white channels
     data[0] = SM2335_ADDR_START_2CH;
     data[1] = 0 << 4 | this->max_power_white_channels_;
     for (int i = 2, j = 0; i < 12; i += 2, j++) {
       data[i] = this->pwm_amounts_[j] >> 0x8;
-      data[i+1] = this->pwm_amounts_[j] & 0xFF;
+      data[i + 1] = this->pwm_amounts_[j] & 0xFF;
     }
     this->write_buffer_(data, 12);
-  } else if ((this->pwm_amounts_[0] > 0 || this->pwm_amounts_[1] > 0 || this->pwm_amounts_[2] > 0) && this->pwm_amounts_[3] == 0 && this->pwm_amounts_[4] == 0) {
+  } else if ((this->pwm_amounts_[0] > 0 || this->pwm_amounts_[1] > 0 || this->pwm_amounts_[2] > 0) &&
+             this->pwm_amounts_[3] == 0 && this->pwm_amounts_[4] == 0) {
     // Only data on RGB channels
     data[0] = SM2335_ADDR_START_3CH;
     data[1] = this->max_power_color_channels_ << 4 | 0;
     for (int i = 2, j = 0; i < 12; i += 2, j++) {
       data[i] = this->pwm_amounts_[j] >> 0x8;
-      data[i+1] = this->pwm_amounts_[j] & 0xFF;
+      data[i + 1] = this->pwm_amounts_[j] & 0xFF;
     }
     this->write_buffer_(data, 12);
   } else {
@@ -85,7 +88,7 @@ void SM2335::loop() {
     data[1] = this->max_power_color_channels_ << 4 | this->max_power_white_channels_;
     for (int i = 2, j = 0; i < 12; i += 2, j++) {
       data[i] = this->pwm_amounts_[j] >> 0x8;
-      data[i+1] = this->pwm_amounts_[j] & 0xFF;
+      data[i + 1] = this->pwm_amounts_[j] & 0xFF;
     }
     this->write_buffer_(data, 12);
   }

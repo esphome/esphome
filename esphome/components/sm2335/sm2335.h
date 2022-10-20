@@ -14,8 +14,12 @@ class SM2335 : public Component {
 
   void set_data_pin(GPIOPin *data_pin) { data_pin_ = data_pin; }
   void set_clock_pin(GPIOPin *clock_pin) { clock_pin_ = clock_pin; }
-  void set_max_power_color_channels(uint8_t max_power_color_channels) { max_power_color_channels_ = max_power_color_channels; }
-  void set_max_power_white_channels(uint8_t max_power_white_channels) { max_power_white_channels_ = max_power_white_channels; }
+  void set_max_power_color_channels(uint8_t max_power_color_channels) {
+    max_power_color_channels_ = max_power_color_channels;
+  }
+  void set_max_power_white_channels(uint8_t max_power_white_channels) {
+    max_power_white_channels_ = max_power_white_channels;
+  }
 
   void setup() override;
 
