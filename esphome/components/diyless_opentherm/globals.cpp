@@ -6,9 +6,7 @@ namespace diyless_opentherm {
 
 ihormelnyk::OpenTherm *openTherm;
 
-ICACHE_RAM_ATTR void handleInterrupt() {
-  openTherm->handleInterrupt();
-}
+IRAM_ATTR void handleInterrupt() { openTherm->handleInterrupt(); }
 
 void responseCallback(unsigned long response, ihormelnyk::OpenThermResponseStatus responseStatus) {
   if (responseStatus == ihormelnyk::OpenThermResponseStatus::SUCCESS) {
@@ -49,7 +47,8 @@ void responseCallback(unsigned long response, ihormelnyk::OpenThermResponseStatu
           component->confirmedDHWSetpoint = openTherm->getFloat(response);
         }
         break;
-      default: break;
+      default:
+        break;
     }
   } else if (responseStatus == ihormelnyk::OpenThermResponseStatus::NONE) {
     ESP_LOGW(TAG, "OpenTherm is not initialized");
@@ -60,5 +59,5 @@ void responseCallback(unsigned long response, ihormelnyk::OpenThermResponseStatu
   }
 }
 
-} // namespace diyless_opentherm
-} // namespace esphome
+}  // namespace diyless_opentherm
+}  // namespace esphome

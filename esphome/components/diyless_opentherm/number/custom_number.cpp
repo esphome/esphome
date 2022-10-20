@@ -17,7 +17,7 @@ void CustomNumber::setup() {
   this->publish_state(value);
 }
 
-void CustomNumber::control(float value)  {
+void CustomNumber::control(float value) {
   this->publish_state(value);
 
   if (this->restore_value_) {
@@ -25,5 +25,5 @@ void CustomNumber::control(float value)  {
   }
 };
 
-} // namespace diyless_opentherm
-} // namespace esphome
+}  // namespace diyless_opentherm
+}  // namespace esphome

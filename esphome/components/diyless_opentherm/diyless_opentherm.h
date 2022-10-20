@@ -41,15 +41,19 @@ class DiyLessOpenThermComponent : public PollingComponent {
   void set_ch_enabled_switch(diyless_opentherm::CustomSwitch *switch_) { ch_enabled_ = switch_; }
   void set_dhw_enabled_switch(diyless_opentherm::CustomSwitch *switch_) { dhw_enabled_ = switch_; }
   void set_cooling_enabled_switch(diyless_opentherm::CustomSwitch *switch_) { cooling_enabled_ = switch_; }
-  void set_ch_setpoint_temperature_number(diyless_opentherm::CustomNumber *number) { ch_setpoint_temperature_ = number; }
-  void set_dhw_setpoint_temperature_number(diyless_opentherm::CustomNumber *number) { dhw_setpoint_temperature_ = number; }
+  void set_ch_setpoint_temperature_number(diyless_opentherm::CustomNumber *number) {
+    ch_setpoint_temperature_ = number;
+  }
+  void set_dhw_setpoint_temperature_number(diyless_opentherm::CustomNumber *number) {
+    dhw_setpoint_temperature_ = number;
+  }
 
   void setup() override;
   void update() override;
   void loop() override;
 
   void initialize(char pinIn, char pinOut);
-  void logMessage(esp_log_level_t level, const char* preMessage, unsigned long message);
+  void logMessage(esp_log_level_t level, const char *preMessage, unsigned long message);
   void publish_sensor_state(sensor::Sensor *sensor, float state);
   void publish_binary_sensor_state(binary_sensor::BinarySensor *sensor, bool state);
 
@@ -82,10 +86,10 @@ class DiyLessOpenThermComponent : public PollingComponent {
 
   void processStatus();
   void enqueueRequest(unsigned long request);
-  const char* formatMessageType(unsigned long message);
+  const char *formatMessageType(unsigned long message);
 };
 
 extern DiyLessOpenThermComponent *component;
 
-} // namespace diyless_opentherm
-} // namespace esphome
+}  // namespace diyless_opentherm
+}  // namespace esphome
