@@ -7,8 +7,15 @@
 #include <cstdarg>
 
 #ifdef USE_ARDUINO
+#if defined(USE_ESP8266) || defined(USE_ESP32)
 #include <HardwareSerial.h>
-#endif
+#endif  // USE_ESP8266 || USE_ESP32
+#ifdef USE_RP2040
+#include <HardwareSerial.h>
+#include <SerialUSB.h>
+#endif  // USE_RP2040
+#endif  // USE_ARDUINO
+
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
 #endif
@@ -44,7 +51,7 @@ enum UARTSelection {
 
 class Logger : public Component {
  public:
-  explicit Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart);
+  explicit Logger(uint32_t baud_rate, size_t tx_buffer_size);
 
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
@@ -56,6 +63,7 @@ class Logger : public Component {
   uart_port_t get_uart_num() const { return uart_num_; }
 #endif
 
+  void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
   UARTSelection get_uart() const;
 
