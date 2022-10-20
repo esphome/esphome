@@ -5,7 +5,8 @@ from esphome.const import (
     ICON_RADIATOR,
 )
 from esphome.components.diyless_opentherm import (
-    DiyLessOpenThermComponent, CONF_DIYLESS_OPENTHERM_ID
+    DiyLessOpenThermComponent,
+    CONF_DIYLESS_OPENTHERM_ID,
 )
 from .. import diyless_opentherm
 
