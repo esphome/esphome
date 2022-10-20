@@ -16,8 +16,8 @@ void DiyLessOpenThermComponent::setup() {
   component = this;
   openTherm->begin(handle_interrupt, response_callback);
 
-  if (this->ch_enabled_) {
-    this->ch_enabled_->add_on_state_callback([this](bool enabled) {
+  if (this->ch_enabled_switch_) {
+    this->ch_enabled_switch_->add_on_state_callback([this](bool enabled) {
       if (this->wanted_ch_enabled_ != enabled) {
         ESP_LOGI(TAG, "%s CH", (enabled ? "Enabled" : "Disabled"));
         this->wanted_ch_enabled_ = enabled;
@@ -25,8 +25,8 @@ void DiyLessOpenThermComponent::setup() {
       }
     });
   }
-  if (this->dhw_enabled_) {
-    this->dhw_enabled_->add_on_state_callback([this](bool enabled) {
+  if (this->dhw_enabled_switch_) {
+    this->dhw_enabled_switch_->add_on_state_callback([this](bool enabled) {
       if (this->wanted_dhw_enabled_ != enabled) {
         ESP_LOGI(TAG, "%s DHW", (enabled ? "Enabled" : "Disabled"));
         this->wanted_dhw_enabled_ = enabled;
@@ -34,8 +34,8 @@ void DiyLessOpenThermComponent::setup() {
       }
     });
   }
-  if (this->cooling_enabled_) {
-    this->cooling_enabled_->add_on_state_callback([this](bool enabled) {
+  if (this->cooling_enabled_switch_) {
+    this->cooling_enabled_switch_->add_on_state_callback([this](bool enabled) {
       if (this->wanted_cooling_enabled_ != enabled) {
         ESP_LOGI(TAG, "%s cooling", (enabled ? "Enabled" : "Disabled"));
         this->wanted_cooling_enabled_ = enabled;
@@ -43,14 +43,14 @@ void DiyLessOpenThermComponent::setup() {
       }
     });
   }
-  if (this->ch_setpoint_temperature_) {
-    this->ch_setpoint_temperature_->setup();
-    this->ch_setpoint_temperature_->add_on_state_callback(
+  if (this->ch_setpoint_temperature_number_) {
+    this->ch_setpoint_temperature_number_->setup();
+    this->ch_setpoint_temperature_number_->add_on_state_callback(
         [](float temperature) { ESP_LOGI(TAG, "Request updating CH setpoint to %f", temperature); });
   }
-  if (this->dhw_setpoint_temperature_) {
-    this->dhw_setpoint_temperature_->setup();
-    this->dhw_setpoint_temperature_->add_on_state_callback(
+  if (this->dhw_setpoint_temperature_number_) {
+    this->dhw_setpoint_temperature_number_->setup();
+    this->dhw_setpoint_temperature_number_->add_on_state_callback(
         [](float temperature) { ESP_LOGI(TAG, "Request updating CH setpoint to %f", temperature); });
   }
 }
@@ -66,13 +66,13 @@ void DiyLessOpenThermComponent::loop() {
     // The CH setpoint must be written at a fast interval or the boiler
     // might revert to a build-in default as a safety measure.
     last_millis_ = millis();
-    this->enqueue_request_(openTherm->build_request(ihormelnyk::OpenThermMessageType::WRITE_DATA,
-                                                    ihormelnyk::OpenThermMessageID::T_SET,
-                                                    openTherm->temperature_to_data(this->ch_setpoint_temperature_->state)));
-    if (this->confirmed_dhw_setpoint != this->dhw_setpoint_temperature_->state) {
-      this->enqueue_request_(
-          openTherm->build_request(ihormelnyk::OpenThermMessageType::WRITE_DATA, ihormelnyk::OpenThermMessageID::TDHW_SET,
-                                   openTherm->temperature_to_data(this->dhw_setpoint_temperature_->state)));
+    this->enqueue_request_(
+        openTherm->build_request(ihormelnyk::OpenThermMessageType::WRITE_DATA, ihormelnyk::OpenThermMessageID::T_SET,
+                                 openTherm->temperature_to_data(this->ch_setpoint_temperature_number_->state)));
+    if (this->confirmed_dhw_setpoint != this->dhw_setpoint_temperature_number_->state) {
+      this->enqueue_request_(openTherm->build_request(
+          ihormelnyk::OpenThermMessageType::WRITE_DATA, ihormelnyk::OpenThermMessageID::TDHW_SET,
+          openTherm->temperature_to_data(this->dhw_setpoint_temperature_number_->state)));
     }
   }
   openTherm->process();
@@ -82,8 +82,8 @@ void DiyLessOpenThermComponent::loop() {
 void DiyLessOpenThermComponent::update() {
   this->enqueue_request_(
       openTherm->build_request(ihormelnyk::OpenThermMessageType::READ_DATA, ihormelnyk::OpenThermMessageID::TRET, 0));
-  this->enqueue_request_(
-      openTherm->build_request(ihormelnyk::OpenThermMessageType::READ_DATA, ihormelnyk::OpenThermMessageID::TBOILER, 0));
+  this->enqueue_request_(openTherm->build_request(ihormelnyk::OpenThermMessageType::READ_DATA,
+                                                  ihormelnyk::OpenThermMessageID::TBOILER, 0));
   this->enqueue_request_(openTherm->build_request(ihormelnyk::OpenThermMessageType::READ_DATA,
                                                   ihormelnyk::OpenThermMessageID::CH_PRESSURE, 0));
   this->enqueue_request_(openTherm->build_request(ihormelnyk::OpenThermMessageType::READ_DATA,
@@ -104,12 +104,12 @@ void DiyLessOpenThermComponent::update() {
 void DiyLessOpenThermComponent::log_message(esp_log_level_t level, const char *pre_message, unsigned long message) {
   switch (level) {
     case ESP_LOG_DEBUG:
-      ESP_LOGD(TAG, "%s: %s(%i, 0x%04hX)", pre_message, this->format_message_type_(message), openTherm->get_data_id(message),
-               openTherm->get_u_int(message));
+      ESP_LOGD(TAG, "%s: %s(%i, 0x%04hX)", pre_message, this->format_message_type_(message),
+               openTherm->get_data_id(message), openTherm->get_u_int(message));
       break;
     default:
-      ESP_LOGW(TAG, "%s: %s(%i, 0x%04hX)", pre_message, this->format_message_type_(message), openTherm->get_data_id(message),
-               openTherm->get_u_int(message));
+      ESP_LOGW(TAG, "%s: %s(%i, 0x%04hX)", pre_message, this->format_message_type_(message),
+               openTherm->get_data_id(message), openTherm->get_u_int(message));
   }
 }
 
@@ -127,8 +127,8 @@ void DiyLessOpenThermComponent::publish_binary_sensor_state(binary_sensor::Binar
 
 void DiyLessOpenThermComponent::process_status_() {
   // Fields: CH enabled | DHW enabled | cooling | outside temperature compensation | central heating 2
-  unsigned int data =
-      this->wanted_ch_enabled_ | (this->wanted_dhw_enabled_ << 1) | (this->wanted_cooling_enabled_ << 2) | (false << 3) | (false << 4);
+  unsigned int data = this->wanted_ch_enabled_ | (this->wanted_dhw_enabled_ << 1) |
+                      (this->wanted_cooling_enabled_ << 2) | (false << 3) | (false << 4);
   data <<= 8;
   this->enqueue_request_(openTherm->build_request(ihormelnyk::OpenThermMessageType::READ_DATA,
                                                   ihormelnyk::OpenThermMessageID::STATUS, data));

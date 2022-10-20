@@ -18,6 +18,7 @@ Adapted by:
 #include "opentherm.h"
 
 namespace esphome {
+namespace diyless_opentherm {
 namespace ihormelnyk {
 
 OpenTherm::OpenTherm(int in_pin, int out_pin, bool is_slave)
@@ -64,13 +65,13 @@ void OpenTherm::send_bit_(bool high) {
     set_active_state_();
   } else {
     set_idle_state_();
-}
+  }
   delayMicroseconds(500);
   if (high) {
     set_idle_state_();
   } else {
     set_active_state_();
-}
+  }
   delayMicroseconds(500);
 }
 
@@ -182,8 +183,8 @@ void OpenTherm::process() {
   } else if (st == OpenThermStatus::RESPONSE_READY) {
     status = OpenThermStatus::DELAY;
     response_status_ = (is_slave_ ? is_valid_request(response_) : is_valid_response(response_))
-                         ? OpenThermResponseStatus::SUCCESS
-                         : OpenThermResponseStatus::INVALID;
+                           ? OpenThermResponseStatus::SUCCESS
+                           : OpenThermResponseStatus::INVALID;
     if (process_response_callback_ != nullptr) {
       process_response_callback_(response_, response_status_);
     }
@@ -324,4 +325,5 @@ unsigned int OpenTherm::temperature_to_data(float temperature) {
 }
 
 }  // namespace ihormelnyk
+}  // namespace diyless_opentherm
 }  // namespace esphome
