@@ -29,6 +29,7 @@ import tornado.web
 import tornado.websocket
 
 from esphome import const, platformio_api, util, yaml_util
+from esphome.core import EsphomeError
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -395,11 +396,22 @@ class ImportRequestHandler(BaseHandler):
         args = json.loads(self.request.body.decode())
         try:
             name = args["name"]
+
+            imported_device = next(
+                (res for res in IMPORT_RESULT.values() if res.device_name == name), None
+            )
+
+            if imported_device is not None:
+                network = imported_device.network
+            else:
+                network = const.CONF_WIFI
+
             import_config(
                 settings.rel_path(f"{name}.yaml"),
                 name,
                 args["project_name"],
                 args["package_import_url"],
+                network,
             )
         except FileExistsError:
             self.set_status(500)
@@ -416,21 +428,27 @@ class DownloadBinaryRequestHandler(BaseHandler):
     def get(self, configuration=None):
         type = self.get_argument("type", "firmware.bin")
 
-        if type == "firmware.bin":
-            storage_path = ext_storage_path(settings.config_dir, configuration)
-            storage_json = StorageJSON.load(storage_path)
-            if storage_json is None:
-                self.send_error(404)
-                return
+        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is None:
+            self.send_error(404)
+            return
+
+        if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
+            filename = f"{storage_json.name}.uf2"
+            path = storage_json.firmware_bin_path.replace(
+                "firmware.bin", "firmware.uf2"
+            )
+
+        elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
+            filename = f"{storage_json.name}.bin"
+            path = storage_json.firmware_bin_path
+
+        elif type == "firmware.bin":
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
         elif type == "firmware-factory.bin":
-            storage_path = ext_storage_path(settings.config_dir, configuration)
-            storage_json = StorageJSON.load(storage_path)
-            if storage_json is None:
-                self.send_error(404)
-                return
             filename = f"{storage_json.name}-factory.bin"
             path = storage_json.firmware_bin_path.replace(
                 "firmware.bin", "firmware-factory.bin"
@@ -522,7 +540,7 @@ class DashboardEntry:
         return os.path.basename(self.path)
 
     @property
-    def storage(self):  # type: () -> Optional[StorageJSON]
+    def storage(self) -> Optional[StorageJSON]:
         if not self._loaded_storage:
             self._storage = StorageJSON.load(
                 ext_storage_path(settings.config_dir, self.filename)
@@ -613,6 +631,7 @@ class ListDevicesHandler(BaseHandler):
                             "package_import_url": res.package_import_url,
                             "project_name": res.project_name,
                             "project_version": res.project_version,
+                            "network": res.network,
                         }
                         for res in IMPORT_RESULT.values()
                         if res.device_name not in configured
@@ -642,6 +661,33 @@ def _ping_func(filename, address):
         command = ["ping", "-c", "1", address]
     rc, _, _ = run_system_command(*command)
     return filename, rc == 0
+
+
+class PrometheusServiceDiscoveryHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        entries = _list_dashboard_entries()
+        self.set_header("content-type", "application/json")
+        sd = []
+        for entry in entries:
+            if entry.web_port is None:
+                continue
+            labels = {
+                "__meta_name": entry.name,
+                "__meta_esp_platform": entry.target_platform,
+                "__meta_esphome_version": entry.storage.esphome_version,
+            }
+            for integration in entry.storage.loaded_integrations:
+                labels[f"__meta_integration_{integration}"] = "true"
+            sd.append(
+                {
+                    "targets": [
+                        f"{entry.address}:{entry.web_port}",
+                    ],
+                    "labels": labels,
+                }
+            )
+        self.write(json.dumps(sd))
 
 
 class MDNSStatusThread(threading.Thread):
@@ -790,7 +836,7 @@ class UndoDeleteRequestHandler(BaseHandler):
         shutil.move(os.path.join(trash_path, configuration), config_file)
 
 
-PING_RESULT = {}  # type: dict
+PING_RESULT: dict = {}
 IMPORT_RESULT = {}
 STOP_EVENT = threading.Event()
 PING_REQUEST = threading.Event()
@@ -816,15 +862,16 @@ class LoginHandler(BaseHandler):
         import requests
 
         headers = {
-            "Authentication": f"Bearer {os.getenv('SUPERVISOR_TOKEN')}",
+            "X-Supervisor-Token": os.getenv("SUPERVISOR_TOKEN"),
         }
+
         data = {
             "username": self.get_argument("username", ""),
             "password": self.get_argument("password", ""),
         }
         try:
             req = requests.post(
-                "http://supervisor/auth", headers=headers, data=data, timeout=30
+                "http://supervisor/auth", headers=headers, json=data, timeout=30
             )
             if req.status_code == 200:
                 self.set_secure_cookie("authenticated", cookie_authenticated_yes)
@@ -887,6 +934,27 @@ class SecretKeysRequestHandler(BaseHandler):
         self.write(json.dumps(secret_keys))
 
 
+class JsonConfigRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
+        filename = settings.rel_path(configuration)
+        if not os.path.isfile(filename):
+            self.send_error(404)
+            return
+
+        try:
+            content = yaml_util.load_yaml(filename, clear_secrets=False)
+            json_content = json.dumps(
+                content, default=lambda o: {"__type": str(type(o)), "repr": repr(o)}
+            )
+            self.set_header("content-type", "application/json")
+            self.write(json_content)
+        except EsphomeError as err:
+            _LOGGER.warning("Error translating file %s to JSON: %s", filename, err)
+            self.send_error(500)
+
+
 def get_base_frontend_path():
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -905,7 +973,7 @@ def get_static_path(*args):
     return os.path.join(get_base_frontend_path(), "static", *args)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def get_static_file_url(name):
     base = f"./static/{name}"
 
@@ -991,7 +1059,9 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
             (f"{rel}secret_keys", SecretKeysRequestHandler),
+            (f"{rel}json-config", JsonConfigRequestHandler),
             (f"{rel}rename", EsphomeRenameHandler),
+            (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
         ],
         **app_settings,
     )

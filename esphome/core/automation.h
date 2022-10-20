@@ -176,7 +176,7 @@ template<typename... Ts> class Action {
     return this->next_->is_running();
   }
 
-  Action<Ts...> *next_ = nullptr;
+  Action<Ts...> *next_{nullptr};
 
   /// The number of instances of this sequence in the list of actions
   /// that is currently being executed.

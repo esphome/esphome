@@ -1,8 +1,10 @@
+---
 name: Stale
 
+# yamllint disable-line rule:truthy
 on:
   schedule:
-    - cron: '30 0 * * *'
+    - cron: "30 0 * * *"
   workflow_dispatch:
 
 permissions:
@@ -31,7 +33,8 @@ jobs:
             and will be closed if no further activity occurs within 7 days.
             Thank you for your contributions.
 
-  # Use stale to automatically close issues with a reference to the issue tracker
+  # Use stale to automatically close issues with a
+  # reference to the issue tracker
   close-issues:
     runs-on: ubuntu-latest
     steps:

@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_FRAMEWORK,
     CONF_INCLUDES,
     CONF_LIBRARIES,
+    CONF_MIN_VERSION,
     CONF_NAME,
     CONF_ON_BOOT,
     CONF_ON_LOOP,
@@ -30,6 +31,7 @@ from esphome.const import (
     KEY_CORE,
     TARGET_PLATFORMS,
     PLATFORM_ESP8266,
+    __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.helpers import copy_file_if_changed, walk_files
@@ -96,6 +98,16 @@ def valid_project_name(value: str):
     return value
 
 
+def validate_version(value: str):
+    min_version = cv.Version.parse(value)
+    current_version = cv.Version.parse(ESPHOME_VERSION)
+    if current_version < min_version:
+        raise cv.Invalid(
+            f"Your ESPHome version is too old. Please update to at least {min_version}"
+        )
+    return value
+
+
 CONF_ESP8266_RESTORE_FROM_FLASH = "esp8266_restore_from_flash"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -135,6 +147,9 @@ CONFIG_SCHEMA = cv.All(
                     ),
                     cv.Required(CONF_VERSION): cv.string_strict,
                 }
+            ),
+            cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
+                cv.version_number, validate_version
             ),
         }
     ),
@@ -179,7 +194,11 @@ def preload_core_config(config, result):
     ]
 
     if not has_oldstyle and not newstyle_found:
-        raise cv.Invalid("Platform missing for core options!", [CONF_ESPHOME])
+        raise cv.Invalid(
+            "Platform missing. You must include one of the available platform keys: "
+            + ", ".join(TARGET_PLATFORMS),
+            [CONF_ESPHOME],
+        )
     if has_oldstyle and newstyle_found:
         raise cv.Invalid(
             f"Please remove the `platform` key from the [esphome] block. You're already using the new style with the [{conf[CONF_PLATFORM]}] block",

@@ -21,6 +21,8 @@
 #include "esp_system.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
+#elif defined(USE_RP2040) && defined(USE_WIFI)
+#include <WiFi.h>
 #endif
 
 #ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
@@ -62,6 +64,21 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   }
   return crc;
 }
+uint16_t crc16(const uint8_t *data, uint8_t len) {
+  uint16_t crc = 0xFFFF;
+  while (len--) {
+    crc ^= *data++;
+    for (uint8_t i = 0; i < 8; i++) {
+      if ((crc & 0x01) != 0) {
+        crc >>= 1;
+        crc ^= 0xA001;
+      } else {
+        crc >>= 1;
+      }
+    }
+  }
+  return crc;
+}
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -76,6 +93,8 @@ uint32_t random_uint32() {
   return esp_random();
 #elif defined(USE_ESP8266)
   return os_random();
+#elif defined(USE_RP2040)
+  return ((uint32_t) rand()) << 16 + ((uint32_t) rand());
 #else
 #error "No random source available for this configuration."
 #endif
@@ -87,6 +106,8 @@ bool random_bytes(uint8_t *data, size_t len) {
   return true;
 #elif defined(USE_ESP8266)
   return os_get_random(data, len) == 0;
+#elif defined(USE_RP2040)
+  return false;
 #else
 #error "No random source available for this configuration."
 #endif
@@ -394,6 +415,8 @@ void get_mac_address_raw(uint8_t *mac) {
 #endif
 #elif defined(USE_ESP8266)
   wifi_get_macaddr(STATION_IF, mac);
+#elif defined(USE_RP2040) && defined(USE_WIFI)
+  WiFi.macAddress(mac);
 #endif
 }
 std::string get_mac_address() {
