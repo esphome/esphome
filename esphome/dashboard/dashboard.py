@@ -439,6 +439,10 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 "firmware.bin", "firmware.uf2"
             )
 
+        elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
+            filename = f"{storage_json.name}.bin"
+            path = storage_json.firmware_bin_path
+
         elif type == "firmware.bin":
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
