@@ -9,7 +9,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@khenderick"]
 DEPENDENCIES = []
-AUTO_LOAD = ["sensor", "binary_sensor", "switch"]
+AUTO_LOAD = ["sensor", "binary_sensor", "switch", "number"]
 
 CONF_OPENTHERM_ID = "opentherm_id"
 
