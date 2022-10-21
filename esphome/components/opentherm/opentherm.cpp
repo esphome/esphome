@@ -1,4 +1,4 @@
-#include "diyless_opentherm.h"
+#include "opentherm.h"
 #include "esphome/core/log.h"
 #include <vector>
 
