@@ -67,7 +67,7 @@ enum OpenThermMessageID {
   CH_TEMP_MAX_MIN = 49,    // s8 / s8 -> Max CH water setpoint upper & lower bounds for adjustment (°C)
   DHW_SETPOINT = 56,       // f8.8 -> DHW setpoint (°C) (Remote parameter 1)
   MAX_CH_SETPOINT = 57,    // f8.8 -> Max CH water setpoint (°C) (Remote parameters 2)
-  // Class 6: Transparent Slave Parameters
+  // Class 6: Transparent Boiler Parameters
   NR_OF_TSPS = 10,       // u8 / u8 -> Number of Transparent-Boiler-Parameters supported by boiler
   TSP_INDEX_VALUE = 11,  // u8 / u8 -> Index number / Value of referred-to transparent boiler parameter.
   // Class 7: Fault History Data
