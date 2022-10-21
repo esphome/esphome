@@ -65,7 +65,6 @@ esphome/components/debug/* @OttoWinter
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
-esphome/components/diyless_opentherm/* @khenderick
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/dsmr/* @glmnet @zuidwijk
@@ -161,6 +160,7 @@ esphome/components/nextion/switch/* @senexcrenshaw
 esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz
 esphome/components/number/* @esphome/core
+esphome/components/opentherm/* @khenderick
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pid/* @OttoWinter
