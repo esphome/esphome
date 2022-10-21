@@ -70,8 +70,8 @@ enum OpenThermMessageID {
   CH_PUMP_OPERATION_HOURS,    // u16  Number of hours that CH pump has been running
   DHW_PUMP_VALVE_OPERATION_HOURS,  // u16  Number of hours that DHW pump has been running or DHW valve has been opened
   DHW_BURNER_OPERATION_HOURS,      // u16  Number of hours that burner is in operation during DHW mode
-  OPEN_THERM_VERSION_MASTER,  // f8.8  The implemented version of the OpenTherm Protocol Specification in the device.
-  OPEN_THERM_VERSION_SLAVE,   // f8.8  The implemented version of the OpenTherm Protocol Specification in the boiler.
+  OPEN_THERM_VERSION_DEVICE,  // f8.8  The implemented version of the OpenTherm Protocol Specification in the device.
+  OPEN_THERM_VERSION_BOILER,  // f8.8  The implemented version of the OpenTherm Protocol Specification in the boiler.
   DEVICE_VERSION,             // u8 / u8  Device product version number and type
   BOILER_VERSION,             // u8 / u8  Boiler product version number and type
 };

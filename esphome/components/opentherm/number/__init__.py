@@ -12,7 +12,7 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     UNIT_CELSIUS,
 )
-from esphome.components.opentherm import (
+from ...opentherm import (
     OpenThermComponent,
     CONF_OPENTHERM_ID,
 )
@@ -34,9 +34,7 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(
-                OpenThermComponent
-            ),
+            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(OpenThermComponent),
             cv.Optional(CONF_CH_SETPOINT_TEMPERATURE): number.NUMBER_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(CustomNumber),

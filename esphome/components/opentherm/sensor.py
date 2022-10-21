@@ -40,9 +40,7 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(
-                OpenThermComponent
-            ),
+            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(OpenThermComponent),
             cv.Optional(CONF_CH_MIN_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
                 icon=ICON_HOME_THERMOMETER,

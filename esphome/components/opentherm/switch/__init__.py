@@ -4,7 +4,7 @@ from esphome.components import switch
 from esphome.const import (
     ICON_RADIATOR,
 )
-from esphome.components.opentherm import (
+from ...opentherm import (
     OpenThermComponent,
     CONF_OPENTHERM_ID,
 )
@@ -28,9 +28,7 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(
-                OpenThermComponent
-            ),
+            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(OpenThermComponent),
             cv.Optional(CONF_CH_ENABLED): switch.switch_schema(
                 class_=CustomSwitch,
                 icon=ICON_RADIATOR,

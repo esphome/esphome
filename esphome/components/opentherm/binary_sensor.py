@@ -27,9 +27,7 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(
-                OpenThermComponent
-            ),
+            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(OpenThermComponent),
             cv.Optional(CONF_CH_ACTIVE): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_HEAT,
             ),
