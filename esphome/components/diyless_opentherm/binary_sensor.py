@@ -6,7 +6,7 @@ from esphome.const import (
     DEVICE_CLASS_HEAT,
     DEVICE_CLASS_PROBLEM,
 )
-from . import DiyLessOpenThermComponent, CONF_DIYLESS_OPENTHERM_ID
+from . import OpenThermComponent, CONF_OPENTHERM_ID
 
 CONF_CH_ACTIVE = "ch_active"
 CONF_DHW_ACTIVE = "dhw_active"
@@ -27,8 +27,8 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_DIYLESS_OPENTHERM_ID): cv.use_id(
-                DiyLessOpenThermComponent
+            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(
+                OpenThermComponent
             ),
             cv.Optional(CONF_CH_ACTIVE): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_HEAT,
@@ -61,6 +61,6 @@ async def setup_conf(config, key, hub):
 
 
 async def to_code(config):
-    hub = await cg.get_variable(config[CONF_DIYLESS_OPENTHERM_ID])
+    hub = await cg.get_variable(config[CONF_OPENTHERM_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

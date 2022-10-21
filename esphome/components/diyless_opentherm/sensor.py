@@ -11,7 +11,7 @@ from esphome.const import (
     UNIT_PERCENT,
     UNIT_CELSIUS,
 )
-from . import DiyLessOpenThermComponent, CONF_DIYLESS_OPENTHERM_ID
+from . import OpenThermComponent, CONF_OPENTHERM_ID
 
 CONF_CH_MIN_TEMPERATURE = "ch_min_temperature"
 CONF_CH_MAX_TEMPERATURE = "ch_max_temperature"
@@ -40,8 +40,8 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_DIYLESS_OPENTHERM_ID): cv.use_id(
-                DiyLessOpenThermComponent
+            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(
+                OpenThermComponent
             ),
             cv.Optional(CONF_CH_MIN_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
@@ -108,6 +108,6 @@ async def setup_conf(config, key, hub):
 
 
 async def to_code(config):
-    hub = await cg.get_variable(config[CONF_DIYLESS_OPENTHERM_ID])
+    hub = await cg.get_variable(config[CONF_OPENTHERM_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

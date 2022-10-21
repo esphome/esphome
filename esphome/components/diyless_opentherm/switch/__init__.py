@@ -4,13 +4,13 @@ from esphome.components import switch
 from esphome.const import (
     ICON_RADIATOR,
 )
-from esphome.components.diyless_opentherm import (
-    DiyLessOpenThermComponent,
-    CONF_DIYLESS_OPENTHERM_ID,
+from esphome.components.opentherm import (
+    OpenThermComponent,
+    CONF_OPENTHERM_ID,
 )
-from .. import diyless_opentherm
+from .. import opentherm
 
-CustomSwitch = diyless_opentherm.class_("CustomSwitch", switch.Switch, cg.Component)
+CustomSwitch = opentherm.class_("CustomSwitch", switch.Switch, cg.Component)
 
 CONF_CH_ENABLED = "ch_enabled"
 CONF_DHW_ENABLED = "dhw_enabled"
@@ -28,8 +28,8 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_DIYLESS_OPENTHERM_ID): cv.use_id(
-                DiyLessOpenThermComponent
+            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(
+                OpenThermComponent
             ),
             cv.Optional(CONF_CH_ENABLED): switch.switch_schema(
                 class_=CustomSwitch,
@@ -56,6 +56,6 @@ async def setup_conf(config, key, hub):
 
 
 async def to_code(config):
-    hub = await cg.get_variable(config[CONF_DIYLESS_OPENTHERM_ID])
+    hub = await cg.get_variable(config[CONF_OPENTHERM_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

@@ -5,7 +5,7 @@
 #include "esphome/core/preferences.h"
 
 namespace esphome {
-namespace diyless_opentherm {
+namespace opentherm {
 
 class CustomNumber : public Component, public number::Number {
  public:
@@ -21,5 +21,5 @@ class CustomNumber : public Component, public number::Number {
   void control(float value) override;
 };
 
-}  // namespace diyless_opentherm
+}  // namespace opentherm
 }  // namespace esphome

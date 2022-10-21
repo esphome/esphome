@@ -12,13 +12,13 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     UNIT_CELSIUS,
 )
-from esphome.components.diyless_opentherm import (
-    DiyLessOpenThermComponent,
-    CONF_DIYLESS_OPENTHERM_ID,
+from esphome.components.opentherm import (
+    OpenThermComponent,
+    CONF_OPENTHERM_ID,
 )
-from .. import diyless_opentherm
+from .. import opentherm
 
-CustomNumber = diyless_opentherm.class_("CustomNumber", number.Number, cg.Component)
+CustomNumber = opentherm.class_("CustomNumber", number.Number, cg.Component)
 
 CONF_CH_SETPOINT_TEMPERATURE = "ch_setpoint_temperature"
 CONF_DHW_SETPOINT_TEMPERATURE = "dhw_setpoint_temperature"
@@ -34,8 +34,8 @@ TYPES = [
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(CONF_DIYLESS_OPENTHERM_ID): cv.use_id(
-                DiyLessOpenThermComponent
+            cv.GenerateID(CONF_OPENTHERM_ID): cv.use_id(
+                OpenThermComponent
             ),
             cv.Optional(CONF_CH_SETPOINT_TEMPERATURE): number.NUMBER_SCHEMA.extend(
                 {
@@ -93,6 +93,6 @@ async def setup_conf(config, key, hub):
 
 
 async def to_code(config):
-    hub = await cg.get_variable(config[CONF_DIYLESS_OPENTHERM_ID])
+    hub = await cg.get_variable(config[CONF_OPENTHERM_ID])
     for key in TYPES:
         await setup_conf(config, key, hub)

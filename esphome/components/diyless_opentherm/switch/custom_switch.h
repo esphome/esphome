@@ -4,12 +4,12 @@
 #include "esphome/components/switch/switch.h"
 
 namespace esphome {
-namespace diyless_opentherm {
+namespace opentherm {
 
 class CustomSwitch : public Component, public switch_::Switch {
  protected:
   void write_state(bool state) override;
 };
 
-}  // namespace diyless_opentherm
+}  // namespace opentherm
 }  // namespace esphome

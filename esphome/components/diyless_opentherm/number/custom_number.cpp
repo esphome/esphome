@@ -1,7 +1,7 @@
 #include "custom_number.h"
 
 namespace esphome {
-namespace diyless_opentherm {
+namespace opentherm {
 
 void CustomNumber::setup() {
   float value{NAN};
@@ -25,5 +25,5 @@ void CustomNumber::control(float value) {
   }
 };
 
-}  // namespace diyless_opentherm
+}  // namespace opentherm
 }  // namespace esphome
