@@ -148,8 +148,7 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   this->log_callback_.call(level, tag, msg);
 }
 
-Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
-    : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size), uart_(uart) {
+Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
 }
@@ -270,6 +269,9 @@ const char *const UART_SELECTIONS[] = {
 #endif  // USE_ESP32
 #ifdef USE_ESP8266
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
+#endif
+#ifdef USE_RP2040
+const char *const UART_SELECTIONS[] = {"UART0", "UART1"};
 #endif  // USE_ESP8266
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
