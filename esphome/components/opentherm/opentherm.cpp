@@ -83,11 +83,11 @@ void OpenThermComponent::loop() {
     // might revert to a build-in default as a safety measure.
     last_millis_ = millis();
     this->enqueue_request_(
-        this->build_request_(OpenThermMessageType::WRITE_DATA, OpenThermMessageID::T_SET,
+        this->build_request_(OpenThermMessageType::WRITE_DATA, OpenThermMessageID::CH_SETPOINT,
                              this->temperature_to_data_(this->ch_setpoint_temperature_number_->state)));
     if (this->confirmed_dhw_setpoint_ != this->dhw_setpoint_temperature_number_->state) {
       this->enqueue_request_(
-          this->build_request_(OpenThermMessageType::WRITE_DATA, OpenThermMessageID::TDHW_SET,
+          this->build_request_(OpenThermMessageType::WRITE_DATA, OpenThermMessageID::DHW_SETPOINT,
                                this->temperature_to_data_(this->dhw_setpoint_temperature_number_->state)));
     }
   }
@@ -96,18 +96,21 @@ void OpenThermComponent::loop() {
 }
 
 void OpenThermComponent::update() {
-  this->enqueue_request_(this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::TRET, 0));
-  this->enqueue_request_(this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::TBOILER, 0));
+  this->enqueue_request_(
+      this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::RETURN_WATER_TEMP, 0));
+  this->enqueue_request_(
+      this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::BOILER_WATER_TEMP, 0));
   this->enqueue_request_(this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::CH_PRESSURE, 0));
   this->enqueue_request_(this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::REL_MOD_LEVEL, 0));
-  this->enqueue_request_(this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::RB_PFLAGS, 0));
+  this->enqueue_request_(
+      this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::REMOTE_PARAM_FLAGS, 0));
   if (!this->dhw_min_max_read_) {
     this->enqueue_request_(
-        this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::TDHW_SET_UB_TDHW_SET_LB, 0));
+        this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::DHW_TEMP_MAX_MIN, 0));
   }
   if (!this->ch_min_max_read_) {
     this->enqueue_request_(
-        this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::MAX_T_SET_UB_MAX_T_SET_LB, 0));
+        this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::CH_TEMP_MAX_MIN, 0));
   }
   this->set_boiler_status_();
 }
@@ -117,7 +120,7 @@ void IRAM_ATTR OpenThermComponent::handle_interrupt(OpenThermComponent *componen
     return;
   }
 
-  unsigned long new_ts = micros();
+  uint32_t new_ts = micros();
   bool pin_state = component->isr_read_pin_.digital_read();
   if (component->status_ == OpenThermStatus::RESPONSE_WAITING) {
     if (pin_state) {
@@ -312,10 +315,10 @@ void OpenThermComponent::process_response_(uint32_t response, OpenThermResponseS
         this->publish_binary_sensor_state_(this->fault_binary_sensor_, this->is_fault_(response));
         this->publish_binary_sensor_state_(this->diagnostic_binary_sensor_, this->is_diagnostic_(response));
         break;
-      case OpenThermMessageID::TRET:
+      case OpenThermMessageID::RETURN_WATER_TEMP:
         this->publish_sensor_state_(this->return_temperature_sensor_, this->get_float_(response));
         break;
-      case OpenThermMessageID::TBOILER:
+      case OpenThermMessageID::BOILER_WATER_TEMP:
         this->publish_sensor_state_(this->boiler_temperature_sensor_, this->get_float_(response));
         break;
       case OpenThermMessageID::CH_PRESSURE:
@@ -324,17 +327,17 @@ void OpenThermComponent::process_response_(uint32_t response, OpenThermResponseS
       case OpenThermMessageID::REL_MOD_LEVEL:
         this->publish_sensor_state_(this->modulation_sensor_, this->get_float_(response));
         break;
-      case OpenThermMessageID::TDHW_SET_UB_TDHW_SET_LB:
+      case OpenThermMessageID::DHW_TEMP_MAX_MIN:
         this->dhw_min_max_read_ = true;
         this->publish_sensor_state_(this->dhw_max_temperature_sensor_, response >> 8 & 0xFF);
         this->publish_sensor_state_(this->dhw_min_temperature_sensor_, response & 0xFF);
         break;
-      case OpenThermMessageID::MAX_T_SET_UB_MAX_T_SET_LB:
+      case OpenThermMessageID::CH_TEMP_MAX_MIN:
         this->ch_min_max_read_ = true;
         this->publish_sensor_state_(this->ch_max_temperature_sensor_, response >> 8 & 0xFF);
         this->publish_sensor_state_(this->ch_min_temperature_sensor_, response & 0xFF);
         break;
-      case OpenThermMessageID::TDHW_SET:
+      case OpenThermMessageID::DHW_SETPOINT:
         if (this->get_message_type_(response) == OpenThermMessageType::WRITE_ACK) {
           this->confirmed_dhw_setpoint_ = this->get_float_(response);
         }

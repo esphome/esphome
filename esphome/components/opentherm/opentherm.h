@@ -58,9 +58,9 @@ class OpenThermComponent : public PollingComponent {
   void set_flame_active_binary_sensor(binary_sensor::BinarySensor *sensor) { flame_active_binary_sensor_ = sensor; }
   void set_fault_binary_sensor(binary_sensor::BinarySensor *sensor) { fault_binary_sensor_ = sensor; }
   void set_diagnostic_binary_sensor(binary_sensor::BinarySensor *sensor) { diagnostic_binary_sensor_ = sensor; }
-  void set_ch_enabled_switch(opentherm::CustomSwitch *switch_) { ch_enabled_switch_ = switch_; }
-  void set_dhw_enabled_switch(opentherm::CustomSwitch *switch_) { dhw_enabled_switch_ = switch_; }
-  void set_cooling_enabled_switch(opentherm::CustomSwitch *switch_) { cooling_enabled_switch_ = switch_; }
+  void set_ch_enabled_switch(opentherm::CustomSwitch *custom_switch) { ch_enabled_switch_ = custom_switch; }
+  void set_dhw_enabled_switch(opentherm::CustomSwitch *custom_switch) { dhw_enabled_switch_ = custom_switch; }
+  void set_cooling_enabled_switch(opentherm::CustomSwitch *custom_switch) { cooling_enabled_switch_ = custom_switch; }
   void set_ch_setpoint_temperature_number(opentherm::CustomNumber *number) { ch_setpoint_temperature_number_ = number; }
   void set_dhw_setpoint_temperature_number(opentherm::CustomNumber *number) {
     dhw_setpoint_temperature_number_ = number;
