@@ -290,8 +290,6 @@ adalight:
 
 esp32_ble_tracker:
 
-bluetooth_proxy:
-
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:FF
     id: ble_foo
@@ -321,6 +319,7 @@ mcp23s17:
 
 sensor:
   - platform: ble_client
+    type: characteristic
     ble_client_id: ble_foo
     name: Green iTag btn
     service_uuid: ffe0
@@ -335,6 +334,11 @@ sensor:
       then:
         - lambda: |-
             ESP_LOGD("green_btn", "Button was pressed, val%f", x);
+  - platform: ble_client
+    type: rssi
+    ble_client_id: ble_foo
+    name: Green iTag RSSI
+    update_interval: 15s
   - platform: adc
     pin: A0
     name: Living Room Brightness
@@ -1858,6 +1862,9 @@ climate:
     name: Fujitsu General Climate
   - platform: daikin
     name: Daikin Climate
+  - platform: daikin_brc
+    name: Daikin BRC Climate
+    use_fahrenheit: true
   - platform: delonghi
     name: Delonghi Climate
   - platform: yashima
