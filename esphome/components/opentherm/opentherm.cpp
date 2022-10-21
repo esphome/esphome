@@ -28,7 +28,8 @@ void OpenThermComponent::setup() {
   this->read_pin_->attach_interrupt(&OpenThermComponent::handle_interrupt, this, gpio::INTERRUPT_ANY_EDGE);
   this->write_pin_->setup();
 
-  this->active_boiler_();
+  this->write_pin_->digital_write(true);
+  delay(25);
   this->status_ = OpenThermStatus::READY;
 
   if (this->ch_enabled_switch_) {
@@ -161,11 +162,6 @@ void OpenThermComponent::log_message_(uint8_t level, const char *pre_message, ui
       ESP_LOGW(TAG, "%s: %s(%i, 0x%04hX)", pre_message, this->format_message_type_(message),
                this->get_data_id_(message), this->get_uint16_(message));
   }
-}
-
-void OpenThermComponent::active_boiler_() {
-  this->write_pin_->digital_write(true);
-  delay(1000);
 }
 
 void OpenThermComponent::send_bit_(bool high) {

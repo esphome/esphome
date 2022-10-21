@@ -107,7 +107,6 @@ class OpenThermComponent : public PollingComponent {
   bool parity_(uint32_t frame);
   void set_active_state_();
   void set_idle_state_();
-  void active_boiler_();
   void send_bit_(bool high);
 
   bool is_valid_response_(uint32_t response);
