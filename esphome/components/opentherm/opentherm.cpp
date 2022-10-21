@@ -1,3 +1,9 @@
+/*
+ * Notice:
+ *   The code for actual communication with OpenTherm is heavily based on Ihor Melnyk's
+ *   OpenTherm Library at https://github.com/ihormelnyk/opentherm_library, which is MIT licensed.
+ */
+
 #include "opentherm.h"
 #include "esphome/core/log.h"
 #include <vector>
