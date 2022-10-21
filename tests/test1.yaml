@@ -317,6 +317,10 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+opentherm:
+  read_pin: 21
+  write_pin: 22
+
 sensor:
   - platform: ble_client
     type: characteristic
@@ -1178,6 +1182,23 @@ sensor:
     pressure:
       name: "MPL3115A2 Pressure"
     update_interval: 10s
+  - platform: opentherm
+    ch_min_temperature:
+      name: "Boiler CH minimum temperature"
+    ch_max_temperature:
+      name: "Boiler CH maximum temperature"
+    dhw_min_temperature:
+      name: "Boiler DHW minimum temperature"
+    dhw_max_temperature:
+      name: "Boiler DHW maximum temperature"
+    pressure:
+      name: "Boiler pressure"
+    modulation:
+      name: "Boiler modulation"
+    boiler_temperature:
+      name: "Boiler boiler temperature"
+    return_temperature:
+      name: "Boiler return temperature"
 
 esp32_touch:
   setup_mode: false
@@ -1422,6 +1443,19 @@ binary_sensor:
     id: close_sensor
   - platform: template
     id: close_obstacle_sensor
+  - platform: opentherm
+    ch_active:
+      name: "Boiler CH active"
+    dhw_active:
+      name: "Boiler DHW active"
+    flame_active:
+      name: "Boiler flame active"
+    cooling_active:
+      name: "Boiler cooling active"
+    fault:
+      name: "Boiler fault"
+    diagnostic:
+      name: "Boiler diagnostic"
 
 pca9685:
   frequency: 500
@@ -2261,6 +2295,11 @@ switch:
     id: outlet_switch
     optimistic: true
     device_class: outlet
+  - platform: opentherm
+    ch_enabled:
+      name: "Boiler CH enabled"
+    dhw_enabled:
+      name: "Boiler DHW enabled"
 
 fan:
   - platform: binary
@@ -2934,6 +2973,19 @@ number:
     step: 1
     max_value: 10
     optimistic: true
+  - platform: opentherm
+    ch_setpoint_temperature:
+      name: "Boiler CH setpoint temperature"
+      min_value: 20.0
+      max_value: 45.0
+      step: 0.5
+      restore_value: true
+    dhw_setpoint_temperature:
+      name: "Boiler DHW setpoint temperature"
+      min_value: 38.0
+      max_value: 60.0
+      step: 0.5
+      restore_value: true
 
 select:
   - platform: template
