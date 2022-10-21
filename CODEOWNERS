@@ -13,6 +13,7 @@ esphome/core/* @esphome/core
 # Integrations
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
+esphome/components/adc128s102/* @DeerMaximum
 esphome/components/addressable_light/* @justfalter
 esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_mini/* @ncareau
@@ -57,6 +58,7 @@ esphome/components/cse7761/* @berfenger
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
 esphome/components/dac7678/* @NickB1
+esphome/components/daikin_brc/* @hagak
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
 esphome/components/debug/* @OttoWinter
@@ -76,8 +78,10 @@ esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp8266/* @esphome/core
+esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/exposure_notifications/* @OttoWinter
 esphome/components/ezo/* @ssieb
+esphome/components/ezo_pmp/* @carlos-sarmiento
 esphome/components/factory_reset/* @anatoly-savchenkov
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
@@ -180,6 +184,8 @@ esphome/components/rc522_spi/* @glmnet
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
+esphome/components/rp2040/* @jesserockz
+esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rtttl/* @glmnet
 esphome/components/safe_mode/* @jsuanet @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny
@@ -254,6 +260,7 @@ esphome/components/wake_on_lan/* @willwill2will54
 esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
 esphome/components/whynter/* @aeonsablaze
+esphome/components/wl_134/* @hobbypunk90
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs

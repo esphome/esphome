@@ -45,7 +45,6 @@ class BluetoothProxy : public BLEClientBase {
  protected:
   void send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device);
 
-  std::map<uint64_t, esp_ble_addr_type_t> address_type_map_;
   int16_t send_service_{-1};
   bool active_;
 };

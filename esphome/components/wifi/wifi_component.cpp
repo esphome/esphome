@@ -38,7 +38,11 @@ void WiFiComponent::setup() {
   this->last_connected_ = millis();
   this->wifi_pre_setup_();
 
+#ifndef USE_CAPTIVE_PORTAL_KEEP_USER_CREDENTIALS
   uint32_t hash = fnv1_hash(App.get_compilation_time());
+#else
+  uint32_t hash = 88491487UL;
+#endif
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 
   SavedWifiSettings save{};
@@ -705,6 +709,8 @@ uint8_t WiFiScanResult::get_channel() const { return this->channel_; }
 int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
 bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
 bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
+
+bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
 
 WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
