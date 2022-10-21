@@ -45,7 +45,6 @@ const uint8_t MITSUBISHI_BYTE13 = 0X00;
 const uint8_t MITSUBISHI_BYTE16 = 0X00;
 
 void MitsubishiClimate::transmit_state() {
-  
   // Byte 0-4: Constant: 0x23, 0xCB, 0x26, 0x01, 0x00
   // Byte 5: On=0x20, Off: 0x00
   // Byte 6: MODE (See MODEs above (Heat/Dry/Cool/Auto)
