@@ -12,8 +12,7 @@ ld2410_ns = cg.esphome_ns.namespace("ld2410")
 LD2410Component = ld2410_ns.class_(
     "LD2410Component", cg.PollingComponent, uart.UARTDevice
 )
-
-LD2410SetConfigMode = ld2410_ns.class_("LD2410SetConfigMode", automation.Action)
+LD2410Restart = ld2410_ns.class_("LD2410Restart", automation.Action)
 CONF_LD2410_ID = "ld2410_id"
 CONF_MAX_MOVE_DISTANCE = "max_move_distance"
 CONF_MAX_STILL_DISTANCE = "max_still_distance"
@@ -102,6 +101,13 @@ CONFIG_SCHEMA = cv.All(
     ).extend(uart.UART_DEVICE_SCHEMA)
 )
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "ld2410",
+    baud_rate=256000,
+    require_tx=True,
+    require_rx=True,
+)
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -139,11 +145,3 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
         cv.Required(CONF_ID): cv.use_id(LD2410Component),
     }
 )
-
-
-@automation.register_action(
-    "ld2410.set_config_mode", LD2410SetConfigMode, CALIBRATION_ACTION_SCHEMA
-)
-async def ld2410_set_config_mode(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)

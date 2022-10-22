@@ -13,20 +13,23 @@ namespace ld2410 {
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
 // Commands
-
 static const uint8_t CMD_ENABLE_CONF = 0x00FF;
 static const uint8_t CMD_DISABLE_CONF = 0x00FE;
 static const uint8_t CMD_MAXDIST_DURATION = 0x0060;
 static const uint8_t CMD_QUERY = 0x0061;
 static const uint8_t CMD_GATE_SENS = 0x0064;
 static const uint8_t CMD_VERSION = 0x00A0;
+
 // Commands values
 static const uint8_t CMD_MAX_MOVE_VALUE = 0x0000;
 static const uint8_t CMD_MAX_STILL_VALUE = 0x0001;
 static const uint8_t CMD_DURATION_VALUE = 0x0002;
-
+// Command Header & Footer
 static const uint8_t CMD_FRAME_HEADER[4] = {0xFD, 0xFC, 0xFB, 0xFA};
 static const uint8_t CMD_FRAME_END[4] = {0x04, 0x03, 0x02, 0x01};
+// Data Header & Footer
+static const uint8_t DATA_FRAME_HEADER[4] = {0xF4, 0xF3, 0xF2, 0xF1};
+static const uint8_t DATA_FRAME_END[4] = {0xF8, 0xF7, 0xF6, 0xF5};
 /*
 Data Type: 6th byte
 Target states: 9th byte
@@ -46,8 +49,10 @@ enum PeriodicDataStructure : uint8_t {
   STILL_TARGET_HIGH = 13,
   STILL_ENERGY = 14,
   DETECT_DISTANCE_LOW = 15,
-  DETECT_DISTANCE_HIGH = 16
+  DETECT_DISTANCE_HIGH = 16,
 };
+enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
+
 enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 
 //  char cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
@@ -58,7 +63,6 @@ class LD2410Component : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
   void loop() override;
 
-  void set_config_mode_(bool enable);
   void set_target_sensor(binary_sensor::BinarySensor *sens) { this->target_binary_sensor_ = sens; };
   void set_moving_target_sensor(binary_sensor::BinarySensor *sens) { this->moving_binary_sensor_ = sens; };
   void set_still_target_sensor(binary_sensor::BinarySensor *sens) { this->still_binary_sensor_ = sens; };
@@ -67,9 +71,9 @@ class LD2410Component : public PollingComponent, public uart::UARTDevice {
   void set_moving_energy_sensor(sensor::Sensor *sens) { this->moving_target_energy_sensor_ = sens; };
   void set_still_energy_sensor(sensor::Sensor *sens) { this->still_target_energy_sensor_ = sens; };
   void set_detection_distance_sensor(sensor::Sensor *sens) { this->detection_distance_sensor_ = sens; };
-  void set_none_duration(int value) { this->noneDuration_ = value; };
-  void set_max_move_distance(int value) { this->maxMoveDistance_ = value; };
-  void set_max_still_distance(int value) { this->maxStillDistance_ = value; };
+  void set_none_duration(int value) { this->noneduration_ = value; };
+  void set_max_move_distance(int value) { this->max_move_distance_ = value; };
+  void set_max_still_distance(int value) { this->max_still_distance_ = value; };
   void set_range_config(int rg0_move, int rg0_still, int rg1_move, int rg1_still, int rg2_move, int rg2_still,
                         int rg3_move, int rg3_still, int rg4_move, int rg4_still, int rg5_move, int rg5_still,
                         int rg6_move, int rg6_still, int rg7_move, int rg7_still, int rg8_move, int rg8_still) {
@@ -92,13 +96,10 @@ class LD2410Component : public PollingComponent, public uart::UARTDevice {
     this->rg8_move_sens_ = rg8_move;
     this->rg8_still_sens_ = rg8_still;
   };
-  // Number *maxMovingDistanceRange;
-  // Number *maxStillDistanceRange;
-  // Number *noneDuration;
   int moving_sensitivities[9] = {0};
   int still_sensitivities[9] = {0};
 
-  long last_periodic_millis = millis();
+  int32_t last_periodic_millis = millis();
 
  protected:
   binary_sensor::BinarySensor *target_binary_sensor_{nullptr};
@@ -110,33 +111,25 @@ class LD2410Component : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *still_target_energy_sensor_{nullptr};
   sensor::Sensor *detection_distance_sensor_{nullptr};
 
-  int twoByteToInt_(char firstbyte, char secondbyte) { return (int16_t)(secondbyte << 8) + firstbyte; }
-  void sendCommand_(uint8_t command_str, char *command_value, int command_value_len);
+  int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t)(secondbyte << 8) + firstbyte; }
+  void send_command_(uint8_t command_str, uint8_t *command_value, int command_value_len);
 
-  void set_max_distances_none_duration_(int max_moving_distance_range, int max_still_distance_range, int none_duration);
-  void set_sensitivity_(uint8_t gate, uint8_t motion_sens, uint8_t still_sens);
-
-  void handlePeriodicData_(char *buffer, int len);
-  void handleACKData_(char *buffer, int len);
-  void readline_(int readch, char *buffer, int len);
-  void queryParameters_();
-  void getVersion_();
-  int noneDuration_ = -1;
-  int maxMoveDistance_ = -1;
-  int maxStillDistance_ = -1;
-  int rg0_move_sens_, rg0_still_sens_, rg1_move_sens_, rg1_still_sens_, rg2_move_sens_, rg2_still_sens_, rg3_move_sens_,
-      rg3_still_sens_, rg4_move_sens_, rg4_still_sens_, rg5_move_sens_, rg5_still_sens_, rg6_move_sens_,
-      rg6_still_sens_, rg7_move_sens_, rg7_still_sens_, rg8_move_sens_, rg8_still_sens_ = -1;
-};
-
-template<typename... Ts> class LD2410SetConfigMode : public Action<Ts...> {
- public:
-  LD2410SetConfigMode(LD2410Component *ld2410) : ld2410_(ld2410) {}
-
-  void play(Ts... x) override { this->ld2410_->set_config_mode_(true); }
-
- protected:
-  LD2410Component *ld2410_;
+  void set_max_distances_none_duration_(uint8_t max_moving_distance_range, uint8_t max_still_distance_range,
+                                        uint8_t none_duration);
+  void set_sensitivity_(uint8_t gate, uint8_t motionsens, uint8_t stillsens);
+  void set_config_mode_(bool enable);
+  void handle_periodic_data_(uint8_t *buffer, int len);
+  void handle_ack_data_(uint8_t *buffer, int len);
+  void readline_(int readch, uint8_t *buffer, int len);
+  void query_parameters_();
+  void get_version_();
+  int noneduration_ = -1;
+  int max_move_distance_ = -1;
+  int max_still_distance_ = -1;
+  uint8_t version_[6];
+  uint8_t rg0_move_sens_, rg0_still_sens_, rg1_move_sens_, rg1_still_sens_, rg2_move_sens_, rg2_still_sens_,
+      rg3_move_sens_, rg3_still_sens_, rg4_move_sens_, rg4_still_sens_, rg5_move_sens_, rg5_still_sens_, rg6_move_sens_,
+      rg6_still_sens_, rg7_move_sens_, rg7_still_sens_, rg8_move_sens_, rg8_still_sens_;
 };
 
 }  // namespace ld2410
