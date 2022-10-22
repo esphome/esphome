@@ -89,7 +89,7 @@ void LD2410Component::send_command_(uint8_t command, uint8_t *command_value, int
   }
   // frame end bytes
   this->write_array(CMD_FRAME_END, 4);
-  delay(50);
+  delay(50);  // NOLINT
 }
 
 void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
@@ -100,13 +100,13 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
   if (buffer[7] != HEAD || buffer[len - 6] != END || buffer[len - 5] != CHECK)  // Check constant values
     return;  // data head=0xAA, data end=0x55, crc=0x00
   /*
-    Data Type: 6th byte
+    Data Type: 6th
     0x01: Engineering mode
     0x02: Normal mode
   */
   // char data_type = buffer[DATA_TYPES];
   /*
-    Target states: 9th byte
+    Target states: 9th
     0x00 = No target
     0x01 = Moving targets
     0x02 = Still targets
