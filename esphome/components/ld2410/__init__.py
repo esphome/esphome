@@ -107,11 +107,11 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.setNoneDuration(config[CONF_NONE_DURATION]))
-    cg.add(var.setMaxMoveDistance(config[CONF_MAX_MOVE_DISTANCE]))
-    cg.add(var.setMaxStillDistance(config[CONF_MAX_STILL_DISTANCE]))
+    cg.add(var.set_none_duration(config[CONF_NONE_DURATION]))
+    cg.add(var.set_max_move_distance(config[CONF_MAX_MOVE_DISTANCE]))
+    cg.add(var.set_max_still_distance(config[CONF_MAX_STILL_DISTANCE]))
     cg.add(
-        var.setRangeConfig(
+        var.set_range_config(
             config[CONF_G0_MOVE_SENSITIVITY],
             config[CONF_G0_STILL_SENSITIVITY],
             config[CONF_G1_MOVE_SENSITIVITY],

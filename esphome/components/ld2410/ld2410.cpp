@@ -1,9 +1,7 @@
 #include "ld2410.h"
-// #include "esphome/core/log.h"
-// #include "esphome/core/hal.h"
 
-// #define highbyte(val) (uint8_t)((val) >> 8)
-// #define lowbyte(val) (uint8_t)((val) &0xff)
+#define highbyte(val) (uint8_t)((val) >> 8)
+#define lowbyte(val) (uint8_t)((val) &0xff)
 
 namespace esphome {
 namespace ld2410 {
@@ -28,19 +26,19 @@ void LD2410Component::dump_config() {
 
 void LD2410Component::setup() {
   set_update_interval(15000);
-  this->setConfigMode(true);
-  setMaxDistancesAndNoneDuration(this->maxMoveDistance_, this->maxStillDistance_, this->noneDuration_);
+  this->set_config_mode_(true);
+  this->set_max_distances_none_duration_(this->maxMoveDistance_, this->maxStillDistance_, this->noneDuration_);
   // Configure Gates sensitivity
-  setSensitivity(0, rg0_move_sens_, rg0_still_sens_);
-  setSensitivity(1, rg1_move_sens_, rg1_still_sens_);
-  setSensitivity(2, rg2_move_sens_, rg2_still_sens_);
-  setSensitivity(3, rg3_move_sens_, rg3_still_sens_);
-  setSensitivity(4, rg4_move_sens_, rg4_still_sens_);
-  setSensitivity(5, rg5_move_sens_, rg5_still_sens_);
-  setSensitivity(6, rg6_move_sens_, rg6_still_sens_);
-  setSensitivity(7, rg7_move_sens_, rg7_still_sens_);
-  setSensitivity(8, rg8_move_sens_, rg8_still_sens_);
-  setConfigMode(false);
+  this->set_sensitivity_(0, this->rg0_move_sens_, this->rg0_still_sens_);
+  this->set_sensitivity_(1, this->rg1_move_sens_, this->rg1_still_sens_);
+  this->set_sensitivity_(2, this->rg2_move_sens_, this->rg2_still_sens_);
+  this->set_sensitivity_(3, this->rg3_move_sens_, this->rg3_still_sens_);
+  this->set_sensitivity_(4, this->rg4_move_sens_, this->rg4_still_sens_);
+  this->set_sensitivity_(5, this->rg5_move_sens_, this->rg5_still_sens_);
+  this->set_sensitivity_(6, this->rg6_move_sens_, this->rg6_still_sens_);
+  this->set_sensitivity_(7, this->rg7_move_sens_, this->rg7_still_sens_);
+  this->set_sensitivity_(8, this->rg8_move_sens_, this->rg8_still_sens_);
+  this->set_config_mode_(false);
 }
 
 void LD2410Component::loop() {
@@ -48,7 +46,7 @@ void LD2410Component::loop() {
   static char buffer[max_line_length];
 
   while (available()) {
-    readline(read(), buffer, max_line_length);
+    this->readline_(read(), buffer, max_line_length);
   }
 }
 
@@ -59,26 +57,26 @@ void LD2410Component::loop() {
 //   noneDuration = noneDuration_;
 // }
 
-void LD2410Component::sendCommand(uint8_t command, char *commandValue, int commandValueLen) {
+void LD2410Component::sendCommand_(uint8_t command, char *command_value, int command_value_len) {
   // lastCommandSuccess->publish_state(false);
 
   // frame start bytes
   this->write_array(CMD_FRAME_HEADER, 4);
   // length bytes
   int len = 2;
-  if (commandValue != nullptr)
-    len += commandValueLen;
-  write_byte(lowByte(len));
-  write_byte(highByte(len));
+  if (command_value != nullptr)
+    len += command_value_len;
+  this->write_byte(lowbyte(len));
+  this->write_byte(highbyte(len));
 
   // command
-  write_byte(lowByte(command));
-  write_byte(highByte(command));
+  this->write_byte(lowbyte(command));
+  this->write_byte(highbyte(command));
 
   // command value bytes
-  if (commandValue != nullptr) {
-    for (int i = 0; i < commandValueLen; i++) {
-      write_byte(commandValue[i]);
+  if (command_value != nullptr) {
+    for (int i = 0; i < command_value_len; i++) {
+      this->write_byte(command_value[i]);
     }
   }
   // frame end bytes
@@ -86,7 +84,7 @@ void LD2410Component::sendCommand(uint8_t command, char *commandValue, int comma
   delay(50);
 }
 
-void LD2410Component::handlePeriodicData(char *buffer, int len) {
+void LD2410Component::handlePeriodicData_(char *buffer, int len) {
   if (len < 12)
     return;  // 4 frame start bytes + 2 length bytes + 1 data end byte + 1 crc byte + 4 frame end bytes
   if (buffer[0] != 0xF4 || buffer[1] != 0xF3 || buffer[2] != 0xF2 || buffer[3] != 0xF1)
@@ -98,7 +96,7 @@ void LD2410Component::handlePeriodicData(char *buffer, int len) {
     0x01: Engineering mode
     0x02: Normal mode
   */
-  char dataType = buffer[dataTypes];
+  char data_type = buffer[DATA_TYPES];
   /*
     Target states: 9th byte
     0x00 = No target
@@ -106,24 +104,24 @@ void LD2410Component::handlePeriodicData(char *buffer, int len) {
     0x02 = Still targets
     0x03 = Moving+Still targets
   */
-  char stateByte = buffer[targetStates];
-  if (this->hastargetsensor()) {
-    this->target_binary_sensor_->publish_state(stateByte != 0x00);
+  char target_state = buffer[TARGET_STATES];
+  if (this->target_binary_sensor_ != nullptr) {
+    this->target_binary_sensor_->publish_state(target_state != 0x00);
   }
 
   /*
     Reduce data update rate to prevent home assistant database size glow fast
   */
-  long currentMillis = millis();
-  if (currentMillis - lastPeriodicMillis < 1000)
+  int32_t current_millis = millis();
+  if (current_millis - last_periodic_millis < 1000)
     return;
-  lastPeriodicMillis = currentMillis;
+  last_periodic_millis = current_millis;
 
-  if (this->hasmovingtargetsensor()) {
-    this->moving_binary_sensor_->publish_state(CHECK_BIT(stateByte, 0));
+  if (this->moving_binary_sensor_ != nullptr) {
+    this->moving_binary_sensor_->publish_state(CHECK_BIT(target_state, 0));
   }
-  if (this->hasstilltargetsensor()) {
-    this->still_binary_sensor_->publish_state(CHECK_BIT(stateByte, 1));
+  if (this->still_binary_sensor_ != nullptr) {
+    this->still_binary_sensor_->publish_state(CHECK_BIT(target_state, 1));
   }
   /*
     Moving target distance: 10~11th bytes
@@ -132,65 +130,65 @@ void LD2410Component::handlePeriodicData(char *buffer, int len) {
     Still target energy: 15th byte
     Detect distance: 16~17th bytes
   */
-  if (moving_target_distance_sensor_ != nullptr) {
-    int newMovingTargetDistance = twoByteToInt(buffer[movingTargetLow], buffer[movingTargetHigh]);
-    if (moving_target_distance_sensor_->get_state() != newMovingTargetDistance)
-      moving_target_distance_sensor_->publish_state(newMovingTargetDistance);
+  if (this->moving_target_distance_sensor_ != nullptr) {
+    int new_moving_target_distance = this->twoByteToInt_(buffer[MOVING_TARGET_LOW], buffer[MOVING_TARGET_HIGH]);
+    if (this->moving_target_distance_sensor_->get_state() != new_moving_target_distance)
+      this->moving_target_distance_sensor_->publish_state(new_moving_target_distance);
   }
-  if (moving_target_energy_sensor_ != nullptr) {
-    int newMovingTargetEnergy = buffer[movingEnergy];
-    if (moving_target_energy_sensor_->get_state() != newMovingTargetEnergy)
-      moving_target_energy_sensor_->publish_state(newMovingTargetEnergy);
+  if (this->moving_target_energy_sensor_ != nullptr) {
+    int new_moving_target_energy = buffer[MOVING_ENERGY];
+    if (this->moving_target_energy_sensor_->get_state() != new_moving_target_energy)
+      this->moving_target_energy_sensor_->publish_state(new_moving_target_energy);
   }
-  if (still_target_distance_sensor_ != nullptr) {
-    int newStillTargetDistance = twoByteToInt(buffer[stillTargetLow], buffer[stillTargetHigh]);
-    if (still_target_distance_sensor_->get_state() != newStillTargetDistance)
-      still_target_distance_sensor_->publish_state(newStillTargetDistance);
+  if (this->still_target_distance_sensor_ != nullptr) {
+    int new_still_target_distance = this->twoByteToInt_(buffer[STILL_TARGET_LOW], buffer[STILL_TARGET_HIGH]);
+    if (this->still_target_distance_sensor_->get_state() != new_still_target_distance)
+      this->still_target_distance_sensor_->publish_state(new_still_target_distance);
   }
-  if (still_target_energy_sensor_ != nullptr) {
-    int newStillTargetEnergy = buffer[stillEnergy];
-    if (still_target_energy_sensor_->get_state() != newStillTargetEnergy)
-      still_target_energy_sensor_->publish_state(newStillTargetEnergy);
+  if (this->still_target_energy_sensor_ != nullptr) {
+    int new_still_target_energy = buffer[STILL_ENERGY];
+    if (this->still_target_energy_sensor_->get_state() != new_still_target_energy)
+      this->still_target_energy_sensor_->publish_state(new_still_target_energy);
   }
-  if (detection_distance_sensor_ != nullptr) {
-    int newDetectDistance = twoByteToInt(buffer[detectDistanceLow], buffer[detectDistanceHigh]);
-    if (detection_distance_sensor_->get_state() != newDetectDistance)
-      detection_distance_sensor_->publish_state(newDetectDistance);
+  if (this->detection_distance_sensor_ != nullptr) {
+    int new_detect_distance = this->twoByteToInt_(buffer[DETECT_DISTANCE_LOW], buffer[DETECT_DISTANCE_HIGH]);
+    if (this->detection_distance_sensor_->get_state() != new_detect_distance)
+      this->detection_distance_sensor_->publish_state(new_detect_distance);
   }
   // if (dataType == 0x01) {  // engineering mode
   //                          // todo: support engineering mode data
   // }
 }
 
-void LD2410Component::handleACKData(char *buffer, int len) {
+void LD2410Component::handleACKData_(char *buffer, int len) {
   ESP_LOGI(TAG, "Handling ACK DATA for COMMAND");
   if (len < 10)
     return;
   if (buffer[0] != 0xFD || buffer[1] != 0xFC || buffer[2] != 0xFB || buffer[3] != 0xFA)
     return;  // check 4 frame start bytes
-  if (buffer[command_status] != 0x01) {
-    ESP_LOGE(TAG, "Error wiht last command");
+  if (buffer[COMMAND_STATUS] != 0x01) {
+    ESP_LOGE(TAG, "Error with last command");
     return;
   }
-  if (twoByteToInt(buffer[8], buffer[9]) != 0x00) {
+  if (this->twoByteToInt_(buffer[8], buffer[9]) != 0x00) {
     ESP_LOGE(TAG, "Error with last command");
     return;
   }
 
-  switch (buffer[command]) {
-    case lowByte(CMD_ENABLE_CONF):
+  switch (buffer[COMMAND]) {
+    case lowbyte(CMD_ENABLE_CONF):
       ESP_LOGD(TAG, "Handled Enable conf command");
       break;
-    case lowByte(CMD_DISABLE_CONF):
+    case lowbyte(CMD_DISABLE_CONF):
       ESP_LOGD(TAG, "Handled Disabled conf command");
       break;
-    case lowByte(CMD_VERSION):
+    case lowbyte(CMD_VERSION):
       // TODO ESP_LOGI(TAG, "Version is V: %u.%u", buffer[13], buffer[12]);
       break;
-    case lowByte(CMD_GATE_SENS):
+    case lowbyte(CMD_GATE_SENS):
       ESP_LOGD(TAG, "Handled sensitivity command");
       break;
-    case lowByte(CMD_QUERY):  // Query parameters response
+    case lowbyte(CMD_QUERY):  // Query parameters response
     {
       if (buffer[10] != 0xAA)
         return;  // value head=0xAA
@@ -206,22 +204,22 @@ void LD2410Component::handleACKData(char *buffer, int len) {
         Still Sensitivities: 24~32th bytes
       */
       for (int i = 0; i < 9; i++) {
-        movingSensitivities[i] = buffer[14 + i];
+        moving_sensitivities[i] = buffer[14 + i];
       }
       for (int i = 0; i < 9; i++) {
-        stillSensitivities[i] = buffer[23 + i];
+        still_sensitivities[i] = buffer[23 + i];
       }
       /*
         None Duration: 33~34th bytes
       */
-      // noneDuration->publish_state(twoByteToInt(buffer[32], buffer[33]));
+      // noneDuration->publish_state(this->twoByteToInt_(buffer[32], buffer[33]));
     } break;
     default:
       break;
   }
 }
 
-void LD2410Component::readline(int readch, char *buffer, int len) {
+void LD2410Component::readline_(int readch, char *buffer, int len) {
   static int pos = 0;
 
   if (readch >= 0) {
@@ -234,46 +232,60 @@ void LD2410Component::readline(int readch, char *buffer, int len) {
     if (pos >= 4) {
       if (buffer[pos - 4] == 0xF8 && buffer[pos - 3] == 0xF7 && buffer[pos - 2] == 0xF6 && buffer[pos - 1] == 0xF5) {
         ESP_LOGV(TAG, "Will handle Periodic Data");
-        handlePeriodicData(buffer, pos);
+        this->handlePeriodicData_(buffer, pos);
         pos = 0;  // Reset position index ready for next time
       } else if (buffer[pos - 4] == 0x04 && buffer[pos - 3] == 0x03 && buffer[pos - 2] == 0x02 &&
                  buffer[pos - 1] == 0x01) {
         ESP_LOGV(TAG, "Will handle ACK Data");
-        handleACKData(buffer, pos);
+        this->handleACKData_(buffer, pos);
         pos = 0;  // Reset position index ready for next time
       }
     }
   }
-  return;
 }
 
-void LD2410Component::setConfigMode(bool enable) {
+void LD2410Component::set_config_mode_(bool enable) {
   uint8_t cmd = enable ? CMD_ENABLE_CONF : CMD_DISABLE_CONF;
   char value[2] = {0x01, 0x00};
-  sendCommand(cmd, enable ? value : nullptr, 2);
+  this->sendCommand_(cmd, enable ? value : nullptr, 2);
 }
 
-void LD2410Component::queryParameters() { sendCommand(CMD_QUERY, nullptr, 0); }
-void LD2410Component::getVersion() { sendCommand(CMD_VERSION, nullptr, 0); }
+void LD2410Component::queryParameters_() { this->sendCommand_(CMD_QUERY, nullptr, 0); }
+void LD2410Component::getVersion_() { this->sendCommand_(CMD_VERSION, nullptr, 0); }
 
 void LD2410Component::update() {}
 
 // void LD2410Component::setEngineeringMode(bool enable) {
 //   char cmd[2] = {enable ? 0x62  : 0x63, 0x00};
-//   sendCommand(cmd, nullptr, 0);
+//   sendCommand_(cmd, nullptr, 0);
 // }
 
-void LD2410Component::setMaxDistancesAndNoneDuration(int maxMovingDistanceRange, int maxStillDistanceRange,
-                                                     int noneDuration) {
+void LD2410Component::set_max_distances_none_duration_(int max_moving_distance_range, int max_still_distance_range,
+                                                       int none_duration) {
   // char cmd[2] = {0x60, 0x00};
   // uint8_t cmd = CMD_MAXDIST_DURATION;
-  char value[18] = {0x00, 0x00, lowByte(maxMovingDistanceRange), highByte(maxMovingDistanceRange), 0x00, 0x00,
-                    0x01, 0x00, lowByte(maxStillDistanceRange),  highByte(maxStillDistanceRange),  0x00, 0x00,
-                    0x02, 0x00, lowByte(noneDuration),           highByte(noneDuration),           0x00, 0x00};
-  sendCommand(CMD_MAXDIST_DURATION, value, 18);
-  queryParameters();
+  char value[18] = {0x00,
+                    0x00,
+                    lowbyte(max_moving_distance_range),
+                    highbyte(max_moving_distance_range),
+                    0x00,
+                    0x00,
+                    0x01,
+                    0x00,
+                    lowbyte(max_still_distance_range),
+                    highbyte(max_still_distance_range),
+                    0x00,
+                    0x00,
+                    0x02,
+                    0x00,
+                    lowbyte(none_duration),
+                    highbyte(none_duration),
+                    0x00,
+                    0x00};
+  this->sendCommand_(CMD_MAXDIST_DURATION, value, 18);
+  this->queryParameters_();
 }
-void LD2410Component::setSensitivity(uint8_t gate, uint8_t motionsens, uint8_t stillsens) {
+void LD2410Component::set_sensitivity_(uint8_t gate, uint8_t motionsens, uint8_t stillsens) {
   // reference
   // https://drive.google.com/drive/folders/1p4dhbEJA3YubyIjIIC7wwVsSo8x29Fq-?spm=a2g0o.detail.1000023.17.93465697yFwVxH
   //   Send data: configure the motion sensitivity of distance gate 3 to 40, and the static sensitivity of 40
@@ -283,26 +295,26 @@ void LD2410Component::setSensitivity(uint8_t gate, uint8_t motionsens, uint8_t s
   // 28 00 00 00 (value)
   // 02 00 (still sensitivtiy)
   // 28 00 00 00 (value)
-  char value[18] = {0x00, 0x00, lowByte(gate),       highByte(gate),       0x00, 0x00,
-                    0x01, 0x00, lowByte(motionsens), highByte(motionsens), 0x00, 0x00,
-                    0x02, 0x00, lowByte(stillsens),  highByte(stillsens),  0x00, 0x00};
-  sendCommand(CMD_GATE_SENS, value, 18);
+  char value[18] = {0x00, 0x00, lowbyte(gate),       highbyte(gate),       0x00, 0x00,
+                    0x01, 0x00, lowbyte(motionsens), highbyte(motionsens), 0x00, 0x00,
+                    0x02, 0x00, lowbyte(stillsens),  highbyte(stillsens),  0x00, 0x00};
+  this->sendCommand_(CMD_GATE_SENS, value, 18);
 }
 // void ld2410::factoryReset() {
 //   char cmd[2] = {0xA2, 0x00};
-//   sendCommand(cmd, nullptr, 0);
+//   sendCommand_(cmd, nullptr, 0);
 // }
 
 // void ld2410::reboot() {
 //   char cmd[2] = {0xA3, 0x00};
-//   sendCommand(cmd, nullptr, 0);
+//   sendCommand_(cmd, nullptr, 0);
 //   // not need to exit config mode because the ld2410 will reboot automatically
 // }
 
 // void ld2410::setBaudrate(int index) {
 //   char cmd[2] = {0xA1, 0x00};
 //   char value[2] = {index, 0x00};
-//   sendCommand(cmd, value, 2);
+//   sendCommand_(cmd, value, 2);
 // }
 
 }  // namespace ld2410

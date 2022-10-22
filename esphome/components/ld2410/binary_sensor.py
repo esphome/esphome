@@ -30,10 +30,10 @@ async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     if CONF_HAS_TARGET in config:
         sens = await binary_sensor.new_binary_sensor(config[CONF_HAS_TARGET])
-        cg.add(ld2410_component.settargetsensor(sens))
+        cg.add(ld2410_component.set_target_sensor(sens))
     if CONF_HAS_MOVING_TARGET in config:
         sens = await binary_sensor.new_binary_sensor(config[CONF_HAS_MOVING_TARGET])
-        cg.add(ld2410_component.setmovingtargetsensor(sens))
+        cg.add(ld2410_component.set_moving_target_sensor(sens))
     if CONF_HAS_STILL_TARGET in config:
         sens = await binary_sensor.new_binary_sensor(config[CONF_HAS_STILL_TARGET])
-        cg.add(ld2410_component.setstilltargetsensor(sens))
+        cg.add(ld2410_component.set_still_target_sensor(sens))
