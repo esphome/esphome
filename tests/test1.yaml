@@ -222,7 +222,7 @@ uart:
     rx_pin: GPIO26
     baud_rate: 115200
     rx_buffer_size: 1024
-  - id:
+  - id: ld2410_uart
     tx_pin: 18
     rx_pin: 23
     baud_rate: 256000
