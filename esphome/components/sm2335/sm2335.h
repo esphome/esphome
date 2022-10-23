@@ -46,37 +46,10 @@ class SM2335 : public Component {
   };
 
  protected:
-  void set_channel_value_(uint8_t channel, uint16_t value) {
-    if (this->pwm_amounts_[channel] != value) {
-      this->update_ = true;
-      this->update_channel_ = channel;
-    }
-    this->pwm_amounts_[channel] = value;
-  }
-  void write_bit_(bool value) {
-    this->clock_pin_->digital_write(false);
-    this->data_pin_->digital_write(value);
-    this->clock_pin_->digital_write(true);
-  }
-
-  void write_byte_(uint8_t data) {
-    for (uint8_t mask = 0x80; mask; mask >>= 1) {
-      this->write_bit_(data & mask);
-    }
-    this->clock_pin_->digital_write(false);
-    this->data_pin_->digital_write(true);
-    this->clock_pin_->digital_write(true);
-  }
-
-  void write_buffer_(uint8_t *buffer, uint8_t size) {
-    this->data_pin_->digital_write(false);
-    for (uint32_t i = 0; i < size; i++) {
-      this->write_byte_(buffer[i]);
-    }
-    this->clock_pin_->digital_write(false);
-    this->clock_pin_->digital_write(true);
-    this->data_pin_->digital_write(true);
-  }
+  void set_channel_value_(uint8_t channel, uint16_t value) { }
+  void write_bit_(bool value) { }
+  void write_byte_(uint8_t data) { }
+  void write_buffer_(uint8_t *buffer, uint8_t size) { }
 
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
