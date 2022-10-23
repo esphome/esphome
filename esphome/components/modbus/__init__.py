@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_FLOW_CONTROL_PIN,
     CONF_ID,
     CONF_ADDRESS,
+    CONF_DISABLE_CRC,
 )
 from esphome import pins
 
@@ -27,6 +28,7 @@ CONFIG_SCHEMA = (
             cv.Optional(
                 CONF_SEND_WAIT_TIME, default="250ms"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_DISABLE_CRC, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
@@ -47,6 +49,9 @@ async def to_code(config):
 
     if CONF_SEND_WAIT_TIME in config:
         cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
+
+    if CONF_DISABLE_CRC in config:
+        cg.add(var.set_disable_crc(config[CONF_DISABLE_CRC]))
 
 
 def modbus_device_schema(default_address):
