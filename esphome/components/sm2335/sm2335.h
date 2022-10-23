@@ -46,10 +46,10 @@ class SM2335 : public Component {
   };
 
  protected:
-  void set_channel_value_(uint8_t channel, uint16_t value) {}
-  void write_bit_(bool value) {}
-  void write_byte_(uint8_t data) {}
-  void write_buffer_(uint8_t *buffer, uint8_t size) {}
+  void set_channel_value_(uint8_t channel, uint16_t value);
+  void write_bit_(bool value);
+  void write_byte_(uint8_t data);
+  void write_buffer_(uint8_t *buffer, uint8_t size);
 
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
