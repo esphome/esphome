@@ -1,3 +1,4 @@
+from esphome import core
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation, pins
@@ -6,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERNAL_FILTER,
     CONF_INTERNAL_FILTER_MODE,
+    CONF_MIN_UPDATE_INTERVAL,
     CONF_PIN,
     CONF_NUMBER,
     CONF_TIMEOUT,
@@ -68,6 +70,10 @@ CONFIG_SCHEMA = sensor.sensor_schema(
         cv.Required(CONF_PIN): validate_pulse_meter_pin,
         cv.Optional(CONF_INTERNAL_FILTER, default="13us"): validate_internal_filter,
         cv.Optional(CONF_TIMEOUT, default="5min"): validate_timeout,
+        cv.Optional(CONF_MIN_UPDATE_INTERVAL, default="60s"): cv.All(
+            cv.positive_time_period_seconds,
+            cv.Range(min=core.TimePeriod(seconds=1), max=core.TimePeriod(seconds=300)),
+        ),
         cv.Optional(CONF_TOTAL): sensor.sensor_schema(
             unit_of_measurement=UNIT_PULSES,
             icon=ICON_PULSE,
@@ -90,6 +96,7 @@ async def to_code(config):
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
     cg.add(var.set_filter_mode(config[CONF_INTERNAL_FILTER_MODE]))
+    cg.add(var.set_min_update_interval(config[CONF_MIN_UPDATE_INTERVAL]))
 
     if CONF_TOTAL in config:
         sens = await sensor.new_sensor(config[CONF_TOTAL])

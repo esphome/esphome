@@ -1,3 +1,7 @@
+#include <vector>
+#include <numeric>
+#include <ctime>
+
 #include "pulse_meter_sensor.h"
 #include "esphome/core/log.h"
 
@@ -15,6 +19,7 @@ void PulseMeterSensor::setup() {
   this->last_detected_edge_us_ = 0;
   this->last_valid_high_edge_us_ = 0;
   this->last_valid_low_edge_us_ = 0;
+  this->last_publish_ = 0;
   this->sensor_is_high_ = this->isr_pin_.digital_read();
   this->has_valid_high_edge_ = false;
   this->has_valid_low_edge_ = false;
@@ -48,10 +53,17 @@ void PulseMeterSensor::loop() {
     if (pulse_width_ms == 0) {
       // Treat 0 pulse width as 0 pulses/min (normally because we've not
       // detected any pulses for a while)
-      this->publish_state(0);
+      this->measurements_.push_back(0);
     } else {
       // Calculate pulses/min from the pulse width in ms
-      this->publish_state((60.0f * 1000.0f) / pulse_width_ms);
+      this->measurements_.push_back((60.0f * 1000.0f) / pulse_width_ms);
+    }
+    if (((now - this->last_publish_) / 1000000) > this->min_update_interval_) {
+      float mean =
+          std::accumulate(this->measurements_.begin(), this->measurements_.end(), 0.0) / this->measurements_.size();
+      this->publish_state(mean);
+      this->set_last_publish();
+      this->measurements_.clear();
     }
   }
 
@@ -74,6 +86,7 @@ void PulseMeterSensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Filtering pulses shorter than %u µs", this->filter_us_);
   }
   ESP_LOGCONFIG(TAG, "  Assuming 0 pulses/min after not receiving a pulse for %us", this->timeout_us_ / 1000000);
+  ESP_LOGCONFIG(TAG, "  Using minimum update interval %i s", this->min_update_interval_);
 }
 
 void IRAM_ATTR PulseMeterSensor::gpio_intr(PulseMeterSensor *sensor) {

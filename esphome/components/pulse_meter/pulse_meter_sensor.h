@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -20,6 +22,8 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   void set_filter_mode(InternalFilterMode mode) { this->filter_mode_ = mode; }
   void set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
   void set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
+  void set_min_update_interval(uint16_t interval) { this->min_update_interval_ = interval; }
+  void set_last_publish() { this->last_publish_ = micros(); }
 
   void set_total_pulses(uint32_t pulses);
 
@@ -35,6 +39,7 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   ISRInternalGPIOPin isr_pin_;
   uint32_t filter_us_ = 0;
   uint32_t timeout_us_ = 1000000UL * 60UL * 5UL;
+  uint32_t min_update_interval_ = 0;
   sensor::Sensor *total_sensor_{nullptr};
   InternalFilterMode filter_mode_{FILTER_EDGE};
 
@@ -42,6 +47,7 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   Deduplicator<uint32_t> total_dedupe_;
 
   volatile uint32_t last_detected_edge_us_ = 0;
+  volatile uint32_t last_publish_ = 0;
   volatile uint32_t last_valid_high_edge_us_ = 0;
   volatile uint32_t last_valid_low_edge_us_ = 0;
   volatile uint32_t pulse_width_us_ = 0;
@@ -50,6 +56,7 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   volatile bool has_detected_edge_ = false;
   volatile bool has_valid_high_edge_ = false;
   volatile bool has_valid_low_edge_ = false;
+  std::vector<float> measurements_;
 };
 
 }  // namespace pulse_meter
