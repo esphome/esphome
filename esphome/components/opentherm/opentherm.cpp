@@ -133,10 +133,10 @@ void OpenThermComponent::dump_config() {
   LOG_SWITCH("  ", "DHW enabled:", this->dhw_enabled_switch_);
   LOG_SWITCH("  ", "Cooling enabled:", this->cooling_enabled_switch_);
   if (this->ch_setpoint_temperature_number_) {
-    this->ch_setpoint_temperature_number_->dump_config("  ", "CH setpoint temperature:");
+    this->ch_setpoint_temperature_number_->dump_custom_config("  ", "CH setpoint temperature:");
   }
   if (this->dhw_setpoint_temperature_number_) {
-    this->dhw_setpoint_temperature_number_->dump_config("  ", "DHW setpoint temperature:");
+    this->dhw_setpoint_temperature_number_->dump_custom_config("  ", "DHW setpoint temperature:");
   }
 }
 
