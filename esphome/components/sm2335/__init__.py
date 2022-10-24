@@ -10,14 +10,11 @@ sm2335_ns = cg.esphome_ns.namespace("sm2335")
 
 SM2335 = sm2335_ns.class_("SM2335", sm_10bit_base.SM_10BIT_Base)
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(SM2335),
-        }
-    )
-    .extend(sm_10bit_base.SM_10BIT_BASE_CONFIG_SCHEMA)
-)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(SM2335),
+    }
+).extend(sm_10bit_base.SM_10BIT_BASE_CONFIG_SCHEMA)
 
 async def to_code(config):
     var = await sm_10bit_base.register_sm_10bit_base(config)

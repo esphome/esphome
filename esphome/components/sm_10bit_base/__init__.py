@@ -21,8 +21,12 @@ SM_10BIT_BASE_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_MAX_POWER_COLOR_CHANNELS, default=2): cv.int_range(min=0,max=15),
-        cv.Optional(CONF_MAX_POWER_WHITE_CHANNELS, default=4): cv.int_range(min=0,max=15),
+        cv.Optional(CONF_MAX_POWER_COLOR_CHANNELS, default=2): cv.int_range(
+            min=0, max=15
+        ),
+        cv.Optional(CONF_MAX_POWER_WHITE_CHANNELS, default=4): cv.int_range(
+            min=0, max=15
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
