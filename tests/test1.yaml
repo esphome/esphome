@@ -1446,6 +1446,12 @@ my9231:
   num_chips: 2
   bit_depth: 16
 
+sm2235:
+  data_pin: GPIO4
+  clock_pin: GPIO5
+  max_power_color_channels: 9
+  max_power_white_channels: 9
+
 sm2335:
   data_pin: GPIO4
   clock_pin: GPIO5
@@ -1570,6 +1576,21 @@ output:
   - platform: my9231
     id: my_5
     channel: 5
+  - platform: sm2235
+    id: sm2235_red
+    channel: 1
+  - platform: sm2235
+    id: sm2235_green
+    channel: 0
+  - platform: sm2235
+    id: sm2235_blue
+    channel: 2
+  - platform: sm2235
+    id: sm2235_coldwhite
+    channel: 4
+  - platform: sm2235
+    id: sm2235_warmwhite
+    channel: 3
   - platform: sm2335
     id: sm2335_red
     channel: 1
