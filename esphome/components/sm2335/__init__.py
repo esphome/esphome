@@ -16,6 +16,7 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(sm_10bit_base.SM_10BIT_BASE_CONFIG_SCHEMA)
 
+
 async def to_code(config):
     var = await sm_10bit_base.register_sm_10bit_base(config)
     cg.add(var.set_model(0xC0))

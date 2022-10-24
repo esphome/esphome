@@ -30,6 +30,7 @@ SM_10BIT_BASE_CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+
 @coroutine
 async def register_sm_10bit_base(config):
     var = cg.new_Pvariable(config[CONF_ID])
