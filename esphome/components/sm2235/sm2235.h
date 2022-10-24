@@ -5,15 +5,15 @@
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace sm2335 {
+namespace sm2235 {
 
-class SM2335 : public sm_10bit_base::SM_10BIT_Base {
+class SM2235 : public sm_10bit_base::SM_10BIT_Base {
  public:
-  SM2335() = default;
+  SM2235() = default;
 
   void setup() override;
   void dump_config() override;
 };
 
-}  // namespace sm2335
+}  // namespace sm2235
 }  // namespace esphome
