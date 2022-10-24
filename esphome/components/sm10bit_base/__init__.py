@@ -14,10 +14,10 @@ MULTI_CONF = True
 CONF_MAX_POWER_COLOR_CHANNELS = "max_power_color_channels"
 CONF_MAX_POWER_WHITE_CHANNELS = "max_power_white_channels"
 
-sm_10bit_base_ns = cg.esphome_ns.namespace("sm_10bit_base")
-SM_10BIT_Base = sm_10bit_base_ns.class_("SM_10BIT_Base", cg.Component)
+sm10bit_base_ns = cg.esphome_ns.namespace("sm10bit_base")
+Sm10Bit_Base = sm10bit_base_ns.class_("Sm10Bit_Base", cg.Component)
 
-SM_10BIT_BASE_CONFIG_SCHEMA = cv.Schema(
+SM10BIT_BASE_CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
@@ -32,7 +32,7 @@ SM_10BIT_BASE_CONFIG_SCHEMA = cv.Schema(
 
 
 @coroutine
-async def register_sm_10bit_base(config):
+async def register_sm10bit_base(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

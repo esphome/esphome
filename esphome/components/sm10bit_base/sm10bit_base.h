@@ -6,9 +6,9 @@
 #include <vector>
 
 namespace esphome {
-namespace sm_10bit_base {
+namespace sm10bit_base {
 
-class SM_10BIT_Base : public Component {
+class Sm10Bit_Base : public Component {
  public:
   class Channel;
 
@@ -32,7 +32,7 @@ class SM_10BIT_Base : public Component {
 
   class Channel : public output::FloatOutput {
    public:
-    void set_parent(SM_10BIT_Base *parent) { parent_ = parent; }
+    void set_parent(Sm10Bit_Base *parent) { parent_ = parent; }
     void set_channel(uint8_t channel) { channel_ = channel; }
 
    protected:
@@ -41,7 +41,7 @@ class SM_10BIT_Base : public Component {
       this->parent_->set_channel_value_(this->channel_, amount);
     }
 
-    SM_10BIT_Base *parent_;
+    Sm10Bit_Base *parent_;
     uint8_t channel_;
   };
 
@@ -61,5 +61,5 @@ class SM_10BIT_Base : public Component {
   bool update_{true};
 };
 
-}  // namespace sm_10bit_base
+}  // namespace sm10bit_base
 }  // namespace esphome

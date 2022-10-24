@@ -1,15 +1,15 @@
-#include "sm_10bit_base.h"
+#include "sm10bit_base.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace sm_10bit_base {
+namespace sm10bit_base {
 
-static const char *const TAG = "sm_10bit_base";
+static const char *const TAG = "sm10bit_base";
 
-static const uint8_t SM_10BIT_ADDR_STANDBY = 0x0;
-static const uint8_t SM_10BIT_ADDR_START_3CH = 0x8;
-static const uint8_t SM_10BIT_ADDR_START_2CH = 0x10;
-static const uint8_t SM_10BIT_ADDR_START_5CH = 0x18;
+static const uint8_t SM10BIT_ADDR_STANDBY = 0x0;
+static const uint8_t SM10BIT_ADDR_START_3CH = 0x8;
+static const uint8_t SM10BIT_ADDR_START_2CH = 0x10;
+static const uint8_t SM10BIT_ADDR_START_5CH = 0x18;
 
 // Power current values
 // HEX | Binary | RGB level | White level | Config value
@@ -30,7 +30,7 @@ static const uint8_t SM_10BIT_ADDR_START_5CH = 0x18;
 // 0xE | 1110   | RGB 150mA | CW 75mA     | 14
 // 0xF | 1111   | RGB 160mA | CW 80mA     | 15
 
-void SM_10BIT_Base::loop() {
+void Sm10Bit_Base::loop() {
   if (!this->update_)
     return;
 
@@ -38,14 +38,14 @@ void SM_10BIT_Base::loop() {
   if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
       this->pwm_amounts_[3] == 0 && this->pwm_amounts_[4] == 0) {
     // Off / Sleep
-    data[0] = this->model_id_ + SM_10BIT_ADDR_STANDBY;
+    data[0] = this->model_id_ + SM10BIT_ADDR_STANDBY;
     for (int i = 1; i < 12; i++)
       data[i] = 0;
     this->write_buffer_(data, 12);
   } else if (this->pwm_amounts_[0] == 0 && this->pwm_amounts_[1] == 0 && this->pwm_amounts_[2] == 0 &&
              (this->pwm_amounts_[3] > 0 || this->pwm_amounts_[4] > 0)) {
     // Only data on white channels
-    data[0] = this->model_id_ + SM_10BIT_ADDR_START_2CH;
+    data[0] = this->model_id_ + SM10BIT_ADDR_START_2CH;
     data[1] = 0 << 4 | this->max_power_white_channels_;
     for (int i = 2, j = 0; i < 12; i += 2, j++) {
       data[i] = this->pwm_amounts_[j] >> 0x8;
@@ -55,7 +55,7 @@ void SM_10BIT_Base::loop() {
   } else if ((this->pwm_amounts_[0] > 0 || this->pwm_amounts_[1] > 0 || this->pwm_amounts_[2] > 0) &&
              this->pwm_amounts_[3] == 0 && this->pwm_amounts_[4] == 0) {
     // Only data on RGB channels
-    data[0] = this->model_id_ + SM_10BIT_ADDR_START_3CH;
+    data[0] = this->model_id_ + SM10BIT_ADDR_START_3CH;
     data[1] = this->max_power_color_channels_ << 4 | 0;
     for (int i = 2, j = 0; i < 12; i += 2, j++) {
       data[i] = this->pwm_amounts_[j] >> 0x8;
@@ -64,7 +64,7 @@ void SM_10BIT_Base::loop() {
     this->write_buffer_(data, 12);
   } else {
     // All channels
-    data[0] = this->model_id_ + SM_10BIT_ADDR_START_5CH;
+    data[0] = this->model_id_ + SM10BIT_ADDR_START_5CH;
     data[1] = this->max_power_color_channels_ << 4 | this->max_power_white_channels_;
     for (int i = 2, j = 0; i < 12; i += 2, j++) {
       data[i] = this->pwm_amounts_[j] >> 0x8;
@@ -76,20 +76,20 @@ void SM_10BIT_Base::loop() {
   this->update_ = false;
 }
 
-void SM_10BIT_Base::set_channel_value_(uint8_t channel, uint16_t value) {
+void Sm10Bit_Base::set_channel_value_(uint8_t channel, uint16_t value) {
   if (this->pwm_amounts_[channel] != value) {
     this->update_ = true;
     this->update_channel_ = channel;
   }
   this->pwm_amounts_[channel] = value;
 }
-void SM_10BIT_Base::write_bit_(bool value) {
+void Sm10Bit_Base::write_bit_(bool value) {
   this->clock_pin_->digital_write(false);
   this->data_pin_->digital_write(value);
   this->clock_pin_->digital_write(true);
 }
 
-void SM_10BIT_Base::write_byte_(uint8_t data) {
+void Sm10Bit_Base::write_byte_(uint8_t data) {
   for (uint8_t mask = 0x80; mask; mask >>= 1) {
     this->write_bit_(data & mask);
   }
@@ -98,7 +98,7 @@ void SM_10BIT_Base::write_byte_(uint8_t data) {
   this->clock_pin_->digital_write(true);
 }
 
-void SM_10BIT_Base::write_buffer_(uint8_t *buffer, uint8_t size) {
+void Sm10Bit_Base::write_buffer_(uint8_t *buffer, uint8_t size) {
   this->data_pin_->digital_write(false);
   for (uint32_t i = 0; i < size; i++) {
     this->write_byte_(buffer[i]);
@@ -108,5 +108,5 @@ void SM_10BIT_Base::write_buffer_(uint8_t *buffer, uint8_t size) {
   this->data_pin_->digital_write(true);
 }
 
-}  // namespace sm_10bit_base
+}  // namespace sm10bit_base
 }  // namespace esphome
