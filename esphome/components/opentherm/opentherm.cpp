@@ -11,10 +11,6 @@
 namespace esphome {
 namespace opentherm {
 
-// Helpers
-
-static const char *const TAG = "opentherm";
-
 // All public method implementations
 
 void OpenThermComponent::set_pins(InternalGPIOPin *read_pin, InternalGPIOPin *write_pin) {
@@ -113,6 +109,35 @@ void OpenThermComponent::update() {
         this->build_request_(OpenThermMessageType::READ_DATA, OpenThermMessageID::CH_TEMP_MAX_MIN, 0));
   }
   this->set_boiler_status_();
+}
+
+void OpenThermComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "OpenTherm:");
+  LOG_PIN("  Write Pin: ", this->write_pin_);
+  LOG_PIN("  Read Pin: ", this->read_pin_);
+  LOG_SENSOR("  ", "CH min temperature:", this->ch_min_temperature_sensor_);
+  LOG_SENSOR("  ", "CH max temperature:", this->ch_max_temperature_sensor_);
+  LOG_SENSOR("  ", "DHW min temperature:", this->dhw_min_temperature_sensor_);
+  LOG_SENSOR("  ", "DHW max temperature:", this->dhw_max_temperature_sensor_);
+  LOG_SENSOR("  ", "Pressure:", this->pressure_sensor_);
+  LOG_SENSOR("  ", "Modulation:", this->modulation_sensor_);
+  LOG_SENSOR("  ", "Boiler temperature:", this->boiler_temperature_sensor_);
+  LOG_SENSOR("  ", "Return temperature:", this->return_temperature_sensor_);
+  LOG_BINARY_SENSOR("  ", "CH active:", this->ch_active_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "DHW active:", this->dhw_active_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Cooling active:", this->cooling_active_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Flame active:", this->flame_active_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Fault:", fault_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "Diagnostic:", this->diagnostic_binary_sensor_);
+  LOG_SWITCH("  ", "CH enabled:", this->ch_enabled_switch_);
+  LOG_SWITCH("  ", "DHW enabled:", this->dhw_enabled_switch_);
+  LOG_SWITCH("  ", "Cooling enabled:", this->cooling_enabled_switch_);
+  if (this->ch_setpoint_temperature_number_) {
+    this->ch_setpoint_temperature_number_->dump_config("  ", "CH setpoint temperature:");
+  }
+  if (this->dhw_setpoint_temperature_number_) {
+    this->dhw_setpoint_temperature_number_->dump_config("  ", "DHW setpoint temperature:");
+  }
 }
 
 void IRAM_ATTR OpenThermComponent::handle_interrupt(OpenThermComponent *component) {

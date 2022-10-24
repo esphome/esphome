@@ -4,10 +4,10 @@
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/switch/switch.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "switch/custom_switch.h"
 #include "number/custom_number.h"
+#include "consts.h"
 #include "enums.h"
 #include <queue>
 
@@ -41,6 +41,7 @@ class OpenThermComponent : public PollingComponent {
   void setup() override;
   void update() override;
   void loop() override;
+  void dump_config() override;
   static void handle_interrupt(OpenThermComponent *component);
   void set_pins(InternalGPIOPin *read_pin, InternalGPIOPin *write_pin);
 

@@ -1,4 +1,6 @@
+#include "esphome/core/log.h"
 #include "custom_number.h"
+#include "../consts.h"
 
 namespace esphome {
 namespace opentherm {
@@ -24,6 +26,16 @@ void CustomNumber::control(float value) {
     this->pref_.save(&value);
   }
 };
+
+void CustomNumber::dump_config(const char *prefix, const char *type) {
+  LOG_NUMBER(prefix, type, this);
+  if (!std::isnan(this->initial_value_)) {
+    ESP_LOGCONFIG(TAG, "%s  Initial value: '%f'", prefix, this->initial_value_);
+  }
+  if (!std::isnan(this->restore_value_)) {
+    ESP_LOGCONFIG(TAG, "%s  Restore value: '%s'", prefix, YESNO(this->restore_value_));
+  }
+}
 
 }  // namespace opentherm
 }  // namespace esphome
