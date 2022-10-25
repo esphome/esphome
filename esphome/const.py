@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2022.10.0"
+__version__ = "2022.10.1"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -947,6 +947,7 @@ DEVICE_CLASS_PM1 = "pm1"
 DEVICE_CLASS_PM10 = "pm10"
 DEVICE_CLASS_PM25 = "pm25"
 DEVICE_CLASS_POWER_FACTOR = "power_factor"
+DEVICE_CLASS_PRECIPITATION_INTENSITY = "precipitation_intensity"
 DEVICE_CLASS_PRESSURE = "pressure"
 DEVICE_CLASS_REACTIVE_POWER = "reactive_power"
 DEVICE_CLASS_SIGNAL_STRENGTH = "signal_strength"
@@ -957,6 +958,8 @@ DEVICE_CLASS_TIMESTAMP = "timestamp"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS = "volatile_organic_compounds"
 DEVICE_CLASS_VOLTAGE = "voltage"
 DEVICE_CLASS_VOLUME = "volume"
+DEVICE_CLASS_WATER = "water"
+DEVICE_CLASS_WIND_SPEED = "wind_speed"
 DEVICE_CLASS_WEIGHT = "weight"
 # device classes of both binary_sensor and button component
 DEVICE_CLASS_UPDATE = "update"
