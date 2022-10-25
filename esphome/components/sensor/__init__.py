@@ -67,6 +67,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
     DEVICE_CLASS_WATER,
+    DEVICE_CLASS_WIND_SPEED,
     DEVICE_CLASS_WEIGHT,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -114,6 +115,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
     DEVICE_CLASS_WATER,
+    DEVICE_CLASS_WIND_SPEED,
     DEVICE_CLASS_WEIGHT,
 ]
 
