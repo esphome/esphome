@@ -18,14 +18,26 @@ void DfrobotMmwaveRadarComponent::dump_config() {
 void DfrobotMmwaveRadarComponent::setup() {
     // set up the communication interface for the component
     // check if communication works (if not, call mark_failed()).
+
+    cmdQueue_.enqueue(new PowerCommand());
+
+    // Put command in queue which reads sensor state.
+    // Command automatically puts itself in queue again after executed.
+    cmdQueue_.enqueue(new ReadStateCommand(this));
 }
 
 void DfrobotMmwaveRadarComponent::loop() {
-    Command *cmd;
+    Command * cmd = cmdQueue_.peek();
+    if(cmd == nullptr)
+        return;
 
-    ReadStateCommand readStateCmd(this);
-    cmd = &readStateCmd;
-    cmd->execute();
+    // execute of the same command might be called multiple times
+    // until it returns 1, which means it is done. Then it is removed
+    // from the queue.
+    if(cmd->execute()) {
+        cmdQueue_.dequeue();
+        delete cmd;
+    }
 }
 
 uint8_t DfrobotMmwaveRadarComponent::read_message() {
@@ -59,10 +71,53 @@ uint8_t DfrobotMmwaveRadarComponent::read_message() {
     return 0; // No full message yet
 }
 
+int8_t CircularCommandQueue::enqueue(Command * cmd) {
+    if(this->isFull()) {
+        ESP_LOGE(TAG, "Command queue is full");
+        return -1;
+    }
+    else if(this->isEmpty())
+        front_++;
+    rear_ = (rear_ + 1) % COMMAND_QUEUE_SIZE;
+    commands_[rear_] = cmd;
+    return 1;
+}
+
+Command * CircularCommandQueue::dequeue() {
+    if(this->isEmpty())
+        return nullptr;
+    Command * temp = commands_[front_];
+    if(front_ == rear_) {
+        front_ = -1;
+        rear_ = -1;
+    }
+    else
+        front_ = (front_ + 1) % COMMAND_QUEUE_SIZE;
+
+    return temp;
+}
+
+Command * CircularCommandQueue::peek() {
+    if(this->isEmpty())
+        return nullptr;
+    return commands_[front_];
+}
+
+bool CircularCommandQueue::isEmpty() {
+    return front_ == -1;
+}
+
+bool CircularCommandQueue::isFull() {
+    return (rear_ + 1) % COMMAND_QUEUE_SIZE == front_;
+}
+
 uint8_t ReadStateCommand::execute() {
     if(component_->read_message()) {
         int8_t state = parse_sensing_results();
         if(state >= 0) {
+            // Automatically self queue again to constantly read state
+            component_->cmdQueue_.enqueue(new ReadStateCommand(component_));
+
             ESP_LOGD(TAG, "Sensor state: %d", state);
             return 1; // Command done
         }

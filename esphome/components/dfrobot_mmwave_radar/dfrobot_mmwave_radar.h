@@ -8,6 +8,30 @@ namespace dfrobot_mmwave_radar {
 
 const uint8_t MMWAVE_READ_BUFFER_LENGTH = 255;
 
+// Use command queue and time stamps to avoid blocking.
+// When component has run time, check if minimum time (1s) between
+// commands has passed. After that run a command from the queue.
+class Command {
+ public:
+    virtual ~Command() = default;
+    virtual uint8_t execute() = 0;
+};
+
+static const uint8_t COMMAND_QUEUE_SIZE = 20;
+
+class CircularCommandQueue {
+ public:
+   int8_t enqueue(Command * cmd);
+   Command * dequeue();
+   Command * peek();
+   bool isEmpty();
+   bool isFull();
+ protected:
+   int front_{-1};
+   int rear_{-1};
+   Command * commands_[COMMAND_QUEUE_SIZE];
+};
+
 class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
  public:
     void dump_config() override;
@@ -27,19 +51,11 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
     int8_t sensor_state{-1};
     char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
     size_t read_pos_{0};
+    CircularCommandQueue cmdQueue_;
 
     uint8_t read_message();
 
     friend class ReadStateCommand;
-};
-
-// Use command queue and time stamps to avoid blocking.
-// When component has run time, check if minimum time (1s) between
-// commands has passed. After that run a command from the queue.
-class Command {
- public:
-    virtual ~Command() = default;
-    virtual uint8_t execute() = 0;
 };
 
 class ReadStateCommand : public Command {
