@@ -33,7 +33,7 @@ void E131AddressableLightEffect::apply(light::AddressableLight &it, const Color 
   // ignore, it is run by `E131Component::update()`
 }
 
-bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet) {
+bool E131AddressableLightEffect::process(int universe, const E131Packet &packet) {
   auto *it = get_addressable_();
 
   // check if this is our universe and data are valid

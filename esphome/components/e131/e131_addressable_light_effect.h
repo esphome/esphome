@@ -23,7 +23,7 @@ class E131AddressableLightEffect : public E131LightEffectBase, public light::Add
   void apply(light::AddressableLight &it, const Color &current_color) override;
 
  protected:
-  bool process_(int universe, const E131Packet &packet) override;
+  bool process(int universe, const E131Packet &packet) override;
 };
 
 }  // namespace e131

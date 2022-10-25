@@ -23,7 +23,7 @@ class E131LightEffect : public E131LightEffectBase, public light::LightEffect {
   int get_universe_count() const override;
 
  protected:
-  bool process_(int universe, const E131Packet &packet) override;
+  bool process(int universe, const E131Packet &packet) override;
 };
 
 }  // namespace e131

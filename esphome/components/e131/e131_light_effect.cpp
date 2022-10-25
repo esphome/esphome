@@ -28,9 +28,9 @@ void E131LightEffect::apply() {
   // ignore, it is run by `E131Component::update()`
 }
 
-int esphome::e131::E131LightEffect::get_universe_count() const { return 1; }
+int E131LightEffect::get_universe_count() const { return 1; }
 
-bool esphome::e131::E131LightEffect::process_(int universe, const E131Packet &packet) {
+bool E131LightEffect::process(int universe, const E131Packet &packet) {
   // check if this is our universe and data are valid
   if (universe < first_universe_ || universe > get_last_universe())
     return false;

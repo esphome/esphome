@@ -39,7 +39,7 @@ class E131LightEffectBase {
   E131LightChannels channels_{E131_RGB};
   E131Component *e131_{nullptr};
 
-  virtual bool process_(int universe, const E131Packet &packet) = 0; // NOLINT(readability-identifier-naming)
+  virtual bool process(int universe, const E131Packet &packet) = 0;
 
   friend class E131Component;
 };
