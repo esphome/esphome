@@ -399,6 +399,9 @@ IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
 // so should not be used as a mutex lock, only to get accurate timing
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
+#elif defined(USE_RP2040)
+IRAM_ATTR InterruptLock::InterruptLock() { noInterrupts(); }
+IRAM_ATTR InterruptLock::~InterruptLock() { interrupts(); }
 #endif
 
 uint8_t HighFrequencyLoopRequester::num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
