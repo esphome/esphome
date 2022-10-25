@@ -960,6 +960,7 @@ DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS = "volatile_organic_compounds"
 DEVICE_CLASS_VOLTAGE = "voltage"
 DEVICE_CLASS_VOLUME = "volume"
 DEVICE_CLASS_WATER = "water"
+DEVICE_CLASS_WIND_SPEED = "wind_speed"
 DEVICE_CLASS_WEIGHT = "weight"
 # device classes of both binary_sensor and button component
 DEVICE_CLASS_UPDATE = "update"
