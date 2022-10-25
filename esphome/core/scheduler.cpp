@@ -13,8 +13,25 @@ static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
 // Uncomment to debug scheduler
 // #define ESPHOME_DEBUG_SCHEDULER
 
+#ifdef ESPHOME_DEBUG_SCHEDULER
+#include <FreeRTOS.h>
+#include "freertos/semphr.h"
+void *main_task;
+#define CHECK_RACE_CONDITION() \
+  do { \
+    void *current_task = xTaskGetCurrentTaskHandle(); \
+    if (main_task && main_task != current_task) { \
+      ESP_LOGE(TAG, "Main task: %s(%x), current task: %s(%x)", pcTaskGetName(main_task), main_task, \
+               pcTaskGetName(current_task), current_task); \
+    } \
+  } while (false)
+#else
+#define CHECK_RACE_CONDITION()
+#endif
+
 void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
                                 std::function<void()> func) {
+  CHECK_RACE_CONDITION();
   const uint32_t now = this->millis_();
 
   if (!name.empty())
@@ -37,10 +54,12 @@ void HOT Scheduler::set_timeout(Component *component, const std::string &name, u
   this->push_(std::move(item));
 }
 bool HOT Scheduler::cancel_timeout(Component *component, const std::string &name) {
+  CHECK_RACE_CONDITION();
   return this->cancel_item_(component, name, SchedulerItem::TIMEOUT);
 }
 void HOT Scheduler::set_interval(Component *component, const std::string &name, uint32_t interval,
                                  std::function<void()> func) {
+  CHECK_RACE_CONDITION();
   const uint32_t now = this->millis_();
 
   if (!name.empty())
@@ -70,6 +89,7 @@ void HOT Scheduler::set_interval(Component *component, const std::string &name, 
   this->push_(std::move(item));
 }
 bool HOT Scheduler::cancel_interval(Component *component, const std::string &name) {
+  CHECK_RACE_CONDITION();
   return this->cancel_item_(component, name, SchedulerItem::INTERVAL);
 }
 
@@ -93,6 +113,7 @@ static void retry_handler(const std::shared_ptr<RetryArgs> &args) {
 
 void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
                               uint8_t max_attempts, std::function<RetryResult()> func, float backoff_increase_factor) {
+  CHECK_RACE_CONDITION();
   if (!name.empty())
     this->cancel_retry(component, name);
 
@@ -114,10 +135,12 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
   this->set_timeout(component, args->name, initial_wait_time, [args]() { retry_handler(args); });
 }
 bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
+  CHECK_RACE_CONDITION();
   return this->cancel_timeout(component, "retry$" + name);
 }
 
 optional<uint32_t> HOT Scheduler::next_schedule_in() {
+  CHECK_RACE_CONDITION();
   if (this->empty_())
     return {};
   auto &item = this->items_[0];
@@ -128,6 +151,12 @@ optional<uint32_t> HOT Scheduler::next_schedule_in() {
   return next_time - now;
 }
 void HOT Scheduler::call() {
+#ifdef ESPHOME_DEBUG_SCHEDULER
+  if (main_task == nullptr) {
+    main_task = xTaskGetCurrentTaskHandle();
+  }
+#endif
+  CHECK_RACE_CONDITION();
   const uint32_t now = this->millis_();
   this->process_to_add();
 
@@ -235,6 +264,7 @@ void HOT Scheduler::call() {
   this->process_to_add();
 }
 void HOT Scheduler::process_to_add() {
+  CHECK_RACE_CONDITION();
   for (auto &it : this->to_add_) {
     if (it->remove) {
       continue;
@@ -281,7 +311,7 @@ bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, 
 uint32_t Scheduler::millis_() {
   const uint32_t now = millis();
   if (now < this->last_millis_) {
-    ESP_LOGD(TAG, "Incrementing scheduler major");
+    ESP_LOGD(TAG, "Incrementing scheduler major, now: %u, last: %u", now, this->last_millis_);
     this->millis_major_++;
   }
   this->last_millis_ = now;
