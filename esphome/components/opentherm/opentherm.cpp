@@ -208,10 +208,15 @@ void OpenThermComponent::send_bit_(bool high) {
 }
 
 bool OpenThermComponent::send_request_async_(uint32_t request) {
-  const bool ready = this->status_ == OpenThermStatus::READY;
+  bool ready = false;
+  {
+    InterruptLock lock;
+    ready = this->status_ == OpenThermStatus::READY;
+  }
 
-  if (!ready)
+  if (!ready) {
     return false;
+  }
 
   this->status_ = OpenThermStatus::REQUEST_SENDING;
   this->response_ = 0;
@@ -230,8 +235,13 @@ bool OpenThermComponent::send_request_async_(uint32_t request) {
 }
 
 void OpenThermComponent::process_() {
-  OpenThermStatus st = this->status_;
-  uint32_t ts = this->response_timestamp_;
+  OpenThermStatus st = OpenThermStatus::NOT_INITIALIZED;
+  uint32_t ts = 0;
+  {
+    InterruptLock lock;
+    st = this->status_;
+    ts = this->response_timestamp_;
+  }
 
   if (st == OpenThermStatus::READY) {
     return;
