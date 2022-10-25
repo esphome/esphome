@@ -209,6 +209,9 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
   switch (msg.request_type) {
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
       this->address_ = msg.address;
+      this->set_state(espbt::ClientState::SEARCHING);
+      api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
+                                                              this->get_bluetooth_connections_limit());
       break;
     }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT: {
