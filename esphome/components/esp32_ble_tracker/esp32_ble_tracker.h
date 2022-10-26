@@ -145,6 +145,8 @@ class ESPBTDeviceListener {
 enum class ClientState {
   // Connection is idle, no device detected.
   IDLE,
+  // Searching for device.
+  SEARCHING,
   // Device advertisement found.
   DISCOVERED,
   // Connection in progress.
