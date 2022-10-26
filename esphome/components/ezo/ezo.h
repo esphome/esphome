@@ -91,6 +91,7 @@ class EZOSensor : public sensor::Sensor, public PollingComponent, public i2c::I2
 
  protected:
   std::deque<std::unique_ptr<EzoCommand>> commands_;
+  int new_address_;
 
   void add_command_(const std::string &command, EzoCommandType command_type, uint16_t delay_ms = 300);
 

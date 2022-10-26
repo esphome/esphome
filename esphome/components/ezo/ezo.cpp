@@ -66,6 +66,8 @@ void EZOSensor::loop() {
     if (to_run->command_type == EzoCommandType::EZO_SLEEP ||
         to_run->command_type == EzoCommandType::EZO_I2C) {  // Commands with no return data
       this->commands_.pop_front();
+      if (to_run->command_type == EzoCommandType::EZO_I2C)
+        this->address = this->new_address_;
       return;
     }
 
@@ -184,6 +186,7 @@ void EZOSensor::set_calibration_point_(EzoCalibrationType type, float value) {
 void EZOSensor::set_address(unsigned int address) {
   if (address > 0 && address < 128) {
     std::string payload = str_sprintf("I2C,%u", address);
+    this->new_address_ = address;
     this->add_command_(payload, EzoCommandType::EZO_I2C);
   } else {
     ESP_LOGE(TAG, "Invalid I2C address");
