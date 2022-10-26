@@ -67,7 +67,7 @@ void EZOSensor::loop() {
         to_run->command_type == EzoCommandType::EZO_I2C) {  // Commands with no return data
       this->commands_.pop_front();
       if (to_run->command_type == EzoCommandType::EZO_I2C)
-        this->address = this->new_address_;
+        this->address_ = this->new_address_;
       return;
     }
 
