@@ -148,7 +148,7 @@ async def to_code(config):
     )
 
     cg.add_platformio_option("board_build.core", "earlephilhower")
-    cg.add_platformio_option("board_build.filesystem_size", "0.5m")
+    cg.add_platformio_option("board_build.filesystem_size", "1m")
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     cg.add_define(
