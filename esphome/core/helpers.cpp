@@ -21,9 +21,12 @@
 #include "esp_system.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
-#elif defined(USE_RP2040) && defined(USE_WIFI)
+#elif defined(USE_RP2040)
+#if defined(USE_WIFI)
 #include <WiFi.h>
+#endif
 #include <hardware/structs/rosc.h>
+#include <hardware/sync.h>
 #endif
 
 #ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
