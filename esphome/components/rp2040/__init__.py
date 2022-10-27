@@ -37,7 +37,7 @@ def set_core_data(config):
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
-    # The most recent releases haev not been uploaded to platformio so grabbing them directly from
+    # The most recent releases have not been uploaded to platformio so grabbing them directly from
     # the GitHub release is one path forward for now.
     return f"https://github.com/earlephilhower/arduino-pico/releases/download/{ver}/rp2040-{ver}.zip"
 
