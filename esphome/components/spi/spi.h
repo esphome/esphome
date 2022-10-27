@@ -225,7 +225,11 @@ class SPIComponent : public Component {
       } else if (CLOCK_POLARITY && CLOCK_PHASE) {
         data_mode = SPI_MODE3;
       }
+#ifdef USE_RP2040
+      SPISettings settings(DATA_RATE, static_cast<BitOrder>(BIT_ORDER), data_mode);
+#else
       SPISettings settings(DATA_RATE, BIT_ORDER, data_mode);
+#endif
       this->hw_spi_->beginTransaction(settings);
     } else {
 #endif  // USE_SPI_ARDUINO_BACKEND
