@@ -37,4 +37,4 @@ FINAL_VALIDATE_SCHEMA = validate_logger
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    cg.add_library("esphome/Improv", "1.2.1")
+    cg.add_library("esphome/Improv", "1.2.3")
