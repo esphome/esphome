@@ -3044,4 +3044,4 @@ ld2410:
   g2_move_threshold: 20
   g2_still_threshold: 21
   g8_move_threshold: 80
-  g8_still_sthreshold: 81
+  g8_still_threshold: 81
