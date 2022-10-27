@@ -204,6 +204,8 @@ message DeviceInfoResponse {
   uint32 webserver_port = 10;
 
   uint32 bluetooth_proxy_version = 11;
+
+  string manufacturer = 12;
 }
 
 message ListEntitiesRequest {
