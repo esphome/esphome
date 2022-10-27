@@ -77,24 +77,24 @@ class LD2410Component : public PollingComponent, public uart::UARTDevice {
   void set_range_config(int rg0_move, int rg0_still, int rg1_move, int rg1_still, int rg2_move, int rg2_still,
                         int rg3_move, int rg3_still, int rg4_move, int rg4_still, int rg5_move, int rg5_still,
                         int rg6_move, int rg6_still, int rg7_move, int rg7_still, int rg8_move, int rg8_still) {
-    this->rg0_move_sens_ = rg0_move;
-    this->rg0_still_sens_ = rg0_still;
-    this->rg1_move_sens_ = rg1_move;
-    this->rg1_still_sens_ = rg1_still;
-    this->rg2_move_sens_ = rg2_move;
-    this->rg2_still_sens_ = rg2_still;
-    this->rg3_move_sens_ = rg3_move;
-    this->rg3_still_sens_ = rg3_still;
-    this->rg4_move_sens_ = rg4_move;
-    this->rg4_still_sens_ = rg4_still;
-    this->rg5_move_sens_ = rg5_move;
-    this->rg5_still_sens_ = rg5_still;
-    this->rg6_move_sens_ = rg6_move;
-    this->rg6_still_sens_ = rg6_still;
-    this->rg7_move_sens_ = rg7_move;
-    this->rg7_still_sens_ = rg7_still;
-    this->rg8_move_sens_ = rg8_move;
-    this->rg8_still_sens_ = rg8_still;
+    this->rg0_move_threshold_ = rg0_move;
+    this->rg0_still_threshold_ = rg0_still;
+    this->rg1_move_threshold_ = rg1_move;
+    this->rg1_still_threshold_ = rg1_still;
+    this->rg2_move_threshold_ = rg2_move;
+    this->rg2_still_threshold_ = rg2_still;
+    this->rg3_move_threshold_ = rg3_move;
+    this->rg3_still_threshold_ = rg3_still;
+    this->rg4_move_threshold_ = rg4_move;
+    this->rg4_still_threshold_ = rg4_still;
+    this->rg5_move_threshold_ = rg5_move;
+    this->rg5_still_threshold_ = rg5_still;
+    this->rg6_move_threshold_ = rg6_move;
+    this->rg6_still_threshold_ = rg6_still;
+    this->rg7_move_threshold_ = rg7_move;
+    this->rg7_still_threshold_ = rg7_still;
+    this->rg8_move_threshold_ = rg8_move;
+    this->rg8_still_threshold_ = rg8_still;
   };
   int moving_sensitivities[9] = {0};
   int still_sensitivities[9] = {0};
@@ -110,13 +110,13 @@ class LD2410Component : public PollingComponent, public uart::UARTDevice {
   sensor::Sensor *moving_target_energy_sensor_{nullptr};
   sensor::Sensor *still_target_energy_sensor_{nullptr};
   sensor::Sensor *detection_distance_sensor_{nullptr};
-
+  std::vector<uint8_t> rx_buffer_;
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t)(secondbyte << 8) + firstbyte; }
   void send_command_(uint8_t command_str, uint8_t *command_value, int command_value_len);
 
   void set_max_distances_none_duration_(uint8_t max_moving_distance_range, uint8_t max_still_distance_range,
                                         uint8_t none_duration);
-  void set_sensitivity_(uint8_t gate, uint8_t motionsens, uint8_t stillsens);
+  void set_gate_threshold_(uint8_t gate, uint8_t motionsens, uint8_t stillsens);
   void set_config_mode_(bool enable);
   void handle_periodic_data_(uint8_t *buffer, int len);
   void handle_ack_data_(uint8_t *buffer, int len);
@@ -127,9 +127,10 @@ class LD2410Component : public PollingComponent, public uart::UARTDevice {
   int max_move_distance_ = -1;
   int max_still_distance_ = -1;
   uint8_t version_[6];
-  uint8_t rg0_move_sens_, rg0_still_sens_, rg1_move_sens_, rg1_still_sens_, rg2_move_sens_, rg2_still_sens_,
-      rg3_move_sens_, rg3_still_sens_, rg4_move_sens_, rg4_still_sens_, rg5_move_sens_, rg5_still_sens_, rg6_move_sens_,
-      rg6_still_sens_, rg7_move_sens_, rg7_still_sens_, rg8_move_sens_, rg8_still_sens_;
+  uint8_t rg0_move_threshold_, rg0_still_threshold_, rg1_move_threshold_, rg1_still_threshold_, rg2_move_threshold_,
+      rg2_still_threshold_, rg3_move_threshold_, rg3_still_threshold_, rg4_move_threshold_, rg4_still_threshold_,
+      rg5_move_threshold_, rg5_still_threshold_, rg6_move_threshold_, rg6_still_threshold_, rg7_move_threshold_,
+      rg7_still_threshold_, rg8_move_threshold_, rg8_still_threshold_;
 };
 
 }  // namespace ld2410

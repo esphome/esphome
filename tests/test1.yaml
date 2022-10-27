@@ -3039,9 +3039,9 @@ ld2410:
   none_duration: 150
   max_move_distance: 8
   max_still_distance: 1
-  g0_move_sensitivity: 10
-  g0_still_sensitivity: 20
-  g2_move_sensitivity: 20
-  g2_still_sensitivity: 21
-  g8_move_sensitivity: 80
-  g8_still_sensitivity: 81
+  g0_move_threshold: 10
+  g0_still_threshold: 20
+  g2_move_threshold: 20
+  g2_still_threshold: 21
+  g8_move_threshold: 80
+  g8_still_sthreshold: 81

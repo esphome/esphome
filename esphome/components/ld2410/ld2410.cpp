@@ -34,15 +34,15 @@ void LD2410Component::setup() {
   this->set_config_mode_(true);
   this->set_max_distances_none_duration_(this->max_move_distance_, this->max_still_distance_, this->noneduration_);
   // Configure Gates sensitivity
-  this->set_sensitivity_(0, this->rg0_move_sens_, this->rg0_still_sens_);
-  this->set_sensitivity_(1, this->rg1_move_sens_, this->rg1_still_sens_);
-  this->set_sensitivity_(2, this->rg2_move_sens_, this->rg2_still_sens_);
-  this->set_sensitivity_(3, this->rg3_move_sens_, this->rg3_still_sens_);
-  this->set_sensitivity_(4, this->rg4_move_sens_, this->rg4_still_sens_);
-  this->set_sensitivity_(5, this->rg5_move_sens_, this->rg5_still_sens_);
-  this->set_sensitivity_(6, this->rg6_move_sens_, this->rg6_still_sens_);
-  this->set_sensitivity_(7, this->rg7_move_sens_, this->rg7_still_sens_);
-  this->set_sensitivity_(8, this->rg8_move_sens_, this->rg8_still_sens_);
+  this->set_gate_threshold_(0, this->rg0_move_threshold_, this->rg0_still_threshold_);
+  this->set_gate_threshold_(1, this->rg1_move_threshold_, this->rg1_still_threshold_);
+  this->set_gate_threshold_(2, this->rg2_move_threshold_, this->rg2_still_threshold_);
+  this->set_gate_threshold_(3, this->rg3_move_threshold_, this->rg3_still_threshold_);
+  this->set_gate_threshold_(4, this->rg4_move_threshold_, this->rg4_still_threshold_);
+  this->set_gate_threshold_(5, this->rg5_move_threshold_, this->rg5_still_threshold_);
+  this->set_gate_threshold_(6, this->rg6_move_threshold_, this->rg6_still_threshold_);
+  this->set_gate_threshold_(7, this->rg7_move_threshold_, this->rg7_still_threshold_);
+  this->set_gate_threshold_(8, this->rg8_move_threshold_, this->rg8_still_threshold_);
   this->get_version_();
   this->set_config_mode_(false);
   ESP_LOGI("  ", "Firmware Version : %u.%u.%u%u%u%u", this->version_[0], this->version_[1], this->version_[2],
@@ -89,6 +89,7 @@ void LD2410Component::send_command_(uint8_t command, uint8_t *command_value, int
   }
   // frame end bytes
   this->write_array(CMD_FRAME_END, 4);
+  // FIXME to remove
   delay(50);  // NOLINT
 }
 
@@ -294,7 +295,7 @@ void LD2410Component::set_max_distances_none_duration_(uint8_t max_moving_distan
   this->send_command_(CMD_MAXDIST_DURATION, value, 18);
   this->query_parameters_();
 }
-void LD2410Component::set_sensitivity_(uint8_t gate, uint8_t motionsens, uint8_t stillsens) {
+void LD2410Component::set_gate_threshold_(uint8_t gate, uint8_t motionsens, uint8_t stillsens) {
   // reference
   // https://drive.google.com/drive/folders/1p4dhbEJA3YubyIjIIC7wwVsSo8x29Fq-?spm=a2g0o.detail.1000023.17.93465697yFwVxH
   //   Send data: configure the motion sensitivity of distance gate 3 to 40, and the static sensitivity of 40

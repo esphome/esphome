@@ -17,24 +17,24 @@ CONF_LD2410_ID = "ld2410_id"
 CONF_MAX_MOVE_DISTANCE = "max_move_distance"
 CONF_MAX_STILL_DISTANCE = "max_still_distance"
 CONF_NONE_DURATION = "none_duration"
-CONF_G0_MOVE_SENSITIVITY = "g0_move_sensitivity"
-CONF_G0_STILL_SENSITIVITY = "g0_still_sensitivity"
-CONF_G1_MOVE_SENSITIVITY = "g1_move_sensitivity"
-CONF_G1_STILL_SENSITIVITY = "g1_still_sensitivity"
-CONF_G2_MOVE_SENSITIVITY = "g2_move_sensitivity"
-CONF_G2_STILL_SENSITIVITY = "g2_still_sensitivity"
-CONF_G3_MOVE_SENSITIVITY = "g3_move_sensitivity"
-CONF_G3_STILL_SENSITIVITY = "g3_still_sensitivity"
-CONF_G4_MOVE_SENSITIVITY = "g4_move_sensitivity"
-CONF_G4_STILL_SENSITIVITY = "g4_still_sensitivity"
-CONF_G5_MOVE_SENSITIVITY = "g5_move_sensitivity"
-CONF_G5_STILL_SENSITIVITY = "g5_still_sensitivity"
-CONF_G6_MOVE_SENSITIVITY = "g6_move_sensitivity"
-CONF_G6_STILL_SENSITIVITY = "g6_still_sensitivity"
-CONF_G7_MOVE_SENSITIVITY = "g7_move_sensitivity"
-CONF_G7_STILL_SENSITIVITY = "g7_still_sensitivity"
-CONF_G8_MOVE_SENSITIVITY = "g8_move_sensitivity"
-CONF_G8_STILL_SENSITIVITY = "g8_still_sensitivity"
+CONF_G0_MOVE_THRESHOLD = "g0_move_threshold"
+CONF_G0_STILL_THRESHOLD = "g0_still_threshold"
+CONF_G1_MOVE_THRESHOLD = "g1_move_threshold"
+CONF_G1_STILL_THRESHOLD = "g1_still_threshold"
+CONF_G2_MOVE_THRESHOLD = "g2_move_threshold"
+CONF_G2_STILL_THRESHOLD = "g2_still_threshold"
+CONF_G3_MOVE_THRESHOLD = "g3_move_threshold"
+CONF_G3_STILL_THRESHOLD = "g3_still_threshold"
+CONF_G4_MOVE_THRESHOLD = "g4_move_threshold"
+CONF_G4_STILL_THRESHOLD = "g4_still_threshold"
+CONF_G5_MOVE_THRESHOLD = "g5_move_threshold"
+CONF_G5_STILL_THRESHOLD = "g5_still_threshold"
+CONF_G6_MOVE_THRESHOLD = "g6_move_threshold"
+CONF_G6_STILL_THRESHOLD = "g6_still_threshold"
+CONF_G7_MOVE_THRESHOLD = "g7_move_threshold"
+CONF_G7_STILL_THRESHOLD = "g7_still_threshold"
+CONF_G8_MOVE_THRESHOLD = "g8_move_threshold"
+CONF_G8_STILL_THRESHOLD = "g8_still_threshold"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -43,58 +43,58 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_MOVE_DISTANCE, default=6): cv.int_range(min=1, max=8),
             cv.Optional(CONF_MAX_STILL_DISTANCE, default=6): cv.int_range(min=1, max=8),
             cv.Optional(CONF_NONE_DURATION, default=5): cv.int_range(min=0, max=32767),
-            cv.Optional(CONF_G0_MOVE_SENSITIVITY, default=50): cv.int_range(
+            cv.Optional(CONF_G0_MOVE_THRESHOLD, default=50): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G0_STILL_SENSITIVITY, default=0): cv.int_range(
+            cv.Optional(CONF_G0_STILL_THRESHOLD, default=0): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G1_MOVE_SENSITIVITY, default=50): cv.int_range(
+            cv.Optional(CONF_G1_MOVE_THRESHOLD, default=50): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G1_STILL_SENSITIVITY, default=0): cv.int_range(
+            cv.Optional(CONF_G1_STILL_THRESHOLD, default=0): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G2_MOVE_SENSITIVITY, default=40): cv.int_range(
+            cv.Optional(CONF_G2_MOVE_THRESHOLD, default=40): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G2_STILL_SENSITIVITY, default=40): cv.int_range(
+            cv.Optional(CONF_G2_STILL_THRESHOLD, default=40): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G3_MOVE_SENSITIVITY, default=40): cv.int_range(
+            cv.Optional(CONF_G3_MOVE_THRESHOLD, default=40): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G3_STILL_SENSITIVITY, default=40): cv.int_range(
+            cv.Optional(CONF_G3_STILL_THRESHOLD, default=40): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G4_MOVE_SENSITIVITY, default=40): cv.int_range(
+            cv.Optional(CONF_G4_MOVE_THRESHOLD, default=40): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G4_STILL_SENSITIVITY, default=40): cv.int_range(
+            cv.Optional(CONF_G4_STILL_THRESHOLD, default=40): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G5_MOVE_SENSITIVITY, default=40): cv.int_range(
+            cv.Optional(CONF_G5_MOVE_THRESHOLD, default=40): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G5_STILL_SENSITIVITY, default=40): cv.int_range(
+            cv.Optional(CONF_G5_STILL_THRESHOLD, default=40): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G6_MOVE_SENSITIVITY, default=30): cv.int_range(
+            cv.Optional(CONF_G6_MOVE_THRESHOLD, default=30): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G6_STILL_SENSITIVITY, default=15): cv.int_range(
+            cv.Optional(CONF_G6_STILL_THRESHOLD, default=15): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G7_MOVE_SENSITIVITY, default=30): cv.int_range(
+            cv.Optional(CONF_G7_MOVE_THRESHOLD, default=30): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G7_STILL_SENSITIVITY, default=15): cv.int_range(
+            cv.Optional(CONF_G7_STILL_THRESHOLD, default=15): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G8_MOVE_SENSITIVITY, default=30): cv.int_range(
+            cv.Optional(CONF_G8_MOVE_THRESHOLD, default=30): cv.int_range(
                 min=0, max=100
             ),
-            cv.Optional(CONF_G8_STILL_SENSITIVITY, default=15): cv.int_range(
+            cv.Optional(CONF_G8_STILL_THRESHOLD, default=15): cv.int_range(
                 min=0, max=100
             ),
         }
@@ -118,24 +118,24 @@ async def to_code(config):
     cg.add(var.set_max_still_distance(config[CONF_MAX_STILL_DISTANCE]))
     cg.add(
         var.set_range_config(
-            config[CONF_G0_MOVE_SENSITIVITY],
-            config[CONF_G0_STILL_SENSITIVITY],
-            config[CONF_G1_MOVE_SENSITIVITY],
-            config[CONF_G1_STILL_SENSITIVITY],
-            config[CONF_G2_MOVE_SENSITIVITY],
-            config[CONF_G2_STILL_SENSITIVITY],
-            config[CONF_G3_MOVE_SENSITIVITY],
-            config[CONF_G3_STILL_SENSITIVITY],
-            config[CONF_G4_MOVE_SENSITIVITY],
-            config[CONF_G4_STILL_SENSITIVITY],
-            config[CONF_G5_MOVE_SENSITIVITY],
-            config[CONF_G5_STILL_SENSITIVITY],
-            config[CONF_G6_MOVE_SENSITIVITY],
-            config[CONF_G6_STILL_SENSITIVITY],
-            config[CONF_G7_MOVE_SENSITIVITY],
-            config[CONF_G7_STILL_SENSITIVITY],
-            config[CONF_G8_MOVE_SENSITIVITY],
-            config[CONF_G8_STILL_SENSITIVITY],
+            config[CONF_G0_MOVE_THRESHOLD],
+            config[CONF_G0_STILL_THRESHOLD],
+            config[CONF_G1_MOVE_THRESHOLD],
+            config[CONF_G1_STILL_THRESHOLD],
+            config[CONF_G2_MOVE_THRESHOLD],
+            config[CONF_G2_STILL_THRESHOLD],
+            config[CONF_G3_MOVE_THRESHOLD],
+            config[CONF_G3_STILL_THRESHOLD],
+            config[CONF_G4_MOVE_THRESHOLD],
+            config[CONF_G4_STILL_THRESHOLD],
+            config[CONF_G5_MOVE_THRESHOLD],
+            config[CONF_G5_STILL_THRESHOLD],
+            config[CONF_G6_MOVE_THRESHOLD],
+            config[CONF_G6_STILL_THRESHOLD],
+            config[CONF_G7_MOVE_THRESHOLD],
+            config[CONF_G7_STILL_THRESHOLD],
+            config[CONF_G8_MOVE_THRESHOLD],
+            config[CONF_G8_STILL_THRESHOLD],
         )
     )
 
