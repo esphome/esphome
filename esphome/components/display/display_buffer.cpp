@@ -5,6 +5,7 @@
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace display {
@@ -15,7 +16,8 @@ const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
-  this->buffer_ = new (std::nothrow) uint8_t[buffer_length];  // NOLINT
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  this->buffer_ = allocator.allocate(buffer_length);
   if (this->buffer_ == nullptr) {
     ESP_LOGE(TAG, "Could not allocate buffer for display!");
     return;
@@ -174,9 +176,10 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
       ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
       if (!font->get_glyphs().empty()) {
         uint8_t glyph_width = font->get_glyphs()[0].glyph_data_->width;
-        for (int glyph_x = 0; glyph_x < glyph_width; glyph_x++)
+        for (int glyph_x = 0; glyph_x < glyph_width; glyph_x++) {
           for (int glyph_y = 0; glyph_y < height; glyph_y++)
             this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
+        }
         x_at += glyph_width;
       }
 
@@ -231,6 +234,21 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
         }
       }
       break;
+    case IMAGE_TYPE_TRANSPARENT_BINARY:
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          if (image->get_pixel(img_x, img_y))
+            this->draw_pixel_at(x + img_x, y + img_y, color_on);
+        }
+      }
+      break;
+    case IMAGE_TYPE_RGB565:
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          this->draw_pixel_at(x + img_x, y + img_y, image->get_rgb565_pixel(img_x, img_y));
+        }
+      }
+      break;
   }
 }
 
@@ -240,6 +258,12 @@ void DisplayBuffer::legend(int x, int y, graph::Graph *graph, Color color_on) {
   graph->draw_legend(this, x, y, color_on);
 }
 #endif  // USE_GRAPH
+
+#ifdef USE_QR_CODE
+void DisplayBuffer::qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on, int scale) {
+  qr_code->draw(this, x, y, color_on, scale);
+}
+#endif  // USE_QR_CODE
 
 void DisplayBuffer::get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1,
                                     int *width, int *height) {
@@ -415,10 +439,11 @@ int Font::match_next_glyph(const char *str, int *match_length) {
   int hi = this->glyphs_.size() - 1;
   while (lo != hi) {
     int mid = (lo + hi + 1) / 2;
-    if (this->glyphs_[mid].compare_to(str))
+    if (this->glyphs_[mid].compare_to(str)) {
       lo = mid;
-    else
+    } else {
       hi = mid - 1;
+    }
   }
   *match_length = this->glyphs_[lo].match_length(str);
   if (*match_length <= 0)
@@ -444,10 +469,11 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
     }
 
     const Glyph &glyph = this->glyphs_[glyph_n];
-    if (!has_char)
+    if (!has_char) {
       min_x = glyph.glyph_data_->offset_x;
-    else
+    } else {
       min_x = std::min(min_x, x + glyph.glyph_data_->offset_x);
+    }
     x += glyph.glyph_data_->width + glyph.glyph_data_->offset_x;
 
     i += match_length;
@@ -477,6 +503,17 @@ Color Image::get_color_pixel(int x, int y) const {
                            (progmem_read_byte(this->data_start_ + pos + 1) << 8) |
                            (progmem_read_byte(this->data_start_ + pos + 0) << 16);
   return Color(color32);
+}
+Color Image::get_rgb565_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return Color::BLACK;
+  const uint32_t pos = (x + y * this->width_) * 2;
+  uint16_t rgb565 =
+      progmem_read_byte(this->data_start_ + pos + 0) << 8 | progmem_read_byte(this->data_start_ + pos + 1);
+  auto r = (rgb565 & 0xF800) >> 11;
+  auto g = (rgb565 & 0x07E0) >> 5;
+  auto b = rgb565 & 0x001F;
+  return Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
 }
 Color Image::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
@@ -513,6 +550,20 @@ Color Animation::get_color_pixel(int x, int y) const {
                            (progmem_read_byte(this->data_start_ + pos + 0) << 16);
   return Color(color32);
 }
+Color Animation::get_rgb565_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return Color::BLACK;
+  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
+  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+    return Color::BLACK;
+  const uint32_t pos = (x + y * this->width_ + frame_index) * 2;
+  uint16_t rgb565 =
+      progmem_read_byte(this->data_start_ + pos + 0) << 8 | progmem_read_byte(this->data_start_ + pos + 1);
+  auto r = (rgb565 & 0xF800) >> 11;
+  auto g = (rgb565 & 0x07E0) >> 5;
+  auto b = rgb565 & 0x001F;
+  return Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+}
 Color Animation::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
@@ -531,6 +582,24 @@ void Animation::next_frame() {
   this->current_frame_++;
   if (this->current_frame_ >= animation_frame_count_) {
     this->current_frame_ = 0;
+  }
+}
+void Animation::prev_frame() {
+  this->current_frame_--;
+  if (this->current_frame_ < 0) {
+    this->current_frame_ = this->animation_frame_count_ - 1;
+  }
+}
+
+void Animation::set_frame(int frame) {
+  unsigned abs_frame = abs(frame);
+
+  if (abs_frame < this->animation_frame_count_) {
+    if (frame >= 0) {
+      this->current_frame_ = frame;
+    } else {
+      this->current_frame_ = this->animation_frame_count_ - abs_frame;
+    }
   }
 }
 

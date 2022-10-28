@@ -129,10 +129,10 @@ class BME680Component : public PollingComponent, public i2c::I2CDevice {
   uint16_t heater_temperature_{320};
   uint16_t heater_duration_{150};
 
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *pressure_sensor_;
-  sensor::Sensor *humidity_sensor_;
-  sensor::Sensor *gas_resistance_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
+  sensor::Sensor *gas_resistance_sensor_{nullptr};
 };
 
 }  // namespace bme680

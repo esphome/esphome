@@ -14,6 +14,10 @@
 #include "esphome/components/graph/graph.h"
 #endif
 
+#ifdef USE_QR_CODE
+#include "esphome/components/qr_code/qr_code.h"
+#endif
+
 namespace esphome {
 namespace display {
 
@@ -73,7 +77,19 @@ extern const Color COLOR_OFF;
 /// Turn the pixel ON.
 extern const Color COLOR_ON;
 
-enum ImageType { IMAGE_TYPE_BINARY = 0, IMAGE_TYPE_GRAYSCALE = 1, IMAGE_TYPE_RGB24 = 2 };
+enum ImageType {
+  IMAGE_TYPE_BINARY = 0,
+  IMAGE_TYPE_GRAYSCALE = 1,
+  IMAGE_TYPE_RGB24 = 2,
+  IMAGE_TYPE_TRANSPARENT_BINARY = 3,
+  IMAGE_TYPE_RGB565 = 4,
+};
+
+enum DisplayType {
+  DISPLAY_TYPE_BINARY = 1,
+  DISPLAY_TYPE_GRAYSCALE = 2,
+  DISPLAY_TYPE_COLOR = 3,
+};
 
 enum DisplayRotation {
   DISPLAY_ROTATION_0_DEGREES = 0,
@@ -302,6 +318,17 @@ class DisplayBuffer {
   void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
 #endif  // USE_GRAPH
 
+#ifdef USE_QR_CODE
+  /** Draw the `qr_code` with the top-left corner at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param qr_code The qr_code to draw
+   * @param color_on The color to replace in binary images for the on bits.
+   */
+  void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on = COLOR_ON, int scale = 1);
+#endif
+
   /** Get the text bounds of the given string.
    *
    * @param x The x coordinate to place the string at, can be 0 if only interested in dimensions.
@@ -336,14 +363,19 @@ class DisplayBuffer {
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
+  virtual int get_height_internal() = 0;
+  virtual int get_width_internal() = 0;
+  DisplayRotation get_rotation() const { return this->rotation_; }
+
+  /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
+   * returns the type the display is currently configured to.
+   */
+  virtual DisplayType get_display_type() = 0;
+
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
-
-  virtual int get_height_internal() = 0;
-
-  virtual int get_width_internal() = 0;
 
   void init_internal_(uint32_t buffer_length);
 
@@ -433,6 +465,7 @@ class Image {
   Image(const uint8_t *data_start, int width, int height, ImageType type);
   virtual bool get_pixel(int x, int y) const;
   virtual Color get_color_pixel(int x, int y) const;
+  virtual Color get_rgb565_pixel(int x, int y) const;
   virtual Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
@@ -450,11 +483,19 @@ class Animation : public Image {
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
   bool get_pixel(int x, int y) const override;
   Color get_color_pixel(int x, int y) const override;
+  Color get_rgb565_pixel(int x, int y) const override;
   Color get_grayscale_pixel(int x, int y) const override;
 
   int get_animation_frame_count() const;
   int get_current_frame() const;
   void next_frame();
+  void prev_frame();
+
+  /** Selects a specific frame within the animation.
+   *
+   * @param frame If possitive, advance to the frame. If negative, recede to that frame from the end frame.
+   */
+  void set_frame(int frame);
 
  protected:
   int current_frame_;

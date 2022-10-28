@@ -36,31 +36,25 @@ def validate_temperature_multipliers(value):
             or CONF_TARGET_TEMPERATURE_MULTIPLIER in value
         ):
             raise cv.Invalid(
-                (
-                    f"Cannot have {CONF_TEMPERATURE_MULTIPLIER} at the same time as "
-                    f"{CONF_CURRENT_TEMPERATURE_MULTIPLIER} and "
-                    f"{CONF_TARGET_TEMPERATURE_MULTIPLIER}"
-                )
+                f"Cannot have {CONF_TEMPERATURE_MULTIPLIER} at the same time as "
+                f"{CONF_CURRENT_TEMPERATURE_MULTIPLIER} and "
+                f"{CONF_TARGET_TEMPERATURE_MULTIPLIER}"
             )
     if (
         CONF_CURRENT_TEMPERATURE_MULTIPLIER in value
         and CONF_TARGET_TEMPERATURE_MULTIPLIER not in value
     ):
         raise cv.Invalid(
-            (
-                f"{CONF_TARGET_TEMPERATURE_MULTIPLIER} required if using "
-                f"{CONF_CURRENT_TEMPERATURE_MULTIPLIER}"
-            )
+            f"{CONF_TARGET_TEMPERATURE_MULTIPLIER} required if using "
+            f"{CONF_CURRENT_TEMPERATURE_MULTIPLIER}"
         )
     if (
         CONF_TARGET_TEMPERATURE_MULTIPLIER in value
         and CONF_CURRENT_TEMPERATURE_MULTIPLIER not in value
     ):
         raise cv.Invalid(
-            (
-                f"{CONF_CURRENT_TEMPERATURE_MULTIPLIER} required if using "
-                f"{CONF_TARGET_TEMPERATURE_MULTIPLIER}"
-            )
+            f"{CONF_CURRENT_TEMPERATURE_MULTIPLIER} required if using "
+            f"{CONF_TARGET_TEMPERATURE_MULTIPLIER}"
         )
     keys = (
         CONF_TEMPERATURE_MULTIPLIER,
@@ -76,18 +70,14 @@ def validate_active_state_values(value):
     if CONF_ACTIVE_STATE_DATAPOINT not in value:
         if CONF_ACTIVE_STATE_COOLING_VALUE in value:
             raise cv.Invalid(
-                (
-                    f"{CONF_ACTIVE_STATE_DATAPOINT} required if using "
-                    f"{CONF_ACTIVE_STATE_COOLING_VALUE}"
-                )
+                f"{CONF_ACTIVE_STATE_DATAPOINT} required if using "
+                f"{CONF_ACTIVE_STATE_COOLING_VALUE}"
             )
     else:
         if value[CONF_SUPPORTS_COOL] and CONF_ACTIVE_STATE_COOLING_VALUE not in value:
             raise cv.Invalid(
-                (
-                    f"{CONF_ACTIVE_STATE_COOLING_VALUE} required if using "
-                    f"{CONF_ACTIVE_STATE_DATAPOINT} and device supports cooling"
-                )
+                f"{CONF_ACTIVE_STATE_COOLING_VALUE} required if using "
+                f"{CONF_ACTIVE_STATE_DATAPOINT} and device supports cooling"
             )
     return value
 

@@ -14,6 +14,8 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_INCLUDE_INTERNAL,
     CONF_OTA,
+    CONF_VERSION,
+    CONF_LOCAL,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -22,18 +24,37 @@ AUTO_LOAD = ["json", "web_server_base"]
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
+
+def default_url(config):
+    config = config.copy()
+    if config[CONF_VERSION] == 1:
+        if not (CONF_CSS_URL in config):
+            config[CONF_CSS_URL] = "https://esphome.io/_static/webserver-v1.min.css"
+        if not (CONF_JS_URL in config):
+            config[CONF_JS_URL] = "https://esphome.io/_static/webserver-v1.min.js"
+    if config[CONF_VERSION] == 2:
+        if not (CONF_CSS_URL in config):
+            config[CONF_CSS_URL] = ""
+        if not (CONF_JS_URL in config):
+            config[CONF_JS_URL] = "https://oi.esphome.io/v2/www.js"
+    return config
+
+
+def validate_local(config):
+    if CONF_LOCAL in config and config[CONF_VERSION] == 1:
+        raise cv.Invalid("'local' is not supported in version 1")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(WebServer),
             cv.Optional(CONF_PORT, default=80): cv.port,
-            cv.Optional(
-                CONF_CSS_URL, default="https://esphome.io/_static/webserver-v1.min.css"
-            ): cv.string,
+            cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2),
+            cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
-            cv.Optional(
-                CONF_JS_URL, default="https://esphome.io/_static/webserver-v1.min.js"
-            ): cv.string,
+            cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
             cv.Optional(CONF_AUTH): cv.Schema(
                 {
@@ -50,9 +71,12 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
             cv.Optional(CONF_OTA, default=True): cv.boolean,
-        },
+            cv.Optional(CONF_LOCAL): cv.boolean,
+        }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
+    default_url,
+    validate_local,
 )
 
 
@@ -66,8 +90,9 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER")
 
     cg.add(paren.set_port(config[CONF_PORT]))
-    cg.add_define("WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER")
+    cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
+    cg.add_define("USE_WEBSERVER_VERSION", config[CONF_VERSION])
     cg.add(var.set_css_url(config[CONF_CSS_URL]))
     cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
@@ -75,13 +100,15 @@ async def to_code(config):
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
     if CONF_CSS_INCLUDE in config:
-        cg.add_define("WEBSERVER_CSS_INCLUDE")
+        cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
-        with open(file=path, mode="r", encoding="utf-8") as myfile:
+        with open(file=path, encoding="utf-8") as myfile:
             cg.add(var.set_css_include(myfile.read()))
     if CONF_JS_INCLUDE in config:
-        cg.add_define("WEBSERVER_JS_INCLUDE")
+        cg.add_define("USE_WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
-        with open(file=path, mode="r", encoding="utf-8") as myfile:
+        with open(file=path, encoding="utf-8") as myfile:
             cg.add(var.set_js_include(myfile.read()))
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
+    if CONF_LOCAL in config and config[CONF_LOCAL]:
+        cg.add_define("USE_WEBSERVER_LOCAL")

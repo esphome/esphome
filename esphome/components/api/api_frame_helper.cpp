@@ -1,7 +1,9 @@
 #include "api_frame_helper.h"
 
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include "proto.h"
 #include <cstring>
 
@@ -268,7 +270,7 @@ APIError APINoiseFrameHelper::try_read_frame_(ParsedFrame *frame) {
  *
  * If the handshake is still active when this method returns and a read/write can't take place at
  * the moment, returns WOULD_BLOCK.
- * If an error occured, returns that error. Only returns OK if the transport is ready for data
+ * If an error occurred, returns that error. Only returns OK if the transport is ready for data
  * traffic.
  */
 APIError APINoiseFrameHelper::state_action_() {
@@ -301,9 +303,16 @@ APIError APINoiseFrameHelper::state_action_() {
   }
   if (state_ == State::SERVER_HELLO) {
     // send server hello
-    uint8_t msg[1];
-    msg[0] = 0x01;  // chosen proto
-    aerr = write_frame_(msg, 1);
+    std::vector<uint8_t> msg;
+    // chosen proto
+    msg.push_back(0x01);
+
+    // node name, terminated by null byte
+    const std::string &name = App.get_name();
+    const uint8_t *name_ptr = reinterpret_cast<const uint8_t *>(name.c_str());
+    msg.insert(msg.end(), name_ptr, name_ptr + name.size() + 1);
+
+    aerr = write_frame_(msg.data(), msg.size());
     if (aerr != APIError::OK)
       return aerr;
 
@@ -577,7 +586,7 @@ APIError APINoiseFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
     }
     return APIError::OK;
   } else if (sent == -1) {
-    // an error occured
+    // an error occurred
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;
@@ -721,7 +730,12 @@ APIError APINoiseFrameHelper::shutdown(int how) {
 }
 extern "C" {
 // declare how noise generates random bytes (here with a good HWRNG based on the RF system)
-void noise_rand_bytes(void *output, size_t len) { esphome::fill_random(reinterpret_cast<uint8_t *>(output), len); }
+void noise_rand_bytes(void *output, size_t len) {
+  if (!esphome::random_bytes(reinterpret_cast<uint8_t *>(output), len)) {
+    ESP_LOGE(TAG, "Failed to acquire random bytes, rebooting!");
+    arch_restart();
+  }
+}
 }
 #endif  // USE_API_NOISE
 
@@ -966,7 +980,7 @@ APIError APIPlaintextFrameHelper::write_raw_(const struct iovec *iov, int iovcnt
     }
     return APIError::OK;
   } else if (sent == -1) {
-    // an error occured
+    // an error occurred
     state_ = State::FAILED;
     HELPER_LOG("Socket write failed with errno %d", errno);
     return APIError::SOCKET_WRITE_FAILED;

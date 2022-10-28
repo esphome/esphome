@@ -1,4 +1,5 @@
 #include "bme280.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -28,6 +29,7 @@ static const uint8_t BME280_REGISTER_DIG_H5 = 0xE5;
 static const uint8_t BME280_REGISTER_DIG_H6 = 0xE7;
 
 static const uint8_t BME280_REGISTER_CHIPID = 0xD0;
+static const uint8_t BME280_REGISTER_RESET = 0xE0;
 
 static const uint8_t BME280_REGISTER_CONTROLHUMID = 0xF2;
 static const uint8_t BME280_REGISTER_STATUS = 0xF3;
@@ -39,6 +41,8 @@ static const uint8_t BME280_REGISTER_TEMPDATA = 0xFA;
 static const uint8_t BME280_REGISTER_HUMIDDATA = 0xFD;
 
 static const uint8_t BME280_MODE_FORCED = 0b01;
+static const uint8_t BME280_SOFT_RESET = 0xB6;
+static const uint8_t BME280_STATUS_IM_UPDATE = 0b01;
 
 inline uint16_t combine_bytes(uint8_t msb, uint8_t lsb) { return ((msb & 0xFF) << 8) | (lsb & 0xFF); }
 
@@ -81,6 +85,11 @@ static const char *iir_filter_to_str(BME280IIRFilter filter) {
 void BME280Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up BME280...");
   uint8_t chip_id = 0;
+
+  // Mark as not failed before initializing. Some devices will turn off sensors to save on batteries
+  // and when they come back on, the COMPONENT_STATE_FAILED bit must be unset on the component.
+  this->component_state_ &= ~COMPONENT_STATE_FAILED;
+
   if (!this->read_byte(BME280_REGISTER_CHIPID, &chip_id)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
@@ -88,6 +97,28 @@ void BME280Component::setup() {
   }
   if (chip_id != 0x60) {
     this->error_code_ = WRONG_CHIP_ID;
+    this->mark_failed();
+    return;
+  }
+
+  // Send a soft reset.
+  if (!this->write_byte(BME280_REGISTER_RESET, BME280_SOFT_RESET)) {
+    this->mark_failed();
+    return;
+  }
+  // Wait until the NVM data has finished loading.
+  uint8_t status;
+  uint8_t retry = 5;
+  do {
+    delay(2);
+    if (!this->read_byte(BME280_REGISTER_STATUS, &status)) {
+      ESP_LOGW(TAG, "Error reading status register.");
+      this->mark_failed();
+      return;
+    }
+  } while ((status & BME280_STATUS_IM_UPDATE) && (--retry));
+  if (status & BME280_STATUS_IM_UPDATE) {
+    ESP_LOGW(TAG, "Timeout loading NVM.");
     this->mark_failed();
     return;
   }
@@ -132,7 +163,7 @@ void BME280Component::setup() {
     return;
   }
   config_register &= ~0b11111100;
-  config_register |= 0b000 << 5;  // 0.5 ms standby time
+  config_register |= 0b101 << 5;  // 1000 ms standby time
   config_register |= (this->iir_filter_ & 0b111) << 2;
   if (!this->write_byte(BME280_REGISTER_CONFIG, config_register)) {
     this->mark_failed();
@@ -214,9 +245,10 @@ void BME280Component::update() {
 float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
   int32_t adc = ((data[3] & 0xFF) << 16) | ((data[4] & 0xFF) << 8) | (data[5] & 0xFF);
   adc >>= 4;
-  if (adc == 0x80000)
+  if (adc == 0x80000) {
     // temperature was disabled
     return NAN;
+  }
 
   const int32_t t1 = this->calibration_.t1;
   const int32_t t2 = this->calibration_.t2;
@@ -233,9 +265,10 @@ float BME280Component::read_temperature_(const uint8_t *data, int32_t *t_fine) {
 float BME280Component::read_pressure_(const uint8_t *data, int32_t t_fine) {
   int32_t adc = ((data[0] & 0xFF) << 16) | ((data[1] & 0xFF) << 8) | (data[2] & 0xFF);
   adc >>= 4;
-  if (adc == 0x80000)
+  if (adc == 0x80000) {
     // pressure was disabled
     return NAN;
+  }
   const int64_t p1 = this->calibration_.p1;
   const int64_t p2 = this->calibration_.p2;
   const int64_t p3 = this->calibration_.p3;

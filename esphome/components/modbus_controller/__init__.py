@@ -47,11 +47,16 @@ MODBUS_FUNCTION_CODE = {
 
 ModbusRegisterType_ns = modbus_controller_ns.namespace("ModbusRegisterType")
 ModbusRegisterType = ModbusRegisterType_ns.enum("ModbusRegisterType")
-MODBUS_REGISTER_TYPE = {
+
+MODBUS_WRITE_REGISTER_TYPE = {
     "custom": ModbusRegisterType.CUSTOM,
     "coil": ModbusRegisterType.COIL,
-    "discrete_input": ModbusRegisterType.DISCRETE_INPUT,
     "holding": ModbusRegisterType.HOLDING,
+}
+
+MODBUS_REGISTER_TYPE = {
+    **MODBUS_WRITE_REGISTER_TYPE,
+    "discrete_input": ModbusRegisterType.DISCRETE_INPUT,
     "read": ModbusRegisterType.READ,
 }
 
@@ -66,9 +71,9 @@ SENSOR_VALUE_TYPE = {
     "S_DWORD": SensorValueType.S_DWORD,
     "S_DWORD_R": SensorValueType.S_DWORD_R,
     "U_QWORD": SensorValueType.U_QWORD,
-    "U_QWORDU_R": SensorValueType.U_QWORD_R,
+    "U_QWORD_R": SensorValueType.U_QWORD_R,
     "S_QWORD": SensorValueType.S_QWORD,
-    "U_QWORD_R": SensorValueType.S_QWORD_R,
+    "S_QWORD_R": SensorValueType.S_QWORD_R,
     "FP32": SensorValueType.FP32,
     "FP32_R": SensorValueType.FP32_R,
 }
@@ -82,9 +87,9 @@ TYPE_REGISTER_MAP = {
     "S_DWORD": 2,
     "S_DWORD_R": 2,
     "U_QWORD": 4,
-    "U_QWORDU_R": 4,
-    "S_QWORD": 4,
     "U_QWORD_R": 4,
+    "S_QWORD": 4,
+    "S_QWORD_R": 4,
     "FP32": 2,
     "FP32_R": 2,
 }

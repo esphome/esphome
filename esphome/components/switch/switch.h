@@ -20,6 +20,9 @@ namespace switch_ {
     if ((obj)->is_inverted()) { \
       ESP_LOGCONFIG(TAG, "%s  Inverted: YES", prefix); \
     } \
+    if (!(obj)->get_device_class().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
+    } \
   }
 
 /** Base class for all switches.
@@ -88,6 +91,11 @@ class Switch : public EntityBase {
 
   bool is_inverted() const;
 
+  /// Get the device class for this switch.
+  std::string get_device_class();
+  /// Set the Home Assistant device class for this switch.
+  void set_device_class(const std::string &device_class);
+
  protected:
   /** Write the given state to hardware. You should implement this
    * abstract method if you want to create your own switch.
@@ -99,12 +107,11 @@ class Switch : public EntityBase {
    */
   virtual void write_state(bool state) = 0;
 
-  uint32_t hash_base() override;
-
   CallbackManager<void(bool)> state_callback_{};
   bool inverted_{false};
   Deduplicator<bool> publish_dedup_;
   ESPPreferenceObject rtc_;
+  optional<std::string> device_class_;
 };
 
 }  // namespace switch_

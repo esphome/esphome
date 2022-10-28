@@ -18,6 +18,7 @@ from ..const import (
     CONF_FORCE_NEW_RANGE,
     CONF_MODBUS_CONTROLLER_ID,
     CONF_REGISTER_TYPE,
+    CONF_SKIP_UPDATES,
     CONF_USE_WRITE_MULTIPLE,
     CONF_WRITE_LAMBDA,
 )
@@ -31,11 +32,11 @@ ModbusSwitch = modbus_controller_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    switch.SWITCH_SCHEMA.extend(cv.COMPONENT_SCHEMA)
+    switch.switch_schema(ModbusSwitch)
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(ModbusItemBaseSchema)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(ModbusSwitch),
             cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
             cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
@@ -53,6 +54,7 @@ async def to_code(config):
         config[CONF_ADDRESS],
         byte_offset,
         config[CONF_BITMASK],
+        config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
     )
     await cg.register_component(var, config)
