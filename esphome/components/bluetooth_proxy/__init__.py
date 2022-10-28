@@ -7,6 +7,8 @@ AUTO_LOAD = ["esp32_ble_client", "esp32_ble_tracker"]
 DEPENDENCIES = ["api", "esp32"]
 CODEOWNERS = ["@jesserockz"]
 
+MAX_CONNECTIONS = 3
+
 
 bluetooth_proxy_ns = cg.esphome_ns.namespace("bluetooth_proxy")
 
@@ -27,7 +29,8 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add(var.set_active(config[CONF_ACTIVE]))
+    await esp32_ble_tracker.register_ble_device(var, config)
 
-    await esp32_ble_tracker.register_client(var, config)
+    # cg.with_local_variable()
 
     cg.add_define("USE_BLUETOOTH_PROXY")

@@ -65,6 +65,14 @@ void BLEClientBase::connect() {
   }
 }
 
+void BLEClientBase::disconnect() {
+  ESP_LOGI(TAG, "[%s] Disconnecting.", this->address_str().c_str());
+  auto err = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "esp_ble_gattc_close error, address=%s err=%d", this->address_str().c_str(), err);
+  }
+}
+
 void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
                                         esp_ble_gattc_cb_param_t *param) {
   if (event == ESP_GATTC_REG_EVT && this->app_id != param->reg.app_id)
@@ -88,6 +96,7 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         ESP_LOGW(TAG, "connect to %s failed, status=%d", this->address_str().c_str(), param->open.status);
         this->set_state(espbt::ClientState::IDLE);
+        this->address_ = 0;
         break;
       }
       break;

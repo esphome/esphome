@@ -32,6 +32,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
                            esp_ble_gattc_cb_param_t *param) override;
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void connect() override;
+  void disconnect();
+
+  bool connected() { return this->state_ == espbt::ClientState::ESTABLISHED; }
 
   void set_address(uint64_t address) { this->address_ = address; }
   std::string address_str() const;
@@ -60,7 +63,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   esp_bd_addr_t remote_bda_;
   esp_ble_addr_type_t remote_addr_type_;
   uint16_t conn_id_;
-  uint64_t address_;
+  uint64_t address_{0};
   uint16_t mtu_{23};
 
   std::vector<BLEService *> services_;
