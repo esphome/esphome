@@ -58,6 +58,7 @@ esphome/components/cse7761/* @berfenger
 esphome/components/ct_clamp/* @jesserockz
 esphome/components/current_based/* @djwmarcx
 esphome/components/dac7678/* @NickB1
+esphome/components/daikin_brc/* @hagak
 esphome/components/daly_bms/* @s1lvi0
 esphome/components/dashboard_import/* @esphome/core
 esphome/components/debug/* @OttoWinter
@@ -184,6 +185,8 @@ esphome/components/rc522_spi/* @glmnet
 esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
+esphome/components/rp2040/* @jesserockz
+esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rtttl/* @glmnet
 esphome/components/safe_mode/* @jsuanet @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny

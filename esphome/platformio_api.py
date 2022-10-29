@@ -8,7 +8,7 @@ import os
 import re
 import subprocess
 
-from esphome.const import KEY_CORE
+from esphome.const import CONF_COMPILE_PROCESS_LIMIT, CONF_ESPHOME, KEY_CORE
 from esphome.core import CORE, EsphomeError
 from esphome.util import run_external_command, run_external_process
 
@@ -103,7 +103,10 @@ def run_platformio_cli_run(config, verbose, *args, **kwargs) -> Union[str, int]:
 
 
 def run_compile(config, verbose):
-    return run_platformio_cli_run(config, verbose)
+    args = []
+    if CONF_COMPILE_PROCESS_LIMIT in config[CONF_ESPHOME]:
+        args += [f"-j{config[CONF_ESPHOME][CONF_COMPILE_PROCESS_LIMIT]}"]
+    return run_platformio_cli_run(config, verbose, *args)
 
 
 def _run_idedata(config):

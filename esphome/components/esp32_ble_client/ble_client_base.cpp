@@ -30,7 +30,7 @@ float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_B
 bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_)
     return false;
-  if (this->state_ != espbt::ClientState::IDLE)
+  if (this->state_ != espbt::ClientState::IDLE && this->state_ != espbt::ClientState::SEARCHING)
     return false;
 
   ESP_LOGD(TAG, "Found device at MAC address [%s]", device.address_str().c_str());
