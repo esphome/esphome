@@ -21,8 +21,12 @@
 #include "esp_system.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
-#elif defined(USE_RP2040) && defined(USE_WIFI)
+#elif defined(USE_RP2040)
+#if defined(USE_WIFI)
 #include <WiFi.h>
+#endif
+#include <hardware/structs/rosc.h>
+#include <hardware/sync.h>
 #endif
 
 #ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
@@ -94,7 +98,12 @@ uint32_t random_uint32() {
 #elif defined(USE_ESP8266)
   return os_random();
 #elif defined(USE_RP2040)
-  return ((uint32_t) rand()) << 16 + ((uint32_t) rand());
+  uint32_t result = 0;
+  for (uint8_t i = 0; i < 32; i++) {
+    result <<= 1;
+    result |= rosc_hw->randombit;
+  }
+  return result;
 #else
 #error "No random source available for this configuration."
 #endif
@@ -107,7 +116,15 @@ bool random_bytes(uint8_t *data, size_t len) {
 #elif defined(USE_ESP8266)
   return os_get_random(data, len) == 0;
 #elif defined(USE_RP2040)
-  return false;
+  while (len-- != 0) {
+    uint8_t result = 0;
+    for (uint8_t i = 0; i < 8; i++) {
+      result <<= 1;
+      result |= rosc_hw->randombit;
+    }
+    *data++ = result;
+  }
+  return true;
 #else
 #error "No random source available for this configuration."
 #endif
@@ -378,13 +395,16 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 // System APIs
 
 #if defined(USE_ESP8266)
-IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
-IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
+IRAM_ATTR InterruptLock::InterruptLock() { state_ = xt_rsil(15); }
+IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(state_); }
 #elif defined(USE_ESP32)
 // only affects the executing core
 // so should not be used as a mutex lock, only to get accurate timing
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
+#elif defined(USE_RP2040)
+IRAM_ATTR InterruptLock::InterruptLock() { state_ = save_and_disable_interrupts(); }
+IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
 #endif
 
 uint8_t HighFrequencyLoopRequester::num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
