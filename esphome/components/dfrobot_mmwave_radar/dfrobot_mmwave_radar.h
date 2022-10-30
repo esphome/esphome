@@ -52,10 +52,14 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
     char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
     size_t read_pos_{0};
     CircularCommandQueue cmdQueue_;
+    unsigned long ts_last_cmd_sent_{0};
 
     uint8_t read_message();
+    uint8_t find_prompt();
+    uint8_t send_cmd(const char * cmd);
 
     friend class ReadStateCommand;
+    friend class PowerCommand;
 };
 
 class ReadStateCommand : public Command {
@@ -69,7 +73,21 @@ class ReadStateCommand : public Command {
 
 class PowerCommand : public Command {
  public:
-  uint8_t execute() override;
+   PowerCommand(DfrobotMmwaveRadarComponent *component, bool powerOn) :
+      component_(component),
+      powerOn_(powerOn) {
+         if(powerOn)
+            cmd_ = "sensorStart";
+         else
+            cmd_ = "sensorStop";
+      };
+   uint8_t execute() override;
+ protected:
+   DfrobotMmwaveRadarComponent * component_;
+   std::string cmd_;
+   bool powerOn_;
+   int8_t retries_left_{2};
+   bool cmd_sent_{false};
 };
 
 class DetRangeCfgCommand : public Command {
@@ -83,6 +101,11 @@ class OutputLatencyCommand : public Command {
 };
 
 class SensorCfgStartCommand : public Command {
+ public:
+   uint8_t execute() override;
+};
+
+class ResetSystemCommand : public Command {
  public:
    uint8_t execute() override;
 };

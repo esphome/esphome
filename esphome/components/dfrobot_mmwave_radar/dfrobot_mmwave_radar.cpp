@@ -16,10 +16,7 @@ void DfrobotMmwaveRadarComponent::dump_config() {
 }
 
 void DfrobotMmwaveRadarComponent::setup() {
-    // set up the communication interface for the component
-    // check if communication works (if not, call mark_failed()).
-
-    cmdQueue_.enqueue(new PowerCommand());
+    cmdQueue_.enqueue(new PowerCommand(this, 1));
 
     // Put command in queue which reads sensor state.
     // Command automatically puts itself in queue again after executed.
@@ -69,6 +66,27 @@ uint8_t DfrobotMmwaveRadarComponent::read_message() {
         }
     }
     return 0; // No full message yet
+}
+
+uint8_t DfrobotMmwaveRadarComponent::find_prompt() {
+    if(this->read_message()) {
+        std::string message(this->read_buffer_);
+        if(message.rfind("leapMMW:/>") != std::string::npos) {
+            return 1; // Prompt found
+        }
+    }
+    return 0; // Not found yet
+}
+
+uint8_t DfrobotMmwaveRadarComponent::send_cmd(const char * cmd) {
+    // The interval between two commands must be larger than 1000ms.
+    if(millis() - ts_last_cmd_sent_ > 1000) {
+        this->write_str(cmd);
+        ts_last_cmd_sent_ = millis();
+        return 1; // Command sent
+    }
+    // Could not send command yet as last command was sent less than 1001ms ago.
+    return 0;
 }
 
 int8_t CircularCommandQueue::enqueue(Command * cmd) {
@@ -140,8 +158,62 @@ int8_t ReadStateCommand::parse_sensing_results() {
 }
 
 uint8_t PowerCommand::execute() {
-    ESP_LOGD(TAG, "Execute PowerCommand");
-    return 1; // Command done
+    if(cmd_sent_) {
+        // ESP_LOGD(TAG, "Waiting for response");
+        if(component_->read_message()) {
+            std::string message(component_->read_buffer_);
+            if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
+                ESP_LOGD(TAG, "Command not recognized properly by sensor");
+                if(retries_left_ > 0) {
+                    retries_left_ -= 1;
+                    cmd_sent_ = false;
+                    ESP_LOGD(TAG, "Retrying...");
+                }
+                else {
+                    component_->find_prompt();
+                    return 1; // Command done
+                }
+            }
+            if(message.compare("sensor stopped already") == 0) {
+                ESP_LOGD(TAG, "Stopped sensor (already stopped)");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+            else if(message.compare("sensor started already") == 0) {
+                ESP_LOGI(TAG, "Started sensor (already started)");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+            else if(message.compare("Done") == 0) {
+                if(powerOn_)
+                    ESP_LOGI(TAG, "Started sensor");
+                else
+                    ESP_LOGI(TAG, "Stopped sensor");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+        }
+        if(millis() - component_->ts_last_cmd_sent_ > 500) {
+            ESP_LOGD(TAG, "Command timeout");
+            if(retries_left_ > 0) {
+                retries_left_ -= 1;
+                cmd_sent_ = false;
+                ESP_LOGD(TAG, "Retrying...");
+            }
+            else {
+                ESP_LOGE(TAG, "PowerCommand error: No response");
+                return 1; // Command done
+            }
+        }
+    }
+    else if(component_->send_cmd(cmd_.c_str())) {
+        if(powerOn_)
+            ESP_LOGD(TAG, "Starting sensor");
+        else
+            ESP_LOGD(TAG, "Stopping sensor");
+        cmd_sent_ = true;
+    }
+    return 0; // Command not done yet
 }
 
 uint8_t DetRangeCfgCommand::execute() {
