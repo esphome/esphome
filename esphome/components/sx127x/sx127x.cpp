@@ -7,7 +7,7 @@ namespace sx127x {
 
 static const char *TAG = "sx127x";
 
-void ICACHE_RAM_ATTR LoraComponentStore::gpio_intr(LoraComponentStore *arg) {
+void IRAM_ATTR LoraComponentStore::gpio_intr(LoraComponentStore *arg) {
   arg->last_interrupt = micros();
   arg->found_packet = false;
   arg->sx127x->handle_di0();
