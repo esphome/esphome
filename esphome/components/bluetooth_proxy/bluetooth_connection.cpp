@@ -20,11 +20,11 @@ void BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
     case ESP_GATTC_DISCONNECT_EVT: {
       if (param->disconnect.conn_id != this->conn_id_)
         break;
-      this->address_ = 0;
       this->set_state(espbt::ClientState::IDLE);
       api::global_api_server->send_bluetooth_device_connection(this->address_, false, 0, param->disconnect.reason);
       api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
                                                               this->proxy_->get_bluetooth_connections_limit());
+      this->address_ = 0;
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
