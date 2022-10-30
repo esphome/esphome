@@ -1,7 +1,5 @@
 #pragma once
 
-#include <vector>
-
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -56,7 +54,7 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   volatile bool has_detected_edge_ = false;
   volatile bool has_valid_high_edge_ = false;
   volatile bool has_valid_low_edge_ = false;
-  std::vector<float> measurements_;
+  MovingAverage<float> mv_ {0.0f};
 };
 
 }  // namespace pulse_meter

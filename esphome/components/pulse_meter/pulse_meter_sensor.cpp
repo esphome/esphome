@@ -1,5 +1,3 @@
-#include <vector>
-#include <numeric>
 #include <ctime>
 
 #include "pulse_meter_sensor.h"
@@ -23,6 +21,7 @@ void PulseMeterSensor::setup() {
   this->sensor_is_high_ = this->isr_pin_.digital_read();
   this->has_valid_high_edge_ = false;
   this->has_valid_low_edge_ = false;
+  this->mv_.reset();
 }
 
 void PulseMeterSensor::loop() {
@@ -50,20 +49,14 @@ void PulseMeterSensor::loop() {
   // We quantize our pulse widths to 1 ms to avoid unnecessary jitter
   const uint32_t pulse_width_ms = this->pulse_width_us_ / 1000;
   if (this->pulse_width_dedupe_.next(pulse_width_ms)) {
-    if (pulse_width_ms == 0) {
-      // Treat 0 pulse width as 0 pulses/min (normally because we've not
-      // detected any pulses for a while)
-      this->measurements_.push_back(0);
-    } else {
+    if (pulse_width_ms != 0) {
       // Calculate pulses/min from the pulse width in ms
-      this->measurements_.push_back((60.0f * 1000.0f) / pulse_width_ms);
+      this->mv_ += (60.0f * 1000.0f) / pulse_width_ms;
     }
     if (((now - this->last_publish_) / 1000000) > this->min_update_interval_) {
-      float mean =
-          std::accumulate(this->measurements_.begin(), this->measurements_.end(), 0.0) / this->measurements_.size();
-      this->publish_state(mean);
+      this->publish_state(*mv_);
       this->set_last_publish();
-      this->measurements_.clear();
+      mv_.reset();
     }
   }
 
