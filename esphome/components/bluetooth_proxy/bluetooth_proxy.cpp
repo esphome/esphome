@@ -11,15 +11,7 @@ namespace bluetooth_proxy {
 
 static const char *const TAG = "bluetooth_proxy";
 
-BluetoothProxy::BluetoothProxy() {
-  global_bluetooth_proxy = this;
-  for (uint8_t i = 0; i < MAX_CONNECTIONS; i++) {
-    auto connection = std::make_shared<BluetoothConnection>();
-    connection->proxy_ = this;
-    connection->parent_->register_client(connection.get());
-    this->connections_[i] = connection;
-  }
-}
+BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (!api::global_api_server->is_connected())
@@ -62,14 +54,13 @@ void BluetoothProxy::dump_config() {
 
 void BluetoothProxy::loop() {
   if (!api::global_api_server->is_connected()) {
-    for (uint8_t i = 0; i < MAX_CONNECTIONS; i++) {
-      auto connection = this->connections_[i];
-      connection->disconnect();
+    for (auto *connection : this->connections_) {
+      if (connection->address_ != 0)
+        connection->disconnect();
     }
     return;
   }
-  for (uint8_t i = 0; i < MAX_CONNECTIONS; i++) {
-    auto connection = this->connections_[i];
+  for (auto *connection : this->connections_) {
     if (connection->send_service_ == connection->services_.size()) {
       connection->send_service_ = -1;
       api::global_api_server->send_bluetooth_gatt_services_done(connection->address_);
@@ -100,23 +91,21 @@ void BluetoothProxy::loop() {
   }
 }
 
-std::shared_ptr<BluetoothConnection> BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
-  if (this->connections_[0]->address_ == address)
-    return this->connections_[0];
-  else if (this->connections_[1]->address_ == address)
-    return this->connections_[1];
-  else if (this->connections_[2]->address_ == address)
-    return this->connections_[2];
+BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
+  for (auto *connection : this->connections_) {
+    if (connection->address_ == address)
+      return connection;
+  }
 
   if (!reserve)
     return nullptr;
 
-  if (this->connections_[0]->address_ == 0)
-    return this->connections_[0];
-  else if (this->connections_[1]->address_ == 0)
-    return this->connections_[1];
-  else if (this->connections_[2]->address_ == 0)
-    return this->connections_[2];
+  for (auto *connection : this->connections_) {
+    if (connection->address_ == 0) {
+      connection->address_ = address;
+      return connection;
+    }
+  }
 
   return nullptr;
 }

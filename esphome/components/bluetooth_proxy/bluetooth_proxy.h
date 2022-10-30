@@ -16,8 +16,6 @@
 namespace esphome {
 namespace bluetooth_proxy {
 
-static const uint8_t MAX_CONNECTIONS = 3;
-
 static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
 static const esp_err_t ESP_GATT_WRONG_ADDRESS = -2;
 
@@ -30,6 +28,11 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   void dump_config() override;
   void loop() override;
 
+  void register_connection(BluetoothConnection *connection) {
+    this->connections_.push_back(connection);
+    connection->proxy_ = this;
+  }
+
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);
   void bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg);
   void bluetooth_gatt_write(const api::BluetoothGATTWriteRequest &msg);
@@ -40,14 +43,14 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
   int get_bluetooth_connections_free() {
     int free = 0;
-    for (uint8_t i = 0; i < MAX_CONNECTIONS; i++) {
-      if (this->connections_[i]->address_ != 0) {
+    for (auto *connection : this->connections_) {
+      if (connection->address_ == 0) {
         free++;
       }
     }
     return free;
   }
-  int get_bluetooth_connections_limit() { return MAX_CONNECTIONS; }
+  int get_bluetooth_connections_limit() { return this->connections_.size(); }
 
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
@@ -55,12 +58,12 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
  protected:
   void send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device);
 
-  std::shared_ptr<BluetoothConnection> get_connection_(uint64_t address, bool reserve);
+  BluetoothConnection *get_connection_(uint64_t address, bool reserve);
 
   int16_t send_service_{-1};
   bool active_;
 
-  std::shared_ptr<BluetoothConnection> connections_[MAX_CONNECTIONS]{};
+  std::vector<BluetoothConnection *> connections_{};
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
