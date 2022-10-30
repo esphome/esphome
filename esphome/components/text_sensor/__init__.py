@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
-from esphome.components import mqtt
+from esphome.components import mqtt, lora
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
     CONF_FILTERS,
@@ -116,6 +116,10 @@ async def map_filter_to_code(config, filter_id):
 TEXT_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextSensor),
+        cv.OnlyWith(lora.CONF_LORA_ID, "lora"): cv.use_id(lora.LoraComponent),
+        cv.OnlyWith(lora.CONF_SEND_TO_LORA, "lora", default=False): cv.boolean,
+        cv.OnlyWith(lora.CONF_RECEIVE_FROM_LORA, "lora", default=False): cv.boolean,
+        cv.OnlyWith(lora.CONF_LORA_NAME, "lora", default=""): cv.valid_name,
         cv.GenerateID(): cv.declare_id(TextSensor),
         cv.Optional(CONF_FILTERS): validate_filters,
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
@@ -180,6 +184,9 @@ async def setup_text_sensor_core_(var, config):
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
+
+    if lora.CONF_LORA_ID in config:
+        yield lora.register_lora_component(var, config, 3)
 
 
 async def register_text_sensor(var, config):

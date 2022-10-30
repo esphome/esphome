@@ -610,6 +610,7 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/i2c/i2c.h",
         "esphome/components/lock/lock.h",
         "esphome/components/mqtt/mqtt_component.h",
+        "esphome/components/lora/lora_component.h",
         "esphome/components/number/number.h",
         "esphome/components/output/binary_output.h",
         "esphome/components/output/float_output.h",
