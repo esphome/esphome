@@ -3,6 +3,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_SWITCH
@@ -137,7 +138,7 @@ class LoraComponent : public Component {
   std::vector<LoraTextSensorComponent *> text_sensors_;
 #endif
 
-  std::string get_app_name_() { return sanitize_string_allowlist(App.get_name(), HOSTNAME_CHARACTER_ALLOWLIST); }
+  std::string get_app_name_() { return str_sanitize(App.get_name()); }
   int sync_word_;
   std::string lora_delimiter_ = {0x1D};
   std::string lora_group_start_delimiter_ = {0x1E};
