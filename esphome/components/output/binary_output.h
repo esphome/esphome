@@ -45,9 +45,23 @@ class BinaryOutput {
   /// Disable this binary output.
   virtual void turn_off() { this->set_state(false); }
 
+  /// Add a filter to the filter chain. Will be appended to the back.
   void add_filter(Filter *filter);
+
+  /** Add a list of vectors to the back of the filter chain.
+   *
+   * This may look like:
+   *
+   * output->add_filters({
+   *   InvertedFilter(true),
+   * });
+   */
   void add_filters(const std::vector<Filter *> &filters);
+
+  /// Clear the filters and replace them by filters.
   void set_filters(const std::vector<Filter *> &filters);
+
+  /// Clear the entire filter chain.
   void clear_filters();
 
  protected:

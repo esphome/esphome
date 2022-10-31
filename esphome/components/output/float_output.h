@@ -16,8 +16,7 @@ namespace output {
  * That method will be called for you with inversion and max-min power and offset to min power already applied.
  *
  * This interface is compatible with BinaryOutput (and will automatically convert the binary states to floating
- * point states for you). Additionally, this class provides a way for users to set a minimum and/or maximum power
- * output
+ * point states for you).
  */
 class FloatOutput : public BinaryOutput {
  public:
