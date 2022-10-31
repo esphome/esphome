@@ -223,7 +223,7 @@ void AcDimmer::dump_config() {
     ESP_LOGCONFIG(TAG, "   Method: trailing");
   }
 
-  LOG_FLOAT_OUTPUT(this);
+  // LOG_FLOAT_OUTPUT(this);
   ESP_LOGV(TAG, "  Estimated Frequency: %.3fHz", 1e6f / this->store_.cycle_time_us / 2);
 }
 

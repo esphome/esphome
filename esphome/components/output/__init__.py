@@ -4,35 +4,20 @@ from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.components import power_supply
 from esphome.const import (
+    CONF_FILTERS,
     CONF_ID,
-    CONF_INVERTED,
     CONF_LEVEL,
-    CONF_MAX_POWER,
-    CONF_MIN_POWER,
     CONF_POWER_SUPPLY,
 )
 from esphome.core import CORE
+from esphome.util import Registry
 
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
 
-CONF_ZERO_MEANS_ZERO = "zero_means_zero"
-
-BINARY_OUTPUT_SCHEMA = cv.Schema(
-    {
-        cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
-        cv.Optional(CONF_INVERTED): cv.boolean,
-    }
-)
-
-FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend(
-    {
-        cv.Optional(CONF_MAX_POWER): cv.percentage,
-        cv.Optional(CONF_MIN_POWER): cv.percentage,
-        cv.Optional(CONF_ZERO_MEANS_ZERO, default=False): cv.boolean,
-    }
-)
+FILTER_REGISTRY = Registry()
+validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 
 output_ns = cg.esphome_ns.namespace("output")
 BinaryOutput = output_ns.class_("BinaryOutput")
@@ -45,19 +30,32 @@ TurnOffAction = output_ns.class_("TurnOffAction", automation.Action)
 TurnOnAction = output_ns.class_("TurnOnAction", automation.Action)
 SetLevelAction = output_ns.class_("SetLevelAction", automation.Action)
 
+# Filters
+Filter = output_ns.class_("Filter")
+InvertedFilter = output_ns.class_("InvertedFilter", Filter)
+
+
+BINARY_OUTPUT_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
+        cv.Optional(CONF_FILTERS): validate_filters,
+    }
+)
+
+FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA
+
+
+async def build_filters(config):
+    return await cg.build_registry_list(FILTER_REGISTRY, config)
+
 
 async def setup_output_platform_(obj, config):
-    if CONF_INVERTED in config:
-        cg.add(obj.set_inverted(config[CONF_INVERTED]))
     if CONF_POWER_SUPPLY in config:
         power_supply_ = await cg.get_variable(config[CONF_POWER_SUPPLY])
         cg.add(obj.set_power_supply(power_supply_))
-    if CONF_MAX_POWER in config:
-        cg.add(obj.set_max_power(config[CONF_MAX_POWER]))
-    if CONF_MIN_POWER in config:
-        cg.add(obj.set_min_power(config[CONF_MIN_POWER]))
-    if CONF_ZERO_MEANS_ZERO in config:
-        cg.add(obj.set_zero_means_zero(config[CONF_ZERO_MEANS_ZERO]))
+    if config.get(CONF_FILTERS):  # must exist and not be empty
+        filters = await build_filters(config[CONF_FILTERS])
+        cg.add(obj.set_filters(filters))
 
 
 async def register_output(var, config):
@@ -103,6 +101,11 @@ async def output_set_level_to_code(config, action_id, template_arg, args):
     template_ = await cg.templatable(config[CONF_LEVEL], args, float)
     cg.add(var.set_level(template_))
     return var
+
+
+@FILTER_REGISTRY.register("inverted", InvertedFilter, cv.boolean)
+async def invert_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
 
 
 async def to_code(config):

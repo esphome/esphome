@@ -24,7 +24,7 @@ void SX1509FloatOutputChannel::setup() {
 void SX1509FloatOutputChannel::dump_config() {
   ESP_LOGCONFIG(TAG, "SX1509 PWM:");
   ESP_LOGCONFIG(TAG, "  sx1509 pin: %d", this->pin_);
-  LOG_FLOAT_OUTPUT(this);
+  // LOG_FLOAT_OUTPUT(this);
 }
 
 }  // namespace sx1509

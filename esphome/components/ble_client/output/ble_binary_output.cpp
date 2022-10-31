@@ -13,7 +13,7 @@ void BLEBinaryOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "  MAC address        : %s", this->parent_->address_str().c_str());
   ESP_LOGCONFIG(TAG, "  Service UUID       : %s", this->service_uuid_.to_string().c_str());
   ESP_LOGCONFIG(TAG, "  Characteristic UUID: %s", this->char_uuid_.to_string().c_str());
-  LOG_BINARY_OUTPUT(this);
+  // LOG_BINARY_OUTPUT(this);
 }
 
 void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,

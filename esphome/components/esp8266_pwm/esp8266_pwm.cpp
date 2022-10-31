@@ -22,7 +22,7 @@ void ESP8266PWM::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP8266 PWM:");
   LOG_PIN("  Pin: ", this->pin_);
   ESP_LOGCONFIG(TAG, "  Frequency: %.1f Hz", this->frequency_);
-  LOG_FLOAT_OUTPUT(this);
+  // LOG_FLOAT_OUTPUT(this);
 }
 void HOT ESP8266PWM::write_state(float state) {
   this->last_output_ = state;

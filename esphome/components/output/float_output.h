@@ -6,15 +6,6 @@
 namespace esphome {
 namespace output {
 
-#define LOG_FLOAT_OUTPUT(this) \
-  LOG_BINARY_OUTPUT(this) \
-  if (this->max_power_ != 1.0f) { \
-    ESP_LOGCONFIG(TAG, "  Max Power: %.1f%%", this->max_power_ * 100.0f); \
-  } \
-  if (this->min_power_ != 0.0f) { \
-    ESP_LOGCONFIG(TAG, "  Min Power: %.1f%%", this->min_power_ * 100.0f); \
-  }
-
 /** Base class for all output components that can output a variable level, like PWM.
  *
  * Floating Point Outputs always use output values in the range from 0.0 to 1.0 (inclusive), where 0.0 means off
@@ -30,28 +21,6 @@ namespace output {
  */
 class FloatOutput : public BinaryOutput {
  public:
-  /** Set the maximum power output of this component.
-   *
-   * All values are multiplied by max_power - min_power and offset to min_power to get the adjusted value.
-   *
-   * @param max_power Automatically clamped from 0 or min_power to 1.
-   */
-  void set_max_power(float max_power);
-
-  /** Set the minimum power output of this component.
-   *
-   * All values are multiplied by max_power - min_power and offset by min_power to get the adjusted value.
-   *
-   * @param min_power Automatically clamped from 0 to max_power or 1.
-   */
-  void set_min_power(float min_power);
-
-  /** Sets this output to ignore min_power for a 0 state
-   *
-   * @param zero True if a 0 state should mean 0 and not min_power.
-   */
-  void set_zero_means_zero(bool zero_means_zero);
-
   /** Set the level of this float output, this is called from the front-end.
    *
    * @param state The new state.
@@ -66,23 +35,10 @@ class FloatOutput : public BinaryOutput {
    */
   virtual void update_frequency(float frequency) {}
 
-  // ========== INTERNAL METHODS ==========
-  // (In most use cases you won't need these)
-
-  /// Get the maximum power output.
-  float get_max_power() const;
-
-  /// Get the minimum power output.
-  float get_min_power() const;
-
  protected:
   /// Implement BinarySensor's write_enabled; this should never be called.
   void write_state(bool state) override;
   virtual void write_state(float state) = 0;
-
-  float max_power_{1.0f};
-  float min_power_{0.0f};
-  bool zero_means_zero_;
 };
 
 }  // namespace output

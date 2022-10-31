@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+#include "filter.h"
 
 #ifdef USE_POWER_SUPPLY
 #include "esphome/components/power_supply/power_supply.h"
@@ -10,16 +11,8 @@
 namespace esphome {
 namespace output {
 
-#define LOG_BINARY_OUTPUT(this) \
-  if (this->inverted_) { \
-    ESP_LOGCONFIG(TAG, "  Inverted: YES"); \
-  }
-
 class BinaryOutput {
  public:
-  /// Set the inversion state of this binary output.
-  void set_inverted(bool inverted) { this->inverted_ = inverted; }
-
 #ifdef USE_POWER_SUPPLY
   /** Use this to connect up a power supply to this output.
    *
@@ -32,38 +25,39 @@ class BinaryOutput {
 
   /// Enable or disable this binary output.
   virtual void set_state(bool state) {
-    if (state) {
-      this->turn_on();
+    if (this->filter_list_ == nullptr) {
+#ifdef USE_POWER_SUPPLY
+      if (state) {  // ON
+        this->power_.request();
+      } else {  // OFF
+        this->power_.unrequest();
+      }
+#endif
+      this->write_state(state);
     } else {
-      this->turn_off();
+      this->filter_list_->input(state ? 1.0f : 0.0f);
     }
   }
 
   /// Enable this binary output.
-  virtual void turn_on() {
-#ifdef USE_POWER_SUPPLY
-    this->power_.request();
-#endif
-    this->write_state(!this->inverted_);
-  }
+  virtual void turn_on() { this->set_state(true); }
 
   /// Disable this binary output.
-  virtual void turn_off() {
-#ifdef USE_POWER_SUPPLY
-    this->power_.unrequest();
-#endif
-    this->write_state(this->inverted_);
-  }
+  virtual void turn_off() { this->set_state(false); }
 
-  // ========== INTERNAL METHODS ==========
-  // (In most use cases you won't need these)
-  /// Return whether this binary output is inverted.
-  bool is_inverted() const { return this->inverted_; }
+  void add_filter(Filter *filter);
+  void add_filters(const std::vector<Filter *> &filters);
+  void set_filters(const std::vector<Filter *> &filters);
+  void clear_filters();
 
  protected:
-  virtual void write_state(bool state) = 0;
+  friend Filter;
 
-  bool inverted_{false};
+  virtual void write_state(bool state) = 0;
+  virtual void write_state(float state);
+
+  Filter *filter_list_{nullptr};
+
 #ifdef USE_POWER_SUPPLY
   power_supply::PowerSupplyRequester power_{};
 #endif
