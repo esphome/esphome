@@ -23,9 +23,9 @@ void SX127X::setup() {
 
   this->cs_->setup();
 
-  this->rst_pin_->digital_write(LOW);
+  this->rst_pin_->digital_write(false);
   delay(20);
-  this->rst_pin_->digital_write(HIGH);
+  this->rst_pin_->digital_write(true);
   delay(50);  // NOLINT
 
   this->cs_->digital_write(true);
@@ -52,25 +52,22 @@ void SX127X::setup() {
   this->write_register(REG_MODEM_CONFIG_3, 0x04);
 
   // set output power to 14 dBm
-
   this->set_tx_power(14, RF_PACONFIG_PASELECT_PABOOST);
-  //   else
-  //     set_tx_power(14, RF_PACONFIG_PASELECT_RFO);
 
   this->set_spreading_factor(11);
+
   // put in standby mode
   this->set_signal_bandwidth(125E3);
-  // setCodingRate4(5);
 
   this->set_sync_word(this->sync_word_);
 
   this->disable_crc();
   this->enable_crc();
+
   ESP_LOGD(TAG, "Idle");
   this->idle();
 
   ESP_LOGD(TAG, "Attaching interrupt");
-
   this->store_.sx127x = this;
   this->store_.receive_buffer = &this->receive_buffer_;
   this->di0_pin_->attach_interrupt(LoraComponentStore::gpio_intr, &this->store_, CHANGE);
@@ -110,15 +107,15 @@ void SX127X::dump_config() {
 uint32_t oldvalue = 0;
 void SX127X::loop() {
   if (oldvalue != this->store_.last_interrupt) {
-    ESP_LOGD(TAG, "Loop %zu found packet %s receive_buffer_ %zu packetLength %d todelete %d badcrc %s",
+    ESP_LOGD(TAG, "Loop %zu found packet %s receive_buffer_ %zu packet_length %d todelete %d badcrc %s",
              this->store_.last_interrupt, YESNO(this->store_.found_packet), this->receive_buffer_.length(),
-             this->store_.packetLength, this->store_.todelete, YESNO(this->store_.badcrc));
+             this->store_.packet_length, this->store_.todelete, YESNO(this->store_.badcrc));
     oldvalue = this->store_.last_interrupt;
   }
   this->parse_buffer();
 
   while (!this->lora_packets_.empty()) {
-    auto lora_packet = this->lora_packets_.front();
+    auto *lora_packet = this->lora_packets_.front();
     this->process_lora_packet(lora_packet);
     this->lora_packets_.pop_front();
     delete lora_packet;
@@ -179,9 +176,9 @@ void SX127X::parse_buffer() {
     if (lora_packet->component_type == 3) {
       lora_packet->state_str = data[3];
     } else {
-      auto state = parse_float(data[3]);
+      auto state = parse_number(data[3]);
       if (!state.has_value()) {
-        state = parse_float(data[3].substr(0, data[3].size() - 1));
+        state = parse_number(data[3].substr(0, data[3].size() - 1));
         if (!state.has_value()) {
           ESP_LOGE(TAG, "Can't convert '%s' to float! %s", data[3].c_str(),
                    data[3].substr(0, data[3].size() - 1).c_str());
@@ -214,24 +211,25 @@ int SX127X::read() {
 
 void SX127X::handle_di0() {
   this->store_.badcrc = false;
-  int irqFlags = this->read_register(REG_IRQ_FLAGS);
+  int irq_flags = this->read_register(REG_IRQ_FLAGS);
   // clear IRQ's
-  this->write_register(REG_IRQ_FLAGS, irqFlags);
-  if ((irqFlags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) {
+  this->write_register(REG_IRQ_FLAGS, irq_flags);
+  if ((irq_flags & IRQ_PAYLOAD_CRC_ERROR_MASK) == 0) {
     // received a packet
     this->packet_index_ = 0;
     // read packet length
-    int packetLength =
+    int packet_length =
         this->implicit_header_mode_ ? this->read_register(REG_PAYLOAD_LENGTH) : this->read_register(REG_RX_NB_BYTES);
     // set FIFO address to current RX address
-    this->store_.packetLength = packetLength;
+    this->store_.packet_length = packet_length;
 
     this->write_register(REG_FIFO_ADDR_PTR, this->read_register(REG_FIFO_RX_CURRENT_ADDR));
-    // this->read_available(packetLength);
+    // this->read_available(packet_length);
 
-    if (packetLength != 0)
+    if (packet_length != 0) {
       while (this->available())
         this->receive_buffer_ += (char) this->read();
+    }
 
     // reset FIFO address
     this->write_register(REG_FIFO_ADDR_PTR, 0);

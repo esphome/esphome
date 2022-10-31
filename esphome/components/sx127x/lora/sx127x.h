@@ -72,7 +72,7 @@ struct LoraComponentStore {
   ISRInternalGPIOPin *pin;
   int packet_size;
   bool found_packet;
-  int packetLength = 0;
+  int packet_length = 0;
   int todelete = 0;
   bool badcrc = false;
 
@@ -138,7 +138,7 @@ class SX127X : public lora::LoraComponent,
   unsigned int counter_ = 0;
 
   LoraComponentStore store_;
-  void (*_on_receive_)(int);
+  void (*on_receive_)(int);
   void (*on_tx_done_)();
   std::deque<lora::LoraPacket *> lora_packets_;
   std::string receive_buffer_;

@@ -46,7 +46,7 @@ async def register_lora_component(var, config, type):
             LoraComponentType.SENSOR: parent.register_sensor,
             LoraComponentType.SWITCH: parent.register_switch,
             LoraComponentType.BINARY_SENSOR: parent.register_binary_sensor,
-            LoraComponentType.TEXT_SENSOR: parent.register_text_sensor
+            LoraComponentType.TEXT_SENSOR: parent.register_text_sensor,
         }
 
         assert type in function_mapping
