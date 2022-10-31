@@ -178,15 +178,12 @@ void SX127X::parse_buffer() {
     } else {
       auto state = parse_number(data[3]);
       if (!state.has_value()) {
-        state = parse_number(data[3].substr(0, data[3].size() - 1));
-        if (!state.has_value()) {
-          ESP_LOGE(TAG, "Can't convert '%s' to float! %s", data[3].c_str(),
-                   data[3].substr(0, data[3].size() - 1).c_str());
-          ESP_LOGD(TAG, "Deleting %d", todelete);
-          this->store_.todelete = todelete;
-          this->receive_buffer_.erase(0, todelete);
-          return;
-        }
+        ESP_LOGE(TAG, "Can't convert '%s' to float! %s", data[3].c_str(),
+                  data[3].substr(0, data[3].size() - 1).c_str());
+        ESP_LOGD(TAG, "Deleting %d", todelete);
+        this->store_.todelete = todelete;
+        this->receive_buffer_.erase(0, todelete);
+        return;
       }
       lora_packet->state = *state;
     }
