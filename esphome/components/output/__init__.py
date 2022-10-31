@@ -6,6 +6,7 @@ from esphome.components import power_supply
 from esphome.const import (
     CONF_FILTERS,
     CONF_ID,
+    CONF_INVERTED,
     CONF_LEVEL,
     CONF_MAX_POWER,
     CONF_MIN_POWER,
@@ -45,10 +46,25 @@ BINARY_OUTPUT_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
         cv.Optional(CONF_FILTERS): validate_filters,
+        cv.Optional(CONF_INVERTED): cv.invalid(
+            "inverted has been removed since 2022.11.0. filter: inverted should be used instead."
+        ),
     }
 )
 
-FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA
+FLOAT_OUTPUT_SCHEMA = BINARY_OUTPUT_SCHEMA.extend(
+    {
+        cv.Optional(CONF_MAX_POWER): cv.invalid(
+            "max_power has been removed since 2022.11.0. filter: range should be used instead."
+        ),
+        cv.Optional(CONF_MIN_POWER): cv.invalid(
+            "min_power has been removed since 2022.11.0. filter: range should be used instead."
+        ),
+        cv.Optional(CONF_ZERO_MEANS_ZERO): cv.invalid(
+            "zero_means_zero has been removed since 2022.11.0. filter: range should be used instead."
+        ),
+    }
+)
 
 
 async def build_filters(config):
