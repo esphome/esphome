@@ -265,6 +265,31 @@ ARDUINO_GLUE_CODE = """\
 #define micros() esphome::micros()
 #define delay(x) esphome::delay(x)
 #define delayMicroseconds(x) esphome::delayMicroseconds(x)
+
+#include <freertos/FreeRTOS.h>
+#include <new>
+#undef new
+#undef delete
+
+void * operator new( size_t size )
+{
+    return pvPortMalloc(size);
+}
+
+void * operator new[]( size_t size )
+{
+    return pvPortMalloc( size );
+}
+
+void operator delete( void * ptr )
+{
+    vPortFree( ptr );
+}
+
+void operator delete[]( void * ptr )
+{
+    vPortFree( ptr );
+}
 """
 
 
