@@ -96,7 +96,6 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         ESP_LOGW(TAG, "connect to %s failed, status=%d", this->address_str().c_str(), param->open.status);
         this->set_state(espbt::ClientState::IDLE);
-        this->address_ = 0;
         break;
       }
       break;

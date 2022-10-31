@@ -34,6 +34,7 @@ void BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         api::global_api_server->send_bluetooth_device_connection(this->address_, false, 0, param->open.status);
         api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
                                                                 this->proxy_->get_bluetooth_connections_limit());
+        this->address_ = 0;
       }
       break;
     }
