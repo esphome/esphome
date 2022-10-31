@@ -53,6 +53,7 @@ class AcDimmer : public output::FloatOutput, public Component {
   void set_zero_cross_pin(InternalGPIOPin *zero_cross_pin) { zero_cross_pin_ = zero_cross_pin; }
   void set_init_with_half_cycle(bool init_with_half_cycle) { init_with_half_cycle_ = init_with_half_cycle; }
   void set_method(DimMethod method) { method_ = method; }
+  void set_min_power(float min_power) { this->min_power_ = min_power; }
 
  protected:
   void write_state(float state) override;
@@ -62,6 +63,7 @@ class AcDimmer : public output::FloatOutput, public Component {
   AcDimmerDataStore store_;
   bool init_with_half_cycle_;
   DimMethod method_;
+  float min_power_;
 };
 
 }  // namespace ac_dimmer

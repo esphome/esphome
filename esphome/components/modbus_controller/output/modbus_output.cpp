@@ -51,7 +51,6 @@ void ModbusFloatOutput::write_state(float value) {
 
 void ModbusFloatOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus Float Output:");
-  // LOG_FLOAT_OUTPUT(this);
   ESP_LOGCONFIG(TAG, "  Device start address: 0x%X", this->start_address);
   ESP_LOGCONFIG(TAG, "  Register count: %d", this->register_count);
   ESP_LOGCONFIG(TAG, "  Value type: %d", static_cast<int>(this->sensor_value_type));
@@ -101,7 +100,6 @@ void ModbusBinaryOutput::write_state(bool state) {
 
 void ModbusBinaryOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus Binary Output:");
-  // LOG_BINARY_OUTPUT(this);
   ESP_LOGCONFIG(TAG, "  Device start address: 0x%X", this->start_address);
   ESP_LOGCONFIG(TAG, "  Register count: %d", this->register_count);
   ESP_LOGCONFIG(TAG, "  Value type: %d", static_cast<int>(this->sensor_value_type));

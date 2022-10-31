@@ -29,6 +29,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_METHOD, default="leading pulse"): cv.enum(
                 DIM_METHODS, upper=True, space="_"
             ),
+            cv.Optional(CONF_MIN_POWER, 0.1): cv.percentage,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
@@ -38,10 +39,6 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
-    # override default min power to 10%
-    if CONF_MIN_POWER not in config:
-        config[CONF_MIN_POWER] = 0.1
     await output.register_output(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_GATE_PIN])
@@ -50,3 +47,4 @@ async def to_code(config):
     cg.add(var.set_zero_cross_pin(pin))
     cg.add(var.set_init_with_half_cycle(config[CONF_INIT_WITH_HALF_CYCLE]))
     cg.add(var.set_method(config[CONF_METHOD]))
+    cg.add(var.set_min_power(config[CONF_MIN_POWER]))

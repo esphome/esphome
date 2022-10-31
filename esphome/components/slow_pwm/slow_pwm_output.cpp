@@ -61,7 +61,6 @@ void SlowPWMOutput::dump_config() {
     ESP_LOGCONFIG(TAG, "  Turn off automation configured");
   ESP_LOGCONFIG(TAG, "  Period: %d ms", this->period_);
   ESP_LOGCONFIG(TAG, "  Restart cycle on state change: %s", YESNO(this->restart_cycle_on_state_change_));
-  // LOG_FLOAT_OUTPUT(this);
 }
 
 void SlowPWMOutput::write_state(float state) {

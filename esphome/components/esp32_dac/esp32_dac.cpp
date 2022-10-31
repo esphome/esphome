@@ -30,7 +30,6 @@ void ESP32DAC::setup() {
 void ESP32DAC::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 DAC:");
   LOG_PIN("  Pin: ", this->pin_);
-  // LOG_FLOAT_OUTPUT(this);
 }
 
 void ESP32DAC::write_state(float state) {

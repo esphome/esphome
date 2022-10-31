@@ -9,7 +9,6 @@ static const char *const TAG = "gpio.output";
 void GPIOBinaryOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "GPIO Binary Output:");
   LOG_PIN("  Pin: ", this->pin_);
-  // LOG_BINARY_OUTPUT(this);
 }
 
 }  // namespace gpio
