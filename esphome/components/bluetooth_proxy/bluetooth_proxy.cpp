@@ -55,8 +55,11 @@ void BluetoothProxy::dump_config() {
 void BluetoothProxy::loop() {
   if (!api::global_api_server->is_connected()) {
     for (auto *connection : this->connections_) {
-      if (connection->address_ != 0)
+      if (connection->address_ != 0) {
         connection->disconnect();
+        connection->address_ = 0;
+        connection->set_state(espbt::ClientState::IDLE);
+      }
     }
     return;
   }
@@ -128,7 +131,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT: {
       auto *connection = this->get_connection_(msg.address, false);
       if (connection == nullptr) {
-        ESP_LOGW(TAG, "Not connected");
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
         api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                                 this->get_bluetooth_connections_limit());

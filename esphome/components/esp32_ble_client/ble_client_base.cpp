@@ -82,6 +82,8 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
 
   switch (event) {
     case ESP_GATTC_REG_EVT: {
+      if (param->reg.app_id != this->app_id)
+        break;
       if (param->reg.status == ESP_GATT_OK) {
         ESP_LOGV(TAG, "gattc registered app id %d", this->app_id);
         this->gattc_if_ = esp_gattc_if;
@@ -91,6 +93,8 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
+      if (memcmp(param->open.remote_bda, this->remote_bda_, ESP_BD_ADDR_LEN) != 0)
+        break;
       ESP_LOGV(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->address_str().c_str());
       this->conn_id_ = param->open.conn_id;
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
@@ -101,11 +105,9 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_CONNECT_EVT: {
+      if (param->connect.conn_id != this->conn_id_)
+        break;
       ESP_LOGV(TAG, "[%s] ESP_GATTC_CONNECT_EVT", this->address_str().c_str());
-      if (this->conn_id_ != param->connect.conn_id) {
-        ESP_LOGD(TAG, "[%s] Unexpected conn_id in CONNECT_EVT: param conn=%d, open conn=%d",
-                 this->address_str().c_str(), param->connect.conn_id, this->conn_id_);
-      }
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->connect.conn_id);
       if (ret) {
         ESP_LOGW(TAG, "esp_ble_gattc_send_mtu_req failed, status=%x", ret);
@@ -113,6 +115,8 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_CFG_MTU_EVT: {
+      if (param->connect.conn_id != this->conn_id_)
+        break;
       if (param->cfg_mtu.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "cfg_mtu to %s failed, mtu %d, status %d", this->address_str().c_str(), param->cfg_mtu.mtu,
                  param->cfg_mtu.status);
@@ -136,6 +140,8 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
+      if (param->search_res.conn_id != this->conn_id_)
+        break;
       BLEService *ble_service = new BLEService();  // NOLINT(cppcoreguidelines-owning-memory)
       ble_service->uuid = espbt::ESPBTUUID::from_uuid(param->search_res.srvc_id.uuid);
       ble_service->start_handle = param->search_res.start_handle;
@@ -145,6 +151,8 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
+      if (param->search_cmpl.conn_id != this->conn_id_)
+        break;
       ESP_LOGV(TAG, "[%s] ESP_GATTC_SEARCH_CMPL_EVT", this->address_str().c_str());
       for (auto &svc : this->services_) {
         ESP_LOGI(TAG, "Service UUID: %s", svc->uuid.to_string().c_str());
@@ -158,7 +166,8 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
       auto *descr = this->get_config_descriptor(param->reg_for_notify.handle);
       if (descr == nullptr) {
-        ESP_LOGW(TAG, "No descriptor found for notify of handle 0x%x", param->reg_for_notify.handle);
+        ESP_LOGV(TAG, "No descriptor found for notify of handle 0x%x (possibly not for this client)",
+                 param->reg_for_notify.handle);
         break;
       }
       if (descr->uuid.get_uuid().len != ESP_UUID_LEN_16 ||
