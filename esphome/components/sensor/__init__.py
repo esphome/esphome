@@ -4,6 +4,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt, lora
+from esphome.components.lora import LoraComponentType
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ABOVE,
@@ -618,7 +619,7 @@ async def setup_sensor_core_(var, config):
         await automation.build_automation(trigger, [(float, "x")], conf)
 
     if lora.CONF_LORA_ID in config:
-        await lora.register_lora_component(var, config, 0)
+        await lora.register_lora_component(var, config, LoraComponentType.SENSOR)
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)

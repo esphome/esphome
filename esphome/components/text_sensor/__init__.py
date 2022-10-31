@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.components import mqtt, lora
+from esphome.components.lora import LoraComponentType
 from esphome.const import (
     CONF_ENTITY_CATEGORY,
     CONF_FILTERS,
@@ -186,7 +187,7 @@ async def setup_text_sensor_core_(var, config):
         await mqtt.register_mqtt_component(mqtt_, config)
 
     if lora.CONF_LORA_ID in config:
-        await lora.register_lora_component(var, config, 3)
+        await lora.register_lora_component(var, config, LoraComponentType.TEXT_SENSOR)
 
 
 async def register_text_sensor(var, config):

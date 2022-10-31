@@ -1,4 +1,5 @@
-from esphome.core import coroutine
+from enum import Enum
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 
@@ -14,9 +15,7 @@ CONF_LORA_NAME = "lora_name"
 lora_ns = cg.esphome_ns.namespace("lora")
 Lora = lora_ns.class_("Lora", cg.Component)
 
-
 LoraComponent = lora_ns.class_("LoraComponent", cg.Component)
-
 
 LORA_SCHEMA = cv.Schema(
     {
@@ -26,35 +25,29 @@ LORA_SCHEMA = cv.Schema(
 )
 
 
+class LoraComponentType(Enum):
+    SENSOR = 0
+    SWITCH = 1
+    BINARY_SENSOR = 2
+    TEXT_SENSOR = 3
+
+
 async def register_lora_component(var, config, type):
-    send_to_lora = config[CONF_SEND_TO_LORA] is True
-    receive_from_lora = config[CONF_RECEIVE_FROM_LORA] is True
-    if send_to_lora is True or receive_from_lora is True:
+    send_to_lora = config[CONF_SEND_TO_LORA]
+    receive_from_lora = config[CONF_RECEIVE_FROM_LORA]
+
+    if send_to_lora or receive_from_lora:
         parent = await cg.get_variable(config[CONF_LORA_ID])
         lora_name = ""
         if CONF_LORA_NAME in config:
             lora_name = config[CONF_LORA_NAME]
 
-        if type == 0:
-            cg.add(
-                parent.register_sensor(var, send_to_lora, receive_from_lora, lora_name)
-            )
+        function_mapping = {
+            LoraComponentType.SENSOR: parent.register_sensor,
+            LoraComponentType.SWITCH: parent.register_switch,
+            LoraComponentType.BINARY_SENSOR: parent.register_binary_sensor,
+            LoraComponentType.TEXT_SENSOR: parent.register_text_sensor
+        }
 
-        elif type == 1:
-            cg.add(
-                parent.register_switch(var, send_to_lora, receive_from_lora, lora_name)
-            )
-
-        elif type == 2:
-            cg.add(
-                parent.register_binary_sensor(
-                    var, send_to_lora, receive_from_lora, lora_name
-                )
-            )
-
-        elif type == 3:
-            cg.add(
-                parent.register_text_sensor(
-                    var, send_to_lora, receive_from_lora, lora_name
-                )
-            )
+        assert type in function_mapping
+        cg.add(function_mapping[type](var, send_to_lora, receive_from_lora, lora_name))

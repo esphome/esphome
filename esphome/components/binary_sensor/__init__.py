@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.components.lora import LoraComponentType
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 from esphome import automation, core
@@ -480,7 +481,7 @@ async def setup_binary_sensor_core_(var, config):
         await mqtt.register_mqtt_component(mqtt_, config)
 
     if lora.CONF_LORA_ID in config:
-        await lora.register_lora_component(var, config, 2)
+        await lora.register_lora_component(var, config, LoraComponentType.BINARY_SENSOR)
 
 
 async def register_binary_sensor(var, config):

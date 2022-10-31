@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import Condition, maybe_simple_id
 from esphome.components import mqtt, lora
+from esphome.components.lora import LoraComponentType
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
@@ -132,7 +133,7 @@ async def setup_switch_core_(var, config):
         await mqtt.register_mqtt_component(mqtt_, config)
 
     if lora.CONF_LORA_ID in config:
-        await lora.register_lora_component(var, config, 1)
+        await lora.register_lora_component(var, config, LoraComponentType.SWITCH)
 
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
