@@ -17,7 +17,6 @@ namespace esphome {
 namespace bluetooth_proxy {
 
 static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
-static const esp_err_t ESP_GATT_WRONG_ADDRESS = -2;
 
 using namespace esp32_ble_client;
 
