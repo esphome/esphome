@@ -44,5 +44,17 @@ class RangeFilter : public Filter {
   bool zero_means_zero_;
 };
 
+using lambda_filter_t = std::function<optional<float>(float)>;
+
+class LambdaFilter : public Filter {
+ public:
+  explicit LambdaFilter(lambda_filter_t lambda_filter);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  lambda_filter_t lambda_filter_;
+};
+
 }  // namespace output
 }  // namespace esphome

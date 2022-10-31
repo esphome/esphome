@@ -67,5 +67,14 @@ optional<float> RangeFilter::new_value(float value) {
   return lerp(value, this->min_power_, this->max_power_);
 }
 
+// LambdaFilter
+LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
+
+optional<float> LambdaFilter::new_value(float value) {
+  auto it = this->lambda_filter_(value);
+  ESP_LOGVV(TAG, "LambdaFilter(%p)::new_value(%f) -> %f", this, value, it.value_or(INFINITY));
+  return it;
+}
+
 }  // namespace output
 }  // namespace esphome

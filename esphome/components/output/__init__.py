@@ -38,6 +38,7 @@ SetLevelAction = output_ns.class_("SetLevelAction", automation.Action)
 Filter = output_ns.class_("Filter")
 InvertedFilter = output_ns.class_("InvertedFilter", Filter)
 RangeFilter = output_ns.class_("RangeFilter", Filter)
+LambdaFilter = output_ns.class_("LambdaFilter", Filter)
 
 
 BINARY_OUTPUT_SCHEMA = cv.Schema(
@@ -131,6 +132,14 @@ async def range_filter_to_code(config, filter_id):
         config[CONF_MAX_POWER],
         config[CONF_ZERO_MEANS_ZERO],
     )
+
+
+@FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
+async def lambda_filter_to_code(config, filter_id):
+    lambda_ = await cg.process_lambda(
+        config, [(float, "x")], return_type=cg.optional.template(float)
+    )
+    return cg.new_Pvariable(filter_id, lambda_)
 
 
 async def to_code(config):
