@@ -219,7 +219,8 @@ void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetSer
     api::global_api_server->send_bluetooth_gatt_services_done(msg.address);
     return;
   }
-  connection->send_service_ = 0;
+  if (connection->send_service_ == -1)  // Don't start sending services again if we're already sending them
+    connection->send_service_ = 0;
 }
 
 void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg) {
