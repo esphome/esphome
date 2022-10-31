@@ -132,7 +132,7 @@ async def setup_switch_core_(var, config):
         await mqtt.register_mqtt_component(mqtt_, config)
 
     if lora.CONF_LORA_ID in config:
-        yield lora.register_lora_component(var, config, 1)
+        await lora.register_lora_component(var, config, 1)
 
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))

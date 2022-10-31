@@ -186,7 +186,7 @@ async def setup_text_sensor_core_(var, config):
         await mqtt.register_mqtt_component(mqtt_, config)
 
     if lora.CONF_LORA_ID in config:
-        yield lora.register_lora_component(var, config, 3)
+        await lora.register_lora_component(var, config, 3)
 
 
 async def register_text_sensor(var, config):

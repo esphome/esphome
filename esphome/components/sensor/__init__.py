@@ -618,7 +618,7 @@ async def setup_sensor_core_(var, config):
         await automation.build_automation(trigger, [(float, "x")], conf)
 
     if lora.CONF_LORA_ID in config:
-        yield lora.register_lora_component(var, config, 0)
+        await lora.register_lora_component(var, config, 0)
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)

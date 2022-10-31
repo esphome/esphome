@@ -26,12 +26,11 @@ LORA_SCHEMA = cv.Schema(
 )
 
 
-@coroutine
-def register_lora_component(var, config, type):
+async def register_lora_component(var, config, type):
     send_to_lora = config[CONF_SEND_TO_LORA] is True
     receive_from_lora = config[CONF_RECEIVE_FROM_LORA] is True
     if send_to_lora is True or receive_from_lora is True:
-        parent = yield cg.get_variable(config[CONF_LORA_ID])
+        parent = await cg.get_variable(config[CONF_LORA_ID])
         lora_name = ""
         if CONF_LORA_NAME in config:
             lora_name = config[CONF_LORA_NAME]
