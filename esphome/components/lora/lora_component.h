@@ -90,9 +90,9 @@ class LoraComponent : public Component {
   void process_lora_packet(LoraPacket *lora_packet);
   std::string build_to_send(const std::string &type, const std::string &name, const std::string &state);
 
-#if defined(USE_BINARY_SENSOR) || defined(USE_BINARY_SENSOR)
+#if defined(USE_BINARY_SENSOR) || defined(USE_SWITCH)
   bool process_component(LoraBaseComponent *lora_component, bool state);
-#endif  // defined(USE_BINARY_SENSOR) || defined(USE_BINARY_SENSOR)
+#endif  // defined(USE_BINARY_SENSOR) || defined(USE_SWITCH)
 
 #ifdef USE_BINARY_SENSOR
   void register_binary_sensor(binary_sensor::BinarySensor *component, bool send_to_lora, bool receive_from_lora,
