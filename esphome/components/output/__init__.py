@@ -7,6 +7,8 @@ from esphome.const import (
     CONF_FILTERS,
     CONF_ID,
     CONF_LEVEL,
+    CONF_MAX_POWER,
+    CONF_MIN_POWER,
     CONF_POWER_SUPPLY,
 )
 from esphome.core import CORE
@@ -15,6 +17,8 @@ from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
+
+CONF_ZERO_MEANS_ZERO = "zero_means_zero"
 
 FILTER_REGISTRY = Registry()
 validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
@@ -33,6 +37,7 @@ SetLevelAction = output_ns.class_("SetLevelAction", automation.Action)
 # Filters
 Filter = output_ns.class_("Filter")
 InvertedFilter = output_ns.class_("InvertedFilter", Filter)
+RangeFilter = output_ns.class_("RangeFilter", Filter)
 
 
 BINARY_OUTPUT_SCHEMA = cv.Schema(
@@ -106,6 +111,26 @@ async def output_set_level_to_code(config, action_id, template_arg, args):
 @FILTER_REGISTRY.register("inverted", InvertedFilter, cv.boolean)
 async def invert_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, config)
+
+
+@FILTER_REGISTRY.register(
+    "range",
+    RangeFilter,
+    cv.Schema(
+        {
+            cv.Optional(CONF_MIN_POWER, 0.0): cv.percentage,
+            cv.Optional(CONF_MAX_POWER, 1.0): cv.percentage,
+            cv.Optional(CONF_ZERO_MEANS_ZERO, False): cv.boolean,
+        }
+    ),
+)
+async def range_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_MIN_POWER],
+        config[CONF_MAX_POWER],
+        config[CONF_ZERO_MEANS_ZERO],
+    )
 
 
 async def to_code(config):

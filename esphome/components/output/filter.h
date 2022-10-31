@@ -32,5 +32,17 @@ class InvertedFilter : public Filter {
   bool inverted_;
 };
 
+class RangeFilter : public Filter {
+ public:
+  explicit RangeFilter(float min_power, float max_power, bool zero_means_zero);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  float min_power_;
+  float max_power_;
+  bool zero_means_zero_;
+};
+
 }  // namespace output
 }  // namespace esphome

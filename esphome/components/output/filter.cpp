@@ -53,5 +53,19 @@ optional<float> InvertedFilter::new_value(float value) {
   }
 }
 
+// RangeFilter
+RangeFilter::RangeFilter(float min_power, float max_power, bool zero_means_zero) {
+  this->min_power_ = min_power;
+  this->max_power_ = max_power;
+  this->zero_means_zero_ = zero_means_zero;
+}
+
+optional<float> RangeFilter::new_value(float value) {
+  if (value == 0.0f && this->zero_means_zero_)
+    return value;
+
+  return lerp(value, this->min_power_, this->max_power_);
+}
+
 }  // namespace output
 }  // namespace esphome
