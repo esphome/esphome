@@ -9,7 +9,6 @@ from esphome.const import (
     DEVICE_CLASS_SIGNAL_STRENGTH,
 )
 
-CODEOWNERS = ["@SenexCrenshaw", "@alf-scotland"]
 DEPENDENCIES = ["lora"]
 
 LoraRSSISensor = lora.lora_ns.class_(

@@ -6,7 +6,6 @@ from esphome.components import sensor
 from esphome.components import spi
 from esphome.const import CONF_ID
 
-CODEOWNERS = ["@SenexCrenshaw", "@alf-scotland"]
 DEPENDENCIES = ["spi"]
 
 CONF_DI0_PIN = "di0_pin"
