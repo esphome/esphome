@@ -496,6 +496,31 @@ template<typename T> class Deduplicator {
   T last_value_{};
 };
 
+/// Helper class to compute a moving average of numeric type \p T.
+template<typename T> class MovingAverage {
+ public:
+  explicit MovingAverage(T initial): wma_(initial), initial_(initial) {}
+
+  MovingAverage& operator +=(T v) {
+    // compute cumulative moving average
+    wma_ += (v - wma_) / ++cnt_;
+    return *this;
+  }
+
+  T operator *() const noexcept { return wma_; }
+  operator T() const noexcept { return wma_; }
+
+  /// Returns whether this moving average has processed any items so far.
+  bool has_value() const { return cnt_ > 0; }
+
+  /// Resets the moving average to initial value.
+  void reset() { wma_ = initial_; cnt_ = 0; }
+
+  private:
+    T wma_, initial_;
+    size_t cnt_ { 0 };
+};
+
 /// Helper class to easily give an object a parent of type \p T.
 template<typename T> class Parented {
  public:
