@@ -57,7 +57,7 @@ void BluetoothProxy::loop() {
     for (auto *connection : this->connections_) {
       if (connection->address_ != 0) {
         connection->disconnect();
-        connection->address_ = 0;
+        connection->set_address(0);
         connection->set_state(espbt::ClientState::IDLE);
       }
     }
@@ -105,7 +105,7 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
 
   for (auto *connection : this->connections_) {
     if (connection->address_ == 0) {
-      connection->address_ = address;
+      connection->set_address(address);
       return connection;
     }
   }
@@ -122,7 +122,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
         return;
       }
-      connection->address_ = msg.address;
+      ESP_LOGV(TAG, "[%s] Searching to connect", connection->address_str().c_str());
       connection->set_state(espbt::ClientState::SEARCHING);
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
@@ -140,7 +140,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->disconnect();
       } else {
         connection->set_state(espbt::ClientState::IDLE);
-        connection->address_ = 0;
+        connection->set_address(0);
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
         api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                                 this->get_bluetooth_connections_limit());
@@ -217,7 +217,7 @@ void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetSer
     return;
   }
   if (connection->services_.empty()) {
-    ESP_LOGW(TAG, "No GATT services found");
+    ESP_LOGW(TAG, "[%d] [%s] No GATT services found", connection->connection_index_, connection->address_str().c_str());
     api::global_api_server->send_bluetooth_gatt_services_done(msg.address);
     return;
   }
