@@ -1,4 +1,6 @@
 from pathlib import Path
+import re
+import requests
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -25,9 +27,12 @@ def validate_import_url(value):
 
 
 CONF_PACKAGE_IMPORT_URL = "package_import_url"
+CONF_IMPORT_FULL_CONFIG = "import_full_config"
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_PACKAGE_IMPORT_URL): validate_import_url,
+        cv.Optional(CONF_IMPORT_FULL_CONFIG, default=False): cv.boolean,
     }
 )
 
@@ -41,6 +46,9 @@ wifi:
 
 async def to_code(config):
     cg.add_define("USE_DASHBOARD_IMPORT")
+    url = config[CONF_PACKAGE_IMPORT_URL]
+    if config[CONF_IMPORT_FULL_CONFIG]:
+        url += "?full_config"
     cg.add(dashboard_import_ns.set_package_import_url(config[CONF_PACKAGE_IMPORT_URL]))
 
 
@@ -64,17 +72,36 @@ def import_config(
             encoding="utf8",
         )
     else:
-        config = {
-            "substitutions": {"name": name},
-            "packages": {project_name: import_url},
-            "esphome": {
-                "name": "${name}",
-                "name_add_mac_suffix": False,
-            },
-        }
-        output = dump(config)
+        m = re.match(
+            r"github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)/([a-zA-Z0-9\-_.\./]+)(?:@([a-zA-Z0-9\-_.\./]+))(?:\?([a-zA-Z0-9\-_.\./]+))?",
+            import_url,
+        )
 
-        if network == CONF_WIFI:
-            output += WIFI_CONFIG
+        if m is None:
+            raise ValueError
 
-        p.write_text(output, encoding="utf8")
+        if m.group(4) and "full_config" in m.group(4):
+            url = f"https://raw.githubusercontent.com/{m.group(1)}/{m.group(2)}/{m.group(4)}/{m.group(3)}"
+            try:
+                req = requests.get(url, timeout=30)
+                req.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                raise ValueError(f"Error while fetching {url}: {e}") from e
+
+            p.write_text(req.text, encoding="utf8")
+
+        else:
+            config = {
+                "substitutions": {"name": name},
+                "packages": {project_name: import_url},
+                "esphome": {
+                    "name": "${name}",
+                    "name_add_mac_suffix": False,
+                },
+            }
+            output = dump(config)
+
+            if network == CONF_WIFI:
+                output += WIFI_CONFIG
+
+            p.write_text(output, encoding="utf8")
