@@ -268,6 +268,7 @@ esphome/components/uart/* @esphome/core
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
+esphome/components/vbus/* @ssieb
 esphome/components/version/* @esphome/core
 esphome/components/wake_on_lan/* @willwill2will54
 esphome/components/web_server_base/* @OttoWinter

@@ -1,0 +1,93 @@
+#include "vbus_binary_sensor.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
+
+namespace esphome {
+namespace vbus {
+
+void DeltaSol_C_bsensor::dump_config() {
+  const char *TAG = this->TAG_;
+  ESP_LOGCONFIG(TAG, "Deltasol C:");
+  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
+}
+
+void DeltaSol_C_bsensor::handle_message_(std::vector<uint8_t> &message) {
+  if (this->s1_error_bsensor_ != nullptr)
+    this->s1_error_bsensor_->publish_state(message[10] & 1);
+  if (this->s2_error_bsensor_ != nullptr)
+    this->s2_error_bsensor_->publish_state(message[10] & 2);
+  if (this->s3_error_bsensor_ != nullptr)
+    this->s3_error_bsensor_->publish_state(message[10] & 4);
+  if (this->s4_error_bsensor_ != nullptr)
+    this->s4_error_bsensor_->publish_state(message[10] & 8);
+}
+
+void DeltaSol_CS2_bsensor::dump_config() {
+  const char *TAG = this->TAG_;
+  ESP_LOGCONFIG(TAG, "Deltasol CS2:");
+  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
+}
+
+void DeltaSol_CS2_bsensor::handle_message_(std::vector<uint8_t> &message) {
+  if (this->s1_error_bsensor_ != nullptr)
+    this->s1_error_bsensor_->publish_state(message[18] & 1);
+  if (this->s2_error_bsensor_ != nullptr)
+    this->s2_error_bsensor_->publish_state(message[18] & 2);
+  if (this->s3_error_bsensor_ != nullptr)
+    this->s3_error_bsensor_->publish_state(message[18] & 4);
+  if (this->s4_error_bsensor_ != nullptr)
+    this->s4_error_bsensor_->publish_state(message[18] & 8);
+}
+
+void DeltaSol_BS_Plus_bsensor::dump_config() {
+  const char *TAG = this->TAG_;
+  ESP_LOGCONFIG(TAG, "Deltasol BS Plus:");
+  LOG_BINARY_SENSOR("  ", "Relay 1 On", this->relay1_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Relay 2 On", this->relay2_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Option Collector Max", this->collector_max_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Option Collector Min", this->collector_min_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Option Collector Frost", this->collector_frost_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Option Tube Collector", this->tube_collector_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Option Recooling", this->recooling_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Option Heat Quantity Measurement", this->hqm_bsensor_);
+}
+
+void DeltaSol_BS_Plus_bsensor::handle_message_(std::vector<uint8_t> &message) {
+  if (this->relay1_bsensor_ != nullptr)
+    this->relay1_bsensor_->publish_state(message[10] & 1);
+  if (this->relay2_bsensor_ != nullptr)
+    this->relay2_bsensor_->publish_state(message[10] & 2);
+  if (this->s1_error_bsensor_ != nullptr)
+    this->s1_error_bsensor_->publish_state(message[11] & 1);
+  if (this->s2_error_bsensor_ != nullptr)
+    this->s2_error_bsensor_->publish_state(message[11] & 2);
+  if (this->s3_error_bsensor_ != nullptr)
+    this->s3_error_bsensor_->publish_state(message[11] & 4);
+  if (this->s4_error_bsensor_ != nullptr)
+    this->s4_error_bsensor_->publish_state(message[11] & 8);
+  if (this->collector_max_bsensor_ != nullptr)
+    this->collector_max_bsensor_->publish_state(message[15] & 1);
+  if (this->collector_min_bsensor_ != nullptr)
+    this->collector_min_bsensor_->publish_state(message[15] & 2);
+  if (this->collector_frost_bsensor_ != nullptr)
+    this->collector_frost_bsensor_->publish_state(message[15] & 4);
+  if (this->tube_collector_bsensor_ != nullptr)
+    this->tube_collector_bsensor_->publish_state(message[15] & 8);
+  if (this->recooling_bsensor_ != nullptr)
+    this->recooling_bsensor_->publish_state(message[15] & 0x10);
+  if (this->hqm_bsensor_ != nullptr)
+    this->hqm_bsensor_->publish_state(message[15] & 0x20);
+}
+
+}  // namespace vbus
+}  // namespace esphome
