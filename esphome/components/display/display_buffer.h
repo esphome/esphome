@@ -4,6 +4,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "display_color_utils.h"
+#include "esphome/core/helpers.h"
 #include <cstdarg>
 
 #ifdef USE_TIME
@@ -18,6 +19,7 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
+#define POLAR_2PI 6.28318530718F
 namespace esphome {
 namespace display {
 
@@ -98,6 +100,98 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
+struct Rect {
+  int16_t x;  ///< X coordinate of corner
+  int16_t y;  ///< Y coordinate of corner
+  int16_t w;  ///< Width of region
+  int16_t h;  ///< Height of region
+
+  inline Rect() ALWAYS_INLINE : x(32766), y(32766), w(32766), h(32766) {}  // NOLINT
+  inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
+  inline int16_t x2() { return this->x + this->w; };  ///< X coordinate of corner
+  inline int16_t y2() { return this->y + this->h; };  ///< Y coordinate of corner
+
+  inline bool is_set() ALWAYS_INLINE { return (this->h != 32766) && (this->w != 32766); }
+
+  inline void expand(int16_t width, int16_t height) {
+    if ((*this).is_set() && ((*this).w >= (-2 * width)) && ((*this).h >= (-2 * height))) {
+      (*this).x = (*this).x - width;
+      (*this).y = (*this).y - height;
+      (*this).w = (*this).w + (2 * width);
+      (*this).h = (*this).h + (2 * height);
+    }
+  }
+
+  inline void join(Rect rect) {
+    if (!this->is_set()) {
+      this->x = rect.x;
+      this->y = rect.y;
+      this->w = rect.w;
+      this->h = rect.h;
+    } else {
+      if (this->x > rect.x) {
+        this->x = rect.x;
+      }
+      if (this->y > rect.y) {
+        this->y = rect.y;
+      }
+      if (this->x2() < rect.x2()) {
+        this->w = rect.x2() - this->x;
+      }
+      if (this->y2() < rect.y2()) {
+        this->h = rect.y2() - this->y;
+      }
+    }
+  }
+  inline void substract(Rect rect) {
+    if (!this->inside(rect)) {
+      (*this) = Rect();
+    } else {
+      if (this->x < rect.x) {
+        this->x = rect.x;
+      }
+      if (this->y < rect.y) {
+        this->y = rect.y;
+      }
+      if (this->x2() > rect.x2()) {
+        this->w = rect.x2() - this->x;
+      }
+      if (this->y2() > rect.y2()) {
+        this->h = rect.y2() - this->y;
+      }
+    }
+  }
+
+  inline bool inside(int16_t x, int16_t y, bool absolute = false) {
+    if (!this->is_set()) {
+      return true;
+    }
+    if (absolute) {
+      return ((x >= 0) && (x <= this->w) && (y >= 0) && (y <= this->h));
+    } else {
+      return ((x >= this->x) && (x <= this->x2()) && (y >= this->y) && (y <= this->y2()));
+    }
+  }
+  inline bool inside(Rect rect, bool absolute = false) {
+    if (!this->is_set() || !rect.is_set()) {
+      return true;
+    }
+    if (absolute) {
+      return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
+    } else {
+      return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
+    }
+  }
+
+  //  rect           x--------------w
+  //  this        x--------------w
+  inline void info(const std::string& prefix = "rect info:") {
+    if (this->is_set()) {
+      ESP_LOGI("Rect", "%s [%3d,%3d,%3d,%3d]", prefix.c_str(), this->x, this->y, this->w, this->h);
+    } else
+      ESP_LOGI("Rect", "%s ** IS NOT SET **", prefix.c_str());
+  }
+};
 class Font;
 class Image;
 class DisplayBuffer;
@@ -124,6 +218,7 @@ class DisplayBuffer {
   int get_width();
   /// Get the height of the image in pixels with rotation applied.
   int get_height();
+
   /// Set a single pixel at the specified coordinates to the given color.
   void draw_pixel_at(int x, int y, Color color = COLOR_ON);
 
@@ -371,6 +466,72 @@ class DisplayBuffer {
    * returns the type the display is currently configured to.
    */
   virtual DisplayType get_display_type() = 0;
+
+  ///
+  /// Expand or contract a rectangle in width and/or height (equal
+  /// amounts on both side), based on the centerpoint of the rectangle.
+  ///
+  /// \param[in]  rect:       Rectangular region before resizing
+  /// \param[in]  width:    Number of pixels to expand the width (if positive)
+  ///                          of contract the width (if negative)
+  /// \param[in]  height:    Number of pixels to expand the height (if positive)
+  ///                          of contract the height (if negative)
+  ///
+  /// \return new rect with resized dimensions
+  ///
+
+  ///
+  /// Set the clipping rectangle for further drawing
+  ///
+  /// \param[in]  rect:       Pointer to Rect for clipping (or NULL for entire screen)
+  ///
+  /// \return true if success, false if error
+  ///
+  void push_clipping(Rect rect);
+  void push_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
+    push_clipping(Rect(left, top, right, bottom));
+  };
+
+  ///
+  /// Add a rectangular region to the invalidation region
+  /// - This is usually called when an element has been modified
+  ///
+  /// \param[in]  rect: Rectangle to add to the invalidation region
+  ///
+  /// \return none
+  ///
+  void add_clipping(Rect rect);
+  void add_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
+    this->add_clipping(Rect(left, top, right, bottom));
+  };
+
+  ///
+  /// substract a rectangular region to the invalidation region
+  /// - This is usually called when an element has been modified
+  ///
+  /// \param[in]  rect: Rectangle to add to the invalidation region
+  ///
+  /// \return none
+  ///
+  void substract_clipping(Rect rect);
+  void substract_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
+    this->substract_clipping(Rect(left, top, right, bottom));
+  };
+
+  ///
+  /// Reset the invalidation region
+  ///
+  /// \return none
+  ///
+  void pop_clipping();
+
+  ///
+  /// Get the current the clipping rectangle
+  ///
+  ///
+  /// \return rect for active clipping region
+  ///
+  Rect get_clipping();
 
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
