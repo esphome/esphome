@@ -102,15 +102,17 @@ void SCD30Component::setup() {
 #endif
 
   /// Sensor initialization
-  if (!this->write_command(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
-    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
-    this->error_code_ = MEASUREMENT_INIT_FAILED;
-    this->mark_failed();
-    return;
-  }
+  restart_continuous_measurements_();
 
   // check each 500ms if data is ready, and read it in that case
   this->set_interval("status-check", 500, [this]() {
+    // remove millibar from comparison to avoid frequent updates +/- 10 millibar doesn't matter
+    if (this->current_ambient_pressure_compensation_ / 10 != this->ambient_pressure_compensation_ / 10) {
+      ESP_LOGD(TAG, "ambient pressure compensation triggered; restarting measurements");
+      this->restart_continuous_measurements_();
+      return;
+    }
+
     if (this->is_data_ready_())
       this->update();
   });
@@ -227,6 +229,22 @@ uint16_t SCD30Component::get_forced_calibration_reference() {
     ESP_LOGE(TAG, "Unable to read forced calibration reference.");
   }
   return forced_calibration_reference;
+}
+
+void SCD30Component::restart_continuous_measurements_() {
+  if (!this->write_command(SCD30_CMD_STOP_MEASUREMENTS, this->ambient_pressure_compensation_)) {
+    ESP_LOGE(TAG, "Sensor SCD30 error stopping continuous measurements.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
+  }
+  if (!this->write_command(SCD30_CMD_START_CONTINUOUS_MEASUREMENTS, this->ambient_pressure_compensation_)) {
+    ESP_LOGE(TAG, "Sensor SCD30 error starting continuous measurements.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
+  }
+  this->current_ambient_pressure_compensation_ = this->ambient_pressure_compensation_;
 }
 
 }  // namespace scd30
