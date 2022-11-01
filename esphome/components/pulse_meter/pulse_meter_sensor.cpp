@@ -45,11 +45,7 @@ void PulseMeterSensor::loop() {
   // We quantize our pulse widths to 1 ms to avoid unnecessary jitter
   const uint32_t pulse_width_ms = this->pulse_width_us_ / 1000;
   if (this->pulse_width_dedupe_.next(pulse_width_ms)) {
-    if (pulse_width_ms == 0) {
-      // Treat 0 pulse width as 0 pulses/min (normally because we've not
-      // detected any pulses for a while)
-      this->publish_state(0);
-    } else {
+    if (pulse_width_ms > 0) {
       // Calculate pulses/min from the pulse width in ms
       this->publish_state((60.0f * 1000.0f) / pulse_width_ms);
     }
