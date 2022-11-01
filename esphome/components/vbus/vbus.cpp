@@ -73,7 +73,7 @@ void VBus::loop() {
         if (this->frames_) {
           this->state_ = 2;
           this->cframe_ = 0;
-	  this->fbcount_ = 0;
+          this->fbcount_ = 0;
           this->buffer_.clear();
         } else {
           this->state_ = 0;
@@ -97,7 +97,8 @@ void VBus::loop() {
         this->buffer_.push_back(this->fbytes_[i]);
       if (++this->cframe_ < this->frames_)
         continue;
-      ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %s", this->command_, this->source_, this->dest_, format_hex(this->buffer_).c_str());
+      ESP_LOGV(TAG, "P2 C%04x %04x->%04x: %s", this->command_, this->source_, this->dest_,
+               format_hex(this->buffer_).c_str());
       for (auto &listener : this->listeners_)
         listener->on_message(this->command_, this->source_, this->dest_, this->buffer_);
       this->state_ = 0;
