@@ -46,9 +46,7 @@ async def to_code(config):
         mosi = await cg.gpio_pin_expression(config[CONF_MOSI_PIN])
         cg.add(var.set_mosi(mosi))
 
-    if CORE.is_esp32 and CORE.using_arduino:
-        cg.add_library("SPI", None)
-    if CORE.is_esp8266:
+    if CORE.using_arduino:
         cg.add_library("SPI", None)
 
 
