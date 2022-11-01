@@ -175,12 +175,18 @@ uint8_t PowerCommand::execute() {
                 }
             }
             if(message.compare("sensor stopped already") == 0) {
-                ESP_LOGD(TAG, "Stopped sensor (already stopped)");
+                ESP_LOGI(TAG, "Stopped sensor (already stopped)");
                 component_->find_prompt();
                 return 1; // Command done
             }
             else if(message.compare("sensor started already") == 0) {
                 ESP_LOGI(TAG, "Started sensor (already started)");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+            else if(message.compare("new parameter isn't save, "\
+                                    "can't startSensor") == 0) {
+                ESP_LOGE(TAG, "Can't start sensor! (Use SaveCfgCommand to save config first)");
                 component_->find_prompt();
                 return 1; // Command done
             }
@@ -216,9 +222,160 @@ uint8_t PowerCommand::execute() {
     return 0; // Command not done yet
 }
 
+DetRangeCfgCommand::DetRangeCfgCommand(DfrobotMmwaveRadarComponent *component,
+                                        float min1, float max1,
+                                        float min2, float max2,
+                                        float min3, float max3,
+                                        float min4, float max4
+                                      ) {
+    char tmp_cmd[46] = {0};
+
+    if(min1 < 0 || max1 < 0) {
+        min1_ = min1 = 0;
+        max1_ = max1 = 0;
+        min2_ = min2 = max2_ = max2 =
+        min3_ = min3 = max3_ = max3 =
+        min4_ = min4 = max4_ = max4 = -1;
+
+        ESP_LOGW(TAG, "DetRangeCfgCommand invalid input parameters. Using range config 0 0.");
+
+        sprintf(tmp_cmd, "detRangeCfg -1 0 0");
+    }
+    else if(min2 < 0 || max2 < 0) {
+        min1_ = min1 = round(min1 / 0.15) * 0.15;
+        max1_ = max1 = round(max1 / 0.15) * 0.15;
+        min2_ = min2 = max2_ = max2 =
+        min3_ = min3 = max3_ = max3 =
+        min4_ = min4 = max4_ = max4 = -1;
+
+        sprintf(tmp_cmd, "detRangeCfg -1 %.0f %.0f",
+            min1 / 0.15, max1 / 0.15);
+    }
+    else if(min3 < 0 || max3 < 0) {
+        min1_ = min1 = round(min1 / 0.15) * 0.15;
+        max1_ = max1 = round(max1 / 0.15) * 0.15;
+        min2_ = min2 = round(min2 / 0.15) * 0.15;
+        max2_ = max2 = round(max2 / 0.15) * 0.15;
+        min3_ = min3 = max3_ = max3 =
+        min4_ = min4 = max4_ = max4 = -1;
+
+        sprintf(tmp_cmd, "detRangeCfg -1 %.0f %.0f %.0f %.0f",
+            min1 / 0.15, max1 / 0.15,
+            min2 / 0.15, max2 / 0.15);
+    }
+    else if(min4 < 0 || max4 < 0) {
+        min1_ = min1 = round(min1 / 0.15) * 0.15;
+        max1_ = max1 = round(max1 / 0.15) * 0.15;
+        min2_ = min2 = round(min2 / 0.15) * 0.15;
+        max2_ = max2 = round(max2 / 0.15) * 0.15;
+        min3_ = min3 = round(min3 / 0.15) * 0.15;
+        max3_ = max3 = round(max3 / 0.15) * 0.15;
+        min4_ = min4 = max4_ = max4 = -1;
+
+        sprintf(tmp_cmd, "detRangeCfg -1 "\
+                         "%.0f %.0f %.0f %.0f %.0f %.0f",
+            min1 / 0.15, max1 / 0.15,
+            min2 / 0.15, max2 / 0.15,
+            min3 / 0.15, max3 / 0.15);
+    }
+    else {
+        min1_ = min1 = round(min1 / 0.15) * 0.15;
+        max1_ = max1 = round(max1 / 0.15) * 0.15;
+        min2_ = min2 = round(min2 / 0.15) * 0.15;
+        max2_ = max2 = round(max2 / 0.15) * 0.15;
+        min3_ = min3 = round(min3 / 0.15) * 0.15;
+        max3_ = max3 = round(max3 / 0.15) * 0.15;
+        min4_ = min4 = round(min4 / 0.15) * 0.15;
+        max4_ = max4 = round(max4 / 0.15) * 0.15;
+
+        sprintf(tmp_cmd, "detRangeCfg -1 "\
+                         "%.0f %.0f %.0f %.0f %.0f %.0f %.0f %.0f",
+            min1 / 0.15, max1 / 0.15,
+            min2 / 0.15, max2 / 0.15,
+            min3 / 0.15, max3 / 0.15,
+            min4 / 0.15, max4 / 0.15);
+    }
+
+    component_ = component;
+    min1_ = min1; max1_ = max1;
+    min2_ = min2; max2_ = max2;
+    min3_ = min3; max3_ = max3;
+    min4_ = min4; max4_ = max4;
+
+    cmd_ = std::string(tmp_cmd);
+};
+
 uint8_t DetRangeCfgCommand::execute() {
-    ESP_LOGD(TAG, "Execute DetRangeCfgCommand");
-    return 1; // Command done
+    if(cmd_sent_) {
+        // TODO: Implement DetRangeCfg response parse
+        // TODO: Implement retry
+        if(component_->read_message()) {
+            std::string message(component_->read_buffer_);
+            if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
+                ESP_LOGD(TAG, "Command not recognized properly by sensor");
+                if(retries_left_ > 0) {
+                    retries_left_ -= 1;
+                    cmd_sent_ = false;
+                    ESP_LOGD(TAG, "Retrying...");
+                }
+                else {
+                    component_->find_prompt();
+                    return 1; // Command done
+                }
+            }
+            else if(message.compare("sensor is not stopped") == 0) {
+                ESP_LOGE(TAG, "Cannot configure range config. Sensor is not stopped!");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+            else if(message.compare("Done") == 0) {
+                ESP_LOGI(TAG, "Updated detection area config.");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+        }
+        if(millis() - component_->ts_last_cmd_sent_ > 500) {
+            ESP_LOGD(TAG, "Command timeout");
+            if(retries_left_ > 0) {
+                retries_left_ -= 1;
+                cmd_sent_ = false;
+                ESP_LOGD(TAG, "Retrying...");
+            }
+            else {
+                ESP_LOGE(TAG, "DetRangeCfgCommand error: No response");
+                return 1; // Command done
+            }
+        }
+    }
+    else if(component_->send_cmd(cmd_.c_str())) {
+        if(min4_ >= 0) {
+            ESP_LOGD(TAG, "Setting detection area config to "\
+                          "%.2fm-%.2fm, "\
+                          "%.2fm-%.2fm, "\
+                          "%.2fm-%.2fm, "\
+                          "%.2fm-%.2fm",
+                          min1_, max1_, min2_, max2_,
+                          min3_, max3_, min4_, max4_);
+        }
+        else if(min3_ >= 0) {
+            ESP_LOGD(TAG, "Setting detection area config to "\
+                          "%.2fm-%.2fm, "\
+                          "%.2fm-%.2fm, "\
+                          "%.2fm-%.2fm",
+                          min1_, max1_, min2_, max2_, min3_, max3_);
+        }
+        else if(min2_ >= 0) {
+            ESP_LOGD(TAG, "Setting detection area config to "\
+                          "%.2fm-%.2fm, %.2fm-%.2fm",
+                          min1_, max1_, min2_, max2_);
+        }
+        else {
+            ESP_LOGD(TAG, "Setting detection area config to "\
+                          "%.2fm-%.2fm", min1_, max1_);
+        }
+        cmd_sent_ = true;
+    }
+    return 0; // Command not done yet
 }
 
 uint8_t OutputLatencyCommand::execute() {

@@ -15,6 +15,9 @@ class Command {
  public:
     virtual ~Command() = default;
     virtual uint8_t execute() = 0;
+ protected:
+    std::string cmd_;
+    bool cmd_sent_{false};
 };
 
 static const uint8_t COMMAND_QUEUE_SIZE = 20;
@@ -60,6 +63,7 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
 
     friend class ReadStateCommand;
     friend class PowerCommand;
+    friend class DetRangeCfgCommand;
 };
 
 class ReadStateCommand : public Command {
@@ -84,15 +88,24 @@ class PowerCommand : public Command {
    uint8_t execute() override;
  protected:
    DfrobotMmwaveRadarComponent * component_;
-   std::string cmd_;
    bool powerOn_;
    int8_t retries_left_{2};
-   bool cmd_sent_{false};
 };
 
 class DetRangeCfgCommand : public Command {
  public:
+   DetRangeCfgCommand(DfrobotMmwaveRadarComponent *component,
+                        float min1, float max1,
+                        float min2, float max2,
+                        float min3, float max3,
+                        float min4, float max4
+                     );
    uint8_t execute() override;
+ protected:
+   DfrobotMmwaveRadarComponent * component_;
+   int8_t retries_left_{2};
+   float min1_, max1_, min2_, max2_, min3_, max3_, min4_, max4_;
+   // TODO: Set min max values in component, so they can be published as sensor.
 };
 
 class OutputLatencyCommand : public Command {
