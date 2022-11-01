@@ -100,6 +100,7 @@ class VBusCustom_sensor : public VBusListener, public Component {
  public:
   void dump_config() override;
   void set_message_handler(message_handler_t &&handler) { this->message_handler_ = handler; };
+
  protected:
   static constexpr const char *TAG_ = "vbus.custom";
   optional<message_handler_t> message_handler_{};
