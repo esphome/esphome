@@ -34,10 +34,10 @@ from .. import (
     CONF_DELTASOL_BS_PLUS,
 )
 
-DeltaSol_C = vbus_ns.class_("DeltaSol_C_sensor", cg.Component)
-DeltaSol_CS2 = vbus_ns.class_("DeltaSol_CS2_sensor", cg.Component)
-DeltaSol_BS_Plus = vbus_ns.class_("DeltaSol_BS_Plus_sensor", cg.Component)
-VBusCustom = vbus_ns.class_("VBusCustom_sensor", cg.Component)
+DeltaSol_C = vbus_ns.class_("DeltaSolCSensor", cg.Component)
+DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2Sensor", cg.Component)
+DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusSensor", cg.Component)
+VBusCustom = vbus_ns.class_("VBusCustomSensor", cg.Component)
 
 CONF_TEMPERATURE_1 = "temperature_1"
 CONF_TEMPERATURE_2 = "temperature_2"

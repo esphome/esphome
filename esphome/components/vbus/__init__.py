@@ -7,6 +7,8 @@ CODEOWNERS = ["@ssieb"]
 
 DEPENDENCIES = ["uart"]
 
+MULTI_CONF = True
+
 vbus_ns = cg.esphome_ns.namespace("vbus")
 VBus = vbus_ns.class_("VBus", uart.UARTDevice, cg.Component)
 

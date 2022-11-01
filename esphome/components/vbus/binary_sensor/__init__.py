@@ -16,9 +16,9 @@ from .. import (
     CONF_DELTASOL_BS_PLUS,
 )
 
-DeltaSol_C = vbus_ns.class_("DeltaSol_C_bsensor", cg.Component)
-DeltaSol_CS2 = vbus_ns.class_("DeltaSol_CS2_bsensor", cg.Component)
-DeltaSol_BS_Plus = vbus_ns.class_("DeltaSol_BS_Plus_bsensor", cg.Component)
+DeltaSol_C = vbus_ns.class_("DeltaSolCBSensor", cg.Component)
+DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2BSensor", cg.Component)
+DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusBSensor", cg.Component)
 
 CONF_RELAY1 = "relay1"
 CONF_RELAY2 = "relay2"
