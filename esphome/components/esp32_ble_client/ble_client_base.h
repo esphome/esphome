@@ -42,11 +42,10 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
       memset(this->remote_bda_, 0, sizeof(this->remote_bda_));
       this->address_str_ = "";
     } else {
-      this->address_str_ =
-          str_snprintf("%02x:%02x:%02x:%02x:%02x:%02x", 17, (uint8_t) (this->address_ >> 40) & 0xff,
-                       (uint8_t) (this->address_ >> 32) & 0xff, (uint8_t) (this->address_ >> 24) & 0xff,
-                       (uint8_t) (this->address_ >> 16) & 0xff, (uint8_t) (this->address_ >> 8) & 0xff,
-                       (uint8_t) (this->address_ >> 0) & 0xff);
+      this->address_str_ = str_snprintf("%02x:%02x:%02x:%02x:%02x:%02x", 17, (uint8_t)(this->address_ >> 40) & 0xff,
+                                        (uint8_t)(this->address_ >> 32) & 0xff, (uint8_t)(this->address_ >> 24) & 0xff,
+                                        (uint8_t)(this->address_ >> 16) & 0xff, (uint8_t)(this->address_ >> 8) & 0xff,
+                                        (uint8_t)(this->address_ >> 0) & 0xff);
     }
   }
   std::string address_str() const { return this->address_str_; }
