@@ -5,12 +5,13 @@
 namespace esphome {
 namespace vbus {
 
+static const char *const TAG = "vbus.sensor";
+
 static inline uint16_t get_16(std::vector<uint8_t> &message, int start) {
   return (message[start + 1] << 8) + message[start];
 }
 
-void DeltaSol_C_sensor::dump_config() {
-  const char *TAG = this->TAG_;
+void DeltaSolCSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Deltasol C:");
   LOG_SENSOR("  ", "Temperature 1", this->temperature1_sensor_);
   LOG_SENSOR("  ", "Temperature 2", this->temperature2_sensor_);
@@ -24,7 +25,7 @@ void DeltaSol_C_sensor::dump_config() {
   LOG_SENSOR("  ", "System Time", this->time_sensor_);
 }
 
-void DeltaSol_C_sensor::handle_message(std::vector<uint8_t> &message) {
+void DeltaSolCSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->temperature1_sensor_ != nullptr)
     this->temperature1_sensor_->publish_state(get_16(message, 0) * 0.1f);
   if (this->temperature2_sensor_ != nullptr)
@@ -48,8 +49,7 @@ void DeltaSol_C_sensor::handle_message(std::vector<uint8_t> &message) {
     this->time_sensor_->publish_state(get_16(message, 22));
 }
 
-void DeltaSol_CS2_sensor::dump_config() {
-  const char *TAG = this->TAG_;
+void DeltaSolCS2Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Deltasol CS2:");
   LOG_SENSOR("  ", "Temperature 1", this->temperature1_sensor_);
   LOG_SENSOR("  ", "Temperature 2", this->temperature2_sensor_);
@@ -61,7 +61,7 @@ void DeltaSol_CS2_sensor::dump_config() {
   LOG_SENSOR("  ", "FW Version", this->version_sensor_);
 }
 
-void DeltaSol_CS2_sensor::handle_message(std::vector<uint8_t> &message) {
+void DeltaSolCS2Sensor::handle_message(std::vector<uint8_t> &message) {
   if (this->temperature1_sensor_ != nullptr)
     this->temperature1_sensor_->publish_state(get_16(message, 0) * 0.1f);
   if (this->temperature2_sensor_ != nullptr)
@@ -80,8 +80,7 @@ void DeltaSol_CS2_sensor::handle_message(std::vector<uint8_t> &message) {
     this->version_sensor_->publish_state(get_16(message, 28) * 0.01f);
 }
 
-void DeltaSol_BS_Plus_sensor::dump_config() {
-  const char *TAG = this->TAG_;
+void DeltaSolBSPlusSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Deltasol BS Plus:");
   LOG_SENSOR("  ", "Temperature 1", this->temperature1_sensor_);
   LOG_SENSOR("  ", "Temperature 2", this->temperature2_sensor_);
@@ -96,7 +95,7 @@ void DeltaSol_BS_Plus_sensor::dump_config() {
   LOG_SENSOR("  ", "FW Version", this->version_sensor_);
 }
 
-void DeltaSol_BS_Plus_sensor::handle_message(std::vector<uint8_t> &message) {
+void DeltaSolBSPlusSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->temperature1_sensor_ != nullptr)
     this->temperature1_sensor_->publish_state(get_16(message, 0) * 0.1f);
   if (this->temperature2_sensor_ != nullptr)
@@ -122,8 +121,7 @@ void DeltaSol_BS_Plus_sensor::handle_message(std::vector<uint8_t> &message) {
     this->version_sensor_->publish_state(get_16(message, 26) * 0.01f);
 }
 
-void VBusCustom_sensor::dump_config() {
-  const char *TAG = this->TAG_;
+void VBusCustomSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus Custom:");
   if (this->source_ == 0xffff)
     ESP_LOGCONFIG(TAG, "  Source address: ANY");
@@ -139,7 +137,7 @@ void VBusCustom_sensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Command: 0x%04x", this->command_);
 }
 
-void VBusCustom_sensor::handle_message(std::vector<uint8_t> &message) {
+void VBusCustomSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->message_handler_.has_value())
     (*this->message_handler_)(message);
 }

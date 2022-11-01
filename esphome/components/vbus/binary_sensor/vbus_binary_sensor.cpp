@@ -5,8 +5,9 @@
 namespace esphome {
 namespace vbus {
 
-void DeltaSol_C_bsensor::dump_config() {
-  const char *TAG = this->TAG_;
+static const char *const TAG = "vbus.binary_sensor";
+
+void DeltaSolCBSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Deltasol C:");
   LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
   LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
@@ -14,7 +15,7 @@ void DeltaSol_C_bsensor::dump_config() {
   LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
 }
 
-void DeltaSol_C_bsensor::handle_message(std::vector<uint8_t> &message) {
+void DeltaSolCBSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->s1_error_bsensor_ != nullptr)
     this->s1_error_bsensor_->publish_state(message[10] & 1);
   if (this->s2_error_bsensor_ != nullptr)
@@ -25,8 +26,7 @@ void DeltaSol_C_bsensor::handle_message(std::vector<uint8_t> &message) {
     this->s4_error_bsensor_->publish_state(message[10] & 8);
 }
 
-void DeltaSol_CS2_bsensor::dump_config() {
-  const char *TAG = this->TAG_;
+void DeltaSolCS2BSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Deltasol CS2:");
   LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
   LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
@@ -34,7 +34,7 @@ void DeltaSol_CS2_bsensor::dump_config() {
   LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
 }
 
-void DeltaSol_CS2_bsensor::handle_message(std::vector<uint8_t> &message) {
+void DeltaSolCS2BSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->s1_error_bsensor_ != nullptr)
     this->s1_error_bsensor_->publish_state(message[18] & 1);
   if (this->s2_error_bsensor_ != nullptr)
@@ -45,8 +45,7 @@ void DeltaSol_CS2_bsensor::handle_message(std::vector<uint8_t> &message) {
     this->s4_error_bsensor_->publish_state(message[18] & 8);
 }
 
-void DeltaSol_BS_Plus_bsensor::dump_config() {
-  const char *TAG = this->TAG_;
+void DeltaSolBSPlusBSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Deltasol BS Plus:");
   LOG_BINARY_SENSOR("  ", "Relay 1 On", this->relay1_bsensor_);
   LOG_BINARY_SENSOR("  ", "Relay 2 On", this->relay2_bsensor_);
@@ -62,7 +61,7 @@ void DeltaSol_BS_Plus_bsensor::dump_config() {
   LOG_BINARY_SENSOR("  ", "Option Heat Quantity Measurement", this->hqm_bsensor_);
 }
 
-void DeltaSol_BS_Plus_bsensor::handle_message(std::vector<uint8_t> &message) {
+void DeltaSolBSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->relay1_bsensor_ != nullptr)
     this->relay1_bsensor_->publish_state(message[10] & 1);
   if (this->relay2_bsensor_ != nullptr)

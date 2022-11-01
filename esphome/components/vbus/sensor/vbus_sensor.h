@@ -8,7 +8,7 @@ namespace vbus {
 
 using message_handler_t = std::function<void(std::vector<uint8_t> &)>;
 
-class DeltaSol_C_sensor : public VBusListener, public Component {
+class DeltaSolCSensor : public VBusListener, public Component {
  public:
   void dump_config() override;
   void set_temperature1_sensor(sensor::Sensor *sensor) { this->temperature1_sensor_ = sensor; }
@@ -23,7 +23,6 @@ class DeltaSol_C_sensor : public VBusListener, public Component {
   void set_time_sensor(sensor::Sensor *sensor) { this->time_sensor_ = sensor; }
 
  protected:
-  static constexpr const char *TAG_ = "vbus.deltasol_c.sensor";
   sensor::Sensor *temperature1_sensor_{nullptr};
   sensor::Sensor *temperature2_sensor_{nullptr};
   sensor::Sensor *temperature3_sensor_{nullptr};
@@ -38,7 +37,7 @@ class DeltaSol_C_sensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSol_CS2_sensor : public VBusListener, public Component {
+class DeltaSolCS2Sensor : public VBusListener, public Component {
  public:
   void dump_config() override;
   void set_temperature1_sensor(sensor::Sensor *sensor) { this->temperature1_sensor_ = sensor; }
@@ -51,7 +50,6 @@ class DeltaSol_CS2_sensor : public VBusListener, public Component {
   void set_version_sensor(sensor::Sensor *sensor) { this->version_sensor_ = sensor; }
 
  protected:
-  static constexpr const char *TAG_ = "vbus.deltasol_cs2.sensor";
   sensor::Sensor *temperature1_sensor_{nullptr};
   sensor::Sensor *temperature2_sensor_{nullptr};
   sensor::Sensor *temperature3_sensor_{nullptr};
@@ -64,7 +62,7 @@ class DeltaSol_CS2_sensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class DeltaSol_BS_Plus_sensor : public VBusListener, public Component {
+class DeltaSolBSPlusSensor : public VBusListener, public Component {
  public:
   void dump_config() override;
   void set_temperature1_sensor(sensor::Sensor *sensor) { this->temperature1_sensor_ = sensor; }
@@ -80,7 +78,6 @@ class DeltaSol_BS_Plus_sensor : public VBusListener, public Component {
   void set_version_sensor(sensor::Sensor *sensor) { this->version_sensor_ = sensor; }
 
  protected:
-  static constexpr const char *TAG_ = "vbus.deltasol_bs_plus.sensor";
   sensor::Sensor *temperature1_sensor_{nullptr};
   sensor::Sensor *temperature2_sensor_{nullptr};
   sensor::Sensor *temperature3_sensor_{nullptr};
@@ -96,13 +93,12 @@ class DeltaSol_BS_Plus_sensor : public VBusListener, public Component {
   void handle_message(std::vector<uint8_t> &message) override;
 };
 
-class VBusCustom_sensor : public VBusListener, public Component {
+class VBusCustomSensor : public VBusListener, public Component {
  public:
   void dump_config() override;
   void set_message_handler(message_handler_t &&handler) { this->message_handler_ = handler; };
 
  protected:
-  static constexpr const char *TAG_ = "vbus.custom";
   optional<message_handler_t> message_handler_{};
   void handle_message(std::vector<uint8_t> &message) override;
 };

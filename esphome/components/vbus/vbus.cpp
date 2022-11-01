@@ -18,7 +18,7 @@ static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {
       data[start + i] |= 0x80;
 }
 
-static bool checksum(uint8_t *data, int start, int count) {
+static bool checksum(const uint8_t *data, int start, int count) {
   uint8_t csum = 0x7f;
   for (int i = 0; i < count; i++)
     csum = (csum - data[start + i]) & 0x7f;
