@@ -20,12 +20,10 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
 
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
-      if (memcmp(param->disconnect.remote_bda, this->remote_bda_, 6) != 0)
-        return false;
       api::global_api_server->send_bluetooth_device_connection(this->address_, false, 0, param->disconnect.reason);
+      this->set_address(0);
       api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
                                                               this->proxy_->get_bluetooth_connections_limit());
-      this->set_address(0);
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
@@ -33,9 +31,9 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         break;
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         api::global_api_server->send_bluetooth_device_connection(this->address_, false, 0, param->open.status);
+        this->set_address(0);
         api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
                                                                 this->proxy_->get_bluetooth_connections_limit());
-        this->set_address(0);
       }
       break;
     }

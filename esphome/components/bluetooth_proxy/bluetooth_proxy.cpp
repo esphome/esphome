@@ -55,10 +55,8 @@ void BluetoothProxy::dump_config() {
 void BluetoothProxy::loop() {
   if (!api::global_api_server->is_connected()) {
     for (auto *connection : this->connections_) {
-      if (connection->address_ != 0) {
+      if (connection->get_address() != 0) {
         connection->disconnect();
-        connection->set_address(0);
-        connection->set_state(espbt::ClientState::IDLE);
       }
     }
     return;
@@ -66,11 +64,11 @@ void BluetoothProxy::loop() {
   for (auto *connection : this->connections_) {
     if (connection->send_service_ == connection->services_.size()) {
       connection->send_service_ = -1;
-      api::global_api_server->send_bluetooth_gatt_services_done(connection->address_);
+      api::global_api_server->send_bluetooth_gatt_services_done(connection->get_address());
     } else if (connection->send_service_ >= 0) {
       auto &service = connection->services_[connection->send_service_];
       api::BluetoothGATTGetServicesResponse resp;
-      resp.address = connection->address_;
+      resp.address = connection->get_address();
       api::BluetoothGATTService service_resp;
       service_resp.uuid = {service->uuid.get_128bit_high(), service->uuid.get_128bit_low()};
       service_resp.handle = service->start_handle;
@@ -96,7 +94,7 @@ void BluetoothProxy::loop() {
 
 BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
   for (auto *connection : this->connections_) {
-    if (connection->address_ == address)
+    if (connection->get_address() == address)
       return connection;
   }
 
@@ -104,7 +102,7 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
     return nullptr;
 
   for (auto *connection : this->connections_) {
-    if (connection->address_ == 0) {
+    if (connection->get_address() == 0) {
       connection->set_address(address);
       return connection;
     }
@@ -122,7 +120,8 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
         return;
       }
-      ESP_LOGV(TAG, "[%s] Searching to connect", connection->address_str().c_str());
+      ESP_LOGV(TAG, "[%d] [%s] Searching to connect", connection->get_connection_index(),
+               connection->address_str().c_str());
       connection->set_state(espbt::ClientState::SEARCHING);
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
@@ -136,10 +135,9 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
                                                                 this->get_bluetooth_connections_limit());
         return;
       }
-      if (connection->state() != espbt::ClientState::IDLE && connection->state() != espbt::ClientState::SEARCHING) {
+      if (connection->state() != espbt::ClientState::IDLE) {
         connection->disconnect();
       } else {
-        connection->set_state(espbt::ClientState::IDLE);
         connection->set_address(0);
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
         api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),

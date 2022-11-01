@@ -69,6 +69,11 @@ void BLEClientBase::disconnect() {
     ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_close error, err=%d", this->connection_index_, this->address_str_.c_str(),
              err);
   }
+
+  if (this->state_ == espbt::ClientState::SEARCHING) {
+    this->set_address(0);
+    this->set_state(espbt::ClientState::IDLE);
+  }
 }
 
 bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
@@ -78,7 +83,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
   if (event != ESP_GATTC_REG_EVT && esp_gattc_if != ESP_GATT_IF_NONE && esp_gattc_if != this->gattc_if_)
     return false;
 
-  ESP_LOGD(TAG, "[%d] [%s] gattc_event_handler: event=%d gattc_if=%d", this->connection_index_,
+  ESP_LOGV(TAG, "[%d] [%s] gattc_event_handler: event=%d gattc_if=%d", this->connection_index_,
            this->address_str_.c_str(), event, esp_gattc_if);
 
   switch (event) {
@@ -109,14 +114,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       break;
     }
-    // case ESP_GATTC_CONNECT_EVT: {
-    //   ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_CONNECT_EVT", this->connection_index_, this->address_str_.c_str());
-    //   if (param->connect.conn_id != this->conn_id_) {
-    //     ESP_LOGD(TAG, "[%d] [%s] Unexpected conn_id in CONNECT_EVT: param conn=%d, open conn=%d",
-    //              this->connection_index_, this->address_str_.c_str(), param->connect.conn_id, this->conn_id_);
-    //   }
-    //   break;
-    // }
     case ESP_GATTC_CFG_MTU_EVT: {
       if (param->cfg_mtu.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "[%d] [%s] cfg_mtu failed, mtu %d, status %d", this->connection_index_,
