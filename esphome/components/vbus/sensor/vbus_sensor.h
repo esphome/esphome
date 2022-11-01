@@ -35,7 +35,7 @@ class DeltaSol_C_sensor : public VBusListener, public Component {
   sensor::Sensor *heat_quantity_sensor_{nullptr};
   sensor::Sensor *time_sensor_{nullptr};
 
-  void handle_message_(std::vector<uint8_t> &message) override;
+  void handle_message(std::vector<uint8_t> &message) override;
 };
 
 class DeltaSol_CS2_sensor : public VBusListener, public Component {
@@ -61,7 +61,7 @@ class DeltaSol_CS2_sensor : public VBusListener, public Component {
   sensor::Sensor *heat_quantity_sensor_{nullptr};
   sensor::Sensor *version_sensor_{nullptr};
 
-  void handle_message_(std::vector<uint8_t> &message) override;
+  void handle_message(std::vector<uint8_t> &message) override;
 };
 
 class DeltaSol_BS_Plus_sensor : public VBusListener, public Component {
@@ -93,7 +93,7 @@ class DeltaSol_BS_Plus_sensor : public VBusListener, public Component {
   sensor::Sensor *time_sensor_{nullptr};
   sensor::Sensor *version_sensor_{nullptr};
 
-  void handle_message_(std::vector<uint8_t> &message) override;
+  void handle_message(std::vector<uint8_t> &message) override;
 };
 
 class VBusCustom_sensor : public VBusListener, public Component {
@@ -104,7 +104,7 @@ class VBusCustom_sensor : public VBusListener, public Component {
  protected:
   static constexpr const char *TAG_ = "vbus.custom";
   optional<message_handler_t> message_handler_{};
-  void handle_message_(std::vector<uint8_t> &message) override;
+  void handle_message(std::vector<uint8_t> &message) override;
 };
 
 }  // namespace vbus

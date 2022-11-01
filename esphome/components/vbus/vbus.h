@@ -21,14 +21,14 @@ class VBusListener {
   uint16_t source_{0xffff};
   uint16_t dest_{0xffff};
 
-  virtual void handle_message_(std::vector<uint8_t> &message) = 0;
+  virtual void handle_message(std::vector<uint8_t> &message) = 0;
 };
 
 class VBus : public uart::UARTDevice, public Component {
  public:
   void dump_config() override;
   void loop() override;
-  float get_setup_priority() const { return setup_priority::DATA; }
+  float get_setup_priority() const override { return setup_priority::DATA; }
 
   void register_listener(VBusListener *listener) { this->listeners_.push_back(listener); }
 

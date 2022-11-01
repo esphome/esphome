@@ -23,7 +23,7 @@ class DeltaSol_C_bsensor : public VBusListener, public Component {
   binary_sensor::BinarySensor *s3_error_bsensor_{nullptr};
   binary_sensor::BinarySensor *s4_error_bsensor_{nullptr};
 
-  void handle_message_(std::vector<uint8_t> &message) override;
+  void handle_message(std::vector<uint8_t> &message) override;
 };
 
 class DeltaSol_CS2_bsensor : public VBusListener, public Component {
@@ -41,7 +41,7 @@ class DeltaSol_CS2_bsensor : public VBusListener, public Component {
   binary_sensor::BinarySensor *s3_error_bsensor_{nullptr};
   binary_sensor::BinarySensor *s4_error_bsensor_{nullptr};
 
-  void handle_message_(std::vector<uint8_t> &message) override;
+  void handle_message(std::vector<uint8_t> &message) override;
 };
 
 class DeltaSol_BS_Plus_bsensor : public VBusListener, public Component {
@@ -75,7 +75,7 @@ class DeltaSol_BS_Plus_bsensor : public VBusListener, public Component {
   binary_sensor::BinarySensor *recooling_bsensor_{nullptr};
   binary_sensor::BinarySensor *hqm_bsensor_{nullptr};
 
-  void handle_message_(std::vector<uint8_t> &message) override;
+  void handle_message(std::vector<uint8_t> &message) override;
 };
 
 }  // namespace vbus

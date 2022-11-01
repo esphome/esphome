@@ -14,7 +14,7 @@ void DeltaSol_C_bsensor::dump_config() {
   LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
 }
 
-void DeltaSol_C_bsensor::handle_message_(std::vector<uint8_t> &message) {
+void DeltaSol_C_bsensor::handle_message(std::vector<uint8_t> &message) {
   if (this->s1_error_bsensor_ != nullptr)
     this->s1_error_bsensor_->publish_state(message[10] & 1);
   if (this->s2_error_bsensor_ != nullptr)
@@ -34,7 +34,7 @@ void DeltaSol_CS2_bsensor::dump_config() {
   LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
 }
 
-void DeltaSol_CS2_bsensor::handle_message_(std::vector<uint8_t> &message) {
+void DeltaSol_CS2_bsensor::handle_message(std::vector<uint8_t> &message) {
   if (this->s1_error_bsensor_ != nullptr)
     this->s1_error_bsensor_->publish_state(message[18] & 1);
   if (this->s2_error_bsensor_ != nullptr)
@@ -62,7 +62,7 @@ void DeltaSol_BS_Plus_bsensor::dump_config() {
   LOG_BINARY_SENSOR("  ", "Option Heat Quantity Measurement", this->hqm_bsensor_);
 }
 
-void DeltaSol_BS_Plus_bsensor::handle_message_(std::vector<uint8_t> &message) {
+void DeltaSol_BS_Plus_bsensor::handle_message(std::vector<uint8_t> &message) {
   if (this->relay1_bsensor_ != nullptr)
     this->relay1_bsensor_->publish_state(message[10] & 1);
   if (this->relay2_bsensor_ != nullptr)

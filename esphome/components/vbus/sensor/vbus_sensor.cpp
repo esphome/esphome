@@ -24,7 +24,7 @@ void DeltaSol_C_sensor::dump_config() {
   LOG_SENSOR("  ", "System Time", this->time_sensor_);
 }
 
-void DeltaSol_C_sensor::handle_message_(std::vector<uint8_t> &message) {
+void DeltaSol_C_sensor::handle_message(std::vector<uint8_t> &message) {
   if (this->temperature1_sensor_ != nullptr)
     this->temperature1_sensor_->publish_state(get_16(message, 0) * 0.1f);
   if (this->temperature2_sensor_ != nullptr)
@@ -61,7 +61,7 @@ void DeltaSol_CS2_sensor::dump_config() {
   LOG_SENSOR("  ", "FW Version", this->version_sensor_);
 }
 
-void DeltaSol_CS2_sensor::handle_message_(std::vector<uint8_t> &message) {
+void DeltaSol_CS2_sensor::handle_message(std::vector<uint8_t> &message) {
   if (this->temperature1_sensor_ != nullptr)
     this->temperature1_sensor_->publish_state(get_16(message, 0) * 0.1f);
   if (this->temperature2_sensor_ != nullptr)
@@ -96,7 +96,7 @@ void DeltaSol_BS_Plus_sensor::dump_config() {
   LOG_SENSOR("  ", "FW Version", this->version_sensor_);
 }
 
-void DeltaSol_BS_Plus_sensor::handle_message_(std::vector<uint8_t> &message) {
+void DeltaSol_BS_Plus_sensor::handle_message(std::vector<uint8_t> &message) {
   if (this->temperature1_sensor_ != nullptr)
     this->temperature1_sensor_->publish_state(get_16(message, 0) * 0.1f);
   if (this->temperature2_sensor_ != nullptr)
@@ -139,7 +139,7 @@ void VBusCustom_sensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Command: 0x%04x", this->command_);
 }
 
-void VBusCustom_sensor::handle_message_(std::vector<uint8_t> &message) {
+void VBusCustom_sensor::handle_message(std::vector<uint8_t> &message) {
   if (this->message_handler_.has_value())
     (*this->message_handler_)(message);
 }

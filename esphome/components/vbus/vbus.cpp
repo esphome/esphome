@@ -116,7 +116,7 @@ void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, 
     return;
   if ((this->dest_ != -1) && (this->dest_ != dest))
     return;
-  this->handle_message_(message);
+  this->handle_message(message);
 }
 
 }  // namespace vbus
