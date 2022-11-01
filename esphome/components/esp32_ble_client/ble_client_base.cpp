@@ -131,6 +131,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {
+      if (memcmp(param->disconnect.remote_bda, this->remote_bda_, 6) != 0)
+        return false;
       ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason %d", this->connection_index_,
                this->address_str_.c_str(), param->disconnect.reason);
       for (auto &svc : this->services_)
