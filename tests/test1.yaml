@@ -1451,13 +1451,17 @@ output:
     pin: GPIO26
     id: gpio_26
     power_supply: atx_power_supply
-    inverted: false
+    filters:
+      - inverted: false
   - platform: ledc
     pin: 19
     id: gpio_19
     frequency: 1500Hz
     channel: 14
-    max_power: 0.5
+    filters:
+      - range:
+          max_power: 0.5
+      - lambda: return pow(x, 2);
   - platform: pca9685
     id: pca_0
     channel: 0

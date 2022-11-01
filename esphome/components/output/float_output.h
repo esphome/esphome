@@ -37,7 +37,7 @@ class FloatOutput : public BinaryOutput {
  protected:
   /// Implement BinarySensor's write_enabled; this should never be called.
   void write_state(bool state) override;
-  virtual void write_state(float state) = 0;
+  void write_state(float state) override = 0;
 };
 
 }  // namespace output

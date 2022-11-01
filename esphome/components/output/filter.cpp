@@ -43,7 +43,7 @@ void Filter::initialize(BinaryOutput *parent, Filter *next) {
 }
 
 // InvertedFilter
-InvertedFilter::InvertedFilter(bool inverted) { this->inverted_ = inverted_; }
+InvertedFilter::InvertedFilter(bool inverted) { this->inverted_ = inverted; }
 
 optional<float> InvertedFilter::new_value(float value) {
   if (this->inverted_) {
@@ -68,7 +68,8 @@ optional<float> RangeFilter::new_value(float value) {
 }
 
 // LambdaFilter
-LambdaFilter::LambdaFilter(lambda_filter_t lambda_filter) : lambda_filter_(std::move(lambda_filter)) {}
+LambdaFilter::LambdaFilter(std::function<optional<float>(float)> lambda_filter)
+    : lambda_filter_(std::move(lambda_filter)) {}
 
 optional<float> LambdaFilter::new_value(float value) {
   auto it = this->lambda_filter_(value);

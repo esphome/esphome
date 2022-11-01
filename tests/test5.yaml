@@ -184,7 +184,9 @@ output:
   - platform: tlc5947
     id: output_red
     channel: 0
-    max_power: 0.8
+    filters:
+      - range:
+          max_power: 0.8
 
   - platform: mcp47a1
     id: output_mcp47a1
