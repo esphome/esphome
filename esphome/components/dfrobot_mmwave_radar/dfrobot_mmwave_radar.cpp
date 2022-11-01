@@ -378,9 +378,80 @@ uint8_t DetRangeCfgCommand::execute() {
     return 0; // Command not done yet
 }
 
+OutputLatencyCommand::OutputLatencyCommand(DfrobotMmwaveRadarComponent *component,
+                        float delay_after_detection,
+                        float delay_after_disappear
+                       ) {
+         delay_after_detection = round(delay_after_detection / 0.025) * 0.025;
+         delay_after_disappear = round(delay_after_disappear / 0.025) * 0.025;
+         if(delay_after_detection < 0)
+            delay_after_detection = 0;
+         if(delay_after_detection > 1638.375)
+            delay_after_detection = 1638.375;
+         if(delay_after_disappear < 0)
+            delay_after_disappear = 0;
+         if(delay_after_disappear > 1638.375)
+            delay_after_disappear = 1638.375;
+
+         component_ = component;
+         delay_after_detection_ = delay_after_detection;
+         delay_after_disappear_ = delay_after_disappear;
+
+         char tmp_cmd[30] = {0};
+         sprintf(tmp_cmd, "outputLatency -1 %.0f %.0f",
+                           delay_after_detection / 0.025,
+                           delay_after_disappear / 0.025);
+         cmd_ = std::string(tmp_cmd);
+};
+
 uint8_t OutputLatencyCommand::execute() {
-    ESP_LOGD(TAG, "Execute OutputLatencyCommand");
-    return 1; // Command done
+    if(cmd_sent_) {
+        if(component_->read_message()) {
+            std::string message(component_->read_buffer_);
+            if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
+                ESP_LOGD(TAG, "Command not recognized properly by sensor");
+                if(retries_left_ > 0) {
+                    retries_left_ -= 1;
+                    cmd_sent_ = false;
+                    ESP_LOGD(TAG, "Retrying...");
+                }
+                else {
+                    component_->find_prompt();
+                    return 1; // Command done
+                }
+            }
+            else if(message.compare("sensor is not stopped") == 0) {
+                ESP_LOGE(TAG, "Cannot configure output latency. Sensor is not stopped!");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+            else if(message.compare("Done") == 0) {
+                ESP_LOGI(TAG, "Updated output latency config.");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+        }
+        if(millis() - component_->ts_last_cmd_sent_ > 500) {
+            ESP_LOGD(TAG, "Command timeout");
+            if(retries_left_ > 0) {
+                retries_left_ -= 1;
+                cmd_sent_ = false;
+                ESP_LOGD(TAG, "Retrying...");
+            }
+            else {
+                ESP_LOGE(TAG, "OutputLatencyCommand error: No response");
+                return 1; // Command done
+            }
+        }
+    }
+    else if(component_->send_cmd(cmd_.c_str())) {
+        ESP_LOGD(TAG, "Setting output latency to %.3fs after object is detected.",
+                      delay_after_detection_);
+        ESP_LOGD(TAG, "Setting output latency to %.3fs after object disappeared.",
+                      delay_after_disappear_);
+        cmd_sent_ = true;
+    }
+    return 0; // Command not done yet
 }
 
 uint8_t SensorCfgStartCommand::execute() {
@@ -451,13 +522,18 @@ uint8_t SaveCfgCommand::execute() {
                     return 1; // Command done
                 }
             }
+            else if(message.compare("no parameter has changed") == 0) {
+                ESP_LOGI(TAG, "Not saving config (no parameter changed).");
+                component_->find_prompt();
+                return 1; // Command done
+            }
             else if(message.compare("Done") == 0) {
                 ESP_LOGI(TAG, "Saved config.");
                 component_->find_prompt();
                 return 1; // Command done
             }
         }
-        if(millis() - component_->ts_last_cmd_sent_ > 500) {
+        if(millis() - component_->ts_last_cmd_sent_ > 900) {
             ESP_LOGD(TAG, "Command timeout");
             if(retries_left_ > 0) {
                 retries_left_ -= 1;

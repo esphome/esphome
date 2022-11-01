@@ -64,6 +64,7 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
     friend class ReadStateCommand;
     friend class PowerCommand;
     friend class DetRangeCfgCommand;
+    friend class OutputLatencyCommand;
     friend class FactoryResetCommand;
     friend class SaveCfgCommand;
 };
@@ -112,7 +113,16 @@ class DetRangeCfgCommand : public Command {
 
 class OutputLatencyCommand : public Command {
  public:
+   OutputLatencyCommand(DfrobotMmwaveRadarComponent *component,
+                        float delay_after_detection,
+                        float delay_after_disappear
+                       );
    uint8_t execute() override;
+ protected:
+   DfrobotMmwaveRadarComponent * component_;
+   int8_t retries_left_{2};
+   float delay_after_detection_;
+   float delay_after_disappear_;
 };
 
 class SensorCfgStartCommand : public Command {
