@@ -455,8 +455,49 @@ uint8_t OutputLatencyCommand::execute() {
 }
 
 uint8_t SensorCfgStartCommand::execute() {
-    ESP_LOGD(TAG, "Execute SensorCfgStartCommand");
-    return 1; // Command done
+    if(cmd_sent_) {
+        if(component_->read_message()) {
+            std::string message(component_->read_buffer_);
+            if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
+                ESP_LOGD(TAG, "Command not recognized properly by sensor");
+                if(retries_left_ > 0) {
+                    retries_left_ -= 1;
+                    cmd_sent_ = false;
+                    ESP_LOGD(TAG, "Retrying...");
+                }
+                else {
+                    component_->find_prompt();
+                    return 1; // Command done
+                }
+            }
+            else if(message.compare("sensor is not stopped") == 0) {
+                ESP_LOGE(TAG, "Cannot configure sensor startup behavior. Sensor is not stopped!");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+            else if(message.compare("Done") == 0) {
+                ESP_LOGI(TAG, "Updated sensor startup behavior.");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+        }
+        if(millis() - component_->ts_last_cmd_sent_ > 500) {
+            ESP_LOGD(TAG, "Command timeout");
+            if(retries_left_ > 0) {
+                retries_left_ -= 1;
+                cmd_sent_ = false;
+                ESP_LOGD(TAG, "Retrying...");
+            }
+            else {
+                ESP_LOGE(TAG, "SensorCfgStartCommand error: No response");
+                return 1; // Command done
+            }
+        }
+    }
+    else if(component_->send_cmd(cmd_.c_str())) {
+        cmd_sent_ = true;
+    }
+    return 0; // Command not done yet
 }
 
 uint8_t FactoryResetCommand::execute() {

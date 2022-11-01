@@ -65,6 +65,7 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
     friend class PowerCommand;
     friend class DetRangeCfgCommand;
     friend class OutputLatencyCommand;
+    friend class SensorCfgStartCommand;
     friend class FactoryResetCommand;
     friend class SaveCfgCommand;
 };
@@ -127,7 +128,17 @@ class OutputLatencyCommand : public Command {
 
 class SensorCfgStartCommand : public Command {
  public:
+   SensorCfgStartCommand(DfrobotMmwaveRadarComponent *component,bool startupMode) :
+                        component_(component), startupMode_(startupMode) {
+         char tmp_cmd[20] = {0};
+         sprintf(tmp_cmd, "sensorCfgStart %d", startupMode);
+         cmd_ = std::string(tmp_cmd);
+   }
    uint8_t execute() override;
+ protected:
+   DfrobotMmwaveRadarComponent * component_;
+   int8_t retries_left_{2};
+   bool startupMode_;
 };
 
 class FactoryResetCommand : public Command {
