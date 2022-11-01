@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.components import lora
 from esphome.components import sensor
 from esphome.const import (
     CONF_ID,
@@ -7,8 +8,8 @@ from esphome.const import (
     ICON_SIGNAL,
     DEVICE_CLASS_SIGNAL_STRENGTH,
 )
-from esphome.components import lora
 
+CODEOWNERS = ["@SenexCrenshaw", "@alf-scotland"]
 DEPENDENCIES = ["lora"]
 
 LoraRSSISensor = lora.lora_ns.class_(
@@ -16,7 +17,6 @@ LoraRSSISensor = lora.lora_ns.class_(
 )
 
 LoraSNRSensor = lora.lora_ns.class_("LoraSNRSensor", sensor.Sensor, cg.PollingComponent)
-
 
 CONF_RSSI = "rssi"
 CONF_SNR = "snr"
@@ -53,7 +53,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 def to_code(config):
-
     parent = yield cg.get_variable(config[lora.CONF_LORA_ID])
 
     if CONF_RSSI in config:

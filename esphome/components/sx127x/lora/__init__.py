@@ -1,18 +1,17 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
+from esphome.components import lora
 from esphome.components import sensor
 from esphome.components import spi
-from esphome.components import lora
 from esphome.const import CONF_ID
 
-
+CODEOWNERS = ["@SenexCrenshaw", "@alf-scotland"]
 DEPENDENCIES = ["spi"]
 
 CONF_DI0_PIN = "di0_pin"
 CONF_RST_PIN = "rst_pin"
 CONF_BAND = "band"
-
 
 sx127x_ns = cg.esphome_ns.namespace("sx127x")
 SX127X = sx127x_ns.class_(
@@ -22,7 +21,6 @@ SX127X = sx127x_ns.class_(
 SX127XDIOPin = sx127x_ns.class_("SX127XDIOPin", cg.GPIOPin)
 
 SX127XBands = sx127x_ns.enum("SX127XBANDS")
-
 
 BANDS = {
     "433MHZ": 433,

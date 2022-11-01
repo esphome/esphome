@@ -3,6 +3,8 @@ from enum import Enum
 import esphome.codegen as cg
 import esphome.config_validation as cv
 
+CODEOWNERS = ["@SenexCrenshaw", "@alf-scotland"]
+
 IS_PLATFORM_COMPONENT = True
 
 CONF_LORA_ID = "lora_id"
