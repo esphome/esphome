@@ -5,7 +5,7 @@
 namespace esphome {
 namespace vbus {
 
-static const char *TAG = "vbus";
+static const char *const TAG = "vbus";
 
 void VBus::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus:");
@@ -13,9 +13,10 @@ void VBus::dump_config() {
 }
 
 static void septet_spread(uint8_t *data, int start, int count, uint8_t septet) {
-  for (int i = 0; i < count; i++, septet >>= 1)
+  for (int i = 0; i < count; i++, septet >>= 1) {
     if (septet & 1)
       data[start + i] |= 0x80;
+  }
 }
 
 static bool checksum(const uint8_t *data, int start, int count) {
@@ -110,11 +111,11 @@ void VBus::loop() {
 }
 
 void VBusListener::on_message(uint16_t command, uint16_t source, uint16_t dest, std::vector<uint8_t> &message) {
-  if ((this->command_ != -1) && (this->command_ != command))
+  if ((this->command_ != 0xffff) && (this->command_ != command))
     return;
-  if ((this->source_ != -1) && (this->source_ != source))
+  if ((this->source_ != 0xffff) && (this->source_ != source))
     return;
-  if ((this->dest_ != -1) && (this->dest_ != dest))
+  if ((this->dest_ != 0xffff) && (this->dest_ != dest))
     return;
   this->handle_message(message);
 }

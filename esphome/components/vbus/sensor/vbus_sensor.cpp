@@ -42,9 +42,10 @@ void DeltaSolCSensor::handle_message(std::vector<uint8_t> &message) {
     this->operating_hours1_sensor_->publish_state(get_16(message, 12));
   if (this->operating_hours2_sensor_ != nullptr)
     this->operating_hours2_sensor_->publish_state(get_16(message, 14));
-  if (this->heat_quantity_sensor_ != nullptr)
+  if (this->heat_quantity_sensor_ != nullptr) {
     this->heat_quantity_sensor_->publish_state(get_16(message, 16) + get_16(message, 18) * 1000 +
                                                get_16(message, 20) * 1000000);
+  }
   if (this->time_sensor_ != nullptr)
     this->time_sensor_->publish_state(get_16(message, 22));
 }
@@ -112,9 +113,10 @@ void DeltaSolBSPlusSensor::handle_message(std::vector<uint8_t> &message) {
     this->operating_hours1_sensor_->publish_state(get_16(message, 16));
   if (this->operating_hours2_sensor_ != nullptr)
     this->operating_hours2_sensor_->publish_state(get_16(message, 18));
-  if (this->heat_quantity_sensor_ != nullptr)
+  if (this->heat_quantity_sensor_ != nullptr) {
     this->heat_quantity_sensor_->publish_state(get_16(message, 20) + get_16(message, 22) * 1000 +
                                                get_16(message, 24) * 1000000);
+  }
   if (this->time_sensor_ != nullptr)
     this->time_sensor_->publish_state(get_16(message, 12));
   if (this->version_sensor_ != nullptr)
@@ -123,18 +125,21 @@ void DeltaSolBSPlusSensor::handle_message(std::vector<uint8_t> &message) {
 
 void VBusCustomSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "VBus Custom:");
-  if (this->source_ == 0xffff)
+  if (this->source_ == 0xffff) {
     ESP_LOGCONFIG(TAG, "  Source address: ANY");
-  else
+  } else {
     ESP_LOGCONFIG(TAG, "  Source address: 0x%04x", this->source_);
-  if (this->dest_ == 0xffff)
+  }
+  if (this->dest_ == 0xffff) {
     ESP_LOGCONFIG(TAG, "  Dest address: ANY");
-  else
+  } else {
     ESP_LOGCONFIG(TAG, "  Dest address: 0x%04x", this->dest_);
-  if (this->command_ == 0xffff)
+  }
+  if (this->command_ == 0xffff) {
     ESP_LOGCONFIG(TAG, "  Command: ANY");
-  else
+  } else {
     ESP_LOGCONFIG(TAG, "  Command: 0x%04x", this->command_);
+  }
 }
 
 void VBusCustomSensor::handle_message(std::vector<uint8_t> &message) {
