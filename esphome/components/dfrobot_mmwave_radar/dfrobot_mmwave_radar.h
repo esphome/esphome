@@ -64,6 +64,7 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
     friend class ReadStateCommand;
     friend class PowerCommand;
     friend class DetRangeCfgCommand;
+    friend class SaveCfgCommand;
 };
 
 class ReadStateCommand : public Command {
@@ -121,6 +122,18 @@ class SensorCfgStartCommand : public Command {
 class ResetSystemCommand : public Command {
  public:
    uint8_t execute() override;
+};
+
+class SaveCfgCommand : public Command {
+ public:
+   SaveCfgCommand(DfrobotMmwaveRadarComponent *component) :
+      component_(component) {
+         cmd_ = "saveCfg 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89";
+      }
+   uint8_t execute() override;
+ protected:
+   DfrobotMmwaveRadarComponent * component_;
+   int8_t retries_left_{2};
 };
 
 }  // namespace dfrobot_mmwave_radar
