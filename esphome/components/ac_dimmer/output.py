@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import output
-from esphome.const import CONF_ID, CONF_MIN_POWER, CONF_METHOD
+from esphome.const import CONF_FILTERS, CONF_ID, CONF_METHOD
 
 CODEOWNERS = ["@glmnet"]
 
@@ -19,6 +19,16 @@ DIM_METHODS = {
 CONF_GATE_PIN = "gate_pin"
 CONF_ZERO_CROSS_PIN = "zero_cross_pin"
 CONF_INIT_WITH_HALF_CYCLE = "init_with_half_cycle"
+
+
+def _validate(config):
+    if not range_filter_in_config(config):
+        raise cv.Invalid(
+            "Range filter is required for this output, default min_value is 10%"
+        )
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     output.FLOAT_OUTPUT_SCHEMA.extend(
         {
@@ -29,16 +39,33 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_METHOD, default="leading pulse"): cv.enum(
                 DIM_METHODS, upper=True, space="_"
             ),
-            cv.Optional(CONF_MIN_POWER, 0.1): cv.percentage,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
+    _validate,
 )
+
+
+def range_filter_in_config(config):
+    range_filter = list(
+        filter(lambda x: "range" in x, dict(config).get(CONF_FILTERS, []))
+    )
+
+    if len(range_filter) == 0:
+        return False
+
+    return range_filter[0]
 
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    # Remove min_power from filter and add it to output
+    range_filter = range_filter_in_config(config)["range"]
+    min_power = range_filter["min_power"]
+    range_filter["min_power"] = 0.0
+
     await output.register_output(var, config)
 
     pin = await cg.gpio_pin_expression(config[CONF_GATE_PIN])
@@ -47,4 +74,4 @@ async def to_code(config):
     cg.add(var.set_zero_cross_pin(pin))
     cg.add(var.set_init_with_half_cycle(config[CONF_INIT_WITH_HALF_CYCLE]))
     cg.add(var.set_method(config[CONF_METHOD]))
-    cg.add(var.set_min_power(config[CONF_MIN_POWER]))
+    cg.add(var.set_min_power(min_power))
