@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
     CONF_CHANNEL,
+    CONF_FILTERS,
     CONF_FREQUENCY,
     CONF_ID,
     CONF_PIN,
@@ -50,6 +51,17 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
+def output_inverted(config):
+    inverted_filter = list(
+        filter(lambda x: "inverted" in x, dict(config).get(CONF_FILTERS, []))
+    )
+
+    if len(inverted_filter) == 0:
+        return False
+
+    return inverted_filter[0]["inverted"]
+
+
 async def to_code(config):
     gpio = await cg.gpio_pin_expression(config[CONF_PIN])
     var = cg.new_Pvariable(config[CONF_ID], gpio)
@@ -58,6 +70,7 @@ async def to_code(config):
     if CONF_CHANNEL in config:
         cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
+    cg.add(var.set_inverted(output_inverted(config)))
 
 
 @automation.register_action(

@@ -19,6 +19,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
 
   void set_channel(uint8_t channel) { this->channel_ = channel; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
+  void set_inverted(bool inverted) { this->inverted_ = inverted; }
   /// Dynamically change frequency at runtime
   void update_frequency(float frequency) override;
 
@@ -38,6 +39,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
   float frequency_{};
   float duty_{0.0f};
   bool initialized_ = false;
+  bool inverted_;
 };
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
