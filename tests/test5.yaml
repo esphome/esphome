@@ -66,6 +66,9 @@ mqtt:
           ESP_LOGD("Mqtt Test", "testing/sensor/testing_sensor/state=[%s]", x.c_str());
       # yamllint enable rule:line-length
 
+vbus:
+  - uart_id: uart2
+
 binary_sensor:
   - platform: gpio
     pin: GPIO0
@@ -182,6 +185,13 @@ binary_sensor:
   - platform: matrix_keypad
     id: key1
     key: 1
+
+  - platform: vbus
+    model: deltasol_bs_plus
+    relay2:
+      name: Relay 2 On
+    sensor1_error:
+      name: Sensor 1 Error
 
 
 tlc5947:
@@ -477,6 +487,25 @@ sensor:
       name: Last Volume Requested
     max_flow_rate:
       name: Max Flow Rate
+
+  - platform: vbus
+    model: deltasol c
+    temperature_3:
+      name: Temperature 3
+    operating_hours_1:
+      name: Operating Hours 1
+    heat_quantity:
+      name: Heat Quantity
+    time:
+      name: System Time
+
+  - platform: vbus
+    model: custom
+    command: 0x100
+    source: 0x1234
+    dest: 0x10
+    lambda: |-
+      // do something with the data
 
 script:
   - id: automation_test
