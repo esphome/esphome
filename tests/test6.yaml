@@ -1,0 +1,39 @@
+---
+esphome:
+  name: test6
+  project:
+    name: esphome.test6_project
+    version: "1.0.0"
+
+rp2040:
+  board: rpipicow
+  framework:
+    # Waiting for https://github.com/platformio/platform-raspberrypi/pull/36
+    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
+
+
+wifi:
+  networks:
+    - ssid: "MySSID"
+      password: "password1"
+
+api:
+
+ota:
+
+logger:
+
+binary_sensor:
+  - platform: gpio
+    pin: GPIO5
+    id: pin_5_button
+
+output:
+  - platform: gpio
+    pin: GPIO4
+    id: pin_4
+
+switch:
+  - platform: output
+    output: pin_4
+    id: pin_4_switch
