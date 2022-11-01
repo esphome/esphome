@@ -388,9 +388,51 @@ uint8_t SensorCfgStartCommand::execute() {
     return 1; // Command done
 }
 
-uint8_t ResetSystemCommand::execute() {
-    ESP_LOGD(TAG, "Execute ResetSystemCommand");
-    return 1; // Command done
+uint8_t FactoryResetCommand::execute() {
+    if(cmd_sent_) {
+        if(component_->read_message()) {
+            std::string message(component_->read_buffer_);
+            if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
+                ESP_LOGD(TAG, "Command not recognized properly by sensor");
+                if(retries_left_ > 0) {
+                    retries_left_ -= 1;
+                    cmd_sent_ = false;
+                    ESP_LOGD(TAG, "Retrying...");
+                }
+                else {
+                    component_->find_prompt();
+                    return 1; // Command done
+                }
+            }
+            else if(message.compare("sensor is not stopped") == 0) {
+                ESP_LOGE(TAG, "Cannot factory reset. Sensor is not stopped!");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+            else if(message.compare("Done") == 0) {
+                ESP_LOGI(TAG, "Sensor factory reset done.");
+                component_->find_prompt();
+                return 1; // Command done
+            }
+        }
+        if(millis() - component_->ts_last_cmd_sent_ > 500) {
+            ESP_LOGD(TAG, "Command timeout");
+            if(retries_left_ > 0) {
+                retries_left_ -= 1;
+                cmd_sent_ = false;
+                ESP_LOGD(TAG, "Retrying...");
+            }
+            else {
+                ESP_LOGE(TAG, "FactoryResetCommand error: No response");
+                return 1; // Command done
+            }
+        }
+    }
+    else if(component_->send_cmd(cmd_.c_str())) {
+        ESP_LOGD(TAG, "Factory resetting sensor");
+        cmd_sent_ = true;
+    }
+    return 0; // Command not done yet
 }
 
 uint8_t SaveCfgCommand::execute() {

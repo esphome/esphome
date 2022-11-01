@@ -64,6 +64,7 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
     friend class ReadStateCommand;
     friend class PowerCommand;
     friend class DetRangeCfgCommand;
+    friend class FactoryResetCommand;
     friend class SaveCfgCommand;
 };
 
@@ -119,9 +120,16 @@ class SensorCfgStartCommand : public Command {
    uint8_t execute() override;
 };
 
-class ResetSystemCommand : public Command {
+class FactoryResetCommand : public Command {
  public:
+   FactoryResetCommand(DfrobotMmwaveRadarComponent *component) :
+      component_(component) {
+         cmd_ = "factoryReset 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89";
+      };
    uint8_t execute() override;
+ protected:
+   DfrobotMmwaveRadarComponent * component_;
+   int8_t retries_left_{2};
 };
 
 class SaveCfgCommand : public Command {
