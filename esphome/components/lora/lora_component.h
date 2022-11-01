@@ -105,7 +105,7 @@ class LoraComponent : public Component {
 #endif  // USE_SWITCH
 
 #ifdef USE_TEXT_SENSOR
-  bool process_component(LoraBaseComponent *lora_component, std::string state);
+  bool process_component(LoraBaseComponent *lora_component, const std::string& state);
   void register_text_sensor(text_sensor::TextSensor *component, bool send_to_lora, bool receive_from_lora,
                             const std::string &lora_name);
 #endif  // USE_TEXT_SENSOR

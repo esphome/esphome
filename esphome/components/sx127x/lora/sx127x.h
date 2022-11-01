@@ -133,7 +133,7 @@ class SX127X : public lora::LoraComponent,
   GPIOPin *di0_pin_{nullptr};
   GPIOPin *rst_pin_{nullptr};
   uint16_t band_;
-  long frequency_;
+  int32_t frequency_;
 
   unsigned int counter_ = 0;
 

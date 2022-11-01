@@ -136,11 +136,11 @@ void LoraComponent::register_binary_sensor(binary_sensor::BinarySensor *componen
 #endif  // USE_BINARY_SENSOR
 
 #ifdef USE_TEXT_SENSOR
-bool LoraComponent::process_component(LoraBaseComponent *lora_component, std::string state) {
+bool LoraComponent::process_component(LoraBaseComponent *lora_component, const std::string& state) {
   if (!lora_component->send_to_lora)
     return true;
 
-  std::string to_send = this->build_to_send(lora_component->type, lora_component->lora_name, std::move(state));
+  std::string to_send = this->build_to_send(lora_component->type, lora_component->lora_name, state);
 
   ESP_LOGD(TAG, "Sending over lora %s", to_send.c_str());
 

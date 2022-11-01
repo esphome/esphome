@@ -179,7 +179,7 @@ void SX127X::parse_buffer() {
       auto state = parse_number(data[3]);
       if (!state.has_value()) {
         ESP_LOGE(TAG, "Can't convert '%s' to float! %s", data[3].c_str(),
-                  data[3].substr(0, data[3].size() - 1).c_str());
+                 data[3].substr(0, data[3].size() - 1).c_str());
         ESP_LOGD(TAG, "Deleting %d", todelete);
         this->store_.todelete = todelete;
         this->receive_buffer_.erase(0, todelete);
@@ -387,9 +387,9 @@ void SX127X::set_frequency() {
   this->frequency_ = this->band_ * 1000000;
 
   uint64_t frf = ((uint64_t) this->frequency_ << 19) / 32000000;
-  write_register(REG_FRF_MSB, (uint8_t)(frf >> 16));
-  write_register(REG_FRF_MID, (uint8_t)(frf >> 8));
-  write_register(REG_FRF_LSB, (uint8_t)(frf >> 0));
+  write_register(REG_FRF_MSB, (uint8_t) (frf >> 16));
+  write_register(REG_FRF_MID, (uint8_t) (frf >> 8));
+  write_register(REG_FRF_LSB, (uint8_t) (frf >> 0));
 }
 
 void SX127X::set_signal_bandwidth(double sbw) {
@@ -466,7 +466,7 @@ void SX127X::set_tx_power(int8_t power, int8_t output_pin) {
       if (power > 20) {
         power = 20;
       }
-      pa_config = (pa_config & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t)((uint16_t)(power - 5) & 0x0F);
+      pa_config = (pa_config & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t) ((uint16_t) (power - 5) & 0x0F);
     } else {
       if (power < 2) {
         power = 2;
@@ -474,7 +474,7 @@ void SX127X::set_tx_power(int8_t power, int8_t output_pin) {
       if (power > 17) {
         power = 17;
       }
-      pa_config = (pa_config & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t)((uint16_t)(power - 2) & 0x0F);
+      pa_config = (pa_config & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t) ((uint16_t) (power - 2) & 0x0F);
     }
   } else {
     if (power < -1) {
@@ -483,7 +483,7 @@ void SX127X::set_tx_power(int8_t power, int8_t output_pin) {
     if (power > 14) {
       power = 14;
     }
-    pa_config = (pa_config & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t)((uint16_t)(power + 1) & 0x0F);
+    pa_config = (pa_config & RF_PACONFIG_OUTPUTPOWER_MASK) | (uint8_t) ((uint16_t) (power + 1) & 0x0F);
   }
   write_register(REG_PA_CONFIG, pa_config);
   write_register(REG_PA_DAC, pa_dac);
