@@ -4,6 +4,7 @@ import esphome.codegen as cg
 from esphome.const import CONF_ACTIVE, CONF_ID
 
 CONF_MIN_RSSI = "min_rssi"
+DEFAULT_MIN_RSSI = -80
 AUTO_LOAD = ["esp32_ble_client", "esp32_ble_tracker"]
 DEPENDENCIES = ["api", "esp32"]
 CODEOWNERS = ["@jesserockz"]
@@ -22,7 +23,7 @@ BluetoothConnection = bluetooth_proxy_ns.class_(
 CONNECTION_SCHEMA = esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA.extend(
     {
         cv.Optional(CONF_ACTIVE, default=False): cv.boolean,
-        cv.Optional(CONF_MIN_RSSI, default=-80): cv.int_range(-100, -30),
+        cv.Optional(CONF_MIN_RSSI, default=DEFAULT_MIN_RSSI): cv.int_range(-100, -30),
         cv.GenerateID(): cv.declare_id(BluetoothConnection),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -68,7 +69,7 @@ async def to_code(config):
     cg.add(var.set_active(config[CONF_ACTIVE]))
     await esp32_ble_tracker.register_ble_device(var, config)
 
-    cg.add(var.set_min_rssi(config[CONF_MIN_RSSI]))
+    cg.add(var.set_min_rssi(config.get(CONF_MIN_RSSI, DEFAULT_MIN_RSSI)))
 
     for connection_conf in config.get(CONF_CONNECTIONS, []):
         connection_var = cg.new_Pvariable(connection_conf[CONF_ID])
