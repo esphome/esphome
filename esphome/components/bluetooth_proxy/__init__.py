@@ -1,8 +1,9 @@
 from esphome.components import esp32_ble_tracker, esp32_ble_client
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_ACTIVE, CONF_ID, CONF_MIN_RSSI
+from esphome.const import CONF_ACTIVE, CONF_ID
 
+CONF_MIN_RSSI = "min_rssi"
 AUTO_LOAD = ["esp32_ble_client", "esp32_ble_tracker"]
 DEPENDENCIES = ["api", "esp32"]
 CODEOWNERS = ["@jesserockz"]
