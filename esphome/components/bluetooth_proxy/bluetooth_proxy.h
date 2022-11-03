@@ -12,23 +12,27 @@
 #include "esphome/core/defines.h"
 #include "lrucache.hpp"
 
-#include <map>
+#include "bluetooth_connection.h"
 
 namespace esphome {
 namespace bluetooth_proxy {
 
+static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
+
 using namespace esp32_ble_client;
 using adv_data_t = std::vector<uint8_t>;
 
-class BluetoothProxy : public BLEClientBase {
+class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
   BluetoothProxy();
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
   void dump_config() override;
   void loop() override;
 
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                           esp_ble_gattc_cb_param_t *param) override;
+  void register_connection(BluetoothConnection *connection) {
+    this->connections_.push_back(connection);
+    connection->proxy_ = this;
+  }
 
   void bluetooth_device_request(const api::BluetoothDeviceRequest &msg);
   void bluetooth_gatt_read(const api::BluetoothGATTReadRequest &msg);
@@ -38,8 +42,16 @@ class BluetoothProxy : public BLEClientBase {
   void bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg);
   void bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg);
 
-  int get_bluetooth_connections_free() { return this->state_ == espbt::ClientState::IDLE ? 1 : 0; }
-  int get_bluetooth_connections_limit() { return 1; }
+  int get_bluetooth_connections_free() {
+    int free = 0;
+    for (auto *connection : this->connections_) {
+      if (connection->address_ == 0) {
+        free++;
+      }
+    }
+    return free;
+  }
+  int get_bluetooth_connections_limit() { return this->connections_.size(); }
 
   void set_active(bool active) { this->active_ = active; }
   void set_min_rssi(int min_rssi) { this->min_rssi_ = min_rssi; }
@@ -48,10 +60,14 @@ class BluetoothProxy : public BLEClientBase {
  protected:
   void send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device);
 
+  BluetoothConnection *get_connection_(uint64_t address, bool reserve);
+
   int16_t send_service_{-1};
   bool active_;
   int min_rssi_{-80};
   cache::lru_cache<uint64_t, adv_data_t> prev_mnf_data_{50};
+  
+  std::vector<BluetoothConnection *> connections_{};
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

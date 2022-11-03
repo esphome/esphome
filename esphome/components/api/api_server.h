@@ -75,7 +75,7 @@ class APIServer : public Component, public Controller {
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
 #ifdef USE_BLUETOOTH_PROXY
   void send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &call);
-  void send_bluetooth_device_connection(uint64_t address, bool connected, uint16_t mtu, esp_err_t error = ESP_OK);
+  void send_bluetooth_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, esp_err_t error = ESP_OK);
   void send_bluetooth_connections_free(uint8_t free, uint8_t limit);
   void send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &call);
   void send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &call);
