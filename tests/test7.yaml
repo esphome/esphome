@@ -1,0 +1,111 @@
+---
+esphome:
+  name: test7
+  build_path: build/test7
+  project:
+    name: esphome.test7_project
+    version: "1.0.0"
+
+esp32:
+  board: esp32-s2-saola-1
+  framework:
+    type: arduino
+    version: 2.0.5
+    platform_version: 5.2.0
+
+wifi:
+  networks:
+    - ssid: "MySSID"
+      password: "password1"
+
+api:
+
+ota:
+
+logger:
+
+button:
+  - platform: template
+    name: "Press ShiftLeft + B"
+    on_press:
+      then:
+        - keyboard.down:
+            id: kbd
+            keys:
+              - ShiftLeft
+              - 5
+        - delay: 100ms
+        - keyboard.set:
+            id: kbd
+  - platform: template
+    name: "Press K"
+    on_press:
+      then:
+        - keyboard.down:
+            id: kbd
+            keys: KeyK
+        - delay: 100ms
+        - keyboard.up:
+            id: kbd
+            keys: KeyK
+  - platform: template
+    name: "Press volume up"
+    on_press:
+      then:
+        - keyboard.set:
+            id: kbd
+            keys: 0x00E9
+            type: media_keys
+        - delay: 100ms
+        - keyboard.set:
+            id: kbd
+            type: media_keys
+  - platform: template
+    name: "Press volume down"
+    on_press:
+      then:
+        - keyboard.set:
+            id: kbd
+            keys: 0x00EA
+            type: media_keys
+        - delay: 100ms
+        - keyboard.set:
+            id: kbd
+            type: media_keys
+
+keyboard:
+  - platform: hid
+    name: Blue kbd
+    hid_id: usb_hid2
+    id: kbd
+
+hid:
+  - platform: usb_device
+    id: usb_hid2
+    type:
+      composite:
+        - keyboard
+        - media_keys
+binary_sensor:
+  - platform: usb_device
+    mounted:
+      name: USB is mounted
+    ready:
+      name: USB is ready
+    suspended:
+      name: USB is suspended
+  - platform: keyboard
+    keyboard_id: kbd
+    capslock:
+      name: capslock
+    numlock:
+      name: numlock
+    scrollock:
+      name: scrollock
+
+switch:
+  - platform: usb_device
+    detach:
+      name: Detach USB device
+    wake_up:
+      name: Wake up host
