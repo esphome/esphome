@@ -19,4 +19,4 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     var = await sm10bit_base.register_sm10bit_base(config)
-    cg.add(var.set_model(0x40))
+    cg.add(var.set_model(0xC0))
