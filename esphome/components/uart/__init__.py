@@ -240,16 +240,23 @@ KEY_UART_DEVICES = "uart_devices"
 def final_validate_device_schema(
     name: str,
     *,
-    baud_rate: Optional[int] = None,
+    baud_rate: Optional[int] or Optional[list] = None,
     require_tx: bool = False,
     require_rx: bool = False,
 ):
     def validate_baud_rate(value):
-        if value != baud_rate:
-            raise cv.Invalid(
-                f"Component {name} required baud rate {baud_rate} for the uart bus"
-            )
-        return value
+        if isinstance(baud_rate, int):
+            if value != baud_rate:
+                raise cv.Invalid(
+                    f"Component {name} required baud rate {baud_rate} for the uart bus"
+                )
+            return value
+        elif isinstance(baud_rate, list):
+            if value not in baud_rate:
+                raise cv.Invalid(
+                    f"Component {name} required baud rate to be in {baud_rate} for the uart bus"
+                )
+            return value
 
     def validate_pin(opt, device):
         def validator(value):
