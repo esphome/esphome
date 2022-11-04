@@ -251,7 +251,7 @@ def final_validate_device_schema(
                     f"Component {name} required baud rate {baud_rate} for the uart bus"
                 )
             return value
-        elif isinstance(baud_rate, list):
+        if isinstance(baud_rate, list):
             if value not in baud_rate:
                 raise cv.Invalid(
                     f"Component {name} required baud rate to be in {baud_rate} for the uart bus"
