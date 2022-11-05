@@ -51,10 +51,11 @@ static bool decode_data(RemoteReceiveData &src, CoolixData &dst) {
     for (uint32_t mask = 1 << 7; mask; mask >>= 1) {
       if (!src.expect_mark(BIT_MARK_US))
         return false;
-      if (src.expect_space(BIT_ONE_SPACE_US))
+      if (src.expect_space(BIT_ONE_SPACE_US)) {
         data |= mask;
-      else if (!src.expect_space(BIT_ZERO_SPACE_US))
+      } else if (!src.expect_space(BIT_ZERO_SPACE_US)) {
         return false;
+      }
     }
     // Check for inverse byte
     for (uint32_t mask = 1 << 7; mask; mask >>= 1) {

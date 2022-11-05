@@ -46,21 +46,21 @@ class I2CDevice {
   I2CRegister reg(uint8_t a_register) { return {this, a_register}; }
 
   ErrorCode read(uint8_t *data, size_t len) { return bus_->read(address_, data, len); }
-  ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len) {
-    ErrorCode err = this->write(&a_register, 1);
+  ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len, bool stop = true) {
+    ErrorCode err = this->write(&a_register, 1, stop);
     if (err != ERROR_OK)
       return err;
     return this->read(data, len);
   }
 
-  ErrorCode write(const uint8_t *data, uint8_t len) { return bus_->write(address_, data, len); }
-  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len) {
+  ErrorCode write(const uint8_t *data, uint8_t len, bool stop = true) { return bus_->write(address_, data, len, stop); }
+  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop = true) {
     WriteBuffer buffers[2];
     buffers[0].data = &a_register;
     buffers[0].len = 1;
     buffers[1].data = data;
     buffers[1].len = len;
-    return bus_->writev(address_, buffers, 2);
+    return bus_->writev(address_, buffers, 2, stop);
   }
 
   // Compat APIs
@@ -93,7 +93,9 @@ class I2CDevice {
     return true;
   }
 
-  bool read_byte(uint8_t a_register, uint8_t *data) { return read_register(a_register, data, 1) == ERROR_OK; }
+  bool read_byte(uint8_t a_register, uint8_t *data, bool stop = true) {
+    return read_register(a_register, data, 1, stop) == ERROR_OK;
+  }
 
   optional<uint8_t> read_byte(uint8_t a_register) {
     uint8_t data;
@@ -104,8 +106,8 @@ class I2CDevice {
 
   bool read_byte_16(uint8_t a_register, uint16_t *data) { return read_bytes_16(a_register, data, 1); }
 
-  bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len) {
-    return write_register(a_register, data, len) == ERROR_OK;
+  bool write_bytes(uint8_t a_register, const uint8_t *data, uint8_t len, bool stop = true) {
+    return write_register(a_register, data, len, stop) == ERROR_OK;
   }
 
   bool write_bytes(uint8_t a_register, const std::vector<uint8_t> &data) {
@@ -118,7 +120,9 @@ class I2CDevice {
 
   bool write_bytes_16(uint8_t a_register, const uint16_t *data, uint8_t len);
 
-  bool write_byte(uint8_t a_register, uint8_t data) { return write_bytes(a_register, &data, 1); }
+  bool write_byte(uint8_t a_register, uint8_t data, bool stop = true) {
+    return write_bytes(a_register, &data, 1, stop);
+  }
 
   bool write_byte_16(uint8_t a_register, uint16_t data) { return write_bytes_16(a_register, &data, 1); }
 

@@ -42,26 +42,29 @@ void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
   command1 = (command1 << 8) | ((~command1) & 0xff);
   command2 = (command2 << 8) | ((~command2) & 0xff);
 
-  if (data.rc_code_2 == 0)
+  if (data.rc_code_2 == 0) {
     dst->reserve(68);
-  else
+  } else {
     dst->reserve((68 * 2) + 1);
+  }
 
   dst->set_carrier_frequency(40000);
 
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
   for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
-    if (address1 & mask)
+    if (address1 & mask) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-    else
+    } else {
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    }
   }
 
   for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
-    if (command1 & mask)
+    if (command1 & mask) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-    else
+    } else {
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    }
   }
 
   dst->mark(BIT_HIGH_US);
@@ -70,17 +73,19 @@ void PioneerProtocol::encode(RemoteTransmitData *dst, const PioneerData &data) {
     dst->space(TRAILER_SPACE_US);
     dst->item(HEADER_HIGH_US, HEADER_LOW_US);
     for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
-      if (address2 & mask)
+      if (address2 & mask) {
         dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-      else
+      } else {
         dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+      }
     }
 
     for (uint32_t mask = 1UL << 15; mask; mask >>= 1) {
-      if (command2 & mask)
+      if (command2 & mask) {
         dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-      else
+      } else {
         dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+      }
     }
 
     dst->mark(BIT_HIGH_US);
@@ -140,10 +145,11 @@ optional<PioneerData> PioneerProtocol::decode(RemoteReceiveData src) {
   return data;
 }
 void PioneerProtocol::dump(const PioneerData &data) {
-  if (data.rc_code_2 == 0)
+  if (data.rc_code_2 == 0) {
     ESP_LOGD(TAG, "Received Pioneer: rc_code_X=0x%04X", data.rc_code_1);
-  else
+  } else {
     ESP_LOGD(TAG, "Received Pioneer: rc_code_1=0x%04X, rc_code_2=0x%04X", data.rc_code_1, data.rc_code_2);
+  }
 }
 
 }  // namespace remote_base

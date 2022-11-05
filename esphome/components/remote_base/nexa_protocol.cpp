@@ -41,43 +41,48 @@ void NexaProtocol::encode(RemoteTransmitData *dst, const NexaData &data) {
 
   // Device (26 bits)
   for (int16_t i = 26 - 1; i >= 0; i--) {
-    if (data.device & (1 << i))
+    if (data.device & (1 << i)) {
       this->one(dst);
-    else
+    } else {
       this->zero(dst);
+    }
   }
 
   // Group (1 bit)
-  if (data.group != 0)
+  if (data.group != 0) {
     this->one(dst);
-  else
+  } else {
     this->zero(dst);
+  }
 
   // State (1 bit)
   if (data.state == 2) {
     // Special case for dimmers...send 00 as state
     dst->item(TX_BIT_HIGH_US, TX_BIT_ZERO_LOW_US);
     dst->item(TX_BIT_HIGH_US, TX_BIT_ZERO_LOW_US);
-  } else if (data.state == 1)
+  } else if (data.state == 1) {
     this->one(dst);
-  else
+  } else {
     this->zero(dst);
+  }
 
   // Channel (4 bits)
   for (int16_t i = 4 - 1; i >= 0; i--) {
-    if (data.channel & (1 << i))
+    if (data.channel & (1 << i)) {
       this->one(dst);
-    else
+    } else {
       this->zero(dst);
+    }
   }
 
   // Level (4 bits)
   if (data.state == 2) {
     for (int16_t i = 4 - 1; i >= 0; i--) {
-      if (data.level & (1 << i))
+      if (data.level & (1 << i)) {
         this->one(dst);
-      else
+      } else {
         this->zero(dst);
+      }
     }
   }
 
@@ -101,7 +106,7 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
   SHHHH HHHH HHHH HHHH HHHH HHHH HHGO EE BB DDDD 0 P
 
   S = Sync bit.
-  H = The first 26 bits are transmitter unique codes, and it is this code that the reciever "learns" to recognize.
+  H = The first 26 bits are transmitter unique codes, and it is this code that the receiver "learns" to recognize.
   G = Group code, set to one for the whole group.
   O = On/Off bit. Set to 1 for on, 0 for off.
   E = Unit to be turned on or off. The code is inverted, i.e. '11' equals 1, '00' equals 4.

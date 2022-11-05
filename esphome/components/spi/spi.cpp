@@ -76,7 +76,11 @@ void SPIComponent::setup() {
     if (spi_bus_num == 0) {
       this->hw_spi_ = &SPI;
     } else {
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+      this->hw_spi_ = new SPIClass(FSPI);  // NOLINT(cppcoreguidelines-owning-memory)
+#else
       this->hw_spi_ = new SPIClass(VSPI);  // NOLINT(cppcoreguidelines-owning-memory)
+#endif  // USE_ESP32_VARIANT
     }
     spi_bus_num++;
     this->hw_spi_->begin(clk_pin, miso_pin, mosi_pin);
@@ -129,10 +133,11 @@ uint8_t HOT SPIComponent::transfer_(uint8_t data) {
 
   for (uint8_t i = 0; i < 8; i++) {
     uint8_t shift;
-    if (BIT_ORDER == BIT_ORDER_MSB_FIRST)
+    if (BIT_ORDER == BIT_ORDER_MSB_FIRST) {
       shift = 7 - i;
-    else
+    } else {
       shift = i;
+    }
 
     if (CLOCK_PHASE == CLOCK_PHASE_LEADING) {
       // sampling on leading edge

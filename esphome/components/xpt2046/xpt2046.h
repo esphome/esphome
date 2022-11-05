@@ -3,42 +3,29 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/spi/spi.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/touchscreen/touchscreen.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace xpt2046 {
 
-class XPT2046OnStateTrigger : public Trigger<int, int, bool> {
- public:
-  void process(int x, int y, bool touched);
+using namespace touchscreen;
+
+struct XPT2046TouchscreenStore {
+  volatile bool touch;
+  static void gpio_intr(XPT2046TouchscreenStore *store);
 };
 
-class XPT2046Button : public binary_sensor::BinarySensor {
- public:
-  /// Set the touch screen area where the button will detect the touch.
-  void set_area(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max) {
-    this->x_min_ = x_min;
-    this->x_max_ = x_max;
-    this->y_min_ = y_min;
-    this->y_max_ = y_max;
-  }
-
-  void touch(int16_t x, int16_t y);
-  void release();
-
- protected:
-  int16_t x_min_, x_max_, y_min_, y_max_;
-  bool state_{false};
-};
-
-class XPT2046Component : public PollingComponent,
+class XPT2046Component : public Touchscreen,
+                         public PollingComponent,
                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
   /// Set the logical touch screen dimensions.
   void set_dimensions(int16_t x, int16_t y) {
-    this->x_dim_ = x;
-    this->y_dim_ = y;
+    this->display_width_ = x;
+    this->display_height_ = y;
   }
   /// Set the coordinates for the touch screen edges.
   void set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max);
@@ -47,14 +34,12 @@ class XPT2046Component : public PollingComponent,
 
   /// Set the interval to report the touch point perodically.
   void set_report_interval(uint32_t interval) { this->report_millis_ = interval; }
+  uint32_t get_report_interval() { return this->report_millis_; }
+
   /// Set the threshold for the touch detection.
   void set_threshold(int16_t threshold) { this->threshold_ = threshold; }
   /// Set the pin used to detect the touch.
-  void set_irq_pin(GPIOPin *pin) { this->irq_pin_ = pin; }
-  /// Get an access to the on_state automation trigger
-  XPT2046OnStateTrigger *get_on_state_trigger() const { return this->on_state_trigger_; }
-  /// Register a virtual button to the component.
-  void register_button(XPT2046Button *button) { this->buttons_.push_back(button); }
+  void set_irq_pin(InternalGPIOPin *pin) { this->irq_pin_ = pin; }
 
   void setup() override;
   void dump_config() override;
@@ -103,21 +88,19 @@ class XPT2046Component : public PollingComponent,
   static int16_t normalize(int16_t val, int16_t min_val, int16_t max_val);
 
   int16_t read_adc_(uint8_t ctrl);
+  void check_touch_();
 
   int16_t threshold_;
   int16_t x_raw_min_, x_raw_max_, y_raw_min_, y_raw_max_;
-  int16_t x_dim_, y_dim_;
+
   bool invert_x_, invert_y_;
   bool swap_x_y_;
 
   uint32_t report_millis_;
   uint32_t last_pos_ms_{0};
 
-  GPIOPin *irq_pin_{nullptr};
-  bool last_irq_{true};
-
-  XPT2046OnStateTrigger *on_state_trigger_{new XPT2046OnStateTrigger()};
-  std::vector<XPT2046Button *> buttons_{};
+  InternalGPIOPin *irq_pin_{nullptr};
+  XPT2046TouchscreenStore store_;
 };
 
 }  // namespace xpt2046

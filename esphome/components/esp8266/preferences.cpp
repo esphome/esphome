@@ -98,16 +98,18 @@ static bool load_from_flash(size_t offset, uint32_t *data, size_t len) {
 }
 
 static bool save_to_rtc(size_t offset, const uint32_t *data, size_t len) {
-  for (uint32_t i = 0; i < len; i++)
+  for (uint32_t i = 0; i < len; i++) {
     if (!esp_rtc_user_mem_write(offset + i, data[i]))
       return false;
+  }
   return true;
 }
 
 static bool load_from_rtc(size_t offset, uint32_t *data, size_t len) {
-  for (uint32_t i = 0; i < len; i++)
+  for (uint32_t i = 0; i < len; i++) {
     if (!esp_rtc_user_mem_read(offset + i, &data[i]))
       return false;
+  }
   return true;
 }
 
@@ -241,15 +243,32 @@ class ESP8266Preferences : public ESPPreferences {
       }
     }
     if (erase_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGV(TAG, "Erase ESP8266 flash failed!");
+      ESP_LOGE(TAG, "Erase ESP8266 flash failed!");
       return false;
     }
     if (write_res != SPI_FLASH_RESULT_OK) {
-      ESP_LOGV(TAG, "Write ESP8266 flash failed!");
+      ESP_LOGE(TAG, "Write ESP8266 flash failed!");
       return false;
     }
 
     s_flash_dirty = false;
+    return true;
+  }
+
+  bool reset() override {
+    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    SpiFlashOpResult erase_res;
+    {
+      InterruptLock lock;
+      erase_res = spi_flash_erase_sector(get_esp8266_flash_sector());
+    }
+    if (erase_res != SPI_FLASH_RESULT_OK) {
+      ESP_LOGE(TAG, "Erase ESP8266 flash failed!");
+      return false;
+    }
+
+    // Protect flash from writing till restart
+    s_prevent_write = true;
     return true;
   }
 };

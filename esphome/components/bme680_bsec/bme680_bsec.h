@@ -70,11 +70,13 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   void publish_(const bsec_output_t *outputs, uint8_t num_outputs);
   int64_t get_time_ns_();
 
-  void publish_sensor_state_(sensor::Sensor *sensor, float value, bool change_only = false);
-  void publish_sensor_state_(text_sensor::TextSensor *sensor, const std::string &value);
+  void publish_sensor_(sensor::Sensor *sensor, float value, bool change_only = false);
+  void publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value);
 
   void load_state_();
   void save_state_(uint8_t accuracy);
+
+  void queue_push_(std::function<void()> &&f) { this->queue_.push(std::move(f)); }
 
   struct bme680_dev bme680_;
   bsec_library_return_t bsec_status_{BSEC_OK};
@@ -83,6 +85,8 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   int64_t last_time_ms_{0};
   uint32_t millis_overflow_counter_{0};
   int64_t next_call_ns_{0};
+
+  std::queue<std::function<void()>> queue_;
 
   ESPPreferenceObject bsec_state_;
   uint32_t state_save_interval_ms_{21600000};  // 6 hours - 4 times a day
@@ -96,15 +100,15 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   SampleRate pressure_sample_rate_{SAMPLE_RATE_DEFAULT};
   SampleRate humidity_sample_rate_{SAMPLE_RATE_DEFAULT};
 
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *pressure_sensor_;
-  sensor::Sensor *humidity_sensor_;
-  sensor::Sensor *gas_resistance_sensor_;
-  sensor::Sensor *iaq_sensor_;
-  text_sensor::TextSensor *iaq_accuracy_text_sensor_;
-  sensor::Sensor *iaq_accuracy_sensor_;
-  sensor::Sensor *co2_equivalent_sensor_;
-  sensor::Sensor *breath_voc_equivalent_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
+  sensor::Sensor *gas_resistance_sensor_{nullptr};
+  sensor::Sensor *iaq_sensor_{nullptr};
+  text_sensor::TextSensor *iaq_accuracy_text_sensor_{nullptr};
+  sensor::Sensor *iaq_accuracy_sensor_{nullptr};
+  sensor::Sensor *co2_equivalent_sensor_{nullptr};
+  sensor::Sensor *breath_voc_equivalent_sensor_{nullptr};
 };
 #endif
 }  // namespace bme680_bsec
