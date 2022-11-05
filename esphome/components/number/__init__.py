@@ -14,6 +14,8 @@ from esphome.const import (
     CONF_UNIT_OF_MEASUREMENT,
     CONF_MQTT_ID,
     CONF_VALUE,
+    CONF_OPERATION,
+    CONF_CYCLE,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -35,6 +37,7 @@ ValueRangeTrigger = number_ns.class_(
 
 # Actions
 NumberSetAction = number_ns.class_("NumberSetAction", automation.Action)
+NumberOperationAction = number_ns.class_("NumberOperationAction", automation.Action)
 
 # Conditions
 NumberInRangeCondition = number_ns.class_(
@@ -47,6 +50,15 @@ NUMBER_MODES = {
     "AUTO": NumberMode.NUMBER_MODE_AUTO,
     "BOX": NumberMode.NUMBER_MODE_BOX,
     "SLIDER": NumberMode.NUMBER_MODE_SLIDER,
+}
+
+NumberOperation = number_ns.enum("NumberOperation")
+
+NUMBER_OPERATION_OPTIONS = {
+    "INCREMENT": NumberOperation.NUMBER_OP_INCREMENT,
+    "DECREMENT": NumberOperation.NUMBER_OP_DECREMENT,
+    "TO_MIN": NumberOperation.NUMBER_OP_TO_MIN,
+    "TO_MAX": NumberOperation.NUMBER_OP_TO_MAX,
 }
 
 icon = cv.icon
@@ -63,8 +75,8 @@ NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
         cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                cv.Optional(CONF_ABOVE): cv.float_,
-                cv.Optional(CONF_BELOW): cv.float_,
+                cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+                cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
             },
             cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
         ),
@@ -159,12 +171,18 @@ async def to_code(config):
     cg.add_global(number_ns.using)
 
 
+OPERATION_BASE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ID): cv.use_id(Number),
+    }
+)
+
+
 @automation.register_action(
     "number.set",
     NumberSetAction,
-    cv.Schema(
+    OPERATION_BASE_SCHEMA.extend(
         {
-            cv.Required(CONF_ID): cv.use_id(Number),
             cv.Required(CONF_VALUE): cv.templatable(cv.float_),
         }
     ),
@@ -174,4 +192,86 @@ async def number_set_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VALUE], args, float)
     cg.add(var.set_value(template_))
+    return var
+
+
+@automation.register_action(
+    "number.increment",
+    NumberOperationAction,
+    automation.maybe_simple_id(
+        OPERATION_BASE_SCHEMA.extend(
+            {
+                cv.Optional(CONF_MODE, default="INCREMENT"): cv.one_of(
+                    "INCREMENT", upper=True
+                ),
+                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
+            }
+        )
+    ),
+)
+@automation.register_action(
+    "number.decrement",
+    NumberOperationAction,
+    automation.maybe_simple_id(
+        OPERATION_BASE_SCHEMA.extend(
+            {
+                cv.Optional(CONF_MODE, default="DECREMENT"): cv.one_of(
+                    "DECREMENT", upper=True
+                ),
+                cv.Optional(CONF_CYCLE, default=True): cv.boolean,
+            }
+        )
+    ),
+)
+@automation.register_action(
+    "number.to_min",
+    NumberOperationAction,
+    automation.maybe_simple_id(
+        OPERATION_BASE_SCHEMA.extend(
+            {
+                cv.Optional(CONF_MODE, default="TO_MIN"): cv.one_of(
+                    "TO_MIN", upper=True
+                ),
+            }
+        )
+    ),
+)
+@automation.register_action(
+    "number.to_max",
+    NumberOperationAction,
+    automation.maybe_simple_id(
+        OPERATION_BASE_SCHEMA.extend(
+            {
+                cv.Optional(CONF_MODE, default="TO_MAX"): cv.one_of(
+                    "TO_MAX", upper=True
+                ),
+            }
+        )
+    ),
+)
+@automation.register_action(
+    "number.operation",
+    NumberOperationAction,
+    OPERATION_BASE_SCHEMA.extend(
+        {
+            cv.Required(CONF_OPERATION): cv.templatable(
+                cv.enum(NUMBER_OPERATION_OPTIONS, upper=True)
+            ),
+            cv.Optional(CONF_CYCLE, default=True): cv.templatable(cv.boolean),
+        }
+    ),
+)
+async def number_to_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    if CONF_OPERATION in config:
+        to_ = await cg.templatable(config[CONF_OPERATION], args, NumberOperation)
+        cg.add(var.set_operation(to_))
+        if CONF_CYCLE in config:
+            cycle_ = await cg.templatable(config[CONF_CYCLE], args, bool)
+            cg.add(var.set_cycle(cycle_))
+    if CONF_MODE in config:
+        cg.add(var.set_operation(NUMBER_OPERATION_OPTIONS[config[CONF_MODE]]))
+        if CONF_CYCLE in config:
+            cg.add(var.set_cycle(config[CONF_CYCLE]))
     return var

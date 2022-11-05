@@ -7,8 +7,15 @@
 #include <cstdarg>
 
 #ifdef USE_ARDUINO
+#if defined(USE_ESP8266) || defined(USE_ESP32)
 #include <HardwareSerial.h>
-#endif
+#endif  // USE_ESP8266 || USE_ESP32
+#ifdef USE_RP2040
+#include <HardwareSerial.h>
+#include <SerialUSB.h>
+#endif  // USE_RP2040
+#endif  // USE_ARDUINO
+
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
 #endif
@@ -24,8 +31,18 @@ namespace logger {
 enum UARTSelection {
   UART_SELECTION_UART0 = 0,
   UART_SELECTION_UART1,
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2)
+#if defined(USE_ESP32)
+#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
   UART_SELECTION_UART2,
+#endif
+#ifdef USE_ESP_IDF
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+  UART_SELECTION_USB_CDC,
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
+  UART_SELECTION_USB_SERIAL_JTAG,
+#endif
+#endif
 #endif
 #ifdef USE_ESP8266
   UART_SELECTION_UART0_SWAP,
@@ -34,18 +51,19 @@ enum UARTSelection {
 
 class Logger : public Component {
  public:
-  explicit Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart);
+  explicit Logger(uint32_t baud_rate, size_t tx_buffer_size);
 
   /// Manually set the baud rate for serial, set to 0 to disable.
   void set_baud_rate(uint32_t baud_rate);
   uint32_t get_baud_rate() const { return baud_rate_; }
 #ifdef USE_ARDUINO
-  HardwareSerial *get_hw_serial() const { return hw_serial_; }
+  Stream *get_hw_serial() const { return hw_serial_; }
 #endif
 #ifdef USE_ESP_IDF
   uart_port_t get_uart_num() const { return uart_num_; }
 #endif
 
+  void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
   UARTSelection get_uart() const;
 
@@ -119,7 +137,7 @@ class Logger : public Component {
   int tx_buffer_size_{0};
   UARTSelection uart_{UART_SELECTION_UART0};
 #ifdef USE_ARDUINO
-  HardwareSerial *hw_serial_{nullptr};
+  Stream *hw_serial_{nullptr};
 #endif
 #ifdef USE_ESP_IDF
   uart_port_t uart_num_;

@@ -1,19 +1,79 @@
 import esphome.codegen as cg
+from esphome.components import time
 import esphome.config_validation as cv
 from esphome import pins, automation
 from esphome.const import (
+    CONF_HOUR,
     CONF_ID,
+    CONF_MINUTE,
     CONF_MODE,
     CONF_NUMBER,
     CONF_PINS,
     CONF_RUN_DURATION,
+    CONF_SECOND,
     CONF_SLEEP_DURATION,
+    CONF_TIME_ID,
     CONF_WAKEUP_PIN,
 )
 
+from esphome.components.esp32 import get_esp32_variant
+from esphome.components.esp32.const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32S2,
+)
+
+WAKEUP_PINS = {
+    VARIANT_ESP32: [
+        0,
+        2,
+        4,
+        12,
+        13,
+        14,
+        15,
+        25,
+        26,
+        27,
+        32,
+        33,
+        34,
+        35,
+        36,
+        37,
+        38,
+        39,
+    ],
+    VARIANT_ESP32C3: [0, 1, 2, 3, 4, 5],
+    VARIANT_ESP32S2: [
+        0,
+        1,
+        2,
+        3,
+        4,
+        5,
+        6,
+        7,
+        8,
+        9,
+        10,
+        11,
+        12,
+        13,
+        14,
+        15,
+        16,
+        17,
+        18,
+        19,
+        20,
+        21,
+    ],
+}
+
 
 def validate_pin_number(value):
-    valid_pins = [0, 2, 4, 12, 13, 14, 15, 25, 26, 27, 32, 33, 34, 35, 36, 37, 38, 39]
+    valid_pins = WAKEUP_PINS.get(get_esp32_variant(), WAKEUP_PINS[VARIANT_ESP32])
     if value[CONF_NUMBER] not in valid_pins:
         raise cv.Invalid(
             f"Only pins {', '.join(str(x) for x in valid_pins)} support wakeup"
@@ -21,11 +81,26 @@ def validate_pin_number(value):
     return value
 
 
+def validate_config(config):
+    if get_esp32_variant() == VARIANT_ESP32C3 and CONF_ESP32_EXT1_WAKEUP in config:
+        raise cv.Invalid("ESP32-C3 does not support wakeup from touch.")
+    if get_esp32_variant() == VARIANT_ESP32C3 and CONF_TOUCH_WAKEUP in config:
+        raise cv.Invalid("ESP32-C3 does not support wakeup from ext1")
+    return config
+
+
 deep_sleep_ns = cg.esphome_ns.namespace("deep_sleep")
 DeepSleepComponent = deep_sleep_ns.class_("DeepSleepComponent", cg.Component)
 EnterDeepSleepAction = deep_sleep_ns.class_("EnterDeepSleepAction", automation.Action)
 PreventDeepSleepAction = deep_sleep_ns.class_(
-    "PreventDeepSleepAction", automation.Action
+    "PreventDeepSleepAction",
+    automation.Action,
+    cg.Parented.template(DeepSleepComponent),
+)
+AllowDeepSleepAction = deep_sleep_ns.class_(
+    "AllowDeepSleepAction",
+    automation.Action,
+    cg.Parented.template(DeepSleepComponent),
 )
 
 WakeupPinMode = deep_sleep_ns.enum("WakeupPinMode")
@@ -49,6 +124,7 @@ CONF_TOUCH_WAKEUP = "touch_wakeup"
 CONF_DEFAULT = "default"
 CONF_GPIO_WAKEUP_REASON = "gpio_wakeup_reason"
 CONF_TOUCH_WAKEUP_REASON = "touch_wakeup_reason"
+CONF_UNTIL = "until"
 
 WAKEUP_CAUSES_SCHEMA = cv.Schema(
     {
@@ -139,20 +215,30 @@ async def to_code(config):
     cg.add_define("USE_DEEP_SLEEP")
 
 
-DEEP_SLEEP_ENTER_SCHEMA = automation.maybe_simple_id(
+DEEP_SLEEP_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(DeepSleepComponent),
-        cv.Optional(CONF_SLEEP_DURATION): cv.templatable(
-            cv.positive_time_period_milliseconds
-        ),
     }
 )
 
-
-DEEP_SLEEP_PREVENT_SCHEMA = automation.maybe_simple_id(
-    {
-        cv.GenerateID(): cv.use_id(DeepSleepComponent),
-    }
+DEEP_SLEEP_ENTER_SCHEMA = cv.All(
+    automation.maybe_simple_id(
+        DEEP_SLEEP_ACTION_SCHEMA.extend(
+            cv.Schema(
+                {
+                    cv.Exclusive(CONF_SLEEP_DURATION, "time"): cv.templatable(
+                        cv.positive_time_period_milliseconds
+                    ),
+                    # Only on ESP32 due to how long the RTC on ESP8266 can stay asleep
+                    cv.Exclusive(CONF_UNTIL, "time"): cv.All(
+                        cv.only_on_esp32, cv.time_of_day
+                    ),
+                    cv.Optional(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
+                }
+            )
+        )
+    ),
+    cv.has_none_or_all_keys(CONF_UNTIL, CONF_TIME_ID),
 )
 
 
@@ -165,12 +251,28 @@ async def deep_sleep_enter_to_code(config, action_id, template_arg, args):
     if CONF_SLEEP_DURATION in config:
         template_ = await cg.templatable(config[CONF_SLEEP_DURATION], args, cg.int32)
         cg.add(var.set_sleep_duration(template_))
+
+    if CONF_UNTIL in config:
+        until = config[CONF_UNTIL]
+        cg.add(var.set_until(until[CONF_HOUR], until[CONF_MINUTE], until[CONF_SECOND]))
+
+        time_ = await cg.get_variable(config[CONF_TIME_ID])
+        cg.add(var.set_time(time_))
+
     return var
 
 
 @automation.register_action(
-    "deep_sleep.prevent", PreventDeepSleepAction, DEEP_SLEEP_PREVENT_SCHEMA
+    "deep_sleep.prevent",
+    PreventDeepSleepAction,
+    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
 )
-async def deep_sleep_prevent_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    return cg.new_Pvariable(action_id, template_arg, paren)
+@automation.register_action(
+    "deep_sleep.allow",
+    AllowDeepSleepAction,
+    automation.maybe_simple_id(DEEP_SLEEP_ACTION_SCHEMA),
+)
+async def deep_sleep_action_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    return var

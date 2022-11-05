@@ -67,6 +67,36 @@ esp32:
     type: arduino
 """
 
+ESP32S2_CONFIG = """
+esp32:
+  board: {board}
+  framework:
+    type: esp-idf
+"""
+
+ESP32C3_CONFIG = """
+esp32:
+  board: {board}
+  framework:
+    type: esp-idf
+"""
+
+RP2040_CONFIG = """
+rp2040:
+  board: {board}
+  framework:
+    # Required until https://github.com/platformio/platform-raspberrypi/pull/36 is merged
+    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
+"""
+
+HARDWARE_BASE_CONFIGS = {
+    "ESP8266": ESP8266_CONFIG,
+    "ESP32": ESP32_CONFIG,
+    "ESP32S2": ESP32S2_CONFIG,
+    "ESP32C3": ESP32C3_CONFIG,
+    "RP2040": RP2040_CONFIG,
+}
+
 
 def sanitize_double_quotes(value):
     return value.replace("\\", "\\\\").replace('"', '\\"')
@@ -83,17 +113,15 @@ def wizard_file(**kwargs):
 
     config = BASE_CONFIG.format(**kwargs)
 
-    config += (
-        ESP8266_CONFIG.format(**kwargs)
-        if kwargs["platform"] == "ESP8266"
-        else ESP32_CONFIG.format(**kwargs)
-    )
+    config += HARDWARE_BASE_CONFIGS[kwargs["platform"]].format(**kwargs)
 
     config += LOGGER_API_CONFIG
 
     # Configure API
     if "password" in kwargs:
         config += f"  password: \"{kwargs['password']}\"\n"
+    if "api_encryption_key" in kwargs:
+        config += f"  encryption:\n    key: \"{kwargs['api_encryption_key']}\"\n"
 
     # Configure OTA
     config += "\nota:\n"
@@ -119,22 +147,33 @@ def wizard_file(**kwargs):
 """
 
     # pylint: disable=consider-using-f-string
-    config += """
+    if kwargs["platform"] in ["ESP8266", "ESP32"]:
+        config += """
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
     ssid: "{fallback_name}"
     password: "{fallback_psk}"
 
 captive_portal:
-""".format(
-        **kwargs
-    )
+    """.format(
+            **kwargs
+        )
+    else:
+        config += """
+  # Enable fallback hotspot in case wifi connection fails
+  ap:
+    ssid: "{fallback_name}"
+    password: "{fallback_psk}"
+    """.format(
+            **kwargs
+        )
 
     return config
 
 
 def wizard_write(path, **kwargs):
     from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.rp2040 import boards as rp2040_boards
 
     name = kwargs["name"]
     board = kwargs["board"]
@@ -144,13 +183,17 @@ def wizard_write(path, **kwargs):
             kwargs[key] = sanitize_double_quotes(kwargs[key])
 
     if "platform" not in kwargs:
-        kwargs["platform"] = (
-            "ESP8266" if board in esp8266_boards.ESP8266_BOARD_PINS else "ESP32"
-        )
-    platform = kwargs["platform"]
+        if board in esp8266_boards.ESP8266_BOARD_PINS:
+            platform = "ESP8266"
+        elif board in rp2040_boards.RP2040_BOARD_PINS:
+            platform = "RP2040"
+        else:
+            platform = "ESP32"
+        kwargs["platform"] = platform
+    hardware = kwargs["platform"]
 
     write_file(path, wizard_file(**kwargs))
-    storage = StorageJSON.from_wizard(name, f"{name}.local", platform)
+    storage = StorageJSON.from_wizard(name, f"{name}.local", hardware)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
     storage.save(storage_path)
 
@@ -314,7 +357,7 @@ def wizard(path):
     sleep(1)
 
     safe_print_step(3, WIFI_BIG)
-    safe_print("In this step, I'm going to create the configuration for " "WiFi.")
+    safe_print("In this step, I'm going to create the configuration for WiFi.")
     safe_print()
     sleep(1)
     safe_print(

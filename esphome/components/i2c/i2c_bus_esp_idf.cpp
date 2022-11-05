@@ -65,10 +65,11 @@ void IDFI2CBus::dump_config() {
       ESP_LOGI(TAG, "Found no i2c devices!");
     } else {
       for (const auto &s : scan_results_) {
-        if (s.second)
+        if (s.second) {
           ESP_LOGI(TAG, "Found i2c device at address 0x%02X", s.first);
-        else
+        } else {
           ESP_LOGE(TAG, "Unknown error at address 0x%02X", s.first);
+        }
       }
     }
   }
@@ -141,7 +142,7 @@ ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
 
   return ERROR_OK;
 }
-ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt) {
+ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, bool stop) {
   // logging is only enabled with vv level, if warnings are shown the caller
   // should log them
   if (!initialized_) {
@@ -284,7 +285,7 @@ void IDFI2CBus::recover_() {
   }
 
   // By now, any stuck device ought to have sent all remaining bits of its
-  // transation, meaning that it should have freed up the SDA line, resulting
+  // transaction, meaning that it should have freed up the SDA line, resulting
   // in SDA being pulled up.
   if (gpio_get_level(sda_pin) == 0) {
     ESP_LOGE(TAG, "Recovery failed: SDA is held LOW after clock pulse cycle");

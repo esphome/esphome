@@ -79,6 +79,7 @@ class Tuya : public Component, public uart::UARTDevice {
   void set_raw_datapoint_value(uint8_t datapoint_id, const std::vector<uint8_t> &value);
   void set_boolean_datapoint_value(uint8_t datapoint_id, bool value);
   void set_integer_datapoint_value(uint8_t datapoint_id, uint32_t value);
+  void set_status_pin(InternalGPIOPin *status_pin) { this->status_pin_ = status_pin; }
   void set_string_datapoint_value(uint8_t datapoint_id, const std::string &value);
   void set_enum_datapoint_value(uint8_t datapoint_id, uint8_t value);
   void set_bitmask_datapoint_value(uint8_t datapoint_id, uint32_t value, uint8_t length);
@@ -101,7 +102,7 @@ class Tuya : public Component, public uart::UARTDevice {
 
  protected:
   void handle_char_(uint8_t c);
-  void handle_datapoint_(const uint8_t *buffer, size_t len);
+  void handle_datapoints_(const uint8_t *buffer, size_t len);
   optional<TuyaDatapoint> get_datapoint_(uint8_t datapoint_id);
   bool validate_message_();
 
@@ -115,6 +116,7 @@ class Tuya : public Component, public uart::UARTDevice {
   void set_string_datapoint_value_(uint8_t datapoint_id, const std::string &value, bool forced);
   void set_raw_datapoint_value_(uint8_t datapoint_id, const std::vector<uint8_t> &value, bool forced);
   void send_datapoint_command_(uint8_t datapoint_id, TuyaDatapointType datapoint_type, std::vector<uint8_t> data);
+  void set_status_pin_();
   void send_wifi_status_();
 
 #ifdef USE_TIME
@@ -122,9 +124,12 @@ class Tuya : public Component, public uart::UARTDevice {
   optional<time::RealTimeClock *> time_id_{};
 #endif
   TuyaInitState init_state_ = TuyaInitState::INIT_HEARTBEAT;
+  bool init_failed_{false};
+  int init_retries_{0};
   uint8_t protocol_version_ = -1;
-  int gpio_status_ = -1;
-  int gpio_reset_ = -1;
+  optional<InternalGPIOPin *> status_pin_{};
+  int status_pin_reported_ = -1;
+  int reset_pin_reported_ = -1;
   uint32_t last_command_timestamp_ = 0;
   uint32_t last_rx_char_timestamp_ = 0;
   std::string product_ = "";

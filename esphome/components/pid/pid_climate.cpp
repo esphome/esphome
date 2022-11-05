@@ -20,12 +20,13 @@ void PIDClimate::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults, change_away handles those for us
-    if (supports_heat_() && supports_cool_())
+    if (supports_heat_() && supports_cool_()) {
       this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-    else if (supports_cool_())
+    } else if (supports_cool_()) {
       this->mode = climate::CLIMATE_MODE_COOL;
-    else if (supports_heat_())
+    } else if (supports_heat_()) {
       this->mode = climate::CLIMATE_MODE_HEAT;
+    }
     this->target_temperature = this->default_target_temperature_;
   }
 }
@@ -83,14 +84,15 @@ void PIDClimate::write_output_(float value) {
 
   // Update action variable for user feedback what's happening
   climate::ClimateAction new_action;
-  if (this->supports_cool_() && value < 0)
+  if (this->supports_cool_() && value < 0) {
     new_action = climate::CLIMATE_ACTION_COOLING;
-  else if (this->supports_heat_() && value > 0)
+  } else if (this->supports_heat_() && value > 0) {
     new_action = climate::CLIMATE_ACTION_HEATING;
-  else if (this->mode == climate::CLIMATE_MODE_OFF)
+  } else if (this->mode == climate::CLIMATE_MODE_OFF) {
     new_action = climate::CLIMATE_ACTION_OFF;
-  else
+  } else {
     new_action = climate::CLIMATE_ACTION_IDLE;
+  }
 
   if (new_action != this->action) {
     this->action = new_action;
