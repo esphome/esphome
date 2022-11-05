@@ -16,11 +16,14 @@ void DfrobotMmwaveRadarComponent::dump_config() {
 }
 
 void DfrobotMmwaveRadarComponent::setup() {
-    cmdQueue_.enqueue(new PowerCommand(this, 1));
+    cmdQueue_.enqueue(new PowerCommand(0));
+    cmdQueue_.enqueue(new SensorCfgStartCommand(0));
+    cmdQueue_.enqueue(new SaveCfgCommand());
+    cmdQueue_.enqueue(new PowerCommand(1));
 
     // Put command in queue which reads sensor state.
     // Command automatically puts itself in queue again after executed.
-    cmdQueue_.enqueue(new ReadStateCommand(this));
+    cmdQueue_.enqueue(new ReadStateCommand());
 }
 
 void DfrobotMmwaveRadarComponent::loop() {
@@ -31,7 +34,7 @@ void DfrobotMmwaveRadarComponent::loop() {
     // execute of the same command might be called multiple times
     // until it returns 1, which means it is done. Then it is removed
     // from the queue.
-    if(cmd->execute()) {
+    if(cmd->execute(this)) {
         cmdQueue_.dequeue();
         delete cmd;
     }
@@ -129,77 +132,44 @@ bool CircularCommandQueue::isFull() {
     return (rear_ + 1) % COMMAND_QUEUE_SIZE == front_;
 }
 
-uint8_t ReadStateCommand::execute() {
-    if(component_->read_message()) {
-        int8_t state = parse_sensing_results();
-        if(state >= 0) {
-            // Automatically self queue again to constantly read state
-            component_->cmdQueue_.enqueue(new ReadStateCommand(component_));
-
-            ESP_LOGD(TAG, "Sensor state: %d", state);
-            return 1; // Command done
-        }
-    }
-    return 0; // Command not done yet.
-}
-
-int8_t ReadStateCommand::parse_sensing_results() {
-    std::string message(component_->read_buffer_);
-    if(message.rfind("$JYBSS,0, , , *") != std::string::npos) {
-        // TODO: set sensor state
-        return 0;
-    }
-    else if(message.rfind("$JYBSS,1, , , *") != std::string::npos) {
-        // TODO: set sensor state
-        return 1;
-    }
-    else
-        return -1;
-}
-
-uint8_t PowerCommand::execute() {
+uint8_t Command::execute(DfrobotMmwaveRadarComponent * component) {
     if(cmd_sent_) {
-        // ESP_LOGD(TAG, "Waiting for response");
-        if(component_->read_message()) {
-            std::string message(component_->read_buffer_);
+        if(component->read_message()) {
+            std::string message(component->read_buffer_);
             if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
                 ESP_LOGD(TAG, "Command not recognized properly by sensor");
                 if(retries_left_ > 0) {
                     retries_left_ -= 1;
                     cmd_sent_ = false;
                     ESP_LOGD(TAG, "Retrying...");
+                    return 0;
                 }
                 else {
-                    component_->find_prompt();
+                    component->find_prompt();
                     return 1; // Command done
                 }
             }
-            if(message.compare("sensor stopped already") == 0) {
-                ESP_LOGI(TAG, "Stopped sensor (already stopped)");
-                component_->find_prompt();
-                return 1; // Command done
+            uint8_t rc = onMessage(message);
+            if(rc == 2) {
+                if(retries_left_ > 0) {
+                    retries_left_ -= 1;
+                    cmd_sent_ = false;
+                    ESP_LOGD(TAG, "Retrying...");
+                    return 0;
+                }
+                else {
+                    component->find_prompt();
+                    return 1; // Command done
+                }
             }
-            else if(message.compare("sensor started already") == 0) {
-                ESP_LOGI(TAG, "Started sensor (already started)");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-            else if(message.compare("new parameter isn't save, "\
-                                    "can't startSensor") == 0) {
-                ESP_LOGE(TAG, "Can't start sensor! (Use SaveCfgCommand to save config first)");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-            else if(message.compare("Done") == 0) {
-                if(powerOn_)
-                    ESP_LOGI(TAG, "Started sensor");
-                else
-                    ESP_LOGI(TAG, "Stopped sensor");
-                component_->find_prompt();
-                return 1; // Command done
+            else if(rc == 0)
+                return 0;
+            else {
+                component->find_prompt();
+                return 1;
             }
         }
-        if(millis() - component_->ts_last_cmd_sent_ > 500) {
+        if(millis() - component->ts_last_cmd_sent_ > timeout_ms_) {
             ESP_LOGD(TAG, "Command timeout");
             if(retries_left_ > 0) {
                 retries_left_ -= 1;
@@ -207,22 +177,64 @@ uint8_t PowerCommand::execute() {
                 ESP_LOGD(TAG, "Retrying...");
             }
             else {
-                ESP_LOGE(TAG, "PowerCommand error: No response");
                 return 1; // Command done
             }
         }
     }
-    else if(component_->send_cmd(cmd_.c_str())) {
-        if(powerOn_)
-            ESP_LOGD(TAG, "Starting sensor");
-        else
-            ESP_LOGD(TAG, "Stopping sensor");
+    else if(component->send_cmd(cmd_.c_str())) {
         cmd_sent_ = true;
     }
     return 0; // Command not done yet
 }
 
-DetRangeCfgCommand::DetRangeCfgCommand(DfrobotMmwaveRadarComponent *component,
+uint8_t ReadStateCommand::execute(DfrobotMmwaveRadarComponent * component) {
+    if(component->read_message()) {
+        std::string message(component->read_buffer_);
+        if(message.rfind("$JYBSS,0, , , *") != std::string::npos) {
+            // TODO: set sensor state
+            ESP_LOGD(TAG, "Sensor state: 0");
+            component->cmdQueue_.enqueue(new ReadStateCommand());
+            return 1; // Command done
+        }
+        else if(message.rfind("$JYBSS,1, , , *") != std::string::npos) {
+            // TODO: set sensor state
+            ESP_LOGD(TAG, "Sensor state: 1");
+            component->cmdQueue_.enqueue(new ReadStateCommand());
+            return 1; // Command done
+        }
+    }
+    return 0; // Command not done yet.
+}
+
+uint8_t ReadStateCommand::onMessage(std::string & message) {
+    return 1;
+}
+
+uint8_t PowerCommand::onMessage(std::string & message) {
+    if(message.compare("sensor stopped already") == 0) {
+        ESP_LOGI(TAG, "Stopped sensor (already stopped)");
+        return 1; // Command done
+    }
+    else if(message.compare("sensor started already") == 0) {
+        ESP_LOGI(TAG, "Started sensor (already started)");
+        return 1; // Command done
+    }
+    else if(message.compare("new parameter isn't save, "\
+                            "can't startSensor") == 0) {
+        ESP_LOGE(TAG, "Can't start sensor! (Use SaveCfgCommand to save config first)");
+        return 1; // Command done
+    }
+    else if(message.compare("Done") == 0) {
+        if(powerOn_)
+            ESP_LOGI(TAG, "Started sensor");
+        else
+            ESP_LOGI(TAG, "Stopped sensor");
+        return 1; // Command done
+    }
+    return 0; // Command not done yet.
+}
+
+DetRangeCfgCommand::DetRangeCfgCommand(
                                         float min1, float max1,
                                         float min2, float max2,
                                         float min3, float max3,
@@ -296,7 +308,6 @@ DetRangeCfgCommand::DetRangeCfgCommand(DfrobotMmwaveRadarComponent *component,
             min4 / 0.15, max4 / 0.15);
     }
 
-    component_ = component;
     min1_ = min1; max1_ = max1;
     min2_ = min2; max2_ = max2;
     min3_ = min3; max3_ = max3;
@@ -305,80 +316,19 @@ DetRangeCfgCommand::DetRangeCfgCommand(DfrobotMmwaveRadarComponent *component,
     cmd_ = std::string(tmp_cmd);
 };
 
-uint8_t DetRangeCfgCommand::execute() {
-    if(cmd_sent_) {
-        // TODO: Implement DetRangeCfg response parse
-        // TODO: Implement retry
-        if(component_->read_message()) {
-            std::string message(component_->read_buffer_);
-            if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
-                ESP_LOGD(TAG, "Command not recognized properly by sensor");
-                if(retries_left_ > 0) {
-                    retries_left_ -= 1;
-                    cmd_sent_ = false;
-                    ESP_LOGD(TAG, "Retrying...");
-                }
-                else {
-                    component_->find_prompt();
-                    return 1; // Command done
-                }
-            }
-            else if(message.compare("sensor is not stopped") == 0) {
-                ESP_LOGE(TAG, "Cannot configure range config. Sensor is not stopped!");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-            else if(message.compare("Done") == 0) {
-                ESP_LOGI(TAG, "Updated detection area config.");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-        }
-        if(millis() - component_->ts_last_cmd_sent_ > 500) {
-            ESP_LOGD(TAG, "Command timeout");
-            if(retries_left_ > 0) {
-                retries_left_ -= 1;
-                cmd_sent_ = false;
-                ESP_LOGD(TAG, "Retrying...");
-            }
-            else {
-                ESP_LOGE(TAG, "DetRangeCfgCommand error: No response");
-                return 1; // Command done
-            }
-        }
+uint8_t DetRangeCfgCommand::onMessage(std::string & message) {
+    if(message.compare("sensor is not stopped") == 0) {
+        ESP_LOGE(TAG, "Cannot configure range config. Sensor is not stopped!");
+        return 1; // Command done
     }
-    else if(component_->send_cmd(cmd_.c_str())) {
-        if(min4_ >= 0) {
-            ESP_LOGD(TAG, "Setting detection area config to "\
-                          "%.2fm-%.2fm, "\
-                          "%.2fm-%.2fm, "\
-                          "%.2fm-%.2fm, "\
-                          "%.2fm-%.2fm",
-                          min1_, max1_, min2_, max2_,
-                          min3_, max3_, min4_, max4_);
-        }
-        else if(min3_ >= 0) {
-            ESP_LOGD(TAG, "Setting detection area config to "\
-                          "%.2fm-%.2fm, "\
-                          "%.2fm-%.2fm, "\
-                          "%.2fm-%.2fm",
-                          min1_, max1_, min2_, max2_, min3_, max3_);
-        }
-        else if(min2_ >= 0) {
-            ESP_LOGD(TAG, "Setting detection area config to "\
-                          "%.2fm-%.2fm, %.2fm-%.2fm",
-                          min1_, max1_, min2_, max2_);
-        }
-        else {
-            ESP_LOGD(TAG, "Setting detection area config to "\
-                          "%.2fm-%.2fm", min1_, max1_);
-        }
-        cmd_sent_ = true;
+    else if(message.compare("Done") == 0) {
+        ESP_LOGI(TAG, "Updated detection area config.");
+        return 1; // Command done
     }
-    return 0; // Command not done yet
+    return 0; // Command not done yet.
 }
 
-OutputLatencyCommand::OutputLatencyCommand(DfrobotMmwaveRadarComponent *component,
+OutputLatencyCommand::OutputLatencyCommand(
                         float delay_after_detection,
                         float delay_after_disappear
                        ) {
@@ -393,7 +343,6 @@ OutputLatencyCommand::OutputLatencyCommand(DfrobotMmwaveRadarComponent *componen
          if(delay_after_disappear > 1638.375)
             delay_after_disappear = 1638.375;
 
-         component_ = component;
          delay_after_detection_ = delay_after_detection;
          delay_after_disappear_ = delay_after_disappear;
 
@@ -404,234 +353,58 @@ OutputLatencyCommand::OutputLatencyCommand(DfrobotMmwaveRadarComponent *componen
          cmd_ = std::string(tmp_cmd);
 };
 
-uint8_t OutputLatencyCommand::execute() {
-    if(cmd_sent_) {
-        if(component_->read_message()) {
-            std::string message(component_->read_buffer_);
-            if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
-                ESP_LOGD(TAG, "Command not recognized properly by sensor");
-                if(retries_left_ > 0) {
-                    retries_left_ -= 1;
-                    cmd_sent_ = false;
-                    ESP_LOGD(TAG, "Retrying...");
-                }
-                else {
-                    component_->find_prompt();
-                    return 1; // Command done
-                }
-            }
-            else if(message.compare("sensor is not stopped") == 0) {
-                ESP_LOGE(TAG, "Cannot configure output latency. Sensor is not stopped!");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-            else if(message.compare("Done") == 0) {
-                ESP_LOGI(TAG, "Updated output latency config.");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-        }
-        if(millis() - component_->ts_last_cmd_sent_ > 500) {
-            ESP_LOGD(TAG, "Command timeout");
-            if(retries_left_ > 0) {
-                retries_left_ -= 1;
-                cmd_sent_ = false;
-                ESP_LOGD(TAG, "Retrying...");
-            }
-            else {
-                ESP_LOGE(TAG, "OutputLatencyCommand error: No response");
-                return 1; // Command done
-            }
-        }
+uint8_t OutputLatencyCommand::onMessage(std::string & message) {
+    if(message.compare("sensor is not stopped") == 0) {
+        ESP_LOGE(TAG, "Cannot configure output latency. Sensor is not stopped!");
+        return 1; // Command done
     }
-    else if(component_->send_cmd(cmd_.c_str())) {
-        ESP_LOGD(TAG, "Setting output latency to %.3fs after object is detected.",
-                      delay_after_detection_);
-        ESP_LOGD(TAG, "Setting output latency to %.3fs after object disappeared.",
-                      delay_after_disappear_);
-        cmd_sent_ = true;
+    else if(message.compare("Done") == 0) {
+        ESP_LOGI(TAG, "Updated output latency config.");
+        return 1; // Command done
     }
     return 0; // Command not done yet
 }
 
-uint8_t SensorCfgStartCommand::execute() {
-    if(cmd_sent_) {
-        if(component_->read_message()) {
-            std::string message(component_->read_buffer_);
-            if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
-                ESP_LOGD(TAG, "Command not recognized properly by sensor");
-                if(retries_left_ > 0) {
-                    retries_left_ -= 1;
-                    cmd_sent_ = false;
-                    ESP_LOGD(TAG, "Retrying...");
-                }
-                else {
-                    component_->find_prompt();
-                    return 1; // Command done
-                }
-            }
-            else if(message.compare("sensor is not stopped") == 0) {
-                ESP_LOGE(TAG, "Cannot configure sensor startup behavior. Sensor is not stopped!");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-            else if(message.compare("Done") == 0) {
-                ESP_LOGI(TAG, "Updated sensor startup behavior.");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-        }
-        if(millis() - component_->ts_last_cmd_sent_ > 500) {
-            ESP_LOGD(TAG, "Command timeout");
-            if(retries_left_ > 0) {
-                retries_left_ -= 1;
-                cmd_sent_ = false;
-                ESP_LOGD(TAG, "Retrying...");
-            }
-            else {
-                ESP_LOGE(TAG, "SensorCfgStartCommand error: No response");
-                return 1; // Command done
-            }
-        }
+uint8_t SensorCfgStartCommand::onMessage(std::string & message) {
+    if(message.compare("sensor is not stopped") == 0) {
+        ESP_LOGE(TAG, "Cannot configure sensor startup behavior. Sensor is not stopped!");
+        return 1; // Command done
     }
-    else if(component_->send_cmd(cmd_.c_str())) {
-        cmd_sent_ = true;
+    else if(message.compare("Done") == 0) {
+        ESP_LOGI(TAG, "Updated sensor startup behavior.");
+        return 1; // Command done
     }
     return 0; // Command not done yet
 }
 
-uint8_t FactoryResetCommand::execute() {
-    if(cmd_sent_) {
-        if(component_->read_message()) {
-            std::string message(component_->read_buffer_);
-            if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
-                ESP_LOGD(TAG, "Command not recognized properly by sensor");
-                if(retries_left_ > 0) {
-                    retries_left_ -= 1;
-                    cmd_sent_ = false;
-                    ESP_LOGD(TAG, "Retrying...");
-                }
-                else {
-                    component_->find_prompt();
-                    return 1; // Command done
-                }
-            }
-            else if(message.compare("sensor is not stopped") == 0) {
-                ESP_LOGE(TAG, "Cannot factory reset. Sensor is not stopped!");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-            else if(message.compare("Done") == 0) {
-                ESP_LOGI(TAG, "Sensor factory reset done.");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-        }
-        if(millis() - component_->ts_last_cmd_sent_ > 500) {
-            ESP_LOGD(TAG, "Command timeout");
-            if(retries_left_ > 0) {
-                retries_left_ -= 1;
-                cmd_sent_ = false;
-                ESP_LOGD(TAG, "Retrying...");
-            }
-            else {
-                ESP_LOGE(TAG, "FactoryResetCommand error: No response");
-                return 1; // Command done
-            }
-        }
+uint8_t FactoryResetCommand::onMessage(std::string & message) {
+    if(message.compare("sensor is not stopped") == 0) {
+        ESP_LOGE(TAG, "Cannot factory reset. Sensor is not stopped!");
+        return 1; // Command done
     }
-    else if(component_->send_cmd(cmd_.c_str())) {
-        ESP_LOGD(TAG, "Factory resetting sensor");
-        cmd_sent_ = true;
+    else if(message.compare("Done") == 0) {
+        ESP_LOGI(TAG, "Sensor factory reset done.");
+        return 1; // Command done
     }
     return 0; // Command not done yet
 }
 
-uint8_t ResetSystemCommand::execute() {
-    if(cmd_sent_) {
-        if(component_->read_message()) {
-            std::string message(component_->read_buffer_);
-            if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
-                ESP_LOGD(TAG, "Command not recognized properly by sensor");
-                if(retries_left_ > 0) {
-                    retries_left_ -= 1;
-                    cmd_sent_ = false;
-                    ESP_LOGD(TAG, "Retrying...");
-                }
-                else {
-                    component_->find_prompt();
-                    return 1; // Command done
-                }
-            }
-            else if(message.compare("leapMMW:/>") == 0) {
-                ESP_LOGI(TAG, "Restarted sensor.");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-        }
-        if(millis() - component_->ts_last_cmd_sent_ > 500) {
-            ESP_LOGD(TAG, "Command timeout");
-            if(retries_left_ > 0) {
-                retries_left_ -= 1;
-                cmd_sent_ = false;
-                ESP_LOGD(TAG, "Retrying...");
-            }
-            else {
-                ESP_LOGE(TAG, "ResetSystemCommand error: No response");
-                return 1; // Command done
-            }
-        }
-    }
-    else if(component_->send_cmd(cmd_.c_str())) {
-        ESP_LOGD(TAG, "Restarting sensor");
-        cmd_sent_ = true;
+uint8_t ResetSystemCommand::onMessage(std::string & message) {
+    if(message.compare("leapMMW:/>") == 0) {
+        ESP_LOGI(TAG, "Restarted sensor.");
+        return 1; // Command done
     }
     return 0; // Command not done yet
 }
 
-uint8_t SaveCfgCommand::execute() {
-    if(cmd_sent_) {
-        if(component_->read_message()) {
-            std::string message(component_->read_buffer_);
-            if(message.rfind("is not recognized as a CLI command") != std::string::npos) {
-                ESP_LOGD(TAG, "Command not recognized properly by sensor");
-                if(retries_left_ > 0) {
-                    retries_left_ -= 1;
-                    cmd_sent_ = false;
-                    ESP_LOGD(TAG, "Retrying...");
-                }
-                else {
-                    component_->find_prompt();
-                    return 1; // Command done
-                }
-            }
-            else if(message.compare("no parameter has changed") == 0) {
-                ESP_LOGI(TAG, "Not saving config (no parameter changed).");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-            else if(message.compare("Done") == 0) {
-                ESP_LOGI(TAG, "Saved config.");
-                component_->find_prompt();
-                return 1; // Command done
-            }
-        }
-        if(millis() - component_->ts_last_cmd_sent_ > 900) {
-            ESP_LOGD(TAG, "Command timeout");
-            if(retries_left_ > 0) {
-                retries_left_ -= 1;
-                cmd_sent_ = false;
-                ESP_LOGD(TAG, "Retrying...");
-            }
-            else {
-                ESP_LOGE(TAG, "SaveCfgCommand error: No response");
-                return 1; // Command done
-            }
-        }
+uint8_t SaveCfgCommand::onMessage(std::string & message) {
+    if(message.compare("no parameter has changed") == 0) {
+        ESP_LOGI(TAG, "Not saving config (no parameter changed).");
+        return 1; // Command done
     }
-    else if(component_->send_cmd(cmd_.c_str())) {
-        ESP_LOGD(TAG, "Saving config");
-        cmd_sent_ = true;
+    else if(message.compare("Done") == 0) {
+        ESP_LOGI(TAG, "Saved config.");
+        return 1; // Command done
     }
     return 0; // Command not done yet
 }

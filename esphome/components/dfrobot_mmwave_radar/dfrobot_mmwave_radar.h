@@ -8,16 +8,22 @@ namespace dfrobot_mmwave_radar {
 
 const uint8_t MMWAVE_READ_BUFFER_LENGTH = 255;
 
+// forward declaration due to circular dependency
+class DfrobotMmwaveRadarComponent;
+
 // Use command queue and time stamps to avoid blocking.
 // When component has run time, check if minimum time (1s) between
 // commands has passed. After that run a command from the queue.
 class Command {
  public:
     virtual ~Command() = default;
-    virtual uint8_t execute() = 0;
+    virtual uint8_t execute(DfrobotMmwaveRadarComponent * component);
+    virtual uint8_t onMessage(std::string & message) = 0;
  protected:
     std::string cmd_;
     bool cmd_sent_{false};
+    int8_t retries_left_{2};
+    uint16_t timeout_ms_{500};
 };
 
 static const uint8_t COMMAND_QUEUE_SIZE = 20;
@@ -61,121 +67,92 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
     uint8_t find_prompt();
     uint8_t send_cmd(const char * cmd);
 
+    friend class Command;
     friend class ReadStateCommand;
-    friend class PowerCommand;
-    friend class DetRangeCfgCommand;
-    friend class OutputLatencyCommand;
-    friend class SensorCfgStartCommand;
-    friend class FactoryResetCommand;
-    friend class ResetSystemCommand;
-    friend class SaveCfgCommand;
 };
 
 class ReadStateCommand : public Command {
  public:
-   ReadStateCommand(DfrobotMmwaveRadarComponent *component) : component_(component) {};
-   uint8_t execute() override;
- protected:
-   DfrobotMmwaveRadarComponent * component_{nullptr};
-   int8_t parse_sensing_results();
+   uint8_t execute(DfrobotMmwaveRadarComponent * component) override;
+   uint8_t onMessage(std::string & message) override;
 };
 
 class PowerCommand : public Command {
  public:
-   PowerCommand(DfrobotMmwaveRadarComponent *component, bool powerOn) :
-      component_(component),
+   PowerCommand(bool powerOn) :
       powerOn_(powerOn) {
          if(powerOn)
             cmd_ = "sensorStart";
          else
             cmd_ = "sensorStop";
       };
-   uint8_t execute() override;
+   uint8_t onMessage(std::string & message) override;
  protected:
-   DfrobotMmwaveRadarComponent * component_;
    bool powerOn_;
-   int8_t retries_left_{2};
 };
 
 class DetRangeCfgCommand : public Command {
  public:
-   DetRangeCfgCommand(DfrobotMmwaveRadarComponent *component,
+   DetRangeCfgCommand(
                         float min1, float max1,
                         float min2, float max2,
                         float min3, float max3,
                         float min4, float max4
                      );
-   uint8_t execute() override;
+   uint8_t onMessage(std::string & message) override;
  protected:
-   DfrobotMmwaveRadarComponent * component_;
-   int8_t retries_left_{2};
    float min1_, max1_, min2_, max2_, min3_, max3_, min4_, max4_;
    // TODO: Set min max values in component, so they can be published as sensor.
 };
 
 class OutputLatencyCommand : public Command {
  public:
-   OutputLatencyCommand(DfrobotMmwaveRadarComponent *component,
+   OutputLatencyCommand(
                         float delay_after_detection,
                         float delay_after_disappear
                        );
-   uint8_t execute() override;
+   uint8_t onMessage(std::string & message) override;
  protected:
-   DfrobotMmwaveRadarComponent * component_;
-   int8_t retries_left_{2};
    float delay_after_detection_;
    float delay_after_disappear_;
 };
 
 class SensorCfgStartCommand : public Command {
  public:
-   SensorCfgStartCommand(DfrobotMmwaveRadarComponent *component,bool startupMode) :
-                        component_(component), startupMode_(startupMode) {
+   SensorCfgStartCommand(bool startupMode) : startupMode_(startupMode) {
          char tmp_cmd[20] = {0};
          sprintf(tmp_cmd, "sensorCfgStart %d", startupMode);
          cmd_ = std::string(tmp_cmd);
    }
-   uint8_t execute() override;
+   uint8_t onMessage(std::string & message) override;
  protected:
-   DfrobotMmwaveRadarComponent * component_;
-   int8_t retries_left_{2};
    bool startupMode_;
 };
 
 class FactoryResetCommand : public Command {
  public:
-   FactoryResetCommand(DfrobotMmwaveRadarComponent *component) :
-      component_(component) {
+   FactoryResetCommand() {
          cmd_ = "factoryReset 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89";
       };
-   uint8_t execute() override;
- protected:
-   DfrobotMmwaveRadarComponent * component_;
-   int8_t retries_left_{2};
+   uint8_t onMessage(std::string & message) override;
 };
 
 class ResetSystemCommand : public Command {
  public:
-   ResetSystemCommand(DfrobotMmwaveRadarComponent *component) :
-      component_(component) {
+   ResetSystemCommand() {
          cmd_ = "resetSystem";
       }
-   uint8_t execute() override;
- protected:
-   DfrobotMmwaveRadarComponent * component_;
-   int8_t retries_left_{2};
+   uint8_t onMessage(std::string & message) override;
 };
 
 class SaveCfgCommand : public Command {
  public:
-   SaveCfgCommand(DfrobotMmwaveRadarComponent *component) :
-      component_(component) {
+   SaveCfgCommand() {
          cmd_ = "saveCfg 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89";
       }
-   uint8_t execute() override;
+   uint8_t onMessage(std::string & message) override;
  protected:
-   DfrobotMmwaveRadarComponent * component_;
-   int8_t retries_left_{2};
+   uint16_t timeout_ms_{900};
 };
 
 }  // namespace dfrobot_mmwave_radar
