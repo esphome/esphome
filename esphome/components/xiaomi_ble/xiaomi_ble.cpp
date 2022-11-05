@@ -371,6 +371,7 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
   }
   if (result->is_open.has_value()) {
     ESP_LOGD(TAG, "  Open:  %s", (*result->is_open) ? "on" : "off");
+  }
   if (result->button_press.has_value()) {
     ESP_LOGD(TAG, "  Button: %s", (*result->button_press) ? "pressed" : "");
   }
