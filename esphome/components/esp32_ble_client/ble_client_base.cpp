@@ -83,8 +83,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
   if (event != ESP_GATTC_REG_EVT && esp_gattc_if != ESP_GATT_IF_NONE && esp_gattc_if != this->gattc_if_)
     return false;
 
-  ESP_LOGV(TAG, "[%d] [%s] gattc_event_handler: event=%d gattc_if=%d", this->connection_index_,
-           this->address_str_.c_str(), event, esp_gattc_if);
+  ESP_LOGV(TAG, "[%d] [%s] gattc_event_handler: event=%d gattc_if=%d conn_id=%d", this->connection_index_,
+           this->address_str_.c_str(), event, esp_gattc_if, this->conn_id_);
 
   switch (event) {
     case ESP_GATTC_REG_EVT: {
