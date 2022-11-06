@@ -576,6 +576,10 @@ bool DeviceInfoResponse::decode_length(uint32_t field_id, ProtoLengthDelimited v
       this->project_version = value.as_string();
       return true;
     }
+    case 12: {
+      this->manufacturer = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -592,6 +596,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_string(9, this->project_version);
   buffer.encode_uint32(10, this->webserver_port);
   buffer.encode_uint32(11, this->bluetooth_proxy_version);
+  buffer.encode_string(12, this->manufacturer);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -641,6 +646,10 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
   out.append("  bluetooth_proxy_version: ");
   sprintf(buffer, "%u", this->bluetooth_proxy_version);
   out.append(buffer);
+  out.append("\n");
+
+  out.append("  manufacturer: ");
+  out.append("'").append(this->manufacturer).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -5741,6 +5750,118 @@ void BluetoothConnectionsFreeResponse::dump_to(std::string &out) const {
 
   out.append("  limit: ");
   sprintf(buffer, "%u", this->limit);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothGATTErrorResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->handle = value.as_uint32();
+      return true;
+    }
+    case 3: {
+      this->error = value.as_int32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothGATTErrorResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_uint32(2, this->handle);
+  buffer.encode_int32(3, this->error);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTErrorResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothGATTErrorResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  handle: ");
+  sprintf(buffer, "%u", this->handle);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  error: ");
+  sprintf(buffer, "%d", this->error);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothGATTWriteResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->handle = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothGATTWriteResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_uint32(2, this->handle);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTWriteResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothGATTWriteResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  handle: ");
+  sprintf(buffer, "%u", this->handle);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothGATTNotifyResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->handle = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothGATTNotifyResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_uint32(2, this->handle);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothGATTNotifyResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothGATTNotifyResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  handle: ");
+  sprintf(buffer, "%u", this->handle);
   out.append(buffer);
   out.append("\n");
   out.append("}");

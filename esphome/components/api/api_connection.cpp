@@ -932,6 +932,11 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  resp.manufacturer = "Espressif";
+#elif defined(USE_RP2040)
+  resp.manufacturer = "Raspberry Pi";
+#endif
   resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;

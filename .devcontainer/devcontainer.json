@@ -1,6 +1,6 @@
 {
   "name": "ESPHome Dev",
-  "image": "esphome/esphome-lint:dev",
+  "image": "ghcr.io/esphome/esphome-lint:dev",
   "postCreateCommand": [
     "script/devcontainer-post-create"
   ],
