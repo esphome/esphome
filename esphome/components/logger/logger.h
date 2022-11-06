@@ -18,7 +18,7 @@
 
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
-#endif
+#endif  // USE_ESP_IDF
 
 namespace esphome {
 
@@ -34,19 +34,22 @@ enum UARTSelection {
 #if defined(USE_ESP32)
 #if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
   UART_SELECTION_UART2,
-#endif
+#endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3
 #ifdef USE_ESP_IDF
 #if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
   UART_SELECTION_USB_CDC,
-#endif
+#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
   UART_SELECTION_USB_SERIAL_JTAG,
-#endif
-#endif
-#endif
+#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP_IDF
+#endif  // USE_ESP32
 #ifdef USE_ESP8266
   UART_SELECTION_UART0_SWAP,
-#endif
+#endif  // USE_ESP8266
+#ifdef USE_RP2040
+  UART_SELECTION_USB_CDC,
+#endif  // USE_RP2040
 };
 
 class Logger : public Component {

@@ -6,6 +6,7 @@ namespace esphome {
 namespace rp2040 {
 
 void setup_preferences();
+void preferences_prevent_write(bool prevent);
 
 }  // namespace rp2040
 }  // namespace esphome
