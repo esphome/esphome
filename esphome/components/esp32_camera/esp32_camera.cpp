@@ -54,7 +54,7 @@ void ESP32Camera::dump_config() {
   ESP_LOGCONFIG(TAG, "  HREF Pin: %d", conf.pin_href);
   ESP_LOGCONFIG(TAG, "  Pixel Clock Pin: %d", conf.pin_pclk);
   ESP_LOGCONFIG(TAG, "  External Clock: Pin:%d Frequency:%u", conf.pin_xclk, conf.xclk_freq_hz);
-  ESP_LOGCONFIG(TAG, "  I2C Pins: SDA:%d SCL:%d", conf.pin_sscb_sda, conf.pin_sscb_scl);
+  ESP_LOGCONFIG(TAG, "  I2C Pins: SDA:%d SCL:%d", conf.pin_sccb_sda, conf.pin_sccb_scl);
   ESP_LOGCONFIG(TAG, "  Reset Pin: %d", conf.pin_reset);
   switch (this->config_.frame_size) {
     case FRAMESIZE_QQVGA:
@@ -209,8 +209,8 @@ void ESP32Camera::set_external_clock(uint8_t pin, uint32_t frequency) {
   this->config_.xclk_freq_hz = frequency;
 }
 void ESP32Camera::set_i2c_pins(uint8_t sda, uint8_t scl) {
-  this->config_.pin_sscb_sda = sda;
-  this->config_.pin_sscb_scl = scl;
+  this->config_.pin_sccb_sda = sda;
+  this->config_.pin_sccb_scl = scl;
 }
 void ESP32Camera::set_reset_pin(uint8_t pin) { this->config_.pin_reset = pin; }
 void ESP32Camera::set_power_down_pin(uint8_t pin) { this->config_.pin_pwdn = pin; }
