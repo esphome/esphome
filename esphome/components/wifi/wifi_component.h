@@ -277,6 +277,8 @@ class WiFiComponent : public Component {
 
   int8_t wifi_rssi();
 
+  uint32_t wifi_connected_timestamp();
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
   void setup_ap_config_();
@@ -353,6 +355,7 @@ class WiFiComponent : public Component {
   bool btm_{false};
   bool rrm_{false};
 #endif
+  uint32_t connected_timestamp_{0};
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

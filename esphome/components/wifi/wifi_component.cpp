@@ -517,6 +517,7 @@ void WiFiComponent::check_connecting_finished() {
       return;
     }
 
+    this->connected_timestamp_ = millis();
     ESP_LOGI(TAG, "WiFi Connected!");
     this->print_connect_params_();
 
@@ -635,6 +636,7 @@ bool WiFiComponent::is_esp32_improv_active_() {
   return false;
 #endif
 }
+uint32_t WiFiComponent::wifi_connected_timestamp() { return connected_timestamp_; }
 
 void WiFiAP::set_ssid(const std::string &ssid) { this->ssid_ = ssid; }
 void WiFiAP::set_bssid(bssid_t bssid) { this->bssid_ = bssid; }
