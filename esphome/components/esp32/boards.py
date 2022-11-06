@@ -42,6 +42,25 @@ ESP32_BASE_PINS = {
 }
 
 ESP32_BOARD_PINS = {
+    "adafruit_qtpy_esp32": {
+        "A0": 26,
+        "A1": 25,
+        "A2": 27,
+        "A3": 15,
+        "BUTTON": 0,
+        "SWITCH": 0,
+        "MOSI": 13,
+        "MISO": 12,
+        "SCK": 14,
+        "NEOPIXEL": 5,
+        "NEOPIXEL_POWER": 8,
+        "SDA": 4,
+        "SCL": 33,
+        "SDA1": 22,
+        "SCL1": 19,
+        "TX": 32,
+        "RX": 7,
+    },
     "alksesp32": {
         "A0": 32,
         "A1": 33,
