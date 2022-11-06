@@ -39,8 +39,6 @@ from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_support
 
 
 IDFInternalGPIOPin = esp32_ns.class_("IDFInternalGPIOPin", cg.InternalGPIOPin)
-ArduinoInternalGPIOPin = esp32_ns.class_("ArduinoInternalGPIOPin", cg.InternalGPIOPin)
-
 
 def _lookup_pin(value):
     board = CORE.data[KEY_ESP32][KEY_BOARD]
@@ -164,11 +162,7 @@ gpio_num_t = cg.global_ns.enum("gpio_num_t")
 
 
 def _choose_pin_declaration(value):
-    if CORE.using_esp_idf:
-        return cv.declare_id(IDFInternalGPIOPin)(value)
-    if CORE.using_arduino:
-        return cv.declare_id(ArduinoInternalGPIOPin)(value)
-    raise NotImplementedError
+    return cv.declare_id(IDFInternalGPIOPin)(value)
 
 
 CONF_DRIVE_STRENGTH = "drive_strength"
@@ -200,10 +194,7 @@ ESP32_PIN_SCHEMA = cv.All(
 async def esp32_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
-    if CORE.using_esp_idf:
-        cg.add(var.set_pin(getattr(gpio_num_t, f"GPIO_NUM_{num}")))
-    else:
-        cg.add(var.set_pin(num))
+    cg.add(var.set_pin(getattr(gpio_num_t, f"GPIO_NUM_{num}")))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     if CONF_DRIVE_STRENGTH in config:
         cg.add(var.set_drive_strength(config[CONF_DRIVE_STRENGTH]))

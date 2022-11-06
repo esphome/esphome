@@ -1,5 +1,3 @@
-#ifdef USE_ESP32_FRAMEWORK_ESP_IDF
-
 #include "gpio_idf.h"
 #include "esphome/core/log.h"
 
@@ -139,5 +137,3 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
 }
 
 }  // namespace esphome
-
-#endif  // USE_ESP32_FRAMEWORK_ESP_IDF

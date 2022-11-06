@@ -1,6 +1,5 @@
 #pragma once
 
-#ifdef USE_ESP32_FRAMEWORK_ESP_IDF
 #include "esphome/core/hal.h"
 #include <driver/gpio.h>
 
@@ -36,5 +35,3 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
 
 }  // namespace esp32
 }  // namespace esphome
-
-#endif  // USE_ESP32_FRAMEWORK_ESP_IDF
