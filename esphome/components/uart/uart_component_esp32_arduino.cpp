@@ -105,7 +105,7 @@ void ESP32ArduinoUARTComponent::setup() {
 }
 
 void ESP32ArduinoUARTComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "UART%d Bus:", this->number_);
+  ESP_LOGCONFIG(TAG, "UART Bus %d:", this->number_);
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);
   if (this->rx_pin_ != nullptr) {
