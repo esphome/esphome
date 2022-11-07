@@ -12,7 +12,7 @@ HaierClimate = haier_ns.class_(
 )
 SwingMode = haier_ns.enum("SwingMode")
 
-CONF_SWING_MODE = "supported_swing_mode"
+CONF_SUPPORTED_SWING_MODE = "supported_swing_mode"
 SWING_MODES = {
     "off": SwingMode.SWING_OFF,
     "vertical": SwingMode.SWING_VERTICAL,
@@ -24,7 +24,7 @@ CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(HaierClimate),
-            cv.Optional(CONF_SWING_MODE, default="off"): cv.enum(
+            cv.Optional(CONF_SUPPORTED_SWING_MODE, default="off"): cv.enum(
                 SWING_MODES, lower=True
             ),
         }
@@ -35,7 +35,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_SWING_MODE])
+    var = cg.new_Pvariable(config[CONF_ID], config[CONF_SUPPORTED_SWING_MODE])
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
     await uart.register_uart_device(var, config)
