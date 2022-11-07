@@ -82,6 +82,7 @@ def clang_options(idedata):
             "-mtext-section-literals",
             "-mfix-esp32-psram-cache-issue",
             "-mfix-esp32-psram-cache-strategy=memw",
+            "-fno-tree-switch-conversion",
         )
     )
 
