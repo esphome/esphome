@@ -24,6 +24,16 @@ extern "C" {
 #endif
 #endif
 
+#ifdef USE_RP2040
+extern "C" {
+#include "cyw43.h"
+#include "cyw43_country.h"
+#include "pico/cyw43_arch.h"
+}
+
+#include <WiFi.h>
+#endif
+
 namespace esphome {
 namespace wifi {
 
@@ -138,6 +148,8 @@ class WiFiScanResult {
   float get_priority() const { return priority_; }
   void set_priority(float priority) { priority_ = priority; }
 
+  bool operator==(const WiFiScanResult &rhs) const;
+
  protected:
   bool matches_{false};
   bssid_t bssid_;
@@ -218,6 +230,11 @@ class WiFiComponent : public Component {
 
   bool has_sta() const;
   bool has_ap() const;
+
+#ifdef USE_WIFI_11KV_SUPPORT
+  void set_btm(bool btm);
+  void set_rrm(bool rrm);
+#endif
 
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
@@ -305,6 +322,11 @@ class WiFiComponent : public Component {
   void wifi_process_event_(IDFWiFiEvent *data);
 #endif
 
+#ifdef USE_RP2040
+  static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+  void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+#endif
+
   std::string use_address_;
   std::vector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
@@ -327,6 +349,10 @@ class WiFiComponent : public Component {
   optional<float> output_power_;
   ESPPreferenceObject pref_;
   bool has_saved_wifi_settings_{false};
+#ifdef USE_WIFI_11KV_SUPPORT
+  bool btm_{false};
+  bool rrm_{false};
+#endif
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
