@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_FORMAT,
     CONF_MODE,
+    CONF_ACTIVE,
 )
 from esphome.automation import maybe_simple_id
 from esphome.components.select import Select
@@ -23,7 +24,6 @@ display_menu_base_ns = cg.esphome_ns.namespace("display_menu_base")
 
 CONF_DISPLAY_ID = "display_id"
 
-CONF_ACTIVE = "active"
 CONF_ROTARY = "rotary"
 CONF_JOYSTICK = "joystick"
 CONF_LABEL = "label"
