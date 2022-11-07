@@ -871,8 +871,10 @@ sensor:
           value: !lambda "return -1;"
     on_clockwise:
       - logger.log: Clockwise
+      - display_menu.down:
     on_anticlockwise:
       - logger.log: Anticlockwise
+      - display_menu.up:
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
@@ -1289,6 +1291,16 @@ binary_sensor:
     pin: GPIO27
     threshold: 1000
     id: btn_left
+    on_press:
+      - if:
+          condition:
+            display_menu.is_active:
+          then:
+            - display_menu.enter:
+          else:
+            - display_menu.left:
+            - display_menu.right:
+            - display_menu.show:
   - platform: template
     name: Garage Door Open
     id: garage_door
@@ -2331,6 +2343,7 @@ color:
 
 display:
   - platform: lcd_gpio
+    id: my_lcd_gpio
     dimensions: 18x4
     data_pins:
       - GPIO19
@@ -3009,3 +3022,85 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+
+lcd_menu:
+  display_id: my_lcd_gpio
+  mark_back: 0x5e
+  mark_selected: 0x3e
+  mark_editing: 0x2a
+  mark_submenu: 0x7e
+  active: false
+  mode: rotary
+  on_enter:
+    then:
+      lambda: 'ESP_LOGI("lcd_menu", "root enter");'
+  on_leave:
+    then:
+      lambda: 'ESP_LOGI("lcd_menu", "root leave");'
+  items:
+    - type: back
+      text: 'Back'
+    - type: label
+    - type: menu
+      text: 'Submenu 1'
+      items:
+        - type: back
+          text: 'Back'
+        - type: menu
+          text: 'Submenu 21'
+          items:
+            - type: back
+              text: 'Back'
+            - type: command
+              text: 'Show Main'
+              on_value:
+                then:
+                  - display_menu.show_main:
+    - type: select
+      text: 'Enum Item'
+      immediate_edit: true
+      select: test_select
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "select enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "select leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+    - type: number
+      text: 'Number'
+      number: test_number
+      on_enter:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "number enter: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_leave:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "number leave: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
+    - type: command
+      text: 'Hide'
+      on_value:
+        then:
+          - display_menu.hide:
+    - type: switch
+      text: 'Switch'
+      switch: my_switch
+      on_text: 'Bright'
+      off_text: 'Dark'
+      immediate_edit: false
+      on_value:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "switch value: %s", it->get_value_text().c_str());'
+    - type: custom
+      text: !lambda 'return "Custom";'
+      value_lambda: 'return "Val";'
+      on_next:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "custom next: %s", it->get_text().c_str());'
+      on_prev:
+        then:
+          lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'

@@ -41,6 +41,7 @@ ESP32ArduinoUARTComponent = uart_ns.class_(
 ESP8266UartComponent = uart_ns.class_(
     "ESP8266UartComponent", UARTComponent, cg.Component
 )
+RP2040UartComponent = uart_ns.class_("RP2040UartComponent", UARTComponent, cg.Component)
 
 UARTDevice = uart_ns.class_("UARTDevice")
 UARTWriteAction = uart_ns.class_("UARTWriteAction", automation.Action)
@@ -89,6 +90,8 @@ def _uart_declare_type(value):
             return cv.declare_id(ESP32ArduinoUARTComponent)(value)
         if CORE.using_esp_idf:
             return cv.declare_id(IDFUARTComponent)(value)
+    if CORE.is_rp2040:
+        return cv.declare_id(RP2040UartComponent)(value)
     raise NotImplementedError
 
 
