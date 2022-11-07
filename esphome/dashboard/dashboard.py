@@ -29,6 +29,7 @@ import tornado.web
 import tornado.websocket
 
 from esphome import const, platformio_api, util, yaml_util
+from esphome.core import EsphomeError
 from esphome.helpers import mkdir_p, get_bool_env, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -427,21 +428,27 @@ class DownloadBinaryRequestHandler(BaseHandler):
     def get(self, configuration=None):
         type = self.get_argument("type", "firmware.bin")
 
-        if type == "firmware.bin":
-            storage_path = ext_storage_path(settings.config_dir, configuration)
-            storage_json = StorageJSON.load(storage_path)
-            if storage_json is None:
-                self.send_error(404)
-                return
+        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is None:
+            self.send_error(404)
+            return
+
+        if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
+            filename = f"{storage_json.name}.uf2"
+            path = storage_json.firmware_bin_path.replace(
+                "firmware.bin", "firmware.uf2"
+            )
+
+        elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
+            filename = f"{storage_json.name}.bin"
+            path = storage_json.firmware_bin_path
+
+        elif type == "firmware.bin":
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
         elif type == "firmware-factory.bin":
-            storage_path = ext_storage_path(settings.config_dir, configuration)
-            storage_json = StorageJSON.load(storage_path)
-            if storage_json is None:
-                self.send_error(404)
-                return
             filename = f"{storage_json.name}-factory.bin"
             path = storage_json.firmware_bin_path.replace(
                 "firmware.bin", "firmware-factory.bin"
@@ -927,6 +934,27 @@ class SecretKeysRequestHandler(BaseHandler):
         self.write(json.dumps(secret_keys))
 
 
+class JsonConfigRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
+        filename = settings.rel_path(configuration)
+        if not os.path.isfile(filename):
+            self.send_error(404)
+            return
+
+        try:
+            content = yaml_util.load_yaml(filename, clear_secrets=False)
+            json_content = json.dumps(
+                content, default=lambda o: {"__type": str(type(o)), "repr": repr(o)}
+            )
+            self.set_header("content-type", "application/json")
+            self.write(json_content)
+        except EsphomeError as err:
+            _LOGGER.warning("Error translating file %s to JSON: %s", filename, err)
+            self.send_error(500)
+
+
 def get_base_frontend_path():
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -1031,6 +1059,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
             (f"{rel}secret_keys", SecretKeysRequestHandler),
+            (f"{rel}json-config", JsonConfigRequestHandler),
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
         ],

@@ -14,8 +14,6 @@ using namespace touchscreen;
 
 struct XPT2046TouchscreenStore {
   volatile bool touch;
-  ISRInternalGPIOPin pin;
-
   static void gpio_intr(XPT2046TouchscreenStore *store);
 };
 
