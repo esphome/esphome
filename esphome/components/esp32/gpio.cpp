@@ -12,9 +12,7 @@ bool ESP32InternalGPIOPin::isr_service_installed = false;  // NOLINT(cppcoreguid
 
 static gpio_mode_t IRAM_ATTR flags_to_mode(gpio::Flags flags) {
   flags = (gpio::Flags)(flags & ~(gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN));
-  if (flags == gpio::FLAG_NONE) {
-    return GPIO_MODE_DISABLE;
-  } else if (flags == gpio::FLAG_INPUT) {
+  if (flags == gpio::FLAG_INPUT) {
     return GPIO_MODE_INPUT;
   } else if (flags == gpio::FLAG_OUTPUT) {
     return GPIO_MODE_OUTPUT;
@@ -25,7 +23,7 @@ static gpio_mode_t IRAM_ATTR flags_to_mode(gpio::Flags flags) {
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_OUTPUT)) {
     return GPIO_MODE_INPUT_OUTPUT;
   } else {
-    // unsupported
+    // unsupported or gpio::FLAG_NONE
     return GPIO_MODE_DISABLE;
   }
 }
