@@ -4,7 +4,7 @@ from pathlib import Path
 import logging
 import os
 
-from esphome.helpers import copy_file_if_changed, write_file_if_changed
+from esphome.helpers import copy_file_if_changed, write_file_if_changed, mkdir_p
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
@@ -20,13 +20,17 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     __version__,
 )
-from esphome.core import CORE, HexInt
+from esphome.core import CORE, HexInt, TimePeriod
 import esphome.config_validation as cv
 import esphome.codegen as cg
+from esphome import git
 
 from .const import (  # noqa
     KEY_BOARD,
+    KEY_COMPONENTS,
     KEY_ESP32,
+    KEY_REF,
+    KEY_REPO,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
     VARIANT_ESP32C3,
@@ -51,6 +55,7 @@ def set_core_data(config):
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "esp-idf"
         CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS] = {}
+        CORE.data[KEY_ESP32][KEY_COMPONENTS] = {}
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
@@ -102,6 +107,14 @@ def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
     if not CORE.using_esp_idf:
         raise ValueError("Not an esp-idf project")
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][name] = value
+
+
+def add_idf_component(name: str, repo: str, ref: str = None):
+    """Add an esp-idf component to the project."""
+    if not CORE.using_esp_idf:
+        raise ValueError("Not an esp-idf project")
+    if repo not in CORE.data[KEY_ESP32][KEY_COMPONENTS]:
+        CORE.data[KEY_ESP32][KEY_COMPONENTS][name] = {KEY_REPO: repo, KEY_REF: ref}
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
@@ -457,6 +470,29 @@ def copy_files():
             CORE.relative_build_path("version.txt"),
             __version__,
         )
+
+        if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
+            import shutil
+
+            shutil.rmtree(CORE.relative_build_path("components"))
+
+            components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
+
+            for name, component in components.items():
+
+                repo_dir, _ = git.clone_or_update(
+                    url=component[KEY_REPO],
+                    ref=component[KEY_REF],
+                    refresh=TimePeriod(days=1),
+                    domain="idf_components",
+                )
+                mkdir_p(CORE.relative_build_path("components"))
+                shutil.copytree(
+                    repo_dir,
+                    CORE.relative_build_path(f"components/{name}"),
+                    dirs_exist_ok=True,
+                    ignore=shutil.ignore_patterns(".git", ".github"),
+                )
 
     dir = os.path.dirname(__file__)
     post_build_file = os.path.join(dir, "post_build.py.script")
