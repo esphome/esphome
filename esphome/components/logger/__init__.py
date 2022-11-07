@@ -77,7 +77,7 @@ UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
 
 ESP_IDF_UARTS = [USB_CDC, USB_SERIAL_JTAG]
 
-UART_SELECTION_RP2040 = [UART0, UART1]
+UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
@@ -99,10 +99,9 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
 def uart_selection(value):
-    if value.upper() in ESP_IDF_UARTS:
-        if not CORE.using_esp_idf:
-            raise cv.Invalid(f"Only esp-idf framework supports {value}.")
     if CORE.is_esp32:
+        if value.upper() in ESP_IDF_UARTS and not CORE.using_esp_idf:
+            raise cv.Invalid(f"Only esp-idf framework supports {value}.")
         variant = get_esp32_variant()
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
@@ -137,7 +136,12 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
             cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
-            cv.Optional(CONF_HARDWARE_UART, default=UART0): uart_selection,
+            cv.SplitDefault(
+                CONF_HARDWARE_UART,
+                esp8266=UART0,
+                esp32=UART0,
+                rp2040=USB_CDC,
+            ): uart_selection,
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
             cv.Optional(CONF_LOGS, default={}): cv.Schema(
                 {
