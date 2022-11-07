@@ -173,7 +173,7 @@ void HaierClimate::control(const climate::ClimateCall &call) {
   if (call.get_mode().has_value()) {
     switch (call.get_mode().value()) {
       case climate::CLIMATE_MODE_OFF:
-        send_data(OFF_REQ, sizeof(OFF_REQ));
+        send_data_(OFF_REQ, sizeof(OFF_REQ));
         break;
 
       case climate::CLIMATE_MODE_HEAT_COOL:
