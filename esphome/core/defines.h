@@ -79,7 +79,7 @@
 #endif
 
 #ifdef USE_ESP_IDF
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(4, 4, 2)
+#define USE_ESP_IDF_VERSION_CODE VERSION_CODE(4, 4, 2)
 #endif
 #endif
 
