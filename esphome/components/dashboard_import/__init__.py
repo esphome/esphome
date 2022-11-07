@@ -73,15 +73,15 @@ def import_config(
         )
     else:
         m = re.match(
-            r"github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)/([a-zA-Z0-9\-_.\./]+)(?:@([a-zA-Z0-9\-_.\./]+))(?:\?([a-zA-Z0-9\-_.\./]+))?",
+            r"github://(?P<owner>[a-zA-Z0-9\-]+)/(?P<repo>[a-zA-Z0-9\-\._]+)/(?P<filename>[a-zA-Z0-9\-_.\./]+)(?:@(?P<ref>[a-zA-Z0-9\-_.\./]+))(?:\?(?P<query>[a-zA-Z0-9\-_.\./]+))?",
             import_url,
         )
 
         if m is None:
             raise ValueError
 
-        if m.group(4) and "full_config" in m.group(4):
-            url = f"https://raw.githubusercontent.com/{m.group(1)}/{m.group(2)}/{m.group(4)}/{m.group(3)}"
+        if m.group("query") and "full_config" in m.group("query"):
+            url = f"https://raw.githubusercontent.com/{m.group('owner')}/{m.group('repo')}/{m.group('ref')}/{m.group('filename')}"
             try:
                 req = requests.get(url, timeout=30)
                 req.raise_for_status()
