@@ -422,7 +422,7 @@ void HighFrequencyLoopRequester::stop() {
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; }
 
-void get_mac_address_raw(uint8_t *mac) {
+void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
 #if defined(USE_ESP32)
 #if defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
   // On some devices, the MAC address that is burnt into EFuse does not
