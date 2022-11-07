@@ -148,8 +148,8 @@ ESP_IDF_PLATFORM_VERSION = cv.Version(3, 5, 0)
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(2, 0, 0), "https://github.com/espressif/arduino-esp32.git"),
-        "latest": (cv.Version(2, 0, 3), None),
+        "dev": (cv.Version(2, 0, 5), "https://github.com/espressif/arduino-esp32.git"),
+        "latest": (cv.Version(2, 0, 5), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
