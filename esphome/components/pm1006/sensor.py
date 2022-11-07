@@ -3,9 +3,13 @@ import esphome.config_validation as cv
 from esphome.components import sensor, uart
 from esphome.const import (
     CONF_ID,
+    CONF_PM_1_0,
     CONF_PM_2_5,
+    CONF_PM_10_0,
     CONF_UPDATE_INTERVAL,
+    DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM25,
+    DEVICE_CLASS_PM10,
     STATE_CLASS_MEASUREMENT,
     UNIT_MICROGRAMS_PER_CUBIC_METER,
     ICON_BLUR,
@@ -25,11 +29,25 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PM1006Component),
+            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_BLUR,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM1,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ), 
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_BLUR,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_PM25,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+                icon=ICON_BLUR,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_PM10,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
@@ -62,6 +80,12 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
+    if CONF_PM_1_0 in config:
+        sens = await sensor.new_sensor(config[CONF_PM_1_0])
+        cg.add(var.set_pm_1_0_sensor(sens))
     if CONF_PM_2_5 in config:
         sens = await sensor.new_sensor(config[CONF_PM_2_5])
         cg.add(var.set_pm_2_5_sensor(sens))
+    if CONF_PM_10_0 in config:
+        sens = await sensor.new_sensor(config[CONF_PM_10_0])
+        cg.add(var.set_pm_10_0_sensor(sens))
