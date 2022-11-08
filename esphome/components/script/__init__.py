@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome import automation
 from esphome.automation import maybe_simple_id
 from esphome.const import CONF_ID, CONF_MODE, CONF_PARAMETERS
-from esphome.core import CORE
+from esphome.core import CORE, EsphomeError
 
 CODEOWNERS = ["@esphome/core"]
 script_ns = cg.esphome_ns.namespace("script")
@@ -152,7 +152,7 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
         script_args = []
         for _, name in script_params:
             if name not in config_args:
-                raise cv.Invalid(
+                raise EsphomeError(
                     f"Missing parameter: '{name}' in script.execute {config[CONF_ID]}"
                 )
             arg = await cg.templatable(config_args[name], args, None)
