@@ -183,7 +183,7 @@ void EZOSensor::set_calibration_point_(EzoCalibrationType type, float value) {
   this->add_command_(payload, EzoCommandType::EZO_CALIBRATION, 900);
 }
 
-void EZOSensor::set_address(unsigned int address) {
+void EZOSensor::set_address(uint8_t address) {
   if (address > 0 && address < 128) {
     std::string payload = str_sprintf("I2C,%u", address);
     this->new_address_ = address;
