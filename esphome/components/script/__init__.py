@@ -62,14 +62,13 @@ def assign_declare_id(value):
 
 
 def parameters_to_template(args):
-    from esphome.cpp_types import esphome_ns
 
     template_args = []
     func_args = []
     script_arg_names = []
     for name, type_ in args.items():
         type_ = PARAMETER_TYPE_TRANSLATIONS.get(type_, type_)
-        type_ = esphome_ns.namespace(type_)
+        type_ = cg.esphome_ns.namespace(type_)
         template_args.append(type_)
         func_args.append((type_, name))
         script_arg_names.append(name)
