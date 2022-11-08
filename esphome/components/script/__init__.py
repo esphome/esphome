@@ -67,7 +67,13 @@ def parameters_to_template(args):
     func_args = []
     script_arg_names = []
     for name, type_ in args.items():
+        array = False
+        if type_.endswith("[]"):
+            array = True
+            type_ = type_[:-2]
         type_ = PARAMETER_TYPE_TRANSLATIONS.get(type_, type_)
+        if array:
+            type_ = f"std::vector<{type_}>"
         type_ = cg.esphome_ns.namespace(type_)
         template_args.append(type_)
         func_args.append((type_, name))
@@ -150,12 +156,12 @@ async def script_execute_action_to_code(config, action_id, template_arg, args):
 
         # match script_args to the formal parameter order
         script_args = []
-        for _, name in script_params:
+        for type, name in script_params:
             if name not in config_args:
                 raise EsphomeError(
                     f"Missing parameter: '{name}' in script.execute {config[CONF_ID]}"
                 )
-            arg = await cg.templatable(config_args[name], args, None)
+            arg = await cg.templatable(config_args[name], args, type)
             script_args.append(arg)
         return script_args
 
