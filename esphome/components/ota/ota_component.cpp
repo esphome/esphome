@@ -2,6 +2,7 @@
 #include "ota_backend.h"
 #include "ota_backend_arduino_esp32.h"
 #include "ota_backend_arduino_esp8266.h"
+#include "ota_backend_arduino_rp2040.h"
 #include "ota_backend_esp_idf.h"
 
 #include "esphome/core/log.h"
@@ -21,6 +22,8 @@ static const char *const TAG = "ota";
 
 static const uint8_t OTA_VERSION_1_0 = 1;
 
+OTAComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 std::unique_ptr<OTABackend> make_ota_backend() {
 #ifdef USE_ARDUINO
 #ifdef USE_ESP8266
@@ -33,7 +36,12 @@ std::unique_ptr<OTABackend> make_ota_backend() {
 #ifdef USE_ESP_IDF
   return make_unique<IDFOTABackend>();
 #endif  // USE_ESP_IDF
+#ifdef USE_RP2040
+  return make_unique<ArduinoRP2040OTABackend>();
+#endif  // USE_RP2040
 }
+
+OTAComponent::OTAComponent() { global_ota_component = this; }
 
 void OTAComponent::setup() {
   server_ = socket::socket_ip(SOCK_STREAM, 0);

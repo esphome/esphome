@@ -376,6 +376,11 @@ sensor:
     temperature_sensor: ha_hello_world_temperature
     temperature_compensation: 20.0
     temperature_coefficient: 0.019
+  - platform: ufire_ise
+    id: ufire_ise_board
+    temperature_sensor: ha_hello_world_temperature
+    ph:
+      name: Ufire pH
 
 time:
   - platform: homeassistant
@@ -500,6 +505,9 @@ ruuvi_ble:
 xiaomi_ble:
 
 mopeka_ble:
+
+bluetooth_proxy:
+  active: true
 
 xiaomi_rtcgq02lm:
   - id: motion_rtcgq02lm

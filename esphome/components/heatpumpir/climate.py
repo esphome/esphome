@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_PROTOCOL,
     CONF_VISUAL,
 )
+from esphome.core import CORE
 
 CODEOWNERS = ["@rob-deutsch"]
 
@@ -58,6 +59,7 @@ PROTOCOLS = {
     "sharp": Protocol.PROTOCOL_SHARP,
     "toshiba_daiseikai": Protocol.PROTOCOL_TOSHIBA_DAISEIKAI,
     "toshiba": Protocol.PROTOCOL_TOSHIBA,
+    "zhlt01": Protocol.PROTOCOL_ZHLT01,
 }
 
 CONF_HORIZONTAL_DEFAULT = "horizontal_default"
@@ -114,3 +116,6 @@ def to_code(config):
     cg.add(var.set_min_temperature(config[CONF_MIN_TEMPERATURE]))
 
     cg.add_library("tonia/HeatpumpIR", "1.0.20")
+
+    if CORE.is_esp8266 or CORE.is_esp32:
+        cg.add_library("crankyoldgit/IRremoteESP8266", "2.7.12")

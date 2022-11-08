@@ -267,7 +267,7 @@ CONFIG_SCHEMA = cv.All(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
             cv.SplitDefault(
-                CONF_POWER_SAVE_MODE, esp8266="none", esp32="light"
+                CONF_POWER_SAVE_MODE, esp8266="none", esp32="light", rp2040="light"
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
@@ -332,8 +332,7 @@ def manual_ip(config):
     )
 
 
-def wifi_network(config, static_ip):
-    ap = cg.variable(config[CONF_ID], WiFiAP())
+def wifi_network(config, ap, static_ip):
     if CONF_SSID in config:
         cg.add(ap.set_ssid(config[CONF_SSID]))
     if CONF_PASSWORD in config:
@@ -360,14 +359,21 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
-    for network in config.get(CONF_NETWORKS, []):
+    def add_sta(ap, network):
         ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-        cg.add(var.add_sta(wifi_network(network, ip_config)))
+        cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
+
+    for network in config.get(CONF_NETWORKS, []):
+        cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
         conf = config[CONF_AP]
-        ip_config = conf.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-        cg.add(var.set_ap(wifi_network(conf, ip_config)))
+        ip_config = conf.get(CONF_MANUAL_IP)
+        cg.with_local_variable(
+            conf[CONF_ID],
+            WiFiAP(),
+            lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
+        )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
@@ -379,6 +385,8 @@ async def to_code(config):
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
     elif CORE.is_esp32 and CORE.using_arduino:
+        cg.add_library("WiFi", None)
+    elif CORE.is_rp2040:
         cg.add_library("WiFi", None)
 
     if CORE.is_esp32 and CORE.using_esp_idf:

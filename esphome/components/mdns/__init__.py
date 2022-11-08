@@ -36,6 +36,8 @@ async def to_code(config):
             cg.add_library("ESPmDNS", None)
         elif CORE.is_esp8266:
             cg.add_library("ESP8266mDNS", None)
+        elif CORE.is_rp2040:
+            cg.add_library("LEAmDNS", None)
 
     if config[CONF_DISABLED]:
         return

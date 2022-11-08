@@ -90,6 +90,7 @@ void ESP32ArduinoUARTComponent::setup() {
     this->hw_serial_ = &Serial;
   } else {
     static uint8_t next_uart_num = 1;
+    this->number_ = next_uart_num;
     this->hw_serial_ = new HardwareSerial(next_uart_num++);  // NOLINT(cppcoreguidelines-owning-memory)
   }
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
@@ -104,7 +105,7 @@ void ESP32ArduinoUARTComponent::setup() {
 }
 
 void ESP32ArduinoUARTComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "UART Bus:");
+  ESP_LOGCONFIG(TAG, "UART Bus %d:", this->number_);
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);
   if (this->rx_pin_ != nullptr) {

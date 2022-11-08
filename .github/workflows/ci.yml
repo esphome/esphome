@@ -48,6 +48,10 @@ jobs:
             file: tests/test5.yaml
             name: Test tests/test5.yaml
             pio_cache_key: test5
+          - id: test
+            file: tests/test6.yaml
+            name: Test tests/test6.yaml
+            pio_cache_key: test6
           - id: pytest
             name: Run pytest
           - id: clang-format
@@ -85,7 +89,7 @@ jobs:
         uses: actions/setup-python@v4
         id: python
         with:
-          python-version: "3.8"
+          python-version: "3.9"
 
       - name: Cache virtualenv
         uses: actions/cache@v3
@@ -173,7 +177,7 @@ jobs:
 
       - name: Run yamllint
         if: matrix.id == 'yamllint'
-        uses: frenck/action-yamllint@v1.2.0
+        uses: frenck/action-yamllint@v1.3.0
 
       - name: Suggested changes
         run: script/ci-suggest-changes
