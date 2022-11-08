@@ -10,7 +10,7 @@ static const char *const TAG = "xiaomi_mccgq02hl";
 
 void XiaomiMCCGQ02HL::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MCCGQ02HL");
-  ESP_LOGCONFIG(TAG, "  Bindkey: %s", hexencode(this->bindkey_, 16).c_str());
+  ESP_LOGCONFIG(TAG, "  Bindkey: %s", format_hex_pretty(this->bindkey_, 16).c_str());
   LOG_BINARY_SENSOR("  ", "Open", this->is_open_);
   LOG_BINARY_SENSOR("  ", "Light", this->is_light_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
