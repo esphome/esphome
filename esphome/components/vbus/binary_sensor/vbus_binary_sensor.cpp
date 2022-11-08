@@ -7,44 +7,6 @@ namespace vbus {
 
 static const char *const TAG = "vbus.binary_sensor";
 
-void DeltaSolCBSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Deltasol C:");
-  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
-}
-
-void DeltaSolCBSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->s1_error_bsensor_ != nullptr)
-    this->s1_error_bsensor_->publish_state(message[10] & 1);
-  if (this->s2_error_bsensor_ != nullptr)
-    this->s2_error_bsensor_->publish_state(message[10] & 2);
-  if (this->s3_error_bsensor_ != nullptr)
-    this->s3_error_bsensor_->publish_state(message[10] & 4);
-  if (this->s4_error_bsensor_ != nullptr)
-    this->s4_error_bsensor_->publish_state(message[10] & 8);
-}
-
-void DeltaSolCS2BSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "Deltasol CS2:");
-  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
-}
-
-void DeltaSolCS2BSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->s1_error_bsensor_ != nullptr)
-    this->s1_error_bsensor_->publish_state(message[18] & 1);
-  if (this->s2_error_bsensor_ != nullptr)
-    this->s2_error_bsensor_->publish_state(message[18] & 2);
-  if (this->s3_error_bsensor_ != nullptr)
-    this->s3_error_bsensor_->publish_state(message[18] & 4);
-  if (this->s4_error_bsensor_ != nullptr)
-    this->s4_error_bsensor_->publish_state(message[18] & 8);
-}
-
 void DeltaSolBSPlusBSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Deltasol BS Plus:");
   LOG_BINARY_SENSOR("  ", "Relay 1 On", this->relay1_bsensor_);
@@ -86,6 +48,63 @@ void DeltaSolBSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
     this->recooling_bsensor_->publish_state(message[15] & 0x10);
   if (this->hqm_bsensor_ != nullptr)
     this->hqm_bsensor_->publish_state(message[15] & 0x20);
+}
+
+void DeltaSolCBSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "Deltasol C:");
+  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
+}
+
+void DeltaSolCBSensor::handle_message(std::vector<uint8_t> &message) {
+  if (this->s1_error_bsensor_ != nullptr)
+    this->s1_error_bsensor_->publish_state(message[10] & 1);
+  if (this->s2_error_bsensor_ != nullptr)
+    this->s2_error_bsensor_->publish_state(message[10] & 2);
+  if (this->s3_error_bsensor_ != nullptr)
+    this->s3_error_bsensor_->publish_state(message[10] & 4);
+  if (this->s4_error_bsensor_ != nullptr)
+    this->s4_error_bsensor_->publish_state(message[10] & 8);
+}
+
+void DeltaSolCS2BSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "Deltasol CS2:");
+  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
+}
+
+void DeltaSolCS2BSensor::handle_message(std::vector<uint8_t> &message) {
+  if (this->s1_error_bsensor_ != nullptr)
+    this->s1_error_bsensor_->publish_state(message[18] & 1);
+  if (this->s2_error_bsensor_ != nullptr)
+    this->s2_error_bsensor_->publish_state(message[18] & 2);
+  if (this->s3_error_bsensor_ != nullptr)
+    this->s3_error_bsensor_->publish_state(message[18] & 4);
+  if (this->s4_error_bsensor_ != nullptr)
+    this->s4_error_bsensor_->publish_state(message[18] & 8);
+}
+
+void DeltaSolCSPlusBSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "Deltasol CS Plus:");
+  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
+}
+
+void DeltaSolCSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
+  if (this->s1_error_bsensor_ != nullptr)
+    this->s1_error_bsensor_->publish_state(message[20] & 1);
+  if (this->s2_error_bsensor_ != nullptr)
+    this->s2_error_bsensor_->publish_state(message[20] & 2);
+  if (this->s3_error_bsensor_ != nullptr)
+    this->s3_error_bsensor_->publish_state(message[20] & 4);
+  if (this->s4_error_bsensor_ != nullptr)
+    this->s4_error_bsensor_->publish_state(message[20] & 8);
 }
 
 }  // namespace vbus
