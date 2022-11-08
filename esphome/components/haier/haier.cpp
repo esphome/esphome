@@ -213,7 +213,7 @@ void HaierClimate::control(const climate::ClimateCall &call) {
   if (call.get_target_temperature().has_value()) {
     float target = call.get_target_temperature().value() - MIN_VALID_TEMPERATURE;
 
-    data_[SET_TEMPERATURE] = (uint8) target;
+    data_[SET_TEMPERATURE] = (uint8_t) target;
 
     if ((int) target == std::lroundf(target)) {
       data_[POWER] &= ~DECIMAL_MASK;
