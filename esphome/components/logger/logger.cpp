@@ -1,15 +1,15 @@
 #include "logger.h"
 
 #ifdef USE_ESP_IDF
-#include "freertos/FreeRTOS.h"
 #include <driver/uart.h>
-#endif
+#include "freertos/FreeRTOS.h"
+#endif  // USE_ESP_IDF
 
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
 #include <esp_log.h>
-#endif
-#include "esphome/core/log.h"
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO || USE_ESP_IDF
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace logger {
@@ -161,8 +161,13 @@ void Logger::pre_setup() {
 #ifdef USE_ESP8266
       case UART_SELECTION_UART0_SWAP:
 #endif
+#ifdef USE_RP2040
+        this->hw_serial_ = &Serial1;
+        Serial1.begin(this->baud_rate_);
+#else
         this->hw_serial_ = &Serial;
         Serial.begin(this->baud_rate_);
+#endif
 #ifdef USE_ESP8266
         if (this->uart_ == UART_SELECTION_UART0_SWAP) {
           Serial.swap();
@@ -171,8 +176,13 @@ void Logger::pre_setup() {
 #endif
         break;
       case UART_SELECTION_UART1:
+#ifdef USE_RP2040
+        this->hw_serial_ = &Serial2;
+        Serial2.begin(this->baud_rate_);
+#else
         this->hw_serial_ = &Serial1;
         Serial1.begin(this->baud_rate_);
+#endif
 #ifdef USE_ESP8266
         Serial1.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
 #endif
@@ -182,6 +192,12 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
         Serial2.begin(this->baud_rate_);
+        break;
+#endif
+#ifdef USE_RP2040
+      case UART_SELECTION_USB_CDC:
+        this->hw_serial_ = &Serial;
+        Serial.begin(this->baud_rate_);
         break;
 #endif
     }
@@ -271,7 +287,7 @@ const char *const UART_SELECTIONS[] = {
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
 #endif
 #ifdef USE_RP2040
-const char *const UART_SELECTIONS[] = {"UART0", "UART1"};
+const char *const UART_SELECTIONS[] = {"UART0", "UART1", "USB_CDC"};
 #endif  // USE_ESP8266
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
