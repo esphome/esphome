@@ -38,8 +38,6 @@ MODELS = {
     "ST7796": ili9XXX_ns.class_("ILI9XXXST7796", ili9XXXSPI),
 }
 
-ILI9XXX_MODEL = cv.enum(MODELS, upper=True, space="_")
-
 COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE")
 
 CONF_LED_PIN = "led_pin"
@@ -49,7 +47,7 @@ CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ili9XXXSPI),
-            cv.Required(CONF_MODEL): ILI9XXX_MODEL,
+            cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_LED_PIN): cv.invalid(
