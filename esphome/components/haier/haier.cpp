@@ -203,16 +203,17 @@ void HaierClimate::control(const climate::ClimateCall &call) {
   }
 
   if (call.get_preset().has_value()) {
-    if (call.get_preset().value() == climate::CLIMATE_PRESET_COMFORT)
+    if (call.get_preset().value() == climate::CLIMATE_PRESET_COMFORT) {
       data_[POWER] |= COMFORT_PRESET_MASK;
-    else
+    } else {
       data_[POWER] &= ~COMFORT_PRESET_MASK;
+    }
   }
 
   if (call.get_target_temperature().has_value()) {
     float target = call.get_target_temperature().value() - MIN_VALID_TEMPERATURE;
 
-    data_[SET_TEMPERATURE] = (uint16) target;
+    data_[SET_TEMPERATURE] = (uint8) target;
 
     if ((int) target == std::lroundf(target)) {
       data_[POWER] &= ~DECIMAL_MASK;
@@ -245,7 +246,7 @@ void HaierClimate::control(const climate::ClimateCall &call) {
     }
   }
 
-  if (call.get_swing_mode().has_value())
+  if (call.get_swing_mode().has_value()) {
     switch (call.get_swing_mode().value()) {
       case climate::CLIMATE_SWING_OFF:
         data_[SWING] = SWING_OFF;
@@ -260,6 +261,7 @@ void HaierClimate::control(const climate::ClimateCall &call) {
         data_[SWING] = SWING_BOTH;
         break;
     }
+  }
 
   // Values for "send"
   data_[COMMAND] = 0;
