@@ -7,7 +7,6 @@
 
 #include <lwip/dns.h>
 #include "esp_event.h"
-#include "esp_netif.h"
 
 namespace esphome {
 namespace ethernet {
@@ -39,7 +38,7 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "ETH event loop error");
 
   esp_netif_config_t cfg = ESP_NETIF_DEFAULT_ETH();
-  esp_netif_t *eth_netif = esp_netif_new(&cfg);
+  this->eth_netif_ = esp_netif_new(&cfg);
 
   // Init MAC and PHY configs to default
   eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
@@ -83,7 +82,7 @@ void EthernetComponent::setup() {
   err = esp_eth_driver_install(&eth_config, &this->eth_handle_);
   ESPHL_ERROR_CHECK(err, "ETH driver install error");
   /* attach Ethernet driver to TCP/IP stack */
-  err = esp_netif_attach(eth_netif, esp_eth_new_netif_glue(this->eth_handle_));
+  err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
 
   // Register user defined event handers
@@ -179,8 +178,8 @@ float EthernetComponent::get_setup_priority() const { return setup_priority::WIF
 bool EthernetComponent::can_proceed() { return this->is_connected(); }
 
 network::IPAddress EthernetComponent::get_ip_address() {
-  tcpip_adapter_ip_info_t ip;
-  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip);
+  esp_netif_ip_info_t ip;
+  esp_netif_get_ip_info(this->eth_netif_, &ip);
   return {ip.ip.addr};
 }
 
@@ -222,12 +221,12 @@ void EthernetComponent::start_connect_() {
   this->status_set_warning();
 
   esp_err_t err;
-  err = tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_ETH, App.get_name().c_str());
+  err = esp_netif_set_hostname(this->eth_netif_, App.get_name().c_str());
   if (err != ERR_OK) {
-    ESP_LOGW(TAG, "tcpip_adapter_set_hostname failed: %s", esp_err_to_name(err));
+    ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
   }
 
-  tcpip_adapter_ip_info_t info;
+  esp_netif_ip_info_t info;
   if (this->manual_ip_.has_value()) {
     info.ip.addr = static_cast<uint32_t>(this->manual_ip_->static_ip);
     info.gw.addr = static_cast<uint32_t>(this->manual_ip_->gateway);
@@ -238,11 +237,19 @@ void EthernetComponent::start_connect_() {
     info.netmask.addr = 0;
   }
 
-  err = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_ETH);
-  if (err != ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STOPPED) {
+  esp_netif_dhcp_status_t status = ESP_NETIF_DHCP_INIT;
+
+  err = esp_netif_dhcpc_get_status(this->eth_netif_, &status);
+  ESPHL_ERROR_CHECK(err, "DHCPC Get Status Failed! 0x%04x");
+
+  ESP_LOGV(TAG, "DHCP Client Status: %d", status);
+
+  err = esp_netif_dhcpc_stop(this->eth_netif_);
+  if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
     ESPHL_ERROR_CHECK(err, "DHCPC stop error");
   }
-  err = tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_ETH, &info);
+
+  err = esp_netif_set_ip_info(this->eth_netif_, &info);
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 
   if (this->manual_ip_.has_value()) {
@@ -259,8 +266,8 @@ void EthernetComponent::start_connect_() {
       dns_setserver(1, &d);
     }
   } else {
-    err = tcpip_adapter_dhcpc_start(TCPIP_ADAPTER_IF_ETH);
-    if (err != ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STARTED) {
+    err = esp_netif_dhcpc_start(this->eth_netif_);
+    if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
   }
@@ -278,8 +285,8 @@ esp_err_t EthernetComponent::eth_phy_power_control(esp_eth_phy_t *phy, bool enab
 bool EthernetComponent::is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
 void EthernetComponent::dump_connect_params_() {
-  tcpip_adapter_ip_info_t ip;
-  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_ETH, &ip);
+  esp_netif_ip_info_t ip;
+  esp_netif_get_ip_info(this->eth_netif_, &ip);
   ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(ip.ip.addr).str().c_str());
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
   ESP_LOGCONFIG(TAG, "  Subnet: %s", network::IPAddress(ip.netmask.addr).str().c_str());

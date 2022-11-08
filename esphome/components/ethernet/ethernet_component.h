@@ -8,6 +8,7 @@
 
 #include "esp_eth.h"
 #include "esp_eth_mac.h"
+#include "esp_netif.h"
 
 namespace esphome {
 namespace ethernet {
@@ -77,6 +78,7 @@ class EthernetComponent : public Component {
   bool connected_{false};
   EthernetComponentState state_{EthernetComponentState::STOPPED};
   uint32_t connect_begin_;
+  esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
 
   std::function<esp_err_t(esp_eth_phy_t *, bool)> orig_power_control_fun_;
