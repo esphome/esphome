@@ -39,14 +39,13 @@ void SNMPComponent::setup_system_mib() {
   snmp_agent.addReadOnlyStaticStringHandler(RFC1213_OID_sysDescr, description);
 
   // sysName
-  // snmp_agent.addDynamicReadOnlyStringHandler(RFC1213_OID_sysName, []() -> const std::string { return "HELLO"; });
   snmp_agent.addDynamicReadOnlyStringHandler(RFC1213_OID_sysName, []() -> const std::string { return App.get_name(); });
 
   // sysServices
   snmp_agent.addReadOnlyIntegerHandler(RFC1213_OID_sysServices, 64 /*=2^(7-1) applications*/);
 
-  // wrong type (string), it should be OID. Bug in OID type handling.
-  snmp_agent.addReadOnlyStaticStringHandler(RFC1213_OID_sysObjectID, 
+  // sysObjectID
+  snmp_agent.addOIDHandler(RFC1213_OID_sysObjectID, 
 #if USE_ESP32  
   CUSTOM_OID "32"
 #else
