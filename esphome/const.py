@@ -1,13 +1,14 @@
 """Constants used by esphome."""
 
-__version__ = "2022.10.0b2"
+__version__ = "2022.11.0b1"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
 PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
+PLATFORM_RP2040 = "rp2040"
 
-TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266]
+TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
@@ -115,6 +116,7 @@ CONF_COMMAND_RETAIN = "command_retain"
 CONF_COMMAND_TOPIC = "command_topic"
 CONF_COMMENT = "comment"
 CONF_COMMIT = "commit"
+CONF_COMPILE_PROCESS_LIMIT = "compile_process_limit"
 CONF_COMPONENT_ID = "component_id"
 CONF_COMPONENTS = "components"
 CONF_CONDITION = "condition"
@@ -489,6 +491,7 @@ CONF_PACKAGES = "packages"
 CONF_PAGE_ID = "page_id"
 CONF_PAGES = "pages"
 CONF_PANASONIC = "panasonic"
+CONF_PARAMETERS = "parameters"
 CONF_PASSWORD = "password"
 CONF_PATH = "path"
 CONF_PAYLOAD = "payload"
@@ -947,6 +950,7 @@ DEVICE_CLASS_PM1 = "pm1"
 DEVICE_CLASS_PM10 = "pm10"
 DEVICE_CLASS_PM25 = "pm25"
 DEVICE_CLASS_POWER_FACTOR = "power_factor"
+DEVICE_CLASS_PRECIPITATION_INTENSITY = "precipitation_intensity"
 DEVICE_CLASS_PRESSURE = "pressure"
 DEVICE_CLASS_REACTIVE_POWER = "reactive_power"
 DEVICE_CLASS_SIGNAL_STRENGTH = "signal_strength"
@@ -957,6 +961,8 @@ DEVICE_CLASS_TIMESTAMP = "timestamp"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS = "volatile_organic_compounds"
 DEVICE_CLASS_VOLTAGE = "voltage"
 DEVICE_CLASS_VOLUME = "volume"
+DEVICE_CLASS_WATER = "water"
+DEVICE_CLASS_WIND_SPEED = "wind_speed"
 DEVICE_CLASS_WEIGHT = "weight"
 # device classes of both binary_sensor and button component
 DEVICE_CLASS_UPDATE = "update"

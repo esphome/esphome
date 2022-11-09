@@ -9,7 +9,7 @@
 namespace esphome {
 namespace esp32_ble_client {
 
-static const char *const TAG = "esp32_ble_client.characteristic";
+static const char *const TAG = "esp32_ble_client";
 
 BLECharacteristic::~BLECharacteristic() {
   for (auto &desc : this->descriptors)
@@ -29,7 +29,8 @@ void BLECharacteristic::parse_descriptors() {
       break;
     }
     if (status != ESP_GATT_OK) {
-      ESP_LOGW(TAG, "esp_ble_gattc_get_all_descr error, status=%d", status);
+      ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_descr error, status=%d",
+               this->service->client->get_connection_index(), this->service->client->address_str().c_str(), status);
       break;
     }
     if (count == 0) {
@@ -41,7 +42,8 @@ void BLECharacteristic::parse_descriptors() {
     desc->handle = result.handle;
     desc->characteristic = this;
     this->descriptors.push_back(desc);
-    ESP_LOGV(TAG, "   descriptor %s, handle 0x%x", desc->uuid.to_string().c_str(), desc->handle);
+    ESP_LOGV(TAG, "[%d] [%s]    descriptor %s, handle 0x%x", this->service->client->get_connection_index(),
+             this->service->client->address_str().c_str(), desc->uuid.to_string().c_str(), desc->handle);
     offset++;
   }
 }
@@ -69,7 +71,8 @@ esp_err_t BLECharacteristic::write_value(uint8_t *new_val, int16_t new_val_size,
   auto status = esp_ble_gattc_write_char(client->get_gattc_if(), client->get_conn_id(), this->handle, new_val_size,
                                          new_val, write_type, ESP_GATT_AUTH_REQ_NONE);
   if (status) {
-    ESP_LOGW(TAG, "Error sending write value to BLE gattc server, status=%d", status);
+    ESP_LOGW(TAG, "[%d] [%s] Error sending write value to BLE gattc server, status=%d",
+             this->service->client->get_connection_index(), this->service->client->address_str().c_str(), status);
   }
   return status;
 }
