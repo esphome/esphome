@@ -18,6 +18,7 @@ enum EthernetType {
   ETHERNET_TYPE_RTL8201,
   ETHERNET_TYPE_DP83848,
   ETHERNET_TYPE_IP101,
+  ETHERNET_TYPE_JL1101,
 };
 
 struct ManualIP {
@@ -82,6 +83,7 @@ class EthernetComponent : public Component {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
+extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 
 }  // namespace ethernet
 }  // namespace esphome
