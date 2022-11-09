@@ -48,7 +48,11 @@ class SNMPComponent : public Component {
 
   static const std::string get_bssid();
 
-  /// contact string
+#if USE_ESP32
+  static int get_ram_size_kb();
+#endif
+
+  /// contact stringint
   std::string m_contact;
 
   /// location string

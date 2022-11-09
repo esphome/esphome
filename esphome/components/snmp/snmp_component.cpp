@@ -89,7 +89,7 @@ int SNMPComponent::setup_psram_size(int *used) {
     // hrAllocationUnit
     snmp_agent.addReadOnlyIntegerHandler(".1.3.6.1.2.1.25.2.3.1.4.1", 1);
 
-    // hrStorageSize [kb]
+    // hrStorageSize
     // static int flash_size = ESP.getFlashChipSize();
     snmp_agent.addDynamicIntegerHandler(".1.3.6.1.2.1.25.2.3.1.5.1", []() -> int { return ESP.getFlashChipSize(); });
 
@@ -133,7 +133,7 @@ int SNMPComponent::setup_psram_size(int *used) {
 
     // hrMemorySize [kb]
 #if USE_ESP32
-    snmp_agent.addReadOnlyIntegerHandler(".1.3.6.1.2.1.25.2.2", 320);
+    snmp_agent.addReadOnlyIntegerHandler(".1.3.6.1.2.1.25.2.2", get_ram_size_kb() );
 #endif
 
 #if USE_ESP8266
@@ -264,6 +264,50 @@ int SNMPComponent::setup_psram_size(int *used) {
   }
 
   void SNMPComponent::loop() { snmp_agent.loop(); }
+
+#if USE_ESP32
+  int SNMPComponent::get_ram_size_kb() {
+    // use hardcoded values (number of values in esp_chip_model_t depends on IDF version) 
+    // from esp_system.h
+    const int CHIP_ESP32  = 1;
+    const int CHIP_ESP32S2 = 2;
+    const int CHIP_ESP32S3 = 9;
+    const int CHIP_ESP32C3 = 5;
+    const int CHIP_ESP32H2 = 6;
+    const int CHIP_ESP32C2 = 12;
+    const int CHIP_ESP32C6 = 13;
+
+    esp_chip_model_t model;
+    esp_chip_info_t chip_info;
+    esp_chip_info(&chip_info);
+
+    switch((int)chip_info.model)
+    {
+      case CHIP_ESP32:
+        return 520;
+
+      case CHIP_ESP32S2:
+        return 320;
+
+      case CHIP_ESP32S3:
+        return 512;
+
+      case CHIP_ESP32C3:
+        return 400;
+
+      case CHIP_ESP32H2:
+        return 256;
+
+      case CHIP_ESP32C2:
+        return 400;
+
+      case CHIP_ESP32C6:
+        return 400;
+    }
+
+    return 0;
+  }
+#endif
 
 }  // namespace snmp
 }  // namespace esphome
