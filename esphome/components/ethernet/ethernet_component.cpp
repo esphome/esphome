@@ -242,7 +242,7 @@ void EthernetComponent::start_connect_() {
   esp_netif_dhcp_status_t status = ESP_NETIF_DHCP_INIT;
 
   err = esp_netif_dhcpc_get_status(this->eth_netif_, &status);
-  ESPHL_ERROR_CHECK(err, "DHCPC Get Status Failed! 0x%04x");
+  ESPHL_ERROR_CHECK(err, "DHCPC Get Status Failed!");
 
   ESP_LOGV(TAG, "DHCP Client Status: %d", status);
 
