@@ -65,9 +65,11 @@ optional<bool> PM1006Component::check_byte_() const {
 
   // just some additional notes here:
   // index 3..4 is unused
-  // index 5..6 is our PM2.5 reading (3..6 is called DF1-DF4 in the datasheet)
-  // index 7..8 is our PM1.0 reading
-  // index 9..10 is our PM10 reading
+  // index 5..6   (DF3-4)   is our PM2.5 reading (3..6 is called DF1-DF4 in the datasheet)
+  // index 7..8   (DF5-6)   is unused
+  // index 9..10  (DF7-8)   is our PM1.0 reading
+  // index 11..12 (DF9-10)  is unused
+  // index 13..14 (DF11-12) is our PM10 reading
   // http://www.jdscompany.co.kr/download.asp?gubun=07&filename=PM1006_LED_PARTICLE_SENSOR_MODULE_SPECIFICATIONS.pdf
   // that datasheet goes on up to DF16, which is unused for PM1006 but used in PM1006K
   // so this code should be trivially extensible to support that one later
@@ -88,9 +90,9 @@ optional<bool> PM1006Component::check_byte_() const {
 }
 
 void PM1006Component::parse_data_() {
-  const int pm_1_0_concentration = this->get_16_bit_uint_(7);
+  const int pm_1_0_concentration = this->get_16_bit_uint_(9);
   const int pm_2_5_concentration = this->get_16_bit_uint_(5);
-  const int pm_10_0_concentration = this->get_16_bit_uint_(9);
+  const int pm_10_0_concentration = this->get_16_bit_uint_(13);
 
   ESP_LOGD(TAG, "Got PM1.0 Concentration: %d µg/m³", pm_1_0_concentration);
   ESP_LOGD(TAG, "Got PM2.5 Concentration: %d µg/m³", pm_2_5_concentration);
