@@ -191,8 +191,7 @@ int SNMPComponent::setup_psram_size(int *used) {
                                                []() -> const std::string { return ESP.getChipModel(); });
 #endif
 #ifdef USE_ESP8266
-    static std::string core = std::string(ESP.getCoreVersion().c_str());
-    snmp_agent.addDynamicReadOnlyStringHandler(CUSTOM_OID "2.3.0", []() -> const std::string { return core; });
+    snmp_agent.addDynamicReadOnlyStringHandler(CUSTOM_OID "2.3.0", []() -> const std::string { return ESP.getCoreVersion().c_str(); });
 #endif
 
     // number of cores
