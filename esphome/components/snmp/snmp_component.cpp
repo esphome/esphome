@@ -5,11 +5,11 @@
 #include "esphome/components/wifi/wifi_component.h"
 
 #include <SNMP_Agent.h>
-#if USE_ESP32
+#ifdef USE_ESP32
 #include <WiFi.h>
 #include <esp_himem.h>
 #endif
-#if USE_ESP8266
+#ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
 #endif
 #include <WiFiUdp.h>
@@ -46,7 +46,7 @@ void SNMPComponent::setup_system_mib() {
 
   // sysObjectID
   snmp_agent.addOIDHandler(RFC1213_OID_sysObjectID, 
-#if USE_ESP32  
+#ifdef USE_ESP32  
   CUSTOM_OID "32"
 #else
   CUSTOM_OID "8266"
@@ -54,13 +54,13 @@ void SNMPComponent::setup_system_mib() {
   );
 
   // sysContact
-  snmp_agent.addReadOnlyStaticStringHandler(RFC1213_OID_sysContact, m_contact);
+  snmp_agent.addReadOnlyStaticStringHandler(RFC1213_OID_sysContact, contact_);
 
   // sysLocation
-  snmp_agent.addReadOnlyStaticStringHandler(RFC1213_OID_sysLocation, m_location);
+  snmp_agent.addReadOnlyStaticStringHandler(RFC1213_OID_sysLocation, location_);
 }
 
-#if USE_ESP32
+#ifdef USE_ESP32
 int SNMPComponent::setup_psram_size(int *used) {
   int size = 0;
   *used = 0;
@@ -106,7 +106,7 @@ int SNMPComponent::setup_psram_size(int *used) {
     // hrAllocationUnit
     snmp_agent.addReadOnlyIntegerHandler(".1.3.6.1.2.1.25.2.3.1.4.2", 1);
 
-#if USE_ESP32
+#ifdef USE_ESP32
     // hrStorageSize
     snmp_agent.addDynamicIntegerHandler(".1.3.6.1.2.1.25.2.3.1.5.2", []() -> int {
       int u;
@@ -121,7 +121,7 @@ int SNMPComponent::setup_psram_size(int *used) {
     });
 #endif
 
-#if USE_ESP8266
+#ifdef USE_ESP8266
     // hrStorageSize
     snmp_agent.addReadOnlyIntegerHandler(".1.3.6.1.2.1.25.2.3.1.5.2", 0);
 
@@ -131,11 +131,11 @@ int SNMPComponent::setup_psram_size(int *used) {
 #endif
 
     // hrMemorySize [kb]
-#if USE_ESP32
+#ifdef USE_ESP32
     snmp_agent.addReadOnlyIntegerHandler(".1.3.6.1.2.1.25.2.2", get_ram_size_kb() );
 #endif
 
-#if USE_ESP8266
+#ifdef USE_ESP8266
     snmp_agent.addReadOnlyIntegerHandler(".1.3.6.1.2.1.25.2.2", 160);
 #endif
   }
@@ -163,7 +163,7 @@ int SNMPComponent::setup_psram_size(int *used) {
   }
 #endif
 
-#if USE_ESP8266
+#ifdef USE_ESP8266
   void SNMPComponent::setup_esp8266_heap_mib() {
     snmp_agent.addDynamicIntegerHandler(CUSTOM_OID "8266.1.0", []() -> int { return ESP.getFreeHeap(); });
 
@@ -190,7 +190,7 @@ int SNMPComponent::setup_psram_size(int *used) {
     snmp_agent.addDynamicReadOnlyStringHandler(CUSTOM_OID "2.3.0",
                                                []() -> const std::string { return ESP.getChipModel(); });
 #endif
-#if USE_ESP8266
+#ifdef USE_ESP8266
     static std::string core = std::string(ESP.getCoreVersion().c_str());
     snmp_agent.addDynamicReadOnlyStringHandler(CUSTOM_OID "2.3.0", []() -> const std::string { return core; });
 #endif
@@ -258,8 +258,8 @@ int SNMPComponent::setup_psram_size(int *used) {
 
   void SNMPComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "SNMP Config:");
-    ESP_LOGCONFIG(TAG, "  Contact: \"%s\"", m_contact.c_str());
-    ESP_LOGCONFIG(TAG, "  Location: \"%s\"", m_location.c_str());
+    ESP_LOGCONFIG(TAG, "  Contact: \"%s\"", contact_.c_str());
+    ESP_LOGCONFIG(TAG, "  Location: \"%s\"", location_.c_str());
   }
 
   void SNMPComponent::loop() { snmp_agent.loop(); }

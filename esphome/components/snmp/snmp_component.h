@@ -18,25 +18,25 @@ class SNMPComponent : public Component {
   void loop() override;
 
   void set_contact(const std::string& contact) {
-    m_contact = contact;
+    contact_ = contact;
   }
 
   void set_location(const std::string& location) {
-    m_location = location;
+    location_ = location;
   }
 
  protected:
   void setup_system_mib();
   void setup_storage_mib();
-#if USE_ESP32
+#ifdef USE_ESP32
   void setup_esp32_heap_mib();
 #endif
-#if USE_ESP8266
+#ifdef USE_ESP8266
   void setup_esp8266_heap_mib();
 #endif
   void setup_chip_mib();
   void setup_wifi_mib();
-#if USE_ESP32
+#ifdef USE_ESP32
   static int setup_psram_size(int* used);
 #endif
 
@@ -48,15 +48,15 @@ class SNMPComponent : public Component {
 
   static const std::string get_bssid();
 
-#if USE_ESP32
+#ifdef USE_ESP32
   static int get_ram_size_kb();
 #endif
 
   /// contact stringint
-  std::string m_contact;
+  std::string contact_;
 
   /// location string
-  std::string m_location;
+  std::string location_;
 };
 
 }  // namespace snmp
