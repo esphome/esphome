@@ -35,7 +35,7 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_PM1,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ), 
+            ),
             cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_BLUR,
