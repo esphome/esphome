@@ -1,0 +1,34 @@
+esphome: { name: test }
+esp8266: { board: d1_mini }
+
+uart:
+  id: uart_bus
+  tx_pin: D1
+  rx_pin: D2
+  baud_rate: 9600
+
+jablotron:
+  access_code: 1234
+  flow_control_pin: D4
+
+binary_sensor:
+  - platform: jablotron_peripheral
+    index: 2
+    id: entry_motion
+    name: Entryway motion
+    device_class: motion
+
+  - platform: jablotron_section_flag
+    id: entry_delay
+    index: 1
+    flag: ENTRY
+    name: "Alarm entry delay"
+
+text_sensor:
+  - id: jablo_info
+    platform: jablotron_info
+    name: "Jablotron Info"
+  - id: entry_alarm
+    platform: jablotron_section
+    index: 1
+    name: Entry alarm

@@ -1,0 +1,121 @@
+---
+esphome:
+  name: $device_name
+  comment: $device_comment
+  build_path: build/test7
+  on_boot:
+    - if:
+        condition:
+          - api.connected
+          - wifi.connected
+        then:
+          - logger.log: Have time
+  includes:
+    # - custom.h
+
+esp8266:
+  board: d1_mini
+  early_pin_init: true
+
+substitutions:
+  device_name: test7
+  device_comment: test3 device
+  min_sub: "0.03"
+  max_sub: "12.0%"
+
+api:
+  port: 8000
+  password: pwd
+  reboot_timeout: 0min
+  encryption:
+    key: bOFFzzvfpg5DB94DuBGLXD/hMnhpDKgP9UQyBulwWVU=
+
+wifi:
+  ssid: "MySSID"
+  password: "password1"
+
+uart:
+  - id: uart1
+    tx_pin:
+      number: GPIO1
+      inverted: true
+    rx_pin: GPIO3
+    baud_rate: 115200
+  - id: uart2
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart3
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 4800
+  - id: uart4
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart5
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart6
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart7
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 38400
+  - id: uart8
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 4800
+    parity: NONE
+    stop_bits: 2
+    # Specifically added for testing debug with no options at all.
+    debug:
+  - id: uart9
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart10
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+
+jablotron:
+  uart_id: uart9
+  flow_control_pin: D4
+  access_code: 5*6789
+
+binary_sensor:
+  - platform: jablotron_peripheral
+    index: 2
+    id: entry_motion
+    name: Entryway motion
+    device_class: motion
+  - platform: jablotron_section_flag
+    id: entry_delay
+    index: 1
+    flag: ENTRY
+    name: "Alarm entry delay"
+
+text_sensor:
+  - id: jablo_info
+    platform: jablotron_info
+    name: "Jablotron Info"
+  - id: entry_alarm
+    platform: jablotron_section
+    index: 1
+    name: Entry alarm
+
+switch:
+  - id: pg
+    platform: jablotron_pg
+    index: 1
+    name: Windows open
+    access_code: 1*2345
+
+select:
+  - id: sel
+    platform: jablotron_section
+    index: 1

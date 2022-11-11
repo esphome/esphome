@@ -38,6 +38,10 @@ uart:
     rx_pin: 16
     baud_rate: 19200
 
+jablotron:
+  access_code: 1234
+  uart_id: uart2
+
 i2c:
   frequency: 100khz
 
@@ -77,7 +81,7 @@ binary_sensor:
     id: modbus_binsensortest
     register_type: read
     address: 0x3200
-    bitmask: 0x80  # (bit 8)
+    bitmask: 0x80 # (bit 8)
     lambda: "return x;"
 
   - platform: tm1638
@@ -162,14 +166,23 @@ binary_sensor:
       then:
         - output.turn_off: Led7
 
-
-
-
   - platform: ezo_pmp
     pump_state:
       name: "Pump State"
     is_paused:
       name: "Is Paused"
+
+  - platform: jablotron_section_flag
+    id: entry_delay
+    index: 1
+    flag: ENTRY
+    name: "Alarm entry delay"
+
+  - platform: jablotron_peripheral
+    index: 2
+    id: entry_motion
+    name: Entryway motion
+    device_class: motion
 
 tlc5947:
   data_pin: GPIO12
@@ -512,6 +525,15 @@ display:
       it.print("81818181");
 
 text_sensor:
+  - id: jablo_info
+    platform: jablotron_info
+    name: "Jablotron Info"
+
+  - id: entry_alarm
+    platform: jablotron_section
+    index: 1
+    name: Entry alarm
+
   - platform: ezo_pmp
     dosing_mode:
       name: Dosing Mode

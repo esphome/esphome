@@ -109,6 +109,11 @@ esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
 esphome/components/interval/* @esphome/core
+esphome/components/jablotron/* @juliekoubova
+esphome/components/jablotron_info/* @juliekoubova
+esphome/components/jablotron_peripheral/* @juliekoubova
+esphome/components/jablotron_section/* @juliekoubova
+esphome/components/jablotron_section_flag/* @juliekoubova
 esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/lcd_menu/* @numo68

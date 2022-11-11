@@ -1,0 +1,35 @@
+esphome: { name: test }
+esp32: { board: lolin_d32 }
+
+uart:
+  id: uart_bus
+  tx_pin: TX
+  rx_pin: RX
+  baud_rate: 9600
+
+jablotron:
+  access_code: 1234
+  flow_control_pin: GPIO14
+  id: jablo
+
+binary_sensor:
+  - platform: jablotron_peripheral
+    index: 2
+    id: entry_motion
+    name: Entryway motion
+    device_class: motion
+
+  - platform: jablotron_section_flag
+    id: entry_delay
+    index: 1
+    flag: ENTRY
+    name: "Alarm entry delay"
+
+text_sensor:
+  - platform: jablotron_info
+    id: jablo_info
+    name: "Jablotron Info"
+  - id: entry_alarm
+    platform: jablotron_section
+    index: 1
+    name: Entry alarm
