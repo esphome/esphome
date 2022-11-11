@@ -352,6 +352,10 @@ select:
       "Two": 2
       "Three": 3
 
+  - platform: jablotron_section
+    name: Alarm Section
+    index: 12
+
 sensor:
   - platform: selec_meter
     total_active_energy:
@@ -512,6 +516,11 @@ switch:
     id: Led3
     led: 3
     name: TM1638Led3
+
+  - platform: jablotron_pg
+    index: 4
+    access_code: 3*210
+    name: Jablotron PG
 
 display:
   - platform: tm1638

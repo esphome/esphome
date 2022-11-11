@@ -109,13 +109,13 @@ text_sensor:
     name: Entry alarm
 
 switch:
-  - id: pg
+  - id: jablo_pg
     platform: jablotron_pg
     index: 1
     name: Windows open
     access_code: 1*2345
 
 select:
-  - id: sel
+  - id: jablo_sel
     platform: jablotron_section
     index: 1

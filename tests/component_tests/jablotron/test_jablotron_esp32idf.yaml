@@ -33,3 +33,14 @@ text_sensor:
     platform: jablotron_section
     index: 1
     name: Entry alarm
+
+select:
+  - platform: jablotron_section
+    id: jablo_select
+    access_code: 1*2345
+    index: 3
+
+switch:
+  - id: jablo_pg
+    platform: jablotron_pg
+    index: 15

@@ -38,6 +38,8 @@ def test_jablotron_esp32(generate_main):
     assert "jablo_info->set_parent_jablotron(jablo);" in main_cpp
     assert 'jablo_info->set_name("Jablotron Info");' in main_cpp
     assert "jablo_info->set_entity_category(::ENTITY_CATEGORY_DIAGNOSTIC);" in main_cpp
+    assert "jablo_select = new jablotron_section::SectionSelect();" in main_cpp
+    assert "jablo_select->set_parent_jablotron(jablo);" in main_cpp
 
 
 def test_jablotron_esp32idf(generate_main):
@@ -57,3 +59,5 @@ def test_jablotron_esp32idf(generate_main):
     assert 'entry_motion->set_device_class("motion");' in main_cpp
     assert "entry_motion->set_index(2);" in main_cpp
     assert "entry_motion->set_parent_jablotron(jablo);" in main_cpp
+    assert "jablo_pg->set_index(15);" in main_cpp
+    assert "jablo_pg->set_parent_jablotron(jablo);" in main_cpp
