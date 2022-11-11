@@ -47,19 +47,19 @@ void JablotronComponent::queue_peripheral_request_() {
 
 void JablotronComponent::queue_pg_request_() {
   if (!this->pgs_.empty()) {
-    this->queue_request("PGSTATE" + this->get_index_string(this->pgs_));
+    this->queue_request("PGSTATE" + this->get_index_string_(this->pgs_));
   }
 }
 
 void JablotronComponent::queue_section_request_() {
   if (!this->sections_.empty()) {
-    this->queue_request("STATE" + this->get_index_string(this->sections_));
+    this->queue_request("STATE" + this->get_index_string_(this->sections_));
   }
 }
 
 void JablotronComponent::queue_section_flag_request_() {
   if (!this->section_flags_.empty()) {
-    this->queue_request("FLAGS" + this->get_index_string(this->section_flags_));
+    this->queue_request("FLAGS" + this->get_index_string_(this->section_flags_));
   }
 }
 

@@ -29,7 +29,7 @@ const std::string &IndexedDevice::get_index_string() const {
 
 void IndexedDevice::set_index(int value) {
   this->index_ = value;
-  this->index_str_ = std::to_string(value);
+  this->index_str_ = to_string(value);
 }
 
 SectionFlag SectionFlagDevice::get_flag() const { return this->flag_; }

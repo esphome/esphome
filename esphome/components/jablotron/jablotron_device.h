@@ -11,7 +11,7 @@ class JablotronComponent;
 class JablotronDevice {
  public:
   virtual ~JablotronDevice() = default;
-  void set_access_code(std::string);
+  void set_access_code(std::string access_code);
   void set_parent_jablotron(JablotronComponent *parent);
 
   const std::string &get_access_code() const;

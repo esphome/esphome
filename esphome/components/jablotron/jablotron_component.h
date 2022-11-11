@@ -45,7 +45,7 @@ class JablotronComponent : public UARTLineDevice, public PollingComponent {
   void send_queued_request_();
   void send_request_(const std::string &request);
 
-  template<typename T> std::string get_index_string(const std::vector<T *> &items) {
+  template<typename T> std::string get_index_string_(const std::vector<T *> &items) {
     std::set<int32_t> indices;
     std::transform(std::begin(items), std::end(items), std::inserter(indices, indices.begin()),
                    [](const T *item) { return item->get_index(); });
