@@ -1194,7 +1194,7 @@ climate:
       deadband_output_averaging_samples: 1
   - platform: haier
     name: Haier AC
-    supported_swing_mode: both
+    supported_swing_modes: both
     update_interval: 10s
     uart_id: uart12
 
