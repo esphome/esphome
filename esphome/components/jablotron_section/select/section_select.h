@@ -10,7 +10,7 @@ class SectionSelect : public select::Select, public jablotron::SectionDevice {
  public:
   void control(const std::string &value) override;
   void register_parent(jablotron::JablotronComponent &parent) override;
-  void set_state(jablotron::StringView state) override;
+  void set_state(jablotron::StringView value) override;
 
  private:
   std::string last_value_;
