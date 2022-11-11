@@ -1,7 +1,8 @@
 #include "section_select.h"
 #include "esphome/components/jablotron/jablotron_component.h"
 
-namespace esphome::jablotron_section {
+namespace esphome {
+namespace jablotron_section {
 
 constexpr const char ARMED[] = "ARMED";
 constexpr const char ARMED_PART[] = "ARMED_PART";
@@ -33,4 +34,5 @@ void SectionSelect::set_state(jablotron::StringView value) {
   }
 }
 
-}  // namespace esphome::jablotron_section
+}  // namespace jablotron_section
+}  // namespace esphome

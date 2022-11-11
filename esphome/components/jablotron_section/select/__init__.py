@@ -8,7 +8,7 @@ from esphome.components.jablotron import (
     set_index,
     register_jablotron_device,
 )
-from esphome.components.jablotron_section import jablotron_section_ns
+from .. import jablotron_section_ns
 
 SectionSelect = jablotron_section_ns.class_("SectionSelect", select.Select)
 

@@ -2,7 +2,8 @@
 #include "esphome/components/jablotron/jablotron_device.h"
 #include "esphome/components/switch/switch.h"
 
-namespace esphome::jablotron_pg {
+namespace esphome {
+namespace jablotron_pg {
 
 class PGSwitch : public jablotron::PGDevice, public switch_::Switch {
  public:
@@ -11,4 +12,5 @@ class PGSwitch : public jablotron::PGDevice, public switch_::Switch {
   void set_state(bool state) override;
 };
 
-}  // namespace esphome::jablotron_pg
+}  // namespace jablotron_pg
+}  // namespace esphome
