@@ -112,6 +112,7 @@ esphome/components/interval/* @esphome/core
 esphome/components/jablotron/* @juliekoubova
 esphome/components/jablotron_info/* @juliekoubova
 esphome/components/jablotron_peripheral/* @juliekoubova
+esphome/components/jablotron_pg/* @juliekoubova
 esphome/components/jablotron_section/* @juliekoubova
 esphome/components/jablotron_section_flag/* @juliekoubova
 esphome/components/json/* @OttoWinter
