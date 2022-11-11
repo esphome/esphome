@@ -23,7 +23,7 @@ const float GRAVITY_EARTH = 9.80665f;
 void MPU6050Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MPU6050...");
   uint8_t who_am_i;
-  if (!this->read_byte(MPU6050_REGISTER_WHO_AM_I, &who_am_i) || who_am_i != 0x68) {
+  if (!this->read_byte(MPU6050_REGISTER_WHO_AM_I, &who_am_i) || (who_am_i != 0x68 && who_am_i != 0x98)) {
     this->mark_failed();
     return;
   }

@@ -44,6 +44,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
 )
 from esphome.core import (
     CORE,
@@ -1440,6 +1441,7 @@ class SplitDefault(Optional):
         esp32=vol.UNDEFINED,
         esp32_arduino=vol.UNDEFINED,
         esp32_idf=vol.UNDEFINED,
+        rp2040=vol.UNDEFINED,
     ):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
@@ -1449,6 +1451,7 @@ class SplitDefault(Optional):
         self._esp32_idf_default = vol.default_factory(
             esp32_idf if esp32 is vol.UNDEFINED else esp32
         )
+        self._rp2040_default = vol.default_factory(rp2040)
 
     @property
     def default(self):
@@ -1458,6 +1461,8 @@ class SplitDefault(Optional):
             return self._esp32_arduino_default
         if CORE.is_esp32 and CORE.using_esp_idf:
             return self._esp32_idf_default
+        if CORE.is_rp2040:
+            return self._rp2040_default
         raise NotImplementedError
 
     @default.setter
@@ -1689,7 +1694,7 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> "Version":
-        match = re.match(r"(\d+).(\d+).(\d+)", value)
+        match = re.match(r"^(\d+).(\d+).(\d+)-?\w*$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])
@@ -1703,7 +1708,7 @@ def version_number(value):
     try:
         return str(Version.parse(value))
     except ValueError as e:
-        raise Invalid("Not a version number") from e
+        raise Invalid("Not a valid version number") from e
 
 
 def platformio_version_constraint(value):
@@ -1730,6 +1735,7 @@ def require_framework_version(
     esp_idf=None,
     esp32_arduino=None,
     esp8266_arduino=None,
+    rp2040_arduino=None,
     max_version=False,
     extra_message=None,
 ):
@@ -1757,8 +1763,23 @@ def require_framework_version(
                     msg += f". {extra_message}"
                 raise Invalid(msg)
             required = esp8266_arduino
+        elif CORE.is_rp2040 and framework == "arduino":
+            if rp2040_arduino is None:
+                msg = "This feature is incompatible with RP2040"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
+            required = rp2040_arduino
         else:
-            raise NotImplementedError
+            raise Invalid(
+                f"""
+            Internal Error: require_framework_version does not support this platform configuration
+                platform: {core_data[KEY_TARGET_PLATFORM]}
+                framework: {framework}
+
+            Please report this issue on GitHub -> https://github.com/esphome/issues/issues/new?template=bug_report.yml.
+            """
+            )
 
         if max_version:
             if core_data[KEY_FRAMEWORK_VERSION] > required:
