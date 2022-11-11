@@ -8,7 +8,7 @@
 namespace esphome {
 namespace esp32_ble_client {
 
-static const char *const TAG = "esp32_ble_client.service";
+static const char *const TAG = "esp32_ble_client";
 
 BLECharacteristic *BLEService::get_characteristic(espbt::ESPBTUUID uuid) {
   for (auto &chr : this->characteristics) {
@@ -40,7 +40,8 @@ void BLEService::parse_characteristics() {
       break;
     }
     if (status != ESP_GATT_OK) {
-      ESP_LOGW(TAG, "esp_ble_gattc_get_all_char error, status=%d", status);
+      ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", this->client->get_connection_index(),
+               this->client->address_str().c_str(), status);
       break;
     }
     if (count == 0) {
@@ -53,8 +54,9 @@ void BLEService::parse_characteristics() {
     characteristic->handle = result.char_handle;
     characteristic->service = this;
     this->characteristics.push_back(characteristic);
-    ESP_LOGI(TAG, " characteristic %s, handle 0x%x, properties 0x%x", characteristic->uuid.to_string().c_str(),
-             characteristic->handle, characteristic->properties);
+    ESP_LOGI(TAG, "[%d] [%s]  characteristic %s, handle 0x%x, properties 0x%x", this->client->get_connection_index(),
+             this->client->address_str().c_str(), characteristic->uuid.to_string().c_str(), characteristic->handle,
+             characteristic->properties);
     characteristic->parse_descriptors();
     offset++;
   }

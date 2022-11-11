@@ -3,17 +3,18 @@ import esphome.config_validation as cv
 
 from esphome import pins
 from esphome.components import spi, touchscreen
-from esphome.const import CONF_ID, CONF_THRESHOLD
+from esphome.const import CONF_ID, CONF_THRESHOLD, CONF_INTERRUPT_PIN
 
 CODEOWNERS = ["@numo68", "@nielsnl68"]
 DEPENDENCIES = ["spi"]
 
 XPT2046_ns = cg.esphome_ns.namespace("xpt2046")
 XPT2046Component = XPT2046_ns.class_(
-    "XPT2046Component", touchscreen.Touchscreen, cg.PollingComponent, spi.SPIDevice
+    "XPT2046Component",
+    touchscreen.Touchscreen,
+    cg.PollingComponent,
+    spi.SPIDevice,
 )
-
-CONF_INTERRUPT_PIN = "interrupt_pin"
 
 CONF_REPORT_INTERVAL = "report_interval"
 CONF_CALIBRATION_X_MIN = "calibration_x_min"
