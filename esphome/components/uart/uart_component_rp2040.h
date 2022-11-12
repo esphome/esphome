@@ -1,8 +1,10 @@
 #pragma once
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_RP2040
 
-#include <HardwareSerial.h>
+#include <SerialPIO.h>
+#include <SerialUART.h>
+
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -12,7 +14,7 @@
 namespace esphome {
 namespace uart {
 
-class ESP32ArduinoUARTComponent : public UARTComponent, public Component {
+class RP2040UartComponent : public UARTComponent, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -26,16 +28,16 @@ class ESP32ArduinoUARTComponent : public UARTComponent, public Component {
   int available() override;
   void flush() override;
 
-  uint32_t get_config();
+  uint16_t get_config();
 
  protected:
-  void check_logger_conflict() override;
+  void check_logger_conflict() override {}
+  bool hw_serial_{false};
 
-  HardwareSerial *hw_serial_{nullptr};
-  uint8_t number_{0};
+  HardwareSerial *serial_{nullptr};
 };
 
 }  // namespace uart
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_RP2040
