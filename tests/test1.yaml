@@ -1458,6 +1458,10 @@ my9231:
   num_chips: 2
   bit_depth: 16
 
+bp5758d:
+  data_pin: GPIO3
+  clock_pin: GPIO5
+
 output:
   - platform: gpio
     pin: GPIO26
@@ -1612,6 +1616,26 @@ output:
     vref: internal
     gain: X2
     power_down: gnd_500k
+  - platform: bp5758d
+    id: bp5758d_red
+    channel: 2
+    current: 10
+  - platform: bp5758d
+    id: bp5758d_green
+    channel: 3
+    current: 10
+  - platform: bp5758d
+    id: bp5758d_blue
+    channel: 1
+    current: 10
+  - platform: bp5758d
+    id: bp5758d_coldwhite
+    channel: 5
+    current: 10
+  - platform: bp5758d
+    id: bp5758d_warmwhite
+    channel: 4
+    current: 10
 
 e131:
 
@@ -3104,29 +3128,3 @@ lcd_menu:
       on_prev:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
-
-bp5758d:
-  data_pin: GPIO3
-  clock_pin: GPIO5
-
-output:
-  - platform: bp5758d
-      id: output_red
-      channel: 2 # Valid values 1-5 to match OUT1-OUT5
-      current: 10 # In mA, valid values 0-90, default 10
-  - platform: bp5758d
-      id: output_green
-      channel: 3 # Valid values 1-5 to match OUT1-OUT5
-      current: 10 # In mA, valid values 0-90, default 10
-  - platform: bp5758d
-      id: output_blue
-      channel: 1 # Valid values 1-5 to match OUT1-OUT5
-      current: 10 # In mA, valid values 0-90, default 10
-  - platform: bp5758d
-      id: output_coldwhite
-      channel: 5 # Valid values 1-5 to match OUT1-OUT5
-      current: 10 # In mA, valid values 0-90, default 10
-  - platform: bp5758d
-      id: output_warmwhite
-      channel: 4 # Valid values 1-5 to match OUT1-OUT5
-      current: 10 # In mA, valid values 0-90, default 10
