@@ -177,7 +177,7 @@ jobs:
 
       - name: Run yamllint
         if: matrix.id == 'yamllint'
-        uses: frenck/action-yamllint@v1.3.0
+        uses: frenck/action-yamllint@v1.3.1
 
       - name: Suggested changes
         run: script/ci-suggest-changes
