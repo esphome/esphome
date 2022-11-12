@@ -7,7 +7,7 @@
 namespace esphome {
 namespace sm2335 {
 
-class SM2335 : public sm10bit_base::Sm10Bit_Base {
+class SM2335 : public sm10bit_base::Sm10BitBase {
  public:
   SM2335() = default;
 

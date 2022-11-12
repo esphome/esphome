@@ -8,7 +8,7 @@
 namespace esphome {
 namespace sm10bit_base {
 
-class Sm10Bit_Base : public Component {
+class Sm10BitBase : public Component {
  public:
   class Channel;
 
@@ -32,7 +32,7 @@ class Sm10Bit_Base : public Component {
 
   class Channel : public output::FloatOutput {
    public:
-    void set_parent(Sm10Bit_Base *parent) { parent_ = parent; }
+    void set_parent(Sm10BitBase *parent) { parent_ = parent; }
     void set_channel(uint8_t channel) { channel_ = channel; }
 
    protected:
@@ -41,7 +41,7 @@ class Sm10Bit_Base : public Component {
       this->parent_->set_channel_value_(this->channel_, amount);
     }
 
-    Sm10Bit_Base *parent_;
+    Sm10BitBase *parent_;
     uint8_t channel_;
   };
 

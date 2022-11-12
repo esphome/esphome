@@ -15,7 +15,7 @@ CONF_MAX_POWER_COLOR_CHANNELS = "max_power_color_channels"
 CONF_MAX_POWER_WHITE_CHANNELS = "max_power_white_channels"
 
 sm10bit_base_ns = cg.esphome_ns.namespace("sm10bit_base")
-Sm10Bit_Base = sm10bit_base_ns.class_("Sm10Bit_Base", cg.Component)
+Sm10BitBase = sm10bit_base_ns.class_("Sm10BitBase", cg.Component)
 
 SM10BIT_BASE_CONFIG_SCHEMA = cv.Schema(
     {

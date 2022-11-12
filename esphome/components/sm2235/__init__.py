@@ -8,7 +8,7 @@ MULTI_CONF = True
 
 sm2235_ns = cg.esphome_ns.namespace("sm2235")
 
-SM2235 = sm2235_ns.class_("SM2235", sm10bit_base.Sm10Bit_Base)
+SM2235 = sm2235_ns.class_("SM2235", sm10bit_base.Sm10BitBase)
 
 CONFIG_SCHEMA = cv.Schema(
     {
