@@ -26,8 +26,6 @@ class Sm10BitBase : public Component {
 
   void setup() override;
   void dump_config() override;
-
-  /// Send new values if they were updated.
   void loop() override;
 
   class Channel : public output::FloatOutput {
