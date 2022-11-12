@@ -1,5 +1,4 @@
 from pathlib import Path
-import re
 import requests
 
 import esphome.codegen as cg
@@ -8,6 +7,7 @@ from esphome.components.packages import validate_source_shorthand
 from esphome.const import CONF_WIFI
 from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
+from esphome import git
 
 
 dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")
@@ -72,16 +72,10 @@ def import_config(
             encoding="utf8",
         )
     else:
-        m = re.match(
-            r"github://(?P<owner>[a-zA-Z0-9\-]+)/(?P<repo>[a-zA-Z0-9\-\._]+)/(?P<filename>[a-zA-Z0-9\-_.\./]+)(?:@(?P<ref>[a-zA-Z0-9\-_.\./]+))(?:\?(?P<query>[a-zA-Z0-9\-_.\./]+))?",
-            import_url,
-        )
+        git_file = git.GitFile.from_shorthand(import_url)
 
-        if m is None:
-            raise ValueError
-
-        if m.group("query") and "full_config" in m.group("query"):
-            url = f"https://raw.githubusercontent.com/{m.group('owner')}/{m.group('repo')}/{m.group('ref')}/{m.group('filename')}"
+        if git_file.query and "full_config" in git_file.query:
+            url = git_file.raw_url
             try:
                 req = requests.get(url, timeout=30)
                 req.raise_for_status()
