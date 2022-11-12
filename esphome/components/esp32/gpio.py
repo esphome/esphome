@@ -105,6 +105,12 @@ _esp32_validations = {
 
 def validate_gpio_pin(value):
     value = _translate_pin(value)
+    board = CORE.data[KEY_ESP32][KEY_BOARD]
+    board_pins = boards.ESP32_BOARD_PINS.get(board, {})
+
+    if value in board_pins.values():
+        return value
+
     variant = CORE.data[KEY_ESP32][KEY_VARIANT]
     if variant not in _esp32_validations:
         raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
