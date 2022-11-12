@@ -14,9 +14,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
         cv.GenerateID(CONF_BP5758D_ID): cv.use_id(BP5758D),
         cv.Required(CONF_ID): cv.declare_id(Channel),
         cv.Required(CONF_CHANNEL): cv.int_range(min=1, max=5),
-        cv.Optional(CONF_CURRENT, default=10): cv.int_range(
-            min=0, max=90
-        ),
+        cv.Optional(CONF_CURRENT, default=10): cv.int_range(min=0, max=90),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

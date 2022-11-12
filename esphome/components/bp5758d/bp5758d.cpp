@@ -93,8 +93,7 @@ void BP5758D::loop() {
   this->update_ = false;
 }
 
-uint8_t BP5758D::correct_current_level_bits_(uint8_t current)
-{
+uint8_t BP5758D::correct_current_level_bits_(uint8_t current) {
   // Anything below 64 uses normal bitmapping.
   if (current < 64) {
     return current;
@@ -117,9 +116,7 @@ void BP5758D::set_channel_value_(uint8_t channel, uint16_t value) {
   this->pwm_amounts_[channel] = value;
 }
 
-void BP5758D::set_channel_current_(uint8_t channel, uint8_t current) {
-  this->channel_current_[channel] = current;
-}
+void BP5758D::set_channel_current_(uint8_t channel, uint8_t current) { this->channel_current_[channel] = current; }
 
 void BP5758D::write_bit_(bool value) {
   this->clock_pin_->digital_write(false);
