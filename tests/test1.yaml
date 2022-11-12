@@ -1458,6 +1458,12 @@ my9231:
   num_chips: 2
   bit_depth: 16
 
+bp1658cj:
+  data_pin: GPIO6
+  clock_pin: GPIO7
+  max_power_color_channels: 4 # Valid values 0-15
+  max_power_white_channels: 6 # Valid values 0-15
+
 output:
   - platform: gpio
     pin: GPIO26
@@ -1612,6 +1618,21 @@ output:
     vref: internal
     gain: X2
     power_down: gnd_500k
+  - platform: bp1658cj
+    id: bp1658cj_red
+    channel: 1
+  - platform: bp1658cj
+    id: bp1658cj_green
+    channel: 2
+  - platform: bp1658cj
+    id: bp1658cj_blue
+    channel: 0
+  - platform: bp1658cj
+    id: bp1658cj_coldwhite
+    channel: 3
+  - platform: bp1658cj
+    id: bp1658cj_warmwhite
+    channel: 4
 
 e131:
 
@@ -3104,26 +3125,3 @@ lcd_menu:
       on_prev:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
-
-bp1658cj:
-  data_pin: GPIO6
-  clock_pin: GPIO7
-  max_power_color_channels: 4 # Valid values 0-15
-  max_power_white_channels: 6 # Valid values 0-15
-
-output:
-  - platform: bp1658cj
-      id: output_red
-      channel: 1
-  - platform: bp1658cj
-      id: output_green
-      channel: 2
-  - platform: bp1658cj
-      id: output_blue
-      channel: 0
-  - platform: bp1658cj
-      id: output_coldwhite
-      channel: 3
-  - platform: bp1658cj
-      id: output_warmwhite
-      channel: 4
