@@ -966,6 +966,31 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 }
 #endif
 
+#ifdef USE_KEYBOARD
+void WebServer::on_keyboard_update(keyboard::Keyboard *obj) {
+  this->events_.send(this->keyboard_json(obj, DETAIL_STATE).c_str(), "state");
+}
+
+void WebServer::handle_keyboard_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (keyboard::Keyboard *obj : App.get_keyboards()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+    if (request->method() == HTTP_GET) {
+      std::string data = this->keyboard_json(obj, DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+  }
+  request->send(404);
+}
+
+std::string WebServer::keyboard_json(keyboard::Keyboard *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject root) {
+    set_json_id(root, obj, "keyboard-" + obj->get_object_id(), start_config);
+  });
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -1040,6 +1065,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_LOCK
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "lock")
+    return true;
+#endif
+
+#ifdef USE_KEYBOARD
+  if ((request->method() == HTTP_GET && !request->isExpectedRequestedConnType(RCT_WS)) && match.domain == "keyboard")
     return true;
 #endif
 
@@ -1147,6 +1177,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   if (match.domain == "lock") {
     this->handle_lock_request(request, match);
 
+    return;
+  }
+#endif
+
+#ifdef USE_KEYBOARD
+  if (match.domain == "keyboard") {
+    this->handle_keyboard_request(request, match);
     return;
   }
 #endif

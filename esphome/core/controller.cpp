@@ -79,6 +79,12 @@ void Controller::setup_controller(bool include_internal) {
       obj->add_on_state_callback([this, obj]() { this->on_media_player_update(obj); });
   }
 #endif
+#ifdef USE_KEYBOARD
+  for (auto *obj : App.get_keyboards()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_keyboard_update(obj); });
+  }
+#endif
 }
 
 }  // namespace esphome

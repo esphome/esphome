@@ -247,6 +247,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_KEYBOARD
+    case IteratorState::KEYBOARD:
+      if (this->at_ >= App.get_keyboards().size()) {
+        advance_platform = true;
+      } else {
+        auto *keyboard = App.get_keyboards()[this->at_];
+        if (keyboard->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_keyboard(keyboard);
+        }
+      }
+      break;
+#endif
     case IteratorState::MAX:
       if (this->on_end()) {
         this->state_ = IteratorState::NONE;
@@ -271,5 +286,8 @@ bool ComponentIterator::on_camera(esp32_camera::ESP32Camera *camera) { return tr
 #endif
 #ifdef USE_MEDIA_PLAYER
 bool ComponentIterator::on_media_player(media_player::MediaPlayer *media_player) { return true; }
+#endif
+#ifdef USE_KEYBOARD
+bool ComponentIterator::on_keyboard(keyboard::Keyboard *keyboard) { return true; }
 #endif
 }  // namespace esphome

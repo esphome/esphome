@@ -212,6 +212,16 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
 #endif
 
+#ifdef USE_KEYBOARD
+  void on_keyboard_update(keyboard::Keyboard *obj) override;
+
+  /// Handle a lock request under '/keyboard/<id>/</down/up>'.
+  void handle_keyboard_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the lock state with its value as a JSON string.
+  std::string keyboard_json(keyboard::Keyboard *obj, JsonDetail start_config);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.

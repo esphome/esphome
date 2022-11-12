@@ -49,6 +49,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_LOCK
   bool on_lock(lock::Lock *a_lock) override;
 #endif
+#ifdef USE_KEYBOARD
+  bool on_keyboard(keyboard::Keyboard *keyboard) override;
+#endif
 
  protected:
   WebServer *web_server_;

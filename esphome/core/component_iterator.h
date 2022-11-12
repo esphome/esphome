@@ -66,6 +66,9 @@ class ComponentIterator {
 #ifdef USE_MEDIA_PLAYER
   virtual bool on_media_player(media_player::MediaPlayer *media_player);
 #endif
+#ifdef USE_KEYBOARD
+  virtual bool on_keyboard(keyboard::Keyboard *keyboard);
+#endif
   virtual bool on_end();
 
  protected:
@@ -116,6 +119,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_MEDIA_PLAYER
     MEDIA_PLAYER,
+#endif
+#ifdef USE_KEYBOARD
+    KEYBOARD,
 #endif
     MAX,
   } state_{IteratorState::NONE};

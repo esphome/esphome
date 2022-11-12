@@ -91,6 +91,13 @@ bool ListEntitiesIterator::on_select(select::Select *select) {
 }
 #endif
 
+#ifdef USE_KEYBOARD
+bool ListEntitiesIterator::on_keyboard(keyboard::Keyboard *keyboard) {
+  this->web_server_->events_.send(this->web_server_->keyboard_json(keyboard, DETAIL_ALL).c_str(), "state");
+  return true;
+}
+#endif
+
 }  // namespace web_server
 }  // namespace esphome
 

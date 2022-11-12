@@ -48,6 +48,9 @@
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
+#ifdef USE_KEYBOARD
+#include "esphome/components/keyboard/keyboard.h"
+#endif
 
 namespace esphome {
 
@@ -116,6 +119,10 @@ class Application {
 
 #ifdef USE_MEDIA_PLAYER
   void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
+#endif
+
+#ifdef USE_KEYBOARD
+  void register_keyboard(keyboard::Keyboard *keyboard) { this->keyboards_.push_back(keyboard); }
 #endif
 
   /// Register the component in this Application instance.
@@ -282,7 +289,15 @@ class Application {
     return nullptr;
   }
 #endif
-
+#ifdef USE_KEYBOARD
+  const std::vector<keyboard::Keyboard *> &get_keyboards() { return this->keyboards_; }
+  keyboard::Keyboard *get_keyboard_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->keyboards_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
   Scheduler scheduler;
 
  protected:
@@ -335,6 +350,9 @@ class Application {
 #endif
 #ifdef USE_MEDIA_PLAYER
   std::vector<media_player::MediaPlayer *> media_players_{};
+#endif
+#ifdef USE_KEYBOARD
+  std::vector<keyboard::Keyboard *> keyboards_{};
 #endif
 
   std::string name_;
