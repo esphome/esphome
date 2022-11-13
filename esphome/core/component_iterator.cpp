@@ -155,7 +155,7 @@ void ComponentIterator::advance() {
         advance_platform = true;
       } else {
         auto *service = api::global_api_server->get_user_services()[this->at_];
-        success = this->on_entity(service) && this->on_service(service);
+        success = this->on_service(service);
       }
       break;
 #endif

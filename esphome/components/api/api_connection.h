@@ -22,6 +22,7 @@ class APIConnection : public APIServerConnection {
     ListEntitiesDoneResponse resp;
     return this->send_list_entities_done_response(resp);
   }
+  bool send_state_attributes(EntityBase *entity, const EntityStateAttributes &attributes);
 #ifdef USE_BINARY_SENSOR
   bool send_binary_sensor_state(binary_sensor::BinarySensor *binary_sensor, bool state);
   bool send_binary_sensor_info(binary_sensor::BinarySensor *binary_sensor);

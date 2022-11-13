@@ -165,6 +165,21 @@ void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
   // pass
 }
 
+bool APIConnection::send_state_attributes(EntityBase *entity, const EntityStateAttributes &attributes) {
+  if (!this->state_subscription_)
+    return false;
+
+  StateAttributesResponse resp;
+  resp.key = entity->get_object_id_hash();
+  for (const auto &a : attributes) {
+    StateAttributesMap map;
+    map.key = a.first;
+    map.value = a.second;
+    resp.attributes.push_back(std::move(map));
+  }
+  return this->send_state_attributes_response(resp);
+}
+
 #ifdef USE_BINARY_SENSOR
 bool APIConnection::send_binary_sensor_state(binary_sensor::BinarySensor *binary_sensor, bool state) {
   if (!this->state_subscription_)

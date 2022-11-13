@@ -90,7 +90,6 @@ class APIServer : public Component, public Controller {
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
 #endif
-  void on_state_attributes_update(EntityBase *) override;
 
   bool is_connected() const;
 
