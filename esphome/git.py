@@ -131,7 +131,7 @@ class GitFile:
             raise ValueError("URL has no ref")
         if self.domain == "github":
             return f"https://raw.githubusercontent.com/{self.owner}/{self.repo}/{self.ref}/{self.filename}"
-        elif self.domain == "gitlab":
+        if self.domain == "gitlab":
             return f"https://gitlab.com/{self.owner}/{self.repo}/-/raw/{self.ref}/{self.filename}"
         raise NotImplementedError(f"Git domain {self.domain} not supported")
 
