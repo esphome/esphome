@@ -41,4 +41,15 @@ void EntityBase::calc_object_id_() {
 }
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
 
+void EntityBase::publish_state_attributes(EntityStateAttributes state_attributes) {
+  this->state_attributes_ = std::move(state_attributes);
+  this->state_attributes_callback_.call(this->state_attributes_);
+}
+
+const EntityStateAttributes &EntityBase::get_state_attributes() const { return this->state_attributes_; }
+
+void EntityBase::add_state_attributes_callback(std::function<void(const EntityStateAttributes &)> &&callback) {
+  this->state_attributes_callback_.add(std::move(callback));
+}
+
 }  // namespace esphome

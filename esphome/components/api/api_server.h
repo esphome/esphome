@@ -36,6 +36,7 @@ class APIServer : public Component, public Controller {
 #endif  // USE_API_NOISE
 
   void handle_disconnect(APIConnection *conn);
+  void on_state_attributes_update(EntityBase *obj, const EntityStateAttributes &attributes) override;
 #ifdef USE_BINARY_SENSOR
   void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
 #endif
@@ -89,6 +90,7 @@ class APIServer : public Component, public Controller {
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
 #endif
+  void on_state_attributes_update(EntityBase *) override;
 
   bool is_connected() const;
 

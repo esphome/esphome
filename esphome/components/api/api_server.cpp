@@ -173,6 +173,14 @@ bool APIServer::check_password(const std::string &password) const {
   return result == 0;
 }
 void APIServer::handle_disconnect(APIConnection *conn) {}
+
+void APIServer::on_state_attributes_update(EntityBase *obj, const EntityStateAttributes &attributes) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_state_attributes(obj, attributes);
+}
+
 #ifdef USE_BINARY_SENSOR
 void APIServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
   if (obj->is_internal())

@@ -666,6 +666,81 @@ void SubscribeStatesRequest::encode(ProtoWriteBuffer buffer) const {}
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeStatesRequest::dump_to(std::string &out) const { out.append("SubscribeStatesRequest {}"); }
 #endif
+bool StateAttributesMap::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_string();
+      return true;
+    }
+    case 2: {
+      this->value = value.as_string();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void StateAttributesMap::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_string(1, this->key);
+  buffer.encode_string(2, this->value);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void StateAttributesMap::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("StateAttributesMap {\n");
+  out.append("  key: ");
+  out.append("'").append(this->key).append("'");
+  out.append("\n");
+
+  out.append("  value: ");
+  out.append("'").append(this->value).append("'");
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool StateAttributesResponse::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
+  switch (field_id) {
+    case 2: {
+      this->attributes.push_back(value.as_message<StateAttributesMap>());
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+bool StateAttributesResponse::decode_32bit(uint32_t field_id, Proto32Bit value) {
+  switch (field_id) {
+    case 1: {
+      this->key = value.as_fixed32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void StateAttributesResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_fixed32(1, this->key);
+  for (auto &it : this->attributes) {
+    buffer.encode_message<StateAttributesMap>(2, it, true);
+  }
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void StateAttributesResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("StateAttributesResponse {\n");
+  out.append("  key: ");
+  sprintf(buffer, "%u", this->key);
+  out.append(buffer);
+  out.append("\n");
+
+  for (const auto &it : this->attributes) {
+    out.append("  attributes: ");
+    it.dump_to(out);
+    out.append("\n");
+  }
+  out.append("}");
+}
+#endif
 bool ListEntitiesBinarySensorResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 6: {

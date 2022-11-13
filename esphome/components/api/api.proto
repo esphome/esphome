@@ -233,6 +233,19 @@ enum EntityCategory {
   ENTITY_CATEGORY_DIAGNOSTIC = 2;
 }
 
+message StateAttributesMap {
+  string key = 1;
+  // TODO merge with ExecuteServiceArgument?
+  string value = 2;
+}
+
+message StateAttributesResponse {
+  option (id) = 85;
+  option (source) = SOURCE_SERVER;
+  fixed32 key = 1;
+  repeated StateAttributesMap attributes = 2;
+}
+
 // ==================== BINARY SENSOR ====================
 message ListEntitiesBinarySensorResponse {
   option (id) = 12;

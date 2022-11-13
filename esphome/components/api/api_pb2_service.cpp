@@ -56,6 +56,12 @@ bool APIServerConnectionBase::send_list_entities_done_response(const ListEntitie
 #endif
   return this->send_message_<ListEntitiesDoneResponse>(msg, 19);
 }
+bool APIServerConnectionBase::send_state_attributes_response(const StateAttributesResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_state_attributes_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<StateAttributesResponse>(msg, 85);
+}
 #ifdef USE_BINARY_SENSOR
 bool APIServerConnectionBase::send_list_entities_binary_sensor_response(const ListEntitiesBinarySensorResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP

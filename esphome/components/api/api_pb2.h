@@ -310,6 +310,31 @@ class SubscribeStatesRequest : public ProtoMessage {
 
  protected:
 };
+class StateAttributesMap : public ProtoMessage {
+ public:
+  std::string key{};
+  std::string value{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
+class StateAttributesResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  std::vector<StateAttributesMap> attributes{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+};
 class ListEntitiesBinarySensorResponse : public ProtoMessage {
  public:
   std::string object_id{};

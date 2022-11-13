@@ -14,6 +14,7 @@ void ComponentIterator::begin(bool include_internal) {
   this->at_ = 0;
   this->include_internal_ = include_internal;
 }
+bool ComponentIterator::on_entity(EntityBase *entity) { return true; }
 void ComponentIterator::advance() {
   bool advance_platform = false;
   bool success = true;
@@ -38,7 +39,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_binary_sensor(binary_sensor);
+          success = this->on_entity(binary_sensor) && this->on_binary_sensor(binary_sensor);
         }
       }
       break;
@@ -53,7 +54,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_cover(cover);
+          success = this->on_entity(cover) && this->on_cover(cover);
         }
       }
       break;
@@ -68,7 +69,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_fan(fan);
+          success = this->on_entity(fan) && this->on_fan(fan);
         }
       }
       break;
@@ -83,7 +84,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_light(light);
+          success = this->on_entity(light) && this->on_light(light);
         }
       }
       break;
@@ -98,7 +99,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_sensor(sensor);
+          success = this->on_entity(sensor) && this->on_sensor(sensor);
         }
       }
       break;
@@ -113,7 +114,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_switch(a_switch);
+          success = this->on_entity(a_switch) && this->on_switch(a_switch);
         }
       }
       break;
@@ -128,7 +129,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_button(button);
+          success = this->on_entity(button) && this->on_button(button);
         }
       }
       break;
@@ -143,18 +144,18 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_text_sensor(text_sensor);
+          success = this->on_entity(text_sensor) && this->on_text_sensor(text_sensor);
         }
       }
       break;
 #endif
 #ifdef USE_API
-    case IteratorState ::SERVICE:
+    case IteratorState::SERVICE:
       if (this->at_ >= api::global_api_server->get_user_services().size()) {
         advance_platform = true;
       } else {
         auto *service = api::global_api_server->get_user_services()[this->at_];
-        success = this->on_service(service);
+        success = this->on_entity(service) && this->on_service(service);
       }
       break;
 #endif
@@ -167,7 +168,8 @@ void ComponentIterator::advance() {
           advance_platform = success = true;
           break;
         } else {
-          advance_platform = success = this->on_camera(esp32_camera::global_esp32_camera);
+          advance_platform = success =
+              this->on_entity(esp32_camera::global_esp32_camera) && this->on_camera(esp32_camera::global_esp32_camera);
         }
       }
       break;
@@ -182,7 +184,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_climate(climate);
+          success = this->on_entity(climate) && this->on_climate(climate);
         }
       }
       break;
@@ -197,7 +199,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_number(number);
+          success = this->on_entity(number) && this->on_number(number);
         }
       }
       break;
@@ -212,7 +214,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_select(select);
+          success = this->on_entity(select) && this->on_select(select);
         }
       }
       break;
@@ -227,7 +229,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_lock(a_lock);
+          success = this->on_entity(a_lock) && this->on_lock(a_lock);
         }
       }
       break;
@@ -242,7 +244,7 @@ void ComponentIterator::advance() {
           success = true;
           break;
         } else {
-          success = this->on_media_player(media_player);
+          success = this->on_entity(media_player) && this->on_media_player(media_player);
         }
       }
       break;

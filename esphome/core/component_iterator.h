@@ -21,6 +21,7 @@ class ComponentIterator {
   void begin(bool include_internal = false);
   void advance();
   virtual bool on_begin();
+  virtual bool on_entity(EntityBase *entity);
 #ifdef USE_BINARY_SENSOR
   virtual bool on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) = 0;
 #endif

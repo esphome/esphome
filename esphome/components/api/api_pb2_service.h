@@ -27,6 +27,7 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_list_entities_request(const ListEntitiesRequest &value){};
   bool send_list_entities_done_response(const ListEntitiesDoneResponse &msg);
   virtual void on_subscribe_states_request(const SubscribeStatesRequest &value){};
+  bool send_state_attributes_response(const StateAttributesResponse &msg);
 #ifdef USE_BINARY_SENSOR
   bool send_list_entities_binary_sensor_response(const ListEntitiesBinarySensorResponse &msg);
 #endif

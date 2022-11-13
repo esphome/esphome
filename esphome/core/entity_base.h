@@ -1,7 +1,9 @@
 #pragma once
 
+#include <map>
 #include <string>
 #include <cstdint>
+#include "helpers.h"
 
 namespace esphome {
 
@@ -10,6 +12,9 @@ enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_CONFIG = 1,
   ENTITY_CATEGORY_DIAGNOSTIC = 2,
 };
+
+// TODO support floats/integers/bools and vectors thereof
+using EntityStateAttributes = std::map<std::string, std::string>;
 
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
@@ -45,6 +50,11 @@ class EntityBase {
   const std::string &get_icon() const;
   void set_icon(const std::string &name);
 
+  const EntityStateAttributes &get_state_attributes() const;
+  void publish_state_attributes(EntityStateAttributes);
+
+  void add_state_attributes_callback(std::function<void(const EntityStateAttributes &)> &&callback);
+
  protected:
   /// The hash_base() function has been deprecated. It is kept in this
   /// class for now, to prevent external components from not compiling.
@@ -58,6 +68,9 @@ class EntityBase {
   bool internal_{false};
   bool disabled_by_default_{false};
   EntityCategory entity_category_{ENTITY_CATEGORY_NONE};
+  EntityStateAttributes state_attributes_;
+
+  CallbackManager<void(const EntityStateAttributes &)> state_attributes_callback_;
 };
 
 }  // namespace esphome
