@@ -1,5 +1,6 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 
@@ -42,6 +43,11 @@ void EntityBase::calc_object_id_() {
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
 
 void EntityBase::publish_state_attributes(EntityStateAttributes state_attributes) {
+  ESP_LOGV(TAG, "'%s': Received new state attributes", this->name_.c_str());
+  for (const auto &pair : state_attributes) {
+    ESP_LOGV(TAG, "'%s': Received state attribute '%s' => '%s'", this->name_.c_str(), pair.first.c_str(),
+             pair.second.c_str());
+  }
   this->state_attributes_ = std::move(state_attributes);
   this->state_attributes_callback_.call(this->state_attributes_);
 }
