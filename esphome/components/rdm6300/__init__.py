@@ -6,6 +6,7 @@ from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID
 
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["binary_sensor"]
+MULTI_CONF = True
 
 rdm6300_ns = cg.esphome_ns.namespace("rdm6300")
 RDM6300Component = rdm6300_ns.class_("RDM6300Component", cg.Component, uart.UARTDevice)
