@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_RAW_DATA_ID,
     CONF_PAGES,
     CONF_RESET_PIN,
+    CONF_BACKLIGHT_PIN,
 )
 from esphome.core import HexInt
 
@@ -29,12 +30,11 @@ MODELS = {
     "M5STACK": ili9XXX_ns.class_("ILI9XXXM5Stack", ili9XXXSPI),
     "TFT_2.4": ili9XXX_ns.class_("ILI9XXXILI9341", ili9XXXSPI),
     "TFT_2.4R": ili9XXX_ns.class_("ILI9XXXILI9342", ili9XXXSPI),
-    "TFT_3.5": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
     "ILI9341": ili9XXX_ns.class_("ILI9XXXILI9341", ili9XXXSPI),
     "ILI9342": ili9XXX_ns.class_("ILI9XXXILI9342", ili9XXXSPI),
-    "ILI9481": ili9XXX_ns.class_("ILI9XXXILI9481", ili9XXXSPI),
-    "ILI9486": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
-    "ILI9488": ili9XXX_ns.class_("ILI9XXXILI9488", ili9XXXSPI),
+    #    "ILI9481": ili9XXX_ns.class_("ILI9XXXILI9481", ili9XXXSPI),
+    #    "ILI9486": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
+    #    "ILI9488": ili9XXX_ns.class_("ILI9XXXILI9488", ili9XXXSPI),
     "ST7796": ili9XXX_ns.class_("ILI9XXXST7796", ili9XXXSPI),
 }
 
@@ -51,8 +51,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_LED_PIN): cv.invalid(
-                "The led_pin is obsolete, please remove it."
+                "The led_pin is renamed to :" + CONF_BACKLIGHT_PIN
             ),
+            cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
         }
@@ -78,9 +79,14 @@ async def to_code(config):
             config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
+
     if CONF_RESET_PIN in config:
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
+
+    if CONF_BACKLIGHT_PIN in config:
+        reset = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
+        cg.add(var.set_backlight_pin(reset))
 
     if config[CONF_COLOR_PALETTE] == "GRAYSCALE":
         cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8_INDEXED))

@@ -29,6 +29,10 @@ void ILI9XXXDisplay::setup_pins_() {
     this->reset_pin_->digital_write(true);
   }
   this->spi_setup();
+  if (this->backlight_pin_ != nullptr) {
+    this->backlight_pin_->setup();  // OUTPUT
+    this->backlight_pin_->digital_write(true);
+  }
 
   this->reset_();
 }
@@ -38,6 +42,7 @@ void ILI9XXXDisplay::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_PIN("  backlight Pin: ", this->backlight_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
 
