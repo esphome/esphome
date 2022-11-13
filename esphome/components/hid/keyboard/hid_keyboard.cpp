@@ -29,9 +29,9 @@ void Keyboard::control(std::vector<uint16_t> &&keys) {
   *this->keys_ = std::move(keys);
 }
 
-void Keyboard::set_parrent(Keyboard *thiz, keyboard::LEDControl *led_control) {
+void Keyboard::set_parent(Keyboard *thiz, keyboard::LEDControl *led_control) {
   if (thiz) {
-    thiz->set_parrent(led_control);
+    thiz->set_parent(led_control);
   }
 }
 

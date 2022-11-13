@@ -15,6 +15,7 @@ namespace keyboard {
 enum KeyboardType : uint8_t {
   KEYBOARD,
   MEDIA_KEYS,
+  MAX,
 };
 
 class KeyboardControl {

@@ -12,9 +12,9 @@ class Keyboard : public keyboard::KeyboardControl {
  public:
   void control(std::vector<uint16_t> &&keys) override;
 
-  void set_parrent(keyboard::LEDControl *led_control) { led_control_ = led_control; }
+  void set_parent(keyboard::LEDControl *led_control) { led_control_ = led_control; }
 
-  static void set_parrent(Keyboard *thiz, keyboard::LEDControl *led_control);
+  static void set_parent(Keyboard *thiz, keyboard::LEDControl *led_control);
 
  protected:
   virtual void report() = 0;

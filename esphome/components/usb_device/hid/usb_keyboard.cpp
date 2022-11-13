@@ -32,7 +32,7 @@ template<class T> void Report<T>::report() {
 
 KeyboardReport::KeyboardReport(Adafruit_USBD_HID *usb_hid, uint8_t report_id)
     : Report(usb_hid, [this, report_id] {
-        ESP_LOGD(TAG, "keyboard report id: %d - modifier: %d, code %d, %d, %d, %d, %d, %d", report_id, modifier_,
+        ESP_LOGV(TAG, "keyboard report id: %d - modifier: %d, code %d, %d, %d, %d, %d, %d", report_id, modifier_,
                  hidcode_[0], hidcode_[1], hidcode_[2], hidcode_[3], hidcode_[4], hidcode_[5]);
         return usb_hid_->keyboardReport(report_id, modifier_, hidcode_);
       }) {}
@@ -52,7 +52,7 @@ void KeyboardReport::loop() {
 
 MediaKeysReport::MediaKeysReport(Adafruit_USBD_HID *usb_hid, uint8_t report_id)
     : Report(usb_hid, [this, report_id] {
-        ESP_LOGD(TAG, "media keys report id: %d - %d", report_id, media_keys_);
+        ESP_LOGV(TAG, "media keys report id: %d - %d", report_id, media_keys_);
         return usb_hid_->sendReport16(report_id, media_keys_);
       }) {}
 

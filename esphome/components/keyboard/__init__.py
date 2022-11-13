@@ -8,6 +8,9 @@ from esphome.core import CORE
 from esphome import automation
 from esphome.cpp_helpers import setup_entity
 from esphome.cpp_generator import MockObj
+from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
+from esphome.components import web_server_base
+from esphome.const import CONF_WEB_SERVER
 
 IS_PLATFORM_COMPONENT = True
 CODEOWNERS = ["@tomaszduda23"]
@@ -45,7 +48,6 @@ class _KeyMapping:
     usb_key: _UsbKey
     ps2_key: _Ps2Key
     at1_code: int
-    hid_code: int
 
 
 def _parse_usb_key(key: str) -> _UsbKey:
@@ -69,10 +71,6 @@ def _read_keymap_csv(path: str) -> list[_KeyMapping]:
         for row in csv.DictReader(keymap_file):
             if len(row) >= 6:
                 usb_key = _parse_usb_key(row["usb_key"])
-                if usb_key.is_modifier:
-                    hid_code = usb_key.arduino_modifier_code
-                else:
-                    hid_code = usb_key.code
                 _keymap.append(
                     _KeyMapping(
                         web_name=row["web_name"],
@@ -80,7 +78,6 @@ def _read_keymap_csv(path: str) -> list[_KeyMapping]:
                         usb_key=usb_key,
                         ps2_key=_parse_ps2_key(row["ps2_key"]),
                         at1_code=int(row["at1_code"], 16),
-                        hid_code=hid_code,
                         # x11_keys=_parse_x11_names(row["x11_names"] or ""),
                     )
                 )
@@ -105,7 +102,14 @@ def _read_keymap_csv(path: str) -> list[_KeyMapping]:
 def _gen_keymap(_keymap):
     _key_map = {}
     for key in _keymap:
-        _key_map[key.web_name] = key.hid_code
+        usb_key = key.usb_key
+        if usb_key.is_modifier:
+            _key_map[key.web_name] = (
+                usb_key.arduino_modifier_code,
+                usb_key.is_media_key,
+            )
+        else:
+            _key_map[key.web_name] = (usb_key.code, usb_key.is_media_key)
     return _key_map
 
 
@@ -117,18 +121,38 @@ CONF_KEYS_MAP = _gen_keymap(keymap)
 
 keyboard_ns = cg.esphome_ns.namespace("keyboard")
 Keyboard = keyboard_ns.class_("Keyboard", cg.Component)
-
+KeyboardWebSocket = keyboard_ns.class_("KeyboardWebSocket", cg.Component)
+CONF_KEYBOARD_WEB_SOCKET_ID = "keyboard_web_socket_id"
+CONF_KEY_NAMES_ID = "key_names_id"
+CONF_KEY_VALUES_ID = "key_values_id"
 
 KEYBOARD_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(Keyboard),
+            cv.OnlyWith(CONF_KEYBOARD_WEB_SOCKET_ID, CONF_WEB_SERVER): cv.declare_id(
+                KeyboardWebSocket
+            ),
+            cv.OnlyWith(CONF_WEB_SERVER_BASE_ID, CONF_WEB_SERVER): cv.use_id(
+                web_server_base.WebServerBase
+            ),
+            cv.OnlyWith(CONF_KEY_NAMES_ID, CONF_WEB_SERVER): cv.declare_id(
+                cg.global_ns.namespace("char *")
+            ),
+            cv.OnlyWith(CONF_KEY_VALUES_ID, CONF_WEB_SERVER): cv.declare_id(
+                cg.std_ns.namespace("pair<uint16_t, KeyboardType>")
+            ),
         }
     )
 ).extend(cv.COMPONENT_SCHEMA)
 
 
 async def setup_keyboard_core_(var, config):
+    if CONF_WEB_SERVER_BASE_ID in config:
+        web_socket = cg.new_Pvariable(config[CONF_KEYBOARD_WEB_SOCKET_ID], var)
+        web_base = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
+        cg.add(web_base.add_handler(web_socket))
+        await cg.register_component(web_socket, config)
     await setup_entity(var, config)
 
 
@@ -139,14 +163,14 @@ async def register_keyboard(var, config):
     await setup_keyboard_core_(var, config)
 
 
-def validate_keys(value):
+def validate_key_name(value):
     if isinstance(value, str):
         if CONF_KEYS_MAP.get(value) is None:
             raise cv.Invalid("Not mapping for " + value)
         return CONF_KEYS_MAP[value]
     if isinstance(value, int):
         cv.int_range(min=1, max=65535)(value)
-        return value
+        return (value,)
     raise cv.Invalid("keys must either be a string wrapped in quotes or a int")
 
 
@@ -159,23 +183,37 @@ CONF_KEYBOARD_TYPE = {
 }
 
 
+def validate_keyboard_type(config):
+    if CONF_KEYS in config:
+        for key in config[CONF_KEYS]:
+            is_media_keys = config[CONF_TYPE] == CONF_MEDIA_KEYS
+            if len(key) > 1 and key[1] != is_media_keys:
+                raise cv.Invalid(
+                    f"key {key[0]} does not belong to keyboard type '{config[CONF_TYPE]}'"
+                )
+    return config
+
+
 def add_key_action(name, action_name, is_required):
     Action = keyboard_ns.class_(name, automation.Action)
 
     @automation.register_action(
         action_name,
         Action,
-        cv.Schema(
-            {
-                cv.GenerateID(): cv.use_id(Keyboard),
-                cv.Required(CONF_KEYS)
-                if is_required
-                else cv.Optional(CONF_KEYS): cv.ensure_list(validate_keys),
-                cv.Optional(CONF_TYPE, CONF_KEYBOARD): cv.All(
-                    cv.enum(CONF_KEYBOARD_TYPE, lower=True),
-                    cv.Length(min=1),
-                ),
-            }
+        cv.All(
+            cv.Schema(
+                {
+                    cv.GenerateID(): cv.use_id(Keyboard),
+                    cv.Required(CONF_KEYS)
+                    if is_required
+                    else cv.Optional(CONF_KEYS): cv.ensure_list(validate_key_name),
+                    cv.Optional(CONF_TYPE, CONF_KEYBOARD): cv.All(
+                        cv.enum(CONF_KEYBOARD_TYPE, lower=True),
+                        cv.Length(min=1),
+                    ),
+                }
+            ),
+            validate_keyboard_type,
         ),
     )
     async def keyboard_send_key_to_code(config, action_id, template_arg, args):
@@ -183,7 +221,7 @@ def add_key_action(name, action_name, is_required):
         await cg.register_parented(var, config[CONF_ID])
         if CONF_KEYS in config:
             key = config[CONF_KEYS]
-            cg.add(var.set_key(key))
+            cg.add(var.set_key(key[0]))
         cg.add(var.set_type(MockObj(CONF_KEYBOARD_TYPE[config[CONF_TYPE]])))
         return var
 
@@ -194,5 +232,24 @@ add_key_action("SetAction", "keyboard.set", False)
 
 
 async def to_code(config):
+    if len(config) > 0 and CONF_KEYBOARD_WEB_SOCKET_ID in config[0]:
+        names = []
+        values = []
+        keys = list(CONF_KEYS_MAP.keys())
+        keys.sort()
+        for key in keys:
+            names += [key]
+            kbd_type = (
+                CONF_KEYBOARD_TYPE[CONF_MEDIA_KEYS]
+                if CONF_KEYS_MAP[key][1]
+                else CONF_KEYBOARD_TYPE[CONF_KEYBOARD]
+            )
+            values += [MockObj(f"{{{CONF_KEYS_MAP[key][0]}, {kbd_type}}}")]
+        size = len(names)
+        names = cg.progmem_array(config[0][CONF_KEY_NAMES_ID], names)
+        values = cg.progmem_array(config[0][CONF_KEY_VALUES_ID], values)
+        for conf in config:
+            web_socket = await cg.get_variable(conf[CONF_KEYBOARD_WEB_SOCKET_ID])
+            cg.add(web_socket.set_key_map(names, values, size))
     cg.add_global(keyboard_ns.using)
     cg.add_define("USE_KEYBOARD")

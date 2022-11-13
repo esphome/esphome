@@ -34,6 +34,8 @@ KeyboardCall Keyboard::make_call(KeyboardType type) {
         return KeyboardCall(media_keys_control_);
       }
       break;
+    default:
+      break;
   }
   return KeyboardCall(nullptr);
 }

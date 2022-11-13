@@ -48,6 +48,6 @@ async def to_code(config):
         config[CONF_MEDIA_KEYS_CONTROL], hid.media_keys_control()
     )
     var = cg.new_Pvariable(config[CONF_ID], keyboard_control, media_keys_control)
-    cg.add(MockObj("hid::Keyboard::set_parrent")(keyboard_control, var))
+    cg.add(MockObj("hid::Keyboard::set_parent")(keyboard_control, var))
     await cg.register_component(var, config)
     await keyboard.register_keyboard(var, config)
