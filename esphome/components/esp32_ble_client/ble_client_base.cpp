@@ -11,6 +11,9 @@ namespace esp32_ble_client {
 static const char *const TAG = "esp32_ble_client";
 
 void BLEClientBase::setup() {
+  static uint8_t connection_index = 0;
+  this->connection_index_ = connection_index++;
+
   auto ret = esp_ble_gattc_app_register(this->app_id);
   if (ret) {
     ESP_LOGE(TAG, "gattc app register failed. app_id=%d code=%d", this->app_id, ret);
@@ -30,10 +33,10 @@ float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_B
 bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
   if (device.address_uint64() != this->address_)
     return false;
-  if (this->state_ != espbt::ClientState::IDLE)
+  if (this->state_ != espbt::ClientState::IDLE && this->state_ != espbt::ClientState::SEARCHING)
     return false;
 
-  ESP_LOGD(TAG, "Found device at MAC address [%s]", device.address_str().c_str());
+  ESP_LOGD(TAG, "[%d] [%s] Found device", this->connection_index_, this->address_str_.c_str());
   this->set_state(espbt::ClientState::DISCOVERED);
 
   auto addr = device.address_uint64();
@@ -47,80 +50,88 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
   return true;
 }
 
-std::string BLEClientBase::address_str() const {
-  return str_snprintf("%02x:%02x:%02x:%02x:%02x:%02x", 17, (uint8_t)(this->address_ >> 40) & 0xff,
-                      (uint8_t)(this->address_ >> 32) & 0xff, (uint8_t)(this->address_ >> 24) & 0xff,
-                      (uint8_t)(this->address_ >> 16) & 0xff, (uint8_t)(this->address_ >> 8) & 0xff,
-                      (uint8_t)(this->address_ >> 0) & 0xff);
-}
-
 void BLEClientBase::connect() {
-  ESP_LOGI(TAG, "Attempting BLE connection to %s", this->address_str().c_str());
+  ESP_LOGI(TAG, "[%d] [%s] Attempting BLE connection", this->connection_index_, this->address_str_.c_str());
   auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_, this->remote_addr_type_, true);
   if (ret) {
-    ESP_LOGW(TAG, "esp_ble_gattc_open error, address=%s status=%d", this->address_str().c_str(), ret);
+    ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_open error, status=%d", this->connection_index_, this->address_str_.c_str(),
+             ret);
     this->set_state(espbt::ClientState::IDLE);
   } else {
     this->set_state(espbt::ClientState::CONNECTING);
   }
 }
 
-void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
+void BLEClientBase::disconnect() {
+  ESP_LOGI(TAG, "[%d] [%s] Disconnecting.", this->connection_index_, this->address_str_.c_str());
+  auto err = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
+  if (err != ESP_OK) {
+    ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_close error, err=%d", this->connection_index_, this->address_str_.c_str(),
+             err);
+  }
+
+  if (this->state_ == espbt::ClientState::SEARCHING) {
+    this->set_address(0);
+    this->set_state(espbt::ClientState::IDLE);
+  }
+}
+
+bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
                                         esp_ble_gattc_cb_param_t *param) {
   if (event == ESP_GATTC_REG_EVT && this->app_id != param->reg.app_id)
-    return;
+    return false;
   if (event != ESP_GATTC_REG_EVT && esp_gattc_if != ESP_GATT_IF_NONE && esp_gattc_if != this->gattc_if_)
-    return;
+    return false;
+
+  ESP_LOGV(TAG, "[%d] [%s] gattc_event_handler: event=%d gattc_if=%d", this->connection_index_,
+           this->address_str_.c_str(), event, esp_gattc_if);
 
   switch (event) {
     case ESP_GATTC_REG_EVT: {
       if (param->reg.status == ESP_GATT_OK) {
-        ESP_LOGV(TAG, "gattc registered app id %d", this->app_id);
+        ESP_LOGV(TAG, "[%d] [%s] gattc registered app id %d", this->connection_index_, this->address_str_.c_str(),
+                 this->app_id);
         this->gattc_if_ = esp_gattc_if;
       } else {
-        ESP_LOGE(TAG, "gattc app registration failed id=%d code=%d", param->reg.app_id, param->reg.status);
+        ESP_LOGE(TAG, "[%d] [%s] gattc app registration failed id=%d code=%d", this->connection_index_,
+                 this->address_str_.c_str(), param->reg.app_id, param->reg.status);
       }
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
-      ESP_LOGV(TAG, "[%s] ESP_GATTC_OPEN_EVT", this->address_str().c_str());
+      ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT", this->connection_index_, this->address_str_.c_str());
       this->conn_id_ = param->open.conn_id;
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
-        ESP_LOGW(TAG, "connect to %s failed, status=%d", this->address_str().c_str(), param->open.status);
+        ESP_LOGW(TAG, "[%d] [%s] Connection failed, status=%d", this->connection_index_, this->address_str_.c_str(),
+                 param->open.status);
         this->set_state(espbt::ClientState::IDLE);
         break;
       }
-      break;
-    }
-    case ESP_GATTC_CONNECT_EVT: {
-      ESP_LOGV(TAG, "[%s] ESP_GATTC_CONNECT_EVT", this->address_str().c_str());
-      if (this->conn_id_ != param->connect.conn_id) {
-        ESP_LOGD(TAG, "[%s] Unexpected conn_id in CONNECT_EVT: param conn=%d, open conn=%d",
-                 this->address_str().c_str(), param->connect.conn_id, this->conn_id_);
-      }
-      auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->connect.conn_id);
+      auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->open.conn_id);
       if (ret) {
-        ESP_LOGW(TAG, "esp_ble_gattc_send_mtu_req failed, status=%x", ret);
+        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
+                 this->address_str_.c_str(), ret);
       }
       break;
     }
     case ESP_GATTC_CFG_MTU_EVT: {
       if (param->cfg_mtu.status != ESP_GATT_OK) {
-        ESP_LOGW(TAG, "cfg_mtu to %s failed, mtu %d, status %d", this->address_str().c_str(), param->cfg_mtu.mtu,
-                 param->cfg_mtu.status);
+        ESP_LOGW(TAG, "[%d] [%s] cfg_mtu failed, mtu %d, status %d", this->connection_index_,
+                 this->address_str_.c_str(), param->cfg_mtu.mtu, param->cfg_mtu.status);
         this->set_state(espbt::ClientState::IDLE);
         break;
       }
-      ESP_LOGV(TAG, "cfg_mtu status %d, mtu %d", param->cfg_mtu.status, param->cfg_mtu.mtu);
+      ESP_LOGV(TAG, "[%d] [%s] cfg_mtu status %d, mtu %d", this->connection_index_, this->address_str_.c_str(),
+               param->cfg_mtu.status, param->cfg_mtu.mtu);
       this->mtu_ = param->cfg_mtu.mtu;
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {
-      if (memcmp(param->disconnect.remote_bda, this->remote_bda_, 6) != 0) {
-        return;
-      }
-      ESP_LOGV(TAG, "[%s] ESP_GATTC_DISCONNECT_EVT, reason %d", this->address_str().c_str(), param->disconnect.reason);
+      if (memcmp(param->disconnect.remote_bda, this->remote_bda_, 6) != 0)
+        return false;
+      ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason %d", this->connection_index_,
+               this->address_str_.c_str(), param->disconnect.reason);
       for (auto &svc : this->services_)
         delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
       this->services_.clear();
@@ -137,10 +148,12 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      ESP_LOGV(TAG, "[%s] ESP_GATTC_SEARCH_CMPL_EVT", this->address_str().c_str());
+      ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_SEARCH_CMPL_EVT", this->connection_index_, this->address_str_.c_str());
       for (auto &svc : this->services_) {
-        ESP_LOGI(TAG, "Service UUID: %s", svc->uuid.to_string().c_str());
-        ESP_LOGI(TAG, "  start_handle: 0x%x  end_handle: 0x%x", svc->start_handle, svc->end_handle);
+        ESP_LOGI(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_.c_str(),
+                 svc->uuid.to_string().c_str());
+        ESP_LOGI(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
+                 this->address_str_.c_str(), svc->start_handle, svc->end_handle);
         svc->parse_characteristics();
       }
       this->set_state(espbt::ClientState::CONNECTED);
@@ -149,14 +162,10 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
       auto *descr = this->get_config_descriptor(param->reg_for_notify.handle);
-      if (descr == nullptr) {
-        ESP_LOGW(TAG, "No descriptor found for notify of handle 0x%x", param->reg_for_notify.handle);
-        break;
-      }
       if (descr->uuid.get_uuid().len != ESP_UUID_LEN_16 ||
           descr->uuid.get_uuid().uuid.uuid16 != ESP_GATT_UUID_CHAR_CLIENT_CONFIG) {
-        ESP_LOGW(TAG, "Handle 0x%x (uuid %s) is not a client config char uuid", param->reg_for_notify.handle,
-                 descr->uuid.to_string().c_str());
+        ESP_LOGW(TAG, "[%d] [%s] Handle 0x%x (uuid %s) is not a client config char uuid", this->connection_index_,
+                 this->address_str_.c_str(), param->reg_for_notify.handle, descr->uuid.to_string().c_str());
         break;
       }
       uint16_t notify_en = 1;
@@ -164,7 +173,8 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
           esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descr->handle, sizeof(notify_en),
                                          (uint8_t *) &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
       if (status) {
-        ESP_LOGW(TAG, "esp_ble_gattc_write_char_descr error, status=%d", status);
+        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_write_char_descr error, status=%d", this->connection_index_,
+                 this->address_str_.c_str(), status);
       }
       break;
     }
@@ -172,24 +182,28 @@ void BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     default:
       break;
   }
+  return true;
 }
 
 void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   switch (event) {
     // This event is sent by the server when it requests security
     case ESP_GAP_BLE_SEC_REQ_EVT:
-      ESP_LOGV(TAG, "ESP_GAP_BLE_SEC_REQ_EVT %x", event);
+      ESP_LOGV(TAG, "[%d] [%s] ESP_GAP_BLE_SEC_REQ_EVT %x", this->connection_index_, this->address_str_.c_str(), event);
       esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
       break;
     // This event is sent once authentication has completed
     case ESP_GAP_BLE_AUTH_CMPL_EVT:
       esp_bd_addr_t bd_addr;
       memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
-      ESP_LOGI(TAG, "auth complete. remote BD_ADDR: %s", format_hex(bd_addr, 6).c_str());
+      ESP_LOGI(TAG, "[%d] [%s] auth complete. remote BD_ADDR: %s", this->connection_index_, this->address_str_.c_str(),
+               format_hex(bd_addr, 6).c_str());
       if (!param->ble_security.auth_cmpl.success) {
-        ESP_LOGE(TAG, "auth fail reason = 0x%x", param->ble_security.auth_cmpl.fail_reason);
+        ESP_LOGE(TAG, "[%d] [%s] auth fail reason = 0x%x", this->connection_index_, this->address_str_.c_str(),
+                 param->ble_security.auth_cmpl.fail_reason);
       } else {
-        ESP_LOGV(TAG, "auth success. address type = %d auth mode = %d", param->ble_security.auth_cmpl.addr_type,
+        ESP_LOGV(TAG, "[%d] [%s] auth success. address type = %d auth mode = %d", this->connection_index_,
+                 this->address_str_.c_str(), param->ble_security.auth_cmpl.addr_type,
                  param->ble_security.auth_cmpl.auth_mode);
       }
       break;
@@ -245,7 +259,8 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
                         (int32_t)(value[4]));
       }
   }
-  ESP_LOGW(TAG, "Cannot parse characteristic value of type 0x%x length %d", value[0], length);
+  ESP_LOGW(TAG, "[%d] [%s] Cannot parse characteristic value of type 0x%x length %d", this->connection_index_,
+           this->address_str_.c_str(), value[0], length);
   return NAN;
 }
 
