@@ -2,6 +2,7 @@ from esphome.components import climate
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
+from esphome.components.climate import ClimateSwingMode
 from esphome.const import CONF_ID, CONF_SUPPORTED_SWING_MODES
 
 DEPENDENCIES = ["uart"]
@@ -12,19 +13,20 @@ HaierClimate = haier_ns.class_(
 )
 SwingMode = haier_ns.enum("SwingMode")
 
-SWING_MODES = {
-    "off": SwingMode.SWING_OFF,
-    "vertical": SwingMode.SWING_VERTICAL,
-    "horizontal": SwingMode.SWING_HORIZONTAL,
-    "both": SwingMode.SWING_BOTH,
+ALLOWED_CLIMATE_SWING_MODES = {
+    "BOTH": ClimateSwingMode.CLIMATE_SWING_BOTH,
+    "VERTICAL": ClimateSwingMode.CLIMATE_SWING_VERTICAL,
+    "HORIZONTAL": ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
 }
+
+validate_swing_modes = cv.enum(ALLOWED_CLIMATE_SWING_MODES, upper=True)
 
 CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(HaierClimate),
-            cv.Optional(CONF_SUPPORTED_SWING_MODES, default="off"): cv.enum(
-                SWING_MODES, lower=True
+            cv.Optional(CONF_SUPPORTED_SWING_MODES): cv.ensure_list(
+                validate_swing_modes
             ),
         }
     )
@@ -34,7 +36,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_SUPPORTED_SWING_MODES])
+    var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await climate.register_climate(var, config)
     await uart.register_uart_device(var, config)
+    if CONF_SUPPORTED_SWING_MODES in config:
+        cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))

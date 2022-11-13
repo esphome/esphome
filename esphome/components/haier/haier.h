@@ -40,18 +40,19 @@ static const uint8_t OFF_REQ[13] = {255, 255, 10, 0, 0, 0, 0, 0, 1, 1, 77, 3, 92
 class HaierClimate : public climate::Climate, public uart::UARTDevice, public PollingComponent {
  private:
   uint8_t data_[37];
-  SwingMode supported_swing_mode_;
+  std::set<climate::ClimateSwingMode> supported_swing_modes_{};
 
  public:
-  HaierClimate(SwingMode supported_swing_mode) : PollingComponent(5 * 1000) {
-    this->supported_swing_mode_ = supported_swing_mode;
-  }
+  HaierClimate() : PollingComponent(5 * 1000) {}
 
   void setup() override {}
   void loop() override;
   void update() override;
   void dump_config() override;
   void control(const climate::ClimateCall &call) override;
+  void set_supported_swing_modes(const std::set<climate::ClimateSwingMode> &modes) {
+    this->supported_swing_modes_ = modes;
+  }
 
  protected:
   climate::ClimateTraits traits() override;

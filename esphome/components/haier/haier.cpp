@@ -52,23 +52,7 @@ climate::ClimateTraits HaierClimate::traits() {
       climate::CLIMATE_FAN_HIGH,
   });
 
-  switch (supported_swing_mode_) {
-    case SWING_VERTICAL:
-      traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL});
-      break;
-
-    case SWING_HORIZONTAL:
-      traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_HORIZONTAL});
-      break;
-
-    case SWING_BOTH:
-      traits.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
-                                        climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH});
-      break;
-    default:
-      break;
-  }
-
+  traits.set_supported_swing_modes(this->supported_swing_modes_);
   traits.set_supports_current_temperature(true);
   traits.set_supports_two_point_target_temperature(false);
 
