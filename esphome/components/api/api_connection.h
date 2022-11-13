@@ -137,7 +137,7 @@ class APIConnection : public APIServerConnection {
   }
   void subscribe_state_attributes(const SubscribeStateAttributesRequest &msg) override {
     this->state_attributes_subscription_ = true;
-    this->initial_state_iterator_.begin();
+    this->initial_state_attributes_iterator_.begin();
   }
   void subscribe_logs(const SubscribeLogsRequest &msg) override {
     this->log_subscription_ = msg.level;
