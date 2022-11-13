@@ -23,28 +23,28 @@ class ComponentIterator {
   virtual bool on_begin();
   virtual bool on_entity(EntityBase *entity);
 #ifdef USE_BINARY_SENSOR
-  virtual bool on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) = 0;
+  virtual bool on_binary_sensor(binary_sensor::BinarySensor *binary_sensor);
 #endif
 #ifdef USE_COVER
-  virtual bool on_cover(cover::Cover *cover) = 0;
+  virtual bool on_cover(cover::Cover *cover);
 #endif
 #ifdef USE_FAN
-  virtual bool on_fan(fan::Fan *fan) = 0;
+  virtual bool on_fan(fan::Fan *fan);
 #endif
 #ifdef USE_LIGHT
-  virtual bool on_light(light::LightState *light) = 0;
+  virtual bool on_light(light::LightState *light);
 #endif
 #ifdef USE_SENSOR
-  virtual bool on_sensor(sensor::Sensor *sensor) = 0;
+  virtual bool on_sensor(sensor::Sensor *sensor);
 #endif
 #ifdef USE_SWITCH
-  virtual bool on_switch(switch_::Switch *a_switch) = 0;
+  virtual bool on_switch(switch_::Switch *a_switch);
 #endif
 #ifdef USE_BUTTON
-  virtual bool on_button(button::Button *button) = 0;
+  virtual bool on_button(button::Button *button);
 #endif
 #ifdef USE_TEXT_SENSOR
-  virtual bool on_text_sensor(text_sensor::TextSensor *text_sensor) = 0;
+  virtual bool on_text_sensor(text_sensor::TextSensor *text_sensor);
 #endif
 #ifdef USE_API
   virtual bool on_service(api::UserServiceDescriptor *service);
@@ -53,16 +53,16 @@ class ComponentIterator {
   virtual bool on_camera(esp32_camera::ESP32Camera *camera);
 #endif
 #ifdef USE_CLIMATE
-  virtual bool on_climate(climate::Climate *climate) = 0;
+  virtual bool on_climate(climate::Climate *climate);
 #endif
 #ifdef USE_NUMBER
-  virtual bool on_number(number::Number *number) = 0;
+  virtual bool on_number(number::Number *number);
 #endif
 #ifdef USE_SELECT
-  virtual bool on_select(select::Select *select) = 0;
+  virtual bool on_select(select::Select *select);
 #endif
 #ifdef USE_LOCK
-  virtual bool on_lock(lock::Lock *a_lock) = 0;
+  virtual bool on_lock(lock::Lock *a_lock);
 #endif
 #ifdef USE_MEDIA_PLAYER
   virtual bool on_media_player(media_player::MediaPlayer *media_player);
@@ -71,7 +71,7 @@ class ComponentIterator {
 
  protected:
   enum class IteratorState {
-    NONE = 0,
+    NONE,
     BEGIN,
 #ifdef USE_BINARY_SENSOR
     BINARY_SENSOR,

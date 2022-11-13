@@ -9,6 +9,7 @@
 #include "api_pb2_service.h"
 #include "list_entities.h"
 #include "subscribe_state.h"
+#include "subscribe_state_attributes.h"
 #include "user_services.h"
 #include "api_noise_context.h"
 

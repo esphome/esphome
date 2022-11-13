@@ -310,6 +310,15 @@ class SubscribeStatesRequest : public ProtoMessage {
 
  protected:
 };
+class SubscribeStateAttributesRequest : public ProtoMessage {
+ public:
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
 class StateAttributesMap : public ProtoMessage {
  public:
   std::string key{};

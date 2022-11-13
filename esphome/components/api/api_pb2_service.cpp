@@ -60,7 +60,7 @@ bool APIServerConnectionBase::send_state_attributes_response(const StateAttribut
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_state_attributes_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<StateAttributesResponse>(msg, 85);
+  return this->send_message_<StateAttributesResponse>(msg, 86);
 }
 #ifdef USE_BINARY_SENSOR
 bool APIServerConnectionBase::send_list_entities_binary_sensor_response(const ListEntitiesBinarySensorResponse &msg) {
@@ -795,6 +795,15 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 85: {
+      SubscribeStateAttributesRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_subscribe_state_attributes_request: %s", msg.dump().c_str());
+#endif
+      this->on_subscribe_state_attributes_request(msg);
+      break;
+    }
     default:
       return false;
   }
@@ -856,6 +865,17 @@ void APIServerConnection::on_subscribe_states_request(const SubscribeStatesReque
     return;
   }
   this->subscribe_states(msg);
+}
+void APIServerConnection::on_subscribe_state_attributes_request(const SubscribeStateAttributesRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->subscribe_state_attributes(msg);
 }
 void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &msg) {
   if (!this->is_connection_setup()) {

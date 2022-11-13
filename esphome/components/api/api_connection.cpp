@@ -23,7 +23,10 @@ static const char *const TAG = "api.connection";
 static const int ESP32_CAMERA_STOP_STREAM = 5000;
 
 APIConnection::APIConnection(std::unique_ptr<socket::Socket> sock, APIServer *parent)
-    : parent_(parent), initial_state_iterator_(this), list_entities_iterator_(this) {
+    : parent_(parent),
+      initial_state_iterator_(this),
+      initial_state_attributes_iterator_(this),
+      list_entities_iterator_(this) {
   this->proto_write_buffer_.reserve(64);
 
 #if defined(USE_API_PLAINTEXT)
@@ -95,6 +98,7 @@ void APIConnection::loop() {
 
   this->list_entities_iterator_.advance();
   this->initial_state_iterator_.advance();
+  this->initial_state_attributes_iterator_.advance();
 
   const uint32_t keepalive = 60000;
   const uint32_t now = millis();
@@ -166,7 +170,7 @@ void APIConnection::on_disconnect_response(const DisconnectResponse &value) {
 }
 
 bool APIConnection::send_state_attributes(EntityBase *entity, const EntityStateAttributes &attributes) {
-  if (!this->state_subscription_)
+  if (!this->state_attributes_subscription_)
     return false;
 
   StateAttributesResponse resp;

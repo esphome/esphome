@@ -14,7 +14,6 @@ void ComponentIterator::begin(bool include_internal) {
   this->at_ = 0;
   this->include_internal_ = include_internal;
 }
-bool ComponentIterator::on_entity(EntityBase *entity) { return true; }
 void ComponentIterator::advance() {
   bool advance_platform = false;
   bool success = true;
@@ -264,12 +263,49 @@ void ComponentIterator::advance() {
   }
 }
 bool ComponentIterator::on_end() { return true; }
+bool ComponentIterator::on_entity(EntityBase *entity) { return true; }
 bool ComponentIterator::on_begin() { return true; }
 #ifdef USE_API
 bool ComponentIterator::on_service(api::UserServiceDescriptor *service) { return true; }
 #endif
+#ifdef USE_BINARY_SENSOR
+bool ComponentIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) { return true; }
+#endif
+#ifdef USE_COVER
+bool ComponentIterator::on_cover(cover::Cover *cover) { return true; }
+#endif
+#ifdef USE_FAN
+bool ComponentIterator::on_fan(fan::Fan *fan) { return true; }
+#endif
+#ifdef USE_LIGHT
+bool ComponentIterator::on_light(light::LightState *light) { return true; }
+#endif
+#ifdef USE_SENSOR
+bool ComponentIterator::on_sensor(sensor::Sensor *sensor) { return true; }
+#endif
+#ifdef USE_SWITCH
+bool ComponentIterator::on_switch(switch_::Switch *a_switch) { return true; }
+#endif
+#ifdef USE_BUTTON
+bool ComponentIterator::on_button(button::Button *button) { return true; }
+#endif
+#ifdef USE_TEXT_SENSOR
+bool ComponentIterator::on_text_sensor(text_sensor::TextSensor *text_sensor) { return true; }
+#endif
 #ifdef USE_ESP32_CAMERA
 bool ComponentIterator::on_camera(esp32_camera::ESP32Camera *camera) { return true; }
+#endif
+#ifdef USE_CLIMATE
+bool ComponentIterator::on_climate(climate::Climate *climate) { return true; }
+#endif
+#ifdef USE_NUMBER
+bool ComponentIterator::on_number(number::Number *number) { return true; }
+#endif
+#ifdef USE_SELECT
+bool ComponentIterator::on_select(select::Select *select) { return true; }
+#endif
+#ifdef USE_LOCK
+bool ComponentIterator::on_lock(lock::Lock *a_lock) { return true; }
 #endif
 #ifdef USE_MEDIA_PLAYER
 bool ComponentIterator::on_media_player(media_player::MediaPlayer *media_player) { return true; }

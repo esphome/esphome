@@ -5,10 +5,6 @@
 namespace esphome {
 namespace api {
 
-bool InitialStateIterator::on_entity(EntityBase *entity) {
-  return this->client_->send_state_attributes(entity, entity->get_state_attributes());
-}
-
 #ifdef USE_BINARY_SENSOR
 bool InitialStateIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
   return this->client_->send_binary_sensor_state(binary_sensor, binary_sensor->state);

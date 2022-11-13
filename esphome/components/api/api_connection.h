@@ -135,6 +135,10 @@ class APIConnection : public APIServerConnection {
     this->state_subscription_ = true;
     this->initial_state_iterator_.begin();
   }
+  void subscribe_state_attributes(const SubscribeStateAttributesRequest &msg) override {
+    this->state_attributes_subscription_ = true;
+    this->initial_state_iterator_.begin();
+  }
   void subscribe_logs(const SubscribeLogsRequest &msg) override {
     this->log_subscription_ = msg.level;
     if (msg.dump_config)
@@ -192,6 +196,7 @@ class APIConnection : public APIServerConnection {
 #endif
 
   bool state_subscription_{false};
+  bool state_attributes_subscription_{false};
   int log_subscription_{ESPHOME_LOG_LEVEL_NONE};
   uint32_t last_traffic_;
   bool sent_ping_{false};
@@ -200,6 +205,7 @@ class APIConnection : public APIServerConnection {
   bool next_close_ = false;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
+  InitialStateAttributesIterator initial_state_attributes_iterator_;
   ListEntitiesIterator list_entities_iterator_;
   int state_subs_at_ = -1;
 };

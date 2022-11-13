@@ -13,7 +13,6 @@ class APIConnection;
 class InitialStateIterator : public ComponentIterator {
  public:
   InitialStateIterator(APIConnection *client);
-  bool on_entity(EntityBase *entity) override;
 #ifdef USE_BINARY_SENSOR
   bool on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) override;
 #endif

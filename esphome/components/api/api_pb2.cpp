@@ -666,6 +666,12 @@ void SubscribeStatesRequest::encode(ProtoWriteBuffer buffer) const {}
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeStatesRequest::dump_to(std::string &out) const { out.append("SubscribeStatesRequest {}"); }
 #endif
+void SubscribeStateAttributesRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void SubscribeStateAttributesRequest::dump_to(std::string &out) const {
+  out.append("SubscribeStateAttributesRequest {}");
+}
+#endif
 bool StateAttributesMap::decode_length(uint32_t field_id, ProtoLengthDelimited value) {
   switch (field_id) {
     case 1: {

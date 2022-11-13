@@ -27,6 +27,7 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_list_entities_request(const ListEntitiesRequest &value){};
   bool send_list_entities_done_response(const ListEntitiesDoneResponse &msg);
   virtual void on_subscribe_states_request(const SubscribeStatesRequest &value){};
+  virtual void on_subscribe_state_attributes_request(const SubscribeStateAttributesRequest &value){};
   bool send_state_attributes_response(const StateAttributesResponse &msg);
 #ifdef USE_BINARY_SENSOR
   bool send_list_entities_binary_sensor_response(const ListEntitiesBinarySensorResponse &msg);
@@ -224,6 +225,7 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual DeviceInfoResponse device_info(const DeviceInfoRequest &msg) = 0;
   virtual void list_entities(const ListEntitiesRequest &msg) = 0;
   virtual void subscribe_states(const SubscribeStatesRequest &msg) = 0;
+  virtual void subscribe_state_attributes(const SubscribeStateAttributesRequest &msg) = 0;
   virtual void subscribe_logs(const SubscribeLogsRequest &msg) = 0;
   virtual void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) = 0;
   virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
@@ -296,6 +298,7 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_device_info_request(const DeviceInfoRequest &msg) override;
   void on_list_entities_request(const ListEntitiesRequest &msg) override;
   void on_subscribe_states_request(const SubscribeStatesRequest &msg) override;
+  void on_subscribe_state_attributes_request(const SubscribeStateAttributesRequest &msg) override;
   void on_subscribe_logs_request(const SubscribeLogsRequest &msg) override;
   void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) override;
   void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) override;

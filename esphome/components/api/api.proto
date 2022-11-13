@@ -24,6 +24,7 @@ service APIConnection {
   }
   rpc list_entities (ListEntitiesRequest) returns (void) {}
   rpc subscribe_states (SubscribeStatesRequest) returns (void) {}
+  rpc subscribe_state_attributes (SubscribeStateAttributesRequest) returns (void) {}
   rpc subscribe_logs (SubscribeLogsRequest) returns (void) {}
   rpc subscribe_homeassistant_services (SubscribeHomeassistantServicesRequest) returns (void) {}
   rpc subscribe_home_assistant_states (SubscribeHomeAssistantStatesRequest) returns (void) {}
@@ -225,6 +226,12 @@ message SubscribeStatesRequest {
   // Empty
 }
 
+message SubscribeStateAttributesRequest {
+  option (id) = 85;
+  option (source) = SOURCE_CLIENT;
+  // Empty
+}
+
 // ==================== COMMON =====================
 
 enum EntityCategory {
@@ -240,7 +247,7 @@ message StateAttributesMap {
 }
 
 message StateAttributesResponse {
-  option (id) = 85;
+  option (id) = 86;
   option (source) = SOURCE_SERVER;
   fixed32 key = 1;
   repeated StateAttributesMap attributes = 2;
