@@ -46,7 +46,7 @@ namespace esphome {
 class Controller {
  public:
   void setup_controller(bool include_internal = false);
-  virtual void on_state_attributes_update(EntityBase *, const EntityStateAttributes &attributes){};
+  virtual void on_state_attributes_update(EntityBase *obj, const EntityStateAttributes &attributes){};
 #ifdef USE_BINARY_SENSOR
   virtual void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state){};
 #endif
