@@ -108,13 +108,6 @@ void EZOSensor::loop() {
   ESP_LOGV(TAG, "Received buffer \"%s\" for command type %s", buf, EZO_COMMAND_TYPE_STRINGS[to_run->command_type]);
 
   if ((buf[0] == 1) || (to_run->command_type == EzoCommandType::EZO_CALIBRATION)) {  // EZO_CALIBRATION returns 0-3
-    // some sensors return multiple comma-separated values, terminate string after first one
-    for (size_t i = 1; i < sizeof(buf) - 1; i++) {
-      if (buf[i] == ',') {
-        buf[i] = '\0';
-        break;
-      }
-    }
     std::string payload = reinterpret_cast<char *>(&buf[1]);
     if (!payload.empty()) {
       switch (to_run->command_type) {
