@@ -125,7 +125,7 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
     target_temperature /= this->target_temperature_multiplier_;
 
     ESP_LOGV(TAG, "Setting target temperature: %.1f", target_temperature);
-    this->parent_->set_integer_datapoint_value(*this->target_temperature_id_, );
+    this->parent_->set_integer_datapoint_value(*this->target_temperature_id_, target_temperature);
   }
 
   if (call.get_preset().has_value()) {
