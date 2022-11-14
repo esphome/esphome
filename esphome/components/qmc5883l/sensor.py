@@ -103,8 +103,10 @@ CONFIG_SCHEMA = (
 
 
 def auto_data_rate(config):
-    interval_sec = config[CONF_UPDATE_INTERVAL].seconds
-    interval_hz = 1.0 / interval_sec
+    interval_sec=0
+    if config[CONF_UPDATE_INTERVAL].seconds != None:
+      interval_sec=config[CONF_UPDATE_INTERVAL].seconds
+    interval_hz = 1.0 / (interval_sec+config[CONF_UPDATE_INTERVAL].milliseconds/1000)
     for datarate in sorted(QMC5883LDatarates.keys()):
         if float(datarate) >= interval_hz:
             return QMC5883LDatarates[datarate]
