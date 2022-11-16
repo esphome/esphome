@@ -46,7 +46,7 @@ RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install --no-cache-dir \
         wheel==0.37.1 \
-        platformio==6.0.2 \
+        platformio==6.1.5 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
@@ -94,7 +94,7 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        nginx-light=1.18.0-6.1+deb11u2 \
+        nginx-light=1.18.0-6.1+deb11u3 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \

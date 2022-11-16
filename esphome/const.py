@@ -1,13 +1,14 @@
 """Constants used by esphome."""
 
-__version__ = "2022.10.2"
+__version__ = "2022.11.0"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
 PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
+PLATFORM_RP2040 = "rp2040"
 
-TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266]
+TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
@@ -115,6 +116,7 @@ CONF_COMMAND_RETAIN = "command_retain"
 CONF_COMMAND_TOPIC = "command_topic"
 CONF_COMMENT = "comment"
 CONF_COMMIT = "commit"
+CONF_COMPILE_PROCESS_LIMIT = "compile_process_limit"
 CONF_COMPONENT_ID = "component_id"
 CONF_COMPONENTS = "components"
 CONF_CONDITION = "condition"
@@ -489,6 +491,7 @@ CONF_PACKAGES = "packages"
 CONF_PAGE_ID = "page_id"
 CONF_PAGES = "pages"
 CONF_PANASONIC = "panasonic"
+CONF_PARAMETERS = "parameters"
 CONF_PASSWORD = "password"
 CONF_PATH = "path"
 CONF_PAYLOAD = "payload"

@@ -119,16 +119,16 @@ class StorageJSON:
         )
 
     @staticmethod
-    def from_wizard(name: str, address: str, esp_platform: str) -> "StorageJSON":
+    def from_wizard(name: str, address: str, platform: str) -> "StorageJSON":
         return StorageJSON(
             storage_version=1,
             name=name,
             comment=None,
-            esphome_version=const.__version__,
+            esphome_version=None,
             src_version=1,
             address=address,
             web_port=None,
-            target_platform=esp_platform,
+            target_platform=platform,
             build_path=None,
             firmware_bin_path=None,
             loaded_integrations=[],
