@@ -47,7 +47,6 @@ void TuyaClimate::setup() {
       if (this->reports_fahrenheit_) {
         this->manual_temperature_ = (this->manual_temperature_ - 32) * 5 / 9;
       }
-      this->manual_temperature_ *= this->target_temperature_multiplier_;
 
       ESP_LOGV(TAG, "MCU reported manual target temperature is: %.1f", this->manual_temperature_);
       this->compute_target_temperature_();
@@ -61,7 +60,6 @@ void TuyaClimate::setup() {
       if (this->reports_fahrenheit_) {
         this->current_temperature = (this->current_temperature - 32) * 5 / 9;
       }
-      this->current_temperature *= this->current_temperature_multiplier_;
 
       ESP_LOGV(TAG, "MCU reported current temperature is: %.1f", this->current_temperature);
       this->compute_state_();
