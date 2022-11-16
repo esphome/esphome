@@ -81,11 +81,20 @@ esp32:
     type: esp-idf
 """
 
+RP2040_CONFIG = """
+rp2040:
+  board: {board}
+  framework:
+    # Required until https://github.com/platformio/platform-raspberrypi/pull/36 is merged
+    platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
+"""
+
 HARDWARE_BASE_CONFIGS = {
     "ESP8266": ESP8266_CONFIG,
     "ESP32": ESP32_CONFIG,
     "ESP32S2": ESP32S2_CONFIG,
     "ESP32C3": ESP32C3_CONFIG,
+    "RP2040": RP2040_CONFIG,
 }
 
 
@@ -164,6 +173,7 @@ captive_portal:
 
 def wizard_write(path, **kwargs):
     from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.rp2040 import boards as rp2040_boards
 
     name = kwargs["name"]
     board = kwargs["board"]
@@ -173,9 +183,13 @@ def wizard_write(path, **kwargs):
             kwargs[key] = sanitize_double_quotes(kwargs[key])
 
     if "platform" not in kwargs:
-        kwargs["platform"] = (
-            "ESP8266" if board in esp8266_boards.ESP8266_BOARD_PINS else "ESP32"
-        )
+        if board in esp8266_boards.ESP8266_BOARD_PINS:
+            platform = "ESP8266"
+        elif board in rp2040_boards.RP2040_BOARD_PINS:
+            platform = "RP2040"
+        else:
+            platform = "ESP32"
+        kwargs["platform"] = platform
     hardware = kwargs["platform"]
 
     write_file(path, wizard_file(**kwargs))

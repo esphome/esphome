@@ -32,6 +32,7 @@ class ESP32ArduinoUARTComponent : public UARTComponent, public Component {
   void check_logger_conflict() override;
 
   HardwareSerial *hw_serial_{nullptr};
+  uint8_t number_{0};
 };
 
 }  // namespace uart

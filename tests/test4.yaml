@@ -532,6 +532,9 @@ text_sensor:
   - platform: copy
     source_id: inverter0_device_mode
     name: Inverter Text Sensor Copy
+  - platform: ethernet_info
+    ip_address:
+      name: IP Address
 
 output:
   - platform: pipsolar
