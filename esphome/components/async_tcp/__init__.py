@@ -8,6 +8,7 @@ CODEOWNERS = ["@OttoWinter"]
 CONFIG_SCHEMA = cv.All(
     cv.Schema({}),
     cv.only_with_arduino,
+    cv.only_on(["esp32", "esp8266"]),
 )
 
 

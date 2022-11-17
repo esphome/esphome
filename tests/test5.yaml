@@ -240,6 +240,7 @@ number:
     step: 5
     unit_of_measurement: "%"
     mode: slider
+    device_class: humidity
     on_value:
       - logger.log:
           format: Number changed to %f

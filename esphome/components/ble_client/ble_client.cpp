@@ -47,11 +47,12 @@ void BLEClient::set_enabled(bool enabled) {
   this->enabled = enabled;
 }
 
-void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
+bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
                                     esp_ble_gattc_cb_param_t *param) {
   bool all_established = this->all_nodes_established_();
 
-  BLEClientBase::gattc_event_handler(event, esp_gattc_if, param);
+  if (!BLEClientBase::gattc_event_handler(event, esp_gattc_if, param))
+    return false;
 
   for (auto *node : this->nodes_)
     node->gattc_event_handler(event, esp_gattc_if, param);
@@ -62,6 +63,7 @@ void BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
       delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
     this->services_.clear();
   }
+  return true;
 }
 
 void BLEClient::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
