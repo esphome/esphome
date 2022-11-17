@@ -273,6 +273,7 @@ class DeviceInfoResponse : public ProtoMessage {
   std::string project_version{};
   uint32_t webserver_port{0};
   uint32_t bluetooth_proxy_version{0};
+  std::string manufacturer{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1003,6 +1004,7 @@ class ListEntitiesNumberResponse : public ProtoMessage {
   enums::EntityCategory entity_category{};
   std::string unit_of_measurement{};
   enums::NumberMode mode{};
+  std::string device_class{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

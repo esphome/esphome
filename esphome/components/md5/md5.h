@@ -17,6 +17,11 @@
 #define MD5_CTX_TYPE md5_context_t
 #endif
 
+#ifdef USE_RP2040
+#include <MD5Builder.h>
+#define MD5_CTX_TYPE br_md5_context
+#endif
+
 namespace esphome {
 namespace md5 {
 
