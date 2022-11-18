@@ -915,6 +915,7 @@ message ListEntitiesNumberResponse {
   EntityCategory entity_category = 10;
   string unit_of_measurement = 11;
   NumberMode mode = 12;
+  string device_class = 13;
 }
 message NumberStateResponse {
   option (id) = 50;
