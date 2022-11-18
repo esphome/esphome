@@ -123,13 +123,13 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       }
       if (this->address_type_map_.find(this->address_) != this->address_type_map_.end()) {
         // Utilise the address type cache
-        this->remote_addr_type_ = this->address_type_map_[this->address_];
-        this->remote_bda_[0] = (this->address_ >> 40) & 0xFF;
-        this->remote_bda_[1] = (this->address_ >> 32) & 0xFF;
-        this->remote_bda_[2] = (this->address_ >> 24) & 0xFF;
-        this->remote_bda_[3] = (this->address_ >> 16) & 0xFF;
-        this->remote_bda_[4] = (this->address_ >> 8) & 0xFF;
-        this->remote_bda_[5] = (this->address_ >> 0) & 0xFF;     
+        connection->remote_addr_type_ = this->address_type_map_[msg.address];
+        connection->remote_bda_[0] = (msg.address >> 40) & 0xFF;
+        connection->remote_bda_[1] = (msg.address >> 32) & 0xFF;
+        connection->remote_bda_[2] = (msg.address >> 24) & 0xFF;
+        connection->remote_bda_[3] = (msg.address >> 16) & 0xFF;
+        connection->remote_bda_[4] = (msg.address >> 8) & 0xFF;
+        connection->remote_bda_[5] = (msg.address >> 0) & 0xFF;     
         ESP_LOGV(TAG, "[%d] [%s] Using connect cache", connection->get_connection_index(),
                 connection->address_str().c_str());
         this->set_state(espbt::ClientState::DISCOVERED); 
