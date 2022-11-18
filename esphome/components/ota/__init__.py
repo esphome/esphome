@@ -39,7 +39,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(OTAComponent),
         cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
-        cv.SplitDefault(CONF_PORT, esp8266=8266, esp32=3232): cv.port,
+        cv.SplitDefault(CONF_PORT, esp8266=8266, esp32=3232, rp2040=2040): cv.port,
         cv.Optional(CONF_PASSWORD): cv.string,
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="5min"
@@ -93,6 +93,9 @@ async def to_code(config):
 
     if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("Update", None)
+
+    if CORE.is_rp2040 and CORE.using_arduino:
+        cg.add_library("Updater", None)
 
     use_state_callback = False
     for conf in config.get(CONF_ON_STATE_CHANGE, []):

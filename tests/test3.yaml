@@ -884,6 +884,7 @@ binary_sensor:
       then:
         - cover.toggle: time_based_cover
         - cover.toggle: endstop_cover
+        - cover.toggle: current_based_cover
   - platform: hydreon_rgxx
     hydreon_rgxx_id: hydreon_rg9
     too_cold:
@@ -1246,6 +1247,7 @@ cover:
     close_duration: 4.5min
   - platform: current_based
     name: Current Based Cover
+    id: current_based_cover
     open_sensor: ade7953_current_a
     open_moving_current_threshold: 0.5
     open_obstacle_current_threshold: 0.8

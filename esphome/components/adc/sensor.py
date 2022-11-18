@@ -94,6 +94,9 @@ def validate_adc_pin(value):
     if str(value).upper() == "VCC":
         return cv.only_on_esp8266("VCC")
 
+    if str(value).upper() == "TEMPERATURE":
+        return cv.only_on_rp2040("TEMPERATURE")
+
     if CORE.is_esp32:
         value = pins.internal_gpio_input_pin_number(value)
         variant = get_esp32_variant()
@@ -116,6 +119,12 @@ def validate_adc_pin(value):
         return pins.gpio_pin_schema(
             {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
         )(value)
+
+    if CORE.is_rp2040:
+        value = pins.internal_gpio_input_pin_number(value)
+        if value not in (26, 27, 28, 29):
+            raise cv.Invalid("RP2040: Only pins 26, 27, 28 and 29 support ADC.")
+        return pins.internal_gpio_input_pin_schema(value)
 
     raise NotImplementedError
 
@@ -160,6 +169,8 @@ async def to_code(config):
 
     if config[CONF_PIN] == "VCC":
         cg.add_define("USE_ADC_SENSOR_VCC")
+    elif config[CONF_PIN] == "TEMPERATURE":
+        cg.add(var.set_is_temperature())
     else:
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
         cg.add(var.set_pin(pin))

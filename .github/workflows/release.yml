@@ -31,7 +31,7 @@ jobs:
             today="$(date --utc '+%Y%m%d')"
             TAG="${TAG}${today}"
           fi
-          echo "::set-output name=tag::${TAG}"
+          echo "tag=${TAG}" >> $GITHUB_OUTPUT
         # yamllint enable rule:line-length
 
   deploy-pypi:
