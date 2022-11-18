@@ -195,7 +195,7 @@ struct Rect {
 
   //  rect           x--------------w
   //  this        x--------------w
-  inline void info(const std::string& prefix = "rect info:") {
+  inline void info(const std::string &prefix = "rect info:") {
     if (this->is_set()) {
       ESP_LOGI("Rect", "%s [%3d,%3d,%3d,%3d]", prefix.c_str(), this->x, this->y, this->w, this->h);
     } else
@@ -218,7 +218,7 @@ using display_writer_t = std::function<void(DisplayBuffer &)>;
     ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
   }
 
-class DisplayBuffer: public PollingComponent {
+class DisplayBuffer : public PollingComponent {
  public:
   /// Fill the entire screen with the given color.
   virtual void fill(Color color);
@@ -696,7 +696,7 @@ class DisplayBuffer: public PollingComponent {
 
   void call_update() { update(); }
   void update() override;
-  
+
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
@@ -704,7 +704,6 @@ class DisplayBuffer: public PollingComponent {
 
   uint8_t init_internal_(uint32_t buffer_length, uint8_t bytes_per_pixel = 1);
   virtual void display(){};
-
 
   void swap_coords_(int16_t *x0, int16_t *y0, int16_t *x1, int16_t *y1);
   std::vector<Rect> clipping_rectangle_;
@@ -822,7 +821,7 @@ class Animation : public Image {
   int get_current_frame() const override;
   void next_frame();
   void prev_frame();
-  
+
   /** Selects a specific frame within the animation.
    *
    * @param frame If possitive, advance to the frame. If negative, recede to that frame from the end frame.

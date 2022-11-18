@@ -382,7 +382,7 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
     // Remap from the step to the segment index, depending on direction
     segment_index = (clockwise) ? (segment_start + step_index) : (segment_start - step_index - 1);
 
-    angle = (int32_t)(segment_index * step) % (int32_t)(23040);
+    angle = (int32_t) (segment_index * step) % (int32_t) (23040);
 
     this->calc_polar(radius1, angle, &calc_x, &calc_y);
     x0 = x + calc_x;
@@ -402,7 +402,7 @@ void DisplayBuffer::filled_arc(int16_t x, int16_t y, int16_t radius1, int16_t ra
 
     if (grandient_to != grandient_from) {
       // Gradient coloring
-      gradient_pos = 255 * (int32_t)(segment_index - segment_gradient_start) / segment_gradient_range;
+      gradient_pos = 255 * (int32_t) (segment_index - segment_gradient_start) / segment_gradient_range;
     }
     this->filled_quad(x0, y0, x1, y1, x2, y2, x3, y3, grandient_from.gradient(grandient_to, gradient_pos));
   }
@@ -607,7 +607,7 @@ void DisplayBuffer::show_page(DisplayPage *page) {
 void DisplayBuffer::show_next_page() { this->page_->show_next(); }
 void DisplayBuffer::show_prev_page() { this->page_->show_prev(); }
 
-//void DisplayBuffer::call_update() { this->update(); }
+// void DisplayBuffer::call_update() { this->update(); }
 
 void DisplayBuffer::update() {
   static bool prossing_update = false, need_update = false;
@@ -898,7 +898,7 @@ bool Animation::get_pixel(int x, int y) const {
     return false;
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t frame_index = this->height_ * width_8 * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return false;
   const uint32_t pos = x + y * width_8 + frame_index;
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
@@ -907,7 +907,7 @@ Color Animation::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
   const uint32_t color32 = (progmem_read_byte(this->data_start_ + pos + 2) << 0) |
@@ -919,7 +919,7 @@ Color Animation::get_rgb565_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 2;
   uint16_t rgb565 =
@@ -933,7 +933,7 @@ Color Animation::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
@@ -956,7 +956,7 @@ void Animation::prev_frame() {
   }
 }
 void Animation::set_frame(int frame) {
-  if (frame >= 0 OR frame < this->animation_frame_count_) {
+  if ((frame >= 0) OR(frame < this->animation_frame_count_)) {
     this->current_frame_ = frame;
   }
 }
