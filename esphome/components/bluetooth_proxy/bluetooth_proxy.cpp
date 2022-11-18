@@ -130,11 +130,11 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->remote_bda_[3] = (msg.address >> 16) & 0xFF;
         connection->remote_bda_[4] = (msg.address >> 8) & 0xFF;
         connection->remote_bda_[5] = (msg.address >> 0) & 0xFF;     
-        ESP_LOGV(TAG, "[%d] [%s] Using connect cache", connection->get_connection_index(),
+        ESP_LOGI(TAG, "[%d] [%s] Using connect cache", connection->get_connection_index(),
                 connection->address_str().c_str());
         connection->set_state(espbt::ClientState::DISCOVERED); 
       } else {      
-        ESP_LOGV(TAG, "[%d] [%s] Searching to connect", connection->get_connection_index(),
+        ESP_LOGI(TAG, "[%d] [%s] Searching to connect", connection->get_connection_index(),
                 connection->address_str().c_str());
         connection->set_state(espbt::ClientState::SEARCHING);
       }
