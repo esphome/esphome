@@ -945,7 +945,7 @@ int Animation::get_animation_frame_count() const { return this->animation_frame_
 int Animation::get_current_frame() const { return this->current_frame_; }
 void Animation::next_frame() {
   this->current_frame_++;
-  if (this->current_frame_ >= animation_frame_count_) {
+  if (this->current_frame_ >= this->animation_frame_count_) {
     this->current_frame_ = 0;
   }
 }
@@ -953,6 +953,11 @@ void Animation::prev_frame() {
   this->current_frame_--;
   if (this->current_frame_ < 0) {
     this->current_frame_ = this->animation_frame_count_ - 1;
+  }
+}
+void Animation::set_frame(int frame) {
+  if (frame >= 0 OR frame < this->animation_frame_count_) {
+    this->current_frame_ = frame;
   }
 }
 
