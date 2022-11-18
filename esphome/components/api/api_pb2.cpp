@@ -3942,6 +3942,10 @@ bool ListEntitiesNumberResponse::decode_length(uint32_t field_id, ProtoLengthDel
       this->unit_of_measurement = value.as_string();
       return true;
     }
+    case 13: {
+      this->device_class = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -3981,6 +3985,7 @@ void ListEntitiesNumberResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
   buffer.encode_string(11, this->unit_of_measurement);
   buffer.encode_enum<enums::NumberMode>(12, this->mode);
+  buffer.encode_string(13, this->device_class);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
@@ -4036,6 +4041,10 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
 
   out.append("  mode: ");
   out.append(proto_enum_to_string<enums::NumberMode>(this->mode));
+  out.append("\n");
+
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class).append("'");
   out.append("\n");
   out.append("}");
 }
