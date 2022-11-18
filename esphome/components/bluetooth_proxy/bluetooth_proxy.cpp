@@ -121,8 +121,8 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
         return;
       }
-      if (this->address_type_map_.find(msg.address) != this->address_type_map_.end()) {
-        // Utilise the address type cache
+      if (0 && this->address_type_map_.find(msg.address) != this->address_type_map_.end()) {
+        // Utilize the address type cache
         connection->remote_addr_type_ = this->address_type_map_[msg.address];
         connection->remote_bda_[0] = (msg.address >> 40) & 0xFF;
         connection->remote_bda_[1] = (msg.address >> 32) & 0xFF;
