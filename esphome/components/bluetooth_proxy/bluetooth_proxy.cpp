@@ -131,7 +131,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->remote_bda_[3] = (msg.address >> 16) & 0xFF;
         connection->remote_bda_[4] = (msg.address >> 8) & 0xFF;
         connection->remote_bda_[5] = (msg.address >> 0) & 0xFF;
-        esp_ble_gap_stop_scanning();
+        esp_ble_gap_stop_scanning(); // connection will fail if we are still scanning
         ESP_LOGI(TAG, "[%d] [%s] Using connect cache", connection->get_connection_index(),
                 connection->address_str().c_str());
       } else {      
