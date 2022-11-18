@@ -956,7 +956,7 @@ void Animation::prev_frame() {
   }
 }
 void Animation::set_frame(int frame) {
-  if ((frame >= 0) OR(frame < this->animation_frame_count_)) {
+  if ((frame >= 0) || (frame < this->animation_frame_count_)) {
     this->current_frame_ = frame;
   }
 }
