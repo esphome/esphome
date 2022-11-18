@@ -16,6 +16,7 @@ BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (!api::global_api_server->is_connected())
     return false;
+  this->address_type_map_[device.address_uint64()] = device.get_address_type();    
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
   this->send_api_packet_(device);
@@ -120,9 +121,23 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
         return;
       }
-      ESP_LOGV(TAG, "[%d] [%s] Searching to connect", connection->get_connection_index(),
-               connection->address_str().c_str());
-      connection->set_state(espbt::ClientState::SEARCHING);
+      if (this->address_type_map_.find(this->address_) != this->address_type_map_.end()) {
+        // Utilise the address type cache
+        this->remote_addr_type_ = this->address_type_map_[this->address_];
+        this->remote_bda_[0] = (this->address_ >> 40) & 0xFF;
+        this->remote_bda_[1] = (this->address_ >> 32) & 0xFF;
+        this->remote_bda_[2] = (this->address_ >> 24) & 0xFF;
+        this->remote_bda_[3] = (this->address_ >> 16) & 0xFF;
+        this->remote_bda_[4] = (this->address_ >> 8) & 0xFF;
+        this->remote_bda_[5] = (this->address_ >> 0) & 0xFF;     
+        ESP_LOGV(TAG, "[%d] [%s] Using connect cache", connection->get_connection_index(),
+                connection->address_str().c_str());
+        this->set_state(espbt::ClientState::DISCOVERED); 
+      } else {      
+        ESP_LOGV(TAG, "[%d] [%s] Searching to connect", connection->get_connection_index(),
+                connection->address_str().c_str());
+        connection->set_state(espbt::ClientState::SEARCHING);
+      }
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
       break;
