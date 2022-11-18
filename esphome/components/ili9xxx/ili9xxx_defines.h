@@ -28,7 +28,7 @@ static const uint8_t ILI9XXX_NORON = 0x13;
 static const uint8_t ILI9XXX_RDMODE = 0x0A;
 static const uint8_t ILI9XXX_RDMADCTL = 0x0B;
 static const uint8_t ILI9XXX_RDPIXFMT = 0x0C;
-static const uint8_t ILI9XXX_RDIMGFMT = 0x0A;
+static const uint8_t ILI9XXX_RDIMGFMT = 0x0D;
 static const uint8_t ILI9XXX_RDSELFDIAG = 0x0F;
 
 static const uint8_t ILI9XXX_INVOFF = 0x20;
