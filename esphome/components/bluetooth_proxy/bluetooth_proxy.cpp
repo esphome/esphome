@@ -16,7 +16,7 @@ BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (!api::global_api_server->is_connected())
     return false;
-  this->address_type_map_[device.address_uint64()] = device.get_address_type();
+  //this->address_type_map_[device.address_uint64()] = device.get_address_type();
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
   this->send_api_packet_(device);
@@ -123,6 +123,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       }
       if (this->address_type_map_.find(msg.address) != this->address_type_map_.end()) {
         // Utilize the address type cache
+        connection->set_state(espbt::ClientState::DISCOVERED); 
         connection->remote_addr_type_ = this->address_type_map_[msg.address];      
         connection->remote_bda_[0] = (msg.address >> 40) & 0xFF;
         connection->remote_bda_[1] = (msg.address >> 32) & 0xFF;
@@ -132,7 +133,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         connection->remote_bda_[5] = (msg.address >> 0) & 0xFF;
         ESP_LOGI(TAG, "[%d] [%s] Using connect cache", connection->get_connection_index(),
                 connection->address_str().c_str());
-        connection->set_state(espbt::ClientState::DISCOVERED); 
       } else {      
         ESP_LOGI(TAG, "[%d] [%s] Searching to connect", connection->get_connection_index(),
                 connection->address_str().c_str());
