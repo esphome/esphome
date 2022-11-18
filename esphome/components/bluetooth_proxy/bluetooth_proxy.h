@@ -63,8 +63,8 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   void send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device);
 
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
-  cache::lru_cache<uint64_t, esp_ble_addr_type_t> address_type_cache_(256);
 
+  std::map<uint64_t, esp_ble_addr_type_t> address_type_map_;
   int16_t send_service_{-1};
   bool active_;
 
