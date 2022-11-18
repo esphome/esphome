@@ -51,7 +51,7 @@ void ESP32BLETracker::setup() {
   global_esp32_ble_tracker = this;
   this->scan_result_lock_ = xSemaphoreCreateMutex();
   this->scan_end_lock_ = xSemaphoreCreateMutex();
-  this->scanner_idle_ = true;
+  this->set_state(ScannerState::IDLE);
   if (!ESP32BLETracker::ble_setup()) {
     this->mark_failed();
     return;
@@ -83,7 +83,7 @@ void ESP32BLETracker::loop() {
     ble_event = this->ble_events_.pop();
   }
 
-  if (this->scanner_idle_) {
+  if (this->state() == ScannerState::IDLE) {
     return;
   }
 
@@ -93,11 +93,13 @@ void ESP32BLETracker::loop() {
       connecting = true;
   }
 
+
+
   if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
     xSemaphoreGive(this->scan_end_lock_);
     if (this->scan_continuous_) {
       this->start_scan_(false);
-    } else if (xSemaphoreTake(this->scan_end_lock_, 0L) && !this->scanner_idle_) {
+    } else if (xSemaphoreTake(this->scan_end_lock_, 0L) && this->state() != ScannerState::IDLE) {
       xSemaphoreGive(this->scan_end_lock_);
       this->end_of_scan_();
       return;
@@ -266,8 +268,8 @@ void ESP32BLETracker::start_scan_(bool first) {
     for (auto *listener : this->listeners_)
       listener->on_scan_end();
   }
-  this->already_discovered_.clear();
-  this->scanner_idle_ = false;
+  //this->already_discovered_.clear();
+  this->set_state(ScannerState::ACTIVE);
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
@@ -290,8 +292,8 @@ void ESP32BLETracker::end_of_scan_() {
   }
 
   ESP_LOGD(TAG, "End of scan.");
-  this->scanner_idle_ = true;
-  this->already_discovered_.clear();
+  this->set_state(ScannerState::IDLE);
+  //this->already_discovered_.clear();
   xSemaphoreGive(this->scan_end_lock_);
   this->cancel_timeout("scan");
 
@@ -332,10 +334,12 @@ void ESP32BLETracker::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_
 }
 
 void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param) {
+  this->set_state(ScannerState::FAILED);
   this->scan_set_param_failed_ = param.status;
 }
 
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
+  this->set_state(ScannerState::FAILED);
   this->scan_start_failed_ = param.status;
 }
 
@@ -800,11 +804,11 @@ void ESP32BLETracker::dump_config() {
 
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   const uint64_t address = device.address_uint64();
-  for (auto &disc : this->already_discovered_) {
-    if (disc == address)
-      return;
-  }
-  this->already_discovered_.push_back(address);
+  //for (auto &disc : this->already_discovered_) {
+  //  if (disc == address)
+  //    return;
+  //}
+  //this->already_discovered_.push_back(address);
 
   ESP_LOGD(TAG, "Found device %s RSSI=%d", device.address_str().c_str(), device.get_rssi());
 

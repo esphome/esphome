@@ -157,6 +157,16 @@ enum class ClientState {
   ESTABLISHED,
 };
 
+
+enum class ScannerState {
+  // Scanner is idle
+  IDLE,
+  // Scanner is active.
+  ACTIVE,
+  // Scanner has failed to start
+  FAILED,
+};
+
 class ESPBTClient : public ESPBTDeviceListener {
  public:
   virtual bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
@@ -235,7 +245,8 @@ class ESP32BLETracker : public Component {
   uint32_t scan_window_;
   bool scan_continuous_;
   bool scan_active_;
-  bool scanner_idle_;
+  virtual void set_state(ScannerState st) { this->state_ = st; }
+  ScannerState state() const { return state_; }  
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};
@@ -244,6 +255,8 @@ class ESP32BLETracker : public Component {
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
 
   Queue<BLEEvent> ble_events_;
+  protected:
+    ScannerState state_;  
 };
 
 // NOLINTNEXTLINE
