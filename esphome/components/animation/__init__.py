@@ -131,6 +131,8 @@ async def to_code(config):
                         continue
                     pos = x + y * width8 + (height * width8 * frameIndex)
                     data[pos // 8] |= 0x80 >> (pos % 8)
+    else:
+        data = []
 
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)

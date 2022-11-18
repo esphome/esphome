@@ -46,7 +46,12 @@ static const uint8_t ILI9XXX_PTLAR = 0x30;
 static const uint8_t ILI9XXX_VSCRDEF = 0x33;
 static const uint8_t ILI9XXX_MADCTL = 0x36;
 static const uint8_t ILI9XXX_VSCRSADD = 0x37;
+static const uint8_t ILI9XXX_IDMOFF = 0x38;
+static const uint8_t ILI9XXX_IDMON = 0x39;
 static const uint8_t ILI9XXX_PIXFMT = 0x3A;
+static const uint8_t CMD_COLMOD  = 0x3A;
+
+static const uint8_t CMD_GETSCANLINE= 0x45;
 
 static const uint8_t ILI9XXX_WRDISBV = 0x51;
 static const uint8_t ILI9XXX_RDDISBV = 0x52;
