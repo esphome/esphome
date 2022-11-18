@@ -16,6 +16,7 @@ BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (!api::global_api_server->is_connected())
     return false;
+  // FIXME: this leaks memory, use a 180s LRU cache instead
   this->address_type_map_[device.address_uint64()] = device.get_address_type();
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
