@@ -803,12 +803,14 @@ void ESP32BLETracker::dump_config() {
 }
 
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
+
+  return;
   const uint64_t address = device.address_uint64();
-  //for (auto &disc : this->already_discovered_) {
-  //  if (disc == address)
-  //    return;
-  //}
-  //this->already_discovered_.push_back(address);
+  for (auto &disc : this->already_discovered_) {
+    if (disc == address)
+      return;
+  }
+  this->already_discovered_.push_back(address);
 
   ESP_LOGD(TAG, "Found device %s RSSI=%d", device.address_str().c_str(), device.get_rssi());
 
