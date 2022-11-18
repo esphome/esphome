@@ -128,7 +128,7 @@ void ESP32BLETracker::loop() {
           found = true;
           ESP_LOGW(TAG, "Found device, checking if we should stop scanner");
           if (client->state() == ClientState::DISCOVERED) {
-            ESP_LOGW(TAG, "Found device, stop scanning")
+            ESP_LOGW(TAG, "Found device, stop scanning");
             esp_ble_gap_stop_scanning();
 #ifdef USE_ARDUINO
             constexpr TickType_t block_time = 10L / portTICK_PERIOD_MS;
