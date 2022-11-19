@@ -258,7 +258,7 @@ class ESP32BLETracker : public Component {
 
   Queue<BLEEvent> ble_events_;
   protected:
-    ScannerState state_;  
+    ScannerState state_;
 };
 
 // NOLINTNEXTLINE
