@@ -6,7 +6,7 @@
 
 #include "esphome/components/api/api_server.h"
 
-#define MAX_CACHE_SIZE 96
+#define MAX_CACHE_SIZE 64
 namespace esphome {
 namespace bluetooth_proxy {
 
@@ -24,15 +24,23 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   uint64_t device_address = device.address_uint64();
 
   this->expire_times_queue_.push(expire_time);
-  this->address_expire_map_[expire_time] = device_address;
+  this->expire_address_map_[expire_time] = device_address;
+  if (this->address_expire_map_.find(device_address) != this->address_expire_map_.end()) {
+    // If we already have a pending delete for this address change the expire
+    // time to the new one by removing the old one and adding the new one
+    this->expire_address_map_.erase(this->address_expire_map_[device_address]);
+  }
+  this->address_expire_map_[device_address] = expire_time;
   this->address_type_map_[device_address] = device.get_address_type();
 
   while (!expire_times_queue_.empty()) {
-    auto first_entry = this->expire_times_queue_.top();
-    if (first_entry < now || expire_times_queue_.size() > MAX_CACHE_SIZE) {
-      if (this->address_expire_map_.find(first_entry) != this->address_expire_map_.end()) {
-        this->address_type_map_.erase(this->address_expire_map_[first_entry]);
-        this->address_expire_map_.erase(first_entry);
+    auto top_expire_time = this->expire_times_queue_.top();
+    if (top_expire_time < now || expire_times_queue_.size() > MAX_CACHE_SIZE) {
+      if (this->address_expire_map_.find(top_expire_time) != this->address_expire_map_.end()) {
+        uint64_t expire_address = this->address_expire_map_[top_expire_time];
+        this->address_type_map_.erase(expire_address);
+        this->address_expire_map_.erase(expire_address);
+        this->expire_address_map_.erase(top_expire_time);
       }
       expire_times_queue_.pop();
     } else
