@@ -201,7 +201,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     }
 
     default:
-      ESP_LOGW(TAG, "Unhandled gatt event: 0x%02x", event);
       break;
   }
   return true;
