@@ -248,7 +248,7 @@ class ESP32BLETracker : public Component {
   bool scan_continuous_;
   bool scan_active_;
   virtual void set_state(ScannerState st) { this->state_ = st; }
-  ScannerState state() const { return state_; }  
+  ScannerState state() const { return state_; }
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};
