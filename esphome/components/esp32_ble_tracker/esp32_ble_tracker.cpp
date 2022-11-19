@@ -93,8 +93,6 @@ void ESP32BLETracker::loop() {
       connecting = true;
   }
 
-
-
   if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
     xSemaphoreGive(this->scan_end_lock_);
     if (this->scan_continuous_) {
@@ -270,7 +268,7 @@ void ESP32BLETracker::start_scan_(bool first) {
     for (auto *listener : this->listeners_)
       listener->on_scan_end();
   }
-  //this->already_discovered_.clear();
+  // this->already_discovered_.clear();
   this->set_state(ScannerState::ACTIVE);
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
@@ -295,7 +293,7 @@ void ESP32BLETracker::end_of_scan_() {
 
   ESP_LOGD(TAG, "End of scan.");
   this->set_state(ScannerState::IDLE);
-  //this->already_discovered_.clear();
+  // this->already_discovered_.clear();
   xSemaphoreGive(this->scan_end_lock_);
   this->cancel_timeout("scan");
 

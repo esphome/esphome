@@ -26,16 +26,14 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   this->address_expire_map_[expire_time] = device_address;
   this->address_type_map_[device_address] = device.get_address_type();
 
-  while(expire_times_queue_.size() > 0)
-  {
-      auto first_entry = this->expire_times_queue_.top();
-      if (first_entry < now)
-      {
-          this->address_type_map_.erase(this->address_expire_map_[first_entry]);
-          this->address_expire_map_.erase(first_entry);
-          expire_times_queue_.pop();
-      }
-      else break;
+  while (expire_times_queue_.size() > 0) {
+    auto first_entry = this->expire_times_queue_.top();
+    if (first_entry < now) {
+      this->address_type_map_.erase(this->address_expire_map_[first_entry]);
+      this->address_expire_map_.erase(first_entry);
+      expire_times_queue_.pop();
+    } else
+      break;
   }
 
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
@@ -144,20 +142,20 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       }
       if (this->address_type_map_.find(msg.address) != this->address_type_map_.end()) {
         // Utilize the address type cache
-        connection->set_state(espbt::ClientState::DISCOVERED); 
-        connection->remote_addr_type_ = this->address_type_map_[msg.address];      
+        connection->set_state(espbt::ClientState::DISCOVERED);
+        connection->remote_addr_type_ = this->address_type_map_[msg.address];
         connection->remote_bda_[0] = (msg.address >> 40) & 0xFF;
         connection->remote_bda_[1] = (msg.address >> 32) & 0xFF;
         connection->remote_bda_[2] = (msg.address >> 24) & 0xFF;
         connection->remote_bda_[3] = (msg.address >> 16) & 0xFF;
         connection->remote_bda_[4] = (msg.address >> 8) & 0xFF;
         connection->remote_bda_[5] = (msg.address >> 0) & 0xFF;
-        esp_ble_gap_stop_scanning(); // connection will fail if we are still scanning
+        esp_ble_gap_stop_scanning();  // connection will fail if we are still scanning
         ESP_LOGI(TAG, "[%d] [%s] Using connect cache", connection->get_connection_index(),
-                connection->address_str().c_str());
-      } else {      
+                 connection->address_str().c_str());
+      } else {
         ESP_LOGI(TAG, "[%d] [%s] Searching to connect", connection->get_connection_index(),
-                connection->address_str().c_str());
+                 connection->address_str().c_str());
         connection->set_state(espbt::ClientState::SEARCHING);
       }
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),

@@ -159,7 +159,6 @@ enum class ClientState {
   ESTABLISHED,
 };
 
-
 enum class ScannerState {
   // Scanner is idle
   IDLE,
@@ -257,8 +256,9 @@ class ESP32BLETracker : public Component {
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
 
   Queue<BLEEvent> ble_events_;
-  protected:
-    ScannerState state_;
+
+ protected:
+  ScannerState state_;
 };
 
 // NOLINTNEXTLINE
