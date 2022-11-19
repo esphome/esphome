@@ -43,11 +43,11 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   int get_bluetooth_connections_free() {
     int free = 0;
     for (auto *connection : this->connections_) {
-      if (connection->address_ == 0) {        
+      if (connection->address_ == 0) {
         free++;
-        ESP_LOGV("bluetooth_proxy_debug", "[%d] Free connection", connection->get_connection_index());           
+        ESP_LOGV("bluetooth_proxy", "[%d] Free connection", connection->get_connection_index());           
       } else {
-        ESP_LOGV("bluetooth_proxy_debug", "[%d] Used connection by [%s]", connection->get_connection_index(),
+        ESP_LOGV("bluetooth_proxy", "[%d] Used connection by [%s]", connection->get_connection_index(),
                  connection->address_str().c_str());        
       }
     }
