@@ -6,7 +6,7 @@
 
 #include "esphome/components/api/api_server.h"
 
-#defined MAX_CACHE_SIZE 256
+#define MAX_CACHE_SIZE 96
 namespace esphome {
 namespace bluetooth_proxy {
 
