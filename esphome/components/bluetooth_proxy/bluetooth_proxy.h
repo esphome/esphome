@@ -48,7 +48,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
         ESP_LOGV("bluetooth_proxy", "[%d] Free connection", connection->get_connection_index());           
       } else {
         ESP_LOGV("bluetooth_proxy", "[%d] Used connection by [%s]", connection->get_connection_index(),
-                 connection->address_str().c_str());        
+                 connection->address_str().c_str());
       }
     }
     return free;
