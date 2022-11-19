@@ -54,6 +54,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
     return free;
   }
   int get_bluetooth_connections_limit() { return this->connections_.size(); }
+
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
 
