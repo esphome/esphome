@@ -83,28 +83,39 @@ void ESP32BLETracker::loop() {
     ble_event = this->ble_events_.pop();
   }
 
-  if (this->state() == ScannerState::IDLE) {
-    return;
+  bool connecting = false;
+  bool discovered = false;
+  bool scanner_is_idle = this->state() == ScannerState::IDLE;
+  for (auto *client : this->clients_) {
+    switch (client->state()) {
+      case ClientState::DISCOVERED:
+        discovered = true;
+        break;
+      case ClientState::CONNECTING:
+      case ClientState::READY_TO_CONNECT:
+        connecting = true;
+        break;
+      default:
+        break;
+    }
   }
 
-  bool connecting = false;
-  for (auto *client : this->clients_) {
-    if (client->state() == ClientState::CONNECTING || client->state() == ClientState::DISCOVERED)
-      connecting = true;
+  if (scanner_is_idle && !discovered) {
+    return;
   }
 
   if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
     xSemaphoreGive(this->scan_end_lock_);
     if (this->scan_continuous_) {
       this->start_scan_(false);
-    } else if (xSemaphoreTake(this->scan_end_lock_, 0L) && this->state() != ScannerState::IDLE) {
+    } else if (xSemaphoreTake(this->scan_end_lock_, 0L) && !scanner_is_idle) {
       xSemaphoreGive(this->scan_end_lock_);
       this->end_of_scan_();
       return;
     }
   }
 
-  if (xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
+  if (!scanner_is_idle && xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
     uint32_t index = this->scan_result_index_;
     xSemaphoreGive(this->scan_result_lock_);
 
@@ -125,15 +136,7 @@ void ESP32BLETracker::loop() {
         if (client->parse_device(device)) {
           found = true;
           if (client->state() == ClientState::DISCOVERED) {
-            esp_ble_gap_stop_scanning();
-#ifdef USE_ARDUINO
-            constexpr TickType_t block_time = 10L / portTICK_PERIOD_MS;
-#else
-            constexpr TickType_t block_time = 0L;  // PR #3594
-#endif
-            if (xSemaphoreTake(this->scan_end_lock_, block_time)) {
-              xSemaphoreGive(this->scan_end_lock_);
-            }
+            discovered = true;
           }
         }
       }
@@ -157,6 +160,28 @@ void ESP32BLETracker::loop() {
   if (this->scan_start_failed_) {
     ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
     this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
+  }
+
+  // If there is a discovered client and no connecting
+  // clients, we can promote the discovered client to
+  // ready to connect.
+  if (discovered && !connecting) {
+    for (auto *client : this->clients_) {
+      if (client->state() == ClientState::DISCOVERED) {
+        esp_ble_gap_stop_scanning();
+#ifdef USE_ARDUINO
+        constexpr TickType_t block_time = 10L / portTICK_PERIOD_MS;
+#else
+        constexpr TickType_t block_time = 0L;  // PR #3594
+#endif
+        if (xSemaphoreTake(this->scan_end_lock_, block_time)) {
+          xSemaphoreGive(this->scan_end_lock_);
+        }
+        // We only want to promote one client at a time.
+        client->set_state(ClientState::READY_TO_CONNECT);
+        break;
+      }
+    }
   }
 }
 

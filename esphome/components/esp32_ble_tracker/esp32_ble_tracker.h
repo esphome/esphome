@@ -151,6 +151,8 @@ enum class ClientState {
   SEARCHING,
   // Device advertisement found.
   DISCOVERED,
+  // Device is discovered and the scanner is stopped
+  READY_TO_CONNECT,
   // Connection in progress.
   CONNECTING,
   // Initial connection established.

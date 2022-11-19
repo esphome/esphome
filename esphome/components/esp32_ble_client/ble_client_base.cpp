@@ -23,7 +23,9 @@ void BLEClientBase::setup() {
 }
 
 void BLEClientBase::loop() {
-  if (this->state_ == espbt::ClientState::DISCOVERED) {
+  // READY_TO_CONNECT means we have discovered the device
+  // and the scanner has been stopped by the tracker.
+  if (this->state_ == espbt::ClientState::READY_TO_CONNECT) {
     this->connect();
   }
 }
@@ -31,8 +33,6 @@ void BLEClientBase::loop() {
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 void BLEClientBase::found_device(uint64_t addr, esp_ble_addr_type_t address_type) {
-  // Connection will fail if we are still scanning
-  esp_ble_gap_stop_scanning();
   this->remote_bda_[0] = (addr >> 40) & 0xFF;
   this->remote_bda_[1] = (addr >> 32) & 0xFF;
   this->remote_bda_[2] = (addr >> 24) & 0xFF;
