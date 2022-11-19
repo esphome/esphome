@@ -80,6 +80,8 @@ void BLEClientBase::connect() {
 }
 
 void BLEClientBase::disconnect() {
+  if (this->state_ == espbt::ClientState::IDLE || this->state_ == espbt::ClientState::DISCONNECTING)
+    return;
   ESP_LOGI(TAG, "[%d] [%s] Disconnecting.", this->connection_index_, this->address_str_.c_str());
   auto err = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
   if (err != ESP_OK) {
@@ -90,6 +92,8 @@ void BLEClientBase::disconnect() {
   if (this->state_ == espbt::ClientState::SEARCHING) {
     this->set_address(0);
     this->set_state(espbt::ClientState::IDLE);
+  } else {
+    this->set_state(espbt::ClientState::DISCONNECTING);
   }
 }
 

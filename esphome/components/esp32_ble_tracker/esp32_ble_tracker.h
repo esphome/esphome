@@ -143,6 +143,8 @@ class ESPBTDeviceListener {
 };
 
 enum class ClientState {
+  // Client is disconnecting
+  DISCONNECTING,
   // Connection is idle, no device detected.
   IDLE,
   // Searching for device.
