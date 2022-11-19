@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/automation.h"
 #include "esphome/components/uart/uart.h"
 
 namespace esphome {
@@ -69,6 +70,16 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
 
     friend class Command;
     friend class ReadStateCommand;
+};
+
+template<typename... Ts> class DfrobotMmwaveRadarDetRangeCfgAction : public Action<Ts...> {
+ public:
+  DfrobotMmwaveRadarDetRangeCfgAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
+  void play(Ts... x) {
+    // ...
+  }
+ protected:
+  DfrobotMmwaveRadarComponent *parent_;
 };
 
 class ReadStateCommand : public Command {

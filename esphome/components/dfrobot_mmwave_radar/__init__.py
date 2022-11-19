@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome import core
 from esphome.const import (
     CONF_ID,
@@ -13,6 +14,11 @@ MULTI_CONF = True
 dfrobot_mmwave_radar_ns = cg.esphome_ns.namespace("dfrobot_mmwave_radar")
 DfrobotMmwaveRadarComponent = dfrobot_mmwave_radar_ns.class_(
     "DfrobotMmwaveRadarComponent", cg.Component
+)
+
+# Actions
+DfrobotMmwaveRadarDetRangeCfgAction = dfrobot_mmwave_radar_ns.class_(
+    "DfrobotMmwaveRadarDetRangeCfgAction", automation.Action
 )
 
 CONF_DET_RANGE_MIN = "detection_range_min"
@@ -93,3 +99,29 @@ async def to_code(config):
             config[DELAY_AFTER_DISAPPEAR].total_milliseconds / 1000
         )
     )
+
+
+MMWAVE_DET_RANGE_CFG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent),
+        # cv.Required(CONF_RECIPIENT): cv.templatable(cv.string_strict),
+        # cv.Required(CONF_MESSAGE): cv.templatable(cv.string),
+    }
+)
+
+
+@automation.register_action(
+    "dfrobot_mmwave_radar.det_range_cfg",
+    DfrobotMmwaveRadarDetRangeCfgAction,
+    MMWAVE_DET_RANGE_CFG_SCHEMA,
+)
+async def dfrobot_mmwave_radar_det_range_cfg_to_code(
+    config, action_id, template_arg, args
+):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    # template_ = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
+    # cg.add(var.set_recipient(template_))
+    # template_ = await cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
+    # cg.add(var.set_message(template_))
+    return var
