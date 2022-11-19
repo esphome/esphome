@@ -138,7 +138,7 @@ void ESP32BLETracker::loop() {
         }
       }
 
-      if (!found) {
+      if (!found && !this->scan_continuous_) {
         this->print_bt_device_info(device);
       }
     }
@@ -266,7 +266,7 @@ void ESP32BLETracker::start_scan_(bool first) {
     for (auto *listener : this->listeners_)
       listener->on_scan_end();
   }
-  // this->already_discovered_.clear();
+  this->already_discovered_.clear();
   this->set_state(ScannerState::ACTIVE);
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
@@ -291,7 +291,7 @@ void ESP32BLETracker::end_of_scan_() {
 
   ESP_LOGD(TAG, "End of scan.");
   this->set_state(ScannerState::IDLE);
-  // this->already_discovered_.clear();
+  this->already_discovered_.clear();
   xSemaphoreGive(this->scan_end_lock_);
   this->cancel_timeout("scan");
 
@@ -803,8 +803,6 @@ void ESP32BLETracker::dump_config() {
 }
 
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
-  /* Removing this function significantly decreases crashes */
-  return;
   const uint64_t address = device.address_uint64();
   for (auto &disc : this->already_discovered_) {
     if (disc == address)
