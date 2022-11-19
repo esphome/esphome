@@ -6,10 +6,10 @@
 
 #include "esphome/components/api/api_server.h"
 
-#define MAX_CACHE_SIZE 64
 namespace esphome {
 namespace bluetooth_proxy {
 
+static const uint8_t MAX_CACHE_SIZE = 64;
 static const char *const TAG = "bluetooth_proxy";
 
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
