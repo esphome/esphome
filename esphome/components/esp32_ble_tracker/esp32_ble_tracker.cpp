@@ -176,7 +176,7 @@ void ESP32BLETracker::loop() {
   if (discovered && !searching && !connecting) {
     for (auto *client : this->clients_) {
       if (client->state() == ClientState::DISCOVERED) {
-        ESP_LOGD(TAG, "Pausing scan...")
+        ESP_LOGD(TAG, "Pausing scan...");
         esp_ble_gap_stop_scanning();
 #ifdef USE_ARDUINO
         constexpr TickType_t block_time = 10L / portTICK_PERIOD_MS;
