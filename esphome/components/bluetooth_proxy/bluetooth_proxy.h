@@ -13,8 +13,6 @@
 
 #include "bluetooth_connection.h"
 
-#include "lrucache.hpp"
-
 namespace esphome {
 namespace bluetooth_proxy {
 
