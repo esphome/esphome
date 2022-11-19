@@ -16,8 +16,28 @@ BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   if (!api::global_api_server->is_connected())
     return false;
-  // FIXME: this leaks memory, use a 180s LRU cache instead
-  this->address_type_map_[device.address_uint64()] = device.get_address_type();
+
+  uint64_t now = esp_timer_get_time();
+  // Hold entries for 20s only
+  uint64_t expire_time = now + 20000000;
+  uint64_t device_address = device.address_uint64();
+
+  this->expire_times_queue_.push(expire_time);
+  this->address_expire_map_[expire_time] = device_address;
+  this->address_type_map_[device_address] = device.get_address_type();
+
+  while(expire_times_queue_.size() > 0)
+  {
+      auto first_entry = this->expire_times_queue_.top();
+      if (first_entry < now)
+      {
+          this->address_type_map_.erase(this->address_expire_map_[first_entry]);
+          this->address_expire_map_.erase(first_entry);
+          expire_times_queue_.pop();
+      }
+      else break;
+  }
+
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
   this->send_api_packet_(device);
