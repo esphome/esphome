@@ -10,6 +10,7 @@ namespace esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
 
+
 void BLEClientBase::setup() {
   static uint8_t connection_index = 0;
   this->connection_index_ = connection_index++;
