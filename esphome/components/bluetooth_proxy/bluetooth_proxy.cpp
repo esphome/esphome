@@ -18,8 +18,8 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     return false;
 
   uint64_t now = esp_timer_get_time();
-  // Hold entries for 25s only
-  uint64_t expire_time = now + 25000000;
+  // Hold entries for 60s only
+  uint64_t expire_time = now + 60000000;
   uint64_t device_address = device.address_uint64();
 
   this->expire_times_queue_.push(expire_time);
@@ -70,6 +70,21 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
 void BluetoothProxy::dump_config() {
   ESP_LOGCONFIG(TAG, "Bluetooth Proxy:");
   ESP_LOGCONFIG(TAG, "  Active: %s", YESNO(this->active_));
+}
+
+
+int BluetoothProxy::get_bluetooth_connections_free() {
+  int free = 0;
+  for (auto *connection : this->connections_) {
+    if (connection->address_ == 0) {
+      free++;
+      ESP_LOGV(TAG, "[%d] Free connection", connection->get_connection_index());
+    } else {
+      ESP_LOGV(TAG, "[%d] Used connection by [%s]", connection->get_connection_index(),
+                connection->address_str().c_str());
+    }
+  }
+  return free;
 }
 
 void BluetoothProxy::loop() {

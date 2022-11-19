@@ -40,19 +40,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   void bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg);
   void bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg);
 
-  int get_bluetooth_connections_free() {
-    int free = 0;
-    for (auto *connection : this->connections_) {
-      if (connection->address_ == 0) {
-        free++;
-        ESP_LOGV("bluetooth_proxy", "[%d] Free connection", connection->get_connection_index());
-      } else {
-        ESP_LOGV("bluetooth_proxy", "[%d] Used connection by [%s]", connection->get_connection_index(),
-                 connection->address_str().c_str());
-      }
-    }
-    return free;
-  }
+  int get_bluetooth_connections_free();
   int get_bluetooth_connections_limit() { return this->connections_.size(); }
 
   void set_active(bool active) { this->active_ = active; }
