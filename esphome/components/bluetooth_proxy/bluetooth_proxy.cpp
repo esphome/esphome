@@ -19,34 +19,28 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     return false;
 
   uint64_t now = esp_timer_get_time();
-  // Hold entries for 30s only
-  uint64_t expire_time = now + 30000000;
   uint64_t device_address = device.address_uint64();
 
-  if (this->address_expire_map_.find(device_address) != this->address_expire_map_.end()) {
-    // If we already have a pending delete for this address change the expire
-    // time to the new one by removing the old one since we are about to
-    // override the expire time and we do not want leak the reverse map.
-    this->expire_address_map_.erase(this->address_expire_map_[device_address]);
+  if (this->address_time_map_.find(device_address) != this->address_time_map_.end()) {
+    // If we see it again before the cache expires be sure to drop the
+    // old time from the map so we do not leak
+    this->time_address_map_.erase(this->address_time_map_[device_address]);
   }
 
-  this->expire_times_queue_.push(expire_time);
-  this->expire_address_map_[expire_time] = device_address;
-  this->address_expire_map_[device_address] = expire_time;
+  this->times_queue_.push(now);
+  this->time_address_map_[now] = device_address;
+  this->address_time_map_[device_address] = now;
   this->address_type_map_[device_address] = device.get_address_type();
 
-  while (!expire_times_queue_.empty()) {
-    auto top_expire_time = this->expire_times_queue_.top();
-    if (top_expire_time < now || expire_times_queue_.size() > MAX_CACHE_SIZE) {
-      if (this->address_expire_map_.find(top_expire_time) != this->address_expire_map_.end()) {
-        uint64_t expire_address = this->address_expire_map_[top_expire_time];
-        this->address_type_map_.erase(expire_address);
-        this->address_expire_map_.erase(expire_address);
-        this->expire_address_map_.erase(top_expire_time);
-      }
-      expire_times_queue_.pop();
-    } else
-      break;
+  while (this->times_queue_.size() > MAX_CACHE_SIZE) {
+    auto top_time = this->times_queue_.top();
+    if (this->address_time_map_.find(top_time) != this->address_time_map_.end()) {
+      uint64_t expire_address = this->address_time_map_[top_time];
+      this->address_type_map_.erase(expire_address);
+      this->address_time_map_.erase(expire_address);
+      this->time_address_map_.erase(top_time);
+    }
+    this->times_queue_.pop();
   }
 
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
