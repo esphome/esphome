@@ -110,49 +110,50 @@ void ESP32BLETracker::loop() {
 
   if (this->scan_continuous_) {
     if (!connecting && this->state() != ScannerState::ACTIVE && xSemaphoreTake(this->scan_end_lock_, 0L)) {
-        xSemaphoreGive(this->scan_end_lock_);
-        this->start_scan_(false);
+      xSemaphoreGive(this->scan_end_lock_);
+      this->start_scan_(false);
     }
   } else if (!scanner_is_idle && xSemaphoreTake(this->scan_end_lock_, 0L)) {
     xSemaphoreGive(this->scan_end_lock_);
     this->end_of_scan_();
   }
 
-  if (!scanner_is_idle && xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
+  if (!scanner_is_idle && this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
+      xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
     uint32_t index = this->scan_result_index_;
     xSemaphoreGive(this->scan_result_lock_);
-
-    if (index >= 16) {
-      ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
-    }
-    for (size_t i = 0; i < index; i++) {
-      ESPBTDevice device;
-      device.parse_scan_rst(this->scan_result_buffer_[i]);
-
-      bool found = false;
-      for (auto *listener : this->listeners_) {
-        if (listener->parse_device(device))
-          found = true;
+    if (index) {
+      if (index >= 16) {
+        ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
       }
+      for (size_t i = 0; i < index; i++) {
+        ESPBTDevice device;
+        device.parse_scan_rst(this->scan_result_buffer_[i]);
 
-      for (auto *client : this->clients_) {
-        if (client->parse_device(device)) {
-          found = true;
-          if (client->state() == ClientState::DISCOVERED) {
-            searching--;
-            discovered++;
+        bool found = false;
+        for (auto *listener : this->listeners_) {
+          if (listener->parse_device(device))
+            found = true;
+        }
+
+        for (auto *client : this->clients_) {
+          if (client->parse_device(device)) {
+            found = true;
+            if (client->state() == ClientState::DISCOVERED) {
+              searching--;
+              discovered++;
+            }
           }
         }
-      }
 
-      if (!found && !this->scan_continuous_) {
-        this->print_bt_device_info(device);
+        if (!found && !this->scan_continuous_) {
+          this->print_bt_device_info(device);
+        }
       }
-    }
-
-    if (xSemaphoreTake(this->scan_result_lock_, 10L / portTICK_PERIOD_MS)) {
-      this->scan_result_index_ = 0;
-      xSemaphoreGive(this->scan_result_lock_);
+      if (xSemaphoreTake(this->scan_result_lock_, 10L / portTICK_PERIOD_MS)) {
+        this->scan_result_index_ = 0;
+        xSemaphoreGive(this->scan_result_lock_);
+      }
     }
   }
 
@@ -175,7 +176,7 @@ void ESP32BLETracker::loop() {
   if (discovered && !searching && !connecting) {
     for (auto *client : this->clients_) {
       if (client->state() == ClientState::DISCOVERED) {
-        ESP_LOGD(TAG, "Pausing scan...");
+        ESP_LOGD(TAG, "Pausing scan to make connection...");
         esp_ble_gap_stop_scanning();
 #ifdef USE_ARDUINO
         constexpr TickType_t block_time = 10L / portTICK_PERIOD_MS;
