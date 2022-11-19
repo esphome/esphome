@@ -108,15 +108,15 @@ void ESP32BLETracker::loop() {
     return;
   }
 
-  if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    xSemaphoreGive(this->scan_end_lock_);
-    if (this->scan_continuous_) {
-      this->start_scan_(false);
-    } else if (xSemaphoreTake(this->scan_end_lock_, 0L) && !scanner_is_idle) {
-      xSemaphoreGive(this->scan_end_lock_);
-      this->end_of_scan_();
-      return;
+  if (this->scan_continuous_) {
+    if (!connecting && this->state() != ScannerState::ACTIVE && xSemaphoreTake(this->scan_end_lock_, 0L)) {
+        xSemaphoreGive(this->scan_end_lock_);
+        this->start_scan_(false);
     }
+  } else if (!scanner_is_idle && xSemaphoreTake(this->scan_end_lock_, 0L)) {
+    xSemaphoreGive(this->scan_end_lock_);
+    this->end_of_scan_();
+    scanner_is_idle = this->state() == ScannerState::IDLE;
   }
 
   if (!scanner_is_idle && xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
@@ -159,11 +159,13 @@ void ESP32BLETracker::loop() {
 
   if (this->scan_set_param_failed_) {
     ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
+    this->set_state(ScannerState::FAILED);
     this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
   }
 
   if (this->scan_start_failed_) {
     ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
+    this->set_state(ScannerState::FAILED);
     this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
   }
 
@@ -184,6 +186,7 @@ void ESP32BLETracker::loop() {
           xSemaphoreGive(this->scan_end_lock_);
         }
         // We only want to promote one client at a time.
+        this->set_state(ScannerState::PAUSED);
         client->set_state(ClientState::READY_TO_CONNECT);
         break;
       }
@@ -363,12 +366,10 @@ void ESP32BLETracker::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_
 }
 
 void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t::ble_scan_param_cmpl_evt_param &param) {
-  this->set_state(ScannerState::FAILED);
   this->scan_set_param_failed_ = param.status;
 }
 
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
-  this->set_state(ScannerState::FAILED);
   this->scan_start_failed_ = param.status;
 }
 
