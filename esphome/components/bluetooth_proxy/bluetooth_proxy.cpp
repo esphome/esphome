@@ -6,6 +6,7 @@
 
 #include "esphome/components/api/api_server.h"
 
+#defined MAX_CACHE_SIZE 256
 namespace esphome {
 namespace bluetooth_proxy {
 
@@ -18,8 +19,8 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     return false;
 
   uint64_t now = esp_timer_get_time();
-  // Hold entries for 60s only
-  uint64_t expire_time = now + 60000000;
+  // Hold entries for 30s only
+  uint64_t expire_time = now + 30000000;
   uint64_t device_address = device.address_uint64();
 
   this->expire_times_queue_.push(expire_time);
@@ -28,9 +29,11 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   while (!expire_times_queue_.empty()) {
     auto first_entry = this->expire_times_queue_.top();
-    if (first_entry < now) {
-      this->address_type_map_.erase(this->address_expire_map_[first_entry]);
-      this->address_expire_map_.erase(first_entry);
+    if (first_entry < now || expire_times_queue_.size() > MAX_CACHE_SIZE) {
+      if (this->address_expire_map_.find(first_entry) != this->address_expire_map_.end()) {
+        this->address_type_map_.erase(this->address_expire_map_[first_entry]);
+        this->address_expire_map_.erase(first_entry);
+      }
       expire_times_queue_.pop();
     } else
       break;
@@ -72,7 +75,6 @@ void BluetoothProxy::dump_config() {
   ESP_LOGCONFIG(TAG, "  Active: %s", YESNO(this->active_));
 }
 
-
 int BluetoothProxy::get_bluetooth_connections_free() {
   int free = 0;
   for (auto *connection : this->connections_) {
@@ -81,7 +83,7 @@ int BluetoothProxy::get_bluetooth_connections_free() {
       ESP_LOGV(TAG, "[%d] Free connection", connection->get_connection_index());
     } else {
       ESP_LOGV(TAG, "[%d] Used connection by [%s]", connection->get_connection_index(),
-                connection->address_str().c_str());
+               connection->address_str().c_str());
     }
   }
   return free;
