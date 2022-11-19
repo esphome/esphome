@@ -84,9 +84,9 @@ int BluetoothProxy::get_bluetooth_connections_free() {
   for (auto *connection : this->connections_) {
     if (connection->address_ == 0) {
       free++;
-      ESP_LOGV(TAG, "[%d] Free connection", connection->get_connection_index());
+      ESP_LOGI(TAG, "[%d] Free connection", connection->get_connection_index());
     } else {
-      ESP_LOGV(TAG, "[%d] Used connection by [%s]", connection->get_connection_index(),
+      ESP_LOGI(TAG, "[%d] Used connection by [%s]", connection->get_connection_index(),
                connection->address_str().c_str());
     }
   }

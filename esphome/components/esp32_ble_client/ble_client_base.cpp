@@ -40,7 +40,7 @@ void BLEClientBase::found_device(uint64_t addr, esp_ble_addr_type_t address_type
   this->remote_addr_type_ = address_type;
   this->set_state(espbt::ClientState::DISCOVERED);
   // Connection will fail if we are still scanning
-  esp_ble_gap_stop_scanning();  
+  esp_ble_gap_stop_scanning();
 }
 
 bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
