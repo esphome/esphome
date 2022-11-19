@@ -31,6 +31,8 @@ void BLEClientBase::loop() {
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 void BLEClientBase::found_device(uint64_t addr, esp_ble_addr_type_t address_type) {
+  // Connection will fail if we are still scanning
+  esp_ble_gap_stop_scanning();
   this->remote_bda_[0] = (addr >> 40) & 0xFF;
   this->remote_bda_[1] = (addr >> 32) & 0xFF;
   this->remote_bda_[2] = (addr >> 24) & 0xFF;
@@ -39,8 +41,6 @@ void BLEClientBase::found_device(uint64_t addr, esp_ble_addr_type_t address_type
   this->remote_bda_[5] = (addr >> 0) & 0xFF;
   this->remote_addr_type_ = address_type;
   this->set_state(espbt::ClientState::DISCOVERED);
-  // Connection will fail if we are still scanning
-  esp_ble_gap_stop_scanning();
 }
 
 bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
