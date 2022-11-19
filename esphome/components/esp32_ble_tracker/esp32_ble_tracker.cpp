@@ -807,7 +807,7 @@ void ESP32BLETracker::dump_config() {
 }
 
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
-
+  /* Removing this function significantly decreases crashes */
   return;
   const uint64_t address = device.address_uint64();
   for (auto &disc : this->already_discovered_) {
