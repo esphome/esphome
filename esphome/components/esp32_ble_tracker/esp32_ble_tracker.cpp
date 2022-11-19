@@ -116,7 +116,6 @@ void ESP32BLETracker::loop() {
   } else if (!scanner_is_idle && xSemaphoreTake(this->scan_end_lock_, 0L)) {
     xSemaphoreGive(this->scan_end_lock_);
     this->end_of_scan_();
-    scanner_is_idle = this->state() == ScannerState::IDLE;
   }
 
   if (!scanner_is_idle && xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
