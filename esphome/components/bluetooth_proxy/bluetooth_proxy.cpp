@@ -18,15 +18,15 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     return false;
 
   uint64_t now = esp_timer_get_time();
-  // Hold entries for 20s only
-  uint64_t expire_time = now + 20000000;
+  // Hold entries for 25s only
+  uint64_t expire_time = now + 25000000;
   uint64_t device_address = device.address_uint64();
 
   this->expire_times_queue_.push(expire_time);
   this->address_expire_map_[expire_time] = device_address;
   this->address_type_map_[device_address] = device.get_address_type();
 
-  while (expire_times_queue_.size() > 0) {
+  while (!expire_times_queue_.empty()) {
     auto first_entry = this->expire_times_queue_.top();
     if (first_entry < now) {
       this->address_type_map_.erase(this->address_expire_map_[first_entry]);

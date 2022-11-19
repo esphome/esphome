@@ -208,6 +208,8 @@ class ESP32BLETracker : public Component {
 
   void start_scan();
   void stop_scan();
+  virtual void set_state(ScannerState st) { this->state_ = st; }
+  ScannerState state() const { return state_; }
 
  protected:
   /// The FreeRTOS task managing the bluetooth interface.
@@ -246,8 +248,6 @@ class ESP32BLETracker : public Component {
   uint32_t scan_window_;
   bool scan_continuous_;
   bool scan_active_;
-  virtual void set_state(ScannerState st) { this->state_ = st; }
-  ScannerState state() const { return state_; }
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};
@@ -256,8 +256,6 @@ class ESP32BLETracker : public Component {
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
 
   Queue<BLEEvent> ble_events_;
-
- protected:
   ScannerState state_;
 };
 
