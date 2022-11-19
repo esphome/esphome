@@ -55,20 +55,7 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 }
 
 void BLEClientBase::connect() {
-  switch (this->remote_addr_type_) {
-    case BLE_ADDR_TYPE_PUBLIC:
-      ESP_LOGI(TAG, "[%d] [%s] PUBLIC Attempting BLE connection", this->connection_index_, this->address_str_.c_str());
-      break;
-    case BLE_ADDR_TYPE_RANDOM:
-      ESP_LOGI(TAG, "[%d] [%s] RANDOM Attempting BLE connection", this->connection_index_, this->address_str_.c_str());
-      break;
-    case BLE_ADDR_TYPE_RPA_PUBLIC:
-      ESP_LOGI(TAG, "[%d] [%s] RPA_PUBLIC Attempting BLE connection", this->connection_index_, this->address_str_.c_str());
-      break;
-    case BLE_ADDR_TYPE_RPA_RANDOM:
-      ESP_LOGI(TAG, "[%d] [%s] RPA_RANDOM Attempting BLE connection", this->connection_index_, this->address_str_.c_str());
-      break;
-  }  
+  ESP_LOGI(TAG, "[%d] [%s] 0x%02x Attempting BLE connection", this->connection_index_, this->address_str_.c_str(), this->remote_addr_type_);
   auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_, this->remote_addr_type_, true);
   if (ret) {
     ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_open error, status=%d", this->connection_index_, this->address_str_.c_str(),
