@@ -82,18 +82,22 @@ void ESP32BLETracker::loop() {
     delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
     ble_event = this->ble_events_.pop();
   }
-
-  bool connecting = false;
-  bool discovered = false;
   bool scanner_is_idle = this->state() == ScannerState::IDLE;
+
+  int connecting = 0;
+  int discovered = 0;
+  int searching = 0;
   for (auto *client : this->clients_) {
     switch (client->state()) {
       case ClientState::DISCOVERED:
-        discovered = true;
+        discovered++;
+        break;
+      case ClientState::SEARCHING:
+        searching++;
         break;
       case ClientState::CONNECTING:
       case ClientState::READY_TO_CONNECT:
-        connecting = true;
+        connecting++;
         break;
       default:
         break;
@@ -136,7 +140,8 @@ void ESP32BLETracker::loop() {
         if (client->parse_device(device)) {
           found = true;
           if (client->state() == ClientState::DISCOVERED) {
-            discovered = true;
+            searching--;
+            discovered++;
           }
         }
       }
@@ -163,9 +168,10 @@ void ESP32BLETracker::loop() {
   }
 
   // If there is a discovered client and no connecting
-  // clients, we can promote the discovered client to
-  // ready to connect.
-  if (discovered && !connecting) {
+  // clients and no clients using the scanner to search for
+  // devices, then stop scanning and promote the discovered
+  // client to ready to connect.
+  if (discovered && !searching && !connecting) {
     for (auto *client : this->clients_) {
       if (client->state() == ClientState::DISCOVERED) {
         esp_ble_gap_stop_scanning();
