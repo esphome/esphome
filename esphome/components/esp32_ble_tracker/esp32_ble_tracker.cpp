@@ -120,7 +120,6 @@ void ESP32BLETracker::loop() {
     if (this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
         xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
       uint32_t index = this->scan_result_index_;
-      xSemaphoreGive(this->scan_result_lock_);
       if (index) {
         if (index >= 16) {
           ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
@@ -149,11 +148,9 @@ void ESP32BLETracker::loop() {
             this->print_bt_device_info(device);
           }
         }
-        if (xSemaphoreTake(this->scan_result_lock_, 10L / portTICK_PERIOD_MS)) {
-          this->scan_result_index_ = 0;
-          xSemaphoreGive(this->scan_result_lock_);
-        }
+        this->scan_result_index_ = 0;
       }
+      xSemaphoreGive(this->scan_result_lock_);
     }
 
     if (this->scan_set_param_failed_) {
