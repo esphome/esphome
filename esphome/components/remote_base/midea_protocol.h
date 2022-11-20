@@ -99,7 +99,7 @@ template<typename... Ts> class MideaAction : public RemoteTransmitterActionBase<
     MideaProtocol().encode(dst, data);
   }
 
-protected:
+ protected:
   std::function<std::vector<uint8_t>(Ts...)> code_func_{};
   std::vector<uint8_t> code_static_{};
 };
