@@ -86,7 +86,6 @@ void ESP32BLETracker::loop() {
     delete ble_event;  // NOLINT(cppcoreguidelines-owning-memory)
     ble_event = this->ble_events_.pop();
   }
-  bool scanner_is_idle = this->state() == ScannerState::IDLE;
 
   int connecting = 0;
   int discovered = 0;
@@ -108,20 +107,20 @@ void ESP32BLETracker::loop() {
     }
   }
 
-  if (scanner_is_idle && !discovered) {
+  if (this->scanner_idle_ && !discovered) {
     return;
   }
 
   if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
     if (this->scan_continuous_) {
       this->start_scan_(false);
-    } else if (this->state() != ScannerState::IDLE) {
+    } else if (!this->scanner_idle_) {
       this->end_of_scan_();
       return;
     }
   }
 
-  if (!scanner_is_idle && this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
+  if (!this->scanner_idle_ && this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
       xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
     uint32_t index = this->scan_result_index_;
     xSemaphoreGive(this->scan_result_lock_);
