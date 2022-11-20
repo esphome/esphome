@@ -160,13 +160,19 @@ void ESP32BLETracker::loop() {
 
   if (this->scan_set_param_failed_) {
     ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
-    this->set_state(ScannerState::FAILED);
+    if (xSemaphoreTake(this->scan_end_lock_, 10L / portTICK_PERIOD_MS)) {
+      this->set_state(ScannerState::FAILED);
+      xSemaphoreGive(this->scan_end_lock_);
+    }
     this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
   }
 
   if (this->scan_start_failed_) {
     ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
-    this->set_state(ScannerState::FAILED);
+    if (xSemaphoreTake(this->scan_end_lock_, 10L / portTICK_PERIOD_MS)) {
+      this->set_state(ScannerState::FAILED);
+      xSemaphoreGive(this->scan_end_lock_);
+    }
     this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
   }
 
@@ -185,10 +191,10 @@ void ESP32BLETracker::loop() {
         constexpr TickType_t block_time = 0L;  // PR #3594
 #endif
         if (xSemaphoreTake(this->scan_end_lock_, block_time)) {
+          this->set_state(ScannerState::PAUSED);
           xSemaphoreGive(this->scan_end_lock_);
         }
         // We only want to promote one client at a time.
-        this->set_state(ScannerState::PAUSED);
         client->set_state(ClientState::READY_TO_CONNECT);
         break;
       }
