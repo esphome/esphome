@@ -51,7 +51,7 @@ void ESP32BLETracker::setup() {
   global_esp32_ble_tracker = this;
   this->scan_result_lock_ = xSemaphoreCreateMutex();
   this->scan_end_lock_ = xSemaphoreCreateMutex();
-  this->set_state(ScannerState::IDLE);
+  this->scanner_idle_ = true;
   if (!ESP32BLETracker::ble_setup()) {
     this->mark_failed();
     return;
@@ -168,7 +168,7 @@ void ESP32BLETracker::loop() {
   if (this->scan_start_failed_) {
     ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
     if (xSemaphoreTake(this->scan_end_lock_, 0L / portTICK_PERIOD_MS)) {
-      this->set_state(ScannerState::FAILED);
+      this->scanner_idle_ = true;
       xSemaphoreGive(this->scan_end_lock_);
     } else {
       ESP_LOGE(TAG, "Cannot set scanner state to failed!");
@@ -300,7 +300,7 @@ void ESP32BLETracker::start_scan_(bool first) {
       listener->on_scan_end();
   }
   this->already_discovered_.clear();
-  this->set_state(ScannerState::ACTIVE);
+  this->scanner_idle_ = false;
   this->scan_params_.scan_type = this->scan_active_ ? BLE_SCAN_TYPE_ACTIVE : BLE_SCAN_TYPE_PASSIVE;
   this->scan_params_.own_addr_type = BLE_ADDR_TYPE_PUBLIC;
   this->scan_params_.scan_filter_policy = BLE_SCAN_FILTER_ALLOW_ALL;
@@ -324,7 +324,7 @@ void ESP32BLETracker::end_of_scan_() {
   }
 
   ESP_LOGD(TAG, "End of scan.");
-  this->set_state(ScannerState::IDLE);
+  this->scanner_idle_ = true;
   this->already_discovered_.clear();
   xSemaphoreGive(this->scan_end_lock_);
   this->cancel_timeout("scan");
