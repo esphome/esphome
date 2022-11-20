@@ -90,7 +90,6 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     _validate,
-    cv.only_with_arduino,
 )
 
 
