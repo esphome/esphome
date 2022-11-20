@@ -27,7 +27,7 @@ EthernetComponent::EthernetComponent() { global_eth_component = this; }
 void EthernetComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ethernet...");
   // Delay here to allow power to stabilise before Ethernet is initialised.
-  delay(200);  // NOLINT
+  delay(300);  // NOLINT
 
   if (this->power_pin_ != nullptr) {
     this->power_pin_->setup();
