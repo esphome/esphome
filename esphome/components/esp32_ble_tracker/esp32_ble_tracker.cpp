@@ -108,14 +108,15 @@ void ESP32BLETracker::loop() {
     return;
   }
 
-  if (this->scan_continuous_) {
-    if (!connecting && this->state() != ScannerState::ACTIVE && xSemaphoreTake(this->scan_end_lock_, 0L)) {
-      xSemaphoreGive(this->scan_end_lock_);
-      this->start_scan_(false);
-    }
-  } else if (!scanner_is_idle && xSemaphoreTake(this->scan_end_lock_, 0L)) {
+  if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
     xSemaphoreGive(this->scan_end_lock_);
-    this->end_of_scan_();
+    if (this->scan_continuous_) {
+      this->start_scan_(false);
+    } else if (xSemaphoreTake(this->scan_end_lock_, 0L) && !scanner_is_idle) {
+      xSemaphoreGive(this->scan_end_lock_);
+      this->end_of_scan_();
+      return;
+    }
   }
 
   if (!scanner_is_idle && this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
@@ -372,6 +373,9 @@ void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t:
 
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
   this->scan_start_failed_ = param.status;
+  if (param.status != ESP_BT_STATUS_SUCCESS) {
+    xSemaphoreGive(this->scan_end_lock_);
+  }
 }
 
 void ESP32BLETracker::gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param) {

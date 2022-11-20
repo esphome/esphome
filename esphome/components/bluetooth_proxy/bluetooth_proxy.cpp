@@ -9,7 +9,7 @@
 namespace esphome {
 namespace bluetooth_proxy {
 
-static const uint8_t MAX_CACHE_SIZE = 56;
+static const uint8_t MAX_CACHE_SIZE = 48;
 static const char *const TAG = "bluetooth_proxy";
 
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
