@@ -5,6 +5,29 @@
 namespace esphome {
 namespace display_menu_base {
 
+const LogString *menu_item_type_to_string(MenuItemType type) {
+  switch (type) {
+    case MenuItemType::MENU_ITEM_LABEL:
+      return LOG_STR("MENU_ITEM_LABEL");
+    case MenuItemType::MENU_ITEM_MENU:
+      return LOG_STR("MENU_ITEM_MENU");
+    case MenuItemType::MENU_ITEM_BACK:
+      return LOG_STR("MENU_ITEM_BACK");
+    case MenuItemType::MENU_ITEM_SELECT:
+      return LOG_STR("MENU_ITEM_SELECT");
+    case MenuItemType::MENU_ITEM_NUMBER:
+      return LOG_STR("MENU_ITEM_NUMBER");
+    case MenuItemType::MENU_ITEM_SWITCH:
+      return LOG_STR("MENU_ITEM_SWITCH");
+    case MenuItemType::MENU_ITEM_COMMAND:
+      return LOG_STR("MENU_ITEM_COMMAND");
+    case MenuItemType::MENU_ITEM_CUSTOM:
+      return LOG_STR("MENU_ITEM_CUSTOM");
+    default:
+      return LOG_STR("UNKNOWN");
+  }
+}
+
 void MenuItem::on_enter() { this->on_enter_callbacks_.call(); }
 
 void MenuItem::on_leave() { this->on_leave_callbacks_.call(); }
