@@ -168,6 +168,8 @@ void ESP32BLETracker::loop() {
     if (xSemaphoreTake(this->scan_end_lock_, 10L / portTICK_PERIOD_MS)) {
       this->set_state(ScannerState::FAILED);
       xSemaphoreGive(this->scan_end_lock_);
+    } else {
+      ESP_LOGE(TAG, "Cannot set scanner state to failed!");
     }
     this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
   }
@@ -189,6 +191,8 @@ void ESP32BLETracker::loop() {
         if (xSemaphoreTake(this->scan_end_lock_, block_time)) {
           this->set_state(ScannerState::PAUSED);
           xSemaphoreGive(this->scan_end_lock_);
+        } else {
+          ESP_LOGE(TAG, "Cannot set scanner state to paused!");
         }
         // We only want to promote one client at a time.
         client->set_state(ClientState::READY_TO_CONNECT);
