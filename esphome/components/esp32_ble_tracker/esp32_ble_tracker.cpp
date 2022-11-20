@@ -107,72 +107,70 @@ void ESP32BLETracker::loop() {
     }
   }
 
-  if (this->scanner_idle_ && !discovered) {
-    return;
-  }
-
-  if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    if (this->scan_continuous_) {
-      this->start_scan_(false);
-    } else if (!this->scanner_idle_) {
-      this->end_of_scan_();
-      return;
-    }
-  }
-
-  if (!this->scanner_idle_ && this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
-      xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
-    uint32_t index = this->scan_result_index_;
-    xSemaphoreGive(this->scan_result_lock_);
-    if (index) {
-      if (index >= 16) {
-        ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
+  if (!this->scanner_idle_) {
+    if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
+      if (this->scan_continuous_) {
+        this->start_scan_(false);
+      } else if (!this->scanner_idle_) {
+        this->end_of_scan_();
+        return;
       }
-      for (size_t i = 0; i < index; i++) {
-        ESPBTDevice device;
-        device.parse_scan_rst(this->scan_result_buffer_[i]);
+    }
 
-        bool found = false;
-        for (auto *listener : this->listeners_) {
-          if (listener->parse_device(device))
-            found = true;
+    if (this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
+        xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
+      uint32_t index = this->scan_result_index_;
+      xSemaphoreGive(this->scan_result_lock_);
+      if (index) {
+        if (index >= 16) {
+          ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
         }
+        for (size_t i = 0; i < index; i++) {
+          ESPBTDevice device;
+          device.parse_scan_rst(this->scan_result_buffer_[i]);
 
-        for (auto *client : this->clients_) {
-          if (client->parse_device(device)) {
-            found = true;
-            if (client->state() == ClientState::DISCOVERED) {
-              searching--;
-              discovered++;
+          bool found = false;
+          for (auto *listener : this->listeners_) {
+            if (listener->parse_device(device))
+              found = true;
+          }
+
+          for (auto *client : this->clients_) {
+            if (client->parse_device(device)) {
+              found = true;
+              if (client->state() == ClientState::DISCOVERED) {
+                searching--;
+                discovered++;
+              }
             }
           }
-        }
 
-        if (!found && !this->scan_continuous_) {
-          this->print_bt_device_info(device);
+          if (!found && !this->scan_continuous_) {
+            this->print_bt_device_info(device);
+          }
+        }
+        if (xSemaphoreTake(this->scan_result_lock_, 10L / portTICK_PERIOD_MS)) {
+          this->scan_result_index_ = 0;
+          xSemaphoreGive(this->scan_result_lock_);
         }
       }
-      if (xSemaphoreTake(this->scan_result_lock_, 10L / portTICK_PERIOD_MS)) {
-        this->scan_result_index_ = 0;
-        xSemaphoreGive(this->scan_result_lock_);
+    }
+
+    if (this->scan_set_param_failed_) {
+      ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
+      this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
+    }
+
+    if (this->scan_start_failed_) {
+      ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
+      if (xSemaphoreTake(this->scan_end_lock_, 0L / portTICK_PERIOD_MS)) {
+        this->scanner_idle_ = true;
+        xSemaphoreGive(this->scan_end_lock_);
+      } else {
+        ESP_LOGE(TAG, "Cannot set scanner state to failed!");
       }
+      this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
     }
-  }
-
-  if (this->scan_set_param_failed_) {
-    ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
-    this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
-  }
-
-  if (this->scan_start_failed_) {
-    ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
-    if (xSemaphoreTake(this->scan_end_lock_, 0L / portTICK_PERIOD_MS)) {
-      this->scanner_idle_ = true;
-      xSemaphoreGive(this->scan_end_lock_);
-    } else {
-      ESP_LOGE(TAG, "Cannot set scanner state to failed!");
-    }
-    this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
   }
 
   // If there is a discovered client and no connecting
