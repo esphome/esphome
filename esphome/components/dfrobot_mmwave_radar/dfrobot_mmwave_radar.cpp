@@ -9,8 +9,6 @@ const char ASCII_CR = 0x0D;
 const char ASCII_LF = 0x0A;
 
 void DfrobotMmwaveRadarComponent::dump_config() {
-    ESP_LOGCONFIG(TAG, "Range minimum: %f m", range_min_);
-    ESP_LOGCONFIG(TAG, "Range maximum: %f m", range_max_);
     ESP_LOGCONFIG(TAG, "Delay after detect: %f s", delay_after_detect_);
     ESP_LOGCONFIG(TAG, "Delay after disappear: %f s", delay_after_disappear_);
 }
@@ -240,6 +238,7 @@ DetRangeCfgCommand::DetRangeCfgCommand(
                                         float min3, float max3,
                                         float min4, float max4
                                       ) {
+    // TODO: Print warning when values are rounded
     char tmp_cmd[46] = {0};
 
     if(min1 < 0 || max1 < 0) {
