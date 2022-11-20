@@ -201,8 +201,6 @@ class ESP32BLETracker : public Component {
 
   void start_scan();
   void stop_scan();
-  virtual void set_state(ScannerState st) { this->state_ = st; }
-  ScannerState state() const { return state_; }
 
  protected:
   /// The FreeRTOS task managing the bluetooth interface.
