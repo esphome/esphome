@@ -14,6 +14,10 @@ void Alpha3::dump_config() {
   ESP_LOGCONFIG(TAG, "ALPHA3");
   LOG_SENSOR(" ", "Flow", this->flow_sensor_);
   LOG_SENSOR(" ", "Head", this->head_sensor_);
+  LOG_SENSOR(" ", "Power", this->power_sensor_);
+  LOG_SENSOR(" ", "Current", this->current_sensor_);
+  LOG_SENSOR(" ", "Speed", this->speed_sensor_);
+  LOG_SENSOR(" ", "Voltage", this->voltage_sensor_);
 }
 
 void Alpha3::setup() {}
