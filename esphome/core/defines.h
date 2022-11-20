@@ -80,7 +80,6 @@
 
 #ifdef USE_ESP_IDF
 #define USE_ESP_IDF_VERSION_CODE VERSION_CODE(4, 4, 2)
-#define USE_ESP32_IGNORE_EFUSE_MAC_CRC
 #endif
 #endif
 
