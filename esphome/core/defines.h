@@ -74,12 +74,13 @@
 #define USE_BLUETOOTH_PROXY
 
 #ifdef USE_ARDUINO
-#define USE_ARDUINO_VERSION_CODE VERSION_CODE(1, 0, 6)
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(2, 0, 5)
 #define USE_ETHERNET
 #endif
 
 #ifdef USE_ESP_IDF
 #define USE_ESP_IDF_VERSION_CODE VERSION_CODE(4, 4, 2)
+#define USE_ESP32_IGNORE_EFUSE_MAC_CRC
 #endif
 #endif
 
@@ -90,15 +91,16 @@
 #define USE_ESP8266_PREFERENCES_FLASH
 #define USE_HTTP_REQUEST_ESP8266_HTTPS
 #define USE_SOCKET_IMPL_LWIP_TCP
-#endif
-
-// Disabled feature flags
-//#define USE_BSEC  // Requires a library with proprietary license.
-
-#define USE_DASHBOARD_IMPORT
 
 // Dummy firmware payload for shelly_dimmer
 #define USE_SHD_FIRMWARE_MAJOR_VERSION 56
 #define USE_SHD_FIRMWARE_MINOR_VERSION 5
 #define USE_SHD_FIRMWARE_DATA \
   {}
+
+#endif
+
+// Disabled feature flags
+//#define USE_BSEC  // Requires a library with proprietary license.
+
+#define USE_DASHBOARD_IMPORT

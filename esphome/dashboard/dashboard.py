@@ -313,7 +313,11 @@ class EsphomeUploadHandler(EsphomeCommandWebSocket):
 class EsphomeCompileHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", "compile", config_file]
+        command = ["esphome", "--dashboard", "compile"]
+        if json_message.get("only_generate", False):
+            command.append("--only-generate")
+        command.append(config_file)
+        return command
 
 
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
