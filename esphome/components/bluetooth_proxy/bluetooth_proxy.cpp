@@ -9,15 +9,12 @@
 namespace esphome {
 namespace bluetooth_proxy {
 
-static const uint8_t MAX_CACHE_SIZE = 64;
+static const uint8_t MAX_CACHE_SIZE = 56;
 static const char *const TAG = "bluetooth_proxy";
 
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
-  if (!api::global_api_server->is_connected())
-    return false;
-
   uint64_t now = esp_timer_get_time();
   uint64_t device_address = device.address_uint64();
 
@@ -43,6 +40,8 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     this->times_queue_.pop();
   }
 
+  if (!api::global_api_server->is_connected())
+    return false;
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
   this->send_api_packet_(device);
