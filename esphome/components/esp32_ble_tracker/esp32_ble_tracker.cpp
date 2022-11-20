@@ -183,17 +183,6 @@ void ESP32BLETracker::loop() {
       if (client->state() == ClientState::DISCOVERED) {
         ESP_LOGD(TAG, "Pausing scan to make connection...");
         esp_ble_gap_stop_scanning();
-#ifdef USE_ARDUINO
-        constexpr TickType_t block_time = 10L / portTICK_PERIOD_MS;
-#else
-        constexpr TickType_t block_time = 0L;  // PR #3594
-#endif
-        if (xSemaphoreTake(this->scan_end_lock_, block_time)) {
-          this->set_state(ScannerState::PAUSED);
-          xSemaphoreGive(this->scan_end_lock_);
-        } else {
-          ESP_LOGE(TAG, "Cannot set scanner state to paused!");
-        }
         // We only want to promote one client at a time.
         client->set_state(ClientState::READY_TO_CONNECT);
         break;

@@ -164,10 +164,6 @@ enum class ClientState {
 enum class ScannerState {
   // Scanner is idle
   IDLE,
-  // Scanner is paused while connecting
-  // and should be resumed as soon as we
-  // we no longer in a connecting state.
-  PAUSED,
   // Scanner is active.
   ACTIVE,
   // Scanner has failed to start
