@@ -1,3 +1,4 @@
+import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -25,6 +26,7 @@ CONF_DET_RANGE_MIN = "detection_range_min"
 CONF_DET_RANGE_MAX = "detection_range_max"
 DELAY_AFTER_DETECT = "delay_after_detect"
 DELAY_AFTER_DISAPPEAR = "delay_after_disappear"
+SEGMENTS = "segments"
 
 
 def validate_ranges(config):
@@ -101,11 +103,68 @@ async def to_code(config):
     )
 
 
+def range_segment_list(input):
+    """Validate input is a list of ranges which can be used to configure the dfrobot mmwave radar
+
+    A list of segments should be provided. A minimum of one segment is required and a maximum of
+    four segments is allowed. A segment describes a range of distances. E.g. from 0mm to 1m.
+    The distances need to be defined in an ascending order and they cannot contain / intersect
+    each other.
+    """
+    cv.check_not_templatable(input)
+
+    # Make sure input is always a list
+    if input is None or (isinstance(input, dict) and not input):
+        input = []
+    elif not isinstance(input, list):
+        input = [input]
+
+    if len(input) < 1:
+        raise cv.Invalid("At least one segment needs to be specified")
+    if len(input) > 4:
+        raise cv.Invalid("Four segments can be specified at max")
+
+    largest_distance = -1
+    for segment in input:
+        # Check if two positive distances are defined, separated by '-'
+        match = re.match(r"^([+. \w]*)(\s*-\s*)([+. \w]*)$", segment)
+        if match is None:
+            raise cv.Invalid(
+                f'Invalid range "{segment}". '
+                'Specify two positive distances separated by "-"'
+            )
+
+        # Check validity of each distance
+        distances = segment.split("-")
+        distances = [s.strip() for s in distances]
+
+        if not len(distances) == 2:
+            raise cv.Invalid("Two distances must be specified!")
+
+        for distance in distances:
+            m = cv.distance(distance)
+            if m > 9:
+                raise cv.Invalid("Maximum distance is 9m")
+            if m < 0:
+                raise cv.Invalid("Minimum distance is 0m")
+            if m <= largest_distance:
+                raise cv.Invalid(
+                    "Distances must be delared from small to large "
+                    "and they cannot contain each other"
+                )
+            largest_distance = m
+            distances[distances.index(distance)] = m
+
+        # Overwrite input with parsed and separated distances
+        input[input.index(segment)] = distances
+
+    return input
+
+
 MMWAVE_DET_RANGE_CFG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent),
-        # cv.Required(CONF_RECIPIENT): cv.templatable(cv.string_strict),
-        # cv.Required(CONF_MESSAGE): cv.templatable(cv.string),
+        cv.Required(SEGMENTS): range_segment_list,
     }
 )
 
