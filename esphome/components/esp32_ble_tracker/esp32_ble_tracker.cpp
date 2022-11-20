@@ -66,7 +66,11 @@ void ESP32BLETracker::setup() {
 #endif
 
   if (this->scan_continuous_) {
-    this->start_scan_(true);
+    if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
+      this->start_scan_(true);
+    } else {
+      ESP_LOGW(TAG, "Cannot start scan!");
+    }
   }
 }
 
@@ -109,11 +113,9 @@ void ESP32BLETracker::loop() {
   }
 
   if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    xSemaphoreGive(this->scan_end_lock_);
     if (this->scan_continuous_) {
       this->start_scan_(false);
-    } else if (xSemaphoreTake(this->scan_end_lock_, 0L) && this->state() != ScannerState::IDLE) {
-      xSemaphoreGive(this->scan_end_lock_);
+    } else if (this->state() != ScannerState::IDLE) {
       this->end_of_scan_();
       return;
     }
@@ -287,8 +289,8 @@ bool ESP32BLETracker::ble_setup() {
 }
 
 void ESP32BLETracker::start_scan_(bool first) {
-  if (!xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    ESP_LOGW(TAG, "Cannot start scan!");
+  if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
+    ESP_LOGE(TAG, "start_scan called without holding scan_end_lock_");
     return;
   }
 
@@ -315,8 +317,8 @@ void ESP32BLETracker::start_scan_(bool first) {
 }
 
 void ESP32BLETracker::end_of_scan_() {
-  if (!xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    ESP_LOGW(TAG, "Cannot clean up end of scan!");
+  if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
+    ESP_LOGE(TAG, "end_of_scan_ called without holding the scan_end_lock_");
     return;
   }
 
