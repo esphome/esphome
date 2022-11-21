@@ -107,7 +107,7 @@ static const uint8_t PROGMEM INITCMD_ILI9488[] = {
 
   ILI9XXX_MADCTL,  1, 0x48,
   ILI9XXX_PIXFMT,  1, 0x55,  // Interface Pixel Format = 16bit
-  ILI9XXX_IFMODE,  1, 0x80,
+  ILI9XXX_IFMODE,  1, 0x00,
 
   0xE9, 1, 0x00,   // Set Image Functio. Disable 24 bit data
   // 5 frames
@@ -118,7 +118,7 @@ static const uint8_t PROGMEM INITCMD_ILI9488[] = {
   ILI9XXX_GMCTRN1,15, 0x00, 0x16, 0x19, 0x03, 0x0F, 0x05, 0x32, 0x45, 0x46, 0x04, 0x0E, 0x0D, 0x35, 0x37, 0x0F,
 
   ILI9XXX_SLPOUT,  0x80,    // Exit sleep mode
-  ILI9XXX_IDMOFF , 0,
+  //ILI9XXX_IDMOFF , 0,
   ILI9XXX_DISPON,  0x80,    // Set display on
   0x00 // end
 };
