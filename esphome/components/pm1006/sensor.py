@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import sensor, uart
 from esphome.const import (
     CONF_ID,
+    CONF_TYPE,
     CONF_PM_1_0,
     CONF_PM_2_5,
     CONF_PM_10_0,
@@ -25,10 +26,35 @@ PM1006Component = pm1006_ns.class_(
 )
 
 
+TYPE_PM1006 = "PM1006"
+TYPE_PM1006K = "PM1006K"
+
+PM1006Type = pm1006_ns.enum("PM1006Type")
+
+PM1006_TYPES = {
+    TYPE_PM1006: PM1006Type.PM1006_TYPE_1006,
+    TYPE_PM1006K: PM1006Type.PM1006_TYPE_1006K,
+}
+
+SENSORS_TO_TYPE = {
+    CONF_PM_1_0: [TYPE_PM1006K],
+    CONF_PM_2_5: [TYPE_PM1006, TYPE_PM1006K],
+    CONF_PM_10_0: [TYPE_PM1006K],
+
+}
+
+def validate_pm1006_sensors(value):
+    for key, types in SENSORS_TO_TYPE.items():
+        if key in value and value[CONF_TYPE] not in types:
+            raise cv.Invalid(f"{value[CONF_TYPE]} does not have {key} sensor!")
+    return value
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PM1006Component),
+            cv.Optional(CONF_TYPE): cv.enum(PM1006Type, upper=True),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_BLUR,

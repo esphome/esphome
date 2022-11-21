@@ -7,6 +7,11 @@
 namespace esphome {
 namespace pm1006 {
 
+enum PM1006Type {
+  PM1006_TYPE_1006 = 0,
+  PM1006_TYPE_1006K,
+};
+
 class PM1006Component : public PollingComponent, public uart::UARTDevice {
  public:
   PM1006Component() = default;
