@@ -1003,6 +1003,8 @@ ESP32_BOARD_PINS = {
         "D13": 2,
     },
     "xinabox_cw02": {"LED": 27},
+    "upesy_wroom": {"LED": 2},
+    "upesy_wrover": {"LED": 2},
 }
 
 """
