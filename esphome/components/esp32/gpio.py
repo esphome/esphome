@@ -38,8 +38,7 @@ from .gpio_esp32_s3 import esp32_s3_validate_gpio_pin, esp32_s3_validate_support
 from .gpio_esp32_h2 import esp32_h2_validate_gpio_pin, esp32_h2_validate_supports
 
 
-IDFInternalGPIOPin = esp32_ns.class_("IDFInternalGPIOPin", cg.InternalGPIOPin)
-ArduinoInternalGPIOPin = esp32_ns.class_("ArduinoInternalGPIOPin", cg.InternalGPIOPin)
+ESP32InternalGPIOPin = esp32_ns.class_("ESP32InternalGPIOPin", cg.InternalGPIOPin)
 
 
 def _lookup_pin(value):
@@ -169,18 +168,10 @@ DRIVE_STRENGTHS = {
 gpio_num_t = cg.global_ns.enum("gpio_num_t")
 
 
-def _choose_pin_declaration(value):
-    if CORE.using_esp_idf:
-        return cv.declare_id(IDFInternalGPIOPin)(value)
-    if CORE.using_arduino:
-        return cv.declare_id(ArduinoInternalGPIOPin)(value)
-    raise NotImplementedError
-
-
 CONF_DRIVE_STRENGTH = "drive_strength"
 ESP32_PIN_SCHEMA = cv.All(
     {
-        cv.GenerateID(): _choose_pin_declaration,
+        cv.GenerateID(): cv.declare_id(ESP32InternalGPIOPin),
         cv.Required(CONF_NUMBER): validate_gpio_pin,
         cv.Optional(CONF_MODE, default={}): cv.Schema(
             {
@@ -192,8 +183,7 @@ ESP32_PIN_SCHEMA = cv.All(
             }
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-        cv.SplitDefault(CONF_DRIVE_STRENGTH, esp32_idf="20mA"): cv.All(
-            cv.only_with_esp_idf,
+        cv.Optional(CONF_DRIVE_STRENGTH, default="20mA"): cv.All(
             cv.float_with_unit("current", "mA", optional_unit=True),
             cv.enum(DRIVE_STRENGTHS),
         ),
@@ -206,10 +196,7 @@ ESP32_PIN_SCHEMA = cv.All(
 async def esp32_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
-    if CORE.using_esp_idf:
-        cg.add(var.set_pin(getattr(gpio_num_t, f"GPIO_NUM_{num}")))
-    else:
-        cg.add(var.set_pin(num))
+    cg.add(var.set_pin(getattr(gpio_num_t, f"GPIO_NUM_{num}")))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     if CONF_DRIVE_STRENGTH in config:
         cg.add(var.set_drive_strength(config[CONF_DRIVE_STRENGTH]))
