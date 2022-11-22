@@ -79,7 +79,7 @@ CONFIG_SCHEMA = cv.All(
                 CLK_MODES, upper=True, space="_"
             ),
             cv.Optional(CONF_PHY_ADDR, default=0): cv.int_range(min=0, max=31),
-            cv.Optional(CONF_POWER_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_POWER_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_MANUAL_IP): MANUAL_IP_SCHEMA,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
@@ -118,8 +118,7 @@ async def to_code(config):
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_POWER_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_POWER_PIN])
-        cg.add(var.set_power_pin(pin))
+        cg.add(var.set_power_pin(config[CONF_POWER_PIN]))
 
     if CONF_MANUAL_IP in config:
         cg.add(var.set_manual_ip(manual_ip(config[CONF_MANUAL_IP])))
