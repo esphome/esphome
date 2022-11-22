@@ -449,10 +449,13 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
 ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
   ESPBTUUID ret;
   ret.uuid_.len = uuid.len;
-  ret.uuid_.uuid.uuid16 = uuid.uuid.uuid16;
-  ret.uuid_.uuid.uuid32 = uuid.uuid.uuid32;
-  for (size_t i = 0; i < ESP_UUID_LEN_128; i++)
-    ret.uuid_.uuid.uuid128[i] = uuid.uuid.uuid128[i];
+  if (uuid.len == ESP_UUID_LEN_16) {
+    ret.uuid_.uuid.uuid16 = uuid.uuid.uuid16;
+  } else if (uuid.len == ESP_UUID_LEN_32) {
+    ret.uuid_.uuid.uuid32 = uuid.uuid.uuid32;
+  } else if (uuid.len == ESP_UUID_LEN_128) {
+    memcpy(ret.uuid_.uuid.uuid128, uuid.uuid.uuid128, ESP_UUID_LEN_128);
+  }
   return ret;
 }
 ESPBTUUID ESPBTUUID::as_128bit() const {
