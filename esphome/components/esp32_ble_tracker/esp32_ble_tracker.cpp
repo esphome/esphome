@@ -831,8 +831,9 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   }
 
   ESP_LOGD(TAG, "  Address Type: %s", address_type_s);
-  if (!device.get_name().empty())
+  if (!device.get_name().empty()) {
     ESP_LOGD(TAG, "  Name: '%s'", device.get_name().c_str());
+  }
   for (auto &tx_power : device.get_tx_powers()) {
     ESP_LOGD(TAG, "  TX Power: %d", tx_power);
   }
