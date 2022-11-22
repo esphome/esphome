@@ -147,7 +147,9 @@ class APIConnection : public APIServerConnection {
     // TODO
     return {};
   }
+#ifdef USE_API_USER_SERVICES
   void execute_service(const ExecuteServiceRequest &msg) override;
+#endif
   void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override {
     this->bluetooth_le_advertisement_subscription_ = true;
   }
