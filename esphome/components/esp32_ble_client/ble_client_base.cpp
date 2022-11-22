@@ -135,6 +135,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       for (auto &svc : this->services_)
         delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
       this->services_.clear();
+      esp_ble_gattc_cache_clean(this->remote_bda_);
       this->set_state(espbt::ClientState::IDLE);
       break;
     }
@@ -154,7 +155,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                  svc->uuid.to_string().c_str());
         ESP_LOGI(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
                  this->address_str_.c_str(), svc->start_handle, svc->end_handle);
-        svc->parse_characteristics();
       }
       this->set_state(espbt::ClientState::CONNECTED);
       this->state_ = espbt::ClientState::ESTABLISHED;
@@ -287,7 +287,11 @@ BLECharacteristic *BLEClientBase::get_characteristic(uint16_t service, uint16_t 
 
 BLECharacteristic *BLEClientBase::get_characteristic(uint16_t handle) {
   for (auto *svc : this->services_) {
+    if unlikely(!svc->parsed)
+      svc->parse_characteristics();
     for (auto *chr : svc->characteristics) {
+      if unlikely(!chr->parsed)
+        chr->parse_descriptors();
       if (chr->handle == handle)
         return chr;
     }
@@ -323,7 +327,11 @@ BLEDescriptor *BLEClientBase::get_descriptor(uint16_t service, uint16_t chr, uin
 
 BLEDescriptor *BLEClientBase::get_descriptor(uint16_t handle) {
   for (auto *svc : this->services_) {
+    if unlikely(!svc->parsed)
+      svc->parse_characteristics();
     for (auto *chr : svc->characteristics) {
+      if unlikely(!chr->parsed)
+        chr->parse_descriptors();
       for (auto *desc : chr->descriptors) {
         if (desc->handle == handle)
           return desc;
