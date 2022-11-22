@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ICON,
     CONF_ID,
     CONF_ON_PRESS,
+    CONF_PUBLISH_STATE,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
     DEVICE_CLASS_RESTART,
@@ -90,7 +91,7 @@ async def setup_button_core_(var, config):
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
 
-    if CONF_MQTT_ID in config:
+    if (CONF_MQTT_ID in config) & (CORE.config["mqtt"][CONF_PUBLISH_STATE]):
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

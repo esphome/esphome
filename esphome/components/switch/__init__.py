@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_MQTT_ID,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
+    CONF_PUBLISH_STATE,
     CONF_TRIGGER_ID,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_OUTLET,
@@ -123,7 +124,7 @@ async def setup_switch_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if CONF_MQTT_ID in config:
+    if (CONF_MQTT_ID in config) & (CORE.config["mqtt"][CONF_PUBLISH_STATE]):
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

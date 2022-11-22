@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_CYCLE,
     CONF_MODE,
     CONF_OPERATION,
+    CONF_PUBLISH_STATE,
     CONF_INDEX,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -70,7 +71,7 @@ async def setup_select_core_(var, config, *, options: list[str]):
             trigger, [(cg.std_string, "x"), (cg.size_t, "i")], conf
         )
 
-    if CONF_MQTT_ID in config:
+    if (CONF_MQTT_ID in config) & (CORE.config["mqtt"][CONF_PUBLISH_STATE]):
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

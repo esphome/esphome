@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_ON_MESSAGE,
     CONF_ON_CONNECT,
     CONF_ON_DISCONNECT,
+    CONF_PUBLISH_STATE,
     CONF_PASSWORD,
     CONF_PAYLOAD,
     CONF_PAYLOAD_AVAILABLE,
@@ -188,6 +189,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
             ),
             cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
+            cv.Optional(CONF_PUBLISH_STATE, default=True): cv.boolean,
             cv.Optional(
                 CONF_DISCOVERY_PREFIX, default="homeassistant"
             ): cv.publish_topic,
