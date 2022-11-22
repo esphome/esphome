@@ -30,16 +30,17 @@ CONF_POWER_PIN = "power_pin"
 EthernetType = ethernet_ns.enum("EthernetType")
 ETHERNET_TYPES = {
     "LAN8720": EthernetType.ETHERNET_TYPE_LAN8720,
-    "TLK110": EthernetType.ETHERNET_TYPE_TLK110,
+    "RTL8201": EthernetType.ETHERNET_TYPE_RTL8201,
+    "DP83848": EthernetType.ETHERNET_TYPE_DP83848,
     "IP101": EthernetType.ETHERNET_TYPE_IP101,
 }
 
-eth_clock_mode_t = cg.global_ns.enum("eth_clock_mode_t")
+emac_rmii_clock_gpio_t = cg.global_ns.enum("emac_rmii_clock_gpio_t")
 CLK_MODES = {
-    "GPIO0_IN": eth_clock_mode_t.ETH_CLOCK_GPIO0_IN,
-    "GPIO0_OUT": eth_clock_mode_t.ETH_CLOCK_GPIO0_OUT,
-    "GPIO16_OUT": eth_clock_mode_t.ETH_CLOCK_GPIO16_OUT,
-    "GPIO17_OUT": eth_clock_mode_t.ETH_CLOCK_GPIO17_OUT,
+    "GPIO0_IN": emac_rmii_clock_gpio_t.EMAC_CLK_IN_GPIO,
+    "GPIO0_OUT": emac_rmii_clock_gpio_t.EMAC_APPL_CLK_OUT_GPIO,
+    "GPIO16_OUT": emac_rmii_clock_gpio_t.EMAC_CLK_OUT_GPIO,
+    "GPIO17_OUT": emac_rmii_clock_gpio_t.EMAC_CLK_OUT_180_GPIO,
 }
 
 
@@ -125,5 +126,5 @@ async def to_code(config):
 
     cg.add_define("USE_ETHERNET")
 
-    if CORE.is_esp32:
+    if CORE.using_arduino:
         cg.add_library("WiFi", None)

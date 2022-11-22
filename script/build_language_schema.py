@@ -283,6 +283,32 @@ def fix_script():
     config_schema["is_list"] = True
 
 
+def fix_menu():
+    # # Menu has a recursive schema which is not kept properly
+    schemas = output["display_menu_base"][S_SCHEMAS]
+    # 1. Move items to a new schema
+    schemas["MENU_TYPES"] = {
+        S_TYPE: S_SCHEMA,
+        S_SCHEMA: {
+            S_CONFIG_VARS: {
+                "items": schemas["DISPLAY_MENU_BASE_SCHEMA"][S_SCHEMA][S_CONFIG_VARS][
+                    "items"
+                ]
+            }
+        },
+    }
+    # 2. Remove items from the base schema
+    schemas["DISPLAY_MENU_BASE_SCHEMA"][S_SCHEMA][S_CONFIG_VARS].pop("items")
+    # 3. Add extends to this
+    schemas["DISPLAY_MENU_BASE_SCHEMA"][S_SCHEMA][S_EXTENDS].append(
+        "display_menu_base.MENU_TYPES"
+    )
+    # 4. Configure menu items inside as recursive
+    menu = schemas["MENU_TYPES"][S_SCHEMA][S_CONFIG_VARS]["items"]["types"]["menu"]
+    menu[S_CONFIG_VARS].pop("items")
+    menu[S_EXTENDS] = ["display_menu_base.MENU_TYPES"]
+
+
 def get_logger_tags():
     pattern = re.compile(r'^static const char \*const TAG = "(\w.*)";', re.MULTILINE)
     # tags not in components dir
@@ -565,6 +591,7 @@ def build_schema():
     fix_script()
     add_logger_tags()
     shrink()
+    fix_menu()
 
     # aggregate components, so all component info is in same file, otherwise we have dallas.json, dallas.sensor.json, etc.
     data = {}
