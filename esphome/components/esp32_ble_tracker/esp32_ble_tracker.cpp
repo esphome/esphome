@@ -160,12 +160,6 @@ void ESP32BLETracker::loop() {
 
     if (this->scan_start_failed_) {
       ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
-      if (xSemaphoreTake(this->scan_end_lock_, 0L / portTICK_PERIOD_MS)) {
-        this->scanner_idle_ = true;
-        xSemaphoreGive(this->scan_end_lock_);
-      } else {
-        ESP_LOGE(TAG, "Cannot set scanner state to failed!");
-      }
       this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
     }
   }
