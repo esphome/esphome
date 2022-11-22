@@ -29,10 +29,6 @@ void EthernetComponent::setup() {
   // Delay here to allow power to stabilise before Ethernet is initialised.
   delay(300);  // NOLINT
 
-  if (this->power_pin_ != nullptr) {
-    this->power_pin_->setup();
-  }
-
   esp_err_t err;
   err = esp_netif_init();
   ESPHL_ERROR_CHECK(err, "ETH netif init error");
@@ -47,6 +43,8 @@ void EthernetComponent::setup() {
   eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
 
   phy_config.phy_addr = this->phy_addr_;
+  if (this->power_pin_ != -1)
+    phy_config.reset_gpio_num = this->power_pin_;
 
   mac_config.smi_mdc_gpio_num = this->mdc_pin_;
   mac_config.smi_mdio_gpio_num = this->mdio_pin_;
@@ -96,11 +94,6 @@ void EthernetComponent::setup() {
   /* start Ethernet driver state machine */
   err = esp_eth_start(this->eth_handle_);
   ESPHL_ERROR_CHECK(err, "ETH start error");
-
-  if (this->power_pin_ != nullptr) {
-    this->orig_power_control_fun_ = phy->pwrctl;
-    phy->pwrctl = EthernetComponent::eth_phy_power_control;
-  }
 }
 
 void EthernetComponent::loop() {
@@ -169,7 +162,8 @@ void EthernetComponent::dump_config() {
 
   ESP_LOGCONFIG(TAG, "Ethernet:");
   this->dump_connect_params_();
-  LOG_PIN("  Power Pin: ", this->power_pin_);
+  if (this->power_pin_ != -1)
+    ESP_LOGCONFIG(TAG, "  Power Pin: %u", this->power_pin_);
   ESP_LOGCONFIG(TAG, "  MDC Pin: %u", this->mdc_pin_);
   ESP_LOGCONFIG(TAG, "  MDIO Pin: %u", this->mdio_pin_);
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type.c_str());
@@ -277,12 +271,6 @@ void EthernetComponent::start_connect_() {
   this->connect_begin_ = millis();
   this->status_set_warning();
 }
-esp_err_t EthernetComponent::eth_phy_power_control(esp_eth_phy_t *phy, bool enable) {
-  global_eth_component->power_pin_->digital_write(enable);
-  // power up takes some time, datasheet says max 300µs
-  delay(1);
-  return global_eth_component->orig_power_control_fun_(phy, enable);
-}
 
 bool EthernetComponent::is_connected() { return this->state_ == EthernetComponentState::CONNECTED; }
 
@@ -319,7 +307,7 @@ void EthernetComponent::dump_connect_params_() {
 }
 
 void EthernetComponent::set_phy_addr(uint8_t phy_addr) { this->phy_addr_ = phy_addr; }
-void EthernetComponent::set_power_pin(GPIOPin *power_pin) { this->power_pin_ = power_pin; }
+void EthernetComponent::set_power_pin(int power_pin) { this->power_pin_ = power_pin; }
 void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin; }
 void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
