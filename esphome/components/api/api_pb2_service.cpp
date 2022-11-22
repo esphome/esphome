@@ -607,12 +607,14 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 42: {
+#ifdef USE_API_USER_SERVICES
       ExecuteServiceRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_execute_service_request: %s", msg.dump().c_str());
 #endif
       this->on_execute_service_request(msg);
+#endif
       break;
     }
     case 45: {
@@ -895,6 +897,7 @@ void APIServerConnection::on_get_time_request(const GetTimeRequest &msg) {
     this->on_fatal_error();
   }
 }
+#ifdef USE_API_USER_SERVICES
 void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
@@ -906,6 +909,7 @@ void APIServerConnection::on_execute_service_request(const ExecuteServiceRequest
   }
   this->execute_service(msg);
 }
+#endif
 #ifdef USE_COVER
 void APIServerConnection::on_cover_command_request(const CoverCommandRequest &msg) {
   if (!this->is_connection_setup()) {
