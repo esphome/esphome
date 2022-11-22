@@ -162,8 +162,9 @@ void EthernetComponent::dump_config() {
 
   ESP_LOGCONFIG(TAG, "Ethernet:");
   this->dump_connect_params_();
-  if (this->power_pin_ != -1)
+  if (this->power_pin_ != -1) {
     ESP_LOGCONFIG(TAG, "  Power Pin: %u", this->power_pin_);
+  }
   ESP_LOGCONFIG(TAG, "  MDC Pin: %u", this->mdc_pin_);
   ESP_LOGCONFIG(TAG, "  MDIO Pin: %u", this->mdio_pin_);
   ESP_LOGCONFIG(TAG, "  Type: %s", eth_type.c_str());
