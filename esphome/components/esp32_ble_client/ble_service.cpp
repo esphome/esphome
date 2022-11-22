@@ -11,7 +11,7 @@ namespace esp32_ble_client {
 static const char *const TAG = "esp32_ble_client";
 
 BLECharacteristic *BLEService::get_characteristic(espbt::ESPBTUUID uuid) {
-  if unlikely(!this->parsed)
+  if unlikely (!this->parsed)
     this->parse_characteristics();
   for (auto &chr : this->characteristics) {
     if (chr->uuid == uuid)
