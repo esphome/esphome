@@ -1847,18 +1847,6 @@ light:
         to: 25
       - single_light_id: ${roomname}_lights
 
-  - platform: shelly_dimmer
-    name: Shelly Dimmer Light
-    power:
-      name: Shelly Dimmer Power
-    voltage:
-      name: Shelly Dimmer Voltage
-    current:
-      name: Shelly Dimmer Current
-    max_brightness: 500
-    firmware: "51.6"
-    uart_id: uart0
-
 remote_transmitter:
   - pin: 32
     carrier_duty_percent: 100%
