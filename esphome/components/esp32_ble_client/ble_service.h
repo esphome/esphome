@@ -16,6 +16,7 @@ class BLEClientBase;
 class BLEService {
  public:
   ~BLEService();
+  bool parsed = false;
   espbt::ESPBTUUID uuid;
   uint16_t start_handle;
   uint16_t end_handle;

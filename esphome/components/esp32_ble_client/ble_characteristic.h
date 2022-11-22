@@ -16,6 +16,7 @@ class BLEService;
 class BLECharacteristic {
  public:
   ~BLECharacteristic();
+  bool parsed = false;
   espbt::ESPBTUUID uuid;
   uint16_t handle;
   esp_gatt_char_prop_t properties;

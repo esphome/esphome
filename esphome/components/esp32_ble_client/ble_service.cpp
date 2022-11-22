@@ -11,6 +11,8 @@ namespace esp32_ble_client {
 static const char *const TAG = "esp32_ble_client";
 
 BLECharacteristic *BLEService::get_characteristic(espbt::ESPBTUUID uuid) {
+  if unlikely(!this->parsed)
+    this->parse_characteristics();
   for (auto &chr : this->characteristics) {
     if (chr->uuid == uuid)
       return chr;
@@ -28,6 +30,7 @@ BLEService::~BLEService() {
 }
 
 void BLEService::parse_characteristics() {
+  this->parsed = true;
   uint16_t offset = 0;
   esp_gattc_char_elem_t result;
 
@@ -57,7 +60,6 @@ void BLEService::parse_characteristics() {
     ESP_LOGI(TAG, "[%d] [%s]  characteristic %s, handle 0x%x, properties 0x%x", this->client->get_connection_index(),
              this->client->address_str().c_str(), characteristic->uuid.to_string().c_str(), characteristic->handle,
              characteristic->properties);
-    characteristic->parse_descriptors();
     offset++;
   }
 }
