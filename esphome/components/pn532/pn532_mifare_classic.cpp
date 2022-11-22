@@ -167,9 +167,8 @@ bool PN532::format_mifare_classic_ndef_(std::vector<uint8_t> &uid) {
     }
     if (block == 4) {
       if (!this->write_mifare_classic_block_(block, empty_ndef_message)) {
-      }
         ESP_LOGE(TAG, "Unable to write block %d", block);
-    }
+      }
     } else {
       if (!this->write_mifare_classic_block_(block, blank_block)) {
         ESP_LOGE(TAG, "Unable to write block %d", block);
