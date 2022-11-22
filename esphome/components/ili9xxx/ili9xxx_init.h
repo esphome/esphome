@@ -103,7 +103,7 @@ static const uint8_t PROGMEM INITCMD_ILI9488[] = {
   
   ILI9XXX_FRMCTR1, 1, 0xA0,  // Frame rate = 60Hz
   ILI9XXX_INVCTR,  1, 0x02,  // Display Inversion Control = 2dot
-  ILI9XXX_DFUNCTR, 3, 0x02, 0x22, 0x3B, // Nomal scan
+  ILI9XXX_DFUNCTR, 3, 0x02, 0x02, 0x02, // Nomal scan
 
   ILI9XXX_MADCTL,  1, 0x48,
   ILI9XXX_PIXFMT,  1, 0x55,  // Interface Pixel Format = 16bit
@@ -118,7 +118,7 @@ static const uint8_t PROGMEM INITCMD_ILI9488[] = {
   ILI9XXX_GMCTRN1,15, 0x00, 0x16, 0x19, 0x03, 0x0F, 0x05, 0x32, 0x45, 0x46, 0x04, 0x0E, 0x0D, 0x35, 0x37, 0x0F,
 
   ILI9XXX_SLPOUT,  0x80,    // Exit sleep mode
-  //ILI9XXX_IDMOFF , 0,
+  ILI9488_INVON  , 0,
   ILI9XXX_DISPON,  0x80,    // Set display on
   0x00 // end
 };
