@@ -256,16 +256,16 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
     case 0xD:  // int12.
     case 0xE:  // int16.
       if (length > 2) {
-        return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
+        return (float) ((int16_t) (value[1] << 8) + (int16_t) value[2]);
       }
     case 0xF:  // int24.
       if (length > 3) {
-        return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
+        return (float) ((int32_t) (value[1] << 16) + (int32_t) (value[2] << 8) + (int32_t) (value[3]));
       }
     case 0x10:  // int32.
       if (length > 4) {
-        return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
-                        (int32_t)(value[4]));
+        return (float) ((int32_t) (value[1] << 24) + (int32_t) (value[2] << 16) + (int32_t) (value[3] << 8) +
+                        (int32_t) (value[4]));
       }
   }
   ESP_LOGW(TAG, "[%d] [%s] Cannot parse characteristic value of type 0x%x length %d", this->connection_index_,
@@ -296,10 +296,10 @@ BLECharacteristic *BLEClientBase::get_characteristic(uint16_t service, uint16_t 
 
 BLECharacteristic *BLEClientBase::get_characteristic(uint16_t handle) {
   for (auto *svc : this->services_) {
-    if unlikely(!svc->parsed)
+    if unlikely (!svc->parsed)
       svc->parse_characteristics();
     for (auto *chr : svc->characteristics) {
-      if unlikely(!chr->parsed)
+      if unlikely (!chr->parsed)
         chr->parse_descriptors();
       if (chr->handle == handle)
         return chr;
@@ -336,10 +336,10 @@ BLEDescriptor *BLEClientBase::get_descriptor(uint16_t service, uint16_t chr, uin
 
 BLEDescriptor *BLEClientBase::get_descriptor(uint16_t handle) {
   for (auto *svc : this->services_) {
-    if unlikely(!svc->parsed)
+    if unlikely (!svc->parsed)
       svc->parse_characteristics();
     for (auto *chr : svc->characteristics) {
-      if unlikely(!chr->parsed)
+      if unlikely (!chr->parsed)
         chr->parse_descriptors();
       for (auto *desc : chr->descriptors) {
         if (desc->handle == handle)
