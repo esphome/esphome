@@ -279,6 +279,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart11
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
 
 modbus:
   uart_id: uart1
@@ -1358,6 +1362,17 @@ light:
     name: Sonoff D1 Dimmer
     id: d1_light
     restore_mode: RESTORE_DEFAULT_OFF
+  - platform: shelly_dimmer
+    name: "Shelly Dimmer Light"
+    power:
+      name: "Shelly Dimmer Power"
+    voltage:
+      name: "Shelly Dimmer Voltage"
+    current:
+      name: "Shelly Dimmer Current"
+    max_brightness: 500
+    firmware: "51.6"
+    uart_id: uart11
 
 servo:
   id: my_servo
