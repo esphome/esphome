@@ -98,6 +98,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
 
       this->esp_logd_(__LINE__, "Script '%s' queueing new instance (mode: queued)", this->name_.c_str());
       this->num_runs_++;
+      this->var_ = std::make_tuple(x...);
       return;
     }
 
@@ -114,15 +115,20 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   void loop() override {
     if (this->num_runs_ != 0 && !this->is_action_running()) {
       this->num_runs_--;
-      this->trigger();
+      this->trigger_tuple_(this->var_, typename gens<sizeof...(Ts)>::type());
     }
   }
 
   void set_max_runs(int max_runs) { max_runs_ = max_runs; }
 
  protected:
+  template<int... S> void trigger_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+    this->trigger(std::get<S>(tuple)...);
+  }
+
   int num_runs_ = 0;
   int max_runs_ = 0;
+  std::tuple<Ts...> var_{};
 };
 
 /** A script type that executes new instances in parallel.
