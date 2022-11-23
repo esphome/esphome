@@ -49,8 +49,9 @@ bool RFBridgeComponent::parse_bridge_byte_(uint8_t byte) {
       data.high = (raw[6] << 8) | raw[7];
       data.code = (raw[8] << 16) | (raw[9] << 8) | raw[10];
 
-      if (action == RF_CODE_LEARN_OK)
+      if (action == RF_CODE_LEARN_OK) {
         ESP_LOGD(TAG, "Learning success");
+      }
 
       ESP_LOGI(TAG, "Received RFBridge Code: sync=0x%04X low=0x%04X high=0x%04X code=0x%06X", data.sync, data.low,
                data.high, data.code);
