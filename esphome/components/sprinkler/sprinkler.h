@@ -196,6 +196,7 @@ class Sprinkler : public Component, public EntityBase {
   void set_controller_auto_adv_switch(SprinklerControllerSwitch *auto_adv_switch);
   void set_controller_queue_enable_switch(SprinklerControllerSwitch *queue_enable_switch);
   void set_controller_reverse_switch(SprinklerControllerSwitch *reverse_switch);
+  void set_controller_standby_switch(SprinklerControllerSwitch *standby_switch);
 
   /// configure a valve's switch object and run duration. run_duration is time in seconds.
   void configure_valve_switch(size_t valve_number, switch_::Switch *valve_switch, uint32_t run_duration);
@@ -250,6 +251,9 @@ class Sprinkler : public Component, public EntityBase {
   /// if reverse is true, controller will iterate through all enabled valves in reverse (descending) order
   void set_reverse(bool reverse);
 
+  /// if standby is true, controller will refuse to activate any valves
+  void set_standby(bool standby);
+
   /// returns valve_number's run duration in seconds
   uint32_t valve_run_duration(size_t valve_number);
 
@@ -273,6 +277,9 @@ class Sprinkler : public Component, public EntityBase {
 
   /// returns true if reverse is enabled
   bool reverse();
+
+  /// returns true if standby is enabled
+  bool standby();
 
   /// starts the controller from the first valve in the queue and disables auto_advance.
   /// if the queue is empty, does nothing.
@@ -518,12 +525,15 @@ class Sprinkler : public Component, public EntityBase {
   SprinklerControllerSwitch *controller_sw_{nullptr};
   SprinklerControllerSwitch *queue_enable_sw_{nullptr};
   SprinklerControllerSwitch *reverse_sw_{nullptr};
+  SprinklerControllerSwitch *standby_sw_{nullptr};
 
   std::unique_ptr<ShutdownAction<>> sprinkler_shutdown_action_;
+  std::unique_ptr<ShutdownAction<>> sprinkler_standby_shutdown_action_;
   std::unique_ptr<ResumeOrStartAction<>> sprinkler_resumeorstart_action_;
 
   std::unique_ptr<Automation<>> sprinkler_turn_off_automation_;
   std::unique_ptr<Automation<>> sprinkler_turn_on_automation_;
+  std::unique_ptr<Automation<>> sprinkler_standby_turn_on_automation_;
 };
 
 }  // namespace sprinkler

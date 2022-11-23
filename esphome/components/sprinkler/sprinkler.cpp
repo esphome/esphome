@@ -449,6 +449,16 @@ void Sprinkler::set_controller_reverse_switch(SprinklerControllerSwitch *reverse
   reverse_switch->set_restore_state(true);
 }
 
+void Sprinkler::set_controller_standby_switch(SprinklerControllerSwitch *standby_switch) {
+  this->standby_sw_ = standby_switch;
+  standby_switch->set_optimistic(true);
+  standby_switch->set_restore_state(true);
+
+  this->sprinkler_standby_turn_on_automation_ = make_unique<Automation<>>(standby_switch->get_turn_on_trigger());
+  this->sprinkler_standby_shutdown_action_ = make_unique<sprinkler::ShutdownAction<>>(this);
+  this->sprinkler_standby_turn_on_automation_->add_actions({sprinkler_standby_shutdown_action_.get()});
+}
+
 void Sprinkler::configure_valve_switch(size_t valve_number, switch_::Switch *valve_switch, uint32_t run_duration) {
   if (this->is_a_valid_valve(valve_number)) {
     this->valve_[valve_number].valve_switch.set_on_switch(valve_switch);
@@ -586,6 +596,12 @@ void Sprinkler::set_reverse(const bool reverse) {
   }
 }
 
+void Sprinkler::set_standby(const bool standby) {
+  if (this->standby_sw_ != nullptr) {
+    this->standby_sw_->publish_state(standby);
+  }
+}
+
 uint32_t Sprinkler::valve_run_duration(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
     return this->valve_[valve_number].run_duration;
@@ -643,7 +659,18 @@ bool Sprinkler::reverse() {
   return false;
 }
 
+bool Sprinkler::standby() {
+  if (this->standby_sw_ != nullptr) {
+    return this->standby_sw_->state;
+  }
+  return false;
+}
+
 void Sprinkler::start_from_queue() {
+  if (this->standby()) {
+    ESP_LOGD(TAG, "start_from_queue called but standby is enabled; no action taken");
+    return;
+  }
   if (this->queued_valves_.empty()) {
     return;  // if there is nothing in the queue, don't do anything
   }
@@ -663,6 +690,10 @@ void Sprinkler::start_from_queue() {
 }
 
 void Sprinkler::start_full_cycle() {
+  if (this->standby()) {
+    ESP_LOGD(TAG, "start_full_cycle called but standby is enabled; no action taken");
+    return;
+  }
   if (this->auto_advance() && this->active_valve().has_value()) {
     return;  // if auto-advance is already enabled and there is already a valve running, do nothing
   }
@@ -679,6 +710,10 @@ void Sprinkler::start_full_cycle() {
 }
 
 void Sprinkler::start_single_valve(const optional<size_t> valve_number) {
+  if (this->standby()) {
+    ESP_LOGD(TAG, "start_single_valve called but standby is enabled; no action taken");
+    return;
+  }
   if (!valve_number.has_value() || (valve_number == this->active_valve())) {
     return;
   }
