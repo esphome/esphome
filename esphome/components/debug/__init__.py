@@ -1,5 +1,6 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.final_validate as fv
 from esphome.const import (
     CONF_ID,
     CONF_DEVICE,
@@ -7,7 +8,11 @@ from esphome.const import (
     CONF_FRAGMENTATION,
     CONF_BLOCK,
     CONF_LOOP_TIME,
+    CONF_LOGGER,
+    CONF_LEVEL,
 )
+
+from esphome.components import logger
 
 CODEOWNERS = ["@OttoWinter"]
 DEPENDENCIES = ["logger"]
@@ -37,6 +42,18 @@ CONFIG_SCHEMA = cv.Schema(
         ),
     }
 ).extend(cv.polling_component_schema("60s"))
+
+
+def _final_validate(_):
+    logger_conf = fv.full_config.get()[CONF_LOGGER]
+    severity = logger.LOG_LEVEL_SEVERITY.index(logger_conf[CONF_LEVEL])
+    if severity < logger.LOG_LEVEL_SEVERITY.index("DEBUG"):
+        raise cv.Invalid(
+            "The debug component requires the logger to be at least at DEBUG level"
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
