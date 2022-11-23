@@ -111,8 +111,9 @@ def validate_version(value: str):
 
 
 if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
-    _compile_process_limit_default = int(
-        os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]
+    _compile_process_limit_default = min(
+        int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]),
+        multiprocessing.cpu_count(),
     )
 else:
     _compile_process_limit_default = cv.UNDEFINED
