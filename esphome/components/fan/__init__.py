@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_ON_SPEED_SET,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
+    CONF_PUBLISH_COMPONENT_STATE,
     CONF_TRIGGER_ID,
     CONF_DIRECTION,
     CONF_RESTORE_MODE,
@@ -109,7 +110,9 @@ async def setup_fan_core_(var, config):
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
-    if CONF_MQTT_ID in config:
+    if (CONF_MQTT_ID in config) & (
+        CORE.config.get("mqtt", {}).get(CONF_PUBLISH_COMPONENT_STATE, False)
+    ):
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

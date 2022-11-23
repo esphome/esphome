@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_ON_RAW_VALUE,
     CONF_TRIGGER_ID,
     CONF_MQTT_ID,
+    CONF_PUBLISH_COMPONENT_STATE,
     CONF_STATE,
     CONF_FROM,
     CONF_TO,
@@ -177,7 +178,9 @@ async def setup_text_sensor_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(cg.std_string, "x")], conf)
 
-    if CONF_MQTT_ID in config:
+    if (CONF_MQTT_ID in config) & (
+        CORE.config.get("mqtt", {}).get(CONF_PUBLISH_COMPONENT_STATE, False)
+    ):
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

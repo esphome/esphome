@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_POSITION,
     CONF_POSITION_COMMAND_TOPIC,
     CONF_POSITION_STATE_TOPIC,
+    CONF_PUBLISH_COMPONENT_STATE,
     CONF_TILT,
     CONF_TILT_COMMAND_TOPIC,
     CONF_TILT_STATE_TOPIC,
@@ -121,7 +122,9 @@ async def setup_cover_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if CONF_MQTT_ID in config:
+    if (CONF_MQTT_ID in config) & (
+        CORE.config.get("mqtt", {}).get(CONF_PUBLISH_COMPONENT_STATE, False)
+    ):
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

@@ -31,6 +31,7 @@ from esphome.const import (
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
     CONF_PORT,
+    CONF_PUBLISH_COMPONENT_STATE,
     CONF_QOS,
     CONF_REBOOT_TIMEOUT,
     CONF_RETAIN,
@@ -188,6 +189,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, cv.one_of("CLEAN", upper=True)
             ),
             cv.Optional(CONF_DISCOVERY_RETAIN, default=True): cv.boolean,
+            cv.Optional(CONF_PUBLISH_COMPONENT_STATE, default=True): cv.boolean,
             cv.Optional(
                 CONF_DISCOVERY_PREFIX, default="homeassistant"
             ): cv.publish_topic,
