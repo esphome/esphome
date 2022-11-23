@@ -1,18 +1,17 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
 import esphome.final_validate as fv
-from esphome.const import (
-    CONF_ID,
-    CONF_DEVICE,
-    CONF_FREE,
-    CONF_FRAGMENTATION,
-    CONF_BLOCK,
-    CONF_LOOP_TIME,
-    CONF_LOGGER,
-    CONF_LEVEL,
-)
-
 from esphome.components import logger
+from esphome.const import (
+    CONF_BLOCK,
+    CONF_DEVICE,
+    CONF_FRAGMENTATION,
+    CONF_FREE,
+    CONF_ID,
+    CONF_LEVEL,
+    CONF_LOGGER,
+    CONF_LOOP_TIME,
+)
 
 CODEOWNERS = ["@OttoWinter"]
 DEPENDENCIES = ["logger"]
