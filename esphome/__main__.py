@@ -254,7 +254,7 @@ def upload_using_esptool(config, port):
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
 
-            return run_external_command(esptool.main, *cmd)
+            return run_external_command(esptool.main, *cmd)  # pylint: disable=no-member
 
         return run_external_process(*cmd)
 
