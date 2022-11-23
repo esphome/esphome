@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include <map>
+#include <vector>
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/esp32_ble_client/ble_client_base.h"
