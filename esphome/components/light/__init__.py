@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_COLOR_CORRECT,
     CONF_DEFAULT_TRANSITION_LENGTH,
     CONF_EFFECTS,
+    CONF_EXPOSE_ENTITIES,
     CONF_FLASH_TRANSITION_LENGTH,
     CONF_GAMMA_CORRECT,
     CONF_ID,
@@ -16,7 +17,6 @@ from esphome.const import (
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
     CONF_ON_STATE,
-    CONF_PUBLISH_COMPONENT_STATE,
     CONF_TRIGGER_ID,
     CONF_COLD_WHITE_COLOR_TEMPERATURE,
     CONF_WARM_WHITE_COLOR_TEMPERATURE,
@@ -173,7 +173,7 @@ async def setup_light_core_(light_var, output_var, config):
         var_ = await cg.get_variable(config[CONF_POWER_SUPPLY])
         cg.add(output_var.set_power_supply(var_))
 
-    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_PUBLISH_COMPONENT_STATE]:
+    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_EXPOSE_ENTITIES]:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], light_var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

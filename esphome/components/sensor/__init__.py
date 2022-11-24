@@ -12,6 +12,7 @@ from esphome.const import (
     CONF_BELOW,
     CONF_ENTITY_CATEGORY,
     CONF_EXPIRE_AFTER,
+    CONF_EXPOSE_ENTITIES,
     CONF_FILTERS,
     CONF_FROM,
     CONF_ICON,
@@ -20,7 +21,6 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
     CONF_QUANTILE,
-    CONF_PUBLISH_COMPONENT_STATE,
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
     CONF_STATE_CLASS,
@@ -615,7 +615,7 @@ async def setup_sensor_core_(var, config):
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
-    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_PUBLISH_COMPONENT_STATE]:
+    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_EXPOSE_ENTITIES]:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

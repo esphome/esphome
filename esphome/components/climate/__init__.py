@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_CURRENT_TEMPERATURE_STATE_TOPIC,
     CONF_CUSTOM_FAN_MODE,
     CONF_CUSTOM_PRESET,
+    CONF_EXPOSE_ENTITIES,
     CONF_FAN_MODE,
     CONF_FAN_MODE_COMMAND_TOPIC,
     CONF_FAN_MODE_STATE_TOPIC,
@@ -22,7 +23,6 @@ from esphome.const import (
     CONF_MODE_STATE_TOPIC,
     CONF_ON_STATE,
     CONF_PRESET,
-    CONF_PUBLISH_COMPONENT_STATE,
     CONF_SWING_MODE,
     CONF_SWING_MODE_COMMAND_TOPIC,
     CONF_SWING_MODE_STATE_TOPIC,
@@ -188,7 +188,7 @@ async def setup_climate_core_(var, config):
     if CONF_TEMPERATURE_STEP in visual:
         cg.add(var.set_visual_temperature_step_override(visual[CONF_TEMPERATURE_STEP]))
 
-    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_PUBLISH_COMPONENT_STATE]:
+    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_EXPOSE_ENTITIES]:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
