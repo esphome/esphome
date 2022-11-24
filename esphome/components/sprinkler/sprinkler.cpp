@@ -509,6 +509,18 @@ void Sprinkler::configure_valve_pump_switch_pulsed(size_t valve_number, switch_:
   }
 }
 
+void Sprinkler::set_divider(optional<uint32_t> divider) {
+  if (divider.has_value()) {
+    if (divider.value() > 0) {
+      this->set_multiplier(1.0 / divider.value());
+      this->set_repeat(divider.value() - 1);
+    } else if (divider.value() == 0) {
+      this->set_multiplier(1.0);
+      this->set_repeat(0);
+    }
+  }
+}
+
 void Sprinkler::set_multiplier(const optional<float> multiplier) {
   if (multiplier.has_value()) {
     if (multiplier.value() > 0) {

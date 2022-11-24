@@ -208,6 +208,9 @@ class Sprinkler : public Component, public EntityBase {
   void configure_valve_pump_switch_pulsed(size_t valve_number, switch_::Switch *pump_switch_off,
                                           switch_::Switch *pump_switch_on, uint32_t pulse_duration);
 
+  /// sets the multiplier value to '1 / divider' and sets repeat value to divider
+  void set_divider(optional<uint32_t> divider);
+
   /// value multiplied by configured run times -- used to extend or shorten the cycle
   void set_multiplier(optional<float> multiplier);
 

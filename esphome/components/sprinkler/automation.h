@@ -7,6 +7,18 @@
 namespace esphome {
 namespace sprinkler {
 
+template<typename... Ts> class SetDividerAction : public Action<Ts...> {
+ public:
+  explicit SetDividerAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
+
+  TEMPLATABLE_VALUE(uint32_t, divider)
+
+  void play(Ts... x) override { this->sprinkler_->set_divider(this->divider_.optional_value(x...)); }
+
+ protected:
+  Sprinkler *sprinkler_;
+};
+
 template<typename... Ts> class SetMultiplierAction : public Action<Ts...> {
  public:
   explicit SetMultiplierAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}

@@ -15,6 +15,7 @@ AUTO_LOAD = ["switch"]
 CODEOWNERS = ["@kbx81"]
 
 CONF_AUTO_ADVANCE_SWITCH = "auto_advance_switch"
+CONF_DIVIDER = "divider"
 CONF_ENABLE_SWITCH = "enable_switch"
 CONF_MAIN_SWITCH = "main_switch"
 CONF_MANUAL_SELECTION_DELAY = "manual_selection_delay"
@@ -48,6 +49,7 @@ SprinklerControllerSwitch = sprinkler_ns.class_(
     "SprinklerControllerSwitch", switch.Switch, cg.Component
 )
 
+SetDividerAction = sprinkler_ns.class_("SetDividerAction", automation.Action)
 SetMultiplierAction = sprinkler_ns.class_("SetMultiplierAction", automation.Action)
 QueueValveAction = sprinkler_ns.class_("QueueValveAction", automation.Action)
 ClearQueuedValvesAction = sprinkler_ns.class_(
@@ -197,6 +199,14 @@ SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA = cv.maybe_simple_value(
     key=CONF_VALVE_NUMBER,
 )
 
+SPRINKLER_ACTION_SET_DIVIDER_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.GenerateID(): cv.use_id(Sprinkler),
+        cv.Required(CONF_DIVIDER): cv.templatable(cv.positive_int),
+    },
+    key=CONF_DIVIDER,
+)
+
 SPRINKLER_ACTION_SET_MULTIPLIER_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(Sprinkler),
@@ -305,6 +315,19 @@ CONFIG_SCHEMA = cv.All(
     cv.ensure_list(SPRINKLER_CONTROLLER_SCHEMA),
     validate_sprinkler,
 )
+
+
+@automation.register_action(
+    "sprinkler.set_divider",
+    SetDividerAction,
+    SPRINKLER_ACTION_SET_DIVIDER_SCHEMA,
+)
+async def sprinkler_set_divider_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_DIVIDER], args, cg.float_)
+    cg.add(var.set_divider(template_))
+    return var
 
 
 @automation.register_action(
