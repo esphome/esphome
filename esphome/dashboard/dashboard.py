@@ -1,5 +1,3 @@
-# pylint: disable=wrong-import-position
-
 import base64
 import codecs
 import collections
@@ -10,11 +8,12 @@ import json
 import logging
 import multiprocessing
 import os
-from pathlib import Path
 import secrets
 import shutil
 import subprocess
 import threading
+from pathlib import Path
+from typing import Optional
 
 import tornado
 import tornado.concurrent
@@ -22,15 +21,15 @@ import tornado.gen
 import tornado.httpserver
 import tornado.ioloop
 import tornado.iostream
-from tornado.log import access_log
 import tornado.netutil
 import tornado.process
 import tornado.web
 import tornado.websocket
+from tornado.log import access_log
 
 from esphome import const, platformio_api, util, yaml_util
 from esphome.core import EsphomeError
-from esphome.helpers import mkdir_p, get_bool_env, run_system_command
+from esphome.helpers import get_bool_env, mkdir_p, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
     StorageJSON,
@@ -38,13 +37,10 @@ from esphome.storage_json import (
     ext_storage_path,
     trash_storage_path,
 )
-from esphome.util import shlex_quote, get_serial_ports
-from .util import password_hash
-
-# pylint: disable=unused-import, wrong-import-order
-from typing import Optional  # noqa
-
+from esphome.util import get_serial_ports, shlex_quote
 from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
+
+from .util import password_hash
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -190,7 +186,6 @@ def websocket_method(name):
     return wrap
 
 
-# pylint: disable=abstract-method, arguments-differ
 @websocket_class
 class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def __init__(self, application, request, **kwargs):
@@ -797,7 +792,6 @@ class EditRequestHandler(BaseHandler):
         filename = settings.rel_path(configuration)
         content = ""
         if os.path.isfile(filename):
-            # pylint: disable=no-value-for-parameter
             with open(file=filename, encoding="utf-8") as f:
                 content = f.read()
         self.write(content)
@@ -805,7 +799,6 @@ class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def post(self, configuration=None):
-        # pylint: disable=no-value-for-parameter
         with open(file=settings.rel_path(configuration), mode="wb") as f:
             f.write(self.request.body)
         self.set_status(200)

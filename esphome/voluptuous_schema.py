@@ -204,7 +204,6 @@ class _Schema(vol.Schema):
         return self
 
     @schema_extractor_extended
-    # pylint: disable=signature-differs
     def extend(self, *schemas, **kwargs):
         extra = kwargs.pop("extra", None)
         if kwargs:
