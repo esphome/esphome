@@ -1678,7 +1678,7 @@ def source_refresh(value: str):
     if value.lower() == "always":
         return source_refresh("0s")
     if value.lower() == "never":
-        return source_refresh("1000y")
+        return source_refresh("365250d")
     return positive_time_period_seconds(value)
 
 
