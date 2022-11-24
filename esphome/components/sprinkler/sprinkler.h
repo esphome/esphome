@@ -290,7 +290,7 @@ class Sprinkler : public Component, public EntityBase {
   void start_full_cycle();
 
   /// activates a single valve and disables auto_advance.
-  void start_single_valve(optional<size_t> valve_number);
+  void start_single_valve(optional<size_t> valve_number, optional<uint32_t> run_duration = nullopt);
 
   /// adds a valve into the queue. queued valves have priority over valves to be run as a part of a full cycle.
   /// NOTE: queued valves will always run, regardless of auto-advance and/or valve enable switches.

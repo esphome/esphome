@@ -98,8 +98,12 @@ template<typename... Ts> class StartSingleValveAction : public Action<Ts...> {
   explicit StartSingleValveAction(Sprinkler *a_sprinkler) : sprinkler_(a_sprinkler) {}
 
   TEMPLATABLE_VALUE(size_t, valve_to_start)
+  TEMPLATABLE_VALUE(uint32_t, valve_run_duration)
 
-  void play(Ts... x) override { this->sprinkler_->start_single_valve(this->valve_to_start_.optional_value(x...)); }
+  void play(Ts... x) override {
+    this->sprinkler_->start_single_valve(this->valve_to_start_.optional_value(x...),
+                                         this->valve_run_duration_.optional_value(x...));
+  }
 
  protected:
   Sprinkler *sprinkler_;

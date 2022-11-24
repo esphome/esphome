@@ -709,7 +709,7 @@ void Sprinkler::start_full_cycle() {
   }
 }
 
-void Sprinkler::start_single_valve(const optional<size_t> valve_number) {
+void Sprinkler::start_single_valve(const optional<size_t> valve_number, optional<uint32_t> run_duration) {
   if (this->standby()) {
     ESP_LOGD(TAG, "start_single_valve called but standby is enabled; no action taken");
     return;
@@ -726,7 +726,7 @@ void Sprinkler::start_single_valve(const optional<size_t> valve_number) {
   }
   this->reset_cycle_states_();  // just in case auto-advance is switched on later
   this->repeat_count_ = 0;
-  this->fsm_request_(valve_number.value());
+  this->fsm_request_(valve_number.value(), run_duration.value_or(0));
 }
 
 void Sprinkler::queue_valve(optional<size_t> valve_number, optional<uint32_t> run_duration) {

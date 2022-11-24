@@ -191,6 +191,7 @@ SPRINKLER_ACTION_REPEAT_SCHEMA = cv.maybe_simple_value(
 SPRINKLER_ACTION_SINGLE_VALVE_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(Sprinkler),
+        cv.Optional(CONF_RUN_DURATION): cv.templatable(cv.positive_time_period_seconds),
         cv.Required(CONF_VALVE_NUMBER): cv.templatable(cv.positive_int),
     },
     key=CONF_VALVE_NUMBER,
@@ -390,6 +391,9 @@ async def sprinkler_start_single_valve_to_code(config, action_id, template_arg, 
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VALVE_NUMBER], args, cg.uint8)
     cg.add(var.set_valve_to_start(template_))
+    if CONF_RUN_DURATION in config:
+        template_ = await cg.templatable(config[CONF_RUN_DURATION], args, cg.uint32)
+        cg.add(var.set_valve_run_duration(template_))
     return var
 
 
