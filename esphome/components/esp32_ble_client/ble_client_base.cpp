@@ -287,7 +287,7 @@ BLECharacteristic *BLEClientBase::get_characteristic(uint16_t service, uint16_t 
 
 BLECharacteristic *BLEClientBase::get_characteristic(uint16_t handle) {
   for (auto *svc : this->services_) {
-    if unlikely (!svc->parsed)
+    if (!svc->parsed)
       svc->parse_characteristics();
     for (auto *chr : svc->characteristics) {
       if (chr->handle == handle)
@@ -300,7 +300,7 @@ BLECharacteristic *BLEClientBase::get_characteristic(uint16_t handle) {
 BLEDescriptor *BLEClientBase::get_config_descriptor(uint16_t handle) {
   auto *chr = this->get_characteristic(handle);
   if (chr != nullptr) {
-    if unlikely (!chr->parsed)
+    if (!chr->parsed)
       chr->parse_descriptors();
     for (auto &desc : chr->descriptors) {
       if (desc->uuid == espbt::ESPBTUUID::from_uint16(0x2902))
@@ -327,10 +327,10 @@ BLEDescriptor *BLEClientBase::get_descriptor(uint16_t service, uint16_t chr, uin
 
 BLEDescriptor *BLEClientBase::get_descriptor(uint16_t handle) {
   for (auto *svc : this->services_) {
-    if unlikely (!svc->parsed)
+    if (!svc->parsed)
       svc->parse_characteristics();
     for (auto *chr : svc->characteristics) {
-      if unlikely (!chr->parsed)
+      if (!chr->parsed)
         chr->parse_descriptors();
       for (auto *desc : chr->descriptors) {
         if (desc->handle == handle)
