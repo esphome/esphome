@@ -10,8 +10,6 @@
 namespace esphome {
 namespace rp2040_pwm {
 
-static bool frequency_changed_ = false;
-
 class RP2040PWM : public output::FloatOutput, public Component {
  public:
   void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
@@ -19,7 +17,7 @@ class RP2040PWM : public output::FloatOutput, public Component {
   /// Dynamically update frequency
   void update_frequency(float frequency) override {
     this->set_frequency(frequency);
-    frequency_changed_ = true;
+    this->frequency_changed_ = true;
     this->write_state(this->last_output_);
   }
 
@@ -38,6 +36,7 @@ class RP2040PWM : public output::FloatOutput, public Component {
   float frequency_{1000.0};
   /// Cache last output level for dynamic frequency updating
   float last_output_{0.0};
+  bool frequency_changed_{false};
 };
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {

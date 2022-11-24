@@ -6,10 +6,12 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
+
 #include <list>
 #include <map>
-#include <utility>
 #include <memory>
+#include <utility>
+#include <vector>
 
 #ifdef USE_ESP32
 #include <HTTPClient.h>
