@@ -113,7 +113,9 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
             {
                 cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
                 cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
-                cv.Optional(CONF_TEMPERATURE_STEP): cv.temperature,
+                cv.Optional(CONF_TEMPERATURE_STEP): cv.float_with_unit(
+                    "visual_temperature", "(°C|° C|°|C|° K|° K|K|°F|° F|F)?"
+                ),
             }
         ),
         cv.Optional(CONF_ACTION_STATE_TOPIC): cv.All(
