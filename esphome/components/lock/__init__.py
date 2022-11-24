@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_ON_UNLOCK,
     CONF_PUBLISH_COMPONENT_STATE,
     CONF_TRIGGER_ID,
+    CONF_MQTT,
     CONF_MQTT_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -58,9 +59,7 @@ async def setup_lock_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    if (CONF_MQTT_ID in config) & (
-        CORE.config.get("mqtt", {}).get(CONF_PUBLISH_COMPONENT_STATE, False)
-    ):
+    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_PUBLISH_COMPONENT_STATE]:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

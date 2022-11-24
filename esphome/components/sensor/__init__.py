@@ -28,6 +28,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WINDOW_SIZE,
+    CONF_MQTT,
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
     DEVICE_CLASS_DISTANCE,
@@ -614,9 +615,7 @@ async def setup_sensor_core_(var, config):
             cg.add(trigger.set_max(template_))
         await automation.build_automation(trigger, [(float, "x")], conf)
 
-    if (CONF_MQTT_ID in config) & (
-        CORE.config.get("mqtt", {}).get(CONF_PUBLISH_COMPONENT_STATE, False)
-    ):
+    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_PUBLISH_COMPONENT_STATE]:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

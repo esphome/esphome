@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ON_VALUE,
     CONF_OPTION,
     CONF_TRIGGER_ID,
+    CONF_MQTT,
     CONF_MQTT_ID,
     CONF_CYCLE,
     CONF_MODE,
@@ -71,9 +72,7 @@ async def setup_select_core_(var, config, *, options: list[str]):
             trigger, [(cg.std_string, "x"), (cg.size_t, "i")], conf
         )
 
-    if (CONF_MQTT_ID in config) & (
-        CORE.config.get("mqtt", {}).get(CONF_PUBLISH_COMPONENT_STATE, False)
-    ):
+    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_PUBLISH_COMPONENT_STATE]:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

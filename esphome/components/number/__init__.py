@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_ON_VALUE_RANGE,
     CONF_TRIGGER_ID,
     CONF_UNIT_OF_MEASUREMENT,
+    CONF_MQTT,
     CONF_MQTT_ID,
     CONF_PUBLISH_COMPONENT_STATE,
     CONF_VALUE,
@@ -194,9 +195,7 @@ async def setup_number_core_(
 
     if CONF_UNIT_OF_MEASUREMENT in config:
         cg.add(var.traits.set_unit_of_measurement(config[CONF_UNIT_OF_MEASUREMENT]))
-    if (CONF_MQTT_ID in config) & (
-        CORE.config.get("mqtt", {}).get(CONF_PUBLISH_COMPONENT_STATE, False)
-    ):
+    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_PUBLISH_COMPONENT_STATE]:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
     if CONF_DEVICE_CLASS in config:

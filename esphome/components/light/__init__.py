@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_FLASH_TRANSITION_LENGTH,
     CONF_GAMMA_CORRECT,
     CONF_ID,
+    CONF_MQTT,
     CONF_MQTT_ID,
     CONF_POWER_SUPPLY,
     CONF_RESTORE_MODE,
@@ -172,9 +173,7 @@ async def setup_light_core_(light_var, output_var, config):
         var_ = await cg.get_variable(config[CONF_POWER_SUPPLY])
         cg.add(output_var.set_power_supply(var_))
 
-    if (CONF_MQTT_ID in config) & (
-        CORE.config.get("mqtt", {}).get(CONF_PUBLISH_COMPONENT_STATE, False)
-    ):
+    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_PUBLISH_COMPONENT_STATE]:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], light_var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

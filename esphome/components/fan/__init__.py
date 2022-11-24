@@ -5,6 +5,7 @@ from esphome.automation import maybe_simple_id
 from esphome.components import mqtt
 from esphome.const import (
     CONF_ID,
+    CONF_MQTT,
     CONF_MQTT_ID,
     CONF_OSCILLATING,
     CONF_OSCILLATION_COMMAND_TOPIC,
@@ -110,9 +111,7 @@ async def setup_fan_core_(var, config):
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
-    if (CONF_MQTT_ID in config) & (
-        CORE.config.get("mqtt", {}).get(CONF_PUBLISH_COMPONENT_STATE, False)
-    ):
+    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_PUBLISH_COMPONENT_STATE]:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 

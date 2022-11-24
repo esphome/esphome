@@ -38,6 +38,7 @@ from esphome.const import (
     CONF_TEMPERATURE_STEP,
     CONF_TRIGGER_ID,
     CONF_VISUAL,
+    CONF_MQTT,
     CONF_MQTT_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
@@ -187,9 +188,7 @@ async def setup_climate_core_(var, config):
     if CONF_TEMPERATURE_STEP in visual:
         cg.add(var.set_visual_temperature_step_override(visual[CONF_TEMPERATURE_STEP]))
 
-    if (CONF_MQTT_ID in config) & (
-        CORE.config.get("mqtt", {}).get(CONF_PUBLISH_COMPONENT_STATE, False)
-    ):
+    if CONF_MQTT_ID in config and CORE.config[CONF_MQTT][CONF_PUBLISH_COMPONENT_STATE]:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
