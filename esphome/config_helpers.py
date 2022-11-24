@@ -26,7 +26,6 @@ def read_config_file(path: str) -> str:
 
 def merge_config(full_old, full_new):
     def merge(old, new):
-        # pylint: disable=no-else-return
         if isinstance(new, dict):
             if not isinstance(old, dict):
                 return new
@@ -34,11 +33,11 @@ def merge_config(full_old, full_new):
             for k, v in new.items():
                 res[k] = merge(old[k], v) if k in old else v
             return res
-        elif isinstance(new, list):
+        if isinstance(new, list):
             if not isinstance(old, list):
                 return new
             return old + new
-        elif new is None:
+        if new is None:
             return old
 
         return new
