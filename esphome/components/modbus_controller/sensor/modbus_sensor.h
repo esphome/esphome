@@ -4,6 +4,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/component.h"
 
+#include <vector>
+
 namespace esphome {
 namespace modbus_controller {
 

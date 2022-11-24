@@ -5,6 +5,7 @@
 #include "remote_base.h"
 #include <array>
 #include <utility>
+#include <vector>
 
 namespace esphome {
 namespace remote_base {

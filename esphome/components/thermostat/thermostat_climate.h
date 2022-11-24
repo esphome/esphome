@@ -4,7 +4,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
+
 #include <map>
+#include <vector>
 
 namespace esphome {
 namespace thermostat {
