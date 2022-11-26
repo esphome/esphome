@@ -155,6 +155,11 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
   for (auto *connection : this->connections_) {
     if (connection->get_address() == 0) {
       connection->set_address(address);
+      // All connections must start at INIT
+      // We only set the state if we allocate the connection
+      // to avoid a race where multiple connection attempts
+      // are made.
+      connection->set_state(espbt::ClientState::INIT);
       return connection;
     }
   }
@@ -169,6 +174,11 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       if (connection == nullptr) {
         ESP_LOGW(TAG, "No free connections available");
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
+        return;
+      }
+      if (connection->state() != espbt::ClientState::INIT) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection already in progress", connection->get_connection_index(),
+                 connection->address_str().c_str());
         return;
       }
       if (this->address_type_map_.find(msg.address) != this->address_type_map_.end()) {
