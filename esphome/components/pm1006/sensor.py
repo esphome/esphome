@@ -17,6 +17,8 @@ from esphome.const import (
 )
 from esphome.core import TimePeriodMilliseconds
 
+from pprint import pprint
+
 CODEOWNERS = ["@habbie"]
 DEPENDENCIES = ["uart"]
 
@@ -54,7 +56,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PM1006Component),
-            cv.Optional(CONF_TYPE): cv.enum(PM1006Type, upper=True),
+            cv.Optional(CONF_TYPE): cv.enum(PM1006_TYPES, upper=True),
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_BLUR,
@@ -105,6 +107,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+
+    cg.add(var.set_type(config[CONF_TYPE]))
 
     if CONF_PM_1_0 in config:
         sens = await sensor.new_sensor(config[CONF_PM_1_0])

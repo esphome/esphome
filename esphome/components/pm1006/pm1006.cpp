@@ -7,22 +7,34 @@ namespace pm1006 {
 static const char *const TAG = "pm1006";
 
 static const uint8_t PM1006_RESPONSE_HEADER[] = {0x16, 0x11, 0x0B};
+static const uint8_t PM1006K_RESPONSE_HEADER[] = {0x16, 0x0D, 0x02};
+
 static const uint8_t PM1006_REQUEST[] = {0x11, 0x02, 0x0B, 0x01, 0xE1};
+static const uint8_t PM1006K_REQUEST[] = {0x11, 0x01, 0x02, 0xEC};
 
 void PM1006Component::setup() {
   // because this implementation is currently rx-only, there is nothing to setup
 }
 
 void PM1006Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "PM1006:");
+  ESP_LOGCONFIG(TAG, "PM1006: ", this->type_);
+  LOG_SENSOR("  ", "PM1.0", this->pm_1_0_sensor_);
   LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
+  LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
   LOG_UPDATE_INTERVAL(this);
   this->check_uart_settings(9600);
 }
 
 void PM1006Component::update() {
   ESP_LOGV(TAG, "sending measurement request");
-  this->write_array(PM1006_REQUEST, sizeof(PM1006_REQUEST));
+  switch(this->type_){
+    case PM1006_TYPE_1006:
+      this->write_array(PM1006_REQUEST, sizeof(PM1006_REQUEST));
+    break;
+    case PM1006_TYPE_1006K:
+      this->write_array(PM1006K_REQUEST, sizeof(PM1006K_REQUEST));
+    break;
+  }
 }
 
 void PM1006Component::loop() {
@@ -58,9 +70,15 @@ optional<bool> PM1006Component::check_byte_() const {
   uint8_t index = this->data_index_;
   uint8_t byte = this->data_[index];
 
+  const uint8_t HEADER_SIZE = sizeof (this->type_ == PM1006_TYPE_1006 ? PM1006_RESPONSE_HEADER : PM1006K_RESPONSE_HEADER);
+  const uint8_t PAYLOAD_SIZE = this->type_ == PM1006_TYPE_1006 ? 16 : 12;
+
+
   // index 0..2 are the fixed header
-  if (index < sizeof(PM1006_RESPONSE_HEADER)) {
-    return byte == PM1006_RESPONSE_HEADER[index];
+  if (index < HEADER_SIZE) {
+    // We can't store the correct header in a unit8_t* as the comparison starts to fail
+    // As such, let's use a ternary to get the correct header and then grab the index we want from there
+    return byte == ((this->type_ == PM1006_TYPE_1006) ? PM1006_RESPONSE_HEADER : PM1006K_RESPONSE_HEADER)[index];
   }
 
   // just some additional notes here:
@@ -73,12 +91,12 @@ optional<bool> PM1006Component::check_byte_() const {
   // http://www.jdscompany.co.kr/download.asp?gubun=07&filename=PM1006_LED_PARTICLE_SENSOR_MODULE_SPECIFICATIONS.pdf
   // that datasheet goes on up to DF16, which is unused for PM1006 but used in PM1006K
   // so this code should be trivially extensible to support that one later
-  if (index < (sizeof(PM1006_RESPONSE_HEADER) + 16))
+  if (index < (HEADER_SIZE + PAYLOAD_SIZE))
     return true;
 
   // checksum
-  if (index == (sizeof(PM1006_RESPONSE_HEADER) + 16)) {
-    uint8_t checksum = pm1006_checksum_(this->data_, sizeof(PM1006_RESPONSE_HEADER) + 17);
+  if (index == (HEADER_SIZE + PAYLOAD_SIZE)) {
+    uint8_t checksum = pm1006_checksum_(this->data_, HEADER_SIZE + PAYLOAD_SIZE + 1);
     if (checksum != 0) {
       ESP_LOGW(TAG, "PM1006 checksum is wrong: %02x, expected zero", checksum);
       return false;
@@ -90,9 +108,9 @@ optional<bool> PM1006Component::check_byte_() const {
 }
 
 void PM1006Component::parse_data_() {
-  const int pm_1_0_concentration = this->get_16_bit_uint_(9);
-  const int pm_2_5_concentration = this->get_16_bit_uint_(5);
-  const int pm_10_0_concentration = this->get_16_bit_uint_(13);
+  const int pm_1_0_concentration = this->get_16_bit_uint_(9); //DF7
+  const int pm_2_5_concentration = this->get_16_bit_uint_(5); //DF3
+  const int pm_10_0_concentration = this->get_16_bit_uint_(13); //DF11
 
   ESP_LOGD(TAG, "Got PM1.0 Concentration: %d µg/m³", pm_1_0_concentration);
   ESP_LOGD(TAG, "Got PM2.5 Concentration: %d µg/m³", pm_2_5_concentration);
