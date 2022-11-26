@@ -43,7 +43,7 @@ void BLECharacteristic::parse_descriptors() {
     desc->handle = result.handle;
     desc->characteristic = this;
     this->descriptors.push_back(desc);
-    ESP_LOGI(TAG, "[%d] [%s]    descriptor %s, handle 0x%x", this->service->client->get_connection_index(),
+    ESP_LOGV(TAG, "[%d] [%s]    descriptor %s, handle 0x%x", this->service->client->get_connection_index(),
              this->service->client->address_str().c_str(), desc->uuid.to_string().c_str(), desc->handle);
     offset++;
   }
