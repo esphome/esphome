@@ -36,6 +36,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
                                                                 this->proxy_->get_bluetooth_connections_limit());
       }
+      this->seen_mtu_or_services_ = false;
       break;
     }
     case ESP_GATTC_CFG_MTU_EVT: {
