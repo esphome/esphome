@@ -24,7 +24,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       this->set_address(0);
       api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
                                                               this->proxy_->get_bluetooth_connections_limit());
-      ESP_LOGI(TAG, "[%d] [%s] Disconnected, freeing slot.", this->connection_index_, this->address_str_.c_str());
+      ESP_LOGV(TAG, "[%d] [%s] Disconnected, freeing slot.", this->connection_index_, this->address_str_.c_str());
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
