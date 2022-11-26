@@ -150,9 +150,9 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_SEARCH_CMPL_EVT", this->connection_index_, this->address_str_.c_str());
       for (auto &svc : this->services_) {
-        ESP_LOGI(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_.c_str(),
+        ESP_LOGV(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_.c_str(),
                  svc->uuid.to_string().c_str());
-        ESP_LOGI(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
+        ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
                  this->address_str_.c_str(), svc->start_handle, svc->end_handle);
         svc->parse_characteristics();
       }
