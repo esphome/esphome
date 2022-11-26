@@ -42,9 +42,9 @@ void HOT RP2040PWM::write_state(float state) {
     state = 1.0f - state;
   }
 
-  if (frequency_changed_) {
+  if (this->frequency_changed_) {
     this->setup_pwm_();
-    frequency_changed_ = false;
+    this->frequency_changed_ = false;
   }
 
   gpio_set_function(this->pin_->get_pin(), GPIO_FUNC_PWM);

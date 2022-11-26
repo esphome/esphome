@@ -9,6 +9,7 @@
 
 #include <array>
 #include <string>
+#include <vector>
 
 #include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>

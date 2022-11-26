@@ -1,5 +1,7 @@
 #include "toshiba.h"
 
+#include <vector>
+
 namespace esphome {
 namespace toshiba {
 

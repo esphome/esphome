@@ -4,6 +4,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 
+#include <vector>
+
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #endif
