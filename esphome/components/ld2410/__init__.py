@@ -8,6 +8,8 @@ from esphome.automation import maybe_simple_id
 DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@sebcaps"]
 
+AUTO_LOAD = ["sensor", "binary_sensor"]
+
 ld2410_ns = cg.esphome_ns.namespace("ld2410")
 LD2410Component = ld2410_ns.class_(
     "LD2410Component", cg.PollingComponent, uart.UARTDevice
