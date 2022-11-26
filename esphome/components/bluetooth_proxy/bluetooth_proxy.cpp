@@ -125,6 +125,9 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
         return;
       }
+      ESP_LOGV(TAG, "[%d] [%s] Searching to connect", connection->get_connection_index(),
+               connection->address_str().c_str());
+      connection->set_state(espbt::ClientState::SEARCHING);
       if (connection->state() != espbt::ClientState::INIT) {
         ESP_LOGW(TAG, "[%d] [%s] Connection already in progress", connection->get_connection_index(),
                  connection->address_str().c_str());
