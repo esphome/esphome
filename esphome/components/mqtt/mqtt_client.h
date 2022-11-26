@@ -16,6 +16,8 @@
 #endif
 #include "lwip/ip_addr.h"
 
+#include <vector>
+
 namespace esphome {
 namespace mqtt {
 

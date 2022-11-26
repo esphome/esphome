@@ -138,18 +138,23 @@ climate::ClimateTraits TuyaClimate::traits() {
 
 void TuyaClimate::dump_config() {
   LOG_CLIMATE("", "Tuya Climate", this);
-  if (this->switch_id_.has_value())
+  if (this->switch_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *this->switch_id_);
-  if (this->active_state_id_.has_value())
+  }
+  if (this->active_state_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Active state has datapoint ID %u", *this->active_state_id_);
-  if (this->target_temperature_id_.has_value())
+  }
+  if (this->target_temperature_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Target Temperature has datapoint ID %u", *this->target_temperature_id_);
-  if (this->current_temperature_id_.has_value())
+  }
+  if (this->current_temperature_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Current Temperature has datapoint ID %u", *this->current_temperature_id_);
+  }
   LOG_PIN("  Heating State Pin: ", this->heating_state_pin_);
   LOG_PIN("  Cooling State Pin: ", this->cooling_state_pin_);
-  if (this->eco_id_.has_value())
+  if (this->eco_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Eco has datapoint ID %u", *this->eco_id_);
+  }
 }
 
 void TuyaClimate::compute_preset_() {
