@@ -194,7 +194,7 @@ def wizard_write(path, **kwargs):
     if "platform" not in kwargs:
         if board in esp8266_boards.ESP8266_BOARD_PINS:
             platform = "ESP8266"
-        elif board in esp32_boards.RP2040_BOARD_PINS:
+        elif board in esp32_boards.ESP32_BOARD_PINS:
             platform = "ESP32"
         elif board in rp2040_boards.RP2040_BOARD_PINS:
             platform = "RP2040"
@@ -363,7 +363,7 @@ def wizard(path):
         safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'wr3')}\".")
         boards = []
         url = f"https://api.registry.platformio.org/v3/packages/{platform_api}/boards"
-        with requests.get(url) as r:
+        with requests.get(url, timeout=2.0) as r:
             boards_api = r.json()
         safe_print("Options:")
         for board in boards_api:

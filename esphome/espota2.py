@@ -336,7 +336,7 @@ def run_ota_impl_(remote_host, remote_port, password, filename):
             sock.settimeout(0.5)
             try:
                 data = sock.recv(2)
-                _LOGGER.error(f"Backend error code: 0x{data.hex()}")
+                _LOGGER.error("Backend error code: 0x%s", data.hex())
             except (TimeoutError, OSError):
                 pass
             return 1

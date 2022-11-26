@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 
-CONF_LIBRETUYA_ID = "libretuya"
+CONF_LIBRETUYA = "libretuya"
 KEY_LIBRETUYA = "libretuya"
 KEY_BOARD = "board"
 

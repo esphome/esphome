@@ -39,7 +39,9 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(OTAComponent),
         cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
-        cv.SplitDefault(CONF_PORT, esp8266=8266, esp32=3232, rp2040=2040, libretuya=8892): cv.port,
+        cv.SplitDefault(
+            CONF_PORT, esp8266=8266, esp32=3232, rp2040=2040, libretuya=8892
+        ): cv.port,
         cv.Optional(CONF_PASSWORD): cv.string,
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="5min"
