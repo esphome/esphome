@@ -4,6 +4,8 @@
 #include "esphome/components/output/binary_output.h"
 #include "esphome/components/output/float_output.h"
 
+#include <vector>
+
 namespace esphome {
 namespace custom {
 

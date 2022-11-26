@@ -5,14 +5,17 @@ from esphome.config_helpers import merge_config
 
 from esphome import git, yaml_util
 from esphome.const import (
+    CONF_ESPHOME,
     CONF_FILE,
     CONF_FILES,
+    CONF_MIN_VERSION,
     CONF_PACKAGES,
     CONF_REF,
     CONF_REFRESH,
     CONF_URL,
     CONF_USERNAME,
     CONF_PASSWORD,
+    __version__ as ESPHOME_VERSION,
 )
 import esphome.config_validation as cv
 
@@ -104,7 +107,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 def _process_base_package(config: dict) -> dict:
-    repo_dir = git.clone_or_update(
+    repo_dir, revert = git.clone_or_update(
         url=config[CONF_URL],
         ref=config.get(CONF_REF),
         refresh=config[CONF_REFRESH],
@@ -112,21 +115,51 @@ def _process_base_package(config: dict) -> dict:
         username=config.get(CONF_USERNAME),
         password=config.get(CONF_PASSWORD),
     )
-    files: str = config[CONF_FILES]
+    files: list[str] = config[CONF_FILES]
+
+    def get_packages(files) -> dict:
+        packages = {}
+        for file in files:
+            yaml_file: Path = repo_dir / file
+
+            if not yaml_file.is_file():
+                raise cv.Invalid(
+                    f"{file} does not exist in repository", path=[CONF_FILES]
+                )
+
+            try:
+                new_yaml = yaml_util.load_yaml(yaml_file)
+                if (
+                    CONF_ESPHOME in new_yaml
+                    and CONF_MIN_VERSION in new_yaml[CONF_ESPHOME]
+                ):
+                    min_version = new_yaml[CONF_ESPHOME][CONF_MIN_VERSION]
+                    if cv.Version.parse(min_version) > cv.Version.parse(
+                        ESPHOME_VERSION
+                    ):
+                        raise cv.Invalid(
+                            f"Current ESPHome Version is too old to use this package: {ESPHOME_VERSION} < {min_version}"
+                        )
+
+                packages[file] = new_yaml
+            except EsphomeError as e:
+                raise cv.Invalid(
+                    f"{file} is not a valid YAML file. Please check the file contents."
+                ) from e
+        return packages
 
     packages = {}
-    for file in files:
-        yaml_file: Path = repo_dir / file
 
-        if not yaml_file.is_file():
-            raise cv.Invalid(f"{file} does not exist in repository", path=[CONF_FILES])
+    try:
+        packages = get_packages(files)
+    except cv.Invalid:
+        if revert is not None:
+            revert()
+            packages = get_packages(files)
+    finally:
+        if packages is None:
+            raise cv.Invalid("Failed to load packages")
 
-        try:
-            packages[file] = yaml_util.load_yaml(yaml_file)
-        except EsphomeError as e:
-            raise cv.Invalid(
-                f"{file} is not a valid YAML file. Please check the file contents."
-            ) from e
     return {"packages": packages}
 
 

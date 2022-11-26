@@ -14,6 +14,7 @@ CONFIG_SCHEMA = cv.Schema(
             CONF_IMPLEMENTATION,
             esp8266=IMPLEMENTATION_LWIP_TCP,
             esp32=IMPLEMENTATION_BSD_SOCKETS,
+            rp2040=IMPLEMENTATION_LWIP_TCP,
             libretuya=IMPLEMENTATION_LWIP_SOCKETS,
         ): cv.one_of(
             IMPLEMENTATION_LWIP_TCP,

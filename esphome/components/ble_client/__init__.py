@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import esp32_ble_tracker
+from esphome.components import esp32_ble_tracker, esp32_ble_client
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
     CONF_ID,
@@ -14,13 +14,12 @@ from esphome.const import (
 )
 from esphome import automation
 
+AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
-BLEClient = ble_client_ns.class_(
-    "BLEClient", cg.Component, esp32_ble_tracker.ESPBTClient
-)
+BLEClient = ble_client_ns.class_("BLEClient", esp32_ble_client.BLEClientBase)
 BLEClientNode = ble_client_ns.class_("BLEClientNode")
 BLEClientNodeConstRef = BLEClientNode.operator("ref").operator("const")
 # Triggers
@@ -101,12 +100,40 @@ async def ble_write_to_code(config, action_id, template_arg, args):
     else:
         cg.add(var.set_value_simple(value))
 
-    serv_uuid128 = esp32_ble_tracker.as_reversed_hex_array(config[CONF_SERVICE_UUID])
-    cg.add(var.set_service_uuid128(serv_uuid128))
-    char_uuid128 = esp32_ble_tracker.as_reversed_hex_array(
-        config[CONF_CHARACTERISTIC_UUID]
-    )
-    cg.add(var.set_char_uuid128(char_uuid128))
+    if len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
+        cg.add(
+            var.set_service_uuid16(esp32_ble_tracker.as_hex(config[CONF_SERVICE_UUID]))
+        )
+    elif len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid32_format):
+        cg.add(
+            var.set_service_uuid32(esp32_ble_tracker.as_hex(config[CONF_SERVICE_UUID]))
+        )
+    elif len(config[CONF_SERVICE_UUID]) == len(esp32_ble_tracker.bt_uuid128_format):
+        uuid128 = esp32_ble_tracker.as_reversed_hex_array(config[CONF_SERVICE_UUID])
+        cg.add(var.set_service_uuid128(uuid128))
+
+    if len(config[CONF_CHARACTERISTIC_UUID]) == len(esp32_ble_tracker.bt_uuid16_format):
+        cg.add(
+            var.set_char_uuid16(
+                esp32_ble_tracker.as_hex(config[CONF_CHARACTERISTIC_UUID])
+            )
+        )
+    elif len(config[CONF_CHARACTERISTIC_UUID]) == len(
+        esp32_ble_tracker.bt_uuid32_format
+    ):
+        cg.add(
+            var.set_char_uuid32(
+                esp32_ble_tracker.as_hex(config[CONF_CHARACTERISTIC_UUID])
+            )
+        )
+    elif len(config[CONF_CHARACTERISTIC_UUID]) == len(
+        esp32_ble_tracker.bt_uuid128_format
+    ):
+        uuid128 = esp32_ble_tracker.as_reversed_hex_array(
+            config[CONF_CHARACTERISTIC_UUID]
+        )
+        cg.add(var.set_char_uuid128(uuid128))
+
     return var
 
 

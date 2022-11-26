@@ -76,6 +76,8 @@ void SSD1327::setup() {
   this->command(0x55);
   this->command(SSD1327_SETVCOMHVOLTAGE);  // Set High Voltage Level of COM Pin
   this->command(0x1C);
+  this->command(SSD1327_SETGPIO);  // Switch voltage converter on (for Aliexpress display)
+  this->command(0x03);
   this->command(SSD1327_NORMALDISPLAY);  // set display mode
   set_brightness(this->brightness_);
   this->fill(Color::BLACK);  // clear display - ensures we do not see garbage at power-on

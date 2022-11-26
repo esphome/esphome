@@ -5,10 +5,12 @@
 #include "esphome/core/helpers.h"
 #include "queue.h"
 
+#include <array>
+#include <string>
+#include <vector>
+
 #ifdef USE_ESP32
 
-#include <string>
-#include <array>
 #include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>
 #include <esp_bt_defs.h>
@@ -40,6 +42,9 @@ class ESPBTUUID {
   esp_bt_uuid_t get_uuid() const;
 
   std::string to_string() const;
+
+  uint64_t get_128bit_high() const;
+  uint64_t get_128bit_low() const;
 
  protected:
   esp_bt_uuid_t uuid_;
@@ -142,6 +147,8 @@ class ESPBTDeviceListener {
 enum class ClientState {
   // Connection is idle, no device detected.
   IDLE,
+  // Searching for device.
+  SEARCHING,
   // Device advertisement found.
   DISCOVERED,
   // Connection in progress.
@@ -154,11 +161,11 @@ enum class ClientState {
 
 class ESPBTClient : public ESPBTDeviceListener {
  public:
-  virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+  virtual bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) = 0;
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
   virtual void connect() = 0;
-  void set_state(ClientState st) { this->state_ = st; }
+  virtual void set_state(ClientState st) { this->state_ = st; }
   ClientState state() const { return state_; }
   int app_id;
 

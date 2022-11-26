@@ -2,6 +2,7 @@ from pathlib import Path
 import subprocess
 import hashlib
 import logging
+from typing import Callable, Optional
 import urllib.parse
 
 from datetime import datetime
@@ -12,7 +13,7 @@ import esphome.config_validation as cv
 _LOGGER = logging.getLogger(__name__)
 
 
-def run_git_command(cmd, cwd=None):
+def run_git_command(cmd, cwd=None) -> str:
     try:
         ret = subprocess.run(cmd, cwd=cwd, capture_output=True, check=False)
     except FileNotFoundError as err:
@@ -27,6 +28,8 @@ def run_git_command(cmd, cwd=None):
         if lines[-1].startswith("fatal:"):
             raise cv.Invalid(lines[-1][len("fatal: ") :])
         raise cv.Invalid(err_str)
+
+    return ret.stdout.decode("utf-8").strip()
 
 
 def _compute_destination_path(key: str, domain: str) -> Path:
@@ -44,7 +47,7 @@ def clone_or_update(
     domain: str,
     username: str = None,
     password: str = None,
-) -> Path:
+) -> tuple[Path, Optional[Callable[[], None]]]:
     key = f"{url}@{ref}"
 
     if username is not None and password is not None:
@@ -78,6 +81,7 @@ def clone_or_update(
             file_timestamp = Path(repo_dir / ".git" / "HEAD")
         age = datetime.now() - datetime.fromtimestamp(file_timestamp.stat().st_mtime)
         if age.total_seconds() > refresh.total_seconds:
+            old_sha = run_git_command(["git", "rev-parse", "HEAD"], str(repo_dir))
             _LOGGER.info("Updating %s", key)
             _LOGGER.debug("Location: %s", repo_dir)
             # Stash local changes (if any)
@@ -92,4 +96,10 @@ def clone_or_update(
             # Hard reset to FETCH_HEAD (short-lived git ref corresponding to most recent fetch)
             run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
 
-    return repo_dir
+            def revert():
+                _LOGGER.info("Reverting changes to %s -> %s", key, old_sha)
+                run_git_command(["git", "reset", "--hard", old_sha], str(repo_dir))
+
+            return repo_dir, revert
+
+    return repo_dir, None

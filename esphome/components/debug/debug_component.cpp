@@ -41,12 +41,6 @@ void DebugComponent::dump_config() {
   std::string reset_reason;
   device_info.reserve(256);
 
-#ifndef ESPHOME_LOG_HAS_DEBUG
-  ESP_LOGE(TAG, "Debug Component requires debug log level!");
-  this->status_set_error();
-  return;
-#endif
-
   ESP_LOGCONFIG(TAG, "Debug component:");
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "Device info", this->device_info_);
