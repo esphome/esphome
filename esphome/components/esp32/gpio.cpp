@@ -86,7 +86,9 @@ void ESP32InternalGPIOPin::setup() {
   conf.pull_down_en = flags_ & gpio::FLAG_PULLDOWN ? GPIO_PULLDOWN_ENABLE : GPIO_PULLDOWN_DISABLE;
   conf.intr_type = GPIO_INTR_DISABLE;
   gpio_config(&conf);
-  gpio_set_drive_capability(pin_, drive_strength_);
+  if (flags_ & gpio::FLAG_OUTPUT) {
+    gpio_set_drive_capability(pin_, drive_strength_);
+  }
 }
 
 void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {

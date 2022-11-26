@@ -298,6 +298,8 @@ def upload_program(config, args, host):
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf.get(CONF_PASSWORD, "")
+    if args.file is not None:
+        return espota2.run_ota(host, remote_port, password, args.file)
     return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
@@ -686,6 +688,10 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--device",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
+    )
+    parser_upload.add_argument(
+        "--file",
+        help="Manually specify the binary file to upload.",
     )
 
     parser_logs = subparsers.add_parser(
