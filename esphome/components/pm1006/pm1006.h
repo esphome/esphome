@@ -16,7 +16,7 @@ class PM1006Component : public PollingComponent, public uart::UARTDevice {
  public:
   PM1006Component() = default;
 
- void set_type(PM1006Type type) { type_ = type; }
+  void set_type(PM1006Type type) { type_ = type; }
 
   void set_pm_1_0_sensor(sensor::Sensor *pm_1_0_sensor) { this->pm_1_0_sensor_ = pm_1_0_sensor; }
   void set_pm_2_5_sensor(sensor::Sensor *pm_2_5_sensor) { this->pm_2_5_sensor_ = pm_2_5_sensor; }

@@ -17,8 +17,6 @@ from esphome.const import (
 )
 from esphome.core import TimePeriodMilliseconds
 
-from pprint import pprint
-
 CODEOWNERS = ["@habbie"]
 DEPENDENCIES = ["uart"]
 
@@ -42,8 +40,8 @@ SENSORS_TO_TYPE = {
     CONF_PM_1_0: [TYPE_PM1006K],
     CONF_PM_2_5: [TYPE_PM1006, TYPE_PM1006K],
     CONF_PM_10_0: [TYPE_PM1006K],
-
 }
+
 
 def validate_pm1006_sensors(value):
     for key, types in SENSORS_TO_TYPE.items():

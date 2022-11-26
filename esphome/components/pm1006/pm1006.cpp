@@ -30,10 +30,10 @@ void PM1006Component::update() {
   switch(this->type_){
     case PM1006_TYPE_1006:
       this->write_array(PM1006_REQUEST, sizeof(PM1006_REQUEST));
-    break;
+      break;
     case PM1006_TYPE_1006K:
       this->write_array(PM1006K_REQUEST, sizeof(PM1006K_REQUEST));
-    break;
+      break;
   }
 }
 
@@ -70,9 +70,9 @@ optional<bool> PM1006Component::check_byte_() const {
   uint8_t index = this->data_index_;
   uint8_t byte = this->data_[index];
 
-  const uint8_t HEADER_SIZE = sizeof (this->type_ == PM1006_TYPE_1006 ? PM1006_RESPONSE_HEADER : PM1006K_RESPONSE_HEADER);
+  const uint8_t HEADER_SIZE =
+  sizeof (this->type_ == PM1006_TYPE_1006 ? PM1006_RESPONSE_HEADER : PM1006K_RESPONSE_HEADER);
   const uint8_t PAYLOAD_SIZE = this->type_ == PM1006_TYPE_1006 ? 16 : 12;
-
 
   // index 0..2 are the fixed header
   if (index < HEADER_SIZE) {
@@ -108,8 +108,8 @@ optional<bool> PM1006Component::check_byte_() const {
 }
 
 void PM1006Component::parse_data_() {
-  const int pm_1_0_concentration = this->get_16_bit_uint_(9); //DF7
-  const int pm_2_5_concentration = this->get_16_bit_uint_(5); //DF3
+  const int pm_1_0_concentration = this->get_16_bit_uint_(9);   //DF7
+  const int pm_2_5_concentration = this->get_16_bit_uint_(5);   //DF3
   const int pm_10_0_concentration = this->get_16_bit_uint_(13); //DF11
 
   ESP_LOGD(TAG, "Got PM1.0 Concentration: %d µg/m³", pm_1_0_concentration);
