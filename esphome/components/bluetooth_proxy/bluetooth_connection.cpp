@@ -253,6 +253,12 @@ esp_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enabl
     return ESP_GATT_INVALID_HANDLE;
   }
 
+  if (!(characteristic->properties & (ESP_GATT_CHAR_PROP_BIT_NOTIFY | ESP_GATT_CHAR_PROP_BIT_INDICATE))) {
+    ESP_LOGW(TAG, "[%d] [%s] Cannot notify GATT characteristic, does not support notify or indicate.",
+             this->connection_index_, this->address_str_.c_str());
+    return ESP_GATT_REQ_NOT_SUPPORTED;
+  }
+
   if (enable) {
     ESP_LOGV(TAG, "[%d] [%s] Registering for GATT characteristic notifications %s", this->connection_index_,
              this->address_str_.c_str(), characteristic->uuid.to_string().c_str());
