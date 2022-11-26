@@ -404,8 +404,8 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 // System APIs
 
 #if defined(USE_ESP8266)
-IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
-IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
+IRAM_ATTR InterruptLock::InterruptLock() { state_ = xt_rsil(15); }
+IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(state_); }
 #elif defined(USE_ESP32) || defined(USE_LIBRETUYA)
 // only affects the executing core
 // so should not be used as a mutex lock, only to get accurate timing
