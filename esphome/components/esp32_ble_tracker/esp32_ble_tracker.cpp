@@ -155,11 +155,13 @@ void ESP32BLETracker::loop() {
 
     if (this->scan_set_param_failed_) {
       ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
+      esp_ble_gap_stop_scanning();
       this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
     }
 
     if (this->scan_start_failed_) {
       ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
+      esp_ble_gap_stop_scanning();
       this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
     }
   }
@@ -360,7 +362,6 @@ void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t:
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
   this->scan_start_failed_ = param.status;
   if (param.status != ESP_BT_STATUS_SUCCESS) {
-    esp_ble_gap_stop_scanning();
     xSemaphoreGive(this->scan_end_lock_);
   }
 }
