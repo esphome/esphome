@@ -5,6 +5,8 @@
 #include "pid_controller.h"
 #include "pid_simulator.h"
 
+#include <vector>
+
 namespace esphome {
 namespace pid {
 
