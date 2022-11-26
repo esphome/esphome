@@ -804,8 +804,6 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
         this->service_datas_.push_back(data);
         break;
       }
-      case ESP_BLE_AD_TYPE_INT_RANGE:
-        break;
       default: {
         ESP_LOGV(TAG, "Unhandled type: advType: 0x%02x", record_type);
         break;
