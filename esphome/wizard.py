@@ -93,7 +93,7 @@ LIBRETUYA_CONFIG = """
 libretuya:
   board: {board}
   framework:
-    version: latest
+    version: dev
 """
 
 HARDWARE_BASE_CONFIGS = {
