@@ -78,6 +78,20 @@ void BluetoothProxy::dump_config() {
   ESP_LOGCONFIG(TAG, "  Active: %s", YESNO(this->active_));
 }
 
+int BluetoothProxy::get_bluetooth_connections_free() {
+  int free = 0;
+  for (auto *connection : this->connections_) {
+    if (connection->address_ == 0) {
+      free++;
+      ESP_LOGV(TAG, "[%d] Free connection", connection->get_connection_index());
+    } else {
+      ESP_LOGV(TAG, "[%d] Used connection by [%s]", connection->get_connection_index(),
+               connection->address_str().c_str());
+    }
+  }
+  return free;
+}
+
 void BluetoothProxy::loop() {
   if (!api::global_api_server->is_connected()) {
     for (auto *connection : this->connections_) {
