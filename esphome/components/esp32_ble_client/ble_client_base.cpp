@@ -299,7 +299,7 @@ BLEDescriptor *BLEClientBase::get_config_descriptor(uint16_t handle) {
   auto *chr = this->get_characteristic(handle);
   if (chr != nullptr) {
     for (auto &desc : chr->descriptors) {
-      if (desc->uuid == espbt::ESPBTUUID::from_uint16(0x2902))
+      if (desc->uuid.get_uuid().uuid.uuid16 == 0x2902)
         return desc;
     }
   }

@@ -7,12 +7,13 @@
 
 #ifdef USE_ESP32
 
-#include <string>
-#include <array>
-#include <esp_gap_ble_api.h>
-#include <esp_gattc_api.h>
 #include <esp_bt_defs.h>
+#include <esp_gap_ble_api.h>
 #include <esp_gatt_common_api.h>
+#include <esp_gattc_api.h>
+#include <array>
+#include <string>
+#include <vector>
 
 namespace esphome {
 namespace ble_client {
