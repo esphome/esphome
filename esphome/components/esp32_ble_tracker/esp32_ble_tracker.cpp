@@ -360,6 +360,7 @@ void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t:
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
   this->scan_start_failed_ = param.status;
   if (param.status != ESP_BT_STATUS_SUCCESS) {
+    esp_ble_gap_stop_scanning();
     xSemaphoreGive(this->scan_end_lock_);
   }
 }
