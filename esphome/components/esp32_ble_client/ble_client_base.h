@@ -28,8 +28,6 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   float get_setup_priority() const override;
 
   bool parse_device(const espbt::ESPBTDevice &device) override;
-  void found_device(uint64_t addr, esp_ble_addr_type_t address_type);
-
   void on_scan_end() override {}
   bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;

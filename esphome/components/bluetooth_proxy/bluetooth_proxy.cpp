@@ -9,37 +9,11 @@
 namespace esphome {
 namespace bluetooth_proxy {
 
-static const uint8_t MAX_CACHE_SIZE = 36;
 static const char *const TAG = "bluetooth_proxy";
 
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
-  uint64_t now = esp_timer_get_time();
-  uint64_t device_address = device.address_uint64();
-
-  if (this->address_time_map_.find(device_address) != this->address_time_map_.end()) {
-    // If we see it again before the cache expires be sure to drop the
-    // old time from the map so we do not leak
-    this->time_address_map_.erase(this->address_time_map_[device_address]);
-  }
-
-  this->times_queue_.push(now);
-  this->time_address_map_[now] = device_address;
-  this->address_time_map_[device_address] = now;
-  this->address_type_map_[device_address] = device.get_address_type();
-
-  while (this->times_queue_.size() > MAX_CACHE_SIZE) {
-    auto top_time = this->times_queue_.top();
-    if (this->address_time_map_.find(top_time) != this->address_time_map_.end()) {
-      uint64_t expire_address = this->address_time_map_[top_time];
-      this->address_type_map_.erase(expire_address);
-      this->address_time_map_.erase(expire_address);
-      this->time_address_map_.erase(top_time);
-    }
-    this->times_queue_.pop();
-  }
-
   if (!api::global_api_server->is_connected())
     return false;
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
@@ -180,16 +154,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         ESP_LOGW(TAG, "[%d] [%s] Connection already in progress", connection->get_connection_index(),
                  connection->address_str().c_str());
         return;
-      }
-      if (this->address_type_map_.find(msg.address) != this->address_type_map_.end()) {
-        // Utilize the address type cache
-        connection->found_device(msg.address, this->address_type_map_[msg.address]);
-        ESP_LOGI(TAG, "[%d] [%s] Using connect cache", connection->get_connection_index(),
-                 connection->address_str().c_str());
-      } else {
-        ESP_LOGI(TAG, "[%d] [%s] Searching to connect", connection->get_connection_index(),
-                 connection->address_str().c_str());
-        connection->set_state(espbt::ClientState::SEARCHING);
       }
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
