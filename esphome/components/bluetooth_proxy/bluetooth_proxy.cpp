@@ -91,6 +91,13 @@ void BluetoothProxy::loop() {
       }
       resp.services.push_back(std::move(service_resp));
       api::global_api_server->send_bluetooth_gatt_services(resp);
+      // Descriptors are rarely used and can be quite large so we clear them
+      // after sending them to save memory. If something actually needs them
+      // it can parse them again.
+      for (auto &characteristic : service->characteristics) {
+        characteristic->parsed = false;
+        characteristic->descriptors.clear();
+      }
       connection->send_service_++;
     }
   }
