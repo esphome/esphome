@@ -9,6 +9,13 @@ namespace esphome {
 namespace esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
+static esp_bt_uuid_t NOTIFY_DESC_UUID = {
+    .len = ESP_UUID_LEN_16,
+    .uuid =
+        {
+            .uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG,
+        },
+};
 
 void BLEClientBase::setup() {
   static uint8_t connection_index = 0;
@@ -170,21 +177,33 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      auto *descr = this->get_config_descriptor(param->reg_for_notify.handle);
-      if (descr->uuid.get_uuid().len != ESP_UUID_LEN_16 ||
-          descr->uuid.get_uuid().uuid.uuid16 != ESP_GATT_UUID_CHAR_CLIENT_CONFIG) {
-        ESP_LOGW(TAG, "[%d] [%s] Handle 0x%x (uuid %s) is not a client config char uuid", this->connection_index_,
-                 this->address_str_.c_str(), param->reg_for_notify.handle, descr->uuid.to_string().c_str());
+      esp_gattc_descr_elem_t desc_result;
+      uint16_t count = 1;
+      esp_gatt_status_t descr_status =
+          esp_ble_gattc_get_descr_by_char_handle(this->gattc_if_, this->connection_index_, param->reg_for_notify.handle,
+                                                 NOTIFY_DESC_UUID, &desc_result, &count);
+      if (descr_status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_descr_by_char_handle error, status=%d", this->connection_index_,
+                 this->address_str_.c_str(), descr_status);
         break;
       }
+      esp_gattc_char_elem_t char_result;
+      esp_gatt_status_t char_status =
+          esp_ble_gattc_get_all_char(this->gattc_if_, this->connection_index_, param->reg_for_notify.handle,
+                                     param->reg_for_notify.handle, &char_result, &count, 0);
+      if (char_status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", this->connection_index_,
+                 this->address_str_.c_str(), char_status);
+        break;
+      }
+
       /*
         1 = notify
         2 = indicate
       */
-      uint16_t notify_en = descr->characteristic->properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY ? 1 : 2;
-
-      auto status =
-          esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descr->handle, sizeof(notify_en),
+      uint16_t notify_en = char_result.properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY ? 1 : 2;
+      esp_err_t status =
+          esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, desc_result.handle, sizeof(notify_en),
                                          (uint8_t *) &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
       if (status) {
         ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_write_char_descr error, status=%d", this->connection_index_,
@@ -261,16 +280,16 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
     case 0xD:  // int12.
     case 0xE:  // int16.
       if (length > 2) {
-        return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
+        return (float) ((int16_t) (value[1] << 8) + (int16_t) value[2]);
       }
     case 0xF:  // int24.
       if (length > 3) {
-        return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
+        return (float) ((int32_t) (value[1] << 16) + (int32_t) (value[2] << 8) + (int32_t) (value[3]));
       }
     case 0x10:  // int32.
       if (length > 4) {
-        return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
-                        (int32_t)(value[4]));
+        return (float) ((int32_t) (value[1] << 24) + (int32_t) (value[2] << 16) + (int32_t) (value[3] << 8) +
+                        (int32_t) (value[4]));
       }
   }
   ESP_LOGW(TAG, "[%d] [%s] Cannot parse characteristic value of type 0x%x length %d", this->connection_index_,
@@ -317,7 +336,7 @@ BLEDescriptor *BLEClientBase::get_config_descriptor(uint16_t handle) {
     if (!chr->parsed)
       chr->parse_descriptors();
     for (auto &desc : chr->descriptors) {
-      if (desc->uuid.get_uuid().uuid.uuid16 == 0x2902)
+      if (desc->uuid.get_uuid().uuid.uuid16 == ESP_GATT_UUID_CHAR_CLIENT_CONFIG)
         return desc;
     }
   }
