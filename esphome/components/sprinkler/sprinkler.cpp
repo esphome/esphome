@@ -523,7 +523,7 @@ void Sprinkler::set_divider(optional<uint32_t> divider) {
 
 void Sprinkler::set_multiplier(const optional<float> multiplier) {
   if (multiplier.has_value()) {
-    if (multiplier.value() > 0) {
+    if (multiplier.value() >= 0) {
       this->multiplier_ = multiplier.value();
     }
   }
@@ -683,6 +683,10 @@ void Sprinkler::start_from_queue() {
     ESP_LOGD(TAG, "start_from_queue called but standby is enabled; no action taken");
     return;
   }
+  if (this->multiplier_ == 0) {
+    ESP_LOGD(TAG, "start_from_queue called but multiplier is set to zero; no action taken");
+    return;
+  }
   if (this->queued_valves_.empty()) {
     return;  // if there is nothing in the queue, don't do anything
   }
@@ -706,6 +710,10 @@ void Sprinkler::start_full_cycle() {
     ESP_LOGD(TAG, "start_full_cycle called but standby is enabled; no action taken");
     return;
   }
+  if (this->multiplier_ == 0) {
+    ESP_LOGD(TAG, "start_full_cycle called but multiplier is set to zero; no action taken");
+    return;
+  }
   if (this->auto_advance() && this->active_valve().has_value()) {
     return;  // if auto-advance is already enabled and there is already a valve running, do nothing
   }
@@ -724,6 +732,10 @@ void Sprinkler::start_full_cycle() {
 void Sprinkler::start_single_valve(const optional<size_t> valve_number, optional<uint32_t> run_duration) {
   if (this->standby()) {
     ESP_LOGD(TAG, "start_single_valve called but standby is enabled; no action taken");
+    return;
+  }
+  if (this->multiplier_ == 0) {
+    ESP_LOGD(TAG, "start_single_valve called but multiplier is set to zero; no action taken");
     return;
   }
   if (!valve_number.has_value() || (valve_number == this->active_valve())) {
@@ -1037,12 +1049,15 @@ void Sprinkler::load_next_valve_run_request_(optional<size_t> first_valve) {
     this->next_req_.set_valve(this->queued_valves_.back().valve_number);
     if (this->queued_valves_.back().run_duration) {
       this->next_req_.set_run_duration(this->queued_valves_.back().run_duration);
-    } else {
+      this->queued_valves_.pop_back();
+    } else if (this->multiplier_) {
       this->next_req_.set_run_duration(this->valve_run_duration_adjusted(this->queued_valves_.back().valve_number));
+      this->queued_valves_.pop_back();
+    } else {
+      this->next_req_.reset();
     }
-    this->queued_valves_.pop_back();
   } else if (this->auto_adv_sw_ != nullptr) {
-    if (this->auto_adv_sw_->state) {
+    if (this->auto_adv_sw_->state && this->multiplier_) {
       if (this->next_valve_number_in_cycle_(first_valve).has_value()) {
         // if there is another valve to run as a part of a cycle, load that
         this->next_req_.set_valve(this->next_valve_number_in_cycle_(first_valve).value_or(0));
@@ -1216,14 +1231,18 @@ void Sprinkler::fsm_transition_() {
 
 void Sprinkler::fsm_transition_from_shutdown_() {
   this->load_next_valve_run_request_();
-  this->active_req_.set_valve(this->next_req_.valve());
-  this->active_req_.set_run_duration(this->next_req_.run_duration());
-  this->next_req_.reset();
 
-  this->set_timer_duration_(sprinkler::TIMER_SM, this->active_req_.run_duration() - this->switching_delay_.value_or(0));
-  this->start_timer_(sprinkler::TIMER_SM);
-  this->start_valve_(&this->active_req_);
-  this->state_ = ACTIVE;
+  if (this->next_req_.has_request()) {  // there is a valve to run...
+    this->active_req_.set_valve(this->next_req_.valve());
+    this->active_req_.set_run_duration(this->next_req_.run_duration());
+    this->next_req_.reset();
+
+    this->set_timer_duration_(sprinkler::TIMER_SM,
+                              this->active_req_.run_duration() - this->switching_delay_.value_or(0));
+    this->start_timer_(sprinkler::TIMER_SM);
+    this->start_valve_(&this->active_req_);
+    this->state_ = ACTIVE;
+  }
 }
 
 void Sprinkler::fsm_transition_from_valve_run_() {
