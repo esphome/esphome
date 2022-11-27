@@ -150,7 +150,7 @@ void BluetoothProxy::loop() {
   }
 }
 
-BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve, bool resolve_services) {
+BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
   for (auto *connection : this->connections_) {
     if (connection->get_address() == address)
       return connection;
@@ -166,7 +166,6 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
       // We only set the state if we allocate the connection
       // to avoid a race where multiple connection attempts
       // are made.
-      connection->set_resolve_services(resolve_services);
       connection->set_state(espbt::ClientState::INIT);
       return connection;
     }
@@ -177,9 +176,9 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
 
 void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
   switch (msg.request_type) {
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_WITHOUT_RESOLVE_SERVICES
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_WITHOUT_RESOLVE_SERVICES:
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
-      auto *connection = this->get_connection_(msg.address, true, msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT);
+      auto *connection = this->get_connection_(msg.address, true);
       if (connection == nullptr) {
         ESP_LOGW(TAG, "No free connections available");
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
@@ -190,6 +189,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
                  connection->address_str().c_str());
         return;
       }
+      connection->set_resolve_services(msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT);
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
       if (this->address_type_map_.find(msg.address) != this->address_type_map_.end()) {
