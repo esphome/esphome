@@ -32,7 +32,7 @@ void BLEClientBase::loop() {
 
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
-void BLEClientBase::found_device(uint64_t addr, esp_ble_addr_type_t address_type) {
+void BLEClientBase::set_found_device(uint64_t addr, esp_ble_addr_type_t address_type) {
   this->remote_bda_[0] = (addr >> 40) & 0xFF;
   this->remote_bda_[1] = (addr >> 32) & 0xFF;
   this->remote_bda_[2] = (addr >> 24) & 0xFF;
@@ -50,7 +50,7 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
     return false;
 
   ESP_LOGD(TAG, "[%d] [%s] Found device", this->connection_index_, this->address_str_.c_str());
-  this->found_device(device.address_uint64(), device.get_address_type());
+  this->set_found_device(device.address_uint64(), device.get_address_type());
   return true;
 }
 

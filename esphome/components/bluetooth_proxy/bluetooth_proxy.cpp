@@ -185,7 +185,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
                                                               this->get_bluetooth_connections_limit());
       if (this->address_type_map_.find(msg.address) != this->address_type_map_.end()) {
         // Utilize the address type cache
-        connection->found_device(msg.address, this->address_type_map_[msg.address]);
+        connection->set_found_device(msg.address, this->address_type_map_[msg.address]);
         ESP_LOGV(TAG, "[%d] [%s] Using connect cache", connection->get_connection_index(),
                  connection->address_str().c_str());
       } else {
