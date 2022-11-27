@@ -48,7 +48,7 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
     return false;
 
   ESP_LOGD(TAG, "[%d] [%s] Found device", this->connection_index_, this->address_str_.c_str());
-  this->found_device(device.address_uint64(), device.get_address_type());
+  this->set_found_device(device.address_uint64(), device.get_address_type());
   return true;
 }
 
