@@ -37,6 +37,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void disconnect();
 
   bool connected() { return this->state_ == espbt::ClientState::ESTABLISHED; }
+  void set_resolve_services(bool resolve_services) { this->resolve_services_ = resolve_services; }
 
   void set_address(uint64_t address) {
     this->address_ = address;
@@ -82,6 +83,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   std::string address_str_{};
   uint8_t connection_index_;
   uint16_t mtu_{23};
+  bool resolve_services_{true};
 
   std::vector<BLEService *> services_;
 };
