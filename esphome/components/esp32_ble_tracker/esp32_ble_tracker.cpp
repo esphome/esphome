@@ -449,10 +449,13 @@ ESPBTUUID ESPBTUUID::from_raw(const std::string &data) {
 ESPBTUUID ESPBTUUID::from_uuid(esp_bt_uuid_t uuid) {
   ESPBTUUID ret;
   ret.uuid_.len = uuid.len;
-  ret.uuid_.uuid.uuid16 = uuid.uuid.uuid16;
-  ret.uuid_.uuid.uuid32 = uuid.uuid.uuid32;
-  for (size_t i = 0; i < ESP_UUID_LEN_128; i++)
-    ret.uuid_.uuid.uuid128[i] = uuid.uuid.uuid128[i];
+  if (uuid.len == ESP_UUID_LEN_16) {
+    ret.uuid_.uuid.uuid16 = uuid.uuid.uuid16;
+  } else if (uuid.len == ESP_UUID_LEN_32) {
+    ret.uuid_.uuid.uuid32 = uuid.uuid.uuid32;
+  } else if (uuid.len == ESP_UUID_LEN_128) {
+    memcpy(ret.uuid_.uuid.uuid128, uuid.uuid.uuid128, ESP_UUID_LEN_128);
+  }
   return ret;
 }
 ESPBTUUID ESPBTUUID::as_128bit() const {
@@ -828,8 +831,9 @@ void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {
   }
 
   ESP_LOGD(TAG, "  Address Type: %s", address_type_s);
-  if (!device.get_name().empty())
+  if (!device.get_name().empty()) {
     ESP_LOGD(TAG, "  Name: '%s'", device.get_name().c_str());
+  }
   for (auto &tx_power : device.get_tx_powers()) {
     ESP_LOGD(TAG, "  TX Power: %d", tx_power);
   }

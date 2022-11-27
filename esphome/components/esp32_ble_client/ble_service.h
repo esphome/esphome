@@ -6,6 +6,8 @@
 
 #include "ble_characteristic.h"
 
+#include <vector>
+
 namespace esphome {
 namespace esp32_ble_client {
 
