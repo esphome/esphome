@@ -2,34 +2,26 @@ import abc
 import inspect
 import math
 import re
-from esphome.yaml_util import ESPHomeDataBase
-
-# pylint: disable=unused-import, wrong-import-order
-from typing import (
-    Any,
-    Callable,
-    Optional,
-    Union,
-)
 from collections.abc import Generator, Sequence
+from typing import Any, Callable, Optional, Union
 
-from esphome.core import (  # noqa
+from esphome.core import (
     CORE,
-    HexInt,
     ID,
+    Define,
+    EnumValue,
+    HexInt,
     Lambda,
+    Library,
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
     TimePeriodMinutes,
     TimePeriodSeconds,
-    coroutine,
-    Library,
-    Define,
-    EnumValue,
 )
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.util import OrderedDict
+from esphome.yaml_util import ESPHomeDataBase
 
 
 class Expression(abc.ABC):
