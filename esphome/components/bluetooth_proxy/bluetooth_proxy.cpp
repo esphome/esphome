@@ -194,7 +194,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
                  connection->address_str().c_str());
         return;
       }
-      connection->set_state(espbt::ClientState::SEARCHING);
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
       if (this->address_type_map_.find(msg.address) != this->address_type_map_.end()) {
