@@ -21,6 +21,19 @@ namespace esp32_ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
+
+enum class ConnectionType {
+  // The default connection type, we hold all the services in ram
+  // for the duration of the connection.
+  V1
+  // The client has a cache of the services and mtu so we should not
+  // fetch them again
+  V2_WITH_CACHE
+  // The client does not need the services and mtu once we send them
+  // so we should wipe them from memory as soon as we send them
+  V2_WITHOUT_CACHE
+};
+
 class BLEClientBase : public espbt::ESPBTClient, public Component {
  public:
   void setup() override;
@@ -37,7 +50,6 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void disconnect();
 
   bool connected() { return this->state_ == espbt::ClientState::ESTABLISHED; }
-  void set_client_has_cache(bool client_has_cache) { this->client_has_cache_ = client_has_cache; }
 
   void set_address(uint64_t address) {
     this->address_ = address;
@@ -74,6 +86,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   uint8_t get_connection_index() const { return this->connection_index_; }
 
+  virtual void set_connection_type(ConnectionType ct) { this->connection_type_ = ct; }
+  ConnectionType connection_type() const { return connection_type_; }
+
  protected:
   int gattc_if_;
   esp_bd_addr_t remote_bda_;
@@ -83,7 +98,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   std::string address_str_{};
   uint8_t connection_index_;
   uint16_t mtu_{23};
-  bool client_has_cache_{false};
+  ConnectionType connection_type_{ConnectionType::V1};
 
   std::vector<BLEService *> services_;
 };
