@@ -112,7 +112,7 @@ void ESP32BLETracker::loop() {
     if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
       if (!ready_to_connect && this->scan_continuous_) {
         this->start_scan_(false);
-      } else if (!this->scanner_idle_) {
+      } else if (!this->scan_continuous_ && !this->scanner_idle_) {
         this->end_of_scan_();
         return;
       }
