@@ -219,10 +219,9 @@ esp_err_t BluetoothConnection::write_descriptor(uint16_t handle, const std::stri
   }
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_.c_str(),
            handle);
-
-  esp_err_t err =
-      esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, handle, data.size(), (uint8_t *) data.data(),
-                                     ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  esp_err_t err = esp_ble_gattc_write_char_descr(
+      this->gattc_if_, this->conn_id_, handle, data.size(), (uint8_t *) data.data(),
+      response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
   if (err != ERR_OK) {
     ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_write_char_descr error, err=%d", this->connection_index_,
              this->address_str_.c_str(), err);
