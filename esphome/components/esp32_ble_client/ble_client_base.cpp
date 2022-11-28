@@ -23,7 +23,9 @@ void BLEClientBase::setup() {
 }
 
 void BLEClientBase::loop() {
-  if (this->state_ == espbt::ClientState::DISCOVERED) {
+  // READY_TO_CONNECT means we have discovered the device
+  // and the scanner has been stopped by the tracker.
+  if (this->state_ == espbt::ClientState::READY_TO_CONNECT) {
     this->connect();
   }
 }
@@ -53,7 +55,8 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 }
 
 void BLEClientBase::connect() {
-  ESP_LOGI(TAG, "[%d] [%s] Attempting BLE connection", this->connection_index_, this->address_str_.c_str());
+  ESP_LOGI(TAG, "[%d] [%s] 0x%02x Attempting BLE connection", this->connection_index_, this->address_str_.c_str(),
+           this->remote_addr_type_);
   auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_, this->remote_addr_type_, true);
   if (ret) {
     ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_open error, status=%d", this->connection_index_, this->address_str_.c_str(),
@@ -65,6 +68,8 @@ void BLEClientBase::connect() {
 }
 
 void BLEClientBase::disconnect() {
+  if (this->state_ == espbt::ClientState::IDLE || this->state_ == espbt::ClientState::DISCONNECTING)
+    return;
   ESP_LOGI(TAG, "[%d] [%s] Disconnecting.", this->connection_index_, this->address_str_.c_str());
   auto err = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
   if (err != ESP_OK) {
@@ -72,10 +77,20 @@ void BLEClientBase::disconnect() {
              err);
   }
 
-  if (this->state_ == espbt::ClientState::SEARCHING) {
+  if (this->state_ == espbt::ClientState::SEARCHING || this->state_ == espbt::ClientState::READY_TO_CONNECT ||
+      this->state_ == espbt::ClientState::DISCOVERED) {
     this->set_address(0);
     this->set_state(espbt::ClientState::IDLE);
+  } else {
+    this->set_state(espbt::ClientState::DISCONNECTING);
   }
+}
+
+void BLEClientBase::release_services() {
+  for (auto &svc : this->services_)
+    delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
+  this->services_.clear();
+  esp_ble_gattc_cache_clean(this->remote_bda_);
 }
 
 bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
@@ -134,10 +149,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         return false;
       ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason %d", this->connection_index_,
                this->address_str_.c_str(), param->disconnect.reason);
-      for (auto &svc : this->services_)
-        delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
-      this->services_.clear();
-      esp_ble_gattc_cache_clean(this->remote_bda_);
+      this->release_services();
       this->set_state(espbt::ClientState::IDLE);
       break;
     }

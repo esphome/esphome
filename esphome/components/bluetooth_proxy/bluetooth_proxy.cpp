@@ -135,8 +135,7 @@ void BluetoothProxy::loop() {
       // after sending them to save memory. If something actually needs them
       // it can parse them again.
       for (auto &characteristic : service->characteristics) {
-        characteristic->parsed = false;
-        characteristic->descriptors.clear();
+        characteristic->release_descriptors();
       }
       connection->send_service_++;
     }
@@ -155,6 +154,11 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
   for (auto *connection : this->connections_) {
     if (connection->get_address() == 0) {
       connection->set_address(address);
+      // All connections must start at INIT
+      // We only set the state if we allocate the connection
+      // to avoid a race where multiple connection attempts
+      // are made.
+      connection->set_state(espbt::ClientState::INIT);
       return connection;
     }
   }
@@ -169,6 +173,19 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       if (connection == nullptr) {
         ESP_LOGW(TAG, "No free connections available");
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
+        return;
+      }
+      if (connection->state() == espbt::ClientState::CONNECTED ||
+          connection->state() == espbt::ClientState::ESTABLISHED) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection already established", connection->get_connection_index(),
+                 connection->address_str().c_str());
+        api::global_api_server->send_bluetooth_device_connection(msg.address, true);
+        api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
+                                                                this->get_bluetooth_connections_limit());
+        return;
+      } else if (connection->state() != espbt::ClientState::INIT) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection already in progress", connection->get_connection_index(),
+                 connection->address_str().c_str());
         return;
       }
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),

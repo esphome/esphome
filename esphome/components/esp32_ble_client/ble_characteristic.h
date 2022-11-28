@@ -24,6 +24,7 @@ class BLECharacteristic {
   esp_gatt_char_prop_t properties;
   std::vector<BLEDescriptor *> descriptors;
   void parse_descriptors();
+  void release_descriptors();
   BLEDescriptor *get_descriptor(espbt::ESPBTUUID uuid);
   BLEDescriptor *get_descriptor(uint16_t uuid);
   BLEDescriptor *get_descriptor_by_handle(uint16_t handle);
