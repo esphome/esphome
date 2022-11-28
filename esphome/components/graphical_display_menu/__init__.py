@@ -40,14 +40,14 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    display = await cg.get_variable(config[CONF_DISPLAY])
-    cg.add(var.set_display_buffer(display))
+    display_buffer = await cg.get_variable(config[CONF_DISPLAY])
+    cg.add(var.set_display_buffer(display_buffer))
 
     if CONF_DISPLAY_UPDATER in config:
         display_updater = await cg.get_variable(config[CONF_DISPLAY_UPDATER])
         cg.add(var.set_display_updater(display_updater))
 
-    font = await cg.get_variable(config[CONF_FONT])
-    cg.add(var.set_font(font))
+    menu_font = await cg.get_variable(config[CONF_FONT])
+    cg.add(var.set_font(menu_font))
 
     await display_menu_to_code(var, config)
