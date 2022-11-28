@@ -144,26 +144,26 @@ void ESP32BLETracker::loop() {
       xSemaphoreGive(this->scan_result_lock_);
     }
 
-    if (this->scan_set_param_failed_) {
-      ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
-      esp_ble_gap_stop_scanning();
-      this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
-    }
-
-    if (this->scan_start_failed_) {
-      ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
-      esp_ble_gap_stop_scanning();
-      this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
-    }
-
     if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
       if (this->scan_continuous_) {
-        if (!promote_to_connecting) {
+        if (!promote_to_connecting && !this->scan_start_failed_ && !this->scan_set_param_failed_) {
           this->start_scan_(false);
         }
       } else if (!this->scanner_idle_) {
         this->end_of_scan_();
         return;
+      }
+    }
+
+    if (this->scan_start_failed_ || this->scan_set_param_failed_) {
+      esp_ble_gap_stop_scanning();
+      if (this->scan_start_failed_) {
+        ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
+        this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
+      }
+      if (this->scan_set_param_failed_) {
+        ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
+        this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
       }
     }
   }
