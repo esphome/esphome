@@ -182,6 +182,11 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
+      if (this->client_has_cache_) {
+        // Client is responsible for flipping the descriptor value
+        // when using the cache
+        break;
+      }
       esp_gattc_descr_elem_t desc_result;
       uint16_t count = 1;
       esp_gatt_status_t descr_status =
