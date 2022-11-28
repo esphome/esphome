@@ -109,10 +109,7 @@ void BluetoothProxy::loop() {
       // after sending them to save memory. If something actually needs them
       // it can parse them again.
       for (auto &svc : connection->services_) {
-        svc->parsed = false;
-        for (auto &characteristic : svc->characteristics)
-          delete characteristic;  // NOLINT(cppcoreguidelines-owning-memory)
-        svc->characteristics.clear();
+        srv->release_characteristics();
       }
     } else if (connection->send_service_ >= 0) {
       auto &service = connection->services_[connection->send_service_];
@@ -144,10 +141,7 @@ void BluetoothProxy::loop() {
       // after sending them to save memory. If something actually needs them
       // it can parse them again.
       for (auto &characteristic : service->characteristics) {
-        characteristic->parsed = false;
-        for (auto &descriptor : characteristic->descriptors)
-          delete descriptor;  // NOLINT(cppcoreguidelines-owning-memory)
-        characteristic->descriptors.clear();
+        characteristic->release_descriptors();
       }
       connection->send_service_++;
     }
