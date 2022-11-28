@@ -241,7 +241,7 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
     return;
   }
 
-  auto err = connection->write_descriptor(msg.handle, msg.data);
+  auto err = connection->write_descriptor(msg.handle, msg.data, true);
   if (err != ESP_OK) {
     api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, err);
   }
