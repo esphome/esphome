@@ -109,7 +109,7 @@ void BluetoothProxy::loop() {
       // after sending them to save memory. If something actually needs them
       // it can parse them again.
       for (auto &svc : connection->services_) {
-        srv->release_characteristics();
+        svc->release_characteristics();
       }
       if (connection->connection_type_ == espbt::ConnectionType::V2_WITH_CACHE || connection->connection_type_ == espbt::ConnectionType::V2_WITHOUT_CACHE) {
         connection->release_services();
