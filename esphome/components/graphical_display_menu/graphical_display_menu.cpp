@@ -103,6 +103,8 @@ void GraphicalDisplayMenu::draw_menu() {
 
 Dimension GraphicalDisplayMenu::measure_item(const display_menu_base::MenuItem *item, bool selected) {
   Dimension dimensions;
+  dimensions.width = 0;
+  dimensions.height = 0;
 
   if (selected) {
     // TODO: Support selection glyph
