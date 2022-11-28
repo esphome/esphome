@@ -21,18 +21,6 @@ namespace esp32_ble_client {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-enum class ConnectionType {
-  // The default connection type, we hold all the services in ram
-  // for the duration of the connection.
-  V1,
-  // The client has a cache of the services and mtu so we should not
-  // fetch them again
-  V2_WITH_CACHE,
-  // The client does not need the services and mtu once we send them
-  // so we should wipe them from memory as soon as we send them
-  V2_WITHOUT_CACHE
-};
-
 class BLEClientBase : public espbt::ESPBTClient, public Component {
  public:
   void setup() override;
