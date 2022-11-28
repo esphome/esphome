@@ -16,7 +16,7 @@ BLECharacteristic::~BLECharacteristic() {
     delete desc;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
-void BLEService::release_descriptors() {
+void BLECharacteristic::release_descriptors() {
   this->parsed = false;
   for (auto &desc : this->descriptors)
     delete desc;  // NOLINT(cppcoreguidelines-owning-memory)
