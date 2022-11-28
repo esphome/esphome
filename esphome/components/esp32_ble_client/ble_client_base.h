@@ -48,6 +48,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void connect() override;
   void disconnect();
+  void release_services();
 
   bool connected() { return this->state_ == espbt::ClientState::ESTABLISHED; }
 
@@ -87,7 +88,6 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint8_t get_connection_index() const { return this->connection_index_; }
 
   virtual void set_connection_type(ConnectionType ct) { this->connection_type_ = ct; }
-  ConnectionType connection_type() const { return connection_type_; }
 
  protected:
   int gattc_if_;
