@@ -9,7 +9,7 @@ namespace esphome {
 namespace esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
-static esp_bt_uuid_t NOTIFY_DESC_UUID = {
+static const esp_bt_uuid_t NOTIFY_DESC_UUID = {
     .len = ESP_UUID_LEN_16,
     .uuid =
         {
