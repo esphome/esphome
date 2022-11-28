@@ -19,7 +19,7 @@ GraphicalDisplayMenu = graphical_display_menu.class_(
     "GraphicalDisplayMenu", DisplayMenuComponent
 )
 
-CODEOWNERS = ["@mrmdavidson"]
+CODEOWNERS = ["@MrMDavidson"]
 
 AUTO_LOAD = ["display_menu_base"]
 
@@ -30,11 +30,6 @@ CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
             cv.GenerateID(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
             cv.GenerateID(CONF_DISPLAY_UPDATER): cv.Optional(cv.use_id(cg.PollingComponent)),
             cv.GenerateID(CONF_FONT): cv.use_id(font.Font),
-            # cv.GenerateID(CONF_DISPLAY_ID): cv.use_id(lcd_base.LCDDisplay),
-            # cv.Optional(CONF_MARK_SELECTED, default=0x3E): cv.uint8_t,
-            ##cv.Optional(CONF_MARK_EDITING, default=0x2A): cv.uint8_t,
-            # cv.Optional(CONF_MARK_SUBMENU, default=0x7E): cv.uint8_t,
-            # cv.Optional(CONF_MARK_BACK, default=0x5E): cv.uint8_t,
         }
     )
 )
