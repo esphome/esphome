@@ -72,11 +72,15 @@ void BluetoothProxy::loop() {
       api::BluetoothGATTService service_resp;
       service_resp.uuid = {service->uuid.get_128bit_high(), service->uuid.get_128bit_low()};
       service_resp.handle = service->start_handle;
+      if (!service->parsed)
+        service->parse_characteristics();
       for (auto &characteristic : service->characteristics) {
         api::BluetoothGATTCharacteristic characteristic_resp;
         characteristic_resp.uuid = {characteristic->uuid.get_128bit_high(), characteristic->uuid.get_128bit_low()};
         characteristic_resp.handle = characteristic->handle;
         characteristic_resp.properties = characteristic->properties;
+        if (!characteristic->parsed)
+          characteristic->parse_descriptors();
         for (auto &descriptor : characteristic->descriptors) {
           api::BluetoothGATTDescriptor descriptor_resp;
           descriptor_resp.uuid = {descriptor->uuid.get_128bit_high(), descriptor->uuid.get_128bit_low()};
@@ -87,6 +91,13 @@ void BluetoothProxy::loop() {
       }
       resp.services.push_back(std::move(service_resp));
       api::global_api_server->send_bluetooth_gatt_services(resp);
+      // Descriptors are rarely used and can be quite large so we clear them
+      // after sending them to save memory. If something actually needs them
+      // it can parse them again.
+      for (auto &characteristic : service->characteristics) {
+        characteristic->parsed = false;
+        characteristic->descriptors.clear();
+      }
       connection->send_service_++;
     }
   }
