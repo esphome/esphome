@@ -93,24 +93,36 @@ void BluetoothProxy::loop() {
         characteristic_resp.uuid = {characteristic->uuid.get_128bit_high(), characteristic->uuid.get_128bit_low()};
         characteristic_resp.handle = characteristic->handle;
         characteristic_resp.properties = characteristic->properties;
-        if (!characteristic->parsed)
-          characteristic->parse_descriptors();
-        for (auto &descriptor : characteristic->descriptors) {
+
+        uint16_t desc_offset = 0;
+        esp_gattc_descr_elem_t desc_result;
+        while (true) {
+          uint16_t count = 1;
+          esp_gatt_status_t status =
+              esp_ble_gattc_get_all_descr(connection->get_gattc_if(), connection->get_conn_id(), characteristic->handle,
+                                          &desc_result, &count, desc_offset);
+          if (status == ESP_GATT_INVALID_OFFSET || status == ESP_GATT_NOT_FOUND) {
+            break;
+          }
+          if (status != ESP_GATT_OK) {
+            ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_descr error, status=%d", connection->get_connection_index(),
+                     connection->address_str().c_str(), status);
+            break;
+          }
+          if (count == 0) {
+            break;
+          }
           api::BluetoothGATTDescriptor descriptor_resp;
-          descriptor_resp.uuid = {descriptor->uuid.get_128bit_high(), descriptor->uuid.get_128bit_low()};
-          descriptor_resp.handle = descriptor->handle;
+          auto uuid = espbt::ESPBTUUID::from_uuid(desc_result.uuid);
+          descriptor_resp.uuid = {uuid.get_128bit_high(), uuid.get_128bit_low()};
+          descriptor_resp.handle = desc_result.handle;
           characteristic_resp.descriptors.push_back(std::move(descriptor_resp));
+          desc_offset++;
         }
         service_resp.characteristics.push_back(std::move(characteristic_resp));
       }
       resp.services.push_back(std::move(service_resp));
       api::global_api_server->send_bluetooth_gatt_services(resp);
-      // Descriptors are rarely used and can be quite large so we clear them
-      // after sending them to save memory. If something actually needs them
-      // it can parse them again.
-      for (auto &characteristic : service->characteristics) {
-        characteristic->release_descriptors();
-      }
       connection->send_service_++;
     }
   }
