@@ -168,7 +168,12 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                  this->address_str_.c_str(), param->reg_for_notify.handle, descr->uuid.to_string().c_str());
         break;
       }
-      uint16_t notify_en = 1;
+      /*
+        1 = notify
+        2 = indicate
+      */
+      uint16_t notify_en = descr->characteristic->properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY ? 1 : 2;
+
       auto status =
           esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descr->handle, sizeof(notify_en),
                                          (uint8_t *) &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
