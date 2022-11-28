@@ -136,9 +136,9 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, co
   auto background_color = selected ? display::COLOR_ON : display::COLOR_OFF;
   auto foreground_color = selected ? display::COLOR_OFF : display::COLOR_ON;
 
-  int backgroundWidth = std::max(measured_dimensions->width, this->display_buffer_->get_width());
+  int background_width = std::max(measured_dimensions->width, this->display_buffer_->get_width());
 
-  this->display_buffer_->filled_rectangle(position->x, position->y, backgroundWidth, measured_dimensions->height,
+  this->display_buffer_->filled_rectangle(position->x, position->y, background_width, measured_dimensions->height,
                                           background_color);
 
   std::string label = item->get_text();
