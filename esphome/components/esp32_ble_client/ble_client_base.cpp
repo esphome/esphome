@@ -23,7 +23,9 @@ void BLEClientBase::setup() {
 }
 
 void BLEClientBase::loop() {
-  if (this->state_ == espbt::ClientState::DISCOVERED) {
+  // READY_TO_CONNECT means we have discovered the device
+  // and the scanner has been stopped by the tracker.
+  if (this->state_ == espbt::ClientState::READY_TO_CONNECT) {
     this->connect();
   }
 }
@@ -51,7 +53,8 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 }
 
 void BLEClientBase::connect() {
-  ESP_LOGI(TAG, "[%d] [%s] Attempting BLE connection", this->connection_index_, this->address_str_.c_str());
+  ESP_LOGI(TAG, "[%d] [%s] 0x%02x Attempting BLE connection", this->connection_index_, this->address_str_.c_str(),
+           this->remote_addr_type_);
   auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_, this->remote_addr_type_, true);
   if (ret) {
     ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_open error, status=%d", this->connection_index_, this->address_str_.c_str(),
@@ -63,6 +66,8 @@ void BLEClientBase::connect() {
 }
 
 void BLEClientBase::disconnect() {
+  if (this->state_ == espbt::ClientState::IDLE || this->state_ == espbt::ClientState::DISCONNECTING)
+    return;
   ESP_LOGI(TAG, "[%d] [%s] Disconnecting.", this->connection_index_, this->address_str_.c_str());
   auto err = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
   if (err != ESP_OK) {
@@ -70,9 +75,12 @@ void BLEClientBase::disconnect() {
              err);
   }
 
-  if (this->state_ == espbt::ClientState::SEARCHING) {
+  if (this->state_ == espbt::ClientState::SEARCHING || this->state_ == espbt::ClientState::READY_TO_CONNECT ||
+      this->state_ == espbt::ClientState::DISCOVERED) {
     this->set_address(0);
     this->set_state(espbt::ClientState::IDLE);
+  } else {
+    this->set_state(espbt::ClientState::DISCONNECTING);
   }
 }
 
