@@ -74,7 +74,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   uint8_t get_connection_index() const { return this->connection_index_; }
 
-  virtual void set_connection_type(ConnectionType ct) { this->connection_type_ = ct; }
+  virtual void set_connection_type(espbt::ConnectionType ct) { this->connection_type_ = ct; }
 
  protected:
   int gattc_if_;
@@ -85,7 +85,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   std::string address_str_{};
   uint8_t connection_index_;
   uint16_t mtu_{23};
-  ConnectionType connection_type_{ConnectionType::V1};
+  espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
 
   std::vector<BLEService *> services_;
 };

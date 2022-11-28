@@ -194,11 +194,11 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         return;
       }
       if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V2_WITH_CACHE) {
-        connection->set_connection_type(espbt::ConnectionType::V2_WITH_CACHE)
+        connection->set_connection_type(espbt::ConnectionType::V2_WITH_CACHE);
       } else if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V2_WITHOUT_CACHE) {
-        connection->set_connection_type(espbt::ConnectionType::V2_WITHOUT_CACHE)
+        connection->set_connection_type(espbt::ConnectionType::V2_WITHOUT_CACHE);
       } else {
-        connection->set_connection_type(espbt::ConnectionType::V1)
+        connection->set_connection_type(espbt::ConnectionType::V1);
       }
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
