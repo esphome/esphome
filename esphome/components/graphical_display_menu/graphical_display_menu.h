@@ -2,7 +2,7 @@
 
 #include "esphome/components/display_menu_base/display_menu_base.h"
 #include "esphome/components/display/display_buffer.h"
-#include <stdlib.h>
+#include <cstdlib>
 
 namespace esphome {
 namespace graphical_display_menu {
@@ -26,12 +26,12 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   void set_font(display::Font *font);
 
  protected:
-  virtual void draw_menu();
-  virtual void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected);
+  void draw_menu() override;
+  void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) override;
   virtual Dimension measure_item(const display_menu_base::MenuItem *item, bool selected);
   virtual void draw_item(const display_menu_base::MenuItem *item, const Position *position,
                          const Dimension *measured_dimensions, bool selected);
-  virtual void update();
+  void update() override;
 
   display::DisplayBuffer *display_buffer_{nullptr};
   PollingComponent *display_updater_{nullptr};

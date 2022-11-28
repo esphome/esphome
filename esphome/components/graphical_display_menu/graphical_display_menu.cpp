@@ -1,6 +1,6 @@
 #include "graphical_display_menu.h"
 #include "esphome/core/log.h"
-#include <stdlib.h>
+#include <cstdlib>
 
 namespace esphome {
 namespace graphical_display_menu {
@@ -8,9 +8,7 @@ namespace graphical_display_menu {
 static const char *const TAG = "graphical_display_menu";
 
 void GraphicalDisplayMenu::setup() {
-  display::display_writer_t writer = [this](display::DisplayBuffer &it) {
-    this->draw();
-  };
+  display::display_writer_t writer = [this](display::DisplayBuffer &it) { this->draw(); };
 
   display::DisplayPage *page = new display::DisplayPage(writer);
   this->display_buffer_->show_page(page);
@@ -29,7 +27,7 @@ void GraphicalDisplayMenu::dump_config() {
   ESP_LOGCONFIG(TAG, "Mode: %s", this->mode_ == display_menu_base::MENU_MODE_ROTARY ? "Rotary" : "Joystick");
   ESP_LOGCONFIG(TAG, "Menu items:");
   for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
-    auto item = this->displayed_item_->get_item(i);
+    auto *item = this->displayed_item_->get_item(i);
     ESP_LOGCONFIG(TAG, "  %i: %s (Type: %s, Immediate Edit: %s)", i, item->get_text().c_str(),
                   LOG_STR_ARG(display_menu_base::menu_item_type_to_string(item->get_type())),
                   YESNO(item->get_immediate_edit()));
@@ -52,7 +50,7 @@ void GraphicalDisplayMenu::draw_menu() {
   std::vector<Dimension> menu_dimensions;
 
   for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
-    auto item = this->displayed_item_->get_item(i);
+    auto *item = this->displayed_item_->get_item(i);
     bool selected = i == this->cursor_index_;
     Dimension d = this->measure_item(item, selected);
 
@@ -60,7 +58,7 @@ void GraphicalDisplayMenu::draw_menu() {
     total_height += d.height + y_padding;
 
     // Scroll the display if the selected item or the item immediately after it overflows
-    if (((selected == true) || (i == this->cursor_index_ + 1)) && (total_height > available_height)) {
+    if (((selected) || (i == this->cursor_index_ + 1)) && (total_height > available_height)) {
       scroll_menu_items = true;
     }
   }
@@ -68,7 +66,8 @@ void GraphicalDisplayMenu::draw_menu() {
   int y_offset = 0;
   int first_item_index = 0;
   int last_item_index = this->displayed_item_->items_size();
-  if (scroll_menu_items == true) {
+
+  if (scroll_menu_items) {
     // Attempt to draw the item after the current item (+1 for equality check in the draw loop)
     last_item_index = std::min(this->cursor_index_ + 2, last_item_index);
 
@@ -89,7 +88,7 @@ void GraphicalDisplayMenu::draw_menu() {
 
   // Render the items into the view port
   for (size_t i = first_item_index; i < last_item_index; i++) {
-    auto item = this->displayed_item_->get_item(i);
+    auto *item = this->displayed_item_->get_item(i);
     bool selected = i == this->cursor_index_;
     Dimension dimensions = menu_dimensions.at(i);
 
@@ -138,6 +137,7 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, co
   auto foreground_color = selected ? display::COLOR_OFF : display::COLOR_ON;
 
   int backgroundWidth = std::max(measured_dimensions->width, this->display_buffer_->get_width());
+
   this->display_buffer_->filled_rectangle(position->x, position->y, backgroundWidth, measured_dimensions->height,
                                           background_color);
 
@@ -154,19 +154,8 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, co
 }
 
 void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) {
-  auto background_color = selected ? display::COLOR_ON : display::COLOR_OFF;
-  auto foreground_color = selected ? display::COLOR_OFF : display::COLOR_ON;
-  this->display_buffer_->filled_rectangle(0, (row - 1) * 20, this->display_buffer_->get_width(), (row) *20,
-                                          background_color);
-
-  if (item->has_value()) {
-    std::string value = item->get_value_text();
-    this->display_buffer_->print(0, row * 20, this->font_, foreground_color, display::TextAlign::BOTTOM_LEFT,
-                                 value.c_str());
-  } else {
-    this->display_buffer_->print(0, row * 20, this->font_, foreground_color, display::TextAlign::BOTTOM_LEFT,
-                                 item->get_text().c_str());
-  }
+  ESP_LOGE(TAG, "draw_item(MenuItem *item, uint8_t row, bool selected) called. The graphical_display_menu specific "
+                "draw_item should be called.");
 }
 
 void GraphicalDisplayMenu::update() {
