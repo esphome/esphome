@@ -133,7 +133,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       if (this->connection_type_ == espbt::ConnectionType::V2_WITH_CACHE) {
         this->set_state(espbt::ClientState::CONNECTED);
-        this->state_ = espbt::ClientState::ESTABLISHED;      
+        this->state_ = espbt::ClientState::ESTABLISHED;
         break;
       }
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->open.conn_id);
