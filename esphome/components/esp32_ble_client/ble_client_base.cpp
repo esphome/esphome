@@ -142,6 +142,10 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       ESP_LOGV(TAG, "[%d] [%s] cfg_mtu status %d, mtu %d", this->connection_index_, this->address_str_.c_str(),
                param->cfg_mtu.status, param->cfg_mtu.mtu);
       this->mtu_ = param->cfg_mtu.mtu;
+      if (!this->resolve_services_) {
+        this->set_state(espbt::ClientState::CONNECTED);
+        this->state_ = espbt::ClientState::ESTABLISHED;
+      }
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {
