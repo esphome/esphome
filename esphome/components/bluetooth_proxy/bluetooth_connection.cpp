@@ -35,11 +35,34 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
                                                                 this->proxy_->get_bluetooth_connections_limit());
       }
+      this->seen_mtu_or_services_ = false;
+      break;
+    }
+    case ESP_GATTC_CFG_MTU_EVT: {
+      if (param->cfg_mtu.conn_id != this->conn_id_)
+        break;
+      if (!this->seen_mtu_or_services_) {
+        // We don't know if we will get the MTU or the services first, so
+        // only send the device connection true if we have already received
+        // the services.
+        this->seen_mtu_or_services_ = true;
+        break;
+      }
+      api::global_api_server->send_bluetooth_device_connection(this->address_, true, this->mtu_);
+      api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
+                                                              this->proxy_->get_bluetooth_connections_limit());
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       if (param->search_cmpl.conn_id != this->conn_id_)
         break;
+      if (!this->seen_mtu_or_services_) {
+        // We don't know if we will get the MTU or the services first, so
+        // only send the device connection true if we have already received
+        // the mtu.
+        this->seen_mtu_or_services_ = true;
+        break;
+      }
       api::global_api_server->send_bluetooth_device_connection(this->address_, true, this->mtu_);
       api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
                                                               this->proxy_->get_bluetooth_connections_limit());
