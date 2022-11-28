@@ -111,7 +111,8 @@ void BluetoothProxy::loop() {
       for (auto &svc : connection->services_) {
         svc->release_characteristics();
       }
-      if (connection->connection_type_ == espbt::ConnectionType::V2_WITH_CACHE || connection->connection_type_ == espbt::ConnectionType::V2_WITHOUT_CACHE) {
+      if (connection->connection_type_ == espbt::ConnectionType::V2_WITH_CACHE ||
+          connection->connection_type_ == espbt::ConnectionType::V2_WITHOUT_CACHE) {
         connection->release_services();
       }
     } else if (connection->send_service_ >= 0) {

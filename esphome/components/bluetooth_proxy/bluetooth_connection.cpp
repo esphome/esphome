@@ -37,7 +37,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       } else if (this->connection_type_ == espbt::ConnectionType::V2_WITH_CACHE) {
         api::global_api_server->send_bluetooth_device_connection(this->address_, true, this->mtu_);
         api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
-                                                              this->proxy_->get_bluetooth_connections_limit());
+                                                                this->proxy_->get_bluetooth_connections_limit());
       }
       this->seen_mtu_or_services_ = false;
       break;
@@ -223,9 +223,9 @@ esp_err_t BluetoothConnection::write_descriptor(uint16_t handle, const std::stri
   }
   ESP_LOGV(TAG, "[%d] [%s] Writing GATT descriptor handle %d", this->connection_index_, this->address_str_.c_str(),
            handle);
-  esp_err_t err =
-      esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, handle, data.size(), (uint8_t *) data.data(),
-                                     response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+  esp_err_t err = esp_ble_gattc_write_char_descr(
+      this->gattc_if_, this->conn_id_, handle, data.size(), (uint8_t *) data.data(),
+      response ? ESP_GATT_WRITE_TYPE_RSP : ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
   if (err != ERR_OK) {
     ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_write_char_descr error, err=%d", this->connection_index_,
              this->address_str_.c_str(), err);
