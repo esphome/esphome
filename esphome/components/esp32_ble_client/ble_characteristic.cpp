@@ -17,6 +17,7 @@ BLECharacteristic::~BLECharacteristic() {
 }
 
 void BLECharacteristic::parse_descriptors() {
+  this->parsed = true;
   uint16_t offset = 0;
   esp_gattc_descr_elem_t result;
 
@@ -49,6 +50,8 @@ void BLECharacteristic::parse_descriptors() {
 }
 
 BLEDescriptor *BLECharacteristic::get_descriptor(espbt::ESPBTUUID uuid) {
+  if (!this->parsed)
+    this->parse_descriptors();
   for (auto &desc : this->descriptors) {
     if (desc->uuid == uuid)
       return desc;
@@ -59,6 +62,8 @@ BLEDescriptor *BLECharacteristic::get_descriptor(uint16_t uuid) {
   return this->get_descriptor(espbt::ESPBTUUID::from_uint16(uuid));
 }
 BLEDescriptor *BLECharacteristic::get_descriptor_by_handle(uint16_t handle) {
+  if (!this->parsed)
+    this->parse_descriptors();
   for (auto &desc : this->descriptors) {
     if (desc->handle == handle)
       return desc;
