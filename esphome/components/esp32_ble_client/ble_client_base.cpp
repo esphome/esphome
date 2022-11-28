@@ -187,7 +187,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      if (this->connection_type_ == espbt::ConnectionType::V2_WITH_CACHE || this->connection_type_ == espbt::ConnectionType::V2_WITHOUT_CACHE) {
+      if (this->connection_type_ == espbt::ConnectionType::V2_WITH_CACHE ||
+          this->connection_type_ == espbt::ConnectionType::V2_WITHOUT_CACHE) {
         // Client is responsible for flipping the descriptor value
         // when using the cache
         break;
