@@ -150,9 +150,14 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
         return;
       }
-      ESP_LOGV(TAG, "[%d] [%s] Searching to connect", connection->get_connection_index(),
-               connection->address_str().c_str());
-      if (connection->state() != espbt::ClientState::INIT) {
+      if (connection->state() == espbt::ClientState::CONNECTED || connection->state() == espbt::ClientState::ESTABLISHED) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection already established", connection->get_connection_index(),
+                 connection->address_str().c_str());
+        api::global_api_server->send_bluetooth_device_connection(msg.address, true);
+        api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
+                                                              this->get_bluetooth_connections_limit());
+        return;
+      } else if (connection->state() != espbt::ClientState::INIT) {
         ESP_LOGW(TAG, "[%d] [%s] Connection already in progress", connection->get_connection_index(),
                  connection->address_str().c_str());
         return;
