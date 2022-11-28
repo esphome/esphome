@@ -109,8 +109,7 @@ void BluetoothProxy::loop() {
       // after sending them to save memory. If something actually needs them
       // it can parse them again.
       for (auto &characteristic : service->characteristics) {
-        characteristic->parsed = false;
-        characteristic->descriptors.clear();
+        characteristic->release_descriptors();
       }
       connection->send_service_++;
     }
