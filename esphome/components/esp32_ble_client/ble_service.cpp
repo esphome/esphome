@@ -57,7 +57,7 @@ void BLEService::parse_characteristics() {
     characteristic->handle = result.char_handle;
     characteristic->service = this;
     this->characteristics.push_back(characteristic);
-    ESP_LOGI(TAG, "[%d] [%s]  characteristic %s, handle 0x%x, properties 0x%x", this->client->get_connection_index(),
+    ESP_LOGV(TAG, "[%d] [%s]  characteristic %s, handle 0x%x, properties 0x%x", this->client->get_connection_index(),
              this->client->address_str().c_str(), characteristic->uuid.to_string().c_str(), characteristic->handle,
              characteristic->properties);
     offset++;
