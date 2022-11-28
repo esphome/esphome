@@ -86,35 +86,51 @@ void BluetoothProxy::loop() {
       api::BluetoothGATTService service_resp;
       service_resp.uuid = {service->uuid.get_128bit_high(), service->uuid.get_128bit_low()};
       service_resp.handle = service->start_handle;
-      if (!service->parsed)
-        service->parse_characteristics();
-      for (auto &characteristic : service->characteristics) {
-        api::BluetoothGATTCharacteristic characteristic_resp;
-        characteristic_resp.uuid = {characteristic->uuid.get_128bit_high(), characteristic->uuid.get_128bit_low()};
-        characteristic_resp.handle = characteristic->handle;
-        characteristic_resp.properties = characteristic->properties;
-
+      uint16_t char_offset = 0;
+      esp_gattc_char_elem_t char_result;
+      while (true) { // characteristics
+        uint16_t char_count = 1;
+        esp_gatt_status_t char_status =
+            esp_ble_gattc_get_all_char(connection->get_gattc_if(), connection->get_conn_id(), service->start_handle,
+                                      service->end_handle, &char_result, &char_count, char_offset);
+        if (char_status == ESP_GATT_INVALID_OFFSET || char_status == ESP_GATT_NOT_FOUND) {
+          break;
+        }
+        if (char_status != ESP_GATT_OK) {
+          ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", connection->get_connection_index(),
+                  connection->address_str().c_str(), char_status);
+          break;
+        }
+        if (char_count == 0) {
+          break;
+        }
+        api::BluetoothGATTCharacteristic characteristic_resp;  
+        auto char_uuid = espbt::ESPBTUUID::from_uuid(char_result.uuid);
+        characteristic_resp.uuid = {char_uuid.get_128bit_high(), char_uuid.get_128bit_low()};
+        characteristic_resp.handle = char_result.char_handle;
+        characteristic_resp.properties = char_result.properties;     
+        char_offset++;
         uint16_t desc_offset = 0;
         esp_gattc_descr_elem_t desc_result;
-        while (true) {
-          uint16_t count = 1;
-          esp_gatt_status_t status =
-              esp_ble_gattc_get_all_descr(connection->get_gattc_if(), connection->get_conn_id(), characteristic->handle,
-                                          &desc_result, &count, desc_offset);
-          if (status == ESP_GATT_INVALID_OFFSET || status == ESP_GATT_NOT_FOUND) {
+        while (true) { // descriptors
+          uint16_t desc_count = 1;
+          esp_gatt_status_t desc_status =
+              esp_ble_gattc_get_all_descr(connection->get_gattc_if(), connection->get_conn_id(), char_result.char_handle,
+                                          &desc_result, &desc_count, desc_offset);
+          if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
             break;
           }
-          if (status != ESP_GATT_OK) {
+          if (desc_status != ESP_GATT_OK) {
             ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_descr error, status=%d", connection->get_connection_index(),
-                     connection->address_str().c_str(), status);
+                     connection->address_str().c_str(), desc_status);
             break;
           }
-          if (count == 0) {
+          if (desc_count == 0) {
             break;
           }
           api::BluetoothGATTDescriptor descriptor_resp;
-          auto uuid = espbt::ESPBTUUID::from_uuid(desc_result.uuid);
-          descriptor_resp.uuid = {uuid.get_128bit_high(), uuid.get_128bit_low()};
+          auto desc_uuid = espbt::ESPBTUUID::from_uuid(desc_result.uuid);
+          descriptor_resp.uuid = {desc_uuid.get_128bit_high(), desc_uuid.get_128bit_low()};
           descriptor_resp.handle = desc_result.handle;
           characteristic_resp.descriptors.push_back(std::move(descriptor_resp));
           desc_offset++;
