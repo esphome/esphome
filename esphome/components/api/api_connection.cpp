@@ -961,7 +961,6 @@ void APIConnection::on_home_assistant_state_response(const HomeAssistantStateRes
     }
   }
 }
-#ifdef USE_API_USER_SERVICES
 void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
   bool found = false;
   for (auto *service : this->parent_->get_user_services()) {
@@ -973,7 +972,6 @@ void APIConnection::execute_service(const ExecuteServiceRequest &msg) {
     ESP_LOGV(TAG, "Could not find matching service!");
   }
 }
-#endif
 void APIConnection::subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) {
   state_subs_at_ = 0;
 }

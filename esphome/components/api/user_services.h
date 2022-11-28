@@ -10,8 +10,6 @@
 namespace esphome {
 namespace api {
 
-#ifdef USE_API_USER_SERVICES
-
 class UserServiceDescriptor {
  public:
   virtual ListEntitiesServicesResponse encode_list_service_response() = 0;
@@ -72,8 +70,6 @@ template<typename... Ts> class UserServiceTrigger : public UserServiceBase<Ts...
  protected:
   void execute(Ts... x) override { this->trigger(x...); }  // NOLINT
 };
-
-#endif
 
 }  // namespace api
 }  // namespace esphome

@@ -93,9 +93,7 @@ class APIServerConnectionBase : public ProtoService {
   bool send_get_time_response(const GetTimeResponse &msg);
   virtual void on_get_time_response(const GetTimeResponse &value){};
   bool send_list_entities_services_response(const ListEntitiesServicesResponse &msg);
-#ifdef USE_API_USER_SERVICES
   virtual void on_execute_service_request(const ExecuteServiceRequest &value){};
-#endif
 #ifdef USE_ESP32_CAMERA
   bool send_list_entities_camera_response(const ListEntitiesCameraResponse &msg);
 #endif
@@ -229,9 +227,7 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void subscribe_homeassistant_services(const SubscribeHomeassistantServicesRequest &msg) = 0;
   virtual void subscribe_home_assistant_states(const SubscribeHomeAssistantStatesRequest &msg) = 0;
   virtual GetTimeResponse get_time(const GetTimeRequest &msg) = 0;
-#ifdef USE_API_USER_SERVICES
   virtual void execute_service(const ExecuteServiceRequest &msg) = 0;
-#endif
 #ifdef USE_COVER
   virtual void cover_command(const CoverCommandRequest &msg) = 0;
 #endif
@@ -303,9 +299,7 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) override;
   void on_subscribe_home_assistant_states_request(const SubscribeHomeAssistantStatesRequest &msg) override;
   void on_get_time_request(const GetTimeRequest &msg) override;
-#ifdef USE_API_USER_SERVICES
   void on_execute_service_request(const ExecuteServiceRequest &msg) override;
-#endif
 #ifdef USE_COVER
   void on_cover_command_request(const CoverCommandRequest &msg) override;
 #endif

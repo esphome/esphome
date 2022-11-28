@@ -100,9 +100,6 @@ async def to_code(config):
     cg.add(var.set_password(config[CONF_PASSWORD]))
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
-    if CONF_SERVICES in config:
-        cg.add_define("USE_API_USER_SERVICES")
-
     for conf in config.get(CONF_SERVICES, []):
         template_args = []
         func_args = []
