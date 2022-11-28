@@ -88,35 +88,35 @@ void BluetoothProxy::loop() {
       service_resp.handle = service->start_handle;
       uint16_t char_offset = 0;
       esp_gattc_char_elem_t char_result;
-      while (true) { // characteristics
+      while (true) {  // characteristics
         uint16_t char_count = 1;
         esp_gatt_status_t char_status =
             esp_ble_gattc_get_all_char(connection->get_gattc_if(), connection->get_conn_id(), service->start_handle,
-                                      service->end_handle, &char_result, &char_count, char_offset);
+                                       service->end_handle, &char_result, &char_count, char_offset);
         if (char_status == ESP_GATT_INVALID_OFFSET || char_status == ESP_GATT_NOT_FOUND) {
           break;
         }
         if (char_status != ESP_GATT_OK) {
           ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", connection->get_connection_index(),
-                  connection->address_str().c_str(), char_status);
+                   connection->address_str().c_str(), char_status);
           break;
         }
         if (char_count == 0) {
           break;
         }
-        api::BluetoothGATTCharacteristic characteristic_resp;  
+        api::BluetoothGATTCharacteristic characteristic_resp;
         auto char_uuid = espbt::ESPBTUUID::from_uuid(char_result.uuid);
         characteristic_resp.uuid = {char_uuid.get_128bit_high(), char_uuid.get_128bit_low()};
         characteristic_resp.handle = char_result.char_handle;
-        characteristic_resp.properties = char_result.properties;     
+        characteristic_resp.properties = char_result.properties;
         char_offset++;
         uint16_t desc_offset = 0;
         esp_gattc_descr_elem_t desc_result;
-        while (true) { // descriptors
+        while (true) {  // descriptors
           uint16_t desc_count = 1;
           esp_gatt_status_t desc_status =
-              esp_ble_gattc_get_all_descr(connection->get_gattc_if(), connection->get_conn_id(), char_result.char_handle,
-                                          &desc_result, &desc_count, desc_offset);
+              esp_ble_gattc_get_all_descr(connection->get_gattc_if(), connection->get_conn_id(),
+                                          char_result.char_handle, &desc_result, &desc_count, desc_offset);
           if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
             break;
           }
