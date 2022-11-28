@@ -75,7 +75,8 @@ void BLEClientBase::disconnect() {
              err);
   }
 
-  if (this->state_ == espbt::ClientState::SEARCHING) {
+  if (this->state_ == espbt::ClientState::SEARCHING || this->state_ == espbt::ClientState::READY_TO_CONNECT ||
+      this->state_ == espbt::ClientState::DISCOVERED) {
     this->set_address(0);
     this->set_state(espbt::ClientState::IDLE);
   } else {
