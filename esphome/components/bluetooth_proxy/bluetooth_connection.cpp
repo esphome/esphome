@@ -105,8 +105,6 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       break;
     }
     case ESP_GATTC_UNREG_FOR_NOTIFY_EVT: {
-      if (this->get_characteristic(param->unreg_for_notify.handle) == nullptr)  // No conn_id in this event
-        break;
       if (param->unreg_for_notify.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "[%d] [%s] Error unregistering notifications for handle 0x%2X, status=%d",
                  this->connection_index_, this->address_str_.c_str(), param->unreg_for_notify.handle,
@@ -122,8 +120,6 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      if (this->get_characteristic(param->reg_for_notify.handle) == nullptr)  // No conn_id in this event
-        break;
       if (param->reg_for_notify.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "[%d] [%s] Error registering notifications for handle 0x%2X, status=%d", this->connection_index_,
                  this->address_str_.c_str(), param->reg_for_notify.handle, param->reg_for_notify.status);
