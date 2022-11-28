@@ -112,6 +112,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
                  this->address_str_.c_str(), ret);
       }
+      esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
     }
     case ESP_GATTC_CFG_MTU_EVT: {
@@ -124,7 +125,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       ESP_LOGV(TAG, "[%d] [%s] cfg_mtu status %d, mtu %d", this->connection_index_, this->address_str_.c_str(),
                param->cfg_mtu.status, param->cfg_mtu.mtu);
       this->mtu_ = param->cfg_mtu.mtu;
-      esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {
@@ -135,6 +135,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       for (auto &svc : this->services_)
         delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
       this->services_.clear();
+      esp_ble_gattc_cache_clean(this->remote_bda_);
       this->set_state(espbt::ClientState::IDLE);
       break;
     }
@@ -150,11 +151,10 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_SEARCH_CMPL_EVT", this->connection_index_, this->address_str_.c_str());
       for (auto &svc : this->services_) {
-        ESP_LOGI(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_.c_str(),
+        ESP_LOGV(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_.c_str(),
                  svc->uuid.to_string().c_str());
-        ESP_LOGI(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
+        ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
                  this->address_str_.c_str(), svc->start_handle, svc->end_handle);
-        svc->parse_characteristics();
       }
       this->set_state(espbt::ClientState::CONNECTED);
       this->state_ = espbt::ClientState::ESTABLISHED;
@@ -168,7 +168,12 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                  this->address_str_.c_str(), param->reg_for_notify.handle, descr->uuid.to_string().c_str());
         break;
       }
-      uint16_t notify_en = 1;
+      /*
+        1 = notify
+        2 = indicate
+      */
+      uint16_t notify_en = descr->characteristic->properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY ? 1 : 2;
+
       auto status =
           esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descr->handle, sizeof(notify_en),
                                          (uint8_t *) &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
@@ -287,6 +292,8 @@ BLECharacteristic *BLEClientBase::get_characteristic(uint16_t service, uint16_t 
 
 BLECharacteristic *BLEClientBase::get_characteristic(uint16_t handle) {
   for (auto *svc : this->services_) {
+    if (!svc->parsed)
+      svc->parse_characteristics();
     for (auto *chr : svc->characteristics) {
       if (chr->handle == handle)
         return chr;
@@ -298,6 +305,8 @@ BLECharacteristic *BLEClientBase::get_characteristic(uint16_t handle) {
 BLEDescriptor *BLEClientBase::get_config_descriptor(uint16_t handle) {
   auto *chr = this->get_characteristic(handle);
   if (chr != nullptr) {
+    if (!chr->parsed)
+      chr->parse_descriptors();
     for (auto &desc : chr->descriptors) {
       if (desc->uuid.get_uuid().uuid.uuid16 == 0x2902)
         return desc;
@@ -323,7 +332,11 @@ BLEDescriptor *BLEClientBase::get_descriptor(uint16_t service, uint16_t chr, uin
 
 BLEDescriptor *BLEClientBase::get_descriptor(uint16_t handle) {
   for (auto *svc : this->services_) {
+    if (!svc->parsed)
+      svc->parse_characteristics();
     for (auto *chr : svc->characteristics) {
+      if (!chr->parsed)
+        chr->parse_descriptors();
       for (auto *desc : chr->descriptors) {
         if (desc->handle == handle)
           return desc;
