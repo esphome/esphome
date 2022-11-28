@@ -161,7 +161,7 @@ void ESP32BLETracker::loop() {
         if (!promote_to_connecting) {
           this->start_scan_(false);
         }
-      } else if ( !this->scanner_idle_) {
+      } else if (!this->scanner_idle_) {
         this->end_of_scan_();
         return;
       }
