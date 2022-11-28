@@ -106,10 +106,11 @@ void ESP32BLETracker::loop() {
         break;
     }
   }
+  bool ready_to_connect = discovered && !searching && !connecting;
 
   if (!this->scanner_idle_) {
     if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
-      if (this->scan_continuous_) {
+      if (!ready_to_connect && this->scan_continuous_) {
         this->start_scan_(false);
       } else if (!this->scanner_idle_) {
         this->end_of_scan_();
@@ -170,7 +171,7 @@ void ESP32BLETracker::loop() {
   // clients and no clients using the scanner to search for
   // devices, then stop scanning and promote the discovered
   // client to ready to connect.
-  if (discovered && !searching && !connecting) {
+  if (ready_to_connect) {
     for (auto *client : this->clients_) {
       if (client->state() == ClientState::DISCOVERED) {
         ESP_LOGD(TAG, "Pausing scan to make connection...");
