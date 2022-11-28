@@ -105,12 +105,6 @@ void BluetoothProxy::loop() {
     if (connection->send_service_ == connection->services_.size()) {
       connection->send_service_ = -1;
       api::global_api_server->send_bluetooth_gatt_services_done(connection->get_address());
-      // Characteristics are rarely need after this point so we clear them
-      // after sending them to save memory. If something actually needs them
-      // it can parse them again.
-      for (auto &svc : connection->services_) {
-        svc->release_characteristics();
-      }
       if (connection->connection_type_ == espbt::ConnectionType::V2_WITH_CACHE ||
           connection->connection_type_ == espbt::ConnectionType::V2_WITHOUT_CACHE) {
         connection->release_services();
