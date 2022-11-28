@@ -41,12 +41,10 @@ bool ListEntitiesIterator::on_lock(lock::Lock *a_lock) { return this->client_->s
 
 bool ListEntitiesIterator::on_end() { return this->client_->send_list_info_done(); }
 ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(client) {}
-#ifdef USE_API_USER_SERVICES
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {
   auto resp = service->encode_list_service_response();
   return this->client_->send_list_entities_services_response(resp);
 }
-#endif
 
 #ifdef USE_ESP32_CAMERA
 bool ListEntitiesIterator::on_camera(esp32_camera::ESP32Camera *camera) {

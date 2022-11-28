@@ -6,7 +6,6 @@
 
 namespace esphome {
 namespace api {
-#ifdef USE_API_USER_SERVICES
 
 template<typename T, typename... Ts> class CustomAPIDeviceService : public UserServiceBase<Ts...> {
  public:
@@ -214,7 +213,6 @@ class CustomAPIDevice {
     global_api_server->send_homeassistant_service_call(resp);
   }
 };
-#endif
 
 }  // namespace api
 }  // namespace esphome
