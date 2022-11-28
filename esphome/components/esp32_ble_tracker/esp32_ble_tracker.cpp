@@ -106,18 +106,9 @@ void ESP32BLETracker::loop() {
         break;
     }
   }
-  bool ready_to_connect = discovered && !searching && !connecting;
+  bool promote_to_connecting = discovered && !searching && !connecting;
 
   if (!this->scanner_idle_) {
-    if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
-      if (!ready_to_connect && this->scan_continuous_) {
-        this->start_scan_(false);
-      } else if (!this->scan_continuous_ && !this->scanner_idle_) {
-        this->end_of_scan_();
-        return;
-      }
-    }
-
     if (this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
         xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
       uint32_t index = this->scan_result_index_;
@@ -138,9 +129,8 @@ void ESP32BLETracker::loop() {
           for (auto *client : this->clients_) {
             if (client->parse_device(device)) {
               found = true;
-              if (client->state() == ClientState::DISCOVERED) {
-                searching--;
-                discovered++;
+              if (!connecting && client->state() == ClientState::DISCOVERED) {
+                promote_to_connecting = true;
               }
             }
           }
@@ -165,13 +155,24 @@ void ESP32BLETracker::loop() {
       esp_ble_gap_stop_scanning();
       this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
     }
+
+    if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
+      if (this->scan_continuous_) {
+        if (!promote_to_connecting) {
+          this->start_scan_(false);
+        }
+      } else if ( !this->scanner_idle_) {
+        this->end_of_scan_();
+        return;
+      }
+    }
   }
 
   // If there is a discovered client and no connecting
   // clients and no clients using the scanner to search for
   // devices, then stop scanning and promote the discovered
   // client to ready to connect.
-  if (ready_to_connect) {
+  if (promote_to_connecting) {
     for (auto *client : this->clients_) {
       if (client->state() == ClientState::DISCOVERED) {
         ESP_LOGD(TAG, "Pausing scan to make connection...");
