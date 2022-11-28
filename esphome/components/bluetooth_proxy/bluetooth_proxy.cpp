@@ -109,7 +109,7 @@ void BluetoothProxy::loop() {
       // after sending them to save memory. If something actually needs them
       // it can parse them again.
       for (auto &svc : connection->services_) {
-        srv->release_characteristics();
+        svc->release_characteristics();
       }
     } else if (connection->send_service_ >= 0) {
       auto &service = connection->services_[connection->send_service_];
