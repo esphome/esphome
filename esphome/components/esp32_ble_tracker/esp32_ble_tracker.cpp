@@ -66,7 +66,11 @@ void ESP32BLETracker::setup() {
 #endif
 
   if (this->scan_continuous_) {
-    this->start_scan_(true);
+    if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
+      this->start_scan_(true);
+    } else {
+      ESP_LOGW(TAG, "Cannot start scan!");
+    }
   }
 }
 
@@ -83,86 +87,106 @@ void ESP32BLETracker::loop() {
     ble_event = this->ble_events_.pop();
   }
 
-  if (this->scanner_idle_) {
-    return;
-  }
-
-  bool connecting = false;
+  int connecting = 0;
+  int discovered = 0;
+  int searching = 0;
   for (auto *client : this->clients_) {
-    if (client->state() == ClientState::CONNECTING || client->state() == ClientState::DISCOVERED)
-      connecting = true;
-  }
-
-  if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    xSemaphoreGive(this->scan_end_lock_);
-    if (this->scan_continuous_) {
-      this->start_scan_(false);
-    } else if (xSemaphoreTake(this->scan_end_lock_, 0L) && !this->scanner_idle_) {
-      xSemaphoreGive(this->scan_end_lock_);
-      this->end_of_scan_();
-      return;
+    switch (client->state()) {
+      case ClientState::DISCOVERED:
+        discovered++;
+        break;
+      case ClientState::SEARCHING:
+        searching++;
+        break;
+      case ClientState::CONNECTING:
+      case ClientState::READY_TO_CONNECT:
+        connecting++;
+        break;
+      default:
+        break;
     }
   }
+  bool promote_to_connecting = discovered && !searching && !connecting;
 
-  if (xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
-    uint32_t index = this->scan_result_index_;
-    xSemaphoreGive(this->scan_result_lock_);
+  if (!this->scanner_idle_) {
+    if (this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
+        xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
+      uint32_t index = this->scan_result_index_;
+      if (index) {
+        if (index >= 16) {
+          ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
+        }
+        for (size_t i = 0; i < index; i++) {
+          ESPBTDevice device;
+          device.parse_scan_rst(this->scan_result_buffer_[i]);
 
-    if (index >= 16) {
-      ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
-    }
-    for (size_t i = 0; i < index; i++) {
-      ESPBTDevice device;
-      device.parse_scan_rst(this->scan_result_buffer_[i]);
+          bool found = false;
+          for (auto *listener : this->listeners_) {
+            if (listener->parse_device(device))
+              found = true;
+          }
 
-      bool found = false;
-      for (auto *listener : this->listeners_) {
-        if (listener->parse_device(device))
-          found = true;
-      }
-
-      for (auto *client : this->clients_) {
-        if (client->parse_device(device)) {
-          found = true;
-          if (client->state() == ClientState::DISCOVERED) {
-            esp_ble_gap_stop_scanning();
-#ifdef USE_ARDUINO
-            constexpr TickType_t block_time = 10L / portTICK_PERIOD_MS;
-#else
-            constexpr TickType_t block_time = 0L;  // PR #3594
-#endif
-            if (xSemaphoreTake(this->scan_end_lock_, block_time)) {
-              xSemaphoreGive(this->scan_end_lock_);
+          for (auto *client : this->clients_) {
+            if (client->parse_device(device)) {
+              found = true;
+              if (!connecting && client->state() == ClientState::DISCOVERED) {
+                promote_to_connecting = true;
+              }
             }
           }
+
+          if (!found && !this->scan_continuous_) {
+            this->print_bt_device_info(device);
+          }
         }
+        this->scan_result_index_ = 0;
       }
-
-      if (!found) {
-        this->print_bt_device_info(device);
-      }
-    }
-
-    if (xSemaphoreTake(this->scan_result_lock_, 10L / portTICK_PERIOD_MS)) {
-      this->scan_result_index_ = 0;
       xSemaphoreGive(this->scan_result_lock_);
     }
+
+    if (this->scan_set_param_failed_) {
+      ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
+      esp_ble_gap_stop_scanning();
+      this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
+    }
+
+    if (this->scan_start_failed_) {
+      ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
+      esp_ble_gap_stop_scanning();
+      this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
+    }
+
+    if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
+      if (this->scan_continuous_) {
+        if (!promote_to_connecting) {
+          this->start_scan_(false);
+        }
+      } else if (!this->scanner_idle_) {
+        this->end_of_scan_();
+        return;
+      }
+    }
   }
 
-  if (this->scan_set_param_failed_) {
-    ESP_LOGE(TAG, "Scan set param failed: %d", this->scan_set_param_failed_);
-    this->scan_set_param_failed_ = ESP_BT_STATUS_SUCCESS;
-  }
-
-  if (this->scan_start_failed_) {
-    ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
-    this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
+  // If there is a discovered client and no connecting
+  // clients and no clients using the scanner to search for
+  // devices, then stop scanning and promote the discovered
+  // client to ready to connect.
+  if (promote_to_connecting) {
+    for (auto *client : this->clients_) {
+      if (client->state() == ClientState::DISCOVERED) {
+        ESP_LOGD(TAG, "Pausing scan to make connection...");
+        esp_ble_gap_stop_scanning();
+        // We only want to promote one client at a time.
+        client->set_state(ClientState::READY_TO_CONNECT);
+        break;
+      }
+    }
   }
 }
 
 void ESP32BLETracker::start_scan() {
   if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    xSemaphoreGive(this->scan_end_lock_);
     this->start_scan_(true);
   } else {
     ESP_LOGW(TAG, "Scan requested when a scan is already in progress. Ignoring.");
@@ -256,8 +280,9 @@ bool ESP32BLETracker::ble_setup() {
 }
 
 void ESP32BLETracker::start_scan_(bool first) {
-  if (!xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    ESP_LOGW(TAG, "Cannot start scan!");
+  // The lock must be held when calling this function.
+  if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
+    ESP_LOGE(TAG, "start_scan called without holding scan_end_lock_");
     return;
   }
 
@@ -284,8 +309,9 @@ void ESP32BLETracker::start_scan_(bool first) {
 }
 
 void ESP32BLETracker::end_of_scan_() {
-  if (!xSemaphoreTake(this->scan_end_lock_, 0L)) {
-    ESP_LOGW(TAG, "Cannot clean up end of scan!");
+  // The lock must be held when calling this function.
+  if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
+    ESP_LOGE(TAG, "end_of_scan_ called without holding the scan_end_lock_");
     return;
   }
 
@@ -337,6 +363,9 @@ void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t:
 
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
   this->scan_start_failed_ = param.status;
+  if (param.status != ESP_BT_STATUS_SUCCESS) {
+    xSemaphoreGive(this->scan_end_lock_);
+  }
 }
 
 void ESP32BLETracker::gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_scan_stop_cmpl_evt_param &param) {
