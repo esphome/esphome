@@ -25,7 +25,7 @@ from subprocess import call
 # Generate with
 # protoc --python_out=script/api_protobuf -I esphome/components/api/ api_options.proto
 
-import api_options_pb2 as pb
+import aioesphomeapi.api_options_pb2 as pb
 import google.protobuf.descriptor_pb2 as descriptor
 
 file_header = "// This file was automatically generated with a tool.\n"
