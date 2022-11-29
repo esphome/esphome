@@ -383,7 +383,8 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::Me
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
-template<> const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
+template<>
+const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
       return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT";
