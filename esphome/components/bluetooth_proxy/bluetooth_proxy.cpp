@@ -27,7 +27,8 @@ void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &devi
   api::BluetoothLEAdvertisementResponse resp;
   resp.address = device.address_uint64();
   resp.address_type = device.get_address_type();
-   if (!device.get_name().empty()) resp.name = device.get_name();
+  if (!device.get_name().empty())
+    resp.name = device.get_name();
   resp.rssi = device.get_rssi();
   for (auto uuid : device.get_service_uuids()) {
     resp.service_uuids.push_back(uuid.to_string());
