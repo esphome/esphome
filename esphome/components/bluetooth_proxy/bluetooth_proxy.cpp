@@ -200,8 +200,8 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
 
 void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest &msg) {
   switch (msg.request_type) {
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V2_WITH_CACHE:
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V2_WITHOUT_CACHE:
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE:
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE:
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT: {
       auto *connection = this->get_connection_(msg.address, true);
       if (connection == nullptr) {
@@ -217,14 +217,34 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                                 this->get_bluetooth_connections_limit());
         return;
+      } else if (connection->state() == espbt::ClientState::SEARCHING) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, already searching for device",
+                 connection->get_connection_index(), connection->address_str().c_str());
+        return;
+      } else if (connection->state() == espbt::ClientState::DISCOVERED) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, device already discovered",
+                 connection->get_connection_index(), connection->address_str().c_str());
+        return;
+      } else if (connection->state() == espbt::ClientState::READY_TO_CONNECT) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, waiting in line to connect",
+                 connection->get_connection_index(), connection->address_str().c_str());
+        return;
+      } else if (connection->state() == espbt::ClientState::CONNECTING) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, already connecting",
+                 connection->get_connection_index(), connection->address_str().c_str());
+        return;
+      } else if (connection->state() == espbt::ClientState::DISCONNECTING) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, device is disconnecting",
+                 connection->get_connection_index(), connection->address_str().c_str());
+        return;
       } else if (connection->state() != espbt::ClientState::INIT) {
         ESP_LOGW(TAG, "[%d] [%s] Connection already in progress", connection->get_connection_index(),
                  connection->address_str().c_str());
         return;
       }
-      if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V2_WITH_CACHE) {
+      if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE) {
         connection->set_connection_type(espbt::ConnectionType::V2_WITH_CACHE);
-      } else if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V2_WITHOUT_CACHE) {
+      } else if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE) {
         connection->set_connection_type(espbt::ConnectionType::V2_WITHOUT_CACHE);
       } else {
         connection->set_connection_type(espbt::ConnectionType::V1);
