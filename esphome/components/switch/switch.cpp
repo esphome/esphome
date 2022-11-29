@@ -31,7 +31,10 @@ optional<bool> Switch::get_initial_state() {
     return {};
   return initial_state;
 }
-bool Switch::get_initial_state_with_restore_mode() {
+optional<bool> Switch::get_initial_state_with_restore_mode() {
+  if (restore_mode & RESTORE_MODE_DISABLED_MASK) {
+    return {};
+  }
   bool initial_state = restore_mode & RESTORE_MODE_ON_MASK;
   if (restore_mode & RESTORE_MODE_INVERTED_MASK)
     initial_state = !initial_state;
