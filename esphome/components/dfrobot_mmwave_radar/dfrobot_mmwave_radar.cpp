@@ -9,14 +9,13 @@ const char ASCII_CR = 0x0D;
 const char ASCII_LF = 0x0A;
 
 void DfrobotMmwaveRadarComponent::dump_config() {
-    ESP_LOGCONFIG(TAG, "Delay after detect: %f s", delay_after_detect_);
-    ESP_LOGCONFIG(TAG, "Delay after disappear: %f s", delay_after_disappear_);
+
 }
 
 void DfrobotMmwaveRadarComponent::setup() {
     // Put command in queue which reads sensor state.
     // Command automatically puts itself in queue again after executed.
-    cmdQueue_.enqueue(new ReadStateCommand());
+    // cmdQueue_.enqueue(new ReadStateCommand());
 }
 
 void DfrobotMmwaveRadarComponent::loop() {

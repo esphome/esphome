@@ -31,12 +31,6 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(DfrobotMmwaveRadarComponent),
-            cv.Optional(DELAY_AFTER_DETECT, default="2.5s"): cv.All(
-                cv.positive_time_period, cv.Range(max=core.TimePeriod(seconds=1638.375))
-            ),
-            cv.Optional(DELAY_AFTER_DISAPPEAR, default="10s"): cv.All(
-                cv.positive_time_period, cv.Range(max=core.TimePeriod(seconds=1638.375))
-            ),
         }
     ).extend(uart.UART_DEVICE_SCHEMA)
 )
@@ -46,15 +40,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-
-    cg.add(
-        var.set_delay_after_detect(config[DELAY_AFTER_DETECT].total_milliseconds / 1000)
-    )
-    cg.add(
-        var.set_delay_after_disappear(
-            config[DELAY_AFTER_DISAPPEAR].total_milliseconds / 1000
-        )
-    )
 
 
 def range_segment_list(input):

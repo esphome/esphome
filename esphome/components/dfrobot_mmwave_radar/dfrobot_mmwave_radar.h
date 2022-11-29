@@ -49,12 +49,7 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
     void loop() override;
 
     int8_t enqueue(Command * cmd);
-    void set_delay_after_detect(float delay_after_detect) { delay_after_detect_ = delay_after_detect; }
-    void set_delay_after_disappear(float delay_after_disappear) { delay_after_disappear_ = delay_after_disappear; }
  protected:
-    float delay_after_detect_;
-    float delay_after_disappear_;
-
     int8_t sensor_state{-1};
     char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
     size_t read_pos_{0};
