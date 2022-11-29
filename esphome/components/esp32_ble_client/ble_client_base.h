@@ -68,6 +68,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   int get_gattc_if() const { return this->gattc_if_; }
   uint8_t *get_remote_bda() { return this->remote_bda_; }
   esp_ble_addr_type_t get_remote_addr_type() const { return this->remote_addr_type_; }
+  void set_remote_addr_type(esp_ble_addr_type_t address_type) { this->remote_addr_type_ = address_type; }
   uint16_t get_conn_id() const { return this->conn_id_; }
   uint64_t get_address() const { return this->address_; }
 

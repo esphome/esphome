@@ -26,6 +26,7 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
   api::BluetoothLEAdvertisementResponse resp;
   resp.address = device.address_uint64();
+  resp.address_type = device.get_address_type();
   if (!device.get_name().empty())
     resp.name = device.get_name();
   resp.rssi = device.get_rssi();
@@ -190,7 +191,18 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
                  connection->address_str().c_str());
         return;
       }
-      connection->set_state(espbt::ClientState::SEARCHING);
+      if (msg.has_address_type) {
+        connection->remote_bda_[0] = (msg.address >> 40) & 0xFF;
+        connection->remote_bda_[1] = (msg.address >> 32) & 0xFF;
+        connection->remote_bda_[2] = (msg.address >> 24) & 0xFF;
+        connection->remote_bda_[3] = (msg.address >> 16) & 0xFF;
+        connection->remote_bda_[4] = (msg.address >> 8) & 0xFF;
+        connection->remote_bda_[5] = (msg.address >> 0) & 0xFF;
+        connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
+        connection->set_state(espbt::ClientState::DISCOVERED);
+      } else {
+        connection->set_state(espbt::ClientState::SEARCHING);
+      }
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
       break;
