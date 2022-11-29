@@ -12,6 +12,18 @@ namespace bluetooth_proxy {
 static const char *const TAG = "bluetooth_proxy";
 static const int DONE_SENDING_SERVICES = -2;
 
+std::vector<uint64_t> get_128bit_uuid_vec(esp_bt_uuid_t uuid_source) {
+  esp_bt_uuid_t uuid = espbt::ESPBTUUID::from_uuid(uuid_source).as_128bit().get_uuid();
+  return std::vector<uint64_t>{((uint64_t) uuid.uuid.uuid128[15] << 56) | ((uint64_t) uuid.uuid.uuid128[14] << 48) |
+                                   ((uint64_t) uuid.uuid.uuid128[13] << 40) | ((uint64_t) uuid.uuid.uuid128[12] << 32) |
+                                   ((uint64_t) uuid.uuid.uuid128[11] << 24) | ((uint64_t) uuid.uuid.uuid128[10] << 16) |
+                                   ((uint64_t) uuid.uuid.uuid128[9] << 8) | ((uint64_t) uuid.uuid.uuid128[8]),
+                               ((uint64_t) uuid.uuid.uuid128[7] << 56) | ((uint64_t) uuid.uuid.uuid128[6] << 48) |
+                                   ((uint64_t) uuid.uuid.uuid128[5] << 40) | ((uint64_t) uuid.uuid.uuid128[4] << 32) |
+                                   ((uint64_t) uuid.uuid.uuid128[3] << 24) | ((uint64_t) uuid.uuid.uuid128[2] << 16) |
+                                   ((uint64_t) uuid.uuid.uuid128[1] << 8) | ((uint64_t) uuid.uuid.uuid128[0])};
+}
+
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -106,8 +118,7 @@ void BluetoothProxy::loop() {
       api::BluetoothGATTGetServicesResponse resp;
       resp.address = connection->get_address();
       api::BluetoothGATTService service_resp;
-      auto service_uuid = espbt::ESPBTUUID::from_uuid(service_result.uuid);
-      service_resp.uuid = {service_uuid.get_128bit_high(), service_uuid.get_128bit_low()};
+      service_resp.uuid = std::move(get_128bit_uuid_vec(service_result.uuid));
       service_resp.handle = service_result.start_handle;
       uint16_t char_offset = 0;
       esp_gattc_char_elem_t char_result;
@@ -128,8 +139,7 @@ void BluetoothProxy::loop() {
           break;
         }
         api::BluetoothGATTCharacteristic characteristic_resp;
-        auto char_uuid = espbt::ESPBTUUID::from_uuid(char_result.uuid);
-        characteristic_resp.uuid = {char_uuid.get_128bit_high(), char_uuid.get_128bit_low()};
+        characteristic_resp.uuid = std::move(get_128bit_uuid_vec(char_result.uuid));
         characteristic_resp.handle = char_result.char_handle;
         characteristic_resp.properties = char_result.properties;
         char_offset++;
@@ -152,8 +162,7 @@ void BluetoothProxy::loop() {
             break;
           }
           api::BluetoothGATTDescriptor descriptor_resp;
-          auto desc_uuid = espbt::ESPBTUUID::from_uuid(desc_result.uuid);
-          descriptor_resp.uuid = {desc_uuid.get_128bit_high(), desc_uuid.get_128bit_low()};
+          descriptor_resp.uuid = std::move(get_128bit_uuid_vec(desc_result.uuid));
           descriptor_resp.handle = desc_result.handle;
           characteristic_resp.descriptors.push_back(std::move(descriptor_resp));
           desc_offset++;
