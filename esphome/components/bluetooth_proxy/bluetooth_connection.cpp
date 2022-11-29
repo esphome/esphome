@@ -34,7 +34,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         this->set_address(0);
         api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
                                                                 this->proxy_->get_bluetooth_connections_limit());
-      } else if (this->connection_type_ == espbt::ConnectionType::V2_WITH_CACHE) {
+      } else if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
         api::global_api_server->send_bluetooth_device_connection(this->address_, true, this->mtu_);
         api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
                                                                 this->proxy_->get_bluetooth_connections_limit());
