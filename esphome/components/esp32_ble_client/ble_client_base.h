@@ -84,6 +84,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint64_t address_{0};
   std::string address_str_{};
   uint8_t connection_index_;
+  int16_t service_count_{0};
   uint16_t mtu_{23};
   espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
 

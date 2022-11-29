@@ -10,6 +10,7 @@ namespace esphome {
 namespace bluetooth_proxy {
 
 static const char *const TAG = "bluetooth_proxy";
+static const int DONE_SENDING_SERVICES = -2;
 
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
@@ -77,32 +78,49 @@ void BluetoothProxy::loop() {
     return;
   }
   for (auto *connection : this->connections_) {
-    if (connection->send_service_ == connection->services_.size()) {
-      connection->send_service_ = -1;
+    if (connection->send_service_ == connection->service_count_) {
+      connection->send_service_ = DONE_SENDING_SERVICES;
       api::global_api_server->send_bluetooth_gatt_services_done(connection->get_address());
       if (connection->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
           connection->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
         connection->release_services();
       }
     } else if (connection->send_service_ >= 0) {
-      auto &service = connection->services_[connection->send_service_];
+      esp_gattc_service_elem_t service_result;
+      uint16_t service_count = 1;
+      esp_gatt_status_t service_status =
+          esp_ble_gattc_get_service(connection->get_gattc_if(), connection->get_conn_id(), nullptr, &service_result,
+                                    &service_count, connection->send_service_);
+      connection->send_service_++;
+      if (service_status != ESP_GATT_OK) {
+        ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_service error at offset=%d, status=%d",
+                 connection->get_connection_index(), connection->address_str().c_str(), connection->send_service_ - 1,
+                 service_status);
+        continue;
+      }
+      if (service_count == 0) {
+        ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_service missing, service_count=%d",
+                 connection->get_connection_index(), connection->address_str().c_str(), service_count);
+        continue;
+      }
       api::BluetoothGATTGetServicesResponse resp;
       resp.address = connection->get_address();
       api::BluetoothGATTService service_resp;
-      service_resp.uuid = {service->uuid.get_128bit_high(), service->uuid.get_128bit_low()};
-      service_resp.handle = service->start_handle;
+      auto service_uuid = espbt::ESPBTUUID::from_uuid(service_result.uuid);
+      service_resp.uuid = {service_uuid.get_128bit_high(), service_uuid.get_128bit_low()};
+      service_resp.handle = service_result.start_handle;
       uint16_t char_offset = 0;
       esp_gattc_char_elem_t char_result;
       while (true) {  // characteristics
         uint16_t char_count = 1;
-        esp_gatt_status_t char_status =
-            esp_ble_gattc_get_all_char(connection->get_gattc_if(), connection->get_conn_id(), service->start_handle,
-                                       service->end_handle, &char_result, &char_count, char_offset);
+        esp_gatt_status_t char_status = esp_ble_gattc_get_all_char(
+            connection->get_gattc_if(), connection->get_conn_id(), service_result.start_handle,
+            service_result.end_handle, &char_result, &char_count, char_offset);
         if (char_status == ESP_GATT_INVALID_OFFSET || char_status == ESP_GATT_NOT_FOUND) {
           break;
         }
         if (char_status != ESP_GATT_OK) {
-          ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", connection->get_connection_index(),
+          ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", connection->get_connection_index(),
                    connection->address_str().c_str(), char_status);
           break;
         }
@@ -126,7 +144,7 @@ void BluetoothProxy::loop() {
             break;
           }
           if (desc_status != ESP_GATT_OK) {
-            ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_descr error, status=%d", connection->get_connection_index(),
+            ESP_LOGE(TAG, "[%d] [%s] esp_ble_gattc_get_all_descr error, status=%d", connection->get_connection_index(),
                      connection->address_str().c_str(), desc_status);
             break;
           }
@@ -144,7 +162,6 @@ void BluetoothProxy::loop() {
       }
       resp.services.push_back(std::move(service_resp));
       api::global_api_server->send_bluetooth_gatt_services(resp);
-      connection->send_service_++;
     }
   }
 }
@@ -160,6 +177,7 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
 
   for (auto *connection : this->connections_) {
     if (connection->get_address() == 0) {
+      connection->send_service_ = DONE_SENDING_SERVICES;
       connection->set_address(address);
       // All connections must start at INIT
       // We only set the state if we allocate the connection
@@ -332,12 +350,13 @@ void BluetoothProxy::bluetooth_gatt_send_services(const api::BluetoothGATTGetSer
     api::global_api_server->send_bluetooth_gatt_error(msg.address, 0, ESP_GATT_NOT_CONNECTED);
     return;
   }
-  if (connection->services_.empty()) {
+  if (!connection->service_count_) {
     ESP_LOGW(TAG, "[%d] [%s] No GATT services found", connection->connection_index_, connection->address_str().c_str());
     api::global_api_server->send_bluetooth_gatt_services_done(msg.address);
     return;
   }
-  if (connection->send_service_ == -1)  // Don't start sending services again if we're already sending them
+  if (connection->send_service_ ==
+      DONE_SENDING_SERVICES)  // Only start sending services if we're not already sending them
     connection->send_service_ = 0;
 }
 
