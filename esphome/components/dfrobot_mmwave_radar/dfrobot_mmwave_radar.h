@@ -218,5 +218,16 @@ template<typename... Ts> class DfrobotMmwaveRadarResetAction : public Action<Ts.
   DfrobotMmwaveRadarComponent *parent_;
 };
 
+template<typename... Ts> class DfrobotMmwaveRadarFactoryResetAction : public Action<Ts...> {
+ public:
+  DfrobotMmwaveRadarFactoryResetAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
+  void play(Ts... x) {
+    parent_->enqueue(new PowerCommand(0));
+    parent_->enqueue(new FactoryResetCommand());
+  }
+ protected:
+  DfrobotMmwaveRadarComponent *parent_;
+};
+
 }  // namespace dfrobot_mmwave_radar
 }  // namespace esphome
