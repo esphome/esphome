@@ -133,8 +133,22 @@ async def dfrobot_mmwave_radar_det_range_cfg_to_code(
 ):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    # template_ = await cg.templatable(config[CONF_RECIPIENT], args, cg.std_string)
-    # cg.add(var.set_recipient(template_))
-    # template_ = await cg.templatable(config[CONF_MESSAGE], args, cg.std_string)
-    # cg.add(var.set_message(template_))
+
+    segments = [[-1, -1], [-1, -1], [-1, -1], [-1, -1]]
+    for i, segment in enumerate(config[SEGMENTS]):
+        segments[i] = segment
+
+    cg.add(
+        var.set_segments(
+            segments[0][0],
+            segments[0][1],
+            segments[1][0],
+            segments[1][1],
+            segments[2][0],
+            segments[2][1],
+            segments[3][0],
+            segments[3][1],
+        )
+    )
+
     return var

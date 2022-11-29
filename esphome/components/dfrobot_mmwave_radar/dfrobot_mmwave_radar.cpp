@@ -14,11 +14,6 @@ void DfrobotMmwaveRadarComponent::dump_config() {
 }
 
 void DfrobotMmwaveRadarComponent::setup() {
-    cmdQueue_.enqueue(new PowerCommand(0));
-    cmdQueue_.enqueue(new SensorCfgStartCommand(0));
-    cmdQueue_.enqueue(new SaveCfgCommand());
-    cmdQueue_.enqueue(new PowerCommand(1));
-
     // Put command in queue which reads sensor state.
     // Command automatically puts itself in queue again after executed.
     cmdQueue_.enqueue(new ReadStateCommand());
@@ -36,6 +31,10 @@ void DfrobotMmwaveRadarComponent::loop() {
         cmdQueue_.dequeue();
         delete cmd;
     }
+}
+
+int8_t DfrobotMmwaveRadarComponent::enqueue(Command * cmd) {
+    return cmdQueue_.enqueue(cmd);
 }
 
 uint8_t DfrobotMmwaveRadarComponent::read_message() {

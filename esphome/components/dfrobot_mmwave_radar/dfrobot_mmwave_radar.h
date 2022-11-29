@@ -48,6 +48,7 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
     void setup() override;
     void loop() override;
 
+    int8_t enqueue(Command * cmd);
     void set_delay_after_detect(float delay_after_detect) { delay_after_detect_ = delay_after_detect; }
     void set_delay_after_disappear(float delay_after_disappear) { delay_after_disappear_ = delay_after_disappear; }
  protected:
@@ -66,16 +67,6 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
 
     friend class Command;
     friend class ReadStateCommand;
-};
-
-template<typename... Ts> class DfrobotMmwaveRadarDetRangeCfgAction : public Action<Ts...> {
- public:
-  DfrobotMmwaveRadarDetRangeCfgAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
-  void play(Ts... x) {
-    // ...
-  }
- protected:
-  DfrobotMmwaveRadarComponent *parent_;
 };
 
 class ReadStateCommand : public Command {
@@ -159,7 +150,46 @@ class SaveCfgCommand : public Command {
       }
    uint8_t onMessage(std::string & message) override;
  protected:
-   uint16_t timeout_ms_{900};
+   uint16_t timeout_ms_{5000};
+};
+
+template<typename... Ts> class DfrobotMmwaveRadarDetRangeCfgAction : public Action<Ts...> {
+ public:
+  DfrobotMmwaveRadarDetRangeCfgAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
+
+  void set_segments(
+    float min1, float max1,
+    float min2, float max2,
+    float min3, float max3,
+    float min4, float max4
+  ) {
+     this->min1_ = min1;
+     this->max1_ = max1;
+     this->min2_ = min2;
+     this->max2_ = max2;
+     this->min3_ = min3;
+     this->max3_ = max3;
+     this->min4_ = min4;
+     this->max4_ = max4;
+  }
+
+  void play(Ts... x) {
+    parent_->enqueue(new PowerCommand(0));
+    parent_->enqueue(new DetRangeCfgCommand(
+       min1_, max1_,
+       min2_, max2_,
+       min3_, max3_,
+       min4_, max4_
+    ));
+    parent_->enqueue(new SaveCfgCommand());
+    parent_->enqueue(new PowerCommand(1));
+  }
+ protected:
+  DfrobotMmwaveRadarComponent *parent_;
+  float min1_, max1_;
+  float min2_, max2_;
+  float min3_, max3_;
+  float min4_, max4_;
 };
 
 }  // namespace dfrobot_mmwave_radar
