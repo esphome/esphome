@@ -6,6 +6,7 @@
 namespace esphome {
 namespace api {
 
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::EntityCategory value) {
   switch (value) {
     case enums::ENTITY_CATEGORY_NONE:
@@ -351,10 +352,15 @@ const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::Bluet
       return "BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR";
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
       return "BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR";
+    case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE:
+      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE";
+    case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE:
+      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE";
     default:
       return "UNKNOWN";
   }
 }
+#endif
 bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
