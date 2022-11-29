@@ -1161,6 +1161,8 @@ message BluetoothDeviceRequest {
 
   uint64 address = 1;
   BluetoothDeviceRequestType request_type = 2;
+  bool has_address_type = 3;
+  uint32 address_type = 4;
 }
 
 message BluetoothDeviceConnectionResponse {

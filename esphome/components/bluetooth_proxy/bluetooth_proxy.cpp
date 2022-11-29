@@ -224,7 +224,12 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       } else {
         connection->set_connection_type(espbt::ConnectionType::V1);
       }
-      connection->set_state(espbt::ClientState::SEARCHING);
+      if (msg.has_address_type) {
+        connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
+        connection->set_state(espbt::ClientState::DISCOVERED);
+      } else {
+        connection->set_state(espbt::ClientState::SEARCHING);
+      }
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
       break;
