@@ -1141,6 +1141,8 @@ message BluetoothLEAdvertisementResponse {
   repeated string service_uuids = 4;
   repeated BluetoothServiceData service_data = 5;
   repeated BluetoothServiceData manufacturer_data = 6;
+
+  uint32 address_type = 7;
 }
 
 enum BluetoothDeviceRequestType {
