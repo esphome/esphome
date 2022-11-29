@@ -26,11 +26,9 @@ CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(GraphicalDisplayMenu),
-            cv.GenerateID(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
-            cv.GenerateID(CONF_DISPLAY_UPDATER): cv.Optional(
-                cv.use_id(cg.PollingComponent)
-            ),
-            cv.GenerateID(CONF_FONT): cv.use_id(font.Font),
+            cv.Required(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
+            cv.Optional(CONF_DISPLAY_UPDATER): cv.use_id(cg.PollingComponent),
+            cv.Required(CONF_FONT): cv.use_id(font.Font),
         }
     )
 )
