@@ -35,7 +35,7 @@ const uint8_t EMMETI_BLADES_MID   = 0x09;
 const uint8_t EMMETI_BLADES_HIGH  = 0x11;
 
 // IR Transmission
-const uint32_t EMMETI_IR_FREQUENCY = 00000; /** @todo measure frequency*/
+const uint32_t EMMETI_IR_FREQUENCY = 38000;
 const uint32_t EMMETI_HEADER_MARK = 9076;
 const uint32_t EMMETI_HEADER_SPACE = 4408;
 const uint32_t EMMETI_BIT_MARK = 660;
