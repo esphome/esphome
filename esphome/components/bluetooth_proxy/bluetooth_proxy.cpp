@@ -26,6 +26,7 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
   api::BluetoothLEAdvertisementResponse resp;
   resp.address = device.address_uint64();
+  resp.address_type = device.get_address_type();
   if (!device.get_name().empty())
     resp.name = device.get_name();
   resp.rssi = device.get_rssi();

@@ -4999,6 +4999,10 @@ bool BluetoothLEAdvertisementResponse::decode_varint(uint32_t field_id, ProtoVar
       this->rssi = value.as_sint32();
       return true;
     }
+    case 7: {
+      this->address_type = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5038,6 +5042,7 @@ void BluetoothLEAdvertisementResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->manufacturer_data) {
     buffer.encode_message<BluetoothServiceData>(6, it, true);
   }
+  buffer.encode_uint32(7, this->address_type);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
@@ -5074,6 +5079,11 @@ void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+
+  out.append("  address_type: ");
+  sprintf(buffer, "%u", this->address_type);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 #endif
