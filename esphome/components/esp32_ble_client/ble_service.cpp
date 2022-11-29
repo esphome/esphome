@@ -11,6 +11,8 @@ namespace esp32_ble_client {
 static const char *const TAG = "esp32_ble_client";
 
 BLECharacteristic *BLEService::get_characteristic(espbt::ESPBTUUID uuid) {
+  if (!this->parsed)
+    this->parse_characteristics();
   for (auto &chr : this->characteristics) {
     if (chr->uuid == uuid)
       return chr;
@@ -27,7 +29,15 @@ BLEService::~BLEService() {
     delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
+void BLEService::release_characteristics() {
+  this->parsed = false;
+  for (auto &chr : this->characteristics)
+    delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
+  this->characteristics.clear();
+}
+
 void BLEService::parse_characteristics() {
+  this->parsed = true;
   uint16_t offset = 0;
   esp_gattc_char_elem_t result;
 
@@ -54,10 +64,9 @@ void BLEService::parse_characteristics() {
     characteristic->handle = result.char_handle;
     characteristic->service = this;
     this->characteristics.push_back(characteristic);
-    ESP_LOGI(TAG, "[%d] [%s]  characteristic %s, handle 0x%x, properties 0x%x", this->client->get_connection_index(),
+    ESP_LOGV(TAG, "[%d] [%s]  characteristic %s, handle 0x%x, properties 0x%x", this->client->get_connection_index(),
              this->client->address_str().c_str(), characteristic->uuid.to_string().c_str(), characteristic->handle,
              characteristic->properties);
-    characteristic->parse_descriptors();
     offset++;
   }
 }

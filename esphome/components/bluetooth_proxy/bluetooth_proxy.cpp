@@ -26,6 +26,7 @@ bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
   api::BluetoothLEAdvertisementResponse resp;
   resp.address = device.address_uint64();
+  resp.address_type = device.get_address_type();
   if (!device.get_name().empty())
     resp.name = device.get_name();
   resp.rssi = device.get_rssi();
@@ -52,6 +53,20 @@ void BluetoothProxy::dump_config() {
   ESP_LOGCONFIG(TAG, "  Active: %s", YESNO(this->active_));
 }
 
+int BluetoothProxy::get_bluetooth_connections_free() {
+  int free = 0;
+  for (auto *connection : this->connections_) {
+    if (connection->address_ == 0) {
+      free++;
+      ESP_LOGV(TAG, "[%d] Free connection", connection->get_connection_index());
+    } else {
+      ESP_LOGV(TAG, "[%d] Used connection by [%s]", connection->get_connection_index(),
+               connection->address_str().c_str());
+    }
+  }
+  return free;
+}
+
 void BluetoothProxy::loop() {
   if (!api::global_api_server->is_connected()) {
     for (auto *connection : this->connections_) {
@@ -72,16 +87,54 @@ void BluetoothProxy::loop() {
       api::BluetoothGATTService service_resp;
       service_resp.uuid = {service->uuid.get_128bit_high(), service->uuid.get_128bit_low()};
       service_resp.handle = service->start_handle;
-      for (auto &characteristic : service->characteristics) {
+      uint16_t char_offset = 0;
+      esp_gattc_char_elem_t char_result;
+      while (true) {  // characteristics
+        uint16_t char_count = 1;
+        esp_gatt_status_t char_status =
+            esp_ble_gattc_get_all_char(connection->get_gattc_if(), connection->get_conn_id(), service->start_handle,
+                                       service->end_handle, &char_result, &char_count, char_offset);
+        if (char_status == ESP_GATT_INVALID_OFFSET || char_status == ESP_GATT_NOT_FOUND) {
+          break;
+        }
+        if (char_status != ESP_GATT_OK) {
+          ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", connection->get_connection_index(),
+                   connection->address_str().c_str(), char_status);
+          break;
+        }
+        if (char_count == 0) {
+          break;
+        }
         api::BluetoothGATTCharacteristic characteristic_resp;
-        characteristic_resp.uuid = {characteristic->uuid.get_128bit_high(), characteristic->uuid.get_128bit_low()};
-        characteristic_resp.handle = characteristic->handle;
-        characteristic_resp.properties = characteristic->properties;
-        for (auto &descriptor : characteristic->descriptors) {
+        auto char_uuid = espbt::ESPBTUUID::from_uuid(char_result.uuid);
+        characteristic_resp.uuid = {char_uuid.get_128bit_high(), char_uuid.get_128bit_low()};
+        characteristic_resp.handle = char_result.char_handle;
+        characteristic_resp.properties = char_result.properties;
+        char_offset++;
+        uint16_t desc_offset = 0;
+        esp_gattc_descr_elem_t desc_result;
+        while (true) {  // descriptors
+          uint16_t desc_count = 1;
+          esp_gatt_status_t desc_status =
+              esp_ble_gattc_get_all_descr(connection->get_gattc_if(), connection->get_conn_id(),
+                                          char_result.char_handle, &desc_result, &desc_count, desc_offset);
+          if (desc_status == ESP_GATT_INVALID_OFFSET || desc_status == ESP_GATT_NOT_FOUND) {
+            break;
+          }
+          if (desc_status != ESP_GATT_OK) {
+            ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_descr error, status=%d", connection->get_connection_index(),
+                     connection->address_str().c_str(), desc_status);
+            break;
+          }
+          if (desc_count == 0) {
+            break;
+          }
           api::BluetoothGATTDescriptor descriptor_resp;
-          descriptor_resp.uuid = {descriptor->uuid.get_128bit_high(), descriptor->uuid.get_128bit_low()};
-          descriptor_resp.handle = descriptor->handle;
+          auto desc_uuid = espbt::ESPBTUUID::from_uuid(desc_result.uuid);
+          descriptor_resp.uuid = {desc_uuid.get_128bit_high(), desc_uuid.get_128bit_low()};
+          descriptor_resp.handle = desc_result.handle;
           characteristic_resp.descriptors.push_back(std::move(descriptor_resp));
+          desc_offset++;
         }
         service_resp.characteristics.push_back(std::move(characteristic_resp));
       }
@@ -104,6 +157,11 @@ BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool rese
   for (auto *connection : this->connections_) {
     if (connection->get_address() == 0) {
       connection->set_address(address);
+      // All connections must start at INIT
+      // We only set the state if we allocate the connection
+      // to avoid a race where multiple connection attempts
+      // are made.
+      connection->set_state(espbt::ClientState::INIT);
       return connection;
     }
   }
@@ -120,9 +178,31 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         api::global_api_server->send_bluetooth_device_connection(msg.address, false);
         return;
       }
-      ESP_LOGV(TAG, "[%d] [%s] Searching to connect", connection->get_connection_index(),
-               connection->address_str().c_str());
-      connection->set_state(espbt::ClientState::SEARCHING);
+      if (connection->state() == espbt::ClientState::CONNECTED ||
+          connection->state() == espbt::ClientState::ESTABLISHED) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection already established", connection->get_connection_index(),
+                 connection->address_str().c_str());
+        api::global_api_server->send_bluetooth_device_connection(msg.address, true);
+        api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
+                                                                this->get_bluetooth_connections_limit());
+        return;
+      } else if (connection->state() != espbt::ClientState::INIT) {
+        ESP_LOGW(TAG, "[%d] [%s] Connection already in progress", connection->get_connection_index(),
+                 connection->address_str().c_str());
+        return;
+      }
+      if (msg.has_address_type) {
+        connection->remote_bda_[0] = (msg.address >> 40) & 0xFF;
+        connection->remote_bda_[1] = (msg.address >> 32) & 0xFF;
+        connection->remote_bda_[2] = (msg.address >> 24) & 0xFF;
+        connection->remote_bda_[3] = (msg.address >> 16) & 0xFF;
+        connection->remote_bda_[4] = (msg.address >> 8) & 0xFF;
+        connection->remote_bda_[5] = (msg.address >> 0) & 0xFF;
+        connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
+        connection->set_state(espbt::ClientState::DISCOVERED);
+      } else {
+        connection->set_state(espbt::ClientState::SEARCHING);
+      }
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
       break;
@@ -201,7 +281,7 @@ void BluetoothProxy::bluetooth_gatt_write_descriptor(const api::BluetoothGATTWri
     return;
   }
 
-  auto err = connection->write_descriptor(msg.handle, msg.data);
+  auto err = connection->write_descriptor(msg.handle, msg.data, true);
   if (err != ESP_OK) {
     api::global_api_server->send_bluetooth_gatt_error(msg.address, msg.handle, err);
   }

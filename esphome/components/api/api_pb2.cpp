@@ -4993,6 +4993,10 @@ bool BluetoothLEAdvertisementResponse::decode_varint(uint32_t field_id, ProtoVar
       this->rssi = value.as_sint32();
       return true;
     }
+    case 7: {
+      this->address_type = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5032,6 +5036,7 @@ void BluetoothLEAdvertisementResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->manufacturer_data) {
     buffer.encode_message<BluetoothServiceData>(6, it, true);
   }
+  buffer.encode_uint32(7, this->address_type);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
@@ -5068,6 +5073,11 @@ void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+
+  out.append("  address_type: ");
+  sprintf(buffer, "%u", this->address_type);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -5081,6 +5091,14 @@ bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value)
       this->request_type = value.as_enum<enums::BluetoothDeviceRequestType>();
       return true;
     }
+    case 3: {
+      this->has_address_type = value.as_bool();
+      return true;
+    }
+    case 4: {
+      this->address_type = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5088,6 +5106,8 @@ bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value)
 void BluetoothDeviceRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_enum<enums::BluetoothDeviceRequestType>(2, this->request_type);
+  buffer.encode_bool(3, this->has_address_type);
+  buffer.encode_uint32(4, this->address_type);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothDeviceRequest::dump_to(std::string &out) const {
@@ -5100,6 +5120,15 @@ void BluetoothDeviceRequest::dump_to(std::string &out) const {
 
   out.append("  request_type: ");
   out.append(proto_enum_to_string<enums::BluetoothDeviceRequestType>(this->request_type));
+  out.append("\n");
+
+  out.append("  has_address_type: ");
+  out.append(YESNO(this->has_address_type));
+  out.append("\n");
+
+  out.append("  address_type: ");
+  sprintf(buffer, "%u", this->address_type);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
