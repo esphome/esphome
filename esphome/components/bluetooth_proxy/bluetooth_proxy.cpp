@@ -230,8 +230,8 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
                  connection->get_connection_index(), connection->address_str().c_str());
         return;
       } else if (connection->state() == espbt::ClientState::CONNECTING) {
-        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, already connecting",
-                 connection->get_connection_index(), connection->address_str().c_str());
+        ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, already connecting", connection->get_connection_index(),
+                 connection->address_str().c_str());
         return;
       } else if (connection->state() == espbt::ClientState::DISCONNECTING) {
         ESP_LOGW(TAG, "[%d] [%s] Connection request ignored, device is disconnecting",
