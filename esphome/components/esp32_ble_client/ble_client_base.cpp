@@ -9,6 +9,13 @@ namespace esphome {
 namespace esp32_ble_client {
 
 static const char *const TAG = "esp32_ble_client";
+static const esp_bt_uuid_t NOTIFY_DESC_UUID = {
+    .len = ESP_UUID_LEN_16,
+    .uuid =
+        {
+            .uuid16 = ESP_GATT_UUID_CHAR_CLIENT_CONFIG,
+        },
+};
 
 void BLEClientBase::setup() {
   static uint8_t connection_index = 0;
@@ -116,10 +123,16 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     case ESP_GATTC_OPEN_EVT: {
       ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT", this->connection_index_, this->address_str_.c_str());
       this->conn_id_ = param->open.conn_id;
+      this->service_count_ = 0;
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
         ESP_LOGW(TAG, "[%d] [%s] Connection failed, status=%d", this->connection_index_, this->address_str_.c_str(),
                  param->open.status);
         this->set_state(espbt::ClientState::IDLE);
+        break;
+      }
+      if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
+        this->set_state(espbt::ClientState::CONNECTED);
+        this->state_ = espbt::ClientState::ESTABLISHED;
         break;
       }
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->open.conn_id);
@@ -152,6 +165,12 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_SEARCH_RES_EVT: {
+      this->service_count_++;
+      if (this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
+        // V3 clients don't need services initialized since
+        // they only request by handle after receiving the services.
+        break;
+      }
       BLEService *ble_service = new BLEService();  // NOLINT(cppcoreguidelines-owning-memory)
       ble_service->uuid = espbt::ESPBTUUID::from_uuid(param->search_res.srvc_id.uuid);
       ble_service->start_handle = param->search_res.start_handle;
@@ -173,21 +192,39 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      auto *descr = this->get_config_descriptor(param->reg_for_notify.handle);
-      if (descr->uuid.get_uuid().len != ESP_UUID_LEN_16 ||
-          descr->uuid.get_uuid().uuid.uuid16 != ESP_GATT_UUID_CHAR_CLIENT_CONFIG) {
-        ESP_LOGW(TAG, "[%d] [%s] Handle 0x%x (uuid %s) is not a client config char uuid", this->connection_index_,
-                 this->address_str_.c_str(), param->reg_for_notify.handle, descr->uuid.to_string().c_str());
+      if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
+          this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
+        // Client is responsible for flipping the descriptor value
+        // when using the cache
         break;
       }
+      esp_gattc_descr_elem_t desc_result;
+      uint16_t count = 1;
+      esp_gatt_status_t descr_status =
+          esp_ble_gattc_get_descr_by_char_handle(this->gattc_if_, this->connection_index_, param->reg_for_notify.handle,
+                                                 NOTIFY_DESC_UUID, &desc_result, &count);
+      if (descr_status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_descr_by_char_handle error, status=%d", this->connection_index_,
+                 this->address_str_.c_str(), descr_status);
+        break;
+      }
+      esp_gattc_char_elem_t char_result;
+      esp_gatt_status_t char_status =
+          esp_ble_gattc_get_all_char(this->gattc_if_, this->connection_index_, param->reg_for_notify.handle,
+                                     param->reg_for_notify.handle, &char_result, &count, 0);
+      if (char_status != ESP_GATT_OK) {
+        ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_all_char error, status=%d", this->connection_index_,
+                 this->address_str_.c_str(), char_status);
+        break;
+      }
+
       /*
         1 = notify
         2 = indicate
       */
-      uint16_t notify_en = descr->characteristic->properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY ? 1 : 2;
-
-      auto status =
-          esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, descr->handle, sizeof(notify_en),
+      uint16_t notify_en = char_result.properties & ESP_GATT_CHAR_PROP_BIT_NOTIFY ? 1 : 2;
+      esp_err_t status =
+          esp_ble_gattc_write_char_descr(this->gattc_if_, this->conn_id_, desc_result.handle, sizeof(notify_en),
                                          (uint8_t *) &notify_en, ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
       if (status) {
         ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_write_char_descr error, status=%d", this->connection_index_,
@@ -320,7 +357,7 @@ BLEDescriptor *BLEClientBase::get_config_descriptor(uint16_t handle) {
     if (!chr->parsed)
       chr->parse_descriptors();
     for (auto &desc : chr->descriptors) {
-      if (desc->uuid.get_uuid().uuid.uuid16 == 0x2902)
+      if (desc->uuid.get_uuid().uuid.uuid16 == ESP_GATT_UUID_CHAR_CLIENT_CONFIG)
         return desc;
     }
   }
