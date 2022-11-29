@@ -219,10 +219,16 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       }
       if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE) {
         connection->set_connection_type(espbt::ConnectionType::V3_WITH_CACHE);
+        ESP_LOGI(TAG, "[%d] [%s] Connecting v3 with cache", connection->get_connection_index(),
+                 connection->address_str().c_str());
       } else if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE) {
         connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
+        ESP_LOGI(TAG, "[%d] [%s] Connecting v3 without cache", connection->get_connection_index(),
+                 connection->address_str().c_str());
       } else {
         connection->set_connection_type(espbt::ConnectionType::V1);
+        ESP_LOGI(TAG, "[%d] [%s] Connecting v1", connection->get_connection_index(),
+                 connection->address_str().c_str());
       }
       if (msg.has_address_type) {
         connection->remote_bda_[0] = (msg.address >> 40) & 0xFF;
