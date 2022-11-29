@@ -6,17 +6,11 @@
 ARG BASEIMGTYPE=docker
 
 # https://github.com/hassio-addons/addon-debian-base/releases
-FROM ghcr.io/hassio-addons/debian-base/amd64:5.3.0 AS base-hassio-amd64
-FROM ghcr.io/hassio-addons/debian-base/aarch64:5.3.0 AS base-hassio-arm64
-FROM ghcr.io/hassio-addons/debian-base/armv7:5.3.0 AS base-hassio-armv7
+FROM ghcr.io/hassio-addons/debian-base:6.1.3 AS base-hassio
 # https://hub.docker.com/_/debian?tab=tags&page=1&name=bullseye
-FROM debian:bullseye-20220328-slim AS base-docker-amd64
-FROM debian:bullseye-20220328-slim AS base-docker-arm64
-FROM debian:bullseye-20220328-slim AS base-docker-armv7
+FROM debian:bullseye-20221024-slim AS base-docker
 
-# Use TARGETARCH/TARGETVARIANT defined by docker
-# https://docs.docker.com/engine/reference/builder/#automatic-platform-args-in-the-global-scope
-FROM base-${BASEIMGTYPE}-${TARGETARCH}${TARGETVARIANT} AS base
+FROM base-${BASEIMGTYPE} AS base
 
 RUN \
     apt-get update \
@@ -29,8 +23,8 @@ RUN \
         python3-cryptography=3.3.2-1 \
         iputils-ping=3:20210202-1 \
         git=1:2.30.2-1 \
-        curl=7.74.0-1.3+deb11u1 \
-        openssh-client=1:8.4p1-5 \
+        curl=7.74.0-1.3+deb11u3 \
+        openssh-client=1:8.4p1-5+deb11u1 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
@@ -46,7 +40,7 @@ RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install --no-cache-dir \
         wheel==0.37.1 \
-        platformio==6.1.4 \
+        platformio==6.1.5 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
@@ -94,7 +88,7 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        nginx-light=1.18.0-6.1+deb11u2 \
+        nginx-light=1.18.0-6.1+deb11u3 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \

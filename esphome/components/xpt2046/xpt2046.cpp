@@ -20,8 +20,6 @@ void XPT2046Component::setup() {
     this->irq_pin_->setup();  // INPUT
     this->irq_pin_->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
     this->irq_pin_->setup();
-
-    this->store_.pin = this->irq_pin_->to_isr();
     this->irq_pin_->attach_interrupt(XPT2046TouchscreenStore::gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
   }
   spi_setup();
@@ -29,10 +27,10 @@ void XPT2046Component::setup() {
 }
 
 void XPT2046Component::loop() {
-  if ((this->irq_pin_ == nullptr) || (!this->store_.touch))
-    return;
-  this->store_.touch = false;
-  check_touch_();
+  if ((this->irq_pin_ != nullptr) && (this->store_.touch || this->touched)) {
+    this->store_.touch = false;
+    check_touch_();
+  }
 }
 
 void XPT2046Component::update() {
@@ -45,94 +43,88 @@ void XPT2046Component::check_touch_() {
   bool touch = false;
   uint32_t now = millis();
 
-  this->z_raw = 0;
+  enable();
 
-  // In case the penirq pin is present only do the SPI transaction if it reports a touch (is low).
-  // The touch has to be also confirmed with checking the pressure over threshold
-  if ((this->irq_pin_ == nullptr) || !this->irq_pin_->digital_read()) {
-    enable();
+  int16_t touch_pressure_1 = read_adc_(0xB1 /* touch_pressure_1 */);
+  int16_t touch_pressure_2 = read_adc_(0xC1 /* touch_pressure_2 */);
 
-    int16_t touch_pressure_1 = read_adc_(0xB1 /* touch_pressure_1 */);
-    int16_t touch_pressure_2 = read_adc_(0xC1 /* touch_pressure_2 */);
+  this->z_raw = touch_pressure_1 + 0Xfff - touch_pressure_2;
 
-    this->z_raw = touch_pressure_1 + 4095 - touch_pressure_2;
+  touch = (this->z_raw >= this->threshold_);
+  if (touch) {
+    read_adc_(0xD1 /* X */);  // dummy Y measure, 1st is always noisy
+    data[0] = read_adc_(0x91 /* Y */);
+    data[1] = read_adc_(0xD1 /* X */);  // make 3 x-y measurements
+    data[2] = read_adc_(0x91 /* Y */);
+    data[3] = read_adc_(0xD1 /* X */);
+    data[4] = read_adc_(0x91 /* Y */);
+  }
 
-    touch = (this->z_raw >= this->threshold_);
-    if (touch) {
-      read_adc_(0x91 /* Y */);  // dummy Y measure, 1st is always noisy
-      data[0] = read_adc_(0xD1 /* X */);
-      data[1] = read_adc_(0x91 /* Y */);  // make 3 x-y measurements
-      data[2] = read_adc_(0xD1 /* X */);
-      data[3] = read_adc_(0x91 /* Y */);
-      data[4] = read_adc_(0xD1 /* X */);
+  data[5] = read_adc_(0xD0 /* X */);  // Last X touch power down
+
+  disable();
+
+  if (touch) {
+    this->x_raw = best_two_avg(data[1], data[3], data[5]);
+    this->y_raw = best_two_avg(data[0], data[2], data[4]);
+
+    ESP_LOGVV(TAG, "Update [x, y] = [%d, %d], z = %d", this->x_raw, this->y_raw, this->z_raw);
+
+    TouchPoint touchpoint;
+
+    touchpoint.x = normalize(this->x_raw, this->x_raw_min_, this->x_raw_max_);
+    touchpoint.y = normalize(this->y_raw, this->y_raw_min_, this->y_raw_max_);
+
+    if (this->swap_x_y_) {
+      std::swap(touchpoint.x, touchpoint.y);
     }
 
-    data[5] = read_adc_(0x90 /* Y */);  // Last Y touch power down
+    if (this->invert_x_) {
+      touchpoint.x = 0xfff - touchpoint.x;
+    }
 
-    disable();
+    if (this->invert_y_) {
+      touchpoint.y = 0xfff - touchpoint.y;
+    }
 
-    if (touch) {
-      this->x_raw = best_two_avg(data[0], data[2], data[4]);
-      this->y_raw = best_two_avg(data[1], data[3], data[5]);
-
-      ESP_LOGVV(TAG, "Update [x, y] = [%d, %d], z = %d", this->x_raw, this->y_raw, this->z_raw);
-
-      TouchPoint touchpoint;
-
-      touchpoint.x = normalize(this->x_raw, this->x_raw_min_, this->x_raw_max_);
-      touchpoint.y = normalize(this->y_raw, this->y_raw_min_, this->y_raw_max_);
-
-      if (this->swap_x_y_) {
+    switch (static_cast<TouchRotation>(this->display_->get_rotation())) {
+      case ROTATE_0_DEGREES:
+        break;
+      case ROTATE_90_DEGREES:
         std::swap(touchpoint.x, touchpoint.y);
-      }
-
-      if (this->invert_x_) {
-        touchpoint.x = 0xfff - touchpoint.x;
-      }
-
-      if (this->invert_y_) {
         touchpoint.y = 0xfff - touchpoint.y;
-      }
-
-      switch (static_cast<TouchRotation>(this->display_->get_rotation())) {
-        case ROTATE_0_DEGREES:
-          break;
-        case ROTATE_90_DEGREES:
-          std::swap(touchpoint.x, touchpoint.y);
-          touchpoint.y = 0xfff - touchpoint.y;
-          break;
-        case ROTATE_180_DEGREES:
-          touchpoint.x = 0xfff - touchpoint.x;
-          touchpoint.y = 0xfff - touchpoint.y;
-          break;
-        case ROTATE_270_DEGREES:
-          std::swap(touchpoint.x, touchpoint.y);
-          touchpoint.x = 0xfff - touchpoint.x;
-          break;
-      }
-
-      touchpoint.x = (int16_t)((int) touchpoint.x * this->display_->get_width() / 0xfff);
-      touchpoint.y = (int16_t)((int) touchpoint.y * this->display_->get_height() / 0xfff);
-
-      if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
-        ESP_LOGV(TAG, "Touching at [%03X, %03X] => [%3d, %3d]", this->x_raw, this->y_raw, touchpoint.x, touchpoint.y);
-
-        this->defer([this, touchpoint]() { this->send_touch_(touchpoint); });
-
-        this->x = touchpoint.x;
-        this->y = touchpoint.y;
-        this->touched = true;
-        this->last_pos_ms_ = now;
-      }
-    } else {
-      this->x_raw = this->y_raw = 0;
-      if (this->touched) {
-        ESP_LOGV(TAG, "Released [%d, %d]", this->x, this->y);
-        this->touched = false;
-        for (auto *listener : this->touch_listeners_)
-          listener->release();
-      }
+        break;
+      case ROTATE_180_DEGREES:
+        touchpoint.x = 0xfff - touchpoint.x;
+        touchpoint.y = 0xfff - touchpoint.y;
+        break;
+      case ROTATE_270_DEGREES:
+        std::swap(touchpoint.x, touchpoint.y);
+        touchpoint.x = 0xfff - touchpoint.x;
+        break;
     }
+
+    touchpoint.x = (int16_t)((int) touchpoint.x * this->display_->get_width() / 0xfff);
+    touchpoint.y = (int16_t)((int) touchpoint.y * this->display_->get_height() / 0xfff);
+
+    if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
+      ESP_LOGV(TAG, "Touching at [%03X, %03X] => [%3d, %3d]", this->x_raw, this->y_raw, touchpoint.x, touchpoint.y);
+
+      this->defer([this, touchpoint]() { this->send_touch_(touchpoint); });
+
+      this->x = touchpoint.x;
+      this->y = touchpoint.y;
+      this->touched = true;
+      this->last_pos_ms_ = now;
+    }
+  }
+
+  if (!touch && this->touched) {
+    this->x_raw = this->y_raw = this->z_raw = 0;
+    ESP_LOGV(TAG, "Released [%d, %d]", this->x, this->y);
+    this->touched = false;
+    for (auto *listener : this->touch_listeners_)
+      listener->release();
   }
 }
 
@@ -203,6 +195,7 @@ int16_t XPT2046Component::read_adc_(uint8_t ctrl) {  // NOLINT
   uint8_t data[2];
 
   write_byte(ctrl);
+  delay(1);
   data[0] = read_byte();
   data[1] = read_byte();
 

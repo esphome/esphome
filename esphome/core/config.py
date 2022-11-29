@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import os
 import re
 
@@ -11,6 +12,7 @@ from esphome.const import (
     CONF_BOARD_FLASH_MODE,
     CONF_BUILD_PATH,
     CONF_COMMENT,
+    CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
     CONF_INCLUDES,
@@ -150,6 +152,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
                 cv.version_number, validate_version
+            ),
+            cv.Optional(CONF_COMPILE_PROCESS_LIMIT): cv.int_range(
+                min=1, max=multiprocessing.cpu_count()
             ),
         }
     ),

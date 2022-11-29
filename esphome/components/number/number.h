@@ -18,6 +18,9 @@ namespace number {
     if (!(obj)->traits.get_unit_of_measurement().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Unit of Measurement: '%s'", prefix, (obj)->traits.get_unit_of_measurement().c_str()); \
     } \
+    if (!(obj)->traits.get_device_class().empty()) { \
+      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->traits.get_device_class().c_str()); \
+    } \
   }
 
 class Number;

@@ -5,10 +5,12 @@
 #include "esphome/core/helpers.h"
 #include "queue.h"
 
+#include <array>
+#include <string>
+#include <vector>
+
 #ifdef USE_ESP32
 
-#include <string>
-#include <array>
 #include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>
 #include <esp_bt_defs.h>
@@ -143,12 +145,18 @@ class ESPBTDeviceListener {
 };
 
 enum class ClientState {
+  // Connection is allocated
+  INIT,
+  // Client is disconnecting
+  DISCONNECTING,
   // Connection is idle, no device detected.
   IDLE,
   // Searching for device.
   SEARCHING,
   // Device advertisement found.
   DISCOVERED,
+  // Device is discovered and the scanner is stopped
+  READY_TO_CONNECT,
   // Connection in progress.
   CONNECTING,
   // Initial connection established.
@@ -159,7 +167,7 @@ enum class ClientState {
 
 class ESPBTClient : public ESPBTDeviceListener {
  public:
-  virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+  virtual bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) = 0;
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
   virtual void connect() = 0;
