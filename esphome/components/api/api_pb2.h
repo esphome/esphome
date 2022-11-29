@@ -1271,6 +1271,7 @@ class BluetoothDeviceRequest : public ProtoMessage {
  public:
   uint64_t address{0};
   enums::BluetoothDeviceRequestType request_type{};
+  uint32_t address_type{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

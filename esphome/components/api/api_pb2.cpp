@@ -5091,6 +5091,10 @@ bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value)
       this->request_type = value.as_enum<enums::BluetoothDeviceRequestType>();
       return true;
     }
+    case 3: {
+      this->address_type = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5098,6 +5102,7 @@ bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value)
 void BluetoothDeviceRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_enum<enums::BluetoothDeviceRequestType>(2, this->request_type);
+  buffer.encode_uint32(3, this->address_type);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothDeviceRequest::dump_to(std::string &out) const {
@@ -5110,6 +5115,11 @@ void BluetoothDeviceRequest::dump_to(std::string &out) const {
 
   out.append("  request_type: ");
   out.append(proto_enum_to_string<enums::BluetoothDeviceRequestType>(this->request_type));
+  out.append("\n");
+
+  out.append("  address_type: ");
+  sprintf(buffer, "%u", this->address_type);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
