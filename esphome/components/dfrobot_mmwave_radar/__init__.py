@@ -24,6 +24,9 @@ DfrobotMmwaveRadarDetRangeCfgAction = dfrobot_mmwave_radar_ns.class_(
 DfrobotMmwaveRadarOutLatencyAction = dfrobot_mmwave_radar_ns.class_(
     "DfrobotMmwaveRadarOutLatencyAction", automation.Action
 )
+DfrobotMmwaveRadarResetAction = dfrobot_mmwave_radar_ns.class_(
+    "DfrobotMmwaveRadarResetAction", automation.Action
+)
 
 SEGMENTS = "segments"
 DELAY_AFTER_DETECT = "delay_after_detect"
@@ -173,5 +176,17 @@ async def dfrobot_mmwave_radar_out_latency_to_code(
             config[DELAY_AFTER_DISAPPEAR].total_milliseconds / 1000
         )
     )
+
+    return var
+
+
+@automation.register_action(
+    "dfrobot_mmwave_radar.reset",
+    DfrobotMmwaveRadarResetAction,
+    cv.Schema({cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent)}),
+)
+async def dfrobot_mmwave_radar_reset_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
 
     return var

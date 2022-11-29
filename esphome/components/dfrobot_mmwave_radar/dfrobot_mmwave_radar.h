@@ -208,5 +208,15 @@ template<typename... Ts> class DfrobotMmwaveRadarOutLatencyAction : public Actio
   float delay_after_disappear_;
 };
 
+template<typename... Ts> class DfrobotMmwaveRadarResetAction : public Action<Ts...> {
+ public:
+  DfrobotMmwaveRadarResetAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
+  void play(Ts... x) {
+    parent_->enqueue(new ResetSystemCommand());
+  }
+ protected:
+  DfrobotMmwaveRadarComponent *parent_;
+};
+
 }  // namespace dfrobot_mmwave_radar
 }  // namespace esphome
