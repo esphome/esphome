@@ -81,7 +81,7 @@ void BluetoothProxy::loop() {
       connection->send_service_ = -1;
       api::global_api_server->send_bluetooth_gatt_services_done(connection->get_address());
       if (connection->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
-          connection->connection_type_ == espbt::ConnectionType::V2_WITHOUT_CACHE) {
+          connection->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
         connection->release_services();
       }
     } else if (connection->send_service_ >= 0) {
@@ -220,7 +220,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE) {
         connection->set_connection_type(espbt::ConnectionType::V3_WITH_CACHE);
       } else if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE) {
-        connection->set_connection_type(espbt::ConnectionType::V2_WITHOUT_CACHE);
+        connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
       } else {
         connection->set_connection_type(espbt::ConnectionType::V1);
       }

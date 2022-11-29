@@ -171,10 +171,10 @@ enum class ConnectionType {
   V1,
   // The client has a cache of the services and mtu so we should not
   // fetch them again
-  V2_WITH_CACHE,
+  V3_WITH_CACHE,
   // The client does not need the services and mtu once we send them
   // so we should wipe them from memory as soon as we send them
-  V2_WITHOUT_CACHE
+  V3_WITHOUT_CACHE
 };
 
 class ESPBTClient : public ESPBTDeviceListener {
