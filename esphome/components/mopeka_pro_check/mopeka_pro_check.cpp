@@ -52,12 +52,12 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   // Now parse the data - See Datasheet for definition
 
- if (static_cast<SensorType>(manu_data.data[0]) != STANDARD_BOTTOM_UP &&
+  if (static_cast<SensorType>(manu_data.data[0]) != STANDARD_BOTTOM_UP &&
       static_cast<SensorType>(manu_data.data[0]) != MOPEKA_BOTTOM_UP) &&
       static_cast<SensorType>(manu_data.data[0]) != PLUS_BOTTOM_UP) {
-    ESP_LOGE(TAG, "Unsupported Sensor Type (0x%X)", manu_data.data[0]);
-    return false;
-  }
+      ESP_LOGE(TAG, "Unsupported Sensor Type (0x%X)", manu_data.data[0]);
+      return false;
+    }
 
   // Get battery level first
   if (this->battery_level_ != nullptr) {
