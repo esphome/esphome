@@ -164,6 +164,12 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         return;
       }
       if (msg.has_address_type) {
+        connection->remote_bda_[0] = (msg.address >> 40) & 0xFF;
+        connection->remote_bda_[1] = (msg.address >> 32) & 0xFF;
+        connection->remote_bda_[2] = (msg.address >> 24) & 0xFF;
+        connection->remote_bda_[3] = (msg.address >> 16) & 0xFF;
+        connection->remote_bda_[4] = (msg.address >> 8) & 0xFF;
+        connection->remote_bda_[5] = (msg.address >> 0) & 0xFF;
         connection->set_remote_addr_type(static_cast<esp_ble_addr_type_t>(msg.address_type));
         connection->set_state(espbt::ClientState::DISCOVERED);
       } else {
