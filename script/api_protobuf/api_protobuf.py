@@ -546,7 +546,8 @@ def build_enum_type(desc):
         out += f"  {v.name} = {v.number},\n"
     out += "};\n"
 
-    cpp = f"template<> const char *proto_enum_to_string<enums::{name}>(enums::{name} value) {{\n"
+    cpp = f"#ifdef HAS_PROTO_MESSAGE_DUMP\n"
+    cpp += f"template<> const char *proto_enum_to_string<enums::{name}>(enums::{name} value) {{\n"
     cpp += f"  switch (value) {{\n"
     for v in desc.value:
         cpp += f"    case enums::{v.name}:\n"
@@ -555,6 +556,7 @@ def build_enum_type(desc):
     cpp += f'      return "UNKNOWN";\n'
     cpp += f"  }}\n"
     cpp += f"}}\n"
+    cpp += f"#endif\n"
 
     return out, cpp
 
