@@ -187,5 +187,26 @@ template<typename... Ts> class DfrobotMmwaveRadarDetRangeCfgAction : public Acti
   float min4_, max4_;
 };
 
+template<typename... Ts> class DfrobotMmwaveRadarOutLatencyAction : public Action<Ts...> {
+ public:
+  DfrobotMmwaveRadarOutLatencyAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
+
+  void set_delay_after_detect(float delay_after_detect) { delay_after_detect_ = delay_after_detect; }
+  void set_delay_after_disappear(float delay_after_disappear) { delay_after_disappear_ = delay_after_disappear; }
+
+  void play(Ts... x) {
+    parent_->enqueue(new PowerCommand(0));
+    parent_->enqueue(new OutputLatencyCommand(
+       delay_after_detect_, delay_after_disappear_
+    ));
+    parent_->enqueue(new SaveCfgCommand());
+    parent_->enqueue(new PowerCommand(1));
+  }
+ protected:
+  DfrobotMmwaveRadarComponent *parent_;
+  float delay_after_detect_;
+  float delay_after_disappear_;
+};
+
 }  // namespace dfrobot_mmwave_radar
 }  // namespace esphome
