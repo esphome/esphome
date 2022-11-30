@@ -30,7 +30,7 @@ void SN74HC595Component::dump_config() { ESP_LOGCONFIG(TAG, "SN74HC595:"); }
 
 void SN74HC595Component::digital_write_(uint16_t pin, bool value) {
   if (pin >= this->sr_count_ * 8) {
-    ESP_LOGE(TAG, "Pin %u is out of range! Maximum pin number with %u cihps in series is %u", pin, this->sr_count_,
+    ESP_LOGE(TAG, "Pin %u is out of range! Maximum pin number with %u chips in series is %u", pin, this->sr_count_,
              (this->sr_count_ * 8) - 1);
     return;
   }
