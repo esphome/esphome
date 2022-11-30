@@ -113,7 +113,6 @@ void ESP32BLETracker::loop() {
         xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
       uint32_t index = this->scan_result_index_;
       if (index) {
-        this->scan_start_fail_count_ = 0;
         if (index >= 16) {
           ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
         }
@@ -372,7 +371,9 @@ void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t:
 
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
   this->scan_start_failed_ = param.status;
-  if (param.status != ESP_BT_STATUS_SUCCESS) {
+  if (param.status == ESP_BT_STATUS_SUCCESS) {
+    this->scan_start_fail_count_ = 0;
+  } else {
     xSemaphoreGive(this->scan_end_lock_);
   }
 }
