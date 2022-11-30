@@ -113,6 +113,7 @@ void ESP32BLETracker::loop() {
         xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
       uint32_t index = this->scan_result_index_;
       if (index) {
+        this->scan_start_fail_count_ = 0;
         if (index >= 16) {
           ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
         }
@@ -159,6 +160,11 @@ void ESP32BLETracker::loop() {
     }
 
     if (this->scan_start_failed_ || this->scan_set_param_failed_) {
+      this->scan_start_fail_count_++;
+      if (this->scan_start_fail_count_ == 255) {
+        ESP_LOGE(TAG, "ESP-IDF BLE scan could not restart after 255 attempts, rebooting to restore BLE stack...");
+        App.reboot();
+      }
       esp_ble_gap_stop_scanning();
       if (this->scan_start_failed_) {
         ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
@@ -306,7 +312,7 @@ void ESP32BLETracker::start_scan_(bool first) {
   esp_ble_gap_start_scanning(this->scan_duration_);
 
   this->set_timeout("scan", this->scan_duration_ * 2000, []() {
-    ESP_LOGW(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
+    ESP_LOGE(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
     App.reboot();
   });
 }
