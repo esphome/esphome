@@ -117,10 +117,11 @@ void ADCSensor::dump_config() {
   }
 #endif  // USE_ESP32
 #ifdef USE_RP2040
-  if (this->is_temperature_)
+  if (this->is_temperature_) {
     ESP_LOGCONFIG(TAG, "  Pin: Temperature");
-  else
+  } else {
     LOG_PIN("  Pin: ", pin_);
+  }
 #endif
   LOG_UPDATE_INTERVAL(this);
 }
