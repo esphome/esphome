@@ -147,18 +147,20 @@ void ESP32BLETracker::loop() {
       }
       xSemaphoreGive(this->scan_result_lock_);
     }
-   
-    #
-    # Avoid starting the scanner if:
-    # - we are already scanning
-    # - we are connecting to a device
-    # - we are disconnecting from a device
-    # 
-    # Otherwise the scanner could fail to ever start again
-    # and our only way to recover is to reboot.
-    # 
-    # https://github.com/espressif/esp-idf/issues/6688
-    #
+
+    /*
+
+      Avoid starting the scanner if:
+      - we are already scanning
+      - we are connecting to a device
+      - we are disconnecting from a device
+
+      Otherwise the scanner could fail to ever start again
+      and our only way to recover is to reboot.
+
+      https://github.com/espressif/esp-idf/issues/6688
+
+    */
     if (!connecting && !disconnecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
       if (this->scan_continuous_) {
         if (!promote_to_connecting && !this->scan_start_failed_ && !this->scan_set_param_failed_) {
