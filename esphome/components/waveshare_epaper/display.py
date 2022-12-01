@@ -94,10 +94,11 @@ def validate_full_update_every_only_types_ac(value):
     if MODELS[value[CONF_MODEL]][0] == "b":
         full_models = []
         for key, value in sorted(MODELS.items()):
-            if value[0] != 'b':
+            if value[0] != "b":
                 full_models.append(key)
         raise cv.Invalid(
-            "The 'full_update_every' option is only available for models " + ", ".join(full_models)
+            "The 'full_update_every' option is only available for models "
+            + ", ".join(full_models)
         )
     return value
 
