@@ -1313,6 +1313,10 @@ output:
       return {s};
     outputs:
       - id: custom_binary
+  - platform: sigma_delta_output
+    id: sddac
+    update_interval: 60s
+    output: custom_binary
   - platform: custom
     type: float
     lambda: |-
