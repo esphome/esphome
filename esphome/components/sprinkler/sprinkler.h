@@ -3,6 +3,7 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include "esphome/components/number/number.h"
 #include "esphome/components/switch/switch.h"
 
 #include <vector>
@@ -25,6 +26,7 @@ enum SprinklerTimerIndex : uint8_t {
 };
 
 class Sprinkler;                  // this component
+class SprinklerControllerNumber;  // number components that appear in the front end; based on number core
 class SprinklerControllerSwitch;  // switches that appear in the front end; based on switch core
 class SprinklerSwitch;            // switches representing any valve or pump; provides abstraction for latching valves
 class SprinklerValveOperator;     // manages all switching on/off of valves and associated pumps
@@ -76,6 +78,7 @@ struct SprinklerTimer {
 };
 
 struct SprinklerValve {
+  SprinklerControllerNumber *run_duration_number;
   SprinklerControllerSwitch *controller_switch;
   SprinklerControllerSwitch *enable_switch;
   SprinklerSwitch valve_switch;
@@ -86,6 +89,30 @@ struct SprinklerValve {
   std::unique_ptr<StartSingleValveAction<>> valve_resumeorstart_action;
   std::unique_ptr<Automation<>> valve_turn_off_automation;
   std::unique_ptr<Automation<>> valve_turn_on_automation;
+};
+
+class SprinklerControllerNumber : public number::Number, public PollingComponent {
+ public:
+  void setup() override;
+  void update() override;
+  void dump_config() override;
+  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+
+  void set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
+  Trigger<float> *get_set_trigger() const { return set_trigger_; }
+  void set_optimistic(bool optimistic) { optimistic_ = optimistic; }
+  void set_initial_value(float initial_value) { initial_value_ = initial_value; }
+  void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
+
+ protected:
+  void control(float value) override;
+  bool optimistic_{false};
+  float initial_value_{NAN};
+  bool restore_value_{false};
+  Trigger<float> *set_trigger_ = new Trigger<float>();
+  optional<std::function<optional<float>()>> f_;
+
+  ESPPreferenceObject pref_;
 };
 
 class SprinklerControllerSwitch : public switch_::Switch, public Component {
@@ -198,6 +225,10 @@ class Sprinkler : public Component, public EntityBase {
   void set_controller_reverse_switch(SprinklerControllerSwitch *reverse_switch);
   void set_controller_standby_switch(SprinklerControllerSwitch *standby_switch);
 
+  /// configure important controller number components
+  void set_controller_multiplier_number(SprinklerControllerNumber *multiplier_number);
+  void set_controller_repeat_number(SprinklerControllerNumber *repeat_number);
+
   /// configure a valve's switch object and run duration. run_duration is time in seconds.
   void configure_valve_switch(size_t valve_number, switch_::Switch *valve_switch, uint32_t run_duration);
   void configure_valve_switch_pulsed(size_t valve_number, switch_::Switch *valve_switch_off,
@@ -207,6 +238,9 @@ class Sprinkler : public Component, public EntityBase {
   void configure_valve_pump_switch(size_t valve_number, switch_::Switch *pump_switch);
   void configure_valve_pump_switch_pulsed(size_t valve_number, switch_::Switch *pump_switch_off,
                                           switch_::Switch *pump_switch_on, uint32_t pulse_duration);
+
+  /// configure a valve's run duration number component
+  void configure_valve_run_duration_number(size_t valve_number, SprinklerControllerNumber *run_duration_number);
 
   /// sets the multiplier value to '1 / divider' and sets repeat value to divider
   void set_divider(optional<uint32_t> divider);
@@ -529,6 +563,10 @@ class Sprinkler : public Component, public EntityBase {
   SprinklerControllerSwitch *queue_enable_sw_{nullptr};
   SprinklerControllerSwitch *reverse_sw_{nullptr};
   SprinklerControllerSwitch *standby_sw_{nullptr};
+
+  /// Number components we'll present to the front end
+  SprinklerControllerNumber *multiplier_number_{nullptr};
+  SprinklerControllerNumber *repeat_number_{nullptr};
 
   std::unique_ptr<ShutdownAction<>> sprinkler_shutdown_action_;
   std::unique_ptr<ShutdownAction<>> sprinkler_standby_shutdown_action_;
