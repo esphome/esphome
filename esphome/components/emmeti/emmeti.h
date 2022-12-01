@@ -9,7 +9,7 @@ const uint8_t EMMETI_TEMP_MIN = 16;  // Celsius
 const uint8_t EMMETI_TEMP_MAX = 30;  // Celsius
 
 // Modes
-const uint8_t EMMETI_MODE_AUTO = 0x00;
+const uint8_t EMMETI_MODE_HEAT_COOL = 0x00;
 const uint8_t EMMETI_MODE_COOL = 0x01;
 const uint8_t EMMETI_MODE_DRY  = 0x02;
 const uint8_t EMMETI_MODE_FAN  = 0x03;
@@ -93,14 +93,13 @@ class EmmetiClimate : public climate_ir::ClimateIR {
   T reverse_(T val, size_t len);
   
   template <typename T>
-  void add_(T val, size_t len, auto* data);
+  void add_(T val, size_t len, esphome::remote_base::RemoteTransmitData * ata);
   
   template <typename T>
-  void add_(T val, auto* data);
+  void add_(T val, esphome::remote_base::RemoteTransmitData *data);
   
   template <typename T>
-  void reverse_add_(T val, size_t len, auto* data);
-
+  void reverse_add_(T val, size_t len, esphome::remote_base::RemoteTransmitData *data);
 
   uint8_t blades_ = EMMETI_BLADES_STOP;
   

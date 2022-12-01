@@ -8,7 +8,7 @@ static const char *const TAG = "emmeti.climate";
 
 // setters
 uint8_t EmmetiClimate::set_temp_(){
-    return (uint8_t) roundf(clamp<float>(this->target_temperature - EMMETI_TEMP_MIN, EMMETI_TEMP_MIN, EMMETI_TEMP_MAX));
+    return (uint8_t) roundf(clamp<float>(this->target_temperature, EMMETI_TEMP_MIN, EMMETI_TEMP_MAX) - EMMETI_TEMP_MIN);
 }
 
 uint8_t EmmetiClimate::set_mode_() {
@@ -19,12 +19,11 @@ uint8_t EmmetiClimate::set_mode_() {
       return EMMETI_MODE_DRY;
     case climate::CLIMATE_MODE_HEAT:
       return EMMETI_MODE_HEAT;
-    case climate::CLIMATE_MODE_AUTO:
-      return EMMETI_MODE_AUTO;
     case climate::CLIMATE_MODE_FAN_ONLY:
       return EMMETI_MODE_FAN;
+    case climate::CLIMATE_MODE_HEAT_COOL:
     default:
-      return EMMETI_MODE_AUTO;
+      return EMMETI_MODE_HEAT_COOL;
   }
 }
 
@@ -94,7 +93,7 @@ uint8_t EmmetiClimate::gen_checksum_(){
 
 // getters
 float EmmetiClimate::get_temp_(uint8_t temp){
-  return (float) temp + EMMETI_TEMP_MIN;
+  return (float) (temp + EMMETI_TEMP_MIN);
 }
 
 climate::ClimateMode EmmetiClimate::get_mode_(uint8_t mode){
@@ -105,7 +104,7 @@ climate::ClimateMode EmmetiClimate::get_mode_(uint8_t mode){
       return climate::CLIMATE_MODE_DRY;
     case EMMETI_MODE_HEAT:
       return climate::CLIMATE_MODE_HEAT;
-    case EMMETI_MODE_AUTO:
+    case EMMETI_MODE_HEAT_COOL:
       return climate::CLIMATE_MODE_AUTO;
     case EMMETI_MODE_FAN:
       return climate::CLIMATE_MODE_FAN_ONLY;
@@ -128,7 +127,7 @@ climate::ClimateFanMode EmmetiClimate::get_fan_speed_(uint8_t fan_speed){
   }
 }
 
-climate::ClimateSwingMode get_swing_(uint8_t bitmap){
+climate::ClimateSwingMode EmmetiClimate::get_swing_(uint8_t bitmap){
   return (bitmap >> 1) & 0x01 ? climate::CLIMATE_SWING_VERTICAL : climate::CLIMATE_SWING_OFF;
 }
 
@@ -142,28 +141,27 @@ T EmmetiClimate::reverse_(T val, size_t len){
 }
 
 template <typename T>
-void EmmetiClimate::add_(T val, size_t len, auto* data){
-  for (size_t i = len; i > 0; i++){
+void EmmetiClimate::add_(T val, size_t len, esphome::remote_base::RemoteTransmitData *data){
+  for (size_t i = len; i > 0; i--){
     data->mark(EMMETI_BIT_MARK);
-    data->space((val & 1<<(i-1)) ? EMMETI_ONE_SPACE : EMMETI_ZERO_SPACE);
+    data->space((val & (1<<(i-1))) ? EMMETI_ONE_SPACE : EMMETI_ZERO_SPACE);
   }
 }
 
 template <typename T>
-void EmmetiClimate::add_(T val, auto* data){
+void EmmetiClimate::add_(T val, esphome::remote_base::RemoteTransmitData *data){
   data->mark(EMMETI_BIT_MARK);
   data->space((val & 1) ? EMMETI_ONE_SPACE : EMMETI_ZERO_SPACE);
 }
 
 template <typename T>
-void EmmetiClimate::reverse_add_(T val, size_t len, auto* data){
+void EmmetiClimate::reverse_add_(T val, size_t len, esphome::remote_base::RemoteTransmitData *data){
   add_(reverse_(val, len), len, data);
 }
 
 bool EmmetiClimate::check_checksum_(uint8_t checksum){
   return checksum == this->gen_checksum_();
 }
-
 
 void EmmetiClimate::transmit_state() {
     auto transmit = this->transmitter_->transmit();
@@ -193,10 +191,13 @@ void EmmetiClimate::transmit_state() {
     add_(0, 4, data); // zeros
     reverse_add_(2, 2, data); // thermometer
     add_(0, 18, data);  //zeros
-    add_(this->gen_checksum_(), 4, data);
+    reverse_add_(this->gen_checksum_(), 4, data);
 
     data->mark(EMMETI_BIT_MARK);
     data->space(0);
+
+    transmit.perform();
+
 }
 
 bool EmmetiClimate::parse_state_frame_(state curr_state){
