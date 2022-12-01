@@ -159,8 +159,8 @@ void ESP32BLETracker::loop() {
     }
 
     if (this->scan_start_failed_ || this->scan_set_param_failed_) {
-      if (this->scan_start_fail_count_ == 255) {
-        ESP_LOGE(TAG, "ESP-IDF BLE scan could not restart after 255 attempts, rebooting to restore BLE stack...");
+      if (this->scan_start_fail_count_ == 1024) {
+        ESP_LOGE(TAG, "ESP-IDF BLE scan could not restart after 1024 attempts, rebooting to restore BLE stack...");
         App.reboot();
       }
       esp_ble_gap_stop_scanning();
