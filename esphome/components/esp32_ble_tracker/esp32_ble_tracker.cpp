@@ -90,8 +90,12 @@ void ESP32BLETracker::loop() {
   int connecting = 0;
   int discovered = 0;
   int searching = 0;
+  int disconnecting = 0;
   for (auto *client : this->clients_) {
     switch (client->state()) {
+      case ClientState::DISCONNECTING:
+        disconnecting++;
+        break;
       case ClientState::DISCOVERED:
         discovered++;
         break;
@@ -144,7 +148,7 @@ void ESP32BLETracker::loop() {
       xSemaphoreGive(this->scan_result_lock_);
     }
 
-    if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
+    if (!connecting && !disconnecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
       if (this->scan_continuous_) {
         if (!promote_to_connecting && !this->scan_start_failed_ && !this->scan_set_param_failed_) {
           this->start_scan_(false);
