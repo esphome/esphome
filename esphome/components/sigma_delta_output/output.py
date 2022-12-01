@@ -1,9 +1,7 @@
-from esphome import pins, automation
 from esphome.components import output
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
-    CONF_UPDATE_INTERVAL,
     CONF_ID,
     CONF_OUTPUT,
 )
