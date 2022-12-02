@@ -385,8 +385,23 @@ class Sprinkler : public Component, public EntityBase {
   /// switches on/off a pump "safely" by checking that the new state will not conflict with another controller
   void set_pump_state(SprinklerSwitch *pump_switch, bool state);
 
-  /// returns the amount of time remaining in seconds for the active valve, if any. check with 'has_value()'
-  optional<uint32_t> time_remaining();
+  /// returns the amount of time in seconds required for all valves
+  uint32_t total_cycle_time_all_valves();
+
+  /// returns the amount of time in seconds required for all enabled valves
+  uint32_t total_cycle_time_enabled_valves();
+
+  /// returns the amount of time in seconds required for all enabled & incomplete valves, not including the active valve
+  uint32_t total_cycle_time_enabled_incomplete_valves();
+
+  /// returns the amount of time in seconds required for all valves in the queue
+  uint32_t total_queue_time();
+
+  /// returns the amount of time remaining in seconds for the active valve, if any
+  optional<uint32_t> time_remaining_active_valve();
+
+  /// returns the amount of time remaining in seconds for all valves remaining, including the active valve, if any
+  optional<uint32_t> time_remaining_current_operation();
 
   /// returns a pointer to a valve's control switch object
   SprinklerControllerSwitch *control_switch(size_t valve_number);

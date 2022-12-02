@@ -903,7 +903,7 @@ void Sprinkler::pause() {
     return;  // we can't pause if we're already paused or if there is no active valve
   }
   this->paused_valve_ = this->active_valve();
-  this->resume_duration_ = this->time_remaining();
+  this->resume_duration_ = this->time_remaining_active_valve();
   this->shutdown(false);
   ESP_LOGD(TAG, "Paused valve %u with %u seconds remaining", this->paused_valve_.value_or(0),
            this->resume_duration_.value_or(0));
@@ -1025,7 +1025,73 @@ void Sprinkler::set_pump_state(SprinklerSwitch *pump_switch, bool state) {
   }
 }
 
-optional<uint32_t> Sprinkler::time_remaining() {
+uint32_t Sprinkler::total_cycle_time_all_valves() {
+  uint32_t total_time_remaining = 0;
+
+  for (size_t valve = 0; valve < this->number_of_valves(); valve++) {
+    total_time_remaining += this->valve_run_duration_adjusted(valve);
+    if (this->valve_overlap_) {
+      total_time_remaining -= this->switching_delay_.value_or(0);
+    } else {
+      total_time_remaining += this->switching_delay_.value_or(0);
+    }
+  }
+  return total_time_remaining;
+}
+
+uint32_t Sprinkler::total_cycle_time_enabled_valves() {
+  uint32_t total_time_remaining = 0;
+
+  for (size_t valve = 0; valve < this->number_of_valves(); valve++) {
+    if (this->valve_is_enabled_(valve)) {
+      total_time_remaining += this->valve_run_duration_adjusted(valve);
+      if (this->valve_overlap_) {
+        total_time_remaining -= this->switching_delay_.value_or(0);
+      } else {
+        total_time_remaining += this->switching_delay_.value_or(0);
+      }
+    }
+  }
+  return total_time_remaining;
+}
+
+uint32_t Sprinkler::total_cycle_time_enabled_incomplete_valves() {
+  uint32_t total_time_remaining = 0;
+
+  for (size_t valve = 0; valve < this->number_of_valves(); valve++) {
+    if (this->valve_is_enabled_(valve) && !this->valve_cycle_complete_(valve)) {
+      if (!this->active_valve().has_value() || (valve != this->active_valve().value())) {
+        total_time_remaining += this->valve_run_duration_adjusted(valve);
+        if (this->valve_overlap_) {
+          total_time_remaining -= this->switching_delay_.value_or(0);
+        } else {
+          total_time_remaining += this->switching_delay_.value_or(0);
+        }
+      }
+    }
+  }
+  return total_time_remaining;
+}
+
+uint32_t Sprinkler::total_queue_time() {
+  uint32_t total_time_remaining = 0;
+
+  for (auto &valve : this->queued_valves_) {
+    if (valve.run_duration) {
+      total_time_remaining += valve.run_duration;
+    } else {
+      total_time_remaining += this->valve_run_duration_adjusted(valve.valve_number);
+    }
+    if (this->valve_overlap_) {
+      total_time_remaining -= this->switching_delay_.value_or(0);
+    } else {
+      total_time_remaining += this->switching_delay_.value_or(0);
+    }
+  }
+  return total_time_remaining;
+}
+
+optional<uint32_t> Sprinkler::time_remaining_active_valve() {
   if (this->active_req_.has_request()) {  // first try to return the value based on active_req_...
     if (this->active_req_.valve_operator() != nullptr) {
       return this->active_req_.valve_operator()->time_remaining();
@@ -1035,6 +1101,25 @@ optional<uint32_t> Sprinkler::time_remaining() {
     if (vo.state() != IDLE) {
       return vo.time_remaining();
     }
+  }
+  return nullopt;
+}
+
+optional<uint32_t> Sprinkler::time_remaining_current_operation() {
+  auto total_time_remaining = this->time_remaining_active_valve();
+
+  if (total_time_remaining.has_value()) {
+    if (this->auto_advance()) {
+      total_time_remaining = total_time_remaining.value() + this->total_cycle_time_enabled_incomplete_valves();
+      total_time_remaining =
+          total_time_remaining.value() +
+          (this->total_cycle_time_enabled_valves() * (this->repeat().value_or(0) - this->repeat_count().value_or(0)));
+    }
+
+    if (this->queue_enabled()) {
+      total_time_remaining = total_time_remaining.value() + this->total_queue_time();
+    }
+    return total_time_remaining;
   }
   return nullopt;
 }
