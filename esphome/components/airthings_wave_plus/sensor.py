@@ -7,6 +7,7 @@ from esphome.const import (
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_ILLUMINANCE,
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
     UNIT_CELSIUS,
@@ -20,9 +21,11 @@ from esphome.const import (
     CONF_CO2,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
+    CONF_ILLUMINANCE,
     UNIT_BECQUEREL_PER_CUBIC_METER,
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
+    UNIT_LUX,
     ICON_RADIATOR,
 )
 
@@ -80,6 +83,12 @@ CONFIG_SCHEMA = cv.All(
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_ILLUMINANCE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_LUX,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
         }
     )
     .extend(cv.polling_component_schema("5min"))
@@ -114,3 +123,6 @@ async def to_code(config):
     if CONF_TVOC in config:
         sens = await sensor.new_sensor(config[CONF_TVOC])
         cg.add(var.set_tvoc(sens))
+    if CONF_ILLUMINANCE in config:
+        sens = await sensor.new_sensor(config[CONF_ILLUMINANCE])
+        cg.add(var.set_illuminance(sens))
