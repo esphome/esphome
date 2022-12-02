@@ -130,9 +130,6 @@ void PIDClimate::update_pid_() {
         // keep autotuner instance so that subsequent dump_configs will print the long result message.
       } else {
         value = res.output;
-        if (mode != climate::CLIMATE_MODE_HEAT_COOL) {
-          ESP_LOGW(TAG, "For PID autotuner you need to set AUTO (also called heat/cool) mode!");
-        }
       }
     }
   }
@@ -151,10 +148,15 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   float min_value = this->supports_cool_() ? -1.0f : 0.0f;
   float max_value = this->supports_heat_() ? 1.0f : 0.0f;
   this->autotuner_->config(min_value, max_value);
+  this->autotuner_->set_name(this->get_name() + " (" + this->get_object_id() + ")");
   this->set_interval("autotune-progress", 10000, [this]() {
     if (this->autotuner_ != nullptr && !this->autotuner_->is_finished())
       this->autotuner_->dump_config();
   });
+
+  if (mode != climate::CLIMATE_MODE_HEAT_COOL) {
+    ESP_LOGW(TAG, "!!! For PID autotuner you need to set AUTO (also called heat/cool) mode!");
+  }
 }
 
 void PIDClimate::reset_integral_term() { this->controller_.reset_accumulated_integral(); }

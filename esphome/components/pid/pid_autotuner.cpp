@@ -131,8 +131,8 @@ PIDAutotuner::PIDAutotuneResult PIDAutotuner::update(float setpoint, float proce
   return res;
 }
 void PIDAutotuner::dump_config() {
-  ESP_LOGI(TAG, "PID Autotune:");
   if (this->state_ == AUTOTUNE_SUCCEEDED) {
+    ESP_LOGI(TAG, "PID Autotune - %s:", name_.c_str());
     ESP_LOGI(TAG, "  State: Succeeded!");
     bool has_issue = false;
     if (!this->amplitude_detector_.is_amplitude_convergent()) {
@@ -176,7 +176,8 @@ void PIDAutotuner::dump_config() {
   }
 
   if (this->state_ == AUTOTUNE_RUNNING) {
-    ESP_LOGI(TAG, "  Autotune is still running!");
+    ESP_LOGD(TAG, "PID Autotune - %s:", name_.c_str());
+    ESP_LOGD(TAG, "  Autotune is still running!");
     ESP_LOGD(TAG, "  Status: Trying to reach %.2f °C", setpoint_ - relay_function_.current_target_error());
     ESP_LOGD(TAG, "  Stats so far:");
     ESP_LOGD(TAG, "    Phases: %u", relay_function_.phase_count);
