@@ -79,6 +79,7 @@ void AirthingsWavePlus::read_sensors_(uint8_t *raw_value, uint16_t value_len) {
       if (is_valid_voc_value_(value->voc)) {
         this->tvoc_sensor_->publish_state(value->voc);
       }
+      this->illuminance_sensor_->publish_state(value->ambientLight);
 
       // This instance must not stay connected
       // so other clients can connect to it (e.g. the
@@ -124,6 +125,7 @@ void AirthingsWavePlus::dump_config() {
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
   LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
 }
 
 AirthingsWavePlus::AirthingsWavePlus()
