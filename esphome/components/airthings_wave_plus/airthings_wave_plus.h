@@ -34,6 +34,7 @@ class AirthingsWavePlus : public PollingComponent, public ble_client::BLEClientN
   void set_pressure(sensor::Sensor *pressure) { pressure_sensor_ = pressure; }
   void set_co2(sensor::Sensor *co2) { co2_sensor_ = co2; }
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_sensor_ = tvoc; }
+  void set_illuminance(sensor::Sensor *ambientLight) { illuminance_sensor_ = ambientLight; }
 
  protected:
   bool is_valid_radon_value_(uint16_t radon);
@@ -50,6 +51,7 @@ class AirthingsWavePlus : public PollingComponent, public ble_client::BLEClientN
   sensor::Sensor *pressure_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
   sensor::Sensor *tvoc_sensor_{nullptr};
+  sensor::Sensor *illuminance_sensor_{nullptr};
 
   uint16_t handle_;
   esp32_ble_tracker::ESPBTUUID service_uuid_;
