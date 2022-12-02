@@ -181,6 +181,7 @@ void ESP32BLETracker::loop() {
         App.reboot();
       }
       esp_ble_gap_stop_scanning();
+      this->cancel_timeout("scan");
       if (this->scan_start_failed_) {
         ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
         this->scan_start_failed_ = ESP_BT_STATUS_SUCCESS;
