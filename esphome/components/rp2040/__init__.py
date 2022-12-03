@@ -37,10 +37,14 @@ def set_core_data(config):
 
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
+    # The most recent releases have not been uploaded to platformio so grabbing them directly from
+    # the GitHub release is one path forward for now.
+    return f"https://github.com/earlephilhower/arduino-pico/releases/download/{ver}/rp2040-{ver}.zip"
+
     # format the given arduino (https://github.com/earlephilhower/arduino-pico/releases) version to
     # a PIO earlephilhower/framework-arduinopico value
     # List of package versions: https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-    return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
+    # return f"~1.{ver.major}{ver.minor:02d}{ver.patch:02d}.0"
 
 
 # NOTE: Keep this in mind when updating the recommended version:
@@ -52,7 +56,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 4, 0)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 6, 2)
 
 # The platformio/raspberrypi version to use for arduino frameworks
 #  - https://github.com/platformio/platform-raspberrypi/releases
@@ -63,8 +67,8 @@ ARDUINO_PLATFORM_VERSION = cv.Version(1, 7, 0)
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(2, 4, 0), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(2, 4, 0), None),
+        "dev": (cv.Version(2, 6, 2), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(2, 6, 2), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -148,7 +152,7 @@ async def to_code(config):
     )
 
     cg.add_platformio_option("board_build.core", "earlephilhower")
-    cg.add_platformio_option("board_build.filesystem_size", "0.5m")
+    cg.add_platformio_option("board_build.filesystem_size", "1m")
 
     ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
     cg.add_define(

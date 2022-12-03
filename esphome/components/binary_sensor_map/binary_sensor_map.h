@@ -4,6 +4,8 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <vector>
+
 namespace esphome {
 namespace binary_sensor_map {
 

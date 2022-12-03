@@ -4,6 +4,9 @@
 #ifdef USE_ESP8266
 #include "sys/time.h"
 #endif
+#ifdef USE_RP2040
+#include <sys/time.h>
+#endif
 #include <cerrno>
 
 namespace esphome {
