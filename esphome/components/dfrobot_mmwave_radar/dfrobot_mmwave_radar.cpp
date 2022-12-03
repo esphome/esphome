@@ -16,15 +16,16 @@ void DfrobotMmwaveRadarComponent::dump_config() {
 }
 
 void DfrobotMmwaveRadarComponent::setup() {
-    // Put command in queue which reads sensor state.
-    // Command automatically puts itself in queue again after executed.
-    // cmdQueue_.enqueue(new ReadStateCommand());
+
 }
 
 void DfrobotMmwaveRadarComponent::loop() {
     Command * cmd = cmdQueue_.peek();
-    if(cmd == nullptr)
-        return;
+    if(cmd == nullptr) {
+        // Command queue empty. Read sensor state.
+        cmdQueue_.enqueue(new ReadStateCommand());
+        cmd = cmdQueue_.peek();
+    }
 
     // execute of the same command might be called multiple times
     // until it returns 1, which means it is done. Then it is removed
@@ -199,14 +200,10 @@ uint8_t ReadStateCommand::execute(DfrobotMmwaveRadarComponent * component) {
         std::string message(component->read_buffer_);
         if(message.rfind("$JYBSS,0, , , *") != std::string::npos) {
             component->set_detected_(false);
-            ESP_LOGD(TAG, "Sensor state: 0");
-            component->cmdQueue_.enqueue(new ReadStateCommand());
             return 1; // Command done
         }
         else if(message.rfind("$JYBSS,1, , , *") != std::string::npos) {
             component->set_detected_(true);
-            ESP_LOGD(TAG, "Sensor state: 1");
-            component->cmdQueue_.enqueue(new ReadStateCommand());
             return 1; // Command done
         }
     }
