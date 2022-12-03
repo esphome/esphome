@@ -7,6 +7,8 @@ from esphome.const import (
     CONF_CLOCK_PIN,
 )
 
+CODEOWNERS = ["@alsig"]
+
 DEPENDENCIES = []
 MULTI_CONF = True
 CONF_SN74HC165_ID = "sn74hc165_id"
