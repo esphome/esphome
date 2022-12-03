@@ -1307,10 +1307,12 @@ void ThermostatClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY_ACTION_USES_FAN_MODE_TIMER: %s",
                 YESNO(this->supports_fan_only_action_uses_fan_mode_timer_));
   ESP_LOGCONFIG(TAG, "  Supports FAN_ONLY_COOLING: %s", YESNO(this->supports_fan_only_cooling_));
-  if (this->supports_cool_)
+  if (this->supports_cool_) {
     ESP_LOGCONFIG(TAG, "  Supports FAN_WITH_COOLING: %s", YESNO(this->supports_fan_with_cooling_));
-  if (this->supports_heat_)
+  }
+  if (this->supports_heat_) {
     ESP_LOGCONFIG(TAG, "  Supports FAN_WITH_HEATING: %s", YESNO(this->supports_fan_with_heating_));
+  }
   ESP_LOGCONFIG(TAG, "  Supports HEAT: %s", YESNO(this->supports_heat_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE ON: %s", YESNO(this->supports_fan_mode_on_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE OFF: %s", YESNO(this->supports_fan_mode_off_));

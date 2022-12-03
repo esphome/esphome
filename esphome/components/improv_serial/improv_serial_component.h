@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 
 #include <improv.h>
+#include <vector>
 
 #ifdef USE_ARDUINO
 #include <HardwareSerial.h>
