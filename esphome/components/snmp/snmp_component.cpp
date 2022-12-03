@@ -20,7 +20,7 @@ namespace esphome {
 namespace snmp {
 
 #define CUSTOM_OID ".1.3.9999."
-#define SIZE_1KB 1024
+const int SIZE_1KB 1024
 
 static WiFiUDP udp;
 static SNMPAgent snmp_agent("public", "private");
@@ -45,8 +45,8 @@ void SNMPComponent::setup_system_mib() {
   snmp_agent.addReadOnlyIntegerHandler(RFC1213_OID_sysServices, 64 /*=2^(7-1) applications*/);
 
   // sysObjectID
-  snmp_agent.addOIDHandler(RFC1213_OID_sysObjectID, 
-#if USE_ESP32  
+  snmp_agent.addOIDHandler(RFC1213_OID_sysObjectID,
+#if USE_ESP32
   CUSTOM_OID "32"
 #else
   CUSTOM_OID "8266"
@@ -127,7 +127,6 @@ int SNMPComponent::setup_psram_size(int *used) {
 
     // hrStorageUsed
     snmp_agent.addReadOnlyIntegerHandler(".1.3.6.1.2.1.25.2.3.1.6.2", 0);
-    
 #endif
 
     // hrMemorySize [kb]
@@ -266,7 +265,7 @@ int SNMPComponent::setup_psram_size(int *used) {
 
 #if USE_ESP32
   int SNMPComponent::get_ram_size_kb() {
-    // use hardcoded values (number of values in esp_chip_model_t depends on IDF version) 
+    // use hardcoded values (number of values in esp_chip_model_t depends on IDF version)
     // from esp_system.h
     const int CHIP_ESP32  = 1;
     const int CHIP_ESP32S2 = 2;
