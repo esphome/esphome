@@ -26,13 +26,11 @@ void SN74HC165Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Scan rate: %u", this->get_update_interval());
 }
 
-void SN74HC165Component::register_input(SN74HC165GPIOBinarySensor* sensor){
-  this->sensors_.push_back(sensor);
-}
+void SN74HC165Component::register_input(SN74HC165GPIOBinarySensor *sensor) { this->sensors_.push_back(sensor); }
 
-void SN74HC165Component::update(){
+void SN74HC165Component::update() {
   const uint32_t input_values = this->read_gpio_();
-  for(auto& sensor: this->sensors_){
+  for (auto &sensor : this->sensors_) {
     sensor->process(input_values);
   }
 }
@@ -52,7 +50,7 @@ uint32_t SN74HC165Component::read_gpio_() {
   return input_bits;
 }
 
-void SN74HC165GPIOBinarySensor::process(uint32_t data){
+void SN74HC165GPIOBinarySensor::process(uint32_t data) {
   const uint32_t idx = (1 << this->pin_);
   const bool value = data & idx;
   publish_state(value);
