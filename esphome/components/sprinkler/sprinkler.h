@@ -248,6 +248,9 @@ class Sprinkler : public Component, public EntityBase {
   /// value multiplied by configured run times -- used to extend or shorten the cycle
   void set_multiplier(optional<float> multiplier);
 
+  /// enable/disable skipping of disabled valves by the next and previous actions
+  void set_next_prev_ignore_disabled_valves(bool ignore_disabled);
+
   /// set how long the pump should start after the valve (when the pump is starting)
   void set_pump_start_delay(uint32_t start_delay);
 
@@ -430,9 +433,13 @@ class Sprinkler : public Component, public EntityBase {
   /// returns true if valve's cycle is flagged as complete
   bool valve_cycle_complete_(size_t valve_number);
 
-  /// returns the number of the next/previous valve in the vector
-  size_t next_valve_number_(size_t first_valve);
-  size_t previous_valve_number_(size_t first_valve);
+  /// returns the number of the next valve in the vector
+  /// if return value == first_valve, no other valves match criteria
+  size_t next_valve_number_(size_t first_valve, bool include_disabled = true, bool include_complete = true);
+
+  /// returns the number of the previous valve in the vector
+  /// if return value == first_valve, no other valves match criteria
+  size_t previous_valve_number_(size_t first_valve, bool include_disabled = true, bool include_complete = true);
 
   /// returns the number of the next valve that should be activated in a full cycle.
   ///  if no valve is next (cycle is complete), returns no value (check with 'has_value()')
@@ -504,6 +511,9 @@ class Sprinkler : public Component, public EntityBase {
 
   /// Maximum allowed queue size
   const uint8_t max_queue_size_{100};
+
+  /// When set to true, the next and previous actions will skip disabled valves
+  bool next_prev_ignore_disabled_{false};
 
   /// Pump should be off during valve_open_delay interval
   bool pump_switch_off_during_valve_open_delay_{false};

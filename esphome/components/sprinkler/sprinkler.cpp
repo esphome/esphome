@@ -594,6 +594,10 @@ void Sprinkler::set_multiplier(const optional<float> multiplier) {
   }
 }
 
+void Sprinkler::set_next_prev_ignore_disabled_valves(bool ignore_disabled) {
+  this->next_prev_ignore_disabled_ = ignore_disabled;
+}
+
 void Sprinkler::set_pump_start_delay(uint32_t start_delay) {
   this->start_delay_is_valve_delay_ = false;
   this->start_delay_ = start_delay;
@@ -856,11 +860,18 @@ void Sprinkler::clear_queued_valves() {
 }
 
 void Sprinkler::next_valve() {
+  if (this->next_prev_ignore_disabled_ && !this->any_valve_is_enabled_()) {
+    ESP_LOGD(TAG, "next_valve was called but no valves are enabled and next_prev_ignore_disabled allows only enabled "
+                  "valves; doing nothing");
+    return;
+  }
+
   if (this->state_ == IDLE) {
     this->reset_cycle_states_();  // just in case auto-advance is switched on later
   }
   this->manual_valve_ = this->next_valve_number_(
-      this->manual_valve_.value_or(this->active_req_.valve_as_opt().value_or(this->number_of_valves() - 1)));
+      this->manual_valve_.value_or(this->active_req_.valve_as_opt().value_or(this->number_of_valves() - 1)),
+      !this->next_prev_ignore_disabled_, true);
   if (this->manual_selection_delay_.has_value()) {
     this->set_timer_duration_(sprinkler::TIMER_VALVE_SELECTION, this->manual_selection_delay_.value());
     this->start_timer_(sprinkler::TIMER_VALVE_SELECTION);
@@ -870,11 +881,18 @@ void Sprinkler::next_valve() {
 }
 
 void Sprinkler::previous_valve() {
+  if (this->next_prev_ignore_disabled_ && !this->any_valve_is_enabled_()) {
+    ESP_LOGD(TAG, "previous_valve was called but no valves are enabled and next_prev_ignore_disabled allows only "
+                  "enabled valves; doing nothing");
+    return;
+  }
+
   if (this->state_ == IDLE) {
     this->reset_cycle_states_();  // just in case auto-advance is switched on later
   }
   this->manual_valve_ =
-      this->previous_valve_number_(this->manual_valve_.value_or(this->active_req_.valve_as_opt().value_or(0)));
+      this->previous_valve_number_(this->manual_valve_.value_or(this->active_req_.valve_as_opt().value_or(0)),
+                                   !this->next_prev_ignore_disabled_, true);
   if (this->manual_selection_delay_.has_value()) {
     this->set_timer_duration_(sprinkler::TIMER_VALVE_SELECTION, this->manual_selection_delay_.value());
     this->start_timer_(sprinkler::TIMER_VALVE_SELECTION);
@@ -1186,18 +1204,38 @@ bool Sprinkler::valve_cycle_complete_(const size_t valve_number) {
   return false;
 }
 
-size_t Sprinkler::next_valve_number_(const size_t first_valve) {
-  if (this->is_a_valid_valve(first_valve) && (first_valve + 1 < this->number_of_valves()))
-    return first_valve + 1;
+size_t Sprinkler::next_valve_number_(const size_t first_valve, const bool include_disabled,
+                                     const bool include_complete) {
+  auto valve = first_valve;
 
-  return 0;
+  while (++valve != first_valve) {
+    if (!this->is_a_valid_valve(valve)) {
+      valve = 0;
+    }
+
+    if ((this->valve_is_enabled_(valve) || include_disabled) &&
+        (!this->valve_cycle_complete_(valve) || include_complete)) {
+      return valve;
+    }
+  }
+  return first_valve;
 }
 
-size_t Sprinkler::previous_valve_number_(const size_t first_valve) {
-  if (this->is_a_valid_valve(first_valve) && (first_valve - 1 >= 0))
-    return first_valve - 1;
+size_t Sprinkler::previous_valve_number_(const size_t first_valve, const bool include_disabled,
+                                         const bool include_complete) {
+  auto valve = first_valve;
 
-  return this->number_of_valves() - 1;
+  while (--valve != first_valve) {
+    if (!this->is_a_valid_valve(valve)) {
+      valve = this->number_of_valves() - 1;
+    }
+
+    if ((this->valve_is_enabled_(valve) || include_disabled) &&
+        (!this->valve_cycle_complete_(valve) || include_complete)) {
+      return valve;
+    }
+  }
+  return first_valve;
 }
 
 optional<size_t> Sprinkler::next_valve_number_in_cycle_(const optional<size_t> first_valve) {
