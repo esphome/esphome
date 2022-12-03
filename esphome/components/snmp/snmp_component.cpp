@@ -20,7 +20,6 @@ namespace esphome {
 namespace snmp {
 
 #define CUSTOM_OID ".1.3.9999."
-const int SIZE_1KB 1024
 
 static WiFiUDP udp;
 static SNMPAgent snmp_agent("public", "private");
