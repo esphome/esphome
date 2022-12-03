@@ -3,6 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #include "esphome/components/uart/uart.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
 namespace esphome {
 namespace dfrobot_mmwave_radar {
@@ -48,9 +51,18 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
     void setup() override;
     void loop() override;
 
+#ifdef USE_BINARY_SENSOR
+    void set_detected_binary_sensor(binary_sensor::BinarySensor *detected_binary_sensor) {
+      detected_binary_sensor_ = detected_binary_sensor;
+    }
+#endif
+
     int8_t enqueue(Command * cmd);
  protected:
-    int8_t sensor_state{-1};
+ #ifdef USE_BINARY_SENSOR
+    binary_sensor::BinarySensor *detected_binary_sensor_{nullptr};
+#endif
+    bool detected_{0};
     char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
     size_t read_pos_{0};
     CircularCommandQueue cmdQueue_;
@@ -59,6 +71,8 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
     uint8_t read_message();
     uint8_t find_prompt();
     uint8_t send_cmd(const char * cmd);
+
+    void set_detected_(bool detected);
 
     friend class Command;
     friend class ReadStateCommand;

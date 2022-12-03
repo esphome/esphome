@@ -9,7 +9,10 @@ const char ASCII_CR = 0x0D;
 const char ASCII_LF = 0x0A;
 
 void DfrobotMmwaveRadarComponent::dump_config() {
-
+  ESP_LOGCONFIG(TAG, "Dfrobot Mmwave Radar:");
+#ifdef USE_BINARY_SENSOR
+  LOG_BINARY_SENSOR("  ", "Registered", this->detected_binary_sensor_);
+#endif
 }
 
 void DfrobotMmwaveRadarComponent::setup() {
@@ -86,6 +89,14 @@ uint8_t DfrobotMmwaveRadarComponent::send_cmd(const char * cmd) {
     }
     // Could not send command yet as last command was sent less than 1001ms ago.
     return 0;
+}
+
+void DfrobotMmwaveRadarComponent::set_detected_(bool detected) {
+    this->detected_ = detected;
+#ifdef USE_BINARY_SENSOR
+    if (this->detected_binary_sensor_ != nullptr)
+        this->detected_binary_sensor_->publish_state(detected);
+#endif
 }
 
 int8_t CircularCommandQueue::enqueue(Command * cmd) {
@@ -187,13 +198,13 @@ uint8_t ReadStateCommand::execute(DfrobotMmwaveRadarComponent * component) {
     if(component->read_message()) {
         std::string message(component->read_buffer_);
         if(message.rfind("$JYBSS,0, , , *") != std::string::npos) {
-            // TODO: set sensor state
+            component->set_detected_(false);
             ESP_LOGD(TAG, "Sensor state: 0");
             component->cmdQueue_.enqueue(new ReadStateCommand());
             return 1; // Command done
         }
         else if(message.rfind("$JYBSS,1, , , *") != std::string::npos) {
-            // TODO: set sensor state
+            component->set_detected_(true);
             ESP_LOGD(TAG, "Sensor state: 1");
             component->cmdQueue_.enqueue(new ReadStateCommand());
             return 1; // Command done

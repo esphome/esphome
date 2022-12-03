@@ -31,6 +31,8 @@ DfrobotMmwaveRadarFactoryResetAction = dfrobot_mmwave_radar_ns.class_(
     "DfrobotMmwaveRadarFactoryResetAction", automation.Action
 )
 
+DFROBOT_MMWAVE_RADAR_ID = "dfrobot_mmwave_radar_id"
+
 SEGMENTS = "segments"
 DELAY_AFTER_DETECT = "delay_after_detect"
 DELAY_AFTER_DISAPPEAR = "delay_after_disappear"
