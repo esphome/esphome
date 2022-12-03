@@ -10,9 +10,9 @@ namespace sn74hc165 {
 class SN74HC165GPIOBinarySensor : public binary_sensor::BinarySensor {
  public:
   void set_pin(const uint8_t pin) { this->pin_ = pin;}
-  void process(const uint32_t data);
+  void process(uint32_t data);
  protected:
-  uint8_t pin_;  
+  uint8_t pin_;
 };
 
 class SN74HC165Component : public PollingComponent {
@@ -32,11 +32,11 @@ class SN74HC165Component : public PollingComponent {
  protected:
 
   void update() override;
-  
+
   uint32_t read_gpio_();
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
-  GPIOPin *latch_pin_;  
+  GPIOPin *latch_pin_;
   uint8_t sr_count_;
 
   std::vector<SN74HC165GPIOBinarySensor*> sensors_;

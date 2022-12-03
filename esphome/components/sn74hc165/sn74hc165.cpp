@@ -15,17 +15,16 @@ void SN74HC165Component::setup() {
   this->latch_pin_->setup();
   this->clock_pin_->digital_write(true);
   this->data_pin_->digital_write(false);
-  this->latch_pin_->digital_write(true); 
+  this->latch_pin_->digital_write(true);
 }
 
-void SN74HC165Component::dump_config() { 
-  ESP_LOGCONFIG(TAG, "SN74HC165:"); 
+void SN74HC165Component::dump_config() {
+  ESP_LOGCONFIG(TAG, "SN74HC165:");
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Latch Pin: ", this->latch_pin_);
-  ESP_LOGCONFIG(TAG, "  Scan rate: %u", this->get_update_interval());  
+  ESP_LOGCONFIG(TAG, "  Scan rate: %u", this->get_update_interval());
 }
-
 
 void SN74HC165Component::register_input(SN74HC165GPIOBinarySensor* sensor){
   this->sensors_.push_back(sensor);
@@ -38,13 +37,13 @@ void SN74HC165Component::update(){
   }
 }
 
-uint32_t SN74HC165Component::read_gpio_() {  
+uint32_t SN74HC165Component::read_gpio_() {
   this->clock_pin_->digital_write(true);
   this->latch_pin_->digital_write(false);
   this->latch_pin_->digital_write(true);
   uint32_t input_bits{0};
   const uint8_t loop_counter = this->sr_count_ * 8;
-  for (uint8_t i = 0; i < loop_counter; i++) { 
+  for (uint8_t i = 0; i < loop_counter; i++) {
     this->clock_pin_->digital_write(true);
     const bool value = this->data_pin_->digital_read();
     input_bits |= value << (loop_counter - 1 - i);
@@ -53,7 +52,7 @@ uint32_t SN74HC165Component::read_gpio_() {
   return input_bits;
 }
 
-void SN74HC165GPIOBinarySensor::process(const uint32_t data){
+void SN74HC165GPIOBinarySensor::process(uint32_t data){
   const uint32_t idx = (1 << this->pin_);
   const bool value = data & idx;
   publish_state(value);

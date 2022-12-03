@@ -1434,7 +1434,7 @@ binary_sensor:
     id: close_sensor
   - platform: template
     id: close_obstacle_sensor
-    
+
   - platform: sn74hc165
     name: "SN74HC165 Pin #0"
     pin: 1
@@ -2844,7 +2844,7 @@ sn74hc595:
     sr_count: 2
 
 sn74hc165:
-  - id: sn74hc165_input    
+  - id: sn74hc165_input
     data_pin: GPIO21
     clock_pin: GPIO23
     latch_pin: GPIO22
