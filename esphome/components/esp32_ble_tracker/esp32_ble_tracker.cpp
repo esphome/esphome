@@ -24,10 +24,6 @@
 #include <esp32-hal-bt.h>
 #endif
 
-#ifdef USE_ESP_IDF
-// https://github.com/espressif/esp-idf/issues/2503
-#define BTU_TASK_STACK_SIZE (6144 + BT_TASK_EXTRA_STACK_SIZE)
-#endif
 
 // bt_trace.h
 #undef TAG
