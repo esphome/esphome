@@ -135,7 +135,7 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   WaveshareEPaperTypeAModel model_;
   uint32_t idle_timeout_() override;
   void setup_buffer_() override;
-  void draw_absolute_pixel_internal(int x, int y, Color color);
+  void draw_absolute_pixel_internal(int x, int y, Color color) override;
 };
 
 enum WaveshareEPaperTypeBModel {
