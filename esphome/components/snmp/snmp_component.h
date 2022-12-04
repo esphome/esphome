@@ -3,6 +3,15 @@
 #include <string>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
+#include <SNMP_Agent.h>
+#ifdef USE_ESP32
+#include <WiFi.h>
+#include <esp32/himem.h>
+#endif
+#ifdef USE_ESP8266
+#include <ESP8266WiFi.h>
+#endif
+#include <WiFiUdp.h>
 
 namespace esphome {
 namespace snmp {
@@ -12,6 +21,7 @@ namespace snmp {
 
 class SNMPComponent : public Component {
  public:
+  SNMPComponent() : snmp_agent_("public", "private"){};
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
@@ -22,6 +32,9 @@ class SNMPComponent : public Component {
   void set_location(const std::string &location) { location_ = location; }
 
  protected:
+  WiFiUDP udp_;
+  SNMPAgent snmp_agent_;
+
   void setup_system_mib_();
   void setup_storage_mib_();
 #ifdef USE_ESP32
