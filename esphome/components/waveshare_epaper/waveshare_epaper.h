@@ -30,6 +30,7 @@ class WaveshareEPaper : public PollingComponent,
   void fill(Color color) override;
 
   void setup() override {
+    this->setup_buffer_();
     this->setup_pins_();
     this->initialize();
   }
@@ -43,6 +44,7 @@ class WaveshareEPaper : public PollingComponent,
 
   bool wait_until_idle_();
 
+  virtual void setup_buffer_();
   void setup_pins_();
 
   void reset_() {
@@ -78,6 +80,7 @@ enum WaveshareEPaperTypeAModel {
   TTGO_EPAPER_2_13_IN_B73,
   TTGO_EPAPER_2_13_IN_B1,
   TTGO_EPAPER_2_13_IN_B74,
+  MHET_EPAPER_2_13_IN_TRICOLOR
 };
 
 class WaveshareEPaperTypeA : public WaveshareEPaper {
@@ -91,18 +94,34 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   void display() override;
 
   void deep_sleep() override {
-    if (this->model_ == WAVESHARE_EPAPER_2_9_IN_V2 || this->model_ == WAVESHARE_EPAPER_1_54_IN_V2) {
-      // COMMAND DEEP SLEEP MODE
-      this->command(0x10);
-      this->data(0x01);
-    } else {
-      // COMMAND DEEP SLEEP MODE
-      this->command(0x10);
+    switch (this->model_) {
+      case WAVESHARE_EPAPER_2_9_IN_V2:
+      case WAVESHARE_EPAPER_1_54_IN_V2:
+      case MHET_EPAPER_2_13_IN_TRICOLOR:
+        // COMMAND DEEP SLEEP MODE
+        this->command(0x10);
+        this->data(0x01);
+        break;
+      default:
+        // COMMAND DEEP SLEEP MODE
+        this->command(0x10);
+        break;
     }
     this->wait_until_idle_();
   }
 
   void set_full_update_every(uint32_t full_update_every);
+
+  void fill(Color color) override;
+
+  display::DisplayType get_display_type() override {
+    switch (this->model_) {
+      case MHET_EPAPER_2_13_IN_TRICOLOR:
+        return display::DisplayType::DISPLAY_TYPE_COLOR;
+      default:
+        return display::DisplayType::DISPLAY_TYPE_BINARY;
+    }
+  }
 
  protected:
   void write_lut_(const uint8_t *lut, uint8_t size);
@@ -115,6 +134,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   uint32_t at_update_{0};
   WaveshareEPaperTypeAModel model_;
   uint32_t idle_timeout_() override;
+  void setup_buffer_() override;
+  void draw_absolute_pixel_internal(int x, int y, Color color);
 };
 
 enum WaveshareEPaperTypeBModel {

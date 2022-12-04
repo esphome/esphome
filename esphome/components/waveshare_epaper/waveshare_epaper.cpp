@@ -82,8 +82,10 @@ static const uint8_t PARTIAL_UPDATE_LUT_TTGO_B1[LUT_SIZE_TTGO_B1] = {
     0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x0F, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-void WaveshareEPaper::setup_pins_() {
+void WaveshareEPaper::setup_buffer_() {
   this->init_internal_(this->get_buffer_length_());
+}
+void WaveshareEPaper::setup_pins_() {
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
   if (this->reset_pin_ != nullptr) {
@@ -163,8 +165,24 @@ void WaveshareEPaper::on_safe_shutdown() { this->deep_sleep(); }
 //                          Type A
 // ========================================================
 
+void WaveshareEPaperTypeA::setup_buffer_() {
+  uint32_t buffer_length;
+
+  switch (this->model_) {
+    case MHET_EPAPER_2_13_IN_TRICOLOR:
+      // Allocating memory for two buffers, one for each color (in addition to white);
+      // first buffer for black, the second for the other color.
+      buffer_length = this->get_buffer_length_() * 2;
+      break;
+    default:
+      buffer_length = this->get_buffer_length_();
+      break;
+  }
+
+  this->init_internal_(buffer_length);
+}
 void WaveshareEPaperTypeA::initialize() {
-  if (this->model_ == TTGO_EPAPER_2_13_IN_B74) {
+  if (this->model_ == TTGO_EPAPER_2_13_IN_B74 || this->model_ == MHET_EPAPER_2_13_IN_TRICOLOR) {
     this->reset_pin_->digital_write(false);
     delay(10);
     this->reset_pin_->digital_write(true);
@@ -191,13 +209,15 @@ void WaveshareEPaperTypeA::initialize() {
   this->command(0x2C);
   this->data(0xA8);
 
-  // COMMAND SET DUMMY LINE PERIOD
-  this->command(0x3A);
-  this->data(0x1A);
+  if (this->model_ != MHET_EPAPER_2_13_IN_TRICOLOR) {
+    // COMMAND SET DUMMY LINE PERIOD
+    this->command(0x3A);
+    this->data(0x1A);
 
-  // COMMAND SET GATE TIME
-  this->command(0x3B);
-  this->data(0x08);  // 2µs per row
+    // COMMAND SET GATE TIME
+    this->command(0x3B);
+    this->data(0x08);  // 2µs per row
+  }
 
   // COMMAND DATA ENTRY MODE SETTING
   this->command(0x11);
@@ -207,6 +227,7 @@ void WaveshareEPaperTypeA::initialize() {
       break;
     case TTGO_EPAPER_2_13_IN_B74:
     case WAVESHARE_EPAPER_2_9_IN_V2:
+    case MHET_EPAPER_2_13_IN_TRICOLOR:
       this->data(0x03);  // from top left to bottom right
       // RAM content option for Display Update
       this->command(0x21);
@@ -241,6 +262,9 @@ void WaveshareEPaperTypeA::dump_config() {
     case TTGO_EPAPER_2_13_IN_B1:
       ESP_LOGCONFIG(TAG, "  Model: 2.13in (TTGO B1)");
       break;
+    case MHET_EPAPER_2_13_IN_TRICOLOR:
+      ESP_LOGCONFIG(TAG, "  Model: 2.13in (MH-ET tricolor)");
+      break;
     case WAVESHARE_EPAPER_2_9_IN:
       ESP_LOGCONFIG(TAG, "  Model: 2.9in");
       break;
@@ -254,6 +278,62 @@ void WaveshareEPaperTypeA::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+void WaveshareEPaperTypeA::fill(Color color) {
+  if (this->model_ != MHET_EPAPER_2_13_IN_TRICOLOR) {
+      WaveshareEPaper::fill(color);
+  } else {
+    uint32_t i;
+    uint8_t fill_black;
+    uint8_t fill_other;
+
+    if (color.raw_32 == 0xFFFFFFFF) {
+      // Black (0 is black)
+      fill_black = 0x00;
+      fill_other = 0x00;
+    } else if (color.raw_32 == 0) {
+      // White (1 is white)
+      fill_black = 0xFF;
+      fill_other = 0x00;
+    } else {
+      // Third color (1 is other)
+      fill_black = 0xFF;
+      fill_other = 0xFF;
+    }
+
+    for (i = 0; i < this->get_buffer_length_(); i++) {
+      this->buffer_[i] = fill_black;
+    }
+    for (; i < this->get_buffer_length_() * 2; i++) {
+      this->buffer_[i] = fill_other;
+    }
+  }
+}
+void HOT WaveshareEPaperTypeA::draw_absolute_pixel_internal(int x, int y, Color color) {
+  if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
+    return;
+
+  if (this->model_ != MHET_EPAPER_2_13_IN_TRICOLOR) {
+    WaveshareEPaper::draw_absolute_pixel_internal(x, y, color);
+  } else {
+    const uint32_t pos = (x + y * this->get_width_internal()) / 8u;
+    const uint8_t subpos = x & 0x07;
+
+    if (color.raw_32 == 0xFFFFFFFF) {
+      // Black (0 is black)
+      this->buffer_[pos] &= ~(0x80 >> subpos);
+      this->buffer_[pos + this->get_buffer_length_()] &= 0x80 >> subpos;
+    } else if (color.raw_32 == 0) {
+      // White (1 is white)
+      this->buffer_[pos] |= 0x80 >> subpos;
+      this->buffer_[pos + this->get_buffer_length_()] &= 0x80 >> subpos;
+    } else {
+      // Third color (1 is other)
+      this->buffer_[pos] |= 0x80 >> subpos;
+      this->buffer_[pos + this->get_buffer_length_()] |= 0x80 >> subpos;
+    }
+  }
+}
+
 void HOT WaveshareEPaperTypeA::display() {
   bool full_update = this->at_update_ == 0;
   bool prev_full_update = this->at_update_ == 1;
@@ -273,6 +353,7 @@ void HOT WaveshareEPaperTypeA::display() {
           this->write_lut_(full_update ? FULL_UPDATE_LUT_TTGO_B73 : PARTIAL_UPDATE_LUT_TTGO_B73, LUT_SIZE_TTGO_B73);
           break;
         case TTGO_EPAPER_2_13_IN_B74:
+        case MHET_EPAPER_2_13_IN_TRICOLOR:
           // there is no LUT
           break;
         case TTGO_EPAPER_2_13_IN_B1:
@@ -308,6 +389,12 @@ void HOT WaveshareEPaperTypeA::display() {
       this->data((this->get_height_internal() - 1) >> 8);
 
       break;
+    case MHET_EPAPER_2_13_IN_TRICOLOR:
+      // COMMAND READ TEMPERATURE
+      this->command(0x18);
+      this->data(0x80);
+
+      // fall through
     case TTGO_EPAPER_2_13_IN_B74:
       // BorderWaveform
       this->command(0x3C);
@@ -359,12 +446,25 @@ void HOT WaveshareEPaperTypeA::display() {
   }
   this->end_data_();
 
+  switch (this->model_) {
+    case MHET_EPAPER_2_13_IN_TRICOLOR:
+      // COMMAND WRITE RAM RED
+      this->command(0x26);
+      this->start_data_();
+      this->write_array(this->buffer_ + this->get_buffer_length_(), this->get_buffer_length_());
+      this->end_data_();
+      break;
+    default:
+      break;
+  }
+
   // COMMAND DISPLAY UPDATE CONTROL 2
   this->command(0x22);
   switch (this->model_) {
     case WAVESHARE_EPAPER_2_9_IN_V2:
     case WAVESHARE_EPAPER_1_54_IN_V2:
     case TTGO_EPAPER_2_13_IN_B74:
+    case MHET_EPAPER_2_13_IN_TRICOLOR:
       this->data(full_update ? 0xF7 : 0xFF);
       break;
     case TTGO_EPAPER_2_13_IN_B73:
@@ -394,6 +494,7 @@ int WaveshareEPaperTypeA::get_width_internal() {
     case TTGO_EPAPER_2_13_IN_B1:
     case WAVESHARE_EPAPER_2_9_IN:
     case WAVESHARE_EPAPER_2_9_IN_V2:
+    case MHET_EPAPER_2_13_IN_TRICOLOR:
       return 128;
   }
   return 0;
@@ -408,6 +509,7 @@ int WaveshareEPaperTypeA::get_height_internal() {
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
     case TTGO_EPAPER_2_13_IN_B1:
+    case MHET_EPAPER_2_13_IN_TRICOLOR:
       return 250;
     case WAVESHARE_EPAPER_2_9_IN:
     case WAVESHARE_EPAPER_2_9_IN_V2:
