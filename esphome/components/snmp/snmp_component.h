@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include <SNMP_Agent.h>
+
 #ifdef USE_ESP32
 #include <WiFi.h>
 #include <esp32/himem.h>
@@ -38,7 +39,7 @@ class SNMPComponent : public Component {
   void setup_system_mib_();
   void setup_storage_mib_();
 #ifdef USE_ESP32
-  void setup_esp32_heap_mib();
+  void setup_esp32_heap_mib_();
 #endif
 #ifdef USE_ESP8266
   void setup_esp8266_heap_mib_();

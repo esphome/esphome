@@ -135,7 +135,7 @@ std::string SNMPComponent::get_bssid() {
 }
 
 #if USE_ESP32
-void SNMPComponent::setup_esp32_heap_mib() {
+void SNMPComponent::setup_esp32_heap_mib_() {
   // heap size
   snmp_agent_.addDynamicIntegerHandler(CUSTOM_OID "32.1.0", []() -> int { return ESP.getHeapSize(); });
 
@@ -228,7 +228,7 @@ void SNMPComponent::setup() {
   setup_system_mib_();
   setup_storage_mib_();
 #if USE_ESP32
-  setup_esp32_heap_mib();
+  setup_esp32_heap_mib_();
 #endif
 #if USE_ESP8266
   setup_esp8266_heap_mib_();
