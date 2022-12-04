@@ -542,8 +542,8 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#ifdef USE_ESP8266
-  uint32_t xt_state_;
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+  uint32_t state_;
 #endif
 };
 
@@ -568,7 +568,7 @@ class HighFrequencyLoopRequester {
 };
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
-void get_mac_address_raw(uint8_t *mac);
+void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
 /// Get the device MAC address as a string, in lowercase hex notation.
 std::string get_mac_address();

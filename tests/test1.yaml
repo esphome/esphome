@@ -3009,4 +3009,5 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+
 snmp:
