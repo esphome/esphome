@@ -82,9 +82,7 @@ static const uint8_t PARTIAL_UPDATE_LUT_TTGO_B1[LUT_SIZE_TTGO_B1] = {
     0x18, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
     0x00, 0x0F, 0x01, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00};
 
-void WaveshareEPaper::setup_buffer_() {
-  this->init_internal_(this->get_buffer_length_());
-}
+void WaveshareEPaper::setup_buffer_() { this->init_internal_(this->get_buffer_length_()); }
 void WaveshareEPaper::setup_pins_() {
   this->dc_pin_->setup();  // OUTPUT
   this->dc_pin_->digital_write(false);
@@ -280,7 +278,7 @@ void WaveshareEPaperTypeA::dump_config() {
 }
 void WaveshareEPaperTypeA::fill(Color color) {
   if (this->model_ != MHET_EPAPER_2_13_IN_TRICOLOR) {
-      WaveshareEPaper::fill(color);
+    WaveshareEPaper::fill(color);
   } else {
     uint32_t i;
     uint8_t fill_black;
