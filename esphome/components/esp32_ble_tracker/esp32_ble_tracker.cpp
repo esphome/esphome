@@ -199,6 +199,7 @@ void ESP32BLETracker::loop() {
         } else {
           ESP_LOGD(TAG, "Pausing scan to make connection...");
           esp_ble_gap_stop_scanning();
+          this->cancel_timeout("scan");
         }
         break;
       }
