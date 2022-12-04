@@ -10,7 +10,6 @@ DEPENDENCIES = ["wifi"]
 snmp_ns = cg.esphome_ns.namespace("snmp")
 SNMPComponent = snmp_ns.class_("SNMPComponent", cg.Component)
 
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
