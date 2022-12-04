@@ -30,7 +30,7 @@ uint32_t SNMPComponent::get_net_uptime() {
   return (millis() - wifi::global_wifi_component->wifi_connected_timestamp()) / 10;
 }
 
-void SNMPComponent::setup_system_mib() {
+void SNMPComponent::setup_system_mib_() {
   // sysDesc
   const char *desc_fmt = "ESPHome version " ESPHOME_VERSION " compiled %s, Board " ESPHOME_BOARD;
   char description[128];
@@ -78,7 +78,7 @@ int SNMPComponent::setup_psram_size(int *used) {
 }
 #endif
 
-void SNMPComponent::setup_storage_mib() {
+void SNMPComponent::setup_storage_mib_() {
   //  hrStorageIndex
   snmp_agent.addReadOnlyIntegerHandler(".1.3.6.1.2.1.25.2.3.1.1.1", 1);
 
@@ -140,7 +140,7 @@ void SNMPComponent::setup_storage_mib() {
 #endif
 }
 
-const std::string SNMPComponent::get_bssid() {
+std::string SNMPComponent::get_bssid() {
   char buf[30];
   wifi::bssid_t bssid = wifi::global_wifi_component->wifi_bssid();
   sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", bssid[0], bssid[1], bssid[2], bssid[3], bssid[4], bssid[5]);
@@ -173,7 +173,7 @@ void SNMPComponent::setup_esp8266_heap_mib() {
 }
 #endif
 
-void SNMPComponent::setup_chip_mib() {
+void SNMPComponent::setup_chip_mib_() {
   // esp32/ esp8266
 #if ESP32
   snmp_agent.addReadOnlyIntegerHandler(CUSTOM_OID "2.1.0", 32);
@@ -212,7 +212,7 @@ void SNMPComponent::setup_chip_mib() {
 #endif
 }
 
-void SNMPComponent::setup_wifi_mib() {
+void SNMPComponent::setup_wifi_mib_() {
   // RSSI
   snmp_agent.addDynamicIntegerHandler(CUSTOM_OID "4.1.0",
                                       []() -> int { return wifi::global_wifi_component->wifi_rssi(); });
@@ -239,16 +239,16 @@ void SNMPComponent::setup() {
   // hrSystemUptime
   snmp_agent.addDynamicReadOnlyTimestampHandler(".1.3.6.1.2.1.25.1.1.0", get_uptime);
 
-  setup_system_mib();
-  setup_storage_mib();
+  setup_system_mib_();
+  setup_storage_mib_();
 #if USE_ESP32
   setup_esp32_heap_mib();
 #endif
 #if USE_ESP8266
   setup_esp8266_heap_mib();
 #endif
-  setup_chip_mib();
-  setup_wifi_mib();
+  setup_chip_mib_();
+  setup_wifi_mib_();
 
   snmp_agent.sortHandlers();  // for walk to work properly
 
@@ -268,38 +268,38 @@ void SNMPComponent::loop() { snmp_agent.loop(); }
 int SNMPComponent::get_ram_size_kb() {
   // use hardcoded values (number of values in esp_chip_model_t depends on IDF version)
   // from esp_system.h
-  const int CHIP_ESP32 = 1;
-  const int CHIP_ESP32S2 = 2;
-  const int CHIP_ESP32S3 = 9;
-  const int CHIP_ESP32C3 = 5;
-  const int CHIP_ESP32H2 = 6;
-  const int CHIP_ESP32C2 = 12;
-  const int CHIP_ESP32C6 = 13;
+  const int chip_esp32 = 1;
+  const int chip_esp32_s2 = 2;
+  const int chip_esp32_s3 = 9;
+  const int chip_esp32_c3 = 5;
+  const int chip_esp32_h2 = 6;
+  const int chip_esp32_c2 = 12;
+  const int chip_esp32_c6 = 13;
 
   esp_chip_model_t model;
   esp_chip_info_t chip_info;
   esp_chip_info(&chip_info);
 
   switch ((int) chip_info.model) {
-    case CHIP_ESP32:
+    case chip_esp32:
       return 520;
 
-    case CHIP_ESP32S2:
+    case chip_esp32_s2:
       return 320;
 
-    case CHIP_ESP32S3:
+    case chip_esp32_s3:
       return 512;
 
-    case CHIP_ESP32C3:
+    case chip_esp32_c3:
       return 400;
 
-    case CHIP_ESP32H2:
+    case chip_esp32_h2:
       return 256;
 
-    case CHIP_ESP32C2:
+    case chip_esp32_c2:
       return 400;
 
-    case CHIP_ESP32C6:
+    case chip_esp32_c6:
       return 400;
   }
 
