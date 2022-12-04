@@ -860,18 +860,20 @@ void Sprinkler::clear_queued_valves() {
 }
 
 void Sprinkler::next_valve() {
-  if (this->next_prev_ignore_disabled_ && !this->any_valve_is_enabled_()) {
-    ESP_LOGD(TAG, "next_valve was called but no valves are enabled and next_prev_ignore_disabled allows only enabled "
-                  "valves; doing nothing");
-    return;
-  }
-
   if (this->state_ == IDLE) {
     this->reset_cycle_states_();  // just in case auto-advance is switched on later
   }
+
   this->manual_valve_ = this->next_valve_number_(
       this->manual_valve_.value_or(this->active_req_.valve_as_opt().value_or(this->number_of_valves() - 1)),
       !this->next_prev_ignore_disabled_, true);
+
+  if (!this->manual_valve_.has_value()) {
+    ESP_LOGD(TAG, "next_valve was called but no valve could be started; perhaps next_prev_ignore_disabled allows only "
+                  "enabled valves and no valves are enabled?");
+    return;
+  }
+
   if (this->manual_selection_delay_.has_value()) {
     this->set_timer_duration_(sprinkler::TIMER_VALVE_SELECTION, this->manual_selection_delay_.value());
     this->start_timer_(sprinkler::TIMER_VALVE_SELECTION);
@@ -881,18 +883,20 @@ void Sprinkler::next_valve() {
 }
 
 void Sprinkler::previous_valve() {
-  if (this->next_prev_ignore_disabled_ && !this->any_valve_is_enabled_()) {
-    ESP_LOGD(TAG, "previous_valve was called but no valves are enabled and next_prev_ignore_disabled allows only "
-                  "enabled valves; doing nothing");
-    return;
-  }
-
   if (this->state_ == IDLE) {
     this->reset_cycle_states_();  // just in case auto-advance is switched on later
   }
+
   this->manual_valve_ =
       this->previous_valve_number_(this->manual_valve_.value_or(this->active_req_.valve_as_opt().value_or(0)),
                                    !this->next_prev_ignore_disabled_, true);
+
+  if (!this->manual_valve_.has_value()) {
+    ESP_LOGD(TAG, "previous_valve was called but no valve could be started; perhaps next_prev_ignore_disabled allows "
+                  "only enabled valves and no valves are enabled?");
+    return;
+  }
+
   if (this->manual_selection_delay_.has_value()) {
     this->set_timer_duration_(sprinkler::TIMER_VALVE_SELECTION, this->manual_selection_delay_.value());
     this->start_timer_(sprinkler::TIMER_VALVE_SELECTION);
@@ -1204,48 +1208,60 @@ bool Sprinkler::valve_cycle_complete_(const size_t valve_number) {
   return false;
 }
 
-size_t Sprinkler::next_valve_number_(const size_t first_valve, const bool include_disabled,
-                                     const bool include_complete) {
-  auto valve = first_valve;
+optional<size_t> Sprinkler::next_valve_number_(const optional<size_t> first_valve, const bool include_disabled,
+                                               const bool include_complete) {
+  auto valve = first_valve.value_or(0);
+  size_t start = first_valve.has_value() ? 1 : 0;
 
-  while (++valve != first_valve) {
-    if (!this->is_a_valid_valve(valve)) {
-      valve = 0;
+  if (!this->is_a_valid_valve(valve)) {
+    valve = 0;
+  }
+
+  for (size_t offset = start; offset < this->number_of_valves(); offset++) {
+    auto valve_of_interest = valve + offset;
+    if (!this->is_a_valid_valve(valve_of_interest)) {
+      valve_of_interest -= this->number_of_valves();
     }
 
-    if ((this->valve_is_enabled_(valve) || include_disabled) &&
-        (!this->valve_cycle_complete_(valve) || include_complete)) {
-      return valve;
+    if ((this->valve_is_enabled_(valve_of_interest) || include_disabled) &&
+        (!this->valve_cycle_complete_(valve_of_interest) || include_complete)) {
+      return valve_of_interest;
     }
   }
-  return first_valve;
+  return nullopt;
 }
 
-size_t Sprinkler::previous_valve_number_(const size_t first_valve, const bool include_disabled,
-                                         const bool include_complete) {
-  auto valve = first_valve;
+optional<size_t> Sprinkler::previous_valve_number_(const optional<size_t> first_valve, const bool include_disabled,
+                                                   const bool include_complete) {
+  auto valve = first_valve.value_or(this->number_of_valves() - 1);
+  size_t start = first_valve.has_value() ? 1 : 0;
 
-  while (--valve != first_valve) {
-    if (!this->is_a_valid_valve(valve)) {
-      valve = this->number_of_valves() - 1;
+  if (!this->is_a_valid_valve(valve)) {
+    valve = this->number_of_valves() - 1;
+  }
+
+  for (size_t offset = start; offset < this->number_of_valves(); offset++) {
+    auto valve_of_interest = valve - offset;
+    if (!this->is_a_valid_valve(valve_of_interest)) {
+      valve_of_interest += this->number_of_valves();
     }
 
-    if ((this->valve_is_enabled_(valve) || include_disabled) &&
-        (!this->valve_cycle_complete_(valve) || include_complete)) {
-      return valve;
+    if ((this->valve_is_enabled_(valve_of_interest) || include_disabled) &&
+        (!this->valve_cycle_complete_(valve_of_interest) || include_complete)) {
+      return valve_of_interest;
     }
   }
-  return first_valve;
+  return nullopt;
 }
 
 optional<size_t> Sprinkler::next_valve_number_in_cycle_(const optional<size_t> first_valve) {
   if (this->reverse()) {
-    return this->previous_enabled_incomplete_valve_number_(first_valve);
+    return this->previous_valve_number_(first_valve, false, false);
   }
-  return this->next_enabled_incomplete_valve_number_(first_valve);
+  return this->next_valve_number_(first_valve, false, false);
 }
 
-void Sprinkler::load_next_valve_run_request_(optional<size_t> first_valve) {
+void Sprinkler::load_next_valve_run_request_(const optional<size_t> first_valve) {
   if (this->next_req_.has_request()) {
     if (!this->next_req_.run_duration()) {  // ensure the run duration is set correctly for consumption later on
       this->next_req_.set_run_duration(this->valve_run_duration_adjusted(this->next_req_.valve()));
@@ -1272,49 +1288,13 @@ void Sprinkler::load_next_valve_run_request_(optional<size_t> first_valve) {
       ESP_LOGD(TAG, "Repeating - starting cycle %u of %u", this->repeat_count_ + 1, this->repeat().value_or(0) + 1);
       // if there are repeats remaining and no more valves were left in the cycle, start a new cycle
       this->prep_full_cycle_();
-      this->next_req_.set_valve(this->next_valve_number_in_cycle_(first_valve).value_or(0));
-      this->next_req_.set_run_duration(
-          this->valve_run_duration_adjusted(this->next_valve_number_in_cycle_(first_valve).value_or(0)));
+      if (this->next_valve_number_in_cycle_().has_value()) {  // this should always succeed here, but just in case...
+        this->next_req_.set_valve(this->next_valve_number_in_cycle_().value_or(0));
+        this->next_req_.set_run_duration(
+            this->valve_run_duration_adjusted(this->next_valve_number_in_cycle_().value_or(0)));
+      }
     }
   }
-}
-
-optional<size_t> Sprinkler::next_enabled_incomplete_valve_number_(const optional<size_t> first_valve) {
-  auto new_valve_number = this->next_valve_number_(first_valve.value_or(this->number_of_valves() - 1));
-
-  while (new_valve_number != first_valve.value_or(this->number_of_valves() - 1)) {
-    if (this->valve_is_enabled_(new_valve_number) && (!this->valve_cycle_complete_(new_valve_number))) {
-      return new_valve_number;
-    } else {
-      new_valve_number = this->next_valve_number_(new_valve_number);
-    }
-  }
-  // if no first_valve was provided, we still need to check the remaining valve that would've
-  //  been skipped by the while loop above
-  if ((!first_valve.has_value()) && this->valve_is_enabled_(new_valve_number) &&
-      (!this->valve_cycle_complete_(new_valve_number))) {
-    return new_valve_number;
-  }
-  return nullopt;
-}
-
-optional<size_t> Sprinkler::previous_enabled_incomplete_valve_number_(const optional<size_t> first_valve) {
-  auto new_valve_number = this->previous_valve_number_(first_valve.value_or(0));
-
-  while (new_valve_number != first_valve.value_or(0)) {
-    if (this->valve_is_enabled_(new_valve_number) && (!this->valve_cycle_complete_(new_valve_number))) {
-      return new_valve_number;
-    } else {
-      new_valve_number = this->previous_valve_number_(new_valve_number);
-    }
-  }
-  // if no first_valve was provided, we still need to check the remaining valve that would've
-  //  been skipped by the while loop above
-  if ((!first_valve.has_value()) && this->valve_is_enabled_(new_valve_number) &&
-      (!this->valve_cycle_complete_(new_valve_number))) {
-    return new_valve_number;
-  }
-  return nullopt;
 }
 
 bool Sprinkler::any_valve_is_enabled_() {

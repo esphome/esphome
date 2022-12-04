@@ -433,13 +433,13 @@ class Sprinkler : public Component, public EntityBase {
   /// returns true if valve's cycle is flagged as complete
   bool valve_cycle_complete_(size_t valve_number);
 
-  /// returns the number of the next valve in the vector
-  /// if return value == first_valve, no other valves match criteria
-  size_t next_valve_number_(size_t first_valve, bool include_disabled = true, bool include_complete = true);
+  /// returns the number of the next valve in the vector or nullopt if no valves match criteria
+  optional<size_t> next_valve_number_(optional<size_t> first_valve = nullopt, bool include_disabled = true,
+                                      bool include_complete = true);
 
-  /// returns the number of the previous valve in the vector
-  /// if return value == first_valve, no other valves match criteria
-  size_t previous_valve_number_(size_t first_valve, bool include_disabled = true, bool include_complete = true);
+  /// returns the number of the previous valve in the vector or nullopt if no valves match criteria
+  optional<size_t> previous_valve_number_(optional<size_t> first_valve = nullopt, bool include_disabled = true,
+                                          bool include_complete = true);
 
   /// returns the number of the next valve that should be activated in a full cycle.
   ///  if no valve is next (cycle is complete), returns no value (check with 'has_value()')
@@ -450,11 +450,6 @@ class Sprinkler : public Component, public EntityBase {
   ///  queued valves have priority, followed by enabled valves if auto-advance is enabled.
   ///  if no valve is next (for example, a full cycle is complete), next_req_ is reset via reset().
   void load_next_valve_run_request_(optional<size_t> first_valve = nullopt);
-
-  /// returns the number of the next/previous valve that should be activated.
-  ///  if no valve is next (cycle is complete), returns no value (check with 'has_value()')
-  optional<size_t> next_enabled_incomplete_valve_number_(optional<size_t> first_valve);
-  optional<size_t> previous_enabled_incomplete_valve_number_(optional<size_t> first_valve);
 
   /// returns true if any valve is enabled
   bool any_valve_is_enabled_();
