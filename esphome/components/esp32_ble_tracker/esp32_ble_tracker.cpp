@@ -24,7 +24,6 @@
 #include <esp32-hal-bt.h>
 #endif
 
-
 // bt_trace.h
 #undef TAG
 
