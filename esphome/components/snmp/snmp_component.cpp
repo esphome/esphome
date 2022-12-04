@@ -38,7 +38,7 @@ void SNMPComponent::setup_system_mib_() {
   snmp_agent.addReadOnlyStaticStringHandler(RFC1213_OID_sysDescr, description);
 
   // sysName
-  snmp_agent.addDynamicReadOnlyStringHandler(RFC1213_OID_sysName, []() -> const std::string { return App.get_name(); });
+  snmp_agent.addDynamicReadOnlyStringHandler(RFC1213_OID_sysName, []() -> std::string { return App.get_name(); });
 
   // sysServices
   snmp_agent.addReadOnlyIntegerHandler(RFC1213_OID_sysServices, 64 /*=2^(7-1) applications*/);
@@ -164,7 +164,7 @@ void SNMPComponent::setup_esp32_heap_mib() {
 #endif
 
 #ifdef USE_ESP8266
-void SNMPComponent::setup_esp8266_heap_mib() {
+void SNMPComponent::setup_esp8266_heap_mib_() {
   snmp_agent.addDynamicIntegerHandler(CUSTOM_OID "8266.1.0", []() -> int { return ESP.getFreeHeap(); });
 
   snmp_agent.addDynamicIntegerHandler(CUSTOM_OID "8266.2.0", []() -> int { return ESP.getHeapFragmentation(); });
@@ -188,11 +188,11 @@ void SNMPComponent::setup_chip_mib_() {
   // chip model
 #if ESP32
   snmp_agent.addDynamicReadOnlyStringHandler(CUSTOM_OID "2.3.0",
-                                             []() -> const std::string { return ESP.getChipModel(); });
+                                             []() -> std::string { return ESP.getChipModel(); });
 #endif
 #ifdef USE_ESP8266
   snmp_agent.addDynamicReadOnlyStringHandler(CUSTOM_OID "2.3.0",
-                                             []() -> const std::string { return ESP.getCoreVersion().c_str(); });
+                                             []() -> std::string { return ESP.getCoreVersion().c_str(); });
 #endif
 
   // number of cores
@@ -222,11 +222,11 @@ void SNMPComponent::setup_wifi_mib_() {
 
   // SSID
   snmp_agent.addDynamicReadOnlyStringHandler(
-      CUSTOM_OID "4.3.0", []() -> const std::string { return wifi::global_wifi_component->wifi_ssid(); });
+      CUSTOM_OID "4.3.0", []() -> std::string { return wifi::global_wifi_component->wifi_ssid(); });
 
   // IP
   snmp_agent.addDynamicReadOnlyStringHandler(
-      CUSTOM_OID "4.4.0", []() -> const std::string { return wifi::global_wifi_component->wifi_sta_ip().str(); });
+      CUSTOM_OID "4.4.0", []() -> std::string { return wifi::global_wifi_component->wifi_sta_ip().str(); });
 }
 
 void SNMPComponent::setup() {
@@ -245,7 +245,7 @@ void SNMPComponent::setup() {
   setup_esp32_heap_mib();
 #endif
 #if USE_ESP8266
-  setup_esp8266_heap_mib();
+  setup_esp8266_heap_mib_();
 #endif
   setup_chip_mib_();
   setup_wifi_mib_();

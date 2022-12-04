@@ -28,7 +28,7 @@ class SNMPComponent : public Component {
   void setup_esp32_heap_mib();
 #endif
 #ifdef USE_ESP8266
-  void setup_esp8266_heap_mib();
+  void setup_esp8266_heap_mib_();
 #endif
   void setup_chip_mib_();
   void setup_wifi_mib_();
