@@ -25,6 +25,8 @@ void SN74HC165Component::setup() {
   this->read_gpio_();
 }
 
+void SN74HC165Component::loop() { this->read_gpio_(); }
+
 void SN74HC165Component::dump_config() { ESP_LOGCONFIG(TAG, "SN74HC165:"); }
 
 bool SN74HC165Component::digital_read_(uint16_t pin) {
@@ -33,7 +35,6 @@ bool SN74HC165Component::digital_read_(uint16_t pin) {
              (this->sr_count_ * 8) - 1);
     return false;
   }
-  this->read_gpio_();
   return this->input_bits_[pin];
 }
 
