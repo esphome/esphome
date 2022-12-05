@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_INPUT,
 )
 
+CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = []
 MULTI_CONF = True
 
