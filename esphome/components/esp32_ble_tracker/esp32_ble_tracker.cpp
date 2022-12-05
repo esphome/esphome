@@ -90,8 +90,12 @@ void ESP32BLETracker::loop() {
   int connecting = 0;
   int discovered = 0;
   int searching = 0;
+  int disconnecting = 0;
   for (auto *client : this->clients_) {
     switch (client->state()) {
+      case ClientState::DISCONNECTING:
+        disconnecting++;
+        break;
       case ClientState::DISCOVERED:
         discovered++;
         break;
@@ -144,7 +148,20 @@ void ESP32BLETracker::loop() {
       xSemaphoreGive(this->scan_result_lock_);
     }
 
-    if (!connecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
+    /*
+
+      Avoid starting the scanner if:
+      - we are already scanning
+      - we are connecting to a device
+      - we are disconnecting from a device
+
+      Otherwise the scanner could fail to ever start again
+      and our only way to recover is to reboot.
+
+      https://github.com/espressif/esp-idf/issues/6688
+
+    */
+    if (!connecting && !disconnecting && xSemaphoreTake(this->scan_end_lock_, 0L)) {
       if (this->scan_continuous_) {
         if (!promote_to_connecting && !this->scan_start_failed_ && !this->scan_set_param_failed_) {
           this->start_scan_(false);
@@ -159,6 +176,10 @@ void ESP32BLETracker::loop() {
     }
 
     if (this->scan_start_failed_ || this->scan_set_param_failed_) {
+      if (this->scan_start_fail_count_ == 255) {
+        ESP_LOGE(TAG, "ESP-IDF BLE scan could not restart after 255 attempts, rebooting to restore BLE stack...");
+        App.reboot();
+      }
       esp_ble_gap_stop_scanning();
       if (this->scan_start_failed_) {
         ESP_LOGE(TAG, "Scan start failed: %d", this->scan_start_failed_);
@@ -306,7 +327,7 @@ void ESP32BLETracker::start_scan_(bool first) {
   esp_ble_gap_start_scanning(this->scan_duration_);
 
   this->set_timeout("scan", this->scan_duration_ * 2000, []() {
-    ESP_LOGW(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
+    ESP_LOGE(TAG, "ESP-IDF BLE scan never terminated, rebooting to restore BLE stack...");
     App.reboot();
   });
 }
@@ -366,7 +387,10 @@ void ESP32BLETracker::gap_scan_set_param_complete_(const esp_ble_gap_cb_param_t:
 
 void ESP32BLETracker::gap_scan_start_complete_(const esp_ble_gap_cb_param_t::ble_scan_start_cmpl_evt_param &param) {
   this->scan_start_failed_ = param.status;
-  if (param.status != ESP_BT_STATUS_SUCCESS) {
+  if (param.status == ESP_BT_STATUS_SUCCESS) {
+    this->scan_start_fail_count_ = 0;
+  } else {
+    this->scan_start_fail_count_++;
     xSemaphoreGive(this->scan_end_lock_);
   }
 }
