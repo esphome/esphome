@@ -28,6 +28,7 @@ CONF_MANUAL_SELECTION_DELAY = "manual_selection_delay"
 CONF_MULTIPLIER = "multiplier"
 CONF_MULTIPLIER_NUMBER = "multiplier_number"
 CONF_NEXT_PREV_IGNORE_DISABLED = "next_prev_ignore_disabled"
+CONF_NUMBERS_USE_MINUTES = "numbers_use_minutes"
 CONF_PUMP_OFF_SWITCH_ID = "pump_off_switch_id"
 CONF_PUMP_ON_SWITCH_ID = "pump_on_switch_id"
 CONF_PUMP_PULSE_DURATION = "pump_pulse_duration"
@@ -338,6 +339,7 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             key=CONF_NAME,
         ),
         cv.Optional(CONF_NEXT_PREV_IGNORE_DISABLED, default=False): cv.boolean,
+        cv.Optional(CONF_NUMBERS_USE_MINUTES, default=False): cv.boolean,
         cv.Optional(CONF_MANUAL_SELECTION_DELAY): cv.positive_time_period_seconds,
         cv.Optional(CONF_MULTIPLIER_NUMBER): cv.maybe_simple_value(
             number.NUMBER_SCHEMA.extend(
@@ -658,6 +660,12 @@ async def to_code(config):
         cg.add(
             var.set_next_prev_ignore_disabled_valves(
                 sprinkler_controller[CONF_NEXT_PREV_IGNORE_DISABLED]
+            )
+        )
+
+        cg.add(
+            var.set_number_values_are_minutes(
+                sprinkler_controller[CONF_NUMBERS_USE_MINUTES]
             )
         )
 
