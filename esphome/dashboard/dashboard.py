@@ -416,6 +416,10 @@ class ImportRequestHandler(BaseHandler):
             self.set_status(500)
             self.write("File already exists")
             return
+        except ValueError:
+            self.set_status(422)
+            self.write("Invalid package url")
+            return
 
         self.set_status(200)
         self.finish()
@@ -842,7 +846,7 @@ PING_REQUEST = threading.Event()
 class LoginHandler(BaseHandler):
     def get(self):
         if is_authenticated(self):
-            self.redirect("/")
+            self.redirect("./")
         else:
             self.render_login_page()
 
@@ -887,7 +891,7 @@ class LoginHandler(BaseHandler):
         password = self.get_argument("password", "")
         if settings.check_password(username, password):
             self.set_secure_cookie("authenticated", cookie_authenticated_yes)
-            self.redirect("/")
+            self.redirect("./")
             return
         error_str = (
             "Invalid username or password" if settings.username else "Invalid password"
