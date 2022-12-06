@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_TYPE_ID,
 )
 
-# pylint: disable=unused-import
 from esphome.core import coroutine, ID, CORE
 from esphome.types import ConfigType, ConfigFragmentType
 from esphome.cpp_generator import add, get_variable

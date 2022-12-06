@@ -4,6 +4,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/optional.h"
 
+#include <vector>
+
 namespace esphome {
 namespace canbus {
 
