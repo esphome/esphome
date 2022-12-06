@@ -1127,6 +1127,230 @@ void WaveshareEPaper2P9InB::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+//DKE 2.9
+//https://www.badge.team/docs/badges/sha2017/hardware/#e-ink-display-the-dke-group-depg0290b1
+//https://www.badge.team/docs/badges/sha2017/hardware/DEPG0290B01V3.0.pdf
+static const uint8_t LUT_SIZE_DKE = 70;
+static const uint8_t UPDATE_LUT_DKE[LUT_SIZE_DKE] = {
+   0xA0,	0x90,	0x50,	0x0,	0x0,	0x0,	0x0,
+   0x50,	0x90,	0xA0,	0x0,	0x0,	0x0,	0x0,
+   0xA0,	0x90,	0x50,	0x0,	0x0,	0x0,	0x0,
+   0x50,	0x90,	0xA0,	0x0,	0x0,	0x0,	0x0,
+   0x00,	0x00,	0x00,	0x0,	0x0,	0x0,	0x0,
+   0xF,	0xF,	0x0,	0x0,	0x0,
+   0xF,	0xF,	0x0,	0x0,	0x02,
+   0xF,	0xF,	0x0,	0x0,	0x0,
+   0x0,	0x0,	0x0,	0x0,	0x0,
+   0x0,	0x0,	0x0,	0x0,	0x0,
+   0x0,	0x0,	0x0,	0x0,	0x0,
+   0x0,	0x0,	0x0,	0x0,	0x0,
+};
+static const uint8_t PART_UPDATE_LUT_DKE[LUT_SIZE_DKE] = {
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x20, 0xa0, 0x80, 0x00, 0x00, 0x00, 0x00,
+    0x50, 0x10, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x03, 0x05, 0x00, 0x00, 0x00,
+    0x01, 0x08, 0x00, 0x00, 0x00,
+    0x02, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00
+};
+static const uint8_t FULL_UPDATE_LUT_DKE[LUT_SIZE_DKE] = {
+    0x90, 0x50, 0xa0, 0x50, 0x50, 0x00, 0x00,
+    0x00, 0x00, 0x10, 0xa0, 0xa0, 0x80, 0x00,
+    0x90, 0x50, 0xa0, 0x50, 0x50, 0x00, 0x00,
+    0x00, 0x00, 0x10, 0xa0, 0xa0, 0x80, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
+    0x17, 0x04, 0x00, 0x00, 0x00,
+    0x0b, 0x04, 0x00, 0x00, 0x00,
+    0x06, 0x05, 0x00, 0x00, 0x00,
+    0x04, 0x05, 0x00, 0x00, 0x00,
+    0x01, 0x0e, 0x00, 0x00, 0x00,
+    0x01, 0x00, 0x00, 0x00, 0x00,
+    0x00, 0x00, 0x00, 0x00, 0x00
+};
+
+void WaveshareEPaper2P9InDKE::initialize() {
+  //Hardware reset
+  delay(10);
+  this->reset_pin_->digital_write(false);
+  delayMicroseconds(200);
+  this->reset_pin_->digital_write(true);
+  delayMicroseconds(200);
+  //Wait for busy low
+  this->wait_until_idle_();
+  //Software reset
+  this->command(0x12);
+  //Wait for busy low
+  this->wait_until_idle_();
+  //Set Analog Block Control
+  this->command(0x74);
+  this->data(0x54);
+  //Set Digital Block Control
+  this->command(0x7E);
+  this->data(0x3B);
+  //Set display size and driver output control
+  this->command(0x01);
+  //this->data(0x27);
+  //this->data(0x01);
+  //this->data(0x00);
+  this->data(this->get_height_internal() - 1);
+  this->data((this->get_height_internal() - 1) >> 8);
+  this->data(0x00);  // ? GD = 0, SM = 0, TB = 0
+  //Ram data entry mode
+  this->command(0x11);
+  this->data(0x01);
+  //Set Ram X address
+  this->command(0x44);
+  this->data(0x00);
+  this->data(0x0F);
+  //Set Ram Y address
+  this->command(0x45);
+  this->data(0x27);
+  this->data(0x01);
+  this->data(0x00);
+  this->data(0x00);
+  //Set border
+  this->command(0x3C);
+  //this->data(0x80);
+  this->data(0x01);
+  //Set VCOM value
+  this->command(0x2C);
+  this->data(0x26);
+  //Gate voltage setting
+  this->command(0x03);
+  this->data(0x17);
+  //Source voltage setting
+  this->command(0x04);
+  this->data(0x41);
+  this->data(0x00);
+  this->data(0x32);
+  //Frame setting 50hz
+  this->command(0x3A);
+  this->data(0x30);
+  this->command(0x3B);
+  this->data(0x0A);
+  //Load LUT
+  this->command(0x32);
+  for (uint8_t v : FULL_UPDATE_LUT_DKE)
+    this->data(v);
+}
+
+void HOT WaveshareEPaper2P9InDKE::display() {
+  bool partial = this->at_update_ != 0;
+  this->at_update_ = (this->at_update_ + 1) % this->full_update_every_;
+
+  if (partial) {
+    ESP_LOGI(TAG, "Performing partial e-paper update.");
+  } else {
+    ESP_LOGI(TAG, "Performing full e-paper update.");
+    //Set Ram X address counter
+    //this->command(0x4e);
+    //this->data(1);
+    ////this->data(0x00);
+    //Set Ram Y address counter
+    //this->command(0x4f);
+    //this->data(0);
+    //this->data(0);
+    ////this->data(0x27);
+    ////this->data(0x01);
+    //Load image (128/8*296)
+    this->command(0x24);
+    this->start_data_();
+    //this->write_array(this->buffer_, this->get_buffer_length_());
+    int16_t wb = ((this->get_width_internal()) >> 3);
+      for (int i = 0; i < this->get_height_internal(); i++) {
+        for (int j = 0; j < wb; j++) {
+          int idx = j + (this->get_height_internal() - 1 - i) * wb;
+          this->write_byte(this->buffer_[idx]);
+        }
+      }
+    this->end_data_();
+    //Image update
+    this->command(0x22);
+    this->data(0xC7);
+    this->command(0x20);
+    //Wait for busy low
+    //this->wait_until_idle_();
+    //Enter deep sleep mode
+    this->command(0x10);
+    this->data(0x01);
+  }
+    /*
+    // set up partial update
+    //this->command(0x32);
+    //for (uint8_t v : PART_UPDATE_LUT_DKE)
+    //  this->data(v);
+    this->command(0x3F);
+    this->data(0x22);
+
+    this->command(0x03);
+    this->data(0x17);
+    this->command(0x04);
+    this->data(0x41);
+    this->data(0x00);
+    this->data(0x32);
+    this->command(0x2C);
+    this->data(0x32);
+
+    this->command(0x37);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x40);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+
+    this->command(0x3C);
+    this->data(0x80);
+    this->command(0x22);
+    this->data(0xC0);
+    this->command(0x20);
+    this->wait_until_idle_();
+    // send data
+    this->command(0x24);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    //for (size_t i = 0; i < this->get_buffer_length_(); i++)
+    //  this->write_byte(0x00);
+    this->end_data_();
+    // commit as partial
+    this->command(0x22);
+    this->data(0xC7);
+    //this->data(0xCF);
+    this->command(0x20);
+    //this->wait_until_idle_();
+    // data must be sent again on partial update
+    delay(300);  // NOLINT
+    this->command(0x24);
+    this->start_data_();
+    this->write_array(this->buffer_, this->get_buffer_length_());
+    this->end_data_();
+    delay(300);  // NOLINT
+    */
+}
+int WaveshareEPaper2P9InDKE::get_width_internal() { return 128; }
+int WaveshareEPaper2P9InDKE::get_height_internal() { return 296; }
+void WaveshareEPaper2P9InDKE::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in DKE");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+void WaveshareEPaper2P9InDKE::set_full_update_every(uint32_t full_update_every) {
+  this->full_update_every_ = full_update_every;
+}
+
 // ========================================================
 //               2.90in Type B (LUT from OTP)
 // Datasheet:
