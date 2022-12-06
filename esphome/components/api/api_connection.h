@@ -7,6 +7,8 @@
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
 
+#include <vector>
+
 namespace esphome {
 namespace api {
 
