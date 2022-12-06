@@ -42,6 +42,9 @@ void GraphicalDisplayMenu::set_display_updater(PollingComponent *display_updater
 
 void GraphicalDisplayMenu::set_font(display::Font *font) { this->font_ = font; }
 
+void GraphicalDisplayMenu::set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; }
+void GraphicalDisplayMenu::set_background_color(Color background_color) { this->background_color_ = background_color; }
+
 void GraphicalDisplayMenu::draw_menu() {
   const int available_height = this->display_buffer_->get_height();
   int total_height = 0;
@@ -134,8 +137,8 @@ Dimension GraphicalDisplayMenu::measure_item(const display_menu_base::MenuItem *
 
 void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, const Position *position,
                                      const Dimension *measured_dimensions, bool selected) {
-  auto background_color = selected ? display::COLOR_ON : display::COLOR_OFF;
-  auto foreground_color = selected ? display::COLOR_OFF : display::COLOR_ON;
+  auto background_color = selected ? this->foreground_color_ : this->background_color_;
+  auto foreground_color = selected ? this->background_color_ : this->foreground_color_;
 
   int background_width = std::max(measured_dimensions->width, this->display_buffer_->get_width());
 

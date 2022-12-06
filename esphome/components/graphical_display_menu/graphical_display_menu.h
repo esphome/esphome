@@ -28,6 +28,8 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   void set_display_updater(PollingComponent *display_updater);
   void set_font(display::Font *font);
   template<typename V> void set_menu_item_value(V menu_item_value) { this->menu_item_value_ = menu_item_value; }
+  void set_foreground_color(Color foreground_color);
+  void set_background_color(Color background_color);
 
  protected:
   void draw_menu() override;
@@ -41,6 +43,8 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   PollingComponent *display_updater_{nullptr};
   display::Font *font_{nullptr};
   TemplatableValue<std::string, const display_menu_base::MenuItem *> menu_item_value_{nullptr};
+  Color foreground_color_{display::COLOR_ON};
+  Color background_color_{display::COLOR_OFF};
 };
 
 }  // namespace graphical_display_menu
