@@ -5,6 +5,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
+#include <vector>
+
 namespace esphome {
 namespace rc522 {
 

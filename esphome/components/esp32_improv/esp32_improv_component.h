@@ -9,6 +9,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"
 
+#include <vector>
+
 #ifdef USE_ESP32
 
 #include <improv.h>

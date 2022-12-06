@@ -66,7 +66,7 @@ CONF_BLE_CLIENT_ID = "ble_client_id"
 
 BLE_CLIENT_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_BLE_CLIENT_ID): cv.use_id(BLEClient),
+        cv.GenerateID(CONF_BLE_CLIENT_ID): cv.use_id(BLEClient),
     }
 )
 
@@ -78,7 +78,7 @@ async def register_ble_node(var, config):
 
 BLE_WRITE_ACTION_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ID): cv.use_id(BLEClient),
+        cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
         cv.Required(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
         cv.Required(CONF_CHARACTERISTIC_UUID): esp32_ble_tracker.bt_uuid,
         cv.Required(CONF_VALUE): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),

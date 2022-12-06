@@ -4,6 +4,8 @@
 #include "esphome/components/switch/switch.h"
 #include "esphome/core/component.h"
 
+#include <vector>
+
 namespace esphome {
 namespace modbus_controller {
 
