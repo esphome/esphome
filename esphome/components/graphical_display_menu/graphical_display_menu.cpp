@@ -115,9 +115,8 @@ Dimension GraphicalDisplayMenu::measure_item(const display_menu_base::MenuItem *
   std::string label = item->get_text();
   if (item->has_value()) {
     // Append to label
-    label.append(" [");
-    label.append(item->get_value_text());
-    label.append("]");
+    label.append(" ");
+    label.append(this->menu_item_value_.value(item));
   }
 
   int x1;
@@ -145,10 +144,8 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, co
 
   std::string label = item->get_text();
   if (item->has_value()) {
-    // Append to label
-    label.append(" [");
-    label.append(item->get_value_text());
-    label.append("]");
+    label.append(" ");
+    label.append(this->menu_item_value_.value(item));
   }
 
   this->display_buffer_->print(position->x, position->y, this->font_, foreground_color, display::TextAlign::TOP_LEFT,

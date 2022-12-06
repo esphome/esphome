@@ -1,10 +1,13 @@
 #pragma once
 
 #include "esphome/components/display_menu_base/display_menu_base.h"
+#include "esphome/components/display_menu_base/menu_item.h"
 #include "esphome/components/display/display_buffer.h"
+#include "esphome/core/automation.h"
 #include <cstdlib>
 
 namespace esphome {
+
 namespace graphical_display_menu {
 struct Position {
   int x;
@@ -24,6 +27,7 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   void set_display_buffer(display::DisplayBuffer *display);
   void set_display_updater(PollingComponent *display_updater);
   void set_font(display::Font *font);
+  template<typename V> void set_menu_item_value(V menu_item_value) { this->menu_item_value_ = menu_item_value; }
 
  protected:
   void draw_menu() override;
@@ -36,6 +40,7 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   display::DisplayBuffer *display_buffer_{nullptr};
   PollingComponent *display_updater_{nullptr};
   display::Font *font_{nullptr};
+  TemplatableValue<std::string, const display_menu_base::MenuItem *> menu_item_value_{nullptr};
 };
 
 }  // namespace graphical_display_menu

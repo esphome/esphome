@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import display, font
 from esphome.const import CONF_ID
+from esphome import automation, core
 
 from esphome.components.display_menu_base import (
     DISPLAY_MENU_BASE_SCHEMA,
@@ -12,15 +13,28 @@ from esphome.components.display_menu_base import (
 CONF_DISPLAY = "display"
 CONF_DISPLAY_UPDATER = "display_updater"
 CONF_FONT = "font"
+CONF_MENU_ITEM_VALUE = "menu_item_value"
 
 graphical_display_menu = cg.esphome_ns.namespace("graphical_display_menu")
 GraphicalDisplayMenu = graphical_display_menu.class_(
     "GraphicalDisplayMenu", DisplayMenuComponent
 )
 
+display_menu_base_ns = cg.esphome_ns.namespace("display_menu_base")
+MenuItem = display_menu_base_ns.class_("MenuItem")
+MenuItemConstPtr = MenuItem.operator("ptr").operator("const")
+
 CODEOWNERS = ["@MrMDavidson"]
 
 AUTO_LOAD = ["display_menu_base"]
+
+DEFAULT_MENU_ITEM_VALUE = """
+    std::string label = "(";
+    label.append(it->get_value_text());
+    label.append(")");
+    
+    return label;
+"""
 
 CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
     cv.Schema(
@@ -29,6 +43,9 @@ CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
             cv.Required(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
             cv.Optional(CONF_DISPLAY_UPDATER): cv.use_id(cg.PollingComponent),
             cv.Required(CONF_FONT): cv.use_id(font.Font),
+            cv.Optional(
+                CONF_MENU_ITEM_VALUE, default=DEFAULT_MENU_ITEM_VALUE
+            ): cv.templatable(cv.string),
         }
     )
 )
@@ -47,5 +64,14 @@ async def to_code(config):
 
     menu_font = await cg.get_variable(config[CONF_FONT])
     cg.add(var.set_font(menu_font))
+
+    if CONF_MENU_ITEM_VALUE in config:
+        if isinstance(config[CONF_MENU_ITEM_VALUE], core.Lambda):
+            template_ = await cg.templatable(
+                config[CONF_MENU_ITEM_VALUE], [(MenuItemConstPtr, "it")], cg.std_string
+            )
+            cg.add(var.set_menu_item_value(template_))
+        else:
+            cg.add(var.set_menu_item_value(config[CONF_MENU_ITEM_VALUE]))
 
     await display_menu_to_code(var, config)
