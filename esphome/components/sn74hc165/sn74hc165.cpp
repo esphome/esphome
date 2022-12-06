@@ -16,9 +16,9 @@ void SN74HC165Component::setup() {
   this->clock_pin_->digital_write(false);
   this->load_pin_->digital_write(false);
 
-  if (this->clock_enable_pin_ != nullptr) {
-    this->clock_enable_pin_->setup();
-    this->clock_enable_pin_->digital_write(true);
+  if (this->clock_inhibit_pin_ != nullptr) {
+    this->clock_inhibit_pin_->setup();
+    this->clock_inhibit_pin_->digital_write(true);
   }
 
   // read state from shift register
@@ -44,8 +44,8 @@ void SN74HC165Component::read_gpio_() {
   this->load_pin_->digital_write(true);
   delayMicroseconds(5);
 
-  if (this->clock_enable_pin_ != nullptr)
-    this->clock_enable_pin_->digital_write(false);
+  if (this->clock_inhibit_pin_ != nullptr)
+    this->clock_inhibit_pin_->digital_write(false);
 
   for (int16_t i = (this->sr_count_ * 8) - 1; i >= 0; i--) {
     this->input_bits_[i] = this->data_pin_->digital_read();
@@ -53,8 +53,8 @@ void SN74HC165Component::read_gpio_() {
     this->clock_pin_->digital_write(false);
   }
 
-  if (this->clock_enable_pin_ != nullptr)
-    this->clock_enable_pin_->digital_write(true);
+  if (this->clock_inhibit_pin_ != nullptr)
+    this->clock_inhibit_pin_->digital_write(true);
 }
 
 float SN74HC165Component::get_setup_priority() const { return setup_priority::IO; }

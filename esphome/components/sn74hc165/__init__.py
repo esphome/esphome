@@ -24,7 +24,7 @@ SN74HC165GPIOPin = sn74hc165_ns.class_(
 
 CONF_SN74HC165 = "sn74hc165"
 CONF_LOAD_PIN = "load_pin"
-CONF_CLOCK_ENABLE_PIN = "clock_enable_pin"
+CONF_CLOCK_INHIBIT_PIN = "clock_inhibit_pin"
 CONF_SR_COUNT = "sr_count"
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -32,7 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_DATA_PIN): pins.gpio_input_pin_schema,
         cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_LOAD_PIN): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_CLOCK_ENABLE_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_CLOCK_INHIBIT_PIN): pins.gpio_output_pin_schema,
         cv.Optional(CONF_SR_COUNT, default=1): cv.int_range(min=1, max=256),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -47,9 +47,9 @@ async def to_code(config):
     cg.add(var.set_clock_pin(clock_pin))
     load_pin = await cg.gpio_pin_expression(config[CONF_LOAD_PIN])
     cg.add(var.set_load_pin(load_pin))
-    if CONF_CLOCK_ENABLE_PIN in config:
-        clock_enable_pin = await cg.gpio_pin_expression(config[CONF_CLOCK_ENABLE_PIN])
-        cg.add(var.set_clock_enable_pin(clock_enable_pin))
+    if CONF_CLOCK_INHIBIT_PIN in config:
+        clock_inhibit_pin = await cg.gpio_pin_expression(config[CONF_CLOCK_INHIBIT_PIN])
+        cg.add(var.set_clock_inhibit_pin(clock_inhibit_pin))
 
     cg.add(var.set_sr_count(config[CONF_SR_COUNT]))
 

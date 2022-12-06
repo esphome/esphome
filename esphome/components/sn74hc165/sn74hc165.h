@@ -21,7 +21,7 @@ class SN74HC165Component : public Component {
   void set_data_pin(GPIOPin *pin) { this->data_pin_ = pin; }
   void set_clock_pin(GPIOPin *pin) { this->clock_pin_ = pin; }
   void set_load_pin(GPIOPin *pin) { this->load_pin_ = pin; }
-  void set_clock_enable_pin(GPIOPin *pin) { this->clock_enable_pin_ = pin; }
+  void set_clock_inhibit_pin(GPIOPin *pin) { this->clock_inhibit_pin_ = pin; }
   void set_sr_count(uint8_t count) {
     this->sr_count_ = count;
     this->input_bits_.resize(count * 8);
@@ -35,7 +35,7 @@ class SN74HC165Component : public Component {
   GPIOPin *data_pin_;
   GPIOPin *clock_pin_;
   GPIOPin *load_pin_;
-  GPIOPin *clock_enable_pin_;
+  GPIOPin *clock_inhibit_pin_;
   uint8_t sr_count_;
   std::vector<bool> input_bits_;
 };
