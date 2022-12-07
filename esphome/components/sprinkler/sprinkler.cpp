@@ -109,8 +109,7 @@ void SprinklerControllerNumber::update() {
 void SprinklerControllerNumber::control(float value) {
   this->set_trigger_->trigger(value);
 
-  if (this->optimistic_)
-    this->publish_state(value);
+  this->publish_state(value);
 
   if (this->restore_value_)
     this->pref_.save(&value);
@@ -118,7 +117,6 @@ void SprinklerControllerNumber::control(float value) {
 
 void SprinklerControllerNumber::dump_config() {
   LOG_NUMBER("", "Sprinkler Controller Number", this);
-  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -148,12 +146,9 @@ void SprinklerControllerSwitch::write_state(bool state) {
     this->turn_off_trigger_->trigger();
   }
 
-  if (this->optimistic_)
-    this->publish_state(state);
+  this->publish_state(state);
 }
 
-void SprinklerControllerSwitch::set_optimistic(bool optimistic) { this->optimistic_ = optimistic; }
-bool SprinklerControllerSwitch::assumed_state() { return this->assumed_state_; }
 void SprinklerControllerSwitch::set_state_lambda(std::function<optional<bool>()> &&f) { this->f_ = f; }
 float SprinklerControllerSwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 
@@ -161,32 +156,16 @@ Trigger<> *SprinklerControllerSwitch::get_turn_on_trigger() const { return this-
 Trigger<> *SprinklerControllerSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
 
 void SprinklerControllerSwitch::setup() {
-  if (!this->restore_state_) {
-    this->state = false;
-    return;
-  }
+  this->state = this->get_initial_state_with_restore_mode().value_or(false);
 
-  auto restored = this->get_initial_state();
-  if (!restored.has_value())
-    return;
-
-  ESP_LOGD(TAG, "  Restored state %s", ONOFF(*restored));
-  if (*restored) {
+  if (this->state) {
     this->turn_on();
   } else {
     this->turn_off();
   }
 }
 
-void SprinklerControllerSwitch::dump_config() {
-  LOG_SWITCH("", "Sprinkler Switch", this);
-  ESP_LOGCONFIG(TAG, "  Restore State: %s", YESNO(this->restore_state_));
-  ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
-}
-
-void SprinklerControllerSwitch::set_restore_state(bool restore_state) { this->restore_state_ = restore_state; }
-
-void SprinklerControllerSwitch::set_assumed_state(bool assumed_state) { this->assumed_state_ = assumed_state; }
+void SprinklerControllerSwitch::dump_config() { LOG_SWITCH("", "Sprinkler Switch", this); }
 
 SprinklerValveOperator::SprinklerValveOperator() {}
 SprinklerValveOperator::SprinklerValveOperator(SprinklerValve *valve, Sprinkler *controller)
@@ -453,8 +432,6 @@ void Sprinkler::add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControll
 
   if (enable_sw != nullptr) {
     new_valve->enable_switch = enable_sw;
-    new_valve->enable_switch->set_optimistic(true);
-    new_valve->enable_switch->set_restore_state(true);
   }
 }
 
@@ -482,26 +459,18 @@ void Sprinkler::set_controller_main_switch(SprinklerControllerSwitch *controller
 
 void Sprinkler::set_controller_auto_adv_switch(SprinklerControllerSwitch *auto_adv_switch) {
   this->auto_adv_sw_ = auto_adv_switch;
-  auto_adv_switch->set_optimistic(true);
-  auto_adv_switch->set_restore_state(true);
 }
 
 void Sprinkler::set_controller_queue_enable_switch(SprinklerControllerSwitch *queue_enable_switch) {
   this->queue_enable_sw_ = queue_enable_switch;
-  queue_enable_switch->set_optimistic(true);
-  queue_enable_switch->set_restore_state(true);
 }
 
 void Sprinkler::set_controller_reverse_switch(SprinklerControllerSwitch *reverse_switch) {
   this->reverse_sw_ = reverse_switch;
-  reverse_switch->set_optimistic(true);
-  reverse_switch->set_restore_state(true);
 }
 
 void Sprinkler::set_controller_standby_switch(SprinklerControllerSwitch *standby_switch) {
   this->standby_sw_ = standby_switch;
-  standby_switch->set_optimistic(true);
-  standby_switch->set_restore_state(true);
 
   this->sprinkler_standby_turn_on_automation_ = make_unique<Automation<>>(standby_switch->get_turn_on_trigger());
   this->sprinkler_standby_shutdown_action_ = make_unique<sprinkler::ShutdownAction<>>(this);

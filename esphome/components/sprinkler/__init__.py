@@ -11,13 +11,14 @@ from esphome.const import (
     CONF_MIN_VALUE,
     CONF_NAME,
     CONF_REPEAT,
+    CONF_RESTORE_MODE,
+    CONF_RESTORE_VALUE,
     CONF_RUN_DURATION,
     CONF_STEP,
     ENTITY_CATEGORY_CONFIG,
 )
 
-AUTO_LOAD = ["number"]
-AUTO_LOAD = ["switch"]
+AUTO_LOAD = ["number", "switch"]
 CODEOWNERS = ["@kbx81"]
 
 CONF_AUTO_ADVANCE_SWITCH = "auto_advance_switch"
@@ -298,6 +299,7 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
                     cv.Optional(CONF_INITIAL_VALUE, default=900): cv.positive_int,
                     cv.Optional(CONF_MAX_VALUE, default=86400): cv.positive_int,
                     cv.Optional(CONF_MIN_VALUE, default=1): cv.positive_int,
+                    cv.Optional(CONF_RESTORE_VALUE, default=True): cv.boolean,
                     cv.Optional(CONF_STEP, default=1): cv.positive_int,
                     cv.Optional(CONF_SET_ACTION): automation.validate_automation(
                         single=True
@@ -356,6 +358,7 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
                     cv.Optional(CONF_INITIAL_VALUE, default=1): cv.positive_float,
                     cv.Optional(CONF_MAX_VALUE, default=10): cv.positive_float,
                     cv.Optional(CONF_MIN_VALUE, default=0): cv.positive_float,
+                    cv.Optional(CONF_RESTORE_VALUE, default=True): cv.boolean,
                     cv.Optional(CONF_STEP, default=0.1): cv.positive_float,
                     cv.Optional(CONF_SET_ACTION): automation.validate_automation(
                         single=True
@@ -373,6 +376,7 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
                     cv.Optional(CONF_INITIAL_VALUE, default=0): cv.positive_int,
                     cv.Optional(CONF_MAX_VALUE, default=10): cv.positive_int,
                     cv.Optional(CONF_MIN_VALUE, default=0): cv.positive_int,
+                    cv.Optional(CONF_RESTORE_VALUE, default=True): cv.boolean,
                     cv.Optional(CONF_STEP, default=1): cv.positive_int,
                     cv.Optional(CONF_SET_ACTION): automation.validate_automation(
                         single=True
@@ -563,6 +567,14 @@ async def to_code(config):
             await cg.register_component(
                 sw_aa_var, sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH]
             )
+            if CONF_RESTORE_MODE in sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH]:
+                cg.add(
+                    sw_aa_var.set_restore_mode(
+                        sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH][
+                            CONF_RESTORE_MODE
+                        ]
+                    )
+                )
             cg.add(var.set_controller_auto_adv_switch(sw_aa_var))
 
             if CONF_QUEUE_ENABLE_SWITCH in sprinkler_controller:
@@ -572,6 +584,14 @@ async def to_code(config):
                 await cg.register_component(
                     sw_qen_var, sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]
                 )
+                if CONF_RESTORE_MODE in sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]:
+                    cg.add(
+                        sw_qen_var.set_restore_mode(
+                            sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH][
+                                CONF_RESTORE_MODE
+                            ]
+                        )
+                    )
                 cg.add(var.set_controller_queue_enable_switch(sw_qen_var))
 
             if CONF_REVERSE_SWITCH in sprinkler_controller:
@@ -581,6 +601,12 @@ async def to_code(config):
                 await cg.register_component(
                     sw_rev_var, sprinkler_controller[CONF_REVERSE_SWITCH]
                 )
+                if CONF_RESTORE_MODE in sprinkler_controller[CONF_REVERSE_SWITCH]:
+                    cg.add(
+                        sw_rev_var.set_restore_mode(
+                            sprinkler_controller[CONF_REVERSE_SWITCH][CONF_RESTORE_MODE]
+                        )
+                    )
                 cg.add(var.set_controller_reverse_switch(sw_rev_var))
 
             if CONF_STANDBY_SWITCH in sprinkler_controller:
@@ -590,6 +616,12 @@ async def to_code(config):
                 await cg.register_component(
                     sw_stb_var, sprinkler_controller[CONF_STANDBY_SWITCH]
                 )
+                if CONF_RESTORE_MODE in sprinkler_controller[CONF_STANDBY_SWITCH]:
+                    cg.add(
+                        sw_stb_var.set_restore_mode(
+                            sprinkler_controller[CONF_STANDBY_SWITCH][CONF_RESTORE_MODE]
+                        )
+                    )
                 cg.add(var.set_controller_standby_switch(sw_stb_var))
 
             if CONF_MULTIPLIER_NUMBER in sprinkler_controller:
@@ -611,8 +643,11 @@ async def to_code(config):
                         sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_INITIAL_VALUE]
                     )
                 )
-                cg.add(num_mult_var.set_optimistic("true"))
-                cg.add(num_mult_var.set_restore_value("true"))
+                cg.add(
+                    num_mult_var.set_restore_value(
+                        sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_RESTORE_VALUE]
+                    )
+                )
 
                 if CONF_SET_ACTION in sprinkler_controller[CONF_MULTIPLIER_NUMBER]:
                     await automation.build_automation(
@@ -638,8 +673,11 @@ async def to_code(config):
                         sprinkler_controller[CONF_REPEAT_NUMBER][CONF_INITIAL_VALUE]
                     )
                 )
-                cg.add(num_repeat_var.set_optimistic("true"))
-                cg.add(num_repeat_var.set_restore_value("true"))
+                cg.add(
+                    num_repeat_var.set_restore_value(
+                        sprinkler_controller[CONF_REPEAT_NUMBER][CONF_RESTORE_VALUE]
+                    )
+                )
 
                 if CONF_SET_ACTION in sprinkler_controller[CONF_REPEAT_NUMBER]:
                     await automation.build_automation(
@@ -787,8 +825,11 @@ async def to_code(config):
                         valve[CONF_RUN_DURATION_NUMBER][CONF_INITIAL_VALUE]
                     )
                 )
-                cg.add(num_rd_var.set_optimistic("true"))
-                cg.add(num_rd_var.set_restore_value("true"))
+                cg.add(
+                    num_rd_var.set_restore_value(
+                        valve[CONF_RUN_DURATION_NUMBER][CONF_RESTORE_VALUE]
+                    )
+                )
 
                 if CONF_SET_ACTION in valve[CONF_RUN_DURATION_NUMBER]:
                     await automation.build_automation(

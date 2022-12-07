@@ -100,15 +100,13 @@ class SprinklerControllerNumber : public number::Number, public PollingComponent
 
   void set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
   Trigger<float> *get_set_trigger() const { return set_trigger_; }
-  void set_optimistic(bool optimistic) { optimistic_ = optimistic; }
   void set_initial_value(float initial_value) { initial_value_ = initial_value; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
 
  protected:
   void control(float value) override;
-  bool optimistic_{false};
   float initial_value_{NAN};
-  bool restore_value_{false};
+  bool restore_value_{true};
   Trigger<float> *set_trigger_ = new Trigger<float>();
   optional<std::function<optional<float>()>> f_;
 
@@ -123,27 +121,19 @@ class SprinklerControllerSwitch : public switch_::Switch, public Component {
   void dump_config() override;
 
   void set_state_lambda(std::function<optional<bool>()> &&f);
-  void set_restore_state(bool restore_state);
   Trigger<> *get_turn_on_trigger() const;
   Trigger<> *get_turn_off_trigger() const;
-  void set_optimistic(bool optimistic);
-  void set_assumed_state(bool assumed_state);
   void loop() override;
 
   float get_setup_priority() const override;
 
  protected:
-  bool assumed_state() override;
-
   void write_state(bool state) override;
 
   optional<std::function<optional<bool>()>> f_;
-  bool optimistic_{false};
-  bool assumed_state_{false};
   Trigger<> *turn_on_trigger_;
   Trigger<> *turn_off_trigger_;
   Trigger<> *prev_trigger_{nullptr};
-  bool restore_state_{false};
 };
 
 class SprinklerValveOperator {
