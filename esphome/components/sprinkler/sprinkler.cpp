@@ -634,7 +634,7 @@ void Sprinkler::set_valve_run_duration(const optional<size_t> valve_number, cons
       this->valve_[valve_number.value()].run_duration = run_duration.value();
       if (this->valve_[valve_number.value()].run_duration_number != nullptr) {
         if (this->number_values_are_minutes_) {
-          this->valve_[valve_number.value()].run_duration_number->publish_state(run_duration.value() / 60);
+          this->valve_[valve_number.value()].run_duration_number->publish_state(run_duration.value() / 60.0);
         } else {
           this->valve_[valve_number.value()].run_duration_number->publish_state(run_duration.value());
         }
