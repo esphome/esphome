@@ -327,6 +327,11 @@ async def to_code(config):
             "platform_packages",
             [f"platformio/framework-espidf @ {conf[CONF_SOURCE]}"],
         )
+        # platformio/toolchain-esp32ulp does not support linux_aarch64 yet and has not been updated for over 2 years
+        # This is espressif's own published version which is more up to date.
+        cg.add_platformio_option(
+            "platform_packages", ["espressif/toolchain-esp32ulp @ 2.35.0-20220830"]
+        )
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
         add_idf_sdkconfig_option(
