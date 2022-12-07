@@ -693,6 +693,24 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
         self.write(json.dumps(sd))
 
 
+class BoardsRequestHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
+        from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
+        from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
+
+        boards = {
+            "esp32": {key: val[const.KEY_NAME] for key, val in ESP32_BOARDS.items()},
+            "esp8266": {
+                key: val[const.KEY_NAME] for key, val in ESP8266_BOARDS.items()
+            },
+            "rp2040": {key: val[const.KEY_NAME] for key, val in RP2040_BOARDS.items()},
+        }
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(boards))
+
+
 class MDNSStatusThread(threading.Thread):
     def run(self):
         global IMPORT_RESULT
@@ -1063,6 +1081,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}json-config", JsonConfigRequestHandler),
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
+            (f"{rel}boards", BoardsRequestHandler),
         ],
         **app_settings,
     )
