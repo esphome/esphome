@@ -135,6 +135,14 @@ def validate_sprinkler(config):
                     f"{CONF_VALVE_OPEN_DELAY} must be defined when {CONF_PUMP_SWITCH_OFF_DURING_VALVE_OPEN_DELAY} is enabled"
                 )
 
+        if (
+            CONF_REPEAT in sprinkler_controller
+            and CONF_REPEAT_NUMBER in sprinkler_controller
+        ):
+            raise cv.Invalid(
+                f"Do not specify {CONF_REPEAT} when using {CONF_REPEAT_NUMBER}; use number component's {CONF_INITIAL_VALUE} instead"
+            )
+
         for valve in sprinkler_controller[CONF_VALVES]:
             if (
                 CONF_VALVE_OVERLAP in sprinkler_controller
