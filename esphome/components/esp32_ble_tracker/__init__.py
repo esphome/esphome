@@ -238,6 +238,11 @@ async def to_code(config):
 
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+        # https://github.com/espressif/esp-idf/issues/4101
+        # https://github.com/espressif/esp-idf/issues/2503
+        # Match arduino CONFIG_BTU_TASK_STACK_SIZE
+        # https://github.com/espressif/arduino-esp32/blob/fd72cf46ad6fc1a6de99c1d83ba8eba17d80a4ee/tools/sdk/esp32/sdkconfig#L1866
+        add_idf_sdkconfig_option("CONFIG_BTU_TASK_STACK_SIZE", 8192)
 
     cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
 

@@ -22,6 +22,14 @@ if bashio::config.has_value 'relative_url'; then
     export ESPHOME_DASHBOARD_RELATIVE_URL=$(bashio::config 'relative_url')
 fi
 
+if bashio::config.has_value 'default_compile_process_limit'; then
+    export ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT=$(bashio::config 'default_compile_process_limit')
+else
+    if grep -q 'Raspberry Pi 3' /proc/cpuinfo; then
+        export ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT=1;
+    fi
+fi
+
 pio_cache_base=/data/cache/platformio
 # we can't set core_dir, because the settings file is stored in `core_dir/appstate.json`
 # setting `core_dir` would therefore prevent pio from accessing

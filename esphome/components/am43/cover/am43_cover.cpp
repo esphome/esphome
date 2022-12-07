@@ -56,8 +56,9 @@ void Am43Component::control(const CoverCall &call) {
     auto status =
         esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
                                  packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-    if (status)
+    if (status) {
       ESP_LOGW(TAG, "[%s] Error writing stop command to device, error = %d", this->get_name().c_str(), status);
+    }
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
@@ -68,8 +69,9 @@ void Am43Component::control(const CoverCall &call) {
     auto status =
         esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
                                  packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-    if (status)
+    if (status) {
       ESP_LOGW(TAG, "[%s] Error writing set_position command to device, error = %d", this->get_name().c_str(), status);
+    }
   }
 }
 
@@ -126,18 +128,21 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
           auto status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(),
                                                  this->char_handle_, packet->length, packet->data,
                                                  ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-          if (status)
+          if (status) {
             ESP_LOGW(TAG, "[%s] Error writing set_position to device, error = %d", this->get_name().c_str(), status);
+          }
         } else {
           ESP_LOGW(TAG, "[%s] AM43 pin rejected!", this->get_name().c_str());
         }
       }
 
-      if (this->decoder_->has_set_position_response() && !this->decoder_->set_position_ok_)
+      if (this->decoder_->has_set_position_response() && !this->decoder_->set_position_ok_) {
         ESP_LOGW(TAG, "[%s] Got nack after sending set_position. Bad pin?", this->get_name().c_str());
+      }
 
-      if (this->decoder_->has_set_state_response() && !this->decoder_->set_state_ok_)
+      if (this->decoder_->has_set_state_response() && !this->decoder_->set_state_ok_) {
         ESP_LOGW(TAG, "[%s] Got nack after sending set_state. Bad pin?", this->get_name().c_str());
+      }
       break;
     }
     default:
