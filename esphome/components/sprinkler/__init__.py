@@ -11,7 +11,6 @@ from esphome.const import (
     CONF_MIN_VALUE,
     CONF_NAME,
     CONF_REPEAT,
-    CONF_RESTORE_MODE,
     CONF_RESTORE_VALUE,
     CONF_RUN_DURATION,
     CONF_STEP,
@@ -567,14 +566,6 @@ async def to_code(config):
             await cg.register_component(
                 sw_aa_var, sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH]
             )
-            if CONF_RESTORE_MODE in sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH]:
-                cg.add(
-                    sw_aa_var.set_restore_mode(
-                        sprinkler_controller[CONF_AUTO_ADVANCE_SWITCH][
-                            CONF_RESTORE_MODE
-                        ]
-                    )
-                )
             cg.add(var.set_controller_auto_adv_switch(sw_aa_var))
 
             if CONF_QUEUE_ENABLE_SWITCH in sprinkler_controller:
@@ -584,14 +575,6 @@ async def to_code(config):
                 await cg.register_component(
                     sw_qen_var, sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]
                 )
-                if CONF_RESTORE_MODE in sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]:
-                    cg.add(
-                        sw_qen_var.set_restore_mode(
-                            sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH][
-                                CONF_RESTORE_MODE
-                            ]
-                        )
-                    )
                 cg.add(var.set_controller_queue_enable_switch(sw_qen_var))
 
             if CONF_REVERSE_SWITCH in sprinkler_controller:
@@ -601,12 +584,6 @@ async def to_code(config):
                 await cg.register_component(
                     sw_rev_var, sprinkler_controller[CONF_REVERSE_SWITCH]
                 )
-                if CONF_RESTORE_MODE in sprinkler_controller[CONF_REVERSE_SWITCH]:
-                    cg.add(
-                        sw_rev_var.set_restore_mode(
-                            sprinkler_controller[CONF_REVERSE_SWITCH][CONF_RESTORE_MODE]
-                        )
-                    )
                 cg.add(var.set_controller_reverse_switch(sw_rev_var))
 
             if CONF_STANDBY_SWITCH in sprinkler_controller:
@@ -616,12 +593,6 @@ async def to_code(config):
                 await cg.register_component(
                     sw_stb_var, sprinkler_controller[CONF_STANDBY_SWITCH]
                 )
-                if CONF_RESTORE_MODE in sprinkler_controller[CONF_STANDBY_SWITCH]:
-                    cg.add(
-                        sw_stb_var.set_restore_mode(
-                            sprinkler_controller[CONF_STANDBY_SWITCH][CONF_RESTORE_MODE]
-                        )
-                    )
                 cg.add(var.set_controller_standby_switch(sw_stb_var))
 
             if CONF_MULTIPLIER_NUMBER in sprinkler_controller:
