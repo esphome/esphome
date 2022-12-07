@@ -33,7 +33,7 @@ from .const import (  # noqa
     VARIANT_FRIENDLY,
     VARIANTS,
 )
-from .boards import BOARD_TO_VARIANT
+from .boards import BOARDS
 
 # force import gpio to register pin schema
 from .gpio import esp32_pin_to_code  # noqa
@@ -138,11 +138,11 @@ ARDUINO_PLATFORM_VERSION = cv.Version(5, 2, 0)
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 3, 2)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 2)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ESP_IDF_PLATFORM_VERSION = cv.Version(3, 5, 0)
+ESP_IDF_PLATFORM_VERSION = cv.Version(5, 2, 0)
 
 
 def _arduino_check_versions(value):
@@ -184,7 +184,7 @@ def _esp_idf_check_versions(value):
     value = value.copy()
     lookups = {
         "dev": (cv.Version(5, 0, 0), "https://github.com/espressif/esp-idf.git"),
-        "latest": (cv.Version(4, 3, 2), None),
+        "latest": (cv.Version(4, 4, 2), None),
         "recommended": (RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION, None),
     }
 
@@ -230,14 +230,14 @@ def _parse_platform_version(value):
 def _detect_variant(value):
     if CONF_VARIANT not in value:
         board = value[CONF_BOARD]
-        if board not in BOARD_TO_VARIANT:
+        if board not in BOARDS:
             raise cv.Invalid(
                 "This board is unknown, please set the variant manually",
                 path=[CONF_BOARD],
             )
 
         value = value.copy()
-        value[CONF_VARIANT] = BOARD_TO_VARIANT[board]
+        value[CONF_VARIANT] = BOARDS[board][KEY_VARIANT]
 
     return value
 
@@ -326,6 +326,11 @@ async def to_code(config):
         cg.add_platformio_option(
             "platform_packages",
             [f"platformio/framework-espidf @ {conf[CONF_SOURCE]}"],
+        )
+        # platformio/toolchain-esp32ulp does not support linux_aarch64 yet and has not been updated for over 2 years
+        # This is espressif's own published version which is more up to date.
+        cg.add_platformio_option(
+            "platform_packages", ["espressif/toolchain-esp32ulp @ 2.35.0-20220830"]
         )
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)

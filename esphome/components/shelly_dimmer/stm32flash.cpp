@@ -613,8 +613,9 @@ stm32_unique_ptr stm32_init(uart::UARTDevice *stream, const uint8_t flags, const
         }
     }
   }
-  if (new_cmds)
+  if (new_cmds) {
     ESP_LOGD(TAG, ")");
+  }
   if (stm32_get_ack(stm) != STM32_ERR_OK) {
     return make_stm32_with_deletor(nullptr);
   }

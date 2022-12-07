@@ -4,7 +4,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/components/network/ip_address.h"
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ESP32
 
 #include "esp_eth.h"
 #include "esp_eth_mac.h"
@@ -45,7 +45,7 @@ class EthernetComponent : public Component {
   bool is_connected();
 
   void set_phy_addr(uint8_t phy_addr);
-  void set_power_pin(GPIOPin *power_pin);
+  void set_power_pin(int power_pin);
   void set_mdc_pin(uint8_t mdc_pin);
   void set_mdio_pin(uint8_t mdio_pin);
   void set_type(EthernetType type);
@@ -63,11 +63,9 @@ class EthernetComponent : public Component {
   void start_connect_();
   void dump_connect_params_();
 
-  static esp_err_t eth_phy_power_control(esp_eth_phy_t *phy, bool enable);
-
   std::string use_address_;
   uint8_t phy_addr_{0};
-  GPIOPin *power_pin_{nullptr};
+  int power_pin_{-1};
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
   EthernetType type_{ETHERNET_TYPE_LAN8720};
@@ -80,8 +78,6 @@ class EthernetComponent : public Component {
   uint32_t connect_begin_;
   esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
-
-  std::function<esp_err_t(esp_eth_phy_t *, bool)> orig_power_control_fun_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
@@ -90,4 +86,4 @@ extern EthernetComponent *global_eth_component;
 }  // namespace ethernet
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_ESP32
