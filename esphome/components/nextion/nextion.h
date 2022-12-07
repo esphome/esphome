@@ -1,6 +1,8 @@
 #pragma once
 
 #include <deque>
+#include <vector>
+
 #include "esphome/core/defines.h"
 #include "esphome/components/uart/uart.h"
 #include "nextion_base.h"

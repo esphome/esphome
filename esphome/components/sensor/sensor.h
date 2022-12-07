@@ -6,6 +6,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/filter.h"
 
+#include <vector>
+
 namespace esphome {
 namespace sensor {
 
