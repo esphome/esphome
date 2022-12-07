@@ -344,7 +344,9 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             key=CONF_NAME,
         ),
         cv.Optional(CONF_STANDBY_SWITCH): cv.maybe_simple_value(
-            switch.switch_schema(SprinklerControllerSwitch),
+            switch.switch_schema(
+                SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
+            ),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_NEXT_PREV_IGNORE_DISABLED, default=False): cv.boolean,
