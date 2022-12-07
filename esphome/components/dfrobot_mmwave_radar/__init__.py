@@ -3,6 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome import core
+from esphome.automation import maybe_simple_id
 from esphome.const import (
     CONF_ID,
 )
@@ -188,7 +189,11 @@ async def dfrobot_mmwave_radar_out_latency_to_code(
 @automation.register_action(
     "dfrobot_mmwave_radar.reset",
     DfrobotMmwaveRadarResetAction,
-    cv.Schema({cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent)}),
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(DfrobotMmwaveRadarComponent),
+        }
+    ),
 )
 async def dfrobot_mmwave_radar_reset_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -200,7 +205,11 @@ async def dfrobot_mmwave_radar_reset_to_code(config, action_id, template_arg, ar
 @automation.register_action(
     "dfrobot_mmwave_radar.factory_reset",
     DfrobotMmwaveRadarFactoryResetAction,
-    cv.Schema({cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent)}),
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(DfrobotMmwaveRadarComponent),
+        }
+    ),
 )
 async def dfrobot_mmwave_radar_factory_reset_to_code(
     config, action_id, template_arg, args
