@@ -92,10 +92,12 @@ void TuyaLight::setup() {
 
 void TuyaLight::dump_config() {
   ESP_LOGCONFIG(TAG, "Tuya Dimmer:");
-  if (this->dimmer_id_.has_value())
+  if (this->dimmer_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "   Dimmer has datapoint ID %u", *this->dimmer_id_);
-  if (this->switch_id_.has_value())
+  }
+  if (this->switch_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "   Switch has datapoint ID %u", *this->switch_id_);
+  }
   if (this->rgb_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "   RGB has datapoint ID %u", *this->rgb_id_);
   } else if (this->hsv_id_.has_value()) {

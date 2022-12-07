@@ -4,7 +4,8 @@ import heapq
 import logging
 import re
 
-# pylint: disable=unused-import, wrong-import-order
+from typing import Optional, Union
+
 from contextlib import contextmanager
 
 import voluptuous as vol
@@ -23,7 +24,6 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
-from typing import Optional, Union
 from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid

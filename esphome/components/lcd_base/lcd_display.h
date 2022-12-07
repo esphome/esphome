@@ -8,6 +8,7 @@
 #endif
 
 #include <map>
+#include <vector>
 
 namespace esphome {
 namespace lcd_base {

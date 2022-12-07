@@ -4,6 +4,8 @@
 #include "esphome/core/automation.h"
 #include "real_time_clock.h"
 
+#include <vector>
+
 namespace esphome {
 namespace time {
 

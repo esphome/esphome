@@ -9,6 +9,8 @@
 #include "esphome/components/time/real_time_clock.h"
 #endif
 
+#include <vector>
+
 namespace esphome {
 namespace tuya {
 
