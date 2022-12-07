@@ -46,6 +46,7 @@ class MopekaProCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   sensor::Sensor *temperature_{nullptr};
   sensor::Sensor *distance_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
+  sensor::Sensor *quality_{nullptr};
 
   uint32_t full_mm_;
   uint32_t empty_mm_;
