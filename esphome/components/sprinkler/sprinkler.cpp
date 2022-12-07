@@ -161,8 +161,10 @@ Trigger<> *SprinklerControllerSwitch::get_turn_on_trigger() const { return this-
 Trigger<> *SprinklerControllerSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
 
 void SprinklerControllerSwitch::setup() {
-  if (!this->restore_state_)
+  if (!this->restore_state_) {
+    this->state = false;
     return;
+  }
 
   auto restored = this->get_initial_state();
   if (!restored.has_value())
