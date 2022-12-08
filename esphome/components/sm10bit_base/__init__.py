@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_DATA_PIN,
     CONF_ID,
 )
-from esphome.core import coroutine
 
 CODEOWNERS = ["@Cossid"]
 MULTI_CONF = True
