@@ -256,6 +256,25 @@ class AsyncEventSource : public AsyncWebHandler {
   connect_handler_t on_connect_{};
 };
 
+class DefaultHeaders {
+  friend class AsyncWebServerRequest;
+
+ public:
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  void addHeader(std::string name, std::string value) {
+    this->headers_.push_back(std::make_pair(std::move(name), std::move(value)));
+  }
+
+  // NOLINTNEXTLINE(readability-identifier-naming)
+  static DefaultHeaders &Instance() {
+    static DefaultHeaders instance;
+    return instance;
+  }
+
+ protected:
+  std::vector<std::pair<std::string, std::string>> headers_;
+};
+
 }  // namespace web_server_idf
 }  // namespace esphome
 
