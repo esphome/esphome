@@ -448,16 +448,6 @@ sensor:
     acceleration_mode: low
     store_baseline: true
     address: 0x69
-  - platform: pzemdc
-    current:
-      name: "PZEM-003 Current"
-    voltage:
-      name: "PZEM-003 Voltage"
-    power:
-      name: "PZEM-003 Power"
-    energy:
-      name: "PZEM-003 Energy"
-
   - platform: mcp9600
     thermocouple_type: K
     hot_junction:
