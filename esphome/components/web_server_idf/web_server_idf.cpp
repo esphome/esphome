@@ -443,6 +443,10 @@ void AsyncWebServerRequest::init_response_(AsyncResponse *rsp, int code, const c
   }
   httpd_resp_set_hdr(*this, "Accept-Ranges", "none");
 
+  for (const auto &pair : DefaultHeaders::Instance().headers_) {
+    httpd_resp_set_hdr(*this, pair.first.c_str(), pair.second.c_str());
+  }
+
   delete this->rsp_;
   this->rsp_ = rsp;
 }
