@@ -75,14 +75,14 @@ class BL0940 : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
-  sensor::Sensor *voltage_sensor_;
-  sensor::Sensor *current_sensor_;
+  sensor::Sensor *voltage_sensor_{nullptr};
+  sensor::Sensor *current_sensor_{nullptr};
   // NB This may be negative as the circuits is seemingly able to measure
   // power in both directions
-  sensor::Sensor *power_sensor_;
-  sensor::Sensor *energy_sensor_;
-  sensor::Sensor *internal_temperature_sensor_;
-  sensor::Sensor *external_temperature_sensor_;
+  sensor::Sensor *power_sensor_{nullptr};
+  sensor::Sensor *energy_sensor_{nullptr};
+  sensor::Sensor *internal_temperature_sensor_{nullptr};
+  sensor::Sensor *external_temperature_sensor_{nullptr};
 
   // Max difference between two measurements of the temperature. Used to avoid noise.
   float max_temperature_diff_{0};

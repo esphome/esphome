@@ -4,6 +4,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
+#include <vector>
+
 namespace esphome {
 namespace pzemdc {
 
@@ -23,12 +25,12 @@ class PZEMDC : public PollingComponent, public modbus::ModbusDevice {
   void dump_config() override;
 
  protected:
-  sensor::Sensor *voltage_sensor_;
-  sensor::Sensor *current_sensor_;
-  sensor::Sensor *power_sensor_;
-  sensor::Sensor *energy_sensor_;
-  sensor::Sensor *frequency_sensor_;
-  sensor::Sensor *power_factor_sensor_;
+  sensor::Sensor *voltage_sensor_{nullptr};
+  sensor::Sensor *current_sensor_{nullptr};
+  sensor::Sensor *power_sensor_{nullptr};
+  sensor::Sensor *frequency_sensor_{nullptr};
+  sensor::Sensor *power_factor_sensor_{nullptr};
+  sensor::Sensor *energy_sensor_{nullptr};
 };
 
 }  // namespace pzemdc

@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
 
-Animation_ = display.display_ns.class_("Animation")
+Animation_ = display.display_ns.class_("Animation", espImage.Image_)
 
 ANIMATION_SCHEMA = cv.Schema(
     {

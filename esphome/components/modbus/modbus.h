@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 
+#include <vector>
+
 namespace esphome {
 namespace modbus {
 
@@ -39,8 +41,6 @@ class Modbus : public uart::UARTDevice, public Component {
   uint32_t last_send_{0};
   std::vector<ModbusDevice *> devices_;
 };
-
-uint16_t crc16(const uint8_t *data, uint8_t len);
 
 class ModbusDevice {
  public:

@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import sys
+import time
 from datetime import datetime
 
 from esphome import const, writer, yaml_util
@@ -22,6 +23,9 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
     CONF_SUBSTITUTIONS,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
@@ -101,11 +105,11 @@ def run_miniterm(config, port):
 
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
-        return
+        return 1
     baud_rate = config["logger"][CONF_BAUD_RATE]
     if baud_rate == 0:
         _LOGGER.info("UART logging is disabled (baud_rate=0). Not starting UART logs.")
-        return
+        return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
     backtrace_state = False
@@ -119,25 +123,34 @@ def run_miniterm(config, port):
         ser.dtr = False
         ser.rts = False
 
-    with ser:
-        while True:
-            try:
-                raw = ser.readline()
-            except serial.SerialException:
-                _LOGGER.error("Serial port closed!")
-                return
-            line = (
-                raw.replace(b"\r", b"")
-                .replace(b"\n", b"")
-                .decode("utf8", "backslashreplace")
-            )
-            time = datetime.now().time().strftime("[%H:%M:%S]")
-            message = time + line
-            safe_print(message)
+    tries = 0
+    while tries < 5:
+        try:
+            with ser:
+                while True:
+                    try:
+                        raw = ser.readline()
+                    except serial.SerialException:
+                        _LOGGER.error("Serial port closed!")
+                        return 0
+                    line = (
+                        raw.replace(b"\r", b"")
+                        .replace(b"\n", b"")
+                        .decode("utf8", "backslashreplace")
+                    )
+                    time_str = datetime.now().time().strftime("[%H:%M:%S]")
+                    message = time_str + line
+                    safe_print(message)
 
-            backtrace_state = platformio_api.process_stacktrace(
-                config, line, backtrace_state=backtrace_state
-            )
+                    backtrace_state = platformio_api.process_stacktrace(
+                        config, line, backtrace_state=backtrace_state
+                    )
+        except serial.SerialException:
+            tries += 1
+            time.sleep(1)
+    if tries >= 5:
+        _LOGGER.error("Could not connect to serial port %s", port)
+        return 1
 
 
 def wrap_to_code(name, comp):
@@ -241,8 +254,7 @@ def upload_using_esptool(config, port):
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
 
-            # pylint: disable=protected-access
-            return run_external_command(esptool._main, *cmd)
+            return run_external_command(esptool.main, *cmd)  # pylint: disable=no-member
 
         return run_external_process(*cmd)
 
@@ -258,9 +270,21 @@ def upload_using_esptool(config, port):
 
 
 def upload_program(config, args, host):
-    # if upload is to a serial port use platformio, otherwise assume ota
     if get_port_type(host) == "SERIAL":
-        return upload_using_esptool(config, host)
+        if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
+            return upload_using_esptool(config, host)
+
+        if CORE.target_platform in (PLATFORM_RP2040):
+            from esphome import platformio_api
+
+            upload_args = ["-t", "upload"]
+            if args.device is not None:
+                upload_args += ["--upload-port", args.device]
+            return platformio_api.run_platformio_cli_run(
+                config, CORE.verbose, *upload_args
+            )
+
+        return 1  # Unknown target platform
 
     from esphome import espota2
 
@@ -273,6 +297,8 @@ def upload_program(config, args, host):
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf.get(CONF_PASSWORD, "")
+    if getattr(args, "file", None) is not None:
+        return espota2.run_ota(host, remote_port, password, args.file)
     return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
@@ -280,8 +306,7 @@ def show_logs(config, args, port):
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
     if get_port_type(port) == "SERIAL":
-        run_miniterm(config, port)
-        return 0
+        return run_miniterm(config, port)
     if get_port_type(port) == "NETWORK" and "api" in config:
         from esphome.components.api.client import run_logs
 
@@ -662,6 +687,10 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--device",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
+    )
+    parser_upload.add_argument(
+        "--file",
+        help="Manually specify the binary file to upload.",
     )
 
     parser_logs = subparsers.add_parser(

@@ -29,6 +29,7 @@ extern const float PROCESSOR;
 extern const float BLUETOOTH;
 extern const float AFTER_BLUETOOTH;
 extern const float WIFI;
+extern const float ETHERNET;
 /// For components that should be initialized after WiFi and before API is connected.
 extern const float BEFORE_CONNECTION;
 /// For components that should be initialized after WiFi is connected.
@@ -254,7 +255,7 @@ class Component {
 
   uint32_t component_state_{0x0000};  ///< State of this component.
   float setup_priority_override_{NAN};
-  const char *component_source_ = nullptr;
+  const char *component_source_{nullptr};
 };
 
 /** This class simplifies creating components that periodically check a state.

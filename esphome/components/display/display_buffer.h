@@ -4,7 +4,9 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "display_color_utils.h"
+
 #include <cstdarg>
+#include <vector>
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -490,6 +492,12 @@ class Animation : public Image {
   int get_current_frame() const;
   void next_frame();
   void prev_frame();
+
+  /** Selects a specific frame within the animation.
+   *
+   * @param frame If possitive, advance to the frame. If negative, recede to that frame from the end frame.
+   */
+  void set_frame(int frame);
 
  protected:
   int current_frame_;

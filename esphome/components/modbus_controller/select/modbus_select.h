@@ -1,6 +1,7 @@
 #pragma once
 
 #include <utility>
+#include <vector>
 
 #include "esphome/components/modbus_controller/modbus_controller.h"
 #include "esphome/components/select/select.h"

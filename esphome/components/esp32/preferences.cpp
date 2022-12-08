@@ -110,9 +110,11 @@ class ESP32Preferences : public ESPPreferences {
     if (s_pending_save.empty())
       return true;
 
-    ESP_LOGD(TAG, "Saving preferences to flash...");
+    ESP_LOGD(TAG, "Saving %d preferences to flash...", s_pending_save.size());
     // goal try write all pending saves even if one fails
-    bool any_failed = false;
+    int cached = 0, written = 0, failed = 0;
+    esp_err_t last_err = ESP_OK;
+    std::string last_key{};
 
     // go through vector from back to front (makes erase easier/more efficient)
     for (ssize_t i = s_pending_save.size() - 1; i >= 0; i--) {
@@ -124,13 +126,23 @@ class ESP32Preferences : public ESPPreferences {
         if (err != 0) {
           ESP_LOGV(TAG, "nvs_set_blob('%s', len=%u) failed: %s", save.key.c_str(), save.data.size(),
                    esp_err_to_name(err));
-          any_failed = true;
+          failed++;
+          last_err = err;
+          last_key = save.key;
           continue;
         }
+        written++;
       } else {
-        ESP_LOGD(TAG, "NVS data not changed skipping %s  len=%u", save.key.c_str(), save.data.size());
+        ESP_LOGV(TAG, "NVS data not changed skipping %s  len=%u", save.key.c_str(), save.data.size());
+        cached++;
       }
       s_pending_save.erase(s_pending_save.begin() + i);
+    }
+    ESP_LOGD(TAG, "Saving %d preferences to flash: %d cached, %d written, %d failed", cached + written + failed, cached,
+             written, failed);
+    if (failed > 0) {
+      ESP_LOGE(TAG, "Error saving %d preferences to flash. Last error=%s for key=%s", failed, esp_err_to_name(last_err),
+               last_key.c_str());
     }
 
     // note: commit on esp-idf currently is a no-op, nvs_set_blob always writes
@@ -140,7 +152,7 @@ class ESP32Preferences : public ESPPreferences {
       return false;
     }
 
-    return !any_failed;
+    return failed == 0;
   }
   bool is_changed(const uint32_t nvs_handle, const NVSData &to_save) {
     NVSData stored_data{};
@@ -150,13 +162,24 @@ class ESP32Preferences : public ESPPreferences {
       ESP_LOGV(TAG, "nvs_get_blob('%s'): %s - the key might not be set yet", to_save.key.c_str(), esp_err_to_name(err));
       return true;
     }
-    stored_data.data.reserve(actual_len);
+    stored_data.data.resize(actual_len);
     err = nvs_get_blob(nvs_handle, to_save.key.c_str(), stored_data.data.data(), &actual_len);
     if (err != 0) {
       ESP_LOGV(TAG, "nvs_get_blob('%s') failed: %s", to_save.key.c_str(), esp_err_to_name(err));
       return true;
     }
     return to_save.data != stored_data.data;
+  }
+
+  bool reset() override {
+    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    s_pending_save.clear();
+
+    nvs_flash_deinit();
+    nvs_flash_erase();
+    // Make the handle invalid to prevent any saves until restart
+    nvs_handle = 0;
+    return true;
   }
 };
 

@@ -1,3 +1,4 @@
+---
 blank_issues_enabled: false
 contact_links:
   - name: Issue Tracker
@@ -5,7 +6,10 @@ contact_links:
     about: Please create bug reports in the dedicated issue tracker.
   - name: Feature Request Tracker
     url: https://github.com/esphome/feature-requests
-    about: Please create feature requests in the dedicated feature request tracker.
+    about: |
+      Please create feature requests in the dedicated feature request tracker.
   - name: Frequently Asked Question
     url: https://esphome.io/guides/faq.html
-    about: Please view the FAQ for common questions and what to include in a bug report.
+    about: |
+      Please view the FAQ for common questions and what
+      to include in a bug report.

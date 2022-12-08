@@ -1,3 +1,4 @@
+---
 esphome:
   name: $devicename
   platform: ESP32
@@ -25,7 +26,7 @@ api:
 i2c:
   sda: 21
   scl: 22
-  scan: False
+  scan: false
 
 spi:
   clk_pin: GPIO21
@@ -38,7 +39,7 @@ uart:
   baud_rate: 115200
 
 ota:
-  safe_mode: True
+  safe_mode: true
   port: 3286
 
 logger:
@@ -71,7 +72,7 @@ select:
       2: Both
 
 pipsolar:
-    id: inverter0
+  id: inverter0
 
 sx1509:
   - id: sx1509_hub
@@ -81,9 +82,9 @@ mcp3204:
   cs_pin: GPIO23
 
 dac7678:
-    address: 0x4A
-    id: dac7678_hub1
-    internal_reference: true
+  address: 0x4A
+  id: dac7678_hub1
+  internal_reference: true
 
 sensor:
   - platform: homeassistant
@@ -226,22 +227,36 @@ sensor:
     pv_charging_power:
       id: inverter0_pv_charging_power
       name: inverter0_pv_charging_power
-  - platform: "hrxl_maxsonar_wr"
-    name: "Rainwater Tank Level"
+  - platform: hrxl_maxsonar_wr
+    name: Rainwater Tank Level
     filters:
       - sliding_window_moving_average:
           window_size: 12
           send_every: 12
       - or:
-        - throttle: "20min"
-        - delta: 0.02
+          - throttle: 20min
+          - delta: 0.02
   - platform: mcp3204
-    name: "MCP3204 Pin 1"
+    name: MCP3204 Pin 1
     number: 1
     id: mcp_sensor
   - platform: copy
     source_id: mcp_sensor
-    name: "MCP binary sensor copy"
+    name: MCP binary sensor copy
+  - platform: ufire_ec
+    id: ufire_ec_board
+    temperature:
+      name: Ufire Temperature
+    ec:
+      name: Ufire EC
+    temperature_compensation: 20.0
+    temperature_coefficient: 0.019
+  - platform: ufire_ise
+    id: ufire_ise_board
+    temperature:
+      name: Ufire Temperature
+    ph:
+      name: Ufire pH
 
 #
 # platform sensor.apds9960 requires component apds9960
@@ -321,27 +336,28 @@ binary_sensor:
       name: inverter0_backlight_on
   - platform: template
     id: ar1
-    lambda: 'return {};'
+    lambda: "return {};"
     filters:
       - autorepeat:
-        - delay: 2s
-          time_off: 100ms
-          time_on: 900ms
-        - delay: 4s
-          time_off: 100ms
-          time_on: 400ms
+          - delay: 2s
+            time_off: 100ms
+            time_on: 900ms
+          - delay: 4s
+            time_off: 100ms
+            time_on: 400ms
     on_state:
       then:
         - lambda: 'ESP_LOGI("ar1:", "%d", x);'
-  - platform: xpt2046
-    xpt2046_id: xpt_touchscreen
+  - platform: touchscreen
+    touchscreen_id: xpt_touchscreen
     id: touch_key0
     x_min: 80
     x_max: 160
     y_min: 106
     y_max: 212
-    on_state:
-      - lambda: 'ESP_LOGI("main", "key0: %s", (x ? "touch" : "release"));'
+    on_press:
+      - logger.log: Touched
+
   - platform: gpio
     name: GPIO SX1509 test
     pin:
@@ -356,8 +372,7 @@ binary_sensor:
     y_min: 0
     y_max: 100
     on_press:
-      - logger.log: "Touched"
-
+      - logger.log: Touched
 
 climate:
   - platform: tuya
@@ -366,6 +381,7 @@ climate:
     target_temperature_datapoint: 3
     current_temperature_multiplier: 0.5
     target_temperature_multiplier: 0.5
+    reports_fahrenheit: true
 
 switch:
   - platform: tuya
@@ -392,7 +408,7 @@ switch:
 light:
   - platform: fastled_clockless
     id: led_matrix_32x8
-    name: "led_matrix_32x8"
+    name: led_matrix_32x8
     chipset: WS2812B
     pin: GPIO15
     num_leds: 256
@@ -417,7 +433,7 @@ cover:
     position_datapoint: 2
   - platform: copy
     source_id: tuya_cover
-    name: "Tuya Cover copy"
+    name: Tuya Cover copy
 
 display:
   - platform: addressable_light
@@ -516,7 +532,10 @@ text_sensor:
       name: inverter0_last_qflag
   - platform: copy
     source_id: inverter0_device_mode
-    name: "Inverter Text Sensor Copy"
+    name: Inverter Text Sensor Copy
+  - platform: ethernet_info
+    ip_address:
+      name: IP Address
 
 output:
   - platform: pipsolar
@@ -524,37 +543,37 @@ output:
     battery_recharge_voltage:
       id: inverter0_battery_recharge_voltage_out
   - platform: dac7678
-    dac7678_id: 'dac7678_hub1'
+    dac7678_id: dac7678_hub1
     channel: 0
-    id: 'dac7678_1_ch0'
+    id: dac7678_1_ch0
   - platform: dac7678
-    dac7678_id: 'dac7678_hub1'
+    dac7678_id: dac7678_hub1
     channel: 1
-    id: 'dac7678_1_ch1'
+    id: dac7678_1_ch1
   - platform: dac7678
-    dac7678_id: 'dac7678_hub1'
+    dac7678_id: dac7678_hub1
     channel: 2
-    id: 'dac7678_1_ch2'
+    id: dac7678_1_ch2
   - platform: dac7678
-    dac7678_id: 'dac7678_hub1'
+    dac7678_id: dac7678_hub1
     channel: 3
-    id: 'dac7678_1_ch3'
+    id: dac7678_1_ch3
   - platform: dac7678
-    dac7678_id: 'dac7678_hub1'
+    dac7678_id: dac7678_hub1
     channel: 4
-    id: 'dac7678_1_ch4'
+    id: dac7678_1_ch4
   - platform: dac7678
-    dac7678_id: 'dac7678_hub1'
+    dac7678_id: dac7678_hub1
     channel: 5
-    id: 'dac7678_1_ch5'
+    id: dac7678_1_ch5
   - platform: dac7678
-    dac7678_id: 'dac7678_hub1'
+    dac7678_id: dac7678_hub1
     channel: 6
-    id: 'dac7678_1_ch6'
+    id: dac7678_1_ch6
   - platform: dac7678
-    dac7678_id: 'dac7678_hub1'
+    dac7678_id: dac7678_hub1
     channel: 7
-    id: 'dac7678_1_ch7'
+    id: dac7678_1_ch7
 esp32_camera:
   name: ESP-32 Camera
   data_pins: [GPIO17, GPIO35, GPIO34, GPIO5, GPIO39, GPIO18, GPIO36, GPIO19]
@@ -581,34 +600,9 @@ esp32_camera_web_server:
 external_components:
   - source: github://esphome/esphome@dev
     refresh: 1d
-    components: ["bh1750"]
+    components: [bh1750]
   - source: ../esphome/components
-    components: ["sntp"]
-xpt2046:
-  id: xpt_touchscreen
-  cs_pin: 17
-  irq_pin: 16
-  update_interval: 50ms
-  report_interval: 1s
-  threshold: 400
-  dimension_x: 240
-  dimension_y: 320
-  calibration_x_min: 3860
-  calibration_x_max: 280
-  calibration_y_min: 340
-  calibration_y_max: 3860
-  swap_x_y: False
-  on_state:
-    - lambda: |-
-        ESP_LOGI("main", "args x=%d, y=%d, touched=%s", x, y, (touched ? "touch" : "release"));
-        ESP_LOGI("main", "member x=%d, y=%d, touched=%d, x_raw=%d, y_raw=%d, z_raw=%d",
-            id(xpt_touchscreen).x,
-            id(xpt_touchscreen).y,
-            (int) id(xpt_touchscreen).touched,
-            id(xpt_touchscreen).x_raw,
-            id(xpt_touchscreen).y_raw,
-            id(xpt_touchscreen).z_raw
-            );
+    components: [sntp]
 
 button:
   - platform: restart
@@ -622,7 +616,6 @@ button:
     source_id: shutdown_btn
     name: Shutdown Button Copy
 
-
 touchscreen:
   - platform: ektf2232
     interrupt_pin: GPIO36
@@ -631,7 +624,26 @@ touchscreen:
     on_touch:
       - logger.log:
           format: Touch at (%d, %d)
-          args: ["touch.x", "touch.y"]
+          args: [touch.x, touch.y]
+
+  - platform: xpt2046
+    id: xpt_touchscreen
+    cs_pin: 17
+    interrupt_pin: 16
+    display: inkplate_display
+    update_interval: 50ms
+    report_interval: 1s
+    threshold: 400
+    calibration_x_min: 3860
+    calibration_x_max: 280
+    calibration_y_min: 340
+    calibration_y_max: 3860
+    swap_x_y: false
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: [touch.x, touch.y]
+
 
   - platform: lilygo_t5_47
     id: lilygo_touchscreen
@@ -640,7 +652,7 @@ touchscreen:
     on_touch:
       - logger.log:
           format: Touch at (%d, %d)
-          args: ["touch.x", "touch.y"]
+          args: [touch.x, touch.y]
 
 media_player:
   - platform: i2s_audio
@@ -667,3 +679,10 @@ media_player:
       - media_player.volume_up:
       - media_player.volume_down:
       - media_player.volume_set: 50%
+
+prometheus:
+  include_internal: true
+  relabel:
+    ha_hello_world:
+      id: hellow_world
+      name: Hello World
