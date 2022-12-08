@@ -10,7 +10,7 @@ float GPIOSwitch::get_setup_priority() const { return setup_priority::HARDWARE; 
 void GPIOSwitch::setup() {
   ESP_LOGCONFIG(TAG, "Setting up GPIO Switch '%s'...", this->name_.c_str());
 
-  bool initial_state = Switch::get_initial_state_with_restore_mode();
+  bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
   // write state before setup
   if (initial_state) {
