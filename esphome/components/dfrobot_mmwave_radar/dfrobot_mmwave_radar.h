@@ -27,7 +27,8 @@ class Command {
     std::string cmd_;
     bool cmd_sent_{false};
     int8_t retries_left_{2};
-    uint16_t timeout_ms_{500};
+    unsigned long cmd_duration_ms_{1000};
+    unsigned long timeout_ms_{1500};
 };
 
 static const uint8_t COMMAND_QUEUE_SIZE = 20;
@@ -70,7 +71,7 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
 
     uint8_t read_message();
     uint8_t find_prompt();
-    uint8_t send_cmd(const char * cmd);
+    uint8_t send_cmd(const char * cmd, unsigned long duration);
 
     void set_detected_(bool detected);
 
@@ -82,6 +83,8 @@ class ReadStateCommand : public Command {
  public:
    uint8_t execute(DfrobotMmwaveRadarComponent * component) override;
    uint8_t onMessage(std::string & message) override;
+ protected:
+   unsigned long timeout_ms_{500};
 };
 
 class PowerCommand : public Command {
@@ -159,7 +162,8 @@ class SaveCfgCommand : public Command {
       }
    uint8_t onMessage(std::string & message) override;
  protected:
-   uint16_t timeout_ms_{5000};
+   unsigned long cmd_duration_ms_{3000};
+   unsigned long timeout_ms_{3500};
 };
 
 template<typename... Ts> class DfrobotMmwaveRadarDetRangeCfgAction : public Action<Ts...> {

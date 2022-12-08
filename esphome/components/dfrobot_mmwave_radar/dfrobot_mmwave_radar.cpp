@@ -81,14 +81,14 @@ uint8_t DfrobotMmwaveRadarComponent::find_prompt() {
     return 0; // Not found yet
 }
 
-uint8_t DfrobotMmwaveRadarComponent::send_cmd(const char * cmd) {
-    // The interval between two commands must be larger than 1000ms.
-    if(millis() - ts_last_cmd_sent_ > 1000) {
+uint8_t DfrobotMmwaveRadarComponent::send_cmd(const char * cmd, unsigned long duration) {
+    // The interval between two commands must be larger than the specified duration (in ms).
+    if(millis() - ts_last_cmd_sent_ > duration) {
         this->write_str(cmd);
         ts_last_cmd_sent_ = millis();
         return 1; // Command sent
     }
-    // Could not send command yet as last command was sent less than 1001ms ago.
+    // Could not send command yet as command duration did not fully pass yet.
     return 0;
 }
 
@@ -189,7 +189,7 @@ uint8_t Command::execute(DfrobotMmwaveRadarComponent * component) {
             }
         }
     }
-    else if(component->send_cmd(cmd_.c_str())) {
+    else if(component->send_cmd(cmd_.c_str(), cmd_duration_ms_)) {
         cmd_sent_ = true;
     }
     return 0; // Command not done yet
@@ -206,6 +206,9 @@ uint8_t ReadStateCommand::execute(DfrobotMmwaveRadarComponent * component) {
             component->set_detected_(true);
             return 1; // Command done
         }
+    }
+    if(millis() - component->ts_last_cmd_sent_ > timeout_ms_) {
+        return 1; // Command done, timeout
     }
     return 0; // Command not done yet.
 }
