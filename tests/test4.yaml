@@ -381,6 +381,7 @@ climate:
     target_temperature_datapoint: 3
     current_temperature_multiplier: 0.5
     target_temperature_multiplier: 0.5
+    reports_fahrenheit: true
 
 switch:
   - platform: tuya
