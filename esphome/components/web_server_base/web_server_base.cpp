@@ -14,7 +14,7 @@
 #endif
 
 #ifdef USE_ESP_IDF
-#include "esphome/components/web_server_idf/ota_idf.h"
+#include "esphome/components/web_server_idf/web_server_idf_ota.h"
 #endif
 
 namespace esphome {

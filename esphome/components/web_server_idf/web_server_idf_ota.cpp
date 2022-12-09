@@ -2,14 +2,14 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-#include "ota_idf.h"
+#include "web_server_idf_ota.h"
 
 esphome::web_server_idf::OTA Update;  // NOLINT
 
 namespace esphome {
 namespace web_server_idf {
 
-static const char *const TAG = "ota_idf";
+static const char *const TAG = "web_server_idf_ota";
 
 bool OTA::begin(int image_size) {
   if (this->is_running()) {
