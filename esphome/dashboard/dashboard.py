@@ -699,11 +699,11 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
         self.write(json.dumps(sd))
 
 def _get_platform_boards(platform: str):
-        from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
-        from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
-        from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
+    from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
+    from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
+    from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
 
-        boards = {
+    boards = {
         "esp32": ESP32_BOARDS,
         "esp8266": ESP8266_BOARDS,
         "rp2040": RP2040_BOARDS,
@@ -716,7 +716,7 @@ def _get_platform_boards(platform: str):
                 for key, val in boards[platform].items()
             },
         },
-        }
+    }
 
 class BoardsRequestHandler(BaseHandler):
     @authenticated
@@ -725,6 +725,20 @@ class BoardsRequestHandler(BaseHandler):
         boards.update(_get_platform_boards("esp32"))
         boards.update(_get_platform_boards("esp8266"))
         boards.update(_get_platform_boards("rp2040"))
+
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(boards))
+
+
+class BoardsPlatformRequestHandler(BaseHandler):
+    @authenticated
+    def get(self, platform: str):
+        if platform == "libretuya":
+            from esphome.components.libretuya.boards import fetch_board_list
+
+            boards = fetch_board_list()
+        else:
+            boards = _get_platform_boards(platform)
 
         self.set_header("content-type", "application/json")
         self.write(json.dumps(boards))
@@ -1101,6 +1115,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
             (f"{rel}boards", BoardsRequestHandler),
+            (f"{rel}boards/(.*)", BoardsPlatformRequestHandler),
         ],
         **app_settings,
     )

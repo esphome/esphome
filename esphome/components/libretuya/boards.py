@@ -1,5 +1,22 @@
-LIBRETUYA_BASE_PINS = {}
+import requests
 
-LIBRETUYA_BOARD_PINS = {
-    "wr3": {},
-}
+
+def fetch_board_list() -> dict:
+    url = f"https://docs.libretuya.ml/boards.json"
+    boards = {}
+    with requests.get(url, timeout=2.0) as r:
+        boards_api = r.json()
+
+    for board in boards_api:
+        name = board["name"]
+        title = board["title"]
+        vendor = board["vendor"]
+
+        if vendor not in boards:
+            boards[vendor] = dict(
+                title=vendor,
+                items={},
+            )
+        boards[vendor]["items"][name] = title
+
+    return boards
