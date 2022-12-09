@@ -13,12 +13,8 @@ namespace esphome {
 namespace web_server_idf {
 
 #define F(string_literal) (string_literal)
-#define PGM_P const char *
-
-#define strncpy_P strncpy
-
-#include <cmath>
-using std::isnan;
+// #define PGM_P const char *
+// #define strncpy_P strncpy
 
 using String = std::string;
 
@@ -261,9 +257,7 @@ class DefaultHeaders {
 
  public:
   // NOLINTNEXTLINE(readability-identifier-naming)
-  void addHeader(std::string name, std::string value) {
-    this->headers_.push_back(std::make_pair(std::move(name), std::move(value)));
-  }
+  void addHeader(const char *name, const char *value) { this->headers_.emplace_back(name, value); }
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   static DefaultHeaders &Instance() {
