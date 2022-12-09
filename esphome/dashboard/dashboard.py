@@ -447,6 +447,12 @@ class DownloadBinaryRequestHandler(BaseHandler):
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
+        elif storage_json.target_platform.lower() == const.PLATFORM_LIBRETUYA:
+            filename = f"{storage_json.name}.uf2"
+            path = storage_json.firmware_bin_path.replace(
+                "firmware.bin", "firmware.uf2"
+            )
+
         elif type == "firmware.bin":
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
