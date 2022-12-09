@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_TEMPERATURE,
     UNIT_BECQUEREL_PER_CUBIC_METER,
-    ICON_RADIATOR,
 )
 
 DEPENDENCIES = ["ble_client"]
