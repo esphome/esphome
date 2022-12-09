@@ -5,6 +5,7 @@ from esphome.automation import maybe_simple_id
 from esphome.components import number
 from esphome.components import switch
 from esphome.const import (
+    CONF_ENTITY_CATEGORY,
     CONF_ID,
     CONF_INITIAL_VALUE,
     CONF_MAX_VALUE,
@@ -295,6 +296,9 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
             number.NUMBER_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(SprinklerControllerNumber),
+                    cv.Optional(
+                        CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
+                    ): cv.entity_category,
                     cv.Optional(CONF_INITIAL_VALUE, default=900): cv.positive_int,
                     cv.Optional(CONF_MAX_VALUE, default=86400): cv.positive_int,
                     cv.Optional(CONF_MIN_VALUE, default=1): cv.positive_int,
@@ -356,6 +360,9 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             number.NUMBER_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(SprinklerControllerNumber),
+                    cv.Optional(
+                        CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
+                    ): cv.entity_category,
                     cv.Optional(CONF_INITIAL_VALUE, default=1): cv.positive_float,
                     cv.Optional(CONF_MAX_VALUE, default=10): cv.positive_float,
                     cv.Optional(CONF_MIN_VALUE, default=0): cv.positive_float,
@@ -374,6 +381,9 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             number.NUMBER_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(SprinklerControllerNumber),
+                    cv.Optional(
+                        CONF_ENTITY_CATEGORY, default=ENTITY_CATEGORY_CONFIG
+                    ): cv.entity_category,
                     cv.Optional(CONF_INITIAL_VALUE, default=0): cv.positive_int,
                     cv.Optional(CONF_MAX_VALUE, default=10): cv.positive_int,
                     cv.Optional(CONF_MIN_VALUE, default=0): cv.positive_int,
