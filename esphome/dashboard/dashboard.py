@@ -693,20 +693,43 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
         self.write(json.dumps(sd))
 
 
+def _get_platform_boards(platform, title=None):
+    from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
+    from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
+    from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
+
+    boards = {
+        "esp32": ESP32_BOARDS,
+        "esp8266": ESP8266_BOARDS,
+        "rp2040": RP2040_BOARDS,
+    }
+    return {
+        platform: {
+            "title": title or platform.upper(),
+            "items": {
+                key: val[const.KEY_NAME] for key, val in boards[platform].items()
+            },
+        },
+    }
+
+
 class BoardsRequestHandler(BaseHandler):
     @authenticated
     def get(self):
-        from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
-        from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
-        from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
+        boards = {}
+        boards.update(_get_platform_boards("esp32"))
+        boards.update(_get_platform_boards("esp8266"))
+        boards.update(_get_platform_boards("rp2040", "Raspberry Pi"))
 
-        boards = {
-            "esp32": {key: val[const.KEY_NAME] for key, val in ESP32_BOARDS.items()},
-            "esp8266": {
-                key: val[const.KEY_NAME] for key, val in ESP8266_BOARDS.items()
-            },
-            "rp2040": {key: val[const.KEY_NAME] for key, val in RP2040_BOARDS.items()},
-        }
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(boards))
+
+
+class BoardsPlatformRequestHandler(BaseHandler):
+    @authenticated
+    def get(self, platform: str):
+        boards = _get_platform_boards(platform)
+
         self.set_header("content-type", "application/json")
         self.write(json.dumps(boards))
 
@@ -1082,6 +1105,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
             (f"{rel}boards", BoardsRequestHandler),
+            (f"{rel}boards/(.*)", BoardsPlatformRequestHandler),
         ],
         **app_settings,
     )
