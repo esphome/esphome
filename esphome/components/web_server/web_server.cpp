@@ -381,7 +381,7 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
     std::string state;
-    if (isnan(value)) {
+    if (std::isnan(value)) {
       state = "NA";
     } else {
       state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
@@ -778,7 +778,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["step"] = obj->traits.get_step();
       root["mode"] = (int) obj->traits.get_mode();
     }
-    if (isnan(value)) {
+    if (std::isnan(value)) {
       root["value"] = "\"NaN\"";
       root["state"] = "NA";
     } else {
