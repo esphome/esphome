@@ -8,7 +8,7 @@ namespace airthings_wave_radon {
 static const char *const TAG = "airthings_wave_radon";
 
 void AirthingsWaveRadon::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
-                                            esp_ble_gattc_cb_param_t *param) {
+                                             esp_ble_gattc_cb_param_t *param) {
   switch (event) {
     case ESP_GATTC_OPEN_EVT: {
       if (param->open.status == ESP_GATT_OK) {
