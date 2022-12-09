@@ -692,21 +692,34 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
             )
         self.write(json.dumps(sd))
 
-
-class BoardsRequestHandler(BaseHandler):
-    @authenticated
-    def get(self):
+def _get_platform_boards(platform: str):
         from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
         from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
         from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
 
         boards = {
-            "esp32": {key: val[const.KEY_NAME] for key, val in ESP32_BOARDS.items()},
-            "esp8266": {
-                key: val[const.KEY_NAME] for key, val in ESP8266_BOARDS.items()
+        "esp32": ESP32_BOARDS,
+        "esp8266": ESP8266_BOARDS,
+        "rp2040": RP2040_BOARDS,
+    }
+    return {
+        platform: {
+            "title": platform.upper(),
+            "items": {
+                key: val[const.KEY_NAME]
+                for key, val in boards[platform].items()
             },
-            "rp2040": {key: val[const.KEY_NAME] for key, val in RP2040_BOARDS.items()},
+        },
         }
+
+class BoardsRequestHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        boards = {}
+        boards.update(_get_platform_boards("esp32"))
+        boards.update(_get_platform_boards("esp8266"))
+        boards.update(_get_platform_boards("rp2040"))
+
         self.set_header("content-type", "application/json")
         self.write(json.dumps(boards))
 
