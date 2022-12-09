@@ -18,6 +18,7 @@ esphome/components/addressable_light/* @justfalter
 esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
+esphome/components/airthings_wave_radon/* @willhaines
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
 esphome/components/analog_threshold/* @ianchi
