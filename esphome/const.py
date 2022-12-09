@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2022.12.0-dev"
+__version__ = "2023.1.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -993,6 +993,7 @@ KEY_CORE = "core"
 KEY_TARGET_PLATFORM = "target_platform"
 KEY_TARGET_FRAMEWORK = "target_framework"
 KEY_FRAMEWORK_VERSION = "framework_version"
+KEY_NAME = "name"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""
