@@ -417,5 +417,17 @@ uint8_t SaveCfgCommand::onMessage(std::string & message) {
     return 0; // Command not done yet
 }
 
+uint8_t LedModeCommand::onMessage(std::string & message) {
+    if(message.compare("sensor is not stopped") == 0) {
+        ESP_LOGE(TAG, "Cannot set led mode. Sensor is not stopped!");
+        return 1; // Command done
+    }
+    else if(message.compare("Done") == 0) {
+        ESP_LOGI(TAG, "Set led mode done.");
+        return 1; // Command done
+    }
+    return 0; // Command not done yet
+}
+
 }  // namespace dfrobot_mmwave_radar
 }  // namespace esphome

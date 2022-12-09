@@ -166,6 +166,20 @@ class SaveCfgCommand : public Command {
    unsigned long timeout_ms_{3500};
 };
 
+class LedModeCommand : public Command {
+ public:
+   LedModeCommand(bool active) :
+      active_(active) {
+         if(active)
+            cmd_ = "setLedMode 1 0";
+         else
+            cmd_ = "setLedMode 1 1";
+      };
+   uint8_t onMessage(std::string & message) override;
+ protected:
+   bool active_;
+};
+
 template<typename... Ts> class DfrobotMmwaveRadarDetRangeCfgAction : public Action<Ts...> {
  public:
   DfrobotMmwaveRadarDetRangeCfgAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
@@ -245,6 +259,23 @@ template<typename... Ts> class DfrobotMmwaveRadarFactoryResetAction : public Act
   }
  protected:
   DfrobotMmwaveRadarComponent *parent_;
+};
+
+template<typename... Ts> class DfrobotMmwaveRadarLedModeAction : public Action<Ts...> {
+ public:
+  DfrobotMmwaveRadarLedModeAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
+
+  void set_active(bool active) { active_ = active; }
+
+  void play(Ts... x) {
+    parent_->enqueue(new PowerCommand(0));
+    parent_->enqueue(new LedModeCommand(active_));
+    parent_->enqueue(new SaveCfgCommand());
+    parent_->enqueue(new PowerCommand(1));
+  }
+ protected:
+  DfrobotMmwaveRadarComponent *parent_;
+  bool active_;
 };
 
 }  // namespace dfrobot_mmwave_radar

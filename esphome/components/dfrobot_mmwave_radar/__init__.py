@@ -6,6 +6,7 @@ from esphome import core
 from esphome.automation import maybe_simple_id
 from esphome.const import (
     CONF_ID,
+    CONF_ACTIVE,
 )
 from esphome.components import uart
 
@@ -30,6 +31,9 @@ DfrobotMmwaveRadarResetAction = dfrobot_mmwave_radar_ns.class_(
 )
 DfrobotMmwaveRadarFactoryResetAction = dfrobot_mmwave_radar_ns.class_(
     "DfrobotMmwaveRadarFactoryResetAction", automation.Action
+)
+DfrobotMmwaveRadarLedModeAction = dfrobot_mmwave_radar_ns.class_(
+    "DfrobotMmwaveRadarLedModeAction", automation.Action
 )
 
 DFROBOT_MMWAVE_RADAR_ID = "dfrobot_mmwave_radar_id"
@@ -216,5 +220,27 @@ async def dfrobot_mmwave_radar_factory_reset_to_code(
 ):
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
+
+    return var
+
+
+MMWAVE_LED_MODE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent),
+        cv.Required(CONF_ACTIVE): cv.templatable(cv.boolean),
+    }
+)
+
+
+@automation.register_action(
+    "dfrobot_mmwave_radar.led_mode",
+    DfrobotMmwaveRadarLedModeAction,
+    MMWAVE_LED_MODE_SCHEMA,
+)
+async def dfrobot_mmwave_radar_led_mode_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    cg.add(var.set_active(config[CONF_ACTIVE]))
 
     return var
