@@ -20,6 +20,9 @@ DfrobotMmwaveRadarComponent = dfrobot_mmwave_radar_ns.class_(
 )
 
 # Actions
+DfrobotMmwaveRadarPowerAction = dfrobot_mmwave_radar_ns.class_(
+    "DfrobotMmwaveRadarPowerAction", automation.Action
+)
 DfrobotMmwaveRadarDetRangeCfgAction = dfrobot_mmwave_radar_ns.class_(
     "DfrobotMmwaveRadarDetRangeCfgAction", automation.Action
 )
@@ -117,6 +120,30 @@ def range_segment_list(input):
         input[input.index(segment)] = distances
 
     return input
+
+
+@automation.register_action(
+    "dfrobot_mmwave_radar.start",
+    DfrobotMmwaveRadarPowerAction,
+    cv.Schema({cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent)}),
+)
+async def dfrobot_mmwave_radar_start_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_power(True))
+    return var
+
+
+@automation.register_action(
+    "dfrobot_mmwave_radar.stop",
+    DfrobotMmwaveRadarPowerAction,
+    cv.Schema({cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent)}),
+)
+async def dfrobot_mmwave_radar_stop_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_power(False))
+    return var
 
 
 MMWAVE_DET_RANGE_CFG_SCHEMA = cv.Schema(

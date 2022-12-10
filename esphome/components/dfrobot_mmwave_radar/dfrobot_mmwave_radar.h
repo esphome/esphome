@@ -180,6 +180,22 @@ class LedModeCommand : public Command {
    bool active_;
 };
 
+template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts...> {
+ public:
+  DfrobotMmwaveRadarPowerAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
+
+  void set_power(bool powerState) {
+    powerState_ = powerState;
+  }
+
+  void play(Ts... x) {
+    parent_->enqueue(new PowerCommand(powerState_));
+  }
+ protected:
+  DfrobotMmwaveRadarComponent *parent_;
+  bool powerState_;
+};
+
 template<typename... Ts> class DfrobotMmwaveRadarDetRangeCfgAction : public Action<Ts...> {
  public:
   DfrobotMmwaveRadarDetRangeCfgAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
