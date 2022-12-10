@@ -78,11 +78,12 @@ void SNMPComponent::setup_storage_mib_() {
   snmp_agent_.addReadOnlyIntegerHandler(".1.3.6.1.2.1.25.2.3.1.4.1", 1);
 
   // hrStorageSize
-  // static int flash_size = ESP.getFlashChipSize();
-  snmp_agent_.addDynamicIntegerHandler(".1.3.6.1.2.1.25.2.3.1.5.1", []() -> int { return ESP.getFlashChipSize(); });
+  snmp_agent_.addDynamicIntegerHandler(".1.3.6.1.2.1.25.2.3.1.5.1",
+                                       []() -> int { return ESP.getFlashChipSize(); });  // NOLINT
 
   // hrStorageUsed
-  snmp_agent_.addDynamicIntegerHandler(".1.3.6.1.2.1.25.2.3.1.6.1", []() -> int { return ESP.getSketchSize(); });
+  snmp_agent_.addDynamicIntegerHandler(".1.3.6.1.2.1.25.2.3.1.6.1",
+                                       []() -> int { return ESP.getSketchSize(); });  // NOLINT
 
   // SPI RAM
 
@@ -154,11 +155,13 @@ void SNMPComponent::setup_esp32_heap_mib_() {
 
 #ifdef USE_ESP8266
 void SNMPComponent::setup_esp8266_heap_mib_() {
-  snmp_agent_.addDynamicIntegerHandler(CUSTOM_OID "8266.1.0", []() -> int { return ESP.getFreeHeap(); });
+  snmp_agent_.addDynamicIntegerHandler(CUSTOM_OID "8266.1.0", []() -> int { return ESP.getFreeHeap(); });  // NOLINT
 
-  snmp_agent_.addDynamicIntegerHandler(CUSTOM_OID "8266.2.0", []() -> int { return ESP.getHeapFragmentation(); });
+  snmp_agent_.addDynamicIntegerHandler(CUSTOM_OID "8266.2.0",
+                                       []() -> int { return ESP.getHeapFragmentation(); });  // NOLINT
 
-  snmp_agent_.addDynamicIntegerHandler(CUSTOM_OID "8266.3.0", []() -> int { return ESP.getMaxFreeBlockSize(); });
+  snmp_agent_.addDynamicIntegerHandler(CUSTOM_OID "8266.3.0",
+                                       []() -> int { return ESP.getMaxFreeBlockSize(); });  // NOLINT
 }
 #endif
 
@@ -172,7 +175,7 @@ void SNMPComponent::setup_chip_mib_() {
 #endif
 
   // CPU clock
-  snmp_agent_.addDynamicIntegerHandler(CUSTOM_OID "2.2.0", []() -> int { return ESP.getCpuFreqMHz(); });
+  snmp_agent_.addDynamicIntegerHandler(CUSTOM_OID "2.2.0", []() -> int { return ESP.getCpuFreqMHz(); });  // NOLINT
 
   // chip model
 #if ESP32
@@ -180,7 +183,7 @@ void SNMPComponent::setup_chip_mib_() {
 #endif
 #ifdef USE_ESP8266
   snmp_agent_.addDynamicReadOnlyStringHandler(CUSTOM_OID "2.3.0",
-                                              []() -> std::string { return ESP.getCoreVersion().c_str(); });
+                                              []() -> std::string { return ESP.getCoreVersion().c_str(); });  // NOLINT
 #endif
 
   // number of cores
@@ -264,7 +267,6 @@ int SNMPComponent::get_ram_size_kb() {
   const int chip_esp32_c2 = 12;
   const int chip_esp32_c6 = 13;
 
-  esp_chip_model_t model;
   esp_chip_info_t chip_info;
   esp_chip_info(&chip_info);
 
