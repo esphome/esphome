@@ -5,7 +5,7 @@
 #include <string>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include <SNMP_Agent.h>
+#include "SNMP_Agent.h"
 
 #ifdef USE_ESP32
 #include <WiFi.h>

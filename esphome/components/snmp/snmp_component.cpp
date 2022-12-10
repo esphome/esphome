@@ -278,17 +278,13 @@ int SNMPComponent::get_ram_size_kb() {
     case chip_esp32_s3:
       return 512;
 
+    case chip_esp32_c2:
     case chip_esp32_c3:
+    case chip_esp32_c6:
       return 400;
 
     case chip_esp32_h2:
       return 256;
-
-    case chip_esp32_c2:
-      return 400;
-
-    case chip_esp32_c6:
-      return 400;
   }
 
   return 0;
@@ -298,4 +294,4 @@ int SNMPComponent::get_ram_size_kb() {
 }  // namespace snmp
 }  // namespace esphome
 
-#endif //USE_ARDUINO
+#endif  // USE_ARDUINO
