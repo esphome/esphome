@@ -278,5 +278,24 @@ template<typename... Ts> class DfrobotMmwaveRadarLedModeAction : public Action<T
   bool active_;
 };
 
+template<typename... Ts> class DfrobotMmwaveRadarStartModeAction : public Action<Ts...> {
+ public:
+  DfrobotMmwaveRadarStartModeAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
+
+  void set_start_immediately(bool start_immediately) {
+    start_immediately_ = start_immediately;
+  }
+
+  void play(Ts... x) {
+    parent_->enqueue(new PowerCommand(0));
+    parent_->enqueue(new SensorCfgStartCommand(start_immediately_));
+    parent_->enqueue(new SaveCfgCommand());
+    parent_->enqueue(new PowerCommand(1));
+  }
+ protected:
+  DfrobotMmwaveRadarComponent *parent_;
+  bool start_immediately_;
+};
+
 }  // namespace dfrobot_mmwave_radar
 }  // namespace esphome
