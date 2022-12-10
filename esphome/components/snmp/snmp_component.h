@@ -72,4 +72,4 @@ class SNMPComponent : public Component {
 }  // namespace snmp
 }  // namespace esphome
 
-#endif //USE_ARDUINO
+#endif  // USE_ARDUINO
