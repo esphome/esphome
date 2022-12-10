@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "snmp_component.h"
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
@@ -295,3 +297,5 @@ int SNMPComponent::get_ram_size_kb() {
 
 }  // namespace snmp
 }  // namespace esphome
+
+#endif //USE_ARDUINO

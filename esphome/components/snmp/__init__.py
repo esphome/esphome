@@ -1,6 +1,7 @@
 from esphome.const import CONF_ID
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.core import CORE
 
 CODEOWNERS = ["@aquaticus"]
 
@@ -29,4 +30,5 @@ async def to_code(config):
 
     await cg.register_component(var, config)
 
-    cg.add_library(r"https://github.com/aquaticus/Arduino_SNMP.git", "2.1.0")
+    if CORE.is_esp8266 or CORE.is_esp32:
+        cg.add_library(r"https://github.com/aquaticus/Arduino_SNMP.git", "2.1.0")

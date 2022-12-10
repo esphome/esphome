@@ -1,9 +1,10 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include <string>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-// NOLINTNEXTLINE
 #include <SNMP_Agent.h>
 
 #ifdef USE_ESP32
@@ -70,3 +71,5 @@ class SNMPComponent : public Component {
 
 }  // namespace snmp
 }  // namespace esphome
+
+#endif //USE_ARDUINO
