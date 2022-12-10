@@ -728,18 +728,6 @@ def _get_platform_boards(platform, title=None):
 
 class BoardsRequestHandler(BaseHandler):
     @authenticated
-    def get(self):
-        boards = {}
-        boards.update(_get_platform_boards("esp32"))
-        boards.update(_get_platform_boards("esp8266"))
-        boards.update(_get_platform_boards("rp2040", "Raspberry Pi"))
-
-        self.set_header("content-type", "application/json")
-        self.write(json.dumps(boards))
-
-
-class BoardsPlatformRequestHandler(BaseHandler):
-    @authenticated
     def get(self, platform: str):
         boards = _get_platform_boards(platform)
 
@@ -1117,8 +1105,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}json-config", JsonConfigRequestHandler),
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
-            (f"{rel}boards", BoardsRequestHandler),
-            (f"{rel}boards/(.*)", BoardsPlatformRequestHandler),
+            (f"{rel}boards/(.*)", BoardsRequestHandler),
         ],
         **app_settings,
     )
