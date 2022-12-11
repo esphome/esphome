@@ -49,9 +49,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(BluetoothProxy),
             cv.Optional(CONF_ACTIVE, default=False): cv.boolean,
-            cv.OnlyWithTargetFramework(
-                CONF_CACHE_SERVICES, "esp-idf", default=True
-            ): cv.All(cv.boolean, cv.only_with_esp_idf),
+            cv.SplitDefault(CONF_CACHE_SERVICES, esp32_idf=True): cv.All(
+                cv.only_with_esp_idf, cv.boolean
+            ),
             cv.Optional(CONF_CONNECTIONS): cv.All(
                 cv.ensure_list(CONNECTION_SCHEMA),
                 cv.Length(min=1, max=MAX_CONNECTIONS),
