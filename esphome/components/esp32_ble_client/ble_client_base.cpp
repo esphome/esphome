@@ -55,7 +55,7 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
   this->remote_bda_[3] = (addr >> 16) & 0xFF;
   this->remote_bda_[4] = (addr >> 8) & 0xFF;
   this->remote_bda_[5] = (addr >> 0) & 0xFF;
-  this->remote_addr_type_ = device.get_address_type();  
+  this->remote_addr_type_ = device.get_address_type();
   return true;
 }
 
