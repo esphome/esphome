@@ -76,9 +76,6 @@ void SprinklerSwitch::sync_valve_state(bool latch_state) {
 }
 
 void SprinklerControllerNumber::setup() {
-  if (this->f_.has_value())
-    return;
-
   float value;
   if (!this->restore_value_) {
     value = this->initial_value_;
@@ -95,17 +92,6 @@ void SprinklerControllerNumber::setup() {
   this->publish_state(value);
 }
 
-void SprinklerControllerNumber::update() {
-  if (!this->f_.has_value())
-    return;
-
-  auto val = (*this->f_)();
-  if (!val.has_value())
-    return;
-
-  this->publish_state(*val);
-}
-
 void SprinklerControllerNumber::control(float value) {
   this->set_trigger_->trigger(value);
 
@@ -115,10 +101,7 @@ void SprinklerControllerNumber::control(float value) {
     this->pref_.save(&value);
 }
 
-void SprinklerControllerNumber::dump_config() {
-  LOG_NUMBER("", "Sprinkler Controller Number", this);
-  LOG_UPDATE_INTERVAL(this);
-}
+void SprinklerControllerNumber::dump_config() { LOG_NUMBER("", "Sprinkler Controller Number", this); }
 
 SprinklerControllerSwitch::SprinklerControllerSwitch()
     : turn_on_trigger_(new Trigger<>()), turn_off_trigger_(new Trigger<>()) {}
@@ -537,7 +520,7 @@ void Sprinkler::configure_valve_pump_switch_pulsed(size_t valve_number, switch_:
     this->pump_.back().set_pulse_duration(pulse_duration);
     this->valve_[valve_number].pump_switch_index = this->pump_.size() - 1;  // save the index to the new pump
     pump_switch_off->turn_off();
-    pump_switch_on->turn_on();
+    pump_switch_on->turn_off();
   }
 }
 
@@ -565,7 +548,11 @@ void Sprinkler::set_multiplier(const optional<float> multiplier) {
     if (multiplier.value() >= 0) {
       this->multiplier_ = multiplier.value();
       if (this->multiplier_number_ != nullptr) {
-        this->multiplier_number_->publish_state(multiplier.value());
+        if (this->multiplier_number_->state != multiplier.value()) {
+          auto call = this->multiplier_number_->make_call();
+          call.set_value(multiplier.value());
+          call.perform();
+        }
       }
     }
   }
@@ -633,10 +620,14 @@ void Sprinkler::set_valve_run_duration(const optional<size_t> valve_number, cons
     if (this->is_a_valid_valve(valve_number.value())) {
       this->valve_[valve_number.value()].run_duration = run_duration.value();
       if (this->valve_[valve_number.value()].run_duration_number != nullptr) {
-        if (this->number_values_are_minutes_) {
-          this->valve_[valve_number.value()].run_duration_number->publish_state(run_duration.value() / 60.0);
-        } else {
-          this->valve_[valve_number.value()].run_duration_number->publish_state(run_duration.value());
+        if (this->valve_[valve_number.value()].run_duration_number->state != run_duration.value()) {
+          auto call = this->valve_[valve_number.value()].run_duration_number->make_call();
+          if (this->number_values_are_minutes_) {
+            call.set_value(run_duration.value() / 60.0);
+          } else {
+            call.set_value(run_duration.value());
+          }
+          call.perform();
         }
       }
     }
@@ -646,7 +637,11 @@ void Sprinkler::set_valve_run_duration(const optional<size_t> valve_number, cons
 void Sprinkler::set_auto_advance(const bool auto_advance) {
   if (this->auto_adv_sw_ != nullptr) {
     if (this->auto_adv_sw_->state != auto_advance) {
-      this->auto_adv_sw_->publish_state(auto_advance);
+      if (auto_advance) {
+        this->auto_adv_sw_->turn_on();
+      } else {
+        this->auto_adv_sw_->turn_off();
+      }
     }
   }
 }
@@ -654,14 +649,22 @@ void Sprinkler::set_auto_advance(const bool auto_advance) {
 void Sprinkler::set_repeat(optional<uint32_t> repeat) {
   this->target_repeats_ = repeat;
   if (this->repeat_number_ != nullptr) {
-    this->repeat_number_->publish_state(repeat.value_or(0));
+    if (this->repeat_number_->state != repeat.value()) {
+      auto call = this->repeat_number_->make_call();
+      call.set_value(repeat.value_or(0));
+      call.perform();
+    }
   }
 }
 
 void Sprinkler::set_queue_enable(bool queue_enable) {
   if (this->queue_enable_sw_ != nullptr) {
     if (this->queue_enable_sw_->state != queue_enable) {
-      this->queue_enable_sw_->publish_state(queue_enable);
+      if (queue_enable) {
+        this->queue_enable_sw_->turn_on();
+      } else {
+        this->queue_enable_sw_->turn_off();
+      }
     }
   }
 }
@@ -669,7 +672,11 @@ void Sprinkler::set_queue_enable(bool queue_enable) {
 void Sprinkler::set_reverse(const bool reverse) {
   if (this->reverse_sw_ != nullptr) {
     if (this->reverse_sw_->state != reverse) {
-      this->reverse_sw_->publish_state(reverse);
+      if (reverse) {
+        this->reverse_sw_->turn_on();
+      } else {
+        this->reverse_sw_->turn_off();
+      }
     }
   }
 }
@@ -677,7 +684,11 @@ void Sprinkler::set_reverse(const bool reverse) {
 void Sprinkler::set_standby(const bool standby) {
   if (this->standby_sw_ != nullptr) {
     if (this->standby_sw_->state != standby) {
-      this->standby_sw_->publish_state(standby);
+      if (standby) {
+        this->standby_sw_->turn_on();
+      } else {
+        this->standby_sw_->turn_off();
+      }
     }
   }
 }
@@ -1334,7 +1345,9 @@ void Sprinkler::prep_full_cycle_() {
   if (!this->any_valve_is_enabled_()) {
     for (auto &valve : this->valve_) {
       if (valve.enable_switch != nullptr) {
-        valve.enable_switch->publish_state(true);
+        if (!valve.enable_switch->state) {
+          valve.enable_switch->turn_on();
+        }
       }
     }
   }
@@ -1574,7 +1587,7 @@ void Sprinkler::dump_config() {
   for (size_t valve_number = 0; valve_number < this->number_of_valves(); valve_number++) {
     ESP_LOGCONFIG(TAG, "  Valve %u:", valve_number);
     ESP_LOGCONFIG(TAG, "    Name: %s", this->valve_name(valve_number));
-    ESP_LOGCONFIG(TAG, "    Run Duration: %u seconds", this->valve_[valve_number].run_duration);
+    ESP_LOGCONFIG(TAG, "    Run Duration: %u seconds", this->valve_run_duration(valve_number));
     if (this->valve_[valve_number].valve_switch.pulse_duration()) {
       ESP_LOGCONFIG(TAG, "    Pulse Duration: %u milliseconds",
                     this->valve_[valve_number].valve_switch.pulse_duration());

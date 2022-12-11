@@ -59,7 +59,7 @@ CONF_VALVES = "valves"
 sprinkler_ns = cg.esphome_ns.namespace("sprinkler")
 Sprinkler = sprinkler_ns.class_("Sprinkler", cg.Component)
 SprinklerControllerNumber = sprinkler_ns.class_(
-    "SprinklerControllerNumber", number.Number, cg.PollingComponent
+    "SprinklerControllerNumber", number.Number, cg.Component
 )
 SprinklerControllerSwitch = sprinkler_ns.class_(
     "SprinklerControllerSwitch", switch.Switch, cg.Component
@@ -308,7 +308,7 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
                         single=True
                     ),
                 }
-            ).extend(cv.polling_component_schema("1s")),
+            ).extend(cv.COMPONENT_SCHEMA),
             validate_min_max,
             key=CONF_NAME,
         ),
@@ -372,7 +372,7 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
                         single=True
                     ),
                 }
-            ).extend(cv.polling_component_schema("1s")),
+            ).extend(cv.COMPONENT_SCHEMA),
             validate_min_max,
             key=CONF_NAME,
         ),
@@ -393,7 +393,7 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
                         single=True
                     ),
                 }
-            ).extend(cv.polling_component_schema("1s")),
+            ).extend(cv.COMPONENT_SCHEMA),
             validate_min_max,
             key=CONF_NAME,
         ),

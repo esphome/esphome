@@ -91,14 +91,12 @@ struct SprinklerValve {
   std::unique_ptr<Automation<>> valve_turn_on_automation;
 };
 
-class SprinklerControllerNumber : public number::Number, public PollingComponent {
+class SprinklerControllerNumber : public number::Number, public Component {
  public:
   void setup() override;
-  void update() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
-  void set_template(std::function<optional<float>()> &&f) { this->f_ = f; }
   Trigger<float> *get_set_trigger() const { return set_trigger_; }
   void set_initial_value(float initial_value) { initial_value_ = initial_value; }
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
@@ -108,7 +106,6 @@ class SprinklerControllerNumber : public number::Number, public PollingComponent
   float initial_value_{NAN};
   bool restore_value_{true};
   Trigger<float> *set_trigger_ = new Trigger<float>();
-  optional<std::function<optional<float>()>> f_;
 
   ESPPreferenceObject pref_;
 };
