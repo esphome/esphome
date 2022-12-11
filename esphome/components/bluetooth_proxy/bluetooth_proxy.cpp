@@ -244,22 +244,6 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
                  connection->address_str().c_str());
         return;
       }
-      if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE) {
-        connection->set_connection_type(espbt::ConnectionType::V3_WITH_CACHE);
-        ESP_LOGI(TAG, "[%d] [%s] Connecting v3 with cache", connection->get_connection_index(),
-                 connection->address_str().c_str());
-      } else if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE) {
-        // No cache requested so clear the cache
-        esp_ble_gattc_cache_clean(this->remote_bda_);
-        connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
-        ESP_LOGI(TAG, "[%d] [%s] Connecting v3 without cache", connection->get_connection_index(),
-                 connection->address_str().c_str());
-      } else {
-        // No cache requested so clear the cache
-        esp_ble_gattc_cache_clean(this->remote_bda_);
-        connection->set_connection_type(espbt::ConnectionType::V1);
-        ESP_LOGI(TAG, "[%d] [%s] Connecting v1", connection->get_connection_index(), connection->address_str().c_str());
-      }
       if (msg.has_address_type) {
         connection->remote_bda_[0] = (msg.address >> 40) & 0xFF;
         connection->remote_bda_[1] = (msg.address >> 32) & 0xFF;
@@ -272,6 +256,22 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       } else {
         connection->set_state(espbt::ClientState::SEARCHING);
       }
+      if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE) {
+        connection->set_connection_type(espbt::ConnectionType::V3_WITH_CACHE);
+        ESP_LOGI(TAG, "[%d] [%s] Connecting v3 with cache", connection->get_connection_index(),
+                 connection->address_str().c_str());
+      } else if (msg.request_type == api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE) {
+        // No cache requested so clear the cache
+        if (msg.has_address_type) {
+          esp_ble_gattc_cache_clean(connection->remote_bda_);
+        }
+        connection->set_connection_type(espbt::ConnectionType::V3_WITHOUT_CACHE);
+        ESP_LOGI(TAG, "[%d] [%s] Connecting v3 without cache", connection->get_connection_index(),
+                 connection->address_str().c_str());
+      } else {
+        connection->set_connection_type(espbt::ConnectionType::V1);
+        ESP_LOGI(TAG, "[%d] [%s] Connecting v1", connection->get_connection_index(), connection->address_str().c_str());
+      }      
       api::global_api_server->send_bluetooth_connections_free(this->get_bluetooth_connections_free(),
                                                               this->get_bluetooth_connections_limit());
       break;
