@@ -51,7 +51,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ACTIVE, default=False): cv.boolean,
             cv.OnlyWithTargetFramework(
                 CONF_CACHE_SERVICES, "esp-idf", default=True
-            ): cv.boolean,
+            ): cv.All(cv.boolean, cv.only_with_esp_idf),
             cv.Optional(CONF_CONNECTIONS): cv.All(
                 cv.ensure_list(CONNECTION_SCHEMA),
                 cv.Length(min=1, max=MAX_CONNECTIONS),
