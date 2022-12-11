@@ -695,9 +695,6 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
 
 def _get_platform_boards(platform, title=None):
     from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
-    from esphome.components.esp32.const import (
-        VARIANT_FRIENDLY as ESP32_VARIANT_FRIENDLY,
-    )
     from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
     from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
 
@@ -710,7 +707,6 @@ def _get_platform_boards(platform, title=None):
     is_esp32 = platform.startswith("esp32")
     platform_boards = boards["esp32"] if is_esp32 else boards[platform]
     variant = platform.upper() if is_esp32 else None
-    variant_title = ESP32_VARIANT_FRIENDLY[variant] if is_esp32 else None
 
     boards_items = {
         key: val[const.KEY_NAME]
