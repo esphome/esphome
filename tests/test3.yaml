@@ -1316,7 +1316,6 @@ output:
   - platform: sigma_delta_output
     id: sddac
     update_interval: 60s
-    output: custom_binary
     pin: D4
     turn_on_action:
       then:

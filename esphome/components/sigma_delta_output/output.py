@@ -5,7 +5,6 @@ import esphome.codegen as cg
 from esphome.const import (
     CONF_ID,
     CONF_PIN,
-    CONF_OUTPUT,
     CONF_TURN_ON_ACTION,
     CONF_TURN_OFF_ACTION,
 )
@@ -24,7 +23,6 @@ CONFIG_SCHEMA = cv.All(
     output.FLOAT_OUTPUT_SCHEMA.extend(cv.polling_component_schema("60s")).extend(
         {
             cv.Required(CONF_ID): cv.declare_id(SigmaDeltaOutput),
-            cv.Optional(CONF_OUTPUT): cv.use_id(output.BinaryOutput),
             cv.Optional(CONF_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_STATE_CHANGE_ACTION): automation.validate_automation(
                 single=True
@@ -66,7 +64,3 @@ async def to_code(config):
         await automation.build_automation(
             var.get_turn_off_trigger(), [], config[CONF_TURN_OFF_ACTION]
         )
-
-    if CONF_OUTPUT in config:
-        output_component = await cg.get_variable(config[CONF_OUTPUT])
-        cg.add(var.set_output(output_component))

@@ -23,7 +23,6 @@ class SigmaDeltaOutput : public PollingComponent, public output::FloatOutput {
     return this->state_change_trigger_.get();
   }
 
-  void set_output(output::BinaryOutput *output) { this->output_ = output; }
   void set_pin(GPIOPin *pin) { this->pin_ = pin; };
   void write_state(float state) override { this->state_ = state; }
   void update() override {
@@ -39,9 +38,6 @@ class SigmaDeltaOutput : public PollingComponent, public output::FloatOutput {
       if (this->pin_) {
         this->pin_->digital_write(next_value);
       }
-      if (this->output_) {
-        this->output_->set_state(next_value);
-      }
 
       if (this->state_change_trigger_) {
         this->state_change_trigger_->trigger(next_value);
@@ -56,7 +52,6 @@ class SigmaDeltaOutput : public PollingComponent, public output::FloatOutput {
   }
 
  protected:
-  output::BinaryOutput *output_{nullptr};
   GPIOPin *pin_{nullptr};
 
   std::unique_ptr<Trigger<>> turn_on_trigger_{nullptr};
