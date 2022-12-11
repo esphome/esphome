@@ -398,7 +398,7 @@ spiffs,   data, spiffs,  0x391000, 0x00F000
 
 IDF_PARTITIONS_CSV = """\
 # Name,   Type, SubType, Offset,   Size, Flags
-nvs,      data, nvs,     ,        0x4000,
+nvs,      data, nvs,     ,       0x7d000,
 otadata,  data, ota,     ,        0x2000,
 phy_init, data, phy,     ,        0x1000,
 app0,     app,  ota_0,   ,      0x1C0000,
