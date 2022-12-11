@@ -1491,17 +1491,17 @@ class OnlyWith(Optional):
         pass
 
 
-class OnlyWithTargetPlatform(Optional):
-    """Set the default value only if the given target platform is used."""
+class OnlyWithTargetFramework(Optional):
+    """Set the default value only if the given target framework is used."""
 
-    def __init__(self, key, target_platform, default=None):
+    def __init__(self, key, target_framework, default=None):
         super().__init__(key)
-        self._target_platform = target_platform
+        self._target_framework = target_framework
         self._default = vol.default_factory(default)
 
     @property
     def default(self):
-        if self._target_platform == CORE.target_platform:
+        if self._target_framework == CORE.target_framework:
             return self._default
         return vol.UNDEFINED
 

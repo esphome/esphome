@@ -49,7 +49,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(BluetoothProxy),
             cv.Optional(CONF_ACTIVE, default=False): cv.boolean,
-            cv.OnlyWithTargetPlatform(
+            cv.OnlyWithTargetFramework(
                 CONF_CACHE_SERVICES, "esp-idf", default=True
             ): cv.boolean,
             cv.Optional(CONF_CONNECTIONS): cv.All(

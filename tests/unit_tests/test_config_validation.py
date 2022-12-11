@@ -9,7 +9,7 @@ import voluptuous as vol
 from esphome import config_validation
 from esphome.config_validation import Invalid
 from esphome.core import Lambda, HexInt
-from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM
+from esphome.const import KEY_CORE, KEY_TARGET_FRAMEWORK
 
 
 def test_check_not_templatable__invalid():
@@ -116,18 +116,18 @@ def hex_int__valid(value):
     assert actual == value
 
 
-def test_only_with_target_platform():
+def test_only_with_target_framework():
     with patch.dict(
-        config_validation.CORE.data, {KEY_CORE: {KEY_TARGET_PLATFORM: "esp-idf"}}
+        config_validation.CORE.data, {KEY_CORE: {KEY_TARGET_FRAMEWORK: "esp-idf"}}
     ):
         assert (
-            config_validation.OnlyWithTargetPlatform(
+            config_validation.OnlyWithTargetFramework(
                 "any", "esp-idf", default=True
             ).default()
             is True
         )
         assert (
-            config_validation.OnlyWithTargetPlatform(
+            config_validation.OnlyWithTargetFramework(
                 "any", "arduino", default=True
             ).default
             == vol.UNDEFINED
