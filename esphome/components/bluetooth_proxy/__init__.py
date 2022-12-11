@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_ACTIVE, CONF_ID
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.core import CORE
 
 AUTO_LOAD = ["esp32_ble_client", "esp32_ble_tracker"]
 DEPENDENCIES = ["api", "esp32"]
@@ -44,12 +45,13 @@ def validate_connections(config):
     return config
 
 
+CACHE_SERVICES_DEFAULT = CORE.target_platform == "esp-idf"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BluetoothProxy),
             cv.Optional(CONF_ACTIVE, default=False): cv.boolean,
-            cv.Optional(CONF_CACHE_SERVICES, default=False): cv.All(
+            cv.Optional(CONF_CACHE_SERVICES, default=CACHE_SERVICES_DEFAULT): cv.All(
                 cv.only_with_esp_idf, cv.boolean
             ),
             cv.Optional(CONF_CONNECTIONS): cv.All(
@@ -77,7 +79,7 @@ async def to_code(config):
         cg.add(var.register_connection(connection_var))
         await esp32_ble_tracker.register_client(connection_var, connection_conf)
 
-    if config.get(CONF_CACHE_SERVICES, False):
+    if config.get(CONF_CACHE_SERVICES):
         add_idf_sdkconfig_option("CONFIG_BT_GATTC_CACHE_NVS_FLASH", True)
 
     cg.add_define("USE_BLUETOOTH_PROXY")
