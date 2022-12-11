@@ -255,7 +255,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       } else {
         connection->set_connection_type(espbt::ConnectionType::V1);
         ESP_LOGI(TAG, "[%d] [%s] Connecting v1", connection->get_connection_index(), connection->address_str().c_str());
-      }      
+      }
       if (msg.has_address_type) {
         connection->remote_bda_[0] = (msg.address >> 40) & 0xFF;
         connection->remote_bda_[1] = (msg.address >> 32) & 0xFF;
