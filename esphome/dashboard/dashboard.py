@@ -720,7 +720,6 @@ def _get_platform_boards(platform, title=None):
     boards_items = sorted(boards_items.items(), key=lambda item: item[1])
     return {
         platform: {
-            "title": title or variant_title or platform.upper(),
             "items": dict(boards_items),
         },
     }
