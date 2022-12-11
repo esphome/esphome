@@ -1,12 +1,15 @@
 import pytest
 import string
+from unittest.mock import patch
 
 from hypothesis import given, example
 from hypothesis.strategies import one_of, text, integers, builds
 
+import voluptuous as vol
 from esphome import config_validation
 from esphome.config_validation import Invalid
 from esphome.core import Lambda, HexInt
+from esphome.const import KEY_CORE, KEY_TARGET_PLATFORM
 
 
 def test_check_not_templatable__invalid():
@@ -66,7 +69,16 @@ def test_string_string__invalid(value):
         config_validation.string_strict(value)
 
 
-@given(builds(lambda v: "mdi:" + v, text(alphabet=string.ascii_letters + string.digits + "-_", min_size=1, max_size=20)))
+@given(
+    builds(
+        lambda v: "mdi:" + v,
+        text(
+            alphabet=string.ascii_letters + string.digits + "-_",
+            min_size=1,
+            max_size=20,
+        ),
+    )
+)
 @example("")
 def test_icon__valid(value):
     actual = config_validation.icon(value)
@@ -102,3 +114,21 @@ def hex_int__valid(value):
 
     assert isinstance(actual, HexInt)
     assert actual == value
+
+
+def test_only_with_target_platform():
+    with patch.dict(
+        config_validation.CORE.data, {KEY_CORE: {KEY_TARGET_PLATFORM: "esp-idf"}}
+    ):
+        assert (
+            config_validation.OnlyWithTargetPlatform(
+                "any", "esp-idf", default=True
+            ).default()
+            is True
+        )
+        assert (
+            config_validation.OnlyWithTargetPlatform(
+                "any", "arduino", default=True
+            ).default
+            == vol.UNDEFINED
+        )

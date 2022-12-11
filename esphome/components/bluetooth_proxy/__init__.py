@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_ACTIVE, CONF_ID
 from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.core import CORE
 
 AUTO_LOAD = ["esp32_ble_client", "esp32_ble_tracker"]
 DEPENDENCIES = ["api", "esp32"]
@@ -45,15 +44,14 @@ def validate_connections(config):
     return config
 
 
-CACHE_SERVICES_DEFAULT = CORE.target_platform == "esp-idf"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BluetoothProxy),
             cv.Optional(CONF_ACTIVE, default=False): cv.boolean,
-            cv.Optional(CONF_CACHE_SERVICES, default=CACHE_SERVICES_DEFAULT): cv.All(
-                cv.only_with_esp_idf, cv.boolean
-            ),
+            cv.OnlyWithTargetPlatform(
+                CONF_CACHE_SERVICES, "esp-idf", default=True
+            ): cv.boolean,
             cv.Optional(CONF_CONNECTIONS): cv.All(
                 cv.ensure_list(CONNECTION_SCHEMA),
                 cv.Length(min=1, max=MAX_CONNECTIONS),

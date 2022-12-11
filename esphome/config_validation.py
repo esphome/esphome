@@ -1491,6 +1491,26 @@ class OnlyWith(Optional):
         pass
 
 
+class OnlyWithTargetPlatform(Optional):
+    """Set the default value only if the given target platform is used."""
+
+    def __init__(self, key, target_platform, default=None):
+        super().__init__(key)
+        self._target_platform = target_platform
+        self._default = vol.default_factory(default)
+
+    @property
+    def default(self):
+        if self._target_platform == CORE.target_platform:
+            return self._default
+        return vol.UNDEFINED
+
+    @default.setter
+    def default(self, value):
+        # Ignore default set from vol.Optional
+        pass
+
+
 def _entity_base_validator(config):
     if CONF_NAME not in config and CONF_ID not in config:
         raise Invalid("At least one of 'id:' or 'name:' is required!")
