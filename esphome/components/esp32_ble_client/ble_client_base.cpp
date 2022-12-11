@@ -95,7 +95,6 @@ void BLEClientBase::release_services() {
   for (auto &svc : this->services_)
     delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
   this->services_.clear();
-  esp_ble_gattc_cache_clean(this->remote_bda_);
 }
 
 bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
