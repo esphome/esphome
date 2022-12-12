@@ -574,19 +574,6 @@ class DisplayBuffer : public PollingComponent {
   virtual DisplayType get_display_type() = 0;
 
   ///
-  /// Expand or contract a rectangle in width and/or height (equal
-  /// amounts on both side), based on the centerpoint of the rectangle.
-  ///
-  /// \param[in]  rect:       Rectangular region before resizing
-  /// \param[in]  width:    Number of pixels to expand the width (if positive)
-  ///                          of contract the width (if negative)
-  /// \param[in]  height:    Number of pixels to expand the height (if positive)
-  ///                          of contract the height (if negative)
-  ///
-  /// \return new rect with resized dimensions
-  ///
-
-  ///
   /// Set the clipping rectangle for further drawing
   ///
   /// \param[in]  rect:       Pointer to Rect for clipping (or NULL for entire screen)
