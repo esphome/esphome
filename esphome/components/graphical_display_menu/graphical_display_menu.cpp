@@ -16,6 +16,15 @@ void GraphicalDisplayMenu::setup() {
   this->display_buffer_->clear();
   this->display_updater_->update();
 
+  if (this->menu_item_value_.has_value() == false) {
+    this->menu_item_value_ = [](const display_menu_base::MenuItem *it) {
+      std::string label = " (";
+      label.append(it->get_value_text());
+      label.append(")");
+      return label;
+    };
+  }
+
   display_menu_base::DisplayMenuComponent::setup();
 }
 
@@ -25,6 +34,7 @@ void GraphicalDisplayMenu::dump_config() {
   ESP_LOGCONFIG(TAG, "Has Display Updater: %s", YESNO(this->display_updater_ != nullptr));
   ESP_LOGCONFIG(TAG, "Has Font: %s", YESNO(this->font_ != nullptr));
   ESP_LOGCONFIG(TAG, "Mode: %s", this->mode_ == display_menu_base::MENU_MODE_ROTARY ? "Rotary" : "Joystick");
+  ESP_LOGCONFIG(TAG, "Active: %s", YESNO(this->active_));
   ESP_LOGCONFIG(TAG, "Menu items:");
   for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
     auto *item = this->displayed_item_->get_item(i);
@@ -118,7 +128,6 @@ Dimension GraphicalDisplayMenu::measure_item(const display_menu_base::MenuItem *
   std::string label = item->get_text();
   if (item->has_value()) {
     // Append to label
-    label.append(" ");
     label.append(this->menu_item_value_.value(item));
   }
 
@@ -147,7 +156,6 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, co
 
   std::string label = item->get_text();
   if (item->has_value()) {
-    label.append(" ");
     label.append(this->menu_item_value_.value(item));
   }
 

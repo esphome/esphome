@@ -30,13 +30,6 @@ CODEOWNERS = ["@MrMDavidson"]
 
 AUTO_LOAD = ["display_menu_base"]
 
-DEFAULT_MENU_ITEM_VALUE = """
-    std::string label = "(";
-    label.append(it->get_value_text());
-    label.append(")");
-    return label;
-"""
-
 CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
     cv.Schema(
         {
@@ -44,9 +37,7 @@ CONFIG_SCHEMA = DISPLAY_MENU_BASE_SCHEMA.extend(
             cv.Required(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
             cv.Optional(CONF_DISPLAY_UPDATER): cv.use_id(cg.PollingComponent),
             cv.Required(CONF_FONT): cv.use_id(font.Font),
-            cv.Optional(
-                CONF_MENU_ITEM_VALUE, default=DEFAULT_MENU_ITEM_VALUE
-            ): cv.templatable(cv.string),
+            cv.Optional(CONF_MENU_ITEM_VALUE): cv.templatable(cv.string),
             cv.Optional(CONF_FOREGROUND_COLOR): cv.use_id(color.ColorStruct),
             cv.Optional(CONF_BACKGROUND_COLOR): cv.use_id(color.ColorStruct),
         }

@@ -42,7 +42,7 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   display::DisplayBuffer *display_buffer_{nullptr};
   PollingComponent *display_updater_{nullptr};
   display::Font *font_{nullptr};
-  TemplatableValue<std::string, const display_menu_base::MenuItem *> menu_item_value_{nullptr};
+  TemplatableValue<std::string, const display_menu_base::MenuItem *> menu_item_value_;
   Color foreground_color_{display::COLOR_ON};
   Color background_color_{display::COLOR_OFF};
 };
