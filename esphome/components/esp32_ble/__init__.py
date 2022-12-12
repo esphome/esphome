@@ -6,7 +6,9 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz"]
-CONFLICTS_WITH = ["esp32_ble_tracker", "esp32_ble_beacon"]
+CONFLICTS_WITH = ["esp32_ble_beacon"]
+
+CONF_BLE_ID = "ble_id"
 
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)

@@ -7,11 +7,10 @@ from esphome.components.esp32 import add_idf_sdkconfig_option
 
 AUTO_LOAD = ["esp32_ble"]
 CODEOWNERS = ["@jesserockz"]
-CONFLICTS_WITH = ["esp32_ble_tracker", "esp32_ble_beacon"]
+CONFLICTS_WITH = ["esp32_ble_beacon"]
 DEPENDENCIES = ["esp32"]
 
 CONF_MANUFACTURER = "manufacturer"
-CONF_BLE_ID = "ble_id"
 
 esp32_ble_server_ns = cg.esphome_ns.namespace("esp32_ble_server")
 BLEServer = esp32_ble_server_ns.class_("BLEServer", cg.Component)
@@ -21,7 +20,7 @@ BLEServiceComponent = esp32_ble_server_ns.class_("BLEServiceComponent")
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(BLEServer),
-        cv.GenerateID(CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
+        cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
         cv.Optional(CONF_MANUFACTURER, default="ESPHome"): cv.string,
         cv.Optional(CONF_MODEL): cv.string,
     }
@@ -29,7 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[CONF_BLE_ID])
+    parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 

@@ -47,6 +47,11 @@ void ESP32BLE::mark_failed() {
     this->server_->mark_failed();
   }
 #endif
+#ifdef USE_ESP32_BLE_CLIENT
+  if (this->client_ != nullptr) {
+    this->client_->mark_failed();
+  }
+#endif
 }
 
 bool ESP32BLE::ble_setup_() {
@@ -158,6 +163,10 @@ void ESP32BLE::loop() {
         this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
                                         &ble_event->event_.gatts.gatts_param);
         break;
+      case BLEEvent::GATTC:
+        this->real_gattc_event_handler_(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
+                                        &ble_event->event_.gattc.gattc_param);
+        break;
       case BLEEvent::GAP:
         this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
         break;
@@ -176,10 +185,9 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 
 void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   ESP_LOGV(TAG, "(BLE) gap_event_handler - %d", event);
-  switch (event) {
-    default:
-      break;
-  }
+#ifdef USE_ESP32_BLE_CLIENT
+  this->client_->gap_event_handler(event, param);
+#endif
 }
 
 void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
@@ -196,9 +204,18 @@ void ESP32BLE::real_gatts_event_handler_(esp_gatts_cb_event_t event, esp_gatt_if
 #endif
 }
 
+void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                                   esp_ble_gattc_cb_param_t *param) {
+  BLEEvent *new_event = new BLEEvent(event, gattc_if, param);  // NOLINT(cppcoreguidelines-owning-memory)
+  global_ble->ble_events_.push(new_event);
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
+
 void ESP32BLE::real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                          esp_ble_gattc_cb_param_t *param) {
-  // this->client_->gattc_event_handler(event, gattc_if, param);
+  ESP_LOGV(TAG, "(BLE) gattc_event [esp_gatt_if: %d] - %d", gattc_if, event);
+#ifdef USE_ESP32_BLE_CLIENT
+  this->client_->gattc_event_handler(event, gattc_if, param);
+#endif
 }
 
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }

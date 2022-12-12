@@ -5,10 +5,16 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
+
 #include "queue.h"
+#include "ble_event.h"
 
 #ifdef USE_ESP32_BLE_SERVER
 #include "esphome/components/esp32_ble_server/ble_server.h"
+#endif
+
+#ifdef USE_ESP32_BLE_CLIENT
+#include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #endif
 
 #ifdef USE_ESP32
@@ -41,12 +47,21 @@ class ESP32BLE : public Component {
     return false;
 #endif
   }
-  bool has_client() { return false; }
+  bool has_client() {
+#ifdef USE_ESP32_BLE_CLIENT
+    return this->client_ != nullptr;
+#else
+    return false;
+#endif
+  }
 
   BLEAdvertising *get_advertising() { return this->advertising_; }
 
 #ifdef USE_ESP32_BLE_SERVER
   void set_server(esp32_ble_server::BLEServer *server) { this->server_ = server; }
+#endif
+#ifdef USE_ESP32_BLE_CLIENT
+  void set_client(esp32_ble_tracker::ESP32BLETracker *client) { this->client_ = client; }
 #endif
  protected:
   static void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
@@ -61,6 +76,9 @@ class ESP32BLE : public Component {
 
 #ifdef USE_ESP32_BLE_SERVER
   esp32_ble_server::BLEServer *server_{nullptr};
+#endif
+#ifdef USE_ESP32_BLE_CLIENT
+  esp32_ble_tracker::ESP32BLETracker *client_{nullptr};
 #endif
   Queue<BLEEvent> ble_events_;
   BLEAdvertising *advertising_;
