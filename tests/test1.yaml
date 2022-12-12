@@ -871,12 +871,12 @@ sensor:
           value: !lambda "return -1;"
     on_clockwise:
       - logger.log: Clockwise
-      - display_menu.down: lcd_menu
-      - display_menu.down: graphical_display_menu
+      - display_menu.down: test_lcd_menu
+      - display_menu.down: test_graphical_display_menu
     on_anticlockwise:
       - logger.log: Anticlockwise
-      - display_menu.up: lcd_menu
-      - display_menu.up: graphical_display_menu
+      - display_menu.up: test_lcd_menu
+      - display_menu.up: test_graphical_display_menu
   - platform: pulse_width
     name: Pulse Width
     pin: GPIO12
@@ -1296,13 +1296,13 @@ binary_sensor:
     on_press:
       - if:
           condition:
-            display_menu.is_active: lcd_menu
+            display_menu.is_active: test_lcd_menu
           then:
-            - display_menu.enter: lcd_menu
+            - display_menu.enter: test_lcd_menu
           else:
-            - display_menu.left: lcd_menu
-            - display_menu.right: lcd_menu
-            - display_menu.show: lcd_menu
+            - display_menu.left: test_lcd_menu
+            - display_menu.right: test_lcd_menu
+            - display_menu.show: test_lcd_menu
       - if:
           condition:
             display_menu.is_active: graphical_display_menu
