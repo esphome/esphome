@@ -1305,13 +1305,13 @@ binary_sensor:
             - display_menu.show: test_lcd_menu
       - if:
           condition:
-            display_menu.is_active: graphical_display_menu
+            display_menu.is_active: test_graphical_display_menu
           then:
-            - display_menu.enter: graphical_display_menu
+            - display_menu.enter: test_graphical_display_menu
           else:
-            - display_menu.left: graphical_display_menu
-            - display_menu.right: graphical_display_menu
-            - display_menu.show: graphical_display_menu
+            - display_menu.left: test_graphical_display_menu
+            - display_menu.right: test_graphical_display_menu
+            - display_menu.show: test_graphical_display_menu
   - platform: template
     name: Garage Door Open
     id: garage_door
