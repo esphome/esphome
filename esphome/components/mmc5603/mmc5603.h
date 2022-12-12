@@ -5,14 +5,6 @@
 #include "esphome/components/i2c/i2c.h"
 
 
-/*=========================================================================
-    I2C ADDRESS/BITS
-    -----------------------------------------------------------------------*/
-#define MMC56X3_DEFAULT_ADDRESS 0x30 //!< Default address
-#define MMC56X3_CHIP_ID 0x10         //!< Chip ID from WHO_AM_I register
-
-/*=========================================================================*/
-
 namespace esphome {
 namespace mmc5603 {
 
