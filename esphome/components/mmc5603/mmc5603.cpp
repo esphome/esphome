@@ -6,7 +6,7 @@ namespace mmc5603 {
 
 static const char *const TAG = "mmc5603";
 static const uint8_t MMC5603_ADDRESS = 0x30;
-static const uint8_t  MMC56X3_PRODUCT_ID = 0x39;
+static const uint8_t MMC56X3_PRODUCT_ID = 0x39;
 
 static const uint8_t MMC56X3_DEFAULT_ADDRESS = 0x30;
 static const uint8_t MMC56X3_CHIP_ID = 0x10;
@@ -23,12 +23,12 @@ static const uint8_t MMC56X3_ADDR_ZOUT0 = 0x04;
 static const uint8_t MMC56X3_ADDR_ZOUT1 = 0x05;
 static const uint8_t MMC56X3_ADDR_ZOUT2 = 0x08;
 
-static const uint8_t  MMC56X3_OUT_TEMP = 0x09;
-static const uint8_t  MMC56X3_STATUS_REG = 0x18;
-static const uint8_t  MMC56X3_CTRL0_REG = 0x1B;
-static const uint8_t  MMC56X3_CTRL1_REG = 0x1C;
-static const uint8_t  MMC56X3_CTRL2_REG = 0x1D;
-static const uint8_t  MMC5603_ODR_REG = 0x1A;
+static const uint8_t MMC56X3_OUT_TEMP = 0x09;
+static const uint8_t MMC56X3_STATUS_REG = 0x18;
+static const uint8_t MMC56X3_CTRL0_REG = 0x1B;
+static const uint8_t MMC56X3_CTRL1_REG = 0x1C;
+static const uint8_t MMC56X3_CTRL2_REG = 0x1D;
+static const uint8_t MMC5603_ODR_REG = 0x1A;
 
 void MMC5603Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MMC5603...");
@@ -46,14 +46,14 @@ void MMC5603Component::setup() {
     return;
   }
 
-  if (!this->write_byte(MMC56X3_CTRL1_REG, 0x80)) { // turn on set bit
+  if (!this->write_byte(MMC56X3_CTRL1_REG, 0x80)) {  // turn on set bit
     ESP_LOGCONFIG(TAG, "Control 1 Failed for set bit");
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
   }
 
-  if (!this->write_byte(MMC56X3_CTRL0_REG, 0x08)) { // turn on set bit
+  if (!this->write_byte(MMC56X3_CTRL0_REG, 0x08)) {  // turn on set bit
     ESP_LOGCONFIG(TAG, "Control 0 Failed for set bit");
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
@@ -68,19 +68,18 @@ void MMC5603Component::setup() {
 
   uint8_t ctrl_2 = 0;
 
-  ctrl_2 &= ~0x10; // turn off cmm_en bit
+  ctrl_2 &= ~0x10;  // turn off cmm_en bit
   if (!this->write_byte(MMC56X3_CTRL2_REG, ctrl_2)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
   }
-
 }
 void MMC5603Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MMC5603:");
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
-      ESP_LOGE(TAG, "Communication with MMC5603 failed!");
+    ESP_LOGE(TAG, "Communication with MMC5603 failed!");
   } else if (this->error_code_ == ID_REGISTERS) {
     ESP_LOGE(TAG, "The ID registers don't match - Is this really an MMC5603?");
   }
@@ -92,43 +91,38 @@ void MMC5603Component::dump_config() {
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
 }
 
-float MMC5603Component::get_setup_priority() const {
-    return setup_priority::DATA;
-}
+float MMC5603Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void MMC5603Component::update() {
   // check if continuous mode first
   // if (!isContinuousMode())
   if (!this->write_byte(MMC56X3_CTRL0_REG, 0x01)) {
-      this->status_set_warning();
-      return;
+    this->status_set_warning();
+    return;
   }
   uint8_t status = 0;
   if (!this->read_byte(MMC56X3_STATUS_REG, &status)) {
-      this->status_set_warning();
-      return;
+    this->status_set_warning();
+    return;
   }
 
   status = status << 6;
 
   uint8_t buffer[9] = {0};
 
-  if (!this->read_byte(MMC56X3_ADDR_XOUT0, &buffer[0]) ||
-      !this->read_byte(MMC56X3_ADDR_XOUT1, &buffer[1]) ||
-      ! this->read_byte(MMC56X3_ADDR_XOUT2, &buffer[2])) {
+  if (!this->read_byte(MMC56X3_ADDR_XOUT0, &buffer[0]) || !this->read_byte(MMC56X3_ADDR_XOUT1, &buffer[1]) ||
+      !this->read_byte(MMC56X3_ADDR_XOUT2, &buffer[2])) {
     this->status_set_warning();
     return;
   }
 
-  if (!this->read_byte(MMC56X3_ADDR_YOUT0, &buffer[3]) ||
-      !this->read_byte(MMC56X3_ADDR_YOUT1, &buffer[4]) ||
+  if (!this->read_byte(MMC56X3_ADDR_YOUT0, &buffer[3]) || !this->read_byte(MMC56X3_ADDR_YOUT1, &buffer[4]) ||
       !this->read_byte(MMC56X3_ADDR_YOUT2, &buffer[5])) {
     this->status_set_warning();
     return;
   }
 
-  if (!this->read_byte(MMC56X3_ADDR_ZOUT0, &buffer[6]) ||
-      !this->read_byte(MMC56X3_ADDR_ZOUT1, &buffer[7]) ||
+  if (!this->read_byte(MMC56X3_ADDR_ZOUT0, &buffer[6]) || !this->read_byte(MMC56X3_ADDR_ZOUT1, &buffer[7]) ||
       !this->read_byte(MMC56X3_ADDR_ZOUT2, &buffer[8])) {
     this->status_set_warning();
     return;
