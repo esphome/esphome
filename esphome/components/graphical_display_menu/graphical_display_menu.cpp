@@ -16,7 +16,7 @@ void GraphicalDisplayMenu::setup() {
   this->display_buffer_->clear();
   this->display_updater_->update();
 
-  if (this->menu_item_value_.has_value() == false) {
+  if (!this->menu_item_value_.has_value()) {
     this->menu_item_value_ = [](const display_menu_base::MenuItem *it) {
       std::string label = " (";
       label.append(it->get_value_text());

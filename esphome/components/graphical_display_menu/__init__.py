@@ -2,7 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import display, font, color
 from esphome.const import CONF_ID
-from esphome import automation, core
+from esphome import core
 
 from esphome.components.display_menu_base import (
     DISPLAY_MENU_BASE_SCHEMA,
