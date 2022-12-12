@@ -788,6 +788,7 @@ sensor:
       name: HMC5883L Field Strength Y
     field_strength_z:
       name: HMC5883L Field Strength Z
+    i2c_id: i2c_bus
   - platform: dps310
     temperature:
       name: DPS310 Temperature
