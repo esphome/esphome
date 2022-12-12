@@ -33,6 +33,7 @@ MMC5603Datarates = {
     255: MMC5603Datarate.MMC5603_DATARATE_255_0_HZ,
 }
 
+
 def validate_enum(enum_values, units=None, int=True):
     _units = []
     if units is not None:
