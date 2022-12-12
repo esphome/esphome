@@ -709,20 +709,17 @@ class BoardsRequestHandler(BaseHandler):
             "rp2040": RP2040_BOARDS,
         }
         # filter all ESP32 variants by requested platform
-        for variant, boards in platform_to_boards.items():
-            if not variant.startswith("esp32"):
-                continue
-            platform_to_boards[variant] = {
+        if platform.startswith("esp32"):
+            boards = {
                 k: v
-                for k, v in boards.items()
-                if v[const.KEY_VARIANT] == variant.upper()
+                for k, v in platform_to_boards[platform].items()
+                if v[const.KEY_VARIANT] == platform.upper()
             }
+        else:
+            boards = platform_to_boards[platform]
 
         # map to a {board_name: board_title} dict
-        platform_boards = {
-            key: val[const.KEY_NAME]
-            for key, val in platform_to_boards[platform].items()
-        }
+        platform_boards = {key: val[const.KEY_NAME] for key, val in boards.items()}
         # sort by board title
         boards_items = sorted(platform_boards.items(), key=lambda item: item[1])
         output = [dict(items=dict(boards_items))]
