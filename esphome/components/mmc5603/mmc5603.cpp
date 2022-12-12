@@ -60,14 +60,14 @@ void MMC5603Component::setup() {
     return;
   }
 
-  if (!this->write_byte(MMC56X3_CTRL0_REG, 0x10)) { // turn on reset bit
+  if (!this->write_byte(MMC56X3_CTRL0_REG, 0x10)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
   }
 
   uint8_t ctrl_2 = 0;
-  
+
   ctrl_2 &= ~0x10; // turn off cmm_en bit
   if (!this->write_byte(MMC56X3_CTRL2_REG, ctrl_2)) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -80,7 +80,7 @@ void MMC5603Component::dump_config() {
   ESP_LOGCONFIG(TAG, "MMC5603:");
   LOG_I2C_DEVICE(this);
   if (this->error_code_ == COMMUNICATION_FAILED) {
-    ESP_LOGE(TAG, "Communication with MMC5603 failed!");
+      ESP_LOGE(TAG, "Communication with MMC5603 failed!");
   } else if (this->error_code_ == ID_REGISTERS) {
     ESP_LOGE(TAG, "The ID registers don't match - Is this really an MMC5603?");
   }
@@ -92,8 +92,8 @@ void MMC5603Component::dump_config() {
   LOG_SENSOR("  ", "Heading", this->heading_sensor_);
 }
 
-float MMC5603Component::get_setup_priority() const { 
-	return setup_priority::DATA;
+float MMC5603Component::get_setup_priority() const {
+    return setup_priority::DATA;
 }
 
 void MMC5603Component::update() {
