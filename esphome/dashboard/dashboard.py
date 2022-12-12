@@ -702,9 +702,6 @@ class BoardsRequestHandler(BaseHandler):
 
         platform_to_boards = {
             "esp32": ESP32_BOARDS,
-            "esp32s2": ESP32_BOARDS,
-            "esp32s3": ESP32_BOARDS,
-            "esp32c3": ESP32_BOARDS,
             "esp8266": ESP8266_BOARDS,
             "rp2040": RP2040_BOARDS,
         }
@@ -712,7 +709,7 @@ class BoardsRequestHandler(BaseHandler):
         if platform.startswith("esp32"):
             boards = {
                 k: v
-                for k, v in platform_to_boards[platform].items()
+                for k, v in platform_to_boards["esp32"].items()
                 if v[const.KEY_VARIANT] == platform.upper()
             }
         else:
