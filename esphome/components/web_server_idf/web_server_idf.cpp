@@ -8,7 +8,6 @@
 #include "esp_tls_crypto.h"
 
 #include "web_server_idf.h"
-#include "web_server_idf_multipart.h"
 
 namespace esphome {
 namespace web_server_idf {
@@ -61,7 +60,10 @@ esp_err_t AsyncWebServer::request_handler(httpd_req_t *r) {
   auto *server = static_cast<AsyncWebServer *>(r->user_ctx);
   for (auto *handler : server->handlers_) {
     if (handler->canHandle(&req)) {
-      return handle_multipart_request(handler, req) ? ESP_OK : ESP_FAIL;
+      // At now process only basic requests.
+      // OTA requires multipart request support and handleUpload for it
+      handler->handleRequest(&req);
+      return ESP_OK;
     }
   }
   if (server->on_not_found_) {
