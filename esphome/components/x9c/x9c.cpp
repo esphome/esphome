@@ -33,15 +33,15 @@ void X9cNumber::trim_value(int change_amount) {
 void X9cNumber::setup() {
   ESP_LOGCONFIG(TAG, "Setting up X9C Potentiometer with initial value of %i", this->initial_value_);
 
-  uint8_t inc = inc_pin_->get_pin();
+  this->inc_pin_->get_pin();
   this->inc_pin_->setup();
   this->inc_pin_->digital_write(false);
 
-  uint8_t cs = cs_pin_->get_pin();
+  this->cs_pin_->get_pin();
   this->cs_pin_->setup();
   this->cs_pin_->digital_write(true);
 
-  uint8_t ud = ud_pin_->get_pin();
+  this->ud_pin_->get_pin();
   this->ud_pin_->setup();
 
   if (this->initial_value_ < 51) {
