@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_INITIAL_VALUE,
 )
 
+CODEOWNERS = ["@EtienneMD"]
+
 x9c_ns = cg.esphome_ns.namespace("x9c")
 
 X9cNumber = x9c_ns.class_("X9cNumber", number.Number, cg.Component)

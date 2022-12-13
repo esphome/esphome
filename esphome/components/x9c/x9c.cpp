@@ -40,7 +40,7 @@ void X9cNumber::setup() {
   uint8_t cs = cs_pin_->get_pin();
   this->cs_pin_->setup();
   this->cs_pin_->digital_write(true);
-  
+
   uint8_t ud = ud_pin_->get_pin();
   this->ud_pin_->setup();
 
