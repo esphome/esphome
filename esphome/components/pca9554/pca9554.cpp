@@ -5,7 +5,7 @@
 namespace esphome {
 namespace pca9554 {
 
-const uint8_t INPUT_REG =  0;
+const uint8_t INPUT_REG = 0;
 const uint8_t OUTPUT_REG = 1;
 const uint8_t INVERT_REG = 2;
 const uint8_t CONFIG_REG = 3;
@@ -21,14 +21,20 @@ void PCA9554Component::setup() {
     this->mark_failed();
     return;
   }
-  
-  this->write_register_(INVERT_REG, 0); // No polarity inversion
-  this->config_mask_ = 0; // All inputs at initialization
-  this->write_register_(CONFIG_REG , ~this->config_mask_); // Invert mask as the part sees a 1 as an input
-  this->output_mask_ = 0; // All outputs low
+
+  // No polarity inversion
+  this->write_register_(INVERT_REG, 0);
+  // All inputs at initialization
+  this->config_mask_ = 0;
+  //Invert mask as the part sees a 1 as an input
+  this->write_register_(CONFIG_REG , ~this->config_mask_);
+  // All ouputs low
+  this->output_mask_ = 0;
   this->write_register_(OUTPUT_REG, this->output_mask_);
-  this->read_inputs_(); // Read the inputs
-  ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(), this->status_has_error());
+  // Read the inputs
+  this->read_inputs_();
+  ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
+                    this->status_has_error());
 }
 void PCA9554Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCA9554:");
@@ -58,34 +64,34 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     this->config_mask_ &= ~(1 << pin);
   } else if (flags == gpio::FLAG_OUTPUT) {
     // Set mode mask bit
-    this->config_mask_ |= 1 << pin;
+	this->config_mask_ |= 1 << pin;
   }
-  this->write_register_(CONFIG_REG, ~this->config_mask_); 
+  this->write_register_(CONFIG_REG, ~this->config_mask_);
 }
 
 bool PCA9554Component::read_inputs_() {
   uint8_t inputs;
-  
+
   if (this->is_failed()){
-	ESP_LOGD(TAG, "Device marked failed");
-    return false;
+    ESP_LOGD(TAG, "Device marked failed");
+	return false;
   }
 
-  if((this->last_error = this->read_register(INPUT_REG, &inputs,  1, true)) != esphome::i2c::ERROR_OK){
+  if ((this->last_error_ = this->read_register(INPUT_REG, &inputs,  1, true)) != esphome::i2c::ERROR_OK){
     this->status_set_warning();
-	ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error);
+	  ESP_LOGE(TAG, "read_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;
   }
   this->status_clear_warning();
-   //ESP_LOGD(TAG, "input_mask_: %02X", inputs); // For testing only
-   this->input_mask_ = inputs;
+  //ESP_LOGD(TAG, "input_mask_: %02X", inputs); // For testing only
+  this->input_mask_ = inputs;
   return true;
 }
 
 bool PCA9554Component::write_register_(uint8_t reg, uint8_t value) {
-  if((this->last_error = this->write_register(reg,  &value, 1, true)) != esphome::i2c::ERROR_OK) {
+  if ((this->last_error_= this->write_register(reg,  &value, 1, true)) != esphome::i2c::ERROR_OK) {
     this->status_set_warning();
-	ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error);
+    ESP_LOGE(TAG, "write_register_(): I2C I/O error: %d", (int) this->last_error_);
     return false;
   }
 

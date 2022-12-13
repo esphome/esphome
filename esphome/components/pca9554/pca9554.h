@@ -20,16 +20,15 @@ class PCA9554Component : public Component, public i2c::I2CDevice {
   /// Helper function to set the pin mode of a pin.
   void pin_mode(uint8_t pin, gpio::Flags flags);
 
-
   float get_setup_priority() const override;
 
   void dump_config() override;
 
  protected:
   bool read_inputs_();
-  
+
   bool write_register_(uint8_t reg, uint8_t value);
-  
+
 
   /// Mask for the pin config - 1 means OUTPUT, 0 means INPUT
   uint8_t config_mask_{0x00};
@@ -37,8 +36,8 @@ class PCA9554Component : public Component, public i2c::I2CDevice {
   uint8_t output_mask_{0x00};
   /// The state of the actual input pin states - 1 means HIGH, 0 means LOW
   uint8_t input_mask_{0x00};
-  
-  esphome::i2c::ErrorCode last_error;
+  /// Storage for last I2C error seen
+  esphome::i2c::ErrorCode last_error_;
 };
 
 /// Helper class to expose a PCA9554 pin as an internal input GPIO pin.
