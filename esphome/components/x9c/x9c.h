@@ -19,7 +19,7 @@ class X9cNumber : public number::Number, public Component {
 
   void trim_value(int change_amount);
 
-protected:
+ protected:
   void control(float value) override;
   InternalGPIOPin *cs_pin_;
   InternalGPIOPin *inc_pin_;
