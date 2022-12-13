@@ -29,7 +29,6 @@ class PCA9554Component : public Component, public i2c::I2CDevice {
 
   bool write_register_(uint8_t reg, uint8_t value);
 
-
   /// Mask for the pin config - 1 means OUTPUT, 0 means INPUT
   uint8_t config_mask_{0x00};
   /// The mask to write as output state - 1 means HIGH, 0 means LOW

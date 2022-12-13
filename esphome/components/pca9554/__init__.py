@@ -13,12 +13,11 @@ from esphome.const import (
 
 DEPENDENCIES = ["i2c"]
 MULTI_CONF = False
-
 pca9554_ns = cg.esphome_ns.namespace("pca9554")
 
 PCA9554Component = pca9554_ns.class_("PCA9554Component", cg.Component, i2c.I2CDevice)
 PCA9554GPIOPin = pca9554_ns.class_("PCA9554GPIOPin", cg.GPIOPin)
-
+CODEOWNERS = ["@hwstar"]
 CONF_PCA9554 = "pca9554"
 CONFIG_SCHEMA = (
     cv.Schema(
