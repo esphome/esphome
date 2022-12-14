@@ -180,6 +180,20 @@ class LedModeCommand : public Command {
    bool active_;
 };
 
+class UartOutputCommand : public Command {
+ public:
+   UartOutputCommand(bool active) :
+      active_(active) {
+         if(active)
+            cmd_ = "setUartOutput 1 1";
+         else
+            cmd_ = "setUartOutput 1 0";
+      };
+   uint8_t onMessage(std::string & message) override;
+ protected:
+   bool active_;
+};
+
 template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts...> {
  public:
   DfrobotMmwaveRadarPowerAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
@@ -244,6 +258,10 @@ template<typename... Ts> class DfrobotMmwaveRadarSettingsAction : public Action<
 
   void set_led_active(bool led_active) { led_active_ = led_active; }
 
+  void set_presence_via_uart_active(bool active) {
+    presence_via_uart_ = active;
+  }
+
   void play(Ts... x) {
     parent_->enqueue(new PowerCommand(0));
     if(factory_reset_ == 1) {
@@ -269,6 +287,9 @@ template<typename... Ts> class DfrobotMmwaveRadarSettingsAction : public Action<
     if(led_active_ >= 0) {
       parent_->enqueue(new LedModeCommand(led_active_));
     }
+    if(presence_via_uart_ >= 0) {
+      parent_->enqueue(new UartOutputCommand(presence_via_uart_));
+    }
     parent_->enqueue(new SaveCfgCommand());
     parent_->enqueue(new PowerCommand(1));
   }
@@ -283,6 +304,7 @@ template<typename... Ts> class DfrobotMmwaveRadarSettingsAction : public Action<
   float delay_after_disappear_{-1};
   int8_t start_immediately_{-1};
   int8_t led_active_{-1};
+  int8_t presence_via_uart_{-1};
 };
 
 }  // namespace dfrobot_mmwave_radar
