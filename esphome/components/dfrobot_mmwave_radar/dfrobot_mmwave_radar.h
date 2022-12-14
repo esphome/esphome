@@ -194,6 +194,21 @@ class UartOutputCommand : public Command {
    bool active_;
 };
 
+class SensitivityCommand : public Command {
+ public:
+   SensitivityCommand(uint8_t sensitivity) :
+      sensitivity_(sensitivity) {
+          if(sensitivity > 9)
+            sensitivity_ = sensitivity = 9;
+          char tmp_cmd[20] = {0};
+          sprintf(tmp_cmd, "setSensitivity %d", sensitivity);
+          cmd_ = std::string(tmp_cmd);
+      };
+   uint8_t onMessage(std::string & message) override;
+ protected:
+   uint8_t sensitivity_;
+};
+
 template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts...> {
  public:
   DfrobotMmwaveRadarPowerAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
@@ -262,6 +277,12 @@ template<typename... Ts> class DfrobotMmwaveRadarSettingsAction : public Action<
     presence_via_uart_ = active;
   }
 
+  void set_sensitivity(uint8_t sensitivity) {
+    if(sensitivity > 9)
+      sensitivity = 9;
+    sensitivity_ = sensitivity;
+  }
+
   void play(Ts... x) {
     parent_->enqueue(new PowerCommand(0));
     if(factory_reset_ == 1) {
@@ -290,6 +311,9 @@ template<typename... Ts> class DfrobotMmwaveRadarSettingsAction : public Action<
     if(presence_via_uart_ >= 0) {
       parent_->enqueue(new UartOutputCommand(presence_via_uart_));
     }
+    if(sensitivity_ >= 0) {
+      parent_->enqueue(new SensitivityCommand(sensitivity_));
+    }
     parent_->enqueue(new SaveCfgCommand());
     parent_->enqueue(new PowerCommand(1));
   }
@@ -305,6 +329,7 @@ template<typename... Ts> class DfrobotMmwaveRadarSettingsAction : public Action<
   int8_t start_immediately_{-1};
   int8_t led_active_{-1};
   int8_t presence_via_uart_{-1};
+  int8_t sensitivity_{-1};
 };
 
 }  // namespace dfrobot_mmwave_radar

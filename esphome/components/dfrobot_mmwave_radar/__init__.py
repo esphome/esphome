@@ -40,6 +40,7 @@ START_AFTER_POWER_ON = "start_after_power_on"
 TURN_ON_LED = "turn_on_led"
 FACTORY_RESET = "factory_reset"
 PRESENCE_VIA_UART = "presence_via_uart"
+SENSITIVITY = "sensitivity"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -175,6 +176,7 @@ def at_least_one_settings_option(config):
         and TURN_ON_LED not in config
         and FACTORY_RESET not in config
         and PRESENCE_VIA_UART not in config
+        and SENSITIVITY not in config
     ):
         raise cv.Invalid("At least one settings option is required")
     return config
@@ -196,6 +198,7 @@ MMWAVE_SETTINGS_SCHEMA = cv.Schema(
         cv.Optional(START_AFTER_POWER_ON): cv.boolean,
         cv.Optional(TURN_ON_LED): cv.boolean,
         cv.Optional(PRESENCE_VIA_UART): cv.boolean,
+        cv.Optional(SENSITIVITY): cv.int_range(min=0, max=9),
     }
 ).add_extra(at_least_one_settings_option)
 
@@ -241,5 +244,7 @@ async def dfrobot_mmwave_radar_settings_to_code(config, action_id, template_arg,
         cg.add(var.set_led_active(config[TURN_ON_LED]))
     if PRESENCE_VIA_UART in config:
         cg.add(var.set_presence_via_uart_active(config[PRESENCE_VIA_UART]))
+    if SENSITIVITY in config:
+        cg.add(var.set_sensitivity(config[SENSITIVITY]))
 
     return var
