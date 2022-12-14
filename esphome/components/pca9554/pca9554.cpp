@@ -32,7 +32,7 @@ void PCA9554Component::setup() {
   // Read the inputs
   this->read_inputs_();
   ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
-                    this->status_has_error());
+           this->status_has_error());
 }
 void PCA9554Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCA9554:");
@@ -61,7 +61,7 @@ void PCA9554Component::pin_mode(uint8_t pin, gpio::Flags flags) {
     // Clear mode mask bit
     this->config_mask_ &= ~(1 << pin);
   } else if (flags == gpio::FLAG_OUTPUT) {
-      // Set mode mask bit
+    // Set mode mask bit
     this->config_mask_ |= 1 << pin;
   }
   this->write_register_(CONFIG_REG, ~this->config_mask_);
