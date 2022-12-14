@@ -23,31 +23,22 @@ DfrobotMmwaveRadarComponent = dfrobot_mmwave_radar_ns.class_(
 DfrobotMmwaveRadarPowerAction = dfrobot_mmwave_radar_ns.class_(
     "DfrobotMmwaveRadarPowerAction", automation.Action
 )
-DfrobotMmwaveRadarDetRangeCfgAction = dfrobot_mmwave_radar_ns.class_(
-    "DfrobotMmwaveRadarDetRangeCfgAction", automation.Action
-)
-DfrobotMmwaveRadarOutLatencyAction = dfrobot_mmwave_radar_ns.class_(
-    "DfrobotMmwaveRadarOutLatencyAction", automation.Action
-)
 DfrobotMmwaveRadarResetAction = dfrobot_mmwave_radar_ns.class_(
     "DfrobotMmwaveRadarResetAction", automation.Action
 )
-DfrobotMmwaveRadarFactoryResetAction = dfrobot_mmwave_radar_ns.class_(
-    "DfrobotMmwaveRadarFactoryResetAction", automation.Action
-)
-DfrobotMmwaveRadarLedModeAction = dfrobot_mmwave_radar_ns.class_(
-    "DfrobotMmwaveRadarLedModeAction", automation.Action
-)
-DfrobotMmwaveRadarStartModeAction = dfrobot_mmwave_radar_ns.class_(
-    "DfrobotMmwaveRadarStartModeAction", automation.Action
+DfrobotMmwaveRadarSettingsAction = dfrobot_mmwave_radar_ns.class_(
+    "DfrobotMmwaveRadarSettingsAction", automation.Action
 )
 
 DFROBOT_MMWAVE_RADAR_ID = "dfrobot_mmwave_radar_id"
 
-SEGMENTS = "segments"
 DELAY_AFTER_DETECT = "delay_after_detect"
 DELAY_AFTER_DISAPPEAR = "delay_after_disappear"
-START_IMMEDIATELY = "start_immediately"
+DETECTION_SEGMENTS = "detection_segments"
+OUTPUT_LATENCY = "output_latency"
+START_AFTER_POWER_ON = "start_after_power_on"
+TURN_ON_LED = "turn_on_led"
+FACTORY_RESET = "factory_reset"
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -62,6 +53,46 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
+
+
+@automation.register_action(
+    "dfrobot_mmwave_radar.start",
+    DfrobotMmwaveRadarPowerAction,
+    cv.Schema({cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent)}),
+)
+async def dfrobot_mmwave_radar_start_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_power(True))
+    return var
+
+
+@automation.register_action(
+    "dfrobot_mmwave_radar.stop",
+    DfrobotMmwaveRadarPowerAction,
+    cv.Schema({cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent)}),
+)
+async def dfrobot_mmwave_radar_stop_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    cg.add(var.set_power(False))
+    return var
+
+
+@automation.register_action(
+    "dfrobot_mmwave_radar.reset",
+    DfrobotMmwaveRadarResetAction,
+    maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(DfrobotMmwaveRadarComponent),
+        }
+    ),
+)
+async def dfrobot_mmwave_radar_reset_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+
+    return var
 
 
 def range_segment_list(input):
@@ -122,180 +153,80 @@ def range_segment_list(input):
     return input
 
 
-@automation.register_action(
-    "dfrobot_mmwave_radar.start",
-    DfrobotMmwaveRadarPowerAction,
-    cv.Schema({cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent)}),
-)
-async def dfrobot_mmwave_radar_start_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_power(True))
-    return var
+def at_least_one_settings_option(config):
+    """Make sure at least one option is defined
+
+    All settings are optional, but at least one setting needs to be specified.
+    Otherwise there is nothing to to and the action would be useless.
+    """
+    if (
+        DETECTION_SEGMENTS not in config
+        and OUTPUT_LATENCY not in config
+        and START_AFTER_POWER_ON not in config
+        and TURN_ON_LED not in config
+        and FACTORY_RESET not in config
+    ):
+        raise cv.Invalid("At least one settings option is required")
+    return config
 
 
-@automation.register_action(
-    "dfrobot_mmwave_radar.stop",
-    DfrobotMmwaveRadarPowerAction,
-    cv.Schema({cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent)}),
-)
-async def dfrobot_mmwave_radar_stop_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-    cg.add(var.set_power(False))
-    return var
-
-
-MMWAVE_DET_RANGE_CFG_SCHEMA = cv.Schema(
+MMWAVE_SETTINGS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent),
-        cv.Required(SEGMENTS): range_segment_list,
+        cv.Optional(FACTORY_RESET): cv.boolean,
+        cv.Optional(DETECTION_SEGMENTS): range_segment_list,
+        cv.Optional(OUTPUT_LATENCY): {
+            cv.Required(DELAY_AFTER_DETECT): cv.All(
+                cv.positive_time_period, cv.Range(max=core.TimePeriod(seconds=1638.375))
+            ),
+            cv.Required(DELAY_AFTER_DISAPPEAR): cv.All(
+                cv.positive_time_period, cv.Range(max=core.TimePeriod(seconds=1638.375))
+            ),
+        },
+        cv.Optional(START_AFTER_POWER_ON): cv.boolean,
+        cv.Optional(TURN_ON_LED): cv.boolean,
     }
-)
+).add_extra(at_least_one_settings_option)
 
 
 @automation.register_action(
-    "dfrobot_mmwave_radar.det_range_cfg",
-    DfrobotMmwaveRadarDetRangeCfgAction,
-    MMWAVE_DET_RANGE_CFG_SCHEMA,
+    "dfrobot_mmwave_radar.settings",
+    DfrobotMmwaveRadarSettingsAction,
+    MMWAVE_SETTINGS_SCHEMA,
 )
-async def dfrobot_mmwave_radar_det_range_cfg_to_code(
-    config, action_id, template_arg, args
-):
+async def dfrobot_mmwave_radar_settings_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    segments = [[-1, -1], [-1, -1], [-1, -1], [-1, -1]]
-    for i, segment in enumerate(config[SEGMENTS]):
-        segments[i] = segment
+    if FACTORY_RESET in config:
+        cg.add(var.set_factory_reset(config[FACTORY_RESET]))
+    if DETECTION_SEGMENTS in config:
+        segments = [[-1, -1], [-1, -1], [-1, -1], [-1, -1]]
+        for i, segment in enumerate(config[DETECTION_SEGMENTS]):
+            segments[i] = segment
 
-    cg.add(
-        var.set_segments(
-            segments[0][0],
-            segments[0][1],
-            segments[1][0],
-            segments[1][1],
-            segments[2][0],
-            segments[2][1],
-            segments[3][0],
-            segments[3][1],
+        cg.add(
+            var.set_segments(
+                segments[0][0],
+                segments[0][1],
+                segments[1][0],
+                segments[1][1],
+                segments[2][0],
+                segments[2][1],
+                segments[3][0],
+                segments[3][1],
+            )
         )
-    )
-
-    return var
-
-
-MMWAVE_OUT_LATENCY_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent),
-        cv.Required(DELAY_AFTER_DETECT): cv.All(
-            cv.positive_time_period, cv.Range(max=core.TimePeriod(seconds=1638.375))
-        ),
-        cv.Required(DELAY_AFTER_DISAPPEAR): cv.All(
-            cv.positive_time_period, cv.Range(max=core.TimePeriod(seconds=1638.375))
-        ),
-    }
-)
-
-
-@automation.register_action(
-    "dfrobot_mmwave_radar.output_latency",
-    DfrobotMmwaveRadarOutLatencyAction,
-    MMWAVE_OUT_LATENCY_SCHEMA,
-)
-async def dfrobot_mmwave_radar_out_latency_to_code(
-    config, action_id, template_arg, args
-):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-
-    cg.add(
-        var.set_delay_after_detect(config[DELAY_AFTER_DETECT].total_milliseconds / 1000)
-    )
-    cg.add(
-        var.set_delay_after_disappear(
-            config[DELAY_AFTER_DISAPPEAR].total_milliseconds / 1000
+    if OUTPUT_LATENCY in config:
+        cg.add(
+            var.set_ouput_delays(
+                config[OUTPUT_LATENCY][DELAY_AFTER_DETECT].total_milliseconds / 1000,
+                config[OUTPUT_LATENCY][DELAY_AFTER_DISAPPEAR].total_milliseconds / 1000,
+            )
         )
-    )
-
-    return var
-
-
-@automation.register_action(
-    "dfrobot_mmwave_radar.reset",
-    DfrobotMmwaveRadarResetAction,
-    maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(DfrobotMmwaveRadarComponent),
-        }
-    ),
-)
-async def dfrobot_mmwave_radar_reset_to_code(config, action_id, template_arg, args):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-
-    return var
-
-
-@automation.register_action(
-    "dfrobot_mmwave_radar.factory_reset",
-    DfrobotMmwaveRadarFactoryResetAction,
-    maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(DfrobotMmwaveRadarComponent),
-        }
-    ),
-)
-async def dfrobot_mmwave_radar_factory_reset_to_code(
-    config, action_id, template_arg, args
-):
-    parent = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, parent)
-
-    return var
-
-
-MMWAVE_LED_MODE_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent),
-        cv.Required(CONF_ACTIVE): cv.templatable(cv.boolean),
-    }
-)
-
-
-@automation.register_action(
-    "dfrobot_mmwave_radar.led_mode",
-    DfrobotMmwaveRadarLedModeAction,
-    MMWAVE_LED_MODE_SCHEMA,
-)
-async def dfrobot_mmwave_radar_led_mode_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    cg.add(var.set_active(config[CONF_ACTIVE]))
-
-    return var
-
-
-MMWAVE_START_MODE_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent),
-        cv.Required(START_IMMEDIATELY): cv.templatable(cv.boolean),
-    }
-)
-
-
-@automation.register_action(
-    "dfrobot_mmwave_radar.start_mode",
-    DfrobotMmwaveRadarStartModeAction,
-    MMWAVE_START_MODE_SCHEMA,
-)
-async def dfrobot_mmwave_radar_start_mode_to_code(
-    config, action_id, template_arg, args
-):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
-
-    cg.add(var.set_start_immediately(config[START_IMMEDIATELY]))
+    if START_AFTER_POWER_ON in config:
+        cg.add(var.set_start_immediately(config[START_AFTER_POWER_ON]))
+    if TURN_ON_LED in config:
+        cg.add(var.set_led_active(config[TURN_ON_LED]))
 
     return var

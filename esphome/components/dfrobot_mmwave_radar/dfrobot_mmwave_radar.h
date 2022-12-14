@@ -196,66 +196,6 @@ template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts.
   bool powerState_;
 };
 
-template<typename... Ts> class DfrobotMmwaveRadarDetRangeCfgAction : public Action<Ts...> {
- public:
-  DfrobotMmwaveRadarDetRangeCfgAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
-
-  void set_segments(
-    float min1, float max1,
-    float min2, float max2,
-    float min3, float max3,
-    float min4, float max4
-  ) {
-     this->min1_ = min1;
-     this->max1_ = max1;
-     this->min2_ = min2;
-     this->max2_ = max2;
-     this->min3_ = min3;
-     this->max3_ = max3;
-     this->min4_ = min4;
-     this->max4_ = max4;
-  }
-
-  void play(Ts... x) {
-    parent_->enqueue(new PowerCommand(0));
-    parent_->enqueue(new DetRangeCfgCommand(
-       min1_, max1_,
-       min2_, max2_,
-       min3_, max3_,
-       min4_, max4_
-    ));
-    parent_->enqueue(new SaveCfgCommand());
-    parent_->enqueue(new PowerCommand(1));
-  }
- protected:
-  DfrobotMmwaveRadarComponent *parent_;
-  float min1_, max1_;
-  float min2_, max2_;
-  float min3_, max3_;
-  float min4_, max4_;
-};
-
-template<typename... Ts> class DfrobotMmwaveRadarOutLatencyAction : public Action<Ts...> {
- public:
-  DfrobotMmwaveRadarOutLatencyAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
-
-  void set_delay_after_detect(float delay_after_detect) { delay_after_detect_ = delay_after_detect; }
-  void set_delay_after_disappear(float delay_after_disappear) { delay_after_disappear_ = delay_after_disappear; }
-
-  void play(Ts... x) {
-    parent_->enqueue(new PowerCommand(0));
-    parent_->enqueue(new OutputLatencyCommand(
-       delay_after_detect_, delay_after_disappear_
-    ));
-    parent_->enqueue(new SaveCfgCommand());
-    parent_->enqueue(new PowerCommand(1));
-  }
- protected:
-  DfrobotMmwaveRadarComponent *parent_;
-  float delay_after_detect_;
-  float delay_after_disappear_;
-};
-
 template<typename... Ts> class DfrobotMmwaveRadarResetAction : public Action<Ts...> {
  public:
   DfrobotMmwaveRadarResetAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
@@ -266,51 +206,83 @@ template<typename... Ts> class DfrobotMmwaveRadarResetAction : public Action<Ts.
   DfrobotMmwaveRadarComponent *parent_;
 };
 
-template<typename... Ts> class DfrobotMmwaveRadarFactoryResetAction : public Action<Ts...> {
+template<typename... Ts> class DfrobotMmwaveRadarSettingsAction : public Action<Ts...> {
  public:
-  DfrobotMmwaveRadarFactoryResetAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
-  void play(Ts... x) {
-    parent_->enqueue(new PowerCommand(0));
-    parent_->enqueue(new FactoryResetCommand());
+  DfrobotMmwaveRadarSettingsAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
+
+  void set_factory_reset(bool factory_reset) {
+    factory_reset_ = factory_reset;
   }
- protected:
-  DfrobotMmwaveRadarComponent *parent_;
-};
 
-template<typename... Ts> class DfrobotMmwaveRadarLedModeAction : public Action<Ts...> {
- public:
-  DfrobotMmwaveRadarLedModeAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
-
-  void set_active(bool active) { active_ = active; }
-
-  void play(Ts... x) {
-    parent_->enqueue(new PowerCommand(0));
-    parent_->enqueue(new LedModeCommand(active_));
-    parent_->enqueue(new SaveCfgCommand());
-    parent_->enqueue(new PowerCommand(1));
+  void set_segments(
+    float min1, float max1,
+    float min2, float max2,
+    float min3, float max3,
+    float min4, float max4
+  ) {
+     this->det_min1_ = min1;
+     this->det_max1_ = max1;
+     this->det_min2_ = min2;
+     this->det_max2_ = max2;
+     this->det_min3_ = min3;
+     this->det_max3_ = max3;
+     this->det_min4_ = min4;
+     this->det_max4_ = max4;
   }
- protected:
-  DfrobotMmwaveRadarComponent *parent_;
-  bool active_;
-};
 
-template<typename... Ts> class DfrobotMmwaveRadarStartModeAction : public Action<Ts...> {
- public:
-  DfrobotMmwaveRadarStartModeAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
+  void set_ouput_delays(
+    float delay_after_detect,
+    float delay_after_disappear
+  ) {
+    delay_after_detect_ = delay_after_detect;
+    delay_after_disappear_ = delay_after_disappear;
+  }
 
   void set_start_immediately(bool start_immediately) {
     start_immediately_ = start_immediately;
   }
 
+  void set_led_active(bool led_active) { led_active_ = led_active; }
+
   void play(Ts... x) {
     parent_->enqueue(new PowerCommand(0));
-    parent_->enqueue(new SensorCfgStartCommand(start_immediately_));
+    if(factory_reset_ == 1) {
+      parent_->enqueue(new FactoryResetCommand());
+    }
+    if(det_min1_ >= 0 && det_max1_ >= 0) {
+      parent_->enqueue(new DetRangeCfgCommand(
+       det_min1_, det_max1_,
+       det_min2_, det_max2_,
+       det_min3_, det_max3_,
+       det_min4_, det_max4_
+      ));
+    }
+    if(delay_after_detect_ >= 0 &&
+       delay_after_disappear_ >= 0) {
+      parent_->enqueue(new OutputLatencyCommand(
+        delay_after_detect_, delay_after_disappear_
+      ));
+    }
+    if(start_immediately_ >= 0) {
+      parent_->enqueue(new SensorCfgStartCommand(start_immediately_));
+    }
+    if(led_active_ >= 0) {
+      parent_->enqueue(new LedModeCommand(led_active_));
+    }
     parent_->enqueue(new SaveCfgCommand());
     parent_->enqueue(new PowerCommand(1));
   }
  protected:
   DfrobotMmwaveRadarComponent *parent_;
-  bool start_immediately_;
+  int8_t factory_reset_{-1};
+  float det_min1_{-1}, det_max1_{-1};
+  float det_min2_{-1}, det_max2_{-1};
+  float det_min3_{-1}, det_max3_{-1};
+  float det_min4_{-1}, det_max4_{-1};
+  float delay_after_detect_{-1};
+  float delay_after_disappear_{-1};
+  int8_t start_immediately_{-1};
+  int8_t led_active_{-1};
 };
 
 }  // namespace dfrobot_mmwave_radar
