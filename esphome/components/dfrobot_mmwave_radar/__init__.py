@@ -58,7 +58,11 @@ async def to_code(config):
 @automation.register_action(
     "dfrobot_mmwave_radar.start",
     DfrobotMmwaveRadarPowerAction,
-    cv.Schema({cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent)}),
+    maybe_simple_id(
+        {
+            cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent),
+        }
+    ),
 )
 async def dfrobot_mmwave_radar_start_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -70,7 +74,11 @@ async def dfrobot_mmwave_radar_start_to_code(config, action_id, template_arg, ar
 @automation.register_action(
     "dfrobot_mmwave_radar.stop",
     DfrobotMmwaveRadarPowerAction,
-    cv.Schema({cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent)}),
+    maybe_simple_id(
+        {
+            cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent),
+        }
+    ),
 )
 async def dfrobot_mmwave_radar_stop_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
@@ -84,7 +92,7 @@ async def dfrobot_mmwave_radar_stop_to_code(config, action_id, template_arg, arg
     DfrobotMmwaveRadarResetAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.use_id(DfrobotMmwaveRadarComponent),
+            cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent),
         }
     ),
 )
