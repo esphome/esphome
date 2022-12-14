@@ -39,8 +39,8 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
                          const Dimension *measured_dimensions, bool selected);
   void update() override;
 
-  void on_before_show();
-  void on_before_hide();
+  void on_before_show() override;
+  void on_before_hide() override;
 
   display::DisplayPage *display_page_{nullptr};
   const display::DisplayPage *previous_display_page_{nullptr};
