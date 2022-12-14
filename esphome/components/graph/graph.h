@@ -1,9 +1,10 @@
 #pragma once
+#include <cstdint>
+#include <utility>
+#include <vector>
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/core/color.h"
 #include "esphome/core/component.h"
-#include <cstdint>
-#include <utility>
 
 namespace esphome {
 

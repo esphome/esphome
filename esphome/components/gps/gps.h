@@ -7,6 +7,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include <TinyGPS++.h>
 
+#include <vector>
+
 namespace esphome {
 namespace gps {
 

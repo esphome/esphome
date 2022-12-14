@@ -12,6 +12,7 @@
 
 #include <map>
 #include <memory>
+#include <vector>
 
 #ifdef USE_ESP32
 
