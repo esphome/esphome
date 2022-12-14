@@ -9,12 +9,7 @@ static const char *const TAG = "graphical_display_menu";
 
 void GraphicalDisplayMenu::setup() {
   display::display_writer_t writer = [this](display::DisplayBuffer &it) { this->draw(); };
-
-  display::DisplayPage *page = new display::DisplayPage(writer);
-  this->display_buffer_->show_page(page);
-
-  this->display_buffer_->clear();
-  this->display_updater_->update();
+  this->display_page_ = new display::DisplayPage(writer);
 
   if (!this->menu_item_value_.has_value()) {
     this->menu_item_value_ = [](const display_menu_base::MenuItem *it) {
@@ -54,6 +49,21 @@ void GraphicalDisplayMenu::set_font(display::Font *font) { this->font_ = font; }
 
 void GraphicalDisplayMenu::set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; }
 void GraphicalDisplayMenu::set_background_color(Color background_color) { this->background_color_ = background_color; }
+
+void GraphicalDisplayMenu::on_before_show() {
+  this->previous_display_page_ = this->display_buffer_->get_active_page();
+  this->display_buffer_->show_page(this->display_page_);
+  this->display_buffer_->clear();
+}
+
+void GraphicalDisplayMenu::on_before_hide() {
+  if (this->previous_display_page_ != nullptr) {
+    this->display_buffer_->show_page((display::DisplayPage *) this->previous_display_page_);
+    this->display_buffer_->clear();
+    this->update();
+    this->previous_display_page_ = nullptr;
+  }
+}
 
 void GraphicalDisplayMenu::draw_menu() {
   const int available_height = this->display_buffer_->get_height();
