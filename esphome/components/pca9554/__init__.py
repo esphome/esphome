@@ -13,7 +13,7 @@ from esphome.const import (
 
 CODEOWNERS = ["@hwstar"]
 DEPENDENCIES = ["i2c"]
-MULTI_CONF = False
+MULTI_CONF = True
 pca9554_ns = cg.esphome_ns.namespace("pca9554")
 
 PCA9554Component = pca9554_ns.class_("PCA9554Component", cg.Component, i2c.I2CDevice)
