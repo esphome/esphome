@@ -1,3 +1,4 @@
+# Compile test for PCA9554
 esphome:
   name: pca9554_test
   platform: ESP32
@@ -15,7 +16,7 @@ i2c:
   sda: 21
   scl: 22
   id: bus_a
-  
+
 pca9554:
    id: pca9554_device_0
    address: 0x38
@@ -29,7 +30,7 @@ switch:
       mode:
         output: true
       inverted: false
-    
+
   - platform: gpio
     id: gpio_1
     pin:
@@ -47,7 +48,7 @@ switch:
       mode:
         output: true
       inverted: false
-     
+
   - platform: gpio
     id: gpio_3
     pin:
