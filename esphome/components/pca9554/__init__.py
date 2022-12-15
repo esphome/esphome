@@ -25,7 +25,7 @@ CONF_PCA9554 = "pca9554"
 CONFIG_SCHEMA = (
   cv.Schema({cv.Required(CONF_ID): cv.declare_id(PCA9554Component)})
   .extend(cv.COMPONENT_SCHEMA)
-  .extend( 
+  .extend(
   i2c.i2c_device_schema(0x20)
   )  # Note: 0x20 for the non-A part. The PCA9554A parts start at addess 0x38
 )
