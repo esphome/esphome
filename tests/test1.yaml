@@ -2935,6 +2935,12 @@ number:
     step: 1
     max_value: 10
     optimistic: true
+  - platform: x9c
+    id: test_x9c
+    cs_pin: GPIO25
+    inc_pin: GPIO26
+    ud_pin: GPIO27
+    initial_step: 100
 
 select:
   - platform: template
