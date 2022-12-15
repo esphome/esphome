@@ -27,7 +27,7 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
     .extend(
         i2c.i2c_device_schema(0x20)
-     )  # Note: 0x20 for the non-A part. The PCA9554A parts start at addess 0x38
+    )  # Note: 0x20 for the non-A part. The PCA9554A parts start at addess 0x38
 )
 
 
