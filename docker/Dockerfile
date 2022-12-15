@@ -40,7 +40,7 @@ ENV \
 # to do this, other than using properly built toolchains...
 # See: https://unix.stackexchange.com/questions/553743/correct-way-to-add-lib-ld-linux-so-3-in-debian
 RUN \
-    if [ "$BUILD_ARCH" != "armhf" ]; then \
+    if [ "$TARGETARCH" == "arm" ]; then \
         ln -s /lib/arm-linux-gnueabihf/ld-linux.so.3 /lib/ld-linux.so.3; \
     fi
 
