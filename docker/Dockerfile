@@ -12,6 +12,9 @@ FROM debian:bullseye-20221024-slim AS base-docker
 
 FROM base-${BASEIMGTYPE} AS base
 
+ARG TARGETARCH
+ARG TARGETVARIANT
+
 RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
