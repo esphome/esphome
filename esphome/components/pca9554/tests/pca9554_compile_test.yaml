@@ -1,0 +1,94 @@
+esphome:
+  name: pca9554_test
+  platform: ESP32
+  board: esp32dev
+
+logger:
+  level: INFO
+  
+external_components:
+   - source: github://pr#4192
+     components:
+       - pca9554
+
+i2c:
+  sda: 21
+  scl: 22
+  id: bus_a
+       
+pca9554: 
+   id: pca9554_device_0
+   address: 0x38
+
+switch:
+  - platform: gpio
+    id: gpio_0
+    pin:
+      pca9554: pca9554_device_0
+      number: 0
+      mode:
+        output: true
+      inverted: false
+      
+  - platform: gpio
+    id: gpio_1
+    pin:
+      pca9554: pca9554_device_0
+      number: 1
+      mode:
+        output: true
+      inverted: false
+ 
+  - platform: gpio
+    id: gpio_2
+    pin:
+      pca9554: pca9554_device_0
+      number: 2
+      mode:
+        output: true
+      inverted: false
+      
+  - platform: gpio
+    id: gpio_3
+    pin:
+      pca9554: pca9554_device_0
+      number: 3
+      mode:
+        output: true
+      inverted: false
+
+  - platform: gpio
+    id: gpio_4
+    pin:
+      pca9554: pca9554_device_0
+      number: 4
+      mode:
+        output: true
+      inverted: false
+ 
+  - platform: gpio
+    id: gpio_5
+    pin:
+      pca9554: pca9554_device_0
+      number: 5
+      mode:
+        output: true
+      inverted: false
+
+  - platform: gpio
+    id: gpio_6
+    pin:
+      pca9554: pca9554_device_0
+      number: 6
+      mode:
+        output: true
+      inverted: false
+ 
+  - platform: gpio
+    id: gpio_7
+    pin:
+      pca9554: pca9554_device_0
+      number: 7
+      mode:
+        output: true
+      inverted: false
