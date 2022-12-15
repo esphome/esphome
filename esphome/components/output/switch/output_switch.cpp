@@ -10,7 +10,7 @@ void OutputSwitch::dump_config() { LOG_SWITCH("", "Output Switch", this); }
 void OutputSwitch::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Output Switch '%s'...", this->name_.c_str());
 
-  bool initial_state = Switch::get_initial_state_with_restore_mode();
+  bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
   if (initial_state) {
     this->turn_on();

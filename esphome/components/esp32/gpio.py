@@ -107,6 +107,10 @@ def validate_gpio_pin(value):
     board = CORE.data[KEY_ESP32][KEY_BOARD]
     board_pins = boards.ESP32_BOARD_PINS.get(board, {})
 
+    # Resolved aliased board pins (shorthand when two boards have the same pin configuration)
+    while isinstance(board_pins, str):
+        board_pins = boards.ESP32_BOARD_PINS[board_pins]
+
     if value in board_pins.values():
         return value
 
