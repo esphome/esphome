@@ -2940,7 +2940,7 @@ number:
     cs_pin: GPIO25
     inc_pin: GPIO26
     ud_pin: GPIO27
-    initial_step: 100
+    initial_value: 100
 
 select:
   - platform: template
