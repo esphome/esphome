@@ -129,9 +129,9 @@ class GitFile:
     def raw_url(self) -> str:
         if self.ref is None:
             raise ValueError("URL has no ref")
-        if self.domain == "github":
+        if self.domain == "github.com":
             return f"https://raw.githubusercontent.com/{self.owner}/{self.repo}/{self.ref}/{self.filename}"
-        if self.domain == "gitlab":
+        if self.domain == "gitlab.com":
             return f"https://gitlab.com/{self.owner}/{self.repo}/-/raw/{self.ref}/{self.filename}"
         raise NotImplementedError(f"Git domain {self.domain} not supported")
 
