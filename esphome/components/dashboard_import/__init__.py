@@ -4,7 +4,7 @@ import requests
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components.packages import validate_source_shorthand
-from esphome.const import CONF_WIFI
+from esphome.const import CONF_WIFI, CONF_REF
 from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
 from esphome import git
@@ -21,19 +21,32 @@ CODEOWNERS = ["@esphome/core"]
 def validate_import_url(value):
     value = cv.string_strict(value)
     value = cv.Length(max=255)(value)
-    # ignore result, only check if it's a valid shorthand
     validate_source_shorthand(value)
     return value
+
+
+def validate_full_url(config):
+    if not config[CONF_IMPORT_FULL_CONFIG]:
+        return config
+    source = validate_source_shorthand(config[CONF_PACKAGE_IMPORT_URL])
+    if CONF_REF not in source:
+        raise cv.Invalid(
+            "Must specify a ref (branch or tag) to import from when importing full config"
+        )
+    return config
 
 
 CONF_PACKAGE_IMPORT_URL = "package_import_url"
 CONF_IMPORT_FULL_CONFIG = "import_full_config"
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_PACKAGE_IMPORT_URL): validate_import_url,
-        cv.Optional(CONF_IMPORT_FULL_CONFIG, default=False): cv.boolean,
-    }
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_PACKAGE_IMPORT_URL): validate_import_url,
+            cv.Optional(CONF_IMPORT_FULL_CONFIG, default=False): cv.boolean,
+        }
+    ),
+    validate_full_url,
 )
 
 WIFI_CONFIG = """
