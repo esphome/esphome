@@ -129,10 +129,10 @@ enum NumberMode : uint32_t {
   NUMBER_MODE_BOX = 1,
   NUMBER_MODE_SLIDER = 2,
 };
-enum InputTextMode : uint32_t {
-  INPUT_TEXT_MODE_AUTO = 0,
-  INPUT_TEXT_MODE_STRING = 1,
-  INPUT_TEXT_MODE_PASSWORD = 2,
+enum TextMode : uint32_t {
+  TEXT_MODE_AUTO = 0,
+  TEXT_MODE_STRING = 1,
+  TEXT_MODE_PASSWORD = 2,
 };
 enum LockState : uint32_t {
   LOCK_STATE_NONE = 0,
@@ -1047,7 +1047,7 @@ class NumberCommandRequest : public ProtoMessage {
   bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
 };
 
-class ListEntitiesInputTextResponse : public ProtoMessage {
+class ListEntitiesTextResponse : public ProtoMessage {
  public:
   std::string object_id{};
   uint32_t key{0};
@@ -1056,7 +1056,7 @@ class ListEntitiesInputTextResponse : public ProtoMessage {
   std::string icon{};
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
-  enums::InputTextMode mode{};
+  enums::TextMode mode{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1067,7 +1067,7 @@ class ListEntitiesInputTextResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class InputTextStateResponse : public ProtoMessage {
+class TextStateResponse : public ProtoMessage {
  public:
   uint32_t key{0};
   std::string state{};
@@ -1082,7 +1082,7 @@ class InputTextStateResponse : public ProtoMessage {
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class InputTextCommandRequest : public ProtoMessage {
+class TextCommandRequest : public ProtoMessage {
  public:
   uint32_t key{0};
   std::string state{};

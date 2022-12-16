@@ -69,10 +69,10 @@ class APIConnection : public APIServerConnection {
   bool send_number_info(number::Number *number);
   void number_command(const NumberCommandRequest &msg) override;
 #endif
-#ifdef USE_INPUT_TEXT
-  bool send_input_text_state(input_text::InputText *input_text, std::string state);
-  bool send_input_text_info(input_text::InputText *input_text);
-  void input_text_command(const InputTextCommandRequest &msg) override;
+#ifdef USE_TEXT
+  bool send_text_state(text::Text *text, std::string state);
+  bool send_text_info(text::Text *text);
+  void text_command(const TextCommandRequest &msg) override;
 #endif
 #ifdef USE_SELECT
   bool send_select_state(select::Select *select, std::string state);

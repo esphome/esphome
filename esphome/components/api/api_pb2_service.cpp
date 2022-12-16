@@ -425,23 +425,23 @@ bool APIServerConnectionBase::send_bluetooth_gatt_notify_response(const Bluetoot
   return this->send_message_<BluetoothGATTNotifyResponse>(msg, 84);
 }
 #endif
-#ifdef USE_INPUT_TEXT
-bool APIServerConnectionBase::send_list_entities_input_text_response(const ListEntitiesInputTextResponse &msg) {
+#ifdef USE_TEXT
+bool APIServerConnectionBase::send_list_entities_text_response(const ListEntitiesTextResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  ESP_LOGVV(TAG, "send_list_entities_input_text_response: %s", msg.dump().c_str());
+  ESP_LOGVV(TAG, "send_list_entities_text_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<ListEntitiesInputTextResponse>(msg, 66);
+  return this->send_message_<ListEntitiesTextResponse>(msg, 66);
 }
 #endif
-#ifdef USE_INPUT_TEXT
-bool APIServerConnectionBase::send_input_text_state_response(const InputTextStateResponse &msg) {
+#ifdef USE_TEXT
+bool APIServerConnectionBase::send_text_state_response(const TextStateResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
-  ESP_LOGVV(TAG, "send_input_text_state_response: %s", msg.dump().c_str());
+  ESP_LOGVV(TAG, "send_text_state_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<InputTextStateResponse>(msg, 67);
+  return this->send_message_<TextStateResponse>(msg, 67);
 }
 #endif
-#ifdef USE_INPUT_TEXT
+#ifdef USE_TEXT
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
@@ -808,13 +808,13 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 82: {
-#ifdef USE_INPUT_TEXT
-      InputTextCommandRequest msg;
+#ifdef USE_TEXT
+      TextCommandRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
-      ESP_LOGVV(TAG, "on_input_text_command_request: %s", msg.dump().c_str());
+      ESP_LOGVV(TAG, "on_text_command_request: %s", msg.dump().c_str());
 #endif
-      this->on_input_text_command_request(msg);
+      this->on_text_command_request(msg);
 #endif
       break;
     }
@@ -1198,8 +1198,8 @@ void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
   }
 }
 #endif
-#ifdef USE_INPUT_TEXT
-void APIServerConnection::on_input_text_command_request(const InputTextCommandRequest &msg) {
+#ifdef USE_TEXT
+void APIServerConnection::on_text_command_request(const TextCommandRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -1208,7 +1208,7 @@ void APIServerConnection::on_input_text_command_request(const InputTextCommandRe
     this->on_unauthenticated_access();
     return;
   }
-  this->input_text_command(msg);
+  this->text_command(msg);
 }
 #endif
 

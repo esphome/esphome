@@ -1,12 +1,12 @@
-#include "template_input_text.h"
+#include "template_text.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
 namespace template_ {
 
-static const char *const TAG = "template.input_text";
+static const char *const TAG = "template.text";
 
-void TemplateInputText::setup() {
+void TemplateText::setup() {
   if (this->f_.has_value())
     return;
 
@@ -26,7 +26,7 @@ void TemplateInputText::setup() {
   this->publish_state(value);
 }
 
-void TemplateInputText::update() {
+void TemplateText::update() {
   if (!this->f_.has_value())
     return;
 
@@ -37,7 +37,7 @@ void TemplateInputText::update() {
   this->publish_state(*val);
 }
 
-void TemplateInputText::control(const std::string &value) {
+void TemplateText::control(const std::string &value) {
   this->set_trigger_->trigger(value);
 
   if (this->optimistic_)
@@ -46,8 +46,8 @@ void TemplateInputText::control(const std::string &value) {
   if (this->restore_value_)
     this->pref_.save(&value);
 }
-void TemplateInputText::dump_config() {
-  LOG_INPUT_TEXT("", "Template Text Input", this);
+void TemplateText::dump_config() {
+  LOG_TEXT("", "Template Text Input", this);
   ESP_LOGCONFIG(TAG, "  Optimistic: %s", YESNO(this->optimistic_));
   LOG_UPDATE_INTERVAL(this);
 }

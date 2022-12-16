@@ -3,14 +3,14 @@ esphome:
   platform: ESP8266
   board: d1_mini_lite
 
-input_text:
+text:
   - platform: template
-    name: "test 1 input text"
+    name: "test 1 text"
     id: "it_1"
     optimistic: true
 
   - platform: template
-    name: "test 2 input text"
+    name: "test 2 text"
     id: "it_2"
     icon: "mdi:text"
     optimistic: true

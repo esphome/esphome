@@ -121,14 +121,14 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_NUMBER
   virtual void on_number_command_request(const NumberCommandRequest &value){};
 #endif
-#ifdef USE_INPUT_TEXT
-  bool send_list_entities_input_text_response(const ListEntitiesInputTextResponse &msg);
+#ifdef USE_TEXT
+  bool send_list_entities_text_response(const ListEntitiesTextResponse &msg);
 #endif
-#ifdef USE_INPUT_TEXT
-  bool send_input_text_state_response(const InputTextStateResponse &msg);
+#ifdef USE_TEXT
+  bool send_text_state_response(const TextStateResponse &msg);
 #endif
-#ifdef USE_INPUT_TEXT
-  virtual void on_input_text_command_request(const InputTextCommandRequest &value){};
+#ifdef USE_TEXT
+  virtual void on_text_command_request(const TextCommandRequest &value){};
 #endif
 #ifdef USE_SELECT
   bool send_list_entities_select_response(const ListEntitiesSelectResponse &msg);
@@ -258,8 +258,8 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_NUMBER
   virtual void number_command(const NumberCommandRequest &msg) = 0;
 #endif
-#ifdef USE_INPUT_TEXT
-  virtual void input_text_command(const InputTextCommandRequest &msg) = 0;
+#ifdef USE_TEXT
+  virtual void text_command(const TextCommandRequest &msg) = 0;
 #endif
 #ifdef USE_SELECT
   virtual void select_command(const SelectCommandRequest &msg) = 0;
@@ -333,8 +333,8 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_NUMBER
   void on_number_command_request(const NumberCommandRequest &msg) override;
 #endif
-#ifdef USE_INPUT_TEXT
-  void on_input_text_command_request(const InputTextCommandRequest &msg) override;
+#ifdef USE_TEXT
+  void on_text_command_request(const TextCommandRequest &msg) override;
 #endif
 #ifdef USE_SELECT
   void on_select_command_request(const SelectCommandRequest &msg) override;

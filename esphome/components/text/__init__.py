@@ -17,44 +17,44 @@ from esphome.cpp_helpers import setup_entity
 CODEOWNERS = ["@mauritskorse"]
 IS_PLATFORM_COMPONENT = True
 
-input_text_ns = cg.esphome_ns.namespace("input_text")
-InputText = input_text_ns.class_("InputText", cg.EntityBase)
-InputTextPtr = InputText.operator("ptr")
+text_ns = cg.esphome_ns.namespace("text")
+Text = text_ns.class_("Text", cg.EntityBase)
+TextPtr = Text.operator("ptr")
 
 # Triggers
-InputTextStateTrigger = input_text_ns.class_(
-    "InputTextStateTrigger", automation.Trigger.template(cg.float_)
+TextStateTrigger = text_ns.class_(
+    "TextStateTrigger", automation.Trigger.template(cg.float_)
 )
 
 # Actions
-InputTextSetAction = input_text_ns.class_("InputTextSetAction", automation.Action)
+TextSetAction = text_ns.class_("TextSetAction", automation.Action)
 
 # Conditions
-InputTextMode = input_text_ns.enum("InputTextMode")
+TextMode = text_ns.enum("TextMode")
 
-INPUT_TEXT_MODES = {
-    "AUTO": InputTextMode.INPUT_TEXT_MODE_AUTO,
-    "STRING": InputTextMode.INPUT_TEXT_MODE_STRING,
-    "PASSWORD": InputTextMode.INPUT_TEXT_MODE_PASSWORD,  # to be implemented for keys, passwords, etc.
+TEXT_MODES = {
+    "AUTO": TextMode.TEXT_MODE_AUTO,
+    "STRING": TextMode.TEXT_MODE_STRING,
+    "PASSWORD": TextMode.TEXT_MODE_PASSWORD,  # to be implemented for keys, passwords, etc.
 }
 
 icon = cv.icon
 
-INPUT_TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
+TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
-        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTInputTextComponent),
-        cv.GenerateID(): cv.declare_id(InputText),
+        cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTTextComponent),
+        cv.GenerateID(): cv.declare_id(Text),
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(InputTextStateTrigger),
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(TextStateTrigger),
             }
         ),
-        cv.Optional(CONF_MODE, default="AUTO"): cv.enum(INPUT_TEXT_MODES, upper=True),
+        cv.Optional(CONF_MODE, default="AUTO"): cv.enum(TEXT_MODES, upper=True),
     }
 )
 
 
-async def setup_input_text_core_(var, config):
+async def setup_text_core_(var, config):
     await setup_entity(var, config)
 
     cg.add(var.traits.set_mode(config[CONF_MODE]))
@@ -68,42 +68,42 @@ async def setup_input_text_core_(var, config):
         await mqtt.register_mqtt_component(mqtt_, config)
 
 
-async def register_input_text(var, config):
+async def register_text(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_input_text(var))
-    await setup_input_text_core_(var, config)
+    cg.add(cg.App.register_text(var))
+    await setup_text_core_(var, config)
 
 
-async def new_input_text(config):
+async def new_text(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    await register_input_text(var, config)
+    await register_text(var, config)
     return var
 
 
 @coroutine_with_priority(40.0)
 async def to_code(config):
-    cg.add_define("USE_INPUT_TEXT")
-    cg.add_global(input_text_ns.using)
+    cg.add_define("USE_TEXT")
+    cg.add_global(text_ns.using)
 
 
 OPERATION_BASE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ID): cv.use_id(InputText),
+        cv.Required(CONF_ID): cv.use_id(Text),
     }
 )
 
 
 @automation.register_action(
-    "input_text.set",
-    InputTextSetAction,
+    "text.set",
+    TextSetAction,
     OPERATION_BASE_SCHEMA.extend(
         {
             cv.Required(CONF_VALUE): cv.templatable(cv.string_strict),
         }
     ),
 )
-async def input_text_set_to_code(config, action_id, template_arg, args):
+async def text_set_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.std_string)

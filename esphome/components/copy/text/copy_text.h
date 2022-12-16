@@ -1,14 +1,14 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/input_text/input_text.h"
+#include "esphome/components/text/text.h"
 
 namespace esphome {
 namespace copy {
 
-class CopyInputText : public input_text::InputText, public Component {
+class CopyText : public text::Text, public Component {
  public:
-  void set_source(input_text::InputText *source) { source_ = source; }
+  void set_source(text::Text *source) { source_ = source; }
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
@@ -16,7 +16,7 @@ class CopyInputText : public input_text::InputText, public Component {
  protected:
   void control(const std::string &value) override;
 
-  input_text::InputText *source_;
+  text::Text *source_;
 };
 
 }  // namespace copy

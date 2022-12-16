@@ -3,21 +3,21 @@
 #include "esphome/core/defines.h"
 
 #ifdef USE_MQTT
-#ifdef USE_INPUT_TEXT
+#ifdef USE_TEXT
 
-#include "esphome/components/input_text/input_text.h"
+#include "esphome/components/text/text.h"
 #include "mqtt_component.h"
 
 namespace esphome {
 namespace mqtt {
 
-class MQTTInputTextComponent : public mqtt::MQTTComponent {
+class MQTTTextComponent : public mqtt::MQTTComponent {
  public:
-  /** Construct this MQTTInputTextComponent instance with the provided friendly_name and input_text
+  /** Construct this MQTTTextComponent instance with the provided friendly_name and text
    *
-   * @param input_text The text input.
+   * @param text The text input.
    */
-  explicit MQTTInputTextComponent(input_text::InputText *input_text);
+  explicit MQTTTextComponent(text::Text *text);
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -32,11 +32,11 @@ class MQTTInputTextComponent : public mqtt::MQTTComponent {
   bool publish_state(const std::string &value);
 
  protected:
-  /// Override for MQTTComponent, returns "input_text".
+  /// Override for MQTTComponent, returns "text".
   std::string component_type() const override;
   const EntityBase *get_entity() const override;
 
-  input_text::InputText *input_text_;
+  text::Text *text_;
 };
 
 }  // namespace mqtt

@@ -3,13 +3,13 @@
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
-#include "input_text_call.h"
-#include "input_text_traits.h"
+#include "text_call.h"
+#include "text_traits.h"
 
 namespace esphome {
-namespace input_text {
+namespace text {
 
-#define LOG_INPUT_TEXT(prefix, type, obj) \
+#define LOG_TEXT(prefix, type, obj) \
   if ((obj) != nullptr) { \
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
     if (!(obj)->get_icon().empty()) { \
@@ -21,29 +21,29 @@ namespace input_text {
  *
  * A text input can use publish_state to send out a new value.
  */
-class InputText : public EntityBase {
+class Text : public EntityBase {
  public:
   std::string state;
-  InputTextTraits traits;
+  TextTraits traits;
 
   void publish_state(const std::string &state);
 
   /// Return whether this text input has gotten a full state yet.
   bool has_state() const { return has_state_; }
 
-  /// Instantiate a InputTextCall object to modify this input_text component's state.
-  InputTextCall make_call() { return InputTextCall(this); }
+  /// Instantiate a TextCall object to modify this text component's state.
+  TextCall make_call() { return TextCall(this); }
 
   void add_on_state_callback(std::function<void(std::string)> &&callback);
 
  protected:
-  friend class InputTextCall;
+  friend class TextCall;
 
   /** Set the value of the text input, this is a virtual method that each text input integration must implement.
    *
-   * This method is called by the InputTextCall.
+   * This method is called by the TextCall.
    *
-   * @param value The value as validated by the InputTextCall.
+   * @param value The value as validated by the TextCall.
    */
   virtual void control(const std::string &value) = 0;
 
@@ -51,5 +51,5 @@ class InputText : public EntityBase {
   bool has_state_{false};
 };
 
-}  // namespace input_text
+}  // namespace text
 }  // namespace esphome

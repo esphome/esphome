@@ -236,12 +236,12 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 
-#ifdef USE_INPUT_TEXT
-  for (auto *obj : App.get_input_texts()) {
+#ifdef USE_TEXT
+  for (auto *obj : App.get_texts()) {
     if (this->include_internal_ || !obj->is_internal()) {
-      write_row(stream, obj, "input_text", "", [](AsyncResponseStream &stream, EntityBase *obj) {
-        input_text::InputText *input_text = (input_text::InputText *) obj;
-        auto mode = (int) input_text->traits.get_mode();
+      write_row(stream, obj, "text", "", [](AsyncResponseStream &stream, EntityBase *obj) {
+        text::Text *text = (text::Text *) obj;
+        auto mode = (int) text->traits.get_mode();
         stream.print(R"(<input type=")");
         if (mode == 2) {
           stream.print(R"(password)");
@@ -249,7 +249,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
           stream.print(R"(text)");
         }
         stream.print(R"(" value=")");
-        stream.print(input_text->state.c_str());
+        stream.print(text->state.c_str());
         stream.print(R"("/>)");
       });
     }
@@ -759,17 +759,17 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 }
 #endif
 
-#ifdef USE_INPUT_TEXT
-void WebServer::on_input_text_update(input_text::InputText *obj, const std::string &state) {
-  this->events_.send(this->input_text_json(obj, state, DETAIL_STATE).c_str(), "state");
+#ifdef USE_TEXT
+void WebServer::on_text_update(text::Text *obj, const std::string &state) {
+  this->events_.send(this->text_json(obj, state, DETAIL_STATE).c_str(), "state");
 }
-void WebServer::handle_input_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_input_texts()) {
+void WebServer::handle_text_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (auto *obj : App.get_texts()) {
     if (obj->get_object_id() != match.id)
       continue;
 
     if (request->method() == HTTP_GET) {
-      std::string data = this->input_text_json(obj, obj->state, DETAIL_STATE);
+      std::string data = this->text_json(obj, obj->state, DETAIL_STATE);
       request->send(200, "text/json", data.c_str());
       return;
     }
@@ -791,9 +791,9 @@ void WebServer::handle_input_text_request(AsyncWebServerRequest *request, const 
   request->send(404);
 }
 
-std::string WebServer::input_text_json(input_text::InputText *obj, const std::string &value, JsonDetail start_config) {
+std::string WebServer::text_json(text::Text *obj, const std::string &value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-    set_json_id(root, obj, "input_text-" + obj->get_object_id(), start_config);
+    set_json_id(root, obj, "text-" + obj->get_object_id(), start_config);
     if (start_config == DETAIL_ALL) {
       root["mode"] = (int) obj->traits.get_mode();
     }
@@ -1093,8 +1093,8 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
-#ifdef USE_INPUT_TEXT
-  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "input_text")
+#ifdef USE_TEXT
+  if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "text")
     return true;
 #endif
 
@@ -1199,9 +1199,9 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
 
-#ifdef USE_INPUT_TEXT
-  if (match.domain == "input_text") {
-    this->handle_input_text_request(request, match);
+#ifdef USE_TEXT
+  if (match.domain == "text") {
+    this->handle_text_request(request, match);
     return;
   }
 #endif

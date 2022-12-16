@@ -41,7 +41,7 @@
 #define USE_SENSOR
 #define USE_STATUS_LED
 #define USE_SWITCH
-#define USE_INPUT_TEXT
+#define USE_TEXT
 #define USE_TEXT_SENSOR
 #define USE_TIME
 #define USE_TOUCHSCREEN

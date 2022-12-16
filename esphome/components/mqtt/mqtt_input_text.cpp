@@ -1,60 +1,60 @@
-#include "mqtt_input_text.h"
+#include "mqtt_text.h"
 #include "esphome/core/log.h"
 
 #include "mqtt_const.h"
 
 #ifdef USE_MQTT
-#ifdef USE_INPUT_TEXT
+#ifdef USE_TEXT
 
 namespace esphome {
 namespace mqtt {
 
-static const char *const TAG = "mqtt.input_text";
+static const char *const TAG = "mqtt.text";
 
-using namespace esphome::input_text;
+using namespace esphome::text;
 
-MQTTInputTextComponent::MQTTInputTextComponent(InputText *input_text) : input_text_(input_text) {}
+MQTTTextComponent::MQTTTextComponent(Text *text) : text_(text) {}
 
-void MQTTInputTextComponent::setup() {
+void MQTTTextComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
-    auto call = this->input_text_->make_call();
+    auto call = this->text_->make_call();
     call.set_value(state);
     call.perform();
   });
 
-  this->input_text_->add_on_state_callback([this](const std::string &state) { this->publish_state(state); });
+  this->text_->add_on_state_callback([this](const std::string &state) { this->publish_state(state); });
 }
 
-void MQTTInputTextComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "MQTT input_text '%s':", this->input_text_->get_name().c_str());
+void MQTTTextComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "MQTT text '%s':", this->text_->get_name().c_str());
   LOG_MQTT_COMPONENT(true, false)
 }
 
-std::string MQTTInputTextComponent::component_type() const { return "input_text"; }
-const EntityBase *MQTTInputTextComponent::get_entity() const { return this->input_text_; }
+std::string MQTTTextComponent::component_type() const { return "text"; }
+const EntityBase *MQTTTextComponent::get_entity() const { return this->text_; }
 
-void MQTTInputTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
-  switch (this->input_text_->traits.get_mode()) {
-    case INPUT_TEXT_MODE_AUTO:
+void MQTTTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfig &config) {
+  switch (this->text_->traits.get_mode()) {
+    case TEXT_MODE_AUTO:
       break;
-    case INPUT_TEXT_MODE_STRING:
+    case TEXT_MODE_STRING:
       root[MQTT_MODE] = "string";
       break;
-    case INPUT_TEXT_MODE_PASSWORD:
+    case TEXT_MODE_PASSWORD:
       root[MQTT_MODE] = "password";
       break;
   }
 
   config.command_topic = true;
 }
-bool MQTTInputTextComponent::send_initial_state() {
-  if (this->input_text_->has_state()) {
-    return this->publish_state(this->input_text_->state);
+bool MQTTTextComponent::send_initial_state() {
+  if (this->text_->has_state()) {
+    return this->publish_state(this->text_->state);
   } else {
     return true;
   }
 }
-bool MQTTInputTextComponent::publish_state(const std::string &value) {
+bool MQTTTextComponent::publish_state(const std::string &value) {
   return this->publish(this->get_state_topic_(), value);
 }
 

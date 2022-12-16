@@ -1,7 +1,7 @@
 from esphome import automation
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import input_text
+from esphome.components import text
 from esphome.const import (
     CONF_ID,
     CONF_INITIAL_VALUE,
@@ -11,9 +11,7 @@ from esphome.const import (
 )
 from .. import template_ns
 
-TemplateInputText = template_ns.class_(
-    "TemplateInputText", input_text.InputText, cg.PollingComponent
-)
+TemplateText = template_ns.class_("TemplateText", text.Text, cg.PollingComponent)
 
 CONF_SET_ACTION = "set_action"
 
@@ -37,9 +35,9 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    input_text.INPUT_TEXT_SCHEMA.extend(
+    text.TEXT_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.declare_id(TemplateInputText),
+            cv.GenerateID(): cv.declare_id(TemplateText),
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
@@ -54,7 +52,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await input_text.register_input_text(
+    await text.register_text(
         var,
         config,
     )
