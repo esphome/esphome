@@ -12,6 +12,8 @@
 #include "user_services.h"
 #include "api_noise_context.h"
 
+#include <vector>
+
 namespace esphome {
 namespace api {
 

@@ -37,7 +37,6 @@ def patch_structhash():
         if not isdir(build_dir):
             makedirs(build_dir)
 
-    # pylint: disable=protected-access
     helpers.clean_build_dir = patched_clean_build_dir
     cli.clean_build_dir = patched_clean_build_dir
 

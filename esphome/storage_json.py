@@ -31,7 +31,6 @@ def trash_storage_path(base_path: str) -> str:
     return os.path.join(base_path, ".esphome", "trash")
 
 
-# pylint: disable=too-many-instance-attributes
 class StorageJSON:
     def __init__(
         self,
