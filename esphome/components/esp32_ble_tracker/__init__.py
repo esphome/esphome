@@ -28,7 +28,13 @@ CONF_WINDOW = "window"
 CONF_CONTINUOUS = "continuous"
 CONF_ON_SCAN_END = "on_scan_end"
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
-ESP32BLETracker = esp32_ble_tracker_ns.class_("ESP32BLETracker", cg.Component)
+ESP32BLETracker = esp32_ble_tracker_ns.class_(
+    "ESP32BLETracker",
+    cg.Component,
+    esp32_ble.GAPEventHandler,
+    esp32_ble.GATTcEventHandler,
+    cg.Parented.template(esp32_ble.ESP32BLE),
+)
 ESPBTClient = esp32_ble_tracker_ns.class_("ESPBTClient")
 ESPBTDeviceListener = esp32_ble_tracker_ns.class_("ESPBTDeviceListener")
 ESPBTDevice = esp32_ble_tracker_ns.class_("ESPBTDevice")
@@ -198,10 +204,13 @@ ESP_BLE_DEVICE_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    cg.add(parent.set_client(var))
+
+    parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
+    cg.add(parent.register_gap_event_handler(var))
+    cg.add(parent.register_gattc_event_handler(var))
+    cg.add(var.set_parent(parent))
 
     params = config[CONF_SCAN_PARAMETERS]
     cg.add(var.set_scan_duration(params[CONF_DURATION]))

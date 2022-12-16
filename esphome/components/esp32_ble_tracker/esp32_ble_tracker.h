@@ -17,6 +17,7 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 
+#include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
 
 namespace esphome {
@@ -165,7 +166,7 @@ class ESPBTClient : public ESPBTDeviceListener {
   ClientState state_;
 };
 
-class ESP32BLETracker : public Component {
+class ESP32BLETracker : public Component, public GAPEventHandler, public GATTcEventHandler, public Parented<ESP32BLE> {
  public:
   void set_scan_duration(uint32_t scan_duration) { scan_duration_ = scan_duration; }
   void set_scan_interval(uint32_t scan_interval) { scan_interval_ = scan_interval; }
@@ -192,8 +193,9 @@ class ESP32BLETracker : public Component {
   void start_scan();
   void stop_scan();
 
-  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if, esp_ble_gattc_cb_param_t *param);
-  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param);
+  void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                           esp_ble_gattc_cb_param_t *param) override;
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
  protected:
   /// Start a single scan by setting up the parameters and doing some esp-idf calls.

@@ -48,7 +48,8 @@ uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
 float ESP32BLETracker::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
 void ESP32BLETracker::setup() {
-  if (this->is_failed()) {
+  if (this->parent_->is_failed()) {
+    this->mark_failed();
     ESP_LOGE(TAG, "BLE Tracker was marked failed by ESP32BLE");
     return;
   }

@@ -13,7 +13,12 @@ DEPENDENCIES = ["esp32"]
 CONF_MANUFACTURER = "manufacturer"
 
 esp32_ble_server_ns = cg.esphome_ns.namespace("esp32_ble_server")
-BLEServer = esp32_ble_server_ns.class_("BLEServer", cg.Component)
+BLEServer = esp32_ble_server_ns.class_(
+    "BLEServer",
+    cg.Component,
+    esp32_ble.GATTsEventHandler,
+    cg.Parented.template(esp32_ble.ESP32BLE),
+)
 BLEServiceComponent = esp32_ble_server_ns.class_("BLEServiceComponent")
 
 
@@ -28,16 +33,18 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-    parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
     var = cg.new_Pvariable(config[CONF_ID])
+
     await cg.register_component(var, config)
+
+    parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
+    cg.add(parent.register_gatts_event_handler(var))
+    cg.add(var.set_parent(parent))
 
     cg.add(var.set_manufacturer(config[CONF_MANUFACTURER]))
     if CONF_MODEL in config:
         cg.add(var.set_model(config[CONF_MODEL]))
     cg.add_define("USE_ESP32_BLE_SERVER")
-
-    cg.add(parent.set_server(var))
 
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)

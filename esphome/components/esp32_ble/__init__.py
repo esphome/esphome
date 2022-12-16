@@ -13,6 +13,10 @@ CONF_BLE_ID = "ble_id"
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
 
+GAPEventHandler = esp32_ble_ns.class_("GAPEventHandler")
+GATTcEventHandler = esp32_ble_ns.class_("GATTcEventHandler")
+GATTsEventHandler = esp32_ble_ns.class_("GATTsEventHandler")
+
 
 CONFIG_SCHEMA = cv.Schema(
     {
