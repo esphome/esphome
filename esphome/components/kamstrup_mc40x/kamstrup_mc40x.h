@@ -53,7 +53,7 @@ static const uint16_t CMD_FLOW = 0x004A;
 static const uint16_t CMD_VOLUME = 0x0044;
 
 // MC40x units
-static const char *UNITS[] = {
+static const char *const UNITS[] = {
     "",      "Wh",   "kWh",  "MWh",   "GWh",     "J",       "kJ",       "MJ",       "GJ",       "Cal",
     "kCal",  "Mcal", "Gcal", "varh",  "kvarh",   "Mvarh",   "Gvarh",    "VAh",      "kVAh",     "MVAh",
     "GVAh",  "kW",   "kW",   "MW",    "GW",      "kvar",    "kvar",     "Mvar",     "Gvar",     "VA",
@@ -89,17 +89,17 @@ class KamstrupMC40xComponent : public PollingComponent, public uart::UARTDevice 
   // Methods
 
   // Sends a command to the meter and receives its response
-  void send_command(uint16_t command);
+  void send_command_(uint16_t command);
   // Sends a message to the meter. A prefix/suffix and CRC are added
-  void send_message(const uint8_t *msg, int msg_len);
+  void send_message_(const uint8_t *msg, int msg_len);
   // Clears and data that might be in the UART Rx buffer
-  void clear_uart_rx_buffer();
+  void clear_uart_rx_buffer_();
   // Reads and validates the response to a send command
-  void read_command(uint16_t command);
+  void read_command_(uint16_t command);
   // Parses a received message
-  void parse_command_message(uint16_t command, const uint8_t *msg, int msg_len);
+  void parse_command_message_(uint16_t command, const uint8_t *msg, int msg_len);
   // Sets the received value to the correct sensor
-  void set_sensor_value(uint16_t command, float value, uint8_t unit_idx);
+  void set_sensor_value_(uint16_t command, float value, uint8_t unit_idx);
 };
 
 // "true" CCITT CRC-16

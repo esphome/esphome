@@ -22,35 +22,35 @@ float KamstrupMC40xComponent::get_setup_priority() const { return setup_priority
 
 void KamstrupMC40xComponent::update() {
   if (this->heat_energy_sensor_ != nullptr) {
-    this->send_command(CMD_HEAT_ENERGY);
+    this->send_command_(CMD_HEAT_ENERGY);
   }
 
   if (this->power_sensor_ != nullptr) {
-    this->send_command(CMD_POWER);
+    this->send_command_(CMD_POWER);
   }
 
   if (this->temp1_sensor_ != nullptr) {
-    this->send_command(CMD_TEMP1);
+    this->send_command_(CMD_TEMP1);
   }
 
   if (this->temp2_sensor_ != nullptr) {
-    this->send_command(CMD_TEMP2);
+    this->send_command_(CMD_TEMP2);
   }
 
   if (this->temp_diff_sensor_ != nullptr) {
-    this->send_command(CMD_TEMP_DIFF);
+    this->send_command_(CMD_TEMP_DIFF);
   }
 
   if (this->flow_sensor_ != nullptr) {
-    this->send_command(CMD_FLOW);
+    this->send_command_(CMD_FLOW);
   }
 
   if (this->volume_sensor_ != nullptr) {
-    this->send_command(CMD_VOLUME);
+    this->send_command_(CMD_VOLUME);
   }
 }
 
-void KamstrupMC40xComponent::send_command(uint16_t command) {
+void KamstrupMC40xComponent::send_command_(uint16_t command) {
   uint32_t msg_len = 5;
   uint8_t msg[msg_len];
 
@@ -60,12 +60,12 @@ void KamstrupMC40xComponent::send_command(uint16_t command) {
   msg[3] = command >> 8;
   msg[4] = command & 0xFF;
 
-  this->clear_uart_rx_buffer();
-  this->send_message(msg, msg_len);
-  this->read_command(command);
+  this->clear_uart_rx_buffer_();
+  this->send_message_(msg, msg_len);
+  this->read_command_(command);
 }
 
-void KamstrupMC40xComponent::send_message(const uint8_t *msg, int msg_len) {
+void KamstrupMC40xComponent::send_message_(const uint8_t *msg, int msg_len) {
   int buffer_len = msg_len + 2;
   uint8_t buffer[buffer_len];
 
@@ -100,17 +100,17 @@ void KamstrupMC40xComponent::send_message(const uint8_t *msg, int msg_len) {
   this->write_array(tx_msg, tx_msg_len);
 }
 
-void KamstrupMC40xComponent::clear_uart_rx_buffer() {
+void KamstrupMC40xComponent::clear_uart_rx_buffer_() {
   uint8_t tmp;
   while (this->available()) {
     this->read_byte(&tmp);
   }
 }
 
-void KamstrupMC40xComponent::read_command(uint16_t command) {
+void KamstrupMC40xComponent::read_command_(uint16_t command) {
   uint8_t buffer[20] = {0};
   int buffer_len = 0;
-  uint8_t data;
+  int data;
   int timeout = 250;  // ms
 
   // Read the data from the UART
@@ -169,10 +169,10 @@ void KamstrupMC40xComponent::read_command(uint16_t command) {
   }
 
   // All seems good. Now parse the message
-  this->parse_command_message(command, msg, msg_len);
+  this->parse_command_message_(command, msg, msg_len);
 }
 
-void KamstrupMC40xComponent::parse_command_message(uint16_t command, const uint8_t *msg, int msg_len) {
+void KamstrupMC40xComponent::parse_command_message_(uint16_t command, const uint8_t *msg, int msg_len) {
   // Validate the message
   if (msg_len < 8) {
     ESP_LOGE(TAG, "Received invalid message (message too small)");
@@ -220,10 +220,10 @@ void KamstrupMC40xComponent::parse_command_message(uint16_t command, const uint8
   float value = mantissa * exponent;
 
   // Set sensor value
-  this->set_sensor_value(command, value, unit_idx);
+  this->set_sensor_value_(command, value, unit_idx);
 }
 
-void KamstrupMC40xComponent::set_sensor_value(uint16_t command, float value, uint8_t unit_idx) {
+void KamstrupMC40xComponent::set_sensor_value_(uint16_t command, float value, uint8_t unit_idx) {
   const char *unit = UNITS[unit_idx];
 
   switch (command) {
