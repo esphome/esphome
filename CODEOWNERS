@@ -111,6 +111,7 @@ esphome/components/integration/* @OttoWinter
 esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
+esphome/components/kamstrup_mc40x/* @cfeenstra1024
 esphome/components/lcd_menu/* @numo68
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core

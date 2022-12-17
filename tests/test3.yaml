@@ -283,6 +283,11 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart12
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 1200
+    stop_bits: 2
 
 modbus:
   uart_id: uart1
@@ -756,6 +761,10 @@ sensor:
   - platform: dsmr
     energy_delivered_tariff1:
       name: dsmr_energy_delivered_tariff1
+  - platform: kamstrup_mc40x
+    uart_id: uart12
+    heat_energy:
+      name: "Heat Energy"
 
   - platform: nextion
     id: testnumber
