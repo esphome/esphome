@@ -12,6 +12,9 @@ FROM debian:bullseye-20221024-slim AS base-docker
 
 FROM base-${BASEIMGTYPE} AS base
 
+ARG TARGETARCH
+ARG TARGETVARIANT
+
 RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
@@ -35,6 +38,14 @@ ENV \
   LANG=C.UTF-8 LC_ALL=C.UTF-8 \
   # Store globally installed pio libs in /piolibs
   PLATFORMIO_GLOBALLIB_DIR=/piolibs
+
+# Support legacy binaries on Debian multiarch system. There is no "correct" way
+# to do this, other than using properly built toolchains...
+# See: https://unix.stackexchange.com/questions/553743/correct-way-to-add-lib-ld-linux-so-3-in-debian
+RUN \
+    if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        ln -s /lib/arm-linux-gnueabihf/ld-linux.so.3 /lib/ld-linux.so.3; \
+    fi
 
 RUN \
     # Ubuntu python3-pip is missing wheel
