@@ -100,7 +100,7 @@ static const uint8_t PROGMEM INITCMD_ILI9488[] = {
   ILI9XXX_PWCTR1,  2, 0x17, 0x15,  // VRH1 VRH2
   ILI9XXX_PWCTR2,  1, 0x41,  // VGH, VGL
   ILI9XXX_VMCTR1,  3, 0x00, 0x12, 0x80,    // nVM VCM_REG VCM_REG_EN
-  
+
   ILI9XXX_FRMCTR1, 1, 0xA0,  // Frame rate = 60Hz
   ILI9XXX_INVCTR,  1, 0x02,  // Display Inversion Control = 2dot
   ILI9XXX_DFUNCTR, 3, 0x02, 0x02, 0x02, // Nomal scan
