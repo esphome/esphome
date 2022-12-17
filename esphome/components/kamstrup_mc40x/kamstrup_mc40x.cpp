@@ -22,37 +22,37 @@ float KamstrupMC40xComponent::get_setup_priority() const { return setup_priority
 
 void KamstrupMC40xComponent::update() {
   if (this->heat_energy_sensor_ != nullptr) {
-    this->sendCommand_(CMD_HEAT_ENERGY);
+    this->send_command(CMD_HEAT_ENERGY);
   }
 
   if (this->power_sensor_ != nullptr) {
-    this->sendCommand_(CMD_POWER);
+    this->send_command(CMD_POWER);
   }
 
   if (this->temp1_sensor_ != nullptr) {
-    this->sendCommand_(CMD_TEMP1);
+    this->send_command(CMD_TEMP1);
   }
 
   if (this->temp2_sensor_ != nullptr) {
-    this->sendCommand_(CMD_TEMP2);
+    this->send_command(CMD_TEMP2);
   }
 
   if (this->temp_diff_sensor_ != nullptr) {
-    this->sendCommand_(CMD_TEMP_DIFF);
+    this->send_command(CMD_TEMP_DIFF);
   }
 
   if (this->flow_sensor_ != nullptr) {
-    this->sendCommand_(CMD_FLOW);
+    this->send_command(CMD_FLOW);
   }
 
   if (this->volume_sensor_ != nullptr) {
-    this->sendCommand_(CMD_VOLUME);
+    this->send_command(CMD_VOLUME);
   }
 }
 
-void KamstrupMC40xComponent::sendCommand_(uint16_t command) {
-  uint32_t msgLen = 5;
-  uint8_t msg[msgLen];
+void KamstrupMC40xComponent::send_command(uint16_t command) {
+  uint32_t msg_len = 5;
+  uint8_t msg[msg_len];
 
   msg[0] = 0x3F;
   msg[1] = 0x10;
@@ -60,56 +60,56 @@ void KamstrupMC40xComponent::sendCommand_(uint16_t command) {
   msg[3] = command >> 8;
   msg[4] = command & 0xFF;
 
-  this->clearUartRxBuffer_();
-  this->sendMessage_(msg, msgLen);
-  this->readCommand_(command);
+  this->clear_uart_rx_buffer();
+  this->send_message(msg, msg_len);
+  this->read_command(command);
 }
 
-void KamstrupMC40xComponent::sendMessage_(const uint8_t *msg, int msgLen) {
-  int bufferLen = msgLen + 2;
-  uint8_t buffer[bufferLen];
+void KamstrupMC40xComponent::send_message(const uint8_t *msg, int msg_len) {
+  int buffer_len = msg_len + 2;
+  uint8_t buffer[buffer_len];
 
   // Prepare the basic message and appand CRC
-  for (int i = 0; i < msgLen; i++) {
+  for (int i = 0; i < msg_len; i++) {
     buffer[i] = msg[i];
   }
 
-  buffer[bufferLen - 2] = 0;
-  buffer[bufferLen - 1] = 0;
+  buffer[buffer_len - 2] = 0;
+  buffer[buffer_len - 1] = 0;
 
-  uint16_t crc = crc16_(buffer, bufferLen);
-  buffer[bufferLen - 2] = crc >> 8;
-  buffer[bufferLen - 1] = crc & 0xFF;
+  uint16_t crc = crc16_ccitt(buffer, buffer_len);
+  buffer[buffer_len - 2] = crc >> 8;
+  buffer[buffer_len - 1] = crc & 0xFF;
 
   // Prepare actual TX message
-  uint8_t txMsg[20];
-  int txMsgLen = 1;
-  txMsg[0] = 0x80;  // prefix
+  uint8_t tx_msg[20];
+  int tx_msg_len = 1;
+  tx_msg[0] = 0x80;  // prefix
 
-  for (int i = 0; i < bufferLen; i++) {
+  for (int i = 0; i < buffer_len; i++) {
     if (buffer[i] == 0x06 || buffer[i] == 0x0d || buffer[i] == 0x1b || buffer[i] == 0x40 || buffer[i] == 0x80) {
-      txMsg[txMsgLen++] = 0x1b;
-      txMsg[txMsgLen++] = buffer[i] ^ 0xff;
+      tx_msg[tx_msg_len++] = 0x1b;
+      tx_msg[tx_msg_len++] = buffer[i] ^ 0xff;
     } else {
-      txMsg[txMsgLen++] = buffer[i];
+      tx_msg[tx_msg_len++] = buffer[i];
     }
   }
 
-  txMsg[txMsgLen++] = 0x0D;  // EOM
+  tx_msg[tx_msg_len++] = 0x0D;  // EOM
 
-  this->write_array(txMsg, txMsgLen);
+  this->write_array(tx_msg, tx_msg_len);
 }
 
-void KamstrupMC40xComponent::clearUartRxBuffer_() {
+void KamstrupMC40xComponent::clear_uart_rx_buffer() {
   uint8_t tmp;
   while (this->available()) {
     this->read_byte(&tmp);
   }
 }
 
-void KamstrupMC40xComponent::readCommand_(uint16_t command) {
+void KamstrupMC40xComponent::read_command(uint16_t command) {
   uint8_t buffer[20] = {0};
-  int bufferLen = 0;
+  int buffer_len = 0;
   uint8_t data;
   int timeout = 250;  // ms
 
@@ -119,9 +119,9 @@ void KamstrupMC40xComponent::readCommand_(uint16_t command) {
       data = this->read();
       if (data > -1) {
         if (data == 0x40) {  // start of message
-          bufferLen = 0;
+          buffer_len = 0;
         }
-        buffer[bufferLen++] = (uint8_t) data;
+        buffer[buffer_len++] = (uint8_t) data;
         if (data == 0x0D) {
           break;
         }
@@ -134,7 +134,7 @@ void KamstrupMC40xComponent::readCommand_(uint16_t command) {
     }
   }
 
-  if (timeout == 0 || bufferLen == 0) {
+  if (timeout == 0 || buffer_len == 0) {
     ESP_LOGE(TAG, "Request timed out");
     return;
   }
@@ -145,36 +145,36 @@ void KamstrupMC40xComponent::readCommand_(uint16_t command) {
     return;
   }
 
-  if (buffer[bufferLen - 1] != 0x0D) {
-    ESP_LOGE(TAG, "Received invalid message (EOM mismatch received 0x%02X, expected 0x0D)", buffer[bufferLen - 1]);
+  if (buffer[buffer_len - 1] != 0x0D) {
+    ESP_LOGE(TAG, "Received invalid message (EOM mismatch received 0x%02X, expected 0x0D)", buffer[buffer_len - 1]);
     return;
   }
 
   // Decode
   uint8_t msg[20] = {0};
-  int msgLen = 0;
-  for (int i = 1; i < bufferLen - 1; i++) {
+  int msg_len = 0;
+  for (int i = 1; i < buffer_len - 1; i++) {
     if (buffer[i] == 0x1B) {
-      msg[msgLen++] = buffer[i + 1] ^ 0xFF;
+      msg[msg_len++] = buffer[i + 1] ^ 0xFF;
       i++;
     } else {
-      msg[msgLen++] = buffer[i];
+      msg[msg_len++] = buffer[i];
     }
   }
 
   // Validate CRC
-  if (crc16_(msg, msgLen)) {
+  if (crc16_ccitt(msg, msg_len)) {
     ESP_LOGE(TAG, "Received invalid message (CRC mismatch)");
     return;
   }
 
   // All seems good. Now parse the message
-  this->parseCommandMessage_(command, msg, msgLen);
+  this->parse_command_message(command, msg, msg_len);
 }
 
-void KamstrupMC40xComponent::parseCommandMessage_(uint16_t command, const uint8_t *msg, int msgLen) {
+void KamstrupMC40xComponent::parse_command_message(uint16_t command, const uint8_t *msg, int msg_len) {
   // Validate the message
-  if (msgLen < 8) {
+  if (msg_len < 8) {
     ESP_LOGE(TAG, "Received invalid message (message too small)");
     return;
   }
@@ -184,18 +184,18 @@ void KamstrupMC40xComponent::parseCommandMessage_(uint16_t command, const uint8_
     return;
   }
 
-  uint16_t recvCommand = msg[2] << 8 | msg[3];
-  if (recvCommand != command) {
-    ESP_LOGE(TAG, "Received invalid message (invalid unexpected command received 0x%04X, expected 0x%04X)", recvCommand,
-             command);
+  uint16_t recv_command = msg[2] << 8 | msg[3];
+  if (recv_command != command) {
+    ESP_LOGE(TAG, "Received invalid message (invalid unexpected command received 0x%04X, expected 0x%04X)",
+             recv_command, command);
     return;
   }
 
-  uint8_t unitIdx = msg[4];
-  uint8_t mantissaRange = msg[5];
+  uint8_t unit_idx = msg[4];
+  uint8_t mantissa_range = msg[5];
 
-  if (mantissaRange > 4) {
-    ESP_LOGE(TAG, "Received invalid message (mantissa size too large %d, expected 4)", mantissaRange);
+  if (mantissa_range > 4) {
+    ESP_LOGE(TAG, "Received invalid message (mantissa size too large %d, expected 4)", mantissa_range);
     return;
   }
 
@@ -211,7 +211,7 @@ void KamstrupMC40xComponent::parseCommandMessage_(uint16_t command, const uint8_
 
   // Calculate mantissa
   uint32_t mantissa = 0;
-  for (int i = 0; i < mantissaRange; i++) {
+  for (int i = 0; i < mantissa_range; i++) {
     mantissa <<= 8;
     mantissa |= msg[i + 7];
   }
@@ -220,11 +220,11 @@ void KamstrupMC40xComponent::parseCommandMessage_(uint16_t command, const uint8_
   float value = mantissa * exponent;
 
   // Set sensor value
-  this->setSensorValue_(command, value, unitIdx);
+  this->set_sensor_value(command, value, unit_idx);
 }
 
-void KamstrupMC40xComponent::setSensorValue_(uint16_t command, float value, uint8_t unitIdx) {
-  const char *unit = UNITS[unitIdx];
+void KamstrupMC40xComponent::set_sensor_value(uint16_t command, float value, uint8_t unit_idx) {
+  const char *unit = UNITS[unit_idx];
 
   switch (command) {
     case CMD_HEAT_ENERGY:
@@ -268,7 +268,7 @@ void KamstrupMC40xComponent::setSensorValue_(uint16_t command, float value, uint
   }
 }
 
-uint16_t crc16_(const uint8_t *buffer, int len) {
+uint16_t crc16_ccitt(const uint8_t *buffer, int len) {
   uint32_t poly = 0x1021;
   uint32_t reg = 0x00;
   for (int i = 0; i < len; i++) {

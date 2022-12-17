@@ -19,50 +19,50 @@ KamstrupMC40xComponent = kamstrup_mc40x_ns.class_(
     "KamstrupMC40xComponent", cg.PollingComponent, uart.UARTDevice
 )
 
-CONF_HEAT_ENERGY = "heat_energy"
-CONF_POWER = "power"
-CONF_TEMP1 = "temp1"
-CONF_TEMP2 = "temp2"
-CONF_TEMP_DIFF = "temp_diff"
-CONF_FLOW = "flow"
-CONF_VOLUME = "volume"
+CONF_KAMSTRUP_HEAT_ENERGY = "heat_energy"
+CONF_KAMSTRUP_POWER = "power"
+CONF_KAMSTRUP_TEMP1 = "temp1"
+CONF_KAMSTRUP_TEMP2 = "temp2"
+CONF_KAMSTRUP_TEMP_DIFF = "temp_diff"
+CONF_KAMSTRUP_FLOW = "flow"
+CONF_KAMSTRUP_VOLUME = "volume"
 
 # Note: The sensor units are set automatically based un the received data from the meter
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(KamstrupMC40xComponent),
-            cv.Optional(CONF_HEAT_ENERGY): sensor.sensor_schema(
+            cv.Optional(CONF_KAMSTRUP_HEAT_ENERGY): sensor.sensor_schema(
                 accuracy_decimals=3,
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL,
             ),
-            cv.Optional(CONF_POWER): sensor.sensor_schema(
+            cv.Optional(CONF_KAMSTRUP_POWER): sensor.sensor_schema(
                 accuracy_decimals=3,
                 device_class=DEVICE_CLASS_POWER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_TEMP1): sensor.sensor_schema(
+            cv.Optional(CONF_KAMSTRUP_TEMP1): sensor.sensor_schema(
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_TEMP2): sensor.sensor_schema(
+            cv.Optional(CONF_KAMSTRUP_TEMP2): sensor.sensor_schema(
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_TEMP_DIFF): sensor.sensor_schema(
+            cv.Optional(CONF_KAMSTRUP_TEMP_DIFF): sensor.sensor_schema(
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_FLOW): sensor.sensor_schema(
+            cv.Optional(CONF_KAMSTRUP_FLOW): sensor.sensor_schema(
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_VOLUME,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_VOLUME): sensor.sensor_schema(
+            cv.Optional(CONF_KAMSTRUP_VOLUME): sensor.sensor_schema(
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_VOLUME,
                 state_class=STATE_CLASS_MEASUREMENT,
@@ -84,13 +84,13 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     for key in [
-        CONF_HEAT_ENERGY,
-        CONF_POWER,
-        CONF_TEMP1,
-        CONF_TEMP2,
-        CONF_TEMP_DIFF,
-        CONF_FLOW,
-        CONF_VOLUME,
+        CONF_KAMSTRUP_HEAT_ENERGY,
+        CONF_KAMSTRUP_POWER,
+        CONF_KAMSTRUP_TEMP1,
+        CONF_KAMSTRUP_TEMP2,
+        CONF_KAMSTRUP_TEMP_DIFF,
+        CONF_KAMSTRUP_FLOW,
+        CONF_KAMSTRUP_VOLUME,
     ]:
         if key not in config:
             continue

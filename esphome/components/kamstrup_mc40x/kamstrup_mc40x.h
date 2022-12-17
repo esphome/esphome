@@ -89,21 +89,21 @@ class KamstrupMC40xComponent : public PollingComponent, public uart::UARTDevice 
   // Methods
 
   // Sends a command to the meter and receives its response
-  void sendCommand_(uint16_t command);
+  void send_command(uint16_t command);
   // Sends a message to the meter. A prefix/suffix and CRC are added
-  void sendMessage_(const uint8_t *msg, int msgLen);
+  void send_message(const uint8_t *msg, int msg_len);
   // Clears and data that might be in the UART Rx buffer
-  void clearUartRxBuffer_();
+  void clear_uart_rx_buffer();
   // Reads and validates the response to a send command
-  void readCommand_(uint16_t command);
+  void read_command(uint16_t command);
   // Parses a received message
-  void parseCommandMessage_(uint16_t command, const uint8_t *msg, int msgLen);
+  void parse_command_message(uint16_t command, const uint8_t *msg, int msg_len);
   // Sets the received value to the correct sensor
-  void setSensorValue_(uint16_t command, float value, uint8_t unitIdx);
+  void set_sensor_value(uint16_t command, float value, uint8_t unit_idx);
 };
 
 // "true" CCITT CRC-16
-uint16_t crc16_(const uint8_t *buffer, int len);
+uint16_t crc16_ccitt(const uint8_t *buffer, int len);
 
 }  // namespace kamstrup_mc40x
 }  // namespace esphome
