@@ -319,8 +319,8 @@ template<> const char *proto_enum_to_string<enums::TextMode>(enums::TextMode val
   switch (value) {
     case enums::TEXT_MODE_AUTO:
       return "TEXT_MODE_AUTO";
-    case enums::TEXT_MODE_STRING:
-      return "TEXT_MODE_STRING";
+    case enums::TEXT_MODE_TEXT:
+      return "TEXT_MODE_TEXT";
     case enums::TEXT_MODE_PASSWORD:
       return "TEXT_MODE_PASSWORD";
     default:

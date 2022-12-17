@@ -37,8 +37,8 @@ void MQTTTextComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryConfi
   switch (this->text_->traits.get_mode()) {
     case TEXT_MODE_AUTO:
       break;
-    case TEXT_MODE_STRING:
-      root[MQTT_MODE] = "string";
+    case TEXT_MODE_TEXT:
+      root[MQTT_MODE] = "text";
       break;
     case TEXT_MODE_PASSWORD:
       root[MQTT_MODE] = "password";

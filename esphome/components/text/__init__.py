@@ -34,7 +34,7 @@ TextMode = text_ns.enum("TextMode")
 
 TEXT_MODES = {
     "AUTO": TextMode.TEXT_MODE_AUTO,
-    "STRING": TextMode.TEXT_MODE_STRING,
+    "TEXT": TextMode.TEXT_MODE_TEXT,
     "PASSWORD": TextMode.TEXT_MODE_PASSWORD,  # to be implemented for keys, passwords, etc.
 }
 

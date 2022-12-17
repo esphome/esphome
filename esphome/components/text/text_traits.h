@@ -7,7 +7,7 @@ namespace text {
 
 enum TextMode : uint8_t {
   TEXT_MODE_AUTO = 0,
-  TEXT_MODE_STRING = 1,
+  TEXT_MODE_TEXT = 1,
   TEXT_MODE_PASSWORD = 2,
 };
 
