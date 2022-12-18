@@ -33,10 +33,7 @@ class MDNSComponent : public Component {
 #endif
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  void add_extra_service(const MDNSService& service)
-  {
-    services_extra_.push_back(service);
-  }
+  void add_extra_service(const MDNSService &service) { services_extra_.push_back(service); }
 
  protected:
   std::vector<MDNSService> services_extra_{};
