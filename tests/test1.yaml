@@ -1341,10 +1341,10 @@ binary_sensor:
       number: 1
       mode: INPUT
       inverted: true
- - platform: gpio
+  - platform: gpio
     name: PCA9554 binary sensor
     pin:
-      pcf9554: pca9554_hub
+      pca9554: pca9554_hub
       number: 1
       mode: INPUT
       inverted: true
