@@ -1,4 +1,4 @@
-from esphome.const import CONF_ID, CONF_PORT, CONF_NAME, CONF_PROTOCOL, CONF_SERVICES
+from esphome.const import CONF_ID, CONF_PORT, CONF_NAME, CONF_PROTOCOL, CONF_SERVICES, CONF_SERVICE
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE, coroutine_with_priority
@@ -23,7 +23,7 @@ CONF_TXT = "txt"
 
 SERVICE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_NAME): cv.string,
+        cv.Required(CONF_SERVICE): cv.string,
         cv.Required(CONF_PROTOCOL): cv.string,
         cv.Optional(CONF_PORT, default=0): cv.Any(0, cv.port),
         cv.Optional(CONF_TXT, default={}): {cv.string: cv.string},
@@ -73,7 +73,7 @@ async def to_code(config):
 
         exp = cg.StructInitializer(
             MDNSService,
-            ("service_type", service[CONF_NAME]),
+            ("service_type", service[CONF_SERVICE]),
             ("proto", service[CONF_PROTOCOL]),
             ("port", service[CONF_PORT]),
             ("txt_records", txt),
