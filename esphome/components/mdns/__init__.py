@@ -1,4 +1,10 @@
-from esphome.const import CONF_ID, CONF_PORT, CONF_NAME, CONF_PROTOCOL, CONF_SERVICES, CONF_SERVICE
+from esphome.const import (
+    CONF_ID,
+    CONF_PORT,
+    CONF_PROTOCOL,
+    CONF_SERVICES,
+    CONF_SERVICE,
+)
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE, coroutine_with_priority
