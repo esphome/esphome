@@ -171,18 +171,16 @@ void Alpha3::update() {
     return;
   }
 
-  bool wait = false;
   if (this->flow_sensor_ != nullptr || this->head_sensor_ != nullptr) {
     uint8_t geni_request_flow_head[] = {39, 7, 231, 248, 10, 3, 93, 1, 33, 82, 31};
     this->send_request_(geni_request_flow_head, sizeof(geni_request_flow_head));
-    wait = true;
+    delay(25);  // need to wait between requests
   }
   if (this->power_sensor_ != nullptr || this->current_sensor_ != nullptr || this->speed_sensor_ != nullptr ||
       this->voltage_sensor_ != nullptr) {
-    if (wait)
-      delay(25);  // need to wait between requests
     uint8_t geni_request_power[] = {39, 7, 231, 248, 10, 3, 87, 0, 69, 138, 205};
     this->send_request_(geni_request_power, sizeof(geni_request_power));
+    delay(25);  // need to wait between requests
   }
 }
 }  // namespace alpha3
