@@ -49,6 +49,26 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def mdns_txt_record(key: str, value: str):
+    return cg.StructInitializer(
+        MDNSTXTRecord,
+        ("key", key),
+        ("value", value),
+    )
+
+
+def mdns_service(
+    service: str, proto: str, port: int, txt_records: list[dict[str, str]]
+):
+    return cg.StructInitializer(
+        MDNSService,
+        ("service_type", service),
+        ("proto", proto),
+        ("port", port),
+        ("txt_records", txt_records),
+    )
+
+
 @coroutine_with_priority(55.0)
 async def to_code(config):
     if CORE.using_arduino:
@@ -69,19 +89,12 @@ async def to_code(config):
 
     for service in config[CONF_SERVICES]:
         txt = [
-            cg.StructInitializer(
-                MDNSTXTRecord,
-                ("key", txt_key),
-                ("value", txt_value),
-            )
+            mdns_txt_record(txt_key, txt_value)
             for txt_key, txt_value in service[CONF_TXT].items()
         ]
 
-        exp = cg.StructInitializer(
-            MDNSService,
-            ("service_type", service[CONF_SERVICE]),
-            ("proto", service[CONF_PROTOCOL]),
-            ("port", service[CONF_PORT]),
-            ("txt_records", txt),
+        exp = mdns_service(
+            service[CONF_SERVICE], service[CONF_PROTOCOL], service[CONF_PORT], txt
         )
+
         cg.add(var.add_extra_service(exp))
