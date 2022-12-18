@@ -1,5 +1,6 @@
 #include "graphical_display_menu.h"
 #include "esphome/core/log.h"
+#include "esphome/core/hal.h"
 #include <cstdlib>
 
 namespace esphome {
@@ -8,7 +9,7 @@ namespace graphical_display_menu {
 static const char *const TAG = "graphical_display_menu";
 
 void GraphicalDisplayMenu::setup() {
-  display::display_writer_t writer = [this](display::DisplayBuffer &it) { this->draw(); };
+  display::display_writer_t writer = [this](display::DisplayBuffer &it) { this->draw_menu_internal(); };
   this->display_page_ = new display::DisplayPage(writer);
 
   if (!this->menu_item_value_.has_value()) {
@@ -66,11 +67,24 @@ void GraphicalDisplayMenu::on_before_hide() {
 }
 
 void GraphicalDisplayMenu::draw_menu() {
+  if (this->display_updater_) {
+    // Update should trickle through to the draw lambda which calls draw_menu_internal this avoids a double draw
+    this->update();
+  } else {
+    this->draw_menu_internal();
+  }
+}
+
+void GraphicalDisplayMenu::draw_menu_internal() {
+  ESP_LOGD(TAG, "draw_menu_internal called");
+
   const int available_height = this->display_buffer_->get_height();
   int total_height = 0;
   int y_padding = 2;
   bool scroll_menu_items = false;
   std::vector<Dimension> menu_dimensions;
+
+  auto startmicros = esphome::micros();
 
   for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
     auto *item = this->displayed_item_->get_item(i);
@@ -85,6 +99,10 @@ void GraphicalDisplayMenu::draw_menu() {
       scroll_menu_items = true;
     }
   }
+
+  auto measuremicros = esphome::micros();
+
+  ESP_LOGD(TAG, "Took %i microseconds to measure items", measuremicros - startmicros);
 
   int y_offset = 0;
   int first_item_index = 0;
@@ -109,6 +127,11 @@ void GraphicalDisplayMenu::draw_menu() {
     }
   }
 
+  auto scrollmicros = esphome::micros();
+
+  ESP_LOGD(TAG, "Took %i microseconds to calculate scroll requirements (%s)", scrollmicros - measuremicros,
+           YESNO(scroll_menu_items));
+
   // Render the items into the view port
   for (size_t i = first_item_index; i < last_item_index; i++) {
     auto *item = this->displayed_item_->get_item(i);
@@ -122,6 +145,11 @@ void GraphicalDisplayMenu::draw_menu() {
 
     y_offset = position.y + dimensions.height + y_padding;
   }
+
+  auto drawmicros = esphome::micros();
+
+  ESP_LOGD(TAG, "Took %i microseconds to draw. And %i microseconds in total", drawmicros - scrollmicros,
+           drawmicros - startmicros);
 }
 
 Dimension GraphicalDisplayMenu::measure_item(const display_menu_base::MenuItem *item, bool selected) {
@@ -154,15 +182,17 @@ Dimension GraphicalDisplayMenu::measure_item(const display_menu_base::MenuItem *
   return dimensions;
 }
 
-void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, const Position *position,
-                                     const Dimension *measured_dimensions, bool selected) {
+inline void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, const Position *position,
+                                            const Dimension *measured_dimensions, bool selected) {
   auto background_color = selected ? this->foreground_color_ : this->background_color_;
   auto foreground_color = selected ? this->background_color_ : this->foreground_color_;
 
   int background_width = std::max(measured_dimensions->width, this->display_buffer_->get_width());
 
-  this->display_buffer_->filled_rectangle(position->x, position->y, background_width, measured_dimensions->height,
-                                          background_color);
+  if (selected) {
+    this->display_buffer_->filled_rectangle(position->x, position->y, background_width, measured_dimensions->height,
+                                            background_color);
+  }
 
   std::string label = item->get_text();
   if (item->has_value()) {
@@ -179,6 +209,8 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, ui
 }
 
 void GraphicalDisplayMenu::update() {
+  ESP_LOGW(TAG, "update() called");
+
   if (this->display_updater_ != nullptr) {
     this->display_updater_->update();
   }
