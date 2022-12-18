@@ -27,10 +27,10 @@ DEFAULT_DELAY = "2ms"
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CD74HC4067Component),
-        cv.Required(CONF_PIN_S0): pins.internal_gpio_output_pin_schema,
-        cv.Required(CONF_PIN_S1): pins.internal_gpio_output_pin_schema,
-        cv.Required(CONF_PIN_S2): pins.internal_gpio_output_pin_schema,
-        cv.Required(CONF_PIN_S3): pins.internal_gpio_output_pin_schema,
+        cv.Required(CONF_PIN_S0): pins.gpio_output_pin_schema,
+        cv.Required(CONF_PIN_S1): pins.gpio_output_pin_schema,
+        cv.Required(CONF_PIN_S2): pins.gpio_output_pin_schema,
+        cv.Required(CONF_PIN_S3): pins.gpio_output_pin_schema,
         cv.Optional(
             CONF_DELAY, default=DEFAULT_DELAY
         ): cv.positive_time_period_milliseconds,

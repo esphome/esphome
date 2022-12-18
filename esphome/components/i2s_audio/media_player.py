@@ -1,5 +1,5 @@
 import esphome.codegen as cg
-from esphome.components import media_player
+from esphome.components import media_player, esp32
 import esphome.config_validation as cv
 
 from esphome import pins
@@ -32,6 +32,18 @@ INTERNAL_DAC_OPTIONS = {
 }
 
 EXTERNAL_DAC_OPTIONS = ["mono", "stereo"]
+
+NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
+
+
+def validate_esp32_variant(config):
+    if config[CONF_DAC_TYPE] != "internal":
+        return config
+    variant = esp32.get_esp32_variant()
+    if variant in NO_INTERNAL_DAC_VARIANTS:
+        raise cv.Invalid(f"{variant} does not have an internal DAC")
+    return config
+
 
 CONFIG_SCHEMA = cv.All(
     cv.typed_schema(
@@ -68,6 +80,7 @@ CONFIG_SCHEMA = cv.All(
         key=CONF_DAC_TYPE,
     ),
     cv.only_with_arduino,
+    validate_esp32_variant,
 )
 
 
