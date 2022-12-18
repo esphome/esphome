@@ -1545,7 +1545,7 @@ output:
       mode: OUTPUT
       inverted: false
   - platform: gpio
-    id: id2
+    id: id26
     pin:
       pca9554: pca9554_hub
       number: 0
