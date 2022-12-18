@@ -5,13 +5,8 @@ esphome:
   project:
     name: esphome.test7_project
     version: "1.0.0"
-
-esp32:
-  board: esp32-s2-saola-1
-  framework:
-    type: arduino
-    version: 2.0.5
-    platform_version: 5.2.0
+  board: lolin_s2_mini
+  platform: ESP32
 
 wifi:
   networks:
@@ -86,6 +81,7 @@ hid:
       composite:
         - keyboard
         - media_keys
+
 binary_sensor:
   - platform: usb_device
     mounted:
