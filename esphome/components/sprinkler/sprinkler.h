@@ -25,6 +25,12 @@ enum SprinklerTimerIndex : uint8_t {
   TIMER_VALVE_SELECTION = 1,
 };
 
+enum SprinklerValveRunRequestOrigin : uint8_t {
+  USER,
+  CYCLE,
+  QUEUE,
+};
+
 class Sprinkler;                  // this component
 class SprinklerControllerNumber;  // number components that appear in the front end; based on number core
 class SprinklerControllerSwitch;  // switches that appear in the front end; based on switch core
@@ -174,6 +180,7 @@ class SprinklerValveRunRequest {
   SprinklerValveRunRequest(size_t valve_number, uint32_t run_duration, SprinklerValveOperator *valve_op);
   bool has_request();
   bool has_valve_operator();
+  void set_request_from(SprinklerValveRunRequestOrigin origin);
   void set_run_duration(uint32_t run_duration);
   void set_valve(size_t valve_number);
   void set_valve_operator(SprinklerValveOperator *valve_op);
@@ -182,12 +189,14 @@ class SprinklerValveRunRequest {
   size_t valve();
   optional<size_t> valve_as_opt();
   SprinklerValveOperator *valve_operator();
+  SprinklerValveRunRequestOrigin request_is_from();
 
  protected:
   bool has_valve_{false};
   size_t valve_number_{0};
   uint32_t run_duration_{0};
   SprinklerValveOperator *valve_op_{nullptr};
+  SprinklerValveRunRequestOrigin origin_{USER};
 };
 
 class Sprinkler : public Component, public EntityBase {
@@ -353,6 +362,9 @@ class Sprinkler : public Component, public EntityBase {
   /// returns a pointer to a valve's name string object; returns nullptr if valve_number is invalid
   const char *valve_name(size_t valve_number);
 
+  /// returns what invoked the valve that is currently active, if any. check with 'has_value()'
+  optional<SprinklerValveRunRequestOrigin> active_valve_request_is_from();
+
   /// returns the number of the valve that is currently active, if any. check with 'has_value()'
   optional<size_t> active_valve();
 
@@ -475,7 +487,10 @@ class Sprinkler : public Component, public EntityBase {
   /// starts up the system from IDLE state
   void fsm_transition_to_shutdown_();
 
-  /// return the current FSM state as a string
+  /// return the specified SprinklerValveRunRequestOrigin as a string
+  std::string req_as_str_(SprinklerValveRunRequestOrigin origin);
+
+  /// return the specified SprinklerState state as a string
   std::string state_as_str_(SprinklerState state);
 
   /// Start/cancel/get status of valve timers

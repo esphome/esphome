@@ -339,6 +339,8 @@ SprinklerValveRunRequest::SprinklerValveRunRequest(size_t valve_number, uint32_t
 bool SprinklerValveRunRequest::has_request() { return this->has_valve_; }
 bool SprinklerValveRunRequest::has_valve_operator() { return !(this->valve_op_ == nullptr); }
 
+void SprinklerValveRunRequest::set_request_from(SprinklerValveRunRequestOrigin origin) { this->origin_ = origin; }
+
 void SprinklerValveRunRequest::set_run_duration(uint32_t run_duration) { this->run_duration_ = run_duration; }
 
 void SprinklerValveRunRequest::set_valve(size_t valve_number) {
@@ -356,6 +358,7 @@ void SprinklerValveRunRequest::set_valve_operator(SprinklerValveOperator *valve_
 
 void SprinklerValveRunRequest::reset() {
   this->has_valve_ = false;
+  this->origin_ = USER;
   this->run_duration_ = 0;
   this->valve_op_ = nullptr;
 }
@@ -372,6 +375,8 @@ optional<size_t> SprinklerValveRunRequest::valve_as_opt() {
 }
 
 SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this->valve_op_; }
+
+SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
 Sprinkler::Sprinkler() {}
 Sprinkler::Sprinkler(const std::string &name) : EntityBase(name) {}
@@ -960,6 +965,13 @@ const char *Sprinkler::valve_name(const size_t valve_number) {
   return nullptr;
 }
 
+optional<SprinklerValveRunRequestOrigin> Sprinkler::active_valve_request_is_from() {
+  if (this->active_req_.has_request()) {
+    return this->active_req_.request_is_from();
+  }
+  return nullopt;
+}
+
 optional<size_t> Sprinkler::active_valve() { return this->active_req_.valve_as_opt(); }
 optional<size_t> Sprinkler::paused_valve() { return this->paused_valve_; }
 
@@ -1267,6 +1279,7 @@ void Sprinkler::load_next_valve_run_request_(const optional<size_t> first_valve)
     return;  // there is already a request pending
   } else if (this->queue_enabled() && !this->queued_valves_.empty()) {
     this->next_req_.set_valve(this->queued_valves_.back().valve_number);
+    this->next_req_.set_request_from(QUEUE);
     if (this->queued_valves_.back().run_duration) {
       this->next_req_.set_run_duration(this->queued_valves_.back().run_duration);
       this->queued_valves_.pop_back();
@@ -1280,6 +1293,7 @@ void Sprinkler::load_next_valve_run_request_(const optional<size_t> first_valve)
     if (this->next_valve_number_in_cycle_(first_valve).has_value()) {
       // if there is another valve to run as a part of a cycle, load that
       this->next_req_.set_valve(this->next_valve_number_in_cycle_(first_valve).value_or(0));
+      this->next_req_.set_request_from(CYCLE);
       this->next_req_.set_run_duration(
           this->valve_run_duration_adjusted(this->next_valve_number_in_cycle_(first_valve).value_or(0)));
     } else if ((this->repeat_count_++ < this->repeat().value_or(0))) {
@@ -1288,6 +1302,7 @@ void Sprinkler::load_next_valve_run_request_(const optional<size_t> first_valve)
       this->prep_full_cycle_();
       if (this->next_valve_number_in_cycle_().has_value()) {  // this should always succeed here, but just in case...
         this->next_req_.set_valve(this->next_valve_number_in_cycle_().value_or(0));
+        this->next_req_.set_request_from(CYCLE);
         this->next_req_.set_run_duration(
             this->valve_run_duration_adjusted(this->next_valve_number_in_cycle_().value_or(0)));
       }
@@ -1313,8 +1328,9 @@ void Sprinkler::start_valve_(SprinklerValveRunRequest *req) {
   for (auto &vo : this->valve_op_) {  // find the first available SprinklerValveOperator, load it and start it up
     if (vo.state() == IDLE) {
       auto run_duration = req->run_duration() ? req->run_duration() : this->valve_run_duration_adjusted(req->valve());
-      ESP_LOGD(TAG, "Starting valve %u for %u seconds, cycle %u of %u", req->valve(), run_duration,
-               this->repeat_count_ + 1, this->repeat().value_or(0) + 1);
+      ESP_LOGD(TAG, "%s is starting valve %u for %u seconds, cycle %u of %u",
+               this->req_as_str_(req->request_is_from()).c_str(), req->valve(), run_duration, this->repeat_count_ + 1,
+               this->repeat().value_or(0) + 1);
       req->set_valve_operator(&vo);
       vo.set_controller(this);
       vo.set_valve(&this->valve_[req->valve()]);
@@ -1426,6 +1442,7 @@ void Sprinkler::fsm_transition_from_shutdown_() {
 
   if (this->next_req_.has_request()) {  // there is a valve to run...
     this->active_req_.set_valve(this->next_req_.valve());
+    this->active_req_.set_request_from(this->next_req_.request_is_from());
     this->active_req_.set_run_duration(this->next_req_.run_duration());
     this->next_req_.reset();
 
@@ -1444,7 +1461,9 @@ void Sprinkler::fsm_transition_from_valve_run_() {
   }
 
   if (!this->timer_active_(sprinkler::TIMER_SM)) {  // only flag the valve as "complete" if the timer finished
-    this->mark_valve_cycle_complete_(this->active_req_.valve());
+    if ((this->active_req_.request_is_from() == CYCLE) || (this->active_req_.request_is_from() == USER)) {
+      this->mark_valve_cycle_complete_(this->active_req_.valve());
+    }
   } else {
     ESP_LOGD(TAG, "Valve cycle interrupted - NOT flagging valve as complete and stopping current valve");
     for (auto &vo : this->valve_op_) {
@@ -1459,6 +1478,7 @@ void Sprinkler::fsm_transition_from_valve_run_() {
         this->valve_pump_switch(this->active_req_.valve()) == this->valve_pump_switch(this->next_req_.valve());
 
     this->active_req_.set_valve(this->next_req_.valve());
+    this->active_req_.set_request_from(this->next_req_.request_is_from());
     this->active_req_.set_run_duration(this->next_req_.run_duration());
     this->next_req_.reset();
 
@@ -1486,6 +1506,22 @@ void Sprinkler::fsm_transition_to_shutdown_() {
   this->set_timer_duration_(sprinkler::TIMER_SM,
                             this->start_delay_ + this->stop_delay_ + this->switching_delay_.value_or(0) + 1);
   this->start_timer_(sprinkler::TIMER_SM);
+}
+
+std::string Sprinkler::req_as_str_(SprinklerValveRunRequestOrigin origin) {
+  switch (origin) {
+    case USER:
+      return "USER";
+
+    case CYCLE:
+      return "CYCLE";
+
+    case QUEUE:
+      return "QUEUE";
+
+    default:
+      return "UNKNOWN";
+  }
 }
 
 std::string Sprinkler::state_as_str_(SprinklerState state) {
