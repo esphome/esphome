@@ -17,7 +17,9 @@ MULTI_CONF = True
 sn74hc595_ns = cg.esphome_ns.namespace("sn74hc595")
 
 SN74HC595Component = sn74hc595_ns.class_("SN74HC595Component", cg.Component)
-SN74HC595GPIOPin = sn74hc595_ns.class_("SN74HC595GPIOPin", cg.GPIOPin)
+SN74HC595GPIOPin = sn74hc595_ns.class_(
+    "SN74HC595GPIOPin", cg.GPIOPin, cg.Parented.template(SN74HC595Component)
+)
 
 CONF_SN74HC595 = "sn74hc595"
 CONF_LATCH_PIN = "latch_pin"
@@ -30,7 +32,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_LATCH_PIN): pins.gpio_output_pin_schema,
         cv.Optional(CONF_OE_PIN): pins.gpio_output_pin_schema,
-        cv.Optional(CONF_SR_COUNT, default=1): cv.int_range(1, 4),
+        cv.Optional(CONF_SR_COUNT, default=1): cv.int_range(min=1, max=256),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -60,7 +62,7 @@ SN74HC595_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(SN74HC595GPIOPin),
         cv.Required(CONF_SN74HC595): cv.use_id(SN74HC595Component),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=31),
+        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=2048, max_included=False),
         cv.Optional(CONF_MODE, default={}): cv.All(
             {
                 cv.Optional(CONF_OUTPUT, default=True): cv.All(
@@ -76,10 +78,8 @@ SN74HC595_PIN_SCHEMA = cv.All(
 @pins.PIN_SCHEMA_REGISTRY.register(CONF_SN74HC595, SN74HC595_PIN_SCHEMA)
 async def sn74hc595_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
-    parent = await cg.get_variable(config[CONF_SN74HC595])
-    cg.add(var.set_parent(parent))
+    await cg.register_parented(var, config[CONF_SN74HC595])
 
-    num = config[CONF_NUMBER]
-    cg.add(var.set_pin(num))
+    cg.add(var.set_pin(config[CONF_NUMBER]))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     return var

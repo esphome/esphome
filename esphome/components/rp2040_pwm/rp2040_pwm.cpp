@@ -6,7 +6,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/macros.h"
 
-#include <PinNames.h>
+#include <hardware/clocks.h>
+#include <hardware/gpio.h>
+#include <hardware/pwm.h>
 
 namespace esphome {
 namespace rp2040_pwm {
@@ -15,10 +17,17 @@ static const char *const TAG = "rp2040_pwm";
 
 void RP2040PWM::setup() {
   ESP_LOGCONFIG(TAG, "Setting up RP2040 PWM Output...");
-  this->pin_->setup();
-  this->pwm_ = new mbed::PwmOut((PinName) this->pin_->get_pin());
-  this->turn_off();
+
+  this->setup_pwm_();
 }
+
+void RP2040PWM::setup_pwm_() {
+  pwm_config config = pwm_get_default_config();
+  pwm_config_set_clkdiv(&config, clock_get_hz(clk_sys) / (255.0f * this->frequency_));
+  pwm_config_set_wrap(&config, 254);
+  pwm_init(pwm_gpio_to_slice_num(this->pin_->get_pin()), &config, true);
+}
+
 void RP2040PWM::dump_config() {
   ESP_LOGCONFIG(TAG, "RP2040 PWM:");
   LOG_PIN("  Pin: ", this->pin_);
@@ -33,10 +42,13 @@ void HOT RP2040PWM::write_state(float state) {
     state = 1.0f - state;
   }
 
-  auto total_time_us = static_cast<uint32_t>(roundf(1e6f / this->frequency_));
+  if (this->frequency_changed_) {
+    this->setup_pwm_();
+    this->frequency_changed_ = false;
+  }
 
-  this->pwm_->period_us(total_time_us);
-  this->pwm_->write(state);
+  gpio_set_function(this->pin_->get_pin(), GPIO_FUNC_PWM);
+  pwm_set_gpio_level(this->pin_->get_pin(), state * 255.0f);
 }
 
 }  // namespace rp2040_pwm

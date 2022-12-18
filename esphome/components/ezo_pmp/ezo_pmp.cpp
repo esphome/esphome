@@ -40,8 +40,9 @@ static const std::string DOSING_MODE_CONTINUOUS = "Continuous";
 
 void EzoPMP::dump_config() {
   LOG_I2C_DEVICE(this);
-  if (this->is_failed())
+  if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with EZO-PMP circuit failed!");
+  }
   LOG_UPDATE_INTERVAL(this);
 }
 

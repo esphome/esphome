@@ -1,6 +1,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
+#ifdef USE_ESP8266
+
 #include "shelly_dimmer.h"
 #ifdef USE_SHD_FIRMWARE_DATA
 #include "stm32flash.h"
@@ -521,3 +523,5 @@ void ShellyDimmer::reset_dfu_boot_() {
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
+
+#endif  // USE_ESP8266

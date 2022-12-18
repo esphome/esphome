@@ -1,10 +1,11 @@
 #pragma once
 
+#include <cstdarg>
+#include <vector>
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/defines.h"
-#include <cstdarg>
+#include "esphome/core/helpers.h"
 
 #ifdef USE_ARDUINO
 #if defined(USE_ESP8266) || defined(USE_ESP32)
