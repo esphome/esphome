@@ -696,9 +696,6 @@ void ESPBTDevice::parse_scan_rst(const esp_ble_gap_cb_param_t::ble_scan_result_e
   }
 
   ESP_LOGVV(TAG, "Adv data: %s", format_hex_pretty(param.ble_adv, param.adv_data_len + param.scan_rsp_len).c_str());
-  ESP_LOGVV(TAG, "Adv data length: %d", param.adv_data_len);
-  ESP_LOGVV(TAG, "Scan rsp length: %d", param.scan_rsp_len);
-
 #endif
 }
 void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
