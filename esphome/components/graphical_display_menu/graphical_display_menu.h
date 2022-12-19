@@ -33,7 +33,7 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
 
  protected:
   void draw_menu() override;
-  void draw_menu_internal();
+  void draw_menu_internal_();
   void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) override;
   virtual Dimension measure_item(const display_menu_base::MenuItem *item, bool selected);
   virtual void draw_item(const display_menu_base::MenuItem *item, const Position *position,

@@ -9,7 +9,7 @@ namespace graphical_display_menu {
 static const char *const TAG = "graphical_display_menu";
 
 void GraphicalDisplayMenu::setup() {
-  display::display_writer_t writer = [this](display::DisplayBuffer &it) { this->draw_menu_internal(); };
+  display::display_writer_t writer = [this](display::DisplayBuffer &it) { this->draw_menu_internal_(); };
   this->display_page_ = new display::DisplayPage(writer);
 
   if (!this->menu_item_value_.has_value()) {
@@ -68,15 +68,15 @@ void GraphicalDisplayMenu::on_before_hide() {
 
 void GraphicalDisplayMenu::draw_menu() {
   if (this->display_updater_) {
-    // Update should trickle through to the draw lambda which calls draw_menu_internal this avoids a double draw
+    // Update should trickle through to the draw lambda which calls draw_menu_internal_ this avoids a double draw
     this->update();
   } else {
-    this->draw_menu_internal();
+    this->draw_menu_internal_();
   }
 }
 
-void GraphicalDisplayMenu::draw_menu_internal() {
-  ESP_LOGD(TAG, "draw_menu_internal called");
+void GraphicalDisplayMenu::draw_menu_internal_() {
+  ESP_LOGD(TAG, "draw_menu_internal_ called");
 
   const int available_height = this->display_buffer_->get_height();
   int total_height = 0;
