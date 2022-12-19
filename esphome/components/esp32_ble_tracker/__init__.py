@@ -18,7 +18,6 @@ from esphome.const import (
 from esphome.components import esp32_ble
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.components import esp32_ble
 
 AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
