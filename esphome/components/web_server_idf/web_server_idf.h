@@ -13,8 +13,8 @@ namespace esphome {
 namespace web_server_idf {
 
 #define F(string_literal) (string_literal)
-// #define PGM_P const char *
-// #define strncpy_P strncpy
+#define PGM_P const char *
+#define strncpy_P strncpy
 
 using String = std::string;
 
