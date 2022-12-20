@@ -33,7 +33,7 @@ from .const import (  # noqa
     VARIANT_FRIENDLY,
     VARIANTS,
 )
-from .boards import BOARD_TO_VARIANT
+from .boards import BOARDS
 
 # force import gpio to register pin schema
 from .gpio import esp32_pin_to_code  # noqa
@@ -230,14 +230,14 @@ def _parse_platform_version(value):
 def _detect_variant(value):
     if CONF_VARIANT not in value:
         board = value[CONF_BOARD]
-        if board not in BOARD_TO_VARIANT:
+        if board not in BOARDS:
             raise cv.Invalid(
                 "This board is unknown, please set the variant manually",
                 path=[CONF_BOARD],
             )
 
         value = value.copy()
-        value[CONF_VARIANT] = BOARD_TO_VARIANT[board]
+        value[CONF_VARIANT] = BOARDS[board][KEY_VARIANT]
 
     return value
 
@@ -327,6 +327,11 @@ async def to_code(config):
             "platform_packages",
             [f"platformio/framework-espidf @ {conf[CONF_SOURCE]}"],
         )
+        # platformio/toolchain-esp32ulp does not support linux_aarch64 yet and has not been updated for over 2 years
+        # This is espressif's own published version which is more up to date.
+        cg.add_platformio_option(
+            "platform_packages", ["espressif/toolchain-esp32ulp @ 2.35.0-20220830"]
+        )
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
         add_idf_sdkconfig_option(
@@ -393,11 +398,11 @@ spiffs,   data, spiffs,  0x391000, 0x00F000
 
 IDF_PARTITIONS_CSV = """\
 # Name,   Type, SubType, Offset,   Size, Flags
-nvs,      data, nvs,     ,        0x4000,
 otadata,  data, ota,     ,        0x2000,
 phy_init, data, phy,     ,        0x1000,
 app0,     app,  ota_0,   ,      0x1C0000,
 app1,     app,  ota_1,   ,      0x1C0000,
+nvs,      data, nvs,     ,       0x6d000,
 """
 
 
