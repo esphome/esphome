@@ -601,9 +601,9 @@ std::string ESPBTUUID::to_string() const {
     default:
     case ESP_UUID_LEN_128:
       std::string buf;
-      for (int8_t i = 15; i >= 0; i--) {
+      for (uint8_t i = 0; i < 16; i++) {
         buf += str_snprintf("%02X", 2, this->uuid_.uuid.uuid128[i]);
-        if (i == 6 || i == 8 || i == 10 || i == 12)
+        if (i == 3 || i == 5 || i == 7 || i == 9)
           buf += "-";
       }
       return buf;
