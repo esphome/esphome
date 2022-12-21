@@ -95,7 +95,7 @@ void ESP32InternalGPIOPin::pin_mode(gpio::Flags flags) {
   // can't call gpio_config here because that logs in esp-idf which may cause issues
   gpio_set_direction(pin_, flags_to_mode(flags));
   gpio_pull_mode_t pull_mode = GPIO_FLOATING;
-  if (flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)) {
+  if ((flags & gpio::FLAG_PULLUP) && (flags & gpio::FLAG_PULLDOWN)) {
     pull_mode = GPIO_PULLUP_PULLDOWN;
   } else if (flags & gpio::FLAG_PULLUP) {
     pull_mode = GPIO_PULLUP_ONLY;
@@ -128,7 +128,7 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
   gpio_set_direction(arg->pin, flags_to_mode(flags));
   gpio_pull_mode_t pull_mode = GPIO_FLOATING;
-  if (flags & (gpio::FLAG_PULLUP | gpio::FLAG_PULLDOWN)) {
+  if ((flags & gpio::FLAG_PULLUP) && (flags & gpio::FLAG_PULLDOWN)) {
     pull_mode = GPIO_PULLUP_PULLDOWN;
   } else if (flags & gpio::FLAG_PULLUP) {
     pull_mode = GPIO_PULLUP_ONLY;
