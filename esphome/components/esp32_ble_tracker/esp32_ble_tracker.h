@@ -5,10 +5,12 @@
 #include "esphome/core/helpers.h"
 #include "queue.h"
 
+#include <array>
+#include <string>
+#include <vector>
+
 #ifdef USE_ESP32
 
-#include <string>
-#include <array>
 #include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>
 #include <esp_bt_defs.h>
@@ -40,6 +42,9 @@ class ESPBTUUID {
   esp_bt_uuid_t get_uuid() const;
 
   std::string to_string() const;
+
+  uint64_t get_128bit_high() const;
+  uint64_t get_128bit_low() const;
 
  protected:
   esp_bt_uuid_t uuid_;
@@ -140,10 +145,18 @@ class ESPBTDeviceListener {
 };
 
 enum class ClientState {
+  // Connection is allocated
+  INIT,
+  // Client is disconnecting
+  DISCONNECTING,
   // Connection is idle, no device detected.
   IDLE,
+  // Searching for device.
+  SEARCHING,
   // Device advertisement found.
   DISCOVERED,
+  // Device is discovered and the scanner is stopped
+  READY_TO_CONNECT,
   // Connection in progress.
   CONNECTING,
   // Initial connection established.
@@ -152,13 +165,25 @@ enum class ClientState {
   ESTABLISHED,
 };
 
+enum class ConnectionType {
+  // The default connection type, we hold all the services in ram
+  // for the duration of the connection.
+  V1,
+  // The client has a cache of the services and mtu so we should not
+  // fetch them again
+  V3_WITH_CACHE,
+  // The client does not need the services and mtu once we send them
+  // so we should wipe them from memory as soon as we send them
+  V3_WITHOUT_CACHE
+};
+
 class ESPBTClient : public ESPBTDeviceListener {
  public:
-  virtual void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+  virtual bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                    esp_ble_gattc_cb_param_t *param) = 0;
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
   virtual void connect() = 0;
-  void set_state(ClientState st) { this->state_ = st; }
+  virtual void set_state(ClientState st) { this->state_ = st; }
   ClientState state() const { return state_; }
   int app_id;
 
@@ -228,6 +253,7 @@ class ESP32BLETracker : public Component {
   uint32_t scan_duration_;
   uint32_t scan_interval_;
   uint32_t scan_window_;
+  uint8_t scan_start_fail_count_;
   bool scan_continuous_;
   bool scan_active_;
   bool scanner_idle_;

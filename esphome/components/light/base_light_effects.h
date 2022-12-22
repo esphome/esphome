@@ -1,6 +1,7 @@
 #pragma once
 
 #include <utility>
+#include <vector>
 
 #include "light_effect.h"
 #include "esphome/core/automation.h"

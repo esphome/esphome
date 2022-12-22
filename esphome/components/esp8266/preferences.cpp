@@ -5,12 +5,14 @@ extern "C" {
 #include "spi_flash.h"
 }
 
-#include "preferences.h"
-#include <cstring>
-#include "esphome/core/preferences.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/defines.h"
+#include "esphome/core/preferences.h"
+#include "preferences.h"
+
+#include <cstring>
+#include <vector>
 
 namespace esphome {
 namespace esp8266 {

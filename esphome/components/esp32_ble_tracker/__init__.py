@@ -3,6 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import (
+    CONF_ACTIVE,
     CONF_ID,
     CONF_INTERVAL,
     CONF_DURATION,
@@ -16,13 +17,13 @@ from esphome.const import (
 )
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
+from esphome.components import esp32_ble
 
 DEPENDENCIES = ["esp32"]
 
 CONF_ESP32_BLE_ID = "esp32_ble_id"
 CONF_SCAN_PARAMETERS = "scan_parameters"
 CONF_WINDOW = "window"
-CONF_ACTIVE = "active"
 CONF_CONTINUOUS = "continuous"
 CONF_ON_SCAN_END = "on_scan_end"
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
@@ -187,6 +188,8 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+FINAL_VALIDATE_SCHEMA = esp32_ble.validate_variant
+
 ESP_BLE_DEVICE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ESP32_BLE_ID): cv.use_id(ESP32BLETracker),
@@ -238,6 +241,11 @@ async def to_code(config):
 
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+        # https://github.com/espressif/esp-idf/issues/4101
+        # https://github.com/espressif/esp-idf/issues/2503
+        # Match arduino CONFIG_BTU_TASK_STACK_SIZE
+        # https://github.com/espressif/arduino-esp32/blob/fd72cf46ad6fc1a6de99c1d83ba8eba17d80a4ee/tools/sdk/esp32/sdkconfig#L1866
+        add_idf_sdkconfig_option("CONFIG_BTU_TASK_STACK_SIZE", 8192)
 
     cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
 

@@ -7,6 +7,8 @@
 #include "esphome/components/nfc/nfc.h"
 #include "esphome/components/nfc/automation.h"
 
+#include <vector>
+
 namespace esphome {
 namespace pn532 {
 
