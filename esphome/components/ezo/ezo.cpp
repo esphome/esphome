@@ -14,8 +14,9 @@ static const char *const EZO_CALIBRATION_TYPE_STRINGS[] = {"LOW", "MID", "HIGH"}
 void EZOSensor::dump_config() {
   LOG_SENSOR("", "EZO", this);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed())
+  if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with EZO circuit failed!");
+  }
   LOG_UPDATE_INTERVAL(this);
 }
 
