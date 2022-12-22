@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_REPEAT,
     CONF_RUN_DURATION,
+    ENTITY_CATEGORY_CONFIG,
 )
 
 AUTO_LOAD = ["switch"]
@@ -223,7 +224,9 @@ SPRINKLER_ACTION_QUEUE_VALVE_SCHEMA = cv.Schema(
 SPRINKLER_VALVE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ENABLE_SWITCH): cv.maybe_simple_value(
-            switch.switch_schema(SprinklerControllerSwitch),
+            switch.switch_schema(
+                SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
+            ),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_PUMP_OFF_SWITCH_ID): cv.use_id(switch.Switch),
@@ -244,7 +247,9 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sprinkler),
         cv.Optional(CONF_AUTO_ADVANCE_SWITCH): cv.maybe_simple_value(
-            switch.switch_schema(SprinklerControllerSwitch),
+            switch.switch_schema(
+                SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
+            ),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_MAIN_SWITCH): cv.maybe_simple_value(
@@ -252,11 +257,15 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
             key=CONF_NAME,
         ),
         cv.Optional(CONF_QUEUE_ENABLE_SWITCH): cv.maybe_simple_value(
-            switch.switch_schema(SprinklerControllerSwitch),
+            switch.switch_schema(
+                SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
+            ),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_REVERSE_SWITCH): cv.maybe_simple_value(
-            switch.switch_schema(SprinklerControllerSwitch),
+            switch.switch_schema(
+                SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
+            ),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_MANUAL_SELECTION_DELAY): cv.positive_time_period_seconds,

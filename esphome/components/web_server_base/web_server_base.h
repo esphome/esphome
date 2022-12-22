@@ -4,6 +4,8 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
+
 #include "esphome/core/component.h"
 
 #include <ESPAsyncWebServer.h>

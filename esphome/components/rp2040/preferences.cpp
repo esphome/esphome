@@ -8,6 +8,8 @@
 #include "preferences.h"
 
 #include <cstring>
+#include <vector>
+
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/preferences.h"

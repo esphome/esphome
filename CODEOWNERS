@@ -41,6 +41,8 @@ esphome/components/ble_client/* @buxtronix
 esphome/components/bluetooth_proxy/* @jesserockz
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bmp3xx/* @martgras
+esphome/components/bp1658cj/* @Cossid
+esphome/components/bp5758d/* @Cossid
 esphome/components/button/* @esphome/core
 esphome/components/canbus/* @danielschramm @mvturnho
 esphome/components/cap1188/* @MrEditor97
@@ -65,6 +67,7 @@ esphome/components/debug/* @OttoWinter
 esphome/components/delonghi/* @grob6000
 esphome/components/dfplayer/* @glmnet
 esphome/components/dht/* @OttoWinter
+esphome/components/display_menu_base/* @numo68
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
 esphome/components/dsmr/* @glmnet @zuidwijk
@@ -111,6 +114,7 @@ esphome/components/integration/* @OttoWinter
 esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
+esphome/components/lcd_menu/* @numo68
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
@@ -163,6 +167,7 @@ esphome/components/nfc/* @jesserockz
 esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
+esphome/components/pca9554/* @hwstar
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
 esphome/components/pm1006/* @habbie
@@ -204,9 +209,13 @@ esphome/components/shelly_dimmer/* @edge90 @rnauber
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core @jsuanet
 esphome/components/sim800l/* @glmnet
+esphome/components/sm10bit_base/* @Cossid
 esphome/components/sm2135/* @BoukeHaarsma23
+esphome/components/sm2235/* @Cossid
+esphome/components/sm2335/* @Cossid
 esphome/components/sml/* @alengwenus
 esphome/components/smt100/* @piechade
+esphome/components/sn74hc165/* @jesserockz
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/spi/* @esphome/core

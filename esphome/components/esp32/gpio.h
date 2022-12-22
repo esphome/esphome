@@ -1,13 +1,13 @@
 #pragma once
 
-#ifdef USE_ESP32_FRAMEWORK_ESP_IDF
+#ifdef USE_ESP32
 #include "esphome/core/hal.h"
 #include <driver/gpio.h>
 
 namespace esphome {
 namespace esp32 {
 
-class IDFInternalGPIOPin : public InternalGPIOPin {
+class ESP32InternalGPIOPin : public InternalGPIOPin {
  public:
   void set_pin(gpio_num_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
@@ -37,4 +37,4 @@ class IDFInternalGPIOPin : public InternalGPIOPin {
 }  // namespace esp32
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ESP_IDF
+#endif  // USE_ESP32

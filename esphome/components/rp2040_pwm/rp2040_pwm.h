@@ -7,8 +7,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 
-#include "drivers/PwmOut.h"
-
 namespace esphome {
 namespace rp2040_pwm {
 
@@ -19,6 +17,7 @@ class RP2040PWM : public output::FloatOutput, public Component {
   /// Dynamically update frequency
   void update_frequency(float frequency) override {
     this->set_frequency(frequency);
+    this->frequency_changed_ = true;
     this->write_state(this->last_output_);
   }
 
@@ -31,11 +30,13 @@ class RP2040PWM : public output::FloatOutput, public Component {
  protected:
   void write_state(float state) override;
 
+  void setup_pwm_();
+
   InternalGPIOPin *pin_;
-  mbed::PwmOut *pwm_;
   float frequency_{1000.0};
   /// Cache last output level for dynamic frequency updating
   float last_output_{0.0};
+  bool frequency_changed_{false};
 };
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {

@@ -24,6 +24,11 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
       cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_STA, true, CYW43_COUNTRY_WORLDWIDE);
     }
   }
+  if (ap.has_value()) {
+    if (ap.value()) {
+      cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
+    }
+  }
   return true;
 }
 
@@ -141,22 +146,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   if (!this->wifi_mode_({}, true))
     return false;
 
-  if (ap.get_channel().has_value()) {
-    cyw43_wifi_ap_set_channel(&cyw43_state, ap.get_channel().value());
-  }
-
-  const char *ssid = ap.get_ssid().c_str();
-
-  cyw43_wifi_ap_set_ssid(&cyw43_state, strlen(ssid), (const uint8_t *) ssid);
-
-  if (!ap.get_password().empty()) {
-    const char *password = ap.get_password().c_str();
-    cyw43_wifi_ap_set_password(&cyw43_state, strlen(password), (const uint8_t *) password);
-    cyw43_wifi_ap_set_auth(&cyw43_state, CYW43_AUTH_WPA2_MIXED_PSK);
-  } else {
-    cyw43_wifi_ap_set_auth(&cyw43_state, CYW43_AUTH_OPEN);
-  }
-  cyw43_wifi_set_up(&cyw43_state, CYW43_ITF_AP, true, CYW43_COUNTRY_WORLDWIDE);
+  WiFi.beginAP(ap.get_ssid().c_str(), ap.get_password().c_str(), ap.get_channel().value_or(1));
 
   return true;
 }
@@ -166,7 +156,7 @@ bool WiFiComponent::wifi_disconnect_() {
   int err = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
   return err == 0;
 }
-// NOTE: The driver does not provide an interface to get this
+
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
   uint8_t raw_bssid[6];
@@ -175,12 +165,10 @@ bssid_t WiFiComponent::wifi_bssid() {
     bssid[i] = raw_bssid[i];
   return bssid;
 }
-// NOTE: The driver does not provide an interface to get this
-std::string WiFiComponent::wifi_ssid() { return WiFi.SSID(); }
-// NOTE: The driver does not provide an interface to get this
+std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
-// NOTE: The driver does not provide an interface to get this
-int32_t WiFiComponent::wifi_channel_() { return 0; }
+int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
+
 network::IPAddress WiFiComponent::wifi_sta_ip() { return {WiFi.localIP()}; }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
