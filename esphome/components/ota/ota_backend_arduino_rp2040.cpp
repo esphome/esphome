@@ -15,6 +15,7 @@ namespace ota {
 OTAResponseTypes ArduinoRP2040OTABackend::begin(size_t image_size) {
   bool ret = Update.begin(image_size, U_FLASH);
   if (ret) {
+    rp2040::preferences_prevent_write(true);
     return OTA_RESPONSE_OK;
   }
 
@@ -46,7 +47,10 @@ OTAResponseTypes ArduinoRP2040OTABackend::end() {
   return OTA_RESPONSE_OK;
 }
 
-void ArduinoRP2040OTABackend::abort() { Update.end(); }
+void ArduinoRP2040OTABackend::abort() {
+  Update.end();
+  rp2040::preferences_prevent_write(false);
+}
 
 }  // namespace ota
 }  // namespace esphome
