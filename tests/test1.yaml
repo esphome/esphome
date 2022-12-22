@@ -1470,7 +1470,7 @@ bp1658cj:
   clock_pin: GPIO5
   max_power_color_channels: 4
   max_power_white_channels: 6
-  
+
 bp5758d:
   data_pin: GPIO3
   clock_pin: GPIO5
