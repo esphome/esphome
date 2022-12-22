@@ -47,11 +47,8 @@ async def to_code(config):
         pin = await gpio_pin_expression(config[CONF_FLOW_CONTROL_PIN])
         cg.add(var.set_flow_control_pin(pin))
 
-    if CONF_SEND_WAIT_TIME in config:
-        cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
-
-    if CONF_DISABLE_CRC in config:
-        cg.add(var.set_disable_crc(config[CONF_DISABLE_CRC]))
+    cg.add(var.set_send_wait_time(config[CONF_SEND_WAIT_TIME]))
+    cg.add(var.set_disable_crc(config[CONF_DISABLE_CRC]))
 
 
 def modbus_device_schema(default_address):
