@@ -32,12 +32,17 @@ class NumberTraits {
   void set_mode(NumberMode mode) { this->mode_ = mode; }
   NumberMode get_mode() const { return this->mode_; }
 
+  // Set/get the device class.
+  void set_device_class(const std::string &device_class);
+  std::string get_device_class();
+
  protected:
   float min_value_ = NAN;
   float max_value_ = NAN;
   float step_ = NAN;
   optional<std::string> unit_of_measurement_;  ///< Unit of measurement override
   NumberMode mode_{NUMBER_MODE_AUTO};
+  optional<std::string> device_class_;
 };
 
 }  // namespace number

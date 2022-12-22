@@ -1342,6 +1342,13 @@ binary_sensor:
       mode: INPUT
       inverted: true
   - platform: gpio
+    name: PCA9554 binary sensor
+    pin:
+      pca9554: pca9554_hub
+      number: 1
+      mode: INPUT
+      inverted: true
+  - platform: gpio
     name: MCP21 binary sensor
     pin:
       mcp23xxx: mcp23017_hub
@@ -1534,6 +1541,13 @@ output:
     id: id2
     pin:
       pcf8574: pcf8574_hub
+      number: 0
+      mode: OUTPUT
+      inverted: false
+  - platform: gpio
+    id: id26
+    pin:
+      pca9554: pca9554_hub
       number: 0
       mode: OUTPUT
       inverted: false
@@ -1822,18 +1836,6 @@ light:
         from: 20
         to: 25
       - single_light_id: ${roomname}_lights
-
-  - platform: shelly_dimmer
-    name: Shelly Dimmer Light
-    power:
-      name: Shelly Dimmer Power
-    voltage:
-      name: Shelly Dimmer Voltage
-    current:
-      name: Shelly Dimmer Current
-    max_brightness: 500
-    firmware: "51.6"
-    uart_id: uart0
 
 remote_transmitter:
   - pin: 32
@@ -2726,6 +2728,11 @@ pcf8574:
   - id: pcf8574_hub
     address: 0x21
     pcf8575: false
+    i2c_id: i2c_bus
+
+pca9554:
+  - id: pca9554_hub
+    address: 0x3F
     i2c_id: i2c_bus
 
 mcp23017:

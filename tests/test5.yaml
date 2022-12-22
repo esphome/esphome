@@ -162,6 +162,11 @@ binary_sensor:
       then:
         - output.turn_off: Led7
 
+  - platform: gpio
+    id: sn74hc165_pin_0
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 0
 
 
 
@@ -240,6 +245,7 @@ number:
     step: 5
     unit_of_measurement: "%"
     mode: slider
+    device_class: humidity
     on_value:
       - logger.log:
           format: Number changed to %f
@@ -541,3 +547,11 @@ text_sensor:
         - ezo_pmp.arbitrary_command:
             id: hcl_pump
             command: D,?
+
+sn74hc165:
+  id: sn74hc165_hub
+  data_pin: GPIO12
+  clock_pin: GPIO14
+  load_pin: GPIO27
+  clock_inhibit_pin: GPIO26
+  sr_count: 4

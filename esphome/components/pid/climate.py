@@ -18,6 +18,7 @@ CONF_DEFAULT_TARGET_TEMPERATURE = "default_target_temperature"
 
 CONF_KP = "kp"
 CONF_KI = "ki"
+CONF_STARTING_INTEGRAL_TERM = "starting_integral_term"
 CONF_KD = "kd"
 CONF_CONTROL_PARAMETERS = "control_parameters"
 CONF_COOL_OUTPUT = "cool_output"
@@ -27,6 +28,17 @@ CONF_POSITIVE_OUTPUT = "positive_output"
 CONF_NEGATIVE_OUTPUT = "negative_output"
 CONF_MIN_INTEGRAL = "min_integral"
 CONF_MAX_INTEGRAL = "max_integral"
+CONF_OUTPUT_AVERAGING_SAMPLES = "output_averaging_samples"
+CONF_DERIVATIVE_AVERAGING_SAMPLES = "derivative_averaging_samples"
+
+# Deadband parameters
+CONF_DEADBAND_PARAMETERS = "deadband_parameters"
+CONF_THRESHOLD_HIGH = "threshold_high"
+CONF_THRESHOLD_LOW = "threshold_low"
+CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES = "deadband_output_averaging_samples"
+CONF_KP_MULTIPLIER = "kp_multiplier"
+CONF_KI_MULTIPLIER = "ki_multiplier"
+CONF_KD_MULTIPLIER = "kd_multiplier"
 
 CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
@@ -36,13 +48,28 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DEFAULT_TARGET_TEMPERATURE): cv.temperature,
             cv.Optional(CONF_COOL_OUTPUT): cv.use_id(output.FloatOutput),
             cv.Optional(CONF_HEAT_OUTPUT): cv.use_id(output.FloatOutput),
+            cv.Optional(CONF_DEADBAND_PARAMETERS): cv.Schema(
+                {
+                    cv.Required(CONF_THRESHOLD_HIGH): cv.temperature,
+                    cv.Required(CONF_THRESHOLD_LOW): cv.temperature,
+                    cv.Optional(CONF_KP_MULTIPLIER, default=0.1): cv.float_,
+                    cv.Optional(CONF_KI_MULTIPLIER, default=0.0): cv.float_,
+                    cv.Optional(CONF_KD_MULTIPLIER, default=0.0): cv.float_,
+                    cv.Optional(
+                        CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES, default=1
+                    ): cv.int_,
+                }
+            ),
             cv.Required(CONF_CONTROL_PARAMETERS): cv.Schema(
                 {
                     cv.Required(CONF_KP): cv.float_,
                     cv.Optional(CONF_KI, default=0.0): cv.float_,
                     cv.Optional(CONF_KD, default=0.0): cv.float_,
+                    cv.Optional(CONF_STARTING_INTEGRAL_TERM, default=0.0): cv.float_,
                     cv.Optional(CONF_MIN_INTEGRAL, default=-1): cv.float_,
                     cv.Optional(CONF_MAX_INTEGRAL, default=1): cv.float_,
+                    cv.Optional(CONF_DERIVATIVE_AVERAGING_SAMPLES, default=1): cv.int_,
+                    cv.Optional(CONF_OUTPUT_AVERAGING_SAMPLES, default=1): cv.int_,
                 }
             ),
         }
@@ -69,10 +96,28 @@ async def to_code(config):
     cg.add(var.set_kp(params[CONF_KP]))
     cg.add(var.set_ki(params[CONF_KI]))
     cg.add(var.set_kd(params[CONF_KD]))
+    cg.add(var.set_starting_integral_term(params[CONF_STARTING_INTEGRAL_TERM]))
+    cg.add(var.set_derivative_samples(params[CONF_DERIVATIVE_AVERAGING_SAMPLES]))
+
+    cg.add(var.set_output_samples(params[CONF_OUTPUT_AVERAGING_SAMPLES]))
+
     if CONF_MIN_INTEGRAL in params:
         cg.add(var.set_min_integral(params[CONF_MIN_INTEGRAL]))
     if CONF_MAX_INTEGRAL in params:
         cg.add(var.set_max_integral(params[CONF_MAX_INTEGRAL]))
+
+    if CONF_DEADBAND_PARAMETERS in config:
+        params = config[CONF_DEADBAND_PARAMETERS]
+        cg.add(var.set_threshold_low(params[CONF_THRESHOLD_LOW]))
+        cg.add(var.set_threshold_high(params[CONF_THRESHOLD_HIGH]))
+        cg.add(var.set_kp_multiplier(params[CONF_KP_MULTIPLIER]))
+        cg.add(var.set_ki_multiplier(params[CONF_KI_MULTIPLIER]))
+        cg.add(var.set_kd_multiplier(params[CONF_KD_MULTIPLIER]))
+        cg.add(
+            var.set_deadband_output_samples(
+                params[CONF_DEADBAND_OUTPUT_AVERAGING_SAMPLES]
+            )
+        )
 
     cg.add(var.set_default_target_temperature(config[CONF_DEFAULT_TARGET_TEMPERATURE]))
 
@@ -140,4 +185,5 @@ async def set_control_parameters(config, action_id, template_arg, args):
 
     kd_template_ = await cg.templatable(config[CONF_KD], args, float)
     cg.add(var.set_kd(kd_template_))
+
     return var

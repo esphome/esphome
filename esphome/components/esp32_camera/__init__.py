@@ -156,7 +156,7 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_RESOLUTION, default="640X480"): cv.enum(
             FRAME_SIZES, upper=True
         ),
-        cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=10, max=63),
+        cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=6, max=63),
         cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
         cv.Optional(CONF_BRIGHTNESS, default=0): camera_range_param,
         cv.Optional(CONF_SATURATION, default=0): camera_range_param,

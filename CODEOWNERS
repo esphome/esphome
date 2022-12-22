@@ -164,6 +164,7 @@ esphome/components/nfc/* @jesserockz
 esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
+esphome/components/pca9554/* @hwstar
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
 esphome/components/pm1006/* @habbie
@@ -208,6 +209,7 @@ esphome/components/sim800l/* @glmnet
 esphome/components/sm2135/* @BoukeHaarsma23
 esphome/components/sml/* @alengwenus
 esphome/components/smt100/* @piechade
+esphome/components/sn74hc165/* @jesserockz
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/spi/* @esphome/core

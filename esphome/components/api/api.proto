@@ -915,6 +915,7 @@ message ListEntitiesNumberResponse {
   EntityCategory entity_category = 10;
   string unit_of_measurement = 11;
   NumberMode mode = 12;
+  string device_class = 13;
 }
 message NumberStateResponse {
   option (id) = 50;
@@ -1140,6 +1141,8 @@ message BluetoothLEAdvertisementResponse {
   repeated string service_uuids = 4;
   repeated BluetoothServiceData service_data = 5;
   repeated BluetoothServiceData manufacturer_data = 6;
+
+  uint32 address_type = 7;
 }
 
 enum BluetoothDeviceRequestType {
@@ -1147,6 +1150,8 @@ enum BluetoothDeviceRequestType {
   BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1;
   BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR = 2;
   BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE = 4;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5;
 }
 
 message BluetoothDeviceRequest {
@@ -1156,6 +1161,8 @@ message BluetoothDeviceRequest {
 
   uint64 address = 1;
   BluetoothDeviceRequestType request_type = 2;
+  bool has_address_type = 3;
+  uint32 address_type = 4;
 }
 
 message BluetoothDeviceConnectionResponse {
