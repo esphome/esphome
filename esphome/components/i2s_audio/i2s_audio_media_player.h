@@ -25,7 +25,9 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer {
   void set_bclk_pin(uint8_t pin) { this->bclk_pin_ = pin; }
   void set_lrclk_pin(uint8_t pin) { this->lrclk_pin_ = pin; }
   void set_mute_pin(GPIOPin *mute_pin) { this->mute_pin_ = mute_pin; }
+#if SOC_I2S_SUPPORTS_DAC
   void set_internal_dac_mode(i2s_dac_mode_t mode) { this->internal_dac_mode_ = mode; }
+#endif
   void set_external_dac_channels(uint8_t channels) { this->external_dac_channels_ = channels; }
 
   media_player::MediaPlayerTraits get_traits() override;
@@ -51,7 +53,9 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer {
   bool muted_{false};
   float unmuted_volume_{0};
 
+#if SOC_I2S_SUPPORTS_DAC
   i2s_dac_mode_t internal_dac_mode_{I2S_DAC_CHANNEL_DISABLE};
+#endif
   uint8_t external_dac_channels_;
 
   HighFrequencyLoopRequester high_freq_;

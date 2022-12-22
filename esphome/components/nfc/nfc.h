@@ -6,6 +6,8 @@
 #include "ndef_message.h"
 #include "nfc_tag.h"
 
+#include <vector>
+
 namespace esphome {
 namespace nfc {
 

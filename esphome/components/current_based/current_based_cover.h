@@ -89,6 +89,8 @@ class CurrentBasedCover : public cover::Cover, public Component {
   uint32_t start_dir_time_{0};
   uint32_t last_publish_time_{0};
   float target_position_{0};
+
+  cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
 };
 
 }  // namespace current_based
