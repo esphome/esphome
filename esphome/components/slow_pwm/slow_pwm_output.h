@@ -14,6 +14,7 @@ class SlowPWMOutput : public output::FloatOutput, public Component {
   void set_restart_cycle_on_state_change(bool restart_cycle_on_state_change) {
     restart_cycle_on_state_change_ = restart_cycle_on_state_change;
   }
+  void restart_cycle() { this->period_start_time_ = millis(); }
 
   /// Initialize pin
   void setup() override;

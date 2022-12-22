@@ -1,12 +1,14 @@
 #pragma once
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_RP2040
+
+#include <Arduino.h>
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace esp32 {
+namespace rp2040 {
 
-class ArduinoInternalGPIOPin : public InternalGPIOPin {
+class RP2040GPIOPin : public InternalGPIOPin {
  public:
   void set_pin(uint8_t pin) { pin_ = pin; }
   void set_inverted(bool inverted) { inverted_ = inverted; }
@@ -30,7 +32,7 @@ class ArduinoInternalGPIOPin : public InternalGPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace esp32
+}  // namespace rp2040
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_RP2040

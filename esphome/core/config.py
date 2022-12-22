@@ -1,4 +1,5 @@
 import logging
+import multiprocessing
 import os
 import re
 
@@ -11,6 +12,7 @@ from esphome.const import (
     CONF_BOARD_FLASH_MODE,
     CONF_BUILD_PATH,
     CONF_COMMENT,
+    CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
     CONF_INCLUDES,
@@ -108,6 +110,15 @@ def validate_version(value: str):
     return value
 
 
+if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
+    _compile_process_limit_default = min(
+        int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]),
+        multiprocessing.cpu_count(),
+    )
+else:
+    _compile_process_limit_default = cv.UNDEFINED
+
+
 CONF_ESP8266_RESTORE_FROM_FLASH = "esp8266_restore_from_flash"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
@@ -151,6 +162,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
                 cv.version_number, validate_version
             ),
+            cv.Optional(
+                CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
+            ): cv.int_range(min=1, max=multiprocessing.cpu_count()),
         }
     ),
     validate_hostname,

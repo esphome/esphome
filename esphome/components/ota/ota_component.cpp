@@ -2,6 +2,7 @@
 #include "ota_backend.h"
 #include "ota_backend_arduino_esp32.h"
 #include "ota_backend_arduino_esp8266.h"
+#include "ota_backend_arduino_rp2040.h"
 #include "ota_backend_esp_idf.h"
 
 #include "esphome/core/log.h"
@@ -35,6 +36,9 @@ std::unique_ptr<OTABackend> make_ota_backend() {
 #ifdef USE_ESP_IDF
   return make_unique<IDFOTABackend>();
 #endif  // USE_ESP_IDF
+#ifdef USE_RP2040
+  return make_unique<ArduinoRP2040OTABackend>();
+#endif  // USE_RP2040
 }
 
 OTAComponent::OTAComponent() { global_ota_component = this; }
@@ -468,8 +472,9 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
   if (this->safe_mode_rtc_value_ >= num_attempts || is_manual_safe_mode) {
     this->clean_rtc();
 
-    if (!is_manual_safe_mode)
+    if (!is_manual_safe_mode) {
       ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode.");
+    }
 
     this->status_set_error();
     this->set_timeout(enable_time, []() {

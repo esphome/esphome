@@ -201,6 +201,15 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_BLUETOOTH_PROXY
   bool send_bluetooth_connections_free_response(const BluetoothConnectionsFreeResponse &msg);
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_gatt_error_response(const BluetoothGATTErrorResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &msg);
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_gatt_notify_response(const BluetoothGATTNotifyResponse &msg);
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };

@@ -10,6 +10,8 @@
 #include "light_traits.h"
 #include "light_transformer.h"
 
+#include <vector>
+
 namespace esphome {
 namespace light {
 

@@ -348,15 +348,16 @@ binary_sensor:
     on_state:
       then:
         - lambda: 'ESP_LOGI("ar1:", "%d", x);'
-  - platform: xpt2046
-    xpt2046_id: xpt_touchscreen
+  - platform: touchscreen
+    touchscreen_id: xpt_touchscreen
     id: touch_key0
     x_min: 80
     x_max: 160
     y_min: 106
     y_max: 212
-    on_state:
-      - lambda: 'ESP_LOGI("main", "key0: %s", (x ? "touch" : "release"));'
+    on_press:
+      - logger.log: Touched
+
   - platform: gpio
     name: GPIO SX1509 test
     pin:
@@ -380,6 +381,7 @@ climate:
     target_temperature_datapoint: 3
     current_temperature_multiplier: 0.5
     target_temperature_multiplier: 0.5
+    reports_fahrenheit: true
 
 switch:
   - platform: tuya
@@ -531,6 +533,9 @@ text_sensor:
   - platform: copy
     source_id: inverter0_device_mode
     name: Inverter Text Sensor Copy
+  - platform: ethernet_info
+    ip_address:
+      name: IP Address
 
 output:
   - platform: pipsolar
@@ -598,33 +603,6 @@ external_components:
     components: [bh1750]
   - source: ../esphome/components
     components: [sntp]
-xpt2046:
-  id: xpt_touchscreen
-  cs_pin: 17
-  irq_pin: 16
-  update_interval: 50ms
-  report_interval: 1s
-  threshold: 400
-  dimension_x: 240
-  dimension_y: 320
-  calibration_x_min: 3860
-  calibration_x_max: 280
-  calibration_y_min: 340
-  calibration_y_max: 3860
-  swap_x_y: false
-  on_state:
-    # yamllint disable rule:line-length
-    - lambda: |-
-        ESP_LOGI("main", "args x=%d, y=%d, touched=%s", x, y, (touched ? "touch" : "release"));
-        ESP_LOGI("main", "member x=%d, y=%d, touched=%d, x_raw=%d, y_raw=%d, z_raw=%d",
-            id(xpt_touchscreen).x,
-            id(xpt_touchscreen).y,
-            (int) id(xpt_touchscreen).touched,
-            id(xpt_touchscreen).x_raw,
-            id(xpt_touchscreen).y_raw,
-            id(xpt_touchscreen).z_raw
-            );
-    # yamllint enable rule:line-length
 
 button:
   - platform: restart
@@ -647,6 +625,25 @@ touchscreen:
       - logger.log:
           format: Touch at (%d, %d)
           args: [touch.x, touch.y]
+
+  - platform: xpt2046
+    id: xpt_touchscreen
+    cs_pin: 17
+    interrupt_pin: 16
+    display: inkplate_display
+    update_interval: 50ms
+    report_interval: 1s
+    threshold: 400
+    calibration_x_min: 3860
+    calibration_x_max: 280
+    calibration_y_min: 340
+    calibration_y_max: 3860
+    swap_x_y: false
+    on_touch:
+      - logger.log:
+          format: Touch at (%d, %d)
+          args: [touch.x, touch.y]
+
 
   - platform: lilygo_t5_47
     id: lilygo_touchscreen

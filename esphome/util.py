@@ -34,7 +34,7 @@ class RegistryEntry:
         return Schema(self.raw_schema)
 
 
-class Registry(dict):
+class Registry(dict[str, RegistryEntry]):
     def __init__(self, base_schema=None, type_id_key=None):
         super().__init__()
         self.base_schema = base_schema or {}

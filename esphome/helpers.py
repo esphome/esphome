@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Union
 import tempfile
+from urllib.parse import urlparse
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -134,7 +135,8 @@ def resolve_ip_address(host):
             errs.append(str(err))
 
     try:
-        return socket.gethostbyname(host)
+        host_url = host if (urlparse(host).scheme != "") else "http://" + host
+        return socket.gethostbyname(urlparse(host_url).hostname)
     except OSError as err:
         errs.append(str(err))
         raise EsphomeError(f"Error resolving IP address: {', '.join(errs)}") from err

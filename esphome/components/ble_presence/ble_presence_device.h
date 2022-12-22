@@ -58,7 +58,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
       case MATCH_BY_SERVICE_UUID:
         for (auto uuid : device.get_service_uuids()) {
           if (this->uuid_ == uuid) {
-            this->publish_state(device.get_rssi());
+            this->publish_state(true);
             this->found_ = true;
             return true;
           }
@@ -83,7 +83,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
           return false;
         }
 
-        this->publish_state(device.get_rssi());
+        this->publish_state(true);
         this->found_ = true;
         return true;
     }
