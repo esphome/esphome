@@ -347,8 +347,8 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
   uint16_t max_count = (this->integration_time_ == TSL2591_INTEGRATION_TIME_100MS ? 36863 : 65535);
   if ((full_spectrum == max_count) || (infrared == max_count)) {
     // Signal an overflow
-    ESP_LOGW(TAG, "Apparent saturation on TSL2591 (%s). You could reduce the gain.", this->name_);
-    return -1.0F;
+    ESP_LOGW(TAG, "Apparent saturation on TSL2591 (%s). You could reduce the gain or integration time.", this->name_);
+    return NAN;
   }
 
   if ((full_spectrum == 0) && (infrared == 0)) {
