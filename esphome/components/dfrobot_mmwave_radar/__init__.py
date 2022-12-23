@@ -6,7 +6,6 @@ from esphome import core
 from esphome.automation import maybe_simple_id
 from esphome.const import (
     CONF_ID,
-    CONF_ACTIVE,
 )
 from esphome.components import uart
 
@@ -169,15 +168,24 @@ def at_least_one_settings_option(config):
     All settings are optional, but at least one setting needs to be specified.
     Otherwise there is nothing to to and the action would be useless.
     """
-    if (
-        DETECTION_SEGMENTS not in config
-        and OUTPUT_LATENCY not in config
-        and START_AFTER_POWER_ON not in config
-        and TURN_ON_LED not in config
-        and FACTORY_RESET not in config
-        and PRESENCE_VIA_UART not in config
-        and SENSITIVITY not in config
-    ):
+    has_at_least_one_option = False
+
+    if DETECTION_SEGMENTS in config:
+        has_at_least_one_option = True
+    if OUTPUT_LATENCY in config:
+        has_at_least_one_option = True
+    if START_AFTER_POWER_ON in config:
+        has_at_least_one_option = True
+    if TURN_ON_LED in config:
+        has_at_least_one_option = True
+    if FACTORY_RESET in config:
+        has_at_least_one_option = True
+    if PRESENCE_VIA_UART in config:
+        has_at_least_one_option = True
+    if SENSITIVITY in config:
+        has_at_least_one_option = True
+
+    if not has_at_least_one_option:
         raise cv.Invalid("At least one settings option is required")
     return config
 

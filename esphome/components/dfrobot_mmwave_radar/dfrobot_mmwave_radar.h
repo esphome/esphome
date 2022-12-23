@@ -20,206 +20,197 @@ class DfrobotMmwaveRadarComponent;
 // commands has passed. After that run a command from the queue.
 class Command {
  public:
-    virtual ~Command() = default;
-    virtual uint8_t execute(DfrobotMmwaveRadarComponent * component);
-    virtual uint8_t onMessage(std::string & message) = 0;
+  virtual ~Command() = default;
+  virtual uint8_t execute(DfrobotMmwaveRadarComponent *component);
+  virtual uint8_t onMessage(std::string &message) = 0;
+
  protected:
-    std::string cmd_;
-    bool cmd_sent_{false};
-    int8_t retries_left_{2};
-    unsigned long cmd_duration_ms_{1000};
-    unsigned long timeout_ms_{1500};
+  std::string cmd_;
+  bool cmd_sent_{false};
+  int8_t retries_left_{2};
+  unsigned long cmd_duration_ms_{1000};
+  unsigned long timeout_ms_{1500};
 };
 
 static const uint8_t COMMAND_QUEUE_SIZE = 20;
 
 class CircularCommandQueue {
  public:
-   int8_t enqueue(Command * cmd);
-   Command * dequeue();
-   Command * peek();
-   bool isEmpty();
-   bool isFull();
+  int8_t enqueue(Command *cmd);
+  Command *dequeue();
+  Command *peek();
+  bool isEmpty();
+  bool isFull();
+
  protected:
-   int front_{-1};
-   int rear_{-1};
-   Command * commands_[COMMAND_QUEUE_SIZE];
+  int front_{-1};
+  int rear_{-1};
+  Command *commands_[COMMAND_QUEUE_SIZE];
 };
 
 class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
  public:
-    void dump_config() override;
-    void setup() override;
-    void loop() override;
+  void dump_config() override;
+  void setup() override;
+  void loop() override;
 
 #ifdef USE_BINARY_SENSOR
-    void set_detected_binary_sensor(binary_sensor::BinarySensor *detected_binary_sensor) {
-      detected_binary_sensor_ = detected_binary_sensor;
-    }
+  void set_detected_binary_sensor(binary_sensor::BinarySensor *detected_binary_sensor) {
+    detected_binary_sensor_ = detected_binary_sensor;
+  }
 #endif
 
-    int8_t enqueue(Command * cmd);
+  int8_t enqueue(Command *cmd);
+
  protected:
- #ifdef USE_BINARY_SENSOR
-    binary_sensor::BinarySensor *detected_binary_sensor_{nullptr};
+#ifdef USE_BINARY_SENSOR
+  binary_sensor::BinarySensor *detected_binary_sensor_{nullptr};
 #endif
-    bool detected_{0};
-    char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
-    size_t read_pos_{0};
-    CircularCommandQueue cmdQueue_;
-    unsigned long ts_last_cmd_sent_{0};
+  bool detected_{0};
+  char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
+  size_t read_pos_{0};
+  CircularCommandQueue cmdQueue_;
+  unsigned long ts_last_cmd_sent_{0};
 
-    uint8_t read_message();
-    uint8_t find_prompt();
-    uint8_t send_cmd(const char * cmd, unsigned long duration);
+  uint8_t read_message();
+  uint8_t find_prompt();
+  uint8_t send_cmd(const char *cmd, unsigned long duration);
 
-    void set_detected_(bool detected);
+  void set_detected_(bool detected);
 
-    friend class Command;
-    friend class ReadStateCommand;
+  friend class Command;
+  friend class ReadStateCommand;
 };
 
 class ReadStateCommand : public Command {
  public:
-   uint8_t execute(DfrobotMmwaveRadarComponent * component) override;
-   uint8_t onMessage(std::string & message) override;
+  uint8_t execute(DfrobotMmwaveRadarComponent *component) override;
+  uint8_t onMessage(std::string &message) override;
+
  protected:
-   unsigned long timeout_ms_{500};
+  unsigned long timeout_ms_{500};
 };
 
 class PowerCommand : public Command {
  public:
-   PowerCommand(bool powerOn) :
-      powerOn_(powerOn) {
-         if(powerOn)
-            cmd_ = "sensorStart";
-         else
-            cmd_ = "sensorStop";
-      };
-   uint8_t onMessage(std::string & message) override;
+  PowerCommand(bool powerOn) : powerOn_(powerOn) {
+    if (powerOn)
+      cmd_ = "sensorStart";
+    else
+      cmd_ = "sensorStop";
+  };
+  uint8_t onMessage(std::string &message) override;
+
  protected:
-   bool powerOn_;
+  bool powerOn_;
 };
 
 class DetRangeCfgCommand : public Command {
  public:
-   DetRangeCfgCommand(
-                        float min1, float max1,
-                        float min2, float max2,
-                        float min3, float max3,
-                        float min4, float max4
-                     );
-   uint8_t onMessage(std::string & message) override;
+  DetRangeCfgCommand(float min1, float max1, float min2, float max2, float min3, float max3, float min4, float max4);
+  uint8_t onMessage(std::string &message) override;
+
  protected:
-   float min1_, max1_, min2_, max2_, min3_, max3_, min4_, max4_;
-   // TODO: Set min max values in component, so they can be published as sensor.
+  float min1_, max1_, min2_, max2_, min3_, max3_, min4_, max4_;
+  // TODO: Set min max values in component, so they can be published as sensor.
 };
 
 class OutputLatencyCommand : public Command {
  public:
-   OutputLatencyCommand(
-                        float delay_after_detection,
-                        float delay_after_disappear
-                       );
-   uint8_t onMessage(std::string & message) override;
+  OutputLatencyCommand(float delay_after_detection, float delay_after_disappear);
+  uint8_t onMessage(std::string &message) override;
+
  protected:
-   float delay_after_detection_;
-   float delay_after_disappear_;
+  float delay_after_detection_;
+  float delay_after_disappear_;
 };
 
 class SensorCfgStartCommand : public Command {
  public:
-   SensorCfgStartCommand(bool startupMode) : startupMode_(startupMode) {
-         char tmp_cmd[20] = {0};
-         sprintf(tmp_cmd, "sensorCfgStart %d", startupMode);
-         cmd_ = std::string(tmp_cmd);
-   }
-   uint8_t onMessage(std::string & message) override;
+  SensorCfgStartCommand(bool startupMode) : startupMode_(startupMode) {
+    char tmp_cmd[20] = {0};
+    sprintf(tmp_cmd, "sensorCfgStart %d", startupMode);
+    cmd_ = std::string(tmp_cmd);
+  }
+  uint8_t onMessage(std::string &message) override;
+
  protected:
-   bool startupMode_;
+  bool startupMode_;
 };
 
 class FactoryResetCommand : public Command {
  public:
-   FactoryResetCommand() {
-         cmd_ = "factoryReset 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89";
-      };
-   uint8_t onMessage(std::string & message) override;
+  FactoryResetCommand() { cmd_ = "factoryReset 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89"; };
+  uint8_t onMessage(std::string &message) override;
 };
 
 class ResetSystemCommand : public Command {
  public:
-   ResetSystemCommand() {
-         cmd_ = "resetSystem";
-      }
-   uint8_t onMessage(std::string & message) override;
+  ResetSystemCommand() { cmd_ = "resetSystem"; }
+  uint8_t onMessage(std::string &message) override;
 };
 
 class SaveCfgCommand : public Command {
  public:
-   SaveCfgCommand() {
-         cmd_ = "saveCfg 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89";
-      }
-   uint8_t onMessage(std::string & message) override;
+  SaveCfgCommand() { cmd_ = "saveCfg 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89"; }
+  uint8_t onMessage(std::string &message) override;
+
  protected:
-   unsigned long cmd_duration_ms_{3000};
-   unsigned long timeout_ms_{3500};
+  unsigned long cmd_duration_ms_{3000};
+  unsigned long timeout_ms_{3500};
 };
 
 class LedModeCommand : public Command {
  public:
-   LedModeCommand(bool active) :
-      active_(active) {
-         if(active)
-            cmd_ = "setLedMode 1 0";
-         else
-            cmd_ = "setLedMode 1 1";
-      };
-   uint8_t onMessage(std::string & message) override;
+  LedModeCommand(bool active) : active_(active) {
+    if (active)
+      cmd_ = "setLedMode 1 0";
+    else
+      cmd_ = "setLedMode 1 1";
+  };
+  uint8_t onMessage(std::string &message) override;
+
  protected:
-   bool active_;
+  bool active_;
 };
 
 class UartOutputCommand : public Command {
  public:
-   UartOutputCommand(bool active) :
-      active_(active) {
-         if(active)
-            cmd_ = "setUartOutput 1 1";
-         else
-            cmd_ = "setUartOutput 1 0";
-      };
-   uint8_t onMessage(std::string & message) override;
+  UartOutputCommand(bool active) : active_(active) {
+    if (active)
+      cmd_ = "setUartOutput 1 1";
+    else
+      cmd_ = "setUartOutput 1 0";
+  };
+  uint8_t onMessage(std::string &message) override;
+
  protected:
-   bool active_;
+  bool active_;
 };
 
 class SensitivityCommand : public Command {
  public:
-   SensitivityCommand(uint8_t sensitivity) :
-      sensitivity_(sensitivity) {
-          if(sensitivity > 9)
-            sensitivity_ = sensitivity = 9;
-          char tmp_cmd[20] = {0};
-          sprintf(tmp_cmd, "setSensitivity %d", sensitivity);
-          cmd_ = std::string(tmp_cmd);
-      };
-   uint8_t onMessage(std::string & message) override;
+  SensitivityCommand(uint8_t sensitivity) : sensitivity_(sensitivity) {
+    if (sensitivity > 9)
+      sensitivity_ = sensitivity = 9;
+    char tmp_cmd[20] = {0};
+    sprintf(tmp_cmd, "setSensitivity %d", sensitivity);
+    cmd_ = std::string(tmp_cmd);
+  };
+  uint8_t onMessage(std::string &message) override;
+
  protected:
-   uint8_t sensitivity_;
+  uint8_t sensitivity_;
 };
 
 template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts...> {
  public:
   DfrobotMmwaveRadarPowerAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
 
-  void set_power(bool powerState) {
-    powerState_ = powerState;
-  }
+  void set_power(bool powerState) { powerState_ = powerState; }
 
-  void play(Ts... x) {
-    parent_->enqueue(new PowerCommand(powerState_));
-  }
+  void play(Ts... x) { parent_->enqueue(new PowerCommand(powerState_)); }
+
  protected:
   DfrobotMmwaveRadarComponent *parent_;
   bool powerState_;
@@ -228,9 +219,8 @@ template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts.
 template<typename... Ts> class DfrobotMmwaveRadarResetAction : public Action<Ts...> {
  public:
   DfrobotMmwaveRadarResetAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
-  void play(Ts... x) {
-    parent_->enqueue(new ResetSystemCommand());
-  }
+  void play(Ts... x) { parent_->enqueue(new ResetSystemCommand()); }
+
  protected:
   DfrobotMmwaveRadarComponent *parent_;
 };
@@ -239,84 +229,64 @@ template<typename... Ts> class DfrobotMmwaveRadarSettingsAction : public Action<
  public:
   DfrobotMmwaveRadarSettingsAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
 
-  void set_factory_reset(bool factory_reset) {
-    factory_reset_ = factory_reset;
+  void set_factory_reset(bool factory_reset) { factory_reset_ = factory_reset; }
+
+  void set_segments(float min1, float max1, float min2, float max2, float min3, float max3, float min4, float max4) {
+    this->det_min1_ = min1;
+    this->det_max1_ = max1;
+    this->det_min2_ = min2;
+    this->det_max2_ = max2;
+    this->det_min3_ = min3;
+    this->det_max3_ = max3;
+    this->det_min4_ = min4;
+    this->det_max4_ = max4;
   }
 
-  void set_segments(
-    float min1, float max1,
-    float min2, float max2,
-    float min3, float max3,
-    float min4, float max4
-  ) {
-     this->det_min1_ = min1;
-     this->det_max1_ = max1;
-     this->det_min2_ = min2;
-     this->det_max2_ = max2;
-     this->det_min3_ = min3;
-     this->det_max3_ = max3;
-     this->det_min4_ = min4;
-     this->det_max4_ = max4;
-  }
-
-  void set_ouput_delays(
-    float delay_after_detect,
-    float delay_after_disappear
-  ) {
+  void set_ouput_delays(float delay_after_detect, float delay_after_disappear) {
     delay_after_detect_ = delay_after_detect;
     delay_after_disappear_ = delay_after_disappear;
   }
 
-  void set_start_immediately(bool start_immediately) {
-    start_immediately_ = start_immediately;
-  }
+  void set_start_immediately(bool start_immediately) { start_immediately_ = start_immediately; }
 
   void set_led_active(bool led_active) { led_active_ = led_active; }
 
-  void set_presence_via_uart_active(bool active) {
-    presence_via_uart_ = active;
-  }
+  void set_presence_via_uart_active(bool active) { presence_via_uart_ = active; }
 
   void set_sensitivity(uint8_t sensitivity) {
-    if(sensitivity > 9)
+    if (sensitivity > 9)
       sensitivity = 9;
     sensitivity_ = sensitivity;
   }
 
   void play(Ts... x) {
     parent_->enqueue(new PowerCommand(0));
-    if(factory_reset_ == 1) {
+    if (factory_reset_ == 1) {
       parent_->enqueue(new FactoryResetCommand());
     }
-    if(det_min1_ >= 0 && det_max1_ >= 0) {
-      parent_->enqueue(new DetRangeCfgCommand(
-       det_min1_, det_max1_,
-       det_min2_, det_max2_,
-       det_min3_, det_max3_,
-       det_min4_, det_max4_
-      ));
+    if (det_min1_ >= 0 && det_max1_ >= 0) {
+      parent_->enqueue(new DetRangeCfgCommand(det_min1_, det_max1_, det_min2_, det_max2_, det_min3_, det_max3_,
+                                              det_min4_, det_max4_));
     }
-    if(delay_after_detect_ >= 0 &&
-       delay_after_disappear_ >= 0) {
-      parent_->enqueue(new OutputLatencyCommand(
-        delay_after_detect_, delay_after_disappear_
-      ));
+    if (delay_after_detect_ >= 0 && delay_after_disappear_ >= 0) {
+      parent_->enqueue(new OutputLatencyCommand(delay_after_detect_, delay_after_disappear_));
     }
-    if(start_immediately_ >= 0) {
+    if (start_immediately_ >= 0) {
       parent_->enqueue(new SensorCfgStartCommand(start_immediately_));
     }
-    if(led_active_ >= 0) {
+    if (led_active_ >= 0) {
       parent_->enqueue(new LedModeCommand(led_active_));
     }
-    if(presence_via_uart_ >= 0) {
+    if (presence_via_uart_ >= 0) {
       parent_->enqueue(new UartOutputCommand(presence_via_uart_));
     }
-    if(sensitivity_ >= 0) {
+    if (sensitivity_ >= 0) {
       parent_->enqueue(new SensitivityCommand(sensitivity_));
     }
     parent_->enqueue(new SaveCfgCommand());
     parent_->enqueue(new PowerCommand(1));
   }
+
  protected:
   DfrobotMmwaveRadarComponent *parent_;
   int8_t factory_reset_{-1};
