@@ -3,7 +3,13 @@
 # Community Hass.io Add-ons: ESPHome
 # Take down the S6 supervision tree when NGINX fails
 # ==============================================================================
-if -n { s6-test $# -ne 0 }
-if -n { s6-test ${1} -eq 256 }
 
-s6-svscanctl -t /var/run/s6/services
+declare APP_EXIT_CODE=${1}
+
+if [[ "${APP_EXIT_CODE}" -ne 0 ]] && [[ "${APP_EXIT_CODE}" -ne 256 ]]; then
+  bashio::log.warning "Halt add-on with exit code ${APP_EXIT_CODE}"
+  echo "${APP_EXIT_CODE}" > /run/s6-linux-init-container-results/exitcode
+  exec /run/s6/basedir/bin/halt
+fi
+
+bashio::log.info "Service restart after closing"

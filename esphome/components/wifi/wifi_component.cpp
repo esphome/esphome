@@ -39,11 +39,8 @@ void WiFiComponent::setup() {
   this->last_connected_ = millis();
   this->wifi_pre_setup_();
 
-#ifndef USE_CAPTIVE_PORTAL_KEEP_USER_CREDENTIALS
-  uint32_t hash = fnv1_hash(App.get_compilation_time());
-#else
-  uint32_t hash = 88491487UL;
-#endif
+  uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
+
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 
   SavedWifiSettings save{};

@@ -177,8 +177,9 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
 }
 
 void ESP32ImprovComponent::set_error_(improv::Error error) {
-  if (error != improv::ERROR_NONE)
+  if (error != improv::ERROR_NONE) {
     ESP_LOGE(TAG, "Error: %d", error);
+  }
   if (this->error_->get_value().empty() || this->error_->get_value()[0] != error) {
     uint8_t data[1]{error};
     this->error_->set_value(data, 1);

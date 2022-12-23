@@ -4,6 +4,8 @@
 #include "esphome/components/tuya/tuya.h"
 #include "esphome/components/select/select.h"
 
+#include <vector>
+
 namespace esphome {
 namespace tuya {
 
