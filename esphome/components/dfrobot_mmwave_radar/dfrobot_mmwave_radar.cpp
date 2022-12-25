@@ -200,17 +200,16 @@ uint8_t ReadStateCommand::execute(DfrobotMmwaveRadarComponent *component) {
 uint8_t ReadStateCommand::onMessage(std::string &message) { return 1; }
 
 uint8_t PowerCommand::onMessage(std::string &message) {
-  if (message.compare("sensor stopped already") == 0) {
+  if (message == "sensor stopped already") {
     ESP_LOGI(TAG, "Stopped sensor (already stopped)");
     return 1;  // Command done
-  } else if (message.compare("sensor started already") == 0) {
+  } else if (message == "sensor started already") {
     ESP_LOGI(TAG, "Started sensor (already started)");
     return 1;  // Command done
-  } else if (message.compare("new parameter isn't save, "
-                             "can't startSensor") == 0) {
+  } else if (message == "new parameter isn't save, can't startSensor") {
     ESP_LOGE(TAG, "Can't start sensor! (Use SaveCfgCommand to save config first)");
     return 1;  // Command done
-  } else if (message.compare("Done") == 0) {
+  } else if (message == "Done") {
     if (powerOn_)
       ESP_LOGI(TAG, "Started sensor");
     else
@@ -289,10 +288,10 @@ DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float
 };
 
 uint8_t DetRangeCfgCommand::onMessage(std::string &message) {
-  if (message.compare("sensor is not stopped") == 0) {
+  if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot configure range config. Sensor is not stopped!");
     return 1;  // Command done
-  } else if (message.compare("Done") == 0) {
+  } else if (message == "Done") {
     ESP_LOGI(TAG, "Updated detection area config.");
     return 1;  // Command done
   }
@@ -320,10 +319,10 @@ OutputLatencyCommand::OutputLatencyCommand(float delay_after_detection, float de
 };
 
 uint8_t OutputLatencyCommand::onMessage(std::string &message) {
-  if (message.compare("sensor is not stopped") == 0) {
+  if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot configure output latency. Sensor is not stopped!");
     return 1;  // Command done
-  } else if (message.compare("Done") == 0) {
+  } else if (message == "Done") {
     ESP_LOGI(TAG, "Updated output latency config.");
     return 1;  // Command done
   }
@@ -331,10 +330,10 @@ uint8_t OutputLatencyCommand::onMessage(std::string &message) {
 }
 
 uint8_t SensorCfgStartCommand::onMessage(std::string &message) {
-  if (message.compare("sensor is not stopped") == 0) {
+  if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot configure sensor startup behavior. Sensor is not stopped!");
     return 1;  // Command done
-  } else if (message.compare("Done") == 0) {
+  } else if (message == "Done") {
     ESP_LOGI(TAG, "Updated sensor startup behavior.");
     return 1;  // Command done
   }
@@ -342,10 +341,10 @@ uint8_t SensorCfgStartCommand::onMessage(std::string &message) {
 }
 
 uint8_t FactoryResetCommand::onMessage(std::string &message) {
-  if (message.compare("sensor is not stopped") == 0) {
+  if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot factory reset. Sensor is not stopped!");
     return 1;  // Command done
-  } else if (message.compare("Done") == 0) {
+  } else if (message == "Done") {
     ESP_LOGI(TAG, "Sensor factory reset done.");
     return 1;  // Command done
   }
@@ -353,7 +352,7 @@ uint8_t FactoryResetCommand::onMessage(std::string &message) {
 }
 
 uint8_t ResetSystemCommand::onMessage(std::string &message) {
-  if (message.compare("leapMMW:/>") == 0) {
+  if (message == "leapMMW:/>") {
     ESP_LOGI(TAG, "Restarted sensor.");
     return 1;  // Command done
   }
@@ -361,10 +360,10 @@ uint8_t ResetSystemCommand::onMessage(std::string &message) {
 }
 
 uint8_t SaveCfgCommand::onMessage(std::string &message) {
-  if (message.compare("no parameter has changed") == 0) {
+  if (message == "no parameter has changed") {
     ESP_LOGI(TAG, "Not saving config (no parameter changed).");
     return 1;  // Command done
-  } else if (message.compare("Done") == 0) {
+  } else if (message == "Done") {
     ESP_LOGI(TAG, "Saved config.");
     return 1;  // Command done
   }
@@ -372,10 +371,10 @@ uint8_t SaveCfgCommand::onMessage(std::string &message) {
 }
 
 uint8_t LedModeCommand::onMessage(std::string &message) {
-  if (message.compare("sensor is not stopped") == 0) {
+  if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot set led mode. Sensor is not stopped!");
     return 1;  // Command done
-  } else if (message.compare("Done") == 0) {
+  } else if (message == "Done") {
     ESP_LOGI(TAG, "Set led mode done.");
     return 1;  // Command done
   }
@@ -383,10 +382,10 @@ uint8_t LedModeCommand::onMessage(std::string &message) {
 }
 
 uint8_t UartOutputCommand::onMessage(std::string &message) {
-  if (message.compare("sensor is not stopped") == 0) {
+  if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot set uart output mode. Sensor is not stopped!");
     return 1;  // Command done
-  } else if (message.compare("Done") == 0) {
+  } else if (message == "Done") {
     ESP_LOGI(TAG, "Set uart mode done.");
     return 1;  // Command done
   }
@@ -394,10 +393,10 @@ uint8_t UartOutputCommand::onMessage(std::string &message) {
 }
 
 uint8_t SensitivityCommand::onMessage(std::string &message) {
-  if (message.compare("sensor is not stopped") == 0) {
+  if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot set sensitivity. Sensor is not stopped!");
     return 1;  // Command done
-  } else if (message.compare("Done") == 0) {
+  } else if (message == "Done") {
     ESP_LOGI(TAG, "Set sensitivity done.");
     return 1;  // Command done
   }
