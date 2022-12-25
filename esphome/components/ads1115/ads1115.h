@@ -5,6 +5,8 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/voltage_sampler/voltage_sampler.h"
 
+#include <vector>
+
 namespace esphome {
 namespace ads1115 {
 
