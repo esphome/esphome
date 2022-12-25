@@ -10,6 +10,9 @@
 #endif  // USE_ESP32_FRAMEWORK_ARDUINO || USE_ESP_IDF
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) && defined(USE_USB_CDC)
+#include "esphome/components/usb_device/usb_serial.h"
+#endif
 
 namespace esphome {
 namespace logger {
@@ -193,6 +196,14 @@ void Logger::pre_setup() {
         this->hw_serial_ = &Serial2;
         Serial2.begin(this->baud_rate_);
         break;
+#endif
+#ifdef USE_USB_CDC
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+      case UART_SELECTION_USB_CDC:
+        this->hw_serial_ = usb_device::global_usb_serial;
+        usb_device::global_usb_serial->begin(this->baud_rate_);
+        break;
+#endif
 #endif
 #ifdef USE_RP2040
       case UART_SELECTION_USB_CDC:

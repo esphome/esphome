@@ -75,7 +75,7 @@ UART_SELECTION_ESP32 = {
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
 
-ESP_IDF_UARTS = [USB_CDC, USB_SERIAL_JTAG]
+ESP_IDF_UARTS = [USB_SERIAL_JTAG]
 
 UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
 
@@ -102,6 +102,8 @@ def uart_selection(value):
     if CORE.is_esp32:
         if value.upper() in ESP_IDF_UARTS and not CORE.using_esp_idf:
             raise cv.Invalid(f"Only esp-idf framework supports {value}.")
+        if value.upper() == USB_CDC and CORE.using_arduino:
+            cv.requires_component("usb_device")(value)
         variant = get_esp32_variant()
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
@@ -214,11 +216,19 @@ async def to_code(config):
     if config.get(CONF_ESP8266_STORE_LOG_STRINGS_IN_FLASH):
         cg.add_build_flag("-DUSE_STORE_LOG_STR_IN_FLASH")
 
+    if config[CONF_HARDWARE_UART] == USB_CDC:
+        cg.add_build_flag("-DUSE_USB_CDC")
+
     if CORE.using_esp_idf:
         if config[CONF_HARDWARE_UART] == USB_CDC:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_CDC", True)
         elif config[CONF_HARDWARE_UART] == USB_SERIAL_JTAG:
             add_idf_sdkconfig_option("CONFIG_ESP_CONSOLE_USB_SERIAL_JTAG", True)
+    else:
+        if config[CONF_HARDWARE_UART] == USB_CDC:
+            cg.add_build_flag("-DCFG_TUD_CDC=CONFIG_TINYUSB_CDC_ENABLED")
+            cg.add_build_flag("-DCFG_TUD_CDC_TX_BUFSIZE=CONFIG_TINYUSB_CDC_TX_BUFSIZE")
+            cg.add_build_flag("-DCFG_TUD_CDC_RX_BUFSIZE=CONFIG_TINYUSB_CDC_RX_BUFSIZE")
 
     # Register at end for safe mode
     await cg.register_component(log, config)

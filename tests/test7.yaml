@@ -1,0 +1,36 @@
+---
+esphome:
+  name: test7
+  build_path: build/test7
+  project:
+    name: esphome.test7_project
+    version: "1.0.0"
+  board: lolin_s2_mini
+  platform: ESP32
+
+wifi:
+  networks:
+    - ssid: "MySSID"
+      password: "password1"
+
+api:
+
+ota:
+
+logger:
+
+binary_sensor:
+  - platform: usb_device
+    mounted:
+      name: USB is mounted
+    ready:
+      name: USB is ready
+    suspended:
+      name: USB is suspended
+
+switch:
+  - platform: usb_device
+    detach:
+      name: Detach USB device
+    wake_up:
+      name: Wake up host
