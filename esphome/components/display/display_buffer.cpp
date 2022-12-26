@@ -175,7 +175,8 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
       // Unknown char, skip
       ESP_LOGW(TAG,
                "Encountered character without representation in font: '%c'."
-               "Consider adding to glyphs configuration in font.", text[i]);
+               "Consider adding to glyphs configuration in font.",
+               text[i]);
       if (!font->get_glyphs().empty()) {
         uint8_t glyph_width = font->get_glyphs()[0].glyph_data_->width;
         for (int glyph_x = 0; glyph_x < glyph_width; glyph_x++) {
