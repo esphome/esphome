@@ -7,15 +7,15 @@ from esphome.const import (
     CONF_ID,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
+    CONF_CARBON_MONOXIDE,
+    CONF_ETHANOL,
 )
 
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2c"]
 
-CONF_CARBON_MONOXIDE = "carbon_monoxide"
 CONF_NITROGEN_DIOXIDE = "nitrogen_dioxide"
 CONF_METHANE = "methane"
-CONF_ETHANOL = "ethanol"
 CONF_HYDROGEN = "hydrogen"
 CONF_AMMONIA = "ammonia"
 
