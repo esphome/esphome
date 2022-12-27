@@ -107,7 +107,6 @@ esphome/components/improv_serial/* @esphome/core
 esphome/components/ina260/* @MrEditor97
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
-esphome/components/text/* @mauritskorse
 esphome/components/integration/* @OttoWinter
 esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
@@ -236,6 +235,7 @@ esphome/components/t6615/* @tylermenezes
 esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tcl112/* @glmnet
 esphome/components/teleinfo/* @0hax
+esphome/components/text/* @mauritskorse
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
 esphome/components/tlc5947/* @rnauber
