@@ -7,7 +7,7 @@ from esphome.const import (
     CONF_MOISTURE,
     CONF_TEMPERATURE,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
-    DEVICE_CLASS_WATER,
+    DEVICE_CLASS_PRECIPITATION,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL_INCREASING,
     UNIT_CELSIUS,
@@ -72,19 +72,19 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ACC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_WATER,
+                device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_EVENT_ACC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_WATER,
+                device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TOTAL_ACC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_WATER,
+                device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_R_INT): sensor.sensor_schema(
