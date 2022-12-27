@@ -57,7 +57,7 @@ void CTClampSensor::loop() {
     return;
 
   // Assuming a sine wave, avoid requesting values faster than the ADC can provide them
-  if (this->last_value_ == value)
+  if (this->last_value_ == value && value != 0)
     return;
   this->last_value_ = value;
 
