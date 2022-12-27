@@ -23,7 +23,7 @@ TextPtr = Text.operator("ptr")
 
 # Triggers
 TextStateTrigger = text_ns.class_(
-    "TextStateTrigger", automation.Trigger.template(cg.float_)
+    "TextStateTrigger", automation.Trigger.template(cg.std_string)
 )
 
 # Actions
