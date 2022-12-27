@@ -17,45 +17,11 @@ class TextStateTrigger : public Trigger<std::string> {
 template<typename... Ts> class TextSetAction : public Action<Ts...> {
  public:
   explicit TextSetAction(Text *text) : text_(text) {}
-  TEMPLATABLE_VALUE(std::string, option)
+  TEMPLATABLE_VALUE(std::string, value)
 
   void play(Ts... x) override {
     auto call = this->text_->make_call();
-    call.set_option(this->option_.value(x...));
-    call.perform();
-  }
-
- protected:
-  Text *text_;
-};
-
-template<typename... Ts> class TextSetIndexAction : public Action<Ts...> {
- public:
-  explicit TextSetIndexAction(Text *text) : text_(text) {}
-  TEMPLATABLE_VALUE(size_t, index)
-
-  void play(Ts... x) override {
-    auto call = this->text_->make_call();
-    call.set_index(this->index_.value(x...));
-    call.perform();
-  }
-
- protected:
-  Text *text_;
-};
-
-template<typename... Ts> class TextOperationAction : public Action<Ts...> {
- public:
-  explicit TextOperationAction(Text *text) : text_(text) {}
-  TEMPLATABLE_VALUE(bool, cycle)
-  TEMPLATABLE_VALUE(TextOperation, operation)
-
-  void play(Ts... x) override {
-    auto call = this->text_->make_call();
-    call.with_operation(this->operation_.value(x...));
-    if (this->cycle_.has_value()) {
-      call.with_cycle(this->cycle_.value(x...));
-    }
+    call.set_value(this->value_.value(x...));
     call.perform();
   }
 
