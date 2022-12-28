@@ -719,17 +719,17 @@ void GDEY029T94::initialize() {
 void HOT GDEY029T94::display() {
   // COMMAND DATA START TRANSMISSION 2 (B/W only)
   this->command(0x13);
-  delay(1.5);
+  delay(2);
   this->start_data_();
   for (size_t i = 0; i < this->get_buffer_length_(); i++) {
     this->write_byte(this->buffer_[i]);
   }
   this->end_data_();
-  delay(1.5);
+  delay(2);
 
   // COMMAND DISPLAY REFRESH
   this->command(0x12);
-  delay(1.5);
+  delay(2);
   this->wait_until_idle_();
 
   // COMMAND POWER OFF
