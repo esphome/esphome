@@ -61,9 +61,9 @@ async def to_code(config):
     await text.register_text(
         var,
         config,
-        min=config[CONF_MIN],
-        max=config[CONF_MAX],
-        pattern=config[CONF_PATTERN],
+        #        min=config[CONF_MIN],
+        #        max=config[CONF_MAX],
+        #        pattern=config[CONF_PATTERN],
     )
 
     if CONF_LAMBDA in config:
