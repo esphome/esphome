@@ -30,9 +30,9 @@ class TextTraits {
   TextMode get_mode() const { return this->mode_; }
 
  protected:
-  int min_value_ = NAN;
-  int max_value_ = NAN;
-  std::string pattern_ = "";
+  int min_value_;
+  int max_value_;
+  std::string pattern_;
   TextMode mode_{TEXT_MODE_AUTO};
 };
 
