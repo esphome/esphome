@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -20,7 +22,7 @@ class TextTraits {
   int get_max_value() const { return max_value_; }
 
   // Set/get the pattern.
-  void set_pattern(std::string pattern) { pattern_ = pattern; }
+  void set_pattern(std::string pattern) { pattern_ = std::move(pattern); }
   std::string get_pattern() const { return pattern_; }
 
   // Set/get the frontend mode.

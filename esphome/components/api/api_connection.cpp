@@ -643,7 +643,7 @@ bool APIConnection::send_text_state(text::Text *text, std::string state) {
 
   TextStateResponse resp{};
   resp.key = text->get_object_id_hash();
-  resp.state = state;
+  resp.state = std::move(state);
   resp.missing_state = !text->has_state();
   return this->send_text_state_response(resp);
 }
