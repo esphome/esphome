@@ -278,7 +278,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         stream.print(R"(" maxlength=")");
         stream.print(text->traits.get_max());
         stream.print(R"(" pattern=")");
-        stream.print(text->traits.get_pattern());
+        stream.print(text->traits.get_pattern().c_str());
         stream.print(R"(" value=")");
         stream.print(text->state.c_str());
         stream.print(R"("/>)");
