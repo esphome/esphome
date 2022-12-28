@@ -1354,8 +1354,8 @@ message ListEntitiesTextResponse {
   string unique_id = 4;
 
   string icon = 5;
-  uint32 min_value = 6;
-  uint32 max_value = 7;
+  uint32 min = 6;
+  uint32 max = 7;
   string pattern = 8;
   bool disabled_by_default = 9;
   EntityCategory entity_category = 10;

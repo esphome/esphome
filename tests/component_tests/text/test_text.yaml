@@ -14,6 +14,8 @@ text:
     id: "it_2"
     icon: "mdi:text"
     optimistic: true
+    min: 5
+    max: 255
     internal: false
     initial_value: "Welcome ESPHOME"
 
@@ -24,3 +26,4 @@ text:
     mode: "password"
     optimistic: true
     internal: true
+    max: 255

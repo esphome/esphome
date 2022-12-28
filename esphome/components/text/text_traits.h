@@ -16,10 +16,10 @@ enum TextMode : uint8_t {
 class TextTraits {
  public:
   // Set/get the number value boundaries.
-  void set_min_value(int min_value) { min_value_ = min_value; }
-  int get_min_value() const { return min_value_; }
-  void set_max_value(int max_value) { max_value_ = max_value; }
-  int get_max_value() const { return max_value_; }
+  void set_min(int min) { min_ = min; }
+  int get_min() const { return min_; }
+  void set_max(int max) { max_ = max; }
+  int get_max() const { return max_; }
 
   // Set/get the pattern.
   void set_pattern(std::string pattern) { pattern_ = std::move(pattern); }
@@ -30,8 +30,8 @@ class TextTraits {
   TextMode get_mode() const { return this->mode_; }
 
  protected:
-  int min_value_;
-  int max_value_;
+  int min_;
+  int max_;
   std::string pattern_;
   TextMode mode_{TEXT_MODE_AUTO};
 };

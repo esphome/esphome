@@ -262,6 +262,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_TEXT
+  // TODO add support for min and max
   for (auto *obj : App.get_texts()) {
     if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "text", "", [](AsyncResponseStream &stream, EntityBase *obj) {

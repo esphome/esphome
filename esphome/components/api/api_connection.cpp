@@ -658,8 +658,8 @@ bool APIConnection::send_text_info(text::Text *text) {
   msg.entity_category = static_cast<enums::EntityCategory>(text->get_entity_category());
   msg.mode = static_cast<enums::TextMode>(text->traits.get_mode());
 
-  msg.min_value = text->traits.get_min_value();
-  msg.max_value = text->traits.get_max_value();
+  msg.min = text->traits.get_min();
+  msg.max = text->traits.get_max();
   msg.pattern = text->traits.get_pattern();
 
   return this->send_list_entities_text_response(msg);
