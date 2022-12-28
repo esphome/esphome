@@ -940,54 +940,6 @@ message NumberCommandRequest {
   float state = 2;
 }
 
-// ==================== TEXT ====================
-enum TextMode {
-  TEXT_MODE_AUTO = 0;
-  TEXT_MODE_TEXT = 1;
-  TEXT_MODE_PASSWORD = 2;
-}
-message ListEntitiesTextResponse {
-  option (id) = 49;
-  option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_TEXT";
-
-  string object_id = 1;
-  fixed32 key = 2;
-  string name = 3;
-  string unique_id = 4;
-
-  string icon = 5;
-//  float min = 6;
-//  float max = 7;
-//  string pattern = 8;
-
-  bool disabled_by_default = 9;
-  EntityCategory entity_category = 10;
-  TextMode mode = 12;
-}
-message TextStateResponse {
-  option (id) = 50;
-  option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_TEXT";
-  option (no_delay) = true;
-
-  fixed32 key = 1;
-  string state = 2;
-  // If the number does not have a valid state yet.
-  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
-  bool missing_state = 3;
-}
-message TextCommandRequest {
-  option (id) = 51;
-  option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_TEXT";
-  option (no_delay) = true;
-
-  fixed32 key = 1;
-  string state = 2;
-}
-
-
 // ==================== SELECT ====================
 message ListEntitiesSelectResponse {
   option (id) = 52;
@@ -1383,4 +1335,50 @@ message BluetoothGATTNotifyResponse {
 
   uint64 address = 1;
   uint32 handle = 2;
+}
+
+// ===================== TEXT =====================
+enum TextMode {
+  TEXT_MODE_AUTO = 0;
+  TEXT_MODE_TEXT = 1;
+  TEXT_MODE_PASSWORD = 2;
+}
+message ListEntitiesTextResponse {
+  option (id) = 85;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_TEXT";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+
+  string icon = 5;
+  uint32 min_value = 6;
+  uint32 max_value = 7;
+  string pattern = 8;
+  bool disabled_by_default = 9;
+  EntityCategory entity_category = 10;
+  TextMode mode = 12;
+}
+message TextStateResponse {
+  option (id) = 86;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_TEXT";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
+  // If the Text does not have a valid state yet.
+  // Equivalent to `!obj->has_state()` - inverse logic to make state packets smaller
+  bool missing_state = 3;
+}
+message TextCommandRequest {
+  option (id) = 87;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_TEXT";
+  option (no_delay) = true;
+
+  fixed32 key = 1;
+  string state = 2;
 }

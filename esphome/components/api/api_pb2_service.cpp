@@ -430,7 +430,7 @@ bool APIServerConnectionBase::send_list_entities_text_response(const ListEntitie
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_list_entities_text_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<ListEntitiesTextResponse>(msg, 66);
+  return this->send_message_<ListEntitiesTextResponse>(msg, 85);
 }
 #endif
 #ifdef USE_TEXT
@@ -438,7 +438,7 @@ bool APIServerConnectionBase::send_text_state_response(const TextStateResponse &
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_text_state_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<TextStateResponse>(msg, 67);
+  return this->send_message_<TextStateResponse>(msg, 86);
 }
 #endif
 #ifdef USE_TEXT
@@ -807,7 +807,7 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
-    case 82: {
+    case 87: {
 #ifdef USE_TEXT
       TextCommandRequest msg;
       msg.decode(msg_data, msg_size);

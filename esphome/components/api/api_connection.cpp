@@ -643,7 +643,7 @@ bool APIConnection::send_text_state(text::Text *text, std::string state) {
 
   TextStateResponse resp{};
   resp.key = text->get_object_id_hash();
-  resp.state = std::move(state);
+  resp.state = state;
   resp.missing_state = !text->has_state();
   return this->send_text_state_response(resp);
 }
@@ -657,6 +657,10 @@ bool APIConnection::send_text_info(text::Text *text) {
   msg.disabled_by_default = text->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(text->get_entity_category());
   msg.mode = static_cast<enums::TextMode>(text->traits.get_mode());
+
+  msg.min_value = text->traits.get_min_value();
+  msg.max_value = text->traits.get_max_value();
+  msg.pattern = text->traits.get_pattern();
 
   return this->send_list_entities_text_response(msg);
 }

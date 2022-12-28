@@ -13,11 +13,24 @@ enum TextMode : uint8_t {
 
 class TextTraits {
  public:
+  // Set/get the number value boundaries.
+  void set_min_value(int min_value) { min_value_ = min_value; }
+  int get_min_value() const { return min_value_; }
+  void set_max_value(int max_value) { max_value_ = max_value; }
+  int get_max_value() const { return max_value_; }
+
+  // Set/get the pattern.
+  void set_pattern(std::string pattern) { pattern_ = pattern; }
+  std::string get_pattern() const { return pattern_; }
+
   // Set/get the frontend mode.
   void set_mode(TextMode mode) { this->mode_ = mode; }
   TextMode get_mode() const { return this->mode_; }
 
  protected:
+  int min_value_ = NAN;
+  int max_value_ = NAN;
+  std::string pattern_ = "";
   TextMode mode_{TEXT_MODE_AUTO};
 };
 
