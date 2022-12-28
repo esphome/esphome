@@ -274,11 +274,11 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
           stream.print(R"(text)");
         }
         stream.print(R"(" minlength=")");
-        stream.print(number->traits.get_min());
+        stream.print(text->traits.get_min());
         stream.print(R"(" maxlength=")");
-        stream.print(number->traits.get_max());
+        stream.print(text->traits.get_max());
         stream.print(R"(" pattern=")");
-        stream.print(number->traits.get_pattern());
+        stream.print(text->traits.get_pattern());
         stream.print(R"(" value=")");
         stream.print(text->state.c_str());
         stream.print(R"("/>)");
