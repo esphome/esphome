@@ -30,7 +30,6 @@ WaveshareEPaper2P9InB = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P9InB", WaveshareEPaper
 )
 GDEY029T94 = waveshare_epaper_ns.class_(
-    # 2.9in Good Display (GDEY029T94)
     "GDEY029T94", WaveshareEPaper
 )
 WaveshareEPaper4P2In = waveshare_epaper_ns.class_(
