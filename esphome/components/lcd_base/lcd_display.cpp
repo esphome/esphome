@@ -55,13 +55,13 @@ void LCDDisplay::setup() {
     this->write_n_bits(0x03, 4);
     delay(5);
     this->write_n_bits(0x03, 4);
-    delayMicroseconds(150);
+    delayMicroseconds(175);
     this->write_n_bits(0x02, 4);
   } else {
     this->command_(LCD_DISPLAY_COMMAND_FUNCTION_SET | display_function);
     delay(5);  // 4.1ms
     this->command_(LCD_DISPLAY_COMMAND_FUNCTION_SET | display_function);
-    delayMicroseconds(150);
+    delayMicroseconds(175);
     this->command_(LCD_DISPLAY_COMMAND_FUNCTION_SET | display_function);
   }
 
