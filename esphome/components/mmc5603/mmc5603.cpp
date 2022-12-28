@@ -104,8 +104,6 @@ void MMC5603Component::update() {
     return;
   }
 
-  status = status << 6;
-
   uint8_t buffer[9] = {0};
 
   if (!this->read_byte(MMC56X3_ADDR_XOUT0, &buffer[0]) || !this->read_byte(MMC56X3_ADDR_XOUT1, &buffer[1]) ||
