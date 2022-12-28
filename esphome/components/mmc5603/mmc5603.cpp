@@ -94,8 +94,6 @@ void MMC5603Component::dump_config() {
 float MMC5603Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void MMC5603Component::update() {
-  // check if continuous mode first
-  // if (!isContinuousMode())
   if (!this->write_byte(MMC56X3_CTRL0_REG, 0x01)) {
     this->status_set_warning();
     return;

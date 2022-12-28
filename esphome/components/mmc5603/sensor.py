@@ -34,24 +34,6 @@ MMC5603Datarates = {
 }
 
 
-def validate_enum(enum_values, units=None, int=True):
-    _units = []
-    if units is not None:
-        _units = units if isinstance(units, list) else [units]
-        _units = [str(x) for x in _units]
-    enum_bound = cv.enum(enum_values, int=int)
-
-    def validate_enum_bound(value):
-        value = cv.string(value)
-        for unit in _units:
-            if value.endswith(unit):
-                value = value[: -len(unit)]
-                break
-        return enum_bound(value)
-
-    return validate_enum_bound
-
-
 field_strength_schema = sensor.sensor_schema(
     unit_of_measurement=UNIT_MICROTESLA,
     icon=ICON_MAGNET,

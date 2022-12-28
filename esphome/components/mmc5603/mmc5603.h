@@ -27,7 +27,7 @@ class MMC5603Component : public PollingComponent, public i2c::I2CDevice {
   void set_heading_sensor(sensor::Sensor *heading_sensor) { heading_sensor_ = heading_sensor; }
 
  protected:
-  MMC5603Datarate datarate_{MMC5603_DATARATE_150_0_HZ};
+  MMC5603Datarate datarate_;
   sensor::Sensor *x_sensor_{nullptr};
   sensor::Sensor *y_sensor_{nullptr};
   sensor::Sensor *z_sensor_{nullptr};
