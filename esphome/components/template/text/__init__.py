@@ -8,8 +8,8 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_OPTIMISTIC,
     CONF_RESTORE_VALUE,
-    CONF_MAX_LENGTH,
-    CONF_MIN_LENGTH,
+    CONF_MAX,
+    CONF_MIN,
     CONF_PATTERN,
 )
 from .. import template_ns
@@ -41,9 +41,9 @@ CONFIG_SCHEMA = cv.All(
     text.TEXT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(TemplateText),
-            cv.Required(CONF_MAX_LENGTH): cv.int_,
-            cv.Required(CONF_MIN_LENGTH): cv.int_,
-            cv.Required(CONF_PATTERN): cv.string,
+            cv.Optional(CONF_MAX): cv.int_,
+            cv.Optional(CONF_MIN): cv.int_,
+            cv.Optional(CONF_PATTERN): cv.string,
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
@@ -61,8 +61,8 @@ async def to_code(config):
     await text.register_text(
         var,
         config,
-        min=config[CONF_MIN_LENGTH],
-        max=config[CONF_MAX_LENGTH],
+        min=config[CONF_MIN],
+        max=config[CONF_MAX],
         pattern=config[CONF_PATTERN],
     )
 
