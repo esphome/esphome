@@ -51,8 +51,14 @@ void PulseMeterSensor::loop() {
   this->set_ = this->get_;
   this->get_ = temp;
 
-  // Add the count from the last loop to the total
-  this->total_pulses_ += this->get_->count_;
+  // Keep a running total of pulses if a total sensor is configured
+  if (this->total_sensor_ != nullptr) {
+    if (this->get_->count_ > 0) {
+      this->total_pulses_ += this->get_->count_;
+      const uint32_t total = this->total_pulses_;
+      this->total_sensor_->publish_state(total);
+    }
+  }
 
   // If nothing was detected on the most recent loop, move the old timestamp along
   this->get_->last_detected_edge_us_ = this->get_->count_ == 0 ? last_update : this->get_->last_detected_edge_us_;
@@ -78,11 +84,6 @@ void PulseMeterSensor::loop() {
     uint32_t delta_us = this->get_->last_detected_edge_us_ - last_update;
     float pulse_width_us = delta_us / float(this->get_->count_);
     this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
-
-    if (this->total_sensor_ != nullptr) {
-      const uint32_t total = this->total_pulses_;
-      this->total_sensor_->publish_state(total);
-    }
   }
 }
 
