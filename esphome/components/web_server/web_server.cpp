@@ -262,7 +262,6 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_TEXT
-  // TODO add support for min and max
   for (auto *obj : App.get_texts()) {
     if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "text", "", [](AsyncResponseStream &stream, EntityBase *obj) {
@@ -274,6 +273,12 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
         } else {  // default
           stream.print(R"(text)");
         }
+        stream.print(R"(" minlength=")");
+        stream.print(number->traits.get_min());
+        stream.print(R"(" maxlength=")");
+        stream.print(number->traits.get_max());
+        stream.print(R"(" pattern=")");
+        stream.print(number->traits.get_pattern());
         stream.print(R"(" value=")");
         stream.print(text->state.c_str());
         stream.print(R"("/>)");

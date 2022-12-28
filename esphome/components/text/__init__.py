@@ -1,3 +1,4 @@
+from typing import Optional
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -54,8 +55,15 @@ TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
 )
 
 
-async def setup_text_core_(var, config):
+async def setup_text_core_(
+    var, config, *, min: Optional[int], max: Optional[int], pattern: Optional[str]
+):
     await setup_entity(var, config)
+
+    cg.add(var.traits.set_min(min))
+    cg.add(var.traits.set_max(max))
+    if pattern is not None:
+        cg.add(var.traits.set_pattern(pattern))
 
     cg.add(var.traits.set_mode(config[CONF_MODE]))
 
@@ -68,16 +76,29 @@ async def setup_text_core_(var, config):
         await mqtt.register_mqtt_component(mqtt_, config)
 
 
-async def register_text(var, config):
+async def register_text(
+    var,
+    config,
+    *,
+    min: Optional[int] = 0,
+    max: Optional[int] = 255,
+    pattern: Optional[str] = None,
+):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_text(var))
-    await setup_text_core_(var, config)
+    await setup_text_core_(var, config, min=min, max=max, pattern=pattern)
 
 
-async def new_text(config):
+async def new_text(
+    config,
+    *,
+    min: Optional[int] = 0,
+    max: Optional[int] = 255,
+    pattern: Optional[str] = None,
+):
     var = cg.new_Pvariable(config[CONF_ID])
-    await register_text(var, config)
+    await register_text(var, config, min=min, max=max, pattern=pattern)
     return var
 
 
