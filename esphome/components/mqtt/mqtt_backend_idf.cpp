@@ -109,10 +109,7 @@ void MQTTBackendIDF::mqtt_event_handler_(const esp_mqtt_event_t &event) {
         topic = std::string(event.topic, event.topic_len);
       }
       ESP_LOGV(TAG, "MQTT_EVENT_DATA %s", topic.c_str());
-      auto data_len = event.data_len;
-      if (data_len == 0)
-        data_len = strlen(event.data);
-      this->on_message_.call(event.topic ? const_cast<char *>(topic.c_str()) : nullptr, event.data, data_len,
+      this->on_message_.call(event.topic ? const_cast<char *>(topic.c_str()) : nullptr, event.data, event.data_len,
                              event.current_data_offset, event.total_data_len);
     } break;
     case MQTT_EVENT_ERROR:
