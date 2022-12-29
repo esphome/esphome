@@ -14,7 +14,7 @@ namespace mqtt {
 
 struct Event {
   esp_mqtt_event_id_t event_id;
-  std::string data;
+  std::vector<char> data;
   int total_data_len;
   int current_data_offset;
   std::string topic;
@@ -28,7 +28,7 @@ struct Event {
   // Any pointer values that are unsafe to keep are converted to safe copies
   Event(const esp_mqtt_event_t &event)
       : event_id(event.event_id),
-        data(event.data, event.data_len),
+        data(event.data, event.data + event.data_len),
         total_data_len(event.total_data_len),
         current_data_offset(event.current_data_offset),
         topic(event.topic, event.topic_len),
