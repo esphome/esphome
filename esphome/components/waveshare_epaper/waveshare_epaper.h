@@ -37,7 +37,7 @@ class WaveshareEPaper : public PollingComponent,
   void on_safe_shutdown() override;
 
   display::DisplayType get_display_type() override;
-  
+
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
@@ -51,9 +51,9 @@ class WaveshareEPaper : public PollingComponent,
       delay(reset_duration_);  // NOLINT
       this->reset_pin_->digital_write(true);
       delay(200);  // NOLINT
-      }   
+    }
   }
-  
+
   virtual uint32_t get_buffer_length_();
   uint32_t reset_duration_{200};
 
@@ -68,8 +68,7 @@ class WaveshareEPaper : public PollingComponent,
   virtual uint32_t idle_timeout_() { return 1000u; }  // NOLINT(readability-identifier-naming)
 };
 
-
-class WaveshareEPaperBW : public WaveshareEPaper{
+class WaveshareEPaperBW : public WaveshareEPaper {
  public:
   void fill(Color color) override;
 
@@ -80,19 +79,16 @@ class WaveshareEPaperBW : public WaveshareEPaper{
   uint32_t get_buffer_length_() override;
 };
 
-
-
-class WaveshareEPaperBWR : public WaveshareEPaper{
+class WaveshareEPaperBWR : public WaveshareEPaper {
  public:
   void fill(Color color) override;
-  
-   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
-   
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   uint32_t get_buffer_length_() override;
 };
-
 
 enum WaveshareEPaperTypeAModel {
   WAVESHARE_EPAPER_1_54_IN = 0,
@@ -167,12 +163,11 @@ class WaveshareEPaper2P7In : public WaveshareEPaperBW {
     this->command(0x07);
     this->data(0xA5);  // check byte
   }
-  
+
  protected:
   int get_width_internal() override;
   int get_height_internal() override;
 };
-
 
 class WaveshareEPaper2P7InB : public WaveshareEPaperBWR {
  public:
@@ -189,11 +184,9 @@ class WaveshareEPaper2P7InB : public WaveshareEPaperBWR {
   }
 
  protected:
-
   int get_width_internal() override;
   int get_height_internal() override;
 };
-
 
 class WaveshareEPaper2P7InBV2 : public WaveshareEPaperBWR {
  public:
@@ -206,8 +199,9 @@ class WaveshareEPaper2P7InBV2 : public WaveshareEPaperBWR {
   void deep_sleep() override {
     // COMMAND DEEP SLEEP
     this->command(0x10);
-    this->data(0x01);}
-     
+    this->data(0x01);
+  }
+
  protected:
   int get_width_internal() override;
   int get_height_internal() override;
