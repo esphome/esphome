@@ -9,12 +9,12 @@
 #define FASTLED_ESP8266_RAW_PIN_ORDER
 #define FASTLED_ESP32_RAW_PIN_ORDER
 #define FASTLED_RMT_BUILTIN_DRIVER true
+#define Register Auto ;
 
 // Avoid annoying compiler messages
 #define FASTLED_INTERNAL
 
 #include "FastLED.h"
-typedef Auto Register;
 namespace esphome {
 namespace fastled {
 
