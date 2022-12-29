@@ -29,7 +29,7 @@ class FastLEDLightOutput : public light::AddressableLight {
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
 
   /// Add some LEDS, can only be called once.
-  CLEDController &set_leds(CLEDController *controller, int num_leds) {
+  CLEDController &add_leds(CLEDController *controller, int num_leds) {
     this->controller_ = controller;
     this->num_leds_ = num_leds;
     this->leds_ = new CRGB[num_leds];  // NOLINT
@@ -40,10 +40,111 @@ class FastLEDLightOutput : public light::AddressableLight {
     return *this->controller_;
   }
 
-  CLEDController &add_leds(ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER, uint32_t SPI_DATA_RATE, int num_leds) {
-    static CFastLED<CHIPSET,DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> controller;
+  template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER, uint32_t SPI_DATA_RATE>
+  CLEDController &add_leds(int num_leds) {
+    switch (CHIPSET) {
+      case LPD8806: {
+        static LPD8806Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case WS2801: {
+        static WS2801Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> controller;
     return add_leds(&controller, num_leds);
+      }
+      case WS2803: {
+        static WS2803Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case SM16716: {
+        static SM16716Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case P9813: {
+        static P9813Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case DOTSTAR:
+      case APA102: {
+        static APA102Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case SK9822: {
+        static SK9822Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> controller;
+        return add_leds(&controller, num_leds);
+      }
+    }
+  }
 
+  template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN> CLEDController &add_leds(int num_leds) {
+    switch (CHIPSET) {
+      case LPD8806: {
+        static LPD8806Controller<DATA_PIN, CLOCK_PIN> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case WS2801: {
+        static WS2801Controller<DATA_PIN, CLOCK_PIN> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case WS2803: {
+        static WS2803Controller<DATA_PIN, CLOCK_PIN> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case SM16716: {
+        static SM16716Controller<DATA_PIN, CLOCK_PIN> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case P9813: {
+        static P9813Controller<DATA_PIN, CLOCK_PIN> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case DOTSTAR:
+      case APA102: {
+        static APA102Controller<DATA_PIN, CLOCK_PIN> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case SK9822: {
+        static SK9822Controller<DATA_PIN, CLOCK_PIN> controller;
+        return add_leds(&controller, num_leds);
+      }
+    }
+  }
+
+  template<ESPIChipsets CHIPSET, uint8_t DATA_PIN, uint8_t CLOCK_PIN, EOrder RGB_ORDER>
+  CLEDController &add_leds(int num_leds) {
+    switch (CHIPSET) {
+      case LPD8806: {
+        static LPD8806Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case WS2801: {
+        static WS2801Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case WS2803: {
+        static WS2803Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case SM16716: {
+        static SM16716Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case P9813: {
+        static P9813Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case DOTSTAR:
+      case APA102: {
+        static APA102Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER> controller;
+        return add_leds(&controller, num_leds);
+      }
+      case SK9822: {
+        static SK9822Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER> controller;
+        return add_leds(&controller, num_leds);
+      }
+    }
+  }
+
+#ifdef FASTLED_HAS_CLOCKLESS
   template<template<uint8_t DATA_PIN, EOrder RGB_ORDER> class CHIPSET, uint8_t DATA_PIN, EOrder RGB_ORDER>
   CLEDController &add_leds(int num_leds) {
     static CHIPSET<DATA_PIN, RGB_ORDER> controller;
@@ -60,7 +161,7 @@ class FastLEDLightOutput : public light::AddressableLight {
     static CHIPSET<DATA_PIN> controller;
     return add_leds(&controller, num_leds);
   }
-
+#endif
 
   template<template<EOrder RGB_ORDER> class CHIPSET, EOrder RGB_ORDER> CLEDController &add_leds(int num_leds) {
     static CHIPSET<RGB_ORDER> controller;
