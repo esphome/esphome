@@ -14,7 +14,7 @@
 #define FASTLED_INTERNAL
 
 #include "FastLED.h"
-
+typedef Auto Register;
 namespace esphome {
 namespace fastled {
 
