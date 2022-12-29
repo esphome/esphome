@@ -9,7 +9,7 @@
 #define FASTLED_ESP8266_RAW_PIN_ORDER
 #define FASTLED_ESP32_RAW_PIN_ORDER
 #define FASTLED_RMT_BUILTIN_DRIVER true
-#define register auto ;
+#define register ;
 
 // Avoid annoying compiler messages
 #define FASTLED_INTERNAL
