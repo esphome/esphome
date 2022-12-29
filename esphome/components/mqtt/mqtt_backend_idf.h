@@ -26,12 +26,17 @@ struct Event {
 
   // Construct from esp_mqtt_event_t
   // Any pointer values that are unsafe to keep are converted to safe copies
-  Event(esp_mqtt_event_t event):
-    event_id(event.event_id), data(event.data, event.data_len),
-    total_data_len(event.total_data_len), current_data_offset(event.current_data_offset),
-    topic(event.topic, event.topic_len), msg_id(event.msg_id),
-    retain(event.retain), qos(event.qos), dup(event.dup),
-    error_handle(*event.error_handle) {}
+  Event(esp_mqtt_event_t event)
+      : event_id(event.event_id),
+        data(event.data, event.data_len),
+        total_data_len(event.total_data_len),
+        current_data_offset(event.current_data_offset),
+        topic(event.topic, event.topic_len),
+        msg_id(event.msg_id),
+        retain(event.retain),
+        qos(event.qos),
+        dup(event.dup),
+        error_handle(*event.error_handle) {}
 };
 
 class MQTTBackendIDF final : public MQTTBackend {
