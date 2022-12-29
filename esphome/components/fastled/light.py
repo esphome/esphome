@@ -118,7 +118,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _validate,
-    cv.has_exactly_one_key([CONF_DATA_PIN, CONF_PIN]),
+    cv.has_exactly_one_key(CONF_DATA_PIN, CONF_PIN),
 )
 
 
