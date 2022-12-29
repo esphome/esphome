@@ -74,7 +74,8 @@ void PulseMeterSensor::loop() {
   // If the last_update values are the same there have not been any pulses since the last loop
   if (last_update == this->get_->last_detected_edge_us_) {
     const uint32_t now = micros();
-    const uint32_t time_since_valid_edge_us = now - this->get_->last_detected_edge_us_;
+    const uint32_t time_since_valid_edge_us = now - last_update;
+
     if (time_since_valid_edge_us > this->timeout_us_) {
       ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
       this->initialized_ = false;
@@ -105,7 +106,8 @@ void IRAM_ATTR PulseMeterSensor::edge_intr(PulseMeterSensor *sensor) {
   // Get the current time before we do anything else so the measurements are consistent
   const uint32_t now = micros();
 
-  if ((now - sensor->set_->last_detected_edge_us_) >= sensor->filter_us_) {
+  if ((now - sensor->last_edge_candidate_us_) >= sensor->filter_us_) {
+    sensor->last_edge_candidate_us_ = now;
     sensor->set_->last_detected_edge_us_ = now;
     sensor->set_->count_++;
   }
