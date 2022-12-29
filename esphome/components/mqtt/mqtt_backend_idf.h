@@ -26,7 +26,7 @@ struct Event {
 
   // Construct from esp_mqtt_event_t
   // Any pointer values that are unsafe to keep are converted to safe copies
-  Event(esp_mqtt_event_t event)
+  Event(const esp_mqtt_event_t &event)
       : event_id(event.event_id),
         data(event.data, event.data_len),
         total_data_len(event.total_data_len),
