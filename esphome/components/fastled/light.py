@@ -90,7 +90,7 @@ def _validate(config):
 def validate_gpio_output_pin_number(value):
     if value == -1:
         return value
-    return pins.internal_gpio_output_pin_number
+    return pins.internal_gpio_output_pin_number(value)
 
 
 BASE_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
