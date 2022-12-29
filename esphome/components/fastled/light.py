@@ -103,18 +103,20 @@ BASE_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
 ).extend(cv.COMPONENT_SCHEMA)
 
 
-CONFIG_SCHEMA = BASE_SCHEMA.extend(
-    {
-        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(FastLEDLightOutput),
-        cv.Required(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
-        cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
-        cv.Optional(CONF_RGB_ORDER): cv.one_of(*RGB_ORDERS, upper=True),
-        cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
-        cv.Optional(CONF_DATA_PIN): pins.internal_gpio_output_pin_number,
-        cv.Optional(CONF_PIN): pins.internal_gpio_output_pin_number,
-        cv.Optional(CONF_CLOCK_PIN, default=-1): validate_gpio_output_pin_number,
-        cv.Optional(CONF_DATA_RATE): cv.frequency,
-    },
+CONFIG_SCHEMA = cv.All(
+    BASE_SCHEMA.extend(
+        {
+            cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(FastLEDLightOutput),
+            cv.Required(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
+            cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
+            cv.Optional(CONF_RGB_ORDER): cv.one_of(*RGB_ORDERS, upper=True),
+            cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
+            cv.Optional(CONF_DATA_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_PIN): pins.internal_gpio_output_pin_number,
+            cv.Optional(CONF_CLOCK_PIN, default=-1): validate_gpio_output_pin_number,
+            cv.Optional(CONF_DATA_RATE): cv.frequency,
+        }
+    ),
     _validate,
     cv.has_exactly_one_key([CONF_DATA_PIN, CONF_PIN]),
 )
