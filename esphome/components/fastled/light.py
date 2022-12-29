@@ -65,7 +65,7 @@ CHIPSETS = [
     "WS2852",
 ]
 
-ESPIChipsets = [
+SPIChipsets = [
     "LPD6803",
     "LPD8806",
     "WS2801",
@@ -77,7 +77,33 @@ ESPIChipsets = [
     "DOTSTAR",
 ]
 
-CONFIG_SCHEMA = cv.All(
+
+def _validate(config):
+    if config[CONF_CHIPSET] == "NEOPIXEL" and CONF_RGB_ORDER in config:
+        raise cv.Invalid("NEOPIXEL doesn't support RGB order")
+    if config[CONF_CHIPSET] in SPIChipsets and config[CONF_CLOCK_PIN] == -1:
+        raise cv.Invalid("The clock_pin is required for SPI devices.")
+
+    return config
+
+
+def validate_gpio_output_pin_number(value):
+    if value == -1:
+        return value
+    return pins.internal_gpio_output_pin_number
+
+
+BASE_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
+    {
+        cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(FastLEDLightOutput),
+        cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
+        cv.Optional(CONF_RGB_ORDER): cv.one_of(*RGB_ORDERS, upper=True),
+        cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
+    }
+).extend(cv.COMPONENT_SCHEMA)
+
+
+CONFIG_SCHEMA = BASE_SCHEMA.extend(
     {
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(FastLEDLightOutput),
         cv.Required(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
@@ -86,9 +112,10 @@ CONFIG_SCHEMA = cv.All(
         cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
         cv.Optional(CONF_DATA_PIN): pins.internal_gpio_output_pin_number,
         cv.Optional(CONF_PIN): pins.internal_gpio_output_pin_number,
-        cv.Optional(CONF_CLOCK_PIN, default=-1): pins.internal_gpio_output_pin_number,
+        cv.Optional(CONF_CLOCK_PIN, default=-1): validate_gpio_output_pin_number,
         cv.Optional(CONF_DATA_RATE): cv.frequency,
     },
+    _validate,
     cv.has_exactly_one_key([CONF_DATA_PIN, CONF_PIN]),
 )
 
@@ -118,7 +145,7 @@ async def to_code(config):
     if CONF_PIN in config:
         config[CONF_DATA_PIN] = config[CONF_PIN]
 
-    if config[CONF_CHIPSET] in ESPIChipsets:
+    if config[CONF_CHIPSET] in SPIChipsets:
         if CONF_DATA_RATE in config:
             data_rate_khz = int(config[CONF_DATA_RATE] / 1000)
             if data_rate_khz < 1000:
