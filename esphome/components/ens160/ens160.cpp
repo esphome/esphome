@@ -56,8 +56,7 @@ static const uint8_t ENS160_DATA_STATUS_STATER = 0x07;
 static const uint8_t ENS160_DATA_STATUS_NEWDAT = 0x02;
 static const uint8_t ENS160_DATA_STATUS_NEWGPR = 0x01;
 
-#define ENS160_CONCAT_BYTES(msb, lsb) (((uint16_t) (msb) << 8) | (uint16_t) (lsb))
-#define IS_NEWDAT(x) (ENS160_DATA_STATUS_NEWDAT == (ENS160_DATA_STATUS_NEWDAT & (x)))
+#define ENS160_CONCAT_BYTES(msb, lsb) (((uint16_t)(msb) << 8) | (uint16_t)(lsb))#define IS_NEWDAT(x) (ENS160_DATA_STATUS_NEWDAT == (ENS160_DATA_STATUS_NEWDAT & (x)))
 #define IS_NEWGPR(x) (ENS160_DATA_STATUS_NEWGPR == (ENS160_DATA_STATUS_NEWGPR & (x)))
 #define IS_NEW_DATA_AVAILABLE(x) (0 != ((ENS160_DATA_STATUS_NEWDAT | ENS160_DATA_STATUS_NEWGPR) & (x)))
 
