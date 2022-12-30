@@ -122,17 +122,15 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   // Rising edge
   if (!sensor->last_pin_val_ && pin_val) {
     sensor->last_edge_candidate_us_ = now;
-    sensor->in_pulse_ = true;
   }
   // Falling edge
   else if (sensor->last_pin_val_ && !pin_val) {
     // The last edge candidate must be after the last rising edge otherwise we already processed that pulse
     // Then we check that the length of this pulse is greater than the filter time
-    if (sensor->in_pulse_ && now - sensor->last_edge_candidate_us_ > sensor->filter_us_) {
+    if (now - sensor->last_edge_candidate_us_ > sensor->filter_us_) {
       sensor->set_->last_detected_edge_us_ = sensor->last_edge_candidate_us_;
       sensor->set_->count_++;
     }
-    sensor->in_pulse_ = false;
   }
   sensor->last_pin_val_ = pin_val;
 }
