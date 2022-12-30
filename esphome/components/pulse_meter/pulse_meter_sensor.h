@@ -38,18 +38,20 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   sensor::Sensor *total_sensor_{nullptr};
   InternalFilterMode filter_mode_{FILTER_EDGE};
 
+  // Variables used in the loop
+  bool initialized_ = false;
+  uint32_t total_pulses_ = 0;
+  uint32_t last_processed_edge_us_ = 0;
+
+  // This struct (and the two pointers) are used to pass data FROM the ISR TO the loop
+  // Don't read these in the ISR, don't write to them in the loop
   struct State {
     uint32_t last_detected_edge_us_ = 0;
     uint32_t count_ = 0;
   };
-
   State state_[2];
-
   volatile State *set_ = state_;
   volatile State *get_ = state_ + 1;
-
-  bool initialized_ = false;
-  uint32_t total_pulses_ = 0;
 
   // Only use these variables in the ISR
   ISRInternalGPIOPin isr_pin_;

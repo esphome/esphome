@@ -41,50 +41,45 @@ void PulseMeterSensor::setup() {
 }
 
 void PulseMeterSensor::loop() {
-  // Swap out set and get to make sure the ISR always keeps a consistent state
-  // last_update from get was the last_update from set the last time loop was run
-  uint32_t last_update = this->get_->last_detected_edge_us_;
+  // Reset the count in get before we pass it back to the ISR as set
   this->get_->count_ = 0;
 
-  // Swap pointers
+  // Swap out set and get to get the latest state from the ISR
+  // The ISR could interrupt on any of these lines and the results would be consistent
   auto *temp = this->set_;
   this->set_ = this->get_;
   this->get_ = temp;
 
-  // Keep a running total of pulses if a total sensor is configured
-  if (this->total_sensor_ != nullptr) {
-    if (this->get_->count_ > 0) {
+  // Check if we detected a pulse this loop
+  if (this->get_->count_ > 0) {
+    // Keep a running total of pulses if a total sensor is configured
+    if (this->total_sensor_ != nullptr) {
       this->total_pulses_ += this->get_->count_;
       const uint32_t total = this->total_pulses_;
       this->total_sensor_->publish_state(total);
     }
-  }
 
-  // If nothing was detected on the most recent loop, move the old timestamp along
-  this->get_->last_detected_edge_us_ = this->get_->count_ == 0 ? last_update : this->get_->last_detected_edge_us_;
-
-  // We need to detect at least two edges to have a valid pulse width
-  if (!this->initialized_) {
-    if (this->get_->count_ > 0) {
+    // We need to detect at least two edges to have a valid pulse width
+    if (!this->initialized_) {
       this->initialized_ = true;
+    } else {
+      uint32_t delta_us = this->get_->last_processed_edge_us_ - this->last_processed_edge_us_;
+      float pulse_width_us = delta_us / float(this->get_->count_);
+      this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
     }
-    return;
-  }
 
-  // If the last_update values are the same there have not been any pulses since the last loop
-  if (last_update == this->get_->last_detected_edge_us_) {
+    this->last_processed_edge_us_ = this->get_->last_detected_edge_us_;
+  }
+  // No detected edges this loop
+  else {
     const uint32_t now = micros();
-    const uint32_t time_since_valid_edge_us = now - last_update;
+    const uint32_t time_since_valid_edge_us = now - this->last_processed_edge_us_;
 
     if (time_since_valid_edge_us > this->timeout_us_) {
       ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
       this->initialized_ = false;
       this->publish_state(0.0f);
     }
-  } else {
-    uint32_t delta_us = this->get_->last_detected_edge_us_ - last_update;
-    float pulse_width_us = delta_us / float(this->get_->count_);
-    this->publish_state((60.0f * 1000000.0f) / pulse_width_us);
   }
 }
 
@@ -125,8 +120,7 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   }
   // Falling edge
   else if (sensor->last_pin_val_ && !pin_val) {
-    // The last edge candidate must be after the last rising edge otherwise we already processed that pulse
-    // Then we check that the length of this pulse is greater than the filter time
+    // Check that the length of this pulse is greater than the filter time
     if (now - sensor->last_edge_candidate_us_ > sensor->filter_us_) {
       sensor->set_->last_detected_edge_us_ = sensor->last_edge_candidate_us_;
       sensor->set_->count_++;
