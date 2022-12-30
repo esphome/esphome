@@ -20,7 +20,7 @@ struct RemoteReceiverComponentStore {
   uint32_t buffer_read_at{0};
   bool overflow{false};
   uint32_t buffer_size{1000};
-  uint8_t filter_us{10};
+  uint32_t filter_us{10};
   ISRInternalGPIOPin pin;
 };
 #endif
@@ -45,7 +45,7 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_buffer_size(uint32_t buffer_size) { this->buffer_size_ = buffer_size; }
-  void set_filter_us(uint8_t filter_us) { this->filter_us_ = filter_us; }
+  void set_filter_us(uint32_t filter_us) { this->filter_us_ = filter_us; }
   void set_idle_us(uint32_t idle_us) { this->idle_us_ = idle_us; }
 
  protected:
@@ -61,7 +61,7 @@ class RemoteReceiverComponent : public remote_base::RemoteReceiverBase,
 #endif
 
   uint32_t buffer_size_{};
-  uint8_t filter_us_{10};
+  uint32_t filter_us_{10};
   uint32_t idle_us_{10000};
 };
 
