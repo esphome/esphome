@@ -587,6 +587,13 @@ sensor:
     aqi:
       name: AQI
       calculation_type: AQI
+  - platform: ens160
+    eco2:
+      name: "ENS160 eCO2"
+    tvoc:
+      name: "ENS160 Total Volatile Organic Compounds"
+    aqi:
+      name: "ENS160 Air Quality Index"
   - platform: pmsx003
     uart_id: uart9
     type: PMSX003
