@@ -115,7 +115,6 @@ void ENS160Component::setup() {
   delay(ENS160_BOOTING);
 }
 
-
 optional<uint8_t> ENS160Component::read_status_() { return this->read_byte(ENS160_REG_DATA_STATUS); }
 
 bool ENS160Component::status_has_error_() {
@@ -210,7 +209,6 @@ void ENS160Component::dump_config() {
     }
   }
 }
-
 
 }  // namespace ens160
 }  // namespace esphome
