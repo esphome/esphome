@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import number
+from esphome.components import output
 from esphome.const import (
     CONF_ID,
     CONF_CS_PIN,
@@ -14,12 +14,12 @@ CODEOWNERS = ["@EtienneMD"]
 
 x9c_ns = cg.esphome_ns.namespace("x9c")
 
-X9cNumber = x9c_ns.class_("X9cNumber", number.Number, cg.Component)
+X9cOutput = x9c_ns.class_("X9cOutput", output.FloatOutput, cg.Component)
 
 CONFIG_SCHEMA = cv.All(
-    number.NUMBER_SCHEMA.extend(
+    output.FLOAT_OUTPUT_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.declare_id(X9cNumber),
+            cv.GenerateID(): cv.declare_id(X9cOutput),
             cv.Required(CONF_CS_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_INC_PIN): pins.internal_gpio_output_pin_schema,
             cv.Required(CONF_UD_PIN): pins.internal_gpio_output_pin_schema,
@@ -32,13 +32,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await number.register_number(
-        var,
-        config,
-        min_value=1,
-        max_value=100,
-        step=1,
-    )
+    await output.register_output(var, config)
 
     cs_pin = await cg.gpio_pin_expression(config[CONF_CS_PIN])
     cg.add(var.set_cs_pin(cs_pin))

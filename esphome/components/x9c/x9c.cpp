@@ -4,9 +4,9 @@
 namespace esphome {
 namespace x9c {
 
-static const char *const TAG = "x9c.number";
+static const char *const TAG = "x9c.output";
 
-void X9cNumber::trim_value(int change_amount) {
+void X9cOutput::trim_value(int change_amount) {
   if (change_amount > 0) {  // Set change direction
     this->ud_pin_->digital_write(true);
   } else {
@@ -29,7 +29,7 @@ void X9cNumber::trim_value(int change_amount) {
   this->cs_pin_->digital_write(true);  // Deselect chip safely (no save)
 }
 
-void X9cNumber::setup() {
+void X9cOutput::setup() {
   ESP_LOGCONFIG(TAG, "Setting up X9C Potentiometer with initial value of %i", this->initial_value_);
 
   this->inc_pin_->get_pin();
@@ -50,20 +50,22 @@ void X9cNumber::setup() {
     this->trim_value(101);  // Set max value (beyond 100)
     this->trim_value(this->initial_value_ - 100);
   }
-  this->publish_state((float) this->initial_value_);
+  this->pot_value_ = (float) this->initial_value_ / 100;
+  this->write_state((float) this->initial_value_ / 100);
 }
 
-void X9cNumber::control(float value) {
-  this->trim_value((int) (value - this->state));
-  this->publish_state(value);
+void X9cOutput::write_state(float state) {
+  this->trim_value((int) ((state - this->pot_value_) * 100));
+  this->pot_value_ = state;
 }
 
-void X9cNumber::dump_config() {
-  LOG_NUMBER("", "X9c Potentiometer Number", this);
+void X9cOutput::dump_config() {
+  ESP_LOGCONFIG(TAG, "X9C Potentiometer Output:");
   LOG_PIN("  Chip Select Pin: ", this->cs_pin_);
   LOG_PIN("  Increment Pin: ", this->inc_pin_);
   LOG_PIN("  Up/Down Pin: ", this->ud_pin_);
   ESP_LOGCONFIG(TAG, "  Initial Value: %i", this->initial_value_);
+  LOG_FLOAT_OUTPUT(this);
 }
 
 }  // namespace x9c
