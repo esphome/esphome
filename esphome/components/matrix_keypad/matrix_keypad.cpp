@@ -4,7 +4,7 @@
 namespace esphome {
 namespace matrix_keypad {
 
-static const char *TAG = "matrix_keypad";
+static const char *const TAG = "matrix_keypad";
 
 void MatrixKeypad::setup() {
   for (auto *pin : this->rows_) {
@@ -19,9 +19,9 @@ void MatrixKeypad::setup() {
 }
 
 void MatrixKeypad::loop() {
-  static unsigned long active_start = 0;
+  static uint32_t active_start = 0;
   static int active_key = -1;
-  unsigned long now = millis();
+  uint32_t now = millis();
   int key = -1;
   bool error = false;
   int pos = 0, row, col;
@@ -33,9 +33,9 @@ void MatrixKeypad::loop() {
       if (!col->digital_read()) {
         if (key != -1) {
           error = true;
-	} else {
+        } else {
           key = pos;
-	}
+        }
       }
       pos++;
     }
