@@ -60,7 +60,7 @@ static const uint8_t ENS160_DATA_STATUS_NEWGPR = 0x01;
 #define IS_NEWDAT(x) (ENS160_DATA_STATUS_NEWDAT == (ENS160_DATA_STATUS_NEWDAT & (x)))
 #define IS_NEWGPR(x) (ENS160_DATA_STATUS_NEWGPR == (ENS160_DATA_STATUS_NEWGPR & (x)))
 #define IS_NEW_DATA_AVAILABLE(x) (0 != ((ENS160_DATA_STATUS_NEWDAT | ENS160_DATA_STATUS_NEWGPR) & (x)))
- 
+
 #define CHECK_TRUE(f, error_code) \
   if (!(f)) { \
     this->mark_failed(); \
@@ -97,7 +97,7 @@ void ENS160Component::setup() {
 
   // read firmware version
   CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_GET_APPVER));
-  auto version_data = this->read_bytes<3>(ENS160_REG_GPR_READ_4);	
+  auto version_data = this->read_bytes<3>(ENS160_REG_GPR_READ_4);
   if (version_data.has_value()) {
     uint8_t fw_ver_major = (*version_data)[0];
     uint8_t fw_ver_minor = (*version_data)[1];
@@ -174,13 +174,13 @@ void ENS160Component::send_env_data_() {
 
   uint16_t t = (uint16_t)((temperature + 273.15f) * 64.0f);
   uint16_t h = (uint16_t)(humidity * 512.0f);
-  
+
   uint8_t data[4];
   data[0] = t & 0xff;
   data[1] = (t >> 8) & 0xff;
   data[2] = h & 0xff;
   data[3] = (h >> 8) & 0xff;
-  
+
   CHECKED_IO(this->write_bytes(ENS160_REG_TEMP_IN, data, 4));
 }
 
