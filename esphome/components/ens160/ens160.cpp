@@ -56,7 +56,7 @@ static const uint8_t ENS160_DATA_STATUS_STATER = 0x07;
 static const uint8_t ENS160_DATA_STATUS_NEWDAT = 0x02;
 static const uint8_t ENS160_DATA_STATUS_NEWGPR = 0x01;
 
-#define ENS160_CONCAT_BYTES(msb, lsb) (((uint16_t) msb << 8) | (uint16_t) lsb)
+#define ENS160_CONCAT_BYTES(msb, lsb) (((uint16_t) (msb) << 8) | (uint16_t) (lsb))
 #define IS_NEWDAT(x) (ENS160_DATA_STATUS_NEWDAT == (ENS160_DATA_STATUS_NEWDAT & (x)))
 #define IS_NEWGPR(x) (ENS160_DATA_STATUS_NEWGPR == (ENS160_DATA_STATUS_NEWGPR & (x)))
 #define IS_NEW_DATA_AVAILABLE(x) (0 != ((ENS160_DATA_STATUS_NEWDAT | ENS160_DATA_STATUS_NEWGPR) & (x)))
@@ -93,7 +93,7 @@ void ENS160Component::setup() {
   CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_CLRGPR));
 
   // get status
-  ESP_LOGD(TAG, "Setup Done. Status: %x\n", this->read_status_());
+  ESP_LOGD(TAG, "Setup Done. Status: %x\n", this->read_status_().value_or(0));
 
   // read firmware version
   CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_GET_APPVER));
@@ -138,22 +138,22 @@ void ENS160Component::update() {
     return;
   }
 
-  uint8_t _buf_eco2[2];
-  uint8_t _buf_tvoc[2];
-  uint8_t _data_aqi = 0;
-  this->read_register(ENS160_REG_DATA_ECO2, _buf_eco2, sizeof(_buf_eco2));
-  this->read_register(ENS160_REG_DATA_TVOC, _buf_tvoc, sizeof(_buf_tvoc));
-  this->read_register(ENS160_REG_DATA_AQI, &_data_aqi, sizeof(_data_aqi));
+  uint8_t buf_eco2[2];
+  uint8_t buf_tvoc[2];
+  uint8_t data_aqi = 0;
+  this->read_register(ENS160_REG_DATA_ECO2, buf_eco2, sizeof(buf_eco2));
+  this->read_register(ENS160_REG_DATA_TVOC, buf_tvoc, sizeof(buf_tvoc));
+  this->read_register(ENS160_REG_DATA_AQI, &data_aqi, sizeof(data_aqi));
 
-  uint16_t _data_eco2 = ENS160_CONCAT_BYTES(_buf_eco2[1], _buf_eco2[0]);
-  uint16_t _data_tvoc = ENS160_CONCAT_BYTES(_buf_tvoc[1], _buf_tvoc[0]);
+  uint16_t data_eco2 = ENS160_CONCAT_BYTES(buf_eco2[1], buf_eco2[0]);
+  uint16_t data_tvoc = ENS160_CONCAT_BYTES(buf_tvoc[1], buf_tvoc[0]);
 
   if (this->co2_ != nullptr)
-    this->co2_->publish_state(_data_eco2);
+    this->co2_->publish_state(data_eco2);
   if (this->tvoc_ != nullptr)
-    this->tvoc_->publish_state(_data_tvoc);
+    this->tvoc_->publish_state(data_tvoc);
   if (this->aqi_ != nullptr)
-    this->aqi_->publish_state(_data_aqi);
+    this->aqi_->publish_state(data_aqi);
 
   this->status_clear_warning();
   this->send_env_data_();
