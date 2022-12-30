@@ -1,12 +1,12 @@
-#include "keypad.h"
+#include "matrix_keypad.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace keypad {
+namespace matrix_keypad {
 
-static const char *TAG = "keypad";
+static const char *TAG = "matrix_keypad";
 
-void Keypad::setup() {
+void MatrixKeypad::setup() {
   for (auto *pin : this->rows_)
     if (!has_diodes_)
       pin->pin_mode(gpio::FLAG_INPUT);
@@ -16,7 +16,7 @@ void Keypad::setup() {
     pin->pin_mode(gpio::FLAG_INPUT | gpio::FLAG_PULLUP);
 }
 
-void Keypad::loop() {
+void MatrixKeypad::loop() {
   static unsigned long active_start = 0;
   static int active_key = -1;
   unsigned long now = millis();
@@ -83,8 +83,8 @@ void Keypad::loop() {
   this->pressed_key_ = key;
 }
 
-void Keypad::dump_config() {
-  ESP_LOGCONFIG(TAG, "Keypad:");
+void MatrixKeypad::dump_config() {
+  ESP_LOGCONFIG(TAG, "Matrix Keypad:");
   ESP_LOGCONFIG(TAG, " Rows:");
   for (auto &pin : this->rows_)
     LOG_PIN("  Pin: ", pin);
@@ -93,10 +93,10 @@ void Keypad::dump_config() {
     LOG_PIN("  Pin: ", pin);
 }
 
-void Keypad::register_listener(KeypadListener *listener) {
+void MatrixKeypad::register_listener(MatrixKeypadListener *listener) {
   this->listeners_.push_back(listener);
 }
 
-}  // namespace keypad
+}  // namespace matrix_keypad
 }  // namespace esphome
 

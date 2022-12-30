@@ -1,16 +1,16 @@
 #pragma once
 
-#include "esphome/components/matrix_keypad/keypad.h"
+#include "esphome/components/matrix_keypad/matrix_keypad.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 namespace esphome {
-namespace keypad {
+namespace matrix_keypad {
 
-class KeypadBinarySensor : public KeypadListener, public binary_sensor::BinarySensor {
+class MatrixKeypadBinarySensor : public MatrixKeypadListener, public binary_sensor::BinarySensor {
  public:
-  KeypadBinarySensor(uint8_t key) : has_key_(true), key_(key) {};
-  KeypadBinarySensor(const char *key) : has_key_(true), key_((uint8_t)key[0]) {};
-  KeypadBinarySensor(int row, int col) : has_key_(false), row_(row), col_(col) {};
+  MatrixKeypadBinarySensor(uint8_t key) : has_key_(true), key_(key) {};
+  MatrixKeypadBinarySensor(const char *key) : has_key_(true), key_((uint8_t)key[0]) {};
+  MatrixKeypadBinarySensor(int row, int col) : has_key_(false), row_(row), col_(col) {};
 
   void key_pressed(uint8_t key) override {
     if (!this->has_key_)
@@ -47,5 +47,5 @@ class KeypadBinarySensor : public KeypadListener, public binary_sensor::BinarySe
   int col_;
 };
 
-}  // namespace keypad
+}  // namespace matrix_keypad
 }  // namespace esphome

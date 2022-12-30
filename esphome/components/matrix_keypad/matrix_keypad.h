@@ -7,9 +7,9 @@
 #include <stdlib.h>
 
 namespace esphome {
-namespace keypad {
+namespace matrix_keypad {
 
-class KeypadListener {
+class MatrixKeypadListener {
  public:
   virtual void button_pressed(int row, int col) {};
   virtual void button_released(int row, int col) {};
@@ -17,7 +17,7 @@ class KeypadListener {
   virtual void key_released(uint8_t key) {};
 };
 
-class Keypad : public key_provider::KeyProvider, public Component {
+class MatrixKeypad : public key_provider::KeyProvider, public Component {
  public:
   void setup() override;
   void loop() override;
@@ -28,7 +28,7 @@ class Keypad : public key_provider::KeyProvider, public Component {
   void set_debounce_time(int debounce_time) { debounce_time_ = debounce_time; };
   void set_has_diodes(int has_diodes) { has_diodes_ = has_diodes; };
 
-  void register_listener(KeypadListener *listener);
+  void register_listener(MatrixKeypadListener *listener);
 
  protected:
   std::vector<GPIOPin *> rows_;
@@ -38,10 +38,10 @@ class Keypad : public key_provider::KeyProvider, public Component {
   bool has_diodes_{false};
   int pressed_key_ = -1;
 
-  std::vector<KeypadListener *> listeners_{};
+  std::vector<MatrixKeypadListener *> listeners_{};
 };
 
-}  // namespace keypad
+}  // namespace matrix_keypad
 }  // namespace esphome
 
 

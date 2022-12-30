@@ -10,8 +10,10 @@ AUTO_LOAD = ["key_provider"]
 
 MULTI_CONF = True
 
-keypad_ns = cg.esphome_ns.namespace("keypad")
-Keypad = keypad_ns.class_("Keypad", key_provider.KeyProvider, cg.Component)
+matrix_keypad_ns = cg.esphome_ns.namespace("matrix_keypad")
+MatrixKeypad = matrix_keypad_ns.class_(
+    "MatrixKeypad", key_provider.KeyProvider, cg.Component
+)
 
 CONF_KEYPAD_ID = "keypad_id"
 CONF_ROWS = "rows"
@@ -31,7 +33,7 @@ def check_keys(obj):
 CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
-            cv.GenerateID(): cv.declare_id(Keypad),
+            cv.GenerateID(): cv.declare_id(MatrixKeypad),
             cv.Required(CONF_ROWS): cv.All(
                 cv.ensure_list({cv.Required(CONF_PIN): pins.gpio_output_pin_schema}),
                 cv.Length(min=1),
