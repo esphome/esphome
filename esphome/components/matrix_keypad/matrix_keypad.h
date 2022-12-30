@@ -11,10 +11,10 @@ namespace matrix_keypad {
 
 class MatrixKeypadListener {
  public:
-  virtual void button_pressed(int row, int col) {};
-  virtual void button_released(int row, int col) {};
-  virtual void key_pressed(uint8_t key) {};
-  virtual void key_released(uint8_t key) {};
+  virtual void button_pressed(int row, int col){};
+  virtual void button_released(int row, int col){};
+  virtual void key_pressed(uint8_t key){};
+  virtual void key_released(uint8_t key){};
 };
 
 class MatrixKeypad : public key_provider::KeyProvider, public Component {
@@ -43,5 +43,3 @@ class MatrixKeypad : public key_provider::KeyProvider, public Component {
 
 }  // namespace matrix_keypad
 }  // namespace esphome
-
-

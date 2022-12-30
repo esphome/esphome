@@ -93,10 +93,7 @@ void MatrixKeypad::dump_config() {
     LOG_PIN("  Pin: ", pin);
 }
 
-void MatrixKeypad::register_listener(MatrixKeypadListener *listener) {
-  this->listeners_.push_back(listener);
-}
+void MatrixKeypad::register_listener(MatrixKeypadListener *listener) { this->listeners_.push_back(listener); }
 
 }  // namespace matrix_keypad
 }  // namespace esphome
-
