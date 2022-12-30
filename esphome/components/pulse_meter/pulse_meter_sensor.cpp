@@ -20,8 +20,8 @@ void PulseMeterSensor::setup() {
   this->isr_pin_ = pin_->to_isr();
 
   last_edge_candidate_us_ = 0;
-  in_pulse_ = false;
-  this->last_pin_val_ = this->pin_->digital_read();
+  // We must start with a low value to detect the first rising edge
+  this->last_pin_val_ = false;
 
   this->initialized_ = false;
 
@@ -125,6 +125,16 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
       sensor->set_->last_detected_edge_us_ = sensor->last_edge_candidate_us_;
       sensor->set_->count_++;
     }
+  }
+  // We were in a pulse and the pin is still high, a dropout must have happened faster than we could measure
+  // If we hadn't yet reached our filter time, reset the candidate to now
+  // However if we already reached our filter time ignore it as noise
+  else if (sensor->last_pin_val_ && pin_val) {
+    if (now - sensor->last_edge_candidate_us_ < sensor->filter_us_) {
+      sensor->last_edge_candidate_us_ = now;
+    }
+  } else {
+    // We were not in a pulse and the pin is still low, a pulse must have occurred faster than we could measure
   }
   sensor->last_pin_val_ = pin_val;
 }
