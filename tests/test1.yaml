@@ -1612,6 +1612,12 @@ output:
     vref: internal
     gain: X2
     power_down: gnd_500k
+  - platform: x9c
+    id: test_x9c
+    cs_pin: GPIO25
+    inc_pin: GPIO26
+    ud_pin: GPIO27
+    initial_value: 100
 
 e131:
 
@@ -2935,12 +2941,6 @@ number:
     step: 1
     max_value: 10
     optimistic: true
-  - platform: x9c
-    id: test_x9c
-    cs_pin: GPIO25
-    inc_pin: GPIO26
-    ud_pin: GPIO27
-    initial_value: 100
 
 select:
   - platform: template
