@@ -4,7 +4,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
-#include <stdlib.h>
+#include <cstdlib>
+#include <utility>
 
 namespace esphome {
 namespace matrix_keypad {
@@ -22,9 +23,9 @@ class MatrixKeypad : public key_provider::KeyProvider, public Component {
   void setup() override;
   void loop() override;
   void dump_config() override;
-  void set_columns(std::vector<GPIOPin *> pins) { columns_ = pins; };
-  void set_rows(std::vector<GPIOPin *> pins) { rows_ = pins; };
-  void set_keys(std::string keys) { keys_ = keys; };
+  void set_columns(std::vector<GPIOPin *> pins) { columns_ = std::move(pins); };
+  void set_rows(std::vector<GPIOPin *> pins) { rows_ = std::move(pins); };
+  void set_keys(std::string keys) { keys_ = std::move(keys); };
   void set_debounce_time(int debounce_time) { debounce_time_ = debounce_time; };
   void set_has_diodes(int has_diodes) { has_diodes_ = has_diodes; };
 

@@ -18,9 +18,9 @@ def check_button(obj):
     if CONF_ROW in obj or CONF_COL in obj:
         if CONF_KEY in obj:
             raise cv.Invalid("You can't provide both a key and a position")
-        elif CONF_ROW not in obj:
+        if CONF_ROW not in obj:
             raise cv.Invalid("Missing row")
-        elif CONF_COL not in obj:
+        if CONF_COL not in obj:
             raise cv.Invalid("Missing col")
     elif CONF_KEY not in obj:
         raise cv.Invalid("Missing key or position")

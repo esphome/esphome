@@ -54,16 +54,16 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    pins = []
+    row_pins = []
     for conf in config[CONF_ROWS]:
         pin = await cg.gpio_pin_expression(conf[CONF_PIN])
-        pins.append(pin)
-    cg.add(var.set_rows(pins))
-    pins = []
+        row_pins.append(pin)
+    cg.add(var.set_rows(row_pins))
+    col_pins = []
     for conf in config[CONF_COLUMNS]:
         pin = await cg.gpio_pin_expression(conf[CONF_PIN])
-        pins.append(pin)
-    cg.add(var.set_columns(pins))
+        col_pins.append(pin)
+    cg.add(var.set_columns(col_pins))
     if CONF_KEYS in config:
         cg.add(var.set_keys(config[CONF_KEYS]))
     cg.add(var.set_debounce_time(config[CONF_DEBOUNCE_TIME]))
