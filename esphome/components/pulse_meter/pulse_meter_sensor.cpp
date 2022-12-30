@@ -75,7 +75,7 @@ void PulseMeterSensor::loop() {
     const uint32_t now = micros();
     const uint32_t time_since_valid_edge_us = now - this->last_processed_edge_us_;
 
-    if (time_since_valid_edge_us > this->timeout_us_) {
+    if (this->initialized_ && time_since_valid_edge_us > this->timeout_us_) {
       ESP_LOGD(TAG, "No pulse detected for %us, assuming 0 pulses/min", time_since_valid_edge_us / 1000000);
       this->initialized_ = false;
       this->publish_state(0.0f);
