@@ -55,6 +55,7 @@ class DashboardSettings:
         self.using_password = False
         self.on_ha_addon = False
         self.cookie_secret = None
+        self.absolute_config_dir = None
 
     def parse_args(self, args):
         self.on_ha_addon = args.ha_addon
@@ -65,6 +66,7 @@ class DashboardSettings:
         if self.using_password:
             self.password_hash = password_hash(password)
         self.config_dir = args.configuration
+        self.absolute_config_dir = Path(self.config_dir).resolve()
 
     @property
     def relative_url(self):
@@ -94,7 +96,10 @@ class DashboardSettings:
         return hmac.compare_digest(self.password_hash, password_hash(password))
 
     def rel_path(self, *args):
-        return os.path.join(self.config_dir, *args)
+        joined_path = os.path.join(self.config_dir, *args)
+        # Raises ValueError if not relative to ESPHome config folder
+        Path(joined_path).resolve().relative_to(self.absolute_config_dir)
+        return joined_path
 
     def list_yaml_files(self):
         return util.list_yaml_files([self.config_dir])
