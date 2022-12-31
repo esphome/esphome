@@ -178,9 +178,14 @@ class WaveshareEPaper2P7InB : public WaveshareEPaperBWR {
   void dump_config() override;
 
   void deep_sleep() override {
+    // COMMAND VCOM_AND_DATA_INTERVAL_SETTING
+    this->command(0x50);
+    // COMMAND POWER OFF
+    this->command(0x02);
+    this->wait_until_idle_();
     // COMMAND DEEP SLEEP
-    this->command(0x07);
-    this->data(0xA5);  // check byte
+    this->command(0x07);  // deep sleep
+    this->data(0xA5);     // check byte
   }
 
  protected:
