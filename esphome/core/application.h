@@ -2,11 +2,11 @@
 
 #include <string>
 #include <vector>
-#include "esphome/core/defines.h"
-#include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 #include "esphome/core/scheduler.h"
 
 #ifdef USE_BINARY_SENSOR
@@ -53,8 +53,8 @@ namespace esphome {
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, const char *compilation_time,
-                 bool name_add_mac_suffix) {
+  void pre_setup(const std::string &name, const std::string &friendly_name, const std::string &comment,
+                 const char *compilation_time, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
@@ -68,6 +68,7 @@ class Application {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
     }
+    this->comment_ = comment;
     this->compilation_time_ = compilation_time;
   }
 
@@ -138,11 +139,13 @@ class Application {
   /// Make a loop iteration. Call this in your loop() function.
   void loop();
 
-  /// Get the name of this Application set by set_name().
+  /// Get the name of this Application set by pre_setup().
   const std::string &get_name() const { return this->name_; }
 
-  /// Get the friendly name of this Application set by set_friendly_name().
+  /// Get the friendly name of this Application set by pre_setup().
   const std::string &get_friendly_name() const { return this->friendly_name_; }
+  /// Get the comment of this Application set by pre_setup().
+  const std::string &get_comment() const { return this->comment_; }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
@@ -349,6 +352,7 @@ class Application {
 
   std::string name_;
   std::string friendly_name_;
+  std::string comment_;
   std::string compilation_time_;
   bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
