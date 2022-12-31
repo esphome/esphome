@@ -55,6 +55,31 @@ void LCDDisplay::setup() {
     this->write_n_bits(0x03, 4);
     delay(5);
     this->write_n_bits(0x03, 4);
+
+    // Change 150 microsecond delay to 175 microseconds to fix
+    // a low recurrence of a display initialization error on a
+    // 1602 Buy Display part number ERM1602SYG-6
+    // 3.3V display operating in 4 bit parallel mode
+
+    // After about 1 in 20 power ups or resets the display
+    // will not initialize properly using 150 microseconds.
+    // (I am aware of the boot loop counter forcing entry
+    // into safe mode after 10 short reset attempts, so I did not count that)
+    // I tested a range of values from 125 microseconds
+    // to 300 microseconds and determined that
+    // 125 microseconds caused the display to not
+    // initialize with a 100% failure rate.
+    // 155 microseconds worked 100% of the time,
+    // and I settled on 175 microseconds.
+
+    // Now the strange thing is; is that there
+    // is no timing requirement mentioned in the datasheet
+    // for that particular phase of the initialization for my LCD part,
+    // yet there is a 150 microsecond delay in the original lcd_base.cpp file.
+    // So I either missed something in the datasheet,
+    // or there is an undocumented requirement for
+    // a delay at that point during initialization.
+
     delayMicroseconds(175);
     this->write_n_bits(0x02, 4);
   } else {
