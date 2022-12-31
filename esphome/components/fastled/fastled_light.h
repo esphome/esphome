@@ -13,9 +13,6 @@
 
 // Avoid annoying compiler messages
 #define FASTLED_INTERNAL
-// THIS SHOULD WORK
-#include "cpp_compat.h"
-
 
 #include "FastLED.h"
 
