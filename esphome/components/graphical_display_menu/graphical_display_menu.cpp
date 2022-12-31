@@ -76,15 +76,11 @@ void GraphicalDisplayMenu::draw_menu() {
 }
 
 void GraphicalDisplayMenu::draw_menu_internal_() {
-  ESP_LOGD(TAG, "draw_menu_internal_ called");
-
   const int available_height = this->display_buffer_->get_height();
   int total_height = 0;
   int y_padding = 2;
   bool scroll_menu_items = false;
   std::vector<Dimension> menu_dimensions;
-
-  auto startmicros = esphome::micros();
 
   for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
     auto *item = this->displayed_item_->get_item(i);
@@ -99,10 +95,6 @@ void GraphicalDisplayMenu::draw_menu_internal_() {
       scroll_menu_items = true;
     }
   }
-
-  auto measuremicros = esphome::micros();
-
-  ESP_LOGD(TAG, "Took %i microseconds to measure items", measuremicros - startmicros);
 
   int y_offset = 0;
   int first_item_index = 0;
@@ -127,11 +119,6 @@ void GraphicalDisplayMenu::draw_menu_internal_() {
     }
   }
 
-  auto scrollmicros = esphome::micros();
-
-  ESP_LOGD(TAG, "Took %i microseconds to calculate scroll requirements (%s)", scrollmicros - measuremicros,
-           YESNO(scroll_menu_items));
-
   // Render the items into the view port
   for (size_t i = first_item_index; i < last_item_index; i++) {
     auto *item = this->displayed_item_->get_item(i);
@@ -145,11 +132,6 @@ void GraphicalDisplayMenu::draw_menu_internal_() {
 
     y_offset = position.y + dimensions.height + y_padding;
   }
-
-  auto drawmicros = esphome::micros();
-
-  ESP_LOGD(TAG, "Took %i microseconds to draw. And %i microseconds in total", drawmicros - scrollmicros,
-           drawmicros - startmicros);
 }
 
 Dimension GraphicalDisplayMenu::measure_item(const display_menu_base::MenuItem *item, bool selected) {
