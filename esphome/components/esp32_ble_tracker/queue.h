@@ -4,9 +4,10 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
-#include <queue>
-#include <mutex>
 #include <cstring>
+#include <mutex>
+#include <queue>
+#include <vector>
 
 #include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>

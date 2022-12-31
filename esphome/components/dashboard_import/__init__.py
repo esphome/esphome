@@ -1,11 +1,13 @@
 from pathlib import Path
+import requests
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components.packages import validate_source_shorthand
-from esphome.const import CONF_WIFI
+from esphome.const import CONF_WIFI, CONF_REF
 from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
+from esphome import git
 
 
 dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")
@@ -19,16 +21,32 @@ CODEOWNERS = ["@esphome/core"]
 def validate_import_url(value):
     value = cv.string_strict(value)
     value = cv.Length(max=255)(value)
-    # ignore result, only check if it's a valid shorthand
     validate_source_shorthand(value)
     return value
 
 
+def validate_full_url(config):
+    if not config[CONF_IMPORT_FULL_CONFIG]:
+        return config
+    source = validate_source_shorthand(config[CONF_PACKAGE_IMPORT_URL])
+    if CONF_REF not in source:
+        raise cv.Invalid(
+            "Must specify a ref (branch or tag) to import from when importing full config"
+        )
+    return config
+
+
 CONF_PACKAGE_IMPORT_URL = "package_import_url"
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_PACKAGE_IMPORT_URL): validate_import_url,
-    }
+CONF_IMPORT_FULL_CONFIG = "import_full_config"
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_PACKAGE_IMPORT_URL): validate_import_url,
+            cv.Optional(CONF_IMPORT_FULL_CONFIG, default=False): cv.boolean,
+        }
+    ),
+    validate_full_url,
 )
 
 WIFI_CONFIG = """
@@ -41,7 +59,10 @@ wifi:
 
 async def to_code(config):
     cg.add_define("USE_DASHBOARD_IMPORT")
-    cg.add(dashboard_import_ns.set_package_import_url(config[CONF_PACKAGE_IMPORT_URL]))
+    url = config[CONF_PACKAGE_IMPORT_URL]
+    if config[CONF_IMPORT_FULL_CONFIG]:
+        url += "?full_config"
+    cg.add(dashboard_import_ns.set_package_import_url(url))
 
 
 def import_config(
@@ -64,17 +85,30 @@ def import_config(
             encoding="utf8",
         )
     else:
-        config = {
-            "substitutions": {"name": name},
-            "packages": {project_name: import_url},
-            "esphome": {
-                "name": "${name}",
-                "name_add_mac_suffix": False,
-            },
-        }
-        output = dump(config)
+        git_file = git.GitFile.from_shorthand(import_url)
 
-        if network == CONF_WIFI:
-            output += WIFI_CONFIG
+        if git_file.query and "full_config" in git_file.query:
+            url = git_file.raw_url
+            try:
+                req = requests.get(url, timeout=30)
+                req.raise_for_status()
+            except requests.exceptions.RequestException as e:
+                raise ValueError(f"Error while fetching {url}: {e}") from e
 
-        p.write_text(output, encoding="utf8")
+            p.write_text(req.text, encoding="utf8")
+
+        else:
+            config = {
+                "substitutions": {"name": name},
+                "packages": {project_name: import_url},
+                "esphome": {
+                    "name": "${name}",
+                    "name_add_mac_suffix": False,
+                },
+            }
+            output = dump(config)
+
+            if network == CONF_WIFI:
+                output += WIFI_CONFIG
+
+            p.write_text(output, encoding="utf8")

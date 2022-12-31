@@ -9,6 +9,7 @@
 
 #include <array>
 #include <string>
+#include <vector>
 
 #include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>
@@ -33,6 +34,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void connect() override;
   void disconnect();
+  void release_services();
 
   bool connected() { return this->state_ == espbt::ClientState::ESTABLISHED; }
 
@@ -42,7 +44,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
       memset(this->remote_bda_, 0, sizeof(this->remote_bda_));
       this->address_str_ = "";
     } else {
-      this->address_str_ = str_snprintf("%02x:%02x:%02x:%02x:%02x:%02x", 17, (uint8_t)(this->address_ >> 40) & 0xff,
+      this->address_str_ = str_snprintf("%02X:%02X:%02X:%02X:%02X:%02X", 17, (uint8_t)(this->address_ >> 40) & 0xff,
                                         (uint8_t)(this->address_ >> 32) & 0xff, (uint8_t)(this->address_ >> 24) & 0xff,
                                         (uint8_t)(this->address_ >> 16) & 0xff, (uint8_t)(this->address_ >> 8) & 0xff,
                                         (uint8_t)(this->address_ >> 0) & 0xff);
@@ -66,10 +68,13 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   int get_gattc_if() const { return this->gattc_if_; }
   uint8_t *get_remote_bda() { return this->remote_bda_; }
   esp_ble_addr_type_t get_remote_addr_type() const { return this->remote_addr_type_; }
+  void set_remote_addr_type(esp_ble_addr_type_t address_type) { this->remote_addr_type_ = address_type; }
   uint16_t get_conn_id() const { return this->conn_id_; }
   uint64_t get_address() const { return this->address_; }
 
   uint8_t get_connection_index() const { return this->connection_index_; }
+
+  virtual void set_connection_type(espbt::ConnectionType ct) { this->connection_type_ = ct; }
 
  protected:
   int gattc_if_;
@@ -79,7 +84,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint64_t address_{0};
   std::string address_str_{};
   uint8_t connection_index_;
+  int16_t service_count_{0};
   uint16_t mtu_{23};
+  espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
 
   std::vector<BLEService *> services_;
 };
