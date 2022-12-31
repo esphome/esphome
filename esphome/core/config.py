@@ -350,7 +350,7 @@ async def to_code(config):
         cg.App.pre_setup(
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
-            config[CONF_COMMENT],
+            config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
