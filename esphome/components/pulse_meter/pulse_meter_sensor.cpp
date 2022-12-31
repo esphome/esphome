@@ -19,20 +19,6 @@ void PulseMeterSensor::setup() {
   this->pin_->setup();
   this->isr_pin_ = pin_->to_isr();
 
-  last_edge_candidate_us_ = 0;
-  // We must start with a low value to detect the first rising edge
-  this->last_pin_val_ = false;
-
-  this->initialized_ = false;
-
-  this->get_->count_ = 0;
-  this->get_->last_detected_edge_us_ = 0;
-  this->set_->count_ = 0;
-  this->set_->last_detected_edge_us_ = 0;
-
-  this->get_ = this->state_;
-  this->set_ = this->state_ + 1;
-
   if (this->filter_mode_ == FILTER_EDGE) {
     this->pin_->attach_interrupt(PulseMeterSensor::edge_intr, this, gpio::INTERRUPT_RISING_EDGE);
   } else if (this->filter_mode_ == FILTER_PULSE) {
