@@ -191,8 +191,6 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, ui
 }
 
 void GraphicalDisplayMenu::update() {
-  ESP_LOGW(TAG, "update() called");
-
   if (this->display_updater_ != nullptr) {
     this->display_updater_->update();
   }
