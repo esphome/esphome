@@ -3,7 +3,7 @@
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
   - repo: https://github.com/ambv/black
-    rev: 22.10.0
+    rev: 22.12.0
     hooks:
       - id: black
         args:
