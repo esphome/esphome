@@ -122,8 +122,8 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
   }
 
   // Adjust limits to nice y_per_div boundaries
-  int yn = int(ymin / y_per_div);
-  int ym = int(ymax / y_per_div) + int(1 * (fmodf(ymax, y_per_div) != 0));
+  int yn = floorf(ymin / y_per_div);
+  int ym = ceilf(ymax / y_per_div);
   ymin = yn * y_per_div;
   ymax = ym * y_per_div;
   yrange = ymax - ymin;
