@@ -30,7 +30,11 @@ class PIDAutotuner {
   bool is_finished() const { return state_ != AUTOTUNE_RUNNING; }
 
   void dump_config();
-  void set_name(std::string name) { this->name_ = std::move(name); }
+
+  // replace the CONST CHAR*TAG with a dynamic one that includes the ID of this Climate device
+  // see also id_ below.
+  void set_autotuner_id(std::string id) { this->id_ = "pid.autotune." + id; }
+  const char *get_id() { return this->id_.c_str(); }
 
   void set_noiseband(float noiseband) {
     relay_function_.noiseband = noiseband;
@@ -107,7 +111,8 @@ class PIDAutotuner {
   } state_ = AUTOTUNE_RUNNING;
   float ku_;
   float pu_;
-  std::string name_;
+  std::string id_;
+
 };
 
 }  // namespace pid
