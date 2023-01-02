@@ -196,7 +196,7 @@ bool MS8607Component::read_calibration_values_from_prom_() {
 
   ESP_LOGD(TAG, "Checking CRC of calibration values from PROM");
   uint8_t const expected_crc = (buffer[0] & 0xF000) >> 12;  // first 4 bits
-  buffer[0] &= 0x0FFF;                                // strip CRC from buffer, in order to run CRC
+  buffer[0] &= 0x0FFF;                                      // strip CRC from buffer, in order to run CRC
   uint8_t const actual_crc = crc4(buffer, MS8607_PROM_COUNT);
 
   if (expected_crc != actual_crc) {
@@ -365,7 +365,8 @@ void MS8607Component::read_humidity_(float temperature_float) {
   // map 16 bit humidity value into range [-6%, 118%]
   float const humidity_partial = double(humidity) / (1 << 16);
   float const humidity_percentage = lerp(humidity_partial, -6.0, 118.0);
-  float const compensated_humidity_percentage = humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
+  float const compensated_humidity_percentage =
+      humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
   ESP_LOGD(TAG, "Compensated for temperature, humidity=%.2f%%", compensated_humidity_percentage);
 
   if (this->humidity_sensor_ != nullptr) {
