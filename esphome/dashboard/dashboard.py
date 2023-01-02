@@ -698,50 +698,45 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
             )
         self.write(json.dumps(sd))
 
-def _get_platform_boards(platform: str):
-    from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
-    from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
-    from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
-
-    boards = {
-        "esp32": ESP32_BOARDS,
-        "esp8266": ESP8266_BOARDS,
-        "rp2040": RP2040_BOARDS,
-    }
-    return {
-        platform: {
-            "title": platform.upper(),
-            "items": {
-                key: val[const.KEY_NAME]
-                for key, val in boards[platform].items()
-            },
-        },
-    }
 
 class BoardsRequestHandler(BaseHandler):
-    @authenticated
-    def get(self):
-        boards = {}
-        boards.update(_get_platform_boards("esp32"))
-        boards.update(_get_platform_boards("esp8266"))
-        boards.update(_get_platform_boards("rp2040"))
-
-        self.set_header("content-type", "application/json")
-        self.write(json.dumps(boards))
-
-
-class BoardsPlatformRequestHandler(BaseHandler):
     @authenticated
     def get(self, platform: str):
         if platform == "libretuya":
             from esphome.components.libretuya.boards import fetch_board_list
 
-            boards = fetch_board_list()
+            output = fetch_board_list()
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps(output))
+            return
+
+        from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
+        from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
+        from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
+
+        platform_to_boards = {
+            "esp32": ESP32_BOARDS,
+            "esp8266": ESP8266_BOARDS,
+            "rp2040": RP2040_BOARDS,
+        }
+        # filter all ESP32 variants by requested platform
+        if platform.startswith("esp32"):
+            boards = {
+                k: v
+                for k, v in platform_to_boards["esp32"].items()
+                if v[const.KEY_VARIANT] == platform.upper()
+            }
         else:
-            boards = _get_platform_boards(platform)
+            boards = platform_to_boards[platform]
+
+        # map to a {board_name: board_title} dict
+        platform_boards = {key: val[const.KEY_NAME] for key, val in boards.items()}
+        # sort by board title
+        boards_items = sorted(platform_boards.items(), key=lambda item: item[1])
+        output = [dict(items=dict(boards_items))]
 
         self.set_header("content-type", "application/json")
-        self.write(json.dumps(boards))
+        self.write(json.dumps(output))
 
 
 class MDNSStatusThread(threading.Thread):
@@ -1114,8 +1109,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}json-config", JsonConfigRequestHandler),
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
-            (f"{rel}boards", BoardsRequestHandler),
-            (f"{rel}boards/(.*)", BoardsPlatformRequestHandler),
+            (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
         ],
         **app_settings,
     )

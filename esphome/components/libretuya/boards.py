@@ -19,4 +19,4 @@ def fetch_board_list() -> dict:
             )
         boards[vendor]["items"][name] = title
 
-    return boards
+    return list(boards.values())
