@@ -61,7 +61,17 @@ climate::ClimateTraits PIDClimate::traits() {
 void PIDClimate::dump_config() {
   LOG_CLIMATE("", "PID Climate", this);
   ESP_LOGCONFIG(TAG, "  Control Parameters:");
-  ESP_LOGCONFIG(TAG, "    kp: %.5f, ki: %.5f, kd: %.5f", controller_.kp, controller_.ki, controller_.kd);
+  ESP_LOGCONFIG(TAG, "    kp: %.5f, ki: %.5f, kd: %.5f, output samples: %d", controller_.kp_, controller_.ki_,
+                controller_.kd_, controller_.output_samples_);
+
+  if (controller_.threshold_low_ == 0 && controller_.threshold_high_ == 0) {
+    ESP_LOGCONFIG(TAG, "  Deadband disabled.");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Deadband Parameters:");
+    ESP_LOGCONFIG(TAG, "    threshold: %0.5f to %0.5f, multipliers(kp: %.5f, ki: %.5f, kd: %.5f), output samples: %d",
+                  controller_.threshold_low_, controller_.threshold_high_, controller_.kp_multiplier_,
+                  controller_.ki_multiplier_, controller_.kd_multiplier_, controller_.deadband_output_samples_);
+  }
 
   if (this->autotuner_ != nullptr) {
     this->autotuner_->dump_config();
@@ -114,9 +124,9 @@ void PIDClimate::update_pid_() {
     if (this->autotuner_ != nullptr && !this->autotuner_->is_finished()) {
       auto res = this->autotuner_->update(this->target_temperature, this->current_temperature);
       if (res.result_params.has_value()) {
-        this->controller_.kp = res.result_params->kp;
-        this->controller_.ki = res.result_params->ki;
-        this->controller_.kd = res.result_params->kd;
+        this->controller_.kp_ = res.result_params->kp;
+        this->controller_.ki_ = res.result_params->ki;
+        this->controller_.kd_ = res.result_params->kd;
         // keep autotuner instance so that subsequent dump_configs will print the long result message.
       } else {
         value = res.output;

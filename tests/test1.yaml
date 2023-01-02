@@ -1363,6 +1363,13 @@ binary_sensor:
       mode: INPUT
       inverted: true
   - platform: gpio
+    name: PCA9554 binary sensor
+    pin:
+      pca9554: pca9554_hub
+      number: 1
+      mode: INPUT
+      inverted: true
+  - platform: gpio
     name: MCP21 binary sensor
     pin:
       mcp23xxx: mcp23017_hub
@@ -1492,6 +1499,28 @@ my9231:
   num_chips: 2
   bit_depth: 16
 
+sm2235:
+  data_pin: GPIO4
+  clock_pin: GPIO5
+  max_power_color_channels: 9
+  max_power_white_channels: 9
+
+sm2335:
+  data_pin: GPIO4
+  clock_pin: GPIO5
+  max_power_color_channels: 9
+  max_power_white_channels: 9
+
+bp1658cj:
+  data_pin: GPIO3
+  clock_pin: GPIO5
+  max_power_color_channels: 4
+  max_power_white_channels: 6
+
+bp5758d:
+  data_pin: GPIO3
+  clock_pin: GPIO5
+
 output:
   - platform: gpio
     pin: GPIO26
@@ -1572,6 +1601,13 @@ output:
       mode: OUTPUT
       inverted: false
   - platform: gpio
+    id: id26
+    pin:
+      pca9554: pca9554_hub
+      number: 0
+      mode: OUTPUT
+      inverted: false
+  - platform: gpio
     id: id22
     pin:
       mcp23xxx: mcp23017_hub
@@ -1610,6 +1646,36 @@ output:
   - platform: my9231
     id: my_5
     channel: 5
+  - platform: sm2235
+    id: sm2235_red
+    channel: 1
+  - platform: sm2235
+    id: sm2235_green
+    channel: 0
+  - platform: sm2235
+    id: sm2235_blue
+    channel: 2
+  - platform: sm2235
+    id: sm2235_coldwhite
+    channel: 4
+  - platform: sm2235
+    id: sm2235_warmwhite
+    channel: 3
+  - platform: sm2335
+    id: sm2335_red
+    channel: 1
+  - platform: sm2335
+    id: sm2335_green
+    channel: 0
+  - platform: sm2335
+    id: sm2335_blue
+    channel: 2
+  - platform: sm2335
+    id: sm2335_coldwhite
+    channel: 4
+  - platform: sm2335
+    id: sm2335_warmwhite
+    channel: 3
   - platform: slow_pwm
     id: id24
     pin: GPIO26
@@ -1646,6 +1712,41 @@ output:
     vref: internal
     gain: X2
     power_down: gnd_500k
+  - platform: bp1658cj
+    id: bp1658cj_red
+    channel: 1
+  - platform: bp1658cj
+    id: bp1658cj_green
+    channel: 2
+  - platform: bp1658cj
+    id: bp1658cj_blue
+    channel: 0
+  - platform: bp1658cj
+    id: bp1658cj_coldwhite
+    channel: 3
+  - platform: bp1658cj
+    id: bp1658cj_warmwhite
+    channel: 4
+  - platform: bp5758d
+    id: bp5758d_red
+    channel: 2
+    current: 10
+  - platform: bp5758d
+    id: bp5758d_green
+    channel: 3
+    current: 10
+  - platform: bp5758d
+    id: bp5758d_blue
+    channel: 1
+    current: 10
+  - platform: bp5758d
+    id: bp5758d_coldwhite
+    channel: 5
+    current: 10
+  - platform: bp5758d
+    id: bp5758d_warmwhite
+    channel: 4
+    current: 10
 
 e131:
 
@@ -2753,6 +2854,11 @@ pcf8574:
   - id: pcf8574_hub
     address: 0x21
     pcf8575: false
+    i2c_id: i2c_bus
+
+pca9554:
+  - id: pca9554_hub
+    address: 0x3F
     i2c_id: i2c_bus
 
 mcp23017:
