@@ -94,7 +94,8 @@ static void retry_handler(const std::shared_ptr<RetryArgs> &args) {
 }
 
 void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
-                              uint8_t max_attempts, std::function<RetryResult(uint8_t)> func, float backoff_increase_factor) {
+                              uint8_t max_attempts, std::function<RetryResult(uint8_t)> func,
+                              float backoff_increase_factor) {
   if (!name.empty())
     this->cancel_retry(component, name);
 
