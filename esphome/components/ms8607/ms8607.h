@@ -24,6 +24,7 @@ namespace ms8607 {
  */
 class MS8607Component : public PollingComponent, public i2c::I2CDevice {
  public:
+  virtual ~MS8607Component() = default;
   void setup() override;
   void update() override;
   void dump_config() override;

@@ -81,8 +81,8 @@ void MS8607Component::setup() {
         // I believe sending the reset command to both addresses is preferable to
         // skipping humidity if PT fails for some reason.
         // However, only consider the reset successful if they both ACK
-        bool pt_successful = this->write_bytes(MS8607_PT_CMD_RESET, nullptr, 0);
-        bool h_successful = this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
+        bool const pt_successful = this->write_bytes(MS8607_PT_CMD_RESET, nullptr, 0);
+        bool const h_successful = this->humidity_i2c_device_->write_bytes(MS8607_CMD_H_RESET, nullptr, 0);
 
         if (!(pt_successful && h_successful)) {
           ESP_LOGE(TAG, "Resetting I2C devices failed");
@@ -184,7 +184,7 @@ bool MS8607Component::read_calibration_values_from_prom_() {
   bool successful = true;
 
   for (uint8_t idx = 0; idx < MS8607_PROM_COUNT; ++idx) {
-    uint8_t address_to_read = MS8607_PROM_START + (idx * 2);
+    uint8_t const address_to_read = MS8607_PROM_START + (idx * 2);
     successful &= this->read_byte_16(address_to_read, &buffer[idx]);
   }
 
@@ -195,9 +195,9 @@ bool MS8607Component::read_calibration_values_from_prom_() {
   }
 
   ESP_LOGD(TAG, "Checking CRC of calibration values from PROM");
-  uint8_t expected_crc = (buffer[0] & 0xF000) >> 12;  // first 4 bits
+  uint8_t const expected_crc = (buffer[0] & 0xF000) >> 12;  // first 4 bits
   buffer[0] &= 0x0FFF;                                // strip CRC from buffer, in order to run CRC
-  uint8_t actual_crc = crc4(buffer, MS8607_PROM_COUNT);
+  uint8_t const actual_crc = crc4(buffer, MS8607_PROM_COUNT);
 
   if (expected_crc != actual_crc) {
     ESP_LOGE(TAG, "Incorrect CRC value. Provided value 0x%01X != calculated value 0x%01X", expected_crc, actual_crc);
@@ -348,8 +348,8 @@ void MS8607Component::read_humidity_(float temperature_float) {
   // "the measurement is stored into 14 bits. The two remaining LSBs are used for transmitting status information.
   // Bit1 of the two LSBS must be set to '1'. Bit0 is currently not assigned"
   uint16_t humidity = encode_uint16(bytes[0], bytes[1]);
-  uint8_t expected_crc = bytes[2];
-  uint8_t actual_crc = hsensor_crc_check(humidity);
+  uint8_t const expected_crc = bytes[2];
+  uint8_t const actual_crc = hsensor_crc_check(humidity);
   if (expected_crc != actual_crc) {
     ESP_LOGE(TAG, "Incorrect Humidity CRC value. Provided value 0x%01X != calculated value 0x%01X", expected_crc,
              actual_crc);
@@ -363,9 +363,9 @@ void MS8607Component::read_humidity_(float temperature_float) {
   humidity &= ~(0b11);  // strip status & unassigned bits from data
 
   // map 16 bit humidity value into range [-6%, 118%]
-  float humidity_partial = double(humidity) / (1 << 16);
-  float humidity_percentage = lerp(humidity_partial, -6.0, 118.0);
-  float compensated_humidity_percentage = humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
+  float const humidity_partial = double(humidity) / (1 << 16);
+  float const humidity_percentage = lerp(humidity_partial, -6.0, 118.0);
+  float const compensated_humidity_percentage = humidity_percentage + (20 - temperature_float) * MS8607_H_TEMP_COEFFICIENT;
   ESP_LOGD(TAG, "Compensated for temperature, humidity=%.2f%%", compensated_humidity_percentage);
 
   if (this->humidity_sensor_ != nullptr) {
