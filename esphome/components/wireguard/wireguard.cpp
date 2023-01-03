@@ -20,7 +20,7 @@ void Wireguard::setup() {
         this->peer_endpoint_.data(),
         this->peer_key_.data(),
         this->peer_port_,
-        this->preshared_key_.data()
+        this->preshared_key_.length() > 0 ? this->preshared_key_.data() : NULL
     );
 
     ESP_LOGI(TAG, "wireguard setup end");
@@ -37,7 +37,7 @@ void Wireguard::dump_config(){
     ESP_LOGCONFIG(TAG, "  endpoint: %s",this->peer_endpoint_.data());
     ESP_LOGCONFIG(TAG, "  peer key: %s",this->peer_key_.data());
     ESP_LOGCONFIG(TAG, "  peer port: %d",this->peer_port_);
-    ESP_LOGCONFIG(TAG, "  preshared key: %s",this->preshared_key_.data());
+    ESP_LOGCONFIG(TAG, "  preshared key[%d]: %s",this->preshared_key_.length(), this->preshared_key_.data());
 }
 
 void Wireguard::set_address(std::string address) { this->address_ = std::move(address); }

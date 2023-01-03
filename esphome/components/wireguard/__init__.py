@@ -1,5 +1,3 @@
-CODEOWNERS = ["@lhoracek"]
-
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID
@@ -22,7 +20,7 @@ CONFIG_SCHEMA = cv.Schema({
     cv.Required(CONF_WG_PRIVATE_KEY): cv.string,
     cv.Required(CONF_WG_PEER_ENDPOINT): cv.string,
     cv.Required(CONF_WG_PEER_KEY): cv.string,
-    cv.Optional(CONF_WG_PRESHARED_KEY, default=""): cv.string,
+    cv.Optional(CONF_WG_PRESHARED_KEY): cv.string,
     cv.Optional(CONF_WG_PEER_PORT, default=51820): cv.int_,
 
 }).extend(cv.polling_component_schema("10s"))
@@ -35,7 +33,8 @@ def to_code(config):
     cg.add(var.set_peer_endpoint(config[CONF_WG_PEER_ENDPOINT]))
     cg.add(var.set_peer_key(config[CONF_WG_PEER_KEY]))
     cg.add(var.set_peer_port(config[CONF_WG_PEER_PORT]))
-    cg.add(var.set_preshared_key(config[CONF_WG_PRESHARED_KEY]))
+    if CONF_WG_PRESHARED_KEY in config:
+        cg.add(var.set_preshared_key(config[CONF_WG_PRESHARED_KEY]))
 
     cg.add_library("https://github.com/kienvu58/WireGuard-ESP32-Arduino", "0.1.5")
 
