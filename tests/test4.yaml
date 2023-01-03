@@ -425,11 +425,11 @@ switch:
     name: Tuya Switch Copy
 
 light:
-  - platform: fastled_clockless
+  - platform: fastled
     id: led_matrix_32x8
     name: led_matrix_32x8
     chipset: WS2812B
-    pin: GPIO15
+    data_pin: GPIO15
     num_leds: 256
     rgb_order: GRB
     default_transition_length: 0s

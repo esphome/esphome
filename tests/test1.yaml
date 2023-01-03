@@ -1959,10 +1959,10 @@ light:
     brightness: pca_6
     cold_white_color_temperature: 153 mireds
     warm_white_color_temperature: 500 mireds
-  - platform: fastled_clockless
+  - platform: fastled
     id: addr1
     chipset: WS2811
-    pin: GPIO23
+    data_pin: GPIO23
     num_leds: 60
     rgb_order: BRG
     max_refresh_rate: 20ms
@@ -2039,7 +2039,7 @@ light:
                 blue: 0%
       - e131:
           universe: 1
-  - platform: fastled_spi
+  - platform: fastled
     id: addr2
     chipset: WS2801
     data_pin: GPIO23
