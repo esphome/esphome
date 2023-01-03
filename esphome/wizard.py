@@ -362,7 +362,7 @@ def wizard(path):
         boards = libretuya_boards.fetch_board_list()
         boards_ids = []
         safe_print("Options:")
-        for group in boards.values():
+        for group in boards:
             for board_id, board_name in group["items"].items():
                 safe_print(f" - {board_id} - {board_name}")
                 boards_ids.append(board_id)
