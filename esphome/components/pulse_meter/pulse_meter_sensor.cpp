@@ -100,29 +100,27 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   const uint32_t now = micros();
   const bool pin_val = sensor->isr_pin_.digital_read();
 
-  // Rising edge
-  if (!sensor->last_pin_val_ && pin_val) {
-    sensor->last_edge_candidate_us_ = now;
+  // Ignore the case when a ripple happens faster than we can detect
+  if (sensor->last_pin_val_ != pin_val) {
+
+    // Check if the last interrupt was long enough in the past
+    bool filter_length = now - sensor->last_intr_ > sensor->filter_us_;
+
+    // High pulse of filter length now falling (therefore last_intr_ was the rising edge)
+    if (!sensor->in_pulse_ && filter_length && sensor->last_pin_val_) {
+      sensor->last_edge_candidate_us_ = sensor->last_intr_;
+      sensor->in_pulse_ = true;
   }
-  // Falling edge
-  else if (sensor->last_pin_val_ && !pin_val) {
-    // Check that the length of this pulse is greater than the filter time
-    if (now - sensor->last_edge_candidate_us_ > sensor->filter_us_) {
+    // Low pulse of filter length now rising (therefore last_intr_ was the falling edge)
+    else if (sensor->in_pulse_ && filter_length && !sensor->last_pin_val_) {
       sensor->set_->last_detected_edge_us_ = sensor->last_edge_candidate_us_;
       sensor->set_->count_++;
+      sensor->in_pulse_ = false;
     }
-  }
-  // We were in a pulse and the pin is still high, a dropout must have happened faster than we could measure
-  // If we hadn't yet reached our filter time, reset the candidate to now
-  // However if we already reached our filter time ignore it as noise
-  else if (sensor->last_pin_val_ && pin_val) {
-    if (now - sensor->last_edge_candidate_us_ < sensor->filter_us_) {
-      sensor->last_edge_candidate_us_ = now;
-    }
-  } else {
-    // We were not in a pulse and the pin is still low, a pulse must have occurred faster than we could measure
-  }
+
+    sensor->last_intr_ = now;
   sensor->last_pin_val_ = pin_val;
+  }
 }
 
 }  // namespace pulse_meter

@@ -56,6 +56,8 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
   // Only use these variables in the ISR
   ISRInternalGPIOPin isr_pin_;
   uint32_t last_edge_candidate_us_ = 0;
+  uint32_t last_intr_ = 0;
+  bool in_pulse_ = false;
   bool last_pin_val_ = false;
 };
 
