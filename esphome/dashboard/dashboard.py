@@ -695,20 +695,34 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
 
 class BoardsRequestHandler(BaseHandler):
     @authenticated
-    def get(self):
+    def get(self, platform: str):
         from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
         from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
         from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
 
-        boards = {
-            "esp32": {key: val[const.KEY_NAME] for key, val in ESP32_BOARDS.items()},
-            "esp8266": {
-                key: val[const.KEY_NAME] for key, val in ESP8266_BOARDS.items()
-            },
-            "rp2040": {key: val[const.KEY_NAME] for key, val in RP2040_BOARDS.items()},
+        platform_to_boards = {
+            "esp32": ESP32_BOARDS,
+            "esp8266": ESP8266_BOARDS,
+            "rp2040": RP2040_BOARDS,
         }
+        # filter all ESP32 variants by requested platform
+        if platform.startswith("esp32"):
+            boards = {
+                k: v
+                for k, v in platform_to_boards["esp32"].items()
+                if v[const.KEY_VARIANT] == platform.upper()
+            }
+        else:
+            boards = platform_to_boards[platform]
+
+        # map to a {board_name: board_title} dict
+        platform_boards = {key: val[const.KEY_NAME] for key, val in boards.items()}
+        # sort by board title
+        boards_items = sorted(platform_boards.items(), key=lambda item: item[1])
+        output = [dict(items=dict(boards_items))]
+
         self.set_header("content-type", "application/json")
-        self.write(json.dumps(boards))
+        self.write(json.dumps(output))
 
 
 class MDNSStatusThread(threading.Thread):
@@ -1081,7 +1095,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}json-config", JsonConfigRequestHandler),
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
-            (f"{rel}boards", BoardsRequestHandler),
+            (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
         ],
         **app_settings,
     )
