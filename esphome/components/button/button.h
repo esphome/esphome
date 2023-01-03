@@ -45,12 +45,10 @@ class Button : public EntityBase {
  protected:
   /** You should implement this virtual method if you want to create your own button.
    */
-  virtual void press_action(){};
-
-  uint32_t hash_base() override;
+  virtual void press_action() = 0;
 
   CallbackManager<void()> press_callback_{};
-  optional<std::string> device_class_{};
+  std::string device_class_{};
 };
 
 }  // namespace button

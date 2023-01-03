@@ -13,7 +13,7 @@ static const char *const TAG = "mqtt.select";
 
 using namespace esphome::select;
 
-MQTTSelectComponent::MQTTSelectComponent(Select *select) : MQTTComponent(), select_(select) {}
+MQTTSelectComponent::MQTTSelectComponent(Select *select) : select_(select) {}
 
 void MQTTSelectComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
@@ -21,7 +21,7 @@ void MQTTSelectComponent::setup() {
     call.set_option(state);
     call.perform();
   });
-  this->select_->add_on_state_callback([this](const std::string &state) { this->publish_state(state); });
+  this->select_->add_on_state_callback([this](const std::string &state, size_t index) { this->publish_state(state); });
 }
 
 void MQTTSelectComponent::dump_config() {

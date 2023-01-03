@@ -12,13 +12,16 @@ temp_header_file = os.path.join(temp_folder, "all-include.cpp")
 
 
 def styled(color, msg, reset=True):
-    prefix = ''.join(color) if isinstance(color, tuple) else color
-    suffix = colorama.Style.RESET_ALL if reset else ''
+    prefix = "".join(color) if isinstance(color, tuple) else color
+    suffix = colorama.Style.RESET_ALL if reset else ""
     return prefix + msg + suffix
 
 
 def print_error_for_file(file, body):
-    print(styled(colorama.Fore.GREEN, "### File ") + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), file))
+    print(
+        styled(colorama.Fore.GREEN, "### File ")
+        + styled((colorama.Fore.GREEN, colorama.Style.BRIGHT), file)
+    )
     print()
     if body is not None:
         print(body)
@@ -100,7 +103,7 @@ def filter_changed(files):
 def filter_grep(files, value):
     matched = []
     for file in files:
-        with open(file, "r") as handle:
+        with open(file) as handle:
             contents = handle.read()
         if value in contents:
             matched.append(file)

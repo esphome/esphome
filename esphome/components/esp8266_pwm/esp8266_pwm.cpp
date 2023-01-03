@@ -2,12 +2,9 @@
 
 #include "esp8266_pwm.h"
 #include "esphome/core/macros.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
-
-#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
-#error ESP8266 PWM requires at least arduino_version 2.4.0
-#endif
 
 #include <core_esp8266_waveform.h>
 

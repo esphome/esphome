@@ -65,7 +65,7 @@ void BL0940::update() {
 }
 
 void BL0940::setup() {
-  for (auto i : BL0940_INIT) {
+  for (auto *i : BL0940_INIT) {
     this->write_array(i, 6);
     delay(1);
   }

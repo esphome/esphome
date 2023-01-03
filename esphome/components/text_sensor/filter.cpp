@@ -51,7 +51,7 @@ optional<std::string> ToUpperFilter::new_value(std::string value) {
 // ToLowerFilter
 optional<std::string> ToLowerFilter::new_value(std::string value) {
   for (char &c : value)
-    c = ::toupper(c);
+    c = ::tolower(c);
   return value;
 }
 
@@ -64,9 +64,10 @@ optional<std::string> PrependFilter::new_value(std::string value) { return this-
 // Substitute
 optional<std::string> SubstituteFilter::new_value(std::string value) {
   std::size_t pos;
-  for (size_t i = 0; i < this->from_strings_.size(); i++)
+  for (size_t i = 0; i < this->from_strings_.size(); i++) {
     while ((pos = value.find(this->from_strings_[i])) != std::string::npos)
       value.replace(pos, this->from_strings_[i].size(), this->to_strings_[i]);
+  }
   return value;
 }
 

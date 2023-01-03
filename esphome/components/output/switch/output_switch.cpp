@@ -8,11 +8,11 @@ static const char *const TAG = "output.switch";
 
 void OutputSwitch::dump_config() { LOG_SWITCH("", "Output Switch", this); }
 void OutputSwitch::setup() {
-  auto restored = this->get_initial_state();
-  if (!restored.has_value())
-    return;
+  ESP_LOGCONFIG(TAG, "Setting up Output Switch '%s'...", this->name_.c_str());
 
-  if (*restored) {
+  bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
+
+  if (initial_state) {
     this->turn_on();
   } else {
     this->turn_off();

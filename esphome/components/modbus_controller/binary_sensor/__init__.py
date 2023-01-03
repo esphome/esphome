@@ -29,11 +29,11 @@ ModbusBinarySensor = modbus_controller_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(cv.COMPONENT_SCHEMA)
+    binary_sensor.binary_sensor_schema(ModbusBinarySensor)
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(ModbusItemBaseSchema)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(ModbusBinarySensor),
             cv.Optional(CONF_REGISTER_TYPE): cv.enum(MODBUS_REGISTER_TYPE),
         }
     ),
@@ -57,4 +57,4 @@ async def to_code(config):
 
     paren = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
     cg.add(paren.add_sensor_item(var))
-    await add_modbus_base_properties(var, config, ModbusBinarySensor, cg.float_, bool)
+    await add_modbus_base_properties(var, config, ModbusBinarySensor, bool, bool)

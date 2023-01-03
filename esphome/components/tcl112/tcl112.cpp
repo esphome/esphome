@@ -79,11 +79,12 @@ void Tcl112Climate::transmit_state() {
   safecelsius = std::min(safecelsius, TCL112_TEMP_MAX);
   // Convert to integer nr. of half degrees.
   auto half_degrees = static_cast<uint8_t>(safecelsius * 2);
-  if (half_degrees & 1)                      // Do we have a half degree celsius?
+  if (half_degrees & 1) {                    // Do we have a half degree celsius?
     remote_state[12] |= TCL112_HALF_DEGREE;  // Add 0.5 degrees
-  else
+  } else {
     remote_state[12] &= ~TCL112_HALF_DEGREE;  // Clear the half degree.
-  remote_state[7] &= 0xF0;                    // Clear temp bits.
+  }
+  remote_state[7] &= 0xF0;  // Clear temp bits.
   remote_state[7] |= ((uint8_t) TCL112_TEMP_MAX - half_degrees / 2);
 
   // Set fan
@@ -120,7 +121,7 @@ void Tcl112Climate::transmit_state() {
            remote_state[13]);
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   data->set_carrier_frequency(38000);
 
@@ -128,12 +129,13 @@ void Tcl112Climate::transmit_state() {
   data->mark(TCL112_HEADER_MARK);
   data->space(TCL112_HEADER_SPACE);
   // Data
-  for (uint8_t i : remote_state)
+  for (uint8_t i : remote_state) {
     for (uint8_t j = 0; j < 8; j++) {
       data->mark(TCL112_BIT_MARK);
       bool bit = i & (1 << j);
       data->space(bit ? TCL112_ONE_SPACE : TCL112_ZERO_SPACE);
     }
+  }
   // Footer
   data->mark(TCL112_BIT_MARK);
   data->space(TCL112_GAP);
@@ -153,9 +155,9 @@ bool Tcl112Climate::on_receive(remote_base::RemoteReceiveData data) {
   for (int i = 0; i < TCL112_STATE_LENGTH; i++) {
     // Read bit
     for (int j = 0; j < 8; j++) {
-      if (data.expect_item(TCL112_BIT_MARK, TCL112_ONE_SPACE))
+      if (data.expect_item(TCL112_BIT_MARK, TCL112_ONE_SPACE)) {
         remote_state[i] |= 1 << j;
-      else if (!data.expect_item(TCL112_BIT_MARK, TCL112_ZERO_SPACE)) {
+      } else if (!data.expect_item(TCL112_BIT_MARK, TCL112_ZERO_SPACE)) {
         ESP_LOGVV(TAG, "Byte %d bit %d fail", i, j);
         return false;
       }

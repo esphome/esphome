@@ -20,12 +20,13 @@ void PIDClimate::setup() {
     restore->to_call(this).perform();
   } else {
     // restore from defaults, change_away handles those for us
-    if (supports_heat_() && supports_cool_())
+    if (supports_heat_() && supports_cool_()) {
       this->mode = climate::CLIMATE_MODE_HEAT_COOL;
-    else if (supports_cool_())
+    } else if (supports_cool_()) {
       this->mode = climate::CLIMATE_MODE_COOL;
-    else if (supports_heat_())
+    } else if (supports_heat_()) {
       this->mode = climate::CLIMATE_MODE_HEAT;
+    }
     this->target_temperature = this->default_target_temperature_;
   }
 }
@@ -60,7 +61,17 @@ climate::ClimateTraits PIDClimate::traits() {
 void PIDClimate::dump_config() {
   LOG_CLIMATE("", "PID Climate", this);
   ESP_LOGCONFIG(TAG, "  Control Parameters:");
-  ESP_LOGCONFIG(TAG, "    kp: %.5f, ki: %.5f, kd: %.5f", controller_.kp, controller_.ki, controller_.kd);
+  ESP_LOGCONFIG(TAG, "    kp: %.5f, ki: %.5f, kd: %.5f, output samples: %d", controller_.kp_, controller_.ki_,
+                controller_.kd_, controller_.output_samples_);
+
+  if (controller_.threshold_low_ == 0 && controller_.threshold_high_ == 0) {
+    ESP_LOGCONFIG(TAG, "  Deadband disabled.");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Deadband Parameters:");
+    ESP_LOGCONFIG(TAG, "    threshold: %0.5f to %0.5f, multipliers(kp: %.5f, ki: %.5f, kd: %.5f), output samples: %d",
+                  controller_.threshold_low_, controller_.threshold_high_, controller_.kp_multiplier_,
+                  controller_.ki_multiplier_, controller_.kd_multiplier_, controller_.deadband_output_samples_);
+  }
 
   if (this->autotuner_ != nullptr) {
     this->autotuner_->dump_config();
@@ -83,14 +94,15 @@ void PIDClimate::write_output_(float value) {
 
   // Update action variable for user feedback what's happening
   climate::ClimateAction new_action;
-  if (this->supports_cool_() && value < 0)
+  if (this->supports_cool_() && value < 0) {
     new_action = climate::CLIMATE_ACTION_COOLING;
-  else if (this->supports_heat_() && value > 0)
+  } else if (this->supports_heat_() && value > 0) {
     new_action = climate::CLIMATE_ACTION_HEATING;
-  else if (this->mode == climate::CLIMATE_MODE_OFF)
+  } else if (this->mode == climate::CLIMATE_MODE_OFF) {
     new_action = climate::CLIMATE_ACTION_OFF;
-  else
+  } else {
     new_action = climate::CLIMATE_ACTION_IDLE;
+  }
 
   if (new_action != this->action) {
     this->action = new_action;
@@ -112,9 +124,9 @@ void PIDClimate::update_pid_() {
     if (this->autotuner_ != nullptr && !this->autotuner_->is_finished()) {
       auto res = this->autotuner_->update(this->target_temperature, this->current_temperature);
       if (res.result_params.has_value()) {
-        this->controller_.kp = res.result_params->kp;
-        this->controller_.ki = res.result_params->ki;
-        this->controller_.kd = res.result_params->kd;
+        this->controller_.kp_ = res.result_params->kp;
+        this->controller_.ki_ = res.result_params->ki;
+        this->controller_.kd_ = res.result_params->kd;
         // keep autotuner instance so that subsequent dump_configs will print the long result message.
       } else {
         value = res.output;

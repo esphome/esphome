@@ -66,10 +66,11 @@ void SSD1306::setup() {
   if (!this->is_ssd1305_()) {
     // Enable charge pump (0x8D)
     this->command(SSD1306_COMMAND_CHARGE_PUMP);
-    if (this->external_vcc_)
+    if (this->external_vcc_) {
       this->command(0x10);
-    else
+    } else {
       this->command(0x14);
+    }
   }
 
   // Set addressing mode to horizontal (0x20)
@@ -105,10 +106,11 @@ void SSD1306::setup() {
 
   // Pre-charge period (0xD9)
   this->command(SSD1306_COMMAND_SET_PRE_CHARGE);
-  if (this->external_vcc_)
+  if (this->external_vcc_) {
     this->command(0x22);
-  else
+  } else {
     this->command(0xF1);
+  }
 
   // Set V_COM (0xDB)
   this->command(SSD1306_COMMAND_SET_VCOM_DETECT);

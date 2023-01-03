@@ -30,6 +30,15 @@ class BinaryOutput {
   void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
 #endif
 
+  /// Enable or disable this binary output.
+  virtual void set_state(bool state) {
+    if (state) {
+      this->turn_on();
+    } else {
+      this->turn_off();
+    }
+  }
+
   /// Enable this binary output.
   virtual void turn_on() {
 #ifdef USE_POWER_SUPPLY

@@ -113,7 +113,9 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
             {
                 cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
                 cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
-                cv.Optional(CONF_TEMPERATURE_STEP): cv.temperature,
+                cv.Optional(CONF_TEMPERATURE_STEP): cv.float_with_unit(
+                    "visual_temperature", "(°C|° C|°|C|° K|° K|K|°F|° F|F)?"
+                ),
             }
         ),
         cv.Optional(CONF_ACTION_STATE_TOPIC): cv.All(
@@ -287,9 +289,11 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.templatable(
             validate_climate_fan_mode
         ),
-        cv.Exclusive(CONF_CUSTOM_FAN_MODE, "fan_mode"): cv.string_strict,
+        cv.Exclusive(CONF_CUSTOM_FAN_MODE, "fan_mode"): cv.templatable(
+            cv.string_strict
+        ),
         cv.Exclusive(CONF_PRESET, "preset"): cv.templatable(validate_climate_preset),
-        cv.Exclusive(CONF_CUSTOM_PRESET, "preset"): cv.string_strict,
+        cv.Exclusive(CONF_CUSTOM_PRESET, "preset"): cv.templatable(cv.string_strict),
         cv.Optional(CONF_SWING_MODE): cv.templatable(validate_climate_swing_mode),
     }
 )
@@ -324,13 +328,17 @@ async def climate_control_to_code(config, action_id, template_arg, args):
         template_ = await cg.templatable(config[CONF_FAN_MODE], args, ClimateFanMode)
         cg.add(var.set_fan_mode(template_))
     if CONF_CUSTOM_FAN_MODE in config:
-        template_ = await cg.templatable(config[CONF_CUSTOM_FAN_MODE], args, str)
+        template_ = await cg.templatable(
+            config[CONF_CUSTOM_FAN_MODE], args, cg.std_string
+        )
         cg.add(var.set_custom_fan_mode(template_))
     if CONF_PRESET in config:
         template_ = await cg.templatable(config[CONF_PRESET], args, ClimatePreset)
         cg.add(var.set_preset(template_))
     if CONF_CUSTOM_PRESET in config:
-        template_ = await cg.templatable(config[CONF_CUSTOM_PRESET], args, str)
+        template_ = await cg.templatable(
+            config[CONF_CUSTOM_PRESET], args, cg.std_string
+        )
         cg.add(var.set_custom_preset(template_))
     if CONF_SWING_MODE in config:
         template_ = await cg.templatable(

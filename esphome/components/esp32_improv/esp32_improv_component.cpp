@@ -128,7 +128,7 @@ void ESP32ImprovComponent::loop() {
         std::vector<std::string> urls = {ESPHOME_MY_LINK};
 #ifdef USE_WEBSERVER
         auto ip = wifi::global_wifi_component->wifi_sta_ip();
-        std::string webserver_url = "http://" + ip.str() + ":" + to_string(WEBSERVER_PORT);
+        std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
         urls.push_back(webserver_url);
 #endif
         std::vector<uint8_t> data = improv::build_rpc_response(improv::WIFI_SETTINGS, urls);
@@ -177,8 +177,9 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
 }
 
 void ESP32ImprovComponent::set_error_(improv::Error error) {
-  if (error != improv::ERROR_NONE)
+  if (error != improv::ERROR_NONE) {
     ESP_LOGE(TAG, "Error: %d", error);
+  }
   if (this->error_->get_value().empty() || this->error_->get_value()[0] != error) {
     uint8_t data[1]{error};
     this->error_->set_value(data, 1);

@@ -6,7 +6,6 @@ from esphome.const import (
     ICON_WEATHER_SUNSET_DOWN,
     ICON_WEATHER_SUNSET_UP,
     CONF_TYPE,
-    CONF_ID,
     CONF_FORMAT,
 )
 from .. import sun_ns, CONF_SUN_ID, Sun, CONF_ELEVATION, elevation, DEFAULT_ELEVATION
@@ -33,7 +32,8 @@ def validate_optional_icon(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    text_sensor.TEXT_SENSOR_SCHEMA.extend(
+    text_sensor.text_sensor_schema()
+    .extend(
         {
             cv.GenerateID(): cv.declare_id(SunTextSensor),
             cv.GenerateID(CONF_SUN_ID): cv.use_id(Sun),
@@ -41,15 +41,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ELEVATION, default=DEFAULT_ELEVATION): elevation,
             cv.Optional(CONF_FORMAT, default="%X"): cv.string_strict,
         }
-    ).extend(cv.polling_component_schema("60s")),
+    )
+    .extend(cv.polling_component_schema("60s")),
     validate_optional_icon,
 )
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await text_sensor.new_text_sensor(config)
     await cg.register_component(var, config)
-    await text_sensor.register_text_sensor(var, config)
 
     paren = await cg.get_variable(config[CONF_SUN_ID])
     cg.add(var.set_parent(paren))

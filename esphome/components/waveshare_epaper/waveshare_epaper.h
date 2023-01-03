@@ -36,6 +36,8 @@ class WaveshareEPaper : public PollingComponent,
 
   void on_safe_shutdown() override;
 
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
+
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
 
@@ -121,6 +123,7 @@ enum WaveshareEPaperTypeBModel {
   WAVESHARE_EPAPER_4_2_IN_B_V2,
   WAVESHARE_EPAPER_7_5_IN,
   WAVESHARE_EPAPER_7_5_INV2,
+  WAVESHARE_EPAPER_7_5_IN_B_V2,
 };
 
 class WaveshareEPaper2P7In : public WaveshareEPaper {
@@ -280,6 +283,29 @@ class WaveshareEPaper7P5In : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class WaveshareEPaper7P5InBV2 : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND POWER OFF
+    this->command(0x02);
+    this->wait_until_idle_();
+    // COMMAND DEEP SLEEP
+    this->command(0x07);  // deep sleep
+    this->data(0xA5);     // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
 class WaveshareEPaper7P5InBC : public WaveshareEPaper {
  public:
   void initialize() override;
@@ -318,6 +344,45 @@ class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
     // COMMAND DEEP SLEEP
     this->command(0x07);
     this->data(0xA5);  // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
+class WaveshareEPaper7P5InV2alt : public WaveshareEPaper7P5InV2 {
+ public:
+  bool wait_until_idle_();
+  void initialize() override;
+  void dump_config() override;
+
+ protected:
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+      this->reset_pin_->digital_write(false);
+      delay(2);
+      this->reset_pin_->digital_write(true);
+      delay(20);
+    }
+  };
+};
+
+class WaveshareEPaper7P5InHDB : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // deep sleep
+    this->command(0x10);
+    this->data(0x01);
   }
 
  protected:

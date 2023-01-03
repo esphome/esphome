@@ -16,8 +16,8 @@ namespace mdns {
 
 static const char *const TAG = "mdns";
 
-#ifndef WEBSERVER_PORT
-#define WEBSERVER_PORT 80  // NOLINT
+#ifndef USE_WEBSERVER_PORT
+#define USE_WEBSERVER_PORT 80  // NOLINT
 #endif
 
 void MDNSComponent::compile_records_() {
@@ -39,11 +39,20 @@ void MDNSComponent::compile_records_() {
 #ifdef USE_ESP32
     platform = "ESP32";
 #endif
+#ifdef USE_RP2040
+    platform = "RP2040";
+#endif
     if (platform != nullptr) {
       service.txt_records.push_back({"platform", platform});
     }
 
     service.txt_records.push_back({"board", ESPHOME_BOARD});
+
+#if defined(USE_WIFI)
+    service.txt_records.push_back({"network", "wifi"});
+#elif defined(USE_ETHERNET)
+    service.txt_records.push_back({"network", "ethernet"});
+#endif
 
 #ifdef ESPHOME_PROJECT_NAME
     service.txt_records.push_back({"project_name", ESPHOME_PROJECT_NAME});
@@ -63,7 +72,17 @@ void MDNSComponent::compile_records_() {
     MDNSService service{};
     service.service_type = "_prometheus-http";
     service.proto = "_tcp";
-    service.port = WEBSERVER_PORT;
+    service.port = USE_WEBSERVER_PORT;
+    this->services_.push_back(service);
+  }
+#endif
+
+#ifdef USE_WEBSERVER
+  {
+    MDNSService service{};
+    service.service_type = "_http";
+    service.proto = "_tcp";
+    service.port = USE_WEBSERVER_PORT;
     this->services_.push_back(service);
   }
 #endif
@@ -74,7 +93,7 @@ void MDNSComponent::compile_records_() {
     MDNSService service{};
     service.service_type = "_http";
     service.proto = "_tcp";
-    service.port = WEBSERVER_PORT;
+    service.port = USE_WEBSERVER_PORT;
     service.txt_records.push_back({"version", ESPHOME_VERSION});
     this->services_.push_back(service);
   }

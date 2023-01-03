@@ -147,40 +147,46 @@ bool BLECharacteristic::is_failed() {
 }
 
 void BLECharacteristic::set_broadcast_property(bool value) {
-  if (value)
+  if (value) {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_BROADCAST);
-  else
+  } else {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_BROADCAST);
+  }
 }
 void BLECharacteristic::set_indicate_property(bool value) {
-  if (value)
+  if (value) {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_INDICATE);
-  else
+  } else {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_INDICATE);
+  }
 }
 void BLECharacteristic::set_notify_property(bool value) {
-  if (value)
+  if (value) {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_NOTIFY);
-  else
+  } else {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_NOTIFY);
+  }
 }
 void BLECharacteristic::set_read_property(bool value) {
-  if (value)
+  if (value) {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_READ);
-  else
+  } else {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_READ);
+  }
 }
 void BLECharacteristic::set_write_property(bool value) {
-  if (value)
+  if (value) {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_WRITE);
-  else
+  } else {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_WRITE);
+  }
 }
 void BLECharacteristic::set_write_no_response_property(bool value) {
-  if (value)
+  if (value) {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ | ESP_GATT_CHAR_PROP_BIT_WRITE_NR);
-  else
+  } else {
     this->properties_ = (esp_gatt_char_prop_t)(this->properties_ & ~ESP_GATT_CHAR_PROP_BIT_WRITE_NR);
+  }
 }
 
 void BLECharacteristic::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,

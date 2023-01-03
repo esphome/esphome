@@ -65,10 +65,11 @@ void Servo::write(float value) {
 void Servo::internal_write(float value) {
   value = clamp(value, -1.0f, 1.0f);
   float level;
-  if (value < 0.0)
+  if (value < 0.0) {
     level = lerp(-value, this->idle_level_, this->min_level_);
-  else
+  } else {
     level = lerp(value, this->idle_level_, this->max_level_);
+  }
   this->output_->set_level(level);
   if (this->target_value_ == this->current_value_) {
     this->save_level_(level);

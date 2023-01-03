@@ -6,7 +6,7 @@ from . import CONF_FINGERPRINT_GROW_ID, FingerprintGrowComponent
 
 DEPENDENCIES = ["fingerprint_grow"]
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
     {
         cv.GenerateID(CONF_FINGERPRINT_GROW_ID): cv.use_id(FingerprintGrowComponent),
         cv.Optional(CONF_ICON, default=ICON_KEY_PLUS): cv.icon,

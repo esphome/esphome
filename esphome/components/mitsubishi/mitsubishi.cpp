@@ -54,7 +54,7 @@ void MitsubishiClimate::transmit_state() {
   }
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   data->set_carrier_frequency(38000);
   // repeat twice
@@ -63,12 +63,13 @@ void MitsubishiClimate::transmit_state() {
     data->mark(MITSUBISHI_HEADER_MARK);
     data->space(MITSUBISHI_HEADER_SPACE);
     // Data
-    for (uint8_t i : remote_state)
+    for (uint8_t i : remote_state) {
       for (uint8_t j = 0; j < 8; j++) {
         data->mark(MITSUBISHI_BIT_MARK);
         bool bit = i & (1 << j);
         data->space(bit ? MITSUBISHI_ONE_SPACE : MITSUBISHI_ZERO_SPACE);
       }
+    }
     // Footer
     if (r == 0) {
       data->mark(MITSUBISHI_BIT_MARK);

@@ -5,6 +5,8 @@
 #include "api_pb2.h"
 #include "api_server.h"
 
+#include <vector>
+
 namespace esphome {
 namespace api {
 
@@ -12,10 +14,10 @@ template<typename... X> class TemplatableStringValue : public TemplatableValue<s
  public:
   TemplatableStringValue() : TemplatableValue<std::string, X...>() {}
 
-  template<typename F, enable_if_t<!is_callable<F, X...>::value, int> = 0>
+  template<typename F, enable_if_t<!is_invocable<F, X...>::value, int> = 0>
   TemplatableStringValue(F value) : TemplatableValue<std::string, X...>(value) {}
 
-  template<typename F, enable_if_t<is_callable<F, X...>::value, int> = 0>
+  template<typename F, enable_if_t<is_invocable<F, X...>::value, int> = 0>
   TemplatableStringValue(F f)
       : TemplatableValue<std::string, X...>([f](X... x) -> std::string { return to_string(f(x...)); }) {}
 };

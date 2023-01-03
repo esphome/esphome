@@ -79,10 +79,10 @@ async def to_code(config):
     cg.add(var.set_request_interval(config[CONF_REQUEST_INTERVAL].total_milliseconds))
     cg.add(var.set_receive_timeout(config[CONF_RECEIVE_TIMEOUT].total_milliseconds))
 
-    cg.add_define("DSMR_GAS_MBUS_ID", config[CONF_GAS_MBUS_ID])
+    cg.add_build_flag("-DDSMR_GAS_MBUS_ID=" + str(config[CONF_GAS_MBUS_ID]))
 
     # DSMR Parser
     cg.add_library("glmnet/Dsmr", "0.5")
 
     # Crypto
-    cg.add_library("rweather/Crypto", "0.2.0")
+    cg.add_library("rweather/Crypto", "0.4.0")

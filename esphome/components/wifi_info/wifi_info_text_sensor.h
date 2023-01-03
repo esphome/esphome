@@ -7,9 +7,9 @@
 namespace esphome {
 namespace wifi_info {
 
-class IPAddressWiFiInfo : public Component, public text_sensor::TextSensor {
+class IPAddressWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
-  void loop() override {
+  void update() override {
     auto ip = wifi::global_wifi_component->wifi_sta_ip();
     if (ip != this->last_ip_) {
       this->last_ip_ = ip;
@@ -53,9 +53,9 @@ class ScanResultsWiFiInfo : public PollingComponent, public text_sensor::TextSen
   std::string last_scan_results_;
 };
 
-class SSIDWiFiInfo : public Component, public text_sensor::TextSensor {
+class SSIDWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
-  void loop() override {
+  void update() override {
     std::string ssid = wifi::global_wifi_component->wifi_ssid();
     if (this->last_ssid_ != ssid) {
       this->last_ssid_ = ssid;
@@ -70,9 +70,9 @@ class SSIDWiFiInfo : public Component, public text_sensor::TextSensor {
   std::string last_ssid_;
 };
 
-class BSSIDWiFiInfo : public Component, public text_sensor::TextSensor {
+class BSSIDWiFiInfo : public PollingComponent, public text_sensor::TextSensor {
  public:
-  void loop() override {
+  void update() override {
     wifi::bssid_t bssid = wifi::global_wifi_component->wifi_bssid();
     if (memcmp(bssid.data(), last_bssid_.data(), 6) != 0) {
       std::copy(bssid.begin(), bssid.end(), last_bssid_.begin());

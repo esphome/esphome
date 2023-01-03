@@ -42,6 +42,11 @@ void BLEAdvertising::remove_service_uuid(ESPBTUUID uuid) {
                                  this->advertising_uuids_.end());
 }
 
+void BLEAdvertising::set_manufacturer_data(uint8_t *data, uint16_t size) {
+  this->advertising_data_.p_manufacturer_data = data;
+  this->advertising_data_.manufacturer_len = size;
+}
+
 void BLEAdvertising::start() {
   int num_services = this->advertising_uuids_.size();
   if (num_services == 0) {

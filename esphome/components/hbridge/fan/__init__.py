@@ -17,7 +17,7 @@ from .. import hbridge_ns
 CODEOWNERS = ["@WeekendWarrior"]
 
 
-HBridgeFan = hbridge_ns.class_("HBridgeFan", fan.FanState)
+HBridgeFan = hbridge_ns.class_("HBridgeFan", cg.Component, fan.Fan)
 
 DecayMode = hbridge_ns.enum("DecayMode")
 DECAY_MODE_OPTIONS = {
@@ -59,6 +59,7 @@ async def to_code(config):
         config[CONF_SPEED_COUNT],
         config[CONF_DECAY_MODE],
     )
+    await cg.register_component(var, config)
     await fan.register_fan(var, config)
     pin_a_ = await cg.get_variable(config[CONF_PIN_A])
     cg.add(var.set_pin_a(pin_a_))

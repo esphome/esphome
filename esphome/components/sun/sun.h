@@ -110,10 +110,11 @@ template<typename... Ts> class SunCondition : public Condition<Ts...>, public Pa
   bool check(Ts... x) override {
     double elevation = this->elevation_.value(x...);
     double current = this->parent_->elevation();
-    if (this->above_)
+    if (this->above_) {
       return current > elevation;
-    else
+    } else {
       return current < elevation;
+    }
   }
 
  protected:

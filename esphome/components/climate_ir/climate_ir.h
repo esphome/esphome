@@ -22,7 +22,7 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
  public:
   ClimateIR(float minimum_temperature, float maximum_temperature, float temperature_step = 1.0f,
             bool supports_dry = false, bool supports_fan_only = false, std::set<climate::ClimateFanMode> fan_modes = {},
-            std::set<climate::ClimateSwingMode> swing_modes = {}) {
+            std::set<climate::ClimateSwingMode> swing_modes = {}, std::set<climate::ClimatePreset> presets = {}) {
     this->minimum_temperature_ = minimum_temperature;
     this->maximum_temperature_ = maximum_temperature;
     this->temperature_step_ = temperature_step;
@@ -30,6 +30,7 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
     this->supports_fan_only_ = supports_fan_only;
     this->fan_modes_ = std::move(fan_modes);
     this->swing_modes_ = std::move(swing_modes);
+    this->presets_ = std::move(presets);
   }
 
   void setup() override;
@@ -61,6 +62,7 @@ class ClimateIR : public climate::Climate, public Component, public remote_base:
   bool supports_fan_only_{false};
   std::set<climate::ClimateFanMode> fan_modes_ = {};
   std::set<climate::ClimateSwingMode> swing_modes_ = {};
+  std::set<climate::ClimatePreset> presets_ = {};
 
   remote_transmitter::RemoteTransmitterComponent *transmitter_;
   sensor::Sensor *sensor_{nullptr};

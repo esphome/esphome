@@ -13,7 +13,7 @@ static const char *const TAG = "mqtt.number";
 
 using namespace esphome::number;
 
-MQTTNumberComponent::MQTTNumberComponent(Number *number) : MQTTComponent(), number_(number) {}
+MQTTNumberComponent::MQTTNumberComponent(Number *number) : number_(number) {}
 
 void MQTTNumberComponent::setup() {
   this->subscribe(this->get_command_topic_(), [this](const std::string &topic, const std::string &state) {
@@ -55,6 +55,8 @@ void MQTTNumberComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCon
       root[MQTT_MODE] = "slider";
       break;
   }
+  if (!this->number_->traits.get_device_class().empty())
+    root[MQTT_DEVICE_CLASS] = this->number_->traits.get_device_class();
 
   config.command_topic = true;
 }

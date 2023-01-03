@@ -79,9 +79,10 @@ void RemoteReceiverComponent::loop() {
   if (dist <= 1)
     return;
   const uint32_t now = micros();
-  if (now - s.buffer[write_at] < this->idle_us_)
+  if (now - s.buffer[write_at] < this->idle_us_) {
     // The last change was fewer than the configured idle time ago.
     return;
+  }
 
   ESP_LOGVV(TAG, "read_at=%u write_at=%u dist=%u now=%u end=%u", s.buffer_read_at, write_at, dist, now,
             s.buffer[write_at]);

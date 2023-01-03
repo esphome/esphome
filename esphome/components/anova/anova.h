@@ -36,7 +36,7 @@ class Anova : public climate::Climate, public esphome::ble_client::BLEClientNode
     traits.set_visual_temperature_step(0.1);
     return traits;
   }
-  void set_unit_of_measurement(const char *);
+  void set_unit_of_measurement(const char *unit);
 
  protected:
   std::unique_ptr<AnovaCodec> codec_;

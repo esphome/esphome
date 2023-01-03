@@ -1,5 +1,4 @@
 #include "hbridge_fan.h"
-#include "esphome/components/fan/fan_helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -22,47 +21,49 @@ void HBridgeFan::set_hbridge_levels_(float a_level, float b_level, float enable)
   ESP_LOGD(TAG, "Setting speed: a: %.2f, b: %.2f, enable: %.2f", a_level, b_level, enable);
 }
 
-fan::FanStateCall HBridgeFan::brake() {
+fan::FanCall HBridgeFan::brake() {
   ESP_LOGD(TAG, "Braking");
   (this->enable_ == nullptr) ? this->set_hbridge_levels_(1.0f, 1.0f) : this->set_hbridge_levels_(1.0f, 1.0f, 1.0f);
   return this->make_call().set_state(false);
 }
 
+void HBridgeFan::setup() {
+  auto restore = this->restore_state_();
+  if (restore.has_value()) {
+    restore->apply(*this);
+    this->write_state_();
+  }
+}
 void HBridgeFan::dump_config() {
-  ESP_LOGCONFIG(TAG, "Fan '%s':", this->get_name().c_str());
-  if (this->get_traits().supports_oscillation()) {
-    ESP_LOGCONFIG(TAG, "  Oscillation: YES");
-  }
-  if (this->get_traits().supports_direction()) {
-    ESP_LOGCONFIG(TAG, "  Direction: YES");
-  }
+  LOG_FAN("", "H-Bridge Fan", this);
   if (this->decay_mode_ == DECAY_MODE_SLOW) {
     ESP_LOGCONFIG(TAG, "  Decay Mode: Slow");
   } else {
     ESP_LOGCONFIG(TAG, "  Decay Mode: Fast");
   }
 }
-void HBridgeFan::setup() {
-  auto traits = fan::FanTraits(this->oscillating_ != nullptr, true, true, this->speed_count_);
-  this->set_traits(traits);
-  this->add_on_state_callback([this]() { this->next_update_ = true; });
+fan::FanTraits HBridgeFan::get_traits() {
+  return fan::FanTraits(this->oscillating_ != nullptr, true, true, this->speed_count_);
 }
-void HBridgeFan::loop() {
-  if (!this->next_update_) {
-    return;
-  }
-  this->next_update_ = false;
+void HBridgeFan::control(const fan::FanCall &call) {
+  if (call.get_state().has_value())
+    this->state = *call.get_state();
+  if (call.get_speed().has_value())
+    this->speed = *call.get_speed();
+  if (call.get_oscillating().has_value())
+    this->oscillating = *call.get_oscillating();
+  if (call.get_direction().has_value())
+    this->direction = *call.get_direction();
 
-  float speed = 0.0f;
-  if (this->state) {
-    speed = static_cast<float>(this->speed) / static_cast<float>(this->speed_count_);
-  }
+  this->write_state_();
+  this->publish_state();
+}
+void HBridgeFan::write_state_() {
+  float speed = this->state ? static_cast<float>(this->speed) / static_cast<float>(this->speed_count_) : 0.0f;
   if (speed == 0.0f) {  // off means idle
     (this->enable_ == nullptr) ? this->set_hbridge_levels_(speed, speed)
                                : this->set_hbridge_levels_(speed, speed, speed);
-    return;
-  }
-  if (this->direction == fan::FAN_DIRECTION_FORWARD) {
+  } else if (this->direction == fan::FanDirection::FORWARD) {
     if (this->decay_mode_ == DECAY_MODE_SLOW) {
       (this->enable_ == nullptr) ? this->set_hbridge_levels_(1.0f - speed, 1.0f)
                                  : this->set_hbridge_levels_(1.0f - speed, 1.0f, 1.0f);
@@ -79,6 +80,9 @@ void HBridgeFan::loop() {
                                  : this->set_hbridge_levels_(1.0f, 0.0f, speed);
     }
   }
+
+  if (this->oscillating_ != nullptr)
+    this->oscillating_->set_state(this->oscillating);
 }
 
 }  // namespace hbridge

@@ -19,10 +19,11 @@ void set_bits(uint8_t *const dst, const uint8_t offset, const uint8_t nbits, con
 
 void set_bit(uint8_t *const data, const uint8_t position, const bool on) {
   uint8_t mask = 1 << position;
-  if (on)
+  if (on) {
     *data |= mask;
-  else
+  } else {
     *data &= ~mask;
+  }
 }
 
 uint8_t *invert_byte_pairs(uint8_t *ptr, const uint16_t length) {
@@ -69,10 +70,11 @@ void HitachiClimate::set_temp_(uint8_t celsius, bool set_previous) {
   temp = std::min(celsius, HITACHI_AC344_TEMP_MAX);
   temp = std::max(temp, HITACHI_AC344_TEMP_MIN);
   set_bits(&remote_state_[HITACHI_AC344_TEMP_BYTE], HITACHI_AC344_TEMP_OFFSET, HITACHI_AC344_TEMP_SIZE, temp);
-  if (previous_temp_ > temp)
+  if (previous_temp_ > temp) {
     set_button_(HITACHI_AC344_BUTTON_TEMP_DOWN);
-  else if (previous_temp_ < temp)
+  } else if (previous_temp_ < temp) {
     set_button_(HITACHI_AC344_BUTTON_TEMP_UP);
+  }
   if (set_previous)
     previous_temp_ = temp;
 }
@@ -110,11 +112,12 @@ void HitachiClimate::set_fan_(uint8_t speed) {
 
 void HitachiClimate::set_swing_v_toggle_(bool on) {
   uint8_t button = get_button_();  // Get the current button value.
-  if (on)
-    button = HITACHI_AC344_BUTTON_SWINGV;          // Set the button to SwingV.
-  else if (button == HITACHI_AC344_BUTTON_SWINGV)  // Asked to unset it
+  if (on) {
+    button = HITACHI_AC344_BUTTON_SWINGV;              // Set the button to SwingV.
+  } else if (button == HITACHI_AC344_BUTTON_SWINGV) {  // Asked to unset it
     // It was set previous, so use Power as a default
     button = HITACHI_AC344_BUTTON_POWER;
+  }
   set_button_(button);
 }
 
@@ -211,7 +214,7 @@ void HitachiClimate::transmit_state() {
   invert_byte_pairs(remote_state_ + 3, HITACHI_AC344_STATE_LENGTH - 3);
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
   data->set_carrier_frequency(HITACHI_AC344_FREQ);
 
   uint8_t repeat = 0;
@@ -320,9 +323,9 @@ bool HitachiClimate::on_receive(remote_base::RemoteReceiveData data) {
   for (uint8_t pos = 0; pos < HITACHI_AC344_STATE_LENGTH; pos++) {
     // Read bit
     for (int8_t bit = 0; bit < 8; bit++) {
-      if (data.expect_item(HITACHI_AC344_BIT_MARK, HITACHI_AC344_ONE_SPACE))
+      if (data.expect_item(HITACHI_AC344_BIT_MARK, HITACHI_AC344_ONE_SPACE)) {
         recv_state[pos] |= 1 << bit;
-      else if (!data.expect_item(HITACHI_AC344_BIT_MARK, HITACHI_AC344_ZERO_SPACE)) {
+      } else if (!data.expect_item(HITACHI_AC344_BIT_MARK, HITACHI_AC344_ZERO_SPACE)) {
         ESP_LOGVV(TAG, "Byte %d bit %d fail", pos, bit);
         return false;
       }

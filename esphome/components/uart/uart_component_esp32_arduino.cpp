@@ -41,10 +41,11 @@ uint32_t ESP32ArduinoUARTComponent::get_config() {
    * tick_ref_always_on:27   select the clock.1：apb clock：ref_tick
    */
 
-  if (this->parity_ == UART_CONFIG_PARITY_EVEN)
+  if (this->parity_ == UART_CONFIG_PARITY_EVEN) {
     config |= UART_PARITY_EVEN | UART_PARITY_ENABLE;
-  else if (this->parity_ == UART_CONFIG_PARITY_ODD)
+  } else if (this->parity_ == UART_CONFIG_PARITY_ODD) {
     config |= UART_PARITY_ODD | UART_PARITY_ENABLE;
+  }
 
   switch (this->data_bits_) {
     case 5:
@@ -61,10 +62,11 @@ uint32_t ESP32ArduinoUARTComponent::get_config() {
       break;
   }
 
-  if (this->stop_bits_ == 1)
+  if (this->stop_bits_ == 1) {
     config |= UART_NB_STOP_BIT_1;
-  else
+  } else {
     config |= UART_NB_STOP_BIT_2;
+  }
 
   config |= UART_TICK_APB_CLOCK;
 
@@ -88,6 +90,7 @@ void ESP32ArduinoUARTComponent::setup() {
     this->hw_serial_ = &Serial;
   } else {
     static uint8_t next_uart_num = 1;
+    this->number_ = next_uart_num;
     this->hw_serial_ = new HardwareSerial(next_uart_num++);  // NOLINT(cppcoreguidelines-owning-memory)
   }
   int8_t tx = this->tx_pin_ != nullptr ? this->tx_pin_->get_pin() : -1;
@@ -102,7 +105,7 @@ void ESP32ArduinoUARTComponent::setup() {
 }
 
 void ESP32ArduinoUARTComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "UART Bus:");
+  ESP_LOGCONFIG(TAG, "UART Bus %d:", this->number_);
   LOG_PIN("  TX Pin: ", tx_pin_);
   LOG_PIN("  RX Pin: ", rx_pin_);
   if (this->rx_pin_ != nullptr) {

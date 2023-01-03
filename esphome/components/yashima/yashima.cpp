@@ -171,7 +171,7 @@ void YashimaClimate::transmit_state_() {
   remote_state[1] |= YASHIMA_TEMP_MAP_BYTE1[safecelsius - YASHIMA_TEMP_MIN];
 
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   data->set_carrier_frequency(YASHIMA_CARRIER_FREQUENCY);
 
@@ -179,12 +179,13 @@ void YashimaClimate::transmit_state_() {
   data->mark(YASHIMA_HEADER_MARK);
   data->space(YASHIMA_HEADER_SPACE);
   // Data (sent from the MSB to the LSB)
-  for (uint8_t i : remote_state)
+  for (uint8_t i : remote_state) {
     for (int8_t j = 7; j >= 0; j--) {
       data->mark(YASHIMA_BIT_MARK);
       bool bit = i & (1 << j);
       data->space(bit ? YASHIMA_ONE_SPACE : YASHIMA_ZERO_SPACE);
     }
+  }
   // Footer
   data->mark(YASHIMA_BIT_MARK);
   data->space(YASHIMA_GAP);

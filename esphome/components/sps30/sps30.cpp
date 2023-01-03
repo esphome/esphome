@@ -1,5 +1,6 @@
-#include "sps30.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include "sps30.h"
 
 namespace esphome {
 namespace sps30 {
@@ -22,30 +23,18 @@ static const uint8_t MAX_SKIPPED_DATA_CYCLES_BEFORE_ERROR = 5;
 
 void SPS30Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sps30...");
-  this->write_command_(SPS30_CMD_SOFT_RESET);
+  this->write_command(SPS30_CMD_SOFT_RESET);
   /// Deferred Sensor initialization
   this->set_timeout(500, [this]() {
     /// Firmware version identification
-    if (!this->write_command_(SPS30_CMD_GET_FIRMWARE_VERSION)) {
-      this->error_code_ = FIRMWARE_VERSION_REQUEST_FAILED;
-      this->mark_failed();
-      return;
-    }
-
-    if (!this->read_data_(&raw_firmware_version_, 1)) {
+    if (!this->get_register(SPS30_CMD_GET_FIRMWARE_VERSION, raw_firmware_version_, 1)) {
       this->error_code_ = FIRMWARE_VERSION_READ_FAILED;
       this->mark_failed();
       return;
     }
     /// Serial number identification
-    if (!this->write_command_(SPS30_CMD_GET_SERIAL_NUMBER)) {
-      this->error_code_ = SERIAL_NUMBER_REQUEST_FAILED;
-      this->mark_failed();
-      return;
-    }
-
     uint16_t raw_serial_number[8];
-    if (!this->read_data_(raw_serial_number, 8)) {
+    if (!this->get_register(SPS30_CMD_GET_SERIAL_NUMBER, raw_serial_number, 8, 1)) {
       this->error_code_ = SERIAL_NUMBER_READ_FAILED;
       this->mark_failed();
       return;
@@ -56,6 +45,22 @@ void SPS30Component::setup() {
       this->serial_number_[i * 2 + 1] = uint16_t(uint16_t(raw_serial_number[i] & 0xFF));
     }
     ESP_LOGD(TAG, "  Serial Number: '%s'", this->serial_number_);
+
+    bool result;
+    if (this->fan_interval_.has_value()) {
+      // override default value
+      result = write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS, this->fan_interval_.value());
+    } else {
+      result = write_command(SPS30_CMD_SET_AUTOMATIC_CLEANING_INTERVAL_SECONDS);
+    }
+    if (result) {
+      delay(20);
+      uint16_t secs[2];
+      if (this->read_data(secs, 2)) {
+        fan_interval_ = secs[0] << 16 | secs[1];
+      }
+    }
+
     this->status_clear_warning();
     this->skipped_data_read_cycles_ = 0;
     this->start_continuous_measurement_();
@@ -109,7 +114,7 @@ void SPS30Component::update() {
   /// Check if warning flag active (sensor reconnected?)
   if (this->status_has_warning()) {
     ESP_LOGD(TAG, "Trying to reconnect the sensor...");
-    if (this->write_command_(SPS30_CMD_SOFT_RESET)) {
+    if (this->write_command(SPS30_CMD_SOFT_RESET)) {
       ESP_LOGD(TAG, "Sensor has soft-reset successfully. Waiting for reconnection in 500ms...");
       this->set_timeout(500, [this]() {
         this->start_continuous_measurement_();
@@ -124,13 +129,13 @@ void SPS30Component::update() {
     return;
   }
   /// Check if measurement is ready before reading the value
-  if (!this->write_command_(SPS30_CMD_GET_DATA_READY_STATUS)) {
+  if (!this->write_command(SPS30_CMD_GET_DATA_READY_STATUS)) {
     this->status_set_warning();
     return;
   }
 
   uint16_t raw_read_status;
-  if (!this->read_data_(&raw_read_status, 1) || raw_read_status == 0x00) {
+  if (!this->read_data(&raw_read_status, 1) || raw_read_status == 0x00) {
     ESP_LOGD(TAG, "Sensor measurement not ready yet.");
     this->skipped_data_read_cycles_++;
     /// The following logic is required to address the cases when a sensor is quickly replaced before it's marked
@@ -142,7 +147,7 @@ void SPS30Component::update() {
     return;
   }
 
-  if (!this->write_command_(SPS30_CMD_READ_MEASUREMENT)) {
+  if (!this->write_command(SPS30_CMD_READ_MEASUREMENT)) {
     ESP_LOGW(TAG, "Error reading measurement status!");
     this->status_set_warning();
     return;
@@ -150,7 +155,7 @@ void SPS30Component::update() {
 
   this->set_timeout(50, [this]() {
     uint16_t raw_data[20];
-    if (!this->read_data_(raw_data, 20)) {
+    if (!this->read_data(raw_data, 20)) {
       ESP_LOGW(TAG, "Error reading measurement data!");
       this->status_set_warning();
       return;
@@ -205,65 +210,27 @@ void SPS30Component::update() {
   });
 }
 
-bool SPS30Component::write_command_(uint16_t command) {
-  // Warning ugly, trick the I2Ccomponent base by setting register to the first 8 bit.
-  return this->write_byte(command >> 8, command & 0xFF);
-}
-
-uint8_t SPS30Component::sht_crc_(uint8_t data1, uint8_t data2) {
-  uint8_t bit;
-  uint8_t crc = 0xFF;
-
-  crc ^= data1;
-  for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
-      crc = (crc << 1) ^ 0x131;
-    else
-      crc = (crc << 1);
-  }
-
-  crc ^= data2;
-  for (bit = 8; bit > 0; --bit) {
-    if (crc & 0x80)
-      crc = (crc << 1) ^ 0x131;
-    else
-      crc = (crc << 1);
-  }
-
-  return crc;
-}
-
 bool SPS30Component::start_continuous_measurement_() {
   uint8_t data[4];
   data[0] = SPS30_CMD_START_CONTINUOUS_MEASUREMENTS & 0xFF;
   data[1] = 0x03;
   data[2] = 0x00;
   data[3] = sht_crc_(0x03, 0x00);
-  if (!this->write_bytes(SPS30_CMD_START_CONTINUOUS_MEASUREMENTS >> 8, data, 4)) {
+  if (!this->write_command(SPS30_CMD_START_CONTINUOUS_MEASUREMENTS, SPS30_CMD_START_CONTINUOUS_MEASUREMENTS_ARG)) {
     ESP_LOGE(TAG, "Error initiating measurements");
     return false;
   }
   return true;
 }
 
-bool SPS30Component::read_data_(uint16_t *data, uint8_t len) {
-  const uint8_t num_bytes = len * 3;
-  std::vector<uint8_t> buf(num_bytes);
-
-  if (this->read(buf.data(), num_bytes) != i2c::ERROR_OK) {
+bool SPS30Component::start_fan_cleaning() {
+  if (!write_command(SPS30_CMD_START_FAN_CLEANING)) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "write error start fan (%d)", this->last_error_);
     return false;
+  } else {
+    ESP_LOGD(TAG, "Fan auto clean started");
   }
-
-  for (uint8_t i = 0; i < len; i++) {
-    const uint8_t j = 3 * i;
-    uint8_t crc = sht_crc_(buf[j], buf[j + 1]);
-    if (crc != buf[j + 2]) {
-      ESP_LOGE(TAG, "CRC8 Checksum invalid! 0x%02X != 0x%02X", buf[j + 2], crc);
-      return false;
-    }
-    data[i] = (buf[j] << 8) | buf[j + 1];
-  }
-
   return true;
 }
 

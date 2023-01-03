@@ -40,7 +40,8 @@ RAW_ENCODING = {
 }
 
 CONFIG_SCHEMA = cv.All(
-    text_sensor.TEXT_SENSOR_SCHEMA.extend(cv.COMPONENT_SCHEMA)
+    text_sensor.text_sensor_schema()
+    .extend(cv.COMPONENT_SCHEMA)
     .extend(ModbusItemBaseSchema)
     .extend(
         {

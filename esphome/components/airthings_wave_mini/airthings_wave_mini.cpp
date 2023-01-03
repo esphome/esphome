@@ -24,7 +24,7 @@ void AirthingsWaveMini::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
 
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       this->handle_ = 0;
-      auto chr = this->parent()->get_characteristic(service_uuid_, sensors_data_characteristic_uuid_);
+      auto *chr = this->parent()->get_characteristic(service_uuid_, sensors_data_characteristic_uuid_);
       if (chr == nullptr) {
         ESP_LOGW(TAG, "No sensor characteristic found at service %s char %s", service_uuid_.to_string().c_str(),
                  sensors_data_characteristic_uuid_.to_string().c_str());
@@ -38,7 +38,7 @@ void AirthingsWaveMini::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
     }
 
     case ESP_GATTC_READ_CHAR_EVT: {
-      if (param->read.conn_id != this->parent()->conn_id)
+      if (param->read.conn_id != this->parent()->get_conn_id())
         break;
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
@@ -56,7 +56,7 @@ void AirthingsWaveMini::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
 }
 
 void AirthingsWaveMini::read_sensors_(uint8_t *raw_value, uint16_t value_len) {
-  auto value = (WaveMiniReadings *) raw_value;
+  auto *value = (WaveMiniReadings *) raw_value;
 
   if (sizeof(WaveMiniReadings) <= value_len) {
     this->humidity_sensor_->publish_state(value->humidity / 100.0f);
@@ -88,8 +88,8 @@ void AirthingsWaveMini::update() {
 }
 
 void AirthingsWaveMini::request_read_values_() {
-  auto status =
-      esp_ble_gattc_read_char(this->parent()->gattc_if, this->parent()->conn_id, this->handle_, ESP_GATT_AUTH_REQ_NONE);
+  auto status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->handle_,
+                                        ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "Error sending read request for sensor, status=%d", status);
   }

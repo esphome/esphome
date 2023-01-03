@@ -115,7 +115,7 @@ void Nextion::set_backlight_brightness(float brightness) {
     ESP_LOGD(TAG, "Brightness out of bounds, percentage range 0-1.0");
     return;
   }
-  this->add_no_result_to_queue_with_set("backlight_brightness", "dim", static_cast<int>(brightness * 100));
+  this->add_no_result_to_queue_with_printf_("backlight_brightness", "dim=%d", static_cast<int>(brightness * 100));
 }
 
 void Nextion::set_auto_wake_on_touch(bool auto_wake) {
@@ -171,7 +171,7 @@ void Nextion::set_component_coordinates(const char *component, int x, int y) {
 
 // Drawing
 void Nextion::display_picture(int picture_id, int x_start, int y_start) {
-  this->add_no_result_to_queue_with_printf_("display_picture", "pic %d %d %d", x_start, y_start, picture_id);
+  this->add_no_result_to_queue_with_printf_("display_picture", "pic %d, %d, %d", x_start, y_start, picture_id);
 }
 
 void Nextion::fill_area(int x1, int y1, int width, int height, const char *color) {

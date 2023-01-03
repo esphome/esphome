@@ -3,16 +3,15 @@ import esphome.config_validation as cv
 from esphome.components import sensor, binary_sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_MAC_ADDRESS,
-    CONF_ID,
     CONF_BINDKEY,
-    CONF_DEVICE_CLASS,
     CONF_LIGHT,
     CONF_BATTERY_LEVEL,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_LIGHT,
+    DEVICE_CLASS_MOTION,
     ENTITY_CATEGORY_DIAGNOSTIC,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
     UNIT_PERCENT,
     CONF_IDLE_TIME,
     CONF_ILLUMINANCE,
@@ -22,7 +21,7 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
-AUTO_LOAD = ["xiaomi_ble"]
+AUTO_LOAD = ["xiaomi_ble", "sensor"]
 
 xiaomi_mjyd02yla_ns = cg.esphome_ns.namespace("xiaomi_mjyd02yla")
 XiaomiMJYD02YLA = xiaomi_mjyd02yla_ns.class_(
@@ -33,19 +32,17 @@ XiaomiMJYD02YLA = xiaomi_mjyd02yla_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(
+        XiaomiMJYD02YLA, device_class=DEVICE_CLASS_MOTION
+    )
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(XiaomiMJYD02YLA),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Required(CONF_BINDKEY): cv.bind_key,
-            cv.Optional(
-                CONF_DEVICE_CLASS, default="motion"
-            ): binary_sensor.device_class,
             cv.Optional(CONF_IDLE_TIME): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MINUTE,
                 icon=ICON_TIMELAPSE,
                 accuracy_decimals=0,
-                state_class=STATE_CLASS_NONE,
             ),
             cv.Optional(CONF_BATTERY_LEVEL): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
@@ -60,12 +57,8 @@ CONFIG_SCHEMA = cv.All(
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_LIGHT): binary_sensor.BINARY_SENSOR_SCHEMA.extend(
-                {
-                    cv.Optional(
-                        CONF_DEVICE_CLASS, default="light"
-                    ): binary_sensor.device_class,
-                }
+            cv.Optional(CONF_LIGHT): binary_sensor.binary_sensor_schema(
+                device_class=DEVICE_CLASS_LIGHT
             ),
         }
     )
@@ -75,10 +68,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_ble_device(var, config)
-    await binary_sensor.register_binary_sensor(var, config)
 
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
     cg.add(var.set_bindkey(config[CONF_BINDKEY]))

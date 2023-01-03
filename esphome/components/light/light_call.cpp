@@ -98,10 +98,11 @@ void LightCall::perform() {
     // EFFECT
     auto effect = this->effect_;
     const char *effect_s;
-    if (effect == 0u)
+    if (effect == 0u) {
       effect_s = "None";
-    else
+    } else {
       effect_s = this->parent_->effects_[*this->effect_ - 1]->get_name().c_str();
+    }
 
     if (this->publish_) {
       ESP_LOGD(TAG, "  Effect: '%s'", effect_s);
@@ -445,9 +446,10 @@ std::set<ColorMode> LightCall::get_suitable_color_modes_() {
   };
 
   auto key = KEY(has_white, has_ct, has_cwww, has_rgb);
-  for (auto &item : lookup_table)
+  for (auto &item : lookup_table) {
     if (std::get<0>(item) == key)
       return std::get<1>(item);
+  }
 
   // This happens if there are conflicting flags given.
   return {};

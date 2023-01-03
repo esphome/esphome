@@ -68,6 +68,12 @@ void LightState::setup() {
         recovered.state = !recovered.state;
       }
       break;
+    case LIGHT_RESTORE_AND_OFF:
+    case LIGHT_RESTORE_AND_ON:
+      this->rtc_ = global_preferences->make_preference<LightStateRTCState>(this->get_object_id_hash());
+      this->rtc_.load(&recovered);
+      recovered.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
+      break;
     case LIGHT_ALWAYS_OFF:
       recovered.state = false;
       break;
@@ -139,16 +145,16 @@ void LightState::loop() {
 }
 
 float LightState::get_setup_priority() const { return setup_priority::HARDWARE - 1.0f; }
-uint32_t LightState::hash_base() { return 1114400283; }
 
 void LightState::publish_state() { this->remote_values_callback_.call(); }
 
 LightOutput *LightState::get_output() const { return this->output_; }
 std::string LightState::get_effect_name() {
-  if (this->active_effect_index_ > 0)
+  if (this->active_effect_index_ > 0) {
     return this->effects_[this->active_effect_index_ - 1]->get_name();
-  else
+  } else {
     return "None";
+  }
 }
 
 void LightState::add_new_remote_values_callback(std::function<void()> &&send_callback) {
@@ -219,10 +225,11 @@ void LightState::start_effect_(uint32_t effect_index) {
   effect->start_internal();
 }
 LightEffect *LightState::get_active_effect_() {
-  if (this->active_effect_index_ == 0)
+  if (this->active_effect_index_ == 0) {
     return nullptr;
-  else
+  } else {
     return this->effects_[this->active_effect_index_ - 1];
+  }
 }
 void LightState::stop_effect_() {
   auto *effect = this->get_active_effect_();
@@ -269,7 +276,15 @@ void LightState::set_immediately_(const LightColorValues &target, bool set_remot
 void LightState::save_remote_values_() {
   LightStateRTCState saved;
   saved.color_mode = this->remote_values.get_color_mode();
-  saved.state = this->remote_values.is_on();
+  switch (this->restore_mode_) {
+    case LIGHT_RESTORE_AND_OFF:
+    case LIGHT_RESTORE_AND_ON:
+      saved.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
+      break;
+    default:
+      saved.state = this->remote_values.is_on();
+      break;
+  }
   saved.brightness = this->remote_values.get_brightness();
   saved.color_brightness = this->remote_values.get_color_brightness();
   saved.red = this->remote_values.get_red();

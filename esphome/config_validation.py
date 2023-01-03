@@ -17,6 +17,7 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
+    CONF_COMMAND_RETAIN,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
     CONF_ENTITY_CATEGORY,
@@ -43,6 +44,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
 )
 from esphome.core import (
     CORE,
@@ -56,13 +58,14 @@ from esphome.core import (
     TimePeriodMinutes,
 )
 from esphome.helpers import list_starts_with, add_class_to_obj
-from esphome.jsonschema import (
-    jschema_composite,
-    jschema_extractor,
-    jschema_registry,
-    jschema_typed,
+from esphome.schema_extractors import (
+    SCHEMA_EXTRACT,
+    schema_extractor_list,
+    schema_extractor,
+    schema_extractor_registry,
+    schema_extractor_typed,
 )
-
+from esphome.util import parse_esphome_version
 from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
@@ -326,7 +329,7 @@ def boolean(value):
     )
 
 
-@jschema_composite
+@schema_extractor_list
 def ensure_list(*validators):
     """Validate this configuration option to be a list.
 
@@ -451,7 +454,11 @@ def validate_id_name(value):
 def use_id(type):
     """Declare that this configuration option should point to an ID with the given type."""
 
+    @schema_extractor("use_id")
     def validator(value):
+        if value == SCHEMA_EXTRACT:
+            return type
+
         check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=False, type=type)
@@ -474,7 +481,11 @@ def declare_id(type):
     If two IDs with the same name exist, a validation error is thrown.
     """
 
+    @schema_extractor("declare_id")
     def validator(value):
+        if value == SCHEMA_EXTRACT:
+            return type
+
         check_not_templatable(value)
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
@@ -493,7 +504,11 @@ def templatable(other_validators):
     """
     schema = Schema(other_validators)
 
+    @schema_extractor("templatable")
     def validator(value):
+        if value == SCHEMA_EXTRACT:
+            return other_validators
+
         if isinstance(value, Lambda):
             return returning_lambda(value)
         if isinstance(other_validators, dict):
@@ -533,6 +548,7 @@ def only_with_framework(frameworks):
 
 only_on_esp32 = only_on("esp32")
 only_on_esp8266 = only_on("esp8266")
+only_on_rp2040 = only_on("rp2040")
 only_with_arduino = only_with_framework("arduino")
 only_with_esp_idf = only_with_framework("esp-idf")
 
@@ -958,9 +974,9 @@ def ipv4(value):
     elif isinstance(value, IPAddress):
         return value
     else:
-        raise Invalid("IPv4 address must consist of either string or " "integer list")
+        raise Invalid("IPv4 address must consist of either string or integer list")
     if len(parts) != 4:
-        raise Invalid("IPv4 address must consist of four point-separated " "integers")
+        raise Invalid("IPv4 address must consist of four point-separated integers")
     parts_ = list(map(int, parts))
     if not all(0 <= x < 256 for x in parts_):
         raise Invalid("IPv4 address parts must be in range from 0 to 255")
@@ -980,10 +996,10 @@ def _valid_topic(value):
         raise Invalid("MQTT topic name/filter must not be empty.")
     if len(raw_value) > 65535:
         raise Invalid(
-            "MQTT topic name/filter must not be longer than " "65535 encoded bytes."
+            "MQTT topic name/filter must not be longer than 65535 encoded bytes."
         )
     if "\0" in value:
-        raise Invalid("MQTT topic name/filter must not contain null " "character.")
+        raise Invalid("MQTT topic name/filter must not contain null character.")
     return value
 
 
@@ -995,7 +1011,7 @@ def subscribe_topic(value):
             i < len(value) - 1 and value[i + 1] != "/"
         ):
             raise Invalid(
-                "Single-level wildcard must occupy an entire " "level of the filter"
+                "Single-level wildcard must occupy an entire level of the filter"
             )
 
     index = value.find("#")
@@ -1007,9 +1023,7 @@ def subscribe_topic(value):
                 "character in the topic filter."
             )
         if len(value) > 1 and value[index - 1] != "/":
-            raise Invalid(
-                "Multi-level wildcard must be after a topic " "level separator."
-            )
+            raise Invalid("Multi-level wildcard must be after a topic level separator.")
 
     return value
 
@@ -1039,9 +1053,8 @@ def mqtt_qos(value):
 
 def requires_component(comp):
     """Validate that this option can only be specified when the component `comp` is loaded."""
-    # pylint: disable=unsupported-membership-test
+
     def validator(value):
-        # pylint: disable=unsupported-membership-test
         if comp not in CORE.loaded_integrations:
             raise Invalid(f"This option requires component {comp}")
         return value
@@ -1081,16 +1094,21 @@ def possibly_negative_percentage(value):
         except ValueError:
             # pylint: disable=raise-missing-from
             raise Invalid("invalid number")
-    if value > 1:
-        msg = "Percentage must not be higher than 100%."
-        if not has_percent_sign:
-            msg += " Please put a percent sign after the number!"
-        raise Invalid(msg)
-    if value < -1:
-        msg = "Percentage must not be smaller than -100%."
-        if not has_percent_sign:
-            msg += " Please put a percent sign after the number!"
-        raise Invalid(msg)
+    try:
+        if value > 1:
+            msg = "Percentage must not be higher than 100%."
+            if not has_percent_sign:
+                msg += " Please put a percent sign after the number!"
+            raise Invalid(msg)
+        if value < -1:
+            msg = "Percentage must not be smaller than -100%."
+            if not has_percent_sign:
+                msg += " Please put a percent sign after the number!"
+            raise Invalid(msg)
+    except TypeError:
+        raise Invalid(  # pylint: disable=raise-missing-from
+            "Expected percentage or float between -1.0 and 1.0"
+        )
     return negative_one_to_one_float(value)
 
 
@@ -1167,10 +1185,9 @@ def one_of(*values, **kwargs):
     if kwargs:
         raise ValueError
 
-    @jschema_extractor("one_of")
+    @schema_extractor("one_of")
     def validator(value):
-        # pylint: disable=comparison-with-callable
-        if value == jschema_extractor:
+        if value == SCHEMA_EXTRACT:
             return values
 
         if string_:
@@ -1210,10 +1227,9 @@ def enum(mapping, **kwargs):
     assert isinstance(mapping, dict)
     one_of_validator = one_of(*mapping, **kwargs)
 
-    @jschema_extractor("enum")
+    @schema_extractor("enum")
     def validator(value):
-        # pylint: disable=comparison-with-callable
-        if value == jschema_extractor:
+        if value == SCHEMA_EXTRACT:
             return mapping
 
         value = one_of_validator(value)
@@ -1386,7 +1402,7 @@ def extract_keys(schema):
     return keys
 
 
-@jschema_typed
+@schema_extractor_typed
 def typed_schema(schemas, **kwargs):
     """Create a schema that has a key to distinguish between schemas"""
     key = kwargs.pop("key", CONF_TYPE)
@@ -1425,6 +1441,7 @@ class SplitDefault(Optional):
         esp32=vol.UNDEFINED,
         esp32_arduino=vol.UNDEFINED,
         esp32_idf=vol.UNDEFINED,
+        rp2040=vol.UNDEFINED,
     ):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
@@ -1434,6 +1451,7 @@ class SplitDefault(Optional):
         self._esp32_idf_default = vol.default_factory(
             esp32_idf if esp32 is vol.UNDEFINED else esp32
         )
+        self._rp2040_default = vol.default_factory(rp2040)
 
     @property
     def default(self):
@@ -1443,6 +1461,8 @@ class SplitDefault(Optional):
             return self._esp32_arduino_default
         if CORE.is_esp32 and CORE.using_esp_idf:
             return self._esp32_idf_default
+        if CORE.is_rp2040:
+            return self._rp2040_default
         raise NotImplementedError
 
     @default.setter
@@ -1461,7 +1481,6 @@ class OnlyWith(Optional):
 
     @property
     def default(self):
-        # pylint: disable=unsupported-membership-test
         if self._component in CORE.loaded_integrations:
             return self._default
         return vol.UNDEFINED
@@ -1500,7 +1519,7 @@ def validate_registry_entry(name, registry):
     )
     ignore_keys = extract_keys(base_schema)
 
-    @jschema_registry(registry)
+    @schema_extractor_registry(registry)
     def validator(value):
         if isinstance(value, str):
             value = {value: {}}
@@ -1545,12 +1564,15 @@ def validate_registry(name, registry):
     return ensure_list(validate_registry_entry(name, registry))
 
 
-@jschema_composite
 def maybe_simple_value(*validators, **kwargs):
     key = kwargs.pop("key", CONF_VALUE)
     validator = All(*validators)
 
+    @schema_extractor("maybe")
     def validate(value):
+        if value == SCHEMA_EXTRACT:
+            return (validator, key)
+
         if isinstance(value, dict) and key in value:
             return validator(value)
         return validator({key: value})
@@ -1591,6 +1613,7 @@ MQTT_COMPONENT_SCHEMA = Schema(
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
         Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
+        Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
     }
 )
 
@@ -1655,7 +1678,7 @@ def source_refresh(value: str):
     if value.lower() == "always":
         return source_refresh("0s")
     if value.lower() == "never":
-        return source_refresh("1000y")
+        return source_refresh("365250d")
     return positive_time_period_seconds(value)
 
 
@@ -1670,7 +1693,7 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> "Version":
-        match = re.match(r"(\d+).(\d+).(\d+)", value)
+        match = re.match(r"^(\d+).(\d+).(\d+)-?\w*$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])
@@ -1684,7 +1707,7 @@ def version_number(value):
     try:
         return str(Version.parse(value))
     except ValueError as e:
-        raise Invalid("Not a version number") from e
+        raise Invalid("Not a valid version number") from e
 
 
 def platformio_version_constraint(value):
@@ -1711,29 +1734,77 @@ def require_framework_version(
     esp_idf=None,
     esp32_arduino=None,
     esp8266_arduino=None,
+    rp2040_arduino=None,
+    max_version=False,
+    extra_message=None,
 ):
     def validator(value):
         core_data = CORE.data[KEY_CORE]
         framework = core_data[KEY_TARGET_FRAMEWORK]
         if framework == "esp-idf":
             if esp_idf is None:
-                raise Invalid("This feature is incompatible with esp-idf")
+                msg = "This feature is incompatible with esp-idf"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
             required = esp_idf
         elif CORE.is_esp32 and framework == "arduino":
             if esp32_arduino is None:
-                raise Invalid(
-                    "This feature is incompatible with ESP32 using arduino framework"
-                )
+                msg = "This feature is incompatible with ESP32 using arduino framework"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
             required = esp32_arduino
         elif CORE.is_esp8266 and framework == "arduino":
             if esp8266_arduino is None:
-                raise Invalid("This feature is incompatible with ESP8266")
+                msg = "This feature is incompatible with ESP8266"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
             required = esp8266_arduino
+        elif CORE.is_rp2040 and framework == "arduino":
+            if rp2040_arduino is None:
+                msg = "This feature is incompatible with RP2040"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
+            required = rp2040_arduino
         else:
-            raise NotImplementedError
-        if core_data[KEY_FRAMEWORK_VERSION] < required:
             raise Invalid(
-                f"This feature requires at least framework version {required}"
+                f"""
+            Internal Error: require_framework_version does not support this platform configuration
+                platform: {core_data[KEY_TARGET_PLATFORM]}
+                framework: {framework}
+
+            Please report this issue on GitHub -> https://github.com/esphome/issues/issues/new?template=bug_report.yml.
+            """
+            )
+
+        if max_version:
+            if core_data[KEY_FRAMEWORK_VERSION] > required:
+                msg = f"This feature requires framework version {required} or lower"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
+            return value
+
+        if core_data[KEY_FRAMEWORK_VERSION] < required:
+            msg = f"This feature requires at least framework version {required}"
+            if extra_message:
+                msg += f". {extra_message}"
+            raise Invalid(msg)
+        return value
+
+    return validator
+
+
+def require_esphome_version(year, month, patch):
+    def validator(value):
+        esphome_version = parse_esphome_version()
+        if esphome_version < (year, month, patch):
+            requires_version = f"{year}.{month}.{patch}"
+            raise Invalid(
+                f"This component requires at least ESPHome version {requires_version}"
             )
         return value
 

@@ -2,6 +2,7 @@
 #include "ota_backend.h"
 #include "ota_backend_arduino_esp32.h"
 #include "ota_backend_arduino_esp8266.h"
+#include "ota_backend_arduino_rp2040.h"
 #include "ota_backend_esp_idf.h"
 
 #include "esphome/core/log.h"
@@ -21,6 +22,8 @@ static const char *const TAG = "ota";
 
 static const uint8_t OTA_VERSION_1_0 = 1;
 
+OTAComponent *global_ota_component = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 std::unique_ptr<OTABackend> make_ota_backend() {
 #ifdef USE_ARDUINO
 #ifdef USE_ESP8266
@@ -33,10 +36,15 @@ std::unique_ptr<OTABackend> make_ota_backend() {
 #ifdef USE_ESP_IDF
   return make_unique<IDFOTABackend>();
 #endif  // USE_ESP_IDF
+#ifdef USE_RP2040
+  return make_unique<ArduinoRP2040OTABackend>();
+#endif  // USE_RP2040
 }
 
+OTAComponent::OTAComponent() { global_ota_component = this; }
+
 void OTAComponent::setup() {
-  server_ = socket::socket(AF_INET, SOCK_STREAM, 0);
+  server_ = socket::socket_ip(SOCK_STREAM, 0);
   if (server_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket.");
     this->mark_failed();
@@ -55,11 +63,14 @@ void OTAComponent::setup() {
     return;
   }
 
-  struct sockaddr_in server;
-  memset(&server, 0, sizeof(server));
-  server.sin_family = AF_INET;
-  server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
-  server.sin_port = htons(this->port_);
+  struct sockaddr_storage server;
+
+  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), htons(this->port_));
+  if (sl == 0) {
+    ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
 
   err = server_->bind((struct sockaddr *) &server, sizeof(server));
   if (err != 0) {
@@ -293,7 +304,7 @@ void OTAComponent::handle_() {
 
     error_code = backend->write(buf, read);
     if (error_code != OTA_RESPONSE_OK) {
-      ESP_LOGW(TAG, "Error writing binary data to flash!");
+      ESP_LOGW(TAG, "Error writing binary data to flash!, error_code: %d", error_code);
       goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
     }
     total += read;
@@ -318,7 +329,7 @@ void OTAComponent::handle_() {
 
   error_code = backend->end();
   if (error_code != OTA_RESPONSE_OK) {
-    ESP_LOGW(TAG, "Error ending OTA!");
+    ESP_LOGW(TAG, "Error ending OTA!, error_code: %d", error_code);
     goto error;  // NOLINT(cppcoreguidelines-avoid-goto)
   }
 
@@ -452,16 +463,18 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
 
   bool is_manual_safe_mode = this->safe_mode_rtc_value_ == esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC;
 
-  if (is_manual_safe_mode)
+  if (is_manual_safe_mode) {
     ESP_LOGI(TAG, "Safe mode has been entered manually");
-  else
+  } else {
     ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
+  }
 
   if (this->safe_mode_rtc_value_ >= num_attempts || is_manual_safe_mode) {
     this->clean_rtc();
 
-    if (!is_manual_safe_mode)
+    if (!is_manual_safe_mode) {
       ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode.");
+    }
 
     this->status_set_error();
     this->set_timeout(enable_time, []() {
@@ -469,6 +482,8 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
       App.reboot();
     });
 
+    // Delay here to allow power to stabilise before Wi-Fi/Ethernet is initialised.
+    delay(300);  // NOLINT
     App.setup();
 
     ESP_LOGI(TAG, "Waiting for OTA attempt.");

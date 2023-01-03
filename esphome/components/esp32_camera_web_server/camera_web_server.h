@@ -36,7 +36,6 @@ class CameraWebServer : public Component {
   esp_err_t streaming_handler_(struct httpd_req *req);
   esp_err_t snapshot_handler_(struct httpd_req *req);
 
- protected:
   uint16_t port_{0};
   void *httpd_{nullptr};
   SemaphoreHandle_t semaphore_;

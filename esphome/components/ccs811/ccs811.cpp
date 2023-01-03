@@ -39,14 +39,15 @@ void CCS811Component::setup() {
   // set MEAS_MODE (page 5)
   uint8_t meas_mode = 0;
   uint32_t interval = this->get_update_interval();
-  if (interval >= 60 * 1000)
+  if (interval >= 60 * 1000) {
     meas_mode = 3 << 4;  // sensor takes a reading every 60 seconds
-  else if (interval >= 10 * 1000)
+  } else if (interval >= 10 * 1000) {
     meas_mode = 2 << 4;  // sensor takes a reading every 10 seconds
-  else if (interval >= 1 * 1000)
+  } else if (interval >= 1 * 1000) {
     meas_mode = 1 << 4;  // sensor takes a reading every second
-  else
+  } else {
     meas_mode = 4 << 4;  // sensor takes a reading every 250ms
+  }
 
   CHECKED_IO(this->write_byte(0x01, meas_mode))
 

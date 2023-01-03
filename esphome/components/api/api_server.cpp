@@ -24,7 +24,7 @@ static const char *const TAG = "api";
 void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
   this->setup_controller();
-  socket_ = socket::socket(AF_INET, SOCK_STREAM, 0);
+  socket_ = socket::socket_ip(SOCK_STREAM, 0);
   if (socket_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket.");
     this->mark_failed();
@@ -43,13 +43,16 @@ void APIServer::setup() {
     return;
   }
 
-  struct sockaddr_in server;
-  memset(&server, 0, sizeof(server));
-  server.sin_family = AF_INET;
-  server.sin_addr.s_addr = ESPHOME_INADDR_ANY;
-  server.sin_port = htons(this->port_);
+  struct sockaddr_storage server;
 
-  err = socket_->bind((struct sockaddr *) &server, sizeof(server));
+  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), htons(this->port_));
+  if (sl == 0) {
+    ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
+    this->mark_failed();
+    return;
+  }
+
+  err = socket_->bind((struct sockaddr *) &server, sl);
   if (err != 0) {
     ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
     this->mark_failed();
@@ -80,9 +83,10 @@ void APIServer::setup() {
   if (esp32_camera::global_esp32_camera != nullptr && !esp32_camera::global_esp32_camera->is_internal()) {
     esp32_camera::global_esp32_camera->add_image_callback(
         [this](const std::shared_ptr<esp32_camera::CameraImage> &image) {
-          for (auto &c : this->clients_)
+          for (auto &c : this->clients_) {
             if (!c->remove_)
               c->send_camera_state(image);
+          }
         });
   }
 #endif
@@ -188,7 +192,7 @@ void APIServer::on_cover_update(cover::Cover *obj) {
 #endif
 
 #ifdef USE_FAN
-void APIServer::on_fan_update(fan::FanState *obj) {
+void APIServer::on_fan_update(fan::Fan *obj) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
@@ -251,11 +255,29 @@ void APIServer::on_number_update(number::Number *obj, float state) {
 #endif
 
 #ifdef USE_SELECT
-void APIServer::on_select_update(select::Select *obj, const std::string &state) {
+void APIServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
   if (obj->is_internal())
     return;
   for (auto &c : this->clients_)
     c->send_select_state(obj, state);
+}
+#endif
+
+#ifdef USE_LOCK
+void APIServer::on_lock_update(lock::Lock *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_lock_state(obj, obj->state);
+}
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+void APIServer::on_media_player_update(media_player::MediaPlayer *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_media_player_state(obj);
 }
 #endif
 
@@ -269,6 +291,79 @@ void APIServer::send_homeassistant_service_call(const HomeassistantServiceRespon
     client->send_homeassistant_service_call(call);
   }
 }
+#ifdef USE_BLUETOOTH_PROXY
+void APIServer::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &call) {
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_le_advertisement(call);
+  }
+}
+void APIServer::send_bluetooth_device_connection(uint64_t address, bool connected, uint16_t mtu, esp_err_t error) {
+  BluetoothDeviceConnectionResponse call;
+  call.address = address;
+  call.connected = connected;
+  call.mtu = mtu;
+  call.error = error;
+
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_device_connection_response(call);
+  }
+}
+
+void APIServer::send_bluetooth_connections_free(uint8_t free, uint8_t limit) {
+  BluetoothConnectionsFreeResponse call;
+  call.free = free;
+  call.limit = limit;
+
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_connections_free_response(call);
+  }
+}
+
+void APIServer::send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &call) {
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_gatt_read_response(call);
+  }
+}
+void APIServer::send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &call) {
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_gatt_write_response(call);
+  }
+}
+void APIServer::send_bluetooth_gatt_notify_data_response(const BluetoothGATTNotifyDataResponse &call) {
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_gatt_notify_data_response(call);
+  }
+}
+void APIServer::send_bluetooth_gatt_notify_response(const BluetoothGATTNotifyResponse &call) {
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_gatt_notify_response(call);
+  }
+}
+void APIServer::send_bluetooth_gatt_services(const BluetoothGATTGetServicesResponse &call) {
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_gatt_get_services_response(call);
+  }
+}
+void APIServer::send_bluetooth_gatt_services_done(uint64_t address) {
+  BluetoothGATTGetServicesDoneResponse call;
+  call.address = address;
+
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_gatt_get_services_done_response(call);
+  }
+}
+void APIServer::send_bluetooth_gatt_error(uint64_t address, uint16_t handle, esp_err_t error) {
+  BluetoothGATTErrorResponse call;
+  call.address = address;
+  call.handle = handle;
+  call.error = error;
+
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_gatt_error_response(call);
+  }
+}
+
+#endif
 APIServer::APIServer() { global_api_server = this; }
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {

@@ -80,6 +80,10 @@ AURA_LED_COLORS = {
     "RED": AuraLEDColor.RED,
     "BLUE": AuraLEDColor.BLUE,
     "PURPLE": AuraLEDColor.PURPLE,
+    "GREEN": AuraLEDColor.GREEN,
+    "YELLOW": AuraLEDColor.YELLOW,
+    "CYAN": AuraLEDColor.CYAN,
+    "WHITE": AuraLEDColor.WHITE,
 }
 validate_aura_led_colors = cv.enum(AURA_LED_COLORS, upper=True)
 

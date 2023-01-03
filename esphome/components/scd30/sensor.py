@@ -2,6 +2,7 @@ from esphome import core
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+from esphome.components import sensirion_common
 from esphome.const import (
     CONF_ID,
     CONF_HUMIDITY,
@@ -18,9 +19,12 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["i2c"]
+AUTO_LOAD = ["sensirion_common"]
 
 scd30_ns = cg.esphome_ns.namespace("scd30")
-SCD30Component = scd30_ns.class_("SCD30Component", cg.Component, i2c.I2CDevice)
+SCD30Component = scd30_ns.class_(
+    "SCD30Component", cg.Component, sensirion_common.SensirionI2CDevice
+)
 
 CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
 CONF_ALTITUDE_COMPENSATION = "altitude_compensation"

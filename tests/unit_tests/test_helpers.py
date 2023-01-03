@@ -124,13 +124,13 @@ def test_get_bool_env(monkeypatch, var, value, default, expected):
 
 
 @pytest.mark.parametrize("value, expected", ((None, False), ("Yes", True)))
-def test_is_hassio(monkeypatch, value, expected):
+def test_is_ha_addon(monkeypatch, value, expected):
     if value is None:
-        monkeypatch.delenv("ESPHOME_IS_HASSIO", raising=False)
+        monkeypatch.delenv("ESPHOME_IS_HA_ADDON", raising=False)
     else:
-        monkeypatch.setenv("ESPHOME_IS_HASSIO", value)
+        monkeypatch.setenv("ESPHOME_IS_HA_ADDON", value)
 
-    actual = helpers.is_hassio()
+    actual = helpers.is_ha_addon()
 
     assert actual == expected
 

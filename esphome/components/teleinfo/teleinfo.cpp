@@ -179,7 +179,7 @@ void TeleInfo::loop() {
   }
 }
 void TeleInfo::publish_value_(const std::string &tag, const std::string &val) {
-  for (auto element : teleinfo_listeners_) {
+  for (auto *element : teleinfo_listeners_) {
     if (tag != element->tag)
       continue;
     element->publish_val(val);

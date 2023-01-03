@@ -17,7 +17,7 @@ static const char *const TAG = "mqtt.sensor";
 
 using namespace esphome::sensor;
 
-MQTTSensorComponent::MQTTSensorComponent(Sensor *sensor) : MQTTComponent(), sensor_(sensor) {}
+MQTTSensorComponent::MQTTSensorComponent(Sensor *sensor) : sensor_(sensor) {}
 
 void MQTTSensorComponent::setup() {
   this->sensor_->add_on_state_callback([this](float state) { this->publish_state(state); });

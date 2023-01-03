@@ -1,5 +1,7 @@
 #include "toshiba.h"
 
+#include <vector>
+
 namespace esphome {
 namespace toshiba {
 
@@ -122,9 +124,6 @@ void ToshibaClimate::setup() {
   // Set supported modes & temperatures based on model
   this->minimum_temperature_ = this->temperature_min_();
   this->maximum_temperature_ = this->temperature_max_();
-  this->supports_dry_ = this->toshiba_supports_dry_();
-  this->supports_fan_only_ = this->toshiba_supports_fan_only_();
-  this->fan_modes_ = this->toshiba_fan_modes_();
   this->swing_modes_ = this->toshiba_swing_modes_();
   // Never send nan to HA
   if (std::isnan(this->target_temperature))
@@ -176,12 +175,39 @@ void ToshibaClimate::transmit_generic_() {
       mode = TOSHIBA_MODE_COOL;
       break;
 
+    case climate::CLIMATE_MODE_DRY:
+      mode = TOSHIBA_MODE_DRY;
+      break;
+
+    case climate::CLIMATE_MODE_FAN_ONLY:
+      mode = TOSHIBA_MODE_FAN_ONLY;
+      break;
+
     case climate::CLIMATE_MODE_HEAT_COOL:
     default:
       mode = TOSHIBA_MODE_AUTO;
   }
 
-  message[6] |= mode | TOSHIBA_FAN_SPEED_AUTO;
+  uint8_t fan;
+  switch (this->fan_mode.value()) {
+    case climate::CLIMATE_FAN_LOW:
+      fan = TOSHIBA_FAN_SPEED_1;
+      break;
+
+    case climate::CLIMATE_FAN_MEDIUM:
+      fan = TOSHIBA_FAN_SPEED_3;
+      break;
+
+    case climate::CLIMATE_FAN_HIGH:
+      fan = TOSHIBA_FAN_SPEED_5;
+      break;
+
+    case climate::CLIMATE_FAN_AUTO:
+    default:
+      fan = TOSHIBA_FAN_SPEED_AUTO;
+      break;
+  }
+  message[6] = fan | mode;
 
   // Zero
   message[7] = 0x00;
@@ -197,7 +223,7 @@ void ToshibaClimate::transmit_generic_() {
 
   // Transmit
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   encode_(data, message, message_length, 1);
 
@@ -210,7 +236,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_() {
       clamp<float>(this->target_temperature, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX);
   float temp_adjd = temperature - TOSHIBA_RAC_PT1411HWRU_TEMP_C_MIN;
   auto transmit = this->transmitter_->transmit();
-  auto data = transmit.get_data();
+  auto *data = transmit.get_data();
 
   // Byte 0:  Header upper (0xB2)
   message[0] = RAC_PT1411HWRU_MESSAGE_HEADER0;
@@ -357,7 +383,7 @@ void ToshibaClimate::transmit_rac_pt1411hwru_temp_(const bool cs_state, const bo
     uint8_t message[RAC_PT1411HWRU_MESSAGE_LENGTH] = {0};
     float temperature = clamp<float>(this->current_temperature, 0.0, TOSHIBA_RAC_PT1411HWRU_TEMP_C_MAX + 1);
     auto transmit = this->transmitter_->transmit();
-    auto data = transmit.get_data();
+    auto *data = transmit.get_data();
     // "Comfort Sense" feature notes
     // IR Code: 0xBA45 xxXX yyYY
     // xx: Temperature in °C
@@ -542,10 +568,11 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
 
         // case RAC_PT1411HWRU_MODE_DRY:
         case RAC_PT1411HWRU_MODE_FAN:
-          if ((message[4] >> 4) == RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY)
+          if ((message[4] >> 4) == RAC_PT1411HWRU_TEMPERATURE_FAN_ONLY) {
             this->mode = climate::CLIMATE_MODE_FAN_ONLY;
-          else
+          } else {
             this->mode = climate::CLIMATE_MODE_DRY;
+          }
           break;
 
         case RAC_PT1411HWRU_MODE_HEAT:

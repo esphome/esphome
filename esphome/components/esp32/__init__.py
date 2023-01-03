@@ -2,8 +2,9 @@ from dataclasses import dataclass
 from typing import Union
 from pathlib import Path
 import logging
+import os
 
-from esphome.helpers import write_file_if_changed
+from esphome.helpers import copy_file_if_changed, write_file_if_changed
 from esphome.const import (
     CONF_BOARD,
     CONF_FRAMEWORK,
@@ -17,6 +18,7 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    __version__,
 )
 from esphome.core import CORE, HexInt
 import esphome.config_validation as cv
@@ -31,7 +33,7 @@ from .const import (  # noqa
     VARIANT_FRIENDLY,
     VARIANTS,
 )
-from .boards import BOARD_TO_VARIANT
+from .boards import BOARDS
 
 # force import gpio to register pin schema
 from .gpio import esp32_pin_to_code  # noqa
@@ -59,12 +61,30 @@ def set_core_data(config):
     return config
 
 
-def get_esp32_variant():
-    return CORE.data[KEY_ESP32][KEY_VARIANT]
+def get_esp32_variant(core_obj=None):
+    return (core_obj or CORE).data[KEY_ESP32][KEY_VARIANT]
 
 
-def is_esp32c3():
-    return get_esp32_variant() == VARIANT_ESP32C3
+def only_on_variant(*, supported=None, unsupported=None):
+    """Config validator for features only available on some ESP32 variants."""
+    if supported is not None and not isinstance(supported, list):
+        supported = [supported]
+    if unsupported is not None and not isinstance(unsupported, list):
+        unsupported = [unsupported]
+
+    def validator_(obj):
+        variant = get_esp32_variant()
+        if supported is not None and variant not in supported:
+            raise cv.Invalid(
+                f"This feature is only available on {', '.join(supported)}"
+            )
+        if unsupported is not None and variant in unsupported:
+            raise cv.Invalid(
+                f"This feature is not available on {', '.join(unsupported)}"
+            )
+        return obj
+
+    return validator_
 
 
 @dataclass
@@ -105,32 +125,31 @@ def _format_framework_espidf_version(ver: cv.Version) -> str:
 #    The new version needs to be thoroughly validated before changing the
 #    recommended version as otherwise a bunch of devices could be bricked
 #  * For all constants below, update platformio.ini (in this repo)
-#    and platformio.ini/platformio-lint.ini in the esphome-docker-base repository
 
 # The default/recommended arduino framework version
 #  - https://github.com/espressif/arduino-esp32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-arduinoespressif32
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(1, 0, 6)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 0, 5)
 # The platformio/espressif32 version to use for arduino frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ARDUINO_PLATFORM_VERSION = cv.Version(3, 3, 2)
+ARDUINO_PLATFORM_VERSION = cv.Version(5, 2, 0)
 
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 3, 0)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 2)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
-ESP_IDF_PLATFORM_VERSION = cv.Version(3, 3, 2)
+ESP_IDF_PLATFORM_VERSION = cv.Version(5, 2, 0)
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(2, 0, 0), "https://github.com/espressif/arduino-esp32.git"),
-        "latest": (cv.Version(1, 0, 6), None),
+        "dev": (cv.Version(2, 0, 5), "https://github.com/espressif/arduino-esp32.git"),
+        "latest": (cv.Version(2, 0, 5), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -164,8 +183,8 @@ def _arduino_check_versions(value):
 def _esp_idf_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(4, 3, 1), "https://github.com/espressif/esp-idf.git"),
-        "latest": (cv.Version(4, 3, 0), None),
+        "dev": (cv.Version(5, 0, 0), "https://github.com/espressif/esp-idf.git"),
+        "latest": (cv.Version(4, 4, 2), None),
         "recommended": (RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION, None),
     }
 
@@ -211,14 +230,14 @@ def _parse_platform_version(value):
 def _detect_variant(value):
     if CONF_VARIANT not in value:
         board = value[CONF_BOARD]
-        if board not in BOARD_TO_VARIANT:
+        if board not in BOARDS:
             raise cv.Invalid(
                 "This board is unknown, please set the variant manually",
                 path=[CONF_BOARD],
             )
 
         value = value.copy()
-        value[CONF_VARIANT] = BOARD_TO_VARIANT[board]
+        value[CONF_VARIANT] = BOARDS[board][KEY_VARIANT]
 
     return value
 
@@ -292,8 +311,12 @@ async def to_code(config):
 
     cg.add_platformio_option("lib_ldf_mode", "off")
 
+    framework_ver: cv.Version = CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION]
+
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
+
+    cg.add_platformio_option("extra_scripts", ["post:post_build.py"])
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
@@ -303,6 +326,11 @@ async def to_code(config):
         cg.add_platformio_option(
             "platform_packages",
             [f"platformio/framework-espidf @ {conf[CONF_SOURCE]}"],
+        )
+        # platformio/toolchain-esp32ulp does not support linux_aarch64 yet and has not been updated for over 2 years
+        # This is espressif's own published version which is more up to date.
+        cg.add_platformio_option(
+            "platform_packages", ["espressif/toolchain-esp32ulp @ 2.35.0-20220830"]
         )
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
@@ -328,9 +356,21 @@ async def to_code(config):
 
         if conf[CONF_ADVANCED][CONF_IGNORE_EFUSE_MAC_CRC]:
             cg.add_define("USE_ESP32_IGNORE_EFUSE_MAC_CRC")
-            add_idf_sdkconfig_option(
-                "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
-            )
+            if (framework_ver.major, framework_ver.minor) >= (4, 4):
+                add_idf_sdkconfig_option(
+                    "CONFIG_ESP_PHY_CALIBRATION_AND_DATA_STORAGE", False
+                )
+            else:
+                add_idf_sdkconfig_option(
+                    "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
+                )
+
+        cg.add_define(
+            "USE_ESP_IDF_VERSION_CODE",
+            cg.RawExpression(
+                f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+            ),
+        )
 
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         cg.add_platformio_option("framework", "arduino")
@@ -342,6 +382,13 @@ async def to_code(config):
         )
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")
+
+        cg.add_define(
+            "USE_ARDUINO_VERSION_CODE",
+            cg.RawExpression(
+                f"VERSION_CODE({framework_ver.major}, {framework_ver.minor}, {framework_ver.patch})"
+            ),
+        )
 
 
 ARDUINO_PARTITIONS_CSV = """\
@@ -356,11 +403,11 @@ spiffs,   data, spiffs,  0x391000, 0x00F000
 
 IDF_PARTITIONS_CSV = """\
 # Name,   Type, SubType, Offset,   Size, Flags
-nvs,      data, nvs,     ,        0x4000,
 otadata,  data, ota,     ,        0x2000,
 phy_init, data, phy,     ,        0x1000,
 app0,     app,  ota_0,   ,      0x1C0000,
 app1,     app,  ota_1,   ,      0x1C0000,
+nvs,      data, nvs,     ,       0x6d000,
 """
 
 
@@ -412,3 +459,18 @@ def copy_files():
             CORE.relative_build_path("partitions.csv"),
             IDF_PARTITIONS_CSV,
         )
+        # IDF build scripts look for version string to put in the build.
+        # However, if the build path does not have an initialized git repo,
+        # and no version.txt file exists, the CMake script fails for some setups.
+        # Fix by manually pasting a version.txt file, containing the ESPHome version
+        write_file_if_changed(
+            CORE.relative_build_path("version.txt"),
+            __version__,
+        )
+
+    dir = os.path.dirname(__file__)
+    post_build_file = os.path.join(dir, "post_build.py.script")
+    copy_file_if_changed(
+        post_build_file,
+        CORE.relative_build_path("post_build.py"),
+    )

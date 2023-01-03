@@ -162,7 +162,7 @@ void ESP32TouchComponent::on_shutdown() {
 }
 
 ESP32TouchBinarySensor::ESP32TouchBinarySensor(touch_pad_t touch_pad, uint16_t threshold, uint16_t wakeup_threshold)
-    : BinarySensor(), touch_pad_(touch_pad), threshold_(threshold), wakeup_threshold_(wakeup_threshold) {}
+    : touch_pad_(touch_pad), threshold_(threshold), wakeup_threshold_(wakeup_threshold) {}
 
 }  // namespace esp32_touch
 }  // namespace esphome

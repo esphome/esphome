@@ -42,6 +42,12 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_LOCK
+#include "esphome/components/lock/lock.h"
+#endif
+#ifdef USE_MEDIA_PLAYER
+#include "esphome/components/media_player/media_player.h"
+#endif
 
 namespace esphome {
 
@@ -81,7 +87,7 @@ class Application {
 #endif
 
 #ifdef USE_FAN
-  void register_fan(fan::FanState *state) { this->fans_.push_back(state); }
+  void register_fan(fan::Fan *state) { this->fans_.push_back(state); }
 #endif
 
 #ifdef USE_COVER
@@ -102,6 +108,14 @@ class Application {
 
 #ifdef USE_SELECT
   void register_select(select::Select *select) { this->selects_.push_back(select); }
+#endif
+
+#ifdef USE_LOCK
+  void register_lock(lock::Lock *a_lock) { this->locks_.push_back(a_lock); }
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+  void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
 #endif
 
   /// Register the component in this Application instance.
@@ -147,14 +161,7 @@ class Application {
 
   void safe_reboot();
 
-  void run_safe_shutdown_hooks() {
-    for (auto *comp : this->components_) {
-      comp->on_safe_shutdown();
-    }
-    for (auto *comp : this->components_) {
-      comp->on_shutdown();
-    }
-  }
+  void run_safe_shutdown_hooks();
 
   uint32_t get_app_state() const { return this->app_state_; }
 
@@ -204,8 +211,8 @@ class Application {
   }
 #endif
 #ifdef USE_FAN
-  const std::vector<fan::FanState *> &get_fans() { return this->fans_; }
-  fan::FanState *get_fan_by_key(uint32_t key, bool include_internal = false) {
+  const std::vector<fan::Fan *> &get_fans() { return this->fans_; }
+  fan::Fan *get_fan_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->fans_)
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
         return obj;
@@ -257,6 +264,24 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_LOCK
+  const std::vector<lock::Lock *> &get_locks() { return this->locks_; }
+  lock::Lock *get_lock_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->locks_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+#ifdef USE_MEDIA_PLAYER
+  const std::vector<media_player::MediaPlayer *> &get_media_players() { return this->media_players_; }
+  media_player::MediaPlayer *get_media_player_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->media_players_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 
   Scheduler scheduler;
 
@@ -288,7 +313,7 @@ class Application {
   std::vector<text_sensor::TextSensor *> text_sensors_{};
 #endif
 #ifdef USE_FAN
-  std::vector<fan::FanState *> fans_{};
+  std::vector<fan::Fan *> fans_{};
 #endif
 #ifdef USE_COVER
   std::vector<cover::Cover *> covers_{};
@@ -304,6 +329,12 @@ class Application {
 #endif
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};
+#endif
+#ifdef USE_LOCK
+  std::vector<lock::Lock *> locks_{};
+#endif
+#ifdef USE_MEDIA_PLAYER
+  std::vector<media_player::MediaPlayer *> media_players_{};
 #endif
 
   std::string name_;

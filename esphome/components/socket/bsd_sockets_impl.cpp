@@ -35,7 +35,7 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
 
 class BSDSocketImpl : public Socket {
  public:
-  BSDSocketImpl(int fd) : Socket(), fd_(fd) {}
+  BSDSocketImpl(int fd) : fd_(fd) {}
   ~BSDSocketImpl() override {
     if (!closed_) {
       close();  // NOLINT(clang-analyzer-optin.cplusplus.VirtualCall)
@@ -88,9 +88,10 @@ class BSDSocketImpl : public Socket {
     for (int i = 0; i < iovcnt; i++) {
       ssize_t err = this->read(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len);
       if (err == -1) {
-        if (ret != 0)
+        if (ret != 0) {
           // if we already read some don't return an error
           break;
+        }
         return err;
       }
       ret += err;
@@ -115,9 +116,10 @@ class BSDSocketImpl : public Socket {
       ssize_t err =
           this->send(reinterpret_cast<uint8_t *>(iov[i].iov_base), iov[i].iov_len, i == iovcnt - 1 ? 0 : MSG_MORE);
       if (err == -1) {
-        if (ret != 0)
+        if (ret != 0) {
           // if we already wrote some don't return an error
           break;
+        }
         return err;
       }
       ret += err;

@@ -1,12 +1,13 @@
 #pragma once
 
-#include "esphome/core/macros.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/network/ip_address.h"
+
 #include <string>
+#include <vector>
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp_wifi.h>
@@ -18,11 +19,21 @@
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiType.h>
 
-#if defined(USE_ESP8266) && ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
+#if defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE < VERSION_CODE(2, 4, 0)
 extern "C" {
 #include <user_interface.h>
 };
 #endif
+#endif
+
+#ifdef USE_RP2040
+extern "C" {
+#include "cyw43.h"
+#include "cyw43_country.h"
+#include "pico/cyw43_arch.h"
+}
+
+#include <WiFi.h>
 #endif
 
 namespace esphome {
@@ -139,6 +150,8 @@ class WiFiScanResult {
   float get_priority() const { return priority_; }
   void set_priority(float priority) { priority_ = priority; }
 
+  bool operator==(const WiFiScanResult &rhs) const;
+
  protected:
   bool matches_{false};
   bssid_t bssid_;
@@ -183,6 +196,7 @@ class WiFiComponent : public Component {
    * can be made, the AP will be turned off again.
    */
   void set_ap(const WiFiAP &ap);
+  WiFiAP get_ap() { return this->ap_; }
 
   void start_scanning();
   void check_scanning_finished();
@@ -219,6 +233,11 @@ class WiFiComponent : public Component {
   bool has_sta() const;
   bool has_ap() const;
 
+#ifdef USE_WIFI_11KV_SUPPORT
+  void set_btm(bool btm);
+  void set_rrm(bool rrm);
+#endif
+
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
@@ -228,23 +247,26 @@ class WiFiComponent : public Component {
   network::IPAddress wifi_soft_ap_ip();
 
   bool has_sta_priority(const bssid_t &bssid) {
-    for (auto &it : this->sta_priorities_)
+    for (auto &it : this->sta_priorities_) {
       if (it.bssid == bssid)
         return true;
+    }
     return false;
   }
   float get_sta_priority(const bssid_t bssid) {
-    for (auto &it : this->sta_priorities_)
+    for (auto &it : this->sta_priorities_) {
       if (it.bssid == bssid)
         return it.priority;
+    }
     return 0.0f;
   }
   void set_sta_priority(const bssid_t bssid, float priority) {
-    for (auto &it : this->sta_priorities_)
+    for (auto &it : this->sta_priorities_) {
       if (it.bssid == bssid) {
         it.priority = priority;
         return;
       }
+    }
     this->sta_priorities_.push_back(WiFiSTAPriority{
         .bssid = bssid,
         .priority = priority,
@@ -299,7 +321,12 @@ class WiFiComponent : public Component {
   void wifi_scan_done_callback_();
 #endif
 #ifdef USE_ESP_IDF
-  void wifi_process_event_(IDFWiFiEvent *);
+  void wifi_process_event_(IDFWiFiEvent *data);
+#endif
+
+#ifdef USE_RP2040
+  static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+  void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
 #endif
 
   std::string use_address_;
@@ -324,6 +351,10 @@ class WiFiComponent : public Component {
   optional<float> output_power_;
   ESPPreferenceObject pref_;
   bool has_saved_wifi_settings_{false};
+#ifdef USE_WIFI_11KV_SUPPORT
+  bool btm_{false};
+  bool rrm_{false};
+#endif
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

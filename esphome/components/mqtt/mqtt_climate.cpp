@@ -299,7 +299,7 @@ bool MQTTClimateComponent::publish_state_() {
 
   if (traits.get_supports_fan_modes()) {
     std::string payload;
-    if (this->device_->fan_mode.has_value())
+    if (this->device_->fan_mode.has_value()) {
       switch (this->device_->fan_mode.value()) {
         case CLIMATE_FAN_ON:
           payload = "on";
@@ -329,6 +329,7 @@ bool MQTTClimateComponent::publish_state_() {
           payload = "diffuse";
           break;
       }
+    }
     if (this->device_->custom_fan_mode.has_value())
       payload = this->device_->custom_fan_mode.value();
     if (!this->publish(this->get_fan_mode_state_topic(), payload))

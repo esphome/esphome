@@ -24,18 +24,20 @@ void DishProtocol::encode(RemoteTransmitData *dst, const DishData &data) {
   for (uint i = 0; i < 4; i++) {
     // COMMAND (function, in MSB)
     for (uint8_t mask = 1UL << 5; mask; mask >>= 1) {
-      if (data.command & mask)
+      if (data.command & mask) {
         dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-      else
+      } else {
         dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+      }
     }
 
     // ADDRESS (unit code, in LSB)
     for (uint8_t mask = 1UL; mask < 1UL << 4; mask <<= 1) {
-      if ((data.address - 1) & mask)
+      if ((data.address - 1) & mask) {
         dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-      else
+      } else {
         dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+      }
     }
     // PADDING
     for (uint j = 0; j < 6; j++)

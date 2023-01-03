@@ -4,13 +4,14 @@
 #include "esphome/components/modbus_controller/modbus_controller.h"
 #include "esphome/core/component.h"
 
+#include <vector>
+
 namespace esphome {
 namespace modbus_controller {
 
 class ModbusFloatOutput : public output::FloatOutput, public Component, public SensorItem {
  public:
-  ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count)
-      : output::FloatOutput(), Component() {
+  ModbusFloatOutput(uint16_t start_address, uint8_t offset, SensorValueType value_type, int register_count) {
     this->register_type = ModbusRegisterType::HOLDING;
     this->start_address = start_address;
     this->offset = offset;
@@ -43,7 +44,7 @@ class ModbusFloatOutput : public output::FloatOutput, public Component, public S
 
 class ModbusBinaryOutput : public output::BinaryOutput, public Component, public SensorItem {
  public:
-  ModbusBinaryOutput(uint16_t start_address, uint8_t offset) : output::BinaryOutput(), Component() {
+  ModbusBinaryOutput(uint16_t start_address, uint8_t offset) {
     this->register_type = ModbusRegisterType::COIL;
     this->start_address = start_address;
     this->bitmask = bitmask;

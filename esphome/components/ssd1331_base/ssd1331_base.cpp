@@ -129,12 +129,13 @@ void HOT SSD1331::draw_absolute_pixel_internal(int x, int y, Color color) {
 }
 void SSD1331::fill(Color color) {
   const uint32_t color565 = display::ColorUtil::color_to_565(color);
-  for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
+  for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
     if (i & 1) {
       this->buffer_[i] = color565 & 0xff;
     } else {
       this->buffer_[i] = (color565 >> 8) & 0xff;
     }
+  }
 }
 void SSD1331::init_reset_() {
   if (this->reset_pin_ != nullptr) {

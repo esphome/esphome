@@ -3,14 +3,14 @@
 import esphome.wizard as wz
 import pytest
 from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
-from mock import MagicMock
+from unittest.mock import MagicMock
 
 
 @pytest.fixture
 def default_config():
     return {
         "name": "test-name",
-        "platform": "test_platform",
+        "platform": "ESP8266",
         "board": "esp01_1m",
         "ssid": "test_ssid",
         "psk": "test_psk",

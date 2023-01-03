@@ -44,8 +44,8 @@ class HM3301Component : public PollingComponent, public i2c::I2CDevice {
   AQICalculatorType aqi_calc_type_;
   AQICalculatorFactory aqi_calculator_factory_ = AQICalculatorFactory();
 
-  bool validate_checksum_(const uint8_t *);
-  uint16_t get_sensor_value_(const uint8_t *, uint8_t);
+  bool validate_checksum_(const uint8_t *data);
+  uint16_t get_sensor_value_(const uint8_t *data, uint8_t i);
 };
 
 }  // namespace hm3301

@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_CURRENT,
     CONF_EXPORT_ACTIVE_ENERGY,
     CONF_EXPORT_REACTIVE_ENERGY,
+    CONF_TOTAL_POWER,
     CONF_FREQUENCY,
     CONF_ID,
     CONF_IMPORT_ACTIVE_ENERGY,
@@ -98,6 +99,12 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=3,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_TOTAL_POWER): sensor.sensor_schema(
+                unit_of_measurement=UNIT_WATT,
+                accuracy_decimals=2,
+                device_class=DEVICE_CLASS_POWER,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(CONF_IMPORT_ACTIVE_ENERGY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
                 accuracy_decimals=2,
@@ -131,6 +138,10 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await modbus.register_modbus_device(var, config)
+
+    if CONF_TOTAL_POWER in config:
+        sens = await sensor.new_sensor(config[CONF_TOTAL_POWER])
+        cg.add(var.set_total_power_sensor(sens))
 
     if CONF_FREQUENCY in config:
         sens = await sensor.new_sensor(config[CONF_FREQUENCY])

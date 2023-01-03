@@ -6,9 +6,8 @@
 
 #ifdef USE_STORE_LOG_STR_IN_FLASH
 #include "WString.h"
+#include "esphome/core/defines.h"  // for USE_ARDUINO_VERSION_CODE
 #endif
-
-#include "esphome/core/macros.h"
 
 // Include ESP-IDF/Arduino based logging methods here so they don't undefine ours later
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
@@ -18,8 +17,6 @@
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp32-hal-log.h>
 #endif
-
-#include "esphome/core/macros.h"
 
 namespace esphome {
 
@@ -176,7 +173,7 @@ struct LogString;
 
 #include <pgmspace.h>
 
-#if ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 5, 0)
 #define LOG_STR_ARG(s) ((PGM_P)(s))
 #else
 // Pre-Arduino 2.5, we can't pass a PSTR() to printf(). Emulate support by copying the message to a

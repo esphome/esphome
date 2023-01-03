@@ -10,7 +10,7 @@ CONF_SPEED_DATAPOINT = "speed_datapoint"
 CONF_OSCILLATION_DATAPOINT = "oscillation_datapoint"
 CONF_DIRECTION_DATAPOINT = "direction_datapoint"
 
-TuyaFan = tuya_ns.class_("TuyaFan", cg.Component)
+TuyaFan = tuya_ns.class_("TuyaFan", cg.Component, fan.Fan)
 
 CONFIG_SCHEMA = cv.All(
     fan.FAN_SCHEMA.extend(
@@ -30,12 +30,10 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_TUYA_ID])
-    state = await fan.create_fan_state(config)
 
-    var = cg.new_Pvariable(
-        config[CONF_OUTPUT_ID], parent, state, config[CONF_SPEED_COUNT]
-    )
+    var = cg.new_Pvariable(config[CONF_OUTPUT_ID], parent, config[CONF_SPEED_COUNT])
     await cg.register_component(var, config)
+    await fan.register_fan(var, config)
 
     if CONF_SPEED_DATAPOINT in config:
         cg.add(var.set_speed_id(config[CONF_SPEED_DATAPOINT]))

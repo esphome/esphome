@@ -5,6 +5,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/text_sensor/filter.h"
 
+#include <vector>
+
 namespace esphome {
 namespace text_sensor {
 
@@ -59,8 +61,6 @@ class TextSensor : public EntityBase {
   void internal_send_state_to_frontend(const std::string &state);
 
  protected:
-  uint32_t hash_base() override;
-
   CallbackManager<void(std::string)> raw_callback_;  ///< Storage for raw state callbacks.
   CallbackManager<void(std::string)> callback_;      ///< Storage for filtered state callbacks.
 

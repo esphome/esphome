@@ -22,10 +22,11 @@ void SamsungProtocol::encode(RemoteTransmitData *dst, const SamsungData &data) {
   dst->item(HEADER_HIGH_US, HEADER_LOW_US);
 
   for (uint8_t bit = data.nbits; bit > 0; bit--) {
-    if ((data.data >> (bit - 1)) & 1)
+    if ((data.data >> (bit - 1)) & 1) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
-    else
+    } else {
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    }
   }
 
   dst->item(FOOTER_HIGH_US, FOOTER_LOW_US);

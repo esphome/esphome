@@ -25,10 +25,11 @@ void HomeassistantBinarySensor::setup() {
             } else {
               ESP_LOGD(TAG, "'%s': Got state %s", this->entity_id_.c_str(), ONOFF(new_state));
             }
-            if (this->initial_)
+            if (this->initial_) {
               this->publish_initial_state(new_state);
-            else
+            } else {
               this->publish_state(new_state);
+            }
             break;
         }
         this->initial_ = false;
