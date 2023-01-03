@@ -100,8 +100,14 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   const uint32_t now = micros();
   const bool pin_val = sensor->isr_pin_.digital_read();
 
-  // Ignore the case when a ripple happens faster than we can detect
-  if (sensor->last_pin_val_ != pin_val) {
+  // A pulse occurred faster than we can detect
+  if (sensor->last_pin_val_ == pin_val) {
+    // If we haven't reached the filter length yet we need to reset our last_intr_ to now
+    // otherwise we can consider this noise as the "pulse" was certainly less than filter_us_
+    if(now - sensor->last_intr_ < sensor->filter_us_) {
+      sensor->last_intr_ = now;
+    }
+  } else {
     // Check if the last interrupt was long enough in the past
     if (now - sensor->last_intr_ > sensor->filter_us_) {
       // High pulse of filter length now falling (therefore last_intr_ was the rising edge)
