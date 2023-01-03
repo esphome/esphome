@@ -104,7 +104,7 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
   if (sensor->last_pin_val_ == pin_val) {
     // If we haven't reached the filter length yet we need to reset our last_intr_ to now
     // otherwise we can consider this noise as the "pulse" was certainly less than filter_us_
-    if(now - sensor->last_intr_ < sensor->filter_us_) {
+    if (now - sensor->last_intr_ < sensor->filter_us_) {
       sensor->last_intr_ = now;
     }
   } else {
