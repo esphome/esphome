@@ -14,7 +14,8 @@ from esphome.const import (
     CONF_MAX_REFRESH_RATE,
 )
 
-CODEOWNERS = ["@OttoWinter", "NielsNL68"]
+CODEOWNERS = ["@OttoWinter", "@NielsNL68"]
+
 fastled_base_ns = cg.esphome_ns.namespace("fastled")
 FastLEDLightOutput = fastled_base_ns.class_(
     "FastLEDLightOutput", light.AddressableLight
