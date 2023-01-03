@@ -102,7 +102,6 @@ void IRAM_ATTR PulseMeterSensor::pulse_intr(PulseMeterSensor *sensor) {
 
   // Ignore the case when a ripple happens faster than we can detect
   if (sensor->last_pin_val_ != pin_val) {
-
     // Check if the last interrupt was long enough in the past
     bool filter_length = now - sensor->last_intr_ > sensor->filter_us_;
 
