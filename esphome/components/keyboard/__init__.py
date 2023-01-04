@@ -163,13 +163,14 @@ async def register_keyboard(var, config):
     await setup_keyboard_core_(var, config)
 
 
-def validate_key_name(value):
+def convert_key_to_code(value):
     if isinstance(value, str):
         if CONF_KEYS_MAP.get(value) is None:
             raise cv.Invalid("Not mapping for " + value)
         return CONF_KEYS_MAP[value]
     if isinstance(value, int):
         cv.int_range(min=1, max=65535)(value)
+        # type is unknown for key code
         return (value,)
     raise cv.Invalid("keys must either be a string wrapped in quotes or a int")
 
@@ -187,7 +188,8 @@ def validate_keyboard_type(config):
     if CONF_KEYS in config:
         for key in config[CONF_KEYS]:
             is_media_keys = config[CONF_TYPE] == CONF_MEDIA_KEYS
-            if len(key) > 1 and key[1] != is_media_keys:
+            defined_key_type = len(key) > 1
+            if defined_key_type and key[1] != is_media_keys:
                 raise cv.Invalid(
                     f"key {key[0]} does not belong to keyboard type '{config[CONF_TYPE]}'"
                 )
@@ -206,7 +208,7 @@ def add_key_action(name, action_name, is_required):
                     cv.GenerateID(): cv.use_id(Keyboard),
                     cv.Required(CONF_KEYS)
                     if is_required
-                    else cv.Optional(CONF_KEYS): cv.ensure_list(validate_key_name),
+                    else cv.Optional(CONF_KEYS): cv.ensure_list(convert_key_to_code),
                     cv.Optional(CONF_TYPE, CONF_KEYBOARD): cv.All(
                         cv.enum(CONF_KEYBOARD_TYPE, lower=True),
                         cv.Length(min=1),
@@ -220,8 +222,10 @@ def add_key_action(name, action_name, is_required):
         var = cg.new_Pvariable(action_id, template_arg)
         await cg.register_parented(var, config[CONF_ID])
         if CONF_KEYS in config:
-            key = config[CONF_KEYS]
-            cg.add(var.set_key(key[0]))
+            keys = []
+            for key in config[CONF_KEYS]:
+                keys += [key[0]]
+            cg.add(var.set_key(keys))
         cg.add(var.set_type(MockObj(CONF_KEYBOARD_TYPE[config[CONF_TYPE]])))
         return var
 
