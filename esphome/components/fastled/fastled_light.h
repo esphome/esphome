@@ -10,7 +10,6 @@
 #define FASTLED_ESP32_RAW_PIN_ORDER
 #define FASTLED_RMT_BUILTIN_DRIVER true
 
-
 // Avoid annoying compiler messages
 #define FASTLED_INTERNAL
 
@@ -50,7 +49,7 @@ class FastLEDLightOutput : public light::AddressableLight {
       }
       case WS2801: {
         static WS2801Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> controller;
-    return add_leds(&controller, num_leds);
+        return add_leds(&controller, num_leds);
       }
       case WS2803: {
         static WS2803Controller<DATA_PIN, CLOCK_PIN, RGB_ORDER, SPI_DATA_RATE> controller;
