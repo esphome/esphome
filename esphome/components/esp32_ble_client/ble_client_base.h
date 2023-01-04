@@ -50,6 +50,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
                                         (uint8_t)(this->address_ >> 0) & 0xff);
     }
   }
+  void set_pin_code(uint32_t pin_code) { pin_code_ = pin_code; }
   std::string address_str() const { return this->address_str_; }
 
   BLEService *get_service(espbt::ESPBTUUID uuid);
@@ -86,6 +87,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint8_t connection_index_;
   int16_t service_count_{0};
   uint16_t mtu_{23};
+  uint32_t pin_code_{0};
   espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
 
   std::vector<BLEService *> services_;

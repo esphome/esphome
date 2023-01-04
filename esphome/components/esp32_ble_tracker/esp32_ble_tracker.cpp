@@ -33,6 +33,7 @@ namespace esp32_ble_tracker {
 static const char *const TAG = "esp32_ble_tracker";
 
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+esp_ble_io_cap_t global_io_cap = ESP_IO_CAP_NONE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
   uint64_t u = 0;
@@ -304,8 +305,7 @@ bool ESP32BLETracker::ble_setup() {
   // Empty name
   esp_ble_gap_set_device_name("");
 
-  esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE;
-  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
+  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &global_io_cap, sizeof(uint8_t));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
     return false;
@@ -867,12 +867,34 @@ std::string ESPBTDevice::address_str() const {
 uint64_t ESPBTDevice::address_uint64() const { return ble_addr_to_uint64(this->address_); }
 
 void ESP32BLETracker::dump_config() {
+  const char *io_capability_s;
+  switch (global_io_cap) {
+    case ESP_IO_CAP_OUT:
+      io_capability_s = "display_only";
+      break;
+    case ESP_IO_CAP_IO:
+      io_capability_s = "display_yes_no";
+      break;
+    case ESP_IO_CAP_IN:
+      io_capability_s = "keyboard_only";
+      break;
+    case ESP_IO_CAP_NONE:
+      io_capability_s = "none";
+      break;
+    case ESP_IO_CAP_KBDISP:
+      io_capability_s = "keyboard_display";
+      break;
+    default:
+      io_capability_s = "invalid";
+      break;
+  }
   ESP_LOGCONFIG(TAG, "BLE Tracker:");
   ESP_LOGCONFIG(TAG, "  Scan Duration: %u s", this->scan_duration_);
   ESP_LOGCONFIG(TAG, "  Scan Interval: %.1f ms", this->scan_interval_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Window: %.1f ms", this->scan_window_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");
   ESP_LOGCONFIG(TAG, "  Continuous Scanning: %s", this->scan_continuous_ ? "True" : "False");
+  ESP_LOGCONFIG(TAG, "  IO Capability: %s", io_capability_s);
 }
 
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {

@@ -26,6 +26,7 @@ CONF_SCAN_PARAMETERS = "scan_parameters"
 CONF_WINDOW = "window"
 CONF_CONTINUOUS = "continuous"
 CONF_ON_SCAN_END = "on_scan_end"
+CONF_IO_CAPABILITY = "io_capability"
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
 ESP32BLETracker = esp32_ble_tracker_ns.class_("ESP32BLETracker", cg.Component)
 ESPBTClient = esp32_ble_tracker_ns.class_("ESPBTClient")
@@ -56,6 +57,14 @@ ESP32BLEStopScanAction = esp32_ble_tracker_ns.class_(
     "ESP32BLEStopScanAction", automation.Action
 )
 
+IoCapability = esp32_ble_tracker_ns.enum("IoCapability")
+IO_CAPABILITY = {
+    "none": IoCapability.IO_CAP_NONE,
+    "keyboard_only": IoCapability.IO_CAP_IN,
+    "keyboard_display": IoCapability.IO_CAP_KBDISP,
+    "display_only": IoCapability.IO_CAP_OUT,
+    "display_yes_no": IoCapability.IO_CAP_IO,
+}
 
 def validate_scan_parameters(config):
     duration = config[CONF_DURATION]
@@ -156,6 +165,9 @@ CONFIG_SCHEMA = cv.Schema(
             ),
             validate_scan_parameters,
         ),
+        cv.Optional(CONF_IO_CAPABILITY, default="none"): cv.enum(
+            IO_CAPABILITY, lower=True
+        ),
         cv.Optional(CONF_ON_BLE_ADVERTISE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ESPBTAdvertiseTrigger),
@@ -206,6 +218,7 @@ async def to_code(config):
     cg.add(var.set_scan_window(int(params[CONF_WINDOW].total_milliseconds / 0.625)))
     cg.add(var.set_scan_active(params[CONF_ACTIVE]))
     cg.add(var.set_scan_continuous(params[CONF_CONTINUOUS]))
+    cg.add(var.set_io_capability(config[CONF_IO_CAPABILITY]))
     for conf in config.get(CONF_ON_BLE_ADVERTISE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         if CONF_MAC_ADDRESS in conf:

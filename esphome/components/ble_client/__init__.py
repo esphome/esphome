@@ -18,6 +18,7 @@ AUTO_LOAD = ["esp32_ble_client"]
 CODEOWNERS = ["@buxtronix"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 
+CONF_PIN_CODE = "pin_code"
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
 BLEClient = ble_client_ns.class_("BLEClient", esp32_ble_client.BLEClientBase)
 BLEClientNode = ble_client_ns.class_("BLEClientNode")
@@ -42,6 +43,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(BLEClient),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_NAME): cv.string,
+            cv.Optional(CONF_PIN_CODE, default=0): cv.int_range(min=0, max=999999),
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -142,6 +144,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_client(var, config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
+    cg.add(var.set_pin_code(config[CONF_PIN_CODE]))
     for conf in config.get(CONF_ON_CONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)

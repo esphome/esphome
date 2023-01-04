@@ -18,6 +18,17 @@
 namespace esphome {
 namespace esp32_ble_tracker {
 
+// NOLINTNEXTLINE
+extern esp_ble_io_cap_t global_io_cap;
+
+enum IoCapability {
+  IO_CAP_OUT = ESP_IO_CAP_OUT,
+  IO_CAP_IO = ESP_IO_CAP_IO,
+  IO_CAP_IN = ESP_IO_CAP_IN,
+  IO_CAP_NONE = ESP_IO_CAP_NONE,
+  IO_CAP_KBDISP = ESP_IO_CAP_KBDISP,
+};
+
 class ESPBTUUID {
  public:
   ESPBTUUID();
@@ -198,6 +209,7 @@ class ESP32BLETracker : public Component {
   void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
   void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
   void set_scan_continuous(bool scan_continuous) { scan_continuous_ = scan_continuous; }
+  void set_io_capability(IoCapability io_capability) { global_io_cap = (esp_ble_io_cap_t)io_capability; }
 
   /// Setup the FreeRTOS task and the Bluetooth stack.
   void setup() override;
