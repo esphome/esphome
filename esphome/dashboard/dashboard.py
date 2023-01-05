@@ -10,6 +10,7 @@ import multiprocessing
 import os
 import secrets
 import shutil
+import ssl
 import subprocess
 import threading
 from pathlib import Path
@@ -1116,13 +1117,19 @@ def start_web_server(args):
         settings.cookie_secret = storage.cookie_secret
 
     app = make_app(args.verbose)
+    data_dir = ""
+    ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+    ssl_ctx.load_cert_chain(
+        os.path.join(data_dir, "fullchain.pem"), os.path.join(data_dir, "privkey.pem")
+    )
+
     if args.socket is not None:
         _LOGGER.info(
             "Starting dashboard web server on unix socket %s and configuration dir %s...",
             args.socket,
             settings.config_dir,
         )
-        server = tornado.httpserver.HTTPServer(app)
+        server = tornado.httpserver.HTTPServer(app, ssl_options=ssl_ctx)
         socket = tornado.netutil.bind_unix_socket(args.socket, mode=0o666)
         server.add_socket(socket)
     else:
@@ -1132,7 +1139,8 @@ def start_web_server(args):
             args.port,
             settings.config_dir,
         )
-        app.listen(args.port, args.address)
+        server = tornado.httpserver.HTTPServer(app, ssl_options=ssl_ctx)
+        server.listen(port=args.port, address=args.address)
 
         if args.open_ui:
             import webbrowser
