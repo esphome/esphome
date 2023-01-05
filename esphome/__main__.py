@@ -792,6 +792,18 @@ def parse_args(argv):
     parser_dashboard.add_argument(
         "--socket", help="Make the dashboard serve under a unix socket", type=str
     )
+    parser_dashboard.add_argument(
+        "--cert",
+        help="The optional path to the full chain pem file to use for HTTPS",
+        type=str,
+        default="",
+    )
+    parser_dashboard.add_argument(
+        "--key",
+        help="The path to the private key pem file to use for HTTPS",
+        type=str,
+        default="",
+    )
 
     parser_vscode = subparsers.add_parser("vscode")
     parser_vscode.add_argument("configuration", help="Your YAML configuration file.")

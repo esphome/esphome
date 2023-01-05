@@ -56,6 +56,8 @@ class DashboardSettings:
         self.using_password = False
         self.on_ha_addon = False
         self.cookie_secret = None
+        self.ssl_cert_path = ""
+        self.ssl_key_path = ""
 
     def parse_args(self, args):
         self.on_ha_addon = args.ha_addon
@@ -66,6 +68,8 @@ class DashboardSettings:
         if self.using_password:
             self.password_hash = password_hash(password)
         self.config_dir = args.configuration
+        self.ssl_cert_path = args.cert or os.getenv("ESPHOME_DASHBOARD_CERT_PATH", "")
+        self.ssl_key_path = args.privkey or os.getenv("ESPHOME_DASHBOARD_KEY_PATH", "")
 
     @property
     def relative_url(self):
@@ -80,6 +84,10 @@ class DashboardSettings:
         if not self.on_ha_addon:
             return False
         return not get_bool_env("DISABLE_HA_AUTHENTICATION")
+
+    @property
+    def using_ssl(self):
+        return not self.ssl_cert_path == "" and not self.ssl_key_path == ""
 
     @property
     def using_auth(self):
@@ -1117,11 +1125,20 @@ def start_web_server(args):
         settings.cookie_secret = storage.cookie_secret
 
     app = make_app(args.verbose)
-    data_dir = ""
-    ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
-    ssl_ctx.load_cert_chain(
-        os.path.join(data_dir, "fullchain.pem"), os.path.join(data_dir, "privkey.pem")
-    )
+
+    if settings.using_ssl:
+        cert_path = os.path.join(settings.ssl_cert_path, "fullchain.pem")
+        key_path = os.path.join(settings.ssl_key_path, "privkey.pem")
+        _LOGGER.info(
+            "looking for full chain cert at %s and private key at %s",
+            cert_path,
+            key_path,
+        )
+        ssl_ctx = ssl.create_default_context(ssl.Purpose.CLIENT_AUTH)
+        ssl_ctx.load_cert_chain(cert_path, key_path)
+        server = tornado.httpserver.HTTPServer(app, ssl_options=ssl_ctx)
+    else:
+        server = tornado.httpserver.HTTPServer(app)
 
     if args.socket is not None:
         _LOGGER.info(
@@ -1129,23 +1146,26 @@ def start_web_server(args):
             args.socket,
             settings.config_dir,
         )
-        server = tornado.httpserver.HTTPServer(app, ssl_options=ssl_ctx)
+
         socket = tornado.netutil.bind_unix_socket(args.socket, mode=0o666)
         server.add_socket(socket)
     else:
         _LOGGER.info(
-            "Starting dashboard web server on http://%s:%s and configuration dir %s...",
+            "Starting dashboard web server on http%s://%s:%s and configuration dir %s...",
+            ("s" if settings.using_ssl else ""),
             args.address,
             args.port,
             settings.config_dir,
         )
-        server = tornado.httpserver.HTTPServer(app, ssl_options=ssl_ctx)
         server.listen(port=args.port, address=args.address)
 
         if args.open_ui:
             import webbrowser
 
-            webbrowser.open(f"http://{args.address}:{args.port}")
+            if settings.using_ssl:
+                webbrowser.open(f"https://{args.address}:{args.port}")
+            else:
+                webbrowser.open(f"http://{args.address}:{args.port}")
 
     if settings.status_use_ping:
         status_thread = PingStatusThread()
