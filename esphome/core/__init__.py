@@ -772,6 +772,22 @@ class EsphomeCore:
             global_code.append(text)
         return "\n".join(global_code) + "\n"
 
+    @property
+    def cpp_exports_section(self):
+        from esphome.cpp_generator import statement
+
+        exports_code = []
+        for exp in self.global_statements:
+            text = str(statement(exp))
+            text = text.rstrip()
+            if "*" in text:
+                exports_code.append('extern '+text)
+            elif text.startswith("using"):
+                exports_code.append(text)
+        return "\n".join(exports_code) + "\n"
+
+
+
 
 class AutoLoad(OrderedDict):
     pass

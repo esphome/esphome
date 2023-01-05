@@ -328,6 +328,7 @@ def write_cpp(code_s):
 
     copy_src_tree()
     global_s = '#include "esphome.h"\n'
+    global_s += '#include "main.h"\n'
     global_s += CORE.cpp_global_section
 
     full_file = f"{code_format[0] + CPP_INCLUDE_BEGIN}\n{global_s}{CPP_INCLUDE_END}"
@@ -336,6 +337,15 @@ def write_cpp(code_s):
     )
     full_file += code_format[2]
     write_file_if_changed(path, full_file)
+
+    path = CORE.relative_src_path("main.h")
+    export_s = '#ifndef _main_h_\n'
+    export_s += '#define _main_h_\n'
+    export_s += '#export "esphome.h"\n'
+    export_s += CORE.cpp_exports_section
+    export_s += '#endif'
+    write_file_if_changed(path, export_s)
+
 
 
 def clean_build():
