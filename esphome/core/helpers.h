@@ -149,6 +149,9 @@ template<typename T, typename U> T remap(U value, U min, U max, T min_out, T max
 /// Calculate a CRC-8 checksum of \p data with size \p len.
 uint8_t crc8(uint8_t *data, uint8_t len);
 
+/// Calculate a CRC-16 checksum of \p data with size \p len.
+uint16_t crc16(const uint8_t *data, uint8_t len);
+
 /// Calculate a FNV-1 hash of \p str.
 uint32_t fnv1_hash(const std::string &str);
 
@@ -415,6 +418,9 @@ ParseOnOffState parse_on_off(const char *str, const char *on = nullptr, const ch
 /// Create a string from a value and an accuracy in decimals.
 std::string value_accuracy_to_string(float value, int8_t accuracy_decimals);
 
+/// Derive accuracy in decimals from an increment step.
+int8_t step_to_accuracy_decimals(float step);
+
 ///@}
 
 /// @name Colors
@@ -536,8 +542,8 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#ifdef USE_ESP8266
-  uint32_t xt_state_;
+#if defined(USE_ESP8266) || defined(USE_RP2040)
+  uint32_t state_;
 #endif
 };
 
@@ -562,7 +568,7 @@ class HighFrequencyLoopRequester {
 };
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
-void get_mac_address_raw(uint8_t *mac);
+void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
 /// Get the device MAC address as a string, in lowercase hex notation.
 std::string get_mac_address();

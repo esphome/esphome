@@ -31,8 +31,8 @@ class ENS210Component : public PollingComponent, public i2c::I2CDevice {
   bool set_low_power_(bool enable);
   void extract_measurement_(uint32_t val, int *data, int *status);
 
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *humidity_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
 };
 
 }  // namespace ens210

@@ -4,7 +4,9 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "display_color_utils.h"
+
 #include <cstdarg>
+#include <vector>
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"

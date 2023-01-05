@@ -1,5 +1,3 @@
-# pylint: disable=wrong-import-position
-
 import base64
 import codecs
 import collections
@@ -10,11 +8,12 @@ import json
 import logging
 import multiprocessing
 import os
-from pathlib import Path
 import secrets
 import shutil
 import subprocess
 import threading
+from pathlib import Path
+from typing import Optional
 
 import tornado
 import tornado.concurrent
@@ -22,14 +21,15 @@ import tornado.gen
 import tornado.httpserver
 import tornado.ioloop
 import tornado.iostream
-from tornado.log import access_log
 import tornado.netutil
 import tornado.process
 import tornado.web
 import tornado.websocket
+from tornado.log import access_log
 
 from esphome import const, platformio_api, util, yaml_util
-from esphome.helpers import mkdir_p, get_bool_env, run_system_command
+from esphome.core import EsphomeError
+from esphome.helpers import get_bool_env, mkdir_p, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
     StorageJSON,
@@ -37,13 +37,10 @@ from esphome.storage_json import (
     ext_storage_path,
     trash_storage_path,
 )
-from esphome.util import shlex_quote, get_serial_ports
-from .util import password_hash
-
-# pylint: disable=unused-import, wrong-import-order
-from typing import Optional  # noqa
-
+from esphome.util import get_serial_ports, shlex_quote
 from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
+
+from .util import password_hash
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -189,7 +186,6 @@ def websocket_method(name):
     return wrap
 
 
-# pylint: disable=abstract-method, arguments-differ
 @websocket_class
 class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def __init__(self, application, request, **kwargs):
@@ -312,7 +308,11 @@ class EsphomeUploadHandler(EsphomeCommandWebSocket):
 class EsphomeCompileHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", "compile", config_file]
+        command = ["esphome", "--dashboard", "compile"]
+        if json_message.get("only_generate", False):
+            command.append("--only-generate")
+        command.append(config_file)
+        return command
 
 
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
@@ -395,15 +395,30 @@ class ImportRequestHandler(BaseHandler):
         args = json.loads(self.request.body.decode())
         try:
             name = args["name"]
+
+            imported_device = next(
+                (res for res in IMPORT_RESULT.values() if res.device_name == name), None
+            )
+
+            if imported_device is not None:
+                network = imported_device.network
+            else:
+                network = const.CONF_WIFI
+
             import_config(
                 settings.rel_path(f"{name}.yaml"),
                 name,
                 args["project_name"],
                 args["package_import_url"],
+                network,
             )
         except FileExistsError:
             self.set_status(500)
             self.write("File already exists")
+            return
+        except ValueError:
+            self.set_status(422)
+            self.write("Invalid package url")
             return
 
         self.set_status(200)
@@ -416,21 +431,27 @@ class DownloadBinaryRequestHandler(BaseHandler):
     def get(self, configuration=None):
         type = self.get_argument("type", "firmware.bin")
 
-        if type == "firmware.bin":
-            storage_path = ext_storage_path(settings.config_dir, configuration)
-            storage_json = StorageJSON.load(storage_path)
-            if storage_json is None:
-                self.send_error(404)
-                return
+        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is None:
+            self.send_error(404)
+            return
+
+        if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
+            filename = f"{storage_json.name}.uf2"
+            path = storage_json.firmware_bin_path.replace(
+                "firmware.bin", "firmware.uf2"
+            )
+
+        elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
+            filename = f"{storage_json.name}.bin"
+            path = storage_json.firmware_bin_path
+
+        elif type == "firmware.bin":
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
         elif type == "firmware-factory.bin":
-            storage_path = ext_storage_path(settings.config_dir, configuration)
-            storage_json = StorageJSON.load(storage_path)
-            if storage_json is None:
-                self.send_error(404)
-                return
             filename = f"{storage_json.name}-factory.bin"
             path = storage_json.firmware_bin_path.replace(
                 "firmware.bin", "firmware-factory.bin"
@@ -522,7 +543,7 @@ class DashboardEntry:
         return os.path.basename(self.path)
 
     @property
-    def storage(self):  # type: () -> Optional[StorageJSON]
+    def storage(self) -> Optional[StorageJSON]:
         if not self._loaded_storage:
             self._storage = StorageJSON.load(
                 ext_storage_path(settings.config_dir, self.filename)
@@ -613,6 +634,7 @@ class ListDevicesHandler(BaseHandler):
                             "package_import_url": res.package_import_url,
                             "project_name": res.project_name,
                             "project_version": res.project_version,
+                            "network": res.network,
                         }
                         for res in IMPORT_RESULT.values()
                         if res.device_name not in configured
@@ -642,6 +664,65 @@ def _ping_func(filename, address):
         command = ["ping", "-c", "1", address]
     rc, _, _ = run_system_command(*command)
     return filename, rc == 0
+
+
+class PrometheusServiceDiscoveryHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        entries = _list_dashboard_entries()
+        self.set_header("content-type", "application/json")
+        sd = []
+        for entry in entries:
+            if entry.web_port is None:
+                continue
+            labels = {
+                "__meta_name": entry.name,
+                "__meta_esp_platform": entry.target_platform,
+                "__meta_esphome_version": entry.storage.esphome_version,
+            }
+            for integration in entry.storage.loaded_integrations:
+                labels[f"__meta_integration_{integration}"] = "true"
+            sd.append(
+                {
+                    "targets": [
+                        f"{entry.address}:{entry.web_port}",
+                    ],
+                    "labels": labels,
+                }
+            )
+        self.write(json.dumps(sd))
+
+
+class BoardsRequestHandler(BaseHandler):
+    @authenticated
+    def get(self, platform: str):
+        from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
+        from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
+        from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
+
+        platform_to_boards = {
+            "esp32": ESP32_BOARDS,
+            "esp8266": ESP8266_BOARDS,
+            "rp2040": RP2040_BOARDS,
+        }
+        # filter all ESP32 variants by requested platform
+        if platform.startswith("esp32"):
+            boards = {
+                k: v
+                for k, v in platform_to_boards["esp32"].items()
+                if v[const.KEY_VARIANT] == platform.upper()
+            }
+        else:
+            boards = platform_to_boards[platform]
+
+        # map to a {board_name: board_title} dict
+        platform_boards = {key: val[const.KEY_NAME] for key, val in boards.items()}
+        # sort by board title
+        boards_items = sorted(platform_boards.items(), key=lambda item: item[1])
+        output = [dict(items=dict(boards_items))]
+
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(output))
 
 
 class MDNSStatusThread(threading.Thread):
@@ -747,7 +828,6 @@ class EditRequestHandler(BaseHandler):
         filename = settings.rel_path(configuration)
         content = ""
         if os.path.isfile(filename):
-            # pylint: disable=no-value-for-parameter
             with open(file=filename, encoding="utf-8") as f:
                 content = f.read()
         self.write(content)
@@ -755,7 +835,6 @@ class EditRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def post(self, configuration=None):
-        # pylint: disable=no-value-for-parameter
         with open(file=settings.rel_path(configuration), mode="wb") as f:
             f.write(self.request.body)
         self.set_status(200)
@@ -790,7 +869,7 @@ class UndoDeleteRequestHandler(BaseHandler):
         shutil.move(os.path.join(trash_path, configuration), config_file)
 
 
-PING_RESULT = {}  # type: dict
+PING_RESULT: dict = {}
 IMPORT_RESULT = {}
 STOP_EVENT = threading.Event()
 PING_REQUEST = threading.Event()
@@ -799,7 +878,7 @@ PING_REQUEST = threading.Event()
 class LoginHandler(BaseHandler):
     def get(self):
         if is_authenticated(self):
-            self.redirect("/")
+            self.redirect("./")
         else:
             self.render_login_page()
 
@@ -816,14 +895,17 @@ class LoginHandler(BaseHandler):
         import requests
 
         headers = {
-            "Authentication": f"Bearer {os.getenv('SUPERVISOR_TOKEN')}",
+            "X-Supervisor-Token": os.getenv("SUPERVISOR_TOKEN"),
         }
+
         data = {
             "username": self.get_argument("username", ""),
             "password": self.get_argument("password", ""),
         }
         try:
-            req = requests.post("http://supervisor/auth", headers=headers, data=data)
+            req = requests.post(
+                "http://supervisor/auth", headers=headers, json=data, timeout=30
+            )
             if req.status_code == 200:
                 self.set_secure_cookie("authenticated", cookie_authenticated_yes)
                 self.redirect("/")
@@ -841,7 +923,7 @@ class LoginHandler(BaseHandler):
         password = self.get_argument("password", "")
         if settings.check_password(username, password):
             self.set_secure_cookie("authenticated", cookie_authenticated_yes)
-            self.redirect("/")
+            self.redirect("./")
             return
         error_str = (
             "Invalid username or password" if settings.username else "Invalid password"
@@ -885,6 +967,27 @@ class SecretKeysRequestHandler(BaseHandler):
         self.write(json.dumps(secret_keys))
 
 
+class JsonConfigRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
+        filename = settings.rel_path(configuration)
+        if not os.path.isfile(filename):
+            self.send_error(404)
+            return
+
+        try:
+            content = yaml_util.load_yaml(filename, clear_secrets=False)
+            json_content = json.dumps(
+                content, default=lambda o: {"__type": str(type(o)), "repr": repr(o)}
+            )
+            self.set_header("content-type", "application/json")
+            self.write(json_content)
+        except EsphomeError as err:
+            _LOGGER.warning("Error translating file %s to JSON: %s", filename, err)
+            self.send_error(500)
+
+
 def get_base_frontend_path():
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -903,7 +1006,7 @@ def get_static_path(*args):
     return os.path.join(get_base_frontend_path(), "static", *args)
 
 
-@functools.lru_cache(maxsize=None)
+@functools.cache
 def get_static_file_url(name):
     base = f"./static/{name}"
 
@@ -947,9 +1050,12 @@ def make_app(debug=get_bool_env(ENV_DEV)):
 
     class StaticFileHandler(tornado.web.StaticFileHandler):
         def set_extra_headers(self, path):
-            self.set_header(
-                "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
-            )
+            if "favicon.ico" in path:
+                self.set_header("Cache-Control", "max-age=84600, public")
+            else:
+                self.set_header(
+                    "Cache-Control", "no-store, no-cache, must-revalidate, max-age=0"
+                )
 
     app_settings = {
         "debug": debug,
@@ -986,7 +1092,10 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}devices", ListDevicesHandler),
             (f"{rel}import", ImportRequestHandler),
             (f"{rel}secret_keys", SecretKeysRequestHandler),
+            (f"{rel}json-config", JsonConfigRequestHandler),
             (f"{rel}rename", EsphomeRenameHandler),
+            (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
+            (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
         ],
         **app_settings,
     )

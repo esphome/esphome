@@ -2,7 +2,7 @@ import logging
 import math
 import os
 import re
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from esphome.const import (
     CONF_COMMENT,
@@ -443,7 +443,7 @@ class Library:
         return NotImplemented
 
 
-# pylint: disable=too-many-instance-attributes,too-many-public-methods
+# pylint: disable=too-many-public-methods
 class EsphomeCore:
     def __init__(self):
         # True if command is run from dashboard
@@ -469,19 +469,19 @@ class EsphomeCore:
         # Task counter for pending tasks
         self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
-        self.variables: Dict[str, "MockObj"] = {}
+        self.variables: dict[str, "MockObj"] = {}
         # A list of statements that go in the main setup() block
-        self.main_statements: List["Statement"] = []
+        self.main_statements: list["Statement"] = []
         # A list of statements to insert in the global block (includes and global variables)
-        self.global_statements: List["Statement"] = []
+        self.global_statements: list["Statement"] = []
         # A set of platformio libraries to add to the project
-        self.libraries: List[Library] = []
+        self.libraries: list[Library] = []
         # A set of build flags to set in the platformio project
-        self.build_flags: Set[str] = set()
+        self.build_flags: set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
-        self.defines: Set["Define"] = set()
+        self.defines: set["Define"] = set()
         # A map of all platformio options to apply
-        self.platformio_options: Dict[str, Union[str, List[str]]] = {}
+        self.platformio_options: dict[str, Union[str, list[str]]] = {}
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts
         self.loaded_integrations = set()
         # A set of component IDs to track what Component subclasses are declared
@@ -553,7 +553,6 @@ class EsphomeCore:
         return os.path.basename(self.config_path)
 
     def relative_config_path(self, *path):
-        # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.config_dir, path_)
 
@@ -561,7 +560,6 @@ class EsphomeCore:
         return self.relative_config_path(".esphome", *path)
 
     def relative_build_path(self, *path):
-        # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.build_path, path_)
 
@@ -593,6 +591,10 @@ class EsphomeCore:
     @property
     def is_esp32(self):
         return self.target_platform == "esp32"
+
+    @property
+    def is_rp2040(self):
+        return self.target_platform == "rp2040"
 
     @property
     def target_framework(self):
@@ -701,7 +703,7 @@ class EsphomeCore:
         _LOGGER.debug("Adding define: %s", define)
         return define
 
-    def add_platformio_option(self, key: str, value: Union[str, List[str]]) -> None:
+    def add_platformio_option(self, key: str, value: Union[str, list[str]]) -> None:
         new_val = value
         old_val = self.platformio_options.get(key)
         if isinstance(old_val, list):
@@ -734,7 +736,7 @@ class EsphomeCore:
             _LOGGER.debug("Waiting for variable %s", id)
             yield
 
-    async def get_variable_with_full_id(self, id: ID) -> Tuple[ID, "MockObj"]:
+    async def get_variable_with_full_id(self, id: ID) -> tuple[ID, "MockObj"]:
         if not isinstance(id, ID):
             raise ValueError(f"ID {id!r} must be of type ID!")
         return await _FakeAwaitable(self._get_variable_with_full_id_generator(id))

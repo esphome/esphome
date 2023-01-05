@@ -163,7 +163,7 @@ void BME280Component::setup() {
     return;
   }
   config_register &= ~0b11111100;
-  config_register |= 0b000 << 5;  // 0.5 ms standby time
+  config_register |= 0b101 << 5;  // 1000 ms standby time
   config_register |= (this->iir_filter_ & 0b111) << 2;
   if (!this->write_byte(BME280_REGISTER_CONFIG, config_register)) {
     this->mark_failed();

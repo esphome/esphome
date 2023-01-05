@@ -26,7 +26,7 @@ from esphome.const import (
 from esphome.core import HexInt, CORE
 
 DOMAIN = "shelly_dimmer"
-DEPENDENCIES = ["sensor", "uart"]
+DEPENDENCIES = ["sensor", "uart", "esp8266"]
 
 shelly_dimmer_ns = cg.esphome_ns.namespace("shelly_dimmer")
 ShellyDimmer = shelly_dimmer_ns.class_(
@@ -73,7 +73,7 @@ def get_firmware(value):
 
     def dl(url):
         try:
-            req = requests.get(url)
+            req = requests.get(url, timeout=30)
             req.raise_for_status()
         except requests.exceptions.RequestException as e:
             raise cv.Invalid(f"Could not download firmware file ({url}): {e}")

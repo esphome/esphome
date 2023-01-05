@@ -8,6 +8,8 @@
 #include "bedjet_child.h"
 #include "bedjet_codec.h"
 
+#include <vector>
+
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #endif
@@ -166,8 +168,6 @@ class BedJetHub : public esphome::ble_client::BLEClientNode, public PollingCompo
   uint16_t char_handle_name_;
   uint16_t char_handle_status_;
   uint16_t config_descr_status_;
-
-  uint8_t open_conn_id_ = -1;
 
   uint8_t write_notify_config_descriptor_(bool enable);
 };

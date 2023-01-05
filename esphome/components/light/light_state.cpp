@@ -276,7 +276,15 @@ void LightState::set_immediately_(const LightColorValues &target, bool set_remot
 void LightState::save_remote_values_() {
   LightStateRTCState saved;
   saved.color_mode = this->remote_values.get_color_mode();
-  saved.state = this->remote_values.is_on();
+  switch (this->restore_mode_) {
+    case LIGHT_RESTORE_AND_OFF:
+    case LIGHT_RESTORE_AND_ON:
+      saved.state = (this->restore_mode_ == LIGHT_RESTORE_AND_ON);
+      break;
+    default:
+      saved.state = this->remote_values.is_on();
+      break;
+  }
   saved.brightness = this->remote_values.get_brightness();
   saved.color_brightness = this->remote_values.get_color_brightness();
   saved.red = this->remote_values.get_red();

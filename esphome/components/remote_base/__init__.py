@@ -1308,9 +1308,11 @@ MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_p
 MideaAction = ns.class_("MideaAction", RemoteTransmitterActionBase)
 MIDEA_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CODE): cv.All(
-            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
-            cv.Length(min=5, max=5),
+        cv.Required(CONF_CODE): cv.templatable(
+            cv.All(
+                [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+                cv.Length(min=5, max=5),
+            )
         ),
     }
 )
@@ -1337,4 +1339,54 @@ def midea_dumper(var, config):
     MIDEA_SCHEMA,
 )
 async def midea_action(var, config, args):
-    cg.add(var.set_code(config[CONF_CODE]))
+    code_ = config[CONF_CODE]
+    if cg.is_template(code_):
+        template_ = await cg.templatable(code_, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_code_template(template_))
+    else:
+        cg.add(var.set_code_static(code_))
+
+
+# AEHA
+AEHAData, AEHABinarySensor, AEHATrigger, AEHAAction, AEHADumper = declare_protocol(
+    "AEHA"
+)
+AEHA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
+        cv.Required(CONF_DATA): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=2, max=35),
+        ),
+    }
+)
+
+
+@register_binary_sensor("aeha", AEHABinarySensor, AEHA_SCHEMA)
+def aeha_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                AEHAData,
+                ("address", config[CONF_ADDRESS]),
+                ("data", config[CONF_DATA]),
+            )
+        )
+    )
+
+
+@register_trigger("aeha", AEHATrigger, AEHAData)
+def aeha_trigger(var, config):
+    pass
+
+
+@register_dumper("aeha", AEHADumper)
+def aeha_dumper(var, config):
+    pass
+
+
+@register_action("aeha", AEHAAction, AEHA_SCHEMA)
+async def aeha_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    cg.add(var.set_address(template_))
+    cg.add(var.set_data(config[CONF_DATA]))
