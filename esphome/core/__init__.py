@@ -781,12 +781,10 @@ class EsphomeCore:
             text = str(statement(exp))
             text = text.rstrip()
             if "*" in text:
-                exports_code.append('extern '+text)
+                exports_code.append("extern " + text)
             elif text.startswith("using"):
                 exports_code.append(text)
         return "\n".join(exports_code) + "\n"
-
-
 
 
 class AutoLoad(OrderedDict):
