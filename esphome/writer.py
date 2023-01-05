@@ -341,7 +341,7 @@ def write_cpp(code_s):
     path = CORE.relative_src_path("main.h")
     export_s = '#ifndef _main_h_\n'
     export_s += '#define _main_h_\n'
-    export_s += '#export "esphome.h"\n'
+    export_s += '#include "esphome.h"\n'
     export_s += CORE.cpp_exports_section
     export_s += '#endif'
     write_file_if_changed(path, export_s)
