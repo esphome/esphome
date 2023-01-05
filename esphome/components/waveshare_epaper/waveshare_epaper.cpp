@@ -771,7 +771,7 @@ void HOT WaveshareEPaper2P7InB::display() {
   delay(2);
 
   //COMMAND DISPLAY REFRESH
-  this->command(0x12);  
+  this->command(0x12);
   this->wait_until_idle_();
 
   this->deep_sleep();

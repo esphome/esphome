@@ -490,7 +490,7 @@ display:
     dc_pin: GPIO23
     busy_pin: GPIO23
     reset_pin: GPIO23
-    model: 2.70inb
+    model: 2.70in-b
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: waveshare_epaper
@@ -498,9 +498,9 @@ display:
     dc_pin: GPIO23
     busy_pin: GPIO23
     reset_pin: GPIO23
-    model: 2.70inbv2
+    model: 2.70in-bv2
     lambda: |-
-      it.rectangle(0, 0, it.get_width(), it.get_height());  
+      it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: inkplate6
     id: inkplate_display
     greyscale: false
