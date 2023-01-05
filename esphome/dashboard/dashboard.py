@@ -69,7 +69,7 @@ class DashboardSettings:
             self.password_hash = password_hash(password)
         self.config_dir = args.configuration
         self.ssl_cert_path = args.cert or os.getenv("ESPHOME_DASHBOARD_CERT_PATH", "")
-        self.ssl_key_path = args.privkey or os.getenv("ESPHOME_DASHBOARD_KEY_PATH", "")
+        self.ssl_key_path = args.key or os.getenv("ESPHOME_DASHBOARD_KEY_PATH", "")
 
     @property
     def relative_url(self):
