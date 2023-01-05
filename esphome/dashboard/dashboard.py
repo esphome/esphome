@@ -87,7 +87,7 @@ class DashboardSettings:
 
     @property
     def using_ssl(self):
-        return not self.ssl_cert_path == "" and not self.ssl_key_path == ""
+        return self.ssl_cert_path != "" and self.ssl_key_path != ""
 
     @property
     def using_auth(self):
