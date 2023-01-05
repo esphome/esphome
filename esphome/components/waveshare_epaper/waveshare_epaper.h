@@ -54,7 +54,7 @@ class WaveshareEPaper : public PollingComponent,
     }
   }
 
-  virtual uint32_t get_buffer_length_();
+  virtual uint32_t get_buffer_length_(); // NOLINT
   uint32_t reset_duration_{200};
 
   void start_command_();
