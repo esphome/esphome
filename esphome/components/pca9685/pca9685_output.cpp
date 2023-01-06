@@ -46,14 +46,6 @@ void PCA9685Output::setup() {
     return;
   }
 
-  int pre_scaler = static_cast<int>((25000000 / (4096 * this->frequency_)) - 1);
-  if (pre_scaler > 255)
-    pre_scaler = 255;
-  if (pre_scaler < 3)
-    pre_scaler = 3;
-
-  ESP_LOGV(TAG, "  -> Prescaler: %d", pre_scaler);
-
   uint8_t mode1;
   if (!this->read_byte(PCA9685_REGISTER_MODE1, &mode1)) {
     this->mark_failed();
@@ -64,13 +56,22 @@ void PCA9685Output::setup() {
     this->mark_failed();
     return;
   }
+
+  int pre_scaler = 3;
   if (this->extclk_) {
-    pre_scaler = 3;
     mode1 = mode1 | PCA9685_MODE1_EXTCLK;
     if (!this->write_byte(PCA9685_REGISTER_MODE1, mode1)) {
       this->mark_failed();
       return;
     }
+  } else {
+    pre_scaler = static_cast<int>((25000000 / (4096 * this->frequency_)) - 1);
+    if (pre_scaler > 255)
+      pre_scaler = 255;
+    if (pre_scaler < 3)
+      pre_scaler = 3;
+
+    ESP_LOGV(TAG, "  -> Prescaler: %d", pre_scaler);
   }
   if (!this->write_byte(PCA9685_REGISTER_PRE_SCALE, pre_scaler)) {
     this->mark_failed();
