@@ -601,9 +601,9 @@ std::string ESPBTUUID::to_string() const {
     default:
     case ESP_UUID_LEN_128:
       std::string buf;
-      for (int8_t i = 15; i >= 0; i--) {
+      for (uint8_t i = 0; i < 16; i++) {
         buf += str_snprintf("%02X", 2, this->uuid_.uuid.uuid128[i]);
-        if (i == 6 || i == 8 || i == 10 || i == 12)
+        if (i == 3 || i == 5 || i == 7 || i == 9)
           buf += "-";
       }
       return buf;
@@ -706,11 +706,7 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
   while (offset + 2 < len) {
     const uint8_t field_length = payload[offset++];  // First byte is length of adv record
     if (field_length == 0) {
-      if (offset < param.adv_data_len && param.scan_rsp_len > 0) {  // Zero padded advertisement data
-        offset = param.adv_data_len;
-        continue;
-      }
-      break;
+      continue;  // Possible zero padded advertisement data
     }
 
     // first byte of adv record is adv record type
