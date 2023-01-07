@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RAW_DATA_ID,
     CONF_RESET_PIN,
+    CONF_BACKLIGHT_PIN,
 )
 from esphome.core import CORE, HexInt
 
@@ -27,13 +28,14 @@ ILI9341M5Stack = ili9341_ns.class_("ILI9341M5Stack", ili9341)
 ILI9341TFT24 = ili9341_ns.class_("ILI9341TFT24", ili9341)
 ILI9341TFT24R = ili9341_ns.class_("ILI9341TFT24R", ili9341)
 
-ILI9341Model = ili9341_ns.enum("ILI9341Model")
 ILI9341ColorMode = ili9341_ns.enum("ILI9341ColorMode")
 
 MODELS = {
-    "M5STACK": ILI9341Model.M5STACK,
-    "TFT_2.4": ILI9341Model.TFT_24,
-    "TFT_2.4R": ILI9341Model.TFT_24R,
+    "M5STACK": ili9341_ns.class_("ILI9341M5Stack", ili9341),
+    "TFT_2.4": ili9341_ns.class_("ILI9341ILI9341", ili9341),
+    "TFT_2.4R": ili9341_ns.class_("ILI9341ILI9342", ili9341),
+    "ILI9341": ili9341_ns.class_("ILI9341ILI9341", ili9341),
+    "ILI9342": ili9341_ns.class_("ILI9341ILI9342", ili9341),
 }
 
 ILI9341_MODEL = cv.enum(MODELS, upper=True, space="_")
@@ -62,10 +64,13 @@ CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ili9341),
-            cv.Required(CONF_MODEL): ILI9341_MODEL,
+            cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            cv.Optional(CONF_LED_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_LED_PIN): cv.invalid(
+                "The led_pin is renamed to :" + CONF_BACKLIGHT_PIN
+            ),
+            cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
                 cv.file_
@@ -81,19 +86,13 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    if config[CONF_MODEL] == "M5STACK":
-        lcd_type = ILI9341M5Stack
-    if config[CONF_MODEL] == "TFT_2.4":
-        lcd_type = ILI9341TFT24
-    if config[CONF_MODEL] == "TFT_2.4R":
-        lcd_type = ILI9341TFT24R
-    rhs = lcd_type.new()
+    rhs = MODELS[config[CONF_MODEL]].new()
     var = cg.Pvariable(config[CONF_ID], rhs)
 
     await cg.register_component(var, config)
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
-    cg.add(var.set_model(config[CONF_MODEL]))
+
     dc = await cg.gpio_pin_expression(config[CONF_DC_PIN])
     cg.add(var.set_dc_pin(dc))
 
@@ -105,7 +104,7 @@ async def to_code(config):
     if CONF_RESET_PIN in config:
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
-    if CONF_LED_PIN in config:
+    if CONF_BACKLIGHT_PIN in config:
         led_pin = await cg.gpio_pin_expression(config[CONF_LED_PIN])
         cg.add(var.set_led_pin(led_pin))
 
