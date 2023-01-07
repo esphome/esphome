@@ -549,6 +549,7 @@ class DisplayBuffer {
   DisplayPage *previous_page_{nullptr};
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
+  std::vector<Rect> clipping_rectangle_;
 };
 
 class DisplayPage {
