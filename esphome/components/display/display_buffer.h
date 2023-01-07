@@ -20,7 +20,6 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
-#define POLAR_2PI 6.28318530718F
 namespace esphome {
 namespace display {
 
