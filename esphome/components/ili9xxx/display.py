@@ -1,7 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import pins
+from esphome import core, pins
 from esphome.components import display, spi
+from esphome.core import CORE, HexInt
 from esphome.const import (
     CONF_COLOR_PALETTE,
     CONF_DC_PIN,
@@ -13,9 +14,9 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_BACKLIGHT_PIN,
 )
-from esphome.core import HexInt
 
 DEPENDENCIES = ["spi"]
+AUTO_LOAD = ["psram"]
 
 CODEOWNERS = ["@nielsnl68"]
 
@@ -32,15 +33,33 @@ MODELS = {
     "TFT_2.4R": ili9XXX_ns.class_("ILI9XXXILI9342", ili9XXXSPI),
     "ILI9341": ili9XXX_ns.class_("ILI9XXXILI9341", ili9XXXSPI),
     "ILI9342": ili9XXX_ns.class_("ILI9XXXILI9342", ili9XXXSPI),
-    #    "ILI9481": ili9XXX_ns.class_("ILI9XXXILI9481", ili9XXXSPI),
-    #    "ILI9486": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
+    "ILI9481": ili9XXX_ns.class_("ILI9XXXILI9481", ili9XXXSPI),
+    "ILI9486": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
     "ILI9488": ili9XXX_ns.class_("ILI9XXXILI9488", ili9XXXSPI),
     "ST7796": ili9XXX_ns.class_("ILI9XXXST7796", ili9XXXSPI),
 }
 
-COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE")
+COLOR_PALETTE = cv.one_of("NONE", "GRAYSCALE", "IMAGE_ADAPTIVE")
 
 CONF_LED_PIN = "led_pin"
+CONF_COLOR_PALETTE_IMAGES = "color_palette_images"
+
+
+def _validate(config):
+    if config.get(CONF_COLOR_PALETTE) == "IMAGE_ADAPTIVE" and not config.get(
+        CONF_COLOR_PALETTE_IMAGES
+    ):
+        raise cv.Invalid(
+            "Color palette in IMAGE_ADAPTIVE mode requires at least one 'color_palette_images' entry to generate palette"
+        )
+    if (
+        config.get(CONF_COLOR_PALETTE_IMAGES)
+        and config.get(CONF_COLOR_PALETTE) != "IMAGE_ADAPTIVE"
+    ):
+        raise cv.Invalid(
+            "Providing color palette images requires palette mode to be 'IMAGE_ADAPTIVE'"
+        )
+    return config
 
 
 CONFIG_SCHEMA = cv.All(
@@ -56,11 +75,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+            cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
+                cv.file_
+            ),
         }
     )
     .extend(cv.polling_component_schema("1s"))
     .extend(spi.spi_device_schema(False)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
+    _validate,
 )
 
 
@@ -85,9 +108,10 @@ async def to_code(config):
         cg.add(var.set_reset_pin(reset))
 
     if CONF_BACKLIGHT_PIN in config:
-        reset = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
-        cg.add(var.set_backlight_pin(reset))
+        led_pin = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
+        cg.add(var.set_backlight_pin(led_pin))
 
+    rhs = None
     if config[CONF_COLOR_PALETTE] == "GRAYSCALE":
         cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8_INDEXED))
         rhs = []
@@ -95,5 +119,39 @@ async def to_code(config):
             rhs.extend([HexInt(x), HexInt(x), HexInt(x)])
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
+    elif config[CONF_COLOR_PALETTE] == "IMAGE_ADAPTIVE":
+        cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8_INDEXED))
+        from PIL import Image
+
+        def load_image(filename):
+            path = CORE.relative_config_path(filename)
+            try:
+                return Image.open(path)
+            except Exception as e:
+                raise core.EsphomeError(f"Could not load image file {path}: {e}")
+
+        # make a wide horizontal combined image.
+        images = [load_image(x) for x in config[CONF_COLOR_PALETTE_IMAGES]]
+        total_width = sum(i.width for i in images)
+        max_height = max(i.height for i in images)
+
+        ref_image = Image.new("RGB", (total_width, max_height))
+        x = 0
+        for i in images:
+            ref_image.paste(i, (x, 0))
+            x = x + i.width
+
+        # reduce the colors on combined image to 256.
+        converted = ref_image.convert("P", palette=Image.ADAPTIVE, colors=256)
+        # if you want to verify how the images look use
+        # ref_image.save("ref_in.png")
+        # converted.save("ref_out.png")
+        palette = converted.getpalette()
+        assert len(palette) == 256 * 3
+        rhs = palette
     else:
-        pass
+        cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8))
+
+    if rhs is not None:
+        prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
+        cg.add(var.set_palette(prog_arr))

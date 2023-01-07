@@ -1,10 +1,6 @@
 #pragma once
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
-#ifndef EXTENDED_DISPLAYBUFFER
-#include "esphome/core/component.h"
-#endif
-
 #include "ili9xxx_defines.h"
 #include "ili9xxx_init.h"
 
@@ -14,26 +10,17 @@ namespace ili9xxx {
 enum ILI9XXXColorMode {
   BITS_8,
   BITS_8_INDEXED,
+  BITS_16,
+  BITS_24,
 };
 
-class ILI9XXXDisplay : public display::DisplayBuffer,
-#ifndef EXTENDED_DISPLAYBUFFER
-                       public PollingComponent,
-#endif
+class ILI9XXXDisplay : public PollingComponent,
+                       public display::DisplayBuffer,
                        public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                              spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_40MHZ> {
  public:
-  void dump_config() override;
-  void setup() override;
-#ifndef EXTENDED_DISPLAYBUFFER
-  void update() override;
-#endif
-  float get_setup_priority() const override;
-  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
-
-  void fill(Color color) override;
-
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
+  float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_backlight_pin(GPIOPin *backlight) { this->backlight_pin_ = backlight; }
   void set_palette(const uint8_t *palette) { this->palette_ = palette; }
@@ -44,20 +31,29 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);
   uint8_t read_command(uint8_t command_byte, uint8_t index);
 
+  void update() override;
+
+  void fill(Color color) override;
+
+  void dump_config() override;
+  void setup() override;
+
+
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void setup_pins_();
   virtual void initialize() = 0;
-#ifndef EXTENDED_DISPLAYBUFFER
+
   void display_();
-#else
-  void display() override;
-#endif
   void init_lcd_(const uint8_t *init_cmd);
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void invert_display_(bool invert);
   void reset_();
   void fill_internal_(uint8_t color);
+
   void rotate_my_(uint8_t m);
 
   int16_t width_{0};   ///< Display width as modified by current rotation
@@ -68,7 +64,7 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   uint16_t y_high_{0};
   const uint8_t *palette_;
 
-  ILI9XXXColorMode buffer_color_mode_{BITS_8};
+  ILI9XXXColorMode buffer_color_mode_{BITS_16};
 
   uint32_t get_buffer_length_();
   int get_width_internal() override;
@@ -84,9 +80,9 @@ class ILI9XXXDisplay : public display::DisplayBuffer,
   uint32_t buffer_to_transfer_(uint32_t pos, uint32_t sz);
 
   GPIOPin *reset_pin_{nullptr};
+  GPIOPin *backlight_pin_{nullptr};
   GPIOPin *dc_pin_{nullptr};
   GPIOPin *busy_pin_{nullptr};
-  GPIOPin *backlight_pin_{nullptr};
 };
 
 //-----------   M5Stack display --------------
