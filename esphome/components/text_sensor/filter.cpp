@@ -51,7 +51,7 @@ optional<std::string> ToUpperFilter::new_value(std::string value) {
 // ToLowerFilter
 optional<std::string> ToLowerFilter::new_value(std::string value) {
   for (char &c : value)
-    c = ::toupper(c);
+    c = ::tolower(c);
   return value;
 }
 

@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include <vector>
+
 namespace esphome {
 
 namespace binary_sensor {

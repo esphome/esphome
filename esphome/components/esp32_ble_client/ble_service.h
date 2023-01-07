@@ -6,6 +6,8 @@
 
 #include "ble_characteristic.h"
 
+#include <vector>
+
 namespace esphome {
 namespace esp32_ble_client {
 
@@ -16,12 +18,14 @@ class BLEClientBase;
 class BLEService {
  public:
   ~BLEService();
+  bool parsed = false;
   espbt::ESPBTUUID uuid;
   uint16_t start_handle;
   uint16_t end_handle;
   std::vector<BLECharacteristic *> characteristics;
   BLEClientBase *client;
   void parse_characteristics();
+  void release_characteristics();
   BLECharacteristic *get_characteristic(espbt::ESPBTUUID uuid);
   BLECharacteristic *get_characteristic(uint16_t uuid);
 };

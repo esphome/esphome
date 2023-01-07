@@ -1,6 +1,7 @@
 #pragma once
 
 #include <utility>
+#include <vector>
 
 #include "esphome/core/automation.h"
 #include "esphome/components/ble_client/ble_client.h"

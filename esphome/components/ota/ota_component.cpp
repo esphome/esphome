@@ -472,8 +472,9 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
   if (this->safe_mode_rtc_value_ >= num_attempts || is_manual_safe_mode) {
     this->clean_rtc();
 
-    if (!is_manual_safe_mode)
+    if (!is_manual_safe_mode) {
       ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode.");
+    }
 
     this->status_set_error();
     this->set_timeout(enable_time, []() {

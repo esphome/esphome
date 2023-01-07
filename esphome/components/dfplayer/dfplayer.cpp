@@ -77,14 +77,16 @@ void DFPlayer::loop() {
           case 0x3A:
             if (argument == 1) {
               ESP_LOGI(TAG, "USB loaded");
-            } else if (argument == 2)
+            } else if (argument == 2) {
               ESP_LOGI(TAG, "TF Card loaded");
+            }
             break;
           case 0x3B:
             if (argument == 1) {
               ESP_LOGI(TAG, "USB unloaded");
-            } else if (argument == 2)
+            } else if (argument == 2) {
               ESP_LOGI(TAG, "TF Card unloaded");
+            }
             break;
           case 0x3F:
             if (argument == 1) {
