@@ -17,12 +17,3 @@ RP2040_BOARD_PINS = {
         "SCL1": 27,
     },
 }
-
-BOARDS = {
-    "rpipico": {
-        "name": "Raspberry Pi Pico",
-    },
-    "rpipicow": {
-        "name": "Raspberry Pi Pico W",
-    },
-}

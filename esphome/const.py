@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2023.1.0-dev"
+__version__ = "2022.12.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -175,7 +175,6 @@ CONF_DIO_PIN = "dio_pin"
 CONF_DIR_PIN = "dir_pin"
 CONF_DIRECTION = "direction"
 CONF_DIRECTION_OUTPUT = "direction_output"
-CONF_DISABLE_CRC = "disable_crc"
 CONF_DISABLED_BY_DEFAULT = "disabled_by_default"
 CONF_DISCONNECT_DELAY = "disconnect_delay"
 CONF_DISCOVERY = "discovery"
@@ -954,7 +953,6 @@ DEVICE_CLASS_PM1 = "pm1"
 DEVICE_CLASS_PM10 = "pm10"
 DEVICE_CLASS_PM25 = "pm25"
 DEVICE_CLASS_POWER_FACTOR = "power_factor"
-DEVICE_CLASS_PRECIPITATION = "precipitation"
 DEVICE_CLASS_PRECIPITATION_INTENSITY = "precipitation_intensity"
 DEVICE_CLASS_PRESSURE = "pressure"
 DEVICE_CLASS_REACTIVE_POWER = "reactive_power"
@@ -994,8 +992,6 @@ KEY_CORE = "core"
 KEY_TARGET_PLATFORM = "target_platform"
 KEY_TARGET_FRAMEWORK = "target_framework"
 KEY_FRAMEWORK_VERSION = "framework_version"
-KEY_NAME = "name"
-KEY_VARIANT = "variant"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""

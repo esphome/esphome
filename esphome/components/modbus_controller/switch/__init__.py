@@ -32,7 +32,7 @@ ModbusSwitch = modbus_controller_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    switch.switch_schema(ModbusSwitch, default_restore_mode="DISABLED")
+    switch.switch_schema(ModbusSwitch)
     .extend(cv.COMPONENT_SCHEMA)
     .extend(ModbusItemBaseSchema)
     .extend(

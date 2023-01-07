@@ -87,10 +87,8 @@ static void retry_handler(const std::shared_ptr<RetryArgs> &args) {
   RetryResult retry_result = args->func();
   if (retry_result == RetryResult::DONE || --args->retry_countdown <= 0)
     return;
-  // second execution of `func` hapens after `initial_wait_time`
-  args->scheduler->set_timeout(args->component, args->name, args->current_interval, [args]() { retry_handler(args); });
-  // backoff_increase_factor applied to third & later executions
   args->current_interval *= args->backoff_increase_factor;
+  args->scheduler->set_timeout(args->component, args->name, args->current_interval, [args]() { retry_handler(args); });
 }
 
 void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
@@ -104,13 +102,6 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
   ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%u, max_attempts=%u, backoff_factor=%0.1f)", name.c_str(),
             initial_wait_time, max_attempts, backoff_increase_factor);
 
-  if (backoff_increase_factor < 0.0001) {
-    ESP_LOGE(TAG,
-             "set_retry(name='%s'): backoff_factor cannot be close to zero nor negative (%0.1f). Using 1.0 instead",
-             name.c_str(), backoff_increase_factor);
-    backoff_increase_factor = 1;
-  }
-
   auto args = std::make_shared<RetryArgs>();
   args->func = std::move(func);
   args->retry_countdown = max_attempts;
@@ -120,8 +111,7 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
   args->backoff_increase_factor = backoff_increase_factor;
   args->scheduler = this;
 
-  // First exectuion of `func` immediately
-  this->set_timeout(component, args->name, 0, [args]() { retry_handler(args); });
+  this->set_timeout(component, args->name, initial_wait_time, [args]() { retry_handler(args); });
 }
 bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
   return this->cancel_timeout(component, "retry$" + name);

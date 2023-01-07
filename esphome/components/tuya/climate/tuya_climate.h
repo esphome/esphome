@@ -35,8 +35,6 @@ class TuyaClimate : public climate::Climate, public Component {
   void set_eco_id(uint8_t eco_id) { this->eco_id_ = eco_id; }
   void set_eco_temperature(float eco_temperature) { this->eco_temperature_ = eco_temperature; }
 
-  void set_reports_fahrenheit() { this->reports_fahrenheit_ = true; }
-
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }
 
  protected:
@@ -79,7 +77,6 @@ class TuyaClimate : public climate::Climate, public Component {
   bool cooling_state_{false};
   float manual_temperature_;
   bool eco_;
-  bool reports_fahrenheit_{false};
 };
 
 }  // namespace tuya

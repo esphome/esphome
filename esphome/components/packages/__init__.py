@@ -1,22 +1,23 @@
+import re
 from pathlib import Path
-
-import esphome.config_validation as cv
-from esphome import git, yaml_util
+from esphome.core import EsphomeError
 from esphome.config_helpers import merge_config
+
+from esphome import git, yaml_util
 from esphome.const import (
     CONF_ESPHOME,
     CONF_FILE,
     CONF_FILES,
     CONF_MIN_VERSION,
     CONF_PACKAGES,
-    CONF_PASSWORD,
     CONF_REF,
     CONF_REFRESH,
     CONF_URL,
     CONF_USERNAME,
+    CONF_PASSWORD,
+    __version__ as ESPHOME_VERSION,
 )
-from esphome.const import __version__ as ESPHOME_VERSION
-from esphome.core import EsphomeError
+import esphome.config_validation as cv
 
 DOMAIN = CONF_PACKAGES
 
@@ -54,15 +55,23 @@ def validate_source_shorthand(value):
     if not isinstance(value, str):
         raise cv.Invalid("Shorthand only for strings")
 
-    git_file = git.GitFile.from_shorthand(value)
+    m = re.match(
+        r"github://([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)/([a-zA-Z0-9\-_.\./]+)(?:@([a-zA-Z0-9\-_.\./]+))?",
+        value,
+    )
+    if m is None:
+        raise cv.Invalid(
+            "Source is not a file system path or in expected github://username/name/[sub-folder/]file-path.yml[@branch-or-tag] format!"
+        )
 
     conf = {
-        CONF_URL: git_file.git_url,
-        CONF_FILE: git_file.filename,
+        CONF_URL: f"https://github.com/{m.group(1)}/{m.group(2)}.git",
+        CONF_FILE: m.group(3),
     }
-    if git_file.ref:
-        conf[CONF_REF] = git_file.ref
+    if m.group(4):
+        conf[CONF_REF] = m.group(4)
 
+    # print(conf)
     return BASE_SCHEMA(conf)
 
 

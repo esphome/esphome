@@ -245,7 +245,7 @@ def do_esp32():
 
     setEnum(
         output["esp32"]["schemas"]["CONFIG_SCHEMA"]["schema"]["config_vars"]["board"],
-        list(esp32_boards.BOARDS.keys()),
+        list(esp32_boards.BOARD_TO_VARIANT.keys()),
     )
 
 

@@ -88,17 +88,13 @@ MODELS = {
 }
 
 
-def validate_full_update_every_only_types_ac(value):
+def validate_full_update_every_only_type_a(value):
     if CONF_FULL_UPDATE_EVERY not in value:
         return value
     if MODELS[value[CONF_MODEL]][0] == "b":
-        full_models = []
-        for key, val in sorted(MODELS.items()):
-            if val[0] != "b":
-                full_models.append(key)
         raise cv.Invalid(
             "The 'full_update_every' option is only available for models "
-            + ", ".join(full_models)
+            "'1.54in', '1.54inV2', '2.13in', '2.90in', and '2.90inV2'."
         )
     return value
 
@@ -120,7 +116,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("1s"))
     .extend(spi.spi_device_schema()),
-    validate_full_update_every_only_types_ac,
+    validate_full_update_every_only_type_a,
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 

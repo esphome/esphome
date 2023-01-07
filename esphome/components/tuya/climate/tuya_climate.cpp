@@ -1,5 +1,5 @@
-#include "tuya_climate.h"
 #include "esphome/core/log.h"
+#include "tuya_climate.h"
 
 namespace esphome {
 namespace tuya {
@@ -44,10 +44,6 @@ void TuyaClimate::setup() {
   if (this->target_temperature_id_.has_value()) {
     this->parent_->register_listener(*this->target_temperature_id_, [this](const TuyaDatapoint &datapoint) {
       this->manual_temperature_ = datapoint.value_int * this->target_temperature_multiplier_;
-      if (this->reports_fahrenheit_) {
-        this->manual_temperature_ = (this->manual_temperature_ - 32) * 5 / 9;
-      }
-
       ESP_LOGV(TAG, "MCU reported manual target temperature is: %.1f", this->manual_temperature_);
       this->compute_target_temperature_();
       this->compute_state_();
@@ -57,10 +53,6 @@ void TuyaClimate::setup() {
   if (this->current_temperature_id_.has_value()) {
     this->parent_->register_listener(*this->current_temperature_id_, [this](const TuyaDatapoint &datapoint) {
       this->current_temperature = datapoint.value_int * this->current_temperature_multiplier_;
-      if (this->reports_fahrenheit_) {
-        this->current_temperature = (this->current_temperature - 32) * 5 / 9;
-      }
-
       ESP_LOGV(TAG, "MCU reported current temperature is: %.1f", this->current_temperature);
       this->compute_state_();
       this->publish_state();
@@ -113,10 +105,7 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
   }
 
   if (call.get_target_temperature().has_value()) {
-    float target_temperature = *call.get_target_temperature();
-    if (this->reports_fahrenheit_)
-      target_temperature = (target_temperature * 9 / 5) + 32;
-
+    const float target_temperature = *call.get_target_temperature();
     ESP_LOGV(TAG, "Setting target temperature: %.1f", target_temperature);
     this->parent_->set_integer_datapoint_value(*this->target_temperature_id_,
                                                (int) (target_temperature / this->target_temperature_multiplier_));
