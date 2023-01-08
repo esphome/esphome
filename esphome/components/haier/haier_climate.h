@@ -2,7 +2,6 @@
 
 #include <chrono>
 #include <set>
-#include "esphome.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
@@ -43,7 +42,7 @@ public:
   void dump_config() override;
   float get_setup_priority() const override { return esphome::setup_priority::HARDWARE ; }
   void set_beeper_state(bool state);
-  bool get_beeper_state() const;   
+  bool get_beeper_state() const;
   void set_fahrenheit(bool fahrenheit);
   void set_outdoor_temperature_sensor(esphome::sensor::Sensor *sensor);
   void set_display_state(bool state);

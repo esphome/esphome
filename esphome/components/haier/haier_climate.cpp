@@ -1,4 +1,3 @@
-#include "esphome.h"
 #include <chrono>
 #include <string>
 #include "esphome/components/climate/climate.h"
@@ -184,9 +183,9 @@ void HaierClimate::set_display_state(bool state)
   }
 }
 
-void HaierClimate::set_outdoor_temperature_sensor(esphome::sensor::Sensor *sensor) 
+void HaierClimate::set_outdoor_temperature_sensor(esphome::sensor::Sensor *sensor)
 {
-  this->outdoor_sensor_ = sensor; 
+  this->outdoor_sensor_ = sensor;
 }
 
 AirflowVerticalDirection HaierClimate::get_vertical_airflow() const
@@ -321,7 +320,7 @@ haier_protocol::HandlerError HaierClimate::status_handler(uint8_t requestType, u
         this->set_phase(ProtocolPhases::IDLE);
       else if (this->protocol_phase_ == ProtocolPhases::WAITING_CONTROL_ANSWER)
       {
-        this->set_phase(ProtocolPhases::IDLE); 
+        this->set_phase(ProtocolPhases::IDLE);
         this->force_send_control_ = false;
         if (this->hvac_settings_.valid)
           this->hvac_settings_.reset();
@@ -431,19 +430,19 @@ void HaierClimate::dump_config()
   {
     ESP_LOGCONFIG(TAG, "  Device protocol version: %s",
       this->hvac_protocol_version_.c_str());
-    ESP_LOGCONFIG(TAG, "  Device software version: %s", 
+    ESP_LOGCONFIG(TAG, "  Device software version: %s",
       this->hvac_software_version_.c_str());
     ESP_LOGCONFIG(TAG, "  Device hardware version: %s",
       this->hvac_hardware_version_.c_str());
-    ESP_LOGCONFIG(TAG, "  Device name: %s", 
+    ESP_LOGCONFIG(TAG, "  Device name: %s",
       this->hvac_device_name_.c_str());
     ESP_LOGCONFIG(TAG, "  Device features:%s%s%s%s%s",
-      (this->hvac_functions_[0] ? " interactive" : ""), 
+      (this->hvac_functions_[0] ? " interactive" : ""),
       (this->hvac_functions_[1] ? " master-slave" : ""),
-      (this->hvac_functions_[2] ? " crc" : ""), 
+      (this->hvac_functions_[2] ? " crc" : ""),
       (this->hvac_functions_[3] ? " multinode" : ""),
       (this->hvac_functions_[4] ? " role" : ""));
-    ESP_LOGCONFIG(TAG, "  Active alarms: %s", 
+    ESP_LOGCONFIG(TAG, "  Active alarms: %s",
       buf_to_hex(this->active_alarms_, sizeof(this->active_alarms_)).c_str());
   }
 }
@@ -472,7 +471,7 @@ void HaierClimate::loop()
   {
     // If control message is pending we should send it ASAP unless we are in initialisation procedure or waiting for an answer
     if ((this->protocol_phase_ == ProtocolPhases::IDLE) ||
-        (this->protocol_phase_ == ProtocolPhases::SENDING_STATUS_REQUEST) || 
+        (this->protocol_phase_ == ProtocolPhases::SENDING_STATUS_REQUEST) ||
         (this->protocol_phase_ == ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST) ||
         (this->protocol_phase_ == ProtocolPhases::SENDING_SIGNAL_LEVEL))
     {
@@ -493,7 +492,7 @@ void HaierClimate::loop()
         // bit 2 - if 1 module support crc
         // bit 3 - if 1 module support multiple devices
         // bit 4..bit 15 - not used
-        uint8_t module_capabilities[2] = { 0b00000000, 0b00000111 };     
+        uint8_t module_capabilities[2] = { 0b00000000, 0b00000111 };
         static const haier_protocol::HaierMessage device_version_request((uint8_t)hon_protocol::FrameType::GET_DEVICE_VERSION, module_capabilities, sizeof(module_capabilities));
         this->send_message(device_version_request);
         this->set_phase(ProtocolPhases::WAITING_ANSWER_INIT_1);
@@ -589,7 +588,7 @@ void HaierClimate::loop()
         haier_protocol::HaierMessage control_message = get_control_message();
         this->send_message(control_message);
         ESP_LOGI(TAG, "Control packet sent");
-        this->set_phase(ProtocolPhases::WAITING_CONTROL_ANSWER);       
+        this->set_phase(ProtocolPhases::WAITING_CONTROL_ANSWER);
       }
       break;
     case ProtocolPhases::WAITING_ANSWER_INIT_1:
@@ -823,12 +822,12 @@ haier_protocol::HandlerError HaierClimate::process_status_message(const uint8_t*
   }
   if ((this->outdoor_sensor_ != nullptr) && (got_valid_outdoor_temp_ || (packet.sensors.outdoor_temperature > 0)))
   {
-    got_valid_outdoor_temp_ = true; 
+    got_valid_outdoor_temp_ = true;
     float otemp = (float)(packet.sensors.outdoor_temperature + PROTOCOL_OUTDOOR_TEMPERATURE_OFFSET);
     if ((!this->outdoor_sensor_->has_state()) || (this->outdoor_sensor_->get_raw_state() != otemp))
       this->outdoor_sensor_->publish_state(otemp);
   }
-  bool shouldPublish = false;    
+  bool shouldPublish = false;
   {
     // Extra modes/presets
     optional<ClimatePreset> oldPreset = this->preset;

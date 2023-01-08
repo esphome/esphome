@@ -114,14 +114,14 @@ struct HaierPacketControl
   /* 11 */    uint8_t             vertical_swing_mode:4;      // See enum VerticalSwingMode
               uint8_t             :0;
   /* 12 */    uint8_t             fan_mode:3;                 // See enum FanMode
-              uint8_t             special_mode:2;             // See enum SpecialMode 
+              uint8_t             special_mode:2;             // See enum SpecialMode
               uint8_t             ac_mode:3;                  // See enum ConditioningMode
   /* 13 */    uint8_t             :8;
   /* 14 */    uint8_t             ten_degree:1;               // 10 degree status
               uint8_t             display_status:1;           // If 0 disables AC's display
               uint8_t             half_degree:1;              // Use half degree
               uint8_t             intelegence_status:1;       // Intelligence status
-              uint8_t             pmv_status:1;               // Comfort/PMV status               
+              uint8_t             pmv_status:1;               // Comfort/PMV status
               uint8_t             use_fahrenheit:1;           // Use Fahrenheit instead of Celsius
               uint8_t             :0;
   /* 15 */    uint8_t             ac_power:1;                 // Is ac on or off
@@ -189,7 +189,7 @@ struct DeviceVersionAnswer
   uint8_t     functions[2];
 };
 
-// In this section comments: 
+// In this section comments:
 //  - module is the ESP32 control module (communication module in Haier protocol document)
 //  - device is the conditioner control board (network appliances in Haier protocol document)
 enum class FrameType : uint8_t

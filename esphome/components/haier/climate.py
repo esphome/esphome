@@ -2,7 +2,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
-from esphome.components import uart, sensor, select, climate, logger
+from esphome.components import uart, sensor, climate, logger
 from esphome import automation
 from esphome.const import (
     CONF_BEEPER,
@@ -220,7 +220,6 @@ def _final_validate(config):
         cg.add_build_flag("-DHAIER_LOG_LEVEL=0")
     if config[CONF_WIFI_SIGNAL] and CONF_WIFI not in full_config:
         raise cv.Invalid(f"No WiFi configured, if you want to use haier climate without WiFi add {CONF_WIFI_SIGNAL}: false to climate configuration")
-    _LOGGER.info(full_config)
     return config
         
 

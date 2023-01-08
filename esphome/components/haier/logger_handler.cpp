@@ -30,9 +30,9 @@ void esphome_logger(haier_protocol::HaierLogLevel level, const char* tag, const 
   }
 }
 
-void init_haier_protocol_logging() 
-{ 
-    haier_protocol::set_log_handler(esphome::haier::esphome_logger); 
+void init_haier_protocol_logging()
+{
+    haier_protocol::set_log_handler(esphome::haier::esphome_logger);
 };
 
 } // namespace haier
