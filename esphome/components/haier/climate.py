@@ -73,7 +73,7 @@ CONFIG_SCHEMA = cv.All(
                 "OFF",
                 "VERTICAL",
                 "HORIZONTAL",
-                "BOTH",                
+                "BOTH",
             ]): cv.ensure_list(
                 cv.enum(SUPPORTED_SWING_MODES_OPTIONS, upper=True)
             ),
@@ -169,7 +169,7 @@ async def haier_set_beeper_off_to_code(config, action_id, template_arg, args):
             cv.Required(CONF_ID): cv.use_id(HaierClimate),
             cv.Required(CONF_VERTICAL_AIRFLOW): cv.templatable(
                 cv.enum(AIRFLOW_VERTICAL_DIRECTION_OPTIONS, upper=True)
-            ), 
+            ),
         }
     ),
 )
@@ -189,7 +189,7 @@ async def haier_set_vertical_airflow_to_code(config, action_id, template_arg, ar
             cv.Required(CONF_ID): cv.use_id(HaierClimate),
             cv.Required(CONF_HORIZONTAL_AIRFLOW): cv.templatable(
                 cv.enum(AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS, upper=True)
-            ), 
+            ),
         }
     ),
 )
@@ -209,7 +209,7 @@ def _final_validate(config):
             if 'haier.protocol' in logger_config[CONF_LOGS]:
                 _level = logger_config[CONF_LOGS]['haier.protocol']
             else:
-                _level = logger_config[CONF_LEVEL]                
+                _level = logger_config[CONF_LEVEL]
         _LOGGER.info("Detected log level for Haier protocol: %s", _level)
         if _level not in logger.LOG_LEVEL_SEVERITY:
             raise cv.Invalid(f"Unknown log level for Haier protocol")
@@ -221,7 +221,7 @@ def _final_validate(config):
     if config[CONF_WIFI_SIGNAL] and CONF_WIFI not in full_config:
         raise cv.Invalid(f"No WiFi configured, if you want to use haier climate without WiFi add {CONF_WIFI_SIGNAL}: false to climate configuration")
     return config
-        
+
 
 FINAL_VALIDATE_SCHEMA = _final_validate
 

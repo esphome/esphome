@@ -262,7 +262,7 @@ haier_protocol::HandlerError HaierClimate::get_device_version_answer_handler(uin
     strncpy(tmp, answr->device_name, 8);
     this->hvac_device_name_ = std::string(tmp);
     this->hvac_functions_[0] = (answr->functions[1] & 0x01) != 0;      // interactive mode support
-    this->hvac_functions_[1] = (answr->functions[1] & 0x02) != 0;      // master-slave mode support
+    this->hvac_functions_[1] = (answr->functions[1] & 0x02) != 0;      // controller-device mode support
     this->hvac_functions_[2] = (answr->functions[1] & 0x04) != 0;      // crc support
     this->hvac_functions_[3] = (answr->functions[1] & 0x08) != 0;      // multiple AC support
     this->hvac_functions_[4] = (answr->functions[1] & 0x20) != 0;      // roles support
@@ -438,7 +438,7 @@ void HaierClimate::dump_config()
       this->hvac_device_name_.c_str());
     ESP_LOGCONFIG(TAG, "  Device features:%s%s%s%s%s",
       (this->hvac_functions_[0] ? " interactive" : ""),
-      (this->hvac_functions_[1] ? " master-slave" : ""),
+      (this->hvac_functions_[1] ? " controller-device" : ""),
       (this->hvac_functions_[2] ? " crc" : ""),
       (this->hvac_functions_[3] ? " multinode" : ""),
       (this->hvac_functions_[4] ? " role" : ""));
@@ -488,7 +488,7 @@ void HaierClimate::loop()
         this->hvac_hardware_info_available_ = false;
         // Indicate device capabilities:
         // bit 0 - if 1 module support interactive mode
-        // bit 1 - if 1 module support master-slave mode
+        // bit 1 - if 1 module support controller-device mode
         // bit 2 - if 1 module support crc
         // bit 3 - if 1 module support multiple devices
         // bit 4..bit 15 - not used
