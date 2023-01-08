@@ -7,6 +7,9 @@
 #ifdef USE_ESP32
 #include <esp_heap_caps.h>
 #endif
+#ifdef USE_RP2040
+#include <Arduino.h>
+#endif
 
 namespace esphome {
 namespace json {
