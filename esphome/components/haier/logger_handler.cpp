@@ -5,10 +5,8 @@
 namespace esphome {
 namespace haier {
 
-void esphome_logger(haier_protocol::HaierLogLevel level, const char* tag, const char* message)
-{
-  switch (level)
-  {
+void esphome_logger(haier_protocol::HaierLogLevel level, const char *tag, const char *message) {
+  switch (level) {
     case haier_protocol::HaierLogLevel::LEVEL_ERROR:
       esp_log_printf_(ESPHOME_LOG_LEVEL_ERROR, tag, __LINE__, message);
       break;
@@ -30,10 +28,7 @@ void esphome_logger(haier_protocol::HaierLogLevel level, const char* tag, const 
   }
 }
 
-void init_haier_protocol_logging()
-{
-    haier_protocol::set_log_handler(esphome::haier::esphome_logger);
-};
+void init_haier_protocol_logging() { haier_protocol::set_log_handler(esphome::haier::esphome_logger); };
 
-} // namespace haier
-} // namespace esphome
+}  // namespace haier
+}  // namespace esphome

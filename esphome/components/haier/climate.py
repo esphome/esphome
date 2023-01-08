@@ -101,6 +101,7 @@ BeeperOffAction = haier_ns.class_("BeeperOffAction", automation.Action)
 VerticalAirflowAction = haier_ns.class_("VerticalAirflowAction", automation.Action)
 HorizontalAirflowAction = haier_ns.class_("HorizontalAirflowAction", automation.Action)
 
+
 # Display on action
 @automation.register_action(
     "climate.haier.display_on",
@@ -221,7 +222,7 @@ def _final_validate(config):
                 _level = logger_config[CONF_LOGS]["haier.protocol"]
             else:
                 _level = logger_config[CONF_LEVEL]
-        _LOGGER.info(f"Detected log level for Haier protocol: {_level}")
+        _LOGGER.info("Detected log level for Haier protocol: %s", _level)
         if _level not in logger.LOG_LEVEL_SEVERITY:
             raise cv.Invalid("Unknown log level for Haier protocol")
         _severity = logger.LOG_LEVEL_SEVERITY.index(_level)

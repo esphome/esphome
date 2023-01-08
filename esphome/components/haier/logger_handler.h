@@ -7,5 +7,5 @@ namespace haier {
 // Do not use it directly!
 void init_haier_protocol_logging();
 
-} // namespace haier
-} // namespace esphome
+}  // namespace haier
+}  // namespace esphome
