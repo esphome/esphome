@@ -38,8 +38,6 @@ class ILI9XXXDisplay : public PollingComponent,
   void dump_config() override;
   void setup() override;
 
-
-
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
  protected:
@@ -53,8 +51,6 @@ class ILI9XXXDisplay : public PollingComponent,
   void invert_display_(bool invert);
   void reset_();
   void fill_internal_(uint8_t color);
-
-  void rotate_my_(uint8_t m);
 
   int16_t width_{0};   ///< Display width as modified by current rotation
   int16_t height_{0};  ///< Display height as modified by current rotation

@@ -47,9 +47,7 @@ void ILI9XXXDisplay::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-float ILI9XXXDisplay::get_setup_priority() const { 
-  return setup_priority::HARDWARE;
-}
+float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void ILI9XXXDisplay::update() {
   this->do_update_();
@@ -58,8 +56,8 @@ void ILI9XXXDisplay::update() {
 
 void ILI9XXXDisplay::display_() {
   // we will only update the changed window to the display
-  uint16_t w = this->x_high_ - this->x_low_ + 1; 
-  uint16_t h = this->y_high_ - this->y_low_ + 1; 
+  uint16_t w = this->x_high_ - this->x_low_ + 1;  // NOLINT
+  uint16_t h = this->y_high_ - this->y_low_ + 1;  // NOLINT
   uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
 
   // check if something was displayed
@@ -72,8 +70,7 @@ void ILI9XXXDisplay::display_() {
   ESP_LOGVV(TAG,
             "Start display(xlow:%d, ylow:%d, xhigh:%d, yhigh:%d, width:%d, "
             "heigth:%d, start_pos:%d)",
-            this->x_low_, this->y_low_, this->x_high_, this->y_high_, w, h,
-            start_pos);
+            this->x_low_, this->y_low_, this->x_high_, this->y_high_, w, h, start_pos);
 
   this->start_data_();
   for (uint16_t row = 0; row < h; row++) {
@@ -103,9 +100,9 @@ void ILI9XXXDisplay::fill(Color color) {
   this->x_low_ = 0;
   this->y_low_ = 0;
   this->x_high_ = this->get_width_internal() - 1;
-  this->y_high_ = this->get_height_internal() - 1;  
-  
-  if (this->buffer_color_mode_ == BITS_8_INDEXED)
+  this->y_high_ = this->get_height_internal() - 1;
+
+  if (this->buffer_color_mode_ == BITS_8_INDEXED) {
     color332 = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
   } else {
     color332 = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
@@ -132,48 +129,18 @@ void ILI9XXXDisplay::fill_internal_(uint8_t color) {
   memset(buffer_, color, this->get_buffer_length_());
 }
 
-void ILI9XXXDisplay::rotate_my_(uint8_t m) {
-  uint8_t rotation = m & 3;  // can't be higher than 3
-  switch (rotation) {
-    case 0:
-      m = (MADCTL_MX | MADCTL_BGR);
-      // _width = ILI9XXX_TFTWIDTH;
-      // _height = ILI9XXX_TFTHEIGHT;
-      break;
-    case 1:
-      m = (MADCTL_MV | MADCTL_BGR);
-      // _width = ILI9XXX_TFTHEIGHT;
-      // _height = ILI9XXX_TFTWIDTH;
-      break;
-    case 2:
-      m = (MADCTL_MY | MADCTL_BGR);
-      // _width = ILI9XXX_TFTWIDTH;
-      // _height = ILI9XXX_TFTHEIGHT;
-      break;
-    case 3:
-      m = (MADCTL_MX | MADCTL_MY | MADCTL_MV | MADCTL_BGR);
-      // _width = ILI9XXX_TFTHEIGHT;
-      // _height = ILI9XXX_TFTWIDTH;
-      break;
-  }
-  this->command(ILI9XXX_MADCTL);
-  this->data(m);
-}
 
 void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x >= this->get_width_internal() || x < 0 || 
-      y >= this->get_height_internal() || y < 0)
+  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
   uint32_t pos = (y * width_) + x;
   uint8_t new_color;
 
   if (this->buffer_color_mode_ == BITS_8) {
-    new_color = display::ColorUtil::color_to_332(
-       color, display::ColorOrder::COLOR_ORDER_RGB);
+    new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
   } else {  // if (this->buffer_color_mode_ == BITS_8_INDEXED) {
-    new_color = 
-        display::ColorUtil::color_to_index8_palette888(color, this->palette_);
+    new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
   }
 
   if (buffer_[pos] != new_color) {
@@ -183,16 +150,14 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
     this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
     this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
-   ESP_LOGVV(TAG, "=>>> pixel (x:%d, y:%d) (xl:%d, xh:%d, yl:%d, yh:%d", x, y,
-              this->x_low_, this->x_high_, this->y_low_, this->y_high_);
+    ESP_LOGVV(TAG, "=>>> pixel (x:%d, y:%d) (xl:%d, xh:%d, yl:%d, yh:%d", x, y, this->x_low_, this->x_high_,
+              this->y_low_, this->y_high_);
   }
 }
 
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
 // values per bit is huge
-uint32_t ILI9XXXDisplay::get_buffer_length_() { 
-  return this->get_width_internal() * this->get_height_internal(); 
-}
+uint32_t ILI9XXXDisplay::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal(); }
 
 void ILI9XXXDisplay::command(uint8_t value) {
   this->start_command_();
@@ -206,9 +171,7 @@ void ILI9XXXDisplay::data(uint8_t value) {
   this->end_data_();
 }
 
-void ILI9XXXDisplay::send_command(uint8_t command_byte, 
-                                  const uint8_t *data_bytes, 
-                                  uint8_t num_data_bytes) {
+void ILI9XXXDisplay::send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes) {
   this->command(command_byte);  // Send the command byte
   this->start_data_();
   this->write_array(data_bytes, num_data_bytes);
@@ -263,8 +226,7 @@ void ILI9XXXDisplay::init_lcd_(const uint8_t *init_cmd) {
   }
 }
 
-void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t w, 
-                                      uint16_t h) {
+void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t w, uint16_t h) {
   uint16_t x2 = (x1 + w - 1), y2 = (y1 + h - 1);
   this->command(ILI9XXX_CASET);  // Column address set
   this->start_data_();
@@ -283,9 +245,7 @@ void ILI9XXXDisplay::set_addr_window_(uint16_t x1, uint16_t y1, uint16_t w,
   this->command(ILI9XXX_RAMWR);  // Write to RAM
 }
 
-void ILI9XXXDisplay::invert_display_(bool invert) { 
-  this->command(invert ? ILI9XXX_INVON : ILI9XXX_INVOFF); 
-}
+void ILI9XXXDisplay::invert_display_(bool invert) { this->command(invert ? ILI9XXX_INVON : ILI9XXX_INVOFF); }
 
 int ILI9XXXDisplay::get_width_internal() { return this->width_; }
 int ILI9XXXDisplay::get_height_internal() { return this->height_; }
@@ -306,12 +266,11 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
     } else if (this->buffer_color_mode_ == BITS_8) {
       color = display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(*src++));
     } else {  //  if (this->buffer_color_mode == BITS_8_INDEXED) {
-      Color col = display::ColorUtil::index8_to_color_palette888(
-          *src++, this->palette_);
+      Color col = display::ColorUtil::index8_to_color_palette888(*src++, this->palette_);
       color = display::ColorUtil::color_to_565(col);
     }
-    *dst++ = (uint8_t)(color >> 8);
-    *dst++ = (uint8_t)color;
+    *dst++ = (uint8_t) (color >> 8);
+    *dst++ = (uint8_t) color;
   }
 
   return sz;
