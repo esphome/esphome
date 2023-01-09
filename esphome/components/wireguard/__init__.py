@@ -10,6 +10,7 @@ CONF_WG_PEER_PORT = "peer_port"
 CONF_WG_PRESHARED_KEY = "preshared_key"
 
 DEPENDENCIES = ["time"]
+CODEOWNERS = ["@lhoracek"]
 
 wireguard_ns = cg.esphome_ns.namespace("wireguard")
 Wireguard = wireguard_ns.class_("Wireguard", cg.Component, cg.PollingComponent)
