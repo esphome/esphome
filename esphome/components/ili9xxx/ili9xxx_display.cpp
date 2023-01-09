@@ -116,7 +116,7 @@ void ILI9XXXDisplay::fill(Color color) {
     case BITS_16:
       new_color = display::ColorUtil::color_to_565(color);
       for (uint32_t i = 0; i < this->get_buffer_length_() * 2; i = i + 2) {
-        this->buffer_[i] = (uint8_t) (new_color >> 8);
+        this->buffer_[i] = (uint8_t)(new_color >> 8);
         this->buffer_[i + 1] = (uint8_t) new_color;
       }
       return;
@@ -138,8 +138,8 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
   if (this->buffer_color_mode_ == BITS_16) {
     pos = pos * 2;
     uint16_t new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
-    if (this->buffer_[pos] != (uint8_t) (new_color >> 8)) {
-      this->buffer_[pos] = (uint8_t) (new_color >> 8);
+    if (this->buffer_[pos] != (uint8_t)(new_color >> 8)) {
+      this->buffer_[pos] = (uint8_t)(new_color >> 8);
       updated = true;
     }
     pos = pos + 1;
@@ -282,7 +282,7 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
       Color col = display::ColorUtil::index8_to_color_palette888(*src++, this->palette_);
       color = display::ColorUtil::color_to_565(col);
     }
-    *dst++ = (uint8_t) (color >> 8);
+    *dst++ = (uint8_t)(color >> 8);
     *dst++ = (uint8_t) color;
   }
 
