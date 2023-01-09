@@ -144,13 +144,12 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     }
     pos = pos + 1;
     new_color = new_color & 0xFF;
+  } else if (this->buffer_color_mode_ == BITS_8_INDEXED) {
+    new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
   } else {
-    if (this->buffer_color_mode_ == BITS_8_INDEXED) {
-      new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
-    } else {
-      new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
-    }
+    new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
   }
+  
   if (this->buffer_[pos] != new_color) {
     this->buffer_[pos] = new_color;
     updated = true;
