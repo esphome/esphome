@@ -7,8 +7,6 @@
 #endif
 #include "haier_climate.h"
 #include "haier_packet.h"
-// HaierProtocol
-#include <protocol/haier_protocol.h>
 
 using namespace esphome::climate;
 using namespace esphome::uart;
