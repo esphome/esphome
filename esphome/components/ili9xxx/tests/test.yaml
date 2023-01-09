@@ -1,0 +1,44 @@
+esphome:
+  name: ili9xxx_test
+  comment: ili9xxx test yaml
+
+esp32:
+  board: firebeetle32
+
+wifi: 
+  networks:
+    - ssid: !secret wifi_ssid
+      password: !secret wifi_password
+
+logger:
+
+external_components:
+  - source:
+      type: local
+      path: C:\development\projects\esphome-components\components
+
+spi:
+  mosi_pin: 23
+  miso_pin: 19
+  clk_pin: 18
+
+
+color:
+  - id: my_red
+    red: 100%
+  - id: my_blue
+    blue: 100%
+
+display:
+  - id: my_display
+    platform: ili9xxx
+    model: ili9341
+    cs_pin: 5
+    dc_pin: 16
+    rotation: 90
+    lambda: |-
+      for(uint8_t i = 0; i<255; i++) {
+          it.horizontal_line(5,i,100, my_red.fade_to_white(i));
+          it.horizontal_line(110,i,100, my_red.fade_to_black(i));
+          it.horizontal_line(215,i,100, my_red.gradient(my_blue, i));
+      }

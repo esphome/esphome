@@ -8,9 +8,9 @@ namespace esphome {
 namespace ili9xxx {
 
 enum ILI9XXXColorMode {
-  BITS_8,
-  BITS_8_INDEXED,
-  BITS_16,
+  BITS_8 = 0x08,
+  BITS_8_INDEXED = 0x09,
+  BITS_16 = 0x10,
 };
 
 class ILI9XXXDisplay : public PollingComponent,
