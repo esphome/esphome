@@ -17,8 +17,16 @@ void ILI9XXXDisplay::setup() {
   this->y_low_ = this->height_;
   this->x_high_ = 0;
   this->y_high_ = 0;
-
+  if (this->buffer_color_mode_ == BITS_16) {
+    this->init_internal_(this->get_buffer_length_()*2);
+    if (this->buffer_ != nullptr) {
+      return;
+    }
+  }
   this->init_internal_(this->get_buffer_length_());
+  if (this->buffer_ == nullptr) {
+    this->mark_failed();
+  }
 }
 
 void ILI9XXXDisplay::setup_pins_() {
@@ -82,7 +90,6 @@ void ILI9XXXDisplay::display_() {
       this->write_array(transfer_buffer_, 2 * sz);
       pos += sz;
       rem -= sz;
-      App.feed_wdt();
     }
     App.feed_wdt();
   }
@@ -102,7 +109,11 @@ void ILI9XXXDisplay::fill(Color color) {
   this->x_high_ = this->get_width_internal() - 1;
   this->y_high_ = this->get_height_internal() - 1;
 
-  if (this->buffer_color_mode_ == BITS_8_INDEXED) {
+  if (this->buffer_color_mode_ == BITS_16) {
+    uint16_t color565 = display::ColorUtil::color_to_565(color);
+    std::fill(this->buffer_, color565, this->get_buffer_length_() );
+    return;
+  } else if (this->buffer_color_mode_ == BITS_8_INDEXED) {
     color332 = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
   } else {
     color332 = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
@@ -110,41 +121,38 @@ void ILI9XXXDisplay::fill(Color color) {
   memset(this->buffer_, color332, this->get_buffer_length_());
 }
 
-void ILI9XXXDisplay::fill_internal_(uint8_t color) {
-  memset(transfer_buffer_, color, sizeof(transfer_buffer_));
-
-  uint32_t rem = (this->get_buffer_length_() * 2);
-
-  this->set_addr_window_(0, 0, this->get_width_internal(), this->get_height_internal());
-  this->start_data_();
-
-  while (rem > 0) {
-    size_t sz = rem <= sizeof(transfer_buffer_) ? rem : sizeof(transfer_buffer_);  // NOLINT
-    this->write_array(transfer_buffer_, sz);
-    rem -= sz;
-  }
-
-  this->end_data_();
-
-  memset(buffer_, color, this->get_buffer_length_());
-}
-
-
 void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
   uint32_t pos = (y * width_) + x;
   uint8_t new_color;
+  bool updated = false;
+  if (this->buffer_color_mode_ == BITS_16) {
+    pos = pos * 2;
+    uint16_t new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
+    if (this->buffer_[pos] != (uint8_t) (new_color >> 8)) {
+      this->buffer_[pos] = (uint8_t) (new_color >> 8);
+      updated = true;
+    }
+    pos= pos+1;
+    if (this->buffer_[pos] != (uint8_t) new_color) {
+      this->buffer_[pos] = (uint8_t) new_color;
+      updated = true;
+    }
+  } else {
+    if (this->buffer_color_mode_ == BITS_8_INDEXED) {
+      new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
+    } else {
+      new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+    }
 
-  if (this->buffer_color_mode_ == BITS_8) {
-    new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
-  } else {  // if (this->buffer_color_mode_ == BITS_8_INDEXED) {
-    new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
-  }
-
-  if (buffer_[pos] != new_color) {
-    buffer_[pos] = new_color;
+    if (this->buffer_[pos] != new_color) {
+      this->buffer_[pos] = new_color;
+      updated = true;
+    }
+}
+  if (updated) {
     // low and high watermark may speed up drawing from buffer
     this->x_low_ = (x < this->x_low_) ? x : this->x_low_;
     this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
@@ -261,8 +269,10 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
   for (uint32_t i = 0; i < sz; ++i) {
     uint16_t color;
     if (this->buffer_color_mode_ == BITS_16) {
-      memcpy(color,
-      color = (uint8_t) *src++));
+      // memcpy(color,
+      *dst++ = (uint8_t) *src++;
+      *dst++ = (uint8_t) *src++;
+      continue;
     } else if (this->buffer_color_mode_ == BITS_8) {
       color = display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(*src++));
     } else {  //  if (this->buffer_color_mode == BITS_8_INDEXED) {

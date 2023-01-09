@@ -11,7 +11,6 @@ enum ILI9XXXColorMode {
   BITS_8,
   BITS_8_INDEXED,
   BITS_16,
-  BITS_24,
 };
 
 class ILI9XXXDisplay : public PollingComponent,
@@ -50,7 +49,6 @@ class ILI9XXXDisplay : public PollingComponent,
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void invert_display_(bool invert);
   void reset_();
-  void fill_internal_(uint8_t color);
 
   int16_t width_{0};   ///< Display width as modified by current rotation
   int16_t height_{0};  ///< Display height as modified by current rotation
