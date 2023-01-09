@@ -341,10 +341,11 @@ haier_protocol::HandlerError HaierClimate::timeout_default_handler(uint8_t reque
 #else
   ESP_LOGW(TAG, "Answer timeout for command %02X, phase %d", requestType, this->protocol_phase_);
 #endif
-  if (this->protocol_phase_ > ProtocolPhases::IDLE)
+  if (this->protocol_phase_ > ProtocolPhases::IDLE) {
     this->set_phase(ProtocolPhases::IDLE);
-  else
+  } else {
     this->set_phase(ProtocolPhases::SENDING_INIT_1);
+  }
   return haier_protocol::HandlerError::HANDLER_OK;
 }
 
@@ -354,20 +355,30 @@ void HaierClimate::setup() {
   this->last_request_timestamp_ = std::chrono::steady_clock::now();
   this->set_phase(ProtocolPhases::SENDING_INIT_1);
   // Set handlers
-#define SET_HANDLER(command, handler) \
-  this->haier_protocol_.set_answer_handler((uint8_t)(command), \
-                                           std::bind(&handler, this, std::placeholders::_1, std::placeholders::_2, \
-                                                     std::placeholders::_3, std::placeholders::_4));
-  SET_HANDLER(hon_protocol::FrameType::GET_DEVICE_VERSION,
-              esphome::haier::HaierClimate::get_device_version_answer_handler);
-  SET_HANDLER(hon_protocol::FrameType::GET_DEVICE_ID, esphome::haier::HaierClimate::get_device_id_answer_handler);
-  SET_HANDLER(hon_protocol::FrameType::CONTROL, esphome::haier::HaierClimate::status_handler);
-  SET_HANDLER(hon_protocol::FrameType::GET_MANAGEMENT_INFORMATION,
-              esphome::haier::HaierClimate::get_management_information_answer_handler);
-  SET_HANDLER(hon_protocol::FrameType::GET_ALARM_STATUS, esphome::haier::HaierClimate::get_alarm_status_answer_handler);
-  SET_HANDLER(hon_protocol::FrameType::REPORT_NETWORK_STATUS,
-              esphome::haier::HaierClimate::report_network_status_answer_handler);
-#undef SET_HANDLER
+  this->haier_protocol_.set_answer_handler(
+      (uint8_t)(hon_protocol::FrameType::GET_DEVICE_VERSION),
+      std::bind(&HaierClimate::get_device_version_answer_handler, this, std::placeholders::_1, std::placeholders::_2,
+                std::placeholders::_3, std::placeholders::_4));
+  this->haier_protocol_.set_answer_handler(
+      (uint8_t)(hon_protocol::FrameType::GET_DEVICE_ID),
+      std::bind(&HaierClimate::get_device_id_answer_handler, this, std::placeholders::_1, std::placeholders::_2,
+                std::placeholders::_3, std::placeholders::_4));
+  this->haier_protocol_.set_answer_handler(
+      (uint8_t)(hon_protocol::FrameType::CONTROL),
+      std::bind(&HaierClimate::status_handler, this, std::placeholders::_1, std::placeholders::_2,
+                std::placeholders::_3, std::placeholders::_4));
+  this->haier_protocol_.set_answer_handler(
+      (uint8_t)(hon_protocol::FrameType::GET_MANAGEMENT_INFORMATION),
+      std::bind(&HaierClimate::get_management_information_answer_handler, this, std::placeholders::_1,
+                std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
+  this->haier_protocol_.set_answer_handler(
+      (uint8_t)(hon_protocol::FrameType::GET_ALARM_STATUS),
+      std::bind(&HaierClimate::get_alarm_status_answer_handler, this, std::placeholders::_1, std::placeholders::_2,
+                std::placeholders::_3, std::placeholders::_4));
+  this->haier_protocol_.set_answer_handler(
+      (uint8_t)(hon_protocol::FrameType::REPORT_NETWORK_STATUS),
+      std::bind(&HaierClimate::report_network_status_answer_handler, this, std::placeholders::_1, std::placeholders::_2,
+                std::placeholders::_3, std::placeholders::_4));
   this->haier_protocol_.set_default_timeout_handler(
       std::bind(&esphome::haier::HaierClimate::timeout_default_handler, this, std::placeholders::_1));
 }
@@ -399,9 +410,10 @@ void HaierClimate::loop() {
         this->hvac_settings_.reset();
       this->set_phase(ProtocolPhases::SENDING_INIT_1);
       return;
-    } else
+    } else {
       // No need to reset protocol if we didn't pass initialization phase
       this->last_valid_status_timestamp_ = now;
+    }
   };
   if (this->hvac_settings_.valid || this->force_send_control_) {
     // If control message is pending we should send it ASAP unless we are in initialisation procedure or waiting for an
@@ -428,9 +440,9 @@ void HaierClimate::loop() {
         // bit 3 - if 1 module support multiple devices
         // bit 4..bit 15 - not used
         uint8_t module_capabilities[2] = {0b00000000, 0b00000111};
-        static const haier_protocol::HaierMessage device_version_request(
+        static const haier_protocol::HaierMessage DEVICE_VERSION_REQUEST(
             (uint8_t) hon_protocol::FrameType::GET_DEVICE_VERSION, module_capabilities, sizeof(module_capabilities));
-        this->send_message(device_version_request);
+        this->send_message(DEVICE_VERSION_REQUEST);
         this->set_phase(ProtocolPhases::WAITING_ANSWER_INIT_1);
       }
       break;
@@ -438,8 +450,8 @@ void HaierClimate::loop() {
       if (this->can_send_message() &&
           (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_request_timestamp_).count() >
            DEFAULT_MESSAGES_INTERVAL_MS)) {
-        static const haier_protocol::HaierMessage deviceId_request((uint8_t) hon_protocol::FrameType::GET_DEVICE_ID);
-        this->send_message(deviceId_request);
+        static const haier_protocol::HaierMessage DEVICEID_REQUEST((uint8_t) hon_protocol::FrameType::GET_DEVICE_ID);
+        this->send_message(DEVICEID_REQUEST);
         this->set_phase(ProtocolPhases::WAITING_ANSWER_INIT_2);
       }
       break;
@@ -448,9 +460,9 @@ void HaierClimate::loop() {
       if (this->can_send_message() &&
           (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_request_timestamp_).count() >
            DEFAULT_MESSAGES_INTERVAL_MS)) {
-        static const haier_protocol::HaierMessage status_request(
+        static const haier_protocol::HaierMessage STATUS_REQUEST(
             (uint8_t) hon_protocol::FrameType::CONTROL, (uint16_t) hon_protocol::SubcomandsControl::GET_USER_DATA);
-        this->send_message(status_request);
+        this->send_message(STATUS_REQUEST);
         this->last_status_request_ = now;
         this->set_phase((ProtocolPhases)((uint8_t) this->protocol_phase_ + 1));
       }
@@ -503,9 +515,9 @@ void HaierClimate::loop() {
       if (this->can_send_message() &&
           (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_request_timestamp_).count() >
            DEFAULT_MESSAGES_INTERVAL_MS)) {
-        static const haier_protocol::HaierMessage alarm_status_request(
+        static const haier_protocol::HaierMessage ALARM_STATUS_REQUEST(
             (uint8_t) hon_protocol::FrameType::GET_ALARM_STATUS);
-        this->send_message(alarm_status_request);
+        this->send_message(ALARM_STATUS_REQUEST);
         this->set_phase(ProtocolPhases::WAITING_ALARM_STATUS_ANSWER);
       }
       break;
@@ -593,7 +605,7 @@ void HaierClimate::control(const ClimateCall &call) {
   }
   this->control_called_ = true;
 }
-const haier_protocol::HaierMessage HaierClimate::get_control_message() {
+haier_protocol::HaierMessage HaierClimate::get_control_message() {
   uint8_t controlOutBuffer[sizeof(hon_protocol::HaierPacketControl)];
   memcpy(controlOutBuffer, this->last_status_message_.get(), sizeof(hon_protocol::HaierPacketControl));
   hon_protocol::HaierPacketControl *outData = (hon_protocol::HaierPacketControl *) controlOutBuffer;
@@ -728,10 +740,9 @@ const haier_protocol::HaierMessage HaierClimate::get_control_message() {
   outData->beeper_status = ((!this->beeper_status_) || (!hasHvacSettings)) ? 1 : 0;
   controlOutBuffer[4] = 0;  // This byte should be cleared before setting values
   outData->display_status = this->display_status_ ? 1 : 0;
-  const haier_protocol::HaierMessage control_message((uint8_t) hon_protocol::FrameType::CONTROL,
-                                                     (uint16_t) hon_protocol::SubcomandsControl::SET_GROUP_PARAMETERS,
-                                                     controlOutBuffer, sizeof(hon_protocol::HaierPacketControl));
-  return control_message;
+  return haier_protocol::HaierMessage((uint8_t) hon_protocol::FrameType::CONTROL,
+                                      (uint16_t) hon_protocol::SubcomandsControl::SET_GROUP_PARAMETERS,
+                                      controlOutBuffer, sizeof(hon_protocol::HaierPacketControl));
 }
 
 haier_protocol::HandlerError HaierClimate::process_status_message(const uint8_t *packetBuffer, uint8_t size) {

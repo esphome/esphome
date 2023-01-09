@@ -107,7 +107,7 @@ class HaierClimate : public esphome::Component,
   // Helper functions
   haier_protocol::HandlerError process_status_message(const uint8_t *packet, uint8_t size);
   void send_message(const haier_protocol::HaierMessage &command);
-  const haier_protocol::HaierMessage get_control_message();
+  haier_protocol::HaierMessage get_control_message();
   void set_phase(ProtocolPhases phase);
 
  protected:
