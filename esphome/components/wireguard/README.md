@@ -1,3 +1,6 @@
+= Wireguard component
+Allows connecting esphome devices to VPN managed by https://www.wireguard.com/
+
 ```yaml
 # example configuration:
 
