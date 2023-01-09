@@ -5,8 +5,8 @@
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
-#include "transport/protocol_transport.h"
-#include "protocol/haier_protocol.h"
+#include <transport/protocol_transport.h>
+#include <protocol/haier_protocol.h>
 
 namespace esphome {
 namespace haier {

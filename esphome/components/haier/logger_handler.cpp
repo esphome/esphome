@@ -1,6 +1,6 @@
 #include "logger_handler.h"
 #include "esphome/core/log.h"
-#include "utils/haier_log.h"
+#include <utils/haier_log.h>
 
 namespace esphome {
 namespace haier {

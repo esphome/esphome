@@ -7,7 +7,7 @@
 #endif
 #include "haier_climate.h"
 #include "haier_packet.h"
-#include "protocol/haier_protocol.h"
+#include <protocol/haier_protocol.h>
 
 using namespace esphome::climate;
 using namespace esphome::uart;
@@ -606,48 +606,48 @@ void HaierClimate::control(const ClimateCall &call) {
   this->control_called_ = true;
 }
 haier_protocol::HaierMessage HaierClimate::get_control_message() {
-  uint8_t controlOutBuffer[sizeof(hon_protocol::HaierPacketControl)];
-  memcpy(controlOutBuffer, this->last_status_message_.get(), sizeof(hon_protocol::HaierPacketControl));
-  hon_protocol::HaierPacketControl *outData = (hon_protocol::HaierPacketControl *) controlOutBuffer;
-  bool hasHvacSettings = false;
+  uint8_t control_out_buffer[sizeof(hon_protocol::HaierPacketControl)];
+  memcpy(control_out_buffer, this->last_status_message_.get(), sizeof(hon_protocol::HaierPacketControl));
+  hon_protocol::HaierPacketControl *out_data = (hon_protocol::HaierPacketControl *) control_out_buffer;
+  bool has_hvac_settings = false;
   if (this->hvac_settings_.valid) {
-    hasHvacSettings = true;
-    HvacSettings climateControl;
-    climateControl = this->hvac_settings_;
-    if (climateControl.mode.has_value()) {
-      switch (climateControl.mode.value()) {
+    has_hvac_settings = true;
+    HvacSettings climate_control;
+    climate_control = this->hvac_settings_;
+    if (climate_control.mode.has_value()) {
+      switch (climate_control.mode.value()) {
         case CLIMATE_MODE_OFF:
-          outData->ac_power = 0;
+          out_data->ac_power = 0;
           break;
 
         case CLIMATE_MODE_AUTO:
-          outData->ac_power = 1;
-          outData->ac_mode = (uint8_t) hon_protocol::ConditioningMode::AUTO;
-          outData->fan_mode = this->other_modes_fan_speed_;
+          out_data->ac_power = 1;
+          out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::AUTO;
+          out_data->fan_mode = this->other_modes_fan_speed_;
           break;
 
         case CLIMATE_MODE_HEAT:
-          outData->ac_power = 1;
-          outData->ac_mode = (uint8_t) hon_protocol::ConditioningMode::HEAT;
-          outData->fan_mode = this->other_modes_fan_speed_;
+          out_data->ac_power = 1;
+          out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::HEAT;
+          out_data->fan_mode = this->other_modes_fan_speed_;
           break;
 
         case CLIMATE_MODE_DRY:
-          outData->ac_power = 1;
-          outData->ac_mode = (uint8_t) hon_protocol::ConditioningMode::DRY;
-          outData->fan_mode = this->other_modes_fan_speed_;
+          out_data->ac_power = 1;
+          out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::DRY;
+          out_data->fan_mode = this->other_modes_fan_speed_;
           break;
 
         case CLIMATE_MODE_FAN_ONLY:
-          outData->ac_power = 1;
-          outData->ac_mode = (uint8_t) hon_protocol::ConditioningMode::FAN;
-          outData->fan_mode = this->fan_mode_speed_;  // Auto doesn't work in fan only mode
+          out_data->ac_power = 1;
+          out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::FAN;
+          out_data->fan_mode = this->fan_mode_speed_;  // Auto doesn't work in fan only mode
           break;
 
         case CLIMATE_MODE_COOL:
-          outData->ac_power = 1;
-          outData->ac_mode = (uint8_t) hon_protocol::ConditioningMode::COOL;
-          outData->fan_mode = this->other_modes_fan_speed_;
+          out_data->ac_power = 1;
+          out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::COOL;
+          out_data->fan_mode = this->other_modes_fan_speed_;
           break;
         default:
           ESP_LOGE("Control", "Unsupported climate mode");
@@ -655,20 +655,20 @@ haier_protocol::HaierMessage HaierClimate::get_control_message() {
       }
     }
     // Set fan speed, if we are in fan mode, reject auto in fan mode
-    if (climateControl.fan_mode.has_value()) {
-      switch (climateControl.fan_mode.value()) {
+    if (climate_control.fan_mode.has_value()) {
+      switch (climate_control.fan_mode.value()) {
         case CLIMATE_FAN_LOW:
-          outData->fan_mode = (uint8_t) hon_protocol::FanMode::FAN_LOW;
+          out_data->fan_mode = (uint8_t) hon_protocol::FanMode::FAN_LOW;
           break;
         case CLIMATE_FAN_MEDIUM:
-          outData->fan_mode = (uint8_t) hon_protocol::FanMode::FAN_MID;
+          out_data->fan_mode = (uint8_t) hon_protocol::FanMode::FAN_MID;
           break;
         case CLIMATE_FAN_HIGH:
-          outData->fan_mode = (uint8_t) hon_protocol::FanMode::FAN_HIGH;
+          out_data->fan_mode = (uint8_t) hon_protocol::FanMode::FAN_HIGH;
           break;
         case CLIMATE_FAN_AUTO:
           if (mode != CLIMATE_MODE_FAN_ONLY)  // if we are not in fan only mode
-            outData->fan_mode = (uint8_t) hon_protocol::FanMode::FAN_AUTO;
+            out_data->fan_mode = (uint8_t) hon_protocol::FanMode::FAN_AUTO;
           break;
         default:
           ESP_LOGE("Control", "Unsupported fan mode");
@@ -676,55 +676,56 @@ haier_protocol::HaierMessage HaierClimate::get_control_message() {
       }
     }
     // Set swing mode
-    if (climateControl.swing_mode.has_value()) {
-      switch (climateControl.swing_mode.value()) {
+    if (climate_control.swing_mode.has_value()) {
+      switch (climate_control.swing_mode.value()) {
         case CLIMATE_SWING_OFF:
-          outData->horizontal_swing_mode = (uint8_t) get_horizontal_swing_mode(this->horizontal_direction_);
-          outData->vertical_swing_mode = (uint8_t) get_vertical_swing_mode(this->vertical_direction_);
+          out_data->horizontal_swing_mode = (uint8_t) get_horizontal_swing_mode(this->horizontal_direction_);
+          out_data->vertical_swing_mode = (uint8_t) get_vertical_swing_mode(this->vertical_direction_);
           break;
         case CLIMATE_SWING_VERTICAL:
-          outData->horizontal_swing_mode = (uint8_t) get_horizontal_swing_mode(this->horizontal_direction_);
-          outData->vertical_swing_mode = (uint8_t) hon_protocol::VerticalSwingMode::AUTO;
+          out_data->horizontal_swing_mode = (uint8_t) get_horizontal_swing_mode(this->horizontal_direction_);
+          out_data->vertical_swing_mode = (uint8_t) hon_protocol::VerticalSwingMode::AUTO;
           break;
         case CLIMATE_SWING_HORIZONTAL:
-          outData->horizontal_swing_mode = (uint8_t) hon_protocol::HorizontalSwingMode::AUTO;
-          outData->vertical_swing_mode = (uint8_t) get_vertical_swing_mode(this->vertical_direction_);
+          out_data->horizontal_swing_mode = (uint8_t) hon_protocol::HorizontalSwingMode::AUTO;
+          out_data->vertical_swing_mode = (uint8_t) get_vertical_swing_mode(this->vertical_direction_);
           break;
         case CLIMATE_SWING_BOTH:
-          outData->horizontal_swing_mode = (uint8_t) hon_protocol::HorizontalSwingMode::AUTO;
-          outData->vertical_swing_mode = (uint8_t) hon_protocol::VerticalSwingMode::AUTO;
+          out_data->horizontal_swing_mode = (uint8_t) hon_protocol::HorizontalSwingMode::AUTO;
+          out_data->vertical_swing_mode = (uint8_t) hon_protocol::VerticalSwingMode::AUTO;
           break;
       }
     }
-    if (climateControl.target_temperature.has_value())
-      outData->set_point =
-          climateControl.target_temperature.value() - 16;  // set the temperature at our offset, subtract 16.
-    if (climateControl.preset.has_value()) {
-      switch (climateControl.preset.value()) {
+    if (climate_control.target_temperature.has_value()) {
+      out_data->set_point =
+          climate_control.target_temperature.value() - 16;  // set the temperature at our offset, subtract 16.
+    }
+    if (climate_control.preset.has_value()) {
+      switch (climate_control.preset.value()) {
         case CLIMATE_PRESET_NONE:
-          outData->quiet_mode = 0;
-          outData->fast_mode = 0;
-          outData->sleep_mode = 0;
+          out_data->quiet_mode = 0;
+          out_data->fast_mode = 0;
+          out_data->sleep_mode = 0;
           break;
         case CLIMATE_PRESET_ECO:
-          outData->quiet_mode = 1;
-          outData->fast_mode = 0;
-          outData->sleep_mode = 0;
+          out_data->quiet_mode = 1;
+          out_data->fast_mode = 0;
+          out_data->sleep_mode = 0;
           break;
         case CLIMATE_PRESET_BOOST:
-          outData->quiet_mode = 0;
-          outData->fast_mode = 1;
-          outData->sleep_mode = 0;
+          out_data->quiet_mode = 0;
+          out_data->fast_mode = 1;
+          out_data->sleep_mode = 0;
           break;
         case CLIMATE_PRESET_AWAY:
-          outData->quiet_mode = 0;
-          outData->fast_mode = 0;
-          outData->sleep_mode = 0;
+          out_data->quiet_mode = 0;
+          out_data->fast_mode = 0;
+          out_data->sleep_mode = 0;
           break;
         case CLIMATE_PRESET_SLEEP:
-          outData->quiet_mode = 0;
-          outData->fast_mode = 0;
-          outData->sleep_mode = 1;
+          out_data->quiet_mode = 0;
+          out_data->fast_mode = 0;
+          out_data->sleep_mode = 1;
           break;
         default:
           ESP_LOGE("Control", "Unsupported preset");
@@ -732,17 +733,17 @@ haier_protocol::HaierMessage HaierClimate::get_control_message() {
       }
     }
   } else {
-    if (outData->vertical_swing_mode != (uint8_t) hon_protocol::VerticalSwingMode::AUTO)
-      outData->vertical_swing_mode = (uint8_t) get_vertical_swing_mode(this->vertical_direction_);
-    if (outData->horizontal_swing_mode != (uint8_t) hon_protocol::HorizontalSwingMode::AUTO)
-      outData->horizontal_swing_mode = (uint8_t) get_horizontal_swing_mode(this->horizontal_direction_);
+    if (out_data->vertical_swing_mode != (uint8_t) hon_protocol::VerticalSwingMode::AUTO)
+      out_data->vertical_swing_mode = (uint8_t) get_vertical_swing_mode(this->vertical_direction_);
+    if (out_data->horizontal_swing_mode != (uint8_t) hon_protocol::HorizontalSwingMode::AUTO)
+      out_data->horizontal_swing_mode = (uint8_t) get_horizontal_swing_mode(this->horizontal_direction_);
   }
-  outData->beeper_status = ((!this->beeper_status_) || (!hasHvacSettings)) ? 1 : 0;
-  controlOutBuffer[4] = 0;  // This byte should be cleared before setting values
-  outData->display_status = this->display_status_ ? 1 : 0;
+  out_data->beeper_status = ((!this->beeper_status_) || (!has_hvac_settings)) ? 1 : 0;
+  control_out_buffer[4] = 0;  // This byte should be cleared before setting values
+  out_data->display_status = this->display_status_ ? 1 : 0;
   return haier_protocol::HaierMessage((uint8_t) hon_protocol::FrameType::CONTROL,
                                       (uint16_t) hon_protocol::SubcomandsControl::SET_GROUP_PARAMETERS,
-                                      controlOutBuffer, sizeof(hon_protocol::HaierPacketControl));
+                                      control_out_buffer, sizeof(hon_protocol::HaierPacketControl));
 }
 
 haier_protocol::HandlerError HaierClimate::process_status_message(const uint8_t *packetBuffer, uint8_t size) {
@@ -764,10 +765,10 @@ haier_protocol::HandlerError HaierClimate::process_status_message(const uint8_t 
     if ((!this->outdoor_sensor_->has_state()) || (this->outdoor_sensor_->get_raw_state() != otemp))
       this->outdoor_sensor_->publish_state(otemp);
   }
-  bool shouldPublish = false;
+  bool should_publish = false;
   {
     // Extra modes/presets
-    optional<ClimatePreset> oldPreset = this->preset;
+    optional<ClimatePreset> old_preset = this->preset;
     if (packet.control.quiet_mode != 0) {
       this->preset = CLIMATE_PRESET_ECO;
     } else if (packet.control.fast_mode != 0) {
@@ -777,19 +778,19 @@ haier_protocol::HandlerError HaierClimate::process_status_message(const uint8_t 
     } else {
       this->preset = CLIMATE_PRESET_NONE;
     }
-    shouldPublish = shouldPublish || (!oldPreset.has_value()) || (oldPreset.value() != this->preset.value());
+    should_publish = should_publish || (!old_preset.has_value()) || (old_preset.value() != this->preset.value());
   }
   {
     // Target temperature
-    float oldTargetTemperature = this->target_temperature;
+    float old_target_temperature = this->target_temperature;
     this->target_temperature = packet.control.set_point + 16.0f;
-    shouldPublish = shouldPublish || (oldTargetTemperature != this->target_temperature);
+    should_publish = should_publish || (old_target_temperature != this->target_temperature);
   }
   {
     // Current temperature
-    float oldCurrentTemperature = this->current_temperature;
+    float old_current_temperature = this->current_temperature;
     this->current_temperature = packet.sensors.room_temperature / 2.0f;
-    shouldPublish = shouldPublish || (oldCurrentTemperature != this->current_temperature);
+    should_publish = should_publish || (old_current_temperature != this->current_temperature);
   }
   {
     // Fan mode
@@ -813,7 +814,7 @@ haier_protocol::HandlerError HaierClimate::process_status_message(const uint8_t 
         this->fan_mode = CLIMATE_FAN_HIGH;
         break;
     }
-    shouldPublish = shouldPublish || (!oldFanMode.has_value()) || (oldFanMode.value() != fan_mode.value());
+    should_publish = should_publish || (!oldFanMode.has_value()) || (oldFanMode.value() != fan_mode.value());
   }
   {
     // Climate mode
@@ -840,7 +841,7 @@ haier_protocol::HandlerError HaierClimate::process_status_message(const uint8_t 
           break;
       }
     }
-    shouldPublish = shouldPublish || (oldMode != this->mode);
+    should_publish = should_publish || (oldMode != this->mode);
   }
   {
     // Swing mode
@@ -856,10 +857,10 @@ haier_protocol::HandlerError HaierClimate::process_status_message(const uint8_t 
       else
         this->swing_mode = CLIMATE_SWING_OFF;
     }
-    shouldPublish = shouldPublish || (oldSwingMode != this->swing_mode);
+    should_publish = should_publish || (oldSwingMode != this->swing_mode);
   }
   this->last_valid_status_timestamp_ = std::chrono::steady_clock::now();
-  if (this->forced_publish_ || shouldPublish) {
+  if (this->forced_publish_ || should_publish) {
 #if (HAIER_LOG_LEVEL > 4)
     std::chrono::high_resolution_clock::time_point _publish_start = std::chrono::high_resolution_clock::now();
 #endif
@@ -872,18 +873,18 @@ haier_protocol::HandlerError HaierClimate::process_status_message(const uint8_t 
 #endif
     this->forced_publish_ = false;
   }
-  if (shouldPublish) {
+  if (should_publish) {
     ESP_LOGI(TAG, "HVAC values changed");
   }
-  esp_log_printf_((shouldPublish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG), TAG, __LINE__, "HVAC Mode = 0x%X",
-                  packet.control.ac_mode);
-  esp_log_printf_((shouldPublish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG), TAG, __LINE__,
+  esp_log_printf_((should_publish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG), TAG, __LINE__,
+                  "HVAC Mode = 0x%X", packet.control.ac_mode);
+  esp_log_printf_((should_publish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG), TAG, __LINE__,
                   "Fan speed Status = 0x%X", packet.control.fan_mode);
-  esp_log_printf_((shouldPublish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG), TAG, __LINE__,
+  esp_log_printf_((should_publish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG), TAG, __LINE__,
                   "Horizontal Swing Status = 0x%X", packet.control.horizontal_swing_mode);
-  esp_log_printf_((shouldPublish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG), TAG, __LINE__,
+  esp_log_printf_((should_publish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG), TAG, __LINE__,
                   "Vertical Swing Status = 0x%X", packet.control.vertical_swing_mode);
-  esp_log_printf_((shouldPublish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG), TAG, __LINE__,
+  esp_log_printf_((should_publish ? ESPHOME_LOG_LEVEL_INFO : ESPHOME_LOG_LEVEL_DEBUG), TAG, __LINE__,
                   "Set Point Status = 0x%X", packet.control.set_point);
   return haier_protocol::HandlerError::HANDLER_OK;
 }
