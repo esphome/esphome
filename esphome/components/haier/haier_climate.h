@@ -123,7 +123,7 @@ class HaierClimate : public esphome::Component,
   };
   haier_protocol::ProtocolHandler haier_protocol_;
   ProtocolPhases protocol_phase_;
-  uint8_t *last_status_message_;
+  std::unique_ptr<uint8_t[]> last_status_message_;
   uint8_t fan_mode_speed_;
   uint8_t other_modes_fan_speed_;
   bool beeper_status_;

@@ -83,10 +83,10 @@ hon_protocol::HorizontalSwingMode get_horizontal_swing_mode(AirflowHorizontalDir
 }
 
 HaierClimate::HaierClimate(UARTComponent *parent)
-    : Component(),
-      UARTDevice(parent),
+    : UARTDevice(parent),
       haier_protocol_(*this),
       protocol_phase_(ProtocolPhases::SENDING_INIT_1),
+      last_status_message_(new uint8_t[sizeof(hon_protocol::HaierPacketControl)]),
       fan_mode_speed_((uint8_t) hon_protocol::FanMode::FAN_MID),
       other_modes_fan_speed_((uint8_t) hon_protocol::FanMode::FAN_AUTO),
       beeper_status_(true),
@@ -101,7 +101,6 @@ HaierClimate::HaierClimate(UARTComponent *parent)
       use_crc_(hvac_functions_[2]),
       active_alarms_{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
       outdoor_sensor_(nullptr) {
-  this->last_status_message_ = new uint8_t[sizeof(hon_protocol::HaierPacketControl)];
   this->traits_ = climate::ClimateTraits();
   this->traits_.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL, climate::CLIMATE_MODE_HEAT,
                                      climate::CLIMATE_MODE_FAN_ONLY, climate::CLIMATE_MODE_DRY,
@@ -125,7 +124,7 @@ HaierClimate::HaierClimate(UARTComponent *parent)
   this->horizontal_direction_ = AirflowHorizontalDirection::CENTER;
 }
 
-HaierClimate::~HaierClimate() { delete[] this->last_status_message_; }
+HaierClimate::~HaierClimate() {}
 
 void HaierClimate::set_phase(ProtocolPhases phase) {
   if (this->protocol_phase_ != phase) {
@@ -152,20 +151,22 @@ void HaierClimate::set_outdoor_temperature_sensor(esphome::sensor::Sensor *senso
 AirflowVerticalDirection HaierClimate::get_vertical_airflow() const { return this->vertical_direction_; };
 
 void HaierClimate::set_vertical_airflow(AirflowVerticalDirection direction) {
-  if (direction > AirflowVerticalDirection::DOWN)
+  if (direction > AirflowVerticalDirection::DOWN) {
     this->vertical_direction_ = AirflowVerticalDirection::CENTER;
-  else
+  } else {
     this->vertical_direction_ = direction;
+  }
   this->force_send_control_ = true;
 }
 
 AirflowHorizontalDirection HaierClimate::get_horizontal_airflow() const { return this->horizontal_direction_; }
 
 void HaierClimate::set_horizontal_airflow(AirflowHorizontalDirection direction) {
-  if (direction > AirflowHorizontalDirection::RIGHT)
+  if (direction > AirflowHorizontalDirection::RIGHT) {
     this->horizontal_direction_ = AirflowHorizontalDirection::CENTER;
-  else
+  } else {
     this->horizontal_direction_ = direction;
+  }
   this->force_send_control_ = true;
 }
 
@@ -260,16 +261,17 @@ haier_protocol::HandlerError HaierClimate::status_handler(uint8_t requestType, u
                                                                       : ProtocolPhases::SENDING_INIT_1);
     } else {
       if (dataSize >= sizeof(hon_protocol::HaierPacketControl) + 2) {
-        memcpy(this->last_status_message_, data + 2, sizeof(hon_protocol::HaierPacketControl));
-      } else
+        memcpy(this->last_status_message_.get(), data + 2, sizeof(hon_protocol::HaierPacketControl));
+      } else {
         ESP_LOGW(TAG, "Status packet too small: %d (should be >= %d)", dataSize,
                  sizeof(hon_protocol::HaierPacketControl));
+      }
       if (this->protocol_phase_ == ProtocolPhases::WAITING_FIRST_STATUS_ANSWER) {
         ESP_LOGI(TAG, "First HVAC status received");
         this->set_phase(ProtocolPhases::SENDING_ALARM_STATUS_REQUEST);
-      } else if (this->protocol_phase_ == ProtocolPhases::WAITING_STATUS_ANSWER)
+      } else if (this->protocol_phase_ == ProtocolPhases::WAITING_STATUS_ANSWER) {
         this->set_phase(ProtocolPhases::IDLE);
-      else if (this->protocol_phase_ == ProtocolPhases::WAITING_CONTROL_ANSWER) {
+      } else if (this->protocol_phase_ == ProtocolPhases::WAITING_CONTROL_ANSWER) {
         this->set_phase(ProtocolPhases::IDLE);
         this->force_send_control_ = false;
         if (this->hvac_settings_.valid)
@@ -307,13 +309,8 @@ haier_protocol::HandlerError HaierClimate::report_network_status_answer_handler(
   haier_protocol::HandlerError result =
       this->answer_preprocess(requestType, (uint8_t) hon_protocol::FrameType::REPORT_NETWORK_STATUS, messageType,
                               (uint8_t) hon_protocol::FrameType::CONFIRM, ProtocolPhases::WAITING_SIGNAL_LEVEL_ANSWER);
-  if (result == haier_protocol::HandlerError::HANDLER_OK) {
-    this->set_phase(ProtocolPhases::IDLE);
-    return result;
-  } else {
-    this->set_phase(ProtocolPhases::IDLE);
-    return result;
-  }
+  this->set_phase(ProtocolPhases::IDLE);
+  return result;
 }
 
 haier_protocol::HandlerError HaierClimate::get_alarm_status_answer_handler(uint8_t requestType, uint8_t messageType,
@@ -598,7 +595,7 @@ void HaierClimate::control(const ClimateCall &call) {
 }
 const haier_protocol::HaierMessage HaierClimate::get_control_message() {
   uint8_t controlOutBuffer[sizeof(hon_protocol::HaierPacketControl)];
-  memcpy(controlOutBuffer, this->last_status_message_, sizeof(hon_protocol::HaierPacketControl));
+  memcpy(controlOutBuffer, this->last_status_message_.get(), sizeof(hon_protocol::HaierPacketControl));
   hon_protocol::HaierPacketControl *outData = (hon_protocol::HaierPacketControl *) controlOutBuffer;
   bool hasHvacSettings = false;
   if (this->hvac_settings_.valid) {
