@@ -13,7 +13,7 @@ KeyCollector::KeyCollector()
       timeout_trigger_(new Trigger<std::string, uint8_t>()) {}
 
 void KeyCollector::loop() {
-  if ((this->timeout_ == 0) || (this->result_.size() == 0) || (millis() - this->last_key_time_ < this->timeout_))
+  if ((this->timeout_ == 0) || this->result_.empty() || (millis() - this->last_key_time_ < this->timeout_))
     return;
   this->timeout_trigger_->trigger(this->result_, this->start_key_);
   this->clear();
