@@ -42,6 +42,7 @@ RESOLUTION = {
     "12_BITS": ADS1115Resolution.ADS1015_12_BITS,
 }
 
+
 def validate_gain(value):
     if isinstance(value, float):
         value = f"{value:0.03f}"

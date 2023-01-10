@@ -67,7 +67,7 @@ class ADS1115Sensor : public sensor::Sensor, public PollingComponent, public vol
   float sample() override;
   uint8_t get_multiplexer() const { return multiplexer_; }
   uint8_t get_gain() const { return gain_; }
-  short get_resolution() const { return resolution_; }
+  uint8_t get_resolution() const { return resolution_; }
 
  protected:
   ADS1115Component *parent_;
