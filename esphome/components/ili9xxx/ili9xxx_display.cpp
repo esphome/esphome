@@ -146,7 +146,7 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     }
     pos = pos + 1;
     new_color = new_color & 0xFF;
-  } else  {
+  } else {
     new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
   }
 
