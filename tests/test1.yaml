@@ -1718,7 +1718,7 @@ output:
     cs_pin: GPIO25
     inc_pin: GPIO26
     ud_pin: GPIO27
-    initial_value: 100
+    initial_value: 0.5
 
 e131:
 
