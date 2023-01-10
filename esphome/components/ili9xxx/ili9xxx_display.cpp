@@ -135,7 +135,9 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
   uint32_t pos = (y * width_) + x;
   uint16_t new_color;
   bool updated = false;
-  if (this->buffer_color_mode_ == BITS_16) {
+  if (this->buffer_color_mode_ == BITS_8_INDEXED) {
+    new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
+  } else if (this->buffer_color_mode_ == BITS_16) {
     pos = pos * 2;
     uint16_t new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
     if (this->buffer_[pos] != (uint8_t)(new_color >> 8)) {
@@ -144,9 +146,7 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     }
     pos = pos + 1;
     new_color = new_color & 0xFF;
-  } else if (this->buffer_color_mode_ == BITS_8_INDEXED) {
-    new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
-  } else {
+  } else  {
     new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
   }
 
