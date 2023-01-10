@@ -231,7 +231,7 @@ async def to_code(config):
             sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
             cg.add(var.set_s4_error_bsensor(sens))
 
-    elif config[CONF_MODEL] == CONF_DELTASOL_CS2:
+    elif config[CONF_MODEL] == CONF_DELTASOL_CS_PLUS:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x2211))
         cg.add(var.set_dest(0x0010))
