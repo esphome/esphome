@@ -20,9 +20,9 @@ void ADS1115Component::setup() {
     this->mark_failed();
     return;
   }
-  
+ 
   ESP_LOGCONFIG(TAG, "Configuring ADS1115...");
-  
+
   uint16_t config = 0;
   // Clear single-shot bit
   //        0b0xxxxxxxxxxxxxxx
@@ -133,13 +133,13 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
     this->status_set_warning();
     return NAN;
   }
-  
+
   if (sensor->get_resolution() == ADS1015_12_BITS) {
     bool negative = (raw_conversion >> 15) == 1;
-    
+
     // shift raw_conversion as it's only 12-bits, left justified
     raw_conversion = raw_conversion >> (16 - ADS1015_12_BITS);
-    
+
     // check if number was negative in order to keep the sign
     if (negative) {
       // the number was negative
@@ -149,7 +149,7 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
       raw_conversion &= 0xF7FF;
     }
   }
-  
+
   auto signed_conversion = static_cast<int16_t>(raw_conversion);
 
   float millivolts;

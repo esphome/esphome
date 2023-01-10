@@ -63,7 +63,7 @@ class ADS1115Sensor : public sensor::Sensor, public PollingComponent, public vol
   void update() override;
   void set_multiplexer(ADS1115Multiplexer multiplexer) { multiplexer_ = multiplexer; }
   void set_gain(ADS1115Gain gain) { gain_ = gain; }
-  void set_resolution(ADS1115Resolution resolution) { resolution_ = resolution; }  
+  void set_resolution(ADS1115Resolution resolution) { resolution_ = resolution; }
   float sample() override;
   uint8_t get_multiplexer() const { return multiplexer_; }
   uint8_t get_gain() const { return gain_; }

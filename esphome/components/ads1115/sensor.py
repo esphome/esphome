@@ -4,6 +4,7 @@ from esphome.components import sensor, voltage_sampler
 from esphome.const import (
     CONF_GAIN,
     CONF_MULTIPLEXER,
+    CONF_RESOLUTION,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
@@ -35,7 +36,6 @@ GAIN = {
     "0.256": ADS1115Gain.ADS1115_GAIN_0P256,
 }
 
-CONF_RESOLUTION = "resolution"
 ADS1115Resolution = ads1115_ns.enum("ADS1115Resolution")
 RESOLUTION = {
     "16_BITS": ADS1115Resolution.ADS1115_16_BITS,
@@ -69,7 +69,9 @@ CONFIG_SCHEMA = (
             cv.GenerateID(CONF_ADS1115_ID): cv.use_id(ADS1115Component),
             cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space="_"),
             cv.Required(CONF_GAIN): validate_gain,
-            cv.Optional(CONF_RESOLUTION, default="16_BITS"): cv.enum(RESOLUTION, upper=True, space="_"),
+            cv.Optional(CONF_RESOLUTION, default="16_BITS"): cv.enum(
+            	RESOLUTION, upper=True, space="_"
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
