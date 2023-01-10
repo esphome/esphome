@@ -135,19 +135,23 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
   uint32_t pos = (y * width_) + x;
   uint16_t new_color;
   bool updated = false;
-  if (this->buffer_color_mode_ == BITS_8_INDEXED) {
-    new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
-  } else if (this->buffer_color_mode_ == BITS_16) {
-    pos = pos * 2;
-    uint16_t new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
-    if (this->buffer_[pos] != (uint8_t)(new_color >> 8)) {
-      this->buffer_[pos] = (uint8_t)(new_color >> 8);
-      updated = true;
-    }
-    pos = pos + 1;
-    new_color = new_color & 0xFF;
-  } else {
-    new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+  switch (this->buffer_color_mode_) {
+    case BITS_8_INDEXED:
+      new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
+      break;
+    case BITS_16:
+      pos = pos * 2;
+      uint16_t new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
+      if (this->buffer_[pos] != (uint8_t)(new_color >> 8)) {
+        this->buffer_[pos] = (uint8_t)(new_color >> 8);
+        updated = true;
+      }
+      pos = pos + 1;
+      new_color = new_color & 0xFF;
+      break;
+    default:
+      new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);  
+      break;
   }
 
   if (this->buffer_[pos] != new_color) {
@@ -270,16 +274,19 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
 
   for (uint32_t i = 0; i < sz; ++i) {
     uint16_t color;
-    if (this->buffer_color_mode_ == BITS_16) {
-      // memcpy(color,
-      *dst++ = (uint8_t) *src++;
-      *dst++ = (uint8_t) *src++;
-      continue;
-    } else if (this->buffer_color_mode_ == BITS_8) {
-      color = display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(*src++));
-    } else {  //  if (this->buffer_color_mode == BITS_8_INDEXED) {
-      Color col = display::ColorUtil::index8_to_color_palette888(*src++, this->palette_);
-      color = display::ColorUtil::color_to_565(col);
+    switch (this->buffer_color_mode_ ) {
+      case BITS_8_INDEXED:
+        Color col = display::ColorUtil::index8_to_color_palette888(*src++, this->palette_);
+        color = display::ColorUtil::color_to_565(col);
+        break;
+      case BITS_16:
+        *dst++ = (uint8_t) *src++;
+        *dst++ = (uint8_t) *src++;
+        continue;
+        break;
+      default:
+        color = display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(*src++));
+        break;
     }
     *dst++ = (uint8_t)(color >> 8);
     *dst++ = (uint8_t) color;
