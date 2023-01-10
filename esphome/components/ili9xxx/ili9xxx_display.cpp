@@ -141,7 +141,7 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
       break;
     case BITS_16:
       pos = pos * 2;
-      uint16_t new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
+      new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
       if (this->buffer_[pos] != (uint8_t)(new_color >> 8)) {
         this->buffer_[pos] = (uint8_t)(new_color >> 8);
         updated = true;
