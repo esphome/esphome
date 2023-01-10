@@ -11,7 +11,7 @@ static const char *const TAG = "ads1115";
 static const uint8_t ADS1115_REGISTER_CONVERSION = 0x00;
 static const uint8_t ADS1115_REGISTER_CONFIG = 0x01;
 
-static const uint8_t ADS1115_DATA_RATE_860_SPS = 0b111; // 3300_SPS for ADS1015
+static const uint8_t ADS1115_DATA_RATE_860_SPS = 0b111;  // 3300_SPS for ADS1015
 
 void ADS1115Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADS1115...");
@@ -153,7 +153,7 @@ float ADS1115Component::request_measurement(ADS1115Sensor *sensor) {
   auto signed_conversion = static_cast<int16_t>(raw_conversion);
 
   float millivolts;
-  float divider = (sensor->get_resolution() == ADS1115_16_BITS) ? 32768.0f: 2048.0f;
+  float divider = (sensor->get_resolution() == ADS1115_16_BITS) ? 32768.0f : 2048.0f;
   switch (sensor->get_gain()) {
     case ADS1115_GAIN_6P144:
       millivolts = (signed_conversion * 6144) / divider;
