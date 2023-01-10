@@ -1186,7 +1186,7 @@ sensor:
       name: "Temperature hyt271"
       id: temp_etuve
     humidity:
-      name: "Humidity hyt271"        
+      name: "Humidity hyt271"
 
 esp32_touch:
   setup_mode: false
