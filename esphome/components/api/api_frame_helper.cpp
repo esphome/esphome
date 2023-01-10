@@ -512,7 +512,7 @@ APIError APINoiseFrameHelper::write_packet(uint16_t type, const uint8_t *payload
   }
 
   size_t total_len = 3 + mbuf.size;
-  tmpbuf[1] = (uint8_t) (mbuf.size >> 8);
+  tmpbuf[1] = (uint8_t)(mbuf.size >> 8);
   tmpbuf[2] = (uint8_t) mbuf.size;
 
   struct iovec iov;
