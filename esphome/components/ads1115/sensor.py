@@ -70,7 +70,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_MULTIPLEXER): cv.enum(MUX, upper=True, space="_"),
             cv.Required(CONF_GAIN): validate_gain,
             cv.Optional(CONF_RESOLUTION, default="16_BITS"): cv.enum(
-            	RESOLUTION, upper=True, space="_"
+                RESOLUTION, upper=True, space="_"
             ),
         }
     )

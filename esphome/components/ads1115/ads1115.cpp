@@ -20,7 +20,7 @@ void ADS1115Component::setup() {
     this->mark_failed();
     return;
   }
- 
+
   ESP_LOGCONFIG(TAG, "Configuring ADS1115...");
 
   uint16_t config = 0;
