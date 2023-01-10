@@ -1,5 +1,6 @@
 #pragma once
 
+#include <utility>
 #include "esphome/components/key_provider/key_provider.h"
 #include "esphome/core/automation.h"
 
@@ -14,12 +15,12 @@ class KeyCollector : public Component {
   void set_provider(key_provider::KeyProvider *provider);
   void set_min_length(int min_length) { this->min_length_ = min_length; };
   void set_max_length(int max_length) { this->max_length_ = max_length; };
-  void set_start_keys(std::string start_keys) { this->start_keys_ = start_keys; };
-  void set_end_keys(std::string end_keys) { this->end_keys_ = end_keys; };
+  void set_start_keys(std::string start_keys) { this->start_keys_ = std::move(start_keys); };
+  void set_end_keys(std::string end_keys) { this->end_keys_ = std::move(end_keys); };
   void set_end_key_required(bool end_key_required) { this->end_key_required_ = end_key_required; };
-  void set_back_keys(std::string back_keys) { this->back_keys_ = back_keys; };
-  void set_clear_keys(std::string clear_keys) { this->clear_keys_ = clear_keys; };
-  void set_allowed_keys(std::string allowed_keys) { this->allowed_keys_ = allowed_keys; };
+  void set_back_keys(std::string back_keys) { this->back_keys_ = std::move(back_keys); };
+  void set_clear_keys(std::string clear_keys) { this->clear_keys_ = std::move(clear_keys); };
+  void set_allowed_keys(std::string allowed_keys) { this->allowed_keys_ = std::move(allowed_keys); };
   Trigger<std::string, uint8_t> *get_progress_trigger() const { return this->progress_trigger_; };
   Trigger<std::string, uint8_t, uint8_t> *get_result_trigger() const { return this->result_trigger_; };
   Trigger<std::string, uint8_t> *get_timeout_trigger() const { return this->timeout_trigger_; };
@@ -49,4 +50,3 @@ class KeyCollector : public Component {
 
 }  // namespace key_collector
 }  // namespace esphome
-

@@ -7,7 +7,10 @@ namespace key_collector {
 
 static const char *const TAG = "key_collector";
 
-KeyCollector::KeyCollector() : progress_trigger_(new Trigger<std::string, uint8_t>()), result_trigger_(new Trigger<std::string, uint8_t, uint8_t>()), timeout_trigger_(new Trigger<std::string, uint8_t>()) {}
+KeyCollector::KeyCollector()
+    : progress_trigger_(new Trigger<std::string, uint8_t>()),
+      result_trigger_(new Trigger<std::string, uint8_t, uint8_t>()),
+      timeout_trigger_(new Trigger<std::string, uint8_t>()) {}
 
 void KeyCollector::loop() {
   if ((this->timeout_ == 0) || (this->result_.size() == 0) || (millis() - this->last_key_time_ < this->timeout_))
@@ -39,9 +42,7 @@ void KeyCollector::dump_config() {
 }
 
 void KeyCollector::set_provider(key_provider::KeyProvider *provider) {
-  provider->add_on_key_callback([this](uint8_t key) {
-    this->key_pressed_(key);
-  });
+  provider->add_on_key_callback([this](uint8_t key) { this->key_pressed_(key); });
 }
 
 void KeyCollector::clear(bool progress_update) {
@@ -92,4 +93,3 @@ void KeyCollector::key_pressed_(uint8_t key) {
 
 }  // namespace key_collector
 }  // namespace esphome
-
