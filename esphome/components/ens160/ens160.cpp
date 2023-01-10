@@ -127,7 +127,7 @@ bool ENS160Component::status_has_data_() {
   optional<uint8_t> status = this->read_status_();
   if (!status.has_value())
     return true;
-  return IS_NEWDAT(status.value());
+  return IS_NEW_DATA_AVAILABLE(status.value());
 }
 
 void ENS160Component::update() {
