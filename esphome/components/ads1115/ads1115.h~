@@ -31,8 +31,8 @@ enum ADS1115Gain {
 };
 
 enum ADS1115Resolution {
-  ADS1115_16_BITS = 16,
-  ADS1015_12_BITS = 12,
+  ADS1115_16_BITS = 0,
+  ADS1015_12_BITS = 4,
 };
 
 class ADS1115Sensor;
