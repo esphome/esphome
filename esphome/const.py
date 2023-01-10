@@ -995,6 +995,7 @@ KEY_TARGET_PLATFORM = "target_platform"
 KEY_TARGET_FRAMEWORK = "target_framework"
 KEY_FRAMEWORK_VERSION = "framework_version"
 KEY_NAME = "name"
+KEY_VARIANT = "variant"
 
 # Entity categories
 ENTITY_CATEGORY_NONE = ""
