@@ -22,6 +22,7 @@ class KeyCollector : public Component {
   void set_allowed_keys(std::string allowed_keys) { this->allowed_keys_ = allowed_keys; };
   Trigger<std::string, uint8_t> *get_progress_trigger() const { return this->progress_trigger_; };
   Trigger<std::string, uint8_t, uint8_t> *get_result_trigger() const { return this->result_trigger_; };
+  Trigger<std::string, uint8_t> *get_timeout_trigger() const { return this->timeout_trigger_; };
   void set_timeout(int timeout) { this->timeout_ = timeout; };
 
   void clear(bool progress_update = true);
@@ -41,6 +42,7 @@ class KeyCollector : public Component {
   uint8_t start_key_{0};
   Trigger<std::string, uint8_t> *progress_trigger_;
   Trigger<std::string, uint8_t, uint8_t> *result_trigger_;
+  Trigger<std::string, uint8_t> *timeout_trigger_;
   uint32_t last_key_time_;
   uint32_t timeout_{0};
 };

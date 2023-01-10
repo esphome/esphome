@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MAX_LENGTH,
     CONF_MIN_LENGTH,
+    CONF_ON_TIMEOUT,
     CONF_SOURCE_ID,
     CONF_TIMEOUT,
 )
@@ -41,6 +42,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ALLOWED_KEYS): cv.string,
             cv.Optional(CONF_ON_PROGRESS): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_RESULT): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_TIMEOUT): automation.validate_automation(single=True),
             cv.Optional(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
         }
     ),
@@ -80,6 +82,12 @@ async def to_code(config):
             var.get_result_trigger(),
             [(cg.std_string, "x"), (cg.uint8, "start"), (cg.uint8, "end")],
             config[CONF_ON_RESULT],
+        )
+    if CONF_ON_TIMEOUT in config:
+        await automation.build_automation(
+            var.get_timeout_trigger(),
+            [(cg.std_string, "x"), (cg.uint8, "start")],
+            config[CONF_ON_TIMEOUT],
         )
     if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(config[CONF_TIMEOUT]))

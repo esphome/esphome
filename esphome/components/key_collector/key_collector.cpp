@@ -7,11 +7,12 @@ namespace key_collector {
 
 static const char *const TAG = "key_collector";
 
-KeyCollector::KeyCollector() : progress_trigger_(new Trigger<std::string, uint8_t>()), result_trigger_(new Trigger<std::string, uint8_t, uint8_t>()) {}
+KeyCollector::KeyCollector() : progress_trigger_(new Trigger<std::string, uint8_t>()), result_trigger_(new Trigger<std::string, uint8_t, uint8_t>()), timeout_trigger_(new Trigger<std::string, uint8_t>()) {}
 
 void KeyCollector::loop() {
   if ((this->timeout_ == 0) || (this->result_.size() == 0) || (millis() - this->last_key_time_ < this->timeout_))
     return;
+  this->timeout_trigger_->trigger(this->result_, this->start_key_);
   this->clear();
 }
 
