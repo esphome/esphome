@@ -138,9 +138,9 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   std::vector<HttpRequestResponseTrigger *> response_triggers_;
 };
 
-class HttpRequestResponseTrigger : public Trigger<int> {
+class HttpRequestResponseTrigger : public Trigger<int, uint32_t> {
  public:
-  void process(int status_code) { this->trigger(status_code); }
+  void process(int status_code, uint32_t duration_ms) { this->trigger(status_code, duration_ms); }
 };
 
 }  // namespace http_request
