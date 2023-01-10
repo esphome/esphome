@@ -277,7 +277,8 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
   for (uint32_t i = 0; i < sz; ++i) {
     switch (this->buffer_color_mode_) {
       case BITS_8_INDEXED:
-        color = display::ColorUtil::color_to_565(display::ColorUtil::index8_to_color_palette888(*src++, this->palette_));
+        color =
+            display::ColorUtil::color_to_565(display::ColorUtil::index8_to_color_palette888(*src++, this->palette_));
         break;
       case BITS_16:
         *dst++ = (uint8_t) *src++;
