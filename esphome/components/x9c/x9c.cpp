@@ -30,7 +30,7 @@ void X9cOutput::trim_value(int change_amount) {
 }
 
 void X9cOutput::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up X9C Potentiometer with initial value of %i", this->initial_value_);
+  ESP_LOGCONFIG(TAG, "Setting up X9C Potentiometer with initial value of %f", this->initial_value_);
 
   this->inc_pin_->get_pin();
   this->inc_pin_->setup();
@@ -43,15 +43,15 @@ void X9cOutput::setup() {
   this->ud_pin_->get_pin();
   this->ud_pin_->setup();
 
-  if (this->initial_value_ < 51) {
+  if (this->initial_value_ <= 0.50) {
     this->trim_value(-101);  // Set min value (beyond 0)
-    this->trim_value(this->initial_value_);
+    this->trim_value((int) (this->initial_value_ * 100));
   } else {
     this->trim_value(101);  // Set max value (beyond 100)
-    this->trim_value(this->initial_value_ - 100);
+    this->trim_value((int) (this->initial_value_ * 100) - 100);
   }
-  this->pot_value_ = (float) this->initial_value_ / 100;
-  this->write_state((float) this->initial_value_ / 100);
+  this->pot_value_ = this->initial_value_;
+  this->write_state(this->initial_value_);
 }
 
 void X9cOutput::write_state(float state) {
@@ -64,7 +64,7 @@ void X9cOutput::dump_config() {
   LOG_PIN("  Chip Select Pin: ", this->cs_pin_);
   LOG_PIN("  Increment Pin: ", this->inc_pin_);
   LOG_PIN("  Up/Down Pin: ", this->ud_pin_);
-  ESP_LOGCONFIG(TAG, "  Initial Value: %i", this->initial_value_);
+  ESP_LOGCONFIG(TAG, "  Initial Value: %f", this->initial_value_);
   LOG_FLOAT_OUTPUT(this);
 }
 

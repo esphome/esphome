@@ -12,7 +12,7 @@ class X9cOutput : public output::FloatOutput, public Component {
   void set_cs_pin(InternalGPIOPin *pin) { cs_pin_ = pin; }
   void set_inc_pin(InternalGPIOPin *pin) { inc_pin_ = pin; }
   void set_ud_pin(InternalGPIOPin *pin) { ud_pin_ = pin; }
-  void set_initial_value(int initial_value) { initial_value_ = initial_value; }
+  void set_initial_value(float initial_value) { initial_value_ = initial_value; }
 
   void setup() override;
   void dump_config() override;
@@ -24,7 +24,7 @@ class X9cOutput : public output::FloatOutput, public Component {
   InternalGPIOPin *cs_pin_;
   InternalGPIOPin *inc_pin_;
   InternalGPIOPin *ud_pin_;
-  int initial_value_;
+  float initial_value_;
   float pot_value_;
 };
 
