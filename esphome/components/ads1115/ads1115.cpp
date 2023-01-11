@@ -1,8 +1,6 @@
 #include "ads1115.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
-#include <sstream>
-#include <iomanip>
 
 namespace esphome {
 namespace ads1115 {
