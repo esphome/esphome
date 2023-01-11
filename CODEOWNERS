@@ -113,6 +113,7 @@ esphome/components/integration/* @OttoWinter
 esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
+esphome/components/key_provider/* @ssieb
 esphome/components/lcd_menu/* @numo68
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
@@ -120,6 +121,7 @@ esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
 esphome/components/ltr390/* @sjtrny
+esphome/components/matrix_keypad/* @ssieb
 esphome/components/max31865/* @DAVe3283
 esphome/components/max44009/* @berfenger
 esphome/components/max7219digit/* @rspaargaren
@@ -271,6 +273,7 @@ esphome/components/web_server_base/* @OttoWinter
 esphome/components/whirlpool/* @glmnet
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wl_134/* @hobbypunk90
+esphome/components/x9c/* @EtienneMD
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
