@@ -31,9 +31,9 @@ struct Header {
   const char *value;
 };
 
-class HttpRequestResponseTrigger : public Trigger<int, uint32_t> {
+class HttpRequestResponseTrigger : public Trigger<int32_t, uint32_t> {
  public:
-  void process(int status_code, uint32_t duration_ms) { this->trigger(status_code, duration_ms); }
+  void process(int32_t status_code, uint32_t duration_ms) { this->trigger(status_code, duration_ms); }
 };
 
 class HttpRequestComponent : public Component {
