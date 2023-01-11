@@ -5,11 +5,6 @@ esphome:
 esp32:
   board: firebeetle32
 
-wifi:
-  networks:
-    - ssid: !secret wifi_ssid
-      password: !secret wifi_password
-
 logger:
 
 external_components:
