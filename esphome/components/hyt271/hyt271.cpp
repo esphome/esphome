@@ -9,12 +9,6 @@ static const char *const TAG = "hyt271";
 
 static const uint8_t HYT271_ADDRESS = 0x28;
 
-void HYT271Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up HYT271...");
-
-  // Wait for software reset to complete
-  delay(15);
-}
 void HYT271Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HYT271:");
   LOG_I2C_DEVICE(this);
