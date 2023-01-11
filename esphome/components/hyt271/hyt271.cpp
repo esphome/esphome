@@ -29,7 +29,7 @@ void HYT271Component::update() {
   }
   delay(50);  // NOLINT
 
-  if (this->read(reinterpret_cast<uint8_t *>(&raw_data), 4) != i2c::ERROR_OK) {
+  if (this->read(raw_data, 4) != i2c::ERROR_OK) {
     this->status_set_warning();
     ESP_LOGE(TAG, "Communication with HYT271 failed! => Read values");
     return;
