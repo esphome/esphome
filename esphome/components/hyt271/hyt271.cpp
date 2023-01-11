@@ -12,9 +12,6 @@ static const uint8_t HYT271_ADDRESS = 0x28;
 void HYT271Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HYT271:");
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with HYT271 failed!");
-  }
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Humidity", this->humidity_);
