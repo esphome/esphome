@@ -19,6 +19,12 @@ wifi:
 
 api:
 
+uart:
+  tx_pin: GPIO8
+  rx_pin: GPIO9
+  baud_rate: 115200
+
+
 ota:
 
 logger:
@@ -37,3 +43,20 @@ switch:
   - platform: output
     output: pin_4
     id: pin_4_switch
+
+climate:
+  - platform: haier
+    name: Haier AC
+    wifi_signal: true
+    beeper: true
+    outdoor_temperature:
+      name: Haier outdoor temperature
+    visual:
+      min_temperature: 16 °C
+      max_temperature: 30 °C
+      temperature_step: 1 °C
+    supported_swing_modes:
+    - 'OFF'
+    - VERTICAL
+    - HORIZONTAL
+    - BOTH

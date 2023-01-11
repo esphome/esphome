@@ -558,3 +558,20 @@ sn74hc165:
   load_pin: GPIO27
   clock_inhibit_pin: GPIO26
   sr_count: 4
+
+climate:
+  - platform: haier
+    name: Haier AC
+    wifi_signal: true
+    beeper: true
+    outdoor_temperature:
+      name: Haier outdoor temperature
+    visual:
+      min_temperature: 16 °C
+      max_temperature: 30 °C
+      temperature_step: 1 °C
+    supported_swing_modes:
+    - 'OFF'
+    - VERTICAL
+    - HORIZONTAL
+    - BOTH
