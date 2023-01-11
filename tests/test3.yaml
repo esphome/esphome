@@ -1174,6 +1174,7 @@ climate:
       deadband_output_averaging_samples: 1
   - platform: haier
     name: Haier AC
+    uart_id: uart2
     wifi_signal: true
     beeper: true
     outdoor_temperature:

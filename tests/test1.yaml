@@ -2050,6 +2050,7 @@ climate:
     name: Whynter
   - platform: haier
     name: Haier AC
+    uart_id: uart0
     wifi_signal: true
     beeper: true
     outdoor_temperature:

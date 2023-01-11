@@ -562,6 +562,7 @@ sn74hc165:
 climate:
   - platform: haier
     name: Haier AC
+    uart_id: uart1
     wifi_signal: true
     beeper: true
     outdoor_temperature:
