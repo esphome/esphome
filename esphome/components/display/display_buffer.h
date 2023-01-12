@@ -448,18 +448,20 @@ class Font {
    * @param baseline The y-offset from the top of the text to the baseline.
    * @param bottom The y-offset from the top of the text to the bottom (i.e. height).
    */
-  Font(const GlyphData *data, int data_nr, int baseline, int bottom);
+  Font(const GlyphData *data, int data_nr, int baseline, int height);
 
   int match_next_glyph(const char *str, int *match_length);
 
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
+  inline int get_baseline() { return this->baseline_; }
+  inline int get_height() { return this->height_; }
 
   const std::vector<Glyph> &get_glyphs() const;
 
  protected:
   std::vector<Glyph> glyphs_;
   int baseline_;
-  int bottom_;
+  int height_;
 };
 
 class Image {
@@ -472,6 +474,8 @@ class Image {
   int get_width() const;
   int get_height() const;
   ImageType get_type() const;
+
+  virtual int get_current_frame() const;
 
  protected:
   int width_;
@@ -489,7 +493,7 @@ class Animation : public Image {
   Color get_grayscale_pixel(int x, int y) const override;
 
   int get_animation_frame_count() const;
-  int get_current_frame() const;
+  int get_current_frame() const override;
   void next_frame();
   void prev_frame();
 
