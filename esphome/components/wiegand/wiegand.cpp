@@ -5,8 +5,8 @@
 namespace esphome {
 namespace wiegand {
 
-static const char *TAG = "wiegand";
-static const char *KEYS = "0123456789*#";
+static const char *const TAG = "wiegand";
+static const char *const KEYS = "0123456789*#";
 
 void IRAM_ATTR HOT WiegandStore::d0_gpio_intr(WiegandStore *arg) {
   if (arg->d0.digital_read())
