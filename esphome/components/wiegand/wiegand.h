@@ -22,14 +22,11 @@ struct WiegandStore {
   static void d1_gpio_intr(WiegandStore *arg);
 };
 
-class WiegandTagTrigger : public Trigger<std::string> {
-};
+class WiegandTagTrigger : public Trigger<std::string> {};
 
-class WiegandRawTrigger : public Trigger<uint8_t, uint64_t> {
-};
+class WiegandRawTrigger : public Trigger<uint8_t, uint64_t> {};
 
-class WiegandKeyTrigger : public Trigger<uint8_t> {
-};
+class WiegandKeyTrigger : public Trigger<uint8_t> {};
 
 class Wiegand : public key_provider::KeyProvider, public Component {
  public:

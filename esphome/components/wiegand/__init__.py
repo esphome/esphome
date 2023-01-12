@@ -4,6 +4,8 @@ from esphome import pins, automation
 from esphome.components import key_provider
 from esphome.const import CONF_ID, CONF_ON_TAG, CONF_TRIGGER_ID
 
+CODEOWNERS = ["@ssieb"]
+
 AUTO_LOAD = ["key_provider"]
 
 MULTI_CONF = True
