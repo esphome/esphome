@@ -32,7 +32,6 @@ from esphome.const import (
     CONF_POWER_SAVE_MODE,
     CONF_VISIBLE,
     CONF_CALCULATED_LUX,
-    CONF_ACTUAL_GAIN,
     CONF_DEVICE_FACTOR,
     CONF_GLASS_ATTENUATION_FACTOR,
     ICON_BRIGHTNESS_6,
@@ -107,7 +106,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_ACTUAL_GAIN): sensor.sensor_schema(
+            cv.Optional("actual_gain"): sensor.sensor_schema(
                 icon=ICON_BRIGHTNESS_6,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
