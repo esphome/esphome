@@ -256,6 +256,7 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *infrared_sensor_{nullptr};
   sensor::Sensor *visible_sensor_{nullptr};
   sensor::Sensor *calculated_lux_sensor_{nullptr};
+  sensor::Sensor *actual_gain_sensor_{nullptr};
   TSL2591IntegrationTime integration_time_;
   TSL2591ComponentGain component_gain_;
   TSL2591Gain gain_;
