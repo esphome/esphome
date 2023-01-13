@@ -388,55 +388,6 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
       again = 1.0F;
       break;
   }
-/** Calculates a lux value from the two TSL2591 physical sensor ADC readings.
- *
- * The lux calculation is copied from the Adafruit TSL2591 library.
- * There is some debate about whether it is the correct lux equation to use.
- * We use that lux equation because (a) it helps with a transition from
- * using that Adafruit library to using this ESPHome integration, and (b) we
- * don't have a definitive better idea.
- *
- * Since the raw ADC readings are available, you can ignore this method and
- * implement your own lux equation.
- *
- * @param full_spectrum The ADC reading for TSL2591 channel 0.
- * @param infrared The ADC reading for TSL2591 channel 1.
- */
-float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infrared) {
-  // Check for overflow conditions first
-  uint16_t max_count = (this->integration_time_ == TSL2591_INTEGRATION_TIME_100MS ? 36863 : 65535);
-  if ((full_spectrum == max_count) || (infrared == max_count)) {
-    // Signal an overflow
-    ESP_LOGW(TAG, "Apparent saturation on TSL2591 (%s). You could reduce the gain or integration time.", this->name_);
-    return NAN;
-  }
-
-  if ((full_spectrum == 0) && (infrared == 0)) {
-    // trivial conversion; avoids divide by 0
-    ESP_LOGW(TAG, "Zero reading on both TSL2591 (%s) sensors. Is the device having a problem?", this->name_);
-    return 0.0F;
-  }
-
-  float atime = 100.F + (this->integration_time_ * 100);
-
-  float again;
-  switch (this->gain_) {
-    case TSL2591_GAIN_LOW:
-      again = 1.0F;
-      break;
-    case TSL2591_GAIN_MED:
-      again = 25.0F;
-      break;
-    case TSL2591_GAIN_HIGH:
-      again = 400.0F;
-      break;
-    case TSL2591_GAIN_MAX:
-      again = 9500.0F;
-      break;
-    default:
-      again = 1.0F;
-      break;
-  }
   // This lux equation is copied from the Adafruit TSL2591 v1.4.0 and modified slightly.
   // See: https://github.com/adafruit/Adafruit_TSL2591_Library/issues/14
   // and that library code.
