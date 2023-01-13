@@ -32,7 +32,11 @@ async def to_code(config):
 
 def obis_code(value):
     value = cv.string(value)
-    match = re.match(r"^\d{1,3}-\d{1,3}:\d{1,3}\.\d{1,3}\.\d{1,3}$", value)
+    match = re.match(
+        r"^(\d{1,3}-\d{1,3}:\d{1,3}\.\d{1,3}\.\d{1,3})(\*\d{1,3})?$", value
+    )
     if match is None:
         raise cv.Invalid(f"{value} is not a valid OBIS code")
+    if match.groups()[1] is None:
+        value += "*255"
     return value

@@ -124,7 +124,8 @@ ObisInfo::ObisInfo(bytes server_id, SmlNode val_list_entry) : server_id(std::mov
 }
 
 std::string ObisInfo::code_repr() const {
-  return str_sprintf("%d-%d:%d.%d.%d", this->code[0], this->code[1], this->code[2], this->code[3], this->code[4]);
+  return str_sprintf("%d-%d:%d.%d.%d*%d", this->code[0], this->code[1], this->code[2], this->code[3], this->code[4],
+                     this->code[5]);
 }
 
 }  // namespace sml
