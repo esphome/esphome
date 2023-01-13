@@ -24,6 +24,7 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_GAIN,
+    CONF_ACTUAL_GAIN,
     CONF_ID,
     CONF_NAME,
     CONF_INTEGRATION_TIME,
@@ -78,8 +79,6 @@ def validate_integration_time(value):
 TSL2591Component = tsl2591_ns.class_(
     "TSL2591Component", cg.PollingComponent, i2c.I2CDevice
 )
-
-CONF_ACTUAL_GAIN="actual_gain"
 
 CONFIG_SCHEMA = (
     cv.Schema(

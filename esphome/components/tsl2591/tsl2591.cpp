@@ -156,7 +156,7 @@ void TSL2591Component::process_update_() {
   if (this->calculated_lux_sensor_ != nullptr) {
     this->calculated_lux_sensor_->publish_state(lux);
   }
-  
+
   if (this->component_gain_ == TSL2591_CGAIN_AUTO) {
     this->automatic_gain_update(full);
   }
