@@ -79,6 +79,7 @@ TSL2591Component = tsl2591_ns.class_(
     "TSL2591Component", cg.PollingComponent, i2c.I2CDevice
 )
 
+CONF_ACTUAL_GAIN="actual_gain"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -106,7 +107,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional("actual_gain"): sensor.sensor_schema(
+            cv.Optional(CONF_ACTUAL_GAIN): sensor.sensor_schema(
                 icon=ICON_BRIGHTNESS_6,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
