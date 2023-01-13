@@ -452,7 +452,7 @@ int Font::match_next_glyph(const char *str, int *match_length) {
 }
 void Font::measure(const char *str, int *width, int *x_offset, int *baseline, int *height) {
   *baseline = this->baseline_;
-  *height = this->bottom_;
+  *height = this->height_;
   int i = 0;
   int min_x = 0;
   bool has_char = false;
@@ -483,7 +483,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   *width = x - min_x;
 }
 const std::vector<Glyph> &Font::get_glyphs() const { return this->glyphs_; }
-Font::Font(const GlyphData *data, int data_nr, int baseline, int bottom) : baseline_(baseline), bottom_(bottom) {
+Font::Font(const GlyphData *data, int data_nr, int baseline, int height) : baseline_(baseline), height_(height) {
   for (int i = 0; i < data_nr; ++i)
     glyphs_.emplace_back(data + i);
 }
@@ -527,6 +527,7 @@ int Image::get_height() const { return this->height_; }
 ImageType Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
+int Image::get_current_frame() const { return 0; }
 
 bool Animation::get_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
