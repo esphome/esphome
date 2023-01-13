@@ -117,7 +117,7 @@ async def to_code(config):
                 data[pos] = rgb & 255
                 pos += 1
 
-    elif config[CONF_TYPE] == "BINARY":
+    elif config[CONF_TYPE] in ["BINARY", "TRANSPARENT_BINARY"]:
         width8 = ((width + 7) // 8) * 8
         data = [0 for _ in range((height * width8 // 8) * frames)]
         for frameIndex in range(frames):

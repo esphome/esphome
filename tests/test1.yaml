@@ -1713,6 +1713,12 @@ output:
     id: bp5758d_warmwhite
     channel: 4
     current: 10
+  - platform: x9c
+    id: test_x9c
+    cs_pin: GPIO25
+    inc_pin: GPIO26
+    ud_pin: GPIO27
+    initial_value: 0.5
 
 e131:
 
