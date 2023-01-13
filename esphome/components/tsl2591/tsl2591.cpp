@@ -142,8 +142,8 @@ void TSL2591Component::process_update_() {
   uint16_t full = this->get_illuminance(TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM, combined);
   float lux = this->get_calculated_lux(full, infrared);
   uint16_t actual_gain = this->get_actual_gain();
-  ESP_LOGD(TAG, "Got illuminance: combined 0x%X, full %d, IR %d, vis %d. Calc lux: %f. Actual gain: %d.", combined, full, infrared,
-           visible, lux, actual_gain);
+  ESP_LOGD(TAG, "Got illuminance: combined 0x%X, full %d, IR %d, vis %d. Calc lux: %f. Actual gain: %d.", combined,
+           full, infrared, visible, lux, actual_gain);
   if (this->full_spectrum_sensor_ != nullptr) {
     this->full_spectrum_sensor_->publish_state(full);
   }
@@ -459,9 +459,9 @@ void TSL2591Component::automatic_gain_update(uint16_t full_spectrum) {
 }
 
 /** Reads the actual gain used
-  *
-  * Useful for exposing the real gain used when configured in "auto" gain mode
-  */
+ *
+ * Useful for exposing the real gain used when configured in "auto" gain mode
+ */
 float TSL2591Component::get_actual_gain() {
   switch (this->gain_) {
     case TSL2591_GAIN_LOW:
