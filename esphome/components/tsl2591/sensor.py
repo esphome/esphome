@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_POWER_SAVE_MODE,
     CONF_VISIBLE,
     CONF_CALCULATED_LUX,
+    CONF_ACTUAL_GAIN,
     CONF_DEVICE_FACTOR,
     CONF_GLASS_ATTENUATION_FACTOR,
     ICON_BRIGHTNESS_6,
@@ -106,6 +107,12 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_ACTUAL_GAIN): sensor.sensor_schema(
+                icon=ICON_BRIGHTNESS_6,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
             cv.Optional(
                 CONF_INTEGRATION_TIME, default="100ms"
             ): validate_integration_time,
@@ -149,6 +156,11 @@ async def to_code(config):
         conf = config[CONF_CALCULATED_LUX]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_calculated_lux_sensor(sens))
+
+    if CONF_ACTUAL_GAIN in config:
+        conf = config[CONF_ACTUAL_GAIN]
+        sens = await sensor.new_sensor(conf)
+        cg.add(var.set_actual_gain_sensor(sens))
 
     cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))

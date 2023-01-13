@@ -217,13 +217,20 @@ class TSL2591Component : public PollingComponent, public i2c::I2CDevice {
    *
    * This gets called on update and tries to keep the ADC readings in the middle of the range
    */
-
   void automatic_gain_update(uint16_t full_spectrum);
+
+  /** Reads the actual gain used
+   *
+   * Useful for exposing the real gain used when configured in "auto" gain mode
+   */
+  float get_actual_gain();
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these. They're for ESPHome integration use.)
   /** Used by ESPHome framework. */
   void set_full_spectrum_sensor(sensor::Sensor *full_spectrum_sensor);
+  /** Used by ESPHome framework. */
+  void set_actual_gain_sensor(sensor::Sensor *actual_gain_sensor);
   /** Used by ESPHome framework. */
   void set_infrared_sensor(sensor::Sensor *infrared_sensor);
   /** Used by ESPHome framework. */
