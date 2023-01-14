@@ -473,7 +473,8 @@ float TSL2591Component::get_actual_gain() {
     case TSL2591_GAIN_MAX:
       return 9500.0F;
     default:
-      return 1.0F;
+      // Shouldn't get here, but just in case.
+      return NAN;
   }
 }
 
