@@ -17,10 +17,8 @@ static const auto MOTION_BLINDS_NOTIFY_CHARACTERISTIC_UUID =
     espbt::ESPBTUUID::from_raw("d973f2e1-b19e-11e2-9e96-0800200c9a66");
 static const auto MOTION_BINDS_WRITE_CHARACTERISTIC_UUID =
     espbt::ESPBTUUID::from_raw("d973f2e2-b19e-11e2-9e96-0800200c9a66");
-static const auto MOTION_BLINDS_NOTIFY_DESCRIPTOR =
-    espbt::ESPBTUUID::from_raw("00002902-0000-1000-8000-00805f9b34fb");
-static const auto MOTION_BLINDS_SERVICE_UUID =
-    espbt::ESPBTUUID::from_raw("D973F2E0-B19E-11E2-9E96-0800200C9A66");
+static const auto MOTION_BLINDS_NOTIFY_DESCRIPTOR = espbt::ESPBTUUID::from_raw("00002902-0000-1000-8000-00805f9b34fb");
+static const auto MOTION_BLINDS_SERVICE_UUID = espbt::ESPBTUUID::from_raw("D973F2E0-B19E-11E2-9E96-0800200C9A66");
 
 struct MotionBlindsMessage {
   size_t length;

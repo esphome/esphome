@@ -14,7 +14,7 @@ class Crypto {
   static std::string decrypt(const std::string &data);
 };
 
-} // namespace motion_blinds
-} // namespace esphome
+}  // namespace motion_blinds
+}  // namespace esphome
 
-#endif //USE_ESP32
+#endif  //USE_ESP32

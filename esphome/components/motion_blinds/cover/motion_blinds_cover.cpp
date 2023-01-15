@@ -9,9 +9,9 @@ namespace esphome {
 namespace motion_blinds {
 
 static const char *const TAG = "motion_blinds_cover";
-static const char* const COMMAND_SET_POSITION = "05020440";
-static const char* const COMMAND_STOP = "03020303";
-static const char* const NOTIFICATION_POSITION = "07040402";
+static const char *const COMMAND_SET_POSITION = "05020440";
+static const char *const COMMAND_STOP = "03020303";
+static const char *const NOTIFICATION_POSITION = "07040402";
 
 using namespace esphome::cover;
 
@@ -43,7 +43,8 @@ void MotionBlindsComponent::control(const CoverCall &call) {
     this->send_command(COMMAND_STOP);
   }
   if (call.get_position().has_value()) {
-    auto int_value = std::min(100, std::max(0, static_cast<int>(this->invert_position_value_(call.get_position().value()) * 100)));
+    auto int_value =
+        std::min(100, std::max(0, static_cast<int>(this->invert_position_value_(call.get_position().value()) * 100)));
     std::stringstream buffer;
     buffer << COMMAND_SET_POSITION;
     buffer << MotionBlindsCommunication::format_hex_num(int_value, false);
@@ -56,7 +57,6 @@ std::string MotionBlindsComponent::get_logging_device_name() { return this->get_
 
 void MotionBlindsComponent::on_disconnected() {
   // Nothing to do
-  this->
 }
 
 void MotionBlindsComponent::on_notify(const std::string &data) {

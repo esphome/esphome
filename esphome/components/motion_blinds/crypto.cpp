@@ -8,7 +8,7 @@
 namespace esphome {
 namespace motion_blinds {
 
-static const char * const KEY = "a3q8r8c135sqbn66";
+static const char *const KEY = "a3q8r8c135sqbn66";
 static const uint8_t BLOCK_SIZE = 16;
 
 static void pad_pkcs7(std::vector<uint8_t> &data);
@@ -16,8 +16,7 @@ static void unpad_pkcs7(std::vector<uint8_t> &data);
 static std::string to_hex(const std::vector<uint8_t> &data);
 static std::vector<uint8_t> from_hex(const std::string &str);
 
-std::string
-Crypto::encrypt(const std::string &data) {
+std::string Crypto::encrypt(const std::string &data) {
   mbedtls_aes_context aes;
   mbedtls_aes_init(&aes);
 
@@ -34,8 +33,7 @@ Crypto::encrypt(const std::string &data) {
   return to_hex(buffer);
 }
 
-std::string
-Crypto::decrypt(const std::string &data) {
+std::string Crypto::decrypt(const std::string &data) {
   mbedtls_aes_context aes;
   mbedtls_aes_init(&aes);
 
@@ -86,7 +84,7 @@ std::vector<uint8_t> from_hex(const std::string &str) {
   return data;
 }
 
-} // namespace motion_blinds
-} // namespace esphome
+}  // namespace motion_blinds
+}  // namespace esphome
 
-#endif //USE_ESP32
+#endif  //USE_ESP32
