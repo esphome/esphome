@@ -59,7 +59,11 @@ class Application {
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
       this->name_ = name + "-" + get_mac_address().substr(6);
-      this->friendly_name_ = friendly_name + " " + get_mac_address().substr(6);
+      if (friendly_name.empty()) {
+        this->friendly_name = "";
+      } else {
+        this->friendly_name_ = friendly_name + " " + get_mac_address().substr(6);
+      }
     } else {
       this->name_ = name;
       this->friendly_name_ = friendly_name;
