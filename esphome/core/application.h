@@ -53,13 +53,16 @@ namespace esphome {
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const char *compilation_time, bool name_add_mac_suffix) {
+  void pre_setup(const std::string &name, const std::string &friendly_name, const char *compilation_time,
+                 bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
       this->name_ = name + "-" + get_mac_address().substr(6);
+      this->friendly_name_ = friendly_name + " " + get_mac_address().substr(6);
     } else {
       this->name_ = name;
+      this->friendly_name_ = friendly_name;
     }
     this->compilation_time_ = compilation_time;
   }
@@ -133,6 +136,9 @@ class Application {
 
   /// Get the name of this Application set by set_name().
   const std::string &get_name() const { return this->name_; }
+
+  /// Get the friendly name of this Application set by set_friendly_name().
+  const std::string &get_friendly_name() const { return this->friendly_name_; }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
@@ -338,6 +344,7 @@ class Application {
 #endif
 
   std::string name_;
+  std::string friendly_name_;
   std::string compilation_time_;
   bool name_add_mac_suffix_;
   uint32_t last_loop_{0};

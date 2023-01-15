@@ -40,7 +40,7 @@ from esphome.storage_json import (
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
 
-from .util import password_hash
+from .util import password_hash, friendly_name_slugify
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -378,6 +378,9 @@ class WizardRequestHandler(BaseHandler):
             for k, v in json.loads(self.request.body.decode()).items()
             if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
+        kwargs["friendly_name"] = kwargs["name"]
+        kwargs["name"] = friendly_name_slugify(kwargs["friendly_name"])
+
         kwargs["ota_password"] = secrets.token_hex(16)
         noise_psk = secrets.token_bytes(32)
         kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
@@ -402,12 +405,15 @@ class ImportRequestHandler(BaseHandler):
 
             if imported_device is not None:
                 network = imported_device.network
+                friendly_name = imported_device.friendly_name
             else:
                 network = const.CONF_WIFI
+                friendly_name = name
 
             import_config(
                 settings.rel_path(f"{name}.yaml"),
                 name,
+                friendly_name,
                 args["project_name"],
                 args["package_import_url"],
                 network,
@@ -570,6 +576,12 @@ class DashboardEntry:
         return self.storage.name
 
     @property
+    def friendly_name(self):
+        if self.storage is None:
+            return self.name
+        return self.storage.friendly_name
+
+    @property
     def comment(self):
         if self.storage is None:
             return None
@@ -616,6 +628,7 @@ class ListDevicesHandler(BaseHandler):
                     "configured": [
                         {
                             "name": entry.name,
+                            "friendly_name": entry.friendly_name,
                             "configuration": entry.filename,
                             "loaded_integrations": entry.loaded_integrations,
                             "deployed_version": entry.update_old,
@@ -631,6 +644,7 @@ class ListDevicesHandler(BaseHandler):
                     "importable": [
                         {
                             "name": res.device_name,
+                            "friendly_name": res.friendly_name,
                             "package_import_url": res.package_import_url,
                             "project_name": res.project_name,
                             "project_version": res.project_version,

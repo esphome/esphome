@@ -66,7 +66,12 @@ async def to_code(config):
 
 
 def import_config(
-    path: str, name: str, project_name: str, import_url: str, network: str = CONF_WIFI
+    path: str,
+    name: str,
+    friendly_name: str,
+    project_name: str,
+    import_url: str,
+    network: str = CONF_WIFI,
 ) -> None:
     p = Path(path)
 
@@ -77,6 +82,7 @@ def import_config(
         p.write_text(
             wizard_file(
                 name=name,
+                friendly_name=friendly_name,
                 platform="ESP32" if "esp32" in import_url else "ESP8266",
                 board="esp32dev" if "esp32" in import_url else "esp01_1m",
                 ssid="!secret wifi_ssid",
@@ -99,10 +105,11 @@ def import_config(
 
         else:
             config = {
-                "substitutions": {"name": name},
+                "substitutions": {"name": name, "friendly_name": friendly_name},
                 "packages": {project_name: import_url},
                 "esphome": {
                     "name": "${name}",
+                    "friendly_name": "${friendly_name}",
                     "name_add_mac_suffix": False,
                 },
             }

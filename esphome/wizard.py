@@ -44,6 +44,7 @@ OTA_BIG = r"""       ____ _______
 
 BASE_CONFIG = """esphome:
   name: {name}
+  friendly_name: {friendly_name}
 """
 
 LOGGER_API_CONFIG = """
@@ -109,6 +110,13 @@ def wizard_file(**kwargs):
         ap_name = ap_name_base
     kwargs["fallback_name"] = ap_name
     kwargs["fallback_psk"] = "".join(random.choice(letters) for _ in range(12))
+
+    if (
+        "friendly_name" not in kwargs
+        or kwargs["friendly_name"] is None
+        or kwargs["friendly_name"] == ""
+    ):
+        kwargs["friendly_name"] = kwargs["name"].replace("-", " ").title()
 
     config = BASE_CONFIG.format(**kwargs)
 
@@ -192,7 +200,7 @@ def wizard_write(path, **kwargs):
     hardware = kwargs["platform"]
 
     write_file(path, wizard_file(**kwargs))
-    storage = StorageJSON.from_wizard(name, f"{name}.local", hardware)
+    storage = StorageJSON.from_wizard(name, name, f"{name}.local", hardware)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
     storage.save(storage_path)
 
