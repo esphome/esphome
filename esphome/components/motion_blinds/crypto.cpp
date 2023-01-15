@@ -87,4 +87,4 @@ std::vector<uint8_t> from_hex(const std::string &str) {
 }  // namespace motion_blinds
 }  // namespace esphome
 
-#endif  //USE_ESP32
+#endif  // USE_ESP32

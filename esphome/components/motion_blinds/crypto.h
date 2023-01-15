@@ -17,4 +17,4 @@ class Crypto {
 }  // namespace motion_blinds
 }  // namespace esphome
 
-#endif  //USE_ESP32
+#endif  // USE_ESP32
