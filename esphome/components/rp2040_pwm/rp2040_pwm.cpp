@@ -26,7 +26,7 @@ void RP2040PWM::setup_pwm_() {
   pwm_config config = pwm_get_default_config();
 
   uint32_t clock = clock_get_hz(clk_sys);
-  float divider = ceil(clock / (4096 * this-> frequency_)) / 16.0f;
+  float divider = ceil(clock / (4096 * this->frequency_)) / 16.0f;
   uint16_t wrap = clock / divider / this->frequency_ - 1;
   this->wrap_ = wrap;
 
