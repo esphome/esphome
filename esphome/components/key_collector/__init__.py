@@ -11,6 +11,12 @@ from esphome.const import (
     CONF_TIMEOUT,
 )
 
+CODEOWNERS = ["@ssieb"]
+
+MULTI_CONF = True
+
+AUTO_LOAD = ["key_provider"]
+
 CONF_START_KEYS = "start_keys"
 CONF_END_KEYS = "end_keys"
 CONF_END_KEY_REQUIRED = "end_key_required"
@@ -19,10 +25,6 @@ CONF_CLEAR_KEYS = "clear_keys"
 CONF_ALLOWED_KEYS = "allowed_keys"
 CONF_ON_PROGRESS = "on_progress"
 CONF_ON_RESULT = "on_result"
-
-AUTO_LOAD = ["key_provider"]
-
-MULTI_CONF = True
 
 key_collector_ns = cg.esphome_ns.namespace("key_collector")
 KeyCollector = key_collector_ns.class_("KeyCollector", cg.Component)
