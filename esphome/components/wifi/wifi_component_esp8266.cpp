@@ -26,6 +26,12 @@ extern "C" {
 #define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
 #define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
 #endif
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)
+auto &dhcpServer = WiFi.softAPDhcpServer();
+#define wifi_softap_set_dhcps_lease(lease) dhcpServer.set_dhcps_lease(lease)
+#define wifi_softap_set_dhcps_lease_time(time) dhcpServer.set_dhcps_lease_time(time)
+#define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpServer.set_dhcps_offer_option(offer, mode)
+#endif
 }
 
 #include "esphome/core/helpers.h"
