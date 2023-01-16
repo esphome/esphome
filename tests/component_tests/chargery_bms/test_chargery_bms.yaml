@@ -1,0 +1,17 @@
+---
+esphome:
+  name: test
+  platform: ESP8266
+  board: d1_mini_lite
+
+uart:
+  baud_rate: 2400
+  tx_pin: GPIO1
+  rx_pin: GPIO3
+
+chargery_bms:
+
+sensor:
+  - platform: chargery_bms
+    voltage:
+      name: "Battery Voltage"
