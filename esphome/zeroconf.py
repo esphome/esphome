@@ -176,9 +176,11 @@ class DashboardImportDiscovery:
         project_name = info.properties[TXT_RECORD_PROJECT_NAME].decode()
         project_version = info.properties[TXT_RECORD_PROJECT_VERSION].decode()
         network = info.properties.get(TXT_RECORD_NETWORK, b"wifi").decode()
-        friendly_name = info.properties.get(
-            TXT_RECORD_FRIENDLY_NAME, node_name
-        ).decode()
+        friendly_name = info.properties.get(TXT_RECORD_FRIENDLY_NAME)
+        if friendly_name is not None:
+            friendly_name = friendly_name.decode()
+        else:
+            friendly_name = node_name
 
         self.import_state[name] = DiscoveredImport(
             friendly_name=friendly_name,
