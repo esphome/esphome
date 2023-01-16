@@ -384,9 +384,12 @@ class WizardRequestHandler(BaseHandler):
         kwargs["ota_password"] = secrets.token_hex(16)
         noise_psk = secrets.token_bytes(32)
         kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
-        destination = settings.rel_path(f"{kwargs['name']}.yaml")
+        filename = f"{kwargs['name']}.yaml"
+        destination = settings.rel_path(filename)
         wizard.wizard_write(path=destination, **kwargs)
         self.set_status(200)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps({"configuration": filename}))
         self.finish()
 
 
@@ -428,6 +431,8 @@ class ImportRequestHandler(BaseHandler):
             return
 
         self.set_status(200)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps({"configuration": f"{name}.yaml"}))
         self.finish()
 
 
