@@ -104,7 +104,7 @@ void WebServer::setup() {
     // Configure reconnect timeout and send config
 
     client->send(json::build_json([this](JsonObject root) {
-                   root["title"] = App.get_name();
+                   root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
                    root["ota"] = this->allow_ota_;
                    root["lang"] = "en";
                  }).c_str(),
