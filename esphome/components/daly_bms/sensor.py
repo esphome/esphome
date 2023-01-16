@@ -14,6 +14,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
     UNIT_AMPERE,
+    UNIT_AMPERE_HOUR,
     UNIT_PERCENT,
     UNIT_CELSIUS,
     ICON_FLASH,
@@ -57,8 +58,6 @@ ICON_BATTERY_OUTLINE = "mdi:battery-outline"
 ICON_THERMOMETER_CHEVRON_UP = "mdi:thermometer-chevron-up"
 ICON_THERMOMETER_CHEVRON_DOWN = "mdi:thermometer-chevron-down"
 ICON_CAR_BATTERY = "mdi:car-battery"
-
-UNIT_AMPERE_HOUR = "Ah"
 
 TYPES = [
     CONF_VOLTAGE,
