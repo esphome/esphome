@@ -15,7 +15,7 @@ static const uint8_t PACKET_STATUS_CELLS_CONSTANT_FIELDS_SIZE = 13;
 static const uint8_t PACKET_STATUS_IMPEDANCS_CONSTANT_FIELDS_SIZE = 8;
 
 static const uint8_t PACKET_LENGTH_MINIMUM = 10;
-static const std::string current_modes[] = {"DISCHARGE", "CHARGE", "STORAGE"};
+static const std::string CURRENT_MODES[] = {"DISCHARGE", "CHARGE", "STORAGE"};
 
 void ChargeryBmsComponent::setup() {
   this->packet_.reserve(MAX_CHARGERY_PACKET_SIZE);
@@ -157,7 +157,7 @@ void ChargeryBmsComponent::decode_status_bms_() {
   {  // current_mode
     auto current_mode = *pos++;
     if (this->current_mode_sensor_ != nullptr)
-      this->current_mode_sensor_->publish_state(current_modes[current_mode]);
+      this->current_mode_sensor_->publish_state(CURRENT_MODES[current_mode]);
   }
   {  // current
     auto b1 = *pos++;
@@ -201,7 +201,7 @@ void ChargeryBmsComponent::decode_status_impedances_(uint8_t cells) {
   {
     auto current_mode = *pos++;
     if (this->current1_mode_sensor_ != nullptr)
-      this->current1_mode_sensor_->publish_state(current_modes[current_mode]);
+      this->current1_mode_sensor_->publish_state(CURRENT_MODES[current_mode]);
   }
   {
     auto b1 = *pos++;
@@ -247,10 +247,11 @@ void ChargeryBmsComponent::get_in_sync_() {
   int header_seen = 0;
   auto pos = this->packet_.begin();
   for (; pos < this->packet_.end() && header_seen < 2; ++pos) {
-    if (*pos == PACKET_HEADER)
+    if (*pos == PACKET_HEADER) {
       ++header_seen;
-    else
+    } else {
       header_seen = 0;
+    }
   }
   this->packet_.erase(this->packet_.begin(), pos - header_seen);
 }
