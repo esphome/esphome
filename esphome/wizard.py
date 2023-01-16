@@ -44,6 +44,10 @@ OTA_BIG = r"""       ____ _______
 
 BASE_CONFIG = """esphome:
   name: {name}
+"""
+
+BASE_CONFIG_FRIENDLY = """esphome:
+  name: {name}
   friendly_name: {friendly_name}
 """
 
@@ -111,14 +115,12 @@ def wizard_file(**kwargs):
     kwargs["fallback_name"] = ap_name
     kwargs["fallback_psk"] = "".join(random.choice(letters) for _ in range(12))
 
-    if (
-        "friendly_name" not in kwargs
-        or kwargs["friendly_name"] is None
-        or kwargs["friendly_name"] == ""
-    ):
-        kwargs["friendly_name"] = kwargs["name"].replace("-", " ").title()
+    if kwargs.get("friendly_name"):
+        base = BASE_CONFIG_FRIENDLY
+    else:
+        base = BASE_CONFIG
 
-    config = BASE_CONFIG.format(**kwargs)
+    config = base.format(**kwargs)
 
     config += HARDWARE_BASE_CONFIGS[kwargs["platform"]].format(**kwargs)
 

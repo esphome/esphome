@@ -1,5 +1,6 @@
 from pathlib import Path
 import requests
+from typing import Optional
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -68,7 +69,7 @@ async def to_code(config):
 def import_config(
     path: str,
     name: str,
-    friendly_name: str,
+    friendly_name: Optional[str],
     project_name: str,
     import_url: str,
     network: str = CONF_WIFI,
@@ -104,14 +105,15 @@ def import_config(
             p.write_text(req.text, encoding="utf8")
 
         else:
+            substitutions = {"name": name}
+            esphome_core = {"name": "${name}", "name_add_mac_suffix": False}
+            if friendly_name:
+                substitutions["friendly_name"] = friendly_name
+                esphome_core["friendly_name"] = "${friendly_name}"
             config = {
-                "substitutions": {"name": name, "friendly_name": friendly_name},
+                "substitutions": substitutions,
                 "packages": {project_name: import_url},
-                "esphome": {
-                    "name": "${name}",
-                    "friendly_name": "${friendly_name}",
-                    "name_add_mac_suffix": False,
-                },
+                "esphome": esphome_core,
             }
             output = dump(config)
 

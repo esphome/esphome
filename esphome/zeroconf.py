@@ -124,7 +124,7 @@ TXT_RECORD_FRIENDLY_NAME = b"friendly_name"
 
 @dataclass
 class DiscoveredImport:
-    friendly_name: str
+    friendly_name: Optional[str]
     device_name: str
     package_import_url: str
     project_name: str
@@ -179,8 +179,6 @@ class DashboardImportDiscovery:
         friendly_name = info.properties.get(TXT_RECORD_FRIENDLY_NAME)
         if friendly_name is not None:
             friendly_name = friendly_name.decode()
-        else:
-            friendly_name = node_name
 
         self.import_state[name] = DiscoveredImport(
             friendly_name=friendly_name,

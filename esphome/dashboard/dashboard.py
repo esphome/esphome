@@ -378,6 +378,12 @@ class WizardRequestHandler(BaseHandler):
             for k, v in json.loads(self.request.body.decode()).items()
             if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
+        if not kwargs["name"]:
+            self.set_status(422)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"error": "Name is required"}))
+            return
+
         kwargs["friendly_name"] = kwargs["name"]
         kwargs["name"] = friendly_name_slugify(kwargs["friendly_name"])
 
@@ -413,8 +419,6 @@ class ImportRequestHandler(BaseHandler):
                     friendly_name = imported_device.friendly_name
             else:
                 network = const.CONF_WIFI
-                if friendly_name is None:
-                    friendly_name = name
 
             import_config(
                 settings.rel_path(f"{name}.yaml"),
