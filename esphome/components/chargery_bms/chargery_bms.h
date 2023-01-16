@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/text_sensor/text_sensor.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/uart/uart.h"
 
 #include <vector>
@@ -94,13 +93,6 @@ class ChargeryBmsComponent : public uart::UARTDevice,public Component {
   // TEXT_SENSORS
   void set_current_mode_sensor(text_sensor::TextSensor *current_mode_sensor) { current_mode_sensor_ = current_mode_sensor; }
   void set_current1_mode_sensor(text_sensor::TextSensor *current1_mode_sensor) { current1_mode_sensor_ = current1_mode_sensor; }
-  // BINARY_SENSORS
-  void set_charging_mos_enabled_binary_sensor(binary_sensor::BinarySensor *charging_mos_enabled) {
-    charging_mos_enabled_ = charging_mos_enabled;
-  }
-  void set_discharging_mos_enabled_binary_sensor(binary_sensor::BinarySensor *discharging_mos_enabled) {
-    discharging_mos_enabled_ = discharging_mos_enabled;
-  }
 
   void setup() override;
   void dump_config() override;
@@ -153,8 +145,6 @@ class ChargeryBmsComponent : public uart::UARTDevice,public Component {
   text_sensor::TextSensor *current_mode_sensor_{nullptr};
   text_sensor::TextSensor *current1_mode_sensor_{nullptr};
 
-  binary_sensor::BinarySensor *charging_mos_enabled_{nullptr};
-  binary_sensor::BinarySensor *discharging_mos_enabled_{nullptr};
   void read_packet_();
   void get_in_sync_();
   void decode_packet_();

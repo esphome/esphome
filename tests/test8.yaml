@@ -1,0 +1,56 @@
+esphome:
+  name: test8
+  platform: ESP8266
+  board: d1_mini
+
+uart:
+  - id: hardware_uart
+    tx_pin: GPIO1
+    rx_pin: GPIO3
+    baud_rate: 115200
+
+chargery_bms:
+  num_cells: 15
+
+text_sensor:
+  - platform: chargery_bms
+    current_mode:
+      name: "Current Mode"
+
+sensor:
+  - platform: chargery_bms
+    voltage:
+      name: "Battery Voltage"
+    current:
+      name: "Battery Current"
+    battery_level:
+      name: "Battery Level"
+    max_cell_voltage:
+      name: "Max Cell Voltage"
+    max_cell_voltage_number:
+      name: "Max Cell Voltage Number"
+    min_cell_voltage:
+      name: "Min Cell Voltage"
+    min_cell_voltage_number:
+      name: "Min Cell Voltage Number"
+    max_temperature:
+      name: "Max Temperature"
+    max_temperature_probe_number:
+      name: "Max Temperature Probe Number"
+    min_temperature:
+      name: "Min Temperature"
+    min_temperature_probe_number:
+      name: "Min Temperature Probe Number"
+    remaining_capacity_ah:
+      name: "Remaining Capacity Ah"
+    remaining_capacity_wh:
+      name: "Remaining Capacity Wh"
+    cell_1_voltage:
+      name: "Cell 1 Voltage"
+    cell_1_impedance:
+      name: "Cell 1 Impedance"
+    min_cell_impedance:
+      name: "Min Cell Impedance"
+    max_cell_impedance:
+      name: "Max Cell Impedance"
+

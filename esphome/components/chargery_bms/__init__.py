@@ -5,7 +5,7 @@ from esphome.const import CONF_ID
 
 CODEOWNERS = ["@wmeler"]
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["sensor", "binary_sensor", "text_sensor"]
+AUTO_LOAD = ["sensor", "text_sensor"]
 
 CONF_CHARGERY_BMS_ID = "chargery_bms_id"
 CONF_NUM_CELLS = "num_cells"
