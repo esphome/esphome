@@ -1,15 +1,15 @@
 from pathlib import Path
-import requests
 from typing import Optional
+
+import requests
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import git
 from esphome.components.packages import validate_source_shorthand
-from esphome.const import CONF_WIFI, CONF_REF
+from esphome.const import CONF_REF, CONF_WIFI
 from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
-from esphome import git
-
 
 dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")
 
