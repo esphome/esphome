@@ -11,14 +11,14 @@ static const uint8_t PACKET_HEADER = 0x24;
 static const uint8_t PACKET_STATUS_CELLS = 0x56;
 static const uint8_t PACKET_STATUS_BMS = 0x57;
 static const uint8_t PACKET_STATUS_IMPEDANCES = 0x58;
-static const uint8_t PACKET_STATUS_CELLS_CONSTANT_FIELDS_SIZE = 13;  
+static const uint8_t PACKET_STATUS_CELLS_CONSTANT_FIELDS_SIZE = 13;
 static const uint8_t PACKET_STATUS_IMPEDANCS_CONSTANT_FIELDS_SIZE = 8;
 
 static const uint8_t PACKET_LENGTH_MINIMUM = 10;
 static const std::string current_modes[] = {"DISCHARGE", "CHARGE", "STORAGE"};
 
-void ChargeryBmsComponent::setup() { 
-  this->packet_.reserve(MAX_CHARGERY_PACKET_SIZE); 
+void ChargeryBmsComponent::setup() {
+  this->packet_.reserve(MAX_CHARGERY_PACKET_SIZE);
   this->packet_.resize(0);
 }
 

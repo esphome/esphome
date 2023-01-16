@@ -149,7 +149,7 @@ class ChargeryBmsComponent : public uart::UARTDevice,public Component {
                                                 nullptr,nullptr,nullptr,nullptr,
                                                 nullptr,nullptr,nullptr,nullptr,
                                                 };
-  
+
   text_sensor::TextSensor *current_mode_sensor_{nullptr};
   text_sensor::TextSensor *current1_mode_sensor_{nullptr};
 
