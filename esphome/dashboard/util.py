@@ -21,5 +21,12 @@ def strip_accents(value):
 
 
 def friendly_name_slugify(value):
-    value = strip_accents(value).lower().replace(" ", "-").replace("_", "-")
+    value = (
+        strip_accents(value)
+        .lower()
+        .replace(" ", "-")
+        .replace("_", "-")
+        .replace("--", "-")
+        .strip("-")
+    )
     return "".join(c for c in value if c in ALLOWED_NAME_CHARS)
