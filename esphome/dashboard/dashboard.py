@@ -401,6 +401,7 @@ class ImportRequestHandler(BaseHandler):
         args = json.loads(self.request.body.decode())
         try:
             name = args["name"]
+            friendly_name = args.get("friendly_name")
 
             imported_device = next(
                 (res for res in IMPORT_RESULT.values() if res.device_name == name), None
@@ -408,10 +409,12 @@ class ImportRequestHandler(BaseHandler):
 
             if imported_device is not None:
                 network = imported_device.network
-                friendly_name = imported_device.friendly_name
+                if friendly_name is None:
+                    friendly_name = imported_device.friendly_name
             else:
                 network = const.CONF_WIFI
-                friendly_name = name
+                if friendly_name is None:
+                    friendly_name = name
 
             import_config(
                 settings.rel_path(f"{name}.yaml"),
