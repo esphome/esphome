@@ -128,3 +128,8 @@ tests/.esphome/
 
 sdkconfig.*
 !sdkconfig.defaults
+esphome/components/display/pillowtest.py
+esphome/components/display/blackwhite_test.png
+esphome/components/display/blackwhite_test.jpg
+esphome/components/display/blacktrans24b_test.png
+esphome/components/display/blacktrans8b_test.png

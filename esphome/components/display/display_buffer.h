@@ -78,13 +78,14 @@ enum class TextAlign {
 extern const Color COLOR_OFF;
 /// Turn the pixel ON.
 extern const Color COLOR_ON;
+/// Don't add a pixel where this color is used.
+extern const Color COLOR_TRANSPARENT;
 
 enum ImageType {
   IMAGE_TYPE_BINARY = 0,
   IMAGE_TYPE_GRAYSCALE = 1,
   IMAGE_TYPE_RGB24 = 2,
-  IMAGE_TYPE_TRANSPARENT_BINARY = 3,
-  IMAGE_TYPE_RGB565 = 4,
+  IMAGE_TYPE_RGB565 = 3,
 };
 
 enum DisplayType {
