@@ -10,13 +10,15 @@
 namespace esphome {
 namespace chargery_bms {
 
-class ChargeryBmsComponent : public uart::UARTDevice,public Component {
+class ChargeryBmsComponent : public uart::UARTDevice, public Component {
  public:
   ChargeryBmsComponent() = default;
 
   // SENSORS
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
-  void set_charge_end_voltage_sensor(sensor::Sensor *charge_end_voltage_sensor) { charge_end_voltage_sensor_ = charge_end_voltage_sensor; }
+  void set_charge_end_voltage_sensor(sensor::Sensor *charge_end_voltage_sensor) { 
+	  charge_end_voltage_sensor_ = charge_end_voltage_sensor;
+  }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
   void set_current1_sensor(sensor::Sensor *current1_sensor) { current1_sensor_ = current1_sensor; }
   void set_battery_level_sensor(sensor::Sensor *battery_level_sensor) { battery_level_sensor_ = battery_level_sensor; }
@@ -36,8 +38,12 @@ class ChargeryBmsComponent : public uart::UARTDevice,public Component {
   void set_min_temperature_probe_number_sensor(sensor::Sensor *min_temperature_probe_number) {
     min_temperature_probe_number_ = min_temperature_probe_number;
   }
-  void set_remaining_capacity_ah_sensor(sensor::Sensor *remaining_capacity_ah) { remaining_capacity_ah_ = remaining_capacity_ah; }
-  void set_remaining_capacity_wh_sensor(sensor::Sensor *remaining_capacity_wh) { remaining_capacity_wh_ = remaining_capacity_wh; }
+  void set_remaining_capacity_ah_sensor(sensor::Sensor *remaining_capacity_ah) { 
+	  remaining_capacity_ah_ = remaining_capacity_ah;
+  }
+  void set_remaining_capacity_wh_sensor(sensor::Sensor *remaining_capacity_wh) { 
+	  remaining_capacity_wh_ = remaining_capacity_wh;
+  }
   void set_cells_number_sensor(sensor::Sensor *cells_number) { cells_number_ = cells_number; }
   void set_temperature_1_sensor(sensor::Sensor *temperature_1_sensor) { temperature_1_sensor_ = temperature_1_sensor; }
   void set_temperature_2_sensor(sensor::Sensor *temperature_2_sensor) { temperature_2_sensor_ = temperature_2_sensor; }
@@ -91,16 +97,20 @@ class ChargeryBmsComponent : public uart::UARTDevice,public Component {
   void set_cell_24_impedance_sensor(sensor::Sensor *cell_24_impedance) { cell_impedances_[23] = cell_24_impedance; }
 
   // TEXT_SENSORS
-  void set_current_mode_sensor(text_sensor::TextSensor *current_mode_sensor) { current_mode_sensor_ = current_mode_sensor; }
-  void set_current1_mode_sensor(text_sensor::TextSensor *current1_mode_sensor) { current1_mode_sensor_ = current1_mode_sensor; }
+  void set_current_mode_sensor(text_sensor::TextSensor *current_mode_sensor) {
+	  current_mode_sensor_ = current_mode_sensor;
+  }
+  void set_current1_mode_sensor(text_sensor::TextSensor *current1_mode_sensor) {
+	  current1_mode_sensor_ = current1_mode_sensor;
+  }
 
   void setup() override;
   void dump_config() override;
   void update();
-  void loop() override ;
+  void loop() override;
 
   float get_setup_priority() const override;
-  void set_battery_num_cells(uint8_t cells) {battery_num_cells_ = cells;}
+  void set_battery_num_cells(uint8_t cells) { battery_num_cells_ = cells; }
 
  protected:
   uint8_t battery_num_cells_ = 24;
@@ -127,20 +137,14 @@ class ChargeryBmsComponent : public uart::UARTDevice,public Component {
   sensor::Sensor *cells_number_{nullptr};
   sensor::Sensor *temperature_1_sensor_{nullptr};
   sensor::Sensor *temperature_2_sensor_{nullptr};
-  std::vector<sensor::Sensor *> cell_voltages_ = {nullptr,nullptr,nullptr,nullptr,
-                                                nullptr,nullptr,nullptr,nullptr,
-                                                nullptr,nullptr,nullptr,nullptr,
-                                                nullptr,nullptr,nullptr,nullptr,
-                                                nullptr,nullptr,nullptr,nullptr,
-                                                nullptr,nullptr,nullptr,nullptr,
-                                                };
-  std::vector<sensor::Sensor *> cell_impedances_ = {nullptr,nullptr,nullptr,nullptr,
-                                                nullptr,nullptr,nullptr,nullptr,
-                                                nullptr,nullptr,nullptr,nullptr,
-                                                nullptr,nullptr,nullptr,nullptr,
-                                                nullptr,nullptr,nullptr,nullptr,
-                                                nullptr,nullptr,nullptr,nullptr,
-                                                };
+  std::vector<sensor::Sensor *> cell_voltages_ = {
+	  nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+	  nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+  };
+  std::vector<sensor::Sensor *> cell_impedances_ = {
+	  nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+	  nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+  };
 
   text_sensor::TextSensor *current_mode_sensor_{nullptr};
   text_sensor::TextSensor *current1_mode_sensor_{nullptr};
