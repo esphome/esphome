@@ -198,7 +198,7 @@ binary_sensor:
     command: 0x100
     source: 0x1234
     dest: 0x10
-    sensors:
+    binary_sensors:
       - id: vcustom_b
         name: VBus Custom Binary Sensor
         lambda: |-
