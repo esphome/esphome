@@ -39,10 +39,10 @@ class ChargeryBmsComponent : public uart::UARTDevice, public Component {
     min_temperature_probe_number_ = min_temperature_probe_number;
   }
   void set_remaining_capacity_ah_sensor(sensor::Sensor *remaining_capacity_ah) {
-	  remaining_capacity_ah_ = remaining_capacity_ah;
+    remaining_capacity_ah_ = remaining_capacity_ah;
   }
   void set_remaining_capacity_wh_sensor(sensor::Sensor *remaining_capacity_wh) {
-	  remaining_capacity_wh_ = remaining_capacity_wh;
+    remaining_capacity_wh_ = remaining_capacity_wh;
   }
   void set_cells_number_sensor(sensor::Sensor *cells_number) { cells_number_ = cells_number; }
   void set_temperature_1_sensor(sensor::Sensor *temperature_1_sensor) { temperature_1_sensor_ = temperature_1_sensor; }
@@ -98,10 +98,10 @@ class ChargeryBmsComponent : public uart::UARTDevice, public Component {
 
   // TEXT_SENSORS
   void set_current_mode_sensor(text_sensor::TextSensor *current_mode_sensor) {
-	  current_mode_sensor_ = current_mode_sensor;
+    current_mode_sensor_ = current_mode_sensor;
   }
   void set_current1_mode_sensor(text_sensor::TextSensor *current1_mode_sensor) {
-	  current1_mode_sensor_ = current1_mode_sensor;
+    current1_mode_sensor_ = current1_mode_sensor;
   }
 
   void setup() override;
@@ -138,12 +138,12 @@ class ChargeryBmsComponent : public uart::UARTDevice, public Component {
   sensor::Sensor *temperature_1_sensor_{nullptr};
   sensor::Sensor *temperature_2_sensor_{nullptr};
   std::vector<sensor::Sensor *> cell_voltages_ = {
-    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+      nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+      nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
   };
   std::vector<sensor::Sensor *> cell_impedances_ = {
-    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
-    nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+      nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
+      nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr, nullptr,
   };
 
   text_sensor::TextSensor *current_mode_sensor_{nullptr};
