@@ -49,6 +49,19 @@ void ILI9XXXDisplay::setup_pins_() {
 
 void ILI9XXXDisplay::dump_config() {
   LOG_DISPLAY("", "ili9xxx", this);
+  switch (this->buffer_color_mode_)
+  {
+    case BITS_8_INDEXED:
+      LOG_PIN("  Color mode: 8bit Indexed");
+      break;
+    case BITS_16:
+      LOG_PIN("  Color mode: 16bit Indexed");
+      break;
+    default:
+      LOG_PIN("  Color mode: 8bit 332 mode");
+    break;
+  }
+
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
