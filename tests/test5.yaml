@@ -516,7 +516,7 @@ sensor:
     sensors:
       - id: vcustom
         name: VBus Custom Sensor
-        lambda: return x[0] / 10.0
+        lambda: return x[0] / 10.0;
 
 script:
   - id: automation_test
