@@ -29,7 +29,7 @@ void ChargeryBmsComponent::dump_config() {
 
 void ChargeryBmsComponent::loop() {
   this->read_packet_();
-  if (this->packet_.size()>=PACKET_LENGTH_MINIMUM) {
+  if (this->packet_.size() >= PACKET_LENGTH_MINIMUM) {
     this->get_in_sync_();
     this->decode_packet_();
   }
@@ -39,7 +39,7 @@ void ChargeryBmsComponent::read_packet_() {
   int available_data = this->available();
   int current_pos = this->packet_.size();
   int data_to_read = std::min(available_data, static_cast<int>(this->packet_.capacity() - current_pos));
-  if (data_to_read>0) {
+  if (data_to_read > 0) {
     this->packet_.resize(current_pos + data_to_read);
     this->read_array(this->packet_.data() + current_pos, data_to_read);
   }
@@ -95,7 +95,7 @@ void ChargeryBmsComponent::decode_status_cells_(uint8_t cells) {
   auto pos = this->packet_.begin() + 4;
   uint16_t min = 0xffff, max = 0;
   uint8_t min_i = 0, max_i = 0;
-  uint32_t battery_voltage=0;
+  uint32_t battery_voltage = 0;
   for (uint8_t i = 0; i < cells; i++) {
     auto b1 = *pos++;
     auto b2 = *pos++;
@@ -115,7 +115,7 @@ void ChargeryBmsComponent::decode_status_cells_(uint8_t cells) {
       this->cell_voltages_[i]->publish_state((float) val / 1000);
   }
   if (this->voltage_sensor_ != nullptr) {
-    this->voltage_sensor_->publish_state((float)battery_voltage/1000);
+    this->voltage_sensor_->publish_state((float) battery_voltage / 1000);
   }
 
   if (cells > 0) {
