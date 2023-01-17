@@ -201,8 +201,7 @@ binary_sensor:
     binary_sensors:
       - id: vcustom_b
         name: VBus Custom Binary Sensor
-        lambda: |-
-          // do something with the data
+        lambda: return x[0] & 1;
 
 tlc5947:
   data_pin: GPIO12
@@ -517,8 +516,7 @@ sensor:
     sensors:
       - id: vcustom
         name: VBus Custom Sensor
-        lambda: |-
-          // do something with the data
+        lambda: return x[0] / 10.0
 
 script:
   - id: automation_test
