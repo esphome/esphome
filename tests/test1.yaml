@@ -647,6 +647,13 @@ sensor:
     temperature:
       name: Honeywell temperature
     cs_pin: GPIO5
+  - platform: hte501
+    temperature:
+      name: Office Temperature 2
+    humidity:
+      name: Office Humidity 1
+    address: 0x40
+    i2c_id: i2c_bus
   - platform: qmc5883l
     address: 0x0D
     field_strength_x:
