@@ -52,13 +52,13 @@ void ILI9XXXDisplay::dump_config() {
   switch (this->buffer_color_mode_)
   {
     case BITS_8_INDEXED:
-      LOG_PIN("  Color mode: 8bit Indexed");
+      ESP_LOGCONFIG("  Color mode: 8bit Indexed");
       break;
     case BITS_16:
-      LOG_PIN("  Color mode: 16bit Indexed");
+      ESP_LOGCONFIG("  Color mode: 16bit Indexed");
       break;
     default:
-      LOG_PIN("  Color mode: 8bit 332 mode");
+      ESP_LOGCONFIG("  Color mode: 8bit 332 mode");
     break;
   }
 
