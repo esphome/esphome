@@ -16,8 +16,8 @@ class ChargeryBmsComponent : public uart::UARTDevice, public Component {
 
   // SENSORS
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
-  void set_charge_end_voltage_sensor(sensor::Sensor *charge_end_voltage_sensor) { 
-	  charge_end_voltage_sensor_ = charge_end_voltage_sensor;
+  void set_charge_end_voltage_sensor(sensor::Sensor *charge_end_voltage_sensor) {
+    charge_end_voltage_sensor_ = charge_end_voltage_sensor;
   }
   void set_current_sensor(sensor::Sensor *current_sensor) { current_sensor_ = current_sensor; }
   void set_current1_sensor(sensor::Sensor *current1_sensor) { current1_sensor_ = current1_sensor; }
@@ -38,10 +38,10 @@ class ChargeryBmsComponent : public uart::UARTDevice, public Component {
   void set_min_temperature_probe_number_sensor(sensor::Sensor *min_temperature_probe_number) {
     min_temperature_probe_number_ = min_temperature_probe_number;
   }
-  void set_remaining_capacity_ah_sensor(sensor::Sensor *remaining_capacity_ah) { 
+  void set_remaining_capacity_ah_sensor(sensor::Sensor *remaining_capacity_ah) {
 	  remaining_capacity_ah_ = remaining_capacity_ah;
   }
-  void set_remaining_capacity_wh_sensor(sensor::Sensor *remaining_capacity_wh) { 
+  void set_remaining_capacity_wh_sensor(sensor::Sensor *remaining_capacity_wh) {
 	  remaining_capacity_wh_ = remaining_capacity_wh;
   }
   void set_cells_number_sensor(sensor::Sensor *cells_number) { cells_number_ = cells_number; }
