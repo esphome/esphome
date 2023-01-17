@@ -24,7 +24,10 @@ class ILI9XXXDisplay : public PollingComponent,
   void set_backlight_pin(GPIOPin *backlight) { this->backlight_pin_ = backlight; }
   void set_palette(const uint8_t *palette) { this->palette_ = palette; }
   void set_buffer_color_mode(ILI9XXXColorMode color_mode) { this->buffer_color_mode_ = color_mode; }
-
+  void set_dimentions(int16_t width, int16_t height) {
+    this->height_ = height;
+    this->width_ = width;
+  }
   void command(uint8_t value);
   void data(uint8_t value);
   void send_command(uint8_t command_byte, const uint8_t *data_bytes, uint8_t num_data_bytes);

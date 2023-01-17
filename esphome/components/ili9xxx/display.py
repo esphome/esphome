@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
     CONF_BACKLIGHT_PIN,
+    CONF_DIMENSIONS,
 )
 
 DEPENDENCIES = ["spi"]
@@ -67,6 +68,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ili9XXXSPI),
             cv.Required(CONF_MODEL): cv.enum(MODELS, upper=True, space="_"),
+            cv.Optional(CONF_DIMENSIONS): cv.dimensions,
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_LED_PIN): cv.invalid(
@@ -106,6 +108,11 @@ async def to_code(config):
     if CONF_RESET_PIN in config:
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))
+
+    if CONF_DIMENSIONS in config:
+        cg.add(
+            var.set_dimentions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1])
+        )
 
     if CONF_BACKLIGHT_PIN in config:
         led_pin = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
@@ -150,7 +157,7 @@ async def to_code(config):
         assert len(palette) == 256 * 3
         rhs = palette
     else:
-        cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_8))
+        cg.add(var.set_buffer_color_mode(ILI9XXXColorMode.BITS_16))
 
     if rhs is not None:
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
