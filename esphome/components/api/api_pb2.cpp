@@ -628,6 +628,10 @@ bool DeviceInfoResponse::decode_length(uint32_t field_id, ProtoLengthDelimited v
       this->manufacturer = value.as_string();
       return true;
     }
+    case 13: {
+      this->friendly_name = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -645,6 +649,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(10, this->webserver_port);
   buffer.encode_uint32(11, this->bluetooth_proxy_version);
   buffer.encode_string(12, this->manufacturer);
+  buffer.encode_string(13, this->friendly_name);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -698,6 +703,10 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 
   out.append("  manufacturer: ");
   out.append("'").append(this->manufacturer).append("'");
+  out.append("\n");
+
+  out.append("  friendly_name: ");
+  out.append("'").append(this->friendly_name).append("'");
   out.append("\n");
   out.append("}");
 }
