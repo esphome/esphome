@@ -89,7 +89,7 @@ void ILI9XXXDisplay::display_() {
 
   set_addr_window_(this->x_low_, this->y_low_, w, h);
 
-  ESP_LOGVV(TAG,
+  ESP_LOGV(TAG,
             "Start display(xlow:%d, ylow:%d, xhigh:%d, yhigh:%d, width:%d, "
             "heigth:%d, start_pos:%d)",
             this->x_low_, this->y_low_, this->x_high_, this->y_high_, w, h, start_pos);
