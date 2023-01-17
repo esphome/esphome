@@ -107,5 +107,36 @@ void DeltaSolCSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
     this->s4_error_bsensor_->publish_state(message[20] & 8);
 }
 
+void VBusCustomBSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "VBus Custom Binary Sensor:");
+  if (this->source_ == 0xffff) {
+    ESP_LOGCONFIG(TAG, "  Source address: ANY");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Source address: 0x%04x", this->source_);
+  }
+  if (this->dest_ == 0xffff) {
+    ESP_LOGCONFIG(TAG, "  Dest address: ANY");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Dest address: 0x%04x", this->dest_);
+  }
+  if (this->command_ == 0xffff) {
+    ESP_LOGCONFIG(TAG, "  Command: ANY");
+  } else {
+    ESP_LOGCONFIG(TAG, "  Command: 0x%04x", this->command_);
+  }
+  ESP_LOGCONFIG(TAG, "  Binary Sensors:");
+  for (VBusCustomSubBSensor *bsensor: this->bsensors_)
+    LOG_BINARY_SENSOR("  ", "-", bsensor);
+}
+
+void VBusCustomBSensor::handle_message(std::vector<uint8_t> &message) {
+  for (VBusCustomSubBSensor *bsensor: this->bsensors_)
+    bsensor->parse_message(message);
+}
+
+void VBusCustomSubBSensor::parse_message(std::vector<uint8_t> &message) {
+  this->publish_state(this->message_parser_(message));
+}
+
 }  // namespace vbus
 }  // namespace esphome

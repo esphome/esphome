@@ -3,7 +3,13 @@ import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import (
     CONF_ID,
+    CONF_BINARY_SENSORS,
+    CONF_COMMAND,
+    CONF_CUSTOM,
+    CONF_DEST,
+    CONF_LAMBDA,
     CONF_MODEL,
+    CONF_SOURCE,
     DEVICE_CLASS_PROBLEM,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
@@ -21,6 +27,8 @@ DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusBSensor", cg.Component)
 DeltaSol_C = vbus_ns.class_("DeltaSolCBSensor", cg.Component)
 DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2BSensor", cg.Component)
 DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusBSensor", cg.Component)
+VBusCustom = vbus_ns.class_("VBusCustomBSensor", cg.Component)
+VBusCustomSub = vbus_ns.class_("VBusCustomSubBSensor", cg.Component)
 
 CONF_RELAY1 = "relay1"
 CONF_RELAY2 = "relay2"
@@ -145,6 +153,23 @@ CONFIG_SCHEMA = cv.typed_schema(
                 ),
             }
         ),
+        CONF_CUSTOM: cv.COMPONENT_SCHEMA.extend(
+            {
+                cv.GenerateID(): cv.declare_id(VBusCustom),
+                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
+                cv.Optional(CONF_COMMAND): cv.uint16_t,
+                cv.Optional(CONF_SOURCE): cv.uint16_t,
+                cv.Optional(CONF_DEST): cv.uint16_t,
+                cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
+                    binary_sensor.binary_sensor_schema().extend(
+                        {
+                            cv.GenerateID(): cv.declare_id(VBusCustomSub),
+                            cv.Required(CONF_LAMBDA): cv.lambda_,
+                        }
+                    )
+                ),
+            }
+        ),
     },
     key=CONF_MODEL,
     lower=True,
@@ -247,6 +272,25 @@ async def to_code(config):
         if CONF_SENSOR4_ERROR in config:
             sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
             cg.add(var.set_s4_error_bsensor(sens))
+
+    elif config[CONF_MODEL] == CONF_CUSTOM:
+        if CONF_COMMAND in config:
+            cg.add(var.set_command(config[CONF_COMMAND]))
+        if CONF_SOURCE in config:
+            cg.add(var.set_source(config[CONF_SOURCE]))
+        if CONF_DEST in config:
+            cg.add(var.set_dest(config[CONF_DEST]))
+        bsensors = []
+        for conf in config[CONF_BINARY_SENSORS]:
+            bsens = await binary_sensor.new_binary_sensor(conf)
+            lambda_ = await cg.process_lambda(
+                conf[CONF_LAMBDA],
+                [(cg.std_vector.template(cg.uint8), "x")],
+                return_type=cg.bool_,
+            )
+            cg.add(bsens.set_message_parser(lambda_))
+            bsensors.append(bsens)
+        cg.add(var.set_bsensors(bsensors))
 
     vbus = await cg.get_variable(config[CONF_VBUS_ID])
     cg.add(vbus.register_listener(var))

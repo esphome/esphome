@@ -4,8 +4,11 @@ from esphome.components import sensor
 from esphome.const import (
     CONF_ID,
     CONF_COMMAND,
+    CONF_CUSTOM,
+    CONF_DEST,
     CONF_LAMBDA,
     CONF_MODEL,
+    CONF_SENSORS,
     CONF_SOURCE,
     CONF_TIME,
     CONF_VERSION,
@@ -40,9 +43,8 @@ DeltaSol_C = vbus_ns.class_("DeltaSolCSensor", cg.Component)
 DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2Sensor", cg.Component)
 DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusSensor", cg.Component)
 VBusCustom = vbus_ns.class_("VBusCustomSensor", cg.Component)
+VBusCustomSub = vbus_ns.class_("VBusCustomSubSensor", cg.Component)
 
-CONF_CUSTOM = "custom"
-CONF_DEST = "dest"
 CONF_FLOW_RATE = "flow_rate"
 CONF_HEAT_QUANTITY = "heat_quantity"
 CONF_OPERATING_HOURS = "operating_hours"
@@ -376,7 +378,14 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.Optional(CONF_COMMAND): cv.uint16_t,
                 cv.Optional(CONF_SOURCE): cv.uint16_t,
                 cv.Optional(CONF_DEST): cv.uint16_t,
-                cv.Optional(CONF_LAMBDA): cv.lambda_,
+                cv.Optional(CONF_SENSORS): cv.ensure_list(
+                    sensor.sensor_schema().extend(
+                        {
+                            cv.GenerateID(): cv.declare_id(VBusCustomSub),
+                            cv.Required(CONF_LAMBDA): cv.lambda_,
+                        }
+                    )
+                ),
             }
         ),
     },
@@ -543,13 +552,17 @@ async def to_code(config):
             cg.add(var.set_source(config[CONF_SOURCE]))
         if CONF_DEST in config:
             cg.add(var.set_dest(config[CONF_DEST]))
-        if CONF_LAMBDA in config:
+        sensors = []
+        for conf in config[CONF_SENSORS]:
+            sens = await sensor.new_sensor(conf)
             lambda_ = await cg.process_lambda(
-                config[CONF_LAMBDA],
+                conf[CONF_LAMBDA],
                 [(cg.std_vector.template(cg.uint8), "x")],
-                return_type=cg.void,
+                return_type=cg.float_,
             )
-            cg.add(var.set_message_handler(lambda_))
+            cg.add(sens.set_message_parser(lambda_))
+            sensors.append(sens)
+        cg.add(var.set_sensors(sensors))
 
     vbus = await cg.get_variable(config[CONF_VBUS_ID])
     cg.add(vbus.register_listener(var))

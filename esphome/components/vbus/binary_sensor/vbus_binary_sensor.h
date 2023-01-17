@@ -6,8 +6,6 @@
 namespace esphome {
 namespace vbus {
 
-using message_handler_t = std::function<void(std::vector<uint8_t> &)>;
-
 class DeltaSolBSPlusBSensor : public VBusListener, public Component {
  public:
   void dump_config() override;
@@ -90,6 +88,27 @@ class DeltaSolCSPlusBSensor : public VBusListener, public Component {
   binary_sensor::BinarySensor *s4_error_bsensor_{nullptr};
 
   void handle_message(std::vector<uint8_t> &message) override;
+};
+
+class VBusCustomSubBSensor;
+
+class VBusCustomBSensor : public VBusListener, public Component {
+ public:
+  void dump_config() override;
+  void set_bsensors(std::vector<VBusCustomSubBSensor *> bsensors) { this->bsensors_ = std::move(bsensors); };
+
+ protected:
+  std::vector<VBusCustomSubBSensor *> bsensors_;
+  void handle_message(std::vector<uint8_t> &message) override;
+};
+
+class VBusCustomSubBSensor : public binary_sensor::BinarySensor, public Component {
+ public:
+  void set_message_parser(message_parser_t parser) { this->message_parser_ = std::move(parser); };
+  void parse_message(std::vector<uint8_t> &message);
+
+ protected:
+  message_parser_t message_parser_;
 };
 
 }  // namespace vbus

@@ -6,6 +6,8 @@
 namespace esphome {
 namespace vbus {
 
+using message_parser_t = std::function<float(std::vector<uint8_t> &)>;
+
 class VBus;
 
 class VBusListener {

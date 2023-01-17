@@ -174,7 +174,7 @@ void DeltaSolCSPlusSensor::handle_message(std::vector<uint8_t> &message) {
 }
 
 void VBusCustomSensor::dump_config() {
-  ESP_LOGCONFIG(TAG, "VBus Custom:");
+  ESP_LOGCONFIG(TAG, "VBus Custom Sensor:");
   if (this->source_ == 0xffff) {
     ESP_LOGCONFIG(TAG, "  Source address: ANY");
   } else {
@@ -190,11 +190,18 @@ void VBusCustomSensor::dump_config() {
   } else {
     ESP_LOGCONFIG(TAG, "  Command: 0x%04x", this->command_);
   }
+  ESP_LOGCONFIG(TAG, "  Sensors:");
+  for (VBusCustomSubSensor *sensor: this->sensors_)
+    LOG_SENSOR("  ", "-", sensor);
 }
 
 void VBusCustomSensor::handle_message(std::vector<uint8_t> &message) {
-  if (this->message_handler_.has_value())
-    (*this->message_handler_)(message);
+  for (VBusCustomSubSensor *sensor: this->sensors_)
+    sensor->parse_message(message);
+}
+
+void VBusCustomSubSensor::parse_message(std::vector<uint8_t> &message) {
+  this->publish_state(this->message_parser_(message));
 }
 
 }  // namespace vbus
