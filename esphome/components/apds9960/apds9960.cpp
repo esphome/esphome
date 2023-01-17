@@ -23,7 +23,7 @@ void APDS9960::setup() {
     return;
   }
 
-  if (id != 0xAB && id != 0x9C) {  // APDS9960 all should have one of these IDs
+  if (id != 0xAB && id != 0x9C && id != 0xA8) {  // APDS9960 all should have one of these IDs
     this->error_code_ = WRONG_ID;
     this->mark_failed();
     return;
