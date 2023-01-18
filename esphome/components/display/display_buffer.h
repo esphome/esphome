@@ -127,29 +127,29 @@ class DisplayBuffer {
   /// Get the height of the image in pixels with rotation applied.
   int get_height();
   /// Set a single pixel at the specified coordinates to the given color.
-  void draw_pixel_at(int x, int y, Color color = COLOR_ON);
+  virtual void draw_pixel_at(int x, int y, Color color = COLOR_ON);
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
-  void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
+  virtual void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
 
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
-  void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
+  virtual void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  void vertical_line(int x, int y, int height, Color color = COLOR_ON);
+  virtual void vertical_line(int x, int y, int height, Color color = COLOR_ON);
 
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
-  void rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  virtual void rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
 
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
-  void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  virtual void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
+  virtual void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
+  virtual void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -160,7 +160,7 @@ class DisplayBuffer {
    * @param align The alignment of the text.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, Color color, TextAlign align, const char *text);
+  virtual void print(int x, int y, Font *font, Color color, TextAlign align, const char *text);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -234,7 +234,7 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, Font *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
+  virtual void printf(int x, int y, Font *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
 
 #ifdef USE_TIME
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
@@ -294,7 +294,7 @@ class DisplayBuffer {
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
-  void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+  virtual void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
 #ifdef USE_GRAPH
   /** Draw the `graph` with the top-left corner at [x,y] to the screen.
@@ -343,7 +343,7 @@ class DisplayBuffer {
    * @param width A pointer to store the returned text width in.
    * @param height A pointer to store the returned text height in.
    */
-  void get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1, int *width,
+  virtual void get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1, int *width,
                        int *height);
 
   /// Internal method to set the display writer lambda.
@@ -360,14 +360,14 @@ class DisplayBuffer {
   void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
 
   /// Internal method to set the display rotation with.
-  void set_rotation(DisplayRotation rotation);
+  virtual void set_rotation(DisplayRotation rotation);
 
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
-  DisplayRotation get_rotation() const { return this->rotation_; }
+  virtual DisplayRotation get_rotation() const { return this->rotation_; }
 
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.
