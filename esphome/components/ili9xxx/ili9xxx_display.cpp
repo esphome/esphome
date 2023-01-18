@@ -188,15 +188,16 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
   for (uint32_t i = 0; i < sz; ++i) {
     switch (this->buffer_color_mode_) {
       case BITS_8_INDEXED:
-        transfer_buffer_[i] =
-            display::ColorUtil::color_to_565(display::ColorUtil::index8_to_color_palette888(this->buffer_[pos+i], this->palette_));
+        transfer_buffer_[i] = display::ColorUtil::color_to_565(
+            display::ColorUtil::index8_to_color_palette888(this->buffer_[pos+i], this->palette_));
         break;
       case BITS_16:
-        transfer_buffer_[i] =  ((uint16_t)this->buffer_[(pos+i)*2] << 8) | this->buffer_[((pos+i)*2)+1];
+        transfer_buffer_[i] = ((uint16_t) this->buffer_[(pos + i) * 2] << 8) | this->buffer_[((pos + i) * 2) + 1];
         continue;
         break;
       default:
-        transfer_buffer_[i] =  display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(this->buffer_[pos+i]));
+        transfer_buffer_[i] =
+            display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(this->buffer_[pos+i]));
         break;
     }
   }
