@@ -38,10 +38,22 @@ ETHERNET_TYPES = {
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
 emac_rmii_clock_gpio_t = cg.global_ns.enum("emac_rmii_clock_gpio_t")
 CLK_MODES = {
-    "GPIO0_IN":   (emac_rmii_clock_mode_t.EMAC_CLK_EXT_IN,  emac_rmii_clock_gpio_t.EMAC_CLK_IN_GPIO),
-    "GPIO0_OUT":  (emac_rmii_clock_mode_t.EMAC_CLK_OUT,     emac_rmii_clock_gpio_t.EMAC_APPL_CLK_OUT_GPIO),
-    "GPIO16_OUT": (emac_rmii_clock_mode_t.EMAC_CLK_OUT,     emac_rmii_clock_gpio_t.EMAC_CLK_OUT_GPIO),
-    "GPIO17_OUT": (emac_rmii_clock_mode_t.EMAC_CLK_OUT,     emac_rmii_clock_gpio_t.EMAC_CLK_OUT_180_GPIO),
+    "GPIO0_IN": (
+        emac_rmii_clock_mode_t.EMAC_CLK_EXT_IN,
+        emac_rmii_clock_gpio_t.EMAC_CLK_IN_GPIO,
+    ),
+    "GPIO0_OUT": (
+        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
+        emac_rmii_clock_gpio_t.EMAC_APPL_CLK_OUT_GPIO,
+    ),
+    "GPIO16_OUT": (
+        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
+        emac_rmii_clock_gpio_t.EMAC_CLK_OUT_GPIO,
+    ),
+    "GPIO17_OUT": (
+        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
+        emac_rmii_clock_gpio_t.EMAC_CLK_OUT_180_GPIO,
+    ),
 }
 
 

@@ -312,7 +312,10 @@ void EthernetComponent::set_power_pin(int power_pin) { this->power_pin_ = power_
 void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin; }
 void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
-void EthernetComponent::set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio) { this->clk_mode_ = clk_mode; this->clk_gpio_ = clk_gpio; }
+void EthernetComponent::set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio) {
+  this->clk_mode_ = clk_mode;
+  this->clk_gpio_ = clk_gpio;
+}
 void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
 
 std::string EthernetComponent::get_use_address() const {
