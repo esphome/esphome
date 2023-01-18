@@ -75,7 +75,6 @@ void ILI9XXXDisplay::update() {
   this->display_();
 }
 
-
 void ILI9XXXDisplay::fill(Color color) {
   uint16_t new_color = 0;
   this->x_low_ = 0;
@@ -102,9 +101,9 @@ void ILI9XXXDisplay::fill(Color color) {
 }
 
 void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {
-  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
+  if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     return;
-
+  }
   uint32_t pos = (y * width_) + x;
   uint16_t new_color;
   bool updated = false;
@@ -182,7 +181,7 @@ void ILI9XXXDisplay::display_() {
 
   // check if something was displayed
   if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
-    ESP_LOGV(TAG, "Noting to display")
+    ESP_LOGV(TAG, "Noting to display");
     return;
   }
 
