@@ -22,7 +22,9 @@ GraphicalDisplayMenu = graphical_display_menu.class_(
     "GraphicalDisplayMenu", DisplayMenuComponent
 )
 MenuItemValueArguments = graphical_display_menu.struct("MenuItemValueArguments")
-MenuItemValueArgumentsConstPtr = MenuItemValueArguments.operator("ptr").operator("const")
+MenuItemValueArgumentsConstPtr = MenuItemValueArguments.operator("ptr").operator(
+    "const"
+)
 
 CODEOWNERS = ["@MrMDavidson"]
 
@@ -60,7 +62,9 @@ async def to_code(config):
     if CONF_MENU_ITEM_VALUE in config:
         if isinstance(config[CONF_MENU_ITEM_VALUE], core.Lambda):
             template_ = await cg.templatable(
-                config[CONF_MENU_ITEM_VALUE], [(MenuItemValueArgumentsConstPtr, "it")], cg.std_string
+                config[CONF_MENU_ITEM_VALUE],
+                [(MenuItemValueArgumentsConstPtr, "it")],
+                cg.std_string,
             )
             cg.add(var.set_menu_item_value(template_))
         else:
