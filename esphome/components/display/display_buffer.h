@@ -343,8 +343,8 @@ class DisplayBuffer {
    * @param width A pointer to store the returned text width in.
    * @param height A pointer to store the returned text height in.
    */
-  virtual void get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1, int *width,
-                       int *height);
+  virtual void get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1,
+                               int *width, int *height);
 
   /// Internal method to set the display writer lambda.
   void set_writer(display_writer_t &&writer);
