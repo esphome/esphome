@@ -281,8 +281,11 @@ class EsphomeLogsHandler(EsphomeCommandWebSocket):
 
 
 class EsphomeRenameHandler(EsphomeCommandWebSocket):
+    old_name: str
+
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
+        self.old_name = json_message["configuration"]
         return [
             "esphome",
             "--dashboard",
@@ -290,6 +293,15 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
             config_file,
             json_message["newName"],
         ]
+
+    def _proc_on_exit(self, returncode):
+        super()._proc_on_exit(returncode)
+
+        if returncode != 0:
+            return
+
+        # Remove the old ping result from the cache
+        PING_RESULT.pop(self.old_name, None)
 
 
 class EsphomeUploadHandler(EsphomeCommandWebSocket):
@@ -858,6 +870,9 @@ class DeleteRequestHandler(BaseHandler):
             build_folder = os.path.join(settings.config_dir, name)
             if build_folder is not None:
                 shutil.rmtree(build_folder, os.path.join(trash_path, name))
+
+        # Remove the old ping result from the cache
+        PING_RESULT.pop(configuration, None)
 
 
 class UndoDeleteRequestHandler(BaseHandler):
