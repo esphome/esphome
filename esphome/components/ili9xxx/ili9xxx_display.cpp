@@ -197,7 +197,7 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
         break;
       default:
         transfer_buffer_[i] =
-            display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(this->buffer_[pos +i ]));
+            display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(this->buffer_[pos + i]));
         break;
     }
   }
