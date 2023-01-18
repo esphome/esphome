@@ -192,7 +192,7 @@ void ILI9XXXDisplay::display_() {
 
     while (rem > 0) {
       uint32_t sz = buffer_to_transfer_(pos, rem);
-      this->write_array(transfer_buffer_, sz);
+      this->write_array16(transfer_buffer_, sz);
       pos += sz;
       rem -= sz;
     }
