@@ -462,6 +462,15 @@ binary_sensor:
       name: Mi Motion Sensor 2 Light
     button:
       name: Mi Motion Sensor 2 Button
+  - platform: gpio
+    id: gpio_set_retry_test
+    pin: GPIO9
+    on_press:
+      then:
+        - lambda: |-
+            App.scheduler.set_retry(id(gpio_set_retry_test), "set_retry_test", 100, 3, [](const uint8_t remaining) {
+              return remaining ? RetryResult::RETRY : RetryResult::DONE; // just to reference both symbols
+            }, 5.0f);
 
 esp32_ble_tracker:
   on_ble_advertise:
