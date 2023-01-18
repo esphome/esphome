@@ -19,6 +19,9 @@ server {
     error_page 497 https://$http_host$request_uri;
     {{ end }}
 
+    # Clear Hass.io Ingress header
+    proxy_set_header X-HA-Ingress "";
+
     location / {
         proxy_pass http://esphome;
     }
