@@ -127,30 +127,44 @@ class DisplayBuffer {
   /// Get the height of the image in pixels with rotation applied.
   int get_height();
   /// Set a single pixel at the specified coordinates to the given color.
-  virtual void draw_pixel_at(int x, int y, Color color = COLOR_ON);
+  virtual void draw_pixel_at(int x, int y) { draw_pixel_at(x, y, COLOR_ON); };
+  void draw_pixel_at(int x, int y, Color color);
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
-  virtual void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
+  virtual void line(int x1, int y1, int x2, int y2) { line(x1, y1, x2, y2, COLOR_ON); }
+  virtual void line(int x1, int y1, int x2, int y2, Color color);
 
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
-  virtual void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
+  virtual void horizontal_line(int x, int y, int width) { horizontal_line(x, y, width, COLOR_ON); }
+  virtual void horizontal_line(int x, int y, int width, Color color);
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  virtual void vertical_line(int x, int y, int height, Color color = COLOR_ON);
-
+  virtual void vertical_line(int x, int y, int height) {
+    vertical_line(x, y, height, COLOR_ON);
+  }
+  virtual void vertical_line(int x, int y, int height, Color color);
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
-  virtual void rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  virtual void rectangle(int x1, int y1, int width, int height) { rectangle(x1, y1, width, height, COLOR_ON); }
+  virtual void rectangle(int x1, int y1, int width, int height, Color color);
 
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
-  virtual void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  virtual void filled_rectangle(int x1, int y1, int width, int height) {
+    filled_rectangle(x1, y1, width, height, COLOR_ON);
+  }
+  virtual void filled_rectangle(int x1, int y1, int width, int height, Color color);
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
+  virtual void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON) {
+    circle(center_x, center_xy, radius, COLOR_ON);
+  }
   virtual void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
-  virtual void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
-
+  virtual void filled_circle(int center_x, int center_y, int radius) {
+    filled_circle(center_x, center_y, radius, COLOR_ON);
+  }
+  virtual void filled_circle(int center_x, int center_y, int radius, Color color);
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
@@ -294,7 +308,10 @@ class DisplayBuffer {
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
-  virtual void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+  virtual void image(int x, int y, Image *image){
+    image(x, y, image, COLOR_ON, COLOR_OFF);
+  }
+  virtual void image(int x, int y, Image *image, Color color_on, Color color_off);
 
 #ifdef USE_GRAPH
   /** Draw the `graph` with the top-left corner at [x,y] to the screen.
