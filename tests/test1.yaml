@@ -2773,6 +2773,11 @@ cover:
     id: am43_test
     ble_client_id: ble_foo
     icon: mdi:blinds
+  - platform: motion_blinds
+    name: Test Motion Blinds
+    id: motion_blinds_test
+    ble_client_id: ble_foo
+    icon: mdi:blinds
   - platform: feedback
     name: Feedback Cover
     id: gate
