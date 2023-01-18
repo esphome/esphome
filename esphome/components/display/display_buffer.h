@@ -153,10 +153,10 @@ class DisplayBuffer {
   virtual void filled_rectangle(int x1, int y1, int width, int height, Color color);
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
-  virtual void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON) {
+  virtual void circle(int center_x, int center_xy, int radius) {
     circle(center_x, center_xy, radius, COLOR_ON);
   }
-  virtual void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
+  virtual void circle(int center_x, int center_xy, int radius, Color color);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
   virtual void filled_circle(int center_x, int center_y, int radius) {
@@ -306,7 +306,7 @@ class DisplayBuffer {
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
-  virtual void image(int x, int y, Image *image) { image(x, y, image, COLOR_ON, COLOR_OFF); }
+  virtual void image(int x, int y, Image *data) { image(x, y, data, COLOR_ON, COLOR_OFF); }
   virtual void image(int x, int y, Image *image, Color color_on, Color color_off);
 
 #ifdef USE_GRAPH
