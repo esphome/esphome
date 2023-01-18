@@ -1,0 +1,63 @@
+#!/command/with-contenv bashio
+# shellcheck shell=bash
+# ==============================================================================
+# Community Hass.io Add-ons: ESPHome
+# Configures NGINX for use with ESPHome
+# ==============================================================================
+declare certfile
+declare direct_port
+declare ingress_interface
+declare ingress_port
+declare keyfile
+
+mkdir -p /var/log/nginx
+
+direct_port=$(bashio::addon.port 6052)
+if bashio::var.has_value "${direct_port}"; then
+    # Check SSL requirements, if enabled
+    if bashio::config.true 'ssl'; then
+        if ! bashio::config.has_value 'certfile'; then
+            bashio::log.fatal 'SSL is enabled, but no certfile was specified.'
+            bashio::exit.nok
+        fi
+
+        if ! bashio::config.has_value 'keyfile'; then
+            bashio::log.fatal 'SSL is enabled, but no keyfile was specified'
+            bashio::exit.nok
+        fi
+
+        certfile="/ssl/$(bashio::config 'certfile')"
+        keyfile="/ssl/$(bashio::config 'keyfile')"
+
+        if ! bashio::fs.file_exists "/ssl/${certfile}"; then
+            if ! bashio::fs.file_exists "/ssl/${keyfile}"; then
+                # Both files are missing, let's print a friendlier error message
+                bashio::log.fatal 'You enabled encrypted connections using the "ssl": true option.'
+                bashio::log.fatal "However, the SSL files '${certfile}' and '${keyfile}'"
+                bashio::log.fatal "were not found. If you're using Hass.io on your local network and don't want"
+                bashio::log.fatal 'to encrypt connections to the ESPHome dashboard, you can manually disable'
+                bashio::log.fatal 'SSL by setting "ssl" to false."'
+                bashio::exit.nok
+            fi
+            bashio::log.fatal "The configured certfile '/ssl/${certfile}' was not found."
+            bashio::exit.nok
+        fi
+
+        if ! bashio::fs.file_exists "/ssl/${keyfile}"; then
+            bashio::log.fatal "The configured keyfile '/ssl/${keyfile}' was not found."
+            bashio::exit.nok
+        fi
+        mv /etc/nginx/servers/direct-ssl.disabled /etc/nginx/servers/direct.conf
+        sed -i "s/%%certfile%%/${certfile}/g" /etc/nginx/servers/direct.conf
+        sed -i "s/%%keyfile%%/${keyfile}/g" /etc/nginx/servers/direct.conf
+    else
+        mv /etc/nginx/servers/direct.disabled /etc/nginx/servers/direct.conf
+    fi
+
+    sed -i "s/%%port%%/${direct_port}/g" /etc/nginx/servers/direct.conf
+fi
+
+ingress_port=$(bashio::addon.ingress_port)
+ingress_interface=$(bashio::addon.ip_address)
+sed -i "s/%%port%%/${ingress_port}/g" /etc/nginx/servers/ingress.conf
+sed -i "s/%%interface%%/${ingress_interface}/g" /etc/nginx/servers/ingress.conf
