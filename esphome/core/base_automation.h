@@ -3,6 +3,8 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 
+#include <vector>
+
 namespace esphome {
 
 template<typename... Ts> class AndCondition : public Condition<Ts...> {

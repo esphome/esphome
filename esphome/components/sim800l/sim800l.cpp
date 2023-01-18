@@ -196,8 +196,9 @@ void Sim800LComponent::parse_cmd_(std::string message) {
       //           "+CREG: -,-" means not registered ok
       bool registered = message.compare(0, 6, "+CREG:") == 0 && (message[9] == '1' || message[9] == '5');
       if (registered) {
-        if (!this->registered_)
+        if (!this->registered_) {
           ESP_LOGD(TAG, "Registered OK");
+        }
         this->state_ = STATE_CSQ;
         this->expect_ack_ = true;
       } else {

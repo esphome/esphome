@@ -162,7 +162,26 @@ binary_sensor:
       then:
         - output.turn_off: Led7
 
+  - platform: gpio
+    id: sn74hc165_pin_0
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 0
 
+  - platform: ezo_pmp
+    pump_state:
+      name: "Pump State"
+    is_paused:
+      name: "Is Paused"
+
+  - platform: matrix_keypad
+    keypad_id: keypad
+    id: key4
+    row: 1
+    col: 1
+  - platform: matrix_keypad
+    id: key1
+    key: 1
 
 
 tlc5947:
@@ -220,6 +239,10 @@ esp32_improv:
   authorized_duration: 1min
   status_indicator: built_in_led
 
+ezo_pmp:
+  id: hcl_pump
+  update_interval: 1s
+
 number:
   - platform: template
     name: My template number
@@ -230,6 +253,7 @@ number:
     step: 5
     unit_of_measurement: "%"
     mode: slider
+    device_class: humidity
     on_value:
       - logger.log:
           format: Number changed to %f
@@ -440,6 +464,20 @@ sensor:
     cold_junction:
       name: Ambient Temperature
 
+  - platform: ezo_pmp
+    current_volume_dosed:
+      name: Current Volume Dosed
+    total_volume_dosed:
+      name: Total Volume Dosed
+    absolute_total_volume_dosed:
+      name: Absolute Total Volume Dosed
+    pump_voltage:
+      name: Pump Voltage
+    last_volume_requested:
+      name: Last Volume Requested
+    max_flow_rate:
+      name: Max Flow Rate
+
 script:
   - id: automation_test
     then:
@@ -486,4 +524,63 @@ display:
     intensity: 5
     lambda: |-
       it.print("81818181");
+
+time:
+  - platform: pcf85063
+
+text_sensor:
+  - platform: ezo_pmp
+    dosing_mode:
+      name: Dosing Mode
+    calibration_status:
+      name: Calibration Status
+      on_value:
+        - ezo_pmp.dose_volume:
+            id: hcl_pump
+            volume: 10
+        - ezo_pmp.dose_volume_over_time:
+            id: hcl_pump
+            volume: 10
+            duration: 2
+        - ezo_pmp.dose_with_constant_flow_rate:
+            id: hcl_pump
+            volume_per_minute: 10
+            duration: 2
+        - ezo_pmp.set_calibration_volume:
+            id: hcl_pump
+            volume: 10
+        - ezo_pmp.find: hcl_pump
+        - ezo_pmp.dose_continuously: hcl_pump
+        - ezo_pmp.clear_total_volume_dosed: hcl_pump
+        - ezo_pmp.clear_calibration: hcl_pump
+        - ezo_pmp.pause_dosing: hcl_pump
+        - ezo_pmp.stop_dosing: hcl_pump
+        - ezo_pmp.arbitrary_command:
+            id: hcl_pump
+            command: D,?
+
+sn74hc165:
+  id: sn74hc165_hub
+  data_pin: GPIO12
+  clock_pin: GPIO14
+  load_pin: GPIO27
+  clock_inhibit_pin: GPIO26
+  sr_count: 4
+
+
+matrix_keypad:
+  id: keypad
+  rows:
+    - pin: 21
+    - pin: 19
+  columns:
+    - pin: 17
+    - pin: 16
+  keys: "1234"
+
+key_collector:
+  - id: reader
+    source_id: keypad
+    min_length: 4
+    max_length: 4
 

@@ -462,6 +462,15 @@ binary_sensor:
       name: Mi Motion Sensor 2 Light
     button:
       name: Mi Motion Sensor 2 Button
+  - platform: gpio
+    id: gpio_set_retry_test
+    pin: GPIO9
+    on_press:
+      then:
+        - lambda: |-
+            App.scheduler.set_retry(id(gpio_set_retry_test), "set_retry_test", 100, 3, [](const uint8_t remaining) {
+              return remaining ? RetryResult::RETRY : RetryResult::DONE; // just to reference both symbols
+            }, 5.0f);
 
 esp32_ble_tracker:
   on_ble_advertise:
@@ -532,6 +541,16 @@ text_sensor:
                 ESP_LOGD("main", "The state is %s=%s", x.c_str(), id(version_sensor).state.c_str());
             # yamllint enable rule:line-length
       - script.execute: my_script
+      - script.execute:
+          id: my_script_with_params
+          prefix: Running my_script_with_params
+          param2: 100
+          param3: true
+      - script.execute:
+          id: my_script_with_params
+          prefix: Running my_script_with_params using lambda parameters
+          param2: !lambda return 200;
+          param3: !lambda return true;
       - homeassistant.service:
           service: notify.html5
           data:
@@ -597,6 +616,13 @@ script:
     mode: restart
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
+  - id: my_script_with_params
+    parameters:
+      prefix: string
+      param2: int
+      param3: bool
+    then:
+      - lambda: 'ESP_LOGD("main", (prefix + " Hello World!" + to_string(param2) + " " + to_string(param3)).c_str());'
 
 stepper:
   - platform: uln2003

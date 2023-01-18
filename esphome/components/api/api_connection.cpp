@@ -616,6 +616,7 @@ bool APIConnection::send_number_info(number::Number *number) {
   msg.entity_category = static_cast<enums::EntityCategory>(number->get_entity_category());
   msg.unit_of_measurement = number->traits.get_unit_of_measurement();
   msg.mode = static_cast<enums::NumberMode>(number->traits.get_mode());
+  msg.device_class = number->traits.get_device_class();
 
   msg.min_value = number->traits.get_min_value();
   msg.max_value = number->traits.get_max_value();
@@ -929,9 +930,15 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
   resp.uses_password = this->parent_->uses_password();
   resp.name = App.get_name();
+  resp.friendly_name = App.get_friendly_name();
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
+#if defined(USE_ESP8266) || defined(USE_ESP32)
+  resp.manufacturer = "Espressif";
+#elif defined(USE_RP2040)
+  resp.manufacturer = "Raspberry Pi";
+#endif
   resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
   resp.has_deep_sleep = deep_sleep::global_has_deep_sleep;
@@ -944,7 +951,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  resp.bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->has_active() ? 2 : 1;
+  resp.bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->has_active() ? 3 : 1;
 #endif
   return resp;
 }

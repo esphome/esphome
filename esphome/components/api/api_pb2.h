@@ -160,6 +160,8 @@ enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1,
   BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR = 2,
   BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3,
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE = 4,
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5,
 };
 
 }  // namespace enums
@@ -273,6 +275,8 @@ class DeviceInfoResponse : public ProtoMessage {
   std::string project_version{};
   uint32_t webserver_port{0};
   uint32_t bluetooth_proxy_version{0};
+  std::string manufacturer{};
+  std::string friendly_name{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1003,6 +1007,7 @@ class ListEntitiesNumberResponse : public ProtoMessage {
   enums::EntityCategory entity_category{};
   std::string unit_of_measurement{};
   enums::NumberMode mode{};
+  std::string device_class{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1255,6 +1260,7 @@ class BluetoothLEAdvertisementResponse : public ProtoMessage {
   std::vector<std::string> service_uuids{};
   std::vector<BluetoothServiceData> service_data{};
   std::vector<BluetoothServiceData> manufacturer_data{};
+  uint32_t address_type{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1268,6 +1274,8 @@ class BluetoothDeviceRequest : public ProtoMessage {
  public:
   uint64_t address{0};
   enums::BluetoothDeviceRequestType request_type{};
+  bool has_address_type{false};
+  uint32_t address_type{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

@@ -1,16 +1,15 @@
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_RP2040
 
-#include "gpio_arduino.h"
+#include "gpio.h"
 #include "esphome/core/log.h"
-#include <esp32-hal-gpio.h>
 
 namespace esphome {
-namespace esp32 {
+namespace rp2040 {
 
-static const char *const TAG = "esp32";
+static const char *const TAG = "rp2040";
 
-static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
-  if (flags == gpio::FLAG_INPUT) {
+static int IRAM_ATTR flags_to_mode(gpio::Flags flags, uint8_t pin) {
+  if (flags == gpio::FLAG_INPUT) {  // NOLINT(bugprone-branch-clone)
     return INPUT;
   } else if (flags == gpio::FLAG_OUTPUT) {
     return OUTPUT;
@@ -18,8 +17,8 @@ static int IRAM_ATTR flags_to_mode(gpio::Flags flags) {
     return INPUT_PULLUP;
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLDOWN)) {
     return INPUT_PULLDOWN;
-  } else if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
-    return OUTPUT_OPEN_DRAIN;
+    // } else if (flags == (gpio::FLAG_OUTPUT | gpio::FLAG_OPEN_DRAIN)) {
+    //   return OpenDrain;
   } else {
     return 0;
   }
@@ -30,15 +29,15 @@ struct ISRPinArg {
   bool inverted;
 };
 
-ISRInternalGPIOPin ArduinoInternalGPIOPin::to_isr() const {
+ISRInternalGPIOPin RP2040GPIOPin::to_isr() const {
   auto *arg = new ISRPinArg{};  // NOLINT(cppcoreguidelines-owning-memory)
   arg->pin = pin_;
   arg->inverted = inverted_;
   return ISRInternalGPIOPin((void *) arg);
 }
 
-void ArduinoInternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
-  uint8_t arduino_mode = DISABLED;
+void RP2040GPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpio::InterruptType type) const {
+  PinStatus arduino_mode = LOW;
   switch (type) {
     case gpio::INTERRUPT_RISING_EDGE:
       arduino_mode = inverted_ ? FALLING : RISING;
@@ -50,39 +49,36 @@ void ArduinoInternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, g
       arduino_mode = CHANGE;
       break;
     case gpio::INTERRUPT_LOW_LEVEL:
-      arduino_mode = inverted_ ? ONHIGH : ONLOW;
+      arduino_mode = inverted_ ? HIGH : LOW;
       break;
     case gpio::INTERRUPT_HIGH_LEVEL:
-      arduino_mode = inverted_ ? ONLOW : ONHIGH;
+      arduino_mode = inverted_ ? LOW : HIGH;
       break;
   }
 
-  attachInterruptArg(pin_, func, arg, arduino_mode);
+  attachInterrupt(pin_, func, arduino_mode, arg);
+}
+void RP2040GPIOPin::pin_mode(gpio::Flags flags) {
+  pinMode(pin_, flags_to_mode(flags, pin_));  // NOLINT
 }
 
-void ArduinoInternalGPIOPin::pin_mode(gpio::Flags flags) {
-  pinMode(pin_, flags_to_mode(flags));  // NOLINT
-}
-
-std::string ArduinoInternalGPIOPin::dump_summary() const {
+std::string RP2040GPIOPin::dump_summary() const {
   char buffer[32];
   snprintf(buffer, sizeof(buffer), "GPIO%u", pin_);
   return buffer;
 }
 
-bool ArduinoInternalGPIOPin::digital_read() {
+bool RP2040GPIOPin::digital_read() {
   return bool(digitalRead(pin_)) != inverted_;  // NOLINT
 }
-void ArduinoInternalGPIOPin::digital_write(bool value) {
+void RP2040GPIOPin::digital_write(bool value) {
   digitalWrite(pin_, value != inverted_ ? 1 : 0);  // NOLINT
 }
-void ArduinoInternalGPIOPin::detach_interrupt() const {
-  detachInterrupt(pin_);  // NOLINT
-}
+void RP2040GPIOPin::detach_interrupt() const { detachInterrupt(pin_); }
 
-}  // namespace esp32
+}  // namespace rp2040
 
-using namespace esp32;
+using namespace rp2040;
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
@@ -93,22 +89,15 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
   digitalWrite(arg->pin, value != arg->inverted ? 1 : 0);  // NOLINT
 }
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
-  auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-#ifdef CONFIG_IDF_TARGET_ESP32C3
-  GPIO.status_w1tc.val = 1UL << arg->pin;
-#else
-  if (arg->pin < 32) {
-    GPIO.status_w1tc = 1UL << arg->pin;
-  } else {
-    GPIO.status1_w1tc.intr_st = 1UL << (arg->pin - 32);
-  }
-#endif
+  // TODO: implement
+  // auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
+  // GPIO_REG_WRITE(GPIO_STATUS_W1TC_ADDRESS, 1UL << arg->pin);
 }
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  pinMode(arg->pin, flags_to_mode(flags));  // NOLINT
+  pinMode(arg->pin, flags_to_mode(flags, arg->pin));  // NOLINT
 }
 
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO
+#endif  // USE_RP2040

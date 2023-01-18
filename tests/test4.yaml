@@ -381,6 +381,7 @@ climate:
     target_temperature_datapoint: 3
     current_temperature_multiplier: 0.5
     target_temperature_multiplier: 0.5
+    reports_fahrenheit: true
 
 switch:
   - platform: tuya
@@ -532,6 +533,9 @@ text_sensor:
   - platform: copy
     source_id: inverter0_device_mode
     name: Inverter Text Sensor Copy
+  - platform: ethernet_info
+    ip_address:
+      name: IP Address
 
 output:
   - platform: pipsolar
