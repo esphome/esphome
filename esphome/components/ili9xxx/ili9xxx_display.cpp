@@ -49,8 +49,7 @@ void ILI9XXXDisplay::setup_pins_() {
 
 void ILI9XXXDisplay::dump_config() {
   LOG_DISPLAY("", "ili9xxx", this);
-  switch (this->buffer_color_mode_)
-  {
+  switch (this->buffer_color_mode_) {
     case BITS_8_INDEXED:
       ESP_LOGCONFIG(TAG, "  Color mode: 8bit Indexed");
       break;
@@ -59,7 +58,7 @@ void ILI9XXXDisplay::dump_config() {
       break;
     default:
       ESP_LOGCONFIG(TAG, "  Color mode: 8bit 332 mode");
-    break;
+      break;
   }
 
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
@@ -76,45 +75,6 @@ void ILI9XXXDisplay::update() {
   this->display_();
 }
 
-void ILI9XXXDisplay::display_() {
-  // we will only update the changed window to the display
-  uint16_t w = this->x_high_ - this->x_low_ + 1;  // NOLINT
-  uint16_t h = this->y_high_ - this->y_low_ + 1;  // NOLINT
-  uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
-
-  // check if something was displayed
-  if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
-    return;
-  }
-
-  set_addr_window_(this->x_low_, this->y_low_, w, h);
-
-  ESP_LOGV(TAG,
-            "Start display(xlow:%d, ylow:%d, xhigh:%d, yhigh:%d, width:%d, "
-            "heigth:%d, start_pos:%d)",
-            this->x_low_, this->y_low_, this->x_high_, this->y_high_, w, h, start_pos);
-
-  this->start_data_();
-  for (uint16_t row = 0; row < h; row++) {
-    uint32_t pos = start_pos + (row * width_);
-    uint32_t rem = w;
-
-    while (rem > 0) {
-      uint32_t sz = buffer_to_transfer_(pos, rem);
-      this->write_array(transfer_buffer_, 2 * sz);
-      pos += sz;
-      rem -= sz;
-    }
-    App.feed_wdt();
-  }
-  this->end_data_();
-
-  // invalidate watermarks
-  this->x_low_ = this->width_;
-  this->y_low_ = this->height_;
-  this->x_high_ = 0;
-  this->y_high_ = 0;
-}
 
 void ILI9XXXDisplay::fill(Color color) {
   uint16_t new_color = 0;
@@ -129,7 +89,7 @@ void ILI9XXXDisplay::fill(Color color) {
     case BITS_16:
       new_color = display::ColorUtil::color_to_565(color);
       for (uint32_t i = 0; i < this->get_buffer_length_() * 2; i = i + 2) {
-        this->buffer_[i] = (uint8_t)(new_color >> 8);
+        this->buffer_[i] = (uint8_t) (new_color >> 8);
         this->buffer_[i + 1] = (uint8_t) new_color;
       }
       return;
@@ -155,8 +115,8 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     case BITS_16:
       pos = pos * 2;
       new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
-      if (this->buffer_[pos] != (uint8_t)(new_color >> 8)) {
-        this->buffer_[pos] = (uint8_t)(new_color >> 8);
+      if (this->buffer_[pos] != (uint8_t) (new_color >> 8)) {
+        this->buffer_[pos] = (uint8_t) (new_color >> 8);
         updated = true;
       }
       pos = pos + 1;
@@ -180,6 +140,79 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     ESP_LOGVV(TAG, "=>>> pixel (x:%d, y:%d) (xl:%d, xh:%d, yl:%d, yh:%d", x, y, this->x_low_, this->x_high_,
               this->y_low_, this->y_high_);
   }
+}
+
+uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
+  uint8_t *src = buffer_ + pos;
+  uint8_t *dst = transfer_buffer_;
+  uint16_t color;
+  Color col;
+
+  if (sz > sizeof(transfer_buffer_) / 2) {
+    sz = sizeof(transfer_buffer_) / 2;
+  }
+
+  for (uint32_t i = 0; i < sz; ++i) {
+    switch (this->buffer_color_mode_) {
+      case BITS_8_INDEXED:
+        color =
+            display::ColorUtil::color_to_565(display::ColorUtil::index8_to_color_palette888(*src++, this->palette_));
+        break;
+      case BITS_16:
+        *dst++ = *src++;
+        *dst++ = *src++;
+        continue;
+        break;
+      default:
+        color = display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(*src++));
+        break;
+    }
+    *dst++ = (uint8_t) (color >> 8);
+    *dst++ = (uint8_t) color;
+  }
+
+  return sz;
+}
+
+void ILI9XXXDisplay::display_() {
+  // we will only update the changed window to the display
+  uint16_t w = this->x_high_ - this->x_low_ + 1;  // NOLINT
+  uint16_t h = this->y_high_ - this->y_low_ + 1;  // NOLINT
+  uint32_t start_pos = ((this->y_low_ * this->width_) + x_low_);
+
+  // check if something was displayed
+  if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
+    ESP_LOGV(TAG, "Noting to display")
+    return;
+  }
+
+  set_addr_window_(this->x_low_, this->y_low_, w, h);
+
+  ESP_LOGV(TAG,
+           "Start display(xlow:%d, ylow:%d, xhigh:%d, yhigh:%d, width:%d, "
+           "heigth:%d, start_pos:%d)",
+           this->x_low_, this->y_low_, this->x_high_, this->y_high_, w, h, start_pos);
+
+  this->start_data_();
+  for (uint16_t row = 0; row < h; row++) {
+    uint32_t pos = start_pos + (row * width_);
+    uint32_t rem = w;
+
+    while (rem > 0) {
+      uint32_t sz = buffer_to_transfer_(pos, rem);
+      this->write_array(transfer_buffer_, 2 * sz);
+      pos += sz;
+      rem -= sz;
+    }
+    App.feed_wdt();
+  }
+  this->end_data_();
+
+  // invalidate watermarks
+  this->x_low_ = this->width_;
+  this->y_low_ = this->height_;
+  this->x_high_ = 0;
+  this->y_high_ = 0;
 }
 
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
@@ -277,82 +310,74 @@ void ILI9XXXDisplay::invert_display_(bool invert) { this->command(invert ? ILI9X
 int ILI9XXXDisplay::get_width_internal() { return this->width_; }
 int ILI9XXXDisplay::get_height_internal() { return this->height_; }
 
-uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
-  uint8_t *src = buffer_ + pos;
-  uint8_t *dst = transfer_buffer_;
-  uint16_t color;
-  Color col;
-
-  if (sz > sizeof(transfer_buffer_) / 2) {
-    sz = sizeof(transfer_buffer_) / 2;
-  }
-
-  for (uint32_t i = 0; i < sz; ++i) {
-    switch (this->buffer_color_mode_) {
-      case BITS_8_INDEXED:
-        color =
-            display::ColorUtil::color_to_565(display::ColorUtil::index8_to_color_palette888(*src++, this->palette_));
-        break;
-      case BITS_16:
-        *dst++ = (uint8_t) *src++;
-        *dst++ = (uint8_t) *src++;
-        continue;
-        break;
-      default:
-        color = display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(*src++));
-        break;
-    }
-    *dst++ = (uint8_t)(color >> 8);
-    *dst++ = (uint8_t) color;
-  }
-
-  return sz;
-}
-
 //   M5Stack display
 void ILI9XXXM5Stack::initialize() {
   this->init_lcd_(INITCMD_M5STACK);
-  if (this->width_ ==0 ) this->width_ = 320;
-  if (this->height_ == 0) this->height_ = 240;
+  if (this->width_ == 0)
+    this->width_ = 320;
+  if (this->height_ == 0)
+    this->height_ = 240;
   this->invert_display_(true);
 }
 //   24_TFT display
 void ILI9XXXILI9341::initialize() {
   this->init_lcd_(INITCMD_ILI9341);
-  if (this->width_ == 0 ) this->width_ = 240;
-  if (this->height_ == 0) this->height_ = 320;
+  if (this->width_ == 0)
+    this->width_ = 240;
+  if (this->height_ == 0)
+    this->height_ = 320;
 }
 //   24_TFT rotated display
 void ILI9XXXILI9342::initialize() {
   this->init_lcd_(INITCMD_ILI9341);
-  if (this->width_ == 0) this->width_ = 320;
-  if (this->height_ == 0) this->height_ = 240;
+  if (this->width_ == 0) {
+    this->width_ = 320;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 240;
+  }
 }
 
 //   35_TFT display
 void ILI9XXXILI9481::initialize() {
   this->init_lcd_(INITCMD_ILI9481);
-  if (this->width_ == 0) this->width_ = 480;
-  if (this->height_ == 0) this->height_ = 320;
+  if (this->width_ == 0) {
+    this->width_ = 480;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 320;
+  }
 }
 
 //   35_TFT display
 void ILI9XXXILI9486::initialize() {
   this->init_lcd_(INITCMD_ILI9486);
-  if (this->width_ == 0) this->width_ = 480;
-  if (this->height_ == 0) this->height_ = 320;
+  if (this->width_ == 0) {
+    this->width_ = 480;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 320;
+  }
 }
 //    40_TFT display
 void ILI9XXXILI9488::initialize() {
   this->init_lcd_(INITCMD_ILI9488);
-  if (this->width_ == 0) this->width_ = 480;
-  if (this->height_ == 0) this->height_ = 320;
+  if (this->width_ == 0) {
+    this->width_ = 480;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 320;
+  }
 }
 //    40_TFT display
 void ILI9XXXST7796::initialize() {
   this->init_lcd_(INITCMD_ST7796);
-  if (this->width_ == 0) this->width_ = 320;
-  if (this->height_ == 0) this->height_ = 480;
+  if (this->width_ == 0) {
+    this->width_ = 320;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 480;
+  }
 }
 
 }  // namespace ili9xxx
