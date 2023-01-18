@@ -19,9 +19,7 @@ static const uint8_t DALY_REQUEST_STATUS = 0x94;
 static const uint8_t DALY_REQUEST_CELL_VOLTAGE = 0x95;
 static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
-void DalyBmsComponent::setup() {
-  next_request_ = 1;
-}
+void DalyBmsComponent::setup() { next_request_ = 1; }
 
 void DalyBmsComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Daly BMS:");
@@ -42,7 +40,7 @@ void DalyBmsComponent::loop() {
     receiving_ = false;
   }
   if ((now - last_transmission_ >= 250) && !trigger_next_) {
-    //last transmittion loger than 0.25s ago -> trigger next request
+    // last transmittion loger than 0.25s ago -> trigger next request
     last_transmission_ = now;
     trigger_next_ = true;
   }
@@ -58,7 +56,7 @@ void DalyBmsComponent::loop() {
     }
     data_.push_back(c);
     if (data_.size() == 4)
-        data_count_ = c;
+      data_count_ = c;
     if ((data_.size() > 4) and (data_.size() == data_count_ + 5)) {
       this->decode_data_(data_);
       data_.clear();
@@ -66,7 +64,7 @@ void DalyBmsComponent::loop() {
     }
   }
 
-  if (trigger_next_){
+  if (trigger_next_) {
     trigger_next_ = false;
     switch (next_request_) {
       case 0:
@@ -76,30 +74,30 @@ void DalyBmsComponent::loop() {
       case 1:
         this->request_data_(DALY_REQUEST_MIN_MAX_VOLTAGE);
         next_request_ = 2;
-      break;
+        break;
       case 2:
         this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
         next_request_ = 3;
-      break;
+        break;
       case 3:
         this->request_data_(DALY_REQUEST_MOS);
         next_request_ = 4;
-      break;
+        break;
       case 4:
         this->request_data_(DALY_REQUEST_STATUS);
         next_request_ = 5;
-      break;
+        break;
       case 5:
         this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
         next_request_ = 6;
-      break;
+        break;
       case 6:
         this->request_data_(DALY_REQUEST_TEMPERATURE);
         next_request_ = 7;
-      break;
+        break;
       case 7:
       default:
-      break;
+        break;
     }
   }
 }
@@ -124,7 +122,7 @@ void DalyBmsComponent::request_data_(uint8_t data_id) {
   request_message[12] = (uint8_t)(request_message[0] + request_message[1] + request_message[2] +
                                   request_message[3]);  // Checksum (Lower byte of the other bytes sum)
 
-  ESP_LOGV(TAG,"Request datapacket Nr %x", data_id);
+  ESP_LOGV(TAG, "Request datapacket Nr %x", data_id);
   this->write_array(request_message, sizeof(request_message));
   this->flush();
 }
@@ -298,7 +296,7 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
             break;
         }
       } else {
-        ESP_LOGW(TAG,"Checksum-Error on Packet %x", it[4]);
+        ESP_LOGW(TAG, "Checksum-Error on Packet %x", it[4]);
       }
       std::advance(it, DALY_FRAME_SIZE);
     } else {
