@@ -139,9 +139,7 @@ class DisplayBuffer {
   virtual void horizontal_line(int x, int y, int width, Color color);
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  virtual void vertical_line(int x, int y, int height) {
-    vertical_line(x, y, height, COLOR_ON);
-  }
+  virtual void vertical_line(int x, int y, int height) { vertical_line(x, y, height, COLOR_ON); }
   virtual void vertical_line(int x, int y, int height, Color color);
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
@@ -308,9 +306,7 @@ class DisplayBuffer {
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
-  virtual void image(int x, int y, Image *image){
-    image(x, y, image, COLOR_ON, COLOR_OFF);
-  }
+  virtual void image(int x, int y, Image *image) { image(x, y, image, COLOR_ON, COLOR_OFF); }
   virtual void image(int x, int y, Image *image, Color color_on, Color color_off);
 
 #ifdef USE_GRAPH
