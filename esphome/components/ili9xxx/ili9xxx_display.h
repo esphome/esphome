@@ -7,6 +7,8 @@
 namespace esphome {
 namespace ili9xxx {
 
+const uint32_t ILI9XXX_TRANSFER_BUFFER_SIZE = 64;
+
 enum ILI9XXXColorMode {
   BITS_8 = 0x08,
   BITS_8_INDEXED = 0x09,
@@ -72,7 +74,7 @@ class ILI9XXXDisplay : public PollingComponent,
   void start_data_();
   void end_data_();
 
-  uint16_t transfer_buffer_[64];
+  uint16_t transfer_buffer_[ILI9XXX_TRANSFER_BUFFER_SIZE];
 
   uint32_t buffer_to_transfer_(uint32_t pos, uint32_t sz);
 
