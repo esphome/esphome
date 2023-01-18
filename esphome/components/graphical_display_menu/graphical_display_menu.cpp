@@ -13,10 +13,17 @@ void GraphicalDisplayMenu::setup() {
   this->display_page_ = new display::DisplayPage(writer);
 
   if (!this->menu_item_value_.has_value()) {
-    this->menu_item_value_ = [](const display_menu_base::MenuItem *it) {
-      std::string label = " (";
-      label.append(it->get_value_text());
-      label.append(")");
+    this->menu_item_value_ = [](const MenuItemValueArguments *it) {
+      std::string label = " ";
+      if (it->is_item_selected && it->is_menu_editing) {
+        label.append(">");
+        label.append(it->item->get_value_text());
+        label.append("<");
+      } else {
+        label.append("(");
+        label.append(it->item->get_value_text());
+        label.append(")");
+      }
       return label;
     };
   }
@@ -148,7 +155,8 @@ Dimension GraphicalDisplayMenu::measure_item(const display_menu_base::MenuItem *
   std::string label = item->get_text();
   if (item->has_value()) {
     // Append to label
-    label.append(this->menu_item_value_.value(item));
+    MenuItemValueArguments args(item, selected, this->editing_);
+    label.append(this->menu_item_value_.value(&args));
   }
 
   int x1;
@@ -178,7 +186,8 @@ inline void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *i
 
   std::string label = item->get_text();
   if (item->has_value()) {
-    label.append(this->menu_item_value_.value(item));
+    MenuItemValueArguments args(item, selected, this->editing_);
+    label.append(this->menu_item_value_.value(&args));
   }
 
   this->display_buffer_->print(position->x, position->y, this->font_, foreground_color, display::TextAlign::TOP_LEFT,

@@ -21,10 +21,8 @@ graphical_display_menu = cg.esphome_ns.namespace("graphical_display_menu")
 GraphicalDisplayMenu = graphical_display_menu.class_(
     "GraphicalDisplayMenu", DisplayMenuComponent
 )
-
-display_menu_base_ns = cg.esphome_ns.namespace("display_menu_base")
-MenuItem = display_menu_base_ns.class_("MenuItem")
-MenuItemConstPtr = MenuItem.operator("ptr").operator("const")
+MenuItemValueArguments = graphical_display_menu.struct("MenuItemValueArguments")
+MenuItemValueArgumentsConstPtr = MenuItemValueArguments.operator("ptr").operator("const")
 
 CODEOWNERS = ["@MrMDavidson"]
 
@@ -62,7 +60,7 @@ async def to_code(config):
     if CONF_MENU_ITEM_VALUE in config:
         if isinstance(config[CONF_MENU_ITEM_VALUE], core.Lambda):
             template_ = await cg.templatable(
-                config[CONF_MENU_ITEM_VALUE], [(MenuItemConstPtr, "it")], cg.std_string
+                config[CONF_MENU_ITEM_VALUE], [(MenuItemValueArgumentsConstPtr, "it")], cg.std_string
             )
             cg.add(var.set_menu_item_value(template_))
         else:

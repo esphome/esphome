@@ -9,6 +9,19 @@
 namespace esphome {
 
 namespace graphical_display_menu {
+
+struct MenuItemValueArguments {
+  MenuItemValueArguments(const display_menu_base::MenuItem *item, bool is_item_selected, bool is_menu_editing) {
+    this->item = item;
+    this->is_item_selected = is_item_selected;
+    this->is_menu_editing = is_menu_editing;
+  }
+
+  const display_menu_base::MenuItem *item;
+  bool is_item_selected;
+  bool is_menu_editing;
+};
+
 struct Position {
   int x;
   int y;
@@ -48,7 +61,7 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   display::DisplayBuffer *display_buffer_{nullptr};
   PollingComponent *display_updater_{nullptr};
   display::Font *font_{nullptr};
-  TemplatableValue<std::string, const display_menu_base::MenuItem *> menu_item_value_;
+  TemplatableValue<std::string, const MenuItemValueArguments *> menu_item_value_;
   Color foreground_color_{display::COLOR_ON};
   Color background_color_{display::COLOR_OFF};
 };
