@@ -168,23 +168,20 @@ std::string MotionBlindsCommunication::format_hex_num(size_t value, bool prefix)
 
   std::string str2 = str1;
   if ((length == 1 && !prefix) || length == 3) {
-    stream.clear();
     stream << '0' << str1;
     str2 = stream.str();
-  }
-
-  if (length != 1) {
-    if (length == 2) {
-      if (prefix) {
-        stream.clear();
-        stream << "00" << str1;
-        str2 = stream.str();
+  } else {
+    if (length != 1) {
+      if (length == 2) {
+        if (prefix) {
+          stream << "00" << str1;
+          str2 = stream.str();
+        }
       }
+    } else {
+      stream << "000" << str1;
+      str2 = stream.str();
     }
-  } else if (prefix) {
-    stream.clear();
-    stream << "000" << str1;
-    str2 = stream.str();
   }
   return str2;
 }
