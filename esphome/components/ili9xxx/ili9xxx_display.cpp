@@ -70,11 +70,6 @@ void ILI9XXXDisplay::dump_config() {
 
 float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-void ILI9XXXDisplay::update() {
-  this->do_update_();
-  this->display_();
-}
-
 void ILI9XXXDisplay::fill(Color color) {
   uint16_t new_color = 0;
   this->x_low_ = 0;
@@ -141,29 +136,9 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
   }
 }
 
-uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
-  if (sz > sizeof(transfer_buffer_)) {
-    sz = sizeof(transfer_buffer_);
-  }
-
-  for (uint32_t i = 0; i < sz; ++i) {
-    switch (this->buffer_color_mode_) {
-      case BITS_8_INDEXED:
-        transfer_buffer_[i] =
-            display::ColorUtil::color_to_565(display::ColorUtil::index8_to_color_palette888(this->buffer_[pos+i], this->palette_));
-        break;
-      case BITS_16:
-        transfer_buffer_[i] =  ((uint16_t)this->buffer_[pos+i] << 8) | this->buffer_[pos+i+1];
-        i = i + 1;
-        continue;
-        break;
-      default:
-        transfer_buffer_[i] =  display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(this->buffer_[pos+i]));
-        break;
-    }
-  }
-
-  return sz;
+void ILI9XXXDisplay::update() {
+  this->do_update_();
+  this->display_();
 }
 
 void ILI9XXXDisplay::display_() {
@@ -191,7 +166,8 @@ void ILI9XXXDisplay::display_() {
     uint32_t rem = w;
 
     while (rem > 0) {
-      uint32_t sz = buffer_to_transfer_(pos, rem);
+      uint32_t sz = min(rem, sizeof(transfer_buffer_));
+      buffer_to_transfer_(pos, sz);
       this->write_array16(transfer_buffer_, sz);
       pos += sz;
       rem -= sz;
@@ -205,6 +181,25 @@ void ILI9XXXDisplay::display_() {
   this->y_low_ = this->height_;
   this->x_high_ = 0;
   this->y_high_ = 0;
+}
+
+uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
+  for (uint32_t i = 0; i < sz; ++i) {
+    switch (this->buffer_color_mode_) {
+      case BITS_8_INDEXED:
+        transfer_buffer_[i] =
+            display::ColorUtil::color_to_565(display::ColorUtil::index8_to_color_palette888(this->buffer_[pos+i], this->palette_));
+        break;
+      case BITS_16:
+        transfer_buffer_[i] =  ((uint16_t)this->buffer_[(pos+i)*2] << 8) | this->buffer_[((pos+i)*2)+1];
+        continue;
+        break;
+      default:
+        transfer_buffer_[i] =  display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(this->buffer_[pos+i]));
+        break;
+    }
+  }
+  return sz;
 }
 
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
