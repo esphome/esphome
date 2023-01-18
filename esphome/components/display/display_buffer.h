@@ -153,9 +153,7 @@ class DisplayBuffer {
   virtual void filled_rectangle(int x1, int y1, int width, int height, Color color);
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
-  virtual void circle(int center_x, int center_xy, int radius) {
-    circle(center_x, center_xy, radius, COLOR_ON);
-  }
+  virtual void circle(int center_x, int center_xy, int radius) { circle(center_x, center_xy, radius, COLOR_ON); }
   virtual void circle(int center_x, int center_xy, int radius, Color color);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
