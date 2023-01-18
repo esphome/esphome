@@ -22,7 +22,7 @@ void ILI9XXXDisplay::setup() {
     if (this->buffer_ != nullptr) {
       return;
     }
-    this->buffer_color_mode_ = BITS_8_INDEXED;
+    this->buffer_color_mode_ = BITS_8;
   }
   this->init_internal_(this->get_buffer_length_());
   if (this->buffer_ == nullptr) {
