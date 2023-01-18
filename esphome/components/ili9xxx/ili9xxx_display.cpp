@@ -166,7 +166,7 @@ void ILI9XXXDisplay::display_() {
     uint32_t rem = w;
 
     while (rem > 0) {
-      uint32_t sz = min(rem, sizeof(transfer_buffer_));
+      uint32_t sz = std::min(rem, sizeof(transfer_buffer_));
       buffer_to_transfer_(pos, sz);
       this->write_array16(transfer_buffer_, sz);
       pos += sz;
