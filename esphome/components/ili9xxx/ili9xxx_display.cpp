@@ -88,7 +88,7 @@ void ILI9XXXDisplay::fill(Color color) {
     case BITS_16:
       new_color = display::ColorUtil::color_to_565(color);
       for (uint32_t i = 0; i < this->get_buffer_length_() * 2; i = i + 2) {
-        this->buffer_[i] = (uint8_t) (new_color >> 8);
+        this->buffer_[i] = (uint8_t)(new_color >> 8);
         this->buffer_[i + 1] = (uint8_t) new_color;
       }
       return;
@@ -114,8 +114,8 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     case BITS_16:
       pos = pos * 2;
       new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
-      if (this->buffer_[pos] != (uint8_t) (new_color >> 8)) {
-        this->buffer_[pos] = (uint8_t) (new_color >> 8);
+      if (this->buffer_[pos] != (uint8_t)(new_color >> 8)) {
+        this->buffer_[pos] = (uint8_t)(new_color >> 8);
         updated = true;
       }
       pos = pos + 1;
@@ -142,32 +142,25 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
 }
 
 uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
-  uint8_t *src = buffer_ + pos;
-  uint8_t *dst = transfer_buffer_;
-  uint16_t color;
-  Color col;
-
-  if (sz > sizeof(transfer_buffer_) / 2) {
-    sz = sizeof(transfer_buffer_) / 2;
+  if (sz > sizeof(transfer_buffer_)) {
+    sz = sizeof(transfer_buffer_);
   }
 
   for (uint32_t i = 0; i < sz; ++i) {
     switch (this->buffer_color_mode_) {
       case BITS_8_INDEXED:
-        color =
-            display::ColorUtil::color_to_565(display::ColorUtil::index8_to_color_palette888(*src++, this->palette_));
+        transfer_buffer_[i] =
+            display::ColorUtil::color_to_565(display::ColorUtil::index8_to_color_palette888(this->buffer_[pos+i], this->palette_));
         break;
       case BITS_16:
-        *dst++ = *src++;
-        *dst++ = *src++;
+        transfer_buffer_[i] =  ((uint16_t)this->buffer_[pos+i] << 8) | this->buffer_[pos+i+1];
+        i = i + 1;
         continue;
         break;
       default:
-        color = display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(*src++));
+        transfer_buffer_[i] =  display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(this->buffer_[pos+i]));
         break;
     }
-    *dst++ = (uint8_t) (color >> 8);
-    *dst++ = (uint8_t) color;
   }
 
   return sz;
@@ -199,7 +192,7 @@ void ILI9XXXDisplay::display_() {
 
     while (rem > 0) {
       uint32_t sz = buffer_to_transfer_(pos, rem);
-      this->write_array(transfer_buffer_, 2 * sz);
+      this->write_array(transfer_buffer_, sz);
       pos += sz;
       rem -= sz;
     }
