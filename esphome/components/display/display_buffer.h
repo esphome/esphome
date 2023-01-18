@@ -1,11 +1,11 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
-#include "display_color_utils.h"
 #include <cstdarg>
 #include <vector>
+#include "display_color_utils.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
@@ -148,35 +148,42 @@ class DisplayBuffer {
   void clear();
 
   /// Get the width of the image in pixels with rotation applied.
-  int get_width();
+  virtual int get_width();
   /// Get the height of the image in pixels with rotation applied.
-  int get_height();
+  virtual int get_height();
 
   /// Set a single pixel at the specified coordinates to the given color.
-  void draw_pixel_at(int x, int y, Color color = COLOR_ON);
+  void draw_pixel_at(int x, int y) { draw_pixel_at(x, y, COLOR_ON); };
+  virtual void draw_pixel_at(int x, int y, Color color);
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
-  void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
+  void line(int x1, int y1, int x2, int y2) { line(x1, y1, x2, y2, COLOR_ON); }
+  virtual void line(int x1, int y1, int x2, int y2, Color color);
 
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
-  void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
+  void horizontal_line(int x, int y, int width) { horizontal_line(x, y, width, COLOR_ON); }
+  virtual void horizontal_line(int x, int y, int width, Color color);
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  void vertical_line(int x, int y, int height, Color color = COLOR_ON);
+  void vertical_line(int x, int y, int height) { vertical_line(x, y, height, COLOR_ON); }
+  virtual void vertical_line(int x, int y, int height, Color color);
 
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
-  void rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  void rectangle(int x1, int y1, int width, int height) { rectangle(x1, y1, width, height, COLOR_ON); }
+  virtual void rectangle(int x1, int y1, int width, int height, Color color);
 
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
-  void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  void filled_rectangle(int x1, int y1, int width, int height) { filled_rectangle(x1, y1, width, height, COLOR_ON); }
+  virtual void filled_rectangle(int x1, int y1, int width, int height, Color color);
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
+  void circle(int center_x, int center_xy, int radius) { circle(center_x, center_xy, radius, COLOR_ON); }
+  virtual void circle(int center_x, int center_xy, int radius, Color color);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
-
+  void filled_circle(int center_x, int center_y, int radius) { filled_circle(center_x, center_y, radius, COLOR_ON); }
+  virtual void filled_circle(int center_x, int center_y, int radius, Color color);
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
@@ -186,7 +193,7 @@ class DisplayBuffer {
    * @param align The alignment of the text.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, Color color, TextAlign align, const char *text);
+  virtual void print(int x, int y, Font *font, Color color, TextAlign align, const char *text);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -320,7 +327,9 @@ class DisplayBuffer {
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
-  void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+  void image(int x, int y, Image *data) { image(x, y, data, COLOR_ON, COLOR_OFF); }
+  void image(int x, int y, Image *data, Color color_on) { image(x, y, data, color_on, COLOR_OFF); }
+  virtual void image(int x, int y, Image *image, Color color_on, Color color_off);
 
 #ifdef USE_GRAPH
   /** Draw the `graph` with the top-left corner at [x,y] to the screen.
@@ -330,7 +339,8 @@ class DisplayBuffer {
    * @param graph The graph id to draw
    * @param color_on The color to replace in binary images for the on bits.
    */
-  void graph(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
+  void graph(int x, int y, graph::Graph *data) { graph(x, y, data, COLOR_ON); }
+  virtual void graph(int x, int y, graph::Graph *graph, Color color_on);
 
   /** Draw the `legend` for graph with the top-left corner at [x,y] to the screen.
    *
@@ -343,7 +353,8 @@ class DisplayBuffer {
    * @param value_font The font used for the trace value and units
    * @param color_on The color of the border
    */
-  void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
+  void legend(int x, int y, graph::Graph *graph) { legend(x, y, graph, COLOR_ON); }
+  virtual void legend(int x, int y, graph::Graph *graph, Color color_on);
 #endif  // USE_GRAPH
 
 #ifdef USE_QR_CODE
@@ -354,7 +365,9 @@ class DisplayBuffer {
    * @param qr_code The qr_code to draw
    * @param color_on The color to replace in binary images for the on bits.
    */
-  void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on = COLOR_ON, int scale = 1);
+  void qr_code(int x, int y, qr_code::QrCode *code) { qr_code(x, y, code, COLOR_ON, 1); }
+  void qr_code(int x, int y, qr_code::QrCode *code, Color color_on) { qr_code(x, y, code, color_on, 1); }
+  virtual void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on, int scale);
 #endif
 
   /** Get the text bounds of the given string.
@@ -369,8 +382,8 @@ class DisplayBuffer {
    * @param width A pointer to store the returned text width in.
    * @param height A pointer to store the returned text height in.
    */
-  void get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1, int *width,
-                       int *height);
+  virtual void get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1,
+                               int *width, int *height);
 
   /// Internal method to set the display writer lambda.
   void set_writer(display_writer_t &&writer);
@@ -386,14 +399,14 @@ class DisplayBuffer {
   void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
 
   /// Internal method to set the display rotation with.
-  void set_rotation(DisplayRotation rotation);
+  virtual void set_rotation(DisplayRotation rotation);
+  virtual DisplayRotation get_rotation() const { return this->rotation_; }
 
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
-  DisplayRotation get_rotation() const { return this->rotation_; }
 
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.
