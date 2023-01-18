@@ -75,8 +75,7 @@ void MS8607Component::setup() {
   // try 3 times in case it's a transitory issue on this boot
   this->set_retry(
       "reset", 1, 3,
-      [this]() {
-        static int remaining_setup_attempts = 3;
+      [this](const uint8_t remaining_setup_attempts) {
         ESP_LOGD(TAG, "Resetting both I2C addresses: 0x%02X, 0x%02X", this->address_, this->humidity_sensor_address_);
         // I believe sending the reset command to both addresses is preferable to
         // skipping humidity if PT fails for some reason.
@@ -94,7 +93,7 @@ void MS8607Component::setup() {
             this->error_code_ = ErrorCode::H_RESET_FAILED;
           }
 
-          if (--remaining_setup_attempts > 0) {
+          if (remaining_setup_attempts > 0) {
             this->status_set_error();
           } else {
             this->mark_failed();
