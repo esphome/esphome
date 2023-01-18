@@ -47,7 +47,7 @@ void DalyBmsComponent::loop() {
     trigger_next_ = true;
   }
   if (available())
-  last_transmission_ = now;
+    last_transmission_ = now;
   while (available()) {
     uint8_t c;
     read_byte(&c);
@@ -297,9 +297,8 @@ void DalyBmsComponent::decode_data_(std::vector<uint8_t> data) {
           default:
             break;
         }
-      }
-      else {
-          ESP_LOGW(TAG,"Checksum-Error on Packet %x", it[4]);
+      } else {
+        ESP_LOGW(TAG,"Checksum-Error on Packet %x", it[4]);
       }
       std::advance(it, DALY_FRAME_SIZE);
     } else {
