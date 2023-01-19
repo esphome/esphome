@@ -51,13 +51,15 @@ def main():
             tags_to_push.append("stable")
             tags_to_push.append(major_minor_version)
 
+    suffix = f"-{args.suffix}" if args.suffix else ""
+
     with open(os.environ["GITHUB_OUTPUT"], "w") as f:
         print(f"channel={channel}", file=f)
         full_tags = []
 
         for tag in tags_to_push:
-            full_tags += [f"ghcr.io/esphome/esphome{args.suffix}:{tag}"]
-            full_tags += [f"esphome/esphome{args.suffix}:{tag}"]
+            full_tags += [f"ghcr.io/esphome/esphome{suffix}:{tag}"]
+            full_tags += [f"esphome/esphome{suffix}:{tag}"]
         print(f"tags={','.join(full_tags)}", file=f)
 
 

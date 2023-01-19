@@ -72,7 +72,7 @@ jobs:
       matrix:
         image:
           - title: "ha-addon"
-            suffix: "-hassio"
+            suffix: "hassio"
             target: "hassio"
             baseimg: "hassio"
           - title: "docker"
@@ -80,7 +80,7 @@ jobs:
             target: "docker"
             baseimg: "docker"
           - title: "lint"
-            suffix: "-lint"
+            suffix: "lint"
             target: "lint"
             baseimg: "docker"
     steps:
