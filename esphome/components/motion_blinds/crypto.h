@@ -17,7 +17,7 @@ struct MotionBlindsMessage {
 class Crypto {
  public:
   static void encrypt(const std::string &data, MotionBlindsMessage &message);
-  static std::string decrypt(const uint8_t* data, size_t size);
+  static std::string decrypt(const uint8_t *data, size_t size);
 };
 
 }  // namespace motion_blinds

@@ -31,7 +31,7 @@ void Crypto::encrypt(const std::string &data, MotionBlindsMessage &message) {
   mbedtls_aes_free(&aes);
 }
 
-std::string Crypto::decrypt(const uint8_t* data, size_t size) {
+std::string Crypto::decrypt(const uint8_t *data, size_t size) {
   mbedtls_aes_context aes;
   mbedtls_aes_init(&aes);
 
