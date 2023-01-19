@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_CLIENT_ID,
     CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
+    CONF_COMMAND_QOS,
     CONF_DISCOVERY,
     CONF_DISCOVERY_PREFIX,
     CONF_DISCOVERY_RETAIN,
@@ -460,6 +461,8 @@ def get_default_topic_for(data, component_type, name, suffix):
 async def register_mqtt_component(var, config):
     await cg.register_component(var, {})
 
+    if CONF_QOS in config:
+        cg.add(var.set_qos(config[CONF_QOS]))
     if CONF_RETAIN in config:
         cg.add(var.set_retain(config[CONF_RETAIN]))
     if not config.get(CONF_DISCOVERY, True):
@@ -468,6 +471,8 @@ async def register_mqtt_component(var, config):
         cg.add(var.set_custom_state_topic(config[CONF_STATE_TOPIC]))
     if CONF_COMMAND_TOPIC in config:
         cg.add(var.set_custom_command_topic(config[CONF_COMMAND_TOPIC]))
+    if CONF_COMMAND_QOS in config:
+        cg.add(var.set_command_qos(config[CONF_COMMAND_QOS]))
     if CONF_COMMAND_RETAIN in config:
         cg.add(var.set_command_retain(config[CONF_COMMAND_RETAIN]))
     if CONF_AVAILABILITY in config:

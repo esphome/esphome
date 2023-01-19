@@ -429,6 +429,7 @@ sensor:
     id: ${sensorname}_sensor
     filters:
     state_topic: hi/me
+    qos: 1
     retain: false
     availability:
   - platform: atm90e32
@@ -2117,6 +2118,7 @@ switch:
     icon: "mdi:restart"
     inverted: true
     command_topic: custom_command_topic
+    command_qos: 1
     command_retain: true
     restore_mode: ALWAYS_OFF
   - platform: template

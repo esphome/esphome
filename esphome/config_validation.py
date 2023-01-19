@@ -17,6 +17,7 @@ from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
     CONF_COMMAND_TOPIC,
+    CONF_COMMAND_QOS,
     CONF_COMMAND_RETAIN,
     CONF_DISABLED_BY_DEFAULT,
     CONF_DISCOVERY,
@@ -27,6 +28,7 @@ from esphome.const import (
     CONF_NAME,
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
+    CONF_QOS,
     CONF_RETAIN,
     CONF_SETUP_PRIORITY,
     CONF_STATE_TOPIC,
@@ -1601,6 +1603,7 @@ MQTT_COMPONENT_AVAILABILITY_SCHEMA = Schema(
 
 MQTT_COMPONENT_SCHEMA = Schema(
     {
+        Optional(CONF_QOS): All(requires_component("mqtt"), int_range(0, 2)),
         Optional(CONF_RETAIN): All(requires_component("mqtt"), boolean),
         Optional(CONF_DISCOVERY): All(requires_component("mqtt"), boolean),
         Optional(CONF_STATE_TOPIC): All(requires_component("mqtt"), publish_topic),
@@ -1613,6 +1616,7 @@ MQTT_COMPONENT_SCHEMA = Schema(
 MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
     {
         Optional(CONF_COMMAND_TOPIC): All(requires_component("mqtt"), subscribe_topic),
+        Optional(CONF_COMMAND_QOS): All(requires_component("mqtt"), int_range(0, 2)),
         Optional(CONF_COMMAND_RETAIN): All(requires_component("mqtt"), boolean),
     }
 )

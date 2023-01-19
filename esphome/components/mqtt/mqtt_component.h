@@ -76,6 +76,10 @@ class MQTTComponent : public Component {
 
   virtual bool is_internal();
 
+  /// Set command messages QOS.
+  void set_qos(uint8_t qos);
+  bool get_qos() const;
+
   /// Set whether state message should be retained.
   void set_retain(bool retain);
   bool get_retain() const;
@@ -91,6 +95,8 @@ class MQTTComponent : public Component {
   void set_custom_state_topic(const std::string &custom_state_topic);
   /// Set a custom command topic. Set to "" for default behavior.
   void set_custom_command_topic(const std::string &custom_command_topic);
+  /// Set command messages QOS.
+  void set_command_qos(uint8_t command_qos);
   /// Set whether command message should be retained.
   void set_command_retain(bool command_retain);
 
@@ -190,7 +196,9 @@ class MQTTComponent : public Component {
 
   std::string custom_state_topic_{};
   std::string custom_command_topic_{};
+  uint8_t command_qos_{0};
   bool command_retain_{false};
+  uint8_t qos_{0};
   bool retain_{true};
   bool discovery_enabled_{true};
   std::unique_ptr<Availability> availability_;

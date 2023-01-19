@@ -14,6 +14,8 @@ namespace mqtt {
 
 static const char *const TAG = "mqtt.component";
 
+void MQTTComponent::set_qos(uint8_t qos) { this->qos_ = qos; }
+
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
@@ -42,13 +44,13 @@ std::string MQTTComponent::get_command_topic_() const {
 bool MQTTComponent::publish(const std::string &topic, const std::string &payload) {
   if (topic.empty())
     return false;
-  return global_mqtt_client->publish(topic, payload, 0, this->retain_);
+  return global_mqtt_client->publish(topic, payload, this->qos_, this->retain_);
 }
 
 bool MQTTComponent::publish_json(const std::string &topic, const json::json_build_t &f) {
   if (topic.empty())
     return false;
-  return global_mqtt_client->publish_json(topic, f, 0, this->retain_);
+  return global_mqtt_client->publish_json(topic, f, this->qos_, this->retain_);
 }
 
 bool MQTTComponent::send_discovery_() {
@@ -92,6 +94,8 @@ bool MQTTComponent::send_discovery_() {
           root[MQTT_STATE_TOPIC] = this->get_state_topic_();
         if (config.command_topic)
           root[MQTT_COMMAND_TOPIC] = this->get_command_topic_();
+        if (this->command_qos_)
+          root[MQTT_COMMAND_QOS] = this->qos_;
         if (this->command_retain_)
           root[MQTT_COMMAND_RETAIN] = true;
 
@@ -142,6 +146,8 @@ bool MQTTComponent::send_discovery_() {
       0, discovery_info.retain);
 }
 
+bool MQTTComponent::get_qos() const { return this->qos_; }
+
 bool MQTTComponent::get_retain() const { return this->retain_; }
 
 bool MQTTComponent::is_discovery_enabled() const {
@@ -170,6 +176,8 @@ void MQTTComponent::set_custom_state_topic(const std::string &custom_state_topic
 void MQTTComponent::set_custom_command_topic(const std::string &custom_command_topic) {
   this->custom_command_topic_ = custom_command_topic;
 }
+void MQTTComponent::set_command_qos(uint8_t command_qos) { this->command_qos_ = command_qos; }
+
 void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
 void MQTTComponent::set_availability(std::string topic, std::string payload_available,
