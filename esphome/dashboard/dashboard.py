@@ -40,7 +40,7 @@ from esphome.storage_json import (
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
 
-from .util import password_hash
+from .util import password_hash, friendly_name_slugify
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -281,8 +281,11 @@ class EsphomeLogsHandler(EsphomeCommandWebSocket):
 
 
 class EsphomeRenameHandler(EsphomeCommandWebSocket):
+    old_name: str
+
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
+        self.old_name = json_message["configuration"]
         return [
             "esphome",
             "--dashboard",
@@ -290,6 +293,15 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
             config_file,
             json_message["newName"],
         ]
+
+    def _proc_on_exit(self, returncode):
+        super()._proc_on_exit(returncode)
+
+        if returncode != 0:
+            return
+
+        # Remove the old ping result from the cache
+        PING_RESULT.pop(self.old_name, None)
 
 
 class EsphomeUploadHandler(EsphomeCommandWebSocket):
@@ -378,12 +390,24 @@ class WizardRequestHandler(BaseHandler):
             for k, v in json.loads(self.request.body.decode()).items()
             if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
+        if not kwargs["name"]:
+            self.set_status(422)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"error": "Name is required"}))
+            return
+
+        kwargs["friendly_name"] = kwargs["name"]
+        kwargs["name"] = friendly_name_slugify(kwargs["friendly_name"])
+
         kwargs["ota_password"] = secrets.token_hex(16)
         noise_psk = secrets.token_bytes(32)
         kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
-        destination = settings.rel_path(f"{kwargs['name']}.yaml")
+        filename = f"{kwargs['name']}.yaml"
+        destination = settings.rel_path(filename)
         wizard.wizard_write(path=destination, **kwargs)
         self.set_status(200)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps({"configuration": filename}))
         self.finish()
 
 
@@ -395,6 +419,7 @@ class ImportRequestHandler(BaseHandler):
         args = json.loads(self.request.body.decode())
         try:
             name = args["name"]
+            friendly_name = args.get("friendly_name")
 
             imported_device = next(
                 (res for res in IMPORT_RESULT.values() if res.device_name == name), None
@@ -402,12 +427,15 @@ class ImportRequestHandler(BaseHandler):
 
             if imported_device is not None:
                 network = imported_device.network
+                if friendly_name is None:
+                    friendly_name = imported_device.friendly_name
             else:
                 network = const.CONF_WIFI
 
             import_config(
                 settings.rel_path(f"{name}.yaml"),
                 name,
+                friendly_name,
                 args["project_name"],
                 args["package_import_url"],
                 network,
@@ -422,6 +450,8 @@ class ImportRequestHandler(BaseHandler):
             return
 
         self.set_status(200)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps({"configuration": f"{name}.yaml"}))
         self.finish()
 
 
@@ -576,6 +606,12 @@ class DashboardEntry:
         return self.storage.name
 
     @property
+    def friendly_name(self):
+        if self.storage is None:
+            return self.name
+        return self.storage.friendly_name
+
+    @property
     def comment(self):
         if self.storage is None:
             return None
@@ -622,6 +658,7 @@ class ListDevicesHandler(BaseHandler):
                     "configured": [
                         {
                             "name": entry.name,
+                            "friendly_name": entry.friendly_name,
                             "configuration": entry.filename,
                             "loaded_integrations": entry.loaded_integrations,
                             "deployed_version": entry.update_old,
@@ -637,6 +674,7 @@ class ListDevicesHandler(BaseHandler):
                     "importable": [
                         {
                             "name": res.device_name,
+                            "friendly_name": res.friendly_name,
                             "package_import_url": res.package_import_url,
                             "project_name": res.project_name,
                             "project_version": res.project_version,
@@ -872,6 +910,9 @@ class DeleteRequestHandler(BaseHandler):
             build_folder = os.path.join(settings.config_dir, name)
             if build_folder is not None:
                 shutil.rmtree(build_folder, os.path.join(trash_path, name))
+
+        # Remove the old ping result from the cache
+        PING_RESULT.pop(configuration, None)
 
 
 class UndoDeleteRequestHandler(BaseHandler):
