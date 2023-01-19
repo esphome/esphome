@@ -30,7 +30,7 @@ jobs:
             TAG=$(cat esphome/const.py | sed -n -E "s/^__version__\s+=\s+\"(.+)\"$/\1/p")
             today="$(date --utc '+%Y%m%d')"
             TAG="${TAG}${today}"
-            BRANCH=${GITHUB_REF#refs/tags/}
+            BRANCH=${GITHUB_REF#refs/heads/}
             if [[ "$BRANCH" != "dev" ]]; then
               TAG="${TAG}-${BRANCH}"
             fi
