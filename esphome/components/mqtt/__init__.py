@@ -274,7 +274,11 @@ async def to_code(config):
     # Add required libraries for arduino
     if CORE.using_arduino:
         # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
-        cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.6")
+        cg.add_library(
+            "AsyncMqttClient-esphome",
+            None,
+            "https://github.com/libretuya/async-mqtt-client",
+        )
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
