@@ -6,6 +6,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/ble_client/ble_client.h"
+#include "esphome/components/time/real_time_clock.h"
+#include "crypto.h"
 #include <string>
 
 namespace esphome {
@@ -20,12 +22,6 @@ static const auto MOTION_BINDS_WRITE_CHARACTERISTIC_UUID =
 static const auto MOTION_BLINDS_NOTIFY_DESCRIPTOR = espbt::ESPBTUUID::from_raw("00002902-0000-1000-8000-00805f9b34fb");
 static const auto MOTION_BLINDS_SERVICE_UUID = espbt::ESPBTUUID::from_raw("D973F2E0-B19E-11E2-9E96-0800200C9A66");
 
-struct MotionBlindsMessage {
-  size_t length;
-  uint8_t bytes[128];
-  std::string raw_command;
-};
-
 class MotionBlindsCommunication : public esphome::ble_client::BLEClientNode {
  public:
   MotionBlindsCommunication();
@@ -36,6 +32,7 @@ class MotionBlindsCommunication : public esphome::ble_client::BLEClientNode {
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
   static std::string format_hex_num(size_t value, bool prefix);
+  void set_time_id(time::RealTimeClock *time) { this->time_ = time; }
 
  protected:
   virtual void on_notify(const std::string &value) = 0;
@@ -46,6 +43,7 @@ class MotionBlindsCommunication : public esphome::ble_client::BLEClientNode {
   uint16_t notify_char_handle_;
   MotionBlindsMessage message_;
   bool has_mtu_change_;
+  time::RealTimeClock *time_;
 };
 
 }  // namespace motion_blinds

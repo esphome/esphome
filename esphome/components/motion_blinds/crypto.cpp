@@ -16,33 +16,30 @@ static void unpad_pkcs7(std::vector<uint8_t> &data);
 static std::string to_hex(const std::vector<uint8_t> &data);
 static std::vector<uint8_t> from_hex(const std::string &str);
 
-std::string Crypto::encrypt(const std::string &data) {
+void Crypto::encrypt(const std::string &data, MotionBlindsMessage &message) {
   mbedtls_aes_context aes;
   mbedtls_aes_init(&aes);
 
   auto input = from_hex(data);
   pad_pkcs7(input);
-  auto buffer = std::vector<uint8_t>(input.size(), 0);
+  message.length = input.size();
 
   mbedtls_aes_setkey_enc(&aes, (const unsigned char *) KEY, BLOCK_SIZE * 8);
   for (size_t i = 0; i < input.size(); i += BLOCK_SIZE) {
-    mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_ENCRYPT, (const unsigned char *) input.data() + i, buffer.data() + i);
+    mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_ENCRYPT, (const unsigned char *) input.data() + i, message.bytes + i);
   }
   mbedtls_aes_free(&aes);
-
-  return to_hex(buffer);
 }
 
-std::string Crypto::decrypt(const std::string &data) {
+std::string Crypto::decrypt(const uint8_t* data, size_t size) {
   mbedtls_aes_context aes;
   mbedtls_aes_init(&aes);
 
-  auto input = from_hex(data);
-  auto buffer = std::vector<uint8_t>(input.size(), 0);
+  auto buffer = std::vector<uint8_t>(size, 0);
 
   mbedtls_aes_setkey_dec(&aes, (const unsigned char *) KEY, BLOCK_SIZE * 8);
-  for (size_t i = 0; i < input.size(); i += BLOCK_SIZE) {
-    mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_DECRYPT, (const unsigned char *) input.data() + i, buffer.data() + i);
+  for (size_t i = 0; i < size; i += BLOCK_SIZE) {
+    mbedtls_aes_crypt_ecb(&aes, MBEDTLS_AES_DECRYPT, (const unsigned char *) data + i, buffer.data() + i);
   }
   mbedtls_aes_free(&aes);
 

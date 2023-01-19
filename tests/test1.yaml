@@ -2798,6 +2798,7 @@ cover:
     id: motion_blinds_test
     ble_client_id: ble_foo
     icon: mdi:blinds
+    time_id: sntp_time
   - platform: feedback
     name: Feedback Cover
     id: gate
