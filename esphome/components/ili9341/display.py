@@ -26,6 +26,7 @@ ili9341 = ili9341_ns.class_(
 ILI9341M5Stack = ili9341_ns.class_("ILI9341M5Stack", ili9341)
 ILI9341TFT24 = ili9341_ns.class_("ILI9341TFT24", ili9341)
 ILI9341TFT24R = ili9341_ns.class_("ILI9341TFT24R", ili9341)
+ILI9341WT32SC01 = ili9341_ns.class_("ILI9341WT32SC01", ili9341)
 
 ILI9341Model = ili9341_ns.enum("ILI9341Model")
 ILI9341ColorMode = ili9341_ns.enum("ILI9341ColorMode")
@@ -34,6 +35,7 @@ MODELS = {
     "M5STACK": ILI9341Model.M5STACK,
     "TFT_2.4": ILI9341Model.TFT_24,
     "TFT_2.4R": ILI9341Model.TFT_24R,
+    "WT32_SC01": ILI9341WT32SC01.WT32_SC01,
 }
 
 ILI9341_MODEL = cv.enum(MODELS, upper=True, space="_")
