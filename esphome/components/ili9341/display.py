@@ -89,6 +89,8 @@ async def to_code(config):
         lcd_type = ILI9341TFT24
     if config[CONF_MODEL] == "TFT_2.4R":
         lcd_type = ILI9341TFT24R
+     if config[CONF_MODEL] == "WT32_SC01":
+        lcd_type = ILI9341WT32SC01
     rhs = lcd_type.new()
     var = cg.Pvariable(config[CONF_ID], rhs)
 
