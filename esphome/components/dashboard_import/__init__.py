@@ -1,14 +1,15 @@
 from pathlib import Path
+from typing import Optional
+
 import requests
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import git
 from esphome.components.packages import validate_source_shorthand
-from esphome.const import CONF_WIFI, CONF_REF
+from esphome.const import CONF_REF, CONF_WIFI
 from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
-from esphome import git
-
 
 dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")
 
@@ -66,7 +67,12 @@ async def to_code(config):
 
 
 def import_config(
-    path: str, name: str, project_name: str, import_url: str, network: str = CONF_WIFI
+    path: str,
+    name: str,
+    friendly_name: Optional[str],
+    project_name: str,
+    import_url: str,
+    network: str = CONF_WIFI,
 ) -> None:
     p = Path(path)
 
@@ -77,6 +83,7 @@ def import_config(
         p.write_text(
             wizard_file(
                 name=name,
+                friendly_name=friendly_name,
                 platform="ESP32" if "esp32" in import_url else "ESP8266",
                 board="esp32dev" if "esp32" in import_url else "esp01_1m",
                 ssid="!secret wifi_ssid",
@@ -98,13 +105,15 @@ def import_config(
             p.write_text(req.text, encoding="utf8")
 
         else:
+            substitutions = {"name": name}
+            esphome_core = {"name": "${name}", "name_add_mac_suffix": False}
+            if friendly_name:
+                substitutions["friendly_name"] = friendly_name
+                esphome_core["friendly_name"] = "${friendly_name}"
             config = {
-                "substitutions": {"name": name},
+                "substitutions": substitutions,
                 "packages": {project_name: import_url},
-                "esphome": {
-                    "name": "${name}",
-                    "name_add_mac_suffix": False,
-                },
+                "esphome": esphome_core,
             }
             output = dump(config)
 
