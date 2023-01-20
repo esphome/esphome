@@ -132,15 +132,15 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->set_state(espbt::ClientState::IDLE);
         break;
       }
-      if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
-        this->set_state(espbt::ClientState::CONNECTED);
-        this->state_ = espbt::ClientState::ESTABLISHED;
-        break;
-      }
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->open.conn_id);
       if (ret) {
         ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
                  this->address_str_.c_str(), ret);
+      }
+      if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
+        this->set_state(espbt::ClientState::CONNECTED);
+        this->state_ = espbt::ClientState::ESTABLISHED;
+        break;
       }
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;

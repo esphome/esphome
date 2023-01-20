@@ -570,6 +570,15 @@ sensor:
   - platform: duty_cycle
     pin: GPIO25
     name: Duty Cycle Sensor
+  - platform: ee895
+    co2:
+      name: Office CO2 1
+    temperature:
+      name: Office Temperature 1
+    pressure:
+      name: Office Pressure 1
+    address: 0x5F
+    i2c_id: i2c_bus
   - platform: esp32_hall
     name: ESP32 Hall Sensor
     update_interval: 15s
@@ -640,6 +649,13 @@ sensor:
     temperature:
       name: Honeywell temperature
     cs_pin: GPIO5
+  - platform: hte501
+    temperature:
+      name: Office Temperature 2
+    humidity:
+      name: Office Humidity 1
+    address: 0x40
+    i2c_id: i2c_bus
   - platform: qmc5883l
     address: 0x0D
     field_strength_x:
@@ -1041,6 +1057,10 @@ sensor:
     calculated_lux:
       name: tsl2591 calculated_lux
       id: tsl2591_cl
+    i2c_id: i2c_bus
+  - platform: tee501
+    name: Office Temperature 3
+    address: 0x48
     i2c_id: i2c_bus
   - platform: ultrasonic
     trigger_pin: GPIO25
@@ -1715,6 +1735,12 @@ output:
     id: bp5758d_warmwhite
     channel: 4
     current: 10
+  - platform: x9c
+    id: test_x9c
+    cs_pin: GPIO25
+    inc_pin: GPIO26
+    ud_pin: GPIO27
+    initial_value: 0.5
 
 e131:
 
