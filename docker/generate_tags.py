@@ -55,6 +55,7 @@ def main():
 
     with open(os.environ["GITHUB_OUTPUT"], "w") as f:
         print(f"channel={channel}", file=f)
+        print(f"image=esphome/esphome{suffix}", file=f)
         full_tags = []
 
         for tag in tags_to_push:
