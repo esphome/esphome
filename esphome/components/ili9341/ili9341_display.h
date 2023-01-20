@@ -14,6 +14,7 @@ enum ILI9341Model {
   M5STACK = 0,
   TFT_24,
   TFT_24R,
+  WT32_SC01,
 };
 
 enum ILI9341ColorMode {
@@ -116,6 +117,12 @@ class ILI9341TFT24 : public ILI9341Display {
 
 //-----------   ILI9341_24_TFT rotated display --------------
 class ILI9341TFT24R : public ILI9341Display {
+ public:
+  void initialize() override;
+};
+
+//-----------   ILI9341_WT32_SC01 display --------------
+class ILI9341WT32SC01 : public ILI9341Display {
  public:
   void initialize() override;
 };
