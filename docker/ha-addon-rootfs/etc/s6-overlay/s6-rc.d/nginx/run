@@ -1,10 +1,11 @@
-#!/usr/bin/with-contenv bashio
+#!/command/with-contenv bashio
+# shellcheck shell=bash
 # ==============================================================================
 # Community Hass.io Add-ons: ESPHome
 # Runs the NGINX proxy
 # ==============================================================================
 
-bashio::log.info "Waiting for dashboard to come up..."
+bashio::log.info "Waiting for ESPHome dashboard to come up..."
 
 while [[ ! -S /var/run/esphome.sock ]]; do
   sleep 0.5

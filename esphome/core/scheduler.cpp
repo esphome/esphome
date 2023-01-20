@@ -74,7 +74,7 @@ bool HOT Scheduler::cancel_interval(Component *component, const std::string &nam
 }
 
 struct RetryArgs {
-  std::function<RetryResult()> func;
+  std::function<RetryResult(uint8_t)> func;
   uint8_t retry_countdown;
   uint32_t current_interval;
   Component *component;
@@ -84,17 +84,18 @@ struct RetryArgs {
 };
 
 static void retry_handler(const std::shared_ptr<RetryArgs> &args) {
-  RetryResult retry_result = args->func();
-  if (retry_result == RetryResult::DONE || --args->retry_countdown <= 0)
+  RetryResult const retry_result = args->func(--args->retry_countdown);
+  if (retry_result == RetryResult::DONE || args->retry_countdown <= 0)
     return;
-  // second execution of `func` hapens after `initial_wait_time`
+  // second execution of `func` happens after `initial_wait_time`
   args->scheduler->set_timeout(args->component, args->name, args->current_interval, [args]() { retry_handler(args); });
   // backoff_increase_factor applied to third & later executions
   args->current_interval *= args->backoff_increase_factor;
 }
 
 void HOT Scheduler::set_retry(Component *component, const std::string &name, uint32_t initial_wait_time,
-                              uint8_t max_attempts, std::function<RetryResult()> func, float backoff_increase_factor) {
+                              uint8_t max_attempts, std::function<RetryResult(uint8_t)> func,
+                              float backoff_increase_factor) {
   if (!name.empty())
     this->cancel_retry(component, name);
 
