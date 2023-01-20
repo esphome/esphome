@@ -132,17 +132,14 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->set_state(espbt::ClientState::IDLE);
         break;
       }
-      if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
-        this->set_state(espbt::ClientState::CONNECTED);
-        this->state_ = espbt::ClientState::ESTABLISHED;
-        break;
-      }
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->open.conn_id);
       if (ret) {
         ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
                  this->address_str_.c_str(), ret);
       }
-      esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
+      if (this->connection_type_ != espbt::ConnectionType::V3_WITH_CACHE) {
+        esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
+      }
       break;
     }
     case ESP_GATTC_CFG_MTU_EVT: {
@@ -155,6 +152,10 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       ESP_LOGV(TAG, "[%d] [%s] cfg_mtu status %d, mtu %d", this->connection_index_, this->address_str_.c_str(),
                param->cfg_mtu.status, param->cfg_mtu.mtu);
       this->mtu_ = param->cfg_mtu.mtu;
+      if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
+        this->set_state(espbt::ClientState::CONNECTED);
+        this->state_ = espbt::ClientState::ESTABLISHED;
+      }
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {
@@ -306,18 +307,18 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
     case 0xD:  // int12.
     case 0xE:  // int16.
       if (length > 2) {
-        return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
+        return (float) ((int16_t) (value[1] << 8) + (int16_t) value[2]);
       }
       // fall through
     case 0xF:  // int24.
       if (length > 3) {
-        return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
+        return (float) ((int32_t) (value[1] << 16) + (int32_t) (value[2] << 8) + (int32_t) (value[3]));
       }
       // fall through
     case 0x10:  // int32.
       if (length > 4) {
-        return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
-                        (int32_t)(value[4]));
+        return (float) ((int32_t) (value[1] << 24) + (int32_t) (value[2] << 16) + (int32_t) (value[3] << 8) +
+                        (int32_t) (value[4]));
       }
   }
   ESP_LOGW(TAG, "[%d] [%s] Cannot parse characteristic value of type 0x%x length %d", this->connection_index_,
