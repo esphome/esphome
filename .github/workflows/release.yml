@@ -123,8 +123,8 @@ jobs:
           target: ${{ matrix.image.target }}
           push: true
           # yamllint disable rule:line-length
-          cache-from: type=registry,ref=ghcr.io/${{ steps.tags.output.image }}:cache-${{ steps.tags.outputs.channel }}
-          cache-to: type=registry,ref=ghcr.io/${{ steps.tags.output.image }}:cache-${{ steps.tags.outputs.channel }},mode=max
+          cache-from: type=registry,ref=ghcr.io/${{ steps.tags.outputs.image }}:cache-${{ steps.tags.outputs.channel }}
+          cache-to: type=registry,ref=ghcr.io/${{ steps.tags.outputs.image }}:cache-${{ steps.tags.outputs.channel }},mode=max
           # yamllint enable rule:line-length
           tags: ${{ steps.tags.outputs.tags }}
           build-args: |
