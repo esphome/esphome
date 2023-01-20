@@ -85,7 +85,6 @@ class ILI9XXXDisplay : public PollingComponent,
 
   bool prossing_update_ = false;
   bool need_update_ = false;
-
 };
 
 //-----------   M5Stack display --------------
