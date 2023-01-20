@@ -209,7 +209,7 @@ class ESP32BLETracker : public Component {
   void set_scan_window(uint32_t scan_window) { scan_window_ = scan_window; }
   void set_scan_active(bool scan_active) { scan_active_ = scan_active; }
   void set_scan_continuous(bool scan_continuous) { scan_continuous_ = scan_continuous; }
-  void set_io_capability(IoCapability io_capability) { global_io_cap = (esp_ble_io_cap_t)io_capability; }
+  void set_io_capability(IoCapability io_capability) { global_io_cap = (esp_ble_io_cap_t) io_capability; }
 
   /// Setup the FreeRTOS task and the Bluetooth stack.
   void setup() override;

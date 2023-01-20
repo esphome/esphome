@@ -66,6 +66,7 @@ IO_CAPABILITY = {
     "display_yes_no": IoCapability.IO_CAP_IO,
 }
 
+
 def validate_scan_parameters(config):
     duration = config[CONF_DURATION]
     interval = config[CONF_INTERVAL]

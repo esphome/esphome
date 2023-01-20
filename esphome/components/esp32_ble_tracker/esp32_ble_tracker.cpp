@@ -33,7 +33,7 @@ namespace esp32_ble_tracker {
 static const char *const TAG = "esp32_ble_tracker";
 
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-esp_ble_io_cap_t global_io_cap = ESP_IO_CAP_NONE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+esp_ble_io_cap_t global_io_cap = ESP_IO_CAP_NONE;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
   uint64_t u = 0;
