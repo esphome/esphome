@@ -1,107 +1,33 @@
+# Tests for ESP32-C3 boards which use toolchain-riscv32-esp
 ---
-esphome:
-  name: test7
-  build_path: build/test7
-  project:
-    name: esphome.test7_project
-    version: "1.0.0"
-  board: lolin_s2_mini
-  platform: ESP32
-
 wifi:
-  networks:
-    - ssid: "MySSID"
-      password: "password1"
+  ssid: 'ssid'
 
-api:
+esp32:
+  board: lolin_c3_mini
+  framework:
+    type: arduino
 
-ota:
+esphome:
+  name: 'on-response-test'
+  on_boot:
+    then:
+      - http_request.send:
+          method: PUT
+          url: https://esphome.io
+          headers:
+            Content-Type: application/json
+          body: Some data
+          verify_ssl: false
+          on_response:
+            then:
+              - logger.log:
+                  format: "Response status: %d"
+                  args:
+                    - status_code
 
 logger:
 
-button:
-  - platform: template
-    name: "Press ShiftLeft + B"
-    on_press:
-      then:
-        - keyboard.down:
-            id: kbd
-            keys:
-              - ShiftLeft
-              - 5
-        - delay: 100ms
-        - keyboard.set:
-            id: kbd
-  - platform: template
-    name: "Press K"
-    on_press:
-      then:
-        - keyboard.down:
-            id: kbd
-            keys: KeyK
-        - delay: 100ms
-        - keyboard.up:
-            id: kbd
-            keys: KeyK
-  - platform: template
-    name: "Press volume up"
-    on_press:
-      then:
-        - keyboard.set:
-            id: kbd
-            keys: 0x00E9
-            type: media_keys
-        - delay: 100ms
-        - keyboard.set:
-            id: kbd
-            type: media_keys
-  - platform: template
-    name: "Press volume down"
-    on_press:
-      then:
-        - keyboard.set:
-            id: kbd
-            keys: 0x00EA
-            type: media_keys
-        - delay: 100ms
-        - keyboard.set:
-            id: kbd
-            type: media_keys
-
-keyboard:
-  - platform: hid
-    name: Blue kbd
-    hid_id: usb_hid2
-    id: kbd
-
-hid:
-  - platform: usb_device
-    id: usb_hid2
-    type:
-      composite:
-        - keyboard
-        - media_keys
-
-binary_sensor:
-  - platform: usb_device
-    mounted:
-      name: USB is mounted
-    ready:
-      name: USB is ready
-    suspended:
-      name: USB is suspended
-  - platform: keyboard
-    keyboard_id: kbd
-    capslock:
-      name: capslock
-    numlock:
-      name: numlock
-    scrollock:
-      name: scrollock
-
-switch:
-  - platform: usb_device
-    detach:
-      name: Detach USB device
-    wake_up:
-      name: Wake up host
+http_request:
+  useragent: esphome/tagreader
+  timeout: 10s

@@ -6,7 +6,7 @@
 ARG BASEIMGTYPE=docker
 
 # https://github.com/hassio-addons/addon-debian-base/releases
-FROM ghcr.io/hassio-addons/debian-base:6.1.3 AS base-hassio
+FROM ghcr.io/hassio-addons/debian-base:6.2.0 AS base-hassio
 # https://hub.docker.com/_/debian?tab=tags&page=1&name=bullseye
 FROM debian:bullseye-20221024-slim AS base-docker
 
@@ -139,7 +139,7 @@ RUN \
         clang-tidy-11=1:11.0.1-2 \
         patch=2.7.6-7 \
         software-properties-common=0.96.20.2-2.1 \
-        nano=5.4-2+deb11u1 \
+        nano=5.4-2+deb11u2 \
         build-essential=12.9 \
         python3-dev=3.9.2-3 \
     && rm -rf \

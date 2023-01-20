@@ -13,3 +13,4 @@ esphome compile tests/test4.yaml
 esphome compile tests/test5.yaml
 esphome compile tests/test6.yaml
 esphome compile tests/test7.yaml
+esphome compile tests/test8.yaml
