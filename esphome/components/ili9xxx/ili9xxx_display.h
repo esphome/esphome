@@ -82,6 +82,10 @@ class ILI9XXXDisplay : public PollingComponent,
   GPIOPin *backlight_pin_{nullptr};
   GPIOPin *dc_pin_{nullptr};
   GPIOPin *busy_pin_{nullptr};
+
+  bool prossing_update_ = false;
+  bool need_update_ = false;
+
 };
 
 //-----------   M5Stack display --------------

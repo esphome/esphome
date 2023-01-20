@@ -54,7 +54,7 @@ void ILI9XXXDisplay::dump_config() {
       ESP_LOGCONFIG(TAG, "  Color mode: 8bit Indexed");
       break;
     case BITS_16:
-      ESP_LOGCONFIG(TAG, "  Color mode: 16bit Indexed");
+      ESP_LOGCONFIG(TAG, "  Color mode: 16bit");
       break;
     default:
       ESP_LOGCONFIG(TAG, "  Color mode: 8bit 332 mode");
@@ -65,6 +65,9 @@ void ILI9XXXDisplay::dump_config() {
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_PIN("  backlight Pin: ", this->backlight_pin_);
+  if (this->is_failed()) {
+    ESP_LOGCONFIG(TAG, "  => Failed to init Memory: YES!");
+  }
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -137,7 +140,18 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
 }
 
 void ILI9XXXDisplay::update() {
-  this->do_update_();
+  if (this->prossing_update_) {
+    this->need_update_ = true;
+    return;
+  }
+  do {
+    this->prossing_update_ = true;
+    this->need_update_ = false;
+    if (!this->need_update_) {
+      this->do_update_();
+    }
+  } while (this->need_update_);
+  this->prossing_update_ = false;
   this->display_();
 }
 

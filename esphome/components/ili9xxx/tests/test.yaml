@@ -39,11 +39,6 @@ color:
     blue: 0%
     green: 0%
 
-font:
-  - file: "gfonts://Roboto"
-    id: my_font
-    size: 20
-
 spi:
   clk_pin: 18
   mosi_pin: 23
@@ -71,3 +66,8 @@ display:
         it.horizontal_line(100+215,i,100, my_red.gradient(my_blue, i));
       }
       //it.rectangle(0, 0, 50, 50, my_white);
+
+font:
+  - file: "gfonts://Roboto"
+    id: my_font
+    size: 20
