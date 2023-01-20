@@ -304,5 +304,12 @@ void ILI9341TFT24R::initialize() {
   this->height_ = 240;
 }
 
+//  WT32-SC01
+void ILI9341WT32SC01::initialize() {
+  this->init_lcd_(INITCMD_TFT);
+  this->width_ = 320;
+  this->height_ = 480;
+}
+
 }  // namespace ili9341
 }  // namespace esphome
