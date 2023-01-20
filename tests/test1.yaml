@@ -289,12 +289,14 @@ wled:
 adalight:
 
 esp32_ble_tracker:
+  io_capability: keyboard_only
 
 ble_client:
   - mac_address: AA:BB:CC:DD:EE:FF
     id: ble_foo
   - mac_address: 11:22:33:44:55:66
     id: ble_blah
+    pin_code: 123456
     on_connect:
       then:
         - switch.turn_on: ble1_status
