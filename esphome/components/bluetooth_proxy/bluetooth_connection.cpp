@@ -34,10 +34,6 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
         this->set_address(0);
         api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
                                                                 this->proxy_->get_bluetooth_connections_limit());
-      } else if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
-        api::global_api_server->send_bluetooth_device_connection(this->address_, true, this->mtu_);
-        api::global_api_server->send_bluetooth_connections_free(this->proxy_->get_bluetooth_connections_free(),
-                                                                this->proxy_->get_bluetooth_connections_limit());
       }
       this->seen_mtu_or_services_ = false;
       break;
@@ -45,7 +41,9 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
     case ESP_GATTC_CFG_MTU_EVT: {
       if (param->cfg_mtu.conn_id != this->conn_id_)
         break;
-      if (!this->seen_mtu_or_services_) {
+      // For a V3_WITH_CACHE connection, we don't get the services event, so we
+      // need to send the device connection true here.
+      if (this->connection_type_ != espbt::ConnectionType::V3_WITH_CACHE && !this->seen_mtu_or_services_) {
         // We don't know if we will get the MTU or the services first, so
         // only send the device connection true if we have already received
         // the services.
