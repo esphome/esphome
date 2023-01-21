@@ -22,8 +22,9 @@ CONFIG_SCHEMA = cv.All(
         state_class=STATE_CLASS_MEASUREMENT,
         entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
     ).extend(cv.polling_component_schema("60s")),
-    cv.only_on(["esp32", "rp2040"])
+    cv.only_on(["esp32", "rp2040"]),
 )
+
 
 async def to_code(config):
     var = await sensor.new_sensor(config)
