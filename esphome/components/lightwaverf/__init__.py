@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID
 from esphome import pins
 from esphome import automation
+
 from esphome.const import (
     CONF_READ_PIN,
     CONF_ID,
@@ -11,9 +11,9 @@ from esphome.const import (
     CONF_REPEAT,
     CONF_INVERTED,
     CONF_PULSE_LENGTH,
-    CONF_CODE)
+    CONF_CODE,
+)
 from esphome.cpp_helpers import gpio_pin_expression
-
 
 
 CODEOWNERS = ["@max246"]
@@ -33,32 +33,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(LIGHTWAVERF),
         cv.Optional(CONF_READ_PIN, default=13): pins.internal_gpio_input_pin_schema,
         cv.Optional(CONF_WRITE_PIN, default=14): pins.internal_gpio_input_pin_schema,
-
     }
 ).extend(cv.polling_component_schema("10s"))
 
-LIGHTWAVE_SEND_SCHEMA = cv.Any(
-    cv.int_range(min=1),
-    cv.Schema(
-        {
-            cv.Required(CONF_NAME): cv.string,
-            cv.Required(CONF_CODE): cv.All(
-                    [cv.Any(cv.hex_int)],
-                    cv.Length(min=10),
-                    validate_rc_switch_raw_code,
-            ),
-            cv.Optional(CONF_REPEAT, default=10): cv.int,
-            cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-            cv.Optional(CONF_PULSE_LENGTH, default=330): cv.int,
-        }
-    ),
-)
-
-@register_action(
-    "send_raw",
-    LightwaveRawAction,
-    LIGHTWAVE_SEND_SCHEMA,
-)
 
 def validate_rc_switch_raw_code(value):
     if not isinstance(value, list):
@@ -74,6 +51,30 @@ def validate_rc_switch_raw_code(value):
 
     return value
 
+
+LIGHTWAVE_SEND_SCHEMA = cv.Any(
+    cv.int_range(min=1),
+    cv.Schema(
+        {
+            cv.Required(CONF_NAME): cv.string,
+            cv.Required(CONF_CODE): cv.All(
+                [cv.Any(cv.hex_int)],
+                cv.Length(min=10),
+                validate_rc_switch_raw_code,
+            ),
+            cv.Optional(CONF_REPEAT, default=10): cv.int,
+            cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+            cv.Optional(CONF_PULSE_LENGTH, default=330): cv.int,
+        }
+    ),
+)
+
+
+@automation.register_action(
+    "send_raw",
+    LightwaveRawAction,
+    LIGHTWAVE_SEND_SCHEMA,
+)
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
