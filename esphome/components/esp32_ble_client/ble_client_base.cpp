@@ -291,6 +291,7 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
     case ESP_GAP_BLE_OOB_REQ_EVT: {
       ESP_LOGW(TAG, "[%d] [%s] ESP_GAP_BLE_OOB_REQ_EVT (Not implemented: esp_ble_oob_req_reply)",
                this->connection_index_, this->address_str_.c_str());
+      // We probably want to something like this, however it has not yet been tested/verified.
       // uint8_t tk[16] = {1}; // If you paired with OOB, both devices need to use the same tk
       // esp_ble_oob_req_reply(param->ble_security.ble_req.bd_addr, tk, sizeof(tk));
       break;
