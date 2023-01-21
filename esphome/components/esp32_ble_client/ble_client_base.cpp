@@ -285,6 +285,7 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
       ESP_LOGW(TAG, "[%d] [%s] ESP_GAP_BLE_NC_REQ_EVT: Passkey: %06d (0x%x) (Not implemented: esp_ble_confirm_reply)",
                this->connection_index_, this->address_str_.c_str(), param->ble_security.key_notif.passkey,
                param->ble_security.key_notif.passkey);
+      // We probably want to something like this, however it has not yet been tested/verified.
       // esp_ble_confirm_reply(param->ble_security.ble_req.bd_addr, true);
       break;
     case ESP_GAP_BLE_OOB_REQ_EVT: {
