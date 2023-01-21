@@ -62,36 +62,36 @@ float AS7341Component::get_setup_priority() const { return setup_priority::DATA;
 void AS7341Component::update() {
   read_channels(this->channel_readings_);
 
-    if (this->f1_ != nullptr) {
-        this->f1_->publish_state(this->channel_readings_[0]);
-    }
-    if (this->f2_ != nullptr) {
-        this->f2_->publish_state(this->channel_readings_[1]);
-    }
-    if (this->f3_ != nullptr) {
-        this->f3_->publish_state(this->channel_readings_[2]);
-    }
-    if (this->f4_ != nullptr) {
-        this->f4_->publish_state(this->channel_readings_[3]);
-    }
-    if (this->f5_ != nullptr) {
-        this->f5_->publish_state(this->channel_readings_[6]);
-    }
-    if (this->f6_ != nullptr) {
-        this->f6_->publish_state(this->channel_readings_[7]);
-    }
-    if (this->f7_ != nullptr) {
-        this->f7_->publish_state(this->channel_readings_[8]);
-    }
-    if (this->f8_ != nullptr) {
-        this->f8_->publish_state(this->channel_readings_[9]);
-    }
-    if (this->clear_ != nullptr) {
-        this->clear_->publish_state(this->channel_readings_[10]);
-    }
-    if (this->nir_ != nullptr) {
-        this->nir_->publish_state(this->channel_readings_[11]);
-    }
+  if (this->f1_ != nullptr) {
+    this->f1_->publish_state(this->channel_readings_[0]);
+  }
+  if (this->f2_ != nullptr) {
+    this->f2_->publish_state(this->channel_readings_[1]);
+  }
+  if (this->f3_ != nullptr) {
+    this->f3_->publish_state(this->channel_readings_[2]);
+  }
+  if (this->f4_ != nullptr) {
+    this->f4_->publish_state(this->channel_readings_[3]);
+  }
+  if (this->f5_ != nullptr) {
+    this->f5_->publish_state(this->channel_readings_[6]);
+  }
+  if (this->f6_ != nullptr) {
+    this->f6_->publish_state(this->channel_readings_[7]);
+  }
+  if (this->f7_ != nullptr) {
+    this->f7_->publish_state(this->channel_readings_[8]);
+  }
+  if (this->f8_ != nullptr) {
+    this->f8_->publish_state(this->channel_readings_[9]);
+  }
+  if (this->clear_ != nullptr) {
+    this->clear_->publish_state(this->channel_readings_[10]);
+  }
+  if (this->nir_ != nullptr) {
+    this->nir_->publish_state(this->channel_readings_[11]);
+  }
 }
 
 as7341_gain_t AS7341Component::get_gain() {
@@ -232,7 +232,9 @@ bool AS7341Component::is_data_ready() { return this->read_register_bit(AS7341_ST
 
 bool AS7341Component::enable_power(bool enable) { return this->write_register_bit(AS7341_ENABLE, enable, 0); }
 
-bool AS7341Component::enable_spectral_measurement(bool enable) { return this->write_register_bit(AS7341_ENABLE, enable, 1); }
+bool AS7341Component::enable_spectral_measurement(bool enable) {
+  return this->write_register_bit(AS7341_ENABLE, enable, 1);
+}
 
 bool AS7341Component::read_register_bit(uint8_t address, uint8_t bit_position) {
   uint8_t data;

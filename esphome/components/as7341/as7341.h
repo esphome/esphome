@@ -45,22 +45,22 @@ static const uint8_t AS7341_CFG9 = 0xB2;  // Config for system interrupts (SMUX,
 static const uint8_t AS7341_ASTEP = 0xCA;      // LSB
 static const uint8_t AS7341_ASTEP_MSB = 0xCB;  // MSB
 
-typedef enum {
+using as7341_adc_channel_t = enum {
   AS7341_ADC_CHANNEL_0,
   AS7341_ADC_CHANNEL_1,
   AS7341_ADC_CHANNEL_2,
   AS7341_ADC_CHANNEL_3,
   AS7341_ADC_CHANNEL_4,
   AS7341_ADC_CHANNEL_5,
-} as7341_adc_channel_t;
+};
 
-typedef enum {
+using as7341_smux_cmd_t = enum {
   AS7341_SMUX_CMD_ROM_RESET,  ///< ROM code initialization of SMUX
   AS7341_SMUX_CMD_READ,       ///< Read SMUX configuration to RAM from SMUX chain
   AS7341_SMUX_CMD_WRITE,      ///< Write SMUX configuration from RAM to SMUX chain
-} as7341_smux_cmd_t;
+};
 
-typedef enum {
+using as7341_gain_t = enum {
   AS7341_GAIN_0_5X,
   AS7341_GAIN_1X,
   AS7341_GAIN_2X,
@@ -72,7 +72,7 @@ typedef enum {
   AS7341_GAIN_128X,
   AS7341_GAIN_256X,
   AS7341_GAIN_512X,
-} as7341_gain_t;
+};
 
 class AS7341Component : public PollingComponent, public i2c::I2CDevice {
  public:
