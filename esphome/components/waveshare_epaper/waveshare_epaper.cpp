@@ -937,6 +937,69 @@ void WaveshareEPaper5P8In::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+void WaveshareEPaper5P8InT8::initialize() {
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x07);
+  this->data(0x07);
+  this->data(0x3f);
+  this->data(0x3f);
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  this->data(0x1f);
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  this->wait_until_idle_();
+  delay(10);
+
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x02);
+  this->data(0x88);
+  this->data(0x01);
+  this->data(0xe0);
+
+  this->command(0x15);
+  this->data(0x00);
+
+  this->command(0x50);
+  this->data(0x29);
+  this->data(0x07);
+}
+void HOT WaveshareEPaper5P8InT8::display() {
+  this->command(0x10);
+  this->start_data_();
+  for (size_t i = 0; i < this->get_buffer_length_(); i++)
+    this->write_byte(0xFF);
+  this->end_data_();
+  delay(2);
+
+  this->command(0x13);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  this->wait_until_idle_();
+}
+int WaveshareEPaper5P8InT8::get_width_internal() { return 648; }
+int WaveshareEPaper5P8InT8::get_height_internal() { return 480; }
+void WaveshareEPaper5P8InT8::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 5.83inPico");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
 void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND POWER SETTING
   this->command(0x01);
