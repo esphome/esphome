@@ -67,8 +67,10 @@ jobs:
       contents: read
       packages: write
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.image.title == 'lint' }}
     needs: [init]
     strategy:
+      fail-fast: false
       matrix:
         image:
           - title: "ha-addon"
