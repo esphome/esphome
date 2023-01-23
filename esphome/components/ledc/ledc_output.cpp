@@ -20,7 +20,7 @@
   #define DEFAULT_CLK LEDC_USE_APB_CLK
 #endif
 
-#define SETUP_ATTEMPT_COUNT_MAX 5
+static const uint8_t SETUP_ATTEMPT_COUNT_MAX = 5;
 
 namespace esphome {
 namespace ledc {
@@ -152,14 +152,14 @@ void LEDCOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "  LEDC Channel: %u", this->channel_);
   ESP_LOGCONFIG(TAG, "  PWM Frequency: %.1f Hz", this->frequency_);
   ESP_LOGCONFIG(TAG, "  Bit depth: %u", this->bit_depth_);
-  ESP_LOGCONFIG(TAG, "  Max frequency for bit depth: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_));
-  ESP_LOGCONFIG(TAG, "  Min frequency for bit depth: %f", ledc_min_frequency_for_bit_depth(this->bit_depth_, (this->frequency_ < 100)));
-  ESP_LOGCONFIG(TAG, "  Max frequency for bit depth-1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_-1));
-  ESP_LOGCONFIG(TAG, "  Min frequency for bit depth-1: %f", ledc_min_frequency_for_bit_depth(this->bit_depth_-1, (this->frequency_ < 100)));
-  ESP_LOGCONFIG(TAG, "  Max frequency for bit depth+1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_+1));
-  ESP_LOGCONFIG(TAG, "  Min frequency for bit depth+1: %f", ledc_min_frequency_for_bit_depth(this->bit_depth_+1, (this->frequency_ < 100)));
-  ESP_LOGCONFIG(TAG, "  Max res bits: %d", MAX_RES_BITS);
-  ESP_LOGCONFIG(TAG, "  Clock frequency: %f", CLOCK_FREQUENCY);
+  ESP_LOGV(TAG, "  Max frequency for bit depth: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_));
+  ESP_LOGV(TAG, "  Min frequency for bit depth: %f", ledc_min_frequency_for_bit_depth(this->bit_depth_, (this->frequency_ < 100)));
+  ESP_LOGV(TAG, "  Max frequency for bit depth-1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_-1));
+  ESP_LOGV(TAG, "  Min frequency for bit depth-1: %f", ledc_min_frequency_for_bit_depth(this->bit_depth_-1, (this->frequency_ < 100)));
+  ESP_LOGV(TAG, "  Max frequency for bit depth+1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_+1));
+  ESP_LOGV(TAG, "  Min frequency for bit depth+1: %f", ledc_min_frequency_for_bit_depth(this->bit_depth_+1, (this->frequency_ < 100)));
+  ESP_LOGV(TAG, "  Max res bits: %d", MAX_RES_BITS);
+  ESP_LOGV(TAG, "  Clock frequency: %f", CLOCK_FREQUENCY);
 }
 
 void LEDCOutput::update_frequency(float frequency) {
@@ -173,7 +173,7 @@ void LEDCOutput::update_frequency(float frequency) {
 #ifdef USE_ARDUINO
   ESP_LOGV(TAG, "Using Arduino API - Trying to define channel, frequency and bit depth...");
   u_int32_t configured_frequency = 0;
-  
+
   // Configure LEDC channel, frequency and bit depth with fallback
   int attempt_count_max = SETUP_ATTEMPT_COUNT_MAX;
   while (attempt_count_max > 0 && configured_frequency == 0) {
@@ -195,7 +195,7 @@ void LEDCOutput::update_frequency(float frequency) {
     this->status_set_error();
     return;
   }
-  
+
 #endif  // USE_ARDUINO
 #ifdef USE_ESP_IDF
   if (!initialized_) {
