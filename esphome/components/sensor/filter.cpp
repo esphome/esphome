@@ -424,7 +424,7 @@ optional<float> LocalMinFilter::new_value(float value) {
   this->previous_value_ = this->current_value_;
   this->current_value_ = value;
 
-  ESP_LOGV(TAG, "LocalMinFilter(%p)::new_value(previous_value=%f, current_value=%f, running_min=%f, current_min=%f)", 
+  ESP_LOGV(TAG, "LocalMinFilter(%p)::new_value(previous_value=%f, current_value=%f, running_min=%f, current_min=%f)",
            this, this->previous_value_, this->current_value_, this->running_min_, this->current_min_);
 
   return this->current_min_;
@@ -453,7 +453,7 @@ optional<float> LocalMaxFilter::new_value(float value) {
   this->previous_value_ = this->current_value_;
   this->current_value_ = value;
 
-  ESP_LOGV(TAG, "LocalMaxFilter(%p)::new_value(previous_value=%f, current_value=%f, running_max=%f, current_max=%f)", 
+  ESP_LOGV(TAG, "LocalMaxFilter(%p)::new_value(previous_value=%f, current_value=%f, running_max=%f, current_max=%f)",
            this, this->previous_value_, this->current_value_, this->running_max_, this->current_max_);
   return this->current_max_;
 }
