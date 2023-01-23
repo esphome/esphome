@@ -818,6 +818,13 @@ sensor:
     address: 0x77
     update_interval: 15s
     i2c_id: i2c_bus
+  - platform: pas_co2
+    id: xensiv_pas_co2
+    co2:
+      name: Xensiv PAS CO2
+    update_interval: 15s
+    ambient_pressure_compensation: 961mBar
+    i2c_id: i2c_bus
   - platform: pmsa003i
     pm_1_0:
       name: PMSA003i PM1.0
