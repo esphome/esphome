@@ -52,6 +52,9 @@ void CPUTemperatureSensor::update() {
     this->publish_state(temperature);
   } else {
     ESP_LOGD(TAG, "Ignoring invalid temperature (success=%d, value=%.1f)", success, temperature);
+    if (!this->has_state()) {
+      this->publish_state(NAN);
+    }
   }
 }
 
