@@ -17,7 +17,7 @@
 #define CLOCK_FREQUENCY 40e6f
 #endif
 #else
-  #define DEFAULT_CLK LEDC_USE_APB_CLK
+#define DEFAULT_CLK LEDC_USE_APB_CLK
 #endif
 
 static const uint8_t SETUP_ATTEMPT_COUNT_MAX = 5;
@@ -87,7 +87,7 @@ void LEDCOutput::write_state(float state) {
 }
 
 void LEDCOutput::setup() {
-ESP_LOGV(TAG, "Entering setup...");
+  ESP_LOGV(TAG, "Entering setup...");
 #ifdef USE_ARDUINO
   this->update_frequency(this->frequency_);
   this->turn_off();
@@ -118,7 +118,8 @@ ESP_LOGV(TAG, "Entering setup...");
   while (attempt_count_max > 0 && init_result != ESP_OK) {
     init_result = ledc_timer_config(&timer_conf);
     if (init_result != ESP_OK) {
-      ESP_LOGW(TAG,"Unable to initialize timer with frequency %.1f and bit depth of %u", this->frequency_, this->bit_depth_);
+      ESP_LOGW(TAG,"Unable to initialize timer with frequency %.1f and bit depth of %u", this->frequency_,
+               this->bit_depth_);
       // try again with a lower bit depth
       timer_conf.duty_resolution = static_cast<ledc_timer_bit_t>(--this->bit_depth_);
     }
@@ -153,11 +154,14 @@ void LEDCOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "  PWM Frequency: %.1f Hz", this->frequency_);
   ESP_LOGCONFIG(TAG, "  Bit depth: %u", this->bit_depth_);
   ESP_LOGV(TAG, "  Max frequency for bit depth: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_));
-  ESP_LOGV(TAG, "  Min frequency for bit depth: %f", ledc_min_frequency_for_bit_depth(this->bit_depth_, (this->frequency_ < 100)));
+  ESP_LOGV(TAG, "  Min frequency for bit depth: %f",
+           ledc_min_frequency_for_bit_depth(this->bit_depth_, (this->frequency_ < 100)));
   ESP_LOGV(TAG, "  Max frequency for bit depth-1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_-1));
-  ESP_LOGV(TAG, "  Min frequency for bit depth-1: %f", ledc_min_frequency_for_bit_depth(this->bit_depth_-1, (this->frequency_ < 100)));
+  ESP_LOGV(TAG, "  Min frequency for bit depth-1: %f",
+           ledc_min_frequency_for_bit_depth(this->bit_depth_-1, (this->frequency_ < 100)));
   ESP_LOGV(TAG, "  Max frequency for bit depth+1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_+1));
-  ESP_LOGV(TAG, "  Min frequency for bit depth+1: %f", ledc_min_frequency_for_bit_depth(this->bit_depth_+1, (this->frequency_ < 100)));
+  ESP_LOGV(TAG, "  Min frequency for bit depth+1: %f",
+           ledc_min_frequency_for_bit_depth(this->bit_depth_+1, (this->frequency_ < 100)));
   ESP_LOGV(TAG, "  Max res bits: %d", MAX_RES_BITS);
   ESP_LOGV(TAG, "  Clock frequency: %f", CLOCK_FREQUENCY);
 }
@@ -177,13 +181,15 @@ void LEDCOutput::update_frequency(float frequency) {
   // Configure LEDC channel, frequency and bit depth with fallback
   int attempt_count_max = SETUP_ATTEMPT_COUNT_MAX;
   while (attempt_count_max > 0 && configured_frequency == 0) {
-    ESP_LOGV(TAG,"Trying initialize channel %u with frequency %.1f and bit depth of %u...", this->channel_, this->frequency_, this->bit_depth_);
+    ESP_LOGV(TAG,"Trying initialize channel %u with frequency %.1f and bit depth of %u...", this->channel_,
+             this->frequency_, this->bit_depth_);
     configured_frequency = ledcSetup(this->channel_, frequency, this->bit_depth_);
     if (configured_frequency != 0) {
       initialized_ = true;
       ESP_LOGV(TAG,"Configured frequency: %u with bit depth: %u", configured_frequency, this->bit_depth_);
     } else {
-      ESP_LOGW(TAG,"Unable to initialize channel %u with frequency %.1f and bit depth of %u", this->channel_, this->frequency_, this->bit_depth_);
+      ESP_LOGW(TAG,"Unable to initialize channel %u with frequency %.1f and bit depth of %u", this->channel_,
+               this->frequency_, this->bit_depth_);
       // try again with a lower bit depth
       this->bit_depth_--;
     }
@@ -191,7 +197,8 @@ void LEDCOutput::update_frequency(float frequency) {
   }
 
   if (configured_frequency == 0) {
-    ESP_LOGE(TAG,"Permanently failed to initialize channel %u with frequency %.1f and bit depth of %u", this->channel_, this->frequency_, this->bit_depth_);
+    ESP_LOGE(TAG,"Permanently failed to initialize channel %u with frequency %.1f and bit depth of %u", this->channel_,
+             this->frequency_, this->bit_depth_);
     this->status_set_error();
     return;
   }
