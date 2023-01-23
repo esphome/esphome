@@ -407,16 +407,16 @@ optional<float> LocalMinFilter::new_value(float value) {
     this->running_min_ = value;
   } else {
     if (this->current_value_ > value) {
-        this->running_min_ = value;
+      this->running_min_ = value;
     }
 
     if (!std::isnan(this->previous_value_)) {
       if (this->previous_value_ > this->current_value_) {
-          // was decreasing
-          if (this->current_value_ <= value) {
-              // but now increasing or flat
-              this->current_min_ = this->running_min_;
-          }
+        // was decreasing
+        if (this->current_value_ <= value) {
+            // but now increasing or flat
+            this->current_min_ = this->running_min_;
+        }
       }
     }
   }
