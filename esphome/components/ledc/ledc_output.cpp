@@ -11,11 +11,11 @@
 #define CLOCK_FREQUENCY 80e6f
 
 #ifdef USE_ARDUINO
-  #ifdef SOC_LEDC_SUPPORT_XTAL_CLOCK
-    #undef CLOCK_FREQUENCY
-    // starting with ESP32 Arduino 2.0.2, the 40MHz crystal is used as clock by default if supported
-    #define CLOCK_FREQUENCY 40e6f
-  #endif
+#ifdef SOC_LEDC_SUPPORT_XTAL_CLOCK
+#undef CLOCK_FREQUENCY
+// starting with ESP32 Arduino 2.0.2, the 40MHz crystal is used as clock by default if supported
+#define CLOCK_FREQUENCY 40e6f
+#endif
 #else
   #define DEFAULT_CLK LEDC_USE_APB_CLK
 #endif
