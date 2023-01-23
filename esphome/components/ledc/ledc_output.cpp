@@ -118,7 +118,7 @@ void LEDCOutput::setup() {
   while (attempt_count_max > 0 && init_result != ESP_OK) {
     init_result = ledc_timer_config(&timer_conf);
     if (init_result != ESP_OK) {
-      ESP_LOGW(TAG,"Unable to initialize timer with frequency %.1f and bit depth of %u", this->frequency_,
+      ESP_LOGW(TAG, "Unable to initialize timer with frequency %.1f and bit depth of %u", this->frequency_,
                this->bit_depth_);
       // try again with a lower bit depth
       timer_conf.duty_resolution = static_cast<ledc_timer_bit_t>(--this->bit_depth_);
@@ -156,12 +156,12 @@ void LEDCOutput::dump_config() {
   ESP_LOGV(TAG, "  Max frequency for bit depth: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_));
   ESP_LOGV(TAG, "  Min frequency for bit depth: %f",
            ledc_min_frequency_for_bit_depth(this->bit_depth_, (this->frequency_ < 100)));
-  ESP_LOGV(TAG, "  Max frequency for bit depth-1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_-1));
+  ESP_LOGV(TAG, "  Max frequency for bit depth-1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_ - 1));
   ESP_LOGV(TAG, "  Min frequency for bit depth-1: %f",
-           ledc_min_frequency_for_bit_depth(this->bit_depth_-1, (this->frequency_ < 100)));
-  ESP_LOGV(TAG, "  Max frequency for bit depth+1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_+1));
+           ledc_min_frequency_for_bit_depth(this->bit_depth_ - 1, (this->frequency_ < 100)));
+  ESP_LOGV(TAG, "  Max frequency for bit depth+1: %f", ledc_max_frequency_for_bit_depth(this->bit_depth_ + 1));
   ESP_LOGV(TAG, "  Min frequency for bit depth+1: %f",
-           ledc_min_frequency_for_bit_depth(this->bit_depth_+1, (this->frequency_ < 100)));
+           ledc_min_frequency_for_bit_depth(this->bit_depth_ + 1, (this->frequency_ < 100)));
   ESP_LOGV(TAG, "  Max res bits: %d", MAX_RES_BITS);
   ESP_LOGV(TAG, "  Clock frequency: %f", CLOCK_FREQUENCY);
 }
