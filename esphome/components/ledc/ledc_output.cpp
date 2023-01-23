@@ -181,14 +181,14 @@ void LEDCOutput::update_frequency(float frequency) {
   // Configure LEDC channel, frequency and bit depth with fallback
   int attempt_count_max = SETUP_ATTEMPT_COUNT_MAX;
   while (attempt_count_max > 0 && configured_frequency == 0) {
-    ESP_LOGV(TAG,"Trying initialize channel %u with frequency %.1f and bit depth of %u...", this->channel_,
+    ESP_LOGV(TAG, "Trying initialize channel %u with frequency %.1f and bit depth of %u...", this->channel_,
              this->frequency_, this->bit_depth_);
     configured_frequency = ledcSetup(this->channel_, frequency, this->bit_depth_);
     if (configured_frequency != 0) {
       initialized_ = true;
-      ESP_LOGV(TAG,"Configured frequency: %u with bit depth: %u", configured_frequency, this->bit_depth_);
+      ESP_LOGV(TAG, "Configured frequency: %u with bit depth: %u", configured_frequency, this->bit_depth_);
     } else {
-      ESP_LOGW(TAG,"Unable to initialize channel %u with frequency %.1f and bit depth of %u", this->channel_,
+      ESP_LOGW(TAG, "Unable to initialize channel %u with frequency %.1f and bit depth of %u", this->channel_,
                this->frequency_, this->bit_depth_);
       // try again with a lower bit depth
       this->bit_depth_--;
@@ -197,7 +197,7 @@ void LEDCOutput::update_frequency(float frequency) {
   }
 
   if (configured_frequency == 0) {
-    ESP_LOGE(TAG,"Permanently failed to initialize channel %u with frequency %.1f and bit depth of %u", this->channel_,
+    ESP_LOGE(TAG, "Permanently failed to initialize channel %u with frequency %.1f and bit depth of %u", this->channel_,
              this->frequency_, this->bit_depth_);
     this->status_set_error();
     return;
