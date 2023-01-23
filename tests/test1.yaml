@@ -318,8 +318,8 @@ mcp23s17:
     deviceaddress: 1
 
 sensor:
-  - platform: cpu_temperature
-    name: "CPU Temperature"
+  - platform: internal_temperature
+    name: "Internal Temperature"
   - platform: ble_client
     type: characteristic
     ble_client_id: ble_foo

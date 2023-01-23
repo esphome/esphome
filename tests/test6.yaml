@@ -39,5 +39,5 @@ switch:
     id: pin_4_switch
 
 sensor:
-  - platform: cpu_temperature
-    name: "CPU Temperature"
+  - platform: internal_temperature
+    name: "Internal Temperature"

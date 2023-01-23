@@ -4,9 +4,9 @@
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
-namespace cpu_temperature {
+namespace internal_temperature {
 
-class CPUTemperatureSensor : public sensor::Sensor, public PollingComponent {
+class InternalTemperatureSensor : public sensor::Sensor, public PollingComponent {
  public:
   void dump_config() override;
 
@@ -15,5 +15,5 @@ class CPUTemperatureSensor : public sensor::Sensor, public PollingComponent {
   std::string unique_id() override;
 };
 
-}  // namespace cpu_temperature
+}  // namespace internal_temperature
 }  // namespace esphome

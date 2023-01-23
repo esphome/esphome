@@ -1,4 +1,4 @@
-#include "cpu_temperature.h"
+#include "internal_temperature.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
@@ -21,11 +21,11 @@ uint8_t temprature_sens_read();
 #endif  // USE_RP2040
 
 namespace esphome {
-namespace cpu_temperature {
+namespace internal_temperature {
 
-static const char *const TAG = "cpu_temperature";
+static const char *const TAG = "internal_temperature";
 
-void CPUTemperatureSensor::update() {
+void InternalTemperatureSensor::update() {
   float temperature = NAN;
   bool success = false;
 #ifdef USE_ESP32
@@ -58,8 +58,8 @@ void CPUTemperatureSensor::update() {
   }
 }
 
-std::string CPUTemperatureSensor::unique_id() { return get_mac_address() + "-cputemp"; }
-void CPUTemperatureSensor::dump_config() { LOG_SENSOR("", "CPU Temperature Sensor", this); }
+std::string InternalTemperatureSensor::unique_id() { return get_mac_address() + "-internaltemp"; }
+void InternalTemperatureSensor::dump_config() { LOG_SENSOR("", "Internal Temperature Sensor", this); }
 
-}  // namespace cpu_temperature
+}  // namespace internal_temperature
 }  // namespace esphome
