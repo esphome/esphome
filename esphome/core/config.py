@@ -194,7 +194,7 @@ def preload_core_config(config, result):
         conf = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
 
     CORE.name = conf[CONF_NAME]
-    CORE.friendly_name = conf.get(CONF_FRIENDLY_NAME, CORE.name)
+    CORE.friendly_name = conf.get(CONF_FRIENDLY_NAME)
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
@@ -350,6 +350,7 @@ async def to_code(config):
         cg.App.pre_setup(
             config[CONF_NAME],
             config[CONF_FRIENDLY_NAME],
+            config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
