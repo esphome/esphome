@@ -19,7 +19,7 @@ honeywellabp2_ns = cg.esphome_ns.namespace("honeywellabp2")
 CONF_MIN_PRESSURE = "min_pressure"
 CONF_MAX_PRESSURE = "max_pressure"
 TRANSFER_FUNCTION = "transfer_function"
-ABP2TRANFERFUNCTION = honeywellabp2_ns.enum("SHT4XPRECISION")
+ABP2TRANFERFUNCTION = honeywellabp2_ns.enum("ABP2TRANFERFUNCTION")
 TRANS_FUNC_OPTIONS = {
     "A": ABP2TRANFERFUNCTION.ABP2_TRANS_FUNC_A,
     "B": ABP2TRANFERFUNCTION.ABP2_TRANS_FUNC_B,
