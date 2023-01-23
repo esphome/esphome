@@ -204,6 +204,8 @@ DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
 OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
+LocalMinFilter = sensor_ns.class_("LocalMinFilter", Filter)
+LocalMaxFilter = sensor_ns.class_("LocalMaxFilter", Filter)
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
 
 validate_unit_of_measurement = cv.string_strict
@@ -576,6 +578,16 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
     return cg.new_Pvariable(filter_id, res)
+
+
+@FILTER_REGISTRY.register("local_min", LocalMinFilter, cv.All())
+async def local_min_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id)
+
+
+@FILTER_REGISTRY.register("local_max", LocalMaxFilter, cv.All())
+async def local_max_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id)
 
 
 async def build_filters(config):

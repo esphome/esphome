@@ -401,5 +401,62 @@ optional<float> CalibratePolynomialFilter::new_value(float value) {
   return res;
 }
 
+optional<float> LocalMinFilter::new_value(float value) {
+  if (std::isnan(this->current_value_)) {
+    this->current_min_ = value;
+    this->running_min_ = value;
+  } else {
+    if (this->current_value_ > value) {
+        this->running_min_ = value;
+    }
+
+    if (!std::isnan(this->previous_value_)) {
+      if (this->previous_value_ > this->current_value_) {
+          // was decreasing
+          if (this->current_value_ <= value) {
+              // but now increasing or flat
+              this->current_min_ = this->running_min_;
+          }
+      }
+    }
+  }
+
+  this->previous_value_ = this->current_value_;
+  this->current_value_ = value;
+
+  ESP_LOGV(TAG, "LocalMinFilter(%p)::new_value(previous_value=%f, current_value=%f, running_min=%f, current_min=%f)", 
+           this, this->previous_value_, this->current_value_, this->running_min_, this->current_min_);
+
+  return this->current_min_;
+}
+
+optional<float> LocalMaxFilter::new_value(float value) {
+  if (std::isnan(this->current_value_)) {
+    this->current_max_ = value;
+    this->running_max_ = value;
+  } else {
+    if (this->current_value_ < value) {
+      this->running_max_ = value;
+    }
+
+    if (!std::isnan(this->previous_value_)) {
+      if (this->previous_value_ < this->current_value_) {
+        // was increasing
+        if (this->current_value_ >= value) {
+          // but now decreasing or flat
+          this->current_max_ = this->running_max_;
+        }
+      }
+    }
+  }
+
+  this->previous_value_ = this->current_value_;
+  this->current_value_ = value;
+
+  ESP_LOGV(TAG, "LocalMaxFilter(%p)::new_value(previous_value=%f, current_value=%f, running_max=%f, current_max=%f)", 
+           this, this->previous_value_, this->current_value_, this->running_max_, this->current_max_);
+  return this->current_max_;
+}
+
 }  // namespace sensor
 }  // namespace esphome

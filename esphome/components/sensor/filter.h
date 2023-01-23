@@ -375,5 +375,29 @@ class CalibratePolynomialFilter : public Filter {
   std::vector<float> coefficients_;
 };
 
+class LocalMinFilter : public Filter {
+ public:
+  LocalMinFilter() {}
+  optional<float> new_value(float value) override;
+
+ protected:
+  float previous_value_;
+  float current_value_{NAN};
+  float current_min_;
+  float running_min_;
+};
+
+class LocalMaxFilter : public Filter {
+ public:
+  LocalMaxFilter() {}
+  optional<float> new_value(float value) override;
+
+ protected:
+  float previous_value_;
+  float current_value_{NAN};
+  float current_max_;
+  float running_max_;
+};
+
 }  // namespace sensor
 }  // namespace esphome
