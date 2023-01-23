@@ -23,6 +23,19 @@ void HONEYWELLABP2Sensor::read_sensor() {
     this->mark_failed();
     return;
   }
+  float press_counts = raw_data_[3] + raw_data_[2] * 256 + raw_data_[1] * 65536; // calculate digital pressure counts
+  float temp_counts = raw_data_[6] + raw_data_[5] * 256 + raw_data_[4] * 65536; // calculate digital temperature counts
+  
+  this->last_pressure_ = ((press_counts - this->min_count_) * (double)(this->max_pressure_ - this->min_pressure_)) / (this->max_count_ - this->min_count_) + this->min_pressure_;
+  this->last_temperature_ = (temp_counts * 200 / 16777215) - 50;
+}
+
+float HONEYWELLABP2Sensor::get_pressure() {
+  return this->last_pressure_;
+}
+
+float HONEYWELLABP2Sensor::get_temperature() {
+  return this->last_temperature_;
 }
 
 void HONEYWELLABP2Sensor::update() {
@@ -30,16 +43,11 @@ void HONEYWELLABP2Sensor::update() {
   
   this->read_sensor();
   
-  double press_counts = raw_data_[3] + raw_data_[2] * 256 + raw_data_[1] * 65536; // calculate digital pressure counts
-  double temp_counts = raw_data_[6] + raw_data_[5] * 256 + raw_data_[4] * 65536; // calculate digital temperature counts
-  
   if (pressure_sensor_ != nullptr) {
-    float pressure = ((press_counts - this->min_count_) * (double)(this->max_pressure_ - this->min_pressure_)) / (this->max_count_ - this->min_count_) + this->min_pressure_;
-    this->pressure_sensor_->publish_state(pressure);
+    this->pressure_sensor_->publish_state(this->get_pressure());
   }
   if (temperature_sensor_ != nullptr) {
-    float temperature = (temp_counts * 200 / 16777215) - 50;
-    this->temperature_sensor_->publish_state(temperature);
+    this->temperature_sensor_->publish_state(this->get_temperature());
   }
 }
 

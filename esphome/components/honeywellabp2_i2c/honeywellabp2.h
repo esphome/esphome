@@ -22,6 +22,8 @@ class HONEYWELLABP2Sensor : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   
   void read_sensor();
+  float get_pressure();
+  float get_temperature();
   
   void set_min_pressure(float min_pressure) {this->min_pressure_ = min_pressure;};
   void set_max_pressure(float max_pressure) {this->max_pressure_ = max_pressure;};
@@ -45,6 +47,8 @@ class HONEYWELLABP2Sensor : public PollingComponent, public i2c::I2CDevice {
   
   uint8_t raw_data_[7]; // holds output data
   uint8_t i2c_cmd_[3] = {0xAA, 0x00, 0x00}; // command to be sent
+  float last_pressure_;
+  float last_temperature_;
 };
 
 }  // namespace honeywellabp2
