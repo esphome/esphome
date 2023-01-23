@@ -13,7 +13,7 @@ void PASCO2Component::setup() {
 
   // Mark as not failed before initializing. Some devices will turn off sensors to save on batteries
   // and when they come back on, the COMPONENT_STATE_FAILED bit must be unset on the component.
-  this->component_state_ &= ~COMPONENT_STATE_FAILED;
+  // this->component_state_ &= ~COMPONENT_STATE_FAILED;
   initialized_ = false;
 
   // The sensor needs 1000 ms to enter the idle state.
@@ -253,6 +253,7 @@ void PASCO2Component::try_read_measurement_() {
   } else {
     ESP_LOGE(TAG, "Too many retries reading sensor!");
     this->status_set_warning();
+    retry_count_ = 0;
     // TODO: re-initialize sensor?
   }
 }
