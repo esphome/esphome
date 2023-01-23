@@ -414,8 +414,8 @@ optional<float> LocalMinFilter::new_value(float value) {
       if (this->previous_value_ > this->current_value_) {
         // was decreasing
         if (this->current_value_ <= value) {
-            // but now increasing or flat
-            this->current_min_ = this->running_min_;
+          // but now increasing or flat
+          this->current_min_ = this->running_min_;
         }
       }
     }
