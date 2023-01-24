@@ -1,14 +1,15 @@
 from pathlib import Path
+from typing import Optional
+
 import requests
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import git
 from esphome.components.packages import validate_source_shorthand
-from esphome.const import CONF_WIFI
+from esphome.const import CONF_REF, CONF_WIFI
 from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
-from esphome import git
-
 
 dashboard_import_ns = cg.esphome_ns.namespace("dashboard_import")
 
@@ -21,19 +22,32 @@ CODEOWNERS = ["@esphome/core"]
 def validate_import_url(value):
     value = cv.string_strict(value)
     value = cv.Length(max=255)(value)
-    # ignore result, only check if it's a valid shorthand
     validate_source_shorthand(value)
     return value
+
+
+def validate_full_url(config):
+    if not config[CONF_IMPORT_FULL_CONFIG]:
+        return config
+    source = validate_source_shorthand(config[CONF_PACKAGE_IMPORT_URL])
+    if CONF_REF not in source:
+        raise cv.Invalid(
+            "Must specify a ref (branch or tag) to import from when importing full config"
+        )
+    return config
 
 
 CONF_PACKAGE_IMPORT_URL = "package_import_url"
 CONF_IMPORT_FULL_CONFIG = "import_full_config"
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_PACKAGE_IMPORT_URL): validate_import_url,
-        cv.Optional(CONF_IMPORT_FULL_CONFIG, default=False): cv.boolean,
-    }
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Required(CONF_PACKAGE_IMPORT_URL): validate_import_url,
+            cv.Optional(CONF_IMPORT_FULL_CONFIG, default=False): cv.boolean,
+        }
+    ),
+    validate_full_url,
 )
 
 WIFI_CONFIG = """
@@ -49,11 +63,16 @@ async def to_code(config):
     url = config[CONF_PACKAGE_IMPORT_URL]
     if config[CONF_IMPORT_FULL_CONFIG]:
         url += "?full_config"
-    cg.add(dashboard_import_ns.set_package_import_url(config[CONF_PACKAGE_IMPORT_URL]))
+    cg.add(dashboard_import_ns.set_package_import_url(url))
 
 
 def import_config(
-    path: str, name: str, project_name: str, import_url: str, network: str = CONF_WIFI
+    path: str,
+    name: str,
+    friendly_name: Optional[str],
+    project_name: str,
+    import_url: str,
+    network: str = CONF_WIFI,
 ) -> None:
     p = Path(path)
 
@@ -64,6 +83,7 @@ def import_config(
         p.write_text(
             wizard_file(
                 name=name,
+                friendly_name=friendly_name,
                 platform="ESP32" if "esp32" in import_url else "ESP8266",
                 board="esp32dev" if "esp32" in import_url else "esp01_1m",
                 ssid="!secret wifi_ssid",
@@ -85,13 +105,15 @@ def import_config(
             p.write_text(req.text, encoding="utf8")
 
         else:
+            substitutions = {"name": name}
+            esphome_core = {"name": "${name}", "name_add_mac_suffix": False}
+            if friendly_name:
+                substitutions["friendly_name"] = friendly_name
+                esphome_core["friendly_name"] = "${friendly_name}"
             config = {
-                "substitutions": {"name": name},
+                "substitutions": substitutions,
                 "packages": {project_name: import_url},
-                "esphome": {
-                    "name": "${name}",
-                    "name_add_mac_suffix": False,
-                },
+                "esphome": esphome_core,
             }
             output = dump(config)
 

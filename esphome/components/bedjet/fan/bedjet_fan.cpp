@@ -37,9 +37,13 @@ void BedJetFan::control(const fan::FanCall &call) {
 
   // ignore speed changes if not on or turning on
   if (this->state && call.get_speed().has_value()) {
-    this->speed = *call.get_speed();
-    this->parent_->set_fan_index(this->speed);
-    did_change = true;
+    auto speed = *call.get_speed();
+    if (speed >= 1) {
+      this->speed = speed;
+      // Fan.speed is 1-20, but Bedjet expects 0-19, so subtract 1
+      this->parent_->set_fan_index(this->speed - 1);
+      did_change = true;
+    }
   }
 
   if (did_change) {
@@ -57,8 +61,9 @@ void BedJetFan::on_status(const BedjetStatusPacket *data) {
     did_change = true;
   }
 
-  if (data->fan_step != this->speed) {
-    this->speed = data->fan_step;
+  // BedjetStatusPacket.fan_step is in range 0-19, but Fan.speed wants 1-20.
+  if (data->fan_step + 1 != this->speed) {
+    this->speed = data->fan_step + 1;
     did_change = true;
   }
 

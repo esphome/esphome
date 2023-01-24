@@ -7,14 +7,14 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <nvs_flash.h>
-#include <freertos/FreeRTOSConfig.h>
-#include <esp_bt_main.h>
 #include <esp_bt.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
-#include <esp_gap_ble_api.h>
 #include <esp_bt_defs.h>
+#include <esp_bt_main.h>
+#include <esp_gap_ble_api.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/FreeRTOSConfig.h>
+#include <freertos/task.h>
+#include <nvs_flash.h>
 
 #ifdef USE_OTA
 #include "esphome/components/ota/ota_component.h"
@@ -419,11 +419,7 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
   while (offset + 2 < len) {
     const uint8_t field_length = payload[offset++];  // First byte is length of adv record
     if (field_length == 0) {
-      if (offset < param.adv_data_len && param.scan_rsp_len > 0) {  // Zero padded advertisement data
-        offset = param.adv_data_len;
-        continue;
-      }
-      break;
+      continue;  // Possible zero padded advertisement data
     }
 
     // first byte of adv record is adv record type
