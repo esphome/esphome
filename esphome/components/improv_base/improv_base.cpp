@@ -14,7 +14,7 @@ std::string ImprovBase::get_formatted_next_url_() {
   // Device name
   std::size_t pos = this->next_url_.find("{{device_name}}");
   if (pos != std::string::npos) {
-    std::string device_name = App.get_name();
+    const std::string &device_name = App.get_name();
     copy.replace(pos, 15, device_name);
   }
 
