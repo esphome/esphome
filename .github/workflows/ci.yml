@@ -52,6 +52,10 @@ jobs:
             file: tests/test6.yaml
             name: Test tests/test6.yaml
             pio_cache_key: test6
+          - id: test
+            file: tests/test7.yaml
+            name: Test tests/test7.yaml
+            pio_cache_key: test7
           - id: pytest
             name: Run pytest
           - id: clang-format
@@ -177,7 +181,7 @@ jobs:
 
       - name: Run yamllint
         if: matrix.id == 'yamllint'
-        uses: frenck/action-yamllint@v1.3.0
+        uses: frenck/action-yamllint@v1.3.1
 
       - name: Suggested changes
         run: script/ci-suggest-changes

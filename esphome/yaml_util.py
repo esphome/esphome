@@ -88,7 +88,7 @@ def _add_data_ref(fn):
     return wrapped
 
 
-class ESPHomeLoader(yaml.SafeLoader):  # pylint: disable=too-many-ancestors
+class ESPHomeLoader(yaml.SafeLoader):
     """Loader class that keeps track of line numbers."""
 
     @_add_data_ref
@@ -419,7 +419,7 @@ def is_secret(value):
         return None
 
 
-class ESPHomeDumper(yaml.SafeDumper):  # pylint: disable=too-many-ancestors
+class ESPHomeDumper(yaml.SafeDumper):
     def represent_mapping(self, tag, mapping, flow_style=None):
         value = []
         node = yaml.MappingNode(tag, value, flow_style=flow_style)
