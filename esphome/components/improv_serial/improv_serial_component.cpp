@@ -100,6 +100,9 @@ std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv:
   std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
   urls.push_back(webserver_url);
 #endif
+  if (!this->next_url_.empty()) {
+    urls.push_back(this->get_formatted_next_url_());
+  }
   std::vector<uint8_t> data = improv::build_rpc_response(command, urls, false);
   return data;
 }
