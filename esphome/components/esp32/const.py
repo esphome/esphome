@@ -7,6 +7,7 @@ KEY_SDKCONFIG_OPTIONS = "sdkconfig_options"
 KEY_COMPONENTS = "components"
 KEY_REPO = "repo"
 KEY_REF = "ref"
+KEY_PATH = "path"
 
 VARIANT_ESP32 = "ESP32"
 VARIANT_ESP32S2 = "ESP32S2"
