@@ -39,6 +39,7 @@ from .const import (  # noqa
     KEY_ESP32,
     KEY_PATH,
     KEY_REF,
+    KEY_REFRESH,
     KEY_REPO,
     KEY_SDKCONFIG_OPTIONS,
     KEY_VARIANT,
@@ -118,7 +119,9 @@ def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
     CORE.data[KEY_ESP32][KEY_SDKCONFIG_OPTIONS][name] = value
 
 
-def add_idf_component(name: str, repo: str, ref: str = None, path: str = None):
+def add_idf_component(
+    name: str, repo: str, ref: str = None, path: str = None, refresh: TimePeriod = None
+):
     """Add an esp-idf component to the project."""
     if not CORE.using_esp_idf:
         raise ValueError("Not an esp-idf project")
@@ -127,6 +130,7 @@ def add_idf_component(name: str, repo: str, ref: str = None, path: str = None):
             KEY_REPO: repo,
             KEY_REF: ref,
             KEY_PATH: path,
+            KEY_REFRESH: refresh,
         }
 
 
@@ -414,15 +418,14 @@ async def to_code(config):
             source = component[CONF_SOURCE]
             if source[CONF_TYPE] == TYPE_GIT:
                 add_idf_component(
-                    component[CONF_NAME],
-                    source[CONF_URL],
-                    source.get(CONF_REF),
-                    component.get(CONF_PATH),
+                    name=component[CONF_NAME],
+                    repo=source[CONF_URL],
+                    ref=source.get(CONF_REF),
+                    path=component.get(CONF_PATH),
+                    refresh=component[CONF_REFRESH],
                 )
             elif source[CONF_TYPE] == TYPE_LOCAL:
-                # add_idf_component(
-                #     component[CONF_NAME], source[CONF_PATH], component[CONF_PATH]
-                # )
+                _LOGGER.warn("Local components are not implemented yet.")
                 pass
 
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
@@ -533,7 +536,7 @@ def copy_files():
                 repo_dir, _ = git.clone_or_update(
                     url=component[KEY_REPO],
                     ref=component[KEY_REF],
-                    refresh=TimePeriod(days=1),
+                    refresh=component[KEY_REFRESH],
                     domain="idf_components",
                 )
                 mkdir_p(CORE.relative_build_path("components"))
