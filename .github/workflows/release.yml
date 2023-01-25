@@ -142,11 +142,10 @@ jobs:
           TOKEN: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
         # yamllint disable rule:line-length
         run: |
-          TAG="${GITHUB_REF#refs/tags/}"
           curl \
             -u ":$TOKEN" \
             -X POST \
             -H "Accept: application/vnd.github.v3+json" \
             https://api.github.com/repos/esphome/home-assistant-addon/actions/workflows/bump-version.yml/dispatches \
-            -d "{\"ref\":\"main\",\"inputs\":{\"version\":\"$TAG\"}}"
+            -d '{"ref":"main","inputs":{"version":"${{ github.event.release.tag_name }}","content":${{ toJSON(github.event.release.body) }}}}'
         # yamllint enable rule:line-length
