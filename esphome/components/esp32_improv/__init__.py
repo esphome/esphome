@@ -6,7 +6,7 @@ from esphome.const import CONF_ID
 
 AUTO_LOAD = ["binary_sensor", "output", "esp32_ble_server"]
 CODEOWNERS = ["@jesserockz"]
-CONFLICTS_WITH = ["esp32_ble_tracker", "esp32_ble_beacon"]
+CONFLICTS_WITH = ["esp32_ble_beacon"]
 DEPENDENCIES = ["wifi", "esp32"]
 
 CONF_AUTHORIZED_DURATION = "authorized_duration"

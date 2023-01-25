@@ -6,12 +6,18 @@ from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz"]
-CONFLICTS_WITH = ["esp32_ble_tracker", "esp32_ble_beacon"]
+CONFLICTS_WITH = ["esp32_ble_beacon"]
+
+CONF_BLE_ID = "ble_id"
 
 NO_BLUTOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
+
+GAPEventHandler = esp32_ble_ns.class_("GAPEventHandler")
+GATTcEventHandler = esp32_ble_ns.class_("GATTcEventHandler")
+GATTsEventHandler = esp32_ble_ns.class_("GATTsEventHandler")
 
 
 CONFIG_SCHEMA = cv.Schema(
