@@ -2,6 +2,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+
+#include "LwRx.h"
+
 
 namespace esphome {
 namespace lightwaverf {
@@ -10,25 +14,25 @@ namespace lightwaverf {
 
     class LightWaveRF : public PollingComponent {
 
-        LightWaveRF() {}
-
         public:
-            void set_pin(int *pin_tx, int *pin_rx) { pin_tx_ = pin_tx; pin_rx_ = pin_rx; }
+            void set_pin(InternalGPIOPin *pin_tx, InternalGPIOPin *pin_rx) { pin_tx_ = pin_tx; pin_rx_ = pin_rx; }
             void update() override;
             void setup() override;
             void dump_config() override;
             void read_tx();
-            void send_rx(byte *msg, byte repeats, byte invert, int uSec);
+            void send_rx(uint8_t *msg, uint8_t repeats, uint8_t invert, int uSec);
 
         protected:
-            void printMsg(byte *msg, byte len);
-            byte msg[10];
-            byte msglen = 10;
-            int *pin_tx_;
-            int *pin_rx_;
+            void printMsg(uint8_t *msg, uint8_t len);
+            uint8_t msg[10];
+            uint8_t msglen = 10;
+            InternalGPIOPin *pin_tx_;
+            InternalGPIOPin *pin_rx_;
+            LwRx lwrx;
+            //LwTx lwtx;
 
-    }
+    };
 
     #endif
-} // namespace lightwaverf
-} // namespace esphome
+} 
+} 

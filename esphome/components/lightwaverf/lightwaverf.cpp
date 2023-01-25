@@ -1,10 +1,12 @@
-#include "lightwaverf.h"
-#include "LwRx.h"
-#include "LwTx.h"
+
 
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP8266
+
+#include "lightwaverf.h"
+#include "LwRx.h"
+//#include "LwTx.h"
 
 namespace esphome {
 namespace lightwaverf {
@@ -18,47 +20,50 @@ namespace lightwaverf {
     void LightWaveRF::setup() {
         ESP_LOGCONFIG(TAG, "Setting up Lightwave RF...");
 
-        lwtx_setup(pin_tx_, DEFAULT_REPEAT, DEFAULT_INVERT, DEFAULT_TICK);
-        lwrx_setup(pin_rx_);
+        //this->lwtx.lwtx_setup(pin_tx_, DEFAULT_REPEAT, DEFAULT_INVERT, DEFAULT_TICK);
+        this->lwrx.lwrx_setup(pin_rx_);
     }
 
     void LightWaveRF::update() {
+        ESP_LOGCONFIG(TAG, "update method ...");
+
         this->read_tx();
     }
 
     void LightWaveRF::read_tx() {
-      if (lwrx_message()) {
-         lwrx_getmessage(msg, msglen);
+      if (this->lwrx.lwrx_message()) {
+         this->lwrx.lwrx_getmessage(msg, msglen);
          printMsg(msg, msglen);
       }
     }
 
-    void LightWaveRF::send_rx(byte *msg, byte repeats, byte invert, int uSec) {
-        lwtx_setup(pin_tx, repeats, invert, uSec);
+    void LightWaveRF::send_rx(uint8_t *msg, uint8_t repeats, uint8_t invert, int uSec) {
+        /*this->lwtx.lwtx_setup(pin_tx, repeats, invert, uSec);
 
         long timeout = 0;
-         if (lwtx_free()) {
-            lwtx_send(msg);
+         if (this->lwtx.lwtx_free()) {
+            this->lwtx.wtx_send(msg);
             timeout = millis();
             ESP_LOGD(TAG, "[%i] msg start", timeout);
          }
-         while(!lwtx_free() && millis() < (timeout + 1000)) {
+         while(!this->lwtx.lwtx_free() && millis() < (timeout + 1000)) {
             delay(10);
          }
          timeout = millis() - timeout;
-         ESP_LOGD(TAG, "[%i] msg sent: %i",millis(), timeout);
+         ESP_LOGD(TAG, "[%i] msg sent: %i",millis(), timeout);*/
     }
 
-    void LightWaveRF::printMsg(byte *msg, byte len)  {
+    void LightWaveRF::printMsg(uint8_t *msg, uint8_t len)  {
         char buffer[65];
-        int j = 0;
+        ESP_LOGD(TAG, " Received code (len:%i): ",  len);
+
+
         for(int i=0;i<len;i++) {
-            buffer[j] =msg[i];
-            j++;
-            buffer[j] = ",";
-            j++;
+            sprintf(&buffer[i*6],"0x%02x, ", msg[i]);
+            //ESP_LOGD(TAG, "%x ",   msg[i]);
         }
-        ESP_LOGD(TAG, " Received code: %s", buffer)
+        ESP_LOGD(TAG, "[%s]",  buffer);
+       
     }
 
     void LightWaveRF::dump_config() {

@@ -4,10 +4,13 @@
 // 
 // Author: Bob Tidey (robert@tideys.net)
 
+
+#ifdef LOLaAA
+
 #include "LwTx.h"
 static int EEPROMaddr = EEPROM_ADDR_DEFAULT;
 
-static byte tx_nibble[] = {0xF6,0xEE,0xED,0xEB,0xDE,0xDD,0xDB,0xBE,0xBD,0xBB,0xB7,0x7E,0x7D,0x7B,0x77,0x6F};
+static uint8_t tx_nibble[] = {0xF6,0xEE,0xED,0xEB,0xDE,0xDD,0xDB,0xBE,0xBD,0xBB,0xB7,0x7E,0x7D,0x7B,0x77,0x6F};
 
 #ifdef TX_PIN_DEFAULT
 static int tx_pin = TX_PIN_DEFAULT;
@@ -15,60 +18,60 @@ static int tx_pin = TX_PIN_DEFAULT;
 static int tx_pin = 3;
 #endif
 
-static const byte tx_msglen = 10; // the expected length of the message
+static const uint8_t tx_msglen = 10; // the expected length of the message
 
 //Transmit mode constants and variables
-static byte tx_repeats = 12; // Number of repeats of message sent
-static byte txon = 1;
-static byte txoff = 0;
-static boolean tx_msg_active = false; //set true to activate message sending
-static boolean tx_translate = true; // Set false to send raw data
+static uint8_t tx_repeats = 12; // Number of repeats of message sent
+static uint8_t txon = 1;
+static uint8_t txoff = 0;
+static bool tx_msg_active = false; //set true to activate message sending
+static bool tx_translate = true; // Set false to send raw data
 
-static byte tx_buf[tx_msglen]; // the message buffer during reception
-static byte tx_repeat = 0; //counter for repeats
-static byte tx_state = 0;
-static byte tx_toggle_count = 3;
+static uint8_t tx_buf[tx_msglen]; // the message buffer during reception
+static uint8_t tx_repeat = 0; //counter for repeats
+static uint8_t tx_state = 0;
+static uint8_t tx_toggle_count = 3;
 static uint16_t tx_gap_repeat = 0;	//unsigned int
 
 // These set the pulse durations in ticks. ESP uses 330uSec base tick, else use 140uSec
 #ifdef ESP8266
-static byte tx_low_count = 3; // total number of ticks in a low (990 uSec)
-static byte tx_high_count = 2; // total number of ticks in a high (660 uSec)
-static byte tx_trail_count = 1; //tick count to set line low (330 uSec)
+static uint8_t tx_low_count = 3; // total number of ticks in a low (990 uSec)
+static uint8_t tx_high_count = 2; // total number of ticks in a high (660 uSec)
+static uint8_t tx_trail_count = 1; //tick count to set line low (330 uSec)
 // Use with low repeat counts
-static byte tx_gap_count = 33; // Inter-message gap count (10.9 msec)
+static uint8_t tx_gap_count = 33; // Inter-message gap count (10.9 msec)
 static unsigned long espPeriod = 0; //Holds interrupt timer0 period
 static unsigned long espNext = 0; //Holds interrupt next count
 #define ISR_ATTR ICACHE_RAM_ATTR
 //#define ISR_ATTR inline
 #else
-static byte tx_low_count = 7; // total number of ticks in a low (980 uSec)
-static byte tx_high_count = 4; // total number of ticks in a high (560 uSec)
-static byte tx_trail_count = 2; //tick count to set line low (280 uSec)
+static uint8_t tx_blow_count = 7; // total number of ticks in a low (980 uSec)
+static uint8_t tx_high_count = 4; // total number of ticks in a high (560 uSec)
+static uint8_t tx_trail_count = 2; //tick count to set line low (280 uSec)
 // Use with low repeat counts
-static byte tx_gap_count = 72; // Inter-message gap count (10.8 msec)
+static uint8_t tx_gap_count = 72; // Inter-message gap count (10.8 msec)
 #define ISR_ATTR 
 #endif
 //Gap multiplier byte is used to multiply gap if longer periods are needed for experimentation
 //If gap is 255 (35msec) then this to give a max of 9 seconds
 //Used with low repeat counts to find if device times out
-static byte tx_gap_multiplier = 0; //Gap extension byte 
+static uint8_t tx_gap_multiplier = 0; //Gap extension byte 
 
-static const byte tx_state_idle = 0;
-static const byte tx_state_msgstart = 1;
-static const byte tx_state_bytestart = 2;
-static const byte tx_state_sendbyte = 3;
-static const byte tx_state_msgend = 4;
-static const byte tx_state_gapstart = 5;
-static const byte tx_state_gapend = 6;
+static const uint8_t tx_state_idle = 0;
+static const uint8_t tx_state_msgstart = 1;
+static const uint8_t tx_state_bytestart = 2;
+static const uint8_t tx_state_sendbyte = 3;
+static const uint8_t tx_state_msgend = 4;
+static const uint8_t tx_state_gapstart = 5;
+static const uint8_t tx_state_gapend = 6;
 
-static byte tx_bit_mask = 0; // bit mask in current byte
-static byte tx_num_bytes = 0; // number of bytes sent 
+static uint8_t tx_bit_mask = 0; // bit mask in current byte
+static uint8_t tx_num_bytes = 0; // number of bytes sent 
 
 /**
   Set translate mode
 **/
-void lwtx_settranslate(boolean txtranslate)
+void lwtx_settranslate(bool txtranslate)
 {
     tx_translate = txtranslate;
 }
@@ -150,16 +153,16 @@ void ISR_ATTR isrTXtimer() {
 /**
   Check for send free
 **/
-boolean lwtx_free() {
+bool lwtx_free() {
   return !tx_msg_active;
 }
 
 /**
   Send a LightwaveRF message (10 nibbles in bytes)
 **/
-void lwtx_send(byte *msg) {
+void lwtx_send(uint8_t *msg) {
   if (tx_translate) {
-    for (byte i=0; i < tx_msglen; i++) {
+    for (uint8_t i=0; i < tx_msglen; i++) {
       tx_buf[i] = tx_nibble[msg[i] & 0xF];
     }
   } else {
@@ -172,8 +175,8 @@ void lwtx_send(byte *msg) {
 /**
   Set 5 char address for future messages
 **/
-void lwtx_setaddr(byte *addr) {
-   for (byte i=0; i < 5; i++) {
+void lwtx_setaddr(uint8_t *addr) {
+   for (uint8_t i=0; i < 5; i++) {
       tx_buf[i+4] = tx_nibble[addr[i] & 0xF];
 #if EEPROM_EN
       EEPROM.write(EEPROMaddr + i, tx_buf[i+4]);
@@ -184,7 +187,7 @@ void lwtx_setaddr(byte *addr) {
 /**
   Send a LightwaveRF message (10 nibbles in bytes)
 **/
-void lwtx_cmd(byte command, byte parameter, byte room, byte device) {
+void lwtx_cmd(uint8_t command, uint8_t parameter, uint8_t room, uint8_t device) {
   //enable timer 2 interrupts
   tx_buf[0] = tx_nibble[parameter >> 4];
   tx_buf[1] = tx_nibble[parameter  & 0xF];
@@ -198,7 +201,7 @@ void lwtx_cmd(byte command, byte parameter, byte room, byte device) {
 /**
   Set things up to transmit LightWaveRF 434Mhz messages
 **/
-void lwtx_setup(int pin, byte repeats, byte invert, int period) {
+void lwtx_setup(int pin, uint8_t repeats, uint8_t invert, int period) {
 #if EEPROM_EN
 	for(int i=0; i<5; i++) {
 	  tx_buf[i+4] = EEPROM.read(EEPROMaddr+i);
@@ -236,14 +239,14 @@ void lwtx_setup(int pin, byte repeats, byte invert, int period) {
 	lw_timer_Setup(isrTXtimer, period1);
 }
 
-void lwtx_setTickCounts( byte lowCount, byte highCount, byte trailCount, byte gapCount) {
+void lwtx_setTickCounts( uint8_t lowCount, uint8_t highCount, uint8_t trailCount, uint8_t gapCount) {
 	tx_low_count = lowCount;
 	tx_high_count = highCount;
 	tx_trail_count = trailCount;
 	tx_gap_count = gapCount;
 }
 
-void lwtx_setGapMultiplier(byte gapMultiplier) {
+void lwtx_setGapMultiplier(uint8_t gapMultiplier) {
    tx_gap_multiplier = gapMultiplier;
 }
 
@@ -316,7 +319,7 @@ extern void lw_timer_Stop() {
 #elif defined(DUE)
 #include "DueTimer.h"
 DueTimer txmtTimer = DueTimer::DueTimer(0);
-boolean dueDefined = false;
+bool dueDefined = false;
 extern void lw_timer_Setup(void (*isrCallback)(), int period) {
 	if (!dueDefined) {
 		txmtTimer = DueTimer::getAvailable();
@@ -340,7 +343,7 @@ extern void lw_timer_Stop() {
 //32u4 which uses the TIMER3
 extern void lw_timer_Setup(void (*isrCallback)(), int period) {
     isrRoutine = isrCallback; // unused here as callback is direct
-    byte clock = (period / 4) - 1;;
+    uint8_t clock = (period / 4) - 1;;
     cli();//stop interrupts
     //set timer2 interrupt at  clock uSec (default 140)
     TCCR3A = 0;// set entire TCCR2A register to 0
@@ -379,10 +382,10 @@ extern void lw_timer_Setup(void (*isrCallback)(), int period) {
 	isrRoutine = isrCallback; // unused here as callback is direct
 #if defined(AVR328_8MHZ)
 	//1 usec input
-	byte clock = period - 1;
+	uint8_t clock = period - 1;
 #else
 	//4 usec input
-	byte clock = (period / 4) - 1;
+	uint8_t clock = (period / 4) - 1;
 #endif
 	cli();//stop interrupts
 	//set timer2 interrupt at  clock uSec (default 140)
@@ -421,4 +424,7 @@ ISR(TIMER2_COMPA_vect){
 }
 
 #endif
+
+#endif
+
 

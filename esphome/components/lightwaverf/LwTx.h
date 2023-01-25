@@ -1,3 +1,6 @@
+#include "esphome/core/component.h"
+/*
+
 // LxTx.h
 //
 // LightwaveRF 434MHz tx interface for Arduino
@@ -36,6 +39,7 @@
 #define TX_PIN_DEFAULT 3
 #endif
 
+
 //Include EEPROM if required to include storing device paramters in EEPROM
 #if EEPROM_EN == 1
 #include <EEPROM.h>
@@ -45,28 +49,28 @@
 
 
 //Sets up basic parameters must be called at least once
-extern void lwtx_setup(int pin, byte repeats, byte invert, int uSec);
+extern void lwtx_setup(int pin, uint8_t repeats, uint8_t invert, int uSec);
 
 //Allows changing basic tick counts from their defaults
-extern void lwtx_setTickCounts( byte lowCount, byte highCount, byte trailCount, byte gapCount);
+extern void lwtx_setTickCounts( uint8_t lowCount, uint8_t highCount, uint8_t trailCount, uint8_t gapCount);
 
 //Allws multiplying the gap period for creating very large gaps
-extern void lwtx_setGapMultiplier(byte gapMultiplier);
+extern void lwtx_setGapMultiplier(uint8_t gapMultiplier);
 
 // determines whether incoming data or should be translated from nibble data
-extern void lwtx_settranslate(boolean txtranslate);
+extern void lwtx_settranslate(bool txtranslate);
 
 //Checks whether tx is free to accept a new message
-extern boolean lwtx_free();
+extern bool lwtx_free();
 
 //Basic send of new 10 char message, not normally needed if setaddr and cmd are used.
-extern void lwtx_send(byte* msg);
+extern void lwtx_send(uint8_t* msg);
 
 //Sets up 5 char address which will be used to form messages for lwtx_cmd
-extern void lwtx_setaddr(byte* addr);
+extern void lwtx_setaddr(uint8_t* addr);
 
 //Send Command
-extern void lwtx_cmd(byte command, byte parameter, byte room, byte device);
+extern void lwtx_cmd(uint8_t command, uint8_t parameter, uint8_t room, uint8_t device);
 
 //Set base address for EEPROM storage
 extern void lwtx_setEEPROMaddr(int addr);
@@ -80,3 +84,4 @@ void lw_timer_Start();
 
 //Allws multiplying the gap period for creating very large gaps
 void lw_timer_Stop();
+*/

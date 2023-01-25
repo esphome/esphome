@@ -20,22 +20,27 @@ CODEOWNERS = ["@max246"]
 
 lightwaverf_ns = cg.esphome_ns.namespace("lightwaverf")
 
-LIGHTWAVERF = lightwaverf_ns.class_("LIGHTWAVERF")
 
+LIGHTWAVERFComponent = lightwaverf_ns.class_("LightWaveRF", cg.Component , cg.PollingComponent)
+
+
+'''
 RemoteTransmitterActionBase = lightwaverf_ns.class_(
     "RemoteTransmitterActionBase", automation.Action
 )
 LightwaveRawAction = lightwaverf_ns.class_("LIGHTWAVERF", RemoteTransmitterActionBase)
-
+'''
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(LIGHTWAVERF),
+        cv.GenerateID(): cv.declare_id(LIGHTWAVERFComponent),
         cv.Optional(CONF_READ_PIN, default=13): pins.internal_gpio_input_pin_schema,
         cv.Optional(CONF_WRITE_PIN, default=14): pins.internal_gpio_input_pin_schema,
     }
-).extend(cv.polling_component_schema("10s"))
+).extend(cv.polling_component_schema("1s"))
 
+
+'''
 
 def validate_rc_switch_raw_code(value):
     if not isinstance(value, list):
@@ -62,9 +67,7 @@ LIGHTWAVE_SEND_SCHEMA = cv.Any(
                 cv.Length(min=10),
                 validate_rc_switch_raw_code,
             ),
-            cv.Optional(CONF_REPEAT, default=10): cv.int,
-            cv.Optional(CONF_INVERTED, default=False): cv.boolean,
-            cv.Optional(CONF_PULSE_LENGTH, default=330): cv.int,
+            cv.Optional(CONF_REPEAT, default=10): cv.int_,
         }
     ),
 )
@@ -75,6 +78,9 @@ LIGHTWAVE_SEND_SCHEMA = cv.Any(
     LightwaveRawAction,
     LIGHTWAVE_SEND_SCHEMA,
 )
+
+'''
+
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)

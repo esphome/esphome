@@ -1,3 +1,12 @@
+#pragma once
+
+
+#include "esphome/core/component.h"
+#include "esphome/core/hal.h"
+
+namespace esphome {
+namespace lightwaverf {
+
 // LwRx.h
 //
 // LightwaveRF 434MHz receiver for Arduino
@@ -12,17 +21,6 @@
 #define ESP8266CPU 1
 //Choose whether to include EEPROM support, comment or set to 0 to disable, 1 use with library support, 2 use with native support
 #define EEPROM_EN 0
-
-//Include basic library header and set RX pin logic
-#ifdef SPARK_CORE
-#include "application.h"
-#elif DUE
-#include <Arduino.h>
-#elif ESP8266CPU
-//#include <Arduino.h>
-#else
-#include <Arduino.h>
-#endif
 
 //Include EEPROM if required to include storing device paramters in EEPROM
 #if EEPROM_EN == 1
@@ -46,57 +44,72 @@
 //sets maximum number of pairings which can be held
 #define rx_maxpairs 10
 
-//Setup must be called once, set up pin used to receive data
-extern void lwrx_setup(int pin);
+class LwRx {
 
-//Set translate to determine whether translating from nibbles to bytes in message
-//Translate off only applies to 10char message returns
-extern void lwrx_settranslate(boolean translate);
+    public:
+        //Seup must be called once, set up pin used to receive data
+        void lwrx_setup(InternalGPIOPin *pin);
 
-// Check to see whether message available
-extern boolean lwrx_message();
+        //Set translate to determine whether translating from nibbles to bytes in message
+        //Translate off only applies to 10char message returns
+        void lwrx_settranslate(bool translate);
 
-//Get a message, len controls format (2 cmd+param, 4 cmd+param+room+device),10 full message
-extern boolean lwrx_getmessage(byte* buf, byte len);
+        // Check to see whether message available
+        bool lwrx_message();
 
-//Setup repeat filter
-extern void lwrx_setfilter(byte repeats, byte timeout);
+        //Get a message, len controls format (2 cmd+param, 4 cmd+param+room+device),10 full message
+        bool lwrx_getmessage(uint8_t* buf, uint8_t len);
 
-//Add pair, if no pairing set then all messages are received, returns number of pairs
-extern byte lwrx_addpair(byte* pairdata);
+        //Setup repeat filter
+        void lwrx_setfilter(uint8_t repeats, uint8_t timeout);
 
-// Get pair data into buffer  for the pairnumber. Returns current paircount
-// Use pairnumber 255 to just get current paircount
-extern byte lwrx_getpair(byte* pairdata, byte pairnumber);
+        //Add pair, if no pairing set then all messages are received, returns number of pairs
+        uint8_t lwrx_addpair(uint8_t* pairdata);
 
-//Make a pair from next message received within timeout 100mSec
-//This call returns immediately whilst message checking continues
-extern void lwrx_makepair(byte timeout);
+        // Get pair data into buffer  for the pairnumber. Returns current paircount
+        // Use pairnumber 255 to just get current paircount
+        uint8_t lwrx_getpair(uint8_t* pairdata, uint8_t pairnumber);
 
-//Set pair mode controls
-extern void lwrx_setPairMode(boolean pairEnforce, boolean pairBaseOnly);
+        //Make a pair from next message received within timeout 100mSec
+        //This call returns immediately whilst message checking continues
+        void lwrx_makepair(uint8_t timeout);
 
-//Returns time from last packet received in msec
-// Can be used to determine if Rx may be still receiving repeats
-extern unsigned long lwrx_packetinterval();
+        //Set pair mode controls
+        void lwrx_setPairMode(bool pairEnforce, bool pairBaseOnly);
 
-extern void lwrx_clearpairing();
+        //Returns time from last packet received in msec
+        // Can be used to determine if Rx may be still receiving repeats
+        unsigned long lwrx_packetinterval();
 
-//Return stats on pulse timings
-extern boolean lwrx_getstats(uint16_t* stats);
+        static void rx_process_bits(LwRx *arg);
 
-//Enable collection of stats on pulse timings
-extern void lwrx_setstatsenable(boolean rx_stats_enable);
+    protected:
+        void lwrx_clearpairing();
 
-//Set base address for EEPROM storage
-extern void lwrx_setEEPROMaddr(int addr);
+        //Return stats on pulse timings
+        bool lwrx_getstats(uint16_t* stats);
 
-//internal support functions
-boolean rx_reportMessage();
-int16_t rx_findNibble(byte data);	//int
-void rx_addpairfrommsg();
-void rx_paircommit();
-void rx_removePair(byte *buf);
-int16_t rx_checkPairs(byte *buf, boolean allDevices);	//int
-void restoreEEPROMPairing();
-int getIntNo(int pin);
+        //Enable collection of stats on pulse timings
+        void lwrx_setstatsenable(bool rx_stats_enable);
+
+        //Set base address for EEPROM storage
+        void lwrx_setEEPROMaddr(int addr);
+
+        //internal support functions
+        bool rx_reportMessage();
+        int16_t rx_findNibble(uint8_t data);	//int
+        void rx_addpairfrommsg();
+        void rx_paircommit();
+        void rx_removePair(uint8_t *buf);
+        int16_t rx_checkPairs(uint8_t *buf, bool allDevices);	//int
+        void restoreEEPROMPairing();
+
+        //InternalGPIOPin rx_pin;
+        ISRInternalGPIOPin rx_pin_isr;
+        InternalGPIOPin *rx_pin;
+
+
+};
+
+}
+}
