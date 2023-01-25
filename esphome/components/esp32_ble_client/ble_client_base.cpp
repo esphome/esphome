@@ -244,10 +244,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
 }
 
 void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  esp_bd_addr_t bd_addr;
-  memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
-  if (memcmp(bd_addr, this->remote_bda_, sizeof(esp_bd_addr_t)) != 0)
-    return;
   switch (event) {
     // This event is sent by the server when it requests security
     case ESP_GAP_BLE_SEC_REQ_EVT:
@@ -256,48 +252,21 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
       break;
     // This event is sent once authentication has completed
     case ESP_GAP_BLE_AUTH_CMPL_EVT:
-      ESP_LOGV(TAG, "[%d] [%s] auth complete. remote BD_ADDR: %s", this->connection_index_, this->address_str_.c_str(),
+      esp_bd_addr_t bd_addr;
+      memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
+      ESP_LOGI(TAG, "[%d] [%s] auth complete. remote BD_ADDR: %s", this->connection_index_, this->address_str_.c_str(),
                format_hex(bd_addr, 6).c_str());
       if (!param->ble_security.auth_cmpl.success) {
         ESP_LOGE(TAG, "[%d] [%s] auth fail reason = 0x%x", this->connection_index_, this->address_str_.c_str(),
                  param->ble_security.auth_cmpl.fail_reason);
       } else {
-        ESP_LOGI(TAG, "[%d] [%s] auth success. address type = %d auth mode = %d", this->connection_index_,
+        ESP_LOGV(TAG, "[%d] [%s] auth success. address type = %d auth mode = %d", this->connection_index_,
                  this->address_str_.c_str(), param->ble_security.auth_cmpl.addr_type,
                  param->ble_security.auth_cmpl.auth_mode);
       }
       break;
-    case ESP_GAP_BLE_PASSKEY_REQ_EVT:
-      // Call the following function to input the passkey which is displayed on the remote device
-      ESP_LOGD(TAG, "[%d] [%s] ESP_GAP_BLE_PASSKEY_REQ_EVT: Authenticating with passkey", this->connection_index_,
-               this->address_str_.c_str());
-      esp_ble_passkey_reply(this->remote_bda_, true, this->pin_code_);
-      break;
-    case ESP_GAP_BLE_PASSKEY_NOTIF_EVT:
-      // The app will receive this event when the IO has Output capability and the peer device IO has Input capability.
-      // Show the passkey number to the user to input it in the peer device.
-      ESP_LOGD(TAG, "[%d] [%s] ESP_GAP_BLE_PASSKEY_NOTIF_EVT: Passkey: %06d (0x%x)", this->connection_index_,
-               this->address_str_.c_str(), param->ble_security.key_notif.passkey,
-               param->ble_security.key_notif.passkey);
-      break;
-    case ESP_GAP_BLE_NC_REQ_EVT:
-      // The app will receive this evt when the IO has DisplayYesNO capability and the peer device IO also has
-      // DisplayYesNo capability. Show the passkey number to the user to confirm it with the number displayed by peer
-      // device.
-      ESP_LOGW(TAG, "[%d] [%s] ESP_GAP_BLE_NC_REQ_EVT: Passkey: %06d (0x%x) (Not implemented: esp_ble_confirm_reply)",
-               this->connection_index_, this->address_str_.c_str(), param->ble_security.key_notif.passkey,
-               param->ble_security.key_notif.passkey);
-      // We probably want to something like this, however it has not yet been tested/verified.
-      // esp_ble_confirm_reply(param->ble_security.ble_req.bd_addr, true);
-      break;
-    case ESP_GAP_BLE_OOB_REQ_EVT: {
-      ESP_LOGW(TAG, "[%d] [%s] ESP_GAP_BLE_OOB_REQ_EVT (Not implemented: esp_ble_oob_req_reply)",
-               this->connection_index_, this->address_str_.c_str());
-      // We probably want to something like this, however it has not yet been tested/verified.
-      // uint8_t tk[16] = {1}; // If you paired with OOB, both devices need to use the same tk
-      // esp_ble_oob_req_reply(param->ble_security.ble_req.bd_addr, tk, sizeof(tk));
-      break;
-    }
+    // There are other events we'll want to implement at some point to support things like pass key
+    // https://github.com/espressif/esp-idf/blob/cba69dd088344ed9d26739f04736ae7a37541b3a/examples/bluetooth/bluedroid/ble/gatt_security_client/tutorial/Gatt_Security_Client_Example_Walkthrough.md
     default:
       break;
   }

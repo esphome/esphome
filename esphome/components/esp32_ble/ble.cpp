@@ -21,6 +21,8 @@ namespace esp32_ble {
 
 static const char *const TAG = "esp32_ble";
 
+esp_ble_io_cap_t global_io_cap = ESP_IO_CAP_NONE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 void ESP32BLE::setup() {
   global_ble = this;
   ESP_LOGCONFIG(TAG, "Setting up BLE...");
@@ -131,8 +133,7 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
-  esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE;
-  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
+  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &global_io_cap, sizeof(uint8_t));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
     return false;

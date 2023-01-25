@@ -33,7 +33,6 @@ namespace esp32_ble_tracker {
 static const char *const TAG = "esp32_ble_tracker";
 
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-esp_ble_io_cap_t global_io_cap = ESP_IO_CAP_NONE;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
   uint64_t u = 0;
@@ -229,87 +228,6 @@ void ESP32BLETracker::stop_scan() {
   this->cancel_timeout("scan");
 }
 
-<<<<<<< ble-client-passkey
-bool ESP32BLETracker::ble_setup() {
-  // Initialize non-volatile storage for the bluetooth controller
-  esp_err_t err = nvs_flash_init();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "nvs_flash_init failed: %d", err);
-    return false;
-  }
-
-#ifdef USE_ARDUINO
-  if (!btStart()) {
-    ESP_LOGE(TAG, "btStart failed: %d", esp_bt_controller_get_status());
-    return false;
-  }
-#else
-  if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
-    // start bt controller
-    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE) {
-      esp_bt_controller_config_t cfg = BT_CONTROLLER_INIT_CONFIG_DEFAULT();
-      err = esp_bt_controller_init(&cfg);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_bt_controller_init failed: %s", esp_err_to_name(err));
-        return false;
-      }
-      while (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_IDLE)
-        ;
-    }
-    if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
-      err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
-      if (err != ESP_OK) {
-        ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
-        return false;
-      }
-    }
-    if (esp_bt_controller_get_status() != ESP_BT_CONTROLLER_STATUS_ENABLED) {
-      ESP_LOGE(TAG, "esp bt controller enable failed");
-      return false;
-    }
-  }
-#endif
-
-  esp_bt_controller_mem_release(ESP_BT_MODE_CLASSIC_BT);
-
-  err = esp_bluedroid_init();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_init failed: %d", err);
-    return false;
-  }
-  err = esp_bluedroid_enable();
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_bluedroid_enable failed: %d", err);
-    return false;
-  }
-  err = esp_ble_gap_register_callback(ESP32BLETracker::gap_event_handler);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gap_register_callback failed: %d", err);
-    return false;
-  }
-  err = esp_ble_gattc_register_callback(ESP32BLETracker::gattc_event_handler);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gattc_register_callback failed: %d", err);
-    return false;
-  }
-
-  // Empty name
-  esp_ble_gap_set_device_name("");
-
-  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &global_io_cap, sizeof(uint8_t));
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
-    return false;
-  }
-
-  // BLE takes some time to be fully set up, 200ms should be more than enough
-  delay(200);  // NOLINT
-
-  return true;
-}
-
-=======
->>>>>>> dev
 void ESP32BLETracker::start_scan_(bool first) {
   // The lock must be held when calling this function.
   if (xSemaphoreTake(this->scan_end_lock_, 0L)) {
@@ -662,34 +580,12 @@ std::string ESPBTDevice::address_str() const {
 uint64_t ESPBTDevice::address_uint64() const { return ble_addr_to_uint64(this->address_); }
 
 void ESP32BLETracker::dump_config() {
-  const char *io_capability_s;
-  switch (global_io_cap) {
-    case ESP_IO_CAP_OUT:
-      io_capability_s = "display_only";
-      break;
-    case ESP_IO_CAP_IO:
-      io_capability_s = "display_yes_no";
-      break;
-    case ESP_IO_CAP_IN:
-      io_capability_s = "keyboard_only";
-      break;
-    case ESP_IO_CAP_NONE:
-      io_capability_s = "none";
-      break;
-    case ESP_IO_CAP_KBDISP:
-      io_capability_s = "keyboard_display";
-      break;
-    default:
-      io_capability_s = "invalid";
-      break;
-  }
   ESP_LOGCONFIG(TAG, "BLE Tracker:");
   ESP_LOGCONFIG(TAG, "  Scan Duration: %u s", this->scan_duration_);
   ESP_LOGCONFIG(TAG, "  Scan Interval: %.1f ms", this->scan_interval_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Window: %.1f ms", this->scan_window_ * 0.625f);
   ESP_LOGCONFIG(TAG, "  Scan Type: %s", this->scan_active_ ? "ACTIVE" : "PASSIVE");
   ESP_LOGCONFIG(TAG, "  Continuous Scanning: %s", this->scan_continuous_ ? "True" : "False");
-  ESP_LOGCONFIG(TAG, "  IO Capability: %s", io_capability_s);
 }
 
 void ESP32BLETracker::print_bt_device_info(const ESPBTDevice &device) {

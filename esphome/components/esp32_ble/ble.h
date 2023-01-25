@@ -18,12 +18,23 @@
 namespace esphome {
 namespace esp32_ble {
 
+// NOLINTNEXTLINE
+extern esp_ble_io_cap_t global_io_cap;
+
 // NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
   void *peer_device;
   bool connected;
   uint16_t mtu;
 } conn_status_t;
+
+enum IoCapability {
+  IO_CAP_OUT = ESP_IO_CAP_OUT,
+  IO_CAP_IO = ESP_IO_CAP_IO,
+  IO_CAP_IN = ESP_IO_CAP_IN,
+  IO_CAP_NONE = ESP_IO_CAP_NONE,
+  IO_CAP_KBDISP = ESP_IO_CAP_KBDISP,
+};
 
 class GAPEventHandler {
  public:
@@ -44,6 +55,8 @@ class GATTsEventHandler {
 
 class ESP32BLE : public Component {
  public:
+  void set_io_capability(IoCapability io_capability) { global_io_cap = (esp_ble_io_cap_t)io_capability; }
+
   void setup() override;
   void loop() override;
   void dump_config() override;
