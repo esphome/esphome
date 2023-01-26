@@ -62,7 +62,7 @@ optional<uint8_t> ledc_bit_depth_for_frequency(float frequency) {
 
 #ifdef USE_ESP_IDF
 esp_err_t configure_timer_frequency(ledc_mode_t speed_mode, ledc_timer_t timer_num, ledc_channel_t chan_num,
-                                    uint8_t channel, uint8_t& bit_depth, float frequency) {
+                                    uint8_t channel, uint8_t &bit_depth, float frequency) {
   bit_depth = *ledc_bit_depth_for_frequency(frequency);
   if (bit_depth < 1) {
     ESP_LOGE(TAG, "Frequency %f can't be achieved with any bit depth", frequency);
