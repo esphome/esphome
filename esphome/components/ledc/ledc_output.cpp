@@ -61,7 +61,7 @@ optional<uint8_t> ledc_bit_depth_for_frequency(float frequency) {
 }
 
 #ifdef USE_ESP_IDF
-esp_err_t configure_timer_frequency(ledc_mode_t speed_mode, ledc_timer_t timer_num, ledc_channel_t chan_num, 
+esp_err_t configure_timer_frequency(ledc_mode_t speed_mode, ledc_timer_t timer_num, ledc_channel_t chan_num,
                                     uint8_t channel, uint8_t& bit_depth, float frequency) {
   bit_depth = *ledc_bit_depth_for_frequency(frequency);
   if (bit_depth < 1) {
@@ -81,8 +81,7 @@ esp_err_t configure_timer_frequency(ledc_mode_t speed_mode, ledc_timer_t timer_n
   while (attempt_count_max > 0 && init_result != ESP_OK) {
     init_result = ledc_timer_config(&timer_conf);
     if (init_result != ESP_OK) {
-      ESP_LOGW(TAG, "Unable to initialize timer with frequency %.1f and bit depth of %u", frequency,
-               bit_depth);
+      ESP_LOGW(TAG, "Unable to initialize timer with frequency %.1f and bit depth of %u", frequency, bit_depth);
       // try again with a lower bit depth
       timer_conf.duty_resolution = static_cast<ledc_timer_bit_t>(--bit_depth);
     }
@@ -132,9 +131,10 @@ void LEDCOutput::setup() {
   auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
 
-  esp_err_t init_result = configure_timer_frequency(speed_mode, timer_num, chan_num, this->channel_, this->bit_depth_, this->frequency_);
-  
-  if (init_result != ESP_OK) {
+  esp_err_t timer_init_result = 
+      configure_timer_frequency(speed_mode, timer_num, chan_num, this->channel_, this->bit_depth_, this->frequency_);
+
+  if (timer_init_result != ESP_OK) {
     ESP_LOGE(TAG, "Frequency %f can't be achieved with computed bit depth %u", this->frequency_, this->bit_depth_);
     this->status_set_error();
     return;
@@ -224,9 +224,10 @@ void LEDCOutput::update_frequency(float frequency) {
   auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
 
-  esp_err_t init_result = configure_timer_frequency(speed_mode, timer_num, chan_num, this->channel_, this->bit_depth_, this->frequency_);
-  
-  if (init_result != ESP_OK) {
+  esp_err_t timer_init_result = 
+      configure_timer_frequency(speed_mode, timer_num, chan_num, this->channel_, this->bit_depth_, this->frequency_);
+
+  if (timer_init_result != ESP_OK) {
     ESP_LOGE(TAG, "Frequency %f can't be achieved with computed bit depth %u", this->frequency_, this->bit_depth_);
     this->status_set_error();
     return;
