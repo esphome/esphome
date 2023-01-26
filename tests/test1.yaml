@@ -307,8 +307,8 @@ ble_client:
     on_passkey_request:
       then:
         - ble_client.passkey_reply:
-	          id: ble_blah
-	          passkey: 123456
+            id: ble_blah
+            passkey: 123456
     on_passkey_notification:
       then:
         - logger.log: "Passkey notification received"
