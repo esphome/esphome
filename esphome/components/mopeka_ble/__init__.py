@@ -24,5 +24,7 @@ CONFIG_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     if CONF_SHOW_SENSORS_WITHOUT_SYNC in config:
-        cg.add(var.set_show_sensors_without_sync(config[CONF_SHOW_SENSORS_WITHOUT_SYNC]))
+        cg.add(
+            var.set_show_sensors_without_sync(config[CONF_SHOW_SENSORS_WITHOUT_SYNC])
+        )
     await esp32_ble_tracker.register_ble_device(var, config)

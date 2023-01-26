@@ -16,8 +16,7 @@ enum SensorType {
   XL = 0x03,
 };
 
-class MopekaStdCheck : public Component,
-                       public esp32_ble_tracker::ESPBTDeviceListener {
+class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
 
@@ -26,9 +25,7 @@ class MopekaStdCheck : public Component,
   float get_setup_priority() const override { return setup_priority::DATA; }
 
   void set_level(sensor::Sensor *level) { level_ = level; };
-  void set_temperature(sensor::Sensor *temperature) {
-    temperature_ = temperature;
-  };
+  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; };
   void set_battery_level(sensor::Sensor *bat) { battery_level_ = bat; };
   void set_distance(sensor::Sensor *distance) { distance_ = distance; };
   void set_lpg_butane_ratio(float val) { lpg_butane_ratio_ = val; };

@@ -111,13 +111,11 @@ async def to_code(config):
         if CONF_CUSTOM_DISTANCE_EMPTY in config:
             cg.add(var.set_tank_empty(config[CONF_CUSTOM_DISTANCE_EMPTY]))
         else:
-            cg.add(var.set_tank_empty(
-                CONF_SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][0]))
+            cg.add(var.set_tank_empty(CONF_SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][0]))
         if CONF_CUSTOM_DISTANCE_FULL in config:
             cg.add(var.set_tank_full(config[CONF_CUSTOM_DISTANCE_FULL]))
         else:
-            cg.add(var.set_tank_full(
-                CONF_SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][1]))
+            cg.add(var.set_tank_full(CONF_SUPPORTED_TANKS_MAP[TANK_TYPE_CUSTOM][1]))
     else:
         # Set the Tank empty and full based on map - User is requesting standard tank
         t = config[CONF_TANK_TYPE]

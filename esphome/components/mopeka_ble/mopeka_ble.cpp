@@ -24,8 +24,7 @@ static const uint16_t MANUFACTURER_NRF52_ID = 0x0059;   // Nordic
  * sensor.
  */
 
-bool MopekaListener::parse_device(
-    const esp32_ble_tracker::ESPBTDevice &device) {
+bool MopekaListener::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   const auto &service_uuids = device.get_service_uuids();
   if (service_uuids.size() != 1) {
     return false;
@@ -38,10 +37,8 @@ bool MopekaListener::parse_device(
   }
   const auto &manu_data = manu_datas[0];
 
-  if (service_uuid ==
-      esp32_ble_tracker::ESPBTUUID::from_uint16(SERVICE_UUID_CC2540)) {
-    if (manu_data.uuid !=
-        esp32_ble_tracker::ESPBTUUID::from_uint16(MANUFACTURER_CC2540_ID)) {
+  if (service_uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(SERVICE_UUID_CC2540)) {
+    if (manu_data.uuid != esp32_ble_tracker::ESPBTUUID::from_uint16(MANUFACTURER_CC2540_ID)) {
       return false;
     }
 
@@ -53,13 +50,10 @@ bool MopekaListener::parse_device(
 
     if (this->show_sensors_without_sync_ || sync_button_pressed) {
       // button pressed
-      ESP_LOGI(TAG, "MOPEKA STD (CC2540) SENSOR FOUND: %s",
-               device.address_str().c_str());
+      ESP_LOGI(TAG, "MOPEKA STD (CC2540) SENSOR FOUND: %s", device.address_str().c_str());
     }
-  } else if (service_uuid ==
-             esp32_ble_tracker::ESPBTUUID::from_uint16(SERVICE_UUID_NRF52)) {
-    if (manu_data.uuid !=
-        esp32_ble_tracker::ESPBTUUID::from_uint16(MANUFACTURER_NRF52_ID)) {
+  } else if (service_uuid == esp32_ble_tracker::ESPBTUUID::from_uint16(SERVICE_UUID_NRF52)) {
+    if (manu_data.uuid != esp32_ble_tracker::ESPBTUUID::from_uint16(MANUFACTURER_NRF52_ID)) {
       return false;
     }
 
@@ -71,8 +65,7 @@ bool MopekaListener::parse_device(
 
     if (this->show_sensors_without_sync_ || sync_button_pressed) {
       // button pressed
-      ESP_LOGI(TAG, "MOPEKA PRO (NRF52) SENSOR FOUND: %s",
-               device.address_str().c_str());
+      ESP_LOGI(TAG, "MOPEKA PRO (NRF52) SENSOR FOUND: %s", device.address_str().c_str());
     }
   }
 
