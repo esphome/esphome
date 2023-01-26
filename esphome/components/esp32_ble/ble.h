@@ -55,7 +55,7 @@ class GATTsEventHandler {
 
 class ESP32BLE : public Component {
  public:
-  void set_io_capability(IoCapability io_capability) { global_io_cap = (esp_ble_io_cap_t)io_capability; }
+  void set_io_capability(IoCapability io_capability) { global_io_cap = (esp_ble_io_cap_t) io_capability; }
 
   void setup() override;
   void loop() override;

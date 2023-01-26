@@ -33,16 +33,22 @@ BLEClientPasskeyRequestTrigger = ble_client_ns.class_(
     "BLEClientPasskeyRequestTrigger", automation.Trigger.template(BLEClientNodeConstRef)
 )
 BLEClientPasskeyNotificationTrigger = ble_client_ns.class_(
-    "BLEClientPasskeyNotificationTrigger", automation.Trigger.template(BLEClientNodeConstRef, cg.uint32)
+    "BLEClientPasskeyNotificationTrigger",
+    automation.Trigger.template(BLEClientNodeConstRef, cg.uint32),
 )
 BLEClientNumericComparisonRequestTrigger = ble_client_ns.class_(
-    "BLEClientNumericComparisonRequestTrigger", automation.Trigger.template(BLEClientNodeConstRef, cg.uint32)
+    "BLEClientNumericComparisonRequestTrigger",
+    automation.Trigger.template(BLEClientNodeConstRef, cg.uint32),
 )
 
 # Actions
 BLEWriteAction = ble_client_ns.class_("BLEClientWriteAction", automation.Action)
-BLEPasskeyReplyAction = ble_client_ns.class_("BLEClientPasskeyReplyAction", automation.Action)
-BLENumericComparisonReplyAction = ble_client_ns.class_("BLEClientNumericComparisonReplyAction", automation.Action)
+BLEPasskeyReplyAction = ble_client_ns.class_(
+    "BLEClientPasskeyReplyAction", automation.Action
+)
+BLENumericComparisonReplyAction = ble_client_ns.class_(
+    "BLEClientNumericComparisonReplyAction", automation.Action
+)
 
 CONF_PASSKEY = "passkey"
 CONF_ACCEPT = "accept"
@@ -88,7 +94,9 @@ CONFIG_SCHEMA = (
                     ),
                 }
             ),
-            cv.Optional(CONF_ON_NUMERIC_COMPARISON_REQUEST): automation.validate_automation(
+            cv.Optional(
+                CONF_ON_NUMERIC_COMPARISON_REQUEST
+            ): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
                         BLEClientNumericComparisonRequestTrigger
@@ -137,6 +145,7 @@ BLE_PASSKEY_REPLY_ACTION_SCHEMA = cv.Schema(
         cv.Required(CONF_PASSKEY): cv.templatable(cv.int_range(min=0, max=999999)),
     }
 )
+
 
 @automation.register_action(
     "ble_client.ble_write", BLEWriteAction, BLE_WRITE_ACTION_SCHEMA
@@ -188,8 +197,11 @@ async def ble_write_to_code(config, action_id, template_arg, args):
 
     return var
 
+
 @automation.register_action(
-    "ble_client.numeric_comparison_reply", BLENumericComparisonReplyAction, BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA
+    "ble_client.numeric_comparison_reply",
+    BLENumericComparisonReplyAction,
+    BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA,
 )
 async def numeric_comparison_reply_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
@@ -203,6 +215,7 @@ async def numeric_comparison_reply_to_code(config, action_id, template_arg, args
         cg.add(var.set_value_simple(accept))
 
     return var
+
 
 @automation.register_action(
     "ble_client.passkey_reply", BLEPasskeyReplyAction, BLE_PASSKEY_REPLY_ACTION_SCHEMA

@@ -38,6 +38,7 @@ CONFIG_SCHEMA = cv.Schema(
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
+
 def validate_variant(_):
     variant = get_esp32_variant()
     if variant in NO_BLUTOOTH_VARIANTS:

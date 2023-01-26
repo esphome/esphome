@@ -42,7 +42,8 @@ class BLEClientPasskeyRequestTrigger : public Trigger<>, public BLEClientNode {
   explicit BLEClientPasskeyRequestTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override {
-    if (event == ESP_GAP_BLE_PASSKEY_REQ_EVT && memcmp(param->ble_security.auth_cmpl.bd_addr, this->parent_->get_remote_bda(), 6) == 0) {
+    if (event == ESP_GAP_BLE_PASSKEY_REQ_EVT &&
+        memcmp(param->ble_security.auth_cmpl.bd_addr, this->parent_->get_remote_bda(), 6) == 0) {
       this->trigger();
     }
   }
@@ -53,7 +54,8 @@ class BLEClientPasskeyNotificationTrigger : public Trigger<uint32_t>, public BLE
   explicit BLEClientPasskeyNotificationTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override {
-    if (event == ESP_GAP_BLE_PASSKEY_NOTIF_EVT && memcmp(param->ble_security.auth_cmpl.bd_addr, this->parent_->get_remote_bda(), 6) == 0) {
+    if (event == ESP_GAP_BLE_PASSKEY_NOTIF_EVT &&
+        memcmp(param->ble_security.auth_cmpl.bd_addr, this->parent_->get_remote_bda(), 6) == 0) {
       uint32_t passkey = param->ble_security.key_notif.passkey;
       this->trigger(passkey);
     }
@@ -65,7 +67,8 @@ class BLEClientNumericComparisonRequestTrigger : public Trigger<uint32_t>, publi
   explicit BLEClientNumericComparisonRequestTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override {
-    if (event == ESP_GAP_BLE_NC_REQ_EVT && memcmp(param->ble_security.auth_cmpl.bd_addr, this->parent_->get_remote_bda(), 6) == 0) {
+    if (event == ESP_GAP_BLE_NC_REQ_EVT &&
+        memcmp(param->ble_security.auth_cmpl.bd_addr, this->parent_->get_remote_bda(), 6) == 0) {
       uint32_t passkey = param->ble_security.key_notif.passkey;
       this->trigger(passkey);
     }
@@ -158,7 +161,7 @@ template<typename... Ts> class BLEClientPasskeyReplyAction : public Action<Ts...
   }
 
  private:
-  BLEClient *parent_{0};
+  BLEClient *parent_{nullptr};
   bool has_simple_value_ = true;
   uint32_t value_simple_{0};
   std::function<uint32_t(Ts...)> value_template_{};
@@ -189,9 +192,9 @@ template<typename... Ts> class BLEClientNumericComparisonReplyAction : public Ac
   }
 
  private:
-  BLEClient *parent_{0};
+  BLEClient *parent_{nullptr};
   bool has_simple_value_ = true;
-  bool value_simple_{0};
+  bool value_simple_{false};
   std::function<bool(Ts...)> value_template_{};
 };
 
