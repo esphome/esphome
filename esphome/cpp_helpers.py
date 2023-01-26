@@ -11,9 +11,8 @@ from esphome.const import (
     CONF_TYPE_ID,
 )
 
-# pylint: disable=unused-import
 from esphome.core import coroutine, ID, CORE
-from esphome.types import ConfigType
+from esphome.types import ConfigType, ConfigFragmentType
 from esphome.cpp_generator import add, get_variable
 from esphome.cpp_types import App
 from esphome.util import Registry, RegistryEntry
@@ -107,8 +106,10 @@ async def setup_entity(var, config):
         add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
 
 
-def extract_registry_entry_config(registry, full_config):
-    # type: (Registry, ConfigType) -> RegistryEntry
+def extract_registry_entry_config(
+    registry: Registry,
+    full_config: ConfigType,
+) -> tuple[RegistryEntry, ConfigFragmentType]:
     key, config = next((k, v) for k, v in full_config.items() if k in registry)
     return registry[key], config
 

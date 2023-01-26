@@ -20,7 +20,9 @@ enum MediaPlayerCommand : uint8_t {
   MEDIA_PLAYER_COMMAND_STOP = 2,
   MEDIA_PLAYER_COMMAND_MUTE = 3,
   MEDIA_PLAYER_COMMAND_UNMUTE = 4,
-  MEDIA_PLAYER_COMMAND_TOGGLE = 5
+  MEDIA_PLAYER_COMMAND_TOGGLE = 5,
+  MEDIA_PLAYER_COMMAND_VOLUME_UP = 6,
+  MEDIA_PLAYER_COMMAND_VOLUME_DOWN = 7,
 };
 const char *media_player_command_to_string(MediaPlayerCommand command);
 

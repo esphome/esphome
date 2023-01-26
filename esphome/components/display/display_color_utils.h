@@ -132,7 +132,7 @@ class ColorUtil {
       int16_t plt_r = (int16_t) palette[i * 3 + 0];
       int16_t plt_g = (int16_t) palette[i * 3 + 1];
       int16_t plt_b = (int16_t) palette[i * 3 + 2];
-      // Calculate euclidian distance (linear distance in rgb cube).
+      // Calculate euclidean distance (linear distance in rgb cube).
       x = (uint32_t) std::abs(tgt_r - plt_r);
       y = (uint32_t) std::abs(tgt_g - plt_g);
       z = (uint32_t) std::abs(tgt_b - plt_b);

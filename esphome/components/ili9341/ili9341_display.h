@@ -5,6 +5,7 @@
 #include "esphome/components/display/display_buffer.h"
 #include "ili9341_defines.h"
 #include "ili9341_init.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ili9341 {
@@ -47,6 +48,14 @@ class ILI9341Display : public PollingComponent,
   void setup() override {
     this->setup_pins_();
     this->initialize();
+
+    this->x_low_ = this->width_;
+    this->y_low_ = this->height_;
+    this->x_high_ = 0;
+    this->y_high_ = 0;
+
+    this->init_internal_(this->get_buffer_length_());
+    this->fill_internal_(0x00);
   }
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
@@ -59,8 +68,9 @@ class ILI9341Display : public PollingComponent,
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void invert_display_(bool invert);
   void reset_();
-  void fill_internal_(Color color);
+  void fill_internal_(uint8_t color);
   void display_();
+  void rotate_my_(uint8_t m);
 
   ILI9341Model model_;
   int16_t width_{320};   ///< Display width as modified by current rotation

@@ -68,7 +68,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
             cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
-            # 24 bits are the maximum value for fp32 before precison is lost
+            # 24 bits are the maximum value for fp32 before precision is lost
             # 0x00FFFFFF = 16777215
             cv.Optional(CONF_MAX_VALUE, default=16777215.0): cv.float_,
             cv.Optional(CONF_MIN_VALUE, default=-16777215.0): cv.float_,

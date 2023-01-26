@@ -24,7 +24,6 @@ AUTO_LOAD = ["modbus"]
 
 MULTI_CONF = True
 
-# pylint: disable=invalid-name
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
 ModbusController = modbus_controller_ns.class_(
     "ModbusController", cg.PollingComponent, modbus.ModbusDevice

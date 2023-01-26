@@ -51,6 +51,22 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
           this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
         }
         break;
+      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_UP: {
+        float new_volume = this->volume + 0.1f;
+        if (new_volume > 1.0f)
+          new_volume = 1.0f;
+        this->set_volume_(new_volume);
+        this->unmute_();
+        break;
+      }
+      case media_player::MEDIA_PLAYER_COMMAND_VOLUME_DOWN: {
+        float new_volume = this->volume - 0.1f;
+        if (new_volume < 0.0f)
+          new_volume = 0.0f;
+        this->set_volume_(new_volume);
+        this->unmute_();
+        break;
+      }
     }
   }
   this->publish_state();
@@ -87,13 +103,21 @@ void I2SAudioMediaPlayer::stop_() {
 
 void I2SAudioMediaPlayer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Audio...");
+#if SOC_I2S_SUPPORTS_DAC
   if (this->internal_dac_mode_ != I2S_DAC_CHANNEL_DISABLE) {
     this->audio_ = make_unique<Audio>(true, this->internal_dac_mode_);
   } else {
+#endif
     this->audio_ = make_unique<Audio>(false);
     this->audio_->setPinout(this->bclk_pin_, this->lrclk_pin_, this->dout_pin_);
     this->audio_->forceMono(this->external_dac_channels_ == 1);
+    if (this->mute_pin_ != nullptr) {
+      this->mute_pin_->setup();
+      this->mute_pin_->digital_write(false);
+    }
+#if SOC_I2S_SUPPORTS_DAC
   }
+#endif
   this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
 }
 
@@ -117,6 +141,7 @@ void I2SAudioMediaPlayer::dump_config() {
     ESP_LOGCONFIG(TAG, "Audio failed to initialize!");
     return;
   }
+#if SOC_I2S_SUPPORTS_DAC
   if (this->internal_dac_mode_ != I2S_DAC_CHANNEL_DISABLE) {
     switch (this->internal_dac_mode_) {
       case I2S_DAC_CHANNEL_LEFT_EN:
@@ -132,6 +157,7 @@ void I2SAudioMediaPlayer::dump_config() {
         break;
     }
   }
+#endif
 }
 
 }  // namespace i2s_audio

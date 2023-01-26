@@ -1,16 +1,17 @@
+---
 # See https://pre-commit.com for more information
 # See https://pre-commit.com/hooks.html for more hooks
 repos:
   - repo: https://github.com/ambv/black
-    rev: 22.3.0
+    rev: 22.12.0
     hooks:
-    - id: black
-      args:
-        - --safe
-        - --quiet
-      files: ^((esphome|script|tests)/.+)?[^/]+\.py$
-  - repo: https://gitlab.com/pycqa/flake8
-    rev: 4.0.1
+      - id: black
+        args:
+          - --safe
+          - --quiet
+        files: ^((esphome|script|tests)/.+)?[^/]+\.py$
+  - repo: https://github.com/PyCQA/flake8
+    rev: 6.0.0
     hooks:
       - id: flake8
         additional_dependencies:
@@ -26,7 +27,7 @@ repos:
           - --branch=release
           - --branch=beta
   - repo: https://github.com/asottile/pyupgrade
-    rev: v2.31.1
+    rev: v3.3.0
     hooks:
       - id: pyupgrade
-        args: [--py38-plus]
+        args: [--py39-plus]

@@ -51,7 +51,7 @@ void FingerprintGrowComponent::update() {
 void FingerprintGrowComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Grow Fingerprint Reader...");
   if (this->check_password_()) {
-    if (this->new_password_ != nullptr) {
+    if (this->new_password_ != -1) {
       if (this->set_password_())
         return;
     } else {
@@ -202,9 +202,9 @@ bool FingerprintGrowComponent::check_password_() {
 }
 
 bool FingerprintGrowComponent::set_password_() {
-  ESP_LOGI(TAG, "Setting new password: %d", *this->new_password_);
-  this->data_ = {SET_PASSWORD, (uint8_t)(*this->new_password_ >> 24), (uint8_t)(*this->new_password_ >> 16),
-                 (uint8_t)(*this->new_password_ >> 8), (uint8_t)(*this->new_password_ & 0xFF)};
+  ESP_LOGI(TAG, "Setting new password: %d", this->new_password_);
+  this->data_ = {SET_PASSWORD, (uint8_t)(this->new_password_ >> 24), (uint8_t)(this->new_password_ >> 16),
+                 (uint8_t)(this->new_password_ >> 8), (uint8_t)(this->new_password_ & 0xFF)};
   if (this->send_command_() == OK) {
     ESP_LOGI(TAG, "New password successfully set");
     ESP_LOGI(TAG, "Define the new password in your configuration and reflash now");

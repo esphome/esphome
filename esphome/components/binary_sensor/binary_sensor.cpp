@@ -37,7 +37,7 @@ void BinarySensor::send_state_internal(bool state, bool is_initial) {
   }
   this->has_state_ = true;
   this->state = state;
-  if (!is_initial) {
+  if (!is_initial || this->publish_initial_state_) {
     this->state_callback_.call(state);
   }
 }

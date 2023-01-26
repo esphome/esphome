@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 
+#include <vector>
+
 namespace esphome {
 namespace custom {
 

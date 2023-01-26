@@ -24,7 +24,6 @@ disable=
   undefined-loop-variable,
   useless-object-inheritance,
   stop-iteration-return,
-  no-self-use,
   import-outside-toplevel,
   # Broken
   unsupported-membership-test,

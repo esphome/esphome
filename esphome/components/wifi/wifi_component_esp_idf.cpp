@@ -285,6 +285,11 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   }
 #endif
 
+#ifdef USE_WIFI_11KV_SUPPORT
+  conf.sta.btm_enabled = this->btm_;
+  conf.sta.rm_enabled = this->rrm_;
+#endif
+
   if (ap.get_bssid().has_value()) {
     conf.sta.bssid_set = true;
     memcpy(conf.sta.bssid, ap.get_bssid()->data(), 6);
@@ -303,7 +308,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
 #if ESP_IDF_VERSION_MAJOR >= 4
   // Protected Management Frame
-  // Device will prefer to connect in PMF mode if other device also advertizes PMF capability.
+  // Device will prefer to connect in PMF mode if other device also advertises PMF capability.
   conf.sta.pmf_cfg.capable = true;
   conf.sta.pmf_cfg.required = false;
 #endif

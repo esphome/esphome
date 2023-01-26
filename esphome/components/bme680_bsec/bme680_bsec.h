@@ -100,15 +100,15 @@ class BME680BSECComponent : public Component, public i2c::I2CDevice {
   SampleRate pressure_sample_rate_{SAMPLE_RATE_DEFAULT};
   SampleRate humidity_sample_rate_{SAMPLE_RATE_DEFAULT};
 
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *pressure_sensor_;
-  sensor::Sensor *humidity_sensor_;
-  sensor::Sensor *gas_resistance_sensor_;
-  sensor::Sensor *iaq_sensor_;
-  text_sensor::TextSensor *iaq_accuracy_text_sensor_;
-  sensor::Sensor *iaq_accuracy_sensor_;
-  sensor::Sensor *co2_equivalent_sensor_;
-  sensor::Sensor *breath_voc_equivalent_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
+  sensor::Sensor *gas_resistance_sensor_{nullptr};
+  sensor::Sensor *iaq_sensor_{nullptr};
+  text_sensor::TextSensor *iaq_accuracy_text_sensor_{nullptr};
+  sensor::Sensor *iaq_accuracy_sensor_{nullptr};
+  sensor::Sensor *co2_equivalent_sensor_{nullptr};
+  sensor::Sensor *breath_voc_equivalent_sensor_{nullptr};
 };
 #endif
 }  // namespace bme680_bsec

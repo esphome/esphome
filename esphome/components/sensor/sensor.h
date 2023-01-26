@@ -6,6 +6,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/filter.h"
 
+#include <vector>
+
 namespace esphome {
 namespace sensor {
 
@@ -29,6 +31,13 @@ namespace sensor {
     } \
   }
 
+#define SUB_SENSOR(name) \
+ protected: \
+  sensor::Sensor *name##_sensor_{nullptr}; \
+\
+ public: \
+  void set_##name##_sensor(sensor::Sensor *sensor) { this->name##_sensor_ = sensor; }
+
 /**
  * Sensor state classes
  */
@@ -36,6 +45,7 @@ enum StateClass : uint8_t {
   STATE_CLASS_NONE = 0,
   STATE_CLASS_MEASUREMENT = 1,
   STATE_CLASS_TOTAL_INCREASING = 2,
+  STATE_CLASS_TOTAL = 3,
 };
 
 std::string state_class_to_string(StateClass state_class);

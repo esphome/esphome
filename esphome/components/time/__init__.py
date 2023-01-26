@@ -126,10 +126,10 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
             )
         begin, end = data
         begin_n = _parse_cron_int(
-            begin, special_mapping, "Number for time range must be integer, " "got {}"
+            begin, special_mapping, "Number for time range must be integer, got {}"
         )
         end_n = _parse_cron_int(
-            end, special_mapping, "Number for time range must be integer, " "got {}"
+            end, special_mapping, "Number for time range must be integer, got {}"
         )
         if end_n < begin_n:
             return set(range(end_n, max_value + 1)) | set(range(min_value, begin_n + 1))
@@ -139,7 +139,7 @@ def _parse_cron_part(part, min_value, max_value, special_mapping):
         _parse_cron_int(
             part,
             special_mapping,
-            "Number for time expression must be an " "integer, got {}",
+            "Number for time expression must be an integer, got {}",
         )
     }
 

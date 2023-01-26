@@ -185,8 +185,8 @@ inline bool coil_from_vector(int coil, const std::vector<uint8_t> &data) {
 
 /** Extract bits from value and shift right according to the bitmask
  * if the bitmask is 0x00F0  we want the values frrom bit 5 - 8.
- * the result is then shifted right by the postion if the first right set bit in the mask
- * Usefull for modbus data where more than one value is packed in a 16 bit register
+ * the result is then shifted right by the position if the first right set bit in the mask
+ * Useful for modbus data where more than one value is packed in a 16 bit register
  * Example: on Epever the "Length of night" register 0x9065 encodes values of the whole night length of time as
  * D15 - D8 =  hour, D7 - D0 = minute
  * To get the hours use mask 0xFF00 and  0x00FF for the minute
@@ -395,6 +395,8 @@ class ModbusCommandItem {
       ModbusController *modbusdevice, const std::vector<uint16_t> &values,
       std::function<void(ModbusRegisterType register_type, uint16_t start_address, const std::vector<uint8_t> &data)>
           &&handler = nullptr);
+
+  bool is_equal(const ModbusCommandItem &other);
 };
 
 /** Modbus controller class.
@@ -447,7 +449,7 @@ class ModbusController : public PollingComponent, public modbus::ModbusDevice {
   void dump_sensors_();
   /// Collection of all sensors for this component
   SensorSet sensorset_;
-  /// Continous range of modbus registers
+  /// Continuous range of modbus registers
   std::vector<RegisterRange> register_ranges_;
   /// Hold the pending requests to be sent
   std::list<std::unique_ptr<ModbusCommandItem>> command_queue_;

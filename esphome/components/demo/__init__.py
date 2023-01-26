@@ -349,13 +349,7 @@ CONFIG_SCHEMA = cv.Schema(
                     CONF_ICON: ICON_BLUETOOTH,
                 },
             ],
-        ): [
-            switch.SWITCH_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
-                {
-                    cv.GenerateID(): cv.declare_id(DemoSwitch),
-                }
-            )
-        ],
+        ): [switch.switch_schema(DemoSwitch).extend(cv.COMPONENT_SCHEMA)],
         cv.Optional(
             CONF_TEXT_SENSORS,
             default=[
@@ -422,9 +416,8 @@ async def to_code(config):
         await cg.register_component(var, conf)
 
     for conf in config[CONF_SWITCHES]:
-        var = cg.new_Pvariable(conf[CONF_ID])
+        var = await switch.new_switch(conf)
         await cg.register_component(var, conf)
-        await switch.register_switch(var, conf)
 
     for conf in config[CONF_TEXT_SENSORS]:
         var = await text_sensor.new_text_sensor(conf)
