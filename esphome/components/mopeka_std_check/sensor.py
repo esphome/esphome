@@ -20,7 +20,7 @@ from esphome.const import (
 CONF_TANK_TYPE = "tank_type"
 CONF_CUSTOM_DISTANCE_FULL = "custom_distance_full"
 CONF_CUSTOM_DISTANCE_EMPTY = "custom_distance_empty"
-CONF_LPG_BUTANE_RATIO = "propane_butane_mix"
+CONF_PROPANE_BUTANE_MIX = "propane_butane_mix"
 
 ICON_PROPANE_TANK = "mdi:propane-tank"
 
@@ -65,7 +65,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_CUSTOM_DISTANCE_FULL): small_distance,
             cv.Optional(CONF_CUSTOM_DISTANCE_EMPTY): small_distance,
-            cv.Optional(CONF_LPG_BUTANE_RATIO, default=1.0): cv.float_range(0, 1),
+            cv.Optional(CONF_PROPANE_BUTANE_MIX, default=1.0): cv.float_range(0, 1),
             cv.Required(CONF_TANK_TYPE): cv.enum(CONF_SUPPORTED_TANKS_MAP, upper=True),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
@@ -122,8 +122,8 @@ async def to_code(config):
         cg.add(var.set_tank_empty(CONF_SUPPORTED_TANKS_MAP[t][0]))
         cg.add(var.set_tank_full(CONF_SUPPORTED_TANKS_MAP[t][1]))
 
-    if CONF_LPG_BUTANE_RATIO in config:
-        cg.add(var.set_lpg_butane_ratio(config[CONF_LPG_BUTANE_RATIO]))
+    if CONF_PROPANE_BUTANE_MIX in config:
+        cg.add(var.set_lpg_butane_ratio(config[CONF_PROPANE_BUTANE_MIX]))
 
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
