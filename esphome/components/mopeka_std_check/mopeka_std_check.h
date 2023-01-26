@@ -42,7 +42,7 @@ class MopekaStdCheck : public Component,
   sensor::Sensor *distance_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
 
-  float lpg_butane_ratio_ = 1.0f;
+  float lpg_butane_ratio_;
   uint32_t full_mm_;
   uint32_t empty_mm_;
 
