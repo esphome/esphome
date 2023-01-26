@@ -131,7 +131,7 @@ void LEDCOutput::setup() {
   auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
 
-  esp_err_t timer_init_result = 
+  esp_err_t timer_init_result =
       configure_timer_frequency(speed_mode, timer_num, chan_num, this->channel_, this->bit_depth_, this->frequency_);
 
   if (timer_init_result != ESP_OK) {
@@ -224,7 +224,7 @@ void LEDCOutput::update_frequency(float frequency) {
   auto timer_num = static_cast<ledc_timer_t>((channel_ % 8) / 2);
   auto chan_num = static_cast<ledc_channel_t>(channel_ % 8);
 
-  esp_err_t timer_init_result = 
+  esp_err_t timer_init_result =
       configure_timer_frequency(speed_mode, timer_num, chan_num, this->channel_, this->bit_depth_, this->frequency_);
 
   if (timer_init_result != ESP_OK) {
