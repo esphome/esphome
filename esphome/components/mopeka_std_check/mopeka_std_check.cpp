@@ -143,7 +143,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
       // Expectation is first value at distance and second lower value at
       // 2*distance. Ignore low values as noise.
 
-      float lpg_speed_of_sound = this->get_lpg_speed_of_sound(temp_in_c);
+      float lpg_speed_of_sound = this->get_lpg_speed_of_sound_(temp_in_c);
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
       ESP_LOGVV(TAG, "%s: Speed of sound in current fluid %f m/s", device.address_str().c_str(), lpg_speed_of_sound);
@@ -172,7 +172,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   return true;
 }
 
-float MopekaStdCheck::get_lpg_speed_of_sound(float temperature) {
+float MopekaStdCheck::get_lpg_speed_of_sound_(float temperature) {
   return 1040.71f - 4.87f * temperature - 137.5f * this->lpg_butane_ratio_ - 0.0107f * temperature * temperature -
          1.63f * temperature * this->lpg_butane_ratio_;
 }

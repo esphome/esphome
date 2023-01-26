@@ -43,7 +43,7 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   uint32_t full_mm_;
   uint32_t empty_mm_;
 
-  float get_lpg_speed_of_sound(float temperature);
+  float get_lpg_speed_of_sound_(float temperature);
   uint8_t parse_battery_level_(const std::vector<uint8_t> &message);
   uint8_t parse_temperature_(const std::vector<uint8_t> &message);
 };
