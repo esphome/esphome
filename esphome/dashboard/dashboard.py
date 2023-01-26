@@ -310,6 +310,19 @@ class EsphomeUploadHandler(EsphomeCommandWebSocket):
         return [
             "esphome",
             "--dashboard",
+            "upload",
+            config_file,
+            "--device",
+            json_message["port"],
+        ]
+
+
+class EsphomeRunHandler(EsphomeCommandWebSocket):
+    def build_command(self, json_message):
+        config_file = settings.rel_path(json_message["configuration"])
+        return [
+            "esphome",
+            "--dashboard",
             "run",
             config_file,
             "--device",
@@ -1127,6 +1140,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}logout", LogoutHandler),
             (f"{rel}logs", EsphomeLogsHandler),
             (f"{rel}upload", EsphomeUploadHandler),
+            (f"{rel}run", EsphomeRunHandler),
             (f"{rel}compile", EsphomeCompileHandler),
             (f"{rel}validate", EsphomeValidateHandler),
             (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
