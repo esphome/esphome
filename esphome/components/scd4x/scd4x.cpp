@@ -59,7 +59,7 @@ void SCD4XComponent::setup() {
 
       // If pressure compensation available use it
       // else use altitude
-      if (ambient_pressure_compensation_) {
+      /*if (ambient_pressure_compensation_) {
         if (!this->update_ambient_pressure_compensation_(ambient_pressure_)) {
           ESP_LOGE(TAG, "Error setting ambient pressure compensation.");
           this->error_code_ = MEASUREMENT_INIT_FAILED;
@@ -73,7 +73,7 @@ void SCD4XComponent::setup() {
           this->mark_failed();
           return;
         }
-      }
+      }*/
 
       if (!this->write_command(SCD4X_CMD_AUTOMATIC_SELF_CALIBRATION, enable_asc_ ? 1 : 0)) {
         ESP_LOGE(TAG, "Error setting automatic self calibration.");
@@ -249,6 +249,9 @@ bool SCD4XComponent::factory_reset() {
       return false;
     }
     ESP_LOGD(TAG, "Factory reset complete");
+    this->set_timeout(1200, [this]() {
+      this->setup();
+    });
     return true;
   });
   return true;
