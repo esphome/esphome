@@ -262,8 +262,8 @@ void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_bar) {
     ambient_pressure_ = new_ambient_pressure;
     return;
   }
-  // remove millibar from comparison to avoid frequent updates +/- 10 millibar doesn't matter
-  if (new_ambient_pressure / 10 != ambient_pressure_ / 10) {
+  // Only send pressure value if it has changed since last update
+  if (new_ambient_pressure != ambient_pressure_) {
     update_ambient_pressure_compensation_(new_ambient_pressure);
     ambient_pressure_ = new_ambient_pressure;
   } else {
