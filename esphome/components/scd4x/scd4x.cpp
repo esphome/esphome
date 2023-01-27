@@ -249,7 +249,6 @@ bool SCD4XComponent::factory_reset() {
       return false;
     }
     ESP_LOGD(TAG, "Factory reset complete");
-    this->set_timeout(1200, [this]() { this->setup(); });
     return true;
   });
   return true;
