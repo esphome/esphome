@@ -257,7 +257,7 @@ bool SCD4XComponent::factory_reset() {
 // Note pressure in bar here. Convert to hPa
 void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_bar) {
   ambient_pressure_compensation_ = true;
-  uint16_t new_ambient_pressure = (uint16_t)(round(pressure_in_bar * 1000));
+  uint16_t new_ambient_pressure = (uint16_t)(pressure_in_bar * 1000);
   if (!initialized_) {
     ambient_pressure_ = new_ambient_pressure;
     return;
