@@ -203,6 +203,10 @@ void SCD4XComponent::update() {
 }
 
 bool SCD4XComponent::perform_forced_calibration(uint16_t current_co2_concentration) {
+  if (!initialized_) {
+    return;
+  }
+
   /*
     Operate the SCD4x in the operation mode later used in normal sensor operation (periodic measurement, low power
     periodic measurement or single shot) for > 3 minutes in an environment with homogeneous and constant CO2
@@ -236,6 +240,10 @@ bool SCD4XComponent::perform_forced_calibration(uint16_t current_co2_concentrati
 }
 
 bool SCD4XComponent::factory_reset() {
+  if (!initialized_) {
+    return;
+  }
+
   if (!this->write_command(SCD4X_CMD_STOP_MEASUREMENTS)) {
     ESP_LOGE(TAG, "Failed to stop measurements");
     this->status_set_warning();
@@ -259,7 +267,7 @@ void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_bar) {
   ambient_pressure_compensation_ = true;
   uint16_t new_ambient_pressure = (uint16_t)(pressure_in_bar * 1000);
   // remove millibar from comparison to avoid frequent updates +/- 10 millibar doesn't matter
-  if (initialized_ && (new_ambient_pressure / 10 != ambient_pressure_ / 10)) {
+  if (new_ambient_pressure / 10 != ambient_pressure_ / 10) {
     update_ambient_pressure_compensation_(new_ambient_pressure);
     ambient_pressure_ = new_ambient_pressure;
   } else {
@@ -268,6 +276,9 @@ void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_bar) {
 }
 
 bool SCD4XComponent::update_ambient_pressure_compensation_(uint16_t pressure_in_hpa) {
+  if (!initialized_) {
+    return;
+  }
   if (this->write_command(SCD4X_CMD_AMBIENT_PRESSURE_COMPENSATION, pressure_in_hpa)) {
     ESP_LOGD(TAG, "setting ambient pressure compensation to %d hPa", pressure_in_hpa);
     return true;
