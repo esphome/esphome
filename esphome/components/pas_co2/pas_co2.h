@@ -21,19 +21,9 @@ class PASCO2Component : public PollingComponent, public i2c::I2CDevice {
   void set_co2_sensor(sensor::Sensor *co2) { co2_sensor_ = co2; }
 
  protected:
-  enum ErrorCode {
-    NO_ERROR,
-    COMMUNICATION_FAILED,
-    SOFT_RESET_FAILED,
-    MEASUREMENT_INIT_FAILED,
-    UNKNOWN
-  };
+  enum ErrorCode { NO_ERROR, COMMUNICATION_FAILED, SOFT_RESET_FAILED, MEASUREMENT_INIT_FAILED, UNKNOWN };
 
-  enum SensorMode {
-    SENSOR_MODE_IDLE = 0,
-    SENSOR_MODE_SINGLE = 1,
-    SENSOR_MODE_CONTINUOUS = 2
-  };
+  enum SensorMode { SENSOR_MODE_IDLE = 0, SENSOR_MODE_SINGLE = 1, SENSOR_MODE_CONTINUOUS = 2 };
 
   void init_();
   bool test_scratch_register_();

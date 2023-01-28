@@ -14,9 +14,7 @@ void PASCO2Component::setup() {
   this->initialized_ = false;
 
   // The sensor needs 1000 ms to enter the idle state.
-  this->set_timeout(10000, [this]() {
-    this->init_();
-  });
+  this->set_timeout(10000, [this]() { this->init_(); });
 }
 
 void PASCO2Component::dump_config() {
@@ -78,7 +76,7 @@ void PASCO2Component::update() {
 // Note pressure in bar here. Convert to hPa
 void PASCO2Component::set_ambient_pressure_compensation(float pressure_in_bar) {
   this->ambient_pressure_compensation_ = true;
-  uint16_t new_ambient_pressure = (uint16_t)(pressure_in_bar * 1000);
+  uint16_t new_ambient_pressure = (uint16_t) (pressure_in_bar * 1000);
   // Ignore changes less than 10 millibar, it doesn't matter.
   if (this->initialized_ && abs(new_ambient_pressure - this->ambient_pressure_) < 10) {
     this->update_ambient_pressure_compensation_(new_ambient_pressure);
@@ -118,8 +116,7 @@ void PASCO2Component::init_() {
     }
 
     // It seems that sensor waits setting IDLE and accepts SINGLE only after that.
-    if (!this->set_mode_(SENSOR_MODE_IDLE) ||
-        !this->set_mode_(SENSOR_MODE_SINGLE)) {
+    if (!this->set_mode_(SENSOR_MODE_IDLE) || !this->set_mode_(SENSOR_MODE_SINGLE)) {
       ESP_LOGE(TAG, "Failed to set first read sensor mode");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();
@@ -172,16 +169,13 @@ bool PASCO2Component::check_sensor_status_() {
   if ((status & XENSIV_PASCO2_REG_SENS_STS_ICCER_MSK) != 0) {
     ESP_LOGE(TAG, "Unexpected SENS_STS after soft reset: ICCERR");
     return false;
-  }
-  else if ((status & XENSIV_PASCO2_REG_SENS_STS_ORVS_MSK) != 0) {
+  } else if ((status & XENSIV_PASCO2_REG_SENS_STS_ORVS_MSK) != 0) {
     ESP_LOGE(TAG, "Unexpected SENS_STS after soft reset: ORVS");
     return false;
-  }
-  else if ((status & XENSIV_PASCO2_REG_SENS_STS_ORTMP_MSK) != 0) {
+  } else if ((status & XENSIV_PASCO2_REG_SENS_STS_ORTMP_MSK) != 0) {
     ESP_LOGE(TAG, "Unexpected SENS_STS after soft reset: ORTMP");
     return false;
-  }
-  else if ((status & XENSIV_PASCO2_REG_SENS_STS_SEN_RDY_MSK) == 0) {
+  } else if ((status & XENSIV_PASCO2_REG_SENS_STS_SEN_RDY_MSK) == 0) {
     ESP_LOGE(TAG, "Unexpected SENS_STS after soft reset: NOT RDY");
     return false;
   }
@@ -204,8 +198,8 @@ bool PASCO2Component::set_mode_(SensorMode mode) {
 }
 
 bool PASCO2Component::set_rate_(uint16_t rate_sec) {
-  rate_sec = std::max(rate_sec, (uint16_t)XENSIV_PASCO2_MEAS_RATE_MIN);
-  rate_sec = std::min(rate_sec, (uint16_t)XENSIV_PASCO2_MEAS_RATE_MAX);
+  rate_sec = std::max(rate_sec, (uint16_t) XENSIV_PASCO2_MEAS_RATE_MIN);
+  rate_sec = std::min(rate_sec, (uint16_t) XENSIV_PASCO2_MEAS_RATE_MAX);
   if (!this->write_byte_16(XENSIV_PASCO2_REG_MEAS_RATE_H, rate_sec)) {
     ESP_LOGE(TAG, "Failed to write: XENSIV_PASCO2_REG_MEAS_RATE_H");
     return false;
@@ -255,9 +249,7 @@ void PASCO2Component::try_read_measurement_() {
     this->status_clear_warning();
   } else if (++this->retry_count_ <= 3) {
     ESP_LOGD(TAG, "Measurement is not read, retrying...");
-    this->set_timeout(1000, [this]() {
-      this->try_read_measurement_();
-    });
+    this->set_timeout(1000, [this]() { this->try_read_measurement_(); });
   } else {
     ESP_LOGW(TAG, "Too many retries reading sensor, skipping update interval!");
     this->status_set_warning();
@@ -266,7 +258,8 @@ void PASCO2Component::try_read_measurement_() {
 }
 
 bool PASCO2Component::clear_status_() {
-  if (!this->write_byte(XENSIV_PASCO2_REG_MEAS_STS, XENSIV_PASCO2_REG_MEAS_STS_INT_STS_CLR_MSK | XENSIV_PASCO2_REG_MEAS_STS_ALARM_CLR_MSK)) {
+  if (!this->write_byte(XENSIV_PASCO2_REG_MEAS_STS,
+                        XENSIV_PASCO2_REG_MEAS_STS_INT_STS_CLR_MSK | XENSIV_PASCO2_REG_MEAS_STS_ALARM_CLR_MSK)) {
     ESP_LOGE(TAG, "Failed to clear measurement status in REG_MEAS_STS");
     return false;
   }
