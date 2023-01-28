@@ -244,6 +244,10 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
 }
 
 void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+  esp_bd_addr_t bd_addr;
+  memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
+  if (memcmp(bd_addr, this->remote_bda_, sizeof(esp_bd_addr_t)) != 0)
+    return;
   switch (event) {
     // This event is sent by the server when it requests security
     case ESP_GAP_BLE_SEC_REQ_EVT:
@@ -252,15 +256,13 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
       break;
     // This event is sent once authentication has completed
     case ESP_GAP_BLE_AUTH_CMPL_EVT:
-      esp_bd_addr_t bd_addr;
-      memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
-      ESP_LOGI(TAG, "[%d] [%s] auth complete. remote BD_ADDR: %s", this->connection_index_, this->address_str_.c_str(),
+      ESP_LOGV(TAG, "[%d] [%s] auth complete. remote BD_ADDR: %s", this->connection_index_, this->address_str_.c_str(),
                format_hex(bd_addr, 6).c_str());
       if (!param->ble_security.auth_cmpl.success) {
         ESP_LOGE(TAG, "[%d] [%s] auth fail reason = 0x%x", this->connection_index_, this->address_str_.c_str(),
                  param->ble_security.auth_cmpl.fail_reason);
       } else {
-        ESP_LOGV(TAG, "[%d] [%s] auth success. address type = %d auth mode = %d", this->connection_index_,
+        ESP_LOGI(TAG, "[%d] [%s] auth success. address type = %d auth mode = %d", this->connection_index_,
                  this->address_str_.c_str(), param->ble_security.auth_cmpl.addr_type,
                  param->ble_security.auth_cmpl.auth_mode);
       }
