@@ -30,7 +30,7 @@ class PASCO2Component : public PollingComponent, public i2c::I2CDevice {
   bool check_sensor_status_();
   bool clear_status_();
   bool set_mode_(SensorMode mode);
-  bool set_rate_(uint16_t);
+  bool set_rate_(uint16_t /*rate_sec*/);
   bool read_measurement_();
   void try_read_measurement_();
   bool update_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
