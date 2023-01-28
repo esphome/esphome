@@ -66,7 +66,6 @@ void Tuya::dump_config() {
     LOG_PIN("  Status Pin: ", this->status_pin_.value());
   }
   ESP_LOGCONFIG(TAG, "  Product: '%s'", this->product_.c_str());
-  this->check_uart_settings(9600);
 }
 
 bool Tuya::validate_message_() {
