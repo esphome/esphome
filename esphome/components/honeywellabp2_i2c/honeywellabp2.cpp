@@ -3,25 +3,26 @@
 
 namespace esphome {
 namespace honeywellabp2 {
+  
+#define STATUS_BIT_POWER 6
+#define STATUS_BIT_BUSY 5
+#define STATUS_BIT_ERROR 2
+#define STATUS_MATH_SAT 0
 
 static const char *const TAG = "honeywellabp2";
 
 void HONEYWELLABP2Sensor::setup() {
   ESP_LOGD(TAG, "Setting up Honeywell ABP2 Sensor ");
-  // Call request once
-  this->read_sensor();
 }
 
-void HONEYWELLABP2Sensor::read_sensor() {
-  if (this->write(i2c_cmd_, 3)) {
-    this->mark_failed();
-    return;
-  }
-  // Wait for request to complete
-  delay(10);
+void HONEYWELLABP2Sensor::read_sensor_data() {
   if (!this->read(raw_data_, 7)) {
     this->mark_failed();
     return;
+  }
+  if ((raw_data_[0] & ((0x1 << STATUS_BIT_ERROR) | (0x1 << STATUS_BIT_POWER))) > 0) {
+    this->mark_failed();
+    return;    
   }
   float press_counts = raw_data_[3] + raw_data_[2] * 256 + raw_data_[1] * 65536; // calculate digital pressure counts
   float temp_counts = raw_data_[6] + raw_data_[5] * 256 + raw_data_[4] * 65536; // calculate digital temperature counts
@@ -30,6 +31,31 @@ void HONEYWELLABP2Sensor::read_sensor() {
   this->last_temperature_ = (temp_counts * 200 / 16777215) - 50;
 }
 
+void HONEYWELLABP2Sensor::start_measurement() {
+  if (this->write(i2c_cmd_, 3)) {
+    this->mark_failed();
+    return;
+  }
+  this->measurement_running_ = true;
+}
+
+bool HONEYWELLABP2Sensor::is_measurement_ready() {
+  if (!this->read(raw_data_, 1)) {
+    this->mark_failed();
+    return false;
+  }
+  if ((raw_data_[0] & (0x1 << STATUS_BIT_BUSY)) > 0) {
+    return false;
+  }
+  this->measurement_running_ = false;
+  return true;
+}
+
+void HONEYWELLABP2Sensor::measurement_timeout() {
+  this->measurement_running_ = false;
+  this->mark_failed();
+}
+  
 float HONEYWELLABP2Sensor::get_pressure() {
   return this->last_pressure_;
 }
@@ -38,17 +64,28 @@ float HONEYWELLABP2Sensor::get_temperature() {
   return this->last_temperature_;
 }
 
+void HONEYWELLABP2Sensor::loop() {
+  if (this->measurement_running_) {
+    if (this->is_measurement_ready()) {
+      
+      this->cancel_timeout("meas_timeout");
+      
+      this->read_sensor_data();
+      if (pressure_sensor_ != nullptr) {
+        this->pressure_sensor_->publish_state(this->get_pressure());
+      }
+      if (temperature_sensor_ != nullptr) {
+        this->temperature_sensor_->publish_state(this->get_temperature());
+      }
+    } 
+  }
+}
+
 void HONEYWELLABP2Sensor::update() {
   ESP_LOGV(TAG, "Update Honeywell ABP2 Sensor");
   
-  this->read_sensor();
-  
-  if (pressure_sensor_ != nullptr) {
-    this->pressure_sensor_->publish_state(this->get_pressure());
-  }
-  if (temperature_sensor_ != nullptr) {
-    this->temperature_sensor_->publish_state(this->get_temperature());
-  }
+  this->start_measurement();
+  this->set_timeout("meas_timeout", 50, [this] { this->measurement_timeout(); });
 }
 
 void HONEYWELLABP2Sensor::dump_config() {

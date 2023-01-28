@@ -17,11 +17,16 @@ class HONEYWELLABP2Sensor : public PollingComponent, public i2c::I2CDevice {
   void set_pressure_sensor(sensor::Sensor *pressure_sensor) { this->pressure_sensor_ = pressure_sensor; };
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; };
   void setup() override;
+  void loop() override;
   void update() override;
   float get_setup_priority() const override { return setup_priority::LATE; };
   void dump_config() override;
   
-  void read_sensor();
+  void read_sensor_data();
+  void start_measurement();
+  bool is_measurement_ready();
+  void measurement_timeout();
+  
   float get_pressure();
   float get_temperature();
   
@@ -44,6 +49,7 @@ class HONEYWELLABP2Sensor : public PollingComponent, public i2c::I2CDevice {
   
   float max_count_;
   float min_count_;
+  bool measurement_running_ = false;
   
   uint8_t raw_data_[7]; // holds output data
   uint8_t i2c_cmd_[3] = {0xAA, 0x00, 0x00}; // command to be sent
