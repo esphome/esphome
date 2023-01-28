@@ -4,7 +4,6 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
-
 namespace esphome {
 namespace pas_co2 {
 
@@ -12,7 +11,6 @@ namespace pas_co2 {
 // https://www.infineon.com/cms/en/product/sensor/co2-sensors/pasco2v01/
 class PASCO2Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  float get_setup_priority() const override { return setup_priority::DATA; }
   void setup() override;
   void dump_config() override;
   void update() override;
@@ -23,8 +21,10 @@ class PASCO2Component : public PollingComponent, public i2c::I2CDevice {
   void set_co2_sensor(sensor::Sensor *co2) { co2_sensor_ = co2; }
 
  protected:
-  enum ERRORCODE {
+  enum ErrorCode {
+    NO_ERROR,
     COMMUNICATION_FAILED,
+    SOFT_RESET_FAILED,
     MEASUREMENT_INIT_FAILED,
     UNKNOWN
   };
@@ -45,7 +45,7 @@ class PASCO2Component : public PollingComponent, public i2c::I2CDevice {
   void try_read_measurement_();
   bool update_ambient_pressure_compensation_(uint16_t pressure_in_hpa);
 
-  ERRORCODE error_code_;
+  ErrorCode error_code_{NO_ERROR};
 
   bool initialized_{false};
   int retry_count_{0};

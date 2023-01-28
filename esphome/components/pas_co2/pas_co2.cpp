@@ -9,15 +9,12 @@ namespace pas_co2 {
 static const char *const TAG = "pas_co2";
 
 void PASCO2Component::setup() {
-  ESP_LOGD(TAG, "Setting up pas_co2...");
+  ESP_LOGD(TAG, "Setting up...");
 
-  // Mark as not failed before initializing. Some devices will turn off sensors to save on batteries
-  // and when they come back on, the COMPONENT_STATE_FAILED bit must be unset on the component.
-  // this->component_state_ &= ~COMPONENT_STATE_FAILED;
-  initialized_ = false;
+  this->initialized_ = false;
 
   // The sensor needs 1000 ms to enter the idle state.
-  this->set_timeout(1000, [this]() {
+  this->set_timeout(10000, [this]() {
     this->init_();
   });
 }
@@ -27,13 +24,19 @@ void PASCO2Component::dump_config() {
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     switch (this->error_code_) {
+      case NO_ERROR:
+        ESP_LOGW(TAG, "No error");
+        break;
       case COMMUNICATION_FAILED:
         ESP_LOGW(TAG, "Communication failed! Is the sensor connected?");
         break;
-      case MEASUREMENT_INIT_FAILED:
-        ESP_LOGW(TAG, "Measurement Initialization failed!");
+      case SOFT_RESET_FAILED:
+        ESP_LOGW(TAG, "Soft reset failed!");
         break;
-      default:
+      case MEASUREMENT_INIT_FAILED:
+        ESP_LOGW(TAG, "Measurement initialization failed!");
+        break;
+      case UNKNOWN:
         ESP_LOGW(TAG, "Unknown setup error!");
         break;
     }
@@ -54,18 +57,19 @@ void PASCO2Component::dump_config() {
 
 void PASCO2Component::update() {
   if (!initialized_) {
+    ESP_LOGW(TAG, "Update is called, when sensor has not been initialized yet");
     return;
   }
 
   if (this->ambient_pressure_source_ != nullptr) {
     float pressure = this->ambient_pressure_source_->state / 1000.0f;
     if (!std::isnan(pressure)) {
-      set_ambient_pressure_compensation(this->ambient_pressure_source_->state / 1000.0f);
+      this->set_ambient_pressure_compensation(this->ambient_pressure_source_->state / 1000.0f);
     }
   }
 
-  if (retry_count_ == 0) {
-    try_read_measurement_();
+  if (this->retry_count_ == 0) {
+    this->try_read_measurement_();
   } else {
     ESP_LOGW(TAG, "Skipping update interval because already retrying");
   }
@@ -73,18 +77,20 @@ void PASCO2Component::update() {
 
 // Note pressure in bar here. Convert to hPa
 void PASCO2Component::set_ambient_pressure_compensation(float pressure_in_bar) {
-  ambient_pressure_compensation_ = true;
+  this->ambient_pressure_compensation_ = true;
   uint16_t new_ambient_pressure = (uint16_t)(pressure_in_bar * 1000);
   // Ignore changes less than 10 millibar, it doesn't matter.
-  if (initialized_ && abs(new_ambient_pressure - ambient_pressure_) < 10) {
-    update_ambient_pressure_compensation_(new_ambient_pressure);
-    ambient_pressure_ = new_ambient_pressure;
+  if (this->initialized_ && abs(new_ambient_pressure - this->ambient_pressure_) < 10) {
+    this->update_ambient_pressure_compensation_(new_ambient_pressure);
+    this->ambient_pressure_ = new_ambient_pressure;
   } else {
     ESP_LOGD(TAG, "Ambient pressure compensation skipped - no change required");
   }
 }
 
 void PASCO2Component::init_() {
+  ESP_LOGD(TAG, "Initializing...");
+
   if (!this->test_scratch_register_()) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
@@ -100,13 +106,13 @@ void PASCO2Component::init_() {
 
   if (!this->write_byte(XENSIV_PASCO2_REG_SENS_RST, XENSIV_PASCO2_CMD_SOFT_RESET)) {
     ESP_LOGE(TAG, "Sending soft reset failed");
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = SOFT_RESET_FAILED;
     this->mark_failed();
     return;
   }
   this->set_timeout(XENSIV_PASCO2_SOFT_RESET_DELAY_MS, [this]() {
     if (!this->check_sensor_status_()) {
-      this->error_code_ = COMMUNICATION_FAILED;
+      this->error_code_ = SOFT_RESET_FAILED;
       this->mark_failed();
       return;
     }
@@ -126,9 +132,11 @@ void PASCO2Component::init_() {
       }
       if (!this->set_rate_(this->get_update_interval() / 1000)) {
         ESP_LOGE(TAG, "Failed to enable continuous mode");
+        this->error_code_ = MEASUREMENT_INIT_FAILED;
+        this->mark_failed();
         return;
       }
-      initialized_ = true;
+      this->initialized_ = true;
       ESP_LOGD(TAG, "Sensor initialized");
     });
   });
@@ -151,7 +159,7 @@ bool PASCO2Component::test_scratch_register_() {
     ESP_LOGE(TAG, "Test value %02x in scratch register doesn't match, got %02x", XENSIV_PASCO2_COMM_TEST_VAL, data);
     return false;
   }
-  return true;  
+  return true;
 }
 
 bool PASCO2Component::check_sensor_status_() {
@@ -242,19 +250,18 @@ bool PASCO2Component::read_measurement_() {
 }
 
 void PASCO2Component::try_read_measurement_() {
-  if (read_measurement_()) {
-    retry_count_ = 0;
+  if (this->read_measurement_()) {
+    this->retry_count_ = 0;
     this->status_clear_warning();
-  } else if (++retry_count_ <= 3) {
-    ESP_LOGD(TAG, "Measurement is not read, retrying.");
+  } else if (++this->retry_count_ <= 3) {
+    ESP_LOGD(TAG, "Measurement is not read, retrying...");
     this->set_timeout(1000, [this]() {
       this->try_read_measurement_();
     });
   } else {
-    ESP_LOGE(TAG, "Too many retries reading sensor!");
+    ESP_LOGW(TAG, "Too many retries reading sensor, skipping update interval!");
     this->status_set_warning();
-    retry_count_ = 0;
-    // TODO: re-initialize sensor?
+    this->retry_count_ = 0;
   }
 }
 
