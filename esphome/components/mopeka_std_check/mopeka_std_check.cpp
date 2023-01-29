@@ -15,6 +15,9 @@ static const uint16_t MANUFACTURER_ID = 0x000D;
 
 void MopekaStdCheck::dump_config() {
   ESP_LOGCONFIG(TAG, "Mopeka Std Check");
+  ESP_LOGCONFIG(TAG, "  LPG Butane ratio: %.0f%%", this->lpg_butane_ratio_ * 100);
+  ESP_LOGCONFIG(TAG, "  Tank distance empty: %imm", this->empty_mm_);
+  ESP_LOGCONFIG(TAG, "  Tank distance full: %imm", this->full_mm_);
   LOG_SENSOR("  ", "Level", this->level_);
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
