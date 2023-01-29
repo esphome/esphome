@@ -37,3 +37,11 @@ switch:
   - platform: output
     output: pin_4
     id: pin_4_switch
+
+light:
+  - platform: fastled_clockless
+    chipset: WS2811
+    pin: GPIO23
+    num_leds: 60
+    rgb_order: BRG
+    name: "FastLED WS2811 Light"
