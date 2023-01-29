@@ -9,7 +9,7 @@ namespace mopeka_ble {
 
 static const char *const TAG = "mopeka_ble";
 
-//Mopeka Std (CC2540) sensor details
+// Mopeka Std (CC2540) sensor details
 static const uint16_t SERVICE_UUID_CC2540 = 0xADA0;
 static const uint16_t MANUFACTURER_CC2540_ID = 0x000D;  // Texas Instruments (TI)
 static const uint8_t MANUFACTURER_CC2540_DATA_LENGTH = 23;
