@@ -65,7 +65,7 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_CUSTOM_DISTANCE_FULL): small_distance,
             cv.Optional(CONF_CUSTOM_DISTANCE_EMPTY): small_distance,
-            cv.Optional(CONF_PROPANE_BUTANE_MIX, default=1.0): cv.float_range(0, 1),
+            cv.Optional(CONF_PROPANE_BUTANE_MIX, default="100%"): cv.percentage,
             cv.Required(CONF_TANK_TYPE): cv.enum(CONF_SUPPORTED_TANKS_MAP, upper=True),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
