@@ -126,7 +126,9 @@ async def to_code(config):
         }
     ),
 )
-async def scd30_force_recalibration_with_reference_to_code(config, action_id, template_arg, args):
+async def scd30_force_recalibration_with_reference_to_code(
+    config, action_id, template_arg, args
+):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
     template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
