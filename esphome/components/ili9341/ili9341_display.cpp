@@ -122,7 +122,12 @@ void ILI9341Display::display_() {
 }
 
 void ILI9341Display::fill(Color color) {
-  uint8_t color332 = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+  uint8_t color332 = 0;
+  if (this->buffer_color_mode_ == BITS_8) {
+    color332 = display::ColorUtil::color_to_332(color);
+  } else {  // if (this->buffer_color_mode_ == BITS_8_INDEXED)
+    color332 = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
+  }
   memset(this->buffer_, color332, this->get_buffer_length_());
   this->x_low_ = 0;
   this->y_low_ = 0;
