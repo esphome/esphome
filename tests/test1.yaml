@@ -1304,6 +1304,11 @@ binary_sensor:
       number: GPIO9
       mode: INPUT_PULLUP
     name: Living Room Window 2
+  - platform: gpio
+    pin:
+      number: GPIO9
+      mode: INPUT_OUTPUT_OPEN_DRAIN
+    name: Living Room Button
   - platform: status
     name: Living Room Status
   - platform: esp32_touch
