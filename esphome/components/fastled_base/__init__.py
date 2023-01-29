@@ -44,5 +44,6 @@ async def new_fastled_light(config):
     # https://github.com/FastLED/FastLED/blob/master/library.json
     # 3.3.3 has an issue on ESP32 with RMT and fastled_clockless:
     # https://github.com/esphome/issues/issues/1375
-    cg.add_library("fastled/FastLED", "3.5.0")
+    # 3.5.0 doesn't compile on rp2040 without #1395 so using a commit hash
+    cg.add_library("", "3.5.0-dev", "https://github.com/FastLED/FastLED#58f9c15")
     return var
