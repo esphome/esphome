@@ -216,12 +216,12 @@ bool SCD30Component::force_recalibration_with_reference(uint16_t co2_reference) 
 }
 
 uint16_t SCD30Component::get_forced_calibration_reference() {
-  uint16_t forced_calibration_reference_;
+  uint16_t forced_calibration_reference;
   // Get current CO2 calibration
-  if (!this->get_register(SCD30_CMD_FORCED_CALIBRATION, forced_calibration_reference_)) {
+  if (!this->get_register(SCD30_CMD_FORCED_CALIBRATION, forced_calibration_reference)) {
     ESP_LOGE(TAG, "Unable to read forced calibration reference.");
   }
-  return forced_calibration_reference_;
+  return forced_calibration_reference;
 }
 
 }  // namespace scd30
