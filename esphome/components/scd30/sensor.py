@@ -114,6 +114,7 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
 
+        
 @automation.register_action(
     "scd30.force_recalibration_with_reference",
     ForceRecalibrationWithReference,
@@ -126,6 +127,7 @@ async def to_code(config):
         }
     ),
 )
+
 async def scd30_force_recalibration_with_reference_to_code(
     config, action_id, template_arg, args
 ):
