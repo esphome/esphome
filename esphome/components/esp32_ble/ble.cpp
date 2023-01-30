@@ -31,11 +31,13 @@ void ESP32BLE::setup() {
     return;
   }
 
+#ifdef USE_ESP32_BLE_SERVER
   this->advertising_ = new BLEAdvertising();  // NOLINT(cppcoreguidelines-owning-memory)
 
   this->advertising_->set_scan_response(true);
   this->advertising_->set_min_preferred_interval(0x06);
   this->advertising_->start();
+#endif  // USE_ESP32_BLE_SERVER
 
   ESP_LOGD(TAG, "BLE setup complete");
 }
