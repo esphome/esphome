@@ -87,19 +87,23 @@ void PIDClimate::write_output_(float value) {
     this->heat_output_->set_level(0.0f);
 
   // value < 0 means cool, > 0 means heat
-  if (this->supports_cool_() && value < 0)
+  if (this->supports_cool_() && value < 0 && (this->mode == 2 || this->mode == 1))
     this->cool_output_->set_level(std::min(1.0f, -value));
-  if (this->supports_heat_() && value > 0)
+  if (this->supports_heat_() && value > 0 && (this->mode == 3 || this->mode == 1))
     this->heat_output_->set_level(std::min(1.0f, value));
 
   // Update action variable for user feedback what's happening
   climate::ClimateAction new_action;
-  if (this->supports_cool_() && value < 0) {
+  if (this->mode == 2 && value < 0) {
     new_action = climate::CLIMATE_ACTION_COOLING;
-  } else if (this->supports_heat_() && value > 0) {
+  } else if (this->mode == 3 && value > 0) {
     new_action = climate::CLIMATE_ACTION_HEATING;
   } else if (this->mode == climate::CLIMATE_MODE_OFF) {
     new_action = climate::CLIMATE_ACTION_OFF;
+  } else if (this->mode == 1 && value > 0) {
+    new_action = climate::CLIMATE_ACTION_HEATING;
+  } else if (this->mode == 1 && value < 0) {
+    new_action = climate::CLIMATE_ACTION_COOLING;
   } else {
     new_action = climate::CLIMATE_ACTION_IDLE;
   }
