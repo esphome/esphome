@@ -90,7 +90,7 @@ void FingerprintGrowComponent::finish_enrollment(uint8_t result) {
 void FingerprintGrowComponent::scan_and_match_() {
   if (this->check_password_()) {
     if (this->sensing_pin_ != nullptr) {
-	  ESP_LOGD(TAG, "Scan and match");
+      ESP_LOGD(TAG, "Scan and match");
     } else {
   	  ESP_LOGV(TAG, "Scan and match");
     }
@@ -99,23 +99,23 @@ void FingerprintGrowComponent::scan_and_match_() {
 	  this->data_ = {SEARCH, 0x01, 0x00, 0x00, (uint8_t)(this->capacity_ >> 8), (uint8_t)(this->capacity_ & 0xFF)};
 	  switch (this->send_command_()) {
 	    case OK: {
-		  ESP_LOGD(TAG, "Fingerprint matched");
-		  uint16_t finger_id = ((uint16_t) this->data_[1] << 8) | this->data_[2];
-		  uint16_t confidence = ((uint16_t) this->data_[3] << 8) | this->data_[4];
-		  if (this->last_finger_id_sensor_ != nullptr) {
-		    this->last_finger_id_sensor_->publish_state(finger_id);
-		  }
-		  if (this->last_confidence_sensor_ != nullptr) {
-		    this->last_confidence_sensor_->publish_state(confidence);
-		  }
-		  this->finger_scan_matched_callback_.call(finger_id, confidence);
-		  break;
-	    }
+		    ESP_LOGD(TAG, "Fingerprint matched");
+		    uint16_t finger_id = ((uint16_t) this->data_[1] << 8) | this->data_[2];
+		    uint16_t confidence = ((uint16_t) this->data_[3] << 8) | this->data_[4];
+		    if (this->last_finger_id_sensor_ != nullptr) {
+		      this->last_finger_id_sensor_->publish_state(finger_id);
+		    }
+		    if (this->last_confidence_sensor_ != nullptr) {
+		      this->last_confidence_sensor_->publish_state(confidence);
+		    }
+		    this->finger_scan_matched_callback_.call(finger_id, confidence);
+		    break;
+	      }
 	    case NOT_FOUND:
-		  ESP_LOGD(TAG, "Fingerprint not matched to any saved slots");
-		  this->finger_scan_unmatched_callback_.call();
-		  break;
-	  }
+		    ESP_LOGD(TAG, "Fingerprint not matched to any saved slots");
+		    this->finger_scan_unmatched_callback_.call();
+		    break;
+	    }
     }
   }
 }
