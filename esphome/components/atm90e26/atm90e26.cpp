@@ -44,12 +44,13 @@ void ATM90E26Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ATM90E26 Component...");
   this->spi_setup();
 
-  uint16_t mmode = 0x422; // default values for everything but L/N line current gains
+  uint16_t mmode = 0x422;  // default values for everything but L/N line current gains
   mmode |= l_line_gain_ << 13;
   mmode |= n_line_gain_ << 11;
 
-  this->write16_(ATM90E26_REGISTER_SOFTRESET, 0x789A);    // Perform soft reset
-  this->write16_(ATM90E26_REGISTER_FUNCEN, 0x0030);       // Voltage sag irq=1, report on warnout pin=1, energy dir change irq=0
+  this->write16_(ATM90E26_REGISTER_SOFTRESET, 0x789A);  // Perform soft reset
+  this->write16_(ATM90E26_REGISTER_FUNCEN,
+                 0x0030);  // Voltage sag irq=1, report on warnout pin=1, energy dir change irq=0
   uint16_t read = this->read16_(ATM90E26_REGISTER_LASTDATA);
   if (read != 0x0030) {
     ESP_LOGW(TAG, "Could not initialize ATM90E26 IC, check SPI settings: %d", read);
@@ -60,13 +61,13 @@ void ATM90E26Component::setup() {
   this->write16_(ATM90E26_REGISTER_SAGTH, 0x17DD);  // Voltage sag threshhold 0x1F2F
 
   // Set metering calibration values
-  this->write16_(ATM90E26_REGISTER_CALSTART, 0x5678);       // CAL Metering calibration startup command
+  this->write16_(ATM90E26_REGISTER_CALSTART, 0x5678);  // CAL Metering calibration startup command
 
   // Configure
-  this->write16_(ATM90E26_REGISTER_MMODE, mmode);           // Metering Mode Configuration (see above)
+  this->write16_(ATM90E26_REGISTER_MMODE, mmode);  // Metering Mode Configuration (see above)
 
-  this->write16_(ATM90E26_REGISTER_PLCONSTH, (pl_const_ >> 16));  // PL Constant MSB
-  this->write16_(ATM90E26_REGISTER_PLCONSTL, pl_const_ & 0xFFFF); // PL Constant LSB
+  this->write16_(ATM90E26_REGISTER_PLCONSTH, (pl_const_ >> 16));   // PL Constant MSB
+  this->write16_(ATM90E26_REGISTER_PLCONSTL, pl_const_ & 0xFFFF);  // PL Constant LSB
 
   // TODO: Calibrate this to be 1 pulse per Wh
   this->write16_(ATM90E26_REGISTER_LGAIN, metering_gain_);  // L Line Calibration Gain (active power metering)
@@ -80,43 +81,52 @@ void ATM90E26Component::setup() {
 
   // Compute Checksum for the registers we set above
   // low byte = sum of all bytes
-  uint16_t cs = ((mmode >> 8) + (mmode & 0xFF) + (pl_const_ >> 24) + ((pl_const_ >> 16) & 0xFF) + ((pl_const_ >> 8) & 0xFF) + (pl_const_ & 0xFF) + (metering_gain_ >> 8) + (metering_gain_ & 0xFF) + 0x08 + 0xBD + 0x0A + 0xEC) & 0xFF;
+  uint16_t cs =
+      ((mmode >> 8) + (mmode & 0xFF) + (pl_const_ >> 24) + ((pl_const_ >> 16) & 0xFF) + ((pl_const_ >> 8) & 0xFF) +
+       (pl_const_ & 0xFF) + (metering_gain_ >> 8) + (metering_gain_ & 0xFF) + 0x08 + 0xBD + 0x0A + 0xEC) &
+      0xFF;
   // high byte = XOR of all bytes
-  cs |= ((mmode >> 8) ^ (mmode & 0xFF) ^ (pl_const_ >> 24) ^ ((pl_const_ >> 16) & 0xFF) ^ ((pl_const_ >> 8) & 0xFF) ^ (pl_const_ & 0xFF) ^ (metering_gain_ >> 8) ^ (metering_gain_ & 0xFF) ^ 0x08 ^ 0xBD ^ 0x0A ^ 0xEC) << 8;
+  cs |= ((mmode >> 8) ^ (mmode & 0xFF) ^ (pl_const_ >> 24) ^ ((pl_const_ >> 16) & 0xFF) ^ ((pl_const_ >> 8) & 0xFF) ^
+         (pl_const_ & 0xFF) ^ (metering_gain_ >> 8) ^ (metering_gain_ & 0xFF) ^ 0x08 ^ 0xBD ^ 0x0A ^ 0xEC)
+        << 8;
 
   this->write16_(ATM90E26_REGISTER_CS1, cs);
   ESP_LOGVV(TAG, "Set CS1 to: 0x%04X", cs);
 
   // Set measurement calibration values
-  this->write16_(ATM90E26_REGISTER_ADJSTART, 0x5678);     // Measurement calibration startup command, registers 31-3A
-  this->write16_(ATM90E26_REGISTER_UGAIN, volt_gain_);    // Voltage RMS gain
-  this->write16_(ATM90E26_REGISTER_IGAINL, ct_gain_);     // L line current RMS gain
-  this->write16_(ATM90E26_REGISTER_IGAINN, 0x7530);       // N Line Current RMS Gain
-  this->write16_(ATM90E26_REGISTER_UOFFSET, 0x0000);      // Voltage Offset
-  this->write16_(ATM90E26_REGISTER_IOFFSETL, 0x0000);     // L Line Current Offset
-  this->write16_(ATM90E26_REGISTER_IOFFSETN, 0x0000);     // N Line Current Offse
-  this->write16_(ATM90E26_REGISTER_POFFSETL, 0x0000);     // L Line Active Power Offset
-  this->write16_(ATM90E26_REGISTER_QOFFSETL, 0x0000);     // L Line Reactive Power Offset
-  this->write16_(ATM90E26_REGISTER_POFFSETN, 0x0000);     // N Line Active Power Offset
-  this->write16_(ATM90E26_REGISTER_QOFFSETN, 0x0000);     // N Line Reactive Power Offset
-  
+  this->write16_(ATM90E26_REGISTER_ADJSTART, 0x5678);   // Measurement calibration startup command, registers 31-3A
+  this->write16_(ATM90E26_REGISTER_UGAIN, volt_gain_);  // Voltage RMS gain
+  this->write16_(ATM90E26_REGISTER_IGAINL, ct_gain_);   // L line current RMS gain
+  this->write16_(ATM90E26_REGISTER_IGAINN, 0x7530);     // N Line Current RMS Gain
+  this->write16_(ATM90E26_REGISTER_UOFFSET, 0x0000);    // Voltage Offset
+  this->write16_(ATM90E26_REGISTER_IOFFSETL, 0x0000);   // L Line Current Offset
+  this->write16_(ATM90E26_REGISTER_IOFFSETN, 0x0000);   // N Line Current Offse
+  this->write16_(ATM90E26_REGISTER_POFFSETL, 0x0000);   // L Line Active Power Offset
+  this->write16_(ATM90E26_REGISTER_QOFFSETL, 0x0000);   // L Line Reactive Power Offset
+  this->write16_(ATM90E26_REGISTER_POFFSETN, 0x0000);   // N Line Active Power Offset
+  this->write16_(ATM90E26_REGISTER_QOFFSETN, 0x0000);   // N Line Reactive Power Offset
+
   // Compute Checksum for the registers we set above
   cs = ((volt_gain_ >> 8) + (volt_gain_ & 0xFF) + (ct_gain_ >> 8) + (ct_gain_ & 0xFF) + 0x75 + 0x30) & 0xFF;
   cs |= ((volt_gain_ >> 8) ^ (volt_gain_ & 0xFF) ^ (ct_gain_ >> 8) ^ (ct_gain_ & 0xFF) ^ 0x75 ^ 0x30) << 8;
   this->write16_(ATM90E26_REGISTER_CS2, cs);
   ESP_LOGVV(TAG, "Set CS2 to: 0x%04X", cs);
 
-  this->write16_(ATM90E26_REGISTER_CALSTART, 0x8765); // Checks correctness of 21-2B registers and starts normal metering if ok
-  this->write16_(ATM90E26_REGISTER_ADJSTART, 0x8765); // Checks correctness of 31-3A registers and starts normal measurement  if ok
+  this->write16_(ATM90E26_REGISTER_CALSTART,
+                 0x8765);  // Checks correctness of 21-2B registers and starts normal metering if ok
+  this->write16_(ATM90E26_REGISTER_ADJSTART,
+                 0x8765);  // Checks correctness of 31-3A registers and starts normal measurement  if ok
 
-  uint16_t sysStatus = this->read16_(ATM90E26_REGISTER_SYSSTATUS);
-  if (sysStatus & 0xC000) { // Checksum 1 Error
+  uint16_t sys_status = this->read16_(ATM90E26_REGISTER_SYSSTATUS);
+  if (sys_status & 0xC000) {  // Checksum 1 Error
 
-    ESP_LOGW(TAG, "Could not initialize ATM90E26 IC: CS1 was incorrect, expected: 0x%04X", this->read16_(ATM90E26_REGISTER_CS1));
+    ESP_LOGW(TAG, "Could not initialize ATM90E26 IC: CS1 was incorrect, expected: 0x%04X",
+             this->read16_(ATM90E26_REGISTER_CS1));
     this->mark_failed();
   }
-  if (sysStatus & 0x3000) { // Checksum 2 Error
-    ESP_LOGW(TAG, "Could not initialize ATM90E26 IC: CS2 was incorrect, expected: 0x%04X", this->read16_(ATM90E26_REGISTER_CS2));
+  if (sys_status & 0x3000) {  // Checksum 2 Error
+    ESP_LOGW(TAG, "Could not initialize ATM90E26 IC: CS2 was incorrect, expected: 0x%04X",
+             this->read16_(ATM90E26_REGISTER_CS2));
     this->mark_failed();
   }
 }
@@ -166,7 +176,6 @@ void ATM90E26Component::write16_(uint8_t a_register, uint16_t val) {
   this->disable();
 }
 
-
 float ATM90E26Component::get_line_current_() {
   uint16_t current = this->read16_(ATM90E26_REGISTER_IRMS);
   return (float) current / 1000;
@@ -178,17 +187,17 @@ float ATM90E26Component::get_line_voltage_() {
 }
 
 float ATM90E26Component::get_active_power_() {
-  int16_t val = this->read16_(ATM90E26_REGISTER_PMEAN); // two's complement
+  int16_t val = this->read16_(ATM90E26_REGISTER_PMEAN);  // two's complement
   return (float) val;
 }
 
 float ATM90E26Component::get_reactive_power_() {
-  int16_t val = this->read16_(ATM90E26_REGISTER_QMEAN); // two's complement
+  int16_t val = this->read16_(ATM90E26_REGISTER_QMEAN);  // two's complement
   return (float) val;
 }
 
 float ATM90E26Component::get_power_factor_() {
-  uint16_t val = this->read16_(ATM90E26_REGISTER_POWERF); // signed
+  uint16_t val = this->read16_(ATM90E26_REGISTER_POWERF);  // signed
   if (val & 0x8000) {
     return (float) -(val & 0x7FF) / 1000;
   } else {

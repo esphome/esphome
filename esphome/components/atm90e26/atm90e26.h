@@ -20,12 +20,8 @@ class ATM90E26Component : public PollingComponent,
   void set_current_sensor(sensor::Sensor *obj) { this->current_sensor_ = obj; }
   void set_power_sensor(sensor::Sensor *obj) { this->power_sensor_ = obj; }
   void set_reactive_power_sensor(sensor::Sensor *obj) { this->reactive_power_sensor_ = obj; }
-  void set_forward_active_energy_sensor(sensor::Sensor *obj) {
-    this->forward_active_energy_sensor_ = obj;
-  }
-  void set_reverse_active_energy_sensor(sensor::Sensor *obj) {
-    this->reverse_active_energy_sensor_ = obj;
-  }
+  void set_forward_active_energy_sensor(sensor::Sensor *obj) { this->forward_active_energy_sensor_ = obj; }
+  void set_reverse_active_energy_sensor(sensor::Sensor *obj) { this->reverse_active_energy_sensor_ = obj; }
   void set_power_factor_sensor(sensor::Sensor *obj) { this->power_factor_sensor_ = obj; }
   void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
   void set_line_freq(int freq) { line_freq_ = freq; }
@@ -50,7 +46,6 @@ class ATM90E26Component : public PollingComponent,
   float get_reverse_active_energy_();
   float get_frequency_();
   float get_chip_temperature_();
-
 
   sensor::Sensor *freq_sensor_{nullptr};
   sensor::Sensor *voltage_sensor_{nullptr};
