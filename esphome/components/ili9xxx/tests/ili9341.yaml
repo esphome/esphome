@@ -20,9 +20,6 @@ logger:
   level: verbose
 
 color:
-  - id: my_yellow
-    red: 100%
-    green: 100%
   - id: my_blue
     red: 0%
     blue: 100%
@@ -30,19 +27,10 @@ color:
   - id: my_red
     red: 100%
     green: 0%
-  - id: my_white
-    red: 100%
-    blue: 100%
-    green: 100%
-  - id: my_black
-    red: 0%
-    blue: 0%
-    green: 0%
 
 spi:
   clk_pin: 7
   mosi_pin: 11
-
 
 display:
   - id: my_display
@@ -54,21 +42,9 @@ display:
     reset_pin: 35
     backlight_pin: 16
     rotation: 90
-    auto_clear_enabled: false
     lambda: |-
-      it.fill(my_black);
       for(auto i = 0; i<256; i++) {
         it.horizontal_line(5,i,100, my_red.fade_to_white(i));
-        it.horizontal_line(110,i,100, my_yellow.fade_to_black(i));
+        it.horizontal_line(110,i,100, my_red.fade_to_black(i));
         it.horizontal_line(215,i,100, my_red.gradient(my_blue, i));
       }
-      //it.rectangle(0, 0, 50, 50, my_white);
-      it.horizontal_line(5, 5, 50, my_red);
-      it.horizontal_line(5, 55, 50, my_white);
-      it.vertical_line(5, 5, 50, my_blue);
-      it.vertical_line(55, 5, 50, my_yellow);
-
-font:
-  - file: "gfonts://Roboto"
-    id: my_font
-    size: 20
