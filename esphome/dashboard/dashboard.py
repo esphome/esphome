@@ -12,7 +12,6 @@ import secrets
 import shutil
 import subprocess
 import threading
-import yaml
 from pathlib import Path
 from typing import Optional
 
@@ -26,6 +25,7 @@ import tornado.netutil
 import tornado.process
 import tornado.web
 import tornado.websocket
+import yaml
 from tornado.log import access_log
 
 from esphome import const, platformio_api, util, yaml_util
@@ -40,7 +40,7 @@ from esphome.storage_json import (
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
 
-from .util import password_hash, friendly_name_slugify
+from .util import friendly_name_slugify, password_hash
 
 _LOGGER = logging.getLogger(__name__)
 
