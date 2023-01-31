@@ -15,10 +15,11 @@ from esphome.const import (
     CONF_ON_BLE_SERVICE_DATA_ADVERTISE,
     CONF_ON_BLE_MANUFACTURER_DATA_ADVERTISE,
 )
+from esphome.components import esp32_ble
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
-from esphome.components import esp32_ble
 
+AUTO_LOAD = ["esp32_ble"]
 DEPENDENCIES = ["esp32"]
 
 CONF_ESP32_BLE_ID = "esp32_ble_id"
@@ -27,7 +28,13 @@ CONF_WINDOW = "window"
 CONF_CONTINUOUS = "continuous"
 CONF_ON_SCAN_END = "on_scan_end"
 esp32_ble_tracker_ns = cg.esphome_ns.namespace("esp32_ble_tracker")
-ESP32BLETracker = esp32_ble_tracker_ns.class_("ESP32BLETracker", cg.Component)
+ESP32BLETracker = esp32_ble_tracker_ns.class_(
+    "ESP32BLETracker",
+    cg.Component,
+    esp32_ble.GAPEventHandler,
+    esp32_ble.GATTcEventHandler,
+    cg.Parented.template(esp32_ble.ESP32BLE),
+)
 ESPBTClient = esp32_ble_tracker_ns.class_("ESPBTClient")
 ESPBTDeviceListener = esp32_ble_tracker_ns.class_("ESPBTDeviceListener")
 ESPBTDevice = esp32_ble_tracker_ns.class_("ESPBTDevice")
@@ -138,6 +145,7 @@ def as_reversed_hex_array(value):
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32BLETracker),
+        cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
         cv.Optional(CONF_SCAN_PARAMETERS, default={}): cv.All(
             cv.Schema(
                 {
@@ -200,6 +208,12 @@ ESP_BLE_DEVICE_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
+    parent = await cg.get_variable(config[esp32_ble.CONF_BLE_ID])
+    cg.add(parent.register_gap_event_handler(var))
+    cg.add(parent.register_gattc_event_handler(var))
+    cg.add(var.set_parent(parent))
+
     params = config[CONF_SCAN_PARAMETERS]
     cg.add(var.set_scan_duration(params[CONF_DURATION]))
     cg.add(var.set_scan_interval(int(params[CONF_INTERVAL].total_milliseconds / 0.625)))
@@ -248,6 +262,7 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_BTU_TASK_STACK_SIZE", 8192)
 
     cg.add_define("USE_OTA_STATE_CALLBACK")  # To be notified when an OTA update starts
+    cg.add_define("USE_ESP32_BLE_CLIENT")
 
 
 ESP32_BLE_START_SCAN_ACTION_SCHEMA = cv.Schema(
