@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_URL,
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
+    CONF_TX_BUFFER_SIZE,
+    CONF_RX_BUFFER_SIZE,
 )
 from esphome.core import Lambda, CORE
 from esphome.components import esp32
@@ -97,6 +99,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
                 cv.only_on_esp8266, cv.boolean
             ),
+            cv.SplitDefault(CONF_TX_BUFFER_SIZE, esp32_idf=512): cv.All(
+                cv.only_with_esp_idf, cv.validate_bytes
+            ),
+            cv.SplitDefault(CONF_RX_BUFFER_SIZE, esp32_idf=512): cv.All(
+                cv.only_with_esp_idf, cv.validate_bytes
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.require_framework_version(
@@ -113,6 +121,10 @@ async def to_code(config):
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
     cg.add(var.set_follow_redirects(config[CONF_FOLLOW_REDIRECTS]))
     cg.add(var.set_redirect_limit(config[CONF_REDIRECT_LIMIT]))
+
+    if CORE.using_esp_idf:
+        cg.add(var.set_tx_buffer_size(config[CONF_TX_BUFFER_SIZE]))
+        cg.add(var.set_rx_buffer_size(config[CONF_RX_BUFFER_SIZE]))
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
