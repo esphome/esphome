@@ -26,6 +26,7 @@ enum TCS34725IntegrationTime {
   TCS34725_INTEGRATION_TIME_540MS = 0x1F,
   TCS34725_INTEGRATION_TIME_600MS = 0x06,
   TCS34725_INTEGRATION_TIME_614MS = 0x00,
+  TCS34725_INTEGRATION_TIME_AUTO = 0x100,
 };
 
 enum TCS34725Gain {
@@ -77,10 +78,11 @@ class TCS34725Component : public PollingComponent, public i2c::I2CDevice {
   float glass_attenuation_{1.0};
   float illuminance_;
   float color_temperature_;
+  bool integration_time_auto_{true};
 
  private:
   void calculate_temperature_and_lux_(uint16_t r, uint16_t g, uint16_t b, uint16_t c);
-  uint8_t integration_reg_{TCS34725_INTEGRATION_TIME_2_4MS};
+  uint16_t integration_reg_;
   uint8_t gain_reg_{TCS34725_GAIN_1X};
 };
 

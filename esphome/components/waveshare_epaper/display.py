@@ -50,6 +50,9 @@ WaveshareEPaper7P5InBV2 = waveshare_epaper_ns.class_(
 WaveshareEPaper7P5InV2 = waveshare_epaper_ns.class_(
     "WaveshareEPaper7P5InV2", WaveshareEPaper
 )
+WaveshareEPaper7P5InV2alt = waveshare_epaper_ns.class_(
+    "WaveshareEPaper7P5InV2alt", WaveshareEPaper
+)
 WaveshareEPaper7P5InHDB = waveshare_epaper_ns.class_(
     "WaveshareEPaper7P5InHDB", WaveshareEPaper
 )
@@ -79,18 +82,23 @@ MODELS = {
     "7.50in-bv2": ("b", WaveshareEPaper7P5InBV2),
     "7.50in-bc": ("b", WaveshareEPaper7P5InBC),
     "7.50inv2": ("b", WaveshareEPaper7P5InV2),
+    "7.50inv2alt": ("b", WaveshareEPaper7P5InV2alt),
     "7.50in-hd-b": ("b", WaveshareEPaper7P5InHDB),
     "2.13in-ttgo-dke": ("c", WaveshareEPaper2P13InDKE),
 }
 
 
-def validate_full_update_every_only_type_a(value):
+def validate_full_update_every_only_types_ac(value):
     if CONF_FULL_UPDATE_EVERY not in value:
         return value
     if MODELS[value[CONF_MODEL]][0] == "b":
+        full_models = []
+        for key, val in sorted(MODELS.items()):
+            if val[0] != "b":
+                full_models.append(key)
         raise cv.Invalid(
             "The 'full_update_every' option is only available for models "
-            "'1.54in', '1.54inV2', '2.13in', '2.90in', and '2.90inV2'."
+            + ", ".join(full_models)
         )
     return value
 
@@ -112,7 +120,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.polling_component_schema("1s"))
     .extend(spi.spi_device_schema()),
-    validate_full_update_every_only_type_a,
+    validate_full_update_every_only_types_ac,
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 

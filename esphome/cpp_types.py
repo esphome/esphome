@@ -16,6 +16,7 @@ uint32 = global_ns.namespace("uint32_t")
 uint64 = global_ns.namespace("uint64_t")
 int32 = global_ns.namespace("int32_t")
 int64 = global_ns.namespace("int64_t")
+size_t = global_ns.namespace("size_t")
 const_char_ptr = global_ns.namespace("const char *")
 NAN = global_ns.namespace("NAN")
 esphome_ns = global_ns  # using namespace esphome;

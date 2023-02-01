@@ -37,7 +37,7 @@ void BinarySensor::send_state_internal(bool state, bool is_initial) {
   }
   this->has_state_ = true;
   this->state = state;
-  if (!is_initial) {
+  if (!is_initial || this->publish_initial_state_) {
     this->state_callback_.call(state);
   }
 }
@@ -69,7 +69,6 @@ void BinarySensor::add_filters(const std::vector<Filter *> &filters) {
   }
 }
 bool BinarySensor::has_state() const { return this->has_state_; }
-uint32_t BinarySensor::hash_base() { return 1210250844UL; }
 bool BinarySensor::is_status_binary_sensor() const { return false; }
 
 }  // namespace binary_sensor

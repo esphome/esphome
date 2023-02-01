@@ -47,8 +47,6 @@ class Button : public EntityBase {
    */
   virtual void press_action() = 0;
 
-  uint32_t hash_base() override;
-
   CallbackManager<void()> press_callback_{};
   std::string device_class_{};
 };

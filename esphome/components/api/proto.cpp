@@ -1,5 +1,4 @@
 #include "proto.h"
-#include "util.h"
 #include "esphome/core/log.h"
 
 namespace esphome {

@@ -122,6 +122,7 @@ void IRAM_ATTR HOT AcDimmerDataStore::gpio_intr() {
       // also take into account min_power
       auto min_us = this->cycle_time_us * this->min_power / 1000;
       this->enable_time_us = std::max((uint32_t) 1, ((65535 - this->value) * (this->cycle_time_us - min_us)) / 65535);
+
       if (this->method == DIM_METHOD_LEADING_PULSE) {
         // Minimum pulse time should be enough for the triac to trigger when it is close to the ZC zone
         // this is for brightness near 99%
@@ -202,6 +203,7 @@ void AcDimmer::setup() {
 #endif
 }
 void AcDimmer::write_state(float state) {
+  state = std::acos(1 - (2 * state)) / 3.14159;  // RMS power compensation
   auto new_value = static_cast<uint16_t>(roundf(state * 65535));
   if (new_value != 0 && this->store_.value == 0)
     this->store_.init_cycle = this->init_with_half_cycle_;

@@ -62,7 +62,7 @@ void HM3301Component::update() {
     pm_10_0_value = get_sensor_value_(data_buffer_, PM_10_0_VALUE_INDEX);
   }
 
-  int8_t aqi_value = -1;
+  int16_t aqi_value = -1;
   if (this->aqi_sensor_ != nullptr && pm_2_5_value != -1 && pm_10_0_value != -1) {
     AbstractAQICalculator *calculator = this->aqi_calculator_factory_.get_calculator(this->aqi_calc_type_);
     aqi_value = calculator->get_aqi(pm_2_5_value, pm_10_0_value);

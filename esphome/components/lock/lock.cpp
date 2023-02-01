@@ -57,7 +57,6 @@ void Lock::publish_state(LockState state) {
 }
 
 void Lock::add_on_state_callback(std::function<void()> &&callback) { this->state_callback_.add(std::move(callback)); }
-uint32_t Lock::hash_base() { return 856245656UL; }
 
 void LockCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());

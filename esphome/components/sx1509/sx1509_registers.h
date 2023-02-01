@@ -1,11 +1,15 @@
-/******************************************************************************
+/*
 sx1509_registers.h
 Register definitions for SX1509.
 Jim Lindblom @ SparkFun Electronics
 Original Creation Date: September 21, 2015
 https://github.com/sparkfun/SparkFun_SX1509_Arduino_Library
+*/
+#pragma once
 
-Here you'll find the Arduino code used to interface with the SX1509 I2C
+namespace esphome {
+/**
+ Here you'll find the Arduino code used to interface with the SX1509 I2C
 16 I/O expander. There are functions to take advantage of everything the
 SX1509 provides - input/output setting, writing pins high/low, reading
 the input value of pins, LED driver utilities (blink, breath, pwm), and
@@ -20,10 +24,7 @@ This code is beerware; if you see me (or any other SparkFun employee) at the
 local, and you've found our code helpful, please buy us a round!
 
 Distributed as-is; no warranty is given.
-******************************************************************************/
-#pragma once
-
-namespace esphome {
+*/
 namespace sx1509 {
 
 const uint8_t REG_INPUT_DISABLE_B =

@@ -86,6 +86,10 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
 
   void block_partial() { this->block_partial_ = true; }
 
+  display::DisplayType get_display_type() override {
+    return get_greyscale() ? display::DisplayType::DISPLAY_TYPE_GRAYSCALE : display::DisplayType::DISPLAY_TYPE_BINARY;
+  }
+
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   void display1b_();

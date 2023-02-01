@@ -224,6 +224,7 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
             trigger,
             [
                 (int, "status_code"),
+                (cg.uint32, "duration_ms"),
                 (HttpResponse.operator("ref"), "response"),
             ],
             conf,

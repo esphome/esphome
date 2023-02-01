@@ -5,6 +5,8 @@
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/spi/spi.h"
 
+#include <vector>
+
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #endif
@@ -92,6 +94,8 @@ class MAX7219Component : public PollingComponent,
   /// Evaluate the strftime-format and print the result at position 0.
   uint8_t strftimedigit(const char *format, time::ESPTime time) __attribute__((format(strftime, 2, 0)));
 #endif
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
 
  protected:
   void send_byte_(uint8_t a_register, uint8_t data);

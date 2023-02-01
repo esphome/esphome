@@ -38,7 +38,7 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   const auto &data = service_data.data;
 
   const uint8_t protocol_version = data[0] >> 4;
-  if (protocol_version != 1) {
+  if (protocol_version != 1 && protocol_version != 2) {
     ESP_LOGE(TAG, "Unsupported protocol version: %u", protocol_version);
     return false;
   }
@@ -57,9 +57,15 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   uint16_t battery_millivolt = data[2] << 8 | data[3];
   float battery_voltage = battery_millivolt / 1000.0f;
 
-  // Temperature in 1000 * Celsius.
-  uint16_t temp_millicelcius = data[4] << 8 | data[5];
-  float temp_celcius = temp_millicelcius / 1000.0f;
+  // Temperature in 1000 * Celsius (protocol v1) or 100 * Celsius (protocol v2).
+  float temp_celsius;
+  if (protocol_version == 1) {
+    uint16_t temp_millicelsius = data[4] << 8 | data[5];
+    temp_celsius = temp_millicelsius / 1000.0f;
+  } else {
+    int16_t temp_centicelsius = data[4] << 8 | data[5];
+    temp_celsius = temp_centicelsius / 100.0f;
+  }
 
   // Relative air humidity in the range [0, 2^16).
   uint16_t humidity = data[6] << 8 | data[7];
@@ -76,7 +82,7 @@ bool BParasite::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
     battery_voltage_->publish_state(battery_voltage);
   }
   if (temperature_ != nullptr) {
-    temperature_->publish_state(temp_celcius);
+    temperature_->publish_state(temp_celsius);
   }
   if (humidity_ != nullptr) {
     humidity_->publish_state(humidity_percent);

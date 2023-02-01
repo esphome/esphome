@@ -80,6 +80,9 @@ void ModbusSelect::control(const std::string &value) {
   }
 
   parent_->queue_command(write_cmd);
+
+  if (this->optimistic_)
+    this->publish_state(value);
 }
 
 }  // namespace modbus_controller

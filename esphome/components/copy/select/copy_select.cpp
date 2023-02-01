@@ -7,7 +7,7 @@ namespace copy {
 static const char *const TAG = "copy.select";
 
 void CopySelect::setup() {
-  source_->add_on_state_callback([this](const std::string &value) { this->publish_state(value); });
+  source_->add_on_state_callback([this](const std::string &value, size_t index) { this->publish_state(value); });
 
   traits.set_options(source_->traits.get_options());
 

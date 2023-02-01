@@ -29,16 +29,22 @@ from esphome.const import (
     CONF_WINDOW_SIZE,
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
+    DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATE,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_MOISTURE,
     DEVICE_CLASS_MONETARY,
     DEVICE_CLASS_NITROGEN_DIOXIDE,
     DEVICE_CLASS_NITROGEN_MONOXIDE,
@@ -49,13 +55,21 @@ from esphome.const import (
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_PRECIPITATION,
+    DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_WATER,
+    DEVICE_CLASS_WIND_SPEED,
+    DEVICE_CLASS_WEIGHT,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
@@ -65,15 +79,21 @@ from esphome.util import Registry
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
     DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATE,
+    DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_DURATION,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_MOISTURE,
     DEVICE_CLASS_MONETARY,
     DEVICE_CLASS_NITROGEN_DIOXIDE,
     DEVICE_CLASS_NITROGEN_MONOXIDE,
@@ -84,13 +104,21 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PM25,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_POWER_FACTOR,
+    DEVICE_CLASS_PRECIPITATION,
+    DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_WATER,
+    DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_SPEED,
 ]
 
 sensor_ns = cg.esphome_ns.namespace("sensor")
@@ -99,6 +127,7 @@ STATE_CLASSES = {
     "": StateClasses.STATE_CLASS_NONE,
     "measurement": StateClasses.STATE_CLASS_MEASUREMENT,
     "total_increasing": StateClasses.STATE_CLASS_TOTAL_INCREASING,
+    "total": StateClasses.STATE_CLASS_TOTAL,
 }
 validate_state_class = cv.enum(STATE_CLASSES, lower=True, space="_")
 
@@ -212,8 +241,8 @@ SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
         cv.Optional(CONF_ON_VALUE_RANGE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ValueRangeTrigger),
-                cv.Optional(CONF_ABOVE): cv.float_,
-                cv.Optional(CONF_BELOW): cv.float_,
+                cv.Optional(CONF_ABOVE): cv.templatable(cv.float_),
+                cv.Optional(CONF_BELOW): cv.templatable(cv.float_),
             },
             cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
         ),
@@ -604,8 +633,8 @@ async def register_sensor(var, config):
     await setup_sensor_core_(var, config)
 
 
-async def new_sensor(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+async def new_sensor(config, *args):
+    var = cg.new_Pvariable(config[CONF_ID], *args)
     await register_sensor(var, config)
     return var
 

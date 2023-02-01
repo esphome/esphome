@@ -1,5 +1,6 @@
 from esphome.components import time
 from esphome import automation
+from esphome import pins
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
@@ -11,6 +12,7 @@ CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS = "ignore_mcu_update_on_datapoints"
 
 CONF_ON_DATAPOINT_UPDATE = "on_datapoint_update"
 CONF_DATAPOINT_TYPE = "datapoint_type"
+CONF_STATUS_PIN = "status_pin"
 
 tuya_ns = cg.esphome_ns.namespace("tuya")
 Tuya = tuya_ns.class_("Tuya", cg.Component, uart.UARTDevice)
@@ -88,6 +90,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS): cv.ensure_list(
                 cv.uint8_t
             ),
+            cv.Optional(CONF_STATUS_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_ON_DATAPOINT_UPDATE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -114,6 +117,9 @@ async def to_code(config):
     if CONF_TIME_ID in config:
         time_ = await cg.get_variable(config[CONF_TIME_ID])
         cg.add(var.set_time_id(time_))
+    if CONF_STATUS_PIN in config:
+        status_pin_ = await cg.gpio_pin_expression(config[CONF_STATUS_PIN])
+        cg.add(var.set_status_pin(status_pin_))
     if CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS in config:
         for dp in config[CONF_IGNORE_MCU_UPDATE_ON_DATAPOINTS]:
             cg.add(var.add_ignore_mcu_update_on_datapoints(dp))

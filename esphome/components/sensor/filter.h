@@ -1,9 +1,10 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 #include <queue>
 #include <utility>
+#include <vector>
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace sensor {
@@ -180,7 +181,6 @@ class SlidingWindowMovingAverageFilter : public Filter {
   void set_window_size(size_t window_size);
 
  protected:
-  float sum_{0.0};
   std::deque<float> queue_;
   size_t send_every_;
   size_t send_at_;
@@ -203,7 +203,7 @@ class ExponentialMovingAverageFilter : public Filter {
 
  protected:
   bool first_value_{true};
-  float accumulator_{0.0f};
+  float accumulator_{NAN};
   size_t send_every_;
   size_t send_at_;
   float alpha_;

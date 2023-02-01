@@ -39,7 +39,7 @@ UNIT_MILLIAMPERE = "mA"
 CONF_INVERTER_STATUS = "inverter_status"
 CONF_PV_ACTIVE_POWER = "pv_active_power"
 CONF_INVERTER_MODULE_TEMP = "inverter_module_temp"
-
+CONF_PROTOCOL_VERSION = "protocol_version"
 
 AUTO_LOAD = ["modbus"]
 CODEOWNERS = ["@leeuwte"]
@@ -52,7 +52,7 @@ GrowattSolar = growatt_solar_ns.class_(
 PHASE_SENSORS = {
     CONF_VOLTAGE: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=2,
+        accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
     ),
     CONF_CURRENT: sensor.sensor_schema(
@@ -71,7 +71,7 @@ PHASE_SENSORS = {
 PV_SENSORS = {
     CONF_VOLTAGE: sensor.sensor_schema(
         unit_of_measurement=UNIT_VOLT,
-        accuracy_decimals=2,
+        accuracy_decimals=1,
         device_class=DEVICE_CLASS_VOLTAGE,
     ),
     CONF_CURRENT: sensor.sensor_schema(
@@ -95,10 +95,20 @@ PV_SCHEMA = cv.Schema(
     {cv.Optional(sensor): schema for sensor, schema in PV_SENSORS.items()}
 )
 
+GrowattProtocolVersion = growatt_solar_ns.enum("GrowattProtocolVersion")
+PROTOCOL_VERSIONS = {
+    "RTU": GrowattProtocolVersion.RTU,
+    "RTU2": GrowattProtocolVersion.RTU2,
+}
+
+
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(GrowattSolar),
+            cv.Optional(CONF_PROTOCOL_VERSION, default="RTU"): cv.enum(
+                PROTOCOL_VERSIONS, upper=True
+            ),
             cv.Optional(CONF_PHASE_A): PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_B): PHASE_SCHEMA,
             cv.Optional(CONF_PHASE_C): PHASE_SCHEMA,
@@ -125,13 +135,13 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_ENERGY_PRODUCTION_DAY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=2,
+                accuracy_decimals=1,
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_TOTAL_ENERGY_PRODUCTION): sensor.sensor_schema(
                 unit_of_measurement=UNIT_KILOWATT_HOURS,
-                accuracy_decimals=0,
+                accuracy_decimals=1,
                 device_class=DEVICE_CLASS_ENERGY,
                 state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
@@ -151,6 +161,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await modbus.register_modbus_device(var, config)
+
+    cg.add(var.set_protocol_version(config[CONF_PROTOCOL_VERSION]))
 
     if CONF_INVERTER_STATUS in config:
         sens = await sensor.new_sensor(config[CONF_INVERTER_STATUS])

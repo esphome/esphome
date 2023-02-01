@@ -33,8 +33,6 @@ const char *cover_operation_to_str(CoverOperation op) {
 
 Cover::Cover(const std::string &name) : EntityBase(name), position{COVER_OPEN} {}
 
-uint32_t Cover::hash_base() { return 1727367479UL; }
-
 CoverCall::CoverCall(Cover *parent) : parent_(parent) {}
 CoverCall &CoverCall::set_command(const char *command) {
   if (strcasecmp(command, "OPEN") == 0) {

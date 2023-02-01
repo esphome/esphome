@@ -1,11 +1,13 @@
 #pragma once
 
+#include "esphome/components/improv_base/improv_base.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #include <improv.h>
+#include <vector>
 
 #ifdef USE_ARDUINO
 #include <HardwareSerial.h>
@@ -26,7 +28,7 @@ enum ImprovSerialType : uint8_t {
 
 static const uint8_t IMPROV_SERIAL_VERSION = 1;
 
-class ImprovSerialComponent : public Component {
+class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
  public:
   void setup() override;
   void loop() override;
@@ -51,7 +53,7 @@ class ImprovSerialComponent : public Component {
   void write_data_(std::vector<uint8_t> &data);
 
 #ifdef USE_ARDUINO
-  HardwareSerial *hw_serial_{nullptr};
+  Stream *hw_serial_{nullptr};
 #endif
 #ifdef USE_ESP_IDF
   uart_port_t uart_num_;

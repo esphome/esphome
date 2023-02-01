@@ -4,6 +4,8 @@
 #include "esphome/core/automation.h"
 #include "tuya.h"
 
+#include <vector>
+
 namespace esphome {
 namespace tuya {
 

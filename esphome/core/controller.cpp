@@ -61,14 +61,22 @@ void Controller::setup_controller(bool include_internal) {
 #endif
 #ifdef USE_SELECT
   for (auto *obj : App.get_selects()) {
-    if (include_internal || !obj->is_internal())
-      obj->add_on_state_callback([this, obj](const std::string &state) { this->on_select_update(obj, state); });
+    if (include_internal || !obj->is_internal()) {
+      obj->add_on_state_callback(
+          [this, obj](const std::string &state, size_t index) { this->on_select_update(obj, state, index); });
+    }
   }
 #endif
 #ifdef USE_LOCK
   for (auto *obj : App.get_locks()) {
     if (include_internal || !obj->is_internal())
       obj->add_on_state_callback([this, obj]() { this->on_lock_update(obj); });
+  }
+#endif
+#ifdef USE_MEDIA_PLAYER
+  for (auto *obj : App.get_media_players()) {
+    if (include_internal || !obj->is_internal())
+      obj->add_on_state_callback([this, obj]() { this->on_media_player_update(obj); });
   }
 #endif
 }

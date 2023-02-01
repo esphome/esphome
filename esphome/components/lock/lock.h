@@ -167,8 +167,6 @@ class Lock : public EntityBase {
    */
   virtual void control(const LockCall &call) = 0;
 
-  uint32_t hash_base() override;
-
   CallbackManager<void()> state_callback_{};
   Deduplicator<LockState> publish_dedup_;
   ESPPreferenceObject rtc_;

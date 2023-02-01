@@ -85,9 +85,7 @@ bool HOT IRAM_ATTR ESPOneWire::read_bit() {
   // whereas on esp-idf it already happens during the pin_mode(OUTPUT)
   // manually correct for this with these constants.
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
-  uint32_t timing_constant = 14;
-#elif defined(USE_ESP32_FRAMEWORK_ESP_IDF)
+#ifdef USE_ESP32
   uint32_t timing_constant = 12;
 #else
   uint32_t timing_constant = 14;
@@ -142,7 +140,6 @@ void IRAM_ATTR ESPOneWire::select(uint64_t address) {
 void IRAM_ATTR ESPOneWire::reset_search() {
   this->last_discrepancy_ = 0;
   this->last_device_flag_ = false;
-  this->last_family_discrepancy_ = 0;
   this->rom_number_ = 0;
 }
 uint64_t IRAM_ATTR ESPOneWire::search() {
@@ -195,9 +192,6 @@ uint64_t IRAM_ATTR ESPOneWire::search() {
 
         if (!branch) {
           last_zero = id_bit_number;
-          if (last_zero < 9) {
-            this->last_discrepancy_ = last_zero;
-          }
         }
       }
 

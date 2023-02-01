@@ -19,12 +19,14 @@ from esphome.helpers import copy_file_if_changed
 
 from .const import (
     CONF_RESTORE_FROM_FLASH,
+    CONF_EARLY_PIN_INIT,
     KEY_BOARD,
     KEY_ESP8266,
+    KEY_FLASH_SIZE,
     KEY_PIN_INITIAL_STATES,
     esp8266_ns,
 )
-from .boards import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
+from .boards import BOARDS, ESP8266_LD_SCRIPTS
 
 from .gpio import PinInitialState, add_pin_initial_states_array
 
@@ -148,6 +150,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BOARD): cv.string_strict,
             cv.Optional(CONF_FRAMEWORK, default={}): ARDUINO_FRAMEWORK_SCHEMA,
             cv.Optional(CONF_RESTORE_FROM_FLASH, default=False): cv.boolean,
+            cv.Optional(CONF_EARLY_PIN_INIT, default=True): cv.boolean,
             cv.Optional(CONF_BOARD_FLASH_MODE, default="dout"): cv.one_of(
                 *BUILD_FLASH_MODES, lower=True
             ),
@@ -197,6 +200,9 @@ async def to_code(config):
     if config[CONF_RESTORE_FROM_FLASH]:
         cg.add_define("USE_ESP8266_PREFERENCES_FLASH")
 
+    if config[CONF_EARLY_PIN_INIT]:
+        cg.add_define("USE_ESP8266_EARLY_PIN_INIT")
+
     # Arduino 2 has a non-standards conformant new that returns a nullptr instead of failing when
     # out of memory and exceptions are disabled. Since Arduino 2.6.0, this flag can be used to make
     # new abort instead. Use it so that OOM fails early (on allocation) instead of on dereference of
@@ -213,8 +219,8 @@ async def to_code(config):
         cg.RawExpression(f"VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"),
     )
 
-    if config[CONF_BOARD] in ESP8266_FLASH_SIZES:
-        flash_size = ESP8266_FLASH_SIZES[config[CONF_BOARD]]
+    if config[CONF_BOARD] in BOARDS:
+        flash_size = BOARDS[config[CONF_BOARD]][KEY_FLASH_SIZE]
         ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
 
         if ver <= cv.Version(2, 3, 0):

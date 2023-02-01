@@ -17,7 +17,7 @@ CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(MCP3204Sensor),
         cv.GenerateID(CONF_MCP3204_ID): cv.use_id(MCP3204),
-        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=3),
+        cv.Required(CONF_NUMBER): cv.int_range(min=0, max=7),
     }
 ).extend(cv.polling_component_schema("60s"))
 

@@ -4,6 +4,8 @@
 #include <map>
 #include <memory>
 #include <utility>
+#include <vector>
+
 #include "esphome/components/json/json_util.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
@@ -19,14 +21,15 @@ struct Header {
 };
 
 struct HttpResponse {
-  int status_code;
+  int32_t status_code;
   int content_length;
   std::vector<char> data;
+  uint32_t duration_ms;
 };
 
-class HttpRequestResponseTrigger : public Trigger<int, HttpResponse &> {
+class HttpRequestResponseTrigger : public Trigger<int32_t, uint32_t, HttpResponse &> {
  public:
-  void process(HttpResponse &response) { this->trigger(response.status_code, response); }
+  void process(HttpResponse &response) { this->trigger(response.status_code, response.duration_ms, response); }
 };
 
 class HttpRequestComponent : public Component {

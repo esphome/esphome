@@ -1,22 +1,20 @@
 import json
 import os
 
-# pylint: disable=unused-import
+from typing import Optional
+
 from esphome.config import load_config, _format_vol_invalid, Config
 from esphome.core import CORE, DocumentRange
 import esphome.config_validation as cv
 
-# pylint: disable=unused-import, wrong-import-order
-from typing import Optional
+
+def _get_invalid_range(res: Config, invalid: cv.Invalid) -> Optional[DocumentRange]:
+    return res.get_deepest_document_range_for_path(
+        invalid.path, invalid.error_message == "extra keys not allowed"
+    )
 
 
-def _get_invalid_range(res, invalid):
-    # type: (Config, cv.Invalid) -> Optional[DocumentRange]
-    return res.get_deepest_document_range_for_path(invalid.path)
-
-
-def _dump_range(range):
-    # type: (Optional[DocumentRange]) -> Optional[dict]
+def _dump_range(range: Optional[DocumentRange]) -> Optional[dict]:
     if range is None:
         return None
     return {

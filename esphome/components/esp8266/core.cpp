@@ -1,6 +1,7 @@
 #ifdef USE_ESP8266
 
 #include "core.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "preferences.h"
@@ -55,6 +56,7 @@ extern "C" void resetPins() {  // NOLINT
   // ourselves and this causes pins to toggle during reboot.
   force_link_symbols();
 
+#ifdef USE_ESP8266_EARLY_PIN_INIT
   for (int i = 0; i < 16; i++) {
     uint8_t mode = ESPHOME_ESP8266_GPIO_INITIAL_MODE[i];
     uint8_t level = ESPHOME_ESP8266_GPIO_INITIAL_LEVEL[i];
@@ -63,6 +65,7 @@ extern "C" void resetPins() {  // NOLINT
     if (level != 255)
       digitalWrite(i, level);  // NOLINT
   }
+#endif
 }
 
 }  // namespace esphome
