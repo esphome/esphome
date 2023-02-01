@@ -59,6 +59,9 @@ HttpResponse HttpRequestArduino::send() {
   }
 
   this->client_.setTimeout(this->timeout_);
+#if defined(USE_ESP32)
+  this->client_.setConnectTimeout(this->timeout_);
+#endif
   if (this->useragent_ != nullptr) {
     this->client_.setUserAgent(this->useragent_);
   }
@@ -66,16 +69,19 @@ HttpResponse HttpRequestArduino::send() {
     this->client_.addHeader(header.name, header.value, false, true);
   }
 
+  uint32_t start_time = millis();
   int http_code = this->client_.sendRequest(this->method_.c_str(), this->body_.c_str());
+  uint32_t duration = millis() - start_time;
 
   HttpResponse response = {};
 
   response.status_code = http_code;
   response.content_length = this->client_.getSize();
+  response.duration_ms = duration;
 
   if (http_code < 0) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_.c_str(),
-             HTTPClient::errorToString(http_code).c_str());
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s; Duration: %u ms", this->url_.c_str(),
+             HTTPClient::errorToString(http_code).c_str(), duration);
     this->status_set_warning();
     return {http_code, 0, {}};
   }
@@ -90,13 +96,13 @@ HttpResponse HttpRequestArduino::send() {
   }
 
   if (http_code < 200 || http_code >= 300) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Code: %d", this->url_.c_str(), http_code);
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), http_code, duration);
     this->status_set_warning();
     return response;
   }
 
   this->status_clear_warning();
-  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_.c_str(), http_code);
+  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), http_code, duration);
 
   this->last_url_ = this->url_;
   this->client_.end();

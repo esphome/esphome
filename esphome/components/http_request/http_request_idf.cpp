@@ -105,11 +105,13 @@ HttpResponse HttpRequestIDF::send() {
     esp_http_client_set_post_field(client, this->body_.c_str(), this->body_.length());
   }
 
+  uint32_t start_time = millis();
   esp_err_t err = esp_http_client_perform(client);
+  uint32_t duration = millis() - start_time;
 
   if (err != ESP_OK) {
     this->status_set_warning();
-    ESP_LOGE(TAG, "HTTP Request failed: %s", esp_err_to_name(err));
+    ESP_LOGE(TAG, "HTTP Request failed: %s; Duration: %u ms", esp_err_to_name(err), duration);
     esp_http_client_cleanup(client);
     return {};
   }
@@ -117,15 +119,17 @@ HttpResponse HttpRequestIDF::send() {
   const auto status_code = esp_http_client_get_status_code(client);
   response.status_code = status_code;
   response.content_length = esp_http_client_get_content_length(client);
+  response.duration_ms = duration;
 
   if (status_code < 200 || status_code >= 300) {
-    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d", this->url_.c_str(), status_code);
+    ESP_LOGE(TAG, "HTTP Request failed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), status_code, duration);
     this->status_set_warning();
     return response;
   }
 
   this->status_clear_warning();
-  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_.c_str(), status_code);
+  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), status_code,
+           duration);
 
   esp_http_client_cleanup(client);
 
