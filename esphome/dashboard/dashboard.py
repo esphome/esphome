@@ -25,10 +25,10 @@ import tornado.netutil
 import tornado.process
 import tornado.web
 import tornado.websocket
+import yaml
 from tornado.log import access_log
 
 from esphome import const, platformio_api, util, yaml_util
-from esphome.core import EsphomeError
 from esphome.helpers import get_bool_env, mkdir_p, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -40,7 +40,7 @@ from esphome.storage_json import (
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
 
-from .util import password_hash, friendly_name_slugify
+from .util import friendly_name_slugify, password_hash
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -1021,6 +1021,14 @@ class SecretKeysRequestHandler(BaseHandler):
         self.write(json.dumps(secret_keys))
 
 
+class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
+    def ignore_unknown(self, node):
+        return f"{node.tag} {node.value}"
+
+
+SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
+
+
 class JsonConfigRequestHandler(BaseHandler):
     @authenticated
     @bind_config
@@ -1030,16 +1038,18 @@ class JsonConfigRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        try:
-            content = yaml_util.load_yaml(filename, clear_secrets=False)
-            json_content = json.dumps(
-                content, default=lambda o: {"__type": str(type(o)), "repr": repr(o)}
-            )
-            self.set_header("content-type", "application/json")
-            self.write(json_content)
-        except EsphomeError as err:
-            _LOGGER.warning("Error translating file %s to JSON: %s", filename, err)
-            self.send_error(500)
+        args = ["esphome", "config", settings.rel_path(configuration), "--show-secrets"]
+
+        rc, stdout, _ = run_system_command(*args)
+
+        if rc != 0:
+            self.send_error(422)
+            return
+
+        data = yaml.load(stdout, Loader=SafeLoaderIgnoreUnknown)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(data))
+        self.finish()
 
 
 def get_base_frontend_path():
