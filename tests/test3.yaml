@@ -298,6 +298,7 @@ logger:
   esp8266_store_log_strings_in_flash: true
 
 improv_serial:
+  next_url: https://esphome.io/?name={{device_name}}&version={{esphome_version}}&ip={{ip_address}}
 
 deep_sleep:
   run_duration: 20s
@@ -1313,6 +1314,21 @@ output:
       return {s};
     outputs:
       - id: custom_binary
+  - platform: sigma_delta_output
+    id: sddac
+    update_interval: 60s
+    pin: D4
+    turn_on_action:
+      then:
+        - logger.log: "Turned on"
+    turn_off_action:
+      then:
+        - logger.log: "Turned off"
+    state_change_action:
+      then:
+        - logger.log:
+            format: "Changed state: %d"
+            args: [ 'state' ]
   - platform: custom
     type: float
     lambda: |-

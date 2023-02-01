@@ -206,6 +206,8 @@ message DeviceInfoResponse {
   uint32 bluetooth_proxy_version = 11;
 
   string manufacturer = 12;
+
+  string friendly_name = 13;
 }
 
 message ListEntitiesRequest {
