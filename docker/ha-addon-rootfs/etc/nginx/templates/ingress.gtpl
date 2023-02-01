@@ -1,4 +1,5 @@
 server {
+    listen 127.0.0.1:{{ .port }} default_server;
     listen {{ .interface }}:{{ .port }} default_server;
 
     include /etc/nginx/includes/server_params.conf;
@@ -9,6 +10,7 @@ server {
 
     location / {
         allow   172.30.32.2;
+        allow   127.0.0.1;
         deny    all;
 
         proxy_pass http://esphome;
