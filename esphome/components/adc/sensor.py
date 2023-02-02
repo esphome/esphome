@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_NUMBER,
     CONF_PIN,
     CONF_RAW,
+    CONF_WIFI,
     DEVICE_CLASS_VOLTAGE,
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
@@ -44,7 +45,9 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         {
-            cv.Required(CONF_PIN): validate_adc_pin,
+            cv.Required(
+                CONF_PIN, CONF_WIFI
+            ): validate_adc_pin,  # does this work that way?
             cv.Optional(CONF_RAW, default=False): cv.boolean,
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
                 cv.only_on_esp32, cv.enum(ATTENUATION_MODES, lower=True)
@@ -81,5 +84,6 @@ async def to_code(config):
     if CORE.is_esp32:
         variant = get_esp32_variant()
         pin_num = config[CONF_PIN][CONF_NUMBER]
+        # need to find pin_num in adc1 or adc2 if the objects are not merged
         chan = ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant][pin_num]
         cg.add(var.set_channel(chan))
