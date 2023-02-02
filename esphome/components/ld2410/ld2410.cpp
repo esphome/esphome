@@ -11,16 +11,16 @@ static const char *const TAG = "ld2410";
 void LD2410Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2410:");
 #ifdef USE_BINARY_SENSOR
-  LOG_BINARY_SENSOR("  ", "HasTargetSensor", target_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "MovingSensor", moving_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "StillSensor", still_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "HasTargetSensor", this->target_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "MovingSensor", this->moving_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "StillSensor", this->still_binary_sensor_);
 #endif
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Moving Distance", moving_target_distance_sensor_);
-  LOG_SENSOR("  ", "Still Distance", still_target_distance_sensor_);
-  LOG_SENSOR("  ", "Moving Energy", moving_target_energy_sensor_);
-  LOG_SENSOR("  ", "Still Energy", still_target_energy_sensor_);
-  LOG_SENSOR("  ", "Detection Distance", detection_distance_sensor_);
+  LOG_SENSOR("  ", "Moving Distance", this->moving_target_distance_sensor_);
+  LOG_SENSOR("  ", "Still Distance", this->still_target_distance_sensor_);
+  LOG_SENSOR("  ", "Moving Energy", this->moving_target_energy_sensor_);
+  LOG_SENSOR("  ", "Still Energy", this->still_target_energy_sensor_);
+  LOG_SENSOR("  ", "Detection Distance", this->detection_distance_sensor_);
 #endif
   this->set_config_mode_(true);
   this->get_version_();
@@ -113,25 +113,29 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
     0x02 = Still targets
     0x03 = Moving+Still targets
   */
+#ifdef USE_BINARY_SENSOR
   char target_state = buffer[TARGET_STATES];
   if (this->target_binary_sensor_ != nullptr) {
     this->target_binary_sensor_->publish_state(target_state != 0x00);
   }
+#endif
 
   /*
-    Reduce data update rate to prevent home assistant database size glow fast
+    Reduce data update rate to prevent home assistant database size grow fast
   */
   int32_t current_millis = millis();
   if (current_millis - last_periodic_millis < 1000)
     return;
   last_periodic_millis = current_millis;
 
+#ifdef USE_BINARY_SENSOR
   if (this->moving_binary_sensor_ != nullptr) {
     this->moving_binary_sensor_->publish_state(CHECK_BIT(target_state, 0));
   }
   if (this->still_binary_sensor_ != nullptr) {
     this->still_binary_sensor_->publish_state(CHECK_BIT(target_state, 1));
   }
+#endif
   /*
     Moving target distance: 10~11th bytes
     Moving target energy: 12th byte
@@ -139,6 +143,7 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
     Still target energy: 15th byte
     Detect distance: 16~17th bytes
   */
+#ifdef USE_SENSOR
   if (this->moving_target_distance_sensor_ != nullptr) {
     int new_moving_target_distance = this->two_byte_to_int_(buffer[MOVING_TARGET_LOW], buffer[MOVING_TARGET_HIGH]);
     if (this->moving_target_distance_sensor_->get_state() != new_moving_target_distance)
@@ -164,6 +169,7 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
     if (this->detection_distance_sensor_->get_state() != new_detect_distance)
       this->detection_distance_sensor_->publish_state(new_detect_distance);
   }
+#endif
 }
 
 void LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {

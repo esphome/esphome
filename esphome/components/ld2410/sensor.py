@@ -40,16 +40,16 @@ async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     if CONF_MOVING_DISTANCE in config:
         sens = await sensor.new_sensor(config[CONF_MOVING_DISTANCE])
-        cg.add(ld2410_component.set_moving_distance_sensor(sens))
+        cg.add(ld2410_component.set_moving_target_distance_sensor(sens))
     if CONF_STILL_DISTANCE in config:
         sens = await sensor.new_sensor(config[CONF_STILL_DISTANCE])
-        cg.add(ld2410_component.set_still_distance_sensor(sens))
+        cg.add(ld2410_component.set_still_target_distance_sensor(sens))
     if CONF_MOVING_ENERGY in config:
         sens = await sensor.new_sensor(config[CONF_MOVING_ENERGY])
-        cg.add(ld2410_component.set_moving_energy_sensor(sens))
+        cg.add(ld2410_component.set_moving_target_energy_sensor(sens))
     if CONF_STILL_ENERGY in config:
         sens = await sensor.new_sensor(config[CONF_STILL_ENERGY])
-        cg.add(ld2410_component.set_still_energy_sensor(sens))
+        cg.add(ld2410_component.set_still_target_energy_sensor(sens))
     if CONF_DETECTION_DISTANCE in config:
         sens = await sensor.new_sensor(config[CONF_DETECTION_DISTANCE])
         cg.add(ld2410_component.set_detection_distance_sensor(sens))

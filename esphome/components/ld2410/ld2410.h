@@ -1,8 +1,12 @@
 #pragma once
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
@@ -57,20 +61,26 @@ enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 
 //  char cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
 class LD2410Component : public PollingComponent, public uart::UARTDevice {
+#ifdef USE_SENSOR
+  SUB_SENSOR(moving_target_distance)
+  SUB_SENSOR(still_target_distance)
+  SUB_SENSOR(moving_target_energy)
+  SUB_SENSOR(still_target_energy)
+  SUB_SENSOR(detection_distance)
+#endif
+
  public:
   void setup() override;
   void update() override;
   void dump_config() override;
   void loop() override;
 
+#ifdef USE_BINARY_SENSOR
   void set_target_sensor(binary_sensor::BinarySensor *sens) { this->target_binary_sensor_ = sens; };
   void set_moving_target_sensor(binary_sensor::BinarySensor *sens) { this->moving_binary_sensor_ = sens; };
   void set_still_target_sensor(binary_sensor::BinarySensor *sens) { this->still_binary_sensor_ = sens; };
-  void set_moving_distance_sensor(sensor::Sensor *sens) { this->moving_target_distance_sensor_ = sens; };
-  void set_still_distance_sensor(sensor::Sensor *sens) { this->still_target_distance_sensor_ = sens; };
-  void set_moving_energy_sensor(sensor::Sensor *sens) { this->moving_target_energy_sensor_ = sens; };
-  void set_still_energy_sensor(sensor::Sensor *sens) { this->still_target_energy_sensor_ = sens; };
-  void set_detection_distance_sensor(sensor::Sensor *sens) { this->detection_distance_sensor_ = sens; };
+#endif
+
   void set_none_duration(int value) { this->noneduration_ = value; };
   void set_max_move_distance(int value) { this->max_move_distance_ = value; };
   void set_max_still_distance(int value) { this->max_still_distance_ = value; };
@@ -102,14 +112,12 @@ class LD2410Component : public PollingComponent, public uart::UARTDevice {
   int32_t last_periodic_millis = millis();
 
  protected:
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *target_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *moving_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *still_binary_sensor_{nullptr};
-  sensor::Sensor *moving_target_distance_sensor_{nullptr};
-  sensor::Sensor *still_target_distance_sensor_{nullptr};
-  sensor::Sensor *moving_target_energy_sensor_{nullptr};
-  sensor::Sensor *still_target_energy_sensor_{nullptr};
-  sensor::Sensor *detection_distance_sensor_{nullptr};
+#endif
+
   std::vector<uint8_t> rx_buffer_;
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t)(secondbyte << 8) + firstbyte; }
   void send_command_(uint8_t command_str, uint8_t *command_value, int command_value_len);
