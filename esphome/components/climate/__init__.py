@@ -226,14 +226,10 @@ async def setup_climate_core_(var, config):
             cg.add(mqtt_.set_custom_mode_state_topic(config[CONF_MODE_STATE_TOPIC]))
         if CONF_PRESET_COMMAND_TOPIC in config:
             cg.add(
-                mqtt_.set_custom_preset_command_topic(
-                    config[CONF_PRESET_COMMAND_TOPIC]
-                )
+                mqtt_.set_custom_preset_command_topic(config[CONF_PRESET_COMMAND_TOPIC])
             )
         if CONF_PRESET_STATE_TOPIC in config:
-            cg.add(
-                mqtt_.set_custom_preset_state_topic(config[CONF_PRESET_STATE_TOPIC])
-            )
+            cg.add(mqtt_.set_custom_preset_state_topic(config[CONF_PRESET_STATE_TOPIC]))
         if CONF_SWING_MODE_COMMAND_TOPIC in config:
             cg.add(
                 mqtt_.set_custom_swing_mode_command_topic(
