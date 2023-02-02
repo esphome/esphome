@@ -654,7 +654,7 @@ def validate_config(config, command_line_substitutions) -> Config:
     loader.clear_component_meta_finders()
     loader.install_custom_components_meta_finder()
 
-    # 0. Load packages
+    # Load packages
     if CONF_PACKAGES in config:
         from esphome.components.packages import do_packages_pass
 
@@ -668,7 +668,7 @@ def validate_config(config, command_line_substitutions) -> Config:
 
     CORE.raw_config = config
 
-    # 1. Load substitutions
+    # Load substitutions
     if CONF_SUBSTITUTIONS in config:
         from esphome.components import substitutions
 
@@ -686,13 +686,7 @@ def validate_config(config, command_line_substitutions) -> Config:
 
     CORE.raw_config = config
 
-    # 1.1. Check for REPLACEME special value
-    try:
-        recursive_check_replaceme(config)
-    except vol.Invalid as err:
-        result.add_error(err)
-
-    # 1.2. Load external_components
+    # Load external_components
     if CONF_EXTERNAL_COMPONENTS in config:
         from esphome.components.external_components import do_external_components_pass
 
@@ -719,7 +713,7 @@ def validate_config(config, command_line_substitutions) -> Config:
         )
         return result
 
-    # 2. Load partial core config
+    # Load partial core config
     result[CONF_ESPHOME] = config[CONF_ESPHOME]
     result.add_output_path([CONF_ESPHOME], CONF_ESPHOME)
     try:
@@ -739,6 +733,12 @@ def validate_config(config, command_line_substitutions) -> Config:
     if result.errors:
         # do not try to validate further as we don't know what the target is
         return result
+
+    # Check for REPLACEME special value
+    try:
+        recursive_check_replaceme(config)
+    except vol.Invalid as err:
+        result.add_error(err)
 
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
