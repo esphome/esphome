@@ -80,7 +80,7 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void set_still_target_sensor(binary_sensor::BinarySensor *sens) { this->still_binary_sensor_ = sens; };
 #endif
 
-  void set_none_duration(int value) { this->noneduration_ = value; };
+  void set_none_duration(int value) { this->none_duration_ = value; };
   void set_max_move_distance(int value) { this->max_move_distance_ = value; };
   void set_max_still_distance(int value) { this->max_still_distance_ = value; };
   void set_range_config(int rg0_move, int rg0_still, int rg1_move, int rg1_still, int rg2_move, int rg2_still,
@@ -130,7 +130,7 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void readline_(int readch, uint8_t *buffer, int len);
   void query_parameters_();
   void get_version_();
-  int noneduration_ = -1;
+  int none_duration_ = -1;
   int max_move_distance_ = -1;
   int max_still_distance_ = -1;
   uint8_t version_[6];

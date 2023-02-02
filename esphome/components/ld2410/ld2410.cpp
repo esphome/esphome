@@ -31,7 +31,7 @@ void LD2410Component::dump_config() {
 
 void LD2410Component::setup() {
   this->set_config_mode_(true);
-  this->set_max_distances_none_duration_(this->max_move_distance_, this->max_still_distance_, this->noneduration_);
+  this->set_max_distances_none_duration_(this->max_move_distance_, this->max_still_distance_, this->none_duration_);
   // Configure Gates sensitivity
   this->set_gate_threshold_(0, this->rg0_move_threshold_, this->rg0_still_threshold_);
   this->set_gate_threshold_(1, this->rg1_move_threshold_, this->rg1_still_threshold_);
