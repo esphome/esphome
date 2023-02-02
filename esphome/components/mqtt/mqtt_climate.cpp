@@ -66,12 +66,36 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
   // temperature units are always coerced to Celsius internally
   root[MQTT_TEMPERATURE_UNIT] = "C";
 
-  if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
-    // away_mode_command_topic
-    root[MQTT_AWAY_MODE_COMMAND_TOPIC] = this->get_away_command_topic();
-    // away_mode_state_topic
-    root[MQTT_AWAY_MODE_STATE_TOPIC] = this->get_away_state_topic();
+  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
+    // preset_mode_command_topic
+    root[MQTT_PRESET_MODE_COMMAND_TOPIC] = this->get_preset_command_topic();
+    // preset_mode_state_topic
+    root[MQTT_PRESET_MODE_STATE_TOPIC] = this->get_preset_state_topic();
+    // presets
+    JsonArray presets = root.createNestedArray("presets");
+    if (traits.supports_preset(CLIMATE_PRESET_HOME))
+      presets.add("home");
+    if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
+      // away_mode_command_topic
+      root[MQTT_AWAY_MODE_COMMAND_TOPIC] = this->get_away_command_topic();
+      // away_mode_state_topic
+      root[MQTT_AWAY_MODE_STATE_TOPIC] = this->get_away_state_topic();
+      presets.add("away");
+    }
+    if (traits.supports_preset(CLIMATE_PRESET_BOOST))
+      presets.add("boost");
+    if (traits.supports_preset(CLIMATE_PRESET_COMFORT))
+      presets.add("comfort");
+    if (traits.supports_preset(CLIMATE_PRESET_ECO))
+      presets.add("eco");
+    if (traits.supports_preset(CLIMATE_PRESET_SLEEP))
+      presets.add("sleep");
+    if (traits.supports_preset(CLIMATE_PRESET_ACTIVITY))
+      presets.add("activity");
+    for (const auto &preset : traits.get_supported_custom_presets())
+      presets.add(preset);
   }
+
   if (traits.get_supports_action()) {
     // action_topic
     root[MQTT_ACTION_TOPIC] = this->get_action_state_topic();
@@ -194,6 +218,14 @@ void MQTTClimateComponent::setup() {
     });
   }
 
+  if (traits.get_supports_presets()) {
+    this->subscribe(this->get_preset_command_topic(), [this](const std::string &topic, const std::string &payload) {
+      auto call = this->device_->make_call();
+      call.set_preset(payload);
+      call.perform();
+    });
+  }
+
   if (traits.get_supports_fan_modes()) {
     this->subscribe(this->get_fan_mode_command_topic(), [this](const std::string &topic, const std::string &payload) {
       auto call = this->device_->make_call();
@@ -271,6 +303,42 @@ bool MQTTClimateComponent::publish_state_() {
     if (!this->publish(this->get_away_state_topic(), payload))
       success = false;
   }
+  if (traits.get_supports_presets()) {
+    std::string payload;
+    if (this->device_->preset.has_value()) {
+      switch (this->device_->preset.value()) {
+        case CLIMATE_PRESET_NONE:
+          payload = "none";
+          break;
+        case CLIMATE_PRESET_HOME:
+          payload = "home";
+          break;
+        case CLIMATE_PRESET_AWAY:
+          payload = "away";
+          break;
+        case CLIMATE_PRESET_BOOST:
+          payload = "boost";
+          break;
+        case CLIMATE_PRESET_COMFORT:
+          payload = "comfort";
+          break;
+        case CLIMATE_PRESET_ECO:
+          payload = "eco";
+          break;
+        case CLIMATE_PRESET_SLEEP:
+          payload = "sleep";
+          break;
+        case CLIMATE_PRESET_ACTIVITY:
+          payload = "activity";
+          break;
+      }
+    }
+    if (this->device_->custom_preset.has_value())
+      payload = this->device_->custom_preset.value();
+    if (!this->publish(this->get_preset_state_topic(), payload))
+      success = false;
+  }
+
   if (traits.get_supports_action()) {
     const char *payload = "unknown";
     switch (this->device_->action) {

@@ -107,7 +107,7 @@ class ClimateTraits {
   void add_supported_preset(ClimatePreset preset) { supported_presets_.insert(preset); }
   void add_supported_custom_preset(const std::string &preset) { supported_custom_presets_.insert(preset); }
   bool supports_preset(ClimatePreset preset) const { return supported_presets_.count(preset); }
-  bool get_supports_presets() const { return !supported_presets_.empty(); }
+  bool get_supports_presets() const { return !supported_presets_.empty() || !supported_custom_presets_.empty();}
   const std::set<climate::ClimatePreset> &get_supported_presets() const { return supported_presets_; }
 
   void set_supported_custom_presets(std::set<std::string> supported_custom_presets) {
