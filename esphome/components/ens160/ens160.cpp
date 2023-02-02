@@ -133,7 +133,11 @@ void ENS160Component::update() {
   optional<uint8_t> status = this->read_status_();
   if (status.has_value()) {
     ESP_LOGD(TAG, "Status: %x", status.value());
+  } else {
+    ESP_LOGD(TAG, "Status: no data");
+    return;
   }
+
   if (!this->status_has_data_()) {
     ESP_LOGD(TAG, "Status indicates no data ready!");
     this->status_set_error();
