@@ -133,7 +133,7 @@ bool ENS160Component::status_has_data_() {
 void ENS160Component::update() {
   optional<uint8_t> status = this->read_status_();
   if (status.has_value()) {
-    ESP_LOGD(TAG, "Status: %x", status.value());
+    ESP_LOGD(TAG, "Status: 0x%x", status.value());
   } else {
     ESP_LOGD(TAG, "Status: no data");
     return;
@@ -141,7 +141,18 @@ void ENS160Component::update() {
 
   if (!this->status_has_data_()) {
     ESP_LOGD(TAG, "Status indicates no data ready!");
+    CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_RESET));
+    delay(ENS160_BOOTING);
     this->status_set_error();
+    CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_IDLE));
+
+    CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_NOP));
+    CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_CLRGPR));
+
+    ESP_LOGD(TAG, "Setup Done. Status: %x\n", this->read_status_().value_or(0));
+
+    CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD));
+    delay(ENS160_BOOTING);
     return;
   }
 
