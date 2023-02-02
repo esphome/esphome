@@ -80,9 +80,9 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void set_still_target_sensor(binary_sensor::BinarySensor *sens) { this->still_binary_sensor_ = sens; };
 #endif
 
-  void set_none_duration(int value) { this->none_duration_ = value; };
-  void set_max_move_distance(int value) { this->max_move_distance_ = value; };
-  void set_max_still_distance(int value) { this->max_still_distance_ = value; };
+  void set_timeout(uint16_t value) { this->timeout_ = value; };
+  void set_max_move_distance(uint8_t value) { this->max_move_distance_ = value; };
+  void set_max_still_distance(uint8_t value) { this->max_still_distance_ = value; };
   void set_range_config(int rg0_move, int rg0_still, int rg1_move, int rg1_still, int rg2_move, int rg2_still,
                         int rg3_move, int rg3_still, int rg4_move, int rg4_still, int rg5_move, int rg5_still,
                         int rg6_move, int rg6_still, int rg7_move, int rg7_still, int rg8_move, int rg8_still) {
@@ -121,8 +121,8 @@ class LD2410Component : public Component, public uart::UARTDevice {
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t)(secondbyte << 8) + firstbyte; }
   void send_command_(uint8_t command_str, uint8_t *command_value, int command_value_len);
 
-  void set_max_distances_none_duration_(uint8_t max_moving_distance_range, uint8_t max_still_distance_range,
-                                        uint8_t none_duration);
+  void set_max_distances_timeout_(uint8_t max_moving_distance_range, uint8_t max_still_distance_range,
+                                  uint16_t timeout);
   void set_gate_threshold_(uint8_t gate, uint8_t motionsens, uint8_t stillsens);
   void set_config_mode_(bool enable);
   void handle_periodic_data_(uint8_t *buffer, int len);
@@ -130,9 +130,11 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void readline_(int readch, uint8_t *buffer, int len);
   void query_parameters_();
   void get_version_();
-  int none_duration_ = -1;
-  int max_move_distance_ = -1;
-  int max_still_distance_ = -1;
+
+  uint16_t timeout_;
+  uint8_t max_move_distance_;
+  uint8_t max_still_distance_;
+
   uint8_t version_[6];
   uint8_t rg0_move_threshold_, rg0_still_threshold_, rg1_move_threshold_, rg1_still_threshold_, rg2_move_threshold_,
       rg2_still_threshold_, rg3_move_threshold_, rg3_still_threshold_, rg4_move_threshold_, rg4_still_threshold_,

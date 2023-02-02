@@ -31,7 +31,7 @@ void LD2410Component::dump_config() {
 
 void LD2410Component::setup() {
   this->set_config_mode_(true);
-  this->set_max_distances_none_duration_(this->max_move_distance_, this->max_still_distance_, this->none_duration_);
+  this->set_max_distances_timeout_(this->max_move_distance_, this->max_still_distance_, this->timeout_);
   // Configure Gates sensitivity
   this->set_gate_threshold_(0, this->rg0_move_threshold_, this->rg0_still_threshold_);
   this->set_gate_threshold_(1, this->rg1_move_threshold_, this->rg1_still_threshold_);
@@ -270,8 +270,8 @@ void LD2410Component::set_config_mode_(bool enable) {
 void LD2410Component::query_parameters_() { this->send_command_(CMD_QUERY, nullptr, 0); }
 void LD2410Component::get_version_() { this->send_command_(CMD_VERSION, nullptr, 0); }
 
-void LD2410Component::set_max_distances_none_duration_(uint8_t max_moving_distance_range,
-                                                       uint8_t max_still_distance_range, uint8_t none_duration) {
+void LD2410Component::set_max_distances_timeout_(uint8_t max_moving_distance_range, uint8_t max_still_distance_range,
+                                                 uint16_t timeout) {
   uint8_t value[18] = {0x00,
                        0x00,
                        lowbyte(max_moving_distance_range),
@@ -286,8 +286,8 @@ void LD2410Component::set_max_distances_none_duration_(uint8_t max_moving_distan
                        0x00,
                        0x02,
                        0x00,
-                       lowbyte(none_duration),
-                       highbyte(none_duration),
+                       lowbyte(timeout),
+                       highbyte(timeout),
                        0x00,
                        0x00};
   this->send_command_(CMD_MAXDIST_DURATION, value, 18);

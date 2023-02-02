@@ -3170,9 +3170,9 @@ button:
 ld2410:
   id: my_ld2410
   uart_id: ld2410_uart
-  none_duration: 150
-  max_move_distance: 8
-  max_still_distance: 1
+  timeout: 150s
+  max_move_distance: 6m
+  max_still_distance: 0.75m
   g0_move_threshold: 10
   g0_still_threshold: 20
   g2_move_threshold: 20
