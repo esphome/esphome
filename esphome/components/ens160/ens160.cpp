@@ -125,7 +125,8 @@ bool ENS160Component::status_has_error_() {
 
 bool ENS160Component::status_has_data_() {
   optional<uint8_t> status = this->read_status_();
-  if (!status.has_value()) return false;
+  if (!status.has_value())
+    return false;
   return IS_NEW_DATA_AVAILABLE(status.value());
 }
 
@@ -144,8 +145,8 @@ void ENS160Component::update() {
     return;
   }
 
-	if (IS_NEWGPR(status.value())) {
-		this->read_byte(ENS160_REG_GPR_READ_0);
+  if (IS_NEWGPR(status.value())) {
+    this->read_byte(ENS160_REG_GPR_READ_0);
   }
 
   if (!IS_NEWDAT(status.value())) {
