@@ -90,6 +90,8 @@ void MDNSComponent::compile_records_() {
   }
 #endif
 
+  this->services_.insert(this->services_.end(), this->services_extra_.begin(), this->services_extra_.end());
+
   if (this->services_.empty()) {
     // Publish "http" service if not using native API
     // This is just to have *some* mDNS service so that .local resolution works
