@@ -1,7 +1,6 @@
 from esphome import automation, core
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.automation import maybe_simple_id
 from esphome.components import i2c, sensor
 from esphome.components import sensirion_common
 from esphome.const import (
@@ -118,13 +117,14 @@ async def to_code(config):
 @automation.register_action(
     "scd30.force_recalibration_with_reference",
     ForceRecalibrationWithReference,
-    maybe_simple_id(
+    cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(SCD30Component),
             cv.Required(CONF_VALUE): cv.templatable(
                 cv.int_range(min=400, max=2000, max_included=True)
             ),
-        }
+        },
+        key=CONF_VALUE,
     ),
 )
 async def scd30_force_recalibration_with_reference_to_code(
