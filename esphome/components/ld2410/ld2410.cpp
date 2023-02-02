@@ -92,19 +92,20 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
     return;
   if (buffer[7] != HEAD || buffer[len - 6] != END || buffer[len - 5] != CHECK)  // Check constant values
     return;  // data head=0xAA, data end=0x55, crc=0x00
-  /*
-    Data Type: 6th
-    0x01: Engineering mode
-    0x02: Normal mode
-  */
-  // char data_type = buffer[DATA_TYPES];
-  /*
-    Target states: 9th
-    0x00 = No target
-    0x01 = Moving targets
-    0x02 = Still targets
-    0x03 = Moving+Still targets
-  */
+
+    /*
+      Data Type: 6th
+      0x01: Engineering mode
+      0x02: Normal mode
+    */
+    // char data_type = buffer[DATA_TYPES];
+    /*
+      Target states: 9th
+      0x00 = No target
+      0x01 = Moving targets
+      0x02 = Still targets
+      0x03 = Moving+Still targets
+    */
 #ifdef USE_BINARY_SENSOR
   char target_state = buffer[TARGET_STATES];
   if (this->target_binary_sensor_ != nullptr) {
