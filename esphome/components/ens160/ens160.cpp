@@ -140,6 +140,9 @@ void ENS160Component::update() {
   if (status.has_value()) {
     uint8_t statusValue = status.value();
     ESP_LOGD(TAG, "Status: 0x%x", statusValue);
+    if (statusValue == 0x0) {
+      return;
+    }
     ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_STATAS 0x%n", (ENS160_DATA_STATUS_STATAS & (statusValue)) == ENS160_DATA_STATUS_STATAS);
     ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_STATER 0x%n", (ENS160_DATA_STATUS_STATER & (statusValue)) == ENS160_DATA_STATUS_STATER);
     ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_RESERVED_B 0x%n", (ENS160_DATA_STATUS_RESERVED_B & (statusValue)) == ENS160_DATA_STATUS_RESERVED_B);
