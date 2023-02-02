@@ -52,7 +52,12 @@ static const uint8_t ENS160_OPMODE_RESET = 0xF0;
 static const uint8_t ENS160_OPMODE_IDLE = 0x01;
 static const uint8_t ENS160_OPMODE_STD = 0x02;
 
+static const uint8_t ENS160_DATA_STATUS_STATAS = 0x08;
 static const uint8_t ENS160_DATA_STATUS_STATER = 0x07;
+static const uint8_t ENS160_DATA_STATUS_RESERVED_B = 0x06;
+static const uint8_t ENS160_DATA_STATUS_RESERVED_A = 0x05;
+static const uint8_t ENS160_DATA_STATUS_VALID_B = 0x04;
+static const uint8_t ENS160_DATA_STATUS_VALID_A = 0x03;
 static const uint8_t ENS160_DATA_STATUS_NEWDAT = 0x02;
 static const uint8_t ENS160_DATA_STATUS_NEWGPR = 0x01;
 
@@ -133,7 +138,16 @@ bool ENS160Component::status_has_data_() {
 void ENS160Component::update() {
   optional<uint8_t> status = this->read_status_();
   if (status.has_value()) {
-    ESP_LOGD(TAG, "Status: 0x%x", status.value());
+    uint8_t statusValue = status.value();
+    ESP_LOGD(TAG, "Status: 0x%x", statusValue);
+    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_STATAS 0x%x", ENS160_DATA_STATUS_STATAS & (statusValue));
+    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_STATER 0x%x", ENS160_DATA_STATUS_STATER & (statusValue));
+    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_RESERVED_B 0x%x", ENS160_DATA_STATUS_RESERVED_B & (statusValue));
+    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_RESERVED_A 0x%x", ENS160_DATA_STATUS_RESERVED_A & (statusValue));
+    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_VALID_B 0x%x", ENS160_DATA_STATUS_VALID_B & (statusValue));
+    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_VALID_A 0x%x", ENS160_DATA_STATUS_VALID_A & (statusValue));
+    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_NEWDAT 0x%x", ENS160_DATA_STATUS_NEWDAT & (statusValue));
+    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_NEWGPR 0x%x", ENS160_DATA_STATUS_NEWGPR & (statusValue));
   } else {
     ESP_LOGD(TAG, "Status: no data");
     return;
