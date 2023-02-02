@@ -9,9 +9,7 @@ DEPENDENCIES = ["uart"]
 CODEOWNERS = ["@sebcaps"]
 
 ld2410_ns = cg.esphome_ns.namespace("ld2410")
-LD2410Component = ld2410_ns.class_(
-    "LD2410Component", cg.PollingComponent, uart.UARTDevice
-)
+LD2410Component = ld2410_ns.class_("LD2410Component", cg.Component, uart.UARTDevice)
 LD2410Restart = ld2410_ns.class_("LD2410Restart", automation.Action)
 CONF_LD2410_ID = "ld2410_id"
 CONF_MAX_MOVE_DISTANCE = "max_move_distance"
@@ -98,7 +96,9 @@ CONFIG_SCHEMA = cv.All(
                 min=0, max=100
             ),
         }
-    ).extend(uart.UART_DEVICE_SCHEMA)
+    )
+    .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(

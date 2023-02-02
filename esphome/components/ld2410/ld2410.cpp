@@ -30,7 +30,6 @@ void LD2410Component::dump_config() {
 }
 
 void LD2410Component::setup() {
-  set_update_interval(15000);
   this->set_config_mode_(true);
   this->set_max_distances_none_duration_(this->max_move_distance_, this->max_still_distance_, this->noneduration_);
   // Configure Gates sensitivity
@@ -276,7 +275,6 @@ void LD2410Component::set_config_mode_(bool enable) {
 
 void LD2410Component::query_parameters_() { this->send_command_(CMD_QUERY, nullptr, 0); }
 void LD2410Component::get_version_() { this->send_command_(CMD_VERSION, nullptr, 0); }
-void LD2410Component::update() {}
 
 void LD2410Component::set_max_distances_none_duration_(uint8_t max_moving_distance_range,
                                                        uint8_t max_still_distance_range, uint8_t none_duration) {
