@@ -57,13 +57,6 @@ void LD2410Component::loop() {
   }
 }
 
-// void LD2410Component::setNumbers(Number *maxMovingDistanceRange_, Number *maxStillDistanceRange_, Number
-// *noneduration_) {
-//   maxMovingDistanceRange = maxMovingDistanceRange_;
-//   maxStillDistanceRange = maxStillDistanceRange_;
-//   noneDuration = noneduration_;
-// }
-
 void LD2410Component::send_command_(uint8_t command, uint8_t *command_value, int command_value_len) {
   // lastCommandSuccess->publish_state(false);
 
@@ -314,12 +307,6 @@ void LD2410Component::set_gate_threshold_(uint8_t gate, uint8_t motionsens, uint
                        0x02, 0x00, lowbyte(stillsens),  highbyte(stillsens),  0x00, 0x00};
   this->send_command_(CMD_GATE_SENS, value, 18);
 }
-
-// void ld2410::setBaudrate(int index) {
-//   char cmd[2] = {0xA1, 0x00};
-//   char value[2] = {index, 0x00};
-//   send_command_(cmd, value, 2);
-// }
 
 }  // namespace ld2410
 }  // namespace esphome
