@@ -52,12 +52,12 @@ static const uint8_t ENS160_OPMODE_RESET = 0xF0;
 static const uint8_t ENS160_OPMODE_IDLE = 0x01;
 static const uint8_t ENS160_OPMODE_STD = 0x02;
 
-static const uint8_t ENS160_DATA_STATUS_STATAS = 0x08;
-static const uint8_t ENS160_DATA_STATUS_STATER = 0x07;
-static const uint8_t ENS160_DATA_STATUS_RESERVED_B = 0x06;
-static const uint8_t ENS160_DATA_STATUS_RESERVED_A = 0x05;
-static const uint8_t ENS160_DATA_STATUS_VALID_B = 0x04;
-static const uint8_t ENS160_DATA_STATUS_VALID_A = 0x03;
+static const uint8_t ENS160_DATA_STATUS_STATAS = 0x80;
+static const uint8_t ENS160_DATA_STATUS_STATER = 0x40;
+static const uint8_t ENS160_DATA_STATUS_RESERVED_B = 0x20;
+static const uint8_t ENS160_DATA_STATUS_RESERVED_A = 0x10;
+static const uint8_t ENS160_DATA_STATUS_VALID_B = 0x08;
+static const uint8_t ENS160_DATA_STATUS_VALID_A = 0x04;
 static const uint8_t ENS160_DATA_STATUS_NEWDAT = 0x02;
 static const uint8_t ENS160_DATA_STATUS_NEWGPR = 0x01;
 
