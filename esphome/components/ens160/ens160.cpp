@@ -121,7 +121,7 @@ void ENS160Component::setup() {
 
 optional<uint8_t> ENS160Component::read_status_() { return this->read_byte(ENS160_REG_DATA_STATUS); }
 
-void ENS160Component::reset() {
+void ENS160Component::reset_() {
   CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_RESET));
   delay(ENS160_BOOTING);
   CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_IDLE));
@@ -166,7 +166,7 @@ void ENS160Component::update() {
   // full reset on invalid status
   if (status_value == 0x0) {
     this->status_set_error();
-    this->reset();
+    this->reset_();
     return;
   }
 

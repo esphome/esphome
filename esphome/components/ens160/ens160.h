@@ -29,7 +29,7 @@ class ENS160Component : public PollingComponent, public i2c::I2CDevice {
   optional<uint8_t> read_status_();
   bool status_has_error_();
   bool status_has_data_();
-  void reset();
+  void reset_();
 
   enum ErrorCode {
     UNKNOWN,
