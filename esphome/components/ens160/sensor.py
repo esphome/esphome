@@ -16,11 +16,11 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TVOC,
     CONF_HUMIDITY,
-    CONF_STATE,
     CONF_VERSION,
     CONF_STATUS,
     ICON_MOLECULE_CO2,
     DEVICE_CLASS_AQI,
+    ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
 AUTO_LOAD = ["text_sensor"]
@@ -42,14 +42,14 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_ECO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=0,
+                accuracy_decimals=1,
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
-                accuracy_decimals=0,
+                accuracy_decimals=1,
                 device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -61,10 +61,12 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(
-                icon=ICON_RESTART
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                icon=ICON_RESTART,
             ),
             cv.Optional(CONF_STATUS): text_sensor.text_sensor_schema(
-                icon=ICON_BUG
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                icon=ICON_BUG,
             ),
             cv.Optional(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY): cv.use_id(sensor.Sensor),

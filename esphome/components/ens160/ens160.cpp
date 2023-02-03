@@ -183,8 +183,6 @@ void ENS160Component::update() {
   // verbose status logging
   ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATAS 0x%x", (ENS160_DATA_STATUS_STATAS & (statusValue)) == ENS160_DATA_STATUS_STATAS);
   ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATER 0x%x", (ENS160_DATA_STATUS_STATER & (statusValue)) == ENS160_DATA_STATUS_STATER);
-  // ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_RESERVED_B 0x%x", (ENS160_DATA_STATUS_RESERVED_B & (statusValue)) == ENS160_DATA_STATUS_RESERVED_B);
-  // ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_RESERVED_A 0x%x", (ENS160_DATA_STATUS_RESERVED_A & (statusValue)) == ENS160_DATA_STATUS_RESERVED_A);
   ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_B 0x%x", (ENS160_DATA_STATUS_VALID_B & (statusValue)) == ENS160_DATA_STATUS_VALID_B);
   ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_A 0x%x", (ENS160_DATA_STATUS_VALID_A & (statusValue)) == ENS160_DATA_STATUS_VALID_A);
   ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWDAT 0x%x", (ENS160_DATA_STATUS_NEWDAT & (statusValue)) == ENS160_DATA_STATUS_NEWDAT);
@@ -276,7 +274,10 @@ void ENS160Component::dump_config() {
   LOG_SENSOR("  ", "CO2 Sensor", this->co2_)
   LOG_SENSOR("  ", "TVOC Sensor", this->tvoc_)
   LOG_SENSOR("  ", "AQI Sensor", this->aqi_)
-  // LOG_TEXT_SENSOR("  ", "Firmware Version Sensor", this->version_)
+  LOG_TEXT_SENSOR("  ", "Firmware Version", this->version_)
+  LOG_TEXT_SENSOR("  ", "Hardware Status", this->status_)
+  LOG_SENSOR("  ", "Temperature Compensation", this->temperature_)
+  LOG_SENSOR("  ", "Humidity Compensation", this->humidity_)
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
