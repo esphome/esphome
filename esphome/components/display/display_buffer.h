@@ -20,6 +20,8 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
+#define ENABLE_VIRTUAL_DISPLAYBUFFER 
+
 namespace esphome {
 namespace display {
 
