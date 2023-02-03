@@ -181,12 +181,18 @@ void ENS160Component::update() {
   }
 
   // verbose status logging
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATAS 0x%x", (ENS160_DATA_STATUS_STATAS & (status_value)) == ENS160_DATA_STATUS_STATAS);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATER 0x%x", (ENS160_DATA_STATUS_STATER & (status_value)) == ENS160_DATA_STATUS_STATER);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_B 0x%x", (ENS160_DATA_STATUS_VALID_B & (status_value)) == ENS160_DATA_STATUS_VALID_B);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_A 0x%x", (ENS160_DATA_STATUS_VALID_A & (status_value)) == ENS160_DATA_STATUS_VALID_A);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWDAT 0x%x", (ENS160_DATA_STATUS_NEWDAT & (status_value)) == ENS160_DATA_STATUS_NEWDAT);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWGPR 0x%x", (ENS160_DATA_STATUS_NEWGPR & (status_value)) == ENS160_DATA_STATUS_NEWGPR);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATAS 0x%x",
+           (ENS160_DATA_STATUS_STATAS & (status_value)) == ENS160_DATA_STATUS_STATAS);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATER 0x%x",
+           (ENS160_DATA_STATUS_STATER & (status_value)) == ENS160_DATA_STATUS_STATER);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_B 0x%x",
+           (ENS160_DATA_STATUS_VALID_B & (status_value)) == ENS160_DATA_STATUS_VALID_B);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_A 0x%x",
+           (ENS160_DATA_STATUS_VALID_A & (status_value)) == ENS160_DATA_STATUS_VALID_A);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWDAT 0x%x",
+           (ENS160_DATA_STATUS_NEWDAT & (status_value)) == ENS160_DATA_STATUS_NEWDAT);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWGPR 0x%x",
+           (ENS160_DATA_STATUS_NEWGPR & (status_value)) == ENS160_DATA_STATUS_NEWGPR);
 
   // check if any new sensor data is available - should usually be true
   if (!this->status_has_data_()) {
@@ -255,8 +261,8 @@ void ENS160Component::send_env_data_() {
   if (this->temperature_ != nullptr)
     temperature = this->temperature_->state;
 
-  uint16_t t = (uint16_t)((temperature + 273.15f) * 64.0f);
-  uint16_t h = (uint16_t)(humidity * 512.0f);
+  uint16_t t = (uint16_t) ((temperature + 273.15f) * 64.0f);
+  uint16_t h = (uint16_t) (humidity * 512.0f);
 
   uint8_t data[4];
   data[0] = t & 0xff;
