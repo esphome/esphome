@@ -121,6 +121,17 @@ void ENS160Component::setup() {
 
 optional<uint8_t> ENS160Component::read_status_() { return this->read_byte(ENS160_REG_DATA_STATUS); }
 
+void ENS160Component::reset() {
+  CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_RESET));
+  delay(ENS160_BOOTING);
+  CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_IDLE));
+  CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_NOP));
+  CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_CLRGPR));
+  ESP_LOGD(TAG, "Reset Done. Status: %x\n", this->read_status_().value_or(0));
+  CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD));
+  delay(ENS160_BOOTING);
+}
+
 bool ENS160Component::status_has_error_() {
   optional<uint8_t> status = this->read_status_();
   if (!status.has_value())
@@ -137,46 +148,56 @@ bool ENS160Component::status_has_data_() {
 
 void ENS160Component::update() {
   optional<uint8_t> status = this->read_status_();
-  if (status.has_value()) {
-    uint8_t statusValue = status.value();
-    ESP_LOGD(TAG, "Status: 0x%x", statusValue);
-    if (statusValue == 0x0) {
-      this->status_set_error();
-
-      // reset
-      CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_RESET));
-      delay(ENS160_BOOTING);
-      CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_IDLE));
-      CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_NOP));
-      CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_CLRGPR));
-      ESP_LOGD(TAG, "Reset Done. Status: %x\n", this->read_status_().value_or(0));
-      CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD));
-      delay(ENS160_BOOTING);
-      return;
-    }
-
-    if ((ENS160_DATA_STATUS_STATAS & (statusValue)) != ENS160_DATA_STATUS_STATAS) {
-      CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD));
-    }
-
-    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_STATAS 0x%x", (ENS160_DATA_STATUS_STATAS & (statusValue)) == ENS160_DATA_STATUS_STATAS);
-    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_STATER 0x%x", (ENS160_DATA_STATUS_STATER & (statusValue)) == ENS160_DATA_STATUS_STATER);
-    // ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_RESERVED_B 0x%x", (ENS160_DATA_STATUS_RESERVED_B & (statusValue)) == ENS160_DATA_STATUS_RESERVED_B);
-    // ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_RESERVED_A 0x%x", (ENS160_DATA_STATUS_RESERVED_A & (statusValue)) == ENS160_DATA_STATUS_RESERVED_A);
-    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_VALID_B 0x%x", (ENS160_DATA_STATUS_VALID_B & (statusValue)) == ENS160_DATA_STATUS_VALID_B);
-    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_VALID_A 0x%x", (ENS160_DATA_STATUS_VALID_A & (statusValue)) == ENS160_DATA_STATUS_VALID_A);
-    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_NEWDAT 0x%x", (ENS160_DATA_STATUS_NEWDAT & (statusValue)) == ENS160_DATA_STATUS_NEWDAT);
-    ESP_LOGD(TAG, "Status: ENS160_DATA_STATUS_NEWGPR 0x%x", (ENS160_DATA_STATUS_NEWGPR & (statusValue)) == ENS160_DATA_STATUS_NEWGPR);
-  } else {
-    ESP_LOGD(TAG, "Status: no data");
+  if (!status.has_value()) {
+    ESP_LOGE(TAG, "Status: no data");
+    this->status_set_error();
     return;
   }
 
+  // read & publish status
+  uint8_t statusValue = status.value();
+  ESP_LOGV(TAG, "Status: 0x%x", statusValue);
+  if (this->status_ != nullptr) {
+    std::string statusString;
+    snprintf(&statusString[0], statusString.capacity(), "0x%x", statusValue);
+    this->status_->publish_state(statusString);
+  }
+
+  // full reset on invalid status
+  if (statusValue == 0x0) {
+    this->status_set_error();
+    this->reset();
+    return;
+  }
+
+  // test: always set opmode to std
+  CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD));
+
+  // opmode reset on invalid state
+  if ((ENS160_DATA_STATUS_STATAS & (statusValue)) != ENS160_DATA_STATUS_STATAS) {
+    this->status_set_error();
+    CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD));
+    return;
+  }
+
+  // verbose status logging
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATAS 0x%x", (ENS160_DATA_STATUS_STATAS & (statusValue)) == ENS160_DATA_STATUS_STATAS);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATER 0x%x", (ENS160_DATA_STATUS_STATER & (statusValue)) == ENS160_DATA_STATUS_STATER);
+  // ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_RESERVED_B 0x%x", (ENS160_DATA_STATUS_RESERVED_B & (statusValue)) == ENS160_DATA_STATUS_RESERVED_B);
+  // ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_RESERVED_A 0x%x", (ENS160_DATA_STATUS_RESERVED_A & (statusValue)) == ENS160_DATA_STATUS_RESERVED_A);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_B 0x%x", (ENS160_DATA_STATUS_VALID_B & (statusValue)) == ENS160_DATA_STATUS_VALID_B);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_A 0x%x", (ENS160_DATA_STATUS_VALID_A & (statusValue)) == ENS160_DATA_STATUS_VALID_A);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWDAT 0x%x", (ENS160_DATA_STATUS_NEWDAT & (statusValue)) == ENS160_DATA_STATUS_NEWDAT);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWGPR 0x%x", (ENS160_DATA_STATUS_NEWGPR & (statusValue)) == ENS160_DATA_STATUS_NEWGPR);
+
+  // check if any new sensor data is available - should usually be true
   if (!this->status_has_data_()) {
-    ESP_LOGD(TAG, "Status indicates no data ready!");
+    ESP_LOGW(TAG, "Status indicates no data ready!");
+    status_set_warning();
     return;
   }
 
+  // read raw resistance, currently discarded
   if (IS_NEWGPR(status.value())) {
     this->read_byte(ENS160_REG_GPR_READ_0);
   }
@@ -185,6 +206,8 @@ void ENS160Component::update() {
     return;
   }
 
+  // read new data
+  auto warning = false;
   auto buf_eco2 = this->read_bytes<2>(ENS160_REG_DATA_ECO2);
   auto buf_tvoc = this->read_bytes<2>(ENS160_REG_DATA_TVOC);
   auto data_aqi = this->read_byte(ENS160_REG_DATA_AQI);
@@ -194,20 +217,31 @@ void ENS160Component::update() {
     this->co2_->publish_state(data_eco2);
   } else {
     ESP_LOGW(TAG, "No data for eCO2!");
+    warning = true;
   }
   if (buf_tvoc.has_value() && this->tvoc_ != nullptr) {
     uint16_t data_tvoc = encode_uint16((*buf_tvoc)[1], (*buf_tvoc)[0]);
     this->tvoc_->publish_state(data_tvoc);
   } else {
     ESP_LOGW(TAG, "No data for TVOC!");
+    warning = true;
   }
   if (data_aqi.has_value() && this->aqi_ != nullptr) {
     this->aqi_->publish_state(*data_aqi);
   } else {
     ESP_LOGW(TAG, "No data for AQI!");
+    warning = true;
   }
 
-  this->status_clear_warning();
+  // set status
+  this->status_clear_error();
+  if (warning) {
+    this->status_set_warning();
+  } else {
+    this->status_clear_warning();
+  }
+
+  // set env data
   this->send_env_data_();
 }
 

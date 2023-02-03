@@ -6,6 +6,7 @@ from esphome.const import (
     ICON_CHEMICAL_WEAPON,
     ICON_RADIATOR,
     ICON_RESTART,
+    ICON_BUG,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     STATE_CLASS_MEASUREMENT,
@@ -15,7 +16,9 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TVOC,
     CONF_HUMIDITY,
+    CONF_STATE,
     CONF_VERSION,
+    CONF_STATUS,
     ICON_MOLECULE_CO2,
     DEVICE_CLASS_AQI,
 )
@@ -60,6 +63,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(
                 icon=ICON_RESTART
             ),
+            cv.Optional(CONF_STATUS): text_sensor.text_sensor_schema(
+                icon=ICON_BUG
+            ),
             cv.Optional(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY): cv.use_id(sensor.Sensor),
         }
@@ -84,6 +90,10 @@ async def to_code(config):
     if CONF_VERSION in config:
         sens = await text_sensor.new_text_sensor(config[CONF_VERSION])
         cg.add(var.set_version(sens))
+
+    if CONF_STATUS in config:
+        sens = await text_sensor.new_text_sensor(config[CONF_STATUS])
+        cg.add(var.set_status(sens))
 
     if CONF_TEMPERATURE in config:
         sens = await cg.get_variable(config[CONF_TEMPERATURE])

@@ -15,6 +15,7 @@ class ENS160Component : public PollingComponent, public i2c::I2CDevice {
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_ = tvoc; }
   void set_aqi(sensor::Sensor *aqi) { aqi_ = aqi; }
   void set_version(text_sensor::TextSensor *version) { version_ = version; }
+  void set_status(text_sensor::TextSensor *status) { status_ = status; }
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
 
@@ -28,6 +29,7 @@ class ENS160Component : public PollingComponent, public i2c::I2CDevice {
   optional<uint8_t> read_status_();
   bool status_has_error_();
   bool status_has_data_();
+  void reset();
 
   enum ErrorCode {
     UNKNOWN,
@@ -40,6 +42,7 @@ class ENS160Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *tvoc_{nullptr};
   sensor::Sensor *aqi_{nullptr};
   text_sensor::TextSensor *version_{nullptr};
+  text_sensor::TextSensor *status_{nullptr};
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *temperature_{nullptr};
 };
