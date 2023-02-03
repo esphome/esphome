@@ -31,12 +31,7 @@ class PIDAutotuner {
 
   void dump_config();
 
-  void set_autotuner_id(std::string id) {
-    this->id_ = new char[id.length() + 1];
-    strcpy(this->id_, id.c_str());
-  }
-
-  const char *get_id() { return this->id_; }
+  void set_autotuner_id(std::string id) { this->id_ = std::move(id); }
 
   void set_noiseband(float noiseband) {
     relay_function_.noiseband = noiseband;
@@ -113,7 +108,7 @@ class PIDAutotuner {
   } state_ = AUTOTUNE_RUNNING;
   float ku_;
   float pu_;
-  char *id_;
+  std::string id_;
 };
 
 }  // namespace pid
