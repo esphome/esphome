@@ -6,6 +6,7 @@
 #include "esphome/core/entity_base.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
+#include "esphome/core/version.h"
 
 #ifdef USE_ARDUINO
 #include "StreamString.h"
