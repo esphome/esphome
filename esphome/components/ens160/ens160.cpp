@@ -155,16 +155,16 @@ void ENS160Component::update() {
   }
 
   // read & publish status
-  uint8_t statusValue = status.value();
-  ESP_LOGV(TAG, "Status: 0x%x", statusValue);
+  uint8_t status_value = status.value();
+  ESP_LOGV(TAG, "Status: 0x%x", status_value);
   if (this->status_ != nullptr) {
-    char statusString[32];
-    sprintf(statusString, "0x%x", statusValue);
-    this->status_->publish_state(statusString);
+    char status_string[32];
+    sprintf(status_string, "0x%x", status_value);
+    this->status_->publish_state(status_string);
   }
 
   // full reset on invalid status
-  if (statusValue == 0x0) {
+  if (status_value == 0x0) {
     this->status_set_error();
     this->reset();
     return;
@@ -174,19 +174,19 @@ void ENS160Component::update() {
   CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD));
 
   // opmode reset on invalid state
-  if ((ENS160_DATA_STATUS_STATAS & (statusValue)) != ENS160_DATA_STATUS_STATAS) {
+  if ((ENS160_DATA_STATUS_STATAS & (status_value)) != ENS160_DATA_STATUS_STATAS) {
     this->status_set_error();
     CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD));
     return;
   }
 
   // verbose status logging
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATAS 0x%x", (ENS160_DATA_STATUS_STATAS & (statusValue)) == ENS160_DATA_STATUS_STATAS);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATER 0x%x", (ENS160_DATA_STATUS_STATER & (statusValue)) == ENS160_DATA_STATUS_STATER);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_B 0x%x", (ENS160_DATA_STATUS_VALID_B & (statusValue)) == ENS160_DATA_STATUS_VALID_B);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_A 0x%x", (ENS160_DATA_STATUS_VALID_A & (statusValue)) == ENS160_DATA_STATUS_VALID_A);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWDAT 0x%x", (ENS160_DATA_STATUS_NEWDAT & (statusValue)) == ENS160_DATA_STATUS_NEWDAT);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWGPR 0x%x", (ENS160_DATA_STATUS_NEWGPR & (statusValue)) == ENS160_DATA_STATUS_NEWGPR);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATAS 0x%x", (ENS160_DATA_STATUS_STATAS & (status_value)) == ENS160_DATA_STATUS_STATAS);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATER 0x%x", (ENS160_DATA_STATUS_STATER & (status_value)) == ENS160_DATA_STATUS_STATER);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_B 0x%x", (ENS160_DATA_STATUS_VALID_B & (status_value)) == ENS160_DATA_STATUS_VALID_B);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_A 0x%x", (ENS160_DATA_STATUS_VALID_A & (status_value)) == ENS160_DATA_STATUS_VALID_A);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWDAT 0x%x", (ENS160_DATA_STATUS_NEWDAT & (status_value)) == ENS160_DATA_STATUS_NEWDAT);
+  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWGPR 0x%x", (ENS160_DATA_STATUS_NEWGPR & (status_value)) == ENS160_DATA_STATUS_NEWGPR);
 
   // check if any new sensor data is available - should usually be true
   if (!this->status_has_data_()) {
