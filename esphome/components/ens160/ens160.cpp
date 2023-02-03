@@ -261,8 +261,8 @@ void ENS160Component::send_env_data_() {
   if (this->temperature_ != nullptr)
     temperature = this->temperature_->state;
 
-  uint16_t t = (uint16_t) ((temperature + 273.15f) * 64.0f);
-  uint16_t h = (uint16_t) (humidity * 512.0f);
+  uint16_t t = (uint16_t)((temperature + 273.15f) * 64.0f);
+  uint16_t h = (uint16_t)(humidity * 512.0f);
 
   uint8_t data[4];
   data[0] = t & 0xff;
