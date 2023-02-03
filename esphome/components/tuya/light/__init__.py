@@ -36,7 +36,9 @@ COLOR_TYPES = {
 
 TuyaLight = tuya_ns.class_("TuyaLight", light.LightOutput, cg.Component)
 
-COLOR_CONFIG_ERROR = "This option has been removed, use color_datapoint and color_type instead."
+COLOR_CONFIG_ERROR = (
+    "This option has been removed, use color_datapoint and color_type instead."
+)
 
 CONFIG_SCHEMA = cv.All(
     light.BRIGHTNESS_ONLY_LIGHT_SCHEMA.extend(
@@ -49,9 +51,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RGB_DATAPOINT): cv.invalid(COLOR_CONFIG_ERROR),
             cv.Optional(CONF_HSV_DATAPOINT): cv.invalid(COLOR_CONFIG_ERROR),
             cv.Optional(CONF_COLOR_DATAPOINT): cv.uint8_t,
-            cv.Optional(
-                CONF_COLOR_TYPE, default="RGBHSV"
-            ): cv.enum(COLOR_TYPES, upper=True),
+            cv.Optional(CONF_COLOR_TYPE, default="RGBHSV"): cv.enum(
+                COLOR_TYPES, upper=True
+            ),
             cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
             cv.Inclusive(
                 CONF_COLOR_TEMPERATURE_DATAPOINT, "color_temperature"
