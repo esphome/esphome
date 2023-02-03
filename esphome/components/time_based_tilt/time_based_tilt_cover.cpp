@@ -21,6 +21,11 @@ void TimeBasedTiltCover::dump_config() {
   ESP_LOGCONFIG(TAG, "  Recalibration time: %.3fs", this->recalibration_time_ / 1e3f);
 }
 void TimeBasedTiltCover::setup() {
+  if ( this->tilt_close_duration_ == 0 || this->tilt_open_duration_ == 0 )
+  {
+    this->tilt_close_duration_ = 0;
+    this->tilt_open_duration_ = 0;
+  }
   auto restore = this->restore_state_();
   if (restore.has_value()) {
     restore->apply(this);
@@ -133,7 +138,9 @@ void TimeBasedTiltCover::loop() {
         this->target_tilt_ = TARGET_NONE;
         this->last_publish_time_= now;
 
-        if ( ( this->position == COVER_CLOSED && this->tilt == COVER_CLOSED ) || ( this->position == COVER_OPEN  && this->tilt == COVER_OPEN ) ) // start recalibration
+        if ( this->recalibration_time_ > 0 && 
+              ((this->position == COVER_CLOSED && (tilt_time == 0 || this->tilt == COVER_CLOSED) || 
+                (this->position == COVER_OPEN  && (tilt_time == 0 || this->tilt == COVER_OPEN)))))
         {
           this->fsm_state_ = STATE_CALIBRATING;
           this->publish_state(false);
@@ -144,7 +151,7 @@ void TimeBasedTiltCover::loop() {
         return;  // only tilting w/o position change so no need to recompute position
       }
 
-      if ( now - this->last_publish_time_  > ( ( tilt_time / 5 ) > 1000 ? 1000 : ( tilt_time / 5 ) ) ){
+      if ( now - this->last_publish_time_  > (( tilt_time / 5 ) > 1000 ? 1000 : ( tilt_time / 5 )) ){
           this->publish_state(false);
           this->last_publish_time_= now;
       }
@@ -168,10 +175,12 @@ void TimeBasedTiltCover::loop() {
       this->target_position_ = TARGET_NONE;
       this->last_publish_time_= now;
 
-      if ( ( this->position == COVER_CLOSED && this->tilt == COVER_CLOSED ) || ( this->position == COVER_OPEN  && this->tilt == COVER_OPEN ) )
+      if ( this->recalibration_time_ > 0 && 
+            ((this->position == COVER_CLOSED && ( tilt_time == 0 || this->tilt == COVER_CLOSED) || 
+              (this->position == COVER_OPEN  && ( tilt_time == 0 ||  this->tilt == COVER_OPEN)))))
       {
         this->fsm_state_ = STATE_CALIBRATING;
-          this->publish_state(false);
+        this->publish_state(false);
       } else {
         this->fsm_state_ = STATE_STOPPING;
       }
