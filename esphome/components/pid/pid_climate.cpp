@@ -150,12 +150,12 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   this->autotuner_->config(min_value, max_value);
   this->autotuner_->set_autotuner_id(this->get_object_id());
 
-  std::string TAG2 = TAG + std::string(".") + this->get_object_id();
- 
-  ESP_LOGI(TAG2.c_str(), "Autotune has started. This can take a long time depending on the "
-  "responsiveness of your system. Your system "
-  "output will be altered to deliberately oscillate above and below the setpoint multiple times. "
-  "Until your sensor provides a reading, the autotuner may display \'nan\'" );
+  ESP_LOGI(TAG,
+           "%s: Autotune has started. This can take a long time depending on the "
+           "responsiveness of your system. Your system "
+           "output will be altered to deliberately oscillate above and below the setpoint multiple times. "
+           "Until your sensor provides a reading, the autotuner may display \'nan\'",
+           this->get_object_id().c_str());
 
   this->set_interval("autotune-progress", 10000, [this]() {
     if (this->autotuner_ != nullptr && !this->autotuner_->is_finished())
@@ -163,7 +163,8 @@ void PIDClimate::start_autotune(std::unique_ptr<PIDAutotuner> &&autotune) {
   });
 
   if (mode != climate::CLIMATE_MODE_HEAT_COOL) {
-    ESP_LOGW(TAG2.c_str(), "!!! For PID autotuner you need to set AUTO (also called heat/cool) mode! %s", this->get_name().c_str() );
+    ESP_LOGW(TAG, "%s: !!! For PID autotuner you need to set AUTO (also called heat/cool) mode!",
+             this->get_object_id().c_str());
   }
 }
 
