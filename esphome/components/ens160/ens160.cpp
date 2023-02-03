@@ -158,8 +158,8 @@ void ENS160Component::update() {
   uint8_t statusValue = status.value();
   ESP_LOGV(TAG, "Status: 0x%x", statusValue);
   if (this->status_ != nullptr) {
-    std::string statusString;
-    snprintf(&statusString[0], statusString.capacity(), "0x%x", statusValue);
+    char statusString[32];
+    sprintf(statusString, "0x%x", statusValue);
     this->status_->publish_state(statusString);
   }
 
