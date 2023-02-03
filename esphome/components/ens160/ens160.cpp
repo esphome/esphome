@@ -216,6 +216,12 @@ void ENS160Component::update() {
   auto buf_tvoc = this->read_bytes<2>(ENS160_REG_DATA_TVOC);
   auto data_aqi = this->read_byte(ENS160_REG_DATA_AQI);
 
+  if (data_aqi == 0) {
+    ESP_LOGW(TAG, "Invalid Data, AQI is 0!");
+    status_set_warning();
+    return;
+  }
+
   if (buf_eco2.has_value() && this->co2_ != nullptr) {
     uint16_t data_eco2 = encode_uint16((*buf_eco2)[1], (*buf_eco2)[0]);
     this->co2_->publish_state(data_eco2);
