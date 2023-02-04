@@ -1816,10 +1816,11 @@ output:
       channel_offset: 1
   - platform: fastled_bus
     id: output_componentb_cl
-    bus: fastled_busCl
-    offset: 0
-    num_chips: 2
-    channel_offset: 2
+    channels:
+      bus: fastled_busCl
+      offset: 0
+      num_chips: 2
+      channel_offset: 2
 
 e131:
 
@@ -2031,17 +2032,6 @@ light:
         to: 25
       - single_light_id: ${roomname}_lights
 
-  - platform: shelly_dimmer
-    name: "Shelly Dimmer Light"
-    power:
-      name: "Shelly Dimmer Power"
-    voltage:
-      name: "Shelly Dimmer Voltage"
-    current:
-      name: "Shelly Dimmer Current"
-    max_brightness: 500
-    firmware: "51.6"
-    uart_id: uart0
   - platform: rgbww
     name: "Livingroom Lights SPI"
     red: output_componentr_spi

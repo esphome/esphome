@@ -10,7 +10,7 @@ static const char *const TAG = "fastled";
 
 void FastLEDLightOutput::setup() {
   this->bus_->setup();
-  this->leds_ = (CRGB*)this->bus_->chips();
+  this->leds_ = (CRGB *) this->bus_->chips();
   this->num_leds_ = this->bus_->num_chips_;
   this->effect_data_ = this->bus_->effect_data();
   ESP_LOGCONFIG(TAG, "Setting up FastLED light...:%p", this->leds_);

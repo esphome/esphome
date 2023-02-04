@@ -35,7 +35,7 @@ CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
 async def to_code(config):
     channels = list(config[CONF_CHANNELS])
     template_len = cg.TemplateArguments(cg.RawExpression(f"{len(channels)}"))
-    out = bus_ns.MappingsBuilderCreate(template_len)
+    out = bus_ns.mappings_builder_create(template_len)
 
     for channel in channels:
         bus = await cg.get_variable(channel[CONF_BUS])

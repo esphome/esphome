@@ -19,13 +19,13 @@
 namespace esphome {
 namespace fastled_bus {
 
-typedef struct sMapping {
+using Mapping = struct SMapping {
   FastLEDBus *bus_;
   uint16_t num_chips_;
   uint16_t ofs_;
   uint8_t channel_offset_;
   uint16_t repeat_distance_;
-} Mapping;
+};
 
 template<std::size_t S> class MappingsBuilder {
  private:
@@ -33,7 +33,8 @@ template<std::size_t S> class MappingsBuilder {
   uint8_t index_{0};
 
  public:
-  typedef Mapping Mappings[S];
+  // typedef Mapping Mappings[S];
+  using Mappings = Mapping[S];
 
   MappingsBuilder &add_mapping(FastLEDBus *const bus, const uint16_t num_chips, const uint16_t ofs,
                                const uint8_t channel_offset, const uint16_t repeat_distance) {
@@ -48,10 +49,10 @@ template<std::size_t S> class MappingsBuilder {
     }
     return *this;
   }
-  MappingsBuilder<S>::Mappings &done() { return this->mappings_; }
+  Mappings &done() { return this->mappings_; }
 };
 
-template<std::size_t S> MappingsBuilder<S> &MappingsBuilderCreate() { return *(new MappingsBuilder<S>()); }
+template<std::size_t S> MappingsBuilder<S> &mappings_builder_create() { return *(new MappingsBuilder<S>()); }
 
 void setup_mapping(Mapping &map);
 void write_mapping(Mapping &map, float state);

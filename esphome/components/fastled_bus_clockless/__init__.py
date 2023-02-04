@@ -3,7 +3,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import fastled_bus
 from esphome.components import fastled_base
-# import esphome.components.fastled_base.light as fastled_clockless_light
 from esphome.const import CONF_CHIPSET, CONF_ID, CONF_NUM_CHIPS, CONF_PIN
 
 CODEOWNERS = ["@mabels"]
@@ -32,6 +31,8 @@ async def to_code(config):
     fastled_bus.new_fastled_bus(var, config)
 
     template_args = cg.TemplateArguments(
-        cg.RawExpression(config[CONF_CHIPSET]), fastled_bus.rgb_order(config), config[CONF_PIN]
+        cg.RawExpression(config[CONF_CHIPSET]),
+        fastled_bus.rgb_order(config),
+        config[CONF_PIN],
     )
     cg.add(var.set_controller(fastled_bus.CLEDControllerFactory.create(template_args)))

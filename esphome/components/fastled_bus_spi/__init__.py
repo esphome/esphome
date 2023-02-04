@@ -33,9 +33,7 @@ CONFIG_SCHEMA = cv.All(
     fastled_bus.CONFIG_BUS_SCHEMA.extend(
         {
             cv.GenerateID(CONF_ID): fastled_bus.FastledBusId,
-            cv.Required(CONF_CHIPSET): cv.one_of(
-                *CHIPSETS, upper=True
-            ),
+            cv.Required(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Required(CONF_DATA_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_CLOCK_PIN): pins.internal_gpio_output_pin_number,
             cv.Optional(CONF_DATA_RATE): cv.frequency,
