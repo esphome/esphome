@@ -14,6 +14,11 @@ void PVVXMiThermometer::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
   LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
+  LOG_BINARY_SENSOR("  ", "Rds Input", this->rds_input_);
+  LOG_BINARY_SENSOR("  ", "Trg Output", this->trg_output_);
+  LOG_BINARY_SENSOR("  ", "Trigger", this->trigger_on_);
+  LOG_BINARY_SENSOR("  ", "Humi Out", this->humi_out_on_);
+  LOG_BINARY_SENSOR("  ", "Temp Out", this->temp_out_on_);
 }
 
 bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -43,6 +48,18 @@ bool PVVXMiThermometer::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
       this->battery_level_->publish_state(*res->battery_level);
     if (res->battery_voltage.has_value() && this->battery_voltage_ != nullptr)
       this->battery_voltage_->publish_state(*res->battery_voltage);
+    if (res->flags.has_value()) {
+      if (this->rds_input_ != nullptr)
+        this->rds_input_->publish_state(res->flags->rds_input);
+      if (this->trg_output_ != nullptr)
+        this->trg_output_->publish_state(res->flags->trg_output);
+      if (this->trigger_on_ != nullptr)
+        this->trigger_on_->publish_state(res->flags->trigger_on);
+      if (this->humi_out_on_ != nullptr)
+        this->humi_out_on_->publish_state(res->flags->humi_out_on);
+      if (this->temp_out_on_ != nullptr)
+        this->temp_out_on_->publish_state(res->flags->temp_out_on);
+    }
     if (this->signal_strength_ != nullptr)
       this->signal_strength_->publish_state(device.get_rssi());
     success = true;
@@ -108,6 +125,9 @@ bool PVVXMiThermometer::parse_message_(const std::vector<uint8_t> &message, Pars
   // uint8_t     battery_level;  // 0..100 %          [12]
   result.battery_level = uint8_t(data[12]);
 
+  // uint8_t     flags;          // 0..255            [14]
+  result.flags = PvvxFlags({.all = uint8_t(data[14])});
+
   return true;
 }
 
@@ -130,6 +150,9 @@ bool PVVXMiThermometer::report_results_(const optional<ParseResult> &result, con
   }
   if (result->battery_voltage.has_value()) {
     ESP_LOGD(TAG, "  Battery Voltage: %.3f V", *result->battery_voltage);
+  }
+  if (result->flags.has_value()) {
+    ESP_LOGD(TAG, "  Flags: %02x", result->flags->all);
   }
 
   return true;

@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor, esp32_ble_tracker
+from esphome.components import binary_sensor, sensor, esp32_ble_tracker
 from esphome.const import (
     CONF_BATTERY_LEVEL,
     CONF_BATTERY_VOLTAGE,
@@ -24,12 +24,18 @@ from esphome.const import (
 
 CODEOWNERS = ["@pasiz"]
 
-DEPENDENCIES = ["esp32_ble_tracker"]
+AUTO_LOAD = ["binary_sensor", "esp32_ble_tracker"]
 
 pvvx_mithermometer_ns = cg.esphome_ns.namespace("pvvx_mithermometer")
 PVVXMiThermometer = pvvx_mithermometer_ns.class_(
     "PVVXMiThermometer", esp32_ble_tracker.ESPBTDeviceListener, cg.Component
 )
+
+CONF_RDS_INPUT = "rds_input"
+CONF_TRG_OUTPUT = "trg_output"
+CONF_TRIGGER_ON = "trigger_on"
+CONF_HUMI_OUT_ON = "humi_out_on"
+CONF_TEMP_OUT_ON = "temp_out_on"
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -62,6 +68,11 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
                 entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             ),
+            cv.Optional(CONF_RDS_INPUT): binary_sensor.binary_sensor_schema(),
+            cv.Optional(CONF_TRG_OUTPUT): binary_sensor.binary_sensor_schema(),
+            cv.Optional(CONF_TRIGGER_ON): binary_sensor.binary_sensor_schema(),
+            cv.Optional(CONF_HUMI_OUT_ON): binary_sensor.binary_sensor_schema(),
+            cv.Optional(CONF_TEMP_OUT_ON): binary_sensor.binary_sensor_schema(),
             cv.Optional(CONF_SIGNAL_STRENGTH): sensor.sensor_schema(
                 unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
                 accuracy_decimals=0,
@@ -95,6 +106,21 @@ async def to_code(config):
     if CONF_BATTERY_VOLTAGE in config:
         sens = await sensor.new_sensor(config[CONF_BATTERY_VOLTAGE])
         cg.add(var.set_battery_voltage(sens))
+    if CONF_RDS_INPUT in config:
+        bs = await binary_sensor.new_binary_sensor(config[CONF_RDS_INPUT])
+        cg.add(var.set_rds_input(bs))
+    if CONF_TRG_OUTPUT in config:
+        bs = await binary_sensor.new_binary_sensor(config[CONF_TRG_OUTPUT])
+        cg.add(var.set_trg_output(bs))
+    if CONF_TRIGGER_ON in config:
+        bs = await binary_sensor.new_binary_sensor(config[CONF_TRIGGER_ON])
+        cg.add(var.set_trigger_on(bs))
+    if CONF_HUMI_OUT_ON in config:
+        bs = await binary_sensor.new_binary_sensor(config[CONF_HUMI_OUT_ON])
+        cg.add(var.set_humi_out_on(bs))
+    if CONF_TEMP_OUT_ON in config:
+        bs = await binary_sensor.new_binary_sensor(config[CONF_TEMP_OUT_ON])
+        cg.add(var.set_temp_out_on(bs))
     if CONF_SIGNAL_STRENGTH in config:
         sens = await sensor.new_sensor(config[CONF_SIGNAL_STRENGTH])
         cg.add(var.set_signal_strength(sens))
