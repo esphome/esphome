@@ -139,7 +139,7 @@ void TimeBasedTiltCover::loop() {
         this->last_publish_time_= now;
 
         if ( this->recalibration_time_ > 0 && 
-              ((this->position == COVER_CLOSED && (tilt_time == 0 || this->tilt == COVER_CLOSED) || 
+              (((this->position == COVER_CLOSED && (tilt_time == 0 || this->tilt == COVER_CLOSED)) || 
                 (this->position == COVER_OPEN  && (tilt_time == 0 || this->tilt == COVER_OPEN)))))
         {
           this->fsm_state_ = STATE_CALIBRATING;
@@ -176,8 +176,8 @@ void TimeBasedTiltCover::loop() {
       this->last_publish_time_= now;
 
       if ( this->recalibration_time_ > 0 && 
-            ((this->position == COVER_CLOSED && ( tilt_time == 0 || this->tilt == COVER_CLOSED) || 
-              (this->position == COVER_OPEN  && ( tilt_time == 0 ||  this->tilt == COVER_OPEN)))))
+              (((this->position == COVER_CLOSED && (tilt_time == 0 || this->tilt == COVER_CLOSED)) || 
+                (this->position == COVER_OPEN  && (tilt_time == 0 || this->tilt == COVER_OPEN)))))
       {
         this->fsm_state_ = STATE_CALIBRATING;
         this->publish_state(false);
