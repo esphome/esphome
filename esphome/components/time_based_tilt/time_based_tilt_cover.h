@@ -25,7 +25,7 @@ class TimeBasedTiltCover : public cover::Cover, public Component {
   void set_recalibration_time(uint32_t recalibration_time) { this->recalibration_time_ = recalibration_time; }
   void set_inertia_open_time(uint32_t inertia_time) { this->inertia_open_time_ = inertia_time; }
   void set_inertia_close_time(uint32_t inertia_time) { this->inertia_close_time_ = inertia_time; }
-  cover::CoverOperation compute_direction(float target, float current){ return target < current ? cover::COVER_OPERATION_CLOSING : cover::COVER_OPERATION_OPENING ; };
+  cover::CoverOperation compute_direction(float target, float current) { return target < current ? cover::COVER_OPERATION_CLOSING : cover::COVER_OPERATION_OPENING ; };
   float round_position(float pos) { return round(100 * pos)/100; };
   cover::CoverTraits get_traits() override;
   void set_assumed_state(bool value) { this->assumed_state_ = value; }
@@ -34,7 +34,7 @@ class TimeBasedTiltCover : public cover::Cover, public Component {
   void control(const cover::CoverCall &call) override;
   bool is_at_target_position_() const;
   bool is_at_target_tilt_() const;
-  
+
   Trigger<> *open_trigger_{new Trigger<>()};
   Trigger<> *close_trigger_{new Trigger<>()};
   Trigger<> *stop_trigger_{new Trigger<>()};
@@ -52,13 +52,12 @@ class TimeBasedTiltCover : public cover::Cover, public Component {
 
   const float TARGET_NONE{-1};
   enum State : uint8_t {
-    STATE_IDLE, 
-    STATE_MOVING, 
-    STATE_STOPPING, 
+    STATE_IDLE,
+    STATE_MOVING,
+    STATE_STOPPING,
     STATE_CALIBRATING
   };
 
-  Trigger<> *prev_command_trigger_{nullptr};
   uint32_t last_recompute_time_{0};
   uint32_t last_publish_time_{0};
   float target_position_{TARGET_NONE};
@@ -69,7 +68,7 @@ class TimeBasedTiltCover : public cover::Cover, public Component {
   cover::CoverOperation last_operation_{cover::COVER_OPERATION_OPENING};
   State fsm_state_{STATE_IDLE};
   cover::CoverOperation interlocked_direction{cover::COVER_OPERATION_IDLE};
-  uint32_t interlockedTime{0};
+  uint32_t interlocked_time{0};
 };
 
 }  // namespace time_based_tilt

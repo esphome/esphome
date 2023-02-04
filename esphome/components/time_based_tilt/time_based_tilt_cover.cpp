@@ -21,8 +21,7 @@ void TimeBasedTiltCover::dump_config() {
   ESP_LOGCONFIG(TAG, "  Recalibration time: %.3fs", this->recalibration_time_ / 1e3f);
 }
 void TimeBasedTiltCover::setup() {
-  if ( this->tilt_close_duration_ == 0 || this->tilt_open_duration_ == 0 )
-  {
+  if ( this->tilt_close_duration_ == 0 || this->tilt_open_duration_ == 0 ) {
     this->tilt_close_duration_ = 0;
     this->tilt_open_duration_ = 0;
   }
@@ -71,10 +70,9 @@ void TimeBasedTiltCover::loop() {
     return;
   }
 
-  if ( this->fsm_state_ == STATE_STOPPING )
-  {
+  if ( this->fsm_state_ == STATE_STOPPING ) {
     this->stop_trigger_->trigger();
-    this->interlockedTime = millis();
+    this->interlocked_time = millis();
     this->interlocked_direction = this->current_operation == COVER_OPERATION_CLOSING ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING;
     this->fsm_state_ = STATE_IDLE;
     this->last_operation_ = this->current_operation;
@@ -83,8 +81,7 @@ void TimeBasedTiltCover::loop() {
     return;
   }
 
-  if ( this->fsm_state_ == STATE_IDLE &&  (this->target_position_ != TARGET_NONE || this->target_tilt_ != TARGET_NONE) )
-  {
+  if ( this->fsm_state_ == STATE_IDLE &&  (this->target_position_ != TARGET_NONE || this->target_tilt_ != TARGET_NONE) ) {
 
     if (this->target_position_ != TARGET_NONE ) {
       this->current_operation =  this->compute_direction(this->target_position_,this->position);
@@ -93,7 +90,7 @@ void TimeBasedTiltCover::loop() {
     }
 
     if ( this->current_operation == this->interlocked_direction
-                && now - this->interlockedTime < this->interlock_wait_time_ ) return;
+                && now - this->interlocked_time < this->interlock_wait_time_ ) return;
 
     Trigger<> *trig = this->current_operation == COVER_OPERATION_CLOSING ? this->close_trigger_ : this->open_trigger_;
 
@@ -104,8 +101,7 @@ void TimeBasedTiltCover::loop() {
     return;
   }
 
-  if ( this->fsm_state_ == STATE_MOVING )
-  {
+  if ( this->fsm_state_ == STATE_MOVING ) {
 
     auto travel_time = now - this->last_recompute_time_;
     this->last_recompute_time_ = now;
@@ -113,8 +109,7 @@ void TimeBasedTiltCover::loop() {
     float dir_factor = this->current_operation == COVER_OPERATION_CLOSING ? -1.0 : 1.0 ;
     auto inertia_time = this->current_operation == COVER_OPERATION_CLOSING ? this->inertia_close_time_ : this->inertia_open_time_ ;
 
-    if ( inertia_time > 0 && this->inertia * dir_factor < 0.5f  )       // inertia before movement
-    {
+    if ( inertia_time > 0 && this->inertia * dir_factor < 0.5f  ) {       // inertia before movement
       auto inertia_step = dir_factor * travel_time / inertia_time;
       this->inertia += inertia_step;
       auto rest = this->inertia - clamp( this->inertia , -0.5f, 0.5f);
@@ -126,20 +121,19 @@ void TimeBasedTiltCover::loop() {
 
     auto tilt_time = this->current_operation == COVER_OPERATION_CLOSING ? this->tilt_close_duration_ : this->tilt_open_duration_;
 
-    if ( tilt_time > 0 && ( this->tilt - 0.5f ) * dir_factor < 0.5f  )  // tilting before movement
-    {
+    if ( tilt_time > 0 && ( this->tilt - 0.5f ) * dir_factor < 0.5f  )  { // tilting before movement
       auto tilt_step =    dir_factor * travel_time / tilt_time;
       this->tilt += tilt_step;
       auto rest = this->tilt - 0.5f - clamp( this->tilt - 0.5f , -0.5f, 0.5f);
       this->tilt = clamp( this->tilt ,  0.0f, 1.0f);
 
-      if (this->target_position_ == TARGET_NONE && this->is_at_target_tilt_()){ // only tilting w/o position change
+      if (this->target_position_ == TARGET_NONE && this->is_at_target_tilt_()) { // only tilting w/o position change
         this->last_recompute_time_ = now;
         this->target_tilt_ = TARGET_NONE;
         this->last_publish_time_= now;
 
-        if ( this->recalibration_time_ > 0 && 
-              (((this->position == COVER_CLOSED && (tilt_time == 0 || this->tilt == COVER_CLOSED)) || 
+        if ( this->recalibration_time_ > 0 &&
+              (((this->position == COVER_CLOSED && (tilt_time == 0 || this->tilt == COVER_CLOSED)) ||
                 (this->position == COVER_OPEN  && (tilt_time == 0 || this->tilt == COVER_OPEN)))))
         {
           this->fsm_state_ = STATE_CALIBRATING;
@@ -151,9 +145,9 @@ void TimeBasedTiltCover::loop() {
         return;  // only tilting w/o position change so no need to recompute position
       }
 
-      if ( now - this->last_publish_time_  > (( tilt_time / 5 ) > 1000 ? 1000 : ( tilt_time / 5 )) ){
-          this->publish_state(false);
-          this->last_publish_time_= now;
+      if ( now - this->last_publish_time_  > (( tilt_time / 5 ) > 1000 ? 1000 : ( tilt_time / 5 )) ) {
+        this->publish_state(false);
+        this->last_publish_time_= now;
       }
 
       if ( ! rest ) return; // the movement has not yet actually started
@@ -163,20 +157,19 @@ void TimeBasedTiltCover::loop() {
 
     auto move_time = this->current_operation == COVER_OPERATION_CLOSING ? this->close_duration_ : this->open_duration_ ;
 
-    if ( move_time > 0 && ( this->position - 0.5f ) * dir_factor < 0.5f  )
-    {
+    if ( move_time > 0 && ( this->position - 0.5f ) * dir_factor < 0.5f  ) {
       auto move_step =  dir_factor * travel_time / move_time;
       this->position += move_step;
       this->position = clamp( this->position ,  0.0f, 1.0f);
     }
 
-    if (this->is_at_target_position_()){
+    if (this->is_at_target_position_()) {
       this->last_recompute_time_ = now;
       this->target_position_ = TARGET_NONE;
       this->last_publish_time_= now;
 
-      if ( this->recalibration_time_ > 0 && 
-              (((this->position == COVER_CLOSED && (tilt_time == 0 || this->tilt == COVER_CLOSED)) || 
+      if ( this->recalibration_time_ > 0 &&
+              (((this->position == COVER_CLOSED && (tilt_time == 0 || this->tilt == COVER_CLOSED)) ||
                 (this->position == COVER_OPEN  && (tilt_time == 0 || this->tilt == COVER_OPEN)))))
       {
         this->fsm_state_ = STATE_CALIBRATING;
@@ -186,7 +179,7 @@ void TimeBasedTiltCover::loop() {
       }
     }
 
-    if ( now - this->last_publish_time_  > 1000 ){
+    if ( now - this->last_publish_time_  > 1000 ) {
         this->publish_state(false);
         this->last_publish_time_= now;
     }
@@ -207,7 +200,7 @@ void TimeBasedTiltCover::control(const CoverCall &call) {
   if (call.get_stop()) {
     this->target_position_ = TARGET_NONE;
     this->target_tilt_= TARGET_NONE;
-    if (this->fsm_state_ == STATE_MOVING){
+    if (this->fsm_state_ == STATE_MOVING) {
           this->fsm_state_ = STATE_STOPPING;
     }
     return;
@@ -224,11 +217,11 @@ void TimeBasedTiltCover::control(const CoverCall &call) {
       this->target_position_ = pos;
       this->target_tilt_ = til;
 
-      if (this->fsm_state_ == STATE_MOVING){ //TODO: check direction also on tilting
+      if (this->fsm_state_ == STATE_MOVING) { //TODO: check direction also on tilting
         auto direction = COVER_OPERATION_IDLE;
         if ( this->target_position_ != TARGET_NONE && this->target_position_ != this->position) {
           direction =  this->compute_direction(this->target_position_ , this->position );
-        } else if ( this->target_tilt_ != TARGET_NONE && this->target_tilt_ != this->tilt){
+        } else if ( this->target_tilt_ != TARGET_NONE && this->target_tilt_ != this->tilt) {
           direction =  this->compute_direction( this->target_tilt_ , this->tilt );
         }
 
@@ -240,50 +233,47 @@ void TimeBasedTiltCover::control(const CoverCall &call) {
   } else if (call.get_position().has_value()) {
       auto pos = *call.get_position();
 
-        if ( pos == COVER_CLOSED  && this->position == COVER_CLOSED && this->tilt != COVER_CLOSED ){
+        if ( pos == COVER_CLOSED  && this->position == COVER_CLOSED && this->tilt != COVER_CLOSED ) {
           pos = TARGET_NONE;
           this->target_tilt_ = COVER_CLOSED;
-        } else if ( pos == COVER_OPEN  && this->position == COVER_OPEN && this->tilt != COVER_OPEN ){
+        } else if ( pos == COVER_OPEN  && this->position == COVER_OPEN && this->tilt != COVER_OPEN ) {
           pos = TARGET_NONE;
           this->target_tilt_ = COVER_OPEN;
-        } else if ( this->round_position(pos) == this->round_position(this->position) ){
+        } else if ( this->round_position(pos) == this->round_position(this->position) ) {
           pos = TARGET_NONE;
         }
 
       this->target_position_ = pos;
 
-      if (this->fsm_state_ == STATE_MOVING){
+      if (this->fsm_state_ == STATE_MOVING) {
         auto direction = COVER_OPERATION_IDLE;
         if ( this->target_position_ != TARGET_NONE && this->target_position_ != this->position) {
           direction =  this->compute_direction(this->target_position_ , this->position );
           this->target_tilt_ = TARGET_NONE; // unset previous target tilt
-        } else if ( this->target_tilt_ != TARGET_NONE && this->target_tilt_ != this->tilt){
+        } else if ( this->target_tilt_ != TARGET_NONE && this->target_tilt_ != this->tilt) {
           direction =  this->compute_direction( this->target_tilt_ , this->tilt );
         }
 
-        if (direction != this->current_operation )
-        {
+        if (direction != this->current_operation ) {
           this->fsm_state_ = STATE_STOPPING;
         }
       }
   } else  if (call.get_tilt().has_value()) {
       auto til = *call.get_tilt();
-        if ( this->round_position(til) == this->round_position(this->tilt) )
-        {
+        if ( this->round_position(til) == this->round_position(this->tilt) ) {
           til = TARGET_NONE;
         }
 
       this->target_tilt_ = til;
 
-      if (this->fsm_state_ == STATE_MOVING){
+      if (this->fsm_state_ == STATE_MOVING) {
         auto direction = COVER_OPERATION_IDLE;
-        if ( this->target_tilt_ != TARGET_NONE && this->target_tilt_ != this->tilt){
+        if ( this->target_tilt_ != TARGET_NONE && this->target_tilt_ != this->tilt) {
           direction =  this->compute_direction( this->target_tilt_ , this->tilt );
           this->target_position_ = TARGET_NONE;
         }
 
-        if (direction != this->current_operation )
-        {
+        if (direction != this->current_operation ) {
           this->fsm_state_ = STATE_STOPPING;
         }
       }

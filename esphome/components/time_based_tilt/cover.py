@@ -13,7 +13,9 @@ from esphome.const import (
 )
 
 time_based_tilt_ns = cg.esphome_ns.namespace("time_based_tilt")
-TimeBasedTiltCover = time_based_tilt_ns.class_("TimeBasedTiltCover", cover.Cover, cg.Component)
+TimeBasedTiltCover = time_based_tilt_ns.class_(
+    "TimeBasedTiltCover", cover.Cover, cg.Component
+)
 
 CONF_TILT_OPEN_DURATION = "tilt_open_duration"
 CONF_TILT_CLOSE_DURATION = "tilt_close_duration"
@@ -32,12 +34,24 @@ CONFIG_SCHEMA = cover.COVER_SCHEMA.extend(
         cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
         cv.Required(CONF_CLOSE_DURATION): cv.positive_time_period_milliseconds,
         cv.Optional(CONF_ASSUMED_STATE, default=True): cv.boolean,
-        cv.Optional(CONF_TILT_OPEN_DURATION, default="0ms"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_TILT_CLOSE_DURATION, default="0ms"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_INTERLOCK_WAIT_TIME, default="0ms"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_RECALIBRATION_TIME, default="0ms"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_INERTIA_OPEN_TIME, default="0ms"): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_INERTIA_CLOSE_TIME, default="0ms"): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TILT_OPEN_DURATION, default="0ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_TILT_CLOSE_DURATION, default="0ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_INTERLOCK_WAIT_TIME, default="0ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_RECALIBRATION_TIME, default="0ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_INERTIA_OPEN_TIME, default="0ms"
+        ): cv.positive_time_period_milliseconds,
+        cv.Optional(
+            CONF_INERTIA_CLOSE_TIME, default="0ms"
+        ): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
