@@ -3,7 +3,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import fastled_bus
 from esphome.components.fastled_bus import CONF_CHIP_CHANNELS
-import esphome.components.fastled_spi.light as fastled_spi_light
 from esphome.const import (
     CONF_CHIPSET,
     CONF_CLOCK_PIN,
@@ -18,13 +17,24 @@ AUTO_LOAD = ["fastled_bus"]
 CODEOWNERS = ["@mabels"]
 MULTI_CONF = True
 
+CHIPSETS = [
+    "LPD8806",
+    "WS2801",
+    "WS2803",
+    "SM16716",
+    "P9813",
+    "APA102",
+    "SK9822",
+    "DOTSTAR",
+]
+
 
 CONFIG_SCHEMA = cv.All(
     fastled_bus.CONFIG_BUS_SCHEMA.extend(
         {
             cv.GenerateID(CONF_ID): fastled_bus.FastledBusId,
             cv.Required(CONF_CHIPSET): cv.one_of(
-                *fastled_spi_light.CHIPSETS, upper=True
+                *CHIPSETS, upper=True
             ),
             cv.Required(CONF_DATA_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_CLOCK_PIN): pins.internal_gpio_output_pin_number,

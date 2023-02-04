@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_MAX_REFRESH_RATE,
 )
 
+AUTO_LOAD = ["fastled_bus"]
 CODEOWNERS = ["@OttoWinter"]
 fastled_base_ns = cg.esphome_ns.namespace("fastled_base")
 FastLEDLightOutput = fastled_base_ns.class_(
@@ -48,7 +49,7 @@ CLOCKLESS_CHIPSETS = [
 BASE_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(
     {
         cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(FastLEDLightOutput),
-        cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
+        cv.Optional(CONF_NUM_LEDS): cv.positive_not_null_int,
         cv.Optional(CONF_RGB_ORDER): cv.one_of(*fastled_bus.RGB_ORDERS, upper=True),
         cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
         cv.Optional(CONF_BUS): cv.declare_id(fastled_bus.FastLEDBus),

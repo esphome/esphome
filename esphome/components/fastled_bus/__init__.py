@@ -4,6 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import CONF_MAX_REFRESH_RATE, CONF_NUM_CHIPS, CONF_RGB_ORDER
 
 CODEOWNERS = ["@mabels"]
+AUTO_LOAD = ["output"]
 CONF_BUS = "bus"
 
 CONF_CHANNEL_OFFSET = "channel_offset"
