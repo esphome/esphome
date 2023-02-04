@@ -43,6 +43,9 @@ template<std::size_t S> class MappingsBuilder {
     current->ofs_ = ofs;
     current->channel_offset_ = channel_offset;
     current->repeat_distance_ = repeat_distance;
+    if (repeat_distance == 0) {
+      current->repeat_distance_ = 1;
+    }
     return *this;
   }
   MappingsBuilder<S>::Mappings &done() { return this->mappings_; }

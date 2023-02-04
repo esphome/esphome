@@ -78,7 +78,6 @@ template<ESPIChipsets CHIPSET, EOrder RGB_Order, uint8_t DATA_PIN, uint8_t CLOCK
 template<template<uint8_t DATA_PIN, EOrder RGB_ORDER> class CHIPSET, EOrder RGB_Order, uint8_t DATA_PIN>
 static CLEDController *create() {
   auto cs = new CHIPSET<DATA_PIN, RGB_Order>();
-  ESP_LOGCONFIG("fastled:bus:", "Clockless-Controller:%p", cs);
   return cs;
 }
 #endif
