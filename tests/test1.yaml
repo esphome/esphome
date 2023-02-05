@@ -317,7 +317,23 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+iec62056:
+  update_interval: 60s
+  baud_rate: 9600
+  receive_timeout: 3s
+  battery_meter: False
+  retry_counter_max: 2
+  retry_delay: 10s
+
 sensor:
+  - platform: iec62056
+    obis: 1-0:15.8.0
+    name: Absolute active energy total
+    unit_of_measurement: kWh
+    accuracy_decimals: 3
+    device_class: energy
+    state_class: total_increasing
+
   - platform: ble_client
     type: characteristic
     ble_client_id: ble_foo
