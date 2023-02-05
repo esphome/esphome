@@ -1,20 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number, fluval_ble_led
+from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_STEP, CONF_ID, CONF_CHANNEL
 from .. import fluval_ble_led_ns
 
 FluvalBleChannelNumber = fluval_ble_led_ns.class_(
     "FluvalBleChannelNumber", cg.Component, number.Number, fluval_ble_led.FluvalBleLed
 )
 
-from esphome.const import (
-    CONF_MAX_VALUE,
-    CONF_MIN_VALUE,
-    CONF_STEP,
-    CONF_ID
-)
-
-CONF_CHANNEL = "channel"
 CONF_ZERO_IF_OFF = "zero_if_off"
 
 def validate_min_max(config):

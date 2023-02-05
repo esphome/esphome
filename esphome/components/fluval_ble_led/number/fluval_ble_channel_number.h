@@ -10,7 +10,7 @@ namespace esphome {
 namespace fluval_ble_led {
 
 class FluvalBleChannelNumber : public number::Number, public Component, public FluvalLedClient {
- public:
+public:
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; };

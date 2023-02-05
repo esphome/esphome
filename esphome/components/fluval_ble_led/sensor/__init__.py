@@ -1,10 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import sensor, fluval_ble_led
-from esphome.const import DEVICE_CLASS_EMPTY, STATE_CLASS_NONE, ICON_LIGHTBULB
+from esphome.const import DEVICE_CLASS_EMPTY, STATE_CLASS_NONE, ICON_LIGHTBULB, CONF_CHANNEL
 from .. import fluval_ble_led_ns
 
-CONF_CHANNEL = "channel"
 CONF_ZERO_IF_OFF = "zero_if_off"
 
 FluvalBleChannelSensor = fluval_ble_led_ns.class_(

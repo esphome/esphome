@@ -8,9 +8,7 @@ namespace fluval_ble_led {
 
 static const char *const TAG = "fluval_ble_led_switch";
 
-void FluvalBleLedSwitch::setup() {
-  ESP_LOGD(TAG, "Setup called");
-}
+void FluvalBleLedSwitch::setup() { ESP_LOGD(TAG, "Setup called"); }
 
 void FluvalBleLedSwitch::write_state(bool state) {
   this->parent_->set_led_state(state);
@@ -18,8 +16,8 @@ void FluvalBleLedSwitch::write_state(bool state) {
 }
 
 void FluvalBleLedSwitch::notify() {
-  bool state = (this->parent_->getStatus().led_on_off == 1);
-  ESP_LOGV(TAG, "In notify. State: %d", state);
+  bool state = (this->parent_->get_status().led_on_off == 1);
+  ESP_LOGD(TAG, "In notify. State: %d", state);
   this->publish_state(state);
 }
 

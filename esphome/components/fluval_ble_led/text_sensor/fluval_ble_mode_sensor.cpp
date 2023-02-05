@@ -7,14 +7,12 @@
 namespace esphome {
 namespace fluval_ble_led {
 
-static const char *const TAG = "fluval_ble_led_switch";
+static const char *const TAG = "fluval_ble_led_mode_sensor";
 
-void FluvalBleModeSensor::setup() {
-  ESP_LOGD(TAG, "Setup called");
-}
+void FluvalBleModeSensor::setup() { ESP_LOGD(TAG, "Setup called"); }
 
 void FluvalBleModeSensor::notify() {
-  uint8_t state = this->parent_->getStatus().mode;
+  uint8_t state = this->parent_->get_status().mode;
   ESP_LOGV(TAG, "In notify. State: %d", state);
 
   switch (state) {
