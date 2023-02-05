@@ -198,8 +198,8 @@ bool PASCO2Component::set_mode_(SensorMode mode) {
 }
 
 bool PASCO2Component::set_rate_(uint16_t rate_sec) {
-  rate_sec = std::max(rate_sec, (uint16_t)XENSIV_PASCO2_MEAS_RATE_MIN);
-  rate_sec = std::min(rate_sec, (uint16_t)XENSIV_PASCO2_MEAS_RATE_MAX);
+  rate_sec = std::max(rate_sec, (uint16_t) XENSIV_PASCO2_MEAS_RATE_MIN);
+  rate_sec = std::min(rate_sec, (uint16_t) XENSIV_PASCO2_MEAS_RATE_MAX);
   if (!this->write_byte_16(XENSIV_PASCO2_REG_MEAS_RATE_H, rate_sec)) {
     ESP_LOGE(TAG, "Failed to write: XENSIV_PASCO2_REG_MEAS_RATE_H");
     return false;
