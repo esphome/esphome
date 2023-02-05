@@ -21,7 +21,7 @@ class FastLEDBus : public Component {
  public:
   FastLEDBus(uint8_t chip_channels, uint16_t num_chips)
       : tag_("FastLEDBus"),
-        chips_(new uint8_t[num_chips * chip_channels]),
+        channels_(new uint8_t[num_chips * chip_channels]),
         effect_data_(new uint8_t[num_chips]),
         chip_channels_(chip_channels),
         num_chips_(num_chips) {}
@@ -29,7 +29,7 @@ class FastLEDBus : public Component {
  protected:
   CLEDController *controller_{nullptr};
   const char *tag_;
-  uint8_t *chips_;
+  uint8_t *channels_;
   uint8_t *effect_data_;
   uint32_t last_refresh_{0};
   optional<uint32_t> max_refresh_rate_{};
@@ -39,7 +39,7 @@ class FastLEDBus : public Component {
   const uint8_t chip_channels_;
   const uint16_t num_chips_;
 
-  uint8_t *chips() { return this->chips_; }
+  uint8_t *channels() { return this->channels_; }
 
   uint8_t *effect_data() { return this->effect_data_; }
   CLEDController *controller() { return this->controller_; }

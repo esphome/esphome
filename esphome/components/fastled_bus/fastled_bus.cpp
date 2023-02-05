@@ -6,10 +6,10 @@ namespace fastled_bus {
 void FastLEDBus::setup() {
   this->dump_config();
   for (int i = 0; i < this->num_chips_ * this->chip_channels_; i++) {
-    this->chips()[i] = 0;
+    this->channels_[i] = 0;
   }
   this->controller_->init();
-  this->controller_->setLeds((CRGB *) this->chips(), this->num_chips_);
+  this->controller_->setLeds((CRGB *) this->channels_, this->num_chips_);
   if (!this->max_refresh_rate_.has_value()) {
     this->set_max_refresh_rate(this->controller_->getMaxRefreshRate());
   }

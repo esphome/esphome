@@ -8,6 +8,7 @@ AUTO_LOAD = ["output"]
 CONF_BUS = "bus"
 
 CONF_CHANNEL_OFFSET = "channel_offset"
+CONF_CHIP_OFFSET = "chip_offset"
 CONF_REPEAT_DISTANCE = "repeat_distance"
 CONF_CHIP_CHANNELS = "chip_channels"
 

@@ -45,7 +45,7 @@ template<std::size_t S> class MappingsBuilder {
     current->channel_offset_ = channel_offset;
     current->repeat_distance_ = repeat_distance;
     if (repeat_distance == 0) {
-      current->repeat_distance_ = 1;
+      current->repeat_distance_ = bus->chip_channels_;
     }
     return *this;
   }

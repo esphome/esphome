@@ -1757,17 +1757,17 @@ output:
     id: output_componentr_spi
     channels:
     - bus: fastled_busSpi
-      offset: 0
+      chip_offset: 0
       num_chips: 2
       channel_offset: 0
       repeat_distance: 6
     - bus: fastled_busCl
-      offset: 0
+      chip_offset: 0
       num_chips: 2
       channel_offset: 0
       repeat_distance: 6
     - bus: fastled_busSpi
-      offset: 0
+      chip_offset: 0
       num_chips: 2
       channel_offset: 0
       repeat_distance: 9
@@ -1775,35 +1775,35 @@ output:
     id: output_componentc_spi
     channels:
     - bus: fastled_busSpi
-      offset: 0
+      chip_offset: 0
       num_chips: 2
       channel_offset: 1
   - platform: fastled_bus
     id: output_componentw_spi
     channels:
     - bus: fastled_busSpi
-      offset: 0
+      chip_offset: 0
       num_chips: 2
       channel_offset: 2
   - platform: fastled_bus
     id: output_componentb_spi
     channels:
     - bus: fastled_busSpi
-      offset: 0
+      chip_offset: 0
       num_chips: 2
       channel_offset: 3
   - platform: fastled_bus
     id: output_componentg_spi
     channels:
     - bus: fastled_busSpi
-      offset: 0
+      chip_offset: 0
       num_chips: 2
       channel_offset: 5
   - platform: fastled_bus
     id: output_componentr_cl
     channels:
     - bus: fastled_busCl
-      offset: 0
+      chip_offset: 0
       num_chips: 2
       channel_offset: 0
       repeat_distance: 6
@@ -1811,14 +1811,14 @@ output:
     id: output_componentg_cl
     channels:
     - bus: fastled_busCl
-      offset: 0
+      chip_offset: 0
       num_chips: 2
       channel_offset: 1
   - platform: fastled_bus
     id: output_componentb_cl
     channels:
       bus: fastled_busCl
-      offset: 0
+      chip_offset: 0
       num_chips: 2
       channel_offset: 2
 
