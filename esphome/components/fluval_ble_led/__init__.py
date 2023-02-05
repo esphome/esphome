@@ -13,6 +13,8 @@ FluvalBleLed = fluval_ble_led_ns.class_(
     "FluvalBleLed", ble_client.BLEClientNode, cg.Component
 )
 
+MULTI_CONF = 3
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
