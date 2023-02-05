@@ -56,12 +56,17 @@ TEXT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
 
 
 async def setup_text_core_(
-    var, config, *, min: Optional[int], max: Optional[int], pattern: Optional[str]
+    var,
+    config,
+    *,
+    min_length: Optional[int],
+    max_length: Optional[int],
+    pattern: Optional[str],
 ):
     await setup_entity(var, config)
 
-    cg.add(var.traits.set_min(min))
-    cg.add(var.traits.set_max(max))
+    cg.add(var.traits.set_min_length(min_length))
+    cg.add(var.traits.set_max_length(max_length))
     if pattern is not None:
         cg.add(var.traits.set_pattern(pattern))
 
@@ -80,25 +85,29 @@ async def register_text(
     var,
     config,
     *,
-    min: Optional[int] = 0,
-    max: Optional[int] = 255,
+    min_length: Optional[int] = 0,
+    max_length: Optional[int] = 255,
     pattern: Optional[str] = None,
 ):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
     cg.add(cg.App.register_text(var))
-    await setup_text_core_(var, config, min=min, max=max, pattern=pattern)
+    await setup_text_core_(
+        var, config, min_length=min_length, max_length=max_length, pattern=pattern
+    )
 
 
 async def new_text(
     config,
     *,
-    min: Optional[int] = 0,
-    max: Optional[int] = 255,
+    min_length: Optional[int] = 0,
+    max_length: Optional[int] = 255,
     pattern: Optional[str] = None,
 ):
     var = cg.new_Pvariable(config[CONF_ID])
-    await register_text(var, config, min=min, max=max, pattern=pattern)
+    await register_text(
+        var, config, min_length=min_length, max_length=max_length, pattern=pattern
+    )
     return var
 
 

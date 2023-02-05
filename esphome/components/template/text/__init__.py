@@ -8,8 +8,8 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_OPTIMISTIC,
     CONF_RESTORE_VALUE,
-    CONF_MAX,
-    CONF_MIN,
+    CONF_MAX_LENGTH,
+    CONF_MIN_LENGTH,
     CONF_PATTERN,
 )
 from .. import template_ns
@@ -41,13 +41,13 @@ CONFIG_SCHEMA = cv.All(
     text.TEXT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(TemplateText),
-            cv.Optional(CONF_MAX): cv.int_,
-            cv.Optional(CONF_MIN): cv.int_,
+            cv.Optional(CONF_MAX_LENGTH): cv.int_,
+            cv.Optional(CONF_MIN_LENGTH): cv.int_,
             cv.Optional(CONF_PATTERN): cv.string,
             cv.Optional(CONF_LAMBDA): cv.returning_lambda,
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
-            cv.Optional(CONF_INITIAL_VALUE): cv.string_strict,
+            cv.Optional(CONF_INITIAL_VALUE, default=""): cv.string_strict,
             cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
         }
     ).extend(cv.polling_component_schema("60s")),
@@ -61,8 +61,8 @@ async def to_code(config):
     await text.register_text(
         var,
         config,
-        #        min=config[CONF_MIN],
-        #        max=config[CONF_MAX],
+        #        min_length=config[CONF_MIN_LENGTH],
+        #        max_length=config[CONF_MAX_LENGTH],
         #        pattern=config[CONF_PATTERN],
     )
 

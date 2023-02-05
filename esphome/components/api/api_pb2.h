@@ -1056,8 +1056,8 @@ class ListEntitiesTextResponse : public ProtoMessage {
   std::string name{};
   std::string unique_id{};
   std::string icon{};
-  uint32_t min{0};
-  uint32_t max{0};
+  uint32_t min_length{0};
+  uint32_t max_length{0};
   std::string pattern{};
   bool disabled_by_default{false};
   enums::EntityCategory entity_category{};
