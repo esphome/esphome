@@ -17,6 +17,7 @@ class FluvalBleChannelSensor : public sensor::Sensor, public Component, public F
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; };
   void notify() override;
+
  protected:
   uint8_t channel_;
   bool zero_if_off_;

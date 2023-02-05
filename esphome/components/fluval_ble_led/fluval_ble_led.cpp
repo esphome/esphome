@@ -36,7 +36,7 @@ uint8_t FluvalBleLed::get_crc_(const uint8_t *data, uint16_t len) {
 
 void FluvalBleLed::add_crc_to_vector_(std::vector<uint8_t> &data) {
   uint8_t crc = 0x00;
-  for (auto& i : data) {
+  for (auto &i : data) {
     crc = (i ^ crc);
   }
 
@@ -53,7 +53,7 @@ void FluvalBleLed::decrypt_(const uint8_t *data, uint16_t len, uint8_t *decrypte
 }
 
 void FluvalBleLed::encrypt_(std::vector<uint8_t> &data) {
-  for (auto& i : data) {
+  for (auto &i : data) {
     i = (i ^ 0xE);
   }
 
@@ -221,7 +221,6 @@ void FluvalBleLed::set_mode(uint8_t mode) {
 
 void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                        esp_ble_gattc_cb_param_t *param) {
-
   ESP_LOGV(TAG, "GOT GATTC EVENT: %d", event);
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
@@ -249,8 +248,7 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         this->read_handle_ = read_handle->handle;
       }
 
-      auto *write_handle =
-          this->parent_->get_characteristic(FLUVAL_SERVICE_UUID, FLUVAL_CHARACTERISTIC_WRITE);
+      auto *write_handle = this->parent_->get_characteristic(FLUVAL_SERVICE_UUID, FLUVAL_CHARACTERISTIC_WRITE);
       if (write_handle == nullptr) {
         ESP_LOGE(TAG, "[%s] No write handle found?", this->parent_->address_str().c_str());
       } else {
@@ -258,7 +256,8 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         this->write_handle_ = write_handle->handle;
       }
 
-      auto *write_reg_id_handle = this->parent_->get_characteristic(FLUVAL_SERVICE_UUID, FLUVAL_CHARACTERISTIC_WRITE_REG_ID);
+      auto *write_reg_id_handle =
+          this->parent_->get_characteristic(FLUVAL_SERVICE_UUID, FLUVAL_CHARACTERISTIC_WRITE_REG_ID);
       if (write_reg_id_handle == nullptr) {
         ESP_LOGE(TAG, "[%s] No write reg id handle found?", this->parent_->address_str().c_str());
       } else {
@@ -358,7 +357,7 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
 
     case ESP_GATTC_NOTIFY_EVT: {
       ESP_LOGVV(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x, len=%d", this->parent_->address_str().c_str(),
-               param->notify.handle, param->notify.value[0], param->notify.value_len);
+                param->notify.handle, param->notify.value[0], param->notify.value_len);
 
       ESP_LOGVV(TAG, "Data Encrypted: %s ", this->pkt_to_hex_(param->notify.value, param->notify.value_len).c_str());
 
@@ -469,7 +468,6 @@ void FluvalBleLed::loop() {
     this->synchronize_device_time_ = false;
   }
 }
-
 
 #endif
 

@@ -13,10 +13,10 @@ namespace fluval_ble_led {
 class FluvalBleLedSelectModeButton : public button::Button, public Component, public FluvalLedClient {
  public:
   void setup() override;
-  void loop() override {}
+  void loop() override{}
   float get_setup_priority() const override { return setup_priority::DATA; };
   void dump_config() override;
-  void notify() override {};
+  void notify() override{};
   void set_trigger_mode(uint8_t trigger_mode) { this->trigger_mode_ = trigger_mode; };
 
  protected:

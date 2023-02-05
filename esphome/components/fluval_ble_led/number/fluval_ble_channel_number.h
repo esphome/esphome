@@ -18,6 +18,7 @@ class FluvalBleChannelNumber : public number::Number, public Component, public F
   void set_zero_if_off(bool zero_if_off) { this->zero_if_off_ = zero_if_off; }
   void set_channel(uint8_t channel) { this->channel_ = channel; }
   void notify() override;
+
  protected:
   void control(float value) override;
   uint8_t channel_;

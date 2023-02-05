@@ -21,8 +21,7 @@ namespace fluval_ble_led {
 
 namespace espbt = esphome::esp32_ble_tracker;
 
-static const espbt::ESPBTUUID FLUVAL_SERVICE_UUID =
-    espbt::ESPBTUUID::from_raw("00001000-0000-1000-8000-00805F9B34FB");
+static const espbt::ESPBTUUID FLUVAL_SERVICE_UUID = espbt::ESPBTUUID::from_raw("00001000-0000-1000-8000-00805F9B34FB");
 static const espbt::ESPBTUUID FLUVAL_CHARACTERISTIC_WRITE =
     espbt::ESPBTUUID::from_raw("00001001-0000-1000-8000-00805F9B34FB");  // notify, read, write, write no response
 static const espbt::ESPBTUUID FLUVAL_CHARACTERISTIC_READ =
@@ -43,6 +42,7 @@ class FluvalLedClient {
   FluvalBleLed *parent() { return this->parent_; }
   void set_parent(FluvalBleLed *parent) { this->parent_ = parent; }
   virtual void notify() {}
+
  protected:
   FluvalBleLed *parent_;
 };
@@ -102,10 +102,10 @@ class FluvalBleLed : public esphome::ble_client::BLEClientNode, public Component
 
   std::vector<uint8_t> received_packet_buffer_;
 
- // Status of the LED
+  // Status of the LED
   FluvalStatus status_;
 
- // Handlers to the different characterisitcs. Saved for further use
+  // Handlers to the different characterisitcs. Saved for further use
   int number_of_channels_{};
   uint8_t loop_counter_{255};
   uint8_t handshake_step_{0};
@@ -114,8 +114,8 @@ class FluvalBleLed : public esphome::ble_client::BLEClientNode, public Component
   uint8_t write_reg_id_handle_;
   uint8_t read_reg_handle_;
 
- // A vector of clients (switches, sensors...) to notify on a received
- // status update package
+  // A vector of clients (switches, sensors...) to notify on a received
+  // status update package
   std::vector<FluvalLedClient *> clients_;
 
 #ifdef USE_TIME
