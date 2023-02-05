@@ -70,7 +70,7 @@ class IEC62056UART final : public uart::ESP32ArduinoUARTComponent {
 
 #ifdef USE_ESP8266
 
-class xSoftSerial : public uart::ESP8266SoftwareSerial {
+class XSoftSerial : public uart::ESP8266SoftwareSerial {
  public:
   void set_bit_time(uint32_t bt) { bit_time_ = bt; }
 };
@@ -83,8 +83,8 @@ class IEC62056UART final : public uart::ESP8266UartComponent {
   void update_baudrate(uint32_t baudrate) {
     if (this->hw_ != nullptr) {
       this->hw_->updateBaudRate(baudrate);
-    } else {
-      ((xSoftSerial *) sw_)->set_bit_time(F_CPU / baudrate);
+    } else if (baudrate > 0) {
+      ((XSoftSerial *) sw_)->set_bit_time(F_CPU / baudrate);
     }
   }
 
@@ -96,12 +96,13 @@ class IEC62056UART final : public uart::ESP8266UartComponent {
     } else {
       if (sw_->available() < 1)
         return false;
-      assert(this->sw_ != 0);
+      assert(this->sw_ != nullptr);
       optional<uint8_t> b = this->sw_->read_byte();
-      if (b)
+      if (b) {
         *data = *b;
-      else
+      } else {
         return false;
+      }
     }
     return true;
   }

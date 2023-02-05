@@ -11,7 +11,7 @@ namespace iec62056 {
 
 static const uint8_t ETX = 0x03;
 static const uint8_t STX = 0x02;
-static const uint8_t STX = 0x06;
+static const uint8_t ACK = 0x06;
 
 static const char *const TAG = "iec62056.component";
 const uint32_t BAUDRATES[] = {300, 600, 1200, 2400, 4800, 9600, 19200};
@@ -243,8 +243,8 @@ void IEC62056Component::update_baudrate_(uint32_t baudrate) {
 void IEC62056Component::loop() {
   static char baud_rate_char;
   static uint32_t new_baudrate;
-  const uint8_t id_request[] = {'/', '?', '!', '\r', '\n'};
-  const uint8_t set_baud[] = {ACK, 0x30, 0x30, 0x30, 0x0d, 0x0a};
+  const uint8_t id_request[5] = {'/', '?', '!', '\r', '\n'};
+  const uint8_t set_baud[6] = {ACK, 0x30, 0x30, 0x30, 0x0d, 0x0a};
   const uint32_t now = millis();
   size_t frame_size;
 
@@ -500,7 +500,7 @@ bool IEC62056Component::validate_float_(const char *value) {
   const size_t max_len = 20;
   size_t count = 0;
   const char *p = value;
-  while (*p && *p != '*' ) { // ignore unit at the end
+  while (*p && *p != '*') {  // ignore unit at the end
     if (!(isdigit(*p) || *p == '.' || *p == '-')) {
       return false;
     }
