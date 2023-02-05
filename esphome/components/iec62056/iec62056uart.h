@@ -100,8 +100,7 @@ class IEC62056UART final : public uart::ESP8266UartComponent {
       optional<uint8_t> b = this->sw_->read_byte();
       if (b) {
         *data = *b;
-      }
-      else {
+      } else {
         return false;
       }
     }
