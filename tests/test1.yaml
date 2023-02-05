@@ -324,6 +324,7 @@ iec62056:
   battery_meter: False
   retry_counter_max: 2
   retry_delay: 10s
+  uart_id: uart0
 
 sensor:
   - platform: iec62056
