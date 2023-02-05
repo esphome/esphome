@@ -24,6 +24,7 @@
 
 // clang-format off
 // NOLINTBEGIN(*)
+#pragma once
 #ifndef XENSIV_PASCO2_REGS_H_
 #define XENSIV_PASCO2_REGS_H_
 

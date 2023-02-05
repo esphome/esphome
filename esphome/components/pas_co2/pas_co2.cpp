@@ -60,7 +60,7 @@ void PASCO2Component::update() {
   }
 
   if (this->ambient_pressure_source_ != nullptr) {
-    float pressure = this->ambient_pressure_source_->state / 1000.0f;
+    const float pressure = this->ambient_pressure_source_->state / 1000.0f;
     if (!std::isnan(pressure)) {
       this->set_ambient_pressure_compensation(this->ambient_pressure_source_->state / 1000.0f);
     }
@@ -76,7 +76,7 @@ void PASCO2Component::update() {
 // Note pressure in bar here. Convert to hPa
 void PASCO2Component::set_ambient_pressure_compensation(float pressure_in_bar) {
   this->ambient_pressure_compensation_ = true;
-  uint16_t new_ambient_pressure = (uint16_t)(pressure_in_bar * 1000);
+  const uint16_t new_ambient_pressure = (uint16_t)(pressure_in_bar * 1000);
   // Ignore changes less than 10 millibar, it doesn't matter.
   if (this->initialized_ && abs(new_ambient_pressure - this->ambient_pressure_) < 10) {
     this->update_ambient_pressure_compensation_(new_ambient_pressure);
