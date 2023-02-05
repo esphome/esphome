@@ -136,10 +136,7 @@ class IEC62056UART final : public uart::IDFUARTComponent {
   // Reconfigure baudrate
   void update_baudrate(uint32_t baudrate) {
     xSemaphoreTake(ilock_, portMAX_DELAY);
-    esp_err_t err = uart_set_baudrate(iuart_num_, baudrate);
-    if (err != ESP_OK) {
-      ESP_LOGE("iec62056.component", "uart_set_baudrate failed: %s", esp_err_to_name(err));
-    }
+    uart_set_baudrate(iuart_num_, baudrate);
     xSemaphoreGive(ilock_);
   }
 

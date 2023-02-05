@@ -9,9 +9,9 @@
 namespace esphome {
 namespace iec62056 {
 
-#define ETX 0x03
-#define STX 0x02
-#define ACK 0x06
+static const uint8_t ETX = 0x03;
+static const uint8_t STX = 0x02;
+static const uint8_t STX = 0x06;
 
 static const char *const TAG = "iec62056.component";
 const uint32_t BAUDRATES[] = {300, 600, 1200, 2400, 4800, 9600, 19200};

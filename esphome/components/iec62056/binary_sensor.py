@@ -1,8 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from . import IEC62056Component, CONF_IEC62056_ID
 from esphome.const import DEVICE_CLASS_CONNECTIVITY, ENTITY_CATEGORY_DIAGNOSTIC
+from . import IEC62056Component, CONF_IEC62056_ID
 
 AUTO_LOAD = ["iec62056"]
 

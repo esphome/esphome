@@ -1,7 +1,7 @@
+import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
-import re
 from esphome.const import (
     CONF_ID,
     CONF_RECEIVE_TIMEOUT,
@@ -15,8 +15,7 @@ DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor", "text_sensor", "switch", "binary_sensor"]
 CONF_IEC62056_ID = "iec62056_id"
 CONF_OBIS = "obis"
-CONF_BATTERY = "battery_meter"
-CONF_STATUS = "status_sensor"
+CONF_BATTERY_METER = "battery_meter"
 CONF_RETRY_COUNTER_MAX = "retry_counter_max"
 CONF_RETRY_DELAY = "retry_delay"
 
@@ -55,7 +54,7 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(IEC62056Component),
             cv.Optional(CONF_UPDATE_INTERVAL, default="15min"): cv.update_interval,
             cv.Optional(CONF_BAUD_RATE, default=0): validate_baud_rate,
-            cv.Optional(CONF_BATTERY, default=False): cv.boolean,
+            cv.Optional(CONF_BATTERY_METER, default=False): cv.boolean,
             cv.Optional(
                 CONF_RECEIVE_TIMEOUT, default="3s"
             ): cv.positive_time_period_milliseconds,
@@ -84,8 +83,8 @@ async def to_code(config):
     if CONF_RECEIVE_TIMEOUT in config:
         cg.add(var.set_connection_timeout_ms(config[CONF_RECEIVE_TIMEOUT]))
 
-    if CONF_BATTERY in config:
-        cg.add(var.set_battery_meter(config[CONF_BATTERY]))
+    if CONF_BATTERY_METER in config:
+        cg.add(var.set_battery_meter(config[CONF_BATTERY_METER]))
 
     if CONF_RETRY_COUNTER_MAX in config:
         cg.add(var.set_max_retry_counter(config[CONF_RETRY_COUNTER_MAX]))
