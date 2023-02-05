@@ -2,12 +2,12 @@
 
 #include "web_server.h"
 
-#include "esphome/core/log.h"
-#include "esphome/core/application.h"
-#include "esphome/core/entity_base.h"
-#include "esphome/core/util.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/util.h"
+#include "esphome/core/application.h"
+#include "esphome/core/entity_base.h"
+#include "esphome/core/log.h"
+#include "esphome/core/util.h"
 
 #include "StreamString.h"
 
@@ -104,7 +104,8 @@ void WebServer::setup() {
     // Configure reconnect timeout and send config
 
     client->send(json::build_json([this](JsonObject root) {
-                   root["title"] = App.get_name();
+                   root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
+                   root["comment"] = App.get_comment();
                    root["ota"] = this->allow_ota_;
                    root["lang"] = "en";
                  }).c_str(),

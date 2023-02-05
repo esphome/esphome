@@ -616,6 +616,9 @@ APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, size_t len) {
   struct iovec iov[2];
   iov[0].iov_base = header;
   iov[0].iov_len = 3;
+  if (len == 0) {
+    return write_raw_(iov, 1);
+  }
   iov[1].iov_base = const_cast<uint8_t *>(data);
   iov[1].iov_len = len;
 
@@ -913,6 +916,9 @@ APIError APIPlaintextFrameHelper::write_packet(uint16_t type, const uint8_t *pay
   struct iovec iov[2];
   iov[0].iov_base = &header[0];
   iov[0].iov_len = header.size();
+  if (payload_len == 0) {
+    return write_raw_(iov, 1);
+  }
   iov[1].iov_base = const_cast<uint8_t *>(payload);
   iov[1].iov_len = payload_len;
 
