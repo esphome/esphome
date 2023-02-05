@@ -35,15 +35,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ZERO_IF_OFF, False): bool,
             cv.Optional(CONF_MAX_VALUE, default=1000.0): cv.positive_float,
             cv.Optional(CONF_MIN_VALUE, default=0.0): cv.positive_float,
-            cv.Optional(CONF_STEP, default=100): cv.positive_float,            
-        },        
+            cv.Optional(CONF_STEP, default=100): cv.positive_float,
+        },
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(fluval_ble_led.FLUVAL_CLIENT_SCHEMA),
     validate_min_max,
 )
 
-async def to_code(config):    
+async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await number.register_number(
@@ -51,11 +51,8 @@ async def to_code(config):
         config,
         min_value=config[CONF_MIN_VALUE],
         max_value=config[CONF_MAX_VALUE],
-        step=config[CONF_STEP],                
+        step=config[CONF_STEP],
     )
-    cg.add(var.set_channel(config[CONF_CHANNEL]))    
+    cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_zero_if_off(config[CONF_ZERO_IF_OFF]))
-    await fluval_ble_led.register_fluval_led_client(var, config)        
-
-
-    
+    await fluval_ble_led.register_fluval_led_client(var, config)

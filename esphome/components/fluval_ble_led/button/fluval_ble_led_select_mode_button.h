@@ -14,11 +14,11 @@ class FluvalBleLedSelectModeButton : public button::Button, public Component, pu
   public:
     void setup() override;
     void loop() override {}
-    float get_setup_priority() { return setup_priority::DATA; };    
+    float get_setup_priority() { return setup_priority::DATA; };
     void dump_config() override;
     void notify() override {};
     void set_trigger_mode(uint8_t trigger_mode) { this->trigger_mode_ = trigger_mode; };
-  
+
   protected:
     void press_action() override;
 

@@ -14,12 +14,12 @@ void FluvalBleChannelSensor::setup() {
 
 void FluvalBleChannelSensor::notify() {
   ESP_LOGW(TAG, "IN SENSOR NOTIFY: %d / zero_if_off: %d", this->channel_, this->zero_if_off_);
-  
+
   if (this->zero_if_off_ && this->parent_->getStatus().led_on_off == 0x00) {
     this->publish_state(0);
     return;
   }
-  
+
   switch (this->channel_) {
     case 1:
       this->publish_state(this->parent_->getStatus().channel1);
@@ -38,7 +38,7 @@ void FluvalBleChannelSensor::notify() {
       break;
     default:
       break;
-  }      
+  }
 }
 
 void FluvalBleChannelSensor::dump_config() {

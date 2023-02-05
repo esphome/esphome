@@ -14,13 +14,13 @@ class FluvalBleChannelNumber : public number::Number, public Component, public F
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; };
-  
+
   void set_zero_if_off(bool zero_if_off) { this->zero_if_off_ = zero_if_off; }
-  void set_channel(uint8_t channel) { this->channel_ = channel; }    
+  void set_channel(uint8_t channel) { this->channel_ = channel; }
   void notify() override;
 protected:
   void control(float value) override;
-  uint8_t channel_;  
+  uint8_t channel_;
   bool zero_if_off_;
 };
 

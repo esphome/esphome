@@ -17,8 +17,8 @@ class FluvalBleLedSwitch : public switch_::Switch, public Component, public Fluv
     float get_setup_priority() { return setup_priority::DATA; };
     void dump_config() override;
     void notify() override;
-  
-  protected:  
+
+  protected:
     void write_state(bool state) override;
 };
 

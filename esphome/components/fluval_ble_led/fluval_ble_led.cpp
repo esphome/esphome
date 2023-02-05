@@ -11,7 +11,7 @@ static const char *const TAG = "fluval_ble_led";
 
 void FluvalBleLed::dump_config() {
   ESP_LOGCONFIG(TAG, "Fluval LED");
-  ESP_LOGCONFIG(TAG, "  Number of channels: %i", this->number_of_channels_);  
+  ESP_LOGCONFIG(TAG, "  Number of channels: %i", this->number_of_channels_);
 }
 
 void FluvalBleLed::setup() {
@@ -104,15 +104,15 @@ void FluvalBleLed::update_channel(uint8_t channel, float value) {
 
       std::vector<uint8_t> led {0x68, 0x04, channel1byte1, channel1byte2,  channel2byte1, channel2byte2, channel3byte1, channel3byte2, channel4byte1, channel4byte2, channel5byte1, channel5byte2};      
       this->send_packet_(led);
-    } 
-    else {      
+    }
+    else {
       // 4 Channel LED
       std::vector<uint8_t> led {0x68, 0x04, channel1byte1, channel1byte2,  channel2byte1, channel2byte2, channel3byte1, channel3byte2, channel4byte1, channel4byte2};      
-      this->send_packet_(led);            
-    }    
+      this->send_packet_(led);
+    }
 
     std::vector<uint8_t> update {0x68, 0x05};
-    this->send_packet_(update);      
+    this->send_packet_(update);
 }
 
 void FluvalBleLed::send_packet_(std::vector<uint8_t> &data) {
@@ -144,9 +144,9 @@ void FluvalBleLed::decode_(const uint8_t *data, uint16_t len) {
       return;
     }
 
-    this->status_.mode = data[2];   
+    this->status_.mode = data[2];
     this->status_.led_on_off = data[3] == 0x00 ? 0 : 1;
-    
+
     // Decode channels in manual mode only
     if (this->status_.mode == MANUAL_MODE) {
       this->status_.channel1 = (data[6] << 8) | (data[5] & 0xFF);
@@ -155,7 +155,7 @@ void FluvalBleLed::decode_(const uint8_t *data, uint16_t len) {
       this->status_.channel4 = (data[12] << 8) | (data[11] & 0xFF);
       if (this->number_of_channels_ == 5) {
         this->status_.channel5 = (data[14] << 8) | (data[13] & 0xFF);
-      }    
+      }
     } else {
       // Auto and Pro mode do not publish channel information. Set to 0 instead
       // of garbage from the packet
@@ -172,7 +172,7 @@ void FluvalBleLed::decode_(const uint8_t *data, uint16_t len) {
 void FluvalBleLed::notify_clients_() {
   for (auto *client : this->clients_) {
     client->notify();
-  }    
+  }
 }
 
 void FluvalBleLed::set_led_state(bool state) {
@@ -181,13 +181,13 @@ void FluvalBleLed::set_led_state(bool state) {
     return;
   }
 
-  if (state) {    
+  if (state) {
     ESP_LOGD(TAG, "Turning LED on");
-    std::vector<uint8_t> value{0x68, 0x03, 0x01};    
+    std::vector<uint8_t> value{0x68, 0x03, 0x01};
     this->send_packet_(value);
-  } else {   
+  } else {
     ESP_LOGD(TAG, "Turning LED off");
-    std::vector<uint8_t> value{0x68, 0x03, 0x00};    
+    std::vector<uint8_t> value{0x68, 0x03, 0x00};
     this->send_packet_(value);
   }
 }
@@ -204,8 +204,8 @@ void FluvalBleLed::set_mode(uint8_t mode) {
       ESP_LOGD(TAG, "Setting mode to auto");
       std::vector<uint8_t> value{0x68, 0x02, 0x01};
       this->send_packet_(value);
-      break;  
-    }    
+      break;
+    }
     case 2: { // pro
       ESP_LOGD(TAG, "Setting mode to pro");
       std::vector<uint8_t> value{0x68, 0x02, 0x02};

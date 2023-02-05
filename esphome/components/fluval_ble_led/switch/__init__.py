@@ -9,7 +9,7 @@ FluvalBleLedSwitch = fluval_ble_led_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    switch.switch_schema(FluvalBleLedSwitch, icon=ICON_LIGHTBULB, block_inverted=True)    
+    switch.switch_schema(FluvalBleLedSwitch, icon=ICON_LIGHTBULB, block_inverted=True)
     .extend(cv.COMPONENT_SCHEMA)
     .extend(fluval_ble_led.FLUVAL_CLIENT_SCHEMA)
 )

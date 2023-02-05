@@ -14,14 +14,14 @@ void FluvalBleModeSensor::setup() {
 }
 
 void FluvalBleModeSensor::notify() {
-  uint8_t state = this->parent_->getStatus().mode;  
+  uint8_t state = this->parent_->getStatus().mode;
   ESP_LOGV(TAG, "In notify. State: %d", state);
 
   switch (state) {
     case fluval_ble_led::MANUAL_MODE:
       this->publish_state(this->manual_mapping_);
       break;
-    case fluval_ble_led::AUTO_MODE:  
+    case fluval_ble_led::AUTO_MODE:
       this->publish_state(this->auto_mapping_);
       break;
     case fluval_ble_led::PRO_MODE:
@@ -30,7 +30,7 @@ void FluvalBleModeSensor::notify() {
     default:
       this->publish_state("unknown");
       break;
-  }  
+  }
 }
 
 void FluvalBleModeSensor::dump_config() { LOG_TEXT_SENSOR("", "Fluval BLE Mode Sensor", this); }

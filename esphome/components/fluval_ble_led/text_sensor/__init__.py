@@ -19,9 +19,9 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_MAPPING_MANUAL, "manual"): str,
             cv.Optional(CONF_MAPPING_AUTO, "auto"): str,
             cv.Optional(CONF_MAPPING_PRO, "pro"): str
-     
-        }    
-    )    
+
+        }
+    )
     .extend(fluval_ble_led.FLUVAL_CLIENT_SCHEMA)
 )
 

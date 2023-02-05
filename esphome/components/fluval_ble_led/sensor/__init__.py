@@ -24,11 +24,9 @@ CONFIG_SCHEMA = (
     .extend(fluval_ble_led.FLUVAL_CLIENT_SCHEMA)
 )
 
-async def to_code(config):    
+async def to_code(config):
     var = await sensor.new_sensor(config)
-    await cg.register_component(var, config)    
+    await cg.register_component(var, config)
     cg.add(var.set_channel(config[CONF_CHANNEL]))
     cg.add(var.set_zero_if_off(config[CONF_ZERO_IF_OFF]))
-    await fluval_ble_led.register_fluval_led_client(var, config)        
-
-    
+    await fluval_ble_led.register_fluval_led_client(var, config)
