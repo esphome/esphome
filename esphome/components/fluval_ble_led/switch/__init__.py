@@ -14,6 +14,7 @@ CONFIG_SCHEMA = (
     .extend(fluval_ble_led.FLUVAL_CLIENT_SCHEMA)
 )
 
+
 async def to_code(config):
     var = await switch.new_switch(config)
     await cg.register_component(var, config)

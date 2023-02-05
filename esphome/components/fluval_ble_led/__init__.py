@@ -33,9 +33,11 @@ FLUVAL_CLIENT_SCHEMA = cv.Schema(
     }
 )
 
+
 async def register_fluval_led_client(var, config):
     parent = await cg.get_variable(config[CONF_FLUVAL_BLE_LED_ID])
     cg.add(parent.register_fluval_led_client(var))
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

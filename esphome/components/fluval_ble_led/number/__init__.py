@@ -1,7 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number, fluval_ble_led
-from esphome.const import CONF_MAX_VALUE, CONF_MIN_VALUE, CONF_STEP, CONF_ID, CONF_CHANNEL
+from esphome.const import (
+    CONF_MAX_VALUE,
+    CONF_MIN_VALUE,
+    CONF_STEP,
+    CONF_ID,
+    CONF_CHANNEL,
+)
 from .. import fluval_ble_led_ns
 
 FluvalBleChannelNumber = fluval_ble_led_ns.class_(
@@ -9,6 +15,7 @@ FluvalBleChannelNumber = fluval_ble_led_ns.class_(
 )
 
 CONF_ZERO_IF_OFF = "zero_if_off"
+
 
 def validate_min_max(config):
     if config[CONF_MAX_VALUE] <= config[CONF_MIN_VALUE]:
@@ -19,9 +26,9 @@ def validate_min_max(config):
         raise cv.Invalid("max_value must not be greater than 1000")
     return config
 
+
 CONFIG_SCHEMA = cv.All(
-    number.NUMBER_SCHEMA
-    .extend(
+    number.NUMBER_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(FluvalBleChannelNumber),
             cv.Required(CONF_CHANNEL): int,
@@ -35,6 +42,7 @@ CONFIG_SCHEMA = cv.All(
     .extend(fluval_ble_led.FLUVAL_CLIENT_SCHEMA),
     validate_min_max,
 )
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])

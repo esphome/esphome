@@ -1,25 +1,24 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import button, fluval_ble_led
-from esphome.const import ICON_LIGHTBULB
+from esphome.const import ICON_LIGHTBULB, CONF_MODE
 from .. import fluval_ble_led_ns
 
-CONF_MODE = "mode"
+MODE_OPTIONS = {"MANUAL": 0, "AUTO": 1, "PRO": 2}
 
-MODE_OPTIONS = {
-    "MANUAL" : 0,
-    "AUTO": 1,
-    "PRO": 2
-}
-
-FluvalBleLedSelectModeButton = fluval_ble_led_ns.class_("FluvalBleLedSelectModeButton", button.Button, cg.Component, fluval_ble_led.FluvalBleLed)
+FluvalBleLedSelectModeButton = fluval_ble_led_ns.class_(
+    "FluvalBleLedSelectModeButton",
+    button.Button,
+    cg.Component,
+    fluval_ble_led.FluvalBleLed,
+)
 
 CONFIG_SCHEMA = (
     button.button_schema(icon=ICON_LIGHTBULB)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(FluvalBleLedSelectModeButton),
-            cv.Required(CONF_MODE): cv.enum(MODE_OPTIONS, upper=True)
+            cv.Required(CONF_MODE): cv.enum(MODE_OPTIONS, upper=True),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

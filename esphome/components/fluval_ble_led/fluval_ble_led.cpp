@@ -36,7 +36,7 @@ uint8_t FluvalBleLed::get_crc_(const uint8_t *data, uint16_t len) {
 
 void FluvalBleLed::add_crc_to_vector_(std::vector<uint8_t> &data) {
   uint8_t crc = 0x00;
-  for (unsigned char i : data) {
+  for (auto& i : data) {
     crc = (i ^ crc);
   }
 
@@ -53,8 +53,8 @@ void FluvalBleLed::decrypt_(const uint8_t *data, uint16_t len, uint8_t *decrypte
 }
 
 void FluvalBleLed::encrypt_(std::vector<uint8_t> &data) {
-  for (unsigned char i : data) {
-    data[i] = (i ^ 0xE);
+  for (auto& i : data) {
+    i = (i ^ 0xE);
   }
 
   uint8_t secret = (data.size() + 1) ^ 0x54;
@@ -103,15 +103,14 @@ void FluvalBleLed::update_channel(uint8_t channel, float value) {
     std::vector<uint8_t> led{0x68,          0x04,          channel1byte1, channel1byte2, channel2byte1, channel2byte2,
                              channel3byte1, channel3byte2, channel4byte1, channel4byte2, channel5byte1, channel5byte2};
     this->send_packet_(led);
-  }
-  else {
+  } else {
     // 4 Channel LED
     std::vector<uint8_t> led{0x68,          0x04,          channel1byte1, channel1byte2, channel2byte1,
                              channel2byte2, channel3byte1, channel3byte2, channel4byte1, channel4byte2};
     this->send_packet_(led);
   }
 
-  std::vector<uint8_t> update {0x68, 0x05};
+  std::vector<uint8_t> update{0x68, 0x05};
   this->send_packet_(update);
 }
 
@@ -226,6 +225,7 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
   ESP_LOGV(TAG, "GOT GATTC EVENT: %d", event);
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
+      // handle disconnects later
       break;
     }
 
@@ -233,24 +233,24 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
     // ==============================
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto *chr = this->parent()->get_characteristic(FLUVAL_SERVICE_UUID, FLUVAL_CHARACTERISTIC_READ);
-      auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(),  this->parent()->get_remote_bda(),
+      auto status = esp_ble_gattc_register_for_notify(this->parent()->get_gattc_if(), this->parent()->get_remote_bda(),
                                                       chr->handle);
-      if (status) {
-        ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
-      } else {
+      if (status == 0) {
         ESP_LOGD(TAG, "esp_ble_gattc_register_for_notify success, status=%d", status);
+      } else {
+        ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
       }
 
-      auto *read_handle =
-          this->parent_->get_characteristic(FLUVAL_SERVICE_UUID, FLUVAL_CHARACTERISTIC_READ);
+      auto *read_handle = this->parent_->get_characteristic(FLUVAL_SERVICE_UUID, FLUVAL_CHARACTERISTIC_READ);
       if (read_handle == nullptr) {
         ESP_LOGE(TAG, "[%s] No read handle found?", this->parent_->address_str().c_str());
-        this->read_handle_ = read_handle->handle;
       } else {
         ESP_LOGD(TAG, "[%s] Read handle found: %x", this->parent_->address_str().c_str(), read_handle->handle);
+        this->read_handle_ = read_handle->handle;
       }
 
-      auto *write_handle = this->parent_->get_characteristic(FLUVAL_SERVICE_UUID, FLUVAL_CHARACTERISTIC_WRITE);
+      auto *write_handle =
+          this->parent_->get_characteristic(FLUVAL_SERVICE_UUID, FLUVAL_CHARACTERISTIC_WRITE);
       if (write_handle == nullptr) {
         ESP_LOGE(TAG, "[%s] No write handle found?", this->parent_->address_str().c_str());
       } else {
@@ -286,11 +286,11 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         break;
       }
 
-      ESP_LOGE(TAG, "READ CHARS FROM %d with status %d: %s ",param->read.handle, param->read.status,
-               this->pkt_to_hex_(param->read.value, param->read.value_len-1).c_str());
+      ESP_LOGE(TAG, "READ CHARS FROM %d with status %d: %s ", param->read.handle, param->read.status,
+               this->pkt_to_hex_(param->read.value, param->read.value_len - 1).c_str());
 
       if (this->handshake_step_ == 1) {
-        std::vector<uint8_t> header2 {0x47};
+        std::vector<uint8_t> header2{0x47};
         ESP_LOGD(TAG, "Writing Header 2 (REG 0x47");
         esp_err_t errb1 = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
                                                    this->write_reg_id_handle_, 1, const_cast<uint8_t *>(header2.data()),
@@ -357,10 +357,15 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
     }  // ESP_GATTC_WRITE_CHAR_EVT
 
     case ESP_GATTC_NOTIFY_EVT: {
-      ESP_LOGV(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x, len=%d",  this->parent_->address_str().c_str(),
+      ESP_LOGVV(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x, len=%d", this->parent_->address_str().c_str(),
                param->notify.handle, param->notify.value[0], param->notify.value_len);
 
-      ESP_LOGV(TAG, "Data Encrypted: %s ", this->pkt_to_hex_(param->notify.value, param->notify.value_len).c_str());
+      ESP_LOGVV(TAG, "Data Encrypted: %s ", this->pkt_to_hex_(param->notify.value, param->notify.value_len).c_str());
+
+      if (param->notify.value_len <= 3) {
+        ESP_LOGE(TAG, "Received packet too small");
+        break;
+      }
 
       uint8_t decrypted_data[param->notify.value_len - 3];
       memset(decrypted_data, 0, param->notify.value_len - 3);
@@ -373,17 +378,17 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       if (decrypted_data[0] == 0x68) {
         // Full packet, expecting more
         if (decrypted_length == 17) {
-          ESP_LOGW(TAG, "GOT START PACKET");
+          ESP_LOGVV(TAG, "GOT START PACKET");
           this->received_packet_buffer_.clear();
           this->received_packet_buffer_.insert(this->received_packet_buffer_.end(), &decrypted_data[0],
                                                &decrypted_data[decrypted_length]);
-          ESP_LOGW(
+          ESP_LOGVV(
               TAG, "New Vector contents: %s ",
               this->pkt_to_hex_(this->received_packet_buffer_.data(), this->received_packet_buffer_.size()).c_str());
         }
         // Packet was not full. Decode it right away
         else {
-          ESP_LOGW(TAG, "Final Vector contents: %s ", this->pkt_to_hex_(decrypted_data, decrypted_length).c_str());
+          ESP_LOGVV(TAG, "Final Vector contents: %s ", this->pkt_to_hex_(decrypted_data, decrypted_length).c_str());
           this->decode_(decrypted_data, decrypted_length);
         }
       }
@@ -391,22 +396,20 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       else {
         // Another full packet received
         if (decrypted_length == 17) {
-          ESP_LOGW(TAG, "GOT INTERMEDIATE PACKET");
+          ESP_LOGVV(TAG, "GOT INTERMEDIATE PACKET");
           this->received_packet_buffer_.insert(this->received_packet_buffer_.end(), &decrypted_data[0],
                                                &decrypted_data[decrypted_length]);
-          ESP_LOGW(
-              TAG,
-              "Intermediate Vector contents: %s ",
+          ESP_LOGVV(
+              TAG, "Intermediate Vector contents: %s ",
               this->pkt_to_hex_(this->received_packet_buffer_.data(), this->received_packet_buffer_.size()).c_str());
         }
         // Final follow up - decode the vector
         else {
-          ESP_LOGW(TAG, "GOT FINAL PACKET");
+          ESP_LOGVV(TAG, "GOT FINAL PACKET");
           this->received_packet_buffer_.insert(this->received_packet_buffer_.end(), &decrypted_data[0],
                                                &decrypted_data[decrypted_length]);
-          ESP_LOGW(
-              TAG,
-              "Final Vector contents: %s ",
+          ESP_LOGVV(
+              TAG, "Final Vector contents: %s ",
               this->pkt_to_hex_(this->received_packet_buffer_.data(), this->received_packet_buffer_.size()).c_str());
           this->decode_(received_packet_buffer_.data(), received_packet_buffer_.size());
           this->received_packet_buffer_.clear();
@@ -457,13 +460,13 @@ void FluvalBleLed::loop() {
   }
 
   if (this->synchronize_device_time_ && this->time_.has_value()) {
-      std::vector<uint8_t> header1{0x0F};
-      ESP_LOGVV(TAG, "Writing Header 1 (REG 0x0F)");
-      esp_err_t erra1 = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
-                                                 this->write_reg_id_handle_, 1, const_cast<uint8_t *>(header1.data()),
-                                                 ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
-      ESP_LOGVV(TAG, "Writing 0x0F RESULT: %s", esp_err_to_name(erra1));
-      this->synchronize_device_time_ = false;
+    std::vector<uint8_t> header1{0x0F};
+    ESP_LOGVV(TAG, "Writing Header 1 (REG 0x0F)");
+    esp_err_t erra1 = esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
+                                               this->write_reg_id_handle_, 1, const_cast<uint8_t *>(header1.data()),
+                                               ESP_GATT_WRITE_TYPE_RSP, ESP_GATT_AUTH_REQ_NONE);
+    ESP_LOGVV(TAG, "Writing 0x0F RESULT: %s", esp_err_to_name(erra1));
+    this->synchronize_device_time_ = false;
   }
 }
 

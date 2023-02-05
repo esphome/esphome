@@ -11,15 +11,15 @@ namespace esphome {
 namespace fluval_ble_led {
 
 class FluvalBleLedSwitch : public switch_::Switch, public Component, public FluvalLedClient {
-public:
- void setup() override;
- void loop() override {}
- float get_setup_priority() { return setup_priority::DATA; };
- void dump_config() override;
- void notify() override;
+ public:
+  void setup() override;
+  void loop() override {}
+  float get_setup_priority() const override { return setup_priority::DATA; };
+  void dump_config() override;
+  void notify() override;
 
-protected:
- void write_state(bool state) override;
+ protected:
+  void write_state(bool state) override;
 };
 
 }  // namespace fluval_ble_led
