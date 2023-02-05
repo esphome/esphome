@@ -198,8 +198,8 @@ bool PASCO2Component::set_mode_(SensorMode mode) {
 }
 
 bool PASCO2Component::set_rate_(uint16_t rate_sec) {
-  rate_sec = std::max(rate_sec, (uint16_t) XENSIV_PASCO2_MEAS_RATE_MIN);
-  rate_sec = std::min(rate_sec, (uint16_t) XENSIV_PASCO2_MEAS_RATE_MAX);
+  rate_sec = std::max(rate_sec, (uint16_t)XENSIV_PASCO2_MEAS_RATE_MIN);
+  rate_sec = std::min(rate_sec, (uint16_t)XENSIV_PASCO2_MEAS_RATE_MAX);
   if (!this->write_byte_16(XENSIV_PASCO2_REG_MEAS_RATE_H, rate_sec)) {
     ESP_LOGE(TAG, "Failed to write: XENSIV_PASCO2_REG_MEAS_RATE_H");
     return false;
@@ -244,6 +244,7 @@ bool PASCO2Component::read_measurement_() {
 }
 
 void PASCO2Component::try_read_measurement_() {
+<<<<<<< HEAD
   if (this->read_measurement_()) {
     this->retry_count_ = 0;
     this->status_clear_warning();
@@ -254,12 +255,30 @@ void PASCO2Component::try_read_measurement_() {
     ESP_LOGW(TAG, "Too many retries reading sensor, skipping update interval!");
     this->status_set_warning();
     this->retry_count_ = 0;
+=======
+  if (read_measurement_()) {
+    retry_count_ = 0;
+    this->status_clear_warning();
+  } else if (++retry_count_ <= 3) {
+    ESP_LOGD(TAG, "Measurement is not read, retrying.");
+    this->set_timeout(1000, [this]() {
+      this->try_read_measurement_();
+    });
+  } else {
+    ESP_LOGE(TAG, "Too many retries reading sensor!");
+    this->status_set_warning();
+    // TODO: re-initialize sensor?
+>>>>>>> 175015fc (Infineon XENSIV PAS CO2 sensor basic support)
   }
 }
 
 bool PASCO2Component::clear_status_() {
+<<<<<<< HEAD
   if (!this->write_byte(XENSIV_PASCO2_REG_MEAS_STS,
                         XENSIV_PASCO2_REG_MEAS_STS_INT_STS_CLR_MSK | XENSIV_PASCO2_REG_MEAS_STS_ALARM_CLR_MSK)) {
+=======
+  if (!this->write_byte(XENSIV_PASCO2_REG_MEAS_STS, XENSIV_PASCO2_REG_MEAS_STS_INT_STS_CLR_MSK | XENSIV_PASCO2_REG_MEAS_STS_ALARM_CLR_MSK)) {
+>>>>>>> 175015fc (Infineon XENSIV PAS CO2 sensor basic support)
     ESP_LOGE(TAG, "Failed to clear measurement status in REG_MEAS_STS");
     return false;
   }
