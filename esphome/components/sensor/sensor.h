@@ -31,6 +31,13 @@ namespace sensor {
     } \
   }
 
+#define SUB_SENSOR(name) \
+ protected: \
+  sensor::Sensor *name##_sensor_{nullptr}; \
+\
+ public: \
+  void set_##name##_sensor(sensor::Sensor *sensor) { this->name##_sensor_ = sensor; }
+
 /**
  * Sensor state classes
  */

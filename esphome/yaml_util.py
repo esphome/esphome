@@ -390,8 +390,11 @@ def _load_yaml_internal(fname):
         loader.dispose()
 
 
-def dump(dict_):
+def dump(dict_, show_secrets=False):
     """Dump YAML to a string and remove null."""
+    if show_secrets:
+        _SECRET_VALUES.clear()
+        _SECRET_CACHE.clear()
     return yaml.dump(
         dict_, default_flow_style=False, allow_unicode=True, Dumper=ESPHomeDumper
     )
