@@ -30,6 +30,9 @@
 
 #include <stdint.h>
 
+namespace esphome {
+namespace pas_co2 {
+
 #define XENSIV_PASCO2_REG_PROD_ID                       (0x00U)                                                 /*!< REG_PROD: Address */
 #define XENSIV_PASCO2_REG_SENS_STS                      (0x01U)                                                 /*!< SENS_STS: Address */
 #define XENSIV_PASCO2_REG_MEAS_RATE_H                   (0x02U)                                                 /*!< MEAS_RATE_H: Address */
