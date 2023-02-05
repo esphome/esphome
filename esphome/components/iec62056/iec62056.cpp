@@ -500,7 +500,7 @@ bool IEC62056Component::validate_float_(const char *value) {
   const size_t max_len = 20;
   size_t count = 0;
   const char *p = value;
-  while (*p && *p != '*' ) { // ignore unit at the end
+  while (*p && *p != '*') {  // ignore unit at the end
     if (!(isdigit(*p) || *p == '.' || *p == '-')) {
       return false;
     }
