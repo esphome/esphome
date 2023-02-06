@@ -254,7 +254,7 @@ void LSM6DS3Component::_read_sensor(uint8_t reg, sensor::Sensor *sensor, SensorT
     } else {
       // swap the byte order
       tmp[1] = (int8_t) buffer;
-      tmp[0] = (int8_t) (buffer >> 8);
+      tmp[0] = (int8_t)(buffer >> 8);
       raw_value = (int16_t) tmp[0] | ((int16_t) tmp[1]) << 8;
       switch (type) {
         case SensorType::accel:
