@@ -5,7 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace lsm6ds3 {
+namespace LSM6DS3 {
 
 enum SensorType {accel, gyro, temp};
 
@@ -46,8 +46,8 @@ class LSM6DS3Component : public PollingComponent, public i2c::I2CDevice {
     uint16_t _sample_accl_rate = 0;
     bool _power_save = 0;
     bool _do_sleep = 0;
-    bool _has_accl_temp = 0; 
-    bool _has_gyro = 0; 
+    bool _has_accl_temp = 0;
+    bool _has_gyro = 0;
     bool _is_sleeping = 0;
     uint8_t accl_conf = 0;
     uint8_t gyro_conf = 0;
@@ -56,5 +56,5 @@ class LSM6DS3Component : public PollingComponent, public i2c::I2CDevice {
 };
 ;
 
-}  // namespace lsmd6s3
+}  // namespace LSM6DS3
 }  // namespace esphome

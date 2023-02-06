@@ -26,7 +26,7 @@ CONF_SAMPLE_GYRO_RATE = "sample_gyro_rate"
 CONF_SAMPLE_ACCL_RATE = "sample_accl_rate"
 CONF_POWER_SAVE = "power_save"
 
-lsm6ds3_ns = cg.esphome_ns.namespace("lsm6ds3")
+lsm6ds3_ns = cg.esphome_ns.namespace("LSM6DS3")
 LSM6DS3Component = lsm6ds3_ns.class_(
     "LSM6DS3Component", cg.PollingComponent, i2c.I2CDevice
 )
@@ -50,7 +50,9 @@ temperature_schema = sensor.sensor_schema(
     state_class=STATE_CLASS_MEASUREMENT,
 )
 
-validate_sample_accl_rate = cv.one_of(13, 26, 52, 104, 208, 416, 833, 1660, 3330, 6660, 13330)
+validate_sample_accl_rate = cv.one_of(
+    13, 26, 52, 104, 208, 416, 833, 1660, 3330, 6660, 13330
+)
 validate_sample_gyro_rate = cv.one_of(13, 26, 52, 104, 208, 416, 833, 1660)
 
 CONFIG_SCHEMA = (
@@ -67,7 +69,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_HIGH_PERF, default=False): cv.boolean,
             cv.Optional(CONF_SAMPLE_ACCL_RATE, default=13): validate_sample_accl_rate,
             cv.Optional(CONF_SAMPLE_GYRO_RATE, default=13): validate_sample_gyro_rate,
-            cv.Optional(CONF_POWER_SAVE, default=True): cv.boolean
+            cv.Optional(CONF_POWER_SAVE, default=True): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("60s"))

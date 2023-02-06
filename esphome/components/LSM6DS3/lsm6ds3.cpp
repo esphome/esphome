@@ -4,7 +4,7 @@
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace lsm6ds3 {
+namespace LSM6DS3 {
 static const char * const TAG = "lsm6ds3";
 
 void LSM6DS3Component::setup() {
@@ -28,9 +28,9 @@ void LSM6DS3Component::setup() {
     if (this->_high_perf == 0) {
         this->write_byte(LSM6DS3_PERF_CTRL6_C, LSM6DS3_HIGH_PEF_DISABLE);
     }
-    
+
     // Make sure there has been enough time for the device to initialize
-    delay(100);
+    delay(50);
 
     if (this->accel_x_sensor_ != nullptr ||
         this->accel_y_sensor_ != nullptr ||
@@ -280,11 +280,11 @@ void LSM6DS3Component::_read_sensor(uint8_t reg, sensor::Sensor * sensor, Sensor
                 sensor->publish_state(output);
             }
         }
-        delay(100);
+        delay(20);
     }
 }
 
 float LSM6DS3Component::get_setup_priority() const { return setup_priority::DATA; }
 
-}  // namespace lsm6ds3
+}  // namespace LSM6DS3
 }  // namespace esphome
