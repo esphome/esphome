@@ -1,3 +1,5 @@
+import base64
+import secrets
 from pathlib import Path
 from typing import Optional
 
@@ -73,6 +75,7 @@ def import_config(
     project_name: str,
     import_url: str,
     network: str = CONF_WIFI,
+    encryption: bool = False,
 ) -> None:
     p = Path(path)
 
@@ -80,15 +83,21 @@ def import_config(
         raise FileExistsError
 
     if project_name == "esphome.web":
+        kwargs = {
+            "name": name,
+            "friendly_name": friendly_name,
+            "platform": "ESP32" if "esp32" in import_url else "ESP8266",
+            "board": "esp32dev" if "esp32" in import_url else "esp01_1m",
+            "ssid": "!secret wifi_ssid",
+            "psk": "!secret wifi_password",
+        }
+        if encryption:
+            noise_psk = secrets.token_bytes(32)
+            key = base64.b64encode(noise_psk).decode()
+            kwargs["api_encryption_key"] = key
+
         p.write_text(
-            wizard_file(
-                name=name,
-                friendly_name=friendly_name,
-                platform="ESP32" if "esp32" in import_url else "ESP8266",
-                board="esp32dev" if "esp32" in import_url else "esp01_1m",
-                ssid="!secret wifi_ssid",
-                psk="!secret wifi_password",
-            ),
+            wizard_file(**kwargs),
             encoding="utf8",
         )
     else:
@@ -115,6 +124,11 @@ def import_config(
                 "packages": {project_name: import_url},
                 "esphome": esphome_core,
             }
+            if encryption:
+                noise_psk = secrets.token_bytes(32)
+                key = base64.b64encode(noise_psk).decode()
+                config["api"] = {"encryption": {"key": key}}
+
             output = dump(config)
 
             if network == CONF_WIFI:
