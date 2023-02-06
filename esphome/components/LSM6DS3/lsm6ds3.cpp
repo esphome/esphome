@@ -30,7 +30,7 @@ void LSM6DS3Component::setup() {
     }
 
     // Make sure there has been enough time for the device to initialize
-    delay(50);
+    delay(20);
 
     if (this->accel_x_sensor_ != nullptr ||
         this->accel_y_sensor_ != nullptr ||

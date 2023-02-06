@@ -9,7 +9,7 @@ static const uint8_t LSM6DS3_ACC_GYRO_CTRL4_C =              0X13;
 static const uint8_t LSM6DS3_ACC_GYRO_BW_SCAL_ODR_ENABLED =  0x80;
 static const uint8_t LSM6DS3_PERF_CTRL6_C =                  0x15;
 static const uint8_t LSM6DS3_HIGH_PEF_DISABLE =              0x10;
- 
+
 static const uint8_t LSM6DS3_ACC_GYRO_BW_XL_100Hz =  0x02;
 static const uint8_t LSM6DS3_ACC_GYRO_FS_XL_16g =    0x04;
 static const uint8_t LSM6DS3_ACC_GYRO_FS_G_2000dps = 0x0C;
