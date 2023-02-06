@@ -433,6 +433,7 @@ class ImportRequestHandler(BaseHandler):
         try:
             name = args["name"]
             friendly_name = args.get("friendly_name")
+            encryption = args.get("encryption", False)
 
             imported_device = next(
                 (res for res in IMPORT_RESULT.values() if res.device_name == name), None
@@ -452,6 +453,7 @@ class ImportRequestHandler(BaseHandler):
                 args["project_name"],
                 args["package_import_url"],
                 network,
+                encryption,
             )
         except FileExistsError:
             self.set_status(500)
