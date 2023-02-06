@@ -425,8 +425,7 @@ async def to_code(config):
                     refresh=component[CONF_REFRESH],
                 )
             elif source[CONF_TYPE] == TYPE_LOCAL:
-                _LOGGER.warn("Local components are not implemented yet.")
-                pass
+                _LOGGER.warning("Local components are not implemented yet.")
 
     elif conf[CONF_TYPE] == FRAMEWORK_ARDUINO:
         cg.add_platformio_option("framework", "arduino")
