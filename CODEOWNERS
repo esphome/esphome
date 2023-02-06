@@ -11,6 +11,7 @@ esphome/*.py @esphome/core
 esphome/core/* @esphome/core
 
 # Integrations
+esphome/components/LSM6DS3/* @natelust
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/adc128s102/* @DeerMaximum
