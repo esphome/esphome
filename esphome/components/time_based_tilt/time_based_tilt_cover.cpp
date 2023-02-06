@@ -72,8 +72,12 @@ void TimeBasedTiltCover::loop() {
 
   if ( this->fsm_state_ == STATE_STOPPING ) {
     this->stop_trigger_->trigger();
-    this->interlocked_time = millis();
-    this->interlocked_direction = this->current_operation == COVER_OPERATION_CLOSING ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING;
+    if (this->current_operation != COVER_OPERATION_IDLE){
+      this->interlocked_time = millis();
+      this->interlocked_direction = this->current_operation == COVER_OPERATION_CLOSING ? COVER_OPERATION_OPENING : COVER_OPERATION_CLOSING;
+    } else {
+      this->interlocked_direction = COVER_OPERATION_IDLE;
+    }
     this->fsm_state_ = STATE_IDLE;
     this->last_operation_ = this->current_operation;
     this->current_operation = COVER_OPERATION_IDLE;
@@ -200,9 +204,7 @@ void TimeBasedTiltCover::control(const CoverCall &call) {
   if (call.get_stop()) {
     this->target_position_ = TARGET_NONE;
     this->target_tilt_= TARGET_NONE;
-    if (this->fsm_state_ == STATE_MOVING) {
-          this->fsm_state_ = STATE_STOPPING;
-    }
+    this->fsm_state_ = STATE_STOPPING;
     return;
   }
   if (call.get_position().has_value() && call.get_tilt().has_value() ) {
