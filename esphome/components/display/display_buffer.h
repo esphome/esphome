@@ -100,6 +100,7 @@ enum DisplayRotation {
 };
 
 class Rect {
+ public:
   int16_t x;  ///< X coordinate of corner
   int16_t y;  ///< Y coordinate of corner
   int16_t w;  ///< Width of region
