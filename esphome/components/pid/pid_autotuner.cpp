@@ -251,7 +251,6 @@ void PIDAutotuner::OscillationFrequencyDetector::update(uint32_t now, float erro
 
   if (had_crossing) {
     // Had crossing above hysteresis threshold, record
-    // ESP_LOGV(TAG, "Autotune: Detected Zero-Cross at %u", now);
     if (this->last_zerocross != 0) {
       uint32_t dt = now - this->last_zerocross;
       // ESP_LOGV(TAG, "  dt: %u", dt);
