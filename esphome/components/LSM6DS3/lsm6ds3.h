@@ -29,7 +29,7 @@ class LSM6DS3Component : public PollingComponent, public i2c::I2CDevice {
   void set_high_perf(bool high_perf) { this->high_perf_ = high_perf; }
   void set_sample_accl_rate(uint16_t sample_rate) { this->sample_accl_rate_ = sample_rate; }
   void set_sample_gyro_rate(uint16_t sample_rate) { this->sample_gyro_rate_ = sample_rate; }
-  void set_power_save(bool power_save) { this->_power_save = power_save; }
+  void set_power_save(bool power_save) { this->power_save_ = power_save; }
 
  protected:
   sensor::Sensor *accel_x_sensor_{nullptr};
@@ -44,15 +44,15 @@ class LSM6DS3Component : public PollingComponent, public i2c::I2CDevice {
   bool high_perf_ = false;
   uint16_t sample_gyro_rate_ = 0;
   uint16_t sample_accl_rate_ = 0;
-  bool _power_save = false;
+  bool power_save_ = false;
   bool do_sleep_ = false;
   bool has_accl_temp_ = false;
-  bool _has_gyro = false;
+  bool has_gyro_ = false;
   bool is_sleeping_ = false;
   uint8_t accl_conf_ = 0;
   uint8_t gyro_conf_ = 0;
 
-  void _read_sensor(uint8_t reg, sensor::Sensor *sensor, SensorType type, bool do_publish);
+  void read_sensor_(uint8_t reg, sensor::Sensor *sensor, SensorType type, bool do_publish);
 };
 ;
 
