@@ -155,7 +155,6 @@ void LSM6DS3Component::setup() {
       this->temp_sensitivity_ = 256;
     }
   }
-
 }
 
 void LSM6DS3Component::dump_config() {
@@ -184,15 +183,15 @@ void LSM6DS3Component::update() {
     // Restore registers to their value to enable them
     if (has_accl_temp_) {
       result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL1_XL, accl_conf_);
-        if (!result) {
-            ESP_LOGE(TAG, "Failed to come out of sleep state for acceleration sensor");
-        }
+      if (!result) {
+        ESP_LOGE(TAG, "Failed to come out of sleep state for acceleration sensor");
+      }
     }
     if (_has_gyro) {
       result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL2_G, gyro_conf_);
-        if (!result) {
-            ESP_LOGE(TAG, "Failed to come out of sleep state for gyro sensor");
-        }
+      if (!result) {
+        ESP_LOGE(TAG, "Failed to come out of sleep state for gyro sensor");
+      }
     }
     // give the unit time to wake;
     delay(20);
@@ -237,15 +236,15 @@ void LSM6DS3Component::update() {
     // Set register(s) to zero to put them to sleep
     if (has_accl_temp_) {
       result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL1_XL, 0x0);
-        if (!result) {
-            ESP_LOGE(TAG, "Failed to put acceleration/temp sensor to sleep");
-        }
+      if (!result) {
+        ESP_LOGE(TAG, "Failed to put acceleration/temp sensor to sleep");
+      }
     }
     if (_has_gyro) {
       result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL2_G, 0x0);
-        if (!result) {
-            ESP_LOGE(TAG, "Failed to put gyro sensor to sleep");
-        }
+      if (!result) {
+        ESP_LOGE(TAG, "Failed to put gyro sensor to sleep");
+      }
     }
   }
 }
