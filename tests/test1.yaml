@@ -222,6 +222,12 @@ uart:
     rx_pin: GPIO26
     baud_rate: 115200
     rx_buffer_size: 1024
+  - id: ld2410_uart
+    tx_pin: 18
+    rx_pin: 23
+    baud_rate: 256000
+    parity: NONE
+    stop_bits: 1
 
 ota:
   safe_mode: true
@@ -1070,6 +1076,8 @@ sensor:
     id: ultrasonic_sensor1
   - platform: uptime
     name: Uptime Sensor
+  - id: !extend ${devicename}_uptime_pcg
+    unit_of_measurement: s
   - platform: wifi_signal
     name: WiFi Signal Sensor
     update_interval: 15s
@@ -1200,6 +1208,17 @@ sensor:
     pressure:
       name: "MPL3115A2 Pressure"
     update_interval: 10s
+  - platform: ld2410
+    moving_distance:
+      name: "Moving distance (cm)"
+    still_distance:
+      name: "Still Distance (cm)"
+    moving_energy:
+      name: "Move Energy"
+    still_energy:
+      name: "Still Energy"
+    detection_distance:
+      name: "Distance Detection"
 
 esp32_touch:
   setup_mode: false
@@ -1304,6 +1323,11 @@ binary_sensor:
       number: GPIO9
       mode: INPUT_PULLUP
     name: Living Room Window 2
+  - platform: gpio
+    pin:
+      number: GPIO9
+      mode: INPUT_OUTPUT_OPEN_DRAIN
+    name: Living Room Button
   - platform: status
     name: Living Room Status
   - platform: esp32_touch
@@ -1461,6 +1485,13 @@ binary_sensor:
     id: close_sensor
   - platform: template
     id: close_obstacle_sensor
+  - platform: ld2410
+    has_target:
+      name: presence
+    has_moving_target:
+      name: movement
+    has_still_target:
+      name: still
 
 pca9685:
   frequency: 500
@@ -3142,6 +3173,19 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+
+ld2410:
+  id: my_ld2410
+  uart_id: ld2410_uart
+  timeout: 150s
+  max_move_distance: 6m
+  max_still_distance: 0.75m
+  g0_move_threshold: 10
+  g0_still_threshold: 20
+  g2_move_threshold: 20
+  g2_still_threshold: 21
+  g8_move_threshold: 80
+  g8_still_threshold: 81
 
 lcd_menu:
   display_id: my_lcd_gpio

@@ -10,7 +10,7 @@ import yaml
 import yaml.constructor
 
 from esphome import core
-from esphome.config_helpers import read_config_file
+from esphome.config_helpers import read_config_file, Extend
 from esphome.core import (
     EsphomeError,
     IPAddress,
@@ -338,6 +338,10 @@ class ESPHomeLoader(yaml.SafeLoader):
         obj = self.construct_scalar(node)
         return add_class_to_obj(obj, ESPForceValue)
 
+    @_add_data_ref
+    def construct_extend(self, node):
+        return Extend(str(node.value))
+
 
 ESPHomeLoader.add_constructor("tag:yaml.org,2002:int", ESPHomeLoader.construct_yaml_int)
 ESPHomeLoader.add_constructor(
@@ -369,6 +373,7 @@ ESPHomeLoader.add_constructor(
 )
 ESPHomeLoader.add_constructor("!lambda", ESPHomeLoader.construct_lambda)
 ESPHomeLoader.add_constructor("!force", ESPHomeLoader.construct_force)
+ESPHomeLoader.add_constructor("!extend", ESPHomeLoader.construct_extend)
 
 
 def load_yaml(fname, clear_secrets=True):
