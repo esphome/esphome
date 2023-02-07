@@ -307,7 +307,6 @@ void PIDAutotuner::OscillationAmplitudeDetector::update(float error,
       // The negative error peak must have been in previous segment (180° shifted)
       // record phase_min
       this->phase_mins.push_back(phase_min);
-      // ESP_LOGV(TAG, "Autotune: Phase Min: %f", phase_min);
     }
     // reset phase values for next phase
     this->phase_min = error;
