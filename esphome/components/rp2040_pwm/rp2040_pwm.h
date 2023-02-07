@@ -34,6 +34,7 @@ class RP2040PWM : public output::FloatOutput, public Component {
 
   InternalGPIOPin *pin_;
   float frequency_{1000.0};
+  uint16_t wrap_{65535};
   /// Cache last output level for dynamic frequency updating
   float last_output_{0.0};
   bool frequency_changed_{false};

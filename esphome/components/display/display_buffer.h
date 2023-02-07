@@ -768,8 +768,10 @@ class Font {
   int match_next_glyph(const char *str, int *match_length);
 
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
-  int get_baseline() { return this->baseline_; }
-  int get_height() { return this->height_; }
+
+  inline int get_baseline() { return this->baseline_; }
+  inline int get_height() { return this->height_; }
+
 
   const std::vector<Glyph> &get_glyphs() const;
 
