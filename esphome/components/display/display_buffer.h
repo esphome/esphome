@@ -244,7 +244,7 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  virtual void printf(int x, int y, Font *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
+   void printf(int x, int y, Font *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
 
 #ifdef USE_TIME
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
