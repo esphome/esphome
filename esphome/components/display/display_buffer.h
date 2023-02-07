@@ -316,7 +316,7 @@ class DisplayBuffer {
    * @param graph The graph id to draw
    * @param color_on The color to replace in binary images for the on bits.
    */
-  void graph(int x, int y, graph::Graph *graph) { graph(x, y, graph, COLOR_ON); }
+  void graph(int x, int y, graph::Graph *data) { graph(x, y, data, COLOR_ON); }
   virtual void graph(int x, int y, graph::Graph *graph, Color color_on);
 
   /** Draw the `legend` for graph with the top-left corner at [x,y] to the screen.
@@ -331,7 +331,7 @@ class DisplayBuffer {
    * @param color_on The color of the border
    */
   void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON) { legend(x, y, graph, COLOR_ON); }
-  virtual void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
+  virtual void legend(int x, int y, graph::Graph *graph, Color color_on);
 #endif  // USE_GRAPH
 
 #ifdef USE_QR_CODE
