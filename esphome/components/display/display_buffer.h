@@ -151,9 +151,7 @@ class DisplayBuffer {
   virtual void rectangle(int x1, int y1, int width, int height, Color color);
 
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
-  void filled_rectangle(int x1, int y1, int width, int height) {
-    filled_rectangle(x1, y1, width, height, COLOR_ON);
-  }
+  void filled_rectangle(int x1, int y1, int width, int height) { filled_rectangle(x1, y1, width, height, COLOR_ON); }
   virtual void filled_rectangle(int x1, int y1, int width, int height, Color color);
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
@@ -161,9 +159,7 @@ class DisplayBuffer {
   virtual void circle(int center_x, int center_xy, int radius, Color color);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void filled_circle(int center_x, int center_y, int radius) {
-    filled_circle(center_x, center_y, radius, COLOR_ON);
-  }
+  void filled_circle(int center_x, int center_y, int radius) { filled_circle(center_x, center_y, radius, COLOR_ON); }
   virtual void filled_circle(int center_x, int center_y, int radius, Color color);
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -334,9 +330,7 @@ class DisplayBuffer {
    * @param value_font The font used for the trace value and units
    * @param color_on The color of the border
    */
-  void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON) {
-    legend(x, y, graph, COLOR_ON);
-  }
+  void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON) { legend(x, y, graph, COLOR_ON); }
   virtual void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
 #endif  // USE_GRAPH
 
@@ -348,12 +342,8 @@ class DisplayBuffer {
    * @param qr_code The qr_code to draw
    * @param color_on The color to replace in binary images for the on bits.
    */
-  void qr_code(int x, int y, qr_code::QrCode *qr_code) {
-     qr_code(x, y, qr_code, COLOR_ON, 1);
-  }
-  void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on)  {
-     qr_code(x, y, qr_code, color_on, 1);
-  }
+  void qr_code(int x, int y, qr_code::QrCode *code) { qr_code(x, y, code, COLOR_ON, 1); }
+  void qr_code(int x, int y, qr_code::QrCode *code, Color color_on) { qr_code(x, y, code, color_on, 1); }
   virtual void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on, int scale);
 #endif
 
