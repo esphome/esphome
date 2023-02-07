@@ -228,7 +228,6 @@ float PIDAutotuner::RelayFunction::update(float error) {
   float output = state == RELAY_FUNCTION_POSITIVE ? output_positive : output_negative;
   if (change) {
     this->phase_count++;
-    // ESP_LOGV(TAG, "Autotune: Turning output to %.1f%%", output * 100);
   }
 
   return output;
