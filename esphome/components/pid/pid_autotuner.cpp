@@ -302,7 +302,6 @@ void PIDAutotuner::OscillationAmplitudeDetector::update(float error,
       // The positive error peak must have been in previous segment (180° shifted)
       // record phase_max
       this->phase_maxs.push_back(phase_max);
-      // ESP_LOGV(TAG, "Autotune: Phase Max: %f", phase_max);
     } else if (last_relay_state == RelayFunction::RELAY_FUNCTION_NEGATIVE) {
       // Transitioned from negative error to positive error.
       // The negative error peak must have been in previous segment (180° shifted)
