@@ -4,8 +4,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "display_color_utils.h"
-#include "esphome/core/helpers.h"
-#include "esphome/core/log.h"
 #include <cstdarg>
 #include <vector>
 
@@ -114,85 +112,15 @@ struct Rect {
 
   inline bool is_set() ALWAYS_INLINE { return (this->h != 32766) && (this->w != 32766); }
 
-  inline void expand(int16_t width, int16_t height) {
-    if ((*this).is_set() && ((*this).w >= (-2 * width)) && ((*this).h >= (-2 * height))) {
-      (*this).x = (*this).x - width;
-      (*this).y = (*this).y - height;
-      (*this).w = (*this).w + (2 * width);
-      (*this).h = (*this).h + (2 * height);
-    }
-  }
+  inline void expand(int16_t width, int16_t height);
 
-  inline void join(Rect rect) {
-    if (!this->is_set()) {
-      this->x = rect.x;
-      this->y = rect.y;
-      this->w = rect.w;
-      this->h = rect.h;
-    } else {
-      if (this->x > rect.x) {
-        this->x = rect.x;
-      }
-      if (this->y > rect.y) {
-        this->y = rect.y;
-      }
-      if (this->x2() < rect.x2()) {
-        this->w = rect.x2() - this->x;
-      }
-      if (this->y2() < rect.y2()) {
-        this->h = rect.y2() - this->y;
-      }
-    }
-  }
-  inline void substract(Rect rect) {
-    if (!this->inside(rect)) {
-      (*this) = Rect();
-    } else {
-      if (this->x < rect.x) {
-        this->x = rect.x;
-      }
-      if (this->y < rect.y) {
-        this->y = rect.y;
-      }
-      if (this->x2() > rect.x2()) {
-        this->w = rect.x2() - this->x;
-      }
-      if (this->y2() > rect.y2()) {
-        this->h = rect.y2() - this->y;
-      }
-    }
-  }
+  inline void join(Rect rect);
+  inline void substract(Rect rect);
 
-  inline bool inside(int16_t x, int16_t y, bool absolute = false) {
-    if (!this->is_set()) {
-      return true;
-    }
-    if (absolute) {
-      return ((x >= 0) && (x <= this->w) && (y >= 0) && (y <= this->h));
-    } else {
-      return ((x >= this->x) && (x <= this->x2()) && (y >= this->y) && (y <= this->y2()));
-    }
-  }
-  inline bool inside(Rect rect, bool absolute = false) {
-    if (!this->is_set() || !rect.is_set()) {
-      return true;
-    }
-    if (absolute) {
-      return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
-    } else {
-      return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
-    }
-  }
-
-  //  rect           x--------------w
-  //  this        x--------------w
-  inline void info(const std::string &prefix = "rect info:") {
-    if (this->is_set()) {
-      ESP_LOGI("Rect", "%s [%3d,%3d,%3d,%3d]", prefix.c_str(), this->x, this->y, this->w, this->h);
-    } else
-      ESP_LOGI("Rect", "%s ** IS NOT SET **", prefix.c_str());
-  }
+  inline bool inside(int16_t x, int16_t y, bool absolute = false);
+  inline void info(const std::string &prefix = "rect info:");
 };
+
 class Font;
 class Image;
 class DisplayBuffer;
@@ -467,19 +395,6 @@ class DisplayBuffer {
    * returns the type the display is currently configured to.
    */
   virtual DisplayType get_display_type() = 0;
-
-  ///
-  /// Expand or contract a rectangle in width and/or height (equal
-  /// amounts on both side), based on the centerpoint of the rectangle.
-  ///
-  /// \param[in]  rect:       Rectangular region before resizing
-  /// \param[in]  width:    Number of pixels to expand the width (if positive)
-  ///                          of contract the width (if negative)
-  /// \param[in]  height:    Number of pixels to expand the height (if positive)
-  ///                          of contract the height (if negative)
-  ///
-  /// \return new rect with resized dimensions
-  ///
 
   ///
   /// Set the clipping rectangle for further drawing

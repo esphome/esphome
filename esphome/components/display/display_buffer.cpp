@@ -15,6 +15,85 @@ static const char *const TAG = "display";
 const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
 
+
+
+  inline void Rect::expand(int16_t width, int16_t height) {
+    if ((*this).is_set() && ((*this).w >= (-2 * width)) && ((*this).h >= (-2 * height))) {
+      (*this).x = (*this).x - width;
+      (*this).y = (*this).y - height;
+      (*this).w = (*this).w + (2 * width);
+      (*this).h = (*this).h + (2 * height);
+    }
+  }
+
+  inline void Rect::join(Rect rect) {
+    if (!this->is_set()) {
+      this->x = rect.x;
+      this->y = rect.y;
+      this->w = rect.w;
+      this->h = rect.h;
+    } else {
+      if (this->x > rect.x) {
+        this->x = rect.x;
+      }
+      if (this->y > rect.y) {
+        this->y = rect.y;
+      }
+      if (this->x2() < rect.x2()) {
+        this->w = rect.x2() - this->x;
+      }
+      if (this->y2() < rect.y2()) {
+        this->h = rect.y2() - this->y;
+      }
+    }
+  }
+  inline void Rect::substract(Rect rect) {
+    if (!this->inside(rect)) {
+      (*this) = Rect();
+    } else {
+      if (this->x < rect.x) {
+        this->x = rect.x;
+      }
+      if (this->y < rect.y) {
+        this->y = rect.y;
+      }
+      if (this->x2() > rect.x2()) {
+        this->w = rect.x2() - this->x;
+      }
+      if (this->y2() > rect.y2()) {
+        this->h = rect.y2() - this->y;
+      }
+    }
+  }
+
+  inline bool Rect::inside(int16_t x, int16_t y, bool absolute ) {  // NOLINT
+    if (!this->is_set()) {
+      return true;
+    }
+    if (absolute) {
+      return ((x >= 0) && (x <= this->w) && (y >= 0) && (y <= this->h));
+    } else {
+      return ((x >= this->x) && (x <= this->x2()) && (y >= this->y) && (y <= this->y2()));
+    }
+  }
+  inline bool Rect::inside(Rect rect, bool absolute) {
+    if (!this->is_set() || !rect.is_set()) {
+      return true;
+    }
+    if (absolute) {
+      return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
+    } else {
+      return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
+    }
+  }
+
+  inline void Rect::info(const std::string &prefix) {
+    if (this->is_set()) {
+      ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d]", prefix.c_str(), this->x, this->y, this->w, this->h);
+    } else
+      ESP_LOGI(TAG, "%s ** IS NOT SET **", prefix.c_str());
+  }
+
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   this->buffer_ = allocator.allocate(buffer_length);
@@ -24,6 +103,7 @@ void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   }
   this->clear();
 }
+
 void DisplayBuffer::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void DisplayBuffer::clear() { this->fill(COLOR_OFF); }
 int DisplayBuffer::get_width() {
