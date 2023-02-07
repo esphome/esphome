@@ -10,8 +10,8 @@ static const char *const TAG = "lsm6ds3";
 void LSM6DS3Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up LSM6DS3...");
 
-  bool result = 0;
-  bool has_accel = 0;
+  bool result = false;
+  bool has_accel = false;
 
   /*
   If this component is to be power saving, and will
@@ -21,11 +21,11 @@ void LSM6DS3Component::setup() {
   if (this->_power_save) {
     this->write_byte(LSM6DS3_PERF_CTRL6_C, LSM6DS3_HIGH_PEF_DISABLE);
     if (this->update_interval_ > 5000) {
-      this->_do_sleep = 1;
+      this->do_sleep_ = true;
     }
   }
 
-  if (this->_high_perf == 0) {
+  if (this->high_perf_ == false) {
     this->write_byte(LSM6DS3_PERF_CTRL6_C, LSM6DS3_HIGH_PEF_DISABLE);
   }
 
@@ -35,52 +35,52 @@ void LSM6DS3Component::setup() {
   if (this->accel_x_sensor_ != nullptr || this->accel_y_sensor_ != nullptr || this->accel_z_sensor_ != nullptr) {
     ESP_LOGCONFIG(TAG, "Setting up Acceleration");
     // accel bandwidth
-    accl_conf |= LSM6DS3_ACC_GYRO_BW_XL_100Hz;
+    accl_conf_ |= LSM6DS3_ACC_GYRO_BW_XL_100Hz;
     // accel range
-    accl_conf |= LSM6DS3_ACC_GYRO_FS_XL_16g;
+    accl_conf_ |= LSM6DS3_ACC_GYRO_FS_XL_16g;
 
-    has_accel = 1;
+    has_accel = true;
   }
   if (has_accel || this->temperature_sensor_ != nullptr) {
-    this->_has_accl_temp = 1;
-    switch (this->_sample_accl_rate) {
+    this->has_accl_temp_ = true;
+    switch (this->sample_accl_rate_) {
       default:
       case 13:
-        accl_conf |= LSM6DS3_ACC_GYRO_ODR_XL_13Hz;
+        accl_conf_ |= LSM6DS3_ACC_GYRO_ODR_XL_13Hz;
         break;
       case 26:
-        accl_conf |= LSM6DS3_ACC_GYRO_ODR_XL_26Hz;
+        accl_conf_ |= LSM6DS3_ACC_GYRO_ODR_XL_26Hz;
         break;
       case 52:
-        accl_conf |= LSM6DS3_ACC_GYRO_ODR_XL_52Hz;
+        accl_conf_ |= LSM6DS3_ACC_GYRO_ODR_XL_52Hz;
         break;
       case 104:
-        accl_conf |= LSM6DS3_ACC_GYRO_ODR_XL_104Hz;
+        accl_conf_ |= LSM6DS3_ACC_GYRO_ODR_XL_104Hz;
         break;
       case 208:
-        accl_conf |= LSM6DS3_ACC_GYRO_ODR_XL_208Hz;
+        accl_conf_ |= LSM6DS3_ACC_GYRO_ODR_XL_208Hz;
         break;
       case 416:
-        accl_conf |= LSM6DS3_ACC_GYRO_ODR_XL_416Hz;
+        accl_conf_ |= LSM6DS3_ACC_GYRO_ODR_XL_416Hz;
         break;
       case 833:
-        accl_conf |= LSM6DS3_ACC_GYRO_ODR_XL_833Hz;
+        accl_conf_ |= LSM6DS3_ACC_GYRO_ODR_XL_833Hz;
         break;
       case 1660:
-        accl_conf |= LSM6DS3_ACC_GYRO_ODR_XL_1660Hz;
+        accl_conf_ |= LSM6DS3_ACC_GYRO_ODR_XL_1660Hz;
         break;
       case 3330:
-        accl_conf |= LSM6DS3_ACC_GYRO_ODR_XL_3330Hz;
+        accl_conf_ |= LSM6DS3_ACC_GYRO_ODR_XL_3330Hz;
         break;
       case 6660:
-        accl_conf |= LSM6DS3_ACC_GYRO_ODR_XL_6660Hz;
+        accl_conf_ |= LSM6DS3_ACC_GYRO_ODR_XL_6660Hz;
         break;
       case 13330:
-        accl_conf |= LSM6DS3_ACC_GYRO_ODR_XL_13330Hz;
+        accl_conf_ |= LSM6DS3_ACC_GYRO_ODR_XL_13330Hz;
         break;
     }
   }
-  result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL1_XL, accl_conf);
+  result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL1_XL, accl_conf_);
   if (!result) {
     this->mark_failed();
     return;
@@ -103,41 +103,41 @@ void LSM6DS3Component::setup() {
   }
 
   if (this->gyro_x_sensor_ != nullptr || this->gyro_y_sensor_ != nullptr || this->gyro_z_sensor_ != nullptr) {
-    this->_has_gyro = 1;
+    this->_has_gyro = true;
     ESP_LOGCONFIG(TAG, "Setting up Gyroscope");
     // gyro range
-    gyro_conf |= LSM6DS3_ACC_GYRO_FS_G_2000dps;
+    gyro_conf_ |= LSM6DS3_ACC_GYRO_FS_G_2000dps;
 
     // gyro sampling rate
-    switch (_sample_gyro_rate) {
+    switch (sample_gyro_rate_) {
       default:
       case 13:
-        gyro_conf |= LSM6DS3_ACC_GYRO_ODR_G_13Hz;
+        gyro_conf_ |= LSM6DS3_ACC_GYRO_ODR_G_13Hz;
         break;
       case 26:
-        gyro_conf |= LSM6DS3_ACC_GYRO_ODR_G_26Hz;
+        gyro_conf_ |= LSM6DS3_ACC_GYRO_ODR_G_26Hz;
         break;
       case 52:
-        gyro_conf |= LSM6DS3_ACC_GYRO_ODR_G_52Hz;
+        gyro_conf_ |= LSM6DS3_ACC_GYRO_ODR_G_52Hz;
         break;
       case 104:
-        gyro_conf |= LSM6DS3_ACC_GYRO_ODR_G_104Hz;
+        gyro_conf_ |= LSM6DS3_ACC_GYRO_ODR_G_104Hz;
         break;
       case 208:
-        gyro_conf |= LSM6DS3_ACC_GYRO_ODR_G_208Hz;
+        gyro_conf_ |= LSM6DS3_ACC_GYRO_ODR_G_208Hz;
         break;
       case 416:
-        gyro_conf |= LSM6DS3_ACC_GYRO_ODR_G_416Hz;
+        gyro_conf_ |= LSM6DS3_ACC_GYRO_ODR_G_416Hz;
         break;
       case 833:
-        gyro_conf |= LSM6DS3_ACC_GYRO_ODR_G_833Hz;
+        gyro_conf_ |= LSM6DS3_ACC_GYRO_ODR_G_833Hz;
         break;
       case 1660:
-        gyro_conf |= LSM6DS3_ACC_GYRO_ODR_G_1660Hz;
+        gyro_conf_ |= LSM6DS3_ACC_GYRO_ODR_G_1660Hz;
         break;
     }
 
-    result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL2_G, gyro_conf);
+    result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL2_G, gyro_conf_);
     if (!result) {
       this->mark_failed();
       return;
@@ -150,13 +150,12 @@ void LSM6DS3Component::setup() {
   // Setup the internal temperature sensor
   if (this->temperature_sensor_ != nullptr) {
     if (who_am_i == LSM6DS3_ACC_GYRO_WHO_AM_I) {  // 0x69 LSM6DS3
-      this->temp_sensitivity = 16;
+      this->temp_sensitivity_ = 16;
     } else if (who_am_i == LSM6DS3_C_ACC_GYRO_WHO_AM_I) {  // 0x6A LSM6dS3-C
-      this->temp_sensitivity = 256;
+      this->temp_sensitivity_ = 256;
     }
   }
 
-  return;
 }
 
 void LSM6DS3Component::dump_config() {
@@ -180,71 +179,83 @@ void LSM6DS3Component::update() {
 
   bool result;
 
-  if (this->_do_sleep && this->_is_sleeping) {
-    this->_is_sleeping = 0;
+  if (this->do_sleep_ && this->is_sleeping_) {
+    this->is_sleeping_ = false;
     // Restore registers to their value to enable them
-    if (_has_accl_temp) {
-      result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL1_XL, accl_conf);
+    if (has_accl_temp_) {
+      result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL1_XL, accl_conf_);
+        if (!result) {
+            ESP_LOGE(TAG, "Failed to come out of sleep state for acceleration sensor");
+        }
     }
     if (_has_gyro) {
-      result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL2_G, gyro_conf);
+      result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL2_G, gyro_conf_);
+        if (!result) {
+            ESP_LOGE(TAG, "Failed to come out of sleep state for gyro sensor");
+        }
     }
     // give the unit time to wake;
     delay(20);
-    if (_has_accl_temp) {
+    if (has_accl_temp_) {
       // discard 4 readings to get correct value
       for (int i = 0; i < 4; i++) {
         // read accel
-        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTX_L_XL, this->accel_x_sensor_, SensorType::accel, 0);
-        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTY_L_XL, this->accel_y_sensor_, SensorType::accel, 0);
-        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTZ_L_XL, this->accel_z_sensor_, SensorType::accel, 0);
+        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTX_L_XL, this->accel_x_sensor_, SensorType::ACCEL, false);
+        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTY_L_XL, this->accel_y_sensor_, SensorType::ACCEL, false);
+        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTZ_L_XL, this->accel_z_sensor_, SensorType::ACCEL, false);
 
         // read temperature
-        this->_read_sensor(LSM6DS3_ACC_GYRO_OUT_TEMP_L, this->temperature_sensor_, SensorType::temp, 0);
+        this->_read_sensor(LSM6DS3_ACC_GYRO_OUT_TEMP_L, this->temperature_sensor_, SensorType::TEMP, false);
       }
     }
     if (_has_gyro) {
       // discard 4 readings to get correct value
       for (int i = 0; i < 4; i++) {
         // read gyros
-        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTX_L_G, this->gyro_x_sensor_, SensorType::gyro, 0);
-        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTY_L_G, this->gyro_y_sensor_, SensorType::gyro, 0);
-        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTZ_L_G, this->gyro_z_sensor_, SensorType::gyro, 0);
+        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTX_L_G, this->gyro_x_sensor_, SensorType::GYRO, false);
+        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTY_L_G, this->gyro_y_sensor_, SensorType::GYRO, false);
+        this->_read_sensor(LSM6DS3_ACC_GYRO_OUTZ_L_G, this->gyro_z_sensor_, SensorType::GYRO, false);
       }
     }
   }
 
   // read accelerations
-  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTX_L_XL, this->accel_x_sensor_, SensorType::accel, 1);
-  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTY_L_XL, this->accel_y_sensor_, SensorType::accel, 1);
-  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTZ_L_XL, this->accel_z_sensor_, SensorType::accel, 1);
+  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTX_L_XL, this->accel_x_sensor_, SensorType::ACCEL, true);
+  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTY_L_XL, this->accel_y_sensor_, SensorType::ACCEL, true);
+  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTZ_L_XL, this->accel_z_sensor_, SensorType::ACCEL, true);
 
   // read gyros
-  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTX_L_G, this->gyro_x_sensor_, SensorType::gyro, 1);
-  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTY_L_G, this->gyro_y_sensor_, SensorType::gyro, 1);
-  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTZ_L_G, this->gyro_z_sensor_, SensorType::gyro, 1);
+  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTX_L_G, this->gyro_x_sensor_, SensorType::GYRO, true);
+  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTY_L_G, this->gyro_y_sensor_, SensorType::GYRO, true);
+  this->_read_sensor(LSM6DS3_ACC_GYRO_OUTZ_L_G, this->gyro_z_sensor_, SensorType::GYRO, true);
 
   // read temperature
-  this->_read_sensor(LSM6DS3_ACC_GYRO_OUT_TEMP_L, this->temperature_sensor_, SensorType::temp, 1);
+  this->_read_sensor(LSM6DS3_ACC_GYRO_OUT_TEMP_L, this->temperature_sensor_, SensorType::TEMP, true);
 
-  if (this->_do_sleep) {
-    this->_is_sleeping = 1;
+  if (this->do_sleep_) {
+    this->is_sleeping_ = true;
     // Set register(s) to zero to put them to sleep
-    if (_has_accl_temp) {
+    if (has_accl_temp_) {
       result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL1_XL, 0x0);
+        if (!result) {
+            ESP_LOGE(TAG, "Failed to put acceleration/temp sensor to sleep");
+        }
     }
     if (_has_gyro) {
       result = this->write_byte(LSM6DS3_ACC_GYRO_CTRL2_G, 0x0);
+        if (!result) {
+            ESP_LOGE(TAG, "Failed to put gyro sensor to sleep");
+        }
     }
   }
 }
 
 void LSM6DS3Component::_read_sensor(uint8_t reg, sensor::Sensor *sensor, SensorType type, bool do_publish) {
-  bool result = 0;
+  bool result = false;
   int16_t raw_value = 0;
   uint16_t buffer = 0;
   float output = 0;
-  uint8_t gyroRangeDivisor;
+  uint8_t gyro_range_divisor = 2000 / 125;
   int8_t tmp[2];
 
   if (sensor != nullptr) {
@@ -257,18 +268,17 @@ void LSM6DS3Component::_read_sensor(uint8_t reg, sensor::Sensor *sensor, SensorT
       tmp[0] = (int8_t)(buffer >> 8);
       raw_value = (int16_t) tmp[0] | ((int16_t) tmp[1]) << 8;
       switch (type) {
-        case SensorType::accel:
+        case SensorType::ACCEL:
           output = (float) raw_value * 0.061 * (16 >> 1) / 1000;
           break;
-        case SensorType::gyro:
-          gyroRangeDivisor = 2000 / 125;
-          output = (float) raw_value * 4.375 * (gyroRangeDivisor) / 1000;
+        case SensorType::GYRO:
+          output = (float) raw_value * 4.375 * (gyro_range_divisor) / 1000;
           break;
-        case SensorType::temp:
+        case SensorType::TEMP:
           // add 25 to remove offset
           // scale by the sensitivity
           // result is in celsius
-          output = (float) raw_value / this->temp_sensitivity + 25;
+          output = (float) raw_value / this->temp_sensitivity_ + 25;
           break;
       }
       if (do_publish) {

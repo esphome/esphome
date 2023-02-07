@@ -7,7 +7,7 @@
 namespace esphome {
 namespace LSM6DS3 {
 
-enum SensorType { accel, gyro, temp };
+enum SensorType { ACCEL, GYRO, TEMP };
 
 class LSM6DS3Component : public PollingComponent, public i2c::I2CDevice {
  public:
@@ -26,9 +26,9 @@ class LSM6DS3Component : public PollingComponent, public i2c::I2CDevice {
   void set_gyro_y_sensor(sensor::Sensor *gyro_y_sensor) { gyro_y_sensor_ = gyro_y_sensor; }
   void set_gyro_z_sensor(sensor::Sensor *gyro_z_sensor) { gyro_z_sensor_ = gyro_z_sensor; }
 
-  void set_high_perf(bool high_perf) { this->_high_perf = high_perf; }
-  void set_sample_accl_rate(uint16_t sample_rate) { this->_sample_accl_rate = sample_rate; }
-  void set_sample_gyro_rate(uint16_t sample_rate) { this->_sample_gyro_rate = sample_rate; }
+  void set_high_perf(bool high_perf) { this->high_perf_ = high_perf; }
+  void set_sample_accl_rate(uint16_t sample_rate) { this->sample_accl_rate_ = sample_rate; }
+  void set_sample_gyro_rate(uint16_t sample_rate) { this->sample_gyro_rate_ = sample_rate; }
   void set_power_save(bool power_save) { this->_power_save = power_save; }
 
  protected:
@@ -40,17 +40,17 @@ class LSM6DS3Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *gyro_y_sensor_{nullptr};
   sensor::Sensor *gyro_z_sensor_{nullptr};
 
-  uint16_t temp_sensitivity = 16;
-  bool _high_perf = 0;
-  uint16_t _sample_gyro_rate = 0;
-  uint16_t _sample_accl_rate = 0;
-  bool _power_save = 0;
-  bool _do_sleep = 0;
-  bool _has_accl_temp = 0;
-  bool _has_gyro = 0;
-  bool _is_sleeping = 0;
-  uint8_t accl_conf = 0;
-  uint8_t gyro_conf = 0;
+  uint16_t temp_sensitivity_ = 16;
+  bool high_perf_ = false;
+  uint16_t sample_gyro_rate_ = 0;
+  uint16_t sample_accl_rate_ = 0;
+  bool _power_save = false;
+  bool do_sleep_ = false;
+  bool has_accl_temp_ = false;
+  bool _has_gyro = false;
+  bool is_sleeping_ = false;
+  uint8_t accl_conf_ = 0;
+  uint8_t gyro_conf_ = 0;
 
   void _read_sensor(uint8_t reg, sensor::Sensor *sensor, SensorType type, bool do_publish);
 };
