@@ -99,26 +99,27 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
-struct Rect {
+class Rect {
   int16_t x;  ///< X coordinate of corner
   int16_t y;  ///< Y coordinate of corner
   int16_t w;  ///< Width of region
   int16_t h;  ///< Height of region
 
-  inline Rect() ALWAYS_INLINE : x(32766), y(32766), w(32766), h(32766) {}  // NOLINT
+  Rect() : x(32766), y(32766), w(32766), h(32766) {}  // NOLINT
   inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
   inline int16_t x2() { return this->x + this->w; };  ///< X coordinate of corner
   inline int16_t y2() { return this->y + this->h; };  ///< Y coordinate of corner
 
   inline bool is_set() ALWAYS_INLINE { return (this->h != 32766) && (this->w != 32766); }
 
-  inline void expand(int16_t width, int16_t height);
+  void expand(int16_t width, int16_t height);
 
-  inline void join(Rect rect);
-  inline void substract(Rect rect);
+  void join(Rect rect);
+  void substract(Rect rect);
 
-  inline bool inside(int16_t x, int16_t y, bool absolute = false);
-  inline void info(const std::string &prefix = "rect info:");
+  bool inside(Rect rect, bool absolute = false);
+  bool inside(int16_t x, int16_t y, bool absolute = false);
+  void info(const std::string &prefix = "rect info:");
 };
 
 class Font;
