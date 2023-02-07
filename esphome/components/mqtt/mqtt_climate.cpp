@@ -66,7 +66,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
   // temperature units are always coerced to Celsius internally
   root[MQTT_TEMPERATURE_UNIT] = "C";
 
-  if (traits.get_supports_presets()) {
+  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
     // preset_mode_command_topic
     root[MQTT_PRESET_MODE_COMMAND_TOPIC] = this->get_preset_command_topic();
     // preset_mode_state_topic
@@ -218,7 +218,7 @@ void MQTTClimateComponent::setup() {
     });
   }
 
-  if (traits.get_supports_presets()) {
+  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
     this->subscribe(this->get_preset_command_topic(), [this](const std::string &topic, const std::string &payload) {
       auto call = this->device_->make_call();
       call.set_preset(payload);
@@ -303,7 +303,7 @@ bool MQTTClimateComponent::publish_state_() {
     if (!this->publish(this->get_away_state_topic(), payload))
       success = false;
   }
-  if (traits.get_supports_presets()) {
+  if (traits.get_supports_presets() || !traits.get_supported_custom_presets().empty()) {
     std::string payload;
     if (this->device_->preset.has_value()) {
       switch (this->device_->preset.value()) {
