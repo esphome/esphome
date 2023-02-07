@@ -14,7 +14,7 @@ static const char *const TAG = "display";
 
 const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
-const Color COLOR_TRANSPARANT(0, 0, 1, 0);
+const Color COLOR_TRANSPARANT(0, 0, 0, 255);
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
@@ -220,9 +220,9 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
         case IMAGE_TYPE_BINARY:
           color = image->get_pixel(img_x, img_y) ? color_on : color_off;
           break;
-        case IMAGE_TYPE_TRANSPARENT_BINARY:
-          color = image->get_pixel(img_x, img_y) ? color_on : COLOR_TRANSPARENT;
-          break;
+//        case IMAGE_TYPE_TRANSPARENT_BINARY:
+//          color = image->get_pixel(img_x, img_y) ? color_on : COLOR_TRANSPARENT;
+//          break;
         case IMAGE_TYPE_GRAYSCALE:
           color = image->get_grayscale_pixel(img_x, img_y);
           break;
