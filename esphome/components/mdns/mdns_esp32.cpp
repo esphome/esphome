@@ -1,9 +1,10 @@
 #ifdef USE_ESP32
 
-#include "mdns_component.h"
-#include "esphome/core/log.h"
 #include <mdns.h>
 #include <cstring>
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "mdns_component.h"
 
 namespace esphome {
 namespace mdns {
@@ -45,6 +46,11 @@ void MDNSComponent::setup() {
       ESP_LOGW(TAG, "Failed to register mDNS service %s: %s", service.service_type.c_str(), esp_err_to_name(err));
     }
   }
+}
+
+void MDNSComponent::on_shutdown() {
+  mdns_free();
+  delay(40);  // Allow the mdns packets announcing service removal to be sent
 }
 
 }  // namespace mdns
