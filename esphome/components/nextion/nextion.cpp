@@ -711,6 +711,7 @@ void Nextion::process_nextion_commands_() {
 
             if (component->get_wave_buffer().size() <= 255) {
               component->get_wave_buffer().clear();
+              ESP_LOGN(TAG, "cleared: %zu", component->get_wave_buffer().size());
             } else {
               component->get_wave_buffer().erase(component->get_wave_buffer().begin(),
                                                  component->get_wave_buffer().begin() + buffer_to_send);
