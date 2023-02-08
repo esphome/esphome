@@ -717,7 +717,6 @@ void Nextion::process_nextion_commands_() {
                                                  component->get_wave_buffer().begin() + buffer_to_send);
             }
             found = index;
-            delete component;  // NOLINT(cppcoreguidelines-owning-memory)
             delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
             break;
           }
@@ -1088,7 +1087,6 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion::NextionQueue *nextion_queue = new nextion::NextionQueue;
 
-  // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
   nextion_queue->component = component;
   nextion_queue->queue_time = millis();
 
