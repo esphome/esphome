@@ -709,15 +709,7 @@ void Nextion::process_nextion_commands_() {
             ESP_LOGN(TAG, "Nextion sending waveform data for component id %d and waveform id %d, size %zu",
                      component->get_component_id(), component->get_wave_channel_id(), buffer_to_send);
 
-            if (component->get_wave_buffer_size() <= 255) {
-              component->clear_wave_buffer();
-              ESP_LOGN(TAG, "cleared: %zu", component->get_wave_buffer_size());
-            } else {
-              component->get_wave_buffer().erase(component->get_wave_buffer().begin(),
-                                                 component->get_wave_buffer().begin() + buffer_to_send);
-            }
-            ESP_LOGN(TAG, "Nextion sent waveform data for component id %d and waveform id %d, size %zu",
-                     component->get_component_id(), component->get_wave_channel_id(), component->get_wave_buffer_size());
+            component->clear_wave_buffer(buffer_to_send);
             found = index;
             delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
             break;
