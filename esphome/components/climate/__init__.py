@@ -73,6 +73,7 @@ CLIMATE_FAN_MODES = {
     "MIDDLE": ClimateFanMode.CLIMATE_FAN_MIDDLE,
     "FOCUS": ClimateFanMode.CLIMATE_FAN_FOCUS,
     "DIFFUSE": ClimateFanMode.CLIMATE_FAN_DIFFUSE,
+    "QUIET": ClimateFanMode.CLIMATE_FAN_QUIET,
 }
 
 validate_climate_fan_mode = cv.enum(CLIMATE_FAN_MODES, upper=True)
