@@ -174,6 +174,8 @@ ClimateCall &ClimateCall::set_fan_mode(const std::string &fan_mode) {
     this->set_fan_mode(CLIMATE_FAN_FOCUS);
   } else if (str_equals_case_insensitive(fan_mode, "DIFFUSE")) {
     this->set_fan_mode(CLIMATE_FAN_DIFFUSE);
+  } else if (str_equals_case_insensitive(fan_mode, "QUIET")) {
+    this->set_fan_mode(CLIMATE_FAN_QUIET);
   } else {
     if (this->parent_->get_traits().supports_custom_fan_mode(fan_mode)) {
       this->custom_fan_mode_ = fan_mode;
@@ -540,12 +542,15 @@ void Climate::dump_traits_(const char *tag) {
   ESP_LOGCONFIG(tag, "      - Min: %.1f", traits.get_visual_min_temperature());
   ESP_LOGCONFIG(tag, "      - Max: %.1f", traits.get_visual_max_temperature());
   ESP_LOGCONFIG(tag, "      - Step: %.1f", traits.get_visual_temperature_step());
-  if (traits.get_supports_current_temperature())
+  if (traits.get_supports_current_temperature()) {
     ESP_LOGCONFIG(tag, "  [x] Supports current temperature");
-  if (traits.get_supports_two_point_target_temperature())
+  }
+  if (traits.get_supports_two_point_target_temperature()) {
     ESP_LOGCONFIG(tag, "  [x] Supports two-point target temperature");
-  if (traits.get_supports_action())
+  }
+  if (traits.get_supports_action()) {
     ESP_LOGCONFIG(tag, "  [x] Supports action");
+  }
   if (!traits.get_supported_modes().empty()) {
     ESP_LOGCONFIG(tag, "  [x] Supported modes:");
     for (ClimateMode m : traits.get_supported_modes())

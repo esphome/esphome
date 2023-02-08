@@ -1,5 +1,5 @@
 from abc import ABC, abstractmethod
-from typing import Dict, Any
+from typing import Any
 import contextvars
 
 from esphome.types import ConfigFragmentType, ID, ConfigPathType
@@ -9,7 +9,7 @@ import esphome.config_validation as cv
 class FinalValidateConfig(ABC):
     @property
     @abstractmethod
-    def data(self) -> Dict[str, Any]:
+    def data(self) -> dict[str, Any]:
         """A dictionary that can be used by post validation functions to store
         global data during the validation phase. Each component should store its
         data under a unique key

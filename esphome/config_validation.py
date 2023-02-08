@@ -13,6 +13,7 @@ import voluptuous as vol
 
 from esphome import core
 import esphome.codegen as cg
+from esphome.config_helpers import Extend
 from esphome.const import (
     ALLOWED_NAME_CHARS,
     CONF_AVAILABILITY,
@@ -44,6 +45,7 @@ from esphome.const import (
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
+    KEY_TARGET_PLATFORM,
 )
 from esphome.core import (
     CORE,
@@ -489,6 +491,8 @@ def declare_id(type):
         if value is None:
             return core.ID(None, is_declaration=True, type=type)
 
+        if isinstance(value, Extend):
+            raise Invalid(f"Source for extension of ID '{value.value}' was not found.")
         return core.ID(validate_id_name(value), is_declaration=True, type=type)
 
     return validator
@@ -547,6 +551,7 @@ def only_with_framework(frameworks):
 
 only_on_esp32 = only_on("esp32")
 only_on_esp8266 = only_on("esp8266")
+only_on_rp2040 = only_on("rp2040")
 only_with_arduino = only_with_framework("arduino")
 only_with_esp_idf = only_with_framework("esp-idf")
 
@@ -1051,9 +1056,8 @@ def mqtt_qos(value):
 
 def requires_component(comp):
     """Validate that this option can only be specified when the component `comp` is loaded."""
-    # pylint: disable=unsupported-membership-test
+
     def validator(value):
-        # pylint: disable=unsupported-membership-test
         if comp not in CORE.loaded_integrations:
             raise Invalid(f"This option requires component {comp}")
         return value
@@ -1239,7 +1243,7 @@ def enum(mapping, **kwargs):
     return validator
 
 
-LAMBDA_ENTITY_ID_PROG = re.compile(r"id\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)")
+LAMBDA_ENTITY_ID_PROG = re.compile(r"\Wid\(\s*([a-zA-Z0-9_]+\.[.a-zA-Z0-9_]+)\s*\)")
 
 
 def lambda_(value):
@@ -1440,6 +1444,7 @@ class SplitDefault(Optional):
         esp32=vol.UNDEFINED,
         esp32_arduino=vol.UNDEFINED,
         esp32_idf=vol.UNDEFINED,
+        rp2040=vol.UNDEFINED,
     ):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
@@ -1449,6 +1454,7 @@ class SplitDefault(Optional):
         self._esp32_idf_default = vol.default_factory(
             esp32_idf if esp32 is vol.UNDEFINED else esp32
         )
+        self._rp2040_default = vol.default_factory(rp2040)
 
     @property
     def default(self):
@@ -1458,6 +1464,8 @@ class SplitDefault(Optional):
             return self._esp32_arduino_default
         if CORE.is_esp32 and CORE.using_esp_idf:
             return self._esp32_idf_default
+        if CORE.is_rp2040:
+            return self._rp2040_default
         raise NotImplementedError
 
     @default.setter
@@ -1476,7 +1484,6 @@ class OnlyWith(Optional):
 
     @property
     def default(self):
-        # pylint: disable=unsupported-membership-test
         if self._component in CORE.loaded_integrations:
             return self._default
         return vol.UNDEFINED
@@ -1674,7 +1681,7 @@ def source_refresh(value: str):
     if value.lower() == "always":
         return source_refresh("0s")
     if value.lower() == "never":
-        return source_refresh("1000y")
+        return source_refresh("365250d")
     return positive_time_period_seconds(value)
 
 
@@ -1689,7 +1696,7 @@ class Version:
 
     @classmethod
     def parse(cls, value: str) -> "Version":
-        match = re.match(r"(\d+).(\d+).(\d+)", value)
+        match = re.match(r"^(\d+).(\d+).(\d+)-?\w*$", value)
         if match is None:
             raise ValueError(f"Not a valid version number {value}")
         major = int(match[1])
@@ -1703,7 +1710,7 @@ def version_number(value):
     try:
         return str(Version.parse(value))
     except ValueError as e:
-        raise Invalid("Not a version number") from e
+        raise Invalid("Not a valid version number") from e
 
 
 def platformio_version_constraint(value):
@@ -1730,6 +1737,7 @@ def require_framework_version(
     esp_idf=None,
     esp32_arduino=None,
     esp8266_arduino=None,
+    rp2040_arduino=None,
     max_version=False,
     extra_message=None,
 ):
@@ -1757,8 +1765,23 @@ def require_framework_version(
                     msg += f". {extra_message}"
                 raise Invalid(msg)
             required = esp8266_arduino
+        elif CORE.is_rp2040 and framework == "arduino":
+            if rp2040_arduino is None:
+                msg = "This feature is incompatible with RP2040"
+                if extra_message:
+                    msg += f". {extra_message}"
+                raise Invalid(msg)
+            required = rp2040_arduino
         else:
-            raise NotImplementedError
+            raise Invalid(
+                f"""
+            Internal Error: require_framework_version does not support this platform configuration
+                platform: {core_data[KEY_TARGET_PLATFORM]}
+                framework: {framework}
+
+            Please report this issue on GitHub -> https://github.com/esphome/issues/issues/new?template=bug_report.yml.
+            """
+            )
 
         if max_version:
             if core_data[KEY_FRAMEWORK_VERSION] > required:

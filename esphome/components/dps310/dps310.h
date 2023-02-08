@@ -53,8 +53,8 @@ class DPS310Component : public PollingComponent, public i2c::I2CDevice {
   void calculate_values_(int32_t raw_temperature, int32_t raw_pressure);
   static int32_t twos_complement(int32_t val, uint8_t bits);
 
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *pressure_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
   int32_t raw_pressure_, raw_temperature_, c00_, c10_;
   int16_t c0_, c1_, c01_, c11_, c20_, c21_, c30_;
   uint8_t prod_rev_id_;

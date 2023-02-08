@@ -9,7 +9,7 @@ from esphome.const import (
     CONF_MAC_ADDRESS,
     DEVICE_CLASS_SIGNAL_STRENGTH,
     STATE_CLASS_MEASUREMENT,
-    UNIT_DECIBEL,
+    UNIT_DECIBEL_MILLIWATT,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -31,7 +31,7 @@ def _validate(config):
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
         BLERSSISensor,
-        unit_of_measurement=UNIT_DECIBEL,
+        unit_of_measurement=UNIT_DECIBEL_MILLIWATT,
         accuracy_decimals=0,
         device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
         state_class=STATE_CLASS_MEASUREMENT,

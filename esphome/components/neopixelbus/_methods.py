@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -349,7 +349,7 @@ def _spi_extra_validate(config):
 class MethodDescriptor:
     method_schema: Any
     to_code: Any
-    supported_chips: List[str]
+    supported_chips: list[str]
     extra_validate: Any = None
 
 

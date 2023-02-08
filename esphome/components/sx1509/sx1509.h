@@ -6,6 +6,8 @@
 #include "sx1509_gpio_pin.h"
 #include "sx1509_registers.h"
 
+#include <vector>
+
 namespace esphome {
 namespace sx1509 {
 

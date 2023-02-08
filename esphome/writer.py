@@ -2,7 +2,7 @@ import logging
 import os
 import re
 from pathlib import Path
-from typing import Dict, List, Union
+from typing import Union
 
 from esphome.config import iter_components
 from esphome.const import (
@@ -98,7 +98,7 @@ def replace_file_content(text, pattern, repl):
     return content_new, count
 
 
-def storage_should_clean(old, new):  # type: (StorageJSON, StorageJSON) -> bool
+def storage_should_clean(old: StorageJSON, new: StorageJSON) -> bool:
     if old is None:
         return True
 
@@ -123,7 +123,7 @@ def update_storage_json():
     new.save(path)
 
 
-def format_ini(data: Dict[str, Union[str, List[str]]]) -> str:
+def format_ini(data: dict[str, Union[str, list[str]]]) -> str:
     content = ""
     for key, value in sorted(data.items()):
         if isinstance(value, list):
@@ -226,7 +226,7 @@ the custom_components folder or the external_components feature.
 
 
 def copy_src_tree():
-    source_files: List[loader.FileResource] = []
+    source_files: list[loader.FileResource] = []
     for _, component, _ in iter_components(CORE.config):
         source_files += component.resources
     source_files_map = {
