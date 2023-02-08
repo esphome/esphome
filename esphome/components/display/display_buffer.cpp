@@ -475,7 +475,6 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 #endif
 
 void DisplayBuffer::push_clipping(Rect rect) {
-  // ESP_LOGW(TAG, "set: Push new clipping");
   if (!this->clipping_rectangle_.empty()) {
     Rect r = this->clipping_rectangle_.back();
     rect.substract(r);
@@ -500,7 +499,6 @@ void DisplayBuffer::substract_clipping(Rect add_rect) {
   if (this->clipping_rectangle_.empty()) {
     ESP_LOGE(TAG, "add: Clipping is not set.");
   } else {
-    // ESP_LOGW(TAG, "add: join new clipping");
     this->clipping_rectangle_.back().substract(add_rect);
   }
 }
