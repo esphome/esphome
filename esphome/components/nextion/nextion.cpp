@@ -701,23 +701,23 @@ void Nextion::process_nextion_commands_() {
         for (auto &nb : this->nextion_queue_) {
           auto *component = nb->component;
           if (component->get_queue_type() == NextionQueueType::WAVEFORM_SENSOR) {
-            size_t buffer_to_send = component->get_wave_buffer().size() < 255 ? component->get_wave_buffer().size()
-                                                                              : 255;  // ADDT command can only send 255
+            size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
+                                                                            : 255;  // ADDT command can only send 255
 
             this->write_array(component->get_wave_buffer().data(), static_cast<int>(buffer_to_send));
 
             ESP_LOGN(TAG, "Nextion sending waveform data for component id %d and waveform id %d, size %zu",
                      component->get_component_id(), component->get_wave_channel_id(), buffer_to_send);
 
-            if (component->get_wave_buffer().size() <= 255) {
-              component->get_wave_buffer().clear();
-              ESP_LOGN(TAG, "cleared: %zu", component->get_wave_buffer().size());
+            if (component->get_wave_buffer_size() <= 255) {
+              component->clear_wave_buffer();
+              ESP_LOGN(TAG, "cleared: %zu", component->get_wave_buffer_size());
             } else {
               component->get_wave_buffer().erase(component->get_wave_buffer().begin(),
                                                  component->get_wave_buffer().begin() + buffer_to_send);
             }
             ESP_LOGN(TAG, "Nextion sent waveform data for component id %d and waveform id %d, size %zu",
-                     component->get_component_id(), component->get_wave_channel_id(), component->get_wave_buffer().size());
+                     component->get_component_id(), component->get_wave_channel_id(), component->get_wave_buffer_size());
             found = index;
             delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
             break;

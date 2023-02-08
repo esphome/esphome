@@ -69,6 +69,7 @@ class NextionComponentBase {
 
   std::vector<uint8_t> get_wave_buffer() { return this->wave_buffer_; }
   size_t get_wave_buffer_size() { return this->wave_buffer_.size(); }
+  void clear_wave_buffer() { this->wave_buffer_.clear(); }
 
   std::string get_variable_name() { return this->variable_name_; }
   std::string get_variable_name_to_send() { return this->variable_name_to_send_; }
