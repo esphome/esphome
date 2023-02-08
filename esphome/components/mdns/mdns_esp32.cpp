@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include "mdns_component.h"
 #include "esphome/core/log.h"
@@ -50,4 +50,4 @@ void MDNSComponent::setup() {
 }  // namespace mdns
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32
