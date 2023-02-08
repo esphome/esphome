@@ -1089,7 +1089,7 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   nextion::NextionQueue *nextion_queue = new nextion::NextionQueue;
 
   // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
-  nextion_queue->component = new nextion::NextionComponentBase;
+  nextion_queue->component = component;
   nextion_queue->queue_time = millis();
 
   size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
