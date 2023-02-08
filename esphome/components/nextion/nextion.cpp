@@ -375,7 +375,6 @@ void Nextion::process_nextion_commands_() {
 
               found = index;
 
-              delete component;  // NOLINT(cppcoreguidelines-owning-memory)
               delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
 
               break;
