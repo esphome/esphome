@@ -115,8 +115,8 @@ class Rect {
 
   void expand(int16_t width, int16_t height);
 
-  void join(Rect rect);
-  void substract(Rect rect);
+  void extend(Rect rect);
+  void shrink(Rect rect);
 
   bool inside(Rect rect, bool absolute = false);
   bool inside(int16_t x, int16_t y, bool absolute = false);
@@ -405,9 +405,9 @@ class DisplayBuffer {
   ///
   /// \return true if success, false if error
   ///
-  void push_clipping(Rect rect);
-  void push_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
-    push_clipping(Rect(left, top, right, bottom));
+  void start_clipping(Rect rect);
+  void start_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
+    start_clipping(Rect(left, top, right, bottom));
   };
 
   ///
@@ -418,9 +418,9 @@ class DisplayBuffer {
   ///
   /// \return none
   ///
-  void add_clipping(Rect rect);
-  void add_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
-    this->add_clipping(Rect(left, top, right, bottom));
+  void extend_clipping(Rect rect);
+  void extend_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
+    this->extend_clipping(Rect(left, top, right, bottom));
   };
 
   ///
@@ -431,9 +431,9 @@ class DisplayBuffer {
   ///
   /// \return none
   ///
-  void substract_clipping(Rect rect);
-  void substract_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
-    this->substract_clipping(Rect(left, top, right, bottom));
+  void shrink_clipping(Rect rect);
+  void shrink_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
+    this->shrink_clipping(Rect(left, top, right, bottom));
   };
 
   ///
@@ -441,7 +441,7 @@ class DisplayBuffer {
   ///
   /// \return none
   ///
-  void pop_clipping();
+  void end_clipping();
 
   ///
   /// Get the current the clipping rectangle

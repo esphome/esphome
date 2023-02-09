@@ -24,7 +24,7 @@ void Rect::expand(int16_t width, int16_t height) {
   }
 }
 
-void Rect::join(Rect rect) {
+void Rect::extend(Rect rect) {
   if (!this->is_set()) {
     this->x = rect.x;
     this->y = rect.y;
@@ -45,7 +45,7 @@ void Rect::join(Rect rect) {
     }
   }
 }
-void Rect::substract(Rect rect) {
+void Rect::shrink(Rect rect) {
   if (!this->inside(rect)) {
     (*this) = Rect();
   } else {
@@ -474,32 +474,32 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 }
 #endif
 
-void DisplayBuffer::push_clipping(Rect rect) {
+void DisplayBuffer::start_clipping(Rect rect) {
   if (!this->clipping_rectangle_.empty()) {
     Rect r = this->clipping_rectangle_.back();
-    rect.substract(r);
+    rect.shrink(r);
   }
   this->clipping_rectangle_.push_back(rect);
 }
-void DisplayBuffer::pop_clipping() {
+void DisplayBuffer::end_clipping() {
   if (this->clipping_rectangle_.empty()) {
     ESP_LOGE(TAG, "clear: Clipping is not set.");
   } else {
     this->clipping_rectangle_.pop_back();
   }
 }
-void DisplayBuffer::add_clipping(Rect add_rect) {
+void DisplayBuffer::extend_clipping(Rect add_rect) {
   if (this->clipping_rectangle_.empty()) {
     ESP_LOGE(TAG, "add: Clipping is not set.");
   } else {
-    this->clipping_rectangle_.back().join(add_rect);
+    this->clipping_rectangle_.back().extend(add_rect);
   }
 }
-void DisplayBuffer::substract_clipping(Rect add_rect) {
+void DisplayBuffer::shrink_clipping(Rect add_rect) {
   if (this->clipping_rectangle_.empty()) {
     ESP_LOGE(TAG, "add: Clipping is not set.");
   } else {
-    this->clipping_rectangle_.back().substract(add_rect);
+    this->clipping_rectangle_.back().shrink(add_rect);
   }
 }
 Rect DisplayBuffer::get_clipping() {
