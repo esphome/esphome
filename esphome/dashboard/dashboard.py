@@ -540,38 +540,6 @@ class DownloadBinaryRequestHandler(BaseHandler):
         self.finish()
 
 
-class ManifestRequestHandler(BaseHandler):
-    @authenticated
-    @bind_config
-    def get(self, configuration=None):
-        args = ["esphome", "idedata", settings.rel_path(configuration)]
-        rc, stdout, _ = run_system_command(*args)
-
-        if rc != 0:
-            self.send_error(404 if rc == 2 else 500)
-            return
-
-        idedata = platformio_api.IDEData(json.loads(stdout))
-
-        firmware_offset = "0x10000" if idedata.extra_flash_images else "0x0"
-        flash_images = [
-            {
-                "path": f"./download.bin?configuration={configuration}&type=firmware.bin",
-                "offset": firmware_offset,
-            }
-        ] + [
-            {
-                "path": f"./download.bin?configuration={configuration}&type={os.path.basename(image.path)}",
-                "offset": image.offset,
-            }
-            for image in idedata.extra_flash_images
-        ]
-
-        self.set_header("Content-Type", "application/json")
-        self.write(json.dumps(flash_images))
-        self.finish()
-
-
 def _list_dashboard_entries():
     files = settings.list_yaml_files()
     return [DashboardEntry(file) for file in files]
@@ -1149,7 +1117,6 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}info", InfoRequestHandler),
             (f"{rel}edit", EditRequestHandler),
             (f"{rel}download.bin", DownloadBinaryRequestHandler),
-            (f"{rel}manifest.json", ManifestRequestHandler),
             (f"{rel}serial-ports", SerialPortRequestHandler),
             (f"{rel}ping", PingRequestHandler),
             (f"{rel}delete", DeleteRequestHandler),
