@@ -778,7 +778,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
                                                  const std::string &variable_name_to_send,
                                                  const std::string &state_value, bool is_sleep_safe = false);
   
-  void check_pending_wave_();
+  void check_pending_waveform__();
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP8266

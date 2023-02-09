@@ -678,7 +678,7 @@ void Nextion::process_nextion_commands_() {
       }
       case 0xFD: {  // data transparent transmit finished
         ESP_LOGVV(TAG, "Nextion reported data transmit finished!");
-        this->check_pending_wave_();
+        this->check_pending_waveform__();
         break;
       }
       case 0xFE: {  // data transparent transmit ready
@@ -1064,10 +1064,10 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
 
   this->waveform_queue_.push_back(nextion_queue);
   if (this->waveform_queue_.size() == 1)
-    this->check_pending_wave_();
+    this->check_pending_waveform__();
 }
 
-void Nextion::check_pending_wave_() {
+void Nextion::check_pending_waveform__() {
   if (this->waveform_queue_.empty())
     return;
 
