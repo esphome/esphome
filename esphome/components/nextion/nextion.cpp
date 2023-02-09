@@ -111,6 +111,7 @@ void Nextion::reset_(bool reset_nextion) {
     this->read_byte(&d);
   };
   this->nextion_queue_.clear();
+  this->waveform_queue_.clear();
 }
 
 void Nextion::dump_config() {
@@ -691,38 +692,29 @@ void Nextion::process_nextion_commands_() {
       }
       case 0xFD: {  // data transparent transmit finished
         ESP_LOGVV(TAG, "Nextion reported data transmit finished!");
+        this->check_pending_wave_();
         break;
       }
       case 0xFE: {  // data transparent transmit ready
         ESP_LOGVV(TAG, "Nextion reported ready for transmit!");
-
-        int index = 0;
-        int found = -1;
-        for (auto &nb : this->nextion_queue_) {
-          auto *component = nb->component;
-          if (component->get_queue_type() == NextionQueueType::WAVEFORM_SENSOR) {
-            size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
-                                                                            : 255;  // ADDT command can only send 255
-
-            this->write_array(component->get_wave_buffer().data(), static_cast<int>(buffer_to_send));
-
-            ESP_LOGN(TAG, "Nextion sending waveform data for component id %d and waveform id %d, size %zu",
-                     component->get_component_id(), component->get_wave_channel_id(), buffer_to_send);
-
-            component->clear_wave_buffer(buffer_to_send);
-            found = index;
-            delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
-            break;
-          }
-          ++index;
-        }
-
-        if (found == -1) {
+        if (this->waveform_queue_.empty()) {
           ESP_LOGE(TAG, "No waveforms in queue to send data!");
           break;
-        } else {
-          this->nextion_queue_.erase(this->nextion_queue_.begin() + found);
         }
+
+        auto &nb = this->waveform_queue_.front();
+        auto *component = nb->component;
+        size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
+                                                                        : 255;  // ADDT command can only send 255
+
+        this->write_array(component->get_wave_buffer().data(), static_cast<int>(buffer_to_send));
+
+        ESP_LOGN(TAG, "Nextion sending waveform data for component id %d and waveform id %d, size %zu",
+                 component->get_component_id(), component->get_wave_channel_id(), buffer_to_send);
+
+        component->clear_wave_buffer(buffer_to_send);
+        delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
+        this->waveform_queue_.pop_front();
         break;
       }
       default:
@@ -1084,13 +1076,24 @@ void Nextion::add_addt_command_to_queue(NextionComponentBase *component) {
   nextion_queue->component = component;
   nextion_queue->queue_time = millis();
 
+  this->waveform_queue_.push_back(nextion_queue);
+  if (this->waveform_queue_.size() == 1)
+    this->check_pending_wave_();
+}
+
+void Nextion::check_pending_wave_() {
+  if (this->waveform_queue_.empty())
+    return;
+
+  auto *nb = this->waveform_queue_.front();
+  auto *component = nb->component;
   size_t buffer_to_send = component->get_wave_buffer_size() < 255 ? component->get_wave_buffer_size()
                                                                   : 255;  // ADDT command can only send 255
 
   std::string command = "addt " + to_string(component->get_component_id()) + "," +
                         to_string(component->get_wave_channel_id()) + "," + to_string(buffer_to_send);
   if (this->send_command_(command)) {
-    this->nextion_queue_.push_back(nextion_queue);
+    return;
   }
 }
 
