@@ -823,7 +823,7 @@ sensor:
     co2:
       name: Xensiv PAS CO2
     update_interval: 15s
-    ambient_pressure_compensation: 961mBar
+    ambient_pressure_compensation: 1035
     i2c_id: i2c_bus
   - platform: pmsa003i
     pm_1_0:

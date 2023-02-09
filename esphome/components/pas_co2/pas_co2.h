@@ -15,7 +15,7 @@ class PASCO2Component : public PollingComponent, public i2c::I2CDevice {
   void dump_config() override;
   void update() override;
 
-  void set_ambient_pressure_compensation(float pressure_in_bar);
+  void set_ambient_pressure_compensation(float pressure_in_hpa);
   void set_ambient_pressure_source(sensor::Sensor *pressure) { ambient_pressure_source_ = pressure; }
 
   void set_co2_sensor(sensor::Sensor *co2) { co2_sensor_ = co2; }
@@ -40,7 +40,7 @@ class PASCO2Component : public PollingComponent, public i2c::I2CDevice {
   bool initialized_{false};
   int retry_count_{0};
 
-  bool ambient_pressure_compensation_;
+  bool ambient_pressure_compensation_{false};
   uint16_t ambient_pressure_;
   sensor::Sensor *co2_sensor_{nullptr};
   // used for compensation

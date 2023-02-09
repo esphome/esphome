@@ -41,7 +41,7 @@ void PASCO2Component::dump_config() {
   }
   if (this->ambient_pressure_source_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  Dynamic ambient pressure compensation using sensor '%s'",
-                  this->ambient_pressure_source_->get_name().c_str());
+    this->ambient_pressure_source_->get_name().c_str());
   } else {
     if (this->ambient_pressure_compensation_) {
       ESP_LOGCONFIG(TAG, "  Ambient pressure compensation: %dmBar", this->ambient_pressure_);
@@ -60,9 +60,9 @@ void PASCO2Component::update() {
   }
 
   if (this->ambient_pressure_source_ != nullptr) {
-    const float pressure = this->ambient_pressure_source_->state / 1000.0f;
+    const float pressure = this->ambient_pressure_source_->state;
     if (!std::isnan(pressure)) {
-      this->set_ambient_pressure_compensation(this->ambient_pressure_source_->state / 1000.0f);
+      this->set_ambient_pressure_compensation(this->ambient_pressure_source_->state);
     }
   }
 
@@ -74,11 +74,15 @@ void PASCO2Component::update() {
 }
 
 // Note pressure in bar here. Convert to hPa
-void PASCO2Component::set_ambient_pressure_compensation(float pressure_in_bar) {
+void PASCO2Component::set_ambient_pressure_compensation(float pressure_in_hpa) {
   this->ambient_pressure_compensation_ = true;
-  const uint16_t new_ambient_pressure = (uint16_t)(pressure_in_bar * 1000);
-  // Ignore changes less than 10 millibar, it doesn't matter.
-  if (this->initialized_ && abs(new_ambient_pressure - this->ambient_pressure_) < 10) {
+  const uint16_t new_ambient_pressure = (uint16_t)(pressure_in_hpa);
+  if (!initialized_) {
+    ambient_pressure_ = new_ambient_pressure;
+    return;
+  }
+  // Ignore changes less or equal 2 millibar, it doesn't matter.
+  if (this->initialized_ && abs(new_ambient_pressure - this->ambient_pressure_) <= 2) {
     this->update_ambient_pressure_compensation_(new_ambient_pressure);
     this->ambient_pressure_ = new_ambient_pressure;
   } else {
@@ -113,6 +117,10 @@ void PASCO2Component::init_() {
       this->error_code_ = SOFT_RESET_FAILED;
       this->mark_failed();
       return;
+    }
+
+    if (this->ambient_pressure_compensation_) {
+      this->update_ambient_pressure_compensation_(this->ambient_pressure_);
     }
 
     // It seems that sensor waits setting IDLE and accepts SINGLE only after that.
