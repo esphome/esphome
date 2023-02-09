@@ -977,7 +977,6 @@ class LogoutHandler(BaseHandler):
 class SecretKeysRequestHandler(BaseHandler):
     @authenticated
     def get(self):
-
         filename = None
 
         for secret_filename in const.SECRETS_FILES:
