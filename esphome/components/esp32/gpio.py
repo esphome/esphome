@@ -123,11 +123,8 @@ def validate_gpio_pin(value):
 
 def validate_supports(value):
     mode = value[CONF_MODE]
-    is_input = mode[CONF_INPUT]
     is_output = mode[CONF_OUTPUT]
     is_open_drain = mode[CONF_OPEN_DRAIN]
-    is_pullup = mode[CONF_PULLUP]
-    is_pulldown = mode[CONF_PULLDOWN]
     variant = CORE.data[KEY_ESP32][KEY_VARIANT]
     if variant not in _esp32_validations:
         raise cv.Invalid(f"Unsupported ESP32 variant {variant}")
@@ -138,26 +135,6 @@ def validate_supports(value):
         )
 
     value = _esp32_validations[variant].usage_validation(value)
-    if CORE.using_arduino:
-        # (input, output, open_drain, pullup, pulldown)
-        supported_modes = {
-            # INPUT
-            (True, False, False, False, False),
-            # OUTPUT
-            (False, True, False, False, False),
-            # INPUT_PULLUP
-            (True, False, False, True, False),
-            # INPUT_PULLDOWN
-            (True, False, False, False, True),
-            # OUTPUT_OPEN_DRAIN
-            (False, True, True, False, False),
-        }
-        key = (is_input, is_output, is_open_drain, is_pullup, is_pulldown)
-        if key not in supported_modes:
-            raise cv.Invalid(
-                "This pin mode is not supported on ESP32 for arduino frameworks",
-                [CONF_MODE],
-            )
     return value
 
 
