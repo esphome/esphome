@@ -157,6 +157,11 @@ class DashboardImportDiscovery:
             return
         if state_change == ServiceStateChange.Removed:
             self.import_state.pop(name, None)
+            return
+
+        if state_change == ServiceStateChange.Updated and name not in self.import_state:
+            # Ignore updates for devices that are not in the import state
+            return
 
         info = zeroconf.get_service_info(service_type, name)
         _LOGGER.debug("-> resolved info: %s", info)
