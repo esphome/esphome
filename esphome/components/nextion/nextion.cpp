@@ -360,36 +360,22 @@ void Nextion::process_nextion_commands_() {
         ESP_LOGW(TAG, "Nextion reported baud rate invalid!");
         break;
       case 0x12:  // invalid Waveform ID or Channel # was used
+        if (this->waveform_queue_.empty()) {
+          ESP_LOGW(
+              TAG,
+              "Nextion reported invalid Waveform ID or Channel # was used but no waveform sensor in queue found!");
+        } else {
+          auto &nb = this->waveform_queue_.front();
+          NextionComponentBase *component = nb->component;
 
-        if (!this->nextion_queue_.empty()) {
-          int index = 0;
-          int found = -1;
-          for (auto &nb : this->nextion_queue_) {
-            NextionComponentBase *component = nb->component;
+          ESP_LOGW(TAG, "Nextion reported invalid Waveform ID %d or Channel # %d was used!",
+                    component->get_component_id(), component->get_wave_channel_id());
 
-            if (component->get_queue_type() == NextionQueueType::WAVEFORM_SENSOR) {
-              ESP_LOGW(TAG, "Nextion reported invalid Waveform ID %d or Channel # %d was used!",
-                       component->get_component_id(), component->get_wave_channel_id());
+          ESP_LOGN(TAG, "Removing waveform from queue with component id %d and waveform id %d",
+                    component->get_component_id(), component->get_wave_channel_id());
 
-              ESP_LOGN(TAG, "Removing waveform from queue with component id %d and waveform id %d",
-                       component->get_component_id(), component->get_wave_channel_id());
-
-              found = index;
-
-              delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
-
-              break;
-            }
-            ++index;
-          }
-
-          if (found != -1) {
-            this->nextion_queue_.erase(this->nextion_queue_.begin() + found);
-          } else {
-            ESP_LOGW(
-                TAG,
-                "Nextion reported invalid Waveform ID or Channel # was used but no waveform sensor in queue found!");
-          }
+          delete nb;         // NOLINT(cppcoreguidelines-owning-memory)
+          this->waveform_queue_.pop_front();
         }
         break;
       case 0x1A:  // variable name invalid
