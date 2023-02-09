@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_LIBRARIES,
     CONF_MIN_VERSION,
     CONF_NAME,
+    CONF_FRIENDLY_NAME,
     CONF_ON_BOOT,
     CONF_ON_LOOP,
     CONF_ON_SHUTDOWN,
@@ -124,6 +125,7 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_NAME): cv.valid_name,
+            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.string,
             cv.Optional(CONF_COMMENT): cv.string,
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
@@ -192,6 +194,7 @@ def preload_core_config(config, result):
         conf = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
 
     CORE.name = conf[CONF_NAME]
+    CORE.friendly_name = conf.get(CONF_FRIENDLY_NAME)
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
@@ -346,6 +349,8 @@ async def to_code(config):
     cg.add(
         cg.App.pre_setup(
             config[CONF_NAME],
+            config[CONF_FRIENDLY_NAME],
+            config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
