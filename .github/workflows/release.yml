@@ -150,6 +150,6 @@ jobs:
               ref: "main",
               inputs: {
                 version: "${{ github.event.release.tag_name }}",
-                content: "${{ toJSON(github.event.release.body) }}"
+                content: ${{ toJSON(github.event.release.body) }}
               }
             })
