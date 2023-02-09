@@ -121,7 +121,7 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
   args->backoff_increase_factor = backoff_increase_factor;
   args->scheduler = this;
 
-  // First exectuion of `func` immediately
+  // First execution of `func` immediately
   this->set_timeout(component, args->name, 0, [args]() { retry_handler(args); });
 }
 bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
@@ -164,7 +164,7 @@ void HOT Scheduler::call() {
 #endif  // ESPHOME_DEBUG_SCHEDULER
 
   auto to_remove_was = to_remove_;
-  auto items_was = items_.size();
+  auto items_was = this->items_.size();
   // If we have too many items to remove
   if (to_remove_ > MAX_LOGICALLY_DELETED_ITEMS) {
     std::vector<std::unique_ptr<SchedulerItem>> valid_items;
