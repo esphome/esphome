@@ -99,7 +99,7 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
-static const uint8_t VALUE_NO_SET = 32766;
+static const int16_t VALUE_NO_SET = 32766;
 
 class Rect {
  public:
