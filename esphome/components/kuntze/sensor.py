@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import sensor, modbus
 from esphome.const import (
     CONF_ID,
+    CONF_EC,
     CONF_PH,
     CONF_TEMPERATURE,
     ICON_EMPTY,
@@ -15,6 +16,8 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
 )
 
+CODEOWNERS = ["@ssieb"]
+
 AUTO_LOAD = ["modbus"]
 
 kuntze_ns = cg.esphome_ns.namespace("kuntze")
@@ -23,7 +26,6 @@ Kuntze = kuntze_ns.class_("Kuntze", cg.PollingComponent, modbus.ModbusDevice)
 CONF_DIS1 = "dis1"
 CONF_DIS2 = "dis2"
 CONF_REDOX = "redox"
-CONF_EC = "ec"
 CONF_OCI = "oci"
 
 CONFIG_SCHEMA = (
