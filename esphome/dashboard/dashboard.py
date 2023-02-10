@@ -55,6 +55,7 @@ class DashboardSettings:
         self.using_password = False
         self.on_ha_addon = False
         self.cookie_secret = None
+        self.absolute_config_dir = None
 
     def parse_args(self, args):
         self.on_ha_addon = args.ha_addon
@@ -65,6 +66,7 @@ class DashboardSettings:
         if self.using_password:
             self.password_hash = password_hash(password)
         self.config_dir = args.configuration
+        self.absolute_config_dir = Path(self.config_dir).resolve()
 
     @property
     def relative_url(self):
@@ -94,7 +96,10 @@ class DashboardSettings:
         return hmac.compare_digest(self.password_hash, password_hash(password))
 
     def rel_path(self, *args):
-        return os.path.join(self.config_dir, *args)
+        joined_path = os.path.join(self.config_dir, *args)
+        # Raises ValueError if not relative to ESPHome config folder
+        Path(joined_path).resolve().relative_to(self.absolute_config_dir)
+        return joined_path
 
     def list_yaml_files(self):
         return util.list_yaml_files([self.config_dir])
@@ -540,38 +545,6 @@ class DownloadBinaryRequestHandler(BaseHandler):
         self.finish()
 
 
-class ManifestRequestHandler(BaseHandler):
-    @authenticated
-    @bind_config
-    def get(self, configuration=None):
-        args = ["esphome", "idedata", settings.rel_path(configuration)]
-        rc, stdout, _ = run_system_command(*args)
-
-        if rc != 0:
-            self.send_error(404 if rc == 2 else 500)
-            return
-
-        idedata = platformio_api.IDEData(json.loads(stdout))
-
-        firmware_offset = "0x10000" if idedata.extra_flash_images else "0x0"
-        flash_images = [
-            {
-                "path": f"./download.bin?configuration={configuration}&type=firmware.bin",
-                "offset": firmware_offset,
-            }
-        ] + [
-            {
-                "path": f"./download.bin?configuration={configuration}&type={os.path.basename(image.path)}",
-                "offset": image.offset,
-            }
-            for image in idedata.extra_flash_images
-        ]
-
-        self.set_header("Content-Type", "application/json")
-        self.write(json.dumps(flash_images))
-        self.finish()
-
-
 def _list_dashboard_entries():
     files = settings.list_yaml_files()
     return [DashboardEntry(file) for file in files]
@@ -1004,7 +977,6 @@ class LogoutHandler(BaseHandler):
 class SecretKeysRequestHandler(BaseHandler):
     @authenticated
     def get(self):
-
         filename = None
 
         for secret_filename in const.SECRETS_FILES:
@@ -1149,7 +1121,6 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}info", InfoRequestHandler),
             (f"{rel}edit", EditRequestHandler),
             (f"{rel}download.bin", DownloadBinaryRequestHandler),
-            (f"{rel}manifest.json", ManifestRequestHandler),
             (f"{rel}serial-ports", SerialPortRequestHandler),
             (f"{rel}ping", PingRequestHandler),
             (f"{rel}delete", DeleteRequestHandler),
