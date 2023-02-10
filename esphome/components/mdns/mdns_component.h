@@ -35,6 +35,8 @@ class MDNSComponent : public Component {
 
   void add_extra_service(MDNSService service) { services_extra_.push_back(std::move(service)); }
 
+  void on_shutdown() override;
+
  protected:
   std::vector<MDNSService> services_extra_{};
   std::vector<MDNSService> services_{};
