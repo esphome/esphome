@@ -450,7 +450,7 @@ void DisplayBuffer::do_update_() {
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
   }
-  // remove all not ended clipping regions 
+  // remove all not ended clipping regions
   while (is_clipping()) {
     end_clipping();
   }
