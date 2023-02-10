@@ -1077,8 +1077,9 @@ void Nextion::check_pending_waveform_() {
 
   std::string command = "addt " + to_string(component->get_component_id()) + "," +
                         to_string(component->get_wave_channel_id()) + "," + to_string(buffer_to_send);
-  if (this->send_command_(command)) {
-    return;
+  if (!this->send_command_(command)) {
+    delete nb;  // NOLINT(cppcoreguidelines-owning-memory)
+    this->waveform_queue_.pop_front();
   }
 }
 
