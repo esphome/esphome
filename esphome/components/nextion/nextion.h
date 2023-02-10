@@ -777,8 +777,8 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
   void add_no_result_to_queue_with_set_internal_(const std::string &variable_name,
                                                  const std::string &variable_name_to_send,
                                                  const std::string &state_value, bool is_sleep_safe = false);
-  
-  void check_pending_waveform__();
+
+  void check_pending_waveform_();
 
 #ifdef USE_NEXTION_TFT_UPLOAD
 #ifdef USE_ESP8266
