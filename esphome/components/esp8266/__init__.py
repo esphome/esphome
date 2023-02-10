@@ -240,7 +240,6 @@ async def to_code(config):
 
 # Called by writer.py
 def copy_files():
-
     dir = os.path.dirname(__file__)
     post_build_file = os.path.join(dir, "post_build.py.script")
     copy_file_if_changed(
