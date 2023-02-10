@@ -220,9 +220,9 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
         case IMAGE_TYPE_BINARY:
           color = image->get_pixel(img_x, img_y) ? color_on : color_off;
           break;
-//        case IMAGE_TYPE_TRANSPARENT_BINARY:
-//          color = image->get_pixel(img_x, img_y) ? color_on : COLOR_TRANSPARENT;
-//          break;
+        //  case IMAGE_TYPE_TRANSPARENT_BINARY:
+        //    color = image->get_pixel(img_x, img_y) ? color_on : COLOR_TRANSPARENT;
+        //    break;
         case IMAGE_TYPE_GRAYSCALE:
           color = image->get_grayscale_pixel(img_x, img_y);
           break;
@@ -230,7 +230,7 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
           color = image->get_color_pixel(img_x, img_y);
           break;
         case IMAGE_TYPE_RGB565:
-          color =  image->get_rgb565_pixel(img_x, img_y);
+          color = image->get_rgb565_pixel(img_x, img_y);
           break;
       }
       if (color != COLOR_TRANSPARENT) {
