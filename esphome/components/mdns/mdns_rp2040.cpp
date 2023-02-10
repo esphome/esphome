@@ -38,6 +38,11 @@ void MDNSComponent::setup() {
 
 void MDNSComponent::loop() { MDNS.update(); }
 
+void MDNSComponent::on_shutdown() {
+  MDNS.close();
+  delay(40);
+}
+
 }  // namespace mdns
 }  // namespace esphome
 

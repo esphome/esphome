@@ -26,7 +26,7 @@ RUN \
         python3-cryptography=3.3.2-1 \
         iputils-ping=3:20210202-1 \
         git=1:2.30.2-1 \
-        curl=7.74.0-1.3+deb11u3 \
+        curl=7.74.0-1.3+deb11u5 \
         openssh-client=1:8.4p1-5+deb11u1 \
     && rm -rf \
         /tmp/* \
