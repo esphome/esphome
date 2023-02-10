@@ -99,6 +99,8 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
+#define VALUE_NO_SET 32766
+
 class Rect {
  public:
   int16_t x;  ///< X coordinate of corner
@@ -106,14 +108,14 @@ class Rect {
   int16_t w;  ///< Width of region
   int16_t h;  ///< Height of region
 
-  Rect() : x(32766), y(32766), w(32766), h(32766) {}  // NOLINT
+  Rect() : x(VALUE_NO_SET), y(VALUE_NO_SET), w(VALUE_NO_SET), h(VALUE_NO_SET) {}  // NOLINT
   inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
   inline int16_t x2() { return this->x + this->w; };  ///< X coordinate of corner
   inline int16_t y2() { return this->y + this->h; };  ///< Y coordinate of corner
 
-  inline bool is_set() ALWAYS_INLINE { return (this->h != 32766) && (this->w != 32766); }
+  inline bool is_set() ALWAYS_INLINE { return (this->h != VALUE_NO_SET) && (this->w != VALUE_NO_SET); }
 
-  void expand(int16_t width, int16_t height);
+  void expand(int16_t horizontal, int16_t vertical);
 
   void extend(Rect rect);
   void shrink(Rect rect);
@@ -407,7 +409,7 @@ class DisplayBuffer {
   ///
   void start_clipping(Rect rect);
   void start_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
-    start_clipping(Rect(left, top, right, bottom));
+    start_clipping(Rect(left, top, right - left, bottom - top));
   };
 
   ///
@@ -420,7 +422,7 @@ class DisplayBuffer {
   ///
   void extend_clipping(Rect rect);
   void extend_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
-    this->extend_clipping(Rect(left, top, right, bottom));
+    this->extend_clipping(Rect(left, top, right - left, bottom - top));
   };
 
   ///
@@ -433,7 +435,7 @@ class DisplayBuffer {
   ///
   void shrink_clipping(Rect rect);
   void shrink_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
-    this->shrink_clipping(Rect(left, top, right, bottom));
+    this->shrink_clipping(Rect(left, top, right - left, bottom - top));
   };
 
   ///
@@ -450,6 +452,8 @@ class DisplayBuffer {
   /// \return rect for active clipping region
   ///
   Rect get_clipping();
+
+  bool is_clipping() const { return this->clipping_rectangle_.empty(); }
 
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);

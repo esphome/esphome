@@ -15,12 +15,12 @@ static const char *const TAG = "display";
 const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
 
-void Rect::expand(int16_t width, int16_t height) {
-  if ((*this).is_set() && ((*this).w >= (-2 * width)) && ((*this).h >= (-2 * height))) {
-    (*this).x = (*this).x - width;
-    (*this).y = (*this).y - height;
-    (*this).w = (*this).w + (2 * width);
-    (*this).h = (*this).h + (2 * height);
+void Rect::expand(int16_t horizontal, int16_t vertical) {
+  if ((*this).is_set() && ((*this).w >= (-2 * horizontal)) && ((*this).h >= (-2 * vertical))) {
+    (*this).x = (*this).x - horizontal;
+    (*this).y = (*this).y - vertical;
+    (*this).w = (*this).w + (2 * horizontal);
+    (*this).h = (*this).h + (2 * vertical);
   }
 }
 
@@ -449,6 +449,10 @@ void DisplayBuffer::do_update_() {
     this->page_->get_writer()(*this);
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
+  }
+  // remove all not ended clipping regions 
+  while (is_clipping()) {
+    end_clipping();
   }
 }
 void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
