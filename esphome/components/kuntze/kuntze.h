@@ -27,7 +27,7 @@ class Kuntze : public PollingComponent, public modbus::ModbusDevice {
  protected:
   int state_{0};
   bool waiting_{false};
-  long last_send_{0};
+  uint32_t last_send_{0};
 
   sensor::Sensor *ph_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};

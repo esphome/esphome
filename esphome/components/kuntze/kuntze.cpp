@@ -4,7 +4,7 @@
 namespace esphome {
 namespace kuntze {
 
-static const char *TAG = "kuntze";
+static const char *const TAG = "kuntze";
 
 static const uint8_t CMD_READ_REG = 0x03;
 static const uint16_t REGISTER[] = {4136, 4160, 4680, 6000, 4688, 4728, 5832};
@@ -60,7 +60,7 @@ void Kuntze::on_modbus_data(const std::vector<uint8_t> &data) {
 }
 
 void Kuntze::loop() {
-  long now = millis();
+  uint32_t now = millis();
   // timeout after 15 seconds
   if (this->waiting_ && (now - this->last_send_ > 15000)) {
     ESP_LOGW(TAG, "timed out waiting for response");
