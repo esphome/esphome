@@ -95,6 +95,16 @@ void WebServer::set_css_include(const char *css_include) { this->css_include_ = 
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
 void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
 
+std::string WebServer::get_config_json() {
+  return json::build_json([this](JsonObject root) {
+    root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
+    root["comment"] = App.get_comment();
+    root["ota"] = this->allow_ota_;
+    root["log"] = this->expose_log_;
+    root["lang"] = "en";
+  });
+}
+
 void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
   this->setup_controller(this->include_internal_);
@@ -102,15 +112,7 @@ void WebServer::setup() {
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
     // Configure reconnect timeout and send config
-
-    client->send(json::build_json([this](JsonObject root) {
-                   root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
-                   root["comment"] = App.get_comment();
-                   root["ota"] = this->allow_ota_;
-                   root["log"] = this->expose_log_;
-                   root["lang"] = "en";
-                 }).c_str(),
-                 "ping", millis(), 30000);
+    client->send( this->get_config_json().c_str(), "ping", millis(), 30000);
 
     this->entities_iterator_.begin(this->include_internal_);
   });
@@ -316,6 +318,9 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   }
 #endif
 #if USE_WEBSERVER_VERSION == 2
+  stream->print(F("<script id='config' type='application/json'>"));
+  stream->print(this->get_config_json().c_str());
+  stream->print(F("</script>"));
   stream->print(F("<esp-app></esp-app>"));
 #endif
   if (strlen(this->js_url_) > 0) {

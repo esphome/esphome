@@ -97,6 +97,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
 
+  /// Return the webserver configuration as JSON.
+  std::string get_config_json();
+
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   /// Handle included css request under '/0.css'.
   void handle_css_request(AsyncWebServerRequest *request);
