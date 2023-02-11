@@ -243,6 +243,10 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       ESP_LOGE(TAG, "LOCAL_TIME_QUERY is not handled");
 #endif
       break;
+    case TuyaCommandType::VACUUM_MAP_UPLOAD:
+      this->send_command_(TuyaCommand{.cmd = TuyaCommandType::VACUUM_MAP_UPLOAD, .payload = std::vector<uint8_t>{0x01}});
+      ESP_LOGI(TAG, "Vacuum map upload requested, responding that it is not enabled.");
+      break;
     default:
       ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);
   }
