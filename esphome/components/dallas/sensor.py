@@ -27,6 +27,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ADDRESS): cv.hex_int,
             cv.Optional(CONF_INDEX): cv.positive_int,
             cv.Optional(CONF_RESOLUTION, default=12): cv.int_range(min=9, max=12),
+            cv.Optional(CONF_MAX31850, default=False): cv.boolean,
         }
     ),
     cv.has_exactly_one_key(CONF_ADDRESS, CONF_INDEX),
@@ -44,6 +45,9 @@ async def to_code(config):
 
     if CONF_RESOLUTION in config:
         cg.add(var.set_resolution(config[CONF_RESOLUTION]))
+
+    if CONF_MAX31850 in config:
+        cg.add(var.set_max31850(config[CONF_MAX31850]))
 
     cg.add(var.set_parent(hub))
 
