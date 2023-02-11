@@ -107,6 +107,7 @@ void WebServer::setup() {
                    root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
                    root["comment"] = App.get_comment();
                    root["ota"] = this->allow_ota_;
+                   root["log"] = this->expose_log_;
                    root["lang"] = "en";
                  }).c_str(),
                  "ping", millis(), 30000);

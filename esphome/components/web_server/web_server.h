@@ -77,6 +77,11 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    * @param allow_ota.
    */
   void set_allow_ota(bool allow_ota) { this->allow_ota_ = allow_ota; }
+  /** Set whether or not the webserver should expose the Log.
+   *
+   * @param expose_log.
+   */
+  void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -235,6 +240,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *js_include_{nullptr};
   bool include_internal_{false};
   bool allow_ota_{true};
+  bool expose_log_{true};
 #ifdef USE_ESP32
   std::deque<std::function<void()>> to_schedule_;
   SemaphoreHandle_t to_schedule_lock_;
