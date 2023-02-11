@@ -1062,51 +1062,66 @@ uint32_t Sprinkler::total_cycle_time_all_valves() {
 
   for (size_t valve = 0; valve < this->number_of_valves(); valve++) {
     total_time_remaining += this->valve_run_duration_adjusted(valve);
-    if (this->valve_overlap_) {
-      total_time_remaining -= this->switching_delay_.value_or(0);
-    } else {
-      total_time_remaining += this->switching_delay_.value_or(0);
-    }
   }
+
+  if (this->valve_overlap_) {
+    total_time_remaining -= this->switching_delay_.value_or(0) * (this->number_of_valves() - 1);
+  } else {
+    total_time_remaining += this->switching_delay_.value_or(0) * (this->number_of_valves() - 1);
+  }
+
   return total_time_remaining;
 }
 
 uint32_t Sprinkler::total_cycle_time_enabled_valves() {
   uint32_t total_time_remaining = 0;
+  uint32_t valve_count = 0;
 
   for (size_t valve = 0; valve < this->number_of_valves(); valve++) {
     if (this->valve_is_enabled_(valve)) {
       total_time_remaining += this->valve_run_duration_adjusted(valve);
-      if (this->valve_overlap_) {
-        total_time_remaining -= this->switching_delay_.value_or(0);
-      } else {
-        total_time_remaining += this->switching_delay_.value_or(0);
-      }
+      valve_count++;
     }
   }
+
+  if (valve_count) {
+    if (this->valve_overlap_) {
+      total_time_remaining -= this->switching_delay_.value_or(0) * (valve_count - 1);
+    } else {
+      total_time_remaining += this->switching_delay_.value_or(0) * (valve_count - 1);
+    }
+  }
+
   return total_time_remaining;
 }
 
 uint32_t Sprinkler::total_cycle_time_enabled_incomplete_valves() {
   uint32_t total_time_remaining = 0;
+  uint32_t valve_count = 0;
 
   for (size_t valve = 0; valve < this->number_of_valves(); valve++) {
     if (this->valve_is_enabled_(valve) && !this->valve_cycle_complete_(valve)) {
       if (!this->active_valve().has_value() || (valve != this->active_valve().value())) {
         total_time_remaining += this->valve_run_duration_adjusted(valve);
-        if (this->valve_overlap_) {
-          total_time_remaining -= this->switching_delay_.value_or(0);
-        } else {
-          total_time_remaining += this->switching_delay_.value_or(0);
-        }
+        valve_count++;
       }
     }
   }
+
+  if (valve_count) {
+    if (this->valve_overlap_) {
+      total_time_remaining -= this->switching_delay_.value_or(0) * (valve_count - 1);
+    } else {
+      total_time_remaining += this->switching_delay_.value_or(0) * (valve_count - 1);
+    }
+  }
+
   return total_time_remaining;
 }
 
 uint32_t Sprinkler::total_queue_time() {
   uint32_t total_time_remaining = 0;
+  uint32_t valve_count = 0;
 
   for (auto &valve : this->queued_valves_) {
     if (valve.run_duration) {
@@ -1114,12 +1129,17 @@ uint32_t Sprinkler::total_queue_time() {
     } else {
       total_time_remaining += this->valve_run_duration_adjusted(valve.valve_number);
     }
+    valve_count++;
+  }
+
+  if (valve_count) {
     if (this->valve_overlap_) {
-      total_time_remaining -= this->switching_delay_.value_or(0);
+      total_time_remaining -= this->switching_delay_.value_or(0) * (valve_count - 1);
     } else {
-      total_time_remaining += this->switching_delay_.value_or(0);
+      total_time_remaining += this->switching_delay_.value_or(0) * (valve_count - 1);
     }
   }
+
   return total_time_remaining;
 }
 
