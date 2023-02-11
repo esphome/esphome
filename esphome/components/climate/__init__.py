@@ -22,6 +22,8 @@ from esphome.const import (
     CONF_MODE_STATE_TOPIC,
     CONF_ON_STATE,
     CONF_PRESET,
+    CONF_PRESET_COMMAND_TOPIC,
+    CONF_PRESET_STATE_TOPIC,
     CONF_SWING_MODE,
     CONF_SWING_MODE_COMMAND_TOPIC,
     CONF_SWING_MODE_STATE_TOPIC,
@@ -73,6 +75,7 @@ CLIMATE_FAN_MODES = {
     "MIDDLE": ClimateFanMode.CLIMATE_FAN_MIDDLE,
     "FOCUS": ClimateFanMode.CLIMATE_FAN_FOCUS,
     "DIFFUSE": ClimateFanMode.CLIMATE_FAN_DIFFUSE,
+    "QUIET": ClimateFanMode.CLIMATE_FAN_QUIET,
 }
 
 validate_climate_fan_mode = cv.enum(CLIMATE_FAN_MODES, upper=True)
@@ -140,6 +143,12 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
             cv.requires_component("mqtt"), cv.publish_topic
         ),
         cv.Optional(CONF_MODE_STATE_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_PRESET_COMMAND_TOPIC): cv.All(
+            cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_PRESET_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
         ),
         cv.Optional(CONF_SWING_MODE_COMMAND_TOPIC): cv.All(
@@ -216,7 +225,12 @@ async def setup_climate_core_(var, config):
             cg.add(mqtt_.set_custom_mode_command_topic(config[CONF_MODE_COMMAND_TOPIC]))
         if CONF_MODE_STATE_TOPIC in config:
             cg.add(mqtt_.set_custom_mode_state_topic(config[CONF_MODE_STATE_TOPIC]))
-
+        if CONF_PRESET_COMMAND_TOPIC in config:
+            cg.add(
+                mqtt_.set_custom_preset_command_topic(config[CONF_PRESET_COMMAND_TOPIC])
+            )
+        if CONF_PRESET_STATE_TOPIC in config:
+            cg.add(mqtt_.set_custom_preset_state_topic(config[CONF_PRESET_STATE_TOPIC]))
         if CONF_SWING_MODE_COMMAND_TOPIC in config:
             cg.add(
                 mqtt_.set_custom_swing_mode_command_topic(

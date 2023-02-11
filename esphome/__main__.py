@@ -339,7 +339,7 @@ def command_config(args, config):
     _LOGGER.info("Configuration is valid!")
     if not CORE.verbose:
         config = strip_default_ids(config)
-    safe_print(yaml_util.dump(config))
+    safe_print(yaml_util.dump(config, args.show_secrets))
     return 0
 
 
@@ -664,6 +664,9 @@ def parse_args(argv):
     )
     parser_config.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs="+"
+    )
+    parser_config.add_argument(
+        "--show-secrets", help="Show secrets in output.", action="store_true"
     )
 
     parser_compile = subparsers.add_parser(
