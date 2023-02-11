@@ -50,6 +50,8 @@ class DallasTemperatureSensor : public sensor::Sensor {
   uint8_t get_resolution() const;
   /// Set the resolution for this sensor.
   void set_resolution(uint8_t resolution);
+  /// Define this sensor as the MAX31850 part (shadows the DS1825 model code)
+  void set_max31850(bool max31850);
   /// Get the number of milliseconds we have to wait for the conversion phase.
   uint16_t millis_to_wait_for_conversion() const;
 
@@ -72,6 +74,7 @@ class DallasTemperatureSensor : public sensor::Sensor {
   uint8_t scratch_pad_[9] = {
       0,
   };
+  bool max31850_ = false;
 };
 
 }  // namespace dallas

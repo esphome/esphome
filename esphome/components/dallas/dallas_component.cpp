@@ -16,6 +16,7 @@ static const uint8_t DALLAS_COMMAND_READ_SCRATCH_PAD = 0xBE;
 static const uint8_t DALLAS_COMMAND_WRITE_SCRATCH_PAD = 0x4E;
 
 uint16_t DallasTemperatureSensor::millis_to_wait_for_conversion() const {
+  if (this->max31850_) return 100;  // For the MAX31850, resolution is 14, t_CONV = 100ms
   switch (this->resolution_) {
     case 9:
       return 94;
@@ -142,6 +143,7 @@ void DallasComponent::update() {
       float tempc = sensor->get_temp_c();
       ESP_LOGD(TAG, "'%s': Got Temperature=%.1f°C", sensor->get_name().c_str(), tempc);
       sensor->publish_state(tempc);
+      if (tempc == NAN) this->status_set_warning();
     });
   }
 }
@@ -149,6 +151,7 @@ void DallasComponent::update() {
 void DallasTemperatureSensor::set_address(uint64_t address) { this->address_ = address; }
 uint8_t DallasTemperatureSensor::get_resolution() const { return this->resolution_; }
 void DallasTemperatureSensor::set_resolution(uint8_t resolution) { this->resolution_ = resolution; }
+void DallasTemperatureSensor::set_max31850(bool max31850) { this->max31850_ = max31850; }
 optional<uint8_t> DallasTemperatureSensor::get_index() const { return this->index_; }
 void DallasTemperatureSensor::set_index(uint8_t index) { this->index_ = index; }
 uint8_t *DallasTemperatureSensor::get_address8() { return reinterpret_cast<uint8_t *>(&this->address_); }
@@ -192,6 +195,14 @@ bool DallasTemperatureSensor::setup_sensor() {
   }
   if (!this->check_scratch_pad())
     return false;
+
+  if (this->max31850_) {
+    // The MAX31850 does not support setting any configuration, and the resolution is
+    // statically set to 14 bits
+    ESP_LOGW(TAG, "MAX31850 doesn't support any configuration, resolution is 14 bits.");
+    resolution_ = 14;
+    return false;
+  }
 
   if (this->scratch_pad_[4] == this->resolution_)
     return false;
@@ -269,6 +280,28 @@ float DallasTemperatureSensor::get_temp_c() {
   if (this->get_address8()[0] == DALLAS_MODEL_DS18S20) {
     int diff = (this->scratch_pad_[7] - this->scratch_pad_[6]) << 7;
     temp = ((temp & 0xFFF0) << 3) - 16 + (diff / this->scratch_pad_[7]);
+  }
+  if (this->max31850_) {
+    if (this->scratch_pad_[0] & 0x1){
+      // A fault was detected
+      switch (this->scratch_pad_[2] & 0x07)
+      {
+      case 1:
+        ESP_LOGE(TAG, "Thermocouple open circuit!");
+        return NAN;
+      case 2:
+        ESP_LOGE(TAG, "Thermocouple shorted to GND!");
+        return NAN;
+      case 4:
+        ESP_LOGE(TAG, "Thermocouple shorted to Vdd!");
+        return NAN;
+      default:
+        ESP_LOGE(TAG, "Unknown thermocouple fault!");
+        return NAN;
+      }
+    }
+    temp = int16_t(this->scratch_pad_[1])<<8 | (this->scratch_pad_[0] & 0xFC);
+    return temp / 16.0f;
   }
 
   return temp / 128.0f;
