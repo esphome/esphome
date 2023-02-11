@@ -1,5 +1,7 @@
 #include "tuya.h"
 #include "esphome/components/network/util.h"
+#include "esphome/components/captive_portal/captive_portal.h"
+#include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
@@ -243,6 +245,14 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       ESP_LOGE(TAG, "LOCAL_TIME_QUERY is not handled");
 #endif
       break;
+    case TuyaCommandType::GET_NETWORK_STATUS:
+      {
+        uint8_t wifi_status = this->get_wifi_status_code_();
+
+        this->send_command_(TuyaCommand{.cmd = TuyaCommandType::GET_NETWORK_STATUS, .payload = std::vector<uint8_t>{wifi_status}});
+        ESP_LOGV(TAG, "Network status requested, reported as %i", status);
+        break;
+      }
     default:
       ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);
   }
@@ -437,8 +447,9 @@ void Tuya::set_status_pin_() {
   this->status_pin_.value()->digital_write(is_network_ready);
 }
 
-void Tuya::send_wifi_status_() {
+uint8_t Tuya::get_wifi_status_code_() {
   uint8_t status = 0x02;
+
   if (network::is_connected()) {
     status = 0x03;
 
@@ -446,7 +457,15 @@ void Tuya::send_wifi_status_() {
     if (this->protocol_version_ >= 0x03 && remote_is_connected()) {
       status = 0x04;
     }
-  }
+  } else if (captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active()) {
+    status = 0x01;
+  };
+
+  return status;
+}
+
+void Tuya::send_wifi_status_() {
+  uint8_t status = this->get_wifi_status_code_();
 
   if (status == this->wifi_status_) {
     return;
