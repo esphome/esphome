@@ -319,7 +319,7 @@ mcp23s17:
 
 iec62056:
   update_interval: 60s
-  baud_rate: 9600
+  baud_rate_max: 9600
   receive_timeout: 3s
   battery_meter: False
   retry_counter_max: 2

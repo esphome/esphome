@@ -55,7 +55,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(IEC62056Component),
             cv.Optional(CONF_UPDATE_INTERVAL, default="15min"): cv.update_interval,
-            cv.Optional(CONF_BAUD_RATE_MAX, default=0): validate_baud_rate,
+            cv.Optional(CONF_BAUD_RATE_MAX, default=9600): validate_baud_rate,
             cv.Optional(CONF_BATTERY_METER, default=False): cv.boolean,
             cv.Optional(
                 CONF_RECEIVE_TIMEOUT, default="3s"
