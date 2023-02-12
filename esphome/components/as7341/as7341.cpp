@@ -94,10 +94,10 @@ void AS7341Component::update() {
   }
 }
 
-as7341_gain_t AS7341Component::get_gain() {
+AS7341Gain AS7341Component::get_gain() {
   uint8_t data;
   this->read_byte(AS7341_CFG1, &data);
-  return (as7341_gain_t) data;
+  return (AS7341Gain) data;
 }
 
 uint8_t AS7341Component::get_atime() {
@@ -112,7 +112,7 @@ uint16_t AS7341Component::get_astep() {
   return this->swap_bytes(data);
 }
 
-bool AS7341Component::setup_gain(as7341_gain_t gain) { return this->write_byte(AS7341_CFG1, gain); }
+bool AS7341Component::setup_gain(AS7341Gain gain) { return this->write_byte(AS7341_CFG1, gain); }
 
 bool AS7341Component::setup_atime(uint8_t atime) { return this->write_byte(AS7341_ATIME, atime); }
 
@@ -145,7 +145,7 @@ void AS7341Component::set_smux_low_channels(bool enable) {
   this->enable_smux();
 }
 
-bool AS7341Component::set_smux_command(as7341_smux_cmd_t command) {
+bool AS7341Component::set_smux_command(AS7341SmuxCommand command) {
   uint8_t data = command << 3;  // Write to bits 4:3 of the register
   return this->write_byte(AS7341_CFG6, data);
 }

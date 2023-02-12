@@ -35,7 +35,7 @@ CONF_NIR = "nir"
 
 UNIT_COUNTS = "#"
 
-AS7341_GAIN = as7341_ns.enum("as7341_gain_t")
+AS7341_GAIN = as7341_ns.enum("AS7341Gain")
 GAIN_OPTIONS = {
     "X0.5": AS7341_GAIN.AS7341_GAIN_0_5X,
     "X1": AS7341_GAIN.AS7341_GAIN_1X,
@@ -51,30 +51,29 @@ GAIN_OPTIONS = {
 }
 
 
-def sensor_schema():
-    return sensor.sensor_schema(
-        unit_of_measurement=UNIT_COUNTS,
-        icon=ICON_BRIGHTNESS_5,
-        accuracy_decimals=0,
-        device_class=DEVICE_CLASS_ILLUMINANCE,
-        state_class=STATE_CLASS_MEASUREMENT,
-    )
+SENSOR_SCHEMA = sensor.sensor_schema(
+    unit_of_measurement=UNIT_COUNTS,
+    icon=ICON_BRIGHTNESS_5,
+    accuracy_decimals=0,
+    device_class=DEVICE_CLASS_ILLUMINANCE,
+    state_class=STATE_CLASS_MEASUREMENT,
+)
 
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(AS7341Component),
-            cv.Optional(CONF_F1): sensor_schema(),
-            cv.Optional(CONF_F2): sensor_schema(),
-            cv.Optional(CONF_F3): sensor_schema(),
-            cv.Optional(CONF_F4): sensor_schema(),
-            cv.Optional(CONF_F5): sensor_schema(),
-            cv.Optional(CONF_F6): sensor_schema(),
-            cv.Optional(CONF_F7): sensor_schema(),
-            cv.Optional(CONF_F8): sensor_schema(),
-            cv.Optional(CONF_CLEAR): sensor_schema(),
-            cv.Optional(CONF_NIR): sensor_schema(),
+            cv.Optional(CONF_F1): SENSOR_SCHEMA,
+            cv.Optional(CONF_F2): SENSOR_SCHEMA,
+            cv.Optional(CONF_F3): SENSOR_SCHEMA,
+            cv.Optional(CONF_F4): SENSOR_SCHEMA,
+            cv.Optional(CONF_F5): SENSOR_SCHEMA,
+            cv.Optional(CONF_F6): SENSOR_SCHEMA,
+            cv.Optional(CONF_F7): SENSOR_SCHEMA,
+            cv.Optional(CONF_F8): SENSOR_SCHEMA,
+            cv.Optional(CONF_CLEAR): SENSOR_SCHEMA,
+            cv.Optional(CONF_NIR): SENSOR_SCHEMA,
             cv.Optional(CONF_GAIN, default="X8"): cv.enum(GAIN_OPTIONS),
             cv.Optional(CONF_ATIME, default=29): cv.int_range(min=0, max=255),
             cv.Optional(CONF_ASTEP, default=599): cv.int_range(min=0, max=65534),

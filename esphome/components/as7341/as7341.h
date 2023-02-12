@@ -45,7 +45,7 @@ static const uint8_t AS7341_CFG9 = 0xB2;  // Config for system interrupts (SMUX,
 static const uint8_t AS7341_ASTEP = 0xCA;      // LSB
 static const uint8_t AS7341_ASTEP_MSB = 0xCB;  // MSB
 
-using as7341_adc_channel_t = enum {
+enum AS7341AdcChannel {
   AS7341_ADC_CHANNEL_0,
   AS7341_ADC_CHANNEL_1,
   AS7341_ADC_CHANNEL_2,
@@ -54,13 +54,13 @@ using as7341_adc_channel_t = enum {
   AS7341_ADC_CHANNEL_5,
 };
 
-using as7341_smux_cmd_t = enum {
+enum AS7341SmuxCommand {
   AS7341_SMUX_CMD_ROM_RESET,  ///< ROM code initialization of SMUX
   AS7341_SMUX_CMD_READ,       ///< Read SMUX configuration to RAM from SMUX chain
   AS7341_SMUX_CMD_WRITE,      ///< Write SMUX configuration from RAM to SMUX chain
 };
 
-using as7341_gain_t = enum {
+enum AS7341Gain {
   AS7341_GAIN_0_5X,
   AS7341_GAIN_1X,
   AS7341_GAIN_2X,
@@ -92,21 +92,21 @@ class AS7341Component : public PollingComponent, public i2c::I2CDevice {
   void set_clear_sensor(sensor::Sensor *clear_sensor) { clear_ = clear_sensor; }
   void set_nir_sensor(sensor::Sensor *nir_sensor) { nir_ = nir_sensor; }
 
-  void set_gain(as7341_gain_t gain) { gain_ = gain; }
+  void set_gain(AS7341Gain gain) { gain_ = gain; }
   void set_atime(uint8_t atime) { atime_ = atime; }
   void set_astep(uint16_t astep) { astep_ = astep; }
 
-  as7341_gain_t get_gain();
+  AS7341Gain get_gain();
   uint8_t get_atime();
   uint16_t get_astep();
-  bool setup_gain(as7341_gain_t gain);
+  bool setup_gain(AS7341Gain gain);
   bool setup_atime(uint8_t atime);
   bool setup_astep(uint16_t astep);
 
-  uint16_t read_channel(as7341_adc_channel_t channel);
+  uint16_t read_channel(AS7341AdcChannel channel);
   bool read_channels(uint16_t *data);
   void set_smux_low_channels(bool enable);
-  bool set_smux_command(as7341_smux_cmd_t command);
+  bool set_smux_command(AS7341SmuxCommand command);
   void configure_smux_low_channels();
   void configure_smux_high_channels();
   bool enable_smux();
@@ -135,7 +135,7 @@ class AS7341Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *nir_{nullptr};
 
   uint16_t astep_;
-  as7341_gain_t gain_;
+  AS7341Gain gain_;
   uint8_t atime_;
   uint16_t channel_readings_[12];
 };
