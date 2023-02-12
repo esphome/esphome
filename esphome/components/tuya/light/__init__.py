@@ -50,8 +50,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_SWITCH_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_RGB_DATAPOINT): cv.invalid(COLOR_CONFIG_ERROR),
             cv.Optional(CONF_HSV_DATAPOINT): cv.invalid(COLOR_CONFIG_ERROR),
-            cv.Optional(CONF_COLOR_DATAPOINT): cv.uint8_t,
-            cv.Optional(CONF_COLOR_TYPE, default="RGBHSV"): cv.enum(
+            cv.Inclusive(CONF_COLOR_DATAPOINT, "color"): cv.uint8_t,
+            cv.Inclusive(CONF_COLOR_TYPE, "color"): cv.enum(
                 COLOR_TYPES, upper=True
             ),
             cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
