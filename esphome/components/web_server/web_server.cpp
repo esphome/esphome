@@ -112,7 +112,7 @@ void WebServer::setup() {
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
     // Configure reconnect timeout and send config
-    client->send( this->get_config_json().c_str(), "ping", millis(), 30000);
+    client->send(this->get_config_json().c_str(), "ping", millis(), 30000);
 
     this->entities_iterator_.begin(this->include_internal_);
   });
