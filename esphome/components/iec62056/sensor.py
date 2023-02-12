@@ -6,7 +6,9 @@ from . import IEC62056Component, CONF_IEC62056_ID, CONF_OBIS, iec62056_ns, valid
 IEC62056Sensor = iec62056_ns.class_("IEC62056Sensor", sensor.Sensor)
 
 CONFIG_SCHEMA = cv.All(
-    sensor.sensor_schema(IEC62056Sensor,).extend(
+    sensor.sensor_schema(
+        IEC62056Sensor,
+    ).extend(
         {
             cv.GenerateID(CONF_IEC62056_ID): cv.use_id(IEC62056Component),
             cv.Required(CONF_OBIS): validate_obis,

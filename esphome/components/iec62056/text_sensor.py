@@ -9,7 +9,9 @@ AUTO_LOAD = ["iec62056"]
 IEC62056TextSensor = iec62056_ns.class_("IEC62056TextSensor", text_sensor.TextSensor)
 
 CONFIG_SCHEMA = cv.All(
-    text_sensor.text_sensor_schema(IEC62056TextSensor,).extend(
+    text_sensor.text_sensor_schema(
+        IEC62056TextSensor,
+    ).extend(
         {
             cv.GenerateID(CONF_IEC62056_ID): cv.use_id(IEC62056Component),
             cv.Required(CONF_OBIS): validate_obis,
