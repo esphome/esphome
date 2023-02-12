@@ -18,17 +18,19 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
   if (storage.ss_family == AF_INET) {
     const struct sockaddr_in *addr = reinterpret_cast<const struct sockaddr_in *>(&storage);
     char buf[INET_ADDRSTRLEN];
-    const char *ret = inet_ntop(AF_INET, &addr->sin_addr, buf, sizeof(buf));
-    if (ret == nullptr)
-      return {};
-    return std::string{buf};
+    if (inet_ntop(AF_INET, &addr->sin_addr, buf, sizeof(buf)) != nullptr)
+      return std::string{buf};
   } else if (storage.ss_family == AF_INET6) {
     const struct sockaddr_in6 *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
     char buf[INET6_ADDRSTRLEN];
-    const char *ret = inet_ntop(AF_INET6, &addr->sin6_addr, buf, sizeof(buf));
-    if (ret == nullptr)
-      return {};
-    return std::string{buf};
+    // Format IPv4-mapped IPv6 addresses as regular IPv4 addresses
+    if (addr->sin6_addr.un.u32_addr[0] == 0 && addr->sin6_addr.un.u32_addr[1] == 0 &&
+        addr->sin6_addr.un.u32_addr[2] == htonl(0xFFFF) &&
+        inet_ntop(AF_INET, &addr->sin6_addr.un.u32_addr[3], buf, sizeof(buf)) != nullptr) {
+      return std::string{buf};
+    }
+    if (inet_ntop(AF_INET6, &addr->sin6_addr, buf, sizeof(buf)) != nullptr)
+      return std::string{buf};
   }
   return {};
 }
