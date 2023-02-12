@@ -244,7 +244,8 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 #endif
       break;
     case TuyaCommandType::VACUUM_MAP_UPLOAD:
-      this->send_command_(TuyaCommand{.cmd = TuyaCommandType::VACUUM_MAP_UPLOAD, .payload = std::vector<uint8_t>{0x01}});
+      this->send_command_(
+          TuyaCommand{.cmd = TuyaCommandType::VACUUM_MAP_UPLOAD, .payload = std::vector<uint8_t>{0x01}});
       ESP_LOGI(TAG, "Vacuum map upload requested, responding that it is not enabled.");
       break;
     default:
