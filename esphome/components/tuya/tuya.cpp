@@ -1,11 +1,14 @@
 #include "tuya.h"
 #include "esphome/components/network/util.h"
-#include "esphome/components/captive_portal/captive_portal.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 #include "esphome/core/gpio.h"
+
+#ifdef USE_CAPTIVE_PORTAL
+#include "esphome/components/captive_portal/captive_portal.h"
+#endif
 
 namespace esphome {
 namespace tuya {
@@ -457,8 +460,12 @@ uint8_t Tuya::get_wifi_status_code_() {
     if (this->protocol_version_ >= 0x03 && remote_is_connected()) {
       status = 0x04;
     }
-  } else if (captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active()) {
-    status = 0x01;
+  } else {
+#ifdef USE_CAPTIVE_PORTAL
+    if (captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active()) {
+      status = 0x01;
+    }
+#endif
   };
 
   return status;
