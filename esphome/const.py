@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2023.2.0-dev"
+__version__ = "2023.3.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -12,7 +12,7 @@ TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
-SECRETS_FILES = {"secrets.yaml", "secrets.yml"}
+SECRETS_FILES = ("secrets.yaml", "secrets.yml")
 
 
 CONF_ABOVE = "above"
@@ -237,6 +237,7 @@ CONF_FAN_MODE_MEDIUM_ACTION = "fan_mode_medium_action"
 CONF_FAN_MODE_MIDDLE_ACTION = "fan_mode_middle_action"
 CONF_FAN_MODE_OFF_ACTION = "fan_mode_off_action"
 CONF_FAN_MODE_ON_ACTION = "fan_mode_on_action"
+CONF_FAN_MODE_QUIET_ACTION = "fan_mode_quiet_action"
 CONF_FAN_MODE_STATE_TOPIC = "fan_mode_state_topic"
 CONF_FAN_ONLY_ACTION = "fan_only_action"
 CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER = "fan_only_action_uses_fan_mode_timer"
@@ -551,8 +552,10 @@ CONF_POWER_SAVE_MODE = "power_save_mode"
 CONF_POWER_SUPPLY = "power_supply"
 CONF_PRESET = "preset"
 CONF_PRESET_BOOST = "preset_boost"
+CONF_PRESET_COMMAND_TOPIC = "preset_command_topic"
 CONF_PRESET_ECO = "preset_eco"
 CONF_PRESET_SLEEP = "preset_sleep"
+CONF_PRESET_STATE_TOPIC = "preset_state_topic"
 CONF_PRESSURE = "pressure"
 CONF_PRIORITY = "priority"
 CONF_PROJECT = "project"

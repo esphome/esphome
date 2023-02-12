@@ -25,11 +25,12 @@ void LD2410Component::dump_config() {
   this->set_config_mode_(true);
   this->get_version_();
   this->set_config_mode_(false);
-  ESP_LOGCONFIG("  ", "Firmware Version : %u.%u.%u%u%u%u", this->version_[0], this->version_[1], this->version_[2],
+  ESP_LOGCONFIG(TAG, "  Firmware Version : %u.%u.%u%u%u%u", this->version_[0], this->version_[1], this->version_[2],
                 this->version_[3], this->version_[4], this->version_[5]);
 }
 
 void LD2410Component::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up LD2410...");
   this->set_config_mode_(true);
   this->set_max_distances_timeout_(this->max_move_distance_, this->max_still_distance_, this->timeout_);
   // Configure Gates sensitivity
@@ -44,8 +45,9 @@ void LD2410Component::setup() {
   this->set_gate_threshold_(8, this->rg8_move_threshold_, this->rg8_still_threshold_);
   this->get_version_();
   this->set_config_mode_(false);
-  ESP_LOGI("  ", "Firmware Version : %u.%u.%u%u%u%u", this->version_[0], this->version_[1], this->version_[2],
-           this->version_[3], this->version_[4], this->version_[5]);
+  ESP_LOGCONFIG(TAG, "Firmware Version : %u.%u.%u%u%u%u", this->version_[0], this->version_[1], this->version_[2],
+                this->version_[3], this->version_[4], this->version_[5]);
+  ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
 }
 
 void LD2410Component::loop() {
@@ -166,7 +168,7 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
 }
 
 void LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
-  ESP_LOGI(TAG, "Handling ACK DATA for COMMAND");
+  ESP_LOGV(TAG, "Handling ACK DATA for COMMAND");
   if (len < 10) {
     ESP_LOGE(TAG, "Error with last command : incorrect length");
     return;
@@ -186,13 +188,13 @@ void LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
 
   switch (buffer[COMMAND]) {
     case lowbyte(CMD_ENABLE_CONF):
-      ESP_LOGD(TAG, "Handled Enable conf command");
+      ESP_LOGV(TAG, "Handled Enable conf command");
       break;
     case lowbyte(CMD_DISABLE_CONF):
-      ESP_LOGD(TAG, "Handled Disabled conf command");
+      ESP_LOGV(TAG, "Handled Disabled conf command");
       break;
     case lowbyte(CMD_VERSION):
-      ESP_LOGD(TAG, "FW Version is: %u.%u.%u%u%u%u", buffer[13], buffer[12], buffer[17], buffer[16], buffer[15],
+      ESP_LOGV(TAG, "FW Version is: %u.%u.%u%u%u%u", buffer[13], buffer[12], buffer[17], buffer[16], buffer[15],
                buffer[14]);
       this->version_[0] = buffer[13];
       this->version_[1] = buffer[12];
@@ -203,7 +205,7 @@ void LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
 
       break;
     case lowbyte(CMD_GATE_SENS):
-      ESP_LOGD(TAG, "Handled sensitivity command");
+      ESP_LOGV(TAG, "Handled sensitivity command");
       break;
     case lowbyte(CMD_QUERY):  // Query parameters response
     {
