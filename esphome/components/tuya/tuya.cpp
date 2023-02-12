@@ -253,7 +253,7 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 
       this->send_command_(
           TuyaCommand{.cmd = TuyaCommandType::GET_NETWORK_STATUS, .payload = std::vector<uint8_t>{wifi_status}});
-      ESP_LOGV(TAG, "Network status requested, reported as %i", status);
+      ESP_LOGV(TAG, "Network status requested, reported as %i", wifi_status);
       break;
     }
     default:
