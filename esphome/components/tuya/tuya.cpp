@@ -248,14 +248,14 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       ESP_LOGE(TAG, "LOCAL_TIME_QUERY is not handled");
 #endif
       break;
-    case TuyaCommandType::GET_NETWORK_STATUS:
-      {
-        uint8_t wifi_status = this->get_wifi_status_code_();
+    case TuyaCommandType::GET_NETWORK_STATUS: {
+      uint8_t wifi_status = this->get_wifi_status_code_();
 
-        this->send_command_(TuyaCommand{.cmd = TuyaCommandType::GET_NETWORK_STATUS, .payload = std::vector<uint8_t>{wifi_status}});
-        ESP_LOGV(TAG, "Network status requested, reported as %i", status);
-        break;
-      }
+      this->send_command_(
+          TuyaCommand{.cmd = TuyaCommandType::GET_NETWORK_STATUS, .payload = std::vector<uint8_t>{wifi_status}});
+      ESP_LOGV(TAG, "Network status requested, reported as %i", status);
+      break;
+    }
     default:
       ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);
   }
