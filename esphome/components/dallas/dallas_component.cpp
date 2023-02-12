@@ -301,7 +301,7 @@ float DallasTemperatureSensor::get_temp_c() {
           return NAN;
       }
     }
-    temp = int16_t(this->scratch_pad_[1])<<8 | (this->scratch_pad_[0] & 0xFC);
+    temp = int16_t(this->scratch_pad_[1]) << 8 | (this->scratch_pad_[0] & 0xFC);
     return temp / 16.0f;
   }
 
