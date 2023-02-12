@@ -29,11 +29,13 @@ enum CommState {
   SET_BAUD_RATE,
   UPDATE_STATES,
   INFINITE_WAIT,
-  BATTERY_WAKEUP
+  BATTERY_WAKEUP,
+  MODE_D_WAIT,
+  MODE_D_READOUT,
 };
 
 /// @brief Protocol types
-enum ProtocolMode { PROTOCOL_MODE_A = 'A', PROTOCOL_MODE_B = 'B', PROTOCOL_MODE_C = 'C' };
+enum ProtocolMode { PROTOCOL_MODE_A = 'A', PROTOCOL_MODE_B = 'B', PROTOCOL_MODE_C = 'C', PROTOCOL_MODE_D = 'D' };
 
 /// @brief Implements support for IEC 62056-21 meters.
 class IEC62056Component : public Component, public uart::UARTDevice {
@@ -46,7 +48,7 @@ class IEC62056Component : public Component, public uart::UARTDevice {
   float get_setup_priority() const override;
   void set_update_interval(uint32_t val) { update_interval_ms_ = val; }
   uint32_t get_update_interval() { return update_interval_ms_; }
-  void set_config_baud_rate(uint32_t val) { config_baud_rate_bps_ = val; }
+  void set_config_baud_rate_max(uint32_t val) { config_baud_rate_max_bps_ = val; }
   void set_connection_timeout_ms(uint32_t val) { connection_timeout_ms_ = val; }
   void set_max_retry_counter(int val) { max_retries_ = val; }
   void set_retry_delay(int val) { retry_delay_ = val; }
@@ -59,6 +61,7 @@ class IEC62056Component : public Component, public uart::UARTDevice {
   void set_battery_meter(bool flag) { battery_meter_ = flag; }
   /// @brief Called when switch state changed. Begins readout.
   void trigger_readout();
+  void set_mode_d(bool flag) { force_mode_d_ = flag; }
 
  protected:
   bool parse_line_(const char *line, std::string &out_obis, std::string &out_value1, std::string &out_value2);
@@ -77,6 +80,8 @@ class IEC62056Component : public Component, public uart::UARTDevice {
   char *get_id_(size_t frame_size);
   void update_last_transmission_from_meter_timestamp_() { last_transmission_from_meter_timestamp_ = millis(); }
   void parse_id_(const char *packet);
+  /// @brief Sets protocol mode based on baud rate char
+  /// @param z baud rate char from identification package
   void set_protocol_(char z);
   /// Dynamically sets UART baud rate
   void update_baudrate_(uint32_t baudrate);
@@ -123,6 +128,10 @@ class IEC62056Component : public Component, public uart::UARTDevice {
   /// @retval true yes, read data from meter time to time
   /// @retval false only switch can trigger readout
   bool is_periodic_readout_enabled_() { return UINT32_MAX != update_interval_ms_; }
+  /// @brief Check if state machine in in one of wait states
+  /// @retval true in wait state
+  /// @retval false not in wait state
+  bool is_wait_state_() { return state_ == WAIT || state_ == INFINITE_WAIT || state_ == MODE_D_WAIT; }
 
   static const char PROTO_B_RANGE_BEGIN = 'A';
   static const char PROTO_B_RANGE_END = 'F';
@@ -140,8 +149,8 @@ class IEC62056Component : public Component, public uart::UARTDevice {
 
   /// @brief Configured update interval
   uint32_t update_interval_ms_;
-  /// @brief Forced baud rate from the config or 0 if not set
-  uint32_t config_baud_rate_bps_;
+  /// @brief Maximum baud rate from the config or 0 if not set
+  uint32_t config_baud_rate_max_bps_;
   /// @brief Configured connection timeout.
   uint32_t connection_timeout_ms_;
   /// @brief Counts number of retries.
@@ -198,6 +207,8 @@ class IEC62056Component : public Component, public uart::UARTDevice {
   SENSOR_MAP::iterator sensors_iterator_;
   /// @brief Custom extended serial port object.
   std::unique_ptr<IEC62056UART> iuart_;
+  /// @brief Indicates unidirectional communication, mode D
+  bool force_mode_d_;
 };
 
 }  // namespace iec62056

@@ -6,7 +6,6 @@ from esphome.const import (
     CONF_ID,
     CONF_RECEIVE_TIMEOUT,
     CONF_UPDATE_INTERVAL,
-    CONF_BAUD_RATE,
 )
 
 CODEOWNERS = ["@aquaticus"]
@@ -18,6 +17,8 @@ CONF_OBIS = "obis"
 CONF_BATTERY_METER = "battery_meter"
 CONF_RETRY_COUNTER_MAX = "retry_counter_max"
 CONF_RETRY_DELAY = "retry_delay"
+CONF_MODE_D = "mode_d"  # protocol mode D
+CONF_BAUD_RATE_MAX = "baud_rate_max"
 
 iec62056_ns = cg.esphome_ns.namespace("iec62056")
 IEC62056Component = iec62056_ns.class_(
@@ -41,9 +42,10 @@ def validate_obis(value):
 
 
 def validate_baud_rate(value):
-    baud_rates = [300, 600, 1200, 2400, 4800, 9600, 19200]
-    if value not in baud_rates:
-        raise cv.Invalid(f"Non standard baud rate {value}. Use one of {baud_rates}")
+    if value > 0:
+        baud_rates = [300, 600, 1200, 2400, 4800, 9600, 19200]
+        if value not in baud_rates:
+            raise cv.Invalid(f"Non standard baud rate {value}. Use one of {baud_rates}")
 
     return value
 
@@ -53,7 +55,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(IEC62056Component),
             cv.Optional(CONF_UPDATE_INTERVAL, default="15min"): cv.update_interval,
-            cv.Optional(CONF_BAUD_RATE, default=0): validate_baud_rate,
+            cv.Optional(CONF_BAUD_RATE_MAX, default=0): validate_baud_rate,
             cv.Optional(CONF_BATTERY_METER, default=False): cv.boolean,
             cv.Optional(
                 CONF_RECEIVE_TIMEOUT, default="3s"
@@ -62,10 +64,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_RETRY_DELAY, default="15s"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_MODE_D, default=False): cv.boolean,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(uart.UART_DEVICE_SCHEMA),
+    .extend(uart.UART_DEVICE_SCHEMA)
 )
 
 
@@ -77,8 +80,8 @@ async def to_code(config):
     if CONF_UPDATE_INTERVAL in config:
         cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
 
-    if CONF_BAUD_RATE in config:
-        cg.add(var.set_config_baud_rate(config[CONF_BAUD_RATE]))
+    if CONF_BAUD_RATE_MAX in config:
+        cg.add(var.set_config_baud_rate_max(config[CONF_BAUD_RATE_MAX]))
 
     if CONF_RECEIVE_TIMEOUT in config:
         cg.add(var.set_connection_timeout_ms(config[CONF_RECEIVE_TIMEOUT]))
@@ -91,3 +94,6 @@ async def to_code(config):
 
     if CONF_RETRY_DELAY in config:
         cg.add(var.set_retry_delay(config[CONF_RETRY_DELAY]))
+
+    if CONF_MODE_D in config:
+        cg.add(var.set_mode_d(config[CONF_MODE_D]))
