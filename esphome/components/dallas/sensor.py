@@ -9,6 +9,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
+    CONF_MAX31850,
 )
 from . import DallasComponent, dallas_ns
 
