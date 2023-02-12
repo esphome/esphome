@@ -4,13 +4,13 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 
-#include <nvs_flash.h>
-#include <freertos/FreeRTOSConfig.h>
-#include <esp_bt_main.h>
 #include <esp_bt.h>
-#include <freertos/FreeRTOS.h>
-#include <freertos/task.h>
+#include <esp_bt_main.h>
 #include <esp_gap_ble_api.h>
+#include <freertos/FreeRTOS.h>
+#include <freertos/FreeRTOSConfig.h>
+#include <freertos/task.h>
+#include <nvs_flash.h>
 
 #ifdef USE_ARDUINO
 #include <esp32-hal-bt.h>
@@ -31,22 +31,15 @@ void ESP32BLE::setup() {
     return;
   }
 
+#ifdef USE_ESP32_BLE_SERVER
   this->advertising_ = new BLEAdvertising();  // NOLINT(cppcoreguidelines-owning-memory)
 
   this->advertising_->set_scan_response(true);
   this->advertising_->set_min_preferred_interval(0x06);
   this->advertising_->start();
+#endif  // USE_ESP32_BLE_SERVER
 
   ESP_LOGD(TAG, "BLE setup complete");
-}
-
-void ESP32BLE::mark_failed() {
-  Component::mark_failed();
-#ifdef USE_ESP32_BLE_SERVER
-  if (this->server_ != nullptr) {
-    this->server_->mark_failed();
-  }
-#endif
 }
 
 bool ESP32BLE::ble_setup_() {
@@ -100,13 +93,16 @@ bool ESP32BLE::ble_setup_() {
     ESP_LOGE(TAG, "esp_bluedroid_enable failed: %d", err);
     return false;
   }
-  err = esp_ble_gap_register_callback(ESP32BLE::gap_event_handler);
-  if (err != ESP_OK) {
-    ESP_LOGE(TAG, "esp_ble_gap_register_callback failed: %d", err);
-    return false;
+
+  if (!this->gap_event_handlers_.empty()) {
+    err = esp_ble_gap_register_callback(ESP32BLE::gap_event_handler);
+    if (err != ESP_OK) {
+      ESP_LOGE(TAG, "esp_ble_gap_register_callback failed: %d", err);
+      return false;
+    }
   }
 
-  if (this->has_server()) {
+  if (!this->gatts_event_handlers_.empty()) {
     err = esp_ble_gatts_register_callback(ESP32BLE::gatts_event_handler);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_ble_gatts_register_callback failed: %d", err);
@@ -114,7 +110,7 @@ bool ESP32BLE::ble_setup_() {
     }
   }
 
-  if (this->has_client()) {
+  if (!this->gattc_event_handlers_.empty()) {
     err = esp_ble_gattc_register_callback(ESP32BLE::gattc_event_handler);
     if (err != ESP_OK) {
       ESP_LOGE(TAG, "esp_ble_gattc_register_callback failed: %d", err);
@@ -158,6 +154,10 @@ void ESP32BLE::loop() {
         this->real_gatts_event_handler_(ble_event->event_.gatts.gatts_event, ble_event->event_.gatts.gatts_if,
                                         &ble_event->event_.gatts.gatts_param);
         break;
+      case BLEEvent::GATTC:
+        this->real_gattc_event_handler_(ble_event->event_.gattc.gattc_event, ble_event->event_.gattc.gattc_if,
+                                        &ble_event->event_.gattc.gattc_param);
+        break;
       case BLEEvent::GAP:
         this->real_gap_event_handler_(ble_event->event_.gap.gap_event, &ble_event->event_.gap.gap_param);
         break;
@@ -176,9 +176,8 @@ void ESP32BLE::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_pa
 
 void ESP32BLE::real_gap_event_handler_(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
   ESP_LOGV(TAG, "(BLE) gap_event_handler - %d", event);
-  switch (event) {
-    default:
-      break;
+  for (auto *gap_handler : this->gap_event_handlers_) {
+    gap_handler->gap_event_handler(event, param);
   }
 }
 
@@ -191,14 +190,23 @@ void ESP32BLE::gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gat
 void ESP32BLE::real_gatts_event_handler_(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
                                          esp_ble_gatts_cb_param_t *param) {
   ESP_LOGV(TAG, "(BLE) gatts_event [esp_gatt_if: %d] - %d", gatts_if, event);
-#ifdef USE_ESP32_BLE_SERVER
-  this->server_->gatts_event_handler(event, gatts_if, param);
-#endif
+  for (auto *gatts_handler : this->gatts_event_handlers_) {
+    gatts_handler->gatts_event_handler(event, gatts_if, param);
+  }
 }
+
+void ESP32BLE::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
+                                   esp_ble_gattc_cb_param_t *param) {
+  BLEEvent *new_event = new BLEEvent(event, gattc_if, param);  // NOLINT(cppcoreguidelines-owning-memory)
+  global_ble->ble_events_.push(new_event);
+}  // NOLINT(clang-analyzer-cplusplus.NewDeleteLeaks)
 
 void ESP32BLE::real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                          esp_ble_gattc_cb_param_t *param) {
-  // this->client_->gattc_event_handler(event, gattc_if, param);
+  ESP_LOGV(TAG, "(BLE) gattc_event [esp_gatt_if: %d] - %d", gattc_if, event);
+  for (auto *gattc_handler : this->gattc_event_handlers_) {
+    gattc_handler->gattc_event_handler(event, gattc_if, param);
+  }
 }
 
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }

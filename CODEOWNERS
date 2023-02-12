@@ -107,6 +107,7 @@ esphome/components/hte501/* @Stock-M
 esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/i2c/* @esphome/core
 esphome/components/i2s_audio/* @jesserockz
+esphome/components/improv_base/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
 esphome/components/ina260/* @MrEditor97
 esphome/components/inkbird_ibsth1_mini/* @fkirill
@@ -118,6 +119,7 @@ esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
 esphome/components/lcd_menu/* @numo68
+esphome/components/ld2410/* @sebcaps
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
@@ -145,6 +147,7 @@ esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
 esphome/components/media_player/* @jesserockz
+esphome/components/mics_4514/* @jesserockz
 esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
@@ -272,6 +275,7 @@ esphome/components/uart/* @esphome/core
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
+esphome/components/vbus/* @ssieb
 esphome/components/version/* @esphome/core
 esphome/components/wake_on_lan/* @willwill2will54
 esphome/components/web_server_base/* @OttoWinter
