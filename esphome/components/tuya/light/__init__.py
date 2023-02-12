@@ -51,9 +51,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_RGB_DATAPOINT): cv.invalid(COLOR_CONFIG_ERROR),
             cv.Optional(CONF_HSV_DATAPOINT): cv.invalid(COLOR_CONFIG_ERROR),
             cv.Inclusive(CONF_COLOR_DATAPOINT, "color"): cv.uint8_t,
-            cv.Inclusive(CONF_COLOR_TYPE, "color"): cv.enum(
-                COLOR_TYPES, upper=True
-            ),
+            cv.Inclusive(CONF_COLOR_TYPE, "color"): cv.enum(COLOR_TYPES, upper=True),
             cv.Optional(CONF_COLOR_INTERLOCK, default=False): cv.boolean,
             cv.Inclusive(
                 CONF_COLOR_TEMPERATURE_DATAPOINT, "color_temperature"
