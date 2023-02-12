@@ -16,11 +16,11 @@ const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
 
 void Rect::expand(int16_t horizontal, int16_t vertical) {
-  if ((*this).is_set() && ((*this).w >= (-2 * horizontal)) && ((*this).h >= (-2 * vertical))) {
-    (*this).x = (*this).x - horizontal;
-    (*this).y = (*this).y - vertical;
-    (*this).w = (*this).w + (2 * horizontal);
-    (*this).h = (*this).h + (2 * vertical);
+  if (this->is_set() && (this->w >= (-2 * horizontal)) && (this->h >= (-2 * vertical))) {
+    this->x = this->x - horizontal;
+    this->y = this->y - vertical;
+    this->w = this->w + (2 * horizontal);
+    this->h = this->h + (2 * vertical);
   }
 }
 
