@@ -16,7 +16,7 @@ static const uint8_t DALLAS_COMMAND_READ_SCRATCH_PAD = 0xBE;
 static const uint8_t DALLAS_COMMAND_WRITE_SCRATCH_PAD = 0x4E;
 
 uint16_t DallasTemperatureSensor::millis_to_wait_for_conversion() const {
-  if (this->max31850_) 
+  if (this->max31850_)
     return 100;  // For the MAX31850, resolution is 14, t_CONV = 100ms
   switch (this->resolution_) {
     case 9:
@@ -144,7 +144,7 @@ void DallasComponent::update() {
       float tempc = sensor->get_temp_c();
       ESP_LOGD(TAG, "'%s': Got Temperature=%.1f°C", sensor->get_name().c_str(), tempc);
       sensor->publish_state(tempc);
-      if (tempc == NAN) 
+      if (tempc == NAN)
         this->status_set_warning();
     });
   }
