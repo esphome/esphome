@@ -35,6 +35,8 @@ class MQTTClimateComponent : public mqtt::MQTTComponent {
   MQTT_COMPONENT_CUSTOM_TOPIC(fan_mode, command)
   MQTT_COMPONENT_CUSTOM_TOPIC(swing_mode, state)
   MQTT_COMPONENT_CUSTOM_TOPIC(swing_mode, command)
+  MQTT_COMPONENT_CUSTOM_TOPIC(preset, state)
+  MQTT_COMPONENT_CUSTOM_TOPIC(preset, command)
 
  protected:
   const EntityBase *get_entity() const override;
