@@ -1,6 +1,5 @@
 #ifdef USE_ESP32
 
-
 #include "bedjet_hub.h"
 #include "bedjet_child.h"
 #include "bedjet_const.h"
