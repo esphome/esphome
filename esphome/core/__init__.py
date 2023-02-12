@@ -443,7 +443,7 @@ class Library:
         return NotImplemented
 
 
-# pylint: disable=too-many-instance-attributes,too-many-public-methods
+# pylint: disable=too-many-public-methods
 class EsphomeCore:
     def __init__(self):
         # True if command is run from dashboard
@@ -453,6 +453,8 @@ class EsphomeCore:
         self.ace = False
         # The name of the node
         self.name: Optional[str] = None
+        # The friendly name of the node
+        self.friendly_name: Optional[str] = None
         # Additional data components can store temporary data in
         # The first key to this dict should always be the integration name
         self.data = {}
@@ -492,6 +494,7 @@ class EsphomeCore:
     def reset(self):
         self.dashboard = False
         self.name = None
+        self.friendly_name = None
         self.data = {}
         self.config_path = None
         self.build_path = None
@@ -553,7 +556,6 @@ class EsphomeCore:
         return os.path.basename(self.config_path)
 
     def relative_config_path(self, *path):
-        # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.config_dir, path_)
 
@@ -561,7 +563,6 @@ class EsphomeCore:
         return self.relative_config_path(".esphome", *path)
 
     def relative_build_path(self, *path):
-        # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.build_path, path_)
 

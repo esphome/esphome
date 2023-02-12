@@ -66,6 +66,9 @@ mqtt:
           ESP_LOGD("Mqtt Test", "testing/sensor/testing_sensor/state=[%s]", x.c_str());
       # yamllint enable rule:line-length
 
+vbus:
+  - uart_id: uart2
+
 binary_sensor:
   - platform: gpio
     pin: GPIO0
@@ -162,14 +165,43 @@ binary_sensor:
       then:
         - output.turn_off: Led7
 
-
-
+  - platform: gpio
+    id: sn74hc165_pin_0
+    pin:
+      sn74hc165: sn74hc165_hub
+      number: 0
 
   - platform: ezo_pmp
     pump_state:
       name: "Pump State"
     is_paused:
       name: "Is Paused"
+
+  - platform: matrix_keypad
+    keypad_id: keypad
+    id: key4
+    row: 1
+    col: 1
+  - platform: matrix_keypad
+    id: key1
+    key: 1
+
+  - platform: vbus
+    model: deltasol_bs_plus
+    relay2:
+      name: Relay 2 On
+    sensor1_error:
+      name: Sensor 1 Error
+
+  - platform: vbus
+    model: custom
+    command: 0x100
+    source: 0x1234
+    dest: 0x10
+    binary_sensors:
+      - id: vcustom_b
+        name: VBus Custom Binary Sensor
+        lambda: return x[0] & 1;
 
 tlc5947:
   data_pin: GPIO12
@@ -240,6 +272,7 @@ number:
     step: 5
     unit_of_measurement: "%"
     mode: slider
+    device_class: humidity
     on_value:
       - logger.log:
           format: Number changed to %f
@@ -464,6 +497,27 @@ sensor:
     max_flow_rate:
       name: Max Flow Rate
 
+  - platform: vbus
+    model: deltasol c
+    temperature_3:
+      name: Temperature 3
+    operating_hours_1:
+      name: Operating Hours 1
+    heat_quantity:
+      name: Heat Quantity
+    time:
+      name: System Time
+
+  - platform: vbus
+    model: custom
+    command: 0x100
+    source: 0x1234
+    dest: 0x10
+    sensors:
+      - id: vcustom
+        name: VBus Custom Sensor
+        lambda: return x[0] / 10.0;
+
 script:
   - id: automation_test
     then:
@@ -511,6 +565,9 @@ display:
     lambda: |-
       it.print("81818181");
 
+time:
+  - platform: pcf85063
+
 text_sensor:
   - platform: ezo_pmp
     dosing_mode:
@@ -541,3 +598,29 @@ text_sensor:
         - ezo_pmp.arbitrary_command:
             id: hcl_pump
             command: D,?
+
+sn74hc165:
+  id: sn74hc165_hub
+  data_pin: GPIO12
+  clock_pin: GPIO14
+  load_pin: GPIO27
+  clock_inhibit_pin: GPIO26
+  sr_count: 4
+
+
+matrix_keypad:
+  id: keypad
+  rows:
+    - pin: 21
+    - pin: 19
+  columns:
+    - pin: 17
+    - pin: 16
+  keys: "1234"
+
+key_collector:
+  - id: reader
+    source_id: keypad
+    min_length: 4
+    max_length: 4
+
