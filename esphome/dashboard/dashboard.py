@@ -745,7 +745,7 @@ class BoardsRequestHandler(BaseHandler):
         platform_boards = {key: val[const.KEY_NAME] for key, val in boards.items()}
         # sort by board title
         boards_items = sorted(platform_boards.items(), key=lambda item: item[1])
-        output = [dict(items=dict(boards_items))]
+        output = [{"items": dict(boards_items)}]
 
         self.set_header("content-type", "application/json")
         self.write(json.dumps(output))
