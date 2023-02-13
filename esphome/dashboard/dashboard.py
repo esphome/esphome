@@ -545,6 +545,14 @@ class DownloadBinaryRequestHandler(BaseHandler):
         self.finish()
 
 
+class EsphomeVersionHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"version": const.__version__}))
+        self.finish()
+
+
 def _list_dashboard_entries():
     files = settings.list_yaml_files()
     return [DashboardEntry(file) for file in files]
@@ -1135,6 +1143,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
             (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
+            (f"{rel}version", EsphomeVersionHandler),
         ],
         **app_settings,
     )
