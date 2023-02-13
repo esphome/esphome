@@ -548,8 +548,6 @@ class DownloadBinaryRequestHandler(BaseHandler):
 class EsphomeVersionHandler(BaseHandler):
     @authenticated
     def get(self):
-        from esphome import const
-
         self.set_header("Content-Type", "application/json")
         self.write(json.dumps({"version": const.__version__}))
         self.finish()
