@@ -18,9 +18,6 @@
 namespace esphome {
 namespace esp32_ble {
 
-// NOLINTNEXTLINE
-extern esp_ble_io_cap_t global_io_cap;
-
 // NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
   void *peer_device;
@@ -55,7 +52,7 @@ class GATTsEventHandler {
 
 class ESP32BLE : public Component {
  public:
-  void set_io_capability(IoCapability io_capability) { global_io_cap = (esp_ble_io_cap_t) io_capability; }
+  void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
 
   void setup() override;
   void loop() override;
@@ -85,6 +82,7 @@ class ESP32BLE : public Component {
 
   Queue<BLEEvent> ble_events_;
   BLEAdvertising *advertising_;
+  esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

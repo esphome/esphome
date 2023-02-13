@@ -21,8 +21,6 @@ namespace esp32_ble {
 
 static const char *const TAG = "esp32_ble";
 
-esp_ble_io_cap_t global_io_cap = ESP_IO_CAP_NONE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
 void ESP32BLE::setup() {
   global_ble = this;
   ESP_LOGCONFIG(TAG, "Setting up BLE...");
@@ -135,7 +133,7 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
-  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &global_io_cap, sizeof(uint8_t));
+  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &(this->io_cap_), sizeof(uint8_t));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
     return false;
@@ -212,7 +210,31 @@ void ESP32BLE::real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if
 
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
-void ESP32BLE::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE:"); }
+void ESP32BLE::dump_config() {
+  const char *io_capability_s;
+  switch (this->io_cap_) {
+    case ESP_IO_CAP_OUT:
+      io_capability_s = "display_only";
+      break;
+    case ESP_IO_CAP_IO:
+      io_capability_s = "display_yes_no";
+      break;
+    case ESP_IO_CAP_IN:
+      io_capability_s = "keyboard_only";
+      break;
+    case ESP_IO_CAP_NONE:
+      io_capability_s = "none";
+      break;
+    case ESP_IO_CAP_KBDISP:
+      io_capability_s = "keyboard_display";
+      break;
+    default:
+      io_capability_s = "invalid";
+      break;
+  }
+  ESP_LOGCONFIG(TAG, "ESP32 BLE:");
+  ESP_LOGCONFIG(TAG, "  IO Capability: %s", io_capability_s);
+}
 
 ESP32BLE *global_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
