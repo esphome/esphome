@@ -999,8 +999,14 @@ class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
     def ignore_unknown(self, node):
         return f"{node.tag} {node.value}"
 
+    def construct_yaml_binary(self, node) -> str:
+        return super().construct_yaml_binary(node).decode("ascii")
+
 
 SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
+SafeLoaderIgnoreUnknown.add_constructor(
+    "tag:yaml.org,2002:binary", SafeLoaderIgnoreUnknown.construct_yaml_binary
+)
 
 
 class JsonConfigRequestHandler(BaseHandler):
