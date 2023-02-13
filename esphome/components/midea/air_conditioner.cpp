@@ -88,14 +88,14 @@ ClimateTraits AirConditioner::traits() {
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_LOW);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_MEDIUM);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_HIGH);
-  if (!this->supported_modes_.empty())
-    traits.add_supported_mode(ClimateMode::CLIMATE_MODE_OFF);
-  if (!this->supported_swing_modes_.empty())
-    traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_OFF);
-  if (!this->supported_presets_.empty())
-    traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_NONE);
   if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK)
     Converters::to_climate_traits(traits, this->base_.getCapabilities());
+  if (!traits.get_supported_modes().empty())
+    traits.add_supported_mode(ClimateMode::CLIMATE_MODE_OFF);
+  if (!traits.get_supported_swing_modes().empty())
+    traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_OFF);
+  if (!traits.get_supported_presets().empty())
+    traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_NONE);
   return traits;
 }
 
