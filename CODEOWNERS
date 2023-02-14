@@ -126,7 +126,7 @@ esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
 esphome/components/kuntze/* @ssieb
 esphome/components/lcd_menu/* @numo68
-esphome/components/ld2410/* @sebcaps
+esphome/components/ld2410/* @regevbr @sebcaps
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz

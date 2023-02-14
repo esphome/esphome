@@ -7,6 +7,18 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
@@ -19,10 +31,14 @@ namespace ld2410 {
 // Commands
 static const uint8_t CMD_ENABLE_CONF = 0x00FF;
 static const uint8_t CMD_DISABLE_CONF = 0x00FE;
+static const uint8_t CMD_ENABLE_ENG = 0x0062;
+static const uint8_t CMD_DISABLE_ENG = 0x0063;
 static const uint8_t CMD_MAXDIST_DURATION = 0x0060;
 static const uint8_t CMD_QUERY = 0x0061;
 static const uint8_t CMD_GATE_SENS = 0x0064;
 static const uint8_t CMD_VERSION = 0x00A0;
+static const uint8_t CMD_RESET = 0x00A2;
+static const uint8_t CMD_RESTART = 0x00A3;
 
 // Commands values
 static const uint8_t CMD_MAX_MOVE_VALUE = 0x0000;
@@ -44,7 +60,7 @@ Target states: 9th byte
     Detect distance: 16~17th bytes
 */
 enum PeriodicDataStructure : uint8_t {
-  DATA_TYPES = 5,
+  DATA_TYPES = 6,
   TARGET_STATES = 8,
   MOVING_TARGET_LOW = 9,
   MOVING_TARGET_HIGH = 10,
@@ -54,10 +70,54 @@ enum PeriodicDataStructure : uint8_t {
   STILL_ENERGY = 14,
   DETECT_DISTANCE_LOW = 15,
   DETECT_DISTANCE_HIGH = 16,
+  MOVING_SENSOR_START = 19,
+  STILL_SENSOR_START = 28,
 };
 enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
 
 enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
+
+#define SUB_LAMBDA_SWITCH(name, cb) \
+ protected: \
+  switch_::Switch *name##_switch_{nullptr}; \
+\
+ public: \
+  void set_##name##_switch(switch_::Switch *s) { \
+    this->name##_switch_ = s; \
+    this->name##_switch_->add_on_state_callback([this](bool state) { \
+      this->set_config_mode_(true); \
+      cb; \
+      this->set_config_mode_(false); \
+    }); \
+  }
+
+#define SUB_LAMBDA_BUTTON(name, cb) \
+ protected: \
+  button::Button *name##_button_{nullptr}; \
+\
+ public: \
+  void set_##name##_button(button::Button *b) { \
+    this->name##_button_ = b; \
+    this->name##_button_->add_on_press_callback([this]() { \
+      this->set_config_mode_(true); \
+      cb; \
+      this->set_config_mode_(false); \
+    }); \
+  }
+
+#define SUB_LAMBDA_NUMBER(name, cb) \
+ protected: \
+  number::Number *name##_number_{nullptr}; \
+\
+ public: \
+  void set_##name##_number(number::Number *n) { \
+    this->name##_number_ = n; \
+    this->name##_number_->add_on_state_callback([this](float state) { \
+      this->set_config_mode_(true); \
+      cb; \
+      this->set_config_mode_(false); \
+    }); \
+  }
 
 //  char cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
 class LD2410Component : public Component, public uart::UARTDevice {
@@ -68,78 +128,74 @@ class LD2410Component : public Component, public uart::UARTDevice {
   SUB_SENSOR(still_target_energy)
   SUB_SENSOR(detection_distance)
 #endif
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(target)
+  SUB_BINARY_SENSOR(moving_target)
+  SUB_BINARY_SENSOR(still_target)
+#endif
+#ifdef USE_TEXT_SENSOR
+  SUB_TEXT_SENSOR(version)
+#endif
+#ifdef USE_SWITCH
+  SUB_LAMBDA_SWITCH(engineering_mode, { this->set_engineering_mode_(state); })
+#endif
+#ifdef USE_BUTTON
+  SUB_LAMBDA_BUTTON(reset, {
+    this->factory_reset_();
+    this->restart_();
+    delay(1000);  // NOLINT
+    this->set_config_mode_(true);
+    this->query_parameters_();
+  })
+  SUB_LAMBDA_BUTTON(restart, {
+    this->restart_();
+    delay(1000);  // NOLINT
+    this->set_config_mode_(true);
+    this->query_parameters_();
+  })
+  SUB_LAMBDA_BUTTON(query, { this->query_parameters_(); })
+#endif
+#ifdef USE_NUMBER
+  SUB_LAMBDA_NUMBER(max_still_distance, { this->set_max_distances_timeout_(); })
+  SUB_LAMBDA_NUMBER(max_move_distance, { this->set_max_distances_timeout_(); })
+  SUB_LAMBDA_NUMBER(timeout, { this->set_max_distances_timeout_(); })
+#endif
 
  public:
+  LD2410Component();
   void setup() override;
   void dump_config() override;
   void loop() override;
-
-#ifdef USE_BINARY_SENSOR
-  void set_target_sensor(binary_sensor::BinarySensor *sens) { this->target_binary_sensor_ = sens; };
-  void set_moving_target_sensor(binary_sensor::BinarySensor *sens) { this->moving_binary_sensor_ = sens; };
-  void set_still_target_sensor(binary_sensor::BinarySensor *sens) { this->still_binary_sensor_ = sens; };
-#endif
-
-  void set_timeout(uint16_t value) { this->timeout_ = value; };
-  void set_max_move_distance(uint8_t value) { this->max_move_distance_ = value; };
-  void set_max_still_distance(uint8_t value) { this->max_still_distance_ = value; };
-  void set_range_config(int rg0_move, int rg0_still, int rg1_move, int rg1_still, int rg2_move, int rg2_still,
-                        int rg3_move, int rg3_still, int rg4_move, int rg4_still, int rg5_move, int rg5_still,
-                        int rg6_move, int rg6_still, int rg7_move, int rg7_still, int rg8_move, int rg8_still) {
-    this->rg0_move_threshold_ = rg0_move;
-    this->rg0_still_threshold_ = rg0_still;
-    this->rg1_move_threshold_ = rg1_move;
-    this->rg1_still_threshold_ = rg1_still;
-    this->rg2_move_threshold_ = rg2_move;
-    this->rg2_still_threshold_ = rg2_still;
-    this->rg3_move_threshold_ = rg3_move;
-    this->rg3_still_threshold_ = rg3_still;
-    this->rg4_move_threshold_ = rg4_move;
-    this->rg4_still_threshold_ = rg4_still;
-    this->rg5_move_threshold_ = rg5_move;
-    this->rg5_still_threshold_ = rg5_still;
-    this->rg6_move_threshold_ = rg6_move;
-    this->rg6_still_threshold_ = rg6_still;
-    this->rg7_move_threshold_ = rg7_move;
-    this->rg7_still_threshold_ = rg7_still;
-    this->rg8_move_threshold_ = rg8_move;
-    this->rg8_still_threshold_ = rg8_still;
-  };
-  int moving_sensitivities[9] = {0};
-  int still_sensitivities[9] = {0};
-
-  int32_t last_periodic_millis = millis();
+  void set_gate_still_threshold_number(int gate, number::Number *n);
+  void set_gate_move_threshold_number(int gate, number::Number *n);
+  void set_gate_move_sensor(int gate, sensor::Sensor *s);
+  void set_gate_still_sensor(int gate, sensor::Sensor *s);
+  void set_throttle(uint16_t value) { this->throttle_ = value; };
 
  protected:
-#ifdef USE_BINARY_SENSOR
-  binary_sensor::BinarySensor *target_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *moving_binary_sensor_{nullptr};
-  binary_sensor::BinarySensor *still_binary_sensor_{nullptr};
-#endif
-
-  std::vector<uint8_t> rx_buffer_;
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t)(secondbyte << 8) + firstbyte; }
   void send_command_(uint8_t command_str, uint8_t *command_value, int command_value_len);
-
-  void set_max_distances_timeout_(uint8_t max_moving_distance_range, uint8_t max_still_distance_range,
-                                  uint16_t timeout);
-  void set_gate_threshold_(uint8_t gate, uint8_t motionsens, uint8_t stillsens);
+  void set_max_distances_timeout_();
+  void set_gate_threshold_(uint8_t gate);
   void set_config_mode_(bool enable);
+  void set_engineering_mode_(bool enable);
   void handle_periodic_data_(uint8_t *buffer, int len);
   void handle_ack_data_(uint8_t *buffer, int len);
   void readline_(int readch, uint8_t *buffer, int len);
   void query_parameters_();
   void get_version_();
+  void factory_reset_();
+  void restart_();
 
-  uint16_t timeout_;
-  uint8_t max_move_distance_;
-  uint8_t max_still_distance_;
-
-  uint8_t version_[6];
-  uint8_t rg0_move_threshold_, rg0_still_threshold_, rg1_move_threshold_, rg1_still_threshold_, rg2_move_threshold_,
-      rg2_still_threshold_, rg3_move_threshold_, rg3_still_threshold_, rg4_move_threshold_, rg4_still_threshold_,
-      rg5_move_threshold_, rg5_still_threshold_, rg6_move_threshold_, rg6_still_threshold_, rg7_move_threshold_,
-      rg7_still_threshold_, rg8_move_threshold_, rg8_still_threshold_;
+  int32_t last_periodic_millis_ = millis();
+  int32_t last_engineering_mode_change_millis_ = millis();
+  uint16_t throttle_;
+  std::string version_;
+  std::vector<uint8_t> rx_buffer_;
+  std::vector<number::Number *> gate_still_threshold_numbers_;
+  std::vector<number::Number *> gate_move_threshold_numbers_;
+  std::vector<sensor::Sensor *> gate_still_sensors_;
+  std::vector<sensor::Sensor *> gate_move_sensors_;
 };
 
 }  // namespace ld2410
