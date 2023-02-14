@@ -1,11 +1,15 @@
-#ifdef USE_RP2040
+#if defined(USE_RP2040) || defined(USE_LIBRETUYA)
 
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
+#ifndef USE_LIBRETUYA
 #include <ESP8266mDNS.h>
+#else
+#include <mDNS.h>
+#endif
 
 namespace esphome {
 namespace mdns {
@@ -37,6 +41,11 @@ void MDNSComponent::setup() {
 }
 
 void MDNSComponent::loop() { MDNS.update(); }
+
+void MDNSComponent::on_shutdown() {
+  MDNS.close();
+  delay(40);
+}
 
 }  // namespace mdns
 }  // namespace esphome

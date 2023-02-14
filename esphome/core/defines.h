@@ -25,6 +25,7 @@
 #define USE_FAN
 #define USE_GRAPH
 #define USE_HOMEASSISTANT_TIME
+#define USE_JSON
 #define USE_LIGHT
 #define USE_LOCK
 #define USE_LOGGER
@@ -50,7 +51,6 @@
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
 #define USE_CAPTIVE_PORTAL
-#define USE_JSON
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_PROMETHEUS
 #define USE_WEBSERVER
