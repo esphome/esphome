@@ -9,7 +9,7 @@ from homeassistant.components.number import NumberDeviceClass
 from homeassistant.components.sensor import SensorDeviceClass
 from homeassistant.components.switch import SwitchDeviceClass
 
-BLACKLIST = (
+BLOCKLIST = (
     # requires special support on HA side
     "enum",
 )
@@ -38,7 +38,7 @@ def main():
 
     for domain, enum in DOMAINS.items():
         available = {
-            cls.value.upper(): cls.value for cls in enum if cls.value not in BLACKLIST
+            cls.value.upper(): cls.value for cls in enum if cls.value not in BLOCKLIST
         }
 
         classes.update(available)
