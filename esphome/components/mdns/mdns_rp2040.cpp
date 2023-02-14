@@ -46,12 +46,14 @@ void MDNSComponent::setup() {
 
 #ifndef USE_LIBRETUYA
 void MDNSComponent::loop() { MDNS.update(); }
+#endif
 
 void MDNSComponent::on_shutdown() {
+#ifndef USE_LIBRETUYA
   MDNS.close();
   delay(40);
-}
 #endif
+}
 
 }  // namespace mdns
 }  // namespace esphome
