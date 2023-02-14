@@ -287,6 +287,9 @@ uart:
 modbus:
   uart_id: uart1
 
+vbus:
+  uart_id: uart4
+
 ota:
   safe_mode: true
   port: 3286
@@ -298,6 +301,7 @@ logger:
   esp8266_store_log_strings_in_flash: true
 
 improv_serial:
+  next_url: https://esphome.io/?name={{device_name}}&version={{esphome_version}}&ip={{ip_address}}
 
 deep_sleep:
   run_duration: 20s
@@ -798,6 +802,11 @@ sensor:
     id: adc128s102_channel_0
     channel: 0
 
+  - platform: vbus
+    model: deltasol c
+    temperature_1:
+      name: Temperature 1
+
 time:
   - platform: homeassistant
 
@@ -902,6 +911,11 @@ binary_sensor:
     on_press:
       then:
         - pzemac.reset_energy: pzemac1
+
+  - platform: vbus
+    model: deltasol_bs_plus
+    relay1:
+      name: Relay 1 On
 
 globals:
   - id: my_global_string
@@ -1122,14 +1136,16 @@ climate:
       - switch.turn_on: gpio_switch1
     fan_mode_diffuse_action:
       - switch.turn_on: gpio_switch2
+    fan_mode_quiet_action:
+      - switch.turn_on: gpio_switch1
     swing_off_action:
-      - switch.turn_on: gpio_switch1
+      - switch.turn_on: gpio_switch2
     swing_horizontal_action:
-      - switch.turn_on: gpio_switch2
-    swing_vertical_action:
       - switch.turn_on: gpio_switch1
-    swing_both_action:
+    swing_vertical_action:
       - switch.turn_on: gpio_switch2
+    swing_both_action:
+      - switch.turn_on: gpio_switch1
     startup_delay: true
     supplemental_cooling_delta: 2.0
     cool_deadband: 0.5

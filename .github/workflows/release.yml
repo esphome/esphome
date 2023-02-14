@@ -67,8 +67,10 @@ jobs:
       contents: read
       packages: write
     runs-on: ubuntu-latest
+    continue-on-error: ${{ matrix.image.title == 'lint' }}
     needs: [init]
     strategy:
+      fail-fast: false
       matrix:
         image:
           - title: "ha-addon"
@@ -136,15 +138,18 @@ jobs:
     runs-on: ubuntu-latest
     needs: [deploy-docker]
     steps:
-      - env:
-          TOKEN: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
-        # yamllint disable rule:line-length
-        run: |
-          TAG="${GITHUB_REF#refs/tags/}"
-          curl \
-            -u ":$TOKEN" \
-            -X POST \
-            -H "Accept: application/vnd.github.v3+json" \
-            https://api.github.com/repos/esphome/home-assistant-addon/actions/workflows/bump-version.yml/dispatches \
-            -d "{\"ref\":\"main\",\"inputs\":{\"version\":\"$TAG\"}}"
-        # yamllint enable rule:line-length
+      - name: Trigger Workflow
+        uses: actions/github-script@v6
+        with:
+          github-token: ${{ secrets.DEPLOY_HA_ADDON_REPO_TOKEN }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: "esphome",
+              repo: "home-assistant-addon",
+              workflow_id: "bump-version.yml",
+              ref: "main",
+              inputs: {
+                version: "${{ github.event.release.tag_name }}",
+                content: ${{ toJSON(github.event.release.body) }}
+              }
+            })
