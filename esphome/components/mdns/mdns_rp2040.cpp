@@ -17,8 +17,12 @@ namespace mdns {
 void MDNSComponent::setup() {
   this->compile_records_();
 
+#ifndef USE_LIBRETUYA
   network::IPAddress addr = network::get_ip_address();
   MDNS.begin(this->hostname_.c_str(), (uint32_t) addr);
+#else
+  MDNS.begin(this->hostname_.c_str());
+#endif
 
   for (const auto &service : this->services_) {
     // Strip the leading underscore from the proto and service_type. While it is
@@ -40,12 +44,14 @@ void MDNSComponent::setup() {
   }
 }
 
+#ifndef USE_LIBRETUYA
 void MDNSComponent::loop() { MDNS.update(); }
 
 void MDNSComponent::on_shutdown() {
   MDNS.close();
   delay(40);
 }
+#endif
 
 }  // namespace mdns
 }  // namespace esphome
