@@ -1275,11 +1275,47 @@ sensor:
     still_distance:
       name: "Still Distance (cm)"
     moving_energy:
-      name: "Move Energy"
+      name: "Move Energy (%)"
     still_energy:
-      name: "Still Energy"
+      name: "Still Energy (%)"
     detection_distance:
-      name: "Distance Detection"
+      name: "Distance Detection (cm)"
+    g0_move_energy:
+      name: g0 move energy
+    g0_still_energy:
+      name: g0 still energy
+    g1_move_energy:
+      name: g1 move energy
+    g1_still_energy:
+      name: g1 still energy
+    g2_move_energy:
+      name: g2 move energy
+    g2_still_energy:
+      name: g2 still energy
+    g3_move_energy:
+      name: g3 move energy
+    g3_still_energy:
+      name: g3 still energy
+    g4_move_energy:
+      name: g4 move energy
+    g4_still_energy:
+      name: g4 still energy
+    g5_move_energy:
+      name: g5 move energy
+    g5_still_energy:
+      name: g5 still energy
+    g6_move_energy:
+      name: g6 move energy
+    g6_still_energy:
+      name: g6 still energy
+    g7_move_energy:
+      name: g7 move energy
+    g7_still_energy:
+      name: g7 still energy
+    g8_move_energy:
+      name: g8 move energy
+    g8_still_energy:
+      name: g8 still energy
   - platform: sen21231
     name: "Person Sensor"
     i2c_id: i2c_bus
@@ -2519,6 +2555,9 @@ switch:
     id: outlet_switch
     optimistic: true
     device_class: outlet
+  - platform: ld2410
+    engineering_mode:
+      name: "engineering mode"
 
 fan:
   - platform: binary
@@ -3097,6 +3136,9 @@ text_sensor:
     tag_name: OPTARIF
     name: optarif
     teleinfo_id: myteleinfo
+  - platform: ld2410
+    version:
+      name: "presenece sensor version"
 
 sn74hc595:
   - id: sn74hc595_hub
@@ -3201,6 +3243,49 @@ number:
     step: 1
     max_value: 10
     optimistic: true
+  - platform: ld2410
+    timeout:
+      name: timeout
+    max_move_distance:
+      name: max move distance
+    max_still_distance:
+      name: max still distance
+    g0_move_threshold:
+      name: g0 move threshold
+    g0_still_threshold:
+      name: g0 still threshold
+    g1_move_threshold:
+      name: g1 move threshold
+    g1_still_threshold:
+      name: g1 still threshold
+    g2_move_threshold:
+      name: g2 move threshold
+    g2_still_threshold:
+      name: g2 still threshold
+    g3_move_threshold:
+      name: g3 move threshold
+    g3_still_threshold:
+      name: g3 still threshold
+    g4_move_threshold:
+      name: g4 move threshold
+    g4_still_threshold:
+      name: g4 still threshold
+    g5_move_threshold:
+      name: g5 move threshold
+    g5_still_threshold:
+      name: g5 still threshold
+    g6_move_threshold:
+      name: g6 move threshold
+    g6_still_threshold:
+      name: g6 still threshold
+    g7_move_threshold:
+      name: g7 move threshold
+    g7_still_threshold:
+      name: g7 still threshold
+    g8_move_threshold:
+      name: g8 move threshold
+    g8_still_threshold:
+      name: g8 still threshold
 
 select:
   - platform: template
@@ -3276,19 +3361,17 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+  - platform: ld2410
+    factory_reset:
+      name: "factory reset"
+    restart:
+      name: "restart"
+    query_params:
+      name: query params
 
 ld2410:
   id: my_ld2410
   uart_id: ld2410_uart
-  timeout: 150s
-  max_move_distance: 6m
-  max_still_distance: 0.75m
-  g0_move_threshold: 10
-  g0_still_threshold: 20
-  g2_move_threshold: 20
-  g2_still_threshold: 21
-  g8_move_threshold: 80
-  g8_still_threshold: 81
 
 lcd_menu:
   display_id: my_lcd_gpio
