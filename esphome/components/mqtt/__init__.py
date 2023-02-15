@@ -53,6 +53,9 @@ AUTO_LOAD = ["json"]
 
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
+CONF_DEVICE_MANUFACTURER = "device_manufacturer"
+CONF_DEVICE_MODEL = "device_model"
+CONF_DEVICE_NAME = "device_name"
 
 
 def validate_message_just_topic(value):
@@ -247,6 +250,9 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
                 }
             ),
+            cv.Optional(CONF_DEVICE_MANUFACTURER, default="espressif"): cv.string,
+            cv.Optional(CONF_DEVICE_MODEL, default=""): cv.string,
+            cv.Optional(CONF_DEVICE_NAME, default=""): cv.string,
         }
     ),
     validate_config,
@@ -318,6 +324,19 @@ async def to_code(config):
 
     if config[CONF_USE_ABBREVIATIONS]:
         cg.add_define("USE_MQTT_ABBREVIATIONS")
+
+    if config[CONF_DEVICE_MANUFACTURER]:
+        cg.add_define("USE_MQTT_DEVICE_MANUFACTURER", config[CONF_DEVICE_MANUFACTURER] )
+
+    if config[CONF_DEVICE_MODEL] and config[CONF_DEVICE_MODEL] != "":
+        cg.add_define("USE_MQTT_DEVICE_MODEL", config[CONF_DEVICE_MODEL] )
+    else:
+        cg.add_define("USE_MQTT_DEVICE_MODEL", cg.RawExpression("ESPHOME_BOARD") )
+
+    if config[CONF_DEVICE_NAME] and config[CONF_DEVICE_NAME] != "":
+        cg.add_define("USE_MQTT_DEVICE_NAME", config[CONF_DEVICE_NAME] )
+    else:
+        cg.add_define("USE_MQTT_DEVICE_NAME", cg.RawExpression("NULL") )
 
     birth_message = config[CONF_BIRTH_MESSAGE]
     if not birth_message:
