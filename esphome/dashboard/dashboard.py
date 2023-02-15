@@ -25,10 +25,10 @@ import tornado.netutil
 import tornado.process
 import tornado.web
 import tornado.websocket
+import yaml
 from tornado.log import access_log
 
 from esphome import const, platformio_api, util, yaml_util
-from esphome.core import EsphomeError
 from esphome.helpers import get_bool_env, mkdir_p, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -40,7 +40,7 @@ from esphome.storage_json import (
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
 
-from .util import password_hash, friendly_name_slugify
+from .util import friendly_name_slugify, password_hash
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,6 +55,7 @@ class DashboardSettings:
         self.using_password = False
         self.on_ha_addon = False
         self.cookie_secret = None
+        self.absolute_config_dir = None
 
     def parse_args(self, args):
         self.on_ha_addon = args.ha_addon
@@ -65,6 +66,7 @@ class DashboardSettings:
         if self.using_password:
             self.password_hash = password_hash(password)
         self.config_dir = args.configuration
+        self.absolute_config_dir = Path(self.config_dir).resolve()
 
     @property
     def relative_url(self):
@@ -94,7 +96,10 @@ class DashboardSettings:
         return hmac.compare_digest(self.password_hash, password_hash(password))
 
     def rel_path(self, *args):
-        return os.path.join(self.config_dir, *args)
+        joined_path = os.path.join(self.config_dir, *args)
+        # Raises ValueError if not relative to ESPHome config folder
+        Path(joined_path).resolve().relative_to(self.absolute_config_dir)
+        return joined_path
 
     def list_yaml_files(self):
         return util.list_yaml_files([self.config_dir])
@@ -433,6 +438,7 @@ class ImportRequestHandler(BaseHandler):
         try:
             name = args["name"]
             friendly_name = args.get("friendly_name")
+            encryption = args.get("encryption", False)
 
             imported_device = next(
                 (res for res in IMPORT_RESULT.values() if res.device_name == name), None
@@ -452,6 +458,7 @@ class ImportRequestHandler(BaseHandler):
                 args["project_name"],
                 args["package_import_url"],
                 network,
+                encryption,
             )
         except FileExistsError:
             self.set_status(500)
@@ -538,35 +545,11 @@ class DownloadBinaryRequestHandler(BaseHandler):
         self.finish()
 
 
-class ManifestRequestHandler(BaseHandler):
+class EsphomeVersionHandler(BaseHandler):
     @authenticated
-    @bind_config
-    def get(self, configuration=None):
-        args = ["esphome", "idedata", settings.rel_path(configuration)]
-        rc, stdout, _ = run_system_command(*args)
-
-        if rc != 0:
-            self.send_error(404 if rc == 2 else 500)
-            return
-
-        idedata = platformio_api.IDEData(json.loads(stdout))
-
-        firmware_offset = "0x10000" if idedata.extra_flash_images else "0x0"
-        flash_images = [
-            {
-                "path": f"./download.bin?configuration={configuration}&type=firmware.bin",
-                "offset": firmware_offset,
-            }
-        ] + [
-            {
-                "path": f"./download.bin?configuration={configuration}&type={os.path.basename(image.path)}",
-                "offset": image.offset,
-            }
-            for image in idedata.extra_flash_images
-        ]
-
+    def get(self):
         self.set_header("Content-Type", "application/json")
-        self.write(json.dumps(flash_images))
+        self.write(json.dumps({"version": const.__version__}))
         self.finish()
 
 
@@ -770,7 +753,7 @@ class BoardsRequestHandler(BaseHandler):
         platform_boards = {key: val[const.KEY_NAME] for key, val in boards.items()}
         # sort by board title
         boards_items = sorted(platform_boards.items(), key=lambda item: item[1])
-        output = [dict(items=dict(boards_items))]
+        output = [{"items": dict(boards_items)}]
 
         self.set_header("content-type", "application/json")
         self.write(json.dumps(output))
@@ -1002,7 +985,6 @@ class LogoutHandler(BaseHandler):
 class SecretKeysRequestHandler(BaseHandler):
     @authenticated
     def get(self):
-
         filename = None
 
         for secret_filename in const.SECRETS_FILES:
@@ -1021,6 +1003,20 @@ class SecretKeysRequestHandler(BaseHandler):
         self.write(json.dumps(secret_keys))
 
 
+class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
+    def ignore_unknown(self, node):
+        return f"{node.tag} {node.value}"
+
+    def construct_yaml_binary(self, node) -> str:
+        return super().construct_yaml_binary(node).decode("ascii")
+
+
+SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
+SafeLoaderIgnoreUnknown.add_constructor(
+    "tag:yaml.org,2002:binary", SafeLoaderIgnoreUnknown.construct_yaml_binary
+)
+
+
 class JsonConfigRequestHandler(BaseHandler):
     @authenticated
     @bind_config
@@ -1030,16 +1026,18 @@ class JsonConfigRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        try:
-            content = yaml_util.load_yaml(filename, clear_secrets=False)
-            json_content = json.dumps(
-                content, default=lambda o: {"__type": str(type(o)), "repr": repr(o)}
-            )
-            self.set_header("content-type", "application/json")
-            self.write(json_content)
-        except EsphomeError as err:
-            _LOGGER.warning("Error translating file %s to JSON: %s", filename, err)
-            self.send_error(500)
+        args = ["esphome", "config", settings.rel_path(configuration), "--show-secrets"]
+
+        rc, stdout, _ = run_system_command(*args)
+
+        if rc != 0:
+            self.send_error(422)
+            return
+
+        data = yaml.load(stdout, Loader=SafeLoaderIgnoreUnknown)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(data))
+        self.finish()
 
 
 def get_base_frontend_path():
@@ -1137,7 +1135,6 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}info", InfoRequestHandler),
             (f"{rel}edit", EditRequestHandler),
             (f"{rel}download.bin", DownloadBinaryRequestHandler),
-            (f"{rel}manifest.json", ManifestRequestHandler),
             (f"{rel}serial-ports", SerialPortRequestHandler),
             (f"{rel}ping", PingRequestHandler),
             (f"{rel}delete", DeleteRequestHandler),
@@ -1151,6 +1148,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
             (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
+            (f"{rel}version", EsphomeVersionHandler),
         ],
         **app_settings,
     )
