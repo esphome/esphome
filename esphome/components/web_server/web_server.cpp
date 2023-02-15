@@ -118,7 +118,7 @@ void WebServer::setup() {
   });
 
 #ifdef USE_LOGGER
-  if (logger::global_logger != nullptr) {
+  if (logger::global_logger != nullptr && this->expose_log_) {
     logger::global_logger->add_on_log_callback(
         [this](int level, const char *tag, const char *message) { this->events_.send(message, "log", millis()); });
   }
