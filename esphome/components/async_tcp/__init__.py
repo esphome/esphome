@@ -20,7 +20,7 @@ async def to_code(config):
             "https://github.com/yubox-node-org/AsyncTCPSock/archive/1212289f0b9bdf81adda4846043be5ff3361070e.zip",
             None,
         )
-        cg.add_platformio_option("lib_ignore", ["AsyncTCP"])
+        cg.add_platformio_option("lib_ignore", ["AsyncTCP", "AsyncTCP-esphome"])
     elif CORE.is_esp8266:
         # https://github.com/OttoWinter/ESPAsyncTCP
         cg.add_library("ottowinter/ESPAsyncTCP-esphome", "1.2.3")
