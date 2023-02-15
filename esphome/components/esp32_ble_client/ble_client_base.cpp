@@ -40,7 +40,7 @@ void BLEClientBase::loop() {
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
-  if (device.address_uint64() != this->address_)
+  if (this->address_ == 0 || device.address_uint64() != this->address_)
     return false;
   if (this->state_ != espbt::ClientState::IDLE && this->state_ != espbt::ClientState::SEARCHING)
     return false;
@@ -138,6 +138,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                  this->address_str_.c_str(), ret);
       }
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
+        ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
         this->set_state(espbt::ClientState::CONNECTED);
         this->state_ = espbt::ClientState::ESTABLISHED;
         break;
@@ -189,6 +190,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
                  this->address_str_.c_str(), svc->start_handle, svc->end_handle);
       }
+      ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
       this->set_state(espbt::ClientState::CONNECTED);
       this->state_ = espbt::ClientState::ESTABLISHED;
       break;
