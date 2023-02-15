@@ -16,7 +16,11 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     if CORE.is_esp32:
         # https://github.com/esphome/AsyncTCP/blob/master/library.json
-        cg.add_library("esphome/AsyncTCP-esphome", "1.2.2")
+        cg.add_library(
+            "https://github.com/yubox-node-org/AsyncTCPSock/archive/1212289f0b9bdf81adda4846043be5ff3361070e.zip",
+            None,
+        )
+        cg.add_platformio_option("lib_ignore", ["AsyncTCP"])
     elif CORE.is_esp8266:
         # https://github.com/OttoWinter/ESPAsyncTCP
         cg.add_library("ottowinter/ESPAsyncTCP-esphome", "1.2.3")
