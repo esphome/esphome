@@ -326,17 +326,17 @@ async def to_code(config):
         cg.add_define("USE_MQTT_ABBREVIATIONS")
 
     if config[CONF_DEVICE_MANUFACTURER]:
-        cg.add_define("USE_MQTT_DEVICE_MANUFACTURER", config[CONF_DEVICE_MANUFACTURER] )
+        cg.add_define("USE_MQTT_DEVICE_MANUFACTURER", config[CONF_DEVICE_MANUFACTURER])
 
     if config[CONF_DEVICE_MODEL] and config[CONF_DEVICE_MODEL] != "":
-        cg.add_define("USE_MQTT_DEVICE_MODEL", config[CONF_DEVICE_MODEL] )
+        cg.add_define("USE_MQTT_DEVICE_MODEL", config[CONF_DEVICE_MODEL])
     else:
-        cg.add_define("USE_MQTT_DEVICE_MODEL", cg.RawExpression("ESPHOME_BOARD") )
+        cg.add_define("USE_MQTT_DEVICE_MODEL", cg.RawExpression("ESPHOME_BOARD"))
 
     if config[CONF_DEVICE_NAME] and config[CONF_DEVICE_NAME] != "":
-        cg.add_define("USE_MQTT_DEVICE_NAME", config[CONF_DEVICE_NAME] )
+        cg.add_define("USE_MQTT_DEVICE_NAME", config[CONF_DEVICE_NAME])
     else:
-        cg.add_define("USE_MQTT_DEVICE_NAME", cg.RawExpression("nullptr") )
+        cg.add_define("USE_MQTT_DEVICE_NAME", cg.RawExpression("nullptr"))
 
     birth_message = config[CONF_BIRTH_MESSAGE]
     if not birth_message:
