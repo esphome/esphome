@@ -99,6 +99,7 @@ enum ClimateFanMode : uint32_t {
   CLIMATE_FAN_MIDDLE = 6,
   CLIMATE_FAN_FOCUS = 7,
   CLIMATE_FAN_DIFFUSE = 8,
+  CLIMATE_FAN_QUIET = 9,
 };
 enum ClimateSwingMode : uint32_t {
   CLIMATE_SWING_OFF = 0,
@@ -276,6 +277,7 @@ class DeviceInfoResponse : public ProtoMessage {
   uint32_t webserver_port{0};
   uint32_t bluetooth_proxy_version{0};
   std::string manufacturer{};
+  std::string friendly_name{};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

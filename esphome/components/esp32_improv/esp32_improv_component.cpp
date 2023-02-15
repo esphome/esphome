@@ -195,7 +195,7 @@ void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &response) {
 }
 
 void ESP32ImprovComponent::start() {
-  if (this->state_ != improv::STATE_STOPPED)
+  if (this->should_start_ || this->state_ != improv::STATE_STOPPED)
     return;
 
   ESP_LOGD(TAG, "Setting Improv to start");
