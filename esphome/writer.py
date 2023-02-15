@@ -143,6 +143,7 @@ def get_ini_content():
     CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
 
     content = f"[env:{CORE.name}]\n"
+    content += f"description = ESPHome {__version__}\n"
     content += format_ini(CORE.platformio_options)
 
     return content
