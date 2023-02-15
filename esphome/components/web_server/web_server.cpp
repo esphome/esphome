@@ -913,7 +913,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
     root["mode"] = PSTR_LOCAL(climate_mode_to_string(obj->mode));
     root["max_temp"] = value_accuracy_to_string(traits.get_visual_max_temperature(), target_accuracy);
     root["min_temp"] = value_accuracy_to_string(traits.get_visual_min_temperature(), target_accuracy);
-    root["step"] = traits.get_visual_temperature_step();
+    root["step"] = traits.get_visual_target_temperature_step();
     if (traits.get_supports_action()) {
       root["action"] = PSTR_LOCAL(climate_action_to_string(obj->action));
       root["state"] = root["action"];

@@ -62,7 +62,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
   // max_temp
   root[MQTT_MAX_TEMP] = traits.get_visual_max_temperature();
   // temp_step
-  root["temp_step"] = traits.get_visual_temperature_step();
+  root["temp_step"] = traits.get_visual_target_temperature_step();
   // temperature units are always coerced to Celsius internally
   root[MQTT_TEMPERATURE_UNIT] = "C";
 
