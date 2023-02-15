@@ -336,7 +336,7 @@ async def to_code(config):
     if config[CONF_DEVICE_NAME] and config[CONF_DEVICE_NAME] != "":
         cg.add_define("USE_MQTT_DEVICE_NAME", config[CONF_DEVICE_NAME] )
     else:
-        cg.add_define("USE_MQTT_DEVICE_NAME", cg.RawExpression("NULL") )
+        cg.add_define("USE_MQTT_DEVICE_NAME", cg.RawExpression("nullptr") )
 
     birth_message = config[CONF_BIRTH_MESSAGE]
     if not birth_message:
