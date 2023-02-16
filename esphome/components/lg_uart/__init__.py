@@ -11,15 +11,15 @@ Each of the different things that can be controlled can be best represented with
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
-from esphome.const import CONF_ID
+from esphome.const import CONF_UART_ID, CONF_ID
 
 CODEOWNERS = ["@kquinsland"]
 DEPENDENCIES = ["uart"]
-MULTI_CONF = True
+MULTI_CONF = False
 
 # Hub needs the ID of the UART and set ID
 CONF_UART_ID = "uart_id"
-CONF_SCREEN_NUM = "screen"
+CONF_SCREEN_NUM = "screen_number"
 
 
 lg_uart = cg.esphome_ns.namespace("lg_uart")
@@ -29,6 +29,8 @@ LGUartHub = lg_uart.class_("LGUartHub", cg.PollingComponent, uart.UARTDevice)
 CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(LGUartHub),
+        # We need to know which uart device to use
+        cv.Required(CONF_UART_ID): cv.use_id(uart.CONF_ID),
         # TODO: confirm this, pretty sure that's the max
         cv.Optional(CONF_SCREEN_NUM, default=0): cv.int_range(min=0, max=99),
     }
@@ -44,5 +46,9 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
+    # ID of the UART component
+    await uart.register_uart_device(var, config)
+
     # Screen ID / number
     cg.add(var.set_screen_number(config[CONF_SCREEN_NUM]))
+    return var
