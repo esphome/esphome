@@ -204,6 +204,9 @@ RESERVED_IDS = [
     "open",
     "setup",
     "loop",
+    "uart0",
+    "uart1",
+    "uart2",
 ]
 
 
