@@ -34,12 +34,7 @@ class LGUartHub : public Component, public uart::UARTDevice {
   float get_setup_priority() const override { return setup_priority::LATE; }
 
  protected:
-  void encode_int(uint8_t x, char digits[]);
   int screen_num_ = -1;
-
-  // User will give us an integer, we need to encode it for the uart protocol
-  char screen_num_enc[2];
-
   int power_status_ = -1;
 };
 

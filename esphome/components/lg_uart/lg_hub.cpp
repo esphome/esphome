@@ -9,59 +9,39 @@ namespace lg_uart {
 /* Public */
 
 bool LGUartHub::button_off() {
-  ESP_LOGD(TAG, "Button off (mute payload) for screen_num: '%i'", this->screen_num_);
+  ESP_LOGD(TAG, "Button off for screen_num: '%i'", this->screen_num_);
 
-  // For now, just use the MUTE packet for set 1
-  //  [0x6B, 0x65, 0x20, 0x30, 0x31, 0x20, 0x30, 0x30, 0x0D]
-
-  uint8_t pkt[] = {0x6B, 0x65, 0x20, 0x30, 0x31, 0x20, 0x30, 0x30, 0x0d};
-
-  this->parent_->write_array(pkt, PACKET_LEN);
+  // Power off is ka, 00
+  std::string s = str_sprintf("ka %02x %02x\r", this->screen_num_, 00);
+  this->parent_->write_array(std::vector<uint8_t>(s.begin(), s.end()));
   return true;
 }
 
 // TODO: this needs to get moved into switch
-bool LGUartHub::button_on() {
-  ESP_LOGCONFIG(TAG, "Button off for screen_num: '%i'", this->screen_num_);
+bool LGUartHub::button_off() {
+  ESP_LOGD(TAG, "Button on for screen_num: '%i'", this->screen_num_);
+
+  // Power off is ka, 00
+  std::string s = str_sprintf("ka %02x %02x\r", this->screen_num_, 01);
+  this->parent_->write_array(std::vector<uint8_t>(s.begin(), s.end()));
   return true;
 }
 
 /* Internal */
 
-void LGUartHub::loop() { ESP_LOGCONFIG(TAG, "LOOP for screen_num: '%i'", this->screen_num_); }
+void LGUartHub::loop() {
+  ESP_LOGCONFIG(TAG, "LOOP for screen_num: '%i'", this->screen_num_);
+  this->button_off();
+}
 
 void LGUartHub::setup() {
-  this->encode_int(this->screen_num_, this->screen_num_enc);
+  // this->encode_int(this->screen_num_, this->screen_num_enc);
   this->dump_config();
 }
 
 void LGUartHub::dump_config() {
-  ESP_LOGCONFIG(TAG, "Config for screen_num: '%i' -> [0x%x, 0x%x]", this->screen_num_, this->screen_num_enc[0],
-                this->screen_num_enc[1]);
+  ESP_LOGCONFIG(TAG, "Config for screen_num: '%i'");
   ESP_LOGCONFIG(TAG, "Uart baud rate '%i'", this->parent_->get_baud_rate());
-}
-
-/*
-  We need a function to encode integer values for uart purposes.
-  This function will be used for screen ID and other values like volume / brightness
-
-  This is because numbers like `01` need to get encoded as the ascii 0 and the ascii 1
-  E.G.:
-    User wants volume level 16. That's 0x10.
-    We need to transmit the ascii chars 01 aka 0x31 0x30
-    Basically a float -> int -> ascii -> hex pipe
-*/
-void LGUartHub::encode_int(uint8_t x, char digits[]) {
-  char num[3];
-  itoa(x, num, 16);  // I could not figure out a better way to do zero padding on the input so values like
-  //  7 would get transformed into the string and then transmitted as 0x30 0x37
-  if ((int) x < 10) {
-    digits[0] = 0x30;
-    digits[1] = num[0];
-  } else {
-    digits[0] = num[0];
-    digits[1] = num[1];
-  }
 }
 
 }  // namespace lg_uart
