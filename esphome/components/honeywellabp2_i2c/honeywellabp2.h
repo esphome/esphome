@@ -19,7 +19,7 @@ class HONEYWELLABP2Sensor : public PollingComponent, public i2c::I2CDevice {
   void setup() override;
   void loop() override;
   void update() override;
-  float get_setup_priority() const override { return setup_priority::LATE; };
+  float get_setup_priority() const override { return setup_priority::DATA; };
   void dump_config() override;
   
   void read_sensor_data();
