@@ -284,7 +284,9 @@ CONFIG_SCHEMA = cv.Schema(
                 },
             ],
         ): [
-            number.number_schema(DemoNumber).extend(cv.COMPONENT_SCHEMA).extend(
+            number.number_schema(DemoNumber)
+            .extend(cv.COMPONENT_SCHEMA)
+            .extend(
                 {
                     cv.Required(CONF_TYPE): cv.enum(NUMBER_TYPES, int=True),
                     cv.Required(CONF_MIN_VALUE): cv.float_,

@@ -46,7 +46,8 @@ def validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    number.number_schema(TemplateNumber).extend(
+    number.number_schema(TemplateNumber)
+    .extend(
         {
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
@@ -57,7 +58,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INITIAL_VALUE): cv.float_,
             cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
         }
-    ).extend(cv.polling_component_schema("60s")),
+    )
+    .extend(cv.polling_component_schema("60s")),
     validate_min_max,
     validate,
 )
