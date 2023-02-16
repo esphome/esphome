@@ -1,7 +1,12 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
+
 #include "esp_one_wire.h"
 
 #include <vector>
@@ -22,6 +27,10 @@ class DallasComponent : public PollingComponent {
 
   void update() override;
 
+#ifdef USE_TEXT_SENSOR
+  void set_address_sensor(text_sensor::TextSensor *address) { address_sensor_ = address; }
+#endif  // USE_TEXT_SENSOR
+
  protected:
   friend DallasTemperatureSensor;
 
@@ -29,6 +38,9 @@ class DallasComponent : public PollingComponent {
   ESPOneWire *one_wire_;
   std::vector<DallasTemperatureSensor *> sensors_;
   std::vector<uint64_t> found_sensors_;
+#ifdef USE_TEXT_SENSOR
+  text_sensor::TextSensor *address_sensor_{nullptr};
+#endif  // USE_TEXT_SENSOR
 };
 
 /// Internal class that helps us create multiple sensors for one Dallas hub.

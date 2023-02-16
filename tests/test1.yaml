@@ -2994,6 +2994,9 @@ text_sensor:
     tag_name: OPTARIF
     name: optarif
     teleinfo_id: myteleinfo
+  - platform: dallas
+    address:
+      name: dallas address
 
 sn74hc595:
   - id: sn74hc595_hub

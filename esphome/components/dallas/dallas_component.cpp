@@ -85,6 +85,19 @@ void DallasComponent::dump_config() {
     }
   }
 
+#ifdef USE_TEXT_SENSOR
+  if (address_sensor_) {
+    std::string addresses;
+    bool first = true;
+    for (auto &address : this->found_sensors_) {
+      addresses += "0x";
+      addresses += format_hex(address) + (first ? "" : " ");
+      first = false;
+    }
+    address_sensor_->publish_state(addresses);
+  }
+#endif  // USE_TEXT_SENSOR
+
   for (auto *sensor : this->sensors_) {
     LOG_SENSOR("  ", "Device", sensor);
     if (sensor->get_index().has_value()) {
