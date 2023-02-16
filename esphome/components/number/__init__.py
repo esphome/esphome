@@ -7,7 +7,9 @@ from esphome.const import (
     CONF_ABOVE,
     CONF_BELOW,
     CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
     CONF_ID,
+    CONF_ICON,
     CONF_MODE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
@@ -63,6 +65,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
+from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
@@ -150,8 +153,8 @@ NUMBER_OPERATION_OPTIONS = {
     "TO_MAX": NumberOperation.NUMBER_OP_TO_MAX,
 }
 
-icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
+validate_unit_of_measurement = cv.string_strict
 
 NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
@@ -170,11 +173,53 @@ NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
             },
             cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
         ),
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
+        cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
         cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
     }
 )
+
+_UNDEF = object()
+
+
+def number_schema(
+    class_: MockObjClass = _UNDEF,
+    *,
+    icon: str = _UNDEF,
+    entity_category: str = _UNDEF,
+    device_class: str = _UNDEF,
+    unit_of_measurement: str = _UNDEF,
+) -> cv.Schema:
+    schema = NUMBER_SCHEMA
+    if class_ is not _UNDEF:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
+    if icon is not _UNDEF:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
+    if entity_category is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_ENTITY_CATEGORY, default=entity_category
+                ): cv.entity_category
+            }
+        )
+    if device_class is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_DEVICE_CLASS, default=device_class
+                ): validate_device_class
+            }
+        )
+    if unit_of_measurement is not _UNDEF:
+        schema = schema.extend(
+            {
+                cv.Optional(
+                    CONF_UNIT_OF_MEASUREMENT, default=unit_of_measurement
+                ): validate_unit_of_measurement
+            }
+        )
+    return schema
 
 
 async def setup_number_core_(
