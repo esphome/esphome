@@ -28,19 +28,16 @@ bool LGUartHub::button_on() {
 
 /* Internal */
 
-void LGUartHub::loop() {
-  ESP_LOGCONFIG(TAG, "LOOP for screen_num: '%i'", this->screen_num_);
-  char test[2];
-  this->encode_int(this->screen_num_, test);
-  ESP_LOGCONFIG(TAG, "LOOP for screen_num: '%x %x'", test[0], test[1]);
-  // this->button_off();
+void LGUartHub::loop() { ESP_LOGCONFIG(TAG, "LOOP for screen_num: '%i'", this->screen_num_); }
+
+void LGUartHub::setup() {
+  this->encode_int(this->screen_num_, this->screen_num_enc);
+  this->dump_config();
 }
 
-void LGUartHub::setup() { this->dump_config(); }
-
 void LGUartHub::dump_config() {
-  ESP_LOGCONFIG(TAG, "Config for screen_num: '%i'", this->screen_num_);
-  ESP_LOGCONFIG(TAG, "Uart available? '%i'", this->parent_->available());
+  ESP_LOGCONFIG(TAG, "Config for screen_num: '%i' -> [0x%x, 0x%x]", this->screen_num_, this->screen_num_enc[0],
+                this->screen_num_enc[1]);
   ESP_LOGCONFIG(TAG, "Uart baud rate '%i'", this->parent_->get_baud_rate());
 }
 
