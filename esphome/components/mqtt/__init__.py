@@ -326,7 +326,12 @@ async def to_code(config):
 
     devinfo_manufacturer = ""
     devinfo_model = ""
-    if not config[CONF_LEGACY_DEVINFO] and CORE.config and CONF_ESPHOME in CORE.config and CONF_PROJECT in CORE.config[CONF_ESPHOME]:
+    if (
+        not config[CONF_LEGACY_DEVINFO]
+        and CORE.config
+        and CONF_ESPHOME in CORE.config
+        and CONF_PROJECT in CORE.config[CONF_ESPHOME]
+    ):
         prjname = CORE.config[CONF_ESPHOME][CONF_PROJECT][CONF_NAME]
         if prjname:
             projinfo = prjname.split(".")
@@ -335,10 +340,10 @@ async def to_code(config):
                 devinfo_model = projinfo[1]
 
     if devinfo_manufacturer == "":
-        if 'rp2040' in CORE.config:
-            devinfo_manufacturer = "Raspberry Pi";
+        if "rp2040" in CORE.config:
+            devinfo_manufacturer = "Raspberry Pi"
         else:
-            devinfo_manufacturer = "espressif";
+            devinfo_manufacturer = "espressif"
 
     if devinfo_model == "":
         devinfo_model = cg.RawExpression("ESPHOME_BOARD")
