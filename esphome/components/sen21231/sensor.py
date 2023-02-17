@@ -3,6 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import CONF_ID, ICON_MOTION_SENSOR, UNIT_EMPTY
 
+CODEOWNERS = ["@shreyaskarnik"]
 DEPENDENCIES = ["i2c"]
 
 sen21231_sensor_ns = cg.esphome_ns.namespace("sen21231_sensor")
