@@ -90,8 +90,9 @@ void DallasComponent::dump_config() {
     std::string addresses;
     bool first = true;
     for (auto &address : this->found_sensors_) {
+      addresses += first ? "" : " ";
       addresses += "0x";
-      addresses += format_hex(address) + (first ? "" : " ");
+      addresses += format_hex(address);
       first = false;
     }
     address_sensor_->publish_state(addresses);
