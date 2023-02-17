@@ -1770,6 +1770,8 @@ output:
     inc_pin: GPIO26
     ud_pin: GPIO27
     initial_value: 0.5
+  - platform: sen21231
+    name: "Person Sensor"
 
 e131:
 
