@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
-from esphome.const import CONF_ID, ICON_MOTION_SENSOR, UNIT_EMPTY
+from esphome.const import ICON_MOTION_SENSOR, UNIT_EMPTY
 
 CODEOWNERS = ["@shreyaskarnik"]
 DEPENDENCIES = ["i2c"]
