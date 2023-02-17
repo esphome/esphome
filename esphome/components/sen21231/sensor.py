@@ -25,8 +25,7 @@ CONFIG_SCHEMA = (
 )
 
 
-def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    yield cg.register_component(var, config)
-    yield sensor.register_sensor(var, config)
-    yield i2c.register_i2c_device(var, config)
+async def to_code(config):
+    var = await sensor.new_sensor(config)
+    await cg.register_component(var, config)
+    await i2c.register_i2c_device(var, config)
