@@ -63,6 +63,7 @@ typedef struct __attribute__((__packed__)) {
   person_sensor_face_t faces[PERSON_SENSOR_MAX_FACES_COUNT];  // Bytes 6-37.
   uint16_t checksum;                                          // Bytes 38-39.
 } person_sensor_results_t;
+
 class Sen21231Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
