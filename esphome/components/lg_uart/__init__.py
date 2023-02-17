@@ -21,11 +21,15 @@ MULTI_CONF = False
 CONF_UART_ID = "uart_id"
 CONF_SCREEN_NUM = "screen_number"
 
+# Clients
+CONF_LG_UART_ID = "lg_uart_id"
+CONF_LG_UART_CMD = "cmd"
 
-lg_uart = cg.esphome_ns.namespace("lg_uart")
 
-LGUartHub = lg_uart.class_("LGUartHub", cg.PollingComponent, uart.UARTDevice)
+lg_uart_ns = cg.esphome_ns.namespace("lg_uart")
+LGUartHub = lg_uart_ns.class_("LGUartHub", cg.PollingComponent, uart.UARTDevice)
 
+# the root component
 CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(LGUartHub),
@@ -36,10 +40,17 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
     }
 )
 
+# Every component that uses us as a platform will need this
+LG_UART_CLIENT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_LG_UART_ID): cv.use_id(LGUartHub),
+    }
+)
 
-# async def register_bedjet_child(var, config):
-#     parent = await cg.get_variable(config[CONF_UART_ID])
-#     cg.add(parent.register_child(var))
+
+async def register_lg_uart_child(var, config):
+    parent = await cg.get_variable(config[CONF_LG_UART_ID])
+    cg.add(parent.register_child(var))
 
 
 async def to_code(config):

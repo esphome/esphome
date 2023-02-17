@@ -7,6 +7,7 @@
 #include "esphome/components/uart/uart.h"
 
 #include "esphome/core/hal.h"
+#include "lg_uart_child.h"
 
 namespace esphome {
 namespace lg_uart {
@@ -21,10 +22,7 @@ class LGUartHub : public Component, public uart::UARTDevice {
   int get_screen_number() { return this->screen_num_; }
 
   /** Generic commands */
-  bool button_off();
-  bool button_on();
-
-  bool get_power_status() { return this->power_status_; }
+  void send_cmd(char cmd[2], int data);
 
   /* Component overrides */
 
@@ -33,9 +31,11 @@ class LGUartHub : public Component, public uart::UARTDevice {
   void setup() override;
   float get_setup_priority() const override { return setup_priority::LATE; }
 
+  /** Register a `BedJetClient` child component. */
+  void register_child(LGUartClient *obj);
+
  protected:
   int screen_num_ = -1;
-  int power_status_ = -1;
 };
 
 }  // namespace lg_uart
