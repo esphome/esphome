@@ -66,7 +66,6 @@ typedef struct __attribute__((__packed__)) {
 
 class Sen21231Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
-  void setup() override;
   void update() override;
   void dump_config() override;
   void read_data_();
