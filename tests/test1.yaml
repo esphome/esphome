@@ -1221,6 +1221,7 @@ sensor:
       name: "Distance Detection"
   - platform: sen21231
     name: "Person Sensor"
+    i2c_id: i2c_bus
 esp32_touch:
   setup_mode: false
   iir_filter: 10ms
