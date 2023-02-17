@@ -6,8 +6,6 @@ namespace sen21231_sensor {
 
 static const char *const TAG = "sen21231_sensor.sensor";
 
-void Sen21231Sensor::setup() {}
-
 void Sen21231Sensor::update() { this->read_data_(); }
 
 void Sen21231Sensor::dump_config() {
