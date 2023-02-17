@@ -5,8 +5,6 @@ from esphome.const import CONF_ID, ICON_MOTION_SENSOR, UNIT_EMPTY
 
 DEPENDENCIES = ["i2c"]
 
-CONF_I2C_ADDR = 0x62
-
 sen21231_sensor_ns = cg.esphome_ns.namespace("sen21231_sensor")
 Sen21231Sensor = sen21231_sensor_ns.class_(
     "Sen21231Sensor", cg.PollingComponent, i2c.I2CDevice
