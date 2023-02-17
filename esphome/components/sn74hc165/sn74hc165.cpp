@@ -50,6 +50,7 @@ void SN74HC165Component::read_gpio_() {
   for (int16_t i = (this->sr_count_ * 8) - 1; i >= 0; i--) {
     this->input_bits_[i] = this->data_pin_->digital_read();
     this->clock_pin_->digital_write(true);
+    delayMicroseconds(5);
     this->clock_pin_->digital_write(false);
   }
 
