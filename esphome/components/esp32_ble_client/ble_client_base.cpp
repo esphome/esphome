@@ -40,7 +40,7 @@ void BLEClientBase::loop() {
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
-  if (device.address_uint64() != this->address_)
+  if (this->address_ == 0 || device.address_uint64() != this->address_)
     return false;
   if (this->state_ != espbt::ClientState::IDLE && this->state_ != espbt::ClientState::SEARCHING)
     return false;
@@ -95,7 +95,9 @@ void BLEClientBase::release_services() {
   for (auto &svc : this->services_)
     delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
   this->services_.clear();
+#ifndef CONFIG_BT_GATTC_CACHE_NVS_FLASH
   esp_ble_gattc_cache_clean(this->remote_bda_);
+#endif
 }
 
 bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
@@ -130,15 +132,16 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->set_state(espbt::ClientState::IDLE);
         break;
       }
-      if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
-        this->set_state(espbt::ClientState::CONNECTED);
-        this->state_ = espbt::ClientState::ESTABLISHED;
-        break;
-      }
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->open.conn_id);
       if (ret) {
         ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
                  this->address_str_.c_str(), ret);
+      }
+      if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
+        ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
+        this->set_state(espbt::ClientState::CONNECTED);
+        this->state_ = espbt::ClientState::ESTABLISHED;
+        break;
       }
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
@@ -187,6 +190,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
                  this->address_str_.c_str(), svc->start_handle, svc->end_handle);
       }
+      ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
       this->set_state(espbt::ClientState::CONNECTED);
       this->state_ = espbt::ClientState::ESTABLISHED;
       break;
@@ -288,14 +292,17 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
       if (length > 2) {
         return (float) encode_uint16(value[1], value[2]);
       }
+      // fall through
     case 0x7:  // uint24.
       if (length > 3) {
         return (float) encode_uint24(value[1], value[2], value[3]);
       }
+      // fall through
     case 0x8:  // uint32.
       if (length > 4) {
         return (float) encode_uint32(value[1], value[2], value[3], value[4]);
       }
+      // fall through
     case 0xC:  // int8.
       return (float) ((int8_t) value[1]);
     case 0xD:  // int12.
@@ -303,10 +310,12 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
       if (length > 2) {
         return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
       }
+      // fall through
     case 0xF:  // int24.
       if (length > 3) {
         return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
       }
+      // fall through
     case 0x10:  // int32.
       if (length > 4) {
         return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
