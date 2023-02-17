@@ -68,6 +68,7 @@ class Sen21231Sensor : public sensor::Sensor, public PollingComponent, public i2
  public:
   void update() override;
   void dump_config() override;
+ protected:
   void read_data_();
 };
 
