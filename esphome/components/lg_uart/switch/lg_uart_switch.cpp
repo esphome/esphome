@@ -15,13 +15,19 @@ void LGUartSwitch::update() { ESP_LOGD(TAG, "[%s] update(). returning %i", this-
 void LGUartSwitch::write_state(bool state) {
   ESP_LOGD(TAG, "[%s] write_state(): %i", this->get_name().c_str(), state);
   this->parent_->send_cmd(this->cmd_str_, (int) state);
+
   /*
     FOR NOW we just assume that the command went through.
     Will need to uart_read looking for OK to really confirm.
 
     Will ALSO need to implement polling where the command FF is set and reply examined for NG or proper value
   */
-  // TODO: mute seems to be inverted; will need some sort of look up. if cmd string is `ke` then return inverted state?
+
+  if (this->inverted_) {
+    this->publish_state(state);
+  } else {
+    this->publish_state(!state);
+  }
 
   // if (state != this->inverted_) {
   //   // Turning ON, check interlocking
