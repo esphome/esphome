@@ -74,6 +74,7 @@ static const uint8_t ILI9XXX_VMCTR1 = 0xC5;
 static const uint8_t ILI9XXX_IFCTR = 0xC6;
 static const uint8_t ILI9XXX_VMCTR2 = 0xC7;
 static const uint8_t ILI9XXX_GMCTR = 0xC8;
+static const uint8_t ILI9XXX_SETEXTC = 0xC8;
 
 static const uint8_t ILI9XXX_PWSET = 0xD0;
 static const uint8_t ILI9XXX_VMCTR = 0xD1;
@@ -93,3 +94,7 @@ static const uint8_t ILI9XXX_ADJCTL3 = 0xF7;
 
 }  // namespace ili9xxx
 }  // namespace esphome
+
+/*
+
+*/

@@ -93,6 +93,12 @@ class ILI9XXXM5Stack : public ILI9XXXDisplay {
   void initialize() override;
 };
 
+//-----------   M5Stack display --------------
+class ILI9XXXM5CORE : public ILI9XXXDisplay {
+ protected:
+  void initialize() override;
+};
+
 //-----------   ILI9XXX_24_TFT display --------------
 class ILI9XXXILI9341 : public ILI9XXXDisplay {
  protected:

@@ -322,6 +322,17 @@ void ILI9XXXM5Stack::initialize() {
     this->height_ = 240;
   this->invert_display_(true);
 }
+
+//   M5CORE display // Based on the configuration settings of M5stact's M5GFX code.
+void ILI9XXXM5CORE::initialize() {
+  this->init_lcd_(INITCMD_M5CORE);
+  if (this->width_ == 0)
+    this->width_ = 320;
+  if (this->height_ == 0)
+    this->height_ = 240;
+  this->invert_display_(true);
+}
+
 //   24_TFT display
 void ILI9XXXILI9341::initialize() {
   this->init_lcd_(INITCMD_ILI9341);
