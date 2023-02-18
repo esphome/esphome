@@ -24,7 +24,7 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(GreeClimate),
         cv.Required(CONF_MODEL): cv.enum(MODELS),
-        cv.Optional(CONF_REFERENCE_TEMPERATURE): cv.boolean()
+        cv.Optional(CONF_REFERENCE_TEMPERATURE): cv.boolean(False)
     }
 )
 
