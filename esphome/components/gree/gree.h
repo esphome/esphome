@@ -83,6 +83,7 @@ class GreeClimate : public climate_ir::ClimateIR {
  protected:
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
+
   uint8_t operation_mode_();
   uint8_t fan_speed_();
   uint8_t horizontal_swing_();
@@ -90,10 +91,6 @@ class GreeClimate : public climate_ir::ClimateIR {
   uint8_t temperature_();
 
   Model model_{};
-
-  // Handle received IR Buffer
-  bool on_receive(remote_base::RemoteReceiveData data) override;
-  bool parse_state_frame_(const uint8_t frame[]);
 };
 
 }  // namespace gree
