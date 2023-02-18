@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import climate_ir
 from esphome.const import (
     CONF_ID,
-    CONF_MODEL
+    CONF_MODEL,
 )
 
 AUTO_LOAD = ["climate_ir"]
@@ -23,6 +23,7 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(GreeClimate),
         cv.Required(CONF_MODEL): cv.enum(MODELS),
+        cv.Optional("iFeel"): cv.boolean()
     }
 )
 
@@ -30,5 +31,6 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_model(config[CONF_MODEL]))
+    cg.add(var.set_iFeel(config["iFeel"]))
 
     await climate_ir.register_climate_ir(var, config)

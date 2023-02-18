@@ -84,7 +84,8 @@ class GreeClimate : public climate_ir::ClimateIR {
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
-  void set_model(Model model) { this->model_ = model; }
+  void set_model(Model model);
+  void set_iFeel(bool on);
 
  protected:
   // Transmit via IR the state of this climate controller.
@@ -95,7 +96,8 @@ class GreeClimate : public climate_ir::ClimateIR {
   uint8_t vertical_swing_();
   uint8_t temperature_();
 
-  Model model_;
+  Model model_{};
+  bool iFeel_{};
 
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;

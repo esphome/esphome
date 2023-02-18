@@ -6,21 +6,21 @@ namespace gree {
 
 static const char *const TAG = "gree.climate";
 
+void GreeClimate::set_model(Model model) {
+  this->model_ = model; 
+}
+
+void GreeClimate::set_iFeel(bool on) { 
+  this->iFeel_ = on;
+}
+
 void GreeClimate::transmit_state() {
   bool turboMode = false;
-  bool iFeelMode = false;
 
-  uint8_t remote_state[8] = {};
+  uint8_t remote_state[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00 };
 
   remote_state[0] = this->fan_speed_() | this->operation_mode_();
-  remote_state[1] = this->temperature_();
-
-  auto transmit = this->transmitter_->transmit();
-  auto *data = transmit.get_data();
-  data->set_carrier_frequency(GREE_IR_FREQUENCY);
-
-  data->mark(GREE_HEADER_MARK);
-  data->space(GREE_HEADER_SPACE);
+  remote_state[1] = this->temperature_(); 
 
   if (this->model_ == GREE_YAN) {
     remote_state[2] = turboMode ? 0x70 : 0x60;
@@ -31,7 +31,7 @@ void GreeClimate::transmit_state() {
   if (this->model_ == GREE_YAC) {
     remote_state[4] |= (this->horizontal_swing_() << 4);
 
-    if (iFeelMode) {
+    if (this->iFeel_) {
       remote_state[5] |= (1 << 3);
     }
   }
@@ -73,6 +73,13 @@ void GreeClimate::transmit_state() {
       0x0A) & 0x0F) << 4) | (remote_state[7] & 0x0F);
   }
 
+  auto transmit = this->transmitter_->transmit();
+  auto *data = transmit.get_data();
+  data->set_carrier_frequency(GREE_IR_FREQUENCY);
+
+  data->mark(GREE_HEADER_MARK);
+  data->space(GREE_HEADER_SPACE);
+
   for (int i = 0; i < 4; i++) {
     for (uint8_t mask = 1; mask > 0; mask <<= 1) {  // iterate through bit mask
       data->mark(GREE_BIT_MARK);
@@ -98,6 +105,7 @@ void GreeClimate::transmit_state() {
       data->space(bit ? GREE_ONE_SPACE : GREE_ZERO_SPACE);
     }
   }
+
   data->mark(GREE_BIT_MARK);
   data->space(0);
 
@@ -106,6 +114,7 @@ void GreeClimate::transmit_state() {
 
 uint8_t GreeClimate::operation_mode_() {
   uint8_t operating_mode = GREE_MODE_ON;
+
   switch (this->mode) {
     case climate::CLIMATE_MODE_COOL:
       operating_mode |= GREE_MODE_COOL;
@@ -135,13 +144,10 @@ uint8_t GreeClimate::fan_speed_() {
   switch (this->fan_mode.value()) {
     case climate::CLIMATE_FAN_LOW:
       return GREE_FAN_1;
-      break;
     case climate::CLIMATE_FAN_MEDIUM:
       return GREE_FAN_2;
-      break;
     case climate::CLIMATE_FAN_HIGH:
       return GREE_FAN_3;
-      break;
     case climate::CLIMATE_FAN_AUTO:
     default:
       return GREE_FAN_AUTO;
@@ -153,11 +159,8 @@ uint8_t GreeClimate::horizontal_swing_() {
     case climate::CLIMATE_SWING_HORIZONTAL:
     case climate::CLIMATE_SWING_BOTH:
       return GREE_HDIR_SWING;
-      break;
-
     default:
       return GREE_HDIR_MANUAL;
-      break;
   }
 }
 
@@ -166,11 +169,8 @@ uint8_t GreeClimate::vertical_swing_() {
     case climate::CLIMATE_SWING_VERTICAL:
     case climate::CLIMATE_SWING_BOTH:
       return GREE_VDIR_SWING;
-      break;
-
     default:
       return GREE_VDIR_MANUAL;
-      break;
   }
 }
 
