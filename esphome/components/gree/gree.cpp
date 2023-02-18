@@ -61,7 +61,6 @@ void GreeClimate::transmit_state() {
       (remote_state[1] << 4) +
       0xC0);
   }
-
   else {
     remote_state[7] = (((
      (remote_state[0] & 0x0F) +
