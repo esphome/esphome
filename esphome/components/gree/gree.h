@@ -46,41 +46,35 @@ const uint8_t GREE_STATE_FRAME_SIZE = 8;
 
 // Only available on YAN
 // Vertical air directions. Note that these cannot be set on all heat pumps
-const uint8_t GREE_VDIR_AUTO    = 0x00;
-const uint8_t GREE_VDIR_MANUAL  = 0x00;
-const uint8_t GREE_VDIR_SWING   = 0x01;
-const uint8_t GREE_VDIR_UP      = 0x02;
-const uint8_t GREE_VDIR_MUP     = 0x03;
-const uint8_t GREE_VDIR_MIDDLE  = 0x04;
-const uint8_t GREE_VDIR_MDOWN   = 0x05;
-const uint8_t GREE_VDIR_DOWN    = 0x06;
+const uint8_t GREE_VDIR_AUTO = 0x00;
+const uint8_t GREE_VDIR_MANUAL = 0x00;
+const uint8_t GREE_VDIR_SWING = 0x01;
+const uint8_t GREE_VDIR_UP = 0x02;
+const uint8_t GREE_VDIR_MUP = 0x03;
+const uint8_t GREE_VDIR_MIDDLE = 0x04;
+const uint8_t GREE_VDIR_MDOWN = 0x05;
+const uint8_t GREE_VDIR_DOWN = 0x06;
 
 // Only available on YAC
 // Horizontal air directions. Note that these cannot be set on all heat pumps
-const uint8_t GREE_HDIR_AUTO    = 0x00;
-const uint8_t GREE_HDIR_MANUAL  = 0x00;
-const uint8_t GREE_HDIR_SWING   = 0x01;
-const uint8_t GREE_HDIR_LEFT    = 0x02;
-const uint8_t GREE_HDIR_MLEFT   = 0x03;
-const uint8_t GREE_HDIR_MIDDLE  = 0x04;
-const uint8_t GREE_HDIR_MRIGHT  = 0x05;
-const uint8_t GREE_HDIR_RIGHT   = 0x06;
-
+const uint8_t GREE_HDIR_AUTO = 0x00;
+const uint8_t GREE_HDIR_MANUAL = 0x00;
+const uint8_t GREE_HDIR_SWING = 0x01;
+const uint8_t GREE_HDIR_LEFT = 0x02;
+const uint8_t GREE_HDIR_MLEFT = 0x03;
+const uint8_t GREE_HDIR_MIDDLE = 0x04;
+const uint8_t GREE_HDIR_MRIGHT = 0x05;
+const uint8_t GREE_HDIR_RIGHT = 0x06;
 
 // Model codes
-enum Model {
-  GREE_GENERIC,
-  GREE_YAN,
-  GREE_YAA,
-  GREE_YAC
-};
+enum Model { GREE_GENERIC, GREE_YAN, GREE_YAA, GREE_YAC };
 
 class GreeClimate : public climate_ir::ClimateIR {
  public:
   GreeClimate()
       : climate_ir::ClimateIR(GREE_TEMP_MIN, GREE_TEMP_MAX, 1.0f, true, true,
-                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
-                               climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
+                              {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM,
+                               climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
