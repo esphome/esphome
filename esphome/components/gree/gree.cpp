@@ -48,7 +48,6 @@ void GreeClimate::transmit_state() {
     if (this->vertical_swing_() == GREE_VDIR_SWING) {
       remote_state[0] |= (1 << 6); // Enable swing by setting bit 6
     }
-
     else if (this->vertical_swing_() != GREE_VDIR_AUTO) {
       remote_state[5] = this->vertical_swing_();
     }

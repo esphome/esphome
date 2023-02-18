@@ -32,9 +32,6 @@ CONFIG_SCHEMA = climate_ir.CLIMATE_IR_WITH_RECEIVER_SCHEMA.extend(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
-    if CONF_REFERENCE_TEMPERATURE not in config:
-        config[CONF_REFERENCE_TEMPERATURE] = False
-
     cg.add(var.set_model(config[CONF_MODEL]))
     cg.add(var.set_iFeel(config[CONF_REFERENCE_TEMPERATURE]))
 
