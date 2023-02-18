@@ -2101,7 +2101,7 @@ climate:
     name: Whynter
   - platform: gree
     name: GREE
-    model: generic yan yaa yac
+    model: generic
 
 script:
   - id: climate_custom
