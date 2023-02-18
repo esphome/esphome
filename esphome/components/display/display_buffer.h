@@ -400,60 +400,48 @@ class DisplayBuffer {
    */
   virtual DisplayType get_display_type() = 0;
 
-  ///
-  /// Set the clipping rectangle for further drawing
-  ///
-  /// \param[in]  rect:       Pointer to Rect for clipping (or NULL for entire screen)
-  ///
-  /// \return true if success, false if error
-  ///
+  /** Set the clipping rectangle for further drawing
+   *
+   * @param[in]  rect:       Pointer to Rect for clipping (or NULL for entire screen)
+   *
+   * return true if success, false if error
+   */
   void start_clipping(Rect rect);
   void start_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
     start_clipping(Rect(left, top, right - left, bottom - top));
   };
 
-  ///
-  /// Add a rectangular region to the invalidation region
-  /// - This is usually called when an element has been modified
-  ///
-  /// \param[in]  rect: Rectangle to add to the invalidation region
-  ///
-  /// \return none
-  ///
+  /** Add a rectangular region to the invalidation region
+   * - This is usually called when an element has been modified
+   *
+   * @param[in]  rect: Rectangle to add to the invalidation region
+   */
   void extend_clipping(Rect rect);
   void extend_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
     this->extend_clipping(Rect(left, top, right - left, bottom - top));
   };
 
-  ///
-  /// substract a rectangular region to the invalidation region
-  /// - This is usually called when an element has been modified
-  ///
-  /// \param[in]  rect: Rectangle to add to the invalidation region
-  ///
-  /// \return none
-  ///
+  /** substract a rectangular region to the invalidation region
+   *  - This is usually called when an element has been modified
+   *
+   * @param[in]  rect: Rectangle to add to the invalidation region
+   */
   void shrink_clipping(Rect rect);
   void shrink_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
     this->shrink_clipping(Rect(left, top, right - left, bottom - top));
   };
 
-  ///
-  /// Reset the invalidation region
-  ///
-  /// \return none
-  ///
+  /** Reset the invalidation region
+   */
   void end_clipping();
 
-  ///
-  /// Get the current the clipping rectangle
-  ///
-  ///
-  /// \return rect for active clipping region
-  ///
+  /** Get the current the clipping rectangle
+   *
+   * return rect for active clipping region
+   */
   Rect get_clipping();
 
-  bool is_clipping() const { return this->clipping_rectangle_.empty(); }
+  bool is_clipping() const { return !this->clipping_rectangle_.empty(); }
 
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
