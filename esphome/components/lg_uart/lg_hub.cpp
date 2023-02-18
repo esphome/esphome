@@ -24,23 +24,45 @@ void LGUartHub::send_cmd(char cmd[2], int data) {
   uint8_t peeked;
   uint8_t idx = 0;
 
+  bool stream_valid = false;
+
   // Note: this does not get called when uart debugging turned on!
   while (this->available()) {
     // Get the byte
     this->read_byte(&peeked);
+    // LG replies always have the second command char at the beginning. Buffer may have noise
+    //   so we read until we get expected then start storing
+    if (!stream_valid && peeked != cmd[1]) {
+      ESP_LOGD(TAG, "IGNORE peeked[%i]: 0x%x \t %u \t [%c]", idx, peeked, peeked, peeked);
+      continue;
+    } else if (!stream_valid && peeked == cmd[1]) {
+      stream_valid = true;
+    }
     response[idx] = peeked;
-    idx += 1;
     ESP_LOGD(TAG, "peeked[%i]: 0x%x \t %u \t [%c]", idx, peeked, peeked, peeked);
+    idx += 1;
+    // TODO; confirm set number
+    /*
+      If the screen is alive, we'll get back a packet like so
 
-    // // If we have 5 bytes, we can start to process: the first 3 will be preamble, byte 4 will be the type and byte 5
-    // // will be the value
-    // if (idx == (PACKET_LEN - 1) && response[3] == 0x11) {
-    //   ESP_LOGD(TAG, "EARLY EXIT; active bank!");
-    //   break;
-    // } else if (idx == (PACKET_LEN - 1)) {
-    //   ESP_LOGD(TAG, "EARLY EXIT; unknown type. Start over!");
-    //   idx = 0;
-    // }
+      [e][ ][0][1][ ][O][K][0][x]
+
+      We are looking for OK or NG. The last byte is the current status
+
+      TODO: return OK/NG + value back to caller
+        (I think i'll need to add two more function args)
+
+    */
+    if (idx == PACKET_LEN) {
+      ESP_LOGD(TAG, "end of packet");
+      // OK
+      if (response[5] == 0x4f && response[6] == 0x4b) {
+        ESP_LOGD(TAG, "got OK");
+      } else {
+        ESP_LOGW(TAG, "got NOT OK");
+      }
+      return;
+    }
   }
 }
 
