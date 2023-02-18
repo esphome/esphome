@@ -16,9 +16,9 @@ namespace ft63x6 {
 
 // Function Specific Type
 enum class TouchStatusEnum : uint8_t {
-  TOUCH = 0,
-  REPEAT,
-  RELEASE,
+  RELEASE = 0,
+  TOUCH = 1,
+  REPEAT = 2,
 };
 
 struct TouchPointType {
