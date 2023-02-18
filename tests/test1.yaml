@@ -2099,6 +2099,13 @@ climate:
     heat_mode: extended
   - platform: whynter
     name: Whynter
+  - platform: gree
+    name: GREE
+    model:
+      - generic
+      - yaa
+      - yan
+      - yac
 
 script:
   - id: climate_custom

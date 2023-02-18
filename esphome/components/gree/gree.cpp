@@ -16,7 +16,7 @@ void GreeClimate::transmit_state() {
   uint8_t remote_state[8] = { 0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00 };
 
   remote_state[0] = this->fan_speed_() | this->operation_mode_();
-  remote_state[1] = this->temperature_(); 
+  remote_state[1] = this->temperature_();
 
   if (this->model_ == GREE_YAN) {
     remote_state[2] = turboMode ? 0x70 : 0x60;
