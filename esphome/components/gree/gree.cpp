@@ -10,10 +10,6 @@ void GreeClimate::set_model(Model model) {
   this->model_ = model; 
 }
 
-void GreeClimate::set_iFeel(bool on) { 
-  this->iFeel_ = on;
-}
-
 void GreeClimate::transmit_state() {
   bool turboMode = false;
 
@@ -30,10 +26,6 @@ void GreeClimate::transmit_state() {
 
   if (this->model_ == GREE_YAC) {
     remote_state[4] |= (this->horizontal_swing_() << 4);
-
-    if (this->iFeel_) {
-      remote_state[5] |= (1 << 3);
-    }
   }
 
   if (this->model_ == GREE_YAA || this->model_ == GREE_YAC) {
