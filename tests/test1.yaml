@@ -2101,11 +2101,10 @@ climate:
     name: Whynter
   - platform: gree
     name: GREE
-    model:
-      - generic
-      - yaa
-      - yan
-      - yac
+    model: generic
+      yaa
+      yan
+      yac
 
 script:
   - id: climate_custom
@@ -3210,25 +3209,25 @@ lcd_menu:
       lambda: 'ESP_LOGI("lcd_menu", "root leave");'
   items:
     - type: back
-      text: 'Back'
+      text: "Back"
     - type: label
     - type: menu
-      text: 'Submenu 1'
+      text: "Submenu 1"
       items:
         - type: back
-          text: 'Back'
+          text: "Back"
         - type: menu
-          text: 'Submenu 21'
+          text: "Submenu 21"
           items:
             - type: back
-              text: 'Back'
+              text: "Back"
             - type: command
-              text: 'Show Main'
+              text: "Show Main"
               on_value:
                 then:
                   - display_menu.show_main:
     - type: select
-      text: 'Enum Item'
+      text: "Enum Item"
       immediate_edit: true
       select: test_select
       on_enter:
@@ -3241,7 +3240,7 @@ lcd_menu:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: number
-      text: 'Number'
+      text: "Number"
       number: test_number
       on_enter:
         then:
@@ -3253,15 +3252,15 @@ lcd_menu:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: command
-      text: 'Hide'
+      text: "Hide"
       on_value:
         then:
           - display_menu.hide:
     - type: switch
-      text: 'Switch'
+      text: "Switch"
       switch: my_switch
-      on_text: 'Bright'
-      off_text: 'Dark'
+      on_text: "Bright"
+      off_text: "Dark"
       immediate_edit: false
       on_value:
         then:
