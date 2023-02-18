@@ -6,6 +6,8 @@ from esphome.const import (
     CONF_MODEL
 )
 
+CODEOWNERS = ["@orestismers"]
+
 AUTO_LOAD = ["climate_ir"]
 
 gree_ns = cg.esphome_ns.namespace("gree")
