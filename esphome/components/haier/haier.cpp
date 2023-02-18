@@ -226,6 +226,7 @@ void HaierClimate::control(const climate::ClimateCall &call) {
       case climate::CLIMATE_FAN_MIDDLE:
       case climate::CLIMATE_FAN_FOCUS:
       case climate::CLIMATE_FAN_DIFFUSE:
+      case climate::CLIMATE_FAN_QUIET:
         break;
     }
   }
