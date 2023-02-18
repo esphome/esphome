@@ -7,8 +7,8 @@ namespace gree {
 
 // Values for GREE IR Controllers
 // Temperature
-const uint8_t GREE_TEMP_MIN = 10;  // Celsius
-const uint8_t GREE_TEMP_MAX = 30;  // Celsius
+const uint8_t GREE_TEMP_MIN = 16;  // Celsius
+const uint8_t GREE_TEMP_MAX = 34;  // Celsius
 
 // Modes
 const uint8_t GREE_MODE_AUTO = 0x00;
@@ -77,7 +77,7 @@ class GreeClimate : public climate_ir::ClimateIR {
   GreeClimate()
       : climate_ir::ClimateIR(GREE_TEMP_MIN, GREE_TEMP_MAX, 1.0f, true, true,
                               {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW,
-                               climate::CLIMATE_FAN_MIDDLE, climate::CLIMATE_FAN_HIGH},
+                               climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH},
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
