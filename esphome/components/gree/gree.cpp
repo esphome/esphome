@@ -153,7 +153,7 @@ uint8_t GreeClimate::horizontal_swing_() {
   switch (this->swing_mode) {
     case climate::CLIMATE_SWING_HORIZONTAL:
     case climate::CLIMATE_SWING_BOTH:
-      return GREE_HDIR_AUTO;
+      return GREE_HDIR_SWING;
       break;
 
     default:

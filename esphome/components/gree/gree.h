@@ -8,7 +8,7 @@ namespace gree {
 // Values for GREE IR Controllers
 // Temperature
 const uint8_t GREE_TEMP_MIN = 16;  // Celsius
-const uint8_t GREE_TEMP_MAX = 34;  // Celsius
+const uint8_t GREE_TEMP_MAX = 30;  // Celsius
 
 // Modes
 const uint8_t GREE_MODE_AUTO = 0x00;
@@ -44,14 +44,6 @@ const uint32_t GREE_YAC_BIT_MARK = 650;
 // State Frame size
 const uint8_t GREE_STATE_FRAME_SIZE = 8;
 
-// Model codes
-enum Model {
-  GREE_GENERIC,
-  GREE_YAN,
-  GREE_YAA,
-  GREE_YAC
-};
-
 // Only available on YAN
 // Vertical air directions. Note that these cannot be set on all heat pumps
 const uint8_t GREE_VDIR_AUTO    = 0x00;
@@ -74,6 +66,15 @@ const uint8_t GREE_HDIR_MIDDLE  = 0x04;
 const uint8_t GREE_HDIR_MRIGHT  = 0x05;
 const uint8_t GREE_HDIR_RIGHT   = 0x06;
 
+
+// Model codes
+enum Model {
+  GREE_GENERIC,
+  GREE_YAN,
+  GREE_YAA,
+  GREE_YAC
+};
+
 class GreeClimate : public climate_ir::ClimateIR {
  public:
   GreeClimate()
@@ -84,7 +85,7 @@ class GreeClimate : public climate_ir::ClimateIR {
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
   void set_model(Model model) { this->model_ = model; }
-  
+
  protected:
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
