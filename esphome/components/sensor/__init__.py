@@ -272,48 +272,21 @@ def sensor_schema(
     state_class: str = _UNDEF,
     entity_category: str = _UNDEF,
 ) -> cv.Schema:
-    schema = SENSOR_SCHEMA
-    if class_ is not _UNDEF:
-        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
-    if unit_of_measurement is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_UNIT_OF_MEASUREMENT, default=unit_of_measurement
-                ): validate_unit_of_measurement
-            }
-        )
-    if icon is not _UNDEF:
-        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): validate_icon})
-    if accuracy_decimals is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_ACCURACY_DECIMALS, default=accuracy_decimals
-                ): validate_accuracy_decimals,
-            }
-        )
-    if device_class is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_DEVICE_CLASS, default=device_class
-                ): validate_device_class
-            }
-        )
-    if state_class is not _UNDEF:
-        schema = schema.extend(
-            {cv.Optional(CONF_STATE_CLASS, default=state_class): validate_state_class}
-        )
-    if entity_category is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_ENTITY_CATEGORY, default=entity_category
-                ): cv.entity_category
-            }
-        )
-    return schema
+    schema = {}
+
+    for key, default, validator in [
+        (cv.GenerateID(), class_, cv.declare_id(class_)),
+        (CONF_UNIT_OF_MEASUREMENT, unit_of_measurement, validate_unit_of_measurement),
+        (CONF_ICON, icon, validate_icon),
+        (CONF_ACCURACY_DECIMALS, accuracy_decimals, validate_accuracy_decimals),
+        (CONF_DEVICE_CLASS, device_class, validate_device_class),
+        (CONF_STATE_CLASS, state_class, validate_state_class),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+    ]:
+        if default is not _UNDEF:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return SENSOR_SCHEMA.extend(schema)
 
 
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.float_)
