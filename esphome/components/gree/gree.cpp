@@ -7,7 +7,7 @@ namespace gree {
 static const char *const TAG = "gree.climate";
 
 void GreeClimate::set_model(Model model) {
-  this->model_ = model; 
+  this->model_ = model;
 }
 
 void GreeClimate::transmit_state() {
