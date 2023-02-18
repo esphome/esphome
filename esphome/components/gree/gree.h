@@ -45,10 +45,12 @@ const uint32_t GREE_YAC_BIT_MARK = 650;
 const uint8_t GREE_STATE_FRAME_SIZE = 8;
 
 // Model codes
-const uint8_t GREE_GENERIC = 0;
-const uint8_t GREE_YAN     = 1;
-const uint8_t GREE_YAA     = 2;
-const uint8_t GREE_YAC     = 3;
+enum Model {
+  GREE_GENERIC,
+  GREE_YAN,
+  GREE_YAA,
+  GREE_YAC
+};
 
 // Only available on YAN
 // Vertical air directions. Note that these cannot be set on all heat pumps
@@ -81,6 +83,8 @@ class GreeClimate : public climate_ir::ClimateIR {
                               {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_VERTICAL,
                                climate::CLIMATE_SWING_HORIZONTAL, climate::CLIMATE_SWING_BOTH}) {}
 
+  void set_model(Model model) { this->model_ = model; }
+  
  protected:
   // Transmit via IR the state of this climate controller.
   void transmit_state() override;
@@ -89,6 +93,9 @@ class GreeClimate : public climate_ir::ClimateIR {
   uint8_t horizontal_swing_();
   uint8_t vertical_swing_();
   uint8_t temperature_();
+
+  Model model_;
+
   // Handle received IR Buffer
   bool on_receive(remote_base::RemoteReceiveData data) override;
   bool parse_state_frame_(const uint8_t frame[]);

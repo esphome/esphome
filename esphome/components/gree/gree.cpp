@@ -7,7 +7,6 @@ namespace gree {
 static const char *const TAG = "gree.climate";
 
 void GreeClimate::transmit_state() {
-  uint8_t greeModel = GREE_YAA;
   bool turboMode = false;
   bool iFeelMode = false;
 
@@ -23,13 +22,13 @@ void GreeClimate::transmit_state() {
   data->mark(GREE_HEADER_MARK);
   data->space(GREE_HEADER_SPACE);
 
-  if (greeModel == GREE_YAN) {
+  if (this->model_ == GREE_YAN) {
     remote_state[2] = turboMode ? 0x70 : 0x60;
     remote_state[3] = 0x50;
     remote_state[4] = this->vertical_swing_();
   }
 
-  if (greeModel == GREE_YAC) {
+  if (this->model_ == GREE_YAC) {
     remote_state[4] |= (this->horizontal_swing_() << 4);
 
     if (iFeelMode) {
@@ -37,7 +36,7 @@ void GreeClimate::transmit_state() {
     }
   }
 
-  if (greeModel == GREE_YAA || greeModel == GREE_YAC) {
+  if (this->model_ == GREE_YAA || this->model_ == GREE_YAC) {
     remote_state[2] = 0x20; // bits 0..3 always 0000, bits 4..7 TURBO,LIGHT,HEALTH,X-FAN
     remote_state[3] = 0x50; // bits 4..7 always 0101
     remote_state[6] = 0x20; // YAA1FB, FAA1FB1, YB1F2 bits 4..7 always 0010
@@ -56,7 +55,7 @@ void GreeClimate::transmit_state() {
   }
 
   // Calculate the checksum
-  if (greeModel == GREE_YAN) {
+  if (this->model_ == GREE_YAN) {
     remote_state[7] = (
       (remote_state[0] << 4) +
       (remote_state[1] << 4) +
