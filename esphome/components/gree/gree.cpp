@@ -9,15 +9,13 @@ static const char *const TAG = "gree.climate";
 void GreeClimate::set_model(Model model) { this->model_ = model; }
 
 void GreeClimate::transmit_state() {
-  bool turboMode = false;
-
   uint8_t remote_state[8] = {0x00, 0x00, 0x00, 0x00, 0x00, 0x20, 0x00, 0x00};
 
   remote_state[0] = this->fan_speed_() | this->operation_mode_();
   remote_state[1] = this->temperature_();
 
   if (this->model_ == GREE_YAN) {
-    remote_state[2] = turboMode ? 0x70 : 0x60;
+    remote_state[2] = 0x60;
     remote_state[3] = 0x50;
     remote_state[4] = this->vertical_swing_();
   }
@@ -30,10 +28,6 @@ void GreeClimate::transmit_state() {
     remote_state[2] = 0x20;  // bits 0..3 always 0000, bits 4..7 TURBO,LIGHT,HEALTH,X-FAN
     remote_state[3] = 0x50;  // bits 4..7 always 0101
     remote_state[6] = 0x20;  // YAA1FB, FAA1FB1, YB1F2 bits 4..7 always 0010
-
-    if (turboMode) {
-      remote_state[2] |= (1 << 4);  // Set bit 4 (TURBO)
-    }
 
     if (this->vertical_swing_() == GREE_VDIR_SWING) {
       remote_state[0] |= (1 << 6);  // Enable swing by setting bit 6
