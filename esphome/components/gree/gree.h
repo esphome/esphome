@@ -72,7 +72,6 @@ const uint8_t GREE_HDIR_MIDDLE  = 0x04;
 const uint8_t GREE_HDIR_MRIGHT  = 0x05;
 const uint8_t GREE_HDIR_RIGHT   = 0x06;
 
-
 class GreeClimate : public climate_ir::ClimateIR {
  public:
   GreeClimate()
