@@ -94,7 +94,3 @@ static const uint8_t ILI9XXX_ADJCTL3 = 0xF7;
 
 }  // namespace ili9xxx
 }  // namespace esphome
-
-/*
-
-*/
