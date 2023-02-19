@@ -276,7 +276,7 @@ def sensor_schema(
 
     if class_ is not _UNDEF:
         # Not optional.
-        schema = schema[cv.GenerateID()] = cv.declare_id(class_)
+        schema[cv.GenerateID()] = cv.declare_id(class_)
 
     for key, default, validator in [
         (CONF_UNIT_OF_MEASUREMENT, unit_of_measurement, validate_unit_of_measurement),
