@@ -3,19 +3,15 @@
 #include "esphome/core/hal.h"
 
 #ifdef USE_ESP32
-#ifdef CONFIG_IDF_TARGET_ESP32
-#ifdef __cplusplus
+#ifdef USE_ESP32_VARIANT_ESP32
+// there is no official API available on the original ESP32
 extern "C" {
-#endif
 uint8_t temprature_sens_read();
-#ifdef __cplusplus
 }
-#endif
-#else  // CONFIG_IDF_TARGET_ESP32
+#else  // USE_ESP32_VARIANT_ESP32
 #include "driver/temp_sensor.h"
-#endif  // CONFIG_IDF_TARGET_ESP32
+#endif  // USE_ESP32_VARIANT_ESP32
 #endif  // USE_ESP32
-
 #ifdef USE_RP2040
 #include "Arduino.h"
 #endif  // USE_RP2040
