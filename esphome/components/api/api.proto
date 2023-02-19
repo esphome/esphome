@@ -206,6 +206,8 @@ message DeviceInfoResponse {
   uint32 bluetooth_proxy_version = 11;
 
   string manufacturer = 12;
+
+  string friendly_name = 13;
 }
 
 message ListEntitiesRequest {
@@ -785,6 +787,7 @@ enum ClimateFanMode {
   CLIMATE_FAN_MIDDLE = 6;
   CLIMATE_FAN_FOCUS = 7;
   CLIMATE_FAN_DIFFUSE = 8;
+  CLIMATE_FAN_QUIET = 9;
 }
 enum ClimateSwingMode {
   CLIMATE_SWING_OFF = 0;
