@@ -2,14 +2,14 @@
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
-#ifdef USE_ESP32_VARIANT_ESP32
+#if defined(USE_ESP32_VARIANT_ESP32)
 // there is no official API available on the original ESP32
 extern "C" {
 uint8_t temprature_sens_read();
 }
-#else  // USE_ESP32_VARIANT_ESP32
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "driver/temp_sensor.h"
-#endif  // USE_ESP32_VARIANT_ESP32
+#endif  // USE_ESP32_VARIANT
 #endif  // USE_ESP32
 #ifdef USE_RP2040
 #include "Arduino.h"
@@ -24,21 +24,21 @@ void InternalTemperatureSensor::update() {
   float temperature = NAN;
   bool success = false;
 #ifdef USE_ESP32
-#ifdef CONFIG_IDF_TARGET_ESP32
+#if defined(USE_ESP32_VARIANT_ESP32)
   uint8_t raw = temprature_sens_read();
   ESP_LOGV(TAG, "Raw temperature value: %d", raw);
   temperature = (raw - 32) / 1.8f;
   success = (raw != 128);
-#else   // CONFIG_IDF_TARGET_ESP32
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
   temp_sensor_config_t tsens = TSENS_CONFIG_DEFAULT();
   temp_sensor_set_config(tsens);
   temp_sensor_start();
   esp_err_t result = temp_sensor_read_celsius(&temperature);
   temp_sensor_stop();
   success = (result == ESP_OK);
-#endif  // CONFIG_IDF_TARGET_ESP32
+#endif  // USE_ESP32_VARIANT
 #endif  // USE_ESP32
-#if USE_RP2040
+#ifdef USE_RP2040
   temperature = analogReadTemp();
   success = (temperature != 0.0f);
 #endif  // USE_RP2040
