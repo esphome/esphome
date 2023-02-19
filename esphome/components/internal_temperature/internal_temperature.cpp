@@ -1,6 +1,5 @@
 #include "internal_temperature.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 
 #ifdef USE_ESP32
 #ifdef USE_ESP32_VARIANT_ESP32
