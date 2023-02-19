@@ -274,8 +274,11 @@ def sensor_schema(
 ) -> cv.Schema:
     schema = {}
 
+    if class_ is not _UNDEF:
+        # Not optional.
+        schema = schema[cv.GenerateID()] = cv.declare_id(class_)
+
     for key, default, validator in [
-        (cv.GenerateID(), class_, cv.declare_id(class_)),
         (CONF_UNIT_OF_MEASUREMENT, unit_of_measurement, validate_unit_of_measurement),
         (CONF_ICON, icon, validate_icon),
         (CONF_ACCURACY_DECIMALS, accuracy_decimals, validate_accuracy_decimals),
