@@ -23,7 +23,8 @@ class LGUartSwitch : public switch_::Switch, public LGUartClient, public Polling
  protected:
   void write_state(bool state) override;
 
-  char cmd_str_[2];
+  // Two chars + termination
+  char cmd_str_[3];
   uint8_t reply[PACKET_LEN];
 
  private:

@@ -14,7 +14,7 @@ namespace lg_uart {
 
 static const char *const TAG = "LGUart";
 // LG docs indicate that reply will be no longer than 9 bytes
-static const uint8_t PACKET_LEN = 9;
+static const uint8_t PACKET_LEN = 10;
 
 class LGUartHub : public Component, public uart::UARTDevice {
  public:
@@ -23,7 +23,7 @@ class LGUartHub : public Component, public uart::UARTDevice {
   int get_screen_number() { return this->screen_num_; }
 
   /** Generic commands */
-  bool send_cmd(const char cmd_code[2], int data, uint8_t reply[PACKET_LEN]);
+  bool send_cmd(char cmd_code[2], int data, uint8_t reply[PACKET_LEN]);
 
   /* Component overrides */
 

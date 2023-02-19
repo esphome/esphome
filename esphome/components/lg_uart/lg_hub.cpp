@@ -10,7 +10,7 @@ namespace lg_uart {
 
 /* Public */
 
-bool LGUartHub::send_cmd(const char cmd_code[2], int data, uint8_t reply[PACKET_LEN]) {
+bool LGUartHub::send_cmd(char cmd_code[2], int data, uint8_t reply[PACKET_LEN]) {
   ESP_LOGD(TAG, "Sending cmd: '%s' data: '%i' for screen: '%i'", cmd_code, data, this->screen_num_);
   std::string s = str_sprintf("%02s %02x %02x\r", cmd_code, this->screen_num_, data);
   this->parent_->write_array(std::vector<uint8_t>(s.begin(), s.end()));

@@ -12,14 +12,21 @@ void LGUartSwitch::dump_config() {
 
 void LGUartSwitch::update() {
   ESP_LOGD(TAG, "[%s] update(). command: [%s] returning %i", this->get_name().c_str(), this->cmd_str_, this->state);
+
+  // For most commands, supplying `ff` as the value is the inquire? packet
+  // char inquire[] = "ff";
+
+  if (this->parent_->send_cmd(this->cmd_str_, 0xff, this->reply)) {
+    ESP_LOGD(TAG, "[%s] update(). reply: [%s]", this->get_name().c_str(), this->reply);
+  } else {
+    ESP_LOGD(TAG, "[%s] update(). reply: [%s]", this->get_name().c_str(), this->reply);
+  }
 }
 
 void LGUartSwitch::write_state(bool state) {
   ESP_LOGD(TAG, "[%s] write_state(): %i", this->get_name().c_str(), state);
 
-  const char test[] = "ke";
-  if (this->parent_->send_cmd(test, (int) state, this->reply)) {
-    // if (this->parent_->send_cmd(this->cmd_str_, (int) state, this->reply)) {
+  if (this->parent_->send_cmd(this->cmd_str_, (int) state, this->reply)) {
     ESP_LOGD(TAG, "[%s] write_state(): %i - OK!", this->get_name().c_str(), state);
   } else {
     ESP_LOGD(TAG, "[%s] write_state(): %i - NG!", this->get_name().c_str(), state);
@@ -27,22 +34,30 @@ void LGUartSwitch::write_state(bool state) {
     return;
   }
 
-  // Convert the reply into status
-  ESP_LOGD(TAG, "[%s] write_state(): REPLY: [%s] (%c, %c)", this->get_name().c_str(), this->reply, this->reply[7],
-           this->reply[8]);
-
-  std::string status_str;
-  status_str.push_back(this->reply[7]);
-  status_str.push_back(this->reply[8]);
-  int status = stoi(status_str);
-  ESP_LOGD(TAG, "[%s] write_state(): status_str: [%s], status: [%u]", this->get_name().c_str(), status_str.c_str(),
-           status);
-
+  // If the reply was OK, we can be very confident that the state the user wants is now in effect.
   if (this->inverted_) {
-    this->publish_state(!status);
+    this->publish_state(!state);
   } else {
-    this->publish_state(status);
+    this->publish_state(state);
   }
+
+  // When dealing with non bool, we
+  // // Convert the reply into status
+  // ESP_LOGD(TAG, "[%s] write_state(): REPLY: [%s] (%c, %c)", this->get_name().c_str(), this->reply, this->reply[7],
+  //          this->reply[8]);
+
+  // std::string status_str;
+  // status_str.push_back(this->reply[7]);
+  // status_str.push_back(this->reply[8]);
+  // int status_int = stoi(status_str);
+
+  // ESP_LOGD(TAG, "[%s] write_state(): Inverted: [%i], current: [%i], will set: [%i]", this->get_name().c_str(),
+  //          this->inverted_, this->state, (bool) status_int);
+  // if (this->inverted_) {
+  //   this->publish_state(!(bool) status_int);
+  // } else {
+  //   this->publish_state((bool) status_int);
+  // }
 
   // if (state != this->inverted_) {
   //   // Turning ON, check interlocking
