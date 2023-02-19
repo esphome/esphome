@@ -52,7 +52,6 @@ void InternalTemperatureSensor::update() {
   }
 }
 
-std::string InternalTemperatureSensor::unique_id() { return get_mac_address() + "-internaltemp"; }
 void InternalTemperatureSensor::dump_config() { LOG_SENSOR("", "Internal Temperature Sensor", this); }
 
 }  // namespace internal_temperature
