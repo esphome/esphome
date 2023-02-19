@@ -545,6 +545,14 @@ class DownloadBinaryRequestHandler(BaseHandler):
         self.finish()
 
 
+class EsphomeVersionHandler(BaseHandler):
+    @authenticated
+    def get(self):
+        self.set_header("Content-Type", "application/json")
+        self.write(json.dumps({"version": const.__version__}))
+        self.finish()
+
+
 def _list_dashboard_entries():
     files = settings.list_yaml_files()
     return [DashboardEntry(file) for file in files]
@@ -745,7 +753,7 @@ class BoardsRequestHandler(BaseHandler):
         platform_boards = {key: val[const.KEY_NAME] for key, val in boards.items()}
         # sort by board title
         boards_items = sorted(platform_boards.items(), key=lambda item: item[1])
-        output = [dict(items=dict(boards_items))]
+        output = [{"items": dict(boards_items)}]
 
         self.set_header("content-type", "application/json")
         self.write(json.dumps(output))
@@ -999,8 +1007,14 @@ class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
     def ignore_unknown(self, node):
         return f"{node.tag} {node.value}"
 
+    def construct_yaml_binary(self, node) -> str:
+        return super().construct_yaml_binary(node).decode("ascii")
+
 
 SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
+SafeLoaderIgnoreUnknown.add_constructor(
+    "tag:yaml.org,2002:binary", SafeLoaderIgnoreUnknown.construct_yaml_binary
+)
 
 
 class JsonConfigRequestHandler(BaseHandler):
@@ -1134,6 +1148,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
             (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
+            (f"{rel}version", EsphomeVersionHandler),
         ],
         **app_settings,
     )
