@@ -23,7 +23,7 @@ class LGUartHub : public Component, public uart::UARTDevice {
   int get_screen_number() { return this->screen_num_; }
 
   /** Generic commands */
-  void send_cmd(char cmd[2], int data);
+  bool send_cmd(const char cmd_code[2], int data, uint8_t reply[PACKET_LEN]);
 
   /* Component overrides */
 

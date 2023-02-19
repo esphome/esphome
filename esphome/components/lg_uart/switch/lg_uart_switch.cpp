@@ -10,23 +10,36 @@ void LGUartSwitch::dump_config() {
   ESP_LOGCONFIG(TAG, "[%s] command string: '%s'", this->get_name().c_str(), this->cmd_str_);
 }
 
-void LGUartSwitch::update() { ESP_LOGD(TAG, "[%s] update(). returning %i", this->get_name().c_str(), this->state); }
+void LGUartSwitch::update() {
+  ESP_LOGD(TAG, "[%s] update(). command: [%s] returning %i", this->get_name().c_str(), this->cmd_str_, this->state);
+}
 
 void LGUartSwitch::write_state(bool state) {
   ESP_LOGD(TAG, "[%s] write_state(): %i", this->get_name().c_str(), state);
-  this->parent_->send_cmd(this->cmd_str_, (int) state);
 
-  /*
-    FOR NOW we just assume that the command went through.
-    Will need to uart_read looking for OK to really confirm.
+  if (this->parent_->send_cmd(this->cmd_str_, (int) state, this->reply)) {
+    ESP_LOGD(TAG, "[%s] write_state(): %i - OK!", this->get_name().c_str(), state);
+  } else {
+    ESP_LOGD(TAG, "[%s] write_state(): %i - NG!", this->get_name().c_str(), state);
+    // NG means that we can't confirm the state has changed, bail before publishing an updated state
+    return;
+  }
 
-    Will ALSO need to implement polling where the command FF is set and reply examined for NG or proper value
-  */
+  // Convert the reply into status
+  ESP_LOGD(TAG, "[%s] write_state(): REPLY: [%s] (%c, %c)", this->get_name().c_str(), this->reply, this->reply[7],
+           this->reply[8]);
+
+  std::string status_str;
+  status_str.push_back(this->reply[7]);
+  status_str.push_back(this->reply[8]);
+  int status = stoi(status_str);
+  ESP_LOGD(TAG, "[%s] write_state(): status_str: [%s], status: [%u]", this->get_name().c_str(), status_str.c_str(),
+           status);
 
   if (this->inverted_) {
-    this->publish_state(state);
+    this->publish_state(!status);
   } else {
-    this->publish_state(!state);
+    this->publish_state(status);
   }
 
   // if (state != this->inverted_) {

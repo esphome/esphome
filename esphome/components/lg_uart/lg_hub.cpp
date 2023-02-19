@@ -10,17 +10,11 @@ namespace lg_uart {
 
 /* Public */
 
-void LGUartHub::send_cmd(char cmd[2], int data) {
-  ESP_LOGD(TAG, "Sending cmd: '%s' data: '%i' for screen: '%i'", cmd, data, this->screen_num_);
-  std::string s = str_sprintf("%02s %02x %02x\r", cmd, this->screen_num_, data);
+bool LGUartHub::send_cmd(const char cmd_code[2], int data, uint8_t reply[PACKET_LEN]) {
+  ESP_LOGD(TAG, "Sending cmd: '%s' data: '%i' for screen: '%i'", cmd_code, data, this->screen_num_);
+  std::string s = str_sprintf("%02s %02x %02x\r", cmd_code, this->screen_num_, data);
   this->parent_->write_array(std::vector<uint8_t>(s.begin(), s.end()));
 
-  /*
-  TODO: need to implement read uart.
-  When command is set, either we'll get back NG or OK.
-  */
-  // Bytes as we read them
-  uint8_t response[PACKET_LEN];
   uint8_t peeked;
   uint8_t idx = 0;
 
@@ -32,13 +26,13 @@ void LGUartHub::send_cmd(char cmd[2], int data) {
     this->read_byte(&peeked);
     // LG replies always have the second command char at the beginning. Buffer may have noise
     //   so we read until we get expected then start storing
-    if (!stream_valid && peeked != cmd[1]) {
+    if (!stream_valid && (peeked != cmd_code[1])) {
       ESP_LOGD(TAG, "IGNORE peeked[%i]: 0x%x \t %u \t [%c]", idx, peeked, peeked, peeked);
       continue;
-    } else if (!stream_valid && peeked == cmd[1]) {
+    } else if (!stream_valid && (peeked == cmd_code[1])) {
       stream_valid = true;
     }
-    response[idx] = peeked;
+    reply[idx] = peeked;
     ESP_LOGD(TAG, "peeked[%i]: 0x%x \t %u \t [%c]", idx, peeked, peeked, peeked);
     idx += 1;
     // TODO; confirm set number
@@ -56,14 +50,16 @@ void LGUartHub::send_cmd(char cmd[2], int data) {
     if (idx == PACKET_LEN) {
       ESP_LOGD(TAG, "end of packet");
       // OK
-      if (response[5] == 0x4f && response[6] == 0x4b) {
+      if (reply[5] == 0x4f && reply[6] == 0x4b) {
         ESP_LOGD(TAG, "got OK");
+        return true;
       } else {
         ESP_LOGW(TAG, "got NOT OK");
+        return false;
       }
-      return;
     }
   }
+  return false;
 }
 
 /* Internal */
