@@ -11,7 +11,6 @@ haier_ns = cg.esphome_ns.namespace("haier")
 HaierClimate = haier_ns.class_(
     "HaierClimate", climate.Climate, cg.PollingComponent, uart.UARTDevice
 )
-SwingMode = haier_ns.enum("SwingMode")
 
 ALLOWED_CLIMATE_SWING_MODES = {
     "BOTH": ClimateSwingMode.CLIMATE_SWING_BOTH,

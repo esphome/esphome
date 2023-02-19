@@ -7,26 +7,46 @@ namespace haier {
 
 static const char *const TAG = "haier";
 
+static const uint8_t TEMPERATURE = 13;
+static const uint8_t HUMIDITY = 15;
+
+static const uint8_t MODE = 23;
+
+static const uint8_t FAN_SPEED = 25;
+
+static const uint8_t SWING = 27;
+
+static const uint8_t POWER = 29;
+static const uint8_t POWER_MASK = 1;
+
+static const uint8_t SET_TEMPERATURE = 35;
+static const uint8_t DECIMAL_MASK = (1 << 5);
+
+static const uint8_t CRC = 36;
+
+static const uint8_t COMFORT_PRESET_MASK = (1 << 3);
+
+static const uint8_t MIN_VALID_TEMPERATURE = 16;
+static const uint8_t MAX_VALID_TEMPERATURE = 50;
+static const float TEMPERATURE_STEP = 0.5f;
+
+static const uint8_t POLL_REQ[13] = {255, 255, 10, 0, 0, 0, 0, 0, 1, 1, 77, 1, 90};
+static const uint8_t OFF_REQ[13] = {255, 255, 10, 0, 0, 0, 0, 0, 1, 1, 77, 3, 92};
+
 void HaierClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "Haier:");
   ESP_LOGCONFIG(TAG, "  Update interval: %u", this->get_update_interval());
-  dump_traits_(TAG);
+  this->dump_traits_(TAG);
   this->check_uart_settings(9600);
 }
 
 void HaierClimate::loop() {
-  if (this->available()) {
-    if (this->read() != 255)
+  if (this->available() >= sizeof(this->data_)) {
+    this->read_array(this->data_, sizeof(this->data_));
+    if (this->data_[0] != 255 || this->data_[1] != 255)
       return;
-    if (this->read() != 255)
-      return;
 
-    data_[0] = 255;
-    data_[1] = 255;
-
-    this->read_array(data_ + 2, sizeof(data_) - 2);
-
-    read_state_(data_, sizeof(data_));
+    read_state_(this->data_, sizeof(this->data_));
   }
 }
 
@@ -70,13 +90,11 @@ void HaierClimate::read_state_(const uint8_t *data, uint8_t size) {
   uint8_t crc = get_checksum_(data, size);
 
   if (check != crc) {
-    ESP_LOGW(TAG, "Invalid checksum");  // TODO more info
+    ESP_LOGW(TAG, "Invalid checksum");
     return;
   }
 
-  if (MIN_VALID_TEMPERATURE < data[TEMPERATURE] && data[TEMPERATURE] < MAX_VALID_TEMPERATURE) {
-    this->current_temperature = data[TEMPERATURE];
-  }
+  this->current_temperature = data[TEMPERATURE];
 
   this->target_temperature = data[SET_TEMPERATURE] + MIN_VALID_TEMPERATURE;
 
@@ -100,7 +118,7 @@ void HaierClimate::read_state_(const uint8_t *data, uint8_t size) {
     case MODE_DRY:
       this->mode = climate::CLIMATE_MODE_DRY;
       break;
-    default:
+    default:  // other modes are unsupported
       this->mode = climate::CLIMATE_MODE_HEAT_COOL;
   }
 
@@ -221,12 +239,7 @@ void HaierClimate::control(const climate::ClimateCall &call) {
         data_[FAN_SPEED] = FAN_MAX;
         break;
 
-      case climate::CLIMATE_FAN_ON:
-      case climate::CLIMATE_FAN_OFF:
-      case climate::CLIMATE_FAN_MIDDLE:
-      case climate::CLIMATE_FAN_FOCUS:
-      case climate::CLIMATE_FAN_DIFFUSE:
-      case climate::CLIMATE_FAN_QUIET:
+      default:  // other modes are unsupported
         break;
     }
   }
@@ -248,19 +261,22 @@ void HaierClimate::control(const climate::ClimateCall &call) {
     }
   }
 
-  // Values for "send"
-  data_[COMMAND] = 0;
+  // Parts of the message that must have specific values for "send" command.
+  // The meaning of those values is unknown at the moment.
   data_[9] = 1;
   data_[10] = 77;
   data_[11] = 95;
+  data_[17] = 0;
+
+  // Compute checksum
+  uint8_t crc = get_checksum_(data_, sizeof(data_));
+  data_[CRC] = crc;
 
   send_data_(data_, sizeof(data_));
 }
 
 void HaierClimate::send_data_(const uint8_t *message, uint8_t size) {
-  uint8_t crc = get_checksum_(message, size);
-  this->write_array(message, size - 1);
-  this->write(crc);
+  this->write_array(message, size);
 
   dump_message_("Sent message", message, size);
 }
