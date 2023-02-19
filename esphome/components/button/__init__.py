@@ -57,34 +57,23 @@ _UNDEF = object()
 
 
 def button_schema(
-    class_: MockObjClass = _UNDEF,
+    class_: MockObjClass,
     *,
     icon: str = _UNDEF,
     entity_category: str = _UNDEF,
     device_class: str = _UNDEF,
 ) -> cv.Schema:
-    schema = BUTTON_SCHEMA
-    if class_ is not _UNDEF:
-        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
-    if icon is not _UNDEF:
-        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
-    if entity_category is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_ENTITY_CATEGORY, default=entity_category
-                ): cv.entity_category
-            }
-        )
-    if device_class is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_DEVICE_CLASS, default=device_class
-                ): validate_device_class
-            }
-        )
-    return schema
+    schema = {cv.GenerateID(): cv.declare_id(class_)}
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_DEVICE_CLASS, device_class, validate_device_class),
+    ]:
+        if default is not _UNDEF:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return BUTTON_SCHEMA.extend(schema)
 
 
 async def setup_button_core_(var, config):
