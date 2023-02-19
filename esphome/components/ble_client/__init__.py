@@ -245,7 +245,9 @@ async def passkey_reply_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "ble_client.remove_bond", BLERemoveBondAction, BLE_REMOVE_BOND_ACTION_SCHEMA,
+    "ble_client.remove_bond",
+    BLERemoveBondAction,
+    BLE_REMOVE_BOND_ACTION_SCHEMA,
 )
 async def remove_bond_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
