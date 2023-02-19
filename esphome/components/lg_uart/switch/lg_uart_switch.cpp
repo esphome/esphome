@@ -17,7 +17,9 @@ void LGUartSwitch::update() {
 void LGUartSwitch::write_state(bool state) {
   ESP_LOGD(TAG, "[%s] write_state(): %i", this->get_name().c_str(), state);
 
-  if (this->parent_->send_cmd(this->cmd_str_, (int) state, this->reply)) {
+  const char test[] = "ke";
+  if (this->parent_->send_cmd(test, (int) state, this->reply)) {
+    // if (this->parent_->send_cmd(this->cmd_str_, (int) state, this->reply)) {
     ESP_LOGD(TAG, "[%s] write_state(): %i - OK!", this->get_name().c_str(), state);
   } else {
     ESP_LOGD(TAG, "[%s] write_state(): %i - NG!", this->get_name().c_str(), state);
