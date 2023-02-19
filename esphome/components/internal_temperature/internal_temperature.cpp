@@ -44,7 +44,6 @@ void InternalTemperatureSensor::update() {
   success = (temperature != 0.0f);
 #endif  // USE_RP2040
   if (success && std::isfinite(temperature)) {
-    ESP_LOGD(TAG, "Got temperature: %.1f°C", temperature);
     this->publish_state(temperature);
   } else {
     ESP_LOGD(TAG, "Ignoring invalid temperature (success=%d, value=%.1f)", success, temperature);
