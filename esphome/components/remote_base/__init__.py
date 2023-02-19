@@ -237,6 +237,107 @@ async def build_dumpers(config):
     return dumpers
 
 
+# CanalSat
+(
+    CanalSatData,
+    CanalSatBinarySensor,
+    CanalSatTrigger,
+    CanalSatAction,
+    CanalSatDumper,
+) = declare_protocol("CanalSat")
+CANALSAT_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_DEVICE): cv.hex_uint8_t,
+        cv.Optional(CONF_ADDRESS, default=0): cv.hex_uint8_t,
+        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("canalsat", CanalSatBinarySensor, CANALSAT_SCHEMA)
+def canalsat_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                CanalSatData,
+                ("device", config[CONF_DEVICE]),
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("canalsat", CanalSatTrigger, CanalSatData)
+def canalsat_trigger(var, config):
+    pass
+
+
+@register_dumper("canalsat", CanalSatDumper)
+def canalsat_dumper(var, config):
+    pass
+
+
+@register_action("canalsat", CanalSatAction, CANALSAT_SCHEMA)
+async def canalsat_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DEVICE], args, cg.uint8)
+    cg.add(var.set_device(template_))
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
+
+
+(
+    CanalSatLDData,
+    CanalSatLDBinarySensor,
+    CanalSatLDTrigger,
+    CanalSatLDAction,
+    CanalSatLDDumper,
+) = declare_protocol("CanalSatLD")
+CANALSATLD_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_DEVICE): cv.hex_uint8_t,
+        cv.Optional(CONF_ADDRESS, default=0): cv.hex_uint8_t,
+        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
+    }
+)
+
+
+@register_binary_sensor("canalsatld", CanalSatLDBinarySensor, CANALSAT_SCHEMA)
+def canalsatld_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                CanalSatLDData,
+                ("device", config[CONF_DEVICE]),
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("canalsatld", CanalSatLDTrigger, CanalSatLDData)
+def canalsatld_trigger(var, config):
+    pass
+
+
+@register_dumper("canalsatld", CanalSatLDDumper)
+def canalsatld_dumper(var, config):
+    pass
+
+
+@register_action("canalsatld", CanalSatLDAction, CANALSATLD_SCHEMA)
+async def canalsatld_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_DEVICE], args, cg.uint8)
+    cg.add(var.set_device(template_))
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
+
+
 # Coolix
 (
     CoolixData,
