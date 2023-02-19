@@ -8,6 +8,45 @@
 #include "esphome/components/web_server_base/web_server_base.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/component.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
+#ifdef USE_FAN
+#include "esphome/components/fan/fan_state.h"
+#endif
+#ifdef USE_CLIMATE
+#include "esphome/components/climate/climate.h"
+#endif
+#ifdef USE_LIGHT
+#include "esphome/components/light/light_state.h"
+#endif
+#ifdef USE_COVER
+#include "esphome/components/cover/cover.h"
+#endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
+#ifdef USE_LOCK
+#include "esphome/components/lock/lock.h"
+#endif
+#ifdef USE_MEDIA_PLAYER
+#include "esphome/components/media_player/media_player.h"
+#endif
 
 namespace esphome {
 namespace prometheus {

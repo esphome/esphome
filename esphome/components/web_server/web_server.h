@@ -8,6 +8,46 @@
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
+#ifdef USE_BUTTON
+#include "esphome/components/button/button.h"
+#endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
+#ifdef USE_FAN
+#include "esphome/components/fan/fan_state.h"
+#endif
+#ifdef USE_CLIMATE
+#include "esphome/components/climate/climate.h"
+#endif
+#ifdef USE_LIGHT
+#include "esphome/components/light/light_state.h"
+#endif
+#ifdef USE_COVER
+#include "esphome/components/cover/cover.h"
+#endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
+#ifdef USE_SELECT
+#include "esphome/components/select/select.h"
+#endif
+#ifdef USE_LOCK
+#include "esphome/components/lock/lock.h"
+#endif
+#ifdef USE_MEDIA_PLAYER
+#include "esphome/components/media_player/media_player.h"
+#endif
+
 #include <vector>
 #ifdef USE_ESP32
 #include <deque>
@@ -103,7 +143,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_SENSOR
-  void on_sensor_update(sensor::Sensor *obj, float state) override;
   /// Handle a sensor request under '/sensor/<id>'.
   void handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -112,8 +151,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_SWITCH
-  void on_switch_update(switch_::Switch *obj, bool state) override;
-
   /// Handle a switch request under '/switch/<id>/</turn_on/turn_off/toggle>'.
   void handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -130,8 +167,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  void on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) override;
-
   /// Handle a binary sensor request under '/binary_sensor/<id>'.
   void handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -140,8 +175,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_FAN
-  void on_fan_update(fan::Fan *obj) override;
-
   /// Handle a fan request under '/fan/<id>/</turn_on/turn_off/toggle>'.
   void handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -150,8 +183,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_LIGHT
-  void on_light_update(light::LightState *obj) override;
-
   /// Handle a light request under '/light/<id>/</turn_on/turn_off/toggle>'.
   void handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -160,8 +191,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  void on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) override;
-
   /// Handle a text sensor request under '/text_sensor/<id>'.
   void handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -170,8 +199,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_COVER
-  void on_cover_update(cover::Cover *obj) override;
-
   /// Handle a cover request under '/cover/<id>/<open/close/stop/set>'.
   void handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -180,7 +207,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_NUMBER
-  void on_number_update(number::Number *obj, float state) override;
   /// Handle a number request under '/number/<id>'.
   void handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -189,7 +215,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_SELECT
-  void on_select_update(select::Select *obj, const std::string &state, size_t index) override;
   /// Handle a select request under '/select/<id>'.
   void handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -198,7 +223,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_CLIMATE
-  void on_climate_update(climate::Climate *obj) override;
   /// Handle a climate request under '/climate/<id>'.
   void handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match);
 
@@ -207,8 +231,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_LOCK
-  void on_lock_update(lock::Lock *obj) override;
-
   /// Handle a lock request under '/lock/<id>/</lock/unlock/open>'.
   void handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match);
 

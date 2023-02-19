@@ -102,6 +102,7 @@ class LockCall {
  */
 class Lock : public EntityBase {
  public:
+  static constexpr EntityType ENTITY_TYPE{LOCK};
   explicit Lock();
   explicit Lock(const std::string &name);
 

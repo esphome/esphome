@@ -12,7 +12,7 @@ def test_button_is_setup(generate_main):
 
     # Then
     assert "new wake_on_lan::WakeOnLanButton();" in main_cpp
-    assert "App.register_button" in main_cpp
+    assert "App.register_entity" in main_cpp
     assert "App.register_component" in main_cpp
 
 
@@ -37,9 +37,7 @@ def test_button_config_value_internal_set(generate_main):
     # Given
 
     # When
-    main_cpp = generate_main(
-        "tests/component_tests/button/test_button.yaml"
-    )
+    main_cpp = generate_main("tests/component_tests/button/test_button.yaml")
 
     # Then
     assert "wol_1->set_internal(true);" in main_cpp

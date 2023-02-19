@@ -28,126 +28,30 @@ void ComponentIterator::advance() {
         return;
       }
       break;
-#ifdef USE_BINARY_SENSOR
-    case IteratorState::BINARY_SENSOR:
-      if (this->at_ >= App.get_binary_sensors().size()) {
-        advance_platform = true;
-      } else {
-        auto *binary_sensor = App.get_binary_sensors()[this->at_];
-        if (binary_sensor->is_internal() && !this->include_internal_) {
-          success = true;
+    case IteratorState::ALL_ENTITIES: {
+      auto &all = App.get_entity_all();
+      size_t sum{0};
+      size_t index = 0;
+      for (; index < all.size(); ++index) {
+        if (this->at_ < all[index].size() + sum) {
+          auto *entity = all[index][this->at_ - sum];
+          if (entity->is_internal() && !this->include_internal_) {
+            success = true;
+          } else {
+            if (index < this->callbacks_.size() && this->callbacks_[index]) {
+              success = this->callbacks_[index](entity);
+            } else {
+              success = true;
+            }
+          }
           break;
-        } else {
-          success = this->on_binary_sensor(binary_sensor);
         }
+        sum += all[index].size();
       }
-      break;
-#endif
-#ifdef USE_COVER
-    case IteratorState::COVER:
-      if (this->at_ >= App.get_covers().size()) {
+      if (index >= all.size()) {
         advance_platform = true;
-      } else {
-        auto *cover = App.get_covers()[this->at_];
-        if (cover->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_cover(cover);
-        }
       }
-      break;
-#endif
-#ifdef USE_FAN
-    case IteratorState::FAN:
-      if (this->at_ >= App.get_fans().size()) {
-        advance_platform = true;
-      } else {
-        auto *fan = App.get_fans()[this->at_];
-        if (fan->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_fan(fan);
-        }
-      }
-      break;
-#endif
-#ifdef USE_LIGHT
-    case IteratorState::LIGHT:
-      if (this->at_ >= App.get_lights().size()) {
-        advance_platform = true;
-      } else {
-        auto *light = App.get_lights()[this->at_];
-        if (light->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_light(light);
-        }
-      }
-      break;
-#endif
-#ifdef USE_SENSOR
-    case IteratorState::SENSOR:
-      if (this->at_ >= App.get_sensors().size()) {
-        advance_platform = true;
-      } else {
-        auto *sensor = App.get_sensors()[this->at_];
-        if (sensor->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_sensor(sensor);
-        }
-      }
-      break;
-#endif
-#ifdef USE_SWITCH
-    case IteratorState::SWITCH:
-      if (this->at_ >= App.get_switches().size()) {
-        advance_platform = true;
-      } else {
-        auto *a_switch = App.get_switches()[this->at_];
-        if (a_switch->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_switch(a_switch);
-        }
-      }
-      break;
-#endif
-#ifdef USE_BUTTON
-    case IteratorState::BUTTON:
-      if (this->at_ >= App.get_buttons().size()) {
-        advance_platform = true;
-      } else {
-        auto *button = App.get_buttons()[this->at_];
-        if (button->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_button(button);
-        }
-      }
-      break;
-#endif
-#ifdef USE_TEXT_SENSOR
-    case IteratorState::TEXT_SENSOR:
-      if (this->at_ >= App.get_text_sensors().size()) {
-        advance_platform = true;
-      } else {
-        auto *text_sensor = App.get_text_sensors()[this->at_];
-        if (text_sensor->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_text_sensor(text_sensor);
-        }
-      }
-      break;
-#endif
+    } break;
 #ifdef USE_API
     case IteratorState ::SERVICE:
       if (this->at_ >= api::global_api_server->get_user_services().size()) {
@@ -168,81 +72,6 @@ void ComponentIterator::advance() {
           break;
         } else {
           advance_platform = success = this->on_camera(esp32_camera::global_esp32_camera);
-        }
-      }
-      break;
-#endif
-#ifdef USE_CLIMATE
-    case IteratorState::CLIMATE:
-      if (this->at_ >= App.get_climates().size()) {
-        advance_platform = true;
-      } else {
-        auto *climate = App.get_climates()[this->at_];
-        if (climate->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_climate(climate);
-        }
-      }
-      break;
-#endif
-#ifdef USE_NUMBER
-    case IteratorState::NUMBER:
-      if (this->at_ >= App.get_numbers().size()) {
-        advance_platform = true;
-      } else {
-        auto *number = App.get_numbers()[this->at_];
-        if (number->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_number(number);
-        }
-      }
-      break;
-#endif
-#ifdef USE_SELECT
-    case IteratorState::SELECT:
-      if (this->at_ >= App.get_selects().size()) {
-        advance_platform = true;
-      } else {
-        auto *select = App.get_selects()[this->at_];
-        if (select->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_select(select);
-        }
-      }
-      break;
-#endif
-#ifdef USE_LOCK
-    case IteratorState::LOCK:
-      if (this->at_ >= App.get_locks().size()) {
-        advance_platform = true;
-      } else {
-        auto *a_lock = App.get_locks()[this->at_];
-        if (a_lock->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_lock(a_lock);
-        }
-      }
-      break;
-#endif
-#ifdef USE_MEDIA_PLAYER
-    case IteratorState::MEDIA_PLAYER:
-      if (this->at_ >= App.get_media_players().size()) {
-        advance_platform = true;
-      } else {
-        auto *media_player = App.get_media_players()[this->at_];
-        if (media_player->is_internal() && !this->include_internal_) {
-          success = true;
-          break;
-        } else {
-          success = this->on_media_player(media_player);
         }
       }
       break;
@@ -268,8 +97,5 @@ bool ComponentIterator::on_service(api::UserServiceDescriptor *service) { return
 #endif
 #ifdef USE_ESP32_CAMERA
 bool ComponentIterator::on_camera(esp32_camera::ESP32Camera *camera) { return true; }
-#endif
-#ifdef USE_MEDIA_PLAYER
-bool ComponentIterator::on_media_player(media_player::MediaPlayer *media_player) { return true; }
 #endif
 }  // namespace esphome

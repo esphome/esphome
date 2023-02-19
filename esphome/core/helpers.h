@@ -661,4 +661,12 @@ std::string hexencode(const T &data) {
 
 ///@}
 
+template<typename T> struct FunctionTraits : public FunctionTraits<decltype(&T::operator())> {};
+template<typename C, typename R, typename... Args> struct FunctionTraits<R (C::*)(Args...) const> {
+  using arguments = std::tuple<Args...>;
+  using callback = std::function<void(Args...)>;
+};
+template<typename T> using arguments_t = typename FunctionTraits<T>::arguments;
+template<typename T> using callback_t = typename FunctionTraits<T>::callback;
+
 }  // namespace esphome

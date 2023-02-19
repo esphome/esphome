@@ -8,6 +8,10 @@ esphome:
 substitutions:
   devicename: test2
 
+web_server:
+  port: 8080
+  version: 1
+
 ethernet:
   type: LAN8720
   mdc_pin: GPIO23

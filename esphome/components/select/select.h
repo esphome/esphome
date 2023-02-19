@@ -23,6 +23,7 @@ namespace select {
  */
 class Select : public EntityBase {
  public:
+  static constexpr EntityType ENTITY_TYPE{SELECT};
   std::string state;
   SelectTraits traits;
 

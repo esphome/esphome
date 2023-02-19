@@ -24,6 +24,91 @@ static const char *const TAG = "api";
 void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
   this->setup_controller();
+
+#ifdef USE_BINARY_SENSOR
+  Controller::add_on_state_callback([this](binary_sensor::BinarySensor *obj, bool state) {
+    for (auto &c : this->clients_)
+      c->send_binary_sensor_state(obj, state);
+  });
+#endif
+
+#ifdef USE_COVER
+  Controller::add_on_state_callback([this](cover::Cover *obj) {
+    for (auto &c : this->clients_)
+      c->send_cover_state(obj);
+  });
+#endif
+
+#ifdef USE_FAN
+  Controller::add_on_state_callback([this](fan::Fan *obj) {
+    for (auto &c : this->clients_)
+      c->send_fan_state(obj);
+  });
+#endif
+
+#ifdef USE_LIGHT
+  Controller::add_new_remote_values_callback([this](light::LightState *obj) {
+    for (auto &c : this->clients_)
+      c->send_light_state(obj);
+  });
+#endif
+
+#ifdef USE_SENSOR
+  Controller::add_on_state_callback([this](sensor::Sensor *obj, float state) {
+    for (auto &c : this->clients_)
+      c->send_sensor_state(obj, state);
+  });
+#endif
+
+#ifdef USE_SWITCH
+  Controller::add_on_state_callback([this](switch_::Switch *obj, bool state) {
+    for (auto &c : this->clients_)
+      c->send_switch_state(obj, state);
+  });
+#endif
+
+#ifdef USE_TEXT_SENSOR
+  Controller::add_on_state_callback([this](text_sensor::TextSensor *obj, const std::string &state) {
+    for (auto &c : this->clients_)
+      c->send_text_sensor_state(obj, state);
+  });
+#endif
+
+#ifdef USE_CLIMATE
+  Controller::add_on_state_callback([this](climate::Climate *obj) {
+    for (auto &c : this->clients_)
+      c->send_climate_state(obj);
+  });
+#endif
+
+#ifdef USE_NUMBER
+  Controller::add_on_state_callback([this](number::Number *obj, float state) {
+    for (auto &c : this->clients_)
+      c->send_number_state(obj, state);
+  });
+#endif
+
+#ifdef USE_SELECT
+  Controller::add_on_state_callback([this](select::Select *obj, const std::string &state, size_t index) {
+    for (auto &c : this->clients_)
+      c->send_select_state(obj, state);
+  });
+#endif
+
+#ifdef USE_LOCK
+  Controller::add_on_state_callback([this](lock::Lock *obj) {
+    for (auto &c : this->clients_)
+      c->send_lock_state(obj, obj->state);
+  });
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+  Controller::add_on_state_callback([this](media_player::MediaPlayer *obj) {
+    for (auto &c : this->clients_)
+      c->send_media_player_state(obj);
+  });
+#endif
+
   socket_ = socket::socket_ip(SOCK_STREAM, 0);
   if (socket_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket.");
@@ -173,113 +258,6 @@ bool APIServer::check_password(const std::string &password) const {
   return result == 0;
 }
 void APIServer::handle_disconnect(APIConnection *conn) {}
-#ifdef USE_BINARY_SENSOR
-void APIServer::on_binary_sensor_update(binary_sensor::BinarySensor *obj, bool state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_binary_sensor_state(obj, state);
-}
-#endif
-
-#ifdef USE_COVER
-void APIServer::on_cover_update(cover::Cover *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_cover_state(obj);
-}
-#endif
-
-#ifdef USE_FAN
-void APIServer::on_fan_update(fan::Fan *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_fan_state(obj);
-}
-#endif
-
-#ifdef USE_LIGHT
-void APIServer::on_light_update(light::LightState *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_light_state(obj);
-}
-#endif
-
-#ifdef USE_SENSOR
-void APIServer::on_sensor_update(sensor::Sensor *obj, float state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_sensor_state(obj, state);
-}
-#endif
-
-#ifdef USE_SWITCH
-void APIServer::on_switch_update(switch_::Switch *obj, bool state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_switch_state(obj, state);
-}
-#endif
-
-#ifdef USE_TEXT_SENSOR
-void APIServer::on_text_sensor_update(text_sensor::TextSensor *obj, const std::string &state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_text_sensor_state(obj, state);
-}
-#endif
-
-#ifdef USE_CLIMATE
-void APIServer::on_climate_update(climate::Climate *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_climate_state(obj);
-}
-#endif
-
-#ifdef USE_NUMBER
-void APIServer::on_number_update(number::Number *obj, float state) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_number_state(obj, state);
-}
-#endif
-
-#ifdef USE_SELECT
-void APIServer::on_select_update(select::Select *obj, const std::string &state, size_t index) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_select_state(obj, state);
-}
-#endif
-
-#ifdef USE_LOCK
-void APIServer::on_lock_update(lock::Lock *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_lock_state(obj, obj->state);
-}
-#endif
-
-#ifdef USE_MEDIA_PLAYER
-void APIServer::on_media_player_update(media_player::MediaPlayer *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_media_player_state(obj);
-}
-#endif
 
 float APIServer::get_setup_priority() const { return setup_priority::AFTER_WIFI; }
 void APIServer::set_port(uint16_t port) { this->port_ = port; }

@@ -56,6 +56,7 @@ std::string state_class_to_string(StateClass state_class);
  */
 class Sensor : public EntityBase {
  public:
+  static constexpr EntityType ENTITY_TYPE{SENSOR};
   explicit Sensor();
   explicit Sensor(const std::string &name);
 

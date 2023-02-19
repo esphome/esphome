@@ -33,6 +33,7 @@ enum LightRestoreMode {
  */
 class LightState : public EntityBase, public Component {
  public:
+  static constexpr EntityType ENTITY_TYPE{LIGHT};
   /// Construct this LightState using the provided traits and name.
   LightState(const std::string &name, LightOutput *output);
 

@@ -31,6 +31,7 @@ class Number;
  */
 class Number : public EntityBase {
  public:
+  static constexpr EntityType ENTITY_TYPE{NUMBER};
   float state;
 
   void publish_state(float state);

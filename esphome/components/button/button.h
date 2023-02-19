@@ -21,6 +21,7 @@ namespace button {
  */
 class Button : public EntityBase {
  public:
+  static constexpr EntityType ENTITY_TYPE{BUTTON};
   explicit Button();
   explicit Button(const std::string &name);
 

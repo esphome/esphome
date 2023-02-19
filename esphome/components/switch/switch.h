@@ -31,6 +31,7 @@ enum SwitchRestoreMode {
  */
 class Switch : public EntityBase {
  public:
+  static constexpr EntityType ENTITY_TYPE{SWITCH};
   explicit Switch();
   explicit Switch(const std::string &name);
 
