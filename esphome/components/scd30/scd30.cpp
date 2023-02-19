@@ -202,5 +202,27 @@ bool SCD30Component::is_data_ready_() {
   return is_data_ready == 1;
 }
 
+bool SCD30Component::force_recalibration_with_reference(uint16_t co2_reference) {
+  ESP_LOGD(TAG, "Performing CO2 force recalibration with reference %dppm.", co2_reference);
+  if (this->write_command(SCD30_CMD_FORCED_CALIBRATION, co2_reference)) {
+    ESP_LOGD(TAG, "Force recalibration complete.");
+    return true;
+  } else {
+    ESP_LOGE(TAG, "Failed to force recalibration with reference.");
+    this->error_code_ = FORCE_RECALIBRATION_FAILED;
+    this->status_set_warning();
+    return false;
+  }
+}
+
+uint16_t SCD30Component::get_forced_calibration_reference() {
+  uint16_t forced_calibration_reference;
+  // Get current CO2 calibration
+  if (!this->get_register(SCD30_CMD_FORCED_CALIBRATION, forced_calibration_reference)) {
+    ESP_LOGE(TAG, "Unable to read forced calibration reference.");
+  }
+  return forced_calibration_reference;
+}
+
 }  // namespace scd30
 }  // namespace esphome
