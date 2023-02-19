@@ -17,6 +17,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
+from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -56,11 +57,15 @@ _UNDEF = object()
 
 
 def button_schema(
+    class_: MockObjClass = _UNDEF,
+    *,
     icon: str = _UNDEF,
     entity_category: str = _UNDEF,
     device_class: str = _UNDEF,
 ) -> cv.Schema:
     schema = BUTTON_SCHEMA
+    if class_ is not _UNDEF:
+        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if icon is not _UNDEF:
         schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
     if entity_category is not _UNDEF:
