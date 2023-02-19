@@ -220,4 +220,5 @@ async def to_code(config):
     cg.add(var.set_pixel_order(getattr(ESPNeoPixelOrder, config[CONF_TYPE])))
 
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
-    cg.add_library("makuna/NeoPixelBus", "2.6.9")
+    # Version Listed Here: https://registry.platformio.org/libraries/makuna/NeoPixelBus/versions
+    cg.add_library("makuna/NeoPixelBus", "2.7.3")

@@ -72,7 +72,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
     // preset_mode_state_topic
     root[MQTT_PRESET_MODE_STATE_TOPIC] = this->get_preset_state_topic();
     // presets
-    JsonArray presets = root.createNestedArray("presets");
+    JsonArray presets = root.createNestedArray("preset_modes");
     if (traits.supports_preset(CLIMATE_PRESET_HOME))
       presets.add("home");
     if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
