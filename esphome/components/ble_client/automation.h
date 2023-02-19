@@ -198,6 +198,20 @@ template<typename... Ts> class BLEClientNumericComparisonReplyAction : public Ac
   std::function<bool(Ts...)> value_template_{};
 };
 
+template<typename... Ts> class BLEClientRemoveBondAction : public Action<Ts...> {
+ public:
+  BLEClientRemoveBondAction(BLEClient *ble_client) { parent_ = ble_client; }
+
+  void play(Ts... x) override {
+    esp_bd_addr_t remote_bda;
+    memcpy(remote_bda, parent_->get_remote_bda(), sizeof(esp_bd_addr_t));
+    esp_ble_remove_bond_device(remote_bda);
+  }
+
+ private:
+  BLEClient *parent_{nullptr};
+};
+
 }  // namespace ble_client
 }  // namespace esphome
 

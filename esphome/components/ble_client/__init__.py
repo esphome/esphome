@@ -49,6 +49,9 @@ BLEPasskeyReplyAction = ble_client_ns.class_(
 BLENumericComparisonReplyAction = ble_client_ns.class_(
     "BLEClientNumericComparisonReplyAction", automation.Action
 )
+BLERemoveBondAction = ble_client_ns.class_(
+    "BLEClientRemoveBondAction", automation.Action
+)
 
 CONF_PASSKEY = "passkey"
 CONF_ACCEPT = "accept"
@@ -147,6 +150,13 @@ BLE_PASSKEY_REPLY_ACTION_SCHEMA = cv.Schema(
 )
 
 
+BLE_REMOVE_BOND_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
+    }
+)
+
+
 @automation.register_action(
     "ble_client.ble_write", BLEWriteAction, BLE_WRITE_ACTION_SCHEMA
 )
@@ -230,6 +240,16 @@ async def passkey_reply_to_code(config, action_id, template_arg, args):
         cg.add(var.set_value_template(templ))
     else:
         cg.add(var.set_value_simple(passkey))
+
+    return var
+
+
+@automation.register_action(
+    "ble_client.remove_bond", BLERemoveBondAction, BLE_REMOVE_BOND_ACTION_SCHEMA,
+)
+async def remove_bond_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
 
     return var
 
