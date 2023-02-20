@@ -57,12 +57,12 @@ using person_sensor_face_t = struct __attribute__((__packed__)) {
 // sensor when we do an I2C read from the peripheral address.
 // The checksum should be the CRC16 of bytes 0 to 38. You shouldn't need to
 // verify this in practice, but we found it useful during our own debugging.
-typedef struct __attribute__((__packed__)) {
+using person_sensor_results_t = struct __attribute__((__packed__)) {
   person_sensor_results_header_t header;                      // Bytes 0-4.
   int8_t num_faces;                                           // Byte 5.
   person_sensor_face_t faces[PERSON_SENSOR_MAX_FACES_COUNT];  // Bytes 6-37.
   uint16_t checksum;                                          // Bytes 38-39.
-} person_sensor_results_t;
+};
 
 class Sen21231Sensor : public sensor::Sensor, public PollingComponent, public i2c::I2CDevice {
  public:
