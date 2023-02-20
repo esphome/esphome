@@ -15,7 +15,7 @@ CONFIG_SCHEMA = (
     sensor.sensor_schema(
         Sen21231Sensor, icon=ICON_MOTION_SENSOR, accuracy_decimals=1
     )
-    .extend(cv.polling_component_schema("30s"))
+    .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x62))
 )
 
