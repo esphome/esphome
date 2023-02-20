@@ -68,9 +68,19 @@ void LGUartHub::setup() { this->dump_config(); }
 void LGUartHub::dump_config() {
   ESP_LOGCONFIG(TAG, "Config for screen_num: '%i'", this->screen_num_);
   ESP_LOGCONFIG(TAG, "Uart baud rate '%i'", this->parent_->get_baud_rate());
+
+  ESP_LOGCONFIG(TAG, "  Child components (%d):", this->children_.size());
+
+  // Dump the cmd char and the name of the thing responding to it
+  for (const auto [key, value] : this->children_) {
+    ESP_LOGCONFIG(TAG, "    -  [%c] => %s", key, value->describe().c_str());
+  }
 }
 
-void LGUartHub::register_child(LGUartClient *obj) { obj->set_parent(this); }
+void LGUartHub::register_child(LGUartClient *obj, std::string cmd_char) {
+  this->children_[cmd_char.at(0)] = obj;
+  obj->set_parent(this);
+}
 
 }  // namespace lg_uart
 }  // namespace esphome

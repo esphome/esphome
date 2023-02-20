@@ -49,8 +49,18 @@ LG_UART_CLIENT_SCHEMA = cv.Schema(
 
 
 async def register_lg_uart_child(var, config):
+    #print(f"var: {var}")
+    #print(f"config: {config}")
+
     parent = await cg.get_variable(config[CONF_LG_UART_ID])
-    cg.add(parent.register_child(var))
+    #print(f"parent: {parent}")
+
+    cmd_char = config[CONF_LG_UART_CMD][1]
+    #print(f"cmd_char: {cmd_char}")
+    # exit()
+
+    # var.set_cmd_char(cmd_char)
+    cg.add(parent.register_child(var, cmd_char))
 
 
 async def to_code(config):

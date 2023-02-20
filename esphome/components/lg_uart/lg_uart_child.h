@@ -10,8 +10,11 @@ class LGUartHub;
 
 class LGUartClient : public Parented<LGUartHub> {
  public:
+  virtual void on_reply_packet(char cmd_str) = 0;
+
  protected:
   friend LGUartHub;
+  virtual std::string describe() = 0;
 };
 
 }  // namespace lg_uart

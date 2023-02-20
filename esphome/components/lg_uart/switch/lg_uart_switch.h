@@ -16,6 +16,10 @@ class LGUartSwitch : public switch_::Switch, public LGUartClient, public Polling
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
+  std::string describe() override;
+
+  void on_reply_packet(char cmd_str) override;
+
   /** Command specific */
   void set_cmd(const std::string cmd_str) {
     this->cmd_str_[0] = cmd_str[0];

@@ -22,8 +22,14 @@ void LGUartSwitch::setup() {
   }
 }
 
+std::string LGUartSwitch::describe() { return this->get_name(); }
+
 void LGUartSwitch::dump_config() {
   ESP_LOGCONFIG(TAG, "[%s] command string: '%s'", this->get_name().c_str(), this->cmd_str_);
+}
+
+void LGUartSwitch::on_reply_packet(char cmd_str) {
+  ESP_LOGD(TAG, "[%s] update(). command: [%s].", this->get_name().c_str(), this->cmd_str_);
 }
 
 void LGUartSwitch::update() {

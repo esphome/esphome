@@ -1,4 +1,5 @@
 #pragma once
+#include <map>
 
 #include "esphome/core/defines.h"
 
@@ -32,11 +33,15 @@ class LGUartHub : public Component, public uart::UARTDevice {
   void setup() override;
   float get_setup_priority() const override { return setup_priority::LATE; }
 
-  /** Register a `BedJetClient` child component. */
-  void register_child(LGUartClient *obj);
+  /** Register a `LGUartClient` child component. */
+  void register_child(LGUartClient *obj, std::string cmd_char);
 
  protected:
   int screen_num_ = -1;
+
+  // Index the children by the second character of the command.
+  // E.G.: command codes `ka`, `ke`, `kd` will result in children `a`, `e`, `d`.
+  std::map<char, LGUartClient *> children_;
 };
 
 }  // namespace lg_uart
