@@ -33,7 +33,7 @@ class Application {
     this->compilation_time_ = compilation_time;
   }
 
-  template<class Entity> const std::vector<Entity *> get_entity() {
+  template<class Entity> const std::vector<Entity *> get_entities() {
     static_assert(std::is_base_of<EntityBase, Entity>::value, "Only EntityBase subclasses can be used");
     resize_(Entity::ENTITY_TYPE);
     std::vector<Entity *> result;
