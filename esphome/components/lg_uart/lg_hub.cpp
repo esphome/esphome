@@ -1,6 +1,7 @@
 // For itoa()
 #include <stdlib.h>
 #include <stdio.h>
+
 #include "lg_hub.h"
 
 #include "lg_uart_child.h"
@@ -27,7 +28,7 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, uint8_t reply[PACKET_LEN]) 
     // LG replies always have the second command char at the beginning. Buffer may have noise
     //   so we read until we get expected then start storing
     if (!stream_valid && (peeked != cmd_code[1])) {
-      ESP_LOGD(TAG, "IGNORE peeked[%i]: 0x%x \t %u \t [%c]", idx, peeked, peeked, peeked);
+      ESP_LOGW(TAG, "send_cmd(%s) - IGNORE peeked[%i]: 0x%x \t %u \t [%c]", cmd_code, idx, peeked, peeked, peeked);
       continue;
     } else if (!stream_valid && (peeked == cmd_code[1])) {
       stream_valid = true;
@@ -59,7 +60,6 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, uint8_t reply[PACKET_LEN]) 
       }
     }
   }
-  return false;
 }
 
 /* Internal */
