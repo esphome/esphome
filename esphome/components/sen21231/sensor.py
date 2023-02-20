@@ -13,12 +13,7 @@ Sen21231Sensor = sen21231_sensor_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        unit_of_measurement=UNIT_EMPTY, icon=ICON_MOTION_SENSOR, accuracy_decimals=1
-    )
-    .extend(
-        {
-            cv.GenerateID(): cv.declare_id(Sen21231Sensor),
-        }
+        Sen21231Sensor, icon=ICON_MOTION_SENSOR, accuracy_decimals=1
     )
     .extend(cv.polling_component_schema("30s"))
     .extend(i2c.i2c_device_schema(0x62))
