@@ -143,15 +143,19 @@ class LD2410Component : public Component, public uart::UARTDevice {
   SUB_LAMBDA_BUTTON(reset, {
     this->factory_reset_();
     this->restart_();
-    delay(1000);  // NOLINT
-    this->set_config_mode_(true);
-    this->query_parameters_();
+    this->set_timeout(1000, [this]() {
+      this->set_config_mode_(true);
+      this->query_parameters_();
+      this->set_config_mode_(false);
+    });
   })
   SUB_LAMBDA_BUTTON(restart, {
     this->restart_();
-    delay(1000);  // NOLINT
-    this->set_config_mode_(true);
-    this->query_parameters_();
+    this->set_timeout(1000, [this]() {
+      this->set_config_mode_(true);
+      this->query_parameters_();
+      this->set_config_mode_(false);
+    });
   })
   SUB_LAMBDA_BUTTON(query, { this->query_parameters_(); })
 #endif
