@@ -113,6 +113,7 @@ esphome/components/ina260/* @MrEditor97
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
+esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
