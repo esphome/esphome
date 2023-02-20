@@ -29,7 +29,7 @@ void ComponentIterator::advance() {
       }
       break;
     case IteratorState::ALL_ENTITIES: {
-      auto &all = App.get_entity_all();
+      auto &all = App.get_entities_all_types();
       size_t sum{0};
       size_t index = 0;
       for (; index < all.size(); ++index) {

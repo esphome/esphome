@@ -22,14 +22,14 @@ struct MockListener : public Listener {
 class ControllerTest : public ::testing::Test, public esphome::Controller {
  protected:
   void SetUp() override {  // NOLINT
-    ASSERT_EQ(App.get_entity_all().size(), 0);
+    ASSERT_EQ(App.get_entities_all_types().size(), 0);
     register_entity_(sw_1_);
     register_entity_(sw_2_, true);
     register_entity_(sw_3_);
     register_entity_(sensor_1_);
     register_entity_(sensor_2_, true);
     register_entity_(sensor_3_, true);
-    ASSERT_EQ(App.get_entity_all().size(), std::max(SWITCH, SENSOR) + 1);
+    ASSERT_EQ(App.get_entities_all_types().size(), std::max(SWITCH, SENSOR) + 1);
     setup_controller(include_internal_);
     Controller::add_on_state_callback([this](Switch *obj, bool state) { this->listener_.send(obj, state); });
     Controller::add_on_state_callback([this](Sensor *obj, float state) { this->listener_.send(obj, state); });
@@ -44,8 +44,8 @@ class ControllerTest : public ::testing::Test, public esphome::Controller {
   }
 
   void TearDown() override {  // NOLINT
-    const_cast<std::vector<std::vector<EntityBase *>> &>(App.get_entity_all()).clear();
-    ASSERT_EQ(App.get_entity_all().size(), 0);
+    const_cast<std::vector<std::vector<EntityBase *>> &>(App.get_entities_all_types()).clear();
+    ASSERT_EQ(App.get_entities_all_types().size(), 0);
   }
 
   MockSwitch sw_1_;

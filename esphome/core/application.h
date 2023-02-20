@@ -58,7 +58,7 @@ class Application {
     this->entities_[Entity::ENTITY_TYPE].push_back(entity);
   }
 
-  const std::vector<std::vector<EntityBase *>> &get_entity_all() { return this->entities_; }
+  const std::vector<std::vector<EntityBase *>> &get_entities_all_types() { return this->entities_; }
 
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {

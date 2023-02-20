@@ -240,61 +240,61 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(F("<h2>States</h2><table id=\"states\"><thead><tr><th>Name<th>State<th>Actions<tbody>"));
 
 #ifdef USE_SENSOR
-  for (auto *obj : App.get_entity<sensor::Sensor>()) {
+  for (auto *obj : App.get_entities<sensor::Sensor>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "sensor", "");
   }
 #endif
 
 #ifdef USE_SWITCH
-  for (auto *obj : App.get_entity<switch_::Switch>()) {
+  for (auto *obj : App.get_entities<switch_::Switch>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "switch", "<button>Toggle</button>");
   }
 #endif
 
 #ifdef USE_BUTTON
-  for (auto *obj : App.get_entity<button::Button>())
+  for (auto *obj : App.get_entities<button::Button>())
     write_row(stream, obj, "button", "<button>Press</button>");
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  for (auto *obj : App.get_entity<binary_sensor::BinarySensor>()) {
+  for (auto *obj : App.get_entities<binary_sensor::BinarySensor>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "binary_sensor", "");
   }
 #endif
 
 #ifdef USE_FAN
-  for (auto *obj : App.get_entity<fan::Fan>()) {
+  for (auto *obj : App.get_entities<fan::Fan>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "fan", "<button>Toggle</button>");
   }
 #endif
 
 #ifdef USE_LIGHT
-  for (auto *obj : App.get_entity<light::LightState>()) {
+  for (auto *obj : App.get_entities<light::LightState>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "light", "<button>Toggle</button>");
   }
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  for (auto *obj : App.get_entity<text_sensor::TextSensor>()) {
+  for (auto *obj : App.get_entities<text_sensor::TextSensor>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "text_sensor", "");
   }
 #endif
 
 #ifdef USE_COVER
-  for (auto *obj : App.get_entity<cover::Cover>()) {
+  for (auto *obj : App.get_entities<cover::Cover>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "cover", "<button>Open</button><button>Close</button>");
   }
 #endif
 
 #ifdef USE_NUMBER
-  for (auto *obj : App.get_entity<number::Number>()) {
+  for (auto *obj : App.get_entities<number::Number>()) {
     if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "number", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         number::Number *number = (number::Number *) obj;
@@ -313,7 +313,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_SELECT
-  for (auto *obj : App.get_entity<select::Select>()) {
+  for (auto *obj : App.get_entities<select::Select>()) {
     if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "select", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         select::Select *select = (select::Select *) obj;
@@ -331,7 +331,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_LOCK
-  for (auto *obj : App.get_entity<lock::Lock>()) {
+  for (auto *obj : App.get_entities<lock::Lock>()) {
     if (this->include_internal_ || !obj->is_internal()) {
       write_row(stream, obj, "lock", "", [](AsyncResponseStream &stream, EntityBase *obj) {
         lock::Lock *lock = (lock::Lock *) obj;
@@ -345,7 +345,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #endif
 
 #ifdef USE_CLIMATE
-  for (auto *obj : App.get_entity<climate::Climate>()) {
+  for (auto *obj : App.get_entities<climate::Climate>()) {
     if (this->include_internal_ || !obj->is_internal())
       write_row(stream, obj, "climate", "");
   }
@@ -423,7 +423,7 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_SENSOR
 void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (sensor::Sensor *obj : App.get_entity<sensor::Sensor>()) {
+  for (sensor::Sensor *obj : App.get_entities<sensor::Sensor>()) {
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->sensor_json(obj, obj->state, DETAIL_STATE);
@@ -449,7 +449,7 @@ std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail 
 
 #ifdef USE_TEXT_SENSOR
 void WebServer::handle_text_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_entity<text_sensor::TextSensor>()) {
+  for (auto *obj : App.get_entities<text_sensor::TextSensor>()) {
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->text_sensor_json(obj, obj->state, DETAIL_STATE);
@@ -473,7 +473,7 @@ std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail 
   });
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (switch_::Switch *obj : App.get_entity<switch_::Switch>()) {
+  for (switch_::Switch *obj : App.get_entities<switch_::Switch>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -505,7 +505,7 @@ std::string WebServer::button_json(button::Button *obj, JsonDetail start_config)
 }
 
 void WebServer::handle_button_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (button::Button *obj : App.get_entity<button::Button>()) {
+  for (button::Button *obj : App.get_entities<button::Button>()) {
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_POST && match.method == "press") {
@@ -528,7 +528,7 @@ std::string WebServer::binary_sensor_json(binary_sensor::BinarySensor *obj, bool
   });
 }
 void WebServer::handle_binary_sensor_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (binary_sensor::BinarySensor *obj : App.get_entity<binary_sensor::BinarySensor>()) {
+  for (binary_sensor::BinarySensor *obj : App.get_entities<binary_sensor::BinarySensor>()) {
     if (obj->get_object_id() != match.id)
       continue;
     std::string data = this->binary_sensor_json(obj, obj->state, DETAIL_STATE);
@@ -553,7 +553,7 @@ std::string WebServer::fan_json(fan::Fan *obj, JsonDetail start_config) {
   });
 }
 void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (fan::Fan *obj : App.get_entity<fan::Fan>()) {
+  for (fan::Fan *obj : App.get_entities<fan::Fan>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -611,7 +611,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
 
 #ifdef USE_LIGHT
 void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (light::LightState *obj : App.get_entity<light::LightState>()) {
+  for (light::LightState *obj : App.get_entities<light::LightState>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -687,7 +687,7 @@ std::string WebServer::light_json(light::LightState *obj, JsonDetail start_confi
 
 #ifdef USE_COVER
 void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (cover::Cover *obj : App.get_entity<cover::Cover>()) {
+  for (cover::Cover *obj : App.get_entities<cover::Cover>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -741,7 +741,7 @@ std::string WebServer::cover_json(cover::Cover *obj, JsonDetail start_config) {
 
 #ifdef USE_NUMBER
 void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_entity<number::Number>()) {
+  for (auto *obj : App.get_entities<number::Number>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -795,7 +795,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
 
 #ifdef USE_SELECT
 void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_entity<select::Select>()) {
+  for (auto *obj : App.get_entities<select::Select>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -838,7 +838,7 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 
 #ifdef USE_CLIMATE
 void WebServer::handle_climate_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (auto *obj : App.get_entity<climate::Climate>()) {
+  for (auto *obj : App.get_entities<climate::Climate>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
@@ -986,7 +986,7 @@ std::string WebServer::lock_json(lock::Lock *obj, lock::LockState value, JsonDet
   });
 }
 void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (lock::Lock *obj : App.get_entity<lock::Lock>()) {
+  for (lock::Lock *obj : App.get_entities<lock::Lock>()) {
     if (obj->get_object_id() != match.id)
       continue;
 
