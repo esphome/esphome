@@ -28,10 +28,10 @@ static const uint8_t PERSON_SENSOR_MAX_IDS_COUNT = 7;
 //   data_size: Length of the entire packet, excluding the header and
 //   checksum.
 //     For version 1.0 of the sensor, this should be 40.
-typedef struct {
+using person_sensor_results_header_t = struct {
   uint8_t reserved[2];  // Bytes 0-1.
   uint16_t data_size;   // Bytes 2-3.
-} __attribute__((packed)) person_sensor_results_header_t;
+};
 
 // Each face found has a set of information associated with it:
 //   box_confidence: How certain we are we have found a face, from 0 to 255.
