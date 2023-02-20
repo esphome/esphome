@@ -16,6 +16,30 @@ enum SensorType {
   XL = 0x03,
 };
 
+// 4 values in one struct so it aligns to 8 byte. One `mopeka_std_values` is 40 bit long.
+struct mopeka_std_values {  // NOLINT(readability-identifier-naming,altera-struct-pack-align)
+  u_int16_t time_0 : 5;
+  u_int16_t value_0 : 5;
+  u_int16_t time_1 : 5;
+  u_int16_t value_1 : 5;
+  u_int16_t time_2 : 5;
+  u_int16_t value_2 : 5;
+  u_int16_t time_3 : 5;
+  u_int16_t value_3 : 5;
+} __attribute__((packed));
+
+struct mopeka_std_package {  // NOLINT(readability-identifier-naming,altera-struct-pack-align)
+  u_int8_t data_0 : 8;
+  u_int8_t data_1 : 8;
+  u_int8_t raw_voltage : 8;
+
+  u_int8_t raw_temp : 6;
+  bool slow_update_rate : 1;
+  bool sync_pressed : 1;
+
+  mopeka_std_values val[4];
+} __attribute__((packed));
+
 class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceListener {
  public:
   void set_address(uint64_t address) { address_ = address; };
@@ -44,8 +68,8 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   uint32_t empty_mm_;
 
   float get_lpg_speed_of_sound_(float temperature);
-  uint8_t parse_battery_level_(const std::vector<uint8_t> &message);
-  uint8_t parse_temperature_(const std::vector<uint8_t> &message);
+  uint8_t parse_battery_level_(const mopeka_std_package* message);
+  uint8_t parse_temperature_(const mopeka_std_package* message);
 };
 
 }  // namespace mopeka_std_check

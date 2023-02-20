@@ -60,9 +60,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   const auto &manu_data = manu_datas[0];
 
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
   ESP_LOGVV(TAG, "%s: Manufacturer data: %s", device.address_str().c_str(), format_hex_pretty(manu_data.data).c_str());
-#endif
 
   if (manu_data.data.size() != MANUFACTURER_DATA_LENGTH) {
     ESP_LOGE(TAG, "%s: Unexpected manu_data size (%d)", device.address_str().c_str(), manu_data.data.size());
@@ -70,20 +68,35 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   }
 
   // Now parse the data
-  const u_int8_t hardware_id = manu_data.data[1] & 0xCF;
+  const auto mopeka_data = (mopeka_std_package *) manu_data.data.data();
+
+  const u_int8_t hardware_id = mopeka_data->data_1 & 0xCF;
   if (static_cast<SensorType>(hardware_id) != STANDARD && static_cast<SensorType>(hardware_id) != XL) {
     ESP_LOGE(TAG, "%s: Unsupported Sensor Type (0x%X)", device.address_str().c_str(), hardware_id);
     return false;
   }
 
+  ESP_LOGVV(TAG, "%s: Sensor slow update rate: %d", device.address_str().c_str(), mopeka_data->slow_update_rate);
+  ESP_LOGVV(TAG, "%s: Sensor sync pressed: %d", device.address_str().c_str(), mopeka_data->sync_pressed);
+  for (u_int8_t i = 0; i < 3; i++) {
+    ESP_LOGVV(TAG, "%s: %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 1,
+              mopeka_data->val[i].value_0, mopeka_data->val[i].time_0);
+    ESP_LOGVV(TAG, "%s: %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 2,
+              mopeka_data->val[i].value_1, mopeka_data->val[i].time_1);
+    ESP_LOGVV(TAG, "%s: %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 3,
+              mopeka_data->val[i].value_2, mopeka_data->val[i].time_2);
+    ESP_LOGVV(TAG, "%s: %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 4,
+              mopeka_data->val[i].value_3, mopeka_data->val[i].time_3);
+  }
+
   // Get battery level first
   if (this->battery_level_ != nullptr) {
-    uint8_t level = this->parse_battery_level_(manu_data.data);
+    uint8_t level = this->parse_battery_level_(mopeka_data);
     this->battery_level_->publish_state(level);
   }
 
   // Get temperature of sensor
-  uint8_t temp_in_c = this->parse_temperature_(manu_data.data);
+  uint8_t temp_in_c = this->parse_temperature_(mopeka_data);
   if (this->temperature_ != nullptr) {
     this->temperature_->publish_state(temp_in_c);
   }
@@ -92,46 +105,59 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   if ((this->distance_ != nullptr) || (this->level_ != nullptr)) {
     // Message contains 12 sensor dataset each 10 bytes long.
     // each sensor dataset contains 5 byte time and 5 byte value.
-    // if value is 0 ignore and if combined time is too old ignore.
+    // if value is 0 ignore.
 
     // time in 10us ticks.
     // value is amplitude.
-    const auto message = manu_data.data;
 
-    std::vector<u_int16_t> measurements_time;
-    std::vector<u_int16_t> measurements_value;
+    std::array<u_int8_t, 12> measurements_time = {};
+    std::array<u_int8_t, 12> measurements_value = {};
+    // Copy measurements over into my array.
+    {
+      u_int8_t measurements_index = 0;
+      for (u_int8_t i = 0; i < 3; i++) {
+        measurements_time[measurements_index] = mopeka_data->val[i].time_0 + 1;
+        measurements_value[measurements_index] = mopeka_data->val[i].value_0;
+        measurements_index++;
+        measurements_time[measurements_index] = mopeka_data->val[i].time_1 + 1;
+        measurements_value[measurements_index] = mopeka_data->val[i].value_1;
+        measurements_index++;
+        measurements_time[measurements_index] = mopeka_data->val[i].time_2 + 1;
+        measurements_value[measurements_index] = mopeka_data->val[i].value_2;
+        measurements_index++;
+        measurements_time[measurements_index] = mopeka_data->val[i].time_3 + 1;
+        measurements_value[measurements_index] = mopeka_data->val[i].value_3;
+        measurements_index++;
+      }
+    }
 
-    u_int16_t time = 0;
-
-    for (u_int8_t i = 0; i < 3; i++) {
-      u_int8_t start = 4 + i * 5;
-      u_int64_t d = message[start] | (message[start + 1] << 8) | (message[start + 2] << 16) |
-                    (message[start + 3] << 24) | ((u_int64_t) message[start + 4] << 32);
-      for (u_int8_t i = 0; i < 4; i++) {
-        u_int8_t measurement_time = (d & 0x1F) + 1;
-        d = d >> 5;
-        u_int8_t measurement_value = (d & 0x1F);
-        d = d >> 5;
-
-        if (time > 255) {
-          break;
-        }
-        time += measurement_time;
-
-        if (measurement_value > 0 && measurement_value < 0b00011111 && time < 255) {
-          u_int16_t value = ((u_int16_t) measurement_value - 1) * 4 + 6;
-
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-          ESP_LOGVV(TAG, "%s: Valid sensor data %u at time %u.", device.address_str().c_str(), value, time * 2);
-#endif
-
-          measurements_time.push_back(time * 2);
-          measurements_value.push_back(value);
+    // Find best(strongest) value(amplitude) and it's belonging time in sensor dataset.
+    u_int8_t number_of_usable_values = 0;
+    u_int16_t best_value = 0;
+    u_int16_t best_time = 0;
+    {
+      u_int16_t measurement_time = 0;
+      for (u_int8_t i = 0; i < measurements_value.size(); i++) {
+        // Add time to value.
+        measurement_time += measurements_time[i];
+        if (measurements_value[i] != 0) {
+          // I got a value
+          number_of_usable_values++;
+          if (measurements_value[i] > best_value) {
+            // This value is better than a previous one.
+            best_value = measurements_value[i];
+            best_time = measurement_time;
+            // Reset measurement_time or next values.
+            measurement_time = 0;
+          }
         }
       }
     }
 
-    if (measurements_time.size() < 2) {
+    ESP_LOGV(TAG, "%s: Found %u values with best data %u time %u.", device.address_str().c_str(),
+             number_of_usable_values, best_value, best_time);
+
+    if (number_of_usable_values < 2 || best_value < 2 || best_time < 2) {
       // At least two measurement values must be present.
       ESP_LOGW(TAG, "%s: Poor read quality. Setting distance to 0.", device.address_str().c_str());
       if (this->distance_ != nullptr) {
@@ -141,18 +167,10 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
         this->level_->publish_state(0);
       }
     } else {
-      // Basic logic take first response and ignore all other echos.
-      // Possible improvement is to add peak detection for echo values.
-      // Expectation is first value at distance and second lower value at
-      // 2*distance. Ignore low values as noise.
-
       float lpg_speed_of_sound = this->get_lpg_speed_of_sound_(temp_in_c);
+      ESP_LOGV(TAG, "%s: Speed of sound in current fluid %f m/s", device.address_str().c_str(), lpg_speed_of_sound);
 
-#ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-      ESP_LOGVV(TAG, "%s: Speed of sound in current fluid %f m/s", device.address_str().c_str(), lpg_speed_of_sound);
-#endif
-
-      uint32_t distance_value = measurements_time[0] * lpg_speed_of_sound / 100.0f / 2.0f;
+      uint32_t distance_value = lpg_speed_of_sound * best_time / 100.0f;
 
       // update distance sensor
       if (this->distance_ != nullptr) {
@@ -180,8 +198,8 @@ float MopekaStdCheck::get_lpg_speed_of_sound_(float temperature) {
          1.63f * temperature * this->lpg_butane_ratio_;
 }
 
-uint8_t MopekaStdCheck::parse_battery_level_(const std::vector<uint8_t> &message) {
-  const float voltage = (float) ((message[2] / 256.0f) * 2.0f + 1.5f);
+uint8_t MopekaStdCheck::parse_battery_level_(const mopeka_std_package *message) {
+  const float voltage = (float) ((message->raw_voltage / 256.0f) * 2.0f + 1.5f);
   ESP_LOGVV(TAG, "Sensor battery voltage: %f V", voltage);
   // convert voltage and scale for CR2032
   const float percent = (voltage - 2.2f) / 0.65f * 100.0f;
@@ -194,12 +212,12 @@ uint8_t MopekaStdCheck::parse_battery_level_(const std::vector<uint8_t> &message
   return (uint8_t) percent;
 }
 
-uint8_t MopekaStdCheck::parse_temperature_(const std::vector<uint8_t> &message) {
-  uint8_t tmp = message[3] & 0x3f;
-  if (tmp == 0) {
+uint8_t MopekaStdCheck::parse_temperature_(const mopeka_std_package *message) {
+  uint8_t tmp = message->raw_temp;
+  if (tmp == 0x0) {
     return -40;
   } else {
-    return (uint8_t)((tmp - 25.0f) * 1.776964f);
+    return (uint8_t) ((tmp - 25.0f) * 1.776964f);
   }
 }
 
