@@ -5,7 +5,7 @@ from esphome.const import (
     CONF_TIMEOUT,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_SIGNAL_STRENGTH,
-    UNIT_CENTIMETER,
+    UNIT_METER,
     UNIT_SECOND,
     UNIT_PERCENT,
 )
@@ -57,13 +57,13 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MAX_MOVE_DISTANCE): number.number_schema(
             VirtualNumber,
             device_class=DEVICE_CLASS_DISTANCE,
-            unit_of_measurement=UNIT_CENTIMETER,
+            unit_of_measurement=UNIT_METER,
             icon="mdi:motion-sensor",
         ),
         cv.Optional(CONF_MAX_STILL_DISTANCE): number.number_schema(
             VirtualNumber,
             device_class=DEVICE_CLASS_DISTANCE,
-            unit_of_measurement=UNIT_CENTIMETER,
+            unit_of_measurement=UNIT_METER,
             icon="mdi:motion-sensor-off",
         ),
     }
