@@ -11,6 +11,7 @@ namespace lg_uart {
 class LGUartSwitch : public switch_::Switch, public LGUartClient, public PollingComponent {
  public:
   void update() override;
+  void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
@@ -24,8 +25,8 @@ class LGUartSwitch : public switch_::Switch, public LGUartClient, public Polling
   void write_state(bool state) override;
 
   // Two chars + termination
-  char cmd_str_[3];
-  uint8_t reply[PACKET_LEN];
+  char cmd_str_[3] = {0};
+  uint8_t reply[PACKET_LEN] = {0};
 
  private:
 };

@@ -6,6 +6,21 @@ namespace lg_uart {
 
 using namespace esphome::switch_;
 
+void LGUartSwitch::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up LGUartSwitch '%s' with cmd_string: [%s]...", this->name_.c_str(), this->cmd_str_);
+
+  bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
+
+  ESP_LOGD(TAG, "[%s] setup(): [%i].", this->get_name().c_str(), initial_state);
+
+  // write state before setup
+  if (initial_state) {
+    this->turn_on();
+  } else {
+    this->turn_off();
+  }
+}
+
 void LGUartSwitch::dump_config() {
   ESP_LOGCONFIG(TAG, "[%s] command string: '%s'", this->get_name().c_str(), this->cmd_str_);
 }
@@ -14,13 +29,26 @@ void LGUartSwitch::update() {
   ESP_LOGD(TAG, "[%s] update(). command: [%s] returning %i", this->get_name().c_str(), this->cmd_str_, this->state);
 
   // For most commands, supplying `ff` as the value is the inquire? packet
-  // char inquire[] = "ff";
-
-  if (this->parent_->send_cmd(this->cmd_str_, 0xff, this->reply)) {
-    ESP_LOGD(TAG, "[%s] update(). reply: [%s]", this->get_name().c_str(), this->reply);
-  } else {
-    ESP_LOGD(TAG, "[%s] update(). reply: [%s]", this->get_name().c_str(), this->reply);
+  if (!this->parent_->send_cmd(this->cmd_str_, 0xff, this->reply)) {
+    ESP_LOGD(TAG, "[%s] update(). got NG.", this->get_name().c_str());
+    return;
   }
+  ESP_LOGD(TAG, "[%s] update(). reply: [%s]", this->get_name().c_str(), this->reply);
+
+  // Immediately after the OK will be a number which is the state we inquired about.
+  // Chars -> string -> int. And in the case of a switch int -> bool.
+
+  std::string status_str;
+  status_str.push_back(this->reply[7]);
+  status_str.push_back(this->reply[8]);
+  ESP_LOGD(TAG, "[%s] update(): status_str: [%s]", this->get_name().c_str(), status_str.c_str());
+  int status_int = stoi(status_str);
+
+  ESP_LOGD(TAG, "[%s] update(): Inverted: [%i], state: [%i], status_int: [%i]", this->get_name().c_str(),
+           this->inverted_, this->state, (bool) status_int);
+
+  // If the user has indicated that
+  this->publish_state((bool) status_int);
 }
 
 void LGUartSwitch::write_state(bool state) {
@@ -35,62 +63,8 @@ void LGUartSwitch::write_state(bool state) {
   }
 
   // If the reply was OK, we can be very confident that the state the user wants is now in effect.
-  if (this->inverted_) {
-    this->publish_state(!state);
-  } else {
-    this->publish_state(state);
-  }
-
-  // When dealing with non bool, we
-  // // Convert the reply into status
-  // ESP_LOGD(TAG, "[%s] write_state(): REPLY: [%s] (%c, %c)", this->get_name().c_str(), this->reply, this->reply[7],
-  //          this->reply[8]);
-
-  // std::string status_str;
-  // status_str.push_back(this->reply[7]);
-  // status_str.push_back(this->reply[8]);
-  // int status_int = stoi(status_str);
-
-  // ESP_LOGD(TAG, "[%s] write_state(): Inverted: [%i], current: [%i], will set: [%i]", this->get_name().c_str(),
-  //          this->inverted_, this->state, (bool) status_int);
-  // if (this->inverted_) {
-  //   this->publish_state(!(bool) status_int);
-  // } else {
-  //   this->publish_state((bool) status_int);
-  // }
-
-  // if (state != this->inverted_) {
-  //   // Turning ON, check interlocking
-
-  //   bool found = false;
-  //   for (auto *lock : this->interlock_) {
-  //     if (lock == this)
-  //       continue;
-
-  //     if (lock->state) {
-  //       lock->turn_off();
-  //       found = true;
-  //     }
-  //   }
-  //   if (found && this->interlock_wait_time_ != 0) {
-  //     this->set_timeout("interlock", this->interlock_wait_time_, [this, state] {
-  //       // Don't write directly, call the function again
-  //       // (some other switch may have changed state while we were waiting)
-  //       this->write_state(state);
-  //     });
-  //     return;
-  //   }
-  // } else if (this->interlock_wait_time_ != 0) {
-  //   // If we are switched off during the interlock wait time, cancel any pending
-  //   // re-activations
-  //   this->cancel_timeout("interlock");
-  // }
-
-  // this->pin_->digital_write(state);
-  // this->publish_state(state);
+  this->publish_state(state);
 }
-
-/* Public */
 
 }  // namespace lg_uart
 }  // namespace esphome
