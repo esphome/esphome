@@ -8,6 +8,7 @@
 
 namespace esphome {
 namespace lg_uart {
+
 class LGUartSwitch : public switch_::Switch, public LGUartClient, public PollingComponent {
  public:
   void update() override;

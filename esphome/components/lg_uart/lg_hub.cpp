@@ -12,7 +12,7 @@ namespace lg_uart {
 /* Public */
 
 bool LGUartHub::send_cmd(char cmd_code[2], int data, uint8_t reply[PACKET_LEN]) {
-  ESP_LOGD(TAG, "Sending cmd: '%s' data: '%i' for screen: '%i'", cmd_code, data, this->screen_num_);
+  ESP_LOGD(TAG, "send_cmd(%s). data: '%i' for screen: '%i'", cmd_code, data, this->screen_num_);
   std::string s = str_sprintf("%02s %02x %02x\r", cmd_code, this->screen_num_, data);
   this->parent_->write_array(std::vector<uint8_t>(s.begin(), s.end()));
 
@@ -28,34 +28,29 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, uint8_t reply[PACKET_LEN]) 
     // LG replies always have the second command char at the beginning. Buffer may have noise
     //   so we read until we get expected then start storing
     if (!stream_valid && (peeked != cmd_code[1])) {
-      ESP_LOGW(TAG, "send_cmd(%s) - IGNORE peeked[%i]: 0x%x \t %u \t [%c]", cmd_code, idx, peeked, peeked, peeked);
+      /*
+        I should probably refactor this as i'm hitting this code A LOT.
+
+        I need to keep track of the children, specifically by the second character of the command.
+        Each child should get a process_packet() or similar.
+        That way I don't have to ignore anything, I can dispatch all valid incoming packets
+      */
+      ESP_LOGD(TAG, "send_cmd(%s) - IGNORE peeked[%i]: 0x%x \t %u \t [%c]", cmd_code, idx, peeked, peeked, peeked);
       continue;
     } else if (!stream_valid && (peeked == cmd_code[1])) {
       stream_valid = true;
     }
     reply[idx] = peeked;
-    ESP_LOGD(TAG, "peeked[%i]: 0x%x \t %u \t [%c]", idx, peeked, peeked, peeked);
+    ESP_LOGD(TAG, "send_cmd(%s). peeked[%i]: 0x%x \t %u \t [%c]", cmd_code, idx, peeked, peeked, peeked);
     idx += 1;
-    // TODO; confirm set number
-    /*
-      If the screen is alive, we'll get back a packet like so
 
-      [e][ ][0][1][ ][O][K][0][x]
-
-      We are looking for OK or NG. The last byte is the current status
-
-      TODO: return OK/NG + value back to caller
-        (I think i'll need to add two more function args)
-
-    */
     if (idx == PACKET_LEN) {
-      ESP_LOGD(TAG, "end of packet");
       // OK
       if (reply[5] == 0x4f && reply[6] == 0x4b) {
-        ESP_LOGD(TAG, "got OK");
+        ESP_LOGD(TAG, "send_cmd(%s). got OK");
         return true;
       } else {
-        ESP_LOGW(TAG, "got NOT OK");
+        ESP_LOGW(TAG, "send_cmd(%s). got NOT OK");
         return false;
       }
     }
