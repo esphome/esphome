@@ -42,7 +42,7 @@ typedef struct {
 //   id_confidence: How sure the sensor is about the recognition result.
 //   id: Numerical ID assigned to this face.
 //   is_looking_at: Whether the person is facing the camera, 0 or 1.
-typedef struct __attribute__((__packed__)) {
+using person_sensor_face_t = struct __attribute__((__packed__)) {
   uint8_t box_confidence;  // Byte 1.
   uint8_t box_left;        // Byte 2.
   uint8_t box_top;         // Byte 3.
@@ -51,7 +51,7 @@ typedef struct __attribute__((__packed__)) {
   int8_t id_confidence;    // Byte 6.
   int8_t id;               // Byte 7
   uint8_t is_facing;       // Byte 8.
-} person_sensor_face_t;
+};
 
 // This is the full structure of the packet returned over the wire from the
 // sensor when we do an I2C read from the peripheral address.
