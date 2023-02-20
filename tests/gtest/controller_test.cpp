@@ -4,6 +4,8 @@
 #include "mocks/mock_switch.h"
 #include "mocks/mock_sensor.h"
 
+// TODO add test for custo components
+
 namespace esphome {
 namespace test {
 
@@ -30,9 +32,10 @@ class ControllerTest : public ::testing::Test, public esphome::Controller {
     register_entity_(sensor_2_, true);
     register_entity_(sensor_3_, true);
     ASSERT_EQ(App.get_entities_all_types().size(), std::max(SWITCH, SENSOR) + 1);
-    setup_controller(include_internal_);
-    Controller::add_on_state_callback([this](Switch *obj, bool state) { this->listener_.send(obj, state); });
-    Controller::add_on_state_callback([this](Sensor *obj, float state) { this->listener_.send(obj, state); });
+    Controller::add_on_state_callback([this](Switch *obj, bool state) { this->listener_.send(obj, state); },
+                                      include_internal_);
+    Controller::add_on_state_callback([this](Sensor *obj, float state) { this->listener_.send(obj, state); },
+                                      include_internal_);
   }
 
   template<typename T> void register_entity_(T &t, bool internal = false) {

@@ -45,7 +45,6 @@ class ApplicationTest : public ::testing::Test {
 TEST_F(ApplicationTest, GetEntity) {  // NOLINT
   EXPECT_EQ(App.get_entities<Sensor>().size(), 3);
   EXPECT_EQ(App.get_entities<Switch>().size(), 3);
-  EXPECT_EQ(App.get_entities<CustomEntity>().size(), 0);
   MockCustomEntity ce_1;
   App.register_entity(&ce_1);
   EXPECT_EQ(App.get_entities<CustomEntity>().size(), 1);

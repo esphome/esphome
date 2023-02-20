@@ -76,7 +76,7 @@ enum JsonDetail { DETAIL_ALL, DETAIL_STATE };
  * under the '/light/...', '/sensor/...', ... URLs. A full documentation for this API
  * can be found under https://esphome.io/web-api/index.html.
  */
-class WebServer : public Controller, public Component, public AsyncWebHandler {
+class WebServer : public Component, public AsyncWebHandler {
  public:
   WebServer(web_server_base::WebServerBase *base);
 

@@ -33,19 +33,14 @@ class Application {
     this->compilation_time_ = compilation_time;
   }
 
-  template<class Entity> const std::vector<Entity *> get_entities() {
+  template<class Entity> const std::vector<EntityBase *> &get_entities() {
     static_assert(std::is_base_of<EntityBase, Entity>::value, "Only EntityBase subclasses can be used");
-    resize_(Entity::ENTITY_TYPE);
-    std::vector<Entity *> result;
-    for (auto obj : this->entities_[Entity::ENTITY_TYPE]) {
-      result.push_back(static_cast<Entity *>(obj));
-    }
-    return result;
+    assert(this->entities_.size() > Entity::ENTITY_TYPE);
+    return this->entities_[Entity::ENTITY_TYPE];
   }
 
   template<class Entity> Entity *get_entity_by_key(uint32_t key, bool include_internal = false) {
     static_assert(std::is_base_of<EntityBase, Entity>::value, "Only EntityBase subclasses can be used");
-    resize_(Entity::ENTITY_TYPE);
     for (auto &entity : this->entities_[Entity::ENTITY_TYPE])
       if (entity->get_object_id_hash() == key && (include_internal || !entity->is_internal()))
         return static_cast<Entity *>(entity);
@@ -54,7 +49,10 @@ class Application {
 
   template<class Entity> void register_entity(Entity *entity) {
     static_assert(std::is_base_of<EntityBase, Entity>::value, "Only EntityBase subclasses can be registered");
-    resize_(Entity::ENTITY_TYPE);
+    // it is done that way to allow adding custom components without changing core
+    if (entities_.size() < Entity::ENTITY_TYPE + 1) {
+      entities_.resize(Entity::ENTITY_TYPE + 1);
+    }
     this->entities_[Entity::ENTITY_TYPE].push_back(entity);
   }
 
@@ -136,12 +134,6 @@ class Application {
   size_t dump_config_at_{SIZE_MAX};
   uint32_t app_state_{0};
   std::vector<std::vector<EntityBase *>> entities_;
-  void resize_(size_t max_index) {
-    // it is done that way to allow adding custom components without changing core
-    if (entities_.size() < max_index + 1) {
-      entities_.resize(max_index + 1);
-    }
-  }
 };
 
 /// Global storage of Application pointer - only one Application can exist.

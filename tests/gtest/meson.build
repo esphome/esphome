@@ -9,7 +9,6 @@ src = [
   'fakes/delay.cpp',
   '../../esphome/core/entity_base.cpp',
   '../../esphome/core/helpers.cpp',
-  '../../esphome/core/controller.cpp',
   '../../esphome/core/component_iterator.cpp',
 ]
 

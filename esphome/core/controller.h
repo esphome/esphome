@@ -14,30 +14,16 @@ class Controller {
   };
 
  public:
-  void setup_controller(bool include_internal = false);
-
-  template<typename Func> void add_on_state_callback(Func &&fn) {
+  template<typename Func> static void add_on_state_callback(Func &&fn, bool include_internal = false) {
     using Entity = typename std::remove_pointer<typename std::tuple_element<0, arguments_t<Func>>::type>::type;
     static_assert(std::is_base_of<EntityBase, Entity>::value, "Only EntityBase subclasses can be used");
-    for (auto &obj : App.get_entities<Entity>()) {
-      if (include_internal_ || !obj->is_internal()) {
+    for (auto &entity : App.get_entities<Entity>()) {
+      auto *obj = static_cast<Entity *>(entity);
+      if (include_internal || !obj->is_internal()) {
         obj->add_on_state_callback(AutoLambda<callback_t<Func>>::make_lambda(fn, obj));
       }
     }
   }
-
-  template<typename Func> void add_new_remote_values_callback(Func &&fn) {
-    using Entity = typename std::remove_pointer<typename std::tuple_element<0, arguments_t<Func>>::type>::type;
-    static_assert(std::is_base_of<EntityBase, Entity>::value, "Only EntityBase subclasses can be used");
-    for (auto &obj : App.get_entities<Entity>()) {
-      if (include_internal_ || !obj->is_internal()) {
-        obj->add_new_remote_values_callback(AutoLambda<callback_t<Func>>::make_lambda(fn, obj));
-      }
-    }
-  }
-
- protected:
-  bool include_internal_{false};
 };
 
 }  // namespace esphome

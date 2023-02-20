@@ -97,6 +97,8 @@ class LightState : public EntityBase, public Component {
    */
   void add_new_remote_values_callback(std::function<void()> &&send_callback);
 
+  void add_on_state_callback(std::function<void()> &&send_callback);
+
   /**
    * The callback is called once the state of current_values and remote_values are equal (when the
    * transition is finished).

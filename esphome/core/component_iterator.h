@@ -29,7 +29,7 @@ class ComponentIterator {
   virtual bool on_camera(esp32_camera::ESP32Camera *camera);
 #endif
 
-  template<typename Func> void add_on_entity_callback(Func &&fn) {
+  template<typename Func> void on_entity_callback(Func &&fn) {
     using Entity = typename std::remove_pointer<typename std::tuple_element<0, arguments_t<Func>>::type>::type;
     static_assert(std::is_base_of<EntityBase, Entity>::value, "Only EntityBase subclasses can be used");
     // it is done that way to allow adding custom components without changing core

@@ -4,6 +4,8 @@
 #include "mocks/mock_sensor.h"
 #include "esphome/core/component_iterator.h"
 
+// TODO add test for custo components
+
 namespace esphome {
 namespace test {
 
@@ -36,8 +38,8 @@ class ComponentIteratorTest : public ::testing::Test, public ComponentIterator {
     register_entity_(sensor_2_, true);
     register_entity_(sensor_3_, true);
     ASSERT_EQ(App.get_entities_all_types().size(), std::max(SWITCH, SENSOR) + 1);
-    add_on_entity_callback([this](Switch *obj) { return this->visitor_.visit(obj); });
-    add_on_entity_callback([this](Sensor *obj) { return this->visitor_.visit(obj); });
+    on_entity_callback([this](Switch *obj) { return this->visitor_.visit(obj); });
+    on_entity_callback([this](Sensor *obj) { return this->visitor_.visit(obj); });
   }
 
   void TearDown() override {  // NOLINT

@@ -11,76 +11,76 @@ namespace web_server {
 
 ListEntitiesIterator::ListEntitiesIterator(WebServer *web_server) : web_server_(web_server) {
 #ifdef USE_BINARY_SENSOR
-  add_on_entity_callback([this](binary_sensor::BinarySensor *binary_sensor) {
+  on_entity_callback([this](binary_sensor::BinarySensor *binary_sensor) {
     this->web_server_->events_.send(
         this->web_server_->binary_sensor_json(binary_sensor, binary_sensor->state, DETAIL_ALL).c_str(), "state");
     return true;
   });
 #endif
 #ifdef USE_COVER
-  add_on_entity_callback([this](cover::Cover *cover) {
+  on_entity_callback([this](cover::Cover *cover) {
     this->web_server_->events_.send(this->web_server_->cover_json(cover, DETAIL_ALL).c_str(), "state");
     return true;
   });
 #endif
 #ifdef USE_FAN
-  add_on_entity_callback([this](fan::Fan *fan) {
+  on_entity_callback([this](fan::Fan *fan) {
     this->web_server_->events_.send(this->web_server_->fan_json(fan, DETAIL_ALL).c_str(), "state");
     return true;
   });
 #endif
 #ifdef USE_LIGHT
-  add_on_entity_callback([this](light::LightState *light) {
+  on_entity_callback([this](light::LightState *light) {
     this->web_server_->events_.send(this->web_server_->light_json(light, DETAIL_ALL).c_str(), "state");
     return true;
   });
 #endif
 #ifdef USE_SENSOR
-  add_on_entity_callback([this](sensor::Sensor *sensor) {
+  on_entity_callback([this](sensor::Sensor *sensor) {
     this->web_server_->events_.send(this->web_server_->sensor_json(sensor, sensor->state, DETAIL_ALL).c_str(), "state");
     return true;
   });
 #endif
 #ifdef USE_SWITCH
-  add_on_entity_callback([this](switch_::Switch *a_switch) {
+  on_entity_callback([this](switch_::Switch *a_switch) {
     this->web_server_->events_.send(this->web_server_->switch_json(a_switch, a_switch->state, DETAIL_ALL).c_str(),
                                     "state");
     return true;
   });
 #endif
 #ifdef USE_BUTTON
-  add_on_entity_callback([this](button::Button *button) {
+  on_entity_callback([this](button::Button *button) {
     this->web_server_->events_.send(this->web_server_->button_json(button, DETAIL_ALL).c_str(), "state");
     return true;
   });
 #endif
 #ifdef USE_TEXT_SENSOR
-  add_on_entity_callback([this](text_sensor::TextSensor *text_sensor) {
+  on_entity_callback([this](text_sensor::TextSensor *text_sensor) {
     this->web_server_->events_.send(
         this->web_server_->text_sensor_json(text_sensor, text_sensor->state, DETAIL_ALL).c_str(), "state");
     return true;
   });
 #endif
 #ifdef USE_LOCK
-  add_on_entity_callback([this](lock::Lock *a_lock) {
+  on_entity_callback([this](lock::Lock *a_lock) {
     this->web_server_->events_.send(this->web_server_->lock_json(a_lock, a_lock->state, DETAIL_ALL).c_str(), "state");
     return true;
   });
 #endif
 #ifdef USE_CLIMATE
-  add_on_entity_callback([this](climate::Climate *climate) {
+  on_entity_callback([this](climate::Climate *climate) {
     this->web_server_->events_.send(this->web_server_->climate_json(climate, DETAIL_ALL).c_str(), "state");
     return true;
   });
 #endif
 #ifdef USE_NUMBER
-  add_on_entity_callback([this](number::Number *number) {
+  on_entity_callback([this](number::Number *number) {
     this->web_server_->events_.send(this->web_server_->number_json(number, number->state, DETAIL_ALL).c_str(), "state");
     return true;
   });
 #endif
 #ifdef USE_SELECT
-  add_on_entity_callback([this](select::Select *select) {
+  on_entity_callback([this](select::Select *select) {
     this->web_server_->events_.send(this->web_server_->select_json(select, select->state, DETAIL_ALL).c_str(), "state");
     return true;
   });

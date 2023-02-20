@@ -17,7 +17,7 @@
 namespace esphome {
 namespace api {
 
-class APIServer : public Component, public Controller {
+class APIServer : public Component {
  public:
   APIServer();
   void setup() override;

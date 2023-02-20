@@ -23,7 +23,6 @@ static const char *const TAG = "api";
 // APIServer
 void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
-  this->setup_controller();
 
 #ifdef USE_BINARY_SENSOR
   Controller::add_on_state_callback([this](binary_sensor::BinarySensor *obj, bool state) {
@@ -47,7 +46,7 @@ void APIServer::setup() {
 #endif
 
 #ifdef USE_LIGHT
-  Controller::add_new_remote_values_callback([this](light::LightState *obj) {
+  Controller::add_on_state_callback([this](light::LightState *obj) {
     for (auto &c : this->clients_)
       c->send_light_state(obj);
   });
