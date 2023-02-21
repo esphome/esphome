@@ -537,30 +537,32 @@ void Sprinkler::configure_valve_run_duration_number(size_t valve_number,
 }
 
 void Sprinkler::set_divider(optional<uint32_t> divider) {
-  if (divider.has_value()) {
-    if (divider.value() > 0) {
-      this->set_multiplier(1.0 / divider.value());
-      this->set_repeat(divider.value() - 1);
-    } else if (divider.value() == 0) {
-      this->set_multiplier(1.0);
-      this->set_repeat(0);
-    }
+  if (!divider.has_value()) {
+    return;
+  }
+  if (divider.value() > 0) {
+    this->set_multiplier(1.0 / divider.value());
+    this->set_repeat(divider.value() - 1);
+  } else if (divider.value() == 0) {
+    this->set_multiplier(1.0);
+    this->set_repeat(0);
   }
 }
 
 void Sprinkler::set_multiplier(const optional<float> multiplier) {
-  if (multiplier.has_value()) {
-    if (multiplier.value() >= 0) {
-      this->multiplier_ = multiplier.value();
-      if (this->multiplier_number_ != nullptr) {
-        if (this->multiplier_number_->state != multiplier.value()) {
-          auto call = this->multiplier_number_->make_call();
-          call.set_value(multiplier.value());
-          call.perform();
-        }
-      }
-    }
+  if ((!multiplier.has_value()) || (multiplier.value() < 0)) {
+    return;
   }
+  this->multiplier_ = multiplier.value();
+  if (this->multiplier_number_ == nullptr) {
+    return;
+  }
+  if (this->multiplier_number_->state == multiplier.value()) {
+    return;
+  }
+  auto call = this->multiplier_number_->make_call();
+  call.set_value(multiplier.value());
+  call.perform();
 }
 
 void Sprinkler::set_next_prev_ignore_disabled_valves(bool ignore_disabled) {
@@ -619,96 +621,109 @@ void Sprinkler::set_manual_selection_delay(uint32_t manual_selection_delay) {
 }
 
 void Sprinkler::set_valve_run_duration(const optional<size_t> valve_number, const optional<uint32_t> run_duration) {
-  if (valve_number.has_value() && run_duration.has_value()) {
-    if (this->is_a_valid_valve(valve_number.value())) {
-      this->valve_[valve_number.value()].run_duration = run_duration.value();
-      if (this->valve_[valve_number.value()].run_duration_number != nullptr) {
-        if (this->valve_[valve_number.value()].run_duration_number->state != run_duration.value()) {
-          auto call = this->valve_[valve_number.value()].run_duration_number->make_call();
-          if (this->valve_[valve_number.value()].run_duration_number->traits.get_unit_of_measurement() == min_str) {
-            call.set_value(run_duration.value() / 60.0);
-          } else {
-            call.set_value(run_duration.value());
-          }
-          call.perform();
-        }
-      }
-    }
+  if (!valve_number.has_value() || !run_duration.has_value()) {
+    return;
   }
+  if (!this->is_a_valid_valve(valve_number.value())) {
+    return;
+  }
+  this->valve_[valve_number.value()].run_duration = run_duration.value();
+  if (this->valve_[valve_number.value()].run_duration_number == nullptr) {
+    return;
+  }
+  if (this->valve_[valve_number.value()].run_duration_number->state == run_duration.value()) {
+    return;
+  }
+  auto call = this->valve_[valve_number.value()].run_duration_number->make_call();
+  if (this->valve_[valve_number.value()].run_duration_number->traits.get_unit_of_measurement() == min_str) {
+    call.set_value(run_duration.value() / 60.0);
+  } else {
+    call.set_value(run_duration.value());
+  }
+  call.perform();
 }
 
 void Sprinkler::set_auto_advance(const bool auto_advance) {
-  if (this->auto_adv_sw_ != nullptr) {
-    if (this->auto_adv_sw_->state != auto_advance) {
-      if (auto_advance) {
-        this->auto_adv_sw_->turn_on();
-      } else {
-        this->auto_adv_sw_->turn_off();
-      }
-    }
+  if (this->auto_adv_sw_ == nullptr) {
+    return;
+  }
+  if (this->auto_adv_sw_->state == auto_advance) {
+    return;
+  }
+  if (auto_advance) {
+    this->auto_adv_sw_->turn_on();
+  } else {
+    this->auto_adv_sw_->turn_off();
   }
 }
 
 void Sprinkler::set_repeat(optional<uint32_t> repeat) {
   this->target_repeats_ = repeat;
-  if (this->repeat_number_ != nullptr) {
-    if (this->repeat_number_->state != repeat.value()) {
-      auto call = this->repeat_number_->make_call();
-      call.set_value(repeat.value_or(0));
-      call.perform();
-    }
+  if (this->repeat_number_ == nullptr) {
+    return;
   }
+  if (this->repeat_number_->state == repeat.value()) {
+    return;
+  }
+  auto call = this->repeat_number_->make_call();
+  call.set_value(repeat.value_or(0));
+  call.perform();
 }
 
 void Sprinkler::set_queue_enable(bool queue_enable) {
-  if (this->queue_enable_sw_ != nullptr) {
-    if (this->queue_enable_sw_->state != queue_enable) {
-      if (queue_enable) {
-        this->queue_enable_sw_->turn_on();
-      } else {
-        this->queue_enable_sw_->turn_off();
-      }
-    }
+  if (this->queue_enable_sw_ == nullptr) {
+    return;
+  }
+  if (this->queue_enable_sw_->state == queue_enable) {
+    return;
+  }
+  if (queue_enable) {
+    this->queue_enable_sw_->turn_on();
+  } else {
+    this->queue_enable_sw_->turn_off();
   }
 }
 
 void Sprinkler::set_reverse(const bool reverse) {
-  if (this->reverse_sw_ != nullptr) {
-    if (this->reverse_sw_->state != reverse) {
-      if (reverse) {
-        this->reverse_sw_->turn_on();
-      } else {
-        this->reverse_sw_->turn_off();
-      }
-    }
+  if (this->reverse_sw_ == nullptr) {
+    return;
+  }
+  if (this->reverse_sw_->state == reverse) {
+    return;
+  }
+  if (reverse) {
+    this->reverse_sw_->turn_on();
+  } else {
+    this->reverse_sw_->turn_off();
   }
 }
 
 void Sprinkler::set_standby(const bool standby) {
-  if (this->standby_sw_ != nullptr) {
-    if (this->standby_sw_->state != standby) {
-      if (standby) {
-        this->standby_sw_->turn_on();
-      } else {
-        this->standby_sw_->turn_off();
-      }
-    }
+  if (this->standby_sw_ == nullptr) {
+    return;
+  }
+  if (this->standby_sw_->state == standby) {
+    return;
+  }
+  if (standby) {
+    this->standby_sw_->turn_on();
+  } else {
+    this->standby_sw_->turn_off();
   }
 }
 
 uint32_t Sprinkler::valve_run_duration(const size_t valve_number) {
-  if (this->is_a_valid_valve(valve_number)) {
-    if (this->valve_[valve_number].run_duration_number != nullptr) {
-      if (this->valve_[valve_number].run_duration_number->traits.get_unit_of_measurement() == min_str) {
-        return static_cast<uint32_t>(roundf(this->valve_[valve_number].run_duration_number->state * 60));
-      } else {
-        return static_cast<uint32_t>(roundf(this->valve_[valve_number].run_duration_number->state));
-      }
+  if (!this->is_a_valid_valve(valve_number)) {
+    return 0;
+  }
+  if (this->valve_[valve_number].run_duration_number != nullptr) {
+    if (this->valve_[valve_number].run_duration_number->traits.get_unit_of_measurement() == min_str) {
+      return static_cast<uint32_t>(roundf(this->valve_[valve_number].run_duration_number->state * 60));
     } else {
-      return this->valve_[valve_number].run_duration;
+      return static_cast<uint32_t>(roundf(this->valve_[valve_number].run_duration_number->state));
     }
   }
-  return 0;
+  return this->valve_[valve_number].run_duration;
 }
 
 uint32_t Sprinkler::valve_run_duration_adjusted(const size_t valve_number) {
