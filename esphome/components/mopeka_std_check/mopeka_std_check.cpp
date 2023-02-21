@@ -136,7 +136,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     u_int16_t best_time = 0;
     {
       u_int16_t measurement_time = 0;
-      for (u_int8_t i = 0; i < measurements_value.size(); i++) {
+      for (u_int8_t i = 0; i < 12; i++) {
         // Time is summed up until a value is reported. This allows time values larger than the 5 bits in transport.
         measurement_time += measurements_time[i];
         if (measurements_value[i] != 0) {
