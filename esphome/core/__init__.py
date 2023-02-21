@@ -655,8 +655,12 @@ class EsphomeCore:
         for other in self.libraries[:]:
             if other.name is None or library.name is None:
                 continue
-            library_name = library.name if '/' not in library.name else library.name.split('/')[1]
-            other_name = other.name if '/' not in other.name else other.name.split('/')[1]
+            library_name = (
+                library.name if "/" not in library.name else library.name.split("/")[1]
+            )
+            other_name = (
+                other.name if "/" not in other.name else other.name.split("/")[1]
+            )
             if other_name != library_name:
                 continue
             if other.repository is not None:
