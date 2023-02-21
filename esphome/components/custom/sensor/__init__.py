@@ -10,7 +10,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CustomSensorConstructor),
         cv.Required(CONF_LAMBDA): cv.returning_lambda,
-        cv.Required(CONF_SENSORS): cv.ensure_list(sensor.SENSOR_SCHEMA),
+        cv.Required(CONF_SENSORS): cv.ensure_list(sensor.sensor_schema()),
     }
 )
 
