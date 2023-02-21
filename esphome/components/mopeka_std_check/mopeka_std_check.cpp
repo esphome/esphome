@@ -68,7 +68,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   }
 
   // Now parse the data
-  auto mopeka_data = (const mopeka_std_package *) manu_data.data.data();
+  const auto *mopeka_data = (const mopeka_std_package *) manu_data.data.data();
 
   const u_int8_t hardware_id = mopeka_data->data_1 & 0xCF;
   if (static_cast<SensorType>(hardware_id) != STANDARD && static_cast<SensorType>(hardware_id) != XL) {
@@ -105,7 +105,6 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   if ((this->distance_ != nullptr) || (this->level_ != nullptr)) {
     // Message contains 12 sensor dataset each 10 bytes long.
     // each sensor dataset contains 5 byte time and 5 byte value.
-    // if value is 0 ignore.
 
     // time in 10us ticks.
     // value is amplitude.
@@ -138,7 +137,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     {
       u_int16_t measurement_time = 0;
       for (u_int8_t i = 0; i < measurements_value.size(); i++) {
-        // Add time to value.
+        // Time is summed up until a value is reported. This allows time values larger than the 5 bits in transport.
         measurement_time += measurements_time[i];
         if (measurements_value[i] != 0) {
           // I got a value
