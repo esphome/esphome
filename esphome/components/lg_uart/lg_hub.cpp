@@ -24,7 +24,13 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
 
   /*
     After sending a command, we listen for the reply.
-    We will know if a reply is valid after we read 4 bytes that match a pattern as described below:
+    In testing, replies didn't always come back instantly; would send inquire about one setting, have nothing in the
+    UART and then exit. A short time later, a new inquiry for a different setting would get fired off and available()
+    would return true as the reply to the PREVIOUS inquiry was now in the buffer.
+    Rather than drop the received bytes because they don't match the setting we just inquired about, we accept all
+    as we get them and - assuming they're valid - dispatch them to the appropriate child for follow up.
+
+    Packets should look like this:
 
     let's say that we have a packet:
         peeked[0]: 0x61         97      [a]
@@ -41,9 +47,9 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
     The first byte needs to be one of the chars that indexes this->children_
     The second byte needs to be a space.
     The third and forth byte need to be the screen number that we're configured to listen to.
-
-    Assuming all of the above are true, we can assume that the bytes we have already are valid and the next few bytes
-    will also be for us / should be read in.
+    Then another space before either OK or NG. NG means "not good"; there is no specific return for "error" vs "not
+    supported".
+    The last bytes will be the value of the setting we inquired about and an `x`
 
   */
   // Note: this does not get called when uart debugging turned on!
@@ -51,7 +57,7 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
     // Get the byte
     this->read_byte(&peeked);
 
-    ESP_LOGD(TAG, "send_cmd(%s). peeked[%i]: 0x%x \t %u \t [%c]", cmd_code, idx, peeked, peeked, peeked);
+    // ESP_LOGD(TAG, "send_cmd(%s). peeked[%i]: 0x%x \t %u \t [%c]", cmd_code, idx, peeked, peeked, peeked);
 
     // For the first byte, we need it to be in children
     if (idx == 0) {
@@ -68,24 +74,20 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
     } else if ((idx == 1 || idx == 4) && peeked == 0x20) {
       reply[idx] = peeked;
       idx += 1;
-      // ESP_LOGD(TAG, "send_cmd(%s). idx now: [%i]", cmd_code, idx);
       continue;
       // Screen number
     } else if (idx == 2 && peeked == this->screen_num_chars[0]) {
       reply[idx] = peeked;
       idx += 1;
-      // ESP_LOGD(TAG, "send_cmd(%s). idx now: [%i]", cmd_code, idx);
       continue;
     } else if (idx == 3 && peeked == this->screen_num_chars[1]) {
       reply[idx] = peeked;
       idx += 1;
-      // ESP_LOGD(TAG, "send_cmd(%s). idx now: [%i]", cmd_code, idx);
       continue;
       // OK
     } else if (idx == 5 || idx == 6 || idx == 7 || idx == 8) {
       reply[idx] = peeked;
       idx += 1;
-      // ESP_LOGD(TAG, "send_cmd(%s). idx now: [%i]", cmd_code, idx);
       continue;
     } else if (idx == 9) {
       reply[idx] = peeked;

@@ -43,17 +43,15 @@ void LGUartSwitch::on_reply_packet(uint8_t pkt[]) {
     ESP_LOGE(TAG, "[%s] update(): Didn't get status_str: [%s]", this->get_name().c_str(), status_str.c_str());
     this->status_set_error();
   }
-  if (this->status_has_error())
-    this->status_clear_error();
-
-  // TODO: make safe
+  // TODO: make safe? Possible to get back some chars that do not convert to int?
   int status_int = stoi(status_str);
 
   ESP_LOGD(TAG, "[%s] update(): Inverted: [%i], state: [%i], status_int: [%i]", this->get_name().c_str(),
            this->inverted_, this->state, (bool) status_int);
 
-  // If the user has indicated that
-  this->status_clear_error();
+  if (this->status_has_error())
+    this->status_clear_error();
+
   this->publish_state((bool) status_int);
 }
 
