@@ -29,19 +29,10 @@ void LGUartSwitch::dump_config() {
 }
 
 // When parent gets a reply meant for us, we'll get notified here
-void LGUartSwitch::on_reply_packet(uint8_t *pkt) {
-  ESP_LOGD(TAG, "[%s] on_reply_packet(). command: [%s].", this->get_name().c_str(), pkt);
-  // ESP_LOGD(TAG, "[%s] update(). reply: [%s]", this->get_name().c_str(), this->reply);
+void LGUartSwitch::on_reply_packet(uint8_t pkt[]) {
+  ESP_LOGD(TAG, "[%s] on_reply_packet(). reply: [%s].", this->get_name().c_str(), pkt);
 
-  // if (this->reply[0] == 0) {
-  //   this->status_set_error();
-  //   return;
-  // }
-
-  // // Immediately after the OK will be a number which is the state we inquired about.
-  // // Chars -> string -> int. And in the case of a switch int -> bool.
-
-  // std::string status_str;
+    // std::string status_str;
   // status_str.push_back(this->reply[7]);
   // status_str.push_back(this->reply[8]);
   // ESP_LOGD(TAG, "[%s] update(): status_str: [%s]", this->get_name().c_str(), status_str.c_str());
@@ -64,16 +55,19 @@ void LGUartSwitch::on_reply_packet(uint8_t *pkt) {
 
 void LGUartSwitch::update() {
   ESP_LOGD(TAG, "[%s] update(). command: [%s].", this->get_name().c_str(), this->cmd_str_);
+  this->parent_->send_cmd(this->cmd_str_, 0xff);
 
-  // For most commands, supplying `ff` as the value is the inquire? packet
-  if (!this->parent_->send_cmd(this->cmd_str_, 0xff)) {
-    // TODO: revert log level. NG doesn't just mean "something random/temporary went wrong", it can mean "not supported"
-    // And if we poll something that's not supported every 10s, we'll spam logs w/ largely non actionable info at ERROR
-    // level :(.
-    ESP_LOGE(TAG, "[%s] update(). got NG.", this->get_name().c_str());
-    this->status_set_error();
-    return;
-  }
+  // // For most commands, supplying `ff` as the value is the inquire? packet
+  // if () {
+  //   // TODO: revert log level. NG doesn't just mean "something random/temporary went wrong", it can mean "not
+  //   supported"
+  //   // And if we poll something that's not supported every 10s, we'll spam logs w/ largely non actionable info at
+  //   ERROR
+  //   // level :(.
+  //   ESP_LOGE(TAG, "[%s] update(). got NG.", this->get_name().c_str());
+  //   this->status_set_error();
+  //   return;
+  // }
 }
 
 void LGUartSwitch::write_state(bool state) {

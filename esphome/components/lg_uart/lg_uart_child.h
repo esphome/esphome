@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/helpers.h"
+#include "esphome/components/lg_uart/lg_hub.h"
 
 namespace esphome {
 namespace lg_uart {

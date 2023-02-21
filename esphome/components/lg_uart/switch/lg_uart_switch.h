@@ -18,7 +18,7 @@ class LGUartSwitch : public switch_::Switch, public LGUartClient, public Polling
 
   std::string describe() override;
 
-  void on_reply_packet(uint8_t *pkt) override;
+  void on_reply_packet(uint8_t pkt[]) override;
 
   /** Command specific */
   void set_cmd(const std::string cmd_str) {

@@ -14,8 +14,8 @@ namespace esphome {
 namespace lg_uart {
 
 static const char *const TAG = "LGUart";
-// LG docs indicate that reply will be no longer than 9 bytes
-static const uint8_t PACKET_LEN = 10;
+// LG docs indicate that reply will be no longer than 10 bytes + 1 for termination
+static const uint8_t PACKET_LEN = 11;
 
 class LGUartHub : public Component, public uart::UARTDevice {
  public:

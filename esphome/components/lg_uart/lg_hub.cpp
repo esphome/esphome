@@ -89,21 +89,22 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
       continue;
     } else if (idx == 9) {
       reply[idx] = peeked;
+      idx += 1;
     }
 
     if (idx == PACKET_LEN - 1) {
       // OK
       if (reply[5] == 0x4f && reply[6] == 0x4b) {
-        ESP_LOGD(TAG, "send_cmd(%s). got OK. Packet: [%s]", reply);
-        return false;
-        ESP_LOGD(TAG, "send_cmd(%s). Dispatching to handler for [%c]...", reply[0]);
-        // this->children_[reply[0]]->on_reply_packet(reply);
-        return false;
+        ESP_LOGD(TAG, "send_cmd(%s). Got OK packet! Dispatching to handler for [%c]...", cmd_code, reply[0]);
+        this->children_[reply[0]]->on_reply_packet(reply);
+        return true;
       } else {
-        ESP_LOGW(TAG, "send_cmd(%s). got NOT OK");
+        ESP_LOGW(TAG, "send_cmd(%s). got NOT OK", cmd_code);
         return false;
       }
     }
+    ESP_LOGD(TAG, "send_cmd(%s). GotHere3", cmd_code);
+    return false;
   }
 }
 
