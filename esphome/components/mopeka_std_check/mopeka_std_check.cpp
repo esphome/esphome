@@ -68,7 +68,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   }
 
   // Now parse the data
-  const auto mopeka_data = (mopeka_std_package *) manu_data.data.data();
+  auto mopeka_data = (const mopeka_std_package *) manu_data.data.data();
 
   const u_int8_t hardware_id = mopeka_data->data_1 & 0xCF;
   if (static_cast<SensorType>(hardware_id) != STANDARD && static_cast<SensorType>(hardware_id) != XL) {
@@ -217,7 +217,7 @@ uint8_t MopekaStdCheck::parse_temperature_(const mopeka_std_package *message) {
   if (tmp == 0x0) {
     return -40;
   } else {
-    return (uint8_t) ((tmp - 25.0f) * 1.776964f);
+    return (uint8_t)((tmp - 25.0f) * 1.776964f);
   }
 }
 
