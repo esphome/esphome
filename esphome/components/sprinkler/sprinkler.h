@@ -11,6 +11,8 @@
 namespace esphome {
 namespace sprinkler {
 
+const std::string min_str = "min";
+
 enum SprinklerState : uint8_t {
   // NOTE: these states are used by both SprinklerValveOperator and Sprinkler (the controller)!
   IDLE,      // system/valve is off
@@ -246,9 +248,6 @@ class Sprinkler : public Component, public EntityBase {
 
   /// enable/disable skipping of disabled valves by the next and previous actions
   void set_next_prev_ignore_disabled_valves(bool ignore_disabled);
-
-  /// enable/disable use of minutes by run duration number components
-  void set_number_values_are_minutes(bool use_minutes);
 
   /// set how long the pump should start after the valve (when the pump is starting)
   void set_pump_start_delay(uint32_t start_delay);
@@ -514,9 +513,6 @@ class Sprinkler : public Component, public EntityBase {
 
   /// When set to true, the next and previous actions will skip disabled valves
   bool next_prev_ignore_disabled_{false};
-
-  /// Number components for run durations contain values in minutes
-  bool number_values_are_minutes_{false};
 
   /// Pump should be off during valve_open_delay interval
   bool pump_switch_off_during_valve_open_delay_{false};

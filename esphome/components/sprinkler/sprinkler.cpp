@@ -567,8 +567,6 @@ void Sprinkler::set_next_prev_ignore_disabled_valves(bool ignore_disabled) {
   this->next_prev_ignore_disabled_ = ignore_disabled;
 }
 
-void Sprinkler::set_number_values_are_minutes(bool use_minutes) { this->number_values_are_minutes_ = use_minutes; }
-
 void Sprinkler::set_pump_start_delay(uint32_t start_delay) {
   this->start_delay_is_valve_delay_ = false;
   this->start_delay_ = start_delay;
@@ -627,7 +625,7 @@ void Sprinkler::set_valve_run_duration(const optional<size_t> valve_number, cons
       if (this->valve_[valve_number.value()].run_duration_number != nullptr) {
         if (this->valve_[valve_number.value()].run_duration_number->state != run_duration.value()) {
           auto call = this->valve_[valve_number.value()].run_duration_number->make_call();
-          if (this->number_values_are_minutes_) {
+          if (this->valve_[valve_number.value()].run_duration_number->traits.get_unit_of_measurement() == min_str) {
             call.set_value(run_duration.value() / 60.0);
           } else {
             call.set_value(run_duration.value());
@@ -701,7 +699,7 @@ void Sprinkler::set_standby(const bool standby) {
 uint32_t Sprinkler::valve_run_duration(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
     if (this->valve_[valve_number].run_duration_number != nullptr) {
-      if (this->number_values_are_minutes_) {
+      if (this->valve_[valve_number].run_duration_number->traits.get_unit_of_measurement() == min_str) {
         return static_cast<uint32_t>(roundf(this->valve_[valve_number].run_duration_number->state * 60));
       } else {
         return static_cast<uint32_t>(roundf(this->valve_[valve_number].run_duration_number->state));
