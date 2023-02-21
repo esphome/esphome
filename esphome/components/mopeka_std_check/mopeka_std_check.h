@@ -52,7 +52,7 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; };
   void set_battery_level(sensor::Sensor *bat) { this->battery_level_ = bat; };
   void set_distance(sensor::Sensor *distance) { this->distance_ = distance; };
-  void set_lpg_butane_ratio(float val) { this->lpg_butane_ratio_ = val; };
+  void set_propane_butane_mix(float val) { this->propane_butane_mix_ = val; };
   void set_tank_full(float full) { this->full_mm_ = full; };
   void set_tank_empty(float empty) { this->empty_mm_ = empty; };
 
@@ -63,7 +63,7 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   sensor::Sensor *distance_{nullptr};
   sensor::Sensor *battery_level_{nullptr};
 
-  float lpg_butane_ratio_;
+  float propane_butane_mix_;
   uint32_t full_mm_;
   uint32_t empty_mm_;
 

@@ -15,7 +15,7 @@ static const uint16_t MANUFACTURER_ID = 0x000D;
 
 void MopekaStdCheck::dump_config() {
   ESP_LOGCONFIG(TAG, "Mopeka Std Check");
-  ESP_LOGCONFIG(TAG, "  LPG Butane ratio: %.0f%%", this->lpg_butane_ratio_ * 100);
+  ESP_LOGCONFIG(TAG, "  Propane Butane mix: %.0f%%", this->propane_butane_mix_ * 100);
   ESP_LOGCONFIG(TAG, "  Tank distance empty: %imm", this->empty_mm_);
   ESP_LOGCONFIG(TAG, "  Tank distance full: %imm", this->full_mm_);
   LOG_SENSOR("  ", "Level", this->level_);
@@ -194,8 +194,8 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 }
 
 float MopekaStdCheck::get_lpg_speed_of_sound_(float temperature) {
-  return 1040.71f - 4.87f * temperature - 137.5f * this->lpg_butane_ratio_ - 0.0107f * temperature * temperature -
-         1.63f * temperature * this->lpg_butane_ratio_;
+  return 1040.71f - 4.87f * temperature - 137.5f * this->propane_butane_mix_ - 0.0107f * temperature * temperature -
+         1.63f * temperature * this->propane_butane_mix_;
 }
 
 uint8_t MopekaStdCheck::parse_battery_level_(const mopeka_std_package *message) {
