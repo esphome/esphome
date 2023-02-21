@@ -61,7 +61,7 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
       } else {
         reply[idx] = peeked;
         idx += 1;
-        ESP_LOGD(TAG, "send_cmd(%s). FOUND: [%c]", cmd_code, peeked);
+        // ESP_LOGD(TAG, "send_cmd(%s). FOUND: [%c]", cmd_code, peeked);
         continue;
       }
       // Space
@@ -99,11 +99,11 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
         this->children_[reply[0]]->on_reply_packet(reply);
         return true;
       } else {
-        ESP_LOGW(TAG, "send_cmd(%s). got NOT OK", cmd_code);
+        ESP_LOGW(TAG, "send_cmd(%s). LG replied with 'NG'", cmd_code);
         return false;
       }
     }
-    ESP_LOGD(TAG, "send_cmd(%s). GotHere3", cmd_code);
+    ESP_LOGD(TAG, "send_cmd(%s). Invalid or incomplete packet.", cmd_code);
     return false;
   }
 }
