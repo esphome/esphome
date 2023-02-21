@@ -48,13 +48,13 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void set_level(sensor::Sensor *level) { level_ = level; };
-  void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; };
-  void set_battery_level(sensor::Sensor *bat) { battery_level_ = bat; };
-  void set_distance(sensor::Sensor *distance) { distance_ = distance; };
-  void set_lpg_butane_ratio(float val) { lpg_butane_ratio_ = val; };
-  void set_tank_full(float full) { full_mm_ = full; };
-  void set_tank_empty(float empty) { empty_mm_ = empty; };
+  void set_level(sensor::Sensor *level) { this->level_ = level; };
+  void set_temperature(sensor::Sensor *temperature) { this->temperature_ = temperature; };
+  void set_battery_level(sensor::Sensor *bat) { this->battery_level_ = bat; };
+  void set_distance(sensor::Sensor *distance) { this->distance_ = distance; };
+  void set_lpg_butane_ratio(float val) { this->lpg_butane_ratio_ = val; };
+  void set_tank_full(float full) { this->full_mm_ = full; };
+  void set_tank_empty(float empty) { this->empty_mm_ = empty; };
 
  protected:
   uint64_t address_;
@@ -68,8 +68,8 @@ class MopekaStdCheck : public Component, public esp32_ble_tracker::ESPBTDeviceLi
   uint32_t empty_mm_;
 
   float get_lpg_speed_of_sound_(float temperature);
-  uint8_t parse_battery_level_(const mopeka_std_package* message);
-  uint8_t parse_temperature_(const mopeka_std_package* message);
+  uint8_t parse_battery_level_(const mopeka_std_package *message);
+  uint8_t parse_temperature_(const mopeka_std_package *message);
 };
 
 }  // namespace mopeka_std_check
