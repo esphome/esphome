@@ -32,42 +32,34 @@ void LGUartSwitch::dump_config() {
 void LGUartSwitch::on_reply_packet(uint8_t pkt[]) {
   ESP_LOGD(TAG, "[%s] on_reply_packet(). reply: [%s].", this->get_name().c_str(), pkt);
 
-    // std::string status_str;
-  // status_str.push_back(this->reply[7]);
-  // status_str.push_back(this->reply[8]);
-  // ESP_LOGD(TAG, "[%s] update(): status_str: [%s]", this->get_name().c_str(), status_str.c_str());
+  // We are called only when the reply was OK.
+  // We will need to pull out the two chars, string -> int.
+  std::string status_str;
+  status_str.push_back(pkt[7]);
+  status_str.push_back(pkt[8]);
+  ESP_LOGD(TAG, "[%s] update(): status_str: [%s]", this->get_name().c_str(), status_str.c_str());
 
-  // // if (status_str[0] == 0) {
-  // //   this->status_set_error();
-  // // }
-  // // this->status_clear_error();
+  if (status_str[0] == 0) {
+    ESP_LOGE(TAG, "[%s] update(): Didn't get status_str: [%s]", this->get_name().c_str(), status_str.c_str());
+    this->status_set_error();
+  }
+  if (this->status_has_error())
+    this->status_clear_error();
 
-  // // TODO: make safe
-  // int status_int = stoi(status_str);
+  // TODO: make safe
+  int status_int = stoi(status_str);
 
-  // ESP_LOGD(TAG, "[%s] update(): Inverted: [%i], state: [%i], status_int: [%i]", this->get_name().c_str(),
-  //          this->inverted_, this->state, (bool) status_int);
+  ESP_LOGD(TAG, "[%s] update(): Inverted: [%i], state: [%i], status_int: [%i]", this->get_name().c_str(),
+           this->inverted_, this->state, (bool) status_int);
 
-  // // If the user has indicated that
-  // this->status_clear_error();
-  // this->publish_state((bool) status_int);
+  // If the user has indicated that
+  this->status_clear_error();
+  this->publish_state((bool) status_int);
 }
 
 void LGUartSwitch::update() {
   ESP_LOGD(TAG, "[%s] update(). command: [%s].", this->get_name().c_str(), this->cmd_str_);
   this->parent_->send_cmd(this->cmd_str_, 0xff);
-
-  // // For most commands, supplying `ff` as the value is the inquire? packet
-  // if () {
-  //   // TODO: revert log level. NG doesn't just mean "something random/temporary went wrong", it can mean "not
-  //   supported"
-  //   // And if we poll something that's not supported every 10s, we'll spam logs w/ largely non actionable info at
-  //   ERROR
-  //   // level :(.
-  //   ESP_LOGE(TAG, "[%s] update(). got NG.", this->get_name().c_str());
-  //   this->status_set_error();
-  //   return;
-  // }
 }
 
 void LGUartSwitch::write_state(bool state) {
