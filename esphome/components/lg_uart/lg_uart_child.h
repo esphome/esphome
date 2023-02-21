@@ -10,7 +10,7 @@ class LGUartHub;
 
 class LGUartClient : public Parented<LGUartHub> {
  public:
-  virtual void on_reply_packet(char cmd_str) = 0;
+  virtual void on_reply_packet(uint8_t pkt[]) = 0;
 
  protected:
   friend LGUartHub;

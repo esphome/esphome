@@ -24,7 +24,7 @@ class LGUartHub : public Component, public uart::UARTDevice {
   int get_screen_number() { return this->screen_num_; }
 
   /** Generic commands */
-  bool send_cmd(char cmd_code[2], int data, uint8_t reply[PACKET_LEN]);
+  bool send_cmd(char cmd_code[2], int data);
 
   /* Component overrides */
 
@@ -38,6 +38,7 @@ class LGUartHub : public Component, public uart::UARTDevice {
 
  protected:
   int screen_num_ = -1;
+  char screen_num_chars[3] = {0, 0, 0};
 
   // Index the children by the second character of the command.
   // E.G.: command codes `ka`, `ke`, `kd` will result in children `a`, `e`, `d`.
