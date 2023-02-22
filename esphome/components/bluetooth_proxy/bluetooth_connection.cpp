@@ -168,7 +168,8 @@ void BluetoothConnection::gap_event_handler(esp_gap_ble_cb_event_t event, esp_bl
       if (param->ble_security.auth_cmpl.success) {
         api::global_api_server->send_bluetooth_device_pairing(this->address_, true);
       } else {
-        api::global_api_server->send_bluetooth_device_pairing(this->address_, false, param->ble_security.auth_cmpl.fail_reason);
+        api::global_api_server->send_bluetooth_device_pairing(this->address_, false,
+                                                              param->ble_security.auth_cmpl.fail_reason);
       }
       break;
     default:
