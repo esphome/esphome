@@ -108,32 +108,31 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
     ESP_LOGD(TAG, "send_cmd(%s). Invalid or incomplete packet.", cmd_code);
     return false;
   }
+  // If we didn't get a full packet, indicate failure of some sort.
+  return false;
 }
 
 /* Internal */
-
-void LGUartHub::loop() {
-  // ESP_LOGCONFIG(TAG, "LOOP for screen_num: '%i'", this->screen_num_);
-}
+void LGUartHub::loop() {}
 
 void LGUartHub::setup() {
   // User gives us a number from 0 to 99; we need the individual characters
   std::string s = str_sprintf("%02d", this->screen_num_);
   this->screen_num_chars[0] = s.at(0);
   this->screen_num_chars[1] = s.at(1);
+  // Show sign of life in boot logs
   this->dump_config();
 }
 
 void LGUartHub::dump_config() {
-  ESP_LOGCONFIG(TAG, "Config for screen_num: [%i] - (%c,%c)", this->screen_num_, this->screen_num_chars[0],
-                this->screen_num_chars[1]);
-  ESP_LOGCONFIG(TAG, "Uart baud rate '%i'", this->parent_->get_baud_rate());
-
+  ESP_LOGCONFIG(TAG, "Config for screen_num: [%c,%c]", this->screen_num_chars[0], this->screen_num_chars[1]);
+  ESP_LOGCONFIG(TAG, "UART baud rate '%i'", this->parent_->get_baud_rate());
   ESP_LOGCONFIG(TAG, "  Child components (%d):", this->children_.size());
 
   // Dump the cmd char and the name of the thing responding to it
-  for (const auto [key, value] : this->children_) {
-    ESP_LOGCONFIG(TAG, "    -  [%c] => %s", key, value->describe().c_str());
+  std::map<char, LGUartClient *>::iterator it;
+  for (it = this->children_.begin(); it != this->children_.end(); it++) {
+    ESP_LOGCONFIG(TAG, "    -  [%c] => %s", it->first, it->second->describe().c_str());
   }
 }
 
