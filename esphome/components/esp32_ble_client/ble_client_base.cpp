@@ -158,11 +158,6 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       this->mtu_ = param->cfg_mtu.mtu;
       break;
     }
-    case ESP_GATTC_CONNECT_EVT: {
-      ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_CONNECT_EVT", this->connection_index_, this->address_str_.c_str());
-      esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT);
-      break;
-    }
     case ESP_GATTC_DISCONNECT_EVT: {
       if (memcmp(param->disconnect.remote_bda, this->remote_bda_, 6) != 0)
         return false;
