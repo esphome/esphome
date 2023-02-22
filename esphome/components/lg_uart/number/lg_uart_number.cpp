@@ -12,26 +12,6 @@ void LGUartNumber::setup() {
 
 std::string LGUartNumber::describe() { return this->get_name(); }
 
-// void LGUartNumber::parse_and_publish(const std::vector<uint8_t> &data) {
-//   ESP_LOGD(TAG, "[%s] parse_and_publish(). command: [%s].", this->get_name().c_str(), this->cmd_str_);
-
-//   // float result = payload_to_float(data, *this) / multiply_by_;
-
-//   // // Is there a lambda registered
-//   // // call it with the pre converted value and the raw data array
-//   // if (this->transform_func_.has_value()) {
-//   //   // the lambda can parse the response itself
-//   //   auto val = (*this->transform_func_)(this, result, data);
-//   //   if (val.has_value()) {
-//   //     ESP_LOGV(TAG, "Value overwritten by lambda");
-//   //     result = val.value();
-//   //   }
-//   // }
-//   // ESP_LOGD(TAG, "Number new state : %.02f", result);
-//   // // this->sensor_->raw_state = result;
-//   // this->publish_state(result);
-// }
-
 void LGUartNumber::control(float value) {
   ESP_LOGD(TAG, "[%s] control(). Value: [%f]...", this->name_.c_str(), value);
 
@@ -54,6 +34,7 @@ void LGUartNumber::dump_config() {
 // When parent gets a reply meant for us, we'll get notified here
 // TODO: maybe refactor this so the signature is
 //    const std::vector<uint8_t> &data
+
 void LGUartNumber::on_reply_packet(uint8_t pkt[]) {
   ESP_LOGD(TAG, "[%s] on_reply_packet(). reply: [%s].", this->get_name().c_str(), pkt);
 
@@ -69,7 +50,6 @@ void LGUartNumber::on_reply_packet(uint8_t pkt[]) {
     this->status_set_error();
   }
   // TODO: make safe? Possible to get back some chars that do not convert to int?
-
   // For volume, at least, LG seems to do hex encoding so 100 volume is 0x64
   int status_hex = stoi(status_str, nullptr, 16);
 
@@ -86,22 +66,6 @@ void LGUartNumber::update() {
   ESP_LOGD(TAG, "[%s] update(). command: [%s].", this->get_name().c_str(), this->cmd_str_);
   this->parent_->send_cmd(this->cmd_str_, 0xff);
 }
-
-// void LGUartNumber::write_state(bool state) {
-//   ESP_LOGD(TAG, "[%s] write_state(): %i", this->get_name().c_str(), state);
-
-//   if (this->parent_->send_cmd(this->cmd_str_, (int) state)) {
-//     ESP_LOGD(TAG, "[%s] write_state(): %i - OK!", this->get_name().c_str(), state);
-//   } else {
-//     ESP_LOGW(TAG, "[%s] write_state(): %i - NG!", this->get_name().c_str(), state);
-//     // NG means that we can't confirm the state has changed, bail before publishing an updated state
-//     this->status_set_warning();
-//     return;
-//   }
-
-//   // If the reply was OK, we can be very confident that the state the user wants is now in effect.
-//   this->publish_state(state);
-// }
 
 }  // namespace lg_uart
 }  // namespace esphome

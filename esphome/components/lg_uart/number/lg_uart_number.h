@@ -21,8 +21,6 @@ class LGUartNumber : public number::Number, public LGUartClient, public PollingC
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
-  // std::string describe() override;
-
   /** Called when uart packet for us inbound */
   void on_reply_packet(uint8_t pkt[]) override;
 
