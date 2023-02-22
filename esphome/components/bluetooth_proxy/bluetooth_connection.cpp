@@ -159,7 +159,7 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
 }
 
 void BluetoothConnection::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
-  BLEClientBase::gattc_event_handler(event, param);
+  BLEClientBase::gap_event_handler(event, param);
 
   switch (event) {
     case ESP_GAP_BLE_AUTH_CMPL_EVT:
