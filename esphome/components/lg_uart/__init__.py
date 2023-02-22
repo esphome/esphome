@@ -35,7 +35,6 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         cv.GenerateID(): cv.declare_id(LGUartHub),
         # We need to know which uart device to use
         cv.Required(CONF_UART_ID): cv.use_id(uart.CONF_ID),
-        # TODO: confirm this, pretty sure that's the max
         cv.Optional(CONF_SCREEN_NUM, default=0): cv.int_range(min=0, max=99),
     }
 )
@@ -73,3 +72,12 @@ async def to_code(config):
     # Screen ID / number
     cg.add(var.set_screen_number(config[CONF_SCREEN_NUM]))
     return var
+
+
+def validate_uart_cmd_len(config):
+    """
+    Test that the uart command char from user is exactly 2 chars long
+    """
+    if len(config[CONF_LG_UART_CMD]) != 2:
+        raise cv.Invalid(f"{CONF_LG_UART_CMD}: must be two characters in length.")
+    return config

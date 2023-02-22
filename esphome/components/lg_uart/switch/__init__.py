@@ -7,6 +7,7 @@ from .. import (
     LG_UART_CLIENT_SCHEMA,
     CONF_LG_UART_CMD,
     register_lg_uart_child,
+    validate_uart_cmd_len,
     CODEOWNERS,
 )
 
@@ -15,16 +16,16 @@ DEPENDENCIES = ["lg_uart"]
 
 LGUartSwitch = lg_uart_ns.class_("LGUartSwitch", switch.Switch, cg.PollingComponent)
 
-CONFIG_SCHEMA = (
+
+CONFIG_SCHEMA = cv.All(
     switch.SWITCH_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(LGUartSwitch),
             # TODO: length? It seems like all LG commands are two chars?
-            cv.Required(CONF_LG_UART_CMD): cv.string_strict,
+            cv.Required(CONF_LG_UART_CMD): cv.string_strict
         }
-    )
-    # User can adjust as needed; we poll the screen every min
-    .extend(cv.polling_component_schema("60s")).extend(LG_UART_CLIENT_SCHEMA)
+    ).extend(cv.polling_component_schema("60s")).extend(LG_UART_CLIENT_SCHEMA),
+    validate_uart_cmd_len
 )
 
 

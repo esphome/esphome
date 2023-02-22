@@ -9,6 +9,8 @@
 namespace esphome {
 namespace lg_uart {
 
+// static const char *const TAG = "LGUart.switch";
+
 class LGUartSwitch : public switch_::Switch, public LGUartClient, public PollingComponent {
  public:
   void update() override;
