@@ -8,10 +8,10 @@ from .. import (
     CONF_LG_UART_CMD,
     register_lg_uart_child,
     validate_uart_cmd_len,
-    CODEOWNERS,
+    CODEOWNERS as co,
 )
 
-CODEOWNERS = CODEOWNERS
+CODEOWNERS = co
 DEPENDENCIES = ["lg_uart"]
 
 LGUartSwitch = lg_uart_ns.class_("LGUartSwitch", switch.Switch, cg.PollingComponent)
@@ -22,10 +22,12 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(LGUartSwitch),
             # TODO: length? It seems like all LG commands are two chars?
-            cv.Required(CONF_LG_UART_CMD): cv.string_strict
+            cv.Required(CONF_LG_UART_CMD): cv.string_strict,
         }
-    ).extend(cv.polling_component_schema("60s")).extend(LG_UART_CLIENT_SCHEMA),
-    validate_uart_cmd_len
+    )
+    .extend(cv.polling_component_schema("60s"))
+    .extend(LG_UART_CLIENT_SCHEMA),
+    validate_uart_cmd_len,
 )
 
 

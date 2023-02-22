@@ -18,12 +18,11 @@ DEPENDENCIES = ["uart"]
 MULTI_CONF = False
 
 # Hub needs the ID of the UART and set ID
-CONF_UART_ID = "uart_id"
-CONF_SCREEN_NUM = "screen_number"
+CONF_SCREEN_NUMBER = "screen_number"
 
 # Clients
 CONF_LG_UART_ID = "lg_uart_id"
-CONF_LG_UART_CMD = "cmd"
+CONF_LG_UART_CMD = "lg_uart_cmd"
 
 
 lg_uart_ns = cg.esphome_ns.namespace("lg_uart")
@@ -35,7 +34,7 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         cv.GenerateID(): cv.declare_id(LGUartHub),
         # We need to know which uart device to use
         cv.Required(CONF_UART_ID): cv.use_id(uart.CONF_ID),
-        cv.Optional(CONF_SCREEN_NUM, default=0): cv.int_range(min=0, max=99),
+        cv.Optional(CONF_SCREEN_NUMBER, default=0): cv.int_range(min=0, max=99),
     }
 )
 
@@ -48,17 +47,8 @@ LG_UART_CLIENT_SCHEMA = cv.Schema(
 
 
 async def register_lg_uart_child(var, config):
-    #print(f"var: {var}")
-    #print(f"config: {config}")
-
     parent = await cg.get_variable(config[CONF_LG_UART_ID])
-    #print(f"parent: {parent}")
-
     cmd_char = config[CONF_LG_UART_CMD][1]
-    #print(f"cmd_char: {cmd_char}")
-    # exit()
-
-    # var.set_cmd_char(cmd_char)
     cg.add(parent.register_child(var, cmd_char))
 
 
@@ -70,7 +60,7 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
 
     # Screen ID / number
-    cg.add(var.set_screen_number(config[CONF_SCREEN_NUM]))
+    cg.add(var.set_screen_number(config[CONF_SCREEN_NUMBER]))
     return var
 
 

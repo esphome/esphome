@@ -14,10 +14,10 @@ from .. import (
     CONF_LG_UART_CMD,
     register_lg_uart_child,
     validate_uart_cmd_len,
-    CODEOWNERS,
+    CODEOWNERS as co,
 )
 
-CODEOWNERS = CODEOWNERS
+CODEOWNERS = co
 DEPENDENCIES = ["lg_uart"]
 
 LGUartNumber = lg_uart_ns.class_("LGUartNumber", number.Number, cg.PollingComponent)
@@ -36,7 +36,7 @@ CONFIG_SCHEMA = cv.All(
     )
     # User can adjust as needed; we poll the screen every min
     .extend(cv.polling_component_schema("60s")).extend(LG_UART_CLIENT_SCHEMA),
-    validate_uart_cmd_len
+    validate_uart_cmd_len,
 )
 
 
