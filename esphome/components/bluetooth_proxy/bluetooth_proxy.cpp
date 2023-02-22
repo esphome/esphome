@@ -290,7 +290,13 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       }
       break;
     }
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR:
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR: {
+      auto *connection = this->get_connection_(msg.address, false);
+      if (connection != nullptr) {
+        connection->pair();
+      }
+      break;
+    }
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
       break;
   }
