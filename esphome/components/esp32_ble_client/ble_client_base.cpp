@@ -72,9 +72,7 @@ void BLEClientBase::connect() {
   }
 }
 
-void BLEClientBase::pair() {
-  esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT);
-}
+void BLEClientBase::pair() { esp_ble_set_encryption(param->connect.remote_bda, ESP_BLE_SEC_ENCRYPT); }
 
 void BLEClientBase::disconnect() {
   if (this->state_ == espbt::ClientState::IDLE || this->state_ == espbt::ClientState::DISCONNECTING)
