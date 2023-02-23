@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import button, fluval_ble_led
-from esphome.const import ICON_LIGHTBULB, CONF_MODE
+from esphome.const import ICON_LIGHTBULB, CONF_MODE, CONF_ID
 from .. import fluval_ble_led_ns
 
 MODE_OPTIONS = {"MANUAL": 0, "AUTO": 1, "PRO": 2}
@@ -27,8 +27,7 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = await button.new_button(config)
-    await button.register_button(var, config)
+    var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    cg.add(var.set_trigger_mode(config[CONF_MODE]))
+    await button.register_button(var, config)    
     await fluval_ble_led.register_fluval_led_client(var, config)
