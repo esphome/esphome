@@ -14,7 +14,7 @@ FluvalBleLedSelectModeButton = fluval_ble_led_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    button.button_schema(icon=ICON_LIGHTBULB)
+    button.button_schema(FluvalBleLedSelectModeButton, icon=ICON_LIGHTBULB)
     .extend(
         {
             cv.GenerateID(): cv.declare_id(FluvalBleLedSelectModeButton),
