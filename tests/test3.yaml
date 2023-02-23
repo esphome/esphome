@@ -283,6 +283,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart12
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
 
 modbus:
   uart_id: uart1
@@ -1194,8 +1198,14 @@ climate:
       ki_multiplier: 0.0
       kd_multiplier: 0.0
       deadband_output_averaging_samples: 1
-
-
+  - platform: haier
+    name: Haier AC
+    supported_swing_modes:
+      - vertical
+      - horizontal
+      - both
+    update_interval: 10s
+    uart_id: uart12
 
 sprinkler:
   - id: yard_sprinkler_ctrlr
