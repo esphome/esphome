@@ -285,8 +285,8 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
         break;
       }
 
-      ESP_LOGE(TAG, "READ CHARS FROM %d with status %d: %s ", param->read.handle, param->read.status,
-               this->pkt_to_hex_(param->read.value, param->read.value_len - 1).c_str());
+      ESP_LOGVV(TAG, "READ CHARS FROM %d with status %d: %s ", param->read.handle, param->read.status,
+                this->pkt_to_hex_(param->read.value, param->read.value_len - 1).c_str());
 
       if (this->handshake_step_ == 1) {
         std::vector<uint8_t> header2{0x47};
@@ -369,7 +369,7 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       uint8_t decrypted_data[param->notify.value_len - 3];
       memset(decrypted_data, 0, param->notify.value_len - 3);
 
-      ESP_LOGE(TAG, "Data Ecrypted: %s ", this->pkt_to_hex_(param->notify.value, param->notify.value_len - 1).c_str());
+      ESP_LOGVV(TAG, "Data Ecrypted: %s ", this->pkt_to_hex_(param->notify.value, param->notify.value_len - 1).c_str());
       this->decrypt_(param->notify.value, param->notify.value_len, decrypted_data);
 
       uint8_t decrypted_length = param->notify.value_len - 3;
