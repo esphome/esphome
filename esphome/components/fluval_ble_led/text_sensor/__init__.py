@@ -15,10 +15,9 @@ CONF_MAPPING_AUTO = "mapping_auto"
 CONF_MAPPING_PRO = "mapping_pro"
 
 CONFIG_SCHEMA = (
-    text_sensor.text_sensor_schema()
+    text_sensor.text_sensor_schema(FluvalBleModeSensor)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(FluvalBleModeSensor),
             cv.Optional(CONF_MAPPING_MANUAL, "manual"): str,
             cv.Optional(CONF_MAPPING_AUTO, "auto"): str,
             cv.Optional(CONF_MAPPING_PRO, "pro"): str,
