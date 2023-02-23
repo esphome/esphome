@@ -20,8 +20,6 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
   uint8_t peeked;
   uint8_t idx = 0;
 
-  bool stream_valid = false;
-
   /*
     After sending a command, we listen for the reply.
     In testing, replies didn't always come back instantly; would send inquire about one setting, have nothing in the
@@ -73,6 +71,7 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
       // Space
     }
 
+    // Space
     if ((idx == 1 || idx == 4) && peeked == 0x20) {
       reply[idx] = peeked;
       idx += 1;
@@ -90,32 +89,34 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
       continue;
     }
 
-    // Copy in the last of the packet
-    if (idx >= 5 && idx <= 8) {
+    // Copy in the last of the packet which should have the OK/NG and the data/state
+    if (idx >= 5 && idx <= (PACKET_LEN - 1)) {
       reply[idx] = peeked;
       idx += 1;
+      // If we are at the end of known packet, don't bother checking if available(), go straight to process of what we
+      // have
+      if (idx == PACKET_LEN - 1)
+        break;
+
       continue;
     }
-
-    if (idx == 9) {
-      reply[idx] = peeked;
-      idx += 1;
-    }
-
-    if (idx == PACKET_LEN - 1) {
-      // OK
-      if (reply[5] == 0x4f && reply[6] == 0x4b) {
-        ESP_LOGD(TAG, "send_cmd(%s). Got OK packet! Dispatching to handler for [%c]...", cmd_code, reply[0]);
-        this->children_[reply[0]]->on_reply_packet(reply);
-        return true;
-      } else {
-        ESP_LOGW(TAG, "send_cmd(%s). LG replied with 'NG'", cmd_code);
-        return false;
-      }
-    }
-    ESP_LOGD(TAG, "send_cmd(%s). Invalid or incomplete packet.", cmd_code);
-    return false;
   }
+  if (idx == PACKET_LEN - 1) {
+    // OK
+    if (reply[5] == 0x4f && reply[6] == 0x4b) {
+      ESP_LOGD(TAG, "send_cmd(%s). Got OK packet!...", cmd_code);
+      if (data == 0xff) {
+        ESP_LOGD(TAG, "send_cmd(%s). ... Dispatching to handler for [%c]", cmd_code, reply[0]);
+        this->children_[reply[0]]->on_reply_packet(reply);
+      }
+      return true;
+    } else {
+      ESP_LOGW(TAG, "send_cmd(%s). LG replied with 'NG'", cmd_code);
+      return false;
+    }
+  }
+  ESP_LOGD(TAG, "send_cmd(%s). Invalid or incomplete packet.", cmd_code);
+  return false;
   // If we didn't get a full packet, indicate failure of some sort.
   return false;
 }
