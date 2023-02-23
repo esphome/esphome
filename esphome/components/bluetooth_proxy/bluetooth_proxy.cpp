@@ -301,8 +301,11 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       }
       break;
     }
-    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
+    case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR: {
+      esp_err_t ret = esp_ble_remove_bond_device(msg.address);
+      api::global_api_server->send_bluetooth_device_unpairing(msg.address, ret == ESP_OK, ret);
       break;
+    }
   }
 }
 
