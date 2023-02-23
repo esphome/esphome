@@ -477,7 +477,6 @@ sensor:
     acceleration_mode: low
     store_baseline: true
     address: 0x69
-
   - platform: mcp9600
     thermocouple_type: K
     hot_junction:
