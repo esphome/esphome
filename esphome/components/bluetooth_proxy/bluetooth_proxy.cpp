@@ -296,7 +296,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
         if (!connection->get_paired()) {
           connection->pair();
         } else {
-          api::global_api_server->send_bluetooth_device_pairing(msg.address, true);
+          api::global_api_server->send_bluetooth_device_unpairing_response(msg.address, true);
         }
       }
       break;
