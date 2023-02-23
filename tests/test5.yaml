@@ -520,6 +520,12 @@ sensor:
         name: VBus Custom Sensor
         lambda: return x[0] / 10.0;
 
+  - platform: kuntze
+    ph:
+      name: Kuntze pH
+    temperature:
+      name: Kuntze temperature
+
 script:
   - id: automation_test
     then:

@@ -807,6 +807,12 @@ sensor:
     temperature_1:
       name: Temperature 1
 
+  - platform: kuntze
+    ph:
+      name: Kuntze pH
+    temperature:
+      name: Kuntze temperature
+
 time:
   - platform: homeassistant
 
