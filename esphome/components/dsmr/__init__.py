@@ -10,6 +10,8 @@ from esphome.const import (
 
 CODEOWNERS = ["@glmnet", "@zuidwijk"]
 
+MULTI_CONF = True
+
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor", "text_sensor"]
 

@@ -1,4 +1,4 @@
-from esphome import core
+from esphome import automation, core
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_CO2,
     CONF_UPDATE_INTERVAL,
+    CONF_VALUE,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
@@ -24,6 +25,11 @@ AUTO_LOAD = ["sensirion_common"]
 scd30_ns = cg.esphome_ns.namespace("scd30")
 SCD30Component = scd30_ns.class_(
     "SCD30Component", cg.Component, sensirion_common.SensirionI2CDevice
+)
+
+# Actions
+ForceRecalibrationWithReference = scd30_ns.class_(
+    "ForceRecalibrationWithReference", automation.Action
 )
 
 CONF_AUTOMATIC_SELF_CALIBRATION = "automatic_self_calibration"
@@ -106,3 +112,26 @@ async def to_code(config):
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
+
+
+@automation.register_action(
+    "scd30.force_recalibration_with_reference",
+    ForceRecalibrationWithReference,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(SCD30Component),
+            cv.Required(CONF_VALUE): cv.templatable(
+                cv.int_range(min=400, max=2000, max_included=True)
+            ),
+        },
+        key=CONF_VALUE,
+    ),
+)
+async def scd30_force_recalibration_with_reference_to_code(
+    config, action_id, template_arg, args
+):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_VALUE], args, cg.uint16)
+    cg.add(var.set_value(template_))
+    return var
