@@ -25,7 +25,7 @@ class LGUartNumber : public number::Number, public LGUartClient, public PollingC
   void on_reply_packet(uint8_t pkt[]) override;
 
   /** Command specific */
-  void set_cmd(const std::string cmd_str) {
+  void set_cmd(const std::string &cmd_str) {
     this->cmd_str_[0] = cmd_str[0];
     this->cmd_str_[1] = cmd_str[1];
   }
@@ -35,7 +35,7 @@ class LGUartNumber : public number::Number, public LGUartClient, public PollingC
   void control(float value) override;
   // Two chars + termination
   char cmd_str_[3] = {0};
-  uint8_t reply[PACKET_LEN] = {0};
+  uint8_t reply_[PACKET_LEN] = {0};
 
  private:
 };

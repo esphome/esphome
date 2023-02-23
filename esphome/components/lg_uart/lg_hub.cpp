@@ -1,6 +1,6 @@
 // For itoa()
-#include <stdlib.h>
-#include <stdio.h>
+#include <cstdio>
+#include <cstdlib>
 
 #include "lg_hub.h"
 
@@ -71,25 +71,33 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
         continue;
       }
       // Space
-    } else if ((idx == 1 || idx == 4) && peeked == 0x20) {
+    }
+
+    if ((idx == 1 || idx == 4) && peeked == 0x20) {
       reply[idx] = peeked;
       idx += 1;
       continue;
-      // Screen number
-    } else if (idx == 2 && peeked == this->screen_num_chars[0]) {
+    }
+
+    // Screen number
+    if (idx == 2 && peeked == this->screen_num_chars_[0]) {
       reply[idx] = peeked;
       idx += 1;
       continue;
-    } else if (idx == 3 && peeked == this->screen_num_chars[1]) {
+    } else if (idx == 3 && peeked == this->screen_num_chars_[1]) {
       reply[idx] = peeked;
       idx += 1;
       continue;
-      // OK
-    } else if (idx == 5 || idx == 6 || idx == 7 || idx == 8) {
+    }
+
+    // Copy in the last of the packet
+    if (idx >= 5 && idx <= 8) {
       reply[idx] = peeked;
       idx += 1;
       continue;
-    } else if (idx == 9) {
+    }
+
+    if (idx == 9) {
       reply[idx] = peeked;
       idx += 1;
     }
@@ -118,14 +126,14 @@ void LGUartHub::loop() {}
 void LGUartHub::setup() {
   // User gives us a number from 0 to 99; we need the individual characters
   std::string s = str_sprintf("%02d", this->screen_num_);
-  this->screen_num_chars[0] = s.at(0);
-  this->screen_num_chars[1] = s.at(1);
+  this->screen_num_chars_[0] = s.at(0);
+  this->screen_num_chars_[1] = s.at(1);
   // Show sign of life in boot logs
   this->dump_config();
 }
 
 void LGUartHub::dump_config() {
-  ESP_LOGCONFIG(TAG, "Config for screen_num: [%c,%c]", this->screen_num_chars[0], this->screen_num_chars[1]);
+  ESP_LOGCONFIG(TAG, "Config for screen_num: [%c,%c]", this->screen_num_chars_[0], this->screen_num_chars_[1]);
   ESP_LOGCONFIG(TAG, "UART baud rate '%i'", this->parent_->get_baud_rate());
   ESP_LOGCONFIG(TAG, "  Child components (%d):", this->children_.size());
 

@@ -38,7 +38,7 @@ class LGUartHub : public Component, public uart::UARTDevice {
 
  protected:
   int screen_num_ = -1;
-  char screen_num_chars[3] = {0, 0, 0};
+  char screen_num_chars_[3] = {0, 0, 0};
 
   // Index the children by the second character of the command.
   // E.G.: command codes `ka`, `ke`, `kd` will result in children `a`, `e`, `d`.
