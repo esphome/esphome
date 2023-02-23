@@ -16,6 +16,8 @@ class LGUartClient : public Parented<LGUartHub> {
  protected:
   friend LGUartHub;
   virtual std::string describe() = 0;
+  virtual void set_encoding_base(int base) = 0;
+  virtual int get_encoding_base() = 0;
 };
 
 }  // namespace lg_uart

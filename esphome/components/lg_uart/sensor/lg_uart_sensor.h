@@ -4,24 +4,23 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/components/lg_uart/lg_hub.h"
-#include "esphome/components/switch/switch.h"
+#include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
 namespace lg_uart {
 
-// static const char *const TAG = "LGUart.switch";
-
-class LGUartSwitch : public switch_::Switch, public LGUartClient, public PollingComponent {
+class LGUartSensor : public sensor::Sensor, public LGUartClient, public PollingComponent {
  public:
   void update() override;
-  void setup() override;
-  void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
+  void dump_config() override;
   std::string describe() override;
-  void set_encoding_base(int base){};
+  void set_encoding_base(int base) { this->encoding_base_ = base; };
   int get_encoding_base() { return this->encoding_base_; };
 
+  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+
+  /** Called when uart packet for us inbound */
   void on_reply_packet(uint8_t pkt[]) override;
 
   /** Command specific */
@@ -31,16 +30,12 @@ class LGUartSwitch : public switch_::Switch, public LGUartClient, public Polling
   }
 
  protected:
-  void write_state(bool state) override;
-
   // Two chars + termination
   char cmd_str_[3] = {0};
   uint8_t reply_[PACKET_LEN] = {0};
 
-  // Paramater best represented by a switch should be either 00 or 01 so keep base10
-  int encoding_base_ = 10;
-
- private:
+  // Keep track of base 16 or base 10 decoding on reply packets
+  int encoding_base_ = 0;
 };
 
 }  // namespace lg_uart

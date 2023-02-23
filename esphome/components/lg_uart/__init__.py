@@ -24,6 +24,9 @@ CONF_SCREEN_NUMBER = "screen_number"
 CONF_LG_UART_ID = "lg_uart_id"
 CONF_LG_UART_CMD = "lg_uart_cmd"
 
+CONF_DECODE_BASE = "decode_base"
+CONF_DECODE_BASE_TYPES = [10, 16]
+
 
 lg_uart_ns = cg.esphome_ns.namespace("lg_uart")
 LGUartHub = lg_uart_ns.class_("LGUartHub", cg.PollingComponent, uart.UARTDevice)

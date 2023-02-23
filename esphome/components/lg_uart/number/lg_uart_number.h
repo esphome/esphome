@@ -9,15 +9,14 @@
 namespace esphome {
 namespace lg_uart {
 
-// static const char *const TAG = "LGUart.number";
-
 class LGUartNumber : public number::Number, public LGUartClient, public PollingComponent {
  public:
   void update() override;
-  void setup() override;
   void dump_config() override;
 
   std::string describe() override;
+  void set_encoding_base(int base) { this->encoding_base_ = base; };
+  int get_encoding_base() { return this->encoding_base_; };
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
@@ -36,6 +35,9 @@ class LGUartNumber : public number::Number, public LGUartClient, public PollingC
   // Two chars + termination
   char cmd_str_[3] = {0};
   uint8_t reply_[PACKET_LEN] = {0};
+
+  // Keep track of base 16 or base 10 decoding on reply packets
+  int encoding_base_ = 0;
 
  private:
 };
