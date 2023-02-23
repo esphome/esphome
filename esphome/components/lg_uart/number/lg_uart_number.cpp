@@ -11,7 +11,7 @@ std::string LGUartNumber::describe() { return this->get_name(); }
 void LGUartNumber::control(float value) {
   ESP_LOGD(TAG, "[%s] control(). Value: [%f]...", this->name_.c_str(), value);
 
-  if (this->parent_->send_cmd(this->cmd_str_, (int) value)) {
+  if (this->parent_->send_cmd(this->cmd_str_, (int) value, true)) {
     ESP_LOGD(TAG, "[%s] control(): %i - OK!", this->get_name().c_str());
   } else {
     ESP_LOGW(TAG, "[%s] control(): %i - NG!", this->get_name().c_str());
@@ -60,7 +60,7 @@ void LGUartNumber::on_reply_packet(uint8_t pkt[]) {
 
 void LGUartNumber::update() {
   ESP_LOGD(TAG, "[%s] update(). command: [%s].", this->get_name().c_str(), this->cmd_str_);
-  this->parent_->send_cmd(this->cmd_str_, 0xff);
+  this->parent_->send_cmd(this->cmd_str_, 0xff, true);
 }
 
 }  // namespace lg_uart

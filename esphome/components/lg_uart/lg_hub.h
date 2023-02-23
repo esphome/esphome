@@ -24,8 +24,7 @@ class LGUartHub : public Component, public uart::UARTDevice {
   int get_screen_number() { return this->screen_num_; }
 
   /** Generic commands */
-  bool send_cmd(char cmd_code[2], int data);
-
+  bool send_cmd(char cmd_code[2], int data, bool b16_encode = true);
   /* Component overrides */
 
   void loop() override;

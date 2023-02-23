@@ -11,9 +11,16 @@ namespace lg_uart {
 
 /* Public */
 
-bool LGUartHub::send_cmd(char cmd_code[2], int data) {
+bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
   ESP_LOGD(TAG, "send_cmd(%s). data: '%i' for screen: '%i'", cmd_code, data, this->screen_num_);
-  std::string s = str_sprintf("%02s %02x %02x\r", cmd_code, this->screen_num_, data);
+  std::string s;
+
+  if (b16_encode) {
+    s = str_sprintf("%02s %02x %02x\r", cmd_code, this->screen_num_, data);
+  } else {
+    s = str_sprintf("%02s %02x %02i\r", cmd_code, this->screen_num_, data);
+  }
+
   this->parent_->write_array(std::vector<uint8_t>(s.begin(), s.end()));
 
   uint8_t reply[PACKET_LEN] = {0};

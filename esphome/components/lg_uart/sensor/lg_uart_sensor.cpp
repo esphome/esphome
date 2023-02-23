@@ -45,7 +45,7 @@ void LGUartSensor::on_reply_packet(uint8_t pkt[]) {
 
 void LGUartSensor::update() {
   ESP_LOGD(TAG, "[%s] update(). command: [%s].", this->get_name().c_str(), this->cmd_str_);
-  this->parent_->send_cmd(this->cmd_str_, 0xff);
+  this->parent_->send_cmd(this->cmd_str_, 0xff, true);
 }
 
 }  // namespace lg_uart

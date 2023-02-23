@@ -57,13 +57,13 @@ void LGUartSwitch::on_reply_packet(uint8_t pkt[]) {
 
 void LGUartSwitch::update() {
   ESP_LOGD(TAG, "[%s] update(). command: [%s].", this->get_name().c_str(), this->cmd_str_);
-  this->parent_->send_cmd(this->cmd_str_, 0xff);
+  this->parent_->send_cmd(this->cmd_str_, 0xff, true);
 }
 
 void LGUartSwitch::write_state(bool state) {
   ESP_LOGD(TAG, "[%s] write_state(): %i", this->get_name().c_str(), state);
 
-  if (this->parent_->send_cmd(this->cmd_str_, (int) state)) {
+  if (this->parent_->send_cmd(this->cmd_str_, (int) state, true)) {
     ESP_LOGD(TAG, "[%s] write_state(): %i - OK!", this->get_name().c_str(), state);
   } else {
     ESP_LOGW(TAG, "[%s] write_state(): %i - NG!", this->get_name().c_str(), state);
