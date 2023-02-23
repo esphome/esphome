@@ -21,6 +21,13 @@ namespace text_sensor {
     } \
   }
 
+#define SUB_TEXT_SENSOR(name) \
+ protected: \
+  text_sensor::TextSensor *name##_text_sensor_{nullptr}; \
+\
+ public: \
+  void set_##name##_text_sensor(text_sensor::TextSensor *text_sensor) { this->name##_text_sensor_ = text_sensor; }
+
 class TextSensor : public EntityBase {
  public:
   explicit TextSensor();
