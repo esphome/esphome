@@ -30,7 +30,7 @@ class PZEMDC : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *energy_sensor_{nullptr};
-  
+
   void reset_energy_();
 };
 
