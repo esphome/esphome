@@ -32,15 +32,15 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
 
     let's say that we have a packet:
         peeked[0]: 0x61         97      [a]
-        peeked[0]: 0x20         32      [ ]
-        peeked[0]: 0x30         48      [0]
-        peeked[0]: 0x31         49      [1]
-        peeked[0]: 0x20         32      [ ]
-        peeked[0]: 0x4f         79      [O]
-        peeked[0]: 0x4b         75      [K]
-        peeked[0]: 0x30         48      [0]
-        peeked[0]: 0x31         49      [1]
-        peeked[0]: 0x78         120     [x]
+        peeked[1]: 0x20         32      [ ]
+        peeked[2]: 0x30         48      [0]
+        peeked[3]: 0x31         49      [1]
+        peeked[4]: 0x20         32      [ ]
+        peeked[5]: 0x4f         79      [O]
+        peeked[6]: 0x4b         75      [K]
+        peeked[7]: 0x30         48      [0]
+        peeked[8]: 0x31         49      [1]
+        peeked[9]: 0x78         120     [x]
 
     The first byte needs to be one of the chars that indexes this->children_
     The second byte needs to be a space.
@@ -78,12 +78,14 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
       continue;
     }
 
-    // Screen number
+    // Screen number upper/lower digit
     if (idx == 2 && peeked == this->screen_num_chars_[0]) {
       reply[idx] = peeked;
       idx += 1;
       continue;
-    } else if (idx == 3 && peeked == this->screen_num_chars_[1]) {
+    }
+
+    if (idx == 3 && peeked == this->screen_num_chars_[1]) {
       reply[idx] = peeked;
       idx += 1;
       continue;
@@ -105,7 +107,8 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data) {
     // OK
     if (reply[5] == 0x4f && reply[6] == 0x4b) {
       ESP_LOGD(TAG, "send_cmd(%s). Got OK packet!...", cmd_code);
-      if (data == 0xff) {
+      // Replies to inquire? packets always end in x.
+      if (reply[9] == 'x') {
         ESP_LOGD(TAG, "send_cmd(%s). ... Dispatching to handler for [%c]", cmd_code, reply[0]);
         this->children_[reply[0]]->on_reply_packet(reply);
       }
