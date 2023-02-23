@@ -319,6 +319,16 @@ void APIServer::send_bluetooth_device_pairing(uint64_t address, bool paired, esp
     client->send_bluetooth_device_pairing_response(call);
   }
 }
+void APIServer::send_bluetooth_device_unpairing(uint64_t address, bool success, esp_err_t error) {
+  BluetoothDeviceUnpairingResponse call;
+  call.address = address;
+  call.success = success;
+  call.error = error;
+
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_device_unpairing_response(call);
+  }
+}
 
 void APIServer::send_bluetooth_connections_free(uint8_t free, uint8_t limit) {
   BluetoothConnectionsFreeResponse call;
