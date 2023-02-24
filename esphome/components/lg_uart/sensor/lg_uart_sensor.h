@@ -15,8 +15,8 @@ class LGUartSensor : public sensor::Sensor, public LGUartClient, public PollingC
 
   void dump_config() override;
   std::string describe() override;
-  void set_encoding_base(int base) { this->encoding_base_ = base; };
-  int get_encoding_base() { return this->encoding_base_; };
+  void set_encoding_base(int base) override { this->encoding_base_ = base; };
+  int get_encoding_base() override { return this->encoding_base_; };
 
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 

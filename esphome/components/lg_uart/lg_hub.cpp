@@ -121,7 +121,9 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
       }
       return true;
     } else {
-      ESP_LOGW(TAG, "send_cmd(%s). LG replied with 'NG'", cmd_code);
+      // When the display is powered off, it will respond to almost all inquiries with NG packets.
+      // This _should_ be a WARN level message but we don't want to spam logs when the display is asleep
+      ESP_LOGD(TAG, "send_cmd(%s). LG replied with 'NG'", cmd_code);
       return false;
     }
   }

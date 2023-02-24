@@ -34,8 +34,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DECODE_BASE, default=10): cv.one_of(
                 *CONF_DECODE_BASE_TYPES, int=True
             ),
-            # All commands take a whole number between 00 and 99
-            cv.Optional(CONF_MAX_VALUE, default=99): cv.positive_int,
+            # LG is all over the place when it comes to encodings and min/max values.
+            # Some settings take 00 through 99 base 10 and others take 0x00 through 0x64
+            # In the documentation that I have, I can't find a setting that is best represented by a slider that
+            #       takes values of more than 100
+            cv.Optional(CONF_MAX_VALUE, default=100): cv.positive_int,
             cv.Optional(CONF_MIN_VALUE, default=0): cv.positive_int,
             cv.Optional(CONF_STEP, default=1): cv.positive_int,
         }

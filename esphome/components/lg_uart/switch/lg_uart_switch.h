@@ -19,8 +19,8 @@ class LGUartSwitch : public switch_::Switch, public LGUartClient, public Polling
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
 
   std::string describe() override;
-  void set_encoding_base(int base){};
-  int get_encoding_base() { return this->encoding_base_; };
+  void set_encoding_base(int base) override{};
+  int get_encoding_base() override { return this->encoding_base_; };
 
   void on_reply_packet(uint8_t pkt[]) override;
 
