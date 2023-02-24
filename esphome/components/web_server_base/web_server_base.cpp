@@ -78,6 +78,11 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
   }
 
   if (final) {
+    // incomplete update! probably tcp reset, bad wifi, etc
+    if (request->contentLength() != this->ota_read_length_) {
+      ESP_LOGI(TAG, "OTA update incomplete, terminating");
+      return;
+    }
     if (Update.end(true)) {
       ESP_LOGI(TAG, "OTA update successful!");
       this->parent_->set_timeout(100, []() { App.safe_reboot(); });
