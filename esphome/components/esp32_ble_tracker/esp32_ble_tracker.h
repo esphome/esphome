@@ -232,10 +232,10 @@ class ESP32BLETracker : public Component, public GAPEventHandler, public GATTcEv
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};
 #if BOARD_HAS_PSRAM
-  const static u_int8_t scan_result_buffer_size_= 32;
+  const static u_int8_t scan_result_buffer_size_ = 32;
 #else
-  const static u_int8_t scan_result_buffer_size_= 16;
-#endif // BOARD_HAS_PSRAM
+  const static u_int8_t scan_result_buffer_size_ = 16;
+#endif  // BOARD_HAS_PSRAM
   esp_ble_gap_cb_param_t::ble_scan_result_evt_param *scan_result_buffer_;
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
