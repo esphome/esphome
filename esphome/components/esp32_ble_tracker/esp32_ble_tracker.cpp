@@ -53,6 +53,11 @@ void ESP32BLETracker::setup() {
     ESP_LOGE(TAG, "BLE Tracker was marked failed by ESP32BLE");
     return;
   }
+  ExternalRAMAllocator<esp_ble_gap_cb_param_t::ble_scan_result_evt_param> allocator(
+      ExternalRAMAllocator<esp_ble_gap_cb_param_t::ble_scan_result_evt_param>::ALLOW_FAILURE);
+  this->scan_result_buffer_ = allocator.allocate(this->scan_result_buffer_size_);
+  memset(this->scan_result_buffer_, 0,
+         sizeof(esp_ble_gap_cb_param_t::ble_scan_result_evt_param) * this->scan_result_buffer_size_);
 
   global_esp32_ble_tracker = this;
   this->scan_result_lock_ = xSemaphoreCreateMutex();
@@ -107,7 +112,7 @@ void ESP32BLETracker::loop() {
         xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
       uint32_t index = this->scan_result_index_;
       if (index) {
-        if (index >= 16) {
+        if (index >= this->scan_result_buffer_size_) {
           ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
         }
         for (size_t i = 0; i < index; i++) {
@@ -322,7 +327,7 @@ void ESP32BLETracker::gap_scan_stop_complete_(const esp_ble_gap_cb_param_t::ble_
 void ESP32BLETracker::gap_scan_result_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_param &param) {
   if (param.search_evt == ESP_GAP_SEARCH_INQ_RES_EVT) {
     if (xSemaphoreTake(this->scan_result_lock_, 0L)) {
-      if (this->scan_result_index_ < 16) {
+      if (this->scan_result_index_ < this->scan_result_buffer_size_) {
         this->scan_result_buffer_[this->scan_result_index_++] = param;
       }
       xSemaphoreGive(this->scan_result_lock_);
