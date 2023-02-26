@@ -73,9 +73,11 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_LED_PIN): cv.invalid(
-                "The led_pin is renamed to :" + CONF_BACKLIGHT_PIN
+                "This property is removed. To use the backlight use proper light component."
             ),
-            cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_BACKLIGHT_PIN): cv.invalid(
+                "This property is removed. To use the backlight use proper light component."
+            ),
             cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
@@ -114,10 +116,6 @@ async def to_code(config):
         cg.add(
             var.set_dimentions(config[CONF_DIMENSIONS][0], config[CONF_DIMENSIONS][1])
         )
-
-    if CONF_BACKLIGHT_PIN in config:
-        led_pin = await cg.gpio_pin_expression(config[CONF_BACKLIGHT_PIN])
-        cg.add(var.set_backlight_pin(led_pin))
 
     rhs = None
     if config[CONF_COLOR_PALETTE] == "GRAYSCALE":

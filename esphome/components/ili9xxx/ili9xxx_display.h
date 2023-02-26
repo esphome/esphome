@@ -23,7 +23,6 @@ class ILI9XXXDisplay : public PollingComponent,
   void set_dc_pin(GPIOPin *dc_pin) { dc_pin_ = dc_pin; }
   float get_setup_priority() const override;
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
-  void set_backlight_pin(GPIOPin *backlight) { this->backlight_pin_ = backlight; }
   void set_palette(const uint8_t *palette) { this->palette_ = palette; }
   void set_buffer_color_mode(ILI9XXXColorMode color_mode) { this->buffer_color_mode_ = color_mode; }
   void set_dimentions(int16_t width, int16_t height) {
@@ -79,7 +78,6 @@ class ILI9XXXDisplay : public PollingComponent,
   uint32_t buffer_to_transfer_(uint32_t pos, uint32_t sz);
 
   GPIOPin *reset_pin_{nullptr};
-  GPIOPin *backlight_pin_{nullptr};
   GPIOPin *dc_pin_{nullptr};
   GPIOPin *busy_pin_{nullptr};
 
