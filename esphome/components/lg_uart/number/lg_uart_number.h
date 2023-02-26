@@ -23,8 +23,6 @@ class LGUartNumber : public number::Number, public LGUartClient, public PollingC
 
   int get_encoding_base() override { return this->encoding_base_; };
 
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-
   /** Called when uart packet for us inbound */
   void on_reply_packet(uint8_t pkt[]) override;
 
