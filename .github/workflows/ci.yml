@@ -59,6 +59,8 @@ jobs:
             pio_cache_key: test7
           - id: pytest
             name: Run pytest
+          - id: test_native
+            name: Runt unit test native
           - id: clang-format
             name: Run script/clang-format
           - id: clang-tidy
@@ -162,6 +164,9 @@ jobs:
         run: |
           pytest -vv --tb=native tests
         if: matrix.id == 'pytest'
+
+      - run: script/unit_test_native
+        if: matrix.id == 'test_native'
 
       # Also run git-diff-index so that the step is marked as failed on
       # formatting errors, since clang-format doesn't do anything but
