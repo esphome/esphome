@@ -2,9 +2,14 @@
 
 set -e
 
-cd "$(dirname "$0")/.."
+cd "$(dirname "$0")/../tests/unit_tests_native/"
 
 set -x
 
-[ -d build_unit_tests_native/ ] || meson setup  build_unit_tests_native/ tests/unit_tests_native/
-meson test -C build_unit_tests_native/
+BUILD_DIR="build_unit_tests_native/"
+
+[ -d $BUILD_DIR ] || {
+	meson wrap update-db
+	meson setup $BUILD_DIR
+}
+meson test -C $BUILD_DIR

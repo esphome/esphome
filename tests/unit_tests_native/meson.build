@@ -1,4 +1,4 @@
-project('esphome', 'cpp', default_options : ['warning_level=3', 'cpp_std=c++11', 'b_sanitize=address,undefined'])
+project('esphome', 'cpp', default_options : ['warning_level=3', 'cpp_std=c++14', 'b_sanitize=address,undefined'])
 
 add_project_arguments('-DUNIT_TESTS', language : 'cpp')
 
@@ -18,7 +18,8 @@ inc = [
 
 deps = [
   dependency('threads'),
-  dependency('gtest', main : true),
+  dependency('gtest'),
+  dependency('gtest_main'),
   dependency('gmock'),
 ]
 

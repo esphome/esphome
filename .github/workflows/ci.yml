@@ -165,7 +165,10 @@ jobs:
           pytest -vv --tb=native tests
         if: matrix.id == 'pytest'
 
-      - run: script/unit_test_native
+      - name: Run unit test native
+        run: |
+          pip install meson==1.0.0 ninja==1.11.1
+          script/unit_test_native
         if: matrix.id == 'test_native'
 
       # Also run git-diff-index so that the step is marked as failed on
