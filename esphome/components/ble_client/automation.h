@@ -1,12 +1,12 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include <utility>
 #include <vector>
 
 #include "esphome/core/automation.h"
 #include "esphome/components/ble_client/ble_client.h"
-
-#ifdef USE_ESP32
 
 namespace esphome {
 namespace ble_client {
