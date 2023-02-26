@@ -131,3 +131,4 @@ sdkconfig.*
 
 .tests/
 wrapdb.json
+subprojects/
