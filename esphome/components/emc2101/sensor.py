@@ -8,6 +8,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
+    ICON_PERCENT,
 )
 from . import Emc2101Component, emc2101_ns
 
@@ -46,7 +47,7 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_PERCENT,
             accuracy_decimals=2,
             state_class=STATE_CLASS_MEASUREMENT,
-            icon="mdi:percent",
+            icon=ICON_PERCENT,
         ),
     }
 ).extend(cv.polling_component_schema("60s"))
