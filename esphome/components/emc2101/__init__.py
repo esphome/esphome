@@ -55,7 +55,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(CONF_I2C_ADDR)),
-    cv.has_at_most_one_key(CONF_PWM, CONF_DAC),
+    cv.has_exactly_one_key(CONF_PWM, CONF_DAC),
 )
 
 
