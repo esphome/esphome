@@ -37,15 +37,20 @@ spi:
   miso_pin: GPIO23
 
 uart:
-  tx_pin: GPIO22
-  rx_pin: GPIO23
-  baud_rate: 115200
-  # Specifically added for testing debug with no after: definition.
-  debug:
-    dummy_receiver: false
-    direction: rx
-    sequence:
-      - lambda: UARTDebug::log_hex(direction, bytes, ':');
+  - id: uart1
+    tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 115200
+    # Specifically added for testing debug with no after: definition.
+    debug:
+      dummy_receiver: false
+      direction: rx
+      sequence:
+        - lambda: UARTDebug::log_hex(direction, bytes, ':');
+  - id: uart2
+    tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -76,6 +81,32 @@ output:
     id: dimmer1
     gate_pin: GPIO5
     zero_cross_pin: GPIO12
+
+climate:
+  - platform: haier
+    name: Haier AC
+    uart_id: uart2
+    # set false to remove dependancy on wifi
+    wifi_signal: false
+    beeper: true
+    outdoor_temperature:
+      name:  Haier AC outdoor temperature
+    visual:
+      min_temperature: 16 °C
+      max_temperature: 30 °C
+      temperature_step: 1 °C
+    supported_modes:
+    - 'OFF'
+    - AUTO
+    - COOL
+    - HEAT
+    - DRY
+    - FAN_ONLY
+    supported_swing_modes:
+    - 'OFF'
+    - VERTICAL
+    - HORIZONTAL
+    - BOTH
 
 sensor:
   - platform: homeassistant
@@ -114,6 +145,7 @@ sensor:
       name: b-parasite Illuminance
   - platform: senseair
     id: senseair0
+    uart_id: uart1
     co2:
       name: SenseAir CO2 Value
       on_value:

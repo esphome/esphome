@@ -531,7 +531,6 @@ def copy_files():
             components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
 
             for name, component in components.items():
-
                 repo_dir, _ = git.clone_or_update(
                     url=component[KEY_REPO],
                     ref=component[KEY_REF],

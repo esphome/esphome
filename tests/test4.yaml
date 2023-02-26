@@ -34,9 +34,14 @@ spi:
   miso_pin: GPIO23
 
 uart:
-  tx_pin: GPIO22
-  rx_pin: GPIO23
-  baud_rate: 115200
+  - id: uart1
+    tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 115200
+  - id: uart2
+    tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -58,6 +63,7 @@ time:
 
 tuya:
   time_id: sntp_time
+  uart_id: uart1
   status_pin:
     number: 14
     inverted: true
@@ -73,6 +79,7 @@ select:
 
 pipsolar:
   id: inverter0
+  uart_id: uart1
 
 sx1509:
   - id: sx1509_hub
@@ -229,6 +236,7 @@ sensor:
       name: inverter0_pv_charging_power
   - platform: hrxl_maxsonar_wr
     name: Rainwater Tank Level
+    uart_id: uart1
     filters:
       - sliding_window_moving_average:
           window_size: 12
@@ -382,6 +390,30 @@ climate:
     current_temperature_multiplier: 0.5
     target_temperature_multiplier: 0.5
     reports_fahrenheit: true
+  - platform: haier
+    name: Haier AC
+    uart_id: uart2
+    # set false to remove dependancy on wifi
+    wifi_signal: false
+    beeper: true
+    outdoor_temperature:
+      name:  Haier AC outdoor temperature
+    visual:
+      min_temperature: 16 °C
+      max_temperature: 30 °C
+      temperature_step: 1 °C
+    supported_modes:
+    - 'OFF'
+    - AUTO
+    - COOL
+    - HEAT
+    - DRY
+    - FAN_ONLY
+    supported_swing_modes:
+    - 'OFF'
+    - VERTICAL
+    - HORIZONTAL
+    - BOTH
 
 switch:
   - platform: tuya

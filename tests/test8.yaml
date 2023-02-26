@@ -14,6 +14,12 @@ esphome:
 
 logger:
 
+uart:
+  - id: uart1
+    tx_pin: GPIO43
+    rx_pin: GPIO44
+    baud_rate: 9600
+
 light:
   - platform: neopixelbus
     type: GRB
@@ -25,3 +31,28 @@ light:
     name: "neopixel-enable"
     internal: false
     restore_mode: ALWAYS_OFF
+
+climate:
+  - platform: haier
+    name: Haier AC
+    uart_id: uart1
+    wifi_signal: true
+    beeper: true
+    outdoor_temperature:
+      name:  Haier AC outdoor temperature
+    visual:
+      min_temperature: 16 °C
+      max_temperature: 30 °C
+      temperature_step: 1 °C
+    supported_modes:
+    - 'OFF'
+    - AUTO
+    - COOL
+    - HEAT
+    - DRY
+    - FAN_ONLY
+    supported_swing_modes:
+    - 'OFF'
+    - VERTICAL
+    - HORIZONTAL
+    - BOTH
