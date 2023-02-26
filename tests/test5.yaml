@@ -477,7 +477,6 @@ sensor:
     acceleration_mode: low
     store_baseline: true
     address: 0x69
-
   - platform: mcp9600
     thermocouple_type: K
     hot_junction:
@@ -519,6 +518,12 @@ sensor:
       - id: vcustom
         name: VBus Custom Sensor
         lambda: return x[0] / 10.0;
+
+  - platform: kuntze
+    ph:
+      name: Kuntze pH
+    temperature:
+      name: Kuntze temperature
 
 script:
   - id: automation_test

@@ -95,6 +95,7 @@ esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
 esphome/components/growatt_solar/* @leeuwte
+esphome/components/haier/* @Yarikx
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
@@ -119,6 +120,7 @@ esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
+esphome/components/kuntze/* @ssieb
 esphome/components/lcd_menu/* @numo68
 esphome/components/ld2410/* @sebcaps
 esphome/components/ledc/* @OttoWinter
@@ -210,6 +212,7 @@ esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sdp3x/* @Azimath
 esphome/components/selec_meter/* @sourabhjaiswal
 esphome/components/select/* @esphome/core
+esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
