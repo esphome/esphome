@@ -14,6 +14,14 @@
 #include <esp_heap_caps.h>
 #endif
 
+#if defined(USE_ESP32)
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#elif defined(USE_RP2040)
+#include <FreeRTOS.h>
+#include <semphr.h>
+#endif
+
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
 #define ALWAYS_INLINE __attribute__((always_inline))
@@ -515,6 +523,39 @@ template<typename T> class Parented {
 
 /// @name System APIs
 ///@{
+
+/** Mutex implementation, with API based on the unavailable std::mutex.
+ *
+ * @note This mutex is non-recursive, so take care not to try to obtain the mutex while it is already taken.
+ */
+class Mutex {
+ public:
+  Mutex();
+  Mutex(const Mutex &) = delete;
+  void lock();
+  bool try_lock();
+  void unlock();
+
+  Mutex &operator=(const Mutex &) = delete;
+
+ private:
+#if defined(USE_ESP32) || defined(USE_RP2040)
+  SemaphoreHandle_t handle_;
+#endif
+};
+
+/** Helper class that wraps a mutex with a RAII-style API.
+ *
+ * This behaves like std::lock_guard: as long as the object is alive, the mutex is held.
+ */
+class LockGuard {
+ public:
+  LockGuard(Mutex &mutex) : mutex_{mutex} { mutex_.lock(); }
+  ~LockGuard() { mutex_.unlock(); }
+
+ private:
+  Mutex &mutex_;
+};
 
 /** Helper class to disable interrupts.
  *
