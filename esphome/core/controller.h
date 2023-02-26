@@ -6,11 +6,17 @@
 namespace esphome {
 
 class Controller {
-  template<typename... X> struct AutoLambda;
-  template<typename First, typename... Args> struct AutoLambda<std::function<void(First, Args...)>> {
-    template<typename Func, typename Obj> static std::function<void(Args...)> make_lambda(Func &&func, Obj *obj) {
-      return [obj, func](Args... args) { func(obj, args...); };
+  template<typename Entity> class DiscardArg {
+   public:
+    DiscardArg(std::function<void(Entity *)> &&cb, Entity *entity) {
+      this->cb = cb;
+      this->entity = entity;
     }
+    template<typename... T> void operator()(T...) const { cb(entity); }
+
+   private:
+    std::function<void(Entity *)> cb;
+    Entity *entity;
   };
 
  public:
@@ -20,7 +26,8 @@ class Controller {
     for (auto &entity : App.get_entities<Entity>()) {
       auto *obj = static_cast<Entity *>(entity);
       if (include_internal || !obj->is_internal()) {
-        obj->add_on_state_callback(AutoLambda<callback_t<Func>>::make_lambda(fn, obj));
+        DiscardArg<Entity> cb(fn, obj);
+        obj->add_on_state_callback(cb);
       }
     }
   }

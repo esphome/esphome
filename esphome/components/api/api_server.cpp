@@ -25,9 +25,9 @@ void APIServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Home Assistant API server...");
 
 #ifdef USE_BINARY_SENSOR
-  Controller::add_on_state_callback([this](binary_sensor::BinarySensor *obj, bool state) {
+  Controller::add_on_state_callback([this](binary_sensor::BinarySensor *obj) {
     for (auto &c : this->clients_)
-      c->send_binary_sensor_state(obj, state);
+      c->send_binary_sensor_state(obj, obj->state);
   });
 #endif
 
@@ -53,23 +53,23 @@ void APIServer::setup() {
 #endif
 
 #ifdef USE_SENSOR
-  Controller::add_on_state_callback([this](sensor::Sensor *obj, float state) {
+  Controller::add_on_state_callback([this](sensor::Sensor *obj) {
     for (auto &c : this->clients_)
-      c->send_sensor_state(obj, state);
+      c->send_sensor_state(obj, obj->state);
   });
 #endif
 
 #ifdef USE_SWITCH
-  Controller::add_on_state_callback([this](switch_::Switch *obj, bool state) {
+  Controller::add_on_state_callback([this](switch_::Switch *obj) {
     for (auto &c : this->clients_)
-      c->send_switch_state(obj, state);
+      c->send_switch_state(obj, obj->state);
   });
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  Controller::add_on_state_callback([this](text_sensor::TextSensor *obj, const std::string &state) {
+  Controller::add_on_state_callback([this](text_sensor::TextSensor *obj) {
     for (auto &c : this->clients_)
-      c->send_text_sensor_state(obj, state);
+      c->send_text_sensor_state(obj, obj->state);
   });
 #endif
 
@@ -81,16 +81,16 @@ void APIServer::setup() {
 #endif
 
 #ifdef USE_NUMBER
-  Controller::add_on_state_callback([this](number::Number *obj, float state) {
+  Controller::add_on_state_callback([this](number::Number *obj) {
     for (auto &c : this->clients_)
-      c->send_number_state(obj, state);
+      c->send_number_state(obj, obj->state);
   });
 #endif
 
 #ifdef USE_SELECT
-  Controller::add_on_state_callback([this](select::Select *obj, const std::string &state, size_t index) {
+  Controller::add_on_state_callback([this](select::Select *obj) {
     for (auto &c : this->clients_)
-      c->send_select_state(obj, state);
+      c->send_select_state(obj, obj->state);
   });
 #endif
 
