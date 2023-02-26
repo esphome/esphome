@@ -8,6 +8,11 @@ using namespace esphome::number;
 
 std::string LGUartNumber::describe() { return this->get_name(); }
 
+void LGUartNumber::dump_config() {
+  ESP_LOGCONFIG(TAG, "[%s] command_string: [%s], encoding_base:[%i] ...", this->name_.c_str(), this->cmd_str_,
+                this->encoding_base_);
+}
+
 void LGUartNumber::control(float value) {
   ESP_LOGD(TAG, "[%s] control(). Value: [%f]...", this->name_.c_str(), value);
 
@@ -23,15 +28,7 @@ void LGUartNumber::control(float value) {
   this->publish_state((int) value);
 }
 
-void LGUartNumber::dump_config() {
-  ESP_LOGCONFIG(TAG, "[%s] command_string: [%s], encoding_base:[%i] ...", this->name_.c_str(), this->cmd_str_,
-                this->encoding_base_);
-}
-
 // When parent gets a reply meant for us, we'll get notified here
-// TODO: maybe refactor this so the signature is
-//    const std::vector<uint8_t> &data
-
 void LGUartNumber::on_reply_packet(uint8_t pkt[]) {
   ESP_LOGD(TAG, "[%s] on_reply_packet(). reply: [%s].", this->get_name().c_str(), pkt);
 

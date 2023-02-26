@@ -13,7 +13,8 @@
 namespace esphome {
 namespace lg_uart {
 
-static const char *const TAG = "LGUart";
+static const char *const TAG = "LGUART";
+
 // LG docs indicate that reply will be no longer than 10 bytes + 1 for termination
 static const uint8_t PACKET_LEN = 11;
 
@@ -25,9 +26,7 @@ class LGUartHub : public Component, public uart::UARTDevice {
 
   /** Generic commands */
   bool send_cmd(char cmd_code[2], int data, bool b16_encode = true);
-  /* Component overrides */
 
-  void loop() override;
   void dump_config() override;
   void setup() override;
   float get_setup_priority() const override { return setup_priority::LATE; }
@@ -37,6 +36,7 @@ class LGUartHub : public Component, public uart::UARTDevice {
 
  protected:
   int screen_num_ = -1;
+  // 0 through 99 + termination
   char screen_num_chars_[3] = {0, 0, 0};
 
   // Index the children by the second character of the command.

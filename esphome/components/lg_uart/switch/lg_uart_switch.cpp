@@ -6,6 +6,12 @@ namespace lg_uart {
 
 using namespace esphome::switch_;
 
+std::string LGUartSwitch::describe() { return this->get_name(); }
+
+void LGUartSwitch::dump_config() {
+  ESP_LOGCONFIG(TAG, "[%s] command string: '%s'", this->get_name().c_str(), this->cmd_str_);
+}
+
 void LGUartSwitch::setup() {
   ESP_LOGCONFIG(TAG, "Setting up LGUartSwitch '%s' with cmd_string: [%s]...", this->name_.c_str(), this->cmd_str_);
 
@@ -20,12 +26,6 @@ void LGUartSwitch::setup() {
   } else {
     this->turn_off();
   }
-}
-
-std::string LGUartSwitch::describe() { return this->get_name(); }
-
-void LGUartSwitch::dump_config() {
-  ESP_LOGCONFIG(TAG, "[%s] command string: '%s'", this->get_name().c_str(), this->cmd_str_);
 }
 
 // When parent gets a reply meant for us, we'll get notified here

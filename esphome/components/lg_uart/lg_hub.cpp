@@ -9,10 +9,9 @@
 namespace esphome {
 namespace lg_uart {
 
-/* Public */
-
 bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
   ESP_LOGD(TAG, "send_cmd(%s). data: '%i' for screen: '%i'", cmd_code, data, this->screen_num_);
+
   std::string s;
 
   if (b16_encode) {
@@ -57,14 +56,14 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
     The last bytes will be the value of the setting we inquired about and an `x`
 
   */
+
   // Note: this does not get called when uart debugging turned on!
   while (this->available()) {
-    // Get the byte
+    // Get the byte and dump to console for debug/inspection
     this->read_byte(&peeked);
+    ESP_LOGD(TAG, "send_cmd(%s). peeked[%i]: 0x%x \t %u \t [%c]", cmd_code, idx, peeked, peeked, peeked);
 
-    // ESP_LOGD(TAG, "send_cmd(%s). peeked[%i]: 0x%x \t %u \t [%c]", cmd_code, idx, peeked, peeked, peeked);
-
-    // For the first byte, we need it to be in children
+    // Check that we have a component registered for the command in question.
     if (idx == 0) {
       if (this->children_.count((char) peeked) == 0) {
         // ESP_LOGD(TAG, "send_cmd(%s). NOT FOUND: [%c]", cmd_code, peeked);
@@ -75,7 +74,6 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
         // ESP_LOGD(TAG, "send_cmd(%s). FOUND: [%c]", cmd_code, peeked);
         continue;
       }
-      // Space
     }
 
     // Space
@@ -110,6 +108,8 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
       continue;
     }
   }
+
+  // Validate packet and dispatch
   if (idx == PACKET_LEN - 1) {
     // OK
     if (reply[5] == 0x4f && reply[6] == 0x4b) {
@@ -132,9 +132,6 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
   // If we didn't get a full packet, indicate failure of some sort.
   return false;
 }
-
-/* Internal */
-void LGUartHub::loop() {}
 
 void LGUartHub::setup() {
   // User gives us a number from 0 to 99; we need the individual characters

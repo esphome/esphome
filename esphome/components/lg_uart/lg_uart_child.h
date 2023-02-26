@@ -11,6 +11,8 @@ class LGUartHub;
 
 class LGUartClient : public Parented<LGUartHub> {
  public:
+  // TODO: maybe refactor this so the signature is
+  //    const std::vector<uint8_t> &data
   virtual void on_reply_packet(uint8_t pkt[]) = 0;
 
  protected:

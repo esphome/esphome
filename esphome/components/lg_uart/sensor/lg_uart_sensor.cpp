@@ -4,17 +4,16 @@
 namespace esphome {
 namespace lg_uart {
 
+using namespace esphome::sensor;
+
+std::string LGUartSensor::describe() { return this->get_name(); }
+
 void LGUartSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "[%s] command_string: [%s], encoding_base:[%i] ...", this->name_.c_str(), this->cmd_str_,
                 this->encoding_base_);
 }
 
-std::string LGUartSensor::describe() { return this->get_name(); }
-
 // When parent gets a reply meant for us, we'll get notified here
-// TODO: maybe refactor this so the signature is
-//    const std::vector<uint8_t> &data
-
 void LGUartSensor::on_reply_packet(uint8_t pkt[]) {
   ESP_LOGD(TAG, "[%s] on_reply_packet(). reply: [%s].", this->get_name().c_str(), pkt);
 
