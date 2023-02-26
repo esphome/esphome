@@ -612,7 +612,7 @@ template<class T> class ExternalRAMAllocator {
     size_t size = n * sizeof(T);
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM));
+    ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
 #endif
     if (ptr == nullptr && (this->flags_ & Flags::REFUSE_INTERNAL) == 0)
       ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)
