@@ -56,7 +56,9 @@ async def to_code(config):
     for dumper in dumpers:
         cg.add(var.register_dumper(dumper))
 
-    await remote_base.build_triggers(config)
+    triggers = await remote_base.build_triggers(config)
+    for trigger in triggers:
+        cg.add(var.register_listener(trigger))
     await cg.register_component(var, config)
 
     cg.add(var.set_tolerance(config[CONF_TOLERANCE]))
