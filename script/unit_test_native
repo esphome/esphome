@@ -1,0 +1,10 @@
+#!/usr/bin/env bash
+
+set -e
+
+cd "$(dirname "$0")/.."
+
+set -x
+
+[ -d build_unit_tests_native/ ] || meson setup  build_unit_tests_native/ tests/unit_tests_native/
+meson test -C build_unit_tests_native/

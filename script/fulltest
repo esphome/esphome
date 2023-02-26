@@ -10,5 +10,6 @@ script/ci-custom.py
 script/lint-python
 script/lint-cpp
 script/unit_test
+script/unit_test_native
 script/component_test
 script/test
