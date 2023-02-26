@@ -23,6 +23,13 @@ namespace number {
     } \
   }
 
+#define SUB_NUMBER(name) \
+ protected: \
+  number::Number *name##_number_{nullptr}; \
+\
+ public: \
+  void set_##name##_number(number::Number *number) { this->name##_number_ = number; }
+
 class Number;
 
 /** Base-class for all numbers.

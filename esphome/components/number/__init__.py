@@ -7,7 +7,9 @@ from esphome.const import (
     CONF_ABOVE,
     CONF_BELOW,
     CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
     CONF_ID,
+    CONF_ICON,
     CONF_MODE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
@@ -63,6 +65,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
+from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
@@ -150,13 +153,12 @@ NUMBER_OPERATION_OPTIONS = {
     "TO_MAX": NumberOperation.NUMBER_OP_TO_MAX,
 }
 
-icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
+validate_unit_of_measurement = cv.string_strict
 
 NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
-        cv.GenerateID(): cv.declare_id(Number),
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
@@ -170,11 +172,35 @@ NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
             },
             cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
         ),
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
+        cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
         cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
     }
 )
+
+_UNDEF = object()
+
+
+def number_schema(
+    class_: MockObjClass,
+    *,
+    icon: str = _UNDEF,
+    entity_category: str = _UNDEF,
+    device_class: str = _UNDEF,
+    unit_of_measurement: str = _UNDEF,
+) -> cv.Schema:
+    schema = {cv.GenerateID(): cv.declare_id(class_)}
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_DEVICE_CLASS, device_class, validate_device_class),
+        (CONF_UNIT_OF_MEASUREMENT, unit_of_measurement, validate_unit_of_measurement),
+    ]:
+        if default is not _UNDEF:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return NUMBER_SCHEMA.extend(schema)
 
 
 async def setup_number_core_(
