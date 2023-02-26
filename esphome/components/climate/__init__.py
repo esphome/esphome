@@ -104,9 +104,39 @@ CLIMATE_SWING_MODES = {
 
 validate_climate_swing_mode = cv.enum(CLIMATE_SWING_MODES, upper=True)
 
+CONF_CURRENT_TEMPERATURE = "current_temperature"
+
+visual_temperature = cv.float_with_unit(
+    "visual_temperature", "(°C|° C|°|C|° K|° K|K|°F|° F|F)?"
+)
+
+
+def single_visual_temperature(value):
+    if isinstance(value, dict):
+        return value
+
+    value = visual_temperature(value)
+    return VISUAL_TEMPERATURE_STEP_SCHEMA(
+        {
+            CONF_TARGET_TEMPERATURE: value,
+            CONF_CURRENT_TEMPERATURE: value,
+        }
+    )
+
+
 # Actions
 ControlAction = climate_ns.class_("ControlAction", automation.Action)
 StateTrigger = climate_ns.class_("StateTrigger", automation.Trigger.template())
+
+VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Any(
+    single_visual_temperature,
+    cv.Schema(
+        {
+            cv.Required(CONF_TARGET_TEMPERATURE): visual_temperature,
+            cv.Required(CONF_CURRENT_TEMPERATURE): visual_temperature,
+        }
+    ),
+)
 
 CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
@@ -116,9 +146,7 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
             {
                 cv.Optional(CONF_MIN_TEMPERATURE): cv.temperature,
                 cv.Optional(CONF_MAX_TEMPERATURE): cv.temperature,
-                cv.Optional(CONF_TEMPERATURE_STEP): cv.float_with_unit(
-                    "visual_temperature", "(°C|° C|°|C|° K|° K|K|°F|° F|F)?"
-                ),
+                cv.Optional(CONF_TEMPERATURE_STEP): VISUAL_TEMPERATURE_STEP_SCHEMA,
             }
         ),
         cv.Optional(CONF_ACTION_STATE_TOPIC): cv.All(
@@ -193,7 +221,12 @@ async def setup_climate_core_(var, config):
     if CONF_MAX_TEMPERATURE in visual:
         cg.add(var.set_visual_max_temperature_override(visual[CONF_MAX_TEMPERATURE]))
     if CONF_TEMPERATURE_STEP in visual:
-        cg.add(var.set_visual_temperature_step_override(visual[CONF_TEMPERATURE_STEP]))
+        cg.add(
+            var.set_visual_temperature_step_override(
+                visual[CONF_TEMPERATURE_STEP][CONF_TARGET_TEMPERATURE],
+                visual[CONF_TEMPERATURE_STEP][CONF_CURRENT_TEMPERATURE],
+            )
+        )
 
     if CONF_MQTT_ID in config:
         mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
