@@ -37,7 +37,9 @@ CONFIG_SCHEMA = cv.COMPONENT_SCHEMA.extend(
         cv.GenerateID(): cv.declare_id(LGUartHub),
         # We need to know which uart device to use
         cv.Required(CONF_UART_ID): cv.use_id(uart.CONF_ID),
-        cv.Optional(CONF_SCREEN_NUMBER, default=0): cv.int_range(min=0, max=99),
+        # Docs indicate that ID of 0 is broadcast / all screens.
+        # By default, each comes from the factory set as 1.
+        cv.Optional(CONF_SCREEN_NUMBER, default=1): cv.int_range(min=0, max=99),
     }
 )
 

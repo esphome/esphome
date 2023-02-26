@@ -11,10 +11,11 @@ from .. import (
     register_lg_uart_child,
     validate_uart_cmd_len,
     CODEOWNERS as co,
+    DEPENDENCIES as deps,
 )
 
 CODEOWNERS = co
-DEPENDENCIES = ["lg_uart"]
+DEPENDENCIES = deps
 
 LGUartSensor = lg_uart_ns.class_("LGUartSensor", sensor.Sensor, cg.PollingComponent)
 
@@ -22,9 +23,7 @@ CONFIG_SCHEMA = cv.All(
     sensor.SENSOR_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(LGUartSensor),
-            # TODO: length? It seems like all LG commands are two chars?
             cv.Required(CONF_LG_UART_CMD): cv.string_strict,
-            # TODO: can I do this as just a number rather than a string?
             cv.Optional(CONF_DECODE_BASE, default=10): cv.one_of(
                 *CONF_DECODE_BASE_TYPES, int=True
             ),
