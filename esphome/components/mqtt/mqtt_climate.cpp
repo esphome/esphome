@@ -62,7 +62,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
   // max_temp
   root[MQTT_MAX_TEMP] = traits.get_visual_max_temperature();
   // temp_step
-  root["temp_step"] = traits.get_visual_temperature_step();
+  root["temp_step"] = traits.get_visual_target_temperature_step();
   // temperature units are always coerced to Celsius internally
   root[MQTT_TEMPERATURE_UNIT] = "C";
 
@@ -72,7 +72,7 @@ void MQTTClimateComponent::send_discovery(JsonObject root, mqtt::SendDiscoveryCo
     // preset_mode_state_topic
     root[MQTT_PRESET_MODE_STATE_TOPIC] = this->get_preset_state_topic();
     // presets
-    JsonArray presets = root.createNestedArray("presets");
+    JsonArray presets = root.createNestedArray("preset_modes");
     if (traits.supports_preset(CLIMATE_PRESET_HOME))
       presets.add("home");
     if (traits.supports_preset(CLIMATE_PRESET_AWAY)) {
@@ -281,21 +281,22 @@ bool MQTTClimateComponent::publish_state_() {
   bool success = true;
   if (!this->publish(this->get_mode_state_topic(), mode_s))
     success = false;
-  int8_t accuracy = traits.get_temperature_accuracy_decimals();
+  int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
+  int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
   if (traits.get_supports_current_temperature() && !std::isnan(this->device_->current_temperature)) {
-    std::string payload = value_accuracy_to_string(this->device_->current_temperature, accuracy);
+    std::string payload = value_accuracy_to_string(this->device_->current_temperature, current_accuracy);
     if (!this->publish(this->get_current_temperature_state_topic(), payload))
       success = false;
   }
   if (traits.get_supports_two_point_target_temperature()) {
-    std::string payload = value_accuracy_to_string(this->device_->target_temperature_low, accuracy);
+    std::string payload = value_accuracy_to_string(this->device_->target_temperature_low, target_accuracy);
     if (!this->publish(this->get_target_temperature_low_state_topic(), payload))
       success = false;
-    payload = value_accuracy_to_string(this->device_->target_temperature_high, accuracy);
+    payload = value_accuracy_to_string(this->device_->target_temperature_high, target_accuracy);
     if (!this->publish(this->get_target_temperature_high_state_topic(), payload))
       success = false;
   } else {
-    std::string payload = value_accuracy_to_string(this->device_->target_temperature, accuracy);
+    std::string payload = value_accuracy_to_string(this->device_->target_temperature, target_accuracy);
     if (!this->publish(this->get_target_temperature_state_topic(), payload))
       success = false;
   }

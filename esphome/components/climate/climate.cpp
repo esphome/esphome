@@ -430,9 +430,11 @@ ClimateTraits Climate::get_traits() {
   if (this->visual_max_temperature_override_.has_value()) {
     traits.set_visual_max_temperature(*this->visual_max_temperature_override_);
   }
-  if (this->visual_temperature_step_override_.has_value()) {
-    traits.set_visual_temperature_step(*this->visual_temperature_step_override_);
+  if (this->visual_target_temperature_step_override_.has_value()) {
+    traits.set_visual_target_temperature_step(*this->visual_target_temperature_step_override_);
+    traits.set_visual_current_temperature_step(*this->visual_current_temperature_step_override_);
   }
+
   return traits;
 }
 
@@ -442,8 +444,9 @@ void Climate::set_visual_min_temperature_override(float visual_min_temperature_o
 void Climate::set_visual_max_temperature_override(float visual_max_temperature_override) {
   this->visual_max_temperature_override_ = visual_max_temperature_override;
 }
-void Climate::set_visual_temperature_step_override(float visual_temperature_step_override) {
-  this->visual_temperature_step_override_ = visual_temperature_step_override;
+void Climate::set_visual_temperature_step_override(float target, float current) {
+  this->visual_target_temperature_step_override_ = target;
+  this->visual_current_temperature_step_override_ = current;
 }
 #pragma GCC diagnostic push
 #pragma GCC diagnostic ignored "-Wdeprecated-declarations"
@@ -541,7 +544,9 @@ void Climate::dump_traits_(const char *tag) {
   ESP_LOGCONFIG(tag, "  [x] Visual settings:");
   ESP_LOGCONFIG(tag, "      - Min: %.1f", traits.get_visual_min_temperature());
   ESP_LOGCONFIG(tag, "      - Max: %.1f", traits.get_visual_max_temperature());
-  ESP_LOGCONFIG(tag, "      - Step: %.1f", traits.get_visual_temperature_step());
+  ESP_LOGCONFIG(tag, "      - Step:");
+  ESP_LOGCONFIG(tag, "          Target: %.1f", traits.get_visual_target_temperature_step());
+  ESP_LOGCONFIG(tag, "          Current: %.1f", traits.get_visual_current_temperature_step());
   if (traits.get_supports_current_temperature()) {
     ESP_LOGCONFIG(tag, "  [x] Supports current temperature");
   }

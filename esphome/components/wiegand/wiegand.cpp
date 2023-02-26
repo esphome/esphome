@@ -38,8 +38,8 @@ void Wiegand::setup() {
 bool check_eparity(uint64_t value, int start, int length) {
   int parity = 0;
   uint64_t mask = 1LL << start;
-  for (int i = 0; i <= length; i++, mask <<= 1) {
-    if (value & i)
+  for (int i = 0; i < length; i++, mask <<= 1) {
+    if (value & mask)
       parity++;
   }
   return !(parity & 1);
@@ -48,8 +48,8 @@ bool check_eparity(uint64_t value, int start, int length) {
 bool check_oparity(uint64_t value, int start, int length) {
   int parity = 0;
   uint64_t mask = 1LL << start;
-  for (int i = 0; i <= length; i++, mask <<= 1) {
-    if (value & i)
+  for (int i = 0; i < length; i++, mask <<= 1) {
+    if (value & mask)
       parity++;
   }
   return parity & 1;
