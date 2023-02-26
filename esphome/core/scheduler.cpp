@@ -13,6 +13,11 @@ static const uint32_t MAX_LOGICALLY_DELETED_ITEMS = 10;
 // Uncomment to debug scheduler
 // #define ESPHOME_DEBUG_SCHEDULER
 
+// A note on locking: the `lock_` lock protects the `items_` and `to_add_` containers. It must be taken when writing to
+// them (i.e. when adding/removing items, but not when changing items). As items are only deleted from the loop task,
+// iterating over them from the loop task is fine; but iterating from any other context requires the lock to be held to
+// avoid the main thread modifying the list while it is being accessed.
+
 void HOT Scheduler::set_timeout(Component *component, const std::string &name, uint32_t timeout,
                                 std::function<void()> func) {
   const uint32_t now = this->millis_();
@@ -121,7 +126,7 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
   args->backoff_increase_factor = backoff_increase_factor;
   args->scheduler = this;
 
-  // First exectuion of `func` immediately
+  // First execution of `func` immediately
   this->set_timeout(component, args->name, 0, [args]() { retry_handler(args); });
 }
 bool HOT Scheduler::cancel_retry(Component *component, const std::string &name) {
@@ -150,30 +155,42 @@ void HOT Scheduler::call() {
     std::vector<std::unique_ptr<SchedulerItem>> old_items;
     ESP_LOGVV(TAG, "Items: count=%u, now=%u", this->items_.size(), now);
     while (!this->empty_()) {
+      this->lock_.lock();
       auto item = std::move(this->items_[0]);
+      this->pop_raw_();
+      this->lock_.unlock();
+
       ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u (%u)", item->get_type_str(),
                 item->name.c_str(), item->interval, item->last_execution, item->last_execution_major,
                 item->next_execution(), item->next_execution_major());
 
-      this->pop_raw_();
       old_items.push_back(std::move(item));
     }
     ESP_LOGVV(TAG, "\n");
-    this->items_ = std::move(old_items);
+
+    {
+      LockGuard guard{this->lock_};
+      this->items_ = std::move(old_items);
+    }
   }
 #endif  // ESPHOME_DEBUG_SCHEDULER
 
   auto to_remove_was = to_remove_;
-  auto items_was = items_.size();
+  auto items_was = this->items_.size();
   // If we have too many items to remove
   if (to_remove_ > MAX_LOGICALLY_DELETED_ITEMS) {
     std::vector<std::unique_ptr<SchedulerItem>> valid_items;
     while (!this->empty_()) {
+      LockGuard guard{this->lock_};
       auto item = std::move(this->items_[0]);
       this->pop_raw_();
       valid_items.push_back(std::move(item));
     }
-    this->items_ = std::move(valid_items);
+
+    {
+      LockGuard guard{this->lock_};
+      this->items_ = std::move(valid_items);
+    }
 
     // The following should not happen unless I'm missing something
     if (to_remove_ != 0) {
@@ -198,6 +215,7 @@ void HOT Scheduler::call() {
 
       // Don't run on failed components
       if (item->component != nullptr && item->component->is_failed()) {
+        LockGuard guard{this->lock_};
         this->pop_raw_();
         continue;
       }
@@ -217,12 +235,16 @@ void HOT Scheduler::call() {
     }
 
     {
+      this->lock_.lock();
+
       // new scope, item from before might have been moved in the vector
       auto item = std::move(this->items_[0]);
 
       // Only pop after function call, this ensures we were reachable
       // during the function call and know if we were cancelled.
       this->pop_raw_();
+
+      this->lock_.unlock();
 
       if (item->remove) {
         // We were removed/cancelled in the function call, stop
@@ -246,6 +268,7 @@ void HOT Scheduler::call() {
   this->process_to_add();
 }
 void HOT Scheduler::process_to_add() {
+  LockGuard guard{this->lock_};
   for (auto &it : this->to_add_) {
     if (it->remove) {
       continue;
@@ -263,15 +286,24 @@ void HOT Scheduler::cleanup_() {
       return;
 
     to_remove_--;
-    this->pop_raw_();
+
+    {
+      LockGuard guard{this->lock_};
+      this->pop_raw_();
+    }
   }
 }
 void HOT Scheduler::pop_raw_() {
   std::pop_heap(this->items_.begin(), this->items_.end(), SchedulerItem::cmp);
   this->items_.pop_back();
 }
-void HOT Scheduler::push_(std::unique_ptr<Scheduler::SchedulerItem> item) { this->to_add_.push_back(std::move(item)); }
+void HOT Scheduler::push_(std::unique_ptr<Scheduler::SchedulerItem> item) {
+  LockGuard guard{this->lock_};
+  this->to_add_.push_back(std::move(item));
+}
 bool HOT Scheduler::cancel_item_(Component *component, const std::string &name, Scheduler::SchedulerItem::Type type) {
+  // obtain lock because this function iterates and can be called from non-loop task context
+  LockGuard guard{this->lock_};
   bool ret = false;
   for (auto &it : this->items_) {
     if (it->component == component && it->name == name && it->type == type && !it->remove) {
