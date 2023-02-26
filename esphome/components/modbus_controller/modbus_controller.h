@@ -289,7 +289,7 @@ struct RegisterRange {
   ModbusRegisterType register_type;
   uint8_t register_count;
   uint16_t skip_updates;          // the config value
-  SensorSet sensors;             // all sensors of this range
+  SensorSet sensors;              // all sensors of this range
   uint16_t skip_updates_counter;  // the running value
 };
 
