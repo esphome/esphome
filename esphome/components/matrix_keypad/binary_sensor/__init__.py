@@ -30,9 +30,8 @@ def check_button(obj):
 
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(MatrixKeypadBinarySensor).extend(
         {
-            cv.GenerateID(): cv.declare_id(MatrixKeypadBinarySensor),
             cv.GenerateID(CONF_KEYPAD_ID): cv.use_id(MatrixKeypad),
             cv.Optional(CONF_ROW): cv.int_,
             cv.Optional(CONF_COL): cv.int_,

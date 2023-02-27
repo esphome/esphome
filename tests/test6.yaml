@@ -37,3 +37,7 @@ switch:
   - platform: output
     output: pin_4
     id: pin_4_switch
+
+sensor:
+  - platform: internal_temperature
+    name: "Internal Temperature"

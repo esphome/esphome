@@ -99,6 +99,7 @@ enum ClimateFanMode : uint32_t {
   CLIMATE_FAN_MIDDLE = 6,
   CLIMATE_FAN_FOCUS = 7,
   CLIMATE_FAN_DIFFUSE = 8,
+  CLIMATE_FAN_QUIET = 9,
 };
 enum ClimateSwingMode : uint32_t {
   CLIMATE_SWING_OFF = 0,
@@ -914,7 +915,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::vector<enums::ClimateMode> supported_modes{};
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
-  float visual_temperature_step{0.0f};
+  float visual_target_temperature_step{0.0f};
   bool legacy_supports_away{false};
   bool supports_action{false};
   std::vector<enums::ClimateFanMode> supported_fan_modes{};
@@ -925,6 +926,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   bool disabled_by_default{false};
   std::string icon{};
   enums::EntityCategory entity_category{};
+  float visual_current_temperature_step{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

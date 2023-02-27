@@ -15,6 +15,13 @@ namespace button {
     } \
   }
 
+#define SUB_BUTTON(name) \
+ protected: \
+  button::Button *name##_button_{nullptr}; \
+\
+ public: \
+  void set_##name##_button(button::Button *button) { this->name##_button_ = button; }
+
 /** Base class for all buttons.
  *
  * A button is just a momentary switch that does not have a state, only a trigger.
