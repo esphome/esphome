@@ -38,7 +38,6 @@ CONFIG_SCHEMA = cv.Schema(
             f"The '{CONF_TIMEOUT}' option has been moved to the '{CONF_TIMEOUT}'"
             f" number component"
         ),
-
     }
 )
 
@@ -59,9 +58,7 @@ for i in range(9):
     )
 
 CONFIG_SCHEMA = cv.All(
-    CONFIG_SCHEMA
-    .extend(uart.UART_DEVICE_SCHEMA)
-    .extend(cv.COMPONENT_SCHEMA)
+    CONFIG_SCHEMA.extend(uart.UART_DEVICE_SCHEMA).extend(cv.COMPONENT_SCHEMA)
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
