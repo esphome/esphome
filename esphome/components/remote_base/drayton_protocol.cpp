@@ -69,7 +69,6 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
       .channel = 0,
       .command = 0,
   };
-  uint8_t field_bit;
 
   if (src.size() < 45) {
     return {};
