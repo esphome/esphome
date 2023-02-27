@@ -4,7 +4,7 @@ esphome:
   comment: $device_comment
   build_path: build/test3
   platformio_options:
-    board_build.partitions: huge_app.csv5
+    board_build.partitions: huge_app.csv
   on_boot:
     - if:
         condition:
