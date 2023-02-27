@@ -792,7 +792,13 @@ async def raw_action(var, config, args):
 
 
 # Drayton
-DraytonData, DraytonBinarySensor, DraytonTrigger, DraytonAction, DraytonDumper = declare_protocol("Drayton")
+(
+    DraytonData,
+    DraytonBinarySensor,
+    DraytonTrigger,
+    DraytonAction,
+    DraytonDumper,
+) = declare_protocol("Drayton")
 DRAYTON_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
@@ -834,6 +840,7 @@ async def drayton_action(var, config, args):
     cg.add(var.set_channel(template_))
     template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint16)
     cg.add(var.set_command(template_))
+
 
 # RC5
 RC5Data, RC5BinarySensor, RC5Trigger, RC5Action, RC5Dumper = declare_protocol("RC5")
