@@ -24,21 +24,20 @@ class PZEMDC : public PollingComponent, public modbus::ModbusDevice {
 
   void dump_config() override;
 
+  void reset_energy();
+
  protected:
-  template<typename... Ts> friend class ResetEnergyAction;
   sensor::Sensor *voltage_sensor_{nullptr};
   sensor::Sensor *current_sensor_{nullptr};
   sensor::Sensor *power_sensor_{nullptr};
   sensor::Sensor *energy_sensor_{nullptr};
-
-  void reset_energy_();
 };
 
 template<typename... Ts> class ResetEnergyAction : public Action<Ts...> {
  public:
   ResetEnergyAction(PZEMDC *pzemdc) : pzemdc_(pzemdc) {}
 
-  void play(Ts... x) override { this->pzemdc_->reset_energy_(); }
+  void play(Ts... x) override { this->pzemdc_->reset_energy(); }
 
  protected:
   PZEMDC *pzemdc_;
