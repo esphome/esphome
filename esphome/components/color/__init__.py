@@ -10,6 +10,7 @@ CONF_RED_INT = "red_int"
 CONF_GREEN_INT = "green_int"
 CONF_BLUE_INT = "blue_int"
 CONF_WHITE_INT = "white_int"
+CONF_HEX = "hex"
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -22,11 +23,11 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Exclusive(CONF_BLUE_INT, "blue"): cv.uint8_t,
         cv.Exclusive(CONF_WHITE, "white"): cv.percentage,
         cv.Exclusive(CONF_WHITE_INT, "white"): cv.uint8_t,
+        cv.Exclusive(CONF_HEX, "hex"): cv.hex_color,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
-
-async def to_code(config):
+def from_rgbw(config):
     r = 0
     if CONF_RED in config:
         r = int(config[CONF_RED] * 255)
@@ -50,6 +51,15 @@ async def to_code(config):
         w = int(config[CONF_WHITE] * 255)
     elif CONF_WHITE_INT in config:
         w = config[CONF_WHITE_INT]
+
+    return (r,g,b,w)
+
+async def to_code(config):
+    if CONF_HEX in config:
+        r, g, b = config[CONF_HEX]
+        w = 0
+    else:
+        r, g, b, w = from_rgbw(config)
 
     cg.new_variable(
         config[CONF_ID],
