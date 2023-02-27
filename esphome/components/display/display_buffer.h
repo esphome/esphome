@@ -1,11 +1,11 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
-#include "display_color_utils.h"
 #include <cstdarg>
 #include <vector>
+#include "display_color_utils.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
