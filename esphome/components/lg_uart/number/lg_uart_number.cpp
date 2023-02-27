@@ -17,9 +17,9 @@ void LGUartNumber::control(float value) {
   ESP_LOGD(TAG, "[%s] control(). Value: [%f]...", this->name_.c_str(), value);
 
   if (this->parent_->send_cmd(this->cmd_str_, (int) value, true)) {
-    ESP_LOGD(TAG, "[%s] control(): %i - OK!", this->get_name().c_str());
+    ESP_LOGD(TAG, "[%s] control(): %f - OK!", this->get_name().c_str(), value);
   } else {
-    ESP_LOGW(TAG, "[%s] control(): %i - NG!", this->get_name().c_str());
+    ESP_LOGW(TAG, "[%s] control(): %f - NG!", this->get_name().c_str(), value);
     this->status_set_warning();
     return;
   }
