@@ -11,7 +11,9 @@ struct DraytonData {
   uint16_t channel;
   uint16_t command;
 
-  bool operator==(const DraytonData &rhs) const { return address == rhs.address && channel == rhs.channel && command == rhs.command; }
+  bool operator==(const DraytonData &rhs) const {
+    return address == rhs.address && channel == rhs.channel && command == rhs.command;
+  }
 };
 
 class DraytonProtocol : public RemoteProtocol<DraytonData> {
