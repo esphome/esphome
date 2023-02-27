@@ -290,7 +290,7 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
       if (connection != nullptr) {
         if (!connection->is_paired()) {
           auto err = connection->pair();
-          if (err != ESP_OK)) {
+          if (err != ESP_OK) {
             api::global_api_server->send_bluetooth_device_pairing(msg.address, false, err);
           }
         } else {
