@@ -38,11 +38,12 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   void dump_config() override;
 
   void set_display_buffer(display::DisplayBuffer *display);
-  void set_display_updater(PollingComponent *display_updater);
   void set_font(display::Font *font);
   template<typename V> void set_menu_item_value(V menu_item_value) { this->menu_item_value_ = menu_item_value; }
   void set_foreground_color(Color foreground_color);
   void set_background_color(Color background_color);
+
+  void add_on_redraw_callback(std::function<void()> &&cb) { this->on_redraw_callbacks_.add(std::move(cb)); }
 
  protected:
   void draw_menu() override;
@@ -59,12 +60,21 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   display::DisplayPage *display_page_{nullptr};
   const display::DisplayPage *previous_display_page_{nullptr};
   display::DisplayBuffer *display_buffer_{nullptr};
-  PollingComponent *display_updater_{nullptr};
   display::Font *font_{nullptr};
   TemplatableValue<std::string, const MenuItemValueArguments *> menu_item_value_;
   Color foreground_color_{display::COLOR_ON};
   Color background_color_{display::COLOR_OFF};
+
+  CallbackManager<void()> on_redraw_callbacks_{};
 };
+
+class GraphicalDisplayMenuOnRedrawTrigger : public Trigger<const GraphicalDisplayMenu *> {
+ public:
+  explicit GraphicalDisplayMenuOnRedrawTrigger(GraphicalDisplayMenu *parent) {
+    parent->add_on_redraw_callback([this, parent]() { this->trigger(parent); });
+  }
+};
+
 
 }  // namespace graphical_display_menu
 }  // namespace esphome

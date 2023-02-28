@@ -34,7 +34,6 @@ void GraphicalDisplayMenu::setup() {
 void GraphicalDisplayMenu::dump_config() {
   ESP_LOGCONFIG(TAG, "Graphical Display Menu");
   ESP_LOGCONFIG(TAG, "Has Display Buffer: %s", YESNO(this->display_buffer_ != nullptr));
-  ESP_LOGCONFIG(TAG, "Has Display Updater: %s", YESNO(this->display_updater_ != nullptr));
   ESP_LOGCONFIG(TAG, "Has Font: %s", YESNO(this->font_ != nullptr));
   ESP_LOGCONFIG(TAG, "Mode: %s", this->mode_ == display_menu_base::MENU_MODE_ROTARY ? "Rotary" : "Joystick");
   ESP_LOGCONFIG(TAG, "Active: %s", YESNO(this->active_));
@@ -48,10 +47,6 @@ void GraphicalDisplayMenu::dump_config() {
 }
 
 void GraphicalDisplayMenu::set_display_buffer(display::DisplayBuffer *display) { this->display_buffer_ = display; }
-
-void GraphicalDisplayMenu::set_display_updater(PollingComponent *display_updater) {
-  this->display_updater_ = display_updater;
-}
 
 void GraphicalDisplayMenu::set_font(display::Font *font) { this->font_ = font; }
 
@@ -74,12 +69,7 @@ void GraphicalDisplayMenu::on_before_hide() {
 }
 
 void GraphicalDisplayMenu::draw_menu() {
-  if (this->display_updater_) {
-    // Update should trickle through to the draw lambda which calls draw_menu_internal_ this avoids a double draw
-    this->update();
-  } else {
     this->draw_menu_internal_();
-  }
 }
 
 void GraphicalDisplayMenu::draw_menu_internal_() {
@@ -200,9 +190,7 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, ui
 }
 
 void GraphicalDisplayMenu::update() {
-  if (this->display_updater_ != nullptr) {
-    this->display_updater_->update();
-  }
+  this->on_redraw_callbacks_.call();
 }
 
 }  // namespace graphical_display_menu
