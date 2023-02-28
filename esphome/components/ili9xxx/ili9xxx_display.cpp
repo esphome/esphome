@@ -56,6 +56,9 @@ void ILI9XXXDisplay::dump_config() {
       ESP_LOGCONFIG(TAG, "  Color mode: 8bit 332 mode");
       break;
   }
+  if (this->is_18bitdisplay_) {
+    ESP_LOGCONFIG(TAG, "  18-Bit Mode: YES");
+  }
 
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
@@ -130,8 +133,8 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
     this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
     this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
-    ESP_LOGVV(TAG, "=>>> pixel (x:%d, y:%d) (xl:%d, xh:%d, yl:%d, yh:%d", x, y, this->x_low_, this->x_high_,
-              this->y_low_, this->y_high_);
+    //ESP_LOGVV(TAG, "=>>> pixel (x:%d, y:%d) (xl:%d, xh:%d, yl:%d, yh:%d", x, y, this->x_low_, this->x_high_,
+    //          this->y_low_, this->y_high_);
   }
 }
 
@@ -159,7 +162,7 @@ void ILI9XXXDisplay::display_() {
 
   // check if something was displayed
   if ((this->x_high_ < this->x_low_) || (this->y_high_ < this->y_low_)) {
-    ESP_LOGV(TAG, "Noting to display");
+    ESP_LOGV(TAG, "Nothing to display");
     return;
   }
 
@@ -177,9 +180,27 @@ void ILI9XXXDisplay::display_() {
 
     while (rem > 0) {
       uint32_t sz = std::min(rem, ILI9XXX_TRANSFER_BUFFER_SIZE);
-      //  ESP_LOGVV(TAG, "Send to display(pos:%d, rem:%d, zs:%d)", pos, rem, sz);
+      //ESP_LOGVV(TAG, "Send to display(pos:%d, rem:%d, zs:%d)", pos, rem, sz);
       buffer_to_transfer_(pos, sz);
-      this->write_array16(transfer_buffer_, sz);
+      if (this->is_18bitdisplay_) {
+        for (uint32_t i = 0; i < sz; ++i) {
+          uint16_t color_val = transfer_buffer_[i];
+
+          uint8_t red = color_val & 0x1F;
+          uint8_t green = (color_val & 0x7E0) >> 5;
+          uint8_t blue = (color_val & 0xF800) >> 11;
+
+          uint8_t pass_buff[3];
+
+          pass_buff[2] = (uint8_t)((red / 32.0) * 64) << 2;
+          pass_buff[1] = (uint8_t)green << 2;
+          pass_buff[0] = (uint8_t)((blue / 32.0) * 64) << 2;
+          
+          this->write_array(pass_buff, sizeof(pass_buff));
+        }
+      } else {
+        this->write_array16(transfer_buffer_, sz);
+      }
       pos += sz;
       rem -= sz;
     }
@@ -378,6 +399,7 @@ void ILI9XXXILI9488::initialize() {
   if (this->height_ == 0) {
     this->height_ = 320;
   }
+  this->is_18bitdisplay_ = true;
 }
 //    40_TFT display
 void ILI9XXXST7796::initialize() {

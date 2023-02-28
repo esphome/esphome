@@ -133,8 +133,9 @@ static const uint8_t PROGMEM INITCMD_ILI9488[] = {
 
   ILI9XXX_ADJCTL3, 4, 0xA9, 0x51, 0x2C, 0x82,  // Adjust Control 3
 
-  ILI9XXX_MADCTL,  1, 0x48,
-  ILI9XXX_PIXFMT,  1, 0x55,  // Interface Pixel Format = 16bit
+  ILI9XXX_MADCTL,  1, 0x28,
+  //ILI9XXX_PIXFMT,  1, 0x55,  // Interface Pixel Format = 16bit
+  ILI9XXX_PIXFMT, 1, 0x66,   //ILI9488 only supports 18-bit pixel format in 4/3 wire SPI mode
 
 
 
