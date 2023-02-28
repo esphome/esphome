@@ -64,10 +64,10 @@ ID, SWITCH, and CMD field.
 Spliting my received data into three parts of 16, 7 and 5 bits gives address,
 channel and Command values of:
 
-On  6180832		0110000110000000 1000001 10010
+On  6180832  0110000110000000 1000001 10010
 address: '0x6180' channel: '0x12' command: '0x41'
 
-Off 6180052     0110000110000000 0000010 10010
+Off 6180052  0110000110000000 0000010 10010
 address: '0x6180' channel: '0x12' command: '0x02'
 
 These values are slightly different to those used by RFLink (the RFLink
@@ -88,7 +88,7 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
 
   // Preamble = 101010101010
   uint32_t out_data = 0x0AAA;
-  for (uint16_t mask = 1UL << (NBITS_PREAMBLE - 1); mask != 0; mask >>= 1) {
+  for (uint32_t mask = 1UL << (NBITS_PREAMBLE - 1); mask != 0; mask >>= 1) {
     if (out_data & mask) {
       dst->mark(BIT_TIME_US);
     } else {
@@ -98,7 +98,7 @@ void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
 
   // Sync = 1100
   out_data = 0x000C;
-  for (uint16_t mask = 1UL << (NBITS_SYNC - 1); mask != 0; mask >>= 1) {
+  for (uint32_t mask = 1UL << (NBITS_SYNC - 1); mask != 0; mask >>= 1) {
     if (out_data & mask) {
       dst->mark(BIT_TIME_US);
     } else {
@@ -158,11 +158,6 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     }
   }
 
-  ESP_LOGVV(TAG, "Decode Drayton: %d, %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", src.get_index(),
-            src.peek(0), src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6), src.peek(7),
-            src.peek(8), src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14),
-            src.peek(15), src.peek(16), src.peek(17), src.peek(18), src.peek(19));
-
   // Read data. Index points to space of sync symbol
   // Extract first bit
   // Checks next bit to leave index pointing correctly
@@ -174,7 +169,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
              (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
     out_data |= 1 << bit;
   } else {
-    ESP_LOGV(TAG, "Decode Drayton: X2 - Err");
+    ESP_LOGV(TAG, "Decode Drayton: Fail 1, - %d", src.get_index());
     return {};
   }
 
@@ -182,7 +177,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
   // if there is no transition at the start of the bit period, then the transition in the middle of
   // the previous bit period.
   while (--bit >= 1) {
-    ESP_LOGVV(TAG, "Decode Drayton: X3, %2d %08x", bit, out_data);
+    ESP_LOGVV(TAG, "Decode Drayton: Data, %2d %08x", bit, out_data);
     if ((src.expect_space(BIT_TIME_US) || src.expect_space(2 * BIT_TIME_US)) &&
         (src.expect_mark(BIT_TIME_US) || src.peek_mark(2 * BIT_TIME_US))) {
       out_data |= 0 << bit;
@@ -190,7 +185,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
                (src.expect_space(BIT_TIME_US) || src.peek_space(2 * BIT_TIME_US))) {
       out_data |= 1 << bit;
     } else {
-      ESP_LOGV(TAG, "Decode Drayton: X4, %2d %08x", bit, out_data);
+      ESP_LOGVV(TAG, "Decode Drayton: Fail 2, %2d %08x", bit, out_data);
       return {};
     }
   }
@@ -199,7 +194,7 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
   } else if (src.expect_mark(BIT_TIME_US) || src.expect_mark(2 * BIT_TIME_US)) {
     out_data |= 1;
   }
-  ESP_LOGVV(TAG, "Decode Drayton: X3, %2d %08x", bit, out_data);
+  ESP_LOGV(TAG, "Decode Drayton: Data, %2d %08x", bit, out_data);
 
   out.channel = (uint16_t)(out_data & 0x1F);
   out_data >>= NBITS_CHANNEL;
