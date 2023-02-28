@@ -68,9 +68,7 @@ void GraphicalDisplayMenu::on_before_hide() {
   }
 }
 
-void GraphicalDisplayMenu::draw_menu() {
-    this->draw_menu_internal_();
-}
+void GraphicalDisplayMenu::draw_menu() { this->draw_menu_internal_(); }
 
 void GraphicalDisplayMenu::draw_menu_internal_() {
   const int available_height = this->display_buffer_->get_height();
@@ -189,9 +187,7 @@ void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, ui
                 "draw_item should be called.");
 }
 
-void GraphicalDisplayMenu::update() {
-  this->on_redraw_callbacks_.call();
-}
+void GraphicalDisplayMenu::update() { this->on_redraw_callbacks_.call(); }
 
 }  // namespace graphical_display_menu
 }  // namespace esphome

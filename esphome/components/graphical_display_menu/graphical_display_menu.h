@@ -75,6 +75,5 @@ class GraphicalDisplayMenuOnRedrawTrigger : public Trigger<const GraphicalDispla
   }
 };
 
-
 }  // namespace graphical_display_menu
 }  // namespace esphome
