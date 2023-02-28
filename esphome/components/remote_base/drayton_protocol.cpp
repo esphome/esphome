@@ -18,6 +18,70 @@ static const uint8_t NBITS = NBITS_ADDRESS + NBITS_CHANNEL + NBITS_COMMAND;
 static const uint8_t CMD_ON = 0x41;
 static const uint8_t CMD_OFF = 0x02;
 
+/*
+Drayton Protocol
+Using an oscilloscope to capture the data transmitted by the Digistat two
+distinct packets for 'On' and 'Off' are transmitted. Each transmitted bit
+has a period of 500us, a bit rate of 2000 baud.
+
+Each packet consists of an initial 1010 pattern to set up the receiver bias.
+The number of these bits seen at the receiver varies depending on the state
+of the bias when the packet transmission starts. The receiver algoritmn takes
+account of this.
+
+The packet appears to be Manchester encoded, with a '10' tranmitted pair
+representing a '1' bit and a '01' pair representing a '0' bit. Each packet is
+begun with a '1100' syncronisation symbol which breaks this rule. Following
+the sync are 28 '01' or '10' pairs.
+
+--------------------
+
+Boiler On Command as received:
+101010101010110001101001010101101001010101010101100101010101101001011001
+ppppppppppppSSSS-0-1-1-0-0-0-0-1-1-0-0-0-0-0-0-0-1-0-0-0-0-0-1-1-0-0-1-0
+
+(Where pppp represents the preamble bits and SSSS represents the sync symbol)
+
+28 bits of data received 01100001100000001000001 10010 (bin) or 6180832 (hex)
+
+Boiler Off Command as received:
+101010101010110001101001010101101001010101010101010101010110011001011001
+ppppppppppppSSSS-0-1-1-0-0-0-0-1-1-0-0-0-0-0-0-0-0-0-0-0-0-1-0-1-0-0-1-0
+
+28 bits of data received 0110000110000000000001010010 (bin) or 6180052 (hex)
+
+--------------------
+
+I have used 'RFLink' software (RLink Firmware Version: 1.1 Revision: 48) to
+capture and retransmit the Digistat packets. RFLink splits each packet into an
+ID, SWITCH, and CMD field.
+
+0;17;Drayton;ID=c300;SWITCH=12;CMD=ON;
+20;18;Drayton;ID=c300;SWITCH=12;CMD=OFF;
+
+--------------------
+
+Spliting my received data into three parts of 16, 7 and 5 bits gives address,
+channel and Command values of:
+
+On  6180832		0110000110000000 1000001 10010
+address: '0x6180' channel: '0x12' command: '0x41'
+
+Off 6180052     0110000110000000 0000010 10010
+address: '0x6180' channel: '0x12' command: '0x02'
+
+These values are slightly different to those used by RFLink (the RFLink
+ID/Adress value is rotated/manipulated), and I don't know who's interpretation
+is correct. A larger data sample would help (I have only found five different
+packet captures online) or definitive information from Drayton.
+
+Splitting each packet in this way works well for me with esphome. Any
+corrections or additional data samples would be gratefully received.
+
+marshn
+
+*/
+
 void DraytonProtocol::encode(RemoteTransmitData *dst, const DraytonData &data) {
   uint16_t khz = CARRIER_KHZ;
   dst->set_carrier_frequency(khz * 1000);
@@ -74,6 +138,11 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
     return {};
   }
 
+  ESP_LOGVV(TAG, "Decode Drayton: %d, %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", src.size(),
+            src.peek(0), src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6), src.peek(7),
+            src.peek(8), src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14),
+            src.peek(15), src.peek(16), src.peek(17), src.peek(18), src.peek(19));
+
   // If first preamble item is a space, skip it
   if (src.peek_space_at_least(1)) {
     src.advance(1);
@@ -88,6 +157,11 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
       break;
     }
   }
+
+  ESP_LOGVV(TAG, "Decode Drayton: %d, %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", src.get_index(),
+            src.peek(0), src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6), src.peek(7),
+            src.peek(8), src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14),
+            src.peek(15), src.peek(16), src.peek(17), src.peek(18), src.peek(19));
 
   // Read data. Index points to space of sync symbol
   // Extract first bit
