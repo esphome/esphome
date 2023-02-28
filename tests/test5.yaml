@@ -245,6 +245,10 @@ output:
     id: Led7
     led: 7
 
+  - platform: gp8403
+    id: gp8403_output
+    channel: 0
+
 demo:
 
 esp32_ble:
@@ -630,4 +634,3 @@ key_collector:
     source_id: keypad
     min_length: 4
     max_length: 4
-
