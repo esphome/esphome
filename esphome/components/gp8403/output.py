@@ -4,7 +4,7 @@ import esphome.codegen as cg
 from esphome.components import i2c, output
 from esphome.const import CONF_ID, CONF_CHANNEL
 
-# CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2c"]
 
 gp8403_ns = cg.esphome_ns.namespace("gp8403")
