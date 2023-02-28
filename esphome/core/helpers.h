@@ -14,6 +14,14 @@
 #include <esp_heap_caps.h>
 #endif
 
+#if defined(USE_ESP32)
+#include <freertos/FreeRTOS.h>
+#include <freertos/semphr.h>
+#elif defined(USE_RP2040)
+#include <FreeRTOS.h>
+#include <semphr.h>
+#endif
+
 #define HOT __attribute__((hot))
 #define ESPDEPRECATED(msg, when) __attribute__((deprecated(msg)))
 #define ALWAYS_INLINE __attribute__((always_inline))
@@ -516,6 +524,39 @@ template<typename T> class Parented {
 /// @name System APIs
 ///@{
 
+/** Mutex implementation, with API based on the unavailable std::mutex.
+ *
+ * @note This mutex is non-recursive, so take care not to try to obtain the mutex while it is already taken.
+ */
+class Mutex {
+ public:
+  Mutex();
+  Mutex(const Mutex &) = delete;
+  void lock();
+  bool try_lock();
+  void unlock();
+
+  Mutex &operator=(const Mutex &) = delete;
+
+ private:
+#if defined(USE_ESP32) || defined(USE_RP2040)
+  SemaphoreHandle_t handle_;
+#endif
+};
+
+/** Helper class that wraps a mutex with a RAII-style API.
+ *
+ * This behaves like std::lock_guard: as long as the object is alive, the mutex is held.
+ */
+class LockGuard {
+ public:
+  LockGuard(Mutex &mutex) : mutex_{mutex} { mutex_.lock(); }
+  ~LockGuard() { mutex_.unlock(); }
+
+ private:
+  Mutex &mutex_;
+};
+
 /** Helper class to disable interrupts.
  *
  * This behaves like std::lock_guard: as long as the object is alive, all interrupts are disabled.
@@ -568,7 +609,7 @@ class HighFrequencyLoopRequester {
 };
 
 /// Get the device MAC address as raw bytes, written into the provided byte array (6 bytes).
-void get_mac_address_raw(uint8_t *mac);
+void get_mac_address_raw(uint8_t *mac);  // NOLINT(readability-non-const-parameter)
 
 /// Get the device MAC address as a string, in lowercase hex notation.
 std::string get_mac_address();
@@ -612,7 +653,7 @@ template<class T> class ExternalRAMAllocator {
     size_t size = n * sizeof(T);
     T *ptr = nullptr;
 #ifdef USE_ESP32
-    ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM));
+    ptr = static_cast<T *>(heap_caps_malloc(size, MALLOC_CAP_SPIRAM | MALLOC_CAP_8BIT));
 #endif
     if (ptr == nullptr && (this->flags_ & Flags::REFUSE_INTERNAL) == 0)
       ptr = static_cast<T *>(malloc(size));  // NOLINT(cppcoreguidelines-owning-memory,cppcoreguidelines-no-malloc)

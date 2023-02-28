@@ -3,6 +3,8 @@ esphome:
   name: $device_name
   comment: $device_comment
   build_path: build/test3
+  platformio_options:
+    board_build.partitions: huge_app.csv
   on_boot:
     - if:
         condition:
@@ -279,9 +281,20 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart11
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart12
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
 
 modbus:
   uart_id: uart1
+
+vbus:
+  uart_id: uart4
 
 ota:
   safe_mode: true
@@ -294,6 +307,7 @@ logger:
   esp8266_store_log_strings_in_flash: true
 
 improv_serial:
+  next_url: https://esphome.io/?name={{device_name}}&version={{esphome_version}}&ip={{ip_address}}
 
 deep_sleep:
   run_duration: 20s
@@ -571,6 +585,8 @@ sensor:
       name: PZEMDC Current
     power:
       name: PZEMDC Power
+    energy:
+      name: PZEMDC Energy
   - platform: tmp102
     name: TMP102 Temperature
   - platform: hm3301
@@ -794,6 +810,17 @@ sensor:
     id: adc128s102_channel_0
     channel: 0
 
+  - platform: vbus
+    model: deltasol c
+    temperature_1:
+      name: Temperature 1
+
+  - platform: kuntze
+    ph:
+      name: Kuntze pH
+    temperature:
+      name: Kuntze temperature
+
 time:
   - platform: homeassistant
 
@@ -898,6 +925,11 @@ binary_sensor:
     on_press:
       then:
         - pzemac.reset_energy: pzemac1
+
+  - platform: vbus
+    model: deltasol_bs_plus
+    relay1:
+      name: Relay 1 On
 
 globals:
   - id: my_global_string
@@ -1118,14 +1150,16 @@ climate:
       - switch.turn_on: gpio_switch1
     fan_mode_diffuse_action:
       - switch.turn_on: gpio_switch2
+    fan_mode_quiet_action:
+      - switch.turn_on: gpio_switch1
     swing_off_action:
-      - switch.turn_on: gpio_switch1
+      - switch.turn_on: gpio_switch2
     swing_horizontal_action:
-      - switch.turn_on: gpio_switch2
-    swing_vertical_action:
       - switch.turn_on: gpio_switch1
-    swing_both_action:
+    swing_vertical_action:
       - switch.turn_on: gpio_switch2
+    swing_both_action:
+      - switch.turn_on: gpio_switch1
     startup_delay: true
     supplemental_cooling_delta: 2.0
     cool_deadband: 0.5
@@ -1158,6 +1192,24 @@ climate:
       kp: 0.0
       ki: 0.0
       kd: 0.0
+      max_integral: 0.0
+      output_averaging_samples: 1
+      derivative_averaging_samples: 1
+    deadband_parameters:
+      threshold_high: 0.4
+      threshold_low: -2.0
+      kp_multiplier: 0.0
+      ki_multiplier: 0.0
+      kd_multiplier: 0.0
+      deadband_output_averaging_samples: 1
+  - platform: haier
+    name: Haier AC
+    supported_swing_modes:
+      - vertical
+      - horizontal
+      - both
+    update_interval: 10s
+    uart_id: uart12
 
 sprinkler:
   - id: yard_sprinkler_ctrlr
@@ -1297,6 +1349,21 @@ output:
       return {s};
     outputs:
       - id: custom_binary
+  - platform: sigma_delta_output
+    id: sddac
+    update_interval: 60s
+    pin: D4
+    turn_on_action:
+      then:
+        - logger.log: "Turned on"
+    turn_off_action:
+      then:
+        - logger.log: "Turned off"
+    state_change_action:
+      then:
+        - logger.log:
+            format: "Changed state: %d"
+            args: [ 'state' ]
   - platform: custom
     type: float
     lambda: |-
@@ -1358,6 +1425,17 @@ light:
     name: Sonoff D1 Dimmer
     id: d1_light
     restore_mode: RESTORE_DEFAULT_OFF
+  - platform: shelly_dimmer
+    name: "Shelly Dimmer Light"
+    power:
+      name: "Shelly Dimmer Power"
+    voltage:
+      name: "Shelly Dimmer Voltage"
+    current:
+      name: "Shelly Dimmer Current"
+    max_brightness: 500
+    firmware: "51.6"
+    uart_id: uart11
 
 servo:
   id: my_servo
