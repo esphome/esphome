@@ -803,7 +803,7 @@ DRAYTON_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
         cv.Required(CONF_CHANNEL): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
-        cv.Optional(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
+        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
     }
 )
 
