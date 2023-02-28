@@ -133,8 +133,8 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
     this->x_high_ = (x > this->x_high_) ? x : this->x_high_;
     this->y_high_ = (y > this->y_high_) ? y : this->y_high_;
-    //ESP_LOGVV(TAG, "=>>> pixel (x:%d, y:%d) (xl:%d, xh:%d, yl:%d, yh:%d", x, y, this->x_low_, this->x_high_,
-    //          this->y_low_, this->y_high_);
+    // ESP_LOGVV(TAG, "=>>> pixel (x:%d, y:%d) (xl:%d, xh:%d, yl:%d, yh:%d", x, y, this->x_low_, this->x_high_,
+    //           this->y_low_, this->y_high_);
   }
 }
 
@@ -180,7 +180,7 @@ void ILI9XXXDisplay::display_() {
 
     while (rem > 0) {
       uint32_t sz = std::min(rem, ILI9XXX_TRANSFER_BUFFER_SIZE);
-      //ESP_LOGVV(TAG, "Send to display(pos:%d, rem:%d, zs:%d)", pos, rem, sz);
+      // ESP_LOGVV(TAG, "Send to display(pos:%d, rem:%d, zs:%d)", pos, rem, sz);
       buffer_to_transfer_(pos, sz);
       if (this->is_18bitdisplay_) {
         for (uint32_t i = 0; i < sz; ++i) {
@@ -192,10 +192,10 @@ void ILI9XXXDisplay::display_() {
 
           uint8_t pass_buff[3];
 
-          pass_buff[2] = (uint8_t)((red / 32.0) * 64) << 2;
-          pass_buff[1] = (uint8_t)green << 2;
-          pass_buff[0] = (uint8_t)((blue / 32.0) * 64) << 2;
-          
+          pass_buff[2] = (uint8_t) ((red / 32.0) * 64) << 2;
+          pass_buff[1] = (uint8_t) green << 2;
+          pass_buff[0] = (uint8_t) ((blue / 32.0) * 64) << 2;
+
           this->write_array(pass_buff, sizeof(pass_buff));
         }
       } else {
