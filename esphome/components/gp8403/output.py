@@ -16,7 +16,7 @@ CONFIG_SCHEMA = (
     output.FLOAT_OUTPUT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(GP8403Output),
-            cv.Required(CONF_CHANNEL): cv.one_of(0, 1, 2),
+            cv.Required(CONF_CHANNEL): cv.one_of(0, 1),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

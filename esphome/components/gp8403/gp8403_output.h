@@ -9,7 +9,6 @@ namespace gp8403 {
 
 class GP8403Output : public Component, public i2c::I2CDevice, public output::FloatOutput {
  public:
-  void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
