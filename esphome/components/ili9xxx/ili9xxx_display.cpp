@@ -192,9 +192,9 @@ void ILI9XXXDisplay::display_() {
 
           uint8_t pass_buff[3];
 
-          pass_buff[2] = (uint8_t) ((red / 32.0) * 64) << 2;
+          pass_buff[2] = (uint8_t)((red / 32.0) * 64) << 2;
           pass_buff[1] = (uint8_t) green << 2;
-          pass_buff[0] = (uint8_t) ((blue / 32.0) * 64) << 2;
+          pass_buff[0] = (uint8_t)((blue / 32.0) * 64) << 2;
 
           this->write_array(pass_buff, sizeof(pass_buff));
         }
