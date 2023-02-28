@@ -1,3 +1,4 @@
+#include <array>
 #include "pmsx003.h"
 #include "esphome/core/log.h"
 
@@ -47,76 +48,116 @@ void PMSX003Component::set_formaldehyde_sensor(sensor::Sensor *formaldehyde_sens
   formaldehyde_sensor_ = formaldehyde_sensor;
 }
 
-void PMSX003Component::loop() {
-  const uint32_t now = millis();
+void PMSX003Component::dump_config() {
+  ESP_LOGCONFIG(TAG, "PMSX003:");
+  LOG_SENSOR("  ", "PM1.0STD", this->pm_1_0_std_sensor_);
+  LOG_SENSOR("  ", "PM2.5STD", this->pm_2_5_std_sensor_);
+  LOG_SENSOR("  ", "PM10.0STD", this->pm_10_0_std_sensor_);
 
-  // If we update less often than it takes the device to stabilise, spin the fan down
-  // rather than running it constantly. It does take some time to stabilise, so we
-  // need to keep track of what state we're in.
-  if (this->update_interval_ > PMS_STABILISING_MS) {
-    if (this->initialised_ == 0) {
-      this->send_command_(PMS_CMD_AUTO_MANUAL, 0);
-      this->send_command_(PMS_CMD_ON_STANDBY, 1);
-      this->initialised_ = 1;
-    }
-    switch (this->state_) {
-      case PMSX003_STATE_IDLE:
-        // Power on the sensor now so it'll be ready when we hit the update time
-        if (now - this->last_update_ < (this->update_interval_ - PMS_STABILISING_MS))
-          return;
+  LOG_SENSOR("  ", "PM1.0", this->pm_1_0_sensor_);
+  LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
+  LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
 
-        this->state_ = PMSX003_STATE_STABILISING;
-        this->send_command_(PMS_CMD_ON_STANDBY, 1);
-        this->fan_on_time_ = now;
-        return;
-      case PMSX003_STATE_STABILISING:
-        // wait for the sensor to be stable
-        if (now - this->fan_on_time_ < PMS_STABILISING_MS)
-          return;
-        // consume any command responses that are in the serial buffer
-        while (this->available())
-          this->read_byte(&this->data_[0]);
-        // Trigger a new read
-        this->send_command_(PMS_CMD_TRIG_MANUAL, 0);
-        this->state_ = PMSX003_STATE_WAITING;
-        break;
-      case PMSX003_STATE_WAITING:
-        // Just go ahead and read stuff
-        break;
-    }
-  } else if (now - this->last_update_ < this->update_interval_) {
-    // Otherwise just leave the sensor powered up and come back when we hit the update
-    // time
-    return;
+  LOG_SENSOR("  ", "PM0.3um", this->pm_particles_03um_sensor_);
+  LOG_SENSOR("  ", "PM0.5um", this->pm_particles_05um_sensor_);
+  LOG_SENSOR("  ", "PM1.0um", this->pm_particles_10um_sensor_);
+  LOG_SENSOR("  ", "PM2.5um", this->pm_particles_25um_sensor_);
+  LOG_SENSOR("  ", "PM5.0um", this->pm_particles_50um_sensor_);
+  LOG_SENSOR("  ", "PM10.0um", this->pm_particles_100um_sensor_);
+
+  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
+  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
+  LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);
+  this->check_uart_settings(9600);
+}
+
+float PMSX003Component::get_setup_priority() const { return setup_priority::DATA; }
+
+void PMSX003Component::setup() {
+  this->is_laser_save_mode_ = this->update_interval_ > this->warmup_interval_;
+  ESP_LOGD(TAG, "Laser save mode: %s", this->is_laser_save_mode_ ? "ON" : "OFF");
+  if (!this->is_laser_save_mode_) {
+    this->set_timeout(1000, [this]() {
+      ESP_LOGD(TAG, "Wake up & warm up");
+      this->send_command_(PMS_CMD_SLEEP_WAKEUP, 1);
+      this->started_at_ = millis();
+      this->set_timeout(2000, [this]() {
+        ESP_LOGD(TAG, "Passive mode ON");
+        this->send_command_(PMS_CMD_PASSIVE_ACTIVE, 0);
+      });
+    });
   }
+}
 
-  if (now - this->last_transmission_ >= 500) {
-    // last transmission too long ago. Reset RX index.
-    this->data_index_ = 0;
-  }
-
-  if (this->available() == 0)
-    return;
-
-  this->last_transmission_ = now;
-  while (this->available() != 0) {
-    this->read_byte(&this->data_[this->data_index_]);
-    auto check = this->check_byte_();
-    if (!check.has_value()) {
-      // finished
-      this->parse_data_();
-      this->data_index_ = 0;
-      this->last_update_ = now;
-    } else if (!*check) {
-      // wrong data
-      this->data_index_ = 0;
+void PMSX003Component::update() {
+  if (this->is_laser_save_mode_) {
+    // wakeup
+    ESP_LOGD(TAG, "Wake up & warm up");
+    this->send_command_(PMS_CMD_SLEEP_WAKEUP, 1);
+    // and set mode to passive, as it resets to active on each wakeup
+    this->set_timeout(2000, [this]() {
+      ESP_LOGD(TAG, "Passive mode ON");
+      this->send_command_(PMS_CMD_PASSIVE_ACTIVE, 0);
+    });
+    this->set_timeout(this->warmup_interval_, [this]() { this->take_measurement_(); });
+  } else {
+    // ensure the first read is after sensor has warmed up
+    if (!this->warmed_up_ && this->started_at_.has_value() && millis() - *this->started_at_ > this->warmup_interval_)
+      this->warmed_up_ = true;
+    if (this->warmed_up_) {
+      this->take_measurement_();
     } else {
-      // next byte
-      this->data_index_++;
+      if (this->started_at_.has_value()) {
+        ESP_LOGD(TAG, "Remaining warm up time: %u s",
+                 int((this->warmup_interval_ - (millis() - *this->started_at_)) / 1000));
+      }
     }
   }
 }
-float PMSX003Component::get_setup_priority() const { return setup_priority::DATA; }
+
+void PMSX003Component::take_measurement_(uint32_t timeout) {
+  while (this->available())
+    this->read_byte(this->data_);
+
+  this->send_command_(PMS_CMD_REQUEST_READ, 0);
+  this->data_index_ = 0;
+  auto start = millis();
+
+  while (true) {
+    if (millis() - start > timeout) {
+      ESP_LOGE(TAG, "Reading data from PMSx003 timed out");
+      break;
+    }
+
+    if (this->available() != 0) {
+      this->read_byte(&this->data_[this->data_index_]);
+      auto check = this->check_byte_();
+      if (!check.has_value()) {
+        // finished
+        this->parse_data_();
+
+        // Spin down the sensor again if we aren't going to need it until more time has
+        // passed than it takes to stabilise
+        if (this->is_laser_save_mode_) {
+          this->set_timeout(1000, [this]() {
+            ESP_LOGD(TAG, "Sleep");
+            this->send_command_(PMS_CMD_SLEEP_WAKEUP, 0);
+          });
+        }
+
+        this->status_clear_warning();
+        break;
+      } else if (*check) {
+        // next byte
+        this->data_index_++;
+      } else {
+        // corrupted data
+        break;
+      }
+    }
+  }
+}
+
 optional<bool> PMSX003Component::check_byte_() {
   uint8_t index = this->data_index_;
   uint8_t byte = this->data_[index];
@@ -174,22 +215,19 @@ optional<bool> PMSX003Component::check_byte_() {
 }
 
 void PMSX003Component::send_command_(uint8_t cmd, uint16_t data) {
-  this->data_index_ = 0;
-  this->data_[data_index_++] = 0x42;
-  this->data_[data_index_++] = 0x4D;
-  this->data_[data_index_++] = cmd;
-  this->data_[data_index_++] = (data >> 8) & 0xFF;
-  this->data_[data_index_++] = (data >> 0) & 0xFF;
+  std::array<uint8_t, 7> buf;
+  uint8_t idx = 0;
+  buf[idx++] = 0x42;
+  buf[idx++] = 0x4D;
+  buf[idx++] = cmd;
+  buf[idx++] = (data >> 8) & 0xFF;
+  buf[idx++] = (data >> 0) & 0xFF;
   int sum = 0;
-  for (int i = 0; i < data_index_; i++) {
-    sum += this->data_[i];
-  }
-  this->data_[data_index_++] = (sum >> 8) & 0xFF;
-  this->data_[data_index_++] = (sum >> 0) & 0xFF;
-  for (int i = 0; i < data_index_; i++) {
-    this->write_byte(this->data_[i]);
-  }
-  this->data_index_ = 0;
+  for (int i = 0; i < idx; i++)
+    sum += buf[i];
+  buf[idx++] = (sum >> 8) & 0xFF;
+  buf[idx++] = (sum >> 0) & 0xFF;
+  this->write_array(buf);
 }
 
 void PMSX003Component::parse_data_() {
@@ -278,40 +316,10 @@ void PMSX003Component::parse_data_() {
       break;
     }
   }
-
-  // Spin down the sensor again if we aren't going to need it until more time has
-  // passed than it takes to stabilise
-  if (this->update_interval_ > PMS_STABILISING_MS) {
-    this->send_command_(PMS_CMD_ON_STANDBY, 0);
-    this->state_ = PMSX003_STATE_IDLE;
-  }
-
-  this->status_clear_warning();
 }
+
 uint16_t PMSX003Component::get_16_bit_uint_(uint8_t start_index) {
   return (uint16_t(this->data_[start_index]) << 8) | uint16_t(this->data_[start_index + 1]);
-}
-void PMSX003Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "PMSX003:");
-  LOG_SENSOR("  ", "PM1.0STD", this->pm_1_0_std_sensor_);
-  LOG_SENSOR("  ", "PM2.5STD", this->pm_2_5_std_sensor_);
-  LOG_SENSOR("  ", "PM10.0STD", this->pm_10_0_std_sensor_);
-
-  LOG_SENSOR("  ", "PM1.0", this->pm_1_0_sensor_);
-  LOG_SENSOR("  ", "PM2.5", this->pm_2_5_sensor_);
-  LOG_SENSOR("  ", "PM10.0", this->pm_10_0_sensor_);
-
-  LOG_SENSOR("  ", "PM0.3um", this->pm_particles_03um_sensor_);
-  LOG_SENSOR("  ", "PM0.5um", this->pm_particles_05um_sensor_);
-  LOG_SENSOR("  ", "PM1.0um", this->pm_particles_10um_sensor_);
-  LOG_SENSOR("  ", "PM2.5um", this->pm_particles_25um_sensor_);
-  LOG_SENSOR("  ", "PM5.0um", this->pm_particles_50um_sensor_);
-  LOG_SENSOR("  ", "PM10.0um", this->pm_particles_100um_sensor_);
-
-  LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
-  LOG_SENSOR("  ", "Humidity", this->humidity_sensor_);
-  LOG_SENSOR("  ", "Formaldehyde", this->formaldehyde_sensor_);
-  this->check_uart_settings(9600);
 }
 
 }  // namespace pmsx003

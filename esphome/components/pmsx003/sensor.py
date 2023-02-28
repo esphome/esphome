@@ -18,7 +18,6 @@ from esphome.const import (
     CONF_PM_2_5UM,
     CONF_PM_5_0UM,
     CONF_PM_10_0UM,
-    CONF_UPDATE_INTERVAL,
     CONF_TEMPERATURE,
     CONF_TYPE,
     DEVICE_CLASS_PM1,
@@ -39,6 +38,8 @@ DEPENDENCIES = ["uart"]
 pmsx003_ns = cg.esphome_ns.namespace("pmsx003")
 PMSX003Component = pmsx003_ns.class_("PMSX003Component", uart.UARTDevice, cg.Component)
 PMSX003Sensor = pmsx003_ns.class_("PMSX003Sensor", sensor.Sensor)
+
+CONF_WARMUP_INTERVAL = "warmup_interval"
 
 TYPE_PMSX003 = "PMSX003"
 TYPE_PMS5003T = "PMS5003T"
@@ -68,17 +69,6 @@ def validate_pmsx003_sensors(value):
     for key, types in SENSORS_TO_TYPE.items():
         if key in value and value[CONF_TYPE] not in types:
             raise cv.Invalid(f"{value[CONF_TYPE]} does not have {key} sensor!")
-    return value
-
-
-def validate_update_interval(value):
-    value = cv.positive_time_period_milliseconds(value)
-    if value == cv.time_period("0s"):
-        return value
-    if value < cv.time_period("30s"):
-        raise cv.Invalid(
-            "Update interval must be greater than or equal to 30 seconds if set."
-        )
     return value
 
 
@@ -171,18 +161,20 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_UPDATE_INTERVAL, default="0s"): validate_update_interval,
+            cv.Optional(CONF_WARMUP_INTERVAL, default="30s"): cv.All(
+                cv.positive_time_period_milliseconds,
+                cv.Range(min=cv.TimePeriod(seconds=10)),
+            ),
         }
     )
-    .extend(cv.COMPONENT_SCHEMA)
     .extend(uart.UART_DEVICE_SCHEMA)
+    .extend(cv.polling_component_schema("60s"))
 )
 
 
 def final_validate(config):
-    require_tx = config[CONF_UPDATE_INTERVAL] > cv.time_period("0s")
     schema = uart.final_validate_device_schema(
-        "pmsx003", baud_rate=9600, require_rx=True, require_tx=require_tx
+        "pmsx003", baud_rate=9600, require_rx=True, require_tx=True
     )
     schema(config)
 
@@ -257,4 +249,4 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_FORMALDEHYDE])
         cg.add(var.set_formaldehyde_sensor(sens))
 
-    cg.add(var.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    cg.add(var.set_warmup_interval(config[CONF_WARMUP_INTERVAL]))

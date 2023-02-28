@@ -289,6 +289,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart13
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
 
 modbus:
   uart_id: uart1
@@ -628,7 +632,7 @@ sensor:
       name: Particulate Count >10.0um
     update_interval: 30s
   - platform: pmsx003
-    uart_id: uart5
+    uart_id: uart13
     type: PMS5003T
     pm_2_5:
       name: PM 2.5 Concentration

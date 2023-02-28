@@ -8,11 +8,9 @@ namespace esphome {
 namespace pmsx003 {
 
 // known command bytes
-#define PMS_CMD_AUTO_MANUAL 0xE1  // data=0: perform measurement manually, data=1: perform measurement automatically
-#define PMS_CMD_TRIG_MANUAL 0xE2  // trigger a manual measurement
-#define PMS_CMD_ON_STANDBY 0xE4   // data=0: go to standby mode, data=1: go to normal mode
-
-static const uint16_t PMS_STABILISING_MS = 30000;  // time taken for the sensor to become stable after power on
+#define PMS_CMD_PASSIVE_ACTIVE 0xE1  // data=0: perform measurement manually, data=1: perform measurements continuously
+#define PMS_CMD_REQUEST_READ 0xE2    // trigger a manual measurement
+#define PMS_CMD_SLEEP_WAKEUP 0xE4    // data=0: sleep, data=1: wakeup
 
 enum PMSX003Type {
   PMSX003_TYPE_X003 = 0,
@@ -21,22 +19,16 @@ enum PMSX003Type {
   PMSX003_TYPE_5003S,
 };
 
-enum PMSX003State {
-  PMSX003_STATE_IDLE = 0,
-  PMSX003_STATE_STABILISING,
-  PMSX003_STATE_WAITING,
-};
-
-class PMSX003Component : public uart::UARTDevice, public Component {
+class PMSX003Component : public uart::UARTDevice, public PollingComponent {
  public:
   PMSX003Component() = default;
-  void loop() override;
+  void setup() override;
+  void update() override;
   float get_setup_priority() const override;
   void dump_config() override;
 
   void set_type(PMSX003Type type) { type_ = type; }
-
-  void set_update_interval(uint32_t val) { update_interval_ = val; };
+  void set_warmup_interval(uint32_t warmup_interval) { warmup_interval_ = warmup_interval; }
 
   void set_pm_1_0_std_sensor(sensor::Sensor *pm_1_0_std_sensor);
   void set_pm_2_5_std_sensor(sensor::Sensor *pm_2_5_std_sensor);
@@ -58,6 +50,7 @@ class PMSX003Component : public uart::UARTDevice, public Component {
   void set_formaldehyde_sensor(sensor::Sensor *formaldehyde_sensor);
 
  protected:
+  void take_measurement_(uint32_t timeout = 1000);
   optional<bool> check_byte_();
   void parse_data_();
   void send_command_(uint8_t cmd, uint16_t data);
@@ -65,13 +58,11 @@ class PMSX003Component : public uart::UARTDevice, public Component {
 
   uint8_t data_[64];
   uint8_t data_index_{0};
-  uint8_t initialised_{0};
-  uint32_t fan_on_time_{0};
-  uint32_t last_update_{0};
-  uint32_t last_transmission_{0};
-  uint32_t update_interval_{0};
-  PMSX003State state_{PMSX003_STATE_IDLE};
   PMSX003Type type_;
+  uint32_t warmup_interval_{30000};
+  optional<uint32_t> started_at_{};
+  bool warmed_up_{false};
+  bool is_laser_save_mode_{false};
 
   // "Standard Particle"
   sensor::Sensor *pm_1_0_std_sensor_{nullptr};
