@@ -163,6 +163,8 @@ void BluetoothConnection::gap_event_handler(esp_gap_ble_cb_event_t event, esp_bl
 
   switch (event) {
     case ESP_GAP_BLE_AUTH_CMPL_EVT:
+      if (memcmp(param->ble_security.auth_cmpl.bd_addr, this->remote_bda_, 6) != 0)
+        break;
       if (param->ble_security.auth_cmpl.success) {
         api::global_api_server->send_bluetooth_device_pairing(this->address_, true);
       } else {
