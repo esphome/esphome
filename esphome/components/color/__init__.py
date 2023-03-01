@@ -24,8 +24,8 @@ def hex_color(value):
         raise Invalid("Color must have six digits")
     try:
         return (int(value[0:2], 16), int(value[2:3], 16), int(value[3:5], 16))
-    except ValueError:
-        raise Invalid("Color must be hexadecimal")
+    except ValueError as exc:
+        raise Invalid("Color must be hexadecimal") from exc
 
 
 CONFIG_SCHEMA = cv.Schema(
