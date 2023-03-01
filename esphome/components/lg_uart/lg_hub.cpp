@@ -15,9 +15,9 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
   std::string s;
 
   if (b16_encode) {
-    s = str_sprintf("%02s %02x %02x\r", cmd_code, this->screen_num_, data);
+    s = str_sprintf("%2s %02x %02x\r", cmd_code, this->screen_num_, data);
   } else {
-    s = str_sprintf("%02s %02x %02i\r", cmd_code, this->screen_num_, data);
+    s = str_sprintf("%2s %02x %02i\r", cmd_code, this->screen_num_, data);
   }
 
   this->parent_->write_array(std::vector<uint8_t>(s.begin(), s.end()));
