@@ -5,9 +5,9 @@
 namespace esphome {
 namespace ld2410 {
 
-class VirtualSwitch : public switch_::Switch {
+class LD2410Switch : public switch_::Switch {
  public:
-  VirtualSwitch();
+  LD2410Switch();
 
  protected:
   void write_state(bool state) override;

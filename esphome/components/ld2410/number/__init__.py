@@ -11,7 +11,7 @@ from esphome.const import (
 )
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
-VirtualNumber = ld2410_ns.class_("VirtualNumber", number.Number)
+LD2410Number = ld2410_ns.class_("LD2410Number", number.Number)
 
 CONF_MAX_MOVE_DISTANCE = "max_move_distance"
 CONF_MAX_STILL_DISTANCE = "max_still_distance"
@@ -50,18 +50,18 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
         cv.Optional(CONF_TIMEOUT): number.number_schema(
-            VirtualNumber,
+            LD2410Number,
             unit_of_measurement=UNIT_SECOND,
             icon="mdi:clock-time-eight-outline",
         ),
         cv.Optional(CONF_MAX_MOVE_DISTANCE): number.number_schema(
-            VirtualNumber,
+            LD2410Number,
             device_class=DEVICE_CLASS_DISTANCE,
             unit_of_measurement=UNIT_METER,
             icon="mdi:motion-sensor",
         ),
         cv.Optional(CONF_MAX_STILL_DISTANCE): number.number_schema(
-            VirtualNumber,
+            LD2410Number,
             device_class=DEVICE_CLASS_DISTANCE,
             unit_of_measurement=UNIT_METER,
             icon="mdi:motion-sensor-off",
@@ -74,13 +74,13 @@ for i in range(9):
         cv.Schema(
             {
                 cv.Optional(CONF_MOVE_THRESHOLDS[i]): number.number_schema(
-                    VirtualNumber,
+                    LD2410Number,
                     device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     unit_of_measurement=UNIT_PERCENT,
                     icon="mdi:motion-sensor",
                 ),
                 cv.Optional(CONF_STILL_THRESHOLDS[i]): number.number_schema(
-                    VirtualNumber,
+                    LD2410Number,
                     device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     unit_of_measurement=UNIT_PERCENT,
                     icon="mdi:motion-sensor-off",

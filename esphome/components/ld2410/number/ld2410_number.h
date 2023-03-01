@@ -5,9 +5,9 @@
 namespace esphome {
 namespace ld2410 {
 
-class VirtualNumber : public number::Number {
+class LD2410Number : public number::Number {
  public:
-  VirtualNumber();
+  LD2410Number();
 
  protected:
   void control(float value) override;
