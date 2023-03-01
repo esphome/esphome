@@ -250,6 +250,8 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
   switch (event) {
     // This event is sent by the server when it requests security
     case ESP_GAP_BLE_SEC_REQ_EVT:
+      if (memcmp(param->ble_security.auth_cmpl.bd_addr, this->remote_bda_, 6) != 0)
+        break;
       ESP_LOGV(TAG, "[%d] [%s] ESP_GAP_BLE_SEC_REQ_EVT %x", this->connection_index_, this->address_str_.c_str(), event);
       esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
       break;
