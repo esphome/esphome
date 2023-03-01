@@ -300,7 +300,7 @@ void BME680Component::read_data_() {
   uint32_t raw_temperature = (uint32_t(data[5]) << 12) | (uint32_t(data[6]) << 4) | (uint32_t(data[7]) >> 4);
   uint32_t raw_pressure = (uint32_t(data[2]) << 12) | (uint32_t(data[3]) << 4) | (uint32_t(data[4]) >> 4);
   uint32_t raw_humidity = (uint32_t(data[8]) << 8) | uint32_t(data[9]);
-  uint16_t raw_gas = (uint16_t(data[13]) << 2) | (uint16_t(14) >> 6);
+  uint16_t raw_gas = (uint16_t(data[13]) << 2) | (uint16_t(data[14]) >> 6);
   uint8_t gas_range = data[14] & 0x0F;
 
   float temperature = this->calc_temperature_(raw_temperature);
