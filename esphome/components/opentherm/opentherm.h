@@ -1,12 +1,21 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/hal.h"
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_SWITCH
 #include "switch/custom_switch.h"
+#endif
+#ifdef USE_NUMBER
 #include "number/custom_number.h"
+#endif
 #include "consts.h"
 #include "enums.h"
 #include <queue>
@@ -16,6 +25,7 @@ namespace opentherm {
 
 class OpenThermComponent : public PollingComponent {
  public:
+#ifdef USE_SENSOR
   sensor::Sensor *ch_min_temperature_sensor_{nullptr};
   sensor::Sensor *ch_max_temperature_sensor_{nullptr};
   sensor::Sensor *dhw_min_temperature_sensor_{nullptr};
@@ -24,17 +34,24 @@ class OpenThermComponent : public PollingComponent {
   sensor::Sensor *modulation_sensor_{nullptr};
   sensor::Sensor *boiler_temperature_sensor_{nullptr};
   sensor::Sensor *return_temperature_sensor_{nullptr};
+#endif
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *ch_active_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *dhw_active_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *cooling_active_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *flame_active_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *fault_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *diagnostic_binary_sensor_{nullptr};
+#endif
+#ifdef USE_SWITCH
   opentherm::CustomSwitch *ch_enabled_switch_{nullptr};
   opentherm::CustomSwitch *dhw_enabled_switch_{nullptr};
   opentherm::CustomSwitch *cooling_enabled_switch_{nullptr};
+#endif
+#ifdef USE_NUMBER
   opentherm::CustomNumber *ch_setpoint_temperature_number_{nullptr};
   opentherm::CustomNumber *dhw_setpoint_temperature_number_{nullptr};
+#endif
 
   OpenThermComponent() = default;
 
@@ -45,6 +62,7 @@ class OpenThermComponent : public PollingComponent {
   static void handle_interrupt(OpenThermComponent *component);
   void set_pins(InternalGPIOPin *read_pin, InternalGPIOPin *write_pin);
 
+#ifdef USE_SENSOR
   void set_ch_min_temperature_sensor(sensor::Sensor *sensor) { ch_min_temperature_sensor_ = sensor; }
   void set_ch_max_temperature_sensor(sensor::Sensor *sensor) { ch_max_temperature_sensor_ = sensor; }
   void set_dhw_min_temperature_sensor(sensor::Sensor *sensor) { dhw_min_temperature_sensor_ = sensor; }
@@ -53,19 +71,26 @@ class OpenThermComponent : public PollingComponent {
   void set_modulation_sensor(sensor::Sensor *sensor) { modulation_sensor_ = sensor; }
   void set_boiler_temperature_sensor(sensor::Sensor *sensor) { boiler_temperature_sensor_ = sensor; }
   void set_return_temperature_sensor(sensor::Sensor *sensor) { return_temperature_sensor_ = sensor; }
+#endif
+#ifdef USE_BINARY_SENSOR
   void set_ch_active_binary_sensor(binary_sensor::BinarySensor *sensor) { ch_active_binary_sensor_ = sensor; }
   void set_dhw_active_binary_sensor(binary_sensor::BinarySensor *sensor) { dhw_active_binary_sensor_ = sensor; }
   void set_cooling_active_binary_sensor(binary_sensor::BinarySensor *sensor) { cooling_active_binary_sensor_ = sensor; }
   void set_flame_active_binary_sensor(binary_sensor::BinarySensor *sensor) { flame_active_binary_sensor_ = sensor; }
   void set_fault_binary_sensor(binary_sensor::BinarySensor *sensor) { fault_binary_sensor_ = sensor; }
   void set_diagnostic_binary_sensor(binary_sensor::BinarySensor *sensor) { diagnostic_binary_sensor_ = sensor; }
+#endif
+#ifdef USE_SWITCH
   void set_ch_enabled_switch(opentherm::CustomSwitch *custom_switch) { ch_enabled_switch_ = custom_switch; }
   void set_dhw_enabled_switch(opentherm::CustomSwitch *custom_switch) { dhw_enabled_switch_ = custom_switch; }
   void set_cooling_enabled_switch(opentherm::CustomSwitch *custom_switch) { cooling_enabled_switch_ = custom_switch; }
+#endif
+#ifdef USE_NUMBER
   void set_ch_setpoint_temperature_number(opentherm::CustomNumber *number) { ch_setpoint_temperature_number_ = number; }
   void set_dhw_setpoint_temperature_number(opentherm::CustomNumber *number) {
     dhw_setpoint_temperature_number_ = number;
   }
+#endif
 
  private:
   InternalGPIOPin *read_pin_;
@@ -99,8 +124,12 @@ class OpenThermComponent : public PollingComponent {
   const char *format_message_type_(uint32_t message);
   const char *message_type_to_string_(OpenThermMessageType message_type);
 
+#ifdef USE_SENSOR
   void publish_sensor_state_(sensor::Sensor *sensor, float state);
+#endif
+#ifdef USE_BINARY_SENSOR
   void publish_binary_sensor_state_(binary_sensor::BinarySensor *sensor, bool state);
+#endif
 
   uint32_t build_request_(OpenThermMessageType type, OpenThermMessageID id, unsigned int data);
   uint32_t build_response_(OpenThermMessageType type, OpenThermMessageID id, unsigned int data);

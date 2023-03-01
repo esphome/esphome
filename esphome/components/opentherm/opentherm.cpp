@@ -28,6 +28,7 @@ void OpenThermComponent::setup() {
   delay(25);
   this->status_ = OpenThermStatus::READY;
 
+#ifdef USE_SWITCH
   if (this->ch_enabled_switch_) {
     this->ch_enabled_switch_->add_on_state_callback([this](bool enabled) {
       if (this->wanted_ch_enabled_ != enabled) {
@@ -55,6 +56,8 @@ void OpenThermComponent::setup() {
       }
     });
   }
+#endif
+#ifdef USE_NUMBER
   if (this->ch_setpoint_temperature_number_) {
     this->ch_setpoint_temperature_number_->setup();
     this->ch_setpoint_temperature_number_->add_on_state_callback(
@@ -65,6 +68,7 @@ void OpenThermComponent::setup() {
     this->dhw_setpoint_temperature_number_->add_on_state_callback(
         [](float temperature) { ESP_LOGI(TAG, "Request updating CH setpoint to %f", temperature); });
   }
+#endif
 }
 
 void OpenThermComponent::loop() {
@@ -74,6 +78,7 @@ void OpenThermComponent::loop() {
     this->log_message_(0, "Sending request", request);
     this->send_request_async_(request);
   }
+#ifdef USE_NUMBER
   if (millis() - last_millis_ > 2000) {
     // The CH setpoint must be written at a fast interval or the boiler
     // might revert to a build-in default as a safety measure.
@@ -87,6 +92,7 @@ void OpenThermComponent::loop() {
                                this->temperature_to_data_(this->dhw_setpoint_temperature_number_->state)));
     }
   }
+#endif
   this->process_();
   yield();
 }
@@ -115,6 +121,7 @@ void OpenThermComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "OpenTherm:");
   LOG_PIN("  Write Pin: ", this->write_pin_);
   LOG_PIN("  Read Pin: ", this->read_pin_);
+#ifdef USE_SENSOR
   LOG_SENSOR("  ", "CH min temperature:", this->ch_min_temperature_sensor_);
   LOG_SENSOR("  ", "CH max temperature:", this->ch_max_temperature_sensor_);
   LOG_SENSOR("  ", "DHW min temperature:", this->dhw_min_temperature_sensor_);
@@ -123,21 +130,28 @@ void OpenThermComponent::dump_config() {
   LOG_SENSOR("  ", "Modulation:", this->modulation_sensor_);
   LOG_SENSOR("  ", "Boiler temperature:", this->boiler_temperature_sensor_);
   LOG_SENSOR("  ", "Return temperature:", this->return_temperature_sensor_);
+#endif
+#ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "CH active:", this->ch_active_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "DHW active:", this->dhw_active_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Cooling active:", this->cooling_active_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Flame active:", this->flame_active_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Fault:", fault_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "Diagnostic:", this->diagnostic_binary_sensor_);
+#endif
+#ifdef USE_SWITCH
   LOG_SWITCH("  ", "CH enabled:", this->ch_enabled_switch_);
   LOG_SWITCH("  ", "DHW enabled:", this->dhw_enabled_switch_);
   LOG_SWITCH("  ", "Cooling enabled:", this->cooling_enabled_switch_);
+#endif
+#ifdef USE_NUMBER
   if (this->ch_setpoint_temperature_number_) {
     this->ch_setpoint_temperature_number_->dump_custom_config("  ", "CH setpoint temperature:");
   }
   if (this->dhw_setpoint_temperature_number_) {
     this->dhw_setpoint_temperature_number_->dump_custom_config("  ", "DHW setpoint temperature:");
   }
+#endif
 }
 
 void IRAM_ATTR OpenThermComponent::handle_interrupt(OpenThermComponent *component) {
@@ -342,6 +356,7 @@ void OpenThermComponent::process_response_(uint32_t response, OpenThermResponseS
   if (response_status == OpenThermResponseStatus::SUCCESS) {
     this->log_message_(0, "Received response", response);
     switch (this->get_data_id_(response)) {
+#ifdef USE_BINARY_SENSOR
       case OpenThermMessageID::STATUS:
         this->publish_binary_sensor_state_(this->ch_active_binary_sensor_, this->is_central_heating_active_(response));
         this->publish_binary_sensor_state_(this->dhw_active_binary_sensor_, this->is_hot_water_active_(response));
@@ -350,6 +365,8 @@ void OpenThermComponent::process_response_(uint32_t response, OpenThermResponseS
         this->publish_binary_sensor_state_(this->fault_binary_sensor_, this->is_fault_(response));
         this->publish_binary_sensor_state_(this->diagnostic_binary_sensor_, this->is_diagnostic_(response));
         break;
+#endif
+#ifdef USE_SENSOR
       case OpenThermMessageID::RETURN_WATER_TEMP:
         this->publish_sensor_state_(this->return_temperature_sensor_, this->get_float_(response));
         break;
@@ -362,15 +379,20 @@ void OpenThermComponent::process_response_(uint32_t response, OpenThermResponseS
       case OpenThermMessageID::REL_MOD_LEVEL:
         this->publish_sensor_state_(this->modulation_sensor_, this->get_float_(response));
         break;
+#endif
       case OpenThermMessageID::DHW_TEMP_MAX_MIN:
         this->dhw_min_max_read_ = true;
+#ifdef USE_SENSOR
         this->publish_sensor_state_(this->dhw_max_temperature_sensor_, response >> 8 & 0xFF);
         this->publish_sensor_state_(this->dhw_min_temperature_sensor_, response & 0xFF);
+#endif
         break;
       case OpenThermMessageID::CH_TEMP_MAX_MIN:
         this->ch_min_max_read_ = true;
+#ifdef USE_SENSOR
         this->publish_sensor_state_(this->ch_max_temperature_sensor_, response >> 8 & 0xFF);
         this->publish_sensor_state_(this->ch_min_temperature_sensor_, response & 0xFF);
+#endif
         break;
       case OpenThermMessageID::DHW_SETPOINT:
         if (this->get_message_type_(response) == OpenThermMessageType::WRITE_ACK) {
@@ -389,17 +411,21 @@ void OpenThermComponent::process_response_(uint32_t response, OpenThermResponseS
   }
 }
 
+#ifdef USE_SENSOR
 void OpenThermComponent::publish_sensor_state_(sensor::Sensor *sensor, float state) {
   if (sensor) {
     sensor->publish_state(state);
   }
 }
+#endif
 
+#ifdef USE_BINARY_SENSOR
 void OpenThermComponent::publish_binary_sensor_state_(binary_sensor::BinarySensor *sensor, bool state) {
   if (sensor) {
     sensor->publish_state(state);
   }
 }
+#endif
 
 void OpenThermComponent::set_boiler_status_() {
   // Fields: CH enabled | DHW enabled | cooling | outside temperature compensation | central heating 2
