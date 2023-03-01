@@ -38,6 +38,7 @@ DisplayOnPageChangeTrigger = display_ns.class_(
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
 
+
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
     90: display_ns.DISPLAY_ROTATION_90_DEGREES,
