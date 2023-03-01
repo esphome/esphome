@@ -4,7 +4,7 @@ import esphome.config_validation as cv
 from esphome.const import DEVICE_CLASS_RESTART
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
-VirtualButton = ld2410_ns.class_("VirtualButton", button.Button)
+LD2410Button = ld2410_ns.class_("LD2410Button", button.Button)
 
 CONF_FACTORY_RESET = "factory_reset"
 CONF_RESTART = "restart"
@@ -13,17 +13,17 @@ CONF_QUERY_PARAMS = "query_params"
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
     cv.Optional(CONF_FACTORY_RESET): button.button_schema(
-        VirtualButton,
+        LD2410Button,
         device_class=DEVICE_CLASS_RESTART,
         icon="mdi:restart-off",
     ),
     cv.Optional(CONF_RESTART): button.button_schema(
-        VirtualButton,
+        LD2410Button,
         device_class=DEVICE_CLASS_RESTART,
         icon="mdi:restart",
     ),
     cv.Optional(CONF_QUERY_PARAMS): button.button_schema(
-        VirtualButton,
+        LD2410Button,
         icon="mdi:database-search",
     ),
 }

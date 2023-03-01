@@ -5,9 +5,9 @@
 namespace esphome {
 namespace ld2410 {
 
-class VirtualButton : public button::Button {
+class LD2410Button : public button::Button {
  public:
-  VirtualButton();
+  LD2410Button();
 
  protected:
   void press_action() override;
