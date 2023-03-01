@@ -76,7 +76,6 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_PERCENT,
                 icon=ICON_GAUGE,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_PRESSURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_BOILER_TEMPERATURE): sensor.sensor_schema(
