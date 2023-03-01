@@ -26,6 +26,11 @@ substitutions:
   min_sub: "0.03"
   max_sub: "12.0%"
 
+tm1651:
+  id: tm1651_battery
+  clk_pin: GPIO23
+  dio_pin: GPIO23
+
 api:
   port: 8000
   password: pwd

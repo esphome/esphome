@@ -2707,11 +2707,6 @@ display:
       it.printf(1, "%.1f", id(dht_humidity).state);
       it.display_humidity(true);
 
-tm1651:
-  id: tm1651_battery
-  clk_pin: GPIO23
-  dio_pin: GPIO23
-
 remote_receiver:
   pin: GPIO32
   dump: all
