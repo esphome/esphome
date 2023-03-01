@@ -1,6 +1,7 @@
 from esphome import config_validation as cv
 from esphome import codegen as cg
 from esphome.const import CONF_BLUE, CONF_GREEN, CONF_ID, CONF_RED, CONF_WHITE
+import voluptuous as vol
 
 ColorStruct = cg.esphome_ns.struct("Color")
 
@@ -11,6 +12,19 @@ CONF_GREEN_INT = "green_int"
 CONF_BLUE_INT = "blue_int"
 CONF_WHITE_INT = "white_int"
 CONF_HEX = "hex"
+
+
+def hex_color(value):
+    if not value.startswith("#"):
+        raise vol.Invalid("Color must start with #")
+    value = value.lstrip('#')
+    if len(value) != 6:
+        raise vol.Invalid("Color must have six digits")
+    try:
+        return (int(value[0:2], 16), int(value[2:3], 16), int(value[3:5], 16))
+    except ValueError:
+        raise vol.Invalid("Color must be hexadecimal")
+
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -23,9 +37,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Exclusive(CONF_BLUE_INT, "blue"): cv.uint8_t,
         cv.Exclusive(CONF_WHITE, "white"): cv.percentage,
         cv.Exclusive(CONF_WHITE_INT, "white"): cv.uint8_t,
-        cv.Exclusive(CONF_HEX, "hex"): cv.hex_color,
+        cv.Exclusive(CONF_HEX, "hex"): hex_color,
     }
 ).extend(cv.COMPONENT_SCHEMA)
+
 
 def from_rgbw(config):
     r = 0
@@ -52,7 +67,8 @@ def from_rgbw(config):
     elif CONF_WHITE_INT in config:
         w = config[CONF_WHITE_INT]
 
-    return (r,g,b,w)
+    return (r, g, b, w)
+
 
 async def to_code(config):
     if CONF_HEX in config:
