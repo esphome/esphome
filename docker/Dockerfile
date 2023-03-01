@@ -6,7 +6,7 @@
 ARG BASEIMGTYPE=docker
 
 # https://github.com/hassio-addons/addon-debian-base/releases
-FROM ghcr.io/hassio-addons/debian-base:6.1.3 AS base-hassio
+FROM ghcr.io/hassio-addons/debian-base:6.2.0 AS base-hassio
 # https://hub.docker.com/_/debian?tab=tags&page=1&name=bullseye
 FROM debian:bullseye-20221024-slim AS base-docker
 
@@ -26,7 +26,7 @@ RUN \
         python3-cryptography=3.3.2-1 \
         iputils-ping=3:20210202-1 \
         git=1:2.30.2-1 \
-        curl=7.74.0-1.3+deb11u3 \
+        curl=7.74.0-1.3+deb11u5 \
         openssh-client=1:8.4p1-5+deb11u1 \
     && rm -rf \
         /tmp/* \
@@ -51,7 +51,7 @@ RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install --no-cache-dir \
         wheel==0.37.1 \
-        platformio==6.1.5 \
+        platformio==6.1.6 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \

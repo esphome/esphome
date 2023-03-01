@@ -241,7 +241,7 @@ class Climate : public EntityBase {
 
   void set_visual_min_temperature_override(float visual_min_temperature_override);
   void set_visual_max_temperature_override(float visual_max_temperature_override);
-  void set_visual_temperature_step_override(float visual_temperature_step_override);
+  void set_visual_temperature_step_override(float target, float current);
 
  protected:
   friend ClimateCall;
@@ -288,7 +288,8 @@ class Climate : public EntityBase {
   ESPPreferenceObject rtc_;
   optional<float> visual_min_temperature_override_{};
   optional<float> visual_max_temperature_override_{};
-  optional<float> visual_temperature_step_override_{};
+  optional<float> visual_target_temperature_step_override_{};
+  optional<float> visual_current_temperature_step_override_{};
 };
 
 }  // namespace climate
