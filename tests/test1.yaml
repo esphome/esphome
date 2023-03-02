@@ -2557,7 +2557,9 @@ switch:
     device_class: outlet
   - platform: ld2410
     engineering_mode:
-      name: "engineering mode"
+      name: "control ld2410 engineering mode"
+    bluetooth:
+      name: "control ld2410 bluetooth"
 
 fan:
   - platform: binary
@@ -3139,6 +3141,8 @@ text_sensor:
   - platform: ld2410
     version:
       name: "presenece sensor version"
+    mac_address:
+      name: "presenece sensor mac address"
 
 sn74hc595:
   - id: sn74hc595_hub
