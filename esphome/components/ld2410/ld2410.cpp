@@ -29,6 +29,7 @@ void LD2410Component::dump_config() {
 #endif
 #ifdef USE_SWITCH
   LOG_SWITCH("  ", "EngineeringModeSwitch", this->engineering_mode_switch_);
+  LOG_SWITCH("  ", "BluetoothSwitch", this->bluetooth_switch_);
 #endif
 #ifdef USE_BUTTON
   LOG_BUTTON("  ", "ResetButton", this->reset_button_);
@@ -48,6 +49,7 @@ void LD2410Component::dump_config() {
 #endif
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "VersionTextSensor", this->version_text_sensor_);
+  LOG_TEXT_SENSOR("  ", "MacTextSensor", this->mac_text_sensor_);
 #endif
 #ifdef USE_NUMBER
   LOG_NUMBER("  ", "MaxStillDistanceNumber", this->max_still_distance_number_);
@@ -59,11 +61,13 @@ void LD2410Component::dump_config() {
     LOG_NUMBER("  ", "Move Thresholds Number", n);
 #endif
   this->set_config_mode_(true);
-  this->get_version_();
   delay(50);  // NOLINT
+  this->get_version_();
+  this->get_mac_();
   this->query_parameters_();
   this->set_config_mode_(false);
   ESP_LOGCONFIG(TAG, "  Throttle_ : %ums", this->throttle_);
+  ESP_LOGCONFIG(TAG, "  MAC Address : %s", const_cast<char *>(this->mac_.c_str()));
   ESP_LOGCONFIG(TAG, "  Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
 }
 
@@ -71,8 +75,10 @@ void LD2410Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up LD2410...");
   this->set_config_mode_(true);
   this->get_version_();
+  this->get_mac_();
   this->query_parameters_();
   this->set_config_mode_(false);
+  ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
   ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
   ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
 }
@@ -87,6 +93,7 @@ void LD2410Component::loop() {
 }
 
 void LD2410Component::send_command_(uint8_t command, uint8_t *command_value, int command_value_len) {
+  ESP_LOGV(TAG, "Sending COMMAND %02X", command);
   // frame start bytes
   this->write_array(CMD_FRAME_HEADER, 4);
   // length bytes
@@ -248,6 +255,26 @@ std::string format_version(uint8_t *buffer) {
   return version;
 }
 
+const char MAC_FMT[] = "%02X:%02X:%02X:%02X:%02X:%02X";
+
+const std::string UNKNOWN_MAC("unknown");
+const std::string NO_MAC("08:05:04:03:02:01");
+
+std::string format_mac(uint8_t *buffer) {
+  std::string::size_type mac_size = 256;
+  std::string mac;
+  do {
+    mac.resize(mac_size + 1);
+    mac_size = std::snprintf(&mac[0], mac.size(), MAC_FMT, buffer[10], buffer[11], buffer[12], buffer[13], buffer[14],
+                             buffer[15]);
+  } while (mac_size + 1 > mac.size());
+  mac.resize(mac_size);
+  if (mac == NO_MAC) {
+    return UNKNOWN_MAC;
+  }
+  return mac;
+}
+
 #ifdef USE_NUMBER
 std::function<void(void)> set_number_value(number::Number *n, float value) {
   float normalized_value = value * 1.0;
@@ -259,23 +286,23 @@ std::function<void(void)> set_number_value(number::Number *n, float value) {
 }
 #endif
 
-void LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
-  ESP_LOGV(TAG, "Handling ACK DATA for COMMAND");
+bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
+  ESP_LOGV(TAG, "Handling ACK DATA for COMMAND %02X", buffer[COMMAND]);
   if (len < 10) {
     ESP_LOGE(TAG, "Error with last command : incorrect length");
-    return;
+    return true;
   }
   if (buffer[0] != 0xFD || buffer[1] != 0xFC || buffer[2] != 0xFB || buffer[3] != 0xFA) {  // check 4 frame start bytes
     ESP_LOGE(TAG, "Error with last command : incorrect Header");
-    return;
+    return true;
   }
   if (buffer[COMMAND_STATUS] != 0x01) {
     ESP_LOGE(TAG, "Error with last command : status != 0x01");
-    return;
+    return true;
   }
   if (this->two_byte_to_int_(buffer[8], buffer[9]) != 0x00) {
     ESP_LOGE(TAG, "Error with last command , last buffer was: %u , %u", buffer[8], buffer[9]);
-    return;
+    return true;
   }
 
   switch (buffer[COMMAND]) {
@@ -294,13 +321,38 @@ void LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
       }
 #endif
       break;
+    case lowbyte(CMD_MAC):
+      if (len < 20) {
+        return false;
+      }
+      this->mac_ = format_mac(buffer);
+      ESP_LOGV(TAG, "MAC Address is: %s", const_cast<char *>(this->mac_.c_str()));
+#ifdef USE_TEXT_SENSOR
+      if (this->mac_text_sensor_ != nullptr) {
+        this->mac_text_sensor_->publish_state(this->mac_);
+      }
+#endif
+#ifdef USE_SWITCH
+      if (this->bluetooth_switch_ != nullptr) {
+        bool bluetooth = this->mac_ != UNKNOWN_MAC;
+        if (bluetooth && !this->bluetooth_switch_->state) {
+          this->bluetooth_switch_->turn_on();
+        } else if (!bluetooth && this->bluetooth_switch_->state) {
+          this->bluetooth_switch_->turn_off();
+        }
+      }
+#endif
+      break;
     case lowbyte(CMD_GATE_SENS):
       ESP_LOGV(TAG, "Handled sensitivity command");
+      break;
+    case lowbyte(CMD_BLUETOOTH):
+      ESP_LOGV(TAG, "Handled bluetooth command");
       break;
     case lowbyte(CMD_QUERY):  // Query parameters response
     {
       if (buffer[10] != 0xAA)
-        return;  // value head=0xAA
+        return true;  // value head=0xAA
 #ifdef USE_NUMBER
       /*
         Moving distance range: 13th byte
@@ -333,6 +385,8 @@ void LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
     default:
       break;
   }
+
+  return true;
 }
 
 void LD2410Component::readline_(int readch, uint8_t *buffer, int len) {
@@ -353,8 +407,11 @@ void LD2410Component::readline_(int readch, uint8_t *buffer, int len) {
       } else if (buffer[pos - 4] == 0x04 && buffer[pos - 3] == 0x03 && buffer[pos - 2] == 0x02 &&
                  buffer[pos - 1] == 0x01) {
         ESP_LOGV(TAG, "Will handle ACK Data");
-        this->handle_ack_data_(buffer, pos);
-        pos = 0;  // Reset position index ready for next time
+        if (this->handle_ack_data_(buffer, pos)) {
+          pos = 0;  // Reset position index ready for next time
+        } else {
+          ESP_LOGV(TAG, "ACK Data incomplete");
+        }
       }
     }
   }
@@ -364,6 +421,12 @@ void LD2410Component::set_config_mode_(bool enable) {
   uint8_t cmd = enable ? CMD_ENABLE_CONF : CMD_DISABLE_CONF;
   uint8_t cmd_value[2] = {0x01, 0x00};
   this->send_command_(cmd, enable ? cmd_value : nullptr, 2);
+}
+
+void LD2410Component::set_bluetooth_(bool enable) {
+  uint8_t enable_cmd_value[2] = {0x01, 0x00};
+  uint8_t disable_cmd_value[2] = {0x00, 0x00};
+  this->send_command_(CMD_BLUETOOTH, enable ? enable_cmd_value : disable_cmd_value, 2);
 }
 
 void LD2410Component::set_engineering_mode_(bool enable) {
@@ -378,6 +441,10 @@ void LD2410Component::restart_() { this->send_command_(CMD_RESTART, nullptr, 0);
 
 void LD2410Component::query_parameters_() { this->send_command_(CMD_QUERY, nullptr, 0); }
 void LD2410Component::get_version_() { this->send_command_(CMD_VERSION, nullptr, 0); }
+void LD2410Component::get_mac_() {
+  uint8_t cmd_value[2] = {0x01, 0x00};
+  this->send_command_(CMD_MAC, cmd_value, 2);
+}
 
 void LD2410Component::set_max_distances_timeout_() {
   if (!this->max_move_distance_number_->has_state() || !this->max_still_distance_number_->has_state() ||

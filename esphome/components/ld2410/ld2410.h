@@ -37,8 +37,10 @@ static const uint8_t CMD_MAXDIST_DURATION = 0x0060;
 static const uint8_t CMD_QUERY = 0x0061;
 static const uint8_t CMD_GATE_SENS = 0x0064;
 static const uint8_t CMD_VERSION = 0x00A0;
+static const uint8_t CMD_MAC = 0x00A5;
 static const uint8_t CMD_RESET = 0x00A2;
 static const uint8_t CMD_RESTART = 0x00A3;
+static const uint8_t CMD_BLUETOOTH = 0x00A4;
 
 // Commands values
 static const uint8_t CMD_MAX_MOVE_VALUE = 0x0000;
@@ -84,11 +86,7 @@ enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
  public: \
   void set_##name##_switch(switch_::Switch *s) { \
     this->name##_switch_ = s; \
-    this->name##_switch_->add_on_state_callback([this](bool state) { \
-      this->set_config_mode_(true); \
-      cb; \
-      this->set_config_mode_(false); \
-    }); \
+    this->name##_switch_->add_on_state_callback([this](bool state) { cb; }); \
   }
 
 #define SUB_LAMBDA_BUTTON(name, cb) \
@@ -98,11 +96,7 @@ enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
  public: \
   void set_##name##_button(button::Button *b) { \
     this->name##_button_ = b; \
-    this->name##_button_->add_on_press_callback([this]() { \
-      this->set_config_mode_(true); \
-      cb; \
-      this->set_config_mode_(false); \
-    }); \
+    this->name##_button_->add_on_press_callback([this]() { cb; }); \
   }
 
 #define SUB_LAMBDA_NUMBER(name, cb) \
@@ -135,29 +129,60 @@ class LD2410Component : public Component, public uart::UARTDevice {
 #endif
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)
+  SUB_TEXT_SENSOR(mac)
 #endif
 #ifdef USE_SWITCH
-  SUB_LAMBDA_SWITCH(engineering_mode, { this->set_engineering_mode_(state); })
+  SUB_LAMBDA_SWITCH(engineering_mode, {
+    this->set_config_mode_(true);
+    this->set_engineering_mode_(state);
+    this->set_config_mode_(false);
+  })
+  SUB_LAMBDA_SWITCH(bluetooth, {
+    this->set_config_mode_(true);
+    this->set_bluetooth_(state);
+    this->set_timeout(200, [this]() {
+      this->set_config_mode_(true);
+      this->restart_();
+      this->set_timeout(1000, [this]() {
+        this->set_config_mode_(true);
+        this->query_parameters_();
+        this->get_mac_();
+        this->set_config_mode_(false);
+      });
+    });
+  })
 #endif
 #ifdef USE_BUTTON
   SUB_LAMBDA_BUTTON(reset, {
+    this->set_config_mode_(true);
     this->factory_reset_();
-    this->restart_();
-    this->set_timeout(1000, [this]() {
+    this->set_timeout(200, [this]() {
       this->set_config_mode_(true);
-      this->query_parameters_();
-      this->set_config_mode_(false);
+      this->restart_();
+      this->set_timeout(1000, [this]() {
+        this->set_config_mode_(true);
+        this->query_parameters_();
+        this->get_mac_();
+        this->set_config_mode_(false);
+      });
     });
   })
   SUB_LAMBDA_BUTTON(restart, {
+    this->set_config_mode_(true);
     this->restart_();
     this->set_timeout(1000, [this]() {
       this->set_config_mode_(true);
       this->query_parameters_();
+      this->get_mac_();
       this->set_config_mode_(false);
     });
   })
-  SUB_LAMBDA_BUTTON(query, { this->query_parameters_(); })
+  SUB_LAMBDA_BUTTON(query, {
+    this->set_config_mode_(true);
+    this->query_parameters_();
+    this->get_mac_();
+    this->set_config_mode_(false);
+  })
 #endif
 #ifdef USE_NUMBER
   SUB_LAMBDA_NUMBER(max_still_distance, { this->set_max_distances_timeout_(); })
@@ -184,10 +209,12 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void set_config_mode_(bool enable);
   void set_engineering_mode_(bool enable);
   void handle_periodic_data_(uint8_t *buffer, int len);
-  void handle_ack_data_(uint8_t *buffer, int len);
+  bool handle_ack_data_(uint8_t *buffer, int len);
   void readline_(int readch, uint8_t *buffer, int len);
   void query_parameters_();
+  void set_bluetooth_(bool enable);
   void get_version_();
+  void get_mac_();
   void factory_reset_();
   void restart_();
 
@@ -195,6 +222,7 @@ class LD2410Component : public Component, public uart::UARTDevice {
   int32_t last_engineering_mode_change_millis_ = millis();
   uint16_t throttle_;
   std::string version_;
+  std::string mac_;
   std::vector<uint8_t> rx_buffer_;
   std::vector<number::Number *> gate_still_threshold_numbers_;
   std::vector<number::Number *> gate_move_threshold_numbers_;
