@@ -1010,6 +1010,10 @@ sensor:
     address: 0x44
     update_interval: 15s
     i2c_id: i2c_bus
+    precision: High
+    heater_power: High
+    heater_time: Long
+    heater_period: 1
   - platform: shtcx
     temperature:
       name: Living Room Temperature 10

@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_TEMPERATURE,
     CONF_HUMIDITY,
+    CONF_UPDATE_INTERVAL,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
@@ -47,9 +48,24 @@ HEATER_TIME_OPTIONS = {
     "Short": SHT4XHEATERTIME.SHT4X_HEATERTIME_SHORT,
 }
 
-CONF_HEATER_MAX_DUTY = "heater_max_duty"
+CONF_HEATER_PERIOD = "heater_period"
 
-CONFIG_SCHEMA = (
+
+def _validate(config):
+    if config[CONF_HEATER_PERIOD] > 0:
+        HEATER_TIME_VALUE = {"Long": 1000, "Short": 100}
+        update_interval = config[CONF_UPDATE_INTERVAL].total_milliseconds
+        heater_time = HEATER_TIME_VALUE[config[CONF_HEATER_TIME]]
+        heater_period = config[CONF_HEATER_PERIOD]
+        duty_cycle = 100 * heater_time / (update_interval * heater_period)
+        if duty_cycle > 10:
+            raise cv.Invalid(
+                f"Heater duty cycle {duty_cycle:.2f}% is greater than maximum allowed 10%. You can increase update_interval or heater_period or decrease heater_time"
+            )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SHT4XComponent),
@@ -72,19 +88,13 @@ CONFIG_SCHEMA = (
                 HEATER_POWER_OPTIONS
             ),
             cv.Optional(CONF_HEATER_TIME, default="Long"): cv.enum(HEATER_TIME_OPTIONS),
-            cv.Optional(CONF_HEATER_MAX_DUTY, default=0.0): cv.float_range(
-                min=0.0, max=0.05
-            ),
+            cv.Optional(CONF_HEATER_PERIOD, default=0): cv.uint8_t,
         }
     )
     .extend(cv.polling_component_schema("60s"))
-    .extend(i2c.i2c_device_schema(0x44))
+    .extend(i2c.i2c_device_schema(0x44)),
+    _validate,
 )
-
-TYPES = {
-    CONF_TEMPERATURE: "set_temp_sensor",
-    CONF_HUMIDITY: "set_humidity_sensor",
-}
 
 
 async def to_code(config):
@@ -92,12 +102,14 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_precision_value(config[CONF_PRECISION]))
-    cg.add(var.set_heater_power_value(config[CONF_HEATER_POWER]))
-    cg.add(var.set_heater_time_value(config[CONF_HEATER_TIME]))
-    cg.add(var.set_heater_duty_value(config[CONF_HEATER_MAX_DUTY]))
+    cg.add(var.set_precision(config[CONF_PRECISION]))
+    cg.add(var.set_heater_power(config[CONF_HEATER_POWER]))
+    cg.add(var.set_heater_time(config[CONF_HEATER_TIME]))
+    cg.add(var.set_heater_period(config[CONF_HEATER_PERIOD]))
 
-    for key, funcName in TYPES.items():
-        if key in config:
-            sens = await sensor.new_sensor(config[key])
-            cg.add(getattr(var, funcName)(sens))
+    if CONF_TEMPERATURE in config:
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+        cg.add(var.set_temp_sensor(sens))
+    if CONF_HUMIDITY in config:
+        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
+        cg.add(var.set_humidity_sensor(sens))
