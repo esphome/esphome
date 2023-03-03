@@ -16,8 +16,9 @@ void GP8403Output::dump_config() {
 }
 
 void GP8403Output::write_state(float state) {
-  if (this->write_byte_16(REGISTER + (2 * this->channel_), ((uint16_t)(state * 4095)) << 4) != i2c::ERROR_OK) {
-    ESP_LOGE(TAG, "Error writing to GP8403");
+  i2c::ErrorCode err = this->write_byte_16(REGISTER + (2 * this->channel_), ((uint16_t)(state * 4095)) << 4);
+  if (err != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Error writing to GP8403, code %d", err);
   }
 }
 
