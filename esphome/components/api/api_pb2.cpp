@@ -594,6 +594,10 @@ bool DeviceInfoResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       this->bluetooth_proxy_version = value.as_uint32();
       return true;
     }
+    case 14: {
+      this->voice_assistant_version = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -654,6 +658,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(11, this->bluetooth_proxy_version);
   buffer.encode_string(12, this->manufacturer);
   buffer.encode_string(13, this->friendly_name);
+  buffer.encode_uint32(14, this->voice_assistant_version);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -711,6 +716,11 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 
   out.append("  friendly_name: ");
   out.append("'").append(this->friendly_name).append("'");
+  out.append("\n");
+
+  out.append("  voice_assistant_version: ");
+  sprintf(buffer, "%u", this->voice_assistant_version);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -6106,6 +6116,70 @@ void BluetoothDeviceClearCacheResponse::dump_to(std::string &out) const {
 
   out.append("  error: ");
   sprintf(buffer, "%d", this->error);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool SubscribeVoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->subscribe = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void SubscribeVoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->subscribe); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void SubscribeVoiceAssistantRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("SubscribeVoiceAssistantRequest {\n");
+  out.append("  subscribe: ");
+  out.append(YESNO(this->subscribe));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool PushToTalkRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->start = value.as_bool();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void PushToTalkRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->start); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void PushToTalkRequest::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("PushToTalkRequest {\n");
+  out.append("  start: ");
+  out.append(YESNO(this->start));
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool PushToTalkResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->port = value.as_uint32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void PushToTalkResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_uint32(1, this->port); }
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void PushToTalkResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("PushToTalkResponse {\n");
+  out.append("  port: ");
+  sprintf(buffer, "%u", this->port);
   out.append(buffer);
   out.append("\n");
   out.append("}");

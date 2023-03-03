@@ -7,10 +7,10 @@ from esphome import pins
 from esphome.const import CONF_ID, CONF_MODE
 from esphome.core import CORE
 
+from .. import i2s_audio_ns
+
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
-
-i2s_audio_ns = cg.esphome_ns.namespace("i2s_audio")
 
 I2SAudioMediaPlayer = i2s_audio_ns.class_(
     "I2SAudioMediaPlayer", cg.Component, media_player.MediaPlayer
@@ -18,9 +18,7 @@ I2SAudioMediaPlayer = i2s_audio_ns.class_(
 
 i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
 
-CONF_I2S_DOUT_PIN = "i2s_dout_pin"
-CONF_I2S_BCLK_PIN = "i2s_bclk_pin"
-CONF_I2S_LRCLK_PIN = "i2s_lrclk_pin"
+
 CONF_MUTE_PIN = "mute_pin"
 CONF_AUDIO_ID = "audio_id"
 CONF_DAC_TYPE = "dac_type"

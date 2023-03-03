@@ -427,5 +427,18 @@ void APIServer::on_shutdown() {
   delay(10);
 }
 
+#ifdef USE_PUSH_TO_TALK
+void APIServer::start_push_to_talk() {
+  for (auto &c : this->clients_) {
+    c->request_push_to_talk(true);
+  }
+}
+void APIServer::stop_push_to_talk() {
+  for (auto &c : this->clients_) {
+    c->request_push_to_talk(false);
+  }
+}
+#endif
+
 }  // namespace api
 }  // namespace esphome

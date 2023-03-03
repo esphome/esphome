@@ -55,6 +55,7 @@ service APIConnection {
   rpc subscribe_bluetooth_connections_free(SubscribeBluetoothConnectionsFreeRequest) returns (BluetoothConnectionsFreeResponse) {}
   rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
 
+  rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {}
 }
 
 
@@ -210,6 +211,8 @@ message DeviceInfoResponse {
   string manufacturer = 12;
 
   string friendly_name = 13;
+
+  uint32 voice_assistant_version = 14;
 }
 
 message ListEntitiesRequest {
@@ -1378,4 +1381,29 @@ message BluetoothDeviceClearCacheResponse {
   uint64 address = 1;
   bool success = 2;
   int32 error = 3;
+}
+
+// ==================== PUSH TO TALK ====================
+message SubscribeVoiceAssistantRequest {
+  option (id) = 89;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_PUSH_TO_TALK";
+
+  bool subscribe = 1;
+}
+
+message PushToTalkRequest {
+  option (id) = 90;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_PUSH_TO_TALK";
+
+  bool start = 1;
+}
+
+message PushToTalkResponse {
+  option (id) = 91;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_PUSH_TO_TALK";
+
+  uint32 port = 1;
 }
