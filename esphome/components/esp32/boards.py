@@ -1713,7 +1713,6 @@ BOARDS = {
         "variant": VARIANT_ESP32S3,
         "SDA": 8,
         "SCL": 9,
-        "SS": 42,
         "MOSI": 37,
         "SCK": 36,
         "MISO": 35,
@@ -1738,7 +1737,6 @@ BOARDS = {
         "T11": 11,
         "T12": 12,
         "T14": 14,
-        
     },
     "um_pros3": {
         "name": "Unexpected Maker PROS3",
