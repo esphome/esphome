@@ -15,8 +15,6 @@ CODEOWNERS = ["@kahrendt"]
 
 fs3000_ns = cg.esphome_ns.namespace("fs3000")
 
-# CONF_MODEL = "model"
-
 FS3000Model = fs3000_ns.enum("MODEL")
 FS3000_MODEL_OPTIONS = {
     "1005": FS3000Model.FIVE,
