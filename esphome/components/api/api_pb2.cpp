@@ -235,6 +235,8 @@ template<> const char *proto_enum_to_string<enums::ClimateFanMode>(enums::Climat
       return "CLIMATE_FAN_FOCUS";
     case enums::CLIMATE_FAN_DIFFUSE:
       return "CLIMATE_FAN_DIFFUSE";
+    case enums::CLIMATE_FAN_QUIET:
+      return "CLIMATE_FAN_QUIET";
     default:
       return "UNKNOWN";
   }
@@ -3449,7 +3451,11 @@ bool ListEntitiesClimateResponse::decode_32bit(uint32_t field_id, Proto32Bit val
       return true;
     }
     case 10: {
-      this->visual_temperature_step = value.as_float();
+      this->visual_target_temperature_step = value.as_float();
+      return true;
+    }
+    case 21: {
+      this->visual_current_temperature_step = value.as_float();
       return true;
     }
     default:
@@ -3468,7 +3474,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_float(8, this->visual_min_temperature);
   buffer.encode_float(9, this->visual_max_temperature);
-  buffer.encode_float(10, this->visual_temperature_step);
+  buffer.encode_float(10, this->visual_target_temperature_step);
   buffer.encode_bool(11, this->legacy_supports_away);
   buffer.encode_bool(12, this->supports_action);
   for (auto &it : this->supported_fan_modes) {
@@ -3489,6 +3495,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(18, this->disabled_by_default);
   buffer.encode_string(19, this->icon);
   buffer.encode_enum<enums::EntityCategory>(20, this->entity_category);
+  buffer.encode_float(21, this->visual_current_temperature_step);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
@@ -3535,8 +3542,8 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  visual_temperature_step: ");
-  sprintf(buffer, "%g", this->visual_temperature_step);
+  out.append("  visual_target_temperature_step: ");
+  sprintf(buffer, "%g", this->visual_target_temperature_step);
   out.append(buffer);
   out.append("\n");
 
@@ -3588,6 +3595,11 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 
   out.append("  entity_category: ");
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  visual_current_temperature_step: ");
+  sprintf(buffer, "%g", this->visual_current_temperature_step);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }

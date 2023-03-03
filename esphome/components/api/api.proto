@@ -787,6 +787,7 @@ enum ClimateFanMode {
   CLIMATE_FAN_MIDDLE = 6;
   CLIMATE_FAN_FOCUS = 7;
   CLIMATE_FAN_DIFFUSE = 8;
+  CLIMATE_FAN_QUIET = 9;
 }
 enum ClimateSwingMode {
   CLIMATE_SWING_OFF = 0;
@@ -828,7 +829,7 @@ message ListEntitiesClimateResponse {
   repeated ClimateMode supported_modes = 7;
   float visual_min_temperature = 8;
   float visual_max_temperature = 9;
-  float visual_temperature_step = 10;
+  float visual_target_temperature_step = 10;
   // for older peer versions - in new system this
   // is if CLIMATE_PRESET_AWAY exists is supported_presets
   bool legacy_supports_away = 11;
@@ -841,6 +842,7 @@ message ListEntitiesClimateResponse {
   bool disabled_by_default = 18;
   string icon = 19;
   EntityCategory entity_category = 20;
+  float visual_current_temperature_step = 21;
 }
 message ClimateStateResponse {
   option (id) = 47;

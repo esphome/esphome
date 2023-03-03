@@ -3,6 +3,8 @@ esphome:
   name: $device_name
   comment: $device_comment
   build_path: build/test3
+  platformio_options:
+    board_build.partitions: huge_app.csv
   on_boot:
     - if:
         condition:
@@ -280,6 +282,10 @@ uart:
     rx_pin: GPIO5
     baud_rate: 9600
   - id: uart11
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
+  - id: uart12
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
@@ -579,6 +585,8 @@ sensor:
       name: PZEMDC Current
     power:
       name: PZEMDC Power
+    energy:
+      name: PZEMDC Energy
   - platform: tmp102
     name: TMP102 Temperature
   - platform: hm3301
@@ -806,6 +814,12 @@ sensor:
     model: deltasol c
     temperature_1:
       name: Temperature 1
+
+  - platform: kuntze
+    ph:
+      name: Kuntze pH
+    temperature:
+      name: Kuntze temperature
 
 time:
   - platform: homeassistant
@@ -1136,14 +1150,16 @@ climate:
       - switch.turn_on: gpio_switch1
     fan_mode_diffuse_action:
       - switch.turn_on: gpio_switch2
+    fan_mode_quiet_action:
+      - switch.turn_on: gpio_switch1
     swing_off_action:
-      - switch.turn_on: gpio_switch1
+      - switch.turn_on: gpio_switch2
     swing_horizontal_action:
-      - switch.turn_on: gpio_switch2
-    swing_vertical_action:
       - switch.turn_on: gpio_switch1
-    swing_both_action:
+    swing_vertical_action:
       - switch.turn_on: gpio_switch2
+    swing_both_action:
+      - switch.turn_on: gpio_switch1
     startup_delay: true
     supplemental_cooling_delta: 2.0
     cool_deadband: 0.5
@@ -1186,8 +1202,14 @@ climate:
       ki_multiplier: 0.0
       kd_multiplier: 0.0
       deadband_output_averaging_samples: 1
-
-
+  - platform: haier
+    name: Haier AC
+    supported_swing_modes:
+      - vertical
+      - horizontal
+      - both
+    update_interval: 10s
+    uart_id: uart12
 
 sprinkler:
   - id: yard_sprinkler_ctrlr
