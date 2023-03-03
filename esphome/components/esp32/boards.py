@@ -959,7 +959,7 @@ ESP32_BOARD_PINS = {
         "T11": 11,
         "T12": 12,
         "T14": 14,
-    },    
+    },
     "s_odi_ultra": {
         "LED_BUILTIN": 2,
         "LED_BUILTINB": 4,
