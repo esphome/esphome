@@ -932,11 +932,7 @@ ESP32_BOARD_PINS = {
     },
     "qchip": "heltec_wifi_kit_32",
     "quantum": {},
-    "s_odi_ultra": {
-        "LED_BUILTIN": 2,
-        "LED_BUILTINB": 4,
-    },
-        "um_feathers3": {
+    "um_feathers3": {
         "name": "Unexpected Maker FeatherS3",
         "SDA": 8,
         "SCL": 9,
@@ -964,6 +960,10 @@ ESP32_BOARD_PINS = {
         "T11": 11,
         "T12": 12,
         "T14": 14,
+    },    
+    "s_odi_ultra": {
+        "LED_BUILTIN": 2,
+        "LED_BUILTINB": 4,
     },
     "sensesiot_weizen": {},
     "sg-o_airMon": {},
