@@ -1,10 +1,7 @@
-import voluptuous as vol
-
 from esphome import config_validation as cv
 from esphome import codegen as cg
 from esphome.const import CONF_BLUE, CONF_GREEN, CONF_ID, CONF_RED, CONF_WHITE
 
-Invalid = vol.Invalid
 ColorStruct = cg.esphome_ns.struct("Color")
 
 MULTI_CONF = True
@@ -18,14 +15,14 @@ CONF_HEX = "hex"
 
 def hex_color(value):
     if not value.startswith("#"):
-        raise Invalid("Color must start with #")
+        raise cv.Invalid("Color must start with #")
     value = value.lstrip("#")
     if len(value) != 6:
-        raise Invalid("Color must have six digits")
+        raise cv.Invalid("Color must have six digits")
     try:
         return (int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16))
     except ValueError as exc:
-        raise Invalid("Color must be hexadecimal") from exc
+        raise cv.Invalid("Color must be hexadecimal") from exc
 
 
 CONFIG_SCHEMA = cv.Schema(
