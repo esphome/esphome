@@ -10,6 +10,10 @@ class Component;
 
 class Scheduler {
  public:
+  void pre_setup(const u_int16_t expected_item_count) {
+    this->items_.reserve(expected_item_count);
+    this->to_add_.reserve(expected_item_count);
+  }
   void set_timeout(Component *component, const std::string &name, uint32_t timeout, std::function<void()> func);
   bool cancel_timeout(Component *component, const std::string &name);
   void set_interval(Component *component, const std::string &name, uint32_t interval, std::function<void()> func);

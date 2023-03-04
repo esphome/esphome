@@ -15,10 +15,12 @@ from esphome.const import (
     CONF_COMPILE_PROCESS_LIMIT,
     CONF_ESPHOME,
     CONF_FRAMEWORK,
+    CONF_ID,
     CONF_INCLUDES,
     CONF_LIBRARIES,
     CONF_MIN_VERSION,
     CONF_NAME,
+    CONF_NUMBER_OF_CHILDREN,
     CONF_FRIENDLY_NAME,
     CONF_ON_BOOT,
     CONF_ON_LOOP,
@@ -37,7 +39,21 @@ from esphome.const import (
     __version__ as ESPHOME_VERSION,
 )
 from esphome.core import CORE, coroutine_with_priority
+from esphome.core.entity_helpers import count_id_usage
 from esphome.helpers import copy_file_if_changed, walk_files
+from esphome.components.binary_sensor import BinarySensor
+from esphome.components.sensor import Sensor
+from esphome.components.switch import Switch
+from esphome.components.button import Button
+from esphome.components.text_sensor import TextSensor
+from esphome.components.fan import Fan
+from esphome.components.cover import Cover
+from esphome.components.climate import Climate
+from esphome.components.light import LightState
+from esphome.components.number import Number
+from esphome.components.select import Select
+from esphome.components.lock import Lock
+from esphome.components.media_player import MediaPlayer
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -186,6 +202,75 @@ PRELOAD_CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_ARDUINO_VERSION): cv.valid,
     },
     extra=cv.ALLOW_EXTRA,
+)
+
+FINAL_VALIDATE_SCHEMA = cv.All(
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(cg.PollingComponent)],
+        [CONF_ID],
+        cg.PollingComponent,
+        filter_duplicate=True,
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(cg.Component)],
+        [CONF_ID, CONF_TRIGGER_ID],
+        cg.Component,
+        filter_duplicate=True,
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(BinarySensor)],
+        [CONF_ID],
+        BinarySensor,
+        filter_duplicate=True,
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(Sensor)], [CONF_ID], Sensor, filter_duplicate=True
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(Switch)], [CONF_ID], Switch, filter_duplicate=True
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(Button)], [CONF_ID], Button, filter_duplicate=True
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(TextSensor)],
+        [CONF_ID],
+        TextSensor,
+        filter_duplicate=True,
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(Fan)], [CONF_ID], Fan, filter_duplicate=True
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(Cover)], [CONF_ID], Cover, filter_duplicate=True
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(Climate)],
+        [CONF_ID],
+        Climate,
+        filter_duplicate=True,
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(LightState)],
+        [CONF_ID],
+        LightState,
+        filter_duplicate=True,
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(Number)], [CONF_ID], Number, filter_duplicate=True
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(Select)], [CONF_ID], Select, filter_duplicate=True
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(Lock)], [CONF_ID], Lock, filter_duplicate=True
+    ),
+    count_id_usage(
+        [CONF_NUMBER_OF_CHILDREN, str(MediaPlayer)],
+        [CONF_ID],
+        MediaPlayer,
+        filter_duplicate=True,
+    ),
 )
 
 
@@ -353,6 +438,21 @@ async def to_code(config):
             config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
+            config[CONF_NUMBER_OF_CHILDREN][str(cg.PollingComponent)],
+            config[CONF_NUMBER_OF_CHILDREN][str(cg.Component)],
+            config[CONF_NUMBER_OF_CHILDREN][str(BinarySensor)],
+            config[CONF_NUMBER_OF_CHILDREN][str(Sensor)],
+            config[CONF_NUMBER_OF_CHILDREN][str(Switch)],
+            config[CONF_NUMBER_OF_CHILDREN][str(Button)],
+            config[CONF_NUMBER_OF_CHILDREN][str(TextSensor)],
+            config[CONF_NUMBER_OF_CHILDREN][str(Fan)],
+            config[CONF_NUMBER_OF_CHILDREN][str(Cover)],
+            config[CONF_NUMBER_OF_CHILDREN][str(Climate)],
+            config[CONF_NUMBER_OF_CHILDREN][str(LightState)],
+            config[CONF_NUMBER_OF_CHILDREN][str(Number)],
+            config[CONF_NUMBER_OF_CHILDREN][str(Select)],
+            config[CONF_NUMBER_OF_CHILDREN][str(Lock)],
+            config[CONF_NUMBER_OF_CHILDREN][str(MediaPlayer)],
         )
     )
 

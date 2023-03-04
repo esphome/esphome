@@ -27,6 +27,46 @@ void Application::register_component_(Component *comp) {
 }
 void Application::setup() {
   ESP_LOGI(TAG, "Running through setup()...");
+  this->components_.shrink_to_fit();
+#ifdef USE_BINARY_SENSOR
+  this->binary_sensors_.shrink_to_fit();
+#endif  // USE_BINARY_SENSOR
+#ifdef USE_SENSOR
+  this->sensors_.shrink_to_fit();
+#endif  // USE_SENSOR
+#ifdef USE_SWITCH
+  this->switches_.shrink_to_fit();
+#endif  // USE_SWITCH
+#ifdef USE_BUTTON
+  this->buttons_.shrink_to_fit();
+#endif  // USE_BUTTON
+#ifdef USE_TEXT_SENSOR
+  this->text_sensors_.shrink_to_fit();
+#endif  // USE_TEXT_SENSOR
+#ifdef USE_FAN
+  this->fans_.shrink_to_fit();
+#endif  // USE_FAN
+#ifdef USE_COVER
+  this->covers_.shrink_to_fit();
+#endif  // USE_COVER
+#ifdef USE_CLIMATE
+  this->climates_.shrink_to_fit();
+#endif  // USE_CLIMATE
+#ifdef USE_LIGHT
+  this->lights_.shrink_to_fit();
+#endif  // USE_LIGHT
+#ifdef USE_NUMBER
+  this->numbers_.shrink_to_fit();
+#endif  // USE_NUMBER
+#ifdef USE_SELECT
+  this->selects_.shrink_to_fit();
+#endif  // USE_SELECT
+#ifdef USE_LOCK
+  this->locks_.shrink_to_fit();
+#endif  // USE_LOCK
+#ifdef USE_MEDIA_PLAYER
+  this->media_players_.shrink_to_fit();
+#endif  // USE_MEDIA_PLAYER
   ESP_LOGV(TAG, "Sorting components by setup priority...");
   std::stable_sort(this->components_.begin(), this->components_.end(), [](const Component *a, const Component *b) {
     return a->get_actual_setup_priority() > b->get_actual_setup_priority();
@@ -146,6 +186,12 @@ void Application::run_safe_shutdown_hooks() {
 }
 
 void Application::calculate_looping_components_() {
+  size_t overridden_loop_count = 0;
+  for (auto *obj : this->components_) {
+    if (obj->has_overridden_loop())
+      overridden_loop_count++;
+  }
+  this->looping_components_.reserve(overridden_loop_count);
   for (auto *obj : this->components_) {
     if (obj->has_overridden_loop())
       this->looping_components_.push_back(obj);

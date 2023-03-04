@@ -54,7 +54,12 @@ namespace esphome {
 class Application {
  public:
   void pre_setup(const std::string &name, const std::string &friendly_name, const std::string &comment,
-                 const char *compilation_time, bool name_add_mac_suffix) {
+                 const char *compilation_time, bool name_add_mac_suffix, const u_int16_t count_of_polling_components,
+                 const u_int16_t count_of_components, const u_int16_t count_of_binary_sensors,
+                 const u_int16_t count_of_sensors, const u_int16_t count_of_switch, const u_int16_t count_of_button,
+                 const u_int16_t count_of_text_sensor, const u_int16_t count_of_fan, const u_int16_t count_of_cover,
+                 const u_int16_t count_of_climate, const u_int16_t count_of_lightstate, const u_int16_t count_of_number,
+                 const u_int16_t count_of_select, const u_int16_t count_of_lock, const u_int16_t count_of_mediaplayer) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
@@ -70,6 +75,47 @@ class Application {
     }
     this->comment_ = comment;
     this->compilation_time_ = compilation_time;
+    this->scheduler.pre_setup(count_of_polling_components);
+    this->components_.reserve(count_of_components);
+#ifdef USE_BINARY_SENSOR
+    this->binary_sensors_.reserve(count_of_binary_sensors);
+#endif  // USE_BINARY_SENSOR
+#ifdef USE_SENSOR
+    this->sensors_.reserve(count_of_sensors);
+#endif  // USE_SENSOR
+#ifdef USE_SWITCH
+    this->switches_.reserve(count_of_switch);
+#endif  // USE_SWITCH
+#ifdef USE_BUTTON
+    this->buttons_.reserve(count_of_button);
+#endif  // USE_BUTTON
+#ifdef USE_TEXT_SENSOR
+    this->text_sensors_.reserve(count_of_text_sensor);
+#endif  // USE_TEXT_SENSOR
+#ifdef USE_FAN
+    this->fans_.reserve(count_of_fan);
+#endif  // USE_FAN
+#ifdef USE_COVER
+    this->covers_.reserve(count_of_cover);
+#endif  // USE_COVER
+#ifdef USE_CLIMATE
+    this->climates_.reserve(count_of_climate);
+#endif  // USE_CLIMATE
+#ifdef USE_LIGHT
+    this->lights_.reserve(count_of_lightstate);
+#endif  // USE_LIGHT
+#ifdef USE_NUMBER
+    this->numbers_.reserve(count_of_number);
+#endif  // USE_NUMBER
+#ifdef USE_SELECT
+    this->selects_.reserve(count_of_select);
+#endif  // USE_SELECT
+#ifdef USE_LOCK
+    this->locks_.reserve(count_of_lock);
+#endif  // USE_LOCK
+#ifdef USE_MEDIA_PLAYER
+    this->media_players_.reserve(count_of_mediaplayer);
+#endif  // USE_MEDIA_PLAYER
   }
 
 #ifdef USE_BINARY_SENSOR
