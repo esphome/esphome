@@ -52,6 +52,7 @@ void SN74HC165Component::read_gpio_() {
     this->clock_pin_->digital_write(true);
     delayMicroseconds(10);
     this->clock_pin_->digital_write(false);
+    delayMicroseconds(10);
   }
 
   if (this->clock_inhibit_pin_ != nullptr)
