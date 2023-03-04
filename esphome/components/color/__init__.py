@@ -23,7 +23,7 @@ def hex_color(value):
     if len(value) != 6:
         raise Invalid("Color must have six digits")
     try:
-        return (int(value[0:2], 16), int(value[2:3], 16), int(value[3:5], 16))
+        return (int(value[0:2], 16), int(value[2:4], 16), int(value[4:6], 16))
     except ValueError as exc:
         raise Invalid("Color must be hexadecimal") from exc
 
