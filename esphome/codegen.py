@@ -63,6 +63,7 @@ from esphome.cpp_types import (  # noqa
     uint16,
     uint32,
     uint64,
+    int16,
     int32,
     int64,
     size_t,
