@@ -5,8 +5,8 @@
 #ifdef HAIER_REPORT_WIFI_SIGNAL
 #include "esphome/components/wifi/wifi_component.h"
 #endif
-#include "haier_climate.h"
-#include "haier_packet.h"
+#include "hon_climate.h"
+#include "hon_packet.h"
 
 using namespace esphome::climate;
 using namespace esphome::uart;
@@ -19,45 +19,10 @@ namespace esphome {
 namespace haier {
 
 const char TAG[] = "haier.climate";
-constexpr size_t COMMUNICATION_TIMEOUT_MS = 60000;
-constexpr size_t STATUS_REQUEST_INTERVAL_MS = 5000;
-constexpr size_t DEFAULT_MESSAGES_INTERVAL_MS = 2000;
-constexpr size_t CONTROL_MESSAGES_INTERVAL_MS = 400;
 #ifdef HAIER_REPORT_WIFI_SIGNAL
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
 #endif
-constexpr size_t CONTROL_TIMEOUT_MS = 7000;
 constexpr int PROTOCOL_OUTDOOR_TEMPERATURE_OFFSET = -64;
-
-#if (HAIER_LOG_LEVEL > 4)
-// To reduce size of binary this function only available when log level is Verbose
-const char *HaierClimate::phase_to_string_(ProtocolPhases phase) {
-  static const char *phase_names[] = {
-      "SENDING_INIT_1",
-      "WAITING_ANSWER_INIT_1",
-      "SENDING_INIT_2",
-      "WAITING_ANSWER_INIT_2",
-      "SENDING_FIRST_STATUS_REQUEST",
-      "WAITING_FIRST_STATUS_ANSWER",
-      "SENDING_ALARM_STATUS_REQUEST",
-      "WAITING_ALARM_STATUS_ANSWER",
-      "IDLE",
-      "SENDING_STATUS_REQUEST",
-      "WAITING_STATUS_ANSWER",
-      "SENDING_UPDATE_SIGNAL_REQUEST",
-      "WAITING_UPDATE_SIGNAL_ANSWER",
-      "SENDING_SIGNAL_LEVEL",
-      "WAITING_SIGNAL_LEVEL_ANSWER",
-      "SENDING_CONTROL",
-      "WAITING_CONTROL_ANSWER",
-      "UNKNOWN"  // Should be the last!
-  };
-  int phase_index = (int) phase;
-  if (phase_index > (int) ProtocolPhases::NUM_PROTOCOL_PHASES)
-    phase_index = (int) ProtocolPhases::NUM_PROTOCOL_PHASES;
-  return phase_names[phase_index];
-}
-#endif
 
 hon_protocol::VerticalSwingMode get_vertical_swing_mode(AirflowVerticalDirection direction) {
   switch (direction) {
@@ -81,71 +46,36 @@ hon_protocol::HorizontalSwingMode get_horizontal_swing_mode(AirflowHorizontalDir
   }
 }
 
-HaierClimate::HaierClimate(UARTComponent *parent)
-    : UARTDevice(parent),
-      haier_protocol_(*this),
-      protocol_phase_(ProtocolPhases::SENDING_INIT_1),
+HonClimate::HonClimate(UARTComponent *parent)
+    : HaierClimateBase(parent),
       last_status_message_(new uint8_t[sizeof(hon_protocol::HaierPacketControl)]),
-      fan_mode_speed_((uint8_t) hon_protocol::FanMode::FAN_MID),
-      other_modes_fan_speed_((uint8_t) hon_protocol::FanMode::FAN_AUTO),
-      beeper_status_(true),
-      display_status_(true),
-      force_send_control_(false),
-      forced_publish_(false),
-      forced_request_status_(false),
-      control_called_(false),
       got_valid_outdoor_temp_(false),
       hvac_hardware_info_available_(false),
       hvac_functions_{false, false, false, false, false},
       use_crc_(hvac_functions_[2]),
       active_alarms_{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
       outdoor_sensor_(nullptr) {
-  this->traits_ = climate::ClimateTraits();
-  this->traits_.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL, climate::CLIMATE_MODE_HEAT,
-                                     climate::CLIMATE_MODE_FAN_ONLY, climate::CLIMATE_MODE_DRY,
-                                     climate::CLIMATE_MODE_AUTO});
-  this->traits_.set_supported_fan_modes(
-      {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH});
-  this->traits_.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
-                                           climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL});
-  this->traits_.set_supported_presets({climate::CLIMATE_PRESET_NONE, climate::CLIMATE_PRESET_ECO,
-                                       climate::CLIMATE_PRESET_BOOST, climate::CLIMATE_PRESET_SLEEP});
-  this->traits_.set_supports_current_temperature(true);
-  this->vertical_direction_ = AirflowVerticalDirection::CENTER;
-  this->horizontal_direction_ = AirflowHorizontalDirection::CENTER;
+  this->traits_.set_supported_presets({
+      climate::CLIMATE_PRESET_NONE,
+      climate::CLIMATE_PRESET_ECO,
+      climate::CLIMATE_PRESET_BOOST,
+      climate::CLIMATE_PRESET_SLEEP,
+  });
+  this->fan_mode_speed_ = (uint8_t) hon_protocol::FanMode::FAN_MID;
+  this->other_modes_fan_speed_ = (uint8_t) hon_protocol::FanMode::FAN_AUTO;
 }
 
-HaierClimate::~HaierClimate() {}
+HonClimate::~HonClimate() {}
 
-void HaierClimate::set_phase_(ProtocolPhases phase) {
-  if (this->protocol_phase_ != phase) {
-#if (HAIER_LOG_LEVEL > 4)
-    ESP_LOGV(TAG, "Phase transition: %s => %s", phase_to_string_(this->protocol_phase_), phase_to_string_(phase));
-#else
-    ESP_LOGV(TAG, "Phase transition: %d => %d", this->protocol_phase_, phase);
-#endif
-    this->protocol_phase_ = phase;
-  }
-}
+void HonClimate::set_beeper_state(bool state) { this->beeper_status_ = state; }
 
-void HaierClimate::set_beeper_state(bool state) { this->beeper_status_ = state; }
+bool HonClimate::get_beeper_state() const { return this->beeper_status_; }
 
-bool HaierClimate::get_beeper_state() const { return this->beeper_status_; }
+void HonClimate::set_outdoor_temperature_sensor(esphome::sensor::Sensor *sensor) { this->outdoor_sensor_ = sensor; }
 
-bool HaierClimate::get_display_state() const { return this->display_status_; }
+AirflowVerticalDirection HonClimate::get_vertical_airflow() const { return this->vertical_direction_; };
 
-void HaierClimate::set_display_state(bool state) {
-  if (this->display_status_ != state) {
-    this->display_status_ = state;
-    this->force_send_control_ = true;
-  }
-}
-
-void HaierClimate::set_outdoor_temperature_sensor(esphome::sensor::Sensor *sensor) { this->outdoor_sensor_ = sensor; }
-
-AirflowVerticalDirection HaierClimate::get_vertical_airflow() const { return this->vertical_direction_; };
-
-void HaierClimate::set_vertical_airflow(AirflowVerticalDirection direction) {
+void HonClimate::set_vertical_airflow(AirflowVerticalDirection direction) {
   if (direction > AirflowVerticalDirection::DOWN) {
     this->vertical_direction_ = AirflowVerticalDirection::CENTER;
   } else {
@@ -154,9 +84,9 @@ void HaierClimate::set_vertical_airflow(AirflowVerticalDirection direction) {
   this->force_send_control_ = true;
 }
 
-AirflowHorizontalDirection HaierClimate::get_horizontal_airflow() const { return this->horizontal_direction_; }
+AirflowHorizontalDirection HonClimate::get_horizontal_airflow() const { return this->horizontal_direction_; }
 
-void HaierClimate::set_horizontal_airflow(AirflowHorizontalDirection direction) {
+void HonClimate::set_horizontal_airflow(AirflowHorizontalDirection direction) {
   if (direction > AirflowHorizontalDirection::RIGHT) {
     this->horizontal_direction_ = AirflowHorizontalDirection::CENTER;
   } else {
@@ -165,40 +95,8 @@ void HaierClimate::set_horizontal_airflow(AirflowHorizontalDirection direction) 
   this->force_send_control_ = true;
 }
 
-void HaierClimate::set_supported_swing_modes(const std::set<climate::ClimateSwingMode> &modes) {
-  this->traits_.set_supported_swing_modes(modes);
-  this->traits_.add_supported_swing_mode(climate::CLIMATE_SWING_OFF);       // Always available
-  this->traits_.add_supported_swing_mode(climate::CLIMATE_SWING_VERTICAL);  // Always available
-}
-
-void HaierClimate::set_supported_modes(const std::set<climate::ClimateMode> &modes) {
-  this->traits_.set_supported_modes(modes);
-  this->traits_.add_supported_mode(climate::CLIMATE_MODE_OFF);   // Always available
-  this->traits_.add_supported_mode(climate::CLIMATE_MODE_AUTO);  // Always available
-}
-
-haier_protocol::HandlerError HaierClimate::answer_preprocess_(uint8_t request_message_type,
-                                                              uint8_t expected_request_message_type,
-                                                              uint8_t answer_message_type,
-                                                              uint8_t expected_answer_message_type,
-                                                              ProtocolPhases expected_phase) {
-  haier_protocol::HandlerError result = haier_protocol::HandlerError::HANDLER_OK;
-  if ((expected_request_message_type != (uint8_t) hon_protocol::FrameType::NO_COMMAND) &&
-      (request_message_type != expected_request_message_type))
-    result = haier_protocol::HandlerError::UNSUPORTED_MESSAGE;
-  if ((expected_answer_message_type != (uint8_t) hon_protocol::FrameType::NO_COMMAND) &&
-      (answer_message_type != expected_answer_message_type))
-    result = haier_protocol::HandlerError::UNSUPORTED_MESSAGE;
-  if ((expected_phase != ProtocolPhases::UNKNOWN) && (expected_phase != this->protocol_phase_))
-    result = haier_protocol::HandlerError::UNEXPECTED_MESSAGE;
-  if (answer_message_type == (uint8_t) hon_protocol::FrameType::INVALID)
-    result = haier_protocol::HandlerError::INVALID_ANSWER;
-  return result;
-}
-
-haier_protocol::HandlerError HaierClimate::get_device_version_answer_handler_(uint8_t request_type,
-                                                                              uint8_t message_type, const uint8_t *data,
-                                                                              size_t data_size) {
+haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(uint8_t request_type, uint8_t message_type,
+                                                                            const uint8_t *data, size_t data_size) {
   haier_protocol::HandlerError result = this->answer_preprocess_(
       request_type, (uint8_t) hon_protocol::FrameType::GET_DEVICE_VERSION, message_type,
       (uint8_t) hon_protocol::FrameType::GET_DEVICE_VERSION_RESPONSE, ProtocolPhases::WAITING_ANSWER_INIT_1);
@@ -235,8 +133,8 @@ haier_protocol::HandlerError HaierClimate::get_device_version_answer_handler_(ui
   }
 }
 
-haier_protocol::HandlerError HaierClimate::get_device_id_answer_handler_(uint8_t request_type, uint8_t message_type,
-                                                                         const uint8_t *data, size_t data_size) {
+haier_protocol::HandlerError HonClimate::get_device_id_answer_handler_(uint8_t request_type, uint8_t message_type,
+                                                                       const uint8_t *data, size_t data_size) {
   haier_protocol::HandlerError result = this->answer_preprocess_(
       request_type, (uint8_t) hon_protocol::FrameType::GET_DEVICE_ID, message_type,
       (uint8_t) hon_protocol::FrameType::GET_DEVICE_ID_RESPONSE, ProtocolPhases::WAITING_ANSWER_INIT_2);
@@ -250,8 +148,8 @@ haier_protocol::HandlerError HaierClimate::get_device_id_answer_handler_(uint8_t
   }
 }
 
-haier_protocol::HandlerError HaierClimate::status_handler_(uint8_t request_type, uint8_t message_type,
-                                                           const uint8_t *data, size_t data_size) {
+haier_protocol::HandlerError HonClimate::status_handler_(uint8_t request_type, uint8_t message_type,
+                                                         const uint8_t *data, size_t data_size) {
   haier_protocol::HandlerError result =
       this->answer_preprocess_(request_type, (uint8_t) hon_protocol::FrameType::CONTROL, message_type,
                                (uint8_t) hon_protocol::FrameType::STATUS, ProtocolPhases::UNKNOWN);
@@ -288,10 +186,10 @@ haier_protocol::HandlerError HaierClimate::status_handler_(uint8_t request_type,
   }
 }
 
-haier_protocol::HandlerError HaierClimate::get_management_information_answer_handler_(uint8_t request_type,
-                                                                                      uint8_t message_type,
-                                                                                      const uint8_t *data,
-                                                                                      size_t data_size) {
+haier_protocol::HandlerError HonClimate::get_management_information_answer_handler_(uint8_t request_type,
+                                                                                    uint8_t message_type,
+                                                                                    const uint8_t *data,
+                                                                                    size_t data_size) {
   haier_protocol::HandlerError result =
       this->answer_preprocess_(request_type, (uint8_t) hon_protocol::FrameType::GET_MANAGEMENT_INFORMATION,
                                message_type, (uint8_t) hon_protocol::FrameType::GET_MANAGEMENT_INFORMATION_RESPONSE,
@@ -305,10 +203,9 @@ haier_protocol::HandlerError HaierClimate::get_management_information_answer_han
   }
 }
 
-haier_protocol::HandlerError HaierClimate::report_network_status_answer_handler_(uint8_t request_type,
-                                                                                 uint8_t message_type,
-                                                                                 const uint8_t *data,
-                                                                                 size_t data_size) {
+haier_protocol::HandlerError HonClimate::report_network_status_answer_handler_(uint8_t request_type,
+                                                                               uint8_t message_type,
+                                                                               const uint8_t *data, size_t data_size) {
   haier_protocol::HandlerError result =
       this->answer_preprocess_(request_type, (uint8_t) hon_protocol::FrameType::REPORT_NETWORK_STATUS, message_type,
                                (uint8_t) hon_protocol::FrameType::CONFIRM, ProtocolPhases::WAITING_SIGNAL_LEVEL_ANSWER);
@@ -316,8 +213,8 @@ haier_protocol::HandlerError HaierClimate::report_network_status_answer_handler_
   return result;
 }
 
-haier_protocol::HandlerError HaierClimate::get_alarm_status_answer_handler_(uint8_t request_type, uint8_t message_type,
-                                                                            const uint8_t *data, size_t data_size) {
+haier_protocol::HandlerError HonClimate::get_alarm_status_answer_handler_(uint8_t request_type, uint8_t message_type,
+                                                                          const uint8_t *data, size_t data_size) {
   if (request_type == (uint8_t) hon_protocol::FrameType::GET_ALARM_STATUS) {
     if (message_type != (uint8_t) hon_protocol::FrameType::GET_ALARM_STATUS_RESPONSE) {
       // Unexpected answer to request
@@ -338,56 +235,37 @@ haier_protocol::HandlerError HaierClimate::get_alarm_status_answer_handler_(uint
   }
 }
 
-haier_protocol::HandlerError HaierClimate::timeout_default_handler_(uint8_t request_type) {
-#if (HAIER_LOG_LEVEL > 4)
-  ESP_LOGW(TAG, "Answer timeout for command %02X, phase %s", request_type, phase_to_string_(this->protocol_phase_));
-#else
-  ESP_LOGW(TAG, "Answer timeout for command %02X, phase %d", request_type, this->protocol_phase_);
-#endif
-  if (this->protocol_phase_ > ProtocolPhases::IDLE) {
-    this->set_phase_(ProtocolPhases::IDLE);
-  } else {
-    this->set_phase_(ProtocolPhases::SENDING_INIT_1);
-  }
-  return haier_protocol::HandlerError::HANDLER_OK;
-}
-
-void HaierClimate::setup() {
-  ESP_LOGI(TAG, "Haier initialization...");
-  // Set timestamp here to give AC time to boot
-  this->last_request_timestamp_ = std::chrono::steady_clock::now();
-  this->set_phase_(ProtocolPhases::SENDING_INIT_1);
+void HonClimate::set_answers_handlers() {
   // Set handlers
   this->haier_protocol_.set_answer_handler(
       (uint8_t)(hon_protocol::FrameType::GET_DEVICE_VERSION),
-      std::bind(&HaierClimate::get_device_version_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
+      std::bind(&HonClimate::get_device_version_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
                 std::placeholders::_3, std::placeholders::_4));
   this->haier_protocol_.set_answer_handler(
       (uint8_t)(hon_protocol::FrameType::GET_DEVICE_ID),
-      std::bind(&HaierClimate::get_device_id_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
+      std::bind(&HonClimate::get_device_id_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
                 std::placeholders::_3, std::placeholders::_4));
   this->haier_protocol_.set_answer_handler(
       (uint8_t)(hon_protocol::FrameType::CONTROL),
-      std::bind(&HaierClimate::status_handler_, this, std::placeholders::_1, std::placeholders::_2,
-                std::placeholders::_3, std::placeholders::_4));
+      std::bind(&HonClimate::status_handler_, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
+                std::placeholders::_4));
   this->haier_protocol_.set_answer_handler(
       (uint8_t)(hon_protocol::FrameType::GET_MANAGEMENT_INFORMATION),
-      std::bind(&HaierClimate::get_management_information_answer_handler_, this, std::placeholders::_1,
+      std::bind(&HonClimate::get_management_information_answer_handler_, this, std::placeholders::_1,
                 std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
   this->haier_protocol_.set_answer_handler(
       (uint8_t)(hon_protocol::FrameType::GET_ALARM_STATUS),
-      std::bind(&HaierClimate::get_alarm_status_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
+      std::bind(&HonClimate::get_alarm_status_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
                 std::placeholders::_3, std::placeholders::_4));
   this->haier_protocol_.set_answer_handler(
       (uint8_t)(hon_protocol::FrameType::REPORT_NETWORK_STATUS),
-      std::bind(&HaierClimate::report_network_status_answer_handler_, this, std::placeholders::_1,
-                std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
-  this->haier_protocol_.set_default_timeout_handler(
-      std::bind(&esphome::haier::HaierClimate::timeout_default_handler_, this, std::placeholders::_1));
+      std::bind(&HonClimate::report_network_status_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
+                std::placeholders::_3, std::placeholders::_4));
 }
 
-void HaierClimate::dump_config() {
-  LOG_CLIMATE("", "Haier hOn Climate", this);
+void HonClimate::dump_config() {
+  HaierClimateBase::dump_config();
+  ESP_LOGCONFIG(TAG, "  Protocol version: hOn");
   if (this->hvac_hardware_info_available_) {
     ESP_LOGCONFIG(TAG, "  Device protocol version: %s", this->hvac_protocol_version_.c_str());
     ESP_LOGCONFIG(TAG, "  Device software version: %s", this->hvac_software_version_.c_str());
@@ -400,41 +278,10 @@ void HaierClimate::dump_config() {
   }
 }
 
-void HaierClimate::loop() {
-  std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_valid_status_timestamp_).count() >
-      COMMUNICATION_TIMEOUT_MS) {
-    if (this->protocol_phase_ > ProtocolPhases::IDLE) {
-      // No status too long, reseting protocol
-      ESP_LOGW(TAG, "Communication timeout, reseting protocol");
-      this->last_valid_status_timestamp_ = now;
-      this->force_send_control_ = false;
-      if (this->hvac_settings_.valid)
-        this->hvac_settings_.reset();
-      this->set_phase_(ProtocolPhases::SENDING_INIT_1);
-      return;
-    } else {
-      // No need to reset protocol if we didn't pass initialization phase
-      this->last_valid_status_timestamp_ = now;
-    }
-  };
-  if (this->hvac_settings_.valid || this->force_send_control_) {
-    // If control message is pending we should send it ASAP unless we are in initialisation procedure or waiting for an
-    // answer
-    if ((this->protocol_phase_ == ProtocolPhases::IDLE) ||
-        (this->protocol_phase_ == ProtocolPhases::SENDING_STATUS_REQUEST) ||
-        (this->protocol_phase_ == ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST) ||
-        (this->protocol_phase_ == ProtocolPhases::SENDING_SIGNAL_LEVEL)) {
-      ESP_LOGV(TAG, "Control packet is pending...");
-      this->control_request_timestamp_ = now;
-      this->set_phase_(ProtocolPhases::SENDING_CONTROL);
-    }
-  }
+void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
   switch (this->protocol_phase_) {
     case ProtocolPhases::SENDING_INIT_1:
-      if (this->can_send_message() &&
-          (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_request_timestamp_).count() >
-           DEFAULT_MESSAGES_INTERVAL_MS)) {
+      if (this->can_send_message() && this->is_message_interval_exceeded_(now)) {
         this->hvac_hardware_info_available_ = false;
         // Indicate device capabilities:
         // bit 0 - if 1 module support interactive mode
@@ -445,47 +292,39 @@ void HaierClimate::loop() {
         uint8_t module_capabilities[2] = {0b00000000, 0b00000111};
         static const haier_protocol::HaierMessage DEVICE_VERSION_REQUEST(
             (uint8_t) hon_protocol::FrameType::GET_DEVICE_VERSION, module_capabilities, sizeof(module_capabilities));
-        this->send_message_(DEVICE_VERSION_REQUEST);
+        this->send_message_(DEVICE_VERSION_REQUEST, this->use_crc_);
         this->set_phase_(ProtocolPhases::WAITING_ANSWER_INIT_1);
       }
       break;
     case ProtocolPhases::SENDING_INIT_2:
-      if (this->can_send_message() &&
-          (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_request_timestamp_).count() >
-           DEFAULT_MESSAGES_INTERVAL_MS)) {
+      if (this->can_send_message() && this->is_message_interval_exceeded_(now)) {
         static const haier_protocol::HaierMessage DEVICEID_REQUEST((uint8_t) hon_protocol::FrameType::GET_DEVICE_ID);
-        this->send_message_(DEVICEID_REQUEST);
+        this->send_message_(DEVICEID_REQUEST, this->use_crc_);
         this->set_phase_(ProtocolPhases::WAITING_ANSWER_INIT_2);
       }
       break;
     case ProtocolPhases::SENDING_FIRST_STATUS_REQUEST:
     case ProtocolPhases::SENDING_STATUS_REQUEST:
-      if (this->can_send_message() &&
-          (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_request_timestamp_).count() >
-           DEFAULT_MESSAGES_INTERVAL_MS)) {
+      if (this->can_send_message() && this->is_message_interval_exceeded_(now)) {
         static const haier_protocol::HaierMessage STATUS_REQUEST(
             (uint8_t) hon_protocol::FrameType::CONTROL, (uint16_t) hon_protocol::SubcomandsControl::GET_USER_DATA);
-        this->send_message_(STATUS_REQUEST);
+        this->send_message_(STATUS_REQUEST, this->use_crc_);
         this->last_status_request_ = now;
         this->set_phase_((ProtocolPhases)((uint8_t) this->protocol_phase_ + 1));
       }
       break;
 #ifdef HAIER_REPORT_WIFI_SIGNAL
     case ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST:
-      if (this->can_send_message() &&
-          (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_request_timestamp_).count() >
-           DEFAULT_MESSAGES_INTERVAL_MS)) {
+      if (this->can_send_message() && this->is_message_interval_exceeded_(now)) {
         static const haier_protocol::HaierMessage update_signal_request(
             (uint8_t) hon_protocol::FrameType::GET_MANAGEMENT_INFORMATION);
-        this->send_message_(update_signal_request);
+        this->send_message_(update_signal_request, this->use_crc_);
         this->last_signal_request_ = now;
         this->set_phase_(ProtocolPhases::WAITING_UPDATE_SIGNAL_ANSWER);
       }
       break;
     case ProtocolPhases::SENDING_SIGNAL_LEVEL:
-      if (this->can_send_message() &&
-          (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_request_timestamp_).count() >
-           DEFAULT_MESSAGES_INTERVAL_MS)) {
+      if (this->can_send_message() && this->is_message_interval_exceeded_(now)) {
         static uint8_t wifi_status_data[4] = {0x00, 0x00, 0x00, 0x00};
         if (wifi::global_wifi_component->is_connected()) {
           wifi_status_data[1] = 0;
@@ -499,7 +338,7 @@ void HaierClimate::loop() {
         }
         haier_protocol::HaierMessage wifi_status_request((uint8_t) hon_protocol::FrameType::REPORT_NETWORK_STATUS,
                                                          wifi_status_data, sizeof(wifi_status_data));
-        this->send_message_(wifi_status_request);
+        this->send_message_(wifi_status_request, this->use_crc_);
         this->set_phase_(ProtocolPhases::WAITING_SIGNAL_LEVEL_ANSWER);
       }
       break;
@@ -515,12 +354,10 @@ void HaierClimate::loop() {
       break;
 #endif
     case ProtocolPhases::SENDING_ALARM_STATUS_REQUEST:
-      if (this->can_send_message() &&
-          (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_request_timestamp_).count() >
-           DEFAULT_MESSAGES_INTERVAL_MS)) {
+      if (this->can_send_message() && this->is_message_interval_exceeded_(now)) {
         static const haier_protocol::HaierMessage ALARM_STATUS_REQUEST(
             (uint8_t) hon_protocol::FrameType::GET_ALARM_STATUS);
-        this->send_message_(ALARM_STATUS_REQUEST);
+        this->send_message_(ALARM_STATUS_REQUEST, this->use_crc_);
         this->set_phase_(ProtocolPhases::WAITING_ALARM_STATUS_ANSWER);
       }
       break;
@@ -529,8 +366,7 @@ void HaierClimate::loop() {
         this->control_request_timestamp_ = now;
         this->control_called_ = false;
       }
-      if (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->control_request_timestamp_).count() >
-          CONTROL_TIMEOUT_MS) {
+      if (this->is_control_message_timeout_exceeded_(now)) {
         ESP_LOGW(TAG, "Sending control packet timeout!");
         this->force_send_control_ = false;
         if (this->hvac_settings_.valid)
@@ -538,12 +374,9 @@ void HaierClimate::loop() {
         this->forced_request_status_ = true;
         this->forced_publish_ = true;
         this->set_phase_(ProtocolPhases::IDLE);
-      } else if (this->can_send_message() &&
-                 (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_request_timestamp_).count() >
-                  CONTROL_MESSAGES_INTERVAL_MS))  // Usiing CONTROL_MESSAGES_INTERVAL_MS to speeduprequests
-      {
-        haier_protocol::HaierMessage control_message = get_control_message_();
-        this->send_message_(control_message);
+      } else if (this->can_send_message() && this->is_control_message_interval_exceeded_(now)) {
+        haier_protocol::HaierMessage control_message = get_control_message();
+        this->send_message_(control_message, this->use_crc_);
         ESP_LOGI(TAG, "Control packet sent");
         this->set_phase_(ProtocolPhases::WAITING_CONTROL_ANSWER);
       }
@@ -556,9 +389,7 @@ void HaierClimate::loop() {
     case ProtocolPhases::WAITING_CONTROL_ANSWER:
       break;
     case ProtocolPhases::IDLE: {
-      if (this->forced_request_status_ ||
-          (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_status_request_).count() >
-           STATUS_REQUEST_INTERVAL_MS)) {
+      if (this->forced_request_status_ || this->is_status_request_interval_exceeded_(now)) {
         this->set_phase_(ProtocolPhases::SENDING_STATUS_REQUEST);
         this->forced_request_status_ = false;
       }
@@ -579,36 +410,9 @@ void HaierClimate::loop() {
       this->set_phase_(ProtocolPhases::SENDING_INIT_1);
       break;
   }
-  this->haier_protocol_.loop();
 }
 
-ClimateTraits HaierClimate::traits() { return traits_; }
-
-void HaierClimate::control(const ClimateCall &call) {
-  ESP_LOGD("Control", "Control call");
-  if (this->protocol_phase_ < ProtocolPhases::IDLE) {
-    ESP_LOGW(TAG, "Can't send control packet, first poll answer not received");
-    return;  // cancel the control, we cant do it without a poll answer.
-  }
-  if (this->hvac_settings_.valid) {
-    ESP_LOGW(TAG, "Overriding old valid settings before they were applied!");
-  }
-  {
-    if (call.get_mode().has_value())
-      this->hvac_settings_.mode = call.get_mode();
-    if (call.get_fan_mode().has_value())
-      this->hvac_settings_.fan_mode = call.get_fan_mode();
-    if (call.get_swing_mode().has_value())
-      this->hvac_settings_.swing_mode = call.get_swing_mode();
-    if (call.get_target_temperature().has_value())
-      this->hvac_settings_.target_temperature = call.get_target_temperature();
-    if (call.get_preset().has_value())
-      this->hvac_settings_.preset = call.get_preset();
-    this->hvac_settings_.valid = true;
-  }
-  this->control_called_ = true;
-}
-haier_protocol::HaierMessage HaierClimate::get_control_message_() {
+haier_protocol::HaierMessage HonClimate::get_control_message() {
   uint8_t control_out_buffer[sizeof(hon_protocol::HaierPacketControl)];
   memcpy(control_out_buffer, this->last_status_message_.get(), sizeof(hon_protocol::HaierPacketControl));
   hon_protocol::HaierPacketControl *out_data = (hon_protocol::HaierPacketControl *) control_out_buffer;
@@ -641,6 +445,9 @@ haier_protocol::HaierMessage HaierClimate::get_control_message_() {
           out_data->ac_power = 1;
           out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::FAN;
           out_data->fan_mode = this->fan_mode_speed_;  // Auto doesn't work in fan only mode
+          // Disabling boost and eco mode for Fan only
+          out_data->quiet_mode = 0;
+          out_data->fast_mode = 0;
           break;
         case CLIMATE_MODE_COOL:
           out_data->ac_power = 1;
@@ -698,7 +505,12 @@ haier_protocol::HaierMessage HaierClimate::get_control_message_() {
       out_data->set_point =
           climate_control.target_temperature.value() - 16;  // set the temperature at our offset, subtract 16.
     }
-    if (climate_control.preset.has_value()) {
+    if (out_data->ac_power == 0) {
+      // If AC is off - no presets alowed
+      out_data->quiet_mode = 0;
+      out_data->fast_mode = 0;
+      out_data->sleep_mode = 0;
+    } else if (climate_control.preset.has_value()) {
       switch (climate_control.preset.value()) {
         case CLIMATE_PRESET_NONE:
           out_data->quiet_mode = 0;
@@ -706,13 +518,15 @@ haier_protocol::HaierMessage HaierClimate::get_control_message_() {
           out_data->sleep_mode = 0;
           break;
         case CLIMATE_PRESET_ECO:
-          out_data->quiet_mode = 1;
+          // Eco is not supported in Fan only mode
+          out_data->quiet_mode = (this->mode != CLIMATE_MODE_FAN_ONLY) ? 1 : 0;
           out_data->fast_mode = 0;
           out_data->sleep_mode = 0;
           break;
         case CLIMATE_PRESET_BOOST:
           out_data->quiet_mode = 0;
-          out_data->fast_mode = 1;
+          // Boost is not supported in Fan only mode
+          out_data->fast_mode = (this->mode != CLIMATE_MODE_FAN_ONLY) ? 1 : 0;
           out_data->sleep_mode = 0;
           break;
         case CLIMATE_PRESET_AWAY:
@@ -744,7 +558,7 @@ haier_protocol::HaierMessage HaierClimate::get_control_message_() {
                                       control_out_buffer, sizeof(hon_protocol::HaierPacketControl));
 }
 
-haier_protocol::HandlerError HaierClimate::process_status_message_(const uint8_t *packet_buffer, uint8_t size) {
+haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *packet_buffer, uint8_t size) {
   if (size < sizeof(hon_protocol::HaierStatus))
     return haier_protocol::HandlerError::WRONG_MESSAGE_STRUCTURE;
   hon_protocol::HaierStatus packet;
@@ -792,13 +606,19 @@ haier_protocol::HandlerError HaierClimate::process_status_message_(const uint8_t
     optional<ClimateFanMode> old_fan_mode = this->fan_mode;
     // remember the fan speed we last had for climate vs fan
     if (packet.control.ac_mode == (uint8_t) hon_protocol::ConditioningMode::FAN) {
-      this->fan_mode_speed_ = packet.control.fan_mode;
+      if (packet.control.fan_mode != (uint8_t) hon_protocol::FanMode::FAN_AUTO)
+        this->fan_mode_speed_ = packet.control.fan_mode;
     } else {
       this->other_modes_fan_speed_ = packet.control.fan_mode;
     }
     switch (packet.control.fan_mode) {
       case (uint8_t) hon_protocol::FanMode::FAN_AUTO:
-        this->fan_mode = CLIMATE_FAN_AUTO;
+        if (packet.control.ac_mode != (uint8_t) hon_protocol::ConditioningMode::FAN) {
+          this->fan_mode = CLIMATE_FAN_AUTO;
+        } else {
+          // Shouldn't accept fan speed auto in fan-only mode even if AC reports it
+          ESP_LOGI(TAG, "Fan speed Auto is not supported in Fan only AC mode, ignoring");
+        }
         break;
       case (uint8_t) hon_protocol::FanMode::FAN_MID:
         this->fan_mode = CLIMATE_FAN_MEDIUM;
@@ -904,19 +724,8 @@ haier_protocol::HandlerError HaierClimate::process_status_message_(const uint8_t
   return haier_protocol::HandlerError::HANDLER_OK;
 }
 
-void HaierClimate::send_message_(const haier_protocol::HaierMessage &command) {
-  this->haier_protocol_.send_message(command, this->use_crc_);
-  this->last_request_timestamp_ = std::chrono::steady_clock::now();
-  ;
-}
-
-void HaierClimate::HvacSettings::reset() {
-  this->valid = false;
-  this->mode.reset();
-  this->fan_mode.reset();
-  this->swing_mode.reset();
-  this->target_temperature.reset();
-  this->preset.reset();
+bool HonClimate::is_message_invalid(uint8_t message_type) {
+  return message_type == (uint8_t) hon_protocol::FrameType::INVALID;
 }
 
 }  // namespace haier

@@ -84,6 +84,7 @@ output:
 
 climate:
   - platform: haier
+    protocol: hOn
     name: Haier AC
     uart_id: uart2
     # set false to remove dependancy on wifi

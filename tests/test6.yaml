@@ -45,6 +45,7 @@ switch:
 
 climate:
   - platform: haier
+    protocol: hOn
     name: Haier AC
     uart_id: haier_uart
     wifi_signal: true

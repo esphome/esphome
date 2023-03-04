@@ -391,6 +391,7 @@ climate:
     target_temperature_multiplier: 0.5
     reports_fahrenheit: true
   - platform: haier
+    protocol: hOn
     name: Haier AC
     uart_id: uart2
     # set false to remove dependancy on wifi

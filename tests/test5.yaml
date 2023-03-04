@@ -378,6 +378,7 @@ select:
 
 climate:
   - platform: haier
+    protocol: hOn
     name: Haier AC
     uart_id: uart3
     wifi_signal: true

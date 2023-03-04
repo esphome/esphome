@@ -2108,6 +2108,7 @@ climate:
   - platform: whynter
     name: Whynter
   - platform: haier
+    protocol: hOn
     name: Haier AC
     uart_id: uart1
     wifi_signal: true
