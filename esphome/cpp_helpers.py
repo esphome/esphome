@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_INTERNAL,
     CONF_NAME,
     CONF_SETUP_PRIORITY,
+    CONF_UNIQUE_OBJECT_ID,
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_OTA,
@@ -108,6 +109,8 @@ async def setup_entity(var, config):
         add(var.set_icon(config[CONF_ICON]))
     if CONF_ENTITY_CATEGORY in config:
         add(var.set_entity_category(config[CONF_ENTITY_CATEGORY]))
+    if CONF_UNIQUE_OBJECT_ID in config:
+        add(var.set_object_id(config[CONF_UNIQUE_OBJECT_ID]))
 
 
 def extract_registry_entry_config(

@@ -21,8 +21,11 @@ class EntityBase {
   const std::string &get_name() const;
   void set_name(const std::string &name);
 
-  // Get the sanitized name of this Entity as an ID. Caching it internally.
-  const std::string &get_object_id();
+  // Get the Object ID of this Entity.
+  // If Object ID was not set, return sanitized name of this Entity.
+  const std::string &get_object_id() const;
+  // Set the Object ID of this Entity and sanitize it.
+  void set_object_id(const std::string &name);
 
   // Get the unique Object ID of this Entity
   uint32_t get_object_id_hash();
@@ -49,7 +52,7 @@ class EntityBase {
   /// The hash_base() function has been deprecated. It is kept in this
   /// class for now, to prevent external components from not compiling.
   virtual uint32_t hash_base() { return 0L; }
-  void calc_object_id_();
+  void calc_object_id_(const std::string &name);
 
   std::string name_;
   std::string object_id_;

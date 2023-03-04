@@ -2135,6 +2135,7 @@ climate:
     ble_client_id: ble_blah
     unit_of_measurement: c
     icon: mdi:stove
+    unique_object_id: anova_cooker
   - platform: bedjet
     name: My Bedjet
     bedjet_id: my_bedjet_client

@@ -26,6 +26,7 @@ from esphome.const import (
     CONF_ID,
     CONF_INTERNAL,
     CONF_NAME,
+    CONF_UNIQUE_OBJECT_ID,
     CONF_PAYLOAD_AVAILABLE,
     CONF_PAYLOAD_NOT_AVAILABLE,
     CONF_RETAIN,
@@ -1634,6 +1635,7 @@ ENTITY_BASE_SCHEMA = Schema(
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,
         Optional(CONF_ENTITY_CATEGORY): entity_category,
+        Optional(CONF_UNIQUE_OBJECT_ID): string,
     }
 )
 

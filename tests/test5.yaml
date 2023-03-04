@@ -74,6 +74,7 @@ binary_sensor:
     pin: GPIO0
     id: io0_button
     icon: mdi:gesture-tap-button
+    unique_object_id: gesture_tap_button
 
   - platform: modbus_controller
     modbus_controller_id: modbus_controller_test

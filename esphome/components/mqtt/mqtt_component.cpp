@@ -148,10 +148,6 @@ bool MQTTComponent::is_discovery_enabled() const {
   return this->discovery_enabled_ && global_mqtt_client->is_discovery_enabled();
 }
 
-std::string MQTTComponent::get_default_object_id_() const {
-  return str_sanitize(str_snake_case(this->friendly_name()));
-}
-
 void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
   global_mqtt_client->subscribe(topic, std::move(callback), qos);
 }
@@ -232,6 +228,7 @@ std::string MQTTComponent::unique_id() { return ""; }
 bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
 // Pull these properties from EntityBase if not overridden
+std::string MQTTComponent::get_default_object_id_() const { return this->get_entity()->get_object_id(); }
 std::string MQTTComponent::friendly_name() const { return this->get_entity()->get_name(); }
 std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
 bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
