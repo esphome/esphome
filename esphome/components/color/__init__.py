@@ -14,9 +14,6 @@ CONF_HEX = "hex"
 
 
 def hex_color(value):
-    if not value.startswith("#"):
-        raise cv.Invalid("Color must start with #")
-    value = value.lstrip("#")
     if len(value) != 6:
         raise cv.Invalid("Color must have six digits")
     try:
