@@ -29,22 +29,20 @@ void LGUartSwitch::setup() {
 }
 
 // When parent gets a reply meant for us, we'll get notified here
-void LGUartSwitch::on_reply_packet(uint8_t pkt[]) {
-  ESP_LOGD(TAG, "[%s] on_reply_packet(). reply: [%s].", this->get_name().c_str(), pkt);
+void LGUartSwitch::on_reply_packet(std::vector<uint8_t> *pkt) {
+  ESP_LOGD(TAG, "[%s] on_reply_packet(). reply: [%s].", this->get_name().c_str(),
+           this->parent_->get_reply_as_str(pkt).c_str());
 
-  // We are called only when the reply was OK.
-  // We will need to pull out the two chars, string -> int.
-  std::string status_str;
-  status_str.push_back(pkt[7]);
-  status_str.push_back(pkt[8]);
-  ESP_LOGD(TAG, "[%s] update(): status_str: [%s]", this->get_name().c_str(), status_str.c_str());
+  std::string status_str = this->parent_->get_status_str(pkt->at(7), pkt->at(8));
+  ESP_LOGD(TAG, "[%s] on_reply_packet(): status_str: [%s]", this->get_name().c_str(), status_str.c_str());
 
   if (status_str[0] == 0) {
-    ESP_LOGE(TAG, "[%s] update(): Didn't get status_str: [%s]", this->get_name().c_str(), status_str.c_str());
+    ESP_LOGE(TAG, "[%s] on_reply_packet(): Didn't get status_str: [%s]", this->get_name().c_str(), status_str.c_str());
     this->status_set_error();
   }
   // TODO: make safe? Possible to get back some chars that do not convert to int?
-  int status_int = stoi(status_str);
+  // ESPHome does not use exceptions?
+  int status_int = stoi(status_str, nullptr, this->encoding_base_);
 
   ESP_LOGD(TAG, "[%s] update(): Inverted: [%i], state: [%i], status_int: [%i]", this->get_name().c_str(),
            this->inverted_, this->state, (bool) status_int);
@@ -58,6 +56,15 @@ void LGUartSwitch::on_reply_packet(uint8_t pkt[]) {
 void LGUartSwitch::update() {
   ESP_LOGD(TAG, "[%s] update(). command: [%s].", this->get_name().c_str(), this->cmd_str_);
   this->parent_->send_cmd(this->cmd_str_, 0xff, true);
+}
+
+void LGUartSwitch::set_cmd(const std::string &cmd_str) {
+  if (cmd_str.length() != 2) {
+    ESP_LOGE(TAG, "Invalid cmd_str.");
+    return;
+  }
+  this->cmd_str_[0] = cmd_str[0];
+  this->cmd_str_[1] = cmd_str[1];
 }
 
 void LGUartSwitch::write_state(bool state) {

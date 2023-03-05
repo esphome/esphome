@@ -22,11 +22,11 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
 
   this->parent_->write_array(std::vector<uint8_t>(s.begin(), s.end()));
 
-  uint8_t reply[PACKET_LEN] = {0};
+  std::vector<uint8_t> reply(PACKET_LEN, 0);
   uint8_t peeked;
   uint8_t idx = 0;
 
-  /*
+    /*
     After sending a command, we listen for the reply.
     In testing, replies didn't always come back instantly; would send inquire about one setting, have nothing in the
     UART and then exit. A short time later, a new inquiry for a different setting would get fired off and available()
@@ -97,12 +97,12 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
     }
 
     // Copy in the last of the packet which should have the OK/NG and the data/state
-    if (idx >= 5 && idx <= (PACKET_LEN - 1)) {
+    if (idx >= 5 && idx <= PACKET_LEN) {
       reply[idx] = peeked;
       idx += 1;
       // If we are at the end of known packet, don't bother checking if available(), go straight to process of what we
       // have
-      if (idx == PACKET_LEN - 1)
+      if (idx == PACKET_LEN)
         break;
 
       continue;
@@ -110,14 +110,14 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
   }
 
   // Validate packet and dispatch
-  if (idx == PACKET_LEN - 1) {
+  if (idx == PACKET_LEN) {
     // OK
     if (reply[5] == 0x4f && reply[6] == 0x4b) {
       ESP_LOGD(TAG, "send_cmd(%s). Got OK packet!...", cmd_code);
       // Replies to inquire? packets always end in x.
       if (reply[9] == 'x') {
         ESP_LOGD(TAG, "send_cmd(%s). ... Dispatching to handler for [%c]", cmd_code, reply[0]);
-        this->children_[reply[0]]->on_reply_packet(reply);
+        this->children_[reply[0]]->on_reply_packet(&reply);
       }
       return true;
     } else {
@@ -158,6 +158,15 @@ void LGUartHub::register_child(LGUartClient *obj, std::string cmd_char) {
   this->children_[cmd_char.at(0)] = obj;
   obj->set_parent(this);
 }
+
+std::string LGUartHub::get_status_str(uint8_t p1, uint8_t p2) {
+  std::string status_str;
+  status_str.push_back(p1);
+  status_str.push_back(p2);
+  return status_str;
+}
+
+std::string LGUartHub::get_reply_as_str(std::vector<uint8_t> *pkt) { return std::string(pkt->begin(), pkt->end()); }
 
 }  // namespace lg_uart
 }  // namespace esphome

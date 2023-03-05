@@ -15,8 +15,8 @@ namespace lg_uart {
 
 static const char *const TAG = "LGUART";
 
-// LG docs indicate that reply will be no longer than 10 bytes + 1 for termination
-static const uint8_t PACKET_LEN = 11;
+// LG docs indicate that reply will be no longer than 10 bytes
+static const uint8_t PACKET_LEN = 10;
 
 class LGUartHub : public Component, public uart::UARTDevice {
  public:
@@ -33,6 +33,10 @@ class LGUartHub : public Component, public uart::UARTDevice {
 
   /** Register a `LGUartClient` child component. */
   void register_child(LGUartClient *obj, std::string cmd_char);
+
+  // Helpers for processing part of the reply packet
+  std::string get_status_str(uint8_t p1, uint8_t p2);
+  std::string get_reply_as_str(std::vector<uint8_t> *pkt);
 
  protected:
   int screen_num_ = -1;
