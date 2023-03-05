@@ -95,18 +95,17 @@ def count_id_usage(
                     conf_name in config
                     and isinstance(config, (tuple))
                     and config[0] == conf_name
-                ):
                     # Is the value a class of type ID and also of the type I am looking for?
-                    if isinstance(config[1], (ID)) and config[1].type.inherits_from(
-                        conf_value
-                    ):
-                        if filter_duplicate:
-                            # Duplicate filter is active
-                            if str(config[1]) not in seen_ids:
-                                seen_ids[str(config[1])] = config[1]
-                                ret += 1
-                        else:
+                    and isinstance(config[1], (ID))
+                    and config[1].type.inherits_from(conf_value)
+                ):
+                    if filter_duplicate:
+                        # Duplicate filter is active
+                        if str(config[1]) not in seen_ids:
+                            seen_ids[str(config[1])] = config[1]
                             ret += 1
+                    else:
+                        ret += 1
 
         elif isinstance(config, (dict)):
             for config_item in config.items():
