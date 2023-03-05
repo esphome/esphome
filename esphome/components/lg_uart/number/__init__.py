@@ -34,8 +34,8 @@ CONFIG_SCHEMA = cv.All(
             ),
             # LG is all over the place when it comes to encodings and min/max values.
             # Some settings take 00 through 99 base 10 and others take 0x00 through 0x64
-            # In the documentation that I have, I can't find a setting that is best represented by a
-            #   slider between 0 and 100.
+            # In the documentation that I have, every parameter can reasonably be represented
+            # with a slider between 0 and 100 allowing for no fractional values.
             cv.Optional(CONF_MAX_VALUE, default=100): cv.positive_int,
             cv.Optional(CONF_MIN_VALUE, default=0): cv.positive_int,
             cv.Optional(CONF_STEP, default=1): cv.positive_int,
