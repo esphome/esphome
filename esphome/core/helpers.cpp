@@ -443,8 +443,9 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
   // without doing the CRC check.
   esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
 #else
-  if (esp_efuse_mac_get_custom(mac) == ESP_OK) {}
-  else esp_efuse_mac_get_default(mac);
+  if (esp_efuse_mac_get_custom(mac) == ESP_OK) {
+  } else
+    esp_efuse_mac_get_default(mac);
 #endif
 #elif defined(USE_ESP8266)
   wifi_get_macaddr(STATION_IF, mac);
