@@ -548,7 +548,9 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
 
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
-  msg.visual_temperature_step = traits.get_visual_temperature_step();
+  msg.visual_target_temperature_step = traits.get_visual_target_temperature_step();
+  msg.visual_current_temperature_step = traits.get_visual_current_temperature_step();
+
   msg.legacy_supports_away = traits.supports_preset(climate::CLIMATE_PRESET_AWAY);
   msg.supports_action = traits.get_supports_action();
 
@@ -930,6 +932,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   DeviceInfoResponse resp{};
   resp.uses_password = this->parent_->uses_password();
   resp.name = App.get_name();
+  resp.friendly_name = App.get_friendly_name();
   resp.mac_address = get_mac_address_pretty();
   resp.esphome_version = ESPHOME_VERSION;
   resp.compilation_time = App.get_compilation_time();
