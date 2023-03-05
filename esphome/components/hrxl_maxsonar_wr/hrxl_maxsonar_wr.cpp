@@ -3,7 +3,7 @@
 //   XL: https://www.maxbotix.com/documents/XL-MaxSonar-WR_Datasheet.pdf
 //
 // This implementation is designed to work with the TTL Versions of the
-// MaxBotix HRXL and XL MaxSonar WR sensor series. The sensor's TTL Pin (5) 
+// MaxBotix HRXL and XL MaxSonar WR sensor series. The sensor's TTL Pin (5)
 // should be wired to one of the ESP's input pins and configured as uart rx_pin.
 
 #include "hrxl_maxsonar_wr.h"
@@ -47,9 +47,7 @@ void HrxlMaxsonarWrComponent::check_buffer_() {
 
     size_t rpos = this->buffer_.find(static_cast<char>(ASCII_CR));
 
-    if (this->buffer_.length() <= MAX_DATA_LENGTH_BYTES && this->buffer_[0] == 'R' &&
-        rpos != std::string::npos) {
-
+    if (this->buffer_.length() <= MAX_DATA_LENGTH_BYTES && this->buffer_[0] == 'R' && rpos != std::string::npos) {
       std::string distance = this->buffer_.substr(1, rpos - 1);
       int millimeters = parse_number<int>(distance).value_or(0);
 
