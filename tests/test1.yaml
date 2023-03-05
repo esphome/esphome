@@ -1224,6 +1224,11 @@ sensor:
   - platform: sen21231
     name: "Person Sensor"
     i2c_id: i2c_bus
+  - platform: absolute_humidity
+    name: DHT Absolute Humidity
+    temperature: dht_temperature
+    humidity: dht_humidity
+
 esp32_touch:
   setup_mode: false
   iir_filter: 10ms
