@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_MODE,
     CONF_MODE_COMMAND_TOPIC,
     CONF_MODE_STATE_TOPIC,
+    CONF_ON_CONTROL,
     CONF_ON_STATE,
     CONF_PRESET,
     CONF_PRESET_COMMAND_TOPIC,
@@ -127,6 +128,7 @@ def single_visual_temperature(value):
 # Actions
 ControlAction = climate_ns.class_("ControlAction", automation.Action)
 StateTrigger = climate_ns.class_("StateTrigger", automation.Trigger.template())
+ControlTrigger = climate_ns.class_("ControlTrigger", automation.Trigger.template())
 
 VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Any(
     single_visual_temperature,
@@ -202,6 +204,11 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
         ),
         cv.Optional(CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_ON_CONTROL): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ControlTrigger),
+            }
         ),
         cv.Optional(CONF_ON_STATE): automation.validate_automation(
             {

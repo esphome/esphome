@@ -2052,6 +2052,8 @@ climate:
     name: Midea IR
     use_fahrenheit: true
   - platform: midea
+    on_control:
+      logger.log: Control message received!
     on_state:
       logger.log: State changed!
     id: midea_unit
