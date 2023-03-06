@@ -4,7 +4,6 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
-    CONF_ID,
     CONF_MODEL,
     DEVICE_CLASS_WIND_SPEED,
     STATE_CLASS_MEASUREMENT,
