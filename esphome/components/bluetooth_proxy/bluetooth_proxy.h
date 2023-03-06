@@ -44,6 +44,15 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   int get_bluetooth_connections_free();
   int get_bluetooth_connections_limit() { return this->connections_.size(); }
 
+  static void uint64_to_bd_addr(uint64_t address, esp_bd_addr_t bd_addr) {
+    bd_addr[0] = (address >> 40) & 0xff;
+    bd_addr[1] = (address >> 32) & 0xff;
+    bd_addr[2] = (address >> 24) & 0xff;
+    bd_addr[3] = (address >> 16) & 0xff;
+    bd_addr[4] = (address >> 8) & 0xff;
+    bd_addr[5] = (address >> 0) & 0xff;
+  }
+
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
 
