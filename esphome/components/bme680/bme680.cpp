@@ -319,8 +319,10 @@ void BME680Component::read_data_() {
 
   ESP_LOGD(TAG, "Got temperature=%.1f°C pressure=%.1fhPa humidity=%.1f%% gas_resistance=%.1fΩ", temperature, pressure,
            humidity, gas_resistance);
-  if(!gas_valid) ESP_LOGW(TAG, "Gas measurement unsuccessful, reading invalid!");
-  if(!heat_stable) ESP_LOGW(TAG, "Heater unstable, reading invalid! (Normal for a few readings after a power cycle)");
+  if (!gas_valid)
+    ESP_LOGW(TAG, "Gas measurement unsuccessful, reading invalid!");
+  if (!heat_stable)
+    ESP_LOGW(TAG, "Heater unstable, reading invalid! (Normal for a few readings after a power cycle)");
 
   if (this->temperature_sensor_ != nullptr)
     this->temperature_sensor_->publish_state(temperature);
