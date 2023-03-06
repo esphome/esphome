@@ -8,7 +8,7 @@ static const char *const TAG = "fs3000";
 
 void FS3000Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up FS3000...");
-  
+
   if (model_ == FIVE) {
     // datasheet gives 9 points to interpolate from for the 1005 model
     static const uint16_t RAW_DATA_POINTS_1005[9] = {409, 915, 1522, 2066, 2523, 2908, 3256, 3572, 3686};
@@ -73,9 +73,7 @@ void FS3000Component::dump_config() {
   LOG_SENSOR("  ", "Air Velocity", this);
 }
 
-void FS3000Component::set_model(FS3000Model model) {
-  this->model_ = model;
-}
+void FS3000Component::set_model(FS3000Model model) { this->model_ = model; }
 
 float FS3000Component::fit_raw_(uint16_t raw_value) {
   // converts a raw value read from the FS3000 into a speed in m/s based on the
