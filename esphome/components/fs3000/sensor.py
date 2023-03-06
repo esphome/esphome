@@ -25,7 +25,7 @@ FS3000Component = fs3000_ns.class_(
     "FS3000Component", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor
 )
 
-CONFIG_SCHEMA = cv.All(
+CONFIG_SCHEMA = (
     sensor.sensor_schema(
         FS3000Component,
         unit_of_measurement="m/s",
@@ -35,7 +35,6 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(FS3000Component),
             cv.Required(CONF_MODEL): cv.enum(FS3000_MODEL_OPTIONS, lower=True),
         }
     )
@@ -45,9 +44,8 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    await sensor.register_sensor(var, config)
 
     cg.add(var.set_model(config[CONF_MODEL]))
