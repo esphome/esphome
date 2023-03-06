@@ -6,19 +6,21 @@
 namespace esphome {
 namespace absolute_humidity {
 
-enum SaturatedVaporPressureEquation {
+/// Enum listing all implemented saturation vapor pressure equations.
+enum SaturationVaporPressureEquation {
   BUCK,
   TETENS,
   WOBUS,
 };
 
+/// This class implements calculation of absolute humidity from temperature and relative humidity.
 class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
  public:
   AbsoluteHumidityComponent() = default;
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-  void set_equation(SaturatedVaporPressureEquation equation) { equation_ = equation; }
+  void set_equation(SaturationVaporPressureEquation equation) { equation_ = equation; }
 
   void setup() override;
   void dump_config() override;
@@ -35,12 +37,29 @@ class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
     this->humidity_ = state;
   }
 
-  // Saturation vapor pressure equations
+  /** Buck equation for saturation vapor pressure in kPa.
+   *
+   * @param temperature_c Air temperature in °C.
+   */
   static double es_buck(float temperature_c);
+  /** Tetens equation for saturation vapor pressure in kPa.
+   *
+   * @param temperature_c Air temperature in °C.
+   */
   static double es_tetens(float temperature_c);
+  /** Wobus equation for saturation vapor pressure in kPa.
+   *
+   * @param temperature_c Air temperature in °C.
+   */
   static double es_wobus(float temperature_c);
 
-  // Absolute humidity
+  /** Calculate vapor density (absolute humidity) in g/m³.
+   *
+   * @param es Saturation vapor pressure in kPa.
+   * @param hr Relative humidity 0 to 1.
+   * @param ta Absolute temperature in K.
+   * @param heater_duration The duration in ms that the heater should turn on for when measuring.
+   */
   static float vapor_density(double es, float hr, float ta);
 
   sensor::Sensor *temperature_sensor_{nullptr};
@@ -50,7 +69,7 @@ class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
 
   float temperature_{NAN};
   float humidity_{NAN};
-  SaturatedVaporPressureEquation equation_;
+  SaturationVaporPressureEquation equation_{WOBUS};
 };
 
 }  // namespace absolute_humidity

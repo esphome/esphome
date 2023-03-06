@@ -27,16 +27,16 @@ void AbsoluteHumidityComponent::dump_config() {
 
   switch (this->equation_) {
     case BUCK:
-      ESP_LOGCONFIG(TAG, "Saturated Vapor Pressure Equation: Buck");
+      ESP_LOGCONFIG(TAG, "Saturation Vapor Pressure Equation: Buck");
       break;
     case TETENS:
-      ESP_LOGCONFIG(TAG, "Saturated Vapor Pressure Equation: Tetens");
+      ESP_LOGCONFIG(TAG, "Saturation Vapor Pressure Equation: Tetens");
       break;
     case WOBUS:
-      ESP_LOGCONFIG(TAG, "Saturated Vapor Pressure Equation: Wobus");
+      ESP_LOGCONFIG(TAG, "Saturation Vapor Pressure Equation: Wobus");
       break;
     default:
-      ESP_LOGE(TAG, "Invalid saturated vapor pressure equation selection!");
+      ESP_LOGE(TAG, "Invalid saturation vapor pressure equation selection!");
       break;
   }
 
@@ -74,7 +74,7 @@ void AbsoluteHumidityComponent::loop() {
   const float temperature_k = temperature_c + 273.15;
   const float hr = this->humidity_ / 100;
 
-  // Calculate saturated vapor pressure
+  // Calculate saturation vapor pressure
   double es;
   switch (this->equation_) {
     case BUCK:
@@ -87,12 +87,12 @@ void AbsoluteHumidityComponent::loop() {
       es = es_wobus(temperature_c);
       break;
     default:
-      ESP_LOGE(TAG, "Invalid saturated vapor pressure equation selection!");
+      ESP_LOGE(TAG, "Invalid saturation vapor pressure equation selection!");
       this->publish_state(NAN);
       this->status_set_error();
       return;
   }
-  ESP_LOGD(TAG, "Saturated vapor pressure %f kPa", es);
+  ESP_LOGD(TAG, "Saturation vapor pressure %f kPa", es);
 
   // Calculate absolute humidity
   const float absolute_humidity = vapor_density(es, hr, temperature_k);

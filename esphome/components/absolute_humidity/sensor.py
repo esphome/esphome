@@ -17,13 +17,13 @@ AbsoluteHumidityComponent = absolute_humidity_ns.class_(
     "AbsoluteHumidityComponent", sensor.Sensor, cg.Component
 )
 
-SaturatedVaporPressureEquation = absolute_humidity_ns.enum(
-    "SaturatedVaporPressureEquation"
+SaturationVaporPressureEquation = absolute_humidity_ns.enum(
+    "SaturationVaporPressureEquation"
 )
 EQUATION = {
-    "BUCK": SaturatedVaporPressureEquation.BUCK,
-    "TETENS": SaturatedVaporPressureEquation.TETENS,
-    "WOBUS": SaturatedVaporPressureEquation.WOBUS,
+    "BUCK": SaturationVaporPressureEquation.BUCK,
+    "TETENS": SaturationVaporPressureEquation.TETENS,
+    "WOBUS": SaturationVaporPressureEquation.WOBUS,
 }
 
 CONFIG_SCHEMA = (
