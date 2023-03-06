@@ -181,7 +181,7 @@ void BME680Component::setup() {
     return;
   }
   gas0_control &= ~0b00001000;
-  gas0_control |= heat_off ? 0b100 : 0b000;
+  gas0_control |= heat_off << 3;
   if (!this->write_byte(BME680_REGISTER_CONTROL_GAS0, gas0_control)) {
     this->mark_failed();
     return;
