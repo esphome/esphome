@@ -39,6 +39,11 @@ bool SN74HC165Component::digital_read_(uint16_t pin) {
 }
 
 void SN74HC165Component::read_gpio_() {
+  bool log_input = false;
+  static uint32_t last_log = 0;
+  std::string pins;
+  log_input = (millis() - last_log) > 1000;
+
   this->load_pin_->digital_write(false);
   delayMicroseconds(10);
   this->load_pin_->digital_write(true);
@@ -49,10 +54,18 @@ void SN74HC165Component::read_gpio_() {
 
   for (int16_t i = (this->sr_count_ * 8) - 1; i >= 0; i--) {
     this->input_bits_[i] = this->data_pin_->digital_read();
+
+    if (log_input)
+      pins += this->input_bits_[i] ? "1" : "0";
     this->clock_pin_->digital_write(true);
     delayMicroseconds(10);
     this->clock_pin_->digital_write(false);
     delayMicroseconds(10);
+  }
+
+  if (log_input) {
+    ESP_LOGD(TAG, "Read: %s", pins.c_str());
+    last_log = millis();
   }
 
   if (this->clock_inhibit_pin_ != nullptr)
