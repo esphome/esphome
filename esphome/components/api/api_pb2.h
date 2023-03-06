@@ -1528,6 +1528,32 @@ class BluetoothGATTNotifyResponse : public ProtoMessage {
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
+class BluetoothDevicePairingResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  bool paired{false};
+  int32_t error{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothDeviceUnpairingResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  bool success{false};
+  int32_t error{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
 
 }  // namespace api
 }  // namespace esphome
