@@ -146,9 +146,9 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
             // This value is better than a previous one.
             best_value = measurements_value[i];
             best_time = measurement_time;
-            // Reset measurement_time or next values.
-            measurement_time = 0;
           }
+          // Reset measurement_time or next values.
+          measurement_time = 0;
         }
       }
     }
@@ -216,7 +216,7 @@ uint8_t MopekaStdCheck::parse_temperature_(const mopeka_std_package *message) {
   if (tmp == 0x0) {
     return -40;
   } else {
-    return (uint8_t)((tmp - 25.0f) * 1.776964f);
+    return (uint8_t) ((tmp - 25.0f) * 1.776964f);
   }
 }
 
