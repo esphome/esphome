@@ -6,6 +6,27 @@ namespace fs3000 {
 
 static const char *const TAG = "fs3000";
 
+void FS3000Component::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up FS3000...");
+  
+  if (model_ == FIVE) {
+    // datasheet gives 9 points to interpolate from for the 1005 model
+    static const uint16_t RAW_DATA_POINTS_1005[9] = {409, 915, 1522, 2066, 2523, 2908, 3256, 3572, 3686};
+    static const float MPS_DATA_POINTS_1005[9] = {0.0, 1.07, 2.01, 3.0, 3.97, 4.96, 5.98, 6.99, 7.23};
+
+    std::copy(RAW_DATA_POINTS_1005, RAW_DATA_POINTS_1005 + 9, this->raw_data_points_);
+    std::copy(MPS_DATA_POINTS_1005, MPS_DATA_POINTS_1005 + 9, this->mps_data_points_);
+  } else if (model_ == FIFTEEN) {
+    // datasheet gives 13 points to extrapolate from for the 1015 model
+    static const uint16_t RAW_DATA_POINTS_1015[13] = {409,  1203, 1597, 1908, 2187, 2400, 2629,
+                                                      2801, 3006, 3178, 3309, 3563, 3686};
+    static const float MPS_DATA_POINTS_1015[13] = {0.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 13.0, 15.0};
+
+    std::copy(RAW_DATA_POINTS_1015, RAW_DATA_POINTS_1015 + 13, this->raw_data_points_);
+    std::copy(MPS_DATA_POINTS_1015, MPS_DATA_POINTS_1015 + 13, this->mps_data_points_);
+  }
+}
+
 void FS3000Component::update() {
   // 5 bytes of data read from fs3000 sensor
   //  byte 1 - checksum
@@ -54,23 +75,6 @@ void FS3000Component::dump_config() {
 
 void FS3000Component::set_model(FS3000Model model) {
   this->model_ = model;
-
-  if (model_ == FIVE) {
-    // datasheet gives 9 points to interpolate from for the 1005 model
-    static const uint16_t RAW_DATA_POINTS_1005[9] = {409, 915, 1522, 2066, 2523, 2908, 3256, 3572, 3686};
-    static const float MPS_DATA_POINTS_1005[9] = {0.0, 1.07, 2.01, 3.0, 3.97, 4.96, 5.98, 6.99, 7.23};
-
-    std::copy(RAW_DATA_POINTS_1005, RAW_DATA_POINTS_1005 + 9, this->raw_data_points_);
-    std::copy(MPS_DATA_POINTS_1005, MPS_DATA_POINTS_1005 + 9, this->mps_data_points_);
-  } else if (model_ == FIFTEEN) {
-    // datasheet gives 13 points to extrapolate form for the 1015 model
-    static const uint16_t RAW_DATA_POINTS_1015[13] = {409,  1203, 1597, 1908, 2187, 2400, 2629,
-                                                      2801, 3006, 3178, 3309, 3563, 3686};
-    static const float MPS_DATA_POINTS_1015[13] = {0.0, 2.0, 3.0, 4.0, 5.0, 6.0, 7.0, 8.0, 9.0, 10.0, 11.0, 13.0, 15.0};
-
-    std::copy(RAW_DATA_POINTS_1015, RAW_DATA_POINTS_1015 + 13, this->raw_data_points_);
-    std::copy(MPS_DATA_POINTS_1015, MPS_DATA_POINTS_1015 + 13, this->mps_data_points_);
-  }
 }
 
 float FS3000Component::fit_raw_(uint16_t raw_value) {

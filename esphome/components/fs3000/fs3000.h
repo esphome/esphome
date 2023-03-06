@@ -14,6 +14,7 @@ enum FS3000Model { FIVE, FIFTEEN };
 
 class FS3000Component : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
+  void setup() override;
   void update() override;
 
   void dump_config() override;
