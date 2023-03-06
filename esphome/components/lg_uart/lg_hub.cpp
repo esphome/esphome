@@ -26,36 +26,36 @@ bool LGUartHub::send_cmd(char cmd_code[2], int data, bool b16_encode) {
   uint8_t peeked;
   uint8_t idx = 0;
 
-    /*
-    After sending a command, we listen for the reply.
-    In testing, replies didn't always come back instantly; would send inquire about one setting, have nothing in the
-    UART and then exit. A short time later, a new inquiry for a different setting would get fired off and available()
-    would return true as the reply to the PREVIOUS inquiry was now in the buffer.
-    Rather than drop the received bytes because they don't match the setting we just inquired about, we accept all
-    as we get them and - assuming they're valid - dispatch them to the appropriate child for follow up.
+  /*
+  After sending a command, we listen for the reply.
+  In testing, replies didn't always come back instantly; would send inquire about one setting, have nothing in the
+  UART and then exit. A short time later, a new inquiry for a different setting would get fired off and available()
+  would return true as the reply to the PREVIOUS inquiry was now in the buffer.
+  Rather than drop the received bytes because they don't match the setting we just inquired about, we accept all
+  as we get them and - assuming they're valid - dispatch them to the appropriate child for follow up.
 
-    Packets should look like this:
+  Packets should look like this:
 
-    let's say that we have a packet:
-        peeked[0]: 0x61         97      [a]
-        peeked[1]: 0x20         32      [ ]
-        peeked[2]: 0x30         48      [0]
-        peeked[3]: 0x31         49      [1]
-        peeked[4]: 0x20         32      [ ]
-        peeked[5]: 0x4f         79      [O]
-        peeked[6]: 0x4b         75      [K]
-        peeked[7]: 0x30         48      [0]
-        peeked[8]: 0x31         49      [1]
-        peeked[9]: 0x78         120     [x]
+  let's say that we have a packet:
+      peeked[0]: 0x61         97      [a]
+      peeked[1]: 0x20         32      [ ]
+      peeked[2]: 0x30         48      [0]
+      peeked[3]: 0x31         49      [1]
+      peeked[4]: 0x20         32      [ ]
+      peeked[5]: 0x4f         79      [O]
+      peeked[6]: 0x4b         75      [K]
+      peeked[7]: 0x30         48      [0]
+      peeked[8]: 0x31         49      [1]
+      peeked[9]: 0x78         120     [x]
 
-    The first byte needs to be one of the chars that indexes this->children_
-    The second byte needs to be a space.
-    The third and forth byte need to be the screen number that we're configured to listen to.
-    Then another space before either OK or NG. NG means "not good"; there is no specific return for "error" vs "not
-    supported".
-    The last bytes will be the value of the setting we inquired about and an `x`
+  The first byte needs to be one of the chars that indexes this->children_
+  The second byte needs to be a space.
+  The third and forth byte need to be the screen number that we're configured to listen to.
+  Then another space before either OK or NG. NG means "not good"; there is no specific return for "error" vs "not
+  supported".
+  The last bytes will be the value of the setting we inquired about and an `x`
 
-  */
+*/
 
   // Note: this does not get called when uart debugging turned on!
   while (this->available()) {
