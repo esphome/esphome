@@ -88,13 +88,21 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
       this->set_phase_(ProtocolPhases::IDLE);
       break;
     case ProtocolPhases::SENDING_FIRST_STATUS_REQUEST:
+      if (this->can_send_message() && this->is_protocol_initialisation_interval_exceeded_(now)) {
+        static const haier_protocol::HaierMessage STATUS_REQUEST((uint8_t) smartair2_protocol::FrameType::CONTROL,
+                                                                 0x4D01);
+        this->send_message_(STATUS_REQUEST, false);
+        this->last_status_request_ = now;
+        this->set_phase_(ProtocolPhases::WAITING_FIRST_STATUS_ANSWER);
+      }
+      break;
     case ProtocolPhases::SENDING_STATUS_REQUEST:
       if (this->can_send_message() && this->is_message_interval_exceeded_(now)) {
         static const haier_protocol::HaierMessage STATUS_REQUEST((uint8_t) smartair2_protocol::FrameType::CONTROL,
                                                                  0x4D01);
         this->send_message_(STATUS_REQUEST, false);
         this->last_status_request_ = now;
-        this->set_phase_((ProtocolPhases)((uint8_t) this->protocol_phase_ + 1));
+        this->set_phase_(ProtocolPhases::WAITING_STATUS_ANSWER);
       }
       break;
     case ProtocolPhases::SENDING_CONTROL:

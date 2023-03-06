@@ -281,7 +281,7 @@ void HonClimate::dump_config() {
 void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
   switch (this->protocol_phase_) {
     case ProtocolPhases::SENDING_INIT_1:
-      if (this->can_send_message() && this->is_message_interval_exceeded_(now)) {
+      if (this->can_send_message() && this->is_protocol_initialisation_interval_exceeded_(now)) {
         this->hvac_hardware_info_available_ = false;
         // Indicate device capabilities:
         // bit 0 - if 1 module support interactive mode

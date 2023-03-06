@@ -15,7 +15,6 @@ from esphome.const import (
     CONF_PROTOCOL,
     CONF_SUPPORTED_MODES,
     CONF_SUPPORTED_SWING_MODES,
-    CONF_TEMPERATURE_STEP,
     CONF_UART_ID,
     CONF_VISUAL,
     CONF_WIFI,
@@ -30,7 +29,6 @@ from esphome.components.climate import (
 )
 
 _LOGGER = logging.getLogger(__name__)
-ac_protocol = None
 
 PROTOCOL_MIN_TEMPERATURE = 16.0
 PROTOCOL_MAX_TEMPERATURE = 30.0
@@ -175,19 +173,6 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def validate_action_for_protocols(action_id, protocols_allowed):
-    global ac_protocol
-    if ac_protocol:
-        if ac_protocol not in protocols_allowed:
-            raise cv.Invalid(
-                f'Action "{action_id}" is not supported for protocol {ac_protocol}'
-            )
-    else:
-        raise cv.Invalid(
-            f'Can\'t validate action "{action_id}", curent protocol is unknown!'
-        )
-
-
 # Actions
 DisplayOnAction = haier_ns.class_("DisplayOnAction", automation.Action)
 DisplayOffAction = haier_ns.class_("DisplayOffAction", automation.Action)
@@ -222,8 +207,12 @@ async def display_action_to_code(config, action_id, template_arg, args):
     "climate.haier.beeper_off", BeeperOffAction, HAIER_BASE_ACTION_SCHEMA
 )
 async def beeper_action_to_code(config, action_id, template_arg, args):
-    validate_action_for_protocols(action_id, ["HON"])
-    paren = await cg.get_variable(config[CONF_ID])
+    fullid, paren = await cg.get_variable_with_full_id(config[CONF_ID])
+    climate_type = str(fullid.type)
+    if climate_type != str(HonClimate):
+        raise cv.Invalid(
+            f'Action "{action_id}" is not supported for type {climate_type}'
+        )
     var = cg.new_Pvariable(action_id, template_arg, paren)
     return var
 
@@ -242,8 +231,12 @@ async def beeper_action_to_code(config, action_id, template_arg, args):
     ),
 )
 async def haier_set_vertical_airflow_to_code(config, action_id, template_arg, args):
-    validate_action_for_protocols(action_id, ["HON"])
-    paren = await cg.get_variable(config[CONF_ID])
+    fullid, paren = await cg.get_variable_with_full_id(config[CONF_ID])
+    climate_type = str(fullid.type)
+    if climate_type != str(HonClimate):
+        raise cv.Invalid(
+            f'Action "{action_id}" is not supported for type {climate_type}'
+        )
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(
         config[CONF_VERTICAL_AIRFLOW], args, AirflowVerticalDirection
@@ -266,8 +259,12 @@ async def haier_set_vertical_airflow_to_code(config, action_id, template_arg, ar
     ),
 )
 async def haier_set_horizontal_airflow_to_code(config, action_id, template_arg, args):
-    validate_action_for_protocols(action_id, ["HON"])
-    paren = await cg.get_variable(config[CONF_ID])
+    fullid, paren = await cg.get_variable_with_full_id(config[CONF_ID])
+    climate_type = str(fullid.type)
+    if climate_type != str(HonClimate):
+        raise cv.Invalid(
+            f'Action "{action_id}" is not supported for type {climate_type}'
+        )
     var = cg.new_Pvariable(action_id, template_arg, paren)
     template_ = await cg.templatable(
         config[CONF_HORIZONTAL_AIRFLOW], args, AirflowHorizontalDirection
@@ -311,7 +308,6 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 
 async def to_code(config):
-    global ac_protocol
     cg.add(haier_ns.init_haier_protocol_logging())
     uart_component = await cg.get_variable(config[CONF_UART_ID])
     ac_protocol = config[CONF_PROTOCOL]

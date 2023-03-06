@@ -86,6 +86,7 @@ class HaierClimateBase : public esphome::Component,
   bool is_status_request_interval_exceeded_(std::chrono::steady_clock::time_point now);
   bool is_control_message_timeout_exceeded_(std::chrono::steady_clock::time_point now);
   bool is_control_message_interval_exceeded_(std::chrono::steady_clock::time_point now);
+  bool is_protocol_initialisation_interval_exceeded_(std::chrono::steady_clock::time_point now);
 
   struct HvacSettings {
     esphome::optional<esphome::climate::ClimateMode> mode;

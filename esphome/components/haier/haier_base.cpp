@@ -17,6 +17,7 @@ namespace haier {
 const char TAG[] = "haier.climate";
 constexpr size_t COMMUNICATION_TIMEOUT_MS = 60000;
 constexpr size_t STATUS_REQUEST_INTERVAL_MS = 5000;
+constexpr size_t PROTOCOL_INITIALIZATION_INTERVAL = 10000;
 constexpr size_t DEFAULT_MESSAGES_INTERVAL_MS = 2000;
 constexpr size_t CONTROL_MESSAGES_INTERVAL_MS = 400;
 constexpr size_t CONTROL_TIMEOUT_MS = 7000;
@@ -106,6 +107,10 @@ bool HaierClimateBase::is_control_message_interval_exceeded_(std::chrono::steady
   return this->check_timout_(now, this->last_request_timestamp_, CONTROL_MESSAGES_INTERVAL_MS);
 }
 
+bool HaierClimateBase::is_protocol_initialisation_interval_exceeded_(std::chrono::steady_clock::time_point now) {
+  return this->check_timout_(now, this->last_request_timestamp_, PROTOCOL_INITIALIZATION_INTERVAL);
+}
+
 bool HaierClimateBase::get_display_state() const { return this->display_status_; }
 
 void HaierClimateBase::set_display_state(bool state) {
@@ -178,7 +183,7 @@ void HaierClimateBase::loop() {
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
   if (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_valid_status_timestamp_).count() >
       COMMUNICATION_TIMEOUT_MS) {
-    if (this->protocol_phase_ > ProtocolPhases::IDLE) {
+    if (this->protocol_phase_ >= ProtocolPhases::IDLE) {
       // No status too long, reseting protocol
       ESP_LOGW(TAG, "Communication timeout, reseting protocol");
       this->last_valid_status_timestamp_ = now;
