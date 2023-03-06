@@ -52,15 +52,19 @@ void SN74HC165Component::read_gpio_() {
   if (this->clock_inhibit_pin_ != nullptr)
     this->clock_inhibit_pin_->digital_write(false);
 
-  for (int16_t i = (this->sr_count_ * 8) - 1; i >= 0; i--) {
-    this->input_bits_[i] = this->data_pin_->digital_read();
+  for (uint8_t i = 0; i < this->sr_count_; i++) {
+    for (uint8_t j = 0; j < 8; j++) {
+      this->input_bits_[(i*8) + (7-j)] = this->data_pin_->digital_read();
 
+      if (log_input)
+        pins += this->input_bits_[i] ? "1" : "0";
+      this->clock_pin_->digital_write(true);
+      delayMicroseconds(10);
+      this->clock_pin_->digital_write(false);
+      delayMicroseconds(10);
+    }
     if (log_input)
-      pins += this->input_bits_[i] ? "1" : "0";
-    this->clock_pin_->digital_write(true);
-    delayMicroseconds(10);
-    this->clock_pin_->digital_write(false);
-    delayMicroseconds(10);
+      pins += " ";
   }
 
   if (log_input) {
