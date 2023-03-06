@@ -439,14 +439,15 @@ float BME680Component::calc_gas_resistance_(uint16_t raw_gas, uint8_t range) {
   float var1 = 0;
   float var2 = 0;
   float var3 = 0;
-  float range_f = (1U << range);
+  float raw_gas_f = raw_gas;
+  float range_f = 1U << range;
   const float range_sw_err = this->calibration_.range_sw_err;
 
   var1 = 1340.0f + (5.0f * range_sw_err);
   var2 = var1 * (1.0f + BME680_GAS_LOOKUP_TABLE_1[range] / 100.0f);
   var3 = 1.0f + (BME680_GAS_LOOKUP_TABLE_2[range] / 100.0f);
 
-  calc_gas_res = 1.0f / (var3 * 0.000000125f * range_f * (((float(raw_gas) - 512.0f) / var2) + 1.0f));
+  calc_gas_res = 1.0f / (var3 * 0.000000125f * range_f * (((raw_gas_f - 512.0f) / var2) + 1.0f));
 
   return calc_gas_res;
 }
