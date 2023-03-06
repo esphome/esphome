@@ -73,8 +73,6 @@ void FS3000Component::dump_config() {
   LOG_SENSOR("  ", "Air Velocity", this);
 }
 
-void FS3000Component::set_model(FS3000Model model) { this->model_ = model; }
-
 float FS3000Component::fit_raw_(uint16_t raw_value) {
   // converts a raw value read from the FS3000 into a speed in m/s based on the
   // reference data points given in the datasheet

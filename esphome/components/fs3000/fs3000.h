@@ -20,7 +20,7 @@ class FS3000Component : public PollingComponent, public i2c::I2CDevice, public s
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::DATA; }
 
-  void set_model(FS3000Model model);
+  void set_model(FS3000Model model) { model_ = model; }
 
  protected:
   FS3000Model model_{};
