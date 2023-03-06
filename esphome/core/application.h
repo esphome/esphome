@@ -54,12 +54,7 @@ namespace esphome {
 class Application {
  public:
   void pre_setup(const std::string &name, const std::string &friendly_name, const std::string &comment,
-                 const char *compilation_time, bool name_add_mac_suffix, const u_int16_t count_of_polling_components,
-                 const u_int16_t count_of_components, const u_int16_t count_of_binary_sensors,
-                 const u_int16_t count_of_sensors, const u_int16_t count_of_switch, const u_int16_t count_of_button,
-                 const u_int16_t count_of_text_sensor, const u_int16_t count_of_fan, const u_int16_t count_of_cover,
-                 const u_int16_t count_of_climate, const u_int16_t count_of_lightstate, const u_int16_t count_of_number,
-                 const u_int16_t count_of_select, const u_int16_t count_of_lock, const u_int16_t count_of_mediaplayer) {
+                 const char *compilation_time, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
@@ -75,102 +70,78 @@ class Application {
     }
     this->comment_ = comment;
     this->compilation_time_ = compilation_time;
-    this->scheduler.pre_setup(count_of_polling_components);
-    this->components_.reserve(count_of_components);
-#ifdef USE_BINARY_SENSOR
-    this->binary_sensors_.reserve(count_of_binary_sensors);
-#endif  // USE_BINARY_SENSOR
-#ifdef USE_SENSOR
-    this->sensors_.reserve(count_of_sensors);
-#endif  // USE_SENSOR
-#ifdef USE_SWITCH
-    this->switches_.reserve(count_of_switch);
-#endif  // USE_SWITCH
-#ifdef USE_BUTTON
-    this->buttons_.reserve(count_of_button);
-#endif  // USE_BUTTON
-#ifdef USE_TEXT_SENSOR
-    this->text_sensors_.reserve(count_of_text_sensor);
-#endif  // USE_TEXT_SENSOR
-#ifdef USE_FAN
-    this->fans_.reserve(count_of_fan);
-#endif  // USE_FAN
-#ifdef USE_COVER
-    this->covers_.reserve(count_of_cover);
-#endif  // USE_COVER
-#ifdef USE_CLIMATE
-    this->climates_.reserve(count_of_climate);
-#endif  // USE_CLIMATE
-#ifdef USE_LIGHT
-    this->lights_.reserve(count_of_lightstate);
-#endif  // USE_LIGHT
-#ifdef USE_NUMBER
-    this->numbers_.reserve(count_of_number);
-#endif  // USE_NUMBER
-#ifdef USE_SELECT
-    this->selects_.reserve(count_of_select);
-#endif  // USE_SELECT
-#ifdef USE_LOCK
-    this->locks_.reserve(count_of_lock);
-#endif  // USE_LOCK
-#ifdef USE_MEDIA_PLAYER
-    this->media_players_.reserve(count_of_mediaplayer);
-#endif  // USE_MEDIA_PLAYER
   }
 
+  void reserve_component(const size_t expected_count) { this->components_.reserve(expected_count); }
+
+  void reserve_polling_component(const size_t expected_count) { this->scheduler.reserve(expected_count); }
+
 #ifdef USE_BINARY_SENSOR
+  void reserve_binary_sensor(const size_t expected_count) { this->binary_sensors_.reserve(expected_count); }
   void register_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
     this->binary_sensors_.push_back(binary_sensor);
   }
-#endif
+#endif  // USE_BINARY_SENSOR
 
 #ifdef USE_SENSOR
+  void reserve_sensor(const size_t expected_count) { this->sensors_.reserve(expected_count); }
   void register_sensor(sensor::Sensor *sensor) { this->sensors_.push_back(sensor); }
-#endif
+#endif  // USE_SENSOR
 
 #ifdef USE_SWITCH
+  void reserve_switch(const size_t expected_count) { this->switches_.reserve(expected_count); }
   void register_switch(switch_::Switch *a_switch) { this->switches_.push_back(a_switch); }
-#endif
+#endif  // USE_SWITCH
 
 #ifdef USE_BUTTON
+  void reserve_button(const size_t expected_count) { this->buttons_.reserve(expected_count); }
   void register_button(button::Button *button) { this->buttons_.push_back(button); }
-#endif
+#endif  // USE_BUTTON
 
 #ifdef USE_TEXT_SENSOR
+  void reserve_text_sensor(const size_t expected_count) { this->text_sensors_.reserve(expected_count); }
   void register_text_sensor(text_sensor::TextSensor *sensor) { this->text_sensors_.push_back(sensor); }
-#endif
+#endif  // USE_TEXT_SENSOR
 
 #ifdef USE_FAN
+  void reserve_fan(const size_t expected_count) { this->fans_.reserve(expected_count); }
   void register_fan(fan::Fan *state) { this->fans_.push_back(state); }
-#endif
+#endif  // USE_FAN
 
 #ifdef USE_COVER
+  void reserve_cover(const size_t expected_count) { this->covers_.reserve(expected_count); }
   void register_cover(cover::Cover *cover) { this->covers_.push_back(cover); }
-#endif
+#endif  // USE_COVER
 
 #ifdef USE_CLIMATE
+  void reserve_climate(const size_t expected_count) { this->climates_.reserve(expected_count); }
   void register_climate(climate::Climate *climate) { this->climates_.push_back(climate); }
-#endif
+#endif  // USE_CLIMATE
 
 #ifdef USE_LIGHT
+  void reserve_light(const size_t expected_count) { this->lights_.reserve(expected_count); }
   void register_light(light::LightState *light) { this->lights_.push_back(light); }
-#endif
+#endif  // USE_LIGHT
 
 #ifdef USE_NUMBER
+  void reserve_number(const size_t expected_count) { this->numbers_.reserve(expected_count); }
   void register_number(number::Number *number) { this->numbers_.push_back(number); }
-#endif
+#endif  // USE_NUMBER
 
 #ifdef USE_SELECT
+  void reserve_select(const size_t expected_count) { this->selects_.reserve(expected_count); }
   void register_select(select::Select *select) { this->selects_.push_back(select); }
-#endif
+#endif  // USE_SELECT
 
 #ifdef USE_LOCK
+  void reserve_lock(const size_t expected_count) { this->locks_.reserve(expected_count); }
   void register_lock(lock::Lock *a_lock) { this->locks_.push_back(a_lock); }
-#endif
+#endif  // USE_LOCK
 
 #ifdef USE_MEDIA_PLAYER
+  void reserve_media_player(const size_t expected_count) { this->media_players_.reserve(expected_count); }
   void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
-#endif
+#endif  // USE_MEDIA_PLAYER
 
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {

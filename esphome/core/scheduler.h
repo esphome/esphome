@@ -10,7 +10,7 @@ class Component;
 
 class Scheduler {
  public:
-  void pre_setup(const u_int16_t expected_item_count) {
+  void reserve(const size_t expected_item_count) {
     this->items_.reserve(expected_item_count);
     this->to_add_.reserve(expected_item_count);
   }

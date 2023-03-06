@@ -438,23 +438,71 @@ async def to_code(config):
             config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
-            config[CONF_NUMBER_OF_CHILDREN][str(cg.PollingComponent)],
-            config[CONF_NUMBER_OF_CHILDREN][str(cg.Component)],
-            config[CONF_NUMBER_OF_CHILDREN][str(BinarySensor)],
-            config[CONF_NUMBER_OF_CHILDREN][str(Sensor)],
-            config[CONF_NUMBER_OF_CHILDREN][str(Switch)],
-            config[CONF_NUMBER_OF_CHILDREN][str(Button)],
-            config[CONF_NUMBER_OF_CHILDREN][str(TextSensor)],
-            config[CONF_NUMBER_OF_CHILDREN][str(Fan)],
-            config[CONF_NUMBER_OF_CHILDREN][str(Cover)],
-            config[CONF_NUMBER_OF_CHILDREN][str(Climate)],
-            config[CONF_NUMBER_OF_CHILDREN][str(LightState)],
-            config[CONF_NUMBER_OF_CHILDREN][str(Number)],
-            config[CONF_NUMBER_OF_CHILDREN][str(Select)],
-            config[CONF_NUMBER_OF_CHILDREN][str(Lock)],
-            config[CONF_NUMBER_OF_CHILDREN][str(MediaPlayer)],
         )
     )
+    # Reserve memory for components and sensors
+    cg.add(cg.App.reserve_component(config[CONF_NUMBER_OF_CHILDREN][str(cg.Component)]))
+    cg.add(
+        cg.App.reserve_polling_component(
+            config[CONF_NUMBER_OF_CHILDREN][str(cg.PollingComponent)]
+        )
+    )
+
+    cg.add(cg.RawStatement("#ifdef USE_BINARY_SENSOR"))
+    cg.add(
+        cg.App.reserve_binary_sensor(config[CONF_NUMBER_OF_CHILDREN][str(BinarySensor)])
+    )
+    cg.add(cg.RawStatement("#endif  // USE_BINARY_SENSOR"))
+
+    cg.add(cg.RawStatement("#ifdef USE_SENSOR"))
+    cg.add(cg.App.reserve_sensor(config[CONF_NUMBER_OF_CHILDREN][str(Sensor)]))
+    cg.add(cg.RawStatement("#endif  // USE_SENSOR"))
+
+    cg.add(cg.RawStatement("#ifdef USE_SWITCH"))
+    cg.add(cg.App.reserve_switch(config[CONF_NUMBER_OF_CHILDREN][str(Switch)]))
+    cg.add(cg.RawStatement("#endif  // USE_SWITCH"))
+
+    cg.add(cg.RawStatement("#ifdef USE_BUTTON"))
+    cg.add(cg.App.reserve_button(config[CONF_NUMBER_OF_CHILDREN][str(Button)]))
+    cg.add(cg.RawStatement("#endif  // USE_BUTTON"))
+
+    cg.add(cg.RawStatement("#ifdef USE_TEXT_SENSOR"))
+    cg.add(cg.App.reserve_text_sensor(config[CONF_NUMBER_OF_CHILDREN][str(TextSensor)]))
+    cg.add(cg.RawStatement("#endif  // USE_TEXT_SENSOR"))
+
+    cg.add(cg.RawStatement("#ifdef USE_FAN"))
+    cg.add(cg.App.reserve_fan(config[CONF_NUMBER_OF_CHILDREN][str(Fan)]))
+    cg.add(cg.RawStatement("#endif  // USE_FAN"))
+
+    cg.add(cg.RawStatement("#ifdef USE_COVER"))
+    cg.add(cg.App.reserve_cover(config[CONF_NUMBER_OF_CHILDREN][str(Cover)]))
+    cg.add(cg.RawStatement("#endif  // USE_COVER"))
+
+    cg.add(cg.RawStatement("#ifdef USE_CLIMATE"))
+    cg.add(cg.App.reserve_climate(config[CONF_NUMBER_OF_CHILDREN][str(Climate)]))
+    cg.add(cg.RawStatement("#endif  // USE_CLIMATE"))
+
+    cg.add(cg.RawStatement("#ifdef USE_LIGHT"))
+    cg.add(cg.App.reserve_light(config[CONF_NUMBER_OF_CHILDREN][str(LightState)]))
+    cg.add(cg.RawStatement("#endif  // USE_LIGHT"))
+
+    cg.add(cg.RawStatement("#ifdef USE_NUMBER"))
+    cg.add(cg.App.reserve_number(config[CONF_NUMBER_OF_CHILDREN][str(Number)]))
+    cg.add(cg.RawStatement("#endif  // USE_NUMBER"))
+
+    cg.add(cg.RawStatement("#ifdef USE_SELECT"))
+    cg.add(cg.App.reserve_select(config[CONF_NUMBER_OF_CHILDREN][str(Select)]))
+    cg.add(cg.RawStatement("#endif  // USE_SELECT"))
+
+    cg.add(cg.RawStatement("#ifdef USE_LOCK"))
+    cg.add(cg.App.reserve_lock(config[CONF_NUMBER_OF_CHILDREN][str(Lock)]))
+    cg.add(cg.RawStatement("#endif  // USE_LOCK"))
+
+    cg.add(cg.RawStatement("#ifdef USE_MEDIA_PLAYER"))
+    cg.add(
+        cg.App.reserve_media_player(config[CONF_NUMBER_OF_CHILDREN][str(MediaPlayer)])
+    )
+    cg.add(cg.RawStatement("#endif  // USE_MEDIA_PLAYER"))
 
     CORE.add_job(_add_automations, config)
 
