@@ -19,7 +19,7 @@ void FS3000Component::update() {
   if (!this->read_bytes_raw(data, 5)) {
     this->status_set_warning();
     ESP_LOGW(TAG, "Error reading data from FS3000");
-    publish_state(NAN);
+    this->publish_state(NAN);
     return;
   }
 
@@ -40,7 +40,7 @@ void FS3000Component::update() {
   ESP_LOGV(TAG, "Got raw reading=%i", raw_value);
 
   // convert and publish the raw value into m/s using the table of data points in the datasheet
-  publish_state(fit_raw_(raw_value));
+  this->publish_state(fit_raw_(raw_value));
 
   this->status_clear_warning();
 }
