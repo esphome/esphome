@@ -1229,6 +1229,10 @@ sensor:
     model: 1005
     update_interval: 60s
     i2c_id: i2c_bus
+  - platform: absolute_humidity
+    name: DHT Absolute Humidity
+    temperature: dht_temperature
+    humidity: dht_humidity
 
 esp32_touch:
   setup_mode: false
