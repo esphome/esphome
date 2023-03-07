@@ -36,7 +36,6 @@ namespace binary_sensor {
  */
 class BinarySensor : public EntityBase {
  public:
-  static constexpr EntityType ENTITY_TYPE{BINARY_SENSOR};
   explicit BinarySensor();
 
   /** Add a callback to be notified of state changes.

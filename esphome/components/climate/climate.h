@@ -166,7 +166,6 @@ struct ClimateDeviceRestoreState {
  */
 class Climate : public EntityBase {
  public:
-  static constexpr EntityType ENTITY_TYPE{CLIMATE};
   /// Construct a climate device with empty name (will be set later).
   Climate();
   /// Construct a climate device with a name.

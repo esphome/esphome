@@ -30,7 +30,6 @@ namespace text_sensor {
 
 class TextSensor : public EntityBase {
  public:
-  static constexpr EntityType ENTITY_TYPE{TEXT_SENSOR};
   explicit TextSensor();
   explicit TextSensor(const std::string &name);
 

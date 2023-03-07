@@ -110,7 +110,6 @@ const char *cover_operation_to_str(CoverOperation op);
  */
 class Cover : public EntityBase {
  public:
-  static constexpr EntityType ENTITY_TYPE{COVER};
   explicit Cover();
   explicit Cover(const std::string &name);
 

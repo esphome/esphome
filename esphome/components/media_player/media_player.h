@@ -68,7 +68,6 @@ class MediaPlayerCall {
 
 class MediaPlayer : public EntityBase {
  public:
-  static constexpr EntityType ENTITY_TYPE{MEDIA_PLAYER};
   MediaPlayerState state{MEDIA_PLAYER_STATE_NONE};
   float volume{1.0f};
 

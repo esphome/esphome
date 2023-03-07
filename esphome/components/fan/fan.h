@@ -99,7 +99,6 @@ struct FanRestoreState {
 
 class Fan : public EntityBase {
  public:
-  static constexpr EntityType ENTITY_TYPE{FAN};
   Fan();
   /// Construct the fan with name.
   explicit Fan(const std::string &name);

@@ -12,49 +12,6 @@ enum EntityCategory : uint8_t {
   ENTITY_CATEGORY_DIAGNOSTIC = 2,
 };
 
-enum EntityType : uint8_t {
-#ifdef USE_BINARY_SENSOR
-  BINARY_SENSOR,
-#endif
-#ifdef USE_COVER
-  COVER,
-#endif
-#ifdef USE_FAN
-  FAN,
-#endif
-#ifdef USE_LIGHT
-  LIGHT,
-#endif
-#ifdef USE_SENSOR
-  SENSOR,
-#endif
-#ifdef USE_SWITCH
-  SWITCH,
-#endif
-#ifdef USE_BUTTON
-  BUTTON,
-#endif
-#ifdef USE_TEXT_SENSOR
-  TEXT_SENSOR,
-#endif
-#ifdef USE_CLIMATE
-  CLIMATE,
-#endif
-#ifdef USE_NUMBER
-  NUMBER,
-#endif
-#ifdef USE_SELECT
-  SELECT,
-#endif
-#ifdef USE_LOCK
-  LOCK,
-#endif
-#ifdef USE_MEDIA_PLAYER
-  MEDIA_PLAYER,
-#endif
-  MAX,
-};
-
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
