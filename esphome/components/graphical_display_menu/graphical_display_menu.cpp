@@ -1,6 +1,7 @@
 #include "graphical_display_menu.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include <cstdlib>
 
 namespace esphome {
@@ -10,7 +11,7 @@ static const char *const TAG = "graphical_display_menu";
 
 void GraphicalDisplayMenu::setup() {
   display::display_writer_t writer = [this](display::DisplayBuffer &it) { this->draw_menu_internal_(); };
-  this->display_page_ = std::unique_ptr<display::DisplayPage>(new display::DisplayPage(writer));
+  this->display_page_ = make_unique<display::DisplayPage>(writer);
 
   if (!this->menu_item_value_.has_value()) {
     this->menu_item_value_ = [](const MenuItemValueArguments *it) {
