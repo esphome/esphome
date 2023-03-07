@@ -9,7 +9,10 @@
 namespace esphome {
 namespace i2c {
 
-#define LOG_I2C_DEVICE(this) ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_);
+#define LOG_I2C_DEVICE(this) \
+  do { \
+    ESP_LOGCONFIG(TAG, "  Address: 0x%02X", this->address_); \
+  } while (0)
 
 class I2CDevice;
 class I2CRegister {

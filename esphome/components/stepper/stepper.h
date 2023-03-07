@@ -8,9 +8,11 @@ namespace esphome {
 namespace stepper {
 
 #define LOG_STEPPER(this) \
-  ESP_LOGCONFIG(TAG, "  Acceleration: %.0f steps/s^2", this->acceleration_); \
-  ESP_LOGCONFIG(TAG, "  Deceleration: %.0f steps/s^2", this->deceleration_); \
-  ESP_LOGCONFIG(TAG, "  Max Speed: %.0f steps/s", this->max_speed_);
+  do { \
+    ESP_LOGCONFIG(TAG, "  Acceleration: %.0f steps/s^2", this->acceleration_); \
+    ESP_LOGCONFIG(TAG, "  Deceleration: %.0f steps/s^2", this->deceleration_); \
+    ESP_LOGCONFIG(TAG, "  Max Speed: %.0f steps/s", this->max_speed_); \
+  } while (0)
 
 class Stepper {
  public:

@@ -11,10 +11,12 @@ namespace esphome {
 namespace fan {
 
 #define LOG_FAN(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    (obj)->dump_traits_(TAG, prefix); \
-  }
+  do { \
+    if ((obj) != nullptr) { \
+      ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+      (obj)->dump_traits_(TAG, prefix); \
+    } \
+  } while (0)
 
 /// Simple enum to represent the direction of a fan.
 enum class FanDirection { FORWARD = 0, REVERSE = 1 };

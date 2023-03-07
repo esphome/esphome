@@ -11,9 +11,11 @@ namespace esphome {
 namespace output {
 
 #define LOG_BINARY_OUTPUT(this) \
-  if (this->inverted_) { \
-    ESP_LOGCONFIG(TAG, "  Inverted: YES"); \
-  }
+  do { \
+    if (this->inverted_) { \
+      ESP_LOGCONFIG(TAG, "  Inverted: YES"); \
+    } \
+  } while (0)
 
 class BinaryOutput {
  public:

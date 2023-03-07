@@ -7,13 +7,15 @@ namespace esphome {
 namespace output {
 
 #define LOG_FLOAT_OUTPUT(this) \
-  LOG_BINARY_OUTPUT(this) \
-  if (this->max_power_ != 1.0f) { \
-    ESP_LOGCONFIG(TAG, "  Max Power: %.1f%%", this->max_power_ * 100.0f); \
-  } \
-  if (this->min_power_ != 0.0f) { \
-    ESP_LOGCONFIG(TAG, "  Min Power: %.1f%%", this->min_power_ * 100.0f); \
-  }
+  do { \
+    LOG_BINARY_OUTPUT(this); \
+    if (this->max_power_ != 1.0f) { \
+      ESP_LOGCONFIG(TAG, "  Max Power: %.1f%%", this->max_power_ * 100.0f); \
+    } \
+    if (this->min_power_ != 0.0f) { \
+      ESP_LOGCONFIG(TAG, "  Min Power: %.1f%%", this->min_power_ * 100.0f); \
+    } \
+  } while (0)
 
 /** Base class for all output components that can output a variable level, like PWM.
  *

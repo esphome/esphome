@@ -10,12 +10,14 @@ namespace esphome {
 namespace select {
 
 #define LOG_SELECT(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
+  do { \
+    if ((obj) != nullptr) { \
+      ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
+      if (!(obj)->get_icon().empty()) { \
+        ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
+      } \
     } \
-  }
+  } while (0)
 
 /** Base-class for all selects.
  *

@@ -20,12 +20,14 @@ struct SendDiscoveryConfig {
 };
 
 #define LOG_MQTT_COMPONENT(state_topic, command_topic) \
-  if (state_topic) { \
-    ESP_LOGCONFIG(TAG, "  State Topic: '%s'", this->get_state_topic_().c_str()); \
-  } \
-  if (command_topic) { \
-    ESP_LOGCONFIG(TAG, "  Command Topic: '%s'", this->get_command_topic_().c_str()); \
-  }
+  do { \
+    if (state_topic) { \
+      ESP_LOGCONFIG(TAG, "  State Topic: '%s'", this->get_state_topic_().c_str()); \
+    } \
+    if (command_topic) { \
+      ESP_LOGCONFIG(TAG, "  Command Topic: '%s'", this->get_command_topic_().c_str()); \
+    } \
+  } while (0)
 
 #define MQTT_COMPONENT_CUSTOM_TOPIC_(name, type) \
  protected: \
