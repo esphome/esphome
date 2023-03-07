@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_UID, CONF_ID
+from esphome.const import CONF_UID
 from esphome.core import HexInt
 from . import rc522_ns, RC522, CONF_RC522_ID
 
@@ -31,9 +31,8 @@ def validate_uid(value):
 
 RC522BinarySensor = rc522_ns.class_("RC522BinarySensor", binary_sensor.BinarySensor)
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(RC522BinarySensor).extend(
     {
-        cv.GenerateID(): cv.declare_id(RC522BinarySensor),
         cv.GenerateID(CONF_RC522_ID): cv.use_id(RC522),
         cv.Required(CONF_UID): validate_uid,
     }
@@ -41,8 +40,7 @@ CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await binary_sensor.register_binary_sensor(var, config)
+    var = await binary_sensor.new_binary_sensor(config)
 
     hub = await cg.get_variable(config[CONF_RC522_ID])
     cg.add(hub.register_tag(var))

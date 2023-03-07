@@ -144,9 +144,9 @@ void PN532::loop() {
   }
 
   if (nfcid.size() == this->current_uid_.size()) {
-    bool same_uid = false;
+    bool same_uid = true;
     for (size_t i = 0; i < nfcid.size(); i++)
-      same_uid |= nfcid[i] == this->current_uid_[i];
+      same_uid &= nfcid[i] == this->current_uid_[i];
     if (same_uid)
       return;
   }
@@ -375,9 +375,6 @@ bool PN532BinarySensor::process(std::vector<uint8_t> &data) {
   this->publish_state(true);
   this->found_ = true;
   return true;
-}
-void PN532OnTagTrigger::process(const std::unique_ptr<nfc::NfcTag> &tag) {
-  this->trigger(nfc::format_uid(tag->get_uid()), *tag);
 }
 
 }  // namespace pn532

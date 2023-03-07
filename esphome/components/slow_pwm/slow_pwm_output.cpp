@@ -42,23 +42,26 @@ void SlowPWMOutput::loop() {
   uint32_t now = millis();
   float scaled_state = this->state_ * this->period_;
 
-  if (now >= this->period_start_time_ + this->period_) {
+  if (now - this->period_start_time_ >= this->period_) {
     ESP_LOGVV(TAG, "End of period. State: %f, Scaled state: %f", this->state_, scaled_state);
     this->period_start_time_ += this->period_;
   }
 
-  this->set_output_state_(now < this->period_start_time_ + scaled_state);
+  this->set_output_state_(scaled_state > now - this->period_start_time_);
 }
 
 void SlowPWMOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Slow PWM Output:");
   LOG_PIN("  Pin: ", this->pin_);
-  if (this->state_change_trigger_)
+  if (this->state_change_trigger_) {
     ESP_LOGCONFIG(TAG, "  State change automation configured");
-  if (this->turn_on_trigger_)
+  }
+  if (this->turn_on_trigger_) {
     ESP_LOGCONFIG(TAG, "  Turn on automation configured");
-  if (this->turn_off_trigger_)
+  }
+  if (this->turn_off_trigger_) {
     ESP_LOGCONFIG(TAG, "  Turn off automation configured");
+  }
   ESP_LOGCONFIG(TAG, "  Period: %d ms", this->period_);
   ESP_LOGCONFIG(TAG, "  Restart cycle on state change: %s", YESNO(this->restart_cycle_on_state_change_));
   LOG_FLOAT_OUTPUT(this);
@@ -67,7 +70,7 @@ void SlowPWMOutput::dump_config() {
 void SlowPWMOutput::write_state(float state) {
   this->state_ = state;
   if (this->restart_cycle_on_state_change_)
-    this->period_start_time_ = millis();
+    this->restart_cycle();
 }
 
 }  // namespace slow_pwm

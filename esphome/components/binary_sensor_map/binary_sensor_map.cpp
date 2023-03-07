@@ -13,6 +13,9 @@ void BinarySensorMap::loop() {
     case BINARY_SENSOR_MAP_TYPE_GROUP:
       this->process_group_();
       break;
+    case BINARY_SENSOR_MAP_TYPE_SUM:
+      this->process_sum_();
+      break;
   }
 }
 
@@ -42,6 +45,34 @@ void BinarySensorMap::process_group_() {
     // is this a new sensor release
     ESP_LOGD(TAG, "'%s' - No binary sensor active, publishing NAN", this->name_.c_str());
     this->publish_state(NAN);
+  }
+  this->last_mask_ = mask;
+}
+
+void BinarySensorMap::process_sum_() {
+  float total_current_value = 0.0;
+  uint64_t mask = 0x00;
+  // check all binary_sensors for its state. when active add its value to total_current_value.
+  // create a bitmask for the binary_sensor status on all channels
+  for (size_t i = 0; i < this->channels_.size(); i++) {
+    auto bs = this->channels_[i];
+    if (bs.binary_sensor->state) {
+      total_current_value += bs.sensor_value;
+      mask |= 1 << i;
+    }
+  }
+  // check if the sensor map was touched
+  if (mask != 0ULL) {
+    // did the bit_mask change or is it a new sensor touch
+    if (this->last_mask_ != mask) {
+      float publish_value = total_current_value;
+      ESP_LOGD(TAG, "'%s' - Publishing %.2f", this->name_.c_str(), publish_value);
+      this->publish_state(publish_value);
+    }
+  } else if (this->last_mask_ != 0ULL) {
+    // is this a new sensor release
+    ESP_LOGD(TAG, "'%s' - No binary sensor active, publishing 0", this->name_.c_str());
+    this->publish_state(0.0);
   }
   this->last_mask_ = mask;
 }

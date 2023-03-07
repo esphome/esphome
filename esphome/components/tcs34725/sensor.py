@@ -31,6 +31,7 @@ TCS34725Component = tcs34725_ns.class_(
 
 TCS34725IntegrationTime = tcs34725_ns.enum("TCS34725IntegrationTime")
 TCS34725_INTEGRATION_TIMES = {
+    "auto": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_AUTO,
     "2.4ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_2_4MS,
     "24ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_24MS,
     "50ms": TCS34725IntegrationTime.TCS34725_INTEGRATION_TIME_50MS,
@@ -88,7 +89,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_CLEAR_CHANNEL): color_channel_schema,
             cv.Optional(CONF_ILLUMINANCE): illuminance_schema,
             cv.Optional(CONF_COLOR_TEMPERATURE): color_temperature_schema,
-            cv.Optional(CONF_INTEGRATION_TIME, default="2.4ms"): cv.enum(
+            cv.Optional(CONF_INTEGRATION_TIME, default="auto"): cv.enum(
                 TCS34725_INTEGRATION_TIMES, lower=True
             ),
             cv.Optional(CONF_GAIN, default="1X"): cv.enum(TCS34725_GAINS, upper=True),

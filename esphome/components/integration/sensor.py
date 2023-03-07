@@ -35,7 +35,6 @@ INTEGRATION_METHODS = {
 
 CONF_TIME_UNIT = "time_unit"
 CONF_INTEGRATION_METHOD = "integration_method"
-CONF_MIN_SAVE_INTERVAL = "min_save_interval"
 
 
 def inherit_unit_of_measurement(uom, config):
@@ -49,20 +48,23 @@ def inherit_accuracy_decimals(decimals, config):
     return decimals + 2
 
 
-CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(IntegrationSensor),
-        cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
-        cv.Required(CONF_TIME_UNIT): cv.enum(INTEGRATION_TIMES, lower=True),
-        cv.Optional(CONF_INTEGRATION_METHOD, default="trapezoid"): cv.enum(
-            INTEGRATION_METHODS, lower=True
-        ),
-        cv.Optional(CONF_RESTORE, default=False): cv.boolean,
-        cv.Optional(
-            CONF_MIN_SAVE_INTERVAL, default="0s"
-        ): cv.positive_time_period_milliseconds,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(IntegrationSensor)
+    .extend(
+        {
+            cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
+            cv.Required(CONF_TIME_UNIT): cv.enum(INTEGRATION_TIMES, lower=True),
+            cv.Optional(CONF_INTEGRATION_METHOD, default="trapezoid"): cv.enum(
+                INTEGRATION_METHODS, lower=True
+            ),
+            cv.Optional(CONF_RESTORE, default=False): cv.boolean,
+            cv.Optional("min_save_interval"): cv.invalid(
+                "min_save_interval was removed in 2022.8.0. Please use the `preferences` -> `flash_write_interval` to adjust."
+            ),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 FINAL_VALIDATE_SCHEMA = cv.All(
@@ -97,7 +99,6 @@ async def to_code(config):
     cg.add(var.set_time(config[CONF_TIME_UNIT]))
     cg.add(var.set_method(config[CONF_INTEGRATION_METHOD]))
     cg.add(var.set_restore(config[CONF_RESTORE]))
-    cg.add(var.set_min_save_interval(config[CONF_MIN_SAVE_INTERVAL]))
 
 
 @automation.register_action(

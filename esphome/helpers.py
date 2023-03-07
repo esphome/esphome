@@ -1,10 +1,12 @@
 import codecs
+from contextlib import suppress
 
 import logging
 import os
 from pathlib import Path
 from typing import Union
 import tempfile
+from urllib.parse import urlparse
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -39,7 +41,7 @@ def indent(text, padding="  "):
 
 # From https://stackoverflow.com/a/14945195/8924614
 def cpp_string_escape(string, encoding="utf-8"):
-    def _should_escape(byte):  # type: (int) -> bool
+    def _should_escape(byte: int) -> bool:
         if not 32 <= byte < 127:
             return True
         if byte in (ord("\\"), ord('"')):
@@ -133,7 +135,8 @@ def resolve_ip_address(host):
             errs.append(str(err))
 
     try:
-        return socket.gethostbyname(host)
+        host_url = host if (urlparse(host).scheme != "") else "http://" + host
+        return socket.gethostbyname(urlparse(host_url).hostname)
     except OSError as err:
         errs.append(str(err))
         raise EsphomeError(f"Error resolving IP address: {', '.join(errs)}") from err
@@ -143,8 +146,8 @@ def get_bool_env(var, default=False):
     return bool(os.getenv(var, default))
 
 
-def is_hassio():
-    return get_bool_env("ESPHOME_IS_HASSIO")
+def is_ha_addon():
+    return get_bool_env("ESPHOME_IS_HA_ADDON")
 
 
 def walk_files(path):
@@ -233,8 +236,20 @@ def copy_file_if_changed(src: os.PathLike, dst: os.PathLike) -> None:
         return
     mkdir_p(os.path.dirname(dst))
     try:
-        shutil.copy(src, dst)
+        shutil.copyfile(src, dst)
     except OSError as err:
+        if isinstance(err, PermissionError):
+            # Older esphome versions copied over the src file permissions too.
+            # So when the dst file had 444 permissions, the dst file would have those
+            # too and subsequent writes would fail
+
+            # -> delete file (it would be overwritten anyway), and try again
+            # if that fails, use normal error handler
+            with suppress(OSError):
+                os.unlink(dst)
+                shutil.copyfile(src, dst)
+                return
+
         from esphome.core import EsphomeError
 
         raise EsphomeError(f"Error copying file {src} to {dst}: {err}") from err
@@ -283,7 +298,7 @@ _TYPE_OVERLOADS = {
     int: type("EInt", (int,), {}),
     float: type("EFloat", (float,), {}),
     str: type("EStr", (str,), {}),
-    dict: type("EDict", (str,), {}),
+    dict: type("EDict", (dict,), {}),
     list: type("EList", (list,), {}),
 }
 

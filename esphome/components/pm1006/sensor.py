@@ -16,7 +16,9 @@ CODEOWNERS = ["@habbie"]
 DEPENDENCIES = ["uart"]
 
 pm1006_ns = cg.esphome_ns.namespace("pm1006")
-PM1006Component = pm1006_ns.class_("PM1006Component", uart.UARTDevice, cg.Component)
+PM1006Component = pm1006_ns.class_(
+    "PM1006Component", uart.UARTDevice, cg.PollingComponent
+)
 
 
 CONFIG_SCHEMA = cv.All(

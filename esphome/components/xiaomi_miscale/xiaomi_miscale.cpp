@@ -24,25 +24,30 @@ bool XiaomiMiscale::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
   bool success = false;
   for (auto &service_data : device.get_service_datas()) {
     auto res = parse_header_(service_data);
-    if (!res.has_value()) {
+    if (!res.has_value())
       continue;
-    }
 
-    if (!(parse_message_(service_data.data, *res))) {
+    if (!parse_message_(service_data.data, *res))
       continue;
-    }
 
-    if (!(report_results_(res, device.address_str()))) {
+    if (!report_results_(res, device.address_str()))
       continue;
-    }
 
     if (res->weight.has_value() && this->weight_ != nullptr)
       this->weight_->publish_state(*res->weight);
 
-    if (res->version == 1 && this->impedance_ != nullptr) {
-      ESP_LOGW(TAG, "Impedance is only supported on version 2. Your scale was identified as verison 1.");
-    } else if (res->impedance.has_value() && this->impedance_ != nullptr)
-      this->impedance_->publish_state(*res->impedance);
+    if (this->impedance_ != nullptr) {
+      if (res->version == 1) {
+        ESP_LOGW(TAG, "Impedance is only supported on version 2. Your scale was identified as version 1.");
+      } else {
+        if (res->impedance.has_value()) {
+          this->impedance_->publish_state(*res->impedance);
+        } else {
+          if (clear_impedance_)
+            this->impedance_->publish_state(NAN);
+        }
+      }
+    }
     success = true;
   }
 

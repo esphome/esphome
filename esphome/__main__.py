@@ -2,22 +2,30 @@ import argparse
 import functools
 import logging
 import os
+import re
 import sys
+import time
 from datetime import datetime
 
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
 from esphome.config import iter_components, read_config, strip_default_ids
 from esphome.const import (
+    ALLOWED_NAME_CHARS,
     CONF_BAUD_RATE,
     CONF_BROKER,
     CONF_DEASSERT_RTS_DTR,
     CONF_LOGGER,
+    CONF_NAME,
     CONF_OTA,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
+    CONF_SUBSTITUTIONS,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
@@ -97,11 +105,11 @@ def run_miniterm(config, port):
 
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
-        return
+        return 1
     baud_rate = config["logger"][CONF_BAUD_RATE]
     if baud_rate == 0:
         _LOGGER.info("UART logging is disabled (baud_rate=0). Not starting UART logs.")
-        return
+        return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
     backtrace_state = False
@@ -115,25 +123,34 @@ def run_miniterm(config, port):
         ser.dtr = False
         ser.rts = False
 
-    with ser:
-        while True:
-            try:
-                raw = ser.readline()
-            except serial.SerialException:
-                _LOGGER.error("Serial port closed!")
-                return
-            line = (
-                raw.replace(b"\r", b"")
-                .replace(b"\n", b"")
-                .decode("utf8", "backslashreplace")
-            )
-            time = datetime.now().time().strftime("[%H:%M:%S]")
-            message = time + line
-            safe_print(message)
+    tries = 0
+    while tries < 5:
+        try:
+            with ser:
+                while True:
+                    try:
+                        raw = ser.readline()
+                    except serial.SerialException:
+                        _LOGGER.error("Serial port closed!")
+                        return 0
+                    line = (
+                        raw.replace(b"\r", b"")
+                        .replace(b"\n", b"")
+                        .decode("utf8", "backslashreplace")
+                    )
+                    time_str = datetime.now().time().strftime("[%H:%M:%S]")
+                    message = time_str + line
+                    safe_print(message)
 
-            backtrace_state = platformio_api.process_stacktrace(
-                config, line, backtrace_state=backtrace_state
-            )
+                    backtrace_state = platformio_api.process_stacktrace(
+                        config, line, backtrace_state=backtrace_state
+                    )
+        except serial.SerialException:
+            tries += 1
+            time.sleep(1)
+    if tries >= 5:
+        _LOGGER.error("Could not connect to serial port %s", port)
+        return 1
 
 
 def wrap_to_code(name, comp):
@@ -237,8 +254,7 @@ def upload_using_esptool(config, port):
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
 
-            # pylint: disable=protected-access
-            return run_external_command(esptool._main, *cmd)
+            return run_external_command(esptool.main, *cmd)  # pylint: disable=no-member
 
         return run_external_process(*cmd)
 
@@ -254,9 +270,21 @@ def upload_using_esptool(config, port):
 
 
 def upload_program(config, args, host):
-    # if upload is to a serial port use platformio, otherwise assume ota
     if get_port_type(host) == "SERIAL":
-        return upload_using_esptool(config, host)
+        if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
+            return upload_using_esptool(config, host)
+
+        if CORE.target_platform in (PLATFORM_RP2040):
+            from esphome import platformio_api
+
+            upload_args = ["-t", "upload"]
+            if args.device is not None:
+                upload_args += ["--upload-port", args.device]
+            return platformio_api.run_platformio_cli_run(
+                config, CORE.verbose, *upload_args
+            )
+
+        return 1  # Unknown target platform
 
     from esphome import espota2
 
@@ -269,6 +297,8 @@ def upload_program(config, args, host):
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf.get(CONF_PASSWORD, "")
+    if getattr(args, "file", None) is not None:
+        return espota2.run_ota(host, remote_port, password, args.file)
     return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
@@ -276,8 +306,7 @@ def show_logs(config, args, port):
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
     if get_port_type(port) == "SERIAL":
-        run_miniterm(config, port)
-        return 0
+        return run_miniterm(config, port)
     if get_port_type(port) == "NETWORK" and "api" in config:
         from esphome.components.api.client import run_logs
 
@@ -310,7 +339,7 @@ def command_config(args, config):
     _LOGGER.info("Configuration is valid!")
     if not CORE.verbose:
         config = strip_default_ids(config)
-    safe_print(yaml_util.dump(config))
+    safe_print(yaml_util.dump(config, args.show_secrets))
     return 0
 
 
@@ -481,6 +510,98 @@ def command_idedata(args, config):
     return 0
 
 
+def command_rename(args, config):
+    for c in args.name:
+        if c not in ALLOWED_NAME_CHARS:
+            print(
+                color(
+                    Fore.BOLD_RED,
+                    f"'{c}' is an invalid character for names. Valid characters are: "
+                    f"{ALLOWED_NAME_CHARS} (lowercase, no spaces)",
+                )
+            )
+            return 1
+    # Load existing yaml file
+    with open(CORE.config_path, mode="r+", encoding="utf-8") as raw_file:
+        raw_contents = raw_file.read()
+
+    yaml = yaml_util.load_yaml(CORE.config_path)
+    if CONF_ESPHOME not in yaml or CONF_NAME not in yaml[CONF_ESPHOME]:
+        print(
+            color(Fore.BOLD_RED, "Complex YAML files cannot be automatically renamed.")
+        )
+        return 1
+    old_name = yaml[CONF_ESPHOME][CONF_NAME]
+    match = re.match(r"^\$\{?([a-zA-Z0-9_]+)\}?$", old_name)
+    if match is None:
+        new_raw = re.sub(
+            rf"name:\s+[\"']?{old_name}[\"']?",
+            f'name: "{args.name}"',
+            raw_contents,
+        )
+    else:
+        old_name = yaml[CONF_SUBSTITUTIONS][match.group(1)]
+        if (
+            len(
+                re.findall(
+                    rf"^\s+{match.group(1)}:\s+[\"']?{old_name}[\"']?",
+                    raw_contents,
+                    flags=re.MULTILINE,
+                )
+            )
+            > 1
+        ):
+            print(color(Fore.BOLD_RED, "Too many matches in YAML to safely rename"))
+            return 1
+
+        new_raw = re.sub(
+            rf"^(\s+{match.group(1)}):\s+[\"']?{old_name}[\"']?",
+            f'\\1: "{args.name}"',
+            raw_contents,
+            flags=re.MULTILINE,
+        )
+
+    new_path = os.path.join(CORE.config_dir, args.name + ".yaml")
+    print(
+        f"Updating {color(Fore.CYAN, CORE.config_path)} to {color(Fore.CYAN, new_path)}"
+    )
+    print()
+
+    with open(new_path, mode="w", encoding="utf-8") as new_file:
+        new_file.write(new_raw)
+
+    rc = run_external_process("esphome", "config", new_path)
+    if rc != 0:
+        print(color(Fore.BOLD_RED, "Rename failed. Reverting changes."))
+        os.remove(new_path)
+        return 1
+
+    cli_args = [
+        "run",
+        new_path,
+        "--no-logs",
+        "--device",
+        CORE.address,
+    ]
+
+    if args.dashboard:
+        cli_args.insert(0, "--dashboard")
+
+    try:
+        rc = run_external_process("esphome", *cli_args)
+    except KeyboardInterrupt:
+        rc = 1
+    if rc != 0:
+        os.remove(new_path)
+        return 1
+
+    os.remove(CORE.config_path)
+
+    print(color(Fore.BOLD_GREEN, "SUCCESS"))
+    print()
+    return 0
+
+
 PRE_CONFIG_ACTIONS = {
     "wizard": command_wizard,
     "version": command_version,
@@ -499,6 +620,7 @@ POST_CONFIG_ACTIONS = {
     "mqtt-fingerprint": command_mqtt_fingerprint,
     "clean": command_clean,
     "idedata": command_idedata,
+    "rename": command_rename,
 }
 
 
@@ -543,6 +665,9 @@ def parse_args(argv):
     parser_config.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
+    parser_config.add_argument(
+        "--show-secrets", help="Show secrets in output.", action="store_true"
+    )
 
     parser_compile = subparsers.add_parser(
         "compile", help="Read the configuration and compile a program."
@@ -565,6 +690,10 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--device",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
+    )
+    parser_upload.add_argument(
+        "--file",
+        help="Manually specify the binary file to upload.",
     )
 
     parser_logs = subparsers.add_parser(
@@ -661,7 +790,7 @@ def parse_args(argv):
         "--open-ui", help="Open the dashboard UI in a browser.", action="store_true"
     )
     parser_dashboard.add_argument(
-        "--hassio", help=argparse.SUPPRESS, action="store_true"
+        "--ha-addon", help=argparse.SUPPRESS, action="store_true"
     )
     parser_dashboard.add_argument(
         "--socket", help="Make the dashboard serve under a unix socket", type=str
@@ -680,6 +809,15 @@ def parse_args(argv):
     parser_idedata.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs=1
     )
+
+    parser_rename = subparsers.add_parser(
+        "rename",
+        help="Rename a device in YAML, compile the binary and upload it.",
+    )
+    parser_rename.add_argument(
+        "configuration", help="Your YAML configuration file.", nargs=1
+    )
+    parser_rename.add_argument("name", help="The new name for the device.", type=str)
 
     # Keep backward compatibility with the old command line format of
     # esphome <config> <command>.
@@ -778,10 +916,10 @@ def run_esphome(argv):
         _LOGGER.warning("Please instead use:")
         _LOGGER.warning("   esphome %s", " ".join(args.deprecated_argv_suggestion))
 
-    if sys.version_info < (3, 7, 0):
+    if sys.version_info < (3, 8, 0):
         _LOGGER.error(
-            "You're running ESPHome with Python <3.7. ESPHome is no longer compatible "
-            "with this Python version. Please reinstall ESPHome with Python 3.7+"
+            "You're running ESPHome with Python <3.8. ESPHome is no longer compatible "
+            "with this Python version. Please reinstall ESPHome with Python 3.8+"
         )
         return 1
 

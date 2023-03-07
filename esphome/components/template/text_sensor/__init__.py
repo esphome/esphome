@@ -10,18 +10,21 @@ TemplateTextSensor = template_ns.class_(
     "TemplateTextSensor", text_sensor.TextSensor, cg.PollingComponent
 )
 
-CONFIG_SCHEMA = text_sensor.TEXT_SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TemplateTextSensor),
-        cv.Optional(CONF_LAMBDA): cv.returning_lambda,
-    }
-).extend(cv.polling_component_schema("60s"))
+CONFIG_SCHEMA = (
+    text_sensor.text_sensor_schema()
+    .extend(
+        {
+            cv.GenerateID(): cv.declare_id(TemplateTextSensor),
+            cv.Optional(CONF_LAMBDA): cv.returning_lambda,
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+)
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await text_sensor.new_text_sensor(config)
     await cg.register_component(var, config)
-    await text_sensor.register_text_sensor(var, config)
 
     if CONF_LAMBDA in config:
         template_ = await cg.process_lambda(

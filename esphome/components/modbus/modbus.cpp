@@ -35,22 +35,6 @@ void Modbus::loop() {
   }
 }
 
-uint16_t crc16(const uint8_t *data, uint8_t len) {
-  uint16_t crc = 0xFFFF;
-  while (len--) {
-    crc ^= *data++;
-    for (uint8_t i = 0; i < 8; i++) {
-      if ((crc & 0x01) != 0) {
-        crc >>= 1;
-        crc ^= 0xA001;
-      } else {
-        crc >>= 1;
-      }
-    }
-  }
-  return crc;
-}
-
 bool Modbus::parse_modbus_byte_(uint8_t byte) {
   size_t at = this->rx_buffer_.size();
   this->rx_buffer_.push_back(byte);
@@ -68,33 +52,63 @@ bool Modbus::parse_modbus_byte_(uint8_t byte) {
 
   uint8_t data_len = raw[2];
   uint8_t data_offset = 3;
-  // the response for write command mirrors the requests and data startes at offset 2 instead of 3 for read commands
-  if (function_code == 0x5 || function_code == 0x06 || function_code == 0xF || function_code == 0x10) {
-    data_offset = 2;
-    data_len = 4;
-  }
 
-  // Error ( msb indicates error )
-  // response format:  Byte[0] = device address, Byte[1] function code | 0x80 , Byte[2] excpetion code, Byte[3-4] crc
-  if ((function_code & 0x80) == 0x80) {
-    data_offset = 2;
-    data_len = 1;
-  }
+  // Per https://modbus.org/docs/Modbus_Application_Protocol_V1_1b3.pdf Ch 5 User-Defined function codes
+  if (((function_code >= 65) && (function_code <= 72)) || ((function_code >= 100) && (function_code <= 110))) {
+    // Handle user-defined function, since we don't know how big this ought to be,
+    // ideally we should delegate the entire length detection to whatever handler is
+    // installed, but wait, there is the CRC, and if we get a hit there is a good
+    // chance that this is a complete message ... admittedly there is a small chance is
+    // isn't but that is quite small given the purpose of the CRC in the first place
 
-  // Byte data_offset..data_offset+data_len-1: Data
-  if (at < data_offset + data_len)
-    return true;
+    // Fewer than 2 bytes can't calc CRC
+    if (at < 2)
+      return true;
 
-  // Byte 3+data_len: CRC_LO (over all bytes)
-  if (at == data_offset + data_len)
-    return true;
+    data_len = at - 2;
+    data_offset = 1;
 
-  // Byte data_offset+len+1: CRC_HI (over all bytes)
-  uint16_t computed_crc = crc16(raw, data_offset + data_len);
-  uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
-  if (computed_crc != remote_crc) {
-    ESP_LOGW(TAG, "Modbus CRC Check failed! %02X!=%02X", computed_crc, remote_crc);
-    return false;
+    uint16_t computed_crc = crc16(raw, data_offset + data_len);
+    uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
+
+    if (computed_crc != remote_crc)
+      return true;
+
+    ESP_LOGD(TAG, "Modbus user-defined function %02X found", function_code);
+
+  } else {
+    // the response for write command mirrors the requests and data startes at offset 2 instead of 3 for read commands
+    if (function_code == 0x5 || function_code == 0x06 || function_code == 0xF || function_code == 0x10) {
+      data_offset = 2;
+      data_len = 4;
+    }
+
+    // Error ( msb indicates error )
+    // response format:  Byte[0] = device address, Byte[1] function code | 0x80 , Byte[2] exception code, Byte[3-4] crc
+    if ((function_code & 0x80) == 0x80) {
+      data_offset = 2;
+      data_len = 1;
+    }
+
+    // Byte data_offset..data_offset+data_len-1: Data
+    if (at < data_offset + data_len)
+      return true;
+
+    // Byte 3+data_len: CRC_LO (over all bytes)
+    if (at == data_offset + data_len)
+      return true;
+
+    // Byte data_offset+len+1: CRC_HI (over all bytes)
+    uint16_t computed_crc = crc16(raw, data_offset + data_len);
+    uint16_t remote_crc = uint16_t(raw[data_offset + data_len]) | (uint16_t(raw[data_offset + data_len + 1]) << 8);
+    if (computed_crc != remote_crc) {
+      if (this->disable_crc_) {
+        ESP_LOGD(TAG, "Modbus CRC Check failed, but ignored! %02X!=%02X", computed_crc, remote_crc);
+      } else {
+        ESP_LOGW(TAG, "Modbus CRC Check failed! %02X!=%02X", computed_crc, remote_crc);
+        return false;
+      }
+    }
   }
   std::vector<uint8_t> data(this->rx_buffer_.begin() + data_offset, this->rx_buffer_.begin() + data_offset + data_len);
   bool found = false;
@@ -129,6 +143,7 @@ void Modbus::dump_config() {
   ESP_LOGCONFIG(TAG, "Modbus:");
   LOG_PIN("  Flow Control Pin: ", this->flow_control_pin_);
   ESP_LOGCONFIG(TAG, "  Send Wait Time: %d ms", this->send_wait_time_);
+  ESP_LOGCONFIG(TAG, "  CRC Disabled: %s", YESNO(this->disable_crc_));
 }
 float Modbus::get_setup_priority() const {
   // After UART bus

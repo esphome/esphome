@@ -4,17 +4,26 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/modbus/modbus.h"
 
+#include <vector>
+
 namespace esphome {
 namespace growatt_solar {
 
 static const float TWO_DEC_UNIT = 0.01;
 static const float ONE_DEC_UNIT = 0.1;
 
+enum GrowattProtocolVersion {
+  RTU = 0,
+  RTU2,
+};
+
 class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
  public:
   void update() override;
   void on_modbus_data(const std::vector<uint8_t> &data) override;
   void dump_config() override;
+
+  void set_protocol_version(GrowattProtocolVersion protocol_version) { this->protocol_version_ = protocol_version; }
 
   void set_inverter_status_sensor(sensor::Sensor *sensor) { this->inverter_status_ = sensor; }
 
@@ -67,6 +76,7 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
   sensor::Sensor *today_production_{nullptr};
   sensor::Sensor *total_energy_production_{nullptr};
   sensor::Sensor *inverter_module_temp_{nullptr};
+  GrowattProtocolVersion protocol_version_;
 };
 
 }  // namespace growatt_solar

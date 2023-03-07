@@ -118,7 +118,7 @@ def _relocate_fields_to_subfolder(config, subfolder, subschema):
     fields = [k.schema for k in subschema.schema.keys()]
     fields.remove(CONF_ID)
     if subfolder in config:
-        # Ensure no ambigious fields in base of config
+        # Ensure no ambiguous fields in base of config
         for f in fields:
             if f in config:
                 raise cv.Invalid(

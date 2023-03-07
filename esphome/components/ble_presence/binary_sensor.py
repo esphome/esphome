@@ -7,7 +7,6 @@ from esphome.const import (
     CONF_IBEACON_MAJOR,
     CONF_IBEACON_MINOR,
     CONF_IBEACON_UUID,
-    CONF_ID,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -30,9 +29,9 @@ def _validate(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+    binary_sensor.binary_sensor_schema(BLEPresenceDevice)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(BLEPresenceDevice),
             cv.Optional(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_SERVICE_UUID): esp32_ble_tracker.bt_uuid,
             cv.Optional(CONF_IBEACON_MAJOR): cv.uint16_t,
@@ -48,10 +47,9 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_ble_device(var, config)
-    await binary_sensor.register_binary_sensor(var, config)
 
     if CONF_MAC_ADDRESS in config:
         cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))

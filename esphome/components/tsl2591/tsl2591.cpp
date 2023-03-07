@@ -43,16 +43,34 @@ void TSL2591Component::disable_if_power_saving_() {
 }
 
 void TSL2591Component::setup() {
-  if (this->component_gain_ == TSL2591_CGAIN_AUTO)
-    this->gain_ = TSL2591_GAIN_MED;
+  switch (this->component_gain_) {
+    case TSL2591_CGAIN_LOW:
+      this->gain_ = TSL2591_GAIN_LOW;
+      break;
+    case TSL2591_CGAIN_MED:
+      this->gain_ = TSL2591_GAIN_MED;
+      break;
+    case TSL2591_CGAIN_HIGH:
+      this->gain_ = TSL2591_GAIN_HIGH;
+      break;
+    case TSL2591_CGAIN_MAX:
+      this->gain_ = TSL2591_GAIN_MAX;
+      break;
+    case TSL2591_CGAIN_AUTO:
+      this->gain_ = TSL2591_GAIN_MED;
+      break;
+  }
+
   uint8_t address = this->address_;
   ESP_LOGI(TAG, "Setting up TSL2591 sensor at I2C address 0x%02X", address);
+
   uint8_t id;
   if (!this->read_byte(TSL2591_COMMAND_BIT | TSL2591_REGISTER_DEVICE_ID, &id)) {
     ESP_LOGE(TAG, "Failed I2C read during setup()");
     this->mark_failed();
     return;
   }
+
   if (id != 0x50) {
     ESP_LOGE(TAG,
              "Could not find the TSL2591 sensor. The ID register of the device at address 0x%02X reported 0x%02X "
@@ -61,6 +79,7 @@ void TSL2591Component::setup() {
     this->mark_failed();
     return;
   }
+
   this->set_integration_time_and_gain(this->integration_time_, this->gain_);
   this->disable_if_power_saving_();
 }
@@ -111,6 +130,7 @@ void TSL2591Component::dump_config() {
   LOG_SENSOR("  ", "Infrared:", this->infrared_sensor_);
   LOG_SENSOR("  ", "Visible:", this->visible_sensor_);
   LOG_SENSOR("  ", "Calculated lux:", this->calculated_lux_sensor_);
+  LOG_SENSOR("  ", "Actual gain:", this->actual_gain_sensor_);
 
   LOG_UPDATE_INTERVAL(this);
 }
@@ -121,8 +141,9 @@ void TSL2591Component::process_update_() {
   uint16_t infrared = this->get_illuminance(TSL2591_SENSOR_CHANNEL_INFRARED, combined);
   uint16_t full = this->get_illuminance(TSL2591_SENSOR_CHANNEL_FULL_SPECTRUM, combined);
   float lux = this->get_calculated_lux(full, infrared);
-  ESP_LOGD(TAG, "Got illuminance: combined 0x%X, full %d, IR %d, vis %d. Calc lux: %f", combined, full, infrared,
-           visible, lux);
+  uint16_t actual_gain = this->get_actual_gain();
+  ESP_LOGD(TAG, "Got illuminance: combined 0x%X, full %d, IR %d, vis %d. Calc lux: %f. Actual gain: %d.", combined,
+           full, infrared, visible, lux, actual_gain);
   if (this->full_spectrum_sensor_ != nullptr) {
     this->full_spectrum_sensor_->publish_state(full);
   }
@@ -135,8 +156,13 @@ void TSL2591Component::process_update_() {
   if (this->calculated_lux_sensor_ != nullptr) {
     this->calculated_lux_sensor_->publish_state(lux);
   }
+
   if (this->component_gain_ == TSL2591_CGAIN_AUTO) {
     this->automatic_gain_update(full);
+  }
+
+  if (this->actual_gain_sensor_ != nullptr) {
+    this->actual_gain_sensor_->publish_state(actual_gain);
   }
   this->status_clear_warning();
 }
@@ -186,6 +212,10 @@ void TSL2591Component::set_full_spectrum_sensor(sensor::Sensor *full_spectrum_se
 
 void TSL2591Component::set_calculated_lux_sensor(sensor::Sensor *calculated_lux_sensor) {
   this->calculated_lux_sensor_ = calculated_lux_sensor;
+}
+
+void TSL2591Component::set_actual_gain_sensor(sensor::Sensor *actual_gain_sensor) {
+  this->actual_gain_sensor_ = actual_gain_sensor;
 }
 
 void TSL2591Component::set_integration_time(TSL2591IntegrationTime integration_time) {
@@ -328,8 +358,8 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
   uint16_t max_count = (this->integration_time_ == TSL2591_INTEGRATION_TIME_100MS ? 36863 : 65535);
   if ((full_spectrum == max_count) || (infrared == max_count)) {
     // Signal an overflow
-    ESP_LOGW(TAG, "Apparent saturation on TSL2591 (%s). You could reduce the gain.", this->name_);
-    return -1.0F;
+    ESP_LOGW(TAG, "Apparent saturation on TSL2591 (%s). You could reduce the gain or integration time.", this->name_);
+    return NAN;
   }
 
   if ((full_spectrum == 0) && (infrared == 0)) {
@@ -358,7 +388,6 @@ float TSL2591Component::get_calculated_lux(uint16_t full_spectrum, uint16_t infr
       again = 1.0F;
       break;
   }
-
   // This lux equation is copied from the Adafruit TSL2591 v1.4.0 and modified slightly.
   // See: https://github.com/adafruit/Adafruit_TSL2591_Library/issues/14
   // and that library code.
@@ -427,6 +456,26 @@ void TSL2591Component::automatic_gain_update(uint16_t full_spectrum) {
     this->set_integration_time_and_gain(this->integration_time_, this->gain_);
   }
   ESP_LOGD(TAG, "Gain setting: %d", this->gain_);
+}
+
+/** Reads the actual gain used
+ *
+ * Useful for exposing the real gain used when configured in "auto" gain mode
+ */
+float TSL2591Component::get_actual_gain() {
+  switch (this->gain_) {
+    case TSL2591_GAIN_LOW:
+      return 1.0F;
+    case TSL2591_GAIN_MED:
+      return 25.0F;
+    case TSL2591_GAIN_HIGH:
+      return 400.0F;
+    case TSL2591_GAIN_MAX:
+      return 9500.0F;
+    default:
+      // Shouldn't get here, but just in case.
+      return NAN;
+  }
 }
 
 }  // namespace tsl2591

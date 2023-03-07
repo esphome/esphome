@@ -5,7 +5,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/network/ip_address.h"
+
 #include <string>
+#include <vector>
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp_wifi.h>
@@ -22,6 +24,16 @@ extern "C" {
 #include <user_interface.h>
 };
 #endif
+#endif
+
+#ifdef USE_RP2040
+extern "C" {
+#include "cyw43.h"
+#include "cyw43_country.h"
+#include "pico/cyw43_arch.h"
+}
+
+#include <WiFi.h>
 #endif
 
 namespace esphome {
@@ -138,6 +150,8 @@ class WiFiScanResult {
   float get_priority() const { return priority_; }
   void set_priority(float priority) { priority_ = priority; }
 
+  bool operator==(const WiFiScanResult &rhs) const;
+
  protected:
   bool matches_{false};
   bssid_t bssid_;
@@ -182,6 +196,7 @@ class WiFiComponent : public Component {
    * can be made, the AP will be turned off again.
    */
   void set_ap(const WiFiAP &ap);
+  WiFiAP get_ap() { return this->ap_; }
 
   void start_scanning();
   void check_scanning_finished();
@@ -217,6 +232,11 @@ class WiFiComponent : public Component {
 
   bool has_sta() const;
   bool has_ap() const;
+
+#ifdef USE_WIFI_11KV_SUPPORT
+  void set_btm(bool btm);
+  void set_rrm(bool rrm);
+#endif
 
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
@@ -304,6 +324,11 @@ class WiFiComponent : public Component {
   void wifi_process_event_(IDFWiFiEvent *data);
 #endif
 
+#ifdef USE_RP2040
+  static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+  void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+#endif
+
   std::string use_address_;
   std::vector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
@@ -326,6 +351,10 @@ class WiFiComponent : public Component {
   optional<float> output_power_;
   ESPPreferenceObject pref_;
   bool has_saved_wifi_settings_{false};
+#ifdef USE_WIFI_11KV_SUPPORT
+  bool btm_{false};
+  bool rrm_{false};
+#endif
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

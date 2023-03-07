@@ -15,6 +15,84 @@ static const char *const TAG = "display";
 const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
 
+void Rect::expand(int16_t horizontal, int16_t vertical) {
+  if (this->is_set() && (this->w >= (-2 * horizontal)) && (this->h >= (-2 * vertical))) {
+    this->x = this->x - horizontal;
+    this->y = this->y - vertical;
+    this->w = this->w + (2 * horizontal);
+    this->h = this->h + (2 * vertical);
+  }
+}
+
+void Rect::extend(Rect rect) {
+  if (!this->is_set()) {
+    this->x = rect.x;
+    this->y = rect.y;
+    this->w = rect.w;
+    this->h = rect.h;
+  } else {
+    if (this->x > rect.x) {
+      this->x = rect.x;
+    }
+    if (this->y > rect.y) {
+      this->y = rect.y;
+    }
+    if (this->x2() < rect.x2()) {
+      this->w = rect.x2() - this->x;
+    }
+    if (this->y2() < rect.y2()) {
+      this->h = rect.y2() - this->y;
+    }
+  }
+}
+void Rect::shrink(Rect rect) {
+  if (!this->inside(rect)) {
+    (*this) = Rect();
+  } else {
+    if (this->x < rect.x) {
+      this->x = rect.x;
+    }
+    if (this->y < rect.y) {
+      this->y = rect.y;
+    }
+    if (this->x2() > rect.x2()) {
+      this->w = rect.x2() - this->x;
+    }
+    if (this->y2() > rect.y2()) {
+      this->h = rect.y2() - this->y;
+    }
+  }
+}
+
+bool Rect::inside(int16_t x, int16_t y, bool absolute) {  // NOLINT
+  if (!this->is_set()) {
+    return true;
+  }
+  if (absolute) {
+    return ((x >= 0) && (x <= this->w) && (y >= 0) && (y <= this->h));
+  } else {
+    return ((x >= this->x) && (x <= this->x2()) && (y >= this->y) && (y <= this->y2()));
+  }
+}
+
+bool Rect::inside(Rect rect, bool absolute) {
+  if (!this->is_set() || !rect.is_set()) {
+    return true;
+  }
+  if (absolute) {
+    return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
+  } else {
+    return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
+  }
+}
+
+void Rect::info(const std::string &prefix) {
+  if (this->is_set()) {
+    ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d]", prefix.c_str(), this->x, this->y, this->w, this->h);
+  } else
+    ESP_LOGI(TAG, "%s ** IS NOT SET **", prefix.c_str());
+}
+
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
   this->buffer_ = allocator.allocate(buffer_length);
@@ -24,6 +102,7 @@ void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   }
   this->clear();
 }
+
 void DisplayBuffer::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void DisplayBuffer::clear() { this->fill(COLOR_OFF); }
 int DisplayBuffer::get_width() {
@@ -50,6 +129,9 @@ int DisplayBuffer::get_height() {
 }
 void DisplayBuffer::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
+  if (!this->get_clipping().inside(x, y))
+    return;  // NOLINT
+
   switch (this->rotation_) {
     case DISPLAY_ROTATION_0_DEGREES:
       break;
@@ -174,7 +256,7 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
     if (glyph_n < 0) {
       // Unknown char, skip
       ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
-      if (!font->get_glyphs().empty()) {
+      if (font->get_glyphs_size() > 0) {
         uint8_t glyph_width = font->get_glyphs()[0].glyph_data_->width;
         for (int glyph_x = 0; glyph_x < glyph_width; glyph_x++) {
           for (int glyph_y = 0; glyph_y < height; glyph_y++)
@@ -239,6 +321,13 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
           if (image->get_pixel(img_x, img_y))
             this->draw_pixel_at(x + img_x, y + img_y, color_on);
+        }
+      }
+      break;
+    case IMAGE_TYPE_RGB565:
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          this->draw_pixel_at(x + img_x, y + img_y, image->get_rgb565_pixel(img_x, img_y));
         }
       }
       break;
@@ -361,6 +450,10 @@ void DisplayBuffer::do_update_() {
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
   }
+  // remove all not ended clipping regions
+  while (is_clipping()) {
+    end_clipping();
+  }
 }
 void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
@@ -385,6 +478,41 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 }
 #endif
 
+void DisplayBuffer::start_clipping(Rect rect) {
+  if (!this->clipping_rectangle_.empty()) {
+    Rect r = this->clipping_rectangle_.back();
+    rect.shrink(r);
+  }
+  this->clipping_rectangle_.push_back(rect);
+}
+void DisplayBuffer::end_clipping() {
+  if (this->clipping_rectangle_.empty()) {
+    ESP_LOGE(TAG, "clear: Clipping is not set.");
+  } else {
+    this->clipping_rectangle_.pop_back();
+  }
+}
+void DisplayBuffer::extend_clipping(Rect add_rect) {
+  if (this->clipping_rectangle_.empty()) {
+    ESP_LOGE(TAG, "add: Clipping is not set.");
+  } else {
+    this->clipping_rectangle_.back().extend(add_rect);
+  }
+}
+void DisplayBuffer::shrink_clipping(Rect add_rect) {
+  if (this->clipping_rectangle_.empty()) {
+    ESP_LOGE(TAG, "add: Clipping is not set.");
+  } else {
+    this->clipping_rectangle_.back().shrink(add_rect);
+  }
+}
+Rect DisplayBuffer::get_clipping() {
+  if (this->clipping_rectangle_.empty()) {
+    return Rect();
+  } else {
+    return this->clipping_rectangle_.back();
+  }
+}
 bool Glyph::get_pixel(int x, int y) const {
   const int x_data = x - this->glyph_data_->offset_x;
   const int y_data = y - this->glyph_data_->offset_y;
@@ -429,7 +557,7 @@ void Glyph::scan_area(int *x1, int *y1, int *width, int *height) const {
 }
 int Font::match_next_glyph(const char *str, int *match_length) {
   int lo = 0;
-  int hi = this->glyphs_.size() - 1;
+  int hi = this->glyphs_size_ - 1;
   while (lo != hi) {
     int mid = (lo + hi + 1) / 2;
     if (this->glyphs_[mid].compare_to(str)) {
@@ -445,7 +573,7 @@ int Font::match_next_glyph(const char *str, int *match_length) {
 }
 void Font::measure(const char *str, int *width, int *x_offset, int *baseline, int *height) {
   *baseline = this->baseline_;
-  *height = this->bottom_;
+  *height = this->height_;
   int i = 0;
   int min_x = 0;
   bool has_char = false;
@@ -455,7 +583,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
     int glyph_n = this->match_next_glyph(str + i, &match_length);
     if (glyph_n < 0) {
       // Unknown char, skip
-      if (!this->get_glyphs().empty())
+      if (this->glyphs_size_ > 0)
         x += this->get_glyphs()[0].glyph_data_->width;
       i++;
       continue;
@@ -475,10 +603,17 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   *x_offset = min_x;
   *width = x - min_x;
 }
-const std::vector<Glyph> &Font::get_glyphs() const { return this->glyphs_; }
-Font::Font(const GlyphData *data, int data_nr, int baseline, int bottom) : baseline_(baseline), bottom_(bottom) {
-  for (int i = 0; i < data_nr; ++i)
-    glyphs_.emplace_back(data + i);
+Font::Font(const GlyphData *data, int data_nr, int baseline, int height) : baseline_(baseline), height_(height) {
+  ExternalRAMAllocator<Glyph> allocator(ExternalRAMAllocator<Glyph>::ALLOW_FAILURE);
+  this->glyphs_ = allocator.allocate(data_nr);
+  if (this->glyphs_ == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate buffer for Glyphs!");
+    return;
+  }
+  for (int i = 0; i < data_nr; ++i) {
+    this->glyphs_[i] = Glyph(data + i);
+  }
+  this->glyphs_size_ = data_nr;
 }
 
 bool Image::get_pixel(int x, int y) const {
@@ -497,6 +632,17 @@ Color Image::get_color_pixel(int x, int y) const {
                            (progmem_read_byte(this->data_start_ + pos + 0) << 16);
   return Color(color32);
 }
+Color Image::get_rgb565_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return Color::BLACK;
+  const uint32_t pos = (x + y * this->width_) * 2;
+  uint16_t rgb565 =
+      progmem_read_byte(this->data_start_ + pos + 0) << 8 | progmem_read_byte(this->data_start_ + pos + 1);
+  auto r = (rgb565 & 0xF800) >> 11;
+  auto g = (rgb565 & 0x07E0) >> 5;
+  auto b = rgb565 & 0x001F;
+  return Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+}
 Color Image::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
@@ -509,6 +655,7 @@ int Image::get_height() const { return this->height_; }
 ImageType Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
+int Image::get_current_frame() const { return 0; }
 
 bool Animation::get_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
@@ -532,6 +679,20 @@ Color Animation::get_color_pixel(int x, int y) const {
                            (progmem_read_byte(this->data_start_ + pos + 0) << 16);
   return Color(color32);
 }
+Color Animation::get_rgb565_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return Color::BLACK;
+  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
+  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+    return Color::BLACK;
+  const uint32_t pos = (x + y * this->width_ + frame_index) * 2;
+  uint16_t rgb565 =
+      progmem_read_byte(this->data_start_ + pos + 0) << 8 | progmem_read_byte(this->data_start_ + pos + 1);
+  auto r = (rgb565 & 0xF800) >> 11;
+  auto g = (rgb565 & 0x07E0) >> 5;
+  auto b = rgb565 & 0x001F;
+  return Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+}
 Color Animation::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
@@ -550,6 +711,24 @@ void Animation::next_frame() {
   this->current_frame_++;
   if (this->current_frame_ >= animation_frame_count_) {
     this->current_frame_ = 0;
+  }
+}
+void Animation::prev_frame() {
+  this->current_frame_--;
+  if (this->current_frame_ < 0) {
+    this->current_frame_ = this->animation_frame_count_ - 1;
+  }
+}
+
+void Animation::set_frame(int frame) {
+  unsigned abs_frame = abs(frame);
+
+  if (abs_frame < this->animation_frame_count_) {
+    if (frame >= 0) {
+      this->current_frame_ = frame;
+    } else {
+      this->current_frame_ = this->animation_frame_count_ - abs_frame;
+    }
   }
 }
 

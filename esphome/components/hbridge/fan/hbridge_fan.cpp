@@ -1,5 +1,4 @@
 #include "hbridge_fan.h"
-#include "esphome/components/fan/fan_helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {

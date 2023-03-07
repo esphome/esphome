@@ -49,7 +49,12 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     _validate,
-    cv.only_with_arduino,
+    cv.require_framework_version(
+        esp8266_arduino=cv.Version(2, 7, 4),
+        esp32_arduino=cv.Version(99, 0, 0),
+        max_version=True,
+        extra_message="Please see note on documentation for FastLED",
+    ),
 )
 
 

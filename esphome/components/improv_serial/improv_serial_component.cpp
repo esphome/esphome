@@ -24,6 +24,8 @@ void ImprovSerialComponent::setup() {
 
   if (wifi::global_wifi_component->has_sta()) {
     this->state_ = improv::STATE_PROVISIONED;
+  } else {
+    wifi::global_wifi_component->start_scanning();
   }
 }
 
@@ -93,6 +95,9 @@ void ImprovSerialComponent::loop() {
 
 std::vector<uint8_t> ImprovSerialComponent::build_rpc_settings_response_(improv::Command command) {
   std::vector<std::string> urls;
+  if (!this->next_url_.empty()) {
+    urls.push_back(this->get_formatted_next_url_());
+  }
 #ifdef USE_WEBSERVER
   auto ip = wifi::global_wifi_component->wifi_sta_ip();
   std::string webserver_url = "http://" + ip.str() + ":" + to_string(USE_WEBSERVER_PORT);
@@ -150,6 +155,27 @@ bool ImprovSerialComponent::parse_improv_payload_(improv::ImprovCommand &command
     case improv::GET_DEVICE_INFO: {
       std::vector<uint8_t> info = this->build_version_info_();
       this->send_response_(info);
+      return true;
+    }
+    case improv::GET_WIFI_NETWORKS: {
+      std::vector<std::string> networks;
+      auto results = wifi::global_wifi_component->get_scan_result();
+      for (auto &scan : results) {
+        if (scan.get_is_hidden())
+          continue;
+        const std::string &ssid = scan.get_ssid();
+        if (std::find(networks.begin(), networks.end(), ssid) != networks.end())
+          continue;
+        // Send each ssid separately to avoid overflowing the buffer
+        std::vector<uint8_t> data = improv::build_rpc_response(
+            improv::GET_WIFI_NETWORKS, {ssid, str_sprintf("%d", scan.get_rssi()), YESNO(scan.get_with_auth())}, false);
+        this->send_response_(data);
+        networks.push_back(ssid);
+      }
+      // Send empty response to signify the end of the list.
+      std::vector<uint8_t> data =
+          improv::build_rpc_response(improv::GET_WIFI_NETWORKS, std::vector<std::string>{}, false);
+      this->send_response_(data);
       return true;
     }
     default: {

@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ID,
     CONF_DEVICE_CLASS,
     CONF_STATE,
+    CONF_ON_OPEN,
     CONF_POSITION,
     CONF_POSITION_COMMAND_TOPIC,
     CONF_POSITION_STATE_TOPIC,
@@ -16,6 +17,17 @@ from esphome.const import (
     CONF_STOP,
     CONF_MQTT_ID,
     CONF_TRIGGER_ID,
+    DEVICE_CLASS_AWNING,
+    DEVICE_CLASS_BLIND,
+    DEVICE_CLASS_CURTAIN,
+    DEVICE_CLASS_DAMPER,
+    DEVICE_CLASS_DOOR,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_GARAGE,
+    DEVICE_CLASS_GATE,
+    DEVICE_CLASS_SHADE,
+    DEVICE_CLASS_SHUTTER,
+    DEVICE_CLASS_WINDOW,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
@@ -24,17 +36,17 @@ IS_PLATFORM_COMPONENT = True
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
-    "",
-    "awning",
-    "blind",
-    "curtain",
-    "damper",
-    "door",
-    "garage",
-    "gate",
-    "shade",
-    "shutter",
-    "window",
+    DEVICE_CLASS_AWNING,
+    DEVICE_CLASS_BLIND,
+    DEVICE_CLASS_CURTAIN,
+    DEVICE_CLASS_DAMPER,
+    DEVICE_CLASS_DOOR,
+    DEVICE_CLASS_EMPTY,
+    DEVICE_CLASS_GARAGE,
+    DEVICE_CLASS_GATE,
+    DEVICE_CLASS_SHADE,
+    DEVICE_CLASS_SHUTTER,
+    DEVICE_CLASS_WINDOW,
 ]
 
 cover_ns = cg.esphome_ns.namespace("cover")
@@ -74,7 +86,6 @@ CoverClosedTrigger = cover_ns.class_(
     "CoverClosedTrigger", automation.Trigger.template()
 )
 
-CONF_ON_OPEN = "on_open"
 CONF_ON_CLOSED = "on_closed"
 
 COVER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(

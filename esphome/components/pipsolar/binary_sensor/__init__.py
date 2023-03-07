@@ -1,9 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import (
-    CONF_ID,
-)
+
 from .. import PIPSOLAR_COMPONENT_SCHEMA, CONF_PIPSOLAR_ID
 
 DEPENDENCIES = ["uart"]
@@ -130,7 +128,7 @@ TYPES = [
 ]
 
 CONFIG_SCHEMA = PIPSOLAR_COMPONENT_SCHEMA.extend(
-    {cv.Optional(type): binary_sensor.BINARY_SENSOR_SCHEMA for type in TYPES}
+    {cv.Optional(type): binary_sensor.binary_sensor_schema() for type in TYPES}
 )
 
 
@@ -139,6 +137,5 @@ async def to_code(config):
     for type in TYPES:
         if type in config:
             conf = config[type]
-            sens = cg.new_Pvariable(conf[CONF_ID])
-            await binary_sensor.register_binary_sensor(sens, conf)
-            cg.add(getattr(paren, f"set_{type}")(sens))
+            var = await binary_sensor.new_binary_sensor(conf)
+            cg.add(getattr(paren, f"set_{type}")(var))

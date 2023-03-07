@@ -15,6 +15,13 @@ namespace button {
     } \
   }
 
+#define SUB_BUTTON(name) \
+ protected: \
+  button::Button *name##_button_{nullptr}; \
+\
+ public: \
+  void set_##name##_button(button::Button *button) { this->name##_button_ = button; }
+
 /** Base class for all buttons.
  *
  * A button is just a momentary switch that does not have a state, only a trigger.
@@ -45,12 +52,10 @@ class Button : public EntityBase {
  protected:
   /** You should implement this virtual method if you want to create your own button.
    */
-  virtual void press_action(){};
-
-  uint32_t hash_base() override;
+  virtual void press_action() = 0;
 
   CallbackManager<void()> press_callback_{};
-  optional<std::string> device_class_{};
+  std::string device_class_{};
 };
 
 }  // namespace button

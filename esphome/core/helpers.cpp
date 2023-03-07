@@ -8,6 +8,7 @@
 #include <cctype>
 #include <cmath>
 #include <cstring>
+#include <cstdarg>
 
 #if defined(USE_ESP8266)
 #include <osapi.h>
@@ -20,6 +21,12 @@
 #include "esp_system.h"
 #include <freertos/FreeRTOS.h>
 #include <freertos/portmacro.h>
+#elif defined(USE_RP2040)
+#if defined(USE_WIFI)
+#include <WiFi.h>
+#endif
+#include <hardware/structs/rosc.h>
+#include <hardware/sync.h>
 #endif
 
 #ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
@@ -61,6 +68,21 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
   }
   return crc;
 }
+uint16_t crc16(const uint8_t *data, uint8_t len) {
+  uint16_t crc = 0xFFFF;
+  while (len--) {
+    crc ^= *data++;
+    for (uint8_t i = 0; i < 8; i++) {
+      if ((crc & 0x01) != 0) {
+        crc >>= 1;
+        crc ^= 0xA001;
+      } else {
+        crc >>= 1;
+      }
+    }
+  }
+  return crc;
+}
 uint32_t fnv1_hash(const std::string &str) {
   uint32_t hash = 2166136261UL;
   for (char c : str) {
@@ -75,6 +97,13 @@ uint32_t random_uint32() {
   return esp_random();
 #elif defined(USE_ESP8266)
   return os_random();
+#elif defined(USE_RP2040)
+  uint32_t result = 0;
+  for (uint8_t i = 0; i < 32; i++) {
+    result <<= 1;
+    result |= rosc_hw->randombit;
+  }
+  return result;
 #else
 #error "No random source available for this configuration."
 #endif
@@ -86,6 +115,16 @@ bool random_bytes(uint8_t *data, size_t len) {
   return true;
 #elif defined(USE_ESP8266)
   return os_get_random(data, len) == 0;
+#elif defined(USE_RP2040)
+  while (len-- != 0) {
+    uint8_t result = 0;
+    for (uint8_t i = 0; i < 8; i++) {
+      result <<= 1;
+      result |= rosc_hw->randombit;
+    }
+    *data++ = result;
+  }
+  return true;
 #else
 #error "No random source available for this configuration."
 #endif
@@ -116,8 +155,8 @@ template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str)
   std::transform(str.begin(), str.end(), result.begin(), [](unsigned char ch) { return fn(ch); });
   return result;
 }
-std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
-std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
+std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
+std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
 std::string str_snake_case(const std::string &str) {
   std::string result;
   result.resize(str.length());
@@ -212,6 +251,25 @@ std::string format_hex_pretty(const uint8_t *data, size_t length) {
 }
 std::string format_hex_pretty(const std::vector<uint8_t> &data) { return format_hex_pretty(data.data(), data.size()); }
 
+std::string format_hex_pretty(const uint16_t *data, size_t length) {
+  if (length == 0)
+    return "";
+  std::string ret;
+  ret.resize(5 * length - 1);
+  for (size_t i = 0; i < length; i++) {
+    ret[5 * i] = format_hex_pretty_char((data[i] & 0xF000) >> 12);
+    ret[5 * i + 1] = format_hex_pretty_char((data[i] & 0x0F00) >> 8);
+    ret[5 * i + 2] = format_hex_pretty_char((data[i] & 0x00F0) >> 4);
+    ret[5 * i + 3] = format_hex_pretty_char(data[i] & 0x000F);
+    if (i != length - 1)
+      ret[5 * i + 2] = '.';
+  }
+  if (length > 4)
+    return ret + " (" + to_string(length) + ")";
+  return ret;
+}
+std::string format_hex_pretty(const std::vector<uint16_t> &data) { return format_hex_pretty(data.data(), data.size()); }
+
 ParseOnOffState parse_on_off(const char *str, const char *on, const char *off) {
   if (on == nullptr && strcasecmp(str, "on") == 0)
     return PARSE_ON;
@@ -236,6 +294,19 @@ std::string value_accuracy_to_string(float value, int8_t accuracy_decimals) {
   char tmp[32];  // should be enough, but we should maybe improve this at some point.
   snprintf(tmp, sizeof(tmp), "%.*f", accuracy_decimals, value);
   return std::string(tmp);
+}
+
+int8_t step_to_accuracy_decimals(float step) {
+  // use printf %g to find number of digits based on temperature step
+  char buf[32];
+  sprintf(buf, "%.5g", step);
+
+  std::string str{buf};
+  size_t dot_pos = str.find('.');
+  if (dot_pos == std::string::npos)
+    return 0;
+
+  return str.length() - dot_pos - 1;
 }
 
 // Colors
@@ -322,13 +393,30 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 }
 
 // System APIs
+#if defined(USE_ESP8266)
+// ESP8266 doesn't have mutexes, but that shouldn't be an issue as it's single-core and non-preemptive OS.
+Mutex::Mutex() {}
+void Mutex::lock() {}
+bool Mutex::try_lock() { return true; }
+void Mutex::unlock() {}
+#elif defined(USE_ESP32) || defined(USE_RP2040)
+Mutex::Mutex() { handle_ = xSemaphoreCreateMutex(); }
+void Mutex::lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
+bool Mutex::try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
+void Mutex::unlock() { xSemaphoreGive(this->handle_); }
+#endif
 
 #if defined(USE_ESP8266)
-IRAM_ATTR InterruptLock::InterruptLock() { xt_state_ = xt_rsil(15); }
-IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(xt_state_); }
+IRAM_ATTR InterruptLock::InterruptLock() { state_ = xt_rsil(15); }
+IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(state_); }
 #elif defined(USE_ESP32)
+// only affects the executing core
+// so should not be used as a mutex lock, only to get accurate timing
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
+#elif defined(USE_RP2040)
+IRAM_ATTR InterruptLock::InterruptLock() { state_ = save_and_disable_interrupts(); }
+IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
 #endif
 
 uint8_t HighFrequencyLoopRequester::num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -346,7 +434,7 @@ void HighFrequencyLoopRequester::stop() {
 }
 bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; }
 
-void get_mac_address_raw(uint8_t *mac) {
+void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
 #if defined(USE_ESP32)
 #if defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
   // On some devices, the MAC address that is burnt into EFuse does not
@@ -359,6 +447,8 @@ void get_mac_address_raw(uint8_t *mac) {
 #endif
 #elif defined(USE_ESP8266)
   wifi_get_macaddr(STATION_IF, mac);
+#elif defined(USE_RP2040) && defined(USE_WIFI)
+  WiFi.macAddress(mac);
 #endif
 }
 std::string get_mac_address() {

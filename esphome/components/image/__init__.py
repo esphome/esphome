@@ -25,6 +25,8 @@ IMAGE_TYPE = {
     "GRAYSCALE": ImageType.IMAGE_TYPE_GRAYSCALE,
     "RGB24": ImageType.IMAGE_TYPE_RGB24,
     "TRANSPARENT_BINARY": ImageType.IMAGE_TYPE_TRANSPARENT_BINARY,
+    "RGB565": ImageType.IMAGE_TYPE_RGB565,
+    "TRANSPARENT_IMAGE": ImageType.IMAGE_TYPE_TRANSPARENT_BINARY,
 }
 
 Image_ = display.display_ns.class_("Image")
@@ -89,7 +91,22 @@ async def to_code(config):
             data[pos] = pix[2]
             pos += 1
 
-    elif config[CONF_TYPE] == "BINARY":
+    elif config[CONF_TYPE] == "RGB565":
+        image = image.convert("RGB")
+        pixels = list(image.getdata())
+        data = [0 for _ in range(height * width * 3)]
+        pos = 0
+        for pix in pixels:
+            R = pix[0] >> 3
+            G = pix[1] >> 2
+            B = pix[2] >> 3
+            rgb = (R << 11) | (G << 5) | B
+            data[pos] = rgb >> 8
+            pos += 1
+            data[pos] = rgb & 255
+            pos += 1
+
+    elif (config[CONF_TYPE] == "BINARY") or (config[CONF_TYPE] == "TRANSPARENT_BINARY"):
         image = image.convert("1", dither=dither)
         width8 = ((width + 7) // 8) * 8
         data = [0 for _ in range(height * width8 // 8)]
@@ -100,7 +117,7 @@ async def to_code(config):
                 pos = x + y * width8
                 data[pos // 8] |= 0x80 >> (pos % 8)
 
-    elif config[CONF_TYPE] == "TRANSPARENT_BINARY":
+    elif config[CONF_TYPE] == "TRANSPARENT_IMAGE":
         image = image.convert("RGBA")
         width8 = ((width + 7) // 8) * 8
         data = [0 for _ in range(height * width8 // 8)]

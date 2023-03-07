@@ -169,6 +169,14 @@ void BME680BSECComponent::loop() {
   } else {
     this->status_clear_warning();
   }
+
+  // Process a single action from the queue. These are primarily sensor state publishes
+  // that in totality take too long to send in a single call.
+  if (this->queue_.size()) {
+    auto action = std::move(this->queue_.front());
+    this->queue_.pop();
+    action();
+  }
 }
 
 void BME680BSECComponent::run_() {
@@ -306,37 +314,39 @@ void BME680BSECComponent::read_(int64_t trigger_time_ns, bsec_bme_settings_t bme
 }
 
 void BME680BSECComponent::publish_(const bsec_output_t *outputs, uint8_t num_outputs) {
-  ESP_LOGV(TAG, "Publishing sensor states");
+  ESP_LOGV(TAG, "Queuing sensor state publish actions");
   for (uint8_t i = 0; i < num_outputs; i++) {
+    float signal = outputs[i].signal;
     switch (outputs[i].sensor_id) {
       case BSEC_OUTPUT_IAQ:
-      case BSEC_OUTPUT_STATIC_IAQ:
-        uint8_t accuracy;
-        accuracy = outputs[i].accuracy;
-        this->publish_sensor_state_(this->iaq_sensor_, outputs[i].signal);
-        this->publish_sensor_state_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[accuracy]);
-        this->publish_sensor_state_(this->iaq_accuracy_sensor_, accuracy, true);
+      case BSEC_OUTPUT_STATIC_IAQ: {
+        uint8_t accuracy = outputs[i].accuracy;
+        this->queue_push_([this, signal]() { this->publish_sensor_(this->iaq_sensor_, signal); });
+        this->queue_push_([this, accuracy]() {
+          this->publish_sensor_(this->iaq_accuracy_text_sensor_, IAQ_ACCURACY_STATES[accuracy]);
+        });
+        this->queue_push_([this, accuracy]() { this->publish_sensor_(this->iaq_accuracy_sensor_, accuracy, true); });
 
         // Queue up an opportunity to save state
-        this->defer("save_state", [this, accuracy]() { this->save_state_(accuracy); });
-        break;
+        this->queue_push_([this, accuracy]() { this->save_state_(accuracy); });
+      } break;
       case BSEC_OUTPUT_CO2_EQUIVALENT:
-        this->publish_sensor_state_(this->co2_equivalent_sensor_, outputs[i].signal);
+        this->queue_push_([this, signal]() { this->publish_sensor_(this->co2_equivalent_sensor_, signal); });
         break;
       case BSEC_OUTPUT_BREATH_VOC_EQUIVALENT:
-        this->publish_sensor_state_(this->breath_voc_equivalent_sensor_, outputs[i].signal);
+        this->queue_push_([this, signal]() { this->publish_sensor_(this->breath_voc_equivalent_sensor_, signal); });
         break;
       case BSEC_OUTPUT_RAW_PRESSURE:
-        this->publish_sensor_state_(this->pressure_sensor_, outputs[i].signal / 100.0f);
+        this->queue_push_([this, signal]() { this->publish_sensor_(this->pressure_sensor_, signal / 100.0f); });
         break;
       case BSEC_OUTPUT_RAW_GAS:
-        this->publish_sensor_state_(this->gas_resistance_sensor_, outputs[i].signal);
+        this->queue_push_([this, signal]() { this->publish_sensor_(this->gas_resistance_sensor_, signal); });
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_TEMPERATURE:
-        this->publish_sensor_state_(this->temperature_sensor_, outputs[i].signal);
+        this->queue_push_([this, signal]() { this->publish_sensor_(this->temperature_sensor_, signal); });
         break;
       case BSEC_OUTPUT_SENSOR_HEAT_COMPENSATED_HUMIDITY:
-        this->publish_sensor_state_(this->humidity_sensor_, outputs[i].signal);
+        this->queue_push_([this, signal]() { this->publish_sensor_(this->humidity_sensor_, signal); });
         break;
     }
   }
@@ -352,14 +362,14 @@ int64_t BME680BSECComponent::get_time_ns_() {
   return (time_ms + ((int64_t) this->millis_overflow_counter_ << 32)) * INT64_C(1000000);
 }
 
-void BME680BSECComponent::publish_sensor_state_(sensor::Sensor *sensor, float value, bool change_only) {
+void BME680BSECComponent::publish_sensor_(sensor::Sensor *sensor, float value, bool change_only) {
   if (!sensor || (change_only && sensor->has_state() && sensor->state == value)) {
     return;
   }
   sensor->publish_state(value);
 }
 
-void BME680BSECComponent::publish_sensor_state_(text_sensor::TextSensor *sensor, const std::string &value) {
+void BME680BSECComponent::publish_sensor_(text_sensor::TextSensor *sensor, const std::string &value) {
   if (!sensor || (sensor->has_state() && sensor->state == value)) {
     return;
   }

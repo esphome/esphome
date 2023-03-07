@@ -18,6 +18,7 @@ CONF_TFT_URL = "tft_url"
 CONF_ON_SLEEP = "on_sleep"
 CONF_ON_WAKE = "on_wake"
 CONF_ON_SETUP = "on_setup"
+CONF_ON_PAGE = "on_page"
 CONF_TOUCH_SLEEP_TIMEOUT = "touch_sleep_timeout"
 CONF_WAKE_UP_PAGE = "wake_up_page"
 CONF_AUTO_WAKE_ON_TOUCH = "auto_wake_on_touch"
@@ -91,7 +92,6 @@ CONFIG_SWITCH_COMPONENT_SCHEMA = CONFIG_SENSOR_COMPONENT_SCHEMA.extend(
 
 
 async def setup_component_core_(var, config, arg):
-
     if CONF_VARIABLE_NAME in config:
         cg.add(var.set_variable_name(config[CONF_VARIABLE_NAME]))
     elif CONF_COMPONENT_NAME in config:

@@ -13,9 +13,9 @@ class TestExpressions:
         "target, expected",
         (
             (cg.RawExpression("foo && bar"), "foo && bar"),
-            (cg.AssignmentExpression(None, None, "foo", "bar", None), 'foo = "bar"'),
-            (cg.AssignmentExpression(ct.float_, "*", "foo", 1, None), "float *foo = 1"),
-            (cg.AssignmentExpression(ct.float_, "", "foo", 1, None), "float foo = 1"),
+            (cg.AssignmentExpression(None, None, "foo", "bar"), 'foo = "bar"'),
+            (cg.AssignmentExpression(ct.float_, "*", "foo", 1), "float *foo = 1"),
+            (cg.AssignmentExpression(ct.float_, "", "foo", 1), "float foo = 1"),
             (cg.VariableDeclarationExpression(ct.int32, "*", "foo"), "int32_t *foo"),
             (cg.VariableDeclarationExpression(ct.int32, "", "foo"), "int32_t foo"),
             (cg.ParameterExpression(ct.std_string, "foo"), "std::string foo"),
@@ -274,7 +274,7 @@ class TestStatements:
                 "// Help help\n// I'm being repressed",
             ),
             (
-                cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar", None),
+                cg.ProgmemAssignmentExpression(ct.uint16, "foo", "bar"),
                 'static const uint16_t foo[] PROGMEM = "bar"',
             ),
         ),

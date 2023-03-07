@@ -5,7 +5,7 @@ from . import AS3935, CONF_AS3935_ID
 
 DEPENDENCIES = ["as3935"]
 
-CONFIG_SCHEMA = binary_sensor.BINARY_SENSOR_SCHEMA.extend(
+CONFIG_SCHEMA = binary_sensor.binary_sensor_schema().extend(
     {
         cv.GenerateID(CONF_AS3935_ID): cv.use_id(AS3935),
     }

@@ -177,8 +177,9 @@ void ESP32ImprovComponent::set_state_(improv::State state) {
 }
 
 void ESP32ImprovComponent::set_error_(improv::Error error) {
-  if (error != improv::ERROR_NONE)
+  if (error != improv::ERROR_NONE) {
     ESP_LOGE(TAG, "Error: %d", error);
+  }
   if (this->error_->get_value().empty() || this->error_->get_value()[0] != error) {
     uint8_t data[1]{error};
     this->error_->set_value(data, 1);
@@ -194,7 +195,7 @@ void ESP32ImprovComponent::send_response_(std::vector<uint8_t> &response) {
 }
 
 void ESP32ImprovComponent::start() {
-  if (this->state_ != improv::STATE_STOPPED)
+  if (this->should_start_ || this->state_ != improv::STATE_STOPPED)
     return;
 
   ESP_LOGD(TAG, "Setting Improv to start");

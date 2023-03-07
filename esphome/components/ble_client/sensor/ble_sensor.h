@@ -5,6 +5,8 @@
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <vector>
+
 #ifdef USE_ESP32
 #include <esp_gattc_api.h>
 
@@ -37,7 +39,6 @@ class BLESensor : public sensor::Sensor, public PollingComponent, public BLEClie
   uint16_t handle;
 
  protected:
-  uint32_t hash_base() override;
   float parse_data_(uint8_t *value, uint16_t value_len);
   optional<data_to_value_t> data_to_value_func_{};
   bool notify_;

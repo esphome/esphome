@@ -11,11 +11,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(CustomTextSensorConstructor),
         cv.Required(CONF_LAMBDA): cv.returning_lambda,
         cv.Required(CONF_TEXT_SENSORS): cv.ensure_list(
-            text_sensor.TEXT_SENSOR_SCHEMA.extend(
-                {
-                    cv.GenerateID(): cv.declare_id(text_sensor.TextSensor),
-                }
-            )
+            text_sensor.text_sensor_schema()
         ),
     }
 )
