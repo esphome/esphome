@@ -6,6 +6,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/filter.h"
 
+#include <vector>
+
 namespace esphome {
 namespace sensor {
 
@@ -28,6 +30,13 @@ namespace sensor {
       ESP_LOGV(TAG, "%s  Force Update: YES", prefix); \
     } \
   }
+
+#define SUB_SENSOR(name) \
+ protected: \
+  sensor::Sensor *name##_sensor_{nullptr}; \
+\
+ public: \
+  void set_##name##_sensor(sensor::Sensor *sensor) { this->name##_sensor_ = sensor; }
 
 /**
  * Sensor state classes

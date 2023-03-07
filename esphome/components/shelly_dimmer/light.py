@@ -22,11 +22,12 @@ from esphome.const import (
     UNIT_WATT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
 )
 from esphome.core import HexInt, CORE
 
 DOMAIN = "shelly_dimmer"
-DEPENDENCIES = ["sensor", "uart"]
+DEPENDENCIES = ["sensor", "uart", "esp8266"]
 
 shelly_dimmer_ns = cg.esphome_ns.namespace("shelly_dimmer")
 ShellyDimmer = shelly_dimmer_ns.class_(
@@ -169,7 +170,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_AMPERE,
-                device_class=DEVICE_CLASS_POWER,
+                device_class=DEVICE_CLASS_CURRENT,
                 accuracy_decimals=2,
             ),
             # Change the default gamma_correct setting.

@@ -20,8 +20,8 @@ class DHT12Component : public PollingComponent, public i2c::I2CDevice {
  protected:
   bool read_data_(uint8_t *data);
 
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *humidity_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *humidity_sensor_{nullptr};
 };
 
 }  // namespace dht12

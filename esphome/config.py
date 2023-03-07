@@ -4,7 +4,8 @@ import heapq
 import logging
 import re
 
-# pylint: disable=unused-import, wrong-import-order
+from typing import Optional, Union
+
 from contextlib import contextmanager
 
 import voluptuous as vol
@@ -13,6 +14,7 @@ from esphome import core, yaml_util, loader
 import esphome.core.config as core_config
 from esphome.const import (
     CONF_ESPHOME,
+    CONF_ID,
     CONF_PLATFORM,
     CONF_PACKAGES,
     CONF_SUBSTITUTIONS,
@@ -23,7 +25,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
-from typing import List, Optional, Tuple, Union
+from esphome.config_helpers import Extend
 from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
@@ -50,10 +52,10 @@ def iter_components(config):
                 yield p_name, platform, p_config
 
 
-ConfigPath = List[Union[str, int]]
+ConfigPath = list[Union[str, int]]
 
 
-def _path_begins_with(path, other):  # type: (ConfigPath, ConfigPath) -> bool
+def _path_begins_with(path: ConfigPath, other: ConfigPath) -> bool:
     if len(path) < len(other):
         return False
     return path[: len(other)] == other
@@ -67,7 +69,7 @@ class _ValidationStepTask:
         self.step = step
 
     @property
-    def _cmp_tuple(self) -> Tuple[float, int]:
+    def _cmp_tuple(self) -> tuple[float, int]:
         return (-self.priority, self.id_number)
 
     def __eq__(self, other):
@@ -84,21 +86,20 @@ class Config(OrderedDict, fv.FinalValidateConfig):
     def __init__(self):
         super().__init__()
         # A list of voluptuous errors
-        self.errors = []  # type: List[vol.Invalid]
+        self.errors: list[vol.Invalid] = []
         # A list of paths that should be fully outputted
         # The values will be the paths to all "domain", for example (['logger'], 'logger')
         # or (['sensor', 'ultrasonic'], 'sensor.ultrasonic')
-        self.output_paths = []  # type: List[Tuple[ConfigPath, str]]
+        self.output_paths: list[tuple[ConfigPath, str]] = []
         # A list of components ids with the config path
-        self.declare_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
+        self.declare_ids: list[tuple[core.ID, ConfigPath]] = []
         self._data = {}
         # Store pending validation tasks (in heap order)
-        self._validation_tasks: List[_ValidationStepTask] = []
+        self._validation_tasks: list[_ValidationStepTask] = []
         # ID to ensure stable order for keys with equal priority
         self._validation_tasks_id = 0
 
-    def add_error(self, error):
-        # type: (vol.Invalid) -> None
+    def add_error(self, error: vol.Invalid) -> None:
         if isinstance(error, vol.MultipleInvalid):
             for err in error.errors:
                 self.add_error(err)
@@ -132,20 +133,16 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             e.prepend(path)
             self.add_error(e)
 
-    def add_str_error(self, message, path):
-        # type: (str, ConfigPath) -> None
+    def add_str_error(self, message: str, path: ConfigPath) -> None:
         self.add_error(vol.Invalid(message, path))
 
-    def add_output_path(self, path, domain):
-        # type: (ConfigPath, str) -> None
+    def add_output_path(self, path: ConfigPath, domain: str) -> None:
         self.output_paths.append((path, domain))
 
-    def remove_output_path(self, path, domain):
-        # type: (ConfigPath, str) -> None
+    def remove_output_path(self, path: ConfigPath, domain: str) -> None:
         self.output_paths.remove((path, domain))
 
-    def is_in_error_path(self, path):
-        # type: (ConfigPath) -> bool
+    def is_in_error_path(self, path: ConfigPath) -> bool:
         for err in self.errors:
             if _path_begins_with(err.path, path):
                 return True
@@ -157,23 +154,27 @@ class Config(OrderedDict, fv.FinalValidateConfig):
             conf = conf[key]
         conf[path[-1]] = value
 
-    def get_error_for_path(self, path):
-        # type: (ConfigPath) -> Optional[vol.Invalid]
+    def get_error_for_path(self, path: ConfigPath) -> Optional[vol.Invalid]:
         for err in self.errors:
             if self.get_deepest_path(err.path) == path:
                 self.errors.remove(err)
                 return err
         return None
 
-    def get_deepest_document_range_for_path(self, path):
-        # type: (ConfigPath) -> Optional[ESPHomeDataBase]
+    def get_deepest_document_range_for_path(
+        self, path: ConfigPath, get_key: bool = False
+    ) -> Optional[ESPHomeDataBase]:
         data = self
         doc_range = None
-        for item_index in path:
+        for index, path_item in enumerate(path):
             try:
-                if item_index in data:
-                    doc_range = [x for x in data.keys() if x == item_index][0].esp_range
-                data = data[item_index]
+                if path_item in data:
+                    key_data = [x for x in data.keys() if x == path_item][0]
+                    if isinstance(key_data, ESPHomeDataBase):
+                        doc_range = key_data.esp_range
+                        if get_key and index == len(path) - 1:
+                            return doc_range
+                data = data[path_item]
             except (KeyError, IndexError, TypeError, AttributeError):
                 return doc_range
             if isinstance(data, core.ID):
@@ -203,8 +204,7 @@ class Config(OrderedDict, fv.FinalValidateConfig):
                 return {}
         return data
 
-    def get_deepest_path(self, path):
-        # type: (ConfigPath) -> ConfigPath
+    def get_deepest_path(self, path: ConfigPath) -> ConfigPath:
         """Return the path that is the deepest reachable by following path."""
         data = self
         part = []
@@ -281,7 +281,7 @@ class ConfigValidationStep(abc.ABC):
 class LoadValidationStep(ConfigValidationStep):
     """Load step, this step is called once for each domain config fragment.
 
-    Responsibilties:
+    Responsibilities:
     - Load component code
     - Ensure all AUTO_LOADs are added
     - Set output paths of result
@@ -336,6 +336,13 @@ class LoadValidationStep(ConfigValidationStep):
                 continue
             p_name = p_config.get("platform")
             if p_name is None:
+                p_id = p_config.get(CONF_ID)
+                if isinstance(p_id, Extend):
+                    result.add_str_error(
+                        f"Source for extension of ID '{p_id.value}' was not found.",
+                        path + [CONF_ID],
+                    )
+                    continue
                 result.add_str_error("No platform specified! See 'platform' key.", path)
                 continue
             # Remove temp output path and construct new one
@@ -528,7 +535,7 @@ class IDPassValidationStep(ConfigValidationStep):
             # because the component that did not validate doesn't have any IDs set
             return
 
-        searching_ids = []  # type: List[Tuple[core.ID, ConfigPath]]
+        searching_ids: list[tuple[core.ID, ConfigPath]] = []
         for id, path in iter_ids(result):
             if id.is_declaration:
                 if id.id is not None:
@@ -738,6 +745,10 @@ def validate_config(config, command_line_substitutions) -> Config:
             result.add_validation_step(LoadValidationStep(key, config[key]))
     result.run_validation_steps()
 
+    if result.errors:
+        # do not try to validate further as we don't know what the target is
+        return result
+
     for domain, conf in config.items():
         result.add_validation_step(LoadValidationStep(domain, conf))
     result.add_validation_step(IDPassValidationStep())
@@ -772,8 +783,7 @@ def _get_parent_name(path, config):
     return path[-1]
 
 
-def _format_vol_invalid(ex, config):
-    # type: (vol.Invalid, Config) -> str
+def _format_vol_invalid(ex: vol.Invalid, config: Config) -> str:
     message = ""
 
     paren = _get_parent_name(ex.path[:-1], config)
@@ -854,8 +864,9 @@ def _print_on_next_line(obj):
     return False
 
 
-def dump_dict(config, path, at_root=True):
-    # type: (Config, ConfigPath, bool) -> Tuple[str, bool]
+def dump_dict(
+    config: Config, path: ConfigPath, at_root: bool = True
+) -> tuple[str, bool]:
     conf = config.get_nested_item(path)
     ret = ""
     multiline = False
