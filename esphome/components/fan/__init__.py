@@ -23,6 +23,7 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
+from esphome.cpp_generator import MockObj
 
 IS_PLATFORM_COMPONENT = True
 
@@ -158,7 +159,7 @@ async def setup_fan_core_(var, config):
 async def register_fan(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_entity(var))
+    cg.add(MockObj("App.register_entity<Fan>")(var))
     await setup_fan_core_(var, config)
 
 

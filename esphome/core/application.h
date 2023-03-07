@@ -40,7 +40,7 @@ class Application {
   }
 
   template<typename Entity> const std::vector<Entity *> &get_entities() {
-    return std::get<std::vector<Entity *>>(entities_);
+    return get_by_type<std::vector<Entity *>>(entities_);
   }
 
   template<typename Entity> Entity *get_entity_by_key(uint32_t key, bool include_internal = false) {
@@ -53,7 +53,7 @@ class Application {
   }
 
   template<typename Entity> void register_entity(Entity *entity) {
-    std::get<std::vector<Entity *>>(entities_).push_back(entity);
+    get_by_type<std::vector<Entity *>>(entities_).push_back(entity);
   }
 
   const entityRegistry<entities_t>::type &get_entities() { return this->entities_; }

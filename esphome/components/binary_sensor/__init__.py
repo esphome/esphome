@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObjClass, MockObj
 from esphome.cpp_helpers import setup_entity
 from esphome import automation, core
 from esphome.automation import Condition, maybe_simple_id
@@ -472,7 +472,7 @@ async def setup_binary_sensor_core_(var, config):
 async def register_binary_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_entity(var))
+    cg.add(MockObj("App.register_entity<BinarySensor>")(var))
     await setup_binary_sensor_core_(var, config)
 
 

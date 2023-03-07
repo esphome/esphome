@@ -34,7 +34,7 @@ class ComponentIterator {
   virtual bool on_camera(esp32_camera::ESP32Camera *camera);
 #endif
 
-  template<typename Func> void on_entity_callback(Func &&fn) { std::get<callback_t<Func>>(callbacks_) = fn; }
+  template<typename Func> void on_entity_callback(Func &&fn) { get_by_type<callback_t<Func>>(callbacks_) = fn; }
 
   virtual bool on_end();
 

@@ -7,7 +7,7 @@ from esphome.const import CONF_ID, CONF_ON_STATE, CONF_TRIGGER_ID
 from esphome.core import CORE
 from esphome.coroutine import coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
-
+from esphome.cpp_generator import MockObj
 
 CODEOWNERS = ["@jesserockz"]
 
@@ -76,7 +76,7 @@ async def setup_media_player_core_(var, config):
 async def register_media_player(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_entity(var))
+    cg.add(MockObj("App.register_entity<MediaPlayer>")(var))
     await setup_media_player_core_(var, config)
 
 

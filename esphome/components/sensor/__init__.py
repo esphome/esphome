@@ -80,6 +80,7 @@ from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
 from esphome.util import Registry
+from esphome.cpp_generator import MockObj
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
@@ -615,7 +616,7 @@ async def setup_sensor_core_(var, config):
 async def register_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_entity(var))
+    cg.add(MockObj("App.register_entity<Sensor>")(var))
     await setup_sensor_core_(var, config)
 
 

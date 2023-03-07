@@ -9,6 +9,52 @@
 
 namespace esphome {
 
+template<typename Callbacks> struct Visitor {
+  Visitor(size_t at, bool include_internal, bool &success, Callbacks &callbacks)
+      : at(at), include_internal(include_internal), success(success), callbacks(callbacks) {}
+  template<typename T> void visit(const T &arg) {
+    if (stop) {
+      return;
+    }
+    if (at < arg.size() + sum) {
+      stop = true;
+      // TODO there should be condtion to cast like that???
+      auto *entity = arg[at - sum];
+      if (reinterpret_cast<EntityBase *>(entity)->is_internal() && !include_internal) {
+        success = true;
+      } else {
+        using entity_t = typename std::remove_reference<decltype(arg)>::type::value_type;
+        auto callback = get_by_type<std::function<bool(entity_t)>>(callbacks);
+        if (callback) {
+          success = callback(entity);
+        } else {
+          success = true;
+        }
+      }
+    } else {
+      sum += arg.size();
+      ++index;
+    }
+  }
+
+  template<typename Tuple, size_t... Indices> void visit_impl(const Tuple &tuple, index_sequence<Indices...>) {
+    int dummy[] = {0, ((void) visit(std::get<Indices>(tuple)), 0)...};
+    (void) dummy;
+  }
+
+  template<typename... Args> void visit(const std::tuple<Args...> &tuple) {
+    visit_impl(tuple, make_index_sequence<sizeof...(Args)>{});
+  }
+
+  size_t sum{0};
+  bool stop{false};
+  size_t at;
+  bool include_internal;
+  bool &success;
+  size_t index{0};
+  Callbacks &callbacks;
+};
+
 void ComponentIterator::begin(bool include_internal) {
   this->state_ = IteratorState::BEGIN;
   this->at_ = 0;
@@ -29,40 +75,9 @@ void ComponentIterator::advance() {
       }
       break;
     case IteratorState::ALL_ENTITIES: {
-      size_t index = 0;
-      std::apply(
-          [this, &success, &index](auto &&...args) {
-            size_t sum = 0;
-            bool stop = false;
-            (
-                [this, &success, &index, &sum, &stop](auto &&arg) {
-                  if (stop) {
-                    return;
-                  }
-                  if (this->at_ < arg.size() + sum) {
-                    stop = true;
-                    // TODO there should be condtion to cast like that???
-                    auto *entity = arg[this->at_ - sum];
-                    if (reinterpret_cast<EntityBase *>(entity)->is_internal() && !this->include_internal_) {
-                      success = true;
-                    } else {
-                      using entity_t = typename std::remove_reference<decltype(arg)>::type::value_type;
-                      auto callback = std::get<std::function<bool(entity_t)>>(callbacks_);
-                      if (callback) {
-                        success = callback(entity);
-                      } else {
-                        success = true;
-                      }
-                    }
-                  } else {
-                    sum += arg.size();
-                    index += 1;
-                  }
-                }(args),
-                ...);
-          },
-          App.get_entities());
-      if (index >= std::tuple_size<entities_t>::value) {
+      Visitor<entityCallbacks<entities_t>::type> visitor(this->at_, this->include_internal_, success, callbacks_);
+      visitor.visit(App.get_entities());
+      if (visitor.index >= std::tuple_size<entities_t>::value) {
         advance_platform = true;
       }
     } break;

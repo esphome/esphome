@@ -66,6 +66,7 @@ from esphome.const import (
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
 from esphome.cpp_generator import MockObjClass
+from esphome.cpp_generator import MockObj
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
@@ -243,7 +244,7 @@ async def register_number(
 ):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_entity(var))
+    cg.add(MockObj("App.register_entity<Number>")(var))
     await setup_number_core_(
         var, config, min_value=min_value, max_value=max_value, step=step
     )
