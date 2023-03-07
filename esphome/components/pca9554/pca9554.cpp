@@ -36,7 +36,7 @@ void PCA9554Component::setup() {
 }
 void PCA9554Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCA9554:");
-  LOG_I2C_DEVICE(this)
+  LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with PCA9554 failed!");
   }

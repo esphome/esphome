@@ -19,7 +19,7 @@ void PCF8574Component::setup() {
 }
 void PCF8574Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCF8574:");
-  LOG_I2C_DEVICE(this)
+  LOG_I2C_DEVICE(this);
   ESP_LOGCONFIG(TAG, "  Is PCF8575: %s", YESNO(this->pcf8575_));
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with PCF8574 failed!");
