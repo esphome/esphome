@@ -56,9 +56,16 @@ class ControllerTest : public ::testing::Test, public esphome::Controller {
     ASSERT_EQ(arg.size(), 0);
   }
 
-  void TearDown() override {
-    std::apply([](auto &&...args) { (clear(args), ...); }, App.get_entities());
+  template<typename Tuple, size_t... Indices> void clear_impl(const Tuple &tuple, index_sequence<Indices...>) {
+    int dummy[] = {0, ((void) clear(std::get<Indices>(tuple)), 0)...};
+    (void) dummy;
   }
+
+  template<typename... Args> void clear(const std::tuple<Args...> &tuple) {
+    clear_impl(tuple, make_index_sequence<sizeof...(Args)>{});
+  }
+
+  void TearDown() override { clear(App.get_entities()); }
 
   MockSwitch sw_1_;
   MockSwitch sw_2_;

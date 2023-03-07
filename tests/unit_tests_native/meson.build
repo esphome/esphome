@@ -1,4 +1,4 @@
-project('esphome', 'cpp', default_options : ['warning_level=3', 'cpp_std=c++17', 'b_sanitize=address,undefined'])
+project('esphome', 'cpp', default_options : ['warning_level=3', 'cpp_std=c++14', 'b_sanitize=address,undefined'])
 
 add_project_arguments('-DUNIT_TESTS', language : 'cpp')
 
