@@ -14,7 +14,9 @@
 #define ESPHOME_VARIANT "ESP32"
 
 // Feature flags
+#ifndef UNIT_TESTS
 #define USE_API
+#endif
 #define USE_API_NOISE
 #define USE_API_PLAINTEXT
 #define USE_BINARY_SENSOR

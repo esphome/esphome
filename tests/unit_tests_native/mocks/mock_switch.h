@@ -6,7 +6,6 @@ namespace esphome {
 namespace test {
 
 struct Switch : public EntityBase {
-  static constexpr EntityType ENTITY_TYPE{SWITCH};
   virtual void add_on_state_callback(std::function<void(bool)> &&callback) { this->callback_ = callback; }
   void set(bool value) {
     state = value;

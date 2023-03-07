@@ -6,7 +6,6 @@ namespace esphome {
 namespace test {
 
 struct Sensor : public EntityBase {
-  static constexpr EntityType ENTITY_TYPE{SENSOR};
   virtual void add_on_state_callback(std::function<void(float)> &&callback) { this->callback_ = callback; }
   void set(float value) {
     state = value;

@@ -38,14 +38,12 @@ class ComponentIteratorTest : public ::testing::Test, public ComponentIterator {
     register_entity_<Switch>(sw_1_);
     register_entity_<Switch>(sw_2_, true);
     register_entity_<Switch>(sw_3_);
-    // ASSERT_EQ(App.get_entities().size(), EntityType::SWITCH + 1);
     register_entity_<Sensor>(sensor_1_);
     register_entity_<Sensor>(sensor_2_, true);
     register_entity_<Sensor>(sensor_3_, true);
     // ASSERT_EQ(App.get_entities().size(), std::max(SWITCH, SENSOR) + 1);
     register_entity_<CustomEntity>(custom_1_);
     register_entity_<CustomEntity>(custom_2_, true);
-    // ASSERT_EQ(App.get_entities().size(), EntityType::MAX + 1);
     on_entity_callback([this](Switch *obj) { return this->visitor_.visit(obj); });
     on_entity_callback([this](Sensor *obj) { return this->visitor_.visit(obj); });
     on_entity_callback([this](CustomEntity *obj) { return this->visitor_.visit(obj); });

@@ -104,6 +104,8 @@ uint32_t random_uint32() {
     result |= rosc_hw->randombit;
   }
   return result;
+#elif __linux__
+  return 0;
 #else
 #error "No random source available for this configuration."
 #endif
@@ -125,6 +127,8 @@ bool random_bytes(uint8_t *data, size_t len) {
     *data++ = result;
   }
   return true;
+#elif __linux__
+  return 0;
 #else
 #error "No random source available for this configuration."
 #endif
@@ -142,7 +146,7 @@ bool str_endswith(const std::string &str, const std::string &end) {
 std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
-std::string str_until(const char *str, char ch) {
+std::string str_until(char *str, char ch) {
   char *pos = strchr(str, ch);
   return pos == nullptr ? std::string(str) : std::string(str, pos - str);
 }
