@@ -1224,6 +1224,12 @@ sensor:
   - platform: sen21231
     name: "Person Sensor"
     i2c_id: i2c_bus
+  - platform: fs3000
+    name: "Air Velocity"
+    model: 1005
+    update_interval: 60s
+    i2c_id: i2c_bus
+
 esp32_touch:
   setup_mode: false
   iir_filter: 10ms
@@ -2052,6 +2058,8 @@ climate:
     name: Midea IR
     use_fahrenheit: true
   - platform: midea
+    on_control:
+      logger.log: Control message received!
     on_state:
       logger.log: State changed!
     id: midea_unit
