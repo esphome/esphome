@@ -144,7 +144,6 @@ async def past_safe_mode():
         while True:
             if CORE.data.get(CONF_OTA, {}).get(KEY_PAST_SAFE_MODE, False):
                 return
-            else:
-                yield
+            yield
 
     return await FakeAwaitable(_safe_mode_generator())
