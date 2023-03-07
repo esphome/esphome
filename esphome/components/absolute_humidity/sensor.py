@@ -5,7 +5,6 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_ID,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_EMPTY,
     STATE_CLASS_MEASUREMENT,
     CONF_EQUATION,
     ICON_WATER,
@@ -31,7 +30,6 @@ CONFIG_SCHEMA = (
         unit_of_measurement=UNIT_GRAMS_PER_CUBIC_METER,
         icon=ICON_WATER,
         accuracy_decimals=2,
-        device_class=DEVICE_CLASS_EMPTY,
         state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(
@@ -47,9 +45,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
 
     temperature_sensor = await cg.get_variable(config[CONF_TEMPERATURE])
     cg.add(var.set_temperature_sensor(temperature_sensor))

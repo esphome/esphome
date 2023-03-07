@@ -18,9 +18,9 @@ class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
  public:
   AbsoluteHumidityComponent() = default;
 
-  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
-  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }
-  void set_equation(SaturationVaporPressureEquation equation) { equation_ = equation; }
+  void set_temperature_sensor(sensor::Sensor *temperature_sensor) { this->temperature_sensor_ = temperature_sensor; }
+  void set_humidity_sensor(sensor::Sensor *humidity_sensor) { this->humidity_sensor_ = humidity_sensor; }
+  void set_equation(SaturationVaporPressureEquation equation) { this->equation_ = equation; }
 
   void setup() override;
   void dump_config() override;
@@ -69,7 +69,7 @@ class AbsoluteHumidityComponent : public sensor::Sensor, public Component {
 
   float temperature_{NAN};
   float humidity_{NAN};
-  SaturationVaporPressureEquation equation_{WOBUS};
+  SaturationVaporPressureEquation equation_;
 };
 
 }  // namespace absolute_humidity
