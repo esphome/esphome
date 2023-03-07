@@ -24,6 +24,8 @@ class MideaData {
   }
   // Default copy constructor
   MideaData(const MideaData &) = default;
+  // Default copy assignment operator
+  MideaData &operator=(const MideaData &) = default;
 
   uint8_t *data() { return this->data_.data(); }
   const uint8_t *data() const { return this->data_.data(); }
