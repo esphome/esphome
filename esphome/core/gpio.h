@@ -5,9 +5,11 @@
 namespace esphome {
 
 #define LOG_PIN(prefix, pin) \
-  if ((pin) != nullptr) { \
-    ESP_LOGCONFIG(TAG, prefix "%s", (pin)->dump_summary().c_str()); \
-  }
+  do { \
+    if ((pin) != nullptr) { \
+      ESP_LOGCONFIG(TAG, prefix "%s", (pin)->dump_summary().c_str()); \
+    } \
+  } while (0)
 
 // put GPIO flags in a namespace to not pollute esphome namespace
 namespace gpio {
