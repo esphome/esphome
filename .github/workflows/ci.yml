@@ -130,7 +130,7 @@ jobs:
         run: |
           sudo apt-get install \
               clang-format-11 \
-              clang-tidy-11
+              clang-tidy-13
         if: matrix.id == 'clang-tidy' || matrix.id == 'clang-format'
 
       - name: Register problem matchers

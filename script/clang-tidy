@@ -75,8 +75,9 @@ def clang_options(idedata):
         for flag in idedata["cxx_flags"].split(" ")
         if flag
         not in (
-            "-free",
             "-fipa-pta",
+            "-free",
+            "-freorder-blocks",
             "-fstrict-volatile-bitfields",
             "-mlongcalls",
             "-mtext-section-literals",
@@ -113,7 +114,7 @@ def clang_options(idedata):
 def run_tidy(args, options, tmpdir, queue, lock, failed_files):
     while True:
         path = queue.get()
-        invocation = ["clang-tidy-11"]
+        invocation = ["clang-tidy-13"]
 
         if tmpdir is not None:
             invocation.append("--export-fixes")
@@ -194,14 +195,14 @@ def main():
     args = parser.parse_args()
 
     try:
-        get_output("clang-tidy-11", "-version")
+        get_output("clang-tidy-13", "-version")
     except:
         print(
             """
-        Oops. It looks like clang-tidy-11 is not installed.
+        Oops. It looks like clang-tidy-13 is not installed.
 
-        Please check you can run "clang-tidy-11 -version" in your terminal and install
-        clang-tidy (v11) if necessary.
+        Please check you can run "clang-tidy-13 -version" in your terminal and install
+        clang-tidy (v13) if necessary.
 
         Note you can also upload your code as a pull request on GitHub and see the CI check
         output to apply clang-tidy.
