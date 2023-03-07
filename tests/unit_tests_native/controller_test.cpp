@@ -25,18 +25,18 @@ struct MockListener : public Listener {
 class ControllerTest : public ::testing::Test, public esphome::Controller {
  protected:
   void SetUp() override {  // NOLINT
-    ASSERT_EQ(App.get_entities_all_types().size(), 0);
-    register_entity_(sw_1_);
-    register_entity_(sw_2_, true);
-    register_entity_(sw_3_);
-    ASSERT_EQ(App.get_entities_all_types().size(), EntityType::SWITCH + 1);
-    register_entity_(sensor_1_);
-    register_entity_(sensor_2_, true);
-    register_entity_(sensor_3_, true);
-    ASSERT_EQ(App.get_entities_all_types().size(), std::max(SWITCH, SENSOR) + 1);
-    register_entity_(custom_1_);
-    register_entity_(custom_2_, true);
-    ASSERT_EQ(App.get_entities_all_types().size(), EntityType::MAX + 1);
+    // ASSERT_EQ(App.get_entities().size(), 0);
+    register_entity_<Switch>(sw_1_);
+    register_entity_<Switch>(sw_2_, true);
+    register_entity_<Switch>(sw_3_);
+    // ASSERT_EQ(App.get_entities().size(), EntityType::SWITCH + 1);
+    register_entity_<Sensor>(sensor_1_);
+    register_entity_<Sensor>(sensor_2_, true);
+    register_entity_<Sensor>(sensor_3_, true);
+    // ASSERT_EQ(App.get_entities().size(), std::max(SWITCH, SENSOR) + 1);
+    register_entity_<CustomEntity>(custom_1_);
+    register_entity_<CustomEntity>(custom_2_, true);
+    // ASSERT_EQ(App.get_entities().size(), EntityType::MAX + 1);
     Controller::add_on_state_callback([this](Switch *obj) { this->listener_.send(obj, obj->state); },
                                       include_internal_);
     Controller::add_on_state_callback([this](Sensor *obj) { this->listener_.send(obj, obj->state); },
@@ -45,17 +45,21 @@ class ControllerTest : public ::testing::Test, public esphome::Controller {
                                       include_internal_);
   }
 
-  template<typename T> void register_entity_(T &t, bool internal = false) {
+  template<typename Entity, typename T> void register_entity_(T &t, bool internal = false) {
     t.set_internal(internal);
-    App.register_entity(&t);
+    App.register_entity(static_cast<Entity *>(&t));
     if (!internal || include_internal_) {
       EXPECT_CALL(t, add_on_state_callback(_));
     }
   }
 
-  void TearDown() override {  // NOLINT
-    const_cast<std::vector<std::vector<EntityBase *>> &>(App.get_entities_all_types()).clear();
-    ASSERT_EQ(App.get_entities_all_types().size(), 0);
+  template<typename T> static void clear(const T &arg) {
+    const_cast<T &>(arg).clear();
+    ASSERT_EQ(arg.size(), 0);
+  }
+
+  void TearDown() override {
+    std::apply([](auto &&...args) { (clear(args), ...); }, App.get_entities());
   }
 
   MockSwitch sw_1_;

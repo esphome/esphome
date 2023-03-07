@@ -5,6 +5,8 @@
 #include "mocks/mock_custom_entity.h"
 #include "esphome/core/application.h"
 
+#include <cxxabi.h>
+
 namespace esphome {
 Application App;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 namespace test {
@@ -12,25 +14,29 @@ namespace test {
 class ApplicationTest : public ::testing::Test {
  protected:
   void SetUp() override {  // NOLINT
-    ASSERT_EQ(App.get_entities_all_types().size(), 0);
-    register_entity_(sw_1_);
-    register_entity_(sw_2_, true);
-    register_entity_(sw_3_);
-    register_entity_(sensor_1_);
-    register_entity_(sensor_2_, true);
-    register_entity_(sensor_3_, true);
-    ASSERT_EQ(App.get_entities_all_types().size(), std::max(SWITCH, SENSOR) + 1);
+    // ASSERT_EQ(App.get_entities().size(), 0);
+    register_entity_<Switch>(sw_1_);
+    register_entity_<Switch>(sw_2_, true);
+    register_entity_<Switch>(sw_3_);
+    register_entity_<Sensor>(sensor_1_);
+    register_entity_<Sensor>(sensor_2_, true);
+    register_entity_<Sensor>(sensor_3_, true);
+    // ASSERT_EQ(App.get_entities().size(), std::max(SWITCH, SENSOR) + 1);
   }
 
-  template<typename T> void register_entity_(T &t, bool internal = false) {
+  template<typename Entity, typename T> void register_entity_(T &t, bool internal = false) {
     t.set_internal(internal);
     t.set_name(std::to_string(id_++));
-    App.register_entity(&t);
+    App.register_entity(static_cast<Entity *>(&t));
   }
 
-  void TearDown() override {  // NOLINT
-    const_cast<std::vector<std::vector<EntityBase *>> &>(App.get_entities_all_types()).clear();
-    ASSERT_EQ(App.get_entities_all_types().size(), 0);
+  template<typename T> static void clear(const T &arg) {
+    const_cast<T &>(arg).clear();
+    ASSERT_EQ(arg.size(), 0);
+  }
+
+  void TearDown() override {
+    std::apply([](auto &&...args) { (clear(args), ...); }, App.get_entities());
   }
 
   MockSwitch sw_1_;
@@ -46,10 +52,10 @@ TEST_F(ApplicationTest, GetEntity) {  // NOLINT
   EXPECT_EQ(App.get_entities<Sensor>().size(), 3);
   EXPECT_EQ(App.get_entities<Switch>().size(), 3);
   MockCustomEntity ce_1;
-  App.register_entity(&ce_1);
+  register_entity_<CustomEntity>(ce_1);
   EXPECT_EQ(App.get_entities<CustomEntity>().size(), 1);
   MockCustomEntity ce_2;
-  App.register_entity(&ce_2);
+  register_entity_<CustomEntity>(ce_2);
   EXPECT_EQ(App.get_entities<CustomEntity>().size(), 2);
 }
 
