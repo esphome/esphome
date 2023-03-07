@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import sensor
 from esphome.const import (
     CONF_HUMIDITY,
-    CONF_ID,
     CONF_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     CONF_EQUATION,

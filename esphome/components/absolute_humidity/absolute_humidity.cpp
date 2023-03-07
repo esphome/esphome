@@ -118,7 +118,7 @@ float AbsoluteHumidityComponent::es_buck(float temperature_c) {
     c = 233.7;
     d = 279.82;
   }
-  return a * exp((b - (temperature_c / c)) * (temperature_c / (d + temperature_c)));
+  return a * expf((b - (temperature_c / c)) * (temperature_c / (d + temperature_c)));
 }
 
 // Tetens equation (https://en.wikipedia.org/wiki/Tetens_equation)
@@ -131,7 +131,7 @@ float AbsoluteHumidityComponent::es_tetens(float temperature_c) {
     a = 21.875;
     b = 265.5;
   }
-  return 0.61078 * exp((a * temperature_c) / (temperature_c + b));
+  return 0.61078 * expf((a * temperature_c) / (temperature_c + b));
 }
 
 // Wobus equation
@@ -160,8 +160,7 @@ float AbsoluteHumidityComponent::es_wobus(float t) {
   const float c7 = -0.17892321e-14;
   const float c8 = +0.11112018e-16;
   const float c9 = -0.30994571e-19;
-  const float p =
-      c0 + t * (c1 + t * (c2 + t * (c3 + t * (c4 + t * (c5 + t * (c6 + t * (c7 + t * (c8 + t * (c9)))))))));
+  const float p = c0 + t * (c1 + t * (c2 + t * (c3 + t * (c4 + t * (c5 + t * (c6 + t * (c7 + t * (c8 + t * (c9)))))))));
   return 0.61078 / pow(p, 8);
 }
 
