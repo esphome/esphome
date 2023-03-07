@@ -713,7 +713,7 @@ def sony_dumper(var, config):
 
 @register_action("sony", SonyAction, SONY_SCHEMA)
 async def sony_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
     template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
     cg.add(var.set_nbits(template_))
