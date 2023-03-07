@@ -57,7 +57,7 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   void on_before_show() override;
   void on_before_hide() override;
 
-  display::DisplayPage *display_page_{nullptr};
+  std::unique_ptr<display::DisplayPage> display_page_{nullptr};
   const display::DisplayPage *previous_display_page_{nullptr};
   display::DisplayBuffer *display_buffer_{nullptr};
   display::Font *font_{nullptr};

@@ -10,7 +10,7 @@ static const char *const TAG = "graphical_display_menu";
 
 void GraphicalDisplayMenu::setup() {
   display::display_writer_t writer = [this](display::DisplayBuffer &it) { this->draw_menu_internal_(); };
-  this->display_page_ = new display::DisplayPage(writer);
+  this->display_page_ = std::unique_ptr<display::DisplayPage>(new display::DisplayPage(writer));
 
   if (!this->menu_item_value_.has_value()) {
     this->menu_item_value_ = [](const MenuItemValueArguments *it) {
@@ -55,7 +55,7 @@ void GraphicalDisplayMenu::set_background_color(Color background_color) { this->
 
 void GraphicalDisplayMenu::on_before_show() {
   this->previous_display_page_ = this->display_buffer_->get_active_page();
-  this->display_buffer_->show_page(this->display_page_);
+  this->display_buffer_->show_page(this->display_page_.get());
   this->display_buffer_->clear();
 }
 
