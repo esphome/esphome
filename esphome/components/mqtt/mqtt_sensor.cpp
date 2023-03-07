@@ -28,7 +28,7 @@ void MQTTSensorComponent::dump_config() {
   if (this->get_expire_after() > 0) {
     ESP_LOGCONFIG(TAG, "  Expire After: %us", this->get_expire_after() / 1000);
   }
-  LOG_MQTT_COMPONENT(true, false)
+  LOG_MQTT_COMPONENT(true, false);
 }
 
 std::string MQTTSensorComponent::component_type() const { return "sensor"; }

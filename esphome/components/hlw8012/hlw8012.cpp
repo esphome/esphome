@@ -35,17 +35,17 @@ void HLW8012Component::setup() {
 }
 void HLW8012Component::dump_config() {
   ESP_LOGCONFIG(TAG, "HLW8012:");
-  LOG_PIN("  SEL Pin: ", this->sel_pin_)
-  LOG_PIN("  CF Pin: ", this->cf_pin_)
-  LOG_PIN("  CF1 Pin: ", this->cf1_pin_)
+  LOG_PIN("  SEL Pin: ", this->sel_pin_);
+  LOG_PIN("  CF Pin: ", this->cf_pin_);
+  LOG_PIN("  CF1 Pin: ", this->cf1_pin_);
   ESP_LOGCONFIG(TAG, "  Change measurement mode every %u", this->change_mode_every_);
   ESP_LOGCONFIG(TAG, "  Current resistor: %.1f mΩ", this->current_resistor_ * 1000.0f);
   ESP_LOGCONFIG(TAG, "  Voltage Divider: %.1f", this->voltage_divider_);
-  LOG_UPDATE_INTERVAL(this)
-  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_)
-  LOG_SENSOR("  ", "Current", this->current_sensor_)
-  LOG_SENSOR("  ", "Power", this->power_sensor_)
-  LOG_SENSOR("  ", "Energy", this->energy_sensor_)
+  LOG_UPDATE_INTERVAL(this);
+  LOG_SENSOR("  ", "Voltage", this->voltage_sensor_);
+  LOG_SENSOR("  ", "Current", this->current_sensor_);
+  LOG_SENSOR("  ", "Power", this->power_sensor_);
+  LOG_SENSOR("  ", "Energy", this->energy_sensor_);
 }
 float HLW8012Component::get_setup_priority() const { return setup_priority::DATA; }
 void HLW8012Component::update() {
