@@ -75,7 +75,7 @@ void AbsoluteHumidityComponent::loop() {
   const float hr = this->humidity_ / 100;
 
   // Calculate saturation vapor pressure
-  double es;
+  float es;
   switch (this->equation_) {
     case BUCK:
       es = es_buck(temperature_c);
@@ -105,8 +105,8 @@ void AbsoluteHumidityComponent::loop() {
 
 // Buck equation (https://en.wikipedia.org/wiki/Arden_Buck_equation)
 // More accurate than Tetens in normal meteorologic conditions
-double AbsoluteHumidityComponent::es_buck(float temperature_c) {
-  double a, b, c, d;
+float AbsoluteHumidityComponent::es_buck(float temperature_c) {
+  float a, b, c, d;
   if (temperature_c >= 0) {
     a = 0.61121;
     b = 18.678;
@@ -122,8 +122,8 @@ double AbsoluteHumidityComponent::es_buck(float temperature_c) {
 }
 
 // Tetens equation (https://en.wikipedia.org/wiki/Tetens_equation)
-double AbsoluteHumidityComponent::es_tetens(float temperature_c) {
-  double a, b;
+float AbsoluteHumidityComponent::es_tetens(float temperature_c) {
+  float a, b;
   if (temperature_c >= 0) {
     a = 17.27;
     b = 237.3;
@@ -138,7 +138,7 @@ double AbsoluteHumidityComponent::es_tetens(float temperature_c) {
 // https://wahiduddin.net/calc/density_altitude.htm
 // https://wahiduddin.net/calc/density_algorithms.htm
 // Calculate the saturation vapor pressure (kPa)
-double AbsoluteHumidityComponent::es_wobus(float t) {
+float AbsoluteHumidityComponent::es_wobus(float t) {
   // THIS FUNCTION RETURNS THE SATURATION VAPOR PRESSURE ESW (MILLIBARS)
   // OVER LIQUID WATER GIVEN THE TEMPERATURE T (CELSIUS). THE POLYNOMIAL
   // APPROXIMATION BELOW IS DUE TO HERMAN WOBUS, A MATHEMATICIAN WHO
@@ -150,17 +150,17 @@ double AbsoluteHumidityComponent::es_wobus(float t) {
   //
   //     Baker, Schlatter  17-MAY-1982     Original version.
 
-  const double c0 = +0.99999683e00;
-  const double c1 = -0.90826951e-02;
-  const double c2 = +0.78736169e-04;
-  const double c3 = -0.61117958e-06;
-  const double c4 = +0.43884187e-08;
-  const double c5 = -0.29883885e-10;
-  const double c6 = +0.21874425e-12;
-  const double c7 = -0.17892321e-14;
-  const double c8 = +0.11112018e-16;
-  const double c9 = -0.30994571e-19;
-  const double p =
+  const float c0 = +0.99999683e00;
+  const float c1 = -0.90826951e-02;
+  const float c2 = +0.78736169e-04;
+  const float c3 = -0.61117958e-06;
+  const float c4 = +0.43884187e-08;
+  const float c5 = -0.29883885e-10;
+  const float c6 = +0.21874425e-12;
+  const float c7 = -0.17892321e-14;
+  const float c8 = +0.11112018e-16;
+  const float c9 = -0.30994571e-19;
+  const float p =
       c0 + t * (c1 + t * (c2 + t * (c3 + t * (c4 + t * (c5 + t * (c6 + t * (c7 + t * (c8 + t * (c9)))))))));
   return 0.61078 / pow(p, 8);
 }
@@ -168,14 +168,14 @@ double AbsoluteHumidityComponent::es_wobus(float t) {
 // From https://www.environmentalbiophysics.org/chalk-talk-how-to-calculate-absolute-humidity/
 // H/T to https://esphome.io/cookbook/bme280_environment.html
 // H/T to https://carnotcycle.wordpress.com/2012/08/04/how-to-convert-relative-humidity-to-absolute-humidity/
-float AbsoluteHumidityComponent::vapor_density(double es, float hr, float ta) {
+float AbsoluteHumidityComponent::vapor_density(float es, float hr, float ta) {
   // es = saturated vapor pressure (kPa)
   // hr = relative humidity [0-1]
   // ta = absolute temperature (K)
 
-  const double ea = hr * es * 1000;   // vapor pressure of the air (Pa)
-  const double mw = 18.01528;         // molar mass of water (g⋅mol⁻¹)
-  const double r = 8.31446261815324;  // molar gas constant (J⋅K⁻¹)
+  const float ea = hr * es * 1000;   // vapor pressure of the air (Pa)
+  const float mw = 18.01528;         // molar mass of water (g⋅mol⁻¹)
+  const float r = 8.31446261815324;  // molar gas constant (J⋅K⁻¹)
   return (ea * mw) / (r * ta);
 }
 
