@@ -47,6 +47,7 @@ from esphome.cpp_helpers import (  # noqa
     build_registry_list,
     extract_registry_entry_config,
     register_parented,
+    past_safe_mode,
 )
 from esphome.cpp_types import (  # noqa
     global_ns,
