@@ -29,26 +29,40 @@ void ComponentIterator::advance() {
       }
       break;
     case IteratorState::ALL_ENTITIES: {
-      auto &all = App.get_entities_all_types();
-      size_t sum{0};
       size_t index = 0;
-      for (; index < all.size(); ++index) {
-        if (this->at_ < all[index].size() + sum) {
-          auto *entity = all[index][this->at_ - sum];
-          if (entity->is_internal() && !this->include_internal_) {
-            success = true;
-          } else {
-            if (index < this->callbacks_.size() && this->callbacks_[index]) {
-              success = this->callbacks_[index](entity);
-            } else {
-              success = true;
-            }
-          }
-          break;
-        }
-        sum += all[index].size();
-      }
-      if (index >= all.size()) {
+      std::apply(
+          [this, &success, &index](auto &&...args) {
+            size_t sum = 0;
+            bool stop = false;
+            (
+                [this, &success, &index, &sum, &stop](auto &&arg) {
+                  if (stop) {
+                    return;
+                  }
+                  if (this->at_ < arg.size() + sum) {
+                    stop = true;
+                    // TODO there should be condtion to cast like that???
+                    auto *entity = arg[this->at_ - sum];
+                    if (reinterpret_cast<EntityBase *>(entity)->is_internal() && !this->include_internal_) {
+                      success = true;
+                    } else {
+                      using entity_t = typename std::remove_reference<decltype(arg)>::type::value_type;
+                      auto callback = std::get<std::function<bool(entity_t)>>(callbacks_);
+                      if (callback) {
+                        success = callback(entity);
+                      } else {
+                        success = true;
+                      }
+                    }
+                  } else {
+                    sum += arg.size();
+                    index += 1;
+                  }
+                }(args),
+                ...);
+          },
+          App.get_entities());
+      if (index >= std::tuple_size<entities_t>::value) {
         advance_platform = true;
       }
     } break;

@@ -18,6 +18,11 @@ class UserServiceDescriptor;
 #endif
 
 class ComponentIterator {
+  template<typename Tuple> struct entityCallbacks;
+  template<typename... Args> struct entityCallbacks<std::tuple<Args...>> {
+    using type = std::tuple<std::function<bool(Args)>...>;
+  };
+
  public:
   void begin(bool include_internal = false);
   void advance();
@@ -29,16 +34,7 @@ class ComponentIterator {
   virtual bool on_camera(esp32_camera::ESP32Camera *camera);
 #endif
 
-  template<typename Func> void on_entity_callback(Func &&fn) {
-    using Entity = typename std::remove_pointer<typename std::tuple_element<0, arguments_t<Func>>::type>::type;
-    static_assert(std::is_base_of<EntityBase, Entity>::value, "Only EntityBase subclasses can be used");
-    // it is done that way to allow adding custom components without changing core
-    if (callbacks_.size() < Entity::ENTITY_TYPE + 1) {
-      callbacks_.resize(Entity::ENTITY_TYPE + 1);
-    }
-    auto cb = [fn](EntityBase *entity) -> bool { return fn(static_cast<Entity *>(entity)); };
-    callbacks_[Entity::ENTITY_TYPE] = cb;
-  }
+  template<typename Func> void on_entity_callback(Func &&fn) { std::get<callback_t<Func>>(callbacks_) = fn; }
 
   virtual bool on_end();
 
@@ -57,7 +53,7 @@ class ComponentIterator {
   } state_{IteratorState::NONE};
   size_t at_{0};
   bool include_internal_{false};
-  std::vector<std::function<bool(EntityBase *)>> callbacks_;
+  entityCallbacks<entities_t>::type callbacks_;
 };
 
 }  // namespace esphome

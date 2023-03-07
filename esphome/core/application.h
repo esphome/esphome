@@ -9,10 +9,16 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/scheduler.h"
 #include "esphome/core/entity_base.h"
+#include "esphome/core/globals.h"
 
 namespace esphome {
 
 class Application {
+  template<typename Tuple> struct entityRegistry;
+  template<typename... Args> struct entityRegistry<std::tuple<Args...>> {
+    using type = std::tuple<std::vector<Args>...>;
+  };
+
  public:
   void pre_setup(const std::string &name, const std::string &friendly_name, const std::string &comment,
                  const char *compilation_time, bool name_add_mac_suffix) {
@@ -33,30 +39,24 @@ class Application {
     this->compilation_time_ = compilation_time;
   }
 
-  template<class Entity> const std::vector<EntityBase *> &get_entities() {
-    static_assert(std::is_base_of<EntityBase, Entity>::value, "Only EntityBase subclasses can be used");
-    assert(this->entities_.size() > Entity::ENTITY_TYPE);
-    return this->entities_[Entity::ENTITY_TYPE];
+  template<typename Entity> const std::vector<Entity *> &get_entities() {
+    return std::get<std::vector<Entity *>>(entities_);
   }
 
-  template<class Entity> Entity *get_entity_by_key(uint32_t key, bool include_internal = false) {
-    static_assert(std::is_base_of<EntityBase, Entity>::value, "Only EntityBase subclasses can be used");
-    for (auto &entity : this->entities_[Entity::ENTITY_TYPE])
-      if (entity->get_object_id_hash() == key && (include_internal || !entity->is_internal()))
-        return static_cast<Entity *>(entity);
+  template<typename Entity> Entity *get_entity_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : get_entities<Entity>()) {
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal())) {
+        return obj;
+      }
+    }
     return nullptr;
   }
 
-  template<class Entity> void register_entity(Entity *entity) {
-    static_assert(std::is_base_of<EntityBase, Entity>::value, "Only EntityBase subclasses can be registered");
-    // it is done that way to allow adding custom components without changing core
-    if (entities_.size() < Entity::ENTITY_TYPE + 1) {
-      entities_.resize(Entity::ENTITY_TYPE + 1);
-    }
-    this->entities_[Entity::ENTITY_TYPE].push_back(entity);
+  template<typename Entity> void register_entity(Entity *entity) {
+    std::get<std::vector<Entity *>>(entities_).push_back(entity);
   }
 
-  const std::vector<std::vector<EntityBase *>> &get_entities_all_types() { return this->entities_; }
+  const entityRegistry<entities_t>::type &get_entities() { return this->entities_; }
 
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {
@@ -133,7 +133,7 @@ class Application {
   uint32_t loop_interval_{16};
   size_t dump_config_at_{SIZE_MAX};
   uint32_t app_state_{0};
-  std::vector<std::vector<EntityBase *>> entities_;
+  entityRegistry<entities_t>::type entities_;
 };
 
 /// Global storage of Application pointer - only one Application can exist.
