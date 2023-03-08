@@ -1339,3 +1339,23 @@ message BluetoothGATTNotifyResponse {
   uint64 address = 1;
   uint32 handle = 2;
 }
+
+message BluetoothDevicePairingResponse {
+  option (id) = 85;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  bool paired = 2;
+  int32 error = 3;
+}
+
+message BluetoothDeviceUnpairingResponse {
+  option (id) = 86;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  bool success = 2;
+  int32 error = 3;
+}
