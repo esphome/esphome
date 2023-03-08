@@ -168,7 +168,7 @@ ARDUINO_PLATFORM_VERSION = cv.Version(5, 2, 0)
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 3)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 4)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
@@ -523,11 +523,11 @@ def copy_files():
             __version__,
         )
 
+        import shutil
+
+        shutil.rmtree(CORE.relative_build_path("components"), ignore_errors=True)
+
         if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
-            import shutil
-
-            shutil.rmtree(CORE.relative_build_path("components"), ignore_errors=True)
-
             components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
 
             for name, component in components.items():

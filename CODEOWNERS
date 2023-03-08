@@ -11,6 +11,7 @@ esphome/*.py @esphome/core
 esphome/core/* @esphome/core
 
 # Integrations
+esphome/components/absolute_humidity/* @DAVe3283
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/adc128s102/* @DeerMaximum
@@ -24,6 +25,7 @@ esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/api/* @OttoWinter
+esphome/components/as7341/* @mrgnr
 esphome/components/async_tcp/* @OttoWinter
 esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/b_parasite/* @rbaron
@@ -90,6 +92,7 @@ esphome/components/factory_reset/* @anatoly-savchenkov
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
+esphome/components/fs3000/* @kahrendt
 esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
