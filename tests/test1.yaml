@@ -2491,7 +2491,7 @@ color:
     green: 1%
     blue: 100%
   - id: kbx_green
-    hex: "#3DEC55"
+    hex: "3DEC55"
 
 display:
   - platform: lcd_gpio
