@@ -80,14 +80,6 @@ class BinarySensor : public EntityBase {
 
   virtual bool is_status_binary_sensor() const;
 
-  // ========== OVERRIDE METHODS ==========
-  // (You'll only need this when creating your own custom binary sensor)
-  /** Override this to set the default device class.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual std::string device_class();
-
  protected:
   CallbackManager<void(bool)> state_callback_{};
   optional<std::string> device_class_{};  ///< Stores the override of the device class
