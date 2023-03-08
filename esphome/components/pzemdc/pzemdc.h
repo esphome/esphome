@@ -9,8 +9,6 @@
 namespace esphome {
 namespace pzemdc {
 
-template<typename... Ts> class ResetEnergyAction;
-
 class PZEMDC : public PollingComponent, public modbus::ModbusDevice {
  public:
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }

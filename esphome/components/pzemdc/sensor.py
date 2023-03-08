@@ -69,7 +69,7 @@ CONFIG_SCHEMA = (
     ResetEnergyAction,
     maybe_simple_id(
         {
-            cv.Required(CONF_ID): cv.use_id(PZEMDC),
+            cv.GenerateID(CONF_ID): cv.use_id(PZEMDC),
         }
     ),
 )
