@@ -1,9 +1,10 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
-#include "mdns_component.h"
-#include "esphome/core/log.h"
 #include <mdns.h>
 #include <cstring>
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "mdns_component.h"
 
 namespace esphome {
 namespace mdns {
@@ -47,7 +48,12 @@ void MDNSComponent::setup() {
   }
 }
 
+void MDNSComponent::on_shutdown() {
+  mdns_free();
+  delay(40);  // Allow the mdns packets announcing service removal to be sent
+}
+
 }  // namespace mdns
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32
