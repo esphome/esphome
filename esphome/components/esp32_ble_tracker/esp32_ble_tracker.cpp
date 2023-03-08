@@ -54,10 +54,13 @@ void ESP32BLETracker::setup() {
     return;
   }
   ExternalRAMAllocator<esp_ble_gap_cb_param_t::ble_scan_result_evt_param> allocator(
-      ExternalRAMAllocator<esp_ble_gap_cb_param_t::ble_scan_result_evt_param>::NONE);
+      ExternalRAMAllocator<esp_ble_gap_cb_param_t::ble_scan_result_evt_param>::ALLOW_FAILURE);
   this->scan_result_buffer_ = allocator.allocate(ESP32BLETracker::SCAN_RESULT_BUFFER_SIZE);
-  memset(this->scan_result_buffer_, 0,
-         sizeof(esp_ble_gap_cb_param_t::ble_scan_result_evt_param) * ESP32BLETracker::SCAN_RESULT_BUFFER_SIZE);
+
+  if (this->scan_result_buffer_ == nullptr) {
+    ESP_LOGE(TAG, "Could not allocate buffer for BLE Tracker!");
+    this->mark_failed();
+  }
 
   global_esp32_ble_tracker = this;
   this->scan_result_lock_ = xSemaphoreCreateMutex();
