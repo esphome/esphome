@@ -715,9 +715,7 @@ namespace detail {
 // Helper struct to get the index of a type T in a parameter pack
 template<typename T, typename... Args> struct index_of;
 
-template<typename T, typename... Args> struct index_of<T, T, Args...> {
-  static constexpr size_t value = 0;
-};
+template<typename T, typename... Args> struct index_of<T, T, Args...> { static constexpr size_t value = 0; };
 
 template<typename T, typename U, typename... Args> struct index_of<T, U, Args...> {
   static constexpr size_t value = 1 + index_of<T, Args...>::value;
@@ -733,9 +731,7 @@ template<std::size_t... Is> struct index_sequence {};
 template<std::size_t N, std::size_t... Is>
 struct make_index_sequence_impl : make_index_sequence_impl<N - 1, N - 1, Is...> {};
 
-template<std::size_t... Is> struct make_index_sequence_impl<0, Is...> {
-  using type = index_sequence<Is...>;
-};
+template<std::size_t... Is> struct make_index_sequence_impl<0, Is...> { using type = index_sequence<Is...>; };
 
 template<std::size_t N> using make_index_sequence = typename make_index_sequence_impl<N>::type;
 

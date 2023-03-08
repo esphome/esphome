@@ -21,6 +21,7 @@ from esphome.const import (
 )
 from esphome.core import coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
+from esphome.cpp_generator import MockObj
 from .automation import light_control_to_code  # noqa
 from .effects import (
     validate_effects,
@@ -40,7 +41,6 @@ from .types import (  # noqa
     LightTurnOffTrigger,
     LightStateTrigger,
 )
-from esphome.cpp_generator import MockObj
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
