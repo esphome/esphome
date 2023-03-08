@@ -60,7 +60,7 @@ void AS7341Component::dump_config() {
 float AS7341Component::get_setup_priority() const { return setup_priority::DATA; }
 
 void AS7341Component::update() {
-  read_channels(this->channel_readings_);
+  this->read_channels(this->channel_readings_);
 
   if (this->f1_ != nullptr) {
     this->f1_->publish_state(this->channel_readings_[0]);

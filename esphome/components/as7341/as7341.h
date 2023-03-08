@@ -81,7 +81,7 @@ class AS7341Component : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override;
   void update() override;
 
-  void set_f1_sensor(sensor::Sensor *f1_sensor) { f1_ = f1_sensor; }
+  void set_f1_sensor(sensor::Sensor *f1_sensor) { this->f1_ = f1_sensor; }
   void set_f2_sensor(sensor::Sensor *f2_sensor) { f2_ = f2_sensor; }
   void set_f3_sensor(sensor::Sensor *f3_sensor) { f3_ = f3_sensor; }
   void set_f4_sensor(sensor::Sensor *f4_sensor) { f4_ = f4_sensor; }
