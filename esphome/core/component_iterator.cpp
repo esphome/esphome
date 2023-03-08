@@ -37,7 +37,8 @@ template<typename Callbacks> struct Visitor {
     }
   }
 
-  template<typename Tuple, size_t... Indices> void visit_impl(const Tuple &tuple, index_sequence<Indices...>) {
+  template<typename Tuple, size_t... Indices>
+  void visit_impl(const Tuple &tuple, index_sequence<Indices...> /*unused*/) {
     int dummy[] = {0, ((void) visit(std::get<Indices>(tuple)), 0)...};
     (void) dummy;
   }
