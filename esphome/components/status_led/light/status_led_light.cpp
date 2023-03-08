@@ -31,10 +31,11 @@ void StatusLEDLightOutput::loop() {
     if (this->pin_ != nullptr)
       this->pin_->digital_write(state);
     if (this->output_ != nullptr) {
-      if (state)
+      if (state) {
         this->output_->turn_on();
-      else
+      } else {
         this->output_->turn_off();
+      }
     }
     this->last_app_state_ = new_state;
   }
@@ -57,10 +58,11 @@ void StatusLEDLightOutput::write_state(light::LightState *state) {
     if (this->pin_ != nullptr)
       this->pin_->digital_write(binary);
     if (this->output_ != nullptr) {
-      if (binary)
+      if (binary) {
         this->output_->turn_on();
-      else
+      } else {
         this->output_->turn_off();
+      }
     }
   }
 }
