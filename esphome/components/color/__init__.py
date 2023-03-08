@@ -22,28 +22,28 @@ def hex_color(value):
         raise cv.Invalid("Color must be hexadecimal") from exc
 
 
-def no_color_value_present(value):
-    for key in [CONF_RED, CONF_RED_INT, CONF_GREEN, CONF_GREEN_INT, CONF_BLUE, CONF_BLUE_INT, CONF_WHITE, CONF_WHITE_INT, CONF_HEX]:
-        if key in value:
-            raise cv.Invalid("Hex can only be used without other color values")
-
-    return value
-
-
 CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.declare_id(ColorStruct),
-        cv.Exclusive(CONF_RED, "red"): cv.percentage,
-        cv.Exclusive(CONF_RED_INT, "red"): cv.uint8_t,
-        cv.Exclusive(CONF_GREEN, "green"): cv.percentage,
-        cv.Exclusive(CONF_GREEN_INT, "green"): cv.uint8_t,
-        cv.Exclusive(CONF_BLUE, "blue"): cv.percentage,
-        cv.Exclusive(CONF_BLUE_INT, "blue"): cv.uint8_t,
-        cv.Exclusive(CONF_WHITE, "white"): cv.percentage,
-        cv.Exclusive(CONF_WHITE_INT, "white"): cv.uint8_t,
-        cv.Optional(cv.All("hex", no_color_value_present)): hex_color
+    cv.Any(
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.declare_id(ColorStruct),
+                cv.Exclusive(CONF_RED, "red"): cv.percentage,
+                cv.Exclusive(CONF_RED_INT, "red"): cv.uint8_t,
+                cv.Exclusive(CONF_GREEN, "green"): cv.percentage,
+                cv.Exclusive(CONF_GREEN_INT, "green"): cv.uint8_t,
+                cv.Exclusive(CONF_BLUE, "blue"): cv.percentage,
+                cv.Exclusive(CONF_BLUE_INT, "blue"): cv.uint8_t,
+                cv.Exclusive(CONF_WHITE, "white"): cv.percentage,
+                cv.Exclusive(CONF_WHITE_INT, "white"): cv.uint8_t,
+                cv.Exclusive(CONF_HEX, "red"): hex_color,
+            }),
+        cv.Schema(
+            {
+                cv.Required(CONF_ID): cv.declare_id(ColorStruct),
+                cv.Required(CONF_HEX): hex_color,
+            }),
 
-    }
+    )
 ).extend(cv.COMPONENT_SCHEMA)
 
 
