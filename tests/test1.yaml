@@ -439,6 +439,32 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: as7341
+    update_interval: 15s
+    gain: X8
+    atime: 120
+    astep: 99
+    f1:
+      name: F1
+    f2:
+      name: F2
+    f3:
+      name: F3
+    f4:
+      name: F4
+    f5:
+      name: F5
+    f6:
+      name: F6
+    f7:
+      name: F7
+    f8:
+      name: F8
+    clear:
+      name: Clear
+    nir:
+      name: NIR
+    i2c_id: i2c_bus
   - platform: atm90e32
     cs_pin: 5
     phase_a:
@@ -1224,6 +1250,16 @@ sensor:
   - platform: sen21231
     name: "Person Sensor"
     i2c_id: i2c_bus
+  - platform: fs3000
+    name: "Air Velocity"
+    model: 1005
+    update_interval: 60s
+    i2c_id: i2c_bus
+  - platform: absolute_humidity
+    name: DHT Absolute Humidity
+    temperature: dht_temperature
+    humidity: dht_humidity
+
 esp32_touch:
   setup_mode: false
   iir_filter: 10ms
@@ -2052,6 +2088,8 @@ climate:
     name: Midea IR
     use_fahrenheit: true
   - platform: midea
+    on_control:
+      logger.log: Control message received!
     on_state:
       logger.log: State changed!
     id: midea_unit

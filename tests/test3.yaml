@@ -4,7 +4,7 @@ esphome:
   comment: $device_comment
   build_path: build/test3
   platformio_options:
-    board_build.partitions: huge_app.csv5
+    board_build.partitions: huge_app.csv
   on_boot:
     - if:
         condition:
@@ -579,6 +579,7 @@ sensor:
     power_factor:
       name: PZEMAC Power Factor
   - platform: pzemdc
+    id: pzemdc1
     voltage:
       name: PZEMDC Voltage
     current:
@@ -925,6 +926,11 @@ binary_sensor:
     on_press:
       then:
         - pzemac.reset_energy: pzemac1
+  - platform: template
+    id: pzemdc_reset_energy
+    on_press:
+      then:
+        - pzemdc.reset_energy: pzemdc1
 
   - platform: vbus
     model: deltasol_bs_plus
