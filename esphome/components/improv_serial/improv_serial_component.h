@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/components/improv_base/improv_base.h"
 #include "esphome/components/wifi/wifi_component.h"
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -27,7 +28,7 @@ enum ImprovSerialType : uint8_t {
 
 static const uint8_t IMPROV_SERIAL_VERSION = 1;
 
-class ImprovSerialComponent : public Component {
+class ImprovSerialComponent : public Component, public improv_base::ImprovBase {
  public:
   void setup() override;
   void loop() override;

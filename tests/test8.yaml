@@ -1,0 +1,27 @@
+# Tests for ESP32-S3 boards
+---
+wifi:
+  ssid: "ssid"
+
+esp32:
+  board: esp32-c3-devkitm-1
+  variant: ESP32S3
+  framework:
+    type: arduino
+
+esphome:
+  name: "esp32-s3-test"
+
+logger:
+
+light:
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    pin: 33
+    num_leds: 1
+    id: neopixel
+    method: esp32_rmt
+    name: "neopixel-enable"
+    internal: false
+    restore_mode: ALWAYS_OFF

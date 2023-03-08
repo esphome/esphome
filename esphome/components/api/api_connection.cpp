@@ -548,7 +548,9 @@ bool APIConnection::send_climate_info(climate::Climate *climate) {
 
   msg.visual_min_temperature = traits.get_visual_min_temperature();
   msg.visual_max_temperature = traits.get_visual_max_temperature();
-  msg.visual_temperature_step = traits.get_visual_temperature_step();
+  msg.visual_target_temperature_step = traits.get_visual_target_temperature_step();
+  msg.visual_current_temperature_step = traits.get_visual_current_temperature_step();
+
   msg.legacy_supports_away = traits.supports_preset(climate::CLIMATE_PRESET_AWAY);
   msg.supports_action = traits.get_supports_action();
 
@@ -951,7 +953,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  resp.bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->has_active() ? 3 : 1;
+  resp.bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->has_active() ? 4 : 1;
 #endif
   return resp;
 }

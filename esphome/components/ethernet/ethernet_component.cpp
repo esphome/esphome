@@ -43,8 +43,7 @@ void EthernetComponent::setup() {
   eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
 
   phy_config.phy_addr = this->phy_addr_;
-  if (this->power_pin_ != -1)
-    phy_config.reset_gpio_num = this->power_pin_;
+  phy_config.reset_gpio_num = this->power_pin_;
 
   mac_config.smi_mdc_gpio_num = this->mdc_pin_;
   mac_config.smi_mdio_gpio_num = this->mdio_pin_;
@@ -69,6 +68,10 @@ void EthernetComponent::setup() {
     }
     case ETHERNET_TYPE_IP101: {
       phy = esp_eth_phy_new_ip101(&phy_config);
+      break;
+    }
+    case ETHERNET_TYPE_JL1101: {
+      phy = esp_eth_phy_new_jl1101(&phy_config);
       break;
     }
     default: {
