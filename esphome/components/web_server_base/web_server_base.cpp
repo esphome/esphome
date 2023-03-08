@@ -81,7 +81,10 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
     // incomplete update! probably tcp reset, bad wifi, etc
     if (request->contentLength() != this->ota_read_length_) {
       ESP_LOGI(TAG, "OTA update incomplete, terminating");
-      Update.abort();
+#ifdef USE_ESP32
+      if (Update.isRunning())
+        Update.abort();
+#endif
       return;
     }
     if (Update.end(true)) {
