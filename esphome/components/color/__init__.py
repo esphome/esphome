@@ -22,6 +22,14 @@ def hex_color(value):
         raise cv.Invalid("Color must be hexadecimal") from exc
 
 
+def no_color_value_present(value):
+    for key in [CONF_RED, CONF_RED_INT, CONF_GREEN, CONF_GREEN_INT, CONF_BLUE, CONF_BLUE_INT, CONF_WHITE, CONF_WHITE_INT, CONF_HEX]:
+        if key in value:
+            raise cv.Invalid("Hex can only be used without other color values")
+
+    return value
+
+
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.declare_id(ColorStruct),
@@ -33,7 +41,8 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Exclusive(CONF_BLUE_INT, "blue"): cv.uint8_t,
         cv.Exclusive(CONF_WHITE, "white"): cv.percentage,
         cv.Exclusive(CONF_WHITE_INT, "white"): cv.uint8_t,
-        cv.Exclusive(CONF_HEX, "hex"): hex_color,
+        cv.Optional(cv.All("hex", no_color_value_present)): hex_color
+
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
