@@ -83,11 +83,30 @@ def import_config(
         raise FileExistsError
 
     if project_name == "esphome.web":
+        if "esp32c3" in import_url:
+            board = "esp32-c3-devkitm-1"
+            platform = "ESP32"
+        elif "esp32s2" in import_url:
+            board = "esp32-s2-saola-1"
+            platform = "ESP32"
+        elif "esp32s3" in import_url:
+            board = "esp32-s3-devkitc-1"
+            platform = "ESP32"
+        elif "esp32" in import_url:
+            board = "esp32dev"
+            platform = "ESP32"
+        elif "esp8266" in import_url:
+            board = "esp01_1m"
+            platform = "ESP8266"
+        elif "pico-w" in import_url:
+            board = "pico-w"
+            platform = "RP2040"
+
         kwargs = {
             "name": name,
             "friendly_name": friendly_name,
-            "platform": "ESP32" if "esp32" in import_url else "ESP8266",
-            "board": "esp32dev" if "esp32" in import_url else "esp01_1m",
+            "platform": platform,
+            "board": board,
             "ssid": "!secret wifi_ssid",
             "psk": "!secret wifi_password",
         }
