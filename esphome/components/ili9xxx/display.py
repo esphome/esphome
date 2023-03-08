@@ -12,7 +12,6 @@ from esphome.const import (
     CONF_RAW_DATA_ID,
     CONF_PAGES,
     CONF_RESET_PIN,
-    CONF_BACKLIGHT_PIN,
     CONF_DIMENSIONS,
 )
 
@@ -73,9 +72,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_LED_PIN): cv.invalid(
-                "This property is removed. To use the backlight use proper light component."
-            ),
-            cv.Optional(CONF_BACKLIGHT_PIN): cv.invalid(
                 "This property is removed. To use the backlight use proper light component."
             ),
             cv.Optional(CONF_COLOR_PALETTE, default="NONE"): COLOR_PALETTE,
