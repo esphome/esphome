@@ -9,7 +9,7 @@
 #include "esphome/core/preferences.h"
 #include "esphome/core/scheduler.h"
 #include "esphome/core/entity_base.h"
-#include "esphome/core/globals.h"
+#include "esphome/core/entities.h"
 
 namespace esphome {
 
