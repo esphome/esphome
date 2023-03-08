@@ -64,7 +64,7 @@ void SN74HC165Component::read_gpio_() {
 
 float SN74HC165Component::get_setup_priority() const { return setup_priority::IO; }
 
-bool SN74HC165GPIOPin::digital_read() { return this->parent_->digital_read_(this->pin_); }
+bool SN74HC165GPIOPin::digital_read() { return this->parent_->digital_read_(this->pin_) != this->inverted_; }
 
 std::string SN74HC165GPIOPin::dump_summary() const { return str_snprintf("%u via SN74HC165", 18, pin_); }
 
