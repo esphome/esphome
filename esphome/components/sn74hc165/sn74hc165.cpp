@@ -49,7 +49,7 @@ void SN74HC165Component::read_gpio_() {
 
   for (uint8_t i = 0; i < this->sr_count_; i++) {
     for (uint8_t j = 0; j < 8; j++) {
-      this->input_bits_[(i*8) + (7-j)] = this->data_pin_->digital_read();
+      this->input_bits_[(i * 8) + (7 - j)] = this->data_pin_->digital_read();
 
       this->clock_pin_->digital_write(true);
       delayMicroseconds(10);
