@@ -26,17 +26,23 @@ void StatusLEDLightOutput::loop() {
 
     if (lightstate_)
       lightstate_->current_values_as_binary(&state);
-
-    this->pin_->digital_write(state);
-    this->last_app_state_ = new_state;
-
     ESP_LOGD(TAG, "Restoring light state %s", ONOFF(state));
+
+    if (this->pin_ != nullptr)
+      this->pin_->digital_write(state);
+    if (this->output_ != nullptr) {
+      if (state)
+        this->output_->turn_on();
+      else
+        this->output_->turn_off();
+    }
+    this->last_app_state_ = new_state;
   }
 }
 
 void StatusLEDLightOutput::setup_state(light::LightState *state) {
   lightstate_ = state;
-  ESP_LOGD(TAG, "'%s': Setting initital state", state->get_name().c_str());
+  ESP_LOGD(TAG, "'%s': Setting initial state", state->get_name().c_str());
   this->write_state(state);
 }
 
@@ -47,8 +53,15 @@ void StatusLEDLightOutput::write_state(light::LightState *state) {
   // if in warning/error, don't overwrite the status_led
   // once it is back to OK, the loop will restore the state
   if ((App.get_app_state() & (STATUS_LED_ERROR | STATUS_LED_WARNING)) == 0u) {
-    this->pin_->digital_write(binary);
     ESP_LOGD(TAG, "'%s': Setting state %s", state->get_name().c_str(), ONOFF(binary));
+    if (this->pin_ != nullptr)
+      this->pin_->digital_write(binary);
+    if (this->output_ != nullptr) {
+      if (binary)
+        this->output_->turn_on();
+      else
+        this->output_->turn_off();
+    }
   }
 }
 
