@@ -168,7 +168,7 @@ template<typename... Ts> class EnterDeepSleepAction : public Action<Ts...> {
       time_t timestamp = time.timestamp;  // timestamp in local time zone
 
       if (after_time)
-        timestamp += 60 * 60 * 24;
+        timestamp += static_cast<time_t>(60 * 60 * 24);
 
       int32_t offset = time::ESPTime::timezone_offset();
       timestamp -= offset;  // Change timestamp to utc
