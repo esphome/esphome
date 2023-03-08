@@ -36,13 +36,14 @@ CONFIG_SCHEMA = cv.Schema(
                 cv.Exclusive(CONF_WHITE, "white"): cv.percentage,
                 cv.Exclusive(CONF_WHITE_INT, "white"): cv.uint8_t,
                 cv.Exclusive(CONF_HEX, "red"): hex_color,
-            }),
+            }
+        ),
         cv.Schema(
             {
                 cv.Required(CONF_ID): cv.declare_id(ColorStruct),
                 cv.Required(CONF_HEX): hex_color,
-            }),
-
+            }
+        ),
     )
 ).extend(cv.COMPONENT_SCHEMA)
 
