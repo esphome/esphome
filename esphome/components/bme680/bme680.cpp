@@ -134,7 +134,7 @@ void BME680Component::setup() {
     this->mark_failed();
     return;
   }
-  this->calibration_.range_sw_err = ((int8_t) temp_var & 0xf0) / 16;
+  this->calibration_.range_sw_err = ((int8_t) temp_var & (int8_t) 0xf0) / 16;
 
   this->calibration_.ambient_temperature = 25;  // prime ambient temperature
 
