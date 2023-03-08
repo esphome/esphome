@@ -317,7 +317,7 @@ template<typename... Ts> class UpdateComponentAction : public Action<Ts...> {
   UpdateComponentAction(PollingComponent *component) : component_(component) {}
 
   void play(Ts... x) override {
-    if (this->component_->is_failed())
+    if (!this->component_->is_ready())
       return;
     this->component_->update();
   }

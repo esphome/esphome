@@ -5974,6 +5974,92 @@ void BluetoothGATTNotifyResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+bool BluetoothDevicePairingResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->paired = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->error = value.as_int32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothDevicePairingResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->paired);
+  buffer.encode_int32(3, this->error);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothDevicePairingResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothDevicePairingResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  paired: ");
+  out.append(YESNO(this->paired));
+  out.append("\n");
+
+  out.append("  error: ");
+  sprintf(buffer, "%d", this->error);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothDeviceUnpairingResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->success = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->error = value.as_int32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothDeviceUnpairingResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->success);
+  buffer.encode_int32(3, this->error);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothDeviceUnpairingResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothDeviceUnpairingResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  success: ");
+  out.append(YESNO(this->success));
+  out.append("\n");
+
+  out.append("  error: ");
+  sprintf(buffer, "%d", this->error);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
 
 }  // namespace api
 }  // namespace esphome
