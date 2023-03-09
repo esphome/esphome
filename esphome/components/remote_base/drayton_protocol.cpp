@@ -196,9 +196,9 @@ optional<DraytonData> DraytonProtocol::decode(RemoteReceiveData src) {
   }
   ESP_LOGV(TAG, "Decode Drayton: Data, %2d %08x", bit, out_data);
 
-  out.channel = (uint16_t)(out_data & 0x1F);
+  out.channel = (uint8_t)(out_data & 0x1F);
   out_data >>= NBITS_CHANNEL;
-  out.command = (uint16_t)(out_data & 0x7F);
+  out.command = (uint8_t)(out_data & 0x7F);
   out_data >>= NBITS_COMMAND;
   out.address = (uint16_t)(out_data & 0xFFFF);
 

@@ -8,8 +8,8 @@ namespace remote_base {
 
 struct DraytonData {
   uint16_t address;
-  uint16_t channel;
-  uint16_t command;
+  uint8_t channel;
+  uint8_t command;
 
   bool operator==(const DraytonData &rhs) const {
     return address == rhs.address && channel == rhs.channel && command == rhs.command;
@@ -28,8 +28,8 @@ DECLARE_REMOTE_PROTOCOL(Drayton)
 template<typename... Ts> class DraytonAction : public RemoteTransmitterActionBase<Ts...> {
  public:
   TEMPLATABLE_VALUE(uint16_t, address)
-  TEMPLATABLE_VALUE(uint16_t, channel)
-  TEMPLATABLE_VALUE(uint16_t, command)
+  TEMPLATABLE_VALUE(uint8_t, channel)
+  TEMPLATABLE_VALUE(uint8_t, command)
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
     DraytonData data{};

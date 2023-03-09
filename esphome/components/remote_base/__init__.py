@@ -836,9 +836,9 @@ def drayton_dumper(var, config):
 async def drayton_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
-    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
     cg.add(var.set_channel(template_))
-    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
 
 
