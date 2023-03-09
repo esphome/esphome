@@ -103,6 +103,7 @@ esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/honeywellabp/* @RubyBailey
+esphome/components/hp206c/* @randomplum
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/hte501/* @Stock-M
 esphome/components/hydreon_rgxx/* @functionpointer

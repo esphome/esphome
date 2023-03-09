@@ -655,6 +655,15 @@ sensor:
     temperature:
       name: Honeywell temperature
     cs_pin: GPIO5
+  - platform: hp206c
+    temperature:
+      name: Outside Temperature
+    pressure:
+      name: Outside Pressure
+    address: 0x76
+    internal_filter_mode: 4096
+    update_interval: 15s
+    i2c_id: i2c_bus
   - platform: hte501
     temperature:
       name: Office Temperature 2
