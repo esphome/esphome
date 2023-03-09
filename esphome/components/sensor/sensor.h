@@ -150,10 +150,9 @@ class Sensor : public EntityBase {
   /// Return whether this sensor has gotten a full state (that passed through all filters) yet.
   bool has_state() const;
 
-  /** A unique ID for this sensor, empty for no unique id. See unique ID requirements:
-   * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
+  /** Override this method to set the unique ID of this sensor.
    *
-   * @return The unique id as a string.
+   * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
    */
   virtual std::string unique_id();
 
