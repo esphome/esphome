@@ -170,6 +170,9 @@ mqtt:
                 id: uart_0
                 data: !lambda |-
                   return {};
+            - bluetooth_password.set:
+                id: my_ld2410
+                password: abcdef
   on_connect:
     - light.turn_on: ${roomname}_lights
     - mqtt.publish:
@@ -3411,6 +3414,9 @@ select:
   - platform: copy
     source_id: test_select
     name: Test Select Copy
+  - platform: ld2410
+    distance_resolution:
+      name: distance resolution
 
 qr_code:
   - id: homepage_qr
