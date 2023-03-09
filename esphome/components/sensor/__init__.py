@@ -615,7 +615,7 @@ async def setup_sensor_core_(var, config):
 async def register_sensor(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.register_entity(Sensor, var)
+    cg.add_entity(Sensor, var)
     await setup_sensor_core_(var, config)
 
 
@@ -739,3 +739,4 @@ def _lstsq(a, b):
 async def to_code(config):
     cg.add_define("USE_SENSOR")
     cg.add_global(sensor_ns.using)
+    cg.register_entity(Sensor)

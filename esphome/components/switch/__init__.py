@@ -160,7 +160,7 @@ async def setup_switch_core_(var, config):
 async def register_switch(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.register_entity(Switch, var)
+    cg.add_entity(Switch, var)
     await setup_switch_core_(var, config)
 
 
@@ -201,3 +201,4 @@ async def switch_is_off_to_code(config, condition_id, template_arg, args):
 async def to_code(config):
     cg.add_global(switch_ns.using)
     cg.add_define("USE_SWITCH")
+    cg.register_entity(Switch)

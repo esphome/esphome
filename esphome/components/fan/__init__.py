@@ -158,7 +158,7 @@ async def setup_fan_core_(var, config):
 async def register_fan(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.register_entity(Fan, var)
+    cg.add_entity(Fan, var)
     await setup_fan_core_(var, config)
 
 
@@ -250,3 +250,4 @@ async def fan_is_on_off_to_code(config, condition_id, template_arg, args):
 async def to_code(config):
     cg.add_define("USE_FAN")
     cg.add_global(fan_ns.using)
+    cg.register_entity(Fan)
