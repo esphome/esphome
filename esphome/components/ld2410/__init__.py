@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
-from esphome.const import CONF_ID, CONF_THROTTLE, CONF_TIMEOUT
+from esphome.const import CONF_ID, CONF_THROTTLE, CONF_TIMEOUT, CONF_PASSWORD
 from esphome import automation
 from esphome.automation import maybe_simple_id
 
@@ -11,7 +11,7 @@ MULTI_CONF = True
 
 ld2410_ns = cg.esphome_ns.namespace("ld2410")
 LD2410Component = ld2410_ns.class_("LD2410Component", cg.Component, uart.UARTDevice)
-LD2410Restart = ld2410_ns.class_("LD2410Restart", automation.Action)
+
 CONF_LD2410_ID = "ld2410_id"
 
 CONF_MAX_MOVE_DISTANCE = "max_move_distance"
@@ -83,3 +83,27 @@ CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
         cv.Required(CONF_ID): cv.use_id(LD2410Component),
     }
 )
+
+
+# Actions
+BluetoothPasswordSetAction = ld2410_ns.class_(
+    "BluetoothPasswordSetAction", automation.Action
+)
+
+
+@automation.register_action(
+    "bluetooth_password.set",
+    BluetoothPasswordSetAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(CONF_LD2410_ID),
+            cv.Required(CONF_PASSWORD): cv.templatable(cv.string_strict),
+        }
+    ),
+)
+async def bluetooth_password_set_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    template_ = await cg.templatable(config[CONF_PASSWORD], args, cg.std_string)
+    cg.add(var.set_password(template_))
+    return var
