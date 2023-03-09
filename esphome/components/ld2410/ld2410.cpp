@@ -1,4 +1,6 @@
 #include "ld2410.h"
+
+#include <utility>
 #ifdef USE_NUMBER
 #include "esphome/components/number/number.h"
 #endif
@@ -51,6 +53,9 @@ void LD2410Component::dump_config() {
   LOG_TEXT_SENSOR("  ", "VersionTextSensor", this->version_text_sensor_);
   LOG_TEXT_SENSOR("  ", "MacTextSensor", this->mac_text_sensor_);
 #endif
+#ifdef USE_SELECT
+  LOG_SELECT("  ", "DistanceResolutionSelect", this->distance_resolution_select_);
+#endif
 #ifdef USE_NUMBER
   LOG_NUMBER("  ", "MaxStillDistanceNumber", this->max_still_distance_number_);
   LOG_NUMBER("  ", "MaxMoveDistanceNumber", this->max_move_distance_number_);
@@ -64,6 +69,7 @@ void LD2410Component::dump_config() {
   delay(50);  // NOLINT
   this->get_version_();
   this->get_mac_();
+  this->get_distance_resolution_();
   this->query_parameters_();
   this->set_config_mode_(false);
   ESP_LOGCONFIG(TAG, "  Throttle_ : %ums", this->throttle_);
@@ -76,6 +82,7 @@ void LD2410Component::setup() {
   this->set_config_mode_(true);
   this->get_version_();
   this->get_mac_();
+  this->get_distance_resolution_();
   this->query_parameters_();
   this->set_config_mode_(false);
   ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
@@ -92,7 +99,7 @@ void LD2410Component::loop() {
   }
 }
 
-void LD2410Component::send_command_(uint8_t command, uint8_t *command_value, int command_value_len) {
+void LD2410Component::send_command_(uint8_t command, const uint8_t *command_value, int command_value_len) {
   ESP_LOGV(TAG, "Sending COMMAND %02X", command);
   // frame start bytes
   this->write_array(CMD_FRAME_HEADER, 4);
@@ -241,7 +248,7 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
 #endif
 }
 
-const char VERSION_FMT[] = "%u.%u.%u%u%u%u";
+const char VERSION_FMT[] = "%u.%02X.%02X%02X%02X%02X";
 
 std::string format_version(uint8_t *buffer) {
   std::string::size_type version_size = 256;
@@ -321,6 +328,18 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
       }
 #endif
       break;
+    case lowbyte(CMD_QUERY_DISTANCE_RESOLUTION): {
+      std::string distance_resolution =
+          this->distance_resolution_int_to_enum_(this->two_byte_to_int_(buffer[10], buffer[11]));
+      ESP_LOGV(TAG, "Distance resolution is: %s", const_cast<char *>(distance_resolution.c_str()));
+#ifdef USE_SELECT
+      if (this->distance_resolution_select_ != nullptr) {
+        if (this->distance_resolution_select_->state != distance_resolution) {
+          this->distance_resolution_select_->publish_state(distance_resolution);
+        }
+      }
+#endif
+    } break;
     case lowbyte(CMD_MAC):
       if (len < 20) {
         return false;
@@ -348,6 +367,12 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
       break;
     case lowbyte(CMD_BLUETOOTH):
       ESP_LOGV(TAG, "Handled bluetooth command");
+      break;
+    case lowbyte(CMD_SET_DISTANCE_RESOLUTION):
+      ESP_LOGV(TAG, "Handled set distance resolution command");
+      break;
+    case lowbyte(CMD_BT_PASSWORD):
+      ESP_LOGV(TAG, "Handled set bluetooth password command");
       break;
     case lowbyte(CMD_QUERY):  // Query parameters response
     {
@@ -429,6 +454,23 @@ void LD2410Component::set_bluetooth_(bool enable) {
   this->send_command_(CMD_BLUETOOTH, enable ? enable_cmd_value : disable_cmd_value, 2);
 }
 
+void LD2410Component::set_distance_resolution_(const std::string &state) {
+  uint8_t cmd_value[2] = {this->distance_resolution_enum_to_int_(state), 0x00};
+  this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, 2);
+}
+
+void LD2410Component::set_bluetooth_password(const std::string &password) {
+  if (password.length() != 6) {
+    ESP_LOGE(TAG, "set_bluetooth_password(): invalid password length, must be exactly 6 chars '%s'", password.c_str());
+    return;
+  }
+  this->set_config_mode_(true);
+  uint8_t cmd_value[6];
+  std::copy(password.begin(), password.end(), std::begin(cmd_value));
+  this->send_command_(CMD_BT_PASSWORD, cmd_value, 6);
+  this->set_config_mode_(false);
+}
+
 void LD2410Component::set_engineering_mode_(bool enable) {
   last_engineering_mode_change_millis_ = millis();
   uint8_t cmd = enable ? CMD_ENABLE_ENG : CMD_DISABLE_ENG;
@@ -445,6 +487,7 @@ void LD2410Component::get_mac_() {
   uint8_t cmd_value[2] = {0x01, 0x00};
   this->send_command_(CMD_MAC, cmd_value, 2);
 }
+void LD2410Component::get_distance_resolution_() { this->send_command_(CMD_QUERY_DISTANCE_RESOLUTION, nullptr, 0); }
 
 void LD2410Component::set_max_distances_timeout_() {
   if (!this->max_move_distance_number_->has_state() || !this->max_still_distance_number_->has_state() ||
