@@ -49,6 +49,11 @@ def _set_mode(value, default_mode):
             CONF_INPUT: True,
             CONF_PULLDOWN: True,
         },
+        "INPUT_OUTPUT_OPEN_DRAIN": {
+            CONF_INPUT: True,
+            CONF_OUTPUT: True,
+            CONF_OPEN_DRAIN: True,
+        },
     }
     if mode.upper() not in PIN_MODES:
         raise cv.Invalid(f"Unknown pin mode {mode}", [CONF_MODE])
