@@ -3,7 +3,6 @@
 #include "esphome/core/component.h"
 #include "esphome/core/controller.h"
 #include "esphome/core/helpers.h"
-#include <vector>
 
 #ifdef USE_ESP32_CAMERA
 #include "esphome/components/esp32_camera/esp32_camera.h"
@@ -34,7 +33,15 @@ class ComponentIterator {
   virtual bool on_camera(esp32_camera::ESP32Camera *camera);
 #endif
 
-  template<typename Func> void on_entity_callback(Func &&fn) { get_by_type<callback_t<Func>>(callbacks_) = fn; }
+  template<typename Func> void on_entity_callback(Func &&fn) {
+    using Entity = typename std::tuple_element<0, arguments_t<Func>>::type;
+    get_by_type<callback_t<Func>>(callbacks_) = [this, fn](Entity entity) {
+      if (entity->is_internal() && !include_internal_) {
+        return true;
+      }
+      return fn(entity);
+    };
+  }
 
   virtual bool on_end();
 

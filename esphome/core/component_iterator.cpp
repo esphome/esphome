@@ -18,19 +18,14 @@ template<typename Callbacks> struct Visitor {
     }
     if (at < arg.size() + sum) {
       stop = true;
-      // TODO there should be condtion to cast like that???
-      auto *entity = arg[at - sum];
-      if (reinterpret_cast<EntityBase *>(entity)->is_internal() && !include_internal) {
-        success = true;
+      using entity_t = typename std::remove_reference<decltype(arg)>::type::value_type;
+      auto callback = get_by_type<std::function<bool(entity_t)>>(callbacks);
+      if (callback) {
+        success = callback(arg[at - sum]);
       } else {
-        using entity_t = typename std::remove_reference<decltype(arg)>::type::value_type;
-        auto callback = get_by_type<std::function<bool(entity_t)>>(callbacks);
-        if (callback) {
-          success = callback(entity);
-        } else {
-          success = true;
-        }
+        success = true;
       }
+
     } else {
       sum += arg.size();
       ++index;

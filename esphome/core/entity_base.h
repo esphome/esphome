@@ -2,7 +2,6 @@
 
 #include <string>
 #include <cstdint>
-#include "defines.h"
 
 namespace esphome {
 
