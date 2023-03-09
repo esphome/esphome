@@ -15,7 +15,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
-from esphome.cpp_generator import MockObj
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -79,7 +78,7 @@ async def setup_select_core_(var, config, *, options: list[str]):
 async def register_select(var, config, *, options: list[str]):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(MockObj("App.register_entity<Select>")(var))
+    cg.register_entity(Select, var)
     await setup_select_core_(var, config, options=options)
 
 

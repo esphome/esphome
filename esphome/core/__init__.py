@@ -490,6 +490,8 @@ class EsphomeCore:
         self.component_ids = set()
         # Whether ESPHome was started in verbose mode
         self.verbose = False
+        # A set of available entities
+        self.entities: set[str] = set()
 
     def reset(self):
         self.dashboard = False
@@ -510,6 +512,7 @@ class EsphomeCore:
         self.platformio_options = {}
         self.loaded_integrations = set()
         self.component_ids = set()
+        self.entities = set()
 
     @property
     def address(self) -> Optional[str]:
@@ -713,6 +716,9 @@ class EsphomeCore:
         self.defines.add(define)
         _LOGGER.debug("Adding define: %s", define)
         return define
+
+    def register_entity(self, class_):
+        self.entities.add(class_)
 
     def add_platformio_option(self, key: str, value: Union[str, list[str]]) -> None:
         new_val = value

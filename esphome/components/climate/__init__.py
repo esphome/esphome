@@ -43,7 +43,6 @@ from esphome.const import (
     CONF_MQTT_ID,
 )
 from esphome.core import CORE, coroutine_with_priority
-from esphome.cpp_generator import MockObj
 
 IS_PLATFORM_COMPONENT = True
 
@@ -329,7 +328,7 @@ async def setup_climate_core_(var, config):
 async def register_climate(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(MockObj("App.register_entity<Climate>")(var))
+    cg.register_entity(Climate, var)
     await setup_climate_core_(var, config)
 
 

@@ -31,6 +31,7 @@ from esphome.cpp_generator import (  # noqa
     add_library,
     add_build_flag,
     add_define,
+    register_entity,
     add_platformio_option,
     get_variable,
     get_variable_with_full_id,

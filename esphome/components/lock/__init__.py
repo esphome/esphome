@@ -12,7 +12,6 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
-from esphome.cpp_generator import MockObj
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -66,7 +65,7 @@ async def setup_lock_core_(var, config):
 async def register_lock(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(MockObj("App.register_entity<Lock>")(var))
+    cg.register_entity(Lock, var)
     await setup_lock_core_(var, config)
 
 

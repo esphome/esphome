@@ -1,23 +1,11 @@
 #pragma once
 
+// This file is not used by the runtime, instead, a version is generated during
+// compilation with only the relevant feature flags for the current build.
+//
+// This file is only used by static analyzers and IDEs.
+
 namespace esphome {
-
-#ifdef UNIT_TESTS
-namespace test {
-class Switch;
-class Sensor;
-class CustomEntity;
-}  // namespace test
-
-using entities_t = std::tuple<
-#ifdef USE_SENSOR
-    test::Sensor *,
-#endif
-#ifdef USE_SWITCH
-    test::Switch *,
-#endif
-    test::CustomEntity *>;
-#else
 
 namespace binary_sensor {
 class BinarySensor;
@@ -63,5 +51,4 @@ using entities_t =
     std::tuple<binary_sensor::BinarySensor *, sensor::Sensor *, switch_::Switch *, button::Button *,
                text_sensor::TextSensor *, fan::Fan *, climate::Climate *, light::LightState *, cover::Cover *,
                number::Number *, select::Select *, lock::Lock *, media_player::MediaPlayer *>;
-#endif
 }  // namespace esphome

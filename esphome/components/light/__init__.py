@@ -21,7 +21,6 @@ from esphome.const import (
 )
 from esphome.core import coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
-from esphome.cpp_generator import MockObj
 from .automation import light_control_to_code  # noqa
 from .effects import (
     validate_effects,
@@ -179,7 +178,7 @@ async def setup_light_core_(light_var, output_var, config):
 
 async def register_light(output_var, config):
     light_var = cg.new_Pvariable(config[CONF_ID], output_var)
-    cg.add(MockObj("App.register_entity<LightState>")(light_var))
+    cg.register_entity(LightState, light_var)
     await cg.register_component(light_var, config)
     await setup_light_core_(light_var, output_var, config)
 
