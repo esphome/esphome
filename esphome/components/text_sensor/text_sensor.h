@@ -61,6 +61,10 @@ class TextSensor : public EntityBase {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
+  /** Override this method to set the unique ID of this sensor.
+   *
+   * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
+   */
   virtual std::string unique_id();
 
   bool has_state();
