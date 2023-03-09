@@ -17,6 +17,7 @@ from esphome.const import (
 from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32C3,
+    VARIANT_ESP32S3,
 )
 from esphome.core import CORE
 from ._methods import (
@@ -96,7 +97,7 @@ def _choose_default_method(config):
             config[CONF_METHOD] = _validate_method(METHOD_BIT_BANG)
 
     if CORE.is_esp32:
-        if get_esp32_variant() == VARIANT_ESP32C3:
+        if get_esp32_variant() in (VARIANT_ESP32C3, VARIANT_ESP32S3):
             config[CONF_METHOD] = _validate_method(METHOD_ESP32_RMT)
         else:
             config[CONF_METHOD] = _validate_method(METHOD_ESP32_I2S)

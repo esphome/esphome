@@ -71,4 +71,4 @@ climate:
 
 sensor:
   - platform: internal_temperature
-    name: "Internal Temperature"
+    name: Internal Temperature
