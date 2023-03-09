@@ -66,10 +66,10 @@ _UNDEF = object()
 
 
 def select_schema(
-        class_: MockObjClass = _UNDEF,
-        *,
-        entity_category: str = _UNDEF,
-        icon: str = _UNDEF,
+    class_: MockObjClass = _UNDEF,
+    *,
+    entity_category: str = _UNDEF,
+    icon: str = _UNDEF,
 ):
     schema = Schema({})
     if class_ is not _UNDEF:
