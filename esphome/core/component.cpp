@@ -135,6 +135,10 @@ void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std:
   App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 }
 bool Component::is_failed() { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
+bool Component::is_ready() {
+  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
+         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
+}
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() { return this->component_state_ & STATUS_LED_WARNING; }
 bool Component::status_has_error() { return this->component_state_ & STATUS_LED_ERROR; }

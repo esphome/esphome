@@ -168,7 +168,7 @@ ARDUINO_PLATFORM_VERSION = cv.Version(5, 2, 0)
 # The default/recommended esp-idf framework version
 #  - https://github.com/espressif/esp-idf/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/tool/framework-espidf
-RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 3)
+RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION = cv.Version(4, 4, 4)
 # The platformio/espressif32 version to use for esp-idf frameworks
 #  - https://github.com/platformio/platform-espressif32/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/espressif32
@@ -178,8 +178,8 @@ ESP_IDF_PLATFORM_VERSION = cv.Version(5, 3, 0)
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(2, 0, 5), "https://github.com/espressif/arduino-esp32.git"),
-        "latest": (cv.Version(2, 0, 5), None),
+        "dev": (cv.Version(2, 1, 0), "https://github.com/espressif/arduino-esp32.git"),
+        "latest": (cv.Version(2, 0, 7), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -213,8 +213,8 @@ def _arduino_check_versions(value):
 def _esp_idf_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(5, 0, 0), "https://github.com/espressif/esp-idf.git"),
-        "latest": (cv.Version(4, 4, 2), None),
+        "dev": (cv.Version(5, 1, 0), "https://github.com/espressif/esp-idf.git"),
+        "latest": (cv.Version(5, 0, 1), None),
         "recommended": (RECOMMENDED_ESP_IDF_FRAMEWORK_VERSION, None),
     }
 
@@ -523,15 +523,14 @@ def copy_files():
             __version__,
         )
 
+        import shutil
+
+        shutil.rmtree(CORE.relative_build_path("components"), ignore_errors=True)
+
         if CORE.data[KEY_ESP32][KEY_COMPONENTS]:
-            import shutil
-
-            shutil.rmtree(CORE.relative_build_path("components"), ignore_errors=True)
-
             components: dict = CORE.data[KEY_ESP32][KEY_COMPONENTS]
 
             for name, component in components.items():
-
                 repo_dir, _ = git.clone_or_update(
                     url=component[KEY_REPO],
                     ref=component[KEY_REF],

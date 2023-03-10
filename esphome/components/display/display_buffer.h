@@ -526,10 +526,10 @@ class Font {
   inline int get_baseline() { return this->baseline_; }
   inline int get_height() { return this->height_; }
 
-  const std::vector<Glyph> &get_glyphs() const;
+  const std::vector<Glyph, ExternalRAMAllocator<Glyph>> &get_glyphs() const { return glyphs_; }
 
  protected:
-  std::vector<Glyph> glyphs_;
+  std::vector<Glyph, ExternalRAMAllocator<Glyph>> glyphs_;
   int baseline_;
   int height_;
 };
