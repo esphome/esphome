@@ -15,18 +15,10 @@ void StatusLEDLightOutput::loop() {
   }
 
   if ((new_state & STATUS_LED_ERROR) != 0u) {
-    bool out_state = millis() % 250u < 150u;
-    if (this->pin_ != nullptr)
-      this->pin_->digital_write(out_state);
-    if (this->output_ != nullptr)
-      this->output_->set_state(out_state);
+    this->output_state_(millis() % 250u < 150u);
     this->last_app_state_ = new_state;
   } else if ((new_state & STATUS_LED_WARNING) != 0u) {
-    bool out_state = millis() % 1500u < 250u;
-    if (this->pin_ != nullptr)
-      this->pin_->digital_write(out_state);
-    if (this->output_ != nullptr)
-      this->output_->set_state(out_state);
+    this->output_state_(millis() % 1500u < 250u);
     this->last_app_state_ = new_state;
   } else if (new_state != this->last_app_state_) {
     // if no error/warning -> restore light state or turn off
@@ -36,10 +28,7 @@ void StatusLEDLightOutput::loop() {
       lightstate_->current_values_as_binary(&state);
     ESP_LOGD(TAG, "Restoring light state %s", ONOFF(state));
 
-    if (this->pin_ != nullptr)
-      this->pin_->digital_write(state);
-    if (this->output_ != nullptr)
-      this->output_->set_state(state);
+    this->output_state_(state);
     this->last_app_state_ = new_state;
   }
 }
@@ -58,10 +47,7 @@ void StatusLEDLightOutput::write_state(light::LightState *state) {
   // once it is back to OK, the loop will restore the state
   if ((App.get_app_state() & (STATUS_LED_ERROR | STATUS_LED_WARNING)) == 0u) {
     ESP_LOGD(TAG, "'%s': Setting state %s", state->get_name().c_str(), ONOFF(binary));
-    if (this->pin_ != nullptr)
-      this->pin_->digital_write(binary);
-    if (this->output_ != nullptr)
-      this->output_->set_state(binary);
+    this->output_state_(binary);
   }
 }
 
@@ -77,6 +63,13 @@ void StatusLEDLightOutput::setup() {
 void StatusLEDLightOutput::dump_config() {
   ESP_LOGCONFIG(TAG, "Status Led Light:");
   LOG_PIN("  Pin: ", this->pin_);
+}
+
+void StatusLEDLightOutput::output_state_(bool state) {
+  if (this->pin_ != nullptr)
+    this->pin_->digital_write(state);
+  if (this->output_ != nullptr)
+    this->output_->set_state(state);
 }
 
 }  // namespace status_led

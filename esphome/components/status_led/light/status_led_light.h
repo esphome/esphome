@@ -37,6 +37,7 @@ class StatusLEDLightOutput : public light::LightOutput, public Component {
   output::BinaryOutput *output_{nullptr};
   light::LightState *lightstate_{};
   uint32_t last_app_state_{0xFFFF};
+  void output_state_(bool state);
 };
 
 }  // namespace status_led
