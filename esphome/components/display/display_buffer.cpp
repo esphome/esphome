@@ -256,7 +256,7 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
     if (glyph_n < 0) {
       // Unknown char, skip
       ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
-      if (font->get_glyphs_size() > 0) {
+      if (!font->get_glyphs().empty()) {
         uint8_t glyph_width = font->get_glyphs()[0].glyph_data_->width;
         for (int glyph_x = 0; glyph_x < glyph_width; glyph_x++) {
           for (int glyph_y = 0; glyph_y < height; glyph_y++)
@@ -557,7 +557,7 @@ void Glyph::scan_area(int *x1, int *y1, int *width, int *height) const {
 }
 int Font::match_next_glyph(const char *str, int *match_length) {
   int lo = 0;
-  int hi = this->glyphs_size_ - 1;
+  int hi = this->glyphs_.size() - 1;
   while (lo != hi) {
     int mid = (lo + hi + 1) / 2;
     if (this->glyphs_[mid].compare_to(str)) {
@@ -583,7 +583,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
     int glyph_n = this->match_next_glyph(str + i, &match_length);
     if (glyph_n < 0) {
       // Unknown char, skip
-      if (this->glyphs_size_ > 0)
+      if (!this->get_glyphs().empty())
         x += this->get_glyphs()[0].glyph_data_->width;
       i++;
       continue;
@@ -604,16 +604,9 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   *width = x - min_x;
 }
 Font::Font(const GlyphData *data, int data_nr, int baseline, int height) : baseline_(baseline), height_(height) {
-  ExternalRAMAllocator<Glyph> allocator(ExternalRAMAllocator<Glyph>::ALLOW_FAILURE);
-  this->glyphs_ = allocator.allocate(data_nr);
-  if (this->glyphs_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate buffer for Glyphs!");
-    return;
-  }
-  for (int i = 0; i < data_nr; ++i) {
-    this->glyphs_[i] = Glyph(data + i);
-  }
-  this->glyphs_size_ = data_nr;
+  glyphs_.reserve(data_nr);
+  for (int i = 0; i < data_nr; ++i)
+    glyphs_.emplace_back(&data[i]);
 }
 
 bool Image::get_pixel(int x, int y) const {

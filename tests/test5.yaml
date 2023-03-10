@@ -80,7 +80,7 @@ binary_sensor:
     id: modbus_binsensortest
     register_type: read
     address: 0x3200
-    bitmask: 0x80  # (bit 8)
+    bitmask: 0x80 # (bit 8)
     lambda: "return x;"
 
   - platform: tm1638
@@ -374,7 +374,7 @@ select:
 
 sensor:
   - platform: internal_temperature
-    name: "Internal Temperature"
+    name: Internal Temperature
   - platform: selec_meter
     total_active_energy:
       name: SelecEM2M Total Active Energy
@@ -614,7 +614,6 @@ sn74hc165:
   clock_inhibit_pin: GPIO26
   sr_count: 4
 
-
 matrix_keypad:
   id: keypad
   rows:
@@ -630,4 +629,3 @@ key_collector:
     source_id: keypad
     min_length: 4
     max_length: 4
-
