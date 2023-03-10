@@ -243,7 +243,7 @@ haier_protocol::HaierMessage Smartair2Climate::get_control_message() {
           climate_control.target_temperature.value() - 16;  // set the temperature at our offset, subtract 16.
     }
   }
-  out_data->display_status = this->display_status_ ? 1 : 0;
+  out_data->display_status = this->display_status_ ? 0 : 1;
   return haier_protocol::HaierMessage((uint8_t) smartair2_protocol::FrameType::CONTROL, 0x4D5F, control_out_buffer,
                                       sizeof(smartair2_protocol::HaierPacketControl));
 }
@@ -303,7 +303,7 @@ haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uin
     // should be before "Climate mode" because it is changing this->mode
     if (packet.control.ac_power != 0) {
       // if AC is off display status always ON so process it only when AC is on
-      bool disp_status = packet.control.display_status != 0;
+      bool disp_status = packet.control.display_status == 0;
       if (disp_status != this->display_status_) {
         // Do something only if display status changed
         if (this->mode == CLIMATE_MODE_OFF) {

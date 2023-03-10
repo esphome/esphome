@@ -17,7 +17,7 @@ struct HaierPacketControl {
   // 12
   uint8_t : 8;
   // 13
-  uint8_t : 8;
+  uint8_t room_humidity;  // Humidity 0%-100% with 1% step
   // 14
   uint8_t : 8;
   // 15
@@ -51,6 +51,8 @@ struct HaierPacketControl {
   uint8_t : 2;
   uint8_t health_mode : 1;  // Health mode on or off
   uint8_t compressor : 1;   // Compressor on or off ???
+  uint8_t : 1;
+  uint8_t half_degree : 1;  // Half degree setting target temp ???
   uint8_t : 0;
   // 28
   uint8_t : 8;
