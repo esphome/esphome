@@ -15,10 +15,18 @@ void StatusLEDLightOutput::loop() {
   }
 
   if ((new_state & STATUS_LED_ERROR) != 0u) {
-    this->pin_->digital_write(millis() % 250u < 150u);
+    bool out_state = millis() % 250u < 150u;
+    if (this->pin_ != nullptr)
+      this->pin_->digital_write(out_state);
+    if (this->output_ != nullptr)
+      this->output_->set_state(out_state);
     this->last_app_state_ = new_state;
   } else if ((new_state & STATUS_LED_WARNING) != 0u) {
-    this->pin_->digital_write(millis() % 1500u < 250u);
+    bool out_state = millis() % 1500u < 250u;
+    if (this->pin_ != nullptr)
+      this->pin_->digital_write(out_state);
+    if (this->output_ != nullptr)
+      this->output_->set_state(out_state);
     this->last_app_state_ = new_state;
   } else if (new_state != this->last_app_state_) {
     // if no error/warning -> restore light state or turn off
@@ -30,13 +38,8 @@ void StatusLEDLightOutput::loop() {
 
     if (this->pin_ != nullptr)
       this->pin_->digital_write(state);
-    if (this->output_ != nullptr) {
-      if (state) {
-        this->output_->turn_on();
-      } else {
-        this->output_->turn_off();
-      }
-    }
+    if (this->output_ != nullptr)
+      this->output_->set_state(state);
     this->last_app_state_ = new_state;
   }
 }
@@ -57,21 +60,18 @@ void StatusLEDLightOutput::write_state(light::LightState *state) {
     ESP_LOGD(TAG, "'%s': Setting state %s", state->get_name().c_str(), ONOFF(binary));
     if (this->pin_ != nullptr)
       this->pin_->digital_write(binary);
-    if (this->output_ != nullptr) {
-      if (binary) {
-        this->output_->turn_on();
-      } else {
-        this->output_->turn_off();
-      }
-    }
+    if (this->output_ != nullptr)
+      this->output_->set_state(binary);
   }
 }
 
 void StatusLEDLightOutput::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Status LED...");
 
-  this->pin_->setup();
-  this->pin_->digital_write(false);
+  if (this->pin_ != nullptr) {
+    this->pin_->setup();
+    this->pin_->digital_write(false);
+  }
 }
 
 void StatusLEDLightOutput::dump_config() {
