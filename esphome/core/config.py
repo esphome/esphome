@@ -440,6 +440,46 @@ async def to_code(config):
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )
     )
+
+    CORE.add_job(_add_automations, config)
+
+    cg.add_build_flag("-fno-exceptions")
+
+    # Libraries
+    for lib in config[CONF_LIBRARIES]:
+        if "@" in lib:
+            name, vers = lib.split("@", 1)
+            cg.add_library(name, vers)
+        elif "://" in lib:
+            # Repository...
+            if "=" in lib:
+                name, repo = lib.split("=", 1)
+                cg.add_library(name, None, repo)
+            else:
+                cg.add_library(None, None, lib)
+
+        else:
+            cg.add_library(lib, None)
+
+    cg.add_build_flag("-Wno-unused-variable")
+    cg.add_build_flag("-Wno-unused-but-set-variable")
+    cg.add_build_flag("-Wno-sign-compare")
+
+    if CORE.using_arduino:
+        CORE.add_job(add_arduino_global_workaround)
+
+    if config[CONF_INCLUDES]:
+        CORE.add_job(add_includes, config[CONF_INCLUDES])
+
+    if CONF_PROJECT in config:
+        cg.add_define("ESPHOME_PROJECT_NAME", config[CONF_PROJECT][CONF_NAME])
+        cg.add_define("ESPHOME_PROJECT_VERSION", config[CONF_PROJECT][CONF_VERSION])
+
+    if config[CONF_PLATFORMIO_OPTIONS]:
+        CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])
+
+    await cg.past_safe_mode()
+
     # Reserve memory for components and sensors
     cg.add(cg.App.reserve_component(config[CONF_NUMBER_OF_CHILDREN][str(cg.Component)]))
     cg.add(
@@ -503,40 +543,3 @@ async def to_code(config):
         cg.App.reserve_media_player(config[CONF_NUMBER_OF_CHILDREN][str(MediaPlayer)])
     )
     cg.add(cg.RawStatement("#endif  // USE_MEDIA_PLAYER"))
-
-    CORE.add_job(_add_automations, config)
-
-    cg.add_build_flag("-fno-exceptions")
-
-    # Libraries
-    for lib in config[CONF_LIBRARIES]:
-        if "@" in lib:
-            name, vers = lib.split("@", 1)
-            cg.add_library(name, vers)
-        elif "://" in lib:
-            # Repository...
-            if "=" in lib:
-                name, repo = lib.split("=", 1)
-                cg.add_library(name, None, repo)
-            else:
-                cg.add_library(None, None, lib)
-
-        else:
-            cg.add_library(lib, None)
-
-    cg.add_build_flag("-Wno-unused-variable")
-    cg.add_build_flag("-Wno-unused-but-set-variable")
-    cg.add_build_flag("-Wno-sign-compare")
-
-    if CORE.using_arduino:
-        CORE.add_job(add_arduino_global_workaround)
-
-    if config[CONF_INCLUDES]:
-        CORE.add_job(add_includes, config[CONF_INCLUDES])
-
-    if CONF_PROJECT in config:
-        cg.add_define("ESPHOME_PROJECT_NAME", config[CONF_PROJECT][CONF_NAME])
-        cg.add_define("ESPHOME_PROJECT_VERSION", config[CONF_PROJECT][CONF_VERSION])
-
-    if config[CONF_PLATFORMIO_OPTIONS]:
-        CORE.add_job(_add_platformio_options, config[CONF_PLATFORMIO_OPTIONS])

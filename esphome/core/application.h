@@ -70,6 +70,9 @@ class Application {
     }
     this->comment_ = comment;
     this->compilation_time_ = compilation_time;
+
+    // Reserve enough space so no reallocation for components is necessary till ota safe_mode check.
+    this->components_.reserve(8);
   }
 
   void reserve_component(const size_t expected_count) { this->components_.reserve(expected_count); }
