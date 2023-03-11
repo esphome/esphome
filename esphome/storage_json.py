@@ -36,6 +36,7 @@ class StorageJSON:
         self,
         storage_version,
         name,
+        friendly_name,
         comment,
         esphome_version,
         src_version,
@@ -51,6 +52,8 @@ class StorageJSON:
         self.storage_version: int = storage_version
         # The name of the node
         self.name: str = name
+        # The friendly name of the node
+        self.friendly_name: str = friendly_name
         # The comment of the node
         self.comment: str = comment
         # The esphome version this was compiled with
@@ -77,6 +80,7 @@ class StorageJSON:
         return {
             "storage_version": self.storage_version,
             "name": self.name,
+            "friendly_name": self.friendly_name,
             "comment": self.comment,
             "esphome_version": self.esphome_version,
             "src_version": self.src_version,
@@ -106,6 +110,7 @@ class StorageJSON:
         return StorageJSON(
             storage_version=1,
             name=esph.name,
+            friendly_name=esph.friendly_name,
             comment=esph.comment,
             esphome_version=const.__version__,
             src_version=1,
@@ -118,10 +123,13 @@ class StorageJSON:
         )
 
     @staticmethod
-    def from_wizard(name: str, address: str, platform: str) -> "StorageJSON":
+    def from_wizard(
+        name: str, friendly_name: str, address: str, platform: str
+    ) -> "StorageJSON":
         return StorageJSON(
             storage_version=1,
             name=name,
+            friendly_name=friendly_name,
             comment=None,
             esphome_version=None,
             src_version=1,
@@ -139,6 +147,7 @@ class StorageJSON:
             storage = json.load(f_handle)
         storage_version = storage["storage_version"]
         name = storage.get("name")
+        friendly_name = storage.get("friendly_name")
         comment = storage.get("comment")
         esphome_version = storage.get(
             "esphome_version", storage.get("esphomeyaml_version")
@@ -153,6 +162,7 @@ class StorageJSON:
         return StorageJSON(
             storage_version,
             name,
+            friendly_name,
             comment,
             esphome_version,
             src_version,
