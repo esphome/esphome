@@ -80,7 +80,7 @@ binary_sensor:
     id: modbus_binsensortest
     register_type: read
     address: 0x3200
-    bitmask: 0x80  # (bit 8)
+    bitmask: 0x80 # (bit 8)
     lambda: "return x;"
 
   - platform: tm1638
@@ -373,6 +373,8 @@ select:
       "Three": 3
 
 sensor:
+  - platform: internal_temperature
+    name: Internal Temperature
   - platform: selec_meter
     total_active_energy:
       name: SelecEM2M Total Active Energy
@@ -475,7 +477,6 @@ sensor:
     acceleration_mode: low
     store_baseline: true
     address: 0x69
-
   - platform: mcp9600
     thermocouple_type: K
     hot_junction:
@@ -517,6 +518,12 @@ sensor:
       - id: vcustom
         name: VBus Custom Sensor
         lambda: return x[0] / 10.0;
+
+  - platform: kuntze
+    ph:
+      name: Kuntze pH
+    temperature:
+      name: Kuntze temperature
 
 script:
   - id: automation_test
@@ -607,7 +614,6 @@ sn74hc165:
   clock_inhibit_pin: GPIO26
   sr_count: 4
 
-
 matrix_keypad:
   id: keypad
   rows:
@@ -623,4 +629,3 @@ key_collector:
     source_id: keypad
     min_length: 4
     max_length: 4
-
