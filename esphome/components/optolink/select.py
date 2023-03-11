@@ -2,7 +2,6 @@ from esphome import core
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import select
-from esphome.components.optolink.sensor import SENSOR_BASE_SCHEMA
 from esphome.const import (
     CONF_ADDRESS,
     CONF_BYTES,
@@ -12,7 +11,8 @@ from esphome.const import (
     CONF_TO,
     CONF_UPDATE_INTERVAL,
 )
-from . import OptolinkComponent, optolink_ns
+from . import OptolinkComponent, optolink_ns, CONF_OPTOLINK_ID
+from .sensor import SENSOR_BASE_SCHEMA
 
 OptolinkSelect = optolink_ns.class_(
     "OptolinkSelect", select.Select, cg.PollingComponent
@@ -32,7 +32,6 @@ def validate_mapping(value):
     )(value)
 
 
-CONF_OPTOLINK_ID = "optolink_id"
 CONF_MAP = "map"
 MAP_ID = "mappings"
 CONFIG_SCHEMA = (

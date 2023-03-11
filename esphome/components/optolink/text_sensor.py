@@ -1,6 +1,5 @@
 from esphome import core
 import esphome.codegen as cg
-from esphome.components.optolink.sensor import SENSOR_BASE_SCHEMA
 import esphome.config_validation as cv
 from esphome.components import text_sensor
 from esphome.const import (
@@ -11,13 +10,13 @@ from esphome.const import (
     CONF_RAW,
     CONF_UPDATE_INTERVAL,
 )
-from . import optolink_ns, OptolinkComponent
+from . import optolink_ns, OptolinkComponent, CONF_OPTOLINK_ID
+from .sensor import SENSOR_BASE_SCHEMA
 
 OptolinkTextSensor = optolink_ns.class_(
     "OptolinkTextSensor", text_sensor.TextSensor, cg.PollingComponent
 )
 
-CONF_OPTOLINK_ID = "optolink_id"
 CONFIG_SCHEMA = cv.All(
     text_sensor.text_sensor_schema(OptolinkTextSensor)
     .extend(

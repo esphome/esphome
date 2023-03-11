@@ -19,6 +19,8 @@ MULTI_CONF = False
 CONF_DEVICE_INFO = "device_info"
 
 optolink_ns = cg.esphome_ns.namespace("optolink")
+CONF_OPTOLINK_ID = "optolink_id"
+
 OptolinkComponent = optolink_ns.class_("Optolink", cg.Component)
 StateSensor = optolink_ns.class_(
     "OptolinkStateSensor", ts.TextSensor, cg.PollingComponent

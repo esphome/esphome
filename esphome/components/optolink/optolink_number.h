@@ -3,7 +3,7 @@
 #include "esphome/components/number/number.h"
 #include "optolink_sensor_base.h"
 #include "optolink.h"
-#include <VitoWiFi.h>
+#include "VitoWiFi.h"
 
 namespace esphome {
 namespace optolink {
@@ -13,7 +13,7 @@ class OptolinkNumber : public OptolinkSensorBase, public esphome::number::Number
   OptolinkNumber(Optolink *optolink) : OptolinkSensorBase(optolink, true) {}
 
  protected:
-  void setup() override { setup_datapoint(); }
+  void setup() override { setup_datapoint_(); }
   void update() override { optolink_->read_value(datapoint_); }
 
   const std::string &get_sensor_name() override { return get_name(); }

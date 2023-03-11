@@ -2,7 +2,7 @@
 #pragma once
 
 #include "esphome/core/log.h"
-#include <VitoWiFi.h>
+#include "VitoWiFi.h"
 
 namespace esphome {
 namespace optolink {
@@ -18,8 +18,8 @@ class OptolinkSensorBase {
   int bytes_;
   int div_ratio_ = 1;
 
-  void setup_datapoint();
-  void update_datapoint(float value);
+  void setup_datapoint_();
+  void update_datapoint_(float value);
 
  public:
   OptolinkSensorBase(Optolink *optolink, bool writeable = false) {
@@ -36,11 +36,12 @@ class OptolinkSensorBase {
   virtual void value_changed(float state) = 0;
 };
 
+// NOLINTNEXTLINE
 class conv2_100_F : public DPType {
  public:
   void encode(uint8_t *out, DPValue in);
   DPValue decode(const uint8_t *in);
-  const size_t getLength() const { return 2; }
+  size_t get_length() const { return 2; }
 };
 
 }  // namespace optolink

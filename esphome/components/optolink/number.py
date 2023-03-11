@@ -2,7 +2,6 @@ from esphome import core
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number
-from esphome.components.optolink.sensor import SENSOR_BASE_SCHEMA
 from esphome.const import (
     CONF_ADDRESS,
     CONF_BYTES,
@@ -13,13 +12,13 @@ from esphome.const import (
     CONF_STEP,
     CONF_UPDATE_INTERVAL,
 )
-from . import OptolinkComponent, optolink_ns
+from .sensor import SENSOR_BASE_SCHEMA
+from . import OptolinkComponent, optolink_ns, CONF_OPTOLINK_ID
 
 OptolinkNumber = optolink_ns.class_(
     "OptolinkNumber", number.Number, cg.PollingComponent
 )
 
-CONF_OPTOLINK_ID = "optolink_id"
 CONFIG_SCHEMA = (
     number.NUMBER_SCHEMA.extend(
         {
