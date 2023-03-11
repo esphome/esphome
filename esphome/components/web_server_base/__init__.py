@@ -27,8 +27,9 @@ async def to_code(config):
         cg.add_library("WiFi", None)
         cg.add_library("FS", None)
         cg.add_library(
-            "https://github.com/yubox-node-org/ESPAsyncWebServer/archive/1dde9cf0219de662ed0882c0b6208057f70f105d.zip",
             None,
+            None,
+            "https://github.com/yubox-node-org/ESPAsyncWebServer#1dde9cf0219de662ed0882c0b6208057f70f105d",
         )
     else:
         # https://github.com/esphome/ESPAsyncWebServer/blob/master/library.json
