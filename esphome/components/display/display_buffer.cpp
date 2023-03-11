@@ -603,10 +603,10 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   *x_offset = min_x;
   *width = x - min_x;
 }
-const std::vector<Glyph> &Font::get_glyphs() const { return this->glyphs_; }
 Font::Font(const GlyphData *data, int data_nr, int baseline, int height) : baseline_(baseline), height_(height) {
+  glyphs_.reserve(data_nr);
   for (int i = 0; i < data_nr; ++i)
-    glyphs_.emplace_back(data + i);
+    glyphs_.emplace_back(&data[i]);
 }
 
 bool Image::get_pixel(int x, int y) const {

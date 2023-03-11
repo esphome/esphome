@@ -3,6 +3,8 @@ esphome:
   name: $device_name
   comment: $device_comment
   build_path: build/test3
+  platformio_options:
+    board_build.partitions: huge_app.csv
   on_boot:
     - if:
         condition:
@@ -52,7 +54,7 @@ api:
         - logger.log: Something happened
         - stepper.set_target:
             id: my_stepper2
-            target: !lambda 'return int_;'
+            target: !lambda "return int_;"
     - service: array_types
       variables:
         bool_arr: bool[]
@@ -62,7 +64,7 @@ api:
       then:
         - logger.log:
             # yamllint disable rule:line-length
-            format: 'Bool: %s (%u), Int: %d (%u), Float: %f (%u), String: %s (%u)'
+            format: "Bool: %s (%u), Int: %d (%u), Float: %f (%u), String: %s (%u)"
             # yamllint enable rule:line-length
             args:
               - YESNO(bool_arr[0])
@@ -83,30 +85,30 @@ api:
       variables:
         file: int
       then:
-        - dfplayer.play: !lambda 'return file;'
+        - dfplayer.play: !lambda "return file;"
     - service: dfplayer_play_loop
       variables:
         file: int
         loop_: bool
       then:
         - dfplayer.play:
-            file: !lambda 'return file;'
-            loop: !lambda 'return loop_;'
+            file: !lambda "return file;"
+            loop: !lambda "return loop_;"
     - service: dfplayer_play_folder
       variables:
         folder: int
         file: int
       then:
         - dfplayer.play_folder:
-            folder: !lambda 'return folder;'
-            file: !lambda 'return file;'
+            folder: !lambda "return folder;"
+            file: !lambda "return file;"
 
     - service: dfplayer_play_loo_folder
       variables:
         folder: int
       then:
         - dfplayer.play_folder:
-            folder: !lambda 'return folder;'
+            folder: !lambda "return folder;"
             loop: true
 
     - service: dfplayer_set_device
@@ -120,13 +122,13 @@ api:
       variables:
         volume: int
       then:
-        - dfplayer.set_volume: !lambda 'return volume;'
+        - dfplayer.set_volume: !lambda "return volume;"
     - service: dfplayer_set_eq
       variables:
         preset: int
       then:
         # yamllint disable rule:line-length
-        - dfplayer.set_eq: !lambda 'return static_cast<dfplayer::EqPreset>(preset);'
+        - dfplayer.set_eq: !lambda "return static_cast<dfplayer::EqPreset>(preset);"
         # yamllint enable rule:line-length
 
     - service: dfplayer_sleep
@@ -167,21 +169,21 @@ api:
       then:
         - tm1651.set_level_percent:
             id: tm1651_battery
-            level_percent: !lambda 'return level_percent;'
+            level_percent: !lambda "return level_percent;"
     - service: battery_level
       variables:
         level: int
       then:
         - tm1651.set_level:
             id: tm1651_battery
-            level: !lambda 'return level;'
+            level: !lambda "return level;"
     - service: battery_brightness
       variables:
         brightness: int
       then:
         - tm1651.set_brightness:
             id: tm1651_battery
-            brightness: !lambda 'return brightness;'
+            brightness: !lambda "return brightness;"
     - service: battery_turn_on
       then:
         - tm1651.turn_on:
@@ -203,8 +205,8 @@ api:
         num_scans: int
       then:
         - fingerprint_grow.enroll:
-            finger_id: !lambda 'return finger_id;'
-            num_scans: !lambda 'return num_scans;'
+            finger_id: !lambda "return finger_id;"
+            num_scans: !lambda "return num_scans;"
     - service: fingerprint_grow_cancel_enroll
       then:
         - fingerprint_grow.cancel_enroll:
@@ -213,14 +215,14 @@ api:
         finger_id: int
       then:
         - fingerprint_grow.delete:
-            finger_id: !lambda 'return finger_id;'
+            finger_id: !lambda "return finger_id;"
     - service: fingerprint_grow_delete_all
       then:
         - fingerprint_grow.delete_all:
 
 wifi:
-  ssid: 'MySSID'
-  password: 'password1'
+  ssid: "MySSID"
+  password: "password1"
 
 i2c:
   sda: 4
@@ -283,6 +285,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart12
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
 
 modbus:
   uart_id: uart1
@@ -310,7 +316,6 @@ deep_sleep:
 wled:
 
 adalight:
-
 
 sensor:
   - platform: daly_bms
@@ -410,7 +415,7 @@ sensor:
           send_every: 5
           send_first_at: 3
           quantile: .8
-      - lambda: 'return 0;'
+      - lambda: "return 0;"
       - delta: 100
       - throttle: 100ms
       - debounce: 500s
@@ -541,15 +546,15 @@ sensor:
   - platform: bl0942
     uart_id: uart3
     voltage:
-      name: 'BL0942 Voltage'
+      name: BL0942 Voltage
     current:
-      name: 'BL0942 Current'
+      name: BL0942 Current
     power:
-      name: 'BL0942 Power'
+      name: BL0942 Power
     energy:
-      name: 'BL0942 Energy'
+      name: BL0942 Energy
     frequency:
-      name: "BL0942 Frequency"
+      name: BL0942 Frequency
   - platform: pzem004t
     uart_id: uart3
     voltage:
@@ -573,12 +578,15 @@ sensor:
     power_factor:
       name: PZEMAC Power Factor
   - platform: pzemdc
+    id: pzemdc1
     voltage:
       name: PZEMDC Voltage
     current:
       name: PZEMDC Current
     power:
       name: PZEMDC Power
+    energy:
+      name: PZEMDC Energy
   - platform: tmp102
     name: TMP102 Temperature
   - platform: hm3301
@@ -807,6 +815,12 @@ sensor:
     temperature_1:
       name: Temperature 1
 
+  - platform: kuntze
+    ph:
+      name: Kuntze pH
+    temperature:
+      name: Kuntze temperature
+
 time:
   - platform: homeassistant
 
@@ -832,7 +846,7 @@ binary_sensor:
       - invert
       - delayed_on: 20ms
       - delayed_off: 20ms
-      - lambda: 'return false;'
+      - lambda: "return false;"
     on_state:
       - logger.log: New state
     id: my_binary_sensor
@@ -911,6 +925,11 @@ binary_sensor:
     on_press:
       then:
         - pzemac.reset_energy: pzemac1
+  - platform: template
+    id: pzemdc_reset_energy
+    on_press:
+      then:
+        - pzemdc.reset_energy: pzemdc1
 
   - platform: vbus
     model: deltasol_bs_plus
@@ -1059,13 +1078,13 @@ interval:
         target: 500
     - stepper.set_target:
         id: my_stepper
-        target: !lambda 'return 0;'
+        target: !lambda "return 0;"
     - stepper.report_position:
         id: my_stepper2
         position: 0
     - stepper.report_position:
         id: my_stepper
-        position: !lambda 'return 50/100.0;'
+        position: !lambda "return 50/100.0;"
 
 climate:
   - platform: bang_bang
@@ -1086,12 +1105,12 @@ climate:
     name: Thermostat Climate
     sensor: ha_hello_world
     preset:
-    - name: Default Preset
-      default_target_temperature_low: 18°C
-      default_target_temperature_high: 24°C
-    - name: Away
-      default_target_temperature_low: 16°C
-      default_target_temperature_high: 20°C
+      - name: Default Preset
+        default_target_temperature_low: 18°C
+        default_target_temperature_high: 24°C
+      - name: Away
+        default_target_temperature_low: 16°C
+        default_target_temperature_high: 20°C
     idle_action:
       - switch.turn_on: gpio_switch1
     cool_action:
@@ -1188,8 +1207,14 @@ climate:
       ki_multiplier: 0.0
       kd_multiplier: 0.0
       deadband_output_averaging_samples: 1
-
-
+  - platform: haier
+    name: Haier AC
+    supported_swing_modes:
+      - vertical
+      - horizontal
+      - both
+    update_interval: 10s
+    uart_id: uart12
 
 sprinkler:
   - id: yard_sprinkler_ctrlr
@@ -1233,7 +1258,6 @@ sprinkler:
         run_duration: 10s
         valve_switch_id: gpio_switch2
 
-
 cover:
   - platform: endstop
     name: Endstop Cover
@@ -1255,13 +1279,13 @@ cover:
           frequency: 500.0Hz
       - output.esp8266_pwm.set_frequency:
           id: out
-          frequency: !lambda 'return 500.0;'
+          frequency: !lambda "return 500.0;"
       - servo.write:
           id: my_servo
           level: -100%
       - servo.write:
           id: my_servo
-          level: !lambda 'return -1.0;'
+          level: !lambda "return -1.0;"
       - delay: 2s
       - servo.detach: my_servo
     close_duration: 4.5min
@@ -1303,15 +1327,15 @@ cover:
         - logger.log: Malfunction Detected
   - platform: template
     name: Template Cover with Tilt
-    tilt_lambda: 'return 0.5;'
+    tilt_lambda: "return 0.5;"
     tilt_action:
       - output.set_level:
           id: out
-          level: !lambda 'return tilt;'
+          level: !lambda "return tilt;"
     position_action:
       - output.set_level:
           id: out
-          level: !lambda 'return pos;'
+          level: !lambda "return pos;"
 
 output:
   - platform: esp8266_pwm
@@ -1343,7 +1367,7 @@ output:
       then:
         - logger.log:
             format: "Changed state: %d"
-            args: [ 'state' ]
+            args: ["state"]
   - platform: custom
     type: float
     lambda: |-
@@ -1439,9 +1463,9 @@ sim800l:
         str = message;
     - sim800l.send_sms:
         message: hello you
-        recipient: '+1234'
+        recipient: "+1234"
     - sim800l.dial:
-        recipient: '+1234'
+        recipient: "+1234"
 
 dfplayer:
   uart_id: uart5
@@ -1485,9 +1509,9 @@ rf_bridge:
     - rf_bridge.send_advanced_code:
         length: 0x04
         protocol: 0x01
-        code: 'ABC123'
+        code: "ABC123"
     - rf_bridge.send_raw:
-        raw: 'AAA5070008001000ABC12355'
+        raw: "AAA5070008001000ABC12355"
     - http_request.get:
         url: https://esphome.io
         headers:
@@ -1535,7 +1559,6 @@ display:
       then:
         lambda: 'ESP_LOGD("display","Display shows new page %u", x);'
 
-
 http_request:
   useragent: esphome/device
   timeout: 10s
@@ -1548,8 +1571,8 @@ fingerprint_grow:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_finger_scan_matched
         data:
-          finger_id: !lambda 'return finger_id;'
-          confidence: !lambda 'return confidence;'
+          finger_id: !lambda "return finger_id;"
+          confidence: !lambda "return confidence;"
   on_finger_scan_unmatched:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_finger_scan_unmatched
@@ -1557,18 +1580,18 @@ fingerprint_grow:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_enrollment_scan
         data:
-          finger_id: !lambda 'return finger_id;'
-          scan_num: !lambda 'return scan_num;'
+          finger_id: !lambda "return finger_id;"
+          scan_num: !lambda "return scan_num;"
   on_enrollment_done:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_node_enrollment_done
         data:
-          finger_id: !lambda 'return finger_id;'
+          finger_id: !lambda "return finger_id;"
   on_enrollment_failed:
     - homeassistant.event:
         event: esphome.${device_name}_fingerprint_grow_enrollment_failed
         data:
-          finger_id: !lambda 'return finger_id;'
+          finger_id: !lambda "return finger_id;"
   uart_id: uart6
 
 dsmr:
@@ -1598,7 +1621,6 @@ button:
     id: wol_1
   - platform: factory_reset
     name: Restart Button (Factory Default Settings)
-
 
 cd74hc4067:
   pin_s0: GPIO12
