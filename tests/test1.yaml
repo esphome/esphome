@@ -323,6 +323,14 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+optolink:
+  protocol: P300
+  rx_pin: GPIO15
+  tx_pin: GPIO16
+  logger: true
+  device_info: Device Info
+  state: Component state
+
 sensor:
   - platform: internal_temperature
     name: Internal Temperature
@@ -1259,6 +1267,13 @@ sensor:
     name: DHT Absolute Humidity
     temperature: dht_temperature
     humidity: dht_humidity
+  - platform: optolink
+    name: Boiler Temperature
+    address: 0xA309
+    bytes: 2
+    div_ratio: 100
+    unit_of_measurement: °C
+    device_class: temperature
 
 esp32_touch:
   setup_mode: false
@@ -1532,6 +1547,9 @@ binary_sensor:
       name: movement
     has_still_target:
       name: still
+  - platform: optolink
+    name: Disturbance
+    address: 0x0A82
 
 pca9685:
   frequency: 500
@@ -2461,6 +2479,10 @@ switch:
     id: outlet_switch
     optimistic: true
     device_class: outlet
+  - platform: optolink
+    name: Economy mode
+    address: 0x2302
+    icon: mdi:sprout-outline
 
 fan:
   - platform: binary
@@ -3030,6 +3052,11 @@ text_sensor:
     tag_name: OPTARIF
     name: optarif
     teleinfo_id: myteleinfo
+  - platform: optolink
+    name: Error history 1
+    address: 0x7590
+    bytes: 9
+    raw: true
 
 sn74hc595:
   - id: sn74hc595_hub
@@ -3134,6 +3161,17 @@ number:
     step: 1
     max_value: 10
     optimistic: true
+  - platform: optolink
+    name: Room Temperature Setpoint
+    unit_of_measurement: °C
+    address: 0x2306
+    bytes: 1
+    min_value: 3
+    max_value: 37
+    step: 1
+    mode: box
+    icon: "mdi:home-thermometer"
+    device_class: temperature
 
 select:
   - platform: template
@@ -3147,6 +3185,14 @@ select:
   - platform: copy
     source_id: test_select
     name: Test Select Copy
+  - platform: optolink
+    name: Operation mode
+    address: 0x2323
+    bytes: 1
+    map:
+      - "0 -> Off"
+      - "1 -> Only hot water"
+      - "2 -> Heating and hot water"
 
 qr_code:
   - id: homepage_qr
