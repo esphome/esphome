@@ -1,6 +1,6 @@
 #include "optolink_select.h"
 #include "optolink.h"
-#include <VitoWiFi.h>
+#include "VitoWiFi.h"
 
 namespace esphome {
 namespace optolink {
@@ -9,7 +9,7 @@ void OptolinkSelect::control(const std::string &value) {
   for (auto it = mapping_->begin(); it != mapping_->end(); ++it) {
     if (it->second == value) {
       ESP_LOGI("OptolinkSelect", "control of select %s to value %s", get_sensor_name().c_str(), it->first.c_str());
-      update_datapoint(std::stof(it->first));
+      update_datapoint_(std::stof(it->first));
       publish_state(it->second);
       break;
     }

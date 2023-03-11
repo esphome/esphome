@@ -3,12 +3,11 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
 from esphome.const import CONF_ID, CONF_ADDRESS, CONF_UPDATE_INTERVAL
-from . import optolink_ns, OptolinkComponent
+from . import OptolinkComponent, optolink_ns, CONF_OPTOLINK_ID
 
 OptolinkBinarySensor = optolink_ns.class_(
     "OptolinkBinarySensor", binary_sensor.BinarySensor, cg.PollingComponent
 )
-CONF_OPTOLINK_ID = "optolink_id"
 CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(OptolinkBinarySensor).extend(
     {
         cv.GenerateID(CONF_OPTOLINK_ID): cv.use_id(OptolinkComponent),

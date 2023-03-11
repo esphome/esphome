@@ -3,7 +3,7 @@
 #include "esphome/components/text_sensor/text_sensor.h"
 #include "optolink.h"
 #include "optolink_sensor_base.h"
-#include <VitoWiFi.h>
+#include "VitoWiFi.h"
 
 namespace esphome {
 namespace optolink {

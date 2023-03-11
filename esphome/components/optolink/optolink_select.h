@@ -4,7 +4,7 @@
 #include "esphome/components/select/select.h"
 #include "optolink.h"
 #include "optolink_sensor_base.h"
-#include <VitoWiFi.h>
+#include "VitoWiFi.h"
 
 namespace esphome {
 namespace optolink {
@@ -16,14 +16,14 @@ class OptolinkSelect : public OptolinkSensorBase, public esphome::select::Select
   void set_map(std::map<std::string, std::string> *mapping) {
     mapping_ = mapping;
     std::vector<std::string> values;
-    for (auto it = mapping->begin(); it != mapping->end(); ++it) {
-      values.push_back(it->second);
+    for (auto &it : *mapping) {
+      values.push_back(it.second);
     }
     traits.set_options(values);
   };
 
  protected:
-  void setup() override { setup_datapoint(); }
+  void setup() override { setup_datapoint_(); }
   void update() override { optolink_->read_value(datapoint_); }
 
   const std::string &get_sensor_name() override { return get_name(); }
