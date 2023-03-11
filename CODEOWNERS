@@ -180,6 +180,7 @@ esphome/components/nextion/switch/* @senexcrenshaw
 esphome/components/nextion/text_sensor/* @senexcrenshaw
 esphome/components/nfc/* @jesserockz
 esphome/components/number/* @esphome/core
+esphome/components/optolink/* @j0ta29
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
 esphome/components/pca9554/* @hwstar

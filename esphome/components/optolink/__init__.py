@@ -12,6 +12,7 @@ from esphome.const import (
 )
 from esphome.core import CORE
 
+CODEOWNERS = ["@j0ta29"]
 DEPENDENCIES = []
 AUTO_LOAD = ["sensor", "binary_sensor", "text_sensor", "number", "select", "switch"]
 MULTI_CONF = False
