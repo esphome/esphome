@@ -115,6 +115,5 @@ class Emc2101Component : public Component, public i2c::I2CDevice {
   Emc2101DACConversionRate dac_conversion_rate_;
 };
 
-
 }  // namespace emc2101
 }  // namespace esphome

@@ -161,6 +161,5 @@ float Emc2101Component::get_speed_() {
   return tach == 0xFFFF ? 0.0f : 5400000.0f / tach;
 }
 
-
 }  // namespace emc2101
 }  // namespace esphome
