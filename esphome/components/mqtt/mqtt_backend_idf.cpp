@@ -69,7 +69,7 @@ void MQTTBackendIDF::loop() {
   }
 }
 
-void MQTTBackendIDF::mqtt_event_handler_(const esp_mqtt_event_t &event) {
+void MQTTBackendIDF::mqtt_event_handler_(const Event &event) {
   ESP_LOGV(TAG, "Event dispatched from event loop event_id=%d", event.event_id);
   switch (event.event_id) {
     case MQTT_EVENT_BEFORE_CONNECT:
@@ -104,28 +104,24 @@ void MQTTBackendIDF::mqtt_event_handler_(const esp_mqtt_event_t &event) {
       break;
     case MQTT_EVENT_DATA: {
       static std::string topic;
-      if (event.topic) {
-        // not 0 terminated - create a string from it
-        topic = std::string(event.topic, event.topic_len);
+      if (event.topic.length() > 0) {
+        topic = event.topic;
       }
       ESP_LOGV(TAG, "MQTT_EVENT_DATA %s", topic.c_str());
-      auto data_len = event.data_len;
-      if (data_len == 0)
-        data_len = strlen(event.data);
-      this->on_message_.call(event.topic ? const_cast<char *>(topic.c_str()) : nullptr, event.data, data_len,
+      this->on_message_.call(event.topic.length() > 0 ? topic.c_str() : nullptr, event.data.data(), event.data.size(),
                              event.current_data_offset, event.total_data_len);
     } break;
     case MQTT_EVENT_ERROR:
       ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
-      if (event.error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-        ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event.error_handle->esp_tls_last_esp_err);
-        ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event.error_handle->esp_tls_stack_err);
-        ESP_LOGE(TAG, "Last captured errno : %d (%s)", event.error_handle->esp_transport_sock_errno,
-                 strerror(event.error_handle->esp_transport_sock_errno));
-      } else if (event.error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
-        ESP_LOGE(TAG, "Connection refused error: 0x%x", event.error_handle->connect_return_code);
+      if (event.error_handle.error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+        ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event.error_handle.esp_tls_last_esp_err);
+        ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event.error_handle.esp_tls_stack_err);
+        ESP_LOGE(TAG, "Last captured errno : %d (%s)", event.error_handle.esp_transport_sock_errno,
+                 strerror(event.error_handle.esp_transport_sock_errno));
+      } else if (event.error_handle.error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+        ESP_LOGE(TAG, "Connection refused error: 0x%x", event.error_handle.connect_return_code);
       } else {
-        ESP_LOGE(TAG, "Unknown error type: 0x%x", event.error_handle->error_type);
+        ESP_LOGE(TAG, "Unknown error type: 0x%x", event.error_handle.error_type);
       }
       break;
     default:
@@ -140,7 +136,7 @@ void MQTTBackendIDF::mqtt_event_handler(void *handler_args, esp_event_base_t bas
   // queue event to decouple processing
   if (instance) {
     auto event = *static_cast<esp_mqtt_event_t *>(event_data);
-    instance->mqtt_events_.push(event);
+    instance->mqtt_events_.push(Event(event));
   }
 }
 

@@ -219,6 +219,14 @@ class Climate : public EntityBase {
    */
   void add_on_state_callback(std::function<void()> &&callback);
 
+  /**
+   * Add a callback for the climate device configuration; each time the configuration parameters of a climate device
+   * is updated (using perform() of a ClimateCall), this callback will be called, before any on_state callback.
+   *
+   * @param callback The callback to call.
+   */
+  void add_on_control_callback(std::function<void()> &&callback);
+
   /** Make a climate device control call, this is used to control the climate device, see the ClimateCall description
    * for more info.
    * @return A new ClimateCall instance targeting this climate device.
@@ -241,7 +249,7 @@ class Climate : public EntityBase {
 
   void set_visual_min_temperature_override(float visual_min_temperature_override);
   void set_visual_max_temperature_override(float visual_max_temperature_override);
-  void set_visual_temperature_step_override(float visual_temperature_step_override);
+  void set_visual_temperature_step_override(float target, float current);
 
  protected:
   friend ClimateCall;
@@ -285,10 +293,12 @@ class Climate : public EntityBase {
   void dump_traits_(const char *tag);
 
   CallbackManager<void()> state_callback_{};
+  CallbackManager<void()> control_callback_{};
   ESPPreferenceObject rtc_;
   optional<float> visual_min_temperature_override_{};
   optional<float> visual_max_temperature_override_{};
-  optional<float> visual_temperature_step_override_{};
+  optional<float> visual_target_temperature_step_override_{};
+  optional<float> visual_current_temperature_step_override_{};
 };
 
 }  // namespace climate
