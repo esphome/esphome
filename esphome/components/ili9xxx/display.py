@@ -16,7 +16,12 @@ from esphome.const import (
 )
 
 DEPENDENCIES = ["spi"]
-AUTO_LOAD = ["psram"]
+
+if CORE.is_esp32:
+    AUTO_LOAD = ["psram"]
+else:
+    AUTO_LOAD = []
+
 
 CODEOWNERS = ["@nielsnl68"]
 
@@ -59,6 +64,17 @@ def _validate(config):
     ):
         raise cv.Invalid(
             "Providing color palette images requires palette mode to be 'IMAGE_ADAPTIVE'"
+        )
+    if CORE.is_esp8266 and config.get(CONF_MODEL) not in [
+        "M5STACK",
+        "M5CORE",
+        "TFT_2.4",
+        "TFT_2.4R",
+        "ILI9341",
+        "ILI9342",
+    ]:
+        raise cv.Invalid(
+            "Providing model can't run on ESP8266. Use an ESP32 with PSRAM onboard"
         )
     return config
 
