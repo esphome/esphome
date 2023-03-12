@@ -14,11 +14,7 @@
 namespace esphome {
 namespace ld2410 {
 
-LD2410Component::LD2410Component()
-    : gate_still_threshold_numbers_(9),
-      gate_move_threshold_numbers_(9),
-      gate_still_sensors_(9),
-      gate_move_sensors_(9) {}
+LD2410Component::LD2410Component() {}
 
 void LD2410Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2410:");
@@ -86,10 +82,8 @@ void LD2410Component::setup() {
   this->set_config_mode_(false);
 #ifdef USE_SELECT
   const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
-  if (this->baud_rate_select_ != nullptr) {
-    if (this->baud_rate_select_->state != baud_rate) {
-      this->baud_rate_select_->publish_state(baud_rate);
-    }
+  if (this->baud_rate_select_ != nullptr && this->baud_rate_select_->state != baud_rate) {
+    this->baud_rate_select_->publish_state(baud_rate);
   }
 #endif
   ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
@@ -328,7 +322,11 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
       break;
     case lowbyte(CMD_SET_BAUD_RATE):
       ESP_LOGV(TAG, "Handled baud rate change command");
-      ESP_LOGE(TAG, "Change baud rate component config to %s and reinstall", this->baud_rate_select_->state.c_str());
+#ifdef USE_SELECT
+      if (this->baud_rate_select_ != nullptr) {
+        ESP_LOGE(TAG, "Change baud rate component config to %s and reinstall", this->baud_rate_select_->state.c_str());
+      }
+#endif
       break;
     case lowbyte(CMD_VERSION):
       this->version_ = format_version(buffer);
@@ -344,10 +342,9 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
           this->distance_resolution_int_to_enum_(this->two_byte_to_int_(buffer[10], buffer[11]));
       ESP_LOGV(TAG, "Distance resolution is: %s", const_cast<char *>(distance_resolution.c_str()));
 #ifdef USE_SELECT
-      if (this->distance_resolution_select_ != nullptr) {
-        if (this->distance_resolution_select_->state != distance_resolution) {
-          this->distance_resolution_select_->publish_state(distance_resolution);
-        }
+      if (this->distance_resolution_select_ != nullptr &&
+          this->distance_resolution_select_->state != distance_resolution) {
+        this->distance_resolution_select_->publish_state(distance_resolution);
       }
 #endif
     } break;
@@ -505,6 +502,7 @@ void LD2410Component::get_mac_() {
 }
 void LD2410Component::get_distance_resolution_() { this->send_command_(CMD_QUERY_DISTANCE_RESOLUTION, nullptr, 0); }
 
+#ifdef USE_NUMBER
 void LD2410Component::set_max_distances_timeout_() {
   if (!this->max_move_distance_number_->has_state() || !this->max_still_distance_number_->has_state() ||
       !this->timeout_number_->has_state()) {
@@ -580,9 +578,12 @@ void LD2410Component::set_gate_move_threshold_number(int gate, number::Number *n
     this->set_config_mode_(false);
   });
 }
+#endif
 
+#ifdef USE_SENSOR
 void LD2410Component::set_gate_move_sensor(int gate, sensor::Sensor *s) { this->gate_move_sensors_[gate] = s; }
 void LD2410Component::set_gate_still_sensor(int gate, sensor::Sensor *s) { this->gate_still_sensors_[gate] = s; }
+#endif
 
 }  // namespace ld2410
 }  // namespace esphome
