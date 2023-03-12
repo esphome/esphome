@@ -14,8 +14,9 @@ CONF_DIVIDER = "divider"
 CONF_DAC = "dac"
 CONF_CONVERSION_RATE = "conversion_rate"
 
+CONF_EMC2101_ID = "emc2101_id"
+
 emc2101_ns = cg.esphome_ns.namespace("emc2101")
-Emc2101Component = emc2101_ns.class_("Emc2101Component", cg.Component, i2c.I2CDevice)
 
 Emc2101DACConversionRate = emc2101_ns.enum("Emc2101DACConversionRate")
 CONVERSIONS_PER_SECOND = {
@@ -30,6 +31,14 @@ CONVERSIONS_PER_SECOND = {
     "16": Emc2101DACConversionRate.Emc2101_DAC_16_EVERY_SECOND,
     "32": Emc2101DACConversionRate.Emc2101_DAC_32_EVERY_SECOND,
 }
+
+Emc2101Component = emc2101_ns.class_("Emc2101Component", cg.Component, i2c.I2CDevice)
+
+EMC2101_COMPONENT_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_EMC2101_ID): cv.use_id(Emc2101Component),
+    }
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(

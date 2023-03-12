@@ -10,7 +10,7 @@ from esphome.const import (
     UNIT_PERCENT,
     ICON_PERCENT,
 )
-from . import Emc2101Component, emc2101_ns
+from .. import EMC2101_COMPONENT_SCHEMA, CONF_EMC2101_ID, emc2101_ns
 
 DEPENDENCIES = ["emc2101"]
 
@@ -19,12 +19,10 @@ CONF_EXTERNAL_TEMPERATURE = "external_temperature"
 CONF_DUTY_CYCLE = "duty_cycle"
 
 EMC2101Sensor = emc2101_ns.class_("EMC2101Sensor", cg.PollingComponent)
-CONF_EMC2101_ID = "emc2101_id"
 
-CONFIG_SCHEMA = cv.Schema(
+CONFIG_SCHEMA = EMC2101_COMPONENT_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(EMC2101Sensor),
-        cv.GenerateID(CONF_EMC2101_ID): cv.use_id(Emc2101Component),
         cv.Optional(CONF_INTERNAL_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
             accuracy_decimals=0,
