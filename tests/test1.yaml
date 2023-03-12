@@ -3395,6 +3395,8 @@ select:
   - platform: ld2410
     distance_resolution:
       name: distance resolution
+    baud_rate:
+      name: baud rate
 
 qr_code:
   - id: homepage_qr
