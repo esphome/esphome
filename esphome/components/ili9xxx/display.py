@@ -74,7 +74,7 @@ def _validate(config):
         "ILI9342",
     ]:
         raise cv.Invalid(
-            "Providing model can't run on ESP8266. Use an ESP32 with PSRAM onboard"
+            "Provided model can't run on ESP8266. Use an ESP32 with PSRAM onboard"
         )
     return config
 
