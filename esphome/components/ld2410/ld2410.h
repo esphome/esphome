@@ -27,10 +27,14 @@
 #include "esphome/core/helpers.h"
 #include "ld2410_call.h"
 
+#include <map>
+
 namespace esphome {
 namespace ld2410 {
 
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
+
+static const char *const TAG = "ld2410";
 
 // Commands
 static const uint8_t CMD_ENABLE_CONF = 0x00FF;
@@ -43,11 +47,15 @@ static const uint8_t CMD_GATE_SENS = 0x0064;
 static const uint8_t CMD_VERSION = 0x00A0;
 static const uint8_t CMD_QUERY_DISTANCE_RESOLUTION = 0x00AB;
 static const uint8_t CMD_SET_DISTANCE_RESOLUTION = 0x00AA;
+static const uint8_t CMD_SET_BAUD_RATE = 0x00A1;
 static const uint8_t CMD_BT_PASSWORD = 0x00A9;
 static const uint8_t CMD_MAC = 0x00A5;
 static const uint8_t CMD_RESET = 0x00A2;
 static const uint8_t CMD_RESTART = 0x00A3;
 static const uint8_t CMD_BLUETOOTH = 0x00A4;
+
+static const std::map<std::string, uint8_t> BAUD_RATE_ENUM_TO_INT{
+    {"9600", 1}, {"19200", 2}, {"38400", 3}, {"57600", 4}, {"115200", 5}, {"230400", 6}, {"256000", 7}, {"460800", 8}};
 
 enum DistanceResolution : uint8_t { DISTANCE_RESOLUTION_TWO = 0x01, DISTANCE_RESOLUTION_SEVEN = 0x00 };
 // Commands values
@@ -164,6 +172,11 @@ class LD2410Component : public Component, public uart::UARTDevice {
       });
     });
   })
+  SUB_LAMBDA_SELECT(baud_rate, {
+    this->set_config_mode_(true);
+    this->set_baud_rate_(state);
+    this->set_timeout(200, [this]() { this->restart_(); });
+  })
 #endif
 #ifdef USE_SWITCH
   SUB_LAMBDA_SWITCH(engineering_mode, {
@@ -272,6 +285,7 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void query_parameters_();
   void set_bluetooth_(bool enable);
   void set_distance_resolution_(const std::string &state);
+  void set_baud_rate_(const std::string &state);
   void get_version_();
   void get_mac_();
   void get_distance_resolution_();
