@@ -246,10 +246,14 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
   void loop() override;
+#ifdef USE_NUMBER
   void set_gate_still_threshold_number(int gate, number::Number *n);
   void set_gate_move_threshold_number(int gate, number::Number *n);
+#endif
+#ifdef USE_SENSOR
   void set_gate_move_sensor(int gate, sensor::Sensor *s);
   void set_gate_still_sensor(int gate, sensor::Sensor *s);
+#endif
   void set_throttle(uint16_t value) { this->throttle_ = value; };
   void set_bluetooth_password(const std::string &password);
   /// Instantiate a LD2410ComponentCall object to modify this select component's state.
@@ -275,8 +279,10 @@ class LD2410Component : public Component, public uart::UARTDevice {
     }
   }
   void send_command_(uint8_t command_str, const uint8_t *command_value, int command_value_len);
+#ifdef USE_NUMBER
   void set_max_distances_timeout_();
   void set_gate_threshold_(uint8_t gate);
+#endif
   void set_config_mode_(bool enable);
   void set_engineering_mode_(bool enable);
   void handle_periodic_data_(uint8_t *buffer, int len);
@@ -298,10 +304,14 @@ class LD2410Component : public Component, public uart::UARTDevice {
   std::string version_;
   std::string mac_;
   std::vector<uint8_t> rx_buffer_;
-  std::vector<number::Number *> gate_still_threshold_numbers_;
-  std::vector<number::Number *> gate_move_threshold_numbers_;
-  std::vector<sensor::Sensor *> gate_still_sensors_;
-  std::vector<sensor::Sensor *> gate_move_sensors_;
+#ifdef USE_NUMBER
+  std::vector<number::Number *> gate_still_threshold_numbers_ = std::vector<number::Number *>(9);
+  std::vector<number::Number *> gate_move_threshold_numbers_ = std::vector<number::Number *>(9);
+#endif
+#ifdef USE_SENSOR
+  std::vector<sensor::Sensor *> gate_still_sensors_ = std::vector<sensor::Sensor *>(9);
+  std::vector<sensor::Sensor *> gate_move_sensors_ = std::vector<sensor::Sensor *>(9);
+#endif
 };
 
 }  // namespace ld2410
