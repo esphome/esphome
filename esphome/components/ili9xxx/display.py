@@ -17,10 +17,11 @@ from esphome.const import (
 
 DEPENDENCIES = ["spi"]
 
-if CORE.is_esp32:
-    AUTO_LOAD = ["psram"]
-else:
-    AUTO_LOAD = []
+
+def AUTO_LOAD():
+    if CORE.is_esp32:
+        return ["psram"]
+    return []
 
 
 CODEOWNERS = ["@nielsnl68"]
