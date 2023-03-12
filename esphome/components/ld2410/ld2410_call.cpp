@@ -5,8 +5,6 @@
 namespace esphome {
 namespace ld2410 {
 
-static const char *const TAG = "ld2410";
-
 LD2410ComponentCall &LD2410ComponentCall::set_password(const std::string &password) {
   return with_operation_(LD2410_OP_SET_PASSWORD).with_password_(password);
 }
