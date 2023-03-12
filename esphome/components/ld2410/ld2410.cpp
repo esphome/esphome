@@ -14,8 +14,6 @@
 namespace esphome {
 namespace ld2410 {
 
-static const char *const TAG = "ld2410";
-
 LD2410Component::LD2410Component()
     : gate_still_threshold_numbers_(9),
       gate_move_threshold_numbers_(9),
@@ -55,6 +53,7 @@ void LD2410Component::dump_config() {
 #endif
 #ifdef USE_SELECT
   LOG_SELECT("  ", "DistanceResolutionSelect", this->distance_resolution_select_);
+  LOG_SELECT("  ", "BaudRateSelect", this->baud_rate_select_);
 #endif
 #ifdef USE_NUMBER
   LOG_NUMBER("  ", "MaxStillDistanceNumber", this->max_still_distance_number_);
@@ -85,6 +84,14 @@ void LD2410Component::setup() {
   this->get_distance_resolution_();
   this->query_parameters_();
   this->set_config_mode_(false);
+#ifdef USE_SELECT
+  const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
+  if (this->baud_rate_select_ != nullptr) {
+    if (this->baud_rate_select_->state != baud_rate) {
+      this->baud_rate_select_->publish_state(baud_rate);
+    }
+  }
+#endif
   ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
   ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
   ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
@@ -319,6 +326,10 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
     case lowbyte(CMD_DISABLE_CONF):
       ESP_LOGV(TAG, "Handled Disabled conf command");
       break;
+    case lowbyte(CMD_SET_BAUD_RATE):
+      ESP_LOGV(TAG, "Handled baud rate change command");
+      ESP_LOGE(TAG, "Change baud rate component config to %s and reinstall", this->baud_rate_select_->state.c_str());
+      break;
     case lowbyte(CMD_VERSION):
       this->version_ = format_version(buffer);
       ESP_LOGV(TAG, "FW Version is: %s", const_cast<char *>(this->version_.c_str()));
@@ -457,6 +468,11 @@ void LD2410Component::set_bluetooth_(bool enable) {
 void LD2410Component::set_distance_resolution_(const std::string &state) {
   uint8_t cmd_value[2] = {this->distance_resolution_enum_to_int_(state), 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, 2);
+}
+
+void LD2410Component::set_baud_rate_(const std::string &state) {
+  uint8_t cmd_value[2] = {BAUD_RATE_ENUM_TO_INT.at(state), 0x00};
+  this->send_command_(CMD_SET_BAUD_RATE, cmd_value, 2);
 }
 
 void LD2410Component::set_bluetooth_password(const std::string &password) {
