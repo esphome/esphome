@@ -76,9 +76,10 @@ def validate_touch_pad(value):
     if variant not in TOUCH_PADS:
         raise cv.Invalid(f"ESP32 variant {variant} does not support touch pads.")
 
-    if value not in TOUCH_PADS[variant]:
+    pads = TOUCH_PADS[variant]
+    if value not in pads:
         raise cv.Invalid(f"Pin {value} does not support touch pads.")
-    return value
+    return cv.enum(pads)(value)
 
 
 ESP32TouchBinarySensor = esp32_touch_ns.class_(
@@ -99,7 +100,7 @@ async def to_code(config):
     hub = await cg.get_variable(config[CONF_ESP32_TOUCH_ID])
     var = cg.new_Pvariable(
         config[CONF_ID],
-        TOUCH_PADS[config[CONF_PIN]],
+        config[CONF_PIN],
         config[CONF_THRESHOLD],
         config[CONF_WAKEUP_THRESHOLD],
     )
