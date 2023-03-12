@@ -149,6 +149,7 @@ haier_protocol::HaierMessage Smartair2Climate::get_control_message() {
   uint8_t control_out_buffer[sizeof(smartair2_protocol::HaierPacketControl)];
   memcpy(control_out_buffer, this->last_status_message_.get(), sizeof(smartair2_protocol::HaierPacketControl));
   smartair2_protocol::HaierPacketControl *out_data = (smartair2_protocol::HaierPacketControl *) control_out_buffer;
+  out_data->cntrl = 0;
   if (this->hvac_settings_.valid) {
     HvacSettings climate_control;
     climate_control = this->hvac_settings_;
