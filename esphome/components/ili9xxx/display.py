@@ -67,7 +67,6 @@ def _validate(config):
             "Providing color palette images requires palette mode to be 'IMAGE_ADAPTIVE'"
         )
     if CORE.is_esp8266 and config.get(CONF_MODEL) not in [
-        "M5STACK",
         "M5CORE",
         "TFT_2.4",
         "TFT_2.4R",
