@@ -11,6 +11,6 @@ bool is_connected();
 /// Get the active network hostname
 std::string get_use_address();
 IPAddress get_ip_address();
-
+uint8_t get_wifi_rssi();
 }  // namespace network
 }  // namespace esphome

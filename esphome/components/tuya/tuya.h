@@ -55,6 +55,7 @@ enum class TuyaCommandType : uint8_t {
   DATAPOINT_QUERY = 0x08,
   WIFI_TEST = 0x0E,
   LOCAL_TIME_QUERY = 0x1C,
+  WIFI_RSSI = 0x24,
   VACUUM_MAP_UPLOAD = 0x28,
   GET_NETWORK_STATUS = 0x2B,
 };
