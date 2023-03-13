@@ -49,5 +49,6 @@ std::string get_use_address() {
 #endif
   return "";
 }
+
 }  // namespace network
 }  // namespace esphome
