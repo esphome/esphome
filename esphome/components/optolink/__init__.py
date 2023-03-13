@@ -30,26 +30,44 @@ DeviceInfoSensor = optolink_ns.class_(
     "OptolinkDeviceInfoSensor", ts.TextSensor, cg.PollingComponent
 )
 DEVICE_INFO_SENSOR_ID = "device_info_sensor_id"
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(OptolinkComponent),
-        cv.GenerateID(STATE_SENSOR_ID): cv.declare_id(StateSensor),
-        cv.GenerateID(DEVICE_INFO_SENSOR_ID): cv.declare_id(DeviceInfoSensor),
-        cv.Required(CONF_PROTOCOL): cv.one_of("P300", "KW"),
-        cv.Optional(CONF_LOGGER, default=False): cv.boolean,
-        cv.Optional(CONF_STATE): cv.string,
-        cv.Optional(CONF_DEVICE_INFO): cv.string,
-    }
-).extend(cv.COMPONENT_SCHEMA)
-if CORE.is_esp32:
-    CONFIG_SCHEMA = CONFIG_SCHEMA.extend(
-        cv.Schema(
-            {
-                cv.Required(CONF_RX_PIN): pins.internal_gpio_input_pin_schema,
-                cv.Required(CONF_TX_PIN): pins.internal_gpio_output_pin_schema,
-            }
-        )
-    )
+
+
+def validate_required_rx_on_esp32(config):
+    if CORE.is_esp32 and CONF_RX_PIN not in config:
+        raise cv.Invalid(f"{CONF_RX_PIN} required on esp32 platform")
+    return config
+
+
+def validate_required_tx_on_esp32(config):
+    if CORE.is_esp32 and CONF_TX_PIN not in config:
+        raise cv.Invalid(f"{CONF_TX_PIN} required on esp32 platform")
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(OptolinkComponent),
+            cv.GenerateID(STATE_SENSOR_ID): cv.declare_id(StateSensor),
+            cv.GenerateID(DEVICE_INFO_SENSOR_ID): cv.declare_id(DeviceInfoSensor),
+            cv.Required(CONF_PROTOCOL): cv.one_of("P300", "KW"),
+            cv.Optional(CONF_RX_PIN): cv.All(
+                cv.only_on_esp32,
+                pins.internal_gpio_input_pin_schema,
+            ),
+            cv.Optional(CONF_TX_PIN): cv.All(
+                cv.only_on_esp32,
+                pins.internal_gpio_output_pin_schema,
+            ),
+            cv.Optional(CONF_LOGGER, default=False): cv.boolean,
+            cv.Optional(CONF_STATE): cv.string,
+            cv.Optional(CONF_DEVICE_INFO): cv.string,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_with_arduino,
+    cv.only_on(["esp32", "esp8266"]),
+    cv.ensure_list(validate_required_rx_on_esp32, validate_required_tx_on_esp32),
+)
 
 
 async def to_code(config):
