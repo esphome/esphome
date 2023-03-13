@@ -47,7 +47,7 @@ void MAX7219Component::setup() {
 }
 
 void MAX7219Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MAX7219DIGIT2:");
+  ESP_LOGCONFIG(TAG, "MAX7219DIGIT:");
   ESP_LOGCONFIG(TAG, "  Number of Chips: %u", this->num_chips_);
   ESP_LOGCONFIG(TAG, "  Number of Chips Lines: %u", this->num_chip_lines_);
   ESP_LOGCONFIG(TAG, "  Chips Lines Style : %u", this->chip_lines_style_);
