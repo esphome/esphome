@@ -17,7 +17,7 @@ CONF_REVERSE_ENABLE = "reverse_enable"
 CONF_NUM_CHIP_LINES = "num_chip_lines"
 CONF_CHIP_LINES_STYLE = "chip_lines_style"
 
-integration_ns = cg.esphome_ns.namespace("max7219digit2")
+integration_ns = cg.esphome_ns.namespace("max7219digit")
 ChipLinesStyle = integration_ns.enum("ChipLinesStyle")
 CHIP_LINES_STYLE = {
     "ZIGZAG": ChipLinesStyle.ZIGZAG,
@@ -37,7 +37,7 @@ CHIP_MODES = {
     "270": 3,
 }
 
-max7219_ns = cg.esphome_ns.namespace("max7219digit2")
+max7219_ns = cg.esphome_ns.namespace("max7219digit")
 MAX7219Component = max7219_ns.class_(
     "MAX7219Component", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
 )
