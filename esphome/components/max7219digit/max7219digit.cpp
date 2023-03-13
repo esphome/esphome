@@ -47,7 +47,7 @@ void MAX7219Component::setup() {
 }
 
 void MAX7219Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "MAX7219DIGIT:");
+  ESP_LOGCONFIG(TAG, "MAX7219DIGIT2:");
   ESP_LOGCONFIG(TAG, "  Number of Chips: %u", this->num_chips_);
   ESP_LOGCONFIG(TAG, "  Number of Chips Lines: %u", this->num_chip_lines_);
   ESP_LOGCONFIG(TAG, "  Chips Lines Style : %u", this->chip_lines_style_);
@@ -261,13 +261,21 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
     if (this->orientation_ == 0) {
       for (uint8_t i = 0; i < 8; i++) {
         // run this loop 8 times for all the pixels[8] received
-        b |= ((pixels[i] >> col) & 1) << (7 - i);  // change the column bits into row bits
+		if(this->flip_x_) {
+			b |= ((pixels[i] >> col) & 1) << i;  // change the column bits into row bits
+		} else {
+			b |= ((pixels[i] >> col) & 1) << (7 - i);  // change the column bits into row bits
+		}
       }
     } else if (this->orientation_ == 1) {
       b = pixels[col];
     } else if (this->orientation_ == 2) {
       for (uint8_t i = 0; i < 8; i++) {
-        b |= ((pixels[i] >> (7 - col)) & 1) << i;
+  		if(this->flip_x_) {
+			b |= ((pixels[i] >> (7 - col)) & 1) << (7 - i);
+		} else {
+			b |= ((pixels[i] >> (7 - col)) & 1) << i;
+		}
       }
     } else {
       b = pixels[7 - col];
