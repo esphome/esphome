@@ -261,7 +261,7 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
     if (this->orientation_ == 0) {
       for (uint8_t i = 0; i < 8; i++) {
         // run this loop 8 times for all the pixels[8] received
-        if(this->flip_x_) {
+        if (this->flip_x_) {
           b |= ((pixels[i] >> col) & 1) << i;  // change the column bits into row bits
         } else {
           b |= ((pixels[i] >> col) & 1) << (7 - i);  // change the column bits into row bits
@@ -271,7 +271,7 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
       b = pixels[col];
     } else if (this->orientation_ == 2) {
       for (uint8_t i = 0; i < 8; i++) {
-        if(this->flip_x_) {
+        if (this->flip_x_) {
           b |= ((pixels[i] >> (7 - col)) & 1) << (7 - i);
         } else {
           b |= ((pixels[i] >> (7 - col)) & 1) << i;
