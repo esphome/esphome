@@ -324,6 +324,8 @@ mcp23s17:
     deviceaddress: 1
 
 sensor:
+  - platform: internal_temperature
+    name: Internal Temperature
   - platform: ble_client
     type: characteristic
     ble_client_id: ble_foo
@@ -437,6 +439,32 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: as7341
+    update_interval: 15s
+    gain: X8
+    atime: 120
+    astep: 99
+    f1:
+      name: F1
+    f2:
+      name: F2
+    f3:
+      name: F3
+    f4:
+      name: F4
+    f5:
+      name: F5
+    f6:
+      name: F6
+    f7:
+      name: F7
+    f8:
+      name: F8
+    clear:
+      name: Clear
+    nir:
+      name: NIR
+    i2c_id: i2c_bus
   - platform: atm90e32
     cs_pin: 5
     phase_a:
@@ -1219,6 +1247,18 @@ sensor:
       name: "Still Energy"
     detection_distance:
       name: "Distance Detection"
+  - platform: sen21231
+    name: "Person Sensor"
+    i2c_id: i2c_bus
+  - platform: fs3000
+    name: "Air Velocity"
+    model: 1005
+    update_interval: 60s
+    i2c_id: i2c_bus
+  - platform: absolute_humidity
+    name: DHT Absolute Humidity
+    temperature: dht_temperature
+    humidity: dht_humidity
 
 esp32_touch:
   setup_mode: false
@@ -2048,6 +2088,8 @@ climate:
     name: Midea IR
     use_fahrenheit: true
   - platform: midea
+    on_control:
+      logger.log: Control message received!
     on_state:
       logger.log: State changed!
     id: midea_unit
@@ -2486,6 +2528,8 @@ color:
     red: 0%
     green: 1%
     blue: 100%
+  - id: kbx_green
+    hex: "3DEC55"
 
 display:
   - platform: lcd_gpio
@@ -2651,24 +2695,18 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: ili9341
+  - platform: ili9xxx
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4
     reset_pin: GPIO22
-    led_pin:
-      number: GPIO15
-      inverted: true
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: ili9341
+  - platform: ili9xxx
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4
     reset_pin: GPIO22
-    led_pin:
-      number: GPIO15
-      inverted: true
     auto_clear_enabled: false
     rotation: 90
     lambda: |-
@@ -3203,25 +3241,25 @@ lcd_menu:
       lambda: 'ESP_LOGI("lcd_menu", "root leave");'
   items:
     - type: back
-      text: 'Back'
+      text: Back
     - type: label
     - type: menu
-      text: 'Submenu 1'
+      text: Submenu 1
       items:
         - type: back
-          text: 'Back'
+          text: Back
         - type: menu
-          text: 'Submenu 21'
+          text: Submenu 21
           items:
             - type: back
-              text: 'Back'
+              text: Back
             - type: command
-              text: 'Show Main'
+              text: Show Main
               on_value:
                 then:
                   - display_menu.show_main:
     - type: select
-      text: 'Enum Item'
+      text: Enum Item
       immediate_edit: true
       select: test_select
       on_enter:
@@ -3234,7 +3272,7 @@ lcd_menu:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: number
-      text: 'Number'
+      text: Number
       number: test_number
       on_enter:
         then:
@@ -3246,15 +3284,15 @@ lcd_menu:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: command
-      text: 'Hide'
+      text: Hide
       on_value:
         then:
           - display_menu.hide:
     - type: switch
-      text: 'Switch'
+      text: Switch
       switch: my_switch
-      on_text: 'Bright'
-      off_text: 'Dark'
+      on_text: Bright
+      off_text: Dark
       immediate_edit: false
       on_value:
         then:

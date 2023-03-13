@@ -659,7 +659,15 @@ class EsphomeCore:
                 f"Library {library} must be instance of Library, not {type(library)}"
             )
         for other in self.libraries[:]:
-            if other.name != library.name or other.name is None or library.name is None:
+            if other.name is None or library.name is None:
+                continue
+            library_name = (
+                library.name if "/" not in library.name else library.name.split("/")[1]
+            )
+            other_name = (
+                other.name if "/" not in other.name else other.name.split("/")[1]
+            )
+            if other_name != library_name:
                 continue
             if other.repository is not None:
                 if library.repository is None or other.repository == library.repository:

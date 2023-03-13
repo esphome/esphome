@@ -39,6 +39,11 @@ from esphome.const import (
     CONF_UPDATE_INTERVAL,
     CONF_TYPE_ID,
     CONF_TYPE,
+    CONF_REF,
+    CONF_URL,
+    CONF_PATH,
+    CONF_USERNAME,
+    CONF_PASSWORD,
     ENTITY_CATEGORY_CONFIG,
     ENTITY_CATEGORY_DIAGNOSTIC,
     ENTITY_CATEGORY_NONE,
@@ -46,6 +51,8 @@ from esphome.const import (
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
+    TYPE_GIT,
+    TYPE_LOCAL,
 )
 from esphome.core import (
     CORE,
@@ -1824,3 +1831,59 @@ def suppress_invalid():
         yield
     except vol.Invalid:
         pass
+
+
+GIT_SCHEMA = {
+    Required(CONF_URL): url,
+    Optional(CONF_REF): git_ref,
+    Optional(CONF_USERNAME): string,
+    Optional(CONF_PASSWORD): string,
+}
+LOCAL_SCHEMA = {
+    Required(CONF_PATH): directory,
+}
+
+
+def validate_source_shorthand(value):
+    if not isinstance(value, str):
+        raise Invalid("Shorthand only for strings")
+    try:
+        return SOURCE_SCHEMA({CONF_TYPE: TYPE_LOCAL, CONF_PATH: value})
+    except Invalid:
+        pass
+    # Regex for GitHub repo name with optional branch/tag
+    # Note: git allows other branch/tag names as well, but never seen them used before
+    m = re.match(
+        r"github://(?:([a-zA-Z0-9\-]+)/([a-zA-Z0-9\-\._]+)(?:@([a-zA-Z0-9\-_.\./]+))?|pr#([0-9]+))",
+        value,
+    )
+    if m is None:
+        raise Invalid(
+            "Source is not a file system path, in expected github://username/name[@branch-or-tag] or github://pr#1234 format!"
+        )
+    if m.group(4):
+        conf = {
+            CONF_TYPE: TYPE_GIT,
+            CONF_URL: "https://github.com/esphome/esphome.git",
+            CONF_REF: f"pull/{m.group(4)}/head",
+        }
+    else:
+        conf = {
+            CONF_TYPE: TYPE_GIT,
+            CONF_URL: f"https://github.com/{m.group(1)}/{m.group(2)}.git",
+        }
+        if m.group(3):
+            conf[CONF_REF] = m.group(3)
+
+    return SOURCE_SCHEMA(conf)
+
+
+SOURCE_SCHEMA = Any(
+    validate_source_shorthand,
+    typed_schema(
+        {
+            TYPE_GIT: Schema(GIT_SCHEMA),
+            TYPE_LOCAL: Schema(LOCAL_SCHEMA),
+        }
+    ),
+)

@@ -147,19 +147,12 @@ int esp_idf_log_vprintf_(const char *format, va_list args);  // NOLINT
 #endif
 
 #define ESP_LOGE(tag, ...) esph_log_e(tag, __VA_ARGS__)
-#define LOG_E(tag, ...) ESP_LOGE(tag, __VA__ARGS__)
 #define ESP_LOGW(tag, ...) esph_log_w(tag, __VA_ARGS__)
-#define LOG_W(tag, ...) ESP_LOGW(tag, __VA__ARGS__)
 #define ESP_LOGI(tag, ...) esph_log_i(tag, __VA_ARGS__)
-#define LOG_I(tag, ...) ESP_LOGI(tag, __VA__ARGS__)
 #define ESP_LOGD(tag, ...) esph_log_d(tag, __VA_ARGS__)
-#define LOG_D(tag, ...) ESP_LOGD(tag, __VA__ARGS__)
 #define ESP_LOGCONFIG(tag, ...) esph_log_config(tag, __VA_ARGS__)
-#define LOG_CONFIG(tag, ...) ESP_LOGCONFIG(tag, __VA__ARGS__)
 #define ESP_LOGV(tag, ...) esph_log_v(tag, __VA_ARGS__)
-#define LOG_V(tag, ...) ESP_LOGV(tag, __VA__ARGS__)
 #define ESP_LOGVV(tag, ...) esph_log_vv(tag, __VA_ARGS__)
-#define LOG_VV(tag, ...) ESP_LOGVV(tag, __VA__ARGS__)
 
 #define BYTE_TO_BINARY_PATTERN "%c%c%c%c%c%c%c%c"
 #define BYTE_TO_BINARY(byte) \

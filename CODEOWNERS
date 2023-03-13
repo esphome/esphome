@@ -11,6 +11,7 @@ esphome/*.py @esphome/core
 esphome/core/* @esphome/core
 
 # Integrations
+esphome/components/absolute_humidity/* @DAVe3283
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
 esphome/components/adc128s102/* @DeerMaximum
@@ -24,6 +25,7 @@ esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
 esphome/components/api/* @OttoWinter
+esphome/components/as7341/* @mrgnr
 esphome/components/async_tcp/* @OttoWinter
 esphome/components/atc_mithermometer/* @ahpohl
 esphome/components/b_parasite/* @rbaron
@@ -90,11 +92,13 @@ esphome/components/factory_reset/* @anatoly-savchenkov
 esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
+esphome/components/fs3000/* @kahrendt
 esphome/components/globals/* @esphome/core
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
 esphome/components/growatt_solar/* @leeuwte
+esphome/components/haier/* @Yarikx
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
@@ -107,17 +111,20 @@ esphome/components/hte501/* @Stock-M
 esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/i2c/* @esphome/core
 esphome/components/i2s_audio/* @jesserockz
+esphome/components/ili9xxx/* @nielsnl68
 esphome/components/improv_base/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
 esphome/components/ina260/* @MrEditor97
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
+esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
+esphome/components/kuntze/* @ssieb
 esphome/components/lcd_menu/* @numo68
 esphome/components/ld2410/* @sebcaps
 esphome/components/ledc/* @OttoWinter
@@ -161,8 +168,9 @@ esphome/components/modbus_controller/select/* @martgras @stegm
 esphome/components/modbus_controller/sensor/* @martgras
 esphome/components/modbus_controller/switch/* @martgras
 esphome/components/modbus_controller/text_sensor/* @martgras
-esphome/components/mopeka_ble/* @spbrogan
+esphome/components/mopeka_ble/* @Fabian-Schmidt @spbrogan
 esphome/components/mopeka_pro_check/* @spbrogan
+esphome/components/mopeka_std_check/* @Fabian-Schmidt
 esphome/components/mpl3115a2/* @kbickar
 esphome/components/mpu6886/* @fabaff
 esphome/components/network/* @esphome/core
@@ -209,6 +217,7 @@ esphome/components/sdm_meter/* @jesserockz @polyfaces
 esphome/components/sdp3x/* @Azimath
 esphome/components/selec_meter/* @sourabhjaiswal
 esphome/components/select/* @esphome/core
+esphome/components/sen21231/* @shreyaskarnik
 esphome/components/sen5x/* @martgras
 esphome/components/sensirion_common/* @martgras
 esphome/components/sensor/* @esphome/core
