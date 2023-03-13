@@ -124,6 +124,7 @@ class Tuya : public Component, public uart::UARTDevice {
   void set_status_pin_();
   void send_wifi_status_();
   uint8_t get_wifi_status_code_();
+  uint8_t get_wifi_rssi_();
 
 #ifdef USE_TIME
   void send_local_time_();

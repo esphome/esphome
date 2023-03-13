@@ -49,15 +49,5 @@ std::string get_use_address() {
 #endif
   return "";
 }
-
-uint8_t get_wifi_rssi() {
-#ifdef USE_WIFI
-  if (wifi::global_wifi_component != nullptr)
-    return wifi::global_wifi_component->wifi_rssi();
-#endif
-
-  return 0;
-}
-
 }  // namespace network
 }  // namespace esphome
