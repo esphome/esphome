@@ -57,7 +57,9 @@ static const uint8_t CMD_BLUETOOTH = 0x00A4;
 static const std::map<std::string, uint8_t> BAUD_RATE_ENUM_TO_INT{
     {"9600", 1}, {"19200", 2}, {"38400", 3}, {"57600", 4}, {"115200", 5}, {"230400", 6}, {"256000", 7}, {"460800", 8}};
 
-enum DistanceResolution : uint8_t { DISTANCE_RESOLUTION_TWO = 0x01, DISTANCE_RESOLUTION_SEVEN = 0x00 };
+static const std::map<std::string, uint8_t> DISTANCE_RESOLUTION_ENUM_TO_INT{{"0.2m", 0x01}, {"0.75m", 0x00}};
+static const std::map<uint8_t, std::string> DISTANCE_RESOLUTION_INT_TO_ENUM{{0x01, "0.2m"}, {0x00, "0.75m"}};
+
 // Commands values
 static const uint8_t CMD_MAX_MOVE_VALUE = 0x0000;
 static const uint8_t CMD_MAX_STILL_VALUE = 0x0001;
@@ -261,23 +263,6 @@ class LD2410Component : public Component, public uart::UARTDevice {
 
  protected:
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t)(secondbyte << 8) + firstbyte; }
-  uint8_t distance_resolution_enum_to_int_(const std::string &distance_resolution) {
-    if (distance_resolution == "0.2m") {
-      return DISTANCE_RESOLUTION_TWO;
-    } else if (distance_resolution == "0.75m") {
-      return DISTANCE_RESOLUTION_SEVEN;
-    }
-    return DISTANCE_RESOLUTION_SEVEN;
-  }
-  std::string distance_resolution_int_to_enum_(uint8_t distance_resolution) {
-    switch (distance_resolution) {
-      case DISTANCE_RESOLUTION_TWO:
-        return "0.2m";
-      case DISTANCE_RESOLUTION_SEVEN:
-      default:
-        return "0.75m";
-    }
-  }
   void send_command_(uint8_t command_str, const uint8_t *command_value, int command_value_len);
 #ifdef USE_NUMBER
   void set_max_distances_timeout_();

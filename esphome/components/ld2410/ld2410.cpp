@@ -339,7 +339,7 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
       break;
     case lowbyte(CMD_QUERY_DISTANCE_RESOLUTION): {
       std::string distance_resolution =
-          this->distance_resolution_int_to_enum_(this->two_byte_to_int_(buffer[10], buffer[11]));
+          DISTANCE_RESOLUTION_INT_TO_ENUM.at(this->two_byte_to_int_(buffer[10], buffer[11]));
       ESP_LOGV(TAG, "Distance resolution is: %s", const_cast<char *>(distance_resolution.c_str()));
 #ifdef USE_SELECT
       if (this->distance_resolution_select_ != nullptr &&
@@ -463,7 +463,7 @@ void LD2410Component::set_bluetooth_(bool enable) {
 }
 
 void LD2410Component::set_distance_resolution_(const std::string &state) {
-  uint8_t cmd_value[2] = {this->distance_resolution_enum_to_int_(state), 0x00};
+  uint8_t cmd_value[2] = {DISTANCE_RESOLUTION_ENUM_TO_INT.at(state), 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, 2);
 }
 
