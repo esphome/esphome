@@ -7,6 +7,7 @@ CODEOWNERS = ["@rspaargaren"]
 DEPENDENCIES = ["spi"]
 
 CONF_ROTATE_CHIP = "rotate_chip"
+CONF_FLIP_X = "flip_x"
 CONF_SCROLL_SPEED = "scroll_speed"
 CONF_SCROLL_DWELL = "scroll_dwell"
 CONF_SCROLL_DELAY = "scroll_delay"
@@ -16,7 +17,7 @@ CONF_REVERSE_ENABLE = "reverse_enable"
 CONF_NUM_CHIP_LINES = "num_chip_lines"
 CONF_CHIP_LINES_STYLE = "chip_lines_style"
 
-integration_ns = cg.esphome_ns.namespace("max7219digit")
+integration_ns = cg.esphome_ns.namespace("max7219digit2")
 ChipLinesStyle = integration_ns.enum("ChipLinesStyle")
 CHIP_LINES_STYLE = {
     "ZIGZAG": ChipLinesStyle.ZIGZAG,
@@ -36,7 +37,7 @@ CHIP_MODES = {
     "270": 3,
 }
 
-max7219_ns = cg.esphome_ns.namespace("max7219digit")
+max7219_ns = cg.esphome_ns.namespace("max7219digit2")
 MAX7219Component = max7219_ns.class_(
     "MAX7219Component", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
 )
@@ -67,6 +68,7 @@ CONFIG_SCHEMA = (
                 CONF_SCROLL_DWELL, default="1000ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_REVERSE_ENABLE, default=False): cv.boolean,
+            cv.Optional(CONF_FLIP_X, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("500ms"))
@@ -91,6 +93,7 @@ async def to_code(config):
     cg.add(var.set_scroll(config[CONF_SCROLL_ENABLE]))
     cg.add(var.set_scroll_mode(config[CONF_SCROLL_MODE]))
     cg.add(var.set_reverse(config[CONF_REVERSE_ENABLE]))
+    cg.add(var.set_flip_x([CONF_FLIP_X]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
