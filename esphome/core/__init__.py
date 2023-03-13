@@ -453,6 +453,8 @@ class EsphomeCore:
         self.ace = False
         # The name of the node
         self.name: Optional[str] = None
+        # The friendly name of the node
+        self.friendly_name: Optional[str] = None
         # Additional data components can store temporary data in
         # The first key to this dict should always be the integration name
         self.data = {}
@@ -492,6 +494,7 @@ class EsphomeCore:
     def reset(self):
         self.dashboard = False
         self.name = None
+        self.friendly_name = None
         self.data = {}
         self.config_path = None
         self.build_path = None
@@ -650,7 +653,15 @@ class EsphomeCore:
                 f"Library {library} must be instance of Library, not {type(library)}"
             )
         for other in self.libraries[:]:
-            if other.name != library.name or other.name is None or library.name is None:
+            if other.name is None or library.name is None:
+                continue
+            library_name = (
+                library.name if "/" not in library.name else library.name.split("/")[1]
+            )
+            other_name = (
+                other.name if "/" not in other.name else other.name.split("/")[1]
+            )
+            if other_name != library_name:
                 continue
             if other.repository is not None:
                 if library.repository is None or other.repository == library.repository:
