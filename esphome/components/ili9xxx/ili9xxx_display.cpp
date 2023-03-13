@@ -1,4 +1,5 @@
 #include "ili9xxx_display.h"
+
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
@@ -70,7 +71,8 @@ void ILI9XXXDisplay::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWARE; }
+float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::BUS; }
+
 
 void ILI9XXXDisplay::fill(Color color) {
   uint16_t new_color = 0;
