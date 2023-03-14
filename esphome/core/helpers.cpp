@@ -408,7 +408,7 @@ Mutex::Mutex() {}
 void Mutex::lock() {}
 bool Mutex::try_lock() { return true; }
 void Mutex::unlock() {}
-#elif defined(USE_ESP32) || defined(USE_RP2040)
+#elif defined(USE_ESP32) || defined(USE_RP2040) || defined(USE_LIBRETUYA)
 Mutex::Mutex() { handle_ = xSemaphoreCreateMutex(); }
 void Mutex::lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
 bool Mutex::try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }

@@ -539,7 +539,7 @@ class Mutex {
   Mutex &operator=(const Mutex &) = delete;
 
  private:
-#if defined(USE_ESP32) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_RP2040) || defined(USE_LIBRETUYA)
   SemaphoreHandle_t handle_;
 #endif
 };

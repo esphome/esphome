@@ -114,6 +114,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+# pylint: disable=use-dict-literal
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 

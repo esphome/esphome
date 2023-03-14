@@ -3,7 +3,6 @@ import random
 import string
 import unicodedata
 
-import requests
 import voluptuous as vol
 
 import esphome.config_validation as cv
