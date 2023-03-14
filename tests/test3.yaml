@@ -630,8 +630,26 @@ sensor:
   - platform: pmsx003
     uart_id: uart5
     type: PMS5003T
+    pm_1_0:
+      name: PM 1.0 Concentration
     pm_2_5:
       name: PM 2.5 Concentration
+    pm_10_0:
+      name: PM 10.0 Concentration
+    pm_1_0_std:
+      name: PM 1.0 Standard Atmospher Concentration
+    pm_2_5_std:
+      name: PM 2.5 Standard Atmospher Concentration
+    pm_10_0_std:
+      name: PM 10.0 Standard Atmospher Concentration
+    pm_0_3um:
+      name: Particulate Count >0.3um
+    pm_0_5um:
+      name: Particulate Count >0.5um
+    pm_1_0um:
+      name: Particulate Count >1.0um
+    pm_2_5um:
+      name: Particulate Count >2.5um
     temperature:
       name: PMS Temperature
     humidity:
