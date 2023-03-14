@@ -276,16 +276,16 @@ void PMSX003Component::parse_data_() {
       uint16_t pm_particles_05um = this->get_16_bit_uint_(18);
       uint16_t pm_particles_10um = this->get_16_bit_uint_(20);
       uint16_t pm_particles_25um = this->get_16_bit_uint_(22);
-	  // Note the pm particles 50um & 100um are not returned,
-	  // as PMS5003T uses those data values for temperature and humidity.
-	  
+      // Note the pm particles 50um & 100um are not returned,
+      // as PMS5003T uses those data values for temperature and humidity.
+
       float temperature = this->get_16_bit_uint_(24) / 10.0f;
       float humidity = this->get_16_bit_uint_(26) / 10.0f;
-	  
+
       ESP_LOGD(TAG,
 	           "Got PM1.0 Concentration: %u µg/m^3, PM2.5 Concentration %u µg/m^3, PM10.0 Concentration: %u µg/m^3, Temperature: %.1f°C, Humidity: %.1f%%",
 			   pm_1_0_concentration, pm_2_5_concentration, pm_10_0_concentration, temperature, humidity);
-	  
+
       if (this->pm_1_0_std_sensor_ != nullptr)
         this->pm_1_0_std_sensor_->publish_state(pm_1_0_std_concentration);
       if (this->pm_2_5_std_sensor_ != nullptr)
@@ -308,12 +308,12 @@ void PMSX003Component::parse_data_() {
         this->pm_particles_10um_sensor_->publish_state(pm_particles_10um);
       if (this->pm_particles_25um_sensor_ != nullptr)
         this->pm_particles_25um_sensor_->publish_state(pm_particles_25um);
-	
+
       if (this->temperature_sensor_ != nullptr)
         this->temperature_sensor_->publish_state(temperature);
       if (this->humidity_sensor_ != nullptr)
         this->humidity_sensor_->publish_state(humidity);
-      break;  
+      break;
     }
   }
 
