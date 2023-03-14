@@ -283,8 +283,8 @@ void PMSX003Component::parse_data_() {
       float humidity = this->get_16_bit_uint_(26) / 10.0f;
 
       ESP_LOGD(TAG,
-	           "Got PM1.0 Concentration: %u µg/m^3, PM2.5 Concentration %u µg/m^3, PM10.0 Concentration: %u µg/m^3, Temperature: %.1f°C, Humidity: %.1f%%",
-			   pm_1_0_concentration, pm_2_5_concentration, pm_10_0_concentration, temperature, humidity);
+               "Got PM1.0 Concentration: %u µg/m^3, PM2.5 Concentration %u µg/m^3, PM10.0 Concentration: %u µg/m^3, Temperature: %.1f°C, Humidity: %.1f%%",
+               pm_1_0_concentration, pm_2_5_concentration, pm_10_0_concentration, temperature, humidity);
 
       if (this->pm_1_0_std_sensor_ != nullptr)
         this->pm_1_0_std_sensor_->publish_state(pm_1_0_std_concentration);
