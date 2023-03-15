@@ -103,7 +103,7 @@ class SprinklerControllerNumber : public number::Number, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   Trigger<float> *get_set_trigger() const { return set_trigger_; }
   void set_initial_value(float initial_value) { initial_value_ = initial_value; }
