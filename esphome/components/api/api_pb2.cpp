@@ -3451,7 +3451,11 @@ bool ListEntitiesClimateResponse::decode_32bit(uint32_t field_id, Proto32Bit val
       return true;
     }
     case 10: {
-      this->visual_temperature_step = value.as_float();
+      this->visual_target_temperature_step = value.as_float();
+      return true;
+    }
+    case 21: {
+      this->visual_current_temperature_step = value.as_float();
       return true;
     }
     default:
@@ -3470,7 +3474,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_float(8, this->visual_min_temperature);
   buffer.encode_float(9, this->visual_max_temperature);
-  buffer.encode_float(10, this->visual_temperature_step);
+  buffer.encode_float(10, this->visual_target_temperature_step);
   buffer.encode_bool(11, this->legacy_supports_away);
   buffer.encode_bool(12, this->supports_action);
   for (auto &it : this->supported_fan_modes) {
@@ -3491,6 +3495,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(18, this->disabled_by_default);
   buffer.encode_string(19, this->icon);
   buffer.encode_enum<enums::EntityCategory>(20, this->entity_category);
+  buffer.encode_float(21, this->visual_current_temperature_step);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
@@ -3537,8 +3542,8 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  visual_temperature_step: ");
-  sprintf(buffer, "%g", this->visual_temperature_step);
+  out.append("  visual_target_temperature_step: ");
+  sprintf(buffer, "%g", this->visual_target_temperature_step);
   out.append(buffer);
   out.append("\n");
 
@@ -3590,6 +3595,11 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 
   out.append("  entity_category: ");
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  visual_current_temperature_step: ");
+  sprintf(buffer, "%g", this->visual_current_temperature_step);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -5959,6 +5969,92 @@ void BluetoothGATTNotifyResponse::dump_to(std::string &out) const {
 
   out.append("  handle: ");
   sprintf(buffer, "%u", this->handle);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothDevicePairingResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->paired = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->error = value.as_int32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothDevicePairingResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->paired);
+  buffer.encode_int32(3, this->error);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothDevicePairingResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothDevicePairingResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  paired: ");
+  out.append(YESNO(this->paired));
+  out.append("\n");
+
+  out.append("  error: ");
+  sprintf(buffer, "%d", this->error);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothDeviceUnpairingResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->success = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->error = value.as_int32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothDeviceUnpairingResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->success);
+  buffer.encode_int32(3, this->error);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothDeviceUnpairingResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothDeviceUnpairingResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  success: ");
+  out.append(YESNO(this->success));
+  out.append("\n");
+
+  out.append("  error: ");
+  sprintf(buffer, "%d", this->error);
   out.append(buffer);
   out.append("\n");
   out.append("}");

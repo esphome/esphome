@@ -915,7 +915,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   std::vector<enums::ClimateMode> supported_modes{};
   float visual_min_temperature{0.0f};
   float visual_max_temperature{0.0f};
-  float visual_temperature_step{0.0f};
+  float visual_target_temperature_step{0.0f};
   bool legacy_supports_away{false};
   bool supports_action{false};
   std::vector<enums::ClimateFanMode> supported_fan_modes{};
@@ -926,6 +926,7 @@ class ListEntitiesClimateResponse : public ProtoMessage {
   bool disabled_by_default{false};
   std::string icon{};
   enums::EntityCategory entity_category{};
+  float visual_current_temperature_step{0.0f};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
@@ -1519,6 +1520,32 @@ class BluetoothGATTNotifyResponse : public ProtoMessage {
  public:
   uint64_t address{0};
   uint32_t handle{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothDevicePairingResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  bool paired{false};
+  int32_t error{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothDeviceUnpairingResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  bool success{false};
+  int32_t error{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
