@@ -21,8 +21,9 @@ class EntityBase {
   const std::string &get_name() const;
   void set_name(const std::string &name);
 
-  // Get the sanitized name of this Entity as an ID. Caching it internally.
-  const std::string &get_object_id();
+  // Get the sanitized name of this Entity as an ID.
+  std::string get_object_id() const;
+  void set_object_id(const char *object_id);
 
   // Get the unique Object ID of this Entity
   uint32_t get_object_id_hash();
@@ -52,7 +53,7 @@ class EntityBase {
   void calc_object_id_();
 
   std::string name_;
-  std::string object_id_;
+  const char *object_id_c_str_{nullptr};
   std::string icon_;
   uint32_t object_id_hash_;
   bool internal_{false};
