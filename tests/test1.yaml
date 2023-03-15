@@ -392,6 +392,7 @@ sensor:
       - heartbeat: 5s
       - debounce: 0.1s
       - delta: 5.0
+      - delta: 1%
       - or:
           - throttle: 1s
           - delta: 5.0

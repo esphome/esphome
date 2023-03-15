@@ -315,19 +315,23 @@ optional<float> ThrottleFilter::new_value(float value) {
 }
 
 // DeltaFilter
-DeltaFilter::DeltaFilter(float min_delta) : min_delta_(min_delta), last_value_(NAN) {}
+DeltaFilter::DeltaFilter(float delta, bool percentage_mode)
+    : delta_(delta), current_delta_(delta), percentage_mode_(percentage_mode), last_value_(NAN) {}
 optional<float> DeltaFilter::new_value(float value) {
   if (std::isnan(value)) {
     if (std::isnan(this->last_value_)) {
       return {};
     } else {
+      if (this->percentage_mode_) {
+        this->current_delta_ = fabsf(value * this->delta_);
+      }
       return this->last_value_ = value;
     }
   }
-  if (std::isnan(this->last_value_)) {
-    return this->last_value_ = value;
-  }
-  if (fabsf(value - this->last_value_) >= this->min_delta_) {
+  if (std::isnan(this->last_value_) || fabsf(value - this->last_value_) >= this->current_delta_) {
+    if (this->percentage_mode_) {
+      this->current_delta_ = fabsf(value * this->delta_);
+    }
     return this->last_value_ = value;
   }
   return {};
