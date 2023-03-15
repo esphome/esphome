@@ -325,12 +325,14 @@ class HeartbeatFilter : public Filter, public Component {
 
 class DeltaFilter : public Filter {
  public:
-  explicit DeltaFilter(float min_delta);
+  explicit DeltaFilter(float delta, bool percentage_mode);
 
   optional<float> new_value(float value) override;
 
  protected:
-  float min_delta_;
+  float delta_;
+  float current_delta_;
+  bool percentage_mode_;
   float last_value_{NAN};
 };
 
