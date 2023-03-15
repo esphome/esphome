@@ -1,15 +1,25 @@
 # Source https://github.com/letscontrolit/ESPEasy/pull/3845#issuecomment-1005864664
 
+# pylint: disable=E0602
+Import("env")  # noqa
+
 import os
+import shutil
+
 if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
-    import esptool
+    try:
+        import esptool
+    except ImportError:
+        env.Execute("$PYTHONEXE -m pip install esptool")
 else:
     import subprocess
 from SCons.Script import ARGUMENTS
 
-# pylint: disable=E0602
-Import("env")  # noqa
-
+# Copy over the default sdkconfig.
+from os import path
+if path.exists("./sdkconfig.defaults"):
+    os.makedirs(".temp", exist_ok=True)
+    shutil.copy("./sdkconfig.defaults", "./.temp/sdkconfig-esp32-idf")
 
 def esp32_create_combined_bin(source, target, env):
     verbose = bool(int(ARGUMENTS.get("PIOVERBOSE", "0")))
