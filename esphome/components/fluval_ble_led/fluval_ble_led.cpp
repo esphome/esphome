@@ -11,6 +11,7 @@ static const char *const TAG = "fluval_ble_led";
 
 void FluvalBleLed::dump_config() {
   ESP_LOGCONFIG(TAG, "Fluval LED");
+  ESP_LOGCONFIG(TAG, "  Address: %s", this->parent_->address_str().c_str());
   ESP_LOGCONFIG(TAG, "  Number of channels: %i", this->number_of_channels_);
 }
 
@@ -224,7 +225,8 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
   ESP_LOGV(TAG, "GOT GATTC EVENT: %d", event);
   switch (event) {
     case ESP_GATTC_DISCONNECT_EVT: {
-      // handle disconnects later
+      ESP_LOGW(TAG, "Disconnected from Fluval LED. Resetting handshake.");
+      this->handshake_step_ = 0;
       break;
     }
 
@@ -320,7 +322,7 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
           std::vector<uint8_t> value{0x68, 0x0E, year, month, day, day_of_week, hour, minute, second, checksum};
           this->send_packet_(value);
         }
-
+        ESP_LOGI(TAG, "Connected to Fluval LED [%s]", this->parent_->address_str().c_str());
         this->handshake_step_ = 4;
       }
 
