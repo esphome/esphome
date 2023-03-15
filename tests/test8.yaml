@@ -10,7 +10,7 @@ esp32:
     type: arduino
 
 esphome:
-  name: "esp32-s3-test"
+  name: esp32-s3-test
 
 logger:
 
@@ -22,6 +22,6 @@ light:
     num_leds: 1
     id: neopixel
     method: esp32_rmt
-    name: "neopixel-enable"
+    name: neopixel-enable
     internal: false
     restore_mode: ALWAYS_OFF

@@ -644,7 +644,6 @@ touchscreen:
           format: Touch at (%d, %d)
           args: [touch.x, touch.y]
 
-
   - platform: lilygo_t5_47
     id: lilygo_touchscreen
     interrupt_pin: GPIO36
