@@ -477,7 +477,6 @@ void Sprinkler::configure_valve_switch(size_t valve_number, switch_::Switch *val
   if (this->is_a_valid_valve(valve_number)) {
     this->valve_[valve_number].valve_switch.set_on_switch(valve_switch);
     this->valve_[valve_number].run_duration = run_duration;
-    valve_switch->turn_off();
   }
 }
 
@@ -489,8 +488,6 @@ void Sprinkler::configure_valve_switch_pulsed(size_t valve_number, switch_::Swit
     this->valve_[valve_number].valve_switch.set_on_switch(valve_switch_on);
     this->valve_[valve_number].valve_switch.set_pulse_duration(pulse_duration);
     this->valve_[valve_number].run_duration = run_duration;
-    valve_switch_off->turn_off();
-    valve_switch_on->turn_off();
   }
 }
 
@@ -505,7 +502,6 @@ void Sprinkler::configure_valve_pump_switch(size_t valve_number, switch_::Switch
     this->pump_.resize(this->pump_.size() + 1);
     this->pump_.back().set_on_switch(pump_switch);
     this->valve_[valve_number].pump_switch_index = this->pump_.size() - 1;  // save the index to the new pump
-    pump_switch->turn_off();
   }
 }
 
@@ -524,8 +520,6 @@ void Sprinkler::configure_valve_pump_switch_pulsed(size_t valve_number, switch_:
     this->pump_.back().set_on_switch(pump_switch_on);
     this->pump_.back().set_pulse_duration(pulse_duration);
     this->valve_[valve_number].pump_switch_index = this->pump_.size() - 1;  // save the index to the new pump
-    pump_switch_off->turn_off();
-    pump_switch_on->turn_off();
   }
 }
 
