@@ -33,6 +33,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
                            esp_ble_gattc_cb_param_t *param) override;
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
   void connect() override;
+  esp_err_t pair();
   void disconnect();
   void release_services();
 
@@ -71,6 +72,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void set_remote_addr_type(esp_ble_addr_type_t address_type) { this->remote_addr_type_ = address_type; }
   uint16_t get_conn_id() const { return this->conn_id_; }
   uint64_t get_address() const { return this->address_; }
+  bool is_paired() const { return this->paired_; }
 
   uint8_t get_connection_index() const { return this->connection_index_; }
 
@@ -86,6 +88,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   uint8_t connection_index_;
   int16_t service_count_{0};
   uint16_t mtu_{23};
+  bool paired_{false};
   espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
 
   std::vector<BLEService *> services_;
