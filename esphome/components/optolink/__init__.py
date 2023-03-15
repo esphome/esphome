@@ -32,16 +32,15 @@ DeviceInfoSensor = optolink_ns.class_(
 DEVICE_INFO_SENSOR_ID = "device_info_sensor_id"
 
 
-def validate_required_rx_on_esp32(config):
-    if CORE.is_esp32 and CONF_RX_PIN not in config:
-        raise cv.Invalid(f"{CONF_RX_PIN} required on esp32 platform")
-    return config
+def required_on_esp32(attribute):
+    """Validate that this option can only be specified on the given target platforms."""
 
+    def validator_(config):
+        if CORE.is_esp32 and attribute not in config:
+            raise cv.Invalid(f"{attribute} is required on esp32")
+        return config
 
-def validate_required_tx_on_esp32(config):
-    if CORE.is_esp32 and CONF_TX_PIN not in config:
-        raise cv.Invalid(f"{CONF_TX_PIN} required on esp32 platform")
-    return config
+    return validator_
 
 
 CONFIG_SCHEMA = cv.All(
@@ -66,7 +65,8 @@ CONFIG_SCHEMA = cv.All(
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
     cv.only_on(["esp32", "esp8266"]),
-    cv.ensure_list(validate_required_rx_on_esp32, validate_required_tx_on_esp32),
+    required_on_esp32(CONF_RX_PIN),
+    required_on_esp32(CONF_TX_PIN),
 )
 
 
