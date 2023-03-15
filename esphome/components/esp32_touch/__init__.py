@@ -56,7 +56,9 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ESP32TouchComponent),
             cv.Optional(CONF_SETUP_MODE, default=False): cv.boolean,
-            cv.Optional(CONF_IIR_FILTER): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_IIR_FILTER, default="0ms"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_SLEEP_DURATION, default="27306us"): cv.All(
                 cv.positive_time_period, cv.Range(max=TimePeriod(microseconds=436906))
             ),
