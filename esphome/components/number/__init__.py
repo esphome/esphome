@@ -7,7 +7,9 @@ from esphome.const import (
     CONF_ABOVE,
     CONF_BELOW,
     CONF_DEVICE_CLASS,
+    CONF_ENTITY_CATEGORY,
     CONF_ID,
+    CONF_ICON,
     CONF_MODE,
     CONF_ON_VALUE,
     CONF_ON_VALUE_RANGE,
@@ -17,19 +19,23 @@ from esphome.const import (
     CONF_VALUE,
     CONF_OPERATION,
     CONF_CYCLE,
-    DEVICE_CLASS_DISTANCE,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATA_RATE,
+    DEVICE_CLASS_DATA_SIZE,
+    DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_IRRADIANCE,
     DEVICE_CLASS_MOISTURE,
     DEVICE_CLASS_MONETARY,
     DEVICE_CLASS_NITROGEN_DIOXIDE,
@@ -46,6 +52,7 @@ from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_SOUND_PRESSURE,
     DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
@@ -53,20 +60,24 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
     DEVICE_CLASS_WATER,
-    DEVICE_CLASS_WIND_SPEED,
     DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_SPEED,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_helpers import setup_entity
+from esphome.cpp_generator import MockObjClass
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATA_RATE,
+    DEVICE_CLASS_DATA_SIZE,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
@@ -74,6 +85,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_IRRADIANCE,
     DEVICE_CLASS_MOISTURE,
     DEVICE_CLASS_MONETARY,
     DEVICE_CLASS_NITROGEN_DIOXIDE,
@@ -83,13 +95,14 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
-    DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_POWER,
+    DEVICE_CLASS_POWER_FACTOR,
     DEVICE_CLASS_PRECIPITATION,
     DEVICE_CLASS_PRECIPITATION_INTENSITY,
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_SOUND_PRESSURE,
     DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
@@ -140,13 +153,12 @@ NUMBER_OPERATION_OPTIONS = {
     "TO_MAX": NumberOperation.NUMBER_OP_TO_MAX,
 }
 
-icon = cv.icon
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
+validate_unit_of_measurement = cv.string_strict
 
 NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTNumberComponent),
-        cv.GenerateID(): cv.declare_id(Number),
         cv.Optional(CONF_ON_VALUE): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(NumberStateTrigger),
@@ -160,11 +172,35 @@ NUMBER_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).e
             },
             cv.has_at_least_one_key(CONF_ABOVE, CONF_BELOW),
         ),
-        cv.Optional(CONF_UNIT_OF_MEASUREMENT): cv.string_strict,
+        cv.Optional(CONF_UNIT_OF_MEASUREMENT): validate_unit_of_measurement,
         cv.Optional(CONF_MODE, default="AUTO"): cv.enum(NUMBER_MODES, upper=True),
         cv.Optional(CONF_DEVICE_CLASS): validate_device_class,
     }
 )
+
+_UNDEF = object()
+
+
+def number_schema(
+    class_: MockObjClass,
+    *,
+    icon: str = _UNDEF,
+    entity_category: str = _UNDEF,
+    device_class: str = _UNDEF,
+    unit_of_measurement: str = _UNDEF,
+) -> cv.Schema:
+    schema = {cv.GenerateID(): cv.declare_id(class_)}
+
+    for key, default, validator in [
+        (CONF_ICON, icon, cv.icon),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+        (CONF_DEVICE_CLASS, device_class, validate_device_class),
+        (CONF_UNIT_OF_MEASUREMENT, unit_of_measurement, validate_unit_of_measurement),
+    ]:
+        if default is not _UNDEF:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return NUMBER_SCHEMA.extend(schema)
 
 
 async def setup_number_core_(

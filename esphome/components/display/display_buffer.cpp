@@ -32,9 +32,11 @@ void Rect::extend(Rect rect) {
     this->h = rect.h;
   } else {
     if (this->x > rect.x) {
+      this->w = this->w + (this->x - rect.x);
       this->x = rect.x;
     }
     if (this->y > rect.y) {
+      this->h = this->h + (this->y - rect.y);
       this->y = rect.y;
     }
     if (this->x2() < rect.x2()) {
@@ -49,29 +51,35 @@ void Rect::shrink(Rect rect) {
   if (!this->inside(rect)) {
     (*this) = Rect();
   } else {
-    if (this->x < rect.x) {
-      this->x = rect.x;
-    }
-    if (this->y < rect.y) {
-      this->y = rect.y;
-    }
     if (this->x2() > rect.x2()) {
       this->w = rect.x2() - this->x;
+    }
+    if (this->x < rect.x) {
+      this->w = this->w + (this->x - rect.x);
+      this->x = rect.x;
     }
     if (this->y2() > rect.y2()) {
       this->h = rect.y2() - this->y;
     }
+    if (this->y < rect.y) {
+      this->h = this->h + (this->y - rect.y);
+      this->y = rect.y;
+    }
   }
 }
 
-bool Rect::inside(int16_t x, int16_t y, bool absolute) {  // NOLINT
+bool Rect::equal(Rect rect) {
+  return (rect.x == this->x) && (rect.w == this->w) && (rect.y == this->y) && (rect.h == this->h);
+}
+
+bool Rect::inside(int16_t test_x, int16_t test_y, bool absolute) {  // NOLINT
   if (!this->is_set()) {
     return true;
   }
   if (absolute) {
-    return ((x >= 0) && (x <= this->w) && (y >= 0) && (y <= this->h));
+    return ((test_x >= this->x) && (test_x <= this->x2()) && (test_y >= this->y) && (test_y <= this->y2()));
   } else {
-    return ((x >= this->x) && (x <= this->x2()) && (y >= this->y) && (y <= this->y2()));
+    return ((test_x >= 0) && (test_x <= this->w) && (test_y >= 0) && (test_y <= this->h));
   }
 }
 
@@ -80,15 +88,16 @@ bool Rect::inside(Rect rect, bool absolute) {
     return true;
   }
   if (absolute) {
-    return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
-  } else {
     return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
+  } else {
+    return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
   }
 }
 
 void Rect::info(const std::string &prefix) {
   if (this->is_set()) {
-    ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d]", prefix.c_str(), this->x, this->y, this->w, this->h);
+    ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d] (%3d,%3d)", prefix.c_str(), this->x, this->y, this->w, this->h, this->x2(),
+             this->y2());
   } else
     ESP_LOGI(TAG, "%s ** IS NOT SET **", prefix.c_str());
 }
@@ -603,10 +612,10 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   *x_offset = min_x;
   *width = x - min_x;
 }
-const std::vector<Glyph> &Font::get_glyphs() const { return this->glyphs_; }
 Font::Font(const GlyphData *data, int data_nr, int baseline, int height) : baseline_(baseline), height_(height) {
+  glyphs_.reserve(data_nr);
   for (int i = 0; i < data_nr; ++i)
-    glyphs_.emplace_back(data + i);
+    glyphs_.emplace_back(&data[i]);
 }
 
 bool Image::get_pixel(int x, int y) const {
