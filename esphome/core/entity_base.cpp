@@ -23,7 +23,7 @@ bool EntityBase::is_disabled_by_default() const { return this->disabled_by_defau
 void EntityBase::set_disabled_by_default(bool disabled_by_default) { this->disabled_by_default_ = disabled_by_default; }
 
 // Entity Icon
-const std::string EntityBase::get_icon() const {
+std::string EntityBase::get_icon() const {
   if (this->icon_c_str_ == nullptr) {
     return "";
   }

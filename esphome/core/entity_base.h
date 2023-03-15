@@ -42,7 +42,7 @@ class EntityBase {
   void set_entity_category(EntityCategory entity_category);
 
   // Get/set this entity's icon
-  const std::string get_icon() const;
+  std::string get_icon() const;
   void set_icon(const char *icon);
 
  protected:
