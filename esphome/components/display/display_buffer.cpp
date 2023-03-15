@@ -32,9 +32,11 @@ void Rect::extend(Rect rect) {
     this->h = rect.h;
   } else {
     if (this->x > rect.x) {
+      this->w = this->w + (this->x - rect.x);
       this->x = rect.x;
     }
     if (this->y > rect.y) {
+      this->h = this->h + (this->y - rect.y);
       this->y = rect.y;
     }
     if (this->x2() < rect.x2()) {
@@ -50,9 +52,11 @@ void Rect::shrink(Rect rect) {
     (*this) = Rect();
   } else {
     if (this->x < rect.x) {
+      this->w = this->w - (this->x - rect.x);
       this->x = rect.x;
     }
     if (this->y < rect.y) {
+      this->h = this->h - (this->y - rect.y);
       this->y = rect.y;
     }
     if (this->x2() > rect.x2()) {
