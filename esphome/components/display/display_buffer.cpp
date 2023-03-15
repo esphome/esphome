@@ -96,7 +96,8 @@ bool Rect::inside(Rect rect, bool absolute) {
 
 void Rect::info(const std::string &prefix) {
   if (this->is_set()) {
-    ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d] (%3d,%3d)", prefix.c_str(), this->x, this->y, this->w, this->h, this->x2() , this->y2());
+    ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d] (%3d,%3d)", prefix.c_str(), this->x, this->y, this->w, this->h, this->x2(), 
+             this->y2());
   } else
     ESP_LOGI(TAG, "%s ** IS NOT SET **", prefix.c_str());
 }
@@ -698,7 +699,7 @@ Color Animation::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
