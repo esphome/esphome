@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include <map>
 #include "esphome/components/select/select.h"
 #include "optolink.h"
@@ -37,3 +39,5 @@ class OptolinkSelect : public OptolinkSensorBase, public esphome::select::Select
 
 }  // namespace optolink
 }  // namespace esphome
+
+#endif

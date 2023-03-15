@@ -1,5 +1,6 @@
-
 #pragma once
+
+#ifdef USE_ARDUINO
 
 #include "esphome/core/log.h"
 #include "VitoWiFi.h"
@@ -46,3 +47,5 @@ class conv2_100_F : public DPType {
 
 }  // namespace optolink
 }  // namespace esphome
+
+#endif

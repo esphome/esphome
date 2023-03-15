@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "esphome/core/log.h"
 #include "optolink_device_info_sensor.h"
 
@@ -20,3 +22,5 @@ void OptolinkDeviceInfoSensor::setup() {
 }
 }  // namespace optolink
 }  // namespace esphome
+
+#endif

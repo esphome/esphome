@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "optolink_switch.h"
 #include "optolink.h"
 #include "VitoWiFi.h"
@@ -18,3 +20,5 @@ void OptolinkSwitch::write_state(bool value) {
 
 }  // namespace optolink
 }  // namespace esphome
+
+#endif

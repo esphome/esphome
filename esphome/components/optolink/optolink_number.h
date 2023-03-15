@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/components/number/number.h"
 #include "optolink_sensor_base.h"
 #include "optolink.h"
@@ -24,3 +26,5 @@ class OptolinkNumber : public OptolinkSensorBase, public esphome::number::Number
 
 }  // namespace optolink
 }  // namespace esphome
+
+#endif

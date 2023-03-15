@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "esphome/core/defines.h"
 #include "optolink.h"
 #include "VitoWiFi.h"
@@ -76,3 +78,5 @@ size_t Optolink::write(uint8_t ch) {
 
 }  // namespace optolink
 }  // namespace esphome
+
+#endif

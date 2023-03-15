@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "optolink_select.h"
 #include "optolink.h"
 #include "VitoWiFi.h"
@@ -39,3 +41,5 @@ void OptolinkSelect::value_changed(float state) {
 
 }  // namespace optolink
 }  // namespace esphome
+
+#endif

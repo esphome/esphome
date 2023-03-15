@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "optolink_sensor_base.h"
 #include "optolink.h"
 
@@ -160,3 +162,5 @@ DPValue conv2_100_F::decode(const uint8_t *in) {
 
 }  // namespace optolink
 }  // namespace esphome
+
+#endif

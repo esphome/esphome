@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "optolink_number.h"
 #include "optolink.h"
 #include "VitoWiFi.h"
@@ -18,3 +20,5 @@ void OptolinkNumber::control(float value) {
 
 }  // namespace optolink
 }  // namespace esphome
+
+#endif

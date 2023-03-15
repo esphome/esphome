@@ -1,3 +1,5 @@
+#ifdef USE_ARDUINO
+
 #include "optolink_text_sensor.h"
 #include "optolink.h"
 #include "VitoWiFi.h"
@@ -23,3 +25,5 @@ void OptolinkTextSensor::setup() {
 
 }  // namespace optolink
 }  // namespace esphome
+
+#endif

@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -39,3 +41,5 @@ class Optolink : public esphome::Component, public Print {
 
 }  // namespace optolink
 }  // namespace esphome
+
+#endif
