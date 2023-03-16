@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import button, fluval_ble_led
-from esphome.const import ICON_LIGHTBULB, CONF_MODE, CONF_ID
+from esphome.const import CONF_MODE, CONF_ID
 from .. import fluval_ble_led_ns
 
 MODE_OPTIONS = {"MANUAL": 0, "AUTO": 1, "PRO": 2}
