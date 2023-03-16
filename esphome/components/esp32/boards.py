@@ -1,4 +1,10 @@
-from .const import VARIANT_ESP32, VARIANT_ESP32S2, VARIANT_ESP32C3, VARIANT_ESP32S3
+from .const import (
+    VARIANT_ESP32,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
+)
 
 ESP32_BASE_PINS = {
     "TX": 1,
@@ -1284,6 +1290,10 @@ BOARDS = {
     "esp32-c3-m1i-kit": {
         "name": "Ai-Thinker ESP-C3-M1-I-Kit",
         "variant": VARIANT_ESP32C3,
+    },
+    "esp32-c6-devkitc-1": {
+        "name": "Espressif ESP32-C6-DevKitC-1",
+        "variant": VARIANT_ESP32C6,
     },
     "esp32cam": {
         "name": "AI Thinker ESP32-CAM",
