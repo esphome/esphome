@@ -55,7 +55,7 @@ VOLTAGE_ATTENUATION = {
 def _default_iir_filter(config):
     if esp32.get_esp32_variant() == esp32.const.VARIANT_ESP32:
         if CONF_IIR_FILTER not in config:
-            config[CONF_IIR_FILTER] = "0ms"
+            config[CONF_IIR_FILTER] = 0
     return config
 
 
