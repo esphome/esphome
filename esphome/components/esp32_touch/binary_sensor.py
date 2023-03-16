@@ -7,7 +7,7 @@ from esphome.const import (
     CONF_THRESHOLD,
     CONF_ID,
 )
-from esphome.components.esp32 import gpio
+from esphome.components.esp32 import gpio, only_on_variant
 from esphome.components.esp32.const import (
     KEY_ESP32,
     KEY_VARIANT,
@@ -86,12 +86,23 @@ ESP32TouchBinarySensor = esp32_touch_ns.class_(
     "ESP32TouchBinarySensor", binary_sensor.BinarySensor
 )
 
+_threshold = cv.Any(
+    cv.All(
+        cv.uint16_t,
+        only_on_variant(supported=[VARIANT_ESP32]),
+    ),
+    cv.All(
+        cv.uint32_t,
+        only_on_variant(supported=[VARIANT_ESP32S2, VARIANT_ESP32S3]),
+    ),
+)
+
 CONFIG_SCHEMA = binary_sensor.binary_sensor_schema(ESP32TouchBinarySensor).extend(
     {
         cv.GenerateID(CONF_ESP32_TOUCH_ID): cv.use_id(ESP32TouchComponent),
         cv.Required(CONF_PIN): validate_touch_pad,
-        cv.Required(CONF_THRESHOLD): cv.uint16_t,
-        cv.Optional(CONF_WAKEUP_THRESHOLD, default=0): cv.uint16_t,
+        cv.Required(CONF_THRESHOLD): _threshold,
+        cv.Optional(CONF_WAKEUP_THRESHOLD, default=0): _threshold,
     }
 )
 

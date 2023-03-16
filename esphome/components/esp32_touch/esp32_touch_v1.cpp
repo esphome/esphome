@@ -1,9 +1,13 @@
+
 #ifdef USE_ESP32
 
 #include "esp32_touch.h"
+
+#if SOC_TOUCH_VERSION_1
+
 #include "esphome/core/application.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace esp32_touch {
@@ -161,10 +165,8 @@ void ESP32TouchComponent::on_shutdown() {
   }
 }
 
-ESP32TouchBinarySensor::ESP32TouchBinarySensor(touch_pad_t touch_pad, uint16_t threshold, uint16_t wakeup_threshold)
-    : touch_pad_(touch_pad), threshold_(threshold), wakeup_threshold_(wakeup_threshold) {}
-
 }  // namespace esp32_touch
 }  // namespace esphome
 
-#endif
+#endif  // SOC_TOUCH_VERSION_1
+#endif  // USE_ESP32

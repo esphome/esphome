@@ -51,14 +51,23 @@ VOLTAGE_ATTENUATION = {
     "0V": cg.global_ns.TOUCH_HVOLT_ATTEN_0V,
 }
 
+
+def _default_iir_filter(config):
+    if esp32.get_esp32_variant() == esp32.const.VARIANT_ESP32:
+        if CONF_IIR_FILTER not in config:
+            config[CONF_IIR_FILTER] = "0ms"
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(ESP32TouchComponent),
             cv.Optional(CONF_SETUP_MODE, default=False): cv.boolean,
-            cv.Optional(
-                CONF_IIR_FILTER, default="0ms"
-            ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_IIR_FILTER): cv.All(
+                cv.positive_time_period_milliseconds,
+                esp32.only_on_variant(supported=[esp32.const.VARIANT_ESP32]),
+            ),
             cv.Optional(CONF_SLEEP_DURATION, default="27306us"): cv.All(
                 cv.positive_time_period, cv.Range(max=TimePeriod(microseconds=436906))
             ),
@@ -79,8 +88,11 @@ CONFIG_SCHEMA = cv.All(
     esp32.only_on_variant(
         supported=[
             esp32.const.VARIANT_ESP32,
+            esp32.const.VARIANT_ESP32S2,
+            esp32.const.VARIANT_ESP32S3,
         ]
     ),
+    _default_iir_filter,
 )
 
 
@@ -89,7 +101,8 @@ async def to_code(config):
     await cg.register_component(touch, config)
 
     cg.add(touch.set_setup_mode(config[CONF_SETUP_MODE]))
-    cg.add(touch.set_iir_filter(config[CONF_IIR_FILTER]))
+    if CONF_IIR_FILTER in config:
+        cg.add(touch.set_iir_filter(config[CONF_IIR_FILTER]))
 
     sleep_duration = int(round(config[CONF_SLEEP_DURATION].total_microseconds * 0.15))
     cg.add(touch.set_sleep_duration(sleep_duration))

@@ -2,17 +2,13 @@
 
 #ifdef USE_ESP32
 
-#include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
-#include <esp_idf_version.h>
+#include "esphome/core/component.h"
+
+#include <driver/touch_sensor.h>
+#include <soc/soc_caps.h>
 
 #include <vector>
-
-#if ESP_IDF_VERSION_MAJOR >= 4
-#include <driver/touch_sensor.h>
-#else
-#include <driver/touch_pad.h>
-#endif
 
 namespace esphome {
 namespace esp32_touch {
@@ -25,7 +21,9 @@ class ESP32TouchComponent : public Component {
 
   void set_setup_mode(bool setup_mode) { setup_mode_ = setup_mode; }
 
+#ifdef SOC_TOUCH_VERSION_1
   void set_iir_filter(uint32_t iir_filter) { iir_filter_ = iir_filter; }
+#endif
 
   void set_sleep_duration(uint16_t sleep_duration) { sleep_cycle_ = sleep_duration; }
 
@@ -49,8 +47,11 @@ class ESP32TouchComponent : public Component {
   void on_shutdown() override;
 
  protected:
+#ifdef SOC_TOUCH_VERSION_1
   /// Is the IIR filter enabled?
   bool iir_filter_enabled_() const { return iir_filter_ > 0; }
+  uint32_t iir_filter_{0};
+#endif
 
   uint16_t sleep_cycle_{};
   uint16_t meas_cycle_{65535};
@@ -60,27 +61,27 @@ class ESP32TouchComponent : public Component {
   std::vector<ESP32TouchBinarySensor *> children_;
   bool setup_mode_{false};
   uint32_t setup_mode_last_log_print_{};
-  uint32_t iir_filter_{0};
 };
 
 /// Simple helper class to expose a touch pad value as a binary sensor.
 class ESP32TouchBinarySensor : public binary_sensor::BinarySensor {
  public:
-  ESP32TouchBinarySensor(touch_pad_t touch_pad, uint16_t threshold, uint16_t wakeup_threshold);
+  ESP32TouchBinarySensor(touch_pad_t touch_pad, uint32_t threshold, uint32_t wakeup_threshold)
+      : touch_pad_(touch_pad), threshold_(threshold), wakeup_threshold_(wakeup_threshold) {}
 
   touch_pad_t get_touch_pad() const { return touch_pad_; }
-  uint16_t get_threshold() const { return threshold_; }
-  void set_threshold(uint16_t threshold) { threshold_ = threshold; }
-  uint16_t get_value() const { return value_; }
-  uint16_t get_wakeup_threshold() const { return wakeup_threshold_; }
+  uint32_t get_threshold() const { return threshold_; }
+  void set_threshold(uint32_t threshold) { threshold_ = threshold; }
+  uint32_t get_value() const { return value_; }
+  uint32_t get_wakeup_threshold() const { return wakeup_threshold_; }
 
  protected:
   friend ESP32TouchComponent;
 
   touch_pad_t touch_pad_;
-  uint16_t threshold_;
-  uint16_t value_;
-  const uint16_t wakeup_threshold_;
+  uint32_t threshold_;
+  uint32_t value_;
+  const uint32_t wakeup_threshold_;
 };
 
 }  // namespace esp32_touch
