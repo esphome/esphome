@@ -58,7 +58,7 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema(
-    "mcp9600", min_frequency="100khz"
+    "mcp9600", min_frequency="10khz"
 )
 
 

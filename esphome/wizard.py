@@ -46,6 +46,11 @@ BASE_CONFIG = """esphome:
   name: {name}
 """
 
+BASE_CONFIG_FRIENDLY = """esphome:
+  name: {name}
+  friendly_name: {friendly_name}
+"""
+
 LOGGER_API_CONFIG = """
 # Enable logging
 logger:
@@ -110,7 +115,12 @@ def wizard_file(**kwargs):
     kwargs["fallback_name"] = ap_name
     kwargs["fallback_psk"] = "".join(random.choice(letters) for _ in range(12))
 
-    config = BASE_CONFIG.format(**kwargs)
+    if kwargs.get("friendly_name"):
+        base = BASE_CONFIG_FRIENDLY
+    else:
+        base = BASE_CONFIG
+
+    config = base.format(**kwargs)
 
     config += HARDWARE_BASE_CONFIGS[kwargs["platform"]].format(**kwargs)
 
@@ -192,7 +202,7 @@ def wizard_write(path, **kwargs):
     hardware = kwargs["platform"]
 
     write_file(path, wizard_file(**kwargs))
-    storage = StorageJSON.from_wizard(name, f"{name}.local", hardware)
+    storage = StorageJSON.from_wizard(name, name, f"{name}.local", hardware)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
     storage.save(storage_path)
 
