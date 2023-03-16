@@ -120,8 +120,9 @@ class Rect {
   void extend(Rect rect);
   void shrink(Rect rect);
 
-  bool inside(Rect rect, bool absolute = false);
-  bool inside(int16_t x, int16_t y, bool absolute = false);
+  bool inside(Rect rect, bool absolute = true);
+  bool inside(int16_t test_x, int16_t test_y, bool absolute = true);
+  bool equal(Rect rect);
   void info(const std::string &prefix = "rect info:");
 };
 
