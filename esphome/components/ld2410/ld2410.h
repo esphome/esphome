@@ -254,7 +254,7 @@ class LD2410Component : public Component, public uart::UARTDevice {
   LD2410ComponentCall make_call() { return LD2410ComponentCall(this); }
 
  protected:
-  int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t)(secondbyte << 8) + firstbyte; }
+  int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
   void send_command_(uint8_t command_str, const uint8_t *command_value, int command_value_len);
 #ifdef USE_NUMBER
   void set_max_distances_timeout_();
