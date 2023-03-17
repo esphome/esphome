@@ -5,7 +5,7 @@ from esphome.const import (
     CONF_TIMEOUT,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_SIGNAL_STRENGTH,
-    UNIT_METER,
+    DEVICE_CLASS_ILLUMINANCE,
     UNIT_SECOND,
     UNIT_PERCENT,
 )
@@ -13,8 +13,9 @@ from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
 LD2410Number = ld2410_ns.class_("LD2410Number", number.Number)
 
-CONF_MAX_MOVE_DISTANCE = "max_move_distance"
-CONF_MAX_STILL_DISTANCE = "max_still_distance"
+CONF_MAX_MOVE_DISTANCE_GATE = "max_move_distance_gate"
+CONF_MAX_STILL_DISTANCE_GATE = "max_still_distance_gate"
+CONF_LIGHT_THRESHOLD = "light_threshold"
 
 CONF_STILL_THRESHOLDS = [f"g{x}_still_threshold" for x in range(9)]
 
@@ -24,17 +25,17 @@ CONF_MOVE_THRESHOLDS = [f"g{x}_move_threshold" for x in range(9)]
 def validate(config):
     has_some_timeout_configs = (
         CONF_TIMEOUT in config
-        or CONF_MAX_MOVE_DISTANCE in config
-        or CONF_MAX_STILL_DISTANCE in config
+        or CONF_MAX_MOVE_DISTANCE_GATE in config
+        or CONF_MAX_STILL_DISTANCE_GATE in config
     )
     has_all_timeout_configs = (
         CONF_TIMEOUT in config
-        and CONF_MAX_MOVE_DISTANCE in config
-        and CONF_MAX_STILL_DISTANCE in config
+        and CONF_MAX_MOVE_DISTANCE_GATE in config
+        and CONF_MAX_STILL_DISTANCE_GATE in config
     )
     if has_some_timeout_configs and not has_all_timeout_configs:
         raise cv.Invalid(
-            f"{CONF_TIMEOUT}, {CONF_MAX_MOVE_DISTANCE} and {CONF_MAX_STILL_DISTANCE} are all must be set"
+            f"{CONF_TIMEOUT}, {CONF_MAX_MOVE_DISTANCE_GATE} and {CONF_MAX_STILL_DISTANCE_GATE} are all must be set"
         )
     for x in range(9):
         move = CONF_MOVE_THRESHOLDS[x]
@@ -54,17 +55,20 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_SECOND,
             icon="mdi:clock-time-eight-outline",
         ),
-        cv.Optional(CONF_MAX_MOVE_DISTANCE): number.number_schema(
+        cv.Optional(CONF_MAX_MOVE_DISTANCE_GATE): number.number_schema(
             LD2410Number,
             device_class=DEVICE_CLASS_DISTANCE,
-            unit_of_measurement=UNIT_METER,
             icon="mdi:motion-sensor",
         ),
-        cv.Optional(CONF_MAX_STILL_DISTANCE): number.number_schema(
+        cv.Optional(CONF_MAX_STILL_DISTANCE_GATE): number.number_schema(
             LD2410Number,
             device_class=DEVICE_CLASS_DISTANCE,
-            unit_of_measurement=UNIT_METER,
             icon="mdi:motion-sensor-off",
+        ),
+        cv.Optional(CONF_LIGHT_THRESHOLD): number.number_schema(
+            LD2410Number,
+            device_class=DEVICE_CLASS_ILLUMINANCE,
+            icon="mdi:car-light-high",
         ),
     }
 )
@@ -99,16 +103,21 @@ async def to_code(config):
             config[CONF_TIMEOUT], min_value=0, max_value=65535, step=1
         )
         cg.add(ld2410_component.set_timeout_number(n))
-    if CONF_MAX_MOVE_DISTANCE in config:
+    if CONF_MAX_MOVE_DISTANCE_GATE in config:
         n = await number.new_number(
-            config[CONF_MAX_MOVE_DISTANCE], min_value=0.75, max_value=6, step=0.75
+            config[CONF_MAX_MOVE_DISTANCE_GATE], min_value=2, max_value=8, step=1
         )
-        cg.add(ld2410_component.set_max_move_distance_number(n))
-    if CONF_MAX_STILL_DISTANCE in config:
+        cg.add(ld2410_component.set_max_move_distance_gate_number(n))
+    if CONF_MAX_STILL_DISTANCE_GATE in config:
         n = await number.new_number(
-            config[CONF_MAX_STILL_DISTANCE], min_value=0.75, max_value=6, step=0.75
+            config[CONF_MAX_STILL_DISTANCE_GATE], min_value=2, max_value=8, step=1
         )
-        cg.add(ld2410_component.set_max_still_distance_number(n))
+        cg.add(ld2410_component.set_max_still_distance_gate_number(n))
+    if CONF_LIGHT_THRESHOLD in config:
+        n = await number.new_number(
+            config[CONF_LIGHT_THRESHOLD], min_value=0, max_value=255, step=1
+        )
+        cg.add(ld2410_component.set_light_threshold_number(n))
     for x in range(9):
         move = CONF_MOVE_THRESHOLDS[x]
         still = CONF_STILL_THRESHOLDS[x]
