@@ -165,9 +165,9 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
   } else {
 #ifdef USE_ESP32
 #if LWIP_IPV6
-    a_this->ip_ = addr.u_addr.ip4.addr;
+    a_this->ip_ = ipaddr->u_addr.ip4.addr;
 #else
-    a_this->ip_ = addr.addr;
+    a_this->ip_ = ipaddr->addr;
 #endif
 #endif  // USE_ESP32
 #ifdef USE_ESP8266
