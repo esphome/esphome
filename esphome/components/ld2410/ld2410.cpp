@@ -386,7 +386,7 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
       const std::string &out_pin_level = OUT_PIN_LEVEL_INT_TO_ENUM.at(buffer[12]);
       ESP_LOGV(TAG, "Light function is: %s", const_cast<char *>(light_function.c_str()));
       ESP_LOGV(TAG, "Light threshold is: %f", light_threshold);
-      ESP_LOGV(TAG, "Out ping level is: %s", const_cast<char *>(out_pin_level.c_str()));
+      ESP_LOGV(TAG, "Out pin level is: %s", const_cast<char *>(out_pin_level.c_str()));
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr && this->light_function_select_->state != light_function) {
         this->light_function_select_->publish_state(light_function);
