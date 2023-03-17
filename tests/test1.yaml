@@ -392,6 +392,7 @@ sensor:
       - heartbeat: 5s
       - debounce: 0.1s
       - delta: 5.0
+      - delta: 1%
       - or:
           - throttle: 1s
           - delta: 5.0
@@ -2534,6 +2535,8 @@ color:
     red: 0%
     green: 1%
     blue: 100%
+  - id: kbx_green
+    hex: "3DEC55"
 
 display:
   - platform: lcd_gpio

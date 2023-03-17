@@ -466,9 +466,21 @@ async def lambda_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, lambda_)
 
 
-@FILTER_REGISTRY.register("delta", DeltaFilter, cv.float_)
+def validate_delta(config):
+    try:
+        return (cv.positive_float(config), False)
+    except cv.Invalid:
+        pass
+    try:
+        return (cv.percentage(config), True)
+    except cv.Invalid:
+        pass
+    raise cv.Invalid("Delta filter requires a positive number or percentage value.")
+
+
+@FILTER_REGISTRY.register("delta", DeltaFilter, validate_delta)
 async def delta_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id, config)
+    return cg.new_Pvariable(filter_id, *config)
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
