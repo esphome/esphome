@@ -462,6 +462,8 @@ class EsphomeCore:
         self.config_path: Optional[str] = None
         # The relative path to where all build files are stored
         self.build_path: Optional[str] = None
+        # A directory for platformio to store cached objects in
+        self.build_cache_dir: Optional[str] = None
         # The validated configuration, this is None until the config has been validated
         self.config: Optional["ConfigType"] = None
         # The pending tasks in the task queue (mostly for C++ generation)
@@ -498,6 +500,7 @@ class EsphomeCore:
         self.data = {}
         self.config_path = None
         self.build_path = None
+        self.build_cache_dir = None
         self.config = None
         self.event_loop = _FakeEventLoop()
         self.task_counter = 0

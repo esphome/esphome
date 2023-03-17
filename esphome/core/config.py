@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_ARDUINO_VERSION,
     CONF_BOARD,
     CONF_BOARD_FLASH_MODE,
+    CONF_BUILD_CACHE_PATH,
     CONF_BUILD_PATH,
     CONF_COMMENT,
     CONF_COMPILE_PROCESS_LIMIT,
@@ -127,6 +128,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NAME): cv.valid_name,
             cv.Optional(CONF_FRIENDLY_NAME, ""): cv.string,
             cv.Optional(CONF_COMMENT): cv.string,
+            cv.Optional(CONF_BUILD_CACHE_PATH): cv.string,
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
                 {
@@ -200,6 +202,9 @@ def preload_core_config(config, result):
     if CONF_BUILD_PATH not in conf:
         conf[CONF_BUILD_PATH] = f".esphome/build/{CORE.name}"
     CORE.build_path = CORE.relative_config_path(conf[CONF_BUILD_PATH])
+
+    if CONF_BUILD_CACHE_PATH in conf:
+        CORE.build_cache_dir = conf[CONF_BUILD_CACHE_PATH]
 
     has_oldstyle = CONF_PLATFORM in conf
     newstyle_found = [key for key in TARGET_PLATFORMS if key in config]

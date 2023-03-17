@@ -145,6 +145,9 @@ def get_ini_content():
     content = "[platformio]\n"
     content += f"description = ESPHome {__version__}\n"
 
+    if CORE.build_cache_dir:
+        content += f"build_cache_dir = {CORE.build_cache_dir}\n"
+
     content += f"[env:{CORE.name}]\n"
     content += format_ini(CORE.platformio_options)
 
