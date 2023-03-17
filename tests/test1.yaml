@@ -1273,6 +1273,8 @@ sensor:
       name: "MPL3115A2 Pressure"
     update_interval: 10s
   - platform: ld2410
+    light:
+      name: light
     moving_distance:
       name: "Moving distance (cm)"
     still_distance:
@@ -1629,6 +1631,8 @@ binary_sensor:
       name: movement
     has_still_target:
       name: still
+    out_pin_presence:
+      name: out pin presence
 
 pca9685:
   frequency: 500
@@ -3251,12 +3255,14 @@ number:
     max_value: 10
     optimistic: true
   - platform: ld2410
+    light_threshold:
+      name: light threshold
     timeout:
       name: timeout
-    max_move_distance:
-      name: max move distance
-    max_still_distance:
-      name: max still distance
+    max_move_distance_gate:
+      name: max move distance gate
+    max_still_distance_gate:
+      name: max still distance gate
     g0_move_threshold:
       name: g0 move threshold
     g0_still_threshold:
@@ -3311,6 +3317,10 @@ select:
       name: distance resolution
     baud_rate:
       name: baud rate
+    light_function:
+      name: light function
+    out_pin_level:
+      name: out ping level
 
 qr_code:
   - id: homepage_qr
