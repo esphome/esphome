@@ -297,8 +297,13 @@ void EthernetComponent::dump_connect_params_() {
   const ip_addr_t *dns_ip1 = dns_getserver(0);
   const ip_addr_t *dns_ip2 = dns_getserver(1);
 
+#if LWIP_IPV6
   ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->u_addr.ip4.addr).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->u_addr.ip4.addr).str().c_str());
+#else
+  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->addr).str().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->addr).str().c_str());
+#endif
 
   esp_err_t err;
 
