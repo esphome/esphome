@@ -231,7 +231,9 @@ LightColorValues LightCall::validate_() {
   // Turn off when brightness is set to zero, and reset brightness (so that it has nonzero brightness when turned on).
   if (this->brightness_.has_value() && *this->brightness_ == 0.0f) {
     this->state_ = optional<float>(false);
-    this->brightness_ = optional<float>(1.0f);
+    //this->brightness_ = optional<float>(1.0f);
+  } else if (this->brightness_.has_value()) {
+	this->state_ = optional<float>(true);
   }
 
   // Set color brightness to 100% if currently zero and a color is set.
