@@ -1,18 +1,17 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c
-from esphome.const import CONF_ID
+from esphome.const import CONF_ID, CONF_TEMPERATURE_OFFSET
 
 CODEOWNERS = ["@neffs"]
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensor", "text_sensor"]
 
 CONF_BME68X_BSEC_ID = "bme68x_bsec_id"
-CONF_TEMPERATURE_OFFSET = "temperature_offset"
 CONF_IAQ_MODE = "iaq_mode"
 CONF_SAMPLE_RATE = "sample_rate"
 CONF_STATE_SAVE_INTERVAL = "state_save_interval"
-CONF_BSEC_CONFIG = "bsec_configuration"
+CONF_BSEC_CONFIGURATION = "bsec_configuration"
 
 bme68x_bsec_ns = cg.esphome_ns.namespace("bme68x_bsec")
 
@@ -37,7 +36,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_STATE_SAVE_INTERVAL, default="6hours"
         ): cv.positive_time_period_minutes,
-        cv.Optional(CONF_BSEC_CONFIG, default=""): cv.string,
+        cv.Optional(CONF_BSEC_CONFIGURATION, default=""): cv.string,
     },
     cv.only_with_arduino,
 ).extend(i2c.i2c_device_schema(0x76))
@@ -53,9 +52,9 @@ async def to_code(config):
     cg.add(
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
-    if config[CONF_BSEC_CONFIG] != "":
+    if config[CONF_BSEC_CONFIGURATION] != "":
         # Convert BSEC Config to int array
-        temp = [int(a) for a in config[CONF_BSEC_CONFIG].split(",")]
+        temp = [int(a) for a in config[CONF_BSEC_CONFIGURATION].split(",")]
         # We can't call set_config_() with this array directly, because we don't
         # have a pointer in this case.
         # Instead we use a define, and handle it .cpp
