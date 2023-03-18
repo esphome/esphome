@@ -104,15 +104,15 @@ class MedianFilter : public Filter {
 
 /** Simple skip filter.
  *
- * Skips the first <send_first_at> values, then passes everything else.
+ * Skips the first N values, then passes everything else.
  */
-class SkipFilter : public Filter {
+class SkipInitialFilter : public Filter {
  public:
-  /** Construct a SkipFilter.
+  /** Construct a SkipInitialFilter.
    *
-   * @param send_first_at After how many values to forward the very first value.
+   * @param num_to_ignore How many values to ignore before the filter becomes a no-op.
    */
-  explicit SkipFilter(size_t send_first_at);
+  explicit SkipInitialFilter(size_t num_to_ignore);
 
   optional<float> new_value(float value) override;
 

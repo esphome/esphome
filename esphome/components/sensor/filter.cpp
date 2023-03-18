@@ -74,19 +74,19 @@ optional<float> MedianFilter::new_value(float value) {
   return {};
 }
 
-// SkipFilter
-SkipFilter::SkipFilter(size_t send_first_at) : num_to_ignore_(send_first_at)
+// SkipInitialFilter
+SkipInitialFilter::SkipInitialFilter(size_t num_to_ignore) : num_to_ignore_(num_to_ignore)
 {
 }
-optional<float> SkipFilter::new_value(float value)
+optional<float> SkipInitialFilter::new_value(float value)
 {
   if (num_to_ignore_ > 0) {
     num_to_ignore_--;
-    ESP_LOGV(TAG, "SkipFilter(%p)::new_value(%f) SKIPPING, %u left", this, value, num_to_ignore_);
+    ESP_LOGV(TAG, "SkipInitialFilter(%p)::new_value(%f) SKIPPING, %u left", this, value, num_to_ignore_);
     return {};
   }
 
-  ESP_LOGV(TAG, "SkipFilter(%p)::new_value(%f) SENDING", this, value);
+  ESP_LOGV(TAG, "SkipInitialFilter(%p)::new_value(%f) SENDING", this, value);
   return value;
 }
 
