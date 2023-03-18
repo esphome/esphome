@@ -254,8 +254,7 @@ def upload_using_esptool(config, port):
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
 
-            # pylint: disable=protected-access
-            return run_external_command(esptool._main, *cmd)
+            return run_external_command(esptool.main, *cmd)  # pylint: disable=no-member
 
         return run_external_process(*cmd)
 
@@ -298,6 +297,8 @@ def upload_program(config, args, host):
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf.get(CONF_PASSWORD, "")
+    if getattr(args, "file", None) is not None:
+        return espota2.run_ota(host, remote_port, password, args.file)
     return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
@@ -338,7 +339,7 @@ def command_config(args, config):
     _LOGGER.info("Configuration is valid!")
     if not CORE.verbose:
         config = strip_default_ids(config)
-    safe_print(yaml_util.dump(config))
+    safe_print(yaml_util.dump(config, args.show_secrets))
     return 0
 
 
@@ -664,6 +665,9 @@ def parse_args(argv):
     parser_config.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
+    parser_config.add_argument(
+        "--show-secrets", help="Show secrets in output.", action="store_true"
+    )
 
     parser_compile = subparsers.add_parser(
         "compile", help="Read the configuration and compile a program."
@@ -686,6 +690,10 @@ def parse_args(argv):
     parser_upload.add_argument(
         "--device",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
+    )
+    parser_upload.add_argument(
+        "--file",
+        help="Manually specify the binary file to upload.",
     )
 
     parser_logs = subparsers.add_parser(

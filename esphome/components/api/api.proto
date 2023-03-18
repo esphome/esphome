@@ -206,6 +206,8 @@ message DeviceInfoResponse {
   uint32 bluetooth_proxy_version = 11;
 
   string manufacturer = 12;
+
+  string friendly_name = 13;
 }
 
 message ListEntitiesRequest {
@@ -785,6 +787,7 @@ enum ClimateFanMode {
   CLIMATE_FAN_MIDDLE = 6;
   CLIMATE_FAN_FOCUS = 7;
   CLIMATE_FAN_DIFFUSE = 8;
+  CLIMATE_FAN_QUIET = 9;
 }
 enum ClimateSwingMode {
   CLIMATE_SWING_OFF = 0;
@@ -826,7 +829,7 @@ message ListEntitiesClimateResponse {
   repeated ClimateMode supported_modes = 7;
   float visual_min_temperature = 8;
   float visual_max_temperature = 9;
-  float visual_temperature_step = 10;
+  float visual_target_temperature_step = 10;
   // for older peer versions - in new system this
   // is if CLIMATE_PRESET_AWAY exists is supported_presets
   bool legacy_supports_away = 11;
@@ -839,6 +842,7 @@ message ListEntitiesClimateResponse {
   bool disabled_by_default = 18;
   string icon = 19;
   EntityCategory entity_category = 20;
+  float visual_current_temperature_step = 21;
 }
 message ClimateStateResponse {
   option (id) = 47;
@@ -915,6 +919,7 @@ message ListEntitiesNumberResponse {
   EntityCategory entity_category = 10;
   string unit_of_measurement = 11;
   NumberMode mode = 12;
+  string device_class = 13;
 }
 message NumberStateResponse {
   option (id) = 50;
@@ -1140,6 +1145,8 @@ message BluetoothLEAdvertisementResponse {
   repeated string service_uuids = 4;
   repeated BluetoothServiceData service_data = 5;
   repeated BluetoothServiceData manufacturer_data = 6;
+
+  uint32 address_type = 7;
 }
 
 enum BluetoothDeviceRequestType {
@@ -1147,6 +1154,8 @@ enum BluetoothDeviceRequestType {
   BLUETOOTH_DEVICE_REQUEST_TYPE_DISCONNECT = 1;
   BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR = 2;
   BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE = 4;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5;
 }
 
 message BluetoothDeviceRequest {
@@ -1156,6 +1165,8 @@ message BluetoothDeviceRequest {
 
   uint64 address = 1;
   BluetoothDeviceRequestType request_type = 2;
+  bool has_address_type = 3;
+  uint32 address_type = 4;
 }
 
 message BluetoothDeviceConnectionResponse {
@@ -1327,4 +1338,24 @@ message BluetoothGATTNotifyResponse {
 
   uint64 address = 1;
   uint32 handle = 2;
+}
+
+message BluetoothDevicePairingResponse {
+  option (id) = 85;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  bool paired = 2;
+  int32 error = 3;
+}
+
+message BluetoothDeviceUnpairingResponse {
+  option (id) = 86;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  bool success = 2;
+  int32 error = 3;
 }

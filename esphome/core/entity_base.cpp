@@ -23,8 +23,13 @@ bool EntityBase::is_disabled_by_default() const { return this->disabled_by_defau
 void EntityBase::set_disabled_by_default(bool disabled_by_default) { this->disabled_by_default_ = disabled_by_default; }
 
 // Entity Icon
-const std::string &EntityBase::get_icon() const { return this->icon_; }
-void EntityBase::set_icon(const std::string &name) { this->icon_ = name; }
+std::string EntityBase::get_icon() const {
+  if (this->icon_c_str_ == nullptr) {
+    return "";
+  }
+  return this->icon_c_str_;
+}
+void EntityBase::set_icon(const char *icon) { this->icon_c_str_ = icon; }
 
 // Entity Category
 EntityCategory EntityBase::get_entity_category() const { return this->entity_category_; }

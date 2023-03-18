@@ -3,6 +3,7 @@
 #ifdef USE_ESP32
 
 #include <map>
+#include <vector>
 
 #include "esphome/components/api/api_pb2.h"
 #include "esphome/components/esp32_ble_client/ble_client_base.h"
@@ -40,16 +41,17 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   void bluetooth_gatt_send_services(const api::BluetoothGATTGetServicesRequest &msg);
   void bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest &msg);
 
-  int get_bluetooth_connections_free() {
-    int free = 0;
-    for (auto *connection : this->connections_) {
-      if (connection->address_ == 0) {
-        free++;
-      }
-    }
-    return free;
-  }
+  int get_bluetooth_connections_free();
   int get_bluetooth_connections_limit() { return this->connections_.size(); }
+
+  static void uint64_to_bd_addr(uint64_t address, esp_bd_addr_t bd_addr) {
+    bd_addr[0] = (address >> 40) & 0xff;
+    bd_addr[1] = (address >> 32) & 0xff;
+    bd_addr[2] = (address >> 24) & 0xff;
+    bd_addr[3] = (address >> 16) & 0xff;
+    bd_addr[4] = (address >> 8) & 0xff;
+    bd_addr[5] = (address >> 0) & 0xff;
+  }
 
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
@@ -59,7 +61,6 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
   BluetoothConnection *get_connection_(uint64_t address, bool reserve);
 
-  int16_t send_service_{-1};
   bool active_;
 
   std::vector<BluetoothConnection *> connections_{};

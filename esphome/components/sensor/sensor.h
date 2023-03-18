@@ -6,6 +6,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/sensor/filter.h"
 
+#include <vector>
+
 namespace esphome {
 namespace sensor {
 
@@ -28,6 +30,13 @@ namespace sensor {
       ESP_LOGV(TAG, "%s  Force Update: YES", prefix); \
     } \
   }
+
+#define SUB_SENSOR(name) \
+ protected: \
+  sensor::Sensor *name##_sensor_{nullptr}; \
+\
+ public: \
+  void set_##name##_sensor(sensor::Sensor *sensor) { this->name##_sensor_ = sensor; }
 
 /**
  * Sensor state classes
@@ -141,40 +150,15 @@ class Sensor : public EntityBase {
   /// Return whether this sensor has gotten a full state (that passed through all filters) yet.
   bool has_state() const;
 
-  /** A unique ID for this sensor, empty for no unique id. See unique ID requirements:
-   * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
+  /** Override this method to set the unique ID of this sensor.
    *
-   * @return The unique id as a string.
+   * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
    */
   virtual std::string unique_id();
 
   void internal_send_state_to_frontend(float state);
 
  protected:
-  /** Override this to set the default unit of measurement.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual std::string unit_of_measurement();  // NOLINT
-
-  /** Override this to set the default accuracy in decimals.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual int8_t accuracy_decimals();  // NOLINT
-
-  /** Override this to set the default device class.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual std::string device_class();  // NOLINT
-
-  /** Override this to set the default state class.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual StateClass state_class();  // NOLINT
-
   CallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
   CallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
 

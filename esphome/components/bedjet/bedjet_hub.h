@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_ESP32
 
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
@@ -8,11 +9,11 @@
 #include "bedjet_child.h"
 #include "bedjet_codec.h"
 
+#include <vector>
+
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
 #endif
-
-#ifdef USE_ESP32
 
 #include <esp_gattc_api.h>
 

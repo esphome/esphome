@@ -11,6 +11,10 @@ ADC_MODE(ADC_VCC)
 #endif
 #endif
 
+#ifdef USE_RP2040
+#include <hardware/adc.h>
+#endif
+
 namespace esphome {
 namespace adc {
 
@@ -32,9 +36,13 @@ static const int ADC_MAX = (1 << SOC_ADC_RTC_MAX_BITWIDTH) - 1;    // 4095 (12 b
 static const int ADC_HALF = (1 << SOC_ADC_RTC_MAX_BITWIDTH) >> 1;  // 2048 (12 bit) or 4096 (13 bit)
 #endif
 
-void ADCSensor::setup() {
+#ifdef USE_RP2040
+extern "C"
+#endif
+    void
+    ADCSensor::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ADC '%s'...", this->get_name().c_str());
-#ifndef USE_ADC_SENSOR_VCC
+#if !defined(USE_ADC_SENSOR_VCC) && !defined(USE_RP2040)
   pin_->setup();
 #endif
 
@@ -63,6 +71,16 @@ void ADCSensor::setup() {
   }
 
 #endif  // USE_ESP32
+
+#ifdef USE_RP2040
+  static bool initialized = false;
+  if (!initialized) {
+    adc_init();
+    initialized = true;
+  }
+#endif
+
+  ESP_LOGCONFIG(TAG, "ADC '%s' setup finished!", this->get_name().c_str());
 }
 
 void ADCSensor::dump_config() {
@@ -98,6 +116,13 @@ void ADCSensor::dump_config() {
     }
   }
 #endif  // USE_ESP32
+#ifdef USE_RP2040
+  if (this->is_temperature_) {
+    ESP_LOGCONFIG(TAG, "  Pin: Temperature");
+  } else {
+    LOG_PIN("  Pin: ", pin_);
+  }
+#endif
   LOG_UPDATE_INTERVAL(this);
 }
 
@@ -174,6 +199,29 @@ float ADCSensor::sample() {
   return mv_scaled / (float) (csum * 1000U);
 }
 #endif  // USE_ESP32
+
+#ifdef USE_RP2040
+float ADCSensor::sample() {
+  if (this->is_temperature_) {
+    adc_set_temp_sensor_enabled(true);
+    delay(1);
+    adc_select_input(4);
+  } else {
+    uint8_t pin = this->pin_->get_pin();
+    adc_gpio_init(pin);
+    adc_select_input(pin - 26);
+  }
+
+  int raw = adc_read();
+  if (this->is_temperature_) {
+    adc_set_temp_sensor_enabled(false);
+  }
+  if (output_raw_) {
+    return raw;
+  }
+  return raw * 3.3f / 4096.0f;
+}
+#endif
 
 #ifdef USE_ESP8266
 std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }

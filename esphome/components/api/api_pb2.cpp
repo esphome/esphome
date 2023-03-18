@@ -6,6 +6,7 @@
 namespace esphome {
 namespace api {
 
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::EntityCategory value) {
   switch (value) {
     case enums::ENTITY_CATEGORY_NONE:
@@ -18,6 +19,8 @@ template<> const char *proto_enum_to_string<enums::EntityCategory>(enums::Entity
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::LegacyCoverState>(enums::LegacyCoverState value) {
   switch (value) {
     case enums::LEGACY_COVER_STATE_OPEN:
@@ -28,6 +31,8 @@ template<> const char *proto_enum_to_string<enums::LegacyCoverState>(enums::Lega
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::CoverOperation>(enums::CoverOperation value) {
   switch (value) {
     case enums::COVER_OPERATION_IDLE:
@@ -40,6 +45,8 @@ template<> const char *proto_enum_to_string<enums::CoverOperation>(enums::CoverO
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::LegacyCoverCommand>(enums::LegacyCoverCommand value) {
   switch (value) {
     case enums::LEGACY_COVER_COMMAND_OPEN:
@@ -52,6 +59,8 @@ template<> const char *proto_enum_to_string<enums::LegacyCoverCommand>(enums::Le
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::FanSpeed>(enums::FanSpeed value) {
   switch (value) {
     case enums::FAN_SPEED_LOW:
@@ -64,6 +73,8 @@ template<> const char *proto_enum_to_string<enums::FanSpeed>(enums::FanSpeed val
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::FanDirection>(enums::FanDirection value) {
   switch (value) {
     case enums::FAN_DIRECTION_FORWARD:
@@ -74,6 +85,8 @@ template<> const char *proto_enum_to_string<enums::FanDirection>(enums::FanDirec
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ColorMode>(enums::ColorMode value) {
   switch (value) {
     case enums::COLOR_MODE_UNKNOWN:
@@ -100,6 +113,8 @@ template<> const char *proto_enum_to_string<enums::ColorMode>(enums::ColorMode v
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::SensorStateClass value) {
   switch (value) {
     case enums::STATE_CLASS_NONE:
@@ -114,6 +129,8 @@ template<> const char *proto_enum_to_string<enums::SensorStateClass>(enums::Sens
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::SensorLastResetType>(enums::SensorLastResetType value) {
   switch (value) {
     case enums::LAST_RESET_NONE:
@@ -126,6 +143,8 @@ template<> const char *proto_enum_to_string<enums::SensorLastResetType>(enums::S
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel value) {
   switch (value) {
     case enums::LOG_LEVEL_NONE:
@@ -148,6 +167,8 @@ template<> const char *proto_enum_to_string<enums::LogLevel>(enums::LogLevel val
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::ServiceArgType value) {
   switch (value) {
     case enums::SERVICE_ARG_TYPE_BOOL:
@@ -170,6 +191,8 @@ template<> const char *proto_enum_to_string<enums::ServiceArgType>(enums::Servic
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMode value) {
   switch (value) {
     case enums::CLIMATE_MODE_OFF:
@@ -190,6 +213,8 @@ template<> const char *proto_enum_to_string<enums::ClimateMode>(enums::ClimateMo
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ClimateFanMode>(enums::ClimateFanMode value) {
   switch (value) {
     case enums::CLIMATE_FAN_ON:
@@ -210,10 +235,14 @@ template<> const char *proto_enum_to_string<enums::ClimateFanMode>(enums::Climat
       return "CLIMATE_FAN_FOCUS";
     case enums::CLIMATE_FAN_DIFFUSE:
       return "CLIMATE_FAN_DIFFUSE";
+    case enums::CLIMATE_FAN_QUIET:
+      return "CLIMATE_FAN_QUIET";
     default:
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::ClimateSwingMode value) {
   switch (value) {
     case enums::CLIMATE_SWING_OFF:
@@ -228,6 +257,8 @@ template<> const char *proto_enum_to_string<enums::ClimateSwingMode>(enums::Clim
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::ClimateAction value) {
   switch (value) {
     case enums::CLIMATE_ACTION_OFF:
@@ -246,6 +277,8 @@ template<> const char *proto_enum_to_string<enums::ClimateAction>(enums::Climate
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::ClimatePreset value) {
   switch (value) {
     case enums::CLIMATE_PRESET_NONE:
@@ -268,6 +301,8 @@ template<> const char *proto_enum_to_string<enums::ClimatePreset>(enums::Climate
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode value) {
   switch (value) {
     case enums::NUMBER_MODE_AUTO:
@@ -280,6 +315,8 @@ template<> const char *proto_enum_to_string<enums::NumberMode>(enums::NumberMode
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::LockState>(enums::LockState value) {
   switch (value) {
     case enums::LOCK_STATE_NONE:
@@ -298,6 +335,8 @@ template<> const char *proto_enum_to_string<enums::LockState>(enums::LockState v
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::LockCommand>(enums::LockCommand value) {
   switch (value) {
     case enums::LOCK_UNLOCK:
@@ -310,6 +349,8 @@ template<> const char *proto_enum_to_string<enums::LockCommand>(enums::LockComma
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::MediaPlayerState value) {
   switch (value) {
     case enums::MEDIA_PLAYER_STATE_NONE:
@@ -324,6 +365,8 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerState>(enums::Medi
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::MediaPlayerCommand value) {
   switch (value) {
     case enums::MEDIA_PLAYER_COMMAND_PLAY:
@@ -340,6 +383,8 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::Me
       return "UNKNOWN";
   }
 }
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<>
 const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
@@ -351,10 +396,15 @@ const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::Bluet
       return "BLUETOOTH_DEVICE_REQUEST_TYPE_PAIR";
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR:
       return "BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR";
+    case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE:
+      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE";
+    case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE:
+      return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE";
     default:
       return "UNKNOWN";
   }
 }
+#endif
 bool HelloRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 2: {
@@ -580,6 +630,10 @@ bool DeviceInfoResponse::decode_length(uint32_t field_id, ProtoLengthDelimited v
       this->manufacturer = value.as_string();
       return true;
     }
+    case 13: {
+      this->friendly_name = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -597,6 +651,7 @@ void DeviceInfoResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint32(10, this->webserver_port);
   buffer.encode_uint32(11, this->bluetooth_proxy_version);
   buffer.encode_string(12, this->manufacturer);
+  buffer.encode_string(13, this->friendly_name);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void DeviceInfoResponse::dump_to(std::string &out) const {
@@ -650,6 +705,10 @@ void DeviceInfoResponse::dump_to(std::string &out) const {
 
   out.append("  manufacturer: ");
   out.append("'").append(this->manufacturer).append("'");
+  out.append("\n");
+
+  out.append("  friendly_name: ");
+  out.append("'").append(this->friendly_name).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -3392,7 +3451,11 @@ bool ListEntitiesClimateResponse::decode_32bit(uint32_t field_id, Proto32Bit val
       return true;
     }
     case 10: {
-      this->visual_temperature_step = value.as_float();
+      this->visual_target_temperature_step = value.as_float();
+      return true;
+    }
+    case 21: {
+      this->visual_current_temperature_step = value.as_float();
       return true;
     }
     default:
@@ -3411,7 +3474,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   }
   buffer.encode_float(8, this->visual_min_temperature);
   buffer.encode_float(9, this->visual_max_temperature);
-  buffer.encode_float(10, this->visual_temperature_step);
+  buffer.encode_float(10, this->visual_target_temperature_step);
   buffer.encode_bool(11, this->legacy_supports_away);
   buffer.encode_bool(12, this->supports_action);
   for (auto &it : this->supported_fan_modes) {
@@ -3432,6 +3495,7 @@ void ListEntitiesClimateResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(18, this->disabled_by_default);
   buffer.encode_string(19, this->icon);
   buffer.encode_enum<enums::EntityCategory>(20, this->entity_category);
+  buffer.encode_float(21, this->visual_current_temperature_step);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesClimateResponse::dump_to(std::string &out) const {
@@ -3478,8 +3542,8 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
   out.append(buffer);
   out.append("\n");
 
-  out.append("  visual_temperature_step: ");
-  sprintf(buffer, "%g", this->visual_temperature_step);
+  out.append("  visual_target_temperature_step: ");
+  sprintf(buffer, "%g", this->visual_target_temperature_step);
   out.append(buffer);
   out.append("\n");
 
@@ -3531,6 +3595,11 @@ void ListEntitiesClimateResponse::dump_to(std::string &out) const {
 
   out.append("  entity_category: ");
   out.append(proto_enum_to_string<enums::EntityCategory>(this->entity_category));
+  out.append("\n");
+
+  out.append("  visual_current_temperature_step: ");
+  sprintf(buffer, "%g", this->visual_current_temperature_step);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -3942,6 +4011,10 @@ bool ListEntitiesNumberResponse::decode_length(uint32_t field_id, ProtoLengthDel
       this->unit_of_measurement = value.as_string();
       return true;
     }
+    case 13: {
+      this->device_class = value.as_string();
+      return true;
+    }
     default:
       return false;
   }
@@ -3981,6 +4054,7 @@ void ListEntitiesNumberResponse::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_enum<enums::EntityCategory>(10, this->entity_category);
   buffer.encode_string(11, this->unit_of_measurement);
   buffer.encode_enum<enums::NumberMode>(12, this->mode);
+  buffer.encode_string(13, this->device_class);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void ListEntitiesNumberResponse::dump_to(std::string &out) const {
@@ -4036,6 +4110,10 @@ void ListEntitiesNumberResponse::dump_to(std::string &out) const {
 
   out.append("  mode: ");
   out.append(proto_enum_to_string<enums::NumberMode>(this->mode));
+  out.append("\n");
+
+  out.append("  device_class: ");
+  out.append("'").append(this->device_class).append("'");
   out.append("\n");
   out.append("}");
 }
@@ -4984,6 +5062,10 @@ bool BluetoothLEAdvertisementResponse::decode_varint(uint32_t field_id, ProtoVar
       this->rssi = value.as_sint32();
       return true;
     }
+    case 7: {
+      this->address_type = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5023,6 +5105,7 @@ void BluetoothLEAdvertisementResponse::encode(ProtoWriteBuffer buffer) const {
   for (auto &it : this->manufacturer_data) {
     buffer.encode_message<BluetoothServiceData>(6, it, true);
   }
+  buffer.encode_uint32(7, this->address_type);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
@@ -5059,6 +5142,11 @@ void BluetoothLEAdvertisementResponse::dump_to(std::string &out) const {
     it.dump_to(out);
     out.append("\n");
   }
+
+  out.append("  address_type: ");
+  sprintf(buffer, "%u", this->address_type);
+  out.append(buffer);
+  out.append("\n");
   out.append("}");
 }
 #endif
@@ -5072,6 +5160,14 @@ bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value)
       this->request_type = value.as_enum<enums::BluetoothDeviceRequestType>();
       return true;
     }
+    case 3: {
+      this->has_address_type = value.as_bool();
+      return true;
+    }
+    case 4: {
+      this->address_type = value.as_uint32();
+      return true;
+    }
     default:
       return false;
   }
@@ -5079,6 +5175,8 @@ bool BluetoothDeviceRequest::decode_varint(uint32_t field_id, ProtoVarInt value)
 void BluetoothDeviceRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_uint64(1, this->address);
   buffer.encode_enum<enums::BluetoothDeviceRequestType>(2, this->request_type);
+  buffer.encode_bool(3, this->has_address_type);
+  buffer.encode_uint32(4, this->address_type);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void BluetoothDeviceRequest::dump_to(std::string &out) const {
@@ -5091,6 +5189,15 @@ void BluetoothDeviceRequest::dump_to(std::string &out) const {
 
   out.append("  request_type: ");
   out.append(proto_enum_to_string<enums::BluetoothDeviceRequestType>(this->request_type));
+  out.append("\n");
+
+  out.append("  has_address_type: ");
+  out.append(YESNO(this->has_address_type));
+  out.append("\n");
+
+  out.append("  address_type: ");
+  sprintf(buffer, "%u", this->address_type);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
@@ -5862,6 +5969,92 @@ void BluetoothGATTNotifyResponse::dump_to(std::string &out) const {
 
   out.append("  handle: ");
   sprintf(buffer, "%u", this->handle);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothDevicePairingResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->paired = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->error = value.as_int32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothDevicePairingResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->paired);
+  buffer.encode_int32(3, this->error);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothDevicePairingResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothDevicePairingResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  paired: ");
+  out.append(YESNO(this->paired));
+  out.append("\n");
+
+  out.append("  error: ");
+  sprintf(buffer, "%d", this->error);
+  out.append(buffer);
+  out.append("\n");
+  out.append("}");
+}
+#endif
+bool BluetoothDeviceUnpairingResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+  switch (field_id) {
+    case 1: {
+      this->address = value.as_uint64();
+      return true;
+    }
+    case 2: {
+      this->success = value.as_bool();
+      return true;
+    }
+    case 3: {
+      this->error = value.as_int32();
+      return true;
+    }
+    default:
+      return false;
+  }
+}
+void BluetoothDeviceUnpairingResponse::encode(ProtoWriteBuffer buffer) const {
+  buffer.encode_uint64(1, this->address);
+  buffer.encode_bool(2, this->success);
+  buffer.encode_int32(3, this->error);
+}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void BluetoothDeviceUnpairingResponse::dump_to(std::string &out) const {
+  __attribute__((unused)) char buffer[64];
+  out.append("BluetoothDeviceUnpairingResponse {\n");
+  out.append("  address: ");
+  sprintf(buffer, "%llu", this->address);
+  out.append(buffer);
+  out.append("\n");
+
+  out.append("  success: ");
+  out.append(YESNO(this->success));
+  out.append("\n");
+
+  out.append("  error: ");
+  sprintf(buffer, "%d", this->error);
   out.append(buffer);
   out.append("\n");
   out.append("}");

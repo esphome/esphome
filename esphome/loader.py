@@ -71,7 +71,10 @@ class ComponentManifest:
 
     @property
     def auto_load(self) -> list[str]:
-        return getattr(self.module, "AUTO_LOAD", [])
+        al = getattr(self.module, "AUTO_LOAD", [])
+        if callable(al):
+            return al()
+        return al
 
     @property
     def codeowners(self) -> list[str]:
@@ -167,10 +170,10 @@ def _lookup_module(domain):
     except Exception:  # pylint: disable=broad-except
         _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
         return None
-    else:
-        manif = ComponentManifest(module)
-        _COMPONENT_CACHE[domain] = manif
-        return manif
+
+    manif = ComponentManifest(module)
+    _COMPONENT_CACHE[domain] = manif
+    return manif
 
 
 def get_component(domain):
