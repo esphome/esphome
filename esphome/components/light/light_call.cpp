@@ -228,12 +228,13 @@ LightColorValues LightCall::validate_() {
   // Flag whether an explicit turn off was requested, in which case we'll also stop the effect.
   bool explicit_turn_off_request = this->state_.has_value() && !*this->state_;
 
-  // Turn off when brightness is set to zero, and reset brightness (so that it has nonzero brightness when turned on).
-  if (this->brightness_.has_value() && *this->brightness_ == 0.0f) {
-    this->state_ = optional<float>(false);
-    //this->brightness_ = optional<float>(1.0f);
-  } else if (this->brightness_.has_value()) {
-	this->state_ = optional<float>(true);
+  // Turn off when brightness is set to zero, otherwise turn on.
+  if (this->brightness_.has_value()) {
+	  if (*this->brightness_ == 0.0f) {
+		  this->state_ = optional<float>(false);
+	  } else {
+		  this->state_ = optional<float>(true);
+	  }
   }
 
   // Set color brightness to 100% if currently zero and a color is set.
