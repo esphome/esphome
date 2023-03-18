@@ -29,16 +29,16 @@ void GDEW0154M09::resetDisplayController() {
     this->reset_pin_->digital_write(HIGH);
     delay(10);
     this->reset_pin_->digital_write(LOW);
-    delay(100);
+    delay(100); // NOLINT
     this->reset_pin_->digital_write(HIGH);
-    delay(100);
+    delay(100); // NOLINT
   }
 }
 
 void GDEW0154M09::initialize() {
   // this->wait_until_idle_();
   writeInitList(WFT0154CZB3_LIST);
-  delay(100);
+  delay(100); // NOLINT
   this->wait_until_idle_();
   if (this->_lastbuff != nullptr) {
     memset(this->_lastbuff, 0xff, sizeof(uint8_t) * this->get_buffer_length_());
@@ -223,7 +223,7 @@ void GDEW0154M09::drawBuff(uint8_t *lastbuff, uint8_t *buff, size_t size) {
     lastbuff[i] = buff[i];
   }
   command(0x12);
-  delay(100);
+  delay(100); // NOLINT
   this->wait_until_idle_();
 }
 

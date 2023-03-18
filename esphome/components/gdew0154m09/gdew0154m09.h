@@ -65,18 +65,18 @@ class GDEW0154M09 : public PollingComponent,
 };
 
 const unsigned char WFT0154CZB3_LIST[] = {
-    11,                                                                                     // 11 commands in list:
-    0x00, 2, 0xdf, 0x0e,                                                                    // panel setting
-    0x4D, 1, 0x55,                                                                          // FITIinternal code
+    11,                                  // 11 commands in list:
+    0x00, 2, 0xdf, 0x0e,                 // panel setting
+    0x4D, 1, 0x55,                       // FITIinternal code
     0xaa, 1, 0x0f,
     0xe9, 1, 0x02,
     0xb6, 1, 0x11,
     0xf3, 1, 0x0a,
-    0x61, 3, 0xc8, 0x00, 0xc8,  // resolution setting
-    0x60, 1, 0x00,                                                                          // Tcon setting
+    0x61, 3, 0xc8, 0x00, 0xc8,           // resolution setting
+    0x60, 1, 0x00,                       // Tcon setting
     0x50, 1, 0xd7,
     0xe3, 1, 0x00,
-    0x04, 0                                                   // Power on
+    0x04, 0                              // Power on
 };
 
 // LUTs provided for future reference - currently unused.
