@@ -74,6 +74,22 @@ optional<float> MedianFilter::new_value(float value) {
   return {};
 }
 
+// SkipFilter
+SkipFilter::SkipFilter(size_t send_first_at) : num_to_ignore_(send_first_at)
+{
+}
+optional<float> SkipFilter::new_value(float value)
+{
+  if (num_to_ignore_ > 0) {
+    num_to_ignore_--;
+    ESP_LOGV(TAG, "SkipFilter(%p)::new_value(%f) SKIPPING, %u left", this, value, num_to_ignore_);
+    return {};
+  }
+
+  ESP_LOGV(TAG, "SkipFilter(%p)::new_value(%f) SENDING", this, value);
+  return value;
+}
+
 // QuantileFilter
 QuantileFilter::QuantileFilter(size_t window_size, size_t send_every, size_t send_first_at, float quantile)
     : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size), quantile_(quantile) {}

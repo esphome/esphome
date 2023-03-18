@@ -102,6 +102,24 @@ class MedianFilter : public Filter {
   size_t window_size_;
 };
 
+/** Simple skip filter.
+ *
+ * Skips the first <send_first_at> values, then passes everything else.
+ */
+class SkipFilter : public Filter {
+ public:
+  /** Construct a SkipFilter.
+   *
+   * @param send_first_at After how many values to forward the very first value.
+   */
+  explicit SkipFilter(size_t send_first_at);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  size_t num_to_ignore_;
+};
+
 /** Simple min filter.
  *
  * Takes the min of the last <send_every> values and pushes it out every <send_every>.
