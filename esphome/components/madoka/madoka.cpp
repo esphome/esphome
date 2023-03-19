@@ -59,8 +59,8 @@ void Madoka::control(const ClimateCall &call) {
     uint16_t target_low = *call.get_target_temperature_low() * 128;
     uint16_t target_high = *call.get_target_temperature_high() * 128;
     this->query(0x4040,
-                message({0x20, 0x02, (target_high >> 8) & 0xFF, target_high & 0xFF, 0x21, 0x02,
-                         (target_low >> 8) & 0xFF, target_low & 0xFF}),
+                message({0x20, 0x02, (uint8_t)((target_high >> 8) & 0xFF), (uint8_t)(target_high & 0xFF), 0x21, 0x02,
+                         (uint8_t)((target_low >> 8) & 0xFF), (uint8_t)(target_low & 0xFF)}),
                 400);
   }
   this->update();
@@ -73,9 +73,9 @@ void Madoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_para
       break;
     case ESP_GAP_BLE_NC_REQ_EVT:
       esp_ble_confirm_reply(param->ble_security.ble_req.bd_addr, true);
-      ESP_LOGI(TAG, "ESP_GAP_BLE_NC_REQ_EVT, the passkey Notify number:%ld", param->ble_security.key_notif.passkey);
+      ESP_LOGI(TAG, "ESP_GAP_BLE_NC_REQ_EVT, the passkey Notify number:%d", param->ble_security.key_notif.passkey);
       break;
-    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+    case ESP_GAP_BLE_AUTH_CMPL_EVT: {
       if (!param->ble_security.auth_cmpl.success) {
         ESP_LOGE(TAG, "Authentication failed, status: 0x%x", param->ble_security.auth_cmpl.fail_reason);
         break;
@@ -94,6 +94,9 @@ void Madoka::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_para
       if (status) {
         ESP_LOGW(TAG, "[%s] esp_ble_gattc_register_for_notify failed, status=%d", this->get_name().c_str(), status);
       }
+      break;
+    }
+    default:
       break;
   }
 }
@@ -207,7 +210,7 @@ std::vector<chunk> Madoka::split_payload(message msg) {
 }
 
 message Madoka::prepare_message(uint16_t cmd, message args) {
-  message result({0x00, (cmd >> 8) & 0xFF, cmd & 0xFF});
+  message result({0x00, (uint8_t)((cmd >> 8) & 0xFF), (uint8_t)(cmd & 0xFF)});
   result.insert(result.end(), args.begin(), args.end());
   return result;
 }
