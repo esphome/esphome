@@ -1,6 +1,9 @@
 #pragma once
 
+#ifdef USE_DISPLAY
 #include "esphome/components/display/display_buffer.h"
+#endif
+
 #include "esphome/core/automation.h"
 #include "esphome/core/hal.h"
 
@@ -31,26 +34,63 @@ enum TouchRotation {
 
 class Touchscreen {
  public:
+#ifdef USE_DISPLAY
   void set_display(display::DisplayBuffer *display) {
     this->display_ = display;
-    this->display_width_ = display->get_width_internal();
-    this->display_height_ = display->get_height_internal();
-    this->rotation_ = static_cast<TouchRotation>(display->get_rotation());
+    //this->display_width_ = 
+    //this->display_height_ = display->get_height_internal();
+    //this->rotation_ = static_cast<TouchRotation>(display->get_rotation());
   }
   display::DisplayBuffer *get_display() const { return this->display_; }
-
+#else
+   void set_dispay_dimension (uint16_t width, u_int16_t height) {
+    this->display_width_ = width; 
+    this->display_height_ = height;
+   }
+   void set_rotation (TouchRotation rotation) {
+     this->rotation_ = rotation; 
+   }
+#endif
   Trigger<TouchPoint> *get_touch_trigger() { return &this->touch_trigger_; }
 
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }
-
+  
  protected:
   /// Call this function to send touch points to the `on_touch` listener and the binary_sensors.
   void send_touch_(TouchPoint tp);
 
-  uint16_t display_width_{230};
-  uint16_t display_height_{420};
+  uint16_t get_width_() {
+#ifdef USE_DISPLAY
+    return display_->get_width_internal();
+#else
+    return display_width_;
+#endif
+  }
+  uint16_t get_height_() {
+#ifdef USE_DISPLAY
+    return display_->get_height_internal();
+#else
+    return display_height_;
+#endif
+  }
+
+  uint16_t get_rotation_() {
+#ifdef USE_DISPLAY
+    return static_cast<TouchRotation>(display->get_rotation());
+#else
+    return rotation_;
+#endif
+  }
+
+#ifdef USE_DISPLAY
   display::DisplayBuffer *display_{nullptr};
+#else
+  uint16_t display_width_{240};
+  uint16_t display_height_{320};
+
   TouchRotation rotation_{ROTATE_0_DEGREES};
+#endif
+
   Trigger<TouchPoint> touch_trigger_;
   std::vector<TouchListener *> touch_listeners_;
 };

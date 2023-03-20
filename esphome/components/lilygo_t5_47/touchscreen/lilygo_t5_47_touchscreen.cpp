@@ -118,16 +118,16 @@ void LilygoT547Touchscreen::loop() {
 
       switch (this->rotation_) {
         case ROTATE_0_DEGREES:
-          tp.y = this->display_height_ - y;
+          tp.y = this->get_height_() - y;
           tp.x = x;
           break;
         case ROTATE_90_DEGREES:
-          tp.x = this->display_height_ - y;
-          tp.y = this->display_width_ - x;
+          tp.x = this->get_height_() - y;
+          tp.y = this->get_width_() - x;
           break;
         case ROTATE_180_DEGREES:
           tp.y = y;
-          tp.x = this->display_width_ - x;
+          tp.x = this->get_width_() - x;
           break;
         case ROTATE_270_DEGREES:
           tp.x = y;
@@ -147,16 +147,16 @@ void LilygoT547Touchscreen::loop() {
 
     switch (this->rotation_) {
       case ROTATE_0_DEGREES:
-        tp.y = this->display_height_ - y;
+        tp.y = this->get_height_() - y;
         tp.x = x;
         break;
       case ROTATE_90_DEGREES:
-        tp.x = this->display_height_ - y;
-        tp.y = this->display_width_ - x;
+        tp.x = this->get_height_() - y;
+        tp.y = this->get_width_() - x;
         break;
       case ROTATE_180_DEGREES:
         tp.y = y;
-        tp.x = this->display_width_ - x;
+        tp.x = this->get_width_() - x;
         break;
       case ROTATE_270_DEGREES:
         tp.x = y;

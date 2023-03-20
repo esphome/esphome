@@ -47,7 +47,7 @@ void XPT2046Component::check_touch_() {
 
   int16_t touch_pressure_1 = read_adc_(0xB1 /* touch_pressure_1 */);
   int16_t touch_pressure_2 = read_adc_(0xC1 /* touch_pressure_2 */);
-
+  ESP_LOGVV(TAG, "touch_pressure  %d, %d", touch_pressure_1, touch_pressure_2);
   this->z_raw = touch_pressure_1 + 0Xfff - touch_pressure_2;
 
   touch = (this->z_raw >= this->threshold_);
@@ -68,7 +68,7 @@ void XPT2046Component::check_touch_() {
     this->x_raw = best_two_avg(data[1], data[3], data[5]);
     this->y_raw = best_two_avg(data[0], data[2], data[4]);
 
-    ESP_LOGVV(TAG, "Update [x, y] = [%d, %d], z = %d", this->x_raw, this->y_raw, this->z_raw);
+    ESP_LOGV(TAG, "Touchscreen Update [%d, %d], z = %d", this->x_raw, this->y_raw, this->z_raw);
 
     TouchPoint touchpoint;
 
@@ -87,7 +87,7 @@ void XPT2046Component::check_touch_() {
       touchpoint.y = 0xfff - touchpoint.y;
     }
 
-    switch (static_cast<TouchRotation>(this->display_->get_rotation())) {
+    switch (static_cast<TouchRotation>(this->get_rotation_())) {
       case ROTATE_0_DEGREES:
         break;
       case ROTATE_90_DEGREES:
@@ -104,8 +104,8 @@ void XPT2046Component::check_touch_() {
         break;
     }
 
-    touchpoint.x = (int16_t) ((int) touchpoint.x * this->display_->get_width() / 0xfff);
-    touchpoint.y = (int16_t) ((int) touchpoint.y * this->display_->get_height() / 0xfff);
+    touchpoint.x = (int16_t) ((int) touchpoint.x * this->get_width_() / 0xfff);
+    touchpoint.y = (int16_t) ((int) touchpoint.y * this->get_height_() / 0xfff);
 
     if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
       ESP_LOGV(TAG, "Touching at [%03X, %03X] => [%3d, %3d]", this->x_raw, this->y_raw, touchpoint.x, touchpoint.y);
