@@ -68,6 +68,8 @@ class SX1509Component : public Component, public i2c::I2CDevice {
   uint8_t scan_time_ = 1;
   uint8_t debounce_time_ = 1;
   std::vector<SX1509Processor *> keypad_binary_sensors_;
+  long last_loop_timestamp = 0;
+  const long MIN_LOOP_PERIOD = 15;  // ms
 
   void setup_keypad_();
   void set_debounce_config_(uint8_t config_value);
