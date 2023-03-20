@@ -318,6 +318,16 @@ void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color colo
         }
       }
       break;
+    case IMAGE_TYPE_RGBA:
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          Color color = image->get_rgba_pixel(img_x, img_y);
+          if (color.w) {
+            this->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
     case IMAGE_TYPE_RGB24:
       for (int img_x = 0; img_x < image->get_width(); img_x++) {
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
@@ -629,10 +639,15 @@ Color Image::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_) * 3;
-  const uint32_t color32 = (progmem_read_byte(this->data_start_ + pos + 2) << 0) |
-                           (progmem_read_byte(this->data_start_ + pos + 1) << 8) |
-                           (progmem_read_byte(this->data_start_ + pos + 0) << 16);
-  return Color(color32);
+  return Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
+               progmem_read_byte(this->data_start_ + pos + 2));
+}
+Color Image::get_rgba_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return Color::BLACK;
+  const uint32_t pos = (x + y * this->width_) * 4;
+  return Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
+               progmem_read_byte(this->data_start_ + pos + 2), progmem_read_byte(this->data_start_ + pos + 3));
 }
 Color Image::get_rgb565_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
@@ -676,10 +691,18 @@ Color Animation::get_color_pixel(int x, int y) const {
   if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
-  const uint32_t color32 = (progmem_read_byte(this->data_start_ + pos + 2) << 0) |
-                           (progmem_read_byte(this->data_start_ + pos + 1) << 8) |
-                           (progmem_read_byte(this->data_start_ + pos + 0) << 16);
-  return Color(color32);
+  return Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
+               progmem_read_byte(this->data_start_ + pos + 2));
+}
+Color Animation::get_rgba_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return Color::BLACK;
+  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
+    return Color::BLACK;
+  const uint32_t pos = (x + y * this->width_ + frame_index) * 4;
+  return Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
+               progmem_read_byte(this->data_start_ + pos + 2), progmem_read_byte(this->data_start_ + pos + 3));
 }
 Color Animation::get_rgb565_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)

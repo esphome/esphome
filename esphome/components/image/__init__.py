@@ -26,6 +26,7 @@ IMAGE_TYPE = {
     "RGB24": ImageType.IMAGE_TYPE_RGB24,
     "TRANSPARENT_BINARY": ImageType.IMAGE_TYPE_TRANSPARENT_BINARY,
     "RGB565": ImageType.IMAGE_TYPE_RGB565,
+    "RGBA": ImageType.IMAGE_TYPE_RGBA,
     "TRANSPARENT_IMAGE": ImageType.IMAGE_TYPE_TRANSPARENT_BINARY,
 }
 
@@ -78,6 +79,21 @@ async def to_code(config):
             data[pos] = pix
             pos += 1
 
+    elif config[CONF_TYPE] == "RGBA":
+        image = image.convert("RGBA")
+        pixels = list(image.getdata())
+        data = [0 for _ in range(height * width * 4)]
+        pos = 0
+        for pix in pixels:
+            data[pos] = pix[0]
+            pos += 1
+            data[pos] = pix[1]
+            pos += 1
+            data[pos] = pix[2]
+            pos += 1
+            data[pos] = pix[3]
+            pos += 1
+
     elif config[CONF_TYPE] == "RGB24":
         image = image.convert("RGB")
         pixels = list(image.getdata())
@@ -94,7 +110,7 @@ async def to_code(config):
     elif config[CONF_TYPE] == "RGB565":
         image = image.convert("RGB")
         pixels = list(image.getdata())
-        data = [0 for _ in range(height * width * 3)]
+        data = [0 for _ in range(height * width * 2)]
         pos = 0
         for pix in pixels:
             R = pix[0] >> 3

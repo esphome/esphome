@@ -84,6 +84,7 @@ enum ImageType {
   IMAGE_TYPE_RGB24 = 2,
   IMAGE_TYPE_TRANSPARENT_BINARY = 3,
   IMAGE_TYPE_RGB565 = 4,
+  IMAGE_TYPE_RGBA = 5,
 };
 
 enum DisplayType {
@@ -540,6 +541,7 @@ class Image {
   Image(const uint8_t *data_start, int width, int height, ImageType type);
   virtual bool get_pixel(int x, int y) const;
   virtual Color get_color_pixel(int x, int y) const;
+  virtual Color get_rgba_pixel(int x, int y) const;
   virtual Color get_rgb565_pixel(int x, int y) const;
   virtual Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
@@ -560,6 +562,7 @@ class Animation : public Image {
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
   bool get_pixel(int x, int y) const override;
   Color get_color_pixel(int x, int y) const override;
+  Color get_rgba_pixel(int x, int y) const override;
   Color get_rgb565_pixel(int x, int y) const override;
   Color get_grayscale_pixel(int x, int y) const override;
 
