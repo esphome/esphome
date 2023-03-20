@@ -34,7 +34,7 @@ spi:
   miso_pin: GPIO23
 
 uart:
-  - id: uart1
+  - id: uart_1
     tx_pin: GPIO22
     rx_pin: GPIO23
     baud_rate: 115200
@@ -63,7 +63,7 @@ time:
 
 tuya:
   time_id: sntp_time
-  uart_id: uart1
+  uart_id: uart_1
   status_pin:
     number: 14
     inverted: true
@@ -79,7 +79,7 @@ select:
 
 pipsolar:
   id: inverter0
-  uart_id: uart1
+  uart_id: uart_1
 
 sx1509:
   - id: sx1509_hub
@@ -236,7 +236,7 @@ sensor:
       name: inverter0_pv_charging_power
   - platform: hrxl_maxsonar_wr
     name: Rainwater Tank Level
-    uart_id: uart1
+    uart_id: uart_1
     filters:
       - sliding_window_moving_average:
           window_size: 12

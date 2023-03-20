@@ -37,7 +37,7 @@ spi:
   miso_pin: GPIO23
 
 uart:
-  - id: uart1
+  - id: uart_1
     tx_pin: GPIO22
     rx_pin: GPIO23
     baud_rate: 115200
@@ -146,7 +146,7 @@ sensor:
       name: b-parasite Illuminance
   - platform: senseair
     id: senseair0
-    uart_id: uart1
+    uart_id: uart_1
     co2:
       name: SenseAir CO2 Value
       on_value:
