@@ -140,7 +140,7 @@ void TM1638Component::set_intensity(uint8_t brightness_level) {
   this->send_command_(TM1638_REGISTER_FIXEDADDRESS);
 
   if (brightness_level > 0) {
-    this->send_command_((uint8_t)(TM1638_REGISTER_DISPLAYON | intensity_));
+    this->send_command_((uint8_t) (TM1638_REGISTER_DISPLAYON | intensity_));
   } else {
     this->send_command_(TM1638_REGISTER_DISPLAYOFF);
   }
