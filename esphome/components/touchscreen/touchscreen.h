@@ -43,7 +43,7 @@ class Touchscreen {
   }
   display::DisplayBuffer *get_display() const { return this->display_; }
 #else
-  void set_dispay_dimension(uint16_t width, u_int16_t height) {
+  void set_display_dimension(uint16_t width, u_int16_t height) {
     this->display_width_ = width;
     this->display_height_ = height;
   }
