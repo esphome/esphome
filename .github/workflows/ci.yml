@@ -133,7 +133,7 @@ jobs:
       - name: Install clang tools
         run: |
           sudo apt-get install \
-              clang-format-11 \
+              clang-format-13 \
               clang-tidy-11
         if: matrix.id == 'clang-tidy' || matrix.id == 'clang-format'
 
