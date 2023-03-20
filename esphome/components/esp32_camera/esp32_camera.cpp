@@ -178,7 +178,7 @@ void ESP32Camera::loop() {
 float ESP32Camera::get_setup_priority() const { return setup_priority::DATA; }
 
 /* ---------------- constructors ---------------- */
-ESP32Camera::ESP32Camera(const std::string &name) : EntityBase(name) {
+ESP32Camera::ESP32Camera() : EntityBase() {
   this->config_.pin_pwdn = -1;
   this->config_.pin_reset = -1;
   this->config_.pin_xclk = -1;
@@ -191,7 +191,6 @@ ESP32Camera::ESP32Camera(const std::string &name) : EntityBase(name) {
 
   global_esp32_camera = this;
 }
-ESP32Camera::ESP32Camera() : ESP32Camera("") {}
 
 /* ---------------- setters ---------------- */
 /* set pin assignment */

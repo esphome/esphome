@@ -378,9 +378,6 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 
 SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
-Sprinkler::Sprinkler() {}
-Sprinkler::Sprinkler(const std::string &name) : EntityBase(name) {}
-
 void Sprinkler::setup() { this->all_valves_off_(true); }
 
 void Sprinkler::loop() {
@@ -1217,8 +1214,6 @@ SprinklerSwitch *Sprinkler::valve_pump_switch_by_pump_index(size_t pump_index) {
   }
   return nullptr;
 }
-
-uint32_t Sprinkler::hash_base() { return 3129891955UL; }
 
 bool Sprinkler::valve_is_enabled_(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {

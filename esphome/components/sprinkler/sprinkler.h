@@ -203,9 +203,6 @@ class SprinklerValveRunRequest {
 
 class Sprinkler : public Component, public EntityBase {
  public:
-  Sprinkler();
-  Sprinkler(const std::string &name);
-
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -423,7 +420,6 @@ class Sprinkler : public Component, public EntityBase {
   SprinklerSwitch *valve_pump_switch_by_pump_index(size_t pump_index);
 
  protected:
-  uint32_t hash_base() override;
 
   /// returns true if valve number is enabled
   bool valve_is_enabled_(size_t valve_number);

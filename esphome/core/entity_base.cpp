@@ -5,12 +5,10 @@ namespace esphome {
 
 static const char *const TAG = "entity_base";
 
-EntityBase::EntityBase(std::string name) : name_(std::move(name)) { this->calc_object_id_(); }
-
 // Entity Name
-const std::string &EntityBase::get_name() const { return this->name_; }
-void EntityBase::set_name(const std::string &name) {
-  this->name_ = name;
+const StringRef &EntityBase::get_name() const { return this->name_; }
+void EntityBase::set_name(const char *name) {
+  this->name_ = StringRef(name);
   this->calc_object_id_();
 }
 
