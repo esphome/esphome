@@ -37,24 +37,22 @@ class Touchscreen {
 #ifdef USE_DISPLAY
   void set_display(display::DisplayBuffer *display) {
     this->display_ = display;
-    //this->display_width_ = 
-    //this->display_height_ = display->get_height_internal();
-    //this->rotation_ = static_cast<TouchRotation>(display->get_rotation());
+    // this->display_width_ =
+    // this->display_height_ = display->get_height_internal();
+    // this->rotation_ = static_cast<TouchRotation>(display->get_rotation());
   }
   display::DisplayBuffer *get_display() const { return this->display_; }
 #else
-   void set_dispay_dimension (uint16_t width, u_int16_t height) {
-    this->display_width_ = width; 
+  void set_dispay_dimension(uint16_t width, u_int16_t height) {
+    this->display_width_ = width;
     this->display_height_ = height;
-   }
-   void set_rotation (TouchRotation rotation) {
-     this->rotation_ = rotation; 
-   }
+  }
+  void set_rotation(TouchRotation rotation) { this->rotation_ = rotation; }
 #endif
   Trigger<TouchPoint> *get_touch_trigger() { return &this->touch_trigger_; }
 
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }
-  
+
  protected:
   /// Call this function to send touch points to the `on_touch` listener and the binary_sensors.
   void send_touch_(TouchPoint tp);
