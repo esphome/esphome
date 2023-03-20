@@ -663,6 +663,90 @@ void WaveshareEPaper2P9InB::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// ========================================================
+//     Good Display 2.9in black/white/grey
+// Datasheet:
+//  - https://v4.cecdn.yun300.cn/100001_1909185148/SSD1680.pdf
+//  - https://github.com/adafruit/Adafruit_EPD/blob/master/src/panels/ThinkInk_290_Grayscale4_T5.h
+// ========================================================
+
+void GDEY029T94::initialize() {
+  // from https://www.waveshare.com/w/upload/b/bb/2.9inch-e-paper-b-specification.pdf, page 37
+  // EPD hardware init start
+  this->reset_();
+
+  // COMMAND POWER SETTINGS
+  this->command(0x00);
+  this->data(0x03);
+  this->data(0x00);
+  this->data(0x2b);
+  this->data(0x2b);
+  this->data(0x03); /* for b/w */
+
+  // COMMAND BOOSTER SOFT START
+  this->command(0x06);
+  this->data(0x17);
+  this->data(0x17);
+  this->data(0x17);
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // Not sure what this does but it's in the Adafruit EPD library
+  this->command(0xFF);
+  this->wait_until_idle_();
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  // 128x296 resolution:        10
+  // LUT from OTP:              0
+  // B/W mode (doesn't work):   1
+  // scan-up:                   1
+  // shift-right:               1
+  // booster ON:                1
+  // no soft reset:             1
+  this->data(0b10011111);
+
+  // COMMAND RESOLUTION SETTING
+  // set to 128x296 by COMMAND PANEL SETTING
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  // use defaults for white border and ESPHome image polarity
+
+  // EPD hardware init end
+}
+void HOT GDEY029T94::display() {
+  // COMMAND DATA START TRANSMISSION 2 (B/W only)
+  this->command(0x13);
+  delay(2);
+  this->start_data_();
+  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+    this->write_byte(this->buffer_[i]);
+  }
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  delay(2);
+  this->wait_until_idle_();
+
+  // COMMAND POWER OFF
+  // NOTE: power off < deep sleep
+  this->command(0x02);
+}
+int GDEY029T94::get_width_internal() { return 128; }
+int GDEY029T94::get_height_internal() { return 296; }
+void GDEY029T94::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper (Good Display)", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in Greyscale GDEY029T94");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 static const uint8_t LUT_VCOM_DC_4_2[] = {
     0x00, 0x17, 0x00, 0x00, 0x00, 0x02, 0x00, 0x17, 0x17, 0x00, 0x00, 0x02, 0x00, 0x0A, 0x01,
     0x00, 0x00, 0x01, 0x00, 0x0E, 0x0E, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
