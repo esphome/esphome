@@ -448,7 +448,7 @@ void Pipsolar::loop() {
         ESP_LOGD(TAG, "Decode QPIGS");
         sscanf(                                                                                              // NOLINT
             tmp,                                                                                             // NOLINT
-            "(%f %f %f %f %d %d %d %d %f %d %d %d %d %f %f %d %1d%1d%1d%1d%1d%1d%1d%1d %d %d %d %1d%1d%1d",  // NOLINT
+            "(%f %f %f %f %d %d %d %d %f %d %d %d %f %f %f %d %1d%1d%1d%1d%1d%1d%1d%1d %d %d %d %1d%1d%1d",  // NOLINT
             &value_grid_voltage_, &value_grid_frequency_, &value_ac_output_voltage_,                         // NOLINT
             &value_ac_output_frequency_,                                                                     // NOLINT
             &value_ac_output_apparent_power_, &value_ac_output_active_power_, &value_output_load_percent_,   // NOLINT

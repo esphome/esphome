@@ -5,6 +5,10 @@
 #include "esphome/core/util.h"
 #include "esphome/core/gpio.h"
 
+#ifdef USE_WIFI
+#include "esphome/components/wifi/wifi_component.h"
+#endif
+
 #ifdef USE_CAPTIVE_PORTAL
 #include "esphome/components/captive_portal/captive_portal.h"
 #endif
@@ -233,6 +237,10 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
       break;
     case TuyaCommandType::WIFI_TEST:
       this->send_command_(TuyaCommand{.cmd = TuyaCommandType::WIFI_TEST, .payload = std::vector<uint8_t>{0x00, 0x00}});
+      break;
+    case TuyaCommandType::WIFI_RSSI:
+      this->send_command_(
+          TuyaCommand{.cmd = TuyaCommandType::WIFI_RSSI, .payload = std::vector<uint8_t>{get_wifi_rssi_()}});
       break;
     case TuyaCommandType::LOCAL_TIME_QUERY:
 #ifdef USE_TIME
@@ -473,6 +481,15 @@ uint8_t Tuya::get_wifi_status_code_() {
   };
 
   return status;
+}
+
+uint8_t Tuya::get_wifi_rssi_() {
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component != nullptr)
+    return wifi::global_wifi_component->wifi_rssi();
+#endif
+
+  return 0;
 }
 
 void Tuya::send_wifi_status_() {
