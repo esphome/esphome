@@ -29,21 +29,25 @@ from esphome.const import (
     CONF_WINDOW_SIZE,
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
-    DEVICE_CLASS_DISTANCE,
-    DEVICE_CLASS_DURATION,
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATA_RATE,
+    DEVICE_CLASS_DATA_SIZE,
     DEVICE_CLASS_DATE,
+    DEVICE_CLASS_DISTANCE,
+    DEVICE_CLASS_DURATION,
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_IRRADIANCE,
     DEVICE_CLASS_MOISTURE,
     DEVICE_CLASS_MONETARY,
     DEVICE_CLASS_NITROGEN_DIOXIDE,
@@ -60,6 +64,7 @@ from esphome.const import (
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_SOUND_PRESSURE,
     DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
@@ -68,8 +73,8 @@ from esphome.const import (
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
     DEVICE_CLASS_WATER,
-    DEVICE_CLASS_WIND_SPEED,
     DEVICE_CLASS_WEIGHT,
+    DEVICE_CLASS_WIND_SPEED,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
@@ -78,21 +83,25 @@ from esphome.util import Registry
 
 CODEOWNERS = ["@esphome/core"]
 DEVICE_CLASSES = [
-    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
+    DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_BATTERY,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_CARBON_MONOXIDE,
     DEVICE_CLASS_CURRENT,
+    DEVICE_CLASS_DATA_RATE,
+    DEVICE_CLASS_DATA_SIZE,
     DEVICE_CLASS_DATE,
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_DURATION,
+    DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
     DEVICE_CLASS_ILLUMINANCE,
+    DEVICE_CLASS_IRRADIANCE,
     DEVICE_CLASS_MOISTURE,
     DEVICE_CLASS_MONETARY,
     DEVICE_CLASS_NITROGEN_DIOXIDE,
@@ -109,6 +118,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_PRESSURE,
     DEVICE_CLASS_REACTIVE_POWER,
     DEVICE_CLASS_SIGNAL_STRENGTH,
+    DEVICE_CLASS_SOUND_PRESSURE,
     DEVICE_CLASS_SPEED,
     DEVICE_CLASS_SULPHUR_DIOXIDE,
     DEVICE_CLASS_TEMPERATURE,
@@ -184,6 +194,7 @@ SensorPublishAction = sensor_ns.class_("SensorPublishAction", automation.Action)
 Filter = sensor_ns.class_("Filter")
 QuantileFilter = sensor_ns.class_("QuantileFilter", Filter)
 MedianFilter = sensor_ns.class_("MedianFilter", Filter)
+SkipInitialFilter = sensor_ns.class_("SkipInitialFilter", Filter)
 MinFilter = sensor_ns.class_("MinFilter", Filter)
 MaxFilter = sensor_ns.class_("MaxFilter", Filter)
 SlidingWindowMovingAverageFilter = sensor_ns.class_(
@@ -262,48 +273,24 @@ def sensor_schema(
     state_class: str = _UNDEF,
     entity_category: str = _UNDEF,
 ) -> cv.Schema:
-    schema = SENSOR_SCHEMA
+    schema = {}
+
     if class_ is not _UNDEF:
-        schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
-    if unit_of_measurement is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_UNIT_OF_MEASUREMENT, default=unit_of_measurement
-                ): validate_unit_of_measurement
-            }
-        )
-    if icon is not _UNDEF:
-        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): validate_icon})
-    if accuracy_decimals is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_ACCURACY_DECIMALS, default=accuracy_decimals
-                ): validate_accuracy_decimals,
-            }
-        )
-    if device_class is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_DEVICE_CLASS, default=device_class
-                ): validate_device_class
-            }
-        )
-    if state_class is not _UNDEF:
-        schema = schema.extend(
-            {cv.Optional(CONF_STATE_CLASS, default=state_class): validate_state_class}
-        )
-    if entity_category is not _UNDEF:
-        schema = schema.extend(
-            {
-                cv.Optional(
-                    CONF_ENTITY_CATEGORY, default=entity_category
-                ): cv.entity_category
-            }
-        )
-    return schema
+        # Not optional.
+        schema[cv.GenerateID()] = cv.declare_id(class_)
+
+    for key, default, validator in [
+        (CONF_UNIT_OF_MEASUREMENT, unit_of_measurement, validate_unit_of_measurement),
+        (CONF_ICON, icon, validate_icon),
+        (CONF_ACCURACY_DECIMALS, accuracy_decimals, validate_accuracy_decimals),
+        (CONF_DEVICE_CLASS, device_class, validate_device_class),
+        (CONF_STATE_CLASS, state_class, validate_state_class),
+        (CONF_ENTITY_CATEGORY, entity_category, cv.entity_category),
+    ]:
+        if default is not _UNDEF:
+            schema[cv.Optional(key, default=default)] = validator
+
+    return SENSOR_SCHEMA.extend(schema)
 
 
 @FILTER_REGISTRY.register("offset", OffsetFilter, cv.float_)
@@ -377,6 +364,11 @@ MIN_SCHEMA = cv.All(
     ),
     validate_send_first_at,
 )
+
+
+@FILTER_REGISTRY.register("skip_initial", SkipInitialFilter, cv.positive_not_null_int)
+async def skip_initial_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
 
 
 @FILTER_REGISTRY.register("min", MinFilter, MIN_SCHEMA)
@@ -480,9 +472,21 @@ async def lambda_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, lambda_)
 
 
-@FILTER_REGISTRY.register("delta", DeltaFilter, cv.float_)
+def validate_delta(config):
+    try:
+        return (cv.positive_float(config), False)
+    except cv.Invalid:
+        pass
+    try:
+        return (cv.percentage(config), True)
+    except cv.Invalid:
+        pass
+    raise cv.Invalid("Delta filter requires a positive number or percentage value.")
+
+
+@FILTER_REGISTRY.register("delta", DeltaFilter, validate_delta)
 async def delta_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id, config)
+    return cg.new_Pvariable(filter_id, *config)
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
