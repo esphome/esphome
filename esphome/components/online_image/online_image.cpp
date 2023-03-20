@@ -55,13 +55,25 @@ uint8_t *OnlineImage::createDefaultImage(uint16_t width, uint16_t height) {
         buffer_.draw_pixel(i, j, Color::WHITE);
       }
       if (i == j || width - i == j) {
-        buffer_.draw_pixel(i, j, Color(255, 0, 0));
+        buffer_.draw_pixel(i, j, Color(255, 0, 0, 255));
       }
     }
   }
   return buf;
 }
 
+bool OnlineImage::get_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return false;
+  return buffer_.get_pixel(x, y).is_on();
+}
+
+Color OnlineImage::get_color_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return Color::BLACK;
+  Color color = buffer_.get_pixel(x, y);
+  return color;
+}
 
 void OnlineImage::update() {
   ESP_LOGI(TAG, "Updating image");
@@ -131,23 +143,7 @@ bool ImageDecoder::is_color_on(const Color &color) {
 
 void ImageDecoder::draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, Color color) {
 
-  static uint16_t display_width = buffer_->get_width();
-  static uint16_t display_height = buffer_->get_height();
-
-  if (color.w) {
-    if (x >= display_width || y >= display_height) {
-      return;
-    }
-    if (x + w >= display_width) {
-      w = display_width - x;
-    }
-    if (y + h >= display_height) {
-      h = display_height - y;
-    }
-    // TODO: resize if needed
-
-     buffer_->draw_rectangle(x * x_scale, y * y_scale, w * x_scale, h * y_scale, color);
-  }
+  buffer_->draw_rectangle(x * x_scale, y * y_scale, std::ceil(w * x_scale), std::ceil(h * y_scale), color);
 }
 
 }  // namespace online_image
