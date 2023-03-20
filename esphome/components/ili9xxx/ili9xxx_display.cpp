@@ -1,8 +1,8 @@
 #include "ili9xxx_display.h"
-#include "esphome/core/log.h"
 #include "esphome/core/application.h"
-#include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace ili9xxx {
@@ -85,7 +85,7 @@ void ILI9XXXDisplay::fill(Color color) {
     case BITS_16:
       new_color = display::ColorUtil::color_to_565(color);
       for (uint32_t i = 0; i < this->get_buffer_length_() * 2; i = i + 2) {
-        this->buffer_[i] = (uint8_t)(new_color >> 8);
+        this->buffer_[i] = (uint8_t) (new_color >> 8);
         this->buffer_[i + 1] = (uint8_t) new_color;
       }
       return;
@@ -111,8 +111,8 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     case BITS_16:
       pos = pos * 2;
       new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
-      if (this->buffer_[pos] != (uint8_t)(new_color >> 8)) {
-        this->buffer_[pos] = (uint8_t)(new_color >> 8);
+      if (this->buffer_[pos] != (uint8_t) (new_color >> 8)) {
+        this->buffer_[pos] = (uint8_t) (new_color >> 8);
         updated = true;
       }
       pos = pos + 1;
@@ -192,9 +192,9 @@ void ILI9XXXDisplay::display_() {
 
           uint8_t pass_buff[3];
 
-          pass_buff[2] = (uint8_t)((red / 32.0) * 64) << 2;
+          pass_buff[2] = (uint8_t) ((red / 32.0) * 64) << 2;
           pass_buff[1] = (uint8_t) green << 2;
-          pass_buff[0] = (uint8_t)((blue / 32.0) * 64) << 2;
+          pass_buff[0] = (uint8_t) ((blue / 32.0) * 64) << 2;
 
           this->write_array(pass_buff, sizeof(pass_buff));
         }
