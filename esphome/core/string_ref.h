@@ -114,13 +114,13 @@ inline std::string &operator+=(std::string &lhs, const StringRef &rhs) {
   return lhs;
 }
 
-inline std::string operator+(const char* lhs, const StringRef &rhs) {
+inline std::string operator+(const char *lhs, const StringRef &rhs) {
   auto str = std::string(lhs);
   str.append(rhs.c_str(), rhs.size());
   return str;
 }
 
-inline std::string operator+(const StringRef & lhs, const char* rhs) {
+inline std::string operator+(const StringRef &lhs, const char *rhs) {
   auto str = lhs.str();
   str.append(rhs);
   return str;

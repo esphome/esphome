@@ -420,7 +420,6 @@ class Sprinkler : public Component, public EntityBase {
   SprinklerSwitch *valve_pump_switch_by_pump_index(size_t pump_index);
 
  protected:
-
   /// returns true if valve number is enabled
   bool valve_is_enabled_(size_t valve_number);
 
