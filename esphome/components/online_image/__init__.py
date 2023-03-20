@@ -26,7 +26,7 @@ online_image_ns = cg.esphome_ns.namespace("online_image")
 ImageFormat = online_image_ns.enum("ImageFormat")
 IMAGE_FORMAT = {"PNG": ImageFormat.PNG}  # Add new supported formats here
 
-Image_ = online_image_ns.class_("OnlineImage")
+Image_ = online_image_ns.class_("OnlineImage", cg.PollingComponent, image.Image_)
 
 CONFIG_SCHEMA = cv.All(
     image.IMAGE_SCHEMA.extend(
