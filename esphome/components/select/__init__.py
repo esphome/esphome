@@ -18,9 +18,6 @@ from esphome.const import (
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
 from esphome.cpp_helpers import setup_entity
-from esphome.voluptuous_schema import _Schema
-
-Schema = _Schema
 
 CODEOWNERS = ["@esphome/core"]
 IS_PLATFORM_COMPONENT = True
@@ -71,7 +68,7 @@ def select_schema(
     entity_category: str = _UNDEF,
     icon: str = _UNDEF,
 ):
-    schema = Schema({})
+    schema = cv.Schema({})
     if class_ is not _UNDEF:
         schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if entity_category is not _UNDEF:
