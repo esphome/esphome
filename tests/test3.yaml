@@ -266,6 +266,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart_12
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 9600
 
 modbus:
   uart_id: uart_1
@@ -914,6 +918,30 @@ climate:
       ki_multiplier: 0.0
       kd_multiplier: 0.0
       deadband_output_averaging_samples: 1
+  - platform: haier
+    protocol: hOn
+    name: Haier AC
+    uart_id: haier_uart
+    wifi_signal: true
+    beeper: true
+    outdoor_temperature:
+      name:  Haier AC outdoor temperature
+    visual:
+      min_temperature: 16 °C
+      max_temperature: 30 °C
+      temperature_step: 1 °C
+    supported_modes:
+    - 'OFF'
+    - AUTO
+    - COOL
+    - HEAT
+    - DRY
+    - FAN_ONLY
+    supported_swing_modes:
+    - 'OFF'
+    - VERTICAL
+    - HORIZONTAL
+    - BOTH
 
 sprinkler:
   - id: yard_sprinkler_ctrlr

@@ -59,7 +59,7 @@ haier_protocol::HandlerError Smartair2Climate::status_handler_(uint8_t request_t
 
 void Smartair2Climate::set_answers_handlers() {
   this->haier_protocol_.set_answer_handler(
-      (uint8_t)(smartair2_protocol::FrameType::CONTROL),
+      (uint8_t) (smartair2_protocol::FrameType::CONTROL),
       std::bind(&Smartair2Climate::status_handler_, this, std::placeholders::_1, std::placeholders::_2,
                 std::placeholders::_3, std::placeholders::_4));
 }

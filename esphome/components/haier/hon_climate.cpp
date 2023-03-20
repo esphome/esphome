@@ -238,27 +238,27 @@ haier_protocol::HandlerError HonClimate::get_alarm_status_answer_handler_(uint8_
 void HonClimate::set_answers_handlers() {
   // Set handlers
   this->haier_protocol_.set_answer_handler(
-      (uint8_t)(hon_protocol::FrameType::GET_DEVICE_VERSION),
+      (uint8_t) (hon_protocol::FrameType::GET_DEVICE_VERSION),
       std::bind(&HonClimate::get_device_version_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
                 std::placeholders::_3, std::placeholders::_4));
   this->haier_protocol_.set_answer_handler(
-      (uint8_t)(hon_protocol::FrameType::GET_DEVICE_ID),
+      (uint8_t) (hon_protocol::FrameType::GET_DEVICE_ID),
       std::bind(&HonClimate::get_device_id_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
                 std::placeholders::_3, std::placeholders::_4));
   this->haier_protocol_.set_answer_handler(
-      (uint8_t)(hon_protocol::FrameType::CONTROL),
+      (uint8_t) (hon_protocol::FrameType::CONTROL),
       std::bind(&HonClimate::status_handler_, this, std::placeholders::_1, std::placeholders::_2, std::placeholders::_3,
                 std::placeholders::_4));
   this->haier_protocol_.set_answer_handler(
-      (uint8_t)(hon_protocol::FrameType::GET_MANAGEMENT_INFORMATION),
+      (uint8_t) (hon_protocol::FrameType::GET_MANAGEMENT_INFORMATION),
       std::bind(&HonClimate::get_management_information_answer_handler_, this, std::placeholders::_1,
                 std::placeholders::_2, std::placeholders::_3, std::placeholders::_4));
   this->haier_protocol_.set_answer_handler(
-      (uint8_t)(hon_protocol::FrameType::GET_ALARM_STATUS),
+      (uint8_t) (hon_protocol::FrameType::GET_ALARM_STATUS),
       std::bind(&HonClimate::get_alarm_status_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
                 std::placeholders::_3, std::placeholders::_4));
   this->haier_protocol_.set_answer_handler(
-      (uint8_t)(hon_protocol::FrameType::REPORT_NETWORK_STATUS),
+      (uint8_t) (hon_protocol::FrameType::REPORT_NETWORK_STATUS),
       std::bind(&HonClimate::report_network_status_answer_handler_, this, std::placeholders::_1, std::placeholders::_2,
                 std::placeholders::_3, std::placeholders::_4));
 }
@@ -310,7 +310,7 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
             (uint8_t) hon_protocol::FrameType::CONTROL, (uint16_t) hon_protocol::SubcomandsControl::GET_USER_DATA);
         this->send_message_(STATUS_REQUEST, this->use_crc_);
         this->last_status_request_ = now;
-        this->set_phase_((ProtocolPhases)((uint8_t) this->protocol_phase_ + 1));
+        this->set_phase_((ProtocolPhases) ((uint8_t) this->protocol_phase_ + 1));
       }
       break;
 #ifdef HAIER_REPORT_WIFI_SIGNAL

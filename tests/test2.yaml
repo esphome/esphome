@@ -47,7 +47,7 @@ uart:
       direction: rx
       sequence:
         - lambda: UARTDebug::log_hex(direction, bytes, ':');
-  - id: uart2
+  - id: haier_uart
     tx_pin: GPIO22
     rx_pin: GPIO23
     baud_rate: 9600
@@ -86,7 +86,7 @@ climate:
   - platform: haier
     protocol: hOn
     name: Haier AC
-    uart_id: uart2
+    uart_id: haier_uart
     # set false to remove dependancy on wifi
     wifi_signal: false
     beeper: true

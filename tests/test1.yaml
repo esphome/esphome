@@ -228,7 +228,7 @@ uart:
     baud_rate: 256000
     parity: NONE
     stop_bits: 1
-  - id: uart1
+  - id: haier_uart
     tx_pin: 17
     rx_pin: 16
     baud_rate: 9600
@@ -2149,7 +2149,7 @@ climate:
   - platform: haier
     protocol: hOn
     name: Haier AC
-    uart_id: uart1
+    uart_id: haier_uart
     wifi_signal: true
     beeper: true
     outdoor_temperature:
