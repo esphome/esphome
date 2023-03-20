@@ -216,37 +216,37 @@ wifi:
   password: "password1"
 
 uart:
-  - id: uart1
+  - id: uart_1
     tx_pin:
       number: GPIO1
       inverted: true
     rx_pin: GPIO3
     baud_rate: 115200
-  - id: uart2
+  - id: uart_2
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
-  - id: uart3
+  - id: uart_3
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 4800
-  - id: uart4
+  - id: uart_4
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
-  - id: uart5
+  - id: uart_5
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
-  - id: uart6
+  - id: uart_6
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
-  - id: uart7
+  - id: uart_7
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 38400
-  - id: uart8
+  - id: uart_8
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 4800
@@ -254,28 +254,28 @@ uart:
     stop_bits: 2
     # Specifically added for testing debug with no options at all.
     debug:
-  - id: uart9
+  - id: uart_9
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
-  - id: uart10
+  - id: uart_10
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
-  - id: uart11
+  - id: uart_11
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
-  - id: uart12
+  - id: uart_12
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
 
 modbus:
-  uart_id: uart1
+  uart_id: uart_1
 
 vbus:
-  uart_id: uart4
+  uart_id: uart_4
 
 ota:
   safe_mode: true
@@ -337,14 +337,14 @@ sensor:
 
   - platform: hydreon_rgxx
     model: RG 9
-    uart_id: uart6
+    uart_id: uart_6
     id: hydreon_rg9
     moisture:
       name: hydreon_rain
       id: hydreon_rain
   - platform: hydreon_rgxx
     model: RG_15
-    uart_id: uart6
+    uart_id: uart_6
     acc:
       name: hydreon_acc
     event_acc:
@@ -369,7 +369,7 @@ sensor:
         value: 100.0
 
   - platform: bl0939
-    uart_id: uart8
+    uart_id: uart_8
     voltage:
       name: BL0939 Voltage
     current_1:
@@ -387,7 +387,7 @@ sensor:
     energy_total:
       name: BL0939 Total energy
   - platform: bl0940
-    uart_id: uart3
+    uart_id: uart_3
     voltage:
       name: BL0940 Voltage
     current:
@@ -401,7 +401,7 @@ sensor:
     external_temperature:
       name: BL0940 External temperature
   - platform: bl0942
-    uart_id: uart3
+    uart_id: uart_3
     voltage:
       name: BL0942 Voltage
     current:
@@ -413,7 +413,7 @@ sensor:
     frequency:
       name: BL0942 Frequency
   - platform: pzem004t
-    uart_id: uart3
+    uart_id: uart_3
     voltage:
       name: PZEM004T Voltage
     current:
@@ -446,7 +446,7 @@ sensor:
       name: PZEMDC Energy
 
   - platform: pmsx003
-    uart_id: uart9
+    uart_id: uart_9
     type: PMSX003
     pm_1_0:
       name: PM 1.0 Concentration
@@ -474,7 +474,7 @@ sensor:
       name: Particulate Count >10.0um
     update_interval: 30s
   - platform: pmsx003
-    uart_id: uart5
+    uart_id: uart_5
     type: PMS5003T
     pm_1_0:
       name: PM 1.0 Concentration
@@ -501,7 +501,7 @@ sensor:
     humidity:
       name: PMS Humidity
   - platform: pmsx003
-    uart_id: uart6
+    uart_id: uart_6
     type: PMS5003ST
     pm_1_0:
       name: PM 1.0 Concentration
@@ -534,7 +534,7 @@ sensor:
     formaldehyde:
       name: PMS Formaldehyde Concentration
   - platform: cse7761
-    uart_id: uart7
+    uart_id: uart_7
     voltage:
       name: CSE7761 Voltage
     current_1:
@@ -546,7 +546,7 @@ sensor:
     active_power_2:
       name: CSE7761 Active Power 2
   - platform: cse7766
-    uart_id: uart3
+    uart_id: uart_3
     voltage:
       name: CSE7766 Voltage
     current:
@@ -637,7 +637,7 @@ sensor:
     component_id: 2
     wave_channel_id: 1
   - platform: smt100
-    uart_id: uart10
+    uart_id: uart_10
     counts:
       name: Counts
     dielectric_constant:
@@ -925,7 +925,7 @@ climate:
       - horizontal
       - both
     update_interval: 10s
-    uart_id: uart12
+    uart_id: uart_12
 
 sprinkler:
   - id: yard_sprinkler_ctrlr
@@ -996,7 +996,7 @@ light:
     effects:
       - wled:
       - adalight:
-          uart_id: uart3
+          uart_id: uart_3
       - e131:
           universe: 1
   - platform: hbridge
@@ -1004,7 +1004,7 @@ light:
     pin_a: out
     pin_b: out2
   - platform: sonoff_d1
-    uart_id: uart2
+    uart_id: uart_2
     use_rm433_remote: false
     name: Sonoff D1 Dimmer
     id: d1_light
@@ -1019,10 +1019,10 @@ light:
       name: "Shelly Dimmer Current"
     max_brightness: 500
     firmware: "51.6"
-    uart_id: uart11
+    uart_id: uart_11
 
 sim800l:
-  uart_id: uart4
+  uart_id: uart_4
   on_sms_received:
     - lambda: |-
         std::string str;
@@ -1035,7 +1035,7 @@ sim800l:
         recipient: "+1234"
 
 dfplayer:
-  uart_id: uart5
+  uart_id: uart_5
   on_finished_playback:
     then:
       if:
@@ -1049,7 +1049,7 @@ tm1651:
   dio_pin: D5
 
 rf_bridge:
-  uart_id: uart5
+  uart_id: uart_5
   on_code_received:
     - lambda: |-
         uint32_t test;
@@ -1083,7 +1083,7 @@ rf_bridge:
 
 display:
   - platform: nextion
-    uart_id: uart1
+    uart_id: uart_1
     tft_url: http://esphome.io/default35.tft
     update_interval: 5s
     on_sleep:
@@ -1128,11 +1128,11 @@ fingerprint_grow:
         event: esphome.${device_name}_fingerprint_grow_enrollment_failed
         data:
           finger_id: !lambda "return finger_id;"
-  uart_id: uart6
+  uart_id: uart_6
 
 dsmr:
   decryption_key: 00112233445566778899aabbccddeeff
-  uart_id: uart6
+  uart_id: uart_6
   max_telegram_length: 1000
   request_pin: D5
   request_interval: 20s
@@ -1140,7 +1140,7 @@ dsmr:
 
 daly_bms:
   update_interval: 20s
-  uart_id: uart1
+  uart_id: uart_1
 
 qr_code:
   - id: homepage_qr
