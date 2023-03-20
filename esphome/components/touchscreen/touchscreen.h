@@ -72,7 +72,7 @@ class Touchscreen {
 #endif
   }
 
-  uint16_t get_rotation_() {
+ TouchRotation get_rotation_() {
 #ifdef USE_DISPLAY
     return static_cast<TouchRotation>(display->get_rotation());
 #else
