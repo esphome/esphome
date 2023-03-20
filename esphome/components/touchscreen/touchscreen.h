@@ -35,20 +35,14 @@ enum TouchRotation {
 class Touchscreen {
  public:
 #ifdef USE_DISPLAY
-  void set_display(display::DisplayBuffer *display) {
-    this->display_ = display;
-    // this->display_width_ =
-    // this->display_height_ = display->get_height_internal();
-    // this->rotation_ = static_cast<TouchRotation>(display->get_rotation());
-  }
-  display::DisplayBuffer *get_display() const { return this->display_; }
-#else
+  void set_display(display::DisplayBuffer *display) { this->display_ = display; }
+#endif
   void set_display_dimension(uint16_t width, u_int16_t height) {
     this->display_width_ = width;
     this->display_height_ = height;
   }
   void set_rotation(TouchRotation rotation) { this->rotation_ = rotation; }
-#endif
+
   Trigger<TouchPoint> *get_touch_trigger() { return &this->touch_trigger_; }
 
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }
@@ -59,24 +53,30 @@ class Touchscreen {
 
   uint16_t get_width_() {
 #ifdef USE_DISPLAY
-    return display_->get_width_internal();
+    if (this->display_ != nullptr) {
+      return this->display_->get_width_internal();
+    }
 #else
     return display_width_;
 #endif
   }
   uint16_t get_height_() {
 #ifdef USE_DISPLAY
-    return display_->get_height_internal();
+    if (this->display_ != nullptr) {
+      return display_->get_height_internal();
+    }
 #else
     return display_height_;
 #endif
   }
 
- TouchRotation get_rotation_() {
+  TouchRotation get_rotation_() {
 #ifdef USE_DISPLAY
-    return static_cast<TouchRotation>(display->get_rotation());
+    if (this->display_ != nullptr) {
+      return static_cast<TouchRotation>(display->get_rotation());
+    }
 #else
-    return rotation_;
+    return this->rotation_;
 #endif
   }
 
