@@ -324,6 +324,10 @@ async def setup_climate_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
+    for conf in config.get(CONF_ON_CONTROL, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
 
 async def register_climate(var, config):
     if not CORE.has_id(config[CONF_ID]):
