@@ -24,15 +24,16 @@ CONF_TOUCHSCREEN_ID = "touchscreen_id"
 
 TOUCHSCREEN_SCHEMA = cv.Schema(
     {
-        cv.GenerateID(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
+        cv.Optional(CONF_DISPLAY): cv.use_id(display.DisplayBuffer),
         cv.Optional(CONF_ON_TOUCH): automation.validate_automation(single=True),
     }
 )
 
 
 async def register_touchscreen(var, config):
-    disp = await cg.get_variable(config[CONF_DISPLAY])
-    cg.add(var.set_display(disp))
+    if CONF_DISPLAY in config:
+        disp = await cg.get_variable(config[CONF_DISPLAY])
+        cg.add(var.set_display(disp))
 
     if CONF_ON_TOUCH in config:
         await automation.build_automation(

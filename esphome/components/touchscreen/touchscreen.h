@@ -47,10 +47,10 @@ class Touchscreen {
   /// Call this function to send touch points to the `on_touch` listener and the binary_sensors.
   void send_touch_(TouchPoint tp);
 
-  uint16_t display_width_;
-  uint16_t display_height_;
-  display::DisplayBuffer *display_;
-  TouchRotation rotation_;
+  uint16_t display_width_{230};
+  uint16_t display_height_{420};
+  display::DisplayBuffer *display_{nullptr};
+  TouchRotation rotation_{ROTATE_0_DEGREES};
   Trigger<TouchPoint> touch_trigger_;
   std::vector<TouchListener *> touch_listeners_;
 };
