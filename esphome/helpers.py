@@ -6,6 +6,7 @@ import os
 from pathlib import Path
 from typing import Union
 import tempfile
+from urllib.parse import urlparse
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -40,7 +41,7 @@ def indent(text, padding="  "):
 
 # From https://stackoverflow.com/a/14945195/8924614
 def cpp_string_escape(string, encoding="utf-8"):
-    def _should_escape(byte):  # type: (int) -> bool
+    def _should_escape(byte: int) -> bool:
         if not 32 <= byte < 127:
             return True
         if byte in (ord("\\"), ord('"')):
@@ -134,7 +135,8 @@ def resolve_ip_address(host):
             errs.append(str(err))
 
     try:
-        return socket.gethostbyname(host)
+        host_url = host if (urlparse(host).scheme != "") else "http://" + host
+        return socket.gethostbyname(urlparse(host_url).hostname)
     except OSError as err:
         errs.append(str(err))
         raise EsphomeError(f"Error resolving IP address: {', '.join(errs)}") from err

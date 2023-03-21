@@ -2,7 +2,7 @@ import logging
 import math
 import os
 import re
-from typing import TYPE_CHECKING, Dict, List, Optional, Set, Tuple, Union
+from typing import TYPE_CHECKING, Optional, Union
 
 from esphome.const import (
     CONF_COMMENT,
@@ -409,6 +409,9 @@ class Define:
             return self.as_tuple == other.as_tuple
         return NotImplemented
 
+    def __str__(self):
+        return f"{self.name}={self.value}"
+
 
 class Library:
     def __init__(self, name, version, repository=None):
@@ -443,7 +446,7 @@ class Library:
         return NotImplemented
 
 
-# pylint: disable=too-many-instance-attributes,too-many-public-methods
+# pylint: disable=too-many-public-methods
 class EsphomeCore:
     def __init__(self):
         # True if command is run from dashboard
@@ -453,6 +456,8 @@ class EsphomeCore:
         self.ace = False
         # The name of the node
         self.name: Optional[str] = None
+        # The friendly name of the node
+        self.friendly_name: Optional[str] = None
         # Additional data components can store temporary data in
         # The first key to this dict should always be the integration name
         self.data = {}
@@ -469,19 +474,19 @@ class EsphomeCore:
         # Task counter for pending tasks
         self.task_counter = 0
         # The variable cache, for each ID this holds a MockObj of the variable obj
-        self.variables: Dict[str, "MockObj"] = {}
+        self.variables: dict[str, "MockObj"] = {}
         # A list of statements that go in the main setup() block
-        self.main_statements: List["Statement"] = []
+        self.main_statements: list["Statement"] = []
         # A list of statements to insert in the global block (includes and global variables)
-        self.global_statements: List["Statement"] = []
+        self.global_statements: list["Statement"] = []
         # A set of platformio libraries to add to the project
-        self.libraries: List[Library] = []
+        self.libraries: list[Library] = []
         # A set of build flags to set in the platformio project
-        self.build_flags: Set[str] = set()
+        self.build_flags: set[str] = set()
         # A set of defines to set for the compile process in esphome/core/defines.h
-        self.defines: Set["Define"] = set()
+        self.defines: set["Define"] = set()
         # A map of all platformio options to apply
-        self.platformio_options: Dict[str, Union[str, List[str]]] = {}
+        self.platformio_options: dict[str, Union[str, list[str]]] = {}
         # A set of strings of names of loaded integrations, used to find namespace ID conflicts
         self.loaded_integrations = set()
         # A set of component IDs to track what Component subclasses are declared
@@ -492,6 +497,7 @@ class EsphomeCore:
     def reset(self):
         self.dashboard = False
         self.name = None
+        self.friendly_name = None
         self.data = {}
         self.config_path = None
         self.build_path = None
@@ -553,7 +559,6 @@ class EsphomeCore:
         return os.path.basename(self.config_path)
 
     def relative_config_path(self, *path):
-        # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.config_dir, path_)
 
@@ -561,7 +566,6 @@ class EsphomeCore:
         return self.relative_config_path(".esphome", *path)
 
     def relative_build_path(self, *path):
-        # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.build_path, path_)
 
@@ -593,6 +597,10 @@ class EsphomeCore:
     @property
     def is_esp32(self):
         return self.target_platform == "esp32"
+
+    @property
+    def is_rp2040(self):
+        return self.target_platform == "rp2040"
 
     @property
     def target_framework(self):
@@ -648,7 +656,15 @@ class EsphomeCore:
                 f"Library {library} must be instance of Library, not {type(library)}"
             )
         for other in self.libraries[:]:
-            if other.name != library.name or other.name is None or library.name is None:
+            if other.name is None or library.name is None:
+                continue
+            library_name = (
+                library.name if "/" not in library.name else library.name.split("/")[1]
+            )
+            other_name = (
+                other.name if "/" not in other.name else other.name.split("/")[1]
+            )
+            if other_name != library_name:
                 continue
             if other.repository is not None:
                 if library.repository is None or other.repository == library.repository:
@@ -701,7 +717,7 @@ class EsphomeCore:
         _LOGGER.debug("Adding define: %s", define)
         return define
 
-    def add_platformio_option(self, key: str, value: Union[str, List[str]]) -> None:
+    def add_platformio_option(self, key: str, value: Union[str, list[str]]) -> None:
         new_val = value
         old_val = self.platformio_options.get(key)
         if isinstance(old_val, list):
@@ -734,7 +750,7 @@ class EsphomeCore:
             _LOGGER.debug("Waiting for variable %s", id)
             yield
 
-    async def get_variable_with_full_id(self, id: ID) -> Tuple[ID, "MockObj"]:
+    async def get_variable_with_full_id(self, id: ID) -> tuple[ID, "MockObj"]:
         if not isinstance(id, ID):
             raise ValueError(f"ID {id!r} must be of type ID!")
         return await _FakeAwaitable(self._get_variable_with_full_id_generator(id))

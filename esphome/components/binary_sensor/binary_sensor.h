@@ -5,6 +5,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/components/binary_sensor/filter.h"
 
+#include <vector>
+
 namespace esphome {
 
 namespace binary_sensor {
@@ -15,6 +17,15 @@ namespace binary_sensor {
     if (!(obj)->get_device_class().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
     } \
+  }
+
+#define SUB_BINARY_SENSOR(name) \
+ protected: \
+  binary_sensor::BinarySensor *name##_binary_sensor_{nullptr}; \
+\
+ public: \
+  void set_##name##_binary_sensor(binary_sensor::BinarySensor *binary_sensor) { \
+    this->name##_binary_sensor_ = binary_sensor; \
   }
 
 /** Base class for all binary_sensor-type classes.
@@ -68,14 +79,6 @@ class BinarySensor : public EntityBase {
   virtual bool has_state() const;
 
   virtual bool is_status_binary_sensor() const;
-
-  // ========== OVERRIDE METHODS ==========
-  // (You'll only need this when creating your own custom binary sensor)
-  /** Override this to set the default device class.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual std::string device_class();
 
  protected:
   CallbackManager<void(bool)> state_callback_{};

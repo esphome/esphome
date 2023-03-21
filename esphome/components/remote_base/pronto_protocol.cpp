@@ -106,6 +106,7 @@ void ProntoProtocol::send_pronto_(RemoteTransmitData *dst, const std::vector<uin
   ESP_LOGD(TAG, "Send Pronto: intros=%d", intros);
   ESP_LOGD(TAG, "Send Pronto: repeats=%d", repeats);
   if (NUMBERS_IN_PREAMBLE + intros + repeats != data.size()) {  // inconsistent sizes
+    ESP_LOGE(TAG, "Inconsistent data, not sending");
     return;
   }
 
@@ -226,7 +227,19 @@ optional<ProntoData> ProntoProtocol::decode(RemoteReceiveData src) {
   return out;
 }
 
-void ProntoProtocol::dump(const ProntoData &data) { ESP_LOGD(TAG, "Received Pronto: data=%s", data.data.c_str()); }
+void ProntoProtocol::dump(const ProntoData &data) {
+  std::string first, rest;
+  if (data.data.size() < 230) {
+    first = data.data;
+  } else {
+    first = data.data.substr(0, 229);
+    rest = data.data.substr(230);
+  }
+  ESP_LOGD(TAG, "Received Pronto: data=%s", first.c_str());
+  if (!rest.empty()) {
+    ESP_LOGD(TAG, "%s", rest.c_str());
+  }
+}
 
 }  // namespace remote_base
 }  // namespace esphome

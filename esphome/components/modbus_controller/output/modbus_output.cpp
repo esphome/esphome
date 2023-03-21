@@ -1,7 +1,6 @@
-#include <vector>
 #include "modbus_output.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace modbus_controller {
