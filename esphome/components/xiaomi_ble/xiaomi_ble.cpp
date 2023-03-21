@@ -219,7 +219,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if (device_uuid == 0x0387) {  // square body, e-ink display
     result.type = XiaomiParseResult::TYPE_MHOC401;
     result.name = "MHOC401";
-  } else if ((raw[2] == 0x8b) && (raw[3] == 0x09)) {  // Door sensor
+  } else if (device_uuid == 0x098b) {  // Door sensor
     result.type = XiaomiParseResult::TYPE_MCCGQ02HL;
     result.name = "MCCGQ02HL";
   } else if (device_uuid == 0x0A83) {  // Qingping-branded, motion & ambient light sensor
