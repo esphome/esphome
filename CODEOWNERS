@@ -294,6 +294,7 @@ esphome/components/wiegand/* @ssieb
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/x9c/* @EtienneMD
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
+esphome/components/xiaomi_mccgq02hl/* @morph027
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz
