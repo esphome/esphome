@@ -29,10 +29,10 @@ class AsyncWebParameter {
 
 class AsyncWebServerRequest;
 
-class AsyncResponse {
+class AsyncWebServerResponse {
  public:
-  AsyncResponse(const AsyncWebServerRequest *req) : req_(req) {}
-  virtual ~AsyncResponse() {}
+  AsyncWebServerResponse(const AsyncWebServerRequest *req) : req_(req) {}
+  virtual ~AsyncWebServerResponse() {}
 
   // NOLINTNEXTLINE(readability-identifier-naming)
   void addHeader(const char *name, const char *value);
@@ -44,18 +44,18 @@ class AsyncResponse {
   const AsyncWebServerRequest *req_;
 };
 
-class AsyncEmptyResponse : public AsyncResponse {
+class AsyncWebServerResponseEmpty : public AsyncWebServerResponse {
  public:
-  AsyncEmptyResponse(const AsyncWebServerRequest *req) : AsyncResponse(req) {}
+  AsyncWebServerResponseEmpty(const AsyncWebServerRequest *req) : AsyncWebServerResponse(req) {}
 
   const char *get_content_data() const override { return nullptr; };
   size_t get_content_size() const override { return 0; };
 };
 
-class AsyncWebServerResponse : public AsyncResponse {
+class AsyncWebServerResponseContent : public AsyncWebServerResponse {
  public:
-  AsyncWebServerResponse(const AsyncWebServerRequest *req, std::string content)
-      : AsyncResponse(req), content_(std::move(content)) {}
+  AsyncWebServerResponseContent(const AsyncWebServerRequest *req, std::string content)
+      : AsyncWebServerResponse(req), content_(std::move(content)) {}
 
   const char *get_content_data() const override { return this->content_.c_str(); };
   size_t get_content_size() const override { return this->content_.size(); };
@@ -64,9 +64,9 @@ class AsyncWebServerResponse : public AsyncResponse {
   std::string content_;
 };
 
-class AsyncResponseStream : public AsyncResponse {
+class AsyncResponseStream : public AsyncWebServerResponse {
  public:
-  AsyncResponseStream(const AsyncWebServerRequest *req) : AsyncResponse(req) {}
+  AsyncResponseStream(const AsyncWebServerRequest *req) : AsyncWebServerResponse(req) {}
 
   const char *get_content_data() const override { return this->content_.c_str(); };
   size_t get_content_size() const override { return this->content_.size(); };
@@ -80,10 +80,10 @@ class AsyncResponseStream : public AsyncResponse {
   std::string content_;
 };
 
-class AsyncProgmemResponse : public AsyncResponse {
+class AsyncWebServerResponseProgmem : public AsyncWebServerResponse {
  public:
-  AsyncProgmemResponse(const AsyncWebServerRequest *req, const uint8_t *data, const size_t size)
-      : AsyncResponse(req), data_(data), size_(size) {}
+  AsyncWebServerResponseProgmem(const AsyncWebServerRequest *req, const uint8_t *data, const size_t size)
+      : AsyncWebServerResponse(req), data_(data), size_(size) {}
 
   const char *get_content_data() const override { return reinterpret_cast<const char *>(this->data_); };
   size_t get_content_size() const override { return this->size_; };
@@ -94,7 +94,7 @@ class AsyncProgmemResponse : public AsyncResponse {
 };
 
 class AsyncWebServerRequest {
-  friend class AsyncWebServerResponse;
+  // FIXME friend class AsyncWebServerResponse;
   friend class AsyncWebServer;
 
  public:
@@ -112,24 +112,24 @@ class AsyncWebServerRequest {
 
   void redirect(const std::string &url);
 
-  void send(AsyncResponse *response);
+  void send(AsyncWebServerResponse *response);
   void send(int code, const char *content_type = nullptr, const char *content = nullptr);
   // NOLINTNEXTLINE(readability-identifier-naming)
-  AsyncEmptyResponse *beginResponse(int code, const char *content_type) {
-    auto *res = new AsyncEmptyResponse(this);  // NOLINT(cppcoreguidelines-owning-memory)
+  AsyncWebServerResponse *beginResponse(int code, const char *content_type) {
+    auto *res = new AsyncWebServerResponseEmpty(this);  // NOLINT(cppcoreguidelines-owning-memory)
     this->init_response_(res, 200, content_type);
     return res;
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
   AsyncWebServerResponse *beginResponse(int code, const char *content_type, const std::string &content) {
-    auto *res = new AsyncWebServerResponse(this, content);  // NOLINT(cppcoreguidelines-owning-memory)
+    auto *res = new AsyncWebServerResponseContent(this, content);  // NOLINT(cppcoreguidelines-owning-memory)
     this->init_response_(res, code, content_type);
     return res;
   }
   // NOLINTNEXTLINE(readability-identifier-naming)
-  AsyncProgmemResponse *beginResponse_P(int code, const char *content_type, const uint8_t *data,
-                                        const size_t data_size) {
-    auto *res = new AsyncProgmemResponse(this, data, data_size);  // NOLINT(cppcoreguidelines-owning-memory)
+  AsyncWebServerResponse *beginResponse_P(int code, const char *content_type, const uint8_t *data,
+                                          const size_t data_size) {
+    auto *res = new AsyncWebServerResponseProgmem(this, data, data_size);  // NOLINT(cppcoreguidelines-owning-memory)
     this->init_response_(res, code, content_type);
     return res;
   }
@@ -160,10 +160,10 @@ class AsyncWebServerRequest {
 
  protected:
   httpd_req_t *req_;
-  AsyncResponse *rsp_{};
+  AsyncWebServerResponse *rsp_{};
   std::map<std::string, AsyncWebParameter *> params_;
   AsyncWebServerRequest(httpd_req_t *req) : req_(req) {}
-  void init_response_(AsyncResponse *rsp, int code, const char *content_type);
+  void init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type);
 };
 
 class AsyncWebHandler;

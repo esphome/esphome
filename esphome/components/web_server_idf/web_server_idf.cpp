@@ -106,7 +106,7 @@ std::string AsyncWebServerRequest::url() const {
 
 std::string AsyncWebServerRequest::host() const { return this->get_header("Host").value(); }
 
-void AsyncWebServerRequest::send(AsyncResponse *response) {
+void AsyncWebServerRequest::send(AsyncWebServerResponse *response) {
   httpd_resp_send(*this, response->get_content_data(), response->get_content_size());
 }
 
@@ -125,7 +125,7 @@ void AsyncWebServerRequest::redirect(const std::string &url) {
   httpd_resp_send(*this, nullptr, 0);
 }
 
-void AsyncWebServerRequest::init_response_(AsyncResponse *rsp, int code, const char *content_type) {
+void AsyncWebServerRequest::init_response_(AsyncWebServerResponse *rsp, int code, const char *content_type) {
   httpd_resp_set_status(*this, code == 200   ? HTTPD_200
                                : code == 404 ? HTTPD_404
                                : code == 409 ? HTTPD_409
@@ -254,7 +254,9 @@ AsyncWebParameter *AsyncWebServerRequest::getParam(const std::string &name) {
   return param;
 }
 
-void AsyncResponse::addHeader(const char *name, const char *value) { httpd_resp_set_hdr(*this->req_, name, value); }
+void AsyncWebServerResponse::addHeader(const char *name, const char *value) {
+  httpd_resp_set_hdr(*this->req_, name, value);
+}
 
 void AsyncResponseStream::print(float value) { this->print(to_string(value)); }
 
