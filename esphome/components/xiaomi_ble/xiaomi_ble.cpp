@@ -224,7 +224,6 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if ((raw[2] == 0x8b) && (raw[3] == 0x09)) {  // Door sensor
     result.type = XiaomiParseResult::TYPE_MCCGQ02HL;
     result.name = "MCCGQ02HL";
-  } else if ((raw[2] == 0x83) && (raw[3] == 0x0A)) {  // Qingping-branded, motion & ambient light sensor
   } else if (device_uuid == 0x0A83) {  // Qingping-branded, motion & ambient light sensor
     result.type = XiaomiParseResult::TYPE_CGPR1;
     result.name = "CGPR1";
