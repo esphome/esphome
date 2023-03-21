@@ -27,10 +27,8 @@ class Buffer {
         ESP_LOGD("Buffer", "Buffer already has the right size");
         return get_buffer();
     }
-    if (buffer_) {
-        ESP_LOGD("Buffer", "Deallocating old buffer...");
-        allocator_.deallocate(buffer_, get_size());
-    }
+    release();
+
     auto new_size = get_size(width, height);
     ESP_LOGD("Buffer", "Allocating new buffer of %d Bytes...", new_size);
     ESP_LOGD("Buffer", "Bits per pixel: %d", bits_per_pixel_);
@@ -48,12 +46,20 @@ class Buffer {
     return get_buffer();
   }
 
+  void release() {
+    if (buffer_) {
+      ESP_LOGD("Buffer", "Deallocating old buffer...");
+      allocator_.deallocate(buffer_, get_size());
+      buffer_ = nullptr;
+    }
+  }
+
   void draw_rectangle(uint16_t x, uint16_t y, uint16_t w, uint16_t h, Color color) {
     if (x >= width_ || y >= height_) {
       return;
     }
     if (x + w >= width_) {
-    w = width_ - x;
+      w = width_ - x;
     }
     if (y + h >= height_) {
       h = height_ - y;
