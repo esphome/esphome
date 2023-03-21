@@ -52,9 +52,9 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_DAC): cv.Schema(
                 {
-                    cv.Optional(
-                        CONF_CONVERSION_RATE, default="16"
-                    ): cv.enum(CONVERSIONS_PER_SECOND),
+                    cv.Optional(CONF_CONVERSION_RATE, default="16"): cv.enum(
+                        CONVERSIONS_PER_SECOND
+                    ),
                 }
             ),
             cv.Optional(CONF_INVERTED, default=False): cv.boolean,
