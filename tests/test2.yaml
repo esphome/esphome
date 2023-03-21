@@ -476,6 +476,16 @@ binary_sensor:
       name: Mi Motion Sensor 2 Light
     button:
       name: Mi Motion Sensor 2 Button
+  - platform: xiaomi_mccgq02hl
+    name: "MCCGQ02HL Sensor"
+    mac_address: "E4:AA:EC:4E:5E:E4"
+    bindkey: "e05552dabf6c7fa69010076c5855060b"
+    battery_level:
+      name: "MCCGQ02HL Battery-Level"
+    has_light:
+      name: "MCCGQ02HL Light"
+    open:
+      name: "MCCGQ02HL Open"
   - platform: gpio
     id: gpio_set_retry_test
     pin: GPIO9
