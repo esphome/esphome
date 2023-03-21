@@ -46,10 +46,10 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(Emc2101Component),
             cv.Optional(CONF_PWM): cv.Schema(
                 {
-                    cv.Optional(CONF_RESOLUTION, default=0x17): cv.int_range(
-                        min=0x00, max=0x1F
+                    cv.Optional(CONF_RESOLUTION, default=23): cv.int_range(
+                        min=0, max=31
                     ),
-                    cv.Optional(CONF_DIVIDER, default=0x01): cv.uint8_t,
+                    cv.Optional(CONF_DIVIDER, default=1): cv.uint8_t,
                 }
             ),
             cv.Optional(CONF_DAC): cv.Schema(
