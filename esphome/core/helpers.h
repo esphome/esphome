@@ -583,8 +583,12 @@ class InterruptLock {
   ~InterruptLock();
 
  protected:
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266)
   uint32_t state_;
+#elif defined(USE_RP2040)
+  static const uint8_t STACK_SIZE = 15;
+  uint8_t stack_top_[2] = {0, 0};
+  uint32_t state_stack_[2][STACK_SIZE];
 #endif
 };
 

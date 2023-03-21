@@ -415,8 +415,23 @@ IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(state_); }
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
 IRAM_ATTR InterruptLock::~InterruptLock() { portENABLE_INTERRUPTS(); }
 #elif defined(USE_RP2040)
-IRAM_ATTR InterruptLock::InterruptLock() { state_ = save_and_disable_interrupts(); }
-IRAM_ATTR InterruptLock::~InterruptLock() { restore_interrupts(state_); }
+IRAM_ATTR InterruptLock::InterruptLock() {
+  auto core = get_core_num();
+  if (this->stack_top_[core] == STACK_SIZE) {
+    panic("InterruptLock stack overflow");
+  }
+  uint8_t stack_top = this->stack_top_[core]++;
+  state_stack_[core][stack_top] = save_and_disable_interrupts();
+}
+IRAM_ATTR InterruptLock::~InterruptLock() {
+  auto core = get_core_num();
+  if (!this->stack_top_[core]) {
+    return;  // No state to restore
+  }
+  uint8_t stack_top = --this->stack_top_[core];
+  uint32_t state = this->state_stack_[core][stack_top];
+  restore_interrupts(state);
+}
 #endif
 
 uint8_t HighFrequencyLoopRequester::num_requests = 0;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
