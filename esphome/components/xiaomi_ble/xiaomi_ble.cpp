@@ -78,7 +78,7 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
     result.is_open = data[0] != 0x01;
   }
   // light, 1 byte, 0 or 1
-  else if ((value_type == 0x18) && (value_length == 1)) {
+  else if (((value_type == 0x18) || (value_type == 0x1018)) && (value_length == 1)) {
     result.is_light = data[0];
   }
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
@@ -86,8 +86,6 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
     const uint32_t idle_time = encode_uint32(data[3], data[2], data[1], data[0]);
     result.idle_time = idle_time / 60.0f;
     result.has_motion = !idle_time;
-  } else if ((value_type == 0x1018) && (value_length == 1)) {
-    result.is_light = data[0];
   } else {
     return false;
   }
