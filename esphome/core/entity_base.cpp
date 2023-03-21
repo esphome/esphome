@@ -1,4 +1,5 @@
 #include "esphome/core/entity_base.h"
+#include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -10,7 +11,13 @@ EntityBase::EntityBase(std::string name) : name_(std::move(name)) { this->calc_o
 // Entity Name
 const std::string &EntityBase::get_name() const { return this->name_; }
 void EntityBase::set_name(const std::string &name) {
-  this->name_ = name;
+  if (name == "") {
+    this->name_ = App.get_friendly_name();
+    this->has_own_name_ = false;
+  } else {
+    this->name_ = name;
+    this->has_own_name_ = true;
+  }
   this->calc_object_id_();
 }
 
