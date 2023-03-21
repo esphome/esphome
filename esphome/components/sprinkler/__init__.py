@@ -20,7 +20,6 @@ from esphome.const import (
     UNIT_MINUTE,
     UNIT_SECOND,
 )
-from esphome.cpp_helpers import setup_entity
 
 AUTO_LOAD = ["number", "switch"]
 CODEOWNERS = ["@kbx81"]
@@ -425,7 +424,7 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
         ): cv.positive_time_period_seconds,
         cv.Required(CONF_VALVES): cv.ensure_list(SPRINKLER_VALVE_SCHEMA),
     }
-).extend(cv.ENTITY_BASE_SCHEMA)
+)
 
 CONFIG_SCHEMA = cv.All(
     cv.ensure_list(SPRINKLER_CONTROLLER_SCHEMA),
@@ -560,16 +559,16 @@ async def sprinkler_simple_action_to_code(config, action_id, template_arg, args)
 
 async def to_code(config):
     for sprinkler_controller in config:
-        var = cg.new_Pvariable(sprinkler_controller[CONF_ID])
         if len(sprinkler_controller[CONF_VALVES]) > 1:
-            sprinkler_controller[CONF_NAME] = sprinkler_controller[CONF_MAIN_SWITCH][
-                CONF_NAME
-            ]
+            var = cg.new_Pvariable(
+                sprinkler_controller[CONF_ID],
+                sprinkler_controller[CONF_MAIN_SWITCH][CONF_NAME],
+            )
         else:
-            sprinkler_controller[CONF_NAME] = sprinkler_controller[CONF_VALVES][0][
-                CONF_VALVE_SWITCH
-            ][CONF_NAME]
-        await setup_entity(var, sprinkler_controller)
+            var = cg.new_Pvariable(
+                sprinkler_controller[CONF_ID],
+                sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][CONF_NAME],
+            )
         await cg.register_component(var, sprinkler_controller)
 
         if len(sprinkler_controller[CONF_VALVES]) > 1:
