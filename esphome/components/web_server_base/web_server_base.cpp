@@ -13,10 +13,6 @@
 #endif
 #endif
 
-#ifdef USE_ESP_IDF
-#include "esphome/components/web_server_idf/web_server_idf_ota.h"
-#endif
-
 namespace esphome {
 namespace web_server_base {
 
@@ -39,13 +35,12 @@ void report_ota_error() {
   StreamString ss;
   Update.printError(ss);
   ESP_LOGW(TAG, "OTA Update failed! Error: %s", ss.c_str());
-#else
-  ESP_LOGW(TAG, "OTA Update failed! Error: %d", Update.get_error());
 #endif
 }
 
 void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const String &filename, size_t index,
                                      uint8_t *data, size_t len, bool final) {
+#ifdef USE_ARDUINO
   bool success;
   if (index == 0) {
     ESP_LOGI(TAG, "OTA Update Start: %s", filename.c_str());
@@ -60,9 +55,6 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
       Update.abort();
     }
     success = Update.begin(UPDATE_SIZE_UNKNOWN, U_FLASH);
-#endif
-#ifdef USE_ESP_IDF
-    success = Update.begin(OTA_SIZE_UNKNOWN);
 #endif
     if (!success) {
       report_ota_error();
@@ -99,27 +91,28 @@ void OTARequestHandler::handleUpload(AsyncWebServerRequest *request, const Strin
       report_ota_error();
     }
   }
+#endif
 }
 void OTARequestHandler::handleRequest(AsyncWebServerRequest *request) {
+#ifdef USE_ARDUINO
   AsyncWebServerResponse *response;
   if (!Update.hasError()) {
     response = request->beginResponse(200, "text/plain", "Update Successful!");
   } else {
-#ifdef USE_ARDUINO
     StreamString ss;
     ss.print("Update Failed: ");
     Update.printError(ss);
-#else
-    std::string ss = str_sprintf("Update failed! Error: %d", Update.get_error());
-#endif
     response = request->beginResponse(200, "text/plain", ss);
   }
   response->addHeader("Connection", "close");
   request->send(response);
+#endif
 }
 
 void WebServerBase::add_ota_handler() {
+#ifdef USE_ARDUINO
   this->add_handler(new OTARequestHandler(this));  // NOLINT
+#endif
 }
 float WebServerBase::get_setup_priority() const {
   // Before WiFi (captive portal)
