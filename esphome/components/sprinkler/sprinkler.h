@@ -201,14 +201,13 @@ class SprinklerValveRunRequest {
   SprinklerValveRunRequestOrigin origin_{USER};
 };
 
-class Sprinkler : public Component, public EntityBase {
+class Sprinkler : public Component {
  public:
-  Sprinkler();
-  Sprinkler(const std::string &name);
-
   void setup() override;
   void loop() override;
   void dump_config() override;
+
+  void set_name(const std::string &name) { this->name_ = name; }
 
   /// add a valve to the controller
   void add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControllerSwitch *enable_sw = nullptr);
@@ -423,8 +422,6 @@ class Sprinkler : public Component, public EntityBase {
   SprinklerSwitch *valve_pump_switch_by_pump_index(size_t pump_index);
 
  protected:
-  uint32_t hash_base() override;
-
   /// returns true if valve number is enabled
   bool valve_is_enabled_(size_t valve_number);
 
@@ -527,6 +524,8 @@ class Sprinkler : public Component, public EntityBase {
   /// Pump start/stop delay intervals
   uint32_t start_delay_{0};
   uint32_t stop_delay_{0};
+
+  std::string name_;
 
   /// Sprinkler controller state
   SprinklerState state_{IDLE};

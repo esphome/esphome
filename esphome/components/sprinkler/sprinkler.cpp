@@ -378,9 +378,6 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 
 SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
-Sprinkler::Sprinkler() {}
-Sprinkler::Sprinkler(const std::string &name) : EntityBase(name) {}
-
 void Sprinkler::setup() { this->all_valves_off_(true); }
 
 void Sprinkler::loop() {

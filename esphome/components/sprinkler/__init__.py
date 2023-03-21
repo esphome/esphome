@@ -103,6 +103,10 @@ def validate_min_max(config):
 
 def validate_sprinkler(config):
     for sprinkler_controller_index, sprinkler_controller in enumerate(config):
+        if CONF_NAME not in sprinkler_controller:
+            id = sprinkler_controller[CONF_ID]
+            sprinkler_controller[CONF_NAME] = id.id
+
         if len(sprinkler_controller[CONF_VALVES]) <= 1:
             exclusions = [
                 CONF_VALVE_OPEN_DELAY,
@@ -330,6 +334,7 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
 SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sprinkler),
+        cv.Optional(CONF_NAME): cv.string,
         cv.Optional(CONF_AUTO_ADVANCE_SWITCH): cv.maybe_simple_value(
             switch.switch_schema(
                 SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
@@ -424,7 +429,8 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
         ): cv.positive_time_period_seconds,
         cv.Required(CONF_VALVES): cv.ensure_list(SPRINKLER_VALVE_SCHEMA),
     }
-).extend(cv.ENTITY_BASE_SCHEMA)
+).extend(cv.COMPONENT_SCHEMA)
+
 
 CONFIG_SCHEMA = cv.All(
     cv.ensure_list(SPRINKLER_CONTROLLER_SCHEMA),
@@ -570,6 +576,7 @@ async def to_code(config):
                 sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][CONF_NAME],
             )
         await cg.register_component(var, sprinkler_controller)
+        cg.add(var.set_name(sprinkler_controller[CONF_NAME]))
 
         if len(sprinkler_controller[CONF_VALVES]) > 1:
             sw_var = await switch.new_switch(sprinkler_controller[CONF_MAIN_SWITCH])
