@@ -1029,16 +1029,6 @@ void WaveshareEPaper5P8In::dump_config() {
 //  - https://github.com/waveshare/e-Paper/blob/master/Arduino/epd5in83_V2/epd5in83_V2.cpp
 // ========================================================
 void WaveshareEPaper5P8InV2::initialize() {
-  /*
-    // Reset
-    this->reset_pin_->digital_write(false);
-    delay(20);
-    this->reset_pin_->digital_write(true);
-    delay(5);
-    this->reset_pin_->digital_write(false);
-    delay(20);
-  */
-
   // COMMAND POWER SETTING
   this->command(0x01);
   this->data(0x07);
