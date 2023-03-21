@@ -45,7 +45,7 @@ void APIServer::setup() {
 
   struct sockaddr_storage server;
 
-  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), htons(this->port_));
+  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (sl == 0) {
     ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
     this->mark_failed();
