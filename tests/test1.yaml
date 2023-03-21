@@ -1269,6 +1269,14 @@ sensor:
     name: DHT Absolute Humidity
     temperature: dht_temperature
     humidity: dht_humidity
+  - platform: bmp581
+    temperature:
+      name: "BMP581 Temperature"
+      iir_filter: 2x
+    pressure:
+      name: "BMP581 Pressure"
+      oversampling: 128x
+    i2c_id: i2c_bus
 
 esp32_touch:
   setup_mode: false

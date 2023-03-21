@@ -43,6 +43,7 @@ esphome/components/ble_client/* @buxtronix
 esphome/components/bluetooth_proxy/* @jesserockz
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bmp3xx/* @martgras
+esphome/components/bmp581/* @kahrendt
 esphome/components/bp1658cj/* @Cossid
 esphome/components/bp5758d/* @Cossid
 esphome/components/button/* @esphome/core
