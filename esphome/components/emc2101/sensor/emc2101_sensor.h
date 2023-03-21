@@ -19,13 +19,13 @@ class EMC2101Sensor : public PollingComponent {
   float get_setup_priority() const override;
 
   /** Used by ESPHome framework. */
-  void set_internal_temperature_sensor(sensor::Sensor *sensor) { internal_temperature_sensor_ = sensor; }
+  void set_internal_temperature_sensor(sensor::Sensor *sensor) { this->internal_temperature_sensor_ = sensor; }
   /** Used by ESPHome framework. */
-  void set_external_temperature_sensor(sensor::Sensor *sensor) { external_temperature_sensor_ = sensor; }
+  void set_external_temperature_sensor(sensor::Sensor *sensor) { this->external_temperature_sensor_ = sensor; }
   /** Used by ESPHome framework. */
-  void set_speed_sensor(sensor::Sensor *sensor) { speed_sensor_ = sensor; }
+  void set_speed_sensor(sensor::Sensor *sensor) { this->speed_sensor_ = sensor; }
   /** Used by ESPHome framework. */
-  void set_duty_cycle_sensor(sensor::Sensor *sensor) { duty_cycle_sensor_ = sensor; }
+  void set_duty_cycle_sensor(sensor::Sensor *sensor) { this->duty_cycle_sensor_ = sensor; }
 
  protected:
   Emc2101Component *parent_;
