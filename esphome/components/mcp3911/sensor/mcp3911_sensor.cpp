@@ -16,7 +16,7 @@ void MCP3911Sensor::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-float MCP3911Sensor::sample() { 
+float MCP3911Sensor::sample() {
     double val=0;
     /*
     this->parent_->c.status.read_reg_incr  = GROUP;
@@ -36,13 +36,12 @@ float MCP3911Sensor::sample() {
     } else if (this->channel_ == 1) {
         this->parent_->get_value(&val, 1);
     } else return -9999;
-   
    return (float) val;
 
 }
 
-void MCP3911Sensor::update() { 
-	this->publish_state(this->sample()); 
+void MCP3911Sensor::update() {
+	this->publish_state(this->sample());
 }
 
 }  // namespace adc128s102

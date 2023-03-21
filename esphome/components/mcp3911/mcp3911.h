@@ -70,7 +70,7 @@ namespace mcp3911 {
     // _ConfGain (0x09)
     typedef struct __attribute__ ((__packed__)) {
         Gain            ch0:3;
-        Gain            ch1:3; 
+        Gain            ch1:3;
         Boost         boost:2; // msb
     } _ConfGain;
 
@@ -97,7 +97,7 @@ namespace mcp3911 {
     typedef struct __attribute__ ((__packed__)) {
         bool   az_on_hi_speed: 1; // p. 33
         Dither         dither: 2;
-        Oversampling      osr: 3; 
+        Oversampling      osr: 3;
         Prescale     prescale: 2; // msb 15
 
         bool                 : 1;
@@ -105,8 +105,8 @@ namespace mcp3911 {
         bool          vrefext: 1;
         bool                 : 1;
         bool   ch0_shtdn_mode: 1;
-        bool   ch1_shtdn_mode: 1; 
-        bool        reset_ch0: 1; 
+        bool   ch1_shtdn_mode: 1;
+        bool        reset_ch0: 1;
         bool        reset_ch1: 1; // msb 7
     } _Config;
 
@@ -123,7 +123,7 @@ namespace mcp3911 {
     // _ConfRegMap (27) (0x1b)
     typedef struct __attribute__ ((__packed__)) {
         _ChVal              ch[2]; // 0x00 3,3
-        _ConfMod              mod; // 0x06 1 
+        _ConfMod              mod; // 0x06 1
         _ConfPhase          phase; // 0x07 2
         _ConfGain            gain; // 0x09 1
         _ConfStatus        status; // 0x0a 2
@@ -170,7 +170,7 @@ namespace mcp3911 {
         void set_dither(Dither dither) {dither_ = dither;};
 	void set_prescale(Prescale prescale) {prescale_ = prescale;};
         void set_clock_pin(InternalGPIOPin *clock_pin) {clk_pin_ = clock_pin;};
-        void set_reset_pin(InternalGPIOPin *reset_pin) {rst_pin_ = reset_pin;}; 
+        void set_reset_pin(InternalGPIOPin *reset_pin) {rst_pin_ = reset_pin;};
         void set_dataready_pin(InternalGPIOPin *dataready_pin) {dr_pin_ = dataready_pin;};
 
         void reset_mcp3911(void);

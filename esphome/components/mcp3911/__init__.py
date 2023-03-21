@@ -5,7 +5,11 @@ from esphome import pins
 from esphome.components import spi
 from esphome.components import output
 from esphome.const import (
-	CONF_ID
+    CONF_ID,
+    CONF_GAIN,
+    CONF_OVERSAMPLING,
+    CONF_DITHER,
+    CONF_CLK_PIN
 )
 
 DEPENDENCIES = ["spi"]
@@ -13,12 +17,8 @@ MULTI_CONF = False
 CODEOWNERS = ["@anze.jarni"]
 AUTO_LOAD = ['output']
 
-CONF_GAIN="gain"
 CONF_BOOST="boost"
-CONF_OVERSAMPLING="oversampling"
-CONF_DITHER="dither"
 CONF_PRESCALE="prescale"
-CONF_CLK_PIN="clk_pin"
 CONF_RST_PIN="rst_pin"
 CONF_DR_PIN="dataready_pin"
 
@@ -79,7 +79,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_RST_PIN): pins.gpio_output_pin_schema,
         cv.Optional(CONF_DR_PIN): pins.gpio_input_pin_schema,
         cv.Optional(CONF_GAIN, default="x1"): cv.enum(GAINS),
-	cv.Optional(CONF_BOOST, default="x2"): cv.enum(BOOSTS),
+	    cv.Optional(CONF_BOOST, default="x2"): cv.enum(BOOSTS),
         cv.Optional(CONF_OVERSAMPLING, default="4096"): cv.enum(OVERSAMPLINGS),
         cv.Optional(CONF_DITHER, default="max"): cv.enum(DITHERS),
         cv.Optional(CONF_PRESCALE, default="mclk1"): cv.enum(PRESCALES)
@@ -99,8 +99,6 @@ async def to_code(config):
     cg.add(var.set_oversampling(config[CONF_OVERSAMPLING]))
     cg.add(var.set_dither(config[CONF_DITHER]))
     cg.add(var.set_prescale(config[CONF_PRESCALE]))
-
-    
     
     clk_pin = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
     cg.add(var.set_clock_pin(clk_pin))

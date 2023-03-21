@@ -8,15 +8,6 @@ namespace mcp3911 {
 static const char *const TAG = "mcp3911";
 
   void MCP3911InteruptStore::gpio_intr(MCP3911InteruptStore *store) { store->dataready = true; }
-  /*
-  void IRAM_ATTR MCP3911::dataready_isr(MCP3911 *arg) {
-      //double val=0;
-      //arg->c.status.read_reg_incr  = TYPE;
-      //arg->reg_write(REG_STATUSCOM, REGISTER, 2);
-      arg->data_ready = false;
-      arg->reg_read(REG_CHANNEL_0, TYPE);
-      arg->data_ready = true;
-  }*/
 
   void MCP3911::loop() {
 	if (!this->store_.dataready && this->dr_pin_ != nullptr)
@@ -42,13 +33,6 @@ static const char *const TAG = "mcp3911";
     });
 
     this->high_freq_.start();
-
-    /*
-    //Allow watchdog timer to timeout at 1000ms to allow ISr
-    rtc_wdt_set_length_of_reset_signal(RTC_WDT_SYS_RESET_SIG, RTC_WDT_LENGTH_3_2us);
-    rtc_wdt_set_stage(RTC_WDT_STAGE0, RTC_WDT_STAGE_ACTION_RESET_SYSTEM);
-    rtc_wdt_set_time(RTC_WDT_STAGE0, 5000);
-    */
     
     //Setup outputs (4MHz clock and reset from mcu)
     this->rst_pin_->pin_mode(gpio::FLAG_OUTPUT);
@@ -68,13 +52,13 @@ static const char *const TAG = "mcp3911";
       this->dr_pin_->pin_mode(gpio::FLAG_INPUT);
       this->dr_pin_->setup();
       this->store_.pin = this->dr_pin_->to_isr();
-      this->dr_pin_->attach_interrupt(MCP3911InteruptStore::gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE); 
+      this->dr_pin_->attach_interrupt(MCP3911InteruptStore::gpio_intr, &this->store_, gpio::INTERRUPT_FALLING_EDGE);
     }
     
     this->spi_setup();
     this->reset_mcp3911();
     
-    //Start with reading the register 
+    //Start with reading the register
     reg_read(REG_STATUSCOM, REGISTER, 2);
 
     //this->exit_reset_mode();
@@ -125,7 +109,7 @@ static const char *const TAG = "mcp3911";
     c.config.reset_ch1 = 0;
 
     
-    //Read all 27 registers, write 
+    //Read all 27 registers, write
     c.status.read_reg_incr = ALL;
     c.status.write_reg_incr = TYPE;
 
@@ -142,7 +126,7 @@ static const char *const TAG = "mcp3911";
   }
 
   void MCP3911::dump_config() {
-    ESP_LOGCONFIG(TAG, "MCP3911 Config:"); 
+    ESP_LOGCONFIG(TAG, "MCP3911 Config:");
     LOG_PIN("  CS Pin:", this->cs_);
     LOG_PIN("  4MHz CLK Pin:", this->clk_pin_);
     LOG_PIN("  Reset Pin: ", this->rst_pin_);
@@ -155,24 +139,6 @@ static const char *const TAG = "mcp3911";
     //setup();
   }
 
-  /*
-  void MCP3911::update() {
-    double v0,v1;
-    
-    this->reg_read(REG_CHANNEL_0, TYPE); // read 6 regs  
-    this->get_value(&v0, 0);
-    this->get_value(&v1, 1);
-
-    ESP_LOGD(TAG, "CH0 Voltage %d", v0);
-    ESP_LOGD(TAG, "CH1 Voltage %d", v1);
-
-    this->ch0->publish_state(v0);
-    this->ch1->publish_state(v1);
-
-    publish_state(0);
-  }
-  */
-
    void MCP3911::SPI_read(uint8_t addr, uint8_t *buffer, size_t count) {
       this->enable();
       this->transfer_byte(addr << 1 | 1);
@@ -184,14 +150,6 @@ static const char *const TAG = "mcp3911";
           //ESP_LOGCONFIG(TAG, "Read SPI from addr: %d - byte: %d, %02x", curaddr++, buff, buff);
       }
       this->disable();
-
-      /*
-      digitalWrite(ADC_CS_PIN, LOW);
-      SPI.transfer(addr << 1 | 1);
-      while (count--)
-        *buffer++ = SPI.transfer(0xff);
-      digitalWrite(ADC_CS_PIN, HIGH);
-      */
   }
 
   void MCP3911::SPI_write(uint8_t addr, uint8_t *buffer, size_t count) {
@@ -200,16 +158,9 @@ static const char *const TAG = "mcp3911";
       this->transfer_byte(addr << 1 | 0);
       while (count--) {
           this->transfer_byte(*buffer++);
-	  //ESP_LOGCONFIG(TAG, "Wrote SPI to addr: %d - bytes: %d, %02x", curaddr, *buffer, *buffer);
+         //ESP_LOGCONFIG(TAG, "Wrote SPI to addr: %d - bytes: %d, %02x", curaddr, *buffer, *buffer);
       }
       this->disable();
-      /*
-      digitalWrite(ADC_CS_PIN, LOW);
-      SPI.transfer(addr << 1 | 0);
-      while (count--)
-        SPI.transfer(*buffer++);
-      digitalWrite(ADC_CS_PIN, HIGH);
-      */
   }
 
   void MCP3911::exit_reset_mode(void) {
@@ -226,10 +177,10 @@ static const char *const TAG = "mcp3911";
       uint8_t *data = ((uint8_t *)&c)+addr;
       if (count == 0) {
           switch (g) {
-              case REGISTER: count = 1; 
+              case REGISTER: count = 1;
                              break;
               case GROUP: switch (addr) {
-                              case REG_CHANNEL_0: 
+                              case REG_CHANNEL_0:
                               case REG_CHANNEL_1:  count = 3; break;
                               case REG_MOD: 
                               case REG_STATUSCOM:  count = 4; break;
@@ -260,7 +211,7 @@ static const char *const TAG = "mcp3911";
 
       if (count == 0) {
           switch (g) {
-              case REGISTER: count = 1; 
+              case REGISTER: count = 1;
                              break;
               case TYPE: switch (addr) {
                              case REG_MOD: count = 21; break;
