@@ -11,7 +11,7 @@ EntityBase::EntityBase(std::string name) : name_(std::move(name)) { this->calc_o
 // Entity Name
 const std::string &EntityBase::get_name() const { return this->name_; }
 void EntityBase::set_name(const std::string &name) {
-  if (name == "") {
+  if (name.empty()) {
     this->name_ = App.get_friendly_name();
     this->has_own_name_ = false;
   } else {
