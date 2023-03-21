@@ -30,36 +30,7 @@ using namespace display;
 
 OnlineImage::OnlineImage(const char *url, uint16_t width, uint16_t height, ImageFormat format, ImageType type, uint32_t download_buffer_size)
   : buffer_(width, height, type), url_(url), download_buffer_size_(download_buffer_size), format_(format),
-   Image(nullptr, 0, 0, type) {
-    createDefaultImage(width, height);
-}
-
-uint8_t *OnlineImage::createDefaultImage(uint16_t width, uint16_t height) {
-  auto buf = buffer_.resize(width, height);
-
-  if (!buf) {
-    ESP_LOGE(TAG, "Could not allocate buffer for image.");
-    return buf;
-  }
-
-  data_start_ = buf;
-  width_ = buffer_.get_width();
-  height_ = buffer_.get_height();
-
-  uint16_t *buffer = (uint16_t *) buf;
-
-  for (uint16_t i = 0; i < width; i++) {
-    for (uint16_t j = 0; j < height; j++) {
-      buffer_.draw_pixel(i, j, Color::BLACK);
-      if (i == 0 || i == width - 1 || j == 0 || j == height - 1) {
-        buffer_.draw_pixel(i, j, Color::WHITE);
-      }
-      if (i == j || width - i == j) {
-        buffer_.draw_pixel(i, j, Color(255, 0, 0, 255));
-      }
-    }
-  }
-  return buf;
+    Image(nullptr, 0, 0, type) {
 }
 
 bool OnlineImage::get_pixel(int x, int y) const {
@@ -127,6 +98,8 @@ void ImageDecoder::set_size(uint16_t width, uint16_t height) {
     y_scale = 1.0;
   } else {
     ESP_LOGD(TAG, "Not resizing buffer (%d, %d)", buffer_->get_width(), buffer_->get_height());
+    // Make sure the buffer is allocated; in case it was released before.
+    buffer_->resize(buffer_->get_width(), buffer_->get_height());
     x_scale = (double)buffer_->get_width() / width;
     y_scale = (double)buffer_->get_height() / height;
   }

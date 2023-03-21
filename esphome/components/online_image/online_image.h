@@ -41,9 +41,8 @@ class OnlineImage: public PollingComponent,
 
   void update() override;
 
+  void release() { buffer_.release(); width_ = 0; height_ = 0; }
  protected:
-  uint8_t *createDefaultImage(uint16_t width, uint16_t height);
-
   Buffer buffer_;
   const char *url_;
   const uint32_t download_buffer_size_;
