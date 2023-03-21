@@ -107,7 +107,7 @@ async def to_code(config):
     elif config[CONF_TYPE] in ["RGB565", "TRANSPARENT_IMAGE"]:
         image = image.convert("RGBA")
         pixels = list(image.getdata())
-        data = [0 for _ in range(height * width * 1)]
+        data = [0 for _ in range(height * width * 2)]
         pos = 0
         for pix in pixels:
             R = pix[0] >> 3
