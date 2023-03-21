@@ -33,7 +33,7 @@ static const uint8_t EMC2101_REGISTER_WHOAMI = 0xFD;             // Chip ID regi
 // 0 (default): The ALERT/TECH pin will function as an open drain, active low interrupt.
 // 1: The ALERT/TECH pin will function as a high impedance TACH input. This may require an
 // external pull-up resistor to set the proper signaling levels.
-static const uint8_t EMC2101_ALT_TCH_BIT  = 1 << 2;
+static const uint8_t EMC2101_ALT_TCH_BIT = 1 << 2;
 
 // Determines the FAN output mode.
 // 0 (default): PWM output enabled at FAN pin.
