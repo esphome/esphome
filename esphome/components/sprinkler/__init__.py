@@ -103,10 +103,6 @@ def validate_min_max(config):
 
 def validate_sprinkler(config):
     for sprinkler_controller_index, sprinkler_controller in enumerate(config):
-        if CONF_NAME not in sprinkler_controller:
-            id = sprinkler_controller[CONF_ID]
-            sprinkler_controller[CONF_NAME] = id.id
-
         if len(sprinkler_controller[CONF_VALVES]) <= 1:
             exclusions = [
                 CONF_VALVE_OPEN_DELAY,
