@@ -23,7 +23,6 @@ namespace online_image {
 static void initCallback(pngle_t *pngle, uint32_t w, uint32_t h) {
   PngDecoder *decoder = (PngDecoder *) pngle_get_user_data(pngle);
   decoder->set_size(w, h);
-//  decoder->buffer().draw_rectangle(0, 0, w, h, Color::BLACK);
 }
 
 /**
@@ -44,7 +43,8 @@ static void drawCallback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uin
 }
 
 
-void PngDecoder::prepare(WiFiClient *stream) {
+void PngDecoder::prepare(WiFiClient *stream, uint32_t download_size) {
+  ImageDecoder::prepare(stream, download_size);
   pngle_set_user_data(pngle, this);
   pngle_set_init_callback(pngle, initCallback);
   pngle_set_draw_callback(pngle, drawCallback);
@@ -54,13 +54,11 @@ size_t HOT PngDecoder::decode(HTTPClient &http, WiFiClient *stream, std::vector<
   int remain = 0;
   int total = 0;
   uint8_t *buffer = buf.data();
-  ESP_LOGD(TAG, "Buffer size: %d", buf.size());
-  ESP_LOGD(TAG, "Free heap: %d", ESP.getFreeHeap());
   while (http.connected()) {
     App.feed_wdt();
     size_t size = stream->available();
-    if (!size) {
-      delay(1);
+    if (!size || size < 1024 && download_size_ - total > size) {
+      delay(10);
       continue;
     }
 
@@ -86,7 +84,6 @@ size_t HOT PngDecoder::decode(HTTPClient &http, WiFiClient *stream, std::vector<
     }
   }
   App.feed_wdt();
-  ESP_LOGD(TAG, "Free heap: %d", ESP.getFreeHeap());
   return total;
 }
 

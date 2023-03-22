@@ -5,7 +5,8 @@
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/components/display/image.h"
 #include "esphome/core/helpers.h"
-#include "buffer_helper.h"
+
+#include "image_decoder.h"
 
 namespace esphome {
 namespace online_image {
@@ -13,6 +14,8 @@ namespace online_image {
  * @brief Format that the image is encoded with.
  */
 enum ImageFormat {
+  /** Automatically detect from MIME type. */
+  AUTO,
   /** JPEG format. Not supported yet. */
   JPEG,
   /** PNG format. */
@@ -32,21 +35,45 @@ class OnlineImage: public PollingComponent,
    * @param format Format that the image is encoded in (@see ImageFormat).
    * @param buffer_size Size of the buffer used to download the image.
    */
-  OnlineImage(const char *url, uint16_t width, uint16_t height, ImageFormat format, display::ImageType type, uint32_t buffer_size);
+  OnlineImage(const char *url, uint32_t width, uint32_t height, ImageFormat format, display::ImageType type, uint32_t buffer_size);
 
   bool get_pixel(int x, int y) const override;
+  Color get_rgba_pixel(int x, int y) const override;
   Color get_color_pixel(int x, int y) const override;
-  Color get_rgb565_pixel(int x, int y) const override { return get_color_pixel(x, y); }
-  Color get_grayscale_pixel(int x, int y) const override  { return get_color_pixel(x, y); }
+  Color get_rgb565_pixel(int x, int y) const override;
+  Color get_grayscale_pixel(int x, int y) const override;
 
   void update() override;
 
-  void release() { buffer_.release(); width_ = 0; height_ = 0; }
+  void set_url(const char *url) { url_ = url; }
+  void release();
+
  protected:
-  Buffer buffer_;
+  using Allocator = ExternalRAMAllocator<uint8_t>;
+  Allocator allocator_{  Allocator::Flags::ALLOW_FAILURE };
+
+  uint32_t get_buffer_size() const { return get_buffer_size(width_, height_); }
+  uint32_t get_buffer_size(uint32_t width, uint32_t height) const { return std::ceil(bits_per_pixel_ * width * height / 8.0); }
+
+  uint32_t get_position(uint32_t x, uint32_t y) const {
+    return ((x + y * width_) * bits_per_pixel_) / 8;
+  }
+
+  ESPHOME_ALWAYS_INLINE bool auto_resize() const { return fixed_width_ == 0 || fixed_height_ == 0; }
+
+  bool resize(uint32_t width, uint32_t height);
+  void draw_pixel(uint32_t x, uint32_t y, Color color);
+
+  uint8_t *buffer_;
   const char *url_;
   const uint32_t download_buffer_size_;
   const ImageFormat format_;
+  const uint8_t bits_per_pixel_;
+  const uint8_t fixed_width_;
+  const uint8_t fixed_height_;
+
+  friend void ImageDecoder::set_size(uint32_t width, uint32_t height);
+  friend void ImageDecoder::draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const Color &color);
 };
 
 }  // namespace online_image
