@@ -203,11 +203,11 @@ class SprinklerValveRunRequest {
 
 class Sprinkler : public Component {
  public:
-  Sprinkler(const std::string &name);
-
   void setup() override;
   void loop() override;
   void dump_config() override;
+
+  void set_name(const std::string &name) { this->name_ = name; }
 
   /// add a valve to the controller
   void add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControllerSwitch *enable_sw = nullptr);
@@ -422,8 +422,6 @@ class Sprinkler : public Component {
   SprinklerSwitch *valve_pump_switch_by_pump_index(size_t pump_index);
 
  protected:
-  std::string name_;
-
   /// returns true if valve number is enabled
   bool valve_is_enabled_(size_t valve_number);
 
@@ -527,6 +525,8 @@ class Sprinkler : public Component {
   uint32_t start_delay_{0};
   uint32_t stop_delay_{0};
 
+  std::string name_;
+
   /// Sprinkler controller state
   SprinklerState state_{IDLE};
 
@@ -573,9 +573,7 @@ class Sprinkler : public Component {
   std::vector<SprinklerValveOperator> valve_op_{2};
 
   /// Valve control timers
-  std::vector<SprinklerTimer> timer_{
-      {this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)},
-      {this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)}};
+  std::vector<SprinklerTimer> timer_{};
 
   /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
   std::vector<Sprinkler *> other_controllers_;

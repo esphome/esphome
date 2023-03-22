@@ -91,10 +91,10 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   void dump_config() override;
 
   void set_address(uint32_t address) {
-    this->address_[0] = (uint8_t)(address >> 24);
-    this->address_[1] = (uint8_t)(address >> 16);
-    this->address_[2] = (uint8_t)(address >> 8);
-    this->address_[3] = (uint8_t)(address & 0xFF);
+    this->address_[0] = (uint8_t) (address >> 24);
+    this->address_[1] = (uint8_t) (address >> 16);
+    this->address_[2] = (uint8_t) (address >> 8);
+    this->address_[3] = (uint8_t) (address & 0xFF);
   }
   void set_sensing_pin(GPIOPin *sensing_pin) { this->sensing_pin_ = sensing_pin; }
   void set_password(uint32_t password) { this->password_ = password; }
