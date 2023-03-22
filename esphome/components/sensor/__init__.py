@@ -194,6 +194,7 @@ SensorPublishAction = sensor_ns.class_("SensorPublishAction", automation.Action)
 Filter = sensor_ns.class_("Filter")
 QuantileFilter = sensor_ns.class_("QuantileFilter", Filter)
 MedianFilter = sensor_ns.class_("MedianFilter", Filter)
+SkipInitialFilter = sensor_ns.class_("SkipInitialFilter", Filter)
 MinFilter = sensor_ns.class_("MinFilter", Filter)
 MaxFilter = sensor_ns.class_("MaxFilter", Filter)
 SlidingWindowMovingAverageFilter = sensor_ns.class_(
@@ -363,6 +364,11 @@ MIN_SCHEMA = cv.All(
     ),
     validate_send_first_at,
 )
+
+
+@FILTER_REGISTRY.register("skip_initial", SkipInitialFilter, cv.positive_not_null_int)
+async def skip_initial_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
 
 
 @FILTER_REGISTRY.register("min", MinFilter, MIN_SCHEMA)
