@@ -222,7 +222,9 @@ async def beeper_action_to_code(config, action_id, template_arg, args):
 
 # Start self cleaning action action
 @automation.register_action(
-    "climate.haier.start_self_cleaning", StartSelfCleaningAction, HAIER_BASE_ACTION_SCHEMA
+    "climate.haier.start_self_cleaning",
+    StartSelfCleaningAction,
+    HAIER_BASE_ACTION_SCHEMA,
 )
 async def start_self_cleaning_to_code(config, action_id, template_arg, args):
     fullid, paren = await cg.get_variable_with_full_id(config[CONF_ID])
