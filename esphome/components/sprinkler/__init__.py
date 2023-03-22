@@ -330,6 +330,7 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
 SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(Sprinkler),
+        cv.Optional(CONF_NAME): cv.string,
         cv.Optional(CONF_AUTO_ADVANCE_SWITCH): cv.maybe_simple_value(
             switch.switch_schema(
                 SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
@@ -424,7 +425,8 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
         ): cv.positive_time_period_seconds,
         cv.Required(CONF_VALVES): cv.ensure_list(SPRINKLER_VALVE_SCHEMA),
     }
-).extend(cv.ENTITY_BASE_SCHEMA)
+).extend(cv.COMPONENT_SCHEMA)
+
 
 CONFIG_SCHEMA = cv.All(
     cv.ensure_list(SPRINKLER_CONTROLLER_SCHEMA),
@@ -559,16 +561,19 @@ async def sprinkler_simple_action_to_code(config, action_id, template_arg, args)
 
 async def to_code(config):
     for sprinkler_controller in config:
-        if len(sprinkler_controller[CONF_VALVES]) > 1:
-            var = cg.new_Pvariable(
-                sprinkler_controller[CONF_ID],
-                sprinkler_controller[CONF_MAIN_SWITCH][CONF_NAME],
-            )
+        var = cg.new_Pvariable(sprinkler_controller[CONF_ID])
+
+        if CONF_NAME in sprinkler_controller:
+            cg.add(var.set_name(sprinkler_controller[CONF_NAME]))
         else:
-            var = cg.new_Pvariable(
-                sprinkler_controller[CONF_ID],
-                sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][CONF_NAME],
-            )
+            if len(sprinkler_controller[CONF_VALVES]) > 1:
+                name = sprinkler_controller[CONF_MAIN_SWITCH][CONF_NAME]
+            else:
+                name = sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][
+                    CONF_NAME
+                ]
+            cg.add(var.set_name(name))
+
         await cg.register_component(var, sprinkler_controller)
 
         if len(sprinkler_controller[CONF_VALVES]) > 1:

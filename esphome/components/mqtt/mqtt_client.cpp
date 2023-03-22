@@ -2,16 +2,16 @@
 
 #ifdef USE_MQTT
 
+#include <utility>
+#include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/components/network/util.h"
-#include <utility>
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
-#include "lwip/err.h"
 #include "lwip/dns.h"
+#include "lwip/err.h"
 #include "mqtt_component.h"
 
 namespace esphome {
@@ -104,7 +104,11 @@ void MQTTClientComponent::start_dnslookup_() {
       // Got IP immediately
       this->dns_resolved_ = true;
 #ifdef USE_ESP32
+#if LWIP_IPV6
       this->ip_ = addr.u_addr.ip4.addr;
+#else
+      this->ip_ = addr.addr;
+#endif
 #endif
 #ifdef USE_ESP8266
       this->ip_ = addr.addr;
@@ -160,8 +164,12 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
     a_this->dns_resolve_error_ = true;
   } else {
 #ifdef USE_ESP32
+#if LWIP_IPV6
     a_this->ip_ = ipaddr->u_addr.ip4.addr;
+#else
+    a_this->ip_ = ipaddr->addr;
 #endif
+#endif  // USE_ESP32
 #ifdef USE_ESP8266
     a_this->ip_ = ipaddr->addr;
 #endif

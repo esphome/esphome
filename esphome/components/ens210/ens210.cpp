@@ -168,7 +168,7 @@ void ENS210Component::update() {
       return;
     }
     // Pack bytes for humidity
-    h_val_data = (uint32_t)((uint32_t) data[5] << 16 | (uint32_t) data[4] << 8 | (uint32_t) data[3]);
+    h_val_data = (uint32_t) ((uint32_t) data[5] << 16 | (uint32_t) data[4] << 8 | (uint32_t) data[3]);
     // Extract humidity data and update the status
     extract_measurement_(h_val_data, &humidity_data, &humidity_status);
 
@@ -183,7 +183,7 @@ void ENS210Component::update() {
       return;
     }
     // Pack bytes for temperature
-    t_val_data = (uint32_t)((uint32_t) data[2] << 16 | (uint32_t) data[1] << 8 | (uint32_t) data[0]);
+    t_val_data = (uint32_t) ((uint32_t) data[2] << 16 | (uint32_t) data[1] << 8 | (uint32_t) data[0]);
     // Extract temperature data and update the status
     extract_measurement_(t_val_data, &temperature_data, &temperature_status);
 
