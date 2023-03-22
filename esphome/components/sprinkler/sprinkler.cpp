@@ -138,15 +138,7 @@ float SprinklerControllerSwitch::get_setup_priority() const { return setup_prior
 Trigger<> *SprinklerControllerSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }
 Trigger<> *SprinklerControllerSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
 
-void SprinklerControllerSwitch::setup() {
-  this->state = this->get_initial_state_with_restore_mode().value_or(false);
-
-  if (this->state) {
-    this->turn_on();
-  } else {
-    this->turn_off();
-  }
-}
+void SprinklerControllerSwitch::setup() { this->state = this->get_initial_state_with_restore_mode().value_or(false); }
 
 void SprinklerControllerSwitch::dump_config() { LOG_SWITCH("", "Sprinkler Switch", this); }
 
@@ -378,7 +370,11 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 
 SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
-void Sprinkler::setup() { this->all_valves_off_(true); }
+void Sprinkler::setup() {
+  this->timer_.push_back({this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
+  this->timer_.push_back({this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
+  this->all_valves_off_(true);
+}
 
 void Sprinkler::loop() {
   for (auto &p : this->pump_) {

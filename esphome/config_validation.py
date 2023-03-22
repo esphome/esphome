@@ -211,6 +211,9 @@ RESERVED_IDS = [
     "open",
     "setup",
     "loop",
+    "uart0",
+    "uart1",
+    "uart2",
 ]
 
 
@@ -1097,7 +1100,7 @@ def possibly_negative_percentage(value):
     if isinstance(value, str):
         try:
             if value.endswith("%"):
-                has_percent_sign = False
+                has_percent_sign = True
                 value = float(value[:-1].rstrip()) / 100.0
             else:
                 value = float(value)
