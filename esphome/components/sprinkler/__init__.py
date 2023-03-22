@@ -565,18 +565,20 @@ async def sprinkler_simple_action_to_code(config, action_id, template_arg, args)
 
 async def to_code(config):
     for sprinkler_controller in config:
-        if len(sprinkler_controller[CONF_VALVES]) > 1:
-            var = cg.new_Pvariable(
-                sprinkler_controller[CONF_ID],
-                sprinkler_controller[CONF_MAIN_SWITCH][CONF_NAME],
-            )
+        var = cg.new_Pvariable(sprinkler_controller[CONF_ID])
+
+        if CONF_NAME in sprinkler_controller:
+            cg.add(var.set_name(sprinkler_controller[CONF_NAME]))
         else:
-            var = cg.new_Pvariable(
-                sprinkler_controller[CONF_ID],
-                sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][CONF_NAME],
-            )
+            if len(sprinkler_controller[CONF_VALVES]) > 1:
+                name = sprinkler_controller[CONF_MAIN_SWITCH][CONF_NAME]
+            else:
+                name = sprinkler_controller[CONF_VALVES][0][CONF_VALVE_SWITCH][
+                    CONF_NAME
+                ]
+            cg.add(var.set_name(name))
+
         await cg.register_component(var, sprinkler_controller)
-        cg.add(var.set_name(sprinkler_controller[CONF_NAME]))
 
         if len(sprinkler_controller[CONF_VALVES]) > 1:
             sw_var = await switch.new_switch(sprinkler_controller[CONF_MAIN_SWITCH])

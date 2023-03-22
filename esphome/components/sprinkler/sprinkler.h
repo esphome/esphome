@@ -573,9 +573,7 @@ class Sprinkler : public Component {
   std::vector<SprinklerValveOperator> valve_op_{2};
 
   /// Valve control timers
-  std::vector<SprinklerTimer> timer_{
-      {this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)},
-      {this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)}};
+  std::vector<SprinklerTimer> timer_{};
 
   /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
   std::vector<Sprinkler *> other_controllers_;

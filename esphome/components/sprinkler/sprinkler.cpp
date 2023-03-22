@@ -378,7 +378,11 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 
 SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
-void Sprinkler::setup() { this->all_valves_off_(true); }
+void Sprinkler::setup() {
+  this->timer_.push_back({this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
+  this->timer_.push_back({this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
+  this->all_valves_off_(true);
+}
 
 void Sprinkler::loop() {
   for (auto &p : this->pump_) {
