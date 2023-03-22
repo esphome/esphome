@@ -138,15 +138,7 @@ float SprinklerControllerSwitch::get_setup_priority() const { return setup_prior
 Trigger<> *SprinklerControllerSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }
 Trigger<> *SprinklerControllerSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
 
-void SprinklerControllerSwitch::setup() {
-  this->state = this->get_initial_state_with_restore_mode().value_or(false);
-
-  if (this->state) {
-    this->turn_on();
-  } else {
-    this->turn_off();
-  }
-}
+void SprinklerControllerSwitch::setup() { this->state = this->get_initial_state_with_restore_mode().value_or(false); }
 
 void SprinklerControllerSwitch::dump_config() { LOG_SWITCH("", "Sprinkler Switch", this); }
 
@@ -378,10 +370,11 @@ SprinklerValveOperator *SprinklerValveRunRequest::valve_operator() { return this
 
 SprinklerValveRunRequestOrigin SprinklerValveRunRequest::request_is_from() { return this->origin_; }
 
-Sprinkler::Sprinkler() {}
-Sprinkler::Sprinkler(const std::string &name) : EntityBase(name) {}
-
-void Sprinkler::setup() { this->all_valves_off_(true); }
+void Sprinkler::setup() {
+  this->timer_.push_back({this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)});
+  this->timer_.push_back({this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)});
+  this->all_valves_off_(true);
+}
 
 void Sprinkler::loop() {
   for (auto &p : this->pump_) {
@@ -1217,8 +1210,6 @@ SprinklerSwitch *Sprinkler::valve_pump_switch_by_pump_index(size_t pump_index) {
   }
   return nullptr;
 }
-
-uint32_t Sprinkler::hash_base() { return 3129891955UL; }
 
 bool Sprinkler::valve_is_enabled_(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
