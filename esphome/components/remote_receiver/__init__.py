@@ -33,9 +33,10 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.SplitDefault(
                 CONF_BUFFER_SIZE, esp32="10000b", esp8266="1000b"
             ): cv.validate_bytes,
-            cv.Optional(
-                CONF_FILTER, default="50us"
-            ): cv.All(cv.positive_time_period_microseconds, cv.Range(max=TimePeriod(microseconds=255))),
+            cv.Optional(CONF_FILTER, default="50us"): cv.All(
+                cv.positive_time_period_microseconds,
+                cv.Range(max=TimePeriod(microseconds=255)),
+            ),
             cv.Optional(
                 CONF_IDLE, default="10ms"
             ): cv.positive_time_period_microseconds,
