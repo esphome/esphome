@@ -1215,8 +1215,6 @@ SprinklerSwitch *Sprinkler::valve_pump_switch_by_pump_index(size_t pump_index) {
   return nullptr;
 }
 
-uint32_t Sprinkler::hash_base() { return 3129891955UL; }
-
 bool Sprinkler::valve_is_enabled_(const size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
     if (this->valve_[valve_number].enable_switch != nullptr) {
