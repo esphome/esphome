@@ -17,18 +17,13 @@ class PngDecoder : public ImageDecoder {
   /**
    * @brief Construct a new PNG Decoder object.
    *
-   * @param display The display to draw the decoded image to.
+   * @param display The image to decode the stream into.
    */
-  PngDecoder(Buffer *buffer) : ImageDecoder(buffer), pngle(pngle_new()) {}
+  PngDecoder(OnlineImage *image) : ImageDecoder(image), pngle(pngle_new()) {}
   virtual ~PngDecoder() { pngle_destroy(pngle); }
 
-  void prepare(WiFiClient *stream) override;
+  void prepare(WiFiClient *stream, uint32_t download_size) override;
   size_t decode(HTTPClient &http, WiFiClient *stream, std::vector<uint8_t> &buffer) override;
-
-  /**
-   * @return The display to draw to. Needed by the callback function.
-   */
-  const Buffer *buffer() { return buffer_; }
 
  private:
   pngle_t *pngle;

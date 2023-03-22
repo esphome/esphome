@@ -1,6 +1,8 @@
 #pragma once
 #ifdef USE_ARDUINO
 
+#include "esphome/core/defines.h"
+
 #ifdef USE_ESP32
 #include <HTTPClient.h>
 #endif
@@ -11,10 +13,12 @@
 #endif
 #endif
 
-#include "buffer_helper.h"
+#include "esphome/core/color.h"
 
 namespace esphome {
 namespace online_image {
+
+class OnlineImage;
 
 /**
  * @brief Class to abstract decoding different image formats.
@@ -24,20 +28,21 @@ class ImageDecoder {
   /**
    * @brief Construct a new Image Decoder object
    *
-   * @param buffer The buffer to draw the decoded image to.
+   * @param image The image to decode the stream into.
    */
-  ImageDecoder(Buffer *buffer) : buffer_(buffer){};
+  ImageDecoder(OnlineImage *image) : image_(image){}
   virtual ~ImageDecoder() = default;
 
   /**
    * @brief Initialize the decoder.
    *
    * @param stream WiFiClient to read the data from, in case the decoder needs initial data to auto-configure itself.
+   * @param download_size The total number of bytes that need to be download for the image.
    */
-  virtual void prepare(WiFiClient *stream){};
+  virtual void prepare(WiFiClient *stream, uint32_t download_size){ download_size_ = download_size; }
 
   /**
-   * @brief Decode the image and draw it to the display.
+   * @brief Decode the stream into the image.
    *
    * @param http HTTPClient object, to detect when the image has been fully downloaded.
    * @param stream The WiFiClient stream to read the image from.
@@ -45,15 +50,15 @@ class ImageDecoder {
    *
    * @return int the total number of bytes received over HTTP.
    */
-  virtual size_t decode(HTTPClient &http, WiFiClient *stream, std::vector<uint8_t> &buffer) { return 0; };
+  virtual size_t decode(HTTPClient &http, WiFiClient *stream, std::vector<uint8_t> &buffer) { return 0; }
 
   /**
-   * @brief Request the buffer size to be set to the actual size if the image.
+   * @brief Request the image to be resized once the actual dimensions are known.
    *
    * @param width The image's width.
    * @param height The image's height.
    */
-  void set_size(uint16_t width, uint16_t height);
+  void set_size(uint32_t width, uint32_t height);
 
   /**
    * @brief Draw a rectangle on the display_buffer using the defined color.
@@ -66,20 +71,13 @@ class ImageDecoder {
    * @param h The height of the rectangle.
    * @param color The color to draw the rectangle with.
    */
-  void draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, Color color);
+  void draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const Color &color);
 
-  /**
-   * @brief Converts an RGB color to a 1-bit grayscale color.
-   *
-   * @param color The color to convert from; the alpha channel will be ignored.
-   * @return Whether the 8-bit grayscale equivalent color is brighter than average (i.e. brighter than 0x7F).
-   */
-  bool is_color_on(const Color &color);
-
-  Buffer *buffer_;
  protected:
-  double x_scale = 1.0;
-  double y_scale = 1.0;
+  OnlineImage *image_;
+  uint32_t download_size_ = 0;
+  double x_scale_ = 1.0;
+  double y_scale_ = 1.0;
 };
 
 
