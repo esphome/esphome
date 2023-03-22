@@ -138,15 +138,7 @@ float SprinklerControllerSwitch::get_setup_priority() const { return setup_prior
 Trigger<> *SprinklerControllerSwitch::get_turn_on_trigger() const { return this->turn_on_trigger_; }
 Trigger<> *SprinklerControllerSwitch::get_turn_off_trigger() const { return this->turn_off_trigger_; }
 
-void SprinklerControllerSwitch::setup() {
-  this->state = this->get_initial_state_with_restore_mode().value_or(false);
-
-  if (this->state) {
-    this->turn_on();
-  } else {
-    this->turn_off();
-  }
-}
+void SprinklerControllerSwitch::setup() { this->state = this->get_initial_state_with_restore_mode().value_or(false); }
 
 void SprinklerControllerSwitch::dump_config() { LOG_SWITCH("", "Sprinkler Switch", this); }
 
