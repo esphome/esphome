@@ -22,13 +22,15 @@ MULTI_CONF = True
 ImageType = display.display_ns.enum("ImageType")
 IMAGE_TYPE = {
     "BINARY": ImageType.IMAGE_TYPE_BINARY,
+    "TRANSPARENT_BINARY": ImageType.IMAGE_TYPE_BINARY,
     "GRAYSCALE": ImageType.IMAGE_TYPE_GRAYSCALE,
-    "RGB24": ImageType.IMAGE_TYPE_RGB24,
-    "TRANSPARENT_BINARY": ImageType.IMAGE_TYPE_TRANSPARENT_BINARY,
     "RGB565": ImageType.IMAGE_TYPE_RGB565,
+    "TRANSPARENT_IMAGE": ImageType.IMAGE_TYPE_RGB565,
+    "RGB24": ImageType.IMAGE_TYPE_RGB24,
     "RGBA": ImageType.IMAGE_TYPE_RGBA,
-    "TRANSPARENT_IMAGE": ImageType.IMAGE_TYPE_TRANSPARENT_BINARY,
 }
+
+CONF_USE_TRANSPARENCY = "use_transparency"
 
 Image_ = display.display_ns.class_("Image")
 
@@ -38,6 +40,10 @@ IMAGE_SCHEMA = cv.Schema(
         cv.Required(CONF_FILE): cv.file_,
         cv.Optional(CONF_RESIZE): cv.dimensions,
         cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(IMAGE_TYPE, upper=True),
+        # Not setting default on purpose; normally the default will be False,
+        # but cannot be set for transparent image types; thus the code generation
+        # needs to know whether the user actually set a value.
+        cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
         cv.Optional(CONF_DITHER, default="NONE"): cv.one_of(
             "NONE", "FLOYDSTEINBERG", upper=True
         ),
@@ -65,18 +71,37 @@ async def to_code(config):
     else:
         if width > 500 or height > 500:
             _LOGGER.warning(
-                "The image you requested is very big. Please consider using"
-                " the resize parameter."
+                'The image "%s" you requested is very big. Please consider'
+                " using the resize parameter.",
+                path,
             )
+
+    is_transparent_type = config[CONF_TYPE] in [
+        "TRANSPARENT_BINARY",
+        "TRANSPARENT_IMAGE",
+        "RGBA",
+    ]
+    if config.get(CONF_USE_TRANSPARENCY, None) is False and is_transparent_type:
+        # TODO: Would be nice to also print the line where the error happened
+        raise core.EsphomeError(
+            f'Image "{config[CONF_ID]}": Image type {config[CONF_TYPE]} must always be transparent.'
+        )
+    transparent = config.get(CONF_USE_TRANSPARENCY, is_transparent_type)
 
     dither = Image.NONE if config[CONF_DITHER] == "NONE" else Image.FLOYDSTEINBERG
     if config[CONF_TYPE] == "GRAYSCALE":
-        image = image.convert("L", dither=dither)
+        image = image.convert("LA", dither=dither)
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width)]
         pos = 0
-        for pix in pixels:
-            data[pos] = pix
+        for g, a in pixels:
+            if transparent:
+                if g == 1:
+                    g = 0
+                if a < 127:
+                    g = 1
+
+            data[pos] = g
             pos += 1
 
     elif config[CONF_TYPE] == "RGBA":
@@ -84,68 +109,86 @@ async def to_code(config):
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width * 4)]
         pos = 0
-        for pix in pixels:
-            data[pos] = pix[0]
+        for r, g, b, a in pixels:
+            data[pos] = r
             pos += 1
-            data[pos] = pix[1]
+            data[pos] = g
             pos += 1
-            data[pos] = pix[2]
+            data[pos] = b
             pos += 1
-            data[pos] = pix[3]
+            data[pos] = a
             pos += 1
 
     elif config[CONF_TYPE] == "RGB24":
-        image = image.convert("RGB")
+        image = image.convert("RGBA")
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width * 3)]
         pos = 0
-        for pix in pixels:
-            data[pos] = pix[0]
+        for r, g, b, a in pixels:
+            if transparent:
+                if r == 0 and g == 0 and b == 1:
+                    b = 0
+                if a < 127:
+                    r = 0
+                    g = 0
+                    b = 1
+
+            data[pos] = r
             pos += 1
-            data[pos] = pix[1]
+            data[pos] = g
             pos += 1
-            data[pos] = pix[2]
+            data[pos] = b
             pos += 1
 
-    elif config[CONF_TYPE] == "RGB565":
-        image = image.convert("RGB")
+    elif config[CONF_TYPE] in ["RGB565", "TRANSPARENT_IMAGE"]:
+        image = image.convert("RGBA")
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width * 2)]
         pos = 0
-        for pix in pixels:
-            R = pix[0] >> 3
-            G = pix[1] >> 2
-            B = pix[2] >> 3
+        for r, g, b, a in pixels:
+            R = r >> 3
+            G = g >> 2
+            B = b >> 3
             rgb = (R << 11) | (G << 5) | B
+
+            if transparent:
+                if rgb == 1:
+                    rgb = 0
+                if a < 127:
+                    rgb = 1
+
             data[pos] = rgb >> 8
             pos += 1
             data[pos] = rgb & 255
             pos += 1
 
-    elif (config[CONF_TYPE] == "BINARY") or (config[CONF_TYPE] == "TRANSPARENT_BINARY"):
+    elif config[CONF_TYPE] in ["BINARY", "TRANSPARENT_BINARY"]:
+        if transparent:
+            alpha = image.split()[-1]
+            has_alpha = alpha.getextrema()[0] < 255
+            _LOGGER.debug("%s Has alpha: %s", config[CONF_ID], has_alpha)
         image = image.convert("1", dither=dither)
         width8 = ((width + 7) // 8) * 8
         data = [0 for _ in range(height * width8 // 8)]
         for y in range(height):
             for x in range(width):
-                if image.getpixel((x, y)):
+                if transparent and has_alpha:
+                    a = alpha.getpixel((x, y))
+                    if not a:
+                        continue
+                elif image.getpixel((x, y)):
                     continue
                 pos = x + y * width8
                 data[pos // 8] |= 0x80 >> (pos % 8)
-
-    elif config[CONF_TYPE] == "TRANSPARENT_IMAGE":
-        image = image.convert("RGBA")
-        width8 = ((width + 7) // 8) * 8
-        data = [0 for _ in range(height * width8 // 8)]
-        for y in range(height):
-            for x in range(width):
-                if not image.getpixel((x, y))[3]:
-                    continue
-                pos = x + y * width8
-                data[pos // 8] |= 0x80 >> (pos % 8)
+    else:
+        # TODO: Would be nice to also print the line where the error happened
+        raise core.EsphomeError(
+            f"Image f{config[CONF_ID]} has not supported type {config[CONF_TYPE]}."
+        )
 
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-    cg.new_Pvariable(
+    var = cg.new_Pvariable(
         config[CONF_ID], prog_arr, width, height, IMAGE_TYPE[config[CONF_TYPE]]
     )
+    cg.add(var.set_transparency(transparent))

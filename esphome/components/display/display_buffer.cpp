@@ -12,8 +12,9 @@ namespace display {
 
 static const char *const TAG = "display";
 
-const Color COLOR_OFF(0, 0, 0, 0);
+const Color COLOR_OFF(0, 0, 0, 255);
 const Color COLOR_ON(255, 255, 255, 255);
+const Color COLOR_TRANSPARENT(0, 0, 0, 0);
 
 void Rect::expand(int16_t horizontal, int16_t vertical) {
   if (this->is_set() && (this->w >= (-2 * horizontal)) && (this->h >= (-2 * vertical))) {
@@ -303,53 +304,35 @@ void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign al
 }
 
 void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color color_off) {
-  switch (image->get_type()) {
-    case IMAGE_TYPE_BINARY:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? color_on : color_off);
-        }
-      }
-      break;
-    case IMAGE_TYPE_GRAYSCALE:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          this->draw_pixel_at(x + img_x, y + img_y, image->get_grayscale_pixel(img_x, img_y));
-        }
-      }
-      break;
-    case IMAGE_TYPE_RGBA:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          Color color = image->get_rgba_pixel(img_x, img_y);
-          if (color.w) {
-            this->draw_pixel_at(x + img_x, y + img_y, color);
+  Color color;
+  bool transparent = image->has_transparency();
+  for (int img_x = 0; img_x < image->get_width(); img_x++) {
+    for (int img_y = 0; img_y < image->get_height(); img_y++) {
+      switch (image->get_type()) {
+        case IMAGE_TYPE_BINARY:
+          if (image->get_pixel(img_x, img_y)) {
+            color = color_on;
+          } else {
+            color = transparent ? COLOR_TRANSPARENT : color_off;
           }
-        }
+          break;
+        case IMAGE_TYPE_GRAYSCALE:
+          color = image->get_grayscale_pixel(img_x, img_y);
+          break;
+        case IMAGE_TYPE_RGBA:
+          color = image->get_rgba_pixel(img_x, img_y);
+          break;
+        case IMAGE_TYPE_RGB24:
+          color = image->get_color_pixel(img_x, img_y);
+          break;
+        case IMAGE_TYPE_RGB565:
+          color = image->get_rgb565_pixel(img_x, img_y);
+          break;
       }
-      break;
-    case IMAGE_TYPE_RGB24:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          this->draw_pixel_at(x + img_x, y + img_y, image->get_color_pixel(img_x, img_y));
-        }
+      if (!transparent || color.w > 127) {
+        this->draw_pixel_at(x + img_x, y + img_y, color);
       }
-      break;
-    case IMAGE_TYPE_TRANSPARENT_BINARY:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          if (image->get_pixel(img_x, img_y))
-            this->draw_pixel_at(x + img_x, y + img_y, color_on);
-        }
-      }
-      break;
-    case IMAGE_TYPE_RGB565:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          this->draw_pixel_at(x + img_x, y + img_y, image->get_rgb565_pixel(img_x, img_y));
-        }
-      }
-      break;
+    }
   }
 }
 
@@ -639,8 +622,15 @@ Color Image::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_) * 3;
-  return Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
-               progmem_read_byte(this->data_start_ + pos + 2));
+  Color color = Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
+                      progmem_read_byte(this->data_start_ + pos + 2));
+  if (transparent_ && color.r == 0 && color.g == 0 && color.b == 1) {
+    // (0, 0, 1) has been defined as transparent color for non-alpha images.
+    color.w = 0;
+  } else {
+    color.w = 0xFF;
+  }
+  return color;
 }
 Color Image::get_rgba_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
@@ -658,14 +648,27 @@ Color Image::get_rgb565_pixel(int x, int y) const {
   auto r = (rgb565 & 0xF800) >> 11;
   auto g = (rgb565 & 0x07E0) >> 5;
   auto b = rgb565 & 0x001F;
-  return Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+  Color color = Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+  if (transparent_ && rgb565 == 1) {
+    // (0, 0, 1) has been defined as transparent color for non-alpha images.
+    color.w = 0;
+  } else {
+    color.w = 0xFF;
+  }
+  return color;
 }
 Color Image::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
-  return Color(gray | gray << 8 | gray << 16 | gray << 24);
+  Color color = Color(gray | gray << 8 | gray << 16 | gray << 24);
+  if (transparent_ && gray == 1) {
+    color.w = 0;
+  } else {
+    color.w = 0xFF;
+  }
+  return color;
 }
 int Image::get_width() const { return this->width_; }
 int Image::get_height() const { return this->height_; }
@@ -691,8 +694,15 @@ Color Animation::get_color_pixel(int x, int y) const {
   if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
-  return Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
-               progmem_read_byte(this->data_start_ + pos + 2));
+  Color color = Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
+                      progmem_read_byte(this->data_start_ + pos + 2));
+  if (transparent_ && color.r == 0 && color.g == 0 && color.b == 1) {
+    // (0, 0, 1) has been defined as transparent color for non-alpha images.
+    color.w = 0;
+  } else {
+    color.w = 0xFF;
+  }
+  return color;
 }
 Color Animation::get_rgba_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
@@ -716,7 +726,14 @@ Color Animation::get_rgb565_pixel(int x, int y) const {
   auto r = (rgb565 & 0xF800) >> 11;
   auto g = (rgb565 & 0x07E0) >> 5;
   auto b = rgb565 & 0x001F;
-  return Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+  Color color = Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+  if (transparent_ && rgb565 == 1) {
+    // (0, 0, 1) has been defined as transparent color for non-alpha images.
+    color.w = 0;
+  } else {
+    color.w = 0xFF;
+  }
+  return color;
 }
 Color Animation::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
@@ -726,7 +743,13 @@ Color Animation::get_grayscale_pixel(int x, int y) const {
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
-  return Color(gray | gray << 8 | gray << 16 | gray << 24);
+  Color color = Color(gray | gray << 8 | gray << 16 | gray << 24);
+  if (transparent_ && gray == 1) {
+    color.w = 0;
+  } else {
+    color.w = 0xFF;
+  }
+  return color;
 }
 Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type)
     : Image(data_start, width, height, type), current_frame_(0), animation_frame_count_(animation_frame_count) {}
