@@ -42,8 +42,8 @@ class EntityBase {
   void set_entity_category(EntityCategory entity_category);
 
   // Get/set this entity's icon
-  const std::string &get_icon() const;
-  void set_icon(const std::string &name);
+  std::string get_icon() const;
+  void set_icon(const char *icon);
 
  protected:
   /// The hash_base() function has been deprecated. It is kept in this
@@ -53,7 +53,7 @@ class EntityBase {
 
   std::string name_;
   std::string object_id_;
-  std::string icon_;
+  const char *icon_c_str_{nullptr};
   uint32_t object_id_hash_;
   bool internal_{false};
   bool disabled_by_default_{false};

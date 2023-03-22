@@ -190,6 +190,10 @@ void ToshibaClimate::transmit_generic_() {
 
   uint8_t fan;
   switch (this->fan_mode.value()) {
+    case climate::CLIMATE_FAN_QUIET:
+      fan = TOSHIBA_FAN_SPEED_QUIET;
+      break;
+
     case climate::CLIMATE_FAN_LOW:
       fan = TOSHIBA_FAN_SPEED_1;
       break;
@@ -690,6 +694,30 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
         case TOSHIBA_MODE_AUTO:
         default:
           this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+      }
+
+      // Get the fan mode
+      switch (message[6] & 0xF0) {
+        case TOSHIBA_FAN_SPEED_QUIET:
+          this->fan_mode = climate::CLIMATE_FAN_QUIET;
+          break;
+
+        case TOSHIBA_FAN_SPEED_1:
+          this->fan_mode = climate::CLIMATE_FAN_LOW;
+          break;
+
+        case TOSHIBA_FAN_SPEED_3:
+          this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+          break;
+
+        case TOSHIBA_FAN_SPEED_5:
+          this->fan_mode = climate::CLIMATE_FAN_HIGH;
+          break;
+
+        case TOSHIBA_FAN_SPEED_AUTO:
+        default:
+          this->fan_mode = climate::CLIMATE_FAN_AUTO;
+          break;
       }
 
       // Get the target temperature
