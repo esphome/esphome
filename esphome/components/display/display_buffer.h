@@ -82,9 +82,8 @@ enum ImageType {
   IMAGE_TYPE_BINARY = 0,
   IMAGE_TYPE_GRAYSCALE = 1,
   IMAGE_TYPE_RGB24 = 2,
-  IMAGE_TYPE_TRANSPARENT_BINARY = 3,
-  IMAGE_TYPE_RGB565 = 4,
-  IMAGE_TYPE_RGBA = 5,
+  IMAGE_TYPE_RGB565 = 3,
+  IMAGE_TYPE_RGBA = 4,
 };
 
 enum DisplayType {
@@ -550,11 +549,15 @@ class Image {
 
   virtual int get_current_frame() const;
 
+  void set_transparency(bool transparent) { transparent_ = transparent; }
+  bool has_transparency() const { return transparent_; }
+
  protected:
   int width_;
   int height_;
   ImageType type_;
   const uint8_t *data_start_;
+  bool transparent_;
 };
 
 class Animation : public Image {

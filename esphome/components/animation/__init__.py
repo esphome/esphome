@@ -3,6 +3,7 @@ import logging
 from esphome import core
 from esphome.components import display, font
 import esphome.components.image as espImage
+from esphome.components.image import CONF_USE_TRANSPARENCY
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import CONF_FILE, CONF_ID, CONF_RAW_DATA_ID, CONF_RESIZE, CONF_TYPE
@@ -23,6 +24,10 @@ ANIMATION_SCHEMA = cv.Schema(
         cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(
             espImage.IMAGE_TYPE, upper=True
         ),
+        # Not setting default on purpose; normally the default will be False,
+        # but cannot be set for transparent image types; thus the code generation
+        # needs to know whether the user actually set a value.
+        cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
     }
 )
@@ -50,16 +55,29 @@ async def to_code(config):
     else:
         if width > 500 or height > 500:
             _LOGGER.warning(
-                "The image you requested is very big. Please consider using"
-                " the resize parameter."
+                'The image "%s" you requested is very big. Please consider'
+                " using the resize parameter.",
+                path,
             )
+
+    is_transparent_type = config[CONF_TYPE] in [
+        "TRANSPARENT_BINARY",
+        "TRANSPARENT_IMAGE",
+        "RGBA",
+    ]
+    if config.get(CONF_USE_TRANSPARENCY, None) is False and is_transparent_type:
+        # TODO: Would be nice to also print the line where the error happened
+        raise core.EsphomeError(
+            f'Animation "{config[CONF_ID]}": Image type {config[CONF_TYPE]} must always be transparent.'
+        )
+    transparent = config.get(CONF_USE_TRANSPARENCY, is_transparent_type)
 
     if config[CONF_TYPE] == "GRAYSCALE":
         data = [0 for _ in range(height * width * frames)]
         pos = 0
         for frameIndex in range(frames):
             image.seek(frameIndex)
-            frame = image.convert("L", dither=Image.NONE)
+            frame = image.convert("LA", dither=Image.NONE)
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
             pixels = list(frame.getdata())
@@ -67,7 +85,13 @@ async def to_code(config):
                 raise core.EsphomeError(
                     f"Unexpected number of pixels in {path} frame {frameIndex}: ({len(pixels)} != {height*width})"
                 )
-            for pix in pixels:
+            for pix, a in pixels:
+                if transparent:
+                    if pix == 1:
+                        pix = 0
+                    if a < 127:
+                        pix = 1
+
                 data[pos] = pix
                 pos += 1
 
@@ -99,7 +123,7 @@ async def to_code(config):
         pos = 0
         for frameIndex in range(frames):
             image.seek(frameIndex)
-            frame = image.convert("RGB")
+            frame = image.convert("RGBA")
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
             pixels = list(frame.getdata())
@@ -107,20 +131,28 @@ async def to_code(config):
                 raise core.EsphomeError(
                     f"Unexpected number of pixels in {path} frame {frameIndex}: ({len(pixels)} != {height*width})"
                 )
-            for pix in pixels:
-                data[pos] = pix[0]
+            for r, g, b, a in pixels:
+                if transparent:
+                    if r == 0 and g == 0 and b == 1:
+                        b = 0
+                    if a < 127:
+                        r = 0
+                        g = 0
+                        b = 1
+
+                data[pos] = r
                 pos += 1
-                data[pos] = pix[1]
+                data[pos] = g
                 pos += 1
-                data[pos] = pix[2]
+                data[pos] = b
                 pos += 1
 
-    elif config[CONF_TYPE] == "RGB565":
+    elif config[CONF_TYPE] in ["RGB565", "TRANSPARENT_IMAGE"]:
         data = [0 for _ in range(height * width * 2 * frames)]
         pos = 0
         for frameIndex in range(frames):
             image.seek(frameIndex)
-            frame = image.convert("RGB")
+            frame = image.convert("RGBA")
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
             pixels = list(frame.getdata())
@@ -128,11 +160,18 @@ async def to_code(config):
                 raise core.EsphomeError(
                     f"Unexpected number of pixels in {path} frame {frameIndex}: ({len(pixels)} != {height*width})"
                 )
-            for pix in pixels:
-                R = pix[0] >> 3
-                G = pix[1] >> 2
-                B = pix[2] >> 3
+            for r, g, b, a in pixels:
+                R = r >> 3
+                G = g >> 2
+                B = b >> 3
                 rgb = (R << 11) | (G << 5) | B
+
+                if transparent:
+                    if rgb == 1:
+                        rgb = 0
+                    if a < 127:
+                        rgb = 1
+
                 data[pos] = rgb >> 8
                 pos += 1
                 data[pos] = rgb & 255
@@ -143,19 +182,32 @@ async def to_code(config):
         data = [0 for _ in range((height * width8 // 8) * frames)]
         for frameIndex in range(frames):
             image.seek(frameIndex)
+            if transparent:
+                alpha = image.split()[-1]
+                has_alpha = alpha.getextrema()[0] < 255
             frame = image.convert("1", dither=Image.NONE)
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
-            for y in range(height):
-                for x in range(width):
-                    if frame.getpixel((x, y)):
+                if transparent:
+                    alpha = alpha.resize([width, height])
+            for x, y in [(i, j) for i in range(width) for j in range(height)]:
+                if transparent and has_alpha:
+                    if not alpha.getpixel((x, y)):
                         continue
-                    pos = x + y * width8 + (height * width8 * frameIndex)
-                    data[pos // 8] |= 0x80 >> (pos % 8)
+                elif frame.getpixel((x, y)):
+                    continue
+
+                pos = x + y * width8 + (height * width8 * frameIndex)
+                data[pos // 8] |= 0x80 >> (pos % 8)
+    else:
+        # TODO: Would be nice to also print the line where the error happened
+        raise core.EsphomeError(
+            f"Animation f{config[CONF_ID]} has not supported type {config[CONF_TYPE]}."
+        )
 
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
-    cg.new_Pvariable(
+    var = cg.new_Pvariable(
         config[CONF_ID],
         prog_arr,
         width,
@@ -163,3 +215,4 @@ async def to_code(config):
         frames,
         espImage.IMAGE_TYPE[config[CONF_TYPE]],
     )
+    cg.add(var.set_transparency(transparent))
