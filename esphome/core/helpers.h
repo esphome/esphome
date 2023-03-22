@@ -547,7 +547,7 @@ class Mutex {
  */
 class LockGuard {
  public:
-  LockGuard(Mutex &mutex) : mutex_{mutex} { mutex_.lock(); }
+  LockGuard(Mutex &mutex) : mutex_(mutex) { mutex_.lock(); }
   ~LockGuard() { mutex_.unlock(); }
 
  private:
