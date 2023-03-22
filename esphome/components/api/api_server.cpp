@@ -45,7 +45,7 @@ void APIServer::setup() {
 
   struct sockaddr_storage server;
 
-  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), htons(this->port_));
+  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (sl == 0) {
     ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
     this->mark_failed();
@@ -306,6 +306,28 @@ void APIServer::send_bluetooth_device_connection(uint64_t address, bool connecte
 
   for (auto &client : this->clients_) {
     client->send_bluetooth_device_connection_response(call);
+  }
+}
+
+void APIServer::send_bluetooth_device_pairing(uint64_t address, bool paired, esp_err_t error) {
+  BluetoothDevicePairingResponse call;
+  call.address = address;
+  call.paired = paired;
+  call.error = error;
+
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_device_pairing_response(call);
+  }
+}
+
+void APIServer::send_bluetooth_device_unpairing(uint64_t address, bool success, esp_err_t error) {
+  BluetoothDeviceUnpairingResponse call;
+  call.address = address;
+  call.success = success;
+  call.error = error;
+
+  for (auto &client : this->clients_) {
+    client->send_bluetooth_device_unpairing_response(call);
   }
 }
 
