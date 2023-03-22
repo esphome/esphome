@@ -49,6 +49,8 @@ hon_protocol::HorizontalSwingMode get_horizontal_swing_mode(AirflowHorizontalDir
 HonClimate::HonClimate(UARTComponent *parent)
     : HaierClimateBase(parent),
       last_status_message_(new uint8_t[sizeof(hon_protocol::HaierPacketControl)]),
+      self_cleaning_status_(false),
+      self_cleaning_start_request_(false),
       got_valid_outdoor_temp_(false),
       hvac_hardware_info_available_(false),
       hvac_functions_{false, false, false, false, false},
@@ -81,7 +83,7 @@ void HonClimate::set_vertical_airflow(AirflowVerticalDirection direction) {
   } else {
     this->vertical_direction_ = direction;
   }
-  this->force_send_control_ = true;
+  this->set_force_send_control_(true);
 }
 
 AirflowHorizontalDirection HonClimate::get_horizontal_airflow() const { return this->horizontal_direction_; }
@@ -92,7 +94,17 @@ void HonClimate::set_horizontal_airflow(AirflowHorizontalDirection direction) {
   } else {
     this->horizontal_direction_ = direction;
   }
-  this->force_send_control_ = true;
+  this->set_force_send_control_(true);
+}
+
+bool HonClimate::get_self_cleaning_status() const { return this->self_cleaning_status_; }
+
+void HonClimate::start_self_cleaning() {
+  if (!this->self_cleaning_status_ && !this->self_cleaning_start_request_) {
+    ESP_LOGI(TAG, "Sending self cleaning start request");
+    this->self_cleaning_start_request_ = true;
+    this->set_force_send_control_(true);
+  }
 }
 
 haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(uint8_t request_type, uint8_t message_type,
@@ -173,7 +185,7 @@ haier_protocol::HandlerError HonClimate::status_handler_(uint8_t request_type, u
         this->set_phase_(ProtocolPhases::IDLE);
       } else if (this->protocol_phase_ == ProtocolPhases::WAITING_CONTROL_ANSWER) {
         this->set_phase_(ProtocolPhases::IDLE);
-        this->force_send_control_ = false;
+        this->set_force_send_control_(false);
         if (this->hvac_settings_.valid)
           this->hvac_settings_.reset();
       }
@@ -281,7 +293,7 @@ void HonClimate::dump_config() {
 void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
   switch (this->protocol_phase_) {
     case ProtocolPhases::SENDING_INIT_1:
-      if (this->can_send_message() && this->is_protocol_initialisation_interval_exceeded_(now)) {
+      if (this->can_send_message() && this->is_protocol_initialisation_interval_exceded_(now)) {
         this->hvac_hardware_info_available_ = false;
         // Indicate device capabilities:
         // bit 0 - if 1 module support interactive mode
@@ -362,13 +374,13 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
       }
       break;
     case ProtocolPhases::SENDING_CONTROL:
-      if (this->control_called_) {
+      if (this->first_control_attempt_) {
         this->control_request_timestamp_ = now;
-        this->control_called_ = false;
+        this->first_control_attempt_ = false;
       }
       if (this->is_control_message_timeout_exceeded_(now)) {
         ESP_LOGW(TAG, "Sending control packet timeout!");
-        this->force_send_control_ = false;
+        this->set_force_send_control_(false);
         if (this->hvac_settings_.valid)
           this->hvac_settings_.reset();
         this->forced_request_status_ = true;
@@ -553,6 +565,11 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
   out_data->beeper_status = ((!this->beeper_status_) || (!has_hvac_settings)) ? 1 : 0;
   control_out_buffer[4] = 0;  // This byte should be cleared before setting values
   out_data->display_status = this->display_status_ ? 1 : 0;
+  out_data->health_mode = this->health_mode_ ? 1 : 0;
+  if (this->self_cleaning_start_request_) {
+    out_data->self_cleaning_status = 1;
+    this->self_cleaning_start_request_ = false;
+  }
   return haier_protocol::HaierMessage((uint8_t) hon_protocol::FrameType::CONTROL,
                                       (uint16_t) hon_protocol::SubcomandsControl::SET_GROUP_PARAMETERS,
                                       control_out_buffer, sizeof(hon_protocol::HaierPacketControl));
@@ -642,12 +659,22 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
         // Do something only if display status changed
         if (this->mode == CLIMATE_MODE_OFF) {
           // AC just turned on from remote need to turn off display
-          this->force_send_control_ = true;
+          this->set_force_send_control_(true);
         } else {
           this->display_status_ = disp_status;
         }
       }
     }
+  }
+  {
+    // Health mode
+    bool old_health_mode = this->health_mode_;
+    this->health_mode_ = packet.control.health_mode == 1;
+    should_publish = should_publish || (old_health_mode != this->health_mode_);
+  }
+  {
+    // Self-cleaning
+    this->self_cleaning_status_ = packet.control.self_cleaning_status == 1;
   }
   {
     // Climate mode

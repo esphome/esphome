@@ -58,10 +58,12 @@ HaierClimateBase::HaierClimateBase(UARTComponent *parent)
       haier_protocol_(*this),
       protocol_phase_(ProtocolPhases::SENDING_INIT_1),
       display_status_(true),
+      health_mode_(false),
       force_send_control_(false),
       forced_publish_(false),
       forced_request_status_(false),
-      control_called_(false) {
+      first_control_attempt_(false),
+      reset_protocol_request_(false) {
   this->traits_ = climate::ClimateTraits();
   this->traits_.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL, climate::CLIMATE_MODE_HEAT,
                                      climate::CLIMATE_MODE_FAN_ONLY, climate::CLIMATE_MODE_DRY,
@@ -80,7 +82,7 @@ void HaierClimateBase::set_phase_(ProtocolPhases phase) {
 #if (HAIER_LOG_LEVEL > 4)
     ESP_LOGV(TAG, "Phase transition: %s => %s", phase_to_string_(this->protocol_phase_), phase_to_string_(phase));
 #else
-    ESP_LOGV(TAG, "Phase transition: %d => %d", this->protocol_phase_, phase);
+    ESP_LOGV(TAG, "Phase transition: %d => %d", (int) this->protocol_phase_, (int) phase);
 #endif
     this->protocol_phase_ = phase;
   }
@@ -107,7 +109,7 @@ bool HaierClimateBase::is_control_message_interval_exceeded_(std::chrono::steady
   return this->check_timout_(now, this->last_request_timestamp_, CONTROL_MESSAGES_INTERVAL_MS);
 }
 
-bool HaierClimateBase::is_protocol_initialisation_interval_exceeded_(std::chrono::steady_clock::time_point now) {
+bool HaierClimateBase::is_protocol_initialisation_interval_exceded_(std::chrono::steady_clock::time_point now) {
   return this->check_timout_(now, this->last_request_timestamp_, PROTOCOL_INITIALIZATION_INTERVAL);
 }
 
@@ -116,7 +118,16 @@ bool HaierClimateBase::get_display_state() const { return this->display_status_;
 void HaierClimateBase::set_display_state(bool state) {
   if (this->display_status_ != state) {
     this->display_status_ = state;
-    this->force_send_control_ = true;
+    this->set_force_send_control_(true);
+  }
+}
+
+bool HaierClimateBase::get_health_mode() const { return this->health_mode_; }
+
+void HaierClimateBase::set_health_mode(bool state) {
+  if (this->health_mode_ != state) {
+    this->health_mode_ = state;
+    this->set_force_send_control_(true);
   }
 }
 
@@ -153,7 +164,7 @@ haier_protocol::HandlerError HaierClimateBase::timeout_default_handler_(uint8_t 
 #if (HAIER_LOG_LEVEL > 4)
   ESP_LOGW(TAG, "Answer timeout for command %02X, phase %s", request_type, phase_to_string_(this->protocol_phase_));
 #else
-  ESP_LOGW(TAG, "Answer timeout for command %02X, phase %d", request_type, this->protocol_phase_);
+  ESP_LOGW(TAG, "Answer timeout for command %02X, phase %d", request_type, (int) this->protocol_phase_);
 #endif
   if (this->protocol_phase_ > ProtocolPhases::IDLE) {
     this->set_phase_(ProtocolPhases::IDLE);
@@ -181,13 +192,19 @@ void HaierClimateBase::dump_config() {
 
 void HaierClimateBase::loop() {
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_valid_status_timestamp_).count() >
-      COMMUNICATION_TIMEOUT_MS) {
+  if ((std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_valid_status_timestamp_).count() >
+       COMMUNICATION_TIMEOUT_MS) ||
+      (this->reset_protocol_request_)) {
     if (this->protocol_phase_ >= ProtocolPhases::IDLE) {
       // No status too long, reseting protocol
-      ESP_LOGW(TAG, "Communication timeout, reseting protocol");
+      if (this->reset_protocol_request_) {
+        this->reset_protocol_request_ = false;
+        ESP_LOGW(TAG, "Protocol reset requested");
+      } else {
+        ESP_LOGW(TAG, "Communication timeout, reseting protocol");
+      }
       this->last_valid_status_timestamp_ = now;
-      this->force_send_control_ = false;
+      this->set_force_send_control_(false);
       if (this->hvac_settings_.valid)
         this->hvac_settings_.reset();
       this->set_phase_(ProtocolPhases::SENDING_INIT_1);
@@ -205,7 +222,6 @@ void HaierClimateBase::loop() {
         (this->protocol_phase_ == ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST) ||
         (this->protocol_phase_ == ProtocolPhases::SENDING_SIGNAL_LEVEL)) {
       ESP_LOGV(TAG, "Control packet is pending...");
-      this->control_request_timestamp_ = now;
       this->set_phase_(ProtocolPhases::SENDING_CONTROL);
     }
   }
@@ -237,7 +253,7 @@ void HaierClimateBase::control(const ClimateCall &call) {
       this->hvac_settings_.preset = call.get_preset();
     this->hvac_settings_.valid = true;
   }
-  this->control_called_ = true;
+  this->first_control_attempt_ = true;
 }
 
 void HaierClimateBase::HvacSettings::reset() {
@@ -247,6 +263,13 @@ void HaierClimateBase::HvacSettings::reset() {
   this->swing_mode.reset();
   this->target_temperature.reset();
   this->preset.reset();
+}
+
+void HaierClimateBase::set_force_send_control_(bool status) {
+  this->force_send_control_ = status;
+  if (status) {
+    this->first_control_attempt_ = true;
+  }
 }
 
 void HaierClimateBase::send_message_(const haier_protocol::HaierMessage &command, bool use_crc) {

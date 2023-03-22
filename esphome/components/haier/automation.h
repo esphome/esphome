@@ -63,5 +63,32 @@ template<typename... Ts> class HorizontalAirflowAction : public Action<Ts...> {
   HonClimate *parent_;
 };
 
+template<typename... Ts> class HealthOnAction : public Action<Ts...> {
+ public:
+  HealthOnAction(HaierClimateBase *parent) : parent_(parent) {}
+  void play(Ts... x) { this->parent_->set_health_mode(true); }
+
+ protected:
+  HaierClimateBase *parent_;
+};
+
+template<typename... Ts> class HealthOffAction : public Action<Ts...> {
+ public:
+  HealthOffAction(HaierClimateBase *parent) : parent_(parent) {}
+  void play(Ts... x) { this->parent_->set_health_mode(false); }
+
+ protected:
+  HaierClimateBase *parent_;
+};
+
+template<typename... Ts> class StartSelfCleaningAction : public Action<Ts...> {
+ public:
+  StartSelfCleaningAction(HonClimate *parent) : parent_(parent) {}
+  void play(Ts... x) { this->parent_->start_self_cleaning(); }
+
+ protected:
+  HonClimate *parent_;
+};
+
 }  // namespace haier
 }  // namespace esphome

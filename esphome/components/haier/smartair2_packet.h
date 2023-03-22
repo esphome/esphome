@@ -11,11 +11,11 @@ enum class FanMode : uint8_t { FAN_HIGH = 0x00, FAN_MID = 0x01, FAN_LOW = 0x02, 
 struct HaierPacketControl {
   // Control bytes starts here
   // 10
-  uint8_t : 8;
+  uint8_t : 8;  // Temperature high byte
   // 11
   uint8_t room_temperature;  // current room temperature 1°C step
   // 12
-  uint8_t : 8;
+  uint8_t : 8;  // Humidity high byte
   // 13
   uint8_t room_humidity;  // Humidity 0%-100% with 1% step
   // 14
@@ -44,7 +44,9 @@ struct HaierPacketControl {
   uint8_t swing_both;  // If 1 - swing both direction, if 0 - horizontal_swing and vertical_swing define
                        // vertical/horizontal/off
   // 26
-  uint8_t : 7;
+  uint8_t : 3;
+  uint8_t use_fahrenheit : 1;
+  uint8_t : 3;
   uint8_t lock_remote : 1;  // Disable remote
   // 27
   uint8_t ac_power : 1;  // Is ac on or off
@@ -52,14 +54,14 @@ struct HaierPacketControl {
   uint8_t health_mode : 1;  // Health mode on or off
   uint8_t compressor : 1;   // Compressor on or off ???
   uint8_t : 1;
-  uint8_t half_degree : 1;  // Half degree setting target temp ???
+  uint8_t ten_degree : 1;  // 10 degree status (only work in heat mode)
   uint8_t : 0;
   // 28
   uint8_t : 8;
   // 29
   uint8_t use_swing_bits : 1;    // Indicate if horizontal_swing and vertical_swing should be used
   uint8_t turbo_mode : 1;        // Turbo mode
-  uint8_t disable_beeper : 1;    // Silent mode
+  uint8_t quiet_mode : 1;        // Sleep mode
   uint8_t horizontal_swing : 1;  // Horizontal swing (if swing_both == 0)
   uint8_t vertical_swing : 1;    // Vertical swing (if swing_both == 0) if vertical_swing and horizontal_swing both 0 =>
                                  // swing off
@@ -70,7 +72,7 @@ struct HaierPacketControl {
   // 31
   uint8_t : 8;
   // 32
-  uint8_t : 8;
+  uint8_t : 8;  // Target temperature high byte
   // 33
   uint8_t set_point;  // Target temperature with 16°C offset, 1°C step
 };
@@ -84,6 +86,9 @@ enum class FrameType : uint8_t {
   CONTROL = 0x01,
   STATUS = 0x02,
   INVALID = 0x03,
+  CONFIRM = 0x05,
+  GET_DEVICE_VERSION = 0x61,
+  REPORT_NETWORK_STATUS = 0xF7,
   NO_COMMAND = 0xFF,
 };
 

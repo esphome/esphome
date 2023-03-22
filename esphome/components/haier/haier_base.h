@@ -28,6 +28,9 @@ class HaierClimateBase : public esphome::Component,
   void set_fahrenheit(bool fahrenheit);
   void set_display_state(bool state);
   bool get_display_state() const;
+  void set_health_mode(bool state);
+  bool get_health_mode() const;
+  void reset_protocol() { this->reset_protocol_request_ = true; };
   void set_supported_modes(const std::set<esphome::climate::ClimateMode> &modes);
   void set_supported_swing_modes(const std::set<esphome::climate::ClimateSwingMode> &modes);
   size_t available() noexcept override { return esphome::uart::UARTDevice::available(); };
@@ -78,6 +81,7 @@ class HaierClimateBase : public esphome::Component,
   // Timeout handler
   haier_protocol::HandlerError timeout_default_handler_(uint8_t request_type);
   // Helper functions
+  void set_force_send_control_(bool status);
   void send_message_(const haier_protocol::HaierMessage &command, bool use_crc);
   void set_phase_(ProtocolPhases phase);
   bool check_timout_(std::chrono::steady_clock::time_point now, std::chrono::steady_clock::time_point tpoint,
@@ -86,7 +90,7 @@ class HaierClimateBase : public esphome::Component,
   bool is_status_request_interval_exceeded_(std::chrono::steady_clock::time_point now);
   bool is_control_message_timeout_exceeded_(std::chrono::steady_clock::time_point now);
   bool is_control_message_interval_exceeded_(std::chrono::steady_clock::time_point now);
-  bool is_protocol_initialisation_interval_exceeded_(std::chrono::steady_clock::time_point now);
+  bool is_protocol_initialisation_interval_exceded_(std::chrono::steady_clock::time_point now);
 
   struct HvacSettings {
     esphome::optional<esphome::climate::ClimateMode> mode;
@@ -103,10 +107,12 @@ class HaierClimateBase : public esphome::Component,
   uint8_t fan_mode_speed_;
   uint8_t other_modes_fan_speed_;
   bool display_status_;
+  bool health_mode_;
   bool force_send_control_;
   bool forced_publish_;
   bool forced_request_status_;
-  bool control_called_;
+  bool first_control_attempt_;
+  bool reset_protocol_request_;
   esphome::climate::ClimateTraits traits_;
   HvacSettings hvac_settings_;
   std::chrono::steady_clock::time_point last_request_timestamp_;       // For interval between messages
