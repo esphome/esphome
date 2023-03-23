@@ -86,6 +86,7 @@ FULL_DISPLAY_SCHEMA = BASIC_DISPLAY_SCHEMA.extend(
 
 
 async def setup_display_core_(var, config):
+    cg.add_define("USE_DISPLAY")
     if CONF_ROTATION in config:
         cg.add(var.set_rotation(DISPLAY_ROTATIONS[config[CONF_ROTATION]]))
 
