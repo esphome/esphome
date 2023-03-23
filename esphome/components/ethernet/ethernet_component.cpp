@@ -255,14 +255,22 @@ void EthernetComponent::start_connect_() {
   if (this->manual_ip_.has_value()) {
     if (uint32_t(this->manual_ip_->dns1) != 0) {
       ip_addr_t d;
+#if LWIP_IPV6
       d.type = IPADDR_TYPE_V4;
       d.u_addr.ip4.addr = static_cast<uint32_t>(this->manual_ip_->dns1);
+#else
+      d.addr = static_cast<uint32_t>(this->manual_ip_->dns1);
+#endif
       dns_setserver(0, &d);
     }
     if (uint32_t(this->manual_ip_->dns1) != 0) {
       ip_addr_t d;
+#if LWIP_IPV6
       d.type = IPADDR_TYPE_V4;
       d.u_addr.ip4.addr = static_cast<uint32_t>(this->manual_ip_->dns2);
+#else
+      d.addr = static_cast<uint32_t>(this->manual_ip_->dns2);
+#endif
       dns_setserver(1, &d);
     }
   } else {
@@ -289,8 +297,13 @@ void EthernetComponent::dump_connect_params_() {
   const ip_addr_t *dns_ip1 = dns_getserver(0);
   const ip_addr_t *dns_ip2 = dns_getserver(1);
 
+#if LWIP_IPV6
   ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->u_addr.ip4.addr).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->u_addr.ip4.addr).str().c_str());
+#else
+  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->addr).str().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->addr).str().c_str());
+#endif
 
   esp_err_t err;
 
