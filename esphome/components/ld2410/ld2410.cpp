@@ -22,7 +22,7 @@ void LD2410Component::dump_config() {
   LOG_BINARY_SENSOR("  ", "TargetBinarySensor", this->target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "MovingTargetBinarySensor", this->moving_target_binary_sensor_);
   LOG_BINARY_SENSOR("  ", "StillTargetBinarySensor", this->still_target_binary_sensor_);
-  LOG_BINARY_SENSOR("  ", "OutPinPresenceBinarySensor", this->out_pin_presence_binary_sensor_);
+  LOG_BINARY_SENSOR("  ", "OutPinPresenceStatusBinarySensor", this->out_pin_presence_status_binary_sensor_);
 #endif
 #ifdef USE_SWITCH
   LOG_SWITCH("  ", "EngineeringModeSwitch", this->engineering_mode_switch_);
@@ -270,12 +270,12 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
 #endif
 #ifdef USE_BINARY_SENSOR
   if (engineering_mode) {
-    if (this->out_pin_presence_binary_sensor_ != nullptr) {
-      this->out_pin_presence_binary_sensor_->publish_state(buffer[OUT_PIN_SENSOR] == 0x01);
+    if (this->out_pin_presence_status_binary_sensor_ != nullptr) {
+      this->out_pin_presence_status_binary_sensor_->publish_state(buffer[OUT_PIN_SENSOR] == 0x01);
     }
   } else {
-    if (this->out_pin_presence_binary_sensor_ != nullptr) {
-      this->out_pin_presence_binary_sensor_->publish_state(false);
+    if (this->out_pin_presence_status_binary_sensor_ != nullptr) {
+      this->out_pin_presence_status_binary_sensor_->publish_state(false);
     }
   }
 #endif

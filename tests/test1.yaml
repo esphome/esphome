@@ -1631,8 +1631,8 @@ binary_sensor:
       name: movement
     has_still_target:
       name: still
-    out_pin_presence:
-      name: out pin presence
+    out_pin_presence_status:
+      name: out pin presence status
 
 pca9685:
   frequency: 500
