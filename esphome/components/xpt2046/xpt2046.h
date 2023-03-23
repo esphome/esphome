@@ -22,11 +22,6 @@ class XPT2046Component : public Touchscreen,
                          public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_LOW,
                                                spi::CLOCK_PHASE_LEADING, spi::DATA_RATE_2MHZ> {
  public:
-  /// Set the logical touch screen dimensions.
-  void set_dimensions(int16_t x, int16_t y) {
-    this->display_width_ = x;
-    this->display_height_ = y;
-  }
   /// Set the coordinates for the touch screen edges.
   void set_calibration(int16_t x_min, int16_t x_max, int16_t y_min, int16_t y_max);
   /// If true the x and y axes will be swapped

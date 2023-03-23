@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #ifdef USE_DISPLAY
 #include "esphome/components/display/display_buffer.h"
 #endif
@@ -36,13 +37,15 @@ class Touchscreen {
  public:
 #ifdef USE_DISPLAY
   void set_display(display::DisplayBuffer *display) { this->display_ = display; }
-#endif
+  display::DisplayBuffer get_display() { return this->display_; }
+
+#else
   void set_display_dimension(uint16_t width, u_int16_t height) {
     this->display_width_ = width;
     this->display_height_ = height;
   }
   void set_rotation(TouchRotation rotation) { this->rotation_ = rotation; }
-
+#endif
   Trigger<TouchPoint> *get_touch_trigger() { return &this->touch_trigger_; }
 
   void register_listener(TouchListener *listener) { this->touch_listeners_.push_back(listener); }
@@ -73,7 +76,7 @@ class Touchscreen {
   TouchRotation get_rotation_() {
 #ifdef USE_DISPLAY
     if (this->display_ != nullptr) {
-      return static_cast<TouchRotation>(display->get_rotation());
+      return static_cast<TouchRotation>(this->display_->get_rotation());
     }
 #else
     return this->rotation_;

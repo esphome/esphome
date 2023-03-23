@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/defines.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
 #ifdef USE_DISPLAY
