@@ -94,7 +94,7 @@ void EKTF2232Touchscreen::loop() {
     raw_y = raw_y * this->get_width_() - 1;
 
     TouchPoint tp;
-    switch (this->rotation_) {
+    switch (this->get_rotation_()) {
       case ROTATE_0_DEGREES:
         tp.y = raw_x / this->x_resolution_;
         tp.x = this->get_width_() - 1 - (raw_y / this->y_resolution_);
