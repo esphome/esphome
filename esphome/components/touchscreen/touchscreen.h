@@ -37,7 +37,7 @@ class Touchscreen {
  public:
 #ifdef USE_DISPLAY
   void set_display(display::DisplayBuffer *display) { this->display_ = display; }
-  display::DisplayBuffer get_display() { return this->display_; }
+  display::DisplayBuffer *get_display() { return this->display_; }
 
 #else
   void set_display_dimension(uint16_t width, u_int16_t height) {
@@ -58,6 +58,8 @@ class Touchscreen {
 #ifdef USE_DISPLAY
     if (this->display_ != nullptr) {
       return this->display_->get_width_internal();
+    }else {
+      return 100;
     }
 #else
     return display_width_;
@@ -67,6 +69,8 @@ class Touchscreen {
 #ifdef USE_DISPLAY
     if (this->display_ != nullptr) {
       return display_->get_height_internal();
+    }else {
+      return 100;
     }
 #else
     return display_height_;
@@ -77,6 +81,8 @@ class Touchscreen {
 #ifdef USE_DISPLAY
     if (this->display_ != nullptr) {
       return static_cast<TouchRotation>(this->display_->get_rotation());
+    } else {
+      return ROTATE_0_DEGREES;
     }
 #else
     return this->rotation_;
