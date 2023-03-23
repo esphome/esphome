@@ -116,7 +116,7 @@ void LilygoT547Touchscreen::loop() {
       uint16_t y = (uint16_t) ((buffer[i * 5 + 1 + offset] << 4) | ((buffer[i * 5 + 3 + offset] >> 4) & 0x0F));
       uint16_t x = (uint16_t) ((buffer[i * 5 + 2 + offset] << 4) | (buffer[i * 5 + 3 + offset] & 0x0F));
 
-      switch (this->rotation_) {
+      switch (this->get_rotation_()) {
         case ROTATE_0_DEGREES:
           tp.y = this->get_height_() - y;
           tp.x = x;
@@ -145,7 +145,7 @@ void LilygoT547Touchscreen::loop() {
     uint16_t y = (uint16_t) ((buffer[0 * 5 + 1] << 4) | ((buffer[0 * 5 + 3] >> 4) & 0x0F));
     uint16_t x = (uint16_t) ((buffer[0 * 5 + 2] << 4) | (buffer[0 * 5 + 3] & 0x0F));
 
-    switch (this->rotation_) {
+    switch (this->get_rotation_()) {
       case ROTATE_0_DEGREES:
         tp.y = this->get_height_() - y;
         tp.x = x;
