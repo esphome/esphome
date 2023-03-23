@@ -165,7 +165,7 @@ class LD2410Component : public Component, public uart::UARTDevice {
   SUB_BINARY_SENSOR(target)
   SUB_BINARY_SENSOR(moving_target)
   SUB_BINARY_SENSOR(still_target)
-  SUB_BINARY_SENSOR(out_pin_presence)
+  SUB_BINARY_SENSOR(out_pin_presence_status)
 #endif
 #ifdef USE_TEXT_SENSOR
   SUB_TEXT_SENSOR(version)

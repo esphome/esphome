@@ -3,7 +3,6 @@ from esphome.components import sensor
 import esphome.config_validation as cv
 from esphome.const import (
     DEVICE_CLASS_DISTANCE,
-    DEVICE_CLASS_ENERGY,
     UNIT_CENTIMETER,
     UNIT_PERCENT,
     CONF_LIGHT,
@@ -37,12 +36,10 @@ CONFIG_SCHEMA = cv.Schema(
             icon="mdi:signal-distance-variant",
         ),
         cv.Optional(CONF_MOVING_ENERGY): sensor.sensor_schema(
-            device_class=DEVICE_CLASS_ENERGY,
             unit_of_measurement=UNIT_PERCENT,
             icon="mdi:lightning-bolt",
         ),
         cv.Optional(CONF_STILL_ENERGY): sensor.sensor_schema(
-            device_class=DEVICE_CLASS_ENERGY,
             unit_of_measurement=UNIT_PERCENT,
             icon="mdi:lightning-bolt-outline",
         ),
@@ -64,12 +61,10 @@ for i in range(9):
         cv.Schema(
             {
                 cv.Optional(CONF_MOVE_ENERGIES[i]): sensor.sensor_schema(
-                    device_class=DEVICE_CLASS_ENERGY,
                     unit_of_measurement=UNIT_PERCENT,
                     icon="mdi:lightning-bolt",
                 ),
                 cv.Optional(CONF_STILL_ENERGIES[i]): sensor.sensor_schema(
-                    device_class=DEVICE_CLASS_ENERGY,
                     unit_of_measurement=UNIT_PERCENT,
                     icon="mdi:lightning-bolt-outline",
                 ),
