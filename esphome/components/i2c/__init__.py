@@ -4,7 +4,6 @@ import esphome.final_validate as fv
 from esphome import pins
 from esphome.const import (
     CONF_FREQUENCY,
-    CONF_TIMEOUT,
     CONF_ID,
     CONF_INPUT,
     CONF_OUTPUT,
@@ -57,10 +56,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
             cv.frequency, cv.Range(min=0, min_included=False)
         ),
-        cv.Optional(CONF_TIMEOUT, default="100us"): cv.All(
-            cv.only_with_esp_idf, cv.time_period, 
-            cv.Range(min=cv.TimePeriod(microseconds=1), max=cv.TimePeriod(microseconds=13000))
-        ),
         cv.Optional(CONF_SCAN, default=True): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -80,7 +75,6 @@ async def to_code(config):
         cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
 
     cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
-    cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))    
     cg.add(var.set_scan(config[CONF_SCAN]))
     if CORE.using_arduino:
         cg.add_library("Wire", None)
@@ -120,8 +114,7 @@ async def register_i2c_device(var, config):
 
 
 def final_validate_device_schema(
-    name: str, *, min_frequency: cv.frequency = None, max_frequency: cv.frequency = None,
-    min_timeout: cv.time_period = None, max_timeout: cv.time_period = None
+    name: str, *, min_frequency: cv.frequency = None, max_frequency: cv.frequency = None
 ):
     hub_schema = {}
     if min_frequency is not None:
@@ -136,20 +129,6 @@ def final_validate_device_schema(
             max=cv.frequency(max_frequency),
             max_included=True,
             msg=f"Component {name} cannot be used with a frequency of over {max_frequency} for the I2C bus",
-        )
-
-    if min_timeout is not None:
-        hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
-            min=cv.time_period(min_min_timeout),
-            min_included=True,
-            msg=f"Component {name} requires a minimum timeout of {min_timeout} for the I2C bus",
-        )
-
-    if max_timeout is not None:
-        hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
-            max=cv.time_period(max_timeout),
-            max_included=True,
-            msg=f"Component {name} cannot be used with a timeout of over {max_timeout} for the I2C bus",
         )
 
     return cv.Schema(

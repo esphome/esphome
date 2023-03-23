@@ -31,14 +31,6 @@ void IDFI2CBus::setup() {
     this->mark_failed();
     return;
   }
-  err = i2c_set_timeout(port_, timeout_ * 80); // unit: APB 80MHz clock cycle
-  if (err != ESP_OK) {
-    ESP_LOGW(TAG, "i2c_set_timeout failed: %s", esp_err_to_name(err));
-    this->mark_failed();
-    return;
-  } else {
-    ESP_LOGV(TAG, "i2c_timeout set to %d ticks (%d us)", timeout_ * 80, timeout_);
-  }
   err = i2c_driver_install(port_, I2C_MODE_MASTER, 0, 0, ESP_INTR_FLAG_IRAM);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "i2c_driver_install failed: %s", esp_err_to_name(err));
@@ -56,7 +48,6 @@ void IDFI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
   ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
   ESP_LOGCONFIG(TAG, "  Frequency: %u Hz", this->frequency_);
-  ESP_LOGCONFIG(TAG, "  Timeout: %u us", this->timeout_);
   switch (this->recovery_result_) {
     case RECOVERY_COMPLETED:
       ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
