@@ -17,6 +17,7 @@ from esphome.const import (
 from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32C3,
+    VARIANT_ESP32S3,
 )
 from esphome.core import CORE
 from ._methods import (
@@ -96,7 +97,7 @@ def _choose_default_method(config):
             config[CONF_METHOD] = _validate_method(METHOD_BIT_BANG)
 
     if CORE.is_esp32:
-        if get_esp32_variant() == VARIANT_ESP32C3:
+        if get_esp32_variant() in (VARIANT_ESP32C3, VARIANT_ESP32S3):
             config[CONF_METHOD] = _validate_method(METHOD_ESP32_RMT)
         else:
             config[CONF_METHOD] = _validate_method(METHOD_ESP32_I2S)
@@ -220,4 +221,5 @@ async def to_code(config):
     cg.add(var.set_pixel_order(getattr(ESPNeoPixelOrder, config[CONF_TYPE])))
 
     # https://github.com/Makuna/NeoPixelBus/blob/master/library.json
-    cg.add_library("makuna/NeoPixelBus", "2.6.9")
+    # Version Listed Here: https://registry.platformio.org/libraries/makuna/NeoPixelBus/versions
+    cg.add_library("makuna/NeoPixelBus", "2.7.3")
