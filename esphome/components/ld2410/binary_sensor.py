@@ -12,7 +12,7 @@ DEPENDENCIES = ["ld2410"]
 CONF_HAS_TARGET = "has_target"
 CONF_HAS_MOVING_TARGET = "has_moving_target"
 CONF_HAS_STILL_TARGET = "has_still_target"
-CONF_OUT_PIN_PRESENCE = "out_pin_presence"
+CONF_OUT_PIN_PRESENCE_STATUS = "out_pin_presence_status"
 
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
@@ -28,7 +28,7 @@ CONFIG_SCHEMA = {
         device_class=DEVICE_CLASS_OCCUPANCY,
         icon="mdi:motion-sensor",
     ),
-    cv.Optional(CONF_OUT_PIN_PRESENCE): binary_sensor.binary_sensor_schema(
+    cv.Optional(CONF_OUT_PIN_PRESENCE_STATUS): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_PRESENCE,
         icon="mdi:eye",
     ),
@@ -46,6 +46,8 @@ async def to_code(config):
     if CONF_HAS_STILL_TARGET in config:
         sens = await binary_sensor.new_binary_sensor(config[CONF_HAS_STILL_TARGET])
         cg.add(ld2410_component.set_still_target_binary_sensor(sens))
-    if CONF_OUT_PIN_PRESENCE in config:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_OUT_PIN_PRESENCE])
-        cg.add(ld2410_component.set_out_pin_presence_binary_sensor(sens))
+    if CONF_OUT_PIN_PRESENCE_STATUS in config:
+        sens = await binary_sensor.new_binary_sensor(
+            config[CONF_OUT_PIN_PRESENCE_STATUS]
+        )
+        cg.add(ld2410_component.set_out_pin_presence_status_binary_sensor(sens))
