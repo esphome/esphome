@@ -58,7 +58,7 @@ class Touchscreen {
 #ifdef USE_DISPLAY
     if (this->display_ != nullptr) {
       return this->display_->get_width_internal();
-    }else {
+    } else {
       return 100;
     }
 #else
@@ -69,7 +69,7 @@ class Touchscreen {
 #ifdef USE_DISPLAY
     if (this->display_ != nullptr) {
       return display_->get_height_internal();
-    }else {
+    } else {
       return 100;
     }
 #else
