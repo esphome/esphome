@@ -4,7 +4,7 @@ from esphome.components import i2c, esp32
 from esphome.const import CONF_ID
 
 CODEOWNERS = ["@trvrnrth"]
-DEPENDENCIES = ["i2c", "spi"]
+DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensor", "text_sensor"]
 MULTI_CONF = True
 
@@ -69,5 +69,6 @@ async def to_code(config):
         var.set_state_save_interval(config[CONF_STATE_SAVE_INTERVAL].total_milliseconds)
     )
 
+    cg.add_library("SPI", None)
     cg.add_define("USE_BSEC")
     cg.add_library("boschsensortec/BSEC Software Library", "1.6.1480")
