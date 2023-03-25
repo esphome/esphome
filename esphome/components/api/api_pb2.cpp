@@ -6060,6 +6060,12 @@ void BluetoothDeviceUnpairingResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+void UnsubscribeBluetoothLEAdvertisementsRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void UnsubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const {
+  out.append("UnsubscribeBluetoothLEAdvertisementsRequest {}");
+}
+#endif
 
 }  // namespace api
 }  // namespace esphome
