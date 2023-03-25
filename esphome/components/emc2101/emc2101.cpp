@@ -106,7 +106,7 @@ void Emc2101Component::dump_config() {
   ESP_LOGCONFIG(TAG, "  Inverted: %s", YESNO(this->inverted_));
 }
 
-void Emc2101Component::set_duty_cycle_(float value) {
+void Emc2101Component::set_duty_cycle(float value) {
   uint8_t duty_cycle = remap(value, 0.0f, 1.0f, (uint8_t) 0, this->max_output_value_);
   ESP_LOGD(TAG, "Setting duty fan setting to %02X", duty_cycle);
   if (!this->write_byte(EMC2101_REGISTER_FAN_SETTING, duty_cycle)) {
@@ -116,17 +116,17 @@ void Emc2101Component::set_duty_cycle_(float value) {
   }
 }
 
-float Emc2101Component::get_duty_cycle_percent_() {
+float Emc2101Component::get_duty_cycle() {
   uint8_t duty_cycle;
   if (!this->read_byte(EMC2101_REGISTER_FAN_SETTING, &duty_cycle)) {
     ESP_LOGE(TAG, "Communication with EMC2101 failed!");
     this->status_set_warning();
     return NAN;
   }
-  return remap(duty_cycle, (uint8_t) 0, this->max_output_value_, 0.0f, 100.0f);
+  return remap(duty_cycle, (uint8_t) 0, this->max_output_value_, 0.0f, 1.0f);
 }
 
-float Emc2101Component::get_internal_temperature_() {
+float Emc2101Component::get_internal_temperature() {
   uint8_t temperature;
   if (!this->read_byte(EMC2101_REGISTER_INTERNAL_TEMP, &temperature)) {
     ESP_LOGE(TAG, "Communication with EMC2101 failed!");
@@ -136,7 +136,7 @@ float Emc2101Component::get_internal_temperature_() {
   return temperature;
 }
 
-float Emc2101Component::get_external_temperature_() {
+float Emc2101Component::get_external_temperature() {
   // Read **MSB** first to match 'Data Read Interlock' behavoior from 6.1 of datasheet
   uint8_t lsb, msb;
   if (!this->read_byte(EMC2101_REGISTER_EXTERNAL_TEMP_MSB, &msb) ||
@@ -151,10 +151,11 @@ float Emc2101Component::get_external_temperature_() {
   return raw * 0.125;
 }
 
-float Emc2101Component::get_speed_() {
+float Emc2101Component::get_speed() {
   // Read **LSB** first to match 'Data Read Interlock' behavoior from 6.1 of datasheet
   uint8_t lsb, msb;
-  if (!this->read_byte(EMC2101_REGISTER_TACH_LSB, &lsb) || !this->read_byte(EMC2101_REGISTER_TACH_MSB, &msb)) {
+  if (!this->read_byte(EMC2101_REGISTER_TACH_LSB, &lsb) || 
+      !this->read_byte(EMC2101_REGISTER_TACH_MSB, &msb)) {
     ESP_LOGE(TAG, "Communication with EMC2101 failed!");
     this->status_set_warning();
     return NAN;

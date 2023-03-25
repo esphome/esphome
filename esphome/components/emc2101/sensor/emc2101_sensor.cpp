@@ -19,23 +19,23 @@ void EMC2101Sensor::dump_config() {
 
 void EMC2101Sensor::update() {
   if (this->internal_temperature_sensor_ != nullptr) {
-    float internal_temperature = this->parent_->get_internal_temperature_();
+    float internal_temperature = this->parent_->get_internal_temperature();
     this->internal_temperature_sensor_->publish_state(internal_temperature);
   }
 
   if (this->external_temperature_sensor_ != nullptr) {
-    float external_temperature = this->parent_->get_external_temperature_();
+    float external_temperature = this->parent_->get_external_temperature();
     this->external_temperature_sensor_->publish_state(external_temperature);
   }
 
   if (this->speed_sensor_ != nullptr) {
-    float speed = this->parent_->get_speed_();
+    float speed = this->parent_->get_speed();
     this->speed_sensor_->publish_state(speed);
   }
 
   if (this->duty_cycle_sensor_ != nullptr) {
-    float duty_cycle = this->parent_->get_duty_cycle_percent_();
-    this->duty_cycle_sensor_->publish_state(duty_cycle);
+    float duty_cycle = this->parent_->get_duty_cycle();
+    this->duty_cycle_sensor_->publish_state(duty_cycle * 100.0f);
   }
 }
 

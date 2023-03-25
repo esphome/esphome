@@ -66,46 +66,42 @@ class Emc2101Component : public Component, public i2c::I2CDevice {
    */
   void set_inverted(bool inverted) { this->inverted_ = inverted; }
 
+  /** Sets the Fan output duty cycle
+   *
+   * @param value The duty cycle value, from 0.0f to 1.0f.
+   */
+  void set_duty_cycle(float value);
+
+  /** Gets the Fan output duty cycle
+   *
+   * @return The duty cycle percentage from 0.0f to 1.0f.
+   */
+  float get_duty_cycle();
+
+  /** Gets the internal temperature sensor reading.
+   *
+   * @return The temperature in degrees celsius.
+   */
+  float get_internal_temperature();
+
+  /** Gets the external temperature sensor reading.
+   *
+   * @return The temperature in degrees celsius.
+   */
+  float get_external_temperature();
+
+  /** Gets the tachometer speed sensor reading.
+   *
+   * @return The fan speed in RPMs.
+   */
+  float get_speed();
+
   /** Used by ESPHome framework. */
   void setup() override;
   /** Used by ESPHome framework. */
   void dump_config() override;
   /** Used by ESPHome framework. */
   float get_setup_priority() const override;
-
- protected:
-  friend class EMC2101Output;
-  friend class EMC2101Sensor;
-
-  /** Sets the Fan output duty cycle
-   *
-   * @param value The duty cycle value, from 0.0f to 1.0f.
-   */
-  void set_duty_cycle_(float value);
-
-  /** Gets the Fan output duty cycle percentage
-   *
-   * @return The duty cycle percentage from 0.0f to 100.0f.
-   */
-  float get_duty_cycle_percent_();
-
-  /** Gets the internal temperature sensor reading.
-   *
-   * @return The temperature in degrees celsius.
-   */
-  float get_internal_temperature_();
-
-  /** Gets the external temperature sensor reading.
-   *
-   * @return The temperature in degrees celsius.
-   */
-  float get_external_temperature_();
-
-  /** Gets the tachometer speed sensor reading.
-   *
-   * @return The fan speed in RPMs.
-   */
-  float get_speed_();
 
   bool dac_mode_{false};
   bool inverted_{false};
