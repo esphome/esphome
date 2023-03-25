@@ -216,10 +216,9 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_BLUETOOTH_PROXY
   bool send_bluetooth_device_unpairing_response(const BluetoothDeviceUnpairingResponse &msg);
 #endif
-#ifdef USE_BLUETOOTH_PROXY
   virtual void on_unsubscribe_bluetooth_le_advertisements_request(
       const UnsubscribeBluetoothLEAdvertisementsRequest &value){};
-#endif
+
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
@@ -297,9 +296,8 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual BluetoothConnectionsFreeResponse subscribe_bluetooth_connections_free(
       const SubscribeBluetoothConnectionsFreeRequest &msg) = 0;
 #endif
-#ifdef USE_BLUETOOTH_PROXY
   virtual void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
-#endif
+
  protected:
   void on_hello_request(const HelloRequest &msg) override;
   void on_connect_request(const ConnectRequest &msg) override;
@@ -371,9 +369,8 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_BLUETOOTH_PROXY
   void on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &msg) override;
 #endif
-#ifdef USE_BLUETOOTH_PROXY
-  void on_unsubscribe_bluetooth_le_advertisements_request(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
-#endif
+  void on_unsubscribe_bluetooth_le_advertisements_request(
+      const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
 };
 
 }  // namespace api

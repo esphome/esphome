@@ -806,14 +806,12 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 87: {
-#ifdef USE_BLUETOOTH_PROXY
       UnsubscribeBluetoothLEAdvertisementsRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_unsubscribe_bluetooth_le_advertisements_request: %s", msg.dump().c_str());
 #endif
       this->on_unsubscribe_bluetooth_le_advertisements_request(msg);
-#endif
       break;
     }
     default:
@@ -1196,7 +1194,6 @@ void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
   }
 }
 #endif
-#ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request(
     const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
   if (!this->is_connection_setup()) {
@@ -1209,7 +1206,6 @@ void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request(
   }
   this->unsubscribe_bluetooth_le_advertisements(msg);
 }
-#endif
 
 }  // namespace api
 }  // namespace esphome
