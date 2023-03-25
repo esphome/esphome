@@ -137,7 +137,7 @@ float Emc2101Component::get_internal_temperature() {
 }
 
 float Emc2101Component::get_external_temperature() {
-  // Read **MSB** first to match 'Data Read Interlock' behavoior from 6.1 of datasheet
+  // Read **MSB** first to match 'Data Read Interlock' behavior from 6.1 of datasheet
   uint8_t lsb, msb;
   if (!this->read_byte(EMC2101_REGISTER_EXTERNAL_TEMP_MSB, &msb) ||
       !this->read_byte(EMC2101_REGISTER_EXTERNAL_TEMP_LSB, &lsb)) {
@@ -152,10 +152,9 @@ float Emc2101Component::get_external_temperature() {
 }
 
 float Emc2101Component::get_speed() {
-  // Read **LSB** first to match 'Data Read Interlock' behavoior from 6.1 of datasheet
+  // Read **LSB** first to match 'Data Read Interlock' behavior from 6.1 of datasheet
   uint8_t lsb, msb;
-  if (!this->read_byte(EMC2101_REGISTER_TACH_LSB, &lsb) || 
-      !this->read_byte(EMC2101_REGISTER_TACH_MSB, &msb)) {
+  if (!this->read_byte(EMC2101_REGISTER_TACH_LSB, &lsb) || !this->read_byte(EMC2101_REGISTER_TACH_MSB, &msb)) {
     ESP_LOGE(TAG, "Communication with EMC2101 failed!");
     this->status_set_warning();
     return NAN;
