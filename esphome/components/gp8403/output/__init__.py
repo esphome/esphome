@@ -6,9 +6,6 @@ from esphome.const import CONF_ID, CONF_CHANNEL
 
 from .. import gp8403_ns, GP8403, CONF_GP8403_ID
 
-CODEOWNERS = ["@jesserockz"]
-DEPENDENCIES = ["i2c"]
-
 GP8403Output = gp8403_ns.class_(
     "GP8403Output", cg.Component, i2c.I2CDevice, output.FloatOutput
 )
