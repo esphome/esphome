@@ -761,7 +761,7 @@ sensor:
   - platform: dsmr
     energy_delivered_tariff1:
       name: dsmr_energy_delivered_tariff1
-  - platform: kamstrup_mc40x
+  - platform: kamstrup_kmp
     uart_id: uart12
     heat_energy:
       name: "Heat Energy"

@@ -1,26 +1,80 @@
-#include "kamstrup_mc40x.h"
+#include "kamstrup_kmp.h"
 
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace kamstrup_mc40x {
+namespace kamstrup_kmp {
 
-static const char *const TAG = "KamstrupMC40x";
+static const char *const TAG = "kamstrup_kmp";
 
-void KamstrupMC40xComponent::setup() {}
+void KamstrupKMPComponent::setup() {}
 
-void KamstrupMC40xComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "kamstrup_mc40x:");
+void KamstrupKMPComponent::dump_config() {
+  ESP_LOGCONFIG(TAG, "kamstrup_kmp:");
   if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with CSE7761 failed!");
+    ESP_LOGE(TAG, "Communication with Kamstrup meter failed!");
   }
   LOG_UPDATE_INTERVAL(this);
+
+  if (this->heat_energy_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Heat Energy", this->heat_energy_sensor_);
+  }
+
+  if (this->power_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Power", this->power_sensor_);
+  }
+
+  if (this->temp1_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Temperature 1", this->temp1_sensor_);
+  }
+
+  if (this->temp2_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Temperature 2", this->temp2_sensor_);
+  }
+
+  if (this->temp_diff_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Temperature Difference", this->temp_diff_sensor_);
+  }
+
+  if (this->flow_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Flow", this->flow_sensor_);
+  }
+
+  if (this->volume_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Volume", this->volume_sensor_);
+  }
+
+  if (this->custom1_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Custom Sensor 1", this->custom1_sensor_);
+    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom1_command_);
+  }
+
+  if (this->custom2_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Custom Sensor 2", this->custom2_sensor_);
+    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom2_command_);
+  }
+
+  if (this->custom3_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Custom Sensor 3", this->custom3_sensor_);
+    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom3_command_);
+  }
+
+  if (this->custom4_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Custom Sensor 4", this->custom4_sensor_);
+    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom4_command_);
+  }
+
+  if (this->custom5_sensor_ != nullptr) {
+    LOG_SENSOR("  ", "Custom Sensor 5", this->custom5_sensor_);
+    ESP_LOGCONFIG(TAG, "    Command: 0x%04X", this->custom5_command_);
+  }
+
   this->check_uart_settings(1200, 2, uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
-float KamstrupMC40xComponent::get_setup_priority() const { return setup_priority::DATA; }
+float KamstrupKMPComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-void KamstrupMC40xComponent::update() {
+void KamstrupKMPComponent::update() {
   if (this->heat_energy_sensor_ != nullptr) {
     this->send_command_(CMD_HEAT_ENERGY);
   }
@@ -48,9 +102,29 @@ void KamstrupMC40xComponent::update() {
   if (this->volume_sensor_ != nullptr) {
     this->send_command_(CMD_VOLUME);
   }
+
+  if (this->custom1_sensor_ != nullptr) {
+    this->send_command_(this->custom1_command_);
+  }
+
+  if (this->custom2_sensor_ != nullptr) {
+    this->send_command_(this->custom2_command_);
+  }
+
+  if (this->custom3_sensor_ != nullptr) {
+    this->send_command_(this->custom3_command_);
+  }
+
+  if (this->custom4_sensor_ != nullptr) {
+    this->send_command_(this->custom4_command_);
+  }
+
+  if (this->custom5_sensor_ != nullptr) {
+    this->send_command_(this->custom5_command_);
+  }
 }
 
-void KamstrupMC40xComponent::send_command_(uint16_t command) {
+void KamstrupKMPComponent::send_command_(uint16_t command) {
   uint32_t msg_len = 5;
   uint8_t msg[msg_len];
 
@@ -65,7 +139,7 @@ void KamstrupMC40xComponent::send_command_(uint16_t command) {
   this->read_command_(command);
 }
 
-void KamstrupMC40xComponent::send_message_(const uint8_t *msg, int msg_len) {
+void KamstrupKMPComponent::send_message_(const uint8_t *msg, int msg_len) {
   int buffer_len = msg_len + 2;
   uint8_t buffer[buffer_len];
 
@@ -100,14 +174,14 @@ void KamstrupMC40xComponent::send_message_(const uint8_t *msg, int msg_len) {
   this->write_array(tx_msg, tx_msg_len);
 }
 
-void KamstrupMC40xComponent::clear_uart_rx_buffer_() {
+void KamstrupKMPComponent::clear_uart_rx_buffer_() {
   uint8_t tmp;
   while (this->available()) {
     this->read_byte(&tmp);
   }
 }
 
-void KamstrupMC40xComponent::read_command_(uint16_t command) {
+void KamstrupKMPComponent::read_command_(uint16_t command) {
   uint8_t buffer[20] = {0};
   int buffer_len = 0;
   int data;
@@ -172,7 +246,7 @@ void KamstrupMC40xComponent::read_command_(uint16_t command) {
   this->parse_command_message_(command, msg, msg_len);
 }
 
-void KamstrupMC40xComponent::parse_command_message_(uint16_t command, const uint8_t *msg, int msg_len) {
+void KamstrupKMPComponent::parse_command_message_(uint16_t command, const uint8_t *msg, int msg_len) {
   // Validate the message
   if (msg_len < 8) {
     ESP_LOGE(TAG, "Received invalid message (message too small)");
@@ -223,49 +297,44 @@ void KamstrupMC40xComponent::parse_command_message_(uint16_t command, const uint
   this->set_sensor_value_(command, value, unit_idx);
 }
 
-void KamstrupMC40xComponent::set_sensor_value_(uint16_t command, float value, uint8_t unit_idx) {
+void KamstrupKMPComponent::set_sensor_value_(uint16_t command, float value, uint8_t unit_idx) {
   const char *unit = UNITS[unit_idx];
 
-  switch (command) {
-    case CMD_HEAT_ENERGY:
-      this->heat_energy_sensor_->set_unit_of_measurement(unit);
-      this->heat_energy_sensor_->publish_state(value);
-      break;
-
-    case CMD_POWER:
-      this->power_sensor_->set_unit_of_measurement(unit);
-      this->power_sensor_->publish_state(value);
-      break;
-
-    case CMD_TEMP1:
-      this->temp1_sensor_->set_unit_of_measurement(unit);
-      this->temp1_sensor_->publish_state(value);
-      break;
-
-    case CMD_TEMP2:
-      this->temp2_sensor_->set_unit_of_measurement(unit);
-      this->temp2_sensor_->publish_state(value);
-      break;
-
-    case CMD_TEMP_DIFF:
-      this->temp_diff_sensor_->set_unit_of_measurement(unit);
-      this->temp_diff_sensor_->publish_state(value);
-      break;
-
-    case CMD_FLOW:
-      this->flow_sensor_->set_unit_of_measurement(unit);
-      this->flow_sensor_->publish_state(value);
-      break;
-
-    case CMD_VOLUME:
-      this->volume_sensor_->set_unit_of_measurement(unit);
-      this->volume_sensor_->publish_state(value);
-      break;
-
-    default:
-      ESP_LOGE(TAG, "Unsupported command %d", command);
-      break;
+  // Standard sensors
+  if (command == CMD_HEAT_ENERGY && this->heat_energy_sensor_ != nullptr) {
+    this->heat_energy_sensor_->publish_state(value);
+  } else if (command == CMD_POWER && this->power_sensor_ != nullptr) {
+    this->power_sensor_->publish_state(value);
+  } else if (command == CMD_TEMP1 && this->temp1_sensor_ != nullptr) {
+    this->temp1_sensor_->publish_state(value);
+  } else if (command == CMD_TEMP2 && this->temp2_sensor_ != nullptr) {
+    this->temp2_sensor_->publish_state(value);
+  } else if (command == CMD_TEMP_DIFF && this->temp_diff_sensor_ != nullptr) {
+    this->temp_diff_sensor_->publish_state(value);
+  } else if (command == CMD_FLOW && this->flow_sensor_ != nullptr) {
+    this->flow_sensor_->publish_state(value);
+  } else if (command == CMD_VOLUME && this->volume_sensor_ != nullptr) {
+    this->volume_sensor_->publish_state(value);
   }
+
+  // Custom sensors
+  if (command == this->custom1_command_ && this->custom1_sensor_ != nullptr) {
+    this->custom1_sensor_->publish_state(value);
+  }
+  if (command == this->custom2_command_ && this->custom2_sensor_ != nullptr) {
+    this->custom2_sensor_->publish_state(value);
+  }
+  if (command == this->custom3_command_ && this->custom3_sensor_ != nullptr) {
+    this->custom3_sensor_->publish_state(value);
+  }
+  if (command == this->custom4_command_ && this->custom4_sensor_ != nullptr) {
+    this->custom4_sensor_->publish_state(value);
+  }
+  if (command == this->custom5_command_ && this->custom5_sensor_ != nullptr) {
+    this->custom5_sensor_->publish_state(value);
+  }
+
+  ESP_LOGD(TAG, "Received value for command 0x%04X: %.3f [%s]", command, value, unit);
 }
 
 uint16_t crc16_ccitt(const uint8_t *buffer, int len) {
@@ -288,5 +357,5 @@ uint16_t crc16_ccitt(const uint8_t *buffer, int len) {
   return (uint16_t) reg;
 }
 
-}  // namespace kamstrup_mc40x
+}  // namespace kamstrup_kmp
 }  // namespace esphome

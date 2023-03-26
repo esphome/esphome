@@ -5,18 +5,20 @@
 #include "esphome/core/component.h"
 
 namespace esphome {
-namespace kamstrup_mc40x {
+namespace kamstrup_kmp {
 
 /*
     ===========================================================================
-    ===                        KAMSTRUP MULTICAL 40x                        ===
+    ===                            KAMSTRUP KMP                             ===
     ===========================================================================
 
-    The Kamstrup Multical is a measuring device registering consumed heat from
-    a district heating system. It does this by measuring the incoming and
-    outgoing water temperature and by measuring the water flow. The temperature
-    difference (delta T) together with the water flow results in consumed
-    energy, typically in giga joule (GJ).
+    Kamstrup Meter Protocol (KMP) is a protocol used with Kamstrup district
+    heating meters, e.g. Kamstrup MULTICAL 403.
+    These devices register consumed heat from a district heating system.
+    It does this by measuring the incoming and outgoing water temperature
+    and by measuring the water flow. The temperature difference (delta T)
+    together with the water flow results in consumed energy, typically
+    in giga joule (GJ).
 
     The Kamstrup Multical has an optical interface just above the display.
     This interface is essentially an RS-232 interface using a proprietary
@@ -29,13 +31,22 @@ namespace kamstrup_mc40x {
       - Temperature 1             [°C]
       - Temperature 2             [°C]
       - Temperature Difference    [°K]
-      - Water Flow                [l/min]
+      - Water Flow                [l/h]
       - Volume                    [m3]
+
+    Apart from these supported 'fixed' sensors, the user can configure up to
+    five custom sensors. The KMP command (16 bit unsigned int) has to be
+    provided in that case.
 
     Note:
     The optical interface is enabled as soon as a button on the meter is pushed.
     The interface stays active for a few minutes. To keep the interface 'alive'
     magnets must be placed around the optical sensor.
+
+    Units:
+    Units are set using the regular Sensor config in the user yaml. However,
+    KMP does also send the correct unit with every value. When DEBUG logging
+    is enabled, the received value with the received unit are logged.
 
     Acknowledgement:
     This interface was inspired by:
@@ -43,7 +54,7 @@ namespace kamstrup_mc40x {
       - https://wiki.hal9k.dk/projects/kamstrup
 */
 
-// MC40x Commands
+// KMP Commands
 static const uint16_t CMD_HEAT_ENERGY = 0x003C;
 static const uint16_t CMD_POWER = 0x0050;
 static const uint16_t CMD_TEMP1 = 0x0056;
@@ -52,7 +63,7 @@ static const uint16_t CMD_TEMP_DIFF = 0x0059;
 static const uint16_t CMD_FLOW = 0x004A;
 static const uint16_t CMD_VOLUME = 0x0044;
 
-// MC40x units
+// KMP units
 static const char *const UNITS[] = {
     "",      "Wh",   "kWh",  "MWh",   "GWh",     "J",       "kJ",       "MJ",       "GJ",       "Cal",
     "kCal",  "Mcal", "Gcal", "varh",  "kvarh",   "Mvarh",   "Gvarh",    "VAh",      "kVAh",     "MVAh",
@@ -62,15 +73,25 @@ static const char *const UNITS[] = {
     "mm:dd", "",     "bar",  "RTC",   "ASCII",   "m3 x 10", "ton x 10", "GJ x 10",  "minutes",  "Bitfield",
     "s",     "ms",   "days", "RTC-Q", "Datetime"};
 
-class KamstrupMC40xComponent : public PollingComponent, public uart::UARTDevice {
+class KamstrupKMPComponent : public PollingComponent, public uart::UARTDevice {
  public:
-  void set_heat_energy_sensor(sensor::Sensor *heat_energy_sensor) { heat_energy_sensor_ = heat_energy_sensor; }
-  void set_power_sensor(sensor::Sensor *power_sensor) { power_sensor_ = power_sensor; }
-  void set_temp1_sensor(sensor::Sensor *temp1_sensor) { temp1_sensor_ = temp1_sensor; }
-  void set_temp2_sensor(sensor::Sensor *temp2_sensor) { temp2_sensor_ = temp2_sensor; }
-  void set_temp_diff_sensor(sensor::Sensor *temp_diff_sensor) { temp_diff_sensor_ = temp_diff_sensor; }
-  void set_flow_sensor(sensor::Sensor *flow_sensor) { flow_sensor_ = flow_sensor; }
-  void set_volume_sensor(sensor::Sensor *volume_sensor) { volume_sensor_ = volume_sensor; }
+  void set_heat_energy_sensor(sensor::Sensor *sensor) { heat_energy_sensor_ = sensor; }
+  void set_power_sensor(sensor::Sensor *sensor) { power_sensor_ = sensor; }
+  void set_temp1_sensor(sensor::Sensor *sensor) { temp1_sensor_ = sensor; }
+  void set_temp2_sensor(sensor::Sensor *sensor) { temp2_sensor_ = sensor; }
+  void set_temp_diff_sensor(sensor::Sensor *sensor) { temp_diff_sensor_ = sensor; }
+  void set_flow_sensor(sensor::Sensor *sensor) { flow_sensor_ = sensor; }
+  void set_volume_sensor(sensor::Sensor *sensor) { volume_sensor_ = sensor; }
+  void set_custom1_sensor(sensor::Sensor *sensor) { custom1_sensor_ = sensor; }
+  void set_custom2_sensor(sensor::Sensor *sensor) { custom2_sensor_ = sensor; }
+  void set_custom3_sensor(sensor::Sensor *sensor) { custom3_sensor_ = sensor; }
+  void set_custom4_sensor(sensor::Sensor *sensor) { custom4_sensor_ = sensor; }
+  void set_custom5_sensor(sensor::Sensor *sensor) { custom5_sensor_ = sensor; }
+  void set_custom1_command(uint16_t command) { custom1_command_ = command; }
+  void set_custom2_command(uint16_t command) { custom2_command_ = command; }
+  void set_custom3_command(uint16_t command) { custom3_command_ = command; }
+  void set_custom4_command(uint16_t command) { custom4_command_ = command; }
+  void set_custom5_command(uint16_t command) { custom5_command_ = command; }
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override;
@@ -85,6 +106,18 @@ class KamstrupMC40xComponent : public PollingComponent, public uart::UARTDevice 
   sensor::Sensor *temp_diff_sensor_{nullptr};
   sensor::Sensor *flow_sensor_{nullptr};
   sensor::Sensor *volume_sensor_{nullptr};
+  sensor::Sensor *custom1_sensor_{nullptr};
+  sensor::Sensor *custom2_sensor_{nullptr};
+  sensor::Sensor *custom3_sensor_{nullptr};
+  sensor::Sensor *custom4_sensor_{nullptr};
+  sensor::Sensor *custom5_sensor_{nullptr};
+
+  // Custom sensor commands
+  uint16_t custom1_command_{0};
+  uint16_t custom2_command_{0};
+  uint16_t custom3_command_{0};
+  uint16_t custom4_command_{0};
+  uint16_t custom5_command_{0};
 
   // Methods
 
@@ -105,5 +138,5 @@ class KamstrupMC40xComponent : public PollingComponent, public uart::UARTDevice 
 // "true" CCITT CRC-16
 uint16_t crc16_ccitt(const uint8_t *buffer, int len);
 
-}  // namespace kamstrup_mc40x
+}  // namespace kamstrup_kmp
 }  // namespace esphome
