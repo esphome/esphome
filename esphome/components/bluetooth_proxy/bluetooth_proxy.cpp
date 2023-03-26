@@ -309,8 +309,8 @@ void BluetoothProxy::bluetooth_device_request(const api::BluetoothDeviceRequest 
     case api::enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE: {
       esp_bd_addr_t address;
       uint64_to_bd_addr(msg.address, address);
-      esp_err_t err = esp_ble_gattc_cache_clean(address);
-      api::global_api_server->send_bluetooth_device_clear_cache(msg.address, err == ESP_OK, err);
+      esp_err_t ret = esp_ble_gattc_cache_clean(address);
+      api::global_api_server->send_bluetooth_device_clear_cache(msg.address, ret == ESP_OK, ret);
       break;
     }
   }
