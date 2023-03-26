@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import switch
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_SWITCH, ICON_BLUETOOTH
+from esphome.const import DEVICE_CLASS_SWITCH, ICON_BLUETOOTH, ENTITY_CATEGORY_CONFIG
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
 LD2410Switch = ld2410_ns.class_("LD2410Switch", switch.Switch)
@@ -14,11 +14,13 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_ENGINEERING_MODE): switch.switch_schema(
         LD2410Switch,
         device_class=DEVICE_CLASS_SWITCH,
+        entity_category=ENTITY_CATEGORY_CONFIG,
         icon="mdi:wrench",
     ),
     cv.Optional(CONF_BLUETOOTH): switch.switch_schema(
         LD2410Switch,
         device_class=DEVICE_CLASS_SWITCH,
+        entity_category=ENTITY_CATEGORY_CONFIG,
         icon=ICON_BLUETOOTH,
     ),
 }
