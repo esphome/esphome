@@ -8,6 +8,7 @@ from esphome.const import (
     DEVICE_CLASS_ILLUMINANCE,
     UNIT_SECOND,
     UNIT_PERCENT,
+    ENTITY_CATEGORY_CONFIG,
 )
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
@@ -53,21 +54,25 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_TIMEOUT): number.number_schema(
             LD2410Number,
             unit_of_measurement=UNIT_SECOND,
+            entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:clock-time-eight-outline",
         ),
         cv.Optional(CONF_MAX_MOVE_DISTANCE_GATE): number.number_schema(
             LD2410Number,
             device_class=DEVICE_CLASS_DISTANCE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:motion-sensor",
         ),
         cv.Optional(CONF_MAX_STILL_DISTANCE_GATE): number.number_schema(
             LD2410Number,
             device_class=DEVICE_CLASS_DISTANCE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:motion-sensor-off",
         ),
         cv.Optional(CONF_LIGHT_THRESHOLD): number.number_schema(
             LD2410Number,
             device_class=DEVICE_CLASS_ILLUMINANCE,
+            entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:car-light-high",
         ),
     }
@@ -81,12 +86,14 @@ for i in range(9):
                     LD2410Number,
                     device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     unit_of_measurement=UNIT_PERCENT,
+                    entity_category=ENTITY_CATEGORY_CONFIG,
                     icon="mdi:motion-sensor",
                 ),
                 cv.Optional(CONF_STILL_THRESHOLDS[i]): number.number_schema(
                     LD2410Number,
                     device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     unit_of_measurement=UNIT_PERCENT,
+                    entity_category=ENTITY_CATEGORY_CONFIG,
                     icon="mdi:motion-sensor-off",
                 ),
             }

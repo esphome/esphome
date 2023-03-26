@@ -7,6 +7,7 @@ from esphome.const import (
     UNIT_PERCENT,
     CONF_LIGHT,
     DEVICE_CLASS_ILLUMINANCE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
     UNIT_LUX,
 )
 from . import CONF_LD2410_ID, LD2410Component
@@ -45,6 +46,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_LIGHT): sensor.sensor_schema(
             device_class=DEVICE_CLASS_ILLUMINANCE,
+            entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
             unit_of_measurement=UNIT_LUX,
             icon="mdi:weather-sunny",
         ),
@@ -62,10 +64,12 @@ for i in range(9):
             {
                 cv.Optional(CONF_MOVE_ENERGIES[i]): sensor.sensor_schema(
                     unit_of_measurement=UNIT_PERCENT,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                     icon="mdi:lightning-bolt",
                 ),
                 cv.Optional(CONF_STILL_ENERGIES[i]): sensor.sensor_schema(
                     unit_of_measurement=UNIT_PERCENT,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                     icon="mdi:lightning-bolt-outline",
                 ),
             }
