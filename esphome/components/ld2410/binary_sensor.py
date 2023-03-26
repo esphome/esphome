@@ -5,6 +5,7 @@ from esphome.const import (
     DEVICE_CLASS_MOTION,
     DEVICE_CLASS_OCCUPANCY,
     DEVICE_CLASS_PRESENCE,
+    ENTITY_CATEGORY_DIAGNOSTIC,
 )
 from . import CONF_LD2410_ID, LD2410Component
 
@@ -30,6 +31,7 @@ CONFIG_SCHEMA = {
     ),
     cv.Optional(CONF_OUT_PIN_PRESENCE_STATUS): binary_sensor.binary_sensor_schema(
         device_class=DEVICE_CLASS_PRESENCE,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         icon="mdi:eye",
     ),
 }

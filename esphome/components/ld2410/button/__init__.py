@@ -1,7 +1,12 @@
 import esphome.codegen as cg
 from esphome.components import button
 import esphome.config_validation as cv
-from esphome.const import DEVICE_CLASS_RESTART
+from esphome.const import (
+    DEVICE_CLASS_RESTART,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    ENTITY_CATEGORY_CONFIG,
+    DEVICE_CLASS_UPDATE,
+)
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
 LD2410Button = ld2410_ns.class_("LD2410Button", button.Button)
@@ -15,15 +20,19 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_FACTORY_RESET): button.button_schema(
         LD2410Button,
         device_class=DEVICE_CLASS_RESTART,
+        entity_category=ENTITY_CATEGORY_CONFIG,
         icon="mdi:restart-off",
     ),
     cv.Optional(CONF_RESTART): button.button_schema(
         LD2410Button,
         device_class=DEVICE_CLASS_RESTART,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         icon="mdi:restart",
     ),
     cv.Optional(CONF_QUERY_PARAMS): button.button_schema(
         LD2410Button,
+        entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+        device_class=DEVICE_CLASS_UPDATE,
         icon="mdi:database-search",
     ),
 }
