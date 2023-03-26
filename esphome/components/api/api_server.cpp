@@ -331,7 +331,7 @@ void APIServer::send_bluetooth_device_unpairing(uint64_t address, bool success, 
   }
 }
 
-void APIServer::send_bluetooth_clear_cache(uint64_t address, bool success, esp_err_t error) {
+void APIServer::send_bluetooth_device_clear_cache(uint64_t address, bool success, esp_err_t error) {
   BluetoothDeviceClearCacheResponse call;
   call.address = address;
   call.success = success;
