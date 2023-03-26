@@ -1156,6 +1156,7 @@ enum BluetoothDeviceRequestType {
   BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3;
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE = 4;
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5;
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE = 6;
 }
 
 message BluetoothDeviceRequest {
@@ -1352,6 +1353,16 @@ message BluetoothDevicePairingResponse {
 
 message BluetoothDeviceUnpairingResponse {
   option (id) = 86;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint64 address = 1;
+  bool success = 2;
+  int32 error = 3;
+}
+
+message BluetoothDeviceClearCacheResponse {
+  option (id) = 87;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 

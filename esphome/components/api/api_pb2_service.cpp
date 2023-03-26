@@ -185,8 +185,7 @@ bool APIServerConnectionBase::send_homeassistant_service_response(const Homeassi
 #endif
   return this->send_message_<HomeassistantServiceResponse>(msg, 35);
 }
-bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
-    const SubscribeHomeAssistantStateResponse &msg) {
+bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_subscribe_home_assistant_state_response: %s", msg.dump().c_str());
 #endif
@@ -357,8 +356,7 @@ bool APIServerConnectionBase::send_bluetooth_gatt_get_services_response(const Bl
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-bool APIServerConnectionBase::send_bluetooth_gatt_get_services_done_response(
-    const BluetoothGATTGetServicesDoneResponse &msg) {
+bool APIServerConnectionBase::send_bluetooth_gatt_get_services_done_response(const BluetoothGATTGetServicesDoneResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_bluetooth_gatt_get_services_done_response: %s", msg.dump().c_str());
 #endif
@@ -439,6 +437,14 @@ bool APIServerConnectionBase::send_bluetooth_device_unpairing_response(const Blu
   ESP_LOGVV(TAG, "send_bluetooth_device_unpairing_response: %s", msg.dump().c_str());
 #endif
   return this->send_message_<BluetoothDeviceUnpairingResponse>(msg, 86);
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+bool APIServerConnectionBase::send_bluetooth_device_clear_cache_response(const BluetoothDeviceClearCacheResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_bluetooth_device_clear_cache_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<BluetoothDeviceClearCacheResponse>(msg, 87);
 }
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
@@ -878,8 +884,7 @@ void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &
   }
   this->subscribe_logs(msg);
 }
-void APIServerConnection::on_subscribe_homeassistant_services_request(
-    const SubscribeHomeassistantServicesRequest &msg) {
+void APIServerConnection::on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -1065,8 +1070,7 @@ void APIServerConnection::on_media_player_command_request(const MediaPlayerComma
   this->media_player_command(msg);
 }
 #endif
-void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(
-    const SubscribeBluetoothLEAdvertisementsRequest &msg) {
+void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -1169,8 +1173,7 @@ void APIServerConnection::on_bluetooth_gatt_notify_request(const BluetoothGATTNo
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
-    const SubscribeBluetoothConnectionsFreeRequest &msg) {
+void APIServerConnection::on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
