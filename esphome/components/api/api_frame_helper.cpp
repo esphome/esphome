@@ -74,7 +74,7 @@ const char *api_error_to_str(APIError err) {
 
 #define HELPER_LOG(msg, ...) ESP_LOGVV(TAG, "%s: " msg, info_.c_str(), ##__VA_ARGS__)
 // uncomment to log raw packets
-// #define HELPER_LOG_PACKETS
+//#define HELPER_LOG_PACKETS
 
 #ifdef USE_API_NOISE
 static const char *const PROLOGUE_INIT = "NoiseAPIInit";
