@@ -4,6 +4,7 @@
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
 #include "esphome/core/defines.h"
+#include "gdew0154m09_defines.h"
 
 namespace esphome {
 namespace gdew0154m09 {
@@ -63,18 +64,18 @@ class GDEW0154M09 : public PollingComponent,
 };
 
 const unsigned char WFT0154CZB3_LIST[] = {
-    11,                                  //  NOLINT  //  11 commands in list:
-    0x00, 2, 0xdf, 0x0e,                 //  NOLINT  //  panel setting
-    0x4D, 1, 0x55,                       //  NOLINT  //  FITIinternal code
-    0xaa, 1, 0x0f,                       //  NOLINT
-    0xe9, 1, 0x02,                       //  NOLINT
-    0xb6, 1, 0x11,                       //  NOLINT
-    0xf3, 1, 0x0a,                       //  NOLINT
-    0x61, 3, 0xc8, 0x00, 0xc8,           //  NOLINT  // resolution setting
-    0x60, 1, 0x00,                       //  NOLINT  // Tcon setting
-    0x50, 1, 0xd7,                       //  NOLINT
-    0xe3, 1, 0x00,                       //  NOLINT
-    0x04, 0                              //  NOLINT  // Power on
+    11,                                                //  NOLINT  //  11 commands in list
+    CMD_PSR_PANEL_SETTING, 2, 0xdf, 0x0e,              //  NOLINT - 200x200, LUT from OTP, B/W mode, scan up, shift rt
+    CMD_UNDOCUMENTED_0x4D, 1, 0x55,                    //  NOLINT
+    CMD_UNDOCUMENTED_0xAA, 1, 0x0f,                    //  NOLINT
+    CMD_UNDOCUMENTED_0xE9, 1, 0x02,                    //  NOLINT
+    CMD_UNDOCUMENTED_0xB6, 1, 0x11,                    //  NOLINT
+    CMD_UNDOCUMENTED_0xF3, 1, 0x0a,                    //  NOLINT
+    CMD_TRES_RESOLUTION_SETTING, 3, 0xc8, 0x00, 0xc8,  //  NOLINT
+    CMD_TCON_TCONSETTING, 1, 0x00,                     //  NOLINT
+    CMD_CDI_VCOM_DATA_INTERVAL, 1, 0xd7,               //  NOLINT
+    CMD_PWS_POWER_SAVING, 1, 0x00,                     //  NOLINT
+    CMD_PON_POWER_ON, 0                                //  NOLINT
 };
 
 // LUTs provided for future reference - currently unused.
