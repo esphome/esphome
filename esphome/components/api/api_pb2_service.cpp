@@ -446,7 +446,7 @@ bool APIServerConnectionBase::send_bluetooth_device_clear_cache_response(const B
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_bluetooth_device_clear_cache_response: %s", msg.dump().c_str());
 #endif
-  return this->send_message_<BluetoothDeviceClearCacheResponse>(msg, 87);
+  return this->send_message_<BluetoothDeviceClearCacheResponse>(msg, 88);
 }
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
