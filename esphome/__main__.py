@@ -273,7 +273,7 @@ def upload_using_esptool(config, port):
 def upload_using_platformio(config, port):
     from esphome import platformio_api
 
-    upload_args = ["-t", "upload"]
+    upload_args = ["-t", "upload", "-t", "nobuild"]
     if port is not None:
         upload_args += ["--upload-port", port]
     return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)

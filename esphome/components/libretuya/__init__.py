@@ -72,6 +72,7 @@ def _check_framework_version(value):
 CONF_LT_CONFIG = "lt_config"
 CONF_LOGLEVEL = "loglevel"
 CONF_SDK_SILENT = "sdk_silent"
+CONF_SDK_SILENT_ALL = "sdk_silent_all"
 CONF_GPIO_RECOVER = "gpio_recover"
 
 LT_LOGLEVELS = [
@@ -107,6 +108,7 @@ CONFIG_SCHEMA = cv.All(
                 *LT_LOGLEVELS, upper=True
             ),
             cv.Optional(CONF_SDK_SILENT, default=True): cv.boolean,
+            cv.Optional(CONF_SDK_SILENT_ALL, default=True): cv.boolean,
             cv.Optional(CONF_GPIO_RECOVER, default=True): cv.boolean,
         },
     ),
@@ -131,7 +133,8 @@ async def to_code(config):
         LT_LOGGER_TASK=0,
         LT_LOGGER_COLOR=1,
         LT_DEBUG_ALL=1,
-        LT_UART_SILENT_ALL=int(config[CONF_SDK_SILENT]),
+        LT_UART_SILENT_ENABLED=int(config[CONF_SDK_SILENT]),
+        LT_UART_SILENT_ALL=int(config[CONF_SDK_SILENT_ALL]),
         LT_USE_TIME=1,
     )
     lt_config.update(config[CONF_LT_CONFIG])
@@ -179,6 +182,5 @@ async def to_code(config):
     else:
         cg.add_platformio_option("custom_fw_name", "esphome")
         cg.add_platformio_option("custom_fw_version", __version__)
-    cg.add_platformio_option("custom_fw_output", "firmware.uf2")
 
     await cg.register_component(var, config)

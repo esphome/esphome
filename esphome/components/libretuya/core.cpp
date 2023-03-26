@@ -19,20 +19,20 @@ void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
 
 void arch_init() {
   libretuya::setup_preferences();
-  LT.wdtEnable();
+  lt_wdt_enable(10000L);
 #if LT_GPIO_RECOVER
-  LT.gpioRecover();
+  lt_gpio_recover();
 #endif
 }
 
 void arch_restart() {
-  LT.restart();
+  lt_reboot();
   while (1) {
   }
 }
-void IRAM_ATTR HOT arch_feed_wdt() { LT.wdtFeed(); }
-uint32_t arch_get_cpu_cycle_count() { return LT.getCycleCount(); }
-uint32_t arch_get_cpu_freq_hz() { return LT.getCpuFreq(); }
+void IRAM_ATTR HOT arch_feed_wdt() { lt_wdt_feed(); }
+uint32_t arch_get_cpu_cycle_count() { return lt_cpu_get_cycle_count(); }
+uint32_t arch_get_cpu_freq_hz() { return lt_cpu_get_freq(); }
 uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 
 }  // namespace esphome

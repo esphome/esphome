@@ -269,24 +269,24 @@ void DebugComponent::dump_config() {
 #endif
 
 #ifdef USE_LIBRETUYA
-  ESP_LOGD(TAG, "LT Framework Version: %s", LT.getVersion());
-  ESP_LOGD(TAG, "Chip: %s (%04x) @ %u MHz", LT.getChipModel(), LT.getChipType(), LT.getCpuFreqMHz());
-  ESP_LOGD(TAG, "Chip ID: 0x%06X", LT.getChipId());
-  ESP_LOGD(TAG, "Board: %s", LT.getBoard());
-  ESP_LOGD(TAG, "Flash: %u KiB / RAM: %u KiB", LT.getFlashChipSize() / 1024, LT.getRamSize() / 1024);
-  ESP_LOGD(TAG, "Reset Reason: %s", LT.getResetReasonName());
+  ESP_LOGD(TAG, "LT Framework Version: %s", lt_get_version());
+  ESP_LOGD(TAG, "Chip: %s (%04x) @ %u MHz", lt_cpu_get_model_name(), lt_cpu_get_model(), lt_cpu_get_freq_mhz());
+  ESP_LOGD(TAG, "Chip ID: 0x%06X", lt_cpu_get_mac_id());
+  ESP_LOGD(TAG, "Board: %s", lt_get_board_code());
+  ESP_LOGD(TAG, "Flash: %u KiB / RAM: %u KiB", lt_flash_get_size() / 1024, lt_ram_get_size() / 1024);
+  ESP_LOGD(TAG, "Reset Reason: %s", lt_get_reboot_reason_name(lt_get_reboot_reason()));
 
-  device_info += "|LT Version: ";
-  device_info += LT.getVersion();
+  device_info += "|Version: ";
+  device_info += LT_BANNER_STR;
   device_info += "|Reset Reason: ";
-  device_info += LT.getResetReasonName();
+  device_info += lt_get_reboot_reason_name(lt_get_reboot_reason());
   device_info += "|Chip Name: ";
-  device_info += LT.getChipModel();
-  device_info += "|Chip ID: 0x" + format_hex(LT.getChipId());
-  device_info += "|Flash: " + to_string(LT.getFlashChipSize() / 1024) + " KiB";
-  device_info += "|RAM: " + to_string(LT.getRamSize() / 1024) + " KiB";
+  device_info += lt_cpu_get_model_name();
+  device_info += "|Chip ID: 0x" + format_hex(lt_cpu_get_mac_id());
+  device_info += "|Flash: " + to_string(lt_flash_get_size() / 1024) + " KiB";
+  device_info += "|RAM: " + to_string(lt_ram_get_size() / 1024) + " KiB";
 
-  reset_reason = LT.getResetReasonName();
+  reset_reason = lt_get_reboot_reason_name(lt_get_reboot_reason());
 #endif
 
 #ifdef USE_TEXT_SENSOR

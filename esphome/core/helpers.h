@@ -17,7 +17,7 @@
 #if defined(USE_ESP32)
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
-#elif defined(USE_RP2040)
+#elif defined(USE_RP2040) || defined(USE_LIBRETUYA)
 #include <FreeRTOS.h>
 #include <semphr.h>
 #endif

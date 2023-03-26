@@ -11,12 +11,12 @@ static const char *const TAG = "lt.component";
 
 void LTComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "LibreTuya:");
-  ESP_LOGCONFIG(TAG, "  Version: %s", LT.getVersion());
+  ESP_LOGCONFIG(TAG, "  Version: %s", lt_get_version());
   ESP_LOGCONFIG(TAG, "  Loglevel: %u", LT_LOGLEVEL);
 
 #ifdef USE_TEXT_SENSOR
   if (this->version_ != nullptr) {
-    this->version_->publish_state(LT.getVersion());
+    this->version_->publish_state(LT_BANNER_STR);
   }
 #endif  // USE_TEXT_SENSOR
 }
