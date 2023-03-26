@@ -256,7 +256,7 @@ void GDEW0154M09::update() {
 void GDEW0154M09::deep_sleep_() {
   command_(CMD_CDI_VCOM_DATA_INTERVAL);
   data_(0xf7);
-  command_(CMD_POF_POWER_OFF); 
+  command_(CMD_POF_POWER_OFF);
   wait_until_idle_(5000);
   command_(CMD_DSLP_DEEP_SLEEP);
   data_(DATA_DSLP_DEEP_SLEEP);
