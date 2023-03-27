@@ -326,7 +326,7 @@ mcp23s17:
 sensor:
   - platform: pmwcs3
     e25:
-      name: pmwcs3_e25 
+      name: pmwcs3_e25
     ec:
       name: pmwcs3_ec
     temperature:

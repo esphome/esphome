@@ -59,7 +59,7 @@ CONFIG_SCHEMA = (
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x63))
-#	cv.has_at_least_one_key(CONF_PMWCS3_E25),
+    #cv.has_at_least_one_key(CONF_PMWCS3_E25),
 )
 
 async def to_code(config):
