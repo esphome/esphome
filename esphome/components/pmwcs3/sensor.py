@@ -4,8 +4,9 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     CONF_ADDRESS,
-	CONF_TEMPERATURE,
+    CONF_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
+    ICON_THERMOMETER,
 )
 
 CODEOWNERS                   = ["@SeByDocKy"]
@@ -15,11 +16,9 @@ CONF_E25                     = "e25"
 CONF_EC                      = "ec"
 CONF_VWC                     = "vwc"
 
-
-CONF_ICON_EPSILON            = "mdi:epsilon"
-CONF_ICON_SIGMA              = "mdi:sigma-lower"
-CONF_ICON_TEMPERATURE        = "mdi:thermometer"
-CONF_ICON_ALPHA              = "mdi:alpha-h-circle-outline"
+ICON_EPSILON                 = "mdi:epsilon"
+ICON_SIGMA                   = "mdi:sigma-lower"
+ICON_ALPHA                   = "mdi:alpha-h-circle-outline"
 
 pmwcs3_ns                    = cg.esphome_ns.namespace("pmwcs3")
 PMWCS3Component              = pmwcs3_ns.class_(
@@ -32,25 +31,25 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(PMWCS3Component),
             cv.Optional(CONF_ADDRESS): cv.i2c_address,
             cv.Optional(CONF_E25): sensor.sensor_schema(
-                        icon=CONF_ICON_EPSILON,
+                        icon=ICON_EPSILON,
                         accuracy_decimals=3,
                         unit_of_measurement="dS/m",
                         state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_EC): sensor.sensor_schema(
-                        icon=CONF_ICON_SIGMA,
+                        icon=ICON_SIGMA,
                         accuracy_decimals=2,
                         unit_of_measurement="mS/m",
                         state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-                        icon=CONF_ICON_TEMPERATURE,
+                        icon=ICON_THERMOMETER,
                         accuracy_decimals=3,
                         unit_of_measurement="°C",
                         state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VWC): sensor.sensor_schema(
-                        icon=CONF_ICON_ALPHA,
+                        icon=ICON_ALPHA,
                         accuracy_decimals=3,
                         unit_of_measurement="cm3cm−3",
                         state_class=STATE_CLASS_MEASUREMENT,
