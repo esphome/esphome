@@ -324,6 +324,15 @@ mcp23s17:
     deviceaddress: 1
 
 sensor:
+  - platform: pmwcs3
+    e25:
+      name: ${name}_e25    
+    ec:
+      name: ${name}_ec
+    temperature:
+      name: ${name}_temperature 
+    vwc:
+      name: ${name}_vwc
   - platform: internal_temperature
     name: Internal Temperature
   - platform: ble_client
