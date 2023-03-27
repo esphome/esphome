@@ -40,16 +40,16 @@ class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
   void  update() override;
   void  dump_config() override;
   float get_setup_priority() const override;
-  
+
   void set_e25_sensor(sensor::Sensor *e25_sensor) { e25_sensor_ = e25_sensor; }
   void set_ec_sensor(sensor::Sensor *ec_sensor) { ec_sensor_ = ec_sensor; }
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_vwc_sensor(sensor::Sensor *vwc_sensor) { vwc_sensor_ = vwc_sensor; }
- 
+
   void change_i2c_address(uint8_t new_address);
   void set_air_calibration(void);
   void set_water_calibration(void);
-   
+
  protected:
   void read_data_();
   
@@ -57,13 +57,13 @@ class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *ec_sensor_{nullptr};
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *vwc_sensor_{nullptr};
-    
+
   enum ErrorCode {
     NONE = 0,
     COMMUNICATION_FAILED,
     ID_REGISTERS,
   } error_code_;
-  
+
 };
 
 }  // namespace pmwcs3

@@ -30,32 +30,31 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PMWCS3Component),
-	    cv.Optional(CONF_ADDRESS): cv.i2c_address,
+            cv.Optional(CONF_ADDRESS): cv.i2c_address,
             cv.Optional(CONF_PMWCS3_E25): sensor.sensor_schema(
                         icon=CONF_PMWCS3_ICON_EPSILON,
                         accuracy_decimals=3,
-		        unit_of_measurement="dS/m",
-			state_class=STATE_CLASS_MEASUREMENT,
+		                unit_of_measurement="dS/m",
+                        state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMWCS3_EC): sensor.sensor_schema(
                         icon=CONF_PMWCS3_ICON_SIGMA,
-		        accuracy_decimals=2,
-			unit_of_measurement="mS/m",
-		        state_class=STATE_CLASS_MEASUREMENT,
+                        accuracy_decimals=2,
+                        unit_of_measurement="mS/m",
+                        state_class=STATE_CLASS_MEASUREMENT,
             ),
-	    cv.Optional(CONF_PMWCS3_TEMPERATURE): sensor.sensor_schema(
-			icon=CONF_PMWCS3_ICON_TEMPERATURE,
+			cv.Optional(CONF_PMWCS3_TEMPERATURE): sensor.sensor_schema(
+                        icon=CONF_PMWCS3_ICON_TEMPERATURE,
                         accuracy_decimals=3,
-		        unit_of_measurement="°C",
-		        state_class=STATE_CLASS_MEASUREMENT,
+                        unit_of_measurement="°C",
+                        state_class=STATE_CLASS_MEASUREMENT,
             ),
-	    cv.Optional(CONF_PMWCS3_VWC): sensor.sensor_schema(
-			 icon=CONF_PMWCS3_ICON_ALPHA,
-                         accuracy_decimals=3,
-		         unit_of_measurement="cm3cm−3",
-		         state_class=STATE_CLASS_MEASUREMENT,
-            ),    
-		        
+            cv.Optional(CONF_PMWCS3_VWC): sensor.sensor_schema(
+                        icon=CONF_PMWCS3_ICON_ALPHA,
+                        accuracy_decimals=3,
+                        unit_of_measurement="cm3cm−3",
+                        state_class=STATE_CLASS_MEASUREMENT,
+            ),        
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -71,16 +70,15 @@ async def to_code(config):
     if CONF_PMWCS3_E25 in config:
         sens = await sensor.new_sensor(config[CONF_PMWCS3_E25])
         cg.add(var.set_e25_sensor(sens))
-	
+
     if CONF_PMWCS3_EC in config:
         sens = await sensor.new_sensor(config[CONF_PMWCS3_EC])
         cg.add(var.set_ec_sensor(sens))
-		
+
     if CONF_PMWCS3_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_PMWCS3_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
-		
+
     if CONF_PMWCS3_VWC in config:
         sens = await sensor.new_sensor(config[CONF_PMWCS3_VWC])
         cg.add(var.set_vwc_sensor(sens))
-	
