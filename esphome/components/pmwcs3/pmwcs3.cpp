@@ -65,7 +65,7 @@ void PMWCS3Component::read_data_() {
   /////// Super important !!!! first activate reading PMWCS3_REG_READ_START (if not, return always the same values) ////
 
   if (!this->write_bytes(PMWCS3_REG_READ_START, nullptr, 0)) {
-    //if (!this->write(&PMWCS3_REG_READ_START, 0 , false)) {
+    // if (!this->write(&PMWCS3_REG_READ_START, 0 , false)) {
     this->status_set_warning();
     ESP_LOGVV(TAG, "Failed to write into REG_READ_START register !!!");
     return;
