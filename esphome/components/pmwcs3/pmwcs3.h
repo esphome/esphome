@@ -11,24 +11,16 @@ namespace esphome {
 namespace pmwcs3 {
 
 static const uint8_t PMWCS3_I2C_ADDRESS = 0x63;
-
 static const uint8_t PMWCS3_REG_READ_START = 0x01;
-
 static const uint8_t PMWCS3_REG_READ_E25 = 0x02;
 static const uint8_t PMWCS3_REG_READ_EC = 0x03;
 static const uint8_t PMWCS3_REG_READ_TEMP = 0x04;
 static const uint8_t PMWCS3_REG_READ_VWC = 0x05;
-
 static const uint8_t PMWCS3_REG_CALIBRATE_AIR = 0x06;
 static const uint8_t PMWCS3_REG_CALIBRATE_WATER = 0x07;
-
 static const uint8_t PMWCS3_SET_I2C_ADDRESS = 0x08;
-
 static const uint8_t PMWCS3_REG_GET_DATA = 0x09;
-
 static const uint8_t PMWCS3_REG_CALIBRATE_EC = 0x10;
-
-
 static const uint8_t PMWCS3_REG_CAP = 0x0A;
 static const uint8_t PMWCS3_REG_RES = 0x0B;
 static const uint8_t PMWCS3_REG_RC = 0x0C;
