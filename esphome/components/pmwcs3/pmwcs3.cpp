@@ -41,13 +41,13 @@ void PMWCS3Component::set_water_calibration(void){
 void PMWCS3Component::setup() {
    ESP_LOGCONFIG(TAG, "Setting up PMWCS3...");
 }
-	
+
 void PMWCS3Component::update() {
    this->read_data_();
 }
 
 float PMWCS3Component::get_setup_priority() const { return setup_priority::DATA; }
-	
+
 void PMWCS3Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PMWCS3");
   LOG_I2C_DEVICE(this);
@@ -56,7 +56,7 @@ void PMWCS3Component::dump_config() {
   }
   ESP_LOGI(TAG, "%s", this->is_failed() ? "FAILED" : "OK");
 
-  LOG_UPDATE_INTERVAL(this);  
+  LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "e25", this->e25_sensor_);
   LOG_SENSOR("  ", "ec", this->ec_sensor_);
   LOG_SENSOR("  ", "temperatue", this->temperature_sensor_);
@@ -65,17 +65,17 @@ void PMWCS3Component::dump_config() {
 void PMWCS3Component::read_data_() {
   uint8_t data[8];
   float e25, ec, temperature, vwc;
-  	
+
  /////// Super important !!!! first activate reading PMWCS3_REG_READ_START (if not, return always the same values) ////
 
   if (!this->write_bytes(PMWCS3_REG_READ_START, nullptr, 0)) {
-  //if (!this->write(&PMWCS3_REG_READ_START, 0 , false)) {	  
+  //if (!this->write(&PMWCS3_REG_READ_START, 0 , false)) {
       this->status_set_warning();
       ESP_LOGVV(TAG, "Failed to write into REG_READ_START register !!!");
       return;
     }
-// NOLINT  delay(100);	
-  
+// NOLINT  delay(100);
+
   if (!this->read_bytes(PMWCS3_REG_GET_DATA, (uint8_t *) &data, 8)){
      ESP_LOGVV(TAG, "Error reading PMWCS3_REG_GET_DATA registers");
      this->mark_failed();
@@ -94,13 +94,13 @@ void PMWCS3Component::read_data_() {
   if (this->temperature_sensor_ != nullptr) {
       temperature = ((data[5] << 8) | data[4])/100.0;
       this->temperature_sensor_->publish_state(temperature);
-      ESP_LOGVV(TAG, "temp: data[4]=%d, data[5]=%d, result=%f", data[4] , data[5] , temperature); 
+      ESP_LOGVV(TAG, "temp: data[4]=%d, data[5]=%d, result=%f", data[4] , data[5] , temperature);
   }
   if (this->vwc_sensor_ != nullptr) {
       vwc = ((data[7] << 8) | data[6])/10.0;
       this->vwc_sensor_->publish_state(vwc);
       ESP_LOGVV(TAG, "vwc: data[6]=%d, data[7]=%d, result=%f", data[6] , data[7] , vwc);
-  }	
+  }
 }
 
 }  // namespace pmwcs3

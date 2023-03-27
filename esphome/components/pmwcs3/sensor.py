@@ -34,7 +34,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PMWCS3_E25): sensor.sensor_schema(
                         icon=CONF_PMWCS3_ICON_EPSILON,
                         accuracy_decimals=3,
-		                unit_of_measurement="dS/m",
+                        unit_of_measurement="dS/m",
                         state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMWCS3_EC): sensor.sensor_schema(
@@ -54,7 +54,7 @@ CONFIG_SCHEMA = (
                         accuracy_decimals=3,
                         unit_of_measurement="cm3cm−3",
                         state_class=STATE_CLASS_MEASUREMENT,
-            ),        
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -66,7 +66,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-	
+
     if CONF_PMWCS3_E25 in config:
         sens = await sensor.new_sensor(config[CONF_PMWCS3_E25])
         cg.add(var.set_e25_sensor(sens))
