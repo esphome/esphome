@@ -22,20 +22,12 @@ ESP32ImprovComponent = esp32_improv_ns.class_(
 )
 
 
-def validate_none_(value):
-    if value in ("none", "None"):
-        return None
-    if cv.boolean(value) is False:
-        return None
-    raise cv.Invalid("Must be none")
-
-
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ESP32ImprovComponent),
         cv.GenerateID(CONF_BLE_SERVER_ID): cv.use_id(esp32_ble_server.BLEServer),
         cv.Required(CONF_AUTHORIZER): cv.Any(
-            validate_none_, cv.use_id(binary_sensor.BinarySensor)
+            cv.none, cv.use_id(binary_sensor.BinarySensor)
         ),
         cv.Optional(CONF_STATUS_INDICATOR): cv.use_id(output.BinaryOutput),
         cv.Optional(

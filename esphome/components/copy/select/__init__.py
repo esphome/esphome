@@ -14,12 +14,15 @@ from .. import copy_ns
 CopySelect = copy_ns.class_("CopySelect", select.Select, cg.Component)
 
 
-CONFIG_SCHEMA = select.SELECT_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(CopySelect),
-        cv.Required(CONF_SOURCE_ID): cv.use_id(select.Select),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    select.select_schema(CopySelect)
+    .extend(
+        {
+            cv.Required(CONF_SOURCE_ID): cv.use_id(select.Select),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 FINAL_VALIDATE_SCHEMA = cv.All(
     inherit_property_from(CONF_ICON, CONF_SOURCE_ID),

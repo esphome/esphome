@@ -21,6 +21,9 @@ class EntityBase {
   const std::string &get_name() const;
   void set_name(const std::string &name);
 
+  // Get whether this Entity has its own name or it should use the device friendly_name.
+  bool has_own_name() const { return this->has_own_name_; }
+
   // Get the sanitized name of this Entity as an ID.
   std::string get_object_id() const;
   void set_object_id(const char *object_id);
@@ -53,6 +56,7 @@ class EntityBase {
   void calc_object_id_();
 
   std::string name_;
+  bool has_own_name_{false};
   const char *object_id_c_str_{nullptr};
   const char *icon_c_str_{nullptr};
   uint32_t object_id_hash_;
