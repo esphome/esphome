@@ -31,7 +31,7 @@ void IDFI2CBus::setup() {
     this->mark_failed();
     return;
   }
-  err = i2c_set_timeout(port_, timeout_ * 80); // unit: APB 80MHz clock cycle
+  err = i2c_set_timeout(port_, timeout_ * 80);  // unit: APB 80MHz clock cycle
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "i2c_set_timeout failed: %s", esp_err_to_name(err));
     this->mark_failed();

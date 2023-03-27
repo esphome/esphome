@@ -58,8 +58,11 @@ CONFIG_SCHEMA = cv.Schema(
             cv.frequency, cv.Range(min=0, min_included=False)
         ),
         cv.SplitDefault(CONF_TIMEOUT, esp32_idf="100us"): cv.All(
-            cv.only_with_esp_idf, cv.time_period,
-            cv.Range(min=cv.TimePeriod(microseconds=1), max=cv.TimePeriod(microseconds=13000))
+            cv.only_with_esp_idf,
+            cv.time_period,
+            cv.Range(
+                min=cv.TimePeriod(microseconds=1), max=cv.TimePeriod(microseconds=13000)
+            ),
         ),
         cv.Optional(CONF_SCAN, default=True): cv.boolean,
     }
@@ -121,8 +124,12 @@ async def register_i2c_device(var, config):
 
 
 def final_validate_device_schema(
-    name: str, *, min_frequency: cv.frequency = None, max_frequency: cv.frequency = None,
-    min_timeout: cv.time_period = None, max_timeout: cv.time_period = None
+    name: str,
+    *,
+    min_frequency: cv.frequency = None,
+    max_frequency: cv.frequency = None,
+    min_timeout: cv.time_period = None,
+    max_timeout: cv.time_period = None,
 ):
     hub_schema = {}
     if min_frequency is not None:
