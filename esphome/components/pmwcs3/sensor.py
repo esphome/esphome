@@ -4,22 +4,22 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     CONF_ADDRESS,
+	CONF_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
 )
 
 CODEOWNERS                   = ["@SeByDocKy"]
 DEPENDENCIES                 = ["i2c"]
 
-CONF_PMWCS3_E25              = "e25"
-CONF_PMWCS3_EC               = "ec"
-CONF_PMWCS3_TEMPERATURE      = "temperature"
-CONF_PMWCS3_VWC              = "vwc"
+CONF_E25                     = "e25"
+CONF_EC                      = "ec"
+CONF_VWC                     = "vwc"
 
 
-CONF_PMWCS3_ICON_EPSILON     = "mdi:epsilon"
-CONF_PMWCS3_ICON_SIGMA       = "mdi:sigma-lower"
-CONF_PMWCS3_ICON_TEMPERATURE = "mdi:thermometer"
-CONF_PMWCS3_ICON_ALPHA       = "mdi:alpha-h-circle-outline"
+CONF_ICON_EPSILON            = "mdi:epsilon"
+CONF_ICON_SIGMA              = "mdi:sigma-lower"
+CONF_ICON_TEMPERATURE        = "mdi:thermometer"
+CONF_ICON_ALPHA              = "mdi:alpha-h-circle-outline"
 
 pmwcs3_ns                    = cg.esphome_ns.namespace("pmwcs3")
 PMWCS3Component              = pmwcs3_ns.class_(
@@ -31,26 +31,26 @@ CONFIG_SCHEMA = (
         {
             cv.GenerateID(): cv.declare_id(PMWCS3Component),
             cv.Optional(CONF_ADDRESS): cv.i2c_address,
-            cv.Optional(CONF_PMWCS3_E25): sensor.sensor_schema(
-                        icon=CONF_PMWCS3_ICON_EPSILON,
+            cv.Optional(CONF_E25): sensor.sensor_schema(
+                        icon=CONF_ICON_EPSILON,
                         accuracy_decimals=3,
                         unit_of_measurement="dS/m",
                         state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_PMWCS3_EC): sensor.sensor_schema(
-                        icon=CONF_PMWCS3_ICON_SIGMA,
+            cv.Optional(CONF_EC): sensor.sensor_schema(
+                        icon=CONF_ICON_SIGMA,
                         accuracy_decimals=2,
                         unit_of_measurement="mS/m",
                         state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_PMWCS3_TEMPERATURE): sensor.sensor_schema(
-                        icon=CONF_PMWCS3_ICON_TEMPERATURE,
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                        icon=CONF_ICON_TEMPERATURE,
                         accuracy_decimals=3,
                         unit_of_measurement="°C",
                         state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_PMWCS3_VWC): sensor.sensor_schema(
-                        icon=CONF_PMWCS3_ICON_ALPHA,
+            cv.Optional(CONF_VWC): sensor.sensor_schema(
+                        icon=CONF_ICON_ALPHA,
                         accuracy_decimals=3,
                         unit_of_measurement="cm3cm−3",
                         state_class=STATE_CLASS_MEASUREMENT,
@@ -67,18 +67,18 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_PMWCS3_E25 in config:
-        sens = await sensor.new_sensor(config[CONF_PMWCS3_E25])
+    if CONF_E25 in config:
+        sens = await sensor.new_sensor(config[CONF_E25])
         cg.add(var.set_e25_sensor(sens))
 
-    if CONF_PMWCS3_EC in config:
-        sens = await sensor.new_sensor(config[CONF_PMWCS3_EC])
+    if CONF_EC in config:
+        sens = await sensor.new_sensor(config[CONF_EC])
         cg.add(var.set_ec_sensor(sens))
 
-    if CONF_PMWCS3_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_PMWCS3_TEMPERATURE])
+    if CONF_TEMPERATURE in config:
+        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
         cg.add(var.set_temperature_sensor(sens))
 
-    if CONF_PMWCS3_VWC in config:
-        sens = await sensor.new_sensor(config[CONF_PMWCS3_VWC])
+    if CONF_VWC in config:
+        sens = await sensor.new_sensor(config[CONF_VWC])
         cg.add(var.set_vwc_sensor(sens))
