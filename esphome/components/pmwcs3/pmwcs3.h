@@ -36,9 +36,9 @@ static const uint8_t PMWCS3_REG_RT = 0x0D;
 
 class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
  public:
-  void  setup() override;
-  void  update() override;
-  void  dump_config() override;
+  void setup() override;
+  void update() override;
+  void dump_config() override;
   float get_setup_priority() const override;
 
   void set_e25_sensor(sensor::Sensor *e25_sensor) { e25_sensor_ = e25_sensor; }
