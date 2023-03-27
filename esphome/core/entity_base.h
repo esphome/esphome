@@ -19,6 +19,9 @@ class EntityBase {
   const StringRef &get_name() const;
   void set_name(const char *name);
 
+  // Get whether this Entity has its own name or it should use the device friendly_name.
+  bool has_own_name() const { return this->has_own_name_; }
+
   // Get the sanitized name of this Entity as an ID. Caching it internally.
   const std::string &get_object_id();
 
@@ -50,6 +53,7 @@ class EntityBase {
   void calc_object_id_();
 
   StringRef name_;
+  bool has_own_name_{false};
   std::string object_id_;
   const char *icon_c_str_{nullptr};
   uint32_t object_id_hash_;
