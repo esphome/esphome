@@ -325,6 +325,7 @@ mcp23s17:
 
 sensor:
   - platform: pmwcs3
+    i2c_id: i2c_bus
     e25:
       name: pmwcs3_e25
     ec:
