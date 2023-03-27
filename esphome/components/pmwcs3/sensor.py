@@ -5,6 +5,7 @@ from esphome.const import (
     CONF_ID,
     CONF_ADDRESS,
     CONF_TEMPERATURE,
+    CONF_EC,
     STATE_CLASS_MEASUREMENT,
     ICON_THERMOMETER,
 )
@@ -13,7 +14,6 @@ CODEOWNERS                   = ["@SeByDocKy"]
 DEPENDENCIES                 = ["i2c"]
 
 CONF_E25                     = "e25"
-CONF_EC                      = "ec"
 CONF_VWC                     = "vwc"
 
 ICON_EPSILON                 = "mdi:epsilon"
