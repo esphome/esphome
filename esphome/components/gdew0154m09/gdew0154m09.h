@@ -63,20 +63,22 @@ class GDEW0154M09 : public PollingComponent,
   void power_hv_on_();
 };
 
+// clang-format off
 const unsigned char WFT0154CZB3_LIST[] = {
-    11,                                                //  NOLINT  //  11 commands in list
-    CMD_PSR_PANEL_SETTING, 2, 0xdf, 0x0e,              //  NOLINT - 200x200, LUT from OTP, B/W mode, scan up, shift rt
-    CMD_UNDOCUMENTED_0x4D, 1, 0x55,                    //  NOLINT
-    CMD_UNDOCUMENTED_0xAA, 1, 0x0f,                    //  NOLINT
-    CMD_UNDOCUMENTED_0xE9, 1, 0x02,                    //  NOLINT
-    CMD_UNDOCUMENTED_0xB6, 1, 0x11,                    //  NOLINT
-    CMD_UNDOCUMENTED_0xF3, 1, 0x0a,                    //  NOLINT
-    CMD_TRES_RESOLUTION_SETTING, 3, 0xc8, 0x00, 0xc8,  //  NOLINT
-    CMD_TCON_TCONSETTING, 1, 0x00,                     //  NOLINT
-    CMD_CDI_VCOM_DATA_INTERVAL, 1, 0xd7,               //  NOLINT
-    CMD_PWS_POWER_SAVING, 1, 0x00,                     //  NOLINT
-    CMD_PON_POWER_ON, 0                                //  NOLINT
+    11,                                                //  11 commands in list
+    CMD_PSR_PANEL_SETTING, 2, 0xdf, 0x0e,              //  200x200, LUT from OTP, B/W mode, scan up, shift rt
+    CMD_UNDOCUMENTED_0x4D, 1, 0x55,
+    CMD_UNDOCUMENTED_0xAA, 1, 0x0f,
+    CMD_UNDOCUMENTED_0xE9, 1, 0x02,
+    CMD_UNDOCUMENTED_0xB6, 1, 0x11,
+    CMD_UNDOCUMENTED_0xF3, 1, 0x0a,
+    CMD_TRES_RESOLUTION_SETTING, 3, 0xc8, 0x00, 0xc8,
+    CMD_TCON_TCONSETTING, 1, 0x00,
+    CMD_CDI_VCOM_DATA_INTERVAL, 1, 0xd7,
+    CMD_PWS_POWER_SAVING, 1, 0x00,
+    CMD_PON_POWER_ON, 0
 };
+// clang-format on
 
 // LUTs provided for future reference - currently unused.
 const unsigned char LUT_VCOM_D_C1[] PROGMEM = {

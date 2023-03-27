@@ -228,10 +228,10 @@ void GDEW0154M09::draw_buff_(uint8_t *lastbuff, uint8_t *buff, size_t size) {
 }
 
 void GDEW0154M09::set_draw_addr_(uint16_t posx, uint16_t posy, uint16_t width, uint16_t height) {
-  command_(CMD_PTL_PARTIAL_WINDOW);           // resolution setting
-  data_(posx);                                // x-start
-  data_(posx + width - 1);                    // x-end
-  data_(0);                                   // x Reserved
+  command_(CMD_PTL_PARTIAL_WINDOW);  // resolution setting
+  data_(posx);                       // x-start
+  data_(posx + width - 1);           // x-end
+  data_(0);                          // x Reserved
 
   data_(posy);           // y-start
   data_(0);              // y Reserved
@@ -264,13 +264,11 @@ void GDEW0154M09::deep_sleep_() {
 
 void GDEW0154M09::power_hv_on_() {
   command_(CMD_CDI_VCOM_DATA_INTERVAL);  // vcom and data interval setting
-  data_(0xd7);     // restore interval to regular
-  command_(CMD_PON_POWER_ON);  // Power On PON
+  data_(0xd7);                           // restore interval to regular
+  command_(CMD_PON_POWER_ON);            // Power On PON
   wait_until_idle_(5000);
 }
-void GDEW0154M09::on_safe_shutdown() {
-  this->deep_sleep_();
-}
+void GDEW0154M09::on_safe_shutdown() { this->deep_sleep_(); }
 
 }  // namespace gdew0154m09
 }  // namespace esphome
