@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_LAMBDA,
     CONF_PAGES,
     CONF_RESET_PIN,
-    CONF_CS_PIN,
     CONF_BUSY_PIN,
 )
 
@@ -26,12 +25,11 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(): cv.declare_id(GDEW0154M09),
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_CS_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BUSY_PIN): pins.gpio_input_pin_schema,
         }
     )
     .extend(cv.polling_component_schema("1s"))
-    .extend(spi.spi_device_schema()),
+    .extend(spi.spi_device_schema(True)),
     cv.has_at_most_one_key(CONF_PAGES, CONF_LAMBDA),
 )
 
@@ -47,8 +45,9 @@ async def to_code(config):
     cg.add(var.set_dc_pin(dc))
     reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
     cg.add(var.set_reset_pin(reset))
-    busy = await cg.gpio_pin_expression(config[CONF_BUSY_PIN])
-    cg.add(var.set_busy_pin(busy))
+    if CONF_BUSY_PIN in config:
+        busy = await cg.gpio_pin_expression(config[CONF_BUSY_PIN])
+        cg.add(var.set_busy_pin(busy))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
             config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void

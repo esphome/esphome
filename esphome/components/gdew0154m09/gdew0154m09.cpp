@@ -36,8 +36,7 @@ void GDEW0154M09::reset_display_controller_() {
 }
 
 void GDEW0154M09::initialize_() {
-  // this->wait_until_idle_();
-  write_init_list_(WFT0154CZB3_LIST);
+  this->write_init_list_(WFT0154CZB3_LIST);
   delay(100);  // NOLINT
   this->wait_until_idle_();
   if (this->lastbuff_ != nullptr) {
@@ -129,14 +128,14 @@ bool GDEW0154M09::wait_until_idle_(uint32_t timeout) {
 int GDEW0154M09::clear_dsram_() {
   int pixsize = this->get_buffer_length_();
   for (int i = 0; i < 2; i++) {
-    command_(CMD_DTM1_DATA_START_TRANS);
+    this->command_(CMD_DTM1_DATA_START_TRANS);
     for (int count = 0; count < pixsize; count++) {
-      data_(0x00);  // set every pixel to 0
+      this->data_(0x00);  // set every pixel to 0
     }
     delay(2);
-    command_(CMD_DTM2_DATA_START_TRANS2);  // data transmission start DTM2
+    this->command_(CMD_DTM2_DATA_START_TRANS2);  // data transmission start DTM2
     for (int count = 0; count < pixsize; count++) {
-      data_(0xff);  // set every pixel to ff
+      this->data_(0xff);  // set every pixel to ff
     }
   }
   return 0;
@@ -213,30 +212,30 @@ void HOT GDEW0154M09::display_() {
 }
 
 void GDEW0154M09::draw_buff_(uint8_t *lastbuff, uint8_t *buff, size_t size) {
-  command_(CMD_DTM1_DATA_START_TRANS);
+  this->command_(CMD_DTM1_DATA_START_TRANS);
   for (int i = 0; i < size; i++) {
-    data_(lastbuff[i]);
+    this->data_(lastbuff[i]);
   }
-  command_(CMD_DTM2_DATA_START_TRANS2);
+  this->command_(CMD_DTM2_DATA_START_TRANS2);
   for (int i = 0; i < size; i++) {
-    data_(buff[i]);
+    this->data_(buff[i]);
     lastbuff[i] = buff[i];
   }
-  command_(CMD_DISPLAY_REFRESH);
+  this->command_(CMD_DISPLAY_REFRESH);
   delay(100);  // NOLINT
   this->wait_until_idle_();
 }
 
 void GDEW0154M09::set_draw_addr_(uint16_t posx, uint16_t posy, uint16_t width, uint16_t height) {
-  command_(CMD_PTL_PARTIAL_WINDOW);  // resolution setting
-  data_(posx);                       // x-start
-  data_(posx + width - 1);           // x-end
-  data_(0);                          // x Reserved
+  this->command_(CMD_PTL_PARTIAL_WINDOW);  // resolution setting
+  this->data_(posx);                       // x-start
+  this->data_(posx + width - 1);           // x-end
+  this->data_(0);                          // x Reserved
 
-  data_(posy);           // y-start
-  data_(0);              // y Reserved
-  data_(posy + height);  // y-end
-  data_(0x01);
+  this->data_(posy);           // y-start
+  this->data_(0);              // y Reserved
+  this->data_(posy + height);  // y-end
+  this->data_(0x01);
 }
 
 void GDEW0154M09::dump_config() {
@@ -254,19 +253,19 @@ void GDEW0154M09::update() {
 }
 
 void GDEW0154M09::deep_sleep_() {
-  command_(CMD_CDI_VCOM_DATA_INTERVAL);
-  data_(0xf7);
-  command_(CMD_POF_POWER_OFF);
-  wait_until_idle_(5000);
-  command_(CMD_DSLP_DEEP_SLEEP);
-  data_(DATA_DSLP_DEEP_SLEEP);
+  this->command_(CMD_CDI_VCOM_DATA_INTERVAL);
+  this->data_(0xf7);
+  this->command_(CMD_POF_POWER_OFF);
+  this->wait_until_idle_(5000);
+  this->command_(CMD_DSLP_DEEP_SLEEP);
+  this->data_(DATA_DSLP_DEEP_SLEEP);
 }
 
 void GDEW0154M09::power_hv_on_() {
-  command_(CMD_CDI_VCOM_DATA_INTERVAL);  // vcom and data interval setting
-  data_(0xd7);                           // restore interval to regular
-  command_(CMD_PON_POWER_ON);            // Power On PON
-  wait_until_idle_(5000);
+  this->command_(CMD_CDI_VCOM_DATA_INTERVAL);  // vcom and data interval setting
+  this->data_(0xd7);                           // restore interval to regular
+  this->command_(CMD_PON_POWER_ON);            // Power On PON
+  this->wait_until_idle_(5000);
 }
 void GDEW0154M09::on_safe_shutdown() { this->deep_sleep_(); }
 
