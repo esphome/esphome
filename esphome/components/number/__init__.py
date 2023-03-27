@@ -204,14 +204,13 @@ def number_schema(
 
 
 async def setup_number_core_(
-    var, config, *, min_value: float, max_value: float, step: Optional[float]
+    var, config, *, min_value: float, max_value: float, step: float
 ):
     await setup_entity(var, config)
 
     cg.add(var.traits.set_min_value(min_value))
     cg.add(var.traits.set_max_value(max_value))
-    if step is not None:
-        cg.add(var.traits.set_step(step))
+    cg.add(var.traits.set_step(step))
 
     cg.add(var.traits.set_mode(config[CONF_MODE]))
 
@@ -239,7 +238,7 @@ async def setup_number_core_(
 
 
 async def register_number(
-    var, config, *, min_value: float, max_value: float, step: Optional[float] = None
+    var, config, *, min_value: float, max_value: float, step: float
 ):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
