@@ -46,7 +46,7 @@ std::string EntityBase::get_object_id() const {
   // Check if `App.get_friendly_name()` is constant or dynamic.
   if (!this->has_own_name_ && App.is_name_add_mac_suffix_enabled()) {
     // `App.get_friendly_name()` is dynamic.
-    return str_sanitize(str_snake_case(this->name_));
+    return str_sanitize(str_snake_case(App.get_friendly_name()));
   } else {
     // `App.get_friendly_name()` is constant.
     if (this->object_id_c_str_ == nullptr) {
@@ -65,7 +65,7 @@ void EntityBase::calc_object_id_() {
   // Check if `App.get_friendly_name()` is constant or dynamic.
   if (!this->has_own_name_ && App.is_name_add_mac_suffix_enabled()) {
     // `App.get_friendly_name()` is dynamic.
-    const auto object_id = str_sanitize(str_snake_case(this->name_));
+    const auto object_id = str_sanitize(str_snake_case(App.get_friendly_name()));
     // FNV-1 hash
     this->object_id_hash_ = fnv1_hash(object_id);
   } else {
