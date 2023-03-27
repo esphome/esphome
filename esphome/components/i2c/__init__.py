@@ -57,7 +57,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
             cv.frequency, cv.Range(min=0, min_included=False)
         ),
-        cv.Optional(CONF_TIMEOUT, default="100us"): cv.All(
+        cv.SplitDefault(CONF_TIMEOUT, esp32_idf="100us"): cv.All(
             cv.only_with_esp_idf, cv.time_period,
             cv.Range(min=cv.TimePeriod(microseconds=1), max=cv.TimePeriod(microseconds=13000))
         ),
@@ -80,8 +80,9 @@ async def to_code(config):
         cg.add(var.set_scl_pullup_enabled(config[CONF_SCL_PULLUP_ENABLED]))
 
     cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
-    cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
     cg.add(var.set_scan(config[CONF_SCAN]))
+    if CORE.using_esp_idf:
+        cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
     if CORE.using_arduino:
         cg.add_library("Wire", None)
 
