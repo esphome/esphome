@@ -15,8 +15,17 @@ namespace snmp {
 
 static const char *const TAG = "snmp";
 
+/// @brief Returns network uptime
+/// @return time in hundreds of seconds
+/// @warning 
+/// Function returns real value if @c wifi_connected_timestamp() function
+/// was implemented in WiFi module.
 uint32_t SNMPComponent::get_net_uptime() {
+#ifdef WIFI_CONNECTED_TIMESTAMP_AVAILABLE
   return (millis() - wifi::global_wifi_component->wifi_connected_timestamp()) / 10;
+#else
+  return 0; //not available
+#endif
 }
 
 void SNMPComponent::setup_system_mib_() {
@@ -49,21 +58,24 @@ void SNMPComponent::setup_system_mib_() {
 }
 
 #ifdef USE_ESP32
+/// @brief Gets PSI RAM size and usage
+/// @param used Pointer to a location where to store used memory value
+/// @return Size of PSI RAM or 0 if not present
 int SNMPComponent::setup_psram_size(int *used) {
-  int size = 0;
+  int total_size = 0;
   *used = 0;
-  bool available = heap_caps_get_free_size(MALLOC_CAP_SPIRAM) > 0;
 
-#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 1, 0)
+  size_t free_size = heap_caps_get_free_size(MALLOC_CAP_SPIRAM);
+  bool available = free_size > 0;
+
   if (available) {
-    size = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
-    if (size > 0) {
-      *used = esp_himem_get_phys_size() - esp_himem_get_free_size();
+    total_size = heap_caps_get_total_size(MALLOC_CAP_SPIRAM);
+    if (total_size > 0) {
+      *used = total_size - free_size;
     }
   }
-#endif
 
-  return size;
+  return total_size;
 }
 #endif
 
@@ -201,6 +213,8 @@ void SNMPComponent::setup_chip_mib_() {
 #if ESP8266
   snmp_agent_.addReadOnlyIntegerHandler(CUSTOM_OID "2.5.0", 0 /*no data for ESP8266*/);
 #endif
+
+
 }
 
 void SNMPComponent::setup_wifi_mib_() {
@@ -225,6 +239,9 @@ void SNMPComponent::setup() {
 
   // sysUpTime
   // this is uptime of network management part of the system
+  // WARNING: Only available if wifi_connected_timestamp() function was implemented
+  // in WiFi module.
+  // By default returns always 0
   snmp_agent_.addDynamicReadOnlyTimestampHandler(RFC1213_OID_sysUpTime, get_net_uptime);
 
   // hrSystemUptime

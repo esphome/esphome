@@ -161,13 +161,13 @@ mqtt:
                 id: ${roomname}_lights
                 relative_brightness: 5%
             - uart.write:
-                id: uart0
+                id: uart_0
                 data: Hello World
             - uart.write:
-                id: uart0
+                id: uart_0
                 data: [0x00, 0x20, 0x30]
             - uart.write:
-                id: uart0
+                id: uart_0
                 data: !lambda |-
                   return {};
   on_connect:
@@ -199,7 +199,7 @@ uart:
       number: GPIO23
       inverted: true
     baud_rate: 115200
-    id: uart0
+    id: uart_0
     parity: NONE
     data_bits: 8
     stop_bits: 1
@@ -392,6 +392,7 @@ sensor:
       - heartbeat: 5s
       - debounce: 0.1s
       - delta: 5.0
+      - delta: 1%
       - or:
           - throttle: 1s
           - delta: 5.0
@@ -789,7 +790,7 @@ sensor:
     reference_resistance: 430 Ω
     rtd_nominal_resistance: 100 Ω
   - platform: mhz19
-    uart_id: uart0
+    uart_id: uart_0
     co2:
       name: MH-Z19 CO2 Value
     temperature:
@@ -929,7 +930,7 @@ sensor:
     name: Pulse Width
     pin: GPIO12
   - platform: sm300d2
-    uart_id: uart0
+    uart_id: uart_0
     co2:
       name: SM300D2 CO2 Value
     formaldehyde:
@@ -1121,7 +1122,7 @@ sensor:
             root["key"] = id(the_sensor).state;
             root["greeting"] = "Hello World";
   - platform: sds011
-    uart_id: uart0
+    uart_id: uart_0
     pm_2_5:
       name: SDS011 PM2.5
     pm_10_0:
@@ -2093,7 +2094,7 @@ climate:
     on_state:
       logger.log: State changed!
     id: midea_unit
-    uart_id: uart0
+    uart_id: uart_0
     name: Midea Climate
     transmitter_id:
     period: 1s
@@ -2418,15 +2419,15 @@ switch:
           id: my_switch
           state: !lambda "return false;"
   - platform: uart
-    uart_id: uart0
+    uart_id: uart_0
     name: UART String Output
     data: DataToSend
   - platform: uart
-    uart_id: uart0
+    uart_id: uart_0
     name: UART Bytes Output
     data: [0xDE, 0xAD, 0xBE, 0xEF]
   - platform: uart
-    uart_id: uart0
+    uart_id: uart_0
     name: UART Recurring Output
     data: [0xDE, 0xAD, 0xBE, 0xEF]
     send_every: 1s
@@ -2528,6 +2529,8 @@ color:
     red: 0%
     green: 1%
     blue: 100%
+  - id: kbx_green
+    hex: "3DEC55"
 
 display:
   - platform: lcd_gpio
@@ -2772,7 +2775,7 @@ pn532_i2c:
   i2c_id: i2c_bus
 
 rdm6300:
-  uart_id: uart0
+  uart_id: uart_0
 
 rc522_spi:
   cs_pin: GPIO23
@@ -2801,7 +2804,7 @@ mcp4728:
     i2c_id: i2c_bus
 
 gps:
-  uart_id: uart0
+  uart_id: uart_0
 
 time:
   - platform: sntp
@@ -3121,7 +3124,7 @@ canbus:
 
 teleinfo:
   id: myteleinfo
-  uart_id: uart0
+  uart_id: uart_0
   update_interval: 60s
   historical_mode: true
 
