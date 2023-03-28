@@ -10,7 +10,6 @@
 namespace esphome {
 namespace pmwcs3 {
 
-
 class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
  public:
   void setup() override;
