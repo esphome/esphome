@@ -166,11 +166,6 @@ struct ClimateDeviceRestoreState {
  */
 class Climate : public EntityBase {
  public:
-  /// Construct a climate device with empty name (will be set later).
-  Climate();
-  /// Construct a climate device with a name.
-  Climate(const std::string &name);
-
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
   /// The active state of the climate device.
@@ -218,6 +213,14 @@ class Climate : public EntityBase {
    * @param callback The callback to call.
    */
   void add_on_state_callback(std::function<void()> &&callback);
+
+  /**
+   * Add a callback for the climate device configuration; each time the configuration parameters of a climate device
+   * is updated (using perform() of a ClimateCall), this callback will be called, before any on_state callback.
+   *
+   * @param callback The callback to call.
+   */
+  void add_on_control_callback(std::function<void()> &&callback);
 
   /** Make a climate device control call, this is used to control the climate device, see the ClimateCall description
    * for more info.
@@ -285,6 +288,7 @@ class Climate : public EntityBase {
   void dump_traits_(const char *tag);
 
   CallbackManager<void()> state_callback_{};
+  CallbackManager<void()> control_callback_{};
   ESPPreferenceObject rtc_;
   optional<float> visual_min_temperature_override_{};
   optional<float> visual_max_temperature_override_{};

@@ -118,7 +118,7 @@ class LD2410Component : public Component, public uart::UARTDevice {
 #endif
 
   std::vector<uint8_t> rx_buffer_;
-  int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t)(secondbyte << 8) + firstbyte; }
+  int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
   void send_command_(uint8_t command_str, uint8_t *command_value, int command_value_len);
 
   void set_max_distances_timeout_(uint8_t max_moving_distance_range, uint8_t max_still_distance_range,

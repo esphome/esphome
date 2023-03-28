@@ -44,7 +44,7 @@ def clone_or_update(
     *,
     url: str,
     ref: str = None,
-    refresh: TimePeriodSeconds,
+    refresh: Optional[TimePeriodSeconds],
     domain: str,
     username: str = None,
     password: str = None,
@@ -81,7 +81,7 @@ def clone_or_update(
         if not file_timestamp.exists():
             file_timestamp = Path(repo_dir / ".git" / "HEAD")
         age = datetime.now() - datetime.fromtimestamp(file_timestamp.stat().st_mtime)
-        if age.total_seconds() > refresh.total_seconds:
+        if refresh is None or age.total_seconds() > refresh.total_seconds:
             old_sha = run_git_command(["git", "rev-parse", "HEAD"], str(repo_dir))
             _LOGGER.info("Updating %s", key)
             _LOGGER.debug("Location: %s", repo_dir)
