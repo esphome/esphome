@@ -270,6 +270,10 @@ uart:
     tx_pin: GPIO4
     rx_pin: GPIO5
     baud_rate: 9600
+  - id: uart_13
+    tx_pin: GPIO4
+    rx_pin: GPIO5
+    baud_rate: 115200
 
 modbus:
   uart_id: uart_1
@@ -1187,4 +1191,4 @@ qr_code:
 
 chargery_bms:
   num_cells: 15
-  uart_id: uart1
+  uart_id: uart_13
