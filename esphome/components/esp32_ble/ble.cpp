@@ -217,7 +217,7 @@ void ESP32BLE::dump_config() {
   if(mac_address) {
     ESP_LOGCONFIG(TAG, "ESP32 BLE:");
     ESP_LOGCONFIG(TAG, "  MAC address: %02X:%02X:%02X:%02X:%02X:%02X", mac_address[0], mac_address[1], mac_address[2],
-                  mac_address[3],mac_address[4],mac_address[5]);
+                  mac_address[3], mac_address[4], mac_address[5]);
   } else {
     ESP_LOGCONFIG(TAG, "ESP32 BLE: bluetooth stack is not enabled");
   }
