@@ -152,9 +152,11 @@ async def to_code(config):
 async def script_execute_action_to_code(config, action_id, template_arg, args):
     def convert(type):
         def converter(value):
-            if str(type) != "std::string":
-                return cg.RawExpression(value)
-            return value
+            if str(type) == "std::string":
+                return value
+            if str(type) == "bool":
+                return cg.RawExpression(str(value).lower())
+            return cg.RawExpression(str(value))
 
         return converter
 
