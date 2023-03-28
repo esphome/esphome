@@ -84,7 +84,7 @@ async def to_code(config):
 
     cg.add(var.set_frequency(int(config[CONF_FREQUENCY])))
     cg.add(var.set_scan(config[CONF_SCAN]))
-    if CORE.using_esp_idf:
+    if CONF_TIMEOUT in config:
         cg.add(var.set_timeout(int(config[CONF_TIMEOUT].total_microseconds)))
     if CORE.using_arduino:
         cg.add_library("Wire", None)
