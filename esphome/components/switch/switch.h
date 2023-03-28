@@ -32,7 +32,6 @@ enum SwitchRestoreMode {
 class Switch : public EntityBase {
  public:
   explicit Switch();
-  explicit Switch(const std::string &name);
 
   /** Publish a state to the front-end from the back-end.
    *

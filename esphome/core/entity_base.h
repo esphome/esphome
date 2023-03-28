@@ -2,6 +2,7 @@
 
 #include <string>
 #include <cstdint>
+#include "string_ref.h"
 
 namespace esphome {
 
@@ -14,12 +15,12 @@ enum EntityCategory : uint8_t {
 // The generic Entity base class that provides an interface common to all Entities.
 class EntityBase {
  public:
-  EntityBase() : EntityBase("") {}
-  explicit EntityBase(std::string name);
-
   // Get/set the name of this Entity
-  const std::string &get_name() const;
-  void set_name(const std::string &name);
+  const StringRef &get_name() const;
+  void set_name(const char *name);
+
+  // Get whether this Entity has its own name or it should use the device friendly_name.
+  bool has_own_name() const { return this->has_own_name_; }
 
   // Get the sanitized name of this Entity as an ID. Caching it internally.
   const std::string &get_object_id();
@@ -51,7 +52,8 @@ class EntityBase {
   virtual uint32_t hash_base() { return 0L; }
   void calc_object_id_();
 
-  std::string name_;
+  StringRef name_;
+  bool has_own_name_{false};
   std::string object_id_;
   const char *icon_c_str_{nullptr};
   uint32_t object_id_hash_;

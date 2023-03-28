@@ -218,7 +218,9 @@ class APIServerConnectionBase : public ProtoService {
 #endif
   virtual void on_unsubscribe_bluetooth_le_advertisements_request(
       const UnsubscribeBluetoothLEAdvertisementsRequest &value){};
-
+#ifdef USE_BLUETOOTH_PROXY
+  bool send_bluetooth_device_clear_cache_response(const BluetoothDeviceClearCacheResponse &msg);
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
