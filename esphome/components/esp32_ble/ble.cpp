@@ -215,7 +215,7 @@ float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 void ESP32BLE::dump_config() {
   const uint8_t* mac_address = esp_bt_dev_get_address();
   if(mac_address) {
-    ESP_LOGCONFIG(TAG, "ESP32 BLE:
+    ESP_LOGCONFIG(TAG, "ESP32 BLE:");
     ESP_LOGCONFIG(TAG, "  mac_address: %02X:%02X:%02X:%02X:%02X:%02X",
                   mac_address[0],mac_address[1],mac_address[2],
                   mac_address[3],mac_address[4],mac_address[5]);
