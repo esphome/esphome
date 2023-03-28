@@ -29,7 +29,6 @@ void PMWCS3Component::change_i2c_address(uint8_t newaddress) {
     ESP_LOGW(TAG, "couldn't write the new I2C address %d", newaddress);
     return;
   }
-  // NOLINT  delay(100);
   ESP_LOGVV(TAG, "new I2C address %d done", newaddress);
 }
 
@@ -40,8 +39,6 @@ void PMWCS3Component::set_air_calibration() {
     return;
   }
   ESP_LOGW(TAG, "Start air calibration during the next 300s");
-  // NOLINT  delay(300000);
-  ESP_LOGW(TAG, "Air calibration finished");
 }
 void PMWCS3Component::set_water_calibration() {
   if (!this->write_bytes(PMWCS3_REG_CALIBRATE_WATER, nullptr, 0)) {
@@ -50,8 +47,6 @@ void PMWCS3Component::set_water_calibration() {
     return;
   }
   ESP_LOGW(TAG, "Start water calibration during the next 300s");
-  // NOLINT  delay(300000);
-  ESP_LOGW(TAG, "Water calibration finished");
 }
 
 void PMWCS3Component::setup() { ESP_LOGCONFIG(TAG, "Setting up PMWCS3..."); }
@@ -81,7 +76,6 @@ void PMWCS3Component::read_data_() {
   /////// Super important !!!! first activate reading PMWCS3_REG_READ_START (if not, return always the same values) ////
 
   if (!this->write_bytes(PMWCS3_REG_READ_START, nullptr, 0)) {
-    // if (!this->write(&PMWCS3_REG_READ_START, 0 , false)) {
     this->status_set_warning();
     ESP_LOGVV(TAG, "Failed to write into REG_READ_START register !!!");
     return;
