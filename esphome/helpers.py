@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Union
 import tempfile
 from urllib.parse import urlparse
+import re
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -334,3 +335,13 @@ def add_class_to_obj(value, cls):
             if type(value) is type_:  # pylint: disable=unidiomatic-typecheck
                 return add_class_to_obj(func(value), cls)
         raise
+
+
+def snake_case(value):
+    """Same behaviour as `helpers.cpp` method `str_snake_case`."""
+    return value.replace(" ", "_").lower()
+
+
+def sanitize(value):
+    """Same behaviour as `helpers.cpp` method `str_sanitize`."""
+    return re.sub("[^-_0-9a-zA-Z]", r"", value)

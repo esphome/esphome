@@ -163,6 +163,7 @@ enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_UNPAIR = 3,
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITH_CACHE = 4,
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5,
+  BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE = 6,
 };
 
 }  // namespace enums
@@ -1542,6 +1543,28 @@ class BluetoothDevicePairingResponse : public ProtoMessage {
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class BluetoothDeviceUnpairingResponse : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  bool success{false};
+  int32_t error{0};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class UnsubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
+ public:
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
+class BluetoothDeviceClearCacheResponse : public ProtoMessage {
  public:
   uint64_t address{0};
   bool success{false};
