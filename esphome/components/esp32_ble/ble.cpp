@@ -213,7 +213,7 @@ void ESP32BLE::real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
 void ESP32BLE::dump_config() {
-  const uint8_t* mac_address = esp_bt_dev_get_address();
+  const uint8_t *mac_address = esp_bt_dev_get_address();
   if(mac_address) {
     ESP_LOGCONFIG(TAG, "ESP32 BLE:");
     ESP_LOGCONFIG(TAG, "  MAC address: %02X:%02X:%02X:%02X:%02X:%02X", mac_address[0], mac_address[1], mac_address[2],
