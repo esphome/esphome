@@ -20,8 +20,7 @@ std::string state_class_to_string(StateClass state_class) {
   }
 }
 
-Sensor::Sensor(const std::string &name) : EntityBase(name), state(NAN), raw_state(NAN) {}
-Sensor::Sensor() : Sensor("") {}
+Sensor::Sensor() : state(NAN), raw_state(NAN) {}
 
 std::string Sensor::get_unit_of_measurement() {
   if (this->unit_of_measurement_.has_value())
