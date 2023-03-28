@@ -153,6 +153,9 @@ class APIConnection : public APIServerConnection {
   void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override {
     this->bluetooth_le_advertisement_subscription_ = true;
   }
+  void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override {
+    this->bluetooth_le_advertisement_subscription_ = false;
+  }
   bool is_authenticated() override { return this->connection_state_ == ConnectionState::AUTHENTICATED; }
   bool is_connection_setup() override {
     return this->connection_state_ == ConnectionState ::CONNECTED || this->is_authenticated();
