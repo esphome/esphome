@@ -25,7 +25,7 @@ DOMAINS = {
 
 
 def sub(path, pattern, repl):
-    with open(path, "r") as handle:
+    with open(path) as handle:
         content = handle.read()
     content = re.sub(pattern, repl, content, flags=re.MULTILINE)
     with open(path, "w") as handle:
@@ -48,7 +48,7 @@ def main():
     out = ""
     for cls in sorted(classes):
         out += f'DEVICE_CLASS_{cls.upper()} = "{classes[cls]}"\n'
-    sub("esphome/const.py", '(DEVICE_CLASS_\w+ = "\w*"\r?\n)+', out)
+    sub("esphome/const.py", '(DEVICE_CLASS_\\w+ = "\\w*"\r?\n)+', out)
 
     for domain in sorted(allowed):
         # replace imports
@@ -58,7 +58,7 @@ def main():
 
         sub(
             f"esphome/components/{domain}/__init__.py",
-            "(    DEVICE_CLASS_\w+,\r?\n)+",
+            "(    DEVICE_CLASS_\\w+,\r?\n)+",
             out,
         )
 
