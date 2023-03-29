@@ -27,7 +27,7 @@ DOMAINS = {
 def sub(path, pattern, repl):
     with open(path, "r") as handle:
         content = handle.read()
-    content = re.sub(pattern, repl, content, flags=re.MULTILINE, count=1)
+    content = re.sub(pattern, repl, content, flags=re.MULTILINE)
     with open(path, "w") as handle:
         handle.write(content)
 
