@@ -51,8 +51,9 @@ void BinarySensorMap::process_group_() {
 void BinarySensorMap::process_sum_() {
   float total_current_value = 0.0;
   uint64_t mask = 0x00;
-  // check all binary_sensors for its state. when active add its value to total_current_value.
-  // create a bitmask for the binary_sensor status on all channels
+  // - check all binary_sensor states
+  // - if active, add its value to total_current_value
+  // - creates a bitmask for the binary_sensor status on all channels
   for (size_t i = 0; i < this->channels_.size(); i++) {
     auto bs = this->channels_[i];
     if (bs.binary_sensor->state) {
@@ -60,18 +61,12 @@ void BinarySensorMap::process_sum_() {
       mask |= 1 << i;
     }
   }
-  // check if the sensor map was touched
-  if (mask != 0ULL) {
-    // did the bit_mask change or is it a new sensor touch
-    if (this->last_mask_ != mask) {
-      float publish_value = total_current_value;
-      this->publish_state(publish_value);
-    }
-  } else if (this->last_mask_ != 0ULL) {
-    // is this a new sensor release
-    ESP_LOGV(TAG, "'%s' - No binary sensor active, publishing 0", this->name_.c_str());
-    this->publish_state(0.0);
+
+  // update state only if the binary sensor states have changed or if no state has ever been sent on boot
+  if ((this->last_mask_ != mask) || (!this->has_state())) {
+    this->publish_state(total_current_value);
   }
+
   this->last_mask_ = mask;
 }
 
