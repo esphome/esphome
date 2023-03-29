@@ -1366,6 +1366,7 @@ message BluetoothDeviceUnpairingResponse {
 message UnsubscribeBluetoothLEAdvertisementsRequest {
   option (id) = 87;
   option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
 }
 
 message BluetoothDeviceClearCacheResponse {
