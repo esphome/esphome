@@ -22,7 +22,7 @@ jobs:
         uses: actions/checkout@v3
         with:
           repository: home-assistant/core
-          path: home-assistant
+          path: lib/home-assistant
 
       - name: Setup Python
         uses: actions/setup-python@v4
@@ -32,7 +32,7 @@ jobs:
       - name: Install Home Assistant
         run: |
           python -m pip install --upgrade pip
-          pip install -e home-assistant
+          pip install -e lib/home-assistant
 
       - name: Sync
         run: |
