@@ -1555,6 +1555,15 @@ class BluetoothDeviceUnpairingResponse : public ProtoMessage {
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
+class UnsubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
+ public:
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+};
 class BluetoothDeviceClearCacheResponse : public ProtoMessage {
  public:
   uint64_t address{0};
