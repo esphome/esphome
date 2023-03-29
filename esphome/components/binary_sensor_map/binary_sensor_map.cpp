@@ -38,12 +38,11 @@ void BinarySensorMap::process_group_() {
     // did the bit_mask change or is it a new sensor touch
     if (this->last_mask_ != mask) {
       float publish_value = total_current_value / num_active_sensors;
-      ESP_LOGD(TAG, "'%s' - Publishing %.2f", this->name_.c_str(), publish_value);
       this->publish_state(publish_value);
     }
   } else if (this->last_mask_ != 0ULL) {
     // is this a new sensor release
-    ESP_LOGD(TAG, "'%s' - No binary sensor active, publishing NAN", this->name_.c_str());
+    ESP_LOGV(TAG, "'%s' - No binary sensor active, publishing NAN", this->name_.c_str());
     this->publish_state(NAN);
   }
   this->last_mask_ = mask;
@@ -66,12 +65,11 @@ void BinarySensorMap::process_sum_() {
     // did the bit_mask change or is it a new sensor touch
     if (this->last_mask_ != mask) {
       float publish_value = total_current_value;
-      ESP_LOGD(TAG, "'%s' - Publishing %.2f", this->name_.c_str(), publish_value);
       this->publish_state(publish_value);
     }
   } else if (this->last_mask_ != 0ULL) {
     // is this a new sensor release
-    ESP_LOGD(TAG, "'%s' - No binary sensor active, publishing 0", this->name_.c_str());
+    ESP_LOGV(TAG, "'%s' - No binary sensor active, publishing 0", this->name_.c_str());
     this->publish_state(0.0);
   }
   this->last_mask_ = mask;
