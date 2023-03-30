@@ -30,7 +30,7 @@ void BinarySensorMap::process_group_() {
     if (bs.binary_sensor->state) {
       num_active_sensors++;
       total_current_value += bs.sensor_value;
-      mask |= 1 << i;
+      mask |= 1ULL << i;
     }
   }
   // check if the sensor map was touched
@@ -58,7 +58,7 @@ void BinarySensorMap::process_sum_() {
     auto bs = this->channels_[i];
     if (bs.binary_sensor->state) {
       total_current_value += bs.sensor_value;
-      mask |= 1 << i;
+      mask |= 1ULL << i;
     }
   }
 
