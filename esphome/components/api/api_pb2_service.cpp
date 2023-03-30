@@ -441,6 +441,14 @@ bool APIServerConnectionBase::send_bluetooth_device_unpairing_response(const Blu
   return this->send_message_<BluetoothDeviceUnpairingResponse>(msg, 86);
 }
 #endif
+#ifdef USE_BLUETOOTH_PROXY
+bool APIServerConnectionBase::send_bluetooth_device_clear_cache_response(const BluetoothDeviceClearCacheResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_bluetooth_device_clear_cache_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<BluetoothDeviceClearCacheResponse>(msg, 88);
+}
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -803,6 +811,15 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       this->on_subscribe_bluetooth_connections_free_request(msg);
 #endif
+      break;
+    }
+    case 87: {
+      UnsubscribeBluetoothLEAdvertisementsRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_unsubscribe_bluetooth_le_advertisements_request: %s", msg.dump().c_str());
+#endif
+      this->on_unsubscribe_bluetooth_le_advertisements_request(msg);
       break;
     }
     default:
@@ -1185,6 +1202,18 @@ void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
   }
 }
 #endif
+void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request(
+    const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->unsubscribe_bluetooth_le_advertisements(msg);
+}
 
 }  // namespace api
 }  // namespace esphome

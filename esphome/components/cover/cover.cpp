@@ -31,7 +31,7 @@ const char *cover_operation_to_str(CoverOperation op) {
   }
 }
 
-Cover::Cover(const std::string &name) : EntityBase(name), position{COVER_OPEN} {}
+Cover::Cover() : position{COVER_OPEN} {}
 
 CoverCall::CoverCall(Cover *parent) : parent_(parent) {}
 CoverCall &CoverCall::set_command(const char *command) {
@@ -204,7 +204,6 @@ optional<CoverRestoreState> Cover::restore_state_() {
     return {};
   return recovered;
 }
-Cover::Cover() : Cover("") {}
 std::string Cover::get_device_class() {
   if (this->device_class_override_.has_value())
     return *this->device_class_override_;
