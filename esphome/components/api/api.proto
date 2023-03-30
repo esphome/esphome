@@ -1127,6 +1127,7 @@ message MediaPlayerCommandRequest {
 message SubscribeBluetoothLEAdvertisementsRequest {
   option (id) = 66;
   option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
 }
 
 message BluetoothServiceData {
@@ -1366,6 +1367,7 @@ message BluetoothDeviceUnpairingResponse {
 message UnsubscribeBluetoothLEAdvertisementsRequest {
   option (id) = 87;
   option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
 }
 
 message BluetoothDeviceClearCacheResponse {
