@@ -24,7 +24,7 @@ ANIMATION_SCHEMA = cv.Schema(
         cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(
             espImage.IMAGE_TYPE, upper=True
         ),
-        # Not setting default on purpose; normally the default will be False,
+        # Not setting default here on purpose; normally the default will be False,
         # but cannot be set for transparent image types; thus the code generation
         # needs to know whether the user actually set a value.
         cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
@@ -62,7 +62,6 @@ async def to_code(config):
 
     is_transparent_type = config[CONF_TYPE] in [
         "TRANSPARENT_BINARY",
-        "TRANSPARENT_IMAGE",
         "RGBA",
     ]
     if config.get(CONF_USE_TRANSPARENCY, None) is False and is_transparent_type:
@@ -89,7 +88,7 @@ async def to_code(config):
                 if transparent:
                     if pix == 1:
                         pix = 0
-                    if a < 127:
+                    if a < 0x80:
                         pix = 1
 
                 data[pos] = pix
@@ -135,7 +134,7 @@ async def to_code(config):
                 if transparent:
                     if r == 0 and g == 0 and b == 1:
                         b = 0
-                    if a < 127:
+                    if a < 0x80:
                         r = 0
                         g = 0
                         b = 1
@@ -167,14 +166,14 @@ async def to_code(config):
                 rgb = (R << 11) | (G << 5) | B
 
                 if transparent:
-                    if rgb == 1:
+                    if rgb == 0x0020:
                         rgb = 0
-                    if a < 127:
-                        rgb = 1
+                    if a < 0x80:
+                        rgb = 0x0020
 
                 data[pos] = rgb >> 8
                 pos += 1
-                data[pos] = rgb & 255
+                data[pos] = rgb & 0xFF
                 pos += 1
 
     elif config[CONF_TYPE] in ["BINARY", "TRANSPARENT_BINARY"]:
@@ -184,7 +183,7 @@ async def to_code(config):
             image.seek(frameIndex)
             if transparent:
                 alpha = image.split()[-1]
-                has_alpha = alpha.getextrema()[0] < 255
+                has_alpha = alpha.getextrema()[0] < 0xFF
             frame = image.convert("1", dither=Image.NONE)
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
