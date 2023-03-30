@@ -17,9 +17,6 @@
 #if defined(USE_ESP32)
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
-#elif defined(USE_RP2040)
-#include <FreeRTOS.h>
-#include <semphr.h>
 #endif
 
 #define HOT __attribute__((hot))
@@ -539,7 +536,7 @@ class Mutex {
   Mutex &operator=(const Mutex &) = delete;
 
  private:
-#if defined(USE_ESP32) || defined(USE_RP2040)
+#if defined(USE_ESP32)
   SemaphoreHandle_t handle_;
 #endif
 };
@@ -550,7 +547,7 @@ class Mutex {
  */
 class LockGuard {
  public:
-  LockGuard(Mutex &mutex) : mutex_{mutex} { mutex_.lock(); }
+  LockGuard(Mutex &mutex) : mutex_(mutex) { mutex_.lock(); }
   ~LockGuard() { mutex_.unlock(); }
 
  private:
