@@ -25,7 +25,6 @@ IMAGE_TYPE = {
     "TRANSPARENT_BINARY": ImageType.IMAGE_TYPE_BINARY,
     "GRAYSCALE": ImageType.IMAGE_TYPE_GRAYSCALE,
     "RGB565": ImageType.IMAGE_TYPE_RGB565,
-    "TRANSPARENT_IMAGE": ImageType.IMAGE_TYPE_RGB565,
     "RGB24": ImageType.IMAGE_TYPE_RGB24,
     "RGBA": ImageType.IMAGE_TYPE_RGBA,
 }
@@ -40,7 +39,7 @@ IMAGE_SCHEMA = cv.Schema(
         cv.Required(CONF_FILE): cv.file_,
         cv.Optional(CONF_RESIZE): cv.dimensions,
         cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(IMAGE_TYPE, upper=True),
-        # Not setting default on purpose; normally the default will be False,
+        # Not setting default here on purpose; normally the default will be False,
         # but cannot be set for transparent image types; thus the code generation
         # needs to know whether the user actually set a value.
         cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
@@ -78,7 +77,6 @@ async def to_code(config):
 
     is_transparent_type = config[CONF_TYPE] in [
         "TRANSPARENT_BINARY",
-        "TRANSPARENT_IMAGE",
         "RGBA",
     ]
     if config.get(CONF_USE_TRANSPARENCY, None) is False and is_transparent_type:
@@ -140,7 +138,7 @@ async def to_code(config):
             data[pos] = b
             pos += 1
 
-    elif config[CONF_TYPE] in ["RGB565", "TRANSPARENT_IMAGE"]:
+    elif config[CONF_TYPE] in ["RGB565"]:
         image = image.convert("RGBA")
         pixels = list(image.getdata())
         data = [0 for _ in range(height * width * 2)]
@@ -183,7 +181,7 @@ async def to_code(config):
     else:
         # TODO: Would be nice to also print the line where the error happened
         raise core.EsphomeError(
-            f"Image f{config[CONF_ID]} has not supported type {config[CONF_TYPE]}."
+            f"Image f{config[CONF_ID]} has an unsupported type: {config[CONF_TYPE]}."
         )
 
     rhs = [HexInt(x) for x in data]

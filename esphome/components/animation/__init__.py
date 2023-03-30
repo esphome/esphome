@@ -24,7 +24,7 @@ ANIMATION_SCHEMA = cv.Schema(
         cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(
             espImage.IMAGE_TYPE, upper=True
         ),
-        # Not setting default on purpose; normally the default will be False,
+        # Not setting default here on purpose; normally the default will be False,
         # but cannot be set for transparent image types; thus the code generation
         # needs to know whether the user actually set a value.
         cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
@@ -62,7 +62,6 @@ async def to_code(config):
 
     is_transparent_type = config[CONF_TYPE] in [
         "TRANSPARENT_BINARY",
-        "TRANSPARENT_IMAGE",
         "RGBA",
     ]
     if config.get(CONF_USE_TRANSPARENCY, None) is False and is_transparent_type:
