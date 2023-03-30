@@ -63,4 +63,15 @@ class EntityBase {
   EntityCategory entity_category_{ENTITY_CATEGORY_NONE};
 };
 
+class EntityBase_DeviceClass {
+ public:
+  /// Get the device class, using the manual override if set.
+  std::string get_device_class();
+  /// Manually set the device class.
+  void set_device_class(const char *device_class);
+
+ protected:
+  const char *device_class_{nullptr};  ///< Device class override
+};
+
 }  // namespace esphome
