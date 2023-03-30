@@ -146,19 +146,20 @@ def final_validate_device_schema(
             msg=f"Component {name} cannot be used with a frequency of over {max_frequency} for the I2C bus",
         )
 
-    if min_timeout is not None:
-        hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
-            min=cv.time_period(min_timeout),
-            min_included=True,
-            msg=f"Component {name} requires a minimum timeout of {min_timeout} for the I2C bus",
-        )
+    if CORE.using_esp_idf:
+        if min_timeout is not None:
+            hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
+                min=cv.time_period(min_timeout),
+                min_included=True,
+                msg=f"Component {name} requires a minimum timeout of {min_timeout} for the I2C bus",
+            )
 
-    if max_timeout is not None:
-        hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
-            max=cv.time_period(max_timeout),
-            max_included=True,
-            msg=f"Component {name} cannot be used with a timeout of over {max_timeout} for the I2C bus",
-        )
+        if max_timeout is not None:
+            hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
+                max=cv.time_period(max_timeout),
+                max_included=True,
+                msg=f"Component {name} cannot be used with a timeout of over {max_timeout} for the I2C bus",
+            )
 
     return cv.Schema(
         {cv.Required(CONF_I2C_ID): fv.id_declaration_match_schema(hub_schema)},
