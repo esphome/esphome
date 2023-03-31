@@ -68,7 +68,6 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass {
   /// Manually set the accuracy in decimals.
   void set_accuracy_decimals(int8_t accuracy_decimals);
 
-
   /// Get the state class, using the manual override if set.
   StateClass get_state_class();
   /// Manually set the state class.
