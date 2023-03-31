@@ -29,7 +29,7 @@ void BinarySensorMap::process_group_() {
 
   // - check all binary_sensors for its state
   //  - if active, add its value to total_current_value.
-  // - creates a bitmask for the binary_sensor status on all channels
+  // - creates a bitmask for the binary_sensor states on all channels
   for (size_t i = 0; i < this->channels_.size(); i++) {
     auto bs = this->channels_[i];
     if (bs.binary_sensor->state) {
@@ -61,7 +61,7 @@ void BinarySensorMap::process_sum_() {
 
   // - check all binary_sensor states
   //  - if active, add its value to total_current_value
-  // - creates a bitmask for the binary_sensor status on all channels
+  // - creates a bitmask for the binary_sensor states on all channels
   for (size_t i = 0; i < this->channels_.size(); i++) {
     auto bs = this->channels_[i];
     if (bs.binary_sensor->state) {
@@ -70,7 +70,7 @@ void BinarySensorMap::process_sum_() {
     }
   }
 
-  // update state only if the binary_sensor states have changed or if no state has ever been sent on boot
+  // update state only if any binary_sensor states have changed or if no state has ever been sent on boot
   if ((this->last_mask_ != mask) || (!this->has_state())) {
     this->publish_state(total_current_value);
   }
@@ -83,9 +83,8 @@ void BinarySensorMap::process_bayesian_() {
   uint8_t num_active_sensors = 0;
   uint64_t mask = 0x00;
 
-  // - check all binary_sensors states
-  // - compute the posterior probability by multiplying by the predicate for each sensor
-  // - create a bitmask for the binary_sensor status on all channels
+  // - compute the posterior probability by taking the product of the predicate probablities for each observation
+  // - create a bitmask for the binary_sensor states on all channels/observations
   for (size_t i = 0; i < this->channels_.size(); i++) {
     auto bs = this->channels_[i];
 
@@ -96,7 +95,7 @@ void BinarySensorMap::process_bayesian_() {
     mask |= ((uint64_t) (bs.binary_sensor->state)) << i;
   }
 
-  // update state only if the binary_sensor states have changed or if no state has ever been sent on boot
+  // update state only if any binary_sensor states have changed or if no state has ever been sent on boot
   if ((this->last_mask_ != mask) || (!this->has_state())) {
     this->publish_state(posterior_probability);
   }
@@ -109,6 +108,7 @@ float BinarySensorMap::bayesian_predicate_(bool sensor_state, float prior, float
   float prob_state_source_true = prob_given_true;
   float prob_state_source_false = prob_given_false;
 
+  // if sensor is off, then we use the probabilities for the observation's complement
   if (!sensor_state) {
     prob_state_source_true = 1 - prob_given_true;
     prob_state_source_false = 1 - prob_given_false;

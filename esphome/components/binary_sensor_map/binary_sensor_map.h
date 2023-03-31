@@ -26,26 +26,24 @@ struct BinarySensorMapChannel {
   } parameters;
 };
 
-/** Class to group binary_sensors to one Sensor.
+/** Class to map one or more binary_sensors to one Sensor.
  *
- * Each binary sensor represents a float value in the group.
+ * Each binary sensor has configured parameters that each mapping type uses to compute the single numerical result
  */
 class BinarySensorMap : public sensor::Sensor, public Component {
  public:
   void dump_config() override;
+
   /**
-   * The loop checks all binary_sensor states
-   * When the binary_sensor reports a true value for its state, then the float value it represents is added to the
-   * total_current_value
+   * The loop calls the configured type processing method
    *
-   * Only when the total_current_value changed and at least one sensor reports an active state we publish the sensors
-   * average value. When the value changed and no sensors ar active we publish NAN.
-   * */
+   * The processing method loops through all sensors and calculates the numerical result
+   * The result is only published if a binary sensor state has changed or, for some types, on initial boot
+   */
   void loop() override;
 
   /**
-   * Add binary_sensors to the group when only parameter is needed for the calculation type.
-   * Each binary_sensor represents a float value when its state is true
+   * Add binary_sensors to the group when only one parameter is needed for the configured mapping type.
    *
    * @param *sensor The binary sensor.
    * @param value  The value this binary_sensor represents
@@ -53,14 +51,11 @@ class BinarySensorMap : public sensor::Sensor, public Component {
   void add_channel(binary_sensor::BinarySensor *sensor, float value);
 
   /**
-   * Add binary_sensors to the group when two parameters are needed for the Bayesian calculation type.
-   * The state of each binary_sensor deci
+   * Add binary_sensors to the group when two parameters are needed for the Bayesian mapping type.
    *
    * @param *sensor The binary sensor.
-   * @param prob_given_true Probability that this binary sensor is true when when the Bayesian sensor overall should be
-   * true
-   * @param prob_given_false Probability that this binary sensor is true when the Bayesian sensor overall should be
-   * false
+   * @param prob_given_true Probability this observation is on when the Bayesian event is true
+   * @param prob_given_false Probability this observation is on when the Bayesian event is false
    */
   void add_channel(binary_sensor::BinarySensor *sensor, float prob_given_true, float prob_given_false);
 
@@ -72,14 +67,15 @@ class BinarySensorMap : public sensor::Sensor, public Component {
   std::vector<BinarySensorMapChannel> channels_{};
   BinarySensorMapType sensor_type_{BINARY_SENSOR_MAP_TYPE_GROUP};
 
-  // this gives max 64 channels per binary_sensor_map
+  // this allows a max of 64 channels/observations in order to keep track of binary_sensor states
   uint64_t last_mask_{0x00};
 
-  // Bayesian prior probability before taking into account sensor states
+  // Bayesian event prior probability before taking into account any observations
   float bayesian_prior_{};
 
   /**
-   * methods to process the types of binary_sensor_maps
+   * Methods to process the binary_sensor_maps types
+   *
    * GROUP: process_group_() averages all the values
    * ADD: process_add_() adds all the values
    * BAYESIAN: process_bayesian_() computes the predicate probability
@@ -89,13 +85,13 @@ class BinarySensorMap : public sensor::Sensor, public Component {
   void process_bayesian_();
 
   /**
-   * @brief
+   * Computes the Bayesian predicate for a specific observation
+   * If the sensor state is false, then we use the parameters' probabilities for the observatiosn complement
    *
-   * @param sensor_state
-   * @param prior
-   * @param prob_given_true
-   * @param prob_given_false
-   * @return float
+   * @param sensor_state  State of observation
+   * @param prior Prior probability before accounting for this observation
+   * @param prob_given_true Probability this observation is on when the Bayesian event is true
+   * @param prob_given_false Probability this observation is on when the Bayesian event is false
    * */
   float bayesian_predicate_(bool sensor_state, float prior, float prob_given_true, float prob_given_false);
 };
