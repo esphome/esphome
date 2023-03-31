@@ -157,13 +157,13 @@ class Sensor : public EntityBase, public EntityBase_DeviceClass {
   CallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
   CallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
 
-  bool has_state_{false};
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 
   optional<std::string> unit_of_measurement_;           ///< Unit of measurement override
   optional<int8_t> accuracy_decimals_;                  ///< Accuracy in decimals override
   optional<StateClass> state_class_{STATE_CLASS_NONE};  ///< State class override
   bool force_update_{false};                            ///< Force update mode
+  bool has_state_{false};
 };
 
 }  // namespace sensor
