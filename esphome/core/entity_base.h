@@ -54,10 +54,10 @@ class EntityBase {
   void calc_object_id_();
 
   StringRef name_;
-  bool has_own_name_{false};
   const char *object_id_c_str_{nullptr};
   const char *icon_c_str_{nullptr};
   uint32_t object_id_hash_;
+  bool has_own_name_{false};
   bool internal_{false};
   bool disabled_by_default_{false};
   EntityCategory entity_category_{ENTITY_CATEGORY_NONE};
