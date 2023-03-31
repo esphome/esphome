@@ -24,6 +24,7 @@ CONF_BAYESIAN = "bayesian"
 CONF_PRIOR = "prior"
 CONF_PROB_GIVEN_TRUE = "prob_given_true"
 CONF_PROB_GIVEN_FALSE = "prob_given_false"
+CONF_OBSERVATIONS = "observations"
 
 SENSOR_MAP_TYPES = {
     CONF_GROUP: SensorMapType.BINARY_SENSOR_MAP_TYPE_GROUP,
@@ -72,7 +73,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         ).extend(
             {
                 cv.Required(CONF_PRIOR): cv.float_range(min=0, max=1),
-                cv.Required(CONF_CHANNELS): cv.All(
+                cv.Required(CONF_OBSERVATIONS): cv.All(
                     cv.ensure_list(entry_bayesian_parameters), cv.Length(min=1, max=64)
                 ),
             }
@@ -91,14 +92,15 @@ async def to_code(config):
 
     if config[CONF_TYPE] == CONF_BAYESIAN:
         cg.add(var.set_bayesian_prior(config[CONF_PRIOR]))
-
-    for ch in config[CONF_CHANNELS]:
-        input_var = await cg.get_variable(ch[CONF_BINARY_SENSOR])
-        if config[CONF_TYPE] == CONF_BAYESIAN:
+        
+        for obs in config[CONF_OBSERVATIONS]:
+            input_var = await cg.get_variable(obs[CONF_BINARY_SENSOR])
             cg.add(
                 var.add_channel(
-                    input_var, ch[CONF_PROB_GIVEN_TRUE], ch[CONF_PROB_GIVEN_FALSE]
+                    input_var, obs[CONF_PROB_GIVEN_TRUE], obs[CONF_PROB_GIVEN_FALSE]
                 )
             )
-        else:
+    else:    
+        for ch in config[CONF_CHANNELS]:
+            input_var = await cg.get_variable(ch[CONF_BINARY_SENSOR])
             cg.add(var.add_channel(input_var, ch[CONF_VALUE]))
