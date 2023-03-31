@@ -92,7 +92,7 @@ async def to_code(config):
 
     if config[CONF_TYPE] == CONF_BAYESIAN:
         cg.add(var.set_bayesian_prior(config[CONF_PRIOR]))
-        
+
         for obs in config[CONF_OBSERVATIONS]:
             input_var = await cg.get_variable(obs[CONF_BINARY_SENSOR])
             cg.add(
@@ -100,7 +100,7 @@ async def to_code(config):
                     input_var, obs[CONF_PROB_GIVEN_TRUE], obs[CONF_PROB_GIVEN_FALSE]
                 )
             )
-    else:    
+    else:
         for ch in config[CONF_CHANNELS]:
             input_var = await cg.get_variable(ch[CONF_BINARY_SENSOR])
             cg.add(var.add_channel(input_var, ch[CONF_VALUE]))
