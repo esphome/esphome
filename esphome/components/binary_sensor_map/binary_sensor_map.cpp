@@ -26,6 +26,7 @@ void BinarySensorMap::process_group_() {
   float total_current_value = 0.0;
   uint8_t num_active_sensors = 0;
   uint64_t mask = 0x00;
+
   // - check all binary_sensors for its state
   //  - if active, add its value to total_current_value.
   // - creates a bitmask for the binary_sensor status on all channels
@@ -46,16 +47,18 @@ void BinarySensorMap::process_group_() {
       this->publish_state(publish_value);
     }
   } else if (this->last_mask_ != 0ULL) {
-    // no buttons are pressed, so publish NAN
+    // no buttons are pressed and the states have changed since last run, so publish NAN
     ESP_LOGV(TAG, "'%s' - No binary sensor active, publishing NAN", this->name_.c_str());
     this->publish_state(NAN);
   }
+
   this->last_mask_ = mask;
 }
 
 void BinarySensorMap::process_sum_() {
   float total_current_value = 0.0;
   uint64_t mask = 0x00;
+
   // - check all binary_sensor states
   //  - if active, add its value to total_current_value
   // - creates a bitmask for the binary_sensor status on all channels
@@ -67,7 +70,7 @@ void BinarySensorMap::process_sum_() {
     }
   }
 
-  // update state only if the binary sensor states have changed or if no state has ever been sent on boot
+  // update state only if the binary_sensor states have changed or if no state has ever been sent on boot
   if ((this->last_mask_ != mask) || (!this->has_state())) {
     this->publish_state(total_current_value);
   }
@@ -90,10 +93,10 @@ void BinarySensorMap::process_bayesian_() {
         this->bayesian_predicate_(bs.binary_sensor->state, posterior_probability,
                                   bs.parameters.probabilities.given_true, bs.parameters.probabilities.given_false);
 
-    mask |= (bs.binary_sensor->state) << i;
+    mask |= ((uint64_t) (bs.binary_sensor->state)) << i;
   }
 
-  // update state only if the binary sensor states have changed or if no state has ever been sent on boot
+  // update state only if the binary_sensor states have changed or if no state has ever been sent on boot
   if ((this->last_mask_ != mask) || (!this->has_state())) {
     this->publish_state(posterior_probability);
   }
