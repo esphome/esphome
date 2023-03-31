@@ -18,6 +18,7 @@ enum EthernetType {
   ETHERNET_TYPE_RTL8201,
   ETHERNET_TYPE_DP83848,
   ETHERNET_TYPE_IP101,
+  ETHERNET_TYPE_JL1101,
 };
 
 struct ManualIP {
@@ -49,7 +50,7 @@ class EthernetComponent : public Component {
   void set_mdc_pin(uint8_t mdc_pin);
   void set_mdio_pin(uint8_t mdio_pin);
   void set_type(EthernetType type);
-  void set_clk_mode(emac_rmii_clock_gpio_t clk_mode);
+  void set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio);
   void set_manual_ip(const ManualIP &manual_ip);
 
   network::IPAddress get_ip_address();
@@ -69,7 +70,8 @@ class EthernetComponent : public Component {
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
   EthernetType type_{ETHERNET_TYPE_LAN8720};
-  emac_rmii_clock_gpio_t clk_mode_{EMAC_CLK_IN_GPIO};
+  emac_rmii_clock_mode_t clk_mode_{EMAC_CLK_EXT_IN};
+  emac_rmii_clock_gpio_t clk_gpio_{EMAC_CLK_IN_GPIO};
   optional<ManualIP> manual_ip_{};
 
   bool started_{false};
@@ -82,6 +84,7 @@ class EthernetComponent : public Component {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern EthernetComponent *global_eth_component;
+extern "C" esp_eth_phy_t *esp_eth_phy_new_jl1101(const eth_phy_config_t *config);
 
 }  // namespace ethernet
 }  // namespace esphome
