@@ -20,9 +20,9 @@ void RemoteReceiverComponent::setup() {
     rmt.rx_config.filter_en = false;
   } else {
     rmt.rx_config.filter_en = true;
-    rmt.rx_config.filter_ticks_thresh = this->from_microseconds_(this->filter_us_);
+    rmt.rx_config.filter_ticks_thresh = static_cast<uint8_t>(std::min(this->from_microseconds_(this->filter_us_), (uint32_t)255));
   }
-  rmt.rx_config.idle_threshold = this->from_microseconds_(this->idle_us_);
+  rmt.rx_config.idle_threshold = static_cast<uint16_t>(std::min(this->from_microseconds_(this->idle_us_), (uint32_t)65535));
 
   esp_err_t error = rmt_config(&rmt);
   if (error != ESP_OK) {
