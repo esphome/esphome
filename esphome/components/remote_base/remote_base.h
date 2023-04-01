@@ -62,7 +62,8 @@ class RemoteTransmitData {
 
 class RemoteReceiveData {
  public:
-  RemoteReceiveData(std::vector<int32_t> *data, uint32_t tolerance, ToleranceMode tolerance_mode) : data_(data), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
+  RemoteReceiveData(std::vector<int32_t> *data, uint32_t tolerance, ToleranceMode tolerance_mode)
+      : data_(data), tolerance_(tolerance), tolerance_mode_(tolerance_mode) {}
 
   bool peek_mark(uint32_t length, uint32_t offset = 0) {
     if (int32_t(this->index_ + offset) >= this->size())
@@ -142,15 +143,24 @@ class RemoteReceiveData {
 
   std::vector<int32_t> *get_raw_data() { return this->data_; }
 
-  void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) { tolerance_ = tolerance; tolerance_mode_ = tolerance_mode; }
+  void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
+    tolerance_ = tolerance;
+    tolerance_mode_ = tolerance_mode;
+  }
 
   uint32_t get_tolerance() { return tolerance_; }
 
   ToleranceMode get_tolerance_mode() { return tolerance_mode_; }
 
  protected:
-  int32_t lower_bound_(uint32_t length) { return (tolerance_mode_ == TOLERANCE_MODE_TIME) ? int32_t(length - this->tolerance_) : int32_t(100 - this->tolerance_) * length / 100U; }
-  int32_t upper_bound_(uint32_t length) { return (tolerance_mode_ == TOLERANCE_MODE_TIME) ? int32_t(length + this->tolerance_) : int32_t(100 + this->tolerance_) * length / 100U; }
+  int32_t lower_bound_(uint32_t length) {
+    return (tolerance_mode_ == TOLERANCE_MODE_TIME) ? int32_t(length - this->tolerance_)
+                                                    : int32_t(100 - this->tolerance_) * length / 100U;
+  }
+  int32_t upper_bound_(uint32_t length) {
+    return (tolerance_mode_ == TOLERANCE_MODE_TIME) ? int32_t(length + this->tolerance_)
+                                                    : int32_t(100 + this->tolerance_) * length / 100U;
+  }
 
   uint32_t index_{0};
   std::vector<int32_t> *data_;
@@ -253,7 +263,10 @@ class RemoteReceiverBase : public RemoteComponentBase {
       this->dumpers_.push_back(dumper);
     }
   }
-  void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) { tolerance_ = tolerance; tolerance_mode_ = tolerance_mode; }
+  void set_tolerance(uint32_t tolerance, ToleranceMode tolerance_mode) {
+    tolerance_ = tolerance;
+    tolerance_mode_ = tolerance_mode;
+  }
 
  protected:
   bool call_listeners_() {

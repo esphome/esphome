@@ -20,9 +20,11 @@ void RemoteReceiverComponent::setup() {
     rmt.rx_config.filter_en = false;
   } else {
     rmt.rx_config.filter_en = true;
-    rmt.rx_config.filter_ticks_thresh = static_cast<uint8_t>(std::min(this->from_microseconds_(this->filter_us_), (uint32_t)255));
+    rmt.rx_config.filter_ticks_thresh =
+        static_cast<uint8_t>(std::min(this->from_microseconds_(this->filter_us_), (uint32_t) 255));
   }
-  rmt.rx_config.idle_threshold = static_cast<uint16_t>(std::min(this->from_microseconds_(this->idle_us_), (uint32_t)65535));
+  rmt.rx_config.idle_threshold =
+      static_cast<uint16_t>(std::min(this->from_microseconds_(this->idle_us_), (uint32_t) 65535));
 
   esp_err_t error = rmt_config(&rmt);
   if (error != ESP_OK) {
@@ -60,7 +62,8 @@ void RemoteReceiverComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Channel: %d", this->channel_);
   ESP_LOGCONFIG(TAG, "  RMT memory blocks: %d", this->mem_block_num_);
   ESP_LOGCONFIG(TAG, "  Clock divider: %u", this->clock_divider_);
-  ESP_LOGCONFIG(TAG, "  Tolerance: %u%s", this->tolerance_, (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%");
+  ESP_LOGCONFIG(TAG, "  Tolerance: %u%s", this->tolerance_,
+                (this->tolerance_mode_ == remote_base::TOLERANCE_MODE_TIME) ? " us" : "%");
   ESP_LOGCONFIG(TAG, "  Filter out pulses shorter than: %u us", this->filter_us_);
   ESP_LOGCONFIG(TAG, "  Signal is done after %u us of no changes", this->idle_us_);
   if (this->is_failed()) {

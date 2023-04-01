@@ -30,10 +30,21 @@ RemoteReceiverComponent = remote_receiver_ns.class_(
     "RemoteReceiverComponent", remote_base.RemoteReceiverBase, cg.Component
 )
 
+
 def validate_tolerance(value):
     if "%" in str(value):
-        return (cv.All(cv.percentage_int, cv.uint32_t)(value), cv.enum(TOLERANCE_MODE)("percentage"))
-    return (cv.All(cv.positive_time_period_microseconds, cv.Range(max=TimePeriod(microseconds=4294967295)))(value), cv.enum(TOLERANCE_MODE)("time"))
+        return (
+            cv.All(cv.percentage_int, cv.uint32_t)(value),
+            cv.enum(TOLERANCE_MODE)("percentage"),
+        )
+    return (
+        cv.All(
+            cv.positive_time_period_microseconds,
+            cv.Range(max=TimePeriod(microseconds=4294967295)),
+        )(value),
+        cv.enum(TOLERANCE_MODE)("time"),
+    )
+
 
 MULTI_CONF = True
 CONFIG_SCHEMA = remote_base.validate_triggers(
@@ -48,13 +59,18 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             ): cv.validate_bytes,
             cv.Optional(CONF_FILTER, default="50us"): cv.All(
                 cv.positive_time_period_microseconds,
-                cv.Range(max=TimePeriod(microseconds=4294967295))
+                cv.Range(max=TimePeriod(microseconds=4294967295)),
             ),
-            cv.Optional(
-                CONF_IDLE, default="10ms"
-            ): cv.All(cv.positive_time_period_microseconds, cv.Range(max=TimePeriod(microseconds=4294967295))),
-            cv.SplitDefault(CONF_MEMORY_BLOCKS, esp32=3): cv.All(cv.only_on_esp32, cv.Range(min=1, max=8)),
-            cv.SplitDefault(CONF_CLOCK_DIVIDER, esp32=80): cv.All(cv.only_on_esp32, cv.Range(min=1, max=255)),
+            cv.Optional(CONF_IDLE, default="10ms"): cv.All(
+                cv.positive_time_period_microseconds,
+                cv.Range(max=TimePeriod(microseconds=4294967295)),
+            ),
+            cv.SplitDefault(CONF_MEMORY_BLOCKS, esp32=3): cv.All(
+                cv.only_on_esp32, cv.Range(min=1, max=8)
+            ),
+            cv.SplitDefault(CONF_CLOCK_DIVIDER, esp32=80): cv.All(
+                cv.only_on_esp32, cv.Range(min=1, max=255)
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA)
 )
