@@ -329,6 +329,8 @@ bool APIServerConnectionBase::send_media_player_state_response(const MediaPlayer
 #ifdef USE_MEDIA_PLAYER
 #endif
 #ifdef USE_BLUETOOTH_PROXY
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 bool APIServerConnectionBase::send_bluetooth_le_advertisement_response(const BluetoothLEAdvertisementResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_bluetooth_le_advertisement_response: %s", msg.dump().c_str());
@@ -439,6 +441,16 @@ bool APIServerConnectionBase::send_bluetooth_device_unpairing_response(const Blu
   ESP_LOGVV(TAG, "send_bluetooth_device_unpairing_response: %s", msg.dump().c_str());
 #endif
   return this->send_message_<BluetoothDeviceUnpairingResponse>(msg, 86);
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+bool APIServerConnectionBase::send_bluetooth_device_clear_cache_response(const BluetoothDeviceClearCacheResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_bluetooth_device_clear_cache_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<BluetoothDeviceClearCacheResponse>(msg, 88);
 }
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
@@ -709,12 +721,14 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       break;
     }
     case 66: {
+#ifdef USE_BLUETOOTH_PROXY
       SubscribeBluetoothLEAdvertisementsRequest msg;
       msg.decode(msg_data, msg_size);
 #ifdef HAS_PROTO_MESSAGE_DUMP
       ESP_LOGVV(TAG, "on_subscribe_bluetooth_le_advertisements_request: %s", msg.dump().c_str());
 #endif
       this->on_subscribe_bluetooth_le_advertisements_request(msg);
+#endif
       break;
     }
     case 68: {
@@ -802,6 +816,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       ESP_LOGVV(TAG, "on_subscribe_bluetooth_connections_free_request: %s", msg.dump().c_str());
 #endif
       this->on_subscribe_bluetooth_connections_free_request(msg);
+#endif
+      break;
+    }
+    case 87: {
+#ifdef USE_BLUETOOTH_PROXY
+      UnsubscribeBluetoothLEAdvertisementsRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_unsubscribe_bluetooth_le_advertisements_request: %s", msg.dump().c_str());
+#endif
+      this->on_unsubscribe_bluetooth_le_advertisements_request(msg);
 #endif
       break;
     }
@@ -1065,6 +1090,7 @@ void APIServerConnection::on_media_player_command_request(const MediaPlayerComma
   this->media_player_command(msg);
 }
 #endif
+#ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(
     const SubscribeBluetoothLEAdvertisementsRequest &msg) {
   if (!this->is_connection_setup()) {
@@ -1077,6 +1103,7 @@ void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(
   }
   this->subscribe_bluetooth_le_advertisements(msg);
 }
+#endif
 #ifdef USE_BLUETOOTH_PROXY
 void APIServerConnection::on_bluetooth_device_request(const BluetoothDeviceRequest &msg) {
   if (!this->is_connection_setup()) {
@@ -1183,6 +1210,20 @@ void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
   if (!this->send_bluetooth_connections_free_response(ret)) {
     this->on_fatal_error();
   }
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
+void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request(
+    const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->unsubscribe_bluetooth_le_advertisements(msg);
 }
 #endif
 

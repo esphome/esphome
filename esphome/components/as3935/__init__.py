@@ -12,7 +12,6 @@ from esphome.const import (
     CONF_CAPACITANCE,
 )
 
-AUTO_LOAD = ["sensor", "binary_sensor"]
 MULTI_CONF = True
 
 CONF_AS3935_ID = "as3935_id"
