@@ -88,6 +88,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   this->temp_.clear();
   int32_t multiplier = this->pin_->is_inverted() ? -1 : 1;
   size_t item_count = len / sizeof(rmt_item32_t);
+  uint32_t filter_ticks = this->from_microseconds_(this->filter_us_);
 
   ESP_LOGVV(TAG, "START:");
   for (size_t i = 0; i < item_count; i++) {
@@ -108,7 +109,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
   for (size_t i = 0; i < item_count; i++) {
     if (item[i].duration0 == 0u) {
       // Do nothing
-    } else if (bool(item[i].level0) == prev_level) {
+    } else if ((bool(item[i].level0) == prev_level) || (item[i].duration0 < filter_ticks)) {
       prev_length += item[i].duration0;
     } else {
       if (prev_length > 0) {
@@ -124,7 +125,7 @@ void RemoteReceiverComponent::decode_rmt_(rmt_item32_t *item, size_t len) {
 
     if (item[i].duration1 == 0u) {
       // Do nothing
-    } else if (bool(item[i].level1) == prev_level) {
+    } else if ((bool(item[i].level1) == prev_level) || (item[i].duration1 < filter_ticks)) {
       prev_length += item[i].duration1;
     } else {
       if (prev_length > 0) {
