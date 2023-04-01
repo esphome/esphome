@@ -97,6 +97,12 @@ class APIConnection : public APIServerConnection {
     this->send_homeassistant_service_response(call);
   }
 #ifdef USE_BLUETOOTH_PROXY
+  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override {
+    this->bluetooth_le_advertisement_subscription_ = true;
+  }
+  void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override {
+    this->bluetooth_le_advertisement_subscription_ = false;
+  }
   bool send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg);
 
   void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
@@ -150,9 +156,7 @@ class APIConnection : public APIServerConnection {
     return {};
   }
   void execute_service(const ExecuteServiceRequest &msg) override;
-  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override {
-    this->bluetooth_le_advertisement_subscription_ = true;
-  }
+
   bool is_authenticated() override { return this->connection_state_ == ConnectionState::AUTHENTICATED; }
   bool is_connection_setup() override {
     return this->connection_state_ == ConnectionState ::CONNECTED || this->is_authenticated();
@@ -197,7 +201,9 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
+#ifdef USE_BLUETOOTH_PROXY
   bool bluetooth_le_advertisement_subscription_{false};
+#endif
   bool next_close_ = false;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;
