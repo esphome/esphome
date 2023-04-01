@@ -14,7 +14,7 @@ class OptolinkDeviceInfoSensor : public esphome::text_sensor::TextSensor, public
  public:
   OptolinkDeviceInfoSensor(const std::string &name, Optolink *optolink) {
     optolink_ = optolink;
-    set_name(name);
+    set_name(name.c_str());
     set_update_interval(1800000);
     set_entity_category(esphome::ENTITY_CATEGORY_DIAGNOSTIC);
   }

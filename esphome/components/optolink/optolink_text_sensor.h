@@ -22,7 +22,7 @@ class OptolinkTextSensor : public OptolinkSensorBase,
   void setup() override;
   void update() override { optolink_->read_value(datapoint_); }
 
-  const std::string &get_sensor_name() override { return get_name(); }
+  const StringRef &get_sensor_name() override { return get_name(); }
   void value_changed(float state) override { publish_state(std::to_string(state)); };
 
  private:

@@ -3,6 +3,7 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/core/log.h"
+#include "esphome/core/string_ref.h"
 #include "VitoWiFi.h"
 
 namespace esphome {
@@ -33,7 +34,7 @@ class OptolinkSensorBase {
   void set_div_ratio(int div_ratio) { div_ratio_ = div_ratio; }
 
  protected:
-  virtual const std::string &get_sensor_name() = 0;
+  virtual const StringRef &get_sensor_name() = 0;
   virtual void value_changed(float state) = 0;
 };
 

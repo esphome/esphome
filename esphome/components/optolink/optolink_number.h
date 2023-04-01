@@ -18,7 +18,7 @@ class OptolinkNumber : public OptolinkSensorBase, public esphome::number::Number
   void setup() override { setup_datapoint_(); }
   void update() override { optolink_->read_value(datapoint_); }
 
-  const std::string &get_sensor_name() override { return get_name(); }
+  const StringRef &get_sensor_name() override { return get_name(); }
   void value_changed(float state) override { publish_state(state); };
 
   void control(float value) override;
