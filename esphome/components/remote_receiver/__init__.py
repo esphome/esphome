@@ -16,9 +16,22 @@ from esphome.core import CORE, TimePeriod
 
 AUTO_LOAD = ["remote_base"]
 remote_receiver_ns = cg.esphome_ns.namespace("remote_receiver")
+remote_base_ns = cg.esphome_ns.namespace("remote_base")
+
+ToleranceMode = remote_base_ns.enum("ToleranceMode")
+TOLERANCE_MODE = {
+    "percentage": ToleranceMode.TOLERANCE_MODE_PERCENTAGE,
+    "time": ToleranceMode.TOLERANCE_MODE_TIME,
+}
+
 RemoteReceiverComponent = remote_receiver_ns.class_(
     "RemoteReceiverComponent", remote_base.RemoteReceiverBase, cg.Component
 )
+
+def validate_tolerance(value):
+    if "%" in str(value):
+        return (cv.All(cv.percentage_int, cv.uint32_t)(value), cv.enum(TOLERANCE_MODE)("percentage"))
+    return (cv.All(cv.positive_time_period_microseconds, cv.Range(max=TimePeriod(microseconds=4294967295)))(value), cv.enum(TOLERANCE_MODE)("time"))
 
 MULTI_CONF = True
 CONFIG_SCHEMA = remote_base.validate_triggers(
@@ -27,9 +40,7 @@ CONFIG_SCHEMA = remote_base.validate_triggers(
             cv.GenerateID(): cv.declare_id(RemoteReceiverComponent),
             cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
             cv.Optional(CONF_DUMP, default=[]): remote_base.validate_dumpers,
-            cv.Optional(CONF_TOLERANCE, default=25): cv.All(
-                cv.percentage_int, cv.Range(min=0)
-            ),
+            cv.Optional(CONF_TOLERANCE, default="25%"): validate_tolerance,
             cv.SplitDefault(
                 CONF_BUFFER_SIZE, esp32="10000b", esp8266="1000b"
             ): cv.validate_bytes,
@@ -62,7 +73,7 @@ async def to_code(config):
         cg.add(var.register_listener(trigger))
     await cg.register_component(var, config)
 
-    cg.add(var.set_tolerance(config[CONF_TOLERANCE]))
+    cg.add(var.set_tolerance(config[CONF_TOLERANCE][0], config[CONF_TOLERANCE][1]))
     cg.add(var.set_buffer_size(config[CONF_BUFFER_SIZE]))
     cg.add(var.set_filter_us(config[CONF_FILTER]))
     cg.add(var.set_idle_us(config[CONF_IDLE]))
