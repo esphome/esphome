@@ -451,13 +451,23 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   ip_addr_t dns;
+#if LWIP_IPV6
   dns.type = IPADDR_TYPE_V4;
+#endif
   if (uint32_t(manual_ip->dns1) != 0) {
+#if LWIP_IPV6
     dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns1);
+#else
+    dns.addr = static_cast<uint32_t>(manual_ip->dns1);
+#endif
     dns_setserver(0, &dns);
   }
   if (uint32_t(manual_ip->dns2) != 0) {
+#if LWIP_IPV6
     dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns2);
+#else
+    dns.addr = static_cast<uint32_t>(manual_ip->dns2);
+#endif
     dns_setserver(1, &dns);
   }
 
@@ -639,7 +649,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
-#ifdef LWIP_IPV6_AUTOCONFIG
+#if LWIP_IPV6_AUTOCONFIG
     tcpip_adapter_create_ip6_linklocal(TCPIP_ADAPTER_IF_STA);
 #endif
     ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
@@ -912,7 +922,11 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
+#if LWIP_IPV6
   return {dns_ip->u_addr.ip4.addr};
+#else
+  return {dns_ip->addr};
+#endif
 }
 
 }  // namespace wifi
