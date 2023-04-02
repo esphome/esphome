@@ -122,6 +122,7 @@ esphome/components/internal_temperature/* @Mat931
 esphome/components/interval/* @esphome/core
 esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
+esphome/components/kamstrup/* @middelink
 esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
 esphome/components/kuntze/* @ssieb
