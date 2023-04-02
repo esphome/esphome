@@ -14,7 +14,8 @@ class Wireguard : public PollingComponent {
 
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }
 
-  void set_address(std::string address); 
+  void set_address(std::string address);
+  void set_netmask(std::string netmask);
   void set_private_key(std::string private_key);
   void set_peer_endpoint(std::string endpoint);
   void set_peer_key(std::string peer_key);
@@ -23,6 +24,7 @@ class Wireguard : public PollingComponent {
 
  private:
   std::string address_;
+  std::string netmask_;
   std::string private_key_;
   std::string peer_endpoint_;
   std::string peer_key_;
@@ -33,3 +35,5 @@ class Wireguard : public PollingComponent {
 
 }  // namespace wireguard
 }  // namespace esphome
+
+// vim: tabstop=2 shiftwidth=2 expandtab

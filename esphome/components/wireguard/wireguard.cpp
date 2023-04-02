@@ -13,9 +13,13 @@ void Wireguard::setup() {
     ESP_LOGI(TAG, "wireguard setup start");
 
     IPAddress local_ip(inet_addr(this->address_.data()));           // VPN IP for this VPN client
+    IPAddress netmask(inet_addr(this->netmask_.data()));
+    IPAddress gateway(0,0,0,0);  // default gatewey in wireguard implementation
 
     wg.begin(
         local_ip,
+        netmask,
+        gateway,
         this->private_key_.data(),
         this->peer_endpoint_.data(),
         this->peer_key_.data(),
@@ -33,6 +37,7 @@ void Wireguard::update() {
 void Wireguard::dump_config(){
     ESP_LOGCONFIG(TAG, "Configuration");
     ESP_LOGCONFIG(TAG, "  address: %s",this->address_.data());
+    ESP_LOGCONFIG(TAG, "  netmask: %s",this->netmask_.data());
     ESP_LOGCONFIG(TAG, "  private key: %s",this->private_key_.data());
     ESP_LOGCONFIG(TAG, "  endpoint: %s",this->peer_endpoint_.data());
     ESP_LOGCONFIG(TAG, "  peer key: %s",this->peer_key_.data());
@@ -41,6 +46,7 @@ void Wireguard::dump_config(){
 }
 
 void Wireguard::set_address(std::string address) { this->address_ = std::move(address); }
+void Wireguard::set_netmask(std::string netmask) { this->netmask_ = std::move(netmask); }
 void Wireguard::set_private_key(std::string key) { this->private_key_ = std::move(key); }
 void Wireguard::set_peer_endpoint(std::string endpoint) { this->peer_endpoint_ = std::move(endpoint); }
 void Wireguard::set_peer_key(std::string key) { this->peer_key_ = std::move(key); }
