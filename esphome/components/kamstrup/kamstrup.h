@@ -13,9 +13,7 @@ namespace kamstrup {
 
 class Kamstrup : public PollingComponent, public uart::UARTDevice {
  public:
-  void set_sensor(uint16_t reg, sensor::Sensor *sensor) {
-    this->sensors_[reg] = sensor;
-  }
+  void set_sensor(uint16_t reg, sensor::Sensor *sensor) { this->sensors_[reg] = sensor; }
   void set_receive_timeout(uint32_t seconds) { this->receive_timeout_ = seconds; }
   void set_bundle_requests(int count) { this->bundle_requests_ = count; }
 
@@ -29,8 +27,8 @@ class Kamstrup : public PollingComponent, public uart::UARTDevice {
 
  protected:
   void handle_serial_();
-  void send_command_(const std::vector<uint16_t>& regs);
-  int consume_register_(const uint8_t *msg, const uint8_t *end, uint16_t* register_id, float* value);
+  void send_command_(const std::vector<uint16_t> &regs);
+  int consume_register_(const uint8_t *msg, const uint8_t *end, uint16_t *register_id, float *value);
   uint16_t crc_1021_(const uint8_t msg[], size_t msgsize) const;
 
   std::map<uint16_t, sensor::Sensor *> sensors_;
@@ -46,7 +44,7 @@ class Kamstrup : public PollingComponent, public uart::UARTDevice {
   std::array<uint8_t, 512> buffer_;
 };
 
-} // namespace kamstrup
-} // namespace esphome
+}  // namespace kamstrup
+}  // namespace esphome
 
 // vim: set expandtab tabstop=2 shiftwidth=2:

@@ -20,7 +20,7 @@ void Kamstrup::dump_config() {
   ESP_LOGCONFIG(TAG, "  Bundle requests: %d", this->bundle_requests_);
   LOG_UPDATE_INTERVAL(this);
 
-  for (const auto& kv : this->sensors_) {
+  for (const auto &kv : this->sensors_) {
     LOG_SENSOR("  ", "Sensor", kv.second);
     ESP_LOGCONFIG(TAG, "    Register: %d (0x%04x)", kv.first, kv.first);
   }
@@ -69,7 +69,7 @@ void Kamstrup::handle_serial_() {
   }
 
   switch (this->state_) {
-    case START: // Start a new cycle
+    case START:  // Start a new cycle
       if (this->queue_.empty()) {
         // We're done!
         ESP_LOGV(TAG, "queue empty");
@@ -78,7 +78,7 @@ void Kamstrup::handle_serial_() {
       }
       // transfer `bundle_requests` from queue to working_regs.
       this->working_regs_.clear();
-      for (int i=0; i<this->bundle_requests_ && !this->queue_.empty(); i++) {
+      for (int i = 0; i < this->bundle_requests_ && !this->queue_.empty(); i++) {
         uint16_t reg = this->queue_.back();
         this->queue_.pop_back();
         this->working_regs_.push_back(reg);
@@ -87,7 +87,7 @@ void Kamstrup::handle_serial_() {
       this->retry_ = 3;
       this->state_ = RETRY;
       break;
-    case RETRY: // (Re)send the get register cmd.
+    case RETRY:  // (Re)send the get register cmd.
       if (--this->retry_ == 0) {
         ESP_LOGD(TAG, "giving up on these registers: %s", format_hex_pretty(this->working_regs_).c_str());
         this->state_ = START;
@@ -103,13 +103,13 @@ void Kamstrup::handle_serial_() {
       this->starttime_ = millis();
       this->bufsize_ = 0;
       break;
-    case WAIT_BEGIN: // Wait for start marker '@'
+    case WAIT_BEGIN:  // Wait for start marker '@'
       if (r == 0x40) {
         // We got our marker
         this->state_ = DATA;
       }
       break;
-    case DATA: // Collect data
+    case DATA:  // Collect data
       if (r == 0x0d) {
         // We found our EOL
         this->state_ = LINE;
@@ -124,7 +124,7 @@ void Kamstrup::handle_serial_() {
         this->buffer_[this->bufsize_++] = r;
       }
       break;
-    case ESCAPED_DATA: // Collect escaped data
+    case ESCAPED_DATA:  // Collect escaped data
       this->state_ = DATA;
       r ^= 0xff;
       if (r != 0x06 && r != 0x0d && r != 0x1b && r != 0x40 && r != 0x80) {
@@ -134,60 +134,59 @@ void Kamstrup::handle_serial_() {
         this->buffer_[this->bufsize_++] = r;
       }
       break;
-    case LINE: // Got a line!
-      {
-        this->state_ = RETRY;
-        // skip if message is not valid
-        if (this->bufsize_ < 5 || this->buffer_[0] != 0x3f || this->buffer_[1] != 0x10) {
-          ESP_LOGW(TAG, "Invalid message");
-          break;
-        }
-        // check CRC
-        if (this->crc_1021_(this->buffer_.begin(), this->bufsize_)) {
-          ESP_LOGW(TAG, "CRC error");
-          break;
-        }
-        const uint8_t *msgptr = &this->buffer_[2];
-        const uint8_t *end = &this->buffer_[this->bufsize_ - 2];
-        while (msgptr != end) {
-          uint16_t reg;
-          float val;
-          int len = this->consume_register_(msgptr, end, &reg, &val);
-          if (len == 0) {
-            break;
-          }
-          this->sensors_[reg]->publish_state(val);
-          auto pos = std::find(this->working_regs_.begin(), this->working_regs_.end(), reg);
-          if (pos != this->working_regs_.end()) {
-            this->working_regs_.erase(pos);
-          }
-          msgptr += len;
-        }
-        if (!this->working_regs_.empty()) {
-          ESP_LOGD(TAG, "Not all registers reported back: %s", format_hex_pretty(this->working_regs_).c_str());
-          break;
-        }
-        this->state_ = START;
+    case LINE:  // Got a line!
+    {
+      this->state_ = RETRY;
+      // skip if message is not valid
+      if (this->bufsize_ < 5 || this->buffer_[0] != 0x3f || this->buffer_[1] != 0x10) {
+        ESP_LOGW(TAG, "Invalid message");
+        break;
       }
-      break;
+      // check CRC
+      if (this->crc_1021_(this->buffer_.begin(), this->bufsize_)) {
+        ESP_LOGW(TAG, "CRC error");
+        break;
+      }
+      const uint8_t *msgptr = &this->buffer_[2];
+      const uint8_t *end = &this->buffer_[this->bufsize_ - 2];
+      while (msgptr != end) {
+        uint16_t reg;
+        float val;
+        int len = this->consume_register_(msgptr, end, &reg, &val);
+        if (len == 0) {
+          break;
+        }
+        this->sensors_[reg]->publish_state(val);
+        auto pos = std::find(this->working_regs_.begin(), this->working_regs_.end(), reg);
+        if (pos != this->working_regs_.end()) {
+          this->working_regs_.erase(pos);
+        }
+        msgptr += len;
+      }
+      if (!this->working_regs_.empty()) {
+        ESP_LOGD(TAG, "Not all registers reported back: %s", format_hex_pretty(this->working_regs_).c_str());
+        break;
+      }
+      this->state_ = START;
+    } break;
     default:
-       ESP_LOGD(TAG, "invalid state %d", this->state_);
-       this->state_ = IDLE;
-       break;
+      ESP_LOGD(TAG, "invalid state %d", this->state_);
+      this->state_ = IDLE;
+      break;
   }
 }
 
 // send_command_ - format the given list of registers to the Kamstrup format,
 // add prefix and crc and finally escape some special chanracters before
 // sending it out.
-void Kamstrup::send_command_(const std::vector<uint16_t>& regs) {
+void Kamstrup::send_command_(const std::vector<uint16_t> &regs) {
   // leave room for checksum bytes to message
   uint8_t newmsg[3 + regs.size() * sizeof(uint16_t) + 2];
   newmsg[0] = 0x3F;
   newmsg[1] = 0x10;
   newmsg[2] = regs.size();
   int size = 3;
-  for (const uint16_t& reg : regs) {
+  for (const uint16_t &reg : regs) {
     newmsg[size++] = reg >> 8;
     newmsg[size++] = reg & 0xff;
   }
@@ -198,9 +197,9 @@ void Kamstrup::send_command_(const std::vector<uint16_t>& regs) {
   newmsg[size - 1] = crc & 0xff;
 
   // build final transmit message - escape various bytes
-  std::vector<uint8_t> txmsg{0x80}; // prefix
+  std::vector<uint8_t> txmsg{0x80};  // prefix
   txmsg.reserve(size + 5);
-  for (const uint8_t& ch : newmsg) {
+  for (const uint8_t &ch : newmsg) {
     if (ch == 0x06 || ch == 0x0d || ch == 0x1b || ch == 0x40 || ch == 0x80) {
       txmsg.push_back(0x1b);
       txmsg.push_back(ch ^ 0xff);
@@ -208,7 +207,7 @@ void Kamstrup::send_command_(const std::vector<uint16_t>& regs) {
       txmsg.push_back(ch);
     }
   }
-  txmsg.push_back(0x0d); // EOL
+  txmsg.push_back(0x0d);  // EOL
 
   // send to serial interface
   write_array(txmsg);
@@ -216,7 +215,7 @@ void Kamstrup::send_command_(const std::vector<uint16_t>& regs) {
 
 // consume_register_ - extracts the register and its value.
 // Returns length read or 0 if there was a problem
-int Kamstrup::consume_register_(const uint8_t *msg, const uint8_t *end, uint16_t* register_id, float* value) {
+int Kamstrup::consume_register_(const uint8_t *msg, const uint8_t *end, uint16_t *register_id, float *value) {
   const size_t len = end - msg;
   if (len < 5 || len < 5 + msg[3]) {
     ESP_LOGD(TAG, "Not enough bytes left to decode");
