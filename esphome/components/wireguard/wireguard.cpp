@@ -1,3 +1,5 @@
+#ifndef USE_ESP_IDF
+
 #include "esphome/core/log.h"
 #include "wireguard.h"
 #include "WireGuard-ESP32.h"
@@ -55,3 +57,5 @@ void Wireguard::set_preshared_key(std::string key) { this->preshared_key_ = std:
 
 }  // namespace wireguard
 }  // namespace esphome
+
+#endif
