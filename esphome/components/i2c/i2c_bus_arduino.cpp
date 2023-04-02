@@ -49,8 +49,8 @@ void ArduinoI2CBus::setup() {
     // https://github.com/esp8266/Arduino/blob/master/libraries/Wire/Wire.h
     wire_->setClockStretchLimit(timeout_);  // unit: us
 #elif defined(USE_RP2040)
-    // https://github.com/arduino/ArduinoCore-mbed/blob/master/libraries/Wire/Wire.h
-    ESP_LOGW(TAG, "RP2040 Wire library does not currently support setting i2c timeout");
+    // https://github.com/earlephilhower/ArduinoCore-API/blob/e37df85425e0ac020bfad226d927f9b00d2e0fb7/api/Stream.h
+    wire_->SetTimeout(timeout_ / 1000);  // unit: ms
 #endif
   }
   wire_->setClock(frequency_);
@@ -71,7 +71,7 @@ void ArduinoI2CBus::dump_config() {
 #elif defined(USE_ESP8266)
     ESP_LOGCONFIG(TAG, "  Timeout: %u us", this->timeout_);
 #elif defined(USE_RP2040)
-    ESP_LOGCONFIG(TAG, "  Timeout: library default");
+    ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
 #endif
   }
   switch (this->recovery_result_) {
