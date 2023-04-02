@@ -26,10 +26,10 @@ class Kamstrup : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
  protected:
-  void handle_serial();
-  void send_command(const std::vector<uint16_t> &regs);
-  int consume_register(const uint8_t *msg, const uint8_t *end, uint16_t *register_id, float *value);
-  uint16_t crc_1021(const uint8_t msg[], size_t msgsize) const;
+  void handle_serial_();
+  void send_command_(const std::vector<uint16_t> &regs);
+  int consume_register_(const uint8_t *msg, const uint8_t *end, uint16_t *register_id, float *value);
+  uint16_t crc_1021_(const uint8_t msg[], size_t msgsize) const;
 
   std::map<uint16_t, sensor::Sensor *> sensors_;
   uint32_t receive_timeout_{2000};
