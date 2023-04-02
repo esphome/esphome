@@ -38,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IBEACON_MAJOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_MINOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_UUID): cv.uuid,
-            cv.Optional(CONF_MIN_RSSI): cv.uint16_t,
+            cv.Optional(CONF_MIN_RSSI): cv.decibel,
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -54,7 +54,7 @@ async def to_code(config):
     await esp32_ble_tracker.register_ble_device(var, config)
 
     if CONF_MIN_RSSI in config:
-        cg.add(var.set_minimum_rssi(config[CONF_MIN_RSSI].as_hex))
+        cg.add(var.set_minimum_rssi(config[CONF_MIN_RSSI]))
 
     if CONF_MAC_ADDRESS in config:
         cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))

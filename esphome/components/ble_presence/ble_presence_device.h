@@ -41,7 +41,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
     this->check_ibeacon_minor_ = true;
     this->ibeacon_minor_ = minor;
   }
-  void set_minimum_rssi(uint16_t rssi) {
+  void set_minimum_rssi(int rssi) {
     this->check_minimum_rssi_ = true;
     this->minimum_rssi_ = rssi;
   }
@@ -111,7 +111,7 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
   uint16_t ibeacon_major_{0};
   uint16_t ibeacon_minor_{0};
 
-  uint16_t minimum_rssi_{0};
+  int minimum_rssi_{0};
 
   bool check_ibeacon_major_{false};
   bool check_ibeacon_minor_{false};
