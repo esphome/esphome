@@ -25,3 +25,23 @@ light:
     name: neopixel-enable
     internal: false
     restore_mode: ALWAYS_OFF
+
+uart:
+  id: uart_1
+  tx_pin: GPIO6
+  rx_pin: GPIO7
+  baud_rate: 1200
+  parity: NONE
+  data_bits: 8
+  stop_bits: 2
+
+kamstrup:
+  uart_id: uart_1
+  receive_timeout: 2.5s
+  bundle_requests: 3
+  update_interval: 15min
+
+sensor:
+  - platform: kamstrup
+    energy:
+      name: "Energy"
