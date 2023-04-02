@@ -47,14 +47,14 @@ void Kamstrup::loop() {
   if (this->state_ == IDLE) {
     return;
   }
-  this->handle_serial_();
+  this->handle_serial();
 }
 
-// handle_serial_ - if data is available, process it while keeping track if
+// handle_serial - if data is available, process it while keeping track if
 // we have seen the 0x40 start character and unescaping special characters
 // on the way. When a valid line is detected, it decodes the registers and
 // values and updates their registered sensors.
-void Kamstrup::handle_serial_() {
+void Kamstrup::handle_serial() {
   uint8_t r;
   if (this->state_ == 3 || this->state_ == 4 || this->state_ == 5) {
     // handle rx timeout
@@ -98,7 +98,7 @@ void Kamstrup::handle_serial_() {
       while (available()) {
         read_byte(&r);
       }
-      this->send_command_({this->working_regs_});
+      this->send_command({this->working_regs_});
       this->state_ = WAIT_BEGIN;
       this->starttime_ = millis();
       this->bufsize_ = 0;
@@ -143,7 +143,7 @@ void Kamstrup::handle_serial_() {
         break;
       }
       // check CRC
-      if (this->crc_1021_(this->buffer_.begin(), this->bufsize_)) {
+      if (this->crc_1021(this->buffer_.begin(), this->bufsize_)) {
         ESP_LOGW(TAG, "CRC error");
         break;
       }
@@ -152,7 +152,7 @@ void Kamstrup::handle_serial_() {
       while (msgptr != end) {
         uint16_t reg;
         float val;
-        int len = this->consume_register_(msgptr, end, &reg, &val);
+        int len = this->consume_register(msgptr, end, &reg, &val);
         if (len == 0) {
           break;
         }
@@ -176,10 +176,10 @@ void Kamstrup::handle_serial_() {
   }
 }
 
-// send_command_ - format the given list of registers to the Kamstrup format,
+// send_command - format the given list of registers to the Kamstrup format,
 // add prefix and crc and finally escape some special chanracters before
 // sending it out.
-void Kamstrup::send_command_(const std::vector<uint16_t> &regs) {
+void Kamstrup::send_command(const std::vector<uint16_t> &regs) {
   // leave room for checksum bytes to message
   uint8_t newmsg[3 + regs.size() * sizeof(uint16_t) + 2];
   newmsg[0] = 0x3F;
@@ -192,7 +192,7 @@ void Kamstrup::send_command_(const std::vector<uint16_t> &regs) {
   }
   newmsg[size++] = 0x00;
   newmsg[size++] = 0x00;
-  uint16_t crc = this->crc_1021_(newmsg, size);
+  uint16_t crc = this->crc_1021(newmsg, size);
   newmsg[size - 2] = crc >> 8;
   newmsg[size - 1] = crc & 0xff;
 
@@ -213,9 +213,9 @@ void Kamstrup::send_command_(const std::vector<uint16_t> &regs) {
   write_array(txmsg);
 }
 
-// consume_register_ - extracts the register and its value.
+// consume_register - extracts the register and its value.
 // Returns length read or 0 if there was a problem
-int Kamstrup::consume_register_(const uint8_t *msg, const uint8_t *end, uint16_t *register_id, float *value) {
+int Kamstrup::consume_register(const uint8_t *msg, const uint8_t *end, uint16_t *register_id, float *value) {
   const size_t len = end - msg;
   if (len < 5 || len < 5 + msg[3]) {
     ESP_LOGD(TAG, "Not enough bytes left to decode");
@@ -247,9 +247,9 @@ int Kamstrup::consume_register_(const uint8_t *msg, const uint8_t *end, uint16_t
   return 5 + msg[3];
 }
 
-// crc_1021_ - calculate the crc1021 polynominal over the given bytes.
+// crc_1021 - calculate the crc1021 polynominal over the given bytes.
 // Return the crc as an unsigned 16 bit int.
-uint16_t Kamstrup::crc_1021_(const uint8_t msg[], size_t msgsize) const {
+uint16_t Kamstrup::crc_1021(const uint8_t msg[], size_t msgsize) const {
   uint32_t creg = 0x0000;
   for (size_t i = 0; i < msgsize; i++) {
     uint8_t mask = 0x80;
