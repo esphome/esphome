@@ -7,10 +7,12 @@ from esphome.const import (
     CONF_IBEACON_MAJOR,
     CONF_IBEACON_MINOR,
     CONF_IBEACON_UUID,
-    CONF_MIN_RSSI,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
+
+CONF_MIN_RSSI = "min_rssi"
+
 
 ble_presence_ns = cg.esphome_ns.namespace("ble_presence")
 BLEPresenceDevice = ble_presence_ns.class_(
