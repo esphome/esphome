@@ -105,9 +105,9 @@ class BLEPresenceDevice : public binary_sensor::BinarySensorInitiallyOff,
 
   uint64_t address_;
 
-  esp32_ble_tracker::ESPBTUUID uuid_{0};
+  esp32_ble_tracker::ESPBTUUID uuid_;
 
-  esp32_ble_tracker::ESPBTUUID ibeacon_uuid_{0};
+  esp32_ble_tracker::ESPBTUUID ibeacon_uuid_;
   uint16_t ibeacon_major_{0};
   uint16_t ibeacon_minor_{0};
 
