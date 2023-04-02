@@ -29,7 +29,7 @@ float PIDController::update(float setpoint, float process_value) {
 bool PIDController::in_deadband() {
   // return (fabs(error) < deadband_threshold);
   float err = -error_;
-  return ((err > 0 && err < threshold_high_) || (err < 0 && err > threshold_low_));
+  return ((err >= 0 && err < threshold_high_) || (err <= 0 && err > threshold_low_));
 }
 
 void PIDController::calculate_proportional_term_() {
