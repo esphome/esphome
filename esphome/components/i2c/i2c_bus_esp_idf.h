@@ -42,7 +42,7 @@ class IDFI2CBus : public I2CBus, public Component {
   uint8_t scl_pin_;
   bool scl_pullup_enabled_;
   uint32_t frequency_;
-  uint32_t timeout_;
+  uint32_t timeout_ = 0;
   bool initialized_ = false;
 };
 
