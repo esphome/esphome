@@ -42,18 +42,16 @@ void ArduinoI2CBus::setup() {
   wire_->begin(static_cast<int>(sda_pin_), static_cast<int>(scl_pin_));
 #endif
   if (timeout_ > 0) {  // if timeout specified in yaml
-    #if defined(USE_ESP32)
-      // https://github.com/espressif/arduino-esp32/blob/master/libraries/Wire/src/Wire.cpp
-      wire_->setTimeOut(timeout_ / 1000);  // unit: ms
-      ESP_LOGI(TAG, "ESP32 Set timeout to %d ms", timeout_ / 1000);
-    #elif defined(USE_ESP8266)
-      // https://github.com/esp8266/Arduino/blob/master/libraries/Wire/Wire.h
-      wire_->setClockStretchLimit(timeout_);  // unit: us
-      ESP_LOGI(TAG, "ESP8266 Set timeout to %d us", timeout_);
-    #elif defined(USE_RP2040)
-      // https://github.com/arduino/ArduinoCore-mbed/blob/master/libraries/Wire/Wire.h
-      ESP_LOGW(TAG, "RP2040 Wire library does not currently support setting i2c timeout");
-    #endif
+#if defined(USE_ESP32)
+    // https://github.com/espressif/arduino-esp32/blob/master/libraries/Wire/src/Wire.cpp
+    wire_->setTimeOut(timeout_ / 1000);  // unit: ms
+#elif defined(USE_ESP8266)
+    // https://github.com/esp8266/Arduino/blob/master/libraries/Wire/Wire.h
+    wire_->setClockStretchLimit(timeout_);  // unit: us
+#elif defined(USE_RP2040)
+    // https://github.com/arduino/ArduinoCore-mbed/blob/master/libraries/Wire/Wire.h
+    ESP_LOGW(TAG, "RP2040 Wire library does not currently support setting i2c timeout");
+#endif
   }
   wire_->setClock(frequency_);
   initialized_ = true;
@@ -68,13 +66,13 @@ void ArduinoI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
   ESP_LOGCONFIG(TAG, "  Frequency: %u Hz", this->frequency_);
   if (timeout_ > 0) {
-    #if defined(USE_ESP32)
-      ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
-    #elif defined(USE_ESP8266)
-      ESP_LOGCONFIG(TAG, "  Timeout: %u us", this->timeout_);
-    #elif defined(USE_RP2040)
-      ESP_LOGCONFIG(TAG, "  Timeout: library default");
-    #endif
+#if defined(USE_ESP32)
+    ESP_LOGCONFIG(TAG, "  Timeout: %u ms", this->timeout_ / 1000);
+#elif defined(USE_ESP8266)
+    ESP_LOGCONFIG(TAG, "  Timeout: %u us", this->timeout_);
+#elif defined(USE_RP2040)
+    ESP_LOGCONFIG(TAG, "  Timeout: library default");
+#endif
   }
   switch (this->recovery_result_) {
     case RECOVERY_COMPLETED:
