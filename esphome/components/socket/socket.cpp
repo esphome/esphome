@@ -15,7 +15,7 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 #endif
 }
 
-socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, std::string ip_address, uint16_t port) {
+socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string& ip_address, uint16_t port) {
 #if LWIP_IPV6
   if (addrlen < sizeof(sockaddr_in6)) {
     errno = EINVAL;
@@ -26,7 +26,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, std::string ip_
   server->sin6_family = AF_INET6;
   server->sin6_port = htons(port);
 
-  if (ip_address.find(".") != std::string::npos) {
+  if (ip_address.find('.') != std::string::npos) {
     server->sin6_addr.un.u32_addr[3] = inet_addr(ip_address.c_str());
   } else {
     ip6_addr_t ip6;

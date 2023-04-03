@@ -12,7 +12,7 @@ namespace voice_assistant {
 
 class VoiceAssistant : public Component {
  public:
-  void setup();
+  void setup() override;
   float get_setup_priority() const override;
   void start(struct sockaddr_storage *addr, uint16_t port);
 
