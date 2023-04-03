@@ -6062,6 +6062,12 @@ void BluetoothDeviceUnpairingResponse::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
+void UnsubscribeBluetoothLEAdvertisementsRequest::encode(ProtoWriteBuffer buffer) const {}
+#ifdef HAS_PROTO_MESSAGE_DUMP
+void UnsubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const {
+  out.append("UnsubscribeBluetoothLEAdvertisementsRequest {}");
+}
+#endif
 bool BluetoothDeviceClearCacheResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {

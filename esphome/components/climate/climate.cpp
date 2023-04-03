@@ -453,12 +453,7 @@ void Climate::set_visual_temperature_step_override(float target, float current) 
   this->visual_target_temperature_step_override_ = target;
   this->visual_current_temperature_step_override_ = current;
 }
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-Climate::Climate(const std::string &name) : EntityBase(name) {}
-#pragma GCC diagnostic pop
 
-Climate::Climate() : Climate("") {}
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 
 ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
