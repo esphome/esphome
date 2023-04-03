@@ -253,7 +253,7 @@ async def register_number(
 
 
 async def new_number(
-    config, *, min_value: float, max_value: float, step: Optional[float] = None
+    config, *, min_value: float, max_value: float, step: float
 ):
     var = cg.new_Pvariable(config[CONF_ID])
     await register_number(
