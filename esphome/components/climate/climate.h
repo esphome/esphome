@@ -166,11 +166,6 @@ struct ClimateDeviceRestoreState {
  */
 class Climate : public EntityBase {
  public:
-  /// Construct a climate device with empty name (will be set later).
-  Climate();
-  /// Construct a climate device with a name.
-  Climate(const std::string &name);
-
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
   /// The active state of the climate device.
