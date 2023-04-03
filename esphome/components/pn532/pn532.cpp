@@ -82,12 +82,17 @@ void PN532::update() {
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
 
+  if (this->status_has_warning()) {  // update at most once per minute if read failed
+    if (last_update_ && millis() - last_update_ < 60e3)
+      return;
+  }
+  last_update_ = millis();
   if (!this->write_command_({
           PN532_COMMAND_INLISTPASSIVETARGET,
           0x01,  // max 1 card
           0x00,  // baud rate ISO14443A (106 kbit/s)
       })) {
-    ESP_LOGW(TAG, "Requesting tag read failed!");
+    ESP_LOGW(TAG, "Requesting tag read failed, throttling updates!");
     this->status_set_warning();
     return;
   }
