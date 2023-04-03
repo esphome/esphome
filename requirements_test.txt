@@ -11,3 +11,5 @@ pytest-mock==3.10.0
 pytest-asyncio==0.21.0
 asyncmock==0.4.2
 hypothesis==5.49.0
+
+clang-format==13.0.1
