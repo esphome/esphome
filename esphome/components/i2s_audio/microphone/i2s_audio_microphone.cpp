@@ -19,9 +19,7 @@ void I2SAudioMicrophone::setup() {
   this->buffer_.resize(BUFFER_SIZE);
 }
 
-void I2SAudioMicrophone::start() {
-  this->state_ = microphone::STATE_STARTING;
-}
+void I2SAudioMicrophone::start() { this->state_ = microphone::STATE_STARTING; }
 void I2SAudioMicrophone::start_() {
   if (!this->parent_->try_lock()) {
     return;  // Waiting for another i2s to return lock

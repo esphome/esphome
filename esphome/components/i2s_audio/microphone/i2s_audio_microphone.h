@@ -4,9 +4,8 @@
 
 #include "../i2s_audio.h"
 
-#include "esphome/core/component.h"
 #include "esphome/components/microphone/microphone.h"
-
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace i2s_audio {
