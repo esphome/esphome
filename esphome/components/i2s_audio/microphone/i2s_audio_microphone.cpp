@@ -40,7 +40,7 @@ void I2SAudioMicrophone::start_() {
       .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
   };
 
-  i2s_driver_install(this->parent_->get_port(), &config, 0, NULL);
+  i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
 
   i2s_pin_config_t pin_config = this->parent_->get_pin_config();
   pin_config.data_in_num = this->din_pin_;
