@@ -1,5 +1,11 @@
 import logging
 
+from pathlib import Path
+import time
+from reportlab.graphics import renderPM
+import requests
+from svglib.svglib import svg2rlg
+
 from esphome import core
 from esphome.components import display, font
 import esphome.config_validation as cv
@@ -29,7 +35,13 @@ IMAGE_TYPE = {
     "RGBA": ImageType.IMAGE_TYPE_RGBA,
 }
 
+CONF_MDI = "mdi"
 CONF_USE_TRANSPARENCY = "use_transparency"
+
+# If a downloaded MDI image is older than this time, it will be redownloaded
+MDI_CACHE_LIFETIME = 24 * 60 * 60  # seconds
+# If the file cannot be downloaded within this time, abort.
+MDI_DOWNLOAD_TIMEOUT = 10  # seconds
 
 Image_ = display.display_ns.class_("Image")
 
@@ -41,6 +53,12 @@ def validate_cross_dependencies(config):
     have "use_transparency" set to True.
     Also set the default value for those kind of dependent fields.
     """
+    if CONF_TYPE not in config:
+        if CONF_MDI in config:
+            config[CONF_TYPE] = "TRANSPARENT_BINARY"
+        else:
+            config[CONF_TYPE] = "BINARY"
+
     image_type = config[CONF_TYPE]
     is_transparent_type = image_type in ["TRANSPARENT_BINARY", "RGBA"]
 
@@ -51,6 +69,9 @@ def validate_cross_dependencies(config):
     if is_transparent_type and not config[CONF_USE_TRANSPARENCY]:
         raise cv.Invalid(f"Image type {image_type} must always be transparent.")
 
+    if CONF_MDI in config and config[CONF_TYPE] not in ["BINARY", "TRANSPARENT_BINARY"]:
+        raise cv.Invalid("MDI images must be binary images.")
+
     return config
 
 
@@ -58,9 +79,12 @@ IMAGE_SCHEMA = cv.Schema(
     cv.All(
         {
             cv.Required(CONF_ID): cv.declare_id(Image_),
-            cv.Required(CONF_FILE): cv.file_,
+            cv.Exclusive(CONF_FILE, "input"): cv.file_,
+            cv.Exclusive(CONF_MDI, "input"): cv.string,
             cv.Optional(CONF_RESIZE): cv.dimensions,
-            cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(IMAGE_TYPE, upper=True),
+            # Not setting default here on purpose; the default depends on the source type
+            # (file or mdi), and will be set in the "validate_cross_dependencies" validator.
+            cv.Optional(CONF_TYPE): cv.enum(IMAGE_TYPE, upper=True),
             # Not setting default here on purpose; the default depends on the image type,
             # and thus will be set in the "validate_cross_dependencies" validator.
             cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
@@ -79,17 +103,51 @@ CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
 async def to_code(config):
     from PIL import Image
 
-    path = CORE.relative_config_path(config[CONF_FILE])
-    try:
-        image = Image.open(path)
-    except Exception as e:
-        raise core.EsphomeError(f"Could not load image file {path}: {e}")
+    if CONF_FILE in config:
+        path = CORE.relative_config_path(config[CONF_FILE])
+        try:
+            image = Image.open(path)
+        except Exception as e:
+            raise core.EsphomeError(f"Could not load image file {path}: {e}")
+    elif CONF_MDI in config:
+        mdi_id = config[CONF_MDI]
+        images_path = Path(CORE.build_path, "data", "images")
+        svg_file = Path(images_path, f"{mdi_id}.svg")
+
+        # If the image has not been downloaded yet, or is older than 24 hours, download it again.
+        if (
+            not svg_file.exists()
+            or svg_file.stat().st_mtime + MDI_CACHE_LIFETIME < time.time()
+        ):
+            url = f"https://raw.githubusercontent.com/Templarian/MaterialDesign/master/svg/{mdi_id}.svg"
+            _LOGGER.info("Downloading %s MDI image from %s", mdi_id, url)
+            req = requests.get(url, timeout=MDI_DOWNLOAD_TIMEOUT)
+            if not req.ok:
+                raise core.EsphomeError(
+                    f"Could not download MDI image {mdi_id} from {url}: {req.status_code} - {req.reason}"
+                )
+            images_path.mkdir(parents=True, exist_ok=True)
+            with svg_file.open(mode="w", encoding=req.encoding) as f:
+                f.write(req.text)
+
+        svg_image = svg2rlg(svg_file)
+        if CONF_RESIZE in config:
+            orig_width = svg_image.width
+            orig_height = svg_image.height
+            req_width, req_height = config[CONF_RESIZE]
+            scale_x = req_width / orig_width
+            scale_y = req_height / orig_height
+            svg_image.width = req_width
+            svg_image.height = req_height
+            svg_image.scale(scale_x, scale_y)
+        image = renderPM.drawToPILP(svg_image)
 
     width, height = image.size
 
     if CONF_RESIZE in config:
-        image.thumbnail(config[CONF_RESIZE])
-        width, height = image.size
+        if CONF_MDI not in config:
+            image.thumbnail(config[CONF_RESIZE])
+            width, height = image.size
     else:
         if width > 500 or height > 500:
             _LOGGER.warning(
