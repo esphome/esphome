@@ -58,7 +58,7 @@ class I2SAudioComponent : public Component {
   i2s_port_t port_{};
 };
 
-#endif  // USE_ESP32
-
 }  // namespace i2s_audio
 }  // namespace esphome
+
+#endif  // USE_ESP32

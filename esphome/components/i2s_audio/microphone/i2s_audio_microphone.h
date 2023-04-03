@@ -31,7 +31,7 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   HighFrequencyLoopRequester high_freq_;
 };
 
-#endif  // USE_ESP32
-
 }  // namespace i2s_audio
 }  // namespace esphome
+
+#endif  // USE_ESP32

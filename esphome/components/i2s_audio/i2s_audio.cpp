@@ -24,7 +24,8 @@ void I2SAudioComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2S Audio...");
 }
 
-#endif  // USE_ESP32
 
 }  // namespace i2s_audio
 }  // namespace esphome
+
+#endif  // USE_ESP32

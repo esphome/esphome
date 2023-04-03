@@ -95,7 +95,7 @@ void I2SAudioMicrophone::loop() {
   }
 }
 
-#endif  // USE_ESP32
-
 }  // namespace i2s_audio
 }  // namespace esphome
+
+#endif  // USE_ESP32
