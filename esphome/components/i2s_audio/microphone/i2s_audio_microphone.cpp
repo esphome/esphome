@@ -1,5 +1,9 @@
 #include "i2s_audio_microphone.h"
 
+#ifdef USE_ESP32
+
+#include <driver/i2s.h>
+
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -19,6 +23,9 @@ void I2SAudioMicrophone::start() {
   this->state_ = microphone::STATE_STARTING;
 }
 void I2SAudioMicrophone::start_() {
+  if (!this->parent_->try_lock()) {
+    return;  // Waiting for another i2s to return lock
+  }
   i2s_driver_config_t config = {
       .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_PDM),
       .sample_rate = 16000,
@@ -35,12 +42,12 @@ void I2SAudioMicrophone::start_() {
       .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
   };
 
-  i2s_driver_install(I2S_NUM_0, &config, 0, NULL);
+  i2s_driver_install(this->parent_->get_port(), &config, 0, NULL);
 
   i2s_pin_config_t pin_config = this->parent_->get_pin_config();
   pin_config.data_in_num = this->din_pin_;
 
-  i2s_set_pin(I2S_NUM_0, &pin_config);
+  i2s_set_pin(this->parent_->get_port(), &pin_config);
   this->state_ = microphone::STATE_RUNNING;
   this->high_freq_.start();
 }
@@ -52,18 +59,17 @@ void I2SAudioMicrophone::stop() {
 }
 
 void I2SAudioMicrophone::stop_() {
-      i2s_stop(I2S_NUM_0);
-      i2s_driver_uninstall(I2S_NUM_0);
-      this->state_ = microphone::STATE_STOPPED;
-      this->high_freq_.stop();
+  i2s_stop(this->parent_->get_port());
+  i2s_driver_uninstall(this->parent_->get_port());
+  this->parent_->unlock();
+  this->state_ = microphone::STATE_STOPPED;
+  this->high_freq_.stop();
 }
 
 void I2SAudioMicrophone::read_() {
   size_t bytes_read = 0;
-  uint32_t start = millis();
-  esp_err_t err = i2s_read(I2S_NUM_0, this->buffer_.data(), BUFFER_SIZE, &bytes_read, (100 / portTICK_PERIOD_MS));
-  uint32_t end = millis();
-  ESP_LOGD(TAG, "Read %d bytes in %d ms", bytes_read, end - start);
+  esp_err_t err =
+      i2s_read(this->parent_->get_port(), this->buffer_.data(), BUFFER_SIZE, &bytes_read, (100 / portTICK_PERIOD_MS));
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Error reading from I2S microphone: %s", esp_err_to_name(err));
     this->status_set_warning();
@@ -90,6 +96,8 @@ void I2SAudioMicrophone::loop() {
       break;
   }
 }
+
+#endif  // USE_ESP32
 
 }  // namespace i2s_audio
 }  // namespace esphome

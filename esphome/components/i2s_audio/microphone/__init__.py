@@ -3,18 +3,17 @@ import esphome.codegen as cg
 
 from esphome import pins
 from esphome.const import CONF_ID
-from esphome.components import microphone, esp32
+from esphome.components import microphone
 
 from .. import (
     i2s_audio_ns,
-    I2SAudioIn,
-    CONF_I2S_DIN_PIN,
-    CONF_I2S_AUDIO_ID,
     I2SAudioComponent,
+    I2SAudioIn,
+    CONF_I2S_AUDIO_ID,
+    CONF_I2S_DIN_PIN,
 )
 
-AUTO_LOAD = ["microphone"]
-# CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2s_audio"]
 
 I2SAudioMicrophone = i2s_audio_ns.class_(
@@ -40,10 +39,3 @@ async def to_code(config):
     cg.add(var.set_din_pin(config[CONF_I2S_DIN_PIN]))
 
     await microphone.register_microphone(var, config)
-
-    # esp32.add_idf_component(
-    #     "audio_recorder",
-    #     "https://github.com/espressif/esp-adf.git",
-    #     "v2.4",
-    #     "components/audio_recorder",
-    # )

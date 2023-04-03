@@ -1,10 +1,12 @@
 #pragma once
 
-#include "esphome/core/component.h"
-
-#include "esphome/components/microphone/microphone.h"
+#ifdef USE_ESP32
 
 #include "../i2s_audio.h"
+
+#include "esphome/core/component.h"
+#include "esphome/components/microphone/microphone.h"
+
 
 namespace esphome {
 namespace i2s_audio {
@@ -29,6 +31,8 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 
   HighFrequencyLoopRequester high_freq_;
 };
+
+#endif  // USE_ESP32
 
 }  // namespace i2s_audio
 }  // namespace esphome
