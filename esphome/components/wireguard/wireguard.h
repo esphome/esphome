@@ -52,7 +52,6 @@ class Wireguard : public PollingComponent {
   esp_err_t wg_aborted = ESP_FAIL;
   time_t wg_last_peer_up = 0;
   bool wg_peer_up = false;
-  char wg_tmp_buffer[34];
 
   void start_connection();
 #endif

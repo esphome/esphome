@@ -12,7 +12,7 @@ namespace esphome {
 namespace wireguard {
 
 static const char * const TAG = "wireguard";
-static const int WG_MAX_PEER_DOWN = 120; // seconds
+static char WG_TMP_BUFFER[34];
 
 void Wireguard::setup() {
     ESP_LOGD(TAG, "initializing...");
@@ -28,50 +28,30 @@ void Wireguard::setup() {
 
     wg_initialized = esp_wireguard_init(&wg_config, &wg_ctx);
     
-    if(wg_initialized == ESP_OK)
+    if(wg_initialized == ESP_OK) {
         ESP_LOGI(TAG, "initialized");
-    else
+        srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection, this));
+    } else {
         ESP_LOGE(TAG, "cannot initialize, error code %d", wg_initialized);
-
-    srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection, this));
+    }
 }
 
 void Wireguard::update() {
     ESP_LOGD(TAG, "initialized: %s (error %d)", (wg_initialized == ESP_OK ? "yes" : "no"), wg_initialized);
     ESP_LOGD(TAG, "connection: %s (error %d)", (wg_connected == ESP_OK ? "active" : "inactive"), wg_connected);
 
-    if(wg_initialized == ESP_OK && wg_connected == ESP_OK)
+    if(wg_initialized == ESP_OK && wg_connected == ESP_OK) {
         wg_peer_up = (esp_wireguardif_peer_is_up(&wg_ctx) == ESP_OK);
-    else
+    } else {
         wg_peer_up = false;
+        start_connection();
+    }
 
-    strftime(wg_tmp_buffer, sizeof(wg_tmp_buffer), "offline since %F %T", localtime(&wg_last_peer_up));
-    ESP_LOGD(TAG, "peer: %s", (wg_peer_up ? "connected" : wg_tmp_buffer));
+    strftime(WG_TMP_BUFFER, sizeof(WG_TMP_BUFFER), "offline since %Y-%m-%d %H:%M:%S", localtime(&wg_last_peer_up));
+    ESP_LOGD(TAG, "peer: %s", (wg_peer_up ? "connected" : WG_TMP_BUFFER));
 
     if(wg_peer_up)
         wg_last_peer_up = srctime_->now().timestamp;
-    else if(wg_initialized == ESP_OK)
-    {
-        if(wg_connected == ESP_OK
-              && (srctime_->now().timestamp - wg_last_peer_up) > WG_MAX_PEER_DOWN)
-        {
-            ESP_LOGW(TAG, "peer offline for more than %d seconds", WG_MAX_PEER_DOWN);
-            ESP_LOGD(TAG, "aborting connection...");
-            wg_aborted = esp_wireguard_disconnect(&wg_ctx);
-            if(wg_aborted == ESP_OK)
-            {
-                ESP_LOGI(TAG, "connection aborted");
-                wg_connected = ESP_FAIL;
-                start_connection();
-            }
-            else
-                ESP_LOGE(TAG, "cannot abort connection, error code %d", wg_aborted);
-        }
-        else if(wg_connected != ESP_OK)
-        {
-            start_connection();
-        }
-    }
 }
 
 void Wireguard::dump_config() {
@@ -98,26 +78,27 @@ void Wireguard::set_keepalive(uint16_t seconds) { this->keepalive_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock* srctime) { this->srctime_ = srctime; }
 
 void Wireguard::start_connection() {
-	ESP_LOGD(TAG, "time synchronized");
-
-    if(wg_initialized == ESP_OK) {
-        if(wg_connected != ESP_OK) {
-            ESP_LOGD(TAG, "connecting...");
-            wg_connected = esp_wireguard_connect(&wg_ctx);
-            if(wg_connected == ESP_OK) {
-                ESP_LOGI(TAG, "connection started");
-            } else {
-                ESP_LOGW(TAG, "cannot start connection, error code %d", wg_connected);
-            }
-        } else {
-            ESP_LOGD(TAG, "connection already started");
-        }
-    } else {
+    if(wg_initialized != ESP_OK) {
         ESP_LOGE(TAG, "cannot start connection, initialization in error with code %d", wg_initialized);
-        wg_connected = ESP_FAIL;
+        return;
     }
 
-    wg_last_peer_up = srctime_->now().timestamp;
+    if(!srctime_->now().is_valid()) {
+        ESP_LOGW(TAG, "cannot start connection, system time not yet syncronized");
+        return;
+    }
+
+    if(wg_connected == ESP_OK) {
+        ESP_LOGD(TAG, "connection already started");
+        return;
+    }
+
+    ESP_LOGD(TAG, "connecting...");
+    wg_connected = esp_wireguard_connect(&wg_ctx);
+    if(wg_connected == ESP_OK)
+        ESP_LOGI(TAG, "connection started");
+    else
+        ESP_LOGW(TAG, "cannot start connection, error code %d", wg_connected);
 }
 
 }  // namespace wireguard
