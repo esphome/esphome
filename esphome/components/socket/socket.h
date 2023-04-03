@@ -1,9 +1,9 @@
 #pragma once
-#include <string>
 #include <memory>
+#include <string>
 
-#include "headers.h"
 #include "esphome/core/optional.h"
+#include "headers.h"
 
 namespace esphome {
 namespace socket {

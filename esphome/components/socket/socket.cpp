@@ -15,7 +15,7 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 #endif
 }
 
-socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string& ip_address, uint16_t port) {
+socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port) {
 #if LWIP_IPV6
   if (addrlen < sizeof(sockaddr_in6)) {
     errno = EINVAL;
