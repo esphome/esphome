@@ -1387,23 +1387,23 @@ message BluetoothDeviceClearCacheResponse {
 message SubscribeVoiceAssistantRequest {
   option (id) = 89;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_PUSH_TO_TALK";
+  option (ifdef) = "USE_VOICE_ASSISTANT";
 
   bool subscribe = 1;
 }
 
-message PushToTalkRequest {
+message VoiceAssistantRequest {
   option (id) = 90;
   option (source) = SOURCE_SERVER;
-  option (ifdef) = "USE_PUSH_TO_TALK";
+  option (ifdef) = "USE_VOICE_ASSISTANT";
 
   bool start = 1;
 }
 
-message PushToTalkResponse {
+message VoiceAssistantResponse {
   option (id) = 91;
   option (source) = SOURCE_CLIENT;
-  option (ifdef) = "USE_PUSH_TO_TALK";
+  option (ifdef) = "USE_VOICE_ASSISTANT";
 
   uint32 port = 1;
 }

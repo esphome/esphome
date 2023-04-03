@@ -15,8 +15,8 @@
 #ifdef USE_BLUETOOTH_PROXY
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
 #endif
-#ifdef USE_PUSH_TO_TALK
-#include "esphome/components/push_to_talk/push_to_talk.h"
+#ifdef USE_VOICE_ASSISTANT
+#include "esphome/components/voice_assistant/voice_assistant.h"
 #endif
 
 namespace esphome {
@@ -895,20 +895,20 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
 }
 #endif
 
-#ifdef USE_PUSH_TO_TALK
-bool APIConnection::request_push_to_talk(bool start) {
+#ifdef USE_VOICE_ASSISTANT
+bool APIConnection::request_voice_assistant(bool start) {
   if (!this->voice_assistant_subscription_)
     return false;
-  PushToTalkRequest msg;
+  VoiceAssistantRequest msg;
   msg.start = start;
-  return this->send_push_to_talk_request(msg);
+  return this->send_voice_assistant_request(msg);
 }
-void APIConnection::on_push_to_talk_response(const PushToTalkResponse &msg) {
-  if (push_to_talk::global_push_to_talk != nullptr) {
+void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
     this->helper_->getpeername((struct sockaddr *) &storage, &len);
-    push_to_talk::global_push_to_talk->start(&storage, msg.port);
+    voice_assistant::global_voice_assistant->start(&storage, msg.port);
   }
 };
 #endif
@@ -991,7 +991,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
                                      ? bluetooth_proxy::ACTIVE_CONNECTIONS_VERSION
                                      : bluetooth_proxy::PASSIVE_ONLY_VERSION;
 #endif
-#ifdef USE_PUSH_TO_TALK
+#ifdef USE_VOICE_ASSISTANT
   resp.voice_assistant_version = 1;
 #endif
   return resp;

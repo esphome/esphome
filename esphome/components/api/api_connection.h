@@ -124,12 +124,12 @@ class APIConnection : public APIServerConnection {
   }
 #endif
 
-#ifdef USE_PUSH_TO_TALK
+#ifdef USE_VOICE_ASSISTANT
   void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override {
     this->voice_assistant_subscription_ = msg.subscribe;
   }
-  bool request_push_to_talk(bool start);
-  void on_push_to_talk_response(const PushToTalkResponse &msg) override;
+  bool request_voice_assistant(bool start);
+  void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
 #endif
 
   void on_disconnect_response(const DisconnectResponse &value) override;
@@ -213,7 +213,7 @@ class APIConnection : public APIServerConnection {
 #ifdef USE_BLUETOOTH_PROXY
   bool bluetooth_le_advertisement_subscription_{false};
 #endif
-#ifdef USE_PUSH_TO_TALK
+#ifdef USE_VOICE_ASSISTANT
   bool voice_assistant_subscription_{false};
 #endif
   bool next_close_ = false;

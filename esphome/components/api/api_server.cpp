@@ -427,15 +427,15 @@ void APIServer::on_shutdown() {
   delay(10);
 }
 
-#ifdef USE_PUSH_TO_TALK
-void APIServer::start_push_to_talk() {
+#ifdef USE_VOICE_ASSISTANT
+void APIServer::start_voice_assistant() {
   for (auto &c : this->clients_) {
-    c->request_push_to_talk(true);
+    c->request_voice_assistant(true);
   }
 }
-void APIServer::stop_push_to_talk() {
+void APIServer::stop_voice_assistant() {
   for (auto &c : this->clients_) {
-    c->request_push_to_talk(false);
+    c->request_voice_assistant(false);
   }
 }
 #endif

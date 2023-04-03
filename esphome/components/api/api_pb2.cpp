@@ -6142,7 +6142,7 @@ void SubscribeVoiceAssistantRequest::dump_to(std::string &out) const {
   out.append("}");
 }
 #endif
-bool PushToTalkRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool VoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
       this->start = value.as_bool();
@@ -6152,18 +6152,18 @@ bool PushToTalkRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return false;
   }
 }
-void PushToTalkRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->start); }
+void VoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const { buffer.encode_bool(1, this->start); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void PushToTalkRequest::dump_to(std::string &out) const {
+void VoiceAssistantRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
-  out.append("PushToTalkRequest {\n");
+  out.append("VoiceAssistantRequest {\n");
   out.append("  start: ");
   out.append(YESNO(this->start));
   out.append("\n");
   out.append("}");
 }
 #endif
-bool PushToTalkResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
+bool VoiceAssistantResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
       this->port = value.as_uint32();
@@ -6173,11 +6173,11 @@ bool PushToTalkResponse::decode_varint(uint32_t field_id, ProtoVarInt value) {
       return false;
   }
 }
-void PushToTalkResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_uint32(1, this->port); }
+void VoiceAssistantResponse::encode(ProtoWriteBuffer buffer) const { buffer.encode_uint32(1, this->port); }
 #ifdef HAS_PROTO_MESSAGE_DUMP
-void PushToTalkResponse::dump_to(std::string &out) const {
+void VoiceAssistantResponse::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
-  out.append("PushToTalkResponse {\n");
+  out.append("VoiceAssistantResponse {\n");
   out.append("  port: ");
   sprintf(buffer, "%u", this->port);
   out.append(buffer);

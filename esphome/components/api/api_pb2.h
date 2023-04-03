@@ -1589,7 +1589,7 @@ class SubscribeVoiceAssistantRequest : public ProtoMessage {
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class PushToTalkRequest : public ProtoMessage {
+class VoiceAssistantRequest : public ProtoMessage {
  public:
   bool start{false};
   void encode(ProtoWriteBuffer buffer) const override;
@@ -1600,7 +1600,7 @@ class PushToTalkRequest : public ProtoMessage {
  protected:
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
-class PushToTalkResponse : public ProtoMessage {
+class VoiceAssistantResponse : public ProtoMessage {
  public:
   uint32_t port{0};
   void encode(ProtoWriteBuffer buffer) const override;

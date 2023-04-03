@@ -225,14 +225,14 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_BLUETOOTH_PROXY
   bool send_bluetooth_device_clear_cache_response(const BluetoothDeviceClearCacheResponse &msg);
 #endif
-#ifdef USE_PUSH_TO_TALK
+#ifdef USE_VOICE_ASSISTANT
   virtual void on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &value){};
 #endif
-#ifdef USE_PUSH_TO_TALK
-  bool send_push_to_talk_request(const PushToTalkRequest &msg);
+#ifdef USE_VOICE_ASSISTANT
+  bool send_voice_assistant_request(const VoiceAssistantRequest &msg);
 #endif
-#ifdef USE_PUSH_TO_TALK
-  virtual void on_push_to_talk_response(const PushToTalkResponse &value){};
+#ifdef USE_VOICE_ASSISTANT
+  virtual void on_voice_assistant_response(const VoiceAssistantResponse &value){};
 #endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
@@ -316,7 +316,7 @@ class APIServerConnection : public APIServerConnectionBase {
 #ifdef USE_BLUETOOTH_PROXY
   virtual void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
 #endif
-#ifdef USE_PUSH_TO_TALK
+#ifdef USE_VOICE_ASSISTANT
   virtual void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) = 0;
 #endif
  protected:
@@ -396,7 +396,7 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_unsubscribe_bluetooth_le_advertisements_request(
       const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
 #endif
-#ifdef USE_PUSH_TO_TALK
+#ifdef USE_VOICE_ASSISTANT
   void on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) override;
 #endif
 };
