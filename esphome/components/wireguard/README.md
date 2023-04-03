@@ -9,4 +9,12 @@ wireguard:
   private_key: private_key=
   peer_key: public_key=
   peer_endpoint: wg.server.example
+
+  # optional
+  peer_port: 12345
+  preshared_key: preshared_key=
+  netmask: 255.255.255.0
+
+  # optional (only for esp-idf framework)
+  keepalive: 25
 ```
