@@ -16,7 +16,7 @@ void VoiceAssistant::setup() {
 
   global_voice_assistant = this;
 
-  this->socket_ = socket::socket_ip(SOCK_DGRAM, IPPROTO_IP);
+  this->socket_ = socket::socket(AF_INET, SOCK_DGRAM, IPPROTO_IP);
   if (socket_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket.");
     this->mark_failed();
