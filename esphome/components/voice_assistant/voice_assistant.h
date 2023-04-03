@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
 #include "esphome/components/microphone/microphone.h"
@@ -8,24 +10,34 @@
 namespace esphome {
 namespace voice_assistant {
 
-class VoiceAssistant {
+class VoiceAssistant : public Component {
  public:
+  void setup();
+  float get_setup_priority() const override;
   void start(struct sockaddr_storage *addr, uint16_t port);
 
   void set_microphone(microphone::Microphone *mic) { this->mic_ = mic; }
 
+  void request_start();
+  void signal_stop();
+
  protected:
-  bool setup_udp_socket_();
-
-  void request_start_();
-  void signal_stop_();
-
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
 
   microphone::Microphone *mic_{nullptr};
 
   bool running_{false};
+};
+
+template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {
+ public:
+  void play(Ts... x) override { this->parent_->request_start(); }
+};
+
+template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<VoiceAssistant> {
+ public:
+  void play(Ts... x) override { this->parent_->signal_stop(); }
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)

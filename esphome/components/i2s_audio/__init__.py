@@ -3,9 +3,8 @@ import esphome.codegen as cg
 
 from esphome import pins
 from esphome.const import CONF_ID
-from esphome.components.esp32 import add_idf_component
 
-# CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
 
 CONF_I2S_DOUT_PIN = "i2s_dout_pin"
@@ -34,5 +33,3 @@ async def to_code(config):
 
     cg.add(var.set_bclk_pin(config[CONF_I2S_BCLK_PIN]))
     cg.add(var.set_lrclk_pin(config[CONF_I2S_LRCLK_PIN]))
-
-    # add_idf_component("esp-adf", "https://github.com/espressif/esp-adf.git", "v2.4")
