@@ -60,11 +60,11 @@ void Wireguard::dump_config() {
     ESP_LOGCONFIG(TAG, "Configuration");
     ESP_LOGCONFIG(TAG, "  address: %s",this->address_.data());
     ESP_LOGCONFIG(TAG, "  netmask: %s",this->netmask_.data());
-    ESP_LOGCONFIG(TAG, "  private key: %s",this->private_key_.data());  // TODO print?
+    ESP_LOGCONFIG(TAG, "  private key: %s...=",this->private_key_.substr(0,5).data());
     ESP_LOGCONFIG(TAG, "  endpoint: %s",this->peer_endpoint_.data());
     ESP_LOGCONFIG(TAG, "  peer key: %s",this->peer_key_.data());
     ESP_LOGCONFIG(TAG, "  peer port: %d",this->peer_port_);
-    ESP_LOGCONFIG(TAG, "  preshared key[%d]: %s",this->preshared_key_.length(), this->preshared_key_.data());  // TODO print?
+    ESP_LOGCONFIG(TAG, "  preshared key: %s...=",this->preshared_key_.substr(0,5).data());
     ESP_LOGCONFIG(TAG, "  keepalive: %d",this->keepalive_);
 }
 
