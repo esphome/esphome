@@ -30,7 +30,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_WG_PEER_KEY): cv.string,
         cv.Optional(CONF_WG_PEER_PORT, default=51820): cv.port,
         cv.Optional(CONF_WG_PRESHARED_KEY): cv.string,
-        cv.Optional(CONF_WG_KEEPALIVE): cv.All(cv.positive_int, cv.only_with_esp_idf),
+        cv.Optional(CONF_WG_KEEPALIVE, default=0): cv.All(
+            cv.positive_int, cv.only_with_esp_idf
+        ),
     }
 ).extend(cv.polling_component_schema("10s"))
 
@@ -50,9 +52,7 @@ async def to_code(config):
     # ESP-IDF section
     if CORE.using_esp_idf:
         cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
-
-        if CONF_WG_KEEPALIVE in config:
-            cg.add(var.set_keepalive(config[CONF_WG_KEEPALIVE]))
+        cg.add(var.set_keepalive(config[CONF_WG_KEEPALIVE]))
 
         cg.add_build_flag("-DCONFIG_WIREGUARD_ESP_NETIF")
         cg.add_build_flag("-DCONFIG_WIREGUARD_MAX_PEERS=1")
