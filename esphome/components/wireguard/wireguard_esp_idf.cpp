@@ -22,9 +22,11 @@ void Wireguard::setup() {
     wg_config.endpoint = &peer_endpoint_[0];
     wg_config.public_key = &peer_key_[0];
     wg_config.port = peer_port_;
-    wg_config.preshared_key = &preshared_key_[0];
     wg_config.allowed_ip_mask = &netmask_[0];
     wg_config.persistent_keepalive = keepalive_;
+
+    if(preshared_key_.length() > 0)
+        wg_config.preshared_key = &preshared_key_[0];
 
     wg_initialized = esp_wireguard_init(&wg_config, &wg_ctx);
     
