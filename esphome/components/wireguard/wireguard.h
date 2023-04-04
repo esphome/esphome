@@ -29,6 +29,7 @@ class Wireguard : public PollingComponent {
 #ifdef USE_ESP_IDF
   void set_keepalive(uint16_t seconds);
   void set_srctime(time::RealTimeClock* srctime);
+  bool is_peer_up();
 #endif
 
  private:
@@ -56,7 +57,6 @@ class Wireguard : public PollingComponent {
   void start_connection();
 #endif
 };
-
 
 }  // namespace wireguard
 }  // namespace esphome
