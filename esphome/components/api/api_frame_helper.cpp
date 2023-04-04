@@ -295,7 +295,7 @@ APIError APINoiseFrameHelper::state_action_() {
     if (aerr != APIError::OK)
       return aerr;
     // ignore contents, may be used in future for flags
-    prologue_.push_back((uint8_t)(frame.msg.size() >> 8));
+    prologue_.push_back((uint8_t) (frame.msg.size() >> 8));
     prologue_.push_back((uint8_t) frame.msg.size());
     prologue_.insert(prologue_.end(), frame.msg.begin(), frame.msg.end());
 
@@ -492,9 +492,9 @@ APIError APINoiseFrameHelper::write_packet(uint16_t type, const uint8_t *payload
   // tmpbuf[1], tmpbuf[2] to be set later
   const uint8_t msg_offset = 3;
   const uint8_t payload_offset = msg_offset + 4;
-  tmpbuf[msg_offset + 0] = (uint8_t)(type >> 8);  // type
+  tmpbuf[msg_offset + 0] = (uint8_t) (type >> 8);  // type
   tmpbuf[msg_offset + 1] = (uint8_t) type;
-  tmpbuf[msg_offset + 2] = (uint8_t)(payload_len >> 8);  // data_len
+  tmpbuf[msg_offset + 2] = (uint8_t) (payload_len >> 8);  // data_len
   tmpbuf[msg_offset + 3] = (uint8_t) payload_len;
   // copy data
   std::copy(payload, payload + payload_len, &tmpbuf[payload_offset]);
@@ -512,7 +512,7 @@ APIError APINoiseFrameHelper::write_packet(uint16_t type, const uint8_t *payload
   }
 
   size_t total_len = 3 + mbuf.size;
-  tmpbuf[1] = (uint8_t)(mbuf.size >> 8);
+  tmpbuf[1] = (uint8_t) (mbuf.size >> 8);
   tmpbuf[2] = (uint8_t) mbuf.size;
 
   struct iovec iov;
@@ -610,12 +610,15 @@ APIError APINoiseFrameHelper::write_raw_(const struct iovec *iov, int iovcnt) {
 APIError APINoiseFrameHelper::write_frame_(const uint8_t *data, size_t len) {
   uint8_t header[3];
   header[0] = 0x01;  // indicator
-  header[1] = (uint8_t)(len >> 8);
+  header[1] = (uint8_t) (len >> 8);
   header[2] = (uint8_t) len;
 
   struct iovec iov[2];
   iov[0].iov_base = header;
   iov[0].iov_len = 3;
+  if (len == 0) {
+    return write_raw_(iov, 1);
+  }
   iov[1].iov_base = const_cast<uint8_t *>(data);
   iov[1].iov_len = len;
 
@@ -913,6 +916,9 @@ APIError APIPlaintextFrameHelper::write_packet(uint16_t type, const uint8_t *pay
   struct iovec iov[2];
   iov[0].iov_base = &header[0];
   iov[0].iov_len = header.size();
+  if (payload_len == 0) {
+    return write_raw_(iov, 1);
+  }
   iov[1].iov_base = const_cast<uint8_t *>(payload);
   iov[1].iov_len = payload_len;
 
