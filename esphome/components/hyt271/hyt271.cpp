@@ -24,26 +24,27 @@ void HYT271Component::update() {
     ESP_LOGE(TAG, "Communication with HYT271 failed! => Ask new values");
     return;
   }
-  delay(50);  // NOLINT
+  this->set_timeout("wait_convert", 50, [this]() {
+    uint8_t raw_data[4];
+    if (this->read(raw_data, 4) != i2c::ERROR_OK) {
+      this->status_set_warning();
+      ESP_LOGE(TAG, "Communication with HYT271 failed! => Read values");
+      return;
+    }
+    uint16_t raw_temperature = ((raw_data[2] << 8) | raw_data[3]) >> 2;
+    uint16_t raw_humidity = ((raw_data[0] & 0x3F) << 8) | raw_data[1];
 
-  if (this->read(raw_data, 4) != i2c::ERROR_OK) {
-    this->status_set_warning();
-    ESP_LOGE(TAG, "Communication with HYT271 failed! => Read values");
-    return;
-  }
-  uint16_t raw_temperature = ((raw_data[2] << 8) | raw_data[3]) >> 2;
-  uint16_t raw_humidity = ((raw_data[0] & 0x3F) << 8) | raw_data[1];
+    float temperature = ((float(raw_temperature)) * (165.0f / 16383.0f)) - 40.0f;
+    float humidity = (float(raw_humidity)) * (100.0f / 16383.0f);
 
-  float temperature = ((float(raw_temperature)) * (165.0f / 16383.0f)) - 40.0f;
-  float humidity = (float(raw_humidity)) * (100.0f / 16383.0f);
+    ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
 
-  ESP_LOGD(TAG, "Got Temperature=%.1f°C Humidity=%.1f%%", temperature, humidity);
-
-  if (this->temperature_ != nullptr)
-    this->temperature_->publish_state(temperature);
-  if (this->humidity_ != nullptr)
-    this->humidity_->publish_state(humidity);
-  this->status_clear_warning();
+    if (this->temperature_ != nullptr)
+      this->temperature_->publish_state(temperature);
+    if (this->humidity_ != nullptr)
+      this->humidity_->publish_state(humidity);
+    this->status_clear_warning();
+  });
 }
 float HYT271Component::get_setup_priority() const { return setup_priority::DATA; }
 
