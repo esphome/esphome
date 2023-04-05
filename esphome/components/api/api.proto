@@ -1406,4 +1406,31 @@ message VoiceAssistantResponse {
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
   uint32 port = 1;
+  bool error = 2;
+}
+
+enum VoiceAssistantEvent {
+  VOICE_ASSISTANT_ERROR = 0;
+  VOICE_ASSISTANT_RUN_START = 1;
+  VOICE_ASSISTANT_RUN_END = 2;
+  VOICE_ASSISTANT_STT_START = 3;
+  VOICE_ASSISTANT_STT_END = 4;
+  VOICE_ASSISTANT_INTENT_START = 5;
+  VOICE_ASSISTANT_INTENT_END = 6;
+  VOICE_ASSISTANT_TTS_START = 7;
+  VOICE_ASSISTANT_TTS_END = 8;
+}
+
+message VoiceAssistantEventData {
+  string name = 1;
+  string value = 2;
+}
+
+message VoiceAssistantEventResponse {
+  option (id) = 92;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  VoiceAssistantEvent event_type = 1;
+  repeated VoiceAssistantEventData data = 2;
 }
