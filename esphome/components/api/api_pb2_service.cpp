@@ -465,6 +465,8 @@ bool APIServerConnectionBase::send_voice_assistant_request(const VoiceAssistantR
 #endif
 #ifdef USE_VOICE_ASSISTANT
 #endif
+#ifdef USE_VOICE_ASSISTANT
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -861,6 +863,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
       ESP_LOGVV(TAG, "on_voice_assistant_response: %s", msg.dump().c_str());
 #endif
       this->on_voice_assistant_response(msg);
+#endif
+      break;
+    }
+    case 92: {
+#ifdef USE_VOICE_ASSISTANT
+      VoiceAssistantEventResponse msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_voice_assistant_event_response: %s", msg.dump().c_str());
+#endif
+      this->on_voice_assistant_event_response(msg);
 #endif
       break;
     }

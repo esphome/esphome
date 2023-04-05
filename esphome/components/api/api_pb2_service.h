@@ -234,6 +234,9 @@ class APIServerConnectionBase : public ProtoService {
 #ifdef USE_VOICE_ASSISTANT
   virtual void on_voice_assistant_response(const VoiceAssistantResponse &value){};
 #endif
+#ifdef USE_VOICE_ASSISTANT
+  virtual void on_voice_assistant_event_response(const VoiceAssistantEventResponse &value){};
+#endif
  protected:
   bool read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) override;
 };
