@@ -43,6 +43,7 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
@@ -72,6 +73,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
@@ -97,6 +99,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
@@ -126,6 +129,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
@@ -194,6 +198,7 @@ SensorPublishAction = sensor_ns.class_("SensorPublishAction", automation.Action)
 Filter = sensor_ns.class_("Filter")
 QuantileFilter = sensor_ns.class_("QuantileFilter", Filter)
 MedianFilter = sensor_ns.class_("MedianFilter", Filter)
+SkipInitialFilter = sensor_ns.class_("SkipInitialFilter", Filter)
 MinFilter = sensor_ns.class_("MinFilter", Filter)
 MaxFilter = sensor_ns.class_("MaxFilter", Filter)
 SlidingWindowMovingAverageFilter = sensor_ns.class_(
@@ -363,6 +368,11 @@ MIN_SCHEMA = cv.All(
     ),
     validate_send_first_at,
 )
+
+
+@FILTER_REGISTRY.register("skip_initial", SkipInitialFilter, cv.positive_not_null_int)
+async def skip_initial_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
 
 
 @FILTER_REGISTRY.register("min", MinFilter, MIN_SCHEMA)

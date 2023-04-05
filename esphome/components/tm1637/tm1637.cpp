@@ -168,7 +168,7 @@ uint8_t TM1637Display::get_keys() {
     //    Bit | 7  6  5  4  3  2  1  0
     //  ------+------------------------
     //     To | 0  0  0  0  K2 S2 S1 S0
-    key_code = (uint8_t)((key_code & 0x80) >> 7 | (key_code & 0x40) >> 5 | (key_code & 0x20) >> 3 | (key_code & 0x08));
+    key_code = (uint8_t) ((key_code & 0x80) >> 7 | (key_code & 0x40) >> 5 | (key_code & 0x20) >> 3 | (key_code & 0x08));
   }
   return key_code;
 }
