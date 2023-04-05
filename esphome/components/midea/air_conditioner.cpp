@@ -84,18 +84,18 @@ ClimateTraits AirConditioner::traits() {
   traits.set_supported_custom_presets(this->supported_custom_presets_);
   traits.set_supported_custom_fan_modes(this->supported_custom_fan_modes_);
   /* + MINIMAL SET OF CAPABILITIES */
-  traits.add_supported_mode(ClimateMode::CLIMATE_MODE_OFF);
-  traits.add_supported_mode(ClimateMode::CLIMATE_MODE_FAN_ONLY);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_AUTO);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_LOW);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_MEDIUM);
   traits.add_supported_fan_mode(ClimateFanMode::CLIMATE_FAN_HIGH);
-  traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_OFF);
-  traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_VERTICAL);
-  traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_NONE);
-  traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_SLEEP);
   if (this->base_.getAutoconfStatus() == dudanov::midea::AUTOCONF_OK)
     Converters::to_climate_traits(traits, this->base_.getCapabilities());
+  if (!traits.get_supported_modes().empty())
+    traits.add_supported_mode(ClimateMode::CLIMATE_MODE_OFF);
+  if (!traits.get_supported_swing_modes().empty())
+    traits.add_supported_swing_mode(ClimateSwingMode::CLIMATE_SWING_OFF);
+  if (!traits.get_supported_presets().empty())
+    traits.add_supported_preset(ClimatePreset::CLIMATE_PRESET_NONE);
   return traits;
 }
 
