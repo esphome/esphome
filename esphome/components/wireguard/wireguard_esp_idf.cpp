@@ -35,6 +35,7 @@ void Wireguard::setup() {
         srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection, this));
     } else {
         ESP_LOGE(TAG, "cannot initialize, error code %d", wg_initialized);
+        this->mark_failed();
     }
 }
 
