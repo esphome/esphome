@@ -15,6 +15,7 @@ class Wireguard : public PollingComponent {
   void setup() override;
   void update() override;
   void dump_config() override;
+  void on_shutdown() override;
 
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }
 

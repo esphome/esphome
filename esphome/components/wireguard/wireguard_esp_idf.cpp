@@ -68,6 +68,13 @@ void Wireguard::dump_config() {
     ESP_LOGCONFIG(TAG, "  keepalive: %d",this->keepalive_);
 }
 
+void Wireguard::on_shutdown() {
+    if(wg_initialized == ESP_OK && wg_connected == ESP_OK) {
+        ESP_LOGD(TAG, "disconnecting...");
+        esp_wireguard_disconnect(&wg_ctx);
+    }
+}
+
 void Wireguard::set_address(std::string address) { this->address_ = std::move(address); }
 void Wireguard::set_netmask(std::string netmask) { this->netmask_ = std::move(netmask); }
 void Wireguard::set_private_key(std::string key) { this->private_key_ = std::move(key); }

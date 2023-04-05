@@ -47,6 +47,11 @@ void Wireguard::dump_config(){
     ESP_LOGCONFIG(TAG, "  preshared key[%d]: %s",this->preshared_key_.length(), this->preshared_key_.data());
 }
 
+void Wireguard::on_shutdown() {
+    ESP_LOGD(TAG, "disconnecting...");
+    wg.end();
+}
+
 void Wireguard::set_address(std::string address) { this->address_ = std::move(address); }
 void Wireguard::set_netmask(std::string netmask) { this->netmask_ = std::move(netmask); }
 void Wireguard::set_private_key(std::string key) { this->private_key_ = std::move(key); }
