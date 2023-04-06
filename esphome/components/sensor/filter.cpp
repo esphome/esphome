@@ -74,6 +74,19 @@ optional<float> MedianFilter::new_value(float value) {
   return {};
 }
 
+// SkipInitialFilter
+SkipInitialFilter::SkipInitialFilter(size_t num_to_ignore) : num_to_ignore_(num_to_ignore) {}
+optional<float> SkipInitialFilter::new_value(float value) {
+  if (num_to_ignore_ > 0) {
+    num_to_ignore_--;
+    ESP_LOGV(TAG, "SkipInitialFilter(%p)::new_value(%f) SKIPPING, %u left", this, value, num_to_ignore_);
+    return {};
+  }
+
+  ESP_LOGV(TAG, "SkipInitialFilter(%p)::new_value(%f) SENDING", this, value);
+  return value;
+}
+
 // QuantileFilter
 QuantileFilter::QuantileFilter(size_t window_size, size_t send_every, size_t send_first_at, float quantile)
     : send_every_(send_every), send_at_(send_every - send_first_at), window_size_(window_size), quantile_(quantile) {}
@@ -315,19 +328,23 @@ optional<float> ThrottleFilter::new_value(float value) {
 }
 
 // DeltaFilter
-DeltaFilter::DeltaFilter(float min_delta) : min_delta_(min_delta), last_value_(NAN) {}
+DeltaFilter::DeltaFilter(float delta, bool percentage_mode)
+    : delta_(delta), current_delta_(delta), percentage_mode_(percentage_mode), last_value_(NAN) {}
 optional<float> DeltaFilter::new_value(float value) {
   if (std::isnan(value)) {
     if (std::isnan(this->last_value_)) {
       return {};
     } else {
+      if (this->percentage_mode_) {
+        this->current_delta_ = fabsf(value * this->delta_);
+      }
       return this->last_value_ = value;
     }
   }
-  if (std::isnan(this->last_value_)) {
-    return this->last_value_ = value;
-  }
-  if (fabsf(value - this->last_value_) >= this->min_delta_) {
+  if (std::isnan(this->last_value_) || fabsf(value - this->last_value_) >= this->current_delta_) {
+    if (this->percentage_mode_) {
+      this->current_delta_ = fabsf(value * this->delta_);
+    }
     return this->last_value_ = value;
   }
   return {};
