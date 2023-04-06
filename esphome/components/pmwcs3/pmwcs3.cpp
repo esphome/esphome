@@ -66,7 +66,7 @@ void PMWCS3Component::dump_config() {
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "e25", this->e25_sensor_);
   LOG_SENSOR("  ", "ec", this->ec_sensor_);
-  LOG_SENSOR("  ", "temperatue", this->temperature_sensor_);
+  LOG_SENSOR("  ", "temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "vwc", this->vwc_sensor_);
 }
 void PMWCS3Component::read_data_() {
