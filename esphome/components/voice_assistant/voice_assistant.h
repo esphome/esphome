@@ -4,6 +4,8 @@
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
+#include "esphome/components/api/api_pb2.h"
+#include "esphome/components/api/api_server.h"
 #include "esphome/components/microphone/microphone.h"
 #include "esphome/components/socket/socket.h"
 
@@ -20,6 +22,8 @@ class VoiceAssistant : public Component {
 
   void request_start();
   void signal_stop();
+
+  void on_event(const api::VoiceAssistantEventResponse &msg);
 
  protected:
   std::unique_ptr<socket::Socket> socket_ = nullptr;

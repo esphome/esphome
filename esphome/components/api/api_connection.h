@@ -130,6 +130,7 @@ class APIConnection : public APIServerConnection {
   }
   bool request_voice_assistant(bool start);
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
+  void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
 #endif
 
   void on_disconnect_response(const DisconnectResponse &value) override;

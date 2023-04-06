@@ -911,6 +911,12 @@ void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &ms
     voice_assistant::global_voice_assistant->start(&storage, msg.port);
   }
 };
+void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    voice_assistant::global_voice_assistant->on_event(msg);
+  }
+}
+
 #endif
 
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {

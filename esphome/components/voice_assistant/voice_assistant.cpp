@@ -2,8 +2,6 @@
 
 #include "esphome/core/log.h"
 
-#include "esphome/components/api/api_server.h"
-
 namespace esphome {
 namespace voice_assistant {
 
@@ -74,6 +72,73 @@ void VoiceAssistant::signal_stop() {
   this->running_ = false;
   api::global_api_server->stop_voice_assistant();
   memset(&this->dest_addr_, 0, sizeof(this->dest_addr_));
+}
+
+void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
+  switch (msg.event_type) {
+    case api::enums::VOICE_ASSISTANT_RUN_START:
+      break;
+    case api::enums::VOICE_ASSISTANT_RUN_END:
+      break;
+    case api::enums::VOICE_ASSISTANT_STT_END: {
+      std::string text;
+      for (auto arg : msg.data) {
+        if (arg.name == "text") {
+          text = std::move(arg.value);
+        }
+      }
+      if (text.empty()) {
+        ESP_LOGW(TAG, "No text in STT_END event.");
+        return;
+      }
+      ESP_LOGD(TAG, "Speech recognised as: \"%s\"", text.c_str());
+      // TODO `on_stt_end` trigger
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_TTS_START: {
+      std::string text;
+      for (auto arg : msg.data) {
+        if (arg.name == "text") {
+          text = std::move(arg.value);
+        }
+      }
+      if (text.empty()) {
+        ESP_LOGW(TAG, "No text in TTS_START event.");
+        return;
+      }
+      ESP_LOGD(TAG, "Response: \"%s\"", text.c_str());
+      // TODO `on_tts_start` trigger
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_TTS_END: {
+      std::string url;
+      for (auto arg : msg.data) {
+        if (arg.name == "url") {
+          url = std::move(arg.value);
+        }
+      }
+      if (url.empty()) {
+        ESP_LOGW(TAG, "No url in TTS_END event.");
+        return;
+      }
+      ESP_LOGD(TAG, "Response URL: \"%s\"", url.c_str());
+      // TODO `on_tts_end` trigger
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_ERROR: {
+      std::string code = "";
+      std::string message = "";
+      for (auto arg : msg.data) {
+        if (arg.name == "code") {
+          code = std::move(arg.value);
+        } else if (arg.name == "message") {
+          message = std::move(arg.value);
+        }
+      }
+      ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
+      // TODO `on_error` trigger
+    }
+  }
 }
 
 VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
