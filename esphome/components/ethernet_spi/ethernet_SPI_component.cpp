@@ -47,6 +47,7 @@ namespace esphome
             esp_netif_inherent_config_t esp_netif_config = ESP_NETIF_INHERENT_DEFAULT_ETH();
             esp_netif_config_t cfg_spi = {
                 .base = &esp_netif_config,
+                .driver=nullptr,
                 .stack = ESP_NETIF_NETSTACK_DEFAULT_ETH
             };
             char if_key_str[10];
@@ -71,6 +72,15 @@ namespace esphome
                 .sclk_io_num = this->sclk_pin_,
                 .quadwp_io_num = -1,
                 .quadhd_io_num = -1,
+                #if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(4, 4, 0)
+                .data4_io_num = -1,
+                .data5_io_num = -1,
+                .data6_io_num = -1,
+                .data7_io_num = -1,
+                #endif
+                .max_transfer_sz = 0,
+                .flags = 0,
+                .intr_flags = 0,
             };
             ESP_ERROR_CHECK(spi_bus_initialize(1, &buscfg, SPI_DMA_CH_AUTO));
 
@@ -83,8 +93,16 @@ namespace esphome
                 .command_bits = 16, // Actually it's the address phase in W5500 SPI frame
                 .address_bits = 8,  // Actually it's the control phase in W5500 SPI frame
                 .mode = 0,
+                .duty_cycle_pos=0,
+                .cs_ena_pretrans=0,
+                .cs_ena_posttrans=0,
                 .clock_speed_hz = this->clockspeed_ * 1000 * 1000,
-                .queue_size = 20 //引出yaml
+                .input_delay_ns=0,
+                .spics_io_num=this->cs_pin_,
+                .flags=0,
+                .queue_size=20,
+                .pre_cb=nullptr,
+                .post_cb=nullptr,
             };
             spi_devcfg.spics_io_num=this->cs_pin_;
             phy_config_spi.phy_addr=this->phy_addr_;

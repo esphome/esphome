@@ -1,17 +1,9 @@
+#pragma once
 #ifdef USE_ESP_IDF
 
+#include <driver/gpio.h>
+
 #include "esphome/core/component.h"
-#include "esphome/core/hal.h"
-#include "esphome/components/network/ip_address.h"
-
-
-#include <lwip/dns.h>
-#include "esp_event.h"
-#include "esp_netif.h"
-#include "esp_eth.h"
-#include "esp_event.h"
-#include "esp_log.h"
-#include "driver/spi_master.h"
 namespace esphome
 {
 
