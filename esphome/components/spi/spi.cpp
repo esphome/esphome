@@ -25,7 +25,7 @@ void SPIComponent::setup() {
   this->clk_->digital_write(true);
 
 #ifdef USE_SPI_ARDUINO_BACKEND
-  bool use_hw_spi = true;
+  bool use_hw_spi = !this->force_sw_;
   const bool has_miso = this->miso_ != nullptr;
   const bool has_mosi = this->mosi_ != nullptr;
   int8_t clk_pin = -1, miso_pin = -1, mosi_pin = -1;

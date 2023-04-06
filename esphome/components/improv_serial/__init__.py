@@ -4,7 +4,9 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.core import CORE
 import esphome.final_validate as fv
+from esphome.components import improv_base
 
+AUTO_LOAD = ["improv_base"]
 CODEOWNERS = ["@esphome/core"]
 DEPENDENCIES = ["logger", "wifi"]
 
@@ -12,11 +14,15 @@ improv_serial_ns = cg.esphome_ns.namespace("improv_serial")
 
 ImprovSerialComponent = improv_serial_ns.class_("ImprovSerialComponent", cg.Component)
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(ImprovSerialComponent),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(ImprovSerialComponent),
+        }
+    )
+    .extend(improv_base.IMPROV_SCHEMA)
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 def validate_logger(config):
@@ -37,4 +43,4 @@ FINAL_VALIDATE_SCHEMA = validate_logger
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    cg.add_library("esphome/Improv", "1.2.3")
+    await improv_base.setup_improv_core(var, config)

@@ -19,9 +19,12 @@ void PN532::setup() {
 
   // Get version data
   if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
-    ESP_LOGE(TAG, "Error sending version command");
-    this->mark_failed();
-    return;
+    ESP_LOGW(TAG, "Error sending version command, trying again...");
+    if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
+      ESP_LOGE(TAG, "Error sending version command");
+      this->mark_failed();
+      return;
+    }
   }
 
   std::vector<uint8_t> version_data;
