@@ -56,6 +56,7 @@ class EthernetComponent : public Component {
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
+  bool powerdown();
 
  protected:
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
@@ -80,6 +81,7 @@ class EthernetComponent : public Component {
   uint32_t connect_begin_;
   esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
+  esp_eth_phy_t *phy_;
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
