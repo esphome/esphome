@@ -17,6 +17,7 @@ static const uint8_t PN532_COMMAND_SAMCONFIGURATION = 0x14;
 static const uint8_t PN532_COMMAND_RFCONFIGURATION = 0x32;
 static const uint8_t PN532_COMMAND_INDATAEXCHANGE = 0x40;
 static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
+static const uint8_t PN532_COMMAND_POWERDOWN = 0x16;
 
 class PN532BinarySensor;
 
@@ -45,6 +46,7 @@ class PN532 : public PollingComponent {
   void clean_mode();
   void format_mode();
   void write_mode(nfc::NdefMessage *message);
+  bool powerdown();
 
  protected:
   void turn_off_rf_();
@@ -79,6 +81,7 @@ class PN532 : public PollingComponent {
   bool write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
 
+  bool updates_enabled_{true};
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
