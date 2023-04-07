@@ -137,7 +137,7 @@ CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(HaierClimateBase),
-            cv.Required(CONF_PROTOCOL): cv.one_of(*PROTOCOLS_SUPPORTED, upper=True),
+            cv.Optional(CONF_PROTOCOL, default="SMARTAIR2"): cv.one_of(*PROTOCOLS_SUPPORTED, upper=True),
             cv.Optional(
                 CONF_WIFI_SIGNAL
             ): cv.boolean,  # Default: True for hOn protocol, False for smartAir2 protocol
@@ -179,10 +179,14 @@ DisplayOffAction = haier_ns.class_("DisplayOffAction", automation.Action)
 BeeperOnAction = haier_ns.class_("BeeperOnAction", automation.Action)
 BeeperOffAction = haier_ns.class_("BeeperOffAction", automation.Action)
 StartSelfCleaningAction = haier_ns.class_("StartSelfCleaningAction", automation.Action)
+StartSteriCleaningAction = haier_ns.class_("StartSteriCleaningAction", automation.Action)
 VerticalAirflowAction = haier_ns.class_("VerticalAirflowAction", automation.Action)
 HorizontalAirflowAction = haier_ns.class_("HorizontalAirflowAction", automation.Action)
 HealthOnAction = haier_ns.class_("HealthOnAction", automation.Action)
 HealthOffAction = haier_ns.class_("HealthOffAction", automation.Action)
+PowerOnAction = haier_ns.class_("PowerOnAction", automation.Action)
+PowerOffAction = haier_ns.class_("PowerOffAction", automation.Action)
+PowerToggleAction = haier_ns.class_("PowerToggleAction", automation.Action)
 
 HAIER_BASE_ACTION_SCHEMA = automation.maybe_simple_id(
     {
@@ -220,13 +224,18 @@ async def beeper_action_to_code(config, action_id, template_arg, args):
     return var
 
 
-# Start self cleaning action action
+# Start self cleaning or steri-cleaning action action
 @automation.register_action(
     "climate.haier.start_self_cleaning",
     StartSelfCleaningAction,
     HAIER_BASE_ACTION_SCHEMA,
 )
-async def start_self_cleaning_to_code(config, action_id, template_arg, args):
+@automation.register_action(
+    "climate.haier.start_steri_cleaning",
+    StartSteriCleaningAction,
+    HAIER_BASE_ACTION_SCHEMA,
+)
+async def start_cleaning_to_code(config, action_id, template_arg, args):
     fullid, paren = await cg.get_variable_with_full_id(config[CONF_ID])
     climate_type = str(fullid.type)
     if climate_type != str(HonClimate):
@@ -304,6 +313,20 @@ async def health_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     return var
 
+
+@automation.register_action(
+    "climate.haier.power_on", PowerOnAction, HAIER_BASE_ACTION_SCHEMA
+)
+@automation.register_action(
+    "climate.haier.power_off", PowerOffAction, HAIER_BASE_ACTION_SCHEMA
+)
+@automation.register_action(
+    "climate.haier.power_toggle", PowerToggleAction, HAIER_BASE_ACTION_SCHEMA
+)
+async def health_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    return var
 
 def _final_validate(config):
     full_config = fv.full_config.get()

@@ -8,15 +8,26 @@ namespace esphome {
 namespace haier {
 
 enum class AirflowVerticalDirection : uint8_t {
-  UP = 0,
-  CENTER = 1,
-  DOWN = 2,
+  HEALTH_UP = 0,
+  MAX_UP = 1,
+  UP = 2,
+  CENTER = 3,
+  DOWN = 4,
+  HEALTH_DOWN = 5,
 };
 
 enum class AirflowHorizontalDirection : uint8_t {
-  LEFT = 0,
-  CENTER = 1,
-  RIGHT = 2,
+  MAX_LEFT = 0,
+  LEFT = 1,
+  CENTER = 2,
+  RIGHT = 3,
+  MAX_RIGHT = 4,
+};
+
+enum class CleaningState : uint8_t {
+  NO_CLEANING = 0,
+  SELF_CLEAN = 1,
+  STERI_CLEAN = 2,
 };
 
 class HonClimate : public HaierClimateBase {
@@ -34,14 +45,17 @@ class HonClimate : public HaierClimateBase {
   void set_vertical_airflow(AirflowVerticalDirection direction);
   AirflowHorizontalDirection get_horizontal_airflow() const;
   void set_horizontal_airflow(AirflowHorizontalDirection direction);
-  bool get_self_cleaning_status() const;
+  std::string get_cleaning_status_text() const;
+  CleaningState get_cleaning_status() const;
   void start_self_cleaning();
+  void start_steri_cleaning();
 
  protected:
   void set_answers_handlers() override;
   void process_phase(std::chrono::steady_clock::time_point now) override;
   haier_protocol::HaierMessage get_control_message() override;
   bool is_message_invalid(uint8_t message_type) override;
+  void process_pending_action_() override;
 
   // Answers handlers
   haier_protocol::HandlerError get_device_version_answer_handler_(uint8_t request_type, uint8_t message_type,
@@ -60,8 +74,7 @@ class HonClimate : public HaierClimateBase {
   haier_protocol::HandlerError process_status_message_(const uint8_t *packet, uint8_t size);
   std::unique_ptr<uint8_t[]> last_status_message_;
   bool beeper_status_;
-  bool self_cleaning_status_;
-  bool self_cleaning_start_request_;
+  CleaningState cleaning_status_;
   bool got_valid_outdoor_temp_;
   AirflowVerticalDirection vertical_direction_;
   AirflowHorizontalDirection horizontal_direction_;

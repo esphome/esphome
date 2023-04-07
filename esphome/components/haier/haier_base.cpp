@@ -44,6 +44,10 @@ const char *HaierClimateBase::phase_to_string_(ProtocolPhases phase) {
       "WAITING_SIGNAL_LEVEL_ANSWER",
       "SENDING_CONTROL",
       "WAITING_CONTROL_ANSWER",
+      "SENDING_POWER_ON_COMMAND",
+      "WAITING_POWER_ON_ANSWER",
+      "SENDING_POWER_OFF_COMMAND",
+      "WAITING_POWER_OFF_ANSWER",      
       "UNKNOWN"  // Should be the last!
   };
   int phase_index = (int) phase;
@@ -57,6 +61,7 @@ HaierClimateBase::HaierClimateBase(UARTComponent *parent)
     : UARTDevice(parent),
       haier_protocol_(*this),
       protocol_phase_(ProtocolPhases::SENDING_INIT_1),
+      action_request_(ActionRequest::NO_ACTION),
       display_status_(true),
       health_mode_(false),
       force_send_control_(false),
@@ -131,6 +136,17 @@ void HaierClimateBase::set_health_mode(bool state) {
   }
 }
 
+void HaierClimateBase::send_power_on_command() {
+  this->action_request_ = ActionRequest::TURN_POWER_ON;
+}
+
+void HaierClimateBase::send_power_off_command() {
+  this->action_request_ = ActionRequest::TURN_POWER_OFF;
+}  
+
+void HaierClimateBase::toggle_power() {
+  this->action_request_ = ActionRequest::TOGGLE_POWER;
+}  
 void HaierClimateBase::set_supported_swing_modes(const std::set<climate::ClimateSwingMode> &modes) {
   this->traits_.set_supported_swing_modes(modes);
   this->traits_.add_supported_swing_mode(climate::CLIMATE_SWING_OFF);       // Always available
@@ -214,19 +230,44 @@ void HaierClimateBase::loop() {
       this->last_valid_status_timestamp_ = now;
     }
   };
-  if (this->hvac_settings_.valid || this->force_send_control_) {
-    // If control message is pending we should send it ASAP unless we are in initialisation procedure or waiting for an
-    // answer
-    if ((this->protocol_phase_ == ProtocolPhases::IDLE) ||
-        (this->protocol_phase_ == ProtocolPhases::SENDING_STATUS_REQUEST) ||
-        (this->protocol_phase_ == ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST) ||
-        (this->protocol_phase_ == ProtocolPhases::SENDING_SIGNAL_LEVEL)) {
+  if ((this->protocol_phase_ == ProtocolPhases::IDLE) ||
+      (this->protocol_phase_ == ProtocolPhases::SENDING_STATUS_REQUEST) ||
+      (this->protocol_phase_ == ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST) ||
+      (this->protocol_phase_ == ProtocolPhases::SENDING_SIGNAL_LEVEL)) {
+    // If control message or action is pending we should send it ASAP unless we are in initialisation
+    // procedure or waiting for an answer
+    if (this->action_request_ != ActionRequest::NO_ACTION) {
+      this->process_pending_action_();
+    } else if (this->hvac_settings_.valid || this->force_send_control_) {
       ESP_LOGV(TAG, "Control packet is pending...");
       this->set_phase_(ProtocolPhases::SENDING_CONTROL);
     }
   }
   this->process_phase(now);
   this->haier_protocol_.loop();
+}
+
+void HaierClimateBase::process_pending_action_() {
+  ActionRequest request = this->action_request_;
+  if (this->action_request_ == ActionRequest::TOGGLE_POWER) {
+    request = this->mode == CLIMATE_MODE_OFF ? ActionRequest::TURN_POWER_ON : ActionRequest::TURN_POWER_OFF;
+  } 
+  switch (request) {
+    case ActionRequest::TURN_POWER_ON:
+      this->set_phase_(ProtocolPhases::SENDING_POWER_ON_COMMAND);
+      break;
+    case ActionRequest::TURN_POWER_OFF:
+      this->set_phase_(ProtocolPhases::SENDING_POWER_OFF_COMMAND);
+      break;
+    case ActionRequest::TOGGLE_POWER:
+    case ActionRequest::NO_ACTION:
+      // shouldn't get here, do nothing
+      break;
+    default:
+      ESP_LOGW(TAG, "Unsupported action: %d", (uint8_t) this->action_request_);
+      break;
+  }
+  this->action_request_ = ActionRequest::NO_ACTION;
 }
 
 ClimateTraits HaierClimateBase::traits() { return traits_; }

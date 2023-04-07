@@ -19,9 +19,9 @@ const char TAG[] = "haier.climate";
 Smartair2Climate::Smartair2Climate(UARTComponent *parent)
     : HaierClimateBase(parent), last_status_message_(new uint8_t[sizeof(smartair2_protocol::HaierPacketControl)]) {
   this->traits_.set_supported_presets({
-      climate::CLIMATE_PRESET_NONE,
-      climate::CLIMATE_PRESET_BOOST,
-      climate::CLIMATE_PRESET_COMFORT,
+    climate::CLIMATE_PRESET_NONE,
+    climate::CLIMATE_PRESET_BOOST,
+    climate::CLIMATE_PRESET_COMFORT,
   });
 }
 
@@ -133,9 +133,19 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
         this->set_phase_(ProtocolPhases::WAITING_CONTROL_ANSWER);
       }
       break;
+    case ProtocolPhases::SENDING_POWER_ON_COMMAND:
+    case ProtocolPhases::SENDING_POWER_OFF_COMMAND:
+      if (this->can_send_message() && this->is_message_interval_exceeded_(now)) {
+        haier_protocol::HaierMessage power_cmd((uint8_t) smartair2_protocol::FrameType::CONTROL, this->protocol_phase_ == ProtocolPhases::SENDING_POWER_ON_COMMAND ? 0x4D02 : 0x4D03);
+        this->send_message_(power_cmd, false);
+        this->set_phase_(this->protocol_phase_ == ProtocolPhases::SENDING_POWER_ON_COMMAND ? ProtocolPhases::WAITING_POWER_ON_ANSWER : ProtocolPhases::WAITING_POWER_OFF_ANSWER);
+      }
+      break;
     case ProtocolPhases::WAITING_FIRST_STATUS_ANSWER:
     case ProtocolPhases::WAITING_STATUS_ANSWER:
     case ProtocolPhases::WAITING_CONTROL_ANSWER:
+    case ProtocolPhases::WAITING_POWER_ON_ANSWER:
+    case ProtocolPhases::WAITING_POWER_OFF_ANSWER:    
       break;
     case ProtocolPhases::IDLE: {
       if (this->forced_request_status_ || this->is_status_request_interval_exceeded_(now)) {

@@ -59,7 +59,8 @@ struct HaierPacketControl {
   uint8_t intelegence_status : 1;  // Intelligence status
   uint8_t pmv_status : 1;          // Comfort/PMV status
   uint8_t use_fahrenheit : 1;      // Use Fahrenheit instead of Celsius
-  uint8_t : 0;
+  uint8_t : 1;
+  uint8_t steri_clean: 1;  
   // 15
   uint8_t ac_power : 1;                 // Is ac on or off
   uint8_t health_mode : 1;              // Health mode (negative ions) on or off
