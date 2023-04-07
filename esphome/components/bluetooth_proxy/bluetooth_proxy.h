@@ -68,6 +68,14 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
+// Version 1: Initial version without active connections
+// Version 2: Support for active connections
+// Version 3: New connection API
+// Version 4: Pairing support
+// Version 5: Cache clear support
+static const uint32_t ACTIVE_CONNECTIONS_VERSION = 5;
+static const uint32_t PASSIVE_ONLY_VERSION = 1;
+
 }  // namespace bluetooth_proxy
 }  // namespace esphome
 
