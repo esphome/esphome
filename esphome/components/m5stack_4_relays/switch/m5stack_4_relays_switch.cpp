@@ -69,5 +69,5 @@ void M5Stack_Switch::write_state(bool state) {
   this->publish_state(state);
 }
 
-}  // namespace M5Stack_4_Relays
+}  // namespace m5stack_4_relays
 }  // namespace esphome

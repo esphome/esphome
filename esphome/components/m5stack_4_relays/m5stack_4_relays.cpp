@@ -9,9 +9,9 @@ static const char *const TAG = "M5Stack_4_Relays";
 void M5Stack_4_Relays::dump_config() {
   ESP_LOGCONFIG(TAG, "M5Stack_4_Relays:");
   LOG_I2C_DEVICE(this);
-  //if (this->is_failed()) {
-  //  ESP_LOGE(TAG, "Communication with M5Stack_4_Relays failed!");
-  //}
+  // if (this->is_failed()) {
+  //   ESP_LOGE(TAG, "Communication with M5Stack_4_Relays failed!");
+  // }
   /* LOG_SWITCH("  ", "Relays", this);*/
 }
 
@@ -24,12 +24,12 @@ void M5Stack_4_Relays::Init(bool mode) {
 //
 ///*! @brief Set the mode of all leds at the same time.
 // *  @param state OFF = 0, ON = 1. */
-//void M5Stack_4_Relays::ledAll(bool state) { write1Byte(UNIT_4RELAY_RELAY_REG, state * (0xf0)); }
+// void M5Stack_4_Relays::ledAll(bool state) { write1Byte(UNIT_4RELAY_RELAY_REG, state * (0xf0)); }
 //
 ///*! @brief Control the on/off of the specified led.
 // *  @param number Bit number of led (0~3).
 //    @param state OFF = 0, ON = 1 . */
-//void M5Stack_4_Relays::ledWrite(uint8_t number, bool state) {
+// void M5Stack_4_Relays::ledWrite(uint8_t number, bool state) {
 //  uint8_t StateFromDevice = read1Byte(UNIT_4RELAY_RELAY_REG);
 //  if (state == 0) {
 //    StateFromDevice &= ~(UNIT_4RELAY_REG << number);
@@ -51,7 +51,7 @@ uint8_t M5Stack_4_Relays::read1Byte(uint8_t Register_address) {
 //
 ///*! @brief Set the mode of all relays at the same time.
 // *  @param state OFF = 0, ON = 1. */
-//void M5Stack_4_Relays::relayAll(bool state) { write1Byte(UNIT_4RELAY_RELAY_REG, state * (0x0f)); }
+// void M5Stack_4_Relays::relayAll(bool state) { write1Byte(UNIT_4RELAY_RELAY_REG, state * (0x0f)); }
 
 /*! @brief Control the on/off of the specified relay.
  *  @param number Bit number of relay (0~3).
@@ -84,5 +84,5 @@ void M5Stack_4_Relays::write1Byte(uint8_t Register_address, uint8_t data) {
   }
 }
 
-}  // namespace M5Stack_4_Relays
+}  // namespace m5stack_4_relays
 }  // namespace esphome

@@ -29,5 +29,5 @@ class M5Stack_Switch : public Component, public switch_::Switch, public Parented
   uint32_t interlock_wait_time_{0};
 };
 
-}  // namespace M5Stack_4_Relays
+}  // namespace m5stack_4_relays
 }  // namespace esphome
