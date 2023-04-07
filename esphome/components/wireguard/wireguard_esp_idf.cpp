@@ -1,7 +1,6 @@
 #ifdef USE_ESP_IDF
 
 #include <functional>
-#include <ctime>
 #include "esphome/core/log.h"
 #include "esp_err.h"
 #include "esp_wireguard.h"
@@ -12,7 +11,6 @@ namespace esphome {
 namespace wireguard {
 
 static const char * const TAG = "wireguard";
-static char WG_TMP_BUFFER[34];
 
 void Wireguard::setup() {
     ESP_LOGD(TAG, "initializing...");
@@ -49,11 +47,15 @@ void Wireguard::update() {
         wg_peer_up = false;
     }
 
-    std::strftime(WG_TMP_BUFFER, sizeof(WG_TMP_BUFFER), "offline since %Y-%m-%d %H:%M:%S", localtime(&wg_last_peer_up));
-    ESP_LOGD(TAG, "peer: %s", (wg_peer_up ? "online" : WG_TMP_BUFFER));
-
-    if(wg_peer_up)
-        wg_last_peer_up = srctime_->now().timestamp;
+    if(wg_peer_up) {
+        if(wg_last_peer_up == 0) {
+            ESP_LOGI(TAG, "peer online");
+            wg_last_peer_up = srctime_->utcnow().timestamp;
+        }
+    } else {
+        ESP_LOGD(TAG, "peer offline");
+        wg_last_peer_up = 0;
+    }
 }
 
 void Wireguard::dump_config() {
@@ -85,8 +87,6 @@ void Wireguard::set_preshared_key(std::string key) { this->preshared_key_ = std:
 
 void Wireguard::set_keepalive(uint16_t seconds) { this->keepalive_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock* srctime) { this->srctime_ = srctime; }
-
-bool Wireguard::is_peer_up() { return this->wg_peer_up; }
 
 void Wireguard::start_connection() {
     if(wg_initialized != ESP_OK) {
