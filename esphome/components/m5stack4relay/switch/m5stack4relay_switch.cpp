@@ -63,7 +63,7 @@ void M5Stack4RelaySwitch::write_state(bool state) {
   }
 
   // This will be called every time the user requests a state change.
-  this->parent_->relayWrite(this->channel_, state);
+  this->parent_->relay_write(this->channel_, state);
 
   // Acknowledge new state by publishing it
   this->publish_state(state);
