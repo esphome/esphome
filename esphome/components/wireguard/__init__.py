@@ -56,11 +56,6 @@ async def to_code(config):
         else:
             cg.add(var.set_keepalive(0))
 
-        cg.add_build_flag("-DCONFIG_WIREGUARD_ESP_NETIF")
-        cg.add_build_flag("-DCONFIG_WIREGUARD_MAX_PEERS=1")
-        cg.add_build_flag("-DCONFIG_WIREGUARD_MAX_SRC_IPS=2")
-        cg.add_build_flag("-DCONFIG_MAX_INITIATIONS_PER_SECOND=2")
-        cg.add_build_flag("-DCONFIG_WIREGUARD_x25519_IMPLEMENTATION_DEFAULT")
         cg.add_library("https://github.com/droscy/esp_wireguard", None)
 
     # Arduino section
