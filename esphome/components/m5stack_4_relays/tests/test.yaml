@@ -23,7 +23,6 @@ i2c:
 m5stack_4_relays:
   id: M5stackrelay_ID1
   i2c_id: bus_a
-  #sync_mode: true
 
 switch:
   - platform: m5stack_4_relays
@@ -32,20 +31,17 @@ switch:
     channel: Relay_1
     M5Stack_4_Relays_id: M5stackrelay_ID1
 
-
   - platform: m5stack_4_relays
     id: relay_2
     name: relay2
     channel: Relay_2
     M5Stack_4_Relays_id: M5stackrelay_ID1
 
-
   - platform: m5stack_4_relays
     id: relay_3
     name: relay3
     channel: Relay_3
     M5Stack_4_Relays_id: M5stackrelay_ID1
-
 
   - platform: m5stack_4_relays
     id: relay_4
