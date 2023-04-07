@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, switch
-from esphome.const import CONF_CHANNEL, CONF_INTERLOCK # , CONF_ID,
+from esphome.const import CONF_CHANNEL, CONF_INTERLOCK  # , CONF_ID,
 
 from .. import M5Stack_ns, M5Stack4Relay, CONF_M5Stack4Relay_ID
 
@@ -38,7 +38,9 @@ CONFIG_SCHEMA = (
             cv.GenerateID(CONF_M5Stack4Relay_ID): cv.use_id(M5Stack4Relay),
             cv.Required(CONF_CHANNEL): cv.enum(SWITCH_MAP),
             cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
-            cv.Optional(CONF_INTERLOCK_WAIT_TIME, default="0ms"): cv.positive_time_period_milliseconds
+            cv.Optional(
+                CONF_INTERLOCK_WAIT_TIME, default="0ms"
+            ): cv.positive_time_period_milliseconds,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
