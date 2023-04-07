@@ -6,9 +6,9 @@ namespace m5stack4relay {
 
 static const char *const TAG = "switch.M5Stack_4_Relay";
 
-float M5Stack4Relay_Switch::get_setup_priority() const { return setup_priority::HARDWARE; }
+float M5Stack4RelaySwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-void M5Stack4Relay_Switch::setup() {
+void M5Stack4RelaySwitch::setup() {
   ESP_LOGCONFIG(TAG, "Setting up M5Stack_4_relay Switch '%s'...", this->name_.c_str());
 
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
@@ -21,7 +21,7 @@ void M5Stack4Relay_Switch::setup() {
   }
 }
 
-void M5Stack4Relay_Switch::dump_config() {
+void M5Stack4RelaySwitch::dump_config() {
   LOG_SWITCH("", "M5Stack4Relay Switch", this);
 
   if (!this->interlock_.empty()) {
@@ -34,7 +34,7 @@ void M5Stack4Relay_Switch::dump_config() {
   }
 }
 
-void M5Stack4Relay_Switch::write_state(bool state) {
+void M5Stack4RelaySwitch::write_state(bool state) {
   if (state != this->inverted_) {
     // Turning ON, check interlocking
 
@@ -49,7 +49,7 @@ void M5Stack4Relay_Switch::write_state(bool state) {
       }
     }
     if (found && this->interlock_wait_time_ != 0) {
-      this->set_timeout("interlock", this->interlock_wait_time_, [this, state] {
+      this->set_timeout("interlock", this->interlock_wait_time_, [M5Stack4RelaySwitch, state] {
         // Don't write directly, call the function again
         // (some other switch may have changed state while we were waiting)
         this->write_state(state);

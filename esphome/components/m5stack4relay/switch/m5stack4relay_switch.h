@@ -8,7 +8,7 @@
 namespace esphome {
 namespace m5stack4relay {
 
-class M5Stack4Relay_Switch : public Component, public switch_::Switch, public Parented<M5Stack4Relay> {
+class M5Stack4RelaySwitch : public Component, public switch_::Switch, public Parented<M5Stack4Relay> {
  public:
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)

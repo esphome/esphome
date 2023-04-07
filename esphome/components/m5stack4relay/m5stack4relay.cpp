@@ -17,7 +17,7 @@ void M5Stack4Relay::dump_config() {
 
 /*! @brief Setting the mode of the device, and turn off all relays.
  *  @param mode Async = 0, Sync = 1. */
-void M5Stack4Relay::init(bool mode) {
+void M5Stack4Relay::init_(bool mode) {
   write1Byte(UNIT_4RELAY_REG, mode);
   write1Byte(UNIT_4RELAY_RELAY_REG, 0);
 }
@@ -40,7 +40,7 @@ void M5Stack4Relay::init(bool mode) {
 //}
 
 /*! @brief Read a certain length of data to the specified register address. */
-uint8_t M5Stack4Relay::read1Byte(uint8_t Register_address) {
+uint8_t M5Stack4Relay::read1_byte_(uint8_t Register_address) {
   uint8_t data;
   if (!this->read_byte(Register_address, &data)) {
     this->mark_failed();
@@ -56,7 +56,7 @@ uint8_t M5Stack4Relay::read1Byte(uint8_t Register_address) {
 /*! @brief Control the on/off of the specified relay.
  *  @param number Bit number of relay (0~3).
     @param state OFF = 0, ON = 1 . */
-void M5Stack4Relay::relayWrite(uint8_t number, bool state) {
+void M5Stack4Relay::relay_write(uint8_t number, bool state) {
   uint8_t StateFromDevice = read1Byte(UNIT_4RELAY_RELAY_REG);
   if (state == 0) {
     StateFromDevice &= ~(0x01 << number);
@@ -74,10 +74,10 @@ void M5Stack4Relay::setup() {
 
 /*! @brief Setting the mode of the device.
  *  @param mode Async = 0, Sync = 1. */
-void M5Stack4Relay::set_switchMode(bool mode) { write1Byte(UNIT_4RELAY_REG, mode); }
+void M5Stack4Relay::set_switch_mode(bool mode) { write1Byte(UNIT_4RELAY_REG, mode); }
 
 /*! @brief Write a certain length of data to the specified register address. */
-void M5Stack4Relay::write1Byte(uint8_t Register_address, uint8_t data) {
+void M5Stack4Relay::write1_byte_(uint8_t Register_address, uint8_t data) {
   if (!this->write_byte(Register_address, data)) {
     this->mark_failed();
     return;
