@@ -36,8 +36,8 @@ namespace m5stack_4_relays {
 static constexpr uint8_t UNIT_4RELAY_REG = 0X10;
 static constexpr uint8_t UNIT_4RELAY_RELAY_REG = 0X11;
 
-enum class RelayBit : uint8_t { RELAY1 = 0, RELAY2 = 1, RELAY3 = 2, RELAY4 = 3 }; //, RELAYALL = 255};
-//enum class LightBit : uint8_t { LIGHT1 = 4, LIGHT2 = 5, LIGHT3 = 6, LIGHT4 = 7, LIGHTALL = 254 };
+enum class RelayBit : uint8_t { Relay_1 = 0, Relay_2 = 1, Relay_3 = 2, Relay_4 = 3 };  //, RELAYALL = 255};
+// enum class LightBit : uint8_t { LIGHT1 = 4, LIGHT2 = 5, LIGHT3 = 6, LIGHT4 = 7, LIGHTALL = 254 };
 
 class M5Stack_4_Relays : public Component, public i2c::I2CDevice {
  public:

@@ -10,7 +10,7 @@ MULTI_CONF = True
 
 CONF_I2C_ADDR = 0x26
 
-CONF_M5Stack_4_Relays_ID = "M5Stack_4_Relays_ID"
+CONF_M5Stack_4_Relays_ID = "m5stack_4_relays_id"
 
 M5Stack_ns = cg.esphome_ns.namespace("m5stack_4_relays")
 M5Stack_4_Relays = M5Stack_ns.class_("M5Stack_4_Relays", cg.Component, i2c.I2CDevice)
