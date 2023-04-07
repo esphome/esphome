@@ -6,7 +6,7 @@
 #include "esphome/components/M5Stack_4_Relays/M5Stack_4_Relays.h"
 
 namespace esphome {
-namespace M5Stack_4_Relays {
+namespace m5stack_4_relays {
 
 class M5Stack_Switch : public Component, public switch_::Switch, public Parented<M5Stack_4_Relays> {
  public:

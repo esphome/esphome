@@ -30,7 +30,7 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace M5Stack_4_Relays {
+namespace m5stack_4_relays {
 
 /* static constexpr uint8_t UNIT_4RELAY_ADDR = 0X26;*/
 static constexpr uint8_t UNIT_4RELAY_REG = 0X10;
@@ -42,12 +42,6 @@ enum class RelayBit : uint8_t { RELAY1 = 0, RELAY2 = 1, RELAY3 = 2, RELAY4 = 3 }
 class M5Stack_4_Relays : public Component, public i2c::I2CDevice {
  public:
   void set_switchMode(bool mode);
-
-  //void ledAll(bool state);
-  // 
-  //void ledWrite(uint8_t number, bool state);
-
-  //void relayAll(bool state);
 
   void relayWrite(uint8_t number, bool state);
 

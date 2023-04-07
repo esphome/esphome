@@ -2,7 +2,7 @@
 #include "M5Stack_4_Relays_switch.h"
 
 namespace esphome {
-namespace M5Stack_4_Relays {
+namespace m5stack_4_relays {
 
 static const char *const TAG = "switch.M5Stack_4_Relays";
 

@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace M5Stack_4_Relays {
+namespace m5stack_4_relays {
 
 static const char *const TAG = "M5Stack_4_Relays";
 
