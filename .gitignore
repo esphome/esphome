@@ -130,3 +130,5 @@ sdkconfig.*
 !sdkconfig.defaults
 
 .tests/
+/.vs/m5sstack4relays/v16
+/.vs
