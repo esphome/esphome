@@ -99,7 +99,6 @@ template<typename... Ts> class StartSteriCleaningAction : public Action<Ts...> {
   HonClimate *parent_;
 };
 
-
 template<typename... Ts> class PowerOnAction : public Action<Ts...> {
  public:
   PowerOnAction(HaierClimateBase *parent) : parent_(parent) {}
@@ -126,7 +125,6 @@ template<typename... Ts> class PowerToggleAction : public Action<Ts...> {
  protected:
   HaierClimateBase *parent_;
 };
-
 
 }  // namespace haier
 }  // namespace esphome

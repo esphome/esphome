@@ -323,10 +323,11 @@ async def health_action_to_code(config, action_id, template_arg, args):
 @automation.register_action(
     "climate.haier.power_toggle", PowerToggleAction, HAIER_BASE_ACTION_SCHEMA
 )
-async def health_action_to_code(config, action_id, template_arg, args):
+async def power_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
     return var
+
 
 def _final_validate(config):
     full_config = fv.full_config.get()

@@ -47,7 +47,7 @@ const char *HaierClimateBase::phase_to_string_(ProtocolPhases phase) {
       "SENDING_POWER_ON_COMMAND",
       "WAITING_POWER_ON_ANSWER",
       "SENDING_POWER_OFF_COMMAND",
-      "WAITING_POWER_OFF_ANSWER",      
+      "WAITING_POWER_OFF_ANSWER",
       "UNKNOWN"  // Should be the last!
   };
   int phase_index = (int) phase;
@@ -136,17 +136,11 @@ void HaierClimateBase::set_health_mode(bool state) {
   }
 }
 
-void HaierClimateBase::send_power_on_command() {
-  this->action_request_ = ActionRequest::TURN_POWER_ON;
-}
+void HaierClimateBase::send_power_on_command() { this->action_request_ = ActionRequest::TURN_POWER_ON; }
 
-void HaierClimateBase::send_power_off_command() {
-  this->action_request_ = ActionRequest::TURN_POWER_OFF;
-}  
+void HaierClimateBase::send_power_off_command() { this->action_request_ = ActionRequest::TURN_POWER_OFF; }
 
-void HaierClimateBase::toggle_power() {
-  this->action_request_ = ActionRequest::TOGGLE_POWER;
-}  
+void HaierClimateBase::toggle_power() { this->action_request_ = ActionRequest::TOGGLE_POWER; }
 void HaierClimateBase::set_supported_swing_modes(const std::set<climate::ClimateSwingMode> &modes) {
   this->traits_.set_supported_swing_modes(modes);
   this->traits_.add_supported_swing_mode(climate::CLIMATE_SWING_OFF);       // Always available
@@ -237,7 +231,7 @@ void HaierClimateBase::loop() {
     // If control message or action is pending we should send it ASAP unless we are in initialisation
     // procedure or waiting for an answer
     if (this->action_request_ != ActionRequest::NO_ACTION) {
-      this->process_pending_action_();
+      this->process_pending_action();
     } else if (this->hvac_settings_.valid || this->force_send_control_) {
       ESP_LOGV(TAG, "Control packet is pending...");
       this->set_phase_(ProtocolPhases::SENDING_CONTROL);
@@ -247,11 +241,11 @@ void HaierClimateBase::loop() {
   this->haier_protocol_.loop();
 }
 
-void HaierClimateBase::process_pending_action_() {
+void HaierClimateBase::process_pending_action() {
   ActionRequest request = this->action_request_;
   if (this->action_request_ == ActionRequest::TOGGLE_POWER) {
     request = this->mode == CLIMATE_MODE_OFF ? ActionRequest::TURN_POWER_ON : ActionRequest::TURN_POWER_OFF;
-  } 
+  }
   switch (request) {
     case ActionRequest::TURN_POWER_ON:
       this->set_phase_(ProtocolPhases::SENDING_POWER_ON_COMMAND);
