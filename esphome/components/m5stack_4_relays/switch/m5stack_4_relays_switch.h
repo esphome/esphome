@@ -3,12 +3,12 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
-#include "esphome/components/m5stack_4_relays/m5stack_4_relays.h"
+#include "esphome/components/m5stack4relay/m5stack4relay.h"
 
 namespace esphome {
-namespace m5stack_4_relays {
+namespace m5stack4relay {
 
-class M5Stack_Switch : public Component, public switch_::Switch, public Parented<M5Stack_4_Relays> {
+class M5Stack4Relay_Switch : public Component, public switch_::Switch, public Parented<M5Stack4Relay> {
  public:
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -29,5 +29,5 @@ class M5Stack_Switch : public Component, public switch_::Switch, public Parented
   uint32_t interlock_wait_time_{0};
 };
 
-}  // namespace m5stack_4_relays
+}  // namespace m5stack4relay
 }  // namespace esphome
