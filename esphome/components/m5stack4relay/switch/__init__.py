@@ -3,12 +3,12 @@ import esphome.config_validation as cv
 from esphome.components import i2c, switch
 from esphome.const import CONF_CHANNEL  # CONF_INTERLOCK, CONF_ID,
 
-from .. import M5Stack_ns, M5Stack_4_Relays, CONF_M5Stack_4_Relays_ID
+from .. import M5Stack_ns, M5Stack4Relay, CONF_M5Stack4Relay_ID
 
-DEPENDENCIES = ["m5stack_4_relays"]
+DEPENDENCIES = ["m5stack4relay"]
 
 M5StackSwitch = M5Stack_ns.class_(
-    "M5Stack_Switch", cg.Component, i2c.I2CDevice, switch.Switch
+    "M5Stack4Relay_Switch", cg.Component, i2c.I2CDevice, switch.Switch
 )
 
 CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"

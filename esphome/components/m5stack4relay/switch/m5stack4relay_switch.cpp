@@ -22,7 +22,7 @@ void M5Stack4Relay_Switch::setup() {
 }
 
 void M5Stack4Relay_Switch::dump_config() {
-  LOG_SWITCH("", "M5Stack_4_relays Switch", this);
+  LOG_SWITCH("", "M5Stack4Relay Switch", this);
 
   if (!this->interlock_.empty()) {
     ESP_LOGCONFIG(TAG, "  Interlocks:");

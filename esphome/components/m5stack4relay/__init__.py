@@ -10,15 +10,15 @@ MULTI_CONF = True
 
 CONF_I2C_ADDR = 0x26
 
-CONF_M5Stack_4_Relays_ID = "m5stack_4_relays_id"
+CONF_M5Stack4Relay_ID = "m5stack4relay_id"
 
-M5Stack_ns = cg.esphome_ns.namespace("m5stack_4_relays")
-M5Stack_4_Relays = M5Stack_ns.class_("M5Stack_4_Relays", cg.Component, i2c.I2CDevice)
+M5Stack_ns = cg.esphome_ns.namespace("m5stack4relay")
+M5Stack4Relay = M5Stack_ns.class_("M5Stack4Relay", cg.Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(M5Stack_4_Relays),
+            cv.GenerateID(): cv.declare_id(M5Stack4Relay),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
