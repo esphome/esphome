@@ -41,6 +41,9 @@ uart:
 i2c:
   frequency: 100khz
 
+m5stack4relay:
+  id: M5stackrelay_ID1
+
 modbus:
   uart_id: uart_1
   flow_control_pin: 5
@@ -560,6 +563,30 @@ switch:
     id: Led3
     led: 3
     name: TM1638Led3
+
+  - platform: m5stack4relay
+    id: relay_1
+    name: relay1
+    channel: Relay_1
+    m5stack4relay_id: M5stackrelay_ID1
+
+  - platform: m5stack4relay
+    id: relay_2
+    name: relay2
+    channel: Relay_2
+    m5stack4relay_id: M5stackrelay_ID1
+
+  - platform: m5stack4relay
+    id: relay_3
+    name: relay3
+    channel: Relay_3
+    m5stack4relay_id: M5stackrelay_ID1
+
+  - platform: m5stack4relay
+    id: relay_4
+    name: relay4
+    channel: Relay_4
+    m5stack4relay_id: M5stackrelay_ID1
 
 display:
   - platform: tm1638

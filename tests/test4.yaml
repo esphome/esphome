@@ -78,6 +78,9 @@ sx1509:
   - id: sx1509_hub
     address: 0x3E
 
+m5stack4relay:
+  id: M5stackrelay_ID1
+
 mcp3204:
   cs_pin: GPIO23
 
@@ -404,6 +407,14 @@ switch:
   - platform: copy
     source_id: tuya_switch
     name: Tuya Switch Copy
+
+
+  - platform: m5stack4relay
+    id: relay_1
+    name: relay1
+    channel: Relay_1
+    m5stack4relay_id: M5stackrelay_ID1
+
 
 light:
   - platform: fastled_clockless
