@@ -66,7 +66,7 @@ deep_sleep:
 
 as3935_i2c:
   irq_pin: GPIO12
-  
+
 m5stack4relay:
   id: M5stackrelay_ID1
 
@@ -687,5 +687,5 @@ switch:
   - platform: m5stack4relay
     id: relay_1
     name: relay1
-    channel: Relay_1
+    channel: relay_1
     m5stack4relay_id: M5stackrelay_ID1
