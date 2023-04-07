@@ -1,4 +1,4 @@
-#include "M5Stack_4_Relays.h"
+#include "m5stack_4_relays.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
