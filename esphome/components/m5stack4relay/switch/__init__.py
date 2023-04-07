@@ -35,7 +35,7 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(): cv.declare_id(M5StackSwitch),
-            cv.GenerateID(CONF_M5Stack_4_Relays_ID): cv.use_id(M5Stack_4_Relays),
+            cv.GenerateID(CONF_M5Stack4Relay_ID): cv.use_id(M5Stack4Relay),
             cv.Required(CONF_CHANNEL): cv.enum(SWITCH_MAP),
             # cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
             # cv.Optional(CONF_INTERLOCK_WAIT_TIME, default="0ms"): cv.positive_time_period_milliseconds
