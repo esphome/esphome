@@ -655,5 +655,3 @@ key_collector:
     source_id: keypad
     min_length: 4
     max_length: 4
-
-  
