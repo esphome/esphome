@@ -49,7 +49,7 @@ void M5Stack4RelaySwitch::write_state(bool state) {
       }
     }
     if (found && this->interlock_wait_time_ != 0) {
-      this->set_timeout("interlock", this->interlock_wait_time_, [M5Stack4RelaySwitch, state] {
+      this->set_timeout("interlock", this->interlock_wait_time_, [this, state] {
         // Don't write directly, call the function again
         // (some other switch may have changed state while we were waiting)
         this->write_state(state);
