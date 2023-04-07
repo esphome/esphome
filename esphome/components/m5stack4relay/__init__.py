@@ -3,7 +3,7 @@ import esphome.config_validation as cv
 from esphome.components import i2c
 from esphome.const import CONF_ID
 
-CODEOWNERS = ["@Koen Breeman"]
+CODEOWNERS = ["@KoenBreeman"]
 DEPENDENCIES = ["i2c"]
 
 MULTI_CONF = True
