@@ -30,8 +30,8 @@ class Wireguard : public PollingComponent {
 #ifdef USE_ESP_IDF
   void set_keepalive(uint16_t seconds);
   void set_srctime(time::RealTimeClock* srctime);
-  bool is_peer_up() const { return wg_peer_up; }
-  time_t get_last_peer_up_timestamp() const { return wg_last_peer_up; }
+  bool is_peer_up() const { return wg_peer_up_; }
+  time_t get_last_peer_up_timestamp() const { return wg_last_peer_up_; }
 #endif
 
  private:
@@ -47,16 +47,15 @@ class Wireguard : public PollingComponent {
   uint16_t keepalive_;
   time::RealTimeClock* srctime_;
 
-  wireguard_config_t wg_config = ESP_WIREGUARD_CONFIG_DEFAULT();
-  wireguard_ctx_t wg_ctx = ESP_WIREGUARD_CONTEXT_DEFAULT();
+  wireguard_config_t wg_config_ = ESP_WIREGUARD_CONFIG_DEFAULT();
+  wireguard_ctx_t wg_ctx_ = ESP_WIREGUARD_CONTEXT_DEFAULT();
 
-  esp_err_t wg_initialized = ESP_FAIL;
-  esp_err_t wg_connected = ESP_FAIL;
-  esp_err_t wg_aborted = ESP_FAIL;
-  time_t wg_last_peer_up = 0;
-  bool wg_peer_up = false;
+  esp_err_t wg_initialized_ = ESP_FAIL;
+  esp_err_t wg_connected_ = ESP_FAIL;
+  time_t wg_last_peer_up_ = 0;
+  bool wg_peer_up_ = false;
 
-  void start_connection();
+  void start_connection_();
 #endif
 };
 

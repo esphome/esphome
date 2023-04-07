@@ -15,46 +15,46 @@ static const char * const TAG = "wireguard";
 void Wireguard::setup() {
     ESP_LOGD(TAG, "initializing...");
 
-    wg_config.allowed_ip = &address_[0];
-    wg_config.private_key = &private_key_[0];
-    wg_config.endpoint = &peer_endpoint_[0];
-    wg_config.public_key = &peer_key_[0];
-    wg_config.port = peer_port_;
-    wg_config.allowed_ip_mask = &netmask_[0];
-    wg_config.persistent_keepalive = keepalive_;
+    wg_config_.allowed_ip = &address_[0];
+    wg_config_.private_key = &private_key_[0];
+    wg_config_.endpoint = &peer_endpoint_[0];
+    wg_config_.public_key = &peer_key_[0];
+    wg_config_.port = peer_port_;
+    wg_config_.allowed_ip_mask = &netmask_[0];
+    wg_config_.persistent_keepalive = keepalive_;
 
     if(preshared_key_.length() > 0)
-        wg_config.preshared_key = &preshared_key_[0];
+        wg_config_.preshared_key = &preshared_key_[0];
 
-    wg_initialized = esp_wireguard_init(&wg_config, &wg_ctx);
+    wg_initialized_ = esp_wireguard_init(&wg_config_, &wg_ctx_);
     
-    if(wg_initialized == ESP_OK) {
+    if(wg_initialized_ == ESP_OK) {
         ESP_LOGI(TAG, "initialized");
-        srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection, this));
-        start_connection();
+        srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection_, this));
+        start_connection_();
     } else {
-        ESP_LOGE(TAG, "cannot initialize, error code %d", wg_initialized);
+        ESP_LOGE(TAG, "cannot initialize, error code %d", wg_initialized_);
         this->mark_failed();
     }
 }
 
 void Wireguard::update() {
-    if(wg_initialized == ESP_OK && wg_connected == ESP_OK) {
-        wg_peer_up = (esp_wireguardif_peer_is_up(&wg_ctx) == ESP_OK);
+    if(wg_initialized_ == ESP_OK && wg_connected_ == ESP_OK) {
+        wg_peer_up_ = (esp_wireguardif_peer_is_up(&wg_ctx_) == ESP_OK);
     } else {
-        ESP_LOGD(TAG, "initialized: %s (error %d)", (wg_initialized == ESP_OK ? "yes" : "no"), wg_initialized);
-        ESP_LOGD(TAG, "connection: %s (error %d)", (wg_connected == ESP_OK ? "active" : "inactive"), wg_connected);
-        wg_peer_up = false;
+        ESP_LOGD(TAG, "initialized: %s (error %d)", (wg_initialized_ == ESP_OK ? "yes" : "no"), wg_initialized_);
+        ESP_LOGD(TAG, "connection: %s (error %d)", (wg_connected_ == ESP_OK ? "active" : "inactive"), wg_connected_);
+        wg_peer_up_ = false;
     }
 
-    if(wg_peer_up) {
-        if(wg_last_peer_up == 0) {
+    if(wg_peer_up_) {
+        if(wg_last_peer_up_ == 0) {
             ESP_LOGI(TAG, "peer online");
-            wg_last_peer_up = srctime_->utcnow().timestamp;
+            wg_last_peer_up_ = srctime_->utcnow().timestamp;
         }
     } else {
         ESP_LOGD(TAG, "peer offline");
-        wg_last_peer_up = 0;
+        wg_last_peer_up_ = 0;
     }
 }
 
@@ -71,9 +71,9 @@ void Wireguard::dump_config() {
 }
 
 void Wireguard::on_shutdown() {
-    if(wg_initialized == ESP_OK && wg_connected == ESP_OK) {
+    if(wg_initialized_ == ESP_OK && wg_connected_ == ESP_OK) {
         ESP_LOGD(TAG, "disconnecting...");
-        esp_wireguard_disconnect(&wg_ctx);
+        esp_wireguard_disconnect(&wg_ctx_);
     }
 }
 
@@ -88,9 +88,9 @@ void Wireguard::set_preshared_key(std::string key) { this->preshared_key_ = std:
 void Wireguard::set_keepalive(uint16_t seconds) { this->keepalive_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock* srctime) { this->srctime_ = srctime; }
 
-void Wireguard::start_connection() {
-    if(wg_initialized != ESP_OK) {
-        ESP_LOGE(TAG, "cannot start connection, initialization in error with code %d", wg_initialized);
+void Wireguard::start_connection_() {
+    if(wg_initialized_ != ESP_OK) {
+        ESP_LOGE(TAG, "cannot start connection, initialization in error with code %d", wg_initialized_);
         return;
     }
 
@@ -99,17 +99,17 @@ void Wireguard::start_connection() {
         return;
     }
 
-    if(wg_connected == ESP_OK) {
+    if(wg_connected_ == ESP_OK) {
         ESP_LOGD(TAG, "connection already started");
         return;
     }
 
     ESP_LOGD(TAG, "connecting...");
-    wg_connected = esp_wireguard_connect(&wg_ctx);
-    if(wg_connected == ESP_OK)
+    wg_connected_ = esp_wireguard_connect(&wg_ctx_);
+    if(wg_connected_ == ESP_OK)
         ESP_LOGI(TAG, "connection started");
     else
-        ESP_LOGW(TAG, "cannot start connection, error code %d", wg_connected);
+        ESP_LOGW(TAG, "cannot start connection, error code %d", wg_connected_);
 }
 
 }  // namespace wireguard
