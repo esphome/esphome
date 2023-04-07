@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
-#include "esphome/components/M5Stack_4_Relays/M5Stack_4_Relays.h"
+#include "esphome/components/m5stack_4_relays/m5stack_4_relays.h"
 
 namespace esphome {
 namespace m5stack_4_relays {
