@@ -69,7 +69,7 @@ void M5Stack4Relay::relay_write(uint8_t number, bool state) {
 void M5Stack4Relay::setup() {
   ESP_LOGCONFIG(TAG, "Setting up M5Stack_4_Relays...");
   uint8_t setupmode = 1;
-  this->Init(setupmode);
+  this->init_(setupmode);
 }
 
 /*! @brief Setting the mode of the device.
