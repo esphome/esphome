@@ -1,7 +1,7 @@
 #ifdef USE_ESP_IDF
 
 #include <functional>
-#include <time.h>
+#include <ctime>
 #include "esphome/core/log.h"
 #include "esp_err.h"
 #include "esp_wireguard.h"
@@ -33,6 +33,7 @@ void Wireguard::setup() {
     if(wg_initialized == ESP_OK) {
         ESP_LOGI(TAG, "initialized");
         srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection, this));
+        start_connection();
     } else {
         ESP_LOGE(TAG, "cannot initialize, error code %d", wg_initialized);
         this->mark_failed();
@@ -40,17 +41,15 @@ void Wireguard::setup() {
 }
 
 void Wireguard::update() {
-    ESP_LOGD(TAG, "initialized: %s (error %d)", (wg_initialized == ESP_OK ? "yes" : "no"), wg_initialized);
-    ESP_LOGD(TAG, "connection: %s (error %d)", (wg_connected == ESP_OK ? "active" : "inactive"), wg_connected);
-
     if(wg_initialized == ESP_OK && wg_connected == ESP_OK) {
         wg_peer_up = (esp_wireguardif_peer_is_up(&wg_ctx) == ESP_OK);
     } else {
+        ESP_LOGD(TAG, "initialized: %s (error %d)", (wg_initialized == ESP_OK ? "yes" : "no"), wg_initialized);
+        ESP_LOGD(TAG, "connection: %s (error %d)", (wg_connected == ESP_OK ? "active" : "inactive"), wg_connected);
         wg_peer_up = false;
-        start_connection();
     }
 
-    strftime(WG_TMP_BUFFER, sizeof(WG_TMP_BUFFER), "offline since %Y-%m-%d %H:%M:%S", localtime(&wg_last_peer_up));
+    std::strftime(WG_TMP_BUFFER, sizeof(WG_TMP_BUFFER), "offline since %Y-%m-%d %H:%M:%S", localtime(&wg_last_peer_up));
     ESP_LOGD(TAG, "peer: %s", (wg_peer_up ? "online" : WG_TMP_BUFFER));
 
     if(wg_peer_up)
@@ -96,7 +95,7 @@ void Wireguard::start_connection() {
     }
 
     if(!srctime_->now().is_valid()) {
-        ESP_LOGW(TAG, "cannot start connection, system time not yet syncronized");
+        ESP_LOGI(TAG, "waiting for system time to be synchronized");
         return;
     }
 
