@@ -69,5 +69,8 @@ void M5Stack4RelaySwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
+void M5Stack4RelaySwitch::set_interlock(const std::vector<Switch *> &interlock) { this->interlock_ = interlock; }
+
+
 }  // namespace m5stack4relay
 }  // namespace esphome
