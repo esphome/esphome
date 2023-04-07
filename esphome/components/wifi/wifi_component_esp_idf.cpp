@@ -736,7 +736,7 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   }
   return WiFiSTAConnectStatus::IDLE;
 }
-bool WiFiComponent::wifi_scan_start_() {
+bool WiFiComponent::wifi_scan_start_(bool passive) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -746,9 +746,13 @@ bool WiFiComponent::wifi_scan_start_() {
   config.bssid = nullptr;
   config.channel = 0;
   config.show_hidden = true;
-  config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
-  config.scan_time.active.min = 100;
-  config.scan_time.active.max = 300;
+  config.scan_type = passive ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
+  if (passive) {
+    config.scan_time.passive = 300;
+  } else {
+    config.scan_time.active.min = 100;
+    config.scan_time.active.max = 300;
+  }
 
   esp_err_t err = esp_wifi_scan_start(&config, false);
   if (err != ESP_OK) {
