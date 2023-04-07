@@ -137,7 +137,9 @@ CONFIG_SCHEMA = cv.All(
     climate.CLIMATE_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(HaierClimateBase),
-            cv.Optional(CONF_PROTOCOL, default="SMARTAIR2"): cv.one_of(*PROTOCOLS_SUPPORTED, upper=True),
+            cv.Optional(CONF_PROTOCOL, default="SMARTAIR2"): cv.one_of(
+                *PROTOCOLS_SUPPORTED, upper=True
+            ),
             cv.Optional(
                 CONF_WIFI_SIGNAL
             ): cv.boolean,  # Default: True for hOn protocol, False for smartAir2 protocol
@@ -179,7 +181,9 @@ DisplayOffAction = haier_ns.class_("DisplayOffAction", automation.Action)
 BeeperOnAction = haier_ns.class_("BeeperOnAction", automation.Action)
 BeeperOffAction = haier_ns.class_("BeeperOffAction", automation.Action)
 StartSelfCleaningAction = haier_ns.class_("StartSelfCleaningAction", automation.Action)
-StartSteriCleaningAction = haier_ns.class_("StartSteriCleaningAction", automation.Action)
+StartSteriCleaningAction = haier_ns.class_(
+    "StartSteriCleaningAction", automation.Action
+)
 VerticalAirflowAction = haier_ns.class_("VerticalAirflowAction", automation.Action)
 HorizontalAirflowAction = haier_ns.class_("HorizontalAirflowAction", automation.Action)
 HealthOnAction = haier_ns.class_("HealthOnAction", automation.Action)
