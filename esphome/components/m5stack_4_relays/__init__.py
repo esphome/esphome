@@ -22,10 +22,10 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(i2c.i2c_device_schema(CONF_I2C_ADDR)))
+    .extend(i2c.i2c_device_schema(CONF_I2C_ADDR))
+)
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-
