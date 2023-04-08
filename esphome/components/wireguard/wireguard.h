@@ -31,7 +31,7 @@ class Wireguard : public PollingComponent {
   void set_keepalive(uint16_t seconds);
   void set_srctime(time::RealTimeClock* srctime);
   bool is_peer_up() const { return wg_peer_up_; }
-  time_t get_last_peer_up_timestamp() const { return wg_last_peer_up_; }
+  time_t get_last_peer_up() const { return wg_last_peer_up_; }
 #endif
 
  private:
