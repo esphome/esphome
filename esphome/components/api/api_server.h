@@ -80,6 +80,7 @@ class APIServer : public Component, public Controller {
   void send_bluetooth_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, esp_err_t error = ESP_OK);
   void send_bluetooth_device_pairing(uint64_t address, bool paired, esp_err_t error = ESP_OK);
   void send_bluetooth_device_unpairing(uint64_t address, bool success, esp_err_t error = ESP_OK);
+  void send_bluetooth_device_clear_cache(uint64_t address, bool success, esp_err_t error = ESP_OK);
   void send_bluetooth_connections_free(uint8_t free, uint8_t limit);
   void send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &call);
   void send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &call);
