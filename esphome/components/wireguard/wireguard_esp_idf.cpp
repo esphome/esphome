@@ -18,7 +18,7 @@ void Wireguard::setup() {
     wg_config_.allowed_ip = &address_[0];
     wg_config_.private_key = &private_key_[0];
     wg_config_.endpoint = &peer_endpoint_[0];
-    wg_config_.public_key = &peer_key_[0];
+    wg_config_.public_key = &peer_public_key_[0];
     wg_config_.port = peer_port_;
     wg_config_.allowed_ip_mask = &netmask_[0];
     wg_config_.persistent_keepalive = keepalive_;
@@ -63,11 +63,11 @@ void Wireguard::dump_config() {
     ESP_LOGCONFIG(TAG, "  address: %s",this->address_.data());
     ESP_LOGCONFIG(TAG, "  netmask: %s",this->netmask_.data());
     ESP_LOGCONFIG(TAG, "  private key: %s...=",this->private_key_.substr(0,5).data());
-    ESP_LOGCONFIG(TAG, "  endpoint: %s",this->peer_endpoint_.data());
-    ESP_LOGCONFIG(TAG, "  peer key: %s",this->peer_key_.data());
+    ESP_LOGCONFIG(TAG, "  peer endpoint: %s",this->peer_endpoint_.data());
     ESP_LOGCONFIG(TAG, "  peer port: %d",this->peer_port_);
-    ESP_LOGCONFIG(TAG, "  preshared key: %s...=",this->preshared_key_.substr(0,5).data());
-    ESP_LOGCONFIG(TAG, "  keepalive: %d",this->keepalive_);
+    ESP_LOGCONFIG(TAG, "  peer public key: %s",this->peer_public_key_.data());
+    ESP_LOGCONFIG(TAG, "  peer preshared key: %s...=",this->preshared_key_.substr(0,5).data());
+    ESP_LOGCONFIG(TAG, "  peer persistent keepalive: %d",this->keepalive_);
 }
 
 void Wireguard::on_shutdown() {
@@ -81,7 +81,7 @@ void Wireguard::set_address(std::string address) { this->address_ = std::move(ad
 void Wireguard::set_netmask(std::string netmask) { this->netmask_ = std::move(netmask); }
 void Wireguard::set_private_key(std::string key) { this->private_key_ = std::move(key); }
 void Wireguard::set_peer_endpoint(std::string endpoint) { this->peer_endpoint_ = std::move(endpoint); }
-void Wireguard::set_peer_key(std::string key) { this->peer_key_ = std::move(key); }
+void Wireguard::set_peer_public_key(std::string key) { this->peer_public_key_ = std::move(key); }
 void Wireguard::set_peer_port(uint16_t port) { this->peer_port_ = port; }
 void Wireguard::set_preshared_key(std::string key) { this->preshared_key_ = std::move(key); }
 

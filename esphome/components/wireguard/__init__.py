@@ -8,10 +8,10 @@ CONF_WG_ADDRESS = "address"
 CONF_WG_NETMASK = "netmask"
 CONF_WG_PRIVATE_KEY = "private_key"
 CONF_WG_PEER_ENDPOINT = "peer_endpoint"
-CONF_WG_PEER_KEY = "peer_key"
+CONF_WG_PEER_PUBLIC_KEY = "peer_public_key"
 CONF_WG_PEER_PORT = "peer_port"
-CONF_WG_PRESHARED_KEY = "preshared_key"
-CONF_WG_KEEPALIVE = "keepalive"
+CONF_WG_PRESHARED_KEY = "peer_preshared_key"
+CONF_WG_KEEPALIVE = "peer_persistent_keepalive"
 
 DEPENDENCIES = ["time"]
 CODEOWNERS = ["@lhoracek"]
@@ -27,7 +27,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_WG_NETMASK, default="255.255.255.255"): cv.string,
         cv.Required(CONF_WG_PRIVATE_KEY): cv.string,
         cv.Required(CONF_WG_PEER_ENDPOINT): cv.string,
-        cv.Required(CONF_WG_PEER_KEY): cv.string,
+        cv.Required(CONF_WG_PEER_PUBLIC_KEY): cv.string,
         cv.Optional(CONF_WG_PEER_PORT, default=51820): cv.port,
         cv.Optional(CONF_WG_PRESHARED_KEY): cv.string,
         cv.Optional(CONF_WG_KEEPALIVE): cv.All(cv.positive_int, cv.only_with_esp_idf),
@@ -42,7 +42,7 @@ async def to_code(config):
     cg.add(var.set_netmask(config[CONF_WG_NETMASK]))
     cg.add(var.set_private_key(config[CONF_WG_PRIVATE_KEY]))
     cg.add(var.set_peer_endpoint(config[CONF_WG_PEER_ENDPOINT]))
-    cg.add(var.set_peer_key(config[CONF_WG_PEER_KEY]))
+    cg.add(var.set_peer_public_key(config[CONF_WG_PEER_PUBLIC_KEY]))
     cg.add(var.set_peer_port(config[CONF_WG_PEER_PORT]))
     if CONF_WG_PRESHARED_KEY in config:
         cg.add(var.set_preshared_key(config[CONF_WG_PRESHARED_KEY]))

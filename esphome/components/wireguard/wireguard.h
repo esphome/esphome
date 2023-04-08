@@ -21,9 +21,9 @@ class Wireguard : public PollingComponent {
 
   void set_address(std::string address);
   void set_netmask(std::string netmask);
-  void set_private_key(std::string private_key);
+  void set_private_key(std::string key);
   void set_peer_endpoint(std::string endpoint);
-  void set_peer_key(std::string peer_key);
+  void set_peer_public_key(std::string key);
   void set_peer_port(uint16_t port);
   void set_preshared_key(std::string key);
 
@@ -39,7 +39,7 @@ class Wireguard : public PollingComponent {
   std::string netmask_;
   std::string private_key_;
   std::string peer_endpoint_;
-  std::string peer_key_;
+  std::string peer_public_key_;
   std::string preshared_key_;
   uint16_t peer_port_;
 
