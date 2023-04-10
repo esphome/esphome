@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import CONF_ID, CONF_TIME_ID
-from esphome.core import CORE
 from esphome.components import time
 
 CONF_ADDRESS = "address"
@@ -30,9 +29,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Required(CONF_PEER_PUBLIC_KEY): cv.string,
         cv.Optional(CONF_PEER_PORT, default=51820): cv.port,
         cv.Optional(CONF_PEER_PRESHARED_KEY): cv.string,
-        cv.Optional(CONF_PERSISTENT_KEEPALIVE): cv.All(
-            cv.positive_int, cv.only_with_esp_idf
-        ),
+        cv.Optional(CONF_PERSISTENT_KEEPALIVE, default=0): cv.positive_int,
     }
 ).extend(cv.polling_component_schema("10s"))
 
@@ -46,22 +43,13 @@ async def to_code(config):
     cg.add(var.set_peer_endpoint(config[CONF_PEER_ENDPOINT]))
     cg.add(var.set_peer_public_key(config[CONF_PEER_PUBLIC_KEY]))
     cg.add(var.set_peer_port(config[CONF_PEER_PORT]))
+
     if CONF_PEER_PRESHARED_KEY in config:
         cg.add(var.set_preshared_key(config[CONF_PEER_PRESHARED_KEY]))
 
-    # ESP-IDF section
-    if CORE.using_esp_idf:
-        cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
+    cg.add(var.set_keepalive(config[CONF_PERSISTENT_KEEPALIVE]))
+    cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
 
-        if CONF_PERSISTENT_KEEPALIVE in config:
-            cg.add(var.set_keepalive(config[CONF_PERSISTENT_KEEPALIVE]))
-        else:
-            cg.add(var.set_keepalive(0))
-
-        cg.add_library("https://github.com/droscy/esp_wireguard", None)
-
-    # Arduino section
-    else:
-        cg.add_library("https://github.com/kienvu58/WireGuard-ESP32-Arduino", "0.1.5")
+    cg.add_library("https://github.com/droscy/esp_wireguard", None)
 
     await cg.register_component(var, config)

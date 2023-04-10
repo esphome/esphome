@@ -1,11 +1,8 @@
 #pragma once
 
 #include "esphome/core/component.h"
-
-#ifdef USE_ESP_IDF
 #include "esphome/components/time/real_time_clock.h"
 #include "esp_wireguard.h"
-#endif
 
 namespace esphome {
 namespace wireguard {
@@ -27,12 +24,10 @@ class Wireguard : public PollingComponent {
   void set_peer_port(const uint16_t port);
   void set_preshared_key(const std::string key);
 
-#ifdef USE_ESP_IDF
   void set_keepalive(const uint16_t seconds);
   void set_srctime(time::RealTimeClock* srctime);
   bool is_peer_up() const { return wg_peer_up_; }
   time_t get_last_peer_up() const { return wg_last_peer_up_; }
-#endif
 
  private:
   std::string address_;
@@ -43,7 +38,6 @@ class Wireguard : public PollingComponent {
   std::string preshared_key_;
   uint16_t peer_port_;
 
-#ifdef USE_ESP_IDF
   uint16_t keepalive_;
   time::RealTimeClock* srctime_;
 
@@ -56,7 +50,6 @@ class Wireguard : public PollingComponent {
   bool wg_peer_up_ = false;
 
   void start_connection_();
-#endif
 };
 
 }  // namespace wireguard
