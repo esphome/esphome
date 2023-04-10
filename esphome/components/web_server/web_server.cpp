@@ -867,7 +867,7 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
 }
 
 // Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) strncpy_P(__buf, (PGM_P)((mode_s)), 15)
+#define PSTR_LOCAL(mode_s) strncpy_P(__buf, (PGM_P) ((mode_s)), 15)
 
 std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {

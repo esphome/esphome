@@ -20,7 +20,9 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
     char buf[INET_ADDRSTRLEN];
     if (inet_ntop(AF_INET, &addr->sin_addr, buf, sizeof(buf)) != nullptr)
       return std::string{buf};
-  } else if (storage.ss_family == AF_INET6) {
+  }
+#if LWIP_IPV6
+  else if (storage.ss_family == AF_INET6) {
     const struct sockaddr_in6 *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
     char buf[INET6_ADDRSTRLEN];
     // Format IPv4-mapped IPv6 addresses as regular IPv4 addresses
@@ -32,6 +34,7 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
     if (inet_ntop(AF_INET6, &addr->sin6_addr, buf, sizeof(buf)) != nullptr)
       return std::string{buf};
   }
+#endif
   return {};
 }
 
