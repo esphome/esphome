@@ -19,16 +19,16 @@ class Wireguard : public PollingComponent {
 
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }
 
-  void set_address(std::string address);
-  void set_netmask(std::string netmask);
-  void set_private_key(std::string key);
-  void set_peer_endpoint(std::string endpoint);
-  void set_peer_public_key(std::string key);
-  void set_peer_port(uint16_t port);
-  void set_preshared_key(std::string key);
+  void set_address(const std::string address);
+  void set_netmask(const std::string netmask);
+  void set_private_key(const std::string key);
+  void set_peer_endpoint(const std::string endpoint);
+  void set_peer_public_key(const std::string key);
+  void set_peer_port(const uint16_t port);
+  void set_preshared_key(const std::string key);
 
 #ifdef USE_ESP_IDF
-  void set_keepalive(uint16_t seconds);
+  void set_keepalive(const uint16_t seconds);
   void set_srctime(time::RealTimeClock* srctime);
   bool is_peer_up() const { return wg_peer_up_; }
   time_t get_last_peer_up() const { return wg_last_peer_up_; }
