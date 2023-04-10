@@ -53,6 +53,8 @@ service APIConnection {
   rpc bluetooth_gatt_write_descriptor(BluetoothGATTWriteDescriptorRequest) returns (void) {}
   rpc bluetooth_gatt_notify(BluetoothGATTNotifyRequest) returns (void) {}
   rpc subscribe_bluetooth_connections_free(SubscribeBluetoothConnectionsFreeRequest) returns (BluetoothConnectionsFreeResponse) {}
+  rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
+
 }
 
 
@@ -1125,6 +1127,7 @@ message MediaPlayerCommandRequest {
 message SubscribeBluetoothLEAdvertisementsRequest {
   option (id) = 66;
   option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
 }
 
 message BluetoothServiceData {
@@ -1359,6 +1362,12 @@ message BluetoothDeviceUnpairingResponse {
   uint64 address = 1;
   bool success = 2;
   int32 error = 3;
+}
+
+message UnsubscribeBluetoothLEAdvertisementsRequest {
+  option (id) = 87;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
 }
 
 message BluetoothDeviceClearCacheResponse {
