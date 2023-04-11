@@ -1,5 +1,6 @@
 #include "api_connection.h"
 #include <cerrno>
+#include <cinttypes>
 #include "esphome/components/network/util.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
@@ -938,7 +939,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
   this->helper_->set_log_info(client_info_);
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
-  ESP_LOGV(TAG, "Hello from client: '%s' | API Version %d.%d", this->client_info_.c_str(),
+  ESP_LOGV(TAG, "Hello from client: '%s' | API Version %" PRIu32 ".%" PRIu32, this->client_info_.c_str(),
            this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;

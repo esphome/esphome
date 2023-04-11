@@ -11,7 +11,7 @@ esptool==4.5.1
 click==8.1.3
 esphome-dashboard==20230214.0
 aioesphomeapi==13.5.1
-zeroconf==0.47.4
+zeroconf==0.56.0
 
 # esp-idf requires this, but doesn't bundle it by default
 # https://github.com/espressif/esp-idf/blob/220590d599e134d7a5e7f1e683cc4550349ffbf8/requirements.txt#L24

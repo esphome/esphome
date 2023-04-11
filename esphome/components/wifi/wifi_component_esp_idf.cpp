@@ -11,6 +11,7 @@
 #include <esp_event.h>
 #include <esp_netif.h>
 
+#include <cinttypes>
 #include <utility>
 #include <algorithm>
 #ifdef USE_WIFI_WPA2_EAP
@@ -666,7 +667,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_SCAN_DONE) {
     const auto &it = data->data.sta_scan_done;
-    ESP_LOGV(TAG, "Event: WiFi Scan Done status=%u number=%u scan_id=%u", it.status, it.number, it.scan_id);
+    ESP_LOGV(TAG, "Event: WiFi Scan Done status=%" PRIu32 " number=%u scan_id=%u", it.status, it.number, it.scan_id);
 
     scan_result_.clear();
     this->scan_done_ = true;
