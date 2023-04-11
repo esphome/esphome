@@ -2,16 +2,16 @@
 
 #ifdef USE_MQTT
 
+#include <utility>
+#include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/components/network/util.h"
-#include <utility>
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
-#include "lwip/err.h"
 #include "lwip/dns.h"
+#include "lwip/err.h"
 #include "mqtt_component.h"
 
 namespace esphome {

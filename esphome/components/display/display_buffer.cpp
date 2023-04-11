@@ -32,9 +32,11 @@ void Rect::extend(Rect rect) {
     this->h = rect.h;
   } else {
     if (this->x > rect.x) {
+      this->w = this->w + (this->x - rect.x);
       this->x = rect.x;
     }
     if (this->y > rect.y) {
+      this->h = this->h + (this->y - rect.y);
       this->y = rect.y;
     }
     if (this->x2() < rect.x2()) {
@@ -49,29 +51,35 @@ void Rect::shrink(Rect rect) {
   if (!this->inside(rect)) {
     (*this) = Rect();
   } else {
-    if (this->x < rect.x) {
-      this->x = rect.x;
-    }
-    if (this->y < rect.y) {
-      this->y = rect.y;
-    }
     if (this->x2() > rect.x2()) {
       this->w = rect.x2() - this->x;
+    }
+    if (this->x < rect.x) {
+      this->w = this->w + (this->x - rect.x);
+      this->x = rect.x;
     }
     if (this->y2() > rect.y2()) {
       this->h = rect.y2() - this->y;
     }
+    if (this->y < rect.y) {
+      this->h = this->h + (this->y - rect.y);
+      this->y = rect.y;
+    }
   }
 }
 
-bool Rect::inside(int16_t x, int16_t y, bool absolute) {  // NOLINT
+bool Rect::equal(Rect rect) {
+  return (rect.x == this->x) && (rect.w == this->w) && (rect.y == this->y) && (rect.h == this->h);
+}
+
+bool Rect::inside(int16_t test_x, int16_t test_y, bool absolute) {  // NOLINT
   if (!this->is_set()) {
     return true;
   }
   if (absolute) {
-    return ((x >= 0) && (x <= this->w) && (y >= 0) && (y <= this->h));
+    return ((test_x >= this->x) && (test_x <= this->x2()) && (test_y >= this->y) && (test_y <= this->y2()));
   } else {
-    return ((x >= this->x) && (x <= this->x2()) && (y >= this->y) && (y <= this->y2()));
+    return ((test_x >= 0) && (test_x <= this->w) && (test_y >= 0) && (test_y <= this->h));
   }
 }
 
@@ -80,15 +88,16 @@ bool Rect::inside(Rect rect, bool absolute) {
     return true;
   }
   if (absolute) {
-    return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
-  } else {
     return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
+  } else {
+    return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
   }
 }
 
 void Rect::info(const std::string &prefix) {
   if (this->is_set()) {
-    ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d]", prefix.c_str(), this->x, this->y, this->w, this->h);
+    ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d] (%3d,%3d)", prefix.c_str(), this->x, this->y, this->w, this->h, this->x2(),
+             this->y2());
   } else
     ESP_LOGI(TAG, "%s ** IS NOT SET **", prefix.c_str());
 }
@@ -655,7 +664,7 @@ bool Animation::get_pixel(int x, int y) const {
     return false;
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t frame_index = this->height_ * width_8 * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return false;
   const uint32_t pos = x + y * width_8 + frame_index;
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
@@ -664,7 +673,7 @@ Color Animation::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
   const uint32_t color32 = (progmem_read_byte(this->data_start_ + pos + 2) << 0) |
@@ -676,7 +685,7 @@ Color Animation::get_rgb565_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 2;
   uint16_t rgb565 =
@@ -690,7 +699,7 @@ Color Animation::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);

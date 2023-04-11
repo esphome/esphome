@@ -409,6 +409,9 @@ class Define:
             return self.as_tuple == other.as_tuple
         return NotImplemented
 
+    def __str__(self):
+        return f"{self.name}={self.value}"
+
 
 class Library:
     def __init__(self, name, version, repository=None):

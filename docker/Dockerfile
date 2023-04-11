@@ -135,7 +135,7 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        clang-format-11=1:11.0.1-2 \
+        clang-format-13=1:13.0.1-6~deb11u1 \
         clang-tidy-11=1:11.0.1-2 \
         patch=2.7.6-7 \
         software-properties-common=0.96.20.2-2.1 \
