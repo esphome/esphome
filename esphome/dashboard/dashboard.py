@@ -479,7 +479,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        type = self.get_argument("type", "firmware.bin")
+        get_list = self.get_argument("list", None)
 
         storage_path = ext_storage_path(settings.config_dir, configuration)
         storage_json = StorageJSON.load(storage_path)
@@ -487,27 +487,32 @@ class DownloadBinaryRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
-            filename = f"{storage_json.name}.uf2"
-            path = storage_json.firmware_bin_path.replace(
-                "firmware.bin", "firmware.uf2"
-            )
+        if get_list is not None:
+            from esphome.components.esp32 import get_download_types as esp32_types
+            from esphome.components.esp8266 import get_download_types as esp8266_types
+            from esphome.components.rp2040 import get_download_types as rp2040_types
 
-        elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
-            filename = f"{storage_json.name}.bin"
-            path = storage_json.firmware_bin_path
+            downloads = []
+            if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
+                downloads = get_rp2040_types(storage_json)
+            elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
+                downloads = get_esp8266_types(storage_json)
+            else:
+                downloads = get_esp32_types(storage_json)
 
-        elif type == "firmware.bin":
-            filename = f"{storage_json.name}.bin"
-            path = storage_json.firmware_bin_path
+            self.set_status(200)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps(downloads))
+            self.finish()
+            return
 
-        elif type == "firmware-factory.bin":
-            filename = f"{storage_json.name}-factory.bin"
-            path = storage_json.firmware_bin_path.replace(
-                "firmware.bin", "firmware-factory.bin"
-            )
+        file_name = self.get_argument("file", "firmware-factory.bin")
+        file_name = file_name.replace("..", "").lstrip("/")
+        download_name = self.get_argument("download", f"{storage_json.name}.bin")
+        path = os.path.dirname(storage_json.firmware_bin_path)
+        path = os.path.join(path, file_name)
 
-        else:
+        if not Path(path).is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = run_system_command(*args)
 
@@ -519,9 +524,9 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
             found = False
             for image in idedata.extra_flash_images:
-                if image.path.endswith(type):
+                if image.path.endswith(file_name):
                     path = image.path
-                    filename = type
+                    filename = file_name
                     found = True
                     break
 
@@ -530,7 +535,9 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 return
 
         self.set_header("Content-Type", "application/octet-stream")
-        self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_header(
+            "Content-Disposition", f'attachment; filename="{download_name}"'
+        )
         self.set_header("Cache-Control", "no-cache")
         if not Path(path).is_file():
             self.send_error(404)
