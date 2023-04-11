@@ -16,6 +16,9 @@
 #ifdef USE_BLUETOOTH_PROXY
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
 #endif
+#ifdef USE_VOICE_ASSISTANT
+#include "esphome/components/voice_assistant/voice_assistant.h"
+#endif
 
 namespace esphome {
 namespace api {
@@ -893,6 +896,30 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
 }
 #endif
 
+#ifdef USE_VOICE_ASSISTANT
+bool APIConnection::request_voice_assistant(bool start) {
+  if (!this->voice_assistant_subscription_)
+    return false;
+  VoiceAssistantRequest msg;
+  msg.start = start;
+  return this->send_voice_assistant_request(msg);
+}
+void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    struct sockaddr_storage storage;
+    socklen_t len = sizeof(storage);
+    this->helper_->getpeername((struct sockaddr *) &storage, &len);
+    voice_assistant::global_voice_assistant->start(&storage, msg.port);
+  }
+};
+void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    voice_assistant::global_voice_assistant->on_event(msg);
+  }
+}
+
+#endif
+
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
   if (this->log_subscription_ < level)
     return false;
@@ -970,6 +997,9 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->has_active()
                                      ? bluetooth_proxy::ACTIVE_CONNECTIONS_VERSION
                                      : bluetooth_proxy::PASSIVE_ONLY_VERSION;
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  resp.voice_assistant_version = 1;
 #endif
   return resp;
 }

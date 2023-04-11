@@ -427,5 +427,18 @@ void APIServer::on_shutdown() {
   delay(10);
 }
 
+#ifdef USE_VOICE_ASSISTANT
+void APIServer::start_voice_assistant() {
+  for (auto &c : this->clients_) {
+    c->request_voice_assistant(true);
+  }
+}
+void APIServer::stop_voice_assistant() {
+  for (auto &c : this->clients_) {
+    c->request_voice_assistant(false);
+  }
+}
+#endif
+
 }  // namespace api
 }  // namespace esphome
