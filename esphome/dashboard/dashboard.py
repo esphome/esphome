@@ -494,11 +494,11 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
             downloads = []
             if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
-                downloads = get_rp2040_types(storage_json)
+                downloads = rp2040_types(storage_json)
             elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
-                downloads = get_esp8266_types(storage_json)
+                downloads = esp8266_types(storage_json)
             else:
-                downloads = get_esp32_types(storage_json)
+                downloads = esp32_types(storage_json)
 
             self.set_status(200)
             self.set_header("content-type", "application/json")
@@ -526,7 +526,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
             for image in idedata.extra_flash_images:
                 if image.path.endswith(file_name):
                     path = image.path
-                    filename = file_name
+                    download_name = file_name
                     found = True
                     break
 
