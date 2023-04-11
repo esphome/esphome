@@ -16,7 +16,6 @@ class Smartair2Climate : public HaierClimateBase {
   void dump_config() override;
 
  protected:
-  bool health_mode_;
   void set_answers_handlers() override;
   void process_phase(std::chrono::steady_clock::time_point now) override;
   haier_protocol::HaierMessage get_control_message() override;
