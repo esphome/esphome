@@ -29,11 +29,11 @@ ota:
 logger:
 
 uart:
-  - id: uart1
+  - id: uart_1
     tx_pin: 1
     rx_pin: 3
     baud_rate: 9600
-  - id: uart2
+  - id: uart_2
     tx_pin: 17
     rx_pin: 16
     baud_rate: 19200
@@ -42,7 +42,7 @@ i2c:
   frequency: 100khz
 
 modbus:
-  uart_id: uart1
+  uart_id: uart_1
   flow_control_pin: 5
   id: mod_bus1
 
@@ -67,7 +67,7 @@ mqtt:
       # yamllint enable rule:line-length
 
 vbus:
-  - uart_id: uart2
+  - uart_id: uart_2
 
 binary_sensor:
   - platform: gpio
@@ -422,7 +422,7 @@ sensor:
     value_type: U_WORD
 
   - platform: t6615
-    uart_id: uart2
+    uart_id: uart_2
     co2:
       name: CO2 Sensor
 

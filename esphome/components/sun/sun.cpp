@@ -269,7 +269,7 @@ struct SunAtLocation {
     num_t jd = julian_day(date) + added_d;
 
     num_t eot = SunAtTime(jd).equation_of_time() * 240;
-    time_t new_timestamp = (time_t)(date.timestamp + added_d * 86400 - eot);
+    time_t new_timestamp = (time_t) (date.timestamp + added_d * 86400 - eot);
     return time::ESPTime::from_epoch_utc(new_timestamp);
   }
 };

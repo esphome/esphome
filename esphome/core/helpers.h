@@ -17,7 +17,7 @@
 #if defined(USE_ESP32)
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
-#elif defined(USE_RP2040) || defined(USE_LIBRETUYA)
+#elif defined(USE_LIBRETUYA)
 #include <FreeRTOS.h>
 #include <semphr.h>
 #endif
@@ -539,7 +539,7 @@ class Mutex {
   Mutex &operator=(const Mutex &) = delete;
 
  private:
-#if defined(USE_ESP32) || defined(USE_RP2040) || defined(USE_LIBRETUYA)
+#if defined(USE_ESP32) || defined(USE_LIBRETUYA)
   SemaphoreHandle_t handle_;
 #endif
 };
@@ -550,7 +550,7 @@ class Mutex {
  */
 class LockGuard {
  public:
-  LockGuard(Mutex &mutex) : mutex_{mutex} { mutex_.lock(); }
+  LockGuard(Mutex &mutex) : mutex_(mutex) { mutex_.lock(); }
   ~LockGuard() { mutex_.unlock(); }
 
  private:
