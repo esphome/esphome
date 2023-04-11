@@ -76,9 +76,8 @@ void VoiceAssistant::signal_stop() {
 
 void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
   switch (msg.event_type) {
-    case api::enums::VOICE_ASSISTANT_RUN_START:
-      break;
     case api::enums::VOICE_ASSISTANT_RUN_END:
+      ESP_LOGD(TAG, "Voice Assistant ended.");
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
       std::string text;
@@ -138,6 +137,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
       // TODO `on_error` trigger
     }
+    default:
+      break;
   }
 }
 
