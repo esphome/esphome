@@ -52,7 +52,7 @@ async def register_microphone(var, config):
     await setup_microphone_core_(var, config)
 
 
-MICROPHONE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
+MICROPHONE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ON_DATA): automation.validate_automation(
             {
