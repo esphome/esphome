@@ -17,6 +17,9 @@
 #if defined(USE_ESP32)
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
+#elif defined(USE_LIBRETUYA)
+#include <FreeRTOS.h>
+#include <semphr.h>
 #endif
 
 #define HOT __attribute__((hot))
