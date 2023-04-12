@@ -152,6 +152,8 @@ def run_miniterm(config, port):
         _LOGGER.error("Could not connect to serial port %s", port)
         return 1
 
+    return 0
+
 
 def wrap_to_code(name, comp):
     coro = coroutine(comp.to_code)

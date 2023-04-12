@@ -20,7 +20,9 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
     char buf[INET_ADDRSTRLEN];
     if (inet_ntop(AF_INET, &addr->sin_addr, buf, sizeof(buf)) != nullptr)
       return std::string{buf};
-  } else if (storage.ss_family == AF_INET6) {
+  }
+#if LWIP_IPV6
+  else if (storage.ss_family == AF_INET6) {
     const struct sockaddr_in6 *addr = reinterpret_cast<const struct sockaddr_in6 *>(&storage);
     char buf[INET6_ADDRSTRLEN];
     // Format IPv4-mapped IPv6 addresses as regular IPv4 addresses
@@ -32,6 +34,7 @@ std::string format_sockaddr(const struct sockaddr_storage &storage) {
     if (inet_ntop(AF_INET6, &addr->sin6_addr, buf, sizeof(buf)) != nullptr)
       return std::string{buf};
   }
+#endif
   return {};
 }
 
@@ -136,6 +139,11 @@ class BSDSocketImpl : public Socket {
     return ::writev(fd_, iov, iovcnt);
 #endif
   }
+
+  ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) override {
+    return ::sendto(fd_, buf, len, flags, to, tolen);
+  }
+
   int setblocking(bool blocking) override {
     int fl = ::fcntl(fd_, F_GETFL, 0);
     if (blocking) {
