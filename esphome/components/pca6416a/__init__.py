@@ -26,9 +26,7 @@ CONF_PCA6416A = "pca6416a"
 CONFIG_SCHEMA = (
     cv.Schema({cv.Required(CONF_ID): cv.declare_id(PCA6416AComponent)})
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(
-        i2c.i2c_device_schema(0x21)
-    )
+    .extend(i2c.i2c_device_schema(0x21))
 )
 
 
