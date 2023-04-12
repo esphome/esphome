@@ -57,7 +57,6 @@ std::string state_class_to_string(StateClass state_class);
 class Sensor : public EntityBase {
  public:
   explicit Sensor();
-  explicit Sensor(const std::string &name);
 
   /// Get the unit of measurement, using the manual override if set.
   std::string get_unit_of_measurement();
@@ -150,44 +149,18 @@ class Sensor : public EntityBase {
   /// Return whether this sensor has gotten a full state (that passed through all filters) yet.
   bool has_state() const;
 
-  /** A unique ID for this sensor, empty for no unique id. See unique ID requirements:
-   * https://developers.home-assistant.io/docs/en/entity_registry_index.html#unique-id-requirements
+  /** Override this method to set the unique ID of this sensor.
    *
-   * @return The unique id as a string.
+   * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
    */
   virtual std::string unique_id();
 
   void internal_send_state_to_frontend(float state);
 
  protected:
-  /** Override this to set the default unit of measurement.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual std::string unit_of_measurement();  // NOLINT
-
-  /** Override this to set the default accuracy in decimals.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual int8_t accuracy_decimals();  // NOLINT
-
-  /** Override this to set the default device class.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual std::string device_class();  // NOLINT
-
-  /** Override this to set the default state class.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual StateClass state_class();  // NOLINT
-
   CallbackManager<void(float)> raw_callback_;  ///< Storage for raw state callbacks.
   CallbackManager<void(float)> callback_;      ///< Storage for filtered state callbacks.
 
-  bool has_state_{false};
   Filter *filter_list_{nullptr};  ///< Store all active filters.
 
   optional<std::string> unit_of_measurement_;           ///< Unit of measurement override
@@ -195,6 +168,7 @@ class Sensor : public EntityBase {
   optional<std::string> device_class_;                  ///< Device class override
   optional<StateClass> state_class_{STATE_CLASS_NONE};  ///< State class override
   bool force_update_{false};                            ///< Force update mode
+  bool has_state_{false};
 };
 
 }  // namespace sensor

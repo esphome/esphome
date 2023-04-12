@@ -111,7 +111,6 @@ const char *cover_operation_to_str(CoverOperation op);
 class Cover : public EntityBase {
  public:
   explicit Cover();
-  explicit Cover(const std::string &name);
 
   /// The current operation of the cover (idle, opening, closing).
   CoverOperation current_operation{COVER_OPERATION_IDLE};
@@ -169,12 +168,6 @@ class Cover : public EntityBase {
   friend CoverCall;
 
   virtual void control(const CoverCall &call) = 0;
-
-  /** Override this to set the default device class.
-   *
-   * @deprecated This method is deprecated, set the property during config validation instead. (2022.1)
-   */
-  virtual std::string device_class();
 
   optional<CoverRestoreState> restore_state_();
 

@@ -73,7 +73,7 @@ void parse_json(const std::string &data, const json_parse_t &f) {
   const size_t free_heap = rp2040.getFreeHeap();
 #endif
   bool pass = false;
-  size_t request_size = std::min(free_heap, (size_t)(data.size() * 1.5));
+  size_t request_size = std::min(free_heap, (size_t) (data.size() * 1.5));
   do {
     DynamicJsonDocument json_document(request_size);
     if (json_document.capacity() == 0) {
