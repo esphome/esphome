@@ -40,7 +40,11 @@ bool MQTTBackendIDF::initialize_() {
   if (!this->client_id_.empty()) {
     mqtt_cfg_.client_id = this->client_id_.c_str();
   }
-  if (ca_certificate_.has_value()) {
+
+  if (crt_bundle_attach_ != nullptr) {
+    mqtt_cfg_.crt_bundle_attach = crt_bundle_attach_;
+    mqtt_cfg_.transport = MQTT_TRANSPORT_OVER_SSL;
+  } else if (ca_certificate_.has_value()) {
     mqtt_cfg_.cert_pem = ca_certificate_.value().c_str();
     mqtt_cfg_.skip_cert_common_name_check = skip_cert_cn_check_;
     mqtt_cfg_.transport = MQTT_TRANSPORT_OVER_SSL;

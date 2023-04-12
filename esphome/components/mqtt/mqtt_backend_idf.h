@@ -8,6 +8,9 @@
 #include "esphome/components/network/ip_address.h"
 #include "esphome/core/helpers.h"
 #include "mqtt_backend.h"
+#if defined(USE_MQTT_IDF_CRT_BUNDLE)
+#include "esp_crt_bundle.h"
+#endif
 
 namespace esphome {
 namespace mqtt {
@@ -153,6 +156,11 @@ class MQTTBackendIDF final : public MQTTBackend {
   bool clean_session_;
   optional<std::string> ca_certificate_;
   bool skip_cert_cn_check_{false};
+#if defined(USE_MQTT_IDF_CRT_BUNDLE)
+  esp_err_t (*crt_bundle_attach_)(void *conf){esp_crt_bundle_attach};
+#else
+  esp_err_t (*crt_bundle_attach_)(void *conf){nullptr};
+#endif
 
   // callbacks
   CallbackManager<on_connect_callback_t> on_connect_;

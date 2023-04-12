@@ -51,6 +51,7 @@ DEPENDENCIES = ["network"]
 
 AUTO_LOAD = ["json"]
 
+CONF_IDF_USE_CRT_BUNDLE = "idf_use_crt_bundle"
 CONF_IDF_SEND_ASYNC = "idf_send_async"
 CONF_SKIP_CERT_CN_CHECK = "skip_cert_cn_check"
 
@@ -176,6 +177,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD, default=""): cv.string,
             cv.Optional(CONF_CLIENT_ID): cv.string,
             cv.SplitDefault(CONF_IDF_SEND_ASYNC, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
+            ),
+            cv.SplitDefault(CONF_IDF_USE_CRT_BUNDLE, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
@@ -367,6 +371,9 @@ async def to_code(config):
 
     if CONF_IDF_SEND_ASYNC in config and config[CONF_IDF_SEND_ASYNC]:
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
+
+    if CONF_IDF_USE_CRT_BUNDLE in config and config[CONF_IDF_USE_CRT_BUNDLE]:
+        cg.add_define("USE_MQTT_IDF_CRT_BUNDLE")
     # end esp-idf
 
     for conf in config.get(CONF_ON_MESSAGE, []):
