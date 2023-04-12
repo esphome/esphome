@@ -79,6 +79,14 @@ void TimeBasedCover::control(const CoverCall &call) {
     auto pos = *call.get_position();
     if (pos == this->position) {
       // already at target
+      if (this->manual_control_ && (pos == COVER_OPEN || pos == COVER_CLOSED)) {
+        // for covers with manual control switch, we can't rely on the computed position, so if
+        // the command triggered again, we'll assume it's in the opposite direction anyway.
+        auto op = pos == COVER_CLOSED ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
+        this->position = pos == COVER_CLOSED ? COVER_OPEN : COVER_CLOSED;
+        this->target_position_ = pos;
+        this->start_direction_(op);
+      }
       // for covers with built in end stop, we should send the command again
       if (this->has_built_in_endstop_ && (pos == COVER_OPEN || pos == COVER_CLOSED)) {
         auto op = pos == COVER_CLOSED ? COVER_OPERATION_CLOSING : COVER_OPERATION_OPENING;
