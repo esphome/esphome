@@ -7,7 +7,7 @@ namespace m5stack4relay {
 static const char *const TAG = "M5Stack_4_Relay";
 
 void M5Stack4Relay::dump_config() {
-  ESP_LOGCONFIG(TAG, "M5Stack_4_Relays:");
+  ESP_LOGCONFIG(TAG, "M5Stack 4 Relays:");
   LOG_I2C_DEVICE(this);
 }
 
