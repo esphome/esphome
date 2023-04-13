@@ -13,7 +13,7 @@ CONF_I2C_ADDR = 0x26
 CONF_M5STACK4RELAY_ID = "m5stack4relay_id"
 
 m5stack4relay_ns = cg.esphome_ns.namespace("m5stack4relay")
-M5Stack4Relay = M5Stack_ns.class_("M5Stack4Relay", cg.Component, i2c.I2CDevice)
+M5Stack4Relay = m5stack4relay_ns.class_("M5Stack4Relay", cg.Component, i2c.I2CDevice)
 
 CONFIG_SCHEMA = (
     cv.Schema(
