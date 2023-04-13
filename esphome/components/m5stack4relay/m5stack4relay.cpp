@@ -22,7 +22,8 @@ void M5Stack4Relay::init_(bool mode) {
 uint8_t M5Stack4Relay::read1_byte_(uint8_t register_address) {
   uint8_t data;
   if (!this->read_byte(register_address, &data)) {
-    this->mark_failed();
+    ESP_LOGW(TAG, "Read from relay failed!");
+    this->status_set_warning();
     return uint8_t(0);
   }
   return data;
