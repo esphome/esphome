@@ -57,7 +57,7 @@ void PCA6416AComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "PCAL6416A:");
   } else {
     ESP_LOGCONFIG(TAG, "PCA6416A:");
-}
+  }
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with PCA6416A failed!");
