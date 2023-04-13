@@ -53,10 +53,11 @@ void PCA6416AComponent::setup() {
 }
 
 void PCA6416AComponent::dump_config() {
-  if (this->has_pullup_)
+  if (this->has_pullup_) {
     ESP_LOGCONFIG(TAG, "PCAL6416A:");
-  else
+  } else {
     ESP_LOGCONFIG(TAG, "PCA6416A:");
+}
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with PCA6416A failed!");
