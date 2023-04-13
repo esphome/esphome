@@ -615,7 +615,7 @@ bool WiFiComponent::is_connected() {
 }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) { this->power_save_ = power_save; }
 
-void WiFiComponent::set_scan_type(bool passive) { this->passive_scan_ = passive; }
+void WiFiComponent::set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
 std::string WiFiComponent::format_mac_addr(const uint8_t *mac) {
   char buf[20];

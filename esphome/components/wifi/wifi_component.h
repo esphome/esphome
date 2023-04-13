@@ -217,7 +217,7 @@ class WiFiComponent : public Component {
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_output_power(float output_power) { output_power_ = output_power; }
 
-  void set_scan_type(bool passive);
+  void set_passive_scan(bool passive);
 
   void save_wifi_sta(const std::string &ssid, const std::string &password);
   // ========== INTERNAL METHODS ==========
