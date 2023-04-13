@@ -1445,7 +1445,7 @@ binary_sensor:
   - platform: gpio
     name: PCA6416A binary sensor
     pin:
-      pca9554: pca6416a_hub
+      pca6416a: pca6416a_hub
       number: 15
       mode: INPUT
       inverted: true
