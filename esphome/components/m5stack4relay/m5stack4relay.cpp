@@ -4,7 +4,7 @@
 namespace esphome {
 namespace m5stack4relay {
 
-static const char *const TAG = "M5Stack_4_Relay";
+static const char *const TAG = "m5stack_4_relay";
 
 void M5Stack4Relay::dump_config() {
   ESP_LOGCONFIG(TAG, "M5Stack 4 Relays:");
