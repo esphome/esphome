@@ -74,6 +74,10 @@ void EthernetComponent::setup() {
       phy = esp_eth_phy_new_jl1101(&phy_config);
       break;
     }
+    case ETHERNET_TYPE_KSZ8081: {
+      phy = esp_eth_phy_new_ksz8081(&phy_config);
+      break;
+    }
     default: {
       this->mark_failed();
       return;
@@ -140,7 +144,7 @@ void EthernetComponent::loop() {
 }
 
 void EthernetComponent::dump_config() {
-  std::string eth_type;
+  const char *eth_type;
   switch (this->type_) {
     case ETHERNET_TYPE_LAN8720:
       eth_type = "LAN8720";
@@ -158,6 +162,14 @@ void EthernetComponent::dump_config() {
       eth_type = "IP101";
       break;
 
+    case ETHERNET_TYPE_JL1101:
+      eth_type = "JL1101";
+      break;
+
+    case ETHERNET_TYPE_KSZ8081:
+      eth_type = "KSZ8081";
+      break;
+
     default:
       eth_type = "Unknown";
       break;
@@ -170,7 +182,8 @@ void EthernetComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  MDC Pin: %u", this->mdc_pin_);
   ESP_LOGCONFIG(TAG, "  MDIO Pin: %u", this->mdio_pin_);
-  ESP_LOGCONFIG(TAG, "  Type: %s", eth_type.c_str());
+  ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
+  ESP_LOGCONFIG(TAG, "  PHY addr: %u", this->phy_addr_);
 }
 
 float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }

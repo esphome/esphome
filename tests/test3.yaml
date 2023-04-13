@@ -368,6 +368,32 @@ sensor:
       - binary_sensor: bin3
         value: 100.0
 
+  - platform: binary_sensor_map
+    name: Binary Sensor Map
+    type: sum
+    channels:
+      - binary_sensor: bin1
+        value: 10.0
+      - binary_sensor: bin2
+        value: 15.0
+      - binary_sensor: bin3
+        value: 100.0
+
+  - platform: binary_sensor_map
+    name: Binary Sensor Map
+    type: bayesian
+    prior: 0.4
+    observations:
+      - binary_sensor: bin1
+        prob_given_true: 0.9
+        prob_given_false: 0.4
+      - binary_sensor: bin2
+        prob_given_true: 0.7
+        prob_given_false: 0.05
+      - binary_sensor: bin3
+        prob_given_true: 0.8
+        prob_given_false: 0.2
+
   - platform: bl0939
     uart_id: uart_8
     voltage:
