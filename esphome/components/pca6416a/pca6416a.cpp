@@ -33,6 +33,11 @@ void PCA6416AComponent::setup() {
     return;
   }
 
+  // Test to see if the device supports pull-up resistors
+  if (this->read_register(PCAL6416A_PULL_EN0, &value, 1, true) == esphome::i2c::ERROR_OK) {
+    this->has_pullup_ = true;
+  }
+
   // No polarity inversion
   this->write_register_(PCA6416A_INVERT0, 0);
   this->write_register_(PCA6416A_INVERT1, 0);
@@ -48,7 +53,10 @@ void PCA6416AComponent::setup() {
 }
 
 void PCA6416AComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "PCA6416A:");
+  if (this->has_pullup_)
+    ESP_LOGCONFIG(TAG, "PCAL6416A:");
+  else
+    ESP_LOGCONFIG(TAG, "PCA6416A:");
   LOG_I2C_DEVICE(this)
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with PCA6416A failed!");
@@ -74,12 +82,18 @@ void PCA6416AComponent::pin_mode(uint8_t pin, gpio::Flags flags) {
   uint8_t pull_dir = pin < 8 ? PCAL6416A_PULL_DIR0 : PCAL6416A_PULL_DIR1;
   if (flags == gpio::FLAG_INPUT) {
     this->update_register_(pin, true, io_dir);
-    this->update_register_(pin, true, pull_dir);
-    this->update_register_(pin, true, pull_en);
+    if (has_pullup_) {
+      this->update_register_(pin, true, pull_dir);
+      this->update_register_(pin, false, pull_en);
+    }
   } else if (flags == (gpio::FLAG_INPUT | gpio::FLAG_PULLUP)) {
     this->update_register_(pin, true, io_dir);
-    this->update_register_(pin, true, pull_dir);
-    this->update_register_(pin, false, pull_en);
+    if (has_pullup_) {
+      this->update_register_(pin, true, pull_dir);
+      this->update_register_(pin, true, pull_en);
+    } else {
+      ESP_LOGW(TAG, "Your PCA6416A does not support pull-up resistors");
+    }
   } else if (flags == gpio::FLAG_OUTPUT) {
     this->update_register_(pin, false, io_dir);
   }

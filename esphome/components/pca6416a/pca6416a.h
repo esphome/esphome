@@ -34,6 +34,8 @@ class PCA6416AComponent : public Component, public i2c::I2CDevice {
   uint8_t output_1_{0x00};
   /// Storage for last I2C error seen
   esphome::i2c::ErrorCode last_error_;
+  /// Only the PCAL6416A has pull-up resistors
+  bool has_pullup_{false};
 };
 
 /// Helper class to expose a PCA6416A pin as an internal input GPIO pin.
