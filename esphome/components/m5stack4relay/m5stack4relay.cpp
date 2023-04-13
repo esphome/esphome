@@ -54,7 +54,8 @@ void M5Stack4Relay::set_switch_mode(bool mode) { this->write1_byte_(UNIT_4RELAY_
 /*! @brief Write a certain length of data to the specified register address. */
 void M5Stack4Relay::write1_byte_(uint8_t register_address, uint8_t data) {
   if (!this->write_byte(register_address, data)) {
-    this->mark_failed();
+    ESP_LOGW(TAG, "Write to relay failed!");
+    this->status_set_warning();
     return;
   }
 }
