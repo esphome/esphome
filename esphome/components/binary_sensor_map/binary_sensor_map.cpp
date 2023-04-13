@@ -60,7 +60,7 @@ void BinarySensorMap::process_sum_() {
   uint64_t mask = 0x00;
 
   // - check all binary_sensor states
-  //  - if active, add its value to total_current_value
+  // - if active, add its value to total_current_value
   // - creates a bitmask for the binary_sensor states on all channels
   for (size_t i = 0; i < this->channels_.size(); i++) {
     auto bs = this->channels_[i];
