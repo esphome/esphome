@@ -12,7 +12,7 @@ from .. import (
 DEPENDENCIES = ["seeedmultichannelrelay"]
 
 SeeedMultiChannelRelaySwitch = seeedmultichannelrelay_ns.class_(
-    "SeedMultiChannelRelaySwitch", cg.Component, i2c.I2CDevice, switch.Switch
+    "SeeedMultiChannelRelaySwitch", cg.Component, i2c.I2CDevice, switch.Switch
 )
 
 CONF_Relay_1 = "relay_1"
