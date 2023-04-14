@@ -1,11 +1,11 @@
-#include "seedmultichannelrelay.h"
+#include "seeedmultichannelrelay.h"
 #include "esphome/core/log.h"
 #include "seeedmultichannelrelay.h"
 
 namespace esphome {
 namespace seeedmultichannelrelay {
 
-static const char *const TAG = "SeedMultiChannelRelay";
+static const char *const TAG = "SeeedMultiChannelRelay";
 
 void SeeedMultiChannelRelay::channel_ctrl_(uint8_t state) {
   this->channel_state_ = state;
@@ -13,17 +13,17 @@ void SeeedMultiChannelRelay::channel_ctrl_(uint8_t state) {
 }
 
 void SeeedMultiChannelRelay::turn_on_channel_(uint8_t channel) {
-  this->channel_state |= (1 << (channel - 1));
-  this->channel_ctrl_(channel_state);
+  this->channel_state_ |= (1 << (channel - 1));
+  this->channel_ctrl_(channel_state_);
 }
 
 void SeeedMultiChannelRelay::turn_off_channel_(uint8_t channel) {
-  this->channel_state &= ~(1 << (channel - 1));
-  this->channel_ctrl_(channel_state);
+  this->channel_state_ &= ~(1 << (channel - 1));
+  this->channel_ctrl_(channel_state_);
 }
 
 void SeeedMultiChannelRelay::dump_config() {
-  ESP_LOGCONFIG(TAG, "Seed Multi Channel Relays:");
+  ESP_LOGCONFIG(TAG, "Seeed Multi Channel Relays:");
   LOG_I2C_DEVICE(this);
 }
 
@@ -55,7 +55,7 @@ void SeeedMultiChannelRelay::setup() {
   if (this->address_changed_) {
     this->write1_byte_(CMD_SAVE_I2C_ADDR, this->new_addr_);
     this->set_i2c_address(this->new_addr_);
-    ESP_LOGCONFIG(TAG, "I2C address of control changed to %u", this->new_addr_));
+    ESP_LOGCONFIG(TAG, "I2C address of control changed to %u", this->new_addr_);
   }
 }
 

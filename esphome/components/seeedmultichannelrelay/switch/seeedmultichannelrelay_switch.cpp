@@ -9,7 +9,7 @@ static const char *const TAG = "switch.SeeedMultiChannelRelay";
 float SeeedMultiChannelRelaySwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void SeeedMultiChannelRelaySwitch::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up SeedMultiChannelRelay Switch '%s'...", this->name_.c_str());
+  ESP_LOGCONFIG(TAG, "Setting up SeeedMultiChannelRelay Switch '%s'...", this->name_.c_str());
 
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
 
@@ -22,7 +22,7 @@ void SeeedMultiChannelRelaySwitch::setup() {
 }
 
 void SeeedMultiChannelRelaySwitch::dump_config() {
-  LOG_SWITCH("", "SeedMultiChannelRelay Switch", this);
+  LOG_SWITCH("", "SeeedMultiChannelRelay Switch", this);
 
   if (!this->interlock_.empty()) {
     ESP_LOGCONFIG(TAG, "  Interlocks:");
