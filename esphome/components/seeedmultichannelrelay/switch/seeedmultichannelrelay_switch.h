@@ -8,7 +8,7 @@
 namespace esphome {
 namespace seeedmultichannelrelay {
 
-class SeeedMultiChannelRelaySwitch : public Component, public switch_::Switch, public Parented<M5Stack4Relay> {
+class SeeedMultiChannelRelaySwitch : public Component, public switch_::Switch, public Parented<SeeedMultiChannelRelay> {
  public:
   float get_setup_priority() const override;
 
