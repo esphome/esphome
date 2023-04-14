@@ -3,7 +3,11 @@ import esphome.config_validation as cv
 from esphome.components import i2c, switch
 from esphome.const import CONF_CHANNEL, CONF_INTERLOCK  # , CONF_ID,
 
-from .. import seeedmultichannelrelay_ns, SeeedMultiChannelRelay, CONF_SEEEDMULTICHANNELRELAY_ID
+from .. import (
+    seeedmultichannelrelay_ns, 
+    SeeedMultiChannelRelay, 
+    CONF_SEEEDMULTICHANNELRELAY_ID
+)
 
 DEPENDENCIES = ["seeedmultichannelrelay"]
 
@@ -44,7 +48,9 @@ CONFIG_SCHEMA = (
     .extend(
         {
             cv.GenerateID(): cv.declare_id(SeeedMultiChannelRelaySwitch),
-            cv.GenerateID(CONF_SEEEDMULTICHANNELRELAY_ID): cv.use_id(SeeedMultiChannelRelay),
+            cv.GenerateID(CONF_SEEEDMULTICHANNELRELAY_ID): cv.use_id(
+                SeeedMultiChannelRelay
+            ),
             cv.Required(CONF_CHANNEL): cv.enum(SWITCH_MAP),
             cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
             cv.Optional(

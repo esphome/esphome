@@ -18,7 +18,6 @@ void SeeedMultiChannelRelay::turn_on_channel(uint8_t channel) {
 }
 
 void SeeedMultiChannelRelay::turn_off_channel(uint8_t channel) {
-      
   this->channel_state &= ~(1 << (channel - 1));
   this->channel_ctrl(channel_state);
 }
