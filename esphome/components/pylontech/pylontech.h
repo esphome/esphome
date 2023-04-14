@@ -11,7 +11,7 @@
 
 #ifndef PYLONTECH_NUM_BATTERIES
 #warning PYLONTECH_NUM_BATTERIES not defined!
-#define PYLONTECH_NUM_BATTERIES 3 // NOLINT
+#define PYLONTECH_NUM_BATTERIES 3  // NOLINT
 #endif
 
 namespace esphome {
@@ -26,11 +26,10 @@ static const uint8_t TEXT_SENSOR_MAX_LEN = 8;
 \
  public: \
   void set_##name(type *name, int batnum) { /* NOLINT */ \
-    this->name##_[batnum-1] = name; \
+    this->name##_[batnum - 1] = name; \
   }
 
-#define PYLONTECH_SENSOR(name) \
-  PYLONTECH_ENTITY_(sensor::Sensor, name)
+#define PYLONTECH_SENSOR(name) PYLONTECH_ENTITY_(sensor::Sensor, name)
 #define PYLONTECH_TEXT_SENSOR(name) PYLONTECH_ENTITY_(text_sensor::TextSensor, name)
 
 class PylontechComponent : public PollingComponent, public uart::UARTDevice {
@@ -54,7 +53,10 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
 #endif
   PylontechComponent();
 
-  void mark_battery_index_in_use(uint8_t max_bat) {if(max_bat>this->max_battery_index_) this->max_battery_index_ = max_bat;}
+  void mark_battery_index_in_use(uint8_t max_bat) {
+    if (max_bat > this->max_battery_index_)
+      this->max_battery_index_ = max_bat;
+  }
 
   /// Schedule data readings.
   void update() override;
@@ -71,7 +73,7 @@ class PylontechComponent : public PollingComponent, public uart::UARTDevice {
 
   uint8_t max_battery_index_ = 0;
 
-  //ring buffer
+  // ring buffer
   std::string buffer_[NUM_BUFFERS];
   int buffer_index_write_ = 0;
   int buffer_index_read_ = 0;
