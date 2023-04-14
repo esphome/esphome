@@ -1505,6 +1505,10 @@ binary_sensor:
           -2267,
           1709,
         ]
+  - platform: remote_receiver
+    id: hob2hood_light_on
+    hob2hood:
+      command: light_on
   - platform: as3935
     name: Storm Alert
   - platform: analog_threshold
