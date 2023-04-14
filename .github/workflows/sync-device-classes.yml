@@ -48,7 +48,7 @@ jobs:
           echo "$delimiter" >> $GITHUB_OUTPUT
 
       - name: Commit changes
-        uses: peter-evans/create-pull-request@v4
+        uses: peter-evans/create-pull-request@v5
         with:
           commit-message: "Synchronise Device Classes from Home Assistant"
           committer: esphomebot <esphome@nabucasa.com>
