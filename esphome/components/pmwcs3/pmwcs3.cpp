@@ -23,16 +23,16 @@ static const uint8_t PMWCS3_REG_RT = 0x0D;
 
 static const char *const TAG = "pmwcs3";
 
-void PMWCS3Component::change_i2c_address(uint8_t newaddress) {
+void PMWCS3Component::new_i2c_address(uint8_t newaddress) {
   if (!this->write_byte(PMWCS3_SET_I2C_ADDRESS, newaddress)) {
     this->status_set_warning();
     ESP_LOGW(TAG, "couldn't write the new I2C address %d", newaddress);
     return;
   }
-  ESP_LOGVV(TAG, "new I2C address %d done", newaddress);
+  ESP_LOGVV(TAG, "changed I2C address to %d", newaddress);
 }
 
-void PMWCS3Component::set_air_calibration() {
+void PMWCS3Component::air_calibration() {
   if (!this->write_bytes(PMWCS3_REG_CALIBRATE_AIR, nullptr, 0)) {
     this->status_set_warning();
     ESP_LOGW(TAG, "couldn't start air calibration");
@@ -40,7 +40,7 @@ void PMWCS3Component::set_air_calibration() {
   }
   ESP_LOGW(TAG, "Start air calibration during the next 300s");
 }
-void PMWCS3Component::set_water_calibration() {
+void PMWCS3Component::water_calibration() {
   if (!this->write_bytes(PMWCS3_REG_CALIBRATE_WATER, nullptr, 0)) {
     this->status_set_warning();
     ESP_LOGW(TAG, "couldn't start water calibration");
