@@ -68,6 +68,5 @@ template<typename... Ts> class PMWCS3NewI2cAddressAction : public Action<Ts...> 
   PMWCS3Component *parent_;
 };
 
-
 }  // namespace pmwcs3
 }  // namespace esphome
