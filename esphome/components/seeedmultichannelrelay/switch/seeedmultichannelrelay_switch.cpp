@@ -69,7 +69,9 @@ void SeeedMultiChannelRelaySwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-void SeeedMultiChannelRelaySwitch::set_interlock(const std::vector<Switch *> &interlock) { this->interlock_ = interlock; }
+void SeeedMultiChannelRelaySwitch::set_interlock(const std::vector<Switch *> &interlock) { 
+  this->interlock_ = interlock;
+}
 
-}  // namespace seedmultichannelrelay
+}  // namespace seeedmultichannelrelay
 }  // namespace esphome

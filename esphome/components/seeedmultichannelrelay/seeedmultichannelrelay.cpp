@@ -5,7 +5,7 @@
 namespace esphome {
 namespace seeedmultichannelrelay {
 
-static const char* const TAG = "SeedMultiChannelRelay";
+static const char *const TAG = "SeedMultiChannelRelay";
 
 void SeeedMultiChannelRelay::channel_ctrl(uint8_t state) {
   this->channel_state_ = state;
