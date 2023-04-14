@@ -109,7 +109,7 @@ void PylontechComponent::process_line_(std::string &buffer) {
   int bat_num = 0, volt, curr, tempr, tlow, thigh, vlow, vhigh, coulomb, mostempr;
   char base_st[TEXT_SENSOR_MAX_LEN], volt_st[TEXT_SENSOR_MAX_LEN], curr_st[TEXT_SENSOR_MAX_LEN],
       temp_st[TEXT_SENSOR_MAX_LEN];
-  const int parsed = sscanf(
+  const int parsed = sscanf(                                                                                  // NOLINT
       buffer.c_str(), "%d %d %d %d %d %d %d %d %7s %7s %7s %7s %d%% %*d-%*d-%*d %*d:%*d:%*d %*s %*s %d %*s",  // NOLINT
       &bat_num, &volt, &curr, &tempr, &tlow, &thigh, &vlow, &vhigh, base_st, volt_st,                         // NOLINT
       curr_st, temp_st, &coulomb, &mostempr);                                                                 // NOLINT

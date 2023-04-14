@@ -10,7 +10,8 @@
 #endif
 
 #ifndef PYLONTECH_NUM_BATTERIES
-#warning PYLONTECH_NUM_BATTERIES not defined!
+// set by add_num_batteries() in __init__.py
+// this fallback is for linting and IDE stuff
 #define PYLONTECH_NUM_BATTERIES 3  // NOLINT
 #endif
 
