@@ -39,7 +39,7 @@ class SeeedMultiChannelRelay : public Component, public i2c::I2CDevice {
 @param
 @return Firmware version in byte
 */
-  uint8_t get_firmware_version(void);
+  uint8_t get_firmware_version();
 
  protected:
   void write1_byte_(uint8_t register_address, uint8_t data);
@@ -53,21 +53,21 @@ class SeeedMultiChannelRelay : public Component, public i2c::I2CDevice {
     @param state, use one Byte to represent 8 channel
     @return None
   */
-  void channel_ctrl(uint8_t state);
+  void channel_ctrl_(uint8_t state);
 
   /*
     @brief Turn on one of 8 channels
     @param channel, channel to control with (range form 1 to 8)
     @return None
 */
-  void turn_on_channel(uint8_t channel);
+  void turn_on_channel_(uint8_t channel);
 
   /*
       @brief Turn off on of 8 channels
       @param channel, channel to control with (range form 1 to 8)
       @return None
   */
-  void turn_off_channel(uint8_t channel);
+  void turn_off_channel_(uint8_t channel);
 
   void dump_config() override;
 

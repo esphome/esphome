@@ -3,7 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/switch/switch.h"
 
-#include "esphome/components/seedmultichannelrelay/seedmultichannelrelay.h"
+#include "esphome/components/seeedmultichannelrelay/seeedmultichannelrelay.h"
 
 namespace esphome {
 namespace seeedmultichannelrelay {

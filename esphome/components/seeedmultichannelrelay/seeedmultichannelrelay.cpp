@@ -7,19 +7,19 @@ namespace seeedmultichannelrelay {
 
 static const char *const TAG = "SeedMultiChannelRelay";
 
-void SeeedMultiChannelRelay::channel_ctrl(uint8_t state) {
+void SeeedMultiChannelRelay::channel_ctrl_(uint8_t state) {
   this->channel_state_ = state;
   this->write1_byte_(CMD_CHANNEL_CTRL, state);
 }
 
-void SeeedMultiChannelRelay::turn_on_channel(uint8_t channel) {
+void SeeedMultiChannelRelay::turn_on_channel_(uint8_t channel) {
   this->channel_state |= (1 << (channel - 1));
-  this->channel_ctrl(channel_state);
+  this->channel_ctrl_(channel_state);
 }
 
-void SeeedMultiChannelRelay::turn_off_channel(uint8_t channel) {
+void SeeedMultiChannelRelay::turn_off_channel_(uint8_t channel) {
   this->channel_state &= ~(1 << (channel - 1));
-  this->channel_ctrl(channel_state);
+  this->channel_ctrl_(channel_state);
 }
 
 void SeeedMultiChannelRelay::dump_config() {
@@ -42,10 +42,11 @@ uint8_t SeeedMultiChannelRelay::read1_byte_(uint8_t register_address) {
   *  @param number Bit number of relay (0~3).
     @param state OFF = 0, ON = 1 . */
 void SeeedMultiChannelRelay::relay_write(uint8_t number, bool state) {
-  if (state)
-    this->turn_on_channel(number);
-  else
-    this->turn_off_channel(number);
+  if (state) {
+    this->turn_on_channel_(number);
+  } else {
+    this->turn_off_channel_(number);
+}
 }
 
 void SeeedMultiChannelRelay::setup() {
@@ -63,7 +64,7 @@ void SeeedMultiChannelRelay::change_i2c_address(uint8_t new_addr) {
   address_changed_ = true;
 }
 
-uint8_t SeeedMultiChannelRelay::get_firmware_version(void) {
+uint8_t SeeedMultiChannelRelay::get_firmware_version() {
   uint8_t firmware_from_device = this->read1_byte_(CMD_READ_FIRMWARE_VER);
   return firmware_from_device;
 }

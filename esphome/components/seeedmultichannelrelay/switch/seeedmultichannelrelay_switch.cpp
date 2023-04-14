@@ -69,7 +69,7 @@ void SeeedMultiChannelRelaySwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-void SeeedMultiChannelRelaySwitch::set_interlock(const std::vector<Switch *> &interlock) { 
+void SeeedMultiChannelRelaySwitch::set_interlock(const std::vector<Switch *> &interlock) {
   this->interlock_ = interlock;
 }
 
