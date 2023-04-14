@@ -1497,7 +1497,13 @@ async def aeha_action(var, config, args):
 
 
 # Hob2Hood
-Hob2HoodData, Hob2HoodBinarySensor, Hob2HoodTrigger, Hob2HoodAction, Hob2HoodDumper = declare_protocol("Hob2Hood")
+(
+    Hob2HoodData,
+    Hob2HoodBinarySensor,
+    Hob2HoodTrigger,
+    Hob2HoodAction,
+    Hob2HoodDumper,
+) = declare_protocol("Hob2Hood")
 
 Hob2HoodCommand = remote_base_ns.enum("Hob2HoodCommand")
 HOB2HOOD_COMMAND_OPTIONS = {
@@ -1511,7 +1517,9 @@ HOB2HOOD_COMMAND_OPTIONS = {
 }
 
 
-HOB2HOOD_SCHEMA = cv.Schema({cv.Required(CONF_COMMAND): cv.enum(HOB2HOOD_COMMAND_OPTIONS)})
+HOB2HOOD_SCHEMA = cv.Schema(
+    {cv.Required(CONF_COMMAND): cv.enum(HOB2HOOD_COMMAND_OPTIONS)}
+)
 
 
 @register_binary_sensor("hob2hood", Hob2HoodBinarySensor, HOB2HOOD_SCHEMA)
@@ -1532,4 +1540,3 @@ def hob2hood_dumper(var, config):
 @register_action("hob2hood", Hob2HoodAction, HOB2HOOD_SCHEMA)
 async def abbwelcome_action(var, config, args):
     cg.add(var.set_command(await cg.templatable(config[CONF_COMMAND], args, cg.uint8)))
-

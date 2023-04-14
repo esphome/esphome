@@ -71,7 +71,7 @@ class RemoteReceiveData {
     const int32_t hi = this->upper_bound_(length);
     return peek_mark(lo, hi, offset);
   }
-  
+
   bool peek_space(int32_t min_length, int32_t max_length, uint32_t offset) {
     if (int32_t(this->index_ + offset) >= this->size())
       return false;

@@ -22,9 +22,7 @@ struct Hob2HoodData {
 
   Hob2HoodCommand command{HOB2HOOD_CMD_UNKNOWN};
 
-  bool operator==(const Hob2HoodData &rhs) const {
-    return this->command == rhs.command;
-  }
+  bool operator==(const Hob2HoodData &rhs) const { return this->command == rhs.command; }
 
   std::string to_string() const {
     switch (this->command) {
@@ -51,12 +49,13 @@ struct Hob2HoodData {
 class Hob2HoodProtocol : public RemoteProtocol<Hob2HoodData> {
  public:
   void encode(RemoteTransmitData *dst, const Hob2HoodData &data) override;
-  optional<Hob2HoodData> decode(RemoteReceiveData data) override;
+  optional<Hob2HoodData> decode(RemoteReceiveData src) override;
   void dump(const Hob2HoodData &data) override;
+
  protected:
-  void encode_data_(RemoteTransmitData *dst, std::vector<int8_t> data) const;
+  void encode_data_(RemoteTransmitData *dst, const std::vector<int8_t> data) const;
   bool expect_data_(RemoteReceiveData &src, int8_t data);
-  bool expect_data_(RemoteReceiveData &src, std::vector<int8_t> data);
+  bool expect_data_(RemoteReceiveData &src, const std::vector<int8_t> data);
 };
 
 using Hob2HoodTrigger = RemoteReceiverTrigger<Hob2HoodProtocol, Hob2HoodData>;
@@ -69,6 +68,7 @@ class Hob2HoodBinarySensor : public RemoteReceiverBinarySensorBase {
     return data.has_value() && data.value() == this->data_;
   }
   void set_command(const Hob2HoodCommand command) { this->data_.command = command; }
+
  protected:
   Hob2HoodData data_;
 };

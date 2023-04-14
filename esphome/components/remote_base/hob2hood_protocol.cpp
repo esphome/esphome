@@ -25,17 +25,17 @@ static const int32_t SPACE_THRESHOLD_2_US = 1535;
 static const int32_t SPACE_THRESHOLD_3_US = 2300;
 static const int32_t SPACE_THRESHOLD_4_US = 3100;
 
-static const std::vector<int8_t> l0_data = {-1, 2, -1, 1, -1, 1, -1, 3, -1, 1, -1, 2, -1, 2, -1, 1, -1};
-static const std::vector<int8_t> l1_data = {-1, 2, -1, 1, -2, 1, -1, 2, -1, 1, -2, 4, -1, 1, -1, 1, -2};
-static const std::vector<int8_t> f0_data = {-1, 2, -1, 2, -3, 2, -1, 2, -2, 3, -1, 2, -1, 1, -1};
-static const std::vector<int8_t> f1_data = {-2, 2, -1, 2, -3, 2, -1, 2, -1, 1, -1, 2, -1, 3, -1};
-static const std::vector<int8_t> f2_data = {-2, 2, -1, 4, -1, 3, -4, 3, -3};
-static const std::vector<int8_t> f3_data = {-1, 3, -4, 4, -3, 1, -1, 3, -3};
-static const std::vector<int8_t> f4_data = {-2, 3, -2, 1, -2, 3, -2, 2, -1, 3, -1, 1, -2};
+static const std::vector<int8_t> L0_DATA = {-1, 2, -1, 1, -1, 1, -1, 3, -1, 1, -1, 2, -1, 2, -1, 1, -1};
+static const std::vector<int8_t> L1_DATA = {-1, 2, -1, 1, -2, 1, -1, 2, -1, 1, -2, 4, -1, 1, -1, 1, -2};
+static const std::vector<int8_t> F0_DATA = {-1, 2, -1, 2, -3, 2, -1, 2, -2, 3, -1, 2, -1, 1, -1};
+static const std::vector<int8_t> F1_DATA = {-2, 2, -1, 2, -3, 2, -1, 2, -1, 1, -1, 2, -1, 3, -1};
+static const std::vector<int8_t> F2_DATA = {-2, 2, -1, 4, -1, 3, -4, 3, -3};
+static const std::vector<int8_t> F3_DATA = {-1, 3, -4, 4, -3, 1, -1, 3, -3};
+static const std::vector<int8_t> F4_DATA = {-2, 3, -2, 1, -2, 3, -2, 2, -1, 3, -1, 1, -2};
 
-void Hob2HoodProtocol::encode_data_(RemoteTransmitData *dst, std::vector<int8_t> data) const {
+void Hob2HoodProtocol::encode_data_(RemoteTransmitData *dst, const std::vector<int8_t> data) const {
   dst->reserve(data.size());
-  for(const int8_t &d : data) {
+  for (const int8_t &d : data) {
     switch (d) {
       case -1:
         dst->mark(MARK_1_US);
@@ -69,26 +69,26 @@ void Hob2HoodProtocol::encode(RemoteTransmitData *dst, const Hob2HoodData &data)
   dst->set_carrier_frequency(38000);
   switch (data.command) {
     case HOB2HOOD_CMD_LIGHT_OFF:
-  	  encode_data_(dst, l0_data);
-  	  break;
+      encode_data_(dst, L0_DATA);
+      break;
     case HOB2HOOD_CMD_LIGHT_ON:
-  	  encode_data_(dst, l1_data);
-  	  break;
+      encode_data_(dst, L1_DATA);
+      break;
     case HOB2HOOD_CMD_FAN_OFF:
-  	  encode_data_(dst, f0_data);
-  	  break;
+      encode_data_(dst, F0_DATA);
+      break;
     case HOB2HOOD_CMD_FAN_LOW:
-  	  encode_data_(dst, f1_data);
-  	  break;
+      encode_data_(dst, F1_DATA);
+      break;
     case HOB2HOOD_CMD_FAN_MEDIUM:
-  	  encode_data_(dst, f2_data);
-  	  break;
+      encode_data_(dst, F2_DATA);
+      break;
     case HOB2HOOD_CMD_FAN_HIGH:
-  	  encode_data_(dst, f3_data);
-  	  break;
+      encode_data_(dst, F3_DATA);
+      break;
     case HOB2HOOD_CMD_FAN_MAX:
-  	  encode_data_(dst, f4_data);
-  	  break;
+      encode_data_(dst, F4_DATA);
+      break;
   }
 }
 
@@ -115,7 +115,7 @@ bool Hob2HoodProtocol::expect_data_(RemoteReceiveData &src, int8_t data) {
   }
 }
 
-bool Hob2HoodProtocol::expect_data_(RemoteReceiveData &src, std::vector<int8_t> data) {
+bool Hob2HoodProtocol::expect_data_(RemoteReceiveData &src, const std::vector<int8_t> data) {
   for (const int8_t &d : data) {
     if (!expect_data_(src, d))
       return false;
@@ -127,31 +127,31 @@ optional<Hob2HoodData> Hob2HoodProtocol::decode(RemoteReceiveData src) {
   if (this->expect_data_(src, -1)) {
     if (this->expect_data_(src, 2) && this->expect_data_(src, -1)) {
       if (this->expect_data_(src, 1)) {
-        if (this->expect_data_(src, std::vector<int8_t>(l0_data.begin() + 4, l0_data.end()))) {
+        if (this->expect_data_(src, std::vector<int8_t>(L0_DATA.begin() + 4, L0_DATA.end()))) {
           // L0: -1 2 -1 1 -1 ...
           return Hob2HoodData(HOB2HOOD_CMD_LIGHT_OFF);
-        } else if (this->expect_data_(src, std::vector<int8_t>(l1_data.begin() + 4, l1_data.end()))) {
+        } else if (this->expect_data_(src, std::vector<int8_t>(L1_DATA.begin() + 4, L1_DATA.end()))) {
           // L1: -1 2 -1 1 -2 ...
           return Hob2HoodData(HOB2HOOD_CMD_LIGHT_ON);
         }
-      } else if (this->expect_data_(src, std::vector<int8_t>(f0_data.begin() + 3, f0_data.end()))) {
+      } else if (this->expect_data_(src, std::vector<int8_t>(F0_DATA.begin() + 3, F0_DATA.end()))) {
         // F0: -1 2 -1 2 ...
         return Hob2HoodData(HOB2HOOD_CMD_FAN_OFF);
       }
-    } else if (this->expect_data_(src, std::vector<int8_t>(f3_data.begin() + 1, f3_data.end()))) {
+    } else if (this->expect_data_(src, std::vector<int8_t>(F3_DATA.begin() + 1, F3_DATA.end()))) {
       // F3: -1 3 ...
       return Hob2HoodData(HOB2HOOD_CMD_FAN_HIGH);
     }
   } else if (this->expect_data_(src, -2)) {
     if (this->expect_data_(src, 2) && this->expect_data_(src, -1)) {
-      if (this->expect_data_(src, std::vector<int8_t>(f1_data.begin() + 3, f1_data.end()))) {
+      if (this->expect_data_(src, std::vector<int8_t>(F1_DATA.begin() + 3, F1_DATA.end()))) {
         // F1: -2 2 -1 2 ...
         return Hob2HoodData(HOB2HOOD_CMD_FAN_LOW);
-      } else if (this->expect_data_(src, std::vector<int8_t>(f2_data.begin() + 3, f2_data.end()))) {
+      } else if (this->expect_data_(src, std::vector<int8_t>(F2_DATA.begin() + 3, F2_DATA.end()))) {
         // F2: -2 2 -1 4 ...
         return Hob2HoodData(HOB2HOOD_CMD_FAN_MEDIUM);
       }
-    } else if (this->expect_data_(src, std::vector<int8_t>(f4_data.begin() + 1, f4_data.end()))) {
+    } else if (this->expect_data_(src, std::vector<int8_t>(F4_DATA.begin() + 1, F4_DATA.end()))) {
       // F4: -2 3 ...
       return Hob2HoodData(HOB2HOOD_CMD_FAN_MAX);
     }
@@ -159,7 +159,9 @@ optional<Hob2HoodData> Hob2HoodProtocol::decode(RemoteReceiveData src) {
   return {};
 }
 
-void Hob2HoodProtocol::dump(const Hob2HoodData &data) { ESP_LOGD(TAG, "Received Hob2Hood: %s", data.to_string().c_str()); }
+void Hob2HoodProtocol::dump(const Hob2HoodData &data) {
+  ESP_LOGD(TAG, "Received Hob2Hood: %s", data.to_string().c_str());
+}
 
 }  // namespace remote_base
 }  // namespace esphome
