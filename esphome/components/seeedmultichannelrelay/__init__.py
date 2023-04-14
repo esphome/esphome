@@ -21,7 +21,7 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SeeedMultiChannelRelay),
-            cv.Optional(CONF_ADDRESS): cv.hex_int_range(min=0x00,max=0x7F),
+            cv.Optional(CONF_ADDRESS): cv.hex_int_range(min=0x00, max=0x7F),
         }
     )
     .extend(cv.COMPONENT_SCHEMA)

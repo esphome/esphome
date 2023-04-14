@@ -48,7 +48,7 @@ void SeeedMultiChannelRelay::relay_write(uint8_t number, bool state) {
     this->turn_off_channel(number);
 }
 
-void SeeedMultiChannelRelay::setup() { 
+void SeeedMultiChannelRelay::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Seeed Multi Channel Relay...");
   ESP_LOGCONFIG(TAG, "Firmware version of the Seeed Multi Channel Relay %u", this->get_firmware_version());
   if (this->address_changed_) {

@@ -1,12 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, switch
-from esphome.const import CONF_CHANNEL, CONF_INTERLOCK  # , CONF_ID,
+from esphome.const import CONF_CHANNEL, CONF_INTERLOCK, CONF_INTERLOCK_WAIT_TIME  # , CONF_ID,
 
 from .. import (
     seeedmultichannelrelay_ns, 
     SeeedMultiChannelRelay, 
-    CONF_SEEEDMULTICHANNELRELAY_ID
+    CONF_SEEEDMULTICHANNELRELAY_ID,
 )
 
 DEPENDENCIES = ["seeedmultichannelrelay"]
@@ -25,9 +25,7 @@ CONF_Relay_5 = "relay_5"
 CONF_Relay_6 = "relay_6"
 CONF_Relay_7 = "relay_7"
 CONF_Relay_8 = "relay_8"
-
-
-CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
+#CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
 
 RelayBit_ = seeedmultichannelrelay_ns.enum("RelayBit", is_class=True)
 
