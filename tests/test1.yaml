@@ -831,6 +831,15 @@ sensor:
     temperature:
       name: MPU6886 Temperature
     i2c_id: i2c_bus
+  - platform: mmc5603
+    address: 0x30
+    field_strength_x:
+      name: HMC5883L Field Strength X
+    field_strength_y:
+      name: HMC5883L Field Strength Y
+    field_strength_z:
+      name: HMC5883L Field Strength Z
+    i2c_id: i2c_bus
   - platform: dps310
     temperature:
       name: DPS310 Temperature
