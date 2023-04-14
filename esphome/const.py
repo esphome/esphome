@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2023.4.0-dev"
+__version__ = "2023.5.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
@@ -394,6 +394,7 @@ CONF_MEASUREMENT_SEQUENCE_NUMBER = "measurement_sequence_number"
 CONF_MEDIUM = "medium"
 CONF_MEMORY_BLOCKS = "memory_blocks"
 CONF_METHOD = "method"
+CONF_MICROPHONE = "microphone"
 CONF_MIN_COOLING_OFF_TIME = "min_cooling_off_time"
 CONF_MIN_COOLING_RUN_TIME = "min_cooling_run_time"
 CONF_MIN_FAN_MODE_SWITCHING_TIME = "min_fan_mode_switching_time"
