@@ -564,7 +564,7 @@ switch:
     led: 3
     name: TM1638Led3
 
-   - platform: m5stack4relay
+  - platform: m5stack4relay
     id: m5stack4relay_1
     name: m5stack4relay1
     channel: relay_1
