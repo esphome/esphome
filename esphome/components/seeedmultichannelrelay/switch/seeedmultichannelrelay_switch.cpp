@@ -1,5 +1,5 @@
 #include "esphome/core/log.h"
-#include "seedmultichannelrelay_switch.h"
+#include "seeedmultichannelrelay_switch.h"
 
 namespace esphome {
 namespace seeedmultichannelrelay {
