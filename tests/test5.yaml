@@ -44,6 +44,10 @@ i2c:
 m5stack4relay:
   id: M5stackrelay_ID1
 
+seeedmultichannelrelay:
+  id: SeedMultiChannelRelay_ID
+  address: 0x01 # changes the address of the seeedmultichannelrelay (only runs once)
+
 modbus:
   uart_id: uart_1
   flow_control_pin: 5
@@ -587,6 +591,24 @@ switch:
     name: relay4
     channel: relay_4
     m5stack4relay_id: M5stackrelay_ID1
+
+  - platform: seeedmultichannelrelay
+    id: relay_1
+    name: relay1
+    channel: relay_1
+    m5stack4relay_id: SeedMultiChannelRelay_ID
+
+  - platform: seeedmultichannelrelay
+    id: relay_2
+    name: relay2
+    channel: relay_2
+    m5stack4relay_id: SeedMultiChannelRelay_ID
+
+  - platform: seeedmultichannelrelay
+    id: relay_8
+    name: relay8
+    channel: relay_8
+    m5stack4relay_id: SeedMultiChannelRelay_ID
 
 display:
   - platform: tm1638
