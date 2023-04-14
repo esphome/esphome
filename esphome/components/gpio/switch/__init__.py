@@ -7,7 +7,6 @@ from .. import gpio_ns
 
 GPIOSwitch = gpio_ns.class_("GPIOSwitch", switch.Switch, cg.Component)
 
-#CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
 CONFIG_SCHEMA = (
     switch.switch_schema(GPIOSwitch)
     .extend(
