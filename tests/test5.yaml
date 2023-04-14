@@ -45,7 +45,7 @@ m5stack4relay:
   id: M5stackrelay_ID1
 
 seeedmultichannelrelay:
-  id: SeedMultiChannelRelay_ID
+  id: SeeedMultiChannelRelay_ID
   address: 0x01 # changes the address of the seeedmultichannelrelay (only runs once to update into the EPROM) then you have to change the i2c_address
 
 modbus:
@@ -596,19 +596,19 @@ switch:
     id: relay_1
     name: relay1
     channel: relay_1
-    seeedmultichannelrelay_id: SeedMultiChannelRelay_ID
+    seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID
 
   - platform: seeedmultichannelrelay
     id: relay_2
     name: relay2
     channel: relay_2
-    seeedmultichannelrelay_id: SeedMultiChannelRelay_ID
+    seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID
 
   - platform: seeedmultichannelrelay
     id: relay_8
     name: relay8
     channel: relay_8
-    seeedmultichannelrelay_id: SeedMultiChannelRelay_ID
+    seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID
 
 display:
   - platform: tm1638
