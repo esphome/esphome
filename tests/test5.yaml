@@ -569,44 +569,44 @@ switch:
     name: TM1638Led3
 
   - platform: m5stack4relay
-    id: relay_1
-    name: relay1
+    id: m5stack4relay_1
+    name: m5stack4relay1
     channel: relay_1
     m5stack4relay_id: M5stackrelay_ID1
 
   - platform: m5stack4relay
-    id: relay_2
-    name: relay2
+    id: m5stack4relay_2
+    name: m5stack4relay2
     channel: relay_2
     m5stack4relay_id: M5stackrelay_ID1
 
   - platform: m5stack4relay
-    id: relay_3
-    name: relay3
+    id: m5stack4relay_3
+    name: m5stack4relay3
     channel: relay_3
     m5stack4relay_id: M5stackrelay_ID1
 
   - platform: m5stack4relay
-    id: relay_4
-    name: relay4
+    id: m5stack4relay_4
+    name: m5stack4relay4
     channel: relay_4
     m5stack4relay_id: M5stackrelay_ID1
 
   - platform: seeedmultichannelrelay
-    id: relay_1
-    name: relay1
+    id: seeedmultichannelrelay_1
+    name: seeedmultichannelrelay1
     channel: relay_1
     seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID
 
   - platform: seeedmultichannelrelay
-    id: relay_2
-    name: relay2
+    id: seeedmultichannelrelay_2
+    name: seeedmultichannelrelay2
     channel: relay_2
     seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID
 
   - platform: seeedmultichannelrelay
-    id: relay_8
-    name: relay8
+    id: seeedmultichannelrelay_8
+    name: seeedmultichannelrelay8
     channel: relay_8
     seeedmultichannelrelay_id: SeeedMultiChannelRelay_ID
 
