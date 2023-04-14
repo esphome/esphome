@@ -46,7 +46,7 @@ void SeeedMultiChannelRelay::relay_write(uint8_t number, bool state) {
     this->turn_on_channel_(number);
   } else {
     this->turn_off_channel_(number);
-}
+  }
 }
 
 void SeeedMultiChannelRelay::setup() {

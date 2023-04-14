@@ -46,7 +46,7 @@ m5stack4relay:
 
 seeedmultichannelrelay:
   id: SeedMultiChannelRelay_ID
-  address: 0x01 # changes the address of the seeedmultichannelrelay (only runs once)
+  address: 0x01   address: 0x01 # changes the address of the seeedmultichannelrelay (only runs once to update into the EPROM) then you have to change the i2c_address
 
 modbus:
   uart_id: uart_1

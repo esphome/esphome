@@ -12,14 +12,14 @@ static constexpr uint8_t CMD_READ_I2C_ADDR = 0x12;
 static constexpr uint8_t CMD_READ_FIRMWARE_VER = 0x13;
 
 enum class RelayBit : uint8_t {
-  CHANNLE1_BIT = 0x01,
-  CHANNLE2_BIT = 0x02,
-  CHANNLE3_BIT = 0x04,
-  CHANNLE4_BIT = 0x08,
-  CHANNLE5_BIT = 0x10,
-  CHANNLE6_BIT = 0x20,
-  CHANNLE7_BIT = 0x40,
-  CHANNLE8_BIT = 0x80
+  RELAY1 = 0x01,
+  RELAY2 = 0x02,
+  RELAY3 = 0x04,
+  RELAY4 = 0x08,
+  RELAY5 = 0x10,
+  RELAY6 = 0x20,
+  RELAY7 = 0x40,
+  RELAY8 = 0x80
 };
 
 class SeeedMultiChannelRelay : public Component, public i2c::I2CDevice {
