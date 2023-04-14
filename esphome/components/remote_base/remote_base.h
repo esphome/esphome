@@ -59,22 +59,30 @@ class RemoteReceiveData {
  public:
   RemoteReceiveData(std::vector<int32_t> *data, uint8_t tolerance) : data_(data), tolerance_(tolerance) {}
 
-  bool peek_mark(uint32_t length, uint32_t offset = 0) {
+  bool peek_mark(int32_t min_length, int32_t max_length, uint32_t offset) {
     if (int32_t(this->index_ + offset) >= this->size())
       return false;
     int32_t value = this->peek(offset);
+    return value >= 0 && min_length <= value && value <= max_length;
+  }
+
+  bool peek_mark(uint32_t length, uint32_t offset = 0) {
     const int32_t lo = this->lower_bound_(length);
     const int32_t hi = this->upper_bound_(length);
-    return value >= 0 && lo <= value && value <= hi;
+    return peek_mark(lo, hi, offset);
+  }
+  
+  bool peek_space(int32_t min_length, int32_t max_length, uint32_t offset) {
+    if (int32_t(this->index_ + offset) >= this->size())
+      return false;
+    int32_t value = this->peek(offset);
+    return value <= 0 && min_length <= -value && -value <= max_length;
   }
 
   bool peek_space(uint32_t length, uint32_t offset = 0) {
-    if (int32_t(this->index_ + offset) >= this->size())
-      return false;
-    int32_t value = this->peek(offset);
     const int32_t lo = this->lower_bound_(length);
     const int32_t hi = this->upper_bound_(length);
-    return value <= 0 && lo <= -value && -value <= hi;
+    return peek_space(lo, hi, offset);
   }
 
   bool peek_space_at_least(uint32_t length, uint32_t offset = 0) {
@@ -101,8 +109,24 @@ class RemoteReceiveData {
     return false;
   }
 
+  bool expect_mark(int32_t min_length, int32_t max_length) {
+    if (this->peek_mark(min_length, max_length, 0)) {
+      this->advance();
+      return true;
+    }
+    return false;
+  }
+
   bool expect_space(uint32_t length) {
     if (this->peek_space(length)) {
+      this->advance();
+      return true;
+    }
+    return false;
+  }
+
+  bool expect_space(int32_t min_length, int32_t max_length) {
+    if (this->peek_space(min_length, max_length, 0)) {
       this->advance();
       return true;
     }
