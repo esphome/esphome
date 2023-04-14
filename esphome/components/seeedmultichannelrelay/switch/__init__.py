@@ -3,11 +3,11 @@ import esphome.config_validation as cv
 from esphome.components import i2c, switch
 from esphome.const import CONF_CHANNEL, CONF_INTERLOCK  # , CONF_ID,
 
-from .. import seeedmultichannelrelay_ns, SeeedMultiChannelRelay, CONF_SEEDMULTICHANNELRELAY_ID
+from .. import seeedmultichannelrelay_ns, SeeedMultiChannelRelay, CONF_SEEEDMULTICHANNELRELAY_ID
 
 DEPENDENCIES = ["seeedmultichannelrelay"]
 
-SeedMultiChannelRelaySwitch = seeedmultichannelrelay_ns.class_(
+SeeedMultiChannelRelaySwitch = seeedmultichannelrelay_ns.class_(
     "SeedMultiChannelRelaySwitch", cg.Component, i2c.I2CDevice, switch.Switch
 )
 
@@ -17,6 +17,11 @@ CONF_Relay_1 = "relay_1"
 CONF_Relay_2 = "relay_2"
 CONF_Relay_3 = "relay_3"
 CONF_Relay_4 = "relay_4"
+CONF_Relay_1 = "relay_5"
+CONF_Relay_2 = "relay_6"
+CONF_Relay_3 = "relay_7"
+CONF_Relay_4 = "relay_8"
+
 
 CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
 
@@ -27,15 +32,19 @@ SWITCH_MAP = {
     CONF_Relay_2: RelayBit_.RELAY2,
     CONF_Relay_3: RelayBit_.RELAY3,
     CONF_Relay_4: RelayBit_.RELAY4,
+    CONF_Relay_5: RelayBit_.RELAY5,
+    CONF_Relay_6: RelayBit_.RELAY6,
+    CONF_Relay_7: RelayBit_.RELAY7,
+    CONF_Relay_8: RelayBit_.RELAY8,
 }
 
 
 CONFIG_SCHEMA = (
-    switch.switch_schema(SeedMultiChannelRelaySwitch)
+    switch.switch_schema(SeeedMultiChannelRelaySwitch)
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(SeedMultiChannelRelaySwitch),
-            cv.GenerateID(CONF_SEEDMULTICHANNELRELAY_ID): cv.use_id(SeeedMultiChannelRelay),
+            cv.GenerateID(): cv.declare_id(SeeedMultiChannelRelaySwitch),
+            cv.GenerateID(CONF_SEEEDMULTICHANNELRELAY_ID): cv.use_id(SeeedMultiChannelRelay),
             cv.Required(CONF_CHANNEL): cv.enum(SWITCH_MAP),
             cv.Optional(CONF_INTERLOCK): cv.ensure_list(cv.use_id(switch.Switch)),
             cv.Optional(
@@ -49,10 +58,8 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = await switch.new_switch(config)
-    # var = await cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    # await switch.register_switch(var, config)
-    await cg.register_parented(var, config[CONF_SEEDMULTICHANNELRELAY_ID])
+    await cg.register_parented(var, config[CONF_SEEEDMULTICHANNELRELAY_ID])
 
     cg.add(var.set_channel(config[CONF_CHANNEL]))
 

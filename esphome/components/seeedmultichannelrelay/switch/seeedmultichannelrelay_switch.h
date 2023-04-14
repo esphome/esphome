@@ -6,9 +6,9 @@
 #include "esphome/components/seedmultichannelrelay/seedmultichannelrelay.h"
 
 namespace esphome {
-namespace seedmultichannelrelay {
+namespace seeedmultichannelrelay {
 
-class SeedMultiChannelRelaySwitch : public Component, public switch_::Switch, public Parented<M5Stack4Relay> {
+class SeeedMultiChannelRelaySwitch : public Component, public switch_::Switch, public Parented<M5Stack4Relay> {
  public:
   float get_setup_priority() const override;
 
@@ -27,5 +27,5 @@ class SeedMultiChannelRelaySwitch : public Component, public switch_::Switch, pu
   uint32_t interlock_wait_time_{0};
 };
 
-}  // namespace seedmultichannelrelay
+}  // namespace seeedmultichannelrelay
 }  // namespace esphome

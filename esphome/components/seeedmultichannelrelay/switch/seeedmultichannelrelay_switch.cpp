@@ -2,13 +2,13 @@
 #include "seedmultichannelrelay_switch.h"
 
 namespace esphome {
-namespace seedmultichannelrelay {
+namespace seeedmultichannelrelay {
 
-static const char *const TAG = "switch.SeedMultiChannelRelay";
+static const char *const TAG = "switch.SeeedMultiChannelRelay";
 
-float SeedMultiChannelRelaySwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
+float SeeedMultiChannelRelaySwitch::get_setup_priority() const { return setup_priority::HARDWARE; }
 
-void SeedMultiChannelRelaySwitch::setup() {
+void SeeedMultiChannelRelaySwitch::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SeedMultiChannelRelay Switch '%s'...", this->name_.c_str());
 
   bool initial_state = this->get_initial_state_with_restore_mode().value_or(false);
@@ -21,7 +21,7 @@ void SeedMultiChannelRelaySwitch::setup() {
   }
 }
 
-void SeedMultiChannelRelaySwitch::dump_config() {
+void SeeedMultiChannelRelaySwitch::dump_config() {
   LOG_SWITCH("", "SeedMultiChannelRelay Switch", this);
 
   if (!this->interlock_.empty()) {
@@ -34,7 +34,7 @@ void SeedMultiChannelRelaySwitch::dump_config() {
   }
 }
 
-void SeedMultiChannelRelaySwitch::write_state(bool state) {
+void SeeedMultiChannelRelaySwitch::write_state(bool state) {
   if (state != this->inverted_) {
     // Turning ON, check interlocking
 
@@ -69,7 +69,7 @@ void SeedMultiChannelRelaySwitch::write_state(bool state) {
   this->publish_state(state);
 }
 
-void SeedMultiChannelRelaySwitch::set_interlock(const std::vector<Switch *> &interlock) { this->interlock_ = interlock; }
+void SeeedMultiChannelRelaySwitch::set_interlock(const std::vector<Switch *> &interlock) { this->interlock_ = interlock; }
 
 }  // namespace seedmultichannelrelay
 }  // namespace esphome
