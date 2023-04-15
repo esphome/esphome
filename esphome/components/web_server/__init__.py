@@ -139,7 +139,6 @@ async def to_code(config):
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
     if CONF_LOCAL_PAGE_INCLUDE in config:
-        cg.add_define("USE_WEBSERVER_LOCAL")
         cg.add_define("USE_WEBSERVER_LOCAL_PAGE_INCLUDE")
         path = CORE.relative_config_path(config[CONF_LOCAL_PAGE_INCLUDE])
         rhs = load_file_bytes_to_gzip_hex_int_array(path)
