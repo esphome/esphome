@@ -436,7 +436,10 @@ bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; 
 
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
 #if defined(USE_ESP32)
-  if (esp_efuse_mac_get_custom(mac) != ESP_OK) {
+  static bool custom_mac_not_set =
+      false;  // avoid repeated attempt to obtain custom macs to avoid spurious error messages in the log
+  if (!custom_mac_not_set && esp_efuse_mac_get_custom(mac) != ESP_OK) {
+    custom_mac_not_set = true;
 #if defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
     // On some devices, the MAC address that is burnt into EFuse does not
     // match the CRC that goes along with it. For those devices, this
