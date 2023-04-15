@@ -629,11 +629,3 @@ key_collector:
     source_id: keypad
     min_length: 4
     max_length: 4
-
-
-web_server:
-    local: true
-    port: 80
-    local_page_include: "./component_tests/web_server/index.html"
-    css_include: "./component_tests/web_server/www.css"
-    js_include: "./component_tests/web_server/www.js"
