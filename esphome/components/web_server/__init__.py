@@ -25,6 +25,8 @@ from esphome.const import (
 )
 from esphome.core import CORE, coroutine_with_priority, HexInt
 
+_LOGGER = logging.getLogger(__name__)
+
 AUTO_LOAD = ["json", "web_server_base"]
 
 web_server_ns = cg.esphome_ns.namespace("web_server")
