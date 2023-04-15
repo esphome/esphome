@@ -63,8 +63,9 @@ def load_file_bytes_to_gzip_hex_int_array(path):
             + "\n\tNew size: "
             + str(len(file_gzipped))
             + " ("
-            + str(int(len(file_gzipped)/len(loaded_file)*100))
-            + "% of orginal)")
+            + str(int(len(file_gzipped) / len(loaded_file)*100))
+            + "% of orginal)"
+        )
         return rhs
 
 
@@ -139,7 +140,7 @@ async def to_code(config):
         rhs = load_file_bytes_to_gzip_hex_int_array(path)
         cg.add_define("JS_INCLUDE_ARRAY_SIZE", len(rhs))
         prog_arr = cg.progmem_array(config[CONF_JS_INCLUDE_ARRAY], rhs)
-        cg.add(var. set_js_include(prog_arr))
+        cg.add(var.set_js_include(prog_arr))
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")

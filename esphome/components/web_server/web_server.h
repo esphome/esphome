@@ -65,7 +65,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    * @param local_page_include Set a pointer to the byte array that holds the gzip compressed index.html file
    */
   void set_js_include(const uint8_t *js_include);
-  
+
   /** Set local index page
    *
    * @param local_page_include Set a pointer to the byte array that holds the gzip compressed index.html file
