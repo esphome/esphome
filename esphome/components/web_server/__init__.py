@@ -1,5 +1,4 @@
 import gzip
-import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import web_server_base
@@ -24,8 +23,6 @@ from esphome.const import (
     CONF_LOCAL_PAGE_INCLUDE_ARRAY,
 )
 from esphome.core import CORE, coroutine_with_priority, HexInt
-
-_LOGGER = logging.getLogger(__name__)
 
 AUTO_LOAD = ["json", "web_server_base"]
 
@@ -60,7 +57,7 @@ def load_file_bytes_to_gzip_hex_int_array(path):
         rhs = [HexInt(x) for x in file_gzipped]
         print(
             "Compressed file:" + path +
-            "\n\tOld File size: "+str(len(loaded_file))+
+            "\n\tOld size: "+str(len(loaded_file))+
             "\n\tNew size: "+str(len(file_gzipped))+
             " (" +str(int(len(file_gzipped)/len(loaded_file)*100))+"% of orginal)")
         return rhs
