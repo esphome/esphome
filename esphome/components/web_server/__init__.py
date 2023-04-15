@@ -50,6 +50,7 @@ def validate_local(config):
         raise cv.Invalid("'local' is not supported in version 1")
     return config
 
+
 def load_file_bytes_to_gzip_hex_int_array(path):
     with open(file=path, encoding="utf-8") as myfile:
         loaded_file = myfile.read()
