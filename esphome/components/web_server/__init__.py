@@ -4,9 +4,11 @@ from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.const import (
     CONF_CSS_INCLUDE,
+    CONF_CSS_INCLUDE_ARRAY,
     CONF_CSS_URL,
     CONF_ID,
     CONF_JS_INCLUDE,
+    CONF_JS_INCLUDE_ARRAY,
     CONF_JS_URL,
     CONF_PORT,
     CONF_AUTH,
@@ -16,6 +18,8 @@ from esphome.const import (
     CONF_OTA,
     CONF_VERSION,
     CONF_LOCAL,
+    CONF_LOCAL_PAGE,
+    CONF_LOCAL_PAGE_ARRAY,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -54,8 +58,10 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_VERSION, default=2): cv.one_of(1, 2),
             cv.Optional(CONF_CSS_URL): cv.string,
             cv.Optional(CONF_CSS_INCLUDE): cv.file_,
+            cv.GenerateID(CONF_CSS_INCLUDE_ARRAY): cv.declare_id(cg.uint8),
             cv.Optional(CONF_JS_URL): cv.string,
             cv.Optional(CONF_JS_INCLUDE): cv.file_,
+            cv.GenerateID(CONF_JS_INCLUDE_ARRAY): cv.declare_id(cg.uint8),
             cv.Optional(CONF_AUTH): cv.Schema(
                 {
                     cv.Required(CONF_USERNAME): cv.All(
@@ -72,6 +78,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
             cv.Optional(CONF_OTA, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
+            cv.Optional(CONF_LOCAL_PAGE): cv.file_,
+            cv.GenerateID(CONF_LOCAL_PAGE_ARRAY): cv.declare_id(cg.uint8),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
@@ -103,13 +111,24 @@ async def to_code(config):
     if CONF_CSS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
-        with open(file=path, encoding="utf-8") as myfile:
-            cg.add(var.set_css_include(myfile.read()))
+        rhs = load_file_bytes_to_gzip_hex_int_array(path)
+        cg.add_define("CSS_INCLUDE_ARRAY_SIZE", len(rhs))
+        prog_arr = cg.progmem_array(config[CONF_CSS_INCLUDE_ARRAY], rhs)
+        cg.add(var. set_css_include(prog_arr))
     if CONF_JS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
-        with open(file=path, encoding="utf-8") as myfile:
-            cg.add(var.set_js_include(myfile.read()))
+        rhs = load_file_bytes_to_gzip_hex_int_array(path)
+        cg.add_define("JS_INCLUDE_ARRAY_SIZE", len(rhs))
+        prog_arr = cg.progmem_array(config[CONF_JS_INCLUDE_ARRAY], rhs)
+        cg.add(var. set_js_include(prog_arr))
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
+    if CONF_LOCAL_PAGE in config:
+        cg.add_define("USE_WEBSERVER_LOCAL_PAGE")
+        path = CORE.relative_config_path(config[CONF_LOCAL_PAGE])
+        rhs = load_file_bytes_to_gzip_hex_int_array(path)
+        cg.add_define("LOCAL_PAGE_ARRAY_SIZE", len(rhs))
+        prog_arr = cg.progmem_array(config[CONF_LOCAL_PAGE_ARRAY], rhs)
+        cg.add(var. set_page_include(prog_arr))

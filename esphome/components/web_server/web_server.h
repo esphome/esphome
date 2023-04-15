@@ -51,7 +51,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    *
    * @param css_include Local path to web server script.
    */
-  void set_css_include(const char *css_include);
+  void set_css_include(const uint8_t *css_include);
 
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://esphome.io/_static/webserver-v1.min.js
@@ -64,7 +64,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    *
    * @param js_include Local path to web server script.
    */
-  void set_js_include(const char *js_include);
+  void set_js_include(const uint8_t *js_include);
+  
+  /** Set local index page 
+   *
+   * @param page_include Set a pointer to the byte array that holds the gzip compressed index.html file
+   */
+  void set_page_include(const uint8_t *page_include) ;
 
   /** Determine whether internal components should be displayed on the web server.
    * Defaults to false.
@@ -230,9 +236,10 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   AsyncEventSource events_{"/events"};
   ListEntitiesIterator entities_iterator_;
   const char *css_url_{nullptr};
-  const char *css_include_{nullptr};
+  const uint8_t *css_include_{nullptr};
   const char *js_url_{nullptr};
-  const char *js_include_{nullptr};
+  const uint8_t *js_include_{nullptr};
+  const uint8_t *page_include_{nullptr};
   bool include_internal_{false};
   bool allow_ota_{true};
 #ifdef USE_ESP32

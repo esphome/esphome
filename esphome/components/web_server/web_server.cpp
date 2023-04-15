@@ -25,8 +25,13 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
+
 #ifdef USE_WEBSERVER_LOCAL
+#  ifdef USE_WEBSERVER_LOCAL_PAGE
+#  else
+#include "esphome/core/hal.h"
 #include "server_index.h"
+#  endif
 #endif
 
 namespace esphome {
@@ -91,9 +96,10 @@ WebServer::WebServer(web_server_base::WebServerBase *base)
 }
 
 void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
-void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
+void WebServer::set_css_include(const uint8_t *css_include) { this->css_include_ = css_include; }
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
-void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
+void WebServer::set_js_include(const uint8_t *js_include) { this->js_include_ = js_include; }
+void WebServer::set_page_include(const uint8_t *page_include) { page_include_ = page_include;}
 
 void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
@@ -155,7 +161,11 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 
 #ifdef USE_WEBSERVER_LOCAL
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
+#ifdef USE_WEBSERVER_LOCAL_PAGE
+  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", this->page_include_, LOCAL_PAGE_ARRAY_SIZE);
+#else
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
+#endif
   response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
@@ -331,27 +341,25 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   request->send(stream);
 }
 #endif
+
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
-  AsyncResponseStream *stream = request->beginResponseStream("text/css");
-  if (this->css_include_ != nullptr) {
-    stream->print(this->css_include_);
-  }
-
-  request->send(stream);
+  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", this->css_include_, CSS_INCLUDE_ARRAY_SIZE);
+  response->addHeader("Content-Encoding", "gzip");
+  response->addHeader("Access-Control-Allow-Origin", "*");
+  request->send(response);
 }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
-  AsyncResponseStream *stream = request->beginResponseStream("text/javascript");
-  if (this->js_include_ != nullptr) {
-    stream->addHeader("Access-Control-Allow-Origin", "*");
-    stream->print(this->js_include_);
-  }
-
-  request->send(stream);
+  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/javascript", this->js_include_, JS_INCLUDE_ARRAY_SIZE);
+  response->addHeader("Content-Encoding", "gzip");
+  response->addHeader("Access-Control-Allow-Origin", "*");
+  request->send(response);
 }
+#endif
+
 #endif
 
 #define set_json_id(root, obj, sensor, start_config) \
