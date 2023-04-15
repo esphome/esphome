@@ -1,0 +1,172 @@
+// Implementation based on:
+
+#include "gdk101.h"
+#include "esphome/core/log.h"
+#include "esphome/core/hal.h"
+
+namespace esphome {
+namespace gdk101 {
+
+static const char *const TAG = "gdk101";
+
+void GDK101Component::update() {
+  uint8_t data[2];
+  if (!this->read_dose_1m_(data)) {
+    this->status_set_warning();
+    return;
+  }
+
+  if (!this->read_dose_10m_(data)) {
+    this->status_set_warning();
+    return;
+  }
+
+  if (!this->read_status_(data)) {
+    this->status_set_warning();
+    return;
+  }
+
+  if (!this->read_measuring_time_(data)) {
+    this->status_set_warning();
+    return;
+  }
+}
+
+void GDK101Component::setup() {
+  uint8_t data[2];
+  ESP_LOGCONFIG(TAG, "Setting up GDK101...");
+  // first, reset the sensor
+  if (!this->reset_sensor_(data)) {
+    this->mark_failed();
+    return;
+  }
+  // sensor should acknowledge the reset procedure
+  if (data[0] != 1) {
+    this->mark_failed();
+    return;
+  }
+  delay(10);
+  // read firmware version
+  if (!this->read_fw_version_(data)) {
+    this->status_set_warning();
+    return;
+  }
+}
+
+void GDK101Component::dump_config() {
+  ESP_LOGD(TAG, "GDK101:");
+  LOG_I2C_DEVICE(this);
+  if (this->is_failed()) {
+    ESP_LOGE(TAG, "Communication with GDK101 failed!");
+  }
+  LOG_SENSOR("  ", "Firmware Version", this->fw_version_sensor_);
+  LOG_SENSOR("  ", "Average Radaition Dose per 1 minute", this->rad_1m_sensor_);
+  LOG_SENSOR("  ", "Average Radaition Dose per 10 minutes", this->rad_10m_sensor_);
+  LOG_SENSOR("  ", "Status", this->status_sensor_);
+  LOG_SENSOR("  ", "Measurement Time", this->meas_time_sensor_);
+  LOG_BINARY_SENSOR("  ", "Vibration Status", this->vibration_binary_sensor_);
+}
+
+float GDK101Component::get_setup_priority() const { return setup_priority::DATA; }
+
+bool GDK101Component::read_bytes_with_retry_(uint8_t a_register, uint8_t *data, uint8_t len) {
+  uint8_t retry = 5;
+  bool status = false;
+  while (!status && retry) {
+    status = this->read_bytes(a_register, data, len);
+    retry--;
+  }
+  return status;
+}
+
+bool GDK101Component::reset_sensor_(uint8_t *data) {
+  // It looks like reset is not so well designed in that sensor
+  // After sending reset command it looks that sensor start performing reset and is unresponsible during read
+  // after a while we can send another reset command and read "0x01" as confirmation
+  // Documentation not going in to such details unfortunately
+  if (!this->read_bytes_with_retry_(GDK101_REG_RESET, data, 2)) {
+    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    return false;
+  }
+
+  return true;
+}
+
+bool GDK101Component::read_dose_1m_(uint8_t *data) {
+  if (!this->read_bytes(GDK101_REG_READ_1MIN_AVG, data, 2)) {
+    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    return false;
+  }
+
+  const float dose = data[0] + (float) data[1] / 100;
+
+  if (this->rad_1m_sensor_ != nullptr) {
+    this->rad_1m_sensor_->publish_state(dose);
+  }
+
+  return true;
+}
+
+bool GDK101Component::read_dose_10m_(uint8_t *data) {
+  if (!this->read_bytes(GDK101_REG_READ_10MIN_AVG, data, 2)) {
+    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    return false;
+  }
+
+  const float dose = data[0] + (float) data[1] / 100;
+
+  if (this->rad_10m_sensor_ != nullptr) {
+    this->rad_10m_sensor_->publish_state(dose);
+  }
+
+  return true;
+}
+
+bool GDK101Component::read_status_(uint8_t *data) {
+  if (!this->read_bytes(GDK101_REG_READ_STATUS, data, 2)) {
+    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    return false;
+  }
+
+  if (this->status_sensor_ != nullptr) {
+    this->status_sensor_->publish_state(data[0]);
+  }
+
+  if (this->vibration_binary_sensor_ != nullptr) {
+    this->vibration_binary_sensor_->publish_state(data[1]);
+  }
+
+  return true;
+}
+
+bool GDK101Component::read_fw_version_(uint8_t *data) {
+  if (!this->read_bytes(GDK101_REG_READ_FIRMWARE, data, 2)) {
+    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    return false;
+  }
+
+  const float fw_version = data[0] + (float) data[1] / 10;
+
+  if (this->fw_version_sensor_ != nullptr) {
+    this->fw_version_sensor_->publish_state(fw_version);
+  }
+  return true;
+}
+
+bool GDK101Component::read_measuring_time_(uint8_t *data) {
+  if (!this->read_bytes(GDK101_REG_READ_MEASURING_TIME, data, 2)) {
+    ESP_LOGW(TAG, "Updating GDK101 failed!");
+    return false;
+  }
+
+  const float meas_time = data[0] * 60 + data[1];
+
+  if (this->meas_time_sensor_ != nullptr) {
+    this->meas_time_sensor_->publish_state(meas_time);
+  }
+
+  return true;
+}
+
+}  // namespace gdk101
+}  // namespace esphome
