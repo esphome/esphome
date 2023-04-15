@@ -33,7 +33,7 @@ static const std::vector<int8_t> F2_DATA = {-2, 2, -1, 4, -1, 3, -4, 3, -3};
 static const std::vector<int8_t> F3_DATA = {-1, 3, -4, 4, -3, 1, -1, 3, -3};
 static const std::vector<int8_t> F4_DATA = {-2, 3, -2, 1, -2, 3, -2, 2, -1, 3, -1, 1, -2};
 
-void Hob2HoodProtocol::encode_data_(RemoteTransmitData *dst, const std::vector<int8_t>& data) const {
+void Hob2HoodProtocol::encode_data_(RemoteTransmitData *dst, const std::vector<int8_t> data) const {
   dst->reserve(data.size());
   for (const int8_t &d : data) {
     switch (d) {
@@ -115,7 +115,7 @@ bool Hob2HoodProtocol::expect_data_(RemoteReceiveData &src, int8_t data) {
   }
 }
 
-bool Hob2HoodProtocol::expect_data_(RemoteReceiveData &src, const std::vector<int8_t>& data) {
+bool Hob2HoodProtocol::expect_data_(RemoteReceiveData &src, const std::vector<int8_t> data) {
   for (const int8_t &d : data) {
     if (!expect_data_(src, d))
       return false;
