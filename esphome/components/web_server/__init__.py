@@ -60,8 +60,8 @@ def load_file_bytes_to_gzip_hex_int_array(path):
         rhs = [HexInt(x) for x in file_gzipped]
         _LOGGER.info(
             "Compressed file:" + path +
-            "\nOld File size: "+str(len(loaded_file))+
-            "\nNew size: "+str(len(file_gzipped))+
+            "\n\tOld File size: "+str(len(loaded_file))+
+            "\n\tNew size: "+str(len(file_gzipped))+
             " (" +str(int(len(file_gzipped)/len(loaded_file)*100))+"% of orginal)")
         return rhs
 
