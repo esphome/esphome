@@ -1497,7 +1497,13 @@ async def aeha_action(var, config, args):
 
 
 # ABBWelcome
-ABBWelcomeData, ABBWelcomeBinarySensor, ABBWelcomeTrigger, ABBWelcomeAction, ABBWelcomeDumper = declare_protocol("ABBWelcome")
+(
+    ABBWelcomeData,
+    ABBWelcomeBinarySensor,
+    ABBWelcomeTrigger,
+    ABBWelcomeAction,
+    ABBWelcomeDumper,
+) = declare_protocol("ABBWelcome")
 
 CONF_SOURCE_ADDRESS = "source_address"
 CONF_DESTINATION_ADDRESS = "destination_address"
@@ -1546,17 +1552,39 @@ def abbwelcome_dumper(var, config):
 
 @register_action("abbwelcome", ABBWelcomeAction, ABB_WELCOME_SCHEMA)
 async def abbwelcome_action(var, config, args):
-    cg.add(var.set_source_address(await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint16)))
-    cg.add(var.set_destination_address(await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint16)))
-    cg.add(var.set_retransmission(await cg.templatable(config[CONF_RETRANSMISSION], args, cg.bool_)))
-    cg.add(var.set_message_type(await cg.templatable(config[CONF_MESSAGE_TYPE], args, cg.uint8)))
+    cg.add(
+        var.set_source_address(
+            await cg.templatable(config[CONF_SOURCE_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(
+        var.set_destination_address(
+            await cg.templatable(config[CONF_DESTINATION_ADDRESS], args, cg.uint16)
+        )
+    )
+    cg.add(
+        var.set_retransmission(
+            await cg.templatable(config[CONF_RETRANSMISSION], args, cg.bool_)
+        )
+    )
+    cg.add(
+        var.set_message_type(
+            await cg.templatable(config[CONF_MESSAGE_TYPE], args, cg.uint8)
+        )
+    )
     cg.add(var.set_auto_message_id(CONF_MESSAGE_ID not in config))
     if CONF_MESSAGE_ID in config:
-        cg.add(var.set_message_id(await cg.templatable(config[CONF_MESSAGE_ID], args, cg.uint8)))
+        cg.add(
+            var.set_message_id(
+                await cg.templatable(config[CONF_MESSAGE_ID], args, cg.uint8)
+            )
+        )
     if CONF_DATA in config:
         data_ = config[CONF_DATA]
         if cg.is_template(data_):
-            template_ = await cg.templatable(data_, args, cg.std_vector.template(cg.uint8))
+            template_ = await cg.templatable(
+                data_, args, cg.std_vector.template(cg.uint8)
+            )
             cg.add(var.set_data_template(template_))
         else:
             cg.add(var.set_data_static(data_))
