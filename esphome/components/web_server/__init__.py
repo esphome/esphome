@@ -22,7 +22,7 @@ from esphome.const import (
     CONF_LOCAL_PAGE,
     CONF_LOCAL_PAGE_ARRAY,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority, HexInt
 
 AUTO_LOAD = ["json", "web_server_base"]
 
