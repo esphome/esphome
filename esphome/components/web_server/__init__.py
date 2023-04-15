@@ -53,7 +53,7 @@ def validate_local(config):
 def load_file_bytes_to_gzip_hex_int_array(path):
     with open(file=path, encoding="utf-8") as myfile:
         loaded_file = myfile.read()
-        file_gzipped = gzip.compress(bytes(loaded_file, 'utf-8'))
+        file_gzipped = gzip.compress(bytes(loaded_file, "utf-8"))
         rhs = [HexInt(x) for x in file_gzipped]
         print(
             "Compressed file:"
@@ -63,7 +63,7 @@ def load_file_bytes_to_gzip_hex_int_array(path):
             + "\n\tNew size: "
             + str(len(file_gzipped))
             + " ("
-            + str(int(len(file_gzipped) / len(loaded_file)*100))
+            + str(int(len(file_gzipped) / len(loaded_file) * 100))
             + "% of orginal)"
         )
         return rhs
