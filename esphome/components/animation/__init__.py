@@ -16,20 +16,42 @@ MULTI_CONF = True
 
 Animation_ = display.display_ns.class_("Animation", espImage.Image_)
 
+
+def validate_cross_dependencies(config):
+    """
+    Validate fields whose possible values depend on other fields.
+    For example, validate that explicitly transparent image types
+    have "use_transparency" set to True.
+    Also set the default value for those kind of dependent fields.
+    """
+    image_type = config[CONF_TYPE]
+    is_transparent_type = image_type in ["TRANSPARENT_BINARY", "RGBA"]
+    # If the use_transparency option was not specified, set the default depending on the image type
+    if CONF_USE_TRANSPARENCY not in config:
+        config[CONF_USE_TRANSPARENCY] = is_transparent_type
+
+    if is_transparent_type and not config[CONF_USE_TRANSPARENCY]:
+        raise cv.Invalid(f"Image type {image_type} must always be transparent.")
+
+    return config
+
+
 ANIMATION_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.declare_id(Animation_),
-        cv.Required(CONF_FILE): cv.file_,
-        cv.Optional(CONF_RESIZE): cv.dimensions,
-        cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(
-            espImage.IMAGE_TYPE, upper=True
-        ),
-        # Not setting default here on purpose; normally the default will be False,
-        # but cannot be set for transparent image types; thus the code generation
-        # needs to know whether the user actually set a value.
-        cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
-        cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
-    }
+    cv.All(
+        {
+            cv.Required(CONF_ID): cv.declare_id(Animation_),
+            cv.Required(CONF_FILE): cv.file_,
+            cv.Optional(CONF_RESIZE): cv.dimensions,
+            cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(
+                espImage.IMAGE_TYPE, upper=True
+            ),
+            # Not setting default here on purpose; the default depends on the image type,
+            # and thus will be set in the "validate_cross_dependencies" validator.
+            cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
+            cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
+        },
+        validate_cross_dependencies,
+    )
 )
 
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, ANIMATION_SCHEMA)
@@ -60,16 +82,7 @@ async def to_code(config):
                 path,
             )
 
-    is_transparent_type = config[CONF_TYPE] in [
-        "TRANSPARENT_BINARY",
-        "RGBA",
-    ]
-    if config.get(CONF_USE_TRANSPARENCY, None) is False and is_transparent_type:
-        # TODO: Would be nice to also print the line where the error happened
-        raise core.EsphomeError(
-            f'Animation "{config[CONF_ID]}": Image type {config[CONF_TYPE]} must always be transparent.'
-        )
-    transparent = config.get(CONF_USE_TRANSPARENCY, is_transparent_type)
+    transparent = config[CONF_USE_TRANSPARENCY]
 
     if config[CONF_TYPE] == "GRAYSCALE":
         data = [0 for _ in range(height * width * frames)]
@@ -199,7 +212,6 @@ async def to_code(config):
                 pos = x + y * width8 + (height * width8 * frameIndex)
                 data[pos // 8] |= 0x80 >> (pos % 8)
     else:
-        # TODO: Would be nice to also print the line where the error happened
         raise core.EsphomeError(
             f"Animation f{config[CONF_ID]} has not supported type {config[CONF_TYPE]}."
         )
