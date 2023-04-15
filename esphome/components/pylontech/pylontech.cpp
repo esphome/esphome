@@ -101,10 +101,11 @@ void PylontechComponent::loop() {
 
 void PylontechComponent::process_line_(std::string &buffer) {
   ESP_LOGV(TAG, "Read from serial: %s", buffer.substr(0, buffer.size() - 2).c_str());
+  // clang-format off
   // example line to parse:
-  // Power    Volt   Curr   Tempr  Tlow   Thigh  Vlow   Vhigh  Base.St  Volt.St  Curr.St  Temp.St  Coulomb  Time B.V.St
-  // B.T.St   MosTempr M.T.St 1        50548  8910   25000  24200  25000  3368   3371   Charge   Normal   Normal Normal
-  // 97%      2021-06-30 20:49:45  Normal   Normal  22700    Normal
+  // Power Volt  Curr Tempr Tlow  Thigh  Vlow Vhigh Base.St Volt.St Curr.St Temp.St Coulomb Time                B.V.St B.T.St MosTempr M.T.St
+  // 1    50548  8910 25000 24200 25000  3368 3371  Charge  Normal  Normal  Normal  97%     2021-06-30 20:49:45 Normal Normal 22700    Normal
+  // clang-format on
 
   int bat_num = 0, volt, curr, tempr, tlow, thigh, vlow, vhigh, coulomb, mostempr;
   char base_st[TEXT_SENSOR_MAX_LEN], volt_st[TEXT_SENSOR_MAX_LEN], curr_st[TEXT_SENSOR_MAX_LEN],
