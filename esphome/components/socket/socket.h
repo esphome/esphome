@@ -1,9 +1,9 @@
 #pragma once
-#include <string>
 #include <memory>
+#include <string>
 
-#include "headers.h"
 #include "esphome/core/optional.h"
+#include "headers.h"
 
 namespace esphome {
 namespace socket {
@@ -34,6 +34,8 @@ class Socket {
   virtual ssize_t readv(const struct iovec *iov, int iovcnt) = 0;
   virtual ssize_t write(const void *buf, size_t len) = 0;
   virtual ssize_t writev(const struct iovec *iov, int iovcnt) = 0;
+  virtual ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen);
+
   virtual int setblocking(bool blocking) = 0;
   virtual int loop() { return 0; };
 };
@@ -45,7 +47,7 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol);
 std::unique_ptr<Socket> socket_ip(int type, int protocol);
 
 /// Set a sockaddr to the specified address and port for the IP version used by socket_ip().
-socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port);
+socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port);
 
 /// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
 socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);

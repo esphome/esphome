@@ -137,7 +137,7 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
 
-  const uint32_t pos = (x + y * this->get_width_internal()) / 8u;
+  const uint32_t pos = (x + y * this->get_width_controller()) / 8u;
   const uint8_t subpos = x & 0x07;
   // flip logic
   if (!color.is_on()) {
@@ -146,7 +146,9 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color
     this->buffer_[pos] &= ~(0x80 >> subpos);
   }
 }
-uint32_t WaveshareEPaper::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal() / 8u; }
+uint32_t WaveshareEPaper::get_buffer_length_() {
+  return this->get_width_controller() * this->get_height_internal() / 8u;
+}
 void WaveshareEPaper::start_command_() {
   this->dc_pin_->digital_write(false);
   this->enable();
@@ -291,7 +293,7 @@ void HOT WaveshareEPaperTypeA::display() {
       // COMMAND SET RAM X ADDRESS START END POSITION
       this->command(0x44);
       this->data(0x00);
-      this->data((this->get_width_internal() - 1) >> 3);
+      this->data((this->get_width_controller() - 1) >> 3);
       // COMMAND SET RAM Y ADDRESS START END POSITION
       this->command(0x45);
       this->data(this->get_height_internal() - 1);
@@ -392,11 +394,25 @@ int WaveshareEPaperTypeA::get_width_internal() {
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
     case TTGO_EPAPER_2_13_IN_B1:
+      return 122;
     case WAVESHARE_EPAPER_2_9_IN:
     case WAVESHARE_EPAPER_2_9_IN_V2:
       return 128;
   }
   return 0;
+}
+// The controller of the 2.13" displays has a buffer larger than screen size
+int WaveshareEPaperTypeA::get_width_controller() {
+  switch (this->model_) {
+    case WAVESHARE_EPAPER_2_13_IN:
+    case TTGO_EPAPER_2_13_IN:
+    case TTGO_EPAPER_2_13_IN_B73:
+    case TTGO_EPAPER_2_13_IN_B74:
+    case TTGO_EPAPER_2_13_IN_B1:
+      return 128;
+    default:
+      return this->get_width_internal();
+  }
 }
 int WaveshareEPaperTypeA::get_height_internal() {
   switch (this->model_) {
