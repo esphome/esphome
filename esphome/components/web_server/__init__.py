@@ -49,6 +49,17 @@ def validate_local(config):
         raise cv.Invalid("'local' is not supported in version 1")
     return config
 
+def load_file_bytes_to_gzip_hex_int_array(path):
+    with open(file=path, encoding="utf-8") as myfile:
+        loaded_file = myfile.read()
+        file_gzipped = gzip.compress(bytes(loaded_file, 'utf-8'))
+        rhs = [HexInt(x) for x in file_gzipped]
+        print(
+            "Compressed file:" + path +
+            "\nOld File size: "+str(len(loaded_file))+
+            "\nNew size :"+str(len(file_gzipped))+
+            " (" +str(int(len(file_gzipped)/len(loaded_file)*100))+"% of orginal)")
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
