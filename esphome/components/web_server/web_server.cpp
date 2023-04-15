@@ -25,12 +25,9 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
-#ifdef USE_WEBSERVER_LOCAL
-#  ifdef USE_WEBSERVER_LOCAL_PAGE
-#  else
+#if defined  USE_WEBSERVER_LOCAL && !defined USE_WEBSERVER_LOCAL_PAGE_INCLUDE
 #include "esphome/core/hal.h"
 #include "server_index.h"
-#  endif
 #endif
 
 namespace esphome {
@@ -98,7 +95,7 @@ void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
 void WebServer::set_css_include(const uint8_t *css_include) { this->css_include_ = css_include; }
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
 void WebServer::set_js_include(const uint8_t *js_include) { this->js_include_ = js_include; }
-void WebServer::set_page_include(const uint8_t *page_include) { page_include_ = page_include;}
+void WebServer::set_local_page_include(const uint8_t *local_page_include) { local_page_include_ = local_page_include;}
 
 void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
@@ -160,8 +157,8 @@ float WebServer::get_setup_priority() const { return setup_priority::WIFI - 1.0f
 
 #ifdef USE_WEBSERVER_LOCAL
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
-#ifdef USE_WEBSERVER_LOCAL_PAGE
-  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", this->page_include_, LOCAL_PAGE_ARRAY_SIZE);
+#ifdef USE_WEBSERVER_LOCAL_PAGE_INCLUDE
+  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", this->local_page_include_, LOCAL_PAGE_ARRAY_SIZE);
 #else
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", INDEX_GZ, sizeof(INDEX_GZ));
 #endif

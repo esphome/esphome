@@ -1,4 +1,5 @@
 import gzip
+import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import web_server_base
@@ -19,8 +20,8 @@ from esphome.const import (
     CONF_OTA,
     CONF_VERSION,
     CONF_LOCAL,
-    CONF_LOCAL_PAGE,
-    CONF_LOCAL_PAGE_ARRAY,
+    CONF_LOCAL_PAGE_INCLUDE,
+    CONF_LOCAL_PAGE_INCLUDE_ARRAY,
 )
 from esphome.core import CORE, coroutine_with_priority, HexInt
 
@@ -55,11 +56,10 @@ def load_file_bytes_to_gzip_hex_int_array(path):
         loaded_file = myfile.read()
         file_gzipped = gzip.compress(bytes(loaded_file, 'utf-8'))
         rhs = [HexInt(x) for x in file_gzipped]
-        print(
-            "Compressed file:" + path +
-            "\nOld File size: "+str(len(loaded_file))+
-            "\nNew size: "+str(len(file_gzipped))+
-            " (" +str(int(len(file_gzipped)/len(loaded_file)*100))+"% of orginal)")
+        _LOGGER.info(
+            "Compressed file: s% \n\tOld File size: %d\n\tNew size:  %d(%d \% of orginal)",
+            path, len(loaded_file), len(file_gzipped), 
+            int(len(file_gzipped)/len(loaded_file)*100))
         return rhs
 
 
@@ -91,8 +91,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
             cv.Optional(CONF_OTA, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
-            cv.Optional(CONF_LOCAL_PAGE): cv.file_,
-            cv.GenerateID(CONF_LOCAL_PAGE_ARRAY): cv.declare_id(cg.uint8),
+            cv.Optional(CONF_LOCAL_PAGE_INCLUDE): cv.file_,
+            cv.GenerateID(CONF_LOCAL_PAGE_INCLUDE_ARRAY): cv.declare_id(cg.uint8),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
@@ -138,10 +138,11 @@ async def to_code(config):
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
-    if CONF_LOCAL_PAGE in config:
-        cg.add_define("USE_WEBSERVER_LOCAL_PAGE")
-        path = CORE.relative_config_path(config[CONF_LOCAL_PAGE])
+    if CONF_LOCAL_PAGE_INCLUDE in config:
+        cg.add_define("USE_WEBSERVER_LOCAL")
+        cg.add_define("USE_WEBSERVER_LOCAL_PAGE_INCLUDE")
+        path = CORE.relative_config_path(config[CONF_LOCAL_PAGE_INCLUDE])
         rhs = load_file_bytes_to_gzip_hex_int_array(path)
         cg.add_define("LOCAL_PAGE_ARRAY_SIZE", len(rhs))
-        prog_arr = cg.progmem_array(config[CONF_LOCAL_PAGE_ARRAY], rhs)
-        cg.add(var. set_page_include(prog_arr))
+        prog_arr = cg.progmem_array(config[CONF_LOCAL_PAGE_INCLUDE_ARRAY], rhs)
+        cg.add(var. set_local_page_include(prog_arr))

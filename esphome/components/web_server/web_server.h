@@ -68,9 +68,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   
   /** Set local index page 
    *
-   * @param page_include Set a pointer to the byte array that holds the gzip compressed index.html file
+   * @param local_page_include Set a pointer to the byte array that holds the gzip compressed index.html file
    */
-  void set_page_include(const uint8_t *page_include) ;
+  void set_local_page_include(const uint8_t *local_page_include) ;
 
   /** Determine whether internal components should be displayed on the web server.
    * Defaults to false.
@@ -239,7 +239,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const uint8_t *css_include_{nullptr};
   const char *js_url_{nullptr};
   const uint8_t *js_include_{nullptr};
-  const uint8_t *page_include_{nullptr};
+  const uint8_t *local_page_include_{nullptr};
   bool include_internal_{false};
   bool allow_ota_{true};
 #ifdef USE_ESP32
