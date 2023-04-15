@@ -60,9 +60,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_js_url(const char *js_url);
 
-  /** Set local path to the script that's embedded in the index page. Defaults to
+  /** Set local index page
    *
-   * @param js_include Local path to web server script.
+   * @param local_page_include Set a pointer to the byte array that holds the gzip compressed index.html file
    */
   void set_js_include(const uint8_t *js_include);
   
@@ -70,7 +70,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    *
    * @param local_page_include Set a pointer to the byte array that holds the gzip compressed index.html file
    */
-  void set_local_page_include(const uint8_t *local_page_include) ;
+  void set_local_page_include(const uint8_t *local_page_include);
 
   /** Determine whether internal components should be displayed on the web server.
    * Defaults to false.
