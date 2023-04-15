@@ -56,10 +56,15 @@ def load_file_bytes_to_gzip_hex_int_array(path):
         file_gzipped = gzip.compress(bytes(loaded_file, 'utf-8'))
         rhs = [HexInt(x) for x in file_gzipped]
         print(
-            "Compressed file:" + path +
-            "\n\tOld size: "+str(len(loaded_file))+
-            "\n\tNew size: "+str(len(file_gzipped))+
-            " (" +str(int(len(file_gzipped)/len(loaded_file)*100))+"% of orginal)")
+            "Compressed file:"
+            + path
+            + "\n\tOld size: "
+            + str(len(loaded_file))
+            + "\n\tNew size: "
+            + str(len(file_gzipped))
+            + " ("
+            + str(int(len(file_gzipped)/len(loaded_file)*100))
+            + "% of orginal)")
         return rhs
 
 
@@ -127,7 +132,7 @@ async def to_code(config):
         rhs = load_file_bytes_to_gzip_hex_int_array(path)
         cg.add_define("CSS_INCLUDE_ARRAY_SIZE", len(rhs))
         prog_arr = cg.progmem_array(config[CONF_CSS_INCLUDE_ARRAY], rhs)
-        cg.add(var. set_css_include(prog_arr))
+        cg.add(var.set_css_include(prog_arr))
     if CONF_JS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
@@ -144,4 +149,4 @@ async def to_code(config):
         rhs = load_file_bytes_to_gzip_hex_int_array(path)
         cg.add_define("LOCAL_PAGE_ARRAY_SIZE", len(rhs))
         prog_arr = cg.progmem_array(config[CONF_LOCAL_PAGE_INCLUDE_ARRAY], rhs)
-        cg.add(var. set_local_page_include(prog_arr))
+        cg.add(var.set_local_page_include(prog_arr))
