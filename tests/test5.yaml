@@ -636,4 +636,4 @@ web_server:
     port: 80
     custom_local_page: "./component_tests/web_server/index.html"
     css_include: "./component_tests/web_server/www.css"
-    js_include: "./component_tests/web_server/www.js" 
+    js_include: "./component_tests/web_server/www.js"
