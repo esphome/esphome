@@ -1161,6 +1161,12 @@ sensor:
     temperature:
       name: Max9611 Temp
     update_interval: 1s
+  - platform: mlx90614
+    i2c_id: i2c_bus
+    ambient:
+      name: Ambient
+    object:
+      name: Object
 
 esp32_touch:
   setup_mode: False
