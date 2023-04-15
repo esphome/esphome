@@ -65,7 +65,7 @@ class ABBWelcomeData {
       this->data_[2] |= 0x80;
     } else {
       this->data_[2] &= 0x7f;
-}
+    }
   }
   bool get_retransmission() const { return this->data_[2] & 0x80; }
   void set_message_type(uint8_t message_type) { this->data_[3] = message_type; }
