@@ -58,7 +58,7 @@ def load_file_bytes_to_gzip_hex_int_array(path):
         loaded_file = myfile.read()
         file_gzipped = gzip.compress(bytes(loaded_file, 'utf-8'))
         rhs = [HexInt(x) for x in file_gzipped]
-        _LOGGER.info("Compressed file: s% ", path)
+        _LOGGER.info("Compressed file %s", path)
         return rhs
 
 
