@@ -62,7 +62,7 @@ def load_file_bytes_to_gzip_hex_int_array(path):
             "Compressed file:", path, 
             "\nOld File size: ", len(loaded_file), 
             "\nNew size: ", len(file_gzipped), 
-            " (", int(len(file_gzipped)/len(loaded_file)*100), "% of orginal)")
+            " (", int(len(file_gzipped)/len(loaded_file)*100), " of orginal)")
         return rhs
 
 
