@@ -1,6 +1,5 @@
 #pragma once
 // Generated from https://github.com/esphome/esphome-webserver
-#include "esphome/core/hal.h"
 namespace esphome {
 
 namespace web_server {
