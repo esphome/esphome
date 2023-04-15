@@ -3,4 +3,4 @@ web_server:
     port: 80
     local_page_include: "./index.html"
     css_include: "./www.css"
-    js_include: "./www.js" 
+    js_include: "./www.js"
