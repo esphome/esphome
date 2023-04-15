@@ -25,7 +25,6 @@
 #include "esphome/components/climate/climate.h"
 #endif
 
-
 #ifdef USE_WEBSERVER_LOCAL
 #  ifdef USE_WEBSERVER_LOCAL_PAGE
 #  else
@@ -358,8 +357,6 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   response->addHeader("Access-Control-Allow-Origin", "*");
   request->send(response);
 }
-#endif
-
 #endif
 
 #define set_json_id(root, obj, sensor, start_config) \
