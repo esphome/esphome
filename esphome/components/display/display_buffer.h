@@ -569,7 +569,7 @@ class Animation : public Image {
   Color get_rgb565_pixel(int x, int y) const override;
   Color get_grayscale_pixel(int x, int y) const override;
 
-  int get_animation_frame_count() const;
+  uint32_t get_animation_frame_count() const;
   int get_current_frame() const override;
   void next_frame();
   void prev_frame();
@@ -580,9 +580,15 @@ class Animation : public Image {
    */
   void set_frame(int frame);
 
+  void set_loop(uint32_t start_frame, uint32_t end_frame, int count);
+
  protected:
   int current_frame_;
-  int animation_frame_count_;
+  uint32_t animation_frame_count_;
+  uint32_t loop_start_frame_;
+  uint32_t loop_end_frame_;
+  int loop_count_;
+  int loop_current_iteration_;
 };
 
 template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
