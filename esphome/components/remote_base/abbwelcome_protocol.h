@@ -61,10 +61,11 @@ class ABBWelcomeData {
            (this->data_[this->size() - 1] == this->calc_cs_());
   }
   void set_retransmission(bool retransmission) {
-    if (retransmission)
+    if (retransmission) {
       this->data_[2] |= 0x80;
-    else
+    } else {
       this->data_[2] &= 0x7f;
+}
   }
   bool get_retransmission() const { return this->data_[2] & 0x80; }
   void set_message_type(uint8_t message_type) { this->data_[3] = message_type; }
