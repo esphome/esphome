@@ -4,9 +4,12 @@ from esphome import automation
 from esphome.components import i2c, time
 from esphome.const import CONF_ID
 
-
 CODEOWNERS = ["@KoenBreeman"]
+
 DEPENDENCIES = ["i2c"]
+
+CONF_I2C_ADDR = 0xA3
+
 pcf8563_ns = cg.esphome_ns.namespace("pcf8563")
 pcf8563Component = pcf8563_ns.class_(
     "pcf8563Component", time.RealTimeClock, i2c.I2CDevice
@@ -19,7 +22,7 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(pcf8563Component),
     }
-).extend(i2c.i2c_device_schema(0x51))
+).extend(i2c.i2c_device_schema(CONF_I2C_ADDR))
 
 
 @automation.register_action(

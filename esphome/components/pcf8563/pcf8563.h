@@ -71,14 +71,44 @@ class PCF8563Component : public time::RealTimeClock, public i2c::I2CDevice {
       uint8_t year : 4;
       uint8_t year_10 : 4;
       
-      // Alarm register minute
+      // Minute Alarm register 
       uint8_t minute_alarm : 4;
       uint8_t minute_alarm_10 : 3;
       bool minute_alarm_enabled: 1;
 
+      // Hour Alarm register
+      uint8_t hour_alarm : 4;
+      uint8_t hour_alarm_10 : 2;
+      uint8_t : 1;
+      bool hour_alarm_enabled : 1;
+
+      // Day Alarm register
+      uint8_t day_alarm : 4;
+      uint8_t day_alarm_10 : 2;
+      uint8_t : 1;
+      bool day_alarm_enabled : 1;
+
+      // Weekday Alarm register
+      uint8_t weekday_alarm : 3;
+      uint8_t : 4;
+      bool weekday_alarm_enabled : 1;
+
+      // CLKout control register
+      uint8_t frequency_output : 2;
+      uint8_t : 5;
+      uint8_t clkout_enabled : 1;
+
+      // Timer control register
+      uint8_t timer_source_frequency : 2;
+      uint8_t : 5;
+      uint8_t timer_enabled : 1;
+
+      // Timer register
+      uint8 countdown_period : 8;
+
     } reg;
     mutable uint8_t raw[sizeof(reg)];
-  } pcf85063_;
+  } pcf8563_;
 };
 
 template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<PCF8563Component> {
