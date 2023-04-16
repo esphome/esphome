@@ -12,7 +12,7 @@ CONF_I2C_ADDR = 0xA3
 
 pcf8563_ns = cg.esphome_ns.namespace("pcf8563")
 pcf8563Component = pcf8563_ns.class_(
-    "pcf8563Component", time.RealTimeClock, i2c.I2CDevice
+    "PCF8563Component", time.RealTimeClock, i2c.I2CDevice
 )
 WriteAction = pcf8563_ns.class_("WriteAction", automation.Action)
 ReadAction = pcf8563_ns.class_("ReadAction", automation.Action)
