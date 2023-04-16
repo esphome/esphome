@@ -104,7 +104,7 @@ class PCF8563Component : public time::RealTimeClock, public i2c::I2CDevice {
       uint8_t timer_enabled : 1;
 
       // Timer register
-      uint8 countdown_period : 8;
+      uint8_t countdown_period : 8;
 
     } reg;
     mutable uint8_t raw[sizeof(reg)];
