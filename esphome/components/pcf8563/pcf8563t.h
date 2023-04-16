@@ -5,9 +5,9 @@
 #include "esphome/components/time/real_time_clock.h"
 
 namespace esphome {
-namespace pcf8563t {
+namespace pcf8563 {
 
-class PCF8563TComponent : public time::RealTimeClock, public i2c::I2CDevice {
+class PCF8563Component : public time::RealTimeClock, public i2c::I2CDevice {
  public:
   void setup() override;
   void update() override;
@@ -19,37 +19,28 @@ class PCF8563TComponent : public time::RealTimeClock, public i2c::I2CDevice {
  protected:
   bool read_rtc_();
   bool write_rtc_();
-  union PCF8563TReg {
+  union PCF8563Reg {
     struct {
       // Control_1 register
-      bool cap_12pf : 1;
-      bool am_pm : 1;
-      bool correction_int_enable : 1;
+      bool : 3;
+      bool power_on_reset : 1;
       bool : 1;
-      bool soft_reset : 1;
       bool stop : 1;
       bool : 1;
       bool ext_test : 1;
 
       // Control_2 register
-      uint8_t clkout_control : 3;
-      bool timer_flag : 1;
-      bool halfminute_int : 1;
-      bool minute_int : 1;
-      bool alarm_flag : 1;
+      bool time_int : 1;
       bool alarm_int : 1;
-
-      // Offset register
-      uint8_t offset : 7;
-      bool coarse_mode : 1;
-
-      // nvRAM register
-      uint8_t nvram : 8;
+      bool timer_flag : 1;
+      bool alarm_flag : 1;
+      bool timer_int_timer_pulse : 1;
+      bool : 3;   
 
       // Seconds register
       uint8_t second : 4;
       uint8_t second_10 : 3;
-      bool osc_stop : 1;
+      bool clock_int : 1;
 
       // Minutes register
       uint8_t minute : 4;
@@ -73,24 +64,31 @@ class PCF8563TComponent : public time::RealTimeClock, public i2c::I2CDevice {
       // Months register
       uint8_t month : 4;
       uint8_t month_10 : 1;
-      uint8_t : 3;
+      uint8_t : 2;
+      uint8_t century : 1;
 
       // Years register
       uint8_t year : 4;
       uint8_t year_10 : 4;
+      
+      // Alarm register minute
+      uint8_t minute_alarm : 4;
+      uint8_t minute_alarm_10 : 3;
+      bool minute_alarm_enabled: 1;
+
     } reg;
     mutable uint8_t raw[sizeof(reg)];
   } pcf85063_;
 };
 
-template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<PCF8563TComponent> {
+template<typename... Ts> class WriteAction : public Action<Ts...>, public Parented<PCF8563Component> {
  public:
   void play(Ts... x) override { this->parent_->write_time(); }
 };
 
-template<typename... Ts> class ReadAction : public Action<Ts...>, public Parented<PCF8563TComponent> {
+template<typename... Ts> class ReadAction : public Action<Ts...>, public Parented<PCF8563Component> {
  public:
   void play(Ts... x) override { this->parent_->read_time(); }
 };
-}  // namespace pcf8563t
+}  // namespace pcf8563
 }  // namespace esphome
