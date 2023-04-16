@@ -166,6 +166,9 @@ class MQTTComponent : public Component {
   /// Get the friendly name of this MQTT component.
   virtual std::string friendly_name() const;
 
+  /// Get the object id of this MQTT component.
+  virtual std::string get_object_id() const;
+
   /// Get the icon field of this component
   virtual std::string get_icon() const;
 
@@ -185,8 +188,6 @@ class MQTTComponent : public Component {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  /// Generate the Home Assistant MQTT discovery object id by automatically transforming the friendly name.
-  std::string get_default_object_id_() const;
 
   std::string custom_state_topic_{};
   std::string custom_command_topic_{};

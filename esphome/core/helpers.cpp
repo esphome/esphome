@@ -157,20 +157,6 @@ template<int (*fn)(int)> std::string str_ctype_transform(const std::string &str)
 }
 std::string str_lower_case(const std::string &str) { return str_ctype_transform<std::tolower>(str); }
 std::string str_upper_case(const std::string &str) { return str_ctype_transform<std::toupper>(str); }
-std::string str_snake_case(const std::string &str) {
-  std::string result;
-  result.resize(str.length());
-  std::transform(str.begin(), str.end(), result.begin(), ::tolower);
-  std::replace(result.begin(), result.end(), ' ', '_');
-  return result;
-}
-std::string str_sanitize(const std::string &str) {
-  std::string out;
-  std::copy_if(str.begin(), str.end(), std::back_inserter(out), [](const char &c) {
-    return c == '-' || c == '_' || (c >= '0' && c <= '9') || (c >= 'a' && c <= 'z') || (c >= 'A' && c <= 'Z');
-  });
-  return out;
-}
 std::string str_snprintf(const char *fmt, size_t len, ...) {
   std::string str;
   va_list args;

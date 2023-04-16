@@ -17,13 +17,12 @@ static const char *const TAG = "mqtt.component";
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
-  std::string sanitized_name = str_sanitize(App.get_name());
-  return discovery_info.prefix + "/" + this->component_type() + "/" + sanitized_name + "/" +
-         this->get_default_object_id_() + "/config";
+  return discovery_info.prefix + "/" + this->component_type() + "/" + App.get_name() + "/" +
+         this->get_object_id() + "/config";
 }
 
 std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
-  return global_mqtt_client->get_topic_prefix() + "/" + this->component_type() + "/" + this->get_default_object_id_() +
+  return global_mqtt_client->get_topic_prefix() + "/" + this->component_type() + "/" + this->get_object_id() +
          "/" + suffix;
 }
 
@@ -124,13 +123,13 @@ bool MQTTComponent::send_discovery_() {
           } else {
             // default to almost-unique ID. It's a hack but the only way to get that
             // gorgeous device registry view.
-            root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_default_object_id_();
+            root[MQTT_UNIQUE_ID] = "ESP" + this->component_type() + this->get_object_id();
           }
         }
 
         const std::string &node_name = App.get_name();
         if (discovery_info.object_id_generator == MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR)
-          root[MQTT_OBJECT_ID] = node_name + "_" + this->get_default_object_id_();
+          root[MQTT_OBJECT_ID] = node_name + "_" + this->get_object_id();
 
         JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
         device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
@@ -146,10 +145,6 @@ bool MQTTComponent::get_retain() const { return this->retain_; }
 
 bool MQTTComponent::is_discovery_enabled() const {
   return this->discovery_enabled_ && global_mqtt_client->is_discovery_enabled();
-}
-
-std::string MQTTComponent::get_default_object_id_() const {
-  return str_sanitize(str_snake_case(this->friendly_name()));
 }
 
 void MQTTComponent::subscribe(const std::string &topic, mqtt_callback_t callback, uint8_t qos) {
@@ -233,6 +228,7 @@ bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connec
 
 // Pull these properties from EntityBase if not overridden
 std::string MQTTComponent::friendly_name() const { return this->get_entity()->get_name(); }
+std::string MQTTComponent::get_object_id() const { return this->get_entity()->get_object_id(); }
 std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
 bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
 bool MQTTComponent::is_internal() { return this->get_entity()->is_internal(); }
