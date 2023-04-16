@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 #include <nvs_flash.h>
 #include <cstring>
+#include <cinttypes>
 #include <vector>
 #include <string>
 
@@ -101,7 +102,7 @@ class ESP32Preferences : public ESPPreferences {
     pref->nvs_handle = nvs_handle;
 
     uint32_t keyval = type;
-    pref->key = str_sprintf("%u", keyval);
+    pref->key = str_sprintf("%" PRIu32, keyval);
 
     return ESPPreferenceObject(pref);
   }
