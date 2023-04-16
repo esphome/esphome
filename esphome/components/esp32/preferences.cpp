@@ -5,6 +5,7 @@
 #include "esphome/core/log.h"
 #include <nvs_flash.h>
 #include <cstring>
+#include <cinttypes>
 #include <vector>
 #include <string>
 
@@ -101,7 +102,7 @@ class ESP32Preferences : public ESPPreferences {
     pref->nvs_handle = nvs_handle;
 
     uint32_t keyval = type;
-    pref->key = str_sprintf("%u", keyval);
+    pref->key = str_sprintf("%" PRIu32, keyval);
 
     return ESPPreferenceObject(pref);
   }
@@ -141,7 +142,7 @@ class ESP32Preferences : public ESPPreferences {
     ESP_LOGD(TAG, "Saving %d preferences to flash: %d cached, %d written, %d failed", cached + written + failed, cached,
              written, failed);
     if (failed > 0) {
-      ESP_LOGD(TAG, "Error saving %d preferences to flash. Last error=%s for key=%s", failed, esp_err_to_name(last_err),
+      ESP_LOGE(TAG, "Error saving %d preferences to flash. Last error=%s for key=%s", failed, esp_err_to_name(last_err),
                last_key.c_str());
     }
 
@@ -169,6 +170,17 @@ class ESP32Preferences : public ESPPreferences {
       return true;
     }
     return to_save.data != stored_data.data;
+  }
+
+  bool reset() override {
+    ESP_LOGD(TAG, "Cleaning up preferences in flash...");
+    s_pending_save.clear();
+
+    nvs_flash_deinit();
+    nvs_flash_erase();
+    // Make the handle invalid to prevent any saves until restart
+    nvs_handle = 0;
+    return true;
   }
 };
 

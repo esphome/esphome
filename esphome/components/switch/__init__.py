@@ -6,11 +6,13 @@ from esphome.components import mqtt
 from esphome.const import (
     CONF_DEVICE_CLASS,
     CONF_ENTITY_CATEGORY,
+    CONF_ICON,
     CONF_ID,
     CONF_INVERTED,
     CONF_MQTT_ID,
     CONF_ON_TURN_OFF,
     CONF_ON_TURN_ON,
+    CONF_RESTORE_MODE,
     CONF_TRIGGER_ID,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_OUTLET,
@@ -32,6 +34,19 @@ switch_ns = cg.esphome_ns.namespace("switch_")
 Switch = switch_ns.class_("Switch", cg.EntityBase)
 SwitchPtr = Switch.operator("ptr")
 
+SwitchRestoreMode = switch_ns.enum("SwitchRestoreMode")
+
+RESTORE_MODES = {
+    "RESTORE_DEFAULT_OFF": SwitchRestoreMode.SWITCH_RESTORE_DEFAULT_OFF,
+    "RESTORE_DEFAULT_ON": SwitchRestoreMode.SWITCH_RESTORE_DEFAULT_ON,
+    "ALWAYS_OFF": SwitchRestoreMode.SWITCH_ALWAYS_OFF,
+    "ALWAYS_ON": SwitchRestoreMode.SWITCH_ALWAYS_ON,
+    "RESTORE_INVERTED_DEFAULT_OFF": SwitchRestoreMode.SWITCH_RESTORE_INVERTED_DEFAULT_OFF,
+    "RESTORE_INVERTED_DEFAULT_ON": SwitchRestoreMode.SWITCH_RESTORE_INVERTED_DEFAULT_ON,
+    "DISABLED": SwitchRestoreMode.SWITCH_RESTORE_DISABLED,
+}
+
+
 ToggleAction = switch_ns.class_("ToggleAction", automation.Action)
 TurnOffAction = switch_ns.class_("TurnOffAction", automation.Action)
 TurnOnAction = switch_ns.class_("TurnOnAction", automation.Action)
@@ -45,12 +60,11 @@ SwitchTurnOffTrigger = switch_ns.class_(
     "SwitchTurnOffTrigger", automation.Trigger.template()
 )
 
-icon = cv.icon
 
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True)
 
 
-SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
+_SWITCH_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTSwitchComponent),
         cv.Optional(CONF_INVERTED): cv.boolean,
@@ -76,8 +90,17 @@ def switch_schema(
     *,
     entity_category: str = _UNDEF,
     device_class: str = _UNDEF,
+    icon: str = _UNDEF,
+    block_inverted: bool = False,
+    default_restore_mode: str = "ALWAYS_OFF",
 ):
-    schema = SWITCH_SCHEMA
+    schema = _SWITCH_SCHEMA.extend(
+        {
+            cv.Optional(CONF_RESTORE_MODE, default=default_restore_mode): cv.enum(
+                RESTORE_MODES, upper=True, space="_"
+            ),
+        }
+    )
     if class_ is not _UNDEF:
         schema = schema.extend({cv.GenerateID(): cv.declare_id(class_)})
     if entity_category is not _UNDEF:
@@ -96,7 +119,20 @@ def switch_schema(
                 ): validate_device_class
             }
         )
+    if icon is not _UNDEF:
+        schema = schema.extend({cv.Optional(CONF_ICON, default=icon): cv.icon})
+    if block_inverted:
+        schema = schema.extend(
+            {
+                cv.Optional(CONF_INVERTED): cv.invalid(
+                    "Inverted is not supported for this platform!"
+                )
+            }
+        )
     return schema
+
+
+SWITCH_SCHEMA = switch_schema()  # for compatibility
 
 
 async def setup_switch_core_(var, config):
@@ -117,6 +153,8 @@ async def setup_switch_core_(var, config):
 
     if CONF_DEVICE_CLASS in config:
         cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
+
+    cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
 
 
 async def register_switch(var, config):

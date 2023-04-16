@@ -24,6 +24,7 @@ import esphome.config_validation as cv
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_GAIN,
+    CONF_ACTUAL_GAIN,
     CONF_ID,
     CONF_NAME,
     CONF_INTEGRATION_TIME,
@@ -79,7 +80,6 @@ TSL2591Component = tsl2591_ns.class_(
     "TSL2591Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-
 CONFIG_SCHEMA = (
     cv.Schema(
         {
@@ -103,6 +103,12 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_LUX,
                 icon=ICON_BRIGHTNESS_6,
                 accuracy_decimals=4,
+                device_class=DEVICE_CLASS_ILLUMINANCE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_ACTUAL_GAIN): sensor.sensor_schema(
+                icon=ICON_BRIGHTNESS_6,
+                accuracy_decimals=0,
                 device_class=DEVICE_CLASS_ILLUMINANCE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -149,6 +155,11 @@ async def to_code(config):
         conf = config[CONF_CALCULATED_LUX]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_calculated_lux_sensor(sens))
+
+    if CONF_ACTUAL_GAIN in config:
+        conf = config[CONF_ACTUAL_GAIN]
+        sens = await sensor.new_sensor(conf)
+        cg.add(var.set_actual_gain_sensor(sens))
 
     cg.add(var.set_name(config[CONF_NAME]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))

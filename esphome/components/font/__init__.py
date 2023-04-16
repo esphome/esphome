@@ -146,7 +146,7 @@ def download_gfonts(value):
     if path.is_file():
         return value
     try:
-        req = requests.get(url)
+        req = requests.get(url, timeout=30)
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(
@@ -162,7 +162,7 @@ def download_gfonts(value):
 
     ttf_url = match.group(1)
     try:
-        req = requests.get(ttf_url)
+        req = requests.get(ttf_url, timeout=30)
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(f"Could not download ttf file for {name} ({ttf_url}): {e}")

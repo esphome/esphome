@@ -50,7 +50,7 @@ void RadonEyeRD200::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
     }
 
     case ESP_GATTC_READ_CHAR_EVT: {
-      if (param->read.conn_id != this->parent()->conn_id)
+      if (param->read.conn_id != this->parent()->get_conn_id())
         break;
       if (param->read.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "Error reading char at handle %d, status=%d", param->read.handle, param->read.status);
@@ -146,17 +146,17 @@ void RadonEyeRD200::update() {
 void RadonEyeRD200::write_query_message_() {
   ESP_LOGV(TAG, "writing 0x50 to write service");
   int request = 0x50;
-  auto status = esp_ble_gattc_write_char_descr(this->parent()->gattc_if, this->parent()->conn_id, this->write_handle_,
-                                               sizeof(request), (uint8_t *) &request, ESP_GATT_WRITE_TYPE_NO_RSP,
-                                               ESP_GATT_AUTH_REQ_NONE);
+  auto status = esp_ble_gattc_write_char_descr(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
+                                               this->write_handle_, sizeof(request), (uint8_t *) &request,
+                                               ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "Error sending write request for sensor, status=%d", status);
   }
 }
 
 void RadonEyeRD200::request_read_values_() {
-  auto status = esp_ble_gattc_read_char(this->parent()->gattc_if, this->parent()->conn_id, this->read_handle_,
-                                        ESP_GATT_AUTH_REQ_NONE);
+  auto status = esp_ble_gattc_read_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(),
+                                        this->read_handle_, ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "Error sending read request for sensor, status=%d", status);
   }

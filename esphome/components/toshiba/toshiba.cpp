@@ -1,5 +1,7 @@
 #include "toshiba.h"
 
+#include <vector>
+
 namespace esphome {
 namespace toshiba {
 
@@ -122,9 +124,6 @@ void ToshibaClimate::setup() {
   // Set supported modes & temperatures based on model
   this->minimum_temperature_ = this->temperature_min_();
   this->maximum_temperature_ = this->temperature_max_();
-  this->supports_dry_ = this->toshiba_supports_dry_();
-  this->supports_fan_only_ = this->toshiba_supports_fan_only_();
-  this->fan_modes_ = this->toshiba_fan_modes_();
   this->swing_modes_ = this->toshiba_swing_modes_();
   // Never send nan to HA
   if (std::isnan(this->target_temperature))
@@ -176,12 +175,43 @@ void ToshibaClimate::transmit_generic_() {
       mode = TOSHIBA_MODE_COOL;
       break;
 
+    case climate::CLIMATE_MODE_DRY:
+      mode = TOSHIBA_MODE_DRY;
+      break;
+
+    case climate::CLIMATE_MODE_FAN_ONLY:
+      mode = TOSHIBA_MODE_FAN_ONLY;
+      break;
+
     case climate::CLIMATE_MODE_HEAT_COOL:
     default:
       mode = TOSHIBA_MODE_AUTO;
   }
 
-  message[6] |= mode | TOSHIBA_FAN_SPEED_AUTO;
+  uint8_t fan;
+  switch (this->fan_mode.value()) {
+    case climate::CLIMATE_FAN_QUIET:
+      fan = TOSHIBA_FAN_SPEED_QUIET;
+      break;
+
+    case climate::CLIMATE_FAN_LOW:
+      fan = TOSHIBA_FAN_SPEED_1;
+      break;
+
+    case climate::CLIMATE_FAN_MEDIUM:
+      fan = TOSHIBA_FAN_SPEED_3;
+      break;
+
+    case climate::CLIMATE_FAN_HIGH:
+      fan = TOSHIBA_FAN_SPEED_5;
+      break;
+
+    case climate::CLIMATE_FAN_AUTO:
+    default:
+      fan = TOSHIBA_FAN_SPEED_AUTO;
+      break;
+  }
+  message[6] = fan | mode;
 
   // Zero
   message[7] = 0x00;
@@ -664,6 +694,30 @@ bool ToshibaClimate::on_receive(remote_base::RemoteReceiveData data) {
         case TOSHIBA_MODE_AUTO:
         default:
           this->mode = climate::CLIMATE_MODE_HEAT_COOL;
+      }
+
+      // Get the fan mode
+      switch (message[6] & 0xF0) {
+        case TOSHIBA_FAN_SPEED_QUIET:
+          this->fan_mode = climate::CLIMATE_FAN_QUIET;
+          break;
+
+        case TOSHIBA_FAN_SPEED_1:
+          this->fan_mode = climate::CLIMATE_FAN_LOW;
+          break;
+
+        case TOSHIBA_FAN_SPEED_3:
+          this->fan_mode = climate::CLIMATE_FAN_MEDIUM;
+          break;
+
+        case TOSHIBA_FAN_SPEED_5:
+          this->fan_mode = climate::CLIMATE_FAN_HIGH;
+          break;
+
+        case TOSHIBA_FAN_SPEED_AUTO:
+        default:
+          this->fan_mode = climate::CLIMATE_FAN_AUTO;
+          break;
       }
 
       // Get the target temperature

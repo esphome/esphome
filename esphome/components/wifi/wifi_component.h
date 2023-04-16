@@ -5,7 +5,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/network/ip_address.h"
+
 #include <string>
+#include <vector>
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp_wifi.h>
@@ -22,6 +24,16 @@ extern "C" {
 #include <user_interface.h>
 };
 #endif
+#endif
+
+#ifdef USE_RP2040
+extern "C" {
+#include "cyw43.h"
+#include "cyw43_country.h"
+#include "pico/cyw43_arch.h"
+}
+
+#include <WiFi.h>
 #endif
 
 namespace esphome {
@@ -137,6 +149,8 @@ class WiFiScanResult {
   bool get_is_hidden() const;
   float get_priority() const { return priority_; }
   void set_priority(float priority) { priority_ = priority; }
+
+  bool operator==(const WiFiScanResult &rhs) const;
 
  protected:
   bool matches_{false};
@@ -308,6 +322,11 @@ class WiFiComponent : public Component {
 #endif
 #ifdef USE_ESP_IDF
   void wifi_process_event_(IDFWiFiEvent *data);
+#endif
+
+#ifdef USE_RP2040
+  static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+  void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
 #endif
 
   std::string use_address_;
