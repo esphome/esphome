@@ -63,7 +63,7 @@ void EntityBase::calc_object_id_() {
   // Check if `App.get_name()` is constant or dynamic.
   if (!this->has_own_name_ && App.is_name_add_mac_suffix_enabled()) {
     // `App.get_name()` is dynamic.
-    const auto& object_id = App.get_name();
+    const auto &object_id = App.get_name();
     // FNV-1 hash
     this->object_id_hash_ = fnv1_hash(object_id);
   } else {

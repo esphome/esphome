@@ -17,13 +17,13 @@ static const char *const TAG = "mqtt.component";
 void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
-  return discovery_info.prefix + "/" + this->component_type() + "/" + App.get_name() + "/" +
-         this->get_object_id() + "/config";
+  return discovery_info.prefix + "/" + this->component_type() + "/" + App.get_name() + "/" + this->get_object_id() +
+         "/config";
 }
 
 std::string MQTTComponent::get_default_topic_for_(const std::string &suffix) const {
-  return global_mqtt_client->get_topic_prefix() + "/" + this->component_type() + "/" + this->get_object_id() +
-         "/" + suffix;
+  return global_mqtt_client->get_topic_prefix() + "/" + this->component_type() + "/" + this->get_object_id() + "/" +
+         suffix;
 }
 
 std::string MQTTComponent::get_state_topic_() const {
