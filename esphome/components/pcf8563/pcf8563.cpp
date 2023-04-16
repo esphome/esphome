@@ -87,8 +87,8 @@ bool PCF85063Component::read_rtc_() {
     return false;
   }
   ESP_LOGD(TAG, "Read  %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  STOP:%s CLKOUT:%0u", pcf8563_.reg.hour_10,
-           pcf8563_.reg.hour, pcf8563_.reg.minute_10, pcf8563_.reg.minute, pcf8563_.reg.second_10,
-           pcf8563_.reg.second, pcf8563_.reg.year_10, pcf8563_.reg.year, pcf8563_.reg.month_10, pcf8563_.reg.month, pcf8563_.reg.day_10,
+           pcf8563_.reg.hour, pcf8563_.reg.minute_10, pcf8563_.reg.minute, pcf8563_.reg.second_10, pcf8563_.reg.second,
+           pcf8563_.reg.year_10, pcf8563_.reg.year, pcf8563_.reg.month_10, pcf8563_.reg.month, pcf8563_.reg.day_10,
            pcf8563_.reg.day, ONOFF(!pcf8563_.reg.stop), pcf8563_.reg.clkout_enabled);
 
   return true;
@@ -100,8 +100,8 @@ bool PCF85063Component::write_rtc_() {
     return false;
   }
   ESP_LOGD(TAG, "Write %0u%0u:%0u%0u:%0u%0u 20%0u%0u-%0u%0u-%0u%0u  OSC:%s CLKOUT:%0u", pcf8563_.reg.hour_10,
-           pcf8563_.reg.hour, pcf8563_.reg.minute_10, pcf8563_.reg.minute, pcf8563_.reg.second_10,
-           pcf8563_.reg.second, pcf8563_.reg.year_10, pcf8563_.reg.year, pcf8563_.reg.month_10, pcf8563_.reg.month, pcf8563_.reg.day_10,
+           pcf8563_.reg.hour, pcf8563_.reg.minute_10, pcf8563_.reg.minute, pcf8563_.reg.second_10, pcf8563_.reg.second,
+           pcf8563_.reg.year_10, pcf8563_.reg.year, pcf8563_.reg.month_10, pcf8563_.reg.month, pcf8563_.reg.day_10,
            pcf8563_.reg.day, ONOFF(!pcf8563_.reg.stop), pcf8563_.reg.clkout_enabled);
   return true;
 }

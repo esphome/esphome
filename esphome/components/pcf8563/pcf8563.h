@@ -35,7 +35,7 @@ class PCF8563Component : public time::RealTimeClock, public i2c::I2CDevice {
       bool timer_flag : 1;
       bool alarm_flag : 1;
       bool timer_int_timer_pulse : 1;
-      bool : 3;   
+      bool : 3;
 
       // Seconds register
       uint8_t second : 4;
@@ -70,11 +70,11 @@ class PCF8563Component : public time::RealTimeClock, public i2c::I2CDevice {
       // Years register
       uint8_t year : 4;
       uint8_t year_10 : 4;
-      
-      // Minute Alarm register 
+
+      // Minute Alarm register
       uint8_t minute_alarm : 4;
       uint8_t minute_alarm_10 : 3;
-      bool minute_alarm_enabled: 1;
+      bool minute_alarm_enabled : 1;
 
       // Hour Alarm register
       uint8_t hour_alarm : 4;
