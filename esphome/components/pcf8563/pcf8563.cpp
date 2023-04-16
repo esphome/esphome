@@ -57,7 +57,7 @@ void PCF8563Component::read_time() {
   time::RealTimeClock::synchronize_epoch_(rtc_time.timestamp);
 }
 
-void PCF85063Component::write_time() {
+void PCF8563Component::write_time() {
   auto now = time::RealTimeClock::utcnow();
   if (!now.is_valid()) {
     ESP_LOGE(TAG, "Invalid system time, not syncing to RTC.");
@@ -81,7 +81,7 @@ void PCF85063Component::write_time() {
   this->write_rtc_();
 }
 
-bool PCF85063Component::read_rtc_() {
+bool PCF8563Component::read_rtc_() {
   if (!this->read_bytes(0, this->pcf8563_.raw, sizeof(this->pcf8563_.raw))) {
     ESP_LOGE(TAG, "Can't read I2C data.");
     return false;
@@ -94,7 +94,7 @@ bool PCF85063Component::read_rtc_() {
   return true;
 }
 
-bool PCF85063Component::write_rtc_() {
+bool PCF8563Component::write_rtc_() {
   if (!this->write_bytes(0, this->pcf8563_.raw, sizeof(this->pcf8563_.raw))) {
     ESP_LOGE(TAG, "Can't write I2C data.");
     return false;
