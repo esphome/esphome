@@ -389,6 +389,8 @@ class DisplayBuffer {
   /// Internal method to set the display rotation with.
   void set_rotation(DisplayRotation rotation);
 
+  void set_background_color(Color val);
+
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
@@ -455,6 +457,7 @@ class DisplayBuffer {
 
   uint8_t *buffer_{nullptr};
   DisplayRotation rotation_{DISPLAY_ROTATION_0_DEGREES};
+  optional<Color> background_color_;
   optional<display_writer_t> writer_{};
   DisplayPage *page_{nullptr};
   DisplayPage *previous_page_{nullptr};

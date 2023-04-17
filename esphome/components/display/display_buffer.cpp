@@ -137,6 +137,7 @@ int DisplayBuffer::get_height() {
   }
 }
 void DisplayBuffer::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
+void DisplayBuffer::set_background_color(Color val) { this->background_color_ = val; }
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
   if (!this->get_clipping().inside(x, y))
     return;  // NOLINT
@@ -282,10 +283,41 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
     int scan_x1, scan_y1, scan_width, scan_height;
     glyph.scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
 
-    for (int glyph_x = scan_x1; glyph_x < scan_x1 + scan_width; glyph_x++) {
-      for (int glyph_y = scan_y1; glyph_y < scan_y1 + scan_height; glyph_y++) {
-        if (glyph.get_pixel(glyph_x, glyph_y)) {
-          this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
+    if (this->background_color_.has_value()) {
+      const auto bg_color = this->background_color_.value();
+      const int glyph_x_max = scan_x1 + scan_width;
+      const int glyph_y_max = scan_y1 + scan_height;
+      // Before char. Always draw bg color.
+      for (int glyph_x = 0; glyph_x < scan_x1; glyph_x++) {
+        for (int glyph_y = 0; glyph_y < height; glyph_y++) {
+          this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, bg_color);
+        }
+      }
+      for (int glyph_x = scan_x1; glyph_x < glyph_x_max; glyph_x++) {
+        // Before char. Always draw bg color.
+        for (int glyph_y = 0; glyph_y < scan_y1; glyph_y++) {
+          this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, bg_color);
+        }
+        for (int glyph_y = scan_y1; glyph_y < glyph_y_max; glyph_y++) {
+          if (glyph.get_pixel(glyph_x, glyph_y)) {
+            this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
+          } else {
+            this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, bg_color);
+          }
+        }
+        // After char. Always draw bg color.
+        for (int glyph_y = glyph_y_max; glyph_y < height; glyph_y++) {
+          this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, bg_color);
+        }
+      }
+    } else {
+      const int glyph_x_max = scan_x1 + scan_width;
+      const int glyph_y_max = scan_y1 + scan_height;
+      for (int glyph_x = scan_x1; glyph_x < glyph_x_max; glyph_x++) {
+        for (int glyph_y = scan_y1; glyph_y < glyph_y_max; glyph_y++) {
+          if (glyph.get_pixel(glyph_x, glyph_y)) {
+            this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
+          }
         }
       }
     }

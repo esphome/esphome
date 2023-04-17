@@ -120,6 +120,10 @@ async def to_code(config):
         )
         cg.add(var.set_writer(lambda_))
 
+    if display.CONF_BACKGROUND_COLOR in config:
+        c = await cg.get_variable(config[display.CONF_BACKGROUND_COLOR])
+        cg.add(var.set_background_color(c))
+
     if CONF_RESET_PIN in config:
         reset = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
         cg.add(var.set_reset_pin(reset))

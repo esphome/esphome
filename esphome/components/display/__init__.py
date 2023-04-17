@@ -2,6 +2,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import core, automation
 from esphome.automation import maybe_simple_id
+from esphome.components import color
 from esphome.const import (
     CONF_AUTO_CLEAR_ENABLED,
     CONF_ID,
@@ -37,6 +38,7 @@ DisplayOnPageChangeTrigger = display_ns.class_(
 )
 
 CONF_ON_PAGE_CHANGE = "on_page_change"
+CONF_BACKGROUND_COLOR = "background_color"
 
 DISPLAY_ROTATIONS = {
     0: display_ns.DISPLAY_ROTATION_0_DEGREES,
@@ -56,6 +58,7 @@ def validate_rotation(value):
 BASIC_DISPLAY_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_LAMBDA): cv.lambda_,
+        cv.Optional(CONF_BACKGROUND_COLOR): cv.use_id(color),
     }
 )
 
