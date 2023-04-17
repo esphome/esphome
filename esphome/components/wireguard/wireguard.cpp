@@ -13,16 +13,16 @@ static const char * const TAG = "wireguard";
 void Wireguard::setup() {
     ESP_LOGD(TAG, "initializing...");
 
-    this->wg_config_.allowed_ip = &address_[0];
-    this->wg_config_.private_key = &private_key_[0];
-    this->wg_config_.endpoint = &peer_endpoint_[0];
-    this->wg_config_.public_key = &peer_public_key_[0];
-    this->wg_config_.port = peer_port_;
-    this->wg_config_.allowed_ip_mask = &netmask_[0];
-    this->wg_config_.persistent_keepalive = keepalive_;
+    this->wg_config_.allowed_ip = this->address_.c_str();
+    this->wg_config_.private_key = this->private_key_.c_str();
+    this->wg_config_.endpoint = this->peer_endpoint_.c_str();
+    this->wg_config_.public_key = this->peer_public_key_.c_str();
+    this->wg_config_.port = this->peer_port_;
+    this->wg_config_.allowed_ip_mask = this->netmask_.c_str();
+    this->wg_config_.persistent_keepalive = this->keepalive_;
 
     if(preshared_key_.length() > 0)
-        this->wg_config_.preshared_key = &preshared_key_[0];
+        this->wg_config_.preshared_key = this->preshared_key_.c_str();
 
     wg_initialized_ = esp_wireguard_init(&(this->wg_config_), &(this->wg_ctx_));
 
@@ -58,13 +58,13 @@ void Wireguard::update() {
 
 void Wireguard::dump_config() {
     ESP_LOGCONFIG(TAG, "Configuration");
-    ESP_LOGCONFIG(TAG, "  address: %s", this->address_.data());
-    ESP_LOGCONFIG(TAG, "  netmask: %s", this->netmask_.data());
-    ESP_LOGCONFIG(TAG, "  private key: %s...=", this->private_key_.substr(0,5).data());
-    ESP_LOGCONFIG(TAG, "  peer endpoint: %s", this->peer_endpoint_.data());
+    ESP_LOGCONFIG(TAG, "  address: %s", this->address_.c_str());
+    ESP_LOGCONFIG(TAG, "  netmask: %s", this->netmask_.c_str());
+    ESP_LOGCONFIG(TAG, "  private key: %s...CUT...=", this->private_key_.substr(0,5).c_str());
+    ESP_LOGCONFIG(TAG, "  peer endpoint: %s", this->peer_endpoint_.c_str());
     ESP_LOGCONFIG(TAG, "  peer port: %d", this->peer_port_);
-    ESP_LOGCONFIG(TAG, "  peer public key: %s", this->peer_public_key_.data());
-    ESP_LOGCONFIG(TAG, "  peer preshared key: %s...=", this->preshared_key_.substr(0,5).data());
+    ESP_LOGCONFIG(TAG, "  peer public key: %s", this->peer_public_key_.c_str());
+    ESP_LOGCONFIG(TAG, "  peer preshared key: %s...CUT...=", this->preshared_key_.substr(0,5).c_str());
     ESP_LOGCONFIG(TAG, "  peer persistent keepalive: %d", this->keepalive_);
 }
 
