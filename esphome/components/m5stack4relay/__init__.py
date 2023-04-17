@@ -8,8 +8,6 @@ DEPENDENCIES = ["i2c"]
 
 MULTI_CONF = True
 
-CONF_I2C_ADDR = 0x26
-
 CONF_M5STACK4RELAY_ID = "m5stack4relay_id"
 
 m5stack4relay_ns = cg.esphome_ns.namespace("m5stack4relay")
