@@ -177,4 +177,4 @@ async def to_code(config):
         cg.add(var.set_palette(prog_arr))
 
     spi_data_rate = spi.SPIDataRate_OPTIONS[config[CONF_DATA_RATE]]
-    cg.add_define("ILI9XXXDisplay_DATA_RATE", cg.RawExpression(spi_data_rate.__str__()))
+    cg.add_define("ILI9XXXDisplay_DATA_RATE", cg.RawExpression(str(spi_data_rate)))
