@@ -49,9 +49,7 @@ CONFIG_SCHEMA = (
 
 async def to_code(config):
     var = await switch.new_switch(config)
-    # var = await cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    # await switch.register_switch(var, config)
     await cg.register_parented(var, config[CONF_M5STACK4RELAY_ID])
 
     cg.add(var.set_channel(config[CONF_CHANNEL]))
