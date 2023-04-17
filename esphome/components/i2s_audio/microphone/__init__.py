@@ -24,7 +24,7 @@ CONFIG_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(I2SAudioMicrophone),
         cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
-        cv.Required(CONF_I2S_DIN_PIN): pins.internal_gpio_output_pin_number,
+        cv.Required(CONF_I2S_DIN_PIN): pins.internal_gpio_input_pin_number,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
