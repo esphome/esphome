@@ -20,7 +20,7 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
-    .extend(i2c.i2c_device_schema(CONF_I2C_ADDR))
+    .extend(i2c.i2c_device_schema(0x26))
 )
 
 
