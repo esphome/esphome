@@ -76,8 +76,9 @@ void VoiceAssistant::signal_stop() {
 
 void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
   switch (msg.event_type) {
-    case api::enums::VOICE_ASSISTANT_RUN_END:
-      ESP_LOGD(TAG, "Voice Assistant ended.");
+    case api::enums::VOICE_ASSISTANT_RUN_START:
+      ESP_LOGD(TAG, "Assist Pipeline running");
+      this->start_trigger_->trigger();
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
       std::string text;
@@ -91,7 +92,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGD(TAG, "Speech recognised as: \"%s\"", text.c_str());
-      // TODO `on_stt_end` trigger
+      this->stt_end_trigger_->trigger(text);
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_START: {
@@ -106,7 +107,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGD(TAG, "Response: \"%s\"", text.c_str());
-      // TODO `on_tts_start` trigger
+      this->tts_start_trigger_->trigger(text);
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_END: {
@@ -121,9 +122,13 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGD(TAG, "Response URL: \"%s\"", url.c_str());
-      // TODO `on_tts_end` trigger
+      this->tts_end_trigger_->trigger(url);
       break;
     }
+    case api::enums::VOICE_ASSISTANT_RUN_END:
+      ESP_LOGD(TAG, "Assist Pipeline ended");
+      this->end_trigger_->trigger();
+      break;
     case api::enums::VOICE_ASSISTANT_ERROR: {
       std::string code = "";
       std::string message = "";
@@ -135,7 +140,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         }
       }
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
-      // TODO `on_error` trigger
+      this->error_trigger_->trigger(code, message);
     }
     default:
       break;
