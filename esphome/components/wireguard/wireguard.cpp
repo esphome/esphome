@@ -75,13 +75,13 @@ void Wireguard::on_shutdown() {
     }
 }
 
-void Wireguard::set_address(const std::string address) { this->address_ = std::move(address); }
-void Wireguard::set_netmask(const std::string netmask) { this->netmask_ = std::move(netmask); }
-void Wireguard::set_private_key(const std::string key) { this->private_key_ = std::move(key); }
-void Wireguard::set_peer_endpoint(const std::string endpoint) { this->peer_endpoint_ = std::move(endpoint); }
-void Wireguard::set_peer_public_key(const std::string key) { this->peer_public_key_ = std::move(key); }
+void Wireguard::set_address(const std::string& address) { this->address_ = std::move(address); }
+void Wireguard::set_netmask(const std::string& netmask) { this->netmask_ = std::move(netmask); }
+void Wireguard::set_private_key(const std::string& key) { this->private_key_ = std::move(key); }
+void Wireguard::set_peer_endpoint(const std::string& endpoint) { this->peer_endpoint_ = std::move(endpoint); }
+void Wireguard::set_peer_public_key(const std::string& key) { this->peer_public_key_ = std::move(key); }
 void Wireguard::set_peer_port(const uint16_t port) { this->peer_port_ = port; }
-void Wireguard::set_preshared_key(const std::string key) { this->preshared_key_ = std::move(key); }
+void Wireguard::set_preshared_key(const std::string& key) { this->preshared_key_ = std::move(key); }
 
 void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock* srctime) { this->srctime_ = srctime; }
@@ -104,10 +104,11 @@ void Wireguard::start_connection_() {
 
     ESP_LOGD(TAG, "connecting...");
     wg_connected_ = esp_wireguard_connect(&wg_ctx_);
-    if(wg_connected_ == ESP_OK)
+    if(wg_connected_ == ESP_OK) {
         ESP_LOGI(TAG, "connection started");
-    else
+    } else {
         ESP_LOGW(TAG, "cannot start connection, error code %d", wg_connected_);
+}
 }
 
 }  // namespace wireguard
