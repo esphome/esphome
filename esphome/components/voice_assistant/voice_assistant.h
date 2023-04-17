@@ -25,9 +25,23 @@ class VoiceAssistant : public Component {
 
   void on_event(const api::VoiceAssistantEventResponse &msg);
 
+  Trigger<> *get_start_trigger() const { return this->start_trigger_; }
+  Trigger<std::string> *get_stt_end_trigger() const { return this->stt_end_trigger_; }
+  Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
+  Trigger<std::string> *get_tts_end_trigger() const { return this->tts_end_trigger_; }
+  Trigger<> *get_end_trigger() const { return this->end_trigger_; }
+  Trigger<std::string, std::string> *get_error_trigger() const { return this->error_trigger_; }
+
  protected:
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
+
+  Trigger<> *start_trigger_ = new Trigger<>();
+  Trigger<std::string> *stt_end_trigger_ = new Trigger<std::string>();
+  Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
+  Trigger<std::string> *tts_end_trigger_ = new Trigger<std::string>();
+  Trigger<> *end_trigger_ = new Trigger<>();
+  Trigger<std::string, std::string> *error_trigger_ = new Trigger<std::string, std::string>();
 
   microphone::Microphone *mic_{nullptr};
 
