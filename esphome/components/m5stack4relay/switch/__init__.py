@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, switch
-from esphome.const import CONF_CHANNEL, CONF_INTERLOCK  # , CONF_ID,
+from esphome.const import CONF_CHANNEL, CONF_INTERLOCK
 
 from .. import m5stack4relay_ns, M5Stack4Relay, CONF_M5STACK4RELAY_ID
 
