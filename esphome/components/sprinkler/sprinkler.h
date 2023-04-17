@@ -103,7 +103,7 @@ class SprinklerControllerNumber : public number::Number, public Component {
  public:
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override { return setup_priority::HARDWARE; }
+  float get_setup_priority() const override { return setup_priority::PROCESSOR; }
 
   Trigger<float> *get_set_trigger() const { return set_trigger_; }
   void set_initial_value(float initial_value) { initial_value_ = initial_value; }
@@ -201,14 +201,13 @@ class SprinklerValveRunRequest {
   SprinklerValveRunRequestOrigin origin_{USER};
 };
 
-class Sprinkler : public Component, public EntityBase {
+class Sprinkler : public Component {
  public:
-  Sprinkler();
-  Sprinkler(const std::string &name);
-
   void setup() override;
   void loop() override;
   void dump_config() override;
+
+  void set_name(const std::string &name) { this->name_ = name; }
 
   /// add a valve to the controller
   void add_valve(SprinklerControllerSwitch *valve_sw, SprinklerControllerSwitch *enable_sw = nullptr);
@@ -423,8 +422,6 @@ class Sprinkler : public Component, public EntityBase {
   SprinklerSwitch *valve_pump_switch_by_pump_index(size_t pump_index);
 
  protected:
-  uint32_t hash_base() override;
-
   /// returns true if valve number is enabled
   bool valve_is_enabled_(size_t valve_number);
 
@@ -528,6 +525,8 @@ class Sprinkler : public Component, public EntityBase {
   uint32_t start_delay_{0};
   uint32_t stop_delay_{0};
 
+  std::string name_;
+
   /// Sprinkler controller state
   SprinklerState state_{IDLE};
 
@@ -574,9 +573,7 @@ class Sprinkler : public Component, public EntityBase {
   std::vector<SprinklerValveOperator> valve_op_{2};
 
   /// Valve control timers
-  std::vector<SprinklerTimer> timer_{
-      {this->name_ + "sm", false, 0, 0, std::bind(&Sprinkler::sm_timer_callback_, this)},
-      {this->name_ + "vs", false, 0, 0, std::bind(&Sprinkler::valve_selection_callback_, this)}};
+  std::vector<SprinklerTimer> timer_{};
 
   /// Other Sprinkler instances we should be aware of (used to check if pumps are in use)
   std::vector<Sprinkler *> other_controllers_;

@@ -6,9 +6,6 @@ namespace button {
 
 static const char *const TAG = "button";
 
-Button::Button(const std::string &name) : EntityBase(name) {}
-Button::Button() : Button("") {}
-
 void Button::press() {
   ESP_LOGD(TAG, "'%s' Pressed.", this->get_name().c_str());
   this->press_action();

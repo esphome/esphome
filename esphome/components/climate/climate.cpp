@@ -44,6 +44,7 @@ void ClimateCall::perform() {
   if (this->target_temperature_high_.has_value()) {
     ESP_LOGD(TAG, "  Target Temperature High: %.2f", *this->target_temperature_high_);
   }
+  this->parent_->control_callback_.call();
   this->parent_->control(*this);
 }
 void ClimateCall::validate_() {
@@ -317,6 +318,10 @@ void Climate::add_on_state_callback(std::function<void()> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
+void Climate::add_on_control_callback(std::function<void()> &&callback) {
+  this->control_callback_.add(std::move(callback));
+}
+
 // Random 32bit value; If this changes existing restore preferences are invalidated
 static const uint32_t RESTORE_STATE_VERSION = 0x848EA6ADUL;
 
@@ -448,12 +453,7 @@ void Climate::set_visual_temperature_step_override(float target, float current) 
   this->visual_target_temperature_step_override_ = target;
   this->visual_current_temperature_step_override_ = current;
 }
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-Climate::Climate(const std::string &name) : EntityBase(name) {}
-#pragma GCC diagnostic pop
 
-Climate::Climate() : Climate("") {}
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 
 ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
