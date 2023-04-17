@@ -1,20 +1,23 @@
-= Wireguard component
-Allows connecting esphome devices to VPN managed by https://www.wireguard.com/
+# Wireguard component
+Allows connecting esphome devices to VPN managed by [WireGuard](https://www.wireguard.com/)
 
 ```yaml
-# example configuration:
-
+# example configuration
 wireguard:
-  address: 10.0.0.1
+  address: x.y.z.w
   private_key: private_key=
-  peer_key: public_key=
   peer_endpoint: wg.server.example
+  peer_public_key: public_key=
 
-  # optional
-  peer_port: 12345
-  preshared_key: preshared_key=
-  netmask: 255.255.255.0
+  # optional netmask (this is the default if omitted)
+  netmask: 255.255.255.255
 
-  # optional (only for esp-idf framework)
-  keepalive: 25
+  # optional custom port (this is the wireguard default)
+  peer_port: 51820
+
+  # optional pre-shared key
+  peer_preshared_key: shared_key=
+
+  # optional keepalive in seconds (disabled by default)
+  peer_persistent_keepalive: 0
 ```
