@@ -11,6 +11,14 @@ DEPENDENCIES = ["api", "microphone"]
 
 CODEOWNERS = ["@jesserockz"]
 
+CONF_ON_START = "on_start"
+CONF_ON_STT_END = "on_stt_end"
+CONF_ON_TTS_START = "on_tts_start"
+CONF_ON_TTS_END = "on_tts_end"
+CONF_ON_END = "on_end"
+CONF_ON_ERROR = "on_error"
+
+
 voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
 VoiceAssistant = voice_assistant_ns.class_("VoiceAssistant", cg.Component)
 
@@ -26,6 +34,12 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(VoiceAssistant),
         cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
+        cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_TTS_START): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_TTS_END): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_END): automation.validate_automation(single=True),
+        cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -36,6 +50,40 @@ async def to_code(config):
 
     mic = await cg.get_variable(config[CONF_MICROPHONE])
     cg.add(var.set_microphone(mic))
+
+    if CONF_ON_START in config:
+        await automation.build_automation(
+            var.get_start_trigger(), [], config[CONF_ON_START]
+        )
+
+    if CONF_ON_STT_END in config:
+        await automation.build_automation(
+            var.get_stt_end_trigger(), [(cg.std_string, "x")], config[CONF_ON_STT_END]
+        )
+
+    if CONF_ON_TTS_START in config:
+        await automation.build_automation(
+            var.get_tts_start_trigger(),
+            [(cg.std_string, "x")],
+            config[CONF_ON_TTS_START],
+        )
+
+    if CONF_ON_TTS_END in config:
+        await automation.build_automation(
+            var.get_tts_end_trigger(), [(cg.std_string, "x")], config[CONF_ON_TTS_END]
+        )
+
+    if CONF_ON_END in config:
+        await automation.build_automation(
+            var.get_end_trigger(), [], config[CONF_ON_END]
+        )
+
+    if CONF_ON_ERROR in config:
+        await automation.build_automation(
+            var.get_error_trigger(),
+            [(cg.std_string, "code"), (cg.std_string, "message")],
+            config[CONF_ON_ERROR],
+        )
 
     cg.add_define("USE_VOICE_ASSISTANT")
 
