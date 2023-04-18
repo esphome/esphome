@@ -6,6 +6,7 @@
 #include "api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 
 #include <vector>
 
@@ -123,6 +124,15 @@ class APIConnection : public APIServerConnection {
   }
 #endif
 
+#ifdef USE_VOICE_ASSISTANT
+  void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override {
+    this->voice_assistant_subscription_ = msg.subscribe;
+  }
+  bool request_voice_assistant(bool start);
+  void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
+  void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
+#endif
+
   void on_disconnect_response(const DisconnectResponse &value) override;
   void on_ping_response(const PingResponse &value) override {
     // we initiated ping
@@ -203,6 +213,9 @@ class APIConnection : public APIServerConnection {
   bool service_call_subscription_{false};
 #ifdef USE_BLUETOOTH_PROXY
   bool bluetooth_le_advertisement_subscription_{false};
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  bool voice_assistant_subscription_{false};
 #endif
   bool next_close_ = false;
   APIServer *parent_;
