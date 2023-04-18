@@ -26,10 +26,11 @@ EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
 void EthernetComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ethernet...");
-  if (esp_reset_reason() != ESP_RST_DEEPSLEEP)
+  if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
     // Delay here to allow power to stabilise before Ethernet is initialised.
     delay(300);  // NOLINT
-
+  }
+  
   esp_err_t err;
   err = esp_netif_init();
   ESPHL_ERROR_CHECK(err, "ETH netif init error");
@@ -76,7 +77,7 @@ void EthernetComponent::setup() {
       break;
     }
     case ETHERNET_TYPE_KSZ8081: {
-      phy = esp_eth_phy_new_ksz8081(&phy_config);
+      phy_ = esp_eth_phy_new_ksz8081(&phy_config);
       break;
     }
     default: {
