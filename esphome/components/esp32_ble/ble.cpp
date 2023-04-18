@@ -6,6 +6,7 @@
 
 #include <esp_bt.h>
 #include <esp_bt_main.h>
+#include <esp_bt_device.h>
 #include <esp_gap_ble_api.h>
 #include <freertos/FreeRTOS.h>
 #include <freertos/FreeRTOSConfig.h>
@@ -211,7 +212,16 @@ void ESP32BLE::real_gattc_event_handler_(esp_gattc_cb_event_t event, esp_gatt_if
 
 float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 
-void ESP32BLE::dump_config() { ESP_LOGCONFIG(TAG, "ESP32 BLE:"); }
+void ESP32BLE::dump_config() {
+  const uint8_t *mac_address = esp_bt_dev_get_address();
+  if (mac_address) {
+    ESP_LOGCONFIG(TAG, "ESP32 BLE:");
+    ESP_LOGCONFIG(TAG, "  MAC address: %02X:%02X:%02X:%02X:%02X:%02X", mac_address[0], mac_address[1], mac_address[2],
+                  mac_address[3], mac_address[4], mac_address[5]);
+  } else {
+    ESP_LOGCONFIG(TAG, "ESP32 BLE: bluetooth stack is not enabled");
+  }
+}
 
 ESP32BLE *global_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

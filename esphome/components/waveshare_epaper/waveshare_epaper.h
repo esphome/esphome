@@ -54,6 +54,8 @@ class WaveshareEPaper : public PollingComponent,
     }
   }
 
+  virtual int get_width_controller() { return this->get_width_internal(); };
+
   uint32_t get_buffer_length_();
   uint32_t reset_duration_{200};
 
@@ -110,6 +112,8 @@ class WaveshareEPaperTypeA : public WaveshareEPaper {
   int get_width_internal() override;
 
   int get_height_internal() override;
+
+  int get_width_controller() override;
 
   uint32_t full_update_every_{30};
   uint32_t at_update_{0};
