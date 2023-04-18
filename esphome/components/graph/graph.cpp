@@ -122,11 +122,18 @@ void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Colo
   }
 
   // Adjust limits to nice y_per_div boundaries
-  int yn = int(ymin / y_per_div);
-  int ym = int(ymax / y_per_div) + int(1 * (fmodf(ymax, y_per_div) != 0));
-  ymin = yn * y_per_div;
-  ymax = ym * y_per_div;
-  yrange = ymax - ymin;
+  int yn = 0;
+  int ym = 1;
+  if (!std::isnan(ymin) && !std::isnan(ymax)) {
+    yn = (int) floorf(ymin / y_per_div);
+    ym = (int) ceilf(ymax / y_per_div);
+    if (yn == ym) {
+      ym++;
+    }
+    ymin = yn * y_per_div;
+    ymax = ym * y_per_div;
+    yrange = ymax - ymin;
+  }
 
   /// Draw grid
   if (!std::isnan(this->gridspacing_y_)) {
