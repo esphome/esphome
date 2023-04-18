@@ -26,7 +26,7 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
 
 
 @automation.register_action(
-    "pcf8563_.write_time",
+    "pcf8563.write_time",
     WriteAction,
     cv.Schema(
         {
@@ -41,7 +41,7 @@ async def pcf8563_write_time_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "pcf8563_.read_time",
+    "pcf8563.read_time",
     ReadAction,
     automation.maybe_simple_id(
         {
