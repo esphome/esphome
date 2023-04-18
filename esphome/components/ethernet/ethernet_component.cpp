@@ -276,7 +276,7 @@ void EthernetComponent::start_connect_() {
 #endif
       dns_setserver(0, &d);
     }
-    if (uint32_t(this->manual_ip_->dns1) != 0) {
+    if (uint32_t(this->manual_ip_->dns2) != 0) {
       ip_addr_t d;
 #if LWIP_IPV6
       d.type = IPADDR_TYPE_V4;
