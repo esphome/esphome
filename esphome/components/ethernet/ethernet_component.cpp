@@ -27,10 +27,10 @@ EthernetComponent::EthernetComponent() { global_eth_component = this; }
 void EthernetComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ethernet...");
   if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
-    // Delay here to allow power to stabilise before Ethernet is initialised.
+    // Delay here to allow power to stabilise before Ethernet is initialized.
     delay(300);  // NOLINT
   }
-  
+
   esp_err_t err;
   err = esp_netif_init();
   ESPHL_ERROR_CHECK(err, "ETH netif init error");
