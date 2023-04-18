@@ -43,6 +43,7 @@ class EthernetComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
   bool can_proceed() override;
+  void on_shutdown() override { powerdown(); }
   bool is_connected();
 
   void set_phy_addr(uint8_t phy_addr);
