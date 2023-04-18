@@ -31,6 +31,7 @@ class PN532 : public PollingComponent {
   float get_setup_priority() const override;
 
   void loop() override;
+  void on_shutdown() override { powerdown(); }
 
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
