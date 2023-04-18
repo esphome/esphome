@@ -74,7 +74,8 @@ void EthernetComponent::setup() {
       phy = esp_eth_phy_new_jl1101(&phy_config);
       break;
     }
-    case ETHERNET_TYPE_KSZ8081: {
+    case ETHERNET_TYPE_KSZ8081:
+    case ETHERNET_TYPE_KSZ8081RNA: {
       phy = esp_eth_phy_new_ksz8081(&phy_config);
       break;
     }
@@ -88,6 +89,12 @@ void EthernetComponent::setup() {
   this->eth_handle_ = nullptr;
   err = esp_eth_driver_install(&eth_config, &this->eth_handle_);
   ESPHL_ERROR_CHECK(err, "ETH driver install error");
+
+  if (this->type_ == ETHERNET_TYPE_KSZ8081RNA && this->clk_mode_ == EMAC_CLK_OUT) {
+    // KSZ8081RNA default is incorrect. It expects a 25MHz clock instead of the 50MHz we provide.
+    this->ksz8081_set_clock_reference_(mac);
+  }
+
   /* attach Ethernet driver to TCP/IP stack */
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
@@ -168,6 +175,10 @@ void EthernetComponent::dump_config() {
 
     case ETHERNET_TYPE_KSZ8081:
       eth_type = "KSZ8081";
+      break;
+
+    case ETHERNET_TYPE_KSZ8081RNA:
+      eth_type = "KSZ8081RNA";
       break;
 
     default:
@@ -355,6 +366,56 @@ std::string EthernetComponent::get_use_address() const {
 }
 
 void EthernetComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+
+void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
+#define KSZ80XX_PC2R_REG_ADDR (0x1F)
+
+  esp_err_t err;
+
+  uint32_t basic_control;
+  err = mac->read_phy_reg(mac, this->phy_addr_, (0x00), &(basic_control));
+  ESPHL_ERROR_CHECK(err, "read Basic Control failed");
+  ESP_LOGVV(TAG, "Basic Control: %s", format_hex_pretty((u_int8_t *) &basic_control, 2).c_str());
+
+  // auto                - 0x3100
+  // 100mbit full duplex - 0x2100
+  // 100mbit half duplex - 0x2000
+  //  10mbit full duplex - 0x0100
+  //  10mbit half duplex - 0x0
+  if (basic_control != 0x0100) {
+    basic_control = 0x0100;
+    err = mac->write_phy_reg(mac, this->phy_addr_, (0x00), basic_control);
+    ESPHL_ERROR_CHECK(err, "write Basic Control failed");
+    err = mac->read_phy_reg(mac, this->phy_addr_, (0x00), &(basic_control));
+    ESPHL_ERROR_CHECK(err, "read Basic Control failed");
+    ESP_LOGVV(TAG, "Basic Control: %s", format_hex_pretty((u_int8_t *) &basic_control, 2).c_str());
+  }
+
+  uint32_t phy_control_2;
+  err = mac->read_phy_reg(mac, this->phy_addr_, KSZ80XX_PC2R_REG_ADDR, &(phy_control_2));
+  ESPHL_ERROR_CHECK(err, "Read PHY Control 2 failed");
+  ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
+
+  /*
+   * Bit 7 is `RMII Reference Clock Select`. Default is `0`.
+   * KSZ8081RNA:
+   *   0 - clock input to XI (Pin 8) is 25 MHz for RMII – 25 MHz clock mode.
+   *   1 - clock input to XI (Pin 8) is 50 MHz for RMII – 50 MHz clock mode.
+   * KSZ8081RND:
+   *   0 - clock input to XI (Pin 8) is 50 MHz for RMII – 50 MHz clock mode.
+   *   1 - clock input to XI (Pin 8) is 25 MHz (driven clock only, not a crystal) for RMII – 25 MHz clock mode.
+   */
+  if ((phy_control_2 & (1 << 7)) != (1 << 7)) {
+    phy_control_2 |= 1 << 7;
+    err = mac->write_phy_reg(mac, this->phy_addr_, KSZ80XX_PC2R_REG_ADDR, phy_control_2);
+    ESPHL_ERROR_CHECK(err, "Write PHY Control 2 failed");
+    err = mac->read_phy_reg(mac, this->phy_addr_, KSZ80XX_PC2R_REG_ADDR, &(phy_control_2));
+    ESPHL_ERROR_CHECK(err, "Read PHY Control 2 failed");
+    ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
+  }
+
+#undef KSZ80XX_PC2R_REG_ADDR
+}
 
 }  // namespace ethernet
 }  // namespace esphome
