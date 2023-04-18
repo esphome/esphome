@@ -28,7 +28,7 @@ class MLX90614Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *ambient_sensor_{nullptr};
   sensor::Sensor *object_sensor_{nullptr};
 
-  float emissivity_;
+  float emissivity_{NAN};
 };
 }  // namespace mlx90614
 }  // namespace esphome
