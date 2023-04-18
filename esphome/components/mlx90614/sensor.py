@@ -35,8 +35,11 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_TEMPERATURE,
                 state_class=STATE_CLASS_MEASUREMENT,
+            ).extend(
+                {
+                    cv.Optional(CONF_EMISSIVITY, default=1.0): cv.percentage,
+                }
             ),
-            cv.Optional(CONF_EMISSIVITY, default=1.0): cv.percentage,
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -57,4 +60,4 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_OBJECT])
         cg.add(var.set_object_sensor(sens))
 
-    cg.add(var.set_emissivity(config[CONF_EMISSIVITY]))
+        cg.add(var.set_emissivity(config[CONF_OBJECT][CONF_EMISSIVITY]))
