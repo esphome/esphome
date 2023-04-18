@@ -372,25 +372,6 @@ void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
 
   esp_err_t err;
 
-  uint32_t basic_control;
-  err = mac->read_phy_reg(mac, this->phy_addr_, (0x00), &(basic_control));
-  ESPHL_ERROR_CHECK(err, "read Basic Control failed");
-  ESP_LOGVV(TAG, "Basic Control: %s", format_hex_pretty((u_int8_t *) &basic_control, 2).c_str());
-
-  // auto                - 0x3100
-  // 100mbit full duplex - 0x2100
-  // 100mbit half duplex - 0x2000
-  //  10mbit full duplex - 0x0100
-  //  10mbit half duplex - 0x0
-  if (basic_control != 0x0100) {
-    basic_control = 0x0100;
-    err = mac->write_phy_reg(mac, this->phy_addr_, (0x00), basic_control);
-    ESPHL_ERROR_CHECK(err, "write Basic Control failed");
-    err = mac->read_phy_reg(mac, this->phy_addr_, (0x00), &(basic_control));
-    ESPHL_ERROR_CHECK(err, "read Basic Control failed");
-    ESP_LOGVV(TAG, "Basic Control: %s", format_hex_pretty((u_int8_t *) &basic_control, 2).c_str());
-  }
-
   uint32_t phy_control_2;
   err = mac->read_phy_reg(mac, this->phy_addr_, KSZ80XX_PC2R_REG_ADDR, &(phy_control_2));
   ESPHL_ERROR_CHECK(err, "Read PHY Control 2 failed");
