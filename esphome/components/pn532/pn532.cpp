@@ -104,7 +104,7 @@ bool PN532::powerdown() {
 }
 
 void PN532::update() {
-  if (! updates_enabled_)
+  if (!updates_enabled_)
     return;
 
   for (auto *obj : this->binary_sensors_)
