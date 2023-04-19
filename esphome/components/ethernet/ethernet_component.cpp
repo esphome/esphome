@@ -56,7 +56,7 @@ void EthernetComponent::setup() {
 
   switch (this->type_) {
     case ETHERNET_TYPE_LAN8720: {
-      phy_ = esp_eth_phy_new_lan87xx(&phy_config);
+      this->phy_ = esp_eth_phy_new_lan87xx(&phy_config);
       break;
     }
     case ETHERNET_TYPE_RTL8201: {
