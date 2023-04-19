@@ -10,6 +10,8 @@
 #include "light_traits.h"
 #include "light_transformer.h"
 
+#include <vector>
+
 namespace esphome {
 namespace light {
 
@@ -31,9 +33,6 @@ enum LightRestoreMode {
  */
 class LightState : public EntityBase, public Component {
  public:
-  /// Construct this LightState using the provided traits and name.
-  LightState(const std::string &name, LightOutput *output);
-
   LightState(LightOutput *output);
 
   LightTraits get_traits();

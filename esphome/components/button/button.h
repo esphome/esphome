@@ -15,15 +15,19 @@ namespace button {
     } \
   }
 
+#define SUB_BUTTON(name) \
+ protected: \
+  button::Button *name##_button_{nullptr}; \
+\
+ public: \
+  void set_##name##_button(button::Button *button) { this->name##_button_ = button; }
+
 /** Base class for all buttons.
  *
  * A button is just a momentary switch that does not have a state, only a trigger.
  */
 class Button : public EntityBase {
  public:
-  explicit Button();
-  explicit Button(const std::string &name);
-
   /** Press this button. This is called by the front-end.
    *
    * For implementing buttons, please override press_action.

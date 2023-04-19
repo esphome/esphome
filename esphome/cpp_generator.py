@@ -2,34 +2,26 @@ import abc
 import inspect
 import math
 import re
-from esphome.yaml_util import ESPHomeDataBase
-
-# pylint: disable=unused-import, wrong-import-order
-from typing import (
-    Any,
-    Callable,
-    Optional,
-    Union,
-)
 from collections.abc import Generator, Sequence
+from typing import Any, Callable, Optional, Union
 
-from esphome.core import (  # noqa
+from esphome.core import (
     CORE,
-    HexInt,
     ID,
+    Define,
+    EnumValue,
+    HexInt,
     Lambda,
+    Library,
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
     TimePeriodMinutes,
     TimePeriodSeconds,
-    coroutine,
-    Library,
-    Define,
-    EnumValue,
 )
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.util import OrderedDict
+from esphome.yaml_util import ESPHomeDataBase
 
 
 class Expression(abc.ABC):
@@ -182,10 +174,9 @@ class ArrayInitializer(Expression):
         if not self.args:
             return "{}"
         if self.multiline:
-            cpp = "{\n"
-            for arg in self.args:
-                cpp += f"  {arg},\n"
-            cpp += "}"
+            cpp = "{\n  "
+            cpp += ",\n  ".join(str(arg) for arg in self.args)
+            cpp += ",\n}"
         else:
             cpp = f"{{{', '.join(str(arg) for arg in self.args)}}}"
         return cpp

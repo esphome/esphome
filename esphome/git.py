@@ -1,14 +1,15 @@
-from pathlib import Path
-import subprocess
 import hashlib
 import logging
-from typing import Callable, Optional
+import re
+import subprocess
 import urllib.parse
-
+from dataclasses import dataclass
 from datetime import datetime
+from pathlib import Path
+from typing import Callable, Optional
 
-from esphome.core import CORE, TimePeriodSeconds
 import esphome.config_validation as cv
+from esphome.core import CORE, TimePeriodSeconds
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -43,7 +44,7 @@ def clone_or_update(
     *,
     url: str,
     ref: str = None,
-    refresh: TimePeriodSeconds,
+    refresh: Optional[TimePeriodSeconds],
     domain: str,
     username: str = None,
     password: str = None,
@@ -80,7 +81,7 @@ def clone_or_update(
         if not file_timestamp.exists():
             file_timestamp = Path(repo_dir / ".git" / "HEAD")
         age = datetime.now() - datetime.fromtimestamp(file_timestamp.stat().st_mtime)
-        if age.total_seconds() > refresh.total_seconds:
+        if refresh is None or age.total_seconds() > refresh.total_seconds:
             old_sha = run_git_command(["git", "rev-parse", "HEAD"], str(repo_dir))
             _LOGGER.info("Updating %s", key)
             _LOGGER.debug("Location: %s", repo_dir)
@@ -103,3 +104,57 @@ def clone_or_update(
             return repo_dir, revert
 
     return repo_dir, None
+
+
+GIT_DOMAINS = {
+    "github": "github.com",
+    "gitlab": "gitlab.com",
+}
+
+
+@dataclass(frozen=True)
+class GitFile:
+    domain: str
+    owner: str
+    repo: str
+    filename: str
+    ref: str = None
+    query: str = None
+
+    @property
+    def git_url(self) -> str:
+        return f"https://{self.domain}/{self.owner}/{self.repo}.git"
+
+    @property
+    def raw_url(self) -> str:
+        if self.ref is None:
+            raise ValueError("URL has no ref")
+        if self.domain == "github.com":
+            return f"https://raw.githubusercontent.com/{self.owner}/{self.repo}/{self.ref}/{self.filename}"
+        if self.domain == "gitlab.com":
+            return f"https://gitlab.com/{self.owner}/{self.repo}/-/raw/{self.ref}/{self.filename}"
+        raise NotImplementedError(f"Git domain {self.domain} not supported")
+
+    @classmethod
+    def from_shorthand(cls, shorthand):
+        """Parse a git shorthand URL into its components."""
+        if not isinstance(shorthand, str):
+            raise ValueError("Git shorthand must be a string")
+        m = re.match(
+            r"(?P<domain>[a-zA-Z0-9\-]+)://(?P<owner>[a-zA-Z0-9\-]+)/(?P<repo>[a-zA-Z0-9\-\._]+)/(?P<filename>[a-zA-Z0-9\-_.\./]+)(?:@(?P<ref>[a-zA-Z0-9\-_.\./]+))?(?:\?(?P<query>[a-zA-Z0-9\-_.\./]+))?",
+            shorthand,
+        )
+        if m is None:
+            raise ValueError(
+                "URL is not in expected github://username/name/[sub-folder/]file-path.yml[@branch-or-tag] format!"
+            )
+        if m.group("domain") not in GIT_DOMAINS:
+            raise ValueError(f"Unknown git domain {m.group('domain')}")
+        return cls(
+            domain=GIT_DOMAINS[m.group("domain")],
+            owner=m.group("owner"),
+            repo=m.group("repo"),
+            filename=m.group("filename"),
+            ref=m.group("ref"),
+            query=m.group("query"),
+        )

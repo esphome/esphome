@@ -1,9 +1,10 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/helpers.h"
 #include <queue>
 #include <utility>
+#include <vector>
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace sensor {
@@ -99,6 +100,24 @@ class MedianFilter : public Filter {
   size_t send_every_;
   size_t send_at_;
   size_t window_size_;
+};
+
+/** Simple skip filter.
+ *
+ * Skips the first N values, then passes everything else.
+ */
+class SkipInitialFilter : public Filter {
+ public:
+  /** Construct a SkipInitialFilter.
+   *
+   * @param num_to_ignore How many values to ignore before the filter becomes a no-op.
+   */
+  explicit SkipInitialFilter(size_t num_to_ignore);
+
+  optional<float> new_value(float value) override;
+
+ protected:
+  size_t num_to_ignore_;
 };
 
 /** Simple min filter.
@@ -324,12 +343,14 @@ class HeartbeatFilter : public Filter, public Component {
 
 class DeltaFilter : public Filter {
  public:
-  explicit DeltaFilter(float min_delta);
+  explicit DeltaFilter(float delta, bool percentage_mode);
 
   optional<float> new_value(float value) override;
 
  protected:
-  float min_delta_;
+  float delta_;
+  float current_delta_;
+  bool percentage_mode_;
   float last_value_{NAN};
 };
 
