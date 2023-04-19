@@ -53,7 +53,7 @@ void ESP32RMTLEDStripLightOutput::setup() {
   ExternalRAMAllocator<rmt_item32_t> rmt_allocator(ExternalRAMAllocator<rmt_item32_t>::ALLOW_FAILURE);
   this->rmt_buf_ = rmt_allocator.allocate(buffer_size * 8);  // 8 bits per byte, 1 rmt_item32_t per bit
 
-  rmt_config_t config = RMT_DEFAULT_CONFIG_TX(gpio_num_t(this->pin_), RMT_CHANNEL_0);
+  rmt_config_t config = RMT_DEFAULT_CONFIG_TX(gpio_num_t(this->pin_), this->channel_);
   config.clk_div = RMT_CLK_DIV;
 
   if (rmt_config(&config) != ESP_OK) {
@@ -97,7 +97,7 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
 
   ESP_LOGVV(TAG, "Writing RGB values to bus...");
 
-  if (rmt_wait_tx_done(RMT_CHANNEL_0, pdMS_TO_TICKS(1000)) != ESP_OK) {
+  if (rmt_wait_tx_done(this->channel_, pdMS_TO_TICKS(1000)) != ESP_OK) {
     ESP_LOGE(TAG, "RMT TX timeout");
     this->status_set_warning();
     return;
@@ -121,7 +121,7 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
     psrc++;
   }
 
-  if (rmt_write_items(RMT_CHANNEL_0, this->rmt_buf_, len, false) != ESP_OK) {
+  if (rmt_write_items(this->channel_, this->rmt_buf_, len, false) != ESP_OK) {
     ESP_LOGE(TAG, "RMT TX error");
     this->status_set_warning();
     return;

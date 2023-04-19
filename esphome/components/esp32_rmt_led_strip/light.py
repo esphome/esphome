@@ -3,7 +3,7 @@ from dataclasses import dataclass
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import light
+from esphome.components import light, esp32
 from esphome.const import (
     CONF_MAX_REFRESH_RATE,
     CONF_NUM_LEDS,
@@ -19,6 +19,8 @@ esp32_rmt_led_strip_ns = cg.esphome_ns.namespace("esp32_rmt_led_strip")
 ESP32RMTLEDStripLightOutput = esp32_rmt_led_strip_ns.class_(
     "ESP32RMTLEDStripLightOutput", light.AddressableLight
 )
+
+rmt_channel_t = cg.global_ns.enum("rmt_channel_t")
 
 rgb_order_t = esp32_rmt_led_strip_ns.enum("rgb_order_t")
 
@@ -54,6 +56,26 @@ CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
 CONF_BIT1_HIGH = "bit1_high"
 CONF_BIT1_LOW = "bit1_low"
+CONF_RMT_CHANNEL = "rmt_channel"
+
+RMT_CHANNELS = {
+    esp32.const.VARIANT_ESP32: [0, 1, 2, 3, 4, 5, 6, 7],
+    esp32.const.VARIANT_ESP32S2: [0, 1, 2, 3],
+    esp32.const.VARIANT_ESP32S3: [0, 1, 2, 3],
+    esp32.const.VARIANT_ESP32C3: [0, 1],
+}
+
+
+def _validate_rmt_channel(value):
+    variant = esp32.get_esp32_variant()
+    if variant not in RMT_CHANNELS:
+        raise cv.Invalid(f"ESP32 variant {variant} does not support RMT.")
+    if value not in RMT_CHANNELS[variant]:
+        raise cv.Invalid(
+            f"RMT channel {value} is not supported for ESP32 variant {variant}."
+        )
+    return value
+
 
 CONFIG_SCHEMA = cv.All(
     light.ADDRESSABLE_LIGHT_SCHEMA.extend(
@@ -61,6 +83,8 @@ CONFIG_SCHEMA = cv.All(
             cv.GenerateID(CONF_OUTPUT_ID): cv.declare_id(ESP32RMTLEDStripLightOutput),
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
+            cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
+            cv.Required(CONF_RMT_CHANNEL): _validate_rmt_channel,
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
@@ -80,7 +104,6 @@ CONFIG_SCHEMA = cv.All(
                 CONF_BIT1_LOW,
                 "custom",
             ): cv.positive_time_period_microseconds,
-            cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
         }
     ),
     cv.has_exactly_one_key(CONF_CHIPSET, CONF_BIT0_HIGH),
@@ -119,5 +142,10 @@ async def to_code(config):
         )
 
     cg.add(var.set_rgb_order(config[CONF_RGB_ORDER]))
-
     cg.add(var.set_is_rgbw(config[CONF_IS_RGBW]))
+
+    cg.add(
+        var.set_rmt_channel(
+            getattr(rmt_channel_t, f"RMT_CHANNEL_{config[CONF_RMT_CHANNEL]}")
+        )
+    )

@@ -51,6 +51,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   void set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high, uint32_t bit1_low);
 
   void set_rgb_order(rgb_order_t rgb_order) { this->rgb_order_ = rgb_order; }
+  void set_rmt_channel(rmt_channel_t channel) { this->channel_ = channel; }
 
   void clear_effect_data() override {
     for (int i = 0; i < this->size(); i++)
@@ -72,6 +73,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
 
   rmt_item32_t bit0_, bit1_;
   rgb_order_t rgb_order_;
+  rmt_channel_t channel_;
 
   uint32_t last_refresh_{0};
   optional<uint32_t> max_refresh_rate_{};
