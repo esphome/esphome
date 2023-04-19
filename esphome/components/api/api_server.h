@@ -59,6 +59,11 @@ class APIServer : public Component {
   void request_time();
 #endif
 
+#ifdef USE_VOICE_ASSISTANT
+  bool start_voice_assistant();
+  void stop_voice_assistant();
+#endif
+
   bool is_connected() const;
 
   struct HomeAssistantStateSubscription {

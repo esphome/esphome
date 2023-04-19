@@ -1,4 +1,3 @@
-from typing import Optional
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -252,9 +251,7 @@ async def register_number(
     )
 
 
-async def new_number(
-    config, *, min_value: float, max_value: float, step: Optional[float] = None
-):
+async def new_number(config, *, min_value: float, max_value: float, step: float):
     var = cg.new_Pvariable(config[CONF_ID])
     await register_number(
         var, config, min_value=min_value, max_value=max_value, step=step

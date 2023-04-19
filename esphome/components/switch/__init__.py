@@ -92,7 +92,7 @@ def switch_schema(
     device_class: str = _UNDEF,
     icon: str = _UNDEF,
     block_inverted: bool = False,
-    default_restore_mode: str = "RESTORE_DEFAULT_OFF",
+    default_restore_mode: str = "ALWAYS_OFF",
 ):
     schema = _SWITCH_SCHEMA.extend(
         {
