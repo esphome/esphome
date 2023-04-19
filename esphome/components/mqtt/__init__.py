@@ -10,7 +10,9 @@ from esphome.const import (
     CONF_BIRTH_MESSAGE,
     CONF_BROKER,
     CONF_CERTIFICATE_AUTHORITY,
+    CONF_CLIENT_CERTIFICATE,
     CONF_CLIENT_ID,
+    CONF_CLIENT_KEY,
     CONF_COMMAND_TOPIC,
     CONF_COMMAND_RETAIN,
     CONF_DISCOVERY,
@@ -183,6 +185,12 @@ CONFIG_SCHEMA = cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
             cv.Optional(CONF_CERTIFICATE_AUTHORITY): cv.All(
+                cv.string, cv.only_with_esp_idf
+            ),
+            cv.Optional(CONF_CLIENT_CERTIFICATE): cv.All(
+                cv.string, cv.only_with_esp_idf
+            ),
+            cv.Optional(CONF_CLIENT_KEY): cv.All(
                 cv.string, cv.only_with_esp_idf
             ),
             cv.SplitDefault(CONF_SKIP_CERT_CN_CHECK, esp32_idf=False): cv.All(
@@ -364,6 +372,14 @@ async def to_code(config):
     if CONF_CERTIFICATE_AUTHORITY in config:
         cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
+
+        # Add client cert and key.
+        client_cert = config.get(CONF_CLIENT_CERTIFICATE, None)
+        client_key = config.get(CONF_CLIENT_KEY, None)
+        if (client_cert and not client_key) or (not client_cert and client_key):
+            raise cv.Invalid("A client key must be provided with a client cert")
+        if client_cert and client_key:
+            cg.add(var.set_client_cert_key(client_cert, client_key))
 
         # prevent error -0x428e
         # See https://github.com/espressif/esp-idf/issues/139

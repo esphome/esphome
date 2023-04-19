@@ -51,6 +51,12 @@ bool MQTTBackendIDF::initialize_() {
   } else {
     mqtt_cfg_.transport = MQTT_TRANSPORT_OVER_TCP;
   }
+
+  if (client_cert_.has_value() && client_key_.has_value()) {
+    mqtt_cfg_.client_cert_pem = client_cert_.value().c_str();
+    mqtt_cfg_.client_key_pem = client_key_.value().c_str();
+  }
+
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {
     handler_.reset(mqtt_client);

@@ -125,6 +125,10 @@ class MQTTBackendIDF final : public MQTTBackend {
   void loop() final;
 
   void set_ca_certificate(const std::string &cert) { ca_certificate_ = cert; }
+  void set_client_cert_key(const std::string &cert, const std::string &key) {
+    client_cert_ = cert;
+    client_key_ = key;
+  }
   void set_skip_cert_cn_check(bool skip_check) { skip_cert_cn_check_ = skip_check; }
 
  protected:
@@ -155,6 +159,8 @@ class MQTTBackendIDF final : public MQTTBackend {
   uint16_t keep_alive_;
   bool clean_session_;
   optional<std::string> ca_certificate_;
+  optional<std::string> client_cert_;
+  optional<std::string> client_key_;
   bool skip_cert_cn_check_{false};
 #if defined(USE_MQTT_IDF_CRT_BUNDLE)
   esp_err_t (*crt_bundle_attach_)(void *conf){esp_crt_bundle_attach};
