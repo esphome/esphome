@@ -1,4 +1,5 @@
 import logging
+from esphome import automation
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
@@ -29,12 +30,17 @@ online_image_ns = cg.esphome_ns.namespace("online_image")
 ImageFormat = online_image_ns.enum("ImageFormat")
 IMAGE_FORMAT = {"PNG": ImageFormat.PNG}  # Add new supported formats here
 
-OnlineImage_ = online_image_ns.class_("OnlineImage", cg.PollingComponent, Image_)
+OnlineImage = online_image_ns.class_("OnlineImage", cg.PollingComponent, Image_)
+
+# Actions
+SetUrlAction = online_image_ns.class_(
+    "OnlineImageSetUrlAction", automation.Action, cg.Parented.template(OnlineImage)
+)
 
 ONLINE_IMAGE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_ID): cv.declare_id(OnlineImage_),
-        cv.Required(CONF_URL): cv.string,
+        cv.Required(CONF_ID): cv.declare_id(OnlineImage),
+        cv.Required(CONF_URL): cv.url,
         cv.Optional(CONF_RESIZE): cv.dimensions,
         cv.Optional(CONF_FORMAT, default="PNG"): cv.enum(IMAGE_FORMAT, upper=True),
         cv.Optional(CONF_TYPE, default="BINARY"): cv.enum(IMAGE_TYPE, upper=True),
@@ -51,6 +57,24 @@ CONFIG_SCHEMA = cv.Schema(
         validate_cross_dependencies,
     )
 )
+
+SET_URL_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(OnlineImage),
+        cv.Required(CONF_URL): cv.templatable(cv.url),
+    }
+)
+
+
+@automation.register_action("online_image.set_url", SetUrlAction, SET_URL_SCHEMA)
+async def online_image_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    if CONF_URL in config:
+        template_ = await cg.templatable(config[CONF_URL], args, cg.const_char_ptr)
+        cg.add(var.set_url(template_))
+    return var
 
 
 async def to_code(config):
