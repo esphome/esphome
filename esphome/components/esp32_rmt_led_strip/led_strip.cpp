@@ -10,7 +10,7 @@
 namespace esphome {
 namespace esp32_rmt_led_strip {
 
-static const char *TAG = "esp32_rmt_led_strip";
+static const char *const TAG = "esp32_rmt_led_strip";
 
 static const uint8_t RMT_CLK_DIV = 2;
 
