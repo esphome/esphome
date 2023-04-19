@@ -42,7 +42,6 @@ static void drawCallback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uin
   decoder->draw(x, y, w, h, color);
 }
 
-
 void PngDecoder::prepare(WiFiClient *stream, uint32_t download_size) {
   ImageDecoder::prepare(stream, download_size);
   pngle_set_user_data(pngle, this);
