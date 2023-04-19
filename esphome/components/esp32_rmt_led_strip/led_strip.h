@@ -58,6 +58,8 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
       this->effect_data_[i] = 0;
   }
 
+  void dump_config() override;
+
  protected:
   light::ESPColorView get_view_internal(int32_t index) const override;
 

@@ -162,6 +162,39 @@ light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index
           &this->effect_data_[index], &this->correction_};
 }
 
+void ESP32RMTLEDStripLightOutput::dump_config() {
+  ESP_LOGCONFIG(TAG, "ESP32 RMT LED Strip:");
+  ESP_LOGCONFIG(TAG, "  Pin: %u", this->pin_);
+  ESP_LOGCONFIG(TAG, "  Channel: %u", this->channel_);
+  const char *rgb_order;
+  switch (this->rgb_order_) {
+    case ORDER_RGB:
+      rgb_order = "RGB";
+      break;
+    case ORDER_RBG:
+      rgb_order = "RBG";
+      break;
+    case ORDER_GRB:
+      rgb_order = "GRB";
+      break;
+    case ORDER_GBR:
+      rgb_order = "GBR";
+      break;
+    case ORDER_BGR:
+      rgb_order = "BGR";
+      break;
+    case ORDER_BRG:
+      rgb_order = "BRG";
+      break;
+    default:
+      rgb_order = "UNKNOWN";
+      break;
+  }
+  ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order);
+  ESP_LOGCONFIG(TAG, "  Max refresh rate: %u", *this->max_refresh_rate_);
+  ESP_LOGCONFIG(TAG, "  Number of LEDs: %u", this->num_leds_);
+}
+
 float ESP32RMTLEDStripLightOutput::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 }  // namespace esp32_rmt_led_strip
