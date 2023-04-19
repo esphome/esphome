@@ -51,13 +51,13 @@ struct HorizontalCoordinate {
 }  // namespace internal
 
 struct SunAtLocation {
-  GeoLocation location;
+  internal::GeoLocation location;
   
   num_t greenwich_sidereal_time(Moment moment);
-  HorizontalCoordinate true_coordinate(Moment moment);
+  SunAtLocation::HorizontalCoordinate true_coordinate(Moment moment);
 
-  optional<time::ESPTime> sunrise(time::ESPTime date, num_t zenith) const { return event(true, date, zenith); }
-  optional<time::ESPTime> sunset(time::ESPTime date, num_t zenith) const { return event(false, date, zenith); }
+  optional<time::ESPTime> *sunrise(time::ESPTime date, num_t zenith) const { return event(true, date, zenith); }
+  optional<time::ESPTime> *sunset(time::ESPTime date, num_t zenith) const { return event(false, date, zenith); }
   optional<time::ESPTime> event(bool rise, time::ESPTime date, num_t zenith);
 
  protected:
