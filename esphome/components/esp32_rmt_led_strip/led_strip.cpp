@@ -14,22 +14,6 @@ static const char *const TAG = "esp32_rmt_led_strip";
 
 static const uint8_t RMT_CLK_DIV = 2;
 
-#ifndef RMT_DEFAULT_CONFIG_TX
-#define RMT_DEFAULT_CONFIG_TX(gpio, channel_id) \
-  { \
-    .rmt_mode = RMT_MODE_TX, .channel = channel_id, .gpio_num = gpio, .clk_div = 80, .mem_block_num = 1, \
-    .tx_config = { \
-      .carrier_freq_hz = 38000, \
-      .carrier_level = RMT_CARRIER_LEVEL_HIGH, \
-      .idle_level = RMT_IDLE_LEVEL_LOW, \
-      .carrier_duty_percent = 33, \
-      .carrier_en = false, \
-      .loop_en = false, \
-      .idle_output_en = true, \
-    } \
-  }
-#endif
-
 void ESP32RMTLEDStripLightOutput::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ESP32 LED Strip...");
 
@@ -53,8 +37,18 @@ void ESP32RMTLEDStripLightOutput::setup() {
   ExternalRAMAllocator<rmt_item32_t> rmt_allocator(ExternalRAMAllocator<rmt_item32_t>::ALLOW_FAILURE);
   this->rmt_buf_ = rmt_allocator.allocate(buffer_size * 8);  // 8 bits per byte, 1 rmt_item32_t per bit
 
-  rmt_config_t config = RMT_DEFAULT_CONFIG_TX(gpio_num_t(this->pin_), this->channel_);
+  rmt_config_t config;
+  memset(&config, 0, sizeof(config));
+  config.channel = this->channel_;
+  config.rmt_mode = RMT_MODE_TX;
+  config.gpio_num = gpio_num_t(this->pin_);
+  config.mem_block_num = 1;
   config.clk_div = RMT_CLK_DIV;
+  config.tx_config.loop_en = false;
+  config.tx_config.carrier_level = RMT_CARRIER_LEVEL_LOW;
+  config.tx_config.carrier_en = false;
+  config.tx_config.idle_level = RMT_IDLE_LEVEL_LOW;
+  config.tx_config.idle_output_en = true;
 
   if (rmt_config(&config) != ESP_OK) {
     ESP_LOGE(TAG, "Cannot initialize RMT!");
