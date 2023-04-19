@@ -60,23 +60,23 @@ void EthernetComponent::setup() {
       break;
     }
     case ETHERNET_TYPE_RTL8201: {
-      phy_ = esp_eth_phy_new_rtl8201(&phy_config);
+      this->phy_ = esp_eth_phy_new_rtl8201(&phy_config);
       break;
     }
     case ETHERNET_TYPE_DP83848: {
-      phy_ = esp_eth_phy_new_dp83848(&phy_config);
+      this->phy_ = esp_eth_phy_new_dp83848(&phy_config);
       break;
     }
     case ETHERNET_TYPE_IP101: {
-      phy_ = esp_eth_phy_new_ip101(&phy_config);
+      this->phy_ = esp_eth_phy_new_ip101(&phy_config);
       break;
     }
     case ETHERNET_TYPE_JL1101: {
-      phy_ = esp_eth_phy_new_jl1101(&phy_config);
+      this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
       break;
     }
     case ETHERNET_TYPE_KSZ8081: {
-      phy_ = esp_eth_phy_new_ksz8081(&phy_config);
+      this->phy_ = esp_eth_phy_new_ksz8081(&phy_config);
       break;
     }
     default: {
@@ -359,13 +359,13 @@ void EthernetComponent::set_use_address(const std::string &use_address) { this->
 
 bool EthernetComponent::powerdown() {
   ESP_LOGI(TAG, "Powering down ethernet PHY");
-  if (phy_ == nullptr) {
+  if (this->phy_ == nullptr) {
     ESP_LOGE(TAG, "Ethernet PHY not assigned");
     return false;
   }
-  global_eth_component->connected_ = false;
-  global_eth_component->started_ = false;
-  if (phy_->pwrctl(phy_, false) != ESP_OK) {
+  this->connected_ = false;
+  this->started_ = false;
+  if (this->phy_->pwrctl(this->phy_, false) != ESP_OK) {
     ESP_LOGE(TAG, "Error powering down ethernet PHY");
     return false;
   }
