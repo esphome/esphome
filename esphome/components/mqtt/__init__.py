@@ -369,17 +369,11 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     # esp-idf only
+    is_tls_chosen = False
     if CONF_CERTIFICATE_AUTHORITY in config:
+        is_tls_chosen = True
         cg.add(var.set_ca_certificate(config[CONF_CERTIFICATE_AUTHORITY]))
         cg.add(var.set_skip_cert_cn_check(config[CONF_SKIP_CERT_CN_CHECK]))
-
-        # Add client cert and key.
-        client_cert = config.get(CONF_CLIENT_CERTIFICATE, None)
-        client_key = config.get(CONF_CLIENT_KEY, None)
-        if (client_cert and not client_key) or (not client_cert and client_key):
-            raise cv.Invalid("A client key must be provided with a client cert")
-        if client_cert and client_key:
-            cg.add(var.set_client_cert_key(client_cert, client_key))
 
         # prevent error -0x428e
         # See https://github.com/espressif/esp-idf/issues/139
@@ -389,7 +383,17 @@ async def to_code(config):
         cg.add_define("USE_MQTT_IDF_ENQUEUE")
 
     if CONF_IDF_USE_CRT_BUNDLE in config and config[CONF_IDF_USE_CRT_BUNDLE]:
+        is_tls_chosen = True
         cg.add_define("USE_MQTT_IDF_CRT_BUNDLE")
+
+    if is_tls_chosen:
+        # Add client cert and key.
+        client_cert = config.get(CONF_CLIENT_CERTIFICATE, None)
+        client_key = config.get(CONF_CLIENT_KEY, None)
+        if (client_cert and not client_key) or (not client_cert and client_key):
+            raise cv.Invalid("A client key must be provided with a client cert")
+        if client_cert and client_key:
+            cg.add(var.set_client_cert_key(client_cert, client_key))
     # end esp-idf
 
     for conf in config.get(CONF_ON_MESSAGE, []):
