@@ -3,13 +3,14 @@ from dataclasses import dataclass
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import light, esp32
+from esphome.components import esp32, light
 from esphome.const import (
+    CONF_CHIPSET,
     CONF_MAX_REFRESH_RATE,
     CONF_NUM_LEDS,
     CONF_OUTPUT_ID,
     CONF_PIN,
-    CONF_CHIPSET,
+    CONF_RGB_ORDER,
 )
 
 CODEOWNERS = ["@jesserockz"]
@@ -51,7 +52,6 @@ CHIPSETS = {
 
 
 CONF_IS_RGBW = "is_rgbw"
-CONF_RGB_ORDER = "rgb_order"
 CONF_BIT0_HIGH = "bit0_high"
 CONF_BIT0_LOW = "bit0_low"
 CONF_BIT1_HIGH = "bit1_high"
