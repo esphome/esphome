@@ -23,15 +23,15 @@ ESP32RMTLEDStripLightOutput = esp32_rmt_led_strip_ns.class_(
 
 rmt_channel_t = cg.global_ns.enum("rmt_channel_t")
 
-rgb_order_t = esp32_rmt_led_strip_ns.enum("rgb_order_t")
+RGBOrder = esp32_rmt_led_strip_ns.enum("RGBOrder")
 
 RGB_ORDERS = {
-    "RGB": rgb_order_t.ORDER_RGB,
-    "RBG": rgb_order_t.ORDER_RBG,
-    "GRB": rgb_order_t.ORDER_GRB,
-    "GBR": rgb_order_t.ORDER_GBR,
-    "BGR": rgb_order_t.ORDER_BGR,
-    "BRG": rgb_order_t.ORDER_BRG,
+    "RGB": RGBOrder.ORDER_RGB,
+    "RBG": RGBOrder.ORDER_RBG,
+    "GRB": RGBOrder.ORDER_GRB,
+    "GBR": RGBOrder.ORDER_GBR,
+    "BGR": RGBOrder.ORDER_BGR,
+    "BRG": RGBOrder.ORDER_BRG,
 }
 
 

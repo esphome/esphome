@@ -15,14 +15,14 @@
 namespace esphome {
 namespace esp32_rmt_led_strip {
 
-typedef enum {
+enum RGBOrder : uint8_t {
   ORDER_RGB,
   ORDER_RBG,
   ORDER_GRB,
   ORDER_GBR,
   ORDER_BGR,
   ORDER_BRG,
-} rgb_order_t;
+};
 
 class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
  public:
@@ -50,7 +50,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
 
   void set_led_params(uint32_t bit0_high, uint32_t bit0_low, uint32_t bit1_high, uint32_t bit1_low);
 
-  void set_rgb_order(rgb_order_t rgb_order) { this->rgb_order_ = rgb_order; }
+  void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
   void set_rmt_channel(rmt_channel_t channel) { this->channel_ = channel; }
 
   void clear_effect_data() override {
@@ -72,7 +72,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   bool is_rgbw_;
 
   rmt_item32_t bit0_, bit1_;
-  rgb_order_t rgb_order_;
+  RGBOrder rgb_order_;
   rmt_channel_t channel_;
 
   uint32_t last_refresh_{0};
