@@ -84,7 +84,7 @@ class EthernetComponent : public Component {
   uint32_t connect_begin_;
   esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
-  esp_eth_phy_t *phy_;
+  esp_eth_phy_t *phy_{nullptr};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
