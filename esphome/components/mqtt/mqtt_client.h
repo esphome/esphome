@@ -145,6 +145,9 @@ class MQTTClientComponent : public Component {
 #ifdef USE_ESP_IDF
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
+  void set_client_cert_key(const std::string &cert, const std::string &key) {
+    this->mqtt_backend_.set_client_cert_key(cert, key);
+  }
 #endif
   const Availability &get_availability();
 
