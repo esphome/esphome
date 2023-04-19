@@ -130,7 +130,7 @@ void ESP32RMTLEDStripLightOutput::write_state(light::LightState *state) {
 }
 
 light::ESPColorView ESP32RMTLEDStripLightOutput::get_view_internal(int32_t index) const {
-  int32_t r, g, b;
+  int32_t r = 0, g = 0, b = 0;
   switch (this->rgb_order_) {
     case ORDER_RGB:
       r = 0;
