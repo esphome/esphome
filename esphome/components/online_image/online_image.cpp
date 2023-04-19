@@ -56,7 +56,7 @@ inline bool is_color_on(const Color &color) {
   return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
 }
 
-OnlineImage::OnlineImage(const char *url, uint32_t width, uint32_t height, ImageFormat format, ImageType type, uint32_t download_buffer_size)
+OnlineImage::OnlineImage(const std::string &url, uint32_t width, uint32_t height, ImageFormat format, ImageType type, uint32_t download_buffer_size)
   : buffer_(nullptr), url_(url), download_buffer_size_(download_buffer_size), format_(format),
     fixed_width_(width), fixed_height_(height), bits_per_pixel_(bits_per_pixel(type)), Image(nullptr, 0, 0, type) {
 }
@@ -241,7 +241,7 @@ void OnlineImage::update() {
 
   std::unique_ptr<ImageDecoder> decoder;
 
-  int begin_status = http.begin(url_);
+  int begin_status = http.begin(url_.c_str());
   if (!begin_status) {
     ESP_LOGE(TAG, "Could not download image from %s. Connection failed: %i", url_, begin_status);
     return;
@@ -275,7 +275,7 @@ void OnlineImage::update() {
   WiFiClient *stream = http.getStreamPtr();
 
   decoder->prepare(stream, total_size);
-  ESP_LOGI(TAG, "Downloading image from %s", url_);
+  ESP_LOGI(TAG, "Downloading image from %s", url_.c_str());
   std::vector<uint8_t> download_buffer(this->download_buffer_size_);
   size_t size = decoder->decode(http, stream, download_buffer);
   ESP_LOGI(TAG, "Decoded %d bytes", size);

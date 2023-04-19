@@ -35,7 +35,7 @@ class OnlineImage: public PollingComponent,
    * @param format Format that the image is encoded in (@see ImageFormat).
    * @param buffer_size Size of the buffer used to download the image.
    */
-  OnlineImage(const char *url, uint32_t width, uint32_t height, ImageFormat format, display::ImageType type, uint32_t buffer_size);
+  OnlineImage(const std::string &url, uint32_t width, uint32_t height, ImageFormat format, display::ImageType type, uint32_t buffer_size);
 
   bool get_pixel(int x, int y) const override;
   Color get_rgba_pixel(int x, int y) const override;
@@ -45,7 +45,7 @@ class OnlineImage: public PollingComponent,
 
   void update() override;
 
-  void set_url(const char *url) { url_ = url; }
+  void set_url(const std::string &url) { url_ = url; }
   void release();
 
  protected:
@@ -65,7 +65,7 @@ class OnlineImage: public PollingComponent,
   void draw_pixel(uint32_t x, uint32_t y, Color color);
 
   uint8_t *buffer_;
-  const char *url_;
+  std::string url_;
   const uint32_t download_buffer_size_;
   const ImageFormat format_;
   const uint8_t bits_per_pixel_;
@@ -74,6 +74,18 @@ class OnlineImage: public PollingComponent,
 
   friend void ImageDecoder::set_size(uint32_t width, uint32_t height);
   friend void ImageDecoder::draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const Color &color);
+};
+
+template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
+ public:
+  OnlineImageSetUrlAction(OnlineImage *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(const char *, url)
+  void play(Ts... x) override {
+    this->parent_->set_url(this->url_.value(x...));
+    this->parent_->update();
+  }
+ protected:
+  OnlineImage *parent_;
 };
 
 }  // namespace online_image
