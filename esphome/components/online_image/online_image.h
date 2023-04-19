@@ -22,9 +22,7 @@ enum ImageFormat {
   PNG,
 };
 
-class OnlineImage: public PollingComponent,
-                   public display::Image
-{
+class OnlineImage : public PollingComponent, public display::Image {
  public:
   /**
    * @brief Construct a new Online Image object.
@@ -35,7 +33,8 @@ class OnlineImage: public PollingComponent,
    * @param format Format that the image is encoded in (@see ImageFormat).
    * @param buffer_size Size of the buffer used to download the image.
    */
-  OnlineImage(const std::string &url, uint32_t width, uint32_t height, ImageFormat format, display::ImageType type, uint32_t buffer_size);
+  OnlineImage(const char *url, int width, int height, ImageFormat format, display::ImageType type,
+              uint32_t buffer_size);
 
   bool get_pixel(int x, int y) const override;
   Color get_rgba_pixel(int x, int y) const override;
@@ -45,35 +44,33 @@ class OnlineImage: public PollingComponent,
 
   void update() override;
 
-  void set_url(const std::string &url) { url_ = url; }
+  void set_url(const char *url) { url_ = url; }
   void release();
 
  protected:
   using Allocator = ExternalRAMAllocator<uint8_t>;
-  Allocator allocator_{  Allocator::Flags::ALLOW_FAILURE };
+  Allocator allocator_{Allocator::Flags::ALLOW_FAILURE};
 
-  uint32_t get_buffer_size() const { return get_buffer_size(width_, height_); }
-  uint32_t get_buffer_size(uint32_t width, uint32_t height) const { return std::ceil(bits_per_pixel_ * width * height / 8.0); }
+  uint32_t get_buffer_size_() const { return get_buffer_size_(width_, height_); }
+  int get_buffer_size_(int width, int height) const { return std::ceil(bits_per_pixel_ * width * height / 8.0); }
 
-  uint32_t get_position(uint32_t x, uint32_t y) const {
-    return ((x + y * width_) * bits_per_pixel_) / 8;
-  }
+  int get_position_(int x, int y) const { return ((x + y * width_) * bits_per_pixel_) / 8; }
 
-  ESPHOME_ALWAYS_INLINE bool auto_resize() const { return fixed_width_ == 0 || fixed_height_ == 0; }
+  ESPHOME_ALWAYS_INLINE bool auto_resize_() const { return fixed_width_ == 0 || fixed_height_ == 0; }
 
-  bool resize(uint32_t width, uint32_t height);
-  void draw_pixel(uint32_t x, uint32_t y, Color color);
+  bool resize_(int width, int height);
+  void draw_pixel_(int x, int y, Color color);
 
   uint8_t *buffer_;
-  std::string url_;
+  const char *url_;
   const uint32_t download_buffer_size_;
   const ImageFormat format_;
   const uint8_t bits_per_pixel_;
-  const uint8_t fixed_width_;
-  const uint8_t fixed_height_;
+  const int fixed_width_;
+  const int fixed_height_;
 
-  friend void ImageDecoder::set_size(uint32_t width, uint32_t height);
-  friend void ImageDecoder::draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const Color &color);
+  friend void ImageDecoder::set_size(int width, int height);
+  friend void ImageDecoder::draw(int x, int y, int w, int h, const Color &color);
 };
 
 template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
@@ -84,6 +81,7 @@ template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
     this->parent_->set_url(this->url_.value(x...));
     this->parent_->update();
   }
+
  protected:
   OnlineImage *parent_;
 };

@@ -30,7 +30,7 @@ class ImageDecoder {
    *
    * @param image The image to decode the stream into.
    */
-  ImageDecoder(OnlineImage *image) : image_(image){}
+  ImageDecoder(OnlineImage *image) : image_(image) {}
   virtual ~ImageDecoder() = default;
 
   /**
@@ -39,7 +39,7 @@ class ImageDecoder {
    * @param stream WiFiClient to read the data from, in case the decoder needs initial data to auto-configure itself.
    * @param download_size The total number of bytes that need to be download for the image.
    */
-  virtual void prepare(WiFiClient *stream, uint32_t download_size){ download_size_ = download_size; }
+  virtual void prepare(WiFiClient *stream, uint32_t download_size) { download_size_ = download_size; }
 
   /**
    * @brief Decode the stream into the image.
@@ -58,7 +58,7 @@ class ImageDecoder {
    * @param width The image's width.
    * @param height The image's height.
    */
-  void set_size(uint32_t width, uint32_t height);
+  void set_size(int width, int height);
 
   /**
    * @brief Draw a rectangle on the display_buffer using the defined color.
@@ -71,7 +71,7 @@ class ImageDecoder {
    * @param h The height of the rectangle.
    * @param color The color to draw the rectangle with.
    */
-  void draw(uint32_t x, uint32_t y, uint32_t w, uint32_t h, const Color &color);
+  void draw(int x, int y, int w, int h, const Color &color);
 
  protected:
   OnlineImage *image_;
@@ -79,7 +79,6 @@ class ImageDecoder {
   double x_scale_ = 1.0;
   double y_scale_ = 1.0;
 };
-
 
 }  // namespace online_image
 }  // namespace esphome

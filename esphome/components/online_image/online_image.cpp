@@ -13,6 +13,8 @@
 #include <ESP8266HTTPClient.h>
 #ifdef USE_HTTP_REQUEST_ESP8266_HTTPS
 #include <WiFiClientSecure.h>
+
+#include <utility>
 #endif
 #endif
 
@@ -56,25 +58,31 @@ inline bool is_color_on(const Color &color) {
   return ((color.r >> 2) + (color.g >> 1) + (color.b >> 2)) & 0x80;
 }
 
-OnlineImage::OnlineImage(const std::string &url, uint32_t width, uint32_t height, ImageFormat format, ImageType type, uint32_t download_buffer_size)
-  : buffer_(nullptr), url_(url), download_buffer_size_(download_buffer_size), format_(format),
-    fixed_width_(width), fixed_height_(height), bits_per_pixel_(bits_per_pixel(type)), Image(nullptr, 0, 0, type) {
-}
+OnlineImage::OnlineImage(const char *url, int width, int height, ImageFormat format, ImageType type,
+                         uint32_t download_buffer_size)
+    : Image(nullptr, 0, 0, type),
+      buffer_(nullptr),
+      url_(url),
+      download_buffer_size_(download_buffer_size),
+      format_(format),
+      bits_per_pixel_(bits_per_pixel(type)),
+      fixed_width_(width),
+      fixed_height_(height) {}
 
 void OnlineImage::release() {
   if (buffer_) {
     ESP_LOGD(TAG, "Deallocating old buffer...");
-    allocator_.deallocate(buffer_, get_buffer_size());
+    allocator_.deallocate(buffer_, get_buffer_size_());
     buffer_ = nullptr;
     width_ = 0;
     height_ = 0;
   }
 }
 
-bool OnlineImage::resize(uint32_t width_in, uint32_t height_in) {
-  uint32_t width = fixed_width_;
-  uint32_t height = fixed_height_;
-  if (auto_resize()) {
+bool OnlineImage::resize_(int width_in, int height_in) {
+  int width = fixed_width_;
+  int height = fixed_height_;
+  if (auto_resize_()) {
     width = width_in;
     height = height_in;
     if (width_ != width && height_ != height) {
@@ -84,7 +92,7 @@ bool OnlineImage::resize(uint32_t width_in, uint32_t height_in) {
   if (buffer_) {
     return false;
   }
-  auto new_size = get_buffer_size(width, height);
+  auto new_size = get_buffer_size_(width, height);
   ESP_LOGD(TAG, "Allocating new buffer of %d Bytes...", new_size);
   ESP_LOGD(TAG, "Bits per pixel: %d", bits_per_pixel_);
   delay_microseconds_safe(2000);
@@ -100,7 +108,7 @@ bool OnlineImage::resize(uint32_t width_in, uint32_t height_in) {
   return true;
 }
 
-void OnlineImage::draw_pixel(uint32_t x, uint32_t y, Color color) {
+void OnlineImage::draw_pixel_(int x, int y, Color color) {
   if (!buffer_) {
     ESP_LOGE(TAG, "Buffer not allocated!");
     return;
@@ -109,7 +117,7 @@ void OnlineImage::draw_pixel(uint32_t x, uint32_t y, Color color) {
     ESP_LOGE(TAG, "Tried to paint a pixel (%d,%d) outside the image!", x, y);
     return;
   }
-  uint32_t pos = get_position(x, y);
+  uint32_t pos = get_position_(x, y);
   switch (type_) {
     case display::ImageType::IMAGE_TYPE_BINARY: {
       uint32_t byte_num = pos;
@@ -186,7 +194,7 @@ bool OnlineImage::get_pixel(int x, int y) const {
 }
 
 Color OnlineImage::get_grayscale_pixel(int x, int y) const {
-  auto pos = get_position(x, y);
+  auto pos = get_position_(x, y);
   uint8_t grey = buffer_[pos];
   uint8_t alpha;
   if (grey == 1 && has_transparency()) {
@@ -198,7 +206,7 @@ Color OnlineImage::get_grayscale_pixel(int x, int y) const {
 }
 
 Color OnlineImage::get_rgb565_pixel(int x, int y) const {
-  auto pos = get_position(x, y);
+  auto pos = get_position_(x, y);
   uint16_t col565 = encode_uint16(buffer_[pos], buffer_[pos + 1]);
   uint8_t alpha;
   if (col565 == 0x0020 && has_transparency()) {
@@ -215,11 +223,11 @@ Color OnlineImage::get_color_pixel(int x, int y) const {
     ESP_LOGE(TAG, "Requested pixel (%d, %d) out of bounds!", x, y);
     return Color(0);
   }
-  auto pos = get_position(x, y);
+  auto pos = get_position_(x, y);
   auto r = buffer_[pos + 0];
   auto g = buffer_[pos + 1];
   auto b = buffer_[pos + 2];
-  auto a = (b == 1 && r == 0 && g == 0 && has_transparency())? 0 : 0xFF;
+  auto a = (b == 1 && r == 0 && g == 0 && has_transparency()) ? 0 : 0xFF;
   return Color(r, g, b, a);
 }
 
@@ -227,7 +235,7 @@ Color OnlineImage::get_rgba_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_) {
     return Color(0);
   }
-  auto pos = get_position(x, y);
+  auto pos = get_position_(x, y);
   auto r = buffer_[pos + 0];
   auto g = buffer_[pos + 1];
   auto b = buffer_[pos + 2];
@@ -241,7 +249,7 @@ void OnlineImage::update() {
 
   std::unique_ptr<ImageDecoder> decoder;
 
-  int begin_status = http.begin(url_.c_str());
+  int begin_status = http.begin(url_);
   if (!begin_status) {
     ESP_LOGE(TAG, "Could not download image from %s. Connection failed: %i", url_, begin_status);
     return;
@@ -257,9 +265,9 @@ void OnlineImage::update() {
     return;
   }
 
-  auto content_type = http.header("Content-Type");
+  String content_type = http.header("Content-Type");
   size_t total_size = http.getSize();
-  ESP_LOGD(TAG, "Content Type: %s", content_type);
+  ESP_LOGD(TAG, "Content Type: %s", content_type.c_str());
   ESP_LOGD(TAG, "Content Length: %d", total_size);
 
 #ifdef ONLINE_IMAGE_PNG_SUPPORT
@@ -275,7 +283,7 @@ void OnlineImage::update() {
   WiFiClient *stream = http.getStreamPtr();
 
   decoder->prepare(stream, total_size);
-  ESP_LOGI(TAG, "Downloading image from %s", url_.c_str());
+  ESP_LOGI(TAG, "Downloading image from %s", url_);
   std::vector<uint8_t> download_buffer(this->download_buffer_size_);
   size_t size = decoder->decode(http, stream, download_buffer);
   ESP_LOGI(TAG, "Decoded %d bytes", size);
