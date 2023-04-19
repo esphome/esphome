@@ -86,7 +86,7 @@ void EthernetComponent::setup() {
     }
   }
 
-  esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, phy_);
+  esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, this->phy_);
   this->eth_handle_ = nullptr;
   err = esp_eth_driver_install(&eth_config, &this->eth_handle_);
   ESPHL_ERROR_CHECK(err, "ETH driver install error");
