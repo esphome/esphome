@@ -250,7 +250,9 @@ async def build_dumpers(config):
 BYRONSX_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFF)),
-        cv.Optional(CONF_COMMAND, default=0x10): cv.All(cv.hex_int, cv.one_of(1, 2, 3, 5, 6, 9, 0xd, 0xe, 0x10, int=True)),
+        cv.Optional(CONF_COMMAND, default=0x10): cv.All(
+            cv.hex_int, cv.one_of(1, 2, 3, 5, 6, 9, 0xd, 0xe, 0x10, int=True)
+        ),
     }
 )
 

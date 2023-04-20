@@ -15,9 +15,9 @@ static const uint8_t NBITS_DATA = NBITS_ADDRESS + NBITS_COMMAND /*+ NBITS_COMMAN
 /*
 ByronSX Protocol
 Each transmitted packet appears to consist of thirteen bits of PWM encoded
-data. Each bit period of aprox 1ms consists of a transmitter OFF persion 
-followed by a transmitter ON period. The 'on' and 'off' periods are either 
-short (approx 332us) or long (664us). 
+data. Each bit period of aprox 1ms consists of a transmitter OFF period
+followed by a transmitter ON period. The 'on' and 'off' periods are either
+short (approx 332us) or long (664us).
 
 A short 'off' followed by a long 'on' represents a '1' bit.
 A long 'off' followed by a short 'on' represents a '0' bit.
@@ -25,7 +25,7 @@ A long 'off' followed by a short 'on' represents a '0' bit.
 A the beginning of each packet is and initial 'off' period of approx 5.6ms
 followed by a short 'on'.
 
-The data payload consists of twelve bits which appear to be an eight bit 
+The data payload consists of twelve bits which appear to be an eight bit
 address floowied by a 4 bit chime number.
 
 SAAAAAAAACCCC
@@ -37,7 +37,7 @@ C - The four chime bits
 
 --------------------
 
-I have also used 'RFLink' software (RLink Firmware Version: 1.1 Revision: 48) 
+I have also used 'RFLink' software (RLink Firmware Version: 1.1 Revision: 48)
 to capture these packets, eg:
 
 20;19;Byron;ID=004f;SWITCH=02;CMD=ON;CHIME=02;
@@ -49,7 +49,6 @@ marshn
 */
 
 void ByronSXProtocol::encode(RemoteTransmitData *dst, const ByronSXData &data) {
-
   uint32_t out_data = 0x0;
 
   ESP_LOGD(TAG, "Send ByronSX: address=%04x command=%03x", data.address, data.command);
@@ -81,7 +80,7 @@ optional<ByronSXData> ByronSXProtocol::decode(RemoteReceiveData src) {
       .address = 0,
       .command = 0,
   };
-  
+
   if (src.size() != (NBITS_DATA + NBITS_START_BIT) * 2) {
     return {};
   }
@@ -91,13 +90,13 @@ optional<ByronSXData> ByronSXProtocol::decode(RemoteReceiveData src) {
     return {};
   }
 
-  ESP_LOGVV(TAG, "%3d: %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", src.size(),
-            src.peek(0), src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6), src.peek(7),
-            src.peek(8), src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14),
-            src.peek(15), src.peek(16), src.peek(17), src.peek(18), src.peek(19));
-  
-  ESP_LOGVV(TAG, "     %d %d %d %d %d %d", 
-            src.peek(20), src.peek(21), src.peek(22), src.peek(23), src.peek(24), src.peek(25));
+  ESP_LOGVV(TAG, "%3d: %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", src.size(), src.peek(0),
+            src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6), src.peek(7), src.peek(8),
+			src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14), src.peek(15),
+			src.peek(16), src.peek(17), src.peek(18), src.peek(19));
+
+  ESP_LOGVV(TAG, "     %d %d %d %d %d %d", src.peek(20), src.peek(21), src.peek(22), src.peek(23), src.peek(24),
+            src.peek(25));
 
   // Read data bits
   uint32_t out_data = 0;
@@ -115,7 +114,7 @@ optional<ByronSXData> ByronSXProtocol::decode(RemoteReceiveData src) {
   }
 
   // last bit followed by a long space
-  if ( !src.peek_space_at_least(BIT_TIME_US)) {
+  if (!src.peek_space_at_least(BIT_TIME_US)) {
     ESP_LOGV(TAG, "Decode ByronSX: Fail 4 ");
     return {};
   }

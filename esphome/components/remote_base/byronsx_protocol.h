@@ -15,7 +15,7 @@ struct ByronSXData {
     // This allows us to match on just the address if wanted.
     if (address != rhs.address) {
       return false;
-	}
+    }
     return (rhs.command == 0x10 || command == rhs.command);
   }
 };
