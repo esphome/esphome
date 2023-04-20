@@ -1,4 +1,3 @@
-from typing import Optional
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -31,6 +30,7 @@ from esphome.const import (
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
@@ -59,6 +59,7 @@ from esphome.const import (
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
@@ -81,6 +82,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_DISTANCE,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
@@ -109,6 +111,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
@@ -204,14 +207,13 @@ def number_schema(
 
 
 async def setup_number_core_(
-    var, config, *, min_value: float, max_value: float, step: Optional[float]
+    var, config, *, min_value: float, max_value: float, step: float
 ):
     await setup_entity(var, config)
 
     cg.add(var.traits.set_min_value(min_value))
     cg.add(var.traits.set_max_value(max_value))
-    if step is not None:
-        cg.add(var.traits.set_step(step))
+    cg.add(var.traits.set_step(step))
 
     cg.add(var.traits.set_mode(config[CONF_MODE]))
 
@@ -239,7 +241,7 @@ async def setup_number_core_(
 
 
 async def register_number(
-    var, config, *, min_value: float, max_value: float, step: Optional[float] = None
+    var, config, *, min_value: float, max_value: float, step: float
 ):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
@@ -249,9 +251,7 @@ async def register_number(
     )
 
 
-async def new_number(
-    config, *, min_value: float, max_value: float, step: Optional[float] = None
-):
+async def new_number(config, *, min_value: float, max_value: float, step: float):
     var = cg.new_Pvariable(config[CONF_ID])
     await register_number(
         var, config, min_value=min_value, max_value=max_value, step=step
