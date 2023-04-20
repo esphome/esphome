@@ -6,6 +6,7 @@
 #include "api_server.h"
 #include "esphome/core/application.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 
 #include <vector>
 
@@ -97,6 +98,12 @@ class APIConnection : public APIServerConnection {
     this->send_homeassistant_service_response(call);
   }
 #ifdef USE_BLUETOOTH_PROXY
+  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override {
+    this->bluetooth_le_advertisement_subscription_ = true;
+  }
+  void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override {
+    this->bluetooth_le_advertisement_subscription_ = false;
+  }
   bool send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg);
 
   void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
@@ -115,6 +122,15 @@ class APIConnection : public APIServerConnection {
     GetTimeRequest req;
     this->send_get_time_request(req);
   }
+#endif
+
+#ifdef USE_VOICE_ASSISTANT
+  void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override {
+    this->voice_assistant_subscription_ = msg.subscribe;
+  }
+  bool request_voice_assistant(bool start);
+  void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
+  void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
 #endif
 
   void on_disconnect_response(const DisconnectResponse &value) override;
@@ -150,9 +166,7 @@ class APIConnection : public APIServerConnection {
     return {};
   }
   void execute_service(const ExecuteServiceRequest &msg) override;
-  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override {
-    this->bluetooth_le_advertisement_subscription_ = true;
-  }
+
   bool is_authenticated() override { return this->connection_state_ == ConnectionState::AUTHENTICATED; }
   bool is_connection_setup() override {
     return this->connection_state_ == ConnectionState ::CONNECTED || this->is_authenticated();
@@ -197,7 +211,12 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
+#ifdef USE_BLUETOOTH_PROXY
   bool bluetooth_le_advertisement_subscription_{false};
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  bool voice_assistant_subscription_{false};
+#endif
   bool next_close_ = false;
   APIServer *parent_;
   InitialStateIterator initial_state_iterator_;

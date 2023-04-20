@@ -39,7 +39,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         ).extend(
             {
                 cv.Required(CONF_CHANNELS): cv.All(
-                    cv.ensure_list(entry), cv.Length(min=1)
+                    cv.ensure_list(entry), cv.Length(min=1, max=64)
                 ),
             }
         ),
@@ -50,7 +50,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         ).extend(
             {
                 cv.Required(CONF_CHANNELS): cv.All(
-                    cv.ensure_list(entry), cv.Length(min=1)
+                    cv.ensure_list(entry), cv.Length(min=1, max=64)
                 ),
             }
         ),
