@@ -57,15 +57,15 @@ class Sun {
   void set_latitude(double latitude) { location_.latitude = latitude; }
   void set_longitude(double longitude) { location_.longitude = longitude; }
 
-  optional<time::ESPTime> sunrise(time::ESPTime date, double elevation);
-  optional<time::ESPTime> sunset(time::ESPTime date, double elevation);
+  optional<time::ESPTime> sunrise(double elevation);
+  optional<time::ESPTime> sunset(double elevation);
 
   double elevation();
   double azimuth();
 
  protected:
   internal::HorizontalCoordinate calc_coords_();
-  optional<time::ESPTime> calc_event_(time::ESPTime date, bool rising, double zenith);
+  optional<time::ESPTime> calc_event_(bool rising, double zenith);
 
   time::RealTimeClock *time_;
   internal::GeoLocation location_;
@@ -121,7 +121,5 @@ template<typename... Ts> class SunCondition : public Condition<Ts...>, public Pa
   bool above_;
 };
 
-optional<time::ESPTime> Sun::sunrise(time::ESPTime date, double elevation);
-optional<time::ESPTime> Sun::sunset(time::ESPTime date, double elevation);
 }  // namespace sun
 }  // namespace esphome
