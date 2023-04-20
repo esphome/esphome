@@ -428,10 +428,12 @@ void APIServer::on_shutdown() {
 }
 
 #ifdef USE_VOICE_ASSISTANT
-void APIServer::start_voice_assistant() {
+bool APIServer::start_voice_assistant() {
+  bool result = false;
   for (auto &c : this->clients_) {
-    c->request_voice_assistant(true);
+    result |= c->request_voice_assistant(true);
   }
+  return result;
 }
 void APIServer::stop_voice_assistant() {
   for (auto &c : this->clients_) {
