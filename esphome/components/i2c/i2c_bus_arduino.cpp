@@ -234,7 +234,7 @@ void ArduinoI2CBus::recover_() {
     // No point in trying to recover the bus by forcing a uC reset. Bus
     // should recover in a few ms or less else not likely to recovery at
     // all.
-    auto wait = 200;
+    auto wait = 250;
     while (wait-- && digitalRead(scl_pin_) == LOW) {  // NOLINT
 #if defined(USE_ESP32) || defined(USE_ESP8266)
       esp_task_wdt_reset();

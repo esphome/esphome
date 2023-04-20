@@ -278,7 +278,7 @@ void IDFI2CBus::recover_() {
     // No point in trying to recover the bus by forcing a uC reset. Bus
     // should recover in a few ms or less else not likely to recovery at
     // all.
-    auto wait = 200;
+    auto wait = 250;
     while (wait-- && gpio_get_level(scl_pin) == 0) {
       esp_task_wdt_reset();
       delayMicroseconds(half_period_usec*2);
