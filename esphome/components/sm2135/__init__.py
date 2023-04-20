@@ -12,6 +12,8 @@ CODEOWNERS = ["@BoukeHaarsma23"]
 
 sm2135_ns = cg.esphome_ns.namespace("sm2135")
 SM2135 = sm2135_ns.class_("SM2135", cg.Component)
+CONF_MAX_POWER_COLOR_CHANNELS = "max_power_color_channels"
+CONF_MAX_POWER_WHITE_CHANNELS = "max_power_white_channels"
 
 MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema(
@@ -19,6 +21,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(SM2135),
         cv.Required(CONF_DATA_PIN): pins.gpio_output_pin_schema,
         cv.Required(CONF_CLOCK_PIN): pins.gpio_output_pin_schema,
+        cv.Optional(CONF_MAX_POWER_COLOR_CHANNELS, default=2): cv.int_range(
+            min=0, max=7
+        ),
+        cv.Optional(CONF_MAX_POWER_WHITE_CHANNELS, default=7): cv.int_range(
+            min=0, max=10
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -31,3 +39,5 @@ async def to_code(config):
     cg.add(var.set_data_pin(data))
     clock = await cg.gpio_pin_expression(config[CONF_CLOCK_PIN])
     cg.add(var.set_clock_pin(clock))
+    cg.add(var.set_max_power_color_channels(config[CONF_MAX_POWER_COLOR_CHANNELS]))
+    cg.add(var.set_max_power_white_channels(config[CONF_MAX_POWER_WHITE_CHANNELS]))
