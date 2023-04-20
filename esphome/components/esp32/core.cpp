@@ -7,6 +7,7 @@
 #include <freertos/task.h>
 #include <esp_idf_version.h>
 #include <esp_task_wdt.h>
+#include <esp_timer.h>
 #include <soc/rtc.h>
 
 #if ESP_IDF_VERSION_MAJOR >= 4
