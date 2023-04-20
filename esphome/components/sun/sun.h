@@ -50,21 +50,6 @@ struct HorizontalCoordinate {
 
 }  // namespace internal
 
-struct SunAtLocation {
-  internal::GeoLocation location;
-  
-  num_t greenwich_sidereal_time(Moment moment);
-  SunAtLocation::HorizontalCoordinate true_coordinate(Moment moment);
-
-  optional<time::ESPTime> *sunrise(time::ESPTime date, num_t zenith) const { return event(true, date, zenith); }
-  optional<time::ESPTime> *sunset(time::ESPTime date, num_t zenith) const { return event(false, date, zenith); }
-  optional<time::ESPTime> event(bool rise, time::ESPTime date, num_t zenith);
-
- protected:
-  optional<num_t> local_hour_angle_(num_t jde, bool rise, num_t zenith);
-  time::ESPTime local_event_(time::ESPTime date, int hour);
-};
-
 class Sun {
  public:
   void set_time(time::RealTimeClock *time) { time_ = time; }
