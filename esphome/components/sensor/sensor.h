@@ -54,7 +54,7 @@ std::string state_class_to_string(StateClass state_class);
  *
  * A sensor has unit of measurement and can use publish_state to send out a new value with the specified accuracy.
  */
-class Sensor : public EntityBase {
+class Sensor : public EntityBase, public EntityBase_DeviceClass {
  public:
   explicit Sensor();
 
@@ -67,11 +67,6 @@ class Sensor : public EntityBase {
   int8_t get_accuracy_decimals();
   /// Manually set the accuracy in decimals.
   void set_accuracy_decimals(int8_t accuracy_decimals);
-
-  /// Get the device class, using the manual override if set.
-  std::string get_device_class();
-  /// Manually set the device class.
-  void set_device_class(const std::string &device_class);
 
   /// Get the state class, using the manual override if set.
   StateClass get_state_class();
@@ -165,7 +160,6 @@ class Sensor : public EntityBase {
 
   optional<std::string> unit_of_measurement_;           ///< Unit of measurement override
   optional<int8_t> accuracy_decimals_;                  ///< Accuracy in decimals override
-  optional<std::string> device_class_;                  ///< Device class override
   optional<StateClass> state_class_{STATE_CLASS_NONE};  ///< State class override
   bool force_update_{false};                            ///< Force update mode
   bool has_state_{false};
