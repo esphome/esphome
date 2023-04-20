@@ -8,9 +8,6 @@
 namespace esphome {
 namespace sm2135 {
 
-namespace esphome {
-namespace sm2135 {
-
 class SM2135 : public Component {
  public:
   class Channel;
