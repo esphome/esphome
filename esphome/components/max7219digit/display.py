@@ -7,7 +7,6 @@ CODEOWNERS = ["@rspaargaren"]
 DEPENDENCIES = ["spi"]
 
 CONF_ROTATE_CHIP = "rotate_chip"
-CONF_FLIP_X = "flip_x"
 CONF_SCROLL_SPEED = "scroll_speed"
 CONF_SCROLL_DWELL = "scroll_dwell"
 CONF_SCROLL_DELAY = "scroll_delay"
@@ -68,7 +67,6 @@ CONFIG_SCHEMA = (
                 CONF_SCROLL_DWELL, default="1000ms"
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_REVERSE_ENABLE, default=False): cv.boolean,
-            cv.Optional(CONF_FLIP_X, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("500ms"))
@@ -93,7 +91,6 @@ async def to_code(config):
     cg.add(var.set_scroll(config[CONF_SCROLL_ENABLE]))
     cg.add(var.set_scroll_mode(config[CONF_SCROLL_MODE]))
     cg.add(var.set_reverse(config[CONF_REVERSE_ENABLE]))
-    cg.add(var.set_flip_x([CONF_FLIP_X]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
