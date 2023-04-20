@@ -6,6 +6,7 @@
 #include "esphome/core/helpers.h"
 #include <cstring>
 #include <cinttypes>
+#include <esp_task_wdt.h>
 
 namespace esphome {
 namespace i2c {
@@ -273,10 +274,14 @@ void IDFI2CBus::recover_() {
     // When SCL is kept LOW at this point, we might be looking at a device
     // that applies clock stretching. Wait for the release of the SCL line,
     // but not forever. There is no specification for the maximum allowed
-    // time. We'll stick to 500ms here.
-    auto wait = 20;
+    // time. We yield and reset the WDT, so as to avoid triggering reset.
+    // No point in trying to recover the bus by forcing a uC reset. Bus
+    // should recover in a few ms or less else not likely to recovery at
+    // all.
+    auto wait = 200;
     while (wait-- && gpio_get_level(scl_pin) == 0) {
-      delay(25);
+      esp_task_wdt_reset();
+      delayMicroseconds(half_period_usec*2);
     }
     if (gpio_get_level(scl_pin) == 0) {
       ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");

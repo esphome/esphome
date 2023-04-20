@@ -5,6 +5,9 @@
 #include "esphome/core/helpers.h"
 #include <Arduino.h>
 #include <cstring>
+#if defined(USE_ESP32) || defined(USE_ESP8266)
+#include <esp_task_wdt.h>
+#endif
 
 namespace esphome {
 namespace i2c {
@@ -227,10 +230,18 @@ void ArduinoI2CBus::recover_() {
     // When SCL is kept LOW at this point, we might be looking at a device
     // that applies clock stretching. Wait for the release of the SCL line,
     // but not forever. There is no specification for the maximum allowed
-    // time. We'll stick to 500ms here.
-    auto wait = 20;
+    // time. We yield and reset the WDT, so as to avoid triggering reset.
+    // No point in trying to recover the bus by forcing a uC reset. Bus
+    // should recover in a few ms or less else not likely to recovery at
+    // all.
+    auto wait = 200;
     while (wait-- && digitalRead(scl_pin_) == LOW) {  // NOLINT
+#if defined(USE_ESP32) || defined(USE_ESP8266)
+      esp_task_wdt_reset();
+      delayMicroseconds(half_period_usec*2);
+#elif
       delay(25);
+#endif
     }
     if (digitalRead(scl_pin_) == LOW) {  // NOLINT
       ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");
