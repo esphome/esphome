@@ -16,13 +16,5 @@ std::string NumberTraits::get_unit_of_measurement() {
   return "";
 }
 
-void NumberTraits::set_device_class(const std::string &device_class) { this->device_class_ = device_class; }
-
-std::string NumberTraits::get_device_class() {
-  if (this->device_class_.has_value())
-    return *this->device_class_;
-  return "";
-}
-
 }  // namespace number
 }  // namespace esphome
