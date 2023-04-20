@@ -40,7 +40,7 @@ void SM2135::dump_config() {
 }
 
 void SM2135::loop() {
-    if (!this->update_)
+   if (!this->update_)
     return;
 
   uint8_t data[6];
