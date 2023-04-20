@@ -92,8 +92,8 @@ optional<ByronSXData> ByronSXProtocol::decode(RemoteReceiveData src) {
 
   ESP_LOGVV(TAG, "%3d: %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d %d", src.size(), src.peek(0),
             src.peek(1), src.peek(2), src.peek(3), src.peek(4), src.peek(5), src.peek(6), src.peek(7), src.peek(8),
-			src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14), src.peek(15),
-			src.peek(16), src.peek(17), src.peek(18), src.peek(19));
+            src.peek(9), src.peek(10), src.peek(11), src.peek(12), src.peek(13), src.peek(14), src.peek(15),
+            src.peek(16), src.peek(17), src.peek(18), src.peek(19));
 
   ESP_LOGVV(TAG, "     %d %d %d %d %d %d", src.peek(20), src.peek(21), src.peek(22), src.peek(23), src.peek(24),
             src.peek(25));
