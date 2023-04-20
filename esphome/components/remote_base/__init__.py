@@ -16,6 +16,7 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_PROTOCOL,
     CONF_GROUP,
+    CONF_GROUP,
     CONF_DEVICE,
     CONF_STATE,
     CONF_CHANNEL,
@@ -238,6 +239,102 @@ async def build_dumpers(config):
         dumper = await cg.build_registry_entry(DUMPER_REGISTRY, conf)
         dumpers.append(dumper)
     return dumpers
+
+# Byron DBY
+(
+    ByronDBYData,
+    ByronDBYBinarySensor,
+    ByronDBYTrigger,
+    ByronDBYAction,
+    ByronDBYDumper,
+) = declare_protocol("ByronDBY")
+BYRONDBY_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
+        cv.Required(CONF_CHANNEL): cv.All(cv.hex_int, cv.Range(min=0, max=0xFF)),
+        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0xFF)),
+    }
+)
+
+
+@register_binary_sensor("byrondby", ByronDBYBinarySensor, BYRONDBY_SCHEMA)
+def byrondby_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                ByronDBYData,
+                ("address", config[CONF_ADDRESS]),
+                ("channel", config[CONF_CHANNEL]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("byrondby", ByronDBYTrigger, ByronDBYData)
+def byrondby_trigger(var, config):
+    pass
+
+
+@register_dumper("byrondby", ByronDBYDumper)
+def byrondby_dumper(var, config):
+    pass
+
+
+@register_action("byrondby", ByronDBYAction, BYRONDBY_SCHEMA)
+async def byrondby_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
+    cg.add(var.set_channel(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
+
+# ByronSX
+(
+    ByronSXData,
+    ByronSXBinarySensor,
+    ByronSXTrigger,
+    ByronSXAction,
+    ByronSXDumper,
+) = declare_protocol("ByronSX")
+BYRONSX_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFF)),
+        cv.Optional(CONF_COMMAND, default=0x10): cv.All(cv.hex_int, cv.one_of(1, 2, 3, 5, 6, 9, 0xd, 0xe, 0x10, int=True)),
+    }
+)
+
+
+@register_binary_sensor("byronsx", ByronSXBinarySensor, BYRONSX_SCHEMA)
+def byronsx_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                ByronSXData,
+                ("address", config[CONF_ADDRESS]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("byronsx", ByronSXTrigger, ByronSXData)
+def byronsx_trigger(var, config):
+    pass
+
+
+@register_dumper("byronsx", ByronSXDumper)
+def byronsx_dumper(var, config):
+    pass
+
+
+@register_action("byronsx", ByronSXAction, BYRONSX_SCHEMA)
+async def byronsx_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint8)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
 
 
 # CanalSat
