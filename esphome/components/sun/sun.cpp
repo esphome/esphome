@@ -289,7 +289,8 @@ HorizontalCoordinate Sun::calc_coords_() {
 }
 optional<time::ESPTime> Sun::calc_event_(time::ESPTime date, bool rising, double zenith) {
   SunAtLocation sun{location_};
-  auto now = this->time_->utcnow();
+  if (!date.is_valid())
+    date = this->time_->utcnow();
   if (!date.is_valid())
     return {};
   // Calculate UT1 timestamp at 0h
