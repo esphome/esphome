@@ -44,7 +44,6 @@ to capture these packets, eg:
 
 This module transmits and interprets packets in the same way as RFLink.
 
-
 marshn
 
 */
@@ -99,7 +98,6 @@ optional<ByronSXData> ByronSXProtocol::decode(RemoteReceiveData src) {
   
   ESP_LOGVV(TAG, "     %d %d %d %d %d %d", 
             src.peek(20), src.peek(21), src.peek(22), src.peek(23), src.peek(24), src.peek(25));
-
 
   // Read data bits
   uint32_t out_data = 0;
