@@ -121,7 +121,7 @@ template<typename... Ts> class SunCondition : public Condition<Ts...>, public Pa
   bool above_;
 };
 
-optional<time::ESPTime> Sun::sunrise(time::ESPTime date, double elevation);
-optional<time::ESPTime> Sun::sunset(time::ESPTime date, double elevation);
+time::ESPTime Sun::sunrise(time::ESPTime date, double elevation);
+time::ESPTime Sun::sunset(time::ESPTime date, double elevation);
 }  // namespace sun
 }  // namespace esphome
