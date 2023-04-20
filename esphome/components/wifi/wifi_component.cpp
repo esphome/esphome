@@ -385,7 +385,7 @@ void WiFiComponent::print_connect_params_() {
 void WiFiComponent::start_scanning() {
   this->action_started_ = millis();
   ESP_LOGD(TAG, "Starting scan...");
-  this->wifi_scan_start_();
+  this->wifi_scan_start_(this->passive_scan_);
   this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
 }
 
@@ -614,6 +614,8 @@ bool WiFiComponent::is_connected() {
          this->wifi_sta_connect_status_() == WiFiSTAConnectStatus::CONNECTED && !this->error_from_callback_;
 }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) { this->power_save_ = power_save; }
+
+void WiFiComponent::set_passive_scan(bool passive) { this->passive_scan_ = passive; }
 
 std::string WiFiComponent::format_mac_addr(const uint8_t *mac) {
   char buf[20];
