@@ -16,7 +16,6 @@ from esphome.const import (
     CONF_INVERTED,
     CONF_PROTOCOL,
     CONF_GROUP,
-    CONF_GROUP,
     CONF_DEVICE,
     CONF_STATE,
     CONF_CHANNEL,
