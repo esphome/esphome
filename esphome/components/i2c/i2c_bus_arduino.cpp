@@ -5,7 +5,7 @@
 #include "esphome/core/helpers.h"
 #include <Arduino.h>
 #include <cstring>
-#if defined(USE_ESP32) || defined(USE_ESP8266)
+#if defined(USE_ESP32)
 #include <esp_task_wdt.h>
 #endif
 
@@ -236,8 +236,11 @@ void ArduinoI2CBus::recover_() {
     // all.
     auto wait = 250;
     while (wait-- && digitalRead(scl_pin_) == LOW) {  // NOLINT
-#if defined(USE_ESP32) || defined(USE_ESP8266)
+#if defined(USE_ESP32)
       esp_task_wdt_reset();
+      delayMicroseconds(half_period_usec*2);
+#elif  defined(USE_ESP8266)
+      ESP.wdtFeed();
       delayMicroseconds(half_period_usec*2);
 #elif
       delay(25);
