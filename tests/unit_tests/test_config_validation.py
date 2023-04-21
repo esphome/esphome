@@ -40,6 +40,19 @@ def test_valid_name__invalid(value):
         config_validation.valid_name(value)
 
 
+@pytest.mark.parametrize("value", ("${name}", "${NAME}", "$NAME", "${name}_name"))
+def test_valid_name__substitution_valid(value):
+    actual = config_validation.valid_name(value)
+
+    assert actual == value
+
+
+@pytest.mark.parametrize("value", ("{NAME}", "${A NAME}"))
+def test_valid_name__substitution_like_invalid(value):
+    with pytest.raises(Invalid):
+        config_validation.valid_name(value)
+
+
 @given(one_of(integers(), text()))
 def test_string__valid(value):
     actual = config_validation.string(value)

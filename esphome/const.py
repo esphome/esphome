@@ -3,6 +3,9 @@
 __version__ = "2023.6.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
+VALID_SUBSTITUTIONS_CHARACTERS = (
+    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
+)
 
 PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
