@@ -307,9 +307,31 @@ optional<time::ESPTime> Sun::calc_event_(bool rising, double zenith) {
   }
   return it;
 }
+optional<time::ESPTime> Sun::calc_event_date_(time::ESPTime date, bool rising, double zenith) {
+  SunAtLocation sun{location_};
+  // auto now = this->time_->utcnow();
+  if (!date.is_valid())
+    return {};
+  // Calculate UT1 timestamp at 0h
+  auto today = date;
+  today.hour = today.minute = today.second = 0;
+  today.recalc_timestamp_utc();
+
+  auto it = sun.event(rising, today, zenith);
+  if (it.has_value() && it->timestamp < date.timestamp) {
+    // We're calculating *next* sunrise/sunset, but calculated event
+    // is today, so try again tomorrow
+    time_t new_timestamp = today.timestamp + 24 * 60 * 60;
+    today = time::ESPTime::from_epoch_utc(new_timestamp);
+    it = sun.event(rising, today, zenith);
+  }
+  return it;
+}
 
 optional<time::ESPTime> Sun::sunrise(double elevation) { return this->calc_event_(true, 90 - elevation); }
 optional<time::ESPTime> Sun::sunset(double elevation) { return this->calc_event_(false, 90 - elevation); }
+optional<time::ESPTime> Sun::sunrise_date(time::ESPTime date, double elevation) { return this->calc_event_date_(date, true, 90 - elevation); }
+optional<time::ESPTime> Sun::sunset_date(time::ESPTime date, double elevation) { return this->calc_event_date_(date, false, 90 - elevation); }
 double Sun::elevation() { return this->calc_coords_().elevation; }
 double Sun::azimuth() { return this->calc_coords_().azimuth; }
 
