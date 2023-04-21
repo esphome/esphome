@@ -96,7 +96,7 @@ class APIServer : public Component, public Controller {
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-  bool start_voice_assistant();
+  void start_voice_assistant();
   void stop_voice_assistant();
 #endif
 
