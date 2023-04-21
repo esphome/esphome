@@ -281,7 +281,7 @@ void IDFI2CBus::recover_() {
     auto wait = 250;
     while (wait-- && gpio_get_level(scl_pin) == 0) {
       esp_task_wdt_reset();
-      delayMicroseconds(half_period_usec*2);
+      delayMicroseconds(half_period_usec * 2);
     }
     if (gpio_get_level(scl_pin) == 0) {
       ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");
