@@ -59,17 +59,17 @@ class Sun {
 
   optional<time::ESPTime> sunrise(double elevation);
   optional<time::ESPTime> sunset(double elevation);
-
-  optional<time::ESPTime> sunrise_date(time::ESPTime date, double elevation);
-  optional<time::ESPTime> sunset_date(time::ESPTime date, double elevation);
+  optional<time::ESPTime> sunrise(time::ESPTime date, double elevation);
+  optional<time::ESPTime> sunset(time::ESPTime date, double elevation);
 
   double elevation();
   double azimuth();
 
  protected:
   internal::HorizontalCoordinate calc_coords_();
+
   optional<time::ESPTime> calc_event_(bool rising, double zenith);
-  optional<time::ESPTime> calc_event_date_(time::ESPTime date, bool rising, double zenith);
+  optional<time::ESPTime> calc_event_(time::ESPTime date, bool rising, double zenith);
 
   time::RealTimeClock *time_;
   internal::GeoLocation location_;
