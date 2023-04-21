@@ -240,7 +240,7 @@ void ArduinoI2CBus::recover_() {
       esp_task_wdt_reset();
       delayMicroseconds(half_period_usec * 2);
 #elif  defined(USE_ESP8266)
-      EspClass::ESP.wdtFeed();
+      EspClass::wdtFeed();
       delayMicroseconds(half_period_usec * 2);
 #elif
       delay(25);
