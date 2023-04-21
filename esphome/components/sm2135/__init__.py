@@ -24,7 +24,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MAX_POWER_COLOR_CHANNELS, default=2): cv.int_range(
             min=0, max=7
         ),
-        cv.Optional(CONF_MAX_POWER_WHITE_CHANNELS, default=7): cv.int_range(
+        cv.Optional(CONF_MAX_POWER_WHITE_CHANNELS, default=4): cv.int_range(
             min=0, max=10
         ),
     }
