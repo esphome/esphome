@@ -19,8 +19,6 @@ static const uint8_t SM2135_ADDR_W = 0xC6;   // Warm
 static const uint8_t SM2135_RGB = 0x00;  // RGB channel
 static const uint8_t SM2135_CW = 0x80;   // CW channel (Chip default)
 
-
-
 void SM2135::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SM2135OutputComponent...");
   this->data_pin_->setup();
@@ -28,7 +26,7 @@ void SM2135::setup() {
   this->clock_pin_->setup();
   this->clock_pin_->digital_write(true);
   this->pwm_amounts_.resize(5, 0);
-  update_=true;
+  update_ = true;
 }
 void SM2135::dump_config() {
   ESP_LOGCONFIG(TAG, "SM2135:");
@@ -36,7 +34,6 @@ void SM2135::dump_config() {
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
   ESP_LOGCONFIG(TAG, "  Color Channels Max Power: %u", this->max_power_color_channels_);
   ESP_LOGCONFIG(TAG, "  White Channels Max Power: %u", this->max_power_white_channels_);
-
 }
 
 void SM2135::loop() {
