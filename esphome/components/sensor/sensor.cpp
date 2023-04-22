@@ -38,13 +38,6 @@ int8_t Sensor::get_accuracy_decimals() {
 }
 void Sensor::set_accuracy_decimals(int8_t accuracy_decimals) { this->accuracy_decimals_ = accuracy_decimals; }
 
-std::string Sensor::get_device_class() {
-  if (this->device_class_.has_value())
-    return *this->device_class_;
-  return "";
-}
-void Sensor::set_device_class(const std::string &device_class) { this->device_class_ = device_class; }
-
 void Sensor::set_state_class(StateClass state_class) { this->state_class_ = state_class; }
 StateClass Sensor::get_state_class() {
   if (this->state_class_.has_value())
