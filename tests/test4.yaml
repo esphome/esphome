@@ -696,3 +696,23 @@ microphone:
 
 voice_assistant:
   microphone: mic_id
+  on_start:
+    - logger.log: "Voice assistant started"
+  on_stt_end:
+    - logger.log:
+        format: "Voice assistant STT ended with result %s"
+        args: [x.c_str()]
+  on_tts_start:
+    - logger.log:
+        format: "Voice assistant TTS started with text %s"
+        args: [x.c_str()]
+  on_tts_end:
+    - logger.log:
+        format: "Voice assistant TTS ended with url %s"
+        args: [x.c_str()]
+  on_end:
+    - logger.log: "Voice assistant ended"
+  on_error:
+    - logger.log:
+        format: "Voice assistant error - code %s, message: %s"
+        args: [code.c_str(), message.c_str()]
