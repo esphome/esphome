@@ -172,8 +172,10 @@ void MQTTClientComponent::start_dnslookup_() {
       // Got IP immediately
       this->dns_resolved_ = true;
 #if LWIP_IPV6
+      // TODO: this could perhaps be done with ip_addr_copy(...)
       this->ip_ = addr.u_addr.ip4.addr;
 #else
+      // TODO: this could perhaps be done with ip_addr_copy(...)
       this->ip_ = addr.addr;
 #endif
       this->start_connect_();

@@ -793,11 +793,11 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   dhcps_lease_t lease;
   lease.enable = true;
   network::IPAddress start_address = info.ip.addr;
-  start_address[3] += 99;
-  lease.start_ip.addr = static_cast<uint32_t>(start_address);
+  start_address += 99;
+  lease.start_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
-  start_address[3] += 100;
-  lease.end_ip.addr = static_cast<uint32_t>(start_address);
+  start_address += 100;
+  lease.end_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
   err = esp_netif_dhcps_option(s_sta_netif, ESP_NETIF_OP_SET, ESP_NETIF_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
