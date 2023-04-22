@@ -20,12 +20,60 @@ void SM2135::setup() {
 
   this->pwm_amounts_.resize(5, 0);
 }
+
 void SM2135::dump_config() {
   ESP_LOGCONFIG(TAG, "SM2135:");
   LOG_PIN("  Data Pin: ", this->data_pin_);
   LOG_PIN("  Clock Pin: ", this->clock_pin_);
   ESP_LOGCONFIG(TAG, "  CW Current: %d", this->cw_current_);
   ESP_LOGCONFIG(TAG, "  RGB Current: %d", this->rgb_current_);
+}
+
+void SM2135::write_byte_(uint8_t data) {
+  for (uint8_t mask = 0x80; mask; mask >>= 1) {
+    if (mask & data) {
+      sm2135_set_high_(this->data_pin_);
+    } else {
+      sm2135_set_low_(this->data_pin_);
+    }
+
+    sm2135_set_high_(clock_pin_);
+    delayMicroseconds(sm2135_delay_);
+    sm2135_set_low_(clock_pin_);
+  }
+
+  sm2135_set_high_(this->data_pin_);
+  sm2135_set_high_(this->clock_pin_);
+  delayMicroseconds(sm2135_delay_ / 2);
+  sm2135_set_low_(this->clock_pin_);
+  delayMicroseconds(sm2135_delay_ / 2);
+  sm2135_set_low_(this->data_pin_);
+}
+
+void SM2135::sm2135_start_() {
+  sm2135_set_low_(this->data_pin_);
+  delayMicroseconds(sm2135_delay_);
+  sm2135_set_low_(this->clock_pin_);
+}
+
+void SM2135::sm2135_stop_() {
+  sm2135_set_low_(this->data_pin_);
+  delayMicroseconds(sm2135_delay_);
+  sm2135_set_high_(this->clock_pin_);
+  delayMicroseconds(sm2135_delay_);
+  sm2135_set_high_(this->data_pin_);
+  delayMicroseconds(sm2135_delay_);
+}
+
+void SM2135::write_buffer_(uint8_t *buffer, uint8_t size) {
+  sm2135_start_();
+
+  this->data_pin_->digital_write(false);
+  for (uint32_t i = 0; i < size; i++) {
+    this->write_byte_(buffer[i]);
+  }
+
+  sm2135_stop_();
 }
 
 void SM2135::loop() {
