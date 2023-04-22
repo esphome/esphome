@@ -70,11 +70,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
     return true;
   }
 
-  IPAddress ip_address = IPAddress(manual_ip->static_ip);
-  IPAddress gateway = IPAddress(manual_ip->gateway);
-  IPAddress subnet = IPAddress(manual_ip->subnet);
+  IPAddress ip_address = manual_ip->static_ip;
+  IPAddress gateway = manual_ip->gateway;
+  IPAddress subnet = manual_ip->subnet;
 
-  IPAddress dns = IPAddress(manual_ip->dns1);
+  IPAddress dns = manual_ip->dns1;
 
   WiFi.config(ip_address, dns, gateway, subnet);
   return true;

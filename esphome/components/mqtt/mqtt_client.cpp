@@ -167,12 +167,15 @@ void MQTTClientComponent::start_dnslookup_() {
       this->dns_resolved_ = true;
 #ifdef USE_ESP32
 #if LWIP_IPV6
+      // TODO: this could perhaps be done with ip_addr_copy(...)
       this->ip_ = addr.u_addr.ip4.addr;
 #else
+      // TODO: this could perhaps be done with ip_addr_copy(...)
       this->ip_ = addr.addr;
 #endif
 #endif
 #ifdef USE_ESP8266
+      // TODO: this could perhaps be done with ip_addr_copy(...)
       this->ip_ = addr.addr;
 #endif
       this->start_connect_();
