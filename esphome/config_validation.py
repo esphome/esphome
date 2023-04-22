@@ -460,6 +460,13 @@ def validate_id_name(value):
         raise Invalid(
             "Dashes are not supported in IDs, please use underscores instead."
         )
+
+    # If the value is a substitution, it can't be validated until the substitution is
+    # actually made
+    sub_match = VARIABLE_PROG.match(value)
+    if sub_match:
+        return value
+
     valid_chars = f"{ascii_letters + digits}_"
     for char in value:
         if char not in valid_chars:

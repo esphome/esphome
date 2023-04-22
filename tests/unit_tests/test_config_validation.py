@@ -53,6 +53,26 @@ def test_valid_name__substitution_like_invalid(value):
         config_validation.valid_name(value)
 
 
+@pytest.mark.parametrize("value", ("myid", "anID", "SOME_ID_test", "MYID_99"))
+def test_validate_id_name__valid(value):
+    actual = config_validation.validate_id_name(value)
+
+    assert actual == value
+
+
+@pytest.mark.parametrize("value", ("id of mine", "id-4", "{name_id}", "id::name"))
+def test_validate_id_name__invalid(value):
+    with pytest.raises(Invalid):
+        config_validation.validate_id_name(value)
+
+
+@pytest.mark.parametrize("value", ("${id}", "${ID}", "${ID}_test_1", "$MYID"))
+def test_validate_id_name__substitution_valid(value):
+    actual = config_validation.validate_id_name(value)
+
+    assert actual == value
+
+
 @given(one_of(integers(), text()))
 def test_string__valid(value):
     actual = config_validation.string(value)
