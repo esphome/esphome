@@ -601,7 +601,7 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
       return WiFiSTAConnectStatus::IDLE;
   }
 }
-bool WiFiComponent::wifi_scan_start_() {
+bool WiFiComponent::wifi_scan_start_(bool passive) {
   static bool first_scan = false;
 
   // enable STA
@@ -615,13 +615,21 @@ bool WiFiComponent::wifi_scan_start_() {
   config.channel = 0;
   config.show_hidden = 1;
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 4, 0)
-  config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
+  config.scan_type = passive ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
   if (first_scan) {
-    config.scan_time.active.min = 100;
-    config.scan_time.active.max = 200;
+    if (passive) {
+      config.scan_time.passive = 200;
+    } else {
+      config.scan_time.active.min = 100;
+      config.scan_time.active.max = 200;
+    }
   } else {
-    config.scan_time.active.min = 400;
-    config.scan_time.active.max = 500;
+    if (passive) {
+      config.scan_time.passive = 500;
+    } else {
+      config.scan_time.active.min = 400;
+      config.scan_time.active.max = 500;
+    }
   }
 #endif
   first_scan = false;
