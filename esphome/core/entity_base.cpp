@@ -72,6 +72,16 @@ void EntityBase::calc_object_id_() {
     this->object_id_hash_ = fnv1_hash(this->object_id_c_str_);
   }
 }
+
 uint32_t EntityBase::get_object_id_hash() { return this->object_id_hash_; }
+
+std::string EntityBase_DeviceClass::get_device_class() {
+  if (this->device_class_ == nullptr) {
+    return "";
+  }
+  return this->device_class_;
+}
+
+void EntityBase_DeviceClass::set_device_class(const char *device_class) { this->device_class_ = device_class; }
 
 }  // namespace esphome
