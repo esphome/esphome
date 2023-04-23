@@ -1,5 +1,6 @@
 #pragma once
 
+#include <time.h>
 #include "esphome/core/component.h"
 #include "esphome/components/time/real_time_clock.h"
 #include "esp_wireguard.h"
@@ -28,7 +29,7 @@ class Wireguard : public PollingComponent {
   void set_srctime(time::RealTimeClock* srctime);
 
   bool is_peer_up() const { return wg_peer_up_; }
-  time_t get_last_peer_up() const { return wg_last_peer_up_; }
+  time_t get_latest_handshake() const;
 
  protected:
   std::string address_;
@@ -47,7 +48,6 @@ class Wireguard : public PollingComponent {
 
   esp_err_t wg_initialized_ = ESP_FAIL;
   esp_err_t wg_connected_ = ESP_FAIL;
-  time_t wg_last_peer_up_ = 0;
   bool wg_peer_up_ = false;
 
   void start_connection_();

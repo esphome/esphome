@@ -1,5 +1,6 @@
 #include "wireguard.h"
 
+#include <time.h>
 #include <functional>
 #include "esphome/core/log.h"
 #include "esp_err.h"
@@ -73,6 +74,14 @@ void Wireguard::on_shutdown() {
         ESP_LOGD(TAG, "disconnecting...");
         esp_wireguard_disconnect(&(this->wg_ctx_));
     }
+}
+
+time_t Wireguard::get_latest_handshake() const {
+    time_t result;
+    if(esp_wireguard_latest_handshake(&(this->wg_ctx_), &result) != ESP_OK) {
+        result = 0;
+    }
+    return result;
 }
 
 void Wireguard::set_address(const std::string& address) { this->address_ = std::move(address); }
