@@ -9,7 +9,6 @@
 
 namespace esphome {
 namespace fluval_ble_led {
-static const char *const TAG = "fluval_ble_led.automation";
 
 template<typename... Ts> class FluvalBleLedTimeSyncAction : public Action<Ts...> {
  public:
@@ -19,7 +18,6 @@ template<typename... Ts> class FluvalBleLedTimeSyncAction : public Action<Ts...>
 
   void play(Ts... x) override {
     if (fluval_ble_led_->node_state != espbt::ClientState::ESTABLISHED) {
-      ESP_LOGW(TAG, "Cannot sync fluval led time - not connected");
       return;
     }
 #ifdef USE_TIME
