@@ -1,10 +1,14 @@
 #include "wireguard.h"
 
-#include <time.h>
+#include <ctime>
 #include <functional>
 #include "esphome/core/log.h"
 #include "esp_err.h"
 #include "esp_wireguard.h"
+
+// Default rekey timeout of wireguard specification, defined also
+// in file wireguard.h of esp_wireguard library.
+#define REKEY_AFTER_TIME (120)
 
 namespace esphome {
 namespace wireguard {
@@ -22,12 +26,12 @@ void Wireguard::setup() {
     this->wg_config_.allowed_ip_mask = this->netmask_.c_str();
     this->wg_config_.persistent_keepalive = this->keepalive_;
 
-    if(preshared_key_.length() > 0)
+    if(this->preshared_key_.length() > 0)
         this->wg_config_.preshared_key = this->preshared_key_.c_str();
 
-    wg_initialized_ = esp_wireguard_init(&(this->wg_config_), &(this->wg_ctx_));
+    this->wg_initialized_ = esp_wireguard_init(&(this->wg_config_), &(this->wg_ctx_));
 
-    if(wg_initialized_ == ESP_OK) {
+    if(this->wg_initialized_ == ESP_OK) {
         ESP_LOGI(TAG, "initialized");
         this->srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection_, this));
         this->start_connection_();
@@ -38,34 +42,41 @@ void Wireguard::setup() {
 }
 
 void Wireguard::update() {
-    if(this->wg_initialized_ == ESP_OK && this->wg_connected_ == ESP_OK) {
-        this->wg_peer_up_ = (esp_wireguardif_peer_is_up(&(this->wg_ctx_)) == ESP_OK);
-    } else {
-        ESP_LOGD(TAG, "initialized: %s (error %d)", (this->wg_initialized_ == ESP_OK ? "yes" : "no"), this->wg_initialized_);
-        ESP_LOGD(TAG, "connection: %s (error %d)", (this->wg_connected_ == ESP_OK ? "active" : "inactive"), this->wg_connected_);
-        this->wg_peer_up_ = false;
-    }
+    time_t lhs = this->get_latest_handshake();
+    std::string latest_handshake = (lhs > 0 )
+        ? time::ESPTime::from_epoch_local(lhs).strftime("%Y-%m-%d %H:%M:%S %Z")
+        : "timestamp not available";
 
-    if(this->wg_peer_up_) {
-        if(this->wg_last_peer_up_ == 0) {
+    if(this->is_peer_up()) {
+        if(!this->wg_peer_up_logged_) {
             ESP_LOGI(TAG, "peer online");
-            this->wg_last_peer_up_ = this->srctime_->utcnow().timestamp;
+            this->wg_peer_up_logged_ = true;
+        } else {
+            ESP_LOGD(TAG, "peer online (latest handshake %s)", latest_handshake.c_str());
         }
     } else {
-        ESP_LOGD(TAG, "peer offline");
-        this->wg_last_peer_up_ = 0;
+        if(this->wg_peer_up_logged_) {
+            ESP_LOGW(TAG, "peer offline (latest handshake %s)", latest_handshake.c_str());
+            this->wg_peer_up_logged_ = false;
+        } else {
+            ESP_LOGV(TAG, "initialized: %s (error %d)", (this->wg_initialized_ == ESP_OK ? "yes" : "no"), this->wg_initialized_);
+            ESP_LOGV(TAG, "connection: %s (error %d)", (this->wg_connected_ == ESP_OK ? "active" : "inactive"), this->wg_connected_);
+            ESP_LOGD(TAG, "peer offline (latest handshake %s)", latest_handshake.c_str());
+        }
     }
 }
 
 void Wireguard::dump_config() {
-    ESP_LOGCONFIG(TAG, "Configuration");
+    ESP_LOGCONFIG(TAG, "WireGuard:");
     ESP_LOGCONFIG(TAG, "  address: %s", this->address_.c_str());
     ESP_LOGCONFIG(TAG, "  netmask: %s", this->netmask_.c_str());
-    ESP_LOGCONFIG(TAG, "  private key: %s...CUT...=", this->private_key_.substr(0,5).c_str());
+    ESP_LOGCONFIG(TAG, "  private key: %s[...]=", this->private_key_.substr(0,5).c_str());
     ESP_LOGCONFIG(TAG, "  peer endpoint: %s", this->peer_endpoint_.c_str());
     ESP_LOGCONFIG(TAG, "  peer port: %d", this->peer_port_);
     ESP_LOGCONFIG(TAG, "  peer public key: %s", this->peer_public_key_.c_str());
-    ESP_LOGCONFIG(TAG, "  peer preshared key: %s...CUT...=", this->preshared_key_.substr(0,5).c_str());
+    ESP_LOGCONFIG(TAG, "  peer preshared key: %s%s",
+            (this->preshared_key_.length() > 0 ? this->preshared_key_.substr(0,5).c_str() : "NOT IN USE"),
+            (this->preshared_key_.length() > 0 ? "[...]=" : ""));
     ESP_LOGCONFIG(TAG, "  peer persistent keepalive: %d", this->keepalive_);
 }
 
@@ -74,6 +85,14 @@ void Wireguard::on_shutdown() {
         ESP_LOGD(TAG, "disconnecting...");
         esp_wireguard_disconnect(&(this->wg_ctx_));
     }
+}
+
+bool Wireguard::is_peer_up() const {
+    return (this->wg_initialized_ == ESP_OK)
+        && (this->wg_connected_ == ESP_OK)
+        && (esp_wireguardif_peer_is_up(&(this->wg_ctx_)) == ESP_OK)
+        // here after the upper limit of 2*REKEY_AFTER_TIME seconds is arbitrarily chosen
+        && ((this->srctime_->utcnow().timestamp - this->get_latest_handshake()) < (2 * REKEY_AFTER_TIME));
 }
 
 time_t Wireguard::get_latest_handshake() const {
