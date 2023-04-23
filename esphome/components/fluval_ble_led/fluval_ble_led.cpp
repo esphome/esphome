@@ -301,27 +301,7 @@ void FluvalBleLed::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t
       }
 
       if (this->handshake_step_ == 3) {
-        auto *time_id = *this->time_;
-        time::ESPTime now = time_id->now();
-
-        if (now.is_valid()) {
-          uint8_t year = now.year - 2000;
-          uint8_t month = 0;  // currentTime.month; // 00 in the app?
-          uint8_t day = now.day_of_month;
-          uint8_t day_of_week = now.day_of_week == 1 ? 7 : now.day_of_week - 1;
-          uint8_t hour = now.hour;
-          uint8_t minute = now.minute;
-          uint8_t second = now.second;
-          uint8_t checksum = 0x68 ^ 0x0E ^ year ^ month ^ day ^ day_of_week ^ hour ^ minute ^ second;
-
-          ESP_LOGD(
-              TAG,
-              "Year: %d / Month: %d / Day: %d / Day of week: %d / Hour: %d / Minute: %d / Second: %d / Checksumm: %d",
-              year, month, day, day_of_week, hour, minute, second, checksum);
-
-          std::vector<uint8_t> value{0x68, 0x0E, year, month, day, day_of_week, hour, minute, second, checksum};
-          this->send_packet_(value);
-        }
+        this->sync_time();
         ESP_LOGI(TAG, "Connected to Fluval LED [%s]", this->parent_->address_str().c_str());
         this->handshake_step_ = 4;
       }
@@ -471,6 +451,29 @@ void FluvalBleLed::loop() {
   }
 }
 
+void FluvalBleLed::sync_time() {
+  auto *time_id = *this->time_;
+  time::ESPTime now = time_id->now();
+
+  if (now.is_valid()) {
+    uint8_t year = now.year - 2000;
+    uint8_t month = 0;  // currentTime.month; // 00 in the app?
+    uint8_t day = now.day_of_month;
+    uint8_t day_of_week = now.day_of_week == 1 ? 7 : now.day_of_week - 1;
+    uint8_t hour = now.hour;
+    uint8_t minute = now.minute;
+    uint8_t second = now.second;
+    uint8_t checksum = 0x68 ^ 0x0E ^ year ^ month ^ day ^ day_of_week ^ hour ^ minute ^ second;
+
+    ESP_LOGD(
+        TAG,
+        "Year: %d / Month: %d / Day: %d / Day of week: %d / Hour: %d / Minute: %d / Second: %d / Checksumm: %d",
+        year, month, day, day_of_week, hour, minute, second, checksum);
+
+    std::vector<uint8_t> value{0x68, 0x0E, year, month, day, day_of_week, hour, minute, second, checksum};
+    this->send_packet_(value);
+  }
+}
 #endif
 
 void FluvalBleLed::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {

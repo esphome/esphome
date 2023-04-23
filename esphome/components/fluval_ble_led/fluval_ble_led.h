@@ -58,7 +58,6 @@ struct FluvalStatus {
 };
 
 class FluvalBleLed : public esphome::ble_client::BLEClientNode, public Component {
-  // class Powerpal : public esphome::ble_client::BLEClientNode, public PollingComponent {
 
  public:
   void dump_config() override;
@@ -79,6 +78,10 @@ class FluvalBleLed : public esphome::ble_client::BLEClientNode, public Component
 
 #ifdef USE_TIME
   void set_time(time::RealTimeClock *time) { this->time_ = time; }
+#endif
+
+#ifdef USE_TIME
+  void sync_time();
 #endif
 
   void set_led_state(bool state);
