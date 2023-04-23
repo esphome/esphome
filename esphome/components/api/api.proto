@@ -288,6 +288,7 @@ message ListEntitiesCoverResponse {
   bool disabled_by_default = 9;
   string icon = 10;
   EntityCategory entity_category = 11;
+  bool supports_stop = 12;
 }
 
 enum LegacyCoverState {
