@@ -58,7 +58,6 @@ struct FluvalStatus {
 };
 
 class FluvalBleLed : public esphome::ble_client::BLEClientNode, public Component {
-
  public:
   void dump_config() override;
   void setup() override;

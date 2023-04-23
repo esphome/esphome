@@ -465,10 +465,9 @@ void FluvalBleLed::sync_time() {
     uint8_t second = now.second;
     uint8_t checksum = 0x68 ^ 0x0E ^ year ^ month ^ day ^ day_of_week ^ hour ^ minute ^ second;
 
-    ESP_LOGD(
-        TAG,
-        "Year: %d / Month: %d / Day: %d / Day of week: %d / Hour: %d / Minute: %d / Second: %d / Checksumm: %d",
-        year, month, day, day_of_week, hour, minute, second, checksum);
+    ESP_LOGD(TAG,
+             "Year: %d / Month: %d / Day: %d / Day of week: %d / Hour: %d / Minute: %d / Second: %d / Checksumm: %d",
+             year, month, day, day_of_week, hour, minute, second, checksum);
 
     std::vector<uint8_t> value{0x68, 0x0E, year, month, day, day_of_week, hour, minute, second, checksum};
     this->send_packet_(value);

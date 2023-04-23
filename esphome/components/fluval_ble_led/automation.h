@@ -12,9 +12,7 @@ namespace fluval_ble_led {
 
 template<typename... Ts> class FluvalBleLedTimeSyncAction : public Action<Ts...> {
  public:
-  explicit FluvalBleLedTimeSyncAction(FluvalBleLed *fluval_ble_led) {
-    fluval_ble_led_ = fluval_ble_led;
-  }
+  explicit FluvalBleLedTimeSyncAction(FluvalBleLed *fluval_ble_led) { fluval_ble_led_ = fluval_ble_led; }
 
   void play(Ts... x) override {
     if (fluval_ble_led_->node_state != espbt::ClientState::ESTABLISHED) {
