@@ -28,9 +28,9 @@ CONF_HORIZONTAL_DEFAULT = "horizontal_default"
 HorizontalDirections = mitsubishi_ns.enum("HorizontalDirections")
 HORIZONTAL_DIRECTIONS = {
     "left": HorizontalDirections.HORIZONTAL_DIRECTION_LEFT,
-    "mleft": HorizontalDirections.HORIZONTAL_DIRECTION_MLEFT,
+    "middle-left": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE_LEFT,
     "middle": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE,
-    "mright": HorizontalDirections.HORIZONTAL_DIRECTION_MRIGHT,
+    "middle-right": HorizontalDirections.HORIZONTAL_DIRECTION_MIDDLE_RIGHT,
     "right": HorizontalDirections.HORIZONTAL_DIRECTION_RIGHT,
     "split": HorizontalDirections.HORIZONTAL_DIRECTION_SPLIT,
 }
