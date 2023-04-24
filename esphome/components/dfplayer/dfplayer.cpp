@@ -19,7 +19,7 @@ void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
 }
 
 void DFPlayer::send_cmd_(uint8_t cmd, uint16_t argument) {
-  uint8_t buffer[10]{0x7e, 0xff, 0x06, cmd, 0x01, (uint8_t)(argument >> 8), (uint8_t) argument, 0x00, 0x00, 0xef};
+  uint8_t buffer[10]{0x7e, 0xff, 0x06, cmd, 0x01, (uint8_t) (argument >> 8), (uint8_t) argument, 0x00, 0x00, 0xef};
   uint16_t checksum = 0;
   for (uint8_t i = 1; i < 7; i++)
     checksum += buffer[i];
@@ -77,14 +77,16 @@ void DFPlayer::loop() {
           case 0x3A:
             if (argument == 1) {
               ESP_LOGI(TAG, "USB loaded");
-            } else if (argument == 2)
+            } else if (argument == 2) {
               ESP_LOGI(TAG, "TF Card loaded");
+            }
             break;
           case 0x3B:
             if (argument == 1) {
               ESP_LOGI(TAG, "USB unloaded");
-            } else if (argument == 2)
+            } else if (argument == 2) {
               ESP_LOGI(TAG, "TF Card unloaded");
+            }
             break;
           case 0x3F:
             if (argument == 1) {

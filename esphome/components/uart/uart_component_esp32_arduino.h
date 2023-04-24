@@ -28,10 +28,14 @@ class ESP32ArduinoUARTComponent : public UARTComponent, public Component {
 
   uint32_t get_config();
 
+  HardwareSerial *get_hw_serial() { return this->hw_serial_; }
+  uint8_t get_hw_serial_number() { return this->number_; }
+
  protected:
   void check_logger_conflict() override;
 
   HardwareSerial *hw_serial_{nullptr};
+  uint8_t number_{0};
 };
 
 }  // namespace uart

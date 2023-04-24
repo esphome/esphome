@@ -1,11 +1,11 @@
-import esphome.config_validation as cv
 import esphome.codegen as cg
+import esphome.config_validation as cv
 from esphome.const import (
-    CONF_ID,
-    CONF_DEVICE,
-    CONF_FREE,
-    CONF_FRAGMENTATION,
     CONF_BLOCK,
+    CONF_DEVICE,
+    CONF_FRAGMENTATION,
+    CONF_FREE,
+    CONF_ID,
     CONF_LOOP_TIME,
 )
 

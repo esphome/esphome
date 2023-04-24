@@ -52,7 +52,13 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(std::vector<uint8_t
       current_block++;
     }
   }
-  buffer.erase(buffer.begin(), buffer.begin() + message_start_index);
+
+  if (buffer.begin() + message_start_index < buffer.end()) {
+    buffer.erase(buffer.begin(), buffer.begin() + message_start_index);
+  } else {
+    return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC);
+  }
+
   return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC, buffer);
 }
 
@@ -166,18 +172,23 @@ bool PN532::format_mifare_classic_ndef_(std::vector<uint8_t> &uid) {
       return false;
     }
     if (block == 4) {
-      if (!this->write_mifare_classic_block_(block, empty_ndef_message))
+      if (!this->write_mifare_classic_block_(block, empty_ndef_message)) {
         ESP_LOGE(TAG, "Unable to write block %d", block);
+      }
     } else {
-      if (!this->write_mifare_classic_block_(block, blank_block))
+      if (!this->write_mifare_classic_block_(block, blank_block)) {
         ESP_LOGE(TAG, "Unable to write block %d", block);
+      }
     }
-    if (!this->write_mifare_classic_block_(block + 1, blank_block))
+    if (!this->write_mifare_classic_block_(block + 1, blank_block)) {
       ESP_LOGE(TAG, "Unable to write block %d", block + 1);
-    if (!this->write_mifare_classic_block_(block + 2, blank_block))
+    }
+    if (!this->write_mifare_classic_block_(block + 2, blank_block)) {
       ESP_LOGE(TAG, "Unable to write block %d", block + 2);
-    if (!this->write_mifare_classic_block_(block + 3, ndef_trailer))
+    }
+    if (!this->write_mifare_classic_block_(block + 3, ndef_trailer)) {
       ESP_LOGE(TAG, "Unable to write trailer block %d", block + 3);
+    }
   }
   return true;
 }

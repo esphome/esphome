@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_LIBRARIES,
     CONF_MIN_VERSION,
     CONF_NAME,
+    CONF_FRIENDLY_NAME,
     CONF_ON_BOOT,
     CONF_ON_LOOP,
     CONF_ON_SHUTDOWN,
@@ -110,11 +111,21 @@ def validate_version(value: str):
     return value
 
 
+if "ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT" in os.environ:
+    _compile_process_limit_default = min(
+        int(os.environ["ESPHOME_DEFAULT_COMPILE_PROCESS_LIMIT"]),
+        multiprocessing.cpu_count(),
+    )
+else:
+    _compile_process_limit_default = cv.UNDEFINED
+
+
 CONF_ESP8266_RESTORE_FROM_FLASH = "esp8266_restore_from_flash"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Required(CONF_NAME): cv.valid_name,
+            cv.Optional(CONF_FRIENDLY_NAME, ""): cv.string,
             cv.Optional(CONF_COMMENT): cv.string,
             cv.Required(CONF_BUILD_PATH): cv.string,
             cv.Optional(CONF_PLATFORMIO_OPTIONS, default={}): cv.Schema(
@@ -153,9 +164,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MIN_VERSION, default=ESPHOME_VERSION): cv.All(
                 cv.version_number, validate_version
             ),
-            cv.Optional(CONF_COMPILE_PROCESS_LIMIT): cv.int_range(
-                min=1, max=multiprocessing.cpu_count()
-            ),
+            cv.Optional(
+                CONF_COMPILE_PROCESS_LIMIT, default=_compile_process_limit_default
+            ): cv.int_range(min=1, max=multiprocessing.cpu_count()),
         }
     ),
     validate_hostname,
@@ -183,6 +194,7 @@ def preload_core_config(config, result):
         conf = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
 
     CORE.name = conf[CONF_NAME]
+    CORE.friendly_name = conf.get(CONF_FRIENDLY_NAME)
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
@@ -337,6 +349,8 @@ async def to_code(config):
     cg.add(
         cg.App.pre_setup(
             config[CONF_NAME],
+            config[CONF_FRIENDLY_NAME],
+            config.get(CONF_COMMENT, ""),
             cg.RawExpression('__DATE__ ", " __TIME__'),
             config[CONF_NAME_ADD_MAC_SUFFIX],
         )

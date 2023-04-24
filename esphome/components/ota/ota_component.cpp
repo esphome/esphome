@@ -65,7 +65,7 @@ void OTAComponent::setup() {
 
   struct sockaddr_storage server;
 
-  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), htons(this->port_));
+  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (sl == 0) {
     ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
     this->mark_failed();
@@ -472,8 +472,9 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
   if (this->safe_mode_rtc_value_ >= num_attempts || is_manual_safe_mode) {
     this->clean_rtc();
 
-    if (!is_manual_safe_mode)
+    if (!is_manual_safe_mode) {
       ESP_LOGE(TAG, "Boot loop detected. Proceeding to safe mode.");
+    }
 
     this->status_set_error();
     this->set_timeout(enable_time, []() {

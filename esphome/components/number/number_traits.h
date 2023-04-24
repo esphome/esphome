@@ -1,5 +1,6 @@
 #pragma once
 
+#include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
@@ -11,7 +12,7 @@ enum NumberMode : uint8_t {
   NUMBER_MODE_SLIDER = 2,
 };
 
-class NumberTraits {
+class NumberTraits : public EntityBase_DeviceClass {
  public:
   // Set/get the number value boundaries.
   void set_min_value(float min_value) { min_value_ = min_value; }

@@ -13,18 +13,20 @@ class BluetoothConnection : public esp32_ble_client::BLEClientBase {
  public:
   bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override;
+  void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override;
 
   esp_err_t read_characteristic(uint16_t handle);
   esp_err_t write_characteristic(uint16_t handle, const std::string &data, bool response);
   esp_err_t read_descriptor(uint16_t handle);
-  esp_err_t write_descriptor(uint16_t handle, const std::string &data);
+  esp_err_t write_descriptor(uint16_t handle, const std::string &data, bool response);
 
   esp_err_t notify_characteristic(uint16_t handle, bool enable);
 
  protected:
   friend class BluetoothProxy;
+  bool seen_mtu_or_services_{false};
 
-  int16_t send_service_{-1};
+  int16_t send_service_{-2};
   BluetoothProxy *proxy_;
 };
 
