@@ -100,8 +100,8 @@ void ESP32ArduinoUARTComponent::setup() {
     invert = true;
   if (rx_pin_ != nullptr && rx_pin_->is_inverted())
     invert = true;
-  this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, invert);
   this->hw_serial_->setRxBufferSize(this->rx_buffer_size_);
+  this->hw_serial_->begin(this->baud_rate_, get_config(), rx, tx, invert);
 }
 
 void ESP32ArduinoUARTComponent::dump_config() {
