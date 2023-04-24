@@ -20,6 +20,7 @@ const float PROCESSOR = 400.0;
 const float BLUETOOTH = 350.0f;
 const float AFTER_BLUETOOTH = 300.0f;
 const float WIFI = 250.0f;
+const float ETHERNET = 250.0f;
 const float BEFORE_CONNECTION = 220.0f;
 const float AFTER_WIFI = 200.0f;
 const float AFTER_CONNECTION = 100.0f;
@@ -56,7 +57,7 @@ bool Component::cancel_interval(const std::string &name) {  // NOLINT
 }
 
 void Component::set_retry(const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
-                          std::function<RetryResult()> &&f, float backoff_increase_factor) {  // NOLINT
+                          std::function<RetryResult(uint8_t)> &&f, float backoff_increase_factor) {  // NOLINT
   App.scheduler.set_retry(this, name, initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 }
 
@@ -129,11 +130,15 @@ void Component::set_timeout(uint32_t timeout, std::function<void()> &&f) {  // N
 void Component::set_interval(uint32_t interval, std::function<void()> &&f) {  // NOLINT
   App.scheduler.set_interval(this, "", interval, std::move(f));
 }
-void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult()> &&f,
+void Component::set_retry(uint32_t initial_wait_time, uint8_t max_attempts, std::function<RetryResult(uint8_t)> &&f,
                           float backoff_increase_factor) {  // NOLINT
   App.scheduler.set_retry(this, "", initial_wait_time, max_attempts, std::move(f), backoff_increase_factor);
 }
 bool Component::is_failed() { return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_FAILED; }
+bool Component::is_ready() {
+  return (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_LOOP ||
+         (this->component_state_ & COMPONENT_STATE_MASK) == COMPONENT_STATE_SETUP;
+}
 bool Component::can_proceed() { return true; }
 bool Component::status_has_warning() { return this->component_state_ & STATUS_LED_WARNING; }
 bool Component::status_has_error() { return this->component_state_ & STATUS_LED_ERROR; }

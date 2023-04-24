@@ -28,7 +28,7 @@ namespace climate {
  *  - supports action - if the climate device supports reporting the active
  *    current action of the device with the action property.
  *  - supports fan modes - optionally, if it has a fan which can be configured in different ways:
- *    - on, off, auto, high, medium, low, middle, focus, diffuse
+ *    - on, off, auto, high, medium, low, middle, focus, diffuse, quiet
  *  - supports swing modes - optionally, if it has a swing which can be configured in different ways:
  *    - off, both, vertical, horizontal
  *
@@ -147,9 +147,20 @@ class ClimateTraits {
   void set_visual_min_temperature(float visual_min_temperature) { visual_min_temperature_ = visual_min_temperature; }
   float get_visual_max_temperature() const { return visual_max_temperature_; }
   void set_visual_max_temperature(float visual_max_temperature) { visual_max_temperature_ = visual_max_temperature; }
-  float get_visual_temperature_step() const { return visual_temperature_step_; }
-  int8_t get_temperature_accuracy_decimals() const;
-  void set_visual_temperature_step(float temperature_step) { visual_temperature_step_ = temperature_step; }
+  float get_visual_target_temperature_step() const { return visual_target_temperature_step_; }
+  float get_visual_current_temperature_step() const { return visual_current_temperature_step_; }
+  void set_visual_target_temperature_step(float temperature_step) {
+    visual_target_temperature_step_ = temperature_step;
+  }
+  void set_visual_current_temperature_step(float temperature_step) {
+    visual_current_temperature_step_ = temperature_step;
+  }
+  void set_visual_temperature_step(float temperature_step) {
+    visual_target_temperature_step_ = temperature_step;
+    visual_current_temperature_step_ = temperature_step;
+  }
+  int8_t get_target_temperature_accuracy_decimals() const;
+  int8_t get_current_temperature_accuracy_decimals() const;
 
  protected:
   void set_mode_support_(climate::ClimateMode mode, bool supported) {
@@ -186,7 +197,8 @@ class ClimateTraits {
 
   float visual_min_temperature_{10};
   float visual_max_temperature_{30};
-  float visual_temperature_step_{0.1};
+  float visual_target_temperature_step_{0.1};
+  float visual_current_temperature_step_{0.1};
 };
 
 }  // namespace climate

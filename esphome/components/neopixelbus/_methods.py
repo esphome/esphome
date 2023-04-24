@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Any, List
+from typing import Any
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -13,8 +13,9 @@ from esphome.const import (
 from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
-    VARIANT_ESP32S2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
 )
 from esphome.core import CORE
 from .const import (
@@ -57,8 +58,9 @@ SPI_SPEEDS = [40e6, 20e6, 10e6, 5e6, 2e6, 1e6, 500e3]
 
 def _esp32_rmt_default_channel():
     return {
-        VARIANT_ESP32S2: 1,
         VARIANT_ESP32C3: 1,
+        VARIANT_ESP32S2: 1,
+        VARIANT_ESP32S3: 1,
     }.get(get_esp32_variant(), 6)
 
 
@@ -69,8 +71,9 @@ def _validate_esp32_rmt_channel(value):
         value = cv.int_(value)
     variant_channels = {
         VARIANT_ESP32: [0, 1, 2, 3, 4, 5, 6, 7, CHANNEL_DYNAMIC],
-        VARIANT_ESP32S2: [0, 1, 2, 3, CHANNEL_DYNAMIC],
         VARIANT_ESP32C3: [0, 1, CHANNEL_DYNAMIC],
+        VARIANT_ESP32S2: [0, 1, 2, 3, CHANNEL_DYNAMIC],
+        VARIANT_ESP32S3: [0, 1, 2, 3, CHANNEL_DYNAMIC],
     }
     variant = get_esp32_variant()
     if variant not in variant_channels:
@@ -349,7 +352,7 @@ def _spi_extra_validate(config):
 class MethodDescriptor:
     method_schema: Any
     to_code: Any
-    supported_chips: List[str]
+    supported_chips: list[str]
     extra_validate: Any = None
 
 

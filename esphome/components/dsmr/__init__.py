@@ -10,6 +10,8 @@ from esphome.const import (
 
 CODEOWNERS = ["@glmnet", "@zuidwijk"]
 
+MULTI_CONF = True
+
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor", "text_sensor"]
 
@@ -85,4 +87,4 @@ async def to_code(config):
     cg.add_library("glmnet/Dsmr", "0.5")
 
     # Crypto
-    cg.add_library("rweather/Crypto", "0.2.0")
+    cg.add_library("rweather/Crypto", "0.4.0")

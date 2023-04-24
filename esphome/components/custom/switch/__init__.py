@@ -10,13 +10,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CustomSwitchConstructor),
         cv.Required(CONF_LAMBDA): cv.returning_lambda,
-        cv.Required(CONF_SWITCHES): cv.ensure_list(
-            switch.SWITCH_SCHEMA.extend(
-                {
-                    cv.GenerateID(): cv.declare_id(switch.Switch),
-                }
-            )
-        ),
+        cv.Required(CONF_SWITCHES): cv.ensure_list(switch.switch_schema(switch.Switch)),
     }
 )
 

@@ -63,7 +63,7 @@ FanIsOffCondition = fan_ns.class_("FanIsOffCondition", automation.Condition.temp
 FAN_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(Fan),
-        cv.Optional(CONF_RESTORE_MODE, default="RESTORE_DEFAULT_OFF"): cv.enum(
+        cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
             RESTORE_MODES, upper=True, space="_"
         ),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTFanComponent),

@@ -5,8 +5,13 @@ from esphome.const import (
     CONF_ID,
     CONF_MODEL,
     CONF_MOISTURE,
-    DEVICE_CLASS_HUMIDITY,
+    CONF_TEMPERATURE,
+    DEVICE_CLASS_PRECIPITATION_INTENSITY,
+    DEVICE_CLASS_PRECIPITATION,
     STATE_CLASS_MEASUREMENT,
+    STATE_CLASS_TOTAL_INCREASING,
+    UNIT_CELSIUS,
+    ICON_THERMOMETER,
 )
 
 from . import RGModel, HydreonRGxxComponent
@@ -33,6 +38,7 @@ SUPPORTED_SENSORS = {
     CONF_TOTAL_ACC: ["RG_15"],
     CONF_R_INT: ["RG_15"],
     CONF_MOISTURE: ["RG_9"],
+    CONF_TEMPERATURE: ["RG_9"],
 }
 PROTOCOL_NAMES = {
     CONF_MOISTURE: "R",
@@ -40,6 +46,7 @@ PROTOCOL_NAMES = {
     CONF_R_INT: "RInt",
     CONF_EVENT_ACC: "EventAcc",
     CONF_TOTAL_ACC: "TotalAcc",
+    CONF_TEMPERATURE: "t",
 }
 
 
@@ -65,31 +72,37 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ACC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
+                device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_EVENT_ACC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
+                device_class=DEVICE_CLASS_PRECIPITATION,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_TOTAL_ACC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
-                state_class=STATE_CLASS_MEASUREMENT,
+                device_class=DEVICE_CLASS_PRECIPITATION,
+                state_class=STATE_CLASS_TOTAL_INCREASING,
             ),
             cv.Optional(CONF_R_INT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MILLIMETERS_PER_HOUR,
                 accuracy_decimals=2,
-                device_class=DEVICE_CLASS_HUMIDITY,
+                device_class=DEVICE_CLASS_PRECIPITATION_INTENSITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_MOISTURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_INTENSITY,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_HUMIDITY,
+                device_class=DEVICE_CLASS_PRECIPITATION_INTENSITY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=0,
+                icon=ICON_THERMOMETER,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
@@ -108,7 +121,7 @@ async def to_code(config):
     cg.add_define(
         "HYDREON_RGXX_PROTOCOL_LIST(F, sep)",
         cg.RawExpression(
-            " sep ".join([f'F("{name}")' for name in PROTOCOL_NAMES.values()])
+            " sep ".join([f'F("{name} ")' for name in PROTOCOL_NAMES.values()])
         ),
     )
     cg.add_define("HYDREON_RGXX_NUM_SENSORS", len(PROTOCOL_NAMES))
@@ -117,3 +130,5 @@ async def to_code(config):
         if conf in config:
             sens = await sensor.new_sensor(config[conf])
             cg.add(var.set_sensor(sens, i))
+
+    cg.add(var.set_request_temperature(CONF_TEMPERATURE in config))
