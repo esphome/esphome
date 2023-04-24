@@ -49,12 +49,13 @@ struct PIDController {
 
   void calculate_proportional_term_();
   void calculate_integral_term_();
-  void calculate_derivative_term_();
+  void calculate_derivative_term_(float setpoint);
   float weighted_average_(std::deque<float> &list, float new_value, int samples);
   float calculate_relative_time_();
 
   /// Error from previous update used for derivative term
   float previous_error_ = 0;
+  float previous_setpoint_ = NAN;
   /// Accumulated integral value
   float accumulated_integral_ = 0;
   uint32_t last_time_ = 0;
