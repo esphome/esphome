@@ -31,7 +31,7 @@ CODEOWNERS = ["@RoboMagus"]
 NO_BLUETOOTH_VARIANTS = [esp32_const.VARIANT_ESP32S2]
 
 MIN_IDF_VERSION = cv.Version(4, 4, 4)
-MIN_ARDUINO_VERSION = cv.Version(2, 0, 6)
+MIN_ARDUINO_VERSION = cv.Version(2, 0, 5)
 
 esp32_bt_classic_ns = cg.esphome_ns.namespace("esp32_bt_classic")
 ESP32BtClassic = esp32_bt_classic_ns.class_("ESP32BtClassic", cg.Component)
