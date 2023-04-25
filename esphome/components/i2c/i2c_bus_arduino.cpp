@@ -5,9 +5,7 @@
 #include "esphome/core/helpers.h"
 #include <Arduino.h>
 #include <cstring>
-#if defined(USE_ESP32)
-#include <esp_task_wdt.h>
-#endif
+#include "esphome/core/application.h";
 
 namespace esphome {
 namespace i2c {
