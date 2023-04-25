@@ -280,7 +280,7 @@ void IDFI2CBus::recover_() {
     // all.
     auto wait = 250;
     while (wait-- && gpio_get_level(scl_pin) == 0) {
-      esp_task_wdt_reset();
+      App.feed_wdt();
       delayMicroseconds(half_period_usec * 2);
     }
     if (gpio_get_level(scl_pin) == 0) {
