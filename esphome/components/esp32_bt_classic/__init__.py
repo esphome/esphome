@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_DELAY,
     CONF_ID,
     CONF_MAC_ADDRESS,
+    CONF_NUM_SCANS,
     CONF_TRIGGER_ID,
 )
 from esphome.core import CORE
@@ -17,7 +18,6 @@ from esphome.components.esp32 import (
 )
 
 from .const import (
-    CONF_NUM_SCANS,
     CONF_ON_SCAN_START,
     CONF_ON_SCAN_RESULT,
 )

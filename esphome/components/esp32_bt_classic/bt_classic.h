@@ -100,6 +100,7 @@ class BtClassicScanResultListner : public BtClassicChildBase {
 //
 class ESP32BtClassic : public Component, public BtClassicItf {
  public:
+  virtual ~ESP32BtClassic() {};
   void setup() override;
   void loop() override;
   void dump_config() override;

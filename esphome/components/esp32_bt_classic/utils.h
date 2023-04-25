@@ -27,9 +27,9 @@ bool str_to_bd_addr(const char *addr_str, esp_bd_addr_t &addr);
 
 std::string u64_addr_to_str(uint64_t address);
 
-template<typename T> void moveItemToBack(std::vector<T> &v, size_t itemIndex) {
-  T tmp(v[itemIndex]);
-  v.erase(v.begin() + itemIndex);
+template<typename T> void moveItemToBack(std::vector<T> &v, size_t item_index) {
+  T tmp(v[item_index]);
+  v.erase(v.begin() + item_index);
   v.push_back(tmp);
 }
 

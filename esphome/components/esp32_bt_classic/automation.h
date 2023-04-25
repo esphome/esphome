@@ -27,8 +27,6 @@ class BtClassicScannerNode : public BtClassicChildBase {
     for (const auto &str : str_addrs) {
       esp_bd_addr_t bd_addr;
       if (str_to_bd_addr(str.c_str(), bd_addr)) {
-        ESP_LOGV(TAG, "Adding '%02X:%02X:%02X:%02X:%02X:%02X' to scan list with %d scans", EXPAND_MAC_F(bd_addr),
-                 num_scans);
         parent()->addScan(bt_scan_item(bd_addr_to_uint64(bd_addr), num_scans));
       }
     }
@@ -43,7 +41,6 @@ template<typename... Ts> class BtClassicScanAction : public Action<Ts...>, publi
   BtClassicScanAction(ESP32BtClassic *bt_client) : BtClassicScannerNode(bt_client) {}
 
   void play(Ts... x) override {
-    ESP_LOGI(TAG, "BtClassicScanAction::play()");
     uint8_t scanCount = this->num_scans_simple_;
     if (num_scans_template_ != nullptr) {
       scanCount = this->num_scans_template_(x...);
@@ -86,11 +83,6 @@ class BtClassicScanResultTrigger : public Trigger<const BtAddress &, const BtSta
   }
 
   void on_scan_result(const rmt_name_result &result) override {
-    // struct read_rmt_name_param {
-    //   esp_bt_status_t stat;                            /*!< read Remote Name status */
-    //   uint8_t rmt_name[ESP_BT_GAP_MAX_BDNAME_LEN + 1]; /*!< Remote device name */
-    //   esp_bd_addr_t bda;                               /*!< remote bluetooth device address*/
-    // } read_rmt_name;
 
     uint64_t result_addr = bd_addr_to_uint64(result.bda);
     if (!addresses_.empty()) {
