@@ -236,15 +236,8 @@ void ArduinoI2CBus::recover_() {
     // all.
     auto wait = 250;
     while (wait-- && digitalRead(scl_pin_) == LOW) {  // NOLINT
-#if defined(USE_ESP32)
-      esp_task_wdt_reset();
+      App.feed_wdt();
       delayMicroseconds(half_period_usec * 2);
-#elif defined(USE_ESP8266)
-      EspClass::wdtFeed();
-      delayMicroseconds(half_period_usec * 2);
-#elif
-      delay(25);
-#endif
     }
     if (digitalRead(scl_pin_) == LOW) {  // NOLINT
       ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");
