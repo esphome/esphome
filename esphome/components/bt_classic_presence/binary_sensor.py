@@ -1,12 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import binary_sensor
-from esphome.const import CONF_MAC_ADDRESS
+from esphome.const import CONF_MAC_ADDRESS, CONF_NUM_SCANS
 from esphome.components.esp32_bt_classic import ESP32BtClassic
-from esphome.components.esp32_bt_classic.const import (
-    CONF_ESP32_BTCLASSIC_ID,
-    CONF_NUM_SCANS,
-)
+from esphome.components.esp32_bt_classic.const import CONF_ESP32_BTCLASSIC_ID
+
 
 DEPENDENCIES = ["esp32_bt_classic"]
 

@@ -9,7 +9,7 @@
 #include <freertos/semphr.h>
 
 /*
- * BLE events come in from a separate Task (thread) in the ESP32 stack. Rather
+ * Bluetooth events come in from a separate Task (thread) in the ESP32 stack. Rather
  * than trying to deal with various locking strategies, all incoming GAP and GATT
  * events will simply be placed on a semaphore guarded queue. The next time the
  * component runs loop(), these events are popped off the queue and handed at
@@ -17,7 +17,7 @@
  */
 
 namespace esphome {
-namespace esp32_ble {
+namespace esp32_bt_common {
 
 template<class T> class Queue {
  public:
@@ -50,7 +50,7 @@ template<class T> class Queue {
   SemaphoreHandle_t m_;
 };
 
-}  // namespace esp32_ble
+}  // namespace esp32_bt_common
 }  // namespace esphome
 
 #endif

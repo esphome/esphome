@@ -24,7 +24,7 @@ from .const import (
 
 _LOGGER = logging.getLogger(__name__)
 
-AUTO_LOAD = ["esp32_ble"]
+AUTO_LOAD = ["esp32_bt_common"]
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@RoboMagus"]
 
@@ -161,3 +161,5 @@ async def to_code(config):
 
     if CORE.using_esp_idf:
         add_idf_sdkconfig_option("CONFIG_BT_ENABLED", True)
+        add_idf_sdkconfig_option("CONFIG_BTDM_CTRL_MODE_BTDM", True)
+        add_idf_sdkconfig_option("CONFIG_BT_CLASSIC_ENABLED", True)

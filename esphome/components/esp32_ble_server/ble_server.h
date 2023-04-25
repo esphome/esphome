@@ -6,7 +6,6 @@
 #include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble/ble_advertising.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
-#include "esphome/components/esp32_ble/queue.h"
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/preferences.h"

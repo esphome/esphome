@@ -6,7 +6,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
-#include "queue.h"
+#include "esphome/components/esp32_bt_common/queue.h"
 #include "ble_event.h"
 
 #ifdef USE_ESP32
@@ -70,7 +70,7 @@ class ESP32BLE : public Component {
   std::vector<GATTcEventHandler *> gattc_event_handlers_;
   std::vector<GATTsEventHandler *> gatts_event_handlers_;
 
-  Queue<BLEEvent> ble_events_;
+  esp32_bt_common::Queue<BLEEvent> ble_events_;
   BLEAdvertising *advertising_;
 };
 

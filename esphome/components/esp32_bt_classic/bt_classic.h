@@ -7,11 +7,11 @@
 
 #ifdef USE_ESP32
 
+#include "esphome/components/esp32_bt_common/queue.h"
+
 // IDF headers
 #include <esp_bt_defs.h>
 #include <esp_gap_bt_api.h>
-
-#include "esphome/components/esp32_ble/queue.h"
 
 #include "utils.h"
 
@@ -139,7 +139,7 @@ class ESP32BtClassic : public Component, public BtClassicItf {
   std::vector<BtClassicScanResultListner *> scan_result_listners_;
 
   // Ble-Queue which thread safety precautions:
-  esp32_ble::Queue<BtGapEvent> bt_events_;
+  esp32_bt_common::Queue<BtGapEvent> bt_events_;
 
   const uint32_t scan_delay_{100};  // (ms) minimal time between consecutive scans
 };

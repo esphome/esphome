@@ -12,9 +12,7 @@
 #include <cstring>
 #include "esphome/core/hal.h"
 
-#ifdef USE_ARDUINO
-#include <esp32-hal-bt.h>
-#endif
+#include "esphome/components/esp32_bt_common/bt_defs.h"
 
 namespace esphome {
 namespace esp32_ble_beacon {
@@ -109,7 +107,7 @@ void ESP32BLEBeacon::ble_setup() {
         ;
     }
     if (esp_bt_controller_get_status() == ESP_BT_CONTROLLER_STATUS_INITED) {
-      err = esp_bt_controller_enable(ESP_BT_MODE_BLE);
+      err = esp_bt_controller_enable(BT_MODE);
       if (err != ESP_OK) {
         ESP_LOGE(TAG, "esp_bt_controller_enable failed: %s", esp_err_to_name(err));
         return;
