@@ -6,7 +6,7 @@
 #include "esphome/core/helpers.h"
 #include <cstring>
 #include <cinttypes>
-#include <esp_task_wdt.h>
+#include "esphome/core/application.h";
 
 namespace esphome {
 namespace i2c {
