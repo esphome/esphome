@@ -5,11 +5,9 @@ from esphome.components import web_server_base
 from esphome.components.web_server_base import CONF_WEB_SERVER_BASE_ID
 from esphome.const import (
     CONF_CSS_INCLUDE,
-    CONF_CSS_INCLUDE_ARRAY,
     CONF_CSS_URL,
     CONF_ID,
     CONF_JS_INCLUDE,
-    CONF_JS_INCLUDE_ARRAY,
     CONF_JS_URL,
     CONF_PORT,
     CONF_AUTH,
@@ -19,9 +17,25 @@ from esphome.const import (
     CONF_OTA,
     CONF_VERSION,
     CONF_LOCAL,
-    CONF_LOCAL_PAGE_INCLUDE,
-    CONF_LOCAL_PAGE_INCLUDE_ARRAY,
 )
+#this import statement should make testing the PR much easier since othwerwise you get errors from const.py since it doesn't import with a custom component
+try:
+    from esphome.const import (
+        CONF_CSS_INCLUDE_ARRAY,
+        CONF_JS_INCLUDE_ARRAY,
+        CONF_LOCAL_PAGE_INCLUDE,
+        CONF_LOCAL_PAGE_INCLUDE_ARRAY,
+    )
+    globals()['CONF_CSS_INCLUDE_ARRAY'] = CONF_CSS_INCLUDE_ARRAY
+    globals()['CONF_JS_INCLUDE_ARRAY'] = CONF_JS_INCLUDE_ARRAY
+    globals()['CONF_LOCAL_PAGE_INCLUDE'] = CONF_LOCAL_PAGE_INCLUDE 
+    globals()['CONF_LOCAL_PAGE_INCLUDE_ARRAY'] = CONF_LOCAL_PAGE_INCLUDE_ARRAY
+except ImportError:
+    globals()['CONF_JS_INCLUDE_ARRAY'] = "js_include_array"
+    globals()['CONF_CSS_INCLUDE_ARRAY'] = "css_include_array"
+    globals()['CONF_LOCAL_PAGE_INCLUDE'] = "local_page_include"
+    globals()['CONF_LOCAL_PAGE_INCLUDE_ARRAY'] = "local_page_include_array"
+
 from esphome.core import CORE, coroutine_with_priority, HexInt
 
 AUTO_LOAD = ["json", "web_server_base"]
