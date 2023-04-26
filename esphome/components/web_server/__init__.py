@@ -18,7 +18,7 @@ from esphome.const import (
     CONF_VERSION,
     CONF_LOCAL,
 )
-#this import statement should make testing the PR much easier since othwerwise you get errors from const.py since it doesn't import with a custom component
+# this import statement should make testing the PR much easier since othwerwise you get errors from const.py since it doesn't import with a custom component
 try:
     from esphome.const import (
         CONF_CSS_INCLUDE_ARRAY,
@@ -26,15 +26,15 @@ try:
         CONF_LOCAL_PAGE_INCLUDE,
         CONF_LOCAL_PAGE_INCLUDE_ARRAY,
     )
-    globals()['CONF_CSS_INCLUDE_ARRAY'] = CONF_CSS_INCLUDE_ARRAY
-    globals()['CONF_JS_INCLUDE_ARRAY'] = CONF_JS_INCLUDE_ARRAY
-    globals()['CONF_LOCAL_PAGE_INCLUDE'] = CONF_LOCAL_PAGE_INCLUDE 
-    globals()['CONF_LOCAL_PAGE_INCLUDE_ARRAY'] = CONF_LOCAL_PAGE_INCLUDE_ARRAY
+    globals()["CONF_CSS_INCLUDE_ARRAY"] = CONF_CSS_INCLUDE_ARRAY
+    globals()["CONF_JS_INCLUDE_ARRAY"] = CONF_JS_INCLUDE_ARRAY
+    globals()["CONF_LOCAL_PAGE_INCLUDE"] = CONF_LOCAL_PAGE_INCLUDE
+    globals()["CONF_LOCAL_PAGE_INCLUDE_ARRAY"] = CONF_LOCAL_PAGE_INCLUDE_ARRAY
 except ImportError:
-    globals()['CONF_JS_INCLUDE_ARRAY'] = "js_include_array"
-    globals()['CONF_CSS_INCLUDE_ARRAY'] = "css_include_array"
-    globals()['CONF_LOCAL_PAGE_INCLUDE'] = "local_page_include"
-    globals()['CONF_LOCAL_PAGE_INCLUDE_ARRAY'] = "local_page_include_array"
+    globals()["CONF_JS_INCLUDE_ARRAY"] = "js_include_array"
+    globals()["CONF_CSS_INCLUDE_ARRAY"] = "css_include_array"
+    globals()["CONF_LOCAL_PAGE_INCLUDE"] = "local_page_include"
+    globals()["CONF_LOCAL_PAGE_INCLUDE_ARRAY"] = "local_page_include_array"
 
 from esphome.core import CORE, coroutine_with_priority, HexInt
 
