@@ -560,7 +560,7 @@ switch:
     id: Led3
     led: 3
     name: TM1638Led3
-    
+
 display:
   - platform: tm1638
     id: primarydisplay
