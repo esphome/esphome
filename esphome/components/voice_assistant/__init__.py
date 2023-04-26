@@ -53,8 +53,8 @@ async def to_code(config):
     cg.add(var.set_microphone(mic))
 
     if CONF_SPEAKER in config:
-        speaker = await cg.get_variable(config[CONF_SPEAKER])
-        cg.add(var.set_speaker(speaker))
+        spkr = await cg.get_variable(config[CONF_SPEAKER])
+        cg.add(var.set_speaker(spkr))
 
     if CONF_ON_START in config:
         await automation.build_automation(
