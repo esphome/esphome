@@ -3,9 +3,9 @@
 #include "i2c_bus_arduino.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include <Arduino.h>
 #include <cstring>
-#include "esphome/core/application.h";
 
 namespace esphome {
 namespace i2c {
