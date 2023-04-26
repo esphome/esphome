@@ -17,9 +17,8 @@ spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")
 SPIDataRate = spi_ns.enum("SPIDataRate")
-SPIDataRate_VALUES = [80e6, 40e6, 20e6, 10e6, 5e6, 2e6, 1e6, 2e5, 75e3, 1e3]
-SPIDataRate_SCHEMA = cv.All(cv.frequency, cv.one_of(*SPIDataRate_VALUES))
-SPIDataRate_OPTIONS = {
+
+SPI_DATA_RATE_OPTIONS = {
     80e6: SPIDataRate.DATA_RATE_80MHZ,
     40e6: SPIDataRate.DATA_RATE_40MHZ,
     20e6: SPIDataRate.DATA_RATE_20MHZ,
@@ -31,6 +30,7 @@ SPIDataRate_OPTIONS = {
     75e3: SPIDataRate.DATA_RATE_75KHZ,
     1e3: SPIDataRate.DATA_RATE_1KHZ,
 }
+SPI_DATA_RATE_SCHEMA = cv.All(cv.frequency, cv.enum(SPI_DATA_RATE_OPTIONS))
 
 MULTI_CONF = True
 CONF_FORCE_SW = "force_sw"
