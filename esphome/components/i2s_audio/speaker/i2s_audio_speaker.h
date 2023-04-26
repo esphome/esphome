@@ -61,7 +61,7 @@ class I2SAudioSpeaker : public Component, public speaker::Speaker, public I2SAud
   // void stop_();
   void watch_();
 
-  static void player_task_(void *params);
+  static void player_task(void *params);
 
   TaskHandle_t player_task_handle_{nullptr};
   QueueHandle_t buffer_queue_;

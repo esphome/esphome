@@ -29,10 +29,10 @@ void I2SAudioSpeaker::start_() {
   }
   this->state_ = speaker::STATE_RUNNING;
 
-  xTaskCreate(I2SAudioSpeaker::player_task_, "speaker_task", 4096, (void *) this, 0, &this->player_task_handle_);
+  xTaskCreate(I2SAudioSpeaker::player_task, "speaker_task", 4096, (void *) this, 0, &this->player_task_handle_);
 }
 
-void I2SAudioSpeaker::player_task_(void *params) {
+void I2SAudioSpeaker::player_task(void *params) {
   I2SAudioSpeaker *this_ = (I2SAudioSpeaker *) params;
 
   TaskEvent event;
