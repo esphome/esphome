@@ -843,6 +843,24 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
       call.set_mode(mode.c_str());
     }
 
+	  
+    if (request->hasParam("fan_mode")) {
+      String mode = request->getParam("fan_mode")->value();
+      call.set_fan_mode(mode.c_str());
+    }
+
+	  
+    if (request->hasParam("swing_mode")) {
+      String mode = request->getParam("swing_mode")->value();
+      call.set_swing_mode(mode.c_str());
+    }
+
+	  
+    if (request->hasParam("preset")) {
+      String mode = request->getParam("preset")->value();
+      call.set_preset(mode.c_str());
+    }
+
     if (request->hasParam("target_temperature_high")) {
       String value = request->getParam("target_temperature_high")->value();
       optional<float> value_f = parse_number<float>(value.c_str());
