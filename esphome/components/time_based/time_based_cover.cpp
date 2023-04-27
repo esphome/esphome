@@ -51,6 +51,7 @@ void TimeBasedCover::loop() {
 float TimeBasedCover::get_setup_priority() const { return setup_priority::DATA; }
 CoverTraits TimeBasedCover::get_traits() {
   auto traits = CoverTraits();
+  traits.set_supports_stop(true);
   traits.set_supports_position(true);
   traits.set_supports_toggle(true);
   traits.set_is_assumed_state(this->assumed_state_);
