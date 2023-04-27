@@ -40,6 +40,7 @@
         "yaml.customTags": [
           "!secret scalar",
           "!lambda scalar",
+          "!extend scalar",
           "!include_dir_named scalar",
           "!include_dir_list scalar",
           "!include_dir_merge_list scalar",
