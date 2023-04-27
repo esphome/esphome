@@ -17,6 +17,7 @@
 #ifdef USE_WIFI_WPA2_EAP
 #include <esp_wpa2.h>
 #endif
+#include "dhcpserver/dhcpserver.h"
 #include "lwip/err.h"
 #include "lwip/dns.h"
 
@@ -32,7 +33,7 @@ namespace wifi {
 static const char *const TAG = "wifi_esp32";
 
 static EventGroupHandle_t s_wifi_event_group;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-static xQueueHandle s_event_queue;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+static QueueHandle_t s_event_queue;            // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_netif_t *s_sta_netif = nullptr;     // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static esp_netif_t *s_ap_netif = nullptr;      // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 static bool s_sta_started = false;             // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -414,17 +415,17 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   if (!this->wifi_mode_(true, {}))
     return false;
 
-  tcpip_adapter_dhcp_status_t dhcp_status;
-  esp_err_t err = tcpip_adapter_dhcpc_get_status(TCPIP_ADAPTER_IF_STA, &dhcp_status);
+  esp_netif_dhcp_status_t dhcp_status;
+  esp_err_t err = esp_netif_dhcpc_get_status(s_sta_netif, &dhcp_status);
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "tcpip_adapter_dhcpc_get_status failed: %s", esp_err_to_name(err));
+    ESP_LOGV(TAG, "esp_netif_dhcpc_get_status failed: %s", esp_err_to_name(err));
     return false;
   }
 
   if (!manual_ip.has_value()) {
-    // Use DHCP client
-    if (dhcp_status != TCPIP_ADAPTER_DHCP_STARTED) {
-      err = tcpip_adapter_dhcpc_start(TCPIP_ADAPTER_IF_STA);
+    // No manual IP is set; use DHCP client
+    if (dhcp_status != ESP_NETIF_DHCP_STARTED) {
+      err = esp_netif_dhcpc_start(s_sta_netif);
       if (err != ESP_OK) {
         ESP_LOGV(TAG, "Starting DHCP client failed! %d", err);
       }
@@ -433,43 +434,29 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
     return true;
   }
 
-  tcpip_adapter_ip_info_t info;
-  memset(&info, 0, sizeof(info));
+  esp_netif_ip_info_t info;  // struct of ip4_addr_t with ip, netmask, gw
   info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
   info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
   info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
-
-  err = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
+  err = esp_netif_dhcpc_stop(s_sta_netif);
   if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
-    ESP_LOGV(TAG, "tcpip_adapter_dhcpc_stop failed: %s", esp_err_to_name(err));
+    ESP_LOGV(TAG, "esp_netif_dhcpc_stop failed: %s", esp_err_to_name(err));
     return false;
   }
-
-  err = tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_STA, &info);
+  err = esp_netif_set_ip_info(s_sta_netif, &info);
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "tcpip_adapter_set_ip_info failed: %s", esp_err_to_name(err));
+    ESP_LOGV(TAG, "esp_netif_set_ip_info failed: %s", esp_err_to_name(err));
     return false;
   }
 
-  ip_addr_t dns;
-#if LWIP_IPV6
-  dns.type = IPADDR_TYPE_V4;
-#endif
+  esp_netif_dns_info_t dns;
   if (uint32_t(manual_ip->dns1) != 0) {
-#if LWIP_IPV6
-    dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns1);
-#else
-    dns.addr = static_cast<uint32_t>(manual_ip->dns1);
-#endif
-    dns_setserver(0, &dns);
+    dns.ip.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns1);
+    esp_netif_set_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &dns);
   }
   if (uint32_t(manual_ip->dns2) != 0) {
-#if LWIP_IPV6
-    dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns2);
-#else
-    dns.addr = static_cast<uint32_t>(manual_ip->dns2);
-#endif
-    dns_setserver(1, &dns);
+    dns.ip.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns2);
+    esp_netif_set_dns_info(s_sta_netif, ESP_NETIF_DNS_BACKUP, &dns);
   }
 
   return true;
@@ -478,10 +465,10 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 network::IPAddress WiFiComponent::wifi_sta_ip() {
   if (!this->has_sta())
     return {};
-  tcpip_adapter_ip_info_t ip;
-  esp_err_t err = tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_STA, &ip);
+  esp_netif_ip_info_t ip;
+  esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "tcpip_adapter_get_ip_info failed: %s", esp_err_to_name(err));
+    ESP_LOGV(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
     return false;
   }
   return {ip.ip.addr};
@@ -601,9 +588,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   if (data->event_base == WIFI_EVENT && data->event_id == WIFI_EVENT_STA_START) {
     ESP_LOGV(TAG, "Event: WiFi STA start");
     // apply hostname
-    err = tcpip_adapter_set_hostname(TCPIP_ADAPTER_IF_STA, App.get_name().c_str());
+    err = esp_netif_set_hostname(s_sta_netif, App.get_name().c_str());
     if (err != ERR_OK) {
-      ESP_LOGW(TAG, "tcpip_adapter_set_hostname failed: %s", esp_err_to_name(err));
+      ESP_LOGW(TAG, "esp_netif_set_hostname failed: %s", esp_err_to_name(err));
     }
 
     s_sta_started = true;
@@ -651,7 +638,7 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
 #if LWIP_IPV6_AUTOCONFIG
-    tcpip_adapter_create_ip6_linklocal(TCPIP_ADAPTER_IF_STA);
+    esp_netif_create_ip6_linklocal(s_sta_netif);
 #endif
     ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
              format_ip4_addr(it.ip_info.gw).c_str());
@@ -736,7 +723,7 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   }
   return WiFiSTAConnectStatus::IDLE;
 }
-bool WiFiComponent::wifi_scan_start_() {
+bool WiFiComponent::wifi_scan_start_(bool passive) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
@@ -746,9 +733,13 @@ bool WiFiComponent::wifi_scan_start_() {
   config.bssid = nullptr;
   config.channel = 0;
   config.show_hidden = true;
-  config.scan_type = WIFI_SCAN_TYPE_ACTIVE;
-  config.scan_time.active.min = 100;
-  config.scan_time.active.max = 300;
+  config.scan_type = passive ? WIFI_SCAN_TYPE_PASSIVE : WIFI_SCAN_TYPE_ACTIVE;
+  if (passive) {
+    config.scan_time.passive = 300;
+  } else {
+    config.scan_time.active.min = 100;
+    config.scan_time.active.max = 300;
+  }
 
   esp_err_t err = esp_wifi_scan_start(&config, false);
   if (err != ESP_OK) {
@@ -766,8 +757,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   if (!this->wifi_mode_({}, true))
     return false;
 
-  tcpip_adapter_ip_info_t info;
-  memset(&info, 0, sizeof(info));
+  esp_netif_ip_info_t info;
   if (manual_ip.has_value()) {
     info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
     info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
@@ -777,17 +767,17 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     info.gw.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
     info.netmask.addr = static_cast<uint32_t>(network::IPAddress(255, 255, 255, 0));
   }
-  tcpip_adapter_dhcp_status_t dhcp_status;
-  tcpip_adapter_dhcps_get_status(TCPIP_ADAPTER_IF_AP, &dhcp_status);
-  err = tcpip_adapter_dhcps_stop(TCPIP_ADAPTER_IF_AP);
+  esp_netif_dhcp_status_t dhcp_status;
+  esp_netif_dhcps_get_status(s_sta_netif, &dhcp_status);
+  err = esp_netif_dhcps_stop(s_sta_netif);
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "tcpip_adapter_dhcps_stop failed! %d", err);
+    ESP_LOGV(TAG, "esp_netif_dhcps_stop failed! %d", err);
     return false;
   }
 
-  err = tcpip_adapter_set_ip_info(TCPIP_ADAPTER_IF_AP, &info);
+  err = esp_netif_set_ip_info(s_sta_netif, &info);
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "tcpip_adapter_set_ip_info failed! %d", err);
+    ESP_LOGV(TAG, "esp_netif_set_ip_info failed! %d", err);
     return false;
   }
 
@@ -800,17 +790,17 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   start_address[3] += 100;
   lease.end_ip.addr = static_cast<uint32_t>(start_address);
   ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
-  err = tcpip_adapter_dhcps_option(TCPIP_ADAPTER_OP_SET, TCPIP_ADAPTER_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
+  err = esp_netif_dhcps_option(s_sta_netif, ESP_NETIF_OP_SET, ESP_NETIF_REQUESTED_IP_ADDRESS, &lease, sizeof(lease));
 
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "tcpip_adapter_dhcps_option failed! %d", err);
+    ESP_LOGV(TAG, "esp_netif_dhcps_option failed! %d", err);
     return false;
   }
 
-  err = tcpip_adapter_dhcps_start(TCPIP_ADAPTER_IF_AP);
+  err = esp_netif_dhcps_start(s_sta_netif);
 
   if (err != ESP_OK) {
-    ESP_LOGV(TAG, "tcpip_adapter_dhcps_start failed! %d", err);
+    ESP_LOGV(TAG, "esp_netif_dhcps_start failed! %d", err);
     return false;
   }
 
@@ -856,8 +846,8 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
   return true;
 }
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
-  tcpip_adapter_ip_info_t ip;
-  tcpip_adapter_get_ip_info(TCPIP_ADAPTER_IF_AP, &ip);
+  esp_netif_ip_info_t ip;
+  esp_netif_get_ip_info(s_sta_netif, &ip);
   return {ip.ip.addr};
 }
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }

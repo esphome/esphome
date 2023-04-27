@@ -83,6 +83,9 @@ class LwIPSocketImpl : public Socket {
   ssize_t write(const void *buf, size_t len) override { return lwip_write(fd_, buf, len); }
   ssize_t send(void *buf, size_t len, int flags) { return lwip_send(fd_, buf, len, flags); }
   ssize_t writev(const struct iovec *iov, int iovcnt) override { return lwip_writev(fd_, iov, iovcnt); }
+  ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) override {
+    return lwip_sendto(fd_, buf, len, flags, to, tolen);
+  }
   int setblocking(bool blocking) override {
     int fl = lwip_fcntl(fd_, F_GETFL, 0);
     if (blocking) {

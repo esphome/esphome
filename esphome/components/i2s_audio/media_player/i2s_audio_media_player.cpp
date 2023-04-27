@@ -11,11 +11,19 @@ static const char *const TAG = "audio";
 
 void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
   if (call.get_media_url().has_value()) {
-    if (this->audio_->isRunning())
-      this->audio_->stopSong();
-    this->high_freq_.start();
-    this->audio_->connecttohost(call.get_media_url().value().c_str());
-    this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
+    this->current_url_ = call.get_media_url();
+
+    if (this->state == media_player::MEDIA_PLAYER_STATE_PLAYING && this->audio_ != nullptr) {
+      if (this->audio_->isRunning()) {
+        this->audio_->stopSong();
+      }
+      this->audio_->connecttohost(this->current_url_.value().c_str());
+    } else {
+      this->start();
+    }
+  }
+  if (this->i2s_state_ != I2S_STATE_RUNNING) {
+    return;
   }
   if (call.get_volume().has_value()) {
     this->volume = call.get_volume().value();
@@ -35,7 +43,7 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
         this->state = media_player::MEDIA_PLAYER_STATE_PAUSED;
         break;
       case media_player::MEDIA_PLAYER_COMMAND_STOP:
-        this->stop_();
+        this->stop();
         break;
       case media_player::MEDIA_PLAYER_COMMAND_MUTE:
         this->mute_();
@@ -94,22 +102,51 @@ void I2SAudioMediaPlayer::set_volume_(float volume, bool publish) {
     this->volume = volume;
 }
 
-void I2SAudioMediaPlayer::stop_() {
-  if (this->audio_->isRunning())
-    this->audio_->stopSong();
-  this->high_freq_.stop();
+void I2SAudioMediaPlayer::setup() {
+  ESP_LOGCONFIG(TAG, "Setting up Audio...");
   this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
 }
 
-void I2SAudioMediaPlayer::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up Audio...");
+void I2SAudioMediaPlayer::loop() {
+  switch (this->i2s_state_) {
+    case I2S_STATE_STARTING:
+      this->start_();
+      break;
+    case I2S_STATE_RUNNING:
+      this->play_();
+      break;
+    case I2S_STATE_STOPPING:
+      this->stop_();
+      break;
+    case I2S_STATE_STOPPED:
+      break;
+  }
+}
+
+void I2SAudioMediaPlayer::play_() {
+  this->audio_->loop();
+  if (this->state == media_player::MEDIA_PLAYER_STATE_PLAYING && !this->audio_->isRunning()) {
+    this->stop();
+  }
+}
+
+void I2SAudioMediaPlayer::start() { this->i2s_state_ = I2S_STATE_STARTING; }
+void I2SAudioMediaPlayer::start_() {
+  if (this->parent_->try_lock()) {
+    return;  // Waiting for another i2s to return lock
+  }
+
 #if SOC_I2S_SUPPORTS_DAC
   if (this->internal_dac_mode_ != I2S_DAC_CHANNEL_DISABLE) {
-    this->audio_ = make_unique<Audio>(true, this->internal_dac_mode_);
+    this->audio_ = make_unique<Audio>(true, this->internal_dac_mode_, this->parent_->get_port());
   } else {
 #endif
-    this->audio_ = make_unique<Audio>(false);
-    this->audio_->setPinout(this->bclk_pin_, this->lrclk_pin_, this->dout_pin_);
+    this->audio_ = make_unique<Audio>(false, I2S_DAC_CHANNEL_BOTH_EN, this->parent_->get_port());
+
+    i2s_pin_config_t pin_config = this->parent_->get_pin_config();
+    pin_config.data_out_num = this->dout_pin_;
+    i2s_set_pin(this->parent_->get_port(), &pin_config);
+
     this->audio_->forceMono(this->external_dac_channels_ == 1);
     if (this->mute_pin_ != nullptr) {
       this->mute_pin_->setup();
@@ -118,15 +155,29 @@ void I2SAudioMediaPlayer::setup() {
 #if SOC_I2S_SUPPORTS_DAC
   }
 #endif
-  this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
-}
-
-void I2SAudioMediaPlayer::loop() {
-  this->audio_->loop();
-  if (this->state == media_player::MEDIA_PLAYER_STATE_PLAYING && !this->audio_->isRunning()) {
-    this->stop_();
+  this->i2s_state_ = I2S_STATE_RUNNING;
+  this->high_freq_.start();
+  if (this->current_url_.has_value()) {
+    this->audio_->connecttohost(this->current_url_.value().c_str());
+    this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
     this->publish_state();
   }
+}
+void I2SAudioMediaPlayer::stop() { this->i2s_state_ = I2S_STATE_STOPPING; }
+void I2SAudioMediaPlayer::stop_() {
+  if (this->audio_->isRunning()) {
+    this->audio_->stopSong();
+    return;
+  }
+
+  this->audio_ = nullptr;
+  this->current_url_ = {};
+  this->parent_->unlock();
+  this->i2s_state_ = I2S_STATE_STOPPED;
+
+  this->high_freq_.stop();
+  this->state = media_player::MEDIA_PLAYER_STATE_IDLE;
+  this->publish_state();
 }
 
 media_player::MediaPlayerTraits I2SAudioMediaPlayer::get_traits() {
