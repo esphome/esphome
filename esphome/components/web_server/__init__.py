@@ -18,10 +18,6 @@ from esphome.const import (
     CONF_VERSION,
     CONF_LOCAL,
 )
-CONF_JS_INCLUDE_ARRAY = "js_include_array"
-CONF_CSS_INCLUDE_ARRAY = "css_include_array"
-CONF_LOCAL_PAGE_INCLUDE = "local_page_include"
-CONF_LOCAL_PAGE_INCLUDE_ARRAY = "local_page_include_array"
 
 from esphome.core import CORE, coroutine_with_priority, HexInt
 
@@ -30,6 +26,10 @@ AUTO_LOAD = ["json", "web_server_base"]
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
+CONF_JS_INCLUDE_ARRAY = "js_include_array"
+CONF_CSS_INCLUDE_ARRAY = "css_include_array"
+CONF_LOCAL_PAGE_INCLUDE = "local_page_include"
+CONF_LOCAL_PAGE_INCLUDE_ARRAY = "local_page_include_array"
 
 def default_url(config):
     config = config.copy()
