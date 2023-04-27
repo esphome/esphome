@@ -530,7 +530,6 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
     resp.custom_fan_mode = climate->custom_fan_mode.value();
   if (traits.get_supports_presets() && climate->preset.has_value()) {
     resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
-    resp.legacy_away = resp.preset == enums::CLIMATE_PRESET_AWAY;
   }
   if (!traits.get_supported_custom_presets().empty() && climate->custom_preset.has_value())
     resp.custom_preset = climate->custom_preset.value();
@@ -591,8 +590,6 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
     call.set_target_temperature_low(msg.target_temperature_low);
   if (msg.has_target_temperature_high)
     call.set_target_temperature_high(msg.target_temperature_high);
-  if (msg.has_legacy_away)
-    call.set_preset(msg.legacy_away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME);
   if (msg.has_fan_mode)
     call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan_mode));
   if (msg.has_custom_fan_mode)

@@ -862,8 +862,7 @@ message ClimateStateResponse {
   float target_temperature = 4;
   float target_temperature_low = 5;
   float target_temperature_high = 6;
-  // For older peers, equal to preset == CLIMATE_PRESET_AWAY
-  bool legacy_away = 7;
+  bool unused_legacy_away = 7;
   ClimateAction action = 8;
   ClimateFanMode fan_mode = 9;
   ClimateSwingMode swing_mode = 10;
@@ -886,9 +885,8 @@ message ClimateCommandRequest {
   float target_temperature_low = 7;
   bool has_target_temperature_high = 8;
   float target_temperature_high = 9;
-  // legacy, for older peers, newer ones should use CLIMATE_PRESET_AWAY in preset
-  bool has_legacy_away = 10;
-  bool legacy_away = 11;
+  bool unused_has_legacy_away = 10;
+  bool unused_legacy_away = 11;
   bool has_fan_mode = 12;
   ClimateFanMode fan_mode = 13;
   bool has_swing_mode = 14;
