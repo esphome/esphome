@@ -438,14 +438,23 @@ bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; 
 
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
 #if defined(USE_ESP32)
+#if defined(USE_ESP32_CUSTOM_MAC_SUPPORT)
+  static bool suppress_custom_mac_address_check =
+      false;  // avoid repeated attempt to obtain custom macs to avoid spurious error messages in the log
+  if (!suppress_custom_mac_address_check && esp_efuse_mac_get_custom(mac) != ESP_OK) {
+    suppress_custom_mac_address_check = true;
+#endif
 #if defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
-  // On some devices, the MAC address that is burnt into EFuse does not
-  // match the CRC that goes along with it. For those devices, this
-  // work-around reads and uses the MAC address as-is from EFuse,
-  // without doing the CRC check.
-  esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
+    // On some devices, the MAC address that is burnt into EFuse does not
+    // match the CRC that goes along with it. For those devices, this
+    // work-around reads and uses the MAC address as-is from EFuse,
+    // without doing the CRC check.
+    esp_efuse_read_field_blob(ESP_EFUSE_MAC_FACTORY, mac, 48);
 #else
   esp_efuse_mac_get_default(mac);
+#endif
+#if defined(USE_ESP32_CUSTOM_MAC_SUPPORT)
+  }
 #endif
 #elif defined(USE_ESP8266)
   wifi_get_macaddr(STATION_IF, mac);

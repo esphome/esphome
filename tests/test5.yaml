@@ -12,6 +12,7 @@ esp32:
     type: esp-idf
     advanced:
       ignore_efuse_mac_crc: true
+      custom_mac_support: true
 
 wifi:
   networks:
