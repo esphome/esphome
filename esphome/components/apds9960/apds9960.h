@@ -15,10 +15,10 @@ namespace apds9960 {
 
 class APDS9960 : public PollingComponent, public i2c::I2CDevice {
 #ifdef USE_SENSOR
-  SUB_SENSOR(red_channel)
-  SUB_SENSOR(green_channel)
-  SUB_SENSOR(blue_channel)
-  SUB_SENSOR(clear_channel)
+  SUB_SENSOR(red)
+  SUB_SENSOR(green)
+  SUB_SENSOR(blue)
+  SUB_SENSOR(clear)
   SUB_SENSOR(proximity)
 #endif
 

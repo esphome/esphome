@@ -117,8 +117,8 @@ void APDS9960::setup() {
 }
 bool APDS9960::is_color_enabled_() const {
 #ifdef USE_SENSOR
-  return this->red_channel_sensor_ != nullptr || this->green_channel_sensor_ != nullptr ||
-         this->blue_channel_sensor_ != nullptr || this->clear_channel_sensor_ != nullptr;
+  return this->red_sensor_ != nullptr || this->green_sensor_ != nullptr || this->blue_sensor_ != nullptr ||
+         this->clear_sensor_ != nullptr;
 #else
   return false;
 #endif
@@ -131,10 +131,10 @@ void APDS9960::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 
 #ifdef USE_SENSOR
-  LOG_SENSOR("  ", "Red channel", this->red_channel_sensor_);
-  LOG_SENSOR("  ", "Green channel", this->green_channel_sensor_);
-  LOG_SENSOR("  ", "Blue channel", this->blue_channel_sensor_);
-  LOG_SENSOR("  ", "Clear channel", this->clear_channel_sensor_);
+  LOG_SENSOR("  ", "Red channel", this->red_sensor_);
+  LOG_SENSOR("  ", "Green channel", this->green_sensor_);
+  LOG_SENSOR("  ", "Blue channel", this->blue_sensor_);
+  LOG_SENSOR("  ", "Clear channel", this->clear_sensor_);
   LOG_SENSOR("  ", "Proximity", this->proximity_sensor_);
 #endif
 
@@ -195,14 +195,14 @@ void APDS9960::read_color_data_(uint8_t status) {
 
   ESP_LOGD(TAG, "Got clear=%.1f%% red=%.1f%% green=%.1f%% blue=%.1f%%", clear_perc, red_perc, green_perc, blue_perc);
 #ifdef USE_SENSOR
-  if (this->clear_channel_sensor_ != nullptr)
-    this->clear_channel_sensor_->publish_state(clear_perc);
-  if (this->red_channel_sensor_ != nullptr)
-    this->red_channel_sensor_->publish_state(red_perc);
-  if (this->green_channel_sensor_ != nullptr)
-    this->green_channel_sensor_->publish_state(green_perc);
-  if (this->blue_channel_sensor_ != nullptr)
-    this->blue_channel_sensor_->publish_state(blue_perc);
+  if (this->clear_sensor_ != nullptr)
+    this->clear_sensor_->publish_state(clear_perc);
+  if (this->red_sensor_ != nullptr)
+    this->red_sensor_->publish_state(red_perc);
+  if (this->green_sensor_ != nullptr)
+    this->green_sensor_->publish_state(green_perc);
+  if (this->blue_sensor_ != nullptr)
+    this->blue_sensor_->publish_state(blue_perc);
 #endif
 }
 void APDS9960::read_proximity_data_(uint8_t status) {
