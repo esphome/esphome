@@ -17,7 +17,7 @@ namespace haier {
 const char TAG[] = "haier.climate";
 
 Smartair2Climate::Smartair2Climate()
-    : HaierClimateBase(), last_status_message_(new uint8_t[sizeof(smartair2_protocol::HaierPacketControl)]) {
+    : last_status_message_(new uint8_t[sizeof(smartair2_protocol::HaierPacketControl)]) {
   this->traits_.set_supported_presets({
       climate::CLIMATE_PRESET_NONE,
       climate::CLIMATE_PRESET_BOOST,
