@@ -21,13 +21,12 @@ DEPENDENCIES = ["esp32_ble_tracker"]
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
 BLEClient = ble_client_ns.class_("BLEClient", esp32_ble_client.BLEClientBase)
 BLEClientNode = ble_client_ns.class_("BLEClientNode")
-BLEClientNodeConstRef = BLEClientNode.operator("ref").operator("const")
 # Triggers
 BLEClientConnectTrigger = ble_client_ns.class_(
-    "BLEClientConnectTrigger", automation.Trigger.template(BLEClientNodeConstRef)
+    "BLEClientConnectTrigger", automation.Trigger.template()
 )
 BLEClientDisconnectTrigger = ble_client_ns.class_(
-    "BLEClientDisconnectTrigger", automation.Trigger.template(BLEClientNodeConstRef)
+    "BLEClientDisconnectTrigger", automation.Trigger.template()
 )
 # Actions
 BLEWriteAction = ble_client_ns.class_("BLEClientWriteAction", automation.Action)
