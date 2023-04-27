@@ -250,7 +250,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_on(["esp32", "esp8266", "libretuya"]),
+    cv.only_on(["esp32", "esp8266", "libretiny"]),
 )
 
 
@@ -277,7 +277,7 @@ async def to_code(config):
         cg.add_library(
             "AsyncMqttClient-esphome",
             None,
-            "https://github.com/libretuya/async-mqtt-client",
+            "https://github.com/libretiny-eu/async-mqtt-client",
         )
 
     cg.add_define("USE_MQTT")

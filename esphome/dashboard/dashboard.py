@@ -497,7 +497,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
 
-        elif storage_json.target_platform.lower() == const.PLATFORM_LIBRETUYA:
+        elif storage_json.target_platform.lower() == const.PLATFORM_LIBRETINY:
             filename = f"{storage_json.name}.uf2"
             path = storage_json.firmware_bin_path.replace(
                 "firmware.bin", "firmware.uf2"
@@ -736,8 +736,8 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
 class BoardsRequestHandler(BaseHandler):
     @authenticated
     def get(self, platform: str):
-        if platform == "libretuya":
-            from esphome.components.libretuya.boards import fetch_board_list
+        if platform == "libretiny":
+            from esphome.components.libretiny.boards import fetch_board_list
 
             output = fetch_board_list()
             self.set_header("content-type", "application/json")

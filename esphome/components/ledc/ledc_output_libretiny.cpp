@@ -1,7 +1,7 @@
 #include "ledc_output.h"
 #include "esphome/core/log.h"
 
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
 
 namespace esphome {
 namespace ledc {

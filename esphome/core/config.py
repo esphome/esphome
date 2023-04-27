@@ -190,6 +190,14 @@ PRELOAD_CONFIG_SCHEMA = cv.Schema(
 
 
 def preload_core_config(config, result):
+    if "libretuya" in config:
+        _LOGGER.warning(
+            "*** LibreTuya has been renamed to LibreTiny! Please update your YAML to include "
+            "the libretiny: block instead. The old block will be removed in the future. ***"
+        )
+        config["libretiny"] = config["libretuya"]
+        config.pop("libretuya")
+
     with cv.prepend_path(CONF_ESPHOME):
         conf = PRELOAD_CONFIG_SCHEMA(config[CONF_ESPHOME])
 
@@ -272,7 +280,7 @@ def include_file(path, basename):
 
 
 ARDUINO_GLUE_CODE = """\
-#ifndef USE_LIBRETUYA
+#ifndef USE_LIBRETINY
 #define yield() esphome::yield()
 #define millis() esphome::millis()
 #define micros() esphome::micros()

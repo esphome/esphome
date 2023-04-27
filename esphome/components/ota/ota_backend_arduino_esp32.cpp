@@ -1,5 +1,5 @@
 #include "esphome/core/defines.h"
-#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_LIBRETUYA)
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_LIBRETINY)
 
 #include "ota_backend_arduino_esp32.h"
 #include "ota_component.h"
@@ -17,7 +17,7 @@ OTAResponseTypes ArduinoESP32OTABackend::begin(size_t image_size) {
   }
 
   uint8_t error = Update.getError();
-#ifndef USE_LIBRETUYA
+#ifndef USE_LIBRETINY
   this->last_errno_ = error;
 #else
   this->last_errno_ = Update.getErrorCode();
@@ -28,14 +28,14 @@ OTAResponseTypes ArduinoESP32OTABackend::begin(size_t image_size) {
 }
 
 void ArduinoESP32OTABackend::set_update_md5(const char *md5) {
-#ifndef USE_LIBRETUYA  // not yet implemented
+#ifndef USE_LIBRETINY  // not yet implemented
   Update.setMD5(md5);
 #endif
 }
 
 OTAResponseTypes ArduinoESP32OTABackend::write(uint8_t *data, size_t len) {
   size_t written = Update.write(data, len);
-#ifndef USE_LIBRETUYA
+#ifndef USE_LIBRETINY
   this->last_errno_ = Update.getError();
 #else
   this->last_errno_ = Update.getErrorCode();
@@ -48,7 +48,7 @@ OTAResponseTypes ArduinoESP32OTABackend::write(uint8_t *data, size_t len) {
 
 OTAResponseTypes ArduinoESP32OTABackend::end() {
   if (!Update.end()) {
-#ifndef USE_LIBRETUYA
+#ifndef USE_LIBRETINY
     this->last_errno_ = Update.getError();
 #else
     this->last_errno_ = Update.getErrorCode();
@@ -63,4 +63,4 @@ void ArduinoESP32OTABackend::abort() { Update.abort(); }
 }  // namespace ota
 }  // namespace esphome
 
-#endif  // USE_ESP32_FRAMEWORK_ARDUINO || USE_LIBRETUYA
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO || USE_LIBRETINY

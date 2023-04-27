@@ -15,9 +15,9 @@ from esphome import pins
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from .const import libretuya_ns
+from .const import libretiny_ns
 
-ArduinoInternalGPIOPin = libretuya_ns.class_(
+ArduinoInternalGPIOPin = libretiny_ns.class_(
     "ArduinoInternalGPIOPin", cg.InternalGPIOPin
 )
 
@@ -35,20 +35,14 @@ def _translate_pin(value):
     if isinstance(value, int):
         raise cv.Invalid(
             "Using raw pin numbers is ambiguous. Use either "
-            f"D{value}, A{value} or P{value} - all these are "
+            f"P{value}/GPIO{value} or D{value} - these are "
             "different pins! Refer to the docs for details."
         )
     # accept only strings at this point
     if not isinstance(value, str):
         raise cv.Invalid(f"Pin number {value} is of an unknown type.")
     # macros shouldn't be changed
-    if value.startswith("PIN_FUNCTION_"):
-        return value
-    # strip digital pin numbers
-    if value.startswith("D") and value[1:].isnumeric():
-        return cv.int_(value[1:].strip())
-    # leave analog pin numbers intact
-    if value.startswith("A") and value[1:].isnumeric():
+    if value.startswith("PIN_"):
         return value
     # make GPIO* equal to P*
     if value.startswith("GPIO"):
@@ -56,8 +50,8 @@ def _translate_pin(value):
     # check the final name using a regex
     if not re.match(r"^[A-Z]+[0-9]+$", value):
         raise cv.Invalid("Invalid pin name")
-    # assume internal GPIO number - use the macro
-    return f"PIN_FUNCTION_{value}"
+    # translate the name to a macro
+    return f"PIN_{value}"
 
 
 def validate_gpio_pin(value):
@@ -96,7 +90,7 @@ def validate_mode(value):
     return value
 
 
-LIBRETUYA_PIN_SCHEMA = cv.All(
+LIBRETINY_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(ArduinoInternalGPIOPin),
         cv.Required(CONF_NUMBER): validate_gpio_pin,
@@ -115,8 +109,8 @@ LIBRETUYA_PIN_SCHEMA = cv.All(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("libretuya", LIBRETUYA_PIN_SCHEMA)
-async def libretuya_pin_to_code(config):
+@pins.PIN_SCHEMA_REGISTRY.register("libretiny", LIBRETINY_PIN_SCHEMA)
+async def libretiny_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
     if not str(num).isnumeric():

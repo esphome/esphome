@@ -75,7 +75,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
-    cv.only_on(["esp32", "esp8266", "libretuya"]),
+    cv.only_on(["esp32", "esp8266", "libretiny"]),
     default_url,
     validate_local,
 )

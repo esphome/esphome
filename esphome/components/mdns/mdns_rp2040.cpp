@@ -1,11 +1,11 @@
-#if defined(USE_RP2040) || defined(USE_LIBRETUYA)
+#if defined(USE_RP2040) || defined(USE_LIBRETINY)
 
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
-#ifndef USE_LIBRETUYA
+#ifndef USE_LIBRETINY
 #include <ESP8266mDNS.h>
 #else
 #include <mDNS.h>
@@ -17,7 +17,7 @@ namespace mdns {
 void MDNSComponent::setup() {
   this->compile_records_();
 
-#ifndef USE_LIBRETUYA
+#ifndef USE_LIBRETINY
   network::IPAddress addr = network::get_ip_address();
   MDNS.begin(this->hostname_.c_str(), (uint32_t) addr);
 #else
@@ -44,12 +44,12 @@ void MDNSComponent::setup() {
   }
 }
 
-#ifndef USE_LIBRETUYA
+#ifndef USE_LIBRETINY
 void MDNSComponent::loop() { MDNS.update(); }
 #endif
 
 void MDNSComponent::on_shutdown() {
-#ifndef USE_LIBRETUYA
+#ifndef USE_LIBRETINY
   MDNS.close();
   delay(40);
 #endif

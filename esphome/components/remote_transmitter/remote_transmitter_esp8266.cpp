@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETUYA)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
 
 namespace esphome {
 namespace remote_transmitter {
@@ -37,7 +37,7 @@ void RemoteTransmitterComponent::await_target_time_() {
   const uint32_t current_time = micros();
   if (this->target_time_ == 0) {
     this->target_time_ = current_time;
-#ifndef USE_LIBRETUYA
+#ifndef USE_LIBRETINY
   } else if (this->target_time_ > current_time) {
     delayMicroseconds(this->target_time_ - current_time);
   }
@@ -85,7 +85,7 @@ void RemoteTransmitterComponent::send_internal(uint32_t send_times, uint32_t sen
   this->calculate_on_off_time_(this->temp_.get_carrier_frequency(), &on_time, &off_time);
   this->target_time_ = 0;
   for (uint32_t i = 0; i < send_times; i++) {
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
     InterruptLock lock;
 #endif
     for (int32_t item : this->temp_.get_data()) {

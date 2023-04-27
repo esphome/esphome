@@ -22,7 +22,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.only_with_arduino,
-    cv.only_on(["esp32", "esp8266", "libretuya"]),
+    cv.only_on(["esp32", "esp8266", "libretiny"]),
 )
 
 
@@ -39,5 +39,5 @@ async def to_code(config):
         cg.add_library("WiFi", None)
     if CORE.is_esp8266:
         cg.add_library("DNSServer", None)
-    if CORE.is_libretuya:
+    if CORE.is_libretiny:
         cg.add_library("DNSServer", None)
