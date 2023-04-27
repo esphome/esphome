@@ -39,5 +39,10 @@ template<typename... Ts> class StopAction : public Action<Ts...>, public Parente
   void play(Ts... x) override { this->parent_->stop(); }
 };
 
+template<typename... Ts> class IsPlayingCondition : public Condition<Ts...>, public Parented<Speaker> {
+ public:
+  bool check(Ts... x) override { return this->parent_->is_running(); }
+};
+
 }  // namespace speaker
 }  // namespace esphome
