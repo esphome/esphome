@@ -162,6 +162,7 @@ esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/mlx90393/* @functionpointer
+esphome/components/mlx90614/* @jesserockz
 esphome/components/mmc5603/* @benhoff
 esphome/components/modbus_controller/* @martgras
 esphome/components/modbus_controller/binary_sensor/* @martgras
