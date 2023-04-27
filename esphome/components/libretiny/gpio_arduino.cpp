@@ -1,10 +1,10 @@
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
 
 #include "gpio_arduino.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace libretuya {
+namespace libretiny {
 
 static const char *const TAG = "lt.gpio";
 
@@ -79,9 +79,9 @@ void ArduinoInternalGPIOPin::detach_interrupt() const {
   detachInterrupt(pin_);  // NOLINT
 }
 
-}  // namespace libretuya
+}  // namespace libretiny
 
-using namespace libretuya;
+using namespace libretiny;
 
 bool IRAM_ATTR ISRInternalGPIOPin::digital_read() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
@@ -102,4 +102,4 @@ void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
 
 }  // namespace esphome
 
-#endif  // USE_LIBRETUYA
+#endif  // USE_LIBRETINY

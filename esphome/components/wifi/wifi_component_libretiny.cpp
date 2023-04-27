@@ -1,6 +1,6 @@
 #include "wifi_component.h"
 
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
 
 #include <utility>
 #include <algorithm>

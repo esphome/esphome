@@ -126,7 +126,7 @@ def validate_adc_pin(value):
             raise cv.Invalid("RP2040: Only pins 26, 27, 28 and 29 support ADC.")
         return pins.internal_gpio_input_pin_schema(value)
 
-    if CORE.is_libretuya:
+    if CORE.is_libretiny:
         if str(value).startswith("A") and str(value)[1:].isnumeric():
             return pins.internal_gpio_input_pin_schema(value)
 

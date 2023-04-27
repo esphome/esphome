@@ -15,7 +15,7 @@
 #include <WiFi.h>
 #endif
 
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
 #include <WiFi.h>
 #endif
 
@@ -333,7 +333,7 @@ class WiFiComponent : public Component {
   void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
 #endif
 
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
   void wifi_scan_done_callback_();
 #endif

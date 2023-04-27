@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
 
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
@@ -13,7 +13,7 @@
 #endif
 
 namespace esphome {
-namespace libretuya {
+namespace libretiny {
 
 class LTComponent : public PollingComponent {
  public:
@@ -32,7 +32,7 @@ class LTComponent : public PollingComponent {
 #endif  // USE_TEXT_SENSOR
 };
 
-}  // namespace libretuya
+}  // namespace libretiny
 }  // namespace esphome
 
-#endif  // USE_LIBRETUYA
+#endif  // USE_LIBRETINY

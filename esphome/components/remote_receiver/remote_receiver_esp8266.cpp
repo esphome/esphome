@@ -3,7 +3,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETUYA)
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
 
 namespace esphome {
 namespace remote_receiver {

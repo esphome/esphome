@@ -45,8 +45,8 @@ void MDNSComponent::compile_records_() {
 #ifdef USE_RP2040
     platform = "RP2040";
 #endif
-#ifdef USE_LIBRETUYA
-    platform = "LibreTuya";
+#ifdef USE_LIBRETINY
+    platform = "LibreTiny";
 #endif
     if (platform != nullptr) {
       service.txt_records.push_back({"platform", platform});

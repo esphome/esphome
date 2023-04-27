@@ -1,10 +1,10 @@
 #pragma once
 
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace libretuya {
+namespace libretiny {
 
 class ArduinoInternalGPIOPin : public InternalGPIOPin {
  public:
@@ -30,7 +30,7 @@ class ArduinoInternalGPIOPin : public InternalGPIOPin {
   gpio::Flags flags_;
 };
 
-}  // namespace libretuya
+}  // namespace libretiny
 }  // namespace esphome
 
-#endif  // USE_LIBRETUYA
+#endif  // USE_LIBRETINY

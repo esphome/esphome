@@ -271,7 +271,7 @@ CONFIG_SCHEMA = cv.All(
                 esp8266="none",
                 esp32="light",
                 rp2040="light",
-                libretuya="none",
+                libretiny="none",
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,

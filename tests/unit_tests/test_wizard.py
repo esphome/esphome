@@ -157,11 +157,11 @@ def test_wizard_write_defaults_platform_from_board_esp32(
     assert "esp32:" in generated_config
 
 
-def test_wizard_write_defaults_platform_from_board_libretuya(
+def test_wizard_write_defaults_platform_from_board_libretiny(
     default_config, tmp_path, monkeypatch
 ):
     """
-    If the platform is not explicitly set, use LibreTuya if the board is not one of ESP32 and ESP8266 boards
+    If the platform is not explicitly set, use LibreTiny if the board is not one of ESP32 and ESP8266 boards
     """
     # Given
     del default_config["platform"]
@@ -174,7 +174,7 @@ def test_wizard_write_defaults_platform_from_board_libretuya(
 
     # Then
     generated_config = wz.write_file.call_args.args[1]
-    assert "libretuya:" in generated_config
+    assert "libretiny:" in generated_config
 
 
 def test_safe_print_step_prints_step_number_and_description(monkeypatch):

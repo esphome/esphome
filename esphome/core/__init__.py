@@ -584,7 +584,7 @@ class EsphomeCore:
 
     @property
     def firmware_bin(self):
-        if self.is_libretuya:
+        if self.is_libretiny:
             return self.relative_pioenvs_path(self.name, "firmware.uf2")
         return self.relative_pioenvs_path(self.name, "firmware.bin")
 
@@ -605,8 +605,8 @@ class EsphomeCore:
         return self.target_platform == "rp2040"
 
     @property
-    def is_libretuya(self):
-        return self.target_platform == "libretuya"
+    def is_libretiny(self):
+        return self.target_platform == "libretiny"
 
     @property
     def target_framework(self):

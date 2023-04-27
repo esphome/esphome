@@ -2,7 +2,7 @@ import requests
 
 
 def fetch_board_list() -> dict:
-    url = "https://docs.libretuya.ml/boards.json"
+    url = "https://docs.libretiny.ml/boards.json"
     boards = {}
     with requests.get(url, timeout=2.0) as r:
         boards_api = r.json()

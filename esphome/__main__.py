@@ -25,7 +25,7 @@ from esphome.const import (
     CONF_SUBSTITUTIONS,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_LIBRETUYA,
+    PLATFORM_LIBRETINY,
     PLATFORM_RP2040,
     SECRETS_FILES,
 )
@@ -289,7 +289,7 @@ def upload_program(config, args, host):
         if CORE.target_platform in (PLATFORM_RP2040):
             return upload_using_platformio(config, args.device)
 
-        if CORE.target_platform in (PLATFORM_LIBRETUYA):
+        if CORE.target_platform in (PLATFORM_LIBRETINY):
             return upload_using_platformio(config, host)
 
         return 1  # Unknown target platform

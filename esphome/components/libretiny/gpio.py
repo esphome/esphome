@@ -15,9 +15,9 @@ from esphome import pins
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from .const import libretuya_ns
+from .const import libretiny_ns
 
-ArduinoInternalGPIOPin = libretuya_ns.class_(
+ArduinoInternalGPIOPin = libretiny_ns.class_(
     "ArduinoInternalGPIOPin", cg.InternalGPIOPin
 )
 
@@ -90,7 +90,7 @@ def validate_mode(value):
     return value
 
 
-LIBRETUYA_PIN_SCHEMA = cv.All(
+LIBRETINY_PIN_SCHEMA = cv.All(
     {
         cv.GenerateID(): cv.declare_id(ArduinoInternalGPIOPin),
         cv.Required(CONF_NUMBER): validate_gpio_pin,
@@ -109,8 +109,8 @@ LIBRETUYA_PIN_SCHEMA = cv.All(
 )
 
 
-@pins.PIN_SCHEMA_REGISTRY.register("libretuya", LIBRETUYA_PIN_SCHEMA)
-async def libretuya_pin_to_code(config):
+@pins.PIN_SCHEMA_REGISTRY.register("libretiny", LIBRETINY_PIN_SCHEMA)
+async def libretiny_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
     if not str(num).isnumeric():

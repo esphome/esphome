@@ -8,7 +8,7 @@ CODEOWNERS = ["@OttoWinter"]
 CONFIG_SCHEMA = cv.All(
     cv.Schema({}),
     cv.only_with_arduino,
-    cv.only_on(["esp32", "esp8266", "libretuya"]),
+    cv.only_on(["esp32", "esp8266", "libretiny"]),
 )
 
 
@@ -16,7 +16,11 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     if CORE.is_esp32:
         # https://github.com/esphome/AsyncTCP/blob/master/library.json
-        cg.add_library("esphome/AsyncTCP-esphome", "2.0.0")
+        cg.add_library(
+            "AsyncTCP-esphome",
+            None,
+            "https://github.com/libretiny-eu/AsyncTCP",
+        )
     elif CORE.is_esp8266:
         # https://github.com/OttoWinter/ESPAsyncTCP
         cg.add_library("ottowinter/ESPAsyncTCP-esphome", "1.2.3")

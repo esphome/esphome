@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
 
 #include <HardwareSerial.h>
 #include <vector>
@@ -12,7 +12,7 @@
 namespace esphome {
 namespace uart {
 
-class LibreTuyaUARTComponent : public UARTComponent, public Component {
+class LibreTinyUARTComponent : public UARTComponent, public Component {
  public:
   void setup() override;
   void dump_config() override;
@@ -38,4 +38,4 @@ class LibreTuyaUARTComponent : public UARTComponent, public Component {
 }  // namespace uart
 }  // namespace esphome
 
-#endif  // USE_LIBRETUYA
+#endif  // USE_LIBRETINY

@@ -22,7 +22,7 @@
 #define MD5_CTX_TYPE br_md5_context
 #endif
 
-#if defined(USE_LIBRETUYA)
+#if defined(USE_LIBRETINY)
 #include <MD5.h>
 #define MD5_CTX_TYPE LT_MD5_CTX_T
 #endif

@@ -1,4 +1,4 @@
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
 
 #include "core.h"
 #include "esphome/core/defines.h"
@@ -18,7 +18,7 @@ void IRAM_ATTR HOT delay(uint32_t ms) { ::delay(ms); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { ::delayMicroseconds(us); }
 
 void arch_init() {
-  libretuya::setup_preferences();
+  libretiny::setup_preferences();
   lt_wdt_enable(10000L);
 #if LT_GPIO_RECOVER
   lt_gpio_recover();
@@ -37,4 +37,4 @@ uint8_t progmem_read_byte(const uint8_t *addr) { return *addr; }
 
 }  // namespace esphome
 
-#endif  // USE_LIBRETUYA
+#endif  // USE_LIBRETINY

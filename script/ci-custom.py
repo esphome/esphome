@@ -535,7 +535,7 @@ def lint_relative_py_import(fname):
         "esphome/components/esp32/core.cpp",
         "esphome/components/esp8266/core.cpp",
         "esphome/components/rp2040/core.cpp",
-        "esphome/components/libretuya/core.cpp",
+        "esphome/components/libretiny/core.cpp",
     ],
 )
 def lint_namespace(fname, content):

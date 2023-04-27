@@ -29,7 +29,7 @@ std::unique_ptr<OTABackend> make_ota_backend() {
 #ifdef USE_ESP8266
   return make_unique<ArduinoESP8266OTABackend>();
 #endif  // USE_ESP8266
-#if defined(USE_ESP32) || defined(USE_LIBRETUYA)
+#if defined(USE_ESP32) || defined(USE_LIBRETINY)
   return make_unique<ArduinoESP32OTABackend>();
 #endif  // USE_ESP32
 #endif  // USE_ARDUINO

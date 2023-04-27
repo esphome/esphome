@@ -1,10 +1,10 @@
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
 
 #include "esphome/core/application.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "uart_component_libretuya.h"
+#include "uart_component_libretiny.h"
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -24,7 +24,7 @@ static const char *UART_TYPE[] = {
     "software",
 };
 
-uint16_t LibreTuyaUARTComponent::get_config() {
+uint16_t LibreTinyUARTComponent::get_config() {
   uint16_t config = 0;
 
   switch (this->parity_) {
@@ -45,7 +45,7 @@ uint16_t LibreTuyaUARTComponent::get_config() {
   return config;
 }
 
-void LibreTuyaUARTComponent::setup() {
+void LibreTinyUARTComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up UART...");
 
   int8_t tx_pin = tx_pin_ == nullptr ? -1 : tx_pin_->get_pin();
@@ -96,7 +96,7 @@ void LibreTuyaUARTComponent::setup() {
   this->serial_->begin(this->baud_rate_, get_config());
 }
 
-void LibreTuyaUARTComponent::dump_config() {
+void LibreTinyUARTComponent::dump_config() {
   bool is_software = this->hardware_idx_ == -1;
   ESP_LOGCONFIG(TAG, "UART Bus:");
   ESP_LOGCONFIG(TAG, "  Type: %s", UART_TYPE[is_software]);
@@ -115,7 +115,7 @@ void LibreTuyaUARTComponent::dump_config() {
   this->check_logger_conflict();
 }
 
-void LibreTuyaUARTComponent::write_array(const uint8_t *data, size_t len) {
+void LibreTinyUARTComponent::write_array(const uint8_t *data, size_t len) {
   this->serial_->write(data, len);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
@@ -124,14 +124,14 @@ void LibreTuyaUARTComponent::write_array(const uint8_t *data, size_t len) {
 #endif
 }
 
-bool LibreTuyaUARTComponent::peek_byte(uint8_t *data) {
+bool LibreTinyUARTComponent::peek_byte(uint8_t *data) {
   if (!this->check_read_timeout_())
     return false;
   *data = this->serial_->peek();
   return true;
 }
 
-bool LibreTuyaUARTComponent::read_array(uint8_t *data, size_t len) {
+bool LibreTinyUARTComponent::read_array(uint8_t *data, size_t len) {
   if (!this->check_read_timeout_(len))
     return false;
   this->serial_->readBytes(data, len);
@@ -143,13 +143,13 @@ bool LibreTuyaUARTComponent::read_array(uint8_t *data, size_t len) {
   return true;
 }
 
-int LibreTuyaUARTComponent::available() { return this->serial_->available(); }
-void LibreTuyaUARTComponent::flush() {
+int LibreTinyUARTComponent::available() { return this->serial_->available(); }
+void LibreTinyUARTComponent::flush() {
   ESP_LOGVV(TAG, "    Flushing...");
   this->serial_->flush();
 }
 
-void LibreTuyaUARTComponent::check_logger_conflict() {
+void LibreTinyUARTComponent::check_logger_conflict() {
 #ifdef USE_LOGGER
   if (this->hardware_idx_ == -1 || logger::global_logger->get_baud_rate() == 0) {
     return;
@@ -165,4 +165,4 @@ void LibreTuyaUARTComponent::check_logger_conflict() {
 }  // namespace uart
 }  // namespace esphome
 
-#endif  // USE_LIBRETUYA
+#endif  // USE_LIBRETINY

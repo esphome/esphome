@@ -1,4 +1,4 @@
-#ifdef USE_LIBRETUYA
+#ifdef USE_LIBRETINY
 
 #include "esphome/core/preferences.h"
 #include "esphome/core/helpers.h"
@@ -9,7 +9,7 @@
 #include <string>
 
 namespace esphome {
-namespace libretuya {
+namespace libretiny {
 
 static const char *const TAG = "lt.preferences";
 
@@ -20,7 +20,7 @@ struct NVSData {
 
 static std::vector<NVSData> s_pending_save;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-class LibreTuyaPreferenceBackend : public ESPPreferenceBackend {
+class LibreTinyPreferenceBackend : public ESPPreferenceBackend {
  public:
   std::string key;
   fdb_kvdb_t db;
@@ -67,7 +67,7 @@ class LibreTuyaPreferenceBackend : public ESPPreferenceBackend {
   }
 };
 
-class LibreTuyaPreferences : public ESPPreferences {
+class LibreTinyPreferences : public ESPPreferences {
  public:
   struct fdb_kvdb db;
   struct fdb_blob blob;
@@ -87,7 +87,7 @@ class LibreTuyaPreferences : public ESPPreferences {
   }
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type) override {
-    auto *pref = new LibreTuyaPreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
+    auto *pref = new LibreTinyPreferenceBackend();  // NOLINT(cppcoreguidelines-owning-memory)
     pref->db = &db;
     pref->blob = &blob;
 
@@ -168,15 +168,15 @@ class LibreTuyaPreferences : public ESPPreferences {
 };
 
 void setup_preferences() {
-  auto *prefs = new LibreTuyaPreferences();  // NOLINT(cppcoreguidelines-owning-memory)
+  auto *prefs = new LibreTinyPreferences();  // NOLINT(cppcoreguidelines-owning-memory)
   prefs->open();
   global_preferences = prefs;
 }
 
-}  // namespace libretuya
+}  // namespace libretiny
 
 ESPPreferences *global_preferences;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esphome
 
-#endif  // USE_LIBRETUYA
+#endif  // USE_LIBRETINY
