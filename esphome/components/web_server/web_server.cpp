@@ -169,8 +169,6 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #else
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
-  // All content is controlled and created by user - so allowing all origins is fine here.
-  stream->addHeader("Access-Control-Allow-Origin", "*");
 #if USE_WEBSERVER_VERSION == 1
   const std::string &title = App.get_name();
   stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
@@ -344,7 +342,6 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/css", this->css_include_, CSS_INCLUDE_ARRAY_SIZE);
   response->addHeader("Content-Encoding", "gzip");
-  response->addHeader("Access-Control-Allow-Origin", "*");
   request->send(response);
 }
 #endif
@@ -354,7 +351,6 @@ void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/javascript", this->js_include_, JS_INCLUDE_ARRAY_SIZE);
   response->addHeader("Content-Encoding", "gzip");
-  response->addHeader("Access-Control-Allow-Origin", "*");
   request->send(response);
 }
 #endif
