@@ -77,10 +77,12 @@ void FingerprintGrowComponent::finish_enrollment(uint8_t result) {
     this->enrollment_done_callback_.call(this->enrollment_slot_);
     this->get_fingerprint_count_();
   } else {
-    this->enrollment_failed_callback_.call(this->enrollment_slot_);
+    if (this->enrollment_slot_ != ENROLLMENT_SLOT_UNUSED) {
+      this->enrollment_failed_callback_.call(this->enrollment_slot_);
+    }
   }
   this->enrollment_image_ = 0;
-  this->enrollment_slot_ = 0;
+  this->enrollment_slot_ = ENROLLMENT_SLOT_UNUSED;
   if (this->enrolling_binary_sensor_ != nullptr) {
     this->enrolling_binary_sensor_->publish_state(false);
   }
