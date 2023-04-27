@@ -93,7 +93,7 @@ async def to_code(config):
     cg.add(var.set_scroll(config[CONF_SCROLL_ENABLE]))
     cg.add(var.set_scroll_mode(config[CONF_SCROLL_MODE]))
     cg.add(var.set_reverse(config[CONF_REVERSE_ENABLE]))
-    cg.add(var.set_flip_x([CONF_FLIP_X]))
+    cg.add(var.set_flip_x(config[CONF_FLIP_X]))
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
