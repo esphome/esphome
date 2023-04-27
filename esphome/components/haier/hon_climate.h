@@ -32,10 +32,9 @@ enum class CleaningState : uint8_t {
 
 class HonClimate : public HaierClimateBase {
  public:
-  HonClimate() = delete;
+  HonClimate();
   HonClimate(const HonClimate &) = delete;
   HonClimate &operator=(const HonClimate &) = delete;
-  HonClimate(esphome::uart::UARTComponent *parent);
   ~HonClimate();
   void dump_config() override;
   void set_beeper_state(bool state);

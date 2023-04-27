@@ -24,10 +24,9 @@ class HaierClimateBase : public esphome::Component,
                          public esphome::uart::UARTDevice,
                          public haier_protocol::ProtocolStream {
  public:
-  HaierClimateBase() = delete;
+  HaierClimateBase();
   HaierClimateBase(const HaierClimateBase &) = delete;
   HaierClimateBase &operator=(const HaierClimateBase &) = delete;
-  HaierClimateBase(esphome::uart::UARTComponent *parent);
   ~HaierClimateBase();
   void setup() override;
   void loop() override;

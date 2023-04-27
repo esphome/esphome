@@ -158,6 +158,7 @@ CONFIG_SCHEMA = cv.All(
         },
         key=CONF_PROTOCOL,
         default_type=PROTOCOL_SMARTAIR2,
+        upper=True,
     ),
     validate_visual,
 )
@@ -343,7 +344,7 @@ FINAL_VALIDATE_SCHEMA = _final_validate
 
 async def to_code(config):
     cg.add(haier_ns.init_haier_protocol_logging())
-    var = await cg.new_Pvariable(config[CONF_ID])
+    var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
     await climate.register_climate(var, config)

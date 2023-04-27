@@ -8,10 +8,9 @@ namespace haier {
 
 class Smartair2Climate : public HaierClimateBase {
  public:
-  Smartair2Climate() = delete;
+  Smartair2Climate();
   Smartair2Climate(const Smartair2Climate &) = delete;
   Smartair2Climate &operator=(const Smartair2Climate &) = delete;
-  Smartair2Climate(esphome::uart::UARTComponent *parent);
   ~Smartair2Climate();
   void dump_config() override;
 

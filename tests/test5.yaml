@@ -37,10 +37,6 @@ uart:
     tx_pin: 17
     rx_pin: 16
     baud_rate: 19200
-  - id: uart3
-    tx_pin: 17
-    rx_pin: 16
-    baud_rate: 9600
 
 i2c:
   frequency: 100khz
@@ -375,32 +371,6 @@ select:
       "One": 1
       "Two": 2
       "Three": 3
-
-climate:
-  - platform: haier
-    protocol: hOn
-    name: Haier AC
-    uart_id: uart3
-    wifi_signal: true
-    beeper: true
-    outdoor_temperature:
-      name:  Haier AC outdoor temperature
-    visual:
-      min_temperature: 16 °C
-      max_temperature: 30 °C
-      temperature_step: 1 °C
-    supported_modes:
-    - 'OFF'
-    - AUTO
-    - COOL
-    - HEAT
-    - DRY
-    - FAN_ONLY
-    supported_swing_modes:
-    - 'OFF'
-    - VERTICAL
-    - HORIZONTAL
-    - BOTH
 
 sensor:
   - platform: internal_temperature
