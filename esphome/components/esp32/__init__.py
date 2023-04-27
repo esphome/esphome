@@ -20,7 +20,6 @@ from esphome.const import (
     CONF_URL,
     CONF_REF,
     CONF_IGNORE_EFUSE_MAC_CRC,
-    CONF_CUSTOM_MAC_SUPPORT,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
     KEY_TARGET_FRAMEWORK,
@@ -299,7 +298,6 @@ ESP_IDF_FRAMEWORK_SCHEMA = cv.All(
             cv.Optional(CONF_ADVANCED, default={}): cv.Schema(
                 {
                     cv.Optional(CONF_IGNORE_EFUSE_MAC_CRC, default=False): cv.boolean,
-                    cv.Optional(CONF_CUSTOM_MAC_SUPPORT, default=False): cv.boolean,
                 }
             ),
             cv.Optional(CONF_COMPONENTS, default=[]): cv.ensure_list(
@@ -408,9 +406,6 @@ async def to_code(config):
                 add_idf_sdkconfig_option(
                     "CONFIG_ESP32_PHY_CALIBRATION_AND_DATA_STORAGE", False
                 )
-
-        if conf[CONF_ADVANCED][CONF_CUSTOM_MAC_SUPPORT]:
-            cg.add_define("USE_ESP32_CUSTOM_MAC_SUPPORT")
 
         cg.add_define(
             "USE_ESP_IDF_VERSION_CODE",

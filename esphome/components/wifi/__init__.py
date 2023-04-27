@@ -32,6 +32,7 @@ from esphome.const import (
     CONF_KEY,
     CONF_USERNAME,
     CONF_EAP,
+    CONF_CUSTOM_MAC_SUPPORT,
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -286,6 +287,7 @@ CONFIG_SCHEMA = cv.All(
                 "This option has been removed. Please use the [disabled] option under the "
                 "new mdns component instead."
             ),
+            cv.Optional(CONF_CUSTOM_MAC_SUPPORT, default=False): cv.boolean,
         }
     ),
     _validate,
@@ -400,6 +402,9 @@ async def to_code(config):
             cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
         if config[CONF_ENABLE_RRM]:
             cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
+
+    if CORE.is_esp32 and config[CONF_CUSTOM_MAC_SUPPORT]:
+        cg.add_define("USE_ESP32_CUSTOM_MAC_SUPPORT")
 
     cg.add_define("USE_WIFI")
 

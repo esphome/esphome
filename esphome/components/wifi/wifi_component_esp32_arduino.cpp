@@ -32,6 +32,11 @@ bool WiFiComponent::wifi_mode_(optional<bool> sta, optional<bool> ap) {
   bool current_ap = current_mode & 0b10;
   bool enable_sta = sta.value_or(current_sta);
   bool enable_ap = ap.value_or(current_ap);
+#if defined(USE_ESP32_CUSTOM_MAC_SUPPORT)
+  uint8_t mac[6];
+  get_mac_address_raw(mac);
+  set_mac_address(mac);
+#endif
   if (current_sta == enable_sta && current_ap == enable_ap)
     return true;
 

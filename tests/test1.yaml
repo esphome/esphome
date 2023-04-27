@@ -81,6 +81,7 @@ wifi:
   domain: .local
   reboot_timeout: 120s
   power_save_mode: light
+  custom_mac_support: true
 
 mdns:
   disabled: false
