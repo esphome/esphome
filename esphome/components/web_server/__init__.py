@@ -31,6 +31,7 @@ CONF_CSS_INCLUDE_ARRAY = "css_include_array"
 CONF_LOCAL_PAGE_INCLUDE = "local_page_include"
 CONF_LOCAL_PAGE_INCLUDE_ARRAY = "local_page_include_array"
 
+
 def default_url(config):
     config = config.copy()
     if config[CONF_VERSION] == 1:
