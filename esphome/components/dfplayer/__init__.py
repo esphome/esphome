@@ -40,6 +40,7 @@ DEVICE = {
 
 NextAction = dfplayer_ns.class_("NextAction", automation.Action)
 PreviousAction = dfplayer_ns.class_("PreviousAction", automation.Action)
+PlayMp3Action = dfplayer_ns.class_("PlayMp3Action", automation.Action)
 PlayFileAction = dfplayer_ns.class_("PlayFileAction", automation.Action)
 PlayFolderAction = dfplayer_ns.class_("PlayFolderAction", automation.Action)
 SetVolumeAction = dfplayer_ns.class_("SetVolumeAction", automation.Action)
@@ -110,6 +111,25 @@ async def dfplayer_next_to_code(config, action_id, template_arg, args):
 async def dfplayer_previous_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
+    return var
+
+
+@automation.register_action(
+    "dfplayer.play_mp3",
+    PlayMp3Action,
+    cv.maybe_simple_value(
+        {
+            cv.GenerateID(): cv.use_id(DFPlayer),
+            cv.Required(CONF_FILE): cv.templatable(cv.int_),
+        },
+        key=CONF_FILE,
+    ),
+)
+async def dfplayer_play_mp3_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    template_ = await cg.templatable(config[CONF_FILE], args, float)
+    cg.add(var.set_file(template_))
     return var
 
 
