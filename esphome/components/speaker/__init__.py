@@ -51,11 +51,12 @@ async def speaker_action(config, action_id, template_arg, args):
 @automation.register_action(
     "speaker.play",
     PlayAction,
-    cv.Schema(
+    cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(Speaker),
             cv.Required(CONF_DATA): cv.templatable(cv.ensure_list(cv.hex_uint8_t)),
-        }
+        },
+        key=CONF_DATA,
     ),
 )
 async def speaker_play_action(config, action_id, template_arg, args):
