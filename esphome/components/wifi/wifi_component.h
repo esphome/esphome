@@ -217,6 +217,8 @@ class WiFiComponent : public Component {
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_output_power(float output_power) { output_power_ = output_power; }
 
+  void set_passive_scan(bool passive);
+
   void save_wifi_sta(const std::string &ssid, const std::string &password);
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -294,7 +296,7 @@ class WiFiComponent : public Component {
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
   WiFiSTAConnectStatus wifi_sta_connect_status_();
-  bool wifi_scan_start_();
+  bool wifi_scan_start_(bool passive);
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
   bool wifi_disconnect_();
@@ -349,6 +351,7 @@ class WiFiComponent : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   optional<float> output_power_;
+  bool passive_scan_{false};
   ESPPreferenceObject pref_;
   bool has_saved_wifi_settings_{false};
 #ifdef USE_WIFI_11KV_SUPPORT
