@@ -87,7 +87,11 @@ void I2SAudioSpeaker::player_task(void *params) {
       break;  // End of audio from main thread
     }
     if (data_event.stop) {
-      break;  // Stop signal from main thread
+      // Stop signal from main thread
+      while (xQueueReceive(this_speaker->buffer_queue_, &data_event, 0) == pdTRUE) {
+        // Flush queue
+      }
+      break;
     }
     size_t bytes_written;
 
@@ -113,6 +117,8 @@ void I2SAudioSpeaker::player_task(void *params) {
     xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
   }
 
+  i2s_zero_dma_buffer(this_speaker->parent_->get_port());
+
   event.type = TaskEventType::STOPPING;
   xQueueSend(this_speaker->event_queue_, &event, portMAX_DELAY);
 
@@ -133,7 +139,7 @@ void I2SAudioSpeaker::stop() {
   this->state_ = speaker::STATE_STOPPING;
   DataEvent data;
   data.stop = true;
-  xQueueSend(this->buffer_queue_, &data, portMAX_DELAY);
+  xQueueSendToFront(this->buffer_queue_, &data, portMAX_DELAY);
 }
 
 void I2SAudioSpeaker::watch_() {
