@@ -89,7 +89,12 @@ void ESP32ArduinoUARTComponent::setup() {
   if (is_default_tx && is_default_rx) {
     this->hw_serial_ = &Serial;
   } else {
-    static uint8_t next_uart_num = 1;
+    static uint8_t next_uart_num = 0;
+#ifdef USE_LOGGER
+    if (logger::global_logger->get_baud_rate() > 0 && logger::global_logger->get_uart() == next_uart_num) {
+      next_uart_num++;
+    }
+#endif
     this->number_ = next_uart_num;
     this->hw_serial_ = new HardwareSerial(next_uart_num++);  // NOLINT(cppcoreguidelines-owning-memory)
   }
