@@ -73,6 +73,7 @@ async def to_code(config):
         config[CONF_SKIP_UPDATES],
         config[CONF_FORCE_NEW_RANGE],
     )
+    print("Generating code for %s" % (config[CONF_ID]))
 
     await cg.register_component(var, config)
     await text_sensor.register_text_sensor(var, config)

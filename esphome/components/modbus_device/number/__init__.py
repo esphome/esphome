@@ -1,10 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import number
-
-from esphome.components.modbus import (
-    SENSOR_VALUE_TYPE,
-)
 from esphome.const import (
     CONF_ADDRESS,
     CONF_ID,
@@ -14,10 +10,13 @@ from esphome.const import (
     CONF_STEP,
 )
 
+from esphome.components.modbus import (
+    MODBUS_REGISTER_TYPE,
+    SENSOR_VALUE_TYPE,
+)
 from .. import (
-    MODBUS_WRITE_REGISTER_TYPE,
     add_modbus_base_properties,
-    modbus_controller_ns,
+    modbus_device_ns,
     modbus_calc_properties,
     ModbusItemBaseSchema,
     SensorItem,
@@ -26,20 +25,17 @@ from .. import (
 from ..const import (
     CONF_BITMASK,
     CONF_CUSTOM_COMMAND,
-    CONF_FORCE_NEW_RANGE,
-    CONF_MODBUS_CONTROLLER_ID,
+    CONF_MODBUS_DEVICE_ID,
     CONF_REGISTER_TYPE,
-    CONF_SKIP_UPDATES,
-    CONF_USE_WRITE_MULTIPLE,
     CONF_VALUE_TYPE,
-    CONF_WRITE_LAMBDA,
+    CONF_READ_LAMBDA,
 )
 
-DEPENDENCIES = ["modbus_controller"]
+DEPENDENCIES = ["modbus_device"]
 CODEOWNERS = ["@martgras"]
 
 
-ModbusNumber = modbus_controller_ns.class_(
+ModbusNumber = modbus_device_ns.class_(
     "ModbusNumber", cg.Component, number.Number, SensorItem
 )
 
@@ -68,17 +64,16 @@ CONFIG_SCHEMA = cv.All(
     .extend(
         {
             cv.Optional(CONF_REGISTER_TYPE, default="holding"): cv.enum(
-                MODBUS_WRITE_REGISTER_TYPE
+                MODBUS_REGISTER_TYPE
             ),
             cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(SENSOR_VALUE_TYPE),
-            cv.Optional(CONF_WRITE_LAMBDA): cv.returning_lambda,
+            cv.Optional(CONF_READ_LAMBDA): cv.returning_lambda,
             # 24 bits are the maximum value for fp32 before precision is lost
             # 0x00FFFFFF = 16777215
             cv.Optional(CONF_MAX_VALUE, default=16777215.0): cv.float_,
             cv.Optional(CONF_MIN_VALUE, default=-16777215.0): cv.float_,
             cv.Optional(CONF_STEP, default=1): cv.positive_float,
             cv.Optional(CONF_MULTIPLY, default=1.0): cv.float_,
-            cv.Optional(CONF_USE_WRITE_MULTIPLE, default=False): cv.boolean,
         }
     ),
     validate_min_max,
@@ -96,8 +91,6 @@ async def to_code(config):
         config[CONF_BITMASK],
         config[CONF_VALUE_TYPE],
         reg_count,
-        config[CONF_SKIP_UPDATES],
-        config[CONF_FORCE_NEW_RANGE],
     )
 
     await cg.register_component(var, config)
@@ -110,20 +103,19 @@ async def to_code(config):
     )
 
     cg.add(var.set_write_multiply(config[CONF_MULTIPLY]))
-    parent = await cg.get_variable(config[CONF_MODBUS_CONTROLLER_ID])
+    parent = await cg.get_variable(config[CONF_MODBUS_DEVICE_ID])
 
     cg.add(var.set_parent(parent))
     cg.add(parent.add_sensor_item(var))
     await add_modbus_base_properties(var, config, ModbusNumber)
-    cg.add(var.set_use_write_mutiple(config[CONF_USE_WRITE_MULTIPLE]))
-    if CONF_WRITE_LAMBDA in config:
+    if CONF_READ_LAMBDA in config:
         template_ = await cg.process_lambda(
-            config[CONF_WRITE_LAMBDA],
+            config[CONF_READ_LAMBDA],
             [
                 (ModbusNumber.operator("ptr"), "item"),
                 (cg.float_, "x"),
-                (cg.std_vector.template(cg.uint16).operator("ref"), "payload"),
+                (cg.std_vector.template(cg.uint16).operator("ref"), "data"),
             ],
             return_type=cg.optional.template(float),
         )
-        cg.add(var.set_write_template(template_))
+        cg.add(var.set_read_template(template_))

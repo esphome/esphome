@@ -272,8 +272,8 @@ std::string format_hex_pretty(const uint8_t *data, size_t length) {
       ret[3 * i + 2] = '.';
   }
   if (length > 4)
-    return ret + " (" + to_string(length) + ")";
-  return ret;
+    return ret + " (" + to_string(length) + ")<uint8_t>";
+  return ret + "<uint8_t>";
 }
 std::string format_hex_pretty(const std::vector<uint8_t> &data) { return format_hex_pretty(data.data(), data.size()); }
 
@@ -291,8 +291,8 @@ std::string format_hex_pretty(const uint16_t *data, size_t length) {
       ret[5 * i + 2] = '.';
   }
   if (length > 4)
-    return ret + " (" + to_string(length) + ")";
-  return ret;
+    return ret + " (" + to_string(length) + ")<uint16_t>";
+  return ret + "<uint16_t>";
 }
 std::string format_hex_pretty(const std::vector<uint16_t> &data) { return format_hex_pretty(data.data(), data.size()); }
 

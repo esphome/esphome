@@ -1,5 +1,9 @@
 from esphome.components import sensor
 import esphome.config_validation as cv
+from esphome.components.modbus import (
+    MODBUS_REGISTER_TYPE,
+    SENSOR_VALUE_TYPE,
+)
 import esphome.codegen as cg
 
 from esphome.const import CONF_ID, CONF_ADDRESS
@@ -10,8 +14,6 @@ from .. import (
     validate_modbus_register,
     ModbusItemBaseSchema,
     SensorItem,
-    MODBUS_REGISTER_TYPE,
-    SENSOR_VALUE_TYPE,
 )
 from ..const import (
     CONF_BITMASK,

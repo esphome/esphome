@@ -7,14 +7,12 @@ from esphome.cpp_helpers import logging
 from .const import (
     CONF_BITMASK,
     CONF_BYTE_OFFSET,
-    CONF_COMMAND_THROTTLE,
     CONF_CUSTOM_COMMAND,
     CONF_FORCE_NEW_RANGE,
-    CONF_MODBUS_CONTROLLER_ID,
+    CONF_MODBUS_DEVICE_ID,
     CONF_REGISTER_COUNT,
     CONF_REGISTER_TYPE,
     CONF_RESPONSE_SIZE,
-    CONF_SKIP_UPDATES,
     CONF_VALUE_TYPE,
 )
 
@@ -29,12 +27,12 @@ AUTO_LOAD = ["modbus"]
 
 MULTI_CONF = True
 
-modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
-ModbusController = modbus_controller_ns.class_(
-    "ModbusController", cg.PollingComponent, modbus.ModbusDevice
+modbus_device_ns = cg.esphome_ns.namespace("modbus_device")
+ModbusDevice = modbus_device_ns.class_(
+    "ModbusDevice", cg.PollingComponent, modbus.ModbusDevice
 )
 
-SensorItem = modbus_controller_ns.struct("SensorItem")
+SensorItem = modbus_device_ns.struct("SensorItem")
 
 
 _LOGGER = logging.getLogger(__name__)
@@ -42,26 +40,16 @@ _LOGGER = logging.getLogger(__name__)
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(ModbusController),
-            cv.Optional(
-                CONF_COMMAND_THROTTLE, default="0ms"
-            ): cv.positive_time_period_milliseconds,
+            cv.GenerateID(): cv.declare_id(ModbusDevice),
         }
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(modbus.modbus_device_schema(0x01))
 )
 
-
-def skip_updates(value):
-    if value == "always":
-        return 32767
-    return value
-
-
 ModbusItemBaseSchema = cv.Schema(
     {
-        cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
+        cv.GenerateID(CONF_MODBUS_DEVICE_ID): cv.use_id(ModbusDevice),
         cv.Optional(CONF_ADDRESS): cv.positive_int,
         cv.Optional(CONF_CUSTOM_COMMAND): cv.ensure_list(cv.hex_uint8_t),
         cv.Exclusive(
@@ -75,7 +63,6 @@ ModbusItemBaseSchema = cv.Schema(
             f"{CONF_OFFSET} and {CONF_BYTE_OFFSET} can't be used together",
         ): cv.positive_int,
         cv.Optional(CONF_BITMASK, default=0xFFFFFFFF): cv.hex_uint32_t,
-        cv.Optional(CONF_SKIP_UPDATES, default=0): skip_updates,
         cv.Optional(CONF_FORCE_NEW_RANGE, default=False): cv.boolean,
         cv.Optional(CONF_LAMBDA): cv.returning_lambda,
         cv.Optional(CONF_RESPONSE_SIZE, default=0): cv.positive_int,
@@ -154,8 +141,8 @@ async def add_modbus_base_properties(
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID], config[CONF_COMMAND_THROTTLE])
-    cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
+    var = cg.new_Pvariable(config[CONF_ID])
+    # cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
     await register_modbus_device(var, config)
 
 
