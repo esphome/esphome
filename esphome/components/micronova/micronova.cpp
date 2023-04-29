@@ -119,7 +119,6 @@ void MicroNovaSwitch::write_state(bool state) {
 ///////////////////////////////////////////////////////////////////////////////
 // MicroNova members
 void MicroNova::setup() {
-  int val=-1;
 
   if (this->enable_rx_pin_ != nullptr) {
     this->enable_rx_pin_->setup();
@@ -148,8 +147,6 @@ void MicroNova::dump_config() {
 }
 
 void MicroNova::update() {
-
-  int val=0;
 
   for (auto & mv_sensor : this->micronova_sensors_) {
     mv_sensor->read_value_from_stove();
