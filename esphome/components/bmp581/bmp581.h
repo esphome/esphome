@@ -87,11 +87,11 @@ class BMP581Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
 
-  Oversampling temperature_oversampling_{OVERSAMPLING_NONE};
-  Oversampling pressure_oversampling_{OVERSAMPLING_X16};
+  Oversampling temperature_oversampling_;
+  Oversampling pressure_oversampling_;
 
-  IIRFilter iir_temperature_level_{IIR_FILTER_OFF};
-  IIRFilter iir_pressure_level_{IIR_FILTER_OFF};
+  IIRFilter iir_temperature_level_;
+  IIRFilter iir_pressure_level_;
 
   // Checks if the BMP581 has measurement data ready by checking the sensor's interrupts
   bool check_data_readiness_();
