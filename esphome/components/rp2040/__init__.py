@@ -102,7 +102,7 @@ def _parse_platform_version(value):
     try:
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
-        return f"platformio/raspberrypi @ {value}"
+        return f"platformio/raspberrypi@{value}"
     except cv.Invalid:
         return value
 
@@ -148,7 +148,7 @@ async def to_code(config):
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
-        [f"earlephilhower/framework-arduinopico @ {conf[CONF_SOURCE]}"],
+        [f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}"],
     )
 
     cg.add_platformio_option("board_build.core", "earlephilhower")
