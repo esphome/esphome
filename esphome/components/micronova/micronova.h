@@ -23,76 +23,75 @@ class MicroNova;
 // Base MicroNova function class. Stove functions (buttons, switches, sensors,.. )
 // Are derived from this
 class MicroNovaFunction {
-  public:
-    MicroNovaFunction (MicroNova *m) { micronova_ = m; }
-    virtual void read_value_from_stove();
-    void set_micronova_object(MicroNova *m) { micronova_ = m; }
+ public:
+  MicroNovaFunction(MicroNova *m) { micronova_ = m; }
+  virtual void read_value_from_stove();
+  void set_micronova_object(MicroNova *m) { micronova_ = m; }
 
-    void set_function(uint8_t f) { function_ = f; }
-    uint8_t get_function() { return function_; }
+  void set_function(uint8_t f) { function_ = f; }
+  uint8_t get_function() { return function_; }
 
-    void set_memory_location(uint8_t f) { memory_location_ = f; }
-    uint8_t get_memory_location() { return memory_location_; }
+  void set_memory_location(uint8_t f) { memory_location_ = f; }
+  uint8_t get_memory_location() { return memory_location_; }
 
-    void set_memory_address(uint8_t f) { memory_address_ = f; }
-    uint8_t get_memory_address() { return memory_address_; }
+  void set_memory_address(uint8_t f) { memory_address_ = f; }
+  uint8_t get_memory_address() { return memory_address_; }
 
-    uint8_t get_current_data() { return current_data_; }
+  uint8_t get_current_data() { return current_data_; }
 
-  protected:
-    MicroNova *micronova_{nullptr};
-    uint8_t function_=0;
-    uint8_t memory_location_=0;
-    uint8_t memory_address_=0;
-    float current_data_=0;
+ protected:
+  MicroNova *micronova_{nullptr};
+  uint8_t function_ = 0;
+  uint8_t memory_location_ = 0;
+  uint8_t memory_address_ = 0;
+  float current_data_ = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 // MicroNovaSensor
-class MicroNovaSensor : public sensor::Sensor, public MicroNovaFunction  {
-  public:
-    MicroNovaSensor(MicroNova *m) : MicroNovaFunction(m) {}
-    void read_value_from_stove() override;
+class MicroNovaSensor : public sensor::Sensor, public MicroNovaFunction {
+ public:
+  MicroNovaSensor(MicroNova *m) : MicroNovaFunction(m) {}
+  void read_value_from_stove() override;
 
-    void set_fan_speed_offset(uint8_t f) { fan_speed_offset_ = f; }
-    uint8_t get_set_fan_speed_offset() { return fan_speed_offset_; }
+  void set_fan_speed_offset(uint8_t f) { fan_speed_offset_ = f; }
+  uint8_t get_set_fan_speed_offset() { return fan_speed_offset_; }
 
-  protected:
-    int fan_speed_offset_=0;
+ protected:
+  int fan_speed_offset_ = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 // MicroNovaTextSensor
-class MicroNovaTextSensor : public text_sensor::TextSensor, public MicroNovaFunction  {
-  public:
+class MicroNovaTextSensor : public text_sensor::TextSensor, public MicroNovaFunction {
+ public:
   MicroNovaTextSensor(MicroNova *m) : MicroNovaFunction(m) {}
   void read_value_from_stove() override;
-
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 // MicroNovaButton
-class MicroNovaButton : public Component, public button::Button, public MicroNovaFunction  {
+class MicroNovaButton : public Component, public button::Button, public MicroNovaFunction {
  public:
   MicroNovaButton(MicroNova *m) : MicroNovaFunction(m) {}
   void dump_config() override { LOG_BUTTON("", "Micronova button", this); }
-  void read_value_from_stove() override {};
+  void read_value_from_stove() override{};
 
   void set_memory_data(uint8_t f) { memory_data_ = f; }
   uint8_t get_memory_data() { return memory_data_; }
 
  protected:
   void press_action() override;
-  uint8_t memory_data_=0;
+  uint8_t memory_data_ = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
 // MicroNovaSwitch
-class MicroNovaSwitch : public Component, public switch_::Switch, public  MicroNovaFunction  {
+class MicroNovaSwitch : public Component, public switch_::Switch, public MicroNovaFunction {
  public:
   MicroNovaSwitch(MicroNova *m) : MicroNovaFunction(m) {}
   void dump_config() override { LOG_SWITCH("", "Micronova switch", this); }
-  void read_value_from_stove() override {};
+  void read_value_from_stove() override{};
 
   void set_memory_data_on(uint8_t f) { memory_data_on_ = f; }
   uint8_t get_memory_data_on() { return memory_data_on_; }
@@ -100,12 +99,10 @@ class MicroNovaSwitch : public Component, public switch_::Switch, public  MicroN
   void set_memory_data_off(uint8_t f) { memory_data_off_ = f; }
   uint8_t get_memory_data_off() { return memory_data_off_; }
 
-
  protected:
   void write_state(bool state) override;
-  uint8_t memory_data_on_=0;
-  uint8_t memory_data_off_=0;
-
+  uint8_t memory_data_on_ = 0;
+  uint8_t memory_data_off_ = 0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -119,7 +116,7 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
   void dump_config() override;
 
   int read_address(uint8_t addr, uint8_t reg);
-  void write_address(uint8_t location,uint8_t address,uint8_t data);
+  void write_address(uint8_t location, uint8_t address, uint8_t data);
 
   void set_enable_rx_pin(GPIOPin *enable_rx_pin) { this->enable_rx_pin_ = enable_rx_pin; }
   void set_scan_memory_location(uint8_t m) { this->scan_memory_location_ = m; }
@@ -133,7 +130,7 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
   void set_temp_up_button(MicroNovaButton *b) { temp_up_button_ = b; };
   void set_temp_down_button(MicroNovaButton *b) { temp_down_button_ = b; };
   void set_stove_switch(MicroNovaSwitch *s) { stove_switch_ = s; };
-  MicroNovaSwitch* get_stove_switch() { return stove_switch_; }
+  MicroNovaSwitch *get_stove_switch() { return stove_switch_; }
 
   void add_sensor(MicroNovaFunction *s) { micronova_sensors_.push_back(s); }
 
@@ -144,12 +141,11 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
   GPIOPin *enable_rx_pin_{nullptr};
   int scan_memory_location_ = -1;
 
-  std::vector<MicroNovaFunction*> micronova_sensors_;
+  std::vector<MicroNovaFunction *> micronova_sensors_;
 
   MicroNovaButton *temp_up_button_{nullptr};
   MicroNovaButton *temp_down_button_{nullptr};
   MicroNovaSwitch *stove_switch_{nullptr};
-
 };
 }  // namespace micronova
 }  // namespace esphome
