@@ -72,7 +72,7 @@ void BMP581Component::dump_config() {
     case NONE:
       break;
     case ERROR_COMMUNICATION_FAILED:
-      ESP_LOGE(TAG, "  Communication with BM581 failed!");
+      ESP_LOGE(TAG, "  Communication with BMP581 failed!");
       break;
     case ERROR_WRONG_CHIP_ID:
       ESP_LOGE(TAG, "  BMP581 has wrong chip ID - please verify you are using a BMP 581");
