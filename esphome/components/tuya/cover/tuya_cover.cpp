@@ -128,6 +128,7 @@ void TuyaCover::dump_config() {
 
 cover::CoverTraits TuyaCover::get_traits() {
   auto traits = cover::CoverTraits();
+  traits.set_supports_stop(true);
   traits.set_supports_position(true);
   return traits;
 }

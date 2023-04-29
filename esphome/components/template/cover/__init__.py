@@ -73,6 +73,7 @@ async def to_code(config):
         await automation.build_automation(
             var.get_stop_trigger(), [], config[CONF_STOP_ACTION]
         )
+        cg.add(var.set_has_stop(True))
     if CONF_TILT_ACTION in config:
         await automation.build_automation(
             var.get_tilt_trigger(), [(float, "tilt")], config[CONF_TILT_ACTION]
