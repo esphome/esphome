@@ -1188,6 +1188,7 @@ bool Sprinkler::any_controller_is_active() {
       }
     }
   }
+  return false;
 }
 
 SprinklerControllerSwitch *Sprinkler::control_switch(size_t valve_number) {
