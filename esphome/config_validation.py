@@ -211,6 +211,9 @@ RESERVED_IDS = [
     "open",
     "setup",
     "loop",
+    "uart0",
+    "uart1",
+    "uart2",
 ]
 
 
@@ -1097,7 +1100,7 @@ def possibly_negative_percentage(value):
     if isinstance(value, str):
         try:
             if value.endswith("%"):
-                has_percent_sign = False
+                has_percent_sign = True
                 value = float(value[:-1].rstrip()) / 100.0
             else:
                 value = float(value)
@@ -1511,6 +1514,8 @@ def _entity_base_validator(config):
         config[CONF_NAME] = id.id
         config[CONF_INTERNAL] = True
         return config
+    if config[CONF_NAME] is None:
+        config[CONF_NAME] = ""
     return config
 
 
@@ -1568,6 +1573,23 @@ def validate_registry_entry(name, registry):
         return value
 
     return validator
+
+
+def none(value):
+    if value in ("none", "None"):
+        return None
+    if boolean(value) is False:
+        return None
+    raise Invalid("Must be none")
+
+
+def requires_friendly_name(message):
+    def validate(value):
+        if CORE.friendly_name is None:
+            raise Invalid(message)
+        return value
+
+    return validate
 
 
 def validate_registry(name, registry):
@@ -1629,7 +1651,15 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
 
 ENTITY_BASE_SCHEMA = Schema(
     {
-        Optional(CONF_NAME): string,
+        Optional(CONF_NAME): Any(
+            All(
+                none,
+                requires_friendly_name(
+                    "Name cannot be None when esphome->friendly_name is not set!"
+                ),
+            ),
+            string,
+        ),
         Optional(CONF_INTERNAL): boolean,
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,

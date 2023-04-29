@@ -305,7 +305,7 @@ bool CS5460AComponent::check_status_() {
       voltage_sensor_->publish_state(raw_voltage * voltage_multiplier_);
 
     if (power_sensor_ != nullptr && raw_energy != prev_raw_energy_) {
-      int32_t raw = (int32_t)(raw_energy << 8) >> 8; /* Sign-extend */
+      int32_t raw = (int32_t) (raw_energy << 8) >> 8; /* Sign-extend */
       power_sensor_->publish_state(raw * power_multiplier_);
       prev_raw_energy_ = raw_energy;
     }

@@ -120,8 +120,9 @@ class Rect {
   void extend(Rect rect);
   void shrink(Rect rect);
 
-  bool inside(Rect rect, bool absolute = false);
-  bool inside(int16_t x, int16_t y, bool absolute = false);
+  bool inside(Rect rect, bool absolute = true);
+  bool inside(int16_t test_x, int16_t test_y, bool absolute = true);
+  bool equal(Rect rect);
   void info(const std::string &prefix = "rect info:");
 };
 
@@ -526,12 +527,10 @@ class Font {
   inline int get_baseline() { return this->baseline_; }
   inline int get_height() { return this->height_; }
 
-  Glyph *&get_glyphs() { return this->glyphs_; }
-  const u_int16_t &get_glyphs_size() const { return this->glyphs_size_; }
+  const std::vector<Glyph, ExternalRAMAllocator<Glyph>> &get_glyphs() const { return glyphs_; }
 
  protected:
-  Glyph *glyphs_{nullptr};
-  u_int16_t glyphs_size_;
+  std::vector<Glyph, ExternalRAMAllocator<Glyph>> glyphs_;
   int baseline_;
   int height_;
 };

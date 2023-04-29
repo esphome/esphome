@@ -10,7 +10,7 @@ CONFLICTS_WITH = ["esp32_ble_beacon"]
 
 CONF_BLE_ID = "ble_id"
 
-NO_BLUTOOTH_VARIANTS = [const.VARIANT_ESP32S2]
+NO_BLUETOOTH_VARIANTS = [const.VARIANT_ESP32S2]
 
 esp32_ble_ns = cg.esphome_ns.namespace("esp32_ble")
 ESP32BLE = esp32_ble_ns.class_("ESP32BLE", cg.Component)
@@ -29,7 +29,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 def validate_variant(_):
     variant = get_esp32_variant()
-    if variant in NO_BLUTOOTH_VARIANTS:
+    if variant in NO_BLUETOOTH_VARIANTS:
         raise cv.Invalid(f"{variant} does not support Bluetooth")
 
 
