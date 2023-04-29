@@ -22,10 +22,13 @@ void MicroNovaSensor::read_value_from_stove() {
   this->current_data_ = (float) val;
   switch (this->get_function()) {
     case STOVE_FUNCTION_ROOM_TEMPERATURE:
-        this->current_data_ = (float)this->current_data_/2;
+      this->current_data_ = (float)this->current_data_/2;
       break;
-    case STOVE_FUNCTION_FUMES_SPEED:
-        this->current_data_ = this->current_data_==0 ? 0 : (this->current_data_ * 10) + this->fumes_speed_offset_ ;
+    case STOVE_FUNCTION_THERMOSTAT_TEMPERATURE:
+      this->micronova_->set_thermostat_temperature(val);
+      break;
+    case STOVE_FUNCTION_FAN_SPEED:
+      this->current_data_ = this->current_data_==0 ? 0 : (this->current_data_ * 10) + this->fan_speed_offset_ ;
       break;
     default:
       break;
@@ -37,25 +40,26 @@ void MicroNovaSensor::read_value_from_stove() {
 ///////////////////////////////////////////////////////////////////////////////
 // MicroNovaTextSensor members
 void MicroNovaTextSensor::read_value_from_stove() {
-  int val=0;
+  int val=-1;
+
+  val = this->micronova_->read_address(this->memory_location_,this->memory_address_);
+
+  if ( val == -1 ) {
+    this->publish_state("unknown");
+    return;
+  }
 
   switch (this->get_function()) {
     case STOVE_FUNCTION_STOVE_STATE:
-      val = this->micronova_->read_address(this->memory_location_,this->memory_address_);
-      if ( val == -1 || val > 10) {
-        this->publish_state("unknown");
-      }
-      else {
-        this->micronova_->set_current_stove_state(val);
-        this->publish_state( STOVE_STATES[val] );
-        // set the stove switch to on for any value but 0
-        if ( val != 0 && this->micronova_->get_stove_switch() != nullptr && !this->micronova_->get_stove_switch()->state )
-          this->micronova_->get_stove_switch()->publish_state(true);
-        else if ( val == 0 && this->micronova_->get_stove_switch() != nullptr && this->micronova_->get_stove_switch()->state)
-          this->micronova_->get_stove_switch()->publish_state(false);
+      this->micronova_->set_current_stove_state(val);
+      this->publish_state( STOVE_STATES[val] );
+      // set the stove switch to on for any value but 0
+      if ( val != 0 && this->micronova_->get_stove_switch() != nullptr && !this->micronova_->get_stove_switch()->state ) {
+        this->micronova_->get_stove_switch()->publish_state(true);
+      } else if ( val == 0 && this->micronova_->get_stove_switch() != nullptr && this->micronova_->get_stove_switch()->state) {
+        this->micronova_->get_stove_switch()->publish_state(false);
       }
       break;
-
     default:
       break;
   }
@@ -165,24 +169,27 @@ void MicroNova::write_address(uint8_t location,uint8_t address,uint8_t data) {
   write_data[3] = 0x00;
 
   checksum = write_data[0] + write_data[1] + write_data[2];
-  if ( checksum >= 256 )
+  if ( checksum >= 256 ) {
     write_data[3] = checksum - 256;
-  else
+  } else {
     write_data[3] = checksum;
+  }
 
   ESP_LOGD(TAG, "Write 4 bytes [%02X,%02X,%02X,%02X]",write_data[0],write_data[1],write_data[2],write_data[3]);
   this->enable_rx_pin_->digital_write(true);
   this->write_array(write_data,4);
   this->flush();
   this->enable_rx_pin_->digital_write(false);
-  delay(100);
+  // Give the stove some time to reply
+  delay(STOVE_REPLY_DELAY);// NOLINT
 
   while ( this->available() ) {
     this->read_byte(&c);
-    if ( i < 2)
+    if ( i < 2) {
       reply_data[i] = c;
-    else
+    } else {
       ESP_LOGW(TAG,"Received extra byte (%d), data %02X",i,c);
+    }
     i++;
   }
   this->enable_rx_pin_->digital_write(true);
@@ -200,14 +207,16 @@ int MicroNova::read_address(uint8_t addr, uint8_t reg){
   this->write_byte(reg);
   this->flush();
   this->enable_rx_pin_->digital_write(false);
-  delay(100);
+  // Give the stove some time to reply
+  delay(STOVE_REPLY_DELAY);// NOLINT
 
   while ( this->available() ) {
     this->read_byte(&c);
-    if ( i < 2)
+    if ( i < 2) {
       data[i] = c;
-    else
+    } else {
       ESP_LOGW(TAG,"Received extra byte (%d), data 0x%02X",i,c);
+    }
     i++;
   }
   this->enable_rx_pin_->digital_write(true);
@@ -218,4 +227,3 @@ int MicroNova::read_address(uint8_t addr, uint8_t reg){
 
 }  // namespace micronova
 }  // namespace esphome
-

@@ -15,6 +15,7 @@ namespace esphome {
 namespace micronova {
 
 static const char *const TAG = "micronova";
+static const int STOVE_REPLY_DELAY = 50;
 
 class MicroNova;
 
@@ -53,11 +54,11 @@ class MicroNovaSensor : public sensor::Sensor, public MicroNovaFunction  {
     MicroNovaSensor(MicroNova *m) : MicroNovaFunction(m) {}
     void read_value_from_stove() override;
 
-    void set_fumes_speed_offset(uint8_t f) { fumes_speed_offset_ = f; }
-    uint8_t get_set_fumes_speed_offset() { return fumes_speed_offset_; }
-  
+    void set_fan_speed_offset(uint8_t f) { fan_speed_offset_ = f; }
+    uint8_t get_set_fan_speed_offset() { return fan_speed_offset_; }
+
   protected:
-    int fumes_speed_offset_=0;
+    int fan_speed_offset_=0;
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -111,7 +112,7 @@ class MicroNovaSwitch : public Component, public switch_::Switch, public  MicroN
 // Main MicroNova class.
 class MicroNova : public PollingComponent, public uart::UARTDevice {
  public:
-  MicroNova(uart::UARTComponent *uart) : uart::UARTDevice(uart), PollingComponent() {}
+  MicroNova(uart::UARTComponent *uart) : uart::UARTDevice(uart) {}
 
   void setup() override;
   void update() override;
@@ -126,6 +127,7 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
   void set_current_stove_state(uint8_t s) { current_stove_state_ = s; }
   uint8_t get_current_stove_state() { return current_stove_state_; }
 
+  void set_thermostat_temperature(uint8_t t) { current_thermostat_temperature_ = t; }
   uint8_t get_thermostat_temperature() { return current_thermostat_temperature_; }
 
   void set_temp_up_button(MicroNovaButton *b) { temp_up_button_ = b; };
@@ -137,7 +139,7 @@ class MicroNova : public PollingComponent, public uart::UARTDevice {
 
  protected:
   uint8_t current_stove_state_ = 0;
-  uint8_t current_thermostat_temperature_ = 0;
+  uint8_t current_thermostat_temperature_ = 20;
 
   GPIOPin *enable_rx_pin_{nullptr};
   int scan_memory_location_ = -1;
