@@ -17,26 +17,29 @@ debug_ns = cg.esphome_ns.namespace("debug")
 DebugComponent = debug_ns.class_("DebugComponent", cg.PollingComponent)
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(DebugComponent),
-        cv.Optional(CONF_DEVICE): cv.invalid(
-            "The 'device' option has been moved to the 'debug' text_sensor component"
-        ),
-        cv.Optional(CONF_FREE): cv.invalid(
-            "The 'free' option has been moved to the 'debug' sensor component"
-        ),
-        cv.Optional(CONF_BLOCK): cv.invalid(
-            "The 'block' option has been moved to the 'debug' sensor component"
-        ),
-        cv.Optional(CONF_FRAGMENTATION): cv.invalid(
-            "The 'fragmentation' option has been moved to the 'debug' sensor component"
-        ),
-        cv.Optional(CONF_LOOP_TIME): cv.invalid(
-            "The 'loop_time' option has been moved to the 'debug' sensor component"
-        ),
-    }
-).extend(cv.polling_component_schema("60s"))
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(DebugComponent),
+            cv.Optional(CONF_DEVICE): cv.invalid(
+                "The 'device' option has been moved to the 'debug' text_sensor component"
+            ),
+            cv.Optional(CONF_FREE): cv.invalid(
+                "The 'free' option has been moved to the 'debug' sensor component"
+            ),
+            cv.Optional(CONF_BLOCK): cv.invalid(
+                "The 'block' option has been moved to the 'debug' sensor component"
+            ),
+            cv.Optional(CONF_FRAGMENTATION): cv.invalid(
+                "The 'fragmentation' option has been moved to the 'debug' sensor component"
+            ),
+            cv.Optional(CONF_LOOP_TIME): cv.invalid(
+                "The 'loop_time' option has been moved to the 'debug' sensor component"
+            ),
+        }
+    ).extend(cv.polling_component_schema("60s")),
+    cv.only_on(["esp32", "esp8266"]),
+)
 
 
 async def to_code(config):
