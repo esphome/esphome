@@ -63,7 +63,7 @@ RUN \
 COPY requirements.txt requirements_optional.txt script/platformio_install_deps.py platformio.ini /
 RUN \
     pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
-    && /platformio_install_deps.py /platformio.ini
+    && /platformio_install_deps.py /platformio.ini --libraries
 
 
 # ======================= docker-type image =======================
