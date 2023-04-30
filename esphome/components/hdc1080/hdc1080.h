@@ -21,8 +21,8 @@ class HDC1080Component : public PollingComponent, public i2c::I2CDevice {
   float get_setup_priority() const override;
 
  protected:
-  sensor::Sensor *temperature_;
-  sensor::Sensor *humidity_;
+  sensor::Sensor *temperature_{nullptr};
+  sensor::Sensor *humidity_{nullptr};
 };
 
 }  // namespace hdc1080

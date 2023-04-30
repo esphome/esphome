@@ -36,11 +36,24 @@ static esp_ble_adv_params_t ble_adv_params = {
 #define ENDIAN_CHANGE_U16(x) ((((x) &0xFF00) >> 8) + (((x) &0xFF) << 8))
 
 static const esp_ble_ibeacon_head_t IBEACON_COMMON_HEAD = {
-    .flags = {0x02, 0x01, 0x06}, .length = 0x1A, .type = 0xFF, .company_id = 0x004C, .beacon_type = 0x1502};
+    .flags = {0x02, 0x01, 0x06}, .length = 0x1A, .type = 0xFF, .company_id = {0x4C, 0x00}, .beacon_type = {0x02, 0x15}};
 
 void ESP32BLEBeacon::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 BLE Beacon:");
-  ESP_LOGCONFIG(TAG, "  Major: %u, Minor: %u", this->major_, this->minor_);
+  char uuid[37];
+  char *bpos = uuid;
+  for (int8_t ii = 0; ii < 16; ++ii) {
+    bpos += sprintf(bpos, "%02X", this->uuid_[ii]);
+    if (ii == 3 || ii == 5 || ii == 7 || ii == 9) {
+      bpos += sprintf(bpos, "-");
+    }
+  }
+  uuid[36] = '\0';
+  ESP_LOGCONFIG(TAG,
+                "  UUID: %s, Major: %u, Minor: %u, Min Interval: %ums, Max Interval: %ums, Measured Power: %d"
+                ", TX Power: %ddBm",
+                uuid, this->major_, this->minor_, this->min_interval_, this->max_interval_, this->measured_power_,
+                this->tx_power_);
 }
 
 void ESP32BLEBeacon::setup() {
@@ -67,6 +80,9 @@ void ESP32BLEBeacon::ble_core_task(void *params) {
 }
 
 void ESP32BLEBeacon::ble_setup() {
+  ble_adv_params.adv_int_min = static_cast<uint16_t>(global_esp32_ble_beacon->min_interval_ / 0.625f);
+  ble_adv_params.adv_int_max = static_cast<uint16_t>(global_esp32_ble_beacon->max_interval_ / 0.625f);
+
   // Initialize non-volatile storage for the bluetooth controller
   esp_err_t err = nvs_flash_init();
   if (err != ESP_OK) {
@@ -118,6 +134,12 @@ void ESP32BLEBeacon::ble_setup() {
     ESP_LOGE(TAG, "esp_bluedroid_enable failed: %d", err);
     return;
   }
+  err = esp_ble_tx_power_set(ESP_BLE_PWR_TYPE_ADV,
+                             static_cast<esp_power_level_t>((global_esp32_ble_beacon->tx_power_ + 12) / 3));
+  if (err != ESP_OK) {
+    ESP_LOGE(TAG, "esp_ble_tx_power_set failed: %s", esp_err_to_name(err));
+    return;
+  }
   err = esp_ble_gap_register_callback(ESP32BLEBeacon::gap_event_handler);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_register_callback failed: %d", err);
@@ -130,7 +152,7 @@ void ESP32BLEBeacon::ble_setup() {
          sizeof(ibeacon_adv_data.ibeacon_vendor.proximity_uuid));
   ibeacon_adv_data.ibeacon_vendor.minor = ENDIAN_CHANGE_U16(global_esp32_ble_beacon->minor_);
   ibeacon_adv_data.ibeacon_vendor.major = ENDIAN_CHANGE_U16(global_esp32_ble_beacon->major_);
-  ibeacon_adv_data.ibeacon_vendor.measured_power = 0xC5;
+  ibeacon_adv_data.ibeacon_vendor.measured_power = static_cast<uint8_t>(global_esp32_ble_beacon->measured_power_);
 
   esp_ble_gap_config_adv_data_raw((uint8_t *) &ibeacon_adv_data, sizeof(ibeacon_adv_data));
 }
@@ -153,7 +175,7 @@ void ESP32BLEBeacon::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap
       break;
     }
     case ESP_GAP_BLE_ADV_STOP_COMPLETE_EVT: {
-      err = param->adv_start_cmpl.status;
+      err = param->adv_stop_cmpl.status;
       if (err != ESP_BT_STATUS_SUCCESS) {
         ESP_LOGE(TAG, "BLE adv stop failed: %s", esp_err_to_name(err));
       } else {

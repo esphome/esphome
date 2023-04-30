@@ -5,6 +5,8 @@
 #include "api_pb2.h"
 #include "api_server.h"
 
+#include <vector>
+
 namespace esphome {
 namespace api {
 

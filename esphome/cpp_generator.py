@@ -2,28 +2,26 @@ import abc
 import inspect
 import math
 import re
-from esphome.yaml_util import ESPHomeDataBase
+from collections.abc import Generator, Sequence
+from typing import Any, Callable, Optional, Union
 
-# pylint: disable=unused-import, wrong-import-order
-from typing import Any, Generator, List, Optional, Tuple, Type, Union, Sequence
-
-from esphome.core import (  # noqa
+from esphome.core import (
     CORE,
-    HexInt,
     ID,
+    Define,
+    EnumValue,
+    HexInt,
     Lambda,
+    Library,
     TimePeriod,
     TimePeriodMicroseconds,
     TimePeriodMilliseconds,
     TimePeriodMinutes,
     TimePeriodSeconds,
-    coroutine,
-    Library,
-    Define,
-    EnumValue,
 )
 from esphome.helpers import cpp_string_escape, indent_all_but_first_and_last
 from esphome.util import OrderedDict
+from esphome.yaml_util import ESPHomeDataBase
 
 
 class Expression(abc.ABC):
@@ -44,9 +42,9 @@ SafeExpType = Union[
     int,
     float,
     TimePeriod,
-    Type[bool],
-    Type[int],
-    Type[float],
+    type[bool],
+    type[int],
+    type[float],
     Sequence[Any],
 ]
 
@@ -140,7 +138,7 @@ class CallExpression(Expression):
 class StructInitializer(Expression):
     __slots__ = ("base", "args")
 
-    def __init__(self, base: Expression, *args: Tuple[str, Optional[SafeExpType]]):
+    def __init__(self, base: Expression, *args: tuple[str, Optional[SafeExpType]]):
         self.base = base
         # TODO: args is always a Tuple, is this check required?
         if not isinstance(args, OrderedDict):
@@ -176,10 +174,9 @@ class ArrayInitializer(Expression):
         if not self.args:
             return "{}"
         if self.multiline:
-            cpp = "{\n"
-            for arg in self.args:
-                cpp += f"  {arg},\n"
-            cpp += "}"
+            cpp = "{\n  "
+            cpp += ",\n  ".join(str(arg) for arg in self.args)
+            cpp += ",\n}"
         else:
             cpp = f"{{{', '.join(str(arg) for arg in self.args)}}}"
         return cpp
@@ -200,7 +197,7 @@ class ParameterListExpression(Expression):
     __slots__ = ("parameters",)
 
     def __init__(
-        self, *parameters: Union[ParameterExpression, Tuple[SafeExpType, str]]
+        self, *parameters: Union[ParameterExpression, tuple[SafeExpType, str]]
     ):
         self.parameters = []
         for parameter in parameters:
@@ -468,7 +465,9 @@ def statement(expression: Union[Expression, Statement]) -> Statement:
     return ExpressionStatement(expression)
 
 
-def variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
+def variable(
+    id_: ID, rhs: SafeExpType, type_: "MockObj" = None, register=True
+) -> "MockObj":
     """Declare a new variable, not pointer type, in the code generation.
 
     :param id_: The ID used to declare the variable.
@@ -485,8 +484,35 @@ def variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
         id_.type = type_
     assignment = AssignmentExpression(id_.type, "", id_, rhs)
     CORE.add(assignment)
-    CORE.register_variable(id_, obj)
+    if register:
+        CORE.register_variable(id_, obj)
     return obj
+
+
+def with_local_variable(
+    id_: ID, rhs: SafeExpType, callback: Callable[["MockObj"], None], *args
+) -> None:
+    """Declare a new variable, not pointer type, in the code generation, within a scoped block
+    The variable is only usable within the callback
+    The callback cannot be async.
+
+    :param id_: The ID used to declare the variable.
+    :param rhs: The expression to place on the right hand side of the assignment.
+    :param callback: The function to invoke that will receive the temporary variable
+    :param args: args to pass to the callback in addition to the temporary variable
+
+    """
+
+    # throw if the callback is async:
+    assert not inspect.iscoroutinefunction(
+        callback
+    ), "with_local_variable() callback cannot be async!"
+
+    CORE.add(RawStatement("{"))  # output opening curly brace
+    obj = variable(id_, rhs, None, True)
+    # invoke user-provided callback to generate code with this local variable
+    callback(obj, *args)
+    CORE.add(RawStatement("}"))  # output closing curly brace
 
 
 def new_variable(id_: ID, rhs: SafeExpType, type_: "MockObj" = None) -> "MockObj":
@@ -590,7 +616,7 @@ def add_define(name: str, value: SafeExpType = None):
         CORE.add_define(Define(name, safe_exp(value)))
 
 
-def add_platformio_option(key: str, value: Union[str, List[str]]):
+def add_platformio_option(key: str, value: Union[str, list[str]]):
     CORE.add_platformio_option(key, value)
 
 
@@ -607,7 +633,7 @@ async def get_variable(id_: ID) -> "MockObj":
     return await CORE.get_variable(id_)
 
 
-async def get_variable_with_full_id(id_: ID) -> Tuple[ID, "MockObj"]:
+async def get_variable_with_full_id(id_: ID) -> tuple[ID, "MockObj"]:
     """
     Wait for the given ID to be defined in the code generation and
     return it as a MockObj.
@@ -622,7 +648,7 @@ async def get_variable_with_full_id(id_: ID) -> Tuple[ID, "MockObj"]:
 
 async def process_lambda(
     value: Lambda,
-    parameters: List[Tuple[SafeExpType, str]],
+    parameters: list[tuple[SafeExpType, str]],
     capture: str = "=",
     return_type: SafeExpType = None,
 ) -> Generator[LambdaExpression, None, None]:
@@ -676,7 +702,7 @@ def is_template(value):
 
 async def templatable(
     value: Any,
-    args: List[Tuple[SafeExpType, str]],
+    args: list[tuple[SafeExpType, str]],
     output_type: Optional[SafeExpType],
     to_exp: Any = None,
 ):
@@ -724,7 +750,7 @@ class MockObj(Expression):
             attr = attr[1:]
         return MockObj(f"{self.base}{self.op}{attr}", next_op)
 
-    def __call__(self, *args):  # type: (SafeExpType) -> MockObj
+    def __call__(self, *args: SafeExpType) -> "MockObj":
         call = CallExpression(self.base, *args)
         return MockObj(call, self.op)
 

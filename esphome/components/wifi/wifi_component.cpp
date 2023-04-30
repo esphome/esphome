@@ -1,4 +1,5 @@
 #include "wifi_component.h"
+#include <cinttypes>
 
 #if defined(USE_ESP32) || defined(USE_ESP_IDF)
 #include <esp_wifi.h>
@@ -35,10 +36,12 @@ float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
 void WiFiComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up WiFi...");
+  ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   this->last_connected_ = millis();
   this->wifi_pre_setup_();
 
-  uint32_t hash = fnv1_hash(App.get_compilation_time());
+  uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
+
   this->pref_ = global_preferences->make_preference<wifi::SavedWifiSettings>(hash, true);
 
   SavedWifiSettings save{};
@@ -368,7 +371,7 @@ void WiFiComponent::print_connect_params_() {
   if (this->selected_ap_.get_bssid().has_value()) {
     ESP_LOGV(TAG, "  Priority: %.1f", this->get_sta_priority(*this->selected_ap_.get_bssid()));
   }
-  ESP_LOGCONFIG(TAG, "  Channel: %d", wifi_channel_());
+  ESP_LOGCONFIG(TAG, "  Channel: %" PRId32, wifi_channel_());
   ESP_LOGCONFIG(TAG, "  Subnet: %s", wifi_subnet_mask_().str().c_str());
   ESP_LOGCONFIG(TAG, "  Gateway: %s", wifi_gateway_ip_().str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS1: %s", wifi_dns_ip_(0).str().c_str());
@@ -382,7 +385,7 @@ void WiFiComponent::print_connect_params_() {
 void WiFiComponent::start_scanning() {
   this->action_started_ = millis();
   ESP_LOGD(TAG, "Starting scan...");
-  this->wifi_scan_start_();
+  this->wifi_scan_start_(this->passive_scan_);
   this->state_ = WIFI_COMPONENT_STATE_STA_SCANNING;
 }
 
@@ -612,6 +615,8 @@ bool WiFiComponent::is_connected() {
 }
 void WiFiComponent::set_power_save_mode(WiFiPowerSaveMode power_save) { this->power_save_ = power_save; }
 
+void WiFiComponent::set_passive_scan(bool passive) { this->passive_scan_ = passive; }
+
 std::string WiFiComponent::format_mac_addr(const uint8_t *mac) {
   char buf[20];
   sprintf(buf, "%02X:%02X:%02X:%02X:%02X:%02X", mac[0], mac[1], mac[2], mac[3], mac[4], mac[5]);
@@ -705,6 +710,8 @@ uint8_t WiFiScanResult::get_channel() const { return this->channel_; }
 int8_t WiFiScanResult::get_rssi() const { return this->rssi_; }
 bool WiFiScanResult::get_with_auth() const { return this->with_auth_; }
 bool WiFiScanResult::get_is_hidden() const { return this->is_hidden_; }
+
+bool WiFiScanResult::operator==(const WiFiScanResult &rhs) const { return this->bssid_ == rhs.bssid_; }
 
 WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

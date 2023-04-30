@@ -79,7 +79,12 @@ void IDFUARTComponent::setup() {
     return;
   }
 
-  err = uart_driver_install(this->uart_num_, this->rx_buffer_size_, 0, 0, nullptr, 0);
+  err = uart_driver_install(this->uart_num_, /* UART RX ring buffer size. */ this->rx_buffer_size_,
+                            /* UART TX ring buffer size. If set to zero, driver will not use TX buffer, TX function will
+                               block task until all data have been sent out.*/
+                            0,
+                            /* UART event queue size/depth. */ 20, &(this->uart_event_queue_),
+                            /* Flags used to allocate the interrupt. */ 0);
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "uart_driver_install failed: %s", esp_err_to_name(err));
     this->mark_failed();

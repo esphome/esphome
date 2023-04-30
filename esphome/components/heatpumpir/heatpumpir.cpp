@@ -53,6 +53,7 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_SHARP, []() { return new SharpHeatpumpIR(); }},                                // NOLINT
     {PROTOCOL_TOSHIBA_DAISEIKAI, []() { return new ToshibaDaiseikaiHeatpumpIR(); }},         // NOLINT
     {PROTOCOL_TOSHIBA, []() { return new ToshibaHeatpumpIR(); }},                            // NOLINT
+    {PROTOCOL_ZHLT01, []() { return new ZHLT01HeatpumpIR(); }},                              // NOLINT
 };
 
 void HeatpumpIRClimate::setup() {

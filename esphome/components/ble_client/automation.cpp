@@ -1,8 +1,10 @@
+#ifdef USE_ESP32
+
 #include "automation.h"
 
+#include <esp_bt_defs.h>
 #include <esp_gap_ble_api.h>
 #include <esp_gattc_api.h>
-#include <esp_bt_defs.h>
 
 #include "esphome/core/log.h"
 
@@ -31,8 +33,8 @@ void BLEWriterClientNode::write(const std::vector<uint8_t> &value) {
   }
   ESP_LOGVV(TAG, "Will write %d bytes: %s", value.size(), format_hex_pretty(value).c_str());
   esp_err_t err =
-      esp_ble_gattc_write_char(this->parent()->gattc_if, this->parent()->conn_id, this->ble_char_handle_, value.size(),
-                               const_cast<uint8_t *>(value.data()), write_type, ESP_GATT_AUTH_REQ_NONE);
+      esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->ble_char_handle_,
+                               value.size(), const_cast<uint8_t *>(value.data()), write_type, ESP_GATT_AUTH_REQ_NONE);
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
   }
@@ -73,3 +75,5 @@ void BLEWriterClientNode::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
 
 }  // namespace ble_client
 }  // namespace esphome
+
+#endif

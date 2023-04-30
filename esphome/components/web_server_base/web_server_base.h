@@ -4,6 +4,8 @@
 
 #include <memory>
 #include <utility>
+#include <vector>
+
 #include "esphome/core/component.h"
 
 #include <ESPAsyncWebServer.h>
@@ -81,6 +83,7 @@ class WebServerBase : public Component {
       return;
     }
     this->server_ = std::make_shared<AsyncWebServer>(this->port_);
+    DefaultHeaders::Instance().addHeader("Access-Control-Allow-Origin", "*");
     this->server_->begin();
 
     for (auto *handler : this->handlers_)
