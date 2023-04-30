@@ -30,13 +30,13 @@ void MicroNovaSensor::read_value_from_stove() {
 
   this->current_data_ = (float) val;
   switch (this->get_function()) {
-    case STOVE_FUNCTION_ROOM_TEMPERATURE:
+    case MicroNovaFunctions::STOVE_FUNCTION_ROOM_TEMPERATURE:
       this->current_data_ = (float) this->current_data_ / 2;
       break;
-    case STOVE_FUNCTION_THERMOSTAT_TEMPERATURE:
+    case MicroNovaFunctions::STOVE_FUNCTION_THERMOSTAT_TEMPERATURE:
       this->micronova_->set_thermostat_temperature(val);
       break;
-    case STOVE_FUNCTION_FAN_SPEED:
+    case MicroNovaFunctions::STOVE_FUNCTION_FAN_SPEED:
       this->current_data_ = this->current_data_ == 0 ? 0 : (this->current_data_ * 10) + this->fan_speed_offset_;
       break;
     default:
@@ -58,7 +58,7 @@ void MicroNovaTextSensor::read_value_from_stove() {
   }
 
   switch (this->get_function()) {
-    case STOVE_FUNCTION_STOVE_STATE:
+    case MicroNovaFunctions::STOVE_FUNCTION_STOVE_STATE:
       this->micronova_->set_current_stove_state(val);
       this->publish_state(STOVE_STATES[val]);
       // set the stove switch to on for any value but 0
@@ -80,10 +80,10 @@ void MicroNovaButton::press_action() {
   uint8_t new_temp = 20;
 
   switch (this->get_function()) {
-    case STOVE_FUNCTION_TEMP_UP:
-    case STOVE_FUNCTION_TEMP_DOWN:
+    case MicroNovaFunctions::STOVE_FUNCTION_TEMP_UP:
+    case MicroNovaFunctions::STOVE_FUNCTION_TEMP_DOWN:
       new_temp =
-          this->micronova_->get_thermostat_temperature() + (STOVE_FUNCTION_TEMP_UP == this->get_function() ? 1 : -1);
+          this->micronova_->get_thermostat_temperature() + (MicroNovaFunctions::STOVE_FUNCTION_TEMP_UP == this->get_function() ? 1 : -1);
       this->micronova_->write_address(this->memory_location_, this->memory_address_, new_temp);
       this->micronova_->update();
       break;
@@ -97,7 +97,7 @@ void MicroNovaButton::press_action() {
 // MicroNovaSwitch members
 void MicroNovaSwitch::write_state(bool state) {
   switch (this->get_function()) {
-    case STOVE_FUNCTION_SWITCH:
+    case MicroNovaFunctions::STOVE_FUNCTION_SWITCH :
       if (state) {
         // Only send poweron when current state is Off
         if (micronova_->get_current_stove_state() == 0) {

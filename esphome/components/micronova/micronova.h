@@ -17,6 +17,20 @@ namespace micronova {
 static const char *const TAG = "micronova";
 static const int STOVE_REPLY_DELAY = 50;
 
+enum class MicroNovaFunctions {
+  STOVE_FUNCTION_VOID = 0,
+  STOVE_FUNCTION_SWITCH = 1,
+  STOVE_FUNCTION_TEMP_UP = 2,
+  STOVE_FUNCTION_TEMP_DOWN = 3,
+  STOVE_FUNCTION_ROOM_TEMPERATURE = 4,
+  STOVE_FUNCTION_THERMOSTAT_TEMPERATURE = 5,
+  STOVE_FUNCTION_FUMES_TEMPERATURE = 6,
+  STOVE_FUNCTION_STOVE_POWER = 7,
+  STOVE_FUNCTION_FAN_SPEED = 8,
+  STOVE_FUNCTION_STOVE_STATE = 9,
+  STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR = 10,
+};
+
 class MicroNova;
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -28,8 +42,8 @@ class MicroNovaFunction {
   virtual void read_value_from_stove();
   void set_micronova_object(MicroNova *m) { micronova_ = m; }
 
-  void set_function(uint8_t f) { function_ = f; }
-  uint8_t get_function() { return function_; }
+  void set_function(MicroNovaFunctions f) { function_ = f; }
+  MicroNovaFunctions get_function() { return function_; }
 
   void set_memory_location(uint8_t f) { memory_location_ = f; }
   uint8_t get_memory_location() { return memory_location_; }
@@ -41,7 +55,7 @@ class MicroNovaFunction {
 
  protected:
   MicroNova *micronova_{nullptr};
-  uint8_t function_ = 0;
+  MicroNovaFunctions function_ = MicroNovaFunctions::STOVE_FUNCTION_VOID;
   uint8_t memory_location_ = 0;
   uint8_t memory_address_ = 0;
   float current_data_ = 0;

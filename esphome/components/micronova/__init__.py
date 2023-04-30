@@ -41,17 +41,6 @@ ICON_STATE = "mdi:checkbox-marked-circle-outline"
 
 UNIT_RPM = "rpm"
 
-STOVE_FUNCTION_SWITCH = 1
-STOVE_FUNCTION_TEMP_UP = 2
-STOVE_FUNCTION_TEMP_DOWN = 3
-STOVE_FUNCTION_ROOM_TEMPERATURE = 4
-STOVE_FUNCTION_THERMOSTAT_TEMPERATURE = 5
-STOVE_FUNCTION_FUMES_TEMPERATURE = 6
-STOVE_FUNCTION_STOVE_POWER = 7
-STOVE_FUNCTION_FAN_SPEED = 8
-STOVE_FUNCTION_STOVE_STATE = 9
-STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR = 10
-
 SENSORS = [
     CONF_ROOM_TEMPERATURE,
     CONF_THERMOSTAT_TEMPERATURE,
@@ -75,6 +64,21 @@ BUTTONS = [
 ]
 
 micronova_ns = cg.esphome_ns.namespace("micronova")
+
+MicroNovaFunctions = micronova_ns.enum("MicroNovaFunctions", is_class=True)
+MICRONOVA_FUNCTIONS_ENUM = {
+    "STOVE_FUNCTION_SWITCH": MicroNovaFunctions.STOVE_FUNCTION_SWITCH,
+    "STOVE_FUNCTION_TEMP_UP": MicroNovaFunctions.STOVE_FUNCTION_TEMP_UP,
+    "STOVE_FUNCTION_TEMP_DOWN": MicroNovaFunctions.STOVE_FUNCTION_TEMP_DOWN,
+    "STOVE_FUNCTION_ROOM_TEMPERATURE": MicroNovaFunctions.STOVE_FUNCTION_ROOM_TEMPERATURE,
+    "STOVE_FUNCTION_THERMOSTAT_TEMPERATURE": MicroNovaFunctions.STOVE_FUNCTION_THERMOSTAT_TEMPERATURE,
+    "STOVE_FUNCTION_FUMES_TEMPERATURE": MicroNovaFunctions.STOVE_FUNCTION_FUMES_TEMPERATURE,
+    "STOVE_FUNCTION_STOVE_POWER": MicroNovaFunctions.STOVE_FUNCTION_STOVE_POWER,
+    "STOVE_FUNCTION_FAN_SPEED": MicroNovaFunctions.STOVE_FUNCTION_FAN_SPEED,
+    "STOVE_FUNCTION_STOVE_STATE": MicroNovaFunctions.STOVE_FUNCTION_STOVE_STATE,
+    "STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR": MicroNovaFunctions.STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR,
+}
+
 MicroNova = micronova_ns.class_(
     "MicroNova", cg.PollingComponent, uart.UARTDevice, switch.Switch
 )
@@ -223,21 +227,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    cg.add_define("STOVE_FUNCTION_SWITCH", STOVE_FUNCTION_SWITCH)
-    cg.add_define("STOVE_FUNCTION_TEMP_UP", STOVE_FUNCTION_TEMP_UP)
-    cg.add_define("STOVE_FUNCTION_TEMP_DOWN", STOVE_FUNCTION_TEMP_DOWN)
-    cg.add_define("STOVE_FUNCTION_ROOM_TEMPERATURE", STOVE_FUNCTION_ROOM_TEMPERATURE)
-    cg.add_define(
-        "STOVE_FUNCTION_THERMOSTAT_TEMPERATURE", STOVE_FUNCTION_THERMOSTAT_TEMPERATURE
-    )
-    cg.add_define("STOVE_FUNCTION_FUMES_TEMPERATURE", STOVE_FUNCTION_FUMES_TEMPERATURE)
-    cg.add_define("STOVE_FUNCTION_STOVE_POWER", STOVE_FUNCTION_STOVE_POWER)
-    cg.add_define("STOVE_FUNCTION_FAN_SPEED", STOVE_FUNCTION_FAN_SPEED)
-    cg.add_define("STOVE_FUNCTION_STOVE_STATE", STOVE_FUNCTION_STOVE_STATE)
-    cg.add_define(
-        "STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR", STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR
-    )
-
     uart_component = await cg.get_variable(config[CONF_UART_ID])
     micronova_var = cg.new_Pvariable(config[CONF_ID], uart_component)
     mv = await cg.get_variable(config[CONF_ID])
@@ -257,13 +246,12 @@ async def to_code(config):
             sw = await switch.new_switch(conf, mv)
             await cg.register_component(sw, conf)
             cg.add(micronova_var.set_stove_switch(sw))
-            cg.add(sw.set_function(STOVE_FUNCTION_SWITCH))
             cg.add(sw.set_memory_location(conf[CONF_MEMORY_LOCATION]))
             cg.add(sw.set_memory_address(conf[CONF_MEMORY_ADDRESS]))
             cg.add(sw.set_memory_data_on(conf[CONF_MEMORY_DATA_ON]))
             cg.add(sw.set_memory_data_off(conf[CONF_MEMORY_DATA_OFF]))
             if key == CONF_STOVE_SWITCH:
-                cg.add(sw.set_function(STOVE_FUNCTION_SWITCH))
+                cg.add(sw.set_function(MicroNovaFunctions.STOVE_FUNCTION_SWITCH))
 
     for key in BUTTONS:
         if key in config:
@@ -275,10 +263,10 @@ async def to_code(config):
             cg.add(bt.set_memory_data(conf[CONF_MEMORY_DATA]))
             if key == CONF_BUT_TEMP_UP:
                 cg.add(micronova_var.set_temp_up_button(bt))
-                cg.add(bt.set_function(STOVE_FUNCTION_TEMP_UP))
+                cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_TEMP_UP))
             if key == CONF_BUT_TEMP_DOWN:
                 cg.add(micronova_var.set_temp_down_button(bt))
-                cg.add(bt.set_function(STOVE_FUNCTION_TEMP_DOWN))
+                cg.add(bt.set_function(MicroNovaFunctions.STOVE_FUNCTION_TEMP_DOWN))
 
     for key in SENSORS:
         if key in config:
@@ -288,18 +276,34 @@ async def to_code(config):
             cg.add(sens.set_memory_location(conf[CONF_MEMORY_LOCATION]))
             cg.add(sens.set_memory_address(conf[CONF_MEMORY_ADDRESS]))
             if key == CONF_ROOM_TEMPERATURE:
-                cg.add(sens.set_function(STOVE_FUNCTION_ROOM_TEMPERATURE))
+                cg.add(
+                    sens.set_function(
+                        MicroNovaFunctions.STOVE_FUNCTION_ROOM_TEMPERATURE
+                    )
+                )
             if key == CONF_THERMOSTAT_TEMPERATURE:
-                cg.add(sens.set_function(STOVE_FUNCTION_THERMOSTAT_TEMPERATURE))
+                cg.add(
+                    sens.set_function(
+                        MicroNovaFunctions.STOVE_FUNCTION_THERMOSTAT_TEMPERATURE
+                    )
+                )
             if key == CONF_FUMES_TEMPERATURE:
-                cg.add(sens.set_function(STOVE_FUNCTION_FUMES_TEMPERATURE))
+                cg.add(
+                    sens.set_function(
+                        MicroNovaFunctions.STOVE_FUNCTION_FUMES_TEMPERATURE
+                    )
+                )
             if key == CONF_STOVE_POWER:
-                cg.add(sens.set_function(STOVE_FUNCTION_STOVE_POWER))
+                cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_STOVE_POWER))
             if key == CONF_FAN_SPEED:
-                cg.add(sens.set_function(STOVE_FUNCTION_FAN_SPEED))
+                cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_FAN_SPEED))
                 cg.add(sens.set_fan_speed_offset(conf[CONF_FAN_RPM_OFFSET]))
             if key == CONF_MEMORY_ADDRESS_SENSOR:
-                cg.add(sens.set_function(STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR))
+                cg.add(
+                    sens.set_function(
+                        MicroNovaFunctions.STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR
+                    )
+                )
 
     for key in TEXT_SENSORS:
         if key in config:
@@ -309,4 +313,4 @@ async def to_code(config):
             cg.add(sens.set_memory_location(conf[CONF_MEMORY_LOCATION]))
             cg.add(sens.set_memory_address(conf[CONF_MEMORY_ADDRESS]))
             if key == CONF_STOVE_STATE:
-                cg.add(sens.set_function(STOVE_FUNCTION_STOVE_STATE))
+                cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_STOVE_STATE))
