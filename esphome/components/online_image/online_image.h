@@ -47,6 +47,14 @@ class OnlineImage : public PollingComponent, public display::Image {
   void set_url(const char *url) { url_ = url; }
   void release();
 
+  void set_follow_redirects(bool follow, int limit) {
+    follow_redirects_ = follow;
+    redirect_limit_ = limit;
+  }
+
+  void set_useragent(const char *useragent) { this->useragent_ = useragent; }
+  void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
+
  protected:
   using Allocator = ExternalRAMAllocator<uint8_t>;
   Allocator allocator_{Allocator::Flags::ALLOW_FAILURE};
@@ -63,11 +71,17 @@ class OnlineImage : public PollingComponent, public display::Image {
 
   uint8_t *buffer_;
   const char *url_;
+  String etag_ = "";
   const uint32_t download_buffer_size_;
   const ImageFormat format_;
   const uint8_t bits_per_pixel_;
   const int fixed_width_;
   const int fixed_height_;
+
+  bool follow_redirects_;
+  int redirect_limit_;
+  uint16_t timeout_;
+  const char *useragent_;
 
   friend void ImageDecoder::set_size(int width, int height);
   friend void ImageDecoder::draw(int x, int y, int w, int h, const Color &color);
@@ -81,6 +95,16 @@ template<typename... Ts> class OnlineImageSetUrlAction : public Action<Ts...> {
     this->parent_->set_url(this->url_.value(x...));
     this->parent_->update();
   }
+
+ protected:
+  OnlineImage *parent_;
+};
+
+template<typename... Ts> class OnlineImageReleaseAction : public Action<Ts...> {
+ public:
+  OnlineImageReleaseAction(OnlineImage *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(const char *, url)
+  void play(Ts... x) override { this->parent_->release(); }
 
  protected:
   OnlineImage *parent_;
