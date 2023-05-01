@@ -697,7 +697,7 @@ prometheus:
     ha_hello_world:
       id: hellow_world
       name: Hello World
-    
+
 microphone:
   - platform: i2s_audio
     id: mic_id
