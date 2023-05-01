@@ -18,6 +18,10 @@ from esphome.components.image import (
     CONF_USE_TRANSPARENCY,
     validate_cross_dependencies,
 )
+from esphome.components.http_request import (
+    CONF_FOLLOW_REDIRECTS,
+    CONF_REDIRECT_LIMIT,
+)
 
 DEPENDENCIES = ["network", "display"]
 CODEOWNERS = ["@guillempages"]
@@ -47,6 +51,8 @@ ONLINE_IMAGE_SCHEMA = cv.Schema(
         # Not setting default here on purpose; the default depends on the image type,
         # and thus will be set in the "validate_cross_dependencies" validator.
         cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
+        cv.Optional(CONF_FOLLOW_REDIRECTS, True): cv.boolean,
+        cv.Optional(CONF_REDIRECT_LIMIT, 3): cv.int_,
         cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(256, 65536),
     }
 ).extend(cv.polling_component_schema("never"))
@@ -108,3 +114,8 @@ async def to_code(config):
     )
     await cg.register_component(var, config)
     cg.add(var.set_transparency(transparent))
+    cg.add(
+        var.set_follow_redirects(
+            config[CONF_FOLLOW_REDIRECTS], config[CONF_REDIRECT_LIMIT]
+        )
+    )

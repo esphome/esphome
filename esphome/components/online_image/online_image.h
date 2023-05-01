@@ -47,6 +47,11 @@ class OnlineImage : public PollingComponent, public display::Image {
   void set_url(const char *url) { url_ = url; }
   void release();
 
+  void set_follow_redirects(bool follow, int limit) {
+    follow_redirects_ = follow;
+    redirect_limit_ = limit;
+  }
+
  protected:
   using Allocator = ExternalRAMAllocator<uint8_t>;
   Allocator allocator_{Allocator::Flags::ALLOW_FAILURE};
@@ -68,6 +73,9 @@ class OnlineImage : public PollingComponent, public display::Image {
   const uint8_t bits_per_pixel_;
   const int fixed_width_;
   const int fixed_height_;
+
+  bool follow_redirects_ = false;
+  int redirect_limit_ = 0;
 
   friend void ImageDecoder::set_size(int width, int height);
   friend void ImageDecoder::draw(int x, int y, int w, int h, const Color &color);

@@ -249,6 +249,19 @@ void OnlineImage::update() {
 
   std::unique_ptr<ImageDecoder> decoder;
 
+#if defined(USE_ESP32) || (defined(USE_ESP8266) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 6, 0))
+#if defined(USE_ESP32) || USE_ARDUINO_VERSION_CODE >= VERSION_CODE(2, 7, 0)
+  if (follow_redirects_) {
+    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  } else {
+    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  }
+#else
+  http.setFollowRedirects(follow_redirects_);
+#endif
+  http.setRedirectLimit(redirect_limit_);
+#endif
+
   int begin_status = http.begin(url_);
   if (!begin_status) {
     ESP_LOGE(TAG, "Could not download image from %s. Connection failed: %i", url_, begin_status);
