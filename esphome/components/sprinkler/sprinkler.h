@@ -406,6 +406,12 @@ class Sprinkler : public Component {
   /// returns the amount of time remaining in seconds for all valves remaining, including the active valve, if any
   optional<uint32_t> time_remaining_current_operation();
 
+  /// returns true if this or any sprinkler controller this controller knows about is active
+  bool any_controller_is_active();
+
+  /// returns the current state of the sprinkler controller
+  SprinklerState controller_state() { return this->state_; };
+
   /// returns a pointer to a valve's control switch object
   SprinklerControllerSwitch *control_switch(size_t valve_number);
 
@@ -503,7 +509,6 @@ class Sprinkler : public Component {
   /// callback functions for timers
   void valve_selection_callback_();
   void sm_timer_callback_();
-  void pump_stop_delay_callback_();
 
   /// Maximum allowed queue size
   const uint8_t max_queue_size_{100};

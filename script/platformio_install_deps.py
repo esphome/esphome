@@ -2,12 +2,22 @@
 # This script is used to preinstall
 # all platformio libraries in the global storage
 
+import argparse
 import configparser
 import subprocess
-import sys
 
 config = configparser.ConfigParser(inline_comment_prefixes=(";",))
-config.read(sys.argv[1])
+
+parser = argparse.ArgumentParser(description="")
+parser.add_argument("file", help="Path to platformio.ini", nargs=1)
+parser.add_argument("-l", "--libraries", help="Install libraries", action="store_true")
+parser.add_argument("-p", "--platforms", help="Install platforms", action="store_true")
+parser.add_argument("-t", "--tools", help="Install tools", action="store_true")
+
+args = parser.parse_args()
+
+config.read(args.file)
+
 
 libs = []
 tools = []
@@ -15,7 +25,7 @@ platforms = []
 # Extract from every lib_deps key in all sections
 for section in config.sections():
     conf = config[section]
-    if "lib_deps" in conf:
+    if "lib_deps" in conf and args.libraries:
         for lib_dep in conf["lib_deps"].splitlines():
             if not lib_dep:
                 # Empty line or comment
@@ -28,10 +38,10 @@ for section in config.sections():
                 continue
             libs.append("-l")
             libs.append(lib_dep)
-    if "platform" in conf:
+    if "platform" in conf and args.platforms:
         platforms.append("-p")
         platforms.append(conf["platform"])
-    if "platform_packages" in conf:
+    if "platform_packages" in conf and args.tools:
         for tool in conf["platform_packages"].splitlines():
             if not tool:
                 # Empty line or comment
