@@ -1276,6 +1276,13 @@ sensor:
     name: DHT Absolute Humidity
     temperature: dht_temperature
     humidity: dht_humidity
+  - platform: hyt271
+    i2c_id: i2c_bus
+    temperature:
+      name: "Temperature hyt271"
+      id: temp_etuve
+    humidity:
+      name: "Humidity hyt271"
 
 esp32_touch:
   setup_mode: false
