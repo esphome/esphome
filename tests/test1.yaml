@@ -1450,6 +1450,13 @@ binary_sensor:
       mode: INPUT
       inverted: true
   - platform: gpio
+    name: PCA6416A binary sensor
+    pin:
+      pca6416a: pca6416a_hub
+      number: 15
+      mode: INPUT
+      inverted: true
+  - platform: gpio
     name: MCP21 binary sensor
     pin:
       mcp23xxx: mcp23017_hub
@@ -2932,6 +2939,11 @@ pcf8574:
 pca9554:
   - id: pca9554_hub
     address: 0x3F
+    i2c_id: i2c_bus
+
+pca6416a:
+  - id: pca6416a_hub
+    address: 0x21
     i2c_id: i2c_bus
 
 mcp23017:
