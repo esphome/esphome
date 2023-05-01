@@ -36,7 +36,7 @@ void Alpha3::extract_publish_sensor_value_(const uint8_t *response, int16_t leng
     return;  // value not in this packet
 
   auto start_offset = std::max(0, rel_offset);
-  auto end_offset = std::min((int16_t)(rel_offset + value_length), length);
+  auto end_offset = std::min((int16_t) (rel_offset + value_length), length);
   auto copy_length = end_offset - start_offset;
   auto buffer_offset = std::max(-rel_offset, 0);
   std::memcpy(this->buffer_ + buffer_offset, response + start_offset, copy_length);
