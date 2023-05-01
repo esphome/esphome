@@ -42,4 +42,4 @@ fi
 mkdir -p "${pio_cache_base}"
 
 bashio::log.info "Starting ESPHome dashboard..."
-exec esphome dashboard /config/esphome --socket /var/run/esphome.sock --ha-addon
+exec esphome dashboard /config/libretuya-esphome --socket /var/run/esphome.sock --ha-addon
