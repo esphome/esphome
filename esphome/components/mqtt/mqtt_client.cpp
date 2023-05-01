@@ -2,16 +2,16 @@
 
 #ifdef USE_MQTT
 
+#include <utility>
+#include "esphome/components/network/util.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/components/network/util.h"
-#include <utility>
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
-#include "lwip/err.h"
 #include "lwip/dns.h"
+#include "lwip/err.h"
 #include "mqtt_component.h"
 
 namespace esphome {
@@ -104,7 +104,11 @@ void MQTTClientComponent::start_dnslookup_() {
       // Got IP immediately
       this->dns_resolved_ = true;
 #ifdef USE_ESP32
+#if LWIP_IPV6
       this->ip_ = addr.u_addr.ip4.addr;
+#else
+      this->ip_ = addr.addr;
+#endif
 #endif
 #ifdef USE_ESP8266
       this->ip_ = addr.addr;
@@ -160,8 +164,12 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
     a_this->dns_resolve_error_ = true;
   } else {
 #ifdef USE_ESP32
+#if LWIP_IPV6
     a_this->ip_ = ipaddr->u_addr.ip4.addr;
+#else
+    a_this->ip_ = ipaddr->addr;
 #endif
+#endif  // USE_ESP32
 #ifdef USE_ESP8266
     a_this->ip_ = ipaddr->addr;
 #endif
@@ -485,16 +493,16 @@ static bool topic_match(const char *message, const char *subscription) {
 }
 
 void MQTTClientComponent::on_message(const std::string &topic, const std::string &payload) {
-#ifdef USE_ESP8266
-  // on ESP8266, this is called in LWiP thread; some components do not like running
-  // in an ISR.
+#ifdef USE_ARDUINO
+  // on Arduino, this is called in lwIP/AsyncTCP task; some components do not like running
+  // from a different task.
   this->defer([this, topic, payload]() {
 #endif
     for (auto &subscription : this->subscriptions_) {
       if (topic_match(topic.c_str(), subscription.topic.c_str()))
         subscription.callback(topic, payload);
     }
-#ifdef USE_ESP8266
+#ifdef USE_ARDUINO
   });
 #endif
 }
