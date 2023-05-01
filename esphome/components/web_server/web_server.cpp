@@ -486,6 +486,9 @@ std::string WebServer::text_sensor_json(text_sensor::TextSensor *obj, const std:
 std::string WebServer::switch_json(switch_::Switch *obj, bool value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
     set_json_icon_state_value(root, obj, "switch-" + obj->get_object_id(), value ? "ON" : "OFF", value, start_config);
+    if (start_config == DETAIL_ALL) {
+      root["assumed_state"] = obj->assumed_state();
+    }
   });
 }
 void WebServer::handle_switch_request(AsyncWebServerRequest *request, const UrlMatch &match) {
