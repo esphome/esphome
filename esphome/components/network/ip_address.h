@@ -19,6 +19,7 @@ struct IPAddress {
     IP_ADDR4(&ip_addr_, first, second, third, fourth);
   }
   IPAddress(uint32_t raw) { ip_addr_set_ip4_u32(&ip_addr_, raw); }
+  IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
   operator uint32_t() const { return ip_addr_get_ip4_u32(&ip_addr_); }
   std::string str() const { return ipaddr_ntoa(&ip_addr_); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
@@ -31,7 +32,10 @@ struct IPAddress {
     }
     return *this;
   }
+  operator ip_addr_t() const { return ip_addr_; };
+#if LWIP_IPV6
   operator ip4_addr_t() const { return *ip_2_ip4(&ip_addr_); };
+#endif /* LWIP_IPV6 */
 #ifdef USE_RP2040
   operator arduino::IPAddress() const { return arduino::IPAddress(&ip_addr_); };
 #endif /* USE_RP2040 */

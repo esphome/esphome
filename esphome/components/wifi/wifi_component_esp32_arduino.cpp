@@ -113,9 +113,9 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 
   tcpip_adapter_ip_info_t info;
   memset(&info, 0, sizeof(info));
-  info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-  info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-  info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+  info.ip.addr = manual_ip->static_ip;
+  info.gw.addr = manual_ip->gateway;
+  info.netmask.addr = manual_ip->subnet;
 
   esp_err_t dhcp_stop_ret = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
   if (dhcp_stop_ret != ESP_OK && dhcp_stop_ret != ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STOPPED) {
@@ -132,19 +132,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   dns.type = IPADDR_TYPE_V4;
 #endif
   if (uint32_t(manual_ip->dns1) != 0) {
-#if LWIP_IPV6
-    dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns1);
-#else
-    dns.addr = static_cast<uint32_t>(manual_ip->dns1);
-#endif
+    dns = manual_ip->dns1;
     dns_setserver(0, &dns);
   }
   if (uint32_t(manual_ip->dns2) != 0) {
-#if LWIP_IPV6
-    dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns2);
-#else
-    dns.addr = static_cast<uint32_t>(manual_ip->dns2);
-#endif
+    dns = manual_ip->dns2;
     dns_setserver(1, &dns);
   }
 
@@ -674,13 +666,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   tcpip_adapter_ip_info_t info;
   memset(&info, 0, sizeof(info));
   if (manual_ip.has_value()) {
-    info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-    info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-    info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+    info.ip.addr = manual_ip->static_ip;
+    info.gw.addr = manual_ip->gateway;
+    info.netmask.addr = manual_ip->subnet;
   } else {
-    info.ip.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.gw.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.netmask.addr = static_cast<uint32_t>(network::IPAddress(255, 255, 255, 0));
+    info.ip.addr = network::IPAddress(192, 168, 4, 1);
+    info.gw.addr = network::IPAddress(192, 168, 4, 1);
+    info.netmask.addr = network::IPAddress(255, 255, 255, 0);
   }
   tcpip_adapter_dhcp_status_t dhcp_status;
   tcpip_adapter_dhcps_get_status(TCPIP_ADAPTER_IF_AP, &dhcp_status);
