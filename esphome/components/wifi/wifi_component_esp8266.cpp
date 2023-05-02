@@ -147,9 +147,9 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 #endif
 
   struct ip_info info {};
-  info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-  info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-  info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+  info.ip.addr = manual_ip->static_ip;
+  info.gw.addr = manual_ip->gateway;
+  info.netmask.addr = manual_ip->subnet;
 
   if (dhcp_status == DHCP_STARTED) {
     bool dhcp_stop_ret = wifi_station_dhcpc_stop();
@@ -166,11 +166,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 
   ip_addr_t dns;
   if (uint32_t(manual_ip->dns1) != 0) {
-    ip_addr_set_ip4_u32_val(dns, static_cast<uint32_t>(manual_ip->dns1));
+    dns.addr = manual_ip->dns1;
     dns_setserver(0, &dns);
   }
   if (uint32_t(manual_ip->dns2) != 0) {
-    ip_addr_set_ip4_u32_val(dns, static_cast<uint32_t>(manual_ip->dns2));
+    dns.addr = manual_ip->dns2;
     dns_setserver(1, &dns);
   }
 
@@ -695,13 +695,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   struct ip_info info {};
   if (manual_ip.has_value()) {
-    info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-    info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-    info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+    info.ip.addr = manual_ip->static_ip;
+    info.gw.addr = manual_ip->gateway;
+    info.netmask.addr = manual_ip->subnet;
   } else {
-    info.ip.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.gw.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.netmask.addr = static_cast<uint32_t>(network::IPAddress(255, 255, 255, 0));
+    info.ip.addr = network::IPAddress(192, 168, 4, 1);
+    info.gw.addr = network::IPAddress(192, 168, 4, 1);
+    info.netmask.addr = network::IPAddress(255, 255, 255, 0);
   }
 
   if (wifi_softap_dhcps_status() == DHCP_STARTED) {
@@ -807,9 +807,9 @@ bssid_t WiFiComponent::wifi_bssid() {
 std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
 int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
-network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
-network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
-network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {WiFi.dnsIP(num)}; }
+network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
+network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
+network::IPAddress WiFiComponent::wifi_dns_ip_(int num) { return {(const ip_addr_t *) WiFi.dnsIP(num)}; }
 void WiFiComponent::wifi_loop_() {}
 
 }  // namespace wifi

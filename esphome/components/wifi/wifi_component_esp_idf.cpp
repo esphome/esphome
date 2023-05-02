@@ -437,9 +437,9 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   esp_netif_ip_info_t info;  // struct of ip4_addr_t with ip, netmask, gw
-  info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-  info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-  info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+  info.ip.addr = manual_ip->static_ip;
+  info.gw.addr = manual_ip->gateway;
+  info.netmask.addr = manual_ip->subnet;
   err = esp_netif_dhcpc_stop(s_sta_netif);
   if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
     ESP_LOGV(TAG, "esp_netif_dhcpc_stop failed: %s", esp_err_to_name(err));
@@ -452,10 +452,12 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   esp_netif_dns_info_t dns;
+  // TODO: remove uint32_t cast
   if (uint32_t(manual_ip->dns1) != 0) {
     dns.ip.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns1);
     esp_netif_set_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &dns);
   }
+  // TODO: remove uint32_t cast
   if (uint32_t(manual_ip->dns2) != 0) {
     dns.ip.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns2);
     esp_netif_set_dns_info(s_sta_netif, ESP_NETIF_DNS_BACKUP, &dns);
@@ -769,13 +771,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   esp_netif_ip_info_t info;
   if (manual_ip.has_value()) {
-    info.ip.addr = static_cast<uint32_t>(manual_ip->static_ip);
-    info.gw.addr = static_cast<uint32_t>(manual_ip->gateway);
-    info.netmask.addr = static_cast<uint32_t>(manual_ip->subnet);
+    info.ip.addr = manual_ip->static_ip;
+    info.gw.addr = manual_ip->gateway;
+    info.netmask.addr = manual_ip->subnet;
   } else {
-    info.ip.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.gw.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
-    info.netmask.addr = static_cast<uint32_t>(network::IPAddress(255, 255, 255, 0));
+    info.ip.addr = network::IPAddress(192, 168, 4, 1);
+    info.gw.addr = network::IPAddress(192, 168, 4, 1);
+    info.netmask.addr = network::IPAddress(255, 255, 255, 0);
   }
 
   err = esp_netif_dhcpc_stop(s_sta_netif);

@@ -151,7 +151,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   return true;
 }
-network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.localIP()}; }
+network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {(const ip_addr_t *) WiFi.localIP()}; }
 
 bool WiFiComponent::wifi_disconnect_() {
   int err = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
@@ -170,9 +170,9 @@ std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
 int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
 
-network::IPAddress WiFiComponent::wifi_sta_ip() { return {WiFi.localIP()}; }
-network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
-network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }
+network::IPAddress WiFiComponent::wifi_sta_ip() { return {(const ip_addr_t *) WiFi.localIP()}; }
+network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t *) WiFi.subnetMask()}; }
+network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
 #ifdef PIO_FRAMEWORK_ARDUINO_ENABLE_IPV6
