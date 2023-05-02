@@ -104,37 +104,37 @@ class AlarmControlPanel : public Component, public EntityBase {
    *
    * @param code The code
    */
-  void arm_away(const std::string& code);
+  void arm_away(const std::string &code);
 
   /** arm the alarm in home mode
    *
    * @param code The code
    */
-  void arm_home(const std::string& code);
+  void arm_home(const std::string &code);
 
   /** arm the alarm in night mode
    *
    * @param code The code
    */
-  void arm_night(const std::string& code);
+  void arm_night(const std::string &code);
 
   /** arm the alarm in vacation mode
    *
    * @param code The code
    */
-  void arm_vacation(const std::string& code);
+  void arm_vacation(const std::string &code);
 
   /** arm the alarm in custom bypass mode
    *
    * @param code The code
    */
-  void arm_custom_bypass(const std::string& code);
+  void arm_custom_bypass(const std::string &code);
 
   /** disarm the alarm
    *
    * @param code The code
    */
-  void disarm(const std::string& code);
+  void disarm(const std::string &code);
 
   /** Get the state
    *
@@ -167,8 +167,8 @@ class AlarmControlPanel : public Component, public EntityBase {
   // state callback
   CallbackManager<void()> state_callback_{};
 
-  private:
-    void arm_(const std::string& code, AlarmControlPanelState state);
+ private:
+  void arm_(const std::string &code, AlarmControlPanelState state);
 };
 
 }  // namespace alarm_control_panel

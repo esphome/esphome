@@ -385,7 +385,8 @@ template<> const char *proto_enum_to_string<enums::MediaPlayerCommand>(enums::Me
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
-template<> const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
+template<>
+const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::BluetoothDeviceRequestType value) {
   switch (value) {
     case enums::BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT:
       return "BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT";
@@ -461,7 +462,8 @@ template<> const char *proto_enum_to_string<enums::AlarmControlPanelState>(enums
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
-template<> const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
+template<>
+const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::AlarmControlPanelStateCommand value) {
   switch (value) {
     case enums::ALARM_CONTROL_PANEL_DISARM:
       return "ALARM_CONTROL_PANEL_DISARM";

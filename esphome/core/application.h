@@ -130,7 +130,9 @@ class Application {
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-  void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) { this->alarm_control_panels_.push_back(a_alarm_control_panel); }
+  void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+    this->alarm_control_panels_.push_back(a_alarm_control_panel);
+  }
 #endif
 
   /// Register the component in this Application instance.
@@ -304,7 +306,9 @@ class Application {
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
-  const std::vector<alarm_control_panel::AlarmControlPanel *> &get_alarm_control_panels() { return this->alarm_control_panels_; }
+  const std::vector<alarm_control_panel::AlarmControlPanel *> &get_alarm_control_panels() {
+    return this->alarm_control_panels_;
+  }
   alarm_control_panel::AlarmControlPanel *get_alarm_control_panel_by_key(uint32_t key, bool include_internal = false) {
     for (auto *obj : this->alarm_control_panels_)
       if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))

@@ -56,7 +56,9 @@ bool InitialStateIterator::on_media_player(media_player::MediaPlayer *media_play
 }
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
-bool InitialStateIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) { return this->client_->send_alarm_control_panel_state(a_alarm_control_panel); }
+bool InitialStateIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+  return this->client_->send_alarm_control_panel_state(a_alarm_control_panel);
+}
 #endif
 InitialStateIterator::InitialStateIterator(APIConnection *client) : client_(client) {}
 
