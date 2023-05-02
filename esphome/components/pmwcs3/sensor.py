@@ -120,11 +120,12 @@ async def pmwcs3_calibration_to_code(config, action_id, template_arg, args):
     return var
 
 
-PMWCS3NEWI2CADDRESS_SCHEMA = cv.Schema(
+PMWCS3_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
     {
         cv.GenerateID(): cv.use_id(PMWCS3Component),
-        cv.Required(CONF_NEWADDRESS): cv.templatable(int),
-    }
+        cv.Required(CONF_ADDRESS): cv.templatable(cv.i2c_address),
+    },
+    key=CONF_ADDRESS,
 )
 
 
