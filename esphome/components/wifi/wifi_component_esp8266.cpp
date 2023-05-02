@@ -23,6 +23,8 @@ extern "C" {
 #endif
 #if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
+#endif
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0) && USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
 #define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
 #define wifi_softap_set_dhcps_offer_option(offer, mode) dhcpSoftAP.set_dhcps_offer_option(offer, mode)
@@ -715,7 +717,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0) && USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0)
   dhcpSoftAP.begin(&info);
 #endif
 
@@ -739,12 +741,16 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)
+  WiFi.softAPDhcpServer().setRouter(true);  // send ROUTER option with netif's gateway IP
+#else
   uint8_t mode = 1;
   // bit0, 1 enables router information from ESP8266 SoftAP DHCP server.
   if (!wifi_softap_set_dhcps_offer_option(OFFER_ROUTER, &mode)) {
     ESP_LOGV(TAG, "wifi_softap_set_dhcps_offer_option failed!");
     return false;
   }
+#endif
 
   if (!wifi_softap_dhcps_start()) {
     ESP_LOGV(TAG, "Starting SoftAP DHCPS failed!");
