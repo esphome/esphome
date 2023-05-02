@@ -91,6 +91,16 @@ bool ListEntitiesIterator::on_select(select::Select *select) {
 }
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+  this->web_server_->events_.send(
+      this->web_server_->alarm_control_panel_json(a_alarm_control_panel, a_alarm_control_panel->get_state(), DETAIL_ALL)
+          .c_str(),
+      "state");
+  return true;
+}
+#endif
+
 }  // namespace web_server
 }  // namespace esphome
 
