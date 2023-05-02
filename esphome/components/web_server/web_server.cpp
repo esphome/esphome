@@ -996,6 +996,33 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 }
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
+  this->events_.send(this->alarm_control_panel_json(obj, obj->get_state(), DETAIL_STATE).c_str(), "state");
+}
+std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
+                                                alarm_control_panel::AlarmControlPanelState value,
+                                                JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
+    set_json_icon_state_value(root, obj, "alarm-control-panel-" + obj->get_object_id(), obj->to_string(value), value,
+                              start_config);
+  });
+}
+void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->alarm_control_panel_json(obj, obj->get_state(), DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+  }
+  request->send(404);
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -1070,6 +1097,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_LOCK
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "lock")
+    return true;
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  if (request->method() == HTTP_GET && match.domain == "alarm_control_panel")
     return true;
 #endif
 
@@ -1176,6 +1208,14 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_LOCK
   if (match.domain == "lock") {
     this->handle_lock_request(request, match);
+
+    return;
+  }
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  if (match.domain == "alarm_control_panel") {
+    this->handle_alarm_control_panel_request(request, match);
 
     return;
   }
