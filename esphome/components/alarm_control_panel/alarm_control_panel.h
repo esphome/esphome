@@ -104,13 +104,13 @@ class AlarmControlPanel : public Component, public EntityBase {
    *
    * @param code The code
    */
-  void arm_away(std::string code);
+  void arm_away(const std::string& code);
 
   /** arm the alarm in home mode
    *
    * @param code The code
    */
-  void arm_home(std::string code);
+  void arm_home(const std::string& code);
 
   /** arm the alarm in night mode
    *
