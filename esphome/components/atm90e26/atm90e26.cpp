@@ -178,7 +178,7 @@ void ATM90E26Component::write16_(uint8_t a_register, uint16_t val) {
 
 float ATM90E26Component::get_line_current_() {
   uint16_t current = this->read16_(ATM90E26_REGISTER_IRMS);
-  return (float) current / 1000;
+  return current / 1000.0f;
 }
 
 float ATM90E26Component::get_line_voltage_() {
