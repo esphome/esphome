@@ -218,14 +218,14 @@ void AlarmControlPanel::arm_(const std::string& code, AlarmControlPanelState sta
   }
 }
 
-void AlarmControlPanel::arm_away(std::string code) {
+void AlarmControlPanel::arm_away(const std::string& code) {
   ESP_LOGD(TAG, "arm_away");
-  this->arm_(std::move(code), AlarmControlPanelState::ARMED_AWAY);
+  this->arm_(code, AlarmControlPanelState::ARMED_AWAY);
 }
 
-void AlarmControlPanel::arm_home(std::string code) {
+void AlarmControlPanel::arm_home(const std::string& code) {
   ESP_LOGD(TAG, "arm_home");
-  this->arm_(std::move(code), AlarmControlPanelState::ARMED_HOME);
+  this->arm_(code, AlarmControlPanelState::ARMED_HOME);
 }
 
 void AlarmControlPanel::arm_night(const std::string& code) {
