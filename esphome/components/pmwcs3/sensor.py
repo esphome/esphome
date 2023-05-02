@@ -16,7 +16,6 @@ DEPENDENCIES = ["i2c"]
 
 CONF_E25 = "e25"
 CONF_VWC = "vwc"
-CONF_NEWADDRESS = "newaddress"
 
 ICON_EPSILON = "mdi:epsilon"
 ICON_SIGMA = "mdi:sigma-lower"
