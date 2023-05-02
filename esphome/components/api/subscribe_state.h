@@ -52,6 +52,9 @@ class InitialStateIterator : public ComponentIterator {
 #ifdef USE_MEDIA_PLAYER
   bool on_media_player(media_player::MediaPlayer *media_player) override;
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+  bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) override;
+#endif
  protected:
   APIConnection *client_;
 };

@@ -917,6 +917,59 @@ void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventR
 
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+bool APIConnection::send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+  if (!this->state_subscription_)
+    return false;
+
+  AlarmControlPanelStateResponse resp{};
+  resp.key = a_alarm_control_panel->get_object_id_hash();
+  resp.state = static_cast<enums::AlarmControlPanelState>(a_alarm_control_panel->get_state());
+  return this->send_alarm_control_panel_state_response(resp);
+}
+bool APIConnection::send_alarm_control_panel_info(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+  ListEntitiesAlarmControlPanelResponse msg;
+  msg.key = a_alarm_control_panel->get_object_id_hash();
+  msg.object_id = a_alarm_control_panel->get_object_id();
+  msg.name = a_alarm_control_panel->get_name();
+  msg.unique_id = get_default_unique_id("alarm_control_panel", a_alarm_control_panel);
+  msg.icon = a_alarm_control_panel->get_icon();
+  msg.disabled_by_default = a_alarm_control_panel->is_disabled_by_default();
+  msg.entity_category = static_cast<enums::EntityCategory>(a_alarm_control_panel->get_entity_category());
+  msg.supported_features = a_alarm_control_panel->get_supported_features();
+  msg.requires_code = a_alarm_control_panel->get_requires_code();
+  msg.requires_code_to_arm = a_alarm_control_panel->get_requires_code_to_arm();
+  return this->send_list_entities_alarm_control_panel_response(msg);
+}
+void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) {
+  ESP_LOGD(TAG, "got alarm control panel command for %" PRIu32 "", msg.key);
+  alarm_control_panel::AlarmControlPanel *a_alarm_control_panel = App.get_alarm_control_panel_by_key(msg.key);
+  if (a_alarm_control_panel == nullptr)
+    return;
+
+  switch (msg.command) {
+    case enums::ALARM_CONTROL_PANEL_DISARM:
+      a_alarm_control_panel->disarm(msg.code);
+      break;
+    case enums::ALARM_CONTROL_PANEL_ARM_AWAY:
+      a_alarm_control_panel->arm_away(msg.code);
+      break;
+    case enums::ALARM_CONTROL_PANEL_ARM_HOME:
+      a_alarm_control_panel->arm_home(msg.code);
+      break;
+    case enums::ALARM_CONTROL_PANEL_ARM_NIGHT:
+      a_alarm_control_panel->arm_night(msg.code);
+      break;
+    case enums::ALARM_CONTROL_PANEL_ARM_VACATION:
+      a_alarm_control_panel->arm_vacation(msg.code);
+      break;
+    case enums::ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS:
+      a_alarm_control_panel->arm_custom_bypass(msg.code);
+      break;
+  }
+}
+#endif
+
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
   if (this->log_subscription_ < level)
     return false;

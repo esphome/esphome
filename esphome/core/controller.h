@@ -40,6 +40,9 @@
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+#include "esphome/components/alarm_control_panel/alarm_control_panel.h"
+#endif
 
 namespace esphome {
 
@@ -81,6 +84,9 @@ class Controller {
 #endif
 #ifdef USE_MEDIA_PLAYER
   virtual void on_media_player_update(media_player::MediaPlayer *obj){};
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+  virtual void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj){};
 #endif
 };
 
