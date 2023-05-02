@@ -137,6 +137,6 @@ PMWCS3_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
 async def pmwcs3newi2caddress_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, parent)
-    newaddress_ = await cg.templatable(config[CONF_NEWADDRESS], args, int)
-    cg.add(var.set_newaddress(newaddress_))
+    address = await cg.templatable(config[CONF_ADDRESS], args, int)
+    cg.add(var.set_new_address(address))
     return var
