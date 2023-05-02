@@ -702,6 +702,7 @@ microphone:
   - platform: i2s_audio
     id: mic_id
     i2s_din_pin: GPIO23
+    pdm: false
 
 
 voice_assistant:
