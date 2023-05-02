@@ -42,7 +42,6 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(PMWCS3Component),
-            cv.Optional(CONF_ADDRESS): cv.i2c_address,
             cv.Optional(CONF_E25): sensor.sensor_schema(
                 icon=ICON_EPSILON,
                 accuracy_decimals=3,
