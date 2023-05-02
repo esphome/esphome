@@ -28,8 +28,6 @@ class PMWCS3Component : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   void read_data_();
-  uint8_t newaddress_ = 0x63;
-  void set_newaddress_(uint8_t newaddress);
 
   sensor::Sensor *e25_sensor_{nullptr};
   sensor::Sensor *ec_sensor_{nullptr};
