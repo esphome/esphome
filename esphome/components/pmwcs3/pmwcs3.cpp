@@ -23,13 +23,15 @@ static const uint8_t PMWCS3_REG_RT = 0x0D;
 
 static const char *const TAG = "pmwcs3";
 
-void PMWCS3Component::new_i2c_address(uint8_t newaddress) {
-  if (!this->write_byte(PMWCS3_SET_I2C_ADDRESS, newaddress)) {
+void PMWCS3Component::new_i2c_address(uint8_t address) {
+  if (!this->write_byte(PMWCS3_SET_I2C_ADDRESS, address)) {
     this->status_set_warning();
-    ESP_LOGW(TAG, "couldn't write the new I2C address %d", newaddress);
+    ESP_LOGW(TAG, "couldn't write the new I2C address %d", address);
     return;
   }
-  ESP_LOGVV(TAG, "changed I2C address to %d", newaddress);
+  this->set_i2c_address(address);  // Allows device to continue working until new firmware is written with new address.
+  ESP_LOGVV(TAG, "changed I2C address to %d", address);
+  this->status_clear_warning();
 }
 
 void PMWCS3Component::air_calibration() {
