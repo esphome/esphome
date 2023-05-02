@@ -25,7 +25,7 @@ void I2SAudioMicrophone::start_() {
     return;  // Waiting for another i2s to return lock
   }
   i2s_driver_config_t config = {
-      .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_PDM),
+      .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX),
       .sample_rate = 16000,
       .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
       .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT,
@@ -39,6 +39,9 @@ void I2SAudioMicrophone::start_() {
       .mclk_multiple = I2S_MCLK_MULTIPLE_DEFAULT,
       .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
   };
+
+  if (this->pdm_)
+    config.mode = (i2s_mode_t) (config.mode | I2S_MODE_PDM);
 
   i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
 

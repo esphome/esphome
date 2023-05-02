@@ -16,6 +16,8 @@ from .. import (
 CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["i2s_audio"]
 
+CONF_PDM = "pdm"
+
 I2SAudioMicrophone = i2s_audio_ns.class_(
     "I2SAudioMicrophone", I2SAudioIn, microphone.Microphone, cg.Component
 )
@@ -25,6 +27,7 @@ CONFIG_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
         cv.GenerateID(): cv.declare_id(I2SAudioMicrophone),
         cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
         cv.Required(CONF_I2S_DIN_PIN): pins.internal_gpio_input_pin_number,
+        cv.Required(CONF_PDM): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -37,5 +40,7 @@ async def to_code(config):
     cg.add(parent.register_audio_in(var))
 
     cg.add(var.set_din_pin(config[CONF_I2S_DIN_PIN]))
+
+    cg.add(var.set_pdm(config[CONF_PDM]))
 
     await microphone.register_microphone(var, config)

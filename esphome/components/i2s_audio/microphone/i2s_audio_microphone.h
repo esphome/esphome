@@ -20,12 +20,15 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 
   void set_din_pin(uint8_t pin) { this->din_pin_ = pin; }
 
+  void set_pdm(bool pdm) { this->pdm_ = pdm; }
+
  protected:
   void start_();
   void stop_();
   void read_();
 
-  uint8_t din_pin_{0};
+  uint8_t din_pin_;
+  bool pdm_;
   std::vector<uint8_t> buffer_;
 
   HighFrequencyLoopRequester high_freq_;
