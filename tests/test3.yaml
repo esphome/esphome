@@ -1173,7 +1173,7 @@ qr_code:
 alarm_control_panel:
   id: alarm
   name: Alarm
-  code: 1234
+  code: "1234"
   requires_code_to_arm: true
   arming_time: 10
   delay_time: 15
