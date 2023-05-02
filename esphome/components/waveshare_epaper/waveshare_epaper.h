@@ -284,6 +284,49 @@ class WaveshareEPaper5P8In : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class WaveshareEPaper5P8InV2 : public WaveshareEPaper {
+ public:
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    // COMMAND VCOM AND DATA INTERVAL SETTING
+    this->command(0x50);
+    this->data(0x17);  // border floating
+
+    // COMMAND VCM DC SETTING
+    this->command(0x82);
+    // COMMAND PANEL SETTING
+    this->command(0x00);
+
+    delay(100);  // NOLINT
+
+    // COMMAND POWER SETTING
+    this->command(0x01);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    this->data(0x00);
+    delay(100);  // NOLINT
+
+    // COMMAND POWER OFF
+    this->command(0x02);
+    this->wait_until_idle_();
+    // COMMAND DEEP SLEEP
+    this->command(0x07);
+    this->data(0xA5);  // check byte
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+};
+
 class WaveshareEPaper7P5In : public WaveshareEPaper {
  public:
   void initialize() override;
