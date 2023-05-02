@@ -185,8 +185,7 @@ bool APIServerConnectionBase::send_homeassistant_service_response(const Homeassi
 #endif
   return this->send_message_<HomeassistantServiceResponse>(msg, 35);
 }
-bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(
-    const SubscribeHomeAssistantStateResponse &msg) {
+bool APIServerConnectionBase::send_subscribe_home_assistant_state_response(const SubscribeHomeAssistantStateResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_subscribe_home_assistant_state_response: %s", msg.dump().c_str());
 #endif
@@ -359,8 +358,7 @@ bool APIServerConnectionBase::send_bluetooth_gatt_get_services_response(const Bl
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-bool APIServerConnectionBase::send_bluetooth_gatt_get_services_done_response(
-    const BluetoothGATTGetServicesDoneResponse &msg) {
+bool APIServerConnectionBase::send_bluetooth_gatt_get_services_done_response(const BluetoothGATTGetServicesDoneResponse &msg) {
 #ifdef HAS_PROTO_MESSAGE_DUMP
   ESP_LOGVV(TAG, "send_bluetooth_gatt_get_services_done_response: %s", msg.dump().c_str());
 #endif
@@ -466,6 +464,24 @@ bool APIServerConnectionBase::send_voice_assistant_request(const VoiceAssistantR
 #ifdef USE_VOICE_ASSISTANT
 #endif
 #ifdef USE_VOICE_ASSISTANT
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+bool APIServerConnectionBase::send_list_entities_alarm_control_panel_response(const ListEntitiesAlarmControlPanelResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_alarm_control_panel_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesAlarmControlPanelResponse>(msg, 93);
+}
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+bool APIServerConnectionBase::send_alarm_control_panel_state_response(const AlarmControlPanelStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_alarm_control_panel_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<AlarmControlPanelStateResponse>(msg, 94);
+}
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
 #endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
@@ -877,6 +893,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 95: {
+#ifdef USE_ALARM_CONTROL_PANEL
+      AlarmControlPanelCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_alarm_control_panel_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_alarm_control_panel_command_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -950,8 +977,7 @@ void APIServerConnection::on_subscribe_logs_request(const SubscribeLogsRequest &
   }
   this->subscribe_logs(msg);
 }
-void APIServerConnection::on_subscribe_homeassistant_services_request(
-    const SubscribeHomeassistantServicesRequest &msg) {
+void APIServerConnection::on_subscribe_homeassistant_services_request(const SubscribeHomeassistantServicesRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -1138,8 +1164,7 @@ void APIServerConnection::on_media_player_command_request(const MediaPlayerComma
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(
-    const SubscribeBluetoothLEAdvertisementsRequest &msg) {
+void APIServerConnection::on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -1243,8 +1268,7 @@ void APIServerConnection::on_bluetooth_gatt_notify_request(const BluetoothGATTNo
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
-    const SubscribeBluetoothConnectionsFreeRequest &msg) {
+void APIServerConnection::on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -1260,8 +1284,7 @@ void APIServerConnection::on_subscribe_bluetooth_connections_free_request(
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request(
-    const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
+void APIServerConnection::on_unsubscribe_bluetooth_le_advertisements_request(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
   if (!this->is_connection_setup()) {
     this->on_no_setup_connection();
     return;
@@ -1284,6 +1307,19 @@ void APIServerConnection::on_subscribe_voice_assistant_request(const SubscribeVo
     return;
   }
   this->subscribe_voice_assistant(msg);
+}
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+void APIServerConnection::on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->alarm_control_panel_command(msg);
 }
 #endif
 

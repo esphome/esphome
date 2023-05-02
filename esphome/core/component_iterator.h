@@ -66,6 +66,9 @@ class ComponentIterator {
 #ifdef USE_MEDIA_PLAYER
   virtual bool on_media_player(media_player::MediaPlayer *media_player);
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+  virtual bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) = 0;
+#endif
   virtual bool on_end();
 
  protected:
@@ -116,6 +119,9 @@ class ComponentIterator {
 #endif
 #ifdef USE_MEDIA_PLAYER
     MEDIA_PLAYER,
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+    ALARM_CONTROL_PANEL,
 #endif
     MAX,
   } state_{IteratorState::NONE};
