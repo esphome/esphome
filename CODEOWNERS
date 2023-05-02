@@ -74,7 +74,6 @@ esphome/components/dht/* @OttoWinter
 esphome/components/display_menu_base/* @numo68
 esphome/components/dps310/* @kbx81
 esphome/components/ds1307/* @badbadc0ffee
-esphome/components/dsc_alarm_control_panel/* @grahambrown11
 esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/* @jesserockz
