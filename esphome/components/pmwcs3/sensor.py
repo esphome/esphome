@@ -132,7 +132,7 @@ PMWCS3_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
 @automation.register_action(
     "pmwcs3.new_i2c_address",
     PMWCS3NewI2cAddressAction,
-    PMWCS3NEWI2CADDRESS_SCHEMA,
+    PMWCS3_NEW_I2C_ADDRESS_SCHEMA,
 )
 async def pmwcs3newi2caddress_to_code(config, action_id, template_arg, args):
     parent = await cg.get_variable(config[CONF_ID])
