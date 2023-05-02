@@ -60,9 +60,9 @@ template<typename... Ts> class PMWCS3WaterCalibrationAction : public Action<Ts..
 template<typename... Ts> class PMWCS3NewI2cAddressAction : public Action<Ts...> {
  public:
   PMWCS3NewI2cAddressAction(PMWCS3Component *parent) : parent_(parent) {}
-  TEMPLATABLE_VALUE(int, newaddress)
+  TEMPLATABLE_VALUE(int, new_address)
 
-  void play(Ts... x) override { this->parent_->new_i2c_address(this->newaddress_.value(x...)); }
+  void play(Ts... x) override { this->parent_->new_i2c_address(this->new_address_.value(x...)); }
 
  protected:
   PMWCS3Component *parent_;
