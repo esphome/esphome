@@ -130,7 +130,7 @@ PMWCS3_NEW_I2C_ADDRESS_SCHEMA = cv.maybe_simple_value(
 
 
 @automation.register_action(
-    "pmwcs3.newi2caddress",
+    "pmwcs3.new_i2c_address",
     PMWCS3NewI2cAddressAction,
     PMWCS3NEWI2CADDRESS_SCHEMA,
 )
