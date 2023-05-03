@@ -14,18 +14,18 @@ constexpr uint8_t REG_DIEID = 0xF;  // Device ID
 
 constexpr uint16_t EXPECT_DIEID = 0x0075;  // Expected Device ID.
 
-static uint16_t temp2regvalue(const float temp);
-static float regvalue2temp(const uint16_t regvalue);
+static uint16_t temp2regvalue(float temp);
+static float regvalue2temp(uint16_t regvalue);
 
 void TMP1075Sensor::setup() {
-  uint8_t dieID;
-  if (!this->read_byte(REG_DIEID, &dieID)) {
+  uint8_t die_id;
+  if (!this->read_byte(REG_DIEID, &die_id)) {
     ESP_LOGW(TAG, "'%s' - unable to read ID", this->name_.c_str());
     this->mark_failed();
     return;
   }
-  if (dieID != EXPECT_DIEID) {
-    ESP_LOGW(TAG, "'%s' - unexpected ID 0x%x found, expected 0x%x", this->name_.c_str(), dieID, EXPECT_DIEID);
+  if (die_id != EXPECT_DIEID) {
+    ESP_LOGW(TAG, "'%s' - unexpected ID 0x%x found, expected 0x%x", this->name_.c_str(), die_id, EXPECT_DIEID);
     this->mark_failed();
     return;
   }
@@ -64,7 +64,7 @@ void TMP1075Sensor::dump_config() {
 void TMP1075Sensor::set_alert_limit_low(const float temp) { this->alert_limit_low_ = temp; }
 void TMP1075Sensor::set_alert_limit_high(const float temp) { this->alert_limit_high_ = temp; }
 void TMP1075Sensor::set_oneshot(const bool oneshot) { config_.fields.oneshot = oneshot; }
-void TMP1075Sensor::set_conversion_rate(const enum eConversionRate rate) { config_.fields.rate = rate; }
+void TMP1075Sensor::set_conversion_rate(const enum EConversionRate rate) { config_.fields.rate = rate; }
 void TMP1075Sensor::set_fault_count(const int faults) {
   if (faults < 1) {
     ESP_LOGE(TAG, "'%s' - fault_count too low: %d", this->name_.c_str(), faults);
@@ -80,7 +80,7 @@ void TMP1075Sensor::set_alert_polarity(const bool polarity) { config_.fields.pol
 void TMP1075Sensor::set_alert_mode(const bool alert_mode) { config_.fields.alert_mode = alert_mode; }
 void TMP1075Sensor::set_shutdown(const bool shutdown) { config_.fields.shutdown = shutdown; }
 
-void TMP1075Sensor::load_config() {
+void TMP1075Sensor::load_config_() {
   uint16_t regvalue;
   if (!read_byte_16(REG_CFGR, &regvalue)) {
     ESP_LOGW(TAG, "'%s' - unable to read configuration register", this->name_.c_str());
@@ -88,10 +88,10 @@ void TMP1075Sensor::load_config() {
   }
   config_.regvalue = regvalue;
   ESP_LOGD(TAG, "'%s' - loaded config register %04x", this->name_.c_str(), config_.regvalue);
-  logd_config();
+  logd_config_();
 }
 
-void TMP1075Sensor::logd_config() {
+void TMP1075Sensor::logd_config_() {
   ESP_LOGD(TAG, "  oneshot   : %d", config_.fields.oneshot);
   ESP_LOGD(TAG, "  rate      : %d", config_.fields.rate);
   ESP_LOGD(TAG, "  faults    : %d", config_.fields.faults);
@@ -101,21 +101,21 @@ void TMP1075Sensor::logd_config() {
 }
 
 void TMP1075Sensor::write_config() {
-  send_alert_limit_low();
-  send_alert_limit_high();
-  send_config();
+  send_alert_limit_low_();
+  send_alert_limit_high_();
+  send_config_();
 }
 
-void TMP1075Sensor::send_config() {
+void TMP1075Sensor::send_config_() {
   ESP_LOGD(TAG, "'%s' - sending configuration %04x", this->name_.c_str(), config_.regvalue);
-  logd_config();
+  logd_config_();
   if (!this->write_byte_16(REG_CFGR, config_.regvalue)) {
     ESP_LOGW(TAG, "'%s' - unable to write configuration register", this->name_.c_str());
     return;
   }
 }
 
-void TMP1075Sensor::send_alert_limit_low() {
+void TMP1075Sensor::send_alert_limit_low_() {
   ESP_LOGD(TAG, "'%s' - sending alert limit low %.3f °C", this->name_.c_str(), alert_limit_low_);
   const uint16_t regvalue = temp2regvalue(alert_limit_low_);
   if (!this->write_byte_16(REG_LLIM, regvalue)) {
@@ -124,7 +124,7 @@ void TMP1075Sensor::send_alert_limit_low() {
   }
 }
 
-void TMP1075Sensor::send_alert_limit_high() {
+void TMP1075Sensor::send_alert_limit_high_() {
   ESP_LOGD(TAG, "'%s' - sending alert limit high %.3f °C", this->name_.c_str(), alert_limit_high_);
   const uint16_t regvalue = temp2regvalue(alert_limit_high_);
   if (!this->write_byte_16(REG_HLIM, regvalue)) {

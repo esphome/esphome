@@ -42,7 +42,7 @@ struct TMP1075Config {
   };
 };
 
-enum eConversionRate {
+enum EConversionRate {
   CONV_RATE_27_5_MS,
   CONV_RATE_55_MS,
   CONV_RATE_110_MS,
@@ -63,7 +63,7 @@ class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c
   void set_alert_limit_low(float temp);
   void set_alert_limit_high(float temp);
   void set_oneshot(bool oneshot);
-  void set_conversion_rate(enum eConversionRate rate);
+  void set_conversion_rate(enum EConversionRate rate);
   void set_fault_count(int faults);
   void set_alert_polarity(bool polarity);
   void set_alert_mode(bool alert_mode);
@@ -78,11 +78,11 @@ class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c
   float alert_limit_low_ = -128.0f;
   float alert_limit_high_ = 127.9375f;
 
-  void load_config();
-  void send_alert_limit_low();
-  void send_alert_limit_high();
-  void send_config();
-  void logd_config();
+  void load_config_();
+  void send_alert_limit_low_();
+  void send_alert_limit_high_();
+  void send_config_();
+  void logd_config_();
 };
 
 }  // namespace tmp1075
