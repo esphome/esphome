@@ -374,6 +374,16 @@ binary_sensor:
     on_press:
       - logger.log: Touched
 
+  - platform: gpio
+    name: MaxIn Pin 4
+    pin:
+      max6956: max6956_1
+      number: 4
+      mode:
+        input: true
+        pullup: true
+      inverted: false
+
 climate:
   - platform: tuya
     id: tuya_climate
@@ -716,3 +726,7 @@ voice_assistant:
     - logger.log:
         format: "Voice assistant error - code %s, message: %s"
         args: [code.c_str(), message.c_str()]
+
+max6956:
+  - id: max6956_1
+    address: 0x40
