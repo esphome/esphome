@@ -29,12 +29,19 @@ POLARITY = {
     "ACTIVE_HIGH": 1,
 }
 
+EAlertFunction = tmp1075_ns.enum("EAlertFunction")
+ALERT_FUNCTION = {
+    "COMPARATOR": EAlertFunction.ALERT_COMPARATOR,
+    "INTERRUPT": EAlertFunction.ALERT_INTERRUPT,
+}
+
 CONF_ALERT = "alert"
 CONF_LIMIT_LOW = "limit_low"
 CONF_LIMIT_HIGH = "limit_high"
 CONF_FAULT_COUNT = "fault_count"
 CONF_POLARITY = "polarity"
 CONF_CONVERSION_RATE = "conversion_rate"
+CONF_FUNCTION = "function"
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
@@ -54,6 +61,7 @@ CONFIG_SCHEMA = (
                     cv.Optional(CONF_LIMIT_HIGH): cv.temperature,
                     cv.Optional(CONF_FAULT_COUNT): cv.int_range(min=1, max=4),
                     cv.Optional(CONF_POLARITY): cv.enum(POLARITY, upper=True),
+                    cv.Optional(CONF_FUNCTION): cv.enum(ALERT_FUNCTION, upper=True),
                 }
             ),
         }
@@ -80,3 +88,5 @@ async def to_code(config):
         cg.add(var.set_fault_count(alert[CONF_FAULT_COUNT]))
     if CONF_POLARITY in alert:
         cg.add(var.set_alert_polarity(alert[CONF_POLARITY]))
+    if CONF_FUNCTION in alert:
+        cg.add(var.set_alert_function(alert[CONF_FUNCTION]))

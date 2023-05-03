@@ -1309,6 +1309,7 @@ sensor:
       limit_high: 75
       fault_count: 1
       polarity: active_high
+      function: comparator
 
 esp32_touch:
   setup_mode: false

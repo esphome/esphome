@@ -77,8 +77,7 @@ void TMP1075Sensor::set_fault_count(const int faults) {
   config_.fields.faults = faults - 1;
 }
 void TMP1075Sensor::set_alert_polarity(const bool polarity) { config_.fields.polarity = polarity; }
-void TMP1075Sensor::set_alert_mode(const bool alert_mode) { config_.fields.alert_mode = alert_mode; }
-void TMP1075Sensor::set_shutdown(const bool shutdown) { config_.fields.shutdown = shutdown; }
+void TMP1075Sensor::set_alert_function(const enum EAlertFunction function) { config_.fields.alert_mode = function; }
 
 void TMP1075Sensor::load_config_() {
   uint16_t regvalue;

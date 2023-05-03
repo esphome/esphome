@@ -49,6 +49,11 @@ enum EConversionRate {
   CONV_RATE_220_MS,
 };
 
+enum EAlertFunction {
+  ALERT_COMPARATOR = 0,
+  ALERT_INTERRUPT = 1,
+};
+
 class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c::I2CDevice {
  public:
   void setup() override;
@@ -66,8 +71,7 @@ class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c
   void set_conversion_rate(enum EConversionRate rate);
   void set_fault_count(int faults);
   void set_alert_polarity(bool polarity);
-  void set_alert_mode(bool alert_mode);
-  void set_shutdown(bool shutdown);
+  void set_alert_function(enum EAlertFunction function);
 
   void write_config();
 
