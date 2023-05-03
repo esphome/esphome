@@ -1,5 +1,5 @@
 #include "esphome/core/log.h"
-#include "esphome/components/tmp1075/tmp1075.h"
+#include "tmp1075.h"
 
 namespace esphome {
 namespace tmp1075 {
