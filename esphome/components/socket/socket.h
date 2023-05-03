@@ -11,7 +11,7 @@ namespace socket {
 class Socket {
  public:
   Socket() = default;
-  virtual ~Socket() = default;
+  virtual ~Socket();
   Socket(const Socket &) = delete;
   Socket &operator=(const Socket &) = delete;
 
@@ -34,7 +34,7 @@ class Socket {
   virtual ssize_t readv(const struct iovec *iov, int iovcnt) = 0;
   virtual ssize_t write(const void *buf, size_t len) = 0;
   virtual ssize_t writev(const struct iovec *iov, int iovcnt) = 0;
-  virtual ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen);
+  virtual ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) = 0;
 
   virtual int setblocking(bool blocking) = 0;
   virtual int loop() { return 0; };
