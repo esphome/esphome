@@ -51,8 +51,8 @@ void TMP1075Sensor::dump_config() {
     ESP_LOGE(TAG, "  Communication with TMP1075 failed!");
     return;
   }
-  ESP_LOGCONFIG(TAG, "  limit low  : %d °C", alert_limit_low_);
-  ESP_LOGCONFIG(TAG, "  limit high : %d °C", alert_limit_high_);
+  ESP_LOGCONFIG(TAG, "  limit low  : %.4f °C", alert_limit_low_);
+  ESP_LOGCONFIG(TAG, "  limit high : %.4f °C", alert_limit_high_);
   ESP_LOGCONFIG(TAG, "  oneshot    : %d", config_.fields.oneshot);
   ESP_LOGCONFIG(TAG, "  rate       : %d", config_.fields.rate);
   ESP_LOGCONFIG(TAG, "  fault_count: %d", config_.fields.faults);
