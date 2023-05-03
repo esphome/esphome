@@ -1,6 +1,0 @@
-ports:
-- port: 6052
-  onOpen: open-preview
-tasks:
-- before: pyenv local $(pyenv version | grep '^3\.' | cut -d ' ' -f 1) && script/setup
-  command: python -m esphome dashboard config

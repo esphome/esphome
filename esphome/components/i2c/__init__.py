@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import pins
 from esphome.const import (
     CONF_FREQUENCY,
@@ -110,3 +111,27 @@ async def register_i2c_device(var, config):
     parent = await cg.get_variable(config[CONF_I2C_ID])
     cg.add(var.set_i2c_bus(parent))
     cg.add(var.set_i2c_address(config[CONF_ADDRESS]))
+
+
+def final_validate_device_schema(
+    name: str, *, min_frequency: cv.frequency = None, max_frequency: cv.frequency = None
+):
+    hub_schema = {}
+    if min_frequency is not None:
+        hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(
+            min=cv.frequency(min_frequency),
+            min_included=True,
+            msg=f"Component {name} requires a minimum frequency of {min_frequency} for the I2C bus",
+        )
+
+    if max_frequency is not None:
+        hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(
+            max=cv.frequency(max_frequency),
+            max_included=True,
+            msg=f"Component {name} cannot be used with a frequency of over {max_frequency} for the I2C bus",
+        )
+
+    return cv.Schema(
+        {cv.Required(CONF_I2C_ID): fv.id_declaration_match_schema(hub_schema)},
+        extra=cv.ALLOW_EXTRA,
+    )

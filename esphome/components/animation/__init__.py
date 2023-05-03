@@ -13,7 +13,7 @@ _LOGGER = logging.getLogger(__name__)
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
 
-Animation_ = display.display_ns.class_("Animation")
+Animation_ = display.display_ns.class_("Animation", espImage.Image_)
 
 ANIMATION_SCHEMA = cv.Schema(
     {
@@ -76,8 +76,6 @@ async def to_code(config):
         pos = 0
         for frameIndex in range(frames):
             image.seek(frameIndex)
-            if CONF_RESIZE in config:
-                image.thumbnail(config[CONF_RESIZE])
             frame = image.convert("RGB")
             if CONF_RESIZE in config:
                 frame = frame.resize([width, height])
@@ -117,7 +115,7 @@ async def to_code(config):
                 data[pos] = rgb & 255
                 pos += 1
 
-    elif config[CONF_TYPE] == "BINARY":
+    elif config[CONF_TYPE] in ["BINARY", "TRANSPARENT_BINARY"]:
         width8 = ((width + 7) // 8) * 8
         data = [0 for _ in range((height * width8 // 8) * frames)]
         for frameIndex in range(frames):

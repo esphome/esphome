@@ -27,8 +27,8 @@ void Am43Component::loop() {
   if (this->node_state == espbt::ClientState::ESTABLISHED && !this->logged_in_) {
     auto *packet = this->encoder_->get_send_pin_request(this->pin_);
     auto status =
-        esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, packet->length,
-                                 packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+        esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
+                                 packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
     ESP_LOGI(TAG, "[%s] Logging into AM43", this->get_name().c_str());
     if (status) {
       ESP_LOGW(TAG, "[%s] Error writing set_pin to device, error = %d", this->get_name().c_str(), status);
@@ -40,6 +40,7 @@ void Am43Component::loop() {
 
 CoverTraits Am43Component::get_traits() {
   auto traits = CoverTraits();
+  traits.set_supports_stop(true);
   traits.set_supports_position(true);
   traits.set_supports_tilt(false);
   traits.set_is_assumed_state(false);
@@ -54,22 +55,24 @@ void Am43Component::control(const CoverCall &call) {
   if (call.get_stop()) {
     auto *packet = this->encoder_->get_stop_request();
     auto status =
-        esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, packet->length,
-                                 packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-    if (status)
+        esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
+                                 packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+    if (status) {
       ESP_LOGW(TAG, "[%s] Error writing stop command to device, error = %d", this->get_name().c_str(), status);
+    }
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
 
     if (this->invert_position_)
       pos = 1 - pos;
-    auto *packet = this->encoder_->get_set_position_request(100 - (uint8_t)(pos * 100));
+    auto *packet = this->encoder_->get_set_position_request(100 - (uint8_t) (pos * 100));
     auto status =
-        esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_, packet->length,
-                                 packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
-    if (status)
+        esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(), this->char_handle_,
+                                 packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+    if (status) {
       ESP_LOGW(TAG, "[%s] Error writing set_position command to device, error = %d", this->get_name().c_str(), status);
+    }
   }
 }
 
@@ -92,7 +95,8 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       this->char_handle_ = chr->handle;
 
-      auto status = esp_ble_gattc_register_for_notify(this->parent_->gattc_if, this->parent_->remote_bda, chr->handle);
+      auto status = esp_ble_gattc_register_for_notify(this->parent_->get_gattc_if(), this->parent_->get_remote_bda(),
+                                                      chr->handle);
       if (status) {
         ESP_LOGW(TAG, "[%s] esp_ble_gattc_register_for_notify failed, status=%d", this->get_name().c_str(), status);
       }
@@ -122,21 +126,24 @@ void Am43Component::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         if (this->decoder_->pin_ok_) {
           ESP_LOGI(TAG, "[%s] AM43 pin accepted.", this->get_name().c_str());
           auto *packet = this->encoder_->get_position_request();
-          auto status = esp_ble_gattc_write_char(this->parent_->gattc_if, this->parent_->conn_id, this->char_handle_,
-                                                 packet->length, packet->data, ESP_GATT_WRITE_TYPE_NO_RSP,
-                                                 ESP_GATT_AUTH_REQ_NONE);
-          if (status)
+          auto status = esp_ble_gattc_write_char(this->parent_->get_gattc_if(), this->parent_->get_conn_id(),
+                                                 this->char_handle_, packet->length, packet->data,
+                                                 ESP_GATT_WRITE_TYPE_NO_RSP, ESP_GATT_AUTH_REQ_NONE);
+          if (status) {
             ESP_LOGW(TAG, "[%s] Error writing set_position to device, error = %d", this->get_name().c_str(), status);
+          }
         } else {
           ESP_LOGW(TAG, "[%s] AM43 pin rejected!", this->get_name().c_str());
         }
       }
 
-      if (this->decoder_->has_set_position_response() && !this->decoder_->set_position_ok_)
+      if (this->decoder_->has_set_position_response() && !this->decoder_->set_position_ok_) {
         ESP_LOGW(TAG, "[%s] Got nack after sending set_position. Bad pin?", this->get_name().c_str());
+      }
 
-      if (this->decoder_->has_set_state_response() && !this->decoder_->set_state_ok_)
+      if (this->decoder_->has_set_state_response() && !this->decoder_->set_state_ok_) {
         ESP_LOGW(TAG, "[%s] Got nack after sending set_state. Bad pin?", this->get_name().c_str());
+      }
       break;
     }
     default:

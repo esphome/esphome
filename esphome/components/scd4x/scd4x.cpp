@@ -50,7 +50,7 @@ void SCD4XComponent::setup() {
                uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
 
       if (!this->write_command(SCD4X_CMD_TEMPERATURE_OFFSET,
-                               (uint16_t)(temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
+                               (uint16_t) (temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
         ESP_LOGE(TAG, "Error setting temperature offset.");
         this->error_code_ = MEASUREMENT_INIT_FAILED;
         this->mark_failed();
@@ -149,9 +149,9 @@ void SCD4XComponent::update() {
   }
 
   if (this->ambient_pressure_source_ != nullptr) {
-    float pressure = this->ambient_pressure_source_->state / 1000.0f;
+    float pressure = this->ambient_pressure_source_->state;
     if (!std::isnan(pressure)) {
-      set_ambient_pressure_compensation(this->ambient_pressure_source_->state / 1000.0f);
+      set_ambient_pressure_compensation(pressure);
     }
   }
 
@@ -205,7 +205,7 @@ void SCD4XComponent::update() {
 bool SCD4XComponent::perform_forced_calibration(uint16_t current_co2_concentration) {
   /*
     Operate the SCD4x in the operation mode later used in normal sensor operation (periodic measurement, low power
-    periodic measurement or single shot) for > 3 minutes in an environment with homogenous and constant CO2
+    periodic measurement or single shot) for > 3 minutes in an environment with homogeneous and constant CO2
     concentration before performing a forced recalibration.
   */
   if (!this->write_command(SCD4X_CMD_STOP_MEASUREMENTS)) {
@@ -217,7 +217,7 @@ bool SCD4XComponent::perform_forced_calibration(uint16_t current_co2_concentrati
       ESP_LOGD(TAG, "setting forced calibration Co2 level %d ppm", current_co2_concentration);
       // frc takes 400 ms
       // because this method will be used very rarly
-      // the simple aproach with delay is ok
+      // the simple approach with delay is ok
       delay(400);  // NOLINT'
       if (!this->start_measurement_()) {
         return false;
@@ -254,12 +254,15 @@ bool SCD4XComponent::factory_reset() {
   return true;
 }
 
-// Note pressure in bar here. Convert to hPa
-void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_bar) {
+void SCD4XComponent::set_ambient_pressure_compensation(float pressure_in_hpa) {
   ambient_pressure_compensation_ = true;
-  uint16_t new_ambient_pressure = (uint16_t)(pressure_in_bar * 1000);
-  // remove millibar from comparison to avoid frequent updates +/- 10 millibar doesn't matter
-  if (initialized_ && (new_ambient_pressure / 10 != ambient_pressure_ / 10)) {
+  uint16_t new_ambient_pressure = (uint16_t) pressure_in_hpa;
+  if (!initialized_) {
+    ambient_pressure_ = new_ambient_pressure;
+    return;
+  }
+  // Only send pressure value if it has changed since last update
+  if (new_ambient_pressure != ambient_pressure_) {
     update_ambient_pressure_compensation_(new_ambient_pressure);
     ambient_pressure_ = new_ambient_pressure;
   } else {

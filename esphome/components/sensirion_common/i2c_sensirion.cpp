@@ -33,7 +33,7 @@ bool SensirionI2CDevice::read_data(uint16_t *data, uint8_t len) {
 }
 /***
  * write command with parameters and insert crc
- * use stack array for less than 4 paramaters. Most sensirion i2c commands have less parameters
+ * use stack array for less than 4 parameters. Most sensirion i2c commands have less parameters
  */
 bool SensirionI2CDevice::write_command_(uint16_t command, CommandLen command_len, const uint16_t *data,
                                         uint8_t data_len) {
@@ -63,7 +63,7 @@ bool SensirionI2CDevice::write_command_(uint16_t command, CommandLen command_len
     temp[raw_idx++] = command >> 8;
 #endif
   }
-  // add parameters folllowed by crc
+  // add parameters followed by crc
   // skipped if len == 0
   for (size_t i = 0; i < data_len; i++) {
 #if __BYTE_ORDER__ == __ORDER_LITTLE_ENDIAN__

@@ -7,8 +7,12 @@
 namespace esphome {
 namespace st7789v {
 
-static const uint8_t BLACK = 0;
-static const uint8_t WHITE = 1;
+enum ST7789VModel {
+  ST7789V_MODEL_TTGO_TDISPLAY_135_240,
+  ST7789V_MODEL_ADAFRUIT_FUNHOUSE_240_240,
+  ST7789V_MODEL_ADAFRUIT_RR_280_240,
+  ST7789V_MODEL_CUSTOM
+};
 
 static const uint8_t ST7789_NOP = 0x00;        // No Operation
 static const uint8_t ST7789_SWRESET = 0x01;    // Software Reset
@@ -110,11 +114,18 @@ static const uint8_t ST7789_MADCTL_COLOR_ORDER = ST7789_MADCTL_BGR;
 class ST7789V : public PollingComponent,
                 public display::DisplayBuffer,
                 public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
-                                      spi::DATA_RATE_8MHZ> {
+                                      spi::DATA_RATE_10MHZ> {
  public:
+  void set_model(ST7789VModel model);
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_backlight_pin(GPIOPin *backlight_pin) { this->backlight_pin_ = backlight_pin; }
+
+  void set_eightbitcolor(bool eightbitcolor) { this->eightbitcolor_ = eightbitcolor; }
+  void set_height(uint32_t height) { this->height_ = height; }
+  void set_width(uint16_t width) { this->width_ = width; }
+  void set_offset_height(uint32_t offset_height) { this->offset_height_ = offset_height; }
+  void set_offset_width(uint16_t offset_width) { this->offset_width_ = offset_width; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -122,16 +133,22 @@ class ST7789V : public PollingComponent,
   void dump_config() override;
   float get_setup_priority() const override;
   void update() override;
-  void loop() override;
 
   void write_display_data();
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
  protected:
-  GPIOPin *dc_pin_;
+  ST7789VModel model_{ST7789V_MODEL_TTGO_TDISPLAY_135_240};
+  GPIOPin *dc_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *backlight_pin_{nullptr};
+
+  bool eightbitcolor_{false};
+  uint16_t height_{0};
+  uint16_t width_{0};
+  uint16_t offset_height_{0};
+  uint16_t offset_width_{0};
 
   void init_reset_();
   void backlight_(bool onoff);
@@ -140,13 +157,15 @@ class ST7789V : public PollingComponent,
   void write_addr_(uint16_t addr1, uint16_t addr2);
   void write_color_(uint16_t color, uint16_t size);
 
-  int get_height_internal() override;
-  int get_width_internal() override;
+  int get_height_internal() override { return this->height_; }
+  int get_width_internal() override { return this->width_; }
   size_t get_buffer_length_();
 
   void draw_filled_rect_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color);
 
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
+
+  const char *model_str_();
 };
 
 }  // namespace st7789v

@@ -23,6 +23,12 @@ class TouchscreenBinarySensor : public binary_sensor::BinarySensor,
     this->y_min_ = y_min;
     this->y_max_ = y_max;
   }
+  int16_t get_x_min() { return this->x_min_; }
+  int16_t get_x_max() { return this->x_max_; }
+  int16_t get_y_min() { return this->y_min_; }
+  int16_t get_y_max() { return this->y_max_; }
+  int16_t get_width() { return this->x_max_ - this->x_min_; }
+  int16_t get_height() { return this->y_max_ - this->y_min_; }
 
   void set_page(display::DisplayPage *page) { this->page_ = page; }
 

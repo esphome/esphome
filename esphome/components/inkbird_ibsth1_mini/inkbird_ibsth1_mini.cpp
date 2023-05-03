@@ -55,7 +55,7 @@ bool InkbirdIbstH1Mini::parse_device(const esp32_ble_tracker::ESPBTDevice &devic
     ESP_LOGVV(TAG, "parse_device(): manufacturer data element length is expected to be of length 7");
     return false;
   }
-  if (mnf_data.data[6] != 8) {
+  if ((mnf_data.data[6] != 8) && (mnf_data.data[6] != 6)) {
     ESP_LOGVV(TAG, "parse_device(): unexpected data");
     return false;
   }

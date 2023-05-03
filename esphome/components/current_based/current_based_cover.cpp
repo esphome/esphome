@@ -12,13 +12,29 @@ using namespace esphome::cover;
 
 CoverTraits CurrentBasedCover::get_traits() {
   auto traits = CoverTraits();
+  traits.set_supports_stop(true);
   traits.set_supports_position(true);
+  traits.set_supports_toggle(true);
   traits.set_is_assumed_state(false);
   return traits;
 }
 void CurrentBasedCover::control(const CoverCall &call) {
   if (call.get_stop()) {
     this->direction_idle_();
+  }
+  if (call.get_toggle().has_value()) {
+    if (this->current_operation != COVER_OPERATION_IDLE) {
+      this->start_direction_(COVER_OPERATION_IDLE);
+      this->publish_state();
+    } else {
+      if (this->position == COVER_CLOSED || this->last_operation_ == COVER_OPERATION_CLOSING) {
+        this->target_position_ = COVER_OPEN;
+        this->start_direction_(COVER_OPERATION_OPENING);
+      } else {
+        this->target_position_ = COVER_CLOSED;
+        this->start_direction_(COVER_OPERATION_CLOSING);
+      }
+    }
   }
   if (call.get_position().has_value()) {
     auto pos = *call.get_position();
@@ -131,7 +147,7 @@ void CurrentBasedCover::dump_config() {
   ESP_LOGCONFIG(TAG, "  Close Duration: %.1fs", this->close_duration_ / 1e3f);
   ESP_LOGCONFIG(TAG, "Obstacle Rollback: %.1f%%", this->obstacle_rollback_ * 100);
   if (this->max_duration_ != UINT32_MAX) {
-    ESP_LOGCONFIG(TAG, "Maximun duration: %.1fs", this->max_duration_ / 1e3f);
+    ESP_LOGCONFIG(TAG, "Maximum duration: %.1fs", this->max_duration_ / 1e3f);
   }
   ESP_LOGCONFIG(TAG, "Start sensing delay: %.1fs", this->start_sensing_delay_ / 1e3f);
   ESP_LOGCONFIG(TAG, "Malfunction detection: %s", YESNO(this->malfunction_detection_));
@@ -164,7 +180,7 @@ bool CurrentBasedCover::is_closing_blocked_() const {
   if (this->close_obstacle_current_threshold_ == FLT_MAX) {
     return false;
   }
-  return this->open_sensor_->get_state() > this->open_obstacle_current_threshold_;
+  return this->close_sensor_->get_state() > this->close_obstacle_current_threshold_;
 }
 bool CurrentBasedCover::is_initial_delay_finished_() const {
   return millis() - this->start_dir_time_ > this->start_sensing_delay_;
@@ -202,9 +218,11 @@ void CurrentBasedCover::start_direction_(CoverOperation dir) {
       trig = this->stop_trigger_;
       break;
     case COVER_OPERATION_OPENING:
+      this->last_operation_ = dir;
       trig = this->open_trigger_;
       break;
     case COVER_OPERATION_CLOSING:
+      this->last_operation_ = dir;
       trig = this->close_trigger_;
       break;
     default:

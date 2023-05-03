@@ -12,6 +12,8 @@
 #include "user_services.h"
 #include "api_noise_context.h"
 
+#include <vector>
+
 namespace esphome {
 namespace api {
 
@@ -73,9 +75,29 @@ class APIServer : public Component, public Controller {
   void on_media_player_update(media_player::MediaPlayer *obj) override;
 #endif
   void send_homeassistant_service_call(const HomeassistantServiceResponse &call);
+#ifdef USE_BLUETOOTH_PROXY
+  void send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &call);
+  void send_bluetooth_device_connection(uint64_t address, bool connected, uint16_t mtu = 0, esp_err_t error = ESP_OK);
+  void send_bluetooth_device_pairing(uint64_t address, bool paired, esp_err_t error = ESP_OK);
+  void send_bluetooth_device_unpairing(uint64_t address, bool success, esp_err_t error = ESP_OK);
+  void send_bluetooth_device_clear_cache(uint64_t address, bool success, esp_err_t error = ESP_OK);
+  void send_bluetooth_connections_free(uint8_t free, uint8_t limit);
+  void send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &call);
+  void send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &call);
+  void send_bluetooth_gatt_notify_data_response(const BluetoothGATTNotifyDataResponse &call);
+  void send_bluetooth_gatt_notify_response(const BluetoothGATTNotifyResponse &call);
+  void send_bluetooth_gatt_services(const BluetoothGATTGetServicesResponse &call);
+  void send_bluetooth_gatt_services_done(uint64_t address);
+  void send_bluetooth_gatt_error(uint64_t address, uint16_t handle, esp_err_t error);
+#endif
   void register_user_service(UserServiceDescriptor *descriptor) { this->user_services_.push_back(descriptor); }
 #ifdef USE_HOMEASSISTANT_TIME
   void request_time();
+#endif
+
+#ifdef USE_VOICE_ASSISTANT
+  bool start_voice_assistant();
+  void stop_voice_assistant();
 #endif
 
   bool is_connected() const;

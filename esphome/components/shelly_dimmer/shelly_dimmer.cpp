@@ -1,6 +1,8 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
+#ifdef USE_ESP8266
+
 #include "shelly_dimmer.h"
 #ifdef USE_SHD_FIRMWARE_DATA
 #include "stm32flash.h"
@@ -49,7 +51,7 @@ constexpr float POWER_SCALING_FACTOR = 880373;
 constexpr float VOLTAGE_SCALING_FACTOR = 347800;
 constexpr float CURRENT_SCALING_FACTOR = 1448;
 
-// Esentially std::size() for pre c++17
+// Essentially std::size() for pre c++17
 template<typename T, size_t N> constexpr size_t size(const T (&/*unused*/)[N]) noexcept { return N; }
 
 }  // Anonymous namespace
@@ -521,3 +523,5 @@ void ShellyDimmer::reset_dfu_boot_() {
 
 }  // namespace shelly_dimmer
 }  // namespace esphome
+
+#endif  // USE_ESP8266

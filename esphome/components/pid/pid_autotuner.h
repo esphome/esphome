@@ -5,6 +5,8 @@
 #include "pid_controller.h"
 #include "pid_simulator.h"
 
+#include <vector>
+
 namespace esphome {
 namespace pid {
 
@@ -28,6 +30,8 @@ class PIDAutotuner {
   bool is_finished() const { return state_ != AUTOTUNE_RUNNING; }
 
   void dump_config();
+
+  void set_autotuner_id(std::string id) { this->id_ = std::move(id); }
 
   void set_noiseband(float noiseband) {
     relay_function_.noiseband = noiseband;
@@ -104,6 +108,7 @@ class PIDAutotuner {
   } state_ = AUTOTUNE_RUNNING;
   float ku_;
   float pu_;
+  std::string id_;
 };
 
 }  // namespace pid
