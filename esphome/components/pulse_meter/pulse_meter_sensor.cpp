@@ -7,14 +7,6 @@ namespace pulse_meter {
 
 static const char *const TAG = "pulse_meter";
 
-void PulseMeterSensor::set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
-void PulseMeterSensor::set_filter_us(uint32_t filter) { this->filter_us_ = filter; }
-void PulseMeterSensor::set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
-void PulseMeterSensor::set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
-void PulseMeterSensor::set_filter_mode(InternalFilterMode mode) { this->filter_mode_ = mode; }
-
-void PulseMeterSensor::set_total_pulses(uint32_t pulses) { this->total_pulses_ = pulses; }
-
 void PulseMeterSensor::setup() {
   this->pin_->setup();
   this->isr_pin_ = pin_->to_isr();
