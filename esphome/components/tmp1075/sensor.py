@@ -41,7 +41,7 @@ CONFIG_SCHEMA = (
         TMP1075Sensor,
         unit_of_measurement=UNIT_CELSIUS,
         icon=ICON_THERMOMETER,
-        accuracy_decimals=4,
+        accuracy_decimals=2,
         device_class=DEVICE_CLASS_TEMPERATURE,
         state_class=STATE_CLASS_MEASUREMENT,
     )
