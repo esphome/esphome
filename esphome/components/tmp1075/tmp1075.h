@@ -82,7 +82,7 @@ class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c
   void send_alert_limit_low_();
   void send_alert_limit_high_();
   void send_config_();
-  void logd_config_();
+  void log_config_();
 };
 
 }  // namespace tmp1075
