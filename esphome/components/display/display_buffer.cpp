@@ -664,7 +664,7 @@ bool Animation::get_pixel(int x, int y) const {
     return false;
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t frame_index = this->height_ * width_8 * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return false;
   const uint32_t pos = x + y * width_8 + frame_index;
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
@@ -673,7 +673,7 @@ Color Animation::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
   const uint32_t color32 = (progmem_read_byte(this->data_start_ + pos + 2) << 0) |
@@ -685,7 +685,7 @@ Color Animation::get_rgb565_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 2;
   uint16_t rgb565 =
@@ -699,7 +699,7 @@ Color Animation::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);

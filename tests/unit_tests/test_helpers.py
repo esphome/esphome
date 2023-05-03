@@ -229,3 +229,37 @@ def test_file_compare(fixture_path, file1, file2, expected):
     actual = helpers.file_compare(path1, path2)
 
     assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    (
+        ("foo", "foo"),
+        ("foo bar", "foo_bar"),
+        ("foo Bar", "foo_bar"),
+        ("foo BAR", "foo_bar"),
+        ("foo.bar", "foo.bar"),
+        ("fooBAR", "foobar"),
+        ("Foo-bar_EEK", "foo-bar_eek"),
+        ("  foo", "__foo"),
+    ),
+)
+def test_snake_case(text, expected):
+    actual = helpers.snake_case(text)
+
+    assert actual == expected
+
+
+@pytest.mark.parametrize(
+    "text, expected",
+    (
+        ("foo_bar", "foo_bar"),
+        ('!"§$%&/()=?foo_bar', "foo_bar"),
+        ('foo_!"§$%&/()=?bar', "foo_bar"),
+        ('foo_bar!"§$%&/()=?', "foo_bar"),
+    ),
+)
+def test_sanitize(text, expected):
+    actual = helpers.sanitize(text)
+
+    assert actual == expected
