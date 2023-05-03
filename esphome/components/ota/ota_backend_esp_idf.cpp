@@ -8,6 +8,10 @@
 #include <esp_ota_ops.h>
 #include "esphome/components/md5/md5.h"
 
+#if ESP_IDF_VERSION_MAJOR >= 5
+#include <spi_flash_mmap.h>
+#endif
+
 namespace esphome {
 namespace ota {
 
@@ -16,9 +20,28 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
   if (this->partition_ == nullptr) {
     return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
   }
-  esp_task_wdt_init(15, false);  // The following function takes longer than the 5 seconds timeout of WDT
+
+  // The following function takes longer than the 5 seconds timeout of WDT
+#if ESP_IDF_VERSION_MAJOR >= 5
+  esp_task_wdt_config_t wdtc;
+  wdtc.timeout_ms = 15000;
+  wdtc.idle_core_mask = 0;
+  wdtc.trigger_panic = false;
+  esp_task_wdt_reconfigure(&wdtc);
+#else
+  esp_task_wdt_init(15, false);
+#endif
+
   esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
-  esp_task_wdt_init(CONFIG_ESP_TASK_WDT_TIMEOUT_S, false);  // Set the WDT back to the configured timeout
+
+  // Set the WDT back to the configured timeout
+#if ESP_IDF_VERSION_MAJOR >= 5
+  wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S;
+  esp_task_wdt_reconfigure(&wdtc);
+#else
+  esp_task_wdt_init(CONFIG_ESP_TASK_WDT_TIMEOUT_S, false);
+#endif
+
   if (err != ESP_OK) {
     esp_ota_abort(this->update_handle_);
     this->update_handle_ = 0;

@@ -7,6 +7,7 @@
 #include <freertos/task.h>
 #include <esp_idf_version.h>
 #include <esp_task_wdt.h>
+#include <esp_timer.h>
 #include <soc/rtc.h>
 
 #if ESP_IDF_VERSION_MAJOR >= 4
@@ -23,7 +24,7 @@ void loop();
 namespace esphome {
 
 void IRAM_ATTR HOT yield() { vPortYield(); }
-uint32_t IRAM_ATTR HOT millis() { return (uint32_t)(esp_timer_get_time() / 1000ULL); }
+uint32_t IRAM_ATTR HOT millis() { return (uint32_t) (esp_timer_get_time() / 1000ULL); }
 void IRAM_ATTR HOT delay(uint32_t ms) { vTaskDelay(ms / portTICK_PERIOD_MS); }
 uint32_t IRAM_ATTR HOT micros() { return (uint32_t) esp_timer_get_time(); }
 void IRAM_ATTR HOT delayMicroseconds(uint32_t us) { delay_microseconds_safe(us); }

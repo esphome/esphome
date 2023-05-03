@@ -20,6 +20,7 @@ from esphome.const import (
     CONF_MODE,
     CONF_MODE_COMMAND_TOPIC,
     CONF_MODE_STATE_TOPIC,
+    CONF_ON_CONTROL,
     CONF_ON_STATE,
     CONF_PRESET,
     CONF_PRESET_COMMAND_TOPIC,
@@ -127,6 +128,7 @@ def single_visual_temperature(value):
 # Actions
 ControlAction = climate_ns.class_("ControlAction", automation.Action)
 StateTrigger = climate_ns.class_("StateTrigger", automation.Trigger.template())
+ControlTrigger = climate_ns.class_("ControlTrigger", automation.Trigger.template())
 
 VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Any(
     single_visual_temperature,
@@ -202,6 +204,11 @@ CLIMATE_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).
         ),
         cv.Optional(CONF_TARGET_TEMPERATURE_LOW_STATE_TOPIC): cv.All(
             cv.requires_component("mqtt"), cv.publish_topic
+        ),
+        cv.Optional(CONF_ON_CONTROL): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ControlTrigger),
+            }
         ),
         cv.Optional(CONF_ON_STATE): automation.validate_automation(
             {
@@ -317,6 +324,10 @@ async def setup_climate_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
+    for conf in config.get(CONF_ON_CONTROL, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
 
 async def register_climate(var, config):
     if not CORE.has_id(config[CONF_ID]):
@@ -332,7 +343,7 @@ CLIMATE_CONTROL_ACTION_SCHEMA = cv.Schema(
         cv.Optional(CONF_TARGET_TEMPERATURE): cv.templatable(cv.temperature),
         cv.Optional(CONF_TARGET_TEMPERATURE_LOW): cv.templatable(cv.temperature),
         cv.Optional(CONF_TARGET_TEMPERATURE_HIGH): cv.templatable(cv.temperature),
-        cv.Optional(CONF_AWAY): cv.templatable(cv.boolean),
+        cv.Optional(CONF_AWAY): cv.invalid("Use preset instead"),
         cv.Exclusive(CONF_FAN_MODE, "fan_mode"): cv.templatable(
             validate_climate_fan_mode
         ),
@@ -368,9 +379,6 @@ async def climate_control_to_code(config, action_id, template_arg, args):
             config[CONF_TARGET_TEMPERATURE_HIGH], args, float
         )
         cg.add(var.set_target_temperature_high(template_))
-    if CONF_AWAY in config:
-        template_ = await cg.templatable(config[CONF_AWAY], args, bool)
-        cg.add(var.set_away(template_))
     if CONF_FAN_MODE in config:
         template_ = await cg.templatable(config[CONF_FAN_MODE], args, ClimateFanMode)
         cg.add(var.set_fan_mode(template_))

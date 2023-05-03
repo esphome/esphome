@@ -32,9 +32,11 @@ void Rect::extend(Rect rect) {
     this->h = rect.h;
   } else {
     if (this->x > rect.x) {
+      this->w = this->w + (this->x - rect.x);
       this->x = rect.x;
     }
     if (this->y > rect.y) {
+      this->h = this->h + (this->y - rect.y);
       this->y = rect.y;
     }
     if (this->x2() < rect.x2()) {
@@ -49,29 +51,35 @@ void Rect::shrink(Rect rect) {
   if (!this->inside(rect)) {
     (*this) = Rect();
   } else {
-    if (this->x < rect.x) {
-      this->x = rect.x;
-    }
-    if (this->y < rect.y) {
-      this->y = rect.y;
-    }
     if (this->x2() > rect.x2()) {
       this->w = rect.x2() - this->x;
+    }
+    if (this->x < rect.x) {
+      this->w = this->w + (this->x - rect.x);
+      this->x = rect.x;
     }
     if (this->y2() > rect.y2()) {
       this->h = rect.y2() - this->y;
     }
+    if (this->y < rect.y) {
+      this->h = this->h + (this->y - rect.y);
+      this->y = rect.y;
+    }
   }
 }
 
-bool Rect::inside(int16_t x, int16_t y, bool absolute) {  // NOLINT
+bool Rect::equal(Rect rect) {
+  return (rect.x == this->x) && (rect.w == this->w) && (rect.y == this->y) && (rect.h == this->h);
+}
+
+bool Rect::inside(int16_t test_x, int16_t test_y, bool absolute) {  // NOLINT
   if (!this->is_set()) {
     return true;
   }
   if (absolute) {
-    return ((x >= 0) && (x <= this->w) && (y >= 0) && (y <= this->h));
+    return ((test_x >= this->x) && (test_x <= this->x2()) && (test_y >= this->y) && (test_y <= this->y2()));
   } else {
-    return ((x >= this->x) && (x <= this->x2()) && (y >= this->y) && (y <= this->y2()));
+    return ((test_x >= 0) && (test_x <= this->w) && (test_y >= 0) && (test_y <= this->h));
   }
 }
 
@@ -80,15 +88,16 @@ bool Rect::inside(Rect rect, bool absolute) {
     return true;
   }
   if (absolute) {
-    return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
-  } else {
     return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
+  } else {
+    return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
   }
 }
 
 void Rect::info(const std::string &prefix) {
   if (this->is_set()) {
-    ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d]", prefix.c_str(), this->x, this->y, this->w, this->h);
+    ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d] (%3d,%3d)", prefix.c_str(), this->x, this->y, this->w, this->h, this->x2(),
+             this->y2());
   } else
     ESP_LOGI(TAG, "%s ** IS NOT SET **", prefix.c_str());
 }
@@ -256,7 +265,7 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
     if (glyph_n < 0) {
       // Unknown char, skip
       ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
-      if (font->get_glyphs_size() > 0) {
+      if (!font->get_glyphs().empty()) {
         uint8_t glyph_width = font->get_glyphs()[0].glyph_data_->width;
         for (int glyph_x = 0; glyph_x < glyph_width; glyph_x++) {
           for (int glyph_y = 0; glyph_y < height; glyph_y++)
@@ -557,7 +566,7 @@ void Glyph::scan_area(int *x1, int *y1, int *width, int *height) const {
 }
 int Font::match_next_glyph(const char *str, int *match_length) {
   int lo = 0;
-  int hi = this->glyphs_size_ - 1;
+  int hi = this->glyphs_.size() - 1;
   while (lo != hi) {
     int mid = (lo + hi + 1) / 2;
     if (this->glyphs_[mid].compare_to(str)) {
@@ -583,7 +592,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
     int glyph_n = this->match_next_glyph(str + i, &match_length);
     if (glyph_n < 0) {
       // Unknown char, skip
-      if (this->glyphs_size_ > 0)
+      if (!this->get_glyphs().empty())
         x += this->get_glyphs()[0].glyph_data_->width;
       i++;
       continue;
@@ -604,16 +613,9 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   *width = x - min_x;
 }
 Font::Font(const GlyphData *data, int data_nr, int baseline, int height) : baseline_(baseline), height_(height) {
-  ExternalRAMAllocator<Glyph> allocator(ExternalRAMAllocator<Glyph>::ALLOW_FAILURE);
-  this->glyphs_ = allocator.allocate(data_nr);
-  if (this->glyphs_ == nullptr) {
-    ESP_LOGE(TAG, "Could not allocate buffer for Glyphs!");
-    return;
-  }
-  for (int i = 0; i < data_nr; ++i) {
-    this->glyphs_[i] = Glyph(data + i);
-  }
-  this->glyphs_size_ = data_nr;
+  glyphs_.reserve(data_nr);
+  for (int i = 0; i < data_nr; ++i)
+    glyphs_.emplace_back(&data[i]);
 }
 
 bool Image::get_pixel(int x, int y) const {
@@ -662,7 +664,7 @@ bool Animation::get_pixel(int x, int y) const {
     return false;
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t frame_index = this->height_ * width_8 * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return false;
   const uint32_t pos = x + y * width_8 + frame_index;
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
@@ -671,7 +673,7 @@ Color Animation::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
   const uint32_t color32 = (progmem_read_byte(this->data_start_ + pos + 2) << 0) |
@@ -683,7 +685,7 @@ Color Animation::get_rgb565_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 2;
   uint16_t rgb565 =
@@ -697,7 +699,7 @@ Color Animation::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);

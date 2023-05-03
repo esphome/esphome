@@ -12,14 +12,14 @@ static const char *const TAG = "ezo.sensor";
 
 enum EzoCommandType : uint8_t {
   EZO_READ = 0,
-  EZO_LED = 1,
-  EZO_DEVICE_INFORMATION = 2,
-  EZO_SLOPE = 3,
+  EZO_LED,
+  EZO_DEVICE_INFORMATION,
+  EZO_SLOPE,
   EZO_CALIBRATION,
-  EZO_SLEEP = 4,
-  EZO_I2C = 5,
-  EZO_T = 6,
-  EZO_CUSTOM = 7
+  EZO_SLEEP,
+  EZO_I2C,
+  EZO_T,
+  EZO_CUSTOM
 };
 
 enum EzoCalibrationType : uint8_t { EZO_CAL_LOW = 0, EZO_CAL_MID = 1, EZO_CAL_HIGH = 2 };
