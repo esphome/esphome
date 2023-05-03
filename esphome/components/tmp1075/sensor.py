@@ -16,12 +16,12 @@ TMP1075Sensor = tmp1075_ns.class_(
     "TMP1075Sensor", cg.PollingComponent, sensor.Sensor, i2c.I2CDevice
 )
 
-eConversionRate = tmp1075_ns.enum("eConversionRate")
+EConversionRate = tmp1075_ns.enum("EConversionRate")
 CONVERSION_RATES = {
-    "27.5ms": eConversionRate.CONV_RATE_27_5_MS,
-    "55ms": eConversionRate.CONV_RATE_55_MS,
-    "110ms": eConversionRate.CONV_RATE_110_MS,
-    "220ms": eConversionRate.CONV_RATE_220_MS,
+    "27.5ms": EConversionRate.CONV_RATE_27_5_MS,
+    "55ms": EConversionRate.CONV_RATE_55_MS,
+    "110ms": EConversionRate.CONV_RATE_110_MS,
+    "220ms": EConversionRate.CONV_RATE_220_MS,
 }
 
 POLARITY = {
