@@ -72,7 +72,7 @@ class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c
   void write_config();
 
  protected:
-  TMP1075Config config_ = {0};
+  TMP1075Config config_ = {};
 
   // Disable the alert pin by default.
   float alert_limit_low_ = -128.0f;
