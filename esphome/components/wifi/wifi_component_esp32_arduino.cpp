@@ -131,11 +131,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 #if LWIP_IPV6
   dns.type = IPADDR_TYPE_V4;
 #endif
-  if (uint32_t(manual_ip->dns1) != 0) {
+  if (manual_ip->dns1.is_set()) {
     dns = manual_ip->dns1;
     dns_setserver(0, &dns);
   }
-  if (uint32_t(manual_ip->dns2) != 0) {
+  if (manual_ip->dns2.is_set()) {
     dns = manual_ip->dns2;
     dns_setserver(1, &dns);
   }

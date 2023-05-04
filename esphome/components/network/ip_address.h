@@ -9,6 +9,11 @@
 #include <Arduino.h>
 #endif /* USE_RP2040 */
 
+#ifdef USE_ESP_IDF
+#include <cstring>
+#include <esp_netif.h>
+#endif
+
 namespace esphome {
 namespace network {
 
@@ -20,6 +25,7 @@ struct IPAddress {
   }
   IPAddress(uint32_t raw) { ip_addr_set_ip4_u32(&ip_addr_, raw); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
+  bool is_set() { return !ip_addr_isany(&ip_addr_); }
   operator uint32_t() const { return ip_addr_get_ip4_u32(&ip_addr_); }
   std::string str() const { return ipaddr_ntoa(&ip_addr_); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
@@ -39,6 +45,17 @@ struct IPAddress {
 #ifdef USE_RP2040
   operator arduino::IPAddress() const { return arduino::IPAddress(&ip_addr_); };
 #endif /* USE_RP2040 */
+#ifdef USE_ESP_IDF
+  operator esp_ip_addr_t() const {
+    esp_ip_addr_t tmp;
+#if LWIP_IPV6
+    memcpy((void *) &tmp, (void *) &ip_addr_, sizeof(ip_addr_));
+#else
+    memcpy((void *) &tmp.u_addr.ip4, (void *) &ip_addr_, sizeof(ip_addr_));
+#endif /* LWIP_IPV6 */
+    return tmp;
+  }
+#endif
 
  protected:
   ip_addr_t ip_addr_;

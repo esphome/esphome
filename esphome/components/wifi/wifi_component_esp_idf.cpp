@@ -452,14 +452,13 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   esp_netif_dns_info_t dns;
-  // TODO: remove uint32_t cast
-  if (uint32_t(manual_ip->dns1) != 0) {
-    dns.ip.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns1);
+  if (manual_ip->dns1.is_set()) {
+    dns.ip = manual_ip->dns1;
     esp_netif_set_dns_info(s_sta_netif, ESP_NETIF_DNS_MAIN, &dns);
   }
   // TODO: remove uint32_t cast
-  if (uint32_t(manual_ip->dns2) != 0) {
-    dns.ip.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns2);
+  if (manual_ip->dns2.is_set()) {
+    dns.ip = manual_ip->dns2;
     esp_netif_set_dns_info(s_sta_netif, ESP_NETIF_DNS_BACKUP, &dns);
   }
 
