@@ -17,10 +17,10 @@ Sen0321Sensor = sen0321_sensor_ns.class_(
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
-        Sen0321Sensor, 
-        unit_of_measurement=UNIT_PARTS_PER_BILLION, 
-        icon=ICON_CHEMICAL_WEAPON, 
-        accuracy_decimals=1, 
+        Sen0321Sensor,
+        unit_of_measurement=UNIT_PARTS_PER_BILLION,
+        icon=ICON_CHEMICAL_WEAPON,
+        accuracy_decimals=1,
         state_class=STATE_CLASS_MEASUREMENT,
     )
     .extend(cv.polling_component_schema("60s"))
@@ -28,8 +28,8 @@ CONFIG_SCHEMA = (
 )
 
 
-
 async def to_code(config):
     var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    

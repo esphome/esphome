@@ -27,7 +27,6 @@ class Sen0321Sensor : public sensor::Sensor, public PollingComponent, public i2c
   void dump_config() override;
   void setup() override;
 
-  
  protected:
   void read_data_();
 };
