@@ -11,7 +11,6 @@ rp2040:
     # Waiting for https://github.com/platformio/platform-raspberrypi/pull/36
     platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
 
-
 wifi:
   networks:
     - ssid: "MySSID"
@@ -40,4 +39,4 @@ switch:
 
 sensor:
   - platform: internal_temperature
-    name: "Internal Temperature"
+    name: Internal Temperature

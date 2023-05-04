@@ -42,6 +42,9 @@ void SX1509Component::dump_config() {
 
 void SX1509Component::loop() {
   if (this->has_keypad_) {
+    if (millis() - this->last_loop_timestamp_ < min_loop_period_)
+      return;
+    this->last_loop_timestamp_ = millis();
     uint16_t key_data = this->read_key_data();
     for (auto *binary_sensor : this->keypad_binary_sensors_)
       binary_sensor->process(key_data);
