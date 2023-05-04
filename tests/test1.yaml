@@ -961,6 +961,10 @@ sensor:
     ambient_pressure_compensation: 961mBar
     temperature_offset: 4.2C
     i2c_id: i2c_bus
+  - platform: sen0321
+    name: Workshop Ozone Sensor
+    id: sen0321_ozone
+    update_interval: 10s
   - platform: sgp30
     eco2:
       name: Workshop eCO2
