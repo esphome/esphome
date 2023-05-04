@@ -91,8 +91,20 @@ bool Wireguard::is_peer_up() const {
     return (this->wg_initialized_ == ESP_OK)
         && (this->wg_connected_ == ESP_OK)
         && (esp_wireguardif_peer_is_up(&(this->wg_ctx_)) == ESP_OK)
-        // here after the upper limit of 2*REKEY_AFTER_TIME seconds is arbitrarily chosen
-        && ((this->srctime_->utcnow().timestamp - this->get_latest_handshake()) < (2 * REKEY_AFTER_TIME));
+        && (
+                /*
+                 * When keepalive is disabled we can rely only on the underlying
+                 * library to check if the remote peer is up.
+                 */
+                (this->keepalive_ == 0)
+                /*
+                 * Otherwise we use the value 2*max(keepalive,REKEY_AFTER_TIME) as
+                 * the upper limit to consider a peer online (this value has been
+                 * arbitrarily chosen by authors of this component).
+                 */
+                || ((this->srctime_->utcnow().timestamp - this->get_latest_handshake())
+                        < 2 * (this->keepalive_ > REKEY_AFTER_TIME ? this->keepalive_ : REKEY_AFTER_TIME))
+           );
 }
 
 time_t Wireguard::get_latest_handshake() const {
