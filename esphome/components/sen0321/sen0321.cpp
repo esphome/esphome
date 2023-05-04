@@ -29,7 +29,7 @@ void Sen0321Sensor::dump_config() {
 void Sen0321Sensor::read_data_() {
   uint8_t result[2];
   this->read_bytes(SENSOR_AUTO_READ_REG, result, (uint8_t) 2);
-  this->publish_state(((uint16_t) (result[0]<< 8) + result[1]));
+  this->publish_state(((uint16_t) (result[0] << 8) + result[1]));
 }
 
 }  // namespace sen0321_sensor
