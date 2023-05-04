@@ -131,9 +131,10 @@ struct iovec {
 #include <unistd.h>
 
 #ifdef USE_HOST
+#include <arpa/inet.h>
 #include <netinet/in.h>
 #include <netinet/ip.h>
-#include <arpa/inet.h>
+#include <netinet/tcp.h>
 #endif  // USE_HOST
 
 #ifdef USE_ARDUINO

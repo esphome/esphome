@@ -17,6 +17,9 @@ class HostPreferences : public ESPPreferences {
   ESPPreferenceObject make_preference(size_t length, uint32_t type, bool in_flash) override { return {}; }
 
   ESPPreferenceObject make_preference(size_t length, uint32_t type) override { return {}; }
+
+  bool sync() override { return true; }
+  bool reset() override { return true; }
 };
 
 void setup_preferences() {

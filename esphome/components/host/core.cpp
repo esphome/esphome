@@ -45,6 +45,9 @@ void IRAM_ATTR HOT delayMicroseconds(uint32_t us) {
   } while (res != 0 && errno == EINTR);
 }
 void arch_restart() { exit(0); }
+void arch_init() {
+  // pass
+}
 void IRAM_ATTR HOT arch_feed_wdt() {
   // pass
 }
