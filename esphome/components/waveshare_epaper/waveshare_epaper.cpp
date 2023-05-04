@@ -137,7 +137,7 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
 
-  const uint32_t pos = (x + y * this->get_width_internal()) / 8u;
+  const uint32_t pos = (x + y * this->get_width_controller()) / 8u;
   const uint8_t subpos = x & 0x07;
   // flip logic
   if (!color.is_on()) {
@@ -146,7 +146,9 @@ void HOT WaveshareEPaper::draw_absolute_pixel_internal(int x, int y, Color color
     this->buffer_[pos] &= ~(0x80 >> subpos);
   }
 }
-uint32_t WaveshareEPaper::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal() / 8u; }
+uint32_t WaveshareEPaper::get_buffer_length_() {
+  return this->get_width_controller() * this->get_height_internal() / 8u;
+}
 void WaveshareEPaper::start_command_() {
   this->dc_pin_->digital_write(false);
   this->enable();
@@ -291,7 +293,7 @@ void HOT WaveshareEPaperTypeA::display() {
       // COMMAND SET RAM X ADDRESS START END POSITION
       this->command(0x44);
       this->data(0x00);
-      this->data((this->get_width_internal() - 1) >> 3);
+      this->data((this->get_width_controller() - 1) >> 3);
       // COMMAND SET RAM Y ADDRESS START END POSITION
       this->command(0x45);
       this->data(this->get_height_internal() - 1);
@@ -392,11 +394,25 @@ int WaveshareEPaperTypeA::get_width_internal() {
     case TTGO_EPAPER_2_13_IN_B73:
     case TTGO_EPAPER_2_13_IN_B74:
     case TTGO_EPAPER_2_13_IN_B1:
+      return 122;
     case WAVESHARE_EPAPER_2_9_IN:
     case WAVESHARE_EPAPER_2_9_IN_V2:
       return 128;
   }
   return 0;
+}
+// The controller of the 2.13" displays has a buffer larger than screen size
+int WaveshareEPaperTypeA::get_width_controller() {
+  switch (this->model_) {
+    case WAVESHARE_EPAPER_2_13_IN:
+    case TTGO_EPAPER_2_13_IN:
+    case TTGO_EPAPER_2_13_IN_B73:
+    case TTGO_EPAPER_2_13_IN_B74:
+    case TTGO_EPAPER_2_13_IN_B1:
+      return 128;
+    default:
+      return this->get_width_internal();
+  }
 }
 int WaveshareEPaperTypeA::get_height_internal() {
   switch (this->model_) {
@@ -657,6 +673,90 @@ int WaveshareEPaper2P9InB::get_height_internal() { return 296; }
 void WaveshareEPaper2P9InB::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
   ESP_LOGCONFIG(TAG, "  Model: 2.9in (B)");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
+// ========================================================
+//     Good Display 2.9in black/white/grey
+// Datasheet:
+//  - https://v4.cecdn.yun300.cn/100001_1909185148/SSD1680.pdf
+//  - https://github.com/adafruit/Adafruit_EPD/blob/master/src/panels/ThinkInk_290_Grayscale4_T5.h
+// ========================================================
+
+void GDEY029T94::initialize() {
+  // from https://www.waveshare.com/w/upload/b/bb/2.9inch-e-paper-b-specification.pdf, page 37
+  // EPD hardware init start
+  this->reset_();
+
+  // COMMAND POWER SETTINGS
+  this->command(0x00);
+  this->data(0x03);
+  this->data(0x00);
+  this->data(0x2b);
+  this->data(0x2b);
+  this->data(0x03); /* for b/w */
+
+  // COMMAND BOOSTER SOFT START
+  this->command(0x06);
+  this->data(0x17);
+  this->data(0x17);
+  this->data(0x17);
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  this->wait_until_idle_();
+
+  // Not sure what this does but it's in the Adafruit EPD library
+  this->command(0xFF);
+  this->wait_until_idle_();
+
+  // COMMAND PANEL SETTING
+  this->command(0x00);
+  // 128x296 resolution:        10
+  // LUT from OTP:              0
+  // B/W mode (doesn't work):   1
+  // scan-up:                   1
+  // shift-right:               1
+  // booster ON:                1
+  // no soft reset:             1
+  this->data(0b10011111);
+
+  // COMMAND RESOLUTION SETTING
+  // set to 128x296 by COMMAND PANEL SETTING
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  // use defaults for white border and ESPHome image polarity
+
+  // EPD hardware init end
+}
+void HOT GDEY029T94::display() {
+  // COMMAND DATA START TRANSMISSION 2 (B/W only)
+  this->command(0x13);
+  delay(2);
+  this->start_data_();
+  for (size_t i = 0; i < this->get_buffer_length_(); i++) {
+    this->write_byte(this->buffer_[i]);
+  }
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+  delay(2);
+  this->wait_until_idle_();
+
+  // COMMAND POWER OFF
+  // NOTE: power off < deep sleep
+  this->command(0x02);
+}
+int GDEY029T94::get_width_internal() { return 128; }
+int GDEY029T94::get_height_internal() { return 296; }
+void GDEY029T94::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper (Good Display)", this);
+  ESP_LOGCONFIG(TAG, "  Model: 2.9in Greyscale GDEY029T94");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
@@ -937,6 +1037,88 @@ void WaveshareEPaper5P8In::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+
+// ========================================================
+//               5.83in V2
+// Datasheet/Specification/Reference:
+//  - https://www.waveshare.com/w/upload/3/37/5.83inch_e-Paper_V2_Specification.pdf
+//  - https://github.com/waveshare/e-Paper/blob/master/Arduino/epd5in83_V2/epd5in83_V2.cpp
+// ========================================================
+void WaveshareEPaper5P8InV2::initialize() {
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x07);
+  this->data(0x07);
+  this->data(0x3f);
+  this->data(0x3f);
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  delay(10);
+  this->wait_until_idle_();
+
+  // PANNEL SETTING
+  this->command(0x00);
+  this->data(0x1F);
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x02);
+  this->data(0x88);
+  this->data(0x01);
+  this->data(0xE0);
+
+  this->command(0x15);
+  this->data(0x00);
+
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+
+  // Do we need this?
+  // COMMAND PLL CONTROL
+  this->command(0x30);
+  this->data(0x3C);  // 3A 100HZ   29 150Hz 39 200HZ  31 171HZ
+}
+void HOT WaveshareEPaper5P8InV2::display() {
+  // Reuse the code from WaveshareEPaper4P2In::display()
+  // COMMAND VCM DC SETTING REGISTER
+  this->command(0x82);
+  this->data(0x12);
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x97);
+
+  // COMMAND DATA START TRANSMISSION 1
+  this->command(0x10);
+  delay(2);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2
+  this->command(0x13);
+  delay(2);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+}
+int WaveshareEPaper5P8InV2::get_width_internal() { return 648; }
+int WaveshareEPaper5P8InV2::get_height_internal() { return 480; }
+void WaveshareEPaper5P8InV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 5.83inv2");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND POWER SETTING
   this->command(0x01);
