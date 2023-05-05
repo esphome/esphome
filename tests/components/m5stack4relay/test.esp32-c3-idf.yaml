@@ -1,0 +1,33 @@
+i2c:
+  - id: i2c_m5stack4relay
+    scl: 5
+    sda: 4
+
+m5stack4relay:
+  id: M5stackrelay_ID1
+
+switch:
+  - platform: m5stack4relay
+    id: m5stack4relay_1
+    name: m5stack4relay1
+    channel: 1
+    m5stack4relay_id: M5stackrelay_ID1
+
+  - platform: m5stack4relay
+    id: m5stack4relay_2
+    name: m5stack4relay2
+    channel: 2
+    m5stack4relay_id: M5stackrelay_ID1
+
+  - platform: m5stack4relay
+    id: m5stack4relay_3
+    name: m5stack4relay3
+    channel: 3
+    m5stack4relay_id: M5stackrelay_ID1
+
+  - platform: m5stack4relay
+    id: m5stack4relay_4
+    name: m5stack4relay4
+    channel: 4
+    m5stack4relay_id: M5stackrelay_ID1
+
