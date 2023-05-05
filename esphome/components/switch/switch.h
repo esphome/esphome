@@ -75,7 +75,7 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
    */
   void set_inverted(bool inverted);
 
-   /** Sets interlocked switches.
+  /** Sets interlocked switches.
    *
    * Set the switches which should be switched to off when this switch is turened on
    *
@@ -83,7 +83,7 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
    */
   void set_interlock(const std::vector<Switch *> &interlock) { interlock_ = interlock; }
 
-   /** Sets waiting time for interlocking switches.
+  /** Sets waiting time for interlocking switches.
    *
    * Sets the time between switching the interlocked switches off and switching the
    * switch on.
