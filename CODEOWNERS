@@ -272,6 +272,7 @@ esphome/components/whirlpool/* @glmnet
 esphome/components/whynter/* @aeonsablaze
 esphome/components/wireguard/* @lhoracek
 esphome/components/wireguard_handshake/* @droscy
+esphome/components/wireguard_status/* @droscy
 esphome/components/wl_134/* @hobbypunk90
 esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
