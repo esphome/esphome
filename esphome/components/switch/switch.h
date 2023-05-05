@@ -82,10 +82,10 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
    * @param vector<switch> a single switch or vector of switches which should be switched to off.
    */
   void set_interlock(const std::vector<Switch *> &interlock) { interlock_ = interlock; }
-  
+
    /** Sets waiting time for interlocking switches.
    *
-   * Sets the time between switching the interlocked switches off and switching the 
+   * Sets the time between switching the interlocked switches off and switching the
    * switch on.
    *
    * @param interlock_wait_time time microseconds to wait between switching.
