@@ -1,21 +1,18 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/preferences.h"
 #include "esphome/components/sensor/sensor.h"
-#include "esphome/components/text_sensor/text_sensor.h"
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
 namespace ens160 {
 
-class ENS160Component : public PollingComponent, public i2c::I2CDevice {
+class ENS160Component : public PollingComponent, public i2c::I2CDevice, public sensor::Sensor {
  public:
   void set_co2(sensor::Sensor *co2) { co2_ = co2; }
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_ = tvoc; }
   void set_aqi(sensor::Sensor *aqi) { aqi_ = aqi; }
-  void set_version(text_sensor::TextSensor *version) { version_ = version; }
-  void set_status(text_sensor::TextSensor *status) { status_ = status; }
+  
   void set_humidity(sensor::Sensor *humidity) { humidity_ = humidity; }
   void set_temperature(sensor::Sensor *temperature) { temperature_ = temperature; }
 
@@ -41,8 +38,7 @@ class ENS160Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *co2_{nullptr};
   sensor::Sensor *tvoc_{nullptr};
   sensor::Sensor *aqi_{nullptr};
-  text_sensor::TextSensor *version_{nullptr};
-  text_sensor::TextSensor *status_{nullptr};
+  
   sensor::Sensor *humidity_{nullptr};
   sensor::Sensor *temperature_{nullptr};
 };

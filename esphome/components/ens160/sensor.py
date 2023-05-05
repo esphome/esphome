@@ -1,12 +1,10 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor, text_sensor
+from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     ICON_CHEMICAL_WEAPON,
     ICON_RADIATOR,
-    ICON_RESTART,
-    ICON_BUG,
     DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
     STATE_CLASS_MEASUREMENT,
@@ -16,20 +14,16 @@ from esphome.const import (
     CONF_TEMPERATURE,
     CONF_TVOC,
     CONF_HUMIDITY,
-    CONF_VERSION,
-    CONF_STATUS,
     ICON_MOLECULE_CO2,
     DEVICE_CLASS_AQI,
-    ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
-AUTO_LOAD = ["text_sensor"]
 CODEOWNERS = ["@vincentscode"]
 DEPENDENCIES = ["i2c"]
 
 ens160_ns = cg.esphome_ns.namespace("ens160")
 ENS160Component = ens160_ns.class_(
-    "ENS160Component", cg.PollingComponent, i2c.I2CDevice
+    "ENS160Component", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor
 )
 
 CONF_AQI = "aqi"
@@ -42,14 +36,14 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_ECO2): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_MILLION,
                 icon=ICON_MOLECULE_CO2,
-                accuracy_decimals=1,
+                accuracy_decimals=0,
                 device_class=DEVICE_CLASS_CARBON_DIOXIDE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
-                accuracy_decimals=1,
+                accuracy_decimals=0,
                 device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
@@ -59,14 +53,6 @@ CONFIG_SCHEMA = (
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                icon=ICON_RESTART,
-            ),
-            cv.Optional(CONF_STATUS): text_sensor.text_sensor_schema(
-                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                icon=ICON_BUG,
             ),
             cv.Optional(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
             cv.Optional(CONF_HUMIDITY): cv.use_id(sensor.Sensor),
@@ -88,14 +74,6 @@ async def to_code(config):
     cg.add(var.set_tvoc(sens))
     sens = await sensor.new_sensor(config[CONF_AQI])
     cg.add(var.set_aqi(sens))
-
-    if CONF_VERSION in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_VERSION])
-        cg.add(var.set_version(sens))
-
-    if CONF_STATUS in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_STATUS])
-        cg.add(var.set_status(sens))
 
     if CONF_TEMPERATURE in config:
         sens = await cg.get_variable(config[CONF_TEMPERATURE])
