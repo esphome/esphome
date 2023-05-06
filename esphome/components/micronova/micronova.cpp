@@ -107,7 +107,7 @@ void MicroNovaSwitch::write_state(bool state) {
           ESP_LOGW(TAG, "Unable to turn stove on, invalid state: %d", micronova_->get_current_stove_state());
       } else {
         // don't shut send power-off when statis is Off or Final cleaning
-        if (micronova_->get_current_stove_state() != 0 || micronova_->get_current_stove_state() != 6) {
+        if (micronova_->get_current_stove_state() != 0 && micronova_->get_current_stove_state() != 6) {
           this->micronova_->write_address(this->memory_location_, this->memory_address_, this->memory_data_off_);
           this->publish_state(false);
         } else
@@ -138,9 +138,9 @@ void MicroNova::dump_config() {
   }
 
   for (auto &mv_sensor : this->micronova_sensors_) {
-    ESP_LOGCONFIG(TAG, " Micronova sensor: %d, location:%02X, address:%02X",
-                  ((MicroNovaSensor *) mv_sensor)->get_function(), mv_sensor->get_memory_location(),
-                  mv_sensor->get_memory_address());
+    mv_sensor->dump_config();
+    ESP_LOGCONFIG(TAG, "    sensor location:%02X, address:%02X",
+                    mv_sensor->get_memory_location(), mv_sensor->get_memory_address());
   }
 
   if (this->scan_memory_location_ >= 0) {

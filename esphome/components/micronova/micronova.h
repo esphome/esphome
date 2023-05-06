@@ -39,6 +39,7 @@ class MicroNova;
 class MicroNovaFunction {
  public:
   MicroNovaFunction(MicroNova *m) { micronova_ = m; }
+  virtual void dump_config();
   virtual void read_value_from_stove();
   void set_micronova_object(MicroNova *m) { micronova_ = m; }
 
@@ -66,6 +67,7 @@ class MicroNovaFunction {
 class MicroNovaSensor : public sensor::Sensor, public MicroNovaFunction {
  public:
   MicroNovaSensor(MicroNova *m) : MicroNovaFunction(m) {}
+  void dump_config() override { LOG_SENSOR("", "Micronova sensor", this); }
   void read_value_from_stove() override;
 
   void set_fan_speed_offset(uint8_t f) { fan_speed_offset_ = f; }
@@ -80,6 +82,7 @@ class MicroNovaSensor : public sensor::Sensor, public MicroNovaFunction {
 class MicroNovaTextSensor : public text_sensor::TextSensor, public MicroNovaFunction {
  public:
   MicroNovaTextSensor(MicroNova *m) : MicroNovaFunction(m) {}
+  void dump_config() override { LOG_TEXT_SENSOR("", "Micronova text sensor", this); }
   void read_value_from_stove() override;
 };
 
