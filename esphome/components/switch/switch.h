@@ -75,23 +75,6 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
    */
   void set_inverted(bool inverted);
 
-  /** Sets interlocked switches.
-   *
-   * Set the switches which should be switched to off when this switch is turened on
-   *
-   * @param vector<switch> a single switch or vector of switches which should be switched to off.
-   */
-  void set_interlock(const std::vector<Switch *> &interlock) { interlock_ = interlock; }
-
-  /** Sets waiting time for interlocking switches.
-   *
-   * Sets the time between switching the interlocked switches off and switching the
-   * switch on.
-   *
-   * @param interlock_wait_time time microseconds to wait between switching.
-   */
-  void set_interlock_wait_time(uint32_t interlock_wait_time) { interlock_wait_time_ = interlock_wait_time; }
-
   /** Set callback for state changes.
    *
    * @param callback The void(bool) callback.
@@ -137,9 +120,6 @@ class Switch : public EntityBase, public EntityBase_DeviceClass {
   bool inverted_{false};
   Deduplicator<bool> publish_dedup_;
   ESPPreferenceObject rtc_;
-
-  std::vector<Switch *> interlock_;
-  uint32_t interlock_wait_time_{0};
 };
 
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))
