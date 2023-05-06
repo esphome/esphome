@@ -1176,6 +1176,21 @@ optional<uint32_t> Sprinkler::time_remaining_current_operation() {
   return nullopt;
 }
 
+bool Sprinkler::any_controller_is_active() {
+  if (this->state_ != IDLE) {
+    return true;
+  }
+
+  for (auto &controller : this->other_controllers_) {
+    if (controller != this) {  // dummy check
+      if (controller->controller_state() != IDLE) {
+        return true;
+      }
+    }
+  }
+  return false;
+}
+
 SprinklerControllerSwitch *Sprinkler::control_switch(size_t valve_number) {
   if (this->is_a_valid_valve(valve_number)) {
     return this->valve_[valve_number].controller_switch;
