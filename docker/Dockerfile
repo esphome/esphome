@@ -26,7 +26,7 @@ RUN \
         python3-cryptography=3.3.2-1 \
         python3-venv=3.9.2-3 \
         iputils-ping=3:20210202-1 \
-        git=1:2.30.2-1 \
+        git=1:2.30.2-1+deb11u2 \
         curl=7.74.0-1.3+deb11u7 \
         openssh-client=1:8.4p1-5+deb11u1 \
     && rm -rf \
@@ -60,10 +60,10 @@ RUN \
 
 
 # First install requirements to leverage caching when requirements don't change
-COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
+COPY requirements.txt requirements_optional.txt script/platformio_install_deps.py platformio.ini /
 RUN \
     pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
-    && /platformio_install_deps.py /platformio.ini
+    && /platformio_install_deps.py /platformio.ini --libraries
 
 
 # ======================= docker-type image =======================
