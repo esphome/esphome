@@ -184,10 +184,10 @@ uint32_t AlarmControlPanel::get_supported_features() {
   return 1 + 2 + 8;
 }
 
-void AlarmControlPanel::add_code(std::string code) { this->codes_.push_back(code); }
+void AlarmControlPanel::add_code(const std::string &code) { this->codes_.push_back(code); }
 
 bool AlarmControlPanel::is_code_valid_(optional<std::string> code) {
-  if (this->codes_.size() > 0) {
+  if (!this->codes_.empty()) {
     if (code.has_value()) {
       return (std::count(this->codes_.begin(), this->codes_.end(), code.value()) == 1);
     }
@@ -196,7 +196,7 @@ bool AlarmControlPanel::is_code_valid_(optional<std::string> code) {
   return true;
 }
 
-bool AlarmControlPanel::get_requires_code() { return this->codes_.size() > 0; }
+bool AlarmControlPanel::get_requires_code() { return !this->codes_.empty(); }
 
 void AlarmControlPanel::set_requires_code_to_arm(bool code_to_arm) { this->requires_code_to_arm_ = code_to_arm; }
 
@@ -212,7 +212,7 @@ void AlarmControlPanel::set_trigger_time(uint32_t time) { this->trigger_time_ = 
 
 void AlarmControlPanel::disarm(optional<std::string> code) {
   ESP_LOGD(TAG, "disarm");
-  if (!this->is_code_valid_(code)) {
+  if (!this->is_code_valid_(std::move(code))) {
     ESP_LOGW(TAG, "Not disarming code doesn't match");
     return;
   }
@@ -225,7 +225,7 @@ void AlarmControlPanel::arm_(optional<std::string> code, AlarmControlPanelState 
     ESP_LOGW(TAG, "Cannot arm when not disarmed");
     return;
   }
-  if (this->requires_code_to_arm_ && !this->is_code_valid_(code)) {
+  if (this->requires_code_to_arm_ && !this->is_code_valid_(std::move(code))) {
     ESP_LOGW(TAG, "Not arming code doesn't match");
     return;
   }
@@ -239,19 +239,26 @@ void AlarmControlPanel::arm_(optional<std::string> code, AlarmControlPanelState 
 
 void AlarmControlPanel::arm_away(optional<std::string> code) {
   ESP_LOGD(TAG, "arm_away");
-  this->arm_(code, AlarmControlPanelState::ARMED_AWAY, this->arming_away_time_);
+  this->arm_(std::move(code), AlarmControlPanelState::ARMED_AWAY, this->arming_away_time_);
 }
 
 void AlarmControlPanel::arm_home(optional<std::string> code) {
   ESP_LOGD(TAG, "arm_home");
-  this->arm_(code, AlarmControlPanelState::ARMED_HOME, this->arming_home_time_);
+  this->arm_(std::move(code), AlarmControlPanelState::ARMED_HOME, this->arming_home_time_);
 }
 
-void AlarmControlPanel::arm_night(optional<std::string> code) { ESP_LOGE(TAG, "arm_night not suported"); }
+void AlarmControlPanel::arm_night(optional<std::string> code) {
+  this->is_code_valid_(std::move(code));
+  ESP_LOGE(TAG, "arm_night not suported");
+}
 
-void AlarmControlPanel::arm_vacation(optional<std::string> code) { ESP_LOGE(TAG, "arm_vacation not suported"); }
+void AlarmControlPanel::arm_vacation(optional<std::string> code) {
+  this->is_code_valid_(std::move(code));
+  ESP_LOGE(TAG, "arm_vacation not suported");
+}
 
 void AlarmControlPanel::arm_custom_bypass(optional<std::string> code) {
+  this->is_code_valid_(std::move(code));
   ESP_LOGE(TAG, "arm_custom_bypass not suported");
 }
 
