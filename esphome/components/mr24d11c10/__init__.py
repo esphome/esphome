@@ -4,7 +4,7 @@ from esphome.components import uart
 from esphome.const import CONF_ID
 
 DEPENDENCIES = ["uart"]
-CODEOWNERS = ["@therealtom"]
+CODEOWNERS = ["@TheRealTom"]
 MULTI_CONF = True
 
 mr24d11c10_ns = cg.esphome_ns.namespace("mr24d11c10")
