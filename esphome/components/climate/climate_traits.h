@@ -117,15 +117,6 @@ class ClimateTraits {
   bool supports_custom_preset(const std::string &custom_preset) const {
     return supported_custom_presets_.count(custom_preset);
   }
-  ESPDEPRECATED("This method is deprecated, use set_supported_presets() instead", "v1.20")
-  void set_supports_away(bool supports) {
-    if (supports) {
-      supported_presets_.insert(CLIMATE_PRESET_AWAY);
-      supported_presets_.insert(CLIMATE_PRESET_HOME);
-    }
-  }
-  ESPDEPRECATED("This method is deprecated, use supports_preset() instead", "v1.20")
-  bool get_supports_away() const { return supports_preset(CLIMATE_PRESET_AWAY); }
 
   void set_supported_swing_modes(std::set<ClimateSwingMode> modes) { supported_swing_modes_ = std::move(modes); }
   void add_supported_swing_mode(ClimateSwingMode mode) { supported_swing_modes_.insert(mode); }
