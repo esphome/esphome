@@ -493,9 +493,10 @@ void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 
 void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trigger WDT or affect WiFi/BT stability
   uint32_t start = micros();
-  const uint32_t lag = 5000;                 // microseconds, specifies the maximum time for a CPU busy-loop.
-                              // it must be larger than the worst-case duration of a delay(1) call (hardware tasks)
-                              // 5ms is conservative, it could be reduced when exact BT/WiFi stack delays are known
+
+  const uint32_t lag = 5000;     // microseconds, specifies the maximum time for a CPU busy-loop.
+                                 // it must be larger than the worst-case duration of a delay(1) call (hardware tasks)
+                                 // 5ms is conservative, it could be reduced when exact BT/WiFi stack delays are known
   if (us > lag) {
     delay((us - lag) / 1000UL);  // note: in disabled-interrupt contexts delay() won't actually sleep
     while (micros() - start < us - lag)
