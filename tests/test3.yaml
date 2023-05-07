@@ -822,6 +822,7 @@ switch:
     name: R0 Switch
     component_name: page0.r0
 
+
 climate:
   - platform: bang_bang
     name: Bang Bang Climate
@@ -1104,6 +1105,7 @@ rf_bridge:
         code: "ABC123"
     - rf_bridge.send_raw:
         raw: "AAA5070008001000ABC12355"
+
 
 display:
   - platform: nextion
