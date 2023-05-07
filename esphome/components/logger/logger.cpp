@@ -301,7 +301,7 @@ void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
   ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
   ESP_LOGCONFIG(TAG, "  Log Baud Rate: %" PRIu32, this->baud_rate_);
-#ifndef USE_HOST
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
   ESP_LOGCONFIG(TAG, "  Hardware UART: %s", UART_SELECTIONS[this->uart_]);
 #endif
 

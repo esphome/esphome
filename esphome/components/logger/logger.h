@@ -25,7 +25,7 @@ namespace esphome {
 
 namespace logger {
 
-#if defined(USE_ESP32) || defined(USE_ESP8266)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
 /** Enum for logging UART selection
  *
  * Advanced configuration (pin selection, etc) is not supported.
@@ -68,7 +68,7 @@ class Logger : public Component {
 #ifdef USE_ESP_IDF
   uart_port_t get_uart_num() const { return uart_num_; }
 #endif
-#ifndef USE_HOST
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
   UARTSelection get_uart() const;
