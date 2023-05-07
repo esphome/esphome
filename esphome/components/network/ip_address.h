@@ -29,6 +29,7 @@ struct IPAddress {
   operator uint32_t() const { return ip_addr_get_ip4_u32(&ip_addr_); }
   std::string str() const { return ipaddr_ntoa(&ip_addr_); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
+  bool operator!=(const IPAddress &other) const { return !(&ip_addr_ == &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
     if (IP_IS_V4(&ip_addr_)) {
 #if LWIP_IPV6
