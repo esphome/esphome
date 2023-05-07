@@ -1,10 +1,9 @@
 #pragma once
 
+#include <vector>
+#include "esphome/components/output/float_output.h"
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
-#include "esphome/components/output/float_output.h"
-#include <vector>
-#include <map>
 
 namespace esphome {
 namespace sm2135 {
