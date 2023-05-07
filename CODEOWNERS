@@ -21,6 +21,7 @@ esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
+esphome/components/am43/sensor/* @buxtronix
 esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
@@ -109,6 +110,7 @@ esphome/components/honeywellabp/* @RubyBailey
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/hte501/* @Stock-M
 esphome/components/hydreon_rgxx/* @functionpointer
+esphome/components/hyt271/* @Philippe12
 esphome/components/i2c/* @esphome/core
 esphome/components/i2s_audio/* @jesserockz
 esphome/components/i2s_audio/media_player/* @jesserockz
@@ -138,6 +140,7 @@ esphome/components/ltr390/* @sjtrny
 esphome/components/matrix_keypad/* @ssieb
 esphome/components/max31865/* @DAVe3283
 esphome/components/max44009/* @berfenger
+esphome/components/max6956/* @looping40
 esphome/components/max7219digit/* @rspaargaren
 esphome/components/max9611/* @mckaymatthew
 esphome/components/mcp23008/* @jesserockz
@@ -162,6 +165,7 @@ esphome/components/midea/* @dudanov
 esphome/components/midea_ir/* @dudanov
 esphome/components/mitsubishi/* @RubyBailey
 esphome/components/mlx90393/* @functionpointer
+esphome/components/mlx90614/* @jesserockz
 esphome/components/mmc5603/* @benhoff
 esphome/components/modbus_controller/* @martgras
 esphome/components/modbus_controller/binary_sensor/* @martgras
@@ -186,6 +190,7 @@ esphome/components/nfc/* @jesserockz
 esphome/components/number/* @esphome/core
 esphome/components/ota/* @esphome/core
 esphome/components/output/* @esphome/core
+esphome/components/pca6416a/* @Mat931
 esphome/components/pca9554/* @hwstar
 esphome/components/pcf85063/* @brogon
 esphome/components/pid/* @OttoWinter
