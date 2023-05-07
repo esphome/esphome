@@ -142,7 +142,7 @@ class Logger : public Component {
   char *tx_buffer_{nullptr};
   int tx_buffer_at_{0};
   int tx_buffer_size_{0};
-#if defined(USE_ESP32) || defined(USE_ESP8266)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
   UARTSelection uart_{UART_SELECTION_UART0};
 #endif
 #ifdef USE_ARDUINO
