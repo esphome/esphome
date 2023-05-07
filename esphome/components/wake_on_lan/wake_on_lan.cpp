@@ -30,8 +30,7 @@ void WakeOnLanButton::press_action() {
   ESP_LOGI(TAG, "Sending Wake-on-LAN Packet...");
   bool begin_status = false;
   bool end_status = false;
-  uint32_t interface = esphome::network::get_ip_address();
-  IPAddress interface_ip = IPAddress(interface);
+  IPAddress interface_ip = IPAddress(esphome::network::get_ip_address());
   IPAddress broadcast = IPAddress(255, 255, 255, 255);
 #ifdef USE_ESP8266
   begin_status = this->udp_client_.beginPacketMulticast(broadcast, 9, interface_ip, 128);

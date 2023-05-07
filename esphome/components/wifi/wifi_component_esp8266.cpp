@@ -147,9 +147,9 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 #endif
 
   struct ip_info info {};
-  info.ip.addr = manual_ip->static_ip;
-  info.gw.addr = manual_ip->gateway;
-  info.netmask.addr = manual_ip->subnet;
+  info.ip = manual_ip->static_ip;
+  info.gw = manual_ip->gateway;
+  info.netmask = manual_ip->subnet;
 
   if (dhcp_status == DHCP_STARTED) {
     bool dhcp_stop_ret = wifi_station_dhcpc_stop();
@@ -166,11 +166,11 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 
   ip_addr_t dns;
   if (manual_ip->dns1.is_set()) {
-    dns.addr = manual_ip->dns1;
+    dns = manual_ip->dns1;
     dns_setserver(0, &dns);
   }
   if (manual_ip->dns2.is_set()) {
-    dns.addr = manual_ip->dns2;
+    dns = manual_ip->dns2;
     dns_setserver(1, &dns);
   }
 
@@ -695,13 +695,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   struct ip_info info {};
   if (manual_ip.has_value()) {
-    info.ip.addr = manual_ip->static_ip;
-    info.gw.addr = manual_ip->gateway;
-    info.netmask.addr = manual_ip->subnet;
+    info.ip = manual_ip->static_ip;
+    info.gw = manual_ip->gateway;
+    info.netmask = manual_ip->subnet;
   } else {
-    info.ip.addr = network::IPAddress(192, 168, 4, 1);
-    info.gw.addr = network::IPAddress(192, 168, 4, 1);
-    info.netmask.addr = network::IPAddress(255, 255, 255, 0);
+    info.ip = network::IPAddress(192, 168, 4, 1);
+    info.gw = network::IPAddress(192, 168, 4, 1);
+    info.netmask = network::IPAddress(255, 255, 255, 0);
   }
 
   if (wifi_softap_dhcps_status() == DHCP_STARTED) {

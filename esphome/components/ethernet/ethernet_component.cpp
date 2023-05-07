@@ -293,9 +293,9 @@ void EthernetComponent::start_connect_() {
 
   esp_netif_ip_info_t info;
   if (this->manual_ip_.has_value()) {
-    info.ip.addr = static_cast<uint32_t>(this->manual_ip_->static_ip);
-    info.gw.addr = static_cast<uint32_t>(this->manual_ip_->gateway);
-    info.netmask.addr = static_cast<uint32_t>(this->manual_ip_->subnet);
+    info.ip = this->manual_ip_->static_ip;
+    info.gw = this->manual_ip_->gateway;
+    info.netmask = this->manual_ip_->subnet;
   } else {
     info.ip.addr = 0;
     info.gw.addr = 0;
@@ -318,24 +318,14 @@ void EthernetComponent::start_connect_() {
   ESPHL_ERROR_CHECK(err, "DHCPC set IP info error");
 
   if (this->manual_ip_.has_value()) {
-    if (uint32_t(this->manual_ip_->dns1) != 0) {
+    if (this->manual_ip_->dns1.is_set()) {
       ip_addr_t d;
-#if LWIP_IPV6
-      d.type = IPADDR_TYPE_V4;
-      d.u_addr.ip4.addr = static_cast<uint32_t>(this->manual_ip_->dns1);
-#else
-      d.addr = static_cast<uint32_t>(this->manual_ip_->dns1);
-#endif
+      d = this->manual_ip_->dns1;
       dns_setserver(0, &d);
     }
-    if (uint32_t(this->manual_ip_->dns2) != 0) {
+    if (this->manual_ip_->dns2.is_set()) {
       ip_addr_t d;
-#if LWIP_IPV6
-      d.type = IPADDR_TYPE_V4;
-      d.u_addr.ip4.addr = static_cast<uint32_t>(this->manual_ip_->dns2);
-#else
-      d.addr = static_cast<uint32_t>(this->manual_ip_->dns2);
-#endif
+      d = this->manual_ip_->dns2;
       dns_setserver(1, &d);
     }
   } else {
