@@ -55,16 +55,28 @@ class AlarmControlPanel : public Component, public EntityBase {
    */
   void add_on_state_callback(std::function<void()> &&callback);
 
+  /** Add a callback for when the state of the alarm_control_panel chanes to triggered
+   *
+   * @param callback The callback function
+   */
+  void add_on_triggered_callback(std::function<void()> &&callback);
+
+  /** Add a callback for when the state of the alarm_control_panel clears from triggered
+   *
+   * @param callback The callback function
+   */
+  void add_on_cleared_callback(std::function<void()> &&callback);
+
   /** A numeric representation of the supported features as per HomeAssistant
    *
    */
   uint32_t get_supported_features();
 
-  /** set a code
+  /** add a code
    *
    * @param code The code
    */
-  void set_code(std::string code);
+  void add_code(std::string code);
 
   /** Returns if the alarm_control_panel has a code
    *
@@ -82,21 +94,27 @@ class AlarmControlPanel : public Component, public EntityBase {
    */
   bool get_requires_code_to_arm();
 
-  /** set the delay (in seconds) before arming
+  /** set the delay before arming away
    *
-   * @param time The seconds
+   * @param time The milliseconds
    */
-  void set_arming_time(uint32_t time);
+  void set_arming_away_time(uint32_t time);
 
-  /** set the delay (in seconds) before triggering
+  /** set the delay before arming home
    *
-   * @param time The seconds
+   * @param time The milliseconds
+   */
+  void set_arming_home_time(uint32_t time);
+
+  /** set the delay before triggering
+   *
+   * @param time The milliseconds
    */
   void set_delay_time(uint32_t time);
 
-  /** set the delay (in seconds) before resetting after triggered
+  /** set the delay before resetting after triggered
    *
-   * @param time The seconds
+   * @param time The milliseconds
    */
   void set_trigger_time(uint32_t time);
 
@@ -104,37 +122,37 @@ class AlarmControlPanel : public Component, public EntityBase {
    *
    * @param code The code
    */
-  void arm_away(const std::string &code);
+  void arm_away(optional<std::string> code = nullopt);
 
   /** arm the alarm in home mode
    *
    * @param code The code
    */
-  void arm_home(const std::string &code);
+  void arm_home(optional<std::string> code = nullopt);
 
   /** arm the alarm in night mode
    *
    * @param code The code
    */
-  void arm_night(const std::string &code);
+  void arm_night(optional<std::string> code = nullopt);
 
   /** arm the alarm in vacation mode
    *
    * @param code The code
    */
-  void arm_vacation(const std::string &code);
+  void arm_vacation(optional<std::string> code = nullopt);
 
   /** arm the alarm in custom bypass mode
    *
    * @param code The code
    */
-  void arm_custom_bypass(const std::string &code);
+  void arm_custom_bypass(optional<std::string> code = nullopt);
 
   /** disarm the alarm
    *
    * @param code The code
    */
-  void disarm(const std::string &code);
+  void disarm(optional<std::string> code = nullopt);
 
   /** Get the state
    *
@@ -154,21 +172,28 @@ class AlarmControlPanel : public Component, public EntityBase {
   AlarmControlPanelState desired_state_;
   // last time the state was updated
   uint32_t last_update_;
-  // the arming delay
-  uint32_t arming_time_;
+  // the arming away delay
+  uint32_t arming_away_time_;
+  // the arming home delay
+  uint32_t arming_home_time_;
   // the trigger delay
   uint32_t delay_time_;
   // the time in trigger
   uint32_t trigger_time_;
-  // the code
-  std::string code_ = "";
+  // a list of codes
+  std::vector<std::string> codes_;
   // requires a code to arm
   bool requires_code_to_arm_ = false;
   // state callback
   CallbackManager<void()> state_callback_{};
+  // trigger callback
+  CallbackManager<void()> triggered_callback_{};
+  // clear callback
+  CallbackManager<void()> cleared_callback_{};
 
  private:
-  void arm_(const std::string &code, AlarmControlPanelState state);
+  bool is_code_valid_(optional<std::string> code);
+  void arm_(optional<std::string> code, AlarmControlPanelState state, uint32_t delay);
 };
 
 }  // namespace alarm_control_panel

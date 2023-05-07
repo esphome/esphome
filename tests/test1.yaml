@@ -3360,16 +3360,18 @@ lcd_menu:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
 
 alarm_control_panel:
-  id: alarmcontrolpanel1
-  name: Alarm Panel
-  code: "1234"
-  requires_code_to_arm: true
-  arming_time: 10
-  delay_time: 15
-  trigger_time: 30
-  binary_sensors:
-    - input: binary_sensor1
-  on_state:
-    then:
-      - lambda: !lambda |-
-          ESP_LOGD("TEST", "State change %s", id(alarmcontrolpanel1)->to_string(id(alarmcontrolpanel1)->get_state()).c_str());
+  - id: alarmcontrolpanel1
+    name: Alarm Panel
+    codes:
+      - "1234"
+    requires_code_to_arm: true
+    arming_home_time: 1s
+    arming_away_time: 15s
+    delay_time: 15s
+    trigger_time: 30s
+    binary_sensors:
+      - input: binary_sensor1
+    on_state:
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("TEST", "State change %s", id(alarmcontrolpanel1)->to_string(id(alarmcontrolpanel1)->get_state()).c_str());
