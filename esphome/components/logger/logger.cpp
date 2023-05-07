@@ -1,4 +1,5 @@
 #include "logger.h"
+#include <cinttypes>
 
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
@@ -292,7 +293,7 @@ const char *const UART_SELECTIONS[] = {"UART0", "UART1", "USB_CDC"};
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
   ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
-  ESP_LOGCONFIG(TAG, "  Log Baud Rate: %u", this->baud_rate_);
+  ESP_LOGCONFIG(TAG, "  Log Baud Rate: %" PRIu32, this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Hardware UART: %s", UART_SELECTIONS[this->uart_]);
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);

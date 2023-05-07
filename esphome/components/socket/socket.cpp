@@ -1,10 +1,13 @@
 #include "socket.h"
-#include "esphome/core/log.h"
-#include <cstring>
 #include <cerrno>
+#include <cstring>
+#include <string>
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace socket {
+
+Socket::~Socket() {}
 
 std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 #if LWIP_IPV6
@@ -14,7 +17,7 @@ std::unique_ptr<Socket> socket_ip(int type, int protocol) {
 #endif
 }
 
-socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_address, uint16_t port) {
+socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port) {
 #if LWIP_IPV6
   if (addrlen < sizeof(sockaddr_in6)) {
     errno = EINVAL;
@@ -24,9 +27,14 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   memset(server, 0, sizeof(sockaddr_in6));
   server->sin6_family = AF_INET6;
   server->sin6_port = htons(port);
-  ip6_addr_t ip6;
-  inet6_aton(ip_address, &ip6);
-  memcpy(server->sin6_addr.un.u32_addr, ip6.addr, sizeof(ip6.addr));
+
+  if (ip_address.find('.') != std::string::npos) {
+    server->sin6_addr.un.u32_addr[3] = inet_addr(ip_address.c_str());
+  } else {
+    ip6_addr_t ip6;
+    inet6_aton(ip_address.c_str(), &ip6);
+    memcpy(server->sin6_addr.un.u32_addr, ip6.addr, sizeof(ip6.addr));
+  }
   return sizeof(sockaddr_in6);
 #else
   if (addrlen < sizeof(sockaddr_in)) {
@@ -36,7 +44,7 @@ socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const char *ip_
   auto *server = reinterpret_cast<sockaddr_in *>(addr);
   memset(server, 0, sizeof(sockaddr_in));
   server->sin_family = AF_INET;
-  server->sin_addr.s_addr = inet_addr(ip_address);
+  server->sin_addr.s_addr = inet_addr(ip_address.c_str());
   server->sin_port = htons(port);
   return sizeof(sockaddr_in);
 #endif

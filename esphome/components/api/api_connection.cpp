@@ -1,5 +1,6 @@
 #include "api_connection.h"
 #include <cerrno>
+#include <cinttypes>
 #include "esphome/components/network/util.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/hal.h"
@@ -14,6 +15,9 @@
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 #include "esphome/components/bluetooth_proxy/bluetooth_proxy.h"
+#endif
+#ifdef USE_VOICE_ASSISTANT
+#include "esphome/components/voice_assistant/voice_assistant.h"
 #endif
 
 namespace esphome {
@@ -526,7 +530,6 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
     resp.custom_fan_mode = climate->custom_fan_mode.value();
   if (traits.get_supports_presets() && climate->preset.has_value()) {
     resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
-    resp.legacy_away = resp.preset == enums::CLIMATE_PRESET_AWAY;
   }
   if (!traits.get_supported_custom_presets().empty() && climate->custom_preset.has_value())
     resp.custom_preset = climate->custom_preset.value();
@@ -587,8 +590,6 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
     call.set_target_temperature_low(msg.target_temperature_low);
   if (msg.has_target_temperature_high)
     call.set_target_temperature_high(msg.target_temperature_high);
-  if (msg.has_legacy_away)
-    call.set_preset(msg.legacy_away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME);
   if (msg.has_fan_mode)
     call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan_mode));
   if (msg.has_custom_fan_mode)
@@ -892,6 +893,30 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
 }
 #endif
 
+#ifdef USE_VOICE_ASSISTANT
+bool APIConnection::request_voice_assistant(bool start) {
+  if (!this->voice_assistant_subscription_)
+    return false;
+  VoiceAssistantRequest msg;
+  msg.start = start;
+  return this->send_voice_assistant_request(msg);
+}
+void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    struct sockaddr_storage storage;
+    socklen_t len = sizeof(storage);
+    this->helper_->getpeername((struct sockaddr *) &storage, &len);
+    voice_assistant::global_voice_assistant->start(&storage, msg.port);
+  }
+};
+void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {
+  if (voice_assistant::global_voice_assistant != nullptr) {
+    voice_assistant::global_voice_assistant->on_event(msg);
+  }
+}
+
+#endif
+
 bool APIConnection::send_log_message(int level, const char *tag, const char *line) {
   if (this->log_subscription_ < level)
     return false;
@@ -911,12 +936,12 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
   this->helper_->set_log_info(client_info_);
   this->client_api_version_major_ = msg.api_version_major;
   this->client_api_version_minor_ = msg.api_version_minor;
-  ESP_LOGV(TAG, "Hello from client: '%s' | API Version %d.%d", this->client_info_.c_str(),
+  ESP_LOGV(TAG, "Hello from client: '%s' | API Version %" PRIu32 ".%" PRIu32, this->client_info_.c_str(),
            this->client_api_version_major_, this->client_api_version_minor_);
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 7;
+  resp.api_version_minor = 8;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.name = App.get_name();
 
@@ -969,6 +994,9 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->has_active()
                                      ? bluetooth_proxy::ACTIVE_CONNECTIONS_VERSION
                                      : bluetooth_proxy::PASSIVE_ONLY_VERSION;
+#endif
+#ifdef USE_VOICE_ASSISTANT
+  resp.voice_assistant_version = 1;
 #endif
   return resp;
 }
