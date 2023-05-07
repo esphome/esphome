@@ -8,8 +8,8 @@ void setup() override
 }
 
 /** Reused function from github to send data
- * Author: xpavel00
- * Link:
+ * Author: x00Pavel
+ * Link: https://github.com/x00Pavel/mmWave-HomeAssistant
  * Accessed: 5/7/2023
  */
 void MR24D11C10Component::send_command(uint8_t *buff, uint8_t data_length) {

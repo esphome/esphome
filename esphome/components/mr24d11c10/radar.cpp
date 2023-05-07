@@ -1,6 +1,6 @@
 /**
  * Author: SeeedStudio
- * Link:
+ * Link: https://github.com/Seeed-Studio/Seeed_Arduino_24GHz_Radar_Sensor
  * Accessed: 5/7/2023
  * License: MIT
  */
