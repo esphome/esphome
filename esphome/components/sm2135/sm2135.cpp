@@ -10,16 +10,14 @@ static const char *const TAG = "sm2135";
 
 static const uint8_t SM2135_ADDR_MC = 0xC0;  // Max current register
 static const uint8_t SM2135_ADDR_CH = 0xC1;  // RGB or CW channel select register
+static const uint8_t SM2135_ADDR_R = 0xC2;   // Red color
+static const uint8_t SM2135_ADDR_G = 0xC3;   // Green color
+static const uint8_t SM2135_ADDR_B = 0xC4;   // Blue color
+static const uint8_t SM2135_ADDR_C = 0xC5;   // Cold
+static const uint8_t SM2135_ADDR_W = 0xC6;   // Warm
 
-// NOTE: This is the default chip byte order of colors, but SM2135::loop() uses a different order.
-static const uint8_t SM2135_ADDR_R = 0xC2;  // Red color
-static const uint8_t SM2135_ADDR_G = 0xC3;  // Green color
-static const uint8_t SM2135_ADDR_B = 0xC4;  // Blue color
-static const uint8_t SM2135_ADDR_C = 0xC5;  // Cold
-static const uint8_t SM2135_ADDR_W = 0xC6;  // Warm
-
-static const uint8_t SM2135_RGB = 0x00;     // RGB channel
-static const uint8_t SM2135_CW = 0x80;      // CW channel (Chip default)
+static const uint8_t SM2135_RGB = 0x00;      // RGB channel
+static const uint8_t SM2135_CW = 0x80;       // CW channel (Chip default)
 
 void SM2135::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SM2135OutputComponent...");
