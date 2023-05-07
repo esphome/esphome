@@ -110,7 +110,9 @@ async def to_code(config):
         except Exception as e:
             raise core.EsphomeError(f"Could not load image file {path}: {e}")
     elif CONF_MDI in config:
-        mdi_id = config[CONF_MDI]
+        # In case the prefix "mdi:" is present remove it.
+        # This allows easily using the mdi intellisense VSCode extension
+        mdi_id = config[CONF_MDI].removeprefix("mdi:")
         images_path = Path(CORE.build_path, "data", "images")
         svg_file = Path(images_path, f"{mdi_id}.svg")
 
