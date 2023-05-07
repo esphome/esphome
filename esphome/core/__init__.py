@@ -1,4 +1,5 @@
 import logging
+import ipaddress
 import math
 import os
 import re
@@ -55,13 +56,11 @@ class HexInt(int):
 
 
 class IPAddress:
-    def __init__(self, *args):
-        if len(args) != 4:
-            raise ValueError("IPAddress must consist of 4 items")
-        self.args = args
+    def __init__(self, arg):
+        self.args = ipaddress.ip_address(arg)
 
     def __str__(self):
-        return ".".join(str(x) for x in self.args)
+        return str(self.args)
 
 
 class MACAddress:

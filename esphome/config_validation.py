@@ -1128,7 +1128,7 @@ def domain(value):
     if re.match(vol.DOMAIN_REGEX, value) is not None:
         return value
     try:
-        return str(ipv4(value))
+        return str(ipaddress(value))
     except Invalid as err:
         raise Invalid(f"Invalid domain: {value}") from err
 
@@ -1158,21 +1158,8 @@ def ssid(value):
     return value
 
 
-def ipv4(value):
-    if isinstance(value, list):
-        parts = value
-    elif isinstance(value, str):
-        parts = value.split(".")
-    elif isinstance(value, IPAddress):
-        return value
-    else:
-        raise Invalid("IPv4 address must consist of either string or integer list")
-    if len(parts) != 4:
-        raise Invalid("IPv4 address must consist of four point-separated integers")
-    parts_ = list(map(int, parts))
-    if not all(0 <= x < 256 for x in parts_):
-        raise Invalid("IPv4 address parts must be in range from 0 to 255")
-    return IPAddress(*parts_)
+def ipaddress(value):
+    return IPAddress(value)
 
 
 def _valid_topic(value):

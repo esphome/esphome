@@ -27,18 +27,20 @@ class TestHexInt:
 
 
 class TestIPAddress:
-    @given(value=ip_addresses(v=4).map(str))
+    @given(value=ip_addresses().map(str))
     def test_init__valid(self, value):
-        core.IPAddress(*value.split("."))
+        core.IPAddress(value)
 
     @pytest.mark.parametrize("value", ("127.0.0", "localhost", ""))
     def test_init__invalid(self, value):
-        with pytest.raises(ValueError, match="IPAddress must consist of 4 items"):
-            core.IPAddress(*value.split("."))
+        with pytest.raises(
+            ValueError, match=f"'{value}' does not appear to be an IPv4 or IPv6 address"
+        ):
+            core.IPAddress(value)
 
-    @given(value=ip_addresses(v=4).map(str))
+    @given(value=ip_addresses().map(str))
     def test_str(self, value):
-        target = core.IPAddress(*value.split("."))
+        target = core.IPAddress(value)
 
         actual = str(target)
 

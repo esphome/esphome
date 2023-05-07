@@ -87,16 +87,16 @@ def validate_channel(value):
 
 AP_MANUAL_IP_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_STATIC_IP): cv.ipv4,
-        cv.Required(CONF_GATEWAY): cv.ipv4,
-        cv.Required(CONF_SUBNET): cv.ipv4,
+        cv.Required(CONF_STATIC_IP): cv.ipaddress,
+        cv.Required(CONF_GATEWAY): cv.ipaddress,
+        cv.Required(CONF_SUBNET): cv.ipaddress,
     }
 )
 
 STA_MANUAL_IP_SCHEMA = AP_MANUAL_IP_SCHEMA.extend(
     {
-        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4,
-        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4,
+        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipaddress,
+        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipaddress,
     }
 )
 
@@ -358,7 +358,7 @@ def eap_auth(config):
 def safe_ip(ip):
     if ip is None:
         return IPAddress(0, 0, 0, 0)
-    return IPAddress(*ip.args)
+    return IPAddress(str(ip))
 
 
 def manual_ip(config):

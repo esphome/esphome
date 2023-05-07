@@ -87,11 +87,11 @@ CLK_MODES = {
 
 MANUAL_IP_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_STATIC_IP): cv.ipv4,
-        cv.Required(CONF_GATEWAY): cv.ipv4,
-        cv.Required(CONF_SUBNET): cv.ipv4,
-        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipv4,
-        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipv4,
+        cv.Required(CONF_STATIC_IP): cv.ipaddress,
+        cv.Required(CONF_GATEWAY): cv.ipaddress,
+        cv.Required(CONF_SUBNET): cv.ipaddress,
+        cv.Optional(CONF_DNS1, default="0.0.0.0"): cv.ipaddress,
+        cv.Optional(CONF_DNS2, default="0.0.0.0"): cv.ipaddress,
     }
 )
 
