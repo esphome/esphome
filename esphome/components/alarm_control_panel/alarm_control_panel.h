@@ -76,7 +76,7 @@ class AlarmControlPanel : public Component, public EntityBase {
    *
    * @param code The code
    */
-  void add_code(const std::string& code);
+  void add_code(const std::string &code);
 
   /** Returns if the alarm_control_panel has a code
    *
