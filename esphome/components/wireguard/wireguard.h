@@ -15,7 +15,7 @@ class Wireguard : public PollingComponent {
   void dump_config() override;
   void on_shutdown() override;
 
-  float get_setup_priority() const override { return esphome::setup_priority::LATE; }
+  float get_setup_priority() const override { return esphome::setup_priority::AFTER_WIFI; }
 
   void set_address(const std::string& address);
   void set_netmask(const std::string& netmask);
