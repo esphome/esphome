@@ -113,9 +113,9 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
 
   tcpip_adapter_ip_info_t info;
   memset(&info, 0, sizeof(info));
-  info.ip.addr = manual_ip->static_ip;
-  info.gw.addr = manual_ip->gateway;
-  info.netmask.addr = manual_ip->subnet;
+  info.ip = manual_ip->static_ip;
+  info.gw = manual_ip->gateway;
+  info.netmask = manual_ip->subnet;
 
   esp_err_t dhcp_stop_ret = tcpip_adapter_dhcpc_stop(TCPIP_ADAPTER_IF_STA);
   if (dhcp_stop_ret != ESP_OK && dhcp_stop_ret != ESP_ERR_TCPIP_ADAPTER_DHCP_ALREADY_STOPPED) {
@@ -666,13 +666,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   tcpip_adapter_ip_info_t info;
   memset(&info, 0, sizeof(info));
   if (manual_ip.has_value()) {
-    info.ip.addr = manual_ip->static_ip;
-    info.gw.addr = manual_ip->gateway;
-    info.netmask.addr = manual_ip->subnet;
+    info.ip = manual_ip->static_ip;
+    info.gw = manual_ip->gateway;
+    info.netmask = manual_ip->subnet;
   } else {
-    info.ip.addr = network::IPAddress(192, 168, 4, 1);
-    info.gw.addr = network::IPAddress(192, 168, 4, 1);
-    info.netmask.addr = network::IPAddress(255, 255, 255, 0);
+    info.ip = network::IPAddress(192, 168, 4, 1);
+    info.gw = network::IPAddress(192, 168, 4, 1);
+    info.netmask = network::IPAddress(255, 255, 255, 0);
   }
   tcpip_adapter_dhcp_status_t dhcp_status;
   tcpip_adapter_dhcps_get_status(TCPIP_ADAPTER_IF_AP, &dhcp_status);
@@ -690,7 +690,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   dhcps_lease_t lease;
   lease.enable = true;
-  network::IPAddress start_address = info.ip.addr;
+  network::IPAddress start_address = network::IPAddress(&info.ip);
   start_address += 99;
   lease.start_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());

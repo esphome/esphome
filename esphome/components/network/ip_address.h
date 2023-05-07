@@ -8,8 +8,11 @@
 #ifdef USE_RP2040
 #include <Arduino.h>
 #endif /* USE_RP2040 */
+#if USE_ARDUINO
+#include <Arduino.h>
+#endif /* USE_ADRDUINO */
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include <cstring>
 #include <esp_netif.h>
 #endif
@@ -25,8 +28,9 @@ struct IPAddress {
   }
   IPAddress(uint32_t raw) { ip_addr_set_ip4_u32(&ip_addr_, raw); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
+  IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
+  IPAddress(ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_)); }
   bool is_set() { return !ip_addr_isany(&ip_addr_); }
-  operator uint32_t() const { return ip_addr_get_ip4_u32(&ip_addr_); }
   std::string str() const { return ipaddr_ntoa(&ip_addr_); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   bool operator!=(const IPAddress &other) const { return !(&ip_addr_ == &other.ip_addr_); }
@@ -40,13 +44,20 @@ struct IPAddress {
     }
     return *this;
   }
+
   operator ip_addr_t() const { return ip_addr_; };
 #if LWIP_IPV6
   operator ip4_addr_t() const { return *ip_2_ip4(&ip_addr_); };
 #endif /* LWIP_IPV6 */
+
 #ifdef USE_RP2040
   operator arduino::IPAddress() const { return arduino::IPAddress(&ip_addr_); };
 #endif /* USE_RP2040 */
+
+#if USE_ESP32_FRAMEWORK_ARDUINO
+  operator Arduino_h::IPAddress() const { return ip_addr_get_ip4_u32(&ip_addr_); };
+#endif /* USE_ESP32_FRAMEWORK_ADRDUINO */
+
 #ifdef USE_ESP_IDF
   operator esp_ip_addr_t() const {
     esp_ip_addr_t tmp;
@@ -58,6 +69,18 @@ struct IPAddress {
     return tmp;
   }
 #endif
+
+#if USE_ESP32
+  operator esp_ip4_addr_t() const {
+    esp_ip4_addr_t tmp;
+#if LWIP_IPV6
+    memcpy((void *) &tmp, (void *) &ip_addr_.u_addr.ip4, sizeof(esp_ip4_addr_t));
+#else
+    memcpy((void *) &tmp, (void *) &ip_addr_, sizeof(ip_addr_));
+#endif /* LWIP_IPV6 */
+    return tmp;
+  }
+#endif /* USE_ESP32 */
 
  protected:
   ip_addr_t ip_addr_;
