@@ -7,6 +7,7 @@ namespace pzemdc {
 static const char *const TAG = "pzemdc";
 
 static const uint8_t PZEM_CMD_READ_IN_REGISTERS = 0x04;
+static const uint8_t PZEM_CMD_RESET_ENERGY = 0x42;
 static const uint8_t PZEM_REGISTER_COUNT = 10;  // 10x 16-bit registers
 
 void PZEMDC::on_modbus_data(const std::vector<uint8_t> &data) {
@@ -59,6 +60,13 @@ void PZEMDC::dump_config() {
   LOG_SENSOR("", "Current", this->current_sensor_);
   LOG_SENSOR("", "Power", this->power_sensor_);
   LOG_SENSOR("", "Energy", this->energy_sensor_);
+}
+
+void PZEMDC::reset_energy() {
+  std::vector<uint8_t> cmd;
+  cmd.push_back(this->address_);
+  cmd.push_back(PZEM_CMD_RESET_ENERGY);
+  this->send_raw(cmd);
 }
 
 }  // namespace pzemdc

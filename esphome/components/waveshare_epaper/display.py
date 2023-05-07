@@ -29,6 +29,7 @@ WaveshareEPaper2P7In = waveshare_epaper_ns.class_(
 WaveshareEPaper2P9InB = waveshare_epaper_ns.class_(
     "WaveshareEPaper2P9InB", WaveshareEPaper
 )
+GDEY029T94 = waveshare_epaper_ns.class_("GDEY029T94", WaveshareEPaper)
 WaveshareEPaper4P2In = waveshare_epaper_ns.class_(
     "WaveshareEPaper4P2In", WaveshareEPaper
 )
@@ -37,6 +38,9 @@ WaveshareEPaper4P2InBV2 = waveshare_epaper_ns.class_(
 )
 WaveshareEPaper5P8In = waveshare_epaper_ns.class_(
     "WaveshareEPaper5P8In", WaveshareEPaper
+)
+WaveshareEPaper5P8InV2 = waveshare_epaper_ns.class_(
+    "WaveshareEPaper5P8InV2", WaveshareEPaper
 )
 WaveshareEPaper7P5In = waveshare_epaper_ns.class_(
     "WaveshareEPaper7P5In", WaveshareEPaper
@@ -73,11 +77,13 @@ MODELS = {
     "2.13in-ttgo-b74": ("a", WaveshareEPaperTypeAModel.TTGO_EPAPER_2_13_IN_B74),
     "2.90in": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN),
     "2.90inv2": ("a", WaveshareEPaperTypeAModel.WAVESHARE_EPAPER_2_9_IN_V2),
+    "gdey029t94": ("c", GDEY029T94),
     "2.70in": ("b", WaveshareEPaper2P7In),
     "2.90in-b": ("b", WaveshareEPaper2P9InB),
     "4.20in": ("b", WaveshareEPaper4P2In),
     "4.20in-bv2": ("b", WaveshareEPaper4P2InBV2),
     "5.83in": ("b", WaveshareEPaper5P8In),
+    "5.83inv2": ("b", WaveshareEPaper5P8InV2),
     "7.50in": ("b", WaveshareEPaper7P5In),
     "7.50in-bv2": ("b", WaveshareEPaper7P5InBV2),
     "7.50in-bc": ("b", WaveshareEPaper7P5InBC),
