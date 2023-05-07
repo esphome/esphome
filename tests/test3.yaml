@@ -806,12 +806,6 @@ script:
     then:
       - lambda: 'ESP_LOGD("main", "Hello World!");'
 
-sm2135:
-  data_pin: GPIO12
-  clock_pin: GPIO14
-  rgb_current: 20mA
-  cw_current: 60mA
-
 switch:
   - platform: gpio
     id: gpio_switch1
