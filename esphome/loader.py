@@ -163,7 +163,7 @@ def _lookup_module(domain):
 
     try:
         module = importlib.import_module(f"esphome.components.{domain}")
-    except ImportError as e:
+    except ImportError:
         _LOGGER.error("Unable to import component %s:", domain, exc_info=True)
         return None
     except Exception:  # pylint: disable=broad-except
