@@ -31,10 +31,11 @@ struct IPAddress {
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
   IPAddress &operator+=(uint8_t increase) {
     if (IP_IS_V4(&ip_addr_)) {
-      uint32_t t_val;
-      t_val = ip_addr_get_ip4_u32(&ip_addr_);
-      t_val += increase;
-      ip_addr_set_ip4_u32(&ip_addr_, t_val);
+#if LWIP_IPV6
+      (((u8_t *) (&ip_addr_.u_addr.ip4))[3]) += increase;
+#else
+      (((u8_t *) (&ip_addr_.addr))[3]) += increase;
+#endif /* LWIP_IPV6 */
     }
     return *this;
   }
