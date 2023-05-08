@@ -1553,10 +1553,8 @@ TR502MSVData, TR502MSVBinarySensor, TR502MSVTrigger, TR502MSVAction, TR502MSVDum
 )
 TR502MSVCommand = remote_base_ns.enum("TR502MSVCommand")
 TR502MSV_COMMAND_OPTIONS = {
-    "off": TR502MSVCommand.COMMAND_OFF,
-    False: TR502MSVCommand.COMMAND_OFF,
-    "on": TR502MSVCommand.COMMAND_ON,
-    True: TR502MSVCommand.COMMAND_ON,
+    "turn_off": TR502MSVCommand.COMMAND_OFF,
+    "turn_on": TR502MSVCommand.COMMAND_ON,
     "increase_brightness": TR502MSVCommand.COMMAND_INCREASE_BRIGHTNESS,
     "decrease_brightness": TR502MSVCommand.COMMAND_DECREASE_BRIGHTNESS,
 }

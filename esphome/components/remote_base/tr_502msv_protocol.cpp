@@ -31,9 +31,9 @@ std::string TR502MSVData::device_string() const {
 std::string TR502MSVData::command_string() const {
   switch(this->command) {
     case COMMAND_OFF:
-      return "off";
+      return "turn_off";
     case COMMAND_ON:
-      return "on";
+      return "turn_on";
     case COMMAND_INCREASE_BRIGHTNESS:
       return "increase_brightness";
     case COMMAND_DECREASE_BRIGHTNESS:
