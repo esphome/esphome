@@ -16,8 +16,8 @@ static const uint8_t SM2135_ADDR_B = 0xC4;   // Blue color
 static const uint8_t SM2135_ADDR_C = 0xC5;   // Cold
 static const uint8_t SM2135_ADDR_W = 0xC6;   // Warm
 
-static const uint8_t SM2135_RGB = 0x00;      // RGB channel
-static const uint8_t SM2135_CW = 0x80;       // CW channel (Chip default)
+static const uint8_t SM2135_RGB = 0x00;  // RGB channel
+static const uint8_t SM2135_CW = 0x80;   // CW channel (Chip default)
 
 void SM2135::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SM2135OutputComponent...");
