@@ -266,7 +266,7 @@ void Logger::set_log_level(const std::string &tag, int log_level) {
   this->log_levels_.push_back(LogLevelOverride{tag, log_level});
 }
 
-#if defined(USE_ESP32) || defined(USE_ESP8266)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
 UARTSelection Logger::get_uart() const { return this->uart_; }
 #endif
 
