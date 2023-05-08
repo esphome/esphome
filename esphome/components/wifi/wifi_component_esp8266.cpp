@@ -190,7 +190,7 @@ network::IPAddress WiFiComponent::wifi_sta_ip() {
     return {};
   struct ip_info ip {};
   wifi_get_ip_info(STATION_IF, &ip);
-  return {ip.ip.addr};
+  return network::IPAddress(&ip.ip);
 }
 bool WiFiComponent::wifi_apply_hostname_() {
   const std::string &hostname = App.get_name();
@@ -721,7 +721,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   struct dhcps_lease lease {};
   lease.enable = true;
-  network::IPAddress start_address = info.ip.addr;
+  network::IPAddress start_address = network::IPAddress(&info.ip);
   start_address += 99;
   lease.start_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
@@ -793,7 +793,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   struct ip_info ip {};
   wifi_get_ip_info(SOFTAP_IF, &ip);
-  return {ip.ip.addr};
+  return network::IPAddress(&ip.ip);
 }
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};

@@ -26,10 +26,15 @@ struct IPAddress {
   IPAddress(uint8_t first, uint8_t second, uint8_t third, uint8_t fourth) {
     IP_ADDR4(&ip_addr_, first, second, third, fourth);
   }
-  IPAddress(uint32_t raw) { ip_addr_set_ip4_u32(&ip_addr_, raw); }
   IPAddress(const ip_addr_t *other_ip) { ip_addr_copy(ip_addr_, *other_ip); }
   IPAddress(const std::string &in_address) { ipaddr_aton(in_address.c_str(), &ip_addr_); }
   IPAddress(ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_)); }
+#if USE_ESP_IDF
+  IPAddress(esp_ip4_addr_t *other_ip) { memcpy((void *) &ip_addr_, (void *) other_ip, sizeof(ip_addr_)); }
+#endif /* USE_ESP_IDF */
+#if USE_ESP32_FRAMEWORK_ARDUINO
+  IPAddress(const Arduino_h::IPAddress &other_ip) { ip_addr_set_ip4_u32(&ip_addr_, other_ip); }
+#endif /* USE_ARDUINO */
   bool is_set() { return !ip_addr_isany(&ip_addr_); }
   std::string str() const { return ipaddr_ntoa(&ip_addr_); }
   bool operator==(const IPAddress &other) const { return ip_addr_cmp(&ip_addr_, &other.ip_addr_); }
