@@ -7,18 +7,18 @@ namespace esphome {
 namespace remote_base {
 
 enum devices : uint8_t {
-    DEVICE_1 = 0,
-    DEVICE_2 = 1,
-    DEVICE_3 = 2,
-    DEVICE_4 = 3,
-    DEVICE_ALL = 7,
+  DEVICE_1 = 0,
+  DEVICE_2 = 1,
+  DEVICE_3 = 2,
+  DEVICE_4 = 3,
+  DEVICE_ALL = 7,
 };
 
 enum commands : uint8_t {
-    COMMAND_OFF = 0,
-    COMMAND_ON = 1,
-    COMMAND_INCREASE_BRIGHTNESS = 2,
-    COMMAND_DECREASE_BRIGHTNESS = 3,
+  COMMAND_OFF = 0,
+  COMMAND_ON = 1,
+  COMMAND_INCREASE_BRIGHTNESS = 2,
+  COMMAND_DECREASE_BRIGHTNESS = 3,
 };
 
 struct TR502MSVData {
@@ -43,9 +43,7 @@ struct TR502MSVData {
   std::string device_string() const;
   std::string command_string() const;
 
-  uint8_t calc_cs() const {
-    return (device & 3) ^ ((device >> 2) & 1) ^ ((command >> 1) & 1) ^ ((command << 1) & 2);
-  }
+  uint8_t calc_cs() const { return (device & 3) ^ ((device >> 2) & 1) ^ ((command >> 1) & 1) ^ ((command << 1) & 2); }
 };
 
 class TR502MSVProtocol : public RemoteProtocol<TR502MSVData> {
