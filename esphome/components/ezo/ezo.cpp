@@ -152,7 +152,10 @@ void EZOSensor::loop() {
           break;
         }
         case EzoCommandType::EZO_T: {
-          this->t_callback_.call(payload);
+          int start_location = 0;
+          if ((start_location = payload.find(',')) != std::string::npos) {
+            this->t_callback_.call(payload.substr(start_location + 1));
+          }
           break;
         }
         case EzoCommandType::EZO_CUSTOM: {
