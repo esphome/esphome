@@ -139,8 +139,8 @@ void MicroNova::dump_config() {
 
   for (auto &mv_sensor : this->micronova_sensors_) {
     mv_sensor->dump_config();
-    ESP_LOGCONFIG(TAG, "    sensor location:%02X, address:%02X",
-                    mv_sensor->get_memory_location(), mv_sensor->get_memory_address());
+    ESP_LOGCONFIG(TAG, "    sensor location:%02X, address:%02X", mv_sensor->get_memory_location(),
+		  mv_sensor->get_memory_address());
   }
 
   if (this->scan_memory_location_ >= 0) {
