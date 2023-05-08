@@ -1548,9 +1548,13 @@ async def aeha_action(var, config, args):
 
 
 # TR502MSV
-TR502MSVData, TR502MSVBinarySensor, TR502MSVTrigger, TR502MSVAction, TR502MSVDumper = declare_protocol(
-    "TR502MSV"
-)
+(
+    TR502MSVData,
+    TR502MSVBinarySensor,
+    TR502MSVTrigger,
+    TR502MSVAction,
+    TR502MSVDumper,
+) = declare_protocol("TR502MSV")
 TR502MSVCommand = remote_base_ns.enum("TR502MSVCommand")
 TR502MSV_COMMAND_OPTIONS = {
     "turn_off": TR502MSVCommand.COMMAND_OFF,
@@ -1605,4 +1609,6 @@ def tr_502msv_dumper(var, config):
 def tr_502msv_action(var, config, args):
     cg.add(var.set_group((yield cg.templatable(config[CONF_GROUP], args, cg.uint16))))
     cg.add(var.set_device((yield cg.templatable(config[CONF_DEVICE], args, cg.uint8))))
-    cg.add(var.set_command((yield cg.templatable(config[CONF_COMMAND], args, cg.uint8))))
+    cg.add(
+        var.set_command((yield cg.templatable(config[CONF_COMMAND], args, cg.uint8)))
+    )
