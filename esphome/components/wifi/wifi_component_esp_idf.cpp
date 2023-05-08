@@ -473,9 +473,10 @@ network::IPAddress WiFiComponent::wifi_sta_ip() {
   esp_err_t err = esp_netif_get_ip_info(s_sta_netif, &ip);
   if (err != ESP_OK) {
     ESP_LOGV(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
-    return false;
+    // TODO: do something smarter
+    // return false;
   }
-  return {ip.ip.addr};
+  return network::IPAddress(&ip.ip);
 }
 
 bool WiFiComponent::wifi_apply_hostname_() {
@@ -794,7 +795,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 
   dhcps_lease_t lease;
   lease.enable = true;
-  network::IPAddress start_address = info.ip.addr;
+  network::IPAddress start_address = network::IPAddress(&info.ip);
   start_address += 99;
   lease.start_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease start: %s", start_address.str().c_str());
@@ -859,7 +860,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(s_sta_netif, &ip);
-  return {ip.ip.addr};
+  return network::IPAddress(&ip.ip);
 }
 bool WiFiComponent::wifi_disconnect_() { return esp_wifi_disconnect(); }
 
@@ -911,7 +912,7 @@ network::IPAddress WiFiComponent::wifi_subnet_mask_() {
     ESP_LOGW(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
     return {};
   }
-  return {ip.netmask.addr};
+  return network::IPAddress(&ip.netmask);
 }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() {
   esp_netif_ip_info_t ip;
@@ -920,15 +921,11 @@ network::IPAddress WiFiComponent::wifi_gateway_ip_() {
     ESP_LOGW(TAG, "esp_netif_get_ip_info failed: %s", esp_err_to_name(err));
     return {};
   }
-  return {ip.gw.addr};
+  return network::IPAddress(&ip.gw);
 }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
-#if LWIP_IPV6
-  return {dns_ip->u_addr.ip4.addr};
-#else
-  return {dns_ip->addr};
-#endif
+  return network::IPAddress(dns_ip);
 }
 
 }  // namespace wifi

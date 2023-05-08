@@ -175,7 +175,7 @@ network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {(const ip_addr_t
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {(const ip_addr_t *) WiFi.gatewayIP()}; }
 network::IPAddress WiFiComponent::wifi_dns_ip_(int num) {
   const ip_addr_t *dns_ip = dns_getserver(num);
-  return {dns_ip->addr};
+  return network::IPAddress(dns_ip);
 }
 
 void WiFiComponent::wifi_loop_() {
