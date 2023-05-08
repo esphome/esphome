@@ -21,7 +21,9 @@ CODEOWNERS = ["@max246"]
 lightwaverf_ns = cg.esphome_ns.namespace("lightwaverf")
 
 
-LIGHTWAVERFComponent = lightwaverf_ns.class_("LightWaveRF", cg.Component , cg.PollingComponent)
+LIGHTWAVERFComponent = lightwaverf_ns.class_(
+    "LightWaveRF", cg.Component, cg.PollingComponent
+)
 LightwaveRawAction = lightwaverf_ns.class_("SendRawAction", automation.Action)
 
 
@@ -34,7 +36,7 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-'''
+"""
 
 def validate_rc_switch_raw_code(value):
     if not isinstance(value, list):
@@ -55,7 +57,7 @@ def validate_rc_switch_raw_code(value):
 
 
 
-'''
+"""
 
 LIGHTWAVE_SEND_SCHEMA = cv.Any(
     cv.int_range(min=1),
@@ -66,12 +68,13 @@ LIGHTWAVE_SEND_SCHEMA = cv.Any(
             cv.Required(CONF_CODE): cv.All(
                 [cv.Any(cv.hex_uint8_t)],
                 cv.Length(min=10),
-                #validate_rc_switch_raw_code,
+                # validate_rc_switch_raw_code,
             ),
             cv.Optional(CONF_REPEAT, default=10): cv.int_,
         }
     ),
 )
+
 
 @automation.register_action(
     "lightwaverf.send_raw",
@@ -81,17 +84,16 @@ LIGHTWAVE_SEND_SCHEMA = cv.Any(
 async def send_action(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     repeats = config[CONF_REPEAT]
-    #inverted = config[CONF_INVERTED]
-    #pulse_length = config[CONF_PULSE_LENGTH]
+    # inverted = config[CONF_INVERTED]
+    # pulse_length = config[CONF_PULSE_LENGTH]
     code = config[CONF_CODE]
-    
+
     cg.add(var.set_repeats(repeats))
-    #cg.add(var.set_inverted(inverted))
-    #cg.add(var.set_pulse_length(pulse_length))
+    # cg.add(var.set_inverted(inverted))
+    # cg.add(var.set_pulse_length(pulse_length))
     cg.add(var.set_data(code))
     return var
-    
-    
+
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
@@ -100,4 +102,3 @@ async def to_code(config):
     pin_read = await gpio_pin_expression(config[CONF_READ_PIN])
     pin_write = await gpio_pin_expression(config[CONF_WRITE_PIN])
     cg.add(var.set_pin(pin_write, pin_read))
-    
