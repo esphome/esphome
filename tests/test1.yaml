@@ -294,6 +294,9 @@ wled:
 
 adalight:
 
+esp32_ble:
+  io_capability: keyboard_only
+
 esp32_ble_tracker:
 
 ble_client:
@@ -307,6 +310,19 @@ ble_client:
     on_disconnect:
       then:
         - switch.turn_on: ble1_status
+    on_passkey_request:
+      then:
+        - ble_client.passkey_reply:
+            id: ble_blah
+            passkey: 123456
+    on_passkey_notification:
+      then:
+        - logger.log: "Passkey notification received"
+    on_numeric_comparison_request:
+      then:
+        - ble_client.numeric_comparison_reply:
+            id: ble_blah
+            accept: True
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
 bedjet:

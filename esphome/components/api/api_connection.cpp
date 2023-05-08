@@ -996,7 +996,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
                                      : bluetooth_proxy::PASSIVE_ONLY_VERSION;
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  resp.voice_assistant_version = 1;
+  resp.voice_assistant_version = voice_assistant::global_voice_assistant->get_version();
 #endif
   return resp;
 }
