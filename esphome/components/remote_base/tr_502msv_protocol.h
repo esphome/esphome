@@ -6,7 +6,7 @@
 namespace esphome {
 namespace remote_base {
 
-enum devices : uint8_t {
+enum Devices : uint8_t {
   DEVICE_1 = 0,
   DEVICE_2 = 1,
   DEVICE_3 = 2,
@@ -14,7 +14,7 @@ enum devices : uint8_t {
   DEVICE_ALL = 7,
 };
 
-enum commands : uint8_t {
+enum Commands : uint8_t {
   COMMAND_OFF = 0,
   COMMAND_ON = 1,
   COMMAND_INCREASE_BRIGHTNESS = 2,

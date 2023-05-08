@@ -12,7 +12,7 @@ static const uint32_t BIT_ONE_SPACE_US = 1270;
 static const uint32_t BIT_ONE_MARK_US = 640;
 
 std::string TR502MSVData::device_string() const {
-  switch(this->device) {
+  switch (this->device) {
     case DEVICE_1:
       return "1";
     case DEVICE_2:
@@ -29,7 +29,7 @@ std::string TR502MSVData::device_string() const {
 }
 
 std::string TR502MSVData::command_string() const {
-  switch(this->command) {
+  switch (this->command) {
     case COMMAND_OFF:
       return "turn_off";
     case COMMAND_ON:
@@ -44,7 +44,7 @@ std::string TR502MSVData::command_string() const {
 }
 
 void TR502MSVProtocol::encode(RemoteTransmitData *dst, const TR502MSVData &data) {
-  dst->set_carrier_frequency(0); // 433 MHz
+  dst->set_carrier_frequency(0);  // 433 MHz
   dst->reserve(41);
 
   dst->mark(BIT_ONE_MARK_US);
@@ -83,7 +83,8 @@ optional<TR502MSVData> TR502MSVProtocol::decode(RemoteReceiveData src) {
 }
 
 void TR502MSVProtocol::dump(const TR502MSVData &data) {
-  ESP_LOGD(TAG, "Received TR502MSV: group=0x%03X, device=%s, command=%s", data.group, data.device_string().c_str(), data.command_string().c_str());
+  ESP_LOGD(TAG, "Received TR502MSV: group=0x%03X, device=%s, command=%s", data.group, data.device_string().c_str(),
+           data.command_string().c_str());
 }
 
 }  // namespace remote_base
