@@ -12,11 +12,6 @@ namespace lightwaverf {
 // LightwaveRF 434MHz receiver for Arduino
 // 
 // Author: Bob Tidey (robert@tideys.net)
-//Choose environment to compile for. Only one should be defined
-//For SparkCore the SparkIntervalTimer Library code needs to be present
-//For Due the DueTimer library code needs to be present
-//#define SPARK_CORE 1
-//#define DUE 1
 
 #define ESP8266CPU 1
 //Choose whether to include EEPROM support, comment or set to 0 to disable, 1 use with library support, 2 use with native support
@@ -104,7 +99,6 @@ class LwRx {
         int16_t rx_checkPairs(uint8_t *buf, bool allDevices);	//int
         void restoreEEPROMPairing();
 
-        //InternalGPIOPin rx_pin;
         ISRInternalGPIOPin rx_pin_isr;
         InternalGPIOPin *rx_pin;
 
