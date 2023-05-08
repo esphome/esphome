@@ -1545,3 +1545,66 @@ async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
     cg.add(var.set_data(config[CONF_DATA]))
+
+
+# TR502MSV
+TR502MSVData, TR502MSVBinarySensor, TR502MSVTrigger, TR502MSVAction, TR502MSVDumper = declare_protocol(
+    "TR502MSV"
+)
+TR502MSVCommand = remote_base_ns.enum("TR502MSVCommand")
+TR502MSV_COMMAND_OPTIONS = {
+    "off": TR502MSVCommand.COMMAND_OFF,
+    False: TR502MSVCommand.COMMAND_OFF,
+    "on": TR502MSVCommand.COMMAND_ON,
+    True: TR502MSVCommand.COMMAND_ON,
+    "increase_brightness": TR502MSVCommand.COMMAND_INCREASE_BRIGHTNESS,
+    "decrease_brightness": TR502MSVCommand.COMMAND_DECREASE_BRIGHTNESS,
+}
+
+TR502MSVDevice = remote_base_ns.enum("TR502MSVDevice")
+TR502MSV_DEVICE_OPTIONS = {
+    1: TR502MSVDevice.DEVICE_1,
+    2: TR502MSVDevice.DEVICE_2,
+    3: TR502MSVDevice.DEVICE_3,
+    4: TR502MSVDevice.DEVICE_4,
+    "all": TR502MSVDevice.DEVICE_ALL,
+}
+
+TR502MSV_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_GROUP): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFF)),
+        cv.Required(CONF_DEVICE): cv.enum(TR502MSV_DEVICE_OPTIONS),
+        cv.Required(CONF_COMMAND): cv.enum(TR502MSV_COMMAND_OPTIONS),
+    }
+)
+
+
+@register_binary_sensor("tr_502msv", TR502MSVBinarySensor, TR502MSV_SCHEMA)
+def tr_502msv_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                TR502MSVData,
+                ("group", config[CONF_GROUP]),
+                ("device", config[CONF_DEVICE]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("tr_502msv", TR502MSVTrigger, TR502MSVData)
+def tr_502msv_trigger(var, config):
+    pass
+
+
+@register_dumper("tr_502msv", TR502MSVDumper)
+def tr_502msv_dumper(var, config):
+    pass
+
+
+@register_action("tr_502msv", TR502MSVAction, TR502MSV_SCHEMA)
+def tr_502msv_action(var, config, args):
+    cg.add(var.set_group((yield cg.templatable(config[CONF_GROUP], args, cg.uint16))))
+    cg.add(var.set_device((yield cg.templatable(config[CONF_DEVICE], args, cg.uint8))))
+    cg.add(var.set_command((yield cg.templatable(config[CONF_COMMAND], args, cg.uint8))))
