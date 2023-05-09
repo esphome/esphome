@@ -115,7 +115,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void dc_mtor_stop(uint8_t chl);
+  void dc_motor_stop(uint8_t chl);
 
   /*************************************************************
       Description
@@ -219,6 +219,6 @@ template<typename... Ts> class GROVETB6612FNGMotorNoStandbyAction : public Actio
  protected:
   GroveMotorDriveTB6612FNG *motor_;
 };
-validate_data
+
 }  // namespace grove_i2c_motor
 }  // namespace esphome

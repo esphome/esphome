@@ -116,7 +116,7 @@ void GroveMotorDriveTB6612FNG::stepper_run(stepper_mode_type_t mode, int16_t ste
   }
   // stop
   else if (steps == 0) {
-    stepperStop();
+    this->stepper_stop();
     return;
   } else if (steps == -32768) {
     steps = 32767;
