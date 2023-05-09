@@ -77,10 +77,11 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse
   while (len--) {
     crc ^= *data++;
     for (uint8_t i = 0; i < 8; i++) {
-      if (crc & 0x0001)
+      if (crc & 0x0001) {
         crc = (crc >> 1) ^ reverse_poly;
-      else
+      } else {
         crc >>= 1;
+      }
     }
   }
   if (refout)
@@ -92,12 +93,13 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
   if (refin)
     crc ^= 0xffff;
   while (len--) {
-    crc ^= (((uint16_t)*data++) << 8);
+    crc ^= (((uint16_t) *data++) << 8);
     for (uint8_t i = 0; i < 8; i++) {
-      if (crc & 0x8000)
+      if (crc & 0x8000) {
         crc = (crc << 1) ^ poly;
-      else
+      } else {
         crc <<= 1;
+      }
     }
   }
   if (refout)
