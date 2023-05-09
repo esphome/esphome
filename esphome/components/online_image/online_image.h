@@ -52,6 +52,9 @@ class OnlineImage : public PollingComponent, public display::Image {
     redirect_limit_ = limit;
   }
 
+  void set_useragent(const char *useragent) { this->useragent_ = useragent; }
+  void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
+
  protected:
   using Allocator = ExternalRAMAllocator<uint8_t>;
   Allocator allocator_{Allocator::Flags::ALLOW_FAILURE};
@@ -75,8 +78,10 @@ class OnlineImage : public PollingComponent, public display::Image {
   const int fixed_width_;
   const int fixed_height_;
 
-  bool follow_redirects_ = false;
-  int redirect_limit_ = 0;
+  bool follow_redirects_;
+  int redirect_limit_;
+  uint16_t timeout_;
+  const char *useragent_;
 
   friend void ImageDecoder::set_size(int width, int height);
   friend void ImageDecoder::draw(int x, int y, int w, int h, const Color &color);
