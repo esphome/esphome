@@ -2,7 +2,7 @@
 #include "radar.h"
 #include <string>
 
-void esphome::mr24d11c10::MR24D11C10Component::setup() override
+void esphome::mr24d11c10::MR24D11C10Component::setup()
 {
     // This will be called by App.setup()
 }
@@ -30,7 +30,7 @@ void esphome::mr24d11c10::MR24D11C10Component::send_command(uint8_t *buff, uint8
     }
 
     unsigned short int crc_data = 0x0000;
-    crc_data = us_CalculateCrc16(cmd_buff, 3 + data_length);
+    crc_data = radar::us_CalculateCrc16(cmd_buff, 3 + data_length);
     unsigned short int res = crc_data;
     res &= 0xFF00;
     res = res >> 8;
@@ -99,15 +99,15 @@ void esphome::mr24d11c10::MR24D11C10Component::active_result() {
         case HEARTBEAT:
         case CLOSE_AWAY: {
             int result = seeedRadar->Situation_judgment(buffer[4], buffer[5], buffer[6], buffer[7], buffer[8]);
-            ESP_LOGD("debbug target_present", "%d \n", result != 1);
-            target_present->publish_state(result != 1);
+            ESP_LOGD("debbug target_present_", "%d \n", result != 1);
+            target_present_->publish_state(result != 1);
             break;}
         case BODYSIGN:{
             float x = seeedRadar->Bodysign_val(buffer[5], buffer[6], buffer[7], buffer[8], buffer[9]);
             // Correction to percents
             if (x > 100.0f) { x = 100.0f; }
             if (x < 0.0f) { x = 0.0f; }
-            body_movement->publish_state(x);
+            body_movement_->publish_state(x);
             break;}
         default:
             ESP_LOGE("UNKNOWN ADDRESS FUNCTION", "UNEXPECTED VALUE: 0x%02x", buffer[5]);
@@ -141,7 +141,7 @@ void esphome::mr24d11c10::MR24D11C10Component::process_message() {
 
 }
 
-void esphome::mr24d11c10::MR24D11C10Component::loop() override
+void esphome::mr24d11c10::MR24D11C10Component::loop()
 {
     if (available())
     {
