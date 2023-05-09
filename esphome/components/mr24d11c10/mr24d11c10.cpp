@@ -29,7 +29,7 @@ void esphome::mr24d11c10::MR24D11C10Component::send_command(uint8_t *buff, uint8
     }
 
     unsigned short int crc_data = 0x0000;
-    crc_data = radar::us_CalculateCrc16(cmd_buff, 3 + data_length);
+    crc_data = seeedRadar->us_CalculateCrc16(cmd_buff, 3 + data_length);
     unsigned short int res = crc_data;
     res &= 0xFF00;
     res = res >> 8;

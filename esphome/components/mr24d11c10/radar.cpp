@@ -77,7 +77,7 @@ const unsigned char  cuc_CRCLo[256]= {
   0x41, 0x81, 0x80, 0x40
 };
 
-static unsigned short int us_CalculateCrc16(unsigned char *lpuc_Frame, unsigned short int lus_Len){
+unsigned short int us_CalculateCrc16(unsigned char *lpuc_Frame, unsigned short int lus_Len){
   unsigned char luc_CRCHi = 0xFF;
   unsigned char luc_CRCLo = 0xFF;
   int li_Index=0;
