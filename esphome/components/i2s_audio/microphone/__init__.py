@@ -25,16 +25,22 @@ I2SAudioMicrophone = i2s_audio_ns.class_(
     "I2SAudioMicrophone", I2SAudioIn, microphone.Microphone, cg.Component
 )
 
-NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
+INTERNAL_ADC_VARIANTS = [esp32.const.VARIANT_ESP32]
+PDM_VARIANTS = [esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S3]
 
 
 def validate_esp32_variant(config):
-    if config[CONF_ADC_TYPE] != "internal":
-        return config
     variant = esp32.get_esp32_variant()
-    if variant in NO_INTERNAL_DAC_VARIANTS:
-        raise cv.Invalid(f"{variant} does not have an internal DAC")
-    return config
+    if config[CONF_ADC_TYPE] == "external":
+        if config[CONF_PDM]:
+            if variant not in PDM_VARIANTS:
+                raise cv.Invalid(f"{variant} does not support PDM")
+        return config
+    if config[CONF_ADC_TYPE] == "internal":
+        if variant not in INTERNAL_ADC_VARIANTS:
+            raise cv.Invalid(f"{variant} does not have an internal ADC")
+        return config
+    raise NotImplementedError
 
 
 BASE_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
