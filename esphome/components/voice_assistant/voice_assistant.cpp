@@ -2,6 +2,8 @@
 
 #include "esphome/core/log.h"
 
+#include <cstdio>
+
 namespace esphome {
 namespace voice_assistant {
 
@@ -33,12 +35,48 @@ void VoiceAssistant::setup() {
     return;
   }
 
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    struct sockaddr_storage server;
+
+    socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), 6055);
+    if (sl == 0) {
+      ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
+      this->mark_failed();
+      return;
+    }
+    server.ss_family = AF_INET;
+
+    err = socket_->bind((struct sockaddr *) &server, sizeof(server));
+    if (err != 0) {
+      ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
+      this->mark_failed();
+      return;
+    }
+  }
+#endif
+
   this->mic_->add_data_callback([this](const std::vector<uint8_t> &data) {
     if (!this->running_) {
       return;
     }
     this->socket_->sendto(data.data(), data.size(), 0, (struct sockaddr *) &this->dest_addr_, sizeof(this->dest_addr_));
   });
+}
+
+void VoiceAssistant::loop() {
+#ifdef USE_SPEAKER
+  if (this->speaker_ == nullptr) {
+    return;
+  }
+
+  uint8_t buf[1024];
+  auto len = this->socket_->read(buf, sizeof(buf));
+  if (len == -1) {
+    return;
+  }
+  this->speaker_->play(buf, len);
+#endif
 }
 
 void VoiceAssistant::start(struct sockaddr_storage *addr, uint16_t port) {
