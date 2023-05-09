@@ -1,5 +1,4 @@
 #include "mr24d11c10.h"
-#include "radar.h"
 #include <string>
 
 void esphome::mr24d11c10::MR24D11C10Component::setup()
