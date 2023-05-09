@@ -5,7 +5,7 @@
  * License: MIT
  */
 namespace esphome {
-namespace radar {
+namespace radar_ns {
 
 #ifndef _RADAR_H__
 #define _RADAR_H__
