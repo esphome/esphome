@@ -603,3 +603,4 @@ grove_i2c_motor:
   id: test_motor
   name: motor_outside
   address: 0x14
+  
