@@ -21,8 +21,8 @@ class radar
         char CRC(char ad1, char ad2, char ad3, char ad4, char ad5, char ad6, char ad7);
         unsigned short int us_CalculateCrc16(unsigned char *lpuc_Frame, unsigned short int lus_Len);
 };
+#endif
+
 }  // namespace radar
 }  // namespace esphome
-
-#endif
 /** END of copied and changed content */
