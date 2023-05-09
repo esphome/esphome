@@ -4,8 +4,12 @@
  * Accessed: 5/7/2023
  * License: MIT
  */
+namespace esphome {
+namespace radar {
+
 #ifndef _RADAR_H__
 #define _RADAR_H__
+
 
 class radar
 {
@@ -17,6 +21,8 @@ class radar
         char CRC(char ad1, char ad2, char ad3, char ad4, char ad5, char ad6, char ad7);
         unsigned short int us_CalculateCrc16(unsigned char *lpuc_Frame, unsigned short int lus_Len);
 };
+}  // namespace radar
+}  // namespace esphome
 
 #endif
 /** END of copied and changed content */

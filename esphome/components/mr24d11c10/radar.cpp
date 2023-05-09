@@ -89,7 +89,7 @@ unsigned short int us_CalculateCrc16(unsigned char *lpuc_Frame, unsigned short i
   return (unsigned short int )(luc_CRCLo << 8 | luc_CRCHi);
 }
 
-char radar::CRC(char ad1, char ad2, char ad3, char ad4, char ad5, char ad6, char ad7){
+char esphome::radar_ns::radar::CRC(char ad1, char ad2, char ad3, char ad4, char ad5, char ad6, char ad7){
   unsigned char data[] = {ad1, ad2, ad3, ad4, ad5, ad6, ad7};
     unsigned short int crc_data = 0x0000;
     unsigned int lenth = sizeof(data)/sizeof(unsigned char);
@@ -104,7 +104,7 @@ typedef union
 }Float_Byte;
 
 
-int radar::Bodysign_val(int ad1, int ad2, int ad3, int ad4, int ad5){
+int esphome::radar_ns::radar::Bodysign_val(int ad1, int ad2, int ad3, int ad4, int ad5){
   if(ad1 == BODYSIGN){
       Float_Byte fb;
       fb.Byte[0] = ad2;
@@ -117,7 +117,7 @@ int radar::Bodysign_val(int ad1, int ad2, int ad3, int ad4, int ad5){
 }
 
 
-int radar::Situation_judgment(int ad1, int ad2, int ad3, int ad4, int ad5){
+int esphome::radar_ns::radar::Situation_judgment(int ad1, int ad2, int ad3, int ad4, int ad5){
   int result = 0;
   if(ad1 == REPORT_RADAR || ad1 == REPORT_OTHER){
         if(ad2 == ENVIRONMENT || ad2 == HEARTBEAT){
@@ -149,7 +149,7 @@ int radar::Situation_judgment(int ad1, int ad2, int ad3, int ad4, int ad5){
 }
 
 
-int radar::Fall_judgment(int ad1, int ad2, int ad3, int ad4){
+int esphome::radar_ns::radar::Fall_judgment(int ad1, int ad2, int ad3, int ad4){
   int result = 0;
   if(ad1 == FALL_REPORT && ad2 == 0x01){
     if(ad3 == 0x01){
