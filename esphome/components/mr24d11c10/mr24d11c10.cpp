@@ -2,17 +2,18 @@
 #include "radar.h"
 #include <string>
 
-void setup() override
+void esphome::mr24d11c10::MR24D11C10Component::setup() override
 {
     // This will be called by App.setup()
 }
+
 
 /** Reused function from github to send data
  * Author: x00Pavel
  * Link: https://github.com/x00Pavel/mmWave-HomeAssistant
  * Accessed: 5/7/2023
  */
-void MR24D11C10Component::send_command(uint8_t *buff, uint8_t data_length) {
+void esphome::mr24d11c10::MR24D11C10Component::send_command(uint8_t *buff, uint8_t data_length) {
     size_t total_size = 5+data_length;
     unsigned char cmd_buff[total_size];
 
@@ -52,22 +53,22 @@ void MR24D11C10Component::send_command(uint8_t *buff, uint8_t data_length) {
 }
 /** END of citation and updates of it */
 
-void MR24D11C10Component::send_new_scene_settings(uint8_t id){
+void esphome::mr24d11c10::MR24D11C10Component::send_new_scene_settings(uint8_t id){
     uint8_t cmd_list[4] = {0x02, 0x04, 0x10, id};
     send_command(cmd_list, 4);
 }
 
-void MR24D11C10Component::send_new_threshold(uint8_t id){
+void esphome::mr24d11c10::MR24D11C10Component::send_new_threshold(uint8_t id){
     uint8_t cmd_list[4] = {0x02, 0x04, 0x0C, id};
     send_command(cmd_list, 4);
 }
 
-void MR24D11C10Component::get_radar_device_id(){
+void esphome::mr24d11c10::MR24D11C10Component::get_radar_device_id(){
     uint8_t cmd_list[3] = {0x01, 0x01, 0x01};
     send_command(cmd_list, 3);
 }
 
-void MR24D11C10Component::printBufferOnLine() {
+void esphome::mr24d11c10::MR24D11C10Component::printBufferOnLine() {
     switch(msg_len) {
         case 4:
             ESP_LOGD("debbug buffer", "0x%02x 0x%02x 0x%02x 0x%02x",buffer[0],buffer[1],buffer[2],buffer[3]);
@@ -91,7 +92,7 @@ void MR24D11C10Component::printBufferOnLine() {
 
 }
 
-void MR24D11C10Component::active_result() {
+void esphome::mr24d11c10::MR24D11C10Component::active_result() {
     // printBuffer();
     switch(buffer[5]) {
         case ENVIRONMENT:
@@ -115,11 +116,11 @@ void MR24D11C10Component::active_result() {
 }
 
 // TODO: Implement read_configs
-void MR24D11C10Component::read_configs() {
+void esphome::mr24d11c10::MR24D11C10Component::read_configs() {
     ESP_LOGD("reading config", "\n");
 }
 
-void MR24D11C10Component::state_judgement() {
+void esphome::mr24d11c10::MR24D11C10Component::process_message() {
     switch(buffer[3]) {
         case READ_CONFIG:
             read_configs();
@@ -140,7 +141,7 @@ void MR24D11C10Component::state_judgement() {
 
 }
 
-void MR24D11C10Component::loop() override
+void esphome::mr24d11c10::MR24D11C10Component::loop() override
 {
     if (available())
     {
@@ -154,7 +155,7 @@ void MR24D11C10Component::loop() override
                 buffer[msg_len] = incomingValues;
                 msg_len++;
             }
-            state_judgement();
+            process_message();
         }
     }
 }
