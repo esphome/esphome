@@ -1172,9 +1172,4 @@ qr_code:
   - id: homepage_qr
     value: https://esphome.io/index.html
 
-grove_i2c_motor:
-  id: test_motor
-  name: motor_outside
-  address: 0x14
-
 
