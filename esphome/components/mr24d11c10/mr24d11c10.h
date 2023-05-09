@@ -2,6 +2,12 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+#ifdef USE_SENSOR
+#include "esphome/components/sensor/sensor.h"
+#endif
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
