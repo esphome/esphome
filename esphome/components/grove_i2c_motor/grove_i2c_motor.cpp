@@ -65,7 +65,7 @@ void GroveMotorDriveTB6612FNG::dc_motor_run(uint8_t chl, int16_t speed) {
     speed = -255;
   }
 
-  _buffer[0] = chl;
+  buffer_[0] = chl;
   if (speed >= 0) {
     buffer_[1] = speed;
   } else {
