@@ -1,12 +1,6 @@
 #pragma once
 #include "esphome/core/defines.h"
 #include "esphome/core/component.h"
-#ifdef USE_BINARY_SENSOR
-#include "esphome/components/binary_sensor/binary_sensor.h"
-#endif
-#ifdef USE_SENSOR
-#include "esphome/components/sensor/sensor.h"
-#endif
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
@@ -59,17 +53,21 @@ class MR24D11C10Component : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
 
-  SeeedStudio_Radar(UARTComponent *parent) : UARTDevice(parent) {}
+  MR24D11C10Component(uart::UARTComponent *parent) : uart::UARTDevice(parent) {}
   radar *seeedRadar;
   uint8_t buffer[64];
   size_t msg_len;
 
-
-  Sensor *body_movement_ = new Sensor();
-  BinarySensor *target_present_ = new BinarySensor();
-
   void set_human_presence_binary_sensor(binary_sensor::BinarySensor *sens) { this->target_present_ = sens; };
   void set_body_movement_sensor(Sensor::Sensor *sens) { this->body_movement_ = sens; };
+  void send_new_scene_settings(uint8_t id);
+  void send_new_threshold(uint8_t id);
+  void get_radar_device_id();
+  void printBufferOnLine();
+  void active_result();
+  void read_configs();
+  void process_message();
+  void send_command(uint8_t *buff, uint8_t data_length);
 
  protected:
   binary_sensor::BinarySensor *target_present_{nullptr};
