@@ -19,15 +19,6 @@ class I2SAudioComponent : public Component {
  public:
   void setup() override;
 
-  void register_audio_in(I2SAudioIn *in) {
-    this->audio_in_ = in;
-    in->set_parent(this);
-  }
-  void register_audio_out(I2SAudioOut *out) {
-    this->audio_out_ = out;
-    out->set_parent(this);
-  }
-
   i2s_pin_config_t get_pin_config() const {
     return {
         .mck_io_num = I2S_PIN_NO_CHANGE,
@@ -49,9 +40,6 @@ class I2SAudioComponent : public Component {
 
  protected:
   Mutex lock_;
-
-  I2SAudioIn *audio_in_{nullptr};
-  I2SAudioOut *audio_out_{nullptr};
 
   uint8_t bclk_pin_;
   uint8_t lrclk_pin_;
