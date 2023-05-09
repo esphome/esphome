@@ -1,9 +1,9 @@
-#include "Grove_Motor_Driver_TB6612FNG.h"
+#include "grove_i2c_motor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace grove_motor_drive_TB6612FNG {
+namespace grove_i2c_motor {
 
 static const char *const TAG = "GroveMotorDriveTB6612FNG";
 
@@ -177,5 +177,5 @@ void GroveMotorDriveTB6612FNG::stepper_keep_run(stepper_mode_type_t mode, uint16
   }
   delayMicroseconds(100000);
 }
-}  // namespace grove_motor_drive_TB6612FNG
+}  // namespace grove_i2c_motor
 }  // namespace esphome
