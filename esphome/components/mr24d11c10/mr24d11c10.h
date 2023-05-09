@@ -59,7 +59,6 @@ class MR24D11C10Component : public Component, public uart::UARTDevice {
   void setup() override;
   void loop() override;
 
-  MR24D11C10Component(uart::UARTComponent *parent) : uart::UARTDevice(parent) {}
   radar *seeedRadar;
   uint8_t buffer[64];
   size_t msg_len;
