@@ -278,17 +278,20 @@ void Logger::pre_setup() {
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_USB_SERIAL_JTAG:
 #endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
+#ifdef USE_ESP32_VARIANT_ESP32C3
+        this->hw_serial_ = &Serial;
+        Serial.begin(this->baud_rate_);
+#endif  // USE_ESP32_VARIANT_ESP32C3
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #if ARDUINO_USB_CDC_ON_BOOT
         this->hw_serial_ = &Serial;
         Serial.begin(this->baud_rate_);
 #else
-        USBCDC *serial = new USBCDC();
-        this->hw_serial_ = serial;
-        serial->begin(this->baud_rate_);
+        this->hw_serial_ = &USBSerial;
+        USBSerial.begin(this->baud_rate_);
 #endif  // ARDUINO_USB_CDC_ON_BOOT
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
         USB.begin();
-#endif
+#endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
         break;
 #endif  // USE_ESP32 && (USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3 || USE_ESP32_VARIANT_ESP32C3)
 #ifdef USE_RP2040
