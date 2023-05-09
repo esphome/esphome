@@ -200,5 +200,25 @@ template<typename... Ts> class GROVETB6612FNGMotorStopAction : public Action<Ts.
   GroveMotorDriveTB6612FNG *motor_;
 };
 
+template<typename... Ts> class GROVETB6612FNGMotorStandbyAction : public Action<Ts...> {
+ public:
+  GROVETB6612FNGMotorStandbyAction(GroveMotorDriveTB6612FNG *motor) : motor_(motor) {}
+
+  void play(Ts... x) override { this->motor_->standby(); }
+
+ protected:
+  GroveMotorDriveTB6612FNG *motor_;
+};
+
+template<typename... Ts> class GROVETB6612FNGMotorNoStandbyAction : public Action<Ts...> {
+ public:
+  GROVETB6612FNGMotorNoStandbyAction(GroveMotorDriveTB6612FNG *motor) : motor_(motor) {}
+
+  void play(Ts... x) override { this->motor_->notStandby(); }
+
+ protected:
+  GroveMotorDriveTB6612FNG *motor_;
+};
+
 }  // namespace grove_motor_drive_TB6612FNG
 }  // namespace esphome

@@ -29,6 +29,13 @@ GROVETB6612FNGMotorStopAction = grove_motor_drive_TB6612FNG_ns.class_(
     "GROVETB6612FNGMotorStopAction", automation.Action
 )
 
+GROVETB6612FNGMotorStandbyAction = grove_motor_drive_TB6612FNG_ns.class_(
+    "GROVETB6612FNGMotorStandbyAction", automation.Action
+)
+GROVETB6612FNGMotorNoStandbyAction = grove_motor_drive_TB6612FNG_ns.class_(
+    "GROVETB6612FNGMotorNoStandbyAction", automation.Action
+)
+
 DIRECTION_TYPE = {
     "FORWARD": 1,
     "BACKWARD": 2,
@@ -121,4 +128,36 @@ async def grove_i2c_motor_stop_to_code(config, action_id, template_arg, args):
 
     template_channel = await cg.templatable(config[CONF_CHANNEL], args, int)
     cg.add(var.set_chl(template_channel))
+    return var
+
+
+@automation.register_action(
+    "grove_i2c_motor.standby",
+    GROVETB6612FNGMotorStandbyAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
+        }
+    ),
+)
+async def grove_i2c_motor_standby_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    return var
+
+
+@automation.register_action(
+    "grove_i2c_motor.no_standby",
+    GROVETB6612FNGMotorNoStandbyAction,
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
+        }
+    ),
+)
+async def grove_i2c_motor_no_standby_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
     return var
