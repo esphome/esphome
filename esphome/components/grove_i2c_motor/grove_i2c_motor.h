@@ -194,7 +194,7 @@ template<typename... Ts> class GROVETB6612FNGMotorStopAction : public Action<Ts.
   GROVETB6612FNGMotorStopAction(GroveMotorDriveTB6612FNG *motor) : motor_(motor) {}
   TEMPLATABLE_VALUE(uint8_t, chl)
 
-  void play(Ts... x) override { this->motor_->dc_mtor_stop(this->chl_.value(x...)); }
+  void play(Ts... x) override { this->motor_->dc_motor_stop(this->chl_.value(x...)); }
 
  protected:
   GroveMotorDriveTB6612FNG *motor_;
