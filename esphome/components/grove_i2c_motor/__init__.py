@@ -15,24 +15,23 @@ DEPENDENCIES = ["i2c"]
 
 CODEOWNERS = ["@max246"]
 
-grove_motor_drive_TB6612FNG_ns = cg.esphome_ns.namespace("grove_motor_drive_TB6612FNG")
-GROVE_TB6612FNG = grove_motor_drive_TB6612FNG_ns.class_(
+grove_i2c_motor_ns = cg.esphome_ns.namespace("grove_i2c_motor")
+GROVE_TB6612FNG = grove_i2c_motor_ns.class_(
     "GroveMotorDriveTB6612FNG", cg.Component, i2c.I2CDevice
 )
-GROVETB6612FNGMotorRunAction = grove_motor_drive_TB6612FNG_ns.class_(
+GROVETB6612FNGMotorRunAction = grove_i2c_motor_ns.class_(
     "GROVETB6612FNGMotorRunAction", automation.Action
 )
-GROVETB6612FNGMotorBrakeAction = grove_motor_drive_TB6612FNG_ns.class_(
+GROVETB6612FNGMotorBrakeAction = grove_i2c_motor_ns.class_(
     "GROVETB6612FNGMotorBrakeAction", automation.Action
 )
-GROVETB6612FNGMotorStopAction = grove_motor_drive_TB6612FNG_ns.class_(
+GROVETB6612FNGMotorStopAction = grove_i2c_motor_ns.class_(
     "GROVETB6612FNGMotorStopAction", automation.Action
 )
-
-GROVETB6612FNGMotorStandbyAction = grove_motor_drive_TB6612FNG_ns.class_(
+GROVETB6612FNGMotorStandbyAction = grove_i2c_motor_ns.class_(
     "GROVETB6612FNGMotorStandbyAction", automation.Action
 )
-GROVETB6612FNGMotorNoStandbyAction = grove_motor_drive_TB6612FNG_ns.class_(
+GROVETB6612FNGMotorNoStandbyAction = grove_i2c_motor_ns.class_(
     "GROVETB6612FNGMotorNoStandbyAction", automation.Action
 )
 
@@ -57,14 +56,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-
-
-def validate_data(value):
-    if isinstance(value, int):
-        if value <= 255 and value >= -255:
-            return value
-
-    raise cv.Invalid("Speed must be between -255 and 255")
 
 
 @automation.register_action(

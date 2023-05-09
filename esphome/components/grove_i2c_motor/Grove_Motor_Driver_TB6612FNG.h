@@ -33,7 +33,7 @@
 */
 
 namespace esphome {
-namespace grove_motor_drive_TB6612FNG {
+namespace grove_i2c_motor {
 
 enum motor_channel_type_t {
   MOTOR_CHA = 0,
@@ -71,7 +71,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void notStandby();
+  void not_standby();
 
   /*************************************************************
       Description
@@ -81,7 +81,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void setI2cAddr(uint8_t addr);
+  void set_i2c_addr(uint8_t addr);
 
   /*************************************************************
       Description
@@ -95,7 +95,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void dcMotorRun(uint8_t chl, int16_t speed);
+  void dc_motor_run(uint8_t chl, int16_t speed);
 
   /*************************************************************
       Description
@@ -105,7 +105,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void dcMotorBrake(uint8_t chl);
+  void dc_motor_brake(uint8_t chl);
 
   /*************************************************************
       Description
@@ -115,7 +115,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void dcMotorStop(uint8_t chl);
+  void dc_mtor_stop(uint8_t chl);
 
   /*************************************************************
       Description
@@ -131,7 +131,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void stepperRun(stepper_mode_type_t mode, int16_t steps, uint16_t rpm);
+  void stepper_run(stepper_mode_type_t mode, int16_t steps, uint16_t rpm);
 
   /*************************************************************
       Description
@@ -141,7 +141,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void stepperStop();
+  void stepper_stop();
 
   // keeps moving(direction same as the last move, default to clockwise)
   /*************************************************************
@@ -156,7 +156,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void stepperKeepRun(stepper_mode_type_t mode, uint16_t rpm, bool is_cw);
+  void stepper_keep_run(stepper_mode_type_t mode, uint16_t rpm, bool is_cw);
 
  private:
   uint8_t _buffer[16];
@@ -171,7 +171,7 @@ template<typename... Ts> class GROVETB6612FNGMotorRunAction : public Action<Ts..
   void play(Ts... x) override {
     auto chl = this->chl_.value(x...);
     auto speed = this->speed_.value(x...);
-    this->motor_->dcMotorRun(chl, speed);
+    this->motor_->dc_motor_run(chl, speed);
   }
 
  protected:
@@ -183,7 +183,7 @@ template<typename... Ts> class GROVETB6612FNGMotorBrakeAction : public Action<Ts
   GROVETB6612FNGMotorBrakeAction(GroveMotorDriveTB6612FNG *motor) : motor_(motor) {}
   TEMPLATABLE_VALUE(uint8_t, chl)
 
-  void play(Ts... x) override { this->motor_->dcMotorBrake(this->chl_.value(x...)); }
+  void play(Ts... x) override { this->motor_->dc_motor_brake(this->chl_.value(x...)); }
 
  protected:
   GroveMotorDriveTB6612FNG *motor_;
@@ -194,7 +194,7 @@ template<typename... Ts> class GROVETB6612FNGMotorStopAction : public Action<Ts.
   GROVETB6612FNGMotorStopAction(GroveMotorDriveTB6612FNG *motor) : motor_(motor) {}
   TEMPLATABLE_VALUE(uint8_t, chl)
 
-  void play(Ts... x) override { this->motor_->dcMotorStop(this->chl_.value(x...)); }
+  void play(Ts... x) override { this->motor_->dc_mtor_stop(this->chl_.value(x...)); }
 
  protected:
   GroveMotorDriveTB6612FNG *motor_;
@@ -214,11 +214,11 @@ template<typename... Ts> class GROVETB6612FNGMotorNoStandbyAction : public Actio
  public:
   GROVETB6612FNGMotorNoStandbyAction(GroveMotorDriveTB6612FNG *motor) : motor_(motor) {}
 
-  void play(Ts... x) override { this->motor_->notStandby(); }
+  void play(Ts... x) override { this->motor_->not_standby(); }
 
  protected:
   GroveMotorDriveTB6612FNG *motor_;
 };
-
-}  // namespace grove_motor_drive_TB6612FNG
+validate_data
+}  // namespace grove_i2c_motor
 }  // namespace esphome
