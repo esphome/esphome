@@ -228,6 +228,10 @@ uart:
     baud_rate: 256000
     parity: NONE
     stop_bits: 1
+  - id: mr24d11c10_uart
+    tx_pin: 14
+    rx_pin: 27
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -1299,6 +1303,8 @@ sensor:
       id: temp_etuve
     humidity:
       name: "Humidity hyt271"
+  - platform: mr24d11c10
+    human_presence:
 
 esp32_touch:
   setup_mode: false
@@ -1579,6 +1585,9 @@ binary_sensor:
       name: movement
     has_still_target:
       name: still
+  - platform: mr24d11c10
+    human_presence:
+    body_movement:
 
 pca9685:
   frequency: 500

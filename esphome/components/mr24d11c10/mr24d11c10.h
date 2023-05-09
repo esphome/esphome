@@ -65,8 +65,8 @@ class MR24D11C10Component : public Component, public uart::UARTDevice {
   size_t msg_len;
 
 
-  Sensor *body_movement = new Sensor();
-  BinarySensor *target_present = new BinarySensor();
+  Sensor *body_movement_ = new Sensor();
+  BinarySensor *target_present_ = new BinarySensor();
 
   void set_human_presence_binary_sensor(binary_sensor::BinarySensor *sens) { this->target_present_ = sens; };
   void set_body_movement_sensor(Sensor::Sensor *sens) { this->body_movement_ = sens; };
