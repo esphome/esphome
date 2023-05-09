@@ -2,9 +2,7 @@ import logging
 
 from pathlib import Path
 import time
-from reportlab.graphics import renderPM
 import requests
-from svglib.svglib import svg2rlg
 
 from esphome import core
 from esphome.components import display, font
@@ -46,6 +44,33 @@ MDI_DOWNLOAD_TIMEOUT = 10  # seconds
 Image_ = display.display_ns.class_("Image")
 
 
+def validate_svglib_installed(value):
+    """Validate that svglib and reportlab are installed"""
+    try:
+        import reportlab
+        import svglib
+    except ImportError as err:
+        raise cv.Invalid(
+            "Please install the svglib and reportlab python packages to use this feature. "
+            "(pip install reportlab svglib)"
+        ) from err
+
+    if reportlab.__version__[0] < "3":
+        raise cv.Invalid(
+            "Please update your reportlab installation to at least 3.0.x. "
+            "(pip install -U reportlab)"
+        )
+    # svglib package does not offer the __version__ attribute
+    # Nevertheless to make linters happy, the package needs to be used here.
+    if svglib.__name__ != "svglib":
+        raise cv.Invalid(
+            "Please update your svglib installation to at least 1.0.x. "
+            "(pip install -U svglib)"
+        )
+
+    return value
+
+
 def validate_cross_dependencies(config):
     """
     Validate fields whose possible values depend on other fields.
@@ -80,7 +105,9 @@ IMAGE_SCHEMA = cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(Image_),
             cv.Exclusive(CONF_FILE, "input"): cv.file_,
-            cv.Exclusive(CONF_MDI, "input"): cv.string,
+            cv.Exclusive(CONF_MDI, "input"): cv.All(
+                cv.string, validate_svglib_installed
+            ),
             cv.Optional(CONF_RESIZE): cv.dimensions,
             # Not setting default here on purpose; the default depends on the source type
             # (file or mdi), and will be set in the "validate_cross_dependencies" validator.
@@ -110,6 +137,12 @@ async def to_code(config):
         except Exception as e:
             raise core.EsphomeError(f"Could not load image file {path}: {e}")
     elif CONF_MDI in config:
+        # Those imports are only needed in case of MDI images; adding them
+        # to the top would force configurations not using MDI to also have them
+        # installed for no reason.
+        from reportlab.graphics import renderPM
+        from svglib.svglib import svg2rlg
+
         # In case the prefix "mdi:" is present remove it.
         # This allows easily using the mdi intellisense VSCode extension
         mdi_id = config[CONF_MDI].removeprefix("mdi:")
