@@ -35,12 +35,12 @@
 namespace esphome {
 namespace grove_i2c_motor {
 
-enum motor_channel_type_t {
+enum MotorChannelTypeT {
   MOTOR_CHA = 0,
   MOTOR_CHB = 1,
 };
 
-enum stepper_mode_type_t {
+enum StepperModeTypeT {
   FULL_STEP = 0,
   WAVE_DRIVE = 1,
   HALF_STEP = 2,
@@ -131,7 +131,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void stepper_run(stepper_mode_type_t mode, int16_t steps, uint16_t rpm);
+  void stepper_run(StepperModeTypeT mode, int16_t steps, uint16_t rpm);
 
   /*************************************************************
       Description
@@ -156,10 +156,10 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void stepper_keep_run(stepper_mode_type_t mode, uint16_t rpm, bool is_cw);
+  void stepper_keep_run(StepperModeTypeT mode, uint16_t rpm, bool is_cw);
 
  private:
-  uint8_t _buffer[16];
+  uint8_t buffer_[16];
 };
 
 template<typename... Ts> class GROVETB6612FNGMotorRunAction : public Action<Ts...> {

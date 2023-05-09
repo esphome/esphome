@@ -47,9 +47,7 @@ void GroveMotorDriveTB6612FNG::not_standby() {
 }
 
 void GroveMotorDriveTB6612FNG::set_i2c_addr(uint8_t addr) {
-  if (addr == 0x00) {
-    return;
-  } else if (addr >= 0x80) {
+  if (addr == 0x00 || addr >= 0x80) {
     return;
   }
   if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_SET_ADDR, &addr, 1) != i2c::ERROR_OK) {
@@ -69,18 +67,18 @@ void GroveMotorDriveTB6612FNG::dc_motor_run(uint8_t chl, int16_t speed) {
 
   _buffer[0] = chl;
   if (speed >= 0) {
-    _buffer[1] = speed;
+    buffer_[1] = speed;
   } else {
-    _buffer[1] = (uint8_t) (-speed);
+    buffer_[1] = (uint8_t) (-speed);
   }
 
   if (speed >= 0) {
-    if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_CW, _buffer, 2) != i2c::ERROR_OK) {
+    if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_CW, buffer_, 2) != i2c::ERROR_OK) {
       this->mark_failed();
       return;
     }
   } else {
-    if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_CCW, _buffer, 2) != i2c::ERROR_OK) {
+    if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_CCW, buffer_, 2) != i2c::ERROR_OK) {
       this->mark_failed();
       return;
     }
@@ -106,7 +104,7 @@ void GroveMotorDriveTB6612FNG::dc_motor_stop(uint8_t chl) {
   delayMicroseconds(100000);
 }
 
-void GroveMotorDriveTB6612FNG::stepper_run(stepper_mode_type_t mode, int16_t steps, uint16_t rpm) {
+void GroveMotorDriveTB6612FNG::stepper_run(StepperModeTypeT mode, int16_t steps, uint16_t rpm) {
   uint8_t cw = 0;
   // 0.1ms_per_step
   uint16_t ms_per_step = 0;
@@ -131,14 +129,14 @@ void GroveMotorDriveTB6612FNG::stepper_run(stepper_mode_type_t mode, int16_t ste
   }
 
   ms_per_step = (uint16_t) (3000.0 / (float) rpm);
-  _buffer[0] = mode;
-  _buffer[1] = cw;  //(cw=1) => cw; (cw=0) => ccw
-  _buffer[2] = steps;
-  _buffer[3] = (steps >> 8);
-  _buffer[4] = ms_per_step;
-  _buffer[5] = (ms_per_step >> 8);
+  buffer_[0] = mode;
+  buffer_[1] = cw;  //(cw=1) => cw; (cw=0) => ccw
+  buffer_[2] = steps;
+  buffer_[3] = (steps >> 8);
+  buffer_[4] = ms_per_step;
+  buffer_[5] = (ms_per_step >> 8);
 
-  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_RUN, _buffer, 1) != i2c::ERROR_OK) {
+  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_RUN, buffer_, 1) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
@@ -146,14 +144,14 @@ void GroveMotorDriveTB6612FNG::stepper_run(stepper_mode_type_t mode, int16_t ste
 }
 
 void GroveMotorDriveTB6612FNG::stepper_stop() {
-  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_STOP, 0, 1) != i2c::ERROR_OK) {
+  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_STOP, nullptr, 1) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
   delayMicroseconds(100000);
 }
 
-void GroveMotorDriveTB6612FNG::stepper_keep_run(stepper_mode_type_t mode, uint16_t rpm, bool is_cw) {
+void GroveMotorDriveTB6612FNG::stepper_keep_run(StepperModeTypeT mode, uint16_t rpm, bool is_cw) {
   // 4=>infinite ccw  5=>infinite cw
   uint8_t cw = (is_cw) ? 5 : 4;
   // 0.1ms_per_step
@@ -166,12 +164,12 @@ void GroveMotorDriveTB6612FNG::stepper_keep_run(stepper_mode_type_t mode, uint16
   }
   ms_per_step = (uint16_t) (3000.0 / (float) rpm);
 
-  _buffer[0] = mode;
-  _buffer[1] = cw;  //(cw=1) => cw; (cw=0) => ccw
-  _buffer[2] = ms_per_step;
-  _buffer[3] = (ms_per_step >> 8);
+  buffer_[0] = mode;
+  buffer_[1] = cw;  //(cw=1) => cw; (cw=0) => ccw
+  buffer_[2] = ms_per_step;
+  buffer_[3] = (ms_per_step >> 8);
 
-  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_KEEP_RUN, _buffer, 4) != i2c::ERROR_OK) {
+  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STEPPER_KEEP_RUN, buffer_, 4) != i2c::ERROR_OK) {
     this->mark_failed();
     return;
   }
