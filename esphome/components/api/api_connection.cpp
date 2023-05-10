@@ -530,7 +530,6 @@ bool APIConnection::send_climate_state(climate::Climate *climate) {
     resp.custom_fan_mode = climate->custom_fan_mode.value();
   if (traits.get_supports_presets() && climate->preset.has_value()) {
     resp.preset = static_cast<enums::ClimatePreset>(climate->preset.value());
-    resp.legacy_away = resp.preset == enums::CLIMATE_PRESET_AWAY;
   }
   if (!traits.get_supported_custom_presets().empty() && climate->custom_preset.has_value())
     resp.custom_preset = climate->custom_preset.value();
@@ -591,8 +590,6 @@ void APIConnection::climate_command(const ClimateCommandRequest &msg) {
     call.set_target_temperature_low(msg.target_temperature_low);
   if (msg.has_target_temperature_high)
     call.set_target_temperature_high(msg.target_temperature_high);
-  if (msg.has_legacy_away)
-    call.set_preset(msg.legacy_away ? climate::CLIMATE_PRESET_AWAY : climate::CLIMATE_PRESET_HOME);
   if (msg.has_fan_mode)
     call.set_fan_mode(static_cast<climate::ClimateFanMode>(msg.fan_mode));
   if (msg.has_custom_fan_mode)
@@ -944,7 +941,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 7;
+  resp.api_version_minor = 8;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.name = App.get_name();
 
@@ -981,6 +978,8 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.manufacturer = "Espressif";
 #elif defined(USE_RP2040)
   resp.manufacturer = "Raspberry Pi";
+#elif defined(USE_HOST)
+  resp.manufacturer = "Host";
 #endif
   resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
@@ -999,7 +998,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
                                      : bluetooth_proxy::PASSIVE_ONLY_VERSION;
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  resp.voice_assistant_version = 1;
+  resp.voice_assistant_version = voice_assistant::global_voice_assistant->get_version();
 #endif
   return resp;
 }
