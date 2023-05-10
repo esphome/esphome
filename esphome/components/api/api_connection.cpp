@@ -978,6 +978,8 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.manufacturer = "Espressif";
 #elif defined(USE_RP2040)
   resp.manufacturer = "Raspberry Pi";
+#elif defined(USE_HOST)
+  resp.manufacturer = "Host";
 #endif
   resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
