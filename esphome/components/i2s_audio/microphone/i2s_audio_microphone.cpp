@@ -17,15 +17,36 @@ static const char *const TAG = "i2s_audio.microphone";
 void I2SAudioMicrophone::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2S Audio Microphone...");
   this->buffer_.resize(BUFFER_SIZE);
+
+#if SOC_I2S_SUPPORTS_ADC
+  if (this->adc_) {
+    if (this->parent_->get_port() != I2S_NUM_0) {
+      ESP_LOGE(TAG, "Internal ADC only works on I2S0!");
+      this->mark_failed();
+      return;
+    }
+  } else
+#endif
+      if (this->pdm_) {
+    if (this->parent_->get_port() != I2S_NUM_0) {
+      ESP_LOGE(TAG, "PDM only works on I2S0!");
+      this->mark_failed();
+      return;
+    }
+  }
 }
 
-void I2SAudioMicrophone::start() { this->state_ = microphone::STATE_STARTING; }
+void I2SAudioMicrophone::start() {
+  if (this->is_failed())
+    return;
+  this->state_ = microphone::STATE_STARTING;
+}
 void I2SAudioMicrophone::start_() {
   if (!this->parent_->try_lock()) {
     return;  // Waiting for another i2s to return lock
   }
   i2s_driver_config_t config = {
-      .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX | I2S_MODE_PDM),
+      .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX),
       .sample_rate = 16000,
       .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
       .channel_format = I2S_CHANNEL_FMT_ONLY_RIGHT,
@@ -40,18 +61,33 @@ void I2SAudioMicrophone::start_() {
       .bits_per_chan = I2S_BITS_PER_CHAN_DEFAULT,
   };
 
-  i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
+#if SOC_I2S_SUPPORTS_ADC
+  if (this->adc_) {
+    config.mode = (i2s_mode_t) (config.mode | I2S_MODE_ADC_BUILT_IN);
+    i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
 
-  i2s_pin_config_t pin_config = this->parent_->get_pin_config();
-  pin_config.data_in_num = this->din_pin_;
+    i2s_set_adc_mode(ADC_UNIT_1, this->adc_channel_);
+    i2s_adc_enable(this->parent_->get_port());
+  } else {
+#endif
+    if (this->pdm_)
+      config.mode = (i2s_mode_t) (config.mode | I2S_MODE_PDM);
 
-  i2s_set_pin(this->parent_->get_port(), &pin_config);
+    i2s_driver_install(this->parent_->get_port(), &config, 0, nullptr);
+
+    i2s_pin_config_t pin_config = this->parent_->get_pin_config();
+    pin_config.data_in_num = this->din_pin_;
+
+    i2s_set_pin(this->parent_->get_port(), &pin_config);
+#if SOC_I2S_SUPPORTS_ADC
+  }
+#endif
   this->state_ = microphone::STATE_RUNNING;
   this->high_freq_.start();
 }
 
 void I2SAudioMicrophone::stop() {
-  if (this->state_ == microphone::STATE_STOPPED)
+  if (this->state_ == microphone::STATE_STOPPED || this->is_failed())
     return;
   this->state_ = microphone::STATE_STOPPING;
 }
