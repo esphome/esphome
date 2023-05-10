@@ -34,6 +34,9 @@
 #include <limits>
 #include <random>
 #endif
+#if defined(USE_ESP32)
+#include "esp32/rom/crc.h"
+#endif
 
 #ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
 #include "esp_efuse.h"
@@ -78,7 +81,7 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
 }
 
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse_poly, bool refin, bool refout) {
-#ifdef ESP32
+#if defined(USE_ESP32)
   if (reverse_poly == 0x8408) {
     crc = crc16_le(refin ? crc : (crc ^ 0xffff), data, len);
     return refout ? crc : (crc ^ 0xffff);
@@ -100,7 +103,7 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse
 }
 
 uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly, bool refin, bool refout) {
-#ifdef ESP32
+#if defined(USE_ESP32)
   if (poly == 0x1021) {
     crc = crc16_be(refin ? crc : (crc ^ 0xffff), data, len);
     return refout ? crc : (crc ^ 0xffff);
