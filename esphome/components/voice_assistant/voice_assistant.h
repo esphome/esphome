@@ -1,5 +1,7 @@
 #pragma once
 
+#include "esphome/core/defines.h"
+
 #ifdef USE_VOICE_ASSISTANT
 
 #include "esphome/core/automation.h"
