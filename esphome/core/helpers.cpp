@@ -72,6 +72,12 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
 }
 
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse_poly, bool refin, bool refout) {
+#ifdef ESP32
+  if (reverse_poly == 0x8408) {
+    crc = crc16_le(refin ? crc : (crc ^ 0xffff), data, len);
+    return refout ? crc : (crc ^ 0xffff);
+  }
+#endif
   if (refin)
     crc ^= 0xffff;
   while (len--) {
@@ -84,12 +90,16 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse
       }
     }
   }
-  if (refout)
-    crc ^= 0xffff;
-  return crc;
+  return refout ? (crc ^ 0xffff) : crc;
 }
 
 uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly, bool refin, bool refout) {
+#ifdef ESP32
+  if (poly == 0x1021) {
+    crc = crc16_be(refin ? crc : (crc ^ 0xffff), data, len);
+    return refout ? crc : (crc ^ 0xffff);
+  }
+#endif
   if (refin)
     crc ^= 0xffff;
   while (len--) {
@@ -102,9 +112,7 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
       }
     }
   }
-  if (refout)
-    crc ^= 0xffff;
-  return crc;
+  return refout ? (crc ^ 0xffff) : crc;
 }
 
 uint32_t fnv1_hash(const std::string &str) {
