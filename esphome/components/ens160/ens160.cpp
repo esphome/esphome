@@ -14,7 +14,6 @@ namespace ens160 {
 
 static const char *const TAG = "ens160";
 
-static const uint16_t ENS160_PARTID = 0x6001;
 static const uint8_t ENS160_BOOTING = 10;
 
 static const uint8_t ENS160_REG_PART_ID = 0x00;
@@ -61,62 +60,109 @@ static const uint8_t ENS160_DATA_STATUS_VALID_A = 0x04;
 static const uint8_t ENS160_DATA_STATUS_NEWDAT = 0x02;
 static const uint8_t ENS160_DATA_STATUS_NEWGPR = 0x01;
 
+// helps extract operating state from status register 
+static const uint8_t ENS160_VALIDITY_FLAG_MASK = 0x0C;
+
 #define IS_NEWDAT(x) (ENS160_DATA_STATUS_NEWDAT == (ENS160_DATA_STATUS_NEWDAT & (x)))
 #define IS_NEWGPR(x) (ENS160_DATA_STATUS_NEWGPR == (ENS160_DATA_STATUS_NEWGPR & (x)))
 #define IS_NEW_DATA_AVAILABLE(x) (0 != ((ENS160_DATA_STATUS_NEWDAT | ENS160_DATA_STATUS_NEWGPR) & (x)))
-
-#define CHECK_TRUE(f, error_code) \
-  if (!(f)) { \
-    this->mark_failed(); \
-    this->error_code_ = (error_code); \
-    return; \
-  }
-
-#define CHECKED_IO(f) CHECK_TRUE(f, COMMUNICATION_FAILED)
-
+// check this !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!! deleted PARTID 0x6001 I think
 static const uint16_t ENS160_PART_ID = 0x0160;
 
 void ENS160Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up ENS160...");
 
-  // set mode to reset
-  CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_RESET));
-  delay(ENS160_BOOTING);
-
   // check part_id
   uint16_t part_id;
-  CHECKED_IO(this->read_byte_16(ENS160_REG_PART_ID, &part_id))
-  ESP_LOGD(TAG, "Setup Part ID: %x\n", part_id);
-  CHECK_TRUE(part_id == ENS160_PARTID, INVALID_ID);
+  if (!this->read_byte_16(ENS160_REG_PART_ID, &part_id))
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return; 	
+  }
+  // check this !!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!!111
+  if (part_id != ENS160_PARTID) {
+    this->error_code_ = INVALID_ID;
+    this->mark_failed();
+    return; 	 
+  }
 
+  // set mode to reset
+  if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_RESET)){
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return; 
+  }
+  delay(ENS160_BOOTING);
+  
+  // check status
+  uint8_t status;
+  if (!this->read_byte(ENS160_REG_DATA_STATUS,&status)) {
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return; 
+  }
+  this->validity_flag_ = static_cast<ValidityFlag>((status & ENS160_VALIDITY_FLAG_MASK) >> 2);
+   
+  if (this->validity_flag_ == INVALID_OUTPUT) {
+    this->error_code_ = VALIDITY_INVALID_OUTPUT;
+    this->mark_failed();
+    return; 
+  }
+  
   // set mode to idle
-  CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_IDLE));
+  if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_IDLE)){
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return;
+  }
 
   // clear command
-  CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_NOP));
-  CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_CLRGPR));
-
-  // get status
-  ESP_LOGD(TAG, "Setup Done. Status: %x\n", this->read_status_().value_or(0));
+  if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_NOP)) {
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return;
+  }
+  
+  if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_CLRGPR)) {
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return;
+  }
 
   // read firmware version
-  CHECKED_IO(this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_GET_APPVER));
+  if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_GET_APPVER)) {
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return;
+  }
   auto version_data = this->read_bytes<3>(ENS160_REG_GPR_READ_4);
   if (version_data.has_value()) {
     uint8_t fw_ver_major = (*version_data)[0];
     uint8_t fw_ver_minor = (*version_data)[1];
     uint8_t fw_ver_build = (*version_data)[2];
-    if (this->version_ != nullptr) {
-      char version[32];
-      sprintf(version, "%d.%d.%d", fw_ver_major, fw_ver_minor, fw_ver_build);
-      ESP_LOGD(TAG, "publishing version state: %s", version);
-      this->version_->publish_state(version);
-    }
+    sprintf(this->firmware_version_, "%d.%d.%d", fw_ver_major, fw_ver_minor, fw_ver_build);
   }
-
+  
   // set mode to standard
-  CHECKED_IO(this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD));
-  delay(ENS160_BOOTING);
+  if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD)) {
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return; 
+  }
+  
+  // read opmode and check standard mode achieved before finishing Setup
+  uint8_t op_mode;
+  if (!this->read_byte(ENS160_REG_OPMODE,&op_mode)) {
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return; 
+  }	
+
+  if (op_mode != ENS160_OPMODE_STD) {
+    this->error_code_ = STANDARD_OPMODE_FAILED;
+    this->mark_failed();
+    return; 
+  }
 }
 
 optional<uint8_t> ENS160Component::read_status_() { return this->read_byte(ENS160_REG_DATA_STATUS); }

@@ -33,8 +33,19 @@ class ENS160Component : public PollingComponent, public i2c::I2CDevice, public s
     COMMUNICATION_FAILED,
     INVALID_ID,
     SENSOR_REPORTED_ERROR,
+    VALIDITY_INVALID_OUTPUT,
+    STANDARD_OPMODE_FAILED,
   } error_code_{UNKNOWN};
-
+  
+  enum ValidityFlag {
+    NORMAL_OPERATION = 0,
+    WARMING_UP,
+    INITIAL_STARTUP,
+    INVALID_OUTPUT,
+  } validity_flag_;
+  
+  char firmware_version_[32];
+  
   sensor::Sensor *co2_{nullptr};
   sensor::Sensor *tvoc_{nullptr};
   sensor::Sensor *aqi_{nullptr};
