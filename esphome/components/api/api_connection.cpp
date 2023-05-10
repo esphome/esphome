@@ -978,6 +978,8 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.manufacturer = "Espressif";
 #elif defined(USE_RP2040)
   resp.manufacturer = "Raspberry Pi";
+#elif defined(USE_HOST)
+  resp.manufacturer = "Host";
 #endif
   resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
@@ -996,7 +998,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
                                      : bluetooth_proxy::PASSIVE_ONLY_VERSION;
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  resp.voice_assistant_version = 1;
+  resp.voice_assistant_version = voice_assistant::global_voice_assistant->get_version();
 #endif
   return resp;
 }
