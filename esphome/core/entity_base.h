@@ -63,4 +63,26 @@ class EntityBase {
   EntityCategory entity_category_{ENTITY_CATEGORY_NONE};
 };
 
+class EntityBase_DeviceClass {
+ public:
+  /// Get the device class, using the manual override if set.
+  std::string get_device_class();
+  /// Manually set the device class.
+  void set_device_class(const char *device_class);
+
+ protected:
+  const char *device_class_{nullptr};  ///< Device class override
+};
+
+class EntityBase_UnitOfMeasurement {
+ public:
+  /// Get the unit of measurement, using the manual override if set.
+  std::string get_unit_of_measurement();
+  /// Manually set the unit of measurement.
+  void set_unit_of_measurement(const char *unit_of_measurement);
+
+ protected:
+  const char *unit_of_measurement_{nullptr};  ///< Unit of measurement override
+};
+
 }  // namespace esphome
