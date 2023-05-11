@@ -57,35 +57,43 @@ void TuyaLight::setup() {
         return;
       }
 
+      float red, green, blue;
       switch (*this->color_type_) {
         case TuyaColorType::RGBHSV:
         case TuyaColorType::RGB: {
-          auto red = parse_hex<uint8_t>(datapoint.value_string.substr(0, 2));
-          auto green = parse_hex<uint8_t>(datapoint.value_string.substr(2, 2));
-          auto blue = parse_hex<uint8_t>(datapoint.value_string.substr(4, 2));
-          if (red.has_value() && green.has_value() && blue.has_value()) {
-            auto rgb_call = this->state_->make_call();
-            rgb_call.set_rgb(float(*red) / 255, float(*green) / 255, float(*blue) / 255);
-            rgb_call.perform();
-          }
+          auto red_int = parse_hex<uint8_t>(datapoint.value_string.substr(0, 2));
+          auto green_int = parse_hex<uint8_t>(datapoint.value_string.substr(2, 2));
+          auto blue_int = parse_hex<uint8_t>(datapoint.value_string.substr(4, 2));
+          if (!red_int.has_value() || !green_int.has_value() || !blue_int.has_value())
+            return;
+
+          red = float(*red_int) / 255;
+          green = float(*green_int) / 255;
+          blue = float(*blue_int) / 255;
           break;
         }
         case TuyaColorType::HSV: {
           auto hue = parse_hex<uint16_t>(datapoint.value_string.substr(0, 4));
           auto saturation = parse_hex<uint16_t>(datapoint.value_string.substr(4, 4));
           auto value = parse_hex<uint16_t>(datapoint.value_string.substr(8, 4));
-          if (hue.has_value() && saturation.has_value() && value.has_value()) {
-            float red, green, blue;
-            hsv_to_rgb(*hue, float(*saturation) / 1000, float(*value) / 1000, red, green, blue);
-            auto rgb_call = this->state_->make_call();
-            rgb_call.set_rgb(red, green, blue);
-            rgb_call.perform();
-          }
+          if (!hue.has_value() || !saturation.has_value() || !value.has_value())
+            return;
+
+          hsv_to_rgb(*hue, float(*saturation) / 1000, float(*value) / 1000, red, green, blue);
           break;
         }
       }
+
+      float current_red, current_green, current_blue;
+      this->state_->current_values_as_rgb(&current_red, &current_green, &current_blue);
+      if (red == current_red && green == current_green && blue == current_blue)
+        return;
+      auto rgb_call = this->state_->make_call();
+      rgb_call.set_rgb(red, green, blue);
+      rgb_call.perform();
     });
   }
+
   if (min_value_datapoint_id_.has_value()) {
     parent_->set_integer_datapoint_value(*this->min_value_datapoint_id_, this->min_value_);
   }
@@ -206,7 +214,7 @@ void TuyaLight::write_state(light::LightState *state) {
         break;
       }
     }
-    this->parent_->set_string_datapoint_value(*this->color_id_, color_value);
+    parent_->set_string_datapoint_value(*this->color_id_, color_value);
   }
 
   if (this->switch_id_.has_value()) {
