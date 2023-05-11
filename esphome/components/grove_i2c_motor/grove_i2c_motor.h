@@ -59,9 +59,9 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Parameter
        Null.
       Return
-       Null.
+       True/False.
   *************************************************************/
-  void standby();
+  bool standby();
 
   /*************************************************************
       Description
@@ -69,9 +69,9 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Parameter
        Null.
       Return
-       Null.
+       True/False.
   *************************************************************/
-  void not_standby();
+  bool not_standby();
 
   /*************************************************************
       Description
