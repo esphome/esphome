@@ -1,14 +1,15 @@
 """Constants used by esphome."""
 
-__version__ = "2023.5.0-dev"
+__version__ = "2023.6.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
 PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
 PLATFORM_RP2040 = "rp2040"
+PLATFORM_HOST = "host"
 
-TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]
+TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_HOST]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
@@ -659,6 +660,7 @@ CONF_SLEEP_WHEN_DONE = "sleep_when_done"
 CONF_SONY = "sony"
 CONF_SOURCE = "source"
 CONF_SOURCE_ID = "source_id"
+CONF_SPEAKER = "speaker"
 CONF_SPEED = "speed"
 CONF_SPEED_COMMAND_TOPIC = "speed_command_topic"
 CONF_SPEED_COUNT = "speed_count"
