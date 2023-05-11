@@ -29,20 +29,6 @@ def _validate(config):
     return config
 
 
-def _decibel(config):
-    decibel_check = cv.decibel()
-
-    def validate(value):
-        value = decibel_check(value)
-        if value >= 0:
-            raise cv.Invalid(
-                "minum RSSI value need to be Negative (between -30 and -90)"
-            )
-        return value
-
-    return validate
-
-
 CONFIG_SCHEMA = cv.All(
     binary_sensor.binary_sensor_schema(BLEPresenceDevice)
     .extend(
@@ -52,7 +38,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IBEACON_MAJOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_MINOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_UUID): cv.uuid,
-            cv.Optional(CONF_MIN_RSSI): _decibel,
+            cv.Optional(CONF_MIN_RSSI): cv.All(
+                cv.decibel, cv.int_range(min=-90, max=-30)
+            ),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
