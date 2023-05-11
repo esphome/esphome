@@ -275,7 +275,7 @@ SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA = cv.Schema(
 SPRINKLER_ACTION_QUEUE_VALVE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Sprinkler),
-        cv.Optional(CONF_RUN_DURATION, default=0): cv.templatable(
+        cv.Optional(CONF_RUN_DURATION, default="0s"): cv.templatable(
             cv.positive_time_period_seconds
         ),
         cv.Required(CONF_VALVE_NUMBER): cv.templatable(cv.positive_int),
