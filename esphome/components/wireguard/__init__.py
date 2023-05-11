@@ -49,6 +49,6 @@ async def to_code(config):
     cg.add(var.set_keepalive(config[CONF_PEER_PERSISTENT_KEEPALIVE]))
     cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
 
-    cg.add_library("https://github.com/droscy/esp_wireguard", None)
+    cg.add_library("droscy/esp_wireguard", "0.1.0")
 
     await cg.register_component(var, config)
