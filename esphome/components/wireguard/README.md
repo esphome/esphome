@@ -1,13 +1,20 @@
-# Wireguard component
+# WireGuard component
 Allows connecting esphome devices to VPN managed by [WireGuard](https://www.wireguard.com/)
 
 ```yaml
-# example configuration
+# Setup a time source.
+# Do not use 'homeassistant' platform if Home Assistant is on the remote
+# peer because the time synchronization is a prerequisite to establish
+# the vpn link.
+time:
+  - platform: sntp
+
+# Setup WireGuard
 wireguard:
   address: x.y.z.w
-  private_key: private_key=
+  private_key: !secret wg_privkey
   peer_endpoint: wg.server.example
-  peer_public_key: public_key=
+  peer_public_key: !secret wg_peer_pubkey
 
   # optional netmask (this is the default if omitted)
   netmask: 255.255.255.255
@@ -16,36 +23,33 @@ wireguard:
   peer_port: 51820
 
   # optional pre-shared key
-  peer_preshared_key: shared_key=
+  peer_preshared_key: !secret wg_peer_shrdkey
 
   # optional keepalive in seconds (disabled by default)
-  peer_persistent_keepalive: 0
+  peer_persistent_keepalive: 25
 ```
 
-If you give an `id` to the wireguard component you can manually create some sensors:
+## Sensors
+
+The `wireguard_status` binary sensor can be used to check if remote peer is online:
 
 ```yaml
-wireguard:
-  id: vpn
-  [...]
-
-# a binary sensor to check if the remote peer is online
 binary_sensor:
-  - platform: template
+  - platform: wireguard_status
     name: 'WireGuard Status'
-    device_class: connectivity
-    lambda: |-
-      return id(vpn).is_peer_up();
 
-# a sensor to retrive the timestamp of the latest handshake
-sensor:
-  - platform: template
-    name: 'WireGuard Latest Handshake'
-    device_class: timestamp
-    lambda: |-
-      static time_t latest_handshake;
-      latest_handshake = id(vpn).get_latest_handshake();
-      return (latest_handshake > 0) ? latest_handshake : NAN;
+    # optional (default to 10s)
+    update_interval: 10s
 ```
 
-Integrated sensors are under development...
+The `wireguard_handshake` sensor can be used to track the timestamp of the
+latest completed handshake:
+
+```yaml
+sensor:
+  - platform: wireguard_handshake
+    name: 'WireGuard Latest Handshake'
+
+    # optional (default to 60s)
+    update_interval: 60s
+```
