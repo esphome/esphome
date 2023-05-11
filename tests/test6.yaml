@@ -37,6 +37,16 @@ switch:
     output: pin_4
     id: pin_4_switch
 
+light:
+  - platform: rp2040_pio_led_strip
+    id: led_strip
+    pin: GPIO13
+    num_leds: 60
+    pio: 0
+    rgb_order: GRB
+    chipset: WS2812
+
+
 sensor:
   - platform: internal_temperature
     name: Internal Temperature

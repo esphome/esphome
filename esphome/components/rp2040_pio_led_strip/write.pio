@@ -1,0 +1,69 @@
+.program rp2040_pio_led_strip_driver
+
+.define T0H 12
+.define T0L 40
+.define T1H 40
+.define T1L 12
+.define RET 80
+
+.wrap_target
+awaiting_data:
+    ; Wait for data in FIFO queue
+    pull block ; this will block until there is data in the FIFO queue and then it will pull it into the shift register
+    jmp writeret
+    set y, 24 ; set y to 24 so that we know we have 24 bits to write
+mainloop:
+    ; go through each bit in the shift register and jump to the appropriate label
+    ; depending on the value of the bit
+   
+    out x, 1
+    jmp !x, writezero
+    jmp writeone
+
+writeret:
+    ; Write RET bits to the output pin
+    set pins, 0
+    nop [30 -1]
+    nop [30 -1]
+    nop [20 -1]
+    jmp mainloop
+writezero:
+    ; Write T0H and T0L bits to the output pin
+    set pins, 1 [T0H - 1]
+    set pins, 0 [30 - 1]
+    nop [10 - 1]
+    jmp !y, awaiting_data
+    jmp mainloop
+writeone:
+    ; Write T1H and T1L bits to the output pin
+    set pins, 1 [30 - 1]
+    nop [10 - 1]
+    set pins, 0 [T1L - 1]
+    jmp !y, awaiting_data
+    jmp mainloop
+
+
+.wrap
+
+
+% c-sdk {
+#include "hardware/clocks.h"
+
+static inline void rp2040_pio_program_init(PIO pio, uint sm, uint offset, uint pin, float freq) {
+
+    pio_gpio_init(pio, pin);
+    pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
+
+    pio_sm_config c = rp2040_pio_led_strip_driver_program_get_default_config(offset);
+    sm_config_set_set_pins(&c, pin);
+    sm_config_set_out_shift(&c, false, true, rgbw ? 32 : 24);
+    sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
+
+    int cycles_per_bit = 52;
+    float div = clock_get_hz(clk_sys) / (freq * cycles_per_bit);
+    sm_config_set_clkdiv(&c, div);
+
+    pio_sm_init(pio, sm, offset, &c);
+    pio_sm_set_enabled(pio, sm, true);
+}
+%}
