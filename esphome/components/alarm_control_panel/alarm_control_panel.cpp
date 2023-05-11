@@ -189,8 +189,10 @@ void AlarmControlPanel::add_code(const std::string &code) { this->codes_.push_ba
 bool AlarmControlPanel::is_code_valid_(optional<std::string> code) {
   if (!this->codes_.empty()) {
     if (code.has_value()) {
+      ESP_LOGVV(TAG, "Checking code: %s", code.value().c_str());
       return (std::count(this->codes_.begin(), this->codes_.end(), code.value()) == 1);
     }
+    ESP_LOGD(TAG, "No code provided");
     return false;
   }
   return true;
