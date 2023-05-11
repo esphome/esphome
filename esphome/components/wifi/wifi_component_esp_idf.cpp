@@ -767,11 +767,10 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     info.gw.addr = static_cast<uint32_t>(network::IPAddress(192, 168, 4, 1));
     info.netmask.addr = static_cast<uint32_t>(network::IPAddress(255, 255, 255, 0));
   }
-  esp_netif_dhcp_status_t dhcp_status;
-  esp_netif_dhcps_get_status(s_sta_netif, &dhcp_status);
-  err = esp_netif_dhcps_stop(s_sta_netif);
-  if (err != ESP_OK) {
-    ESP_LOGV(TAG, "esp_netif_dhcps_stop failed! %d", err);
+
+  err = esp_netif_dhcpc_stop(s_sta_netif);
+  if (err != ESP_OK && err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STOPPED) {
+    ESP_LOGV(TAG, "esp_netif_dhcpc_stop failed: %s", esp_err_to_name(err));
     return false;
   }
 
