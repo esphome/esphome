@@ -2,13 +2,14 @@
 
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
-#include <cstdio>
 #include <algorithm>
 #include <cctype>
 #include <cmath>
-#include <cstring>
 #include <cstdarg>
+#include <cstdio>
+#include <cstring>
 
 #if defined(USE_ESP8266)
 #include <osapi.h>
@@ -18,17 +19,20 @@
 #elif defined(USE_ESP32_FRAMEWORK_ARDUINO)
 #include <Esp.h>
 #elif defined(USE_ESP_IDF)
+#include <freertos/FreeRTOS.h>
+#include <freertos/portmacro.h>
 #include "esp_mac.h"
 #include "esp_random.h"
 #include "esp_system.h"
-#include <freertos/FreeRTOS.h>
-#include <freertos/portmacro.h>
 #elif defined(USE_RP2040)
 #if defined(USE_WIFI)
 #include <WiFi.h>
 #endif
 #include <hardware/structs/rosc.h>
 #include <hardware/sync.h>
+#elif defined(USE_HOST)
+#include <limits>
+#include <random>
 #endif
 
 #ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
@@ -37,6 +41,8 @@
 #endif
 
 namespace esphome {
+
+static const char *const TAG = "helpers";
 
 // STL backports
 
@@ -106,6 +112,11 @@ uint32_t random_uint32() {
     result |= rosc_hw->randombit;
   }
   return result;
+#elif defined(USE_HOST)
+  std::random_device dev;
+  std::mt19937 rng(dev());
+  std::uniform_int_distribution<uint32_t> dist(0, std::numeric_limits<uint32_t>::max());
+  return dist(rng);
 #else
 #error "No random source available for this configuration."
 #endif
@@ -127,6 +138,19 @@ bool random_bytes(uint8_t *data, size_t len) {
     *data++ = result;
   }
   return true;
+#elif defined(USE_HOST)
+  FILE *fp = fopen("/dev/urandom", "r");
+  if (fp == nullptr) {
+    ESP_LOGW(TAG, "Could not open /dev/urandom, errno=%d", errno);
+    exit(1);
+  }
+  size_t read = fread(data, 1, len, fp);
+  if (read != len) {
+    ESP_LOGW(TAG, "Not enough data from /dev/urandom");
+    exit(1);
+  }
+  fclose(fp);
+  return true;
 #else
 #error "No random source available for this configuration."
 #endif
@@ -145,7 +169,7 @@ std::string str_truncate(const std::string &str, size_t length) {
   return str.length() > length ? str.substr(0, length) : str;
 }
 std::string str_until(const char *str, char ch) {
-  char *pos = strchr(str, ch);
+  const char *pos = strchr(str, ch);
   return pos == nullptr ? std::string(str) : std::string(str, pos - str);
 }
 std::string str_until(const std::string &str, char ch) { return str.substr(0, str.find(ch)); }
@@ -395,7 +419,7 @@ void hsv_to_rgb(int hue, float saturation, float value, float &red, float &green
 }
 
 // System APIs
-#if defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_HOST)
 // ESP8266 doesn't have mutexes, but that shouldn't be an issue as it's single-core and non-preemptive OS.
 Mutex::Mutex() {}
 void Mutex::lock() {}
@@ -469,6 +493,7 @@ void set_mac_address(uint8_t *mac) { esp_base_mac_addr_set(mac); }
 
 void delay_microseconds_safe(uint32_t us) {  // avoids CPU locks that could trigger WDT or affect WiFi/BT stability
   uint32_t start = micros();
+
   const uint32_t lag = 5000;  // microseconds, specifies the maximum time for a CPU busy-loop.
                               // it must be larger than the worst-case duration of a delay(1) call (hardware tasks)
                               // 5ms is conservative, it could be reduced when exact BT/WiFi stack delays are known
