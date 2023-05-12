@@ -1,5 +1,7 @@
 #include "voice_assistant.h"
 
+#ifdef USE_VOICE_ASSISTANT
+
 #include "esphome/core/log.h"
 
 #include <cstdio>
@@ -192,3 +194,5 @@ VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-a
 
 }  // namespace voice_assistant
 }  // namespace esphome
+
+#endif  // USE_VOICE_ASSISTANT

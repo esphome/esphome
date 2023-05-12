@@ -1,14 +1,15 @@
 """Constants used by esphome."""
 
-__version__ = "2023.5.0-dev"
+__version__ = "2023.6.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
 PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
 PLATFORM_RP2040 = "rp2040"
+PLATFORM_HOST = "host"
 
-TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]
+TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_HOST]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
@@ -407,6 +408,7 @@ CONF_MIN_LENGTH = "min_length"
 CONF_MIN_LEVEL = "min_level"
 CONF_MIN_POWER = "min_power"
 CONF_MIN_RANGE = "min_range"
+CONF_MIN_RSSI = "min_rssi"
 CONF_MIN_TEMPERATURE = "min_temperature"
 CONF_MIN_VALUE = "min_value"
 CONF_MIN_VERSION = "min_version"
