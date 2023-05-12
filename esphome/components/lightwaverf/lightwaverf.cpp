@@ -18,8 +18,8 @@ static const uint32_t DEFAULT_TICK = 330;
 void LightWaveRF::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Lightwave RF...");
 
-  this->lwtx.lwtx_setup(pin_tx_, DEFAULT_REPEAT, DEFAULT_INVERT, DEFAULT_TICK);
-  this->lwrx.lwrx_setup(pin_rx_);
+  this->lwtx_.lwtx_setup(pin_tx_, DEFAULT_REPEAT, DEFAULT_INVERT, DEFAULT_TICK);
+  this->lwrx_.lwrx_setup(pin_rx_);
 }
 
 void LightWaveRF::update() {
@@ -29,29 +29,29 @@ void LightWaveRF::update() {
 }
 
 void LightWaveRF::read_tx() {
-  if (this->lwrx.lwrx_message()) {
-    this->lwrx.lwrx_getmessage(msg, msglen);
-    printMsg(msg, msglen);
+  if (this->lwrx_.lwrx_message()) {
+    this->lwrx_.lwrx_getmessage(msg_, msglen_);
+    print_msg_(msg_, msglen_);
   }
 }
 
-void LightWaveRF::send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, uint8_t invert, int uSec) {
-  this->lwtx.lwtx_setup(pin_tx_, 10, 0, 330);
+void LightWaveRF::send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, uint8_t invert, int u_sec) {
+  this->lwtx_.lwtx_setup(pin_tx_, 10, 0, 330);
 
   long timeout = 0;
-  if (this->lwtx.lwtx_free()) {
-    this->lwtx.lwtx_send(msg);
+  if (this->lwtx_.lwtx_free()) {
+    this->lwtx_.lwtx_send(msg);
     timeout = millis();
-    ESP_LOGD(TAG, "[%i] msg start", timeout);
+    ESP_LOGD(TAG, "[%li] msg start", timeout);
   }
-  while (!this->lwtx.lwtx_free() && millis() < (timeout + 1000)) {
+  while (!this->lwtx_.lwtx_free() && millis() < (timeout + 1000)) {
     delay(10);
   }
   timeout = millis() - timeout;
-  ESP_LOGD(TAG, "[%i] msg sent: %i", millis(), timeout);
+  ESP_LOGD(TAG, "[%li] msg sent: %li", millis(), timeout);
 }
 
-void LightWaveRF::printMsg(uint8_t *msg, uint8_t len) {
+void LightWaveRF::print_msg_(uint8_t *msg, uint8_t len) {
   char buffer[65];
   ESP_LOGD(TAG, " Received code (len:%i): ", len);
 

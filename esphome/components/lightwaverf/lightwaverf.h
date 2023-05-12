@@ -32,16 +32,16 @@ class LightWaveRF : public PollingComponent {
   void setup() override;
   void dump_config() override;
   void read_tx();
-  void send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, uint8_t invert, int uSec);
+  void send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, uint8_t invert, int u_sec);
 
  protected:
-  void printMsg(uint8_t *msg, uint8_t len);
-  uint8_t msg[10];
-  uint8_t msglen = 10;
+  void print_msg_(uint8_t *msg, uint8_t len);
+  uint8_t msg_[10];
+  uint8_t msglen_ = 10;
   InternalGPIOPin *pin_tx_;
   InternalGPIOPin *pin_rx_;
-  LwRx lwrx;
-  LwTx lwtx;
+  LwRx lwrx_;
+  LwTx lwtx_;
 };
 
 template<typename... Ts> class SendRawAction : public Action<Ts...> {

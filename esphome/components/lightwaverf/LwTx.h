@@ -18,13 +18,13 @@ static const uint8_t TX_PIN_DEFAULT = 13;
 class LwTx {
  public:
   // Sets up basic parameters must be called at least once
-  void lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, uint8_t invert, int uSec);
+  void lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, uint8_t invert, int u_sec);
 
   // Allows changing basic tick counts from their defaults
-  void lwtx_setTickCounts(uint8_t lowCount, uint8_t highCount, uint8_t trailCount, uint8_t gapCount);
+  void lwtx_set_tick_counts(uint8_t low_count, uint8_t high_count, uint8_t trail_count, uint8_t gap_count);
 
   // Allws multiplying the gap period for creating very large gaps
-  void lwtx_setGapMultiplier(uint8_t gapMultiplier);
+  void lwtx_set_gap_multiplier(uint8_t gap_multiplier);
 
   // determines whether incoming data or should be translated from nibble data
   void lwtx_settranslate(bool txtranslate);
@@ -42,13 +42,13 @@ class LwTx {
   void lwtx_cmd(uint8_t command, uint8_t parameter, uint8_t room, uint8_t device);
 
   // Set base address for EEPROM storage
-  void lwtx_setEEPROMaddr(int addr);
+  void lwtx_set_eepro_maddr(int addr);
 
   // Allows changing basic tick counts from their defaults
-  void lw_timer_Start();
+  void lw_timer_start();
 
   // Allws multiplying the gap period for creating very large gaps
-  void lw_timer_Stop();
+  void lw_timer_stop();
 
   // These set the pulse durationlws in ticks. ESP uses 330uSec base tick, else use 140uSec
   uint8_t tx_low_count = 3;    // total number of ticks in a low (990 uSec)
@@ -57,7 +57,7 @@ class LwTx {
 
   uint8_t tx_toggle_count = 3;
 
-  static const uint8_t tx_msglen = 10;  // the expected length of the message
+  static const uint8_t TX_MSGLEN = 10;  // the expected length of the message
 
   // Transmit mode constants and variables
   uint8_t tx_repeats = 12;  // Number of repeats of message sent
@@ -66,7 +66,7 @@ class LwTx {
   bool tx_msg_active = false;  // set true to activate message sending
   bool tx_translate = true;    // Set false to send raw data
 
-  uint8_t tx_buf[tx_msglen];  // the message buffer during reception
+  uint8_t tx_buf[TX_MSGLEN];  // the message buffer during reception
   uint8_t tx_repeat = 0;      // counter for repeats
   uint8_t tx_state = 0;
   uint16_t tx_gap_repeat = 0;  // unsigned int
@@ -87,8 +87,8 @@ class LwTx {
   InternalGPIOPin *tx_pin;
 
  protected:
-  uint32_t duty_on;
-  uint32_t duty_off;
+  uint32_t duty_on_;
+  uint32_t duty_off_;
 };
 
 }  // namespace lightwaverf

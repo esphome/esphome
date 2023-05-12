@@ -43,7 +43,7 @@ static uint8_t rx_num_bytes = 0;  // number of bytes received
 
 // Pairing data
 static uint8_t rx_paircount = 0;
-static uint8_t rx_pairs[rx_maxpairs][8];
+static uint8_t rx_pairs[RX_MAXPAIRS][8];
 static uint8_t rx_pairtimeout = 0;  // 100msec units
 // set false to responds to all messages if no pairs set up
 static bool rx_pairEnforce = false;
@@ -58,8 +58,8 @@ static unsigned long rx_prevpkttime = 0;    // last packet time in milliseconds
 static unsigned long rx_pairstarttime = 0;  // last msg time in milliseconds
 
 // Gather stats for pulse widths (ave is x 16)
-static const uint16_t lwrx_statsdflt[rx_stat_count] = {5000, 0, 5000, 20000, 0, 2500, 4000, 0, 500};  // usigned int
-static uint16_t lwrx_stats[rx_stat_count];                                                            // unsigned int
+static const uint16_t lwrx_statsdflt[RX_STAT_COUNT] = {5000, 0, 5000, 20000, 0, 2500, 4000, 0, 500};  // usigned int
+static uint16_t lwrx_stats[RX_STAT_COUNT];                                                            // unsigned int
 static bool lwrx_stats_enable = true;
 
 /**
@@ -68,8 +68,8 @@ static bool lwrx_stats_enable = true;
 **/
 
 void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
-  uint8_t event = args->rx_pin_isr.digital_read();  // start setting event to the current value
-  unsigned long curr = micros();                    // the current time in microseconds
+  uint8_t event = args->rx_pin_isr_.digital_read();  // start setting event to the current value
+  unsigned long curr = micros();                     // the current time in microseconds
 
   uint16_t dur = (curr - rx_prev);  // unsigned int
   rx_prev = curr;
@@ -134,9 +134,9 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
         case 2:  // 0 160->500
           // nothing to do wait for next positive edge but do stats
           if (lwrx_stats_enable) {
-            lwrx_stats[rx_stat_high_max] = std::max(lwrx_stats[rx_stat_high_max], dur);
-            lwrx_stats[rx_stat_high_min] = std::min(lwrx_stats[rx_stat_high_min], dur);
-            lwrx_stats[rx_stat_high_ave] = lwrx_stats[rx_stat_high_ave] - (lwrx_stats[rx_stat_high_ave] >> 4) + dur;
+            lwrx_stats[RX_STAT_HIGH_MAX] = std::max(lwrx_stats[RX_STAT_HIGH_MAX], dur);
+            lwrx_stats[RX_STAT_HIGH_MIN] = std::min(lwrx_stats[RX_STAT_HIGH_MIN], dur);
+            lwrx_stats[RX_STAT_HIGH_AVE] = lwrx_stats[RX_STAT_HIGH_AVE] - (lwrx_stats[RX_STAT_HIGH_AVE] >> 4) + dur;
           }
           break;
         case 3:  // 1 160->500
@@ -144,9 +144,9 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
           rx_buf[rx_num_bytes] = rx_buf[rx_num_bytes] << 1 | 1;
           rx_num_bits++;
           if (lwrx_stats_enable) {
-            lwrx_stats[rx_stat_low1_max] = std::max(lwrx_stats[rx_stat_low1_max], dur);
-            lwrx_stats[rx_stat_low1_min] = std::min(lwrx_stats[rx_stat_low1_min], dur);
-            lwrx_stats[rx_stat_low1_ave] = lwrx_stats[rx_stat_low1_ave] - (lwrx_stats[rx_stat_low1_ave] >> 4) + dur;
+            lwrx_stats[RX_STAT_LOW1_MAX] = std::max(lwrx_stats[RX_STAT_LOW1_MAX], dur);
+            lwrx_stats[RX_STAT_LOW1_MIN] = std::min(lwrx_stats[RX_STAT_LOW1_MIN], dur);
+            lwrx_stats[RX_STAT_LOW1_AVE] = lwrx_stats[RX_STAT_LOW1_AVE] - (lwrx_stats[RX_STAT_LOW1_AVE] >> 4) + dur;
           }
           break;
         case 5:  // 1 500->1500
@@ -155,9 +155,9 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
           rx_num_bits++;
           rx_num_bits++;
           if (lwrx_stats_enable) {
-            lwrx_stats[rx_stat_low0_max] = std::max(lwrx_stats[rx_stat_low0_max], dur);
-            lwrx_stats[rx_stat_low0_min] = std::min(lwrx_stats[rx_stat_low0_min], dur);
-            lwrx_stats[rx_stat_low0_ave] = lwrx_stats[rx_stat_low0_ave] - (lwrx_stats[rx_stat_low0_ave] >> 4) + dur;
+            lwrx_stats[RX_STAT_LOW0_MAX] = std::max(lwrx_stats[RX_STAT_LOW0_MAX], dur);
+            lwrx_stats[RX_STAT_LOW0_MIN] = std::min(lwrx_stats[RX_STAT_LOW0_MIN], dur);
+            lwrx_stats[RX_STAT_LOW0_AVE] = lwrx_stats[RX_STAT_LOW0_AVE] - (lwrx_stats[RX_STAT_LOW0_AVE] >> 4) + dur;
           }
           break;
         default:
@@ -195,13 +195,13 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
             if (rx_pairtimeout != 0) {
               if ((currMillis - rx_pairstarttime) / 100 <= rx_pairtimeout) {
                 if (rx_msg[3] == rx_cmd_on) {
-                  args->rx_addpairfrommsg();
+                  args->rx_addpairfrommsg_();
                 } else if (rx_msg[3] == rx_cmd_off) {
-                  args->rx_removePair(&rx_msg[2]);
+                  args->rx_remove_pair_(&rx_msg[2]);
                 }
               }
             }
-            if (args->rx_reportMessage()) {
+            if (args->rx_report_message_()) {
               rx_msgcomplete = true;
             }
             rx_pairtimeout = 0;
@@ -234,7 +234,7 @@ bool LwRx::lwrx_getmessage(uint8_t *buf, uint8_t len) {
   if (rx_msgcomplete && len <= rx_msglen) {
     for (uint8_t i = 0; ret && i < rx_msglen; i++) {
       if (rx_translate || (len != rx_msglen)) {
-        j = this->rx_findNibble(rx_msg[i]);
+        j = this->rx_find_nibble_(rx_msg[i]);
         if (j < 0)
           ret = false;
       } else {
@@ -285,11 +285,11 @@ void LwRx::lwrx_setfilter(uint8_t repeats, uint8_t timeout) {
   pairdata is held in translated form to make comparisons quicker
 **/
 uint8_t LwRx::lwrx_addpair(uint8_t *pairdata) {
-  if (rx_paircount < rx_maxpairs) {
+  if (rx_paircount < RX_MAXPAIRS) {
     for (uint8_t i = 0; i < 8; i++) {
       rx_pairs[rx_paircount][i] = rx_nibble[pairdata[i]];
     }
-    this->rx_paircommit();
+    this->rx_paircommit_();
   }
   return rx_paircount;
 }
@@ -309,7 +309,7 @@ uint8_t LwRx::lwrx_getpair(uint8_t *pairdata, uint8_t pairnumber) {
   if (pairnumber < rx_paircount) {
     int16_t j;  // int
     for (uint8_t i = 0; i < 8; i++) {
-      j = this->rx_findNibble(rx_pairs[pairnumber][i]);
+      j = this->rx_find_nibble_(rx_pairs[pairnumber][i]);
       if (j >= 0)
         pairdata[i] = j;
     }
@@ -330,14 +330,14 @@ void LwRx::lwrx_clearpairing() {
 /**
   Set EEPROMAddr
 **/
-void LwRx::lwrx_setEEPROMaddr(int addr) { EEPROMaddr = addr; }
+void LwRx::lwrx_set_eepro_maddr_(int addr) { EEPROMaddr = addr; }
 
 /**
   Return stats on high and low pulses
 **/
-bool LwRx::lwrx_getstats(uint16_t *stats) {  // unsigned int
+bool LwRx::lwrx_getstats_(uint16_t *stats) {  // unsigned int
   if (lwrx_stats_enable) {
-    memcpy(stats, lwrx_stats, 2 * rx_stat_count);
+    memcpy(stats, lwrx_stats, 2 * RX_STAT_COUNT);
     return true;
   } else {
     return false;
@@ -347,7 +347,7 @@ bool LwRx::lwrx_getstats(uint16_t *stats) {  // unsigned int
 /**
   Set stats mode
 **/
-void LwRx::lwrx_setstatsenable(bool rx_stats_enable) {
+void LwRx::lwrx_setstatsenable_(bool rx_stats_enable) {
   lwrx_stats_enable = rx_stats_enable;
   if (!lwrx_stats_enable) {
     // clear down stats when disabling
@@ -357,9 +357,9 @@ void LwRx::lwrx_setstatsenable(bool rx_stats_enable) {
 /**
   Set pairs behaviour
 **/
-void LwRx::lwrx_setPairMode(bool pairEnforce, bool pairBaseOnly) {
-  rx_pairEnforce = pairEnforce;
-  rx_pairBaseOnly = pairBaseOnly;
+void LwRx::lwrx_set_pair_mode(bool pair_enforce, bool pair_base_only) {
+  rx_pairEnforce = pair_enforce;
+  rx_pairBaseOnly = pair_base_only;
 }
 
 /**
@@ -368,10 +368,10 @@ void LwRx::lwrx_setPairMode(bool pairEnforce, bool pairBaseOnly) {
   !!! For Spark, any pin will work
 **/
 void LwRx::lwrx_setup(InternalGPIOPin *pin) {
-  restoreEEPROMPairing();
+  restore_eeprom_pairing_();
   // rx_pin = pin;
   pin->setup();
-  rx_pin_isr = pin->to_isr();
+  rx_pin_isr_ = pin->to_isr();
   pin->attach_interrupt(&LwRx::rx_process_bits, this, gpio::INTERRUPT_ANY_EDGE);
 
   memcpy(lwrx_stats, lwrx_statsdflt, sizeof(lwrx_statsdflt));
@@ -381,7 +381,7 @@ void LwRx::lwrx_setup(InternalGPIOPin *pin) {
   Check a message to see if it should be reported under pairing / mood / all off rules
   returns -1 if none found
 **/
-bool LwRx::rx_reportMessage() {
+bool LwRx::rx_report_message_() {
   if (rx_pairEnforce && rx_paircount == 0) {
     return false;
   } else {
@@ -389,15 +389,15 @@ bool LwRx::rx_reportMessage() {
     // True if mood to device 15 or Off cmd with Allof paramater
     allDevices = ((rx_msg[3] == rx_cmd_mood && rx_msg[2] == rx_dev_15) ||
                   (rx_msg[3] == rx_cmd_off && rx_msg[0] == rx_par0_alloff));
-    return (rx_checkPairs(&rx_msg[2], allDevices) != -1);
+    return (rx_check_pairs_(&rx_msg[2], allDevices) != -1);
   }
 }
 /**
   Find nibble from byte
   returns -1 if none found
 **/
-int16_t LwRx::rx_findNibble(uint8_t data) {  // int
-  int16_t i = 15;                            // int
+int16_t LwRx::rx_find_nibble_(uint8_t data) {  // int
+  int16_t i = 15;                              // int
   do {
     if (rx_nibble[i] == data)
       break;
@@ -409,18 +409,18 @@ int16_t LwRx::rx_findNibble(uint8_t data) {  // int
 /**
   add pair from message buffer
 **/
-void LwRx::rx_addpairfrommsg() {
-  if (rx_paircount < rx_maxpairs) {
+void LwRx::rx_addpairfrommsg_() {
+  if (rx_paircount < RX_MAXPAIRS) {
     memcpy(rx_pairs[rx_paircount], &rx_msg[2], 8);
-    this->rx_paircommit();
+    this->rx_paircommit_();
   }
 }
 
 /**
   check and commit pair
 **/
-void LwRx::rx_paircommit() {
-  if (rx_paircount == 0 || this->rx_checkPairs(rx_pairs[rx_paircount], false) < 0) {
+void LwRx::rx_paircommit_() {
+  if (rx_paircount == 0 || this->rx_check_pairs_(rx_pairs[rx_paircount], false) < 0) {
 #if EEPROM_EN
     for (uint8_t i = 0; i < 8; i++) {
       EEPROM.write(EEPROMaddr + 1 + 8 * rx_paircount + i, rx_pairs[rx_paircount][i]);
@@ -437,7 +437,7 @@ void LwRx::rx_paircommit() {
     if allDevices is true then ignore the device number
   Returns matching pair number, -1 if not found, -2 if no pairs defined
 **/
-int16_t LwRx::rx_checkPairs(uint8_t *buf, bool allDevices) {  // int
+int16_t LwRx::rx_check_pairs_(uint8_t *buf, bool all_devices) {  // int
   if (rx_paircount == 0) {
     return -2;
   } else {
@@ -452,7 +452,7 @@ int16_t LwRx::rx_checkPairs(uint8_t *buf, bool allDevices) {  // int
       // include room in comparison
       jstart = 8;
       // skip device comparison if allDevices true
-      jend = (allDevices) ? 2 : 0;
+      jend = (all_devices) ? 2 : 0;
     }
     while (pair > 0 && j < 0) {
       pair--;
@@ -473,8 +473,8 @@ int16_t LwRx::rx_checkPairs(uint8_t *buf, bool allDevices) {  // int
 /**
   Remove an existing pair matching the buffer
 **/
-void LwRx::rx_removePair(uint8_t *buf) {
-  int16_t pair = this->rx_checkPairs(buf, false);  // int
+void LwRx::rx_remove_pair_(uint8_t *buf) {
+  int16_t pair = this->rx_check_pairs_(buf, false);  // int
   if (pair >= 0) {
     while (pair < rx_paircount - 1) {
       for (uint8_t j = 0; j < 8; j++) {
@@ -499,7 +499,7 @@ void LwRx::rx_removePair(uint8_t *buf) {
 /**
    Retrieve and set up pairing data from EEPROM if used
 **/
-void LwRx::restoreEEPROMPairing() {
+void LwRx::restore_eeprom_pairing_() {
 #if EEPROM_EN
   rx_paircount = EEPROM.read(EEPROMaddr);
   if (rx_paircount > rx_maxpairs) {

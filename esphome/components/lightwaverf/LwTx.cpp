@@ -67,7 +67,7 @@ static void IRAM_ATTR isrTXtimer(LwTx *arg) {
         arg->tx_bit_mask >>= 1;
         if (arg->tx_bit_mask == 0) {
           arg->tx_num_bytes++;
-          if (arg->tx_num_bytes >= arg->tx_msglen) {
+          if (arg->tx_num_bytes >= arg->TX_MSGLEN) {
             arg->tx_state = tx_state_msgend;
           } else {
             arg->tx_state = tx_state_bytestart;
@@ -91,7 +91,7 @@ static void IRAM_ATTR isrTXtimer(LwTx *arg) {
         arg->tx_repeat++;
         if (arg->tx_repeat >= arg->tx_repeats) {
           // disable timer nterrupt
-          arg->lw_timer_Stop();
+          arg->lw_timer_stop();
           arg->tx_msg_active = false;
           arg->tx_state = tx_state_idle;
         } else {
@@ -112,14 +112,14 @@ bool LwTx::lwtx_free() { return !tx_msg_active; }
 **/
 void LwTx::lwtx_send(const std::vector<uint8_t> &msg) {
   if (tx_translate) {
-    for (uint8_t i = 0; i < tx_msglen; i++) {
+    for (uint8_t i = 0; i < TX_MSGLEN; i++) {
       tx_buf[i] = tx_nibble[msg[i] & 0xF];
       ESP_LOGD("lightwaverf.sensor", "%x ", msg[i]);
     }
   } else {
     // memcpy(tx_buf, msg, tx_msglen);
   }
-  this->lw_timer_Start();
+  this->lw_timer_start();
   tx_msg_active = true;
 }
 
@@ -145,7 +145,7 @@ void LwTx::lwtx_cmd(uint8_t command, uint8_t parameter, uint8_t room, uint8_t de
   tx_buf[2] = tx_nibble[device & 0xF];
   tx_buf[3] = tx_nibble[command & 0xF];
   tx_buf[9] = tx_nibble[room & 0xF];
-  this->lw_timer_Start();
+  this->lw_timer_start();
   tx_msg_active = true;
 }
 
@@ -189,21 +189,21 @@ void LwTx::lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, uint8_t invert, int
   timer1_isr_init();
 }
 
-void LwTx::lwtx_setTickCounts(uint8_t lowCount, uint8_t highCount, uint8_t trailCount, uint8_t gapCount) {
-  tx_low_count = lowCount;
-  tx_high_count = highCount;
-  tx_trail_count = trailCount;
-  tx_gap_count = gapCount;
+void LwTx::lwtx_set_tick_counts(uint8_t low_count, uint8_t high_count, uint8_t trail_count, uint8_t gap_count) {
+  tx_low_count = low_count;
+  tx_high_count = high_count;
+  tx_trail_count = trail_count;
+  tx_gap_count = gap_count;
 }
 
-void LwTx::lwtx_setGapMultiplier(uint8_t gapMultiplier) { tx_gap_multiplier = gapMultiplier; }
+void LwTx::lwtx_set_gap_multiplier(uint8_t gap_multiplier) { tx_gap_multiplier = gap_multiplier; }
 
 /**
   Set EEPROMAddr
 **/
-void LwTx::lwtx_setEEPROMaddr(int addr) { EEPROMaddr = addr; }
+void LwTx::lwtx_set_eepro_maddr(int addr) { EEPROMaddr = addr; }
 
-void LwTx::lw_timer_Start() {
+void LwTx::lw_timer_start() {
   {
     InterruptLock lock;
     static LwTx *arg = this;
@@ -213,7 +213,7 @@ void LwTx::lw_timer_Start() {
   }
 }
 
-void LwTx::lw_timer_Stop() {
+void LwTx::lw_timer_stop() {
   {
     InterruptLock lock;
     timer1_disable();
