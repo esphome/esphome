@@ -61,15 +61,13 @@ void TuyaLight::setup() {
       switch (*this->color_type_) {
         case TuyaColorType::RGBHSV:
         case TuyaColorType::RGB: {
-          auto red_int = parse_hex<uint8_t>(datapoint.value_string.substr(0, 2));
-          auto green_int = parse_hex<uint8_t>(datapoint.value_string.substr(2, 2));
-          auto blue_int = parse_hex<uint8_t>(datapoint.value_string.substr(4, 2));
-          if (!red_int.has_value() || !green_int.has_value() || !blue_int.has_value())
+          auto rgb = parse_hex<uint32_t>(datapoint.value_string.substr(0, 6));
+          if (!rgb.has_value())
             return;
 
-          red = float(*red_int) / 255;
-          green = float(*green_int) / 255;
-          blue = float(*blue_int) / 255;
+          red = (*rgb >> 16) / 255.0f;
+          green = ((*rgb >> 8) & 0xff) / 255.0f;
+          blue = (*rgb & 0xff) / 255.0f;
           break;
         }
         case TuyaColorType::HSV: {
