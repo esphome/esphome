@@ -38,17 +38,17 @@ void LightWaveRF::read_tx() {
 void LightWaveRF::send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, uint8_t invert, int u_sec) {
   this->lwtx_.lwtx_setup(pin_tx_, 10, 0, 330);
 
-  int32_t timeout = 0;
+  uint32_t timeout = 0;
   if (this->lwtx_.lwtx_free()) {
     this->lwtx_.lwtx_send(msg);
     timeout = millis();
-    ESP_LOGD(TAG, "[%li] msg start", timeout);
+    ESP_LOGD(TAG, "[%i] msg start", timeout);
   }
   while (!this->lwtx_.lwtx_free() && millis() < (timeout + 1000)) {
     delay(10);
   }
   timeout = millis() - timeout;
-  ESP_LOGD(TAG, "[%u] msg sent: %li", millis(), timeout);
+  ESP_LOGD(TAG, "[%u] msg sent: %i", millis(), timeout);
 }
 
 void LightWaveRF::print_msg_(uint8_t *msg, uint8_t len) {
