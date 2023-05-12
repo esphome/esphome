@@ -23,10 +23,6 @@ class ENS160Component : public PollingComponent, public i2c::I2CDevice, public s
 
  protected:
   void send_env_data_();
-  optional<uint8_t> read_status_();
-  bool status_has_error_();
-  bool status_has_data_();
-  void reset_();
 
   enum ErrorCode {
     NONE = 0,
@@ -43,7 +39,12 @@ class ENS160Component : public PollingComponent, public i2c::I2CDevice, public s
     INVALID_OUTPUT,
   } validity_flag_;
   
-  char firmware_version_[32];
+  bool warming_up_{false};
+  bool initial_startup_{false};
+  
+  uint8_t firmware_ver_major_{0};
+  uint8_t firmware_ver_minor_{0};
+  uint8_t firmware_ver_build_{0};
   
   sensor::Sensor *co2_{nullptr};
   sensor::Sensor *tvoc_{nullptr};

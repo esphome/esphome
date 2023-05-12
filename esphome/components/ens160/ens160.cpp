@@ -74,7 +74,7 @@ void ENS160Component::setup() {
 
   // check part_id
   uint16_t part_id;
-  if (!this->read_register(ENS160_REG_PART_ID, reinterpret_cast<uint8_t *>(&part_id), 2) != i2c::ERROR_OK) {
+  if (this->read_register(ENS160_REG_PART_ID, reinterpret_cast<uint8_t *>(&part_id), 2) != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return; 	
@@ -115,7 +115,6 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
-
   // clear command
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_NOP)) {
     this->error_code_ = COMMUNICATION_FAILED;
@@ -128,21 +127,24 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
-
+  delay(ENS160_BOOTING);
+  
   // read firmware version
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_GET_APPVER)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return;
   }
+  delay(ENS160_BOOTING);
+  
   auto version_data = this->read_bytes<3>(ENS160_REG_GPR_READ_4);
   if (version_data.has_value()) {
-    uint8_t fw_ver_major = (*version_data)[0];
-    uint8_t fw_ver_minor = (*version_data)[1];
-    uint8_t fw_ver_build = (*version_data)[2];
-    sprintf(this->firmware_version_, "%d.%d.%d", fw_ver_major, fw_ver_minor, fw_ver_build);
+    this->firmware_ver_major_ = (*version_data)[0];
+    this->firmware_ver_minor_ = (*version_data)[1];
+    this->firmware_ver_build_ = (*version_data)[2];
+    //sprintf(this->firmware_version_, "major:%d minor:%d build:%d", fw_ver_major, fw_ver_minor, fw_ver_build);
   }
-  else sprintf(this->firmware_version_, "not available");
+  //else sprintf(this->firmware_version_, "not available");
   
   // set mode to standard
   if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD)) {
@@ -192,7 +194,7 @@ void ENS160Component::update() {
            (ENS160_DATA_STATUS_NEWGPR & (status_value)) == ENS160_DATA_STATUS_NEWGPR);
 
   data_ready = status_value & ENS160_DATA_STATUS_NEWDAT; 
-  this->validity_flag_ = static_cast<ValidityFlag>((status & ENS160_VALIDITY_FLAG_MASK) >> 2);
+  this->validity_flag_ = static_cast<ValidityFlag>((status_value & ENS160_VALIDITY_FLAG_MASK) >> 2);
 
   switch (validity_flag_) {
     case NORMAL_OPERATION:
@@ -211,7 +213,7 @@ void ENS160Component::update() {
       if (!this->warming_up_) {
         this->warming_up_ = true;
         ESP_LOGI(TAG, "ENS160 Sensor readings not available yet - Warming up requires 3 minutes");
-        this->update_compensation();
+        this->send_env_data_();
       }
       return;
     case INVALID_OUTPUT:
@@ -224,7 +226,7 @@ void ENS160Component::update() {
   auto warning = false;
   auto buf_eco2 = this->read_bytes<2>(ENS160_REG_DATA_ECO2);
   auto buf_tvoc = this->read_bytes<2>(ENS160_REG_DATA_TVOC);
-  auto data_aqi = this->read_byte(ENS160_REG_DATA_AQI);
+  
 
   if (buf_eco2.has_value() && this->co2_ != nullptr) {
     uint16_t data_eco2 = encode_uint16((*buf_eco2)[1], (*buf_eco2)[0]);
@@ -240,12 +242,19 @@ void ENS160Component::update() {
     ESP_LOGW(TAG, "No data for TVOC!");
     warning = true;
   }
-  if (data_aqi.has_value() && this->aqi_ != nullptr) {
+  
+  uint8_t data_aqi;
+  if (!this->read_byte(ENS160_REG_DATA_AQI,&data_aqi)) {
+    ESP_LOGW(TAG, "Error reading AQI data register");
+    warning = true;
+  }
+  
+  if (this->aqi_ != nullptr) {
     if (data_aqi != 0) {
       //remove reserved bit in aqi njust in case they are used in future
       data_aqi = data_aqi & ENS160_DATA_AQI_MASK;
       
-      this->aqi_->publish_state(*data_aqi);
+      this->aqi_->publish_state(data_aqi);
     } else {
       ESP_LOGW(TAG, "Invalid Data, AQI is 0!");
       warning = true;
@@ -316,7 +325,7 @@ void ENS160Component::dump_config() {
       ESP_LOGD(TAG, "Setup successful");
       break;
   }
-  ESP_LOGD(TAG,("  ", "Firmware Version:", this->firmware_version_);
+  ESP_LOGD(TAG,"Firmware Version: %d.%d.%d", this->firmware_ver_major_,this->firmware_ver_minor_,this->firmware_ver_build_);
   
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "CO2 Sensor:", this->co2_);
