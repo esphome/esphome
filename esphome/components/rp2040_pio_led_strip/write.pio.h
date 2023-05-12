@@ -13,38 +13,37 @@
 // --------------------------- //
 
 #define rp2040_pio_led_strip_driver_wrap_target 0
-#define rp2040_pio_led_strip_driver_wrap 20
+#define rp2040_pio_led_strip_driver_wrap 19
 
 static const uint16_t rp2040_pio_led_strip_driver_program_instructions[] = {
             //     .wrap_target
     0x80a0, //  0: pull   block                      
     0xe058, //  1: set    y, 24                      
-    0x0006, //  2: jmp    6                          
-    0x6021, //  3: out    x, 1                       
-    0x002b, //  4: jmp    !x, 11                     
-    0x0010, //  5: jmp    16                         
-    0xe000, //  6: set    pins, 0                    
+    0x6021, //  2: out    x, 1                       
+    0x002a, //  3: jmp    !x, 10                     
+    0x000f, //  4: jmp    15                         
+    0xe000, //  5: set    pins, 0                    
+    0xbd42, //  6: nop                           [29]
     0xbd42, //  7: nop                           [29]
-    0xbd42, //  8: nop                           [29]
-    0xb342, //  9: nop                           [19]
-    0x0003, // 10: jmp    3                          
-    0xeb01, // 11: set    pins, 1                [11]
-    0xfd00, // 12: set    pins, 0                [29]
-    0xa942, // 13: nop                           [9] 
-    0x0083, // 14: jmp    y--, 3                     
-    0x0000, // 15: jmp    0                          
-    0xfd01, // 16: set    pins, 1                [29]
-    0xa942, // 17: nop                           [9] 
-    0xeb00, // 18: set    pins, 0                [11]
-    0x0083, // 19: jmp    y--, 3                     
-    0x0000, // 20: jmp    0                          
+    0xb342, //  8: nop                           [19]
+    0x0002, //  9: jmp    2                          
+    0xeb01, // 10: set    pins, 1                [11]
+    0xfd00, // 11: set    pins, 0                [29]
+    0xa942, // 12: nop                           [9] 
+    0x0082, // 13: jmp    y--, 2                     
+    0x0000, // 14: jmp    0                          
+    0xfd01, // 15: set    pins, 1                [29]
+    0xa942, // 16: nop                           [9] 
+    0xeb00, // 17: set    pins, 0                [11]
+    0x0082, // 18: jmp    y--, 2                     
+    0x0000, // 19: jmp    0                          
             //     .wrap
 };
 
 #if !PICO_NO_HARDWARE
 static const struct pio_program rp2040_pio_led_strip_driver_program = {
     .instructions = rp2040_pio_led_strip_driver_program_instructions,
-    .length = 21,
+    .length = 20,
     .origin = -1,
 };
 

@@ -85,7 +85,7 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
 	// Convert the light state in this->buf_ to uint32_t to write to the LED strip
 	memcpy(this->write_buf_, this->buf_, this->get_buffer_size_());
 
-	// assemble bits in buffer to 32 bit words with 0bGGGGGGGGRRRRRRRRBBBBBBBB
+	// assemble bits in buffer to 32 bit words with 0bGGGGGGGGRRRRRRRRBBBBBBBB00000000
 	for (int i = 0; i < this->num_leds_; i++) {
 		uint8_t r = this->write_buf_[(i * 3) + 0];
 		uint8_t g = this->write_buf_[(i * 3) + 1];

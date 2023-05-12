@@ -11,7 +11,7 @@ awaiting_data:
     ; Wait for data in FIFO queue
     pull block ; this will block until there is data in the FIFO queue and then it will pull it into the shift register
     set y, 24 ; set y to 24 so that we know we have 24 bits to write
-    jmp writeret
+    ; jmp writeret
     
 mainloop:
     ; go through each bit in the shift register and jump to the appropriate label
