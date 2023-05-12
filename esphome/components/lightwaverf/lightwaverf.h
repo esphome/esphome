@@ -24,7 +24,7 @@ class LightWaveRF : public PollingComponent {
   void setup() override;
   void dump_config() override;
   void read_tx();
-  void send_rx(uint8_t *msg, uint8_t repeats, uint8_t invert, int uSec);
+  void send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, uint8_t invert, int uSec);
 
  protected:
   void printMsg(uint8_t *msg, uint8_t len);
@@ -58,6 +58,7 @@ template<typename... Ts> class SendRawAction : public Action<Ts...> {
     this->parent_->send_rx(msg, repeats, inverted, pulse_length);
   }
 
+ protected:
   LightWaveRF *parent_;
 };
 

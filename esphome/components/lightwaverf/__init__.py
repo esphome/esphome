@@ -81,16 +81,18 @@ LIGHTWAVE_SEND_SCHEMA = cv.Any(
     LightwaveRawAction,
     LIGHTWAVE_SEND_SCHEMA,
 )
-async def send_action(config, action_id, template_arg, args):
-    var = cg.new_Pvariable(action_id, template_arg)
-    repeats = config[CONF_REPEAT]
-    # inverted = config[CONF_INVERTED]
-    # pulse_length = config[CONF_PULSE_LENGTH]
+async def send_raw_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    repeats = await cg.templatable(config[CONF_REPEAT], args, int)
+    inverted = config[CONF_INVERTED]
+    pulse_length = config[CONF_PULSE_LENGTH]
     code = config[CONF_CODE]
 
     cg.add(var.set_repeats(repeats))
-    # cg.add(var.set_inverted(inverted))
-    # cg.add(var.set_pulse_length(pulse_length))
+    cg.add(var.set_inverted(inverted))
+    cg.add(var.set_pulse_length(pulse_length))
     cg.add(var.set_data(code))
     return var
 

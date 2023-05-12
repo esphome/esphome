@@ -37,8 +37,8 @@ void LightWaveRF::read_tx() {
   }
 }
 
-void LightWaveRF::send_rx(uint8_t *msg, uint8_t repeats, uint8_t invert, int uSec) {
-  this->lwtx.lwtx_setup(pin_tx_, repeats, invert, uSec);
+void LightWaveRF::send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, uint8_t invert, int uSec) {
+  this->lwtx.lwtx_setup(pin_tx_, 10, 0, 330);
 
   long timeout = 0;
   if (this->lwtx.lwtx_free()) {

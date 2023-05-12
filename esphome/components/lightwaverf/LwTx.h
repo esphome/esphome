@@ -46,7 +46,7 @@ class LwTx {
   bool lwtx_free();
 
   // Basic send of new 10 char message, not normally needed if setaddr and cmd are used.
-  void lwtx_send(uint8_t *msg);
+  void lwtx_send(const std::vector<uint8_t> &msg);
 
   // Sets up 5 char address which will be used to form messages for lwtx_cmd
   void lwtx_setaddr(uint8_t *addr);
@@ -57,15 +57,49 @@ class LwTx {
   // Set base address for EEPROM storage
   void lwtx_setEEPROMaddr(int addr);
 
- protected:
   // Allows changing basic tick counts from their defaults
   void lw_timer_Start();
 
   // Allws multiplying the gap period for creating very large gaps
   void lw_timer_Stop();
 
+  // These set the pulse durationlws in ticks. ESP uses 330uSec base tick, else use 140uSec
+  uint8_t tx_low_count = 3;    // total number of ticks in a low (990 uSec)
+  uint8_t tx_high_count = 2;   // total number of ticks in a high (660 uSec)
+  uint8_t tx_trail_count = 1;  // tick count to set line low (330 uSec)
+
+  uint8_t tx_toggle_count = 3;
+
+  static const uint8_t tx_msglen = 10;  // the expected length of the message
+
+  // Transmit mode constants and variables
+  uint8_t tx_repeats = 12;  // Number of repeats of message sent
+  uint8_t txon = 1;
+  uint8_t txoff = 0;
+  bool tx_msg_active = false;  // set true to activate message sending
+  bool tx_translate = true;    // Set false to send raw data
+
+  uint8_t tx_buf[tx_msglen];  // the message buffer during reception
+  uint8_t tx_repeat = 0;      // counter for repeats
+  uint8_t tx_state = 0;
+  uint16_t tx_gap_repeat = 0;  // unsigned int
+
+  // Use with low repeat counts
+  uint8_t tx_gap_count = 33;    // Inter-message gap count (10.9 msec)
+  unsigned long espPeriod = 0;  // Holds interrupt timer0 period
+  unsigned long espNext = 0;    // Holds interrupt next count
+
+  // Gap multiplier byte is used to multiply gap if longer periods are needed for experimentation
+  // If gap is 255 (35msec) then this to give a max of 9 seconds
+  // Used with low repeat counts to find if device times out
+  uint8_t tx_gap_multiplier = 0;  // Gap extension byte
+
+  uint8_t tx_bit_mask = 0;   // bit mask in current byte
+  uint8_t tx_num_bytes = 0;  // number of bytes sent
+
   InternalGPIOPin *tx_pin;
 
+ protected:
   uint32_t duty_on;
   uint32_t duty_off;
 };
