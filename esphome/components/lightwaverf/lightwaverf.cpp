@@ -1,5 +1,3 @@
-
-
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP8266
