@@ -22,9 +22,6 @@ static const uint8_t EEPROM_EN = 0;
 #include <../EEPROM/EEPROM.h>
 #endif
 
-// define default EEPROMaddr to location to store message addr
-static const uint8_t EEPROM_ADDR_DEFAULT = 0;
-
 class LightWaveRF : public PollingComponent {
  public:
   void set_pin(InternalGPIOPin *pin_tx, InternalGPIOPin *pin_rx) {

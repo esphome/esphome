@@ -71,6 +71,8 @@ LIGHTWAVE_SEND_SCHEMA = cv.Any(
                 # validate_rc_switch_raw_code,
             ),
             cv.Optional(CONF_REPEAT, default=10): cv.int_,
+            cv.Optional(CONF_INVERTED, default=False): cv.boolean,
+            cv.Optional(CONF_PULSE_LENGTH, default=330): cv.int_,
         }
     ),
 )
@@ -86,8 +88,8 @@ async def send_raw_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
     repeats = await cg.templatable(config[CONF_REPEAT], args, int)
-    inverted = config[CONF_INVERTED]
-    pulse_length = config[CONF_PULSE_LENGTH]
+    inverted = await cg.templatable(config[CONF_INVERTED], args, bool)
+    pulse_length = await cg.templatable(config[CONF_PULSE_LENGTH], args, int)
     code = config[CONF_CODE]
 
     cg.add(var.set_repeats(repeats))

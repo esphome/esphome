@@ -18,6 +18,8 @@ static const uint8_t rx_cmd_mood = 0xED;     // raw 2
 static const uint8_t rx_par0_alloff = 0x7D;  // param 192-255 all off (12 in msb)
 static const uint8_t rx_dev_15 = 0x6F;       // device 15
 
+static const uint8_t EEPROM_ADDR_DEFAULT = 0;
+
 static int EEPROMaddr = EEPROM_ADDR_DEFAULT;
 static const uint8_t rx_msglen = 10;  // expected length of rx message
 
