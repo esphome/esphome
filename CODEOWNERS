@@ -137,6 +137,7 @@ esphome/components/lcd_menu/* @numo68
 esphome/components/ld2410/* @sebcaps
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
+esphome/components/lightwaverf/* @max246
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
 esphome/components/lock/* @esphome/core
 esphome/components/logger/* @esphome/core
