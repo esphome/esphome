@@ -320,7 +320,7 @@ uint8_t LwRx::lwrx_getpair(uint8_t *pairdata, uint8_t pairnumber) {
 /**
   Clear all pairing
 **/
-void LwRx::lwrx_clearpairing() {
+void LwRx::lwrx_clearpairing_() {
   rx_paircount = 0;
 #if EEPROM_EN
   EEPROM.write(EEPROMaddr, 0);

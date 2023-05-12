@@ -72,9 +72,9 @@ class LwTx {
   uint16_t tx_gap_repeat = 0;  // unsigned int
 
   // Use with low repeat counts
-  uint8_t tx_gap_count = 33;    // Inter-message gap count (10.9 msec)
-  unsigned long espPeriod = 0;  // Holds interrupt timer0 period
-  unsigned long espNext = 0;    // Holds interrupt next count
+  uint8_t tx_gap_count = 33;  // Inter-message gap count (10.9 msec)
+  uint32_t espPeriod = 0;     // Holds interrupt timer0 period
+  uint32_t espNext = 0;       // Holds interrupt next count
 
   // Gap multiplier byte is used to multiply gap if longer periods are needed for experimentation
   // If gap is 255 (35msec) then this to give a max of 9 seconds

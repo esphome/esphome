@@ -60,12 +60,12 @@ class LwRx {
 
   // Returns time from last packet received in msec
   //  Can be used to determine if Rx may be still receiving repeats
-  unsigned long lwrx_packetinterval();
+  uint32_t lwrx_packetinterval();
 
   static void rx_process_bits(LwRx *arg);
 
  protected:
-  void lwrx_clearpairing();
+  void lwrx_clearpairing_();
 
   // Return stats on pulse timings
   bool lwrx_getstats_(uint16_t *stats);
