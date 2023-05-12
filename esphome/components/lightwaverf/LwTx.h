@@ -12,20 +12,8 @@ namespace lightwaverf {
 //
 // Author: Bob Tidey (robert@tideys.net)
 
-static const uint8_t ESP8266 = 1;
-
-// Choose whether to include EEPROM support, comment or set to 0 to disable, 1 use with library support, 2 use with
-// native support
-static const uint8_t EEPROM_EN = 0;
-
 // Include basic library header and set default TX pin
 static const uint8_t TX_PIN_DEFAULT = 13;
-// Include EEPROM if required to include storing device paramters in EEPROM
-#if EEPROM_EN == 1
-#include <EEPROM.h>
-#endif
-// define default EEPROMaddr to location to store message addr
-static const uint8_t EEPROM_ADDR_DEFAULT = 0;
 
 class LwTx {
  public:

@@ -12,18 +12,6 @@ namespace lightwaverf {
 //
 // Author: Bob Tidey (robert@tideys.net)
 
-static const uint8_t ESP8266CPU = 1;
-// Choose whether to include EEPROM support, comment or set to 0 to disable, 1 use with library support, 2 use with
-// native support
-static const uint8_t EEPROM_EN = 0;
-
-// Include EEPROM if required to include storing device paramters in EEPROM
-#if EEPROM_EN == 1
-#include <../EEPROM/EEPROM.h>
-#endif
-// define default EEPROMaddr to location to store message addr
-static const uint8_t EEPROM_ADDR_DEFAULT = 0;
-
 static const uint8_t rx_stat_high_ave = 0;
 static const uint8_t rx_stat_high_max = 1;
 static const uint8_t rx_stat_high_min = 2;

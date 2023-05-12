@@ -7,6 +7,7 @@
 #include <cstring>
 #include <core_esp8266_timer.cpp>
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace lightwaverf {
