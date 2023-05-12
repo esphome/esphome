@@ -201,19 +201,21 @@ void LwTx::lwtx_setGapMultiplier(uint8_t gapMultiplier) { tx_gap_multiplier = ga
 void LwTx::lwtx_setEEPROMaddr(int addr) { EEPROMaddr = addr; }
 
 void LwTx::lw_timer_Start() {
-  portDISABLE_INTERRUPTS();
-  static LwTx *arg = this;
-  timer1_attachInterrupt([] { isrTXtimer(arg); });
-  timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
-  timer1_write(espPeriod);
-  portENABLE_INTERRUPTS();
+  {
+    InterruptLock lock;
+    static LwTx *arg = this;
+    timer1_attachInterrupt([] { isrTXtimer(arg); });
+    timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
+    timer1_write(espPeriod);
+  }
 }
 
 void LwTx::lw_timer_Stop() {
-  portDISABLE_INTERRUPTS();
-  timer1_disable();
-  timer1_detachInterrupt();
-  portENABLE_INTERRUPTS();
+  {
+    InterruptLock lock;
+    timer1_disable();
+    timer1_detachInterrupt();
+  }
 }
 
 }  // namespace lightwaverf
