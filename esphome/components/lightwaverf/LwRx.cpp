@@ -10,22 +10,22 @@
 namespace esphome {
 namespace lightwaverf {
 
-static const uint8_t rx_nibble[] = {0xF6, 0xEE, 0xED, 0xEB, 0xDE, 0xDD, 0xDB, 0xBE,
+static const uint8_t RX_NIBBLE[] = {0xF6, 0xEE, 0xED, 0xEB, 0xDE, 0xDD, 0xDB, 0xBE,
                                     0xBD, 0xBB, 0xB7, 0x7E, 0x7D, 0x7B, 0x77, 0x6F};
-static const uint8_t rx_cmd_off = 0xF6;      // raw 0
-static const uint8_t rx_cmd_on = 0xEE;       // raw 1
-static const uint8_t rx_cmd_mood = 0xED;     // raw 2
-static const uint8_t rx_par0_alloff = 0x7D;  // param 192-255 all off (12 in msb)
-static const uint8_t rx_dev_15 = 0x6F;       // device 15
+static const uint8_t RX_CMD_OFF = 0xF6;      // raw 0
+static const uint8_t RX_CMD_ON = 0xEE;       // raw 1
+static const uint8_t RX_CMD_MOOD = 0xED;     // raw 2
+static const uint8_t RX_PAR0_ALLOFF = 0x7D;  // param 192-255 all off (12 in msb)
+static const uint8_t RX_DEV_15 = 0x6F;       // device 15
 
 static const uint8_t EEPROM_ADDR_DEFAULT = 0;
 
 static int EEPROMaddr = EEPROM_ADDR_DEFAULT;
-static const uint8_t rx_msglen = 10;  // expected length of rx message
+static const uint8_t RX_MSGLEN = 10;  // expected length of rx message
 
 // Receive mode constants and variables
-static uint8_t rx_msg[rx_msglen];  // raw message received
-static uint8_t rx_buf[rx_msglen];  // message buffer during reception
+static uint8_t rx_msg[RX_MSGLEN];  // raw message received
+static uint8_t rx_buf[RX_MSGLEN];  // message buffer during reception
 
 unsigned long rx_prev;  // time of previous interrupt in microseconds
 
@@ -33,10 +33,10 @@ static bool rx_msgcomplete = false;  // set high when message available
 static bool rx_translate = true;     // Set false to get raw data
 
 static uint8_t rx_state = 0;
-static const uint8_t rx_state_idle = 0;
-static const uint8_t rx_state_msgstartfound = 1;
-static const uint8_t rx_state_bytestartfound = 2;
-static const uint8_t rx_state_getbyte = 3;
+static const uint8_t RX_STATE_IDLE = 0;
+static const uint8_t RX_STATE_MSGSTARTFOUND = 1;
+static const uint8_t RX_STATE_BYTESTARTFOUND = 2;
+static const uint8_t RX_STATE_GETBYTE = 3;
 
 static uint8_t rx_num_bits = 0;   // number of bits in the current uint8_t
 static uint8_t rx_num_bytes = 0;  // number of bytes received
@@ -58,7 +58,7 @@ static unsigned long rx_prevpkttime = 0;    // last packet time in milliseconds
 static unsigned long rx_pairstarttime = 0;  // last msg time in milliseconds
 
 // Gather stats for pulse widths (ave is x 16)
-static const uint16_t lwrx_statsdflt[RX_STAT_COUNT] = {5000, 0, 5000, 20000, 0, 2500, 4000, 0, 500};  // usigned int
+static const uint16_t LWRX_STATSDFLT[RX_STAT_COUNT] = {5000, 0, 5000, 20000, 0, 2500, 4000, 0, 500};  // usigned int
 static uint16_t lwrx_stats[RX_STAT_COUNT];                                                            // unsigned int
 static bool lwrx_stats_enable = true;
 
@@ -86,50 +86,50 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
   }
   // state machine transitions
   switch (rx_state) {
-    case rx_state_idle:
+    case RX_STATE_IDLE:
       switch (event) {
         case 7:  // 1 after a message gap
-          rx_state = rx_state_msgstartfound;
+          rx_state = RX_STATE_MSGSTARTFOUND;
           break;
       }
       break;
-    case rx_state_msgstartfound:
+    case RX_STATE_MSGSTARTFOUND:
       switch (event) {
         case 2:  // 0 160->500
                  // nothing to do wait for next positive edge
           break;
         case 3:  // 1 160->500
           rx_num_bytes = 0;
-          rx_state = rx_state_bytestartfound;
+          rx_state = RX_STATE_BYTESTARTFOUND;
           break;
         default:
           // not good start again
-          rx_state = rx_state_idle;
+          rx_state = RX_STATE_IDLE;
           break;
       }
       break;
-    case rx_state_bytestartfound:
+    case RX_STATE_BYTESTARTFOUND:
       switch (event) {
         case 2:  // 0 160->500
           // nothing to do wait for next positive edge
           break;
         case 3:  // 1 160->500
-          rx_state = rx_state_getbyte;
+          rx_state = RX_STATE_GETBYTE;
           rx_num_bits = 0;
           break;
         case 5:  // 0 500->1500
-          rx_state = rx_state_getbyte;
+          rx_state = RX_STATE_GETBYTE;
           // Starts with 0 so put this into uint8_t
           rx_num_bits = 1;
           rx_buf[rx_num_bytes] = 0;
           break;
         default:
           // not good start again
-          rx_state = rx_state_idle;
+          rx_state = RX_STATE_IDLE;
           break;
       }
       break;
-    case rx_state_getbyte:
+    case RX_STATE_GETBYTE:
       switch (event) {
         case 2:  // 0 160->500
           // nothing to do wait for next positive edge but do stats
@@ -162,20 +162,20 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
           break;
         default:
           // not good start again
-          rx_state = rx_state_idle;
+          rx_state = RX_STATE_IDLE;
           break;
       }
       if (rx_num_bits >= 8) {
         rx_num_bytes++;
         rx_num_bits = 0;
-        if (rx_num_bytes >= rx_msglen) {
-          unsigned long currMillis = millis();
+        if (rx_num_bytes >= RX_MSGLEN) {
+          unsigned long curr_millis = millis();
           if (rx_repeats > 0) {
-            if ((currMillis - rx_prevpkttime) / 100 > rx_timeout) {
+            if ((curr_millis - rx_prevpkttime) / 100 > rx_timeout) {
               rx_repeatcount = 1;
             } else {
               // Test message same as last one
-              int16_t i = rx_msglen;  // int
+              int16_t i = RX_MSGLEN;  // int
               do {
                 i--;
               } while ((i >= 0) && (rx_msg[i] == rx_buf[i]));
@@ -188,15 +188,15 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
           } else {
             rx_repeatcount = 0;
           }
-          rx_prevpkttime = currMillis;
+          rx_prevpkttime = curr_millis;
           // If last message hasn't been read it gets overwritten
-          memcpy(rx_msg, rx_buf, rx_msglen);
+          memcpy(rx_msg, rx_buf, RX_MSGLEN);
           if (rx_repeats == 0 || rx_repeatcount == rx_repeats) {
             if (rx_pairtimeout != 0) {
-              if ((currMillis - rx_pairstarttime) / 100 <= rx_pairtimeout) {
-                if (rx_msg[3] == rx_cmd_on) {
+              if ((curr_millis - rx_pairstarttime) / 100 <= rx_pairtimeout) {
+                if (rx_msg[3] == RX_CMD_ON) {
                   args->rx_addpairfrommsg_();
-                } else if (rx_msg[3] == rx_cmd_off) {
+                } else if (rx_msg[3] == RX_CMD_OFF) {
                   args->rx_remove_pair_(&rx_msg[2]);
                 }
               }
@@ -207,9 +207,9 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
             rx_pairtimeout = 0;
           }
           // And cycle round for next one
-          rx_state = rx_state_idle;
+          rx_state = RX_STATE_IDLE;
         } else {
-          rx_state = rx_state_bytestartfound;
+          rx_state = RX_STATE_BYTESTARTFOUND;
         }
       }
       break;
@@ -231,9 +231,9 @@ void LwRx::lwrx_settranslate(bool rxtranslate) { rx_translate = rxtranslate; }
 bool LwRx::lwrx_getmessage(uint8_t *buf, uint8_t len) {
   bool ret = true;
   int16_t j = 0, k = 0;  // int
-  if (rx_msgcomplete && len <= rx_msglen) {
-    for (uint8_t i = 0; ret && i < rx_msglen; i++) {
-      if (rx_translate || (len != rx_msglen)) {
+  if (rx_msgcomplete && len <= RX_MSGLEN) {
+    for (uint8_t i = 0; ret && i < RX_MSGLEN; i++) {
+      if (rx_translate || (len != RX_MSGLEN)) {
         j = this->rx_find_nibble_(rx_msg[i]);
         if (j < 0)
           ret = false;
@@ -269,7 +269,7 @@ bool LwRx::lwrx_getmessage(uint8_t *buf, uint8_t len) {
 /**
   Return time in milliseconds since last packet received
 **/
-unsigned long LwRx::lwrx_packetinterval() { return millis() - rx_prevpkttime; }
+uint32_t LwRx::lwrx_packetinterval() { return millis() - rx_prevpkttime; }
 
 /**
   Set up repeat filtering of received messages
@@ -284,10 +284,10 @@ void LwRx::lwrx_setfilter(uint8_t repeats, uint8_t timeout) {
   pairdata is device,dummy,5*addr,room
   pairdata is held in translated form to make comparisons quicker
 **/
-uint8_t LwRx::lwrx_addpair(uint8_t *pairdata) {
+uint8_t LwRx::lwrx_addpair(const uint8_t *pairdata) {
   if (rx_paircount < RX_MAXPAIRS) {
     for (uint8_t i = 0; i < 8; i++) {
-      rx_pairs[rx_paircount][i] = rx_nibble[pairdata[i]];
+      rx_pairs[rx_paircount][i] = RX_NIBBLE[pairdata[i]];
     }
     this->rx_paircommit_();
   }
@@ -351,7 +351,7 @@ void LwRx::lwrx_setstatsenable_(bool rx_stats_enable) {
   lwrx_stats_enable = rx_stats_enable;
   if (!lwrx_stats_enable) {
     // clear down stats when disabling
-    memcpy(lwrx_stats, lwrx_statsdflt, sizeof(lwrx_statsdflt));
+    memcpy(lwrx_stats, LWRX_STATSDFLT, sizeof(LWRX_STATSDFLT));
   }
 }
 /**
@@ -374,7 +374,7 @@ void LwRx::lwrx_setup(InternalGPIOPin *pin) {
   rx_pin_isr_ = pin->to_isr();
   pin->attach_interrupt(&LwRx::rx_process_bits, this, gpio::INTERRUPT_ANY_EDGE);
 
-  memcpy(lwrx_stats, lwrx_statsdflt, sizeof(lwrx_statsdflt));
+  memcpy(lwrx_stats, LWRX_STATSDFLT, sizeof(LWRX_STATSDFLT));
 }
 
 /**
@@ -385,11 +385,11 @@ bool LwRx::rx_report_message_() {
   if (rx_pairEnforce && rx_paircount == 0) {
     return false;
   } else {
-    bool allDevices;
+    bool all_devices;
     // True if mood to device 15 or Off cmd with Allof paramater
-    allDevices = ((rx_msg[3] == rx_cmd_mood && rx_msg[2] == rx_dev_15) ||
-                  (rx_msg[3] == rx_cmd_off && rx_msg[0] == rx_par0_alloff));
-    return (rx_check_pairs_(&rx_msg[2], allDevices) != -1);
+    all_devices = ((rx_msg[3] == RX_CMD_MOOD && rx_msg[2] == RX_DEV_15) ||
+                   (rx_msg[3] == RX_CMD_OFF && rx_msg[0] == RX_PAR0_ALLOFF));
+    return (rx_check_pairs_(&rx_msg[2], all_devices) != -1);
   }
 }
 /**
@@ -399,7 +399,7 @@ bool LwRx::rx_report_message_() {
 int16_t LwRx::rx_find_nibble_(uint8_t data) {  // int
   int16_t i = 15;                              // int
   do {
-    if (rx_nibble[i] == data)
+    if (RX_NIBBLE[i] == data)
       break;
     i--;
   } while (i >= 0);
@@ -437,7 +437,7 @@ void LwRx::rx_paircommit_() {
     if allDevices is true then ignore the device number
   Returns matching pair number, -1 if not found, -2 if no pairs defined
 **/
-int16_t LwRx::rx_check_pairs_(uint8_t *buf, bool all_devices) {  // int
+int16_t LwRx::rx_check_pairs_(const uint8_t *buf, bool all_devices) {  // int
   if (rx_paircount == 0) {
     return -2;
   } else {

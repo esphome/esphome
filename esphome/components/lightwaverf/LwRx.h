@@ -45,7 +45,7 @@ class LwRx {
   void lwrx_setfilter(uint8_t repeats, uint8_t timeout);
 
   // Add pair, if no pairing set then all messages are received, returns number of pairs
-  uint8_t lwrx_addpair(uint8_t *pairdata);
+  uint8_t lwrx_addpair(const uint8_t *pairdata);
 
   // Get pair data into buffer  for the pairnumber. Returns current paircount
   // Use pairnumber 255 to just get current paircount
@@ -82,7 +82,7 @@ class LwRx {
   void rx_addpairfrommsg_();
   void rx_paircommit_();
   void rx_remove_pair_(uint8_t *buf);
-  int16_t rx_check_pairs_(uint8_t *buf, bool all_devices);  // int
+  int16_t rx_check_pairs_(const uint8_t *buf, bool all_devices);  // int
   void restore_eeprom_pairing_();
 
   ISRInternalGPIOPin rx_pin_isr_;
