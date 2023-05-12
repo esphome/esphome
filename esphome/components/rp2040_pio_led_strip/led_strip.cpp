@@ -13,7 +13,7 @@
 namespace esphome {
 namespace rp2040_pio_led_strip {
 
-static const char *TAG = "rp2040_led_strip";
+static const char *TAG = "rp2040_pio_led_strip";
 
 void RP2040PIOLEDStripLightOutput::setup() {
 	ESP_LOGCONFIG(TAG, "Setting up RP2040 LED Strip...");
@@ -44,6 +44,11 @@ void RP2040PIOLEDStripLightOutput::setup() {
 
   	// Select PIO instance to use (0 or 1)
   	this->pio_ = pio0;
+	if (this->pio_ == nullptr) {
+		ESP_LOGE(TAG, "Failed to claim PIO instance");
+		this->mark_failed();
+		return;
+	}
 
   	// Load the assembled program into the PIO and get its location in the PIO's instruction memory
   	uint offset = pio_add_program(this->pio_, &rp2040_pio_led_strip_driver_program);
@@ -56,9 +61,10 @@ void RP2040PIOLEDStripLightOutput::setup() {
 		return;
   	}
 
+	//calculate the clock divider to get the desired refresh rate
+	float divider = clock_get_hz(clk_sys) / this->max_refresh_rate_;
 
-
-  	rp2040_pio_program_init(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
+  	rp2040_pio_program_init(this->pio_, this->sm_, offset, this->pin_, divider);
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {

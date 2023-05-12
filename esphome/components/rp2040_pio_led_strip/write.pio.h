@@ -5,7 +5,7 @@
 #pragma once
 
 #if !PICO_NO_HARDWARE
-#include <hardware/pio.h>
+#include "hardware/pio.h"
 #endif
 
 // --------------------------- //
@@ -54,7 +54,7 @@ static inline pio_sm_config rp2040_pio_led_strip_driver_program_get_default_conf
     return c;
 }
 
-#include <hardware/clocks.h>
+#include "hardware/clocks.h"
 static inline void rp2040_pio_program_init(PIO pio, uint sm, uint offset, uint pin, float freq) {
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
