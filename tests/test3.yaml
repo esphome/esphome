@@ -1171,3 +1171,7 @@ daly_bms:
 qr_code:
   - id: homepage_qr
     value: https://esphome.io/index.html
+
+lightwaverf:
+  read_pin: 13
+  write_pin: 14
