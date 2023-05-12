@@ -169,7 +169,7 @@ def get_esphome_device_ip(
         payload = msg.payload.decode(errors="backslashreplace")
         if len(payload) > 0:
             message = time_ + " " + payload
-            safe_print(message)
+            _LOGGER.debug(message)
 
             data = json.loads(payload)
             if "name" not in data or data["name"] != dev_name:

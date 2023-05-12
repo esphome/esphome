@@ -45,7 +45,7 @@ from esphome.log import color, setup_log, Fore
 _LOGGER = logging.getLogger(__name__)
 
 
-def choose_prompt(options):
+def choose_prompt(options, purpose: str = None):
     if not options:
         raise EsphomeError(
             "Found no valid options for upload/logging, please make sure relevant "
@@ -56,7 +56,9 @@ def choose_prompt(options):
     if len(options) == 1:
         return options[0][1]
 
-    safe_print("Found multiple options, please choose one:")
+    safe_print(
+        f'Found multiple options{f" for {purpose}" if purpose else ""}, please choose one:'
+    )
     for i, (desc, _) in enumerate(options):
         safe_print(f"  [{i+1}] {desc}")
 
@@ -75,7 +77,9 @@ def choose_prompt(options):
     return options[opt - 1][1]
 
 
-def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api):
+def choose_upload_log_host(
+    default, check_default, show_ota, show_mqtt, show_api, purpose: str = None
+):
     options = []
     for port in get_serial_ports():
         options.append((f"{port.path} ({port.description})", port.path))
@@ -91,7 +95,7 @@ def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api
         return default
     if check_default is not None and check_default in [opt[1] for opt in options]:
         return check_default
-    return choose_prompt(options)
+    return choose_prompt(options, purpose=purpose)
 
 
 def get_port_type(port):
@@ -304,10 +308,8 @@ def upload_program(config, args, host):
     password = ota_conf.get(CONF_PASSWORD, "")
 
     if (
-        get_port_type(host) == "MQTT"
-        or config[CONF_MDNS][CONF_DISABLED]
-        and CONF_MQTT in config
-    ):
+        get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED]
+    ) and CONF_MQTT in config:
         from esphome import mqtt
 
         host = mqtt.get_esphome_device_ip(
@@ -397,6 +399,7 @@ def command_upload(args, config):
         show_ota=True,
         show_mqtt=False,
         show_api=False,
+        purpose="uploading",
     )
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
@@ -421,6 +424,7 @@ def command_logs(args, config):
         show_ota=False,
         show_mqtt=True,
         show_api=True,
+        purpose="logging",
     )
     return show_logs(config, args, port)
 
@@ -437,8 +441,9 @@ def command_run(args, config):
         default=args.device,
         check_default=None,
         show_ota=True,
-        show_mqtt=True,
+        show_mqtt=False,
         show_api=True,
+        purpose="uploading",
     )
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
@@ -452,6 +457,7 @@ def command_run(args, config):
         show_ota=False,
         show_mqtt=True,
         show_api=True,
+        purpose="logging",
     )
     return show_logs(config, args, port)
 
