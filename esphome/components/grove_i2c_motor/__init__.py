@@ -5,7 +5,6 @@ from esphome.components import i2c
 
 from esphome.const import (
     CONF_ID,
-    CONF_NAME,
     CONF_CHANNEL,
     CONF_SPEED,
     CONF_DIRECTION,
@@ -44,7 +43,6 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.declare_id(GROVE_TB6612FNG),
-            cv.Required(CONF_NAME): cv.string,
         }
     )
     .extend(cv.COMPONENT_SCHEMA)
