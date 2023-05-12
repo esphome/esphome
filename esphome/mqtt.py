@@ -144,7 +144,7 @@ def show_discover(config, username=None, password=None, client_id=None):
 
 
 def get_esphome_device_ip(
-    config, username=None, password=None, client_id=None, timeout=10
+    config, username=None, password=None, client_id=None, timeout=25
 ):
     if CONF_MQTT not in config:
         raise EsphomeError(
