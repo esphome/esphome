@@ -287,6 +287,8 @@ class WiFiComponent : public Component {
 
   int8_t wifi_rssi();
 
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
   void setup_ap_config_();
@@ -310,8 +312,6 @@ class WiFiComponent : public Component {
   network::IPAddress wifi_subnet_mask_();
   network::IPAddress wifi_gateway_ip_();
   network::IPAddress wifi_dns_ip_(int num);
-  bool wifi_sleep_begin_();
-  bool wifi_sleep_awake_();
 
   bool is_captive_portal_active_();
   bool is_esp32_improv_active_();
@@ -366,18 +366,30 @@ class WiFiComponent : public Component {
   bool btm_{false};
   bool rrm_{false};
 #endif
+  bool enable_on_boot_;
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> {
  public:
-  bool check(Ts... x) override;
+  bool check(Ts... x) override { return global_wifi_component->is_connected(); }
 };
 
-template<typename... Ts> bool WiFiConnectedCondition<Ts...>::check(Ts... x) {
-  return global_wifi_component->is_connected();
-}
+template<typename... Ts> class WiFiEnabledCondition : public Condition<Ts...> {
+ public:
+  bool check(Ts... x) override { return !global_wifi_component->is_disabled(); }
+};
+
+template<typename... Ts> class WiFiEnableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_wifi_component->enable(); }
+};
+
+template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_wifi_component->disable(); }
+};
 
 }  // namespace wifi
 }  // namespace esphome
