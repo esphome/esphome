@@ -10,8 +10,9 @@
 awaiting_data:
     ; Wait for data in FIFO queue
     pull block ; this will block until there is data in the FIFO queue and then it will pull it into the shift register
-    jmp writeret
     set y, 24 ; set y to 24 so that we know we have 24 bits to write
+    jmp writeret
+    
 mainloop:
     ; go through each bit in the shift register and jump to the appropriate label
     ; depending on the value of the bit
@@ -32,15 +33,15 @@ writezero:
     set pins, 1 [T0H - 1]
     set pins, 0 [30 - 1]
     nop [10 - 1]
-    jmp !y, awaiting_data
-    jmp mainloop
+    jmp y--, mainloop
+    jmp awaiting_data
 writeone:
     ; Write T1H and T1L bits to the output pin
     set pins, 1 [30 - 1]
     nop [10 - 1]
     set pins, 0 [T1L - 1]
-    jmp !y, awaiting_data
-    jmp mainloop
+    jmp y--, mainloop
+    jmp awaiting_data
 
 
 .wrap
