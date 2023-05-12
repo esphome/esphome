@@ -62,6 +62,8 @@ void RP2040PIOLEDStripLightOutput::setup() {
   	}
 
 	//calculate the clock divider to get the desired refresh rate
+	if (this->max_refresh_rate_ == 0)
+		this->max_refresh_rate_ = 1;
 	float divider = clock_get_hz(clk_sys) / this->max_refresh_rate_;
 
   	rp2040_pio_program_init(this->pio_, this->sm_, offset, this->pin_, divider);
@@ -83,12 +85,15 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
 	// Convert the light state in this->buf_ to uint32_t to write to the LED strip
 	memcpy(this->write_buf_, this->buf_, this->get_buffer_size_());
 
-	// Write the buffer to the LED strip
-	//convert to 32 bit words
-	uint32_t *write_buf_32 = (uint32_t *)this->write_buf_;
-
-
-	pio_sm_put_blocking(this->pio_, this->sm_, *(write_buf_32));
+	// assemble bits in buffer to 32 bit words with 0bGGGGGGGGRRRRRRRRBBBBBBBB
+	for (int i = 0; i < this->num_leds_; i++) {
+		uint8_t r = this->write_buf_[(i * 3) + 0];
+		uint8_t g = this->write_buf_[(i * 3) + 1];
+		uint8_t b = this->write_buf_[(i * 3) + 2];
+		uint32_t grb = (g << 16) | (r << 8) | b;
+		ESP_LOGVV(TAG, "Writing 0x%08x to LED %d", grb, i);
+		pio_sm_put_blocking(this->pio_, this->sm_, grb);
+	}
 }
 
 light::ESPColorView RP2040PIOLEDStripLightOutput::get_view_internal(int32_t index) const {
