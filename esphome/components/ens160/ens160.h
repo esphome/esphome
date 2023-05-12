@@ -29,13 +29,12 @@ class ENS160Component : public PollingComponent, public i2c::I2CDevice, public s
   void reset_();
 
   enum ErrorCode {
-    UNKNOWN,
+    NONE = 0,
     COMMUNICATION_FAILED,
     INVALID_ID,
-    SENSOR_REPORTED_ERROR,
     VALIDITY_INVALID_OUTPUT,
     STANDARD_OPMODE_FAILED,
-  } error_code_{UNKNOWN};
+  } error_code_{NONE};
   
   enum ValidityFlag {
     NORMAL_OPERATION = 0,
