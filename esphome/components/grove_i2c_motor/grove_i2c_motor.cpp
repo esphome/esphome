@@ -38,7 +38,6 @@ bool GroveMotorDriveTB6612FNG::standby() {
     this->status_set_warning();
     return false;
   }
-  delayMicroseconds(1000);
   return true;
 }
 
@@ -49,7 +48,6 @@ bool GroveMotorDriveTB6612FNG::not_standby() {
     this->status_set_warning();
     return false;
   }
-  delayMicroseconds(1000);
   return true;
 }
 
@@ -62,7 +60,6 @@ void GroveMotorDriveTB6612FNG::set_i2c_addr(uint8_t addr) {
     this->status_set_warning();
     return;
   }
-  delayMicroseconds(100000);
   this->set_i2c_address(addr);
 }
 
@@ -93,7 +90,6 @@ void GroveMotorDriveTB6612FNG::dc_motor_run(uint8_t chl, int16_t speed) {
       return;
     }
   }
-  delayMicroseconds(100000);
 }
 
 void GroveMotorDriveTB6612FNG::dc_motor_brake(uint8_t chl) {
@@ -102,8 +98,6 @@ void GroveMotorDriveTB6612FNG::dc_motor_brake(uint8_t chl) {
     this->status_set_warning();
     return;
   }
-
-  delayMicroseconds(100000);
 }
 
 void GroveMotorDriveTB6612FNG::dc_motor_stop(uint8_t chl) {
@@ -112,8 +106,6 @@ void GroveMotorDriveTB6612FNG::dc_motor_stop(uint8_t chl) {
     this->status_set_warning();
     return;
   }
-
-  delayMicroseconds(100000);
 }
 
 void GroveMotorDriveTB6612FNG::stepper_run(StepperModeTypeT mode, int16_t steps, uint16_t rpm) {
@@ -153,7 +145,6 @@ void GroveMotorDriveTB6612FNG::stepper_run(StepperModeTypeT mode, int16_t steps,
     this->status_set_warning();
     return;
   }
-  delayMicroseconds(100000);
 }
 
 void GroveMotorDriveTB6612FNG::stepper_stop() {
@@ -162,7 +153,6 @@ void GroveMotorDriveTB6612FNG::stepper_stop() {
     this->status_set_warning();
     return;
   }
-  delayMicroseconds(100000);
 }
 
 void GroveMotorDriveTB6612FNG::stepper_keep_run(StepperModeTypeT mode, uint16_t rpm, bool is_cw) {
@@ -188,7 +178,6 @@ void GroveMotorDriveTB6612FNG::stepper_keep_run(StepperModeTypeT mode, uint16_t 
     this->status_set_warning();
     return;
   }
-  delayMicroseconds(100000);
 }
 }  // namespace grove_i2c_motor
 }  // namespace esphome
