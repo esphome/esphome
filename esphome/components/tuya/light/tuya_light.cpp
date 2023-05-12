@@ -95,7 +95,7 @@ void TuyaLight::setup() {
   }
 
   if (min_value_datapoint_id_.has_value()) {
-    parent_->set_integer_datapoint_value(*this->min_value_datapoint_id_, this->min_value_);
+    this->parent_->set_integer_datapoint_value(*this->min_value_datapoint_id_, this->min_value_);
   }
 }
 
@@ -164,7 +164,7 @@ void TuyaLight::write_state(light::LightState *state) {
   }
 
   if (!state->current_values.is_on() && this->switch_id_.has_value()) {
-    parent_->set_boolean_datapoint_value(*this->switch_id_, false);
+    this->parent_->set_boolean_datapoint_value(*this->switch_id_, false);
     return;
   }
 
@@ -174,14 +174,14 @@ void TuyaLight::write_state(light::LightState *state) {
       if (this->color_temperature_invert_) {
         color_temp_int = this->color_temperature_max_value_ - color_temp_int;
       }
-      parent_->set_integer_datapoint_value(*this->color_temperature_id_, color_temp_int);
+      this->parent_->set_integer_datapoint_value(*this->color_temperature_id_, color_temp_int);
     }
 
     if (this->dimmer_id_.has_value()) {
       auto brightness_int = static_cast<uint32_t>(brightness * this->max_value_);
       brightness_int = std::max(brightness_int, this->min_value_);
 
-      parent_->set_integer_datapoint_value(*this->dimmer_id_, brightness_int);
+      this->parent_->set_integer_datapoint_value(*this->dimmer_id_, brightness_int);
     }
   }
 
@@ -214,11 +214,11 @@ void TuyaLight::write_state(light::LightState *state) {
         break;
       }
     }
-    parent_->set_string_datapoint_value(*this->color_id_, color_value);
+    this->parent_->set_string_datapoint_value(*this->color_id_, color_value);
   }
 
   if (this->switch_id_.has_value()) {
-    parent_->set_boolean_datapoint_value(*this->switch_id_, true);
+    this->parent_->set_boolean_datapoint_value(*this->switch_id_, true);
   }
 }
 
