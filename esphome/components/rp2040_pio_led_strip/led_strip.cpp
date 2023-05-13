@@ -60,13 +60,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
 		this->mark_failed();
 		return;
   	}
-
-	//calculate the clock divider to get the desired refresh rate
-	if (this->max_refresh_rate_ == 0)
-		this->max_refresh_rate_ = 1;
-	float divider = clock_get_hz(clk_sys) / this->max_refresh_rate_;
-
-  	rp2040_pio_program_init(this->pio_, this->sm_, offset, this->pin_, divider);
+  	rp2040_pio_program_init(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {

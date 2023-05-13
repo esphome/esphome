@@ -27,14 +27,14 @@ static const uint16_t rp2040_pio_led_strip_driver_program_instructions[] = {
     0xbd42, //  7: nop                           [29]
     0xb342, //  8: nop                           [19]
     0x0002, //  9: jmp    2                          
-    0xf301, // 10: set    pins, 1                [19]
+    0xf601, // 10: set    pins, 1                [22]
     0xfd00, // 11: set    pins, 0                [29]
-    0xa942, // 12: nop                           [9] 
+    0xaf42, // 12: nop                           [15]
     0x0082, // 13: jmp    y--, 2                     
     0x0000, // 14: jmp    0                          
     0xfd01, // 15: set    pins, 1                [29]
-    0xa942, // 16: nop                           [9] 
-    0xf300, // 17: set    pins, 0                [19]
+    0xaf42, // 16: nop                           [15]
+    0xf600, // 17: set    pins, 0                [22]
     0x0082, // 18: jmp    y--, 2                     
     0x0000, // 19: jmp    0                          
             //     .wrap
@@ -61,8 +61,8 @@ static inline void rp2040_pio_program_init(PIO pio, uint sm, uint offset, uint p
     sm_config_set_set_pins(&c, pin, 1);
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
-    int cycles_per_bit = 60;
-    float div = (float)clock_get_hz(clk_sys) / (freq);
+    int cycles_per_bit = 69;
+    float div = 207.872
     sm_config_set_clkdiv(&c, div);
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);

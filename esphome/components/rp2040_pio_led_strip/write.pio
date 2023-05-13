@@ -1,9 +1,9 @@
 .program rp2040_pio_led_strip_driver
 
-.define T0H 20
-.define T0L 40
-.define T1H 40
-.define T1L 20
+.define T0H 23
+.define T0L 46
+.define T1H 46
+.define T1L 23
 .define RET 80
 
 .wrap_target
@@ -32,13 +32,13 @@ writezero:
     ; Write T0H and T0L bits to the output pin
     set pins, 1 [T0H - 1]
     set pins, 0 [30 - 1]
-    nop [10 - 1]
+    nop [16 - 1]
     jmp y--, mainloop
     jmp awaiting_data
 writeone:
     ; Write T1H and T1L bits to the output pin
     set pins, 1 [30 - 1]
-    nop [10 - 1]
+    nop [16 - 1]
     set pins, 0 [T1L - 1]
     jmp y--, mainloop
     jmp awaiting_data
@@ -59,8 +59,8 @@ static inline void rp2040_pio_program_init(PIO pio, uint sm, uint offset, uint p
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
-    int cycles_per_bit = 60;
-    float div = (float)clock_get_hz(clk_sys) / (freq);
+    int cycles_per_bit = 69;
+    float div = 207.872
     sm_config_set_clkdiv(&c, div);
     
     
