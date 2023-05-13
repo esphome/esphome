@@ -45,5 +45,8 @@ touchscreen:
   - platform: tt21100
     interrupt_pin: GPIO3
     reset_pin: GPIO48
-    button1:
-      name: "Button 1"
+
+binary_sensor:
+  - platform: tt21100
+    name: Home Button
+    index: 1
