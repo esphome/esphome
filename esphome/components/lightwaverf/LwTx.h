@@ -50,6 +50,10 @@ class LwTx {
   // Allws multiplying the gap period for creating very large gaps
   void lw_timer_stop();
 
+  const uint8_t EEPROM_ADDR_DEFAULT = 0;
+
+  int EEPROMaddr = EEPROM_ADDR_DEFAULT;
+
   // These set the pulse durationlws in ticks. ESP uses 330uSec base tick, else use 140uSec
   uint8_t tx_low_count = 3;    // total number of ticks in a low (990 uSec)
   uint8_t tx_high_count = 2;   // total number of ticks in a high (660 uSec)

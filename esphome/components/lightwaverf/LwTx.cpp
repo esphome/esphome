@@ -14,10 +14,6 @@
 namespace esphome {
 namespace lightwaverf {
 
-const uint8_t EEPROM_ADDR_DEFAULT = 0;
-
-static int EEPROMaddr = EEPROM_ADDR_DEFAULT;
-
 static const uint8_t TX_NIBBLE[] = {0xF6, 0xEE, 0xED, 0xEB, 0xDE, 0xDD, 0xDB, 0xBE,
                                     0xBD, 0xBB, 0xB7, 0x7E, 0x7D, 0x7B, 0x77, 0x6F};
 

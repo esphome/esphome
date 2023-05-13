@@ -3,8 +3,6 @@
 #ifdef USE_ESP8266
 
 #include "lightwaverf.h"
-#include "LwRx.h"
-#include "LwTx.h"
 
 namespace esphome {
 namespace lightwaverf {

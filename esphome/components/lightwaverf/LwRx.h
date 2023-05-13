@@ -43,14 +43,6 @@ static const uint8_t RX_STATE_MSGSTARTFOUND = 1;
 static const uint8_t RX_STATE_BYTESTARTFOUND = 2;
 static const uint8_t RX_STATE_GETBYTE = 3;
 
-// Pairing data
-static uint8_t rx_paircount = 0;
-static uint8_t rx_pairs[RX_MAXPAIRS][8];
-// set false to responds to all messages if no pairs set up
-static bool rx_pairEnforce = false;
-// set false to use Address, Room and Device in pairs, true just the Address part
-static bool rx_pairBaseOnly = false;
-
 // Gather stats for pulse widths (ave is x 16)
 static const uint16_t LWRX_STATSDFLT[RX_STAT_COUNT] = {5000, 0, 5000, 20000, 0, 2500, 4000, 0, 500};  // usigned int
 
@@ -93,6 +85,14 @@ class LwRx {
   static void rx_process_bits(LwRx *arg);
 
   int EEPROMaddr = EEPROM_ADDR_DEFAULT;
+
+  // Pairing data
+  uint8_t rx_paircount = 0;
+  uint8_t rx_pairs[RX_MAXPAIRS][8];
+  // set false to responds to all messages if no pairs set up
+  bool rx_pairEnforce = false;
+  // set false to use Address, Room and Device in pairs, true just the Address part
+  bool rx_pairBaseOnly = false;
 
   uint8_t rx_pairtimeout = 0;  // 100msec units
 
