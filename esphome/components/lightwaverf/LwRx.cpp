@@ -4,6 +4,8 @@
 //
 // Author: Bob Tidey (robert@tideys.net)
 
+#ifdef USE_ESP8266
+
 #include "LwRx.h"
 #include <cstring>
 
@@ -27,7 +29,7 @@ static const uint8_t RX_MSGLEN = 10;  // expected length of rx message
 static uint8_t rx_msg[RX_MSGLEN];  // raw message received
 static uint8_t rx_buf[RX_MSGLEN];  // message buffer during reception
 
-unsigned long rx_prev;  // time of previous interrupt in microseconds
+uint32_t rx_prev;  // time of previous interrupt in microseconds
 
 static bool rx_msgcomplete = false;  // set high when message available
 static bool rx_translate = true;     // Set false to get raw data
@@ -53,9 +55,9 @@ static bool rx_pairBaseOnly = false;
 // Repeat filters
 static uint8_t rx_repeats = 2;  // msg must be repeated at least this number of times
 static uint8_t rx_repeatcount = 0;
-static uint8_t rx_timeout = 20;             // reset repeat window after this in 100mSecs
-static unsigned long rx_prevpkttime = 0;    // last packet time in milliseconds
-static unsigned long rx_pairstarttime = 0;  // last msg time in milliseconds
+static uint8_t rx_timeout = 20;        // reset repeat window after this in 100mSecs
+static uint32_t rx_prevpkttime = 0;    // last packet time in milliseconds
+static uint32_t rx_pairstarttime = 0;  // last msg time in milliseconds
 
 // Gather stats for pulse widths (ave is x 16)
 static const uint16_t LWRX_STATSDFLT[RX_STAT_COUNT] = {5000, 0, 5000, 20000, 0, 2500, 4000, 0, 500};  // usigned int
@@ -69,7 +71,7 @@ static bool lwrx_stats_enable = true;
 
 void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
   uint8_t event = args->rx_pin_isr_.digital_read();  // start setting event to the current value
-  unsigned long curr = micros();                     // the current time in microseconds
+  uint32_t curr = micros();                          // the current time in microseconds
 
   uint16_t dur = (curr - rx_prev);  // unsigned int
   rx_prev = curr;
@@ -230,7 +232,7 @@ void LwRx::lwrx_settranslate(bool rxtranslate) { rx_translate = rxtranslate; }
 **/
 bool LwRx::lwrx_getmessage(uint8_t *buf, uint8_t len) {
   bool ret = true;
-  int16_t j = 0, k = 0;  // int
+  int16_t j = 0;  // int
   if (rx_msgcomplete && len <= RX_MSGLEN) {
     for (uint8_t i = 0; ret && i < RX_MSGLEN; i++) {
       if (rx_translate || (len != RX_MSGLEN)) {
@@ -517,3 +519,4 @@ void LwRx::restore_eeprom_pairing_() {
 
 }  // namespace lightwaverf
 }  // namespace esphome
+#endif

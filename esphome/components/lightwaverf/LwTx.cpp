@@ -3,6 +3,8 @@
 // LightwaveRF 434MHz tx interface for Arduino
 //
 // Author: Bob Tidey (robert@tideys.net)
+#ifdef USE_ESP8266
+
 #include "LwTx.h"
 #include <cstring>
 #include <core_esp8266_timer.cpp>
@@ -20,19 +22,19 @@ static uint8_t tx_nibble[] = {0xF6, 0xEE, 0xED, 0xEB, 0xDE, 0xDD, 0xDB, 0xBE,
                               0xBD, 0xBB, 0xB7, 0x7E, 0x7D, 0x7B, 0x77, 0x6F};
 
 #
-static const uint8_t tx_state_idle = 0;
-static const uint8_t tx_state_msgstart = 1;
-static const uint8_t tx_state_bytestart = 2;
-static const uint8_t tx_state_sendbyte = 3;
-static const uint8_t tx_state_msgend = 4;
-static const uint8_t tx_state_gapstart = 5;
-static const uint8_t tx_state_gapend = 6;
+static const uint8_t TX_STATE_IDLE = 0;
+static const uint8_t TX_STATE_MSGSTART = 1;
+static const uint8_t TX_STATE_BYTESTART = 2;
+static const uint8_t TX_STATE_SENDBYTE = 3;
+static const uint8_t TX_STATE_MSGEND = 4;
+static const uint8_t TX_STATE_GAPSTART = 5;
+static const uint8_t TX_STATE_GAPEND = 6;
 /**
   Set translate mode
 **/
 void LwTx::lwtx_settranslate(bool txtranslate) { tx_translate = txtranslate; }
 
-static void IRAM_ATTR isrTXtimer(LwTx *arg) {
+static void IRAM_ATTR isr_t_xtimer(LwTx *arg) {
   // Set low after toggle count interrupts
   arg->tx_toggle_count--;
   if (arg->tx_toggle_count == arg->tx_trail_count) {
@@ -41,23 +43,23 @@ static void IRAM_ATTR isrTXtimer(LwTx *arg) {
   } else if (arg->tx_toggle_count == 0) {
     arg->tx_toggle_count = arg->tx_high_count;  // default high pulse duration
     switch (arg->tx_state) {
-      case tx_state_idle:
+      case TX_STATE_IDLE:
         if (arg->tx_msg_active) {
           arg->tx_repeat = 0;
-          arg->tx_state = tx_state_msgstart;
+          arg->tx_state = TX_STATE_MSGSTART;
         }
         break;
-      case tx_state_msgstart:
+      case TX_STATE_MSGSTART:
         arg->tx_pin->digital_write(arg->txon);
         arg->tx_num_bytes = 0;
-        arg->tx_state = tx_state_bytestart;
+        arg->tx_state = TX_STATE_BYTESTART;
         break;
-      case tx_state_bytestart:
+      case TX_STATE_BYTESTART:
         arg->tx_pin->digital_write(arg->txon);
         arg->tx_bit_mask = 0x80;
-        arg->tx_state = tx_state_sendbyte;
+        arg->tx_state = TX_STATE_SENDBYTE;
         break;
-      case tx_state_sendbyte:
+      case TX_STATE_SENDBYTE:
         if (arg->tx_buf[arg->tx_num_bytes] & arg->tx_bit_mask) {
           arg->tx_pin->digital_write(arg->txon);
         } else {
@@ -67,35 +69,35 @@ static void IRAM_ATTR isrTXtimer(LwTx *arg) {
         arg->tx_bit_mask >>= 1;
         if (arg->tx_bit_mask == 0) {
           arg->tx_num_bytes++;
-          if (arg->tx_num_bytes >= arg->TX_MSGLEN) {
-            arg->tx_state = tx_state_msgend;
+          if (arg->tx_num_bytes >= esphome::lightwaverf::LwTx::TX_MSGLEN) {
+            arg->tx_state = TX_STATE_MSGEND;
           } else {
-            arg->tx_state = tx_state_bytestart;
+            arg->tx_state = TX_STATE_BYTESTART;
           }
         }
         break;
-      case tx_state_msgend:
+      case TX_STATE_MSGEND:
         arg->tx_pin->digital_write(arg->txon);
-        arg->tx_state = tx_state_gapstart;
+        arg->tx_state = TX_STATE_GAPSTART;
         arg->tx_gap_repeat = arg->tx_gap_multiplier;
         break;
-      case tx_state_gapstart:
+      case TX_STATE_GAPSTART:
         arg->tx_toggle_count = arg->tx_gap_count;
         if (arg->tx_gap_repeat == 0) {
-          arg->tx_state = tx_state_gapend;
+          arg->tx_state = TX_STATE_GAPEND;
         } else {
           arg->tx_gap_repeat--;
         }
         break;
-      case tx_state_gapend:
+      case TX_STATE_GAPEND:
         arg->tx_repeat++;
         if (arg->tx_repeat >= arg->tx_repeats) {
           // disable timer nterrupt
           arg->lw_timer_stop();
           arg->tx_msg_active = false;
-          arg->tx_state = tx_state_idle;
+          arg->tx_state = TX_STATE_IDLE;
         } else {
-          arg->tx_state = tx_state_msgstart;
+          arg->tx_state = TX_STATE_MSGSTART;
         }
         break;
     }
@@ -126,7 +128,7 @@ void LwTx::lwtx_send(const std::vector<uint8_t> &msg) {
 /**
   Set 5 char address for future messages
 **/
-void LwTx::lwtx_setaddr(uint8_t *addr) {
+void LwTx::lwtx_setaddr(const uint8_t *addr) {
   for (uint8_t i = 0; i < 5; i++) {
     tx_buf[i + 4] = tx_nibble[addr[i] & 0xF];
 #if EEPROM_EN
@@ -207,7 +209,7 @@ void LwTx::lw_timer_start() {
   {
     InterruptLock lock;
     static LwTx *arg = this;
-    timer1_attachInterrupt([] { isrTXtimer(arg); });
+    timer1_attachInterrupt([] { isr_t_xtimer(arg); });
     timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
     timer1_write(espPeriod);
   }
@@ -223,3 +225,4 @@ void LwTx::lw_timer_stop() {
 
 }  // namespace lightwaverf
 }  // namespace esphome
+#endif

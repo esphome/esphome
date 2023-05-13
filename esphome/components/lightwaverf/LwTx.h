@@ -36,7 +36,7 @@ class LwTx {
   void lwtx_send(const std::vector<uint8_t> &msg);
 
   // Sets up 5 char address which will be used to form messages for lwtx_cmd
-  void lwtx_setaddr(uint8_t *addr);
+  void lwtx_setaddr(const uint8_t *addr);
 
   // Send Command
   void lwtx_cmd(uint8_t command, uint8_t parameter, uint8_t room, uint8_t device);

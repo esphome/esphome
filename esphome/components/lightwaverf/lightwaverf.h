@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP8266
+
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
@@ -73,3 +75,4 @@ template<typename... Ts> class SendRawAction : public Action<Ts...> {
 #endif
 }  // namespace lightwaverf
 }  // namespace esphome
+#endif
