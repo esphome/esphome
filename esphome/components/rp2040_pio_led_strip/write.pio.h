@@ -62,7 +62,7 @@ static inline void rp2040_pio_program_init(PIO pio, uint sm, uint offset, uint p
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
     int cycles_per_bit = 69;
-    float div = 207.872;
+    float div = 208.0;
     sm_config_set_clkdiv(&c, div);
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
