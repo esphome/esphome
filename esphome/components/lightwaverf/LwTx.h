@@ -18,7 +18,7 @@ static const uint8_t TX_PIN_DEFAULT = 13;
 class LwTx {
  public:
   // Sets up basic parameters must be called at least once
-  void lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, uint8_t invert, int u_sec);
+  void lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, bool inverted, int u_sec);
 
   // Allows changing basic tick counts from their defaults
   void lwtx_set_tick_counts(uint8_t low_count, uint8_t high_count, uint8_t trail_count, uint8_t gap_count);

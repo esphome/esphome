@@ -34,7 +34,7 @@ class LightWaveRF : public PollingComponent {
   void setup() override;
   void dump_config() override;
   void read_tx();
-  void send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, uint8_t invert, int u_sec);
+  void send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, bool inverted, int u_sec);
 
  protected:
   void print_msg_(uint8_t *msg, uint8_t len);
