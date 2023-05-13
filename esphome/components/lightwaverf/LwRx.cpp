@@ -52,13 +52,6 @@ static bool rx_pairEnforce = false;
 // set false to use Address, Room and Device in pairs, true just the Address part
 static bool rx_pairBaseOnly = false;
 
-// Repeat filters
-static uint8_t rx_repeats = 2;  // msg must be repeated at least this number of times
-static uint8_t rx_repeatcount = 0;
-static uint8_t rx_timeout = 20;        // reset repeat window after this in 100mSecs
-static uint32_t rx_prevpkttime = 0;    // last packet time in milliseconds
-static uint32_t rx_pairstarttime = 0;  // last msg time in milliseconds
-
 // Gather stats for pulse widths (ave is x 16)
 static const uint16_t LWRX_STATSDFLT[RX_STAT_COUNT] = {5000, 0, 5000, 20000, 0, 2500, 4000, 0, 500};  // usigned int
 static uint16_t lwrx_stats[RX_STAT_COUNT];                                                            // unsigned int
@@ -171,10 +164,10 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
         rx_num_bytes++;
         rx_num_bits = 0;
         if (rx_num_bytes >= RX_MSGLEN) {
-          unsigned long curr_millis = millis();
-          if (rx_repeats > 0) {
-            if ((curr_millis - rx_prevpkttime) / 100 > rx_timeout) {
-              rx_repeatcount = 1;
+          uint32_t curr_millis = millis();
+          if (args->rx_repeats > 0) {
+            if ((curr_millis - args->rx_prevpkttime) / 100 > args->rx_timeout) {
+              args->rx_repeatcount = 1;
             } else {
               // Test message same as last one
               int16_t i = RX_MSGLEN;  // int
@@ -182,20 +175,20 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
                 i--;
               } while ((i >= 0) && (rx_msg[i] == rx_buf[i]));
               if (i < 0) {
-                rx_repeatcount++;
+                args->rx_repeatcount++;
               } else {
-                rx_repeatcount = 1;
+                args->rx_repeatcount = 1;
               }
             }
           } else {
-            rx_repeatcount = 0;
+            args->rx_repeatcount = 0;
           }
-          rx_prevpkttime = curr_millis;
+          args->rx_prevpkttime = curr_millis;
           // If last message hasn't been read it gets overwritten
           memcpy(rx_msg, rx_buf, RX_MSGLEN);
-          if (rx_repeats == 0 || rx_repeatcount == rx_repeats) {
+          if (args->rx_repeats == 0 || args->rx_repeatcount == args->rx_repeats) {
             if (rx_pairtimeout != 0) {
-              if ((curr_millis - rx_pairstarttime) / 100 <= rx_pairtimeout) {
+              if ((curr_millis - args->rx_pairstarttime) / 100 <= rx_pairtimeout) {
                 if (rx_msg[3] == RX_CMD_ON) {
                   args->rx_addpairfrommsg_();
                 } else if (rx_msg[3] == RX_CMD_OFF) {

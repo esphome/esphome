@@ -63,6 +63,12 @@ class LwRx {
   uint32_t lwrx_packetinterval();
 
   static void rx_process_bits(LwRx *arg);
+  // Repeat filters
+  uint8_t rx_repeats = 2;  // msg must be repeated at least this number of times
+  uint8_t rx_repeatcount = 0;
+  uint8_t rx_timeout = 20;        // reset repeat window after this in 100mSecs
+  uint32_t rx_prevpkttime = 0;    // last packet time in milliseconds
+  uint32_t rx_pairstarttime = 0;  // last msg time in milliseconds
 
  protected:
   void lwrx_clearpairing_();

@@ -18,8 +18,8 @@ const uint8_t EEPROM_ADDR_DEFAULT = 0;
 
 static int EEPROMaddr = EEPROM_ADDR_DEFAULT;
 
-static uint8_t tx_nibble[] = {0xF6, 0xEE, 0xED, 0xEB, 0xDE, 0xDD, 0xDB, 0xBE,
-                              0xBD, 0xBB, 0xB7, 0x7E, 0x7D, 0x7B, 0x77, 0x6F};
+static const uint8_t tx_nibble[] = {0xF6, 0xEE, 0xED, 0xEB, 0xDE, 0xDD, 0xDB, 0xBE,
+                                    0xBD, 0xBB, 0xB7, 0x7E, 0x7D, 0x7B, 0x77, 0x6F};
 
 #
 static const uint8_t TX_STATE_IDLE = 0;
@@ -154,7 +154,7 @@ void LwTx::lwtx_cmd(uint8_t command, uint8_t parameter, uint8_t room, uint8_t de
 /**
   Set things up to transmit LightWaveRF 434Mhz messages
 **/
-void LwTx::lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, uint8_t invert, int period) {
+void LwTx::lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, uint8_t invert, int u_sec) {
 #if EEPROM_EN
   for (int i = 0; i < 5; i++) {
     this->tx_buf[i + 4] = EEPROM.read(this->EEPROMaddr + i);
