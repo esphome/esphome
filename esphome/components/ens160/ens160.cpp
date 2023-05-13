@@ -23,27 +23,27 @@ static const uint8_t ENS160_REG_OPMODE = 0x10;
 static const uint8_t ENS160_REG_CONFIG = 0x11;
 static const uint8_t ENS160_REG_COMMAND = 0x12;
 static const uint8_t ENS160_REG_TEMP_IN = 0x13;
-static const uint8_t ENS160_REG_RH_IN = 0x15;
+//static const uint8_t ENS160_REG_RH_IN = 0x15;
 static const uint8_t ENS160_REG_DATA_STATUS = 0x20;
 static const uint8_t ENS160_REG_DATA_AQI = 0x21;
 static const uint8_t ENS160_REG_DATA_TVOC = 0x22;
 static const uint8_t ENS160_REG_DATA_ECO2 = 0x24;
-static const uint8_t ENS160_REG_DATA_BL = 0x28;
-static const uint8_t ENS160_REG_DATA_T = 0x30;
-static const uint8_t ENS160_REG_DATA_RH = 0x32;
-static const uint8_t ENS160_REG_DATA_MISR = 0x38;
-static const uint8_t ENS160_REG_GPR_WRITE_0 = 0x40;
-static const uint8_t ENS160_REG_GPR_WRITE_1 = ENS160_REG_GPR_WRITE_0 + 1;
-static const uint8_t ENS160_REG_GPR_WRITE_2 = ENS160_REG_GPR_WRITE_0 + 2;
-static const uint8_t ENS160_REG_GPR_WRITE_3 = ENS160_REG_GPR_WRITE_0 + 3;
-static const uint8_t ENS160_REG_GPR_WRITE_4 = ENS160_REG_GPR_WRITE_0 + 4;
-static const uint8_t ENS160_REG_GPR_WRITE_5 = ENS160_REG_GPR_WRITE_0 + 5;
-static const uint8_t ENS160_REG_GPR_WRITE_6 = ENS160_REG_GPR_WRITE_0 + 6;
-static const uint8_t ENS160_REG_GPR_WRITE_7 = ENS160_REG_GPR_WRITE_0 + 7;
+//static const uint8_t ENS160_REG_DATA_BL = 0x28;
+//static const uint8_t ENS160_REG_DATA_T = 0x30;
+//static const uint8_t ENS160_REG_DATA_RH = 0x32;
+//static const uint8_t ENS160_REG_DATA_MISR = 0x38;
+// const uint8_t ENS160_REG_GPR_WRITE_0 = 0x40;
+//static const uint8_t ENS160_REG_GPR_WRITE_1 = ENS160_REG_GPR_WRITE_0 + 1;
+//static const uint8_t ENS160_REG_GPR_WRITE_2 = ENS160_REG_GPR_WRITE_0 + 2;
+//static const uint8_t ENS160_REG_GPR_WRITE_3 = ENS160_REG_GPR_WRITE_0 + 3;
+//static const uint8_t ENS160_REG_GPR_WRITE_4 = ENS160_REG_GPR_WRITE_0 + 4;
+//static const uint8_t ENS160_REG_GPR_WRITE_5 = ENS160_REG_GPR_WRITE_0 + 5;
+//static const uint8_t ENS160_REG_GPR_WRITE_6 = ENS160_REG_GPR_WRITE_0 + 6;
+//static const uint8_t ENS160_REG_GPR_WRITE_7 = ENS160_REG_GPR_WRITE_0 + 7;
 static const uint8_t ENS160_REG_GPR_READ_0 = 0x48;
 static const uint8_t ENS160_REG_GPR_READ_4 = ENS160_REG_GPR_READ_0 + 4;
-static const uint8_t ENS160_REG_GPR_READ_6 = ENS160_REG_GPR_READ_0 + 6;
-static const uint8_t ENS160_REG_GPR_READ_7 = ENS160_REG_GPR_READ_0 + 7;
+//static const uint8_t ENS160_REG_GPR_READ_6 = ENS160_REG_GPR_READ_0 + 6;
+//static const uint8_t ENS160_REG_GPR_READ_7 = ENS160_REG_GPR_READ_0 + 7;
 
 static const uint8_t ENS160_COMMAND_NOP = 0x00;
 static const uint8_t ENS160_COMMAND_CLRGPR = 0xCC;
@@ -55,8 +55,8 @@ static const uint8_t ENS160_OPMODE_STD = 0x02;
 
 static const uint8_t ENS160_DATA_STATUS_STATAS = 0x80;
 static const uint8_t ENS160_DATA_STATUS_STATER = 0x40;
-static const uint8_t ENS160_DATA_STATUS_RESERVED_B = 0x20;
-static const uint8_t ENS160_DATA_STATUS_RESERVED_A = 0x10;
+//static const uint8_t ENS160_DATA_STATUS_RESERVED_B = 0x20;
+//static const uint8_t ENS160_DATA_STATUS_RESERVED_A = 0x10;
 static const uint8_t ENS160_DATA_STATUS_VALIDITY_FLAG = 0x0C;
 static const uint8_t ENS160_DATA_STATUS_NEWDAT = 0x02;
 static const uint8_t ENS160_DATA_STATUS_NEWGPR = 0x01;
@@ -196,20 +196,20 @@ void ENS160Component::update() {
   switch (validity_flag_) {
     case NORMAL_OPERATION:
       if (data_ready != ENS160_DATA_STATUS_NEWDAT) {
-        ESP_LOGD(TAG, "ENS160 Sensor readings not available yet - Normal Operation but readings not ready"); 
+        ESP_LOGD(TAG, "ENS160 readings unavailable - Normal Operation but readings not ready"); 
         return;
       }
       break;
     case INITIAL_STARTUP:
       if (!this->initial_startup_) {
         this->initial_startup_ = true;
-        ESP_LOGI(TAG, "ENS160 Sensor readings not available yet - Initial Start up requires 1 hour after first power on");
+        ESP_LOGI(TAG, "ENS160 readings unavailable - 1 hour startup required after first power on");
       }
       return;
     case WARMING_UP:
       if (!this->warming_up_) {
         this->warming_up_ = true;
-        ESP_LOGI(TAG, "ENS160 Sensor readings not available yet - Warming up requires 3 minutes");
+        ESP_LOGI(TAG, "ENS160 readings not available yet - Warming up requires 3 minutes");
         this->send_env_data_();
       }
       return;
@@ -307,7 +307,8 @@ void ENS160Component::dump_config() {
       ESP_LOGD(TAG, "Setup successful");
       break;
   }
-  ESP_LOGD(TAG,"Firmware Version: %d.%d.%d", this->firmware_ver_major_,this->firmware_ver_minor_,this->firmware_ver_build_);
+  ESP_LOGD(TAG,"Firmware Version: %d.%d.%d", 
+               this->firmware_ver_major_,this->firmware_ver_minor_,this->firmware_ver_build_);
   
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
