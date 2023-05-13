@@ -149,7 +149,7 @@ void LwTx::lwtx_cmd(uint8_t command, uint8_t parameter, uint8_t room, uint8_t de
 /**
   Set things up to transmit LightWaveRF 434Mhz messages
 **/
-void LwTx::lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, uint8_t invert, int u_sec) {
+void LwTx::lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, bool inverted, int u_sec) {
 #if EEPROM_EN
   for (int i = 0; i < 5; i++) {
     this->tx_buf[i + 4] = EEPROM.read(this->EEPROMaddr + i);
@@ -160,13 +160,12 @@ void LwTx::lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, uint8_t invert, int
   tx_pin = pin;
 
   tx_pin->pin_mode(gpio::FLAG_OUTPUT);
-  ESP_LOGD("aaa", "pin %i", tx_pin->get_pin());
   tx_pin->digital_write(txoff);
 
   if (repeats > 0 && repeats < 40) {
     tx_repeats = repeats;
   }
-  if (invert != 0) {
+  if (inverted) {
     txon = 0;
     txoff = 1;
   } else {
