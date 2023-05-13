@@ -10,7 +10,7 @@ namespace lightwaverf {
 static const char *const TAG = "lightwaverf.sensor";
 
 static const uint8_t DEFAULT_REPEAT = 10;
-static const uint8_t DEFAULT_INVERT = 0;
+static const bool DEFAULT_INVERT = false;
 static const uint32_t DEFAULT_TICK = 330;
 
 void LightWaveRF::setup() {
@@ -33,8 +33,8 @@ void LightWaveRF::read_tx() {
   }
 }
 
-void LightWaveRF::send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, uint8_t invert, int u_sec) {
-  this->lwtx_.lwtx_setup(pin_tx_, 10, 0, 330);
+void LightWaveRF::send_rx(const std::vector<uint8_t> &msg, uint8_t repeats, bool inverted, int u_sec) {
+  this->lwtx_.lwtx_setup(pin_tx_, repeats, inverted, u_sec);
 
   uint32_t timeout = 0;
   if (this->lwtx_.lwtx_free()) {
