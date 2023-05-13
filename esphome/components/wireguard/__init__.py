@@ -1,6 +1,11 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.const import CONF_ID, CONF_TIME_ID, CONF_ADDRESS
+from esphome.const import (
+    CONF_ID,
+    CONF_TIME_ID,
+    CONF_ADDRESS,
+    CONF_REBOOT_TIMEOUT,
+)
 from esphome.components import time
 
 CONF_NETMASK = "netmask"
@@ -29,6 +34,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PEER_PORT, default=51820): cv.port,
         cv.Optional(CONF_PEER_PRESHARED_KEY): cv.string,
         cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default=0): cv.positive_int,
+        cv.Optional(
+            CONF_REBOOT_TIMEOUT, default="15min"
+        ): cv.positive_time_period_seconds,
     }
 ).extend(cv.polling_component_schema("10s"))
 
@@ -47,6 +55,7 @@ async def to_code(config):
         cg.add(var.set_preshared_key(config[CONF_PEER_PRESHARED_KEY]))
 
     cg.add(var.set_keepalive(config[CONF_PEER_PERSISTENT_KEEPALIVE]))
+    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
 
     cg.add_library("droscy/esp_wireguard", "0.1.0")

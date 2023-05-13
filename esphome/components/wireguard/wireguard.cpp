@@ -2,6 +2,7 @@
 
 #include <ctime>
 #include <functional>
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esp_err.h"
 #include "esp_wireguard.h"
@@ -66,6 +67,14 @@ void Wireguard::update() {
         } else {
             ESP_LOGD(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
         }
+
+        // check reboot timeout every time the peer is down
+        if(lhs > 0 && this->reboot_timeout_ > 0) {
+            if(this->srctime_->utcnow().timestamp - lhs > this->reboot_timeout_) {
+                ESP_LOGE(TAG, "Remote WireGuard peer is unreachable, rebooting...");
+                App.reboot();
+            }
+        }
     }
 }
 
@@ -80,13 +89,15 @@ void Wireguard::dump_config() {
     ESP_LOGCONFIG(TAG, "  peer preshared key: %s%s",
             (this->preshared_key_.length() > 0 ? this->preshared_key_.substr(0,5).c_str() : "NOT IN USE"),
             (this->preshared_key_.length() > 0 ? "[...]=" : ""));
-    ESP_LOGCONFIG(TAG, "  peer persistent keepalive: %d%s", this->keepalive_, (this->keepalive_ > 0 ? "s": " (DISABLED)"));
+    ESP_LOGCONFIG(TAG, "  peer persistent keepalive: %d%s", this->keepalive_, (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
+    ESP_LOGCONFIG(TAG, "  reboot timeout: %d%s", this->reboot_timeout_, (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
 }
 
 void Wireguard::on_shutdown() {
     if(this->wg_initialized_ == ESP_OK && this->wg_connected_ == ESP_OK) {
         ESP_LOGD(TAG, "stopping WireGuard connection...");
         esp_wireguard_disconnect(&(this->wg_ctx_));
+        this->wg_connected_ = ESP_FAIL;
     }
 }
 
@@ -127,6 +138,7 @@ void Wireguard::set_peer_port(const uint16_t port) { this->peer_port_ = port; }
 void Wireguard::set_preshared_key(const std::string& key) { this->preshared_key_ = std::move(key); }
 
 void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
+void Wireguard::set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock* srctime) { this->srctime_ = srctime; }
 
 void Wireguard::start_connection_() {

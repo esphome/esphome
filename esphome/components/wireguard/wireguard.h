@@ -26,6 +26,7 @@ class Wireguard : public PollingComponent {
   void set_preshared_key(const std::string& key);
 
   void set_keepalive(uint16_t seconds);
+  void set_reboot_timeout(uint32_t seconds);
   void set_srctime(time::RealTimeClock* srctime);
 
   bool is_peer_up() const;
@@ -41,6 +42,7 @@ class Wireguard : public PollingComponent {
   uint16_t peer_port_;
 
   uint16_t keepalive_;
+  uint32_t reboot_timeout_;
   time::RealTimeClock* srctime_;
 
   wireguard_config_t wg_config_ = ESP_WIREGUARD_CONFIG_DEFAULT();
