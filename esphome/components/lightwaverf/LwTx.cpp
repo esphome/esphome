@@ -7,7 +7,7 @@
 
 #include "LwTx.h"
 #include <cstring>
-#include <core_esp8266_timer.cpp>
+#include <core_esp8266_timer.cpp>  // NOLINT
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
@@ -17,7 +17,6 @@ namespace lightwaverf {
 static const uint8_t TX_NIBBLE[] = {0xF6, 0xEE, 0xED, 0xEB, 0xDE, 0xDD, 0xDB, 0xBE,
                                     0xBD, 0xBB, 0xB7, 0x7E, 0x7D, 0x7B, 0x77, 0x6F};
 
-#
 static const uint8_t TX_STATE_IDLE = 0;
 static const uint8_t TX_STATE_MSGSTART = 1;
 static const uint8_t TX_STATE_BYTESTART = 2;
@@ -204,7 +203,7 @@ void LwTx::lwtx_set_eepro_maddr(int addr) { EEPROMaddr = addr; }
 void LwTx::lw_timer_start() {
   {
     InterruptLock lock;
-    static LwTx *arg = this;
+    static LwTx *arg = this;  // NOLINT
     timer1_attachInterrupt([] { isr_t_xtimer(arg); });
     timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
     timer1_write(espPeriod);
