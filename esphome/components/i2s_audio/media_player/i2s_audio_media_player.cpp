@@ -22,13 +22,13 @@ void I2SAudioMediaPlayer::control(const media_player::MediaPlayerCall &call) {
       this->start();
     }
   }
-  if (this->i2s_state_ != I2S_STATE_RUNNING) {
-    return;
-  }
   if (call.get_volume().has_value()) {
     this->volume = call.get_volume().value();
     this->set_volume_(volume);
     this->unmute_();
+  }
+  if (this->i2s_state_ != I2S_STATE_RUNNING) {
+    return;
   }
   if (call.get_command().has_value()) {
     switch (call.get_command().value()) {
@@ -97,7 +97,8 @@ void I2SAudioMediaPlayer::unmute_() {
   this->muted_ = false;
 }
 void I2SAudioMediaPlayer::set_volume_(float volume, bool publish) {
-  this->audio_->setVolume(remap<uint8_t, float>(volume, 0.0f, 1.0f, 0, 21));
+  if (this->audio_ != nullptr)
+    this->audio_->setVolume(remap<uint8_t, float>(volume, 0.0f, 1.0f, 0, 21));
   if (publish)
     this->volume = volume;
 }
@@ -157,13 +158,23 @@ void I2SAudioMediaPlayer::start_() {
 #endif
   this->i2s_state_ = I2S_STATE_RUNNING;
   this->high_freq_.start();
+  this->audio_->setVolume(remap<uint8_t, float>(this->volume, 0.0f, 1.0f, 0, 21));
   if (this->current_url_.has_value()) {
     this->audio_->connecttohost(this->current_url_.value().c_str());
     this->state = media_player::MEDIA_PLAYER_STATE_PLAYING;
     this->publish_state();
   }
 }
-void I2SAudioMediaPlayer::stop() { this->i2s_state_ = I2S_STATE_STOPPING; }
+void I2SAudioMediaPlayer::stop() {
+  if (this->i2s_state_ == I2S_STATE_STOPPED) {
+    return;
+  }
+  if (this->i2s_state_ == I2S_STATE_STARTING) {
+    this->i2s_state_ = I2S_STATE_STOPPED;
+    return;
+  }
+  this->i2s_state_ = I2S_STATE_STOPPING;
+}
 void I2SAudioMediaPlayer::stop_() {
   if (this->audio_->isRunning()) {
     this->audio_->stopSong();
