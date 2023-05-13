@@ -18,7 +18,7 @@ const uint8_t EEPROM_ADDR_DEFAULT = 0;
 
 static int EEPROMaddr = EEPROM_ADDR_DEFAULT;
 
-static const uint8_t tx_nibble[] = {0xF6, 0xEE, 0xED, 0xEB, 0xDE, 0xDD, 0xDB, 0xBE,
+static const uint8_t TX_NIBBLE[] = {0xF6, 0xEE, 0xED, 0xEB, 0xDE, 0xDD, 0xDB, 0xBE,
                                     0xBD, 0xBB, 0xB7, 0x7E, 0x7D, 0x7B, 0x77, 0x6F};
 
 #
@@ -115,7 +115,7 @@ bool LwTx::lwtx_free() { return !tx_msg_active; }
 void LwTx::lwtx_send(const std::vector<uint8_t> &msg) {
   if (tx_translate) {
     for (uint8_t i = 0; i < TX_MSGLEN; i++) {
-      tx_buf[i] = tx_nibble[msg[i] & 0xF];
+      tx_buf[i] = TX_NIBBLE[msg[i] & 0xF];
       ESP_LOGD("lightwaverf.sensor", "%x ", msg[i]);
     }
   } else {
@@ -130,7 +130,7 @@ void LwTx::lwtx_send(const std::vector<uint8_t> &msg) {
 **/
 void LwTx::lwtx_setaddr(const uint8_t *addr) {
   for (uint8_t i = 0; i < 5; i++) {
-    tx_buf[i + 4] = tx_nibble[addr[i] & 0xF];
+    tx_buf[i + 4] = TX_NIBBLE[addr[i] & 0xF];
 #if EEPROM_EN
     EEPROM.write(EEPROMaddr + i, tx_buf[i + 4]);
 #endif
@@ -142,11 +142,11 @@ void LwTx::lwtx_setaddr(const uint8_t *addr) {
 **/
 void LwTx::lwtx_cmd(uint8_t command, uint8_t parameter, uint8_t room, uint8_t device) {
   // enable timer 2 interrupts
-  tx_buf[0] = tx_nibble[parameter >> 4];
-  tx_buf[1] = tx_nibble[parameter & 0xF];
-  tx_buf[2] = tx_nibble[device & 0xF];
-  tx_buf[3] = tx_nibble[command & 0xF];
-  tx_buf[9] = tx_nibble[room & 0xF];
+  tx_buf[0] = TX_NIBBLE[parameter >> 4];
+  tx_buf[1] = TX_NIBBLE[parameter & 0xF];
+  tx_buf[2] = TX_NIBBLE[device & 0xF];
+  tx_buf[3] = TX_NIBBLE[command & 0xF];
+  tx_buf[9] = TX_NIBBLE[room & 0xF];
   this->lw_timer_start();
   tx_msg_active = true;
 }
