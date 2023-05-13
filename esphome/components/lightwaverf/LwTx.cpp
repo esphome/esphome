@@ -7,7 +7,7 @@
 
 #include "LwTx.h"
 #include <cstring>
-#include <core_esp8266_timer.cpp>  // NOLINT
+#include <Arduino.h>
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
