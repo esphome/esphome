@@ -538,14 +538,17 @@ class Sprinkler : public Component {
   /// The valve run request that is currently active
   SprinklerValveRunRequest active_req_;
 
+  /// The next run request for the controller to consume after active_req_ is complete
+  SprinklerValveRunRequest next_req_;
+
+  /// The previous run request the controller processed
+  SprinklerValveRunRequest prev_req_;
+
   /// The number of the manually selected valve currently selected
   optional<size_t> manual_valve_;
 
   /// The number of the valve to resume from (if paused)
   optional<size_t> paused_valve_;
-
-  /// The next run request for the controller to consume after active_req_ is complete
-  SprinklerValveRunRequest next_req_;
 
   /// Set the number of times to repeat a full cycle
   optional<uint32_t> target_repeats_;
