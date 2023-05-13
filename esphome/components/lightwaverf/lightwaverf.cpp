@@ -20,11 +20,7 @@ void LightWaveRF::setup() {
   this->lwrx_.lwrx_setup(pin_rx_);
 }
 
-void LightWaveRF::update() {
-  ESP_LOGCONFIG(TAG, "update method ...");
-
-  this->read_tx();
-}
+void LightWaveRF::update() { this->read_tx(); }
 
 void LightWaveRF::read_tx() {
   if (this->lwrx_.lwrx_message()) {
