@@ -57,16 +57,13 @@ static const uint8_t ENS160_DATA_STATUS_STATAS = 0x80;
 static const uint8_t ENS160_DATA_STATUS_STATER = 0x40;
 static const uint8_t ENS160_DATA_STATUS_RESERVED_B = 0x20;
 static const uint8_t ENS160_DATA_STATUS_RESERVED_A = 0x10;
-static const uint8_t ENS160_DATA_STATUS_VALID_B = 0x08;
-static const uint8_t ENS160_DATA_STATUS_VALID_A = 0x04;
+static const uint8_t ENS160_DATA_STATUS_VALIDITY_FLAG = 0x0C;
 static const uint8_t ENS160_DATA_STATUS_NEWDAT = 0x02;
 static const uint8_t ENS160_DATA_STATUS_NEWGPR = 0x01;
 
-// helps extract operating state from status register 
-static const uint8_t ENS160_VALIDITY_FLAG_MASK = 0x0C;
 
 // helps remove reserved bits in aqi data register
-static const uint8_t ENS160_DATA_AQI_MASK = 0x07;
+static const uint8_t ENS160_DATA_AQI = 0x07;
 
 
 void ENS160Component::setup() {
@@ -74,7 +71,8 @@ void ENS160Component::setup() {
 
   // check part_id
   uint16_t part_id;
-  if (this->read_register(ENS160_REG_PART_ID, reinterpret_cast<uint8_t *>(&part_id), 2) != i2c::ERROR_OK) {
+  if (!this->read_bytes(ENS160_REG_PART_ID,reinterpret_cast<uint8_t *>(&part_id),2)) {
+  //if (this->read_register(ENS160_REG_PART_ID, reinterpret_cast<uint8_t *>(&part_id), 2) != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return; 	
@@ -95,13 +93,14 @@ void ENS160Component::setup() {
   delay(ENS160_BOOTING);
   
   // check status
-  uint8_t status;
-  if (!this->read_byte(ENS160_REG_DATA_STATUS,&status)) {
+  uint8_t status_value;
+  if (!this->read_byte(ENS160_REG_DATA_STATUS,&status_value)) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return; 
   }
-  this->validity_flag_ = static_cast<ValidityFlag>((status & ENS160_VALIDITY_FLAG_MASK) >> 2);
+  this->validity_flag_ = 
+    static_cast<ValidityFlag>((ENS160_DATA_STATUS_VALIDITY_FLAG & status_value) >> 2);
    
   if (this->validity_flag_ == INVALID_OUTPUT) {
     this->error_code_ = VALIDITY_INVALID_OUTPUT;
@@ -127,7 +126,6 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
-  delay(ENS160_BOOTING);
   
   // read firmware version
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_GET_APPVER)) {
@@ -135,16 +133,17 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
-  delay(ENS160_BOOTING);
   
-  auto version_data = this->read_bytes<3>(ENS160_REG_GPR_READ_4);
-  if (version_data.has_value()) {
-    this->firmware_ver_major_ = (*version_data)[0];
-    this->firmware_ver_minor_ = (*version_data)[1];
-    this->firmware_ver_build_ = (*version_data)[2];
-    //sprintf(this->firmware_version_, "major:%d minor:%d build:%d", fw_ver_major, fw_ver_minor, fw_ver_build);
+  uint8_t version_data[3];
+  if (!this->read_bytes(ENS160_REG_GPR_READ_4,version_data,3)) {
+    this->error_code_ = COMMUNICATION_FAILED;
+    this->mark_failed();
+    return; 
   }
-  //else sprintf(this->firmware_version_, "not available");
+  this->firmware_ver_major_ = version_data[0];
+  this->firmware_ver_minor_ = version_data[1];
+  this->firmware_ver_build_ = version_data[2];
+   
   
   // set mode to standard
   if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD)) {
@@ -179,22 +178,20 @@ void ENS160Component::update() {
   }
   
   // verbose status logging
-  ESP_LOGV(TAG, "Status Register value: %u", status_value);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATAS 0x%x",
+  ESP_LOGV(TAG, "Status: ENS160 STATAS bit    0x%x",
            (ENS160_DATA_STATUS_STATAS & (status_value)) == ENS160_DATA_STATUS_STATAS);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_STATER 0x%x",
+  ESP_LOGV(TAG, "Status: ENS160 STATER bit    0x%x",
            (ENS160_DATA_STATUS_STATER & (status_value)) == ENS160_DATA_STATUS_STATER);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_B 0x%x",
-           (ENS160_DATA_STATUS_VALID_B & (status_value)) == ENS160_DATA_STATUS_VALID_B);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_VALID_A 0x%x",
-           (ENS160_DATA_STATUS_VALID_A & (status_value)) == ENS160_DATA_STATUS_VALID_A);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWDAT 0x%x",
+  ESP_LOGV(TAG, "Status: ENS160 VALIDITY FLAG 0x%02x",
+           (ENS160_DATA_STATUS_VALIDITY_FLAG & status_value)>>2);
+  ESP_LOGV(TAG, "Status: ENS160 NEWDAT bit    0x%x",
            (ENS160_DATA_STATUS_NEWDAT & (status_value)) == ENS160_DATA_STATUS_NEWDAT);
-  ESP_LOGV(TAG, "Status: ENS160_DATA_STATUS_NEWGPR 0x%x",
+  ESP_LOGV(TAG, "Status: ENS160 NEWGPR bit    0x%x",
            (ENS160_DATA_STATUS_NEWGPR & (status_value)) == ENS160_DATA_STATUS_NEWGPR);
 
-  data_ready = status_value & ENS160_DATA_STATUS_NEWDAT; 
-  this->validity_flag_ = static_cast<ValidityFlag>((status_value & ENS160_VALIDITY_FLAG_MASK) >> 2);
+  data_ready = ENS160_DATA_STATUS_NEWDAT & status_value; 
+  this->validity_flag_ = 
+    static_cast<ValidityFlag>((ENS160_DATA_STATUS_VALIDITY_FLAG & status_value) >> 2);
 
   switch (validity_flag_) {
     case NORMAL_OPERATION:
@@ -223,56 +220,42 @@ void ENS160Component::update() {
   }
 
   // read new data
-  auto warning = false;
-  auto buf_eco2 = this->read_bytes<2>(ENS160_REG_DATA_ECO2);
-  auto buf_tvoc = this->read_bytes<2>(ENS160_REG_DATA_TVOC);
-  
-
-  if (buf_eco2.has_value() && this->co2_ != nullptr) {
-    uint16_t data_eco2 = encode_uint16((*buf_eco2)[1], (*buf_eco2)[0]);
+  uint16_t data_eco2;
+  if (!this->read_bytes(ENS160_REG_DATA_ECO2, reinterpret_cast<uint8_t *>(&data_eco2), 2)) {
+    ESP_LOGW(TAG, "Error reading eCO2 data register");
+    this->status_set_warning();
+    return;
+  }
+  if (this->co2_ != nullptr) {
     this->co2_->publish_state(data_eco2);
-  } else {
-    ESP_LOGW(TAG, "No data for eCO2!");
-    warning = true;
+  } 
+  
+  uint16_t data_tvoc;
+  if (!this->read_bytes(ENS160_REG_DATA_TVOC, reinterpret_cast<uint8_t *>(&data_tvoc), 2)) {
+    ESP_LOGW(TAG, "Error reading TVOC data register");
+    this->status_set_warning();
+    return;
   }
-  if (buf_tvoc.has_value() && this->tvoc_ != nullptr) {
-    uint16_t data_tvoc = encode_uint16((*buf_tvoc)[1], (*buf_tvoc)[0]);
+  if (this->tvoc_ != nullptr) {
     this->tvoc_->publish_state(data_tvoc);
-  } else {
-    ESP_LOGW(TAG, "No data for TVOC!");
-    warning = true;
-  }
+  } 
   
   uint8_t data_aqi;
   if (!this->read_byte(ENS160_REG_DATA_AQI,&data_aqi)) {
     ESP_LOGW(TAG, "Error reading AQI data register");
-    warning = true;
-  }
-  
-  if (this->aqi_ != nullptr) {
-    if (data_aqi != 0) {
-      //remove reserved bit in aqi njust in case they are used in future
-      data_aqi = data_aqi & ENS160_DATA_AQI_MASK;
-      
-      this->aqi_->publish_state(data_aqi);
-    } else {
-      ESP_LOGW(TAG, "Invalid Data, AQI is 0!");
-      warning = true;
-    }   
-  } else {
-    ESP_LOGW(TAG, "No data for AQI!");
-    warning = true;
-  }
-
-  // set status
-  this->status_clear_error();
-  if (warning) {
     this->status_set_warning();
-  } else {
-    this->status_clear_warning();
+    return;
+  }
+  if (this->aqi_ != nullptr) {
+    //remove reserved bits, just in case they are used in future
+    data_aqi = ENS160_DATA_AQI & data_aqi;
+    
+    this->aqi_->publish_state(data_aqi);
   }
 
-  // set env data
+  this->status_clear_warning();
+
+  // set temperature and humidity compensation data
   this->send_env_data_();
 }
 
@@ -306,7 +289,6 @@ void ENS160Component::send_env_data_() {
 
 void ENS160Component::dump_config() {
   ESP_LOGCONFIG(TAG, "ENS160:");
-  LOG_I2C_DEVICE(this);
   
   switch (this->error_code_) {
     case COMMUNICATION_FAILED:
@@ -327,16 +309,17 @@ void ENS160Component::dump_config() {
   }
   ESP_LOGD(TAG,"Firmware Version: %d.%d.%d", this->firmware_ver_major_,this->firmware_ver_minor_,this->firmware_ver_build_);
   
+  LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
   LOG_SENSOR("  ", "CO2 Sensor:", this->co2_);
   LOG_SENSOR("  ", "TVOC Sensor:", this->tvoc_);
   LOG_SENSOR("  ", "AQI Sensor:", this->aqi_);
   
   if (this->temperature_ != nullptr && this->humidity_ != nullptr) {
-    LOG_SENSOR("  ", "Temperature Compensation:", this->temperature_);
-    LOG_SENSOR("  ", "Humidity Compensation:", this->humidity_);
+    LOG_SENSOR("  ", "  Temperature Compensation:", this->temperature_);
+    LOG_SENSOR("  ", "  Humidity Compensation:", this->humidity_);
   } else {
-    ESP_LOGCONFIG(TAG, "Compensation: Not configured");
+    ESP_LOGCONFIG(TAG, "  Compensation: Not configured");
   }
 }
 
