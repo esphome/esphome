@@ -26,6 +26,34 @@ static const uint8_t RX_STAT_COUNT = 9;
 // sets maximum number of pairings which can be held
 static const uint8_t RX_MAXPAIRS = 10;
 
+static const uint8_t RX_NIBBLE[] = {0xF6, 0xEE, 0xED, 0xEB, 0xDE, 0xDD, 0xDB, 0xBE,
+                                    0xBD, 0xBB, 0xB7, 0x7E, 0x7D, 0x7B, 0x77, 0x6F};
+static const uint8_t RX_CMD_OFF = 0xF6;      // raw 0
+static const uint8_t RX_CMD_ON = 0xEE;       // raw 1
+static const uint8_t RX_CMD_MOOD = 0xED;     // raw 2
+static const uint8_t RX_PAR0_ALLOFF = 0x7D;  // param 192-255 all off (12 in msb)
+static const uint8_t RX_DEV_15 = 0x6F;       // device 15
+
+static const uint8_t EEPROM_ADDR_DEFAULT = 0;
+
+static const uint8_t RX_MSGLEN = 10;  // expected length of rx message
+
+static const uint8_t RX_STATE_IDLE = 0;
+static const uint8_t RX_STATE_MSGSTARTFOUND = 1;
+static const uint8_t RX_STATE_BYTESTARTFOUND = 2;
+static const uint8_t RX_STATE_GETBYTE = 3;
+
+// Pairing data
+static uint8_t rx_paircount = 0;
+static uint8_t rx_pairs[RX_MAXPAIRS][8];
+// set false to responds to all messages if no pairs set up
+static bool rx_pairEnforce = false;
+// set false to use Address, Room and Device in pairs, true just the Address part
+static bool rx_pairBaseOnly = false;
+
+// Gather stats for pulse widths (ave is x 16)
+static const uint16_t LWRX_STATSDFLT[RX_STAT_COUNT] = {5000, 0, 5000, 20000, 0, 2500, 4000, 0, 500};  // usigned int
+
 class LwRx {
  public:
   // Seup must be called once, set up pin used to receive data
@@ -63,12 +91,35 @@ class LwRx {
   uint32_t lwrx_packetinterval();
 
   static void rx_process_bits(LwRx *arg);
+
+  int EEPROMaddr = EEPROM_ADDR_DEFAULT;
+
+  uint8_t rx_pairtimeout = 0;  // 100msec units
+
   // Repeat filters
   uint8_t rx_repeats = 2;  // msg must be repeated at least this number of times
   uint8_t rx_repeatcount = 0;
   uint8_t rx_timeout = 20;        // reset repeat window after this in 100mSecs
   uint32_t rx_prevpkttime = 0;    // last packet time in milliseconds
   uint32_t rx_pairstarttime = 0;  // last msg time in milliseconds
+
+  // Receive mode constants and variables
+  uint8_t rx_msg[RX_MSGLEN];  // raw message received
+  uint8_t rx_buf[RX_MSGLEN];  // message buffer during reception
+
+  uint32_t rx_prev;  // time of previous interrupt in microseconds
+
+  bool rx_msgcomplete = false;  // set high when message available
+  bool rx_translate = true;     // Set false to get raw data
+
+  uint8_t rx_state = 0;
+
+  uint8_t rx_num_bits = 0;   // number of bits in the current uint8_t
+  uint8_t rx_num_bytes = 0;  // number of bytes received
+
+  uint16_t lwrx_stats[RX_STAT_COUNT];  // unsigned int
+
+  bool lwrx_stats_enable = true;
 
  protected:
   void lwrx_clearpairing_();

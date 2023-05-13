@@ -12,51 +12,6 @@
 namespace esphome {
 namespace lightwaverf {
 
-static const uint8_t RX_NIBBLE[] = {0xF6, 0xEE, 0xED, 0xEB, 0xDE, 0xDD, 0xDB, 0xBE,
-                                    0xBD, 0xBB, 0xB7, 0x7E, 0x7D, 0x7B, 0x77, 0x6F};
-static const uint8_t RX_CMD_OFF = 0xF6;      // raw 0
-static const uint8_t RX_CMD_ON = 0xEE;       // raw 1
-static const uint8_t RX_CMD_MOOD = 0xED;     // raw 2
-static const uint8_t RX_PAR0_ALLOFF = 0x7D;  // param 192-255 all off (12 in msb)
-static const uint8_t RX_DEV_15 = 0x6F;       // device 15
-
-static const uint8_t EEPROM_ADDR_DEFAULT = 0;
-
-static int EEPROMaddr = EEPROM_ADDR_DEFAULT;
-static const uint8_t RX_MSGLEN = 10;  // expected length of rx message
-
-// Receive mode constants and variables
-static uint8_t rx_msg[RX_MSGLEN];  // raw message received
-static uint8_t rx_buf[RX_MSGLEN];  // message buffer during reception
-
-uint32_t rx_prev;  // time of previous interrupt in microseconds
-
-static bool rx_msgcomplete = false;  // set high when message available
-static bool rx_translate = true;     // Set false to get raw data
-
-static uint8_t rx_state = 0;
-static const uint8_t RX_STATE_IDLE = 0;
-static const uint8_t RX_STATE_MSGSTARTFOUND = 1;
-static const uint8_t RX_STATE_BYTESTARTFOUND = 2;
-static const uint8_t RX_STATE_GETBYTE = 3;
-
-static uint8_t rx_num_bits = 0;   // number of bits in the current uint8_t
-static uint8_t rx_num_bytes = 0;  // number of bytes received
-
-// Pairing data
-static uint8_t rx_paircount = 0;
-static uint8_t rx_pairs[RX_MAXPAIRS][8];
-static uint8_t rx_pairtimeout = 0;  // 100msec units
-// set false to responds to all messages if no pairs set up
-static bool rx_pairEnforce = false;
-// set false to use Address, Room and Device in pairs, true just the Address part
-static bool rx_pairBaseOnly = false;
-
-// Gather stats for pulse widths (ave is x 16)
-static const uint16_t LWRX_STATSDFLT[RX_STAT_COUNT] = {5000, 0, 5000, 20000, 0, 2500, 4000, 0, 500};  // usigned int
-static uint16_t lwrx_stats[RX_STAT_COUNT];                                                            // unsigned int
-static bool lwrx_stats_enable = true;
-
 /**
   Pin change interrupt routine that identifies 1 and 0 LightwaveRF bits
   and constructs a message when a valid packet of data is received.
@@ -66,8 +21,8 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
   uint8_t event = args->rx_pin_isr_.digital_read();  // start setting event to the current value
   uint32_t curr = micros();                          // the current time in microseconds
 
-  uint16_t dur = (curr - rx_prev);  // unsigned int
-  rx_prev = curr;
+  uint16_t dur = (curr - args->rx_prev);  // unsigned int
+  args->rx_prev = curr;
   // set event based on input and duration of previous pulse
   if (dur < 120) {         // 120 very short
   } else if (dur < 500) {  // normal short pulse
@@ -80,11 +35,11 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
     event = 8;  // illegal gap
   }
   // state machine transitions
-  switch (rx_state) {
+  switch (args->rx_state) {
     case RX_STATE_IDLE:
       switch (event) {
         case 7:  // 1 after a message gap
-          rx_state = RX_STATE_MSGSTARTFOUND;
+          args->rx_state = RX_STATE_MSGSTARTFOUND;
           break;
       }
       break;
@@ -94,12 +49,12 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
                  // nothing to do wait for next positive edge
           break;
         case 3:  // 1 160->500
-          rx_num_bytes = 0;
-          rx_state = RX_STATE_BYTESTARTFOUND;
+          args->rx_num_bytes = 0;
+          args->rx_state = RX_STATE_BYTESTARTFOUND;
           break;
         default:
           // not good start again
-          rx_state = RX_STATE_IDLE;
+          args->rx_state = RX_STATE_IDLE;
           break;
       }
       break;
@@ -109,18 +64,18 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
           // nothing to do wait for next positive edge
           break;
         case 3:  // 1 160->500
-          rx_state = RX_STATE_GETBYTE;
-          rx_num_bits = 0;
+          args->rx_state = RX_STATE_GETBYTE;
+          args->rx_num_bits = 0;
           break;
         case 5:  // 0 500->1500
-          rx_state = RX_STATE_GETBYTE;
+          args->rx_state = RX_STATE_GETBYTE;
           // Starts with 0 so put this into uint8_t
-          rx_num_bits = 1;
-          rx_buf[rx_num_bytes] = 0;
+          args->rx_num_bits = 1;
+          args->rx_buf[args->rx_num_bytes] = 0;
           break;
         default:
           // not good start again
-          rx_state = RX_STATE_IDLE;
+          args->rx_state = RX_STATE_IDLE;
           break;
       }
       break;
@@ -128,42 +83,45 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
       switch (event) {
         case 2:  // 0 160->500
           // nothing to do wait for next positive edge but do stats
-          if (lwrx_stats_enable) {
-            lwrx_stats[RX_STAT_HIGH_MAX] = std::max(lwrx_stats[RX_STAT_HIGH_MAX], dur);
-            lwrx_stats[RX_STAT_HIGH_MIN] = std::min(lwrx_stats[RX_STAT_HIGH_MIN], dur);
-            lwrx_stats[RX_STAT_HIGH_AVE] = lwrx_stats[RX_STAT_HIGH_AVE] - (lwrx_stats[RX_STAT_HIGH_AVE] >> 4) + dur;
+          if (args->lwrx_stats_enable) {
+            args->lwrx_stats[RX_STAT_HIGH_MAX] = std::max(args->lwrx_stats[RX_STAT_HIGH_MAX], dur);
+            args->lwrx_stats[RX_STAT_HIGH_MIN] = std::min(args->lwrx_stats[RX_STAT_HIGH_MIN], dur);
+            args->lwrx_stats[RX_STAT_HIGH_AVE] =
+                args->lwrx_stats[RX_STAT_HIGH_AVE] - (args->lwrx_stats[RX_STAT_HIGH_AVE] >> 4) + dur;
           }
           break;
         case 3:  // 1 160->500
           // a single 1
-          rx_buf[rx_num_bytes] = rx_buf[rx_num_bytes] << 1 | 1;
-          rx_num_bits++;
-          if (lwrx_stats_enable) {
-            lwrx_stats[RX_STAT_LOW1_MAX] = std::max(lwrx_stats[RX_STAT_LOW1_MAX], dur);
-            lwrx_stats[RX_STAT_LOW1_MIN] = std::min(lwrx_stats[RX_STAT_LOW1_MIN], dur);
-            lwrx_stats[RX_STAT_LOW1_AVE] = lwrx_stats[RX_STAT_LOW1_AVE] - (lwrx_stats[RX_STAT_LOW1_AVE] >> 4) + dur;
+          args->rx_buf[args->rx_num_bytes] = args->rx_buf[args->rx_num_bytes] << 1 | 1;
+          args->rx_num_bits++;
+          if (args->lwrx_stats_enable) {
+            args->lwrx_stats[RX_STAT_LOW1_MAX] = std::max(args->lwrx_stats[RX_STAT_LOW1_MAX], dur);
+            args->lwrx_stats[RX_STAT_LOW1_MIN] = std::min(args->lwrx_stats[RX_STAT_LOW1_MIN], dur);
+            args->lwrx_stats[RX_STAT_LOW1_AVE] =
+                args->lwrx_stats[RX_STAT_LOW1_AVE] - (args->lwrx_stats[RX_STAT_LOW1_AVE] >> 4) + dur;
           }
           break;
         case 5:  // 1 500->1500
           // a 1 followed by a 0
-          rx_buf[rx_num_bytes] = rx_buf[rx_num_bytes] << 2 | 2;
-          rx_num_bits++;
-          rx_num_bits++;
-          if (lwrx_stats_enable) {
-            lwrx_stats[RX_STAT_LOW0_MAX] = std::max(lwrx_stats[RX_STAT_LOW0_MAX], dur);
-            lwrx_stats[RX_STAT_LOW0_MIN] = std::min(lwrx_stats[RX_STAT_LOW0_MIN], dur);
-            lwrx_stats[RX_STAT_LOW0_AVE] = lwrx_stats[RX_STAT_LOW0_AVE] - (lwrx_stats[RX_STAT_LOW0_AVE] >> 4) + dur;
+          args->rx_buf[args->rx_num_bytes] = args->rx_buf[args->rx_num_bytes] << 2 | 2;
+          args->rx_num_bits++;
+          args->rx_num_bits++;
+          if (args->lwrx_stats_enable) {
+            args->lwrx_stats[RX_STAT_LOW0_MAX] = std::max(args->lwrx_stats[RX_STAT_LOW0_MAX], dur);
+            args->lwrx_stats[RX_STAT_LOW0_MIN] = std::min(args->lwrx_stats[RX_STAT_LOW0_MIN], dur);
+            args->lwrx_stats[RX_STAT_LOW0_AVE] =
+                args->lwrx_stats[RX_STAT_LOW0_AVE] - (args->lwrx_stats[RX_STAT_LOW0_AVE] >> 4) + dur;
           }
           break;
         default:
           // not good start again
-          rx_state = RX_STATE_IDLE;
+          args->rx_state = RX_STATE_IDLE;
           break;
       }
-      if (rx_num_bits >= 8) {
-        rx_num_bytes++;
-        rx_num_bits = 0;
-        if (rx_num_bytes >= RX_MSGLEN) {
+      if (args->rx_num_bits >= 8) {
+        args->rx_num_bytes++;
+        args->rx_num_bits = 0;
+        if (args->rx_num_bytes >= RX_MSGLEN) {
           uint32_t curr_millis = millis();
           if (args->rx_repeats > 0) {
             if ((curr_millis - args->rx_prevpkttime) / 100 > args->rx_timeout) {
@@ -173,7 +131,7 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
               int16_t i = RX_MSGLEN;  // int
               do {
                 i--;
-              } while ((i >= 0) && (rx_msg[i] == rx_buf[i]));
+              } while ((i >= 0) && (args->rx_msg[i] == args->rx_buf[i]));
               if (i < 0) {
                 args->rx_repeatcount++;
               } else {
@@ -185,26 +143,26 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
           }
           args->rx_prevpkttime = curr_millis;
           // If last message hasn't been read it gets overwritten
-          memcpy(rx_msg, rx_buf, RX_MSGLEN);
+          memcpy(args->rx_msg, args->rx_buf, RX_MSGLEN);
           if (args->rx_repeats == 0 || args->rx_repeatcount == args->rx_repeats) {
-            if (rx_pairtimeout != 0) {
-              if ((curr_millis - args->rx_pairstarttime) / 100 <= rx_pairtimeout) {
-                if (rx_msg[3] == RX_CMD_ON) {
+            if (args->rx_pairtimeout != 0) {
+              if ((curr_millis - args->rx_pairstarttime) / 100 <= args->rx_pairtimeout) {
+                if (args->rx_msg[3] == RX_CMD_ON) {
                   args->rx_addpairfrommsg_();
-                } else if (rx_msg[3] == RX_CMD_OFF) {
-                  args->rx_remove_pair_(&rx_msg[2]);
+                } else if (args->rx_msg[3] == RX_CMD_OFF) {
+                  args->rx_remove_pair_(&args->rx_msg[2]);
                 }
               }
             }
             if (args->rx_report_message_()) {
-              rx_msgcomplete = true;
+              args->rx_msgcomplete = true;
             }
-            rx_pairtimeout = 0;
+            args->rx_pairtimeout = 0;
           }
           // And cycle round for next one
-          rx_state = RX_STATE_IDLE;
+          args->rx_state = RX_STATE_IDLE;
         } else {
-          rx_state = RX_STATE_BYTESTARTFOUND;
+          args->rx_state = RX_STATE_BYTESTARTFOUND;
         }
       }
       break;
