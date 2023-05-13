@@ -7,9 +7,10 @@ import requests
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import git
 from esphome.components.packages import validate_source_shorthand
-from esphome.const import CONF_REF, CONF_WIFI
+from esphome.const import CONF_REF, CONF_WIFI, CONF_ESPHOME, CONF_PROJECT
 from esphome.wizard import wizard_file
 from esphome.yaml_util import dump
 
@@ -51,6 +52,17 @@ CONFIG_SCHEMA = cv.All(
     ),
     validate_full_url,
 )
+
+
+def _final_validate(config):
+    full_config = fv.full_config.get()[CONF_ESPHOME]
+    if CONF_PROJECT not in full_config:
+        raise cv.Invalid(
+            "Dashboard import requires the `esphome` -> `project` information to be provided."
+        )
+
+
+FINAL_VALIDATE_SCHEMA = _final_validate
 
 WIFI_CONFIG = """
 
