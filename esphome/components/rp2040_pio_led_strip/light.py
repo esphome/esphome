@@ -61,7 +61,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
             cv.Required(CONF_PIO): _validate_pio_value,
-            cv.Required(CONF_CHIPSET, default="WS2812"): cv.enum(CHIPSETS, upper=True),
+            cv.Required(CONF_CHIPSET): cv.enum(CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
         }
     ),
