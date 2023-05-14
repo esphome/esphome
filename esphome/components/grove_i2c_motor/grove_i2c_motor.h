@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
@@ -97,3 +99,4 @@ template<typename... Ts> class GROVETB6612FNGMotorNoStandbyAction : public Actio
 
 }  // namespace grove_i2c_motor
 }  // namespace esphome
+#endif

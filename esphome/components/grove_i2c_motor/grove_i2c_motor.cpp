@@ -1,3 +1,5 @@
+#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+
 #include "grove_i2c_motor.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -88,3 +90,4 @@ void GroveMotorDriveTB6612FNG::stepper_keep_run(int mode, uint16_t rpm, bool is_
 
 }  // namespace grove_i2c_motor
 }  // namespace esphome
+#endif
