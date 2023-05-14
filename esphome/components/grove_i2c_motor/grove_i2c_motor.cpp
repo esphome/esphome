@@ -122,11 +122,7 @@ void GroveMotorDriveTB6612FNG::stepper_run(StepperModeTypeT mode, int16_t steps,
     steps = -steps;
   }
 
-  if (rpm < 1) {
-    rpm = 1;
-  } else if (rpm > 300) {
-    rpm = 300;
-  }
+  rpm = clamp<uint16_t>(rpm, 1, 300);
 
   ms_per_step = (uint16_t) (3000.0 / (float) rpm);
   buffer_[0] = mode;
