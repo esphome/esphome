@@ -28,6 +28,8 @@ from esphome.const import (
     CONF_NUM_LEDS,
     CONF_RANDOM,
     CONF_SEQUENCE,
+    CONF_MIN_VALUE,
+    CONF_MAX_VALUE,
 )
 from esphome.util import Registry
 from .types import (
@@ -174,12 +176,17 @@ async def automation_effect_to_code(config, effect_id):
         cv.Optional(
             CONF_UPDATE_INTERVAL, default="1s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MIN_VALUE, default=0.0): cv.float_range(min=0.0, max=1.0),
+        cv.Optional(CONF_MAX_VALUE, default=0.0): cv.float_range(min=0.0, max=1.0),
     },
 )
 async def pulse_effect_to_code(config, effect_id):
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(effect.set_transition_length(config[CONF_TRANSITION_LENGTH]))
     cg.add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    cg.add(
+        effect.set_min_max_brightness(config[CONF_MIN_VALUE], config[CONF_MAX_VALUE])
+    )
     return effect
 
 
