@@ -69,15 +69,15 @@ async def to_code(config):
     ),
 )
 async def grove_i2c_motor_run_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
 
     template_channel = await cg.templatable(config[CONF_CHANNEL], args, int)
     template_speed = await cg.templatable(config[CONF_SPEED], args, cg.uint16)
     template_speed = (
         template_speed if config[CONF_DIRECTION] == "FORWARD" else -template_speed
     )
-    cg.add(var.set_chl(template_channel))
+    cg.add(var.set_channel(template_channel))
     cg.add(var.set_speed(template_speed))
     return var
 
@@ -93,11 +93,11 @@ async def grove_i2c_motor_run_to_code(config, action_id, template_arg, args):
     ),
 )
 async def grove_i2c_motor_break_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
 
     template_channel = await cg.templatable(config[CONF_CHANNEL], args, int)
-    cg.add(var.set_chl(template_channel))
+    cg.add(var.set_channel(template_channel))
     return var
 
 
@@ -112,11 +112,11 @@ async def grove_i2c_motor_break_to_code(config, action_id, template_arg, args):
     ),
 )
 async def grove_i2c_motor_stop_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
 
     template_channel = await cg.templatable(config[CONF_CHANNEL], args, int)
-    cg.add(var.set_chl(template_channel))
+    cg.add(var.set_channel(template_channel))
     return var
 
 
@@ -130,8 +130,8 @@ async def grove_i2c_motor_stop_to_code(config, action_id, template_arg, args):
     ),
 )
 async def grove_i2c_motor_standby_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
 
     return var
 
@@ -146,7 +146,7 @@ async def grove_i2c_motor_standby_to_code(config, action_id, template_arg, args)
     ),
 )
 async def grove_i2c_motor_no_standby_to_code(config, action_id, template_arg, args):
-    paren = await cg.get_variable(config[CONF_ID])
-    var = cg.new_Pvariable(action_id, template_arg, paren)
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
 
     return var
