@@ -1,9 +1,9 @@
-.program rp2040_pio_led_strip_driver
+.program rp2040_pio_led_sk6812_driver
 
-.define T0H 23
-.define T0L 46
-.define T1H 46
-.define T1L 23
+.define T0H 17
+.define T0L 52
+.define T1H 31
+.define T1L 31
 .define RET 80
 
 .wrap_target
@@ -32,13 +32,13 @@ writezero:
     ; Write T0H and T0L bits to the output pin
     set pins, 1 [T0H - 1]
     set pins, 0 [30 - 1]
-    nop [16 - 1]
+    nop [22 - 1]
     jmp y--, mainloop
     jmp awaiting_data
 writeone:
     ; Write T1H and T1L bits to the output pin
-    set pins, 1 [30 - 1]
-    nop [16 - 1]
+    set pins, 1 [T1H - 1]
+
     set pins, 0 [T1L - 1]
     jmp y--, mainloop
     jmp awaiting_data
@@ -50,11 +50,11 @@ writeone:
 % c-sdk {
 #include "hardware/clocks.h"
 
-static inline void rp2040_pio_program_init(PIO pio, uint sm, uint offset, uint pin, float freq) {
+static inline void rp2040_pio_SK6812_init(PIO pio, uint sm, uint offset, uint pin, float freq) {
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
 
-    pio_sm_config c = rp2040_pio_led_strip_driver_program_get_default_config(offset);
+    pio_sm_config c = rp2040_pio_led_sk6812_driver_program_get_default_config(offset);
     sm_config_set_set_pins(&c, pin, 1);
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);

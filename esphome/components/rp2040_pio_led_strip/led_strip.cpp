@@ -8,7 +8,10 @@
 #include <pico/stdlib.h>
 #include <hardware/pio.h>
 #include <hardware/clocks.h>
-#include "write.pio.h"
+#include "SK6812.pio.h"
+#include "SM16703.pio.h"
+#include "WS2812.pio.h"
+#include "SK6812B.pio.h"
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
@@ -50,8 +53,26 @@ void RP2040PIOLEDStripLightOutput::setup() {
 		return;
 	}
 
+	switch(this->chipset_) {
+		case Chipset::WS2812:
+			ESP_LOGCONFIG(TAG, "Using WS2812 chipset");
+			this->pio_program_ = &rp2040_pio_led_ws2812_driver_program;
+			break;
+		case Chipset::SK6812:
+			ESP_LOGCONFIG(TAG, "Using SK6812 chipset");
+			this->pio_program_ = &rp2040_pio_led_sk6812_driver_program;
+			break;
+		case Chipset::SM16703:
+			ESP_LOGCONFIG(TAG, "Using SM16703 chipset");
+			this->pio_program_ = &rp2040_pio_led_sm16703_driver_program;
+		case Chipset::WS2812B:
+			ESP_LOGCONFIG(TAG, "Using WS2812B chipset");
+			this->pio_program_ = &rp2040_pio_led_ws2812b_driver_program;
+			break;
+	}
+
   	// Load the assembled program into the PIO and get its location in the PIO's instruction memory
-  	uint offset = pio_add_program(this->pio_, &rp2040_pio_led_strip_driver_program);
+  	uint offset = pio_add_program(this->pio_, this->pio_program_);
 
   	// Configure the state machine's PIO, and start it
   	this->sm_ = pio_claim_unused_sm(this->pio_, true);
@@ -60,7 +81,21 @@ void RP2040PIOLEDStripLightOutput::setup() {
 		this->mark_failed();
 		return;
   	}
-  	rp2040_pio_program_init(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
+
+	switch (this->chipset_) {
+		case Chipset::WS2812:
+			rp2040_pio_WS2812_init(this->pio_, this->sm_, offset, this->pin_, 0.0f);
+			break;
+		case Chipset::SK6812:
+			rp2040_pio_SK6812_init(this->pio_, this->sm_, offset, this->pin_, 0.0f);
+			break;
+		case Chipset::SM16703:
+			rp2040_pio_SM16703_init(this->pio_, this->sm_, offset, this->pin_, 0.0f);
+			this->pio_program_ = &rp2040_pio_led_sm16703_driver_program;
+		case Chipset::WS2812B:
+			rp2040_pio_WS2812B_init(this->pio_, this->sm_, offset, this->pin_, 0.0f);
+			break;
+	}
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
