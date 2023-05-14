@@ -11,7 +11,7 @@
 #include "SK6812.pio.h"
 #include "SM16703.pio.h"
 #include "WS2812.pio.h"
-#include "SK6812B.pio.h"
+#include "SK6812.pio.h"
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
