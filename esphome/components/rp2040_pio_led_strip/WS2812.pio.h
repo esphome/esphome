@@ -16,7 +16,7 @@ namespace esphome {
 namespace rp2040_pio_led_strip{
 
 static const uint8_t rp2040_pio_led_ws2812_driver_wrap_target = 0;
-static const uint8_t rp2040_pio_led_ws2812_driver_wrap 19;
+static const uint8_t rp2040_pio_led_ws2812_driver_wrap = 19;
 
 static const uint16_t rp2040_pio_led_ws2812_driver_program_instructions[] = {
             //     .wrap_target
