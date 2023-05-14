@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ARDUINO
 
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"

@@ -1,4 +1,4 @@
-#ifdef USE_ESP32_FRAMEWORK_ARDUINO
+#ifdef USE_ARDUINO
 
 #include "grove_i2c_motor.h"
 #include "esphome/core/log.h"
