@@ -23,27 +23,13 @@ static const uint8_t ENS160_REG_OPMODE = 0x10;
 static const uint8_t ENS160_REG_CONFIG = 0x11;
 static const uint8_t ENS160_REG_COMMAND = 0x12;
 static const uint8_t ENS160_REG_TEMP_IN = 0x13;
-//static const uint8_t ENS160_REG_RH_IN = 0x15;
 static const uint8_t ENS160_REG_DATA_STATUS = 0x20;
 static const uint8_t ENS160_REG_DATA_AQI = 0x21;
 static const uint8_t ENS160_REG_DATA_TVOC = 0x22;
 static const uint8_t ENS160_REG_DATA_ECO2 = 0x24;
-//static const uint8_t ENS160_REG_DATA_BL = 0x28;
-//static const uint8_t ENS160_REG_DATA_T = 0x30;
-//static const uint8_t ENS160_REG_DATA_RH = 0x32;
-//static const uint8_t ENS160_REG_DATA_MISR = 0x38;
-// const uint8_t ENS160_REG_GPR_WRITE_0 = 0x40;
-//static const uint8_t ENS160_REG_GPR_WRITE_1 = ENS160_REG_GPR_WRITE_0 + 1;
-//static const uint8_t ENS160_REG_GPR_WRITE_2 = ENS160_REG_GPR_WRITE_0 + 2;
-//static const uint8_t ENS160_REG_GPR_WRITE_3 = ENS160_REG_GPR_WRITE_0 + 3;
-//static const uint8_t ENS160_REG_GPR_WRITE_4 = ENS160_REG_GPR_WRITE_0 + 4;
-//static const uint8_t ENS160_REG_GPR_WRITE_5 = ENS160_REG_GPR_WRITE_0 + 5;
-//static const uint8_t ENS160_REG_GPR_WRITE_6 = ENS160_REG_GPR_WRITE_0 + 6;
-//static const uint8_t ENS160_REG_GPR_WRITE_7 = ENS160_REG_GPR_WRITE_0 + 7;
+
 static const uint8_t ENS160_REG_GPR_READ_0 = 0x48;
 static const uint8_t ENS160_REG_GPR_READ_4 = ENS160_REG_GPR_READ_0 + 4;
-//static const uint8_t ENS160_REG_GPR_READ_6 = ENS160_REG_GPR_READ_0 + 6;
-//static const uint8_t ENS160_REG_GPR_READ_7 = ENS160_REG_GPR_READ_0 + 7;
 
 static const uint8_t ENS160_COMMAND_NOP = 0x00;
 static const uint8_t ENS160_COMMAND_CLRGPR = 0xCC;
@@ -55,12 +41,9 @@ static const uint8_t ENS160_OPMODE_STD = 0x02;
 
 static const uint8_t ENS160_DATA_STATUS_STATAS = 0x80;
 static const uint8_t ENS160_DATA_STATUS_STATER = 0x40;
-//static const uint8_t ENS160_DATA_STATUS_RESERVED_B = 0x20;
-//static const uint8_t ENS160_DATA_STATUS_RESERVED_A = 0x10;
-static const uint8_t ENS160_DATA_STATUS_VALIDITY_FLAG = 0x0C;
+static const uint8_t ENS160_DATA_STATUS_VALIDITY = 0x0C;
 static const uint8_t ENS160_DATA_STATUS_NEWDAT = 0x02;
 static const uint8_t ENS160_DATA_STATUS_NEWGPR = 0x01;
-
 
 // helps remove reserved bits in aqi data register
 static const uint8_t ENS160_DATA_AQI = 0x07;
@@ -76,7 +59,6 @@ void ENS160Component::setup() {
     this->mark_failed();
     return; 	
   }
-  
   if (part_id != ENS160_PART_ID) {
     this->error_code_ = INVALID_ID;
     this->mark_failed();
@@ -99,7 +81,7 @@ void ENS160Component::setup() {
     return; 
   }
   this->validity_flag_ = 
-    static_cast<ValidityFlag>((ENS160_DATA_STATUS_VALIDITY_FLAG & status_value) >> 2);
+    static_cast<ValidityFlag>((ENS160_DATA_STATUS_VALIDITY & status_value) >> 2);
    
   if (this->validity_flag_ == INVALID_OUTPUT) {
     this->error_code_ = VALIDITY_INVALID;
@@ -119,7 +101,6 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
-  
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_CLRGPR)) {
     this->error_code_ = WRITE_FAILED;
     this->mark_failed();
@@ -132,7 +113,6 @@ void ENS160Component::setup() {
     this->mark_failed();
     return;
   }
-  
   uint8_t version_data[3];
   if (!this->read_bytes(ENS160_REG_GPR_READ_4,version_data,3)) {
     this->error_code_ = READ_FAILED;
@@ -182,7 +162,7 @@ void ENS160Component::update() {
   ESP_LOGV(TAG, "Status: ENS160 STATER bit    0x%x",
            (ENS160_DATA_STATUS_STATER & (status_value)) == ENS160_DATA_STATUS_STATER);
   ESP_LOGV(TAG, "Status: ENS160 VALIDITY FLAG 0x%02x",
-           (ENS160_DATA_STATUS_VALIDITY_FLAG & status_value)>>2);
+           (ENS160_DATA_STATUS_VALIDITY & status_value)>>2);
   ESP_LOGV(TAG, "Status: ENS160 NEWDAT bit    0x%x",
            (ENS160_DATA_STATUS_NEWDAT & (status_value)) == ENS160_DATA_STATUS_NEWDAT);
   ESP_LOGV(TAG, "Status: ENS160 NEWGPR bit    0x%x",
@@ -190,7 +170,7 @@ void ENS160Component::update() {
 
   data_ready = ENS160_DATA_STATUS_NEWDAT & status_value; 
   this->validity_flag_ = 
-    static_cast<ValidityFlag>((ENS160_DATA_STATUS_VALIDITY_FLAG & status_value) >> 2);
+    static_cast<ValidityFlag>((ENS160_DATA_STATUS_VALIDITY & status_value) >> 2);
 
   switch (validity_flag_) {
     case NORMAL_OPERATION:
