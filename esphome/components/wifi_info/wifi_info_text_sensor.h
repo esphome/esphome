@@ -29,8 +29,8 @@ class DNSAddressWifiInfo : public PollingComponent, public text_sensor::TextSens
   void update() override {
     std::string dns_results;
 
-    auto dns_one = wifi::global_wifi_component->wifi_dns_ip_(0);
-    auto dns_two = wifi::global_wifi_component->wifi_dns_ip_(1);
+    auto dns_one = wifi::global_wifi_component->get_dns_address(0);
+    auto dns_two = wifi::global_wifi_component->get_dns_address(1);
 
     dns_results += "DNS1: ";
     dns_results += dns_one.str();
