@@ -50,7 +50,7 @@ class Wireguard : public PollingComponent {
 
   esp_err_t wg_initialized_ = ESP_FAIL;
   esp_err_t wg_connected_ = ESP_FAIL;
-  bool wg_peer_up_logged_ = false;
+  uint32_t wg_peer_offline_time_ = 0;
 
   void start_connection_();
 };

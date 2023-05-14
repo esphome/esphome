@@ -39,6 +39,7 @@ void Wireguard::setup() {
 
     if(this->wg_initialized_ == ESP_OK) {
         ESP_LOGI(TAG, "WireGuard initialized");
+        this->wg_peer_offline_time_ = millis();
         this->srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection_, this));
         this->start_connection_();
     } else {
@@ -54,24 +55,24 @@ void Wireguard::update() {
         : "timestamp not available";
 
     if(this->is_peer_up()) {
-        if(!this->wg_peer_up_logged_) {
+        if(this->wg_peer_offline_time_ != 0) {
             ESP_LOGI(TAG, LOGMSG_PEER_STATUS, LOGMSG_ONLINE, latest_handshake.c_str());
-            this->wg_peer_up_logged_ = true;
+            this->wg_peer_offline_time_ = 0;
         } else {
             ESP_LOGD(TAG, LOGMSG_PEER_STATUS, LOGMSG_ONLINE, latest_handshake.c_str());
         }
     } else {
-        if(this->wg_peer_up_logged_) {
+        if(this->wg_peer_offline_time_ == 0) {
             ESP_LOGW(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
-            this->wg_peer_up_logged_ = false;
+            this->wg_peer_offline_time_ = millis();
         } else {
             ESP_LOGD(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
         }
 
         // check reboot timeout every time the peer is down
-        if(lhs > 0 && this->reboot_timeout_ > 0) {
-            if(this->srctime_->utcnow().timestamp - lhs > this->reboot_timeout_) {
-                ESP_LOGE(TAG, "Remote WireGuard peer is unreachable, rebooting...");
+        if(this->reboot_timeout_ > 0) {
+            if(millis() - this->wg_peer_offline_time_ > this->reboot_timeout_) {
+                ESP_LOGE(TAG, "WireGuard remote peer is unreachable, rebooting...");
                 App.reboot();
             }
         }
@@ -90,7 +91,9 @@ void Wireguard::dump_config() {
             (this->preshared_key_.length() > 0 ? this->preshared_key_.substr(0,5).c_str() : "NOT IN USE"),
             (this->preshared_key_.length() > 0 ? "[...]=" : ""));
     ESP_LOGCONFIG(TAG, "  peer persistent keepalive: %d%s", this->keepalive_, (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
-    ESP_LOGCONFIG(TAG, "  reboot timeout: %d%s", this->reboot_timeout_, (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
+    ESP_LOGCONFIG(TAG, "  reboot timeout: %d%s",
+            (this->reboot_timeout_ / 1000),
+            (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
 }
 
 void Wireguard::on_shutdown() {
@@ -148,7 +151,7 @@ void Wireguard::start_connection_() {
     }
 
     if(!this->srctime_->now().is_valid()) {
-        ESP_LOGI(TAG, "WireGuard is waiting for system time to be synchronized");
+        ESP_LOGD(TAG, "WireGuard is waiting for system time to be synchronized");
         return;
     }
 

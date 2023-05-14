@@ -36,7 +36,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default=0): cv.positive_int,
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="15min"
-        ): cv.positive_time_period_seconds,
+        ): cv.positive_time_period_milliseconds,
     }
 ).extend(cv.polling_component_schema("10s"))
 
