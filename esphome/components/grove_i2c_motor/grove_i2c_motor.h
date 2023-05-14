@@ -181,7 +181,7 @@ class GROVETB6612FNGMotorBrakeAction : public Action<Ts...>, public Parented<Gro
  public:
   TEMPLATABLE_VALUE(uint8_t, channel)
 
-  void play(Ts... x) override { this->parent_->dc_motor_brake(this->channel_.value(x...)); }
+  void play(Ts... x) override { this->dc_motor_brake(this->channel_.value(x...)); }
 };
 
 template<typename... Ts>
@@ -189,19 +189,19 @@ class GROVETB6612FNGMotorStopAction : public Action<Ts...>, public Parented<Grov
  public:
   TEMPLATABLE_VALUE(uint8_t, channel)
 
-  void play(Ts... x) override { this->parent_->dc_motor_stop(this->channel_.value(x...)); }
+  void play(Ts... x) override { this->dc_motor_stop(this->channel_.value(x...)); }
 };
 
 template<typename... Ts>
 class GROVETB6612FNGMotorStandbyAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG...> {
  public:
-  void play(Ts... x) override { this->parent_->standby(); }
+  void play(Ts... x) override { this->standby(); }
 };
 
 template<typename... Ts>
 class GROVETB6612FNGMotorNoStandbyAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG...> {
  public:
-  void play(Ts... x) override { this->parent_->not_standby(); }
+  void play(Ts... x) override { this->not_standby(); }
 };
 
 }  // namespace grove_i2c_motor
