@@ -356,6 +356,14 @@ void DisplayBuffer::qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_
 }
 #endif  // USE_QR_CODE
 
+#ifdef USE_GRAPHICAL_DISPLAY_MENU
+void DisplayBuffer::menu(int x, int y, graphical_display_menu::GraphicalDisplayMenu *menu, int width, int height) {
+  Rect rect(x, y, width, height);
+  menu->draw(this, &rect);
+}
+#endif
+
+
 void DisplayBuffer::get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1,
                                     int *width, int *height) {
   int x_offset, baseline;

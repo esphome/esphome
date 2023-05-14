@@ -1,15 +1,26 @@
 #pragma once
 
+#include "esphome/core/color.h"
 #include "esphome/components/display_menu_base/display_menu_base.h"
 #include "esphome/components/display_menu_base/menu_item.h"
-#include "esphome/components/display/display_buffer.h"
 #include "esphome/core/automation.h"
 #include <cstdlib>
 
 namespace esphome {
 
+// forward declare from display namespace
+namespace display {
+class DisplayBuffer;
+class DisplayPage;
+class Font;
+class Rect;
+}  // namespace display
+
 namespace graphical_display_menu {
 
+const Color COLOR_ON(255, 255, 255, 255);
+const Color COLOR_OFF(0, 0, 0, 0);
+ 
 struct MenuItemValueArguments {
   MenuItemValueArguments(const display_menu_base::MenuItem *item, bool is_item_selected, bool is_menu_editing) {
     this->item = item;
@@ -20,16 +31,6 @@ struct MenuItemValueArguments {
   const display_menu_base::MenuItem *item;
   bool is_item_selected;
   bool is_menu_editing;
-};
-
-struct Position {
-  int x;
-  int y;
-};
-
-struct Dimension {
-  int width;
-  int height;
 };
 
 class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
@@ -45,13 +46,17 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
 
   void add_on_redraw_callback(std::function<void()> &&cb) { this->on_redraw_callbacks_.add(std::move(cb)); }
 
+  void draw(display::DisplayBuffer *display, const display::Rect *bounds);
+
  protected:
   void draw_menu() override;
-  void draw_menu_internal_();
+  void draw_menu_internal_(display::DisplayBuffer *display, const display::Rect *bounds);
   void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) override;
-  virtual Dimension measure_item(const display_menu_base::MenuItem *item, bool selected);
-  virtual void draw_item(const display_menu_base::MenuItem *item, const Position *position,
-                         const Dimension *measured_dimensions, bool selected);
+  virtual display::Rect measure_item(display::DisplayBuffer *display_buffer,
+                                  const display_menu_base::MenuItem *item,
+                                  const display::Rect *bounds, bool selected);
+  virtual void draw_item(display::DisplayBuffer *display_buffer, const display_menu_base::MenuItem *item,
+                          const display::Rect *bounds, bool selected);
   void update() override;
 
   void on_before_show() override;
@@ -62,8 +67,8 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   display::DisplayBuffer *display_buffer_{nullptr};
   display::Font *font_{nullptr};
   TemplatableValue<std::string, const MenuItemValueArguments *> menu_item_value_;
-  Color foreground_color_{display::COLOR_ON};
-  Color background_color_{display::COLOR_OFF};
+  Color foreground_color_{COLOR_ON};
+  Color background_color_{COLOR_OFF};
 
   CallbackManager<void()> on_redraw_callbacks_{};
 };
