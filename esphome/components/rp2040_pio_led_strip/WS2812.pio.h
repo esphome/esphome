@@ -12,31 +12,34 @@
 // rp2040_pio_led_ws2812_driver //
 // ---------------------------- //
 
-#define rp2040_pio_led_ws2812_driver_wrap_target 0
-#define rp2040_pio_led_ws2812_driver_wrap 19
+namespace esphome {
+namespace rp2040_pio_led_strip{
+
+static const uint8_t rp2040_pio_led_ws2812_driver_wrap_target = 0
+static const uint8_t rp2040_pio_led_ws2812_driver_wrap 19
 
 static const uint16_t rp2040_pio_led_ws2812_driver_program_instructions[] = {
             //     .wrap_target
-    0x80a0, //  0: pull   block                      
-    0xe058, //  1: set    y, 24                      
-    0x6021, //  2: out    x, 1                       
-    0x002a, //  3: jmp    !x, 10                     
-    0x000f, //  4: jmp    15                         
-    0xe000, //  5: set    pins, 0                    
+    0x80a0, //  0: pull   block
+    0xe058, //  1: set    y, 24
+    0x6021, //  2: out    x, 1
+    0x002a, //  3: jmp    !x, 10
+    0x000f, //  4: jmp    15
+    0xe000, //  5: set    pins, 0
     0xbd42, //  6: nop                           [29]
     0xbd42, //  7: nop                           [29]
     0xb342, //  8: nop                           [19]
-    0x0002, //  9: jmp    2                          
+    0x0002, //  9: jmp    2
     0xf301, // 10: set    pins, 1                [19]
     0xfd00, // 11: set    pins, 0                [29]
     0xac42, // 12: nop                           [12]
-    0x0082, // 13: jmp    y--, 2                     
-    0x0000, // 14: jmp    0                          
+    0x0082, // 13: jmp    y--, 2
+    0x0000, // 14: jmp    0
     0xfd01, // 15: set    pins, 1                [29]
     0xaa42, // 16: nop                           [10]
     0xfe00, // 17: set    pins, 0                [30]
-    0x0082, // 18: jmp    y--, 2                     
-    0x0000, // 19: jmp    0                          
+    0x0082, // 18: jmp    y--, 2
+    0x0000, // 19: jmp    0
             //     .wrap
 };
 
@@ -70,3 +73,5 @@ static inline void rp2040_pio_WS2812_init(PIO pio, uint sm, uint offset, uint pi
 
 #endif
 
+} // namespace rp2040_pio_led_strip
+} // namespace esphome

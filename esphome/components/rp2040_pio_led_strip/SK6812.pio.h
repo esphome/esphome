@@ -12,30 +12,33 @@
 // rp2040_pio_led_sk6812_driver //
 // ---------------------------- //
 
-#define rp2040_pio_led_sk6812_driver_wrap_target 0
-#define rp2040_pio_led_sk6812_driver_wrap 18
+namespace esphome {
+namespace rp2040_pio_led_strip{
+
+static const uint8_t rp2040_pio_led_sk6812_driver_wrap_target = 0
+static const uint8_t rp2040_pio_led_sk6812_driver_wrap = 18
 
 static const uint16_t rp2040_pio_led_sk6812_driver_program_instructions[] = {
             //     .wrap_target
-    0x80a0, //  0: pull   block                      
-    0xe058, //  1: set    y, 24                      
-    0x6021, //  2: out    x, 1                       
-    0x002a, //  3: jmp    !x, 10                     
-    0x000e, //  4: jmp    14                         
-    0xe000, //  5: set    pins, 0                    
+    0x80a0, //  0: pull   block
+    0xe058, //  1: set    y, 24
+    0x6021, //  2: out    x, 1
+    0x002a, //  3: jmp    !x, 10
+    0x000e, //  4: jmp    14
+    0xe000, //  5: set    pins, 0
     0xbd42, //  6: nop                           [29]
     0xbd42, //  7: nop                           [29]
     0xb342, //  8: nop                           [19]
-    0x0002, //  9: jmp    2                          
+    0x0002, //  9: jmp    2
     0xf001, // 10: set    pins, 1                [16]
     0xfe00, // 11: set    pins, 0                [30]
-    0x0082, // 12: jmp    y--, 2                     
-    0x0000, // 13: jmp    0                          
+    0x0082, // 12: jmp    y--, 2
+    0x0000, // 13: jmp    0
     0xfd01, // 14: set    pins, 1                [29]
     0xb542, // 15: nop                           [21]
     0xfe00, // 16: set    pins, 0                [30]
-    0x0082, // 17: jmp    y--, 2                     
-    0x0000, // 18: jmp    0                          
+    0x0082, // 17: jmp    y--, 2
+    0x0000, // 18: jmp    0
             //     .wrap
 };
 
@@ -69,3 +72,5 @@ static inline void rp2040_pio_SK6812_init(PIO pio, uint sm, uint offset, uint pi
 
 #endif
 
+} // namespace rp2040_pio_led_strip
+} // namespace esphome

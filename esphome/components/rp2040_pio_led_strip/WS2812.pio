@@ -12,11 +12,11 @@ awaiting_data:
     pull block ; this will block until there is data in the FIFO queue and then it will pull it into the shift register
     set y, 24 ; set y to 24 so that we know we have 24 bits to write
     ; jmp writeret
-    
+
 mainloop:
     ; go through each bit in the shift register and jump to the appropriate label
     ; depending on the value of the bit
-   
+
     out x, 1
     jmp !x, writezero
     jmp writeone
@@ -62,8 +62,8 @@ static inline void rp2040_pio_WS2812_init(PIO pio, uint sm, uint offset, uint pi
     int cycles_per_bit = 69;
     float div = 2.409;
     sm_config_set_clkdiv(&c, div);
-    
-    
+
+
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
 }

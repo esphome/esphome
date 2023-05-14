@@ -11,6 +11,7 @@
 
 #include "pico/stdio.h"
 #include <hardware/structs/pio.h>
+#include <hardware/pio.h>
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
