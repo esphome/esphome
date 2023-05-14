@@ -62,8 +62,8 @@ async def to_code(config):
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
-            cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=1),
-            cv.Required(CONF_SPEED): cv.int_range(min=0, max=255),
+            cv.Required(CONF_CHANNEL): cv.templatable(cv.int_range(min=0, max=1)),
+            cv.Required(CONF_SPEED): cv.templatable(cv.int_range(min=0, max=255)),
             cv.Required(CONF_DIRECTION): cv.enum(DIRECTION_TYPE, upper=True),
         }
     ),
@@ -88,7 +88,7 @@ async def grove_i2c_motor_run_to_code(config, action_id, template_arg, args):
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
-            cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=1),
+            cv.Required(CONF_CHANNEL): cv.templatable(cv.int_range(min=0, max=1)),
         }
     ),
 )
@@ -107,7 +107,7 @@ async def grove_i2c_motor_break_to_code(config, action_id, template_arg, args):
     cv.Schema(
         {
             cv.Required(CONF_ID): cv.use_id(GROVE_TB6612FNG),
-            cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=1),
+            cv.Required(CONF_CHANNEL): cv.templatable(cv.int_range(min=0, max=1)),
         }
     ),
 )

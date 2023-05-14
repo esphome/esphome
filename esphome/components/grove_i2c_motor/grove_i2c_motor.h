@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
+#include "esphome/core/helpers.h"
 
 /*
     Grove_Motor_Driver_TB6612FNG.h
@@ -95,7 +96,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void dc_motor_run(uint8_t chl, int16_t speed);
+  void dc_motor_run(uint8_t channel, int16_t speed);
 
   /*************************************************************
       Description
@@ -105,7 +106,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void dc_motor_brake(uint8_t chl);
+  void dc_motor_brake(uint8_t channel);
 
   /*************************************************************
       Description
@@ -115,7 +116,7 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
       Return
        Null.
   *************************************************************/
-  void dc_motor_stop(uint8_t chl);
+  void dc_motor_stop(uint8_t channel);
 
   /*************************************************************
       Description
@@ -162,62 +163,45 @@ class GroveMotorDriveTB6612FNG : public Component, public i2c::I2CDevice {
   uint8_t buffer_[16];
 };
 
-template<typename... Ts> class GROVETB6612FNGMotorRunAction : public Action<Ts...> {
+template<typename... Ts>
+class GROVETB6612FNGMotorRunAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG...> {
  public:
-  GROVETB6612FNGMotorRunAction(GroveMotorDriveTB6612FNG *motor) : motor_(motor) {}
-  TEMPLATABLE_VALUE(uint8_t, chl)
+  TEMPLATABLE_VALUE(uint8_t, channel)
   TEMPLATABLE_VALUE(uint16_t, speed)
 
   void play(Ts... x) override {
-    auto chl = this->chl_.value(x...);
+    auto channel = this->channel_.value(x...);
     auto speed = this->speed_.value(x...);
-    this->motor_->dc_motor_run(chl, speed);
+    this->parent_->dc_motor_run(channel, speed);
   }
-
- protected:
-  GroveMotorDriveTB6612FNG *motor_;
 };
 
-template<typename... Ts> class GROVETB6612FNGMotorBrakeAction : public Action<Ts...> {
+template<typename... Ts>
+class GROVETB6612FNGMotorBrakeAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG...> {
  public:
-  GROVETB6612FNGMotorBrakeAction(GroveMotorDriveTB6612FNG *motor) : motor_(motor) {}
-  TEMPLATABLE_VALUE(uint8_t, chl)
+  TEMPLATABLE_VALUE(uint8_t, channel)
 
-  void play(Ts... x) override { this->motor_->dc_motor_brake(this->chl_.value(x...)); }
-
- protected:
-  GroveMotorDriveTB6612FNG *motor_;
+  void play(Ts... x) override { this->parent_->dc_motor_brake(this->channel_.value(x...)); }
 };
 
-template<typename... Ts> class GROVETB6612FNGMotorStopAction : public Action<Ts...> {
+template<typename... Ts>
+class GROVETB6612FNGMotorStopAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG...> {
  public:
-  GROVETB6612FNGMotorStopAction(GroveMotorDriveTB6612FNG *motor) : motor_(motor) {}
-  TEMPLATABLE_VALUE(uint8_t, chl)
+  TEMPLATABLE_VALUE(uint8_t, channel)
 
-  void play(Ts... x) override { this->motor_->dc_motor_stop(this->chl_.value(x...)); }
-
- protected:
-  GroveMotorDriveTB6612FNG *motor_;
+  void play(Ts... x) override { this->parent_->dc_motor_stop(this->channel_.value(x...)); }
 };
 
-template<typename... Ts> class GROVETB6612FNGMotorStandbyAction : public Action<Ts...> {
+template<typename... Ts>
+class GROVETB6612FNGMotorStandbyAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG...> {
  public:
-  GROVETB6612FNGMotorStandbyAction(GroveMotorDriveTB6612FNG *motor) : motor_(motor) {}
-
-  void play(Ts... x) override { this->motor_->standby(); }
-
- protected:
-  GroveMotorDriveTB6612FNG *motor_;
+  void play(Ts... x) override { this->parent_->standby(); }
 };
 
-template<typename... Ts> class GROVETB6612FNGMotorNoStandbyAction : public Action<Ts...> {
+template<typename... Ts>
+class GROVETB6612FNGMotorNoStandbyAction : public Action<Ts...>, public Parented<GroveMotorDriveTB6612FNG...> {
  public:
-  GROVETB6612FNGMotorNoStandbyAction(GroveMotorDriveTB6612FNG *motor) : motor_(motor) {}
-
-  void play(Ts... x) override { this->motor_->not_standby(); }
-
- protected:
-  GroveMotorDriveTB6612FNG *motor_;
+  void play(Ts... x) override { this->parent_->not_standby(); }
 };
 
 }  // namespace grove_i2c_motor

@@ -63,10 +63,10 @@ void GroveMotorDriveTB6612FNG::set_i2c_addr(uint8_t addr) {
   this->set_i2c_address(addr);
 }
 
-void GroveMotorDriveTB6612FNG::dc_motor_run(uint8_t chl, int16_t speed) {
+void GroveMotorDriveTB6612FNG::dc_motor_run(uint8_t channel, int16_t speed) {
   speed = clamp<int16_t>(speed, -255, 255);
 
-  buffer_[0] = chl;
+  buffer_[0] = channel;
   if (speed >= 0) {
     buffer_[1] = speed;
   } else {
@@ -88,16 +88,16 @@ void GroveMotorDriveTB6612FNG::dc_motor_run(uint8_t chl, int16_t speed) {
   }
 }
 
-void GroveMotorDriveTB6612FNG::dc_motor_brake(uint8_t chl) {
-  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_BRAKE, &chl, 1) != i2c::ERROR_OK) {
+void GroveMotorDriveTB6612FNG::dc_motor_brake(uint8_t channel) {
+  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_BRAKE, &channel, 1) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Break motor failed!");
     this->status_set_warning();
     return;
   }
 }
 
-void GroveMotorDriveTB6612FNG::dc_motor_stop(uint8_t chl) {
-  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STOP, &chl, 1) != i2c::ERROR_OK) {
+void GroveMotorDriveTB6612FNG::dc_motor_stop(uint8_t channel) {
+  if (this->write_register(GROVE_MOTOR_DRIVER_I2C_CMD_STOP, &channel, 1) != i2c::ERROR_OK) {
     ESP_LOGW(TAG, "Stop dc motor failed!");
     this->status_set_warning();
     return;
@@ -116,8 +116,8 @@ void GroveMotorDriveTB6612FNG::stepper_run(StepperModeTypeT mode, int16_t steps,
   else if (steps == 0) {
     this->stepper_stop();
     return;
-  } else if (steps == -32768) {
-    steps = 32767;
+  } else if (steps == INT16_MIN) {
+    steps = INT16_MAX;
   } else {
     steps = -steps;
   }
