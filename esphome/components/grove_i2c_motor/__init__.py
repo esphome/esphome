@@ -1,13 +1,13 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
+from esphome.components import i2c
 
 from esphome.const import (
     CONF_ID,
     CONF_CHANNEL,
     CONF_SPEED,
     CONF_DIRECTION,
-    CONF_ADDRESS,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -15,7 +15,9 @@ DEPENDENCIES = ["i2c"]
 CODEOWNERS = ["@max246"]
 
 grove_i2c_motor_ns = cg.esphome_ns.namespace("grove_i2c_motor")
-GROVE_TB6612FNG = grove_i2c_motor_ns.class_("GroveMotorDriveTB6612FNG", cg.Component)
+GROVE_TB6612FNG = grove_i2c_motor_ns.class_(
+    "GroveMotorDriveTB6612FNG", cg.Component, i2c.I2CDevice
+)
 GROVETB6612FNGMotorRunAction = grove_i2c_motor_ns.class_(
     "GROVETB6612FNGMotorRunAction", automation.Action
 )
@@ -37,22 +39,21 @@ DIRECTION_TYPE = {
     "BACKWARD": 2,
 }
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.Required(CONF_ID): cv.declare_id(GROVE_TB6612FNG),
-        cv.Optional(CONF_ADDRESS, default=0x14): cv.i2c_address,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    cv.Schema(
+        {
+            cv.Required(CONF_ID): cv.declare_id(GROVE_TB6612FNG),
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(i2c.i2c_device_schema(0x14))
+)
 
 
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-
-    cg.add(var.set_address(config[CONF_ADDRESS]))
-    cg.add_library("https://github.com/Seeed-Studio/Grove_Motor_Driver_TB6612FNG", None)
-
-    return var
+    await i2c.register_i2c_device(var, config)
 
 
 @automation.register_action(
@@ -78,7 +79,6 @@ async def grove_i2c_motor_run_to_code(config, action_id, template_arg, args):
     )
     cg.add(var.set_chl(template_channel))
     cg.add(var.set_speed(template_speed))
-
     return var
 
 
