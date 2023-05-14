@@ -744,3 +744,7 @@ voice_assistant:
 max6956:
   - id: max6956_1
     address: 0x40
+
+grove_i2c_motor:
+  id: test_motor
+  address: 0x14

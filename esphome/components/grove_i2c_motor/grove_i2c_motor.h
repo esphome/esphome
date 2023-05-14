@@ -8,6 +8,11 @@
 
 #include "Grove_Motor_Driver_TB6612FNG.h"
 
+// Remove the defined min function that conflicts with the framework
+#ifdef min
+#undef min
+#endif
+
 namespace esphome {
 namespace grove_i2c_motor {
 
