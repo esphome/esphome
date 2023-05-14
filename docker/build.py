@@ -8,32 +8,49 @@ import re
 import sys
 
 
-CHANNEL_DEV = 'dev'
-CHANNEL_BETA = 'beta'
-CHANNEL_RELEASE = 'release'
+CHANNEL_DEV = "dev"
+CHANNEL_BETA = "beta"
+CHANNEL_RELEASE = "release"
 CHANNELS = [CHANNEL_DEV, CHANNEL_BETA, CHANNEL_RELEASE]
 
-ARCH_AMD64 = 'amd64'
-ARCH_ARMV7 = 'armv7'
-ARCH_AARCH64 = 'aarch64'
+ARCH_AMD64 = "amd64"
+ARCH_ARMV7 = "armv7"
+ARCH_AARCH64 = "aarch64"
 ARCHS = [ARCH_AMD64, ARCH_ARMV7, ARCH_AARCH64]
 
-TYPE_DOCKER = 'docker'
-TYPE_HA_ADDON = 'ha-addon'
-TYPE_LINT = 'lint'
+TYPE_DOCKER = "docker"
+TYPE_HA_ADDON = "ha-addon"
+TYPE_LINT = "lint"
 TYPES = [TYPE_DOCKER, TYPE_HA_ADDON, TYPE_LINT]
 
 
 parser = argparse.ArgumentParser()
-parser.add_argument("--tag", type=str, required=True, help="The main docker tag to push to. If a version number also adds latest and/or beta tag")
-parser.add_argument("--arch", choices=ARCHS, required=False, help="The architecture to build for")
-parser.add_argument("--build-type", choices=TYPES, required=True, help="The type of build to run")
-parser.add_argument("--dry-run", action="store_true", help="Don't run any commands, just print them")
-subparsers = parser.add_subparsers(help="Action to perform", dest="command", required=True)
+parser.add_argument(
+    "--tag",
+    type=str,
+    required=True,
+    help="The main docker tag to push to. If a version number also adds latest and/or beta tag",
+)
+parser.add_argument(
+    "--arch", choices=ARCHS, required=False, help="The architecture to build for"
+)
+parser.add_argument(
+    "--build-type", choices=TYPES, required=True, help="The type of build to run"
+)
+parser.add_argument(
+    "--dry-run", action="store_true", help="Don't run any commands, just print them"
+)
+subparsers = parser.add_subparsers(
+    help="Action to perform", dest="command", required=True
+)
 build_parser = subparsers.add_parser("build", help="Build the image")
 build_parser.add_argument("--push", help="Also push the images", action="store_true")
-build_parser.add_argument("--load", help="Load the docker image locally", action="store_true")
-manifest_parser = subparsers.add_parser("manifest", help="Create a manifest from already pushed images")
+build_parser.add_argument(
+    "--load", help="Load the docker image locally", action="store_true"
+)
+manifest_parser = subparsers.add_parser(
+    "manifest", help="Create a manifest from already pushed images"
+)
 
 
 @dataclass(frozen=True)
@@ -49,7 +66,7 @@ class DockerParams:
         prefix = {
             TYPE_DOCKER: "esphome/esphome",
             TYPE_HA_ADDON: "esphome/esphome-hassio",
-            TYPE_LINT: "esphome/esphome-lint"
+            TYPE_LINT: "esphome/esphome-lint",
         }[build_type]
         build_to = f"{prefix}-{arch}"
         baseimgtype = {
@@ -128,13 +145,21 @@ def main():
 
         # 3. build
         cmd = [
-            "docker", "buildx", "build",
-            "--build-arg", f"BASEIMGTYPE={params.baseimgtype}",
-            "--build-arg", f"BUILD_VERSION={args.tag}",
-            "--cache-from", f"type=registry,ref={cache_img}",
-            "--file", "docker/Dockerfile",
-            "--platform", params.platform,
-            "--target", params.target,
+            "docker",
+            "buildx",
+            "build",
+            "--build-arg",
+            f"BASEIMGTYPE={params.baseimgtype}",
+            "--build-arg",
+            f"BUILD_VERSION={args.tag}",
+            "--cache-from",
+            f"type=registry,ref={cache_img}",
+            "--file",
+            "docker/Dockerfile",
+            "--platform",
+            params.platform,
+            "--target",
+            params.target,
         ]
         for img in imgs:
             cmd += ["--tag", img]
@@ -160,9 +185,7 @@ def main():
             run_command(*cmd)
         # 2. Push manifests
         for target in targets:
-            run_command(
-                "docker", "manifest", "push", target
-            )
+            run_command("docker", "manifest", "push", target)
 
 
 if __name__ == "__main__":

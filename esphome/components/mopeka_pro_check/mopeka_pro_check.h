@@ -15,6 +15,7 @@ enum SensorType {
   STANDARD_BOTTOM_UP = 0x03,
   TOP_DOWN_AIR_ABOVE = 0x04,
   BOTTOM_UP_WATER = 0x05,
+  LIPPERT_BOTTOM_UP = 0x06,
   PLUS_BOTTOM_UP = 0x08
   // all other values are reserved
 };
