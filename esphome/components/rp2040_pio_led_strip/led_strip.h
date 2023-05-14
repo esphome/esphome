@@ -93,7 +93,7 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
         uint8_t *effect_data_{nullptr};
 
         Chipset chipset_{WS2812};
-        pio_program *pio_program_{nullptr};
+        const pio_program* pio_program_{nullptr};
 
         uint8_t pin_;
         uint32_t num_leds_;
