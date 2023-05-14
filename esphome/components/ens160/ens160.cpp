@@ -72,7 +72,6 @@ void ENS160Component::setup() {
   // check part_id
   uint16_t part_id;
   if (!this->read_bytes(ENS160_REG_PART_ID,reinterpret_cast<uint8_t *>(&part_id),2)) {
-  //if (this->read_register(ENS160_REG_PART_ID, reinterpret_cast<uint8_t *>(&part_id), 2) != i2c::ERROR_OK) {
     this->error_code_ = COMMUNICATION_FAILED;
     this->mark_failed();
     return; 	
@@ -86,7 +85,7 @@ void ENS160Component::setup() {
 
   // set mode to reset
   if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_RESET)){
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = WRITE_FAILED;
     this->mark_failed();
     return; 
   }
@@ -95,7 +94,7 @@ void ENS160Component::setup() {
   // check status
   uint8_t status_value;
   if (!this->read_byte(ENS160_REG_DATA_STATUS,&status_value)) {
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = READ_FAILED;
     this->mark_failed();
     return; 
   }
@@ -103,40 +102,40 @@ void ENS160Component::setup() {
     static_cast<ValidityFlag>((ENS160_DATA_STATUS_VALIDITY_FLAG & status_value) >> 2);
    
   if (this->validity_flag_ == INVALID_OUTPUT) {
-    this->error_code_ = VALIDITY_INVALID_OUTPUT;
+    this->error_code_ = VALIDITY_INVALID;
     this->mark_failed();
     return; 
   }
   
   // set mode to idle
   if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_IDLE)){
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = WRITE_FAILED;
     this->mark_failed();
     return;
   }
   // clear command
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_NOP)) {
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = WRITE_FAILED;
     this->mark_failed();
     return;
   }
   
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_CLRGPR)) {
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = WRITE_FAILED;
     this->mark_failed();
     return;
   }
   
   // read firmware version
   if (!this->write_byte(ENS160_REG_COMMAND, ENS160_COMMAND_GET_APPVER)) {
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = WRITE_FAILED;
     this->mark_failed();
     return;
   }
   
   uint8_t version_data[3];
   if (!this->read_bytes(ENS160_REG_GPR_READ_4,version_data,3)) {
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = READ_FAILED;
     this->mark_failed();
     return; 
   }
@@ -147,7 +146,7 @@ void ENS160Component::setup() {
   
   // set mode to standard
   if (!this->write_byte(ENS160_REG_OPMODE, ENS160_OPMODE_STD)) {
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = WRITE_FAILED;
     this->mark_failed();
     return; 
   }
@@ -155,13 +154,13 @@ void ENS160Component::setup() {
   // read opmode and check standard mode is achieved before finishing Setup
   uint8_t op_mode;
   if (!this->read_byte(ENS160_REG_OPMODE,&op_mode)) {
-    this->error_code_ = COMMUNICATION_FAILED;
+    this->error_code_ = READ_FAILED;
     this->mark_failed();
     return; 
   }	
 
   if (op_mode != ENS160_OPMODE_STD) {
-    this->error_code_ = STANDARD_OPMODE_FAILED;
+    this->error_code_ = STD_OPMODE_FAILED;
     this->mark_failed();
     return; 
   }
@@ -294,13 +293,19 @@ void ENS160Component::dump_config() {
     case COMMUNICATION_FAILED:
       ESP_LOGE(TAG, "Communication failed! Is the sensor connected?");
       break;
+     case READ_FAILED:
+      ESP_LOGE(TAG, "Error reading from register");
+      break;
+    case WRITE_FAILED:
+      ESP_LOGE(TAG, "Error writing to register");
+      break; 
     case INVALID_ID:
       ESP_LOGE(TAG, "Sensor reported an invalid ID. Is this a ENS160?");
       break;
-    case VALIDITY_INVALID_OUTPUT:
+    case VALIDITY_INVALID:
       ESP_LOGE(TAG, "Invalid Device Status - No valid output");
       break;
-    case STANDARD_OPMODE_FAILED:
+    case STD_OPMODE_FAILED:
       ESP_LOGE(TAG, "Device failed to achieve Standard Operating Mode");
       break;
     case NONE:

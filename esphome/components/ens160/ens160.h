@@ -28,8 +28,10 @@ class ENS160Component : public PollingComponent, public i2c::I2CDevice, public s
     NONE = 0,
     COMMUNICATION_FAILED,
     INVALID_ID,
-    VALIDITY_INVALID_OUTPUT,
-    STANDARD_OPMODE_FAILED,
+    VALIDITY_INVALID,
+    READ_FAILED,
+    WRITE_FAILED,
+    STD_OPMODE_FAILED,
   } error_code_{NONE};
   
   enum ValidityFlag {
