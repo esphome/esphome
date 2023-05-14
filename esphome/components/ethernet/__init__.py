@@ -33,14 +33,29 @@ ETHERNET_TYPES = {
     "RTL8201": EthernetType.ETHERNET_TYPE_RTL8201,
     "DP83848": EthernetType.ETHERNET_TYPE_DP83848,
     "IP101": EthernetType.ETHERNET_TYPE_IP101,
+    "JL1101": EthernetType.ETHERNET_TYPE_JL1101,
+    "KSZ8081": EthernetType.ETHERNET_TYPE_KSZ8081,
 }
 
+emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")
 emac_rmii_clock_gpio_t = cg.global_ns.enum("emac_rmii_clock_gpio_t")
 CLK_MODES = {
-    "GPIO0_IN": emac_rmii_clock_gpio_t.EMAC_CLK_IN_GPIO,
-    "GPIO0_OUT": emac_rmii_clock_gpio_t.EMAC_APPL_CLK_OUT_GPIO,
-    "GPIO16_OUT": emac_rmii_clock_gpio_t.EMAC_CLK_OUT_GPIO,
-    "GPIO17_OUT": emac_rmii_clock_gpio_t.EMAC_CLK_OUT_180_GPIO,
+    "GPIO0_IN": (
+        emac_rmii_clock_mode_t.EMAC_CLK_EXT_IN,
+        emac_rmii_clock_gpio_t.EMAC_CLK_IN_GPIO,
+    ),
+    "GPIO0_OUT": (
+        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
+        emac_rmii_clock_gpio_t.EMAC_APPL_CLK_OUT_GPIO,
+    ),
+    "GPIO16_OUT": (
+        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
+        emac_rmii_clock_gpio_t.EMAC_CLK_OUT_GPIO,
+    ),
+    "GPIO17_OUT": (
+        emac_rmii_clock_mode_t.EMAC_CLK_OUT,
+        emac_rmii_clock_gpio_t.EMAC_CLK_OUT_180_GPIO,
+    ),
 }
 
 
@@ -113,7 +128,7 @@ async def to_code(config):
     cg.add(var.set_mdc_pin(config[CONF_MDC_PIN]))
     cg.add(var.set_mdio_pin(config[CONF_MDIO_PIN]))
     cg.add(var.set_type(config[CONF_TYPE]))
-    cg.add(var.set_clk_mode(CLK_MODES[config[CONF_CLK_MODE]]))
+    cg.add(var.set_clk_mode(*CLK_MODES[config[CONF_CLK_MODE]]))
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
     if CONF_POWER_PIN in config:
