@@ -41,7 +41,7 @@ struct TT21100TouchReport {
   uint8_t report_counter : 2;
   uint8_t : 3;
   uint8_t noise_effect : 3;
-  TT21100TouchRecord touch_record[0];
+  TT21100TouchRecord touch_record[MAX_TOUCH_POINTS];
 } __attribute__((packed));
 
 void TT21100TouchscreenStore::gpio_intr(TT21100TouchscreenStore *store) { store->touch = true; }
@@ -109,7 +109,7 @@ void TT21100Touchscreen::loop() {
                report->length, report->report_id, report->timestamp, report->large_object, report->record_num,
                report->report_counter, report->noise_effect);
 
-      uint8_t touch_count = (data_len - sizeof(TT21100TouchReport)) / sizeof(TT21100TouchRecord);
+      uint8_t touch_count = (data_len - (sizeof(*report) - sizeof(report->touch_record))) / sizeof(TT21100TouchRecord);
 
       if (touch_count == 0) {
         for (auto *listener : this->touch_listeners_)
