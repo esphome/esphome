@@ -50,6 +50,7 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add(var.set_address(config[CONF_ADDRESS]))
+    cg.add_library("https://github.com/Seeed-Studio/Grove_Motor_Driver_TB6612FNG", None)
 
     return var
 
@@ -77,6 +78,7 @@ async def grove_i2c_motor_run_to_code(config, action_id, template_arg, args):
     )
     cg.add(var.set_chl(template_channel))
     cg.add(var.set_speed(template_speed))
+
     return var
 
 
@@ -147,5 +149,4 @@ async def grove_i2c_motor_no_standby_to_code(config, action_id, template_arg, ar
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    cg.add_library("https://github.com/Seeed-Studio/Grove_Motor_Driver_TB6612FNG", None)
     return var
