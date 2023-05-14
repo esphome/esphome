@@ -17,23 +17,21 @@ namespace ld2420 {
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
 // Commands
-static const uint8_t CMD_ENABLE_CONF = 0x00FF;
-static const uint8_t CMD_DISABLE_CONF = 0x00FE;
+static const uint8_t CMD_ENABLE_CONF = 0x00FF;   // done
+static const uint8_t CMD_DISABLE_CONF = 0x00FE;  // dne
 static const uint8_t CMD_MAXDIST_DURATION = 0x0060;
 static const uint8_t CMD_QUERY = 0x0061;
 static const uint8_t CMD_GATE_SENS = 0x0064;
-static const uint8_t CMD_VERSION = 0x00A0;
+static const uint8_t CMD_VERSION = 0x0000;  // done
 
 // Commands values
 static const uint8_t CMD_MAX_MOVE_VALUE = 0x0000;
 static const uint8_t CMD_MAX_STILL_VALUE = 0x0001;
 static const uint8_t CMD_DURATION_VALUE = 0x0002;
 // Command Header & Footer
-static const uint8_t CMD_FRAME_HEADER[4] = {0xFD, 0xFC, 0xFB, 0xFA};
-static const uint8_t CMD_FRAME_END[4] = {0x04, 0x03, 0x02, 0x01};
-// Data Header & Footer
-static const uint8_t DATA_FRAME_HEADER[4] = {0xF4, 0xF3, 0xF2, 0xF1};
-static const uint8_t DATA_FRAME_END[4] = {0xF8, 0xF7, 0xF6, 0xF5};
+static const uint8_t CMD_FRAME_HEADER[4] = {0xFA, 0xFB, 0xFC, 0xFD};  // done
+static const uint8_t CMD_FRAME_END[4] = {0x01, 0x02, 0x03, 0x04};     // done
+
 /*
 Data Type: 6th byte
 Target states: 9th byte

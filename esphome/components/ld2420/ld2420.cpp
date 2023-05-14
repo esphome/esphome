@@ -22,9 +22,9 @@ void LD2420Component::dump_config() {
   LOG_SENSOR("  ", "Still Energy", this->still_target_energy_sensor_);
   LOG_SENSOR("  ", "Detection Distance", this->detection_distance_sensor_);
 #endif
-  this->set_config_mode_(true);
+  this->set_config_mode_(true);  // might not need this
   this->get_version_();
-  this->set_config_mode_(false);
+  this->set_config_mode_(false);  // might not need this
   ESP_LOGCONFIG(TAG, "  Firmware Version : %u.%u.%u%u%u%u", this->version_[0], this->version_[1], this->version_[2],
                 this->version_[3], this->version_[4], this->version_[5]);
 }
