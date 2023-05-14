@@ -64,11 +64,7 @@ void GroveMotorDriveTB6612FNG::set_i2c_addr(uint8_t addr) {
 }
 
 void GroveMotorDriveTB6612FNG::dc_motor_run(uint8_t chl, int16_t speed) {
-  if (speed > 255) {
-    speed = 255;
-  } else if (speed < -255) {
-    speed = -255;
-  }
+  speed = clamp<int16_t>(speed, -255, 255);
 
   buffer_[0] = chl;
   if (speed >= 0) {
