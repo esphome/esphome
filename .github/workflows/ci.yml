@@ -97,7 +97,7 @@ jobs:
       - name: Run flake8
         run: |
           . venv/bin/activate
-          flake8 .
+          flake8 esphome
       - name: Suggested changes
         run: script/ci-suggest-changes
         if: always()
@@ -119,7 +119,7 @@ jobs:
       - name: Run pylint
         run: |
           . venv/bin/activate
-          pylint -f parseable --persistent=n .
+          pylint -f parseable --persistent=n esphome
       - name: Suggested changes
         run: script/ci-suggest-changes
         if: always()
@@ -141,7 +141,7 @@ jobs:
       - name: Run pyupgrade
         run: |
           . venv/bin/activate
-          pyupgrade ${{ env.PYUPGRADE_TARGET }} .
+          pyupgrade ${{ env.PYUPGRADE_TARGET }} `find esphome -name "*.py" -type f`
       - name: Suggested changes
         run: script/ci-suggest-changes
         if: always()
@@ -164,6 +164,7 @@ jobs:
         run: echo "::add-matcher::.github/workflows/matchers/ci-custom.json"
       - name: Run script/ci-custom
         run: |
+          . venv/bin/activate
           script/ci-custom.py
           script/build_codeowners.py --check
 
@@ -184,7 +185,9 @@ jobs:
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run pytest
-        run: pytest -vv --tb=native tests
+        run: |
+          . venv/bin/activate
+          pytest -vv --tb=native tests
 
   clang-format:
     name: Check clang-format
@@ -335,6 +338,15 @@ jobs:
     name: CI Status
     runs-on: ubuntu-latest
     needs:
+      - common
+      - black
+      - ci-custom
+      - clang-format
+      - flake8
+      - pylint
+      - pytest
+      - pyupgrade
+      - yamllint
       - compile-tests
       - clang-tidy
     if: always()
