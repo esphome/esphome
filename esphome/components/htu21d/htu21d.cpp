@@ -123,7 +123,7 @@ int8_t HTU21DComponent::get_heater_level() {
     return 0;
   }
   raw_heater = i2c::i2ctohs(raw_heater);
-  return raw_heater
+  return raw_heater;
 }
 
 float HTU21DComponent::get_setup_priority() const { return setup_priority::DATA; }
