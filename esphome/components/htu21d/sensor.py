@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, sensor
+from esphome import automation
 from esphome.const import (
     CONF_HUMIDITY,
     CONF_ID,
@@ -10,6 +11,11 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
+    CONF_HEATER,
+    UNIT_EMPTY,
+    DEVICE_CLASS_HEAT,
+    CONF_LEVEL,
+    CONF_STATUS,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -18,6 +24,10 @@ htu21d_ns = cg.esphome_ns.namespace("htu21d")
 HTU21DComponent = htu21d_ns.class_(
     "HTU21DComponent", cg.PollingComponent, i2c.I2CDevice
 )
+
+SetHeaterLevelAction = htu21d_ns.class_("SetHeaterLevelAction", automation.Action)
+SetHeaterAction = htu21d_ns.class_("SetHeaterAction", automation.Action)
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -33,6 +43,12 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PERCENT,
                 accuracy_decimals=1,
                 device_class=DEVICE_CLASS_HUMIDITY,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
+            cv.Required(CONF_HEATER): sensor.sensor_schema(
+                unit_of_measurement=UNIT_EMPTY,
+                accuracy_decimals=1,
+                device_class=DEVICE_CLASS_HEAT,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
@@ -54,3 +70,43 @@ async def to_code(config):
     if CONF_HUMIDITY in config:
         sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity(sens))
+
+    if CONF_HEATER in config:
+        sens = await sensor.new_sensor(config[CONF_HEATER])
+        cg.add(var.set_heater(sens))
+
+
+@automation.register_action(
+    "htu21d.set_heater_level",
+    SetHeaterLevelAction,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(HTU21DComponent),
+            cv.Required(CONF_LEVEL): cv.templatable(cv.int_),
+        }
+    ),
+)
+async def set_heater_level_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    level_ = await cg.templatable(config[CONF_LEVEL], args, int)
+    cg.add(var.set_level(level_))
+    return var
+
+
+@automation.register_action(
+    "htu21d.set_heater",
+    SetHeaterAction,
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.use_id(HTU21DComponent),
+            cv.Required(CONF_STATUS): cv.templatable(cv.boolean),
+        }
+    ),
+)
+async def set_heater_to_code(config, action_id, template_arg, args):
+    var = cg.new_Pvariable(action_id, template_arg)
+    await cg.register_parented(var, config[CONF_ID])
+    status_ = await cg.templatable(config[CONF_LEVEL], args, bool)
+    cg.add(var.set_status(status_))
+    return var
