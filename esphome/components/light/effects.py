@@ -176,8 +176,8 @@ async def automation_effect_to_code(config, effect_id):
         cv.Optional(
             CONF_UPDATE_INTERVAL, default="1s"
         ): cv.positive_time_period_milliseconds,
-        cv.Optional(CONF_MIN_VALUE, default=0.0): cv.float_range(min=0.0, max=1.0),
-        cv.Optional(CONF_MAX_VALUE, default=0.0): cv.float_range(min=0.0, max=1.0),
+        cv.Optional(CONF_MIN_BRIGHTNESS, default="0%"): cv.percentage
+        cv.Optional(CONF_MAX_BRIGHTNESS, default="100%"): cv.percentage,
     },
 )
 async def pulse_effect_to_code(config, effect_id):
