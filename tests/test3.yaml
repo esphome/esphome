@@ -470,25 +470,6 @@ sensor:
       name: PZEMDC Power
     energy:
       name: PZEMDC Energy
-  - platform: tmp102
-    name: TMP102 Temperature
-  - platform: hm3301
-    pm_1_0:
-      name: PM1.0
-    pm_2_5:
-      name: PM2.5
-    pm_10_0:
-      name: PM10.0
-    aqi:
-      name: AQI
-      calculation_type: AQI
-  - platform: ens160
-    eco2:
-      name: "ENS160 eCO2"
-    tvoc:
-      name: "ENS160 Total Volatile Organic Compounds"
-    aqi:
-      name: "ENS160 Air Quality Index"
   - platform: pmsx003
     uart_id: uart_9
     type: PMSX003
@@ -840,7 +821,6 @@ switch:
     name: R0 Switch
     component_name: page0.r0
 
-
 climate:
   - platform: bang_bang
     name: Bang Bang Climate
@@ -1123,7 +1103,6 @@ rf_bridge:
         code: "ABC123"
     - rf_bridge.send_raw:
         raw: "AAA5070008001000ABC12355"
-
 
 display:
   - platform: nextion
