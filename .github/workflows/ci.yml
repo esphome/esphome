@@ -69,12 +69,12 @@ jobs:
       - name: Restore Python virtual environment
         uses: actions/cache/restore@v3.3.1
         with:
-          path: .venv
+          path: venv
           # yamllint disable-line rule:line-length
           key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
       - name: Run black
         run: |
-          . .venv/bin/activate
+          . venv/bin/activate
           black --verbose .
       - name: Suggested changes
         run: script/ci-suggest-changes
@@ -91,12 +91,12 @@ jobs:
       - name: Restore Python virtual environment
         uses: actions/cache/restore@v3.3.1
         with:
-          path: .venv
+          path: venv
           # yamllint disable-line rule:line-length
           key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
       - name: Run flake8
         run: |
-          . .venv/bin/activate
+          . venv/bin/activate
           flake8 .
       - name: Suggested changes
         run: script/ci-suggest-changes
@@ -113,12 +113,12 @@ jobs:
       - name: Restore Python virtual environment
         uses: actions/cache/restore@v3.3.1
         with:
-          path: .venv
+          path: venv
           # yamllint disable-line rule:line-length
           key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
       - name: Run pylint
         run: |
-          . .venv/bin/activate
+          . venv/bin/activate
           pylint -f parseable --persistent=n .
       - name: Suggested changes
         run: script/ci-suggest-changes
@@ -135,12 +135,12 @@ jobs:
       - name: Restore Python virtual environment
         uses: actions/cache/restore@v3.3.1
         with:
-          path: .venv
+          path: venv
           # yamllint disable-line rule:line-length
           key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
       - name: Run pyupgrade
         run: |
-          . .venv/bin/activate
+          . venv/bin/activate
           pyupgrade ${{ env.PYUPGRADE_TARGET }} .
       - name: Suggested changes
         run: script/ci-suggest-changes
@@ -157,7 +157,7 @@ jobs:
       - name: Restore Python virtual environment
         uses: actions/cache/restore@v3.3.1
         with:
-          path: .venv
+          path: venv
           # yamllint disable-line rule:line-length
           key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
       - name: Register matcher
@@ -178,7 +178,7 @@ jobs:
       - name: Restore Python virtual environment
         uses: actions/cache/restore@v3.3.1
         with:
-          path: .venv
+          path: venv
           # yamllint disable-line rule:line-length
           key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
       - name: Register matcher
@@ -197,7 +197,7 @@ jobs:
       - name: Restore Python virtual environment
         uses: actions/cache/restore@v3.3.1
         with:
-          path: .venv
+          path: venv
           # yamllint disable-line rule:line-length
           key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
       - name: Install clang-format
@@ -237,7 +237,7 @@ jobs:
       - name: Restore Python virtual environment
         uses: actions/cache/restore@v3.3.1
         with:
-          path: .venv
+          path: venv
           # yamllint disable-line rule:line-length
           key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
       - name: Cache platformio
@@ -300,7 +300,7 @@ jobs:
       - name: Restore Python virtual environment
         uses: actions/cache/restore@v3.3.1
         with:
-          path: .venv
+          path: venv
           # yamllint disable-line rule:line-length
           key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
         # Use per check platformio cache because checks use different parts
