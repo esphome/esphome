@@ -100,6 +100,12 @@ void ESP32ArduinoUARTComponent::setup() {
     }
 #endif  // USE_LOGGER
 
+    if (next_uart_num >= UART_NUM_MAX) {
+      ESP_LOGW(TAG, "Maximum number of UART components created already.");
+      this->mark_failed();
+      return;
+    }
+
     this->number_ = next_uart_num;
     this->hw_serial_ = new HardwareSerial(next_uart_num++);  // NOLINT(cppcoreguidelines-owning-memory)
   }
