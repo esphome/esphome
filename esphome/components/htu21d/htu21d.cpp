@@ -82,19 +82,19 @@ void HTU21DComponent::update() {
 
 bool HTU21DComponent::is_heater_enabled() {
   uint8_t raw_heater;
-  if (this->read_register(&HTU21D_REGISTER_STATUS, reinterpret_cast<uint8_t *>(&raw_heater), 2) != i2c::ERROR_OK) {
+  if (this->read_register(HTU21D_REGISTER_STATUS, reinterpret_cast<uint8_t *>(&raw_heater), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return false;
   }
   raw_heater = i2c::i2ctohs(raw_heater);
-  return (bool) (((raw_heater) >> (HTU21D_REG_HTRE_BIT)) & 0x01)
+  return (bool) (((raw_heater) >> (HTU21D_REG_HTRE_BIT)) & 0x01);
 }
 
 void HTU21DComponent::set_heater(bool status) {
   int8_t raw_heater;
-  if (this->read_register(&HTU21D_REGISTER_STATUS, reinterpret_cast<uint8_t *>(&raw_heater), 2) != i2c::ERROR_OK) {
+  if (this->read_register(HTU21D_REGISTER_STATUS, reinterpret_cast<uint8_t *>(&raw_heater), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
-    return false;
+    return;
   }
   raw_heater = i2c::i2ctohs(raw_heater);
   if (status) {
@@ -103,14 +103,14 @@ void HTU21DComponent::set_heater(bool status) {
     raw_heater &= ~(1 << (HTU21D_REG_HTRE_BIT));
   }
 
-  if (this->write_register(&HTU21D_WRITERHT_REG_CMD, raw_heater, 1) != i2c::ERROR_OK) {
+  if (this->write_register(HTU21D_WRITERHT_REG_CMD, raw_heater, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
 }
 
 void HTU21DComponent::set_heater_level(uint8_t level) {
-  if (this->write_register(&HTU21D_WRITEHEATER_REG_CMD, level, 1) != i2c::ERROR_OK) {
+  if (this->write_register(HTU21D_WRITEHEATER_REG_CMD, level, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
@@ -118,7 +118,7 @@ void HTU21DComponent::set_heater_level(uint8_t level) {
 
 int8_t HTU21DComponent::get_heater_level() {
   int8_t raw_heater;
-  if (this->read_register(&HTU21D_READHEATER_REG_CMD, reinterpret_cast<uint8_t *>(&raw_heater), 2) != i2c::ERROR_OK) {
+  if (this->read_register(HTU21D_READHEATER_REG_CMD, reinterpret_cast<uint8_t *>(&raw_heater), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return 0;
   }
