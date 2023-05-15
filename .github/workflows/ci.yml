@@ -324,6 +324,7 @@ jobs:
 
       - name: Run clang-tidy
         run: |
+          . venv/bin/activate
           script/clang-tidy --all-headers --fix ${{ matrix.options }}
         env:
           # Also cache libdeps, store them in a ~/.platformio subfolder
@@ -332,7 +333,7 @@ jobs:
       - name: Suggested changes
         run: script/ci-suggest-changes
         # yamllint disable-line rule:line-length
-        if: always() && (matrix.id == 'clang-tidy' || matrix.id == 'clang-format' || matrix.id == 'lint-python')
+        if: always()
 
   ci-status:
     name: CI Status
