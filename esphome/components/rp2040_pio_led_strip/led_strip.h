@@ -25,12 +25,6 @@ enum RGBOrder : uint8_t {
   ORDER_BRG,
 };
 
-enum Chipset : uint8_t {
-  WS2812,
-  WS2812B,
-  SK6812,
-  SM16703,
-};
 
 inline const char *rgb_order_to_string(RGBOrder order) {
   switch (order) {
@@ -70,9 +64,7 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
 
   void set_max_refresh_rate(float interval_us) { this->max_refresh_rate_ = interval_us; }
 
-  void set_pio(pio_hw_t *pio) { this->pio_ = pio; }
-
-  void set_chipset(Chipset chipset) { this->chipset_ = chipset; }
+  void set_pio(int pio_num) { pio_num ? this->pio_ = pio1 : this->pio_ = pio0; }
 
   void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
   void clear_effect_data() override {
@@ -91,9 +83,6 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   uint8_t *buf_{nullptr};
   uint8_t *write_buf_{nullptr};
   uint8_t *effect_data_{nullptr};
-
-  Chipset chipset_{WS2812};
-  const pio_program *pio_program_{nullptr};
 
   uint8_t pin_;
   uint32_t num_leds_;

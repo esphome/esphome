@@ -8,10 +8,7 @@
 #include <pico/stdlib.h>
 #include <hardware/pio.h>
 #include <hardware/clocks.h>
-#include "SK6812.pio.h"
-#include "SM16703.pio.h"
-#include "WS2812.pio.h"
-#include "WS2812B.pio.h"
+#include "Driver.h"
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
@@ -53,26 +50,12 @@ void RP2040PIOLEDStripLightOutput::setup() {
     return;
   }
 
-  switch (this->chipset_) {
-    case Chipset::WS2812:
-      ESP_LOGCONFIG(TAG, "Using WS2812 chipset");
-      this->pio_program_ = &rp2040_pio_led_ws2812_driver_program;
-      break;
-    case Chipset::SK6812:
-      ESP_LOGCONFIG(TAG, "Using SK6812 chipset");
-      this->pio_program_ = &rp2040_pio_led_sk6812_driver_program;
-      break;
-    case Chipset::SM16703:
-      ESP_LOGCONFIG(TAG, "Using SM16703 chipset");
-      this->pio_program_ = &rp2040_pio_led_sm16703_driver_program;
-    case Chipset::WS2812B:
-      ESP_LOGCONFIG(TAG, "Using WS2812B chipset");
-      this->pio_program_ = &rp2040_pio_led_ws2812b_driver_program;
-      break;
-  }
-
   // Load the assembled program into the PIO and get its location in the PIO's instruction memory
-  uint offset = pio_add_program(this->pio_, this->pio_program_);
+  uint offset{};
+  if (this->pio_ = pio0)
+    offset = pio_add_program(this->pio_, &rp2040_pio_led_driver0_program);
+  else
+    offset = pio_add_program(this->pio_, &rp2040_pio_led_driver1_program);
 
   // Configure the state machine's PIO, and start it
   this->sm_ = pio_claim_unused_sm(this->pio_, true);
@@ -81,20 +64,15 @@ void RP2040PIOLEDStripLightOutput::setup() {
     this->mark_failed();
     return;
   }
-
-  switch (this->chipset_) {
-    case Chipset::WS2812:
-      rp2040_pio_WS2812_init(this->pio_, this->sm_, offset, this->pin_, 0.0f);
-      break;
-    case Chipset::SK6812:
-      rp2040_pio_SK6812_init(this->pio_, this->sm_, offset, this->pin_, 0.0f);
-      break;
-    case Chipset::SM16703:
-      rp2040_pio_SM16703_init(this->pio_, this->sm_, offset, this->pin_, 0.0f);
-      this->pio_program_ = &rp2040_pio_led_sm16703_driver_program;
-    case Chipset::WS2812B:
-      rp2040_pio_WS2812B_init(this->pio_, this->sm_, offset, this->pin_, 0.0f);
-      break;
+  if (this->pio_ = pio0) {
+    #ifdef __DRIVER0_PIO_H__
+    rp2040_pio_driver0_init(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
+    #endif
+  }
+  else {
+    #ifdef __DRIVER1_PIO_H__
+    rp2040_pio_driver1_init(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
+    #endif
   }
 }
 
@@ -114,14 +92,14 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
   // Convert the light state in this->buf_ to uint32_t to write to the LED strip
   memcpy(this->write_buf_, this->buf_, this->get_buffer_size_());
 
-  // assemble bits in buffer to 32 bit words with 0bGGGGGGGGRRRRRRRRBBBBBBBB00000000
+  // assemble bits in buffer to 32 bit words with ex for GBR: 0bGGGGGGGGRRRRRRRRBBBBBBBB00000000
   for (int i = 0; i < this->num_leds_; i++) {
     uint8_t r = this->write_buf_[(i * 3) + 0];
     uint8_t g = this->write_buf_[(i * 3) + 1];
     uint8_t b = this->write_buf_[(i * 3) + 2];
     uint32_t grb = (g << 24) | (r << 16) | b << 8;
     ESP_LOGVV(TAG, "Writing 0x%08x to LED %d", grb, i);
-    pio_sm_put_blocking(this->pio_, this->sm_, grb);
+    pio_sm_put_blocking(this->pio_, this->sm_, this->rgb_order_);
   }
 }
 
