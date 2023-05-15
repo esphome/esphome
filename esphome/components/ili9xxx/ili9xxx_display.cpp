@@ -17,16 +17,26 @@ void ILI9XXXDisplay::setup() {
   this->y_low_ = this->height_;
   this->x_high_ = 0;
   this->y_high_ = 0;
-  if (this->buffer_color_mode_ == BITS_16) {
-    this->init_internal_(this->get_buffer_length_() * 2);
-    if (this->buffer_ != nullptr) {
-      return;
-    }
-    this->buffer_color_mode_ = BITS_8;
-  }
+
   this->init_internal_(this->get_buffer_length_());
+  if (this->buffer_color_mode_ == BITS_16 && this->buffer_ == nullptr) {
+    // Cannot allocate memory for 16 bit color. Try 8 bit color.
+    this->buffer_color_mode_ = BITS_8;
+    this->init_internal_(this->get_buffer_length_());
+  }
+
   if (this->buffer_ == nullptr) {
     this->mark_failed();
+  } else {
+    // Try allocating second optional framebuffer
+    this->buffer_2_ = this->buffer_;
+    this->buffer_ = nullptr;
+    this->init_internal_(this->get_buffer_length_());
+    if (this->buffer_ == nullptr) {
+      // Unable to allocate second fb. Use only first fb.
+      this->buffer_ = this->buffer_2_;
+      this->buffer_2_ = nullptr;
+    }
   }
 }
 
@@ -59,6 +69,9 @@ void ILI9XXXDisplay::dump_config() {
   if (this->is_18bitdisplay_) {
     ESP_LOGCONFIG(TAG, "  18-Bit Mode: YES");
   }
+  if (this->buffer_2_ != nullptr) {
+    ESP_LOGCONFIG(TAG, "  Use 2 Framebuffer: YES");
+  }
 
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
@@ -74,10 +87,13 @@ float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWA
 
 void ILI9XXXDisplay::fill(Color color) {
   uint16_t new_color = 0;
-  this->x_low_ = 0;
-  this->y_low_ = 0;
-  this->x_high_ = this->get_width_internal() - 1;
-  this->y_high_ = this->get_height_internal() - 1;
+  if (this->buffer_2_ == nullptr) {
+    // Only use single buffer. A fill operation will force a full redraw.
+    this->x_low_ = 0;
+    this->y_low_ = 0;
+    this->x_high_ = this->get_width_internal() - 1;
+    this->y_high_ = this->get_height_internal() - 1;
+  }
   switch (this->buffer_color_mode_) {
     case BITS_8_INDEXED:
       new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
@@ -85,7 +101,7 @@ void ILI9XXXDisplay::fill(Color color) {
     case BITS_16:
       new_color = display::ColorUtil::color_to_565(color);
       {
-        const uint32_t buffer_length_16_bits = this->get_buffer_length_() * 2;
+        const uint32_t buffer_length_16_bits = this->get_buffer_length_();
         if (((uint8_t) (new_color >> 8)) == ((uint8_t) new_color)) {
           // Upper and lower is equal can use quicker memset operation. Takes ~20ms.
           memset(this->buffer_, (uint8_t) new_color, buffer_length_16_bits);
@@ -136,7 +152,7 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     this->buffer_[pos] = new_color;
     updated = true;
   }
-  if (updated) {
+  if (this->buffer_2_ == nullptr && updated) {
     // low and high watermark may speed up drawing from buffer
     this->x_low_ = (x < this->x_low_) ? x : this->x_low_;
     this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
@@ -164,6 +180,67 @@ void ILI9XXXDisplay::update() {
 }
 
 void ILI9XXXDisplay::display_() {
+  if (this->buffer_2_ != nullptr) {
+    // Use double framebuffer. Determine screen changes between `buffer_` and `buffer_2_`.
+    if (this->first_update_) {
+      this->first_update_ = false;
+      // On Device reset the FB of the screen may contain invalid data. Push full screen update.
+      this->x_low_ = 0;
+      this->y_low_ = 0;
+      this->x_high_ = this->get_width_internal() - 1;
+      this->y_high_ = this->get_height_internal() - 1;
+    } else {
+      const auto buffer_length = this->get_buffer_length_();
+      bool y_low_changed = false;
+      uint16_t y_change, x_change;
+
+      // Compare first and second framebuffer for changes.
+      if (this->buffer_color_mode_ == BITS_16) {
+        for (uint32_t pos = 0; pos < buffer_length; pos += 2) {
+          if (this->buffer_[pos] != this->buffer_2_[pos] || this->buffer_[pos + 1] != this->buffer_2_[pos + 1]) {
+            if (!y_low_changed) {
+              // search for y_low value
+              this->y_low_ = y_change;
+              y_low_changed = true;
+            } else {
+              // search for y_high value
+              this->y_high_ = y_change;
+            }
+            this->x_low_ = std::min(this->x_low_, x_change);
+            this->x_high_ = std::max(this->x_high_, x_change);
+          }
+          // Keep track of position to avoid FPU calculation per pixel.
+          x_change++;
+          if (x_change >= this->width_) {
+            y_change++;
+            x_change = 0;
+          }
+        }
+      } else {
+        for (uint32_t pos = 0; pos < buffer_length; pos++) {
+          if (this->buffer_[pos] != this->buffer_2_[pos]) {
+            if (!y_low_changed) {
+              // search for y_low value
+              this->y_low_ = y_change;
+              y_low_changed = true;
+            } else {
+              // search for y_high value
+              this->y_high_ = y_change;
+            }
+            this->x_low_ = std::min(this->x_low_, x_change);
+            this->x_high_ = std::max(this->x_high_, x_change);
+          }
+          // Keep track of position to avoid FPU calculation per pixel.
+          x_change++;
+          if (x_change >= this->width_) {
+            y_change++;
+            x_change = 0;
+          }
+        }
+      }
+    }
+  }
+
   // we will only update the changed window to the display
   uint16_t w = this->x_high_ - this->x_low_ + 1;  // NOLINT
   uint16_t h = this->y_high_ - this->y_low_ + 1;  // NOLINT
@@ -185,15 +262,16 @@ void ILI9XXXDisplay::display_() {
   this->start_data_();
   for (uint16_t row = 0; row < h; row++) {
     uint32_t pos = start_pos + (row * width_);
+    uint32_t pos_16 = pos + pos;
     uint32_t rem = w;
 
     while (rem > 0) {
       uint32_t sz = std::min(rem, ILI9XXX_TRANSFER_BUFFER_SIZE);
       // ESP_LOGVV(TAG, "Send to display(pos:%d, rem:%d, zs:%d)", pos, rem, sz);
-      buffer_to_transfer_(pos, sz);
+      buffer_to_transfer_(pos, pos_16, sz);
       if (this->is_18bitdisplay_) {
         for (uint32_t i = 0; i < sz; ++i) {
-          uint16_t color_val = transfer_buffer_[i];
+          uint16_t color_val = this->transfer_buffer_[i];
 
           uint8_t red = color_val & 0x1F;
           uint8_t green = (color_val & 0x7E0) >> 5;
@@ -208,9 +286,14 @@ void ILI9XXXDisplay::display_() {
           this->write_array(pass_buff, sizeof(pass_buff));
         }
       } else {
-        this->write_array16(transfer_buffer_, sz);
+        // Write 16 bit transfer buffer using 8 bit array SPI operation. Ensure correct endian before send.
+        for (uint8_t i = 0; i < sz; ++i) {
+          this->transfer_buffer_[i] = convert_big_endian(this->transfer_buffer_[i]);
+        }
+        this->write_array((uint8_t *) (this->transfer_buffer_), sz * 2);
       }
       pos += sz;
+      pos_16 += sz + sz;
       rem -= sz;
     }
     App.feed_wdt();
@@ -222,31 +305,45 @@ void ILI9XXXDisplay::display_() {
   this->y_low_ = this->height_;
   this->x_high_ = 0;
   this->y_high_ = 0;
+
+  if (this->buffer_2_ != nullptr) {
+    memcpy(this->buffer_2_, this->buffer_, this->get_buffer_length_());
+  }
 }
 
-uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
-  for (uint32_t i = 0; i < sz; ++i) {
-    switch (this->buffer_color_mode_) {
-      case BITS_8_INDEXED:
-        transfer_buffer_[i] = display::ColorUtil::color_to_565(
+uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t pos_16, uint32_t sz) {
+  switch (this->buffer_color_mode_) {
+    case BITS_8_INDEXED:
+      for (uint32_t i = 0; i < sz; ++i) {
+        this->transfer_buffer_[i] = display::ColorUtil::color_to_565(
             display::ColorUtil::index8_to_color_palette888(this->buffer_[pos + i], this->palette_));
-        break;
-      case BITS_16:
-        transfer_buffer_[i] = ((uint16_t) this->buffer_[(pos + i) * 2] << 8) | this->buffer_[((pos + i) * 2) + 1];
-        continue;
-        break;
-      default:
-        transfer_buffer_[i] =
+      }
+      break;
+    case BITS_16:
+      for (uint32_t i = 0; i < sz; ++i) {
+        this->transfer_buffer_[i] =
+            ((uint16_t) this->buffer_[(pos_16 + i + i)] << 8) | this->buffer_[(pos_16 + i + i) + 1];
+      }
+      break;
+    default:
+      for (uint32_t i = 0; i < sz; ++i) {
+        this->transfer_buffer_[i] =
             display::ColorUtil::color_to_565(display::ColorUtil::rgb332_to_color(this->buffer_[pos + i]));
-        break;
-    }
+      }
+      break;
   }
   return sz;
 }
 
 // should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
 // values per bit is huge
-uint32_t ILI9XXXDisplay::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal(); }
+uint32_t ILI9XXXDisplay::get_buffer_length_() {
+  if (this->buffer_color_mode_ == BITS_16) {
+    return this->get_width_internal() * this->get_height_internal() * 2;
+  } else {
+    return this->get_width_internal() * this->get_height_internal();
+  }
+}
 
 void ILI9XXXDisplay::command(uint8_t value) {
   this->start_command_();
