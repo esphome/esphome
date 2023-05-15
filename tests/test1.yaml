@@ -676,13 +676,6 @@ sensor:
     sensor: hlw8012_power
     name: Integration Sensor lazy
     time_unit: s
-  - platform: ens160
-    eco2:
-      name: "ENS160 eCO2"
-    tvoc:
-      name: "ENS160 Total Volatile Organic Compounds"
-    aqi:
-      name: "ENS160 Air Quality Index"
   - platform: hmc5883l
     address: 0x68
     field_strength_x:
