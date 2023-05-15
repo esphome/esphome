@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 
+#include <driver/uart.h>
 #include <HardwareSerial.h>
 #include <vector>
 #include "esphome/core/component.h"
