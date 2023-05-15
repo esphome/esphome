@@ -192,7 +192,7 @@ void ILI9XXXDisplay::display_() {
     } else {
       const auto buffer_length = this->get_buffer_length_();
       bool y_low_changed = false;
-      uint16_t y_change, x_change;
+      uint16_t y_change = 0, x_change = 0;
 
       // Compare first and second framebuffer for changes.
       if (this->buffer_color_mode_ == BITS_16) {
@@ -300,15 +300,21 @@ void ILI9XXXDisplay::display_() {
   }
   this->end_data_();
 
+  if (this->buffer_2_ != nullptr) {
+    // update second framebuffer, but only the area which was changed.
+    uint32_t end_pos = ((this->y_high_ * this->width_) + x_high_) + 1;
+    if (this->buffer_color_mode_ == BITS_16) {
+      start_pos = start_pos + start_pos;
+      end_pos = end_pos + end_pos;
+    }
+    memcpy(this->buffer_2_ + start_pos, this->buffer_ + start_pos, end_pos - start_pos);
+  }
+
   // invalidate watermarks
   this->x_low_ = this->width_;
   this->y_low_ = this->height_;
   this->x_high_ = 0;
   this->y_high_ = 0;
-
-  if (this->buffer_2_ != nullptr) {
-    memcpy(this->buffer_2_, this->buffer_, this->get_buffer_length_());
-  }
 }
 
 uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t pos_16, uint32_t sz) {
