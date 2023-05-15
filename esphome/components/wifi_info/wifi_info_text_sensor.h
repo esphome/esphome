@@ -43,7 +43,7 @@ class DNSAddressWifiInfo : public PollingComponent, public text_sensor::TextSens
     }
   }
   float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
-  std::string unique_id() override { return get_mac_address() + "-wifiinfo-ip"; }
+  std::string unique_id() override { return get_mac_address() + "-wifiinfo-dns"; }
   void dump_config() override;
 
  protected:
