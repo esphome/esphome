@@ -4,6 +4,8 @@
 
 #pragma once
 
+#ifdef USE_RP2040
+
 #if !PICO_NO_HARDWARE
 #include "hardware/pio.h"
 #endif
@@ -13,7 +15,7 @@
 // ---------------------------- //
 
 namespace esphome {
-namespace rp2040_pio_led_strip{
+namespace rp2040_pio_led_strip {
 
 static const uint8_t rp2040_pio_led_ws2812_driver_wrap_target = 0;
 static const uint8_t rp2040_pio_led_ws2812_driver_wrap = 19;
@@ -75,3 +77,5 @@ static inline void rp2040_pio_WS2812_init(PIO pio, uint sm, uint offset, uint pi
 
 } // namespace rp2040_pio_led_strip
 } // namespace esphome
+
+#endif
