@@ -103,14 +103,14 @@ void HTU21DComponent::set_heater(bool status) {
     raw_heater &= ~(1 << (HTU21D_REG_HTRE_BIT));
   }
 
-  if (this->write_register(HTU21D_WRITERHT_REG_CMD, raw_heater, 1) != i2c::ERROR_OK) {
+  if (this->write_register(HTU21D_WRITERHT_REG_CMD, &raw_heater, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
 }
 
 void HTU21DComponent::set_heater_level(uint8_t level) {
-  if (this->write_register(HTU21D_WRITEHEATER_REG_CMD, level, 1) != i2c::ERROR_OK) {
+  if (this->write_register(HTU21D_WRITEHEATER_REG_CMD, &level, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
