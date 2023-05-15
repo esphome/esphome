@@ -14,6 +14,7 @@ from esphome import core, yaml_util, loader
 import esphome.core.config as core_config
 from esphome.const import (
     CONF_ESPHOME,
+    CONF_ID,
     CONF_PLATFORM,
     CONF_PACKAGES,
     CONF_SUBSTITUTIONS,
@@ -24,6 +25,7 @@ from esphome.core import CORE, EsphomeError
 from esphome.helpers import indent
 from esphome.util import safe_print, OrderedDict
 
+from esphome.config_helpers import Extend
 from esphome.loader import get_component, get_platform, ComponentManifest
 from esphome.yaml_util import is_secret, ESPHomeDataBase, ESPForceValue
 from esphome.voluptuous_schema import ExtraKeysInvalid
@@ -334,6 +336,13 @@ class LoadValidationStep(ConfigValidationStep):
                 continue
             p_name = p_config.get("platform")
             if p_name is None:
+                p_id = p_config.get(CONF_ID)
+                if isinstance(p_id, Extend):
+                    result.add_str_error(
+                        f"Source for extension of ID '{p_id.value}' was not found.",
+                        path + [CONF_ID],
+                    )
+                    continue
                 result.add_str_error("No platform specified! See 'platform' key.", path)
                 continue
             # Remove temp output path and construct new one
