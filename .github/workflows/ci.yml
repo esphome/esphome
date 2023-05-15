@@ -75,7 +75,7 @@ jobs:
       - name: Run black
         run: |
           . venv/bin/activate
-          black --verbose .
+          black --verbose esphome tests
       - name: Suggested changes
         run: script/ci-suggest-changes
         if: always()
