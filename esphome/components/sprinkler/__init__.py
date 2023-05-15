@@ -275,7 +275,7 @@ SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA = cv.Schema(
 SPRINKLER_ACTION_QUEUE_VALVE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Sprinkler),
-        cv.Optional(CONF_RUN_DURATION, default=0): cv.templatable(
+        cv.Optional(CONF_RUN_DURATION, default="0s"): cv.templatable(
             cv.positive_time_period_seconds
         ),
         cv.Required(CONF_VALVE_NUMBER): cv.templatable(cv.positive_int),
@@ -286,7 +286,9 @@ SPRINKLER_VALVE_SCHEMA = cv.Schema(
     {
         cv.Optional(CONF_ENABLE_SWITCH): cv.maybe_simple_value(
             switch.switch_schema(
-                SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
+                SprinklerControllerSwitch,
+                entity_category=ENTITY_CATEGORY_CONFIG,
+                default_restore_mode="RESTORE_DEFAULT_OFF",
             ),
             key=CONF_NAME,
         ),
@@ -333,7 +335,9 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
         cv.Optional(CONF_NAME): cv.string,
         cv.Optional(CONF_AUTO_ADVANCE_SWITCH): cv.maybe_simple_value(
             switch.switch_schema(
-                SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
+                SprinklerControllerSwitch,
+                entity_category=ENTITY_CATEGORY_CONFIG,
+                default_restore_mode="RESTORE_DEFAULT_OFF",
             ),
             key=CONF_NAME,
         ),
@@ -343,19 +347,25 @@ SPRINKLER_CONTROLLER_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_QUEUE_ENABLE_SWITCH): cv.maybe_simple_value(
             switch.switch_schema(
-                SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
+                SprinklerControllerSwitch,
+                entity_category=ENTITY_CATEGORY_CONFIG,
+                default_restore_mode="RESTORE_DEFAULT_OFF",
             ),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_REVERSE_SWITCH): cv.maybe_simple_value(
             switch.switch_schema(
-                SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
+                SprinklerControllerSwitch,
+                entity_category=ENTITY_CATEGORY_CONFIG,
+                default_restore_mode="RESTORE_DEFAULT_OFF",
             ),
             key=CONF_NAME,
         ),
         cv.Optional(CONF_STANDBY_SWITCH): cv.maybe_simple_value(
             switch.switch_schema(
-                SprinklerControllerSwitch, entity_category=ENTITY_CATEGORY_CONFIG
+                SprinklerControllerSwitch,
+                entity_category=ENTITY_CATEGORY_CONFIG,
+                default_restore_mode="RESTORE_DEFAULT_OFF",
             ),
             key=CONF_NAME,
         ),

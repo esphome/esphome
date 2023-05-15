@@ -208,6 +208,12 @@ tlc5947:
   clock_pin: GPIO14
   lat_pin: GPIO15
 
+gp8403:
+  - id: gp8403_5v
+    voltage: 5V
+  - id: gp8403_10v
+    voltage: 10V
+
 output:
   - platform: gpio
     pin: GPIO2
@@ -244,6 +250,15 @@ output:
   - platform: tm1638
     id: Led7
     led: 7
+
+  - platform: gp8403
+    id: gp8403_output_0
+    gp8403_id: gp8403_5v
+    channel: 0
+  - platform: gp8403
+    gp8403_id: gp8403_10v
+    id: gp8403_output_1
+    channel: 1
 
 demo:
 
@@ -629,3 +644,22 @@ key_collector:
     source_id: keypad
     min_length: 4
     max_length: 4
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: led_strip
+    pin: 13
+    num_leds: 60
+    rmt_channel: 6
+    rgb_order: GRB
+    chipset: ws2812
+  - platform: esp32_rmt_led_strip
+    id: led_strip2
+    pin: 15
+    num_leds: 60
+    rmt_channel: 2
+    rgb_order: RGB
+    bit0_high: 100us
+    bit0_low: 100us
+    bit1_high: 100us
+    bit1_low: 100us

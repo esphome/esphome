@@ -14,3 +14,5 @@ pip3 install -r requirements.txt -r requirements_optional.txt -r requirements_te
 pip3 install --no-use-pep517 -e .
 
 pre-commit install
+
+script/platformio_install_deps.py platformio.ini --libraries --tools --platforms
