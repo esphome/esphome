@@ -91,7 +91,7 @@ bool HTU21DComponent::is_heater_enabled() {
 }
 
 void HTU21DComponent::set_heater(bool status) {
-  int8_t raw_heater;
+  uint8_t raw_heater;
   if (this->read_register(HTU21D_REGISTER_STATUS, reinterpret_cast<uint8_t *>(&raw_heater), 2) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
