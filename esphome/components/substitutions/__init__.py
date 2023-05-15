@@ -66,7 +66,7 @@ def _expand_substitutions(substitutions, value, path, ignore_missing):
         if name.startswith("{") and name.endswith("}"):
             name = name[1:-1]
         if name not in substitutions:
-            if not ignore_missing:
+            if not ignore_missing and "password" not in path:
                 _LOGGER.warning(
                     "Found '%s' (see %s) which looks like a substitution, but '%s' was "
                     "not declared",

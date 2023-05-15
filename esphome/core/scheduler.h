@@ -1,8 +1,10 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include <vector>
 #include <memory>
+
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 
@@ -71,6 +73,7 @@ class Scheduler {
     return this->items_.empty();
   }
 
+  Mutex lock_;
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
   uint32_t last_millis_{0};

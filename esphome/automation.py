@@ -254,7 +254,11 @@ async def repeat_action_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     count_template = await cg.templatable(config[CONF_COUNT], args, cg.uint32)
     cg.add(var.set_count(count_template))
-    actions = await build_action_list(config[CONF_THEN], template_arg, args)
+    actions = await build_action_list(
+        config[CONF_THEN],
+        cg.TemplateArguments(cg.uint32, *template_arg.args),
+        [(cg.uint32, "iteration"), *args],
+    )
     cg.add(var.add_then(actions))
     return var
 
