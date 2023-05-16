@@ -78,5 +78,26 @@ uint8_t I2CRegister::get() const {
   return value;
 }
 
+I2CRegister16 &I2CRegister16::operator=(uint8_t value) {
+  this->parent_->write_register16(this->register_, &value, 1);
+  return *this;
+}
+I2CRegister16 &I2CRegister16::operator&=(uint8_t value) {
+  value &= get();
+  this->parent_->write_register16(this->register_, &value, 1);
+  return *this;
+}
+I2CRegister16 &I2CRegister16::operator|=(uint8_t value) {
+  value |= get();
+  this->parent_->write_register16(this->register_, &value, 1);
+  return *this;
+}
+
+uint8_t I2CRegister16::get() const {
+  uint8_t value = 0x00;
+  this->parent_->read_register16(this->register_, &value, 1);
+  return value;
+}
+
 }  // namespace i2c
 }  // namespace esphome
