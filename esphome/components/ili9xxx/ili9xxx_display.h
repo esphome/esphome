@@ -25,7 +25,7 @@ class ILI9XXXDisplay : public PollingComponent,
   void set_reset_pin(GPIOPin *reset) { this->reset_pin_ = reset; }
   void set_palette(const uint8_t *palette) { this->palette_ = palette; }
   void set_buffer_color_mode(ILI9XXXColorMode color_mode) { this->buffer_color_mode_ = color_mode; }
-  void set_dimentions(int16_t width, int16_t height) {
+  void set_dimentions(uint16_t width, uint16_t height) {
     this->height_ = height;
     this->width_ = width;
   }
@@ -53,13 +53,19 @@ class ILI9XXXDisplay : public PollingComponent,
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void invert_display_(bool invert);
   void reset_();
+  inline bool use_second_buffer_() { return this->buffer_2_ != nullptr || this->buffer_16bit_2_ != nullptr; }
 
-  // `buffer_2_` is an optional FB containing the currently displayed screen content. Used to determine screen update to
-  // be pushed to display.
+  /// @brief Optional framebuffer containing the currently displayed screen content. Used to determine screen update to
+  /// be pushed to display. Only used when `buffer_color_mode_` is `BITS_8` or `BITS_8_INDEXED`.
   uint8_t *buffer_2_{nullptr};
+  /// @brief Only used when `buffer_color_mode_ == BITS_16`.
+  uint16_t *buffer_16bit_{nullptr};
+  /// @brief Optional framebuffer containing the currently displayed screen content. Used to determine screen update to
+  /// be pushed to display. Only used when `buffer_color_mode_ == BITS_16`.
+  uint16_t *buffer_16bit_2_{nullptr};
 
-  int16_t width_{0};   ///< Display width as modified by current rotation
-  int16_t height_{0};  ///< Display height as modified by current rotation
+  uint16_t width_{0};   ///< Display width as modified by current rotation
+  uint16_t height_{0};  ///< Display height as modified by current rotation
   uint16_t x_low_{0};
   uint16_t y_low_{0};
   uint16_t x_high_{0};

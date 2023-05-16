@@ -18,25 +18,39 @@ void ILI9XXXDisplay::setup() {
   this->x_high_ = 0;
   this->y_high_ = 0;
 
-  this->init_internal_(this->get_buffer_length_());
-  if (this->buffer_color_mode_ == BITS_16 && this->buffer_ == nullptr) {
-    // Cannot allocate memory for 16 bit color. Try 8 bit color.
-    this->buffer_color_mode_ = BITS_8;
-    this->init_internal_(this->get_buffer_length_());
+  if (this->buffer_color_mode_ == BITS_16) {
+    ExternalRAMAllocator<uint16_t> allocator_16bit(ExternalRAMAllocator<uint16_t>::ALLOW_FAILURE);
+    this->buffer_16bit_ = allocator_16bit.allocate(this->get_buffer_length_());
+    if (this->buffer_16bit_ != nullptr) {
+      this->clear();
+      // Try allocating second optional framebuffer
+      this->buffer_16bit_2_ = allocator_16bit.allocate(this->get_buffer_length_());
+      if (this->buffer_16bit_2_ != nullptr) {
+        // Swap buffers as the clear operation will fill first framebuffer only.
+        std::swap(this->buffer_16bit_, this->buffer_16bit_2_);
+        this->clear();
+      }
+    } else {
+      // Cannot allocate memory for 16 bit color. Try 8 bit color.
+      this->buffer_color_mode_ = BITS_8;
+    }
   }
 
-  if (this->buffer_ == nullptr) {
-    this->mark_failed();
-  } else {
+  if (this->buffer_16bit_ == nullptr) {
+    // `buffer_color_mode_` must be `BITS_8` or `BITS_8_INDEXED`.
+    this->init_internal_(this->get_buffer_length_());
+
     // Try allocating second optional framebuffer
-    this->buffer_2_ = this->buffer_;
-    this->buffer_ = nullptr;
+    std::swap(this->buffer_, this->buffer_2_);
     this->init_internal_(this->get_buffer_length_());
     if (this->buffer_ == nullptr) {
-      // Unable to allocate second fb. Use only first fb.
-      this->buffer_ = this->buffer_2_;
-      this->buffer_2_ = nullptr;
+      // Cannot allocate second framebuffer.
+      std::swap(this->buffer_, this->buffer_2_);
     }
+  }
+
+  if (this->buffer_16bit_ == nullptr && this->buffer_ == nullptr) {
+    this->mark_failed();
   }
 }
 
@@ -69,7 +83,7 @@ void ILI9XXXDisplay::dump_config() {
   if (this->is_18bitdisplay_) {
     ESP_LOGCONFIG(TAG, "  18-Bit Mode: YES");
   }
-  if (this->buffer_2_ != nullptr) {
+  if (this->use_second_buffer_()) {
     ESP_LOGCONFIG(TAG, "  Use 2 Framebuffer: YES");
   }
 
@@ -86,40 +100,28 @@ void ILI9XXXDisplay::dump_config() {
 float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWARE; }
 
 void ILI9XXXDisplay::fill(Color color) {
-  uint16_t new_color = 0;
-  if (this->buffer_2_ == nullptr) {
+  if (!this->use_second_buffer_()) {
     // Only use single buffer. A fill operation will force a full redraw.
     this->x_low_ = 0;
     this->y_low_ = 0;
     this->x_high_ = this->get_width_internal() - 1;
     this->y_high_ = this->get_height_internal() - 1;
   }
+
   switch (this->buffer_color_mode_) {
-    case BITS_8_INDEXED:
-      new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
-      break;
-    case BITS_16:
-      new_color = display::ColorUtil::color_to_565(color);
-      {
-        const uint32_t buffer_length_16_bits = this->get_buffer_length_();
-        if (((uint8_t) (new_color >> 8)) == ((uint8_t) new_color)) {
-          // Upper and lower is equal can use quicker memset operation. Takes ~20ms.
-          memset(this->buffer_, (uint8_t) new_color, buffer_length_16_bits);
-        } else {
-          // Slower set of both buffers. Takes ~30ms.
-          for (uint32_t i = 0; i < buffer_length_16_bits; i = i + 2) {
-            this->buffer_[i] = (uint8_t) (new_color >> 8);
-            this->buffer_[i + 1] = (uint8_t) new_color;
-          }
-        }
-      }
-      return;
-      break;
-    default:
-      new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
-      break;
+    case BITS_8_INDEXED: {
+      uint8_t new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
+      memset(this->buffer_, new_color, this->get_buffer_length_());
+    } break;
+    case BITS_16: {
+      uint16_t new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
+      memset(this->buffer_16bit_, new_color, this->get_buffer_length_() * 2);
+    } break;
+    default: {
+      uint8_t new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+      memset(this->buffer_, new_color, this->get_buffer_length_());
+    } break;
   }
-  memset(this->buffer_, (uint8_t) new_color, this->get_buffer_length_());
 }
 
 void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color) {
@@ -127,32 +129,32 @@ void HOT ILI9XXXDisplay::draw_absolute_pixel_internal(int x, int y, Color color)
     return;
   }
   uint32_t pos = (y * this->width_) + x;
-  uint16_t new_color;
   bool updated = false;
   switch (this->buffer_color_mode_) {
-    case BITS_8_INDEXED:
-      new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
-      break;
-    case BITS_16:
-      pos = pos + pos;
-      new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
-      if (this->buffer_[pos] != (uint8_t) (new_color >> 8)) {
-        this->buffer_[pos] = (uint8_t) (new_color >> 8);
+    case BITS_8_INDEXED: {
+      uint8_t new_color = display::ColorUtil::color_to_index8_palette888(color, this->palette_);
+      if (this->buffer_[pos] != new_color) {
+        this->buffer_[pos] = new_color;
         updated = true;
       }
-      pos = pos + 1;
-      new_color = new_color & 0xFF;
-      break;
-    default:
-      new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
-      break;
+    } break;
+    case BITS_16: {
+      uint16_t new_color = display::ColorUtil::color_to_565(color, display::ColorOrder::COLOR_ORDER_RGB);
+      if (this->buffer_16bit_[pos] != new_color) {
+        this->buffer_16bit_[pos] = new_color;
+        updated = true;
+      }
+    } break;
+    default: {
+      uint8_t new_color = display::ColorUtil::color_to_332(color, display::ColorOrder::COLOR_ORDER_RGB);
+      if (this->buffer_[pos] != new_color) {
+        this->buffer_[pos] = new_color;
+        updated = true;
+      }
+    } break;
   }
 
-  if (this->buffer_[pos] != new_color) {
-    this->buffer_[pos] = new_color;
-    updated = true;
-  }
-  if (this->buffer_2_ == nullptr && updated) {
+  if (!this->use_second_buffer_() && updated) {
     // low and high watermark may speed up drawing from buffer
     this->x_low_ = (x < this->x_low_) ? x : this->x_low_;
     this->y_low_ = (y < this->y_low_) ? y : this->y_low_;
@@ -176,12 +178,15 @@ void ILI9XXXDisplay::update() {
     }
   } while (this->need_update_);
   this->prossing_update_ = false;
+  uint32_t now = micros();
   this->display_();
+  ESP_LOGI(TAG, "display_ %u", micros() - now);
 }
 
 void ILI9XXXDisplay::display_() {
-  if (this->buffer_2_ != nullptr) {
-    // Use double framebuffer. Determine screen changes between `buffer_` and `buffer_2_`.
+  if (this->use_second_buffer_()) {
+    // Use double framebuffer. Determine screen changes between `buffer_` and `buffer_2_` or `buffer_16bit_` and
+    // `buffer_16bit_2_`.
     if (this->first_update_) {
       this->first_update_ = false;
       // On Device reset the FB of the screen may contain invalid data. Push full screen update.
@@ -190,14 +195,15 @@ void ILI9XXXDisplay::display_() {
       this->x_high_ = this->get_width_internal() - 1;
       this->y_high_ = this->get_height_internal() - 1;
     } else {
+      // Compare first and second framebuffer for changes.
       const auto buffer_length = this->get_buffer_length_();
       bool y_low_changed = false;
       uint16_t y_change = 0, x_change = 0;
 
-      // Compare first and second framebuffer for changes.
-      if (this->buffer_color_mode_ == BITS_16) {
-        for (uint32_t pos = 0; pos < buffer_length; pos += 2) {
-          if (this->buffer_[pos] != this->buffer_2_[pos] || this->buffer_[pos + 1] != this->buffer_2_[pos + 1]) {
+      // Seperate loops for `buffer_16bit_2_` and `buffer_2_` for performance reasons. Saves ~10ms @320x480px.
+      if (this->buffer_16bit_2_ != nullptr) {
+        for (uint32_t pos = 0; pos < buffer_length; pos++) {
+          if (this->buffer_16bit_[pos] != this->buffer_16bit_2_[pos]) {
             if (!y_low_changed) {
               // search for y_low value
               this->y_low_ = y_change;
@@ -216,7 +222,7 @@ void ILI9XXXDisplay::display_() {
             x_change = 0;
           }
         }
-      } else {
+      } else if (this->buffer_2_ != nullptr) {
         for (uint32_t pos = 0; pos < buffer_length; pos++) {
           if (this->buffer_[pos] != this->buffer_2_[pos]) {
             if (!y_low_changed) {
@@ -289,7 +295,7 @@ void ILI9XXXDisplay::display_() {
         for (uint32_t i = 0; i < sz; ++i) {
           this->transfer_buffer_[i] = convert_big_endian(this->transfer_buffer_[i]);
         }
-        this->write_array((uint8_t *) (this->transfer_buffer_), sz * 2);
+        this->write_array((uint8_t *) (this->transfer_buffer_), sz + sz);
       }
       pos += sz;
       rem -= sz;
@@ -297,16 +303,6 @@ void ILI9XXXDisplay::display_() {
     App.feed_wdt();
   }
   this->end_data_();
-
-  if (this->buffer_2_ != nullptr) {
-    // update second framebuffer, but only the area which was changed.
-    uint32_t end_pos = ((this->y_high_ * this->width_) + x_high_) + 1;
-    if (this->buffer_color_mode_ == BITS_16) {
-      start_pos = start_pos + start_pos;
-      end_pos = end_pos + end_pos;
-    }
-    memcpy(this->buffer_2_ + start_pos, this->buffer_ + start_pos, end_pos - start_pos);
-  }
 
   // invalidate watermarks
   this->x_low_ = this->width_;
@@ -324,9 +320,10 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
       }
       break;
     case BITS_16:
-      pos = pos + pos;
-      for (uint32_t i = 0; i < sz; ++i) {
-        this->transfer_buffer_[i] = ((uint16_t) this->buffer_[(pos + i + i)] << 8) | this->buffer_[(pos + i + i) + 1];
+      memcpy(this->transfer_buffer_, this->buffer_16bit_ + pos, sz + sz);
+      if (this->buffer_16bit_2_ != nullptr) {
+        // Update second framebuffer. Update here as data is in cache.
+        memcpy(this->buffer_16bit_2_ + pos, this->buffer_16bit_ + pos, sz + sz);
       }
       break;
     default:
@@ -336,18 +333,14 @@ uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {
       }
       break;
   }
+  if (this->buffer_color_mode_ != BITS_16 && this->buffer_2_ != nullptr) {
+    // Update second framebuffer. Update here as data is in cache.
+    memcpy(this->buffer_2_ + pos, this->buffer_ + pos, sz);
+  }
   return sz;
 }
 
-// should return the total size: return this->get_width_internal() * this->get_height_internal() * 2 // 16bit color
-// values per bit is huge
-uint32_t ILI9XXXDisplay::get_buffer_length_() {
-  if (this->buffer_color_mode_ == BITS_16) {
-    return this->get_width_internal() * this->get_height_internal() * 2;
-  } else {
-    return this->get_width_internal() * this->get_height_internal();
-  }
-}
+uint32_t ILI9XXXDisplay::get_buffer_length_() { return this->get_width_internal() * this->get_height_internal(); }
 
 void ILI9XXXDisplay::command(uint8_t value) {
   this->start_command_();
