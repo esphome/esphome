@@ -15,7 +15,7 @@ class Wireguard : public PollingComponent {
   void dump_config() override;
   void on_shutdown() override;
 
-  float get_setup_priority() const override { return esphome::setup_priority::LATE; }
+  float get_setup_priority() const override { return esphome::setup_priority::AFTER_WIFI; }
 
   void set_address(const std::string& address);
   void set_netmask(const std::string& netmask);
@@ -26,6 +26,7 @@ class Wireguard : public PollingComponent {
   void set_preshared_key(const std::string& key);
 
   void set_keepalive(uint16_t seconds);
+  void set_reboot_timeout(uint32_t seconds);
   void set_srctime(time::RealTimeClock* srctime);
 
   bool is_peer_up() const;
@@ -41,6 +42,7 @@ class Wireguard : public PollingComponent {
   uint16_t peer_port_;
 
   uint16_t keepalive_;
+  uint32_t reboot_timeout_;
   time::RealTimeClock* srctime_;
 
   wireguard_config_t wg_config_ = ESP_WIREGUARD_CONFIG_DEFAULT();
@@ -48,7 +50,7 @@ class Wireguard : public PollingComponent {
 
   esp_err_t wg_initialized_ = ESP_FAIL;
   esp_err_t wg_connected_ = ESP_FAIL;
-  bool wg_peer_up_logged_ = false;
+  uint32_t wg_peer_offline_time_ = 0;
 
   void start_connection_();
 };

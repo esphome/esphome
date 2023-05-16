@@ -2,6 +2,7 @@
 
 #include <ctime>
 #include <functional>
+#include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esp_err.h"
 #include "esp_wireguard.h"
@@ -15,8 +16,13 @@ namespace wireguard {
 
 static const char * const TAG = "wireguard";
 
+static const char * const LOGMSG_PEER_STATUS = "WireGuard remote peer is %s (latest handshake %s)";
+static const char * const LOGMSG_ONLINE = "online";
+static const char * const LOGMSG_OFFLINE = "offline";
+
+
 void Wireguard::setup() {
-    ESP_LOGD(TAG, "initializing...");
+    ESP_LOGD(TAG, "initializing WireGuard...");
 
     this->wg_config_.allowed_ip = this->address_.c_str();
     this->wg_config_.private_key = this->private_key_.c_str();
@@ -32,11 +38,12 @@ void Wireguard::setup() {
     this->wg_initialized_ = esp_wireguard_init(&(this->wg_config_), &(this->wg_ctx_));
 
     if(this->wg_initialized_ == ESP_OK) {
-        ESP_LOGI(TAG, "initialized");
+        ESP_LOGI(TAG, "WireGuard initialized");
+        this->wg_peer_offline_time_ = millis();
         this->srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection_, this));
         this->start_connection_();
     } else {
-        ESP_LOGE(TAG, "cannot initialize, error code %d", this->wg_initialized_);
+        ESP_LOGE(TAG, "cannot initialize WireGuard, error code %d", this->wg_initialized_);
         this->mark_failed();
     }
 }
@@ -48,20 +55,26 @@ void Wireguard::update() {
         : "timestamp not available";
 
     if(this->is_peer_up()) {
-        if(!this->wg_peer_up_logged_) {
-            ESP_LOGI(TAG, "peer online");
-            this->wg_peer_up_logged_ = true;
+        if(this->wg_peer_offline_time_ != 0) {
+            ESP_LOGI(TAG, LOGMSG_PEER_STATUS, LOGMSG_ONLINE, latest_handshake.c_str());
+            this->wg_peer_offline_time_ = 0;
         } else {
-            ESP_LOGD(TAG, "peer online (latest handshake %s)", latest_handshake.c_str());
+            ESP_LOGD(TAG, LOGMSG_PEER_STATUS, LOGMSG_ONLINE, latest_handshake.c_str());
         }
     } else {
-        if(this->wg_peer_up_logged_) {
-            ESP_LOGW(TAG, "peer offline (latest handshake %s)", latest_handshake.c_str());
-            this->wg_peer_up_logged_ = false;
+        if(this->wg_peer_offline_time_ == 0) {
+            ESP_LOGW(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
+            this->wg_peer_offline_time_ = millis();
         } else {
-            ESP_LOGV(TAG, "initialized: %s (error %d)", (this->wg_initialized_ == ESP_OK ? "yes" : "no"), this->wg_initialized_);
-            ESP_LOGV(TAG, "connection: %s (error %d)", (this->wg_connected_ == ESP_OK ? "active" : "inactive"), this->wg_connected_);
-            ESP_LOGD(TAG, "peer offline (latest handshake %s)", latest_handshake.c_str());
+            ESP_LOGD(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
+        }
+
+        // check reboot timeout every time the peer is down
+        if(this->reboot_timeout_ > 0) {
+            if(millis() - this->wg_peer_offline_time_ > this->reboot_timeout_) {
+                ESP_LOGE(TAG, "WireGuard remote peer is unreachable, rebooting...");
+                App.reboot();
+            }
         }
     }
 }
@@ -77,13 +90,17 @@ void Wireguard::dump_config() {
     ESP_LOGCONFIG(TAG, "  peer preshared key: %s%s",
             (this->preshared_key_.length() > 0 ? this->preshared_key_.substr(0,5).c_str() : "NOT IN USE"),
             (this->preshared_key_.length() > 0 ? "[...]=" : ""));
-    ESP_LOGCONFIG(TAG, "  peer persistent keepalive: %d", this->keepalive_);
+    ESP_LOGCONFIG(TAG, "  peer persistent keepalive: %d%s", this->keepalive_, (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
+    ESP_LOGCONFIG(TAG, "  reboot timeout: %d%s",
+            (this->reboot_timeout_ / 1000),
+            (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
 }
 
 void Wireguard::on_shutdown() {
     if(this->wg_initialized_ == ESP_OK && this->wg_connected_ == ESP_OK) {
-        ESP_LOGD(TAG, "disconnecting...");
+        ESP_LOGD(TAG, "stopping WireGuard connection...");
         esp_wireguard_disconnect(&(this->wg_ctx_));
+        this->wg_connected_ = ESP_FAIL;
     }
 }
 
@@ -124,30 +141,31 @@ void Wireguard::set_peer_port(const uint16_t port) { this->peer_port_ = port; }
 void Wireguard::set_preshared_key(const std::string& key) { this->preshared_key_ = std::move(key); }
 
 void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
+void Wireguard::set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock* srctime) { this->srctime_ = srctime; }
 
 void Wireguard::start_connection_() {
     if(this->wg_initialized_ != ESP_OK) {
-        ESP_LOGE(TAG, "cannot start connection, initialization in error with code %d", this->wg_initialized_);
+        ESP_LOGE(TAG, "cannot start WireGuard, initialization in error with code %d", this->wg_initialized_);
         return;
     }
 
     if(!this->srctime_->now().is_valid()) {
-        ESP_LOGI(TAG, "waiting for system time to be synchronized");
+        ESP_LOGD(TAG, "WireGuard is waiting for system time to be synchronized");
         return;
     }
 
     if(this->wg_connected_ == ESP_OK) {
-        ESP_LOGD(TAG, "connection already started");
+        ESP_LOGD(TAG, "WireGuard connection already started");
         return;
     }
 
-    ESP_LOGD(TAG, "connecting...");
+    ESP_LOGD(TAG, "starting WireGuard connection...");
     this->wg_connected_ = esp_wireguard_connect(&(this->wg_ctx_));
     if(this->wg_connected_ == ESP_OK) {
-        ESP_LOGI(TAG, "connection started");
+        ESP_LOGI(TAG, "WireGuard connection started");
     } else {
-        ESP_LOGW(TAG, "cannot start connection, error code %d", this->wg_connected_);
+        ESP_LOGW(TAG, "cannot start WireGuard connection, error code %d", this->wg_connected_);
     }
 }
 

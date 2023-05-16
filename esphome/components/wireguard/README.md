@@ -27,6 +27,10 @@ wireguard:
 
   # optional keepalive in seconds (disabled by default)
   peer_persistent_keepalive: 25
+
+  # if remote peer is unreachable reboot the board (default to 15min,
+  # set to 0s to disable)
+  reboot_timeout: 15min
 ```
 
 ## Sensors
