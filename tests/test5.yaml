@@ -489,6 +489,7 @@ sensor:
       offset: 0
       normalized_offset_slope: 0
       time_constant: 0
+    auto_cleaning_interval: 604800s
     acceleration_mode: low
     store_baseline: true
     address: 0x69
@@ -644,3 +645,22 @@ key_collector:
     source_id: keypad
     min_length: 4
     max_length: 4
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: led_strip
+    pin: 13
+    num_leds: 60
+    rmt_channel: 6
+    rgb_order: GRB
+    chipset: ws2812
+  - platform: esp32_rmt_led_strip
+    id: led_strip2
+    pin: 15
+    num_leds: 60
+    rmt_channel: 2
+    rgb_order: RGB
+    bit0_high: 100us
+    bit0_low: 100us
+    bit1_high: 100us
+    bit1_low: 100us

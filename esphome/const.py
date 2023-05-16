@@ -1,14 +1,15 @@
 """Constants used by esphome."""
 
-__version__ = "2023.5.0-dev"
+__version__ = "2023.6.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 
 PLATFORM_ESP32 = "esp32"
 PLATFORM_ESP8266 = "esp8266"
 PLATFORM_RP2040 = "rp2040"
+PLATFORM_HOST = "host"
 
-TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040]
+TARGET_PLATFORMS = [PLATFORM_ESP32, PLATFORM_ESP8266, PLATFORM_RP2040, PLATFORM_HOST]
 
 SOURCE_FILE_EXTENSIONS = {".cpp", ".hpp", ".h", ".c", ".tcc", ".ino"}
 HEADER_FILE_EXTENSIONS = {".h", ".hpp", ".tcc"}
@@ -376,6 +377,7 @@ CONF_MAKE_ID = "make_id"
 CONF_MANUAL_IP = "manual_ip"
 CONF_MANUFACTURER_ID = "manufacturer_id"
 CONF_MASK_DISTURBER = "mask_disturber"
+CONF_MAX_BRIGHTNESS = "max_brightness"
 CONF_MAX_COOLING_RUN_TIME = "max_cooling_run_time"
 CONF_MAX_CURRENT = "max_current"
 CONF_MAX_DURATION = "max_duration"
@@ -395,6 +397,7 @@ CONF_MEDIUM = "medium"
 CONF_MEMORY_BLOCKS = "memory_blocks"
 CONF_METHOD = "method"
 CONF_MICROPHONE = "microphone"
+CONF_MIN_BRIGHTNESS = "min_brightness"
 CONF_MIN_COOLING_OFF_TIME = "min_cooling_off_time"
 CONF_MIN_COOLING_RUN_TIME = "min_cooling_run_time"
 CONF_MIN_FAN_MODE_SWITCHING_TIME = "min_fan_mode_switching_time"
@@ -407,6 +410,7 @@ CONF_MIN_LENGTH = "min_length"
 CONF_MIN_LEVEL = "min_level"
 CONF_MIN_POWER = "min_power"
 CONF_MIN_RANGE = "min_range"
+CONF_MIN_RSSI = "min_rssi"
 CONF_MIN_TEMPERATURE = "min_temperature"
 CONF_MIN_VALUE = "min_value"
 CONF_MIN_VERSION = "min_version"
@@ -1001,6 +1005,7 @@ DEVICE_CLASS_TIMESTAMP = "timestamp"
 DEVICE_CLASS_UPDATE = "update"
 DEVICE_CLASS_VIBRATION = "vibration"
 DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS = "volatile_organic_compounds"
+DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS = "volatile_organic_compounds_parts"
 DEVICE_CLASS_VOLTAGE = "voltage"
 DEVICE_CLASS_VOLUME = "volume"
 DEVICE_CLASS_VOLUME_STORAGE = "volume_storage"
