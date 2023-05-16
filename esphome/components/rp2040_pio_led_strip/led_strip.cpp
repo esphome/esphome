@@ -27,13 +27,6 @@ void RP2040PIOLEDStripLightOutput::setup() {
     return;
   }
 
-  this->write_buf_ = allocator.allocate(buffer_size);
-  if (this->write_buf_ == nullptr) {
-    ESP_LOGE(TAG, "Failed to allocate write buffer of size %u", buffer_size);
-    this->mark_failed();
-    return;
-  }
-
   this->effect_data_ = allocator.allocate(this->num_leds_);
   if (this->effect_data_ == nullptr) {
     ESP_LOGE(TAG, "Failed to allocate effect data of size %u", this->num_leds_);
@@ -75,15 +68,13 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
     return;
   }
 
-  // Convert the light state in this->buf_ to uint32_t to write to the LED strip
-  memcpy(this->write_buf_, this->buf_, this->get_buffer_size_());
-
   // assemble bits in buffer to 32 bit words with ex for GBR: 0bGGGGGGGGRRRRRRRRBBBBBBBB00000000
   for (int i = 0; i < this->num_leds_; i++) {
-    uint8_t c1 = this->write_buf_[(i * 3) + 0];
-    uint8_t c2 = this->write_buf_[(i * 3) + 1];
-    uint8_t c3 = this->write_buf_[(i * 3) + 2];
-    uint32_t color = (c1 << 24) | (c2 << 16) | c3 << 8;
+    uint8_t c1 = this->buf_[(i * 3) + 0];
+    uint8_t c2 = this->buf_[(i * 3) + 1];
+    uint8_t c3 = this->buf_[(i * 3) + 2];
+    uint8_t w = this->is_rgbw_ ? this->buf_[(i * 4) + 3] : 0;
+    uint32_t color = encode_uint32(c1, c2, c3, w);
     ESP_LOGVV(TAG, "Writing 0x%08x to LED %d", color, i);
     pio_sm_put_blocking(this->pio_, this->sm_, color);
   }

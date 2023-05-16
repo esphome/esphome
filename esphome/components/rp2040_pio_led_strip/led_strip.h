@@ -84,7 +84,6 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   size_t get_buffer_size_() const { return this->num_leds_ * (3 + this->is_rgbw_); }
 
   uint8_t *buf_{nullptr};
-  uint8_t *write_buf_{nullptr};
   uint8_t *effect_data_{nullptr};
 
   uint8_t pin_;

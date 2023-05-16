@@ -67,7 +67,7 @@ static inline void rp2040_pio_led_strip_driver_{id}_init(PIO pio, uint sm, uint 
 
     pio_sm_config c = rp2040_pio_led_strip_{id}_program_get_default_config(offset);
     sm_config_set_set_pins(&c, pin, 1);
-    sm_config_set_out_shift(&c, false, true, 24);
+    sm_config_set_out_shift(&c, false, true, {32 if rgbw else 24});
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
 
     int cycles_per_bit = 69;
