@@ -26,6 +26,7 @@ ENS160Component = ens160_ns.class_(
     "ENS160Component", cg.PollingComponent, i2c.I2CDevice, sensor.Sensor
 )
 
+CONF_COMPENSATION = "compensation"
 CONF_AQI = "aqi"
 UNIT_INDEX = "index"
 
@@ -54,8 +55,12 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_AQI,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
-            cv.Optional(CONF_HUMIDITY): cv.use_id(sensor.Sensor),
+            cv.Optional(CONF_COMPENSATION): cv.Schema(
+                {
+                    cv.Required(CONF_TEMPERATURE): cv.use_id(sensor.Sensor),
+                    cv.Required(CONF_HUMIDITY): cv.use_id(sensor.Sensor),
+                }
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -75,9 +80,9 @@ async def to_code(config):
     sens = await sensor.new_sensor(config[CONF_AQI])
     cg.add(var.set_aqi(sens))
 
-    if CONF_TEMPERATURE in config:
-        sens = await cg.get_variable(config[CONF_TEMPERATURE])
+    if CONF_COMPENSATION in config:
+        compensation_config = config[CONF_COMPENSATION]
+        sens = await cg.get_variable(compensation_config[CONF_TEMPERATURE])
         cg.add(var.set_temperature(sens))
-    if CONF_HUMIDITY in config:
-        sens = await cg.get_variable(config[CONF_HUMIDITY])
+        sens = await cg.get_variable(compensation_config[CONF_HUMIDITY])
         cg.add(var.set_humidity(sens))
