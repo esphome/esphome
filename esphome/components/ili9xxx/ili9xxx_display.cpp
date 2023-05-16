@@ -37,12 +37,14 @@ void ILI9XXXDisplay::setup() {
     // `buffer_color_mode_` must be `BITS_8` or `BITS_8_INDEXED`.
     this->init_internal_(this->get_buffer_length_());
 
-    // Try allocating second optional framebuffer
-    std::swap(this->buffer_, this->buffer_2_);
-    this->init_internal_(this->get_buffer_length_());
-    if (this->buffer_ == nullptr) {
-      // Cannot allocate second framebuffer.
+    if (this->buffer_ != nullptr) {
+      // Try allocating second optional framebuffer
       std::swap(this->buffer_, this->buffer_2_);
+      this->init_internal_(this->get_buffer_length_());
+      if (this->buffer_ == nullptr) {
+        // Cannot allocate second framebuffer.
+        std::swap(this->buffer_, this->buffer_2_);
+      }
     }
   }
 
