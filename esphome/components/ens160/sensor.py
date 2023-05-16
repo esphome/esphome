@@ -86,4 +86,3 @@ async def to_code(config):
         cg.add(var.set_temperature(sens))
         sens = await cg.get_variable(compensation_config[CONF_HUMIDITY])
         cg.add(var.set_humidity(sens))
-        
