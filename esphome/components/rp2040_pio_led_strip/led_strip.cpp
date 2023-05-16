@@ -5,10 +5,9 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include <pico/stdlib.h>
-#include <hardware/pio.h>
 #include <hardware/clocks.h>
-#include "Driver.h"
+#include <hardware/pio.h>
+#include <pico/stdlib.h>
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
@@ -51,11 +50,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
   }
 
   // Load the assembled program into the PIO and get its location in the PIO's instruction memory
-  uint offset{};
-  if (this->pio_ = pio0)
-    offset = pio_add_program(this->pio_, &rp2040_pio_led_driver0_program);
-  else
-    offset = pio_add_program(this->pio_, &rp2040_pio_led_driver1_program);
+  uint offset = pio_add_program(this->pio_, this->program_);
 
   // Configure the state machine's PIO, and start it
   this->sm_ = pio_claim_unused_sm(this->pio_, true);
@@ -64,16 +59,7 @@ void RP2040PIOLEDStripLightOutput::setup() {
     this->mark_failed();
     return;
   }
-  if (this->pio_ = pio0) {
-    #ifdef __DRIVER0_PIO_H__
-    rp2040_pio_driver0_init(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
-    #endif
-  }
-  else {
-    #ifdef __DRIVER1_PIO_H__
-    rp2040_pio_driver1_init(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
-    #endif
-  }
+  this->init_(this->pio_, this->sm_, offset, this->pin_, this->max_refresh_rate_);
 }
 
 void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {

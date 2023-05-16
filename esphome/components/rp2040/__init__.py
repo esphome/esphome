@@ -1,4 +1,5 @@
 import logging
+import os
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -13,6 +14,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
 )
 from esphome.core import CORE, coroutine_with_priority, EsphomeError
+from esphome.helpers import mkdir_p
 import esphome.platformio_api as api
 
 from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
@@ -153,7 +155,7 @@ async def to_code(config):
         "platform_packages",
         [
             f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}",
-            f"earlephilhower/tool-pioasm-rp2040-earlephilhower@{conf[CONF_SOURCE]}",
+            "earlephilhower/tool-pioasm-rp2040-earlephilhower",
         ],
     )
 
@@ -171,10 +173,18 @@ def add_pio_file(path: str, data: str):
     CORE.data[KEY_RP2040][KEY_PIO_FILES][path] = data
 
 
-def generate_pio_files():
+def generate_pio_files() -> bool:
+    import shutil
+
+    shutil.rmtree(CORE.relative_build_path("src/pio"), ignore_errors=True)
+
+    includes: list[str] = []
     files = CORE.data[KEY_RP2040][KEY_PIO_FILES]
+    if not files:
+        return False
     for path, data in files.items():
-        pio_path = CORE.relative_build_path(f"{path}.pio")
+        pio_path = CORE.relative_build_path(f"src/{path}.pio")
+        mkdir_p(os.path.dirname(pio_path))
         with open(pio_path, "w") as f:
             f.write(data)
         _LOGGER.info("Assembling PIO assembly code")
@@ -188,19 +198,18 @@ def generate_pio_files():
             pio_path,
             pio_path + ".h",
         )
+        includes.append(path + ".pio.h")
         if retval != 0:
             raise EsphomeError("PIO assembly failed")
 
-        with open(pio_path + ".h") as f:
-            code = f.read()
-            code = f"#pragma once\n\n{code}\n"
-        with open(
-            pio_path + ".h",
-            "w",
-        ) as f:
-            f.write(code)
+    with open(CORE.relative_build_path("src/pio_includes.h"), "w") as f:
+        f.write(
+            "#pragma once\n"
+            + "\n".join([f'#include "{include}"' for include in includes])
+        )
+    return True
 
 
 # Called by writer.py
-def copy_files():
-    generate_pio_files()
+def copy_files() -> bool:
+    return generate_pio_files()

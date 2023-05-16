@@ -2,16 +2,16 @@
 
 #ifdef USE_RP2040
 
-#include "esphome/core/component.h"
 #include "esphome/core/color.h"
+#include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 
 #include "esphome/components/light/addressable_light.h"
 #include "esphome/components/light/light_output.h"
 
-#include "pico/stdio.h"
-#include <hardware/structs/pio.h>
 #include <hardware/pio.h>
+#include <hardware/structs/pio.h>
+#include <pico/stdio.h>
 
 namespace esphome {
 namespace rp2040_pio_led_strip {
@@ -45,6 +45,8 @@ inline const char *rgb_order_to_string(RGBOrder order) {
   }
 }
 
+using init_fn = void (*)(PIO pio, uint sm, uint offset, uint pin, float freq);
+
 class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
  public:
   void setup() override;
@@ -65,6 +67,8 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   void set_max_refresh_rate(float interval_us) { this->max_refresh_rate_ = interval_us; }
 
   void set_pio(int pio_num) { pio_num ? this->pio_ = pio1 : this->pio_ = pio0; }
+  void set_program(const pio_program_t *program) { this->program_ = program; }
+  void set_init_function(init_fn init) { this->init_ = init; }
 
   void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
   void clear_effect_data() override {
@@ -95,6 +99,9 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
 
   uint32_t last_refresh_{0};
   float max_refresh_rate_;
+
+  const pio_program_t *program_;
+  init_fn init_;
 };
 
 }  // namespace rp2040_pio_led_strip
