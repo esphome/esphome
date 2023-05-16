@@ -80,12 +80,12 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
 
   // assemble bits in buffer to 32 bit words with ex for GBR: 0bGGGGGGGGRRRRRRRRBBBBBBBB00000000
   for (int i = 0; i < this->num_leds_; i++) {
-    uint8_t r = this->write_buf_[(i * 3) + 0];
-    uint8_t g = this->write_buf_[(i * 3) + 1];
-    uint8_t b = this->write_buf_[(i * 3) + 2];
-    uint32_t grb = (g << 24) | (r << 16) | b << 8;
-    ESP_LOGVV(TAG, "Writing 0x%08x to LED %d", grb, i);
-    pio_sm_put_blocking(this->pio_, this->sm_, this->rgb_order_);
+    uint8_t c1 = this->write_buf_[(i * 3) + 0];
+    uint8_t c2 = this->write_buf_[(i * 3) + 1];
+    uint8_t c3 = this->write_buf_[(i * 3) + 2];
+    uint32_t color = (c1 << 24) | (c2 << 16) | c3 << 8;
+    ESP_LOGVV(TAG, "Writing 0x%08x to LED %d", color, i);
+    pio_sm_put_blocking(this->pio_, this->sm_, color);
   }
 }
 
