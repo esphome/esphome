@@ -13,10 +13,7 @@ void ILI9XXXDisplay::setup() {
   this->setup_pins_();
   this->initialize();
 
-  this->x_low_ = this->width_;
-  this->y_low_ = this->height_;
-  this->x_high_ = 0;
-  this->y_high_ = 0;
+  this->watermark_reset_();
 
   if (this->buffer_color_mode_ == BITS_16) {
     ExternalRAMAllocator<uint16_t> allocator_16bit(ExternalRAMAllocator<uint16_t>::ALLOW_FAILURE);
@@ -102,10 +99,7 @@ float ILI9XXXDisplay::get_setup_priority() const { return setup_priority::HARDWA
 void ILI9XXXDisplay::fill(Color color) {
   if (!this->use_second_buffer_()) {
     // Only use single buffer. A fill operation will force a full redraw.
-    this->x_low_ = 0;
-    this->y_low_ = 0;
-    this->x_high_ = this->get_width_internal() - 1;
-    this->y_high_ = this->get_height_internal() - 1;
+    this->watermark_full_redraw_();
   }
 
   switch (this->buffer_color_mode_) {
@@ -178,9 +172,7 @@ void ILI9XXXDisplay::update() {
     }
   } while (this->need_update_);
   this->prossing_update_ = false;
-  uint32_t now = micros();
   this->display_();
-  ESP_LOGI(TAG, "display_ %u", micros() - now);
 }
 
 void ILI9XXXDisplay::display_() {
@@ -190,10 +182,7 @@ void ILI9XXXDisplay::display_() {
     if (this->first_update_) {
       this->first_update_ = false;
       // On Device reset the FB of the screen may contain invalid data. Push full screen update.
-      this->x_low_ = 0;
-      this->y_low_ = 0;
-      this->x_high_ = this->get_width_internal() - 1;
-      this->y_high_ = this->get_height_internal() - 1;
+      this->watermark_full_redraw_();
     } else {
       // Compare first and second framebuffer for changes.
       const auto buffer_length = this->get_buffer_length_();
@@ -202,45 +191,59 @@ void ILI9XXXDisplay::display_() {
 
       // Seperate loops for `buffer_16bit_2_` and `buffer_2_` for performance reasons. Saves ~10ms @320x480px.
       if (this->buffer_16bit_2_ != nullptr) {
-        for (uint32_t pos = 0; pos < buffer_length; pos++) {
-          if (this->buffer_16bit_[pos] != this->buffer_16bit_2_[pos]) {
-            if (!y_low_changed) {
-              // search for y_low value
-              this->y_low_ = y_change;
-              y_low_changed = true;
-            } else {
-              // search for y_high value
-              this->y_high_ = y_change;
+        // Full `buffer_16bit_2_` scan takes ~40-50ms @320x480px.
+        if (this->buffer_16bit_[0] != this->buffer_16bit_2_[0] &&
+            this->buffer_16bit_[buffer_length - 1] != this->buffer_16bit_2_[buffer_length - 1]) {
+          // Shortcut for full screen changes.
+          this->watermark_full_redraw_();
+        } else {
+          for (uint32_t pos = 0; pos < buffer_length; pos++) {
+            if (this->buffer_16bit_[pos] != this->buffer_16bit_2_[pos]) {
+              if (!y_low_changed) {
+                // search for y_low value
+                this->y_low_ = y_change;
+                y_low_changed = true;
+              } else {
+                // search for y_high value
+                this->y_high_ = y_change;
+              }
+              this->x_low_ = std::min(this->x_low_, x_change);
+              this->x_high_ = std::max(this->x_high_, x_change);
             }
-            this->x_low_ = std::min(this->x_low_, x_change);
-            this->x_high_ = std::max(this->x_high_, x_change);
-          }
-          // Keep track of position to avoid FPU calculation per pixel.
-          x_change++;
-          if (x_change >= this->width_) {
-            y_change++;
-            x_change = 0;
+            // Keep track of position to avoid FPU calculation per pixel.
+            x_change++;
+            if (x_change >= this->width_) {
+              y_change++;
+              x_change = 0;
+            }
           }
         }
       } else if (this->buffer_2_ != nullptr) {
-        for (uint32_t pos = 0; pos < buffer_length; pos++) {
-          if (this->buffer_[pos] != this->buffer_2_[pos]) {
-            if (!y_low_changed) {
-              // search for y_low value
-              this->y_low_ = y_change;
-              y_low_changed = true;
-            } else {
-              // search for y_high value
-              this->y_high_ = y_change;
+        // Full `buffer_2_` scan takes ~30-40ms @320x480px.
+        if (this->buffer_[0] != this->buffer_2_[0] &&
+            this->buffer_[buffer_length - 1] != this->buffer_2_[buffer_length - 1]) {
+          // Shortcut for full screen changes.
+          this->watermark_full_redraw_();
+        } else {
+          for (uint32_t pos = 0; pos < buffer_length; pos++) {
+            if (this->buffer_[pos] != this->buffer_2_[pos]) {
+              if (!y_low_changed) {
+                // search for y_low value
+                this->y_low_ = y_change;
+                y_low_changed = true;
+              } else {
+                // search for y_high value
+                this->y_high_ = y_change;
+              }
+              this->x_low_ = std::min(this->x_low_, x_change);
+              this->x_high_ = std::max(this->x_high_, x_change);
             }
-            this->x_low_ = std::min(this->x_low_, x_change);
-            this->x_high_ = std::max(this->x_high_, x_change);
-          }
-          // Keep track of position to avoid FPU calculation per pixel.
-          x_change++;
-          if (x_change >= this->width_) {
-            y_change++;
-            x_change = 0;
+            // Keep track of position to avoid FPU calculation per pixel.
+            x_change++;
+            if (x_change >= this->width_) {
+              y_change++;
+              x_change = 0;
+            }
           }
         }
       }
@@ -304,11 +307,7 @@ void ILI9XXXDisplay::display_() {
   }
   this->end_data_();
 
-  // invalidate watermarks
-  this->x_low_ = this->width_;
-  this->y_low_ = this->height_;
-  this->x_high_ = 0;
-  this->y_high_ = 0;
+  this->watermark_reset_();
 }
 
 uint32_t ILI9XXXDisplay::buffer_to_transfer_(uint32_t pos, uint32_t sz) {

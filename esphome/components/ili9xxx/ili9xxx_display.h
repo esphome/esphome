@@ -53,7 +53,19 @@ class ILI9XXXDisplay : public PollingComponent,
   void set_addr_window_(uint16_t x, uint16_t y, uint16_t w, uint16_t h);
   void invert_display_(bool invert);
   void reset_();
-  inline bool use_second_buffer_() { return this->buffer_2_ != nullptr || this->buffer_16bit_2_ != nullptr; }
+  inline bool use_second_buffer_() { return this->buffer_2_ != nullptr || this->buffer_16bit_2_ != nullptr; };
+  inline void watermark_reset_() {
+    this->x_low_ = this->width_;
+    this->y_low_ = this->height_;
+    this->x_high_ = 0;
+    this->y_high_ = 0;
+  };
+  inline void watermark_full_redraw_() {
+    this->x_low_ = 0;
+    this->y_low_ = 0;
+    this->x_high_ = this->get_width_internal() - 1;
+    this->y_high_ = this->get_height_internal() - 1;
+  };
 
   /// @brief Optional framebuffer containing the currently displayed screen content. Used to determine screen update to
   /// be pushed to display. Only used when `buffer_color_mode_` is `BITS_8` or `BITS_8_INDEXED`.
