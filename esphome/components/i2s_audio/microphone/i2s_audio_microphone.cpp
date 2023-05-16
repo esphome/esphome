@@ -89,6 +89,10 @@ void I2SAudioMicrophone::start_() {
 void I2SAudioMicrophone::stop() {
   if (this->state_ == microphone::STATE_STOPPED || this->is_failed())
     return;
+  if (this->state_ == microphone::STATE_STARTING) {
+    this->state_ = microphone::STATE_STOPPED;
+    return;
+  }
   this->state_ = microphone::STATE_STOPPING;
 }
 
