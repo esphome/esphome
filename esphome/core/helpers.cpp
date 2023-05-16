@@ -104,8 +104,9 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse
     return refout ? crc : (crc ^ 0xffff);
   }
 #endif
-  if (refin)
+  if (refin) {
     crc ^= 0xffff;
+  }
 #if not defined(USE_ESP32)
   if (reverse_poly == 0x8408) {
     while (len--) {
@@ -141,8 +142,9 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
     return refout ? crc : (crc ^ 0xffff);
   }
 #endif
-  if (refin)
+  if (refin) {
     crc ^= 0xffff;
+  }
 #if not defined(USE_ESP32)
   if (poly == 0x1021) {
     while (len--) {
