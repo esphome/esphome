@@ -14,10 +14,28 @@ ErrorCode I2CDevice::read_register(uint8_t a_register, uint8_t *data, size_t len
   return bus_->read(address_, data, len);
 }
 
+ErrorCode I2CDevice::read_register16(uint16_t a_register, uint8_t *data, size_t len, bool stop) {
+  a_register = convert_big_endian(a_register);
+  ErrorCode const err = this->write(reinterpret_cast<const uint8_t *>(&a_register), 2, stop);
+  if (err != ERROR_OK)
+    return err;
+  return bus_->read(address_, data, len);
+}
+
 ErrorCode I2CDevice::write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop) {
   WriteBuffer buffers[2];
   buffers[0].data = &a_register;
   buffers[0].len = 1;
+  buffers[1].data = data;
+  buffers[1].len = len;
+  return bus_->writev(address_, buffers, 2, stop);
+}
+
+ErrorCode I2CDevice::write_register16(uint16_t a_register, const uint8_t *data, size_t len, bool stop) {
+  a_register = convert_big_endian(a_register);
+  WriteBuffer buffers[2];
+  buffers[0].data = reinterpret_cast<const uint8_t *>(&a_register);
+  buffers[0].len = 2;
   buffers[1].data = data;
   buffers[1].len = len;
   return bus_->writev(address_, buffers, 2, stop);

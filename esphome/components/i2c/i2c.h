@@ -47,9 +47,11 @@ class I2CDevice {
 
   ErrorCode read(uint8_t *data, size_t len) { return bus_->read(address_, data, len); }
   ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len, bool stop = true);
+  ErrorCode read_register16(uint16_t a_register, uint8_t *data, size_t len, bool stop = true);
 
   ErrorCode write(const uint8_t *data, uint8_t len, bool stop = true) { return bus_->write(address_, data, len, stop); }
   ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop = true);
+  ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len, bool stop = true);
 
   // Compat APIs
 
