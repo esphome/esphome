@@ -6,8 +6,10 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
@@ -64,7 +66,7 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_HECTOPASCAL,
             icon=ICON_GAUGE,
             accuracy_decimals=1,
-            device_class=DEVICE_CLASS_PRESSURE,
+            device_class=DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
             state_class=STATE_CLASS_MEASUREMENT,
         ).extend(
             {cv.Optional(CONF_SAMPLE_RATE): cv.enum(SAMPLE_RATE_OPTIONS, upper=True)}
@@ -99,12 +101,14 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
             icon=ICON_TEST_TUBE,
             accuracy_decimals=1,
+            device_class=DEVICE_CLASS_CARBON_DIOXIDE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_BREATH_VOC_EQUIVALENT): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
             icon=ICON_TEST_TUBE,
             accuracy_decimals=1,
+            device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
     }
