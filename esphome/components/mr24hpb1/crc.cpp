@@ -44,7 +44,7 @@ uint16_t us_calculate_crc16(unsigned char *lpuc_frame, uint16_t lus_len) {
     luc_crc_lo = (unsigned char) (luc_crc_hi ^ CUC_CRC_HI[li_index]);
     luc_crc_hi = CUC_CRC_LO[li_index];
   }
-  return (uint16_t)(luc_crc_lo << 8 | luc_crc_hi);
+  return (uint16_t) (luc_crc_lo << 8 | luc_crc_hi);
 }
 
 }  // namespace mr24hpb1
