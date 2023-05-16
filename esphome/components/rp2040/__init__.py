@@ -14,7 +14,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
 )
 from esphome.core import CORE, coroutine_with_priority, EsphomeError
-from esphome.helpers import mkdir_p
+from esphome.helpers import mkdir_p, write_file
 import esphome.platformio_api as api
 
 from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
@@ -185,8 +185,7 @@ def generate_pio_files() -> bool:
     for path, data in files.items():
         pio_path = CORE.relative_build_path(f"src/{path}.pio")
         mkdir_p(os.path.dirname(pio_path))
-        with open(pio_path, "w") as f:
-            f.write(data)
+        write_file(pio_path, data)
         _LOGGER.info("Assembling PIO assembly code")
         retval = api.run_platformio_cli(
             "pkg",
@@ -202,11 +201,10 @@ def generate_pio_files() -> bool:
         if retval != 0:
             raise EsphomeError("PIO assembly failed")
 
-    with open(CORE.relative_build_path("src/pio_includes.h"), "w") as f:
-        f.write(
-            "#pragma once\n"
-            + "\n".join([f'#include "{include}"' for include in includes])
-        )
+    write_file(
+        CORE.relative_build_path("src/pio_includes.h"),
+        "#pragma once\n" + "\n".join([f'#include "{include}"' for include in includes]),
+    )
     return True
 
 
