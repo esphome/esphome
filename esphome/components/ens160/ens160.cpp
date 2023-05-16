@@ -233,19 +233,8 @@ void ENS160Component::update() {
 }
 
 void ENS160Component::send_env_data_() {
-  if (this->humidity_ == nullptr && this->temperature_ == nullptr)
+  if (this->temperature_ == nullptr && this->humidity_ == nullptr)
     return;
-  
-  float humidity = NAN;
-  if (this->humidity_ != nullptr)
-    humidity = this->humidity_->state;
-  
-  if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
-    ESP_LOGW(TAG, "Invalid external humidity - compensation values not updated");
-    return;
-  } else {
-    ESP_LOGV(TAG, "External humidity compensation:    %.1f%%", humidity);
-  }
   
   float temperature = NAN;
   if (this->temperature_ != nullptr)
@@ -256,6 +245,17 @@ void ENS160Component::send_env_data_() {
     return;
   } else {
     ESP_LOGV(TAG, "External temperature compensation: %.1f°C", temperature);
+  }
+  
+  float humidity = NAN;
+  if (this->humidity_ != nullptr)
+    humidity = this->humidity_->state;
+  
+  if (std::isnan(humidity) || humidity < 0.0f || humidity > 100.0f) {
+    ESP_LOGW(TAG, "Invalid external humidity - compensation values not updated");
+    return;
+  } else {
+    ESP_LOGV(TAG, "External humidity compensation:    %.1f%%", humidity);
   }
   
   uint16_t t = (uint16_t) ((temperature + 273.15f) * 64.0f);
@@ -300,7 +300,7 @@ void ENS160Component::dump_config() {
       ESP_LOGD(TAG, "Setup successful");
       break;
   }
-  ESP_LOGD(TAG, "Firmware Version: %d.%d.%d", this->firmware_ver_major_, this->firmware_ver_minor_,
+  ESP_LOGI(TAG, "Firmware Version: %d.%d.%d", this->firmware_ver_major_, this->firmware_ver_minor_,
            this->firmware_ver_build_);
 
   LOG_I2C_DEVICE(this);
