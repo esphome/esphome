@@ -282,10 +282,14 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
     int scan_x1, scan_y1, scan_width, scan_height;
     glyph.scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
 
-    for (int glyph_x = scan_x1; glyph_x < scan_x1 + scan_width; glyph_x++) {
-      for (int glyph_y = scan_y1; glyph_y < scan_y1 + scan_height; glyph_y++) {
-        if (glyph.get_pixel(glyph_x, glyph_y)) {
-          this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
+    {
+      const int glyph_x_max = scan_x1 + scan_width;
+      const int glyph_y_max = scan_y1 + scan_height;
+      for (int glyph_x = scan_x1; glyph_x < glyph_x_max; glyph_x++) {
+        for (int glyph_y = scan_y1; glyph_y < glyph_y_max; glyph_y++) {
+          if (glyph.get_pixel(glyph_x, glyph_y)) {
+            this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
+          }
         }
       }
     }
