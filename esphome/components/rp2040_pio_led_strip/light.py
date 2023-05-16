@@ -57,16 +57,15 @@ def generate_assembly_code(id, rgbw, t0h, t0l, t1h, t1l):
     nops_t1h = "\n".join(" " * 4 + nop for nop in nops_t1h)
     nops_t1l = "\n".join(" " * 4 + nop for nop in nops_t1l)
 
-    const_csdk_code = (
-        """
+    const_csdk_code = f"""
 % c-sdk {{
 #include "hardware/clocks.h"
 
-static inline void rp2040_pio_led_strip_driver_{}_init(PIO pio, uint sm, uint offset, uint pin, float freq) {{
+static inline void rp2040_pio_led_strip_driver_{id}_init(PIO pio, uint sm, uint offset, uint pin, float freq) {{
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
 
-    pio_sm_config c = rp2040_pio_led_strip_{}_program_get_default_config(offset);
+    pio_sm_config c = rp2040_pio_led_strip_{id}_program_get_default_config(offset);
     sm_config_set_set_pins(&c, pin, 1);
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
@@ -80,15 +79,14 @@ static inline void rp2040_pio_led_strip_driver_{}_init(PIO pio, uint sm, uint of
     pio_sm_set_enabled(pio, sm, true);
 }}
 %}}"""
-    ).format(id, id)
 
-    assembly_template = """.program rp2040_pio_led_strip_{}
+    assembly_template = f""".program rp2040_pio_led_strip_{id}
 
 .wrap_target
 awaiting_data:
     ; Wait for data in FIFO queue
     pull block ; this will block until there is data in the FIFO queue and then it will pull it into the shift register
-    set y, {} ; set y to the number of bits to write, (24 if RGB, 32 if RGBW)
+    set y, {32 if rgbw else 24} ; set y to the number of bits to write, (24 if RGB, 32 if RGBW)
 
 mainloop:
     ; go through each bit in the shift register and jump to the appropriate label
@@ -100,34 +98,23 @@ mainloop:
 
 writezero:
     ; Write T0H and T0L bits to the output pin
-    set pins, 1 [{}]
-{}
-    set pins, 0 [{}]
-{}
+    set pins, 1 [{t0h}]
+{nops_t0h}
+    set pins, 0 [{t0l}]
+{nops_t0l}
     jmp y--, mainloop
     jmp awaiting_data
 
 writeone:
     ; Write T1H and T1L bits to the output pin
-    set pins, 1 [{}]
-{}
-    set pins, 0 [{}]
-{}
+    set pins, 1 [{t1h}]
+{nops_t1h}
+    set pins, 0 [{t1l}]
+{nops_t1l}
     jmp y--, mainloop
     jmp awaiting_data
 
-.wrap""".format(
-        id,
-        32 if rgbw else 24,
-        t0h,
-        nops_t0h,
-        t0l,
-        nops_t0l,
-        t1h,
-        nops_t1h,
-        t1l,
-        nops_t1l,
-    )
+.wrap"""
 
     return assembly_template + const_csdk_code
 
