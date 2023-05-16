@@ -1,6 +1,6 @@
 #pragma once
 
-#include "mr24hpb1.h"
+#include "types.h"
 
 namespace esphome {
 namespace mr24hpb1 {
