@@ -119,6 +119,8 @@ class Component {
 
   bool is_failed();
 
+  bool is_ready();
+
   virtual bool can_proceed();
 
   bool status_has_warning();
