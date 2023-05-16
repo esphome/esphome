@@ -60,6 +60,7 @@ def generate_assembly_code(pio, rgbw, t0h, t0l, t1h, t1l):
         """
 % c-sdk {{
 #include "hardware/clocks.h"
+#define __DRIVER{}_PIO_H__
 
 static inline void rp2040_pio_driver{}_init(PIO pio, uint sm, uint offset, uint pin, float freq) {{
     pio_gpio_init(pio, pin);
@@ -79,7 +80,7 @@ static inline void rp2040_pio_driver{}_init(PIO pio, uint sm, uint offset, uint 
     pio_sm_set_enabled(pio, sm, true);
 }}
 %}}"""
-    ).format(pio, pio)
+    ).format(pio, pio, pio)
 
     assembly_template = """.program rp2040_pio_led_driver{}
 

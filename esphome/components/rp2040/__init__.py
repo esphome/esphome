@@ -151,7 +151,10 @@ async def to_code(config):
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
-        [f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}"],
+        [
+            f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}",
+            f"earlephilhower/tool-pioasm-rp2040-earlephilhower@{conf[CONF_SOURCE]}",
+        ],
     )
 
     cg.add_platformio_option("board_build.core", "earlephilhower")
@@ -179,7 +182,7 @@ def generate_pio_files():
             "pkg",
             "exec",
             "--package",
-            "platformio/tool-rp2040tools",
+            "earlephilhower/tool-pioasm-rp2040-earlephilhower",
             "--",
             "pioasm",
             pio_path,
@@ -190,7 +193,7 @@ def generate_pio_files():
 
         with open(pio_path + ".h") as f:
             code = f.read()
-            code = f"#pragma once\n\n{code}\n#endif\n"
+            code = f"#pragma once\n\n{code}\n"
         with open(
             pio_path + ".h",
             "w",
