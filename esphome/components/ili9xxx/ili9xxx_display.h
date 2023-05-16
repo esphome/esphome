@@ -79,7 +79,7 @@ class ILI9XXXDisplay : public PollingComponent,
 
   uint16_t transfer_buffer_[ILI9XXX_TRANSFER_BUFFER_SIZE];
 
-  uint32_t buffer_to_transfer_(uint32_t pos, uint32_t pos_16, uint32_t sz);
+  uint32_t buffer_to_transfer_(uint32_t pos, uint32_t sz);
 
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *dc_pin_{nullptr};
