@@ -17,7 +17,7 @@ CONF_PEER_PRESHARED_KEY = "peer_preshared_key"
 CONF_PEER_PERSISTENT_KEEPALIVE = "peer_persistent_keepalive"
 
 DEPENDENCIES = ["time"]
-CODEOWNERS = ["@lhoracek"]
+CODEOWNERS = ["@lhoracek", "@droscy"]
 
 wireguard_ns = cg.esphome_ns.namespace("wireguard")
 Wireguard = wireguard_ns.class_("Wireguard", cg.Component, cg.PollingComponent)
