@@ -25,7 +25,6 @@ enum RGBOrder : uint8_t {
   ORDER_BRG,
 };
 
-
 inline const char *rgb_order_to_string(RGBOrder order) {
   switch (order) {
     case ORDER_RGB:
