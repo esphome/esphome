@@ -12,9 +12,10 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority, EsphomeError
+import esphome.platformio_api as api
 
-from .const import KEY_BOARD, KEY_RP2040, rp2040_ns
+from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 
 # force import gpio to register pin schema
 from .gpio import rp2040_pin_to_code  # noqa
@@ -32,6 +33,8 @@ def set_core_data(config):
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
     CORE.data[KEY_RP2040][KEY_BOARD] = config[CONF_BOARD]
+
+    CORE.data[KEY_RP2040][KEY_PIO_FILES] = {}
 
     return config
 
@@ -159,3 +162,42 @@ async def to_code(config):
         "USE_ARDUINO_VERSION_CODE",
         cg.RawExpression(f"VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"),
     )
+
+
+def add_pio_file(path: str, data: str):
+    CORE.data[KEY_RP2040][KEY_PIO_FILES][path] = data
+
+
+def generate_pio_files():
+    files = CORE.data[KEY_RP2040][KEY_PIO_FILES]
+    for path, data in files.items():
+        pio_path = CORE.relative_build_path(f"{path}.pio")
+        with open(pio_path, "w") as f:
+            f.write(data)
+        _LOGGER.info("Assembling PIO assembly code")
+        retval = api.run_platformio_cli(
+            "pkg",
+            "exec",
+            "--package",
+            "platformio/tool-rp2040tools",
+            "--",
+            "pioasm",
+            pio_path,
+            pio_path + ".h",
+        )
+        if retval != 0:
+            raise EsphomeError("PIO assembly failed")
+
+        with open(pio_path + ".h") as f:
+            code = f.read()
+            code = f"#pragma once\n\n{code}\n#endif\n"
+        with open(
+            pio_path + ".h",
+            "w",
+        ) as f:
+            f.write(code)
+
+
+# Called by writer.py
+def copy_files():
+    generate_pio_files()

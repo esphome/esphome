@@ -299,6 +299,11 @@ def copy_src_tree():
 
         copy_files()
 
+    elif CORE.is_rp2040:
+        from esphome.components.rp2040 import copy_files
+
+        copy_files()
+
 
 def generate_defines_h():
     define_content_l = [x.as_macro for x in CORE.defines]

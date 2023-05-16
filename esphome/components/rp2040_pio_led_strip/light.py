@@ -1,7 +1,5 @@
 from dataclasses import dataclass
 
-import os
-
 from esphome import pins
 from esphome.components import light, rp2040
 from esphome.const import (
@@ -14,10 +12,6 @@ from esphome.const import (
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
-
-from esphome.loader import CORE
-
-import esphome.platformio_api as api
 
 from esphome.util import _LOGGER
 
@@ -64,22 +58,14 @@ def generate_assembly_code(pio, rgbw, t0h, t0l, t1h, t1l):
 
     const_csdk_code = (
         """
-% c-sdk {
+% c-sdk {{
 #include "hardware/clocks.h"
-"""
-        + """
-static inline void rp2040_pio_driver{}_init(PIO pio, uint sm, uint offset, uint pin, float freq)""".format(
-            pio
-        )
-        + """ {
+
+static inline void rp2040_pio_driver{}_init(PIO pio, uint sm, uint offset, uint pin, float freq) {{
     pio_gpio_init(pio, pin);
     pio_sm_set_consecutive_pindirs(pio, sm, pin, 1, true);
-"""
-        + """
-    pio_sm_config c = rp2040_pio_led_driver{}_program_get_default_config(offset);""".format(
-            pio
-        )
-        + """
+
+    pio_sm_config c = rp2040_pio_led_driver{}_program_get_default_config(offset);
     sm_config_set_set_pins(&c, pin, 1);
     sm_config_set_out_shift(&c, false, true, 24);
     sm_config_set_fifo_join(&c, PIO_FIFO_JOIN_TX);
@@ -91,9 +77,9 @@ static inline void rp2040_pio_driver{}_init(PIO pio, uint sm, uint offset, uint 
 
     pio_sm_init(pio, sm, offset, &c);
     pio_sm_set_enabled(pio, sm, true);
-}
-%}"""
-    )
+}}
+%}}"""
+    ).format(pio, pio)
 
     assembly_template = """.program rp2040_pio_led_driver{}
 
@@ -196,15 +182,6 @@ CONF_T0L = "bit0_low"
 CONF_T1H = "bit1_high"
 CONF_T1L = "bit1_low"
 
-PIO_VALUES = {rp2040.const: [0, 1]}
-
-
-def _validate_pio_value(value):
-    value = cv.int_(value)
-    if value < 0 or value > 1:
-        raise cv.Invalid("Value must be between 0 and 1")
-    return value
-
 
 def _validate_timing(value):
     # if doesn't end with us, raise error
@@ -225,7 +202,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
             cv.Required(CONF_RGB_ORDER): cv.enum(RGB_ORDERS, upper=True),
-            cv.Required(CONF_PIO): _validate_pio_value,
+            cv.Required(CONF_PIO): cv.one_of(0, 1, int=True),
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Inclusive(
@@ -251,7 +228,6 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
-    print(CORE.build_path)
     var = cg.new_Pvariable(config[CONF_OUTPUT_ID])
     await light.register_light(var, config)
     await cg.register_component(var, config)
@@ -264,108 +240,36 @@ async def to_code(config):
 
     cg.add(var.set_pio(config[CONF_PIO]))
 
-    # generate both empty headers if they don't exist yet
-    if not os.path.isfile(
-        CORE.build_path + "/src/esphome/components/rp2040_pio_led_strip/Driver0.pio"
-    ):
-        with open(
-            CORE.build_path
-            + "/src/esphome/components/rp2040_pio_led_strip/Driver0.pio.h",
-            "w",
-        ) as f:
-            f.write("//nothing")
-    if not os.path.isfile(
-        CORE.build_path + "src/esphome/components/rp2040_pio_led_strip/Driver1.pio"
-    ):
-        with open(
-            CORE.build_path
-            + "/src/esphome/components/rp2040_pio_led_strip/Driver1.pio.h",
-            "w",
-        ) as f:
-            f.write("//nothing")
-
     if CONF_IS_RGBW in config:
         is_rgbw = config[CONF_IS_RGBW]
     else:
         is_rgbw = False
 
+    path = f"src/esphome/components/rp2040_pio_led_strip/Driver{config[CONF_PIO]}"
+
     if CONF_CHIPSET in config:
-        _LOGGER.debug("Generating PIO assembly code")
-        with open(
-            CORE.build_path
-            + "/src/esphome/components/rp2040_pio_led_strip/Driver{}.pio".format(
-                config[CONF_PIO]
+        _LOGGER.info("Generating PIO assembly code")
+        rp2040.add_pio_file(
+            path,
+            generate_assembly_code(
+                config[CONF_PIO],
+                is_rgbw,
+                CHIPSETS[config[CONF_CHIPSET]].T0H,
+                CHIPSETS[config[CONF_CHIPSET]].T0L,
+                CHIPSETS[config[CONF_CHIPSET]].T1H,
+                CHIPSETS[config[CONF_CHIPSET]].T1L,
             ),
-            "w",
-        ) as f:
-            f.write(
-                generate_assembly_code(
-                    config[CONF_PIO],
-                    is_rgbw,
-                    CHIPSETS[config[CONF_CHIPSET]].T0H,
-                    CHIPSETS[config[CONF_CHIPSET]].T0L,
-                    CHIPSETS[config[CONF_CHIPSET]].T1H,
-                    CHIPSETS[config[CONF_CHIPSET]].T1L,
-                )
-            )
-    else:
-        _LOGGER.debug("Generating custom PIO assembly code")
-
-        with open(
-            CORE.build_path
-            + "/src/esphome/components/rp2040_pio_led_strip/Driver{}.pio".format(
-                config[CONF_PIO]
-            ),
-            "w",
-        ) as f:
-            f.write(
-                generate_assembly_code(
-                    config[CONF_PIO],
-                    is_rgbw,
-                    time_to_cycles(config[CONF_T0H]),
-                    time_to_cycles(config[CONF_T0L]),
-                    time_to_cycles(config[CONF_T1H]),
-                    time_to_cycles(config[CONF_T1L]),
-                )
-            )
-
-    _LOGGER.debug("Assembling PIO assembly code")
-    api.run_platformio_cli(
-        "pkg",
-        "exec",
-        "--package",
-        "platformio/tool-rp2040tools",
-        "--",
-        "pioasm",
-        CORE.build_path
-        + "/src/esphome/components/rp2040_pio_led_strip/Driver{}.pio".format(
-            config[CONF_PIO]
-        ),
-        CORE.build_path
-        + "/src/esphome/components/rp2040_pio_led_strip/Driver{}.pio.h".format(
-            config[CONF_PIO]
-        ),
-    )
-
-    with open(
-        CORE.build_path
-        + "/src/esphome/components/rp2040_pio_led_strip/Driver{}.pio.h".format(
-            config[CONF_PIO]
-        ),
-    ) as f:
-        code = f.read()
-        code = (
-            "#ifndef __DRIVER{}_PIO_H__\n#define __DRIVER{}_PIO_H__\n\n".format(
-                config[CONF_PIO], config[CONF_PIO]
-            )
-            + code
-            + "\n#endif\n"
         )
-    with open(
-        CORE.build_path
-        + "/src/esphome/components/rp2040_pio_led_strip/Driver{}.pio.h".format(
-            config[CONF_PIO]
-        ),
-        "w",
-    ) as f:
-        f.write(code)
+    else:
+        _LOGGER.info("Generating custom PIO assembly code")
+        rp2040.add_pio_file(
+            path,
+            generate_assembly_code(
+                config[CONF_PIO],
+                is_rgbw,
+                time_to_cycles(config[CONF_T0H]),
+                time_to_cycles(config[CONF_T0L]),
+                time_to_cycles(config[CONF_T1H]),
+                time_to_cycles(config[CONF_T1L]),
+            ),
+        )
