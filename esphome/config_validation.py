@@ -272,11 +272,12 @@ def alphanumeric(value):
 def valid_name(value):
     value = string_strict(value)
 
-    # If the value is a substitution, it can't be validated until the substitution is
-    # actually made.
-    sub_match = VARIABLE_PROG.search(value)
-    if sub_match:
-        return value
+    if CORE.vscode:
+        # If the value is a substitution, it can't be validated until the substitution
+        # is actually made.
+        sub_match = VARIABLE_PROG.search(value)
+        if sub_match:
+            return value
 
     for c in value:
         if c not in ALLOWED_NAME_CHARS:
@@ -461,11 +462,12 @@ def validate_id_name(value):
             "Dashes are not supported in IDs, please use underscores instead."
         )
 
-    # If the value is a substitution, it can't be validated until the substitution is
-    # actually made
-    sub_match = VARIABLE_PROG.match(value)
-    if sub_match:
-        return value
+    if CORE.vscode:
+        # If the value is a substitution, it can't be validated until the substitution
+        # is actually made
+        sub_match = VARIABLE_PROG.match(value)
+        if sub_match:
+            return value
 
     valid_chars = f"{ascii_letters + digits}_"
     for char in value:
