@@ -178,10 +178,10 @@ CHIPSETS = {
 }
 
 CONF_IS_RGBW = "is_rgbw"
-CONF_T0H = "bit0_high"
-CONF_T0L = "bit0_low"
-CONF_T1H = "bit1_high"
-CONF_T1L = "bit1_low"
+CONF_BIT0_HIGH = "bit0_high"
+CONF_BIT0_LOW = "bit0_low"
+CONF_BIT1_HIGH = "bit1_high"
+CONF_BIT1_LOW = "bit1_low"
 
 
 def _validate_timing(value):
@@ -207,24 +207,24 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_CHIPSET): cv.one_of(*CHIPSETS, upper=True),
             cv.Optional(CONF_IS_RGBW, default=False): cv.boolean,
             cv.Inclusive(
-                CONF_T0H,
+                CONF_BIT0_HIGH,
                 "custom",
             ): _validate_timing,
             cv.Inclusive(
-                CONF_T0L,
+                CONF_BIT0_LOW,
                 "custom",
             ): _validate_timing,
             cv.Inclusive(
-                CONF_T1H,
+                CONF_BIT1_HIGH,
                 "custom",
             ): _validate_timing,
             cv.Inclusive(
-                CONF_T1L,
+                CONF_BIT1_LOW,
                 "custom",
             ): _validate_timing,
         }
     ),
-    cv.has_exactly_one_key(CONF_CHIPSET, CONF_T0H),
+    cv.has_exactly_one_key(CONF_CHIPSET, CONF_BIT0_HIGH),
 )
 
 
@@ -275,9 +275,9 @@ async def to_code(config):
             generate_assembly_code(
                 id,
                 is_rgbw,
-                time_to_cycles(config[CONF_T0H]),
-                time_to_cycles(config[CONF_T0L]),
-                time_to_cycles(config[CONF_T1H]),
-                time_to_cycles(config[CONF_T1L]),
+                time_to_cycles(config[CONF_BIT0_HIGH]),
+                time_to_cycles(config[CONF_BIT0_LOW]),
+                time_to_cycles(config[CONF_BIT1_HIGH]),
+                time_to_cycles(config[CONF_BIT1_LOW]),
             ),
         )
