@@ -48,6 +48,7 @@ class HonClimate : public HaierClimateBase {
   CleaningState get_cleaning_status() const;
   void start_self_cleaning();
   void start_steri_cleaning();
+  void set_send_wifi(bool send_wifi);
 
  protected:
   void set_answers_handlers() override;
@@ -86,9 +87,8 @@ class HonClimate : public HaierClimateBase {
   bool &use_crc_;
   uint8_t active_alarms_[8];
   esphome::sensor::Sensor *outdoor_sensor_;
-#ifdef HAIER_REPORT_WIFI_SIGNAL
+  bool send_wifi_signal_;
   std::chrono::steady_clock::time_point last_signal_request_;  // To send WiFI signal level
-#endif
 };
 
 }  // namespace haier

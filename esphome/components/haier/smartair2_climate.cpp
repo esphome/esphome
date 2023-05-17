@@ -7,10 +7,6 @@
 using namespace esphome::climate;
 using namespace esphome::uart;
 
-#ifndef ESPHOME_LOG_LEVEL
-#warning "No ESPHOME_LOG_LEVEL defined!"
-#endif
-
 namespace esphome {
 namespace haier {
 

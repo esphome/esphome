@@ -350,7 +350,7 @@ async def to_code(config):
     await climate.register_climate(var, config)
 
     if (CONF_WIFI_SIGNAL in config) and (config[CONF_WIFI_SIGNAL]):
-        cg.add_build_flag("-DHAIER_REPORT_WIFI_SIGNAL")
+        cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
     if CONF_BEEPER in config:
         cg.add(var.set_beeper_state(config[CONF_BEEPER]))
     if CONF_OUTDOOR_TEMPERATURE in config:

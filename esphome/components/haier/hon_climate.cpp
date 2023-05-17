@@ -2,7 +2,7 @@
 #include <string>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/uart/uart.h"
-#ifdef HAIER_REPORT_WIFI_SIGNAL
+#ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
 #endif
 #include "hon_climate.h"
@@ -11,17 +11,11 @@
 using namespace esphome::climate;
 using namespace esphome::uart;
 
-#ifndef ESPHOME_LOG_LEVEL
-#warning "No ESPHOME_LOG_LEVEL defined!"
-#endif
-
 namespace esphome {
 namespace haier {
 
 const char TAG[] = "haier.climate";
-#ifdef HAIER_REPORT_WIFI_SIGNAL
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
-#endif
 constexpr int PROTOCOL_OUTDOOR_TEMPERATURE_OFFSET = -64;
 
 hon_protocol::VerticalSwingMode get_vertical_swing_mode(AirflowVerticalDirection direction) {
@@ -64,7 +58,8 @@ HonClimate::HonClimate()
       hvac_functions_{false, false, false, false, false},
       use_crc_(hvac_functions_[2]),
       active_alarms_{0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00},
-      outdoor_sensor_(nullptr) {
+      outdoor_sensor_(nullptr),
+      send_wifi_signal_(true) {
   this->traits_.set_supported_presets({
       climate::CLIMATE_PRESET_NONE,
       climate::CLIMATE_PRESET_ECO,
@@ -133,6 +128,8 @@ void HonClimate::start_steri_cleaning() {
     this->set_force_send_control_(true);
   }
 }
+
+void HonClimate::set_send_wifi(bool send_wifi) { this->send_wifi_signal_ = send_wifi; }
 
 haier_protocol::HandlerError HonClimate::get_device_version_answer_handler_(uint8_t request_type, uint8_t message_type,
                                                                             const uint8_t *data, size_t data_size) {
@@ -354,12 +351,12 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
         this->set_phase_((ProtocolPhases) ((uint8_t) this->protocol_phase_ + 1));
       }
       break;
-#ifdef HAIER_REPORT_WIFI_SIGNAL
+#ifdef USE_WIFI
     case ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST:
       if (this->can_send_message() && this->is_message_interval_exceeded_(now)) {
-        static const haier_protocol::HaierMessage update_signal_request(
+        static const haier_protocol::HaierMessage UPDATE_SIGNAL_REQUEST(
             (uint8_t) hon_protocol::FrameType::GET_MANAGEMENT_INFORMATION);
-        this->send_message_(update_signal_request, this->use_crc_);
+        this->send_message_(UPDATE_SIGNAL_REQUEST, this->use_crc_);
         this->last_signal_request_ = now;
         this->set_phase_(ProtocolPhases::WAITING_UPDATE_SIGNAL_ANSWER);
       }
@@ -369,9 +366,9 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
         static uint8_t wifi_status_data[4] = {0x00, 0x00, 0x00, 0x00};
         if (wifi::global_wifi_component->is_connected()) {
           wifi_status_data[1] = 0;
-          int8_t _rssi = wifi::global_wifi_component->wifi_rssi();
-          wifi_status_data[3] = uint8_t((128 + _rssi) / 1.28f);
-          ESP_LOGD(TAG, "WiFi signal is: %ddBm => %d%%", _rssi, wifi_status_data[3]);
+          int8_t rssi = wifi::global_wifi_component->wifi_rssi();
+          wifi_status_data[3] = uint8_t((128 + rssi) / 1.28f);
+          ESP_LOGD(TAG, "WiFi signal is: %ddBm => %d%%", rssi, wifi_status_data[3]);
         } else {
           ESP_LOGD(TAG, "WiFi is not connected");
           wifi_status_data[1] = 1;
@@ -452,9 +449,10 @@ void HonClimate::process_phase(std::chrono::steady_clock::time_point now) {
         this->set_phase_(ProtocolPhases::SENDING_STATUS_REQUEST);
         this->forced_request_status_ = false;
       }
-#ifdef HAIER_REPORT_WIFI_SIGNAL
-      else if (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_signal_request_).count() >
-               SIGNAL_LEVEL_UPDATE_INTERVAL_MS)
+#ifdef USE_WIFI
+      else if (this->send_wifi_signal_ &&
+               (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_signal_request_).count() >
+                SIGNAL_LEVEL_UPDATE_INTERVAL_MS))
         this->set_phase_(ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST);
 #endif
     } break;
