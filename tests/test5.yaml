@@ -29,11 +29,11 @@ ota:
 logger:
 
 uart:
-  - id: uart1
+  - id: uart_1
     tx_pin: 1
     rx_pin: 3
     baud_rate: 9600
-  - id: uart2
+  - id: uart_2
     tx_pin: 17
     rx_pin: 16
     baud_rate: 19200
@@ -42,7 +42,7 @@ i2c:
   frequency: 100khz
 
 modbus:
-  uart_id: uart1
+  uart_id: uart_1
   flow_control_pin: 5
   id: mod_bus1
 
@@ -66,6 +66,9 @@ mqtt:
           ESP_LOGD("Mqtt Test", "testing/sensor/testing_sensor/state=[%s]", x.c_str());
       # yamllint enable rule:line-length
 
+vbus:
+  - uart_id: uart_2
+
 binary_sensor:
   - platform: gpio
     pin: GPIO0
@@ -77,7 +80,7 @@ binary_sensor:
     id: modbus_binsensortest
     register_type: read
     address: 0x3200
-    bitmask: 0x80  # (bit 8)
+    bitmask: 0x80 # (bit 8)
     lambda: "return x;"
 
   - platform: tm1638
@@ -168,18 +171,48 @@ binary_sensor:
       sn74hc165: sn74hc165_hub
       number: 0
 
-
-
   - platform: ezo_pmp
     pump_state:
       name: "Pump State"
     is_paused:
       name: "Is Paused"
 
+  - platform: matrix_keypad
+    keypad_id: keypad
+    id: key4
+    row: 1
+    col: 1
+  - platform: matrix_keypad
+    id: key1
+    key: 1
+
+  - platform: vbus
+    model: deltasol_bs_plus
+    relay2:
+      name: Relay 2 On
+    sensor1_error:
+      name: Sensor 1 Error
+
+  - platform: vbus
+    model: custom
+    command: 0x100
+    source: 0x1234
+    dest: 0x10
+    binary_sensors:
+      - id: vcustom_b
+        name: VBus Custom Binary Sensor
+        lambda: return x[0] & 1;
+
 tlc5947:
   data_pin: GPIO12
   clock_pin: GPIO14
   lat_pin: GPIO15
+
+gp8403:
+  - id: gp8403_5v
+    voltage: 5V
+  - id: gp8403_10v
+    voltage: 10V
 
 output:
   - platform: gpio
@@ -217,6 +250,15 @@ output:
   - platform: tm1638
     id: Led7
     led: 7
+
+  - platform: gp8403
+    id: gp8403_output_0
+    gp8403_id: gp8403_5v
+    channel: 0
+  - platform: gp8403
+    gp8403_id: gp8403_10v
+    id: gp8403_output_1
+    channel: 1
 
 demo:
 
@@ -346,6 +388,8 @@ select:
       "Three": 3
 
 sensor:
+  - platform: internal_temperature
+    name: Internal Temperature
   - platform: selec_meter
     total_active_energy:
       name: SelecEM2M Total Active Energy
@@ -393,7 +437,7 @@ sensor:
     value_type: U_WORD
 
   - platform: t6615
-    uart_id: uart2
+    uart_id: uart_2
     co2:
       name: CO2 Sensor
 
@@ -445,10 +489,10 @@ sensor:
       offset: 0
       normalized_offset_slope: 0
       time_constant: 0
+    auto_cleaning_interval: 604800s
     acceleration_mode: low
     store_baseline: true
     address: 0x69
-
   - platform: mcp9600
     thermocouple_type: K
     hot_junction:
@@ -469,6 +513,33 @@ sensor:
       name: Last Volume Requested
     max_flow_rate:
       name: Max Flow Rate
+
+  - platform: vbus
+    model: deltasol c
+    temperature_3:
+      name: Temperature 3
+    operating_hours_1:
+      name: Operating Hours 1
+    heat_quantity:
+      name: Heat Quantity
+    time:
+      name: System Time
+
+  - platform: vbus
+    model: custom
+    command: 0x100
+    source: 0x1234
+    dest: 0x10
+    sensors:
+      - id: vcustom
+        name: VBus Custom Sensor
+        lambda: return x[0] / 10.0;
+
+  - platform: kuntze
+    ph:
+      name: Kuntze pH
+    temperature:
+      name: Kuntze temperature
 
 script:
   - id: automation_test
@@ -517,6 +588,9 @@ display:
     lambda: |-
       it.print("81818181");
 
+time:
+  - platform: pcf85063
+
 text_sensor:
   - platform: ezo_pmp
     dosing_mode:
@@ -555,3 +629,38 @@ sn74hc165:
   load_pin: GPIO27
   clock_inhibit_pin: GPIO26
   sr_count: 4
+
+matrix_keypad:
+  id: keypad
+  rows:
+    - pin: 21
+    - pin: 19
+  columns:
+    - pin: 17
+    - pin: 16
+  keys: "1234"
+
+key_collector:
+  - id: reader
+    source_id: keypad
+    min_length: 4
+    max_length: 4
+
+light:
+  - platform: esp32_rmt_led_strip
+    id: led_strip
+    pin: 13
+    num_leds: 60
+    rmt_channel: 6
+    rgb_order: GRB
+    chipset: ws2812
+  - platform: esp32_rmt_led_strip
+    id: led_strip2
+    pin: 15
+    num_leds: 60
+    rmt_channel: 2
+    rgb_order: RGB
+    bit0_high: 100us
+    bit0_low: 100us
+    bit1_high: 100us
+    bit1_low: 100us

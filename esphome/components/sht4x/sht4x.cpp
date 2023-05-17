@@ -19,7 +19,7 @@ void SHT4XComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up sht4x...");
 
   if (this->duty_cycle_ > 0.0) {
-    uint32_t heater_interval = (uint32_t)(this->heater_time_ / this->duty_cycle_);
+    uint32_t heater_interval = (uint32_t) (this->heater_time_ / this->duty_cycle_);
     ESP_LOGD(TAG, "Heater interval: %i", heater_interval);
 
     if (this->heater_power_ == SHT4X_HEATERPOWER_HIGH) {
