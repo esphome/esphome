@@ -147,6 +147,14 @@ def get_bool_env(var, default=False):
     return bool(os.getenv(var, default))
 
 
+def get_str_env(var, default=None):
+    return str(os.getenv(var, default))
+
+
+def get_int_env(var, default=0):
+    return int(os.getenv(var, default))
+
+
 def is_ha_addon():
     return get_bool_env("ESPHOME_IS_HA_ADDON")
 
