@@ -6,14 +6,11 @@
 #include "esp_err.h"
 #include "esp_wireguard.h"
 
-// Default rekey timeout of wireguard specification, defined also
-// in file wireguard.h of esp_wireguard library.
-#define REKEY_AFTER_TIME (120)
-
 namespace esphome {
 namespace wireguard {
 
 static const char * const TAG = "wireguard";
+static const uint8_t REKEY_AFTER_TIME = 120;  // seconds, defined in wireguard specification
 
 void Wireguard::setup() {
     ESP_LOGD(TAG, "initializing...");
