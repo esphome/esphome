@@ -1037,6 +1037,88 @@ void WaveshareEPaper5P8In::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
+
+// ========================================================
+//               5.83in V2
+// Datasheet/Specification/Reference:
+//  - https://www.waveshare.com/w/upload/3/37/5.83inch_e-Paper_V2_Specification.pdf
+//  - https://github.com/waveshare/e-Paper/blob/master/Arduino/epd5in83_V2/epd5in83_V2.cpp
+// ========================================================
+void WaveshareEPaper5P8InV2::initialize() {
+  // COMMAND POWER SETTING
+  this->command(0x01);
+  this->data(0x07);
+  this->data(0x07);
+  this->data(0x3f);
+  this->data(0x3f);
+
+  // COMMAND POWER ON
+  this->command(0x04);
+  delay(10);
+  this->wait_until_idle_();
+
+  // PANNEL SETTING
+  this->command(0x00);
+  this->data(0x1F);
+
+  // COMMAND RESOLUTION SETTING
+  this->command(0x61);
+  this->data(0x02);
+  this->data(0x88);
+  this->data(0x01);
+  this->data(0xE0);
+
+  this->command(0x15);
+  this->data(0x00);
+
+  // COMMAND TCON SETTING
+  this->command(0x60);
+  this->data(0x22);
+
+  // Do we need this?
+  // COMMAND PLL CONTROL
+  this->command(0x30);
+  this->data(0x3C);  // 3A 100HZ   29 150Hz 39 200HZ  31 171HZ
+}
+void HOT WaveshareEPaper5P8InV2::display() {
+  // Reuse the code from WaveshareEPaper4P2In::display()
+  // COMMAND VCM DC SETTING REGISTER
+  this->command(0x82);
+  this->data(0x12);
+
+  // COMMAND VCOM AND DATA INTERVAL SETTING
+  this->command(0x50);
+  this->data(0x97);
+
+  // COMMAND DATA START TRANSMISSION 1
+  this->command(0x10);
+  delay(2);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+  delay(2);
+
+  // COMMAND DATA START TRANSMISSION 2
+  this->command(0x13);
+  delay(2);
+  this->start_data_();
+  this->write_array(this->buffer_, this->get_buffer_length_());
+  this->end_data_();
+
+  // COMMAND DISPLAY REFRESH
+  this->command(0x12);
+}
+int WaveshareEPaper5P8InV2::get_width_internal() { return 648; }
+int WaveshareEPaper5P8InV2::get_height_internal() { return 480; }
+void WaveshareEPaper5P8InV2::dump_config() {
+  LOG_DISPLAY("", "Waveshare E-Paper", this);
+  ESP_LOGCONFIG(TAG, "  Model: 5.83inv2");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 void WaveshareEPaper7P5InBV2::initialize() {
   // COMMAND POWER SETTING
   this->command(0x01);

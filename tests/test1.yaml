@@ -294,6 +294,9 @@ wled:
 
 adalight:
 
+esp32_ble:
+  io_capability: keyboard_only
+
 esp32_ble_tracker:
 
 ble_client:
@@ -307,6 +310,19 @@ ble_client:
     on_disconnect:
       then:
         - switch.turn_on: ble1_status
+    on_passkey_request:
+      then:
+        - ble_client.passkey_reply:
+            id: ble_blah
+            passkey: 123456
+    on_passkey_notification:
+      then:
+        - logger.log: "Passkey notification received"
+    on_numeric_comparison_request:
+      then:
+        - ble_client.numeric_comparison_reply:
+            id: ble_blah
+            accept: True
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
 bedjet:
@@ -1239,6 +1255,13 @@ sensor:
     temperature:
       name: Max9611 Temp
     update_interval: 1s
+  - platform: mlx90614
+    i2c_id: i2c_bus
+    ambient:
+      name: Ambient
+    object:
+      name: Object
+      emissivity: 1.0
   - platform: mpl3115a2
     i2c_id: i2c_bus
     temperature:
@@ -1269,6 +1292,13 @@ sensor:
     name: DHT Absolute Humidity
     temperature: dht_temperature
     humidity: dht_humidity
+  - platform: hyt271
+    i2c_id: i2c_bus
+    temperature:
+      name: "Temperature hyt271"
+      id: temp_etuve
+    humidity:
+      name: "Humidity hyt271"
 
 esp32_touch:
   setup_mode: false
@@ -1440,6 +1470,13 @@ binary_sensor:
     pin:
       pca9554: pca9554_hub
       number: 1
+      mode: INPUT
+      inverted: true
+  - platform: gpio
+    name: PCA6416A binary sensor
+    pin:
+      pca6416a: pca6416a_hub
+      number: 15
       mode: INPUT
       inverted: true
   - platform: gpio
@@ -2925,6 +2962,11 @@ pcf8574:
 pca9554:
   - id: pca9554_hub
     address: 0x3F
+    i2c_id: i2c_bus
+
+pca6416a:
+  - id: pca6416a_hub
+    address: 0x21
     i2c_id: i2c_bus
 
 mcp23017:
