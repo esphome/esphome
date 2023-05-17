@@ -235,11 +235,6 @@ async def to_code(config):
         )
     )
 
-    if CONF_IS_RGBW in config:
-        is_rgbw = config[CONF_IS_RGBW]
-    else:
-        is_rgbw = False
-
     key = f"led_strip_{id}"
 
     if CONF_CHIPSET in config:
@@ -249,7 +244,7 @@ async def to_code(config):
             key,
             generate_assembly_code(
                 id,
-                is_rgbw,
+                config[CONF_IS_RGBW],
                 CHIPSETS[config[CONF_CHIPSET]].T0H,
                 CHIPSETS[config[CONF_CHIPSET]].T0L,
                 CHIPSETS[config[CONF_CHIPSET]].T1H,
@@ -263,7 +258,7 @@ async def to_code(config):
             key,
             generate_assembly_code(
                 id,
-                is_rgbw,
+                config[CONF_IS_RGBW],
                 time_to_cycles(config[CONF_BIT0_HIGH]),
                 time_to_cycles(config[CONF_BIT0_LOW]),
                 time_to_cycles(config[CONF_BIT1_HIGH]),
