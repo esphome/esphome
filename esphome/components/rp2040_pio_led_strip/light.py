@@ -240,12 +240,13 @@ async def to_code(config):
     else:
         is_rgbw = False
 
-    path = f"pio/led_strip_{id}"
+    key = f"led_strip_{id}"
 
     if CONF_CHIPSET in config:
         _LOGGER.info("Generating PIO assembly code")
         rp2040.add_pio_file(
-            path,
+            __name__,
+            key,
             generate_assembly_code(
                 id,
                 is_rgbw,
@@ -258,7 +259,8 @@ async def to_code(config):
     else:
         _LOGGER.info("Generating custom PIO assembly code")
         rp2040.add_pio_file(
-            path,
+            __name__,
+            key,
             generate_assembly_code(
                 id,
                 is_rgbw,

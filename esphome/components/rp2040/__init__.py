@@ -1,6 +1,8 @@
 import logging
 import os
 
+from string import ascii_letters, digits
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
@@ -169,8 +171,14 @@ async def to_code(config):
     )
 
 
-def add_pio_file(path: str, data: str):
-    CORE.data[KEY_RP2040][KEY_PIO_FILES][path] = data
+def add_pio_file(component: str, key: str, data: str):
+    try:
+        cv.validate_id_name(key)
+    except cv.Invalid:
+        raise EsphomeError(
+            f"[{component}] Invalid PIO key: {key}. Allowed characters: [{ascii_letters}{digits}_]\nPlease report an issue https://github.com/esphome/issues"
+        )
+    CORE.data[KEY_RP2040][KEY_PIO_FILES][key] = data
 
 
 def generate_pio_files() -> bool:
@@ -182,8 +190,8 @@ def generate_pio_files() -> bool:
     files = CORE.data[KEY_RP2040][KEY_PIO_FILES]
     if not files:
         return False
-    for path, data in files.items():
-        pio_path = CORE.relative_build_path(f"src/{path}.pio")
+    for key, data in files.items():
+        pio_path = CORE.relative_build_path(f"src/pio/{key}.pio")
         mkdir_p(os.path.dirname(pio_path))
         write_file(pio_path, data)
         _LOGGER.info("Assembling PIO assembly code")
@@ -197,7 +205,7 @@ def generate_pio_files() -> bool:
             pio_path,
             pio_path + ".h",
         )
-        includes.append(path + ".pio.h")
+        includes.append(f"pio/{key}.pio.h")
         if retval != 0:
             raise EsphomeError("PIO assembly failed")
 
