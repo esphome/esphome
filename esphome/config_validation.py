@@ -53,6 +53,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     TYPE_GIT,
     TYPE_LOCAL,
+    VALID_SUBSTITUTIONS_CHARACTERS,
 )
 from esphome.core import (
     CORE,
@@ -78,6 +79,11 @@ from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
 _LOGGER = logging.getLogger(__name__)
+
+# pylint: disable=consider-using-f-string
+VARIABLE_PROG = re.compile(
+    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
+)
 
 # pylint: disable=invalid-name
 
@@ -265,6 +271,14 @@ def alphanumeric(value):
 
 def valid_name(value):
     value = string_strict(value)
+
+    if CORE.vscode:
+        # If the value is a substitution, it can't be validated until the substitution
+        # is actually made.
+        sub_match = VARIABLE_PROG.search(value)
+        if sub_match:
+            return value
+
     for c in value:
         if c not in ALLOWED_NAME_CHARS:
             raise Invalid(
@@ -447,6 +461,14 @@ def validate_id_name(value):
         raise Invalid(
             "Dashes are not supported in IDs, please use underscores instead."
         )
+
+    if CORE.vscode:
+        # If the value is a substitution, it can't be validated until the substitution
+        # is actually made
+        sub_match = VARIABLE_PROG.match(value)
+        if sub_match:
+            return value
+
     valid_chars = f"{ascii_letters + digits}_"
     for char in value:
         if char not in valid_chars:
