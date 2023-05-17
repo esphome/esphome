@@ -86,7 +86,7 @@ static inline void rp2040_pio_led_strip_driver_{id}_init(PIO pio, uint sm, uint 
 awaiting_data:
     ; Wait for data in FIFO queue
     pull block ; this will block until there is data in the FIFO queue and then it will pull it into the shift register
-    set y, {32 if rgbw else 24} ; set y to the number of bits to write, (24 if RGB, 32 if RGBW)
+    set y, {31 if rgbw else 23} ; set y to the number of bits to write counting 0, (23 if RGB, 31 if RGBW)
 
 mainloop:
     ; go through each bit in the shift register and jump to the appropriate label
