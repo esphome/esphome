@@ -223,6 +223,7 @@ bool APIConnection::send_cover_info(cover::Cover *cover) {
   msg.assumed_state = traits.get_is_assumed_state();
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
+  msg.supports_stop = traits.get_supports_stop();
   msg.device_class = cover->get_device_class();
   msg.disabled_by_default = cover->is_disabled_by_default();
   msg.icon = cover->get_icon();
