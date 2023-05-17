@@ -42,13 +42,18 @@ void SCD30Component::setup() {
   ESP_LOGD(TAG, "SCD30 Firmware v%0d.%02d", (uint16_t(raw_firmware_version[0]) >> 8),
            uint16_t(raw_firmware_version[0] & 0xFF));
 
-  if (this->temperature_offset_ != 0) {
-    if (!this->write_command(SCD30_CMD_TEMPERATURE_OFFSET, (uint16_t) (temperature_offset_ * 100.0))) {
-      ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
-      this->error_code_ = MEASUREMENT_INIT_FAILED;
-      this->mark_failed();
-      return;
-    }
+  uint16_t temp_offset;
+  if (this->temperature_offset_ > 0) {
+    temp_offset = (this->temperature_offset_ * 100);
+  } else {
+    temp_offset = 0;
+  }
+
+  if (!this->write_command(SCD30_CMD_TEMPERATURE_OFFSET, temp_offset)) {
+    ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
+    this->error_code_ = MEASUREMENT_INIT_FAILED;
+    this->mark_failed();
+    return;
   }
 #ifdef USE_ESP32
   // According ESP32 clock stretching is typically 30ms and up to 150ms "due to
