@@ -4,13 +4,13 @@ wifi:
   ssid: "ssid"
 
 esp32:
-  board: esp32-c3-devkitm-1
+  board: esp32s3box
   variant: ESP32S3
   framework:
     type: arduino
 
 esphome:
-  name: esp32-s3-test
+  name: esp32s3box
 
 logger:
 
@@ -18,10 +18,29 @@ light:
   - platform: neopixelbus
     type: GRB
     variant: WS2812
-    pin: 33
+    pin: GPIO38
     num_leds: 1
     id: neopixel
     method: esp32_rmt
     name: neopixel-enable
     internal: false
     restore_mode: ALWAYS_OFF
+
+i2c:
+  scl: GPIO18
+  sda: GPIO8
+
+i2s_audio:
+  i2s_lrclk_pin: GPIO47
+  i2s_bclk_pin: GPIO17
+  #i2c_mclk_pin: GPIO2
+
+es8311:
+  address: 0x18
+
+media_player:
+  - platform: i2s_audio
+    name: Media Player
+    dac_type: external
+    i2s_dout_pin: GPIO15
+    mode: mono
