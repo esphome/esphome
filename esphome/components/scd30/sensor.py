@@ -68,7 +68,7 @@ CONFIG_SCHEMA = (
                 cv.int_range(min=0, max=0xFFFF, max_included=False),
             ),
             cv.Optional(CONF_AMBIENT_PRESSURE_COMPENSATION, default=0): cv.pressure,
-            cv.Optional(CONF_TEMPERATURE_OFFSET): cv.float(
+            cv.Optional(CONF_TEMPERATURE_OFFSET): cv.float_range(
                 min=0,
             ),
             cv.Optional(CONF_UPDATE_INTERVAL, default="60s"): cv.All(
