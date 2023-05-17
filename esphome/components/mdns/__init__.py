@@ -6,6 +6,7 @@ from esphome.const import (
     CONF_SERVICE,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
+    CONF_DISABLED,
 )
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -39,7 +40,6 @@ SERVICE_SCHEMA = cv.Schema(
     }
 )
 
-CONF_DISABLED = "disabled"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
