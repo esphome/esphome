@@ -75,7 +75,6 @@ void RP2040PIOLEDStripLightOutput::write_state(light::LightState *state) {
     uint8_t c3 = this->buf_[(i * 3) + 2];
     uint8_t w = this->is_rgbw_ ? this->buf_[(i * 4) + 3] : 0;
     uint32_t color = encode_uint32(c1, c2, c3, w);
-    ESP_LOGVV(TAG, "Writing 0x%08x to LED %d", color, i);
     pio_sm_put_blocking(this->pio_, this->sm_, color);
   }
 }
