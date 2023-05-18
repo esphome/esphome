@@ -1563,7 +1563,7 @@ class SplitDefault(Optional):
             else esp32_s3
         )
         self._esp32_s3_idf_default = vol.default_factory(
-            (esp32_s3_idf if esp32_s3 is vol.UNDEFINED else esp32)
+            (esp32_s3_idf if esp32 is vol.UNDEFINED else esp32)
             if esp32_s3 is vol.UNDEFINED
             else esp32_s3
         )
