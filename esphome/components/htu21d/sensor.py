@@ -13,7 +13,6 @@ from esphome.const import (
     UNIT_PERCENT,
     CONF_HEATER,
     UNIT_EMPTY,
-    DEVICE_CLASS_HEAT,
     CONF_LEVEL,
     CONF_STATUS,
 )
@@ -48,7 +47,6 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_HEATER): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 accuracy_decimals=1,
-                device_class=DEVICE_CLASS_HEAT,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }

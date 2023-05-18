@@ -79,7 +79,6 @@ from esphome.const import (
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
-    DEVICE_CLASS_HEAT,
 )
 from esphome.core import CORE, coroutine_with_priority
 from esphome.cpp_generator import MockObjClass
@@ -136,7 +135,6 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
-    DEVICE_CLASS_HEAT,
 ]
 
 sensor_ns = cg.esphome_ns.namespace("sensor")
