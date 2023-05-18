@@ -88,7 +88,7 @@ void HaierClimateBase::set_phase_(ProtocolPhases phase) {
   }
 }
 
-bool HaierClimateBase::check_timout_(std::chrono::steady_clock::time_point now,
+bool HaierClimateBase::check_timeout_(std::chrono::steady_clock::time_point now,
                                      std::chrono::steady_clock::time_point tpoint, size_t timeout) {
   return std::chrono::duration_cast<std::chrono::milliseconds>(now - tpoint).count() > timeout;
 }
