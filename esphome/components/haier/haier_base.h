@@ -100,8 +100,8 @@ class HaierClimateBase : public esphome::Component,
   void set_force_send_control_(bool status);
   void send_message_(const haier_protocol::HaierMessage &command, bool use_crc);
   void set_phase_(ProtocolPhases phase);
-  bool check_timout_(std::chrono::steady_clock::time_point now, std::chrono::steady_clock::time_point tpoint,
-                     size_t timeout);
+  bool check_timeout_(std::chrono::steady_clock::time_point now,
+                      std::chrono::steady_clock::time_point tpoint, size_t timeout);
   bool is_message_interval_exceeded_(std::chrono::steady_clock::time_point now);
   bool is_status_request_interval_exceeded_(std::chrono::steady_clock::time_point now);
   bool is_control_message_timeout_exceeded_(std::chrono::steady_clock::time_point now);
