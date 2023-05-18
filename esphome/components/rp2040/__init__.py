@@ -174,10 +174,10 @@ async def to_code(config):
 def add_pio_file(component: str, key: str, data: str):
     try:
         cv.validate_id_name(key)
-    except cv.Invalid:
+    except cv.Invalid as e:
         raise EsphomeError(
             f"[{component}] Invalid PIO key: {key}. Allowed characters: [{ascii_letters}{digits}_]\nPlease report an issue https://github.com/esphome/issues"
-        )
+        ) from e
     CORE.data[KEY_RP2040][KEY_PIO_FILES][key] = data
 
 
