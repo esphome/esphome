@@ -171,6 +171,8 @@ CONFIG_SCHEMA = cv.All(
                 CONF_HARDWARE_UART,
                 esp8266=UART0,
                 esp32=UART0,
+                esp32_s2=USB_CDC,
+                esp32_s3=USB_CDC,
                 rp2040=USB_CDC,
                 bk72xx=DEFAULT,
                 rtl87xx=DEFAULT,
