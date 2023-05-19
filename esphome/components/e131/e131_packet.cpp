@@ -1,15 +1,13 @@
-#ifdef USE_ARDUINO
-
+#include <cstring>
 #include "e131.h"
+#include "esphome/components/network/ip_address.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
-#include "esphome/components/network/ip_address.h"
-#include <cstring>
 
-#include <lwip/init.h>
-#include <lwip/ip_addr.h>
-#include <lwip/ip4_addr.h>
 #include <lwip/igmp.h>
+#include <lwip/init.h>
+#include <lwip/ip4_addr.h>
+#include <lwip/ip_addr.h>
 
 namespace esphome {
 namespace e131 {
@@ -62,7 +60,7 @@ const size_t E131_MIN_PACKET_SIZE = reinterpret_cast<size_t>(&((E131RawPacket *)
 bool E131Component::join_igmp_groups_() {
   if (listen_method_ != E131_MULTICAST)
     return false;
-  if (!udp_)
+  if (this->socket_ == nullptr)
     return false;
 
   for (auto universe : universe_consumers_) {
@@ -140,5 +138,3 @@ bool E131Component::packet_(const std::vector<uint8_t> &data, int &universe, E13
 
 }  // namespace e131
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

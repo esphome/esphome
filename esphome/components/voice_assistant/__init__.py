@@ -1,10 +1,10 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from esphome.const import CONF_ID, CONF_MICROPHONE
+from esphome.const import CONF_ID, CONF_MICROPHONE, CONF_SPEAKER
 from esphome import automation
 from esphome.automation import register_action
-from esphome.components import microphone
+from esphome.components import microphone, speaker
 
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["api", "microphone"]
@@ -34,6 +34,7 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(VoiceAssistant),
         cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
+        cv.Optional(CONF_SPEAKER): cv.use_id(speaker.Speaker),
         cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_TTS_START): automation.validate_automation(single=True),
@@ -50,6 +51,10 @@ async def to_code(config):
 
     mic = await cg.get_variable(config[CONF_MICROPHONE])
     cg.add(var.set_microphone(mic))
+
+    if CONF_SPEAKER in config:
+        spkr = await cg.get_variable(config[CONF_SPEAKER])
+        cg.add(var.set_speaker(spkr))
 
     if CONF_ON_START in config:
         await automation.build_automation(
