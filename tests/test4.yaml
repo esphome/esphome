@@ -600,6 +600,10 @@ esp32_camera:
   power_down_pin: GPIO1
   resolution: 640x480
   jpeg_quality: 10
+  on_image:
+    then:
+    - lambda: |-
+        ESP_LOGD("main", "image len=%d", image.length);
 
 esp32_camera_web_server:
   - port: 8080
