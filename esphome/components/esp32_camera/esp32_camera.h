@@ -86,6 +86,11 @@ class CameraImage {
   uint8_t requesters_;
 };
 
+struct CameraImageData {
+  uint8_t* data;
+  size_t length;
+};
+
 /* ---------------- CameraImageReader class ---------------- */
 class CameraImageReader {
  public:
@@ -147,7 +152,7 @@ class ESP32Camera : public Component, public EntityBase {
   void dump_config() override;
   float get_setup_priority() const override;
   /* public API (specific) */
-  void add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&f);
+  void add_image_callback(std::function<void(CameraImageData)> callback);
   void start_stream(CameraRequester requester);
   void stop_stream(CameraRequester requester);
   void request_image(CameraRequester requester);
@@ -196,7 +201,7 @@ class ESP32Camera : public Component, public EntityBase {
   uint8_t stream_requesters_{0};
   QueueHandle_t framebuffer_get_queue_;
   QueueHandle_t framebuffer_return_queue_;
-  CallbackManager<void(std::shared_ptr<CameraImage>)> new_image_callback_;
+  CallbackManager<void(CameraImageData)> new_image_callback_;
   CallbackManager<void()> stream_start_callback_{};
   CallbackManager<void()> stream_stop_callback_{};
 
@@ -206,6 +211,13 @@ class ESP32Camera : public Component, public EntityBase {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32Camera *global_esp32_camera;
+
+class ESP32CameraImageTrigger : public Trigger<CameraImageData> {
+ public:
+  explicit ESP32CameraImageTrigger(ESP32Camera *parent) {
+    parent->add_image_callback([this](CameraImageData image) { this->trigger(image); });
+  }
+};
 
 class ESP32CameraStreamStartTrigger : public Trigger<> {
  public:

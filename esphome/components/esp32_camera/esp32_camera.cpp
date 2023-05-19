@@ -194,7 +194,12 @@ void ESP32Camera::loop() {
   this->current_image_ = std::make_shared<CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
 
   ESP_LOGD(TAG, "Got Image: len=%u", fb->len);
-  this->new_image_callback_.call(this->current_image_);
+
+  CameraImageData camera_image_data{};
+  camera_image_data.length = this->current_image_->get_data_length();
+  camera_image_data.data = this->current_image_->get_data_buffer();
+
+  this->new_image_callback_.call(camera_image_data);
   this->last_update_ = now;
   this->single_requesters_ = 0;
 }
@@ -335,8 +340,8 @@ void ESP32Camera::set_idle_update_interval(uint32_t idle_update_interval) {
 }
 
 /* ---------------- public API (specific) ---------------- */
-void ESP32Camera::add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&f) {
-  this->new_image_callback_.add(std::move(f));
+void ESP32Camera::add_image_callback(std::function<void(CameraImageData)> callback) {
+  this->new_image_callback_.add(std::move(callback));
 }
 void ESP32Camera::add_stream_start_callback(std::function<void()> &&callback) {
   this->stream_start_callback_.add(std::move(callback));
