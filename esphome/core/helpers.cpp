@@ -337,14 +337,14 @@ int8_t step_to_accuracy_decimals(float step) {
 
 static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
 
-std::string base64_encode(const char *buf, unsigned int bufLen) {
+std::string base64_encode(const char *buf, unsigned int buf_len) {
   std::string ret;
   int i = 0;
   int j = 0;
   char char_array_3[3];
   char char_array_4[4];
 
-  while (bufLen--) {
+  while (buf_len--) {
     char_array_3[i++] = *(buf++);
     if (i == 3) {
       char_array_4[0] = (char_array_3[0] & 0xfc) >> 2;
@@ -381,13 +381,13 @@ std::vector<char> base64_decode(std::string const &encoded_string) {
   int in_len = encoded_string.size();
   int i = 0;
   int j = 0;
-  int in_ = 0;
+  int in = 0;
   char char_array_4[4], char_array_3[3];
   std::vector<char> ret;
 
-  while (in_len-- && (encoded_string[in_] != '=') && is_base64(encoded_string[in_])) {
-    char_array_4[i++] = encoded_string[in_];
-    in_++;
+  while (in_len-- && (encoded_string[in] != '=') && is_base64(encoded_string[in])) {
+    char_array_4[i++] = encoded_string[in];
+    in++;
     if (i == 4) {
       for (i = 0; i < 4; i++)
         char_array_4[i] = base64_chars.find(char_array_4[i]);
