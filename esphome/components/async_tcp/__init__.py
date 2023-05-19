@@ -22,5 +22,5 @@ async def to_code(config):
         )
         cg.add_platformio_option("lib_ignore", ["AsyncTCP", "AsyncTCP-esphome"])
     elif CORE.is_esp8266:
-        # https://github.com/OttoWinter/ESPAsyncTCP
-        cg.add_library("ottowinter/ESPAsyncTCP-esphome", "1.2.3")
+        # https://github.com/esphome/ESPAsyncTCP
+        cg.add_library("esphome/ESPAsyncTCP-esphome", "1.2.3")
