@@ -47,8 +47,8 @@ class ES8311Component : public Component, public i2c::I2CDevice {
   void setup() override;
   float get_setup_priority() const override { return setup_priority::LATE - 1; }
 
-  void set_volume(int volume);
-  int get_volume();
+  void set_volume(float volume);
+  float get_volume();
   void set_mute(bool mute);
 
  protected:

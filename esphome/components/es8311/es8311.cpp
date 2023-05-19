@@ -29,7 +29,7 @@ void ES8311Component::setup() {
   this->configure_format_();
 
   // Set initial volume
-  this->set_volume(60);
+  this->set_volume(0.75);  // 0.75 = 0xBF = 0dB
 
   // Configure microphone
   this->configure_microphone_();
@@ -163,27 +163,16 @@ void ES8311Component::configure_microphone_() {
   ES8311_WRITE_BYTE(ES8311_REG17_ADC, 0xC8);                    // Set ADC gain
 }
 
-void ES8311Component::set_volume(int volume) {
-  volume = clamp(volume, 0, 100);
-
-  int reg32;
-  if (volume == 0) {
-    reg32 = 0;
-  } else {
-    reg32 = (volume * 256 / 100) - 1;
-  }
+void ES8311Component::set_volume(float volume) {
+  volume = clamp(volume, 0.0f, 1.0f);
+  uint8_t reg32 = remap<float, uint8_t>(volume, 0.0f, 1.0f, 0, 255);
   ES8311_WRITE_BYTE(ES8311_REG32_DAC, reg32);
 }
 
-int ES8311Component::get_volume() {
+float ES8311Component::get_volume() {
   uint8_t reg32;
   this->read_byte(ES8311_REG32_DAC, &reg32);
-
-  if (reg32 == 0) {
-    return 0;
-  } else {
-    return ((reg32 * 100) / 256) + 1;
-  }
+  return remap<uint8_t, float>(reg32, 0, 255, 0.0f, 1.0f);
 }
 
 void ES8311Component::set_mute(bool mute) {
