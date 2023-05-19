@@ -247,9 +247,9 @@ class HP303BComponent : public PollingComponent, public spi::SPIDevice {
   void standby();
 
   int16_t measure_pressureOnce(int32_t &result, uint8_t oversampling_rate);
-  int16_t measure_pressureOnce(int32_t &result) { return measurePressureOnce(result, m_prsOsr); }
-  int16_t start_measure_pressureOnce() { return startMeasurePressureOnce(m_prsOsr); };
-  int16_t start_measure_pressureOnce(uint8_t over_sampling_rate);
+  int16_t measure_pressureOnce(int32_t &result) { return measurePressureOnce(result, m_prs_osr); }
+  int16_t start_measure_pressure_once() { return startMeasurePressureOnce(m_prs_osr); };
+  int16_t start_measure_pressure_once(uint8_t over_sampling_rate);
   int16_t set_op_mode(uint8_t op_mode);
   int16_t read_byte_bitfield(uint8_t reg_address, uint8_t mask, uint8_t shift);
   int16_t write_byte_bitfield(uint8_t data, uint8_t reg_address, uint8_t mask, uint8_t shift, uint8_t check);
@@ -288,19 +288,19 @@ class HP303BComponent : public PollingComponent, public spi::SPIDevice {
     CONT_TMP = 0x06,
     CONT_BOTH = 0x07
   };
-  Mode m_opMode;
+  Mode m_op_mode;
 
   // flags
-  uint8_t m_initFail;
-  uint8_t m_productID;
-  uint8_t m_revisionID;
+  uint8_t m_init_fail;
+  uint8_t m_product_id;
+  uint8_t m_revision_id;
 
   // settings
-  uint8_t m_tempMr;
-  uint8_t m_tempOsr;
-  uint8_t m_prsMr;
-  uint8_t m_prsOsr;
-  uint8_t m_tempSensor;
+  uint8_t m_temp_mr;
+  uint8_t m_temp_osr;
+  uint8_t m_prs_mr;
+  uint8_t m_prs_osr;
+  uint8_t m_temp_sensor;
 
   // compensation coefficients
   int32_t m_c0Half;
@@ -314,16 +314,7 @@ class HP303BComponent : public PollingComponent, public spi::SPIDevice {
   int32_t m_c30;
   // last measured scaled temperature
   //(necessary for pressure compensation)
-  double m_lastTempScal;
-
-  // bus specific
-  uint8_t m_SpiI2c;  // 0=SPI, 1=I2C
-                     // used for I2C
-  uint8_t m_slaveAddress;
-  // used for SPI
-  SPIClass *m_spibus;
-  int32_t m_chipSelect;
-  uint8_t m_threeWire;
+  double m_last_tempS_scal;
 }
 }  // namespace hp303b
 }  // namespace esphome
