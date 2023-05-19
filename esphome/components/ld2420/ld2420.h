@@ -63,7 +63,7 @@ static const uint8_t CMD_FRAME_COMMAND = 6;
 static const uint8_t CMD_FRAME_STATUS = 7;
 static const uint8_t CMD_ERROR_WORD = 8;
 
-static const char *err_message[] = {"None", "Unknown", "Timeout"};  // NOLINT
+static constexpr const char *ERR_MESSAGE[] = {"None", "Unknown", "Timeout"};
 
 class LD2420Component : public Component, public uart::UARTDevice {
 #ifdef USE_SENSOR

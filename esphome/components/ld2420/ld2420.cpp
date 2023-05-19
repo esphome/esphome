@@ -234,7 +234,7 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
         byteswap(cmd_reply_.data[reg_element]);
         ESP_LOGD(TAG, "Data[%2X]: %s", reg_element, format_hex_pretty(cmd_reply_.data[reg_element]).c_str());
         reg_element++;
-      }  // NOLINT
+      }
       break;
     case (CMD_WRITE_REGISTER):
       ESP_LOGD(TAG, "LD2420 reply - write register: CMD = %2X %s", CMD_WRITE_REGISTER, result);
@@ -252,7 +252,7 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
         byteswap(cmd_reply_.data[data_element]);
         ESP_LOGD(TAG, "Data[%2X]: %s", data_element, format_hex_pretty(cmd_reply_.data[data_element]).c_str());
         data_element++;
-      }  // NOLINT
+      }
       break;
     case (CMD_WRITE_SYS_PARAM):
       ESP_LOGD(TAG, "LD2420 reply - set system parameter(s): %2X %s", CMD_WRITE_SYS_PARAM, result);
@@ -366,7 +366,7 @@ void LD2420Component::set_reg_value_(uint16_t reg, uint16_t value) {
   this->send_cmd_from_array(cmd_frame);
 }
 
-void LD2420Component::handle_cmd_error(uint8_t error) { ESP_LOGI(TAG, "Command failed: %s", err_message[error]); }
+void LD2420Component::handle_cmd_error(uint8_t error) { ESP_LOGI(TAG, "Command failed: %s", ERR_MESSAGE[error]); }
 
 int LD2420Component::get_gate_threshold_(uint8_t gate) {
   uint8_t error;
