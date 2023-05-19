@@ -1,6 +1,8 @@
 #pragma once
 
 #include <ctime>
+#include <vector>
+#include <tuple>
 #include "esphome/core/component.h"
 #include "esphome/components/time/real_time_clock.h"
 #include "esp_wireguard.h"
@@ -25,6 +27,8 @@ class Wireguard : public PollingComponent {
   void set_peer_port(uint16_t port);
   void set_preshared_key(const std::string& key);
 
+  void add_allowed_ip(const std::string& ip, const std::string& netmask);
+
   void set_keepalive(uint16_t seconds);
   void set_srctime(time::RealTimeClock* srctime);
 
@@ -38,9 +42,12 @@ class Wireguard : public PollingComponent {
   std::string peer_endpoint_;
   std::string peer_public_key_;
   std::string preshared_key_;
-  uint16_t peer_port_;
 
+  std::vector<std::tuple<std::string, std::string>> allowed_ips_;
+
+  uint16_t peer_port_;
   uint16_t keepalive_;
+
   time::RealTimeClock* srctime_;
 
   wireguard_config_t wg_config_ = ESP_WIREGUARD_CONFIG_DEFAULT();

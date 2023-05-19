@@ -75,6 +75,12 @@ void Wireguard::dump_config() {
             (this->preshared_key_.length() > 0 ? this->preshared_key_.substr(0,5).c_str() : "NOT IN USE"),
             (this->preshared_key_.length() > 0 ? "[...]=" : ""));
     ESP_LOGCONFIG(TAG, "  peer persistent keepalive: %d", this->keepalive_);
+    ESP_LOGCONFIG(TAG, "  peer allowed ips:");
+    for(int i=0; i<this->allowed_ips_.size(); i++) {
+        ESP_LOGCONFIG(TAG, "    - %s/%s",
+                std::get<0>(this->allowed_ips_[i]).c_str(),
+                std::get<1>(this->allowed_ips_[i]).c_str());
+    }
 }
 
 void Wireguard::on_shutdown() {
@@ -120,6 +126,11 @@ void Wireguard::set_peer_public_key(const std::string& key) { this->peer_public_
 void Wireguard::set_peer_port(const uint16_t port) { this->peer_port_ = port; }
 void Wireguard::set_preshared_key(const std::string& key) { this->preshared_key_ = std::move(key); }
 
+void Wireguard::add_allowed_ip(const std::string& ip, const std::string& netmask) {
+    this->allowed_ips_.push_back(
+            std::tuple<std::string, std::string>(std::move(ip), std::move(netmask)));
+}
+
 void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock* srctime) { this->srctime_ = srctime; }
 
@@ -145,6 +156,25 @@ void Wireguard::start_connection_() {
         ESP_LOGI(TAG, "connection started");
     } else {
         ESP_LOGW(TAG, "cannot start connection, error code %d", this->wg_connected_);
+        return;
+    }
+
+    ESP_LOGD(TAG, "configuring WireGuard allowed ips list...");
+    bool allowed_ips_ok = true;
+    for(std::tuple<std::string, std::string> ip : this->allowed_ips_) {
+        allowed_ips_ok &= (
+                esp_wireguard_add_allowed_ip(
+                    &(this->wg_ctx_),
+                    std::get<0>(ip).c_str(),
+                    std::get<1>(ip).c_str()) == ESP_OK);
+    }
+
+    if(allowed_ips_ok) {
+        ESP_LOGD(TAG, "allowed ips list configured correctly for remote WireGuard peer");
+    } else {
+        ESP_LOGE(TAG, "cannot configure WireGuard allowed ips list, aborting...");
+        this->on_shutdown();
+        this->mark_failed();
     }
 }
 
