@@ -77,6 +77,7 @@ esphome/components/dsmr/* @glmnet @zuidwijk
 esphome/components/ee895/* @Stock-M
 esphome/components/ektf2232/* @jesserockz
 esphome/components/ens210/* @itn3rd77
+esphome/components/es8311/* @kroimon
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @jesserockz
 esphome/components/esp32_ble_client/* @jesserockz
