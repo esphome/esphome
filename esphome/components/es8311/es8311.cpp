@@ -1,5 +1,5 @@
 #include "es8311.h"
-#include "es8311_registers.h"
+#include "es8311_const.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 
@@ -76,7 +76,7 @@ void ES8311Component::configure_clock_() {
 
 void ES8311Component::configure_sample_frequency_(int mclk_frequency) {
   // Get clock coefficients from coefficient table
-  auto *coefficient = get_coefficient_(mclk_frequency, this->sample_frequency_);
+  auto *coefficient = get_coefficient(mclk_frequency, this->sample_frequency_);
   if (coefficient == nullptr) {
     ESP_LOGE(TAG, "Unable to configure sample rate %dHz with %dHz MCLK", this->sample_frequency_, mclk_frequency);
     this->mark_failed();
@@ -124,6 +124,14 @@ void ES8311Component::configure_sample_frequency_(int mclk_frequency) {
   ES8311_WRITE_BYTE(ES8311_REG08_CLK_MANAGER, coefficient->lrck_l);
 }
 
+const ES8311Coefficient *ES8311Component::get_coefficient(uint32_t mclk, uint32_t rate) {
+  for (const auto &coefficient : ES8311_COEFFICIENTS) {
+    if (coefficient.mclk == mclk && coefficient.rate == rate)
+      return &coefficient;
+  }
+  return nullptr;
+}
+
 void ES8311Component::configure_format_() {
   // Configure I2S mode and format
   uint8_t reg00;
@@ -132,15 +140,15 @@ void ES8311Component::configure_format_() {
   ES8311_WRITE_BYTE(ES8311_REG00_RESET, reg00);
 
   // Configure SDP in resolution
-  uint8_t reg09 = calculate_resolution_value_(this->resolution_in_);
+  uint8_t reg09 = calculate_resolution_value(this->resolution_in_);
   ES8311_WRITE_BYTE(ES8311_REG09_SDPIN, reg09);
 
   // Configure SDP out resolution
-  uint8_t reg0a = calculate_resolution_value_(this->resolution_out_);
+  uint8_t reg0a = calculate_resolution_value(this->resolution_out_);
   ES8311_WRITE_BYTE(ES8311_REG0A_SDPOUT, reg0a);
 }
 
-uint8_t ES8311Component::calculate_resolution_value_(ES8311Resolution resolution) {
+uint8_t ES8311Component::calculate_resolution_value(ES8311Resolution resolution) {
   switch (resolution) {
     case ES8311_RESOLUTION_16:
       return (3 << 2);

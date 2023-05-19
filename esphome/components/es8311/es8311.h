@@ -52,8 +52,8 @@ class ES8311Component : public Component, public i2c::I2CDevice {
   void set_mute(bool mute);
 
  protected:
-  static const ES8311Coefficient *get_coefficient_(uint32_t mclk, uint32_t rate);
-  static uint8_t calculate_resolution_value_(ES8311Resolution resolution);
+  static const ES8311Coefficient *get_coefficient(uint32_t mclk, uint32_t rate);
+  static uint8_t calculate_resolution_value(ES8311Resolution resolution);
 
   void configure_clock_();
   void configure_sample_frequency_(int mclk_frequency);
