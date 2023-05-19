@@ -706,6 +706,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
 #endif
 
   struct dhcps_lease lease {};
+  lease.enable = true;
   network::IPAddress start_address = info.ip.addr;
   start_address[3] += 99;
   lease.start_ip.addr = static_cast<uint32_t>(start_address);

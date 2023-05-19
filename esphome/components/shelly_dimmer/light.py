@@ -23,6 +23,8 @@ from esphome.const import (
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_CURRENT,
+    CONF_MIN_BRIGHTNESS,
+    CONF_MAX_BRIGHTNESS,
 )
 from esphome.core import HexInt, CORE
 
@@ -41,8 +43,7 @@ CONF_UPDATE = "update"
 CONF_LEADING_EDGE = "leading_edge"
 CONF_WARMUP_BRIGHTNESS = "warmup_brightness"
 # CONF_WARMUP_TIME = "warmup_time"
-CONF_MIN_BRIGHTNESS = "min_brightness"
-CONF_MAX_BRIGHTNESS = "max_brightness"
+
 
 CONF_NRST_PIN = "nrst_pin"
 CONF_BOOT0_PIN = "boot0_pin"

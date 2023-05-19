@@ -29,8 +29,8 @@ class I2SAudioComponent : public Component {
     };
   }
 
-  void set_bclk_pin(uint8_t pin) { this->bclk_pin_ = pin; }
-  void set_lrclk_pin(uint8_t pin) { this->lrclk_pin_ = pin; }
+  void set_bclk_pin(int pin) { this->bclk_pin_ = pin; }
+  void set_lrclk_pin(int pin) { this->lrclk_pin_ = pin; }
 
   void lock() { this->lock_.lock(); }
   bool try_lock() { return this->lock_.try_lock(); }
@@ -41,8 +41,11 @@ class I2SAudioComponent : public Component {
  protected:
   Mutex lock_;
 
-  uint8_t bclk_pin_;
-  uint8_t lrclk_pin_;
+  I2SAudioIn *audio_in_{nullptr};
+  I2SAudioOut *audio_out_{nullptr};
+
+  int bclk_pin_{I2S_PIN_NO_CHANGE};
+  int lrclk_pin_;
   i2s_port_t port_{};
 };
 
