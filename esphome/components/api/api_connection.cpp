@@ -223,6 +223,7 @@ bool APIConnection::send_cover_info(cover::Cover *cover) {
   msg.assumed_state = traits.get_is_assumed_state();
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
+  msg.supports_stop = traits.get_supports_stop();
   msg.device_class = cover->get_device_class();
   msg.disabled_by_default = cover->is_disabled_by_default();
   msg.icon = cover->get_icon();
@@ -978,6 +979,8 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.manufacturer = "Espressif";
 #elif defined(USE_RP2040)
   resp.manufacturer = "Raspberry Pi";
+#elif defined(USE_HOST)
+  resp.manufacturer = "Host";
 #endif
   resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
@@ -996,7 +999,7 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
                                      : bluetooth_proxy::PASSIVE_ONLY_VERSION;
 #endif
 #ifdef USE_VOICE_ASSISTANT
-  resp.voice_assistant_version = 1;
+  resp.voice_assistant_version = voice_assistant::global_voice_assistant->get_version();
 #endif
   return resp;
 }
