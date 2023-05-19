@@ -432,8 +432,8 @@ int8_t step_to_accuracy_decimals(float step);
 static const std::string base64_chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ"
                                         "abcdefghijklmnopqrstuvwxyz"
                                         "0123456789+/";
-std::string base64_encode(const char* buf, unsigned int bufLen);
-std::vector<char> base64_decode(std::string const&);
+std::string base64_encode(const char *buf, unsigned int bufLen);
+std::vector<char> base64_decode(std::string const &);
 
 ///@}
 

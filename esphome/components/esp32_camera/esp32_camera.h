@@ -87,7 +87,7 @@ class CameraImage {
 };
 
 struct CameraImageData {
-  uint8_t* data;
+  uint8_t *data;
   size_t length;
 };
 

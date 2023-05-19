@@ -335,7 +335,6 @@ int8_t step_to_accuracy_decimals(float step) {
   return str.length() - dot_pos - 1;
 }
 
-
 static inline bool is_base64(char c) { return (isalnum(c) || (c == '+') || (c == '/')); }
 
 std::string base64_encode(const char *buf, unsigned int bufLen) {
