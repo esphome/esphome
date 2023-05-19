@@ -3077,6 +3077,8 @@ text_sensor:
       name: BSSID
     mac_address:
       name: Mac Address
+    dns_address:
+      name: DNS ADdress
   - platform: version
     name: ESPHome Version No Timestamp
     hide_timestamp: true
