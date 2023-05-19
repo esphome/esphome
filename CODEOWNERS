@@ -110,6 +110,7 @@ esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/honeywellabp/* @RubyBailey
 esphome/components/host/* @esphome/core
+esphome/components/hp303b/* @max246
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/hte501/* @Stock-M
 esphome/components/hydreon_rgxx/* @functionpointer
@@ -239,6 +240,7 @@ esphome/components/shelly_dimmer/* @edge90 @rnauber
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core @jsuanet
 esphome/components/sigma_delta_output/* @Cat-Ion
+esphome/components/si7021/* @max246
 esphome/components/sim800l/* @glmnet
 esphome/components/sm10bit_base/* @Cossid
 esphome/components/sm2135/* @BoukeHaarsma23 @dd32 @matika77
