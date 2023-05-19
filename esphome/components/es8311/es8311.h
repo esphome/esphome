@@ -7,16 +7,16 @@ namespace esphome {
 namespace es8311 {
 
 enum ES8311MicGain {
-    ES8311_MIC_GAIN_MIN = -1,
-    ES8311_MIC_GAIN_0DB,
-    ES8311_MIC_GAIN_6DB,
-    ES8311_MIC_GAIN_12DB,
-    ES8311_MIC_GAIN_18DB,
-    ES8311_MIC_GAIN_24DB,
-    ES8311_MIC_GAIN_30DB,
-    ES8311_MIC_GAIN_36DB,
-    ES8311_MIC_GAIN_42DB,
-    ES8311_MIC_GAIN_MAX
+  ES8311_MIC_GAIN_MIN = -1,
+  ES8311_MIC_GAIN_0DB,
+  ES8311_MIC_GAIN_6DB,
+  ES8311_MIC_GAIN_12DB,
+  ES8311_MIC_GAIN_18DB,
+  ES8311_MIC_GAIN_24DB,
+  ES8311_MIC_GAIN_30DB,
+  ES8311_MIC_GAIN_36DB,
+  ES8311_MIC_GAIN_42DB,
+  ES8311_MIC_GAIN_MAX
 };
 
 enum ES8311Resolution {
@@ -63,9 +63,9 @@ class ES8311Component : public Component, public i2c::I2CDevice {
   bool use_microphone_;
   ES8311MicGain microphone_gain_{ES8311_MIC_GAIN_42DB};
 
-  bool use_mclk_{true};  // true = use dedicated MCLK pin, false = use SCLK
-  bool sclk_inverted_; //
-  bool mclk_inverted_; //
+  bool use_mclk_{true};          // true = use dedicated MCLK pin, false = use SCLK
+  bool sclk_inverted_;           //
+  bool mclk_inverted_;           //
   int mclk_frequency_{6144000};  // This parameter is ignored if MCLK is taken from SCLK pin
 
   int sample_frequency_{16000};  // in Hz

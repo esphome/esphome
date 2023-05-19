@@ -125,7 +125,7 @@ void ES8311Component::configure_sample_frequency_(int mclk_frequency) {
 }
 
 void ES8311Component::configure_format_() {
-  // Configure slave mode and I2S format
+  // Configure I2S mode and format
   uint8_t reg00;
   ES8311_READ_BYTE(ES8311_REG00_RESET, &reg00);
   reg00 &= 0xBF;
