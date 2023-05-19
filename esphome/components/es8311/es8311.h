@@ -56,7 +56,6 @@ class ES8311Component : public Component, public i2c::I2CDevice {
   static uint8_t calculate_resolution_value(ES8311Resolution resolution);
 
   void configure_clock_();
-  void configure_sample_frequency_(int mclk_frequency);
   void configure_format_();
   void configure_microphone_();
 

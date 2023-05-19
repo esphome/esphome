@@ -45,45 +45,27 @@ void ES8311Component::setup() {
 }
 
 void ES8311Component::configure_clock_() {
-  int mclk_frequency;
-
-  // Select clock source for internal MCLK and determine its frequency
+  // Register 0x01: select clock source for internal MCLK and determine its frequency
   uint8_t reg01 = 0x3F;  // Enable all clocks
-  if (this->use_mclk_) {
-    mclk_frequency = this->mclk_frequency_;
-  } else {
+  if (!this->use_mclk_) {
     reg01 |= BIT(7);  // Use SCLK
-    mclk_frequency = this->sample_frequency_ * (int) this->resolution_out_ * 2;
+    this->mclk_frequency_ = this->sample_frequency_ * (int) this->resolution_out_ * 2;
   }
   if (this->mclk_inverted_) {
     reg01 |= BIT(6);  // Invert MCLK pin
   }
   ES8311_WRITE_BYTE(ES8311_REG01_CLK_MANAGER, reg01);
 
-  // register 0x06
-  uint8_t reg06;
-  ES8311_READ_BYTE(ES8311_REG06_CLK_MANAGER, &reg06);
-  if (this->sclk_inverted_) {
-    reg06 |= BIT(5);
-  } else {
-    reg06 &= ~BIT(5);
-  }
-  ES8311_WRITE_BYTE(ES8311_REG06_CLK_MANAGER, reg06);
-
-  // Configure clock dividers
-  this->configure_sample_frequency_(mclk_frequency);
-}
-
-void ES8311Component::configure_sample_frequency_(int mclk_frequency) {
   // Get clock coefficients from coefficient table
-  auto *coefficient = get_coefficient(mclk_frequency, this->sample_frequency_);
+  auto *coefficient = get_coefficient(this->mclk_frequency_, this->sample_frequency_);
   if (coefficient == nullptr) {
-    ESP_LOGE(TAG, "Unable to configure sample rate %dHz with %dHz MCLK", this->sample_frequency_, mclk_frequency);
+    ESP_LOGE(TAG, "Unable to configure sample rate %dHz with %dHz MCLK", this->sample_frequency_,
+             this->mclk_frequency_);
     this->mark_failed();
     return;
   }
 
-  // register 0x02
+  // Register 0x02
   uint8_t reg02;
   ES8311_READ_BYTE(ES8311_REG02_CLK_MANAGER, &reg02);
   reg02 &= 0x07;
@@ -91,20 +73,25 @@ void ES8311Component::configure_sample_frequency_(int mclk_frequency) {
   reg02 |= coefficient->pre_mult << 3;
   ES8311_WRITE_BYTE(ES8311_REG02_CLK_MANAGER, reg02);
 
-  // register 0x03
+  // Register 0x03
   const uint8_t reg03 = (coefficient->fs_mode << 6) | coefficient->adc_osr;
   ES8311_WRITE_BYTE(ES8311_REG03_CLK_MANAGER, reg03);
 
-  // register 0x04
+  // Register 0x04
   ES8311_WRITE_BYTE(ES8311_REG04_CLK_MANAGER, coefficient->dac_osr);
 
-  // register 0x05
+  // Register 0x05
   const uint8_t reg05 = ((coefficient->adc_div - 1) << 4) | (coefficient->dac_div - 1);
   ES8311_WRITE_BYTE(ES8311_REG05_CLK_MANAGER, reg05);
 
-  // register 0x06
+  // Register 0x06
   uint8_t reg06;
   ES8311_READ_BYTE(ES8311_REG06_CLK_MANAGER, &reg06);
+  if (this->sclk_inverted_) {
+    reg06 |= BIT(5);
+  } else {
+    reg06 &= ~BIT(5);
+  }
   reg06 &= 0xE0;
   if (coefficient->bclk_div < 19) {
     reg06 |= (coefficient->bclk_div - 1) << 0;
@@ -113,14 +100,14 @@ void ES8311Component::configure_sample_frequency_(int mclk_frequency) {
   }
   ES8311_WRITE_BYTE(ES8311_REG06_CLK_MANAGER, reg06);
 
-  // register 0x07
+  // Register 0x07
   uint8_t reg07;
   ES8311_READ_BYTE(ES8311_REG07_CLK_MANAGER, &reg07);
   reg07 &= 0xC0;
   reg07 |= coefficient->lrck_h << 0;
   ES8311_WRITE_BYTE(ES8311_REG07_CLK_MANAGER, reg07);
 
-  // register 0x08
+  // Register 0x08
   ES8311_WRITE_BYTE(ES8311_REG08_CLK_MANAGER, coefficient->lrck_l);
 }
 
