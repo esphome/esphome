@@ -11,10 +11,9 @@ CONF_WIREGUARD_ID = "wireguard_id"
 DEPENDENCIES = ["wireguard"]
 CODEOWNERS = ["@droscy"]
 
-wireguard_ns = cg.esphome_ns.namespace("wireguard")
-sensors_ns = wireguard_ns.namespace("sensors")
+wireguard_handshake_ns = cg.esphome_ns.namespace("wireguard_handshake")
 
-WireguardHandshake = sensors_ns.class_(
+WireguardHandshake = wireguard_handshake_ns.class_(
     "WireguardHandshake",
     sensor.Sensor,
     cg.PollingComponent,
