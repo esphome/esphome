@@ -194,7 +194,6 @@ void ESP32Camera::loop() {
   this->current_image_ = std::make_shared<CameraImage>(fb, this->single_requesters_ | this->stream_requesters_);
 
   ESP_LOGD(TAG, "Got Image: len=%u", fb->len);
-
   this->new_image_callback_.call(this->current_image_);
   this->last_update_ = now;
   this->single_requesters_ = 0;
