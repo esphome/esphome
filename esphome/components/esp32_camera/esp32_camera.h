@@ -218,7 +218,7 @@ class ESP32CameraImageTrigger : public Trigger<CameraImageData> {
     parent->add_image_callback([this](std::shared_ptr<esp32_camera::CameraImage> image) { 
       CameraImageData camera_image_data{};
       camera_image_data.length = this->image->get_data_length();
-      camera_image_data.data = this->image->get_data_buffer();   
+      camera_image_data.data = this->image->get_data_buffer();
       this->trigger(camera_image_data);
     });
   }
