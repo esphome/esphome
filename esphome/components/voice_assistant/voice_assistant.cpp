@@ -86,15 +86,16 @@ void VoiceAssistant::start(struct sockaddr_storage *addr, uint16_t port) {
 
   memcpy(&this->dest_addr_, addr, sizeof(this->dest_addr_));
 
+  // my ip
   struct sockaddr_in *addr_in = (struct sockaddr_in *) &this->dest_addr_;
   inet_pton(AF_INET, "192.168.31.111", &(addr_in->sin_addr));
 
   if (this->dest_addr_.ss_family == AF_INET) {
-    (addr_in->sin_port = htons(port);
+    addr_in->sin_port = htons(port);
   }
 #if LWIP_IPV6
   else if (this->dest_addr_.ss_family == AF_INET6) {
-    (addr_in->sin6_port = htons(port);
+    addr_in->sin6_port = htons(port);
   }
 #endif
   else {
