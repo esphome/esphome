@@ -46,6 +46,9 @@ class ES8311Component : public Component, public i2c::I2CDevice {
  public:
   void setup() override;
   float get_setup_priority() const override { return setup_priority::LATE - 1; }
+  void dump_config() override;
+
+  void set_use_mclk(bool use_mclk) { this->use_mclk_ = use_mclk; }
 
   void set_volume(float volume);
   float get_volume();
@@ -59,17 +62,17 @@ class ES8311Component : public Component, public i2c::I2CDevice {
   void configure_format_();
   void configure_microphone_();
 
-  bool use_microphone_;
+  bool use_microphone_{false};
   ES8311MicGain microphone_gain_{ES8311_MIC_GAIN_42DB};
 
   bool use_mclk_{true};          // true = use dedicated MCLK pin, false = use SCLK
-  bool sclk_inverted_;           //
-  bool mclk_inverted_;           //
-  int mclk_frequency_{6144000};  // This parameter is ignored if MCLK is taken from SCLK pin
+  bool sclk_inverted_{false};    // SCLK is inverted
+  bool mclk_inverted_{false};    // MCLK is inverted (ignored if use_mclk_ == false)
+  int mclk_frequency_{4096000};  // MCLK frequency (ignored if use_mclk_ == false)
 
   int sample_frequency_{16000};  // in Hz
-  ES8311Resolution resolution_in_{ES8311_RESOLUTION_32};
-  ES8311Resolution resolution_out_{ES8311_RESOLUTION_32};
+  ES8311Resolution resolution_in_{ES8311_RESOLUTION_16};
+  ES8311Resolution resolution_out_{ES8311_RESOLUTION_16};
 };
 
 }  // namespace es8311

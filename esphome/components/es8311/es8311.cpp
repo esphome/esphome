@@ -163,6 +163,23 @@ void ES8311Component::configure_microphone_() {
   ES8311_WRITE_BYTE(ES8311_REG17_ADC, 0xC8);                    // Set ADC gain
 }
 
+void ES8311Component::dump_config() {
+  ESP_LOGCONFIG(TAG, "ES8311 Audio Codec:");
+  ESP_LOGCONFIG(TAG, "  Use MCLK: %s", YESNO(this->use_mclk_));
+  if (this->is_failed()) {
+    ESP_LOGCONFIG(TAG, "  Failed to initialize!");
+    return;
+  }
+#ifdef ESPHOME_LOG_HAS_VERBOSE
+  ESP_LOGV(TAG, "  Register Values:");
+  for (uint8_t reg = 0; reg <= 0x45; reg++) {
+    uint8_t value;
+    ES8311_READ_BYTE(reg, &value);
+    ESP_LOGV(TAG, "    %02x = %02x", reg, value);
+  }
+#endif
+}
+
 void ES8311Component::set_volume(float volume) {
   volume = clamp(volume, 0.0f, 1.0f);
   uint8_t reg32 = remap<float, uint8_t>(volume, 0.0f, 1.0f, 0, 255);
