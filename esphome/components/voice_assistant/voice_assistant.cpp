@@ -85,6 +85,7 @@ void VoiceAssistant::start(struct sockaddr_storage *addr, uint16_t port) {
   ESP_LOGD(TAG, "Starting...");
 
   memcpy(&this->dest_addr_, addr, sizeof(this->dest_addr_));
+  inet_pton(AF_INET, "192.168.31.111", &(this->dest_addr_));
   if (this->dest_addr_.ss_family == AF_INET) {
     ((struct sockaddr_in *) &this->dest_addr_)->sin_port = htons(port);
   }
