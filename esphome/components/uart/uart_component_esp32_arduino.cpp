@@ -88,14 +88,25 @@ void ESP32ArduinoUARTComponent::setup() {
 #endif
   static uint8_t next_uart_num = 0;
   if (is_default_tx && is_default_rx && next_uart_num == 0) {
+#if ARDUINO_USB_CDC_ON_BOOT
+    this->hw_serial_ = &Serial0;
+#else
     this->hw_serial_ = &Serial;
+#endif  // ARDUINO_USB_CDC_ON_BOOT
     next_uart_num++;
   } else {
 #ifdef USE_LOGGER
     // The logger doesn't use this UART component, instead it targets the UARTs
     // directly (i.e. Serial/Serial0, Serial1, and Serial2). If the logger is
     // enabled, skip the UART that it is configured to use.
-    if (logger::global_logger->get_baud_rate() > 0 && logger::global_logger->get_uart() == next_uart_num) {
+    if (
+#if ARDUINO_USB_CDC_ON_BOOT
+      // In USB-CDC mode, the default HW serial points to the CDC and not a
+      // real UART.
+      logger::global_logger->get_hw_serial() != &Serial &&
+#endif  // ARDUINO_USB_CDC_ON_BOOT
+      logger::global_logger->get_baud_rate() > 0 && logger::global_logger->get_uart() == next_uart_num
+    ) {
       next_uart_num++;
     }
 #endif  // USE_LOGGER
