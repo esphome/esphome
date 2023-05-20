@@ -170,7 +170,7 @@ void Wireguard::start_connection_() {
     }
 
     if(allowed_ips_ok) {
-        ESP_LOGD(TAG, "allowed ips list configured correctly for remote WireGuard peer");
+        ESP_LOGD(TAG, "allowed ips list configured correctly");
     } else {
         ESP_LOGE(TAG, "cannot configure WireGuard allowed ips list, aborting...");
         this->on_shutdown();

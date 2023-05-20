@@ -28,7 +28,7 @@ wireguard:
   # optional keepalive in seconds (disabled by default)
   peer_persistent_keepalive: 25
 
-  # optional list of allowed ip/mask (default to any host)
+  # optional list of allowed ip/mask (any host is allowed if omitted)
   peer_allowed_ips:
     - x.y.z.0/24
     - l.m.n.o/32  # the /32 can be omitted for single host
