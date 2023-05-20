@@ -215,7 +215,7 @@ extern ESP32Camera *global_esp32_camera;
 class ESP32CameraImageTrigger : public Trigger<CameraImageData> {
  public:
   explicit ESP32CameraImageTrigger(ESP32Camera *parent) {
-    parent->add_image_callback([this](const std::shared_ptr<esp32_camera::CameraImage>& image) {
+    parent->add_image_callback([this](const std::shared_ptr<esp32_camera::CameraImage> &image) {
       CameraImageData camera_image_data{};
       camera_image_data.length = image->get_data_length();
       camera_image_data.data = image->get_data_buffer();
