@@ -33,7 +33,7 @@ CONFIG_SCHEMA = cv.All(
     cv.COMPONENT_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(KeyCollector),
-            cv.GenerateID(CONF_SOURCE_ID): cv.use_id(key_provider.KeyProvider),
+            cv.Optional(CONF_SOURCE_ID): cv.use_id(key_provider.KeyProvider),
             cv.Optional(CONF_MIN_LENGTH): cv.int_,
             cv.Optional(CONF_MAX_LENGTH): cv.int_,
             cv.Optional(CONF_START_KEYS): cv.string,
@@ -55,8 +55,9 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    source = await cg.get_variable(config[CONF_SOURCE_ID])
-    cg.add(var.set_provider(source))
+    if CONF_SOURCE_ID in config:
+        source = await cg.get_variable(config[CONF_SOURCE_ID])
+        cg.add(var.set_provider(source))
     if CONF_MIN_LENGTH in config:
         cg.add(var.set_min_length(config[CONF_MIN_LENGTH]))
     if CONF_MAX_LENGTH in config:
