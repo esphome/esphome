@@ -66,102 +66,40 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_seconds,
                 cv.Range(max=cv.TimePeriod(seconds=32767)),
             ),
-            cv.Optional(CONF_G0_MOVE_THRESHOLD, default=60000): cv.int_range(
+            cv.Optional(CONF_G0_MOVE_THRESHOLD, default=60000): cv.uint16_t(
                 min=0, max=65535
             ),
-            cv.Optional(CONF_G0_STILL_THRESHOLD, default=40000): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G1_MOVE_THRESHOLD, default=40000): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G1_STILL_THRESHOLD, default=20000): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G2_MOVE_THRESHOLD, default=4000): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G2_STILL_THRESHOLD, default=400): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G3_MOVE_THRESHOLD, default=2000): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G3_STILL_THRESHOLD, default=300): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G4_MOVE_THRESHOLD, default=500): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G4_STILL_THRESHOLD, default=200): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G5_MOVE_THRESHOLD, default=500): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G5_STILL_THRESHOLD, default=200): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G6_MOVE_THRESHOLD, default=400): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G6_STILL_THRESHOLD, default=200): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G7_MOVE_THRESHOLD, default=400): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G7_STILL_THRESHOLD, default=200): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G8_MOVE_THRESHOLD, default=400): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G8_STILL_THRESHOLD, default=200): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G9_MOVE_THRESHOLD, default=300): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G9_STILL_THRESHOLD, default=150): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G10_MOVE_THRESHOLD, default=300): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G10_STILL_THRESHOLD, default=150): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G11_MOVE_THRESHOLD, default=200): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G11_STILL_THRESHOLD, default=100): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G12_MOVE_THRESHOLD, default=200): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G12_STILL_THRESHOLD, default=100): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G13_MOVE_THRESHOLD, default=200): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G13_STILL_THRESHOLD, default=100): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G14_MOVE_THRESHOLD, default=200): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G14_STILL_THRESHOLD, default=100): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G15_MOVE_THRESHOLD, default=200): cv.int_range(
-                min=0, max=65535
-            ),
-            cv.Optional(CONF_G15_STILL_THRESHOLD, default=100): cv.int_range(
-                min=0, max=65535
-            ),
+            cv.Optional(CONF_G0_STILL_THRESHOLD, default=40000): cv.uint16_t,
+            cv.Optional(CONF_G1_MOVE_THRESHOLD, default=40000): cv.uint16_t,
+            cv.Optional(CONF_G1_STILL_THRESHOLD, default=20000): cv.uint16_t,
+            cv.Optional(CONF_G2_MOVE_THRESHOLD, default=4000): cv.uint16_t,
+            cv.Optional(CONF_G2_STILL_THRESHOLD, default=400): cv.uint16_t,
+            cv.Optional(CONF_G3_MOVE_THRESHOLD, default=2000): cv.uint16_t,
+            cv.Optional(CONF_G3_STILL_THRESHOLD, default=300): cv.uint16_t,
+            cv.Optional(CONF_G4_MOVE_THRESHOLD, default=500): cv.uint16_t,
+            cv.Optional(CONF_G4_STILL_THRESHOLD, default=200): cv.uint16_t,
+            cv.Optional(CONF_G5_MOVE_THRESHOLD, default=500): cv.uint16_t,
+            cv.Optional(CONF_G5_STILL_THRESHOLD, default=200): cv.uint16_t,
+            cv.Optional(CONF_G6_MOVE_THRESHOLD, default=400): cv.uint16_t,
+            cv.Optional(CONF_G6_STILL_THRESHOLD, default=200): cv.uint16_t,
+            cv.Optional(CONF_G7_MOVE_THRESHOLD, default=400): cv.uint16_t,
+            cv.Optional(CONF_G7_STILL_THRESHOLD, default=200): cv.uint16_t,
+            cv.Optional(CONF_G8_MOVE_THRESHOLD, default=400): cv.uint16_t,
+            cv.Optional(CONF_G8_STILL_THRESHOLD, default=200): cv.uint16_t,
+            cv.Optional(CONF_G9_MOVE_THRESHOLD, default=300): cv.uint16_t,
+            cv.Optional(CONF_G9_STILL_THRESHOLD, default=150): cv.uint16_t,
+            cv.Optional(CONF_G10_MOVE_THRESHOLD, default=300): cv.uint16_t,
+            cv.Optional(CONF_G10_STILL_THRESHOLD, default=150): cv.uint16_t,
+            cv.Optional(CONF_G11_MOVE_THRESHOLD, default=200): cv.uint16_t,
+            cv.Optional(CONF_G11_STILL_THRESHOLD, default=100): cv.uint16_t,
+            cv.Optional(CONF_G12_MOVE_THRESHOLD, default=200): cv.uint16_t,
+            cv.Optional(CONF_G12_STILL_THRESHOLD, default=100): cv.uint16_t,
+            cv.Optional(CONF_G13_MOVE_THRESHOLD, default=200): cv.uint16_t,
+            cv.Optional(CONF_G13_STILL_THRESHOLD, default=100): cv.uint16_t,
+            cv.Optional(CONF_G14_MOVE_THRESHOLD, default=200): cv.uint16_t,
+            cv.Optional(CONF_G14_STILL_THRESHOLD, default=100): cv.uint16_t,
+            cv.Optional(CONF_G15_MOVE_THRESHOLD, default=200): cv.uint16_t,
+            cv.Optional(CONF_G15_STILL_THRESHOLD, default=100): cv.uint16_t,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
