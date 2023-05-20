@@ -195,11 +195,7 @@ void ESP32Camera::loop() {
 
   ESP_LOGD(TAG, "Got Image: len=%u", fb->len);
 
-  CameraImageData camera_image_data{};
-  camera_image_data.length = this->current_image_->get_data_length();
-  camera_image_data.data = this->current_image_->get_data_buffer();
-
-  this->new_image_callback_.call(camera_image_data);
+  this->new_image_callback_.call(this->current_image_);
   this->last_update_ = now;
   this->single_requesters_ = 0;
 }
