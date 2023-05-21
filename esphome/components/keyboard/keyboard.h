@@ -50,9 +50,6 @@ class Keyboard : public EntityBase, public Component, public LEDControl {
 #endif
 
   KeyboardCall make_call(KeyboardType type);
-  // begin - TODO remove after review
-  static std::vector<Keyboard *> keyboards;
-  // end
  protected:
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *capslock_{nullptr};
@@ -88,6 +85,8 @@ template<typename... Ts> class UpAction : public Action<Ts...>, public Parented<
  public:
   void play(Ts... x) override { this->parent_->make_call(type_).key_up(keys_).perform(); }
 };
+
+extern std::vector<Keyboard *> keyboards;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace keyboard
 }  // namespace esphome

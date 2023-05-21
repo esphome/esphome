@@ -998,7 +998,7 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 
 #ifdef USE_KEYBOARD
 void WebServer::handle_keyboard_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (keyboard::Keyboard *obj : keyboard::Keyboard::keyboards) {
+  for (keyboard::Keyboard *obj : keyboard::keyboards) {
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_GET) {

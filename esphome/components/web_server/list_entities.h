@@ -62,7 +62,9 @@ class ListEntitiesIterator : public ComponentIterator {
 
  protected:
   WebServer *web_server_;
+#ifdef USE_KEYBOARD
   size_t at_{0};
+#endif
 };
 
 }  // namespace web_server

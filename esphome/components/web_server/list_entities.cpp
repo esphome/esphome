@@ -12,20 +12,24 @@ namespace web_server {
 
 ListEntitiesIterator::ListEntitiesIterator(WebServer *web_server) : web_server_(web_server) {}
 
-// begin - TODO remove after review
-void ListEntitiesIterator::begin(bool include_internal) { ComponentIterator::begin(include_internal); }
+void ListEntitiesIterator::begin(bool include_internal) {
+#ifdef USE_KEYBOARD
+  this->at_ = 0;
+#endif
+  ComponentIterator::begin(include_internal);
+}
 
 bool ListEntitiesIterator::on_begin() {
 #ifdef USE_KEYBOARD
-  if (keyboard::Keyboard::keyboards.size() > this->at_) {
-    on_keyboard(keyboard::Keyboard::keyboards[this->at_]);
+  // TODO remove when https://github.com/esphome/esphome/pull/4470 is merged
+  if (keyboard::keyboards.size() > this->at_) {
+    on_keyboard(keyboard::keyboards[this->at_]);
     ++this->at_;
     return false;
   }
 #endif
   return true;
 }
-// end
 
 #ifdef USE_BINARY_SENSOR
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {

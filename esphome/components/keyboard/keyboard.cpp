@@ -3,10 +3,6 @@
 namespace esphome {
 namespace keyboard {
 
-// begin - TODO remove after review
-std::vector<Keyboard *> Keyboard::keyboards;
-// end
-
 Keyboard::Keyboard(KeyboardControl *keyboard_control, KeyboardControl *media_keys_control)
     : keyboard_control_(keyboard_control), media_keys_control_(media_keys_control) {
   if (keyboard_control_) {
@@ -59,5 +55,8 @@ void Keyboard::publish_scrollock(bool state) {
   }
 }
 #endif
+
+std::vector<Keyboard *> keyboards;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+
 }  // namespace keyboard
 }  // namespace esphome

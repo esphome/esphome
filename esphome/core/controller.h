@@ -40,11 +40,6 @@
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
-#ifdef REMOVE_AFTER_REVIEW
-#ifdef USE_KEYBOARD
-#include "esphome/components/keyboard/keyboard.h"
-#endif
-#endif
 
 namespace esphome {
 
