@@ -20,12 +20,6 @@ HP303BComponent::~HP303BComponent(void) { end(); }
 
 void HP303BComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HP303B...");
-  m_init_fail = 0U;
-
-  this->spi_setup();
-
-  this->enable();
-
   init();
 }
 
@@ -379,12 +373,6 @@ int16_t HP303BComponent::get_cont_results(int32_t *temp_Buffer, uint8_t &temp_Co
   return HP303B__SUCCEEDED;
 }
 
-int16_t HP303BComponent::set_interrupt_polarity(uint8_t polarity) {
-  // Interrupts are not supported with 4 Wire SPI
-  return HP303B__FAIL_UNKNOWN;
-  f
-}
-
 int16_t HP303BComponent::set_interrupt_sources(uint8_t fifo_full, uint8_t temp_ready, uint8_t prs_ready) {
   // Interrupts are not supported with 4 Wire SPI
   return HP303B__FAIL_UNKNOWN;
@@ -675,113 +663,7 @@ int32_t HP303BComponent::calc_pressure(int32_t raw) {
   return (int32_t) prs;
 }
 
-int16_t HP303BComponent::read_byte(uint8_t reg_address) {
-  // delegate to specialized function if HP303B is connected via SPI
-  return read_byte_SPI(reg_address);
-}
-
-int16_t HP303BComponent::read_byte_sPI(uint8_t reg_address) {
-  // this function is only made for communication via SPI
-
-  // mask regAddress
-  reg_address &= ~HP303B__SPI_RW_MASK;
-  // reserve and initialize bus
-  // m_spibus->beginTransaction(SPISettings(HP303B__SPI_MAX_FREQ, MSBFIRST, SPI_MODE3));
-  // enable ChipSelect for HP303B
-  // digitalWrite(m_chipSelect, LOW);
-  this->enable();
-  // send address with read command to HP303B
-  this->write_byte(reg_address | HP303B__SPI_READ_CMD);
-  // receive register content from HP303B
-  uint8_t ret = this->write_byte(0xFF);  // send a dummy byte while receiving
-                                         // disable ChipSelect for HP303B
-  // digitalWrite(m_chipSelect, HIGH);
-  this->disable();
-  // close current SPI transaction
-  // m_spibus->endTransaction();
-  // return received data
-  return ret;
-}
-
-int16_t HP303BComponent::read_block(uint8_t reg_address, uint8_t length, uint8_t *buffer) {
-  // delegate to specialized function if HP303B is connected via SPI
-  return read_block_sPI(reg_address, length, buffer);
-}
-
-int16_t HP303BComponent::read_block_sPI(uint8_t reg_address, uint8_t length, uint8_t *buffer) {
-  // this function is only made for communication via SPI
-
-  // do not read if there is no buffer
-  if (buffer == NULL) {
-    return 0;  // 0 bytes were read successfully
-  }
-  // mask regAddress
-  reg_address &= ~HP303B__SPI_RW_MASK;
-  // reserve and initialize bus
-  // m_spibus->beginTransaction(SPISettings(HP303B__SPI_MAX_FREQ, MSBFIRST, SPI_MODE3));
-  // enable ChipSelect for HP303B
-  // digitalWrite(m_chipSelect, LOW);
-  this->enable();
-  // send address with read command to H303B
-  this->write_byte(reg_address | HP303B__SPI_READ_CMD);
-
-  // receive register contents from HP303B
-  for (uint8_t count = 0; count < length; count++) {
-    buffer[count] = this->write_byte(0xFF);  // send a dummy byte while receiving
-  }
-
-  // disable ChipSelect for HP303B
-  // digitalWrite(m_chipSelect, HIGH);
-  this->disable();
-  // close current SPI transaction
-  // m_spibus->endTransaction();
-  // return received data
-  return length;
-}
-
 int16_t HP303BComponent::write_byte(uint8_t reg_address, uint8_t data) { return write_byte(reg_address, data, 0U); }
-
-int16_t HP303BComponent::write_byte(uint8_t reg_address, uint8_t data, uint8_t check) {
-  // delegate to specialized function if HP303B is connected via SPI
-  return write_byte_spi(reg_address, data, check);
-}
-int16_t HP303BComponent::write_byte_spi(uint8_t reg_address, uint8_t data, uint8_t check) {
-  // this function is only made for communication via SPI
-
-  // mask regAddress
-  reg_address &= ~HP303B__SPI_RW_MASK;
-  // reserve and initialize bus
-
-  // m_spibus->beginTransaction(SPISettings(HP303B__SPI_MAX_FREQ, MSBFIRST, SPI_MODE3));
-  //  enable ChipSelect for HP303B
-  // digitalWrite(m_chipSelect, LOW);
-  this->enable();
-  // send address with read command to HP303B
-  this->write_byte(reg_address | HP303B__SPI_WRITE_CMD);
-
-  // write register content from HP303B
-  this->write_byte(data);
-
-  // disable ChipSelect for HP303B
-  // digitalWrite(m_chipSelect, HIGH);
-  this->disable();
-  // close current SPI transaction
-  // m_spibus->endTransaction();
-
-  // check if necessary
-  if (check == 0) {
-    // no checking necessary
-    return HP303B__SUCCEEDED;
-  }
-  // checking necessary
-  if (read_byte(reg_address) == data) {
-    // check passed
-    return HP303B__SUCCEEDED;
-  } else {
-    // check failed
-    return HP303B__FAIL_UNKNOWN;
-  }
-}
 
 int16_t HP303BComponent::write_byte_bitfield(uint8_t data, uint8_t reg_address, uint8_t mask, uint8_t shift) {
   return write_byte_bitfield(data, reg_address, mask, shift, 0U);

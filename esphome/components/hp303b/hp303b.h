@@ -14,8 +14,6 @@ static const char *TAG = "hp303b";
 const int32_t LOLIN_HP303B::scaling_facts[HP303B__NUM_OF_SCAL_FACTS] = {524288, 1572864, 3670016, 7864320,
                                                                         253952, 516096,  1040384, 2088960};
 
-INT16_MAX
-
 // general Constants
 static const int16_t HP303B__PROD_ID = 0U;
 
@@ -232,7 +230,7 @@ static const uint8_t HP303B__REG_ADR_INT_FLAG_PRS = 0x0AU;
 static const uint8_t HP303B__REG_MASK_INT_FLAG_PRS = 0x01U;
 static const uint8_t HP303B__REG_SHIFT_INT_FLAG_PRS = 0U;
 
-class HP303BComponent : public PollingComponent, public spi::SPIDevice {
+class HP303BComponent : public PollingComponent {
  public:
   void set_pressure(sensor::Sensor *pressure) { pressure_ = pressure; }
 
@@ -246,6 +244,8 @@ class HP303BComponent : public PollingComponent, public spi::SPIDevice {
 
   void standby();
 
+  virtual int16_t set_interrupt_polarity(uint8_t polarity) = 0;
+
   int16_t measure_pressureOnce(int32_t &result, uint8_t oversampling_rate);
   int16_t measure_pressureOnce(int32_t &result) { return measurePressureOnce(result, m_prs_osr); }
   int16_t start_measure_pressure_once() { return startMeasurePressureOnce(m_prs_osr); };
@@ -254,14 +254,11 @@ class HP303BComponent : public PollingComponent, public spi::SPIDevice {
   int16_t read_byte_bitfield(uint8_t reg_address, uint8_t mask, uint8_t shift);
   int16_t write_byte_bitfield(uint8_t data, uint8_t reg_address, uint8_t mask, uint8_t shift, uint8_t check);
   int16_t write_byte_bitfield(uint8_t data, uint8_t reg_address, uint8_t mask, uint8_t shift);
-  int16_t write_byte_spi(uint8_t reg_address, uint8_t data, uint8_t check);
 
-  int16_t write_byte(uint8_t reg_address, uint8_t data, uint8_t check);
+  virtual write_byte(uint8_t reg_address, uint8_t data, uint8_t check) = 0;
   int16_t write_byte(uint8_t reg_address, uint8_t data);
-  int16_t read_block_sPI(uint8_t reg_address, uint8_t length, uint8_t *buffer);
-  int16_t read_block(uint8_t reg_address, uint8_t length, uint8_t *buffer);
-  int16_t read_byte_sPI(uint8_t reg_address);
-  int16_t read_byte(uint8_t reg_address);
+  virtual read_block(uint8_t reg_address, uint8_t length, uint8_t *buffer) = 0;
+  virtual read_byte(uint8_t reg_address) = 0;
   int32_t calc_pressure(int32_t raw);
   int32_t calc_temp(int32_t raw);
   int16_t getFIFOvalue(int32_t *value);
