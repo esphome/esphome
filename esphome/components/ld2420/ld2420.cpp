@@ -5,7 +5,7 @@ namespace ld2420 {
 
 static const char *const TAG = "ld2420";
 
-float LD2420Component::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
+float LD2420Component::get_setup_priority() const { return setup_priority::BUS; }
 
 void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2420:");
