@@ -5,8 +5,7 @@
 #include "esphome/core/component.h"
 
 namespace esphome {
-namespace wireguard {
-namespace sensors {
+namespace wireguard_handshake {
 
 static const char * const TAG = "wireguard_handshake.sensor";
 
@@ -37,8 +36,7 @@ void WireguardHandshake::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
-}  // namespace sensors
-}  // namespace wireguard
+}  // namespace wireguard_handshake
 }  // namespace esphome
 
 // vim: tabstop=2 shiftwidth=2 expandtab

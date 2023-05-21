@@ -8,10 +8,9 @@ CONF_WIREGUARD_ID = "wireguard_id"
 DEPENDENCIES = ["wireguard"]
 CODEOWNERS = ["@droscy"]
 
-wireguard_ns = cg.esphome_ns.namespace("wireguard")
-sensors_ns = wireguard_ns.namespace("sensors")
+wireguard_status_ns = cg.esphome_ns.namespace("wireguard_status")
 
-WireguardStatus = sensors_ns.class_(
+WireguardStatus = wireguard_status_ns.class_(
     "WireguardStatus",
     binary_sensor.BinarySensor,
     cg.PollingComponent,
