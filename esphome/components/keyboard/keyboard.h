@@ -50,9 +50,9 @@ class Keyboard : public EntityBase, public Component, public LEDControl {
 #endif
 
   KeyboardCall make_call(KeyboardType type);
-// begin - TODO remove after review
+  // begin - TODO remove after review
   static std::vector<Keyboard *> keyboards;
-// end
+  // end
  protected:
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *capslock_{nullptr};
@@ -62,7 +62,6 @@ class Keyboard : public EntityBase, public Component, public LEDControl {
 
   KeyboardControl *keyboard_control_;
   KeyboardControl *media_keys_control_;
-
 };
 
 class Keys {
