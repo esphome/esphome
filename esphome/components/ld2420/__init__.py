@@ -121,7 +121,7 @@ async def to_code(config):
     cg.add(var.set_min_gate(config[CONF_DETECTION_GATE_MIN]))
     cg.add(var.set_max_gate(config[CONF_DETECTION_GATE_MAX]))
     cg.add(
-        var.set_range_config(
+        var.set_gate_sense_config(
             config[CONF_G0_MOVE_THRESHOLD],
             config[CONF_G0_STILL_THRESHOLD],
             config[CONF_G1_MOVE_THRESHOLD],

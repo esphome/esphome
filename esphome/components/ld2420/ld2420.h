@@ -93,14 +93,14 @@ class LD2420Component : public Component, public uart::UARTDevice {
   void set_timeout(uint16_t value) { this->new_config_.timeout = value; };
   void set_max_gate(uint16_t value) { this->new_config_.max_gate = value; };
   void set_min_gate(uint16_t value) { this->new_config_.min_gate = value; };
-  void set_range_config(uint32_t rg0_move, uint32_t rg0_still, uint32_t rg1_move, uint32_t rg1_still, uint32_t rg2_move,
-                        uint32_t rg2_still, uint32_t rg3_move, uint32_t rg3_still, uint32_t rg4_move,
-                        uint32_t rg4_still, uint32_t rg5_move, uint32_t rg5_still, uint32_t rg6_move,
-                        uint32_t rg6_still, uint32_t rg7_move, uint32_t rg7_still, uint32_t rg8_move,
-                        uint32_t rg8_still, uint32_t rg9_move, uint32_t rg9_still, uint32_t rg10_move,
-                        uint32_t rg10_still, uint32_t rg11_move, uint32_t rg11_still, uint32_t rg12_move,
-                        uint32_t rg12_still, uint32_t rg13_move, uint32_t rg13_still, uint32_t rg14_move,
-                        uint32_t rg14_still, uint32_t rg15_move, uint32_t rg15_still) {
+  void set_gate_sense_config(uint32_t rg0_move, uint32_t rg0_still, uint32_t rg1_move, uint32_t rg1_still,
+                             uint32_t rg2_move, uint32_t rg2_still, uint32_t rg3_move, uint32_t rg3_still,
+                             uint32_t rg4_move, uint32_t rg4_still, uint32_t rg5_move, uint32_t rg5_still,
+                             uint32_t rg6_move, uint32_t rg6_still, uint32_t rg7_move, uint32_t rg7_still,
+                             uint32_t rg8_move, uint32_t rg8_still, uint32_t rg9_move, uint32_t rg9_still,
+                             uint32_t rg10_move, uint32_t rg10_still, uint32_t rg11_move, uint32_t rg11_still,
+                             uint32_t rg12_move, uint32_t rg12_still, uint32_t rg13_move, uint32_t rg13_still,
+                             uint32_t rg14_move, uint32_t rg14_still, uint32_t rg15_move, uint32_t rg15_still) {
     this->new_config_.high_thresh[(uint8_t) 0] = rg0_move;
     this->new_config_.low_thresh[(uint8_t) 0] = rg0_still;
     this->new_config_.high_thresh[(uint8_t) 1] = rg1_move;
