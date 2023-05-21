@@ -50,6 +50,7 @@ class Keyboard : public EntityBase, public Component, public LEDControl {
 #endif
 
   KeyboardCall make_call(KeyboardType type);
+
  protected:
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *capslock_{nullptr};
