@@ -8,6 +8,7 @@ from esphome.components.esp32.const import (
     KEY_ESP32,
     KEY_VARIANT,
     VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
 )
 import esphome.final_validate as fv
 from esphome.components.hid import CONF_HID
@@ -18,7 +19,7 @@ CONF_USB_DEVICE_ID = "usb_device_id"
 
 def _validate_variant(value):
     variant = CORE.data[KEY_ESP32][KEY_VARIANT]
-    if variant not in [VARIANT_ESP32S2]:
+    if variant not in [VARIANT_ESP32S2, VARIANT_ESP32S3]:
         raise cv.Invalid(f"USB device is unsupported by ESP32 variant {variant}")
     return value
 
