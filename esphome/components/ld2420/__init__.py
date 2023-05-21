@@ -66,9 +66,7 @@ CONFIG_SCHEMA = cv.All(
                 cv.positive_time_period_seconds,
                 cv.Range(max=cv.TimePeriod(seconds=32767)),
             ),
-            cv.Optional(CONF_G0_MOVE_THRESHOLD, default=60000): cv.uint16_t(
-                min=0, max=65535
-            ),
+            cv.Optional(CONF_G0_MOVE_THRESHOLD, default=60000): cv.uint16_t,
             cv.Optional(CONF_G0_STILL_THRESHOLD, default=40000): cv.uint16_t,
             cv.Optional(CONF_G1_MOVE_THRESHOLD, default=40000): cv.uint16_t,
             cv.Optional(CONF_G1_STILL_THRESHOLD, default=20000): cv.uint16_t,
