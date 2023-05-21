@@ -4,7 +4,7 @@ wifi:
   ssid: "ssid"
 
 esp32:
-  board: esp32-c3-devkitm-1
+  board: esp32-s3-devkitc-1
   variant: ESP32S3
   framework:
     type: arduino

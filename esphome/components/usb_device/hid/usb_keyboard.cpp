@@ -1,5 +1,5 @@
 #include "usb_keyboard.h"
-#ifdef USE_ESP32_VARIANT_ESP32S2
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #ifdef USE_KEYBOARD
 #include "esphome/core/log.h"
 

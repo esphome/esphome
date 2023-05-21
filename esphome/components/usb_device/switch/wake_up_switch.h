@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP32_VARIANT_ESP32S2
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "esphome/core/defines.h"
 #ifdef USE_SWITCH
 #include "esphome/components/switch/switch.h"

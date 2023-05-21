@@ -1,7 +1,7 @@
 #pragma once
 #include "esphome/core/defines.h"
 #include "esphome/components/hid/hid_device.h"
-#ifdef USE_ESP32_VARIANT_ESP32S2
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "Adafruit_TinyUSB.h"
 #include "esphome/core/component.h"
 #ifdef USE_KEYBOARD

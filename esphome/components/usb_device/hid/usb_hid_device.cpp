@@ -1,4 +1,4 @@
-#ifdef USE_ESP32_VARIANT_ESP32S2
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
 #include "usb_hid_device.h"
 #include "esphome/core/log.h"
 
