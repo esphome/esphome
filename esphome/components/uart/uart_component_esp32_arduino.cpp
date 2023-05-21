@@ -101,12 +101,11 @@ void ESP32ArduinoUARTComponent::setup() {
     // enabled, skip the UART that it is configured to use.
     if (
 #if ARDUINO_USB_CDC_ON_BOOT
-      // In USB-CDC mode, the default HW serial points to the CDC and not a
-      // real UART.
-      logger::global_logger->get_hw_serial() != &Serial &&
+        // In USB-CDC mode, the default HW serial points to the CDC and not a
+        // real UART.
+        logger::global_logger->get_hw_serial() != &Serial &&
 #endif  // ARDUINO_USB_CDC_ON_BOOT
-      logger::global_logger->get_baud_rate() > 0 && logger::global_logger->get_uart() == next_uart_num
-    ) {
+        logger::global_logger->get_baud_rate() > 0 && logger::global_logger->get_uart() == next_uart_num) {
       next_uart_num++;
     }
 #endif  // USE_LOGGER
