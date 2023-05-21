@@ -101,7 +101,7 @@ class ESPBTDevice {
   std::vector<int8_t> tx_powers_{};
   optional<uint16_t> appearance_{};
   optional<uint8_t> ad_flag_{};
-  std::vector<ESPBTUUID> service_uuids_;
+  std::vector<ESPBTUUID> service_uuids_{};
   std::vector<ServiceData> manufacturer_datas_{};
   std::vector<ServiceData> service_datas_{};
   esp_ble_gap_cb_param_t::ble_scan_result_evt_param scan_result_{};
@@ -231,7 +231,12 @@ class ESP32BLETracker : public Component, public GAPEventHandler, public GATTcEv
   SemaphoreHandle_t scan_result_lock_;
   SemaphoreHandle_t scan_end_lock_;
   size_t scan_result_index_{0};
-  esp_ble_gap_cb_param_t::ble_scan_result_evt_param scan_result_buffer_[16];
+#if CONFIG_SPIRAM
+  const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 32;
+#else
+  const static u_int8_t SCAN_RESULT_BUFFER_SIZE = 16;
+#endif  // CONFIG_SPIRAM
+  esp_ble_gap_cb_param_t::ble_scan_result_evt_param *scan_result_buffer_;
   esp_bt_status_t scan_start_failed_{ESP_BT_STATUS_SUCCESS};
   esp_bt_status_t scan_set_param_failed_{ESP_BT_STATUS_SUCCESS};
 };

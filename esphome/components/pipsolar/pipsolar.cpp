@@ -448,7 +448,7 @@ void Pipsolar::loop() {
         ESP_LOGD(TAG, "Decode QPIGS");
         sscanf(                                                                                              // NOLINT
             tmp,                                                                                             // NOLINT
-            "(%f %f %f %f %d %d %d %d %f %d %d %d %d %f %f %d %1d%1d%1d%1d%1d%1d%1d%1d %d %d %d %1d%1d%1d",  // NOLINT
+            "(%f %f %f %f %d %d %d %d %f %d %d %d %f %f %f %d %1d%1d%1d%1d%1d%1d%1d%1d %d %d %d %1d%1d%1d",  // NOLINT
             &value_grid_voltage_, &value_grid_frequency_, &value_ac_output_voltage_,                         // NOLINT
             &value_ac_output_frequency_,                                                                     // NOLINT
             &value_ac_output_apparent_power_, &value_ac_output_active_power_, &value_output_load_percent_,   // NOLINT
@@ -770,15 +770,15 @@ uint8_t Pipsolar::check_incoming_crc_() {
   uint16_t crc16;
   crc16 = cal_crc_half_(read_buffer_, read_pos_ - 3);
   ESP_LOGD(TAG, "checking crc on incoming message");
-  if (((uint8_t)((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
-      ((uint8_t)((crc16) &0xff)) == read_buffer_[read_pos_ - 2]) {
+  if (((uint8_t) ((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
+      ((uint8_t) ((crc16) &0xff)) == read_buffer_[read_pos_ - 2]) {
     ESP_LOGD(TAG, "CRC OK");
     read_buffer_[read_pos_ - 1] = 0;
     read_buffer_[read_pos_ - 2] = 0;
     read_buffer_[read_pos_ - 3] = 0;
     return 1;
   }
-  ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X", ((uint8_t)((crc16) >> 8)), ((uint8_t)((crc16) &0xff)),
+  ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X", ((uint8_t) ((crc16) >> 8)), ((uint8_t) ((crc16) &0xff)),
            read_buffer_[read_pos_ - 3], read_buffer_[read_pos_ - 2]);
   return 0;
 }
@@ -800,8 +800,8 @@ uint8_t Pipsolar::send_next_command_() {
     crc16 = cal_crc_half_(byte_command, length);
     this->write_str(command);
     // checksum
-    this->write(((uint8_t)((crc16) >> 8)));   // highbyte
-    this->write(((uint8_t)((crc16) &0xff)));  // lowbyte
+    this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
+    this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
     // end Byte
     this->write(0x0D);
     ESP_LOGD(TAG, "Sending command from queue: %s with length %d", command, length);
@@ -829,8 +829,8 @@ void Pipsolar::send_next_poll_() {
   this->write_array(this->used_polling_commands_[this->last_polling_command_].command,
                     this->used_polling_commands_[this->last_polling_command_].length);
   // checksum
-  this->write(((uint8_t)((crc16) >> 8)));   // highbyte
-  this->write(((uint8_t)((crc16) &0xff)));  // lowbyte
+  this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
+  this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
   // end Byte
   this->write(0x0D);
   ESP_LOGD(TAG, "Sending polling command : %s with length %d",
@@ -882,7 +882,7 @@ void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand poll
       used_polling_command.command = new uint8_t[length];  // NOLINT(cppcoreguidelines-owning-memory)
       size_t i = 0;
       for (; beg != end; ++beg, ++i) {
-        used_polling_command.command[i] = (uint8_t)(*beg);
+        used_polling_command.command[i] = (uint8_t) (*beg);
       }
       used_polling_command.errors = 0;
       used_polling_command.identifier = polling_command;
@@ -907,17 +907,17 @@ uint16_t Pipsolar::cal_crc_half_(uint8_t *msg, uint8_t len) {
   crc = 0;
 
   while (len-- != 0) {
-    da = ((uint8_t)(crc >> 8)) >> 4;
+    da = ((uint8_t) (crc >> 8)) >> 4;
     crc <<= 4;
     crc ^= crc_ta[da ^ (*ptr >> 4)];
-    da = ((uint8_t)(crc >> 8)) >> 4;
+    da = ((uint8_t) (crc >> 8)) >> 4;
     crc <<= 4;
     crc ^= crc_ta[da ^ (*ptr & 0x0f)];
     ptr++;
   }
 
   b_crc_low = crc;
-  b_crc_hign = (uint8_t)(crc >> 8);
+  b_crc_hign = (uint8_t) (crc >> 8);
 
   if (b_crc_low == 0x28 || b_crc_low == 0x0d || b_crc_low == 0x0a)
     b_crc_low++;

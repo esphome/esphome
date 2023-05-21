@@ -16,13 +16,16 @@ ADC128S102Sensor = adc128s102_ns.class_(
 )
 CONF_ADC128S102_ID = "adc128s102_id"
 
-CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(ADC128S102Sensor),
-        cv.GenerateID(CONF_ADC128S102_ID): cv.use_id(ADC128S102),
-        cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=7),
-    }
-).extend(cv.polling_component_schema("60s"))
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(ADC128S102Sensor)
+    .extend(
+        {
+            cv.GenerateID(CONF_ADC128S102_ID): cv.use_id(ADC128S102),
+            cv.Required(CONF_CHANNEL): cv.int_range(min=0, max=7),
+        }
+    )
+    .extend(cv.polling_component_schema("60s"))
+)
 
 
 async def to_code(config):

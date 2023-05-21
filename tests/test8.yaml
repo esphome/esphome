@@ -1,22 +1,30 @@
-esphome:
-  name: test8
-  build_path: build/test8
-  project:
-    name: esphome.test8_project
-    version: "1.0.0"
-  board: lolin_s2_mini
-  platform: ESP32
-
+# Tests for ESP32-S3 boards
+---
 wifi:
-  networks:
-    - ssid: "MySSID"
-      password: "password1"
+  ssid: "ssid"
 
-api:
+esp32:
+  board: esp32-c3-devkitm-1
+  variant: ESP32S3
+  framework:
+    type: arduino
 
-ota:
+esphome:
+  name: esp32-s3-test
 
 logger:
+
+light:
+  - platform: neopixelbus
+    type: GRB
+    variant: WS2812
+    pin: 33
+    num_leds: 1
+    id: neopixel
+    method: esp32_rmt
+    name: neopixel-enable
+    internal: false
+    restore_mode: ALWAYS_OFF
 
 button:
   - platform: template

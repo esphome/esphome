@@ -91,6 +91,30 @@ void ESP32Camera::dump_config() {
     case FRAMESIZE_UXGA:
       ESP_LOGCONFIG(TAG, "  Resolution: 1600x1200 (UXGA)");
       break;
+    case FRAMESIZE_FHD:
+      ESP_LOGCONFIG(TAG, "  Resolution: 1920x1080 (FHD)");
+      break;
+    case FRAMESIZE_P_HD:
+      ESP_LOGCONFIG(TAG, "  Resolution: 720x1280 (P_HD)");
+      break;
+    case FRAMESIZE_P_3MP:
+      ESP_LOGCONFIG(TAG, "  Resolution: 864x1536 (P_3MP)");
+      break;
+    case FRAMESIZE_QXGA:
+      ESP_LOGCONFIG(TAG, "  Resolution: 2048x1536 (QXGA)");
+      break;
+    case FRAMESIZE_QHD:
+      ESP_LOGCONFIG(TAG, "  Resolution: 2560x1440 (QHD)");
+      break;
+    case FRAMESIZE_WQXGA:
+      ESP_LOGCONFIG(TAG, "  Resolution: 2560x1600 (WQXGA)");
+      break;
+    case FRAMESIZE_P_FHD:
+      ESP_LOGCONFIG(TAG, "  Resolution: 1080x1920 (P_FHD)");
+      break;
+    case FRAMESIZE_QSXGA:
+      ESP_LOGCONFIG(TAG, "  Resolution: 2560x1920 (QSXGA)");
+      break;
     default:
       break;
   }
@@ -178,7 +202,7 @@ void ESP32Camera::loop() {
 float ESP32Camera::get_setup_priority() const { return setup_priority::DATA; }
 
 /* ---------------- constructors ---------------- */
-ESP32Camera::ESP32Camera(const std::string &name) : EntityBase(name) {
+ESP32Camera::ESP32Camera() {
   this->config_.pin_pwdn = -1;
   this->config_.pin_reset = -1;
   this->config_.pin_xclk = -1;
@@ -191,7 +215,6 @@ ESP32Camera::ESP32Camera(const std::string &name) : EntityBase(name) {
 
   global_esp32_camera = this;
 }
-ESP32Camera::ESP32Camera() : ESP32Camera("") {}
 
 /* ---------------- setters ---------------- */
 /* set pin assignment */
@@ -256,6 +279,30 @@ void ESP32Camera::set_frame_size(ESP32CameraFrameSize size) {
       break;
     case ESP32_CAMERA_SIZE_1600X1200:
       this->config_.frame_size = FRAMESIZE_UXGA;
+      break;
+    case ESP32_CAMERA_SIZE_1920X1080:
+      this->config_.frame_size = FRAMESIZE_FHD;
+      break;
+    case ESP32_CAMERA_SIZE_720X1280:
+      this->config_.frame_size = FRAMESIZE_P_HD;
+      break;
+    case ESP32_CAMERA_SIZE_864X1536:
+      this->config_.frame_size = FRAMESIZE_P_3MP;
+      break;
+    case ESP32_CAMERA_SIZE_2048X1536:
+      this->config_.frame_size = FRAMESIZE_QXGA;
+      break;
+    case ESP32_CAMERA_SIZE_2560X1440:
+      this->config_.frame_size = FRAMESIZE_QHD;
+      break;
+    case ESP32_CAMERA_SIZE_2560X1600:
+      this->config_.frame_size = FRAMESIZE_WQXGA;
+      break;
+    case ESP32_CAMERA_SIZE_1080X1920:
+      this->config_.frame_size = FRAMESIZE_P_FHD;
+      break;
+    case ESP32_CAMERA_SIZE_2560X1920:
+      this->config_.frame_size = FRAMESIZE_QSXGA;
       break;
   }
 }
