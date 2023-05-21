@@ -217,8 +217,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
 
 #ifdef USE_KEYBOARD
-  void on_keyboard_update(keyboard::Keyboard *obj) override;
-
   /// Handle a lock request under '/keyboard/<id>/</down/up>'.
   void handle_keyboard_request(AsyncWebServerRequest *request, const UrlMatch &match);
 

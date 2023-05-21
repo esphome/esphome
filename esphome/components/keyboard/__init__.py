@@ -159,7 +159,8 @@ async def setup_keyboard_core_(var, config):
 async def register_keyboard(var, config):
     if not CORE.has_id(config[CONF_ID]):
         var = cg.Pvariable(config[CONF_ID], var)
-    cg.add(cg.App.register_keyboard(var))
+    # uncomment after review
+    # cg.add(cg.App.register_keyboard(var))
     await setup_keyboard_core_(var, config)
 
 

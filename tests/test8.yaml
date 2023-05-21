@@ -14,6 +14,9 @@ esphome:
 
 logger:
 
+web_server:
+  local: true
+
 light:
   - platform: neopixelbus
     type: GRB

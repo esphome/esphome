@@ -66,8 +66,10 @@ class ComponentIterator {
 #ifdef USE_MEDIA_PLAYER
   virtual bool on_media_player(media_player::MediaPlayer *media_player);
 #endif
+#ifdef REMOVE_AFTER_REVIEW
 #ifdef USE_KEYBOARD
   virtual bool on_keyboard(keyboard::Keyboard *keyboard);
+#endif
 #endif
   virtual bool on_end();
 
@@ -120,8 +122,10 @@ class ComponentIterator {
 #ifdef USE_MEDIA_PLAYER
     MEDIA_PLAYER,
 #endif
+#ifdef REMOVE_AFTER_REVIEW
 #ifdef USE_KEYBOARD
     KEYBOARD,
+#endif
 #endif
     MAX,
   } state_{IteratorState::NONE};

@@ -12,6 +12,21 @@ namespace web_server {
 
 ListEntitiesIterator::ListEntitiesIterator(WebServer *web_server) : web_server_(web_server) {}
 
+// begin - TODO remove after review
+void ListEntitiesIterator::begin(bool include_internal) {
+  ComponentIterator::begin(include_internal);
+}
+
+bool ListEntitiesIterator::on_begin() {
+  if (keyboard::Keyboard::keyboards.size() > this->at_){
+    on_keyboard(keyboard::Keyboard::keyboards[this->at_]);
+    ++this->at_;
+    return false;
+  }
+  return true;
+}
+// end
+
 #ifdef USE_BINARY_SENSOR
 bool ListEntitiesIterator::on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) {
   this->web_server_->events_.send(

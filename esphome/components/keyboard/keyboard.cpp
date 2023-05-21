@@ -3,6 +3,10 @@
 namespace esphome {
 namespace keyboard {
 
+// begin - TODO remove after review
+std::vector<Keyboard *> Keyboard::keyboards;
+// end
+
 Keyboard::Keyboard(KeyboardControl *keyboard_control, KeyboardControl *media_keys_control)
     : keyboard_control_(keyboard_control), media_keys_control_(media_keys_control) {
   if (keyboard_control_) {
@@ -11,16 +15,13 @@ Keyboard::Keyboard(KeyboardControl *keyboard_control, KeyboardControl *media_key
   if (media_keys_control_) {
     media_keys_control_->keys_ = &media_keys;
   }
+  keyboards.push_back(this);
 }
 #ifdef USE_BINARY_SENSOR
 void Keyboard::set_capslock_binary_sensor(binary_sensor::BinarySensor *capslock) { capslock_ = capslock; }
 void Keyboard::set_numlock_binary_sensor(binary_sensor::BinarySensor *numlock) { numlock_ = numlock; }
 void Keyboard::set_scrollock_binary_sensor(binary_sensor::BinarySensor *scrollock) { scrollock_ = scrollock; }
 #endif
-void Keyboard::add_on_state_callback(std::function<void()> &&callback) {
-  // TODO
-  this->state_callback_.add(std::move(callback));
-}
 
 KeyboardCall Keyboard::make_call(KeyboardType type) {
   switch (type) {

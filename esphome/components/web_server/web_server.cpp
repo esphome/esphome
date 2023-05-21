@@ -997,12 +997,8 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 #endif
 
 #ifdef USE_KEYBOARD
-void WebServer::on_keyboard_update(keyboard::Keyboard *obj) {
-  this->events_.send(this->keyboard_json(obj, DETAIL_STATE).c_str(), "state");
-}
-
 void WebServer::handle_keyboard_request(AsyncWebServerRequest *request, const UrlMatch &match) {
-  for (keyboard::Keyboard *obj : App.get_keyboards()) {
+  for (keyboard::Keyboard *obj : keyboard::Keyboard::keyboards) {
     if (obj->get_object_id() != match.id)
       continue;
     if (request->method() == HTTP_GET) {

@@ -40,8 +40,10 @@
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
+#ifdef REMOVE_AFTER_REVIEW
 #ifdef USE_KEYBOARD
 #include "esphome/components/keyboard/keyboard.h"
+#endif
 #endif
 
 namespace esphome {
@@ -84,9 +86,6 @@ class Controller {
 #endif
 #ifdef USE_MEDIA_PLAYER
   virtual void on_media_player_update(media_player::MediaPlayer *obj){};
-#endif
-#ifdef USE_KEYBOARD
-  virtual void on_keyboard_update(keyboard::Keyboard *obj){};
 #endif
 };
 

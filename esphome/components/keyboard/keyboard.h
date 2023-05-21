@@ -48,20 +48,21 @@ class Keyboard : public EntityBase, public Component, public LEDControl {
   void publish_numlock(bool state) override;
   void publish_scrollock(bool state) override;
 #endif
-  void add_on_state_callback(std::function<void()> &&callback);
 
   KeyboardCall make_call(KeyboardType type);
-
+// begin - TODO remove after review
+  static std::vector<Keyboard *> keyboards;
+// end
  protected:
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *capslock_{nullptr};
   binary_sensor::BinarySensor *numlock_{nullptr};
   binary_sensor::BinarySensor *scrollock_{nullptr};
 #endif
-  CallbackManager<void()> state_callback_{};
 
   KeyboardControl *keyboard_control_;
   KeyboardControl *media_keys_control_;
+
 };
 
 class Keys {
