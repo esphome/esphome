@@ -107,6 +107,7 @@ esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
+esphome/components/hm3301/* @freekode
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/honeywellabp/* @RubyBailey
 esphome/components/host/* @esphome/core
@@ -282,6 +283,7 @@ esphome/components/tlc5947/* @rnauber
 esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
 esphome/components/tm1638/* @skykingjwc
+esphome/components/tm1651/* @freekode
 esphome/components/tmp102/* @timsavage
 esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
