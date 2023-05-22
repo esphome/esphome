@@ -114,6 +114,7 @@ esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/hte501/* @Stock-M
 esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/hyt271/* @Philippe12
+esphome/components/hm3301/* @freekode
 esphome/components/i2c/* @esphome/core
 esphome/components/i2s_audio/* @jesserockz
 esphome/components/i2s_audio/media_player/* @jesserockz
@@ -281,6 +282,7 @@ esphome/components/tlc5947/* @rnauber
 esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
 esphome/components/tm1638/* @skykingjwc
+esphome/components/tm1651/* @freekode
 esphome/components/tmp102/* @timsavage
 esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
