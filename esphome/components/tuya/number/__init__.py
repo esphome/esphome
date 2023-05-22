@@ -23,16 +23,17 @@ def validate_min_max(config):
 
 
 CONFIG_SCHEMA = cv.All(
-    number.NUMBER_SCHEMA.extend(
+    number.number_schema(TuyaNumber)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(TuyaNumber),
             cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
             cv.Required(CONF_NUMBER_DATAPOINT): cv.uint8_t,
             cv.Required(CONF_MAX_VALUE): cv.float_,
             cv.Required(CONF_MIN_VALUE): cv.float_,
             cv.Required(CONF_STEP): cv.positive_float,
         }
-    ).extend(cv.COMPONENT_SCHEMA),
+    )
+    .extend(cv.COMPONENT_SCHEMA),
     validate_min_max,
 )
 

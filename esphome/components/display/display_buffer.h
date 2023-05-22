@@ -82,8 +82,8 @@ enum ImageType {
   IMAGE_TYPE_BINARY = 0,
   IMAGE_TYPE_GRAYSCALE = 1,
   IMAGE_TYPE_RGB24 = 2,
-  IMAGE_TYPE_TRANSPARENT_BINARY = 3,
-  IMAGE_TYPE_RGB565 = 4,
+  IMAGE_TYPE_RGB565 = 3,
+  IMAGE_TYPE_RGBA = 4,
 };
 
 enum DisplayType {
@@ -120,8 +120,9 @@ class Rect {
   void extend(Rect rect);
   void shrink(Rect rect);
 
-  bool inside(Rect rect, bool absolute = false);
-  bool inside(int16_t x, int16_t y, bool absolute = false);
+  bool inside(Rect rect, bool absolute = true);
+  bool inside(int16_t test_x, int16_t test_y, bool absolute = true);
+  bool equal(Rect rect);
   void info(const std::string &prefix = "rect info:");
 };
 
@@ -526,10 +527,10 @@ class Font {
   inline int get_baseline() { return this->baseline_; }
   inline int get_height() { return this->height_; }
 
-  const std::vector<Glyph> &get_glyphs() const;
+  const std::vector<Glyph, ExternalRAMAllocator<Glyph>> &get_glyphs() const { return glyphs_; }
 
  protected:
-  std::vector<Glyph> glyphs_;
+  std::vector<Glyph, ExternalRAMAllocator<Glyph>> glyphs_;
   int baseline_;
   int height_;
 };
@@ -539,6 +540,7 @@ class Image {
   Image(const uint8_t *data_start, int width, int height, ImageType type);
   virtual bool get_pixel(int x, int y) const;
   virtual Color get_color_pixel(int x, int y) const;
+  virtual Color get_rgba_pixel(int x, int y) const;
   virtual Color get_rgb565_pixel(int x, int y) const;
   virtual Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
@@ -547,11 +549,15 @@ class Image {
 
   virtual int get_current_frame() const;
 
+  void set_transparency(bool transparent) { transparent_ = transparent; }
+  bool has_transparency() const { return transparent_; }
+
  protected:
   int width_;
   int height_;
   ImageType type_;
   const uint8_t *data_start_;
+  bool transparent_;
 };
 
 class Animation : public Image {
@@ -559,6 +565,7 @@ class Animation : public Image {
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
   bool get_pixel(int x, int y) const override;
   Color get_color_pixel(int x, int y) const override;
+  Color get_rgba_pixel(int x, int y) const override;
   Color get_rgb565_pixel(int x, int y) const override;
   Color get_grayscale_pixel(int x, int y) const override;
 

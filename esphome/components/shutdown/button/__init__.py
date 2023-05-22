@@ -10,11 +10,9 @@ from esphome.const import (
 shutdown_ns = cg.esphome_ns.namespace("shutdown")
 ShutdownButton = shutdown_ns.class_("ShutdownButton", button.Button, cg.Component)
 
-CONFIG_SCHEMA = (
-    button.button_schema(entity_category=ENTITY_CATEGORY_CONFIG, icon=ICON_POWER)
-    .extend({cv.GenerateID(): cv.declare_id(ShutdownButton)})
-    .extend(cv.COMPONENT_SCHEMA)
-)
+CONFIG_SCHEMA = button.button_schema(
+    ShutdownButton, entity_category=ENTITY_CATEGORY_CONFIG, icon=ICON_POWER
+).extend(cv.COMPONENT_SCHEMA)
 
 
 async def to_code(config):

@@ -399,7 +399,7 @@ sensor:
 time:
   - platform: homeassistant
     on_time:
-      - at: '16:00:00'
+      - at: "16:00:00"
         then:
           - logger.log: It's 16:00
 
@@ -518,7 +518,6 @@ ble_client:
   - mac_address: 01:02:03:04:05:06
     id: radon_eye_ble_id
 
-
 airthings_ble:
 
 radon_eye_ble:
@@ -535,7 +534,7 @@ bluetooth_proxy:
 xiaomi_rtcgq02lm:
   - id: motion_rtcgq02lm
     mac_address: 01:02:03:04:05:06
-    bindkey: '48403ebe2d385db8d0c187f81e62cb64'
+    bindkey: "48403ebe2d385db8d0c187f81e62cb64"
 
 status_led:
   pin: GPIO2
@@ -659,6 +658,27 @@ interval:
     - logger.log: Interval Run
 
 display:
+
+image:
+  - id: binary_image
+    file: pnglogo.png
+    type: BINARY
+    dither: FloydSteinberg
+  - id: transparent_transparent_image
+    file: pnglogo.png
+    type: TRANSPARENT_BINARY
+  - id: rgba_image
+    file: pnglogo.png
+    type: RGBA
+    resize: 50x50
+  - id: rgb24_image
+    file: pnglogo.png
+    type: RGB24
+    use_transparency: yes
+  - id: rgb565_image
+    file: pnglogo.png
+    type: RGB565
+    use_transparency: no
 
 cap1188:
   id: cap1188_component
