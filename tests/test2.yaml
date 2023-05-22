@@ -659,6 +659,27 @@ interval:
 
 display:
 
+image:
+  - id: binary_image
+    file: pnglogo.png
+    type: BINARY
+    dither: FloydSteinberg
+  - id: transparent_transparent_image
+    file: pnglogo.png
+    type: TRANSPARENT_BINARY
+  - id: rgba_image
+    file: pnglogo.png
+    type: RGBA
+    resize: 50x50
+  - id: rgb24_image
+    file: pnglogo.png
+    type: RGB24
+    use_transparency: yes
+  - id: rgb565_image
+    file: pnglogo.png
+    type: RGB565
+    use_transparency: no
+
 cap1188:
   id: cap1188_component
   address: 0x29
