@@ -133,7 +133,7 @@ void I2SAudioMediaPlayer::play_() {
 
 void I2SAudioMediaPlayer::start() { this->i2s_state_ = I2S_STATE_STARTING; }
 void I2SAudioMediaPlayer::start_() {
-  if (this->parent_->try_lock()) {
+  if (!this->parent_->try_lock()) {
     return;  // Waiting for another i2s to return lock
   }
 
@@ -156,6 +156,7 @@ void I2SAudioMediaPlayer::start_() {
 #if SOC_I2S_SUPPORTS_DAC
   }
 #endif
+
   this->i2s_state_ = I2S_STATE_RUNNING;
   this->high_freq_.start();
   this->audio_->setVolume(remap<uint8_t, float>(this->volume, 0.0f, 1.0f, 0, 21));
@@ -218,6 +219,12 @@ void I2SAudioMediaPlayer::dump_config() {
       default:
         break;
     }
+  } else {
+#endif
+    ESP_LOGCONFIG(TAG, "  External DAC channels: %d", this->external_dac_channels_);
+    ESP_LOGCONFIG(TAG, "  I2S DOUT Pin: %d", this->dout_pin_);
+    LOG_PIN("  Mute Pin: ", this->mute_pin_);
+#if SOC_I2S_SUPPORTS_DAC
   }
 #endif
 }
