@@ -15,7 +15,7 @@
   "appPort": 6052,
   "customizations": {
     "vscode": {
-      "extensions": [ 
+      "extensions": [
         // python
         "ms-python.python",
         "visualstudioexptteam.vscodeintellicode",
