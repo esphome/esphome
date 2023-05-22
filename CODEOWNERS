@@ -107,6 +107,7 @@ esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
+esphome/components/hm3301/* @freekode
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/honeywellabp/* @RubyBailey
 esphome/components/host/* @esphome/core
@@ -114,7 +115,6 @@ esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/hte501/* @Stock-M
 esphome/components/hydreon_rgxx/* @functionpointer
 esphome/components/hyt271/* @Philippe12
-esphome/components/hm3301/* @freekode
 esphome/components/i2c/* @esphome/core
 esphome/components/i2s_audio/* @jesserockz
 esphome/components/i2s_audio/media_player/* @jesserockz
