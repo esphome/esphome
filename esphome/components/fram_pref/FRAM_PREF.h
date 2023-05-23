@@ -26,7 +26,7 @@ struct PREF_STRUCT {
 };
 
 class FRAM_PREF : public Component, public ESPPreferences {
-public:
+ public:
   FRAM_PREF(fram::FRAM * fram);
 
   void set_pool(uint16_t pool_size, uint16_t pool_start);
@@ -41,7 +41,7 @@ public:
   bool sync() override;
   bool reset() override;
 
-protected:
+ protected:
   friend class FRAMPreferenceBackend;
 
   bool _check();
