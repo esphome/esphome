@@ -22,26 +22,22 @@ def validate_pref_range(conf_pref):
     f = validate_pref_range
 
     if conf_pref[CONF_KEY] in f.keys:
-        raise cv.Invalid(
-            f'key "{conf_pref[CONF_KEY]}" already used'
-        )
+        raise cv.Invalid(f'key "{conf_pref[CONF_KEY]}" already used')
 
     if len(conf_pref.keys() & {CONF_ADDR, CONF_SIZE}) == 1:
-        raise cv.Invalid(
-            f'Add both "{CONF_ADDR}" and "{CONF_SIZE}" or none'
-        )
+        raise cv.Invalid(f'Add both "{CONF_ADDR}" and "{CONF_SIZE}" or none')
 
     if CONF_ADDR not in conf_pref:
         return conf_pref
 
     if conf_pref[CONF_ADDR] < f.range_min:
         raise cv.Invalid(
-            f'Preference overlaps with previous (end address {f.range_min-1})'
+            f"Preference overlaps with previous (end address {f.range_min-1})"
         )
 
     f.range_min = conf_pref[CONF_ADDR] + conf_pref[CONF_SIZE]
     f.keys.add(conf_pref[CONF_KEY])
-    conf_pref["_pref_addr"] = f'{conf_pref[CONF_ADDR]} - {f.range_min-1}'
+    conf_pref["_pref_addr"] = f"{conf_pref[CONF_ADDR]} - {f.range_min-1}"
 
     return conf_pref
 
@@ -59,34 +55,32 @@ def final_validate(config):
         )
 
     if CONF_POOL_SIZE not in config and CONF_POOL_START in config:
-        raise cv.Invalid(
-            f'Either remove "{CONF_POOL_START}" or set "{CONF_POOL_SIZE}"'
-        )
+        raise cv.Invalid(f'Either remove "{CONF_POOL_START}" or set "{CONF_POOL_SIZE}"')
 
     if CONF_POOL_SIZE in config:
         pool_start = config[CONF_POOL_START] if CONF_POOL_START in config else 0
         pool_end = pool_start + config[CONF_POOL_SIZE] - 1
-        config["_pool_addr"] = f'{pool_start} - {pool_end}'
+        config["_pool_addr"] = f"{pool_start} - {pool_end}"
 
         if CONF_STATIC_PREFS in config:
-          errors = []
+            errors = []
 
-          for idx,conf_pref in enumerate(config[CONF_STATIC_PREFS]):
-              if CONF_ADDR not in conf_pref:
-                  continue
+            for idx,conf_pref in enumerate(config[CONF_STATIC_PREFS]):
+                if CONF_ADDR not in conf_pref:
+                    continue
 
-              addr_start = conf_pref[CONF_ADDR]
-              addr_end = conf_pref[CONF_ADDR] + conf_pref[CONF_SIZE] - 1
+                addr_start = conf_pref[CONF_ADDR]
+                addr_end = conf_pref[CONF_ADDR] + conf_pref[CONF_SIZE] - 1
 
-              if (addr_start <= pool_end and addr_end >= pool_start):
-                  errors.append(
-                      cv.Invalid(
-                          f'{CONF_STATIC_PREFS}[{idx}] address range ({addr_start} - {addr_end}) overlaps with pool ({pool_start} - {pool_end})'
-                      )
-                  )
+                if (addr_start <= pool_end and addr_end >= pool_start):
+                    errors.append(
+                        cv.Invalid(
+                            f"{CONF_STATIC_PREFS}[{idx}] address range ({addr_start} - {addr_end}) overlaps with pool ({pool_start} - {pool_end})"
+                        )
+                    )
 
-          if errors:
-              raise cv.MultipleInvalid(errors)
+            if errors:
+                raise cv.MultipleInvalid(errors)
 
     return config
 
@@ -107,10 +101,10 @@ CONFIG_SCHEMA_ = cv.Schema(
                 cv.Optional(CONF_SIZE): cv.All(
                     fram.validate_bytes_1024, cv.int_range(min=3, max=65536)
                 ),
-                cv.Optional(CONF_PERSIST_KEY, default=False): cv.boolean
+                cv.Optional(CONF_PERSIST_KEY, default=False): cv.boolean,
             },
-            validate_pref_range
-        )
+            validate_pref_range,
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 

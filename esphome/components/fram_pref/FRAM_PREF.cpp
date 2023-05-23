@@ -9,69 +9,69 @@ namespace fram_pref {
 static const char *const TAG = "fram_pref";
 
 class FRAMPreferenceBackend : public ESPPreferenceBackend {
-  public:
-    FRAMPreferenceBackend(FRAM_PREF *comp, uint32_t type, uint8_t idx) {
-      this->comp_ = comp;
-      this->type_ = type;
-      this->idx_ = idx;
+public:
+  FRAMPreferenceBackend(FRAM_PREF *comp, uint32_t type, uint8_t idx) {
+    this->comp_ = comp;
+    this->type_ = type;
+    this->idx_ = idx;
+  }
+
+  bool save(const uint8_t *data, size_t len) override {
+    if (!this->comp_->fram_->isConnected()) {
+      return false;
     }
 
-    bool save(const uint8_t *data, size_t len) override {
-      if (!this->comp_->fram_->isConnected()) {
-        return false;
-      }
+    auto &pref = this->comp_->prefs_[this->idx_];
 
-      auto &pref = this->comp_->prefs_[this->idx_];
-
-      if((pref.size_req - 2) != (uint16_t) len) {
-        return false;
-      }
-
-      uint16_t checksum = this->checksum_((uint8_t *) data, len);
-
-      this->comp_->fram_->write(pref.addr, (uint8_t *) data, len);
-      this->comp_->fram_->write(pref.addr + len, (uint8_t *) &checksum, 2);
-
-      return true;
+    if((pref.size_req - 2) != (uint16_t) len) {
+      return false;
     }
 
-    bool load(uint8_t *data, size_t len) override {
-      if (!this->comp_->fram_->isConnected()) {
-        return false;
-      }
+    uint16_t checksum = this->checksum_((uint8_t *) data, len);
 
-      auto &pref = this->comp_->prefs_[this->idx_];
+    this->comp_->fram_->write(pref.addr, (uint8_t *) data, len);
+    this->comp_->fram_->write(pref.addr + len, (uint8_t *) &checksum, 2);
 
-      if( (pref.size_req - 2) != (uint16_t) len ) {
-        return false;
-      }
+    return true;
+  }
 
-      std::vector<uint8_t> buff;
-      buff.resize(len);
-      this->comp_->fram_->read(pref.addr, buff.data(), len);
-
-      if (this->checksum_(buff.data(), len) != this->comp_->fram_->read16(pref.addr + len)) {
-        return false;
-      }
-
-      memcpy(data, buff.data(), len);
-      return true;
+  bool load(uint8_t *data, size_t len) override {
+    if (!this->comp_->fram_->isConnected()) {
+      return false;
     }
 
-  protected:
-    uint16_t checksum_(uint8_t *data, size_t len) {
-      uint16_t sum = (this->type_ >> 16) + (this->type_ & 0xFFFF);
+    auto &pref = this->comp_->prefs_[this->idx_];
 
-      for (size_t i = 0; i < len; i++) {
-        sum += data[i];
-      }
-
-      return sum;
+    if((pref.size_req - 2) != (uint16_t) len) {
+      return false;
     }
 
-    FRAM_PREF *comp_;
-    uint32_t type_;
-    uint8_t idx_;
+    std::vector<uint8_t> buff;
+    buff.resize(len);
+    this->comp_->fram_->read(pref.addr, buff.data(), len);
+
+    if (this->checksum_(buff.data(), len) != this->comp_->fram_->read16(pref.addr + len)) {
+      return false;
+    }
+
+    memcpy(data, buff.data(), len);
+    return true;
+  }
+
+protected:
+  uint16_t checksum_(uint8_t *data, size_t len) {
+    uint16_t sum = (this->type_ >> 16) + (this->type_ & 0xFFFF);
+
+    for (size_t i = 0; i < len; i++) {
+      sum += data[i];
+    }
+
+    return sum;
+  }
+
+  FRAM_PREF *comp_;
+  uint32_t type_;
+  uint8_t idx_;
 };
 
 FRAM_PREF::FRAM_PREF(fram::FRAM *fram) {
@@ -179,7 +179,7 @@ void FRAM_PREF::dump_config() {
       ESP_LOGW(TAG, "%s", msg.c_str());
     } else if (pref.flags & FLAG_ERR) {
       ESP_LOGE(TAG, "%s", msg.c_str());
-      
+
       if (pref.flags & FLAG_ERR_SIZE_REQ) {
         ESP_LOGE(TAG, "  * Requested larger size!");
       }

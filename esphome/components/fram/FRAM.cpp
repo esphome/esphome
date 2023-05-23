@@ -14,7 +14,7 @@ namespace esphome {
 namespace fram {
 
 // used for metadata and sleep
-const uint8_t FRAM_SEC_ADDR = 0x7C;  //  == 0xF8
+const uint8_t FRAM_SEC_ADDR = 0x7C;   //  == 0xF8
 const uint8_t FRAM_SLEEP_CMD = 0x86;  //
 static const char *const TAG = "fram";
 
@@ -149,37 +149,33 @@ int32_t FRAM::readUntil(uint16_t memaddr, char *buf, uint16_t buflen, char separ
 
   for (uint16_t length = 0; length < buflen; length++) {
     if (buf[length] == separator) {
-      buf[length] = 0;    //  replace separator => \0 EndChar
+      buf[length] = 0;  //  replace separator => \0 EndChar
       return length;
     }
   }
   //  entry does not fit in given buffer.
-  return (int32_t) - 1;
+  return (int32_t) -1;
 }
 
 int32_t FRAM::readLine(uint16_t memaddr, char *buf, uint16_t buflen) {
   //  read and fill the buffer at once.
   this->read(memaddr, (uint8_t *) buf, buflen);
 
-  for (uint16_t length = 0; length < buflen-1; length++) {
+  for (uint16_t length = 0; length < buflen - 1; length++) {
     if (buf[length] == '\n') {
-      buf[length + 1] = 0;    //  add \0 EndChar after '\n'
+      buf[length + 1] = 0;  //  add \0 EndChar after '\n'
       return length + 1;
     }
   }
   //  entry does not fit in given buffer.
-  return (int32_t) - 1;
+  return (int32_t) -1;
 }
 
 ////////////////////////////////////////////////////////////////////////
 
-uint16_t FRAM::getManufacturerID() {
-  return this->_getMetaData(0);
-}
+uint16_t FRAM::getManufacturerID() { return this->_getMetaData(0); }
 
-uint16_t FRAM::getProductID() {
-  return this->_getMetaData(1);
-}
+uint16_t FRAM::getProductID() { return this->_getMetaData(1); }
 
 // NOTE: returns the size in kiloBYTE
 uint16_t FRAM::getSize() {
@@ -194,9 +190,7 @@ uint16_t FRAM::getSize() {
   return size;
 }
 
-uint32_t FRAM::getSizeBytes() {
-  return this->_sizeBytes;
-}
+uint32_t FRAM::getSizeBytes() { return this->_sizeBytes; }
 
 //  override to be used when getSize() fails == 0
 void FRAM::setSizeBytes(uint32_t value) {
@@ -258,7 +252,7 @@ uint16_t FRAM::_getMetaData(uint8_t field) {
   uint8_t addr = this->address_ << 1;
   this->bus_->write(FRAM_SEC_ADDR, &addr, 1, false);
 
-  uint8_t data[3] = {0,0,0};
+  uint8_t data[3] = {0, 0, 0};
   i2c::ErrorCode err = this->bus_->read(FRAM_SEC_ADDR, data, 3);
   if (err != i2c::ERROR_OK) {
     return 0;
@@ -287,7 +281,7 @@ uint16_t FRAM::_getMetaData(uint8_t field) {
 
 void FRAM::_writeBlock(uint16_t memaddr, uint8_t *obj, uint8_t size) {
   i2c::WriteBuffer buff[2];
-  uint8_t maddr[] = {(uint8_t)(memaddr >> 8), (uint8_t)(memaddr & 0xFF)};
+  uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
 
   buff[0].data = maddr;
   buff[0].len = 2;
@@ -298,7 +292,7 @@ void FRAM::_writeBlock(uint16_t memaddr, uint8_t *obj, uint8_t size) {
 }
 
 void FRAM::_readBlock(uint16_t memaddr, uint8_t *obj, uint8_t size) {
-  uint8_t maddr[] = {(uint8_t)(memaddr >> 8), (uint8_t)(memaddr & 0xFF)};
+  uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
   this->bus_->write(this->address_, maddr, 2, false);
   this->bus_->read(this->address_, obj, size);
 }
@@ -401,34 +395,34 @@ int32_t FRAM32::readUntil(uint32_t memaddr, char *buf, uint16_t buflen, char sep
 
   for (uint16_t length = 0; length < buflen; length++) {
     if (buf[length] == separator) {
-      buf[length] = 0;    //  replace separator => \0 EndChar
+      buf[length] = 0;  //  replace separator => \0 EndChar
       return length;
     }
   }
   //  entry does not fit in given buffer.
-  return (int32_t) - 1;
+  return (int32_t) -1;
 }
 
 int32_t FRAM32::readLine(uint32_t memaddr, char *buf, uint16_t buflen) {
   //  read and fill the buffer at once.
   this->read(memaddr, (uint8_t *) buf, buflen);
 
-  for (uint16_t length = 0; length < buflen-1; length++) {
+  for (uint16_t length = 0; length < buflen - 1; length++) {
     if (buf[length] == '\n') {
-      buf[length + 1] = 0;    //  add \0 EndChar after '\n'
+      buf[length + 1] = 0;  //  add \0 EndChar after '\n'
       return length + 1;
     }
   }
   //  entry does not fit in given buffer.
-  return (int32_t) - 1;
+  return (int32_t) -1;
 }
 
-template <class T> uint32_t FRAM32::writeObject(uint32_t memaddr, T &obj) {
+template<class T> uint32_t FRAM32::writeObject(uint32_t memaddr, T &obj) {
   this->write(memaddr, (uint8_t *) &obj, sizeof(obj));
   return memaddr + sizeof(obj);
 };
 
-template <class T> uint32_t FRAM32::readObject(uint32_t memaddr, T &obj) {
+template<class T> uint32_t FRAM32::readObject(uint32_t memaddr, T &obj) {
   this->read(memaddr, (uint8_t *) &obj, sizeof(obj));
   return memaddr + sizeof(obj);
 }
@@ -446,7 +440,7 @@ void FRAM32::_writeBlock(uint32_t memaddr, uint8_t *obj, uint8_t size) {
   }
 
   i2c::WriteBuffer buff[2];
-  uint8_t maddr[] = {(uint8_t)(memaddr >> 8), (uint8_t)(memaddr & 0xFF)};
+  uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
 
   buff[0].data = maddr;
   buff[0].len = 2;
@@ -463,7 +457,7 @@ void FRAM32::_readBlock(uint32_t memaddr, uint8_t *obj, uint8_t size) {
     _addr += 0x01;
   }
 
-  uint8_t maddr[] = {(uint8_t)(memaddr >> 8), (uint8_t)(memaddr & 0xFF)};
+  uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
   this->bus_->write(this->address_, maddr, 2, false);
   this->bus_->read(_addr, obj, size);
 }
