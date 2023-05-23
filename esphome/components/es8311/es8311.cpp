@@ -182,14 +182,14 @@ void ES8311Component::dump_config() {
 
 void ES8311Component::set_volume(float volume) {
   volume = clamp(volume, 0.0f, 1.0f);
-  uint8_t reg32 = remap<float, uint8_t>(volume, 0.0f, 1.0f, 0, 255);
+  uint8_t reg32 = remap<uint8_t, float>(volume, 0.0f, 1.0f, 0, 255);
   ES8311_WRITE_BYTE(ES8311_REG32_DAC, reg32);
 }
 
 float ES8311Component::get_volume() {
   uint8_t reg32;
   this->read_byte(ES8311_REG32_DAC, &reg32);
-  return remap<uint8_t, float>(reg32, 0, 255, 0.0f, 1.0f);
+  return remap<float, uint8_t>(reg32, 0, 255, 0.0f, 1.0f);
 }
 
 void ES8311Component::set_mute(bool mute) {
