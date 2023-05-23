@@ -13,7 +13,7 @@ esp32:
     type: arduino
 
 esphome:
-  name: esp32-s3-test
+  name: esp32-c3-devkitm-1
 
 logger:
 
