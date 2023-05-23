@@ -25,10 +25,12 @@ from esphome.const import (
     CONF_STATE_CLASS,
     CONF_TO,
     CONF_TRIGGER_ID,
+    CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WINDOW_SIZE,
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
+    CONF_VALUE,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
@@ -71,6 +73,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
     DEVICE_CLASS_VOLUME_STORAGE,
@@ -127,6 +130,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
     DEVICE_CLASS_VOLUME_STORAGE,
@@ -476,21 +480,38 @@ async def lambda_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, lambda_)
 
 
+DELTA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_VALUE): cv.positive_float,
+        cv.Optional(CONF_TYPE, default="absolute"): cv.one_of(
+            "absolute", "percentage", lower=True
+        ),
+    }
+)
+
+
 def validate_delta(config):
     try:
-        return (cv.positive_float(config), False)
+        value = cv.positive_float(config)
+        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "absolute"})
     except cv.Invalid:
         pass
     try:
-        return (cv.percentage(config), True)
+        value = cv.percentage(config)
+        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "percentage"})
     except cv.Invalid:
         pass
     raise cv.Invalid("Delta filter requires a positive number or percentage value.")
 
 
-@FILTER_REGISTRY.register("delta", DeltaFilter, validate_delta)
+@FILTER_REGISTRY.register("delta", DeltaFilter, cv.Any(DELTA_SCHEMA, validate_delta))
 async def delta_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id, *config)
+    percentage = config[CONF_TYPE] == "percentage"
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_VALUE],
+        percentage,
+    )
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)
