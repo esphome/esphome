@@ -27,7 +27,7 @@ struct PREF_STRUCT {
 
 class FRAM_PREF : public Component, public ESPPreferences {
  public:
-  FRAM_PREF(fram::FRAM * fram);
+  FRAM_PREF(fram::FRAM *fram);
 
   void set_pool(uint16_t pool_size, uint16_t pool_start);
   void set_static_pref(std::string key, uint16_t addr, uint16_t size, std::function<uint32_t()> &&fn, bool persist_key);
