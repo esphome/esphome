@@ -31,11 +31,19 @@ void HttpRequestComponent::set_url(std::string url) {
 }
 
 void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> &response_triggers) {
+  this->cancel_retry("http_request");
+  this->set_retry("http_request", this->retry_delay_, this->retries_ + 1,
+                  std::bind(&HttpRequestComponent::send_, this, response_triggers, std::placeholders::_1),
+                  this->retry_backoff_factor_);
+}
+
+RetryResult HttpRequestComponent::send_(const std::vector<HttpRequestResponseTrigger *> &response_triggers,
+                                        uint8_t attempt) {
   if (!network::is_connected()) {
     this->client_.end();
     this->status_set_warning();
     ESP_LOGW(TAG, "HTTP Request failed; Not connected to network");
-    return;
+    return RetryResult::RETRY;
   }
 
   bool begin_status = false;
@@ -62,7 +70,7 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
     this->client_.end();
     this->status_set_warning();
     ESP_LOGW(TAG, "HTTP Request failed at the begin phase. Please check the configuration");
-    return;
+    return RetryResult::DONE;
   }
 
   this->client_.setTimeout(this->timeout_);
@@ -86,17 +94,18 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s; Duration: %u ms", this->url_.c_str(),
              HTTPClient::errorToString(http_code).c_str(), duration);
     this->status_set_warning();
-    return;
+    return RetryResult::RETRY;
   }
 
   if (http_code < 200 || http_code >= 300) {
     ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), http_code, duration);
     this->status_set_warning();
-    return;
+    return RetryResult::DONE;
   }
 
   this->status_clear_warning();
   ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), http_code, duration);
+  return RetryResult::DONE;
 }
 
 #ifdef USE_ESP8266

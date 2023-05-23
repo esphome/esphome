@@ -4,6 +4,8 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
 from esphome.const import (
+    CONF_COUNT,
+    CONF_DELAY,
     CONF_ID,
     CONF_TIMEOUT,
     CONF_METHOD,
@@ -33,6 +35,8 @@ CONF_VERIFY_SSL = "verify_ssl"
 CONF_ON_RESPONSE = "on_response"
 CONF_FOLLOW_REDIRECTS = "follow_redirects"
 CONF_REDIRECT_LIMIT = "redirect_limit"
+CONF_RETRY = "retry"
+CONF_BACKOFF_FACTOR = "backoff_factor"
 
 
 def validate_url(value):
@@ -78,6 +82,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(
                 CONF_TIMEOUT, default="5s"
             ): cv.positive_time_period_milliseconds,
+            cv.Optional(CONF_RETRY, default={}): cv.Schema(
+                {
+                    cv.Optional(CONF_COUNT, 0): cv.positive_int,
+                    cv.Optional(
+                        CONF_DELAY, default="1s"
+                    ): cv.positive_time_period_milliseconds,
+                    cv.Optional(CONF_BACKOFF_FACTOR, 1.0): cv.float_range(min=1),
+                }
+            ),
             cv.SplitDefault(CONF_ESP8266_DISABLE_SSL_SUPPORT, esp8266=False): cv.All(
                 cv.only_on_esp8266, cv.boolean
             ),
@@ -96,6 +109,9 @@ async def to_code(config):
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
     cg.add(var.set_follow_redirects(config[CONF_FOLLOW_REDIRECTS]))
     cg.add(var.set_redirect_limit(config[CONF_REDIRECT_LIMIT]))
+    cg.add(var.set_retries(config[CONF_RETRY][CONF_COUNT]))
+    cg.add(var.set_retry_delay(config[CONF_RETRY][CONF_DELAY]))
+    cg.add(var.set_retry_backoff_factor(config[CONF_RETRY][CONF_BACKOFF_FACTOR]))
 
     if CORE.is_esp8266 and not config[CONF_ESP8266_DISABLE_SSL_SUPPORT]:
         cg.add_define("USE_HTTP_REQUEST_ESP8266_HTTPS")
