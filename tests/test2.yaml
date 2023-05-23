@@ -681,10 +681,10 @@ image:
     use_transparency: no
 
   - id: mdi_alert
-    mdi: alert-circle-outline
+    file: mdi:alert-circle-outline
     resize: 50x50
   - id: another_alert_icon
-    mdi: alert-circle
+    file: mdi:alert-outline
     type: BINARY
 
 cap1188:
