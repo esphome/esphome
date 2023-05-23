@@ -49,6 +49,7 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   void draw(display::DisplayBuffer *display, const display::Rect *bounds);
 
  protected:
+  void draw_and_update() override;
   void draw_menu() override;
   void draw_menu_internal_(display::DisplayBuffer *display, const display::Rect *bounds);
   void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) override;

@@ -60,9 +60,13 @@ void GraphicalDisplayMenu::set_foreground_color(Color foreground_color) { this->
 void GraphicalDisplayMenu::set_background_color(Color background_color) { this->background_color_ = background_color; }
 
 void GraphicalDisplayMenu::on_before_show() {
-  this->previous_display_page_ = this->display_buffer_->get_active_page();
-  this->display_buffer_->show_page(this->display_page_.get());
-  this->display_buffer_->clear();
+  if (this->display_buffer_ != nullptr) {
+    this->previous_display_page_ = this->display_buffer_->get_active_page();
+    this->display_buffer_->show_page(this->display_page_.get());
+    this->display_buffer_->clear();
+  } else {
+    this->update();
+  }
 }
 
 void GraphicalDisplayMenu::on_before_hide() {
@@ -71,6 +75,18 @@ void GraphicalDisplayMenu::on_before_hide() {
     this->display_buffer_->clear();
     this->update();
     this->previous_display_page_ = nullptr;
+  } else {
+    this->update();
+  }
+}
+
+void GraphicalDisplayMenu::draw_and_update() {
+  this->update();
+
+  // If we're in advanced drawing mode we won't have a display buffer and will instead require the update callback to do
+  // our drawing
+  if (this->display_buffer_ != nullptr) {
+    draw_menu();
   }
 }
 
