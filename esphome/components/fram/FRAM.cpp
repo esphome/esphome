@@ -193,9 +193,7 @@ uint16_t FRAM::getSize() {
 uint32_t FRAM::getSizeBytes() { return this->_sizeBytes; }
 
 //  override to be used when getSize() fails == 0
-void FRAM::setSizeBytes(uint32_t value) {
-  this->_sizeBytes = value;
-}
+void FRAM::setSizeBytes(uint32_t value) { this->_sizeBytes = value; }
 
 uint32_t FRAM::clear(uint8_t value) {
   uint8_t buffer[16];

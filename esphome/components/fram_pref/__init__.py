@@ -65,14 +65,14 @@ def final_validate(config):
         if CONF_STATIC_PREFS in config:
             errors = []
 
-            for idx,conf_pref in enumerate(config[CONF_STATIC_PREFS]):
+            for idx, conf_pref in enumerate(config[CONF_STATIC_PREFS]):
                 if CONF_ADDR not in conf_pref:
                     continue
 
                 addr_start = conf_pref[CONF_ADDR]
                 addr_end = conf_pref[CONF_ADDR] + conf_pref[CONF_SIZE] - 1
 
-                if (addr_start <= pool_end and addr_end >= pool_start):
+                if addr_start <= pool_end and addr_end >= pool_start:
                     errors.append(
                         cv.Invalid(
                             f"{CONF_STATIC_PREFS}[{idx}] address range ({addr_start} - {addr_end}) overlaps with pool ({pool_start} - {pool_end})"

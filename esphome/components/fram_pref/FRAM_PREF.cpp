@@ -9,7 +9,7 @@ namespace fram_pref {
 static const char *const TAG = "fram_pref";
 
 class FRAMPreferenceBackend : public ESPPreferenceBackend {
-public:
+ public:
   FRAMPreferenceBackend(FRAM_PREF *comp, uint32_t type, uint8_t idx) {
     this->comp_ = comp;
     this->type_ = type;
@@ -23,7 +23,7 @@ public:
 
     auto &pref = this->comp_->prefs_[this->idx_];
 
-    if((pref.size_req - 2) != (uint16_t) len) {
+    if ((pref.size_req - 2) != (uint16_t) len) {
       return false;
     }
 
@@ -42,7 +42,7 @@ public:
 
     auto &pref = this->comp_->prefs_[this->idx_];
 
-    if((pref.size_req - 2) != (uint16_t) len) {
+    if ((pref.size_req - 2) != (uint16_t) len) {
       return false;
     }
 
@@ -58,7 +58,7 @@ public:
     return true;
   }
 
-protected:
+ protected:
   uint16_t checksum_(uint8_t *data, size_t len) {
     uint16_t sum = (this->type_ >> 16) + (this->type_ & 0xFFFF);
 
@@ -74,9 +74,7 @@ protected:
   uint8_t idx_;
 };
 
-FRAM_PREF::FRAM_PREF(fram::FRAM *fram) {
-  this->fram_ = fram;
-}
+FRAM_PREF::FRAM_PREF(fram::FRAM *fram) { this->fram_ = fram; }
 
 void FRAM_PREF::set_pool(uint16_t pool_size, uint16_t pool_start = 0) {
   this->pool_size_ = pool_size;
@@ -84,8 +82,8 @@ void FRAM_PREF::set_pool(uint16_t pool_size, uint16_t pool_start = 0) {
   this->pool_next_ = pool_start + 4;
 }
 
-void FRAM_PREF::set_static_pref(std::string key, uint16_t addr, uint16_t size,
-                                std::function<uint32_t()> &&fn, bool persist_key) {
+void FRAM_PREF::set_static_pref(std::string key, uint16_t addr, uint16_t size, std::function<uint32_t()> &&fn,
+                                bool persist_key) {
   uint8_t flags = FLAG_STATIC;
 
   if (persist_key) {
@@ -221,8 +219,8 @@ void FRAM_PREF::_clear() {
     buff[i] = 0;
   }
 
-  for (uint16_t addr = this->pool_start_+4; addr < pool_end; addr += 16) {
-    this->fram_->write(addr, buff, std::min(16,pool_end-addr));
+  for (uint16_t addr = this->pool_start_ + 4; addr < pool_end; addr += 16) {
+    this->fram_->write(addr, buff, std::min(16, pool_end - addr));
   }
 
   ESP_LOGD(TAG, "Pool cleared!");
@@ -289,9 +287,7 @@ ESPPreferenceObject FRAM_PREF::make_preference(size_t length, uint32_t type) {
   return {pref};
 }
 
-bool FRAM_PREF::sync() {
-  return this->pref_prev_->sync();
-}
+bool FRAM_PREF::sync() { return this->pref_prev_->sync(); }
 
 bool FRAM_PREF::reset() {
   if (this->pool_size_) {

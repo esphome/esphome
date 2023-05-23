@@ -18,7 +18,7 @@ namespace esphome {
 namespace fram {
 
 class FRAM : public Component, public i2c::I2CDevice {
-public:
+ public:
   void setup() override;
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
@@ -32,7 +32,7 @@ public:
   void writeDouble(uint16_t memaddr, double value);
   void write(uint16_t memaddr, uint8_t *obj, uint16_t size);
 
-  uint8_t  read8(uint16_t memaddr);
+  uint8_t read8(uint16_t memaddr);
   uint16_t read16(uint16_t memaddr);
   uint32_t read32(uint16_t memaddr);
   float readFloat(uint16_t memaddr);
@@ -81,7 +81,7 @@ public:
   //  trec <= 400us  P12
   bool wakeup(uint32_t trec = 400);
 
-protected:
+ protected:
   uint32_t _sizeBytes{0};
   uint16_t _getMetaData(uint8_t id);
 
@@ -96,7 +96,7 @@ protected:
 //
 
 class FRAM32 : public FRAM {
-public:
+ public:
   void write8(uint32_t memaddr, uint8_t value);
   void write16(uint32_t memaddr, uint16_t value);
   void write32(uint32_t memaddr, uint32_t value);
@@ -121,7 +121,7 @@ public:
   template<class T> uint32_t writeObject(uint32_t memaddr, T &obj);
   template<class T> uint32_t readObject(uint32_t memaddr, T &obj);
 
-protected:
+ protected:
   void _writeBlock(uint32_t memaddr, uint8_t *obj, uint8_t size);
   void _readBlock(uint32_t memaddr, uint8_t *obj, uint8_t size);
 };
@@ -132,7 +132,7 @@ protected:
 //
 
 class FRAM11 : public FRAM {
-protected:
+ protected:
   void _writeBlock(uint16_t memaddr, uint8_t *obj, uint8_t size);
   void _readBlock(uint16_t memaddr, uint8_t *obj, uint8_t size);
 };
@@ -142,7 +142,7 @@ protected:
 //  FRAM9  for FRAM that use 9 bits addresses - e.g. MB85RC04
 //
 class FRAM9 : public FRAM {
-protected:
+ protected:
   void _writeBlock(uint16_t memaddr, uint8_t *obj, uint8_t size);
   void _readBlock(uint16_t memaddr, uint8_t *obj, uint8_t size);
 };
