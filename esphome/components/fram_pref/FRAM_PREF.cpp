@@ -238,7 +238,6 @@ ESPPreferenceObject FramPref::make_preference(size_t length, uint32_t type) {
 
   auto pref_static_it = this->prefs_static_map_.find(type);
   uint16_t size = (uint16_t) length + 2;
-  uint16_t addr;
   uint8_t idx;
 
   if (pref_static_it != this->prefs_static_map_.end()) {
@@ -255,8 +254,6 @@ ESPPreferenceObject FramPref::make_preference(size_t length, uint32_t type) {
       return {};
     }
 
-    addr = pref.addr;
-
     if (pref.flags & FLAG_PERSIST_KEY) {
       type = fnv1_hash(pref.key);
     }
@@ -270,9 +267,8 @@ ESPPreferenceObject FramPref::make_preference(size_t length, uint32_t type) {
 
     uint16_t pool_end = this->pool_start_ + this->pool_size_;
     uint16_t next = this->pool_next_ + size;
-    addr = this->pool_next_;
 
-    this->prefs_[idx].addr = addr;
+    this->prefs_[idx].addr = this->pool_next_;
     this->prefs_[idx].size = size;
 
     if (next > pool_end) {
