@@ -2,7 +2,7 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 
 from esphome import pins
-from esphome.const import CONF_ID, CONF_NUMBER
+from esphome.const import CONF_CHANNEL, CONF_ID, CONF_NUMBER
 from esphome.components import microphone, esp32
 from esphome.components.adc import ESP32_VARIANT_ADC1_PIN_TO_CHANNEL, validate_adc_pin
 
@@ -24,6 +24,12 @@ CONF_PDM = "pdm"
 I2SAudioMicrophone = i2s_audio_ns.class_(
     "I2SAudioMicrophone", I2SAudioIn, microphone.Microphone, cg.Component
 )
+
+i2s_channel_fmt_t = cg.global_ns.enum("i2s_channel_fmt_t")
+CHANNELS = {
+    "left": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_LEFT,
+    "right": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_RIGHT,
+}
 
 INTERNAL_ADC_VARIANTS = [esp32.const.VARIANT_ESP32]
 PDM_VARIANTS = [esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S3]
@@ -47,6 +53,7 @@ BASE_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(I2SAudioMicrophone),
         cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
+        cv.Optional(CONF_CHANNEL, default="right"): cv.enum(CHANNELS),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -85,5 +92,7 @@ async def to_code(config):
     else:
         cg.add(var.set_din_pin(config[CONF_I2S_DIN_PIN]))
         cg.add(var.set_pdm(config[CONF_PDM]))
+
+    cg.add(var.set_channel(CHANNELS[config[CONF_CHANNEL]]))
 
     await microphone.register_microphone(var, config)
