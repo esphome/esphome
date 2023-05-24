@@ -44,8 +44,8 @@ class FramPref : public Component, public ESPPreferences {
  protected:
   friend class FRAMPreferenceBackend;
 
-  bool _check();
-  void _clear();
+  bool check_();
+  void clear_();
 
   fram::FRAM *fram_;
   uint16_t pool_size_{0};

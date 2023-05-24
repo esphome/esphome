@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "FRAM_PREF.h"
+#include <utility>
 
 namespace esphome {
 namespace fram_pref {
@@ -27,7 +28,7 @@ class FRAMPreferenceBackend : public ESPPreferenceBackend {
       return false;
     }
 
-    uint16_t checksum = this->checksum_((uint8_t *) data, len);
+    uint16_t checksum = this->checksum_(data, len);
 
     this->comp_->fram_->write(pref.addr, (uint8_t *) data, len);
     this->comp_->fram_->write(pref.addr + len, (uint8_t *) &checksum, 2);
@@ -59,7 +60,7 @@ class FRAMPreferenceBackend : public ESPPreferenceBackend {
   }
 
  protected:
-  uint16_t checksum_(uint8_t *data, size_t len) {
+  uint16_t checksum_(const uint8_t *data, size_t len) {
     uint16_t sum = (this->type_ >> 16) + (this->type_ & 0xFFFF);
 
     for (size_t i = 0; i < len; i++) {
@@ -90,12 +91,12 @@ void FramPref::set_static_pref(std::string key, uint16_t addr, uint16_t size, st
     flags |= FLAG_PERSIST_KEY;
   }
 
-  this->prefs_.push_back({.key = key, .addr = addr, .size = size, .size_req = 0, .flags = flags});
-  this->prefs_static_cb_.push_back(fn);
+  this->prefs_.push_back({.key = std::move(key), .addr = addr, .size = size, .size_req = 0, .flags = flags});
+  this->prefs_static_cb_.push_back(std::move(fn));
 }
 
 void FramPref::setup() {
-  if (!this->_check()) {
+  if (!this->check_()) {
     this->mark_failed();
     return;
   }
@@ -120,7 +121,7 @@ void FramPref::setup() {
     uint32_t hash = fnv1_hash(App.get_compilation_time());
 
     if (hash != this->fram_->read32(this->pool_start_)) {
-      this->_clear();
+      this->clear_();
       this->fram_->write32(this->pool_start_, hash);
       this->pool_cleared_ = true;
     }
@@ -135,7 +136,7 @@ void FramPref::dump_config() {
 
   ESP_LOGCONFIG(TAG, "FramPref:");
 
-  if (!this->_check()) {
+  if (!this->check_()) {
     return;
   }
 
@@ -193,7 +194,7 @@ void FramPref::dump_config() {
   }
 }
 
-bool FramPref::_check() {
+bool FramPref::check_() {
   if (!this->fram_->get_size_bytes()) {
     ESP_LOGE(TAG, "  Device returns 0 size!");
     return false;
@@ -207,7 +208,7 @@ bool FramPref::_check() {
   return true;
 }
 
-void FramPref::_clear() {
+void FramPref::clear_() {
   if (!this->pool_size_) {
     return;
   }
@@ -215,8 +216,8 @@ void FramPref::_clear() {
   uint8_t buff[16];
   uint16_t pool_end = this->pool_start_ + this->pool_size_;
 
-  for (uint8_t i = 0; i < 16; i++) {
-    buff[i] = 0;
+  for (uint8_t &b : buff) {
+    b = 0;
   }
 
   for (uint16_t addr = this->pool_start_ + 4; addr < pool_end; addr += 16) {
