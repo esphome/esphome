@@ -381,11 +381,25 @@ sensor:
     temperature_sensor: ha_hello_world_temperature
     ph:
       name: Ufire pH
+  - platform: mics_4514
+    update_interval: 60s
+    nitrogen_dioxide:
+      name: MICS-4514 NO2
+    carbon_monoxide:
+      name: MICS-4514 CO
+    methane:
+      name: MICS-4514 CH4
+    hydrogen:
+      name: MICS-4514 H2
+    ethanol:
+      name: MICS-4514 C2H5OH
+    ammonia:
+      name: MICS-4514 NH3
 
 time:
   - platform: homeassistant
     on_time:
-      - at: '16:00:00'
+      - at: "16:00:00"
         then:
           - logger.log: It's 16:00
 
@@ -462,6 +476,15 @@ binary_sensor:
       name: Mi Motion Sensor 2 Light
     button:
       name: Mi Motion Sensor 2 Button
+  - platform: gpio
+    id: gpio_set_retry_test
+    pin: GPIO9
+    on_press:
+      then:
+        - lambda: |-
+            App.scheduler.set_retry(id(gpio_set_retry_test), "set_retry_test", 100, 3, [](const uint8_t remaining) {
+              return remaining ? RetryResult::RETRY : RetryResult::DONE; // just to reference both symbols
+            }, 5.0f);
 
 esp32_ble_tracker:
   on_ble_advertise:
@@ -495,7 +518,6 @@ ble_client:
   - mac_address: 01:02:03:04:05:06
     id: radon_eye_ble_id
 
-
 airthings_ble:
 
 radon_eye_ble:
@@ -512,7 +534,7 @@ bluetooth_proxy:
 xiaomi_rtcgq02lm:
   - id: motion_rtcgq02lm
     mac_address: 01:02:03:04:05:06
-    bindkey: '48403ebe2d385db8d0c187f81e62cb64'
+    bindkey: "48403ebe2d385db8d0c187f81e62cb64"
 
 status_led:
   pin: GPIO2
@@ -636,6 +658,27 @@ interval:
     - logger.log: Interval Run
 
 display:
+
+image:
+  - id: binary_image
+    file: pnglogo.png
+    type: BINARY
+    dither: FloydSteinberg
+  - id: transparent_transparent_image
+    file: pnglogo.png
+    type: TRANSPARENT_BINARY
+  - id: rgba_image
+    file: pnglogo.png
+    type: RGBA
+    resize: 50x50
+  - id: rgb24_image
+    file: pnglogo.png
+    type: RGB24
+    use_transparency: yes
+  - id: rgb565_image
+    file: pnglogo.png
+    type: RGB565
+    use_transparency: no
 
 cap1188:
   id: cap1188_component

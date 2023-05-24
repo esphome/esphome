@@ -122,7 +122,6 @@ async def to_code(config):
     cg.add(var.set_standard_units(config[CONF_STANDARD_UNITS]))
 
     for key, funcName in TYPES.items():
-
         if key in config:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))
