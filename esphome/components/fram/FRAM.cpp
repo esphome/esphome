@@ -207,8 +207,8 @@ void FRAM::set_size_bytes(uint32_t value) { this->size_bytes_ = value; }
 
 uint32_t FRAM::clear(uint8_t value) {
   uint8_t buffer[16];
-  
-  for (uint8_t & b : buffer) {
+
+  for (uint8_t &b : buffer) {
     b = value;
   }
 

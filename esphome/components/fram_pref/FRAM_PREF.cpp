@@ -83,7 +83,7 @@ void FramPref::set_pool(uint16_t pool_size, uint16_t pool_start = 0) {
 }
 
 void FramPref::set_static_pref(std::string key, uint16_t addr, uint16_t size, std::function<uint32_t()> &&fn,
-                                bool persist_key) {
+                               bool persist_key) {
   uint8_t flags = FLAG_STATIC;
 
   if (persist_key) {
