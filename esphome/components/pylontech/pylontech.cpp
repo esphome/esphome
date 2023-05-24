@@ -4,7 +4,7 @@
 namespace esphome {
 namespace pylontech {
 
-static const char *const TAG = "pylontech.sensor";
+static const char *const TAG = "pylontech";
 static const int MAX_DATA_LENGTH_BYTES = 256;
 static const uint8_t ASCII_LF = 0x0A;
 
