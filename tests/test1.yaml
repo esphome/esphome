@@ -3362,6 +3362,7 @@ lcd_menu:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
 
 fram:
+  i2c_id: i2c_bus
 
 fram_pref:
   pool_start: 1024
