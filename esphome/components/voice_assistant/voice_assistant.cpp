@@ -58,11 +58,12 @@ void VoiceAssistant::setup() {
   }
 #endif
 
-  this->mic_->add_data_callback([this](const std::vector<uint8_t> &data) {
+  this->mic_->add_data_callback([this](const std::vector<int16_t> &data) {
     if (!this->running_) {
       return;
     }
-    this->socket_->sendto(data.data(), data.size(), 0, (struct sockaddr *) &this->dest_addr_, sizeof(this->dest_addr_));
+    this->socket_->sendto(data.data(), data.size() * sizeof(int16_t), 0, (struct sockaddr *) &this->dest_addr_,
+                          sizeof(this->dest_addr_));
   });
 }
 
