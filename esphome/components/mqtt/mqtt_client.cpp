@@ -7,12 +7,20 @@
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include "esphome/core/version.h"
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
 #endif
 #include "lwip/dns.h"
 #include "lwip/err.h"
 #include "mqtt_component.h"
+
+#ifdef USE_API
+#include "esphome/components/api/api_server.h"
+#endif
+#ifdef USE_DASHBOARD_IMPORT
+#include "esphome/components/dashboard_import/dashboard_import.h"
+#endif
 
 namespace esphome {
 namespace mqtt {
@@ -58,9 +66,63 @@ void MQTTClientComponent::setup() {
   }
 #endif
 
+  this->subscribe(
+      "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
+      2);
+
+  std::string topic = "esphome/ping/";
+  topic.append(App.get_name());
+  this->subscribe(
+      topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
+
   this->last_connected_ = millis();
   this->start_dnslookup_();
 }
+
+void MQTTClientComponent::send_device_info_() {
+  if (!this->is_connected()) {
+    return;
+  }
+  std::string topic = "esphome/discover/";
+  topic.append(App.get_name());
+  this->publish_json(
+      topic,
+      [](JsonObject root) {
+        auto ip = network::get_ip_address();
+        root["ip"] = ip.str();
+        root["name"] = App.get_name();
+#ifdef USE_API
+        root["port"] = api::global_api_server->get_port();
+#endif
+        root["version"] = ESPHOME_VERSION;
+        root["mac"] = get_mac_address();
+
+#ifdef USE_ESP8266
+        root["platform"] = "ESP8266";
+#endif
+#ifdef USE_ESP32
+        root["platform"] = "ESP32";
+#endif
+
+        root["board"] = ESPHOME_BOARD;
+#if defined(USE_WIFI)
+        root["network"] = "wifi";
+#elif defined(USE_ETHERNET)
+        root["network"] = "ethernet";
+#endif
+
+#ifdef ESPHOME_PROJECT_NAME
+        root["project_name"] = ESPHOME_PROJECT_NAME;
+        root["project_version"] = ESPHOME_PROJECT_VERSION;
+#endif  // ESPHOME_PROJECT_NAME
+
+#ifdef USE_DASHBOARD_IMPORT
+        root["package_import_url"] = dashboard_import::get_package_import_url();
+#endif
+      },
+      2, this->discovery_info_.retain);
+}
+
 void MQTTClientComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "MQTT:");
   ESP_LOGCONFIG(TAG, "  Server Address: %s:%u (%s)", this->credentials_.address.c_str(), this->credentials_.port,
@@ -226,6 +288,7 @@ void MQTTClientComponent::check_connected() {
   delay(100);  // NOLINT
 
   this->resubscribe_subscriptions_();
+  this->send_device_info_();
 
   for (MQTTComponent *component : this->children_)
     component->schedule_resend_state();
