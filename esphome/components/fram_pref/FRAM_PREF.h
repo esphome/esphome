@@ -17,7 +17,7 @@ enum Flags : uint8_t {
   FLAG_ERR_SIZE_POOL = 0b01000000
 };
 
-struct PREF_STRUCT {
+struct PrefStruct {
   std::string key;
   uint16_t addr;
   uint16_t size;
@@ -25,9 +25,9 @@ struct PREF_STRUCT {
   uint8_t flags;
 };
 
-class FRAM_PREF : public Component, public ESPPreferences {
+class FramPref : public Component, public ESPPreferences {
  public:
-  FRAM_PREF(fram::FRAM *fram);
+  FramPref(fram::FRAM *fram);
 
   void set_pool(uint16_t pool_size, uint16_t pool_start);
   void set_static_pref(std::string key, uint16_t addr, uint16_t size, std::function<uint32_t()> &&fn, bool persist_key);
@@ -53,7 +53,7 @@ class FRAM_PREF : public Component, public ESPPreferences {
   uint16_t pool_next_{0};
   bool pool_cleared_{false};
 
-  std::vector<PREF_STRUCT> prefs_;
+  std::vector<PrefStruct> prefs_;
   std::vector<std::function<uint32_t()>> prefs_static_cb_;
   std::map<uint32_t, uint8_t> prefs_static_map_;
 

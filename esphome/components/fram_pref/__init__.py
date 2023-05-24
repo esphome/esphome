@@ -14,7 +14,7 @@ CONF_PERSIST_KEY = "persist_key"
 
 fram_pref_ns = cg.esphome_ns.namespace("fram_pref")
 FRAMPREFComponent = fram_pref_ns.class_(
-    "FRAM_PREF", cg.Component, cg.esphome_ns.class_("ESPPreferences")
+    "FramPref", cg.Component, cg.esphome_ns.class_("ESPPreferences")
 )
 
 

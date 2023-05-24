@@ -10,14 +10,14 @@ static const char *const TAG = "fram_pref";
 
 class FRAMPreferenceBackend : public ESPPreferenceBackend {
  public:
-  FRAMPreferenceBackend(FRAM_PREF *comp, uint32_t type, uint8_t idx) {
+  FRAMPreferenceBackend(FramPref *comp, uint32_t type, uint8_t idx) {
     this->comp_ = comp;
     this->type_ = type;
     this->idx_ = idx;
   }
 
   bool save(const uint8_t *data, size_t len) override {
-    if (!this->comp_->fram_->isConnected()) {
+    if (!this->comp_->fram_->is_connected()) {
       return false;
     }
 
@@ -36,7 +36,7 @@ class FRAMPreferenceBackend : public ESPPreferenceBackend {
   }
 
   bool load(uint8_t *data, size_t len) override {
-    if (!this->comp_->fram_->isConnected()) {
+    if (!this->comp_->fram_->is_connected()) {
       return false;
     }
 
@@ -69,20 +69,20 @@ class FRAMPreferenceBackend : public ESPPreferenceBackend {
     return sum;
   }
 
-  FRAM_PREF *comp_;
+  FramPref *comp_;
   uint32_t type_;
   uint8_t idx_;
 };
 
-FRAM_PREF::FRAM_PREF(fram::FRAM *fram) { this->fram_ = fram; }
+FramPref::FramPref(fram::FRAM *fram) { this->fram_ = fram; }
 
-void FRAM_PREF::set_pool(uint16_t pool_size, uint16_t pool_start = 0) {
+void FramPref::set_pool(uint16_t pool_size, uint16_t pool_start = 0) {
   this->pool_size_ = pool_size;
   this->pool_start_ = pool_start;
   this->pool_next_ = pool_start + 4;
 }
 
-void FRAM_PREF::set_static_pref(std::string key, uint16_t addr, uint16_t size, std::function<uint32_t()> &&fn,
+void FramPref::set_static_pref(std::string key, uint16_t addr, uint16_t size, std::function<uint32_t()> &&fn,
                                 bool persist_key) {
   uint8_t flags = FLAG_STATIC;
 
@@ -94,13 +94,13 @@ void FRAM_PREF::set_static_pref(std::string key, uint16_t addr, uint16_t size, s
   this->prefs_static_cb_.push_back(fn);
 }
 
-void FRAM_PREF::setup() {
+void FramPref::setup() {
   if (!this->_check()) {
     this->mark_failed();
     return;
   }
 
-  uint16_t fram_size = this->fram_->getSizeBytes();
+  uint16_t fram_size = this->fram_->get_size_bytes();
   size_t v_size = this->prefs_.size();
 
   for (size_t i = 0; i < v_size; i++) {
@@ -130,10 +130,10 @@ void FRAM_PREF::setup() {
   global_preferences = this;
 }
 
-void FRAM_PREF::dump_config() {
-  uint16_t fram_size = this->fram_->getSizeBytes();
+void FramPref::dump_config() {
+  uint16_t fram_size = this->fram_->get_size_bytes();
 
-  ESP_LOGCONFIG(TAG, "FRAM_PREF:");
+  ESP_LOGCONFIG(TAG, "FramPref:");
 
   if (!this->_check()) {
     return;
@@ -193,13 +193,13 @@ void FRAM_PREF::dump_config() {
   }
 }
 
-bool FRAM_PREF::_check() {
-  if (!this->fram_->getSizeBytes()) {
+bool FramPref::_check() {
+  if (!this->fram_->get_size_bytes()) {
     ESP_LOGE(TAG, "  Device returns 0 size!");
     return false;
   }
 
-  if (!this->fram_->isConnected()) {
+  if (!this->fram_->is_connected()) {
     ESP_LOGE(TAG, "  Device connect failed!");
     return false;
   }
@@ -207,7 +207,7 @@ bool FRAM_PREF::_check() {
   return true;
 }
 
-void FRAM_PREF::_clear() {
+void FramPref::_clear() {
   if (!this->pool_size_) {
     return;
   }
@@ -226,11 +226,11 @@ void FRAM_PREF::_clear() {
   ESP_LOGD(TAG, "Pool cleared!");
 }
 
-ESPPreferenceObject FRAM_PREF::make_preference(size_t length, uint32_t type, bool in_flash) {
+ESPPreferenceObject FramPref::make_preference(size_t length, uint32_t type, bool in_flash) {
   return this->make_preference(length, type);
 }
 
-ESPPreferenceObject FRAM_PREF::make_preference(size_t length, uint32_t type) {
+ESPPreferenceObject FramPref::make_preference(size_t length, uint32_t type) {
   if (this->is_failed()) {
     return {};
   }
@@ -287,9 +287,9 @@ ESPPreferenceObject FRAM_PREF::make_preference(size_t length, uint32_t type) {
   return {pref};
 }
 
-bool FRAM_PREF::sync() { return this->pref_prev_->sync(); }
+bool FramPref::sync() { return this->pref_prev_->sync(); }
 
-bool FRAM_PREF::reset() {
+bool FramPref::reset() {
   if (this->pool_size_) {
     this->fram_->write32(pool_start_, 0);
   }

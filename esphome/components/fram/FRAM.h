@@ -23,55 +23,49 @@ class FRAM : public Component, public i2c::I2CDevice {
   void dump_config() override;
   float get_setup_priority() const override { return setup_priority::BUS; }
 
-  bool isConnected();
+  bool is_connected();
 
   void write8(uint16_t memaddr, uint8_t value);
   void write16(uint16_t memaddr, uint16_t value);
   void write32(uint16_t memaddr, uint32_t value);
-  void writeFloat(uint16_t memaddr, float value);
-  void writeDouble(uint16_t memaddr, double value);
+  void write_float(uint16_t memaddr, float value);
+  void write_double(uint16_t memaddr, double value);
   void write(uint16_t memaddr, uint8_t *obj, uint16_t size);
 
   uint8_t read8(uint16_t memaddr);
   uint16_t read16(uint16_t memaddr);
   uint32_t read32(uint16_t memaddr);
-  float readFloat(uint16_t memaddr);
-  double readDouble(uint16_t memaddr);
+  float read_float(uint16_t memaddr);
+  double read_double(uint16_t memaddr);
   void read(uint16_t memaddr, uint8_t *obj, uint16_t size);
 
   //  Experimental 0.5.1
-  //  readUntil returns length 0.. n of the buffer.
-  //  readUntil does NOT include the separator character.
-  //  readUntil returns -1 if data does not fit into buffer,
+  //  read_until returns length 0.. n of the buffer.
+  //  read_until does NOT include the separator character.
+  //  read_until returns -1 if data does not fit into buffer,
   //  =>  separator not encountered.
-  int32_t readUntil(uint16_t memaddr, char *buf, uint16_t buflen, char separator);
-  //  readLine returns length 0.. n of the buffer.
-  //  readLine does include '\n' as end character.
-  //  readLine returns -1 if data does not fit into buffer.
+  int32_t read_until(uint16_t memaddr, char *buf, uint16_t buflen, char separator);
+  //  read_line returns length 0.. n of the buffer.
+  //  read_line does include '\n' as end character.
+  //  read_line returns -1 if data does not fit into buffer.
   //  buffer needs one place for end char '\0'.
-  int32_t readLine(uint16_t memaddr, char *buf, uint16_t buflen);
+  int32_t read_line(uint16_t memaddr, char *buf, uint16_t buflen);
 
-  template<class T> uint16_t writeObject(uint16_t memaddr, T &obj) {
-    this->write(memaddr, (uint8_t *) &obj, sizeof(obj));
-    return memaddr + sizeof(obj);
-  };
-  template<class T> uint16_t readObject(uint16_t memaddr, T &obj) {
-    this->read(memaddr, (uint8_t *) &obj, sizeof(obj));
-    return memaddr + sizeof(obj);
-  }
+  template<class T> uint16_t write_object(uint16_t memaddr, T &obj);
+  template<class T> uint16_t read_object(uint16_t memaddr, T &obj);
 
   //  meta info
   //  Fujitsu = 0x000A, Ramtron = 0x004
-  uint16_t getManufacturerID();
+  uint16_t get_manufacturer_id();
   //  Proprietary
-  uint16_t getProductID();
+  uint16_t get_product_id();
   //  Returns size in KILO-BYTE (or 0)
   //  Verify for all manufacturers.
-  uint16_t getSize();
+  uint16_t get_size();
   //  Returns size in BYTE
-  uint32_t getSizeBytes();
-  //  override when getSize() fails == 0 (see readme.md)
-  void setSizeBytes(uint32_t value);
+  uint32_t get_size_bytes();
+  //  override when get_size() fails == 0
+  void set_size_bytes(uint32_t value);
 
   //  fills FRAM with value, default 0.
   uint32_t clear(uint8_t value = 0);
@@ -82,12 +76,12 @@ class FRAM : public Component, public i2c::I2CDevice {
   bool wakeup(uint32_t trec = 400);
 
  protected:
-  uint32_t _sizeBytes{0};
-  uint16_t _getMetaData(uint8_t id);
+  uint32_t size_bytes_{0};
 
+  uint16_t get_metadata_(uint8_t id);
   //  virtual so derived classes FRAM9/11 use their implementation.
-  virtual void _writeBlock(uint16_t memaddr, uint8_t *obj, uint8_t size);
-  virtual void _readBlock(uint16_t memaddr, uint8_t *obj, uint8_t size);
+  virtual void write_block_(uint16_t memaddr, uint8_t *obj, uint8_t size);
+  virtual void read_block_(uint16_t memaddr, uint8_t *obj, uint8_t size);
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -100,30 +94,30 @@ class FRAM32 : public FRAM {
   void write8(uint32_t memaddr, uint8_t value);
   void write16(uint32_t memaddr, uint16_t value);
   void write32(uint32_t memaddr, uint32_t value);
-  void writeFloat(uint32_t memaddr, float value);
-  void writeDouble(uint32_t memaddr, double value);
+  void write_float(uint32_t memaddr, float value);
+  void write_double(uint32_t memaddr, double value);
   void write(uint32_t memaddr, uint8_t *obj, uint16_t size);
 
   uint8_t read8(uint32_t memaddr);
   uint16_t read16(uint32_t memaddr);
   uint32_t read32(uint32_t memaddr);
-  float readFloat(uint32_t memaddr);
-  double readDouble(uint32_t memaddr);
+  float read_float(uint32_t memaddr);
+  double read_double(uint32_t memaddr);
   void read(uint32_t memaddr, uint8_t *obj, uint16_t size);
 
-  //  readUntil returns length 0.. n of the buffer.
-  //  readUntil returns -1 if data does not fit into buffer,
+  //  read_until returns length 0.. n of the buffer.
+  //  read_until returns -1 if data does not fit into buffer,
   //  =>  separator not encountered.
-  int32_t readUntil(uint32_t memaddr, char *buf, uint16_t buflen, char separator);
+  int32_t read_until(uint32_t memaddr, char *buf, uint16_t buflen, char separator);
   //  buffer needs one place for end char '\0'.
-  int32_t readLine(uint32_t memaddr, char *buf, uint16_t buflen);
+  int32_t read_line(uint32_t memaddr, char *buf, uint16_t buflen);
 
-  template<class T> uint32_t writeObject(uint32_t memaddr, T &obj);
-  template<class T> uint32_t readObject(uint32_t memaddr, T &obj);
+  template<class T> uint32_t write_object(uint32_t memaddr, T &obj);
+  template<class T> uint32_t read_object(uint32_t memaddr, T &obj);
 
  protected:
-  void _writeBlock(uint32_t memaddr, uint8_t *obj, uint8_t size);
-  void _readBlock(uint32_t memaddr, uint8_t *obj, uint8_t size);
+  void write_block_(uint32_t memaddr, uint8_t *obj, uint8_t size);
+  void read_block_(uint32_t memaddr, uint8_t *obj, uint8_t size);
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -133,8 +127,8 @@ class FRAM32 : public FRAM {
 
 class FRAM11 : public FRAM {
  protected:
-  void _writeBlock(uint16_t memaddr, uint8_t *obj, uint8_t size);
-  void _readBlock(uint16_t memaddr, uint8_t *obj, uint8_t size);
+  void write_block_(uint16_t memaddr, uint8_t *obj, uint8_t size) override;
+  void read_block_(uint16_t memaddr, uint8_t *obj, uint8_t size) override;
 };
 
 /////////////////////////////////////////////////////////////////////////////
@@ -143,8 +137,8 @@ class FRAM11 : public FRAM {
 //
 class FRAM9 : public FRAM {
  protected:
-  void _writeBlock(uint16_t memaddr, uint8_t *obj, uint8_t size);
-  void _readBlock(uint16_t memaddr, uint8_t *obj, uint8_t size);
+  void write_block_(uint16_t memaddr, uint8_t *obj, uint8_t size) override;
+  void read_block_(uint16_t memaddr, uint8_t *obj, uint8_t size) override;
 };
 
 }  // namespace fram

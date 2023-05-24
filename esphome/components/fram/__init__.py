@@ -63,4 +63,4 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     if CONF_SIZE in config:
-        cg.add(var.setSizeBytes(config[CONF_SIZE]))
+        cg.add(var.set_size_bytes(config[CONF_SIZE]))
