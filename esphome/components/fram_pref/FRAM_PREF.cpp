@@ -283,7 +283,7 @@ ESPPreferenceObject FramPref::make_preference(size_t length, uint32_t type) {
     this->pool_next_ = next;
   }
 
-  auto *pref = new FRAMPreferenceBackend(this, type, idx);
+  auto *pref = new FRAMPreferenceBackend(this, type, idx);  // NOLINT(cppcoreguidelines-owning-memory)
 
   return {pref};
 }

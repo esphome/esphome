@@ -313,27 +313,27 @@ void FRAM::read_block(uint16_t memaddr, uint8_t *obj, uint8_t size) {
 
 void FRAM32::write8(uint32_t memaddr, uint8_t value) {
   uint8_t val = value;
-  this->write_block(memaddr, (uint8_t *) &val, sizeof(uint8_t));
+  this->write_block32(memaddr, (uint8_t *) &val, sizeof(uint8_t));
 }
 
 void FRAM32::write16(uint32_t memaddr, uint16_t value) {
   uint16_t val = value;
-  this->write_block(memaddr, (uint8_t *) &val, sizeof(uint16_t));
+  this->write_block32(memaddr, (uint8_t *) &val, sizeof(uint16_t));
 }
 
 void FRAM32::write32(uint32_t memaddr, uint32_t value) {
   uint32_t val = value;
-  this->write_block(memaddr, (uint8_t *) &val, sizeof(uint32_t));
+  this->write_block32(memaddr, (uint8_t *) &val, sizeof(uint32_t));
 }
 
 void FRAM32::write_float(uint32_t memaddr, float value) {
   float val = value;
-  this->write_block(memaddr, (uint8_t *) &val, sizeof(float));
+  this->write_block32(memaddr, (uint8_t *) &val, sizeof(float));
 }
 
 void FRAM32::write_double(uint32_t memaddr, double value) {
   double val = value;
-  this->write_block(memaddr, (uint8_t *) &val, sizeof(double));
+  this->write_block32(memaddr, (uint8_t *) &val, sizeof(double));
 }
 
 void FRAM32::write(uint32_t memaddr, uint8_t *obj, uint16_t size) {
@@ -341,44 +341,44 @@ void FRAM32::write(uint32_t memaddr, uint8_t *obj, uint16_t size) {
   uint8_t *p = obj;
 
   while (size >= blocksize) {
-    this->write_block(memaddr, p, blocksize);
+    this->write_block32(memaddr, p, blocksize);
     memaddr += blocksize;
     p += blocksize;
     size -= blocksize;
   }
   // remaining
   if (size > 0) {
-    this->write_block(memaddr, p, size);
+    this->write_block32(memaddr, p, size);
   }
 }
 
 uint8_t FRAM32::read8(uint32_t memaddr) {
   uint8_t val;
-  this->read_block(memaddr, (uint8_t *) &val, sizeof(uint8_t));
+  this->read_block32(memaddr, (uint8_t *) &val, sizeof(uint8_t));
   return val;
 }
 
 uint16_t FRAM32::read16(uint32_t memaddr) {
   uint16_t val;
-  this->read_block(memaddr, (uint8_t *) &val, sizeof(uint16_t));
+  this->read_block32(memaddr, (uint8_t *) &val, sizeof(uint16_t));
   return val;
 }
 
 uint32_t FRAM32::read32(uint32_t memaddr) {
   uint32_t val;
-  this->read_block(memaddr, (uint8_t *) &val, sizeof(uint32_t));
+  this->read_block32(memaddr, (uint8_t *) &val, sizeof(uint32_t));
   return val;
 }
 
 float FRAM32::read_float(uint32_t memaddr) {
   float val;
-  this->read_block(memaddr, (uint8_t *) &val, sizeof(float));
+  this->read_block32(memaddr, (uint8_t *) &val, sizeof(float));
   return val;
 }
 
 double FRAM32::read_double(uint32_t memaddr) {
   double val;
-  this->read_block(memaddr, (uint8_t *) &val, sizeof(double));
+  this->read_block32(memaddr, (uint8_t *) &val, sizeof(double));
   return val;
 }
 
@@ -387,14 +387,14 @@ void FRAM32::read(uint32_t memaddr, uint8_t *obj, uint16_t size) {
   uint8_t *p = obj;
 
   while (size >= blocksize) {
-    this->read_block(memaddr, p, blocksize);
+    this->read_block32(memaddr, p, blocksize);
     memaddr += blocksize;
     p += blocksize;
     size -= blocksize;
   }
   // remainder
   if (size > 0) {
-    this->read_block(memaddr, p, size);
+    this->read_block32(memaddr, p, size);
   }
 }
 
@@ -441,7 +441,7 @@ template<class T> uint32_t FRAM32::read_object(uint32_t memaddr, T &obj) {
 //  FRAM32  PROTECTED
 //
 
-void FRAM32::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
+void FRAM32::write_block32(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   uint8_t addr = this->address_;
 
   if (memaddr & 0x00010000) {
@@ -459,7 +459,7 @@ void FRAM32::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   this->bus_->writev(addr, buff, 2, true);
 }
 
-void FRAM32::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
+void FRAM32::read_block32(uint32_t memaddr, uint8_t *obj, uint8_t size) {
   uint8_t addr = this->address_;
 
   if (memaddr & 0x00010000) {
