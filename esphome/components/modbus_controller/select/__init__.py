@@ -64,9 +64,10 @@ INTEGER_SENSOR_VALUE_TYPE = {
 }
 
 CONFIG_SCHEMA = cv.All(
-    select.SELECT_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
+    select.select_schema(ModbusSelect)
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(
         {
-            cv.GenerateID(): cv.declare_id(ModbusSelect),
             cv.GenerateID(CONF_MODBUS_CONTROLLER_ID): cv.use_id(ModbusController),
             cv.Required(CONF_ADDRESS): cv.positive_int,
             cv.Optional(CONF_VALUE_TYPE, default="U_WORD"): cv.enum(

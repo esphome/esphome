@@ -12,8 +12,95 @@ namespace display {
 
 static const char *const TAG = "display";
 
-const Color COLOR_OFF(0, 0, 0, 0);
+const Color COLOR_OFF(0, 0, 0, 255);
 const Color COLOR_ON(255, 255, 255, 255);
+
+void Rect::expand(int16_t horizontal, int16_t vertical) {
+  if (this->is_set() && (this->w >= (-2 * horizontal)) && (this->h >= (-2 * vertical))) {
+    this->x = this->x - horizontal;
+    this->y = this->y - vertical;
+    this->w = this->w + (2 * horizontal);
+    this->h = this->h + (2 * vertical);
+  }
+}
+
+void Rect::extend(Rect rect) {
+  if (!this->is_set()) {
+    this->x = rect.x;
+    this->y = rect.y;
+    this->w = rect.w;
+    this->h = rect.h;
+  } else {
+    if (this->x > rect.x) {
+      this->w = this->w + (this->x - rect.x);
+      this->x = rect.x;
+    }
+    if (this->y > rect.y) {
+      this->h = this->h + (this->y - rect.y);
+      this->y = rect.y;
+    }
+    if (this->x2() < rect.x2()) {
+      this->w = rect.x2() - this->x;
+    }
+    if (this->y2() < rect.y2()) {
+      this->h = rect.y2() - this->y;
+    }
+  }
+}
+void Rect::shrink(Rect rect) {
+  if (!this->inside(rect)) {
+    (*this) = Rect();
+  } else {
+    if (this->x2() > rect.x2()) {
+      this->w = rect.x2() - this->x;
+    }
+    if (this->x < rect.x) {
+      this->w = this->w + (this->x - rect.x);
+      this->x = rect.x;
+    }
+    if (this->y2() > rect.y2()) {
+      this->h = rect.y2() - this->y;
+    }
+    if (this->y < rect.y) {
+      this->h = this->h + (this->y - rect.y);
+      this->y = rect.y;
+    }
+  }
+}
+
+bool Rect::equal(Rect rect) {
+  return (rect.x == this->x) && (rect.w == this->w) && (rect.y == this->y) && (rect.h == this->h);
+}
+
+bool Rect::inside(int16_t test_x, int16_t test_y, bool absolute) {  // NOLINT
+  if (!this->is_set()) {
+    return true;
+  }
+  if (absolute) {
+    return ((test_x >= this->x) && (test_x <= this->x2()) && (test_y >= this->y) && (test_y <= this->y2()));
+  } else {
+    return ((test_x >= 0) && (test_x <= this->w) && (test_y >= 0) && (test_y <= this->h));
+  }
+}
+
+bool Rect::inside(Rect rect, bool absolute) {
+  if (!this->is_set() || !rect.is_set()) {
+    return true;
+  }
+  if (absolute) {
+    return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
+  } else {
+    return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
+  }
+}
+
+void Rect::info(const std::string &prefix) {
+  if (this->is_set()) {
+    ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d] (%3d,%3d)", prefix.c_str(), this->x, this->y, this->w, this->h, this->x2(),
+             this->y2());
+  } else
+    ESP_LOGI(TAG, "%s ** IS NOT SET **", prefix.c_str());
+}
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
@@ -24,6 +111,7 @@ void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   }
   this->clear();
 }
+
 void DisplayBuffer::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void DisplayBuffer::clear() { this->fill(COLOR_OFF); }
 int DisplayBuffer::get_width() {
@@ -50,6 +138,9 @@ int DisplayBuffer::get_height() {
 }
 void DisplayBuffer::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
 void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
+  if (!this->get_clipping().inside(x, y))
+    return;  // NOLINT
+
   switch (this->rotation_) {
     case DISPLAY_ROTATION_0_DEGREES:
       break;
@@ -191,10 +282,14 @@ void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align
     int scan_x1, scan_y1, scan_width, scan_height;
     glyph.scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
 
-    for (int glyph_x = scan_x1; glyph_x < scan_x1 + scan_width; glyph_x++) {
-      for (int glyph_y = scan_y1; glyph_y < scan_y1 + scan_height; glyph_y++) {
-        if (glyph.get_pixel(glyph_x, glyph_y)) {
-          this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
+    {
+      const int glyph_x_max = scan_x1 + scan_width;
+      const int glyph_y_max = scan_y1 + scan_height;
+      for (int glyph_x = scan_x1; glyph_x < glyph_x_max; glyph_x++) {
+        for (int glyph_y = scan_y1; glyph_y < glyph_y_max; glyph_y++) {
+          if (glyph.get_pixel(glyph_x, glyph_y)) {
+            this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
+          }
         }
       }
     }
@@ -212,40 +307,58 @@ void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign al
 }
 
 void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color color_off) {
+  bool transparent = image->has_transparency();
+
   switch (image->get_type()) {
-    case IMAGE_TYPE_BINARY:
+    case IMAGE_TYPE_BINARY: {
       for (int img_x = 0; img_x < image->get_width(); img_x++) {
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          this->draw_pixel_at(x + img_x, y + img_y, image->get_pixel(img_x, img_y) ? color_on : color_off);
+          if (image->get_pixel(img_x, img_y)) {
+            this->draw_pixel_at(x + img_x, y + img_y, color_on);
+          } else if (!transparent) {
+            this->draw_pixel_at(x + img_x, y + img_y, color_off);
+          }
         }
       }
       break;
+    }
     case IMAGE_TYPE_GRAYSCALE:
       for (int img_x = 0; img_x < image->get_width(); img_x++) {
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          this->draw_pixel_at(x + img_x, y + img_y, image->get_grayscale_pixel(img_x, img_y));
-        }
-      }
-      break;
-    case IMAGE_TYPE_RGB24:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          this->draw_pixel_at(x + img_x, y + img_y, image->get_color_pixel(img_x, img_y));
-        }
-      }
-      break;
-    case IMAGE_TYPE_TRANSPARENT_BINARY:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          if (image->get_pixel(img_x, img_y))
-            this->draw_pixel_at(x + img_x, y + img_y, color_on);
+          auto color = image->get_grayscale_pixel(img_x, img_y);
+          if (color.w >= 0x80) {
+            this->draw_pixel_at(x + img_x, y + img_y, color);
+          }
         }
       }
       break;
     case IMAGE_TYPE_RGB565:
       for (int img_x = 0; img_x < image->get_width(); img_x++) {
         for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          this->draw_pixel_at(x + img_x, y + img_y, image->get_rgb565_pixel(img_x, img_y));
+          auto color = image->get_rgb565_pixel(img_x, img_y);
+          if (color.w >= 0x80) {
+            this->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
+    case IMAGE_TYPE_RGB24:
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          auto color = image->get_color_pixel(img_x, img_y);
+          if (color.w >= 0x80) {
+            this->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
+    case IMAGE_TYPE_RGBA:
+      for (int img_x = 0; img_x < image->get_width(); img_x++) {
+        for (int img_y = 0; img_y < image->get_height(); img_y++) {
+          auto color = image->get_rgba_pixel(img_x, img_y);
+          if (color.w >= 0x80) {
+            this->draw_pixel_at(x + img_x, y + img_y, color);
+          }
         }
       }
       break;
@@ -368,6 +481,10 @@ void DisplayBuffer::do_update_() {
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
   }
+  // remove all not ended clipping regions
+  while (is_clipping()) {
+    end_clipping();
+  }
 }
 void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
@@ -392,6 +509,41 @@ void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time:
 }
 #endif
 
+void DisplayBuffer::start_clipping(Rect rect) {
+  if (!this->clipping_rectangle_.empty()) {
+    Rect r = this->clipping_rectangle_.back();
+    rect.shrink(r);
+  }
+  this->clipping_rectangle_.push_back(rect);
+}
+void DisplayBuffer::end_clipping() {
+  if (this->clipping_rectangle_.empty()) {
+    ESP_LOGE(TAG, "clear: Clipping is not set.");
+  } else {
+    this->clipping_rectangle_.pop_back();
+  }
+}
+void DisplayBuffer::extend_clipping(Rect add_rect) {
+  if (this->clipping_rectangle_.empty()) {
+    ESP_LOGE(TAG, "add: Clipping is not set.");
+  } else {
+    this->clipping_rectangle_.back().extend(add_rect);
+  }
+}
+void DisplayBuffer::shrink_clipping(Rect add_rect) {
+  if (this->clipping_rectangle_.empty()) {
+    ESP_LOGE(TAG, "add: Clipping is not set.");
+  } else {
+    this->clipping_rectangle_.back().shrink(add_rect);
+  }
+}
+Rect DisplayBuffer::get_clipping() {
+  if (this->clipping_rectangle_.empty()) {
+    return Rect();
+  } else {
+    return this->clipping_rectangle_.back();
+  }
+}
 bool Glyph::get_pixel(int x, int y) const {
   const int x_data = x - this->glyph_data_->offset_x;
   const int y_data = y - this->glyph_data_->offset_y;
@@ -452,7 +604,7 @@ int Font::match_next_glyph(const char *str, int *match_length) {
 }
 void Font::measure(const char *str, int *width, int *x_offset, int *baseline, int *height) {
   *baseline = this->baseline_;
-  *height = this->bottom_;
+  *height = this->height_;
   int i = 0;
   int min_x = 0;
   bool has_char = false;
@@ -482,10 +634,10 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   *x_offset = min_x;
   *width = x - min_x;
 }
-const std::vector<Glyph> &Font::get_glyphs() const { return this->glyphs_; }
-Font::Font(const GlyphData *data, int data_nr, int baseline, int bottom) : baseline_(baseline), bottom_(bottom) {
+Font::Font(const GlyphData *data, int data_nr, int baseline, int height) : baseline_(baseline), height_(height) {
+  glyphs_.reserve(data_nr);
   for (int i = 0; i < data_nr; ++i)
-    glyphs_.emplace_back(data + i);
+    glyphs_.emplace_back(&data[i]);
 }
 
 bool Image::get_pixel(int x, int y) const {
@@ -495,14 +647,27 @@ bool Image::get_pixel(int x, int y) const {
   const uint32_t pos = x + y * width_8;
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
+Color Image::get_rgba_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return Color::BLACK;
+  const uint32_t pos = (x + y * this->width_) * 4;
+  return Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
+               progmem_read_byte(this->data_start_ + pos + 2), progmem_read_byte(this->data_start_ + pos + 3));
+}
 Color Image::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_) * 3;
-  const uint32_t color32 = (progmem_read_byte(this->data_start_ + pos + 2) << 0) |
-                           (progmem_read_byte(this->data_start_ + pos + 1) << 8) |
-                           (progmem_read_byte(this->data_start_ + pos + 0) << 16);
-  return Color(color32);
+  Color color = Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
+                      progmem_read_byte(this->data_start_ + pos + 2));
+  if (color.b == 1 && color.r == 0 && color.g == 0 && transparent_) {
+    // (0, 0, 1) has been defined as transparent color for non-alpha images.
+    // putting blue == 1 as a first condition for performance reasons (least likely value to short-cut the if)
+    color.w = 0;
+  } else {
+    color.w = 0xFF;
+  }
+  return color;
 }
 Color Image::get_rgb565_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
@@ -513,48 +678,73 @@ Color Image::get_rgb565_pixel(int x, int y) const {
   auto r = (rgb565 & 0xF800) >> 11;
   auto g = (rgb565 & 0x07E0) >> 5;
   auto b = rgb565 & 0x001F;
-  return Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+  Color color = Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+  if (rgb565 == 0x0020 && transparent_) {
+    // darkest green has been defined as transparent color for transparent RGB565 images.
+    color.w = 0;
+  } else {
+    color.w = 0xFF;
+  }
+  return color;
 }
 Color Image::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
-  return Color(gray | gray << 8 | gray << 16 | gray << 24);
+  uint8_t alpha = (gray == 1 && transparent_) ? 0 : 0xFF;
+  return Color(gray, gray, gray, alpha);
 }
 int Image::get_width() const { return this->width_; }
 int Image::get_height() const { return this->height_; }
 ImageType Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
+int Image::get_current_frame() const { return 0; }
 
 bool Animation::get_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return false;
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t frame_index = this->height_ * width_8 * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return false;
   const uint32_t pos = x + y * width_8 + frame_index;
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
+}
+Color Animation::get_rgba_pixel(int x, int y) const {
+  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
+    return Color::BLACK;
+  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
+    return Color::BLACK;
+  const uint32_t pos = (x + y * this->width_ + frame_index) * 4;
+  return Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
+               progmem_read_byte(this->data_start_ + pos + 2), progmem_read_byte(this->data_start_ + pos + 3));
 }
 Color Animation::get_color_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
-  const uint32_t color32 = (progmem_read_byte(this->data_start_ + pos + 2) << 0) |
-                           (progmem_read_byte(this->data_start_ + pos + 1) << 8) |
-                           (progmem_read_byte(this->data_start_ + pos + 0) << 16);
-  return Color(color32);
+  Color color = Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
+                      progmem_read_byte(this->data_start_ + pos + 2));
+  if (color.b == 1 && color.r == 0 && color.g == 0 && transparent_) {
+    // (0, 0, 1) has been defined as transparent color for non-alpha images.
+    // putting blue == 1 as a first condition for performance reasons (least likely value to short-cut the if)
+    color.w = 0;
+  } else {
+    color.w = 0xFF;
+  }
+  return color;
 }
 Color Animation::get_rgb565_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index) * 2;
   uint16_t rgb565 =
@@ -562,17 +752,25 @@ Color Animation::get_rgb565_pixel(int x, int y) const {
   auto r = (rgb565 & 0xF800) >> 11;
   auto g = (rgb565 & 0x07E0) >> 5;
   auto b = rgb565 & 0x001F;
-  return Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+  Color color = Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+  if (rgb565 == 0x0020 && transparent_) {
+    // darkest green has been defined as transparent color for transparent RGB565 images.
+    color.w = 0;
+  } else {
+    color.w = 0xFF;
+  }
+  return color;
 }
 Color Animation::get_grayscale_pixel(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return Color::BLACK;
   const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t)(this->width_ * this->height_ * this->animation_frame_count_))
+  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
     return Color::BLACK;
   const uint32_t pos = (x + y * this->width_ + frame_index);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
-  return Color(gray | gray << 8 | gray << 16 | gray << 24);
+  uint8_t alpha = (gray == 1 && transparent_) ? 0 : 0xFF;
+  return Color(gray, gray, gray, alpha);
 }
 Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type)
     : Image(data_start, width, height, type), current_frame_(0), animation_frame_count_(animation_frame_count) {}

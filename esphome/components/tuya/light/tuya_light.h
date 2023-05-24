@@ -7,6 +7,12 @@
 namespace esphome {
 namespace tuya {
 
+enum TuyaColorType {
+  RGB,
+  HSV,
+  RGBHSV,
+};
+
 class TuyaLight : public Component, public light::LightOutput {
  public:
   void setup() override;
@@ -16,8 +22,8 @@ class TuyaLight : public Component, public light::LightOutput {
     this->min_value_datapoint_id_ = min_value_datapoint_id;
   }
   void set_switch_id(uint8_t switch_id) { this->switch_id_ = switch_id; }
-  void set_rgb_id(uint8_t rgb_id) { this->rgb_id_ = rgb_id; }
-  void set_hsv_id(uint8_t hsv_id) { this->hsv_id_ = hsv_id; }
+  void set_color_id(uint8_t color_id) { this->color_id_ = color_id; }
+  void set_color_type(TuyaColorType color_type) { this->color_type_ = color_type; }
   void set_color_temperature_id(uint8_t color_temperature_id) { this->color_temperature_id_ = color_temperature_id; }
   void set_color_temperature_invert(bool color_temperature_invert) {
     this->color_temperature_invert_ = color_temperature_invert;
@@ -48,8 +54,8 @@ class TuyaLight : public Component, public light::LightOutput {
   optional<uint8_t> dimmer_id_{};
   optional<uint8_t> min_value_datapoint_id_{};
   optional<uint8_t> switch_id_{};
-  optional<uint8_t> rgb_id_{};
-  optional<uint8_t> hsv_id_{};
+  optional<uint8_t> color_id_{};
+  optional<TuyaColorType> color_type_{};
   optional<uint8_t> color_temperature_id_{};
   uint32_t min_value_ = 0;
   uint32_t max_value_ = 255;

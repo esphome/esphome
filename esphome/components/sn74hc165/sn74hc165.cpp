@@ -40,17 +40,22 @@ bool SN74HC165Component::digital_read_(uint16_t pin) {
 
 void SN74HC165Component::read_gpio_() {
   this->load_pin_->digital_write(false);
-  delayMicroseconds(5);
+  delayMicroseconds(10);
   this->load_pin_->digital_write(true);
-  delayMicroseconds(5);
+  delayMicroseconds(10);
 
   if (this->clock_inhibit_pin_ != nullptr)
     this->clock_inhibit_pin_->digital_write(false);
 
-  for (int16_t i = (this->sr_count_ * 8) - 1; i >= 0; i--) {
-    this->input_bits_[i] = this->data_pin_->digital_read();
-    this->clock_pin_->digital_write(true);
-    this->clock_pin_->digital_write(false);
+  for (uint8_t i = 0; i < this->sr_count_; i++) {
+    for (uint8_t j = 0; j < 8; j++) {
+      this->input_bits_[(i * 8) + (7 - j)] = this->data_pin_->digital_read();
+
+      this->clock_pin_->digital_write(true);
+      delayMicroseconds(10);
+      this->clock_pin_->digital_write(false);
+      delayMicroseconds(10);
+    }
   }
 
   if (this->clock_inhibit_pin_ != nullptr)
@@ -59,7 +64,7 @@ void SN74HC165Component::read_gpio_() {
 
 float SN74HC165Component::get_setup_priority() const { return setup_priority::IO; }
 
-bool SN74HC165GPIOPin::digital_read() { return this->parent_->digital_read_(this->pin_); }
+bool SN74HC165GPIOPin::digital_read() { return this->parent_->digital_read_(this->pin_) != this->inverted_; }
 
 std::string SN74HC165GPIOPin::dump_summary() const { return str_snprintf("%u via SN74HC165", 18, pin_); }
 
