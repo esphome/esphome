@@ -80,7 +80,7 @@ class FRAM : public Component, public i2c::I2CDevice {
 
   uint16_t get_metadata_(uint8_t field);
   //  virtual so derived classes FRAM9/11 use their implementation.
-  virtual void write_block(uint16_t memaddr, uint8_t *obj, uint8_t size);
+  virtual void write_block(uint16_t memaddr, const uint8_t *obj, uint8_t size);
   virtual void read_block(uint16_t memaddr, uint8_t *obj, uint8_t size);
 };
 
@@ -116,7 +116,7 @@ class FRAM32 : public FRAM {
   template<class T> uint32_t read_object(uint32_t memaddr, T &obj);
 
  protected:
-  void write_block(uint32_t memaddr, uint8_t *obj, uint8_t size);
+  void write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size);
   void read_block(uint32_t memaddr, uint8_t *obj, uint8_t size);
 };
 
@@ -127,7 +127,7 @@ class FRAM32 : public FRAM {
 
 class FRAM11 : public FRAM {
  protected:
-  void write_block(uint16_t memaddr, uint8_t *obj, uint8_t size) override;
+  void write_block(uint16_t memaddr, const uint8_t *obj, uint8_t size) override;
   void read_block(uint16_t memaddr, uint8_t *obj, uint8_t size) override;
 };
 
@@ -137,7 +137,7 @@ class FRAM11 : public FRAM {
 //
 class FRAM9 : public FRAM {
  protected:
-  void write_block(uint16_t memaddr, uint8_t *obj, uint8_t size) override;
+  void write_block(uint16_t memaddr, const uint8_t *obj, uint8_t size) override;
   void read_block(uint16_t memaddr, uint8_t *obj, uint8_t size) override;
 };
 

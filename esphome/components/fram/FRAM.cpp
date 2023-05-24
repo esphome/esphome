@@ -288,7 +288,7 @@ uint16_t FRAM::get_metadata_(uint8_t field) {
   return 0;
 }
 
-void FRAM::write_block(uint16_t memaddr, uint8_t *obj, uint8_t size) {
+void FRAM::write_block(uint16_t memaddr, const uint8_t *obj, uint8_t size) {
   i2c::WriteBuffer buff[2];
   uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
 
@@ -441,7 +441,7 @@ template<class T> uint32_t FRAM32::read_object(uint32_t memaddr, T &obj) {
 //  FRAM32  PROTECTED
 //
 
-void FRAM32::write_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
+void FRAM32::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   uint8_t addr = this->address_;
 
   if (memaddr & 0x00010000) {
@@ -481,7 +481,7 @@ void FRAM32::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
 //  FRAM11  PROTECTED
 //
 
-void FRAM11::write_block(uint16_t memaddr, uint8_t *obj, uint8_t size) {
+void FRAM11::write_block(uint16_t memaddr, const uint8_t *obj, uint8_t size) {
   // Device uses Address Pages
   uint8_t device_addr_with_page_bits = this->address_ | ((memaddr & 0x0700) >> 8);
 
@@ -515,7 +515,7 @@ void FRAM11::read_block(uint16_t memaddr, uint8_t *obj, uint8_t size) {
 //  FRAM9  PROTECTED
 //
 
-void FRAM9::write_block(uint16_t memaddr, uint8_t *obj, uint8_t size) {
+void FRAM9::write_block(uint16_t memaddr, const uint8_t *obj, uint8_t size) {
   // Device uses Address Pages
   uint8_t device_addr_with_page_bits = this->address_ | ((memaddr & 0x0100) >> 8);
 
