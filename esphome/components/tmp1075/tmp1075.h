@@ -82,7 +82,6 @@ class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c
   float alert_limit_low_ = -128.0f;
   float alert_limit_high_ = 127.9375f;
 
-  void load_config_();
   void send_alert_limit_low_();
   void send_alert_limit_high_();
   void send_config_();

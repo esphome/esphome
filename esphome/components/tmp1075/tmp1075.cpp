@@ -72,16 +72,6 @@ void TMP1075Sensor::set_fault_count(const int faults) {
   }
   config_.fields.faults = faults - 1;
 }
-void TMP1075Sensor::load_config_() {
-  uint16_t regvalue;
-  if (!read_byte_16(REG_CFGR, &regvalue)) {
-    ESP_LOGW(TAG, "'%s' - unable to read configuration register", this->name_.c_str());
-    return;
-  }
-  config_.regvalue = regvalue;
-  ESP_LOGV(TAG, "'%s' - loaded config register %04x", this->name_.c_str(), config_.regvalue);
-  log_config_();
-}
 
 void TMP1075Sensor::log_config_() {
   ESP_LOGV(TAG, "  oneshot   : %d", config_.fields.oneshot);
