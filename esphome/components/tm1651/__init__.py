@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_BRIGHTNESS,
 )
 
+CODEOWNERS = ["@freekode"]
+
 tm1651_ns = cg.esphome_ns.namespace("tm1651")
 TM1651Display = tm1651_ns.class_("TM1651Display", cg.Component)
 
