@@ -116,8 +116,8 @@ class FRAM32 : public FRAM {
   template<class T> uint32_t read_object(uint32_t memaddr, T &obj);
 
  protected:
-  void write_block32(uint32_t memaddr, const uint8_t *obj, uint8_t size);
-  void read_block32(uint32_t memaddr, uint8_t *obj, uint8_t size);
+  void write_block32_(uint32_t memaddr, const uint8_t *obj, uint8_t size);
+  void read_block32_(uint32_t memaddr, uint8_t *obj, uint8_t size);
 };
 
 /////////////////////////////////////////////////////////////////////////////
