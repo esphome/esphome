@@ -65,13 +65,13 @@ class TMP1075Sensor : public PollingComponent, public sensor::Sensor, public i2c
 
   // Call write_config() after calling any of these to send the new config to
   // the IC. The setup() function also does this.
-  void set_alert_limit_low(float temp);
-  void set_alert_limit_high(float temp);
-  void set_oneshot(bool oneshot);
-  void set_conversion_rate(enum EConversionRate rate);
+  void set_alert_limit_low(const float temp) { this->alert_limit_low_ = temp; }
+  void set_alert_limit_high(const float temp) { this->alert_limit_high_ = temp; }
+  void set_oneshot(const bool oneshot) { config_.fields.oneshot = oneshot; }
+  void set_conversion_rate(const enum EConversionRate rate) { config_.fields.rate = rate; }
+  void set_alert_polarity(const bool polarity) { config_.fields.polarity = polarity; }
+  void set_alert_function(const enum EAlertFunction function) { config_.fields.alert_mode = function; }
   void set_fault_count(int faults);
-  void set_alert_polarity(bool polarity);
-  void set_alert_function(enum EAlertFunction function);
 
   void write_config();
 

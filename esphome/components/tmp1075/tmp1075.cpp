@@ -61,10 +61,6 @@ void TMP1075Sensor::dump_config() {
   ESP_LOGCONFIG(TAG, "  shutdown   : %d", config_.fields.shutdown);
 }
 
-void TMP1075Sensor::set_alert_limit_low(const float temp) { this->alert_limit_low_ = temp; }
-void TMP1075Sensor::set_alert_limit_high(const float temp) { this->alert_limit_high_ = temp; }
-void TMP1075Sensor::set_oneshot(const bool oneshot) { config_.fields.oneshot = oneshot; }
-void TMP1075Sensor::set_conversion_rate(const enum EConversionRate rate) { config_.fields.rate = rate; }
 void TMP1075Sensor::set_fault_count(const int faults) {
   if (faults < 1) {
     ESP_LOGE(TAG, "'%s' - fault_count too low: %d", this->name_.c_str(), faults);
@@ -76,9 +72,6 @@ void TMP1075Sensor::set_fault_count(const int faults) {
   }
   config_.fields.faults = faults - 1;
 }
-void TMP1075Sensor::set_alert_polarity(const bool polarity) { config_.fields.polarity = polarity; }
-void TMP1075Sensor::set_alert_function(const enum EAlertFunction function) { config_.fields.alert_mode = function; }
-
 void TMP1075Sensor::load_config_() {
   uint16_t regvalue;
   if (!read_byte_16(REG_CFGR, &regvalue)) {
