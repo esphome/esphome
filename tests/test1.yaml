@@ -3360,3 +3360,13 @@ lcd_menu:
       on_prev:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
+
+fram:
+
+fram_pref:
+  pool_start: 1024
+  pool_size: 2KiB
+  static_prefs:
+    - key: wifi
+      lambda: |-
+        return fnv1_hash(App.get_compilation_time());
