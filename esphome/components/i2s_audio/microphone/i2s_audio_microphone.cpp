@@ -119,7 +119,7 @@ void I2SAudioMicrophone::read_() {
   int samples_read = bytes_read / sizeof(int32_t);
   samples.resize(samples_read);
   for (int i = 0; i < samples_read; i++) {
-    int32_t temp = this->buffer_[i] >> 11;
+    int32_t temp = this->buffer_[i] >> 14;
     samples[i] = clamp<int16_t>(temp, INT16_MIN, INT16_MAX);
   }
 
