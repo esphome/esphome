@@ -1,5 +1,6 @@
 import logging
 
+import io
 from pathlib import Path
 import re
 import requests
@@ -71,28 +72,21 @@ def download_mdi(value):
     return value
 
 
-def validate_svglib_installed(value):
-    """Validate that svglib and reportlab are installed"""
+def validate_cairosvg_installed(value):
+    """Validate that cairosvg is installed"""
     try:
-        import reportlab
-        import svglib
+        import cairosvg
     except ImportError as err:
         raise cv.Invalid(
-            "Please install the svglib and reportlab python packages to use this feature. "
-            "(pip install reportlab svglib)"
+            "Please install the cairosvg python package to use this feature. "
+            "(pip install cairosvg)"
         ) from err
 
-    if reportlab.__version__[0] < "3":
+    major, minor, _ = cairosvg.__version__.split(".")
+    if major < "2" or major == "2" and minor < "2":
         raise cv.Invalid(
-            "Please update your reportlab installation to at least 3.0.x. "
-            "(pip install -U reportlab)"
-        )
-    # svglib package does not offer the __version__ attribute
-    # Nevertheless to make linters happy, the package needs to be used here.
-    if svglib.__name__ != "svglib":
-        raise cv.Invalid(
-            "Please update your svglib installation to at least 1.0.x. "
-            "(pip install -U svglib)"
+            "Please update your cairosvg installation to at least 2.2.0. "
+            "(pip install -U cairosvg)"
         )
 
     return value
@@ -131,7 +125,7 @@ def validate_cross_dependencies(config):
 def validate_file_shorthand(value):
     value = cv.string_strict(value)
     if value.startswith("mdi:"):
-        validate_svglib_installed(value)
+        validate_cairosvg_installed(value)
 
         match = re.search(r"mdi:([a-zA-Z0-9\-]+)", value)
         if match is None:
@@ -222,22 +216,20 @@ async def to_code(config):
         # Those imports are only needed in case of MDI images; adding them
         # to the top would force configurations not using MDI to also have them
         # installed for no reason.
-        from reportlab.graphics import renderPM
-        from svglib.svglib import svg2rlg
+        from cairosvg import svg2png
 
         svg_file = _compute_local_icon_path(conf_file)
-        svg_image = svg2rlg(svg_file)
-
         if CONF_RESIZE in config:
-            orig_width = svg_image.width
-            orig_height = svg_image.height
             req_width, req_height = config[CONF_RESIZE]
-            scale_x = req_width / orig_width
-            scale_y = req_height / orig_height
-            svg_image.width = req_width
-            svg_image.height = req_height
-            svg_image.scale(scale_x, scale_y)
-        image = renderPM.drawToPILP(svg_image)
+            svg_image = svg2png(
+                url=svg_file.as_posix(),
+                output_width=req_width,
+                output_height=req_height,
+            )
+        else:
+            svg_image = svg2png(url=svg_file.as_posix())
+
+        image = Image.open(io.BytesIO(svg_image))
 
     width, height = image.size
 
