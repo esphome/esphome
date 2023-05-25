@@ -7,16 +7,16 @@
 namespace esphome {
 namespace wireguard_handshake {
 
-static const char * const TAG = "wireguard_handshake.sensor";
+static const char *const TAG = "wireguard_handshake.sensor";
 
 void WireguardHandshake::update() {
-  if(this->wireguard_ == nullptr) {
+  if (this->wireguard_ == nullptr) {
     ESP_LOGW(TAG, "wireguard component not available");
     this->has_state_ = false;
     return;
   }
 
-  if(this->wireguard_->is_failed()) {
+  if (this->wireguard_->is_failed()) {
     ESP_LOGE(TAG, "wireguard component is failed");
     this->mark_failed();
     return;
@@ -24,8 +24,8 @@ void WireguardHandshake::update() {
 
   time_t lhs = this->wireguard_->get_latest_handshake();
 
-  if(lhs > 0) {
-    publish_state((float)lhs);
+  if (lhs > 0) {
+    publish_state((float) lhs);
   } else {
     this->has_state_ = false;
   }

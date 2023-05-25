@@ -13,11 +13,11 @@ class WireguardHandshake : public sensor::Sensor, public PollingComponent {
   void update() override;
   void dump_config() override;
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }
-  void set_wireguard(wireguard::Wireguard* wireguard) { this->wireguard_ = wireguard; }
+  void set_wireguard(wireguard::Wireguard *wireguard) { this->wireguard_ = wireguard; }
 
  protected:
   /// Pointer to a configured wireguard::Wireguard component.
-  wireguard::Wireguard* wireguard_ = nullptr;
+  wireguard::Wireguard *wireguard_ = nullptr;
 };
 
 }  // namespace wireguard_handshake
