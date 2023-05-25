@@ -123,11 +123,11 @@ void I2SAudioMicrophone::read_() {
 
   std::vector<int16_t> samples;
   size_t samples_read = 0;
-  if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_16BIT)
+  if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_16BIT) {
     samples_read = bytes_read / sizeof(int16_t);
-  else if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_32BIT)
+  } else if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_32BIT) {
     samples_read = bytes_read / sizeof(int32_t);
-  else {
+  } else {
     ESP_LOGE(TAG, "Unsupported bits per sample: %d", this->bits_per_sample_);
     return;
   }
