@@ -78,6 +78,12 @@ void VoiceAssistant::loop() {
     return;
   }
   this->speaker_->play(buf, len);
+  this->cancel_timeout("data-incoming");
+  this->set_timeout("data-incoming", 200, [this]() {
+    if (this->continuous_) {
+      this->request_start(true);
+    }
+  });
 #endif
 }
 
@@ -99,14 +105,18 @@ void VoiceAssistant::start(struct sockaddr_storage *addr, uint16_t port) {
   }
   this->running_ = true;
   this->mic_->start();
+  this->listening_trigger_->trigger();
 }
 
-void VoiceAssistant::request_start() {
+void VoiceAssistant::request_start(bool continuous) {
   ESP_LOGD(TAG, "Requesting start...");
   if (!api::global_api_server->start_voice_assistant()) {
     ESP_LOGW(TAG, "Could not request start.");
     this->error_trigger_->trigger("not-connected", "Could not request start.");
+    this->continuous_ = false;
+    return;
   }
+  this->continuous_ = continuous;
 }
 
 void VoiceAssistant::signal_stop() {
@@ -135,6 +145,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGD(TAG, "Speech recognised as: \"%s\"", text.c_str());
+      this->signal_stop();
       this->stt_end_trigger_->trigger(text);
       break;
     }
@@ -183,6 +194,8 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         }
       }
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
+      this->continuous_ = false;
+      this->signal_stop();
       this->error_trigger_->trigger(code, message);
     }
     default:

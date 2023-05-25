@@ -45,11 +45,16 @@ class VoiceAssistant : public Component {
     return INITIAL_VERSION;
   }
 
-  void request_start();
+  void request_start(bool continuous = false);
   void signal_stop();
 
   void on_event(const api::VoiceAssistantEventResponse &msg);
 
+  bool is_running() const { return this->running_; }
+  void set_continuous(bool continuous) { this->continuous_ = continuous; }
+  bool is_continuous() const { return this->continuous_; }
+
+  Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
   Trigger<> *get_start_trigger() const { return this->start_trigger_; }
   Trigger<std::string> *get_stt_end_trigger() const { return this->stt_end_trigger_; }
   Trigger<std::string> *get_tts_start_trigger() const { return this->tts_start_trigger_; }
@@ -61,6 +66,7 @@ class VoiceAssistant : public Component {
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
 
+  Trigger<> *listening_trigger_ = new Trigger<>();
   Trigger<> *start_trigger_ = new Trigger<>();
   Trigger<std::string> *stt_end_trigger_ = new Trigger<std::string>();
   Trigger<std::string> *tts_start_trigger_ = new Trigger<std::string>();
@@ -74,6 +80,7 @@ class VoiceAssistant : public Component {
 #endif
 
   bool running_{false};
+  bool continuous_{false};
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {
@@ -81,9 +88,22 @@ template<typename... Ts> class StartAction : public Action<Ts...>, public Parent
   void play(Ts... x) override { this->parent_->request_start(); }
 };
 
+template<typename... Ts> class StartContinuousAction : public Action<Ts...>, public Parented<VoiceAssistant> {
+ public:
+  void play(Ts... x) override { this->parent_->request_start(true); }
+};
+
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override { this->parent_->signal_stop(); }
+  void play(Ts... x) override {
+    this->parent_->set_continuous(false);
+    this->parent_->signal_stop();
+  }
+};
+
+template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
+ public:
+  bool check(Ts... x) override { return this->parent_->is_running() || this->parent_->is_continuous(); }
 };
 
 extern VoiceAssistant *global_voice_assistant;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
