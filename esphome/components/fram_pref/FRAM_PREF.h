@@ -19,9 +19,9 @@ enum Flags : uint8_t {
 
 struct PrefStruct {
   std::string key;
-  uint16_t addr;
-  uint16_t size;
-  uint16_t size_req;
+  uint32_t addr;
+  uint32_t size;
+  uint32_t size_req;
   uint8_t flags;
 };
 
@@ -29,8 +29,8 @@ class FramPref : public Component, public ESPPreferences {
  public:
   FramPref(fram::FRAM *fram);
 
-  void set_pool(uint16_t pool_size, uint16_t pool_start);
-  void set_static_pref(std::string key, uint16_t addr, uint16_t size, std::function<uint32_t()> &&fn, bool persist_key);
+  void set_pool(uint32_t pool_size, uint32_t pool_start);
+  void set_static_pref(std::string key, uint32_t addr, uint32_t size, std::function<uint32_t()> &&fn, bool persist_key);
 
   void setup() override;
   void dump_config() override;
@@ -48,9 +48,9 @@ class FramPref : public Component, public ESPPreferences {
   void clear_();
 
   fram::FRAM *fram_;
-  uint16_t pool_size_{0};
-  uint16_t pool_start_{0};
-  uint16_t pool_next_{0};
+  uint32_t pool_size_{0};
+  uint32_t pool_start_{0};
+  uint32_t pool_next_{0};
   bool pool_cleared_{false};
 
   std::vector<PrefStruct> prefs_;

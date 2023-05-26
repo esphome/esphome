@@ -90,16 +90,16 @@ CONFIG_SCHEMA_ = cv.Schema(
         cv.GenerateID(): cv.declare_id(FRAMPREFComponent),
         cv.GenerateID(CONF_FRAM_ID): cv.use_id(fram.FRAMComponent),
         cv.Optional(CONF_POOL_SIZE): cv.All(
-            fram.validate_bytes_1024, cv.int_range(min=7, max=65536)
+            fram.validate_bytes_1024, cv.int_range(min=7)
         ),
-        cv.Optional(CONF_POOL_START): cv.int_range(min=0, max=65528),
+        cv.Optional(CONF_POOL_START): cv.int_range(min=0),
         cv.Optional(CONF_STATIC_PREFS): cv.ensure_list(
             {
                 cv.Required(CONF_KEY): cv.string_strict,
                 cv.Required(CONF_LAMBDA): cv.returning_lambda,
-                cv.Optional(CONF_ADDR): cv.int_range(min=0, max=65533),
+                cv.Optional(CONF_ADDR): cv.int_range(min=0),
                 cv.Optional(CONF_SIZE): cv.All(
-                    fram.validate_bytes_1024, cv.int_range(min=3, max=65536)
+                    fram.validate_bytes_1024, cv.int_range(min=3)
                 ),
                 cv.Optional(CONF_PERSIST_KEY, default=False): cv.boolean,
             },

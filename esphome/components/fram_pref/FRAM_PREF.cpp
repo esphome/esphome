@@ -24,7 +24,7 @@ class FRAMPreferenceBackend : public ESPPreferenceBackend {
 
     auto &pref = this->comp_->prefs_[this->idx_];
 
-    if ((pref.size_req - 2) != (uint16_t) len) {
+    if ((pref.size_req - 2) != len) {
       return false;
     }
 
@@ -43,7 +43,7 @@ class FRAMPreferenceBackend : public ESPPreferenceBackend {
 
     auto &pref = this->comp_->prefs_[this->idx_];
 
-    if ((pref.size_req - 2) != (uint16_t) len) {
+    if ((pref.size_req - 2) != len) {
       return false;
     }
 
@@ -77,13 +77,13 @@ class FRAMPreferenceBackend : public ESPPreferenceBackend {
 
 FramPref::FramPref(fram::FRAM *fram) { this->fram_ = fram; }
 
-void FramPref::set_pool(uint16_t pool_size, uint16_t pool_start = 0) {
+void FramPref::set_pool(uint32_t pool_size, uint32_t pool_start = 0) {
   this->pool_size_ = pool_size;
   this->pool_start_ = pool_start;
   this->pool_next_ = pool_start + 4;
 }
 
-void FramPref::set_static_pref(std::string key, uint16_t addr, uint16_t size, std::function<uint32_t()> &&fn,
+void FramPref::set_static_pref(std::string key, uint32_t addr, uint32_t size, std::function<uint32_t()> &&fn,
                                bool persist_key) {
   uint8_t flags = FLAG_STATIC;
 
@@ -101,7 +101,7 @@ void FramPref::setup() {
     return;
   }
 
-  uint16_t fram_size = this->fram_->get_size_bytes();
+  uint32_t fram_size = this->fram_->get_size_bytes();
   size_t v_size = this->prefs_.size();
 
   for (size_t i = 0; i < v_size; i++) {
@@ -132,7 +132,7 @@ void FramPref::setup() {
 }
 
 void FramPref::dump_config() {
-  uint16_t fram_size = this->fram_->get_size_bytes();
+  uint32_t fram_size = this->fram_->get_size_bytes();
 
   ESP_LOGCONFIG(TAG, "FramPref:");
 
@@ -141,7 +141,7 @@ void FramPref::dump_config() {
   }
 
   if (this->pool_size_) {
-    uint16_t pool_end = this->pool_start_ + this->pool_size_;
+    uint32_t pool_end = this->pool_start_ + this->pool_size_;
 
     ESP_LOGCONFIG(TAG, "  Pool: %u bytes (%u-%u)", this->pool_size_, this->pool_start_, (pool_end - 1));
     if (pool_end > fram_size) {
@@ -214,14 +214,14 @@ void FramPref::clear_() {
   }
 
   uint8_t buff[16];
-  uint16_t pool_end = this->pool_start_ + this->pool_size_;
+  uint32_t pool_end = this->pool_start_ + this->pool_size_;
 
   for (uint8_t &b : buff) {
     b = 0;
   }
 
-  for (uint16_t addr = this->pool_start_ + 4; addr < pool_end; addr += 16) {
-    this->fram_->write(addr, buff, std::min(16, pool_end - addr));
+  for (uint32_t addr = this->pool_start_ + 4; addr < pool_end; addr += 16) {
+    this->fram_->write(addr, buff, std::min((uint32_t) 16, pool_end - addr));
   }
 
   ESP_LOGD(TAG, "Pool cleared!");
@@ -237,7 +237,7 @@ ESPPreferenceObject FramPref::make_preference(size_t length, uint32_t type) {
   }
 
   auto pref_static_it = this->prefs_static_map_.find(type);
-  uint16_t size = (uint16_t) length + 2;
+  uint32_t size = length + 2;
   uint8_t idx;
 
   if (pref_static_it != this->prefs_static_map_.end()) {
@@ -265,8 +265,8 @@ ESPPreferenceObject FramPref::make_preference(size_t length, uint32_t type) {
       return {};
     }
 
-    uint16_t pool_end = this->pool_start_ + this->pool_size_;
-    uint16_t next = this->pool_next_ + size;
+    uint32_t pool_end = this->pool_start_ + this->pool_size_;
+    uint32_t next = this->pool_next_ + size;
 
     this->prefs_[idx].addr = this->pool_next_;
     this->prefs_[idx].size = size;
