@@ -55,7 +55,7 @@ class RP2040PIOLEDStripLightOutput : public light::AddressableLight {
   int32_t size() const override { return this->num_leds_; }
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
-    this->is_rgbw_ ? traits.set_supported_color_modes({light::ColorMode::RGB, light::ColorMode::RGB_WHITE})
+    this->is_rgbw_ ? traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE})
                    : traits.set_supported_color_modes({light::ColorMode::RGB});
     return traits;
   }
