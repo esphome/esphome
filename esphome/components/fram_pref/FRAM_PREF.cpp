@@ -189,14 +189,14 @@ void FramPref::dump_config() {
         ESP_LOGE(TAG, "  * Does not fit in pool!");
       }
     } else {
-      ESP_LOGD(TAG, "%s", msg.c_str());
+      ESP_LOGCONFIG(TAG, "%s", msg.c_str());
     }
   }
 }
 
 bool FramPref::check_() {
   if (!this->fram_->get_size_bytes()) {
-    ESP_LOGE(TAG, "  Device returns 0 size!");
+    ESP_LOGE(TAG, "  Device has no size!");
     return false;
   }
 
