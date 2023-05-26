@@ -138,7 +138,6 @@ void I2SAudioMicrophone::read_() {
     for (size_t i = 0; i < samples_read; i++) {
       int32_t temp = reinterpret_cast<int32_t *>(this->buffer_)[i] >> 14;
       samples[i] = clamp<int16_t>(temp, INT16_MIN, INT16_MAX);
-      continue;
     }
   }
 
