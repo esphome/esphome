@@ -13,6 +13,7 @@ HaierClimate = haier_ns.class_(
 )
 
 ALLOWED_CLIMATE_SWING_MODES = {
+    "OFF": ClimateSwingMode.CLIMATE_SWING_OFF,
     "BOTH": ClimateSwingMode.CLIMATE_SWING_BOTH,
     "VERTICAL": ClimateSwingMode.CLIMATE_SWING_VERTICAL,
     "HORIZONTAL": ClimateSwingMode.CLIMATE_SWING_HORIZONTAL,
