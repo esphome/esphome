@@ -12,7 +12,7 @@ fram_ns = cg.esphome_ns.namespace("fram")
 FRAMComponent = fram_ns.class_("FRAM", cg.Component, i2c.I2CDevice)
 FRAM9Component = fram_ns.class_("FRAM9", FRAMComponent)
 FRAM11Component = fram_ns.class_("FRAM11", FRAMComponent)
-FRAM32Component = fram_ns.class_("FRAM32", FRAMComponent)
+FRAM17Component = fram_ns.class_("FRAM17", FRAMComponent)
 
 
 def validate_bytes_1024(value):
@@ -49,7 +49,7 @@ CONFIG_SCHEMA = cv.typed_schema(
         "FRAM": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(FRAMComponent)}),
         "FRAM9": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(FRAM9Component)}),
         "FRAM11": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(FRAM11Component)}),
-        "FRAM32": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(FRAM32Component)}),
+        "FRAM17": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(FRAM17Component)}),
     },
     key=CONF_TYPE,
     default_type="FRAM",
