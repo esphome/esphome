@@ -56,7 +56,7 @@ class Fram : public Component, public i2c::I2CDevice {
   uint32_t size_bytes_{0};
 
   uint16_t get_metadata_(uint8_t field);
-  
+
   virtual void write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size);
   virtual void read_block(uint32_t memaddr, uint8_t *obj, uint8_t size);
 };

@@ -13,7 +13,7 @@
 namespace esphome {
 namespace fram {
 
-const uint8_t FRAM_SEC_ADDR = 0x7C; //  == 0xF8
+const uint8_t FRAM_SEC_ADDR = 0x7C;  //  == 0xF8
 const uint8_t FRAM_SLEEP_CMD = 0x86;
 static const char *const TAG = "fram";
 
@@ -250,7 +250,6 @@ void Fram::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
   this->bus_->write(this->address_, maddr, 2, false);
   this->bus_->read(this->address_, obj, size);
 }
-
 
 void Fram17::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   uint8_t addr = this->address_;
