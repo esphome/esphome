@@ -17,7 +17,7 @@ const uint8_t FRAM_SEC_ADDR = 0x7C; //  == 0xF8
 const uint8_t FRAM_SLEEP_CMD = 0x86;
 static const char *const TAG = "fram";
 
-void FRAM::setup() {
+void Fram::setup() {
   if (!this->is_connected()) {
     ESP_LOGE(TAG, "Device on address 0x%x not found!", this->address_);
     this->mark_failed();
@@ -26,8 +26,8 @@ void FRAM::setup() {
   }
 }
 
-void FRAM::dump_config() {
-  ESP_LOGCONFIG(TAG, "FRAM:");
+void Fram::dump_config() {
+  ESP_LOGCONFIG(TAG, "Fram:");
   ESP_LOGCONFIG(TAG, "  Address: 0x%x", this->address_);
 
   bool ok = this->is_connected();
@@ -43,37 +43,37 @@ void FRAM::dump_config() {
   }
 }
 
-bool FRAM::is_connected() {
+bool Fram::is_connected() {
   i2c::ErrorCode err = this->bus_->write(this->address_, nullptr, 0, true);
   return (err == i2c::ERROR_OK);
 }
 
-void FRAM::write8(uint32_t memaddr, uint8_t value) {
+void Fram::write8(uint32_t memaddr, uint8_t value) {
   uint8_t val = value;
   this->write_block(memaddr, (uint8_t *) &val, sizeof(uint8_t));
 }
 
-void FRAM::write16(uint32_t memaddr, uint16_t value) {
+void Fram::write16(uint32_t memaddr, uint16_t value) {
   uint16_t val = value;
   this->write_block(memaddr, (uint8_t *) &val, sizeof(uint16_t));
 }
 
-void FRAM::write32(uint32_t memaddr, uint32_t value) {
+void Fram::write32(uint32_t memaddr, uint32_t value) {
   uint32_t val = value;
   this->write_block(memaddr, (uint8_t *) &val, sizeof(uint32_t));
 }
 
-void FRAM::write_float(uint32_t memaddr, float value) {
+void Fram::write_float(uint32_t memaddr, float value) {
   float val = value;
   this->write_block(memaddr, (uint8_t *) &val, sizeof(float));
 }
 
-void FRAM::write_double(uint32_t memaddr, double value) {
+void Fram::write_double(uint32_t memaddr, double value) {
   double val = value;
   this->write_block(memaddr, (uint8_t *) &val, sizeof(double));
 }
 
-void FRAM::write(uint32_t memaddr, uint8_t *obj, uint32_t size) {
+void Fram::write(uint32_t memaddr, uint8_t *obj, uint32_t size) {
   const uint8_t blocksize = 24;
   uint8_t *p = obj;
 
@@ -89,37 +89,37 @@ void FRAM::write(uint32_t memaddr, uint8_t *obj, uint32_t size) {
   }
 }
 
-uint8_t FRAM::read8(uint32_t memaddr) {
+uint8_t Fram::read8(uint32_t memaddr) {
   uint8_t val;
   this->read_block(memaddr, (uint8_t *) &val, sizeof(uint8_t));
   return val;
 }
 
-uint16_t FRAM::read16(uint32_t memaddr) {
+uint16_t Fram::read16(uint32_t memaddr) {
   uint16_t val;
   this->read_block(memaddr, (uint8_t *) &val, sizeof(uint16_t));
   return val;
 }
 
-uint32_t FRAM::read32(uint32_t memaddr) {
+uint32_t Fram::read32(uint32_t memaddr) {
   uint32_t val;
   this->read_block(memaddr, (uint8_t *) &val, sizeof(uint32_t));
   return val;
 }
 
-float FRAM::read_float(uint32_t memaddr) {
+float Fram::read_float(uint32_t memaddr) {
   float val;
   this->read_block(memaddr, (uint8_t *) &val, sizeof(float));
   return val;
 }
 
-double FRAM::read_double(uint32_t memaddr) {
+double Fram::read_double(uint32_t memaddr) {
   double val;
   this->read_block(memaddr, (uint8_t *) &val, sizeof(double));
   return val;
 }
 
-void FRAM::read(uint32_t memaddr, uint8_t *obj, uint32_t size) {
+void Fram::read(uint32_t memaddr, uint8_t *obj, uint32_t size) {
   const uint8_t blocksize = 24;
   uint8_t *p = obj;
 
@@ -135,17 +135,17 @@ void FRAM::read(uint32_t memaddr, uint8_t *obj, uint32_t size) {
   }
 }
 
-template<class T> uint32_t FRAM::write_object(uint32_t memaddr, T &obj) {
+template<class T> uint32_t Fram::write_object(uint32_t memaddr, T &obj) {
   this->write(memaddr, (uint8_t *) &obj, sizeof(obj));
   return memaddr + sizeof(obj);
 }
 
-template<class T> uint32_t FRAM::read_object(uint32_t memaddr, T &obj) {
+template<class T> uint32_t Fram::read_object(uint32_t memaddr, T &obj) {
   this->read(memaddr, (uint8_t *) &obj, sizeof(obj));
   return memaddr + sizeof(obj);
 }
 
-uint16_t FRAM::get_size() {
+uint16_t Fram::get_size() {
   uint16_t density = this->get_metadata_(2);
   uint16_t size = 0;
 
@@ -157,7 +157,7 @@ uint16_t FRAM::get_size() {
   return size;
 }
 
-uint32_t FRAM::clear(uint8_t value) {
+uint32_t Fram::clear(uint8_t value) {
   uint8_t buffer[16];
 
   for (uint8_t &b : buffer) {
@@ -176,14 +176,14 @@ uint32_t FRAM::clear(uint8_t value) {
 
 //  EXPERIMENTAL - to be confirmed
 //  command = S 0xF8 A address A S 86 A P  (A = Ack from device )
-void FRAM::sleep() {
+void Fram::sleep() {
   uint8_t addr = this->address_ << 1;
   this->bus_->write(FRAM_SEC_ADDR, &addr, 1, false);
   this->bus_->write(FRAM_SLEEP_CMD >> 1, nullptr, 0, true);
 }
 
 //  page 12 datasheet   trec <= 400us
-bool FRAM::wakeup(uint32_t trec) {
+bool Fram::wakeup(uint32_t trec) {
   bool b = this->is_connected();  //  wakeup
 
   if (trec == 0) {
@@ -198,7 +198,7 @@ bool FRAM::wakeup(uint32_t trec) {
 //  M = manufacturerID
 //  D = density => memory size = 2^D KB
 //  P = product ID (together with D)
-uint16_t FRAM::get_metadata_(uint8_t field) {
+uint16_t Fram::get_metadata_(uint8_t field) {
   if (field > 2) {
     return 0;
   }
@@ -233,7 +233,7 @@ uint16_t FRAM::get_metadata_(uint8_t field) {
   return 0;
 }
 
-void FRAM::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
+void Fram::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   i2c::WriteBuffer buff[2];
   uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
 
@@ -245,14 +245,14 @@ void FRAM::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   this->bus_->writev(this->address_, buff, 2, true);
 }
 
-void FRAM::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
+void Fram::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
   uint8_t maddr[] = {(uint8_t) (memaddr >> 8), (uint8_t) (memaddr & 0xFF)};
   this->bus_->write(this->address_, maddr, 2, false);
   this->bus_->read(this->address_, obj, size);
 }
 
 
-void FRAM17::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
+void Fram17::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   uint8_t addr = this->address_;
 
   if (memaddr & 0x00010000) {
@@ -270,7 +270,7 @@ void FRAM17::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   this->bus_->writev(addr, buff, 2, true);
 }
 
-void FRAM17::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
+void Fram17::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
   uint8_t addr = this->address_;
 
   if (memaddr & 0x00010000) {
@@ -282,7 +282,7 @@ void FRAM17::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
   this->bus_->read(addr, obj, size);
 }
 
-void FRAM11::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
+void Fram11::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   // Device uses Address Pages
   uint8_t device_addr_with_page_bits = this->address_ | ((memaddr & 0x0700) >> 8);
 
@@ -297,7 +297,7 @@ void FRAM11::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   this->bus_->writev(device_addr_with_page_bits, buff, 2, true);
 }
 
-void FRAM11::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
+void Fram11::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
   // Device uses Address Pages
   uint8_t device_addr_with_page_bits = this->address_ | ((memaddr & 0x0700) >> 8);
   uint8_t maddr = memaddr & 0xFF;
@@ -306,7 +306,7 @@ void FRAM11::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
   this->bus_->read(device_addr_with_page_bits, obj, size);
 }
 
-void FRAM9::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
+void Fram9::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   // Device uses Address Pages
   uint8_t device_addr_with_page_bits = this->address_ | ((memaddr & 0x0100) >> 8);
 
@@ -321,7 +321,7 @@ void FRAM9::write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) {
   this->bus_->writev(device_addr_with_page_bits, buff, 2, true);
 }
 
-void FRAM9::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
+void Fram9::read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) {
   // Device uses Address Pages
   uint8_t device_addr_with_page_bits = this->address_ | ((memaddr & 0x0100) >> 8);
   uint8_t maddr = memaddr & 0xFF;

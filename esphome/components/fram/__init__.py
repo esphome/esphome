@@ -9,10 +9,10 @@ DEPENDENCIES = ["i2c"]
 MULTI_CONF = True
 
 fram_ns = cg.esphome_ns.namespace("fram")
-FRAMComponent = fram_ns.class_("FRAM", cg.Component, i2c.I2CDevice)
-FRAM9Component = fram_ns.class_("FRAM9", FRAMComponent)
-FRAM11Component = fram_ns.class_("FRAM11", FRAMComponent)
-FRAM17Component = fram_ns.class_("FRAM17", FRAMComponent)
+FramComponent = fram_ns.class_("Fram", cg.Component, i2c.I2CDevice)
+Fram9Component = fram_ns.class_("Fram9", FramComponent)
+Fram11Component = fram_ns.class_("Fram11", FramComponent)
+Fram17Component = fram_ns.class_("Fram17", FramComponent)
 
 
 def validate_bytes_1024(value):
@@ -46,10 +46,10 @@ FRAM_SCHEMA = (
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
-        "FRAM": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(FRAMComponent)}),
-        "FRAM9": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(FRAM9Component)}),
-        "FRAM11": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(FRAM11Component)}),
-        "FRAM17": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(FRAM17Component)}),
+        "FRAM": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(FramComponent)}),
+        "FRAM9": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(Fram9Component)}),
+        "FRAM11": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(Fram11Component)}),
+        "FRAM17": FRAM_SCHEMA.extend({cv.GenerateID(): cv.declare_id(Fram17Component)}),
     },
     key=CONF_TYPE,
     default_type="FRAM",

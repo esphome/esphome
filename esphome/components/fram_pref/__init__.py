@@ -13,7 +13,7 @@ CONF_ADDR = "addr"
 CONF_PERSIST_KEY = "persist_key"
 
 fram_pref_ns = cg.esphome_ns.namespace("fram_pref")
-FRAMPREFComponent = fram_pref_ns.class_(
+FramPrefComponent = fram_pref_ns.class_(
     "FramPref", cg.Component, cg.esphome_ns.class_("ESPPreferences")
 )
 
@@ -87,8 +87,8 @@ def final_validate(config):
 
 CONFIG_SCHEMA_ = cv.Schema(
     {
-        cv.GenerateID(): cv.declare_id(FRAMPREFComponent),
-        cv.GenerateID(CONF_FRAM_ID): cv.use_id(fram.FRAMComponent),
+        cv.GenerateID(): cv.declare_id(FramPrefComponent),
+        cv.GenerateID(CONF_FRAM_ID): cv.use_id(fram.FramComponent),
         cv.Optional(CONF_POOL_SIZE): cv.All(
             fram.validate_bytes_1024, cv.int_range(min=7)
         ),

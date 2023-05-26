@@ -17,7 +17,7 @@
 namespace esphome {
 namespace fram {
 
-class FRAM : public Component, public i2c::I2CDevice {
+class Fram : public Component, public i2c::I2CDevice {
  public:
   void setup() override;
   void dump_config() override;
@@ -61,19 +61,19 @@ class FRAM : public Component, public i2c::I2CDevice {
   virtual void read_block(uint32_t memaddr, uint8_t *obj, uint8_t size);
 };
 
-class FRAM17 : public FRAM {
+class Fram17 : public Fram {
  protected:
   void write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) override;
   void read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) override;
 };
 
-class FRAM11 : public FRAM {
+class Fram11 : public Fram {
  protected:
   void write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) override;
   void read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) override;
 };
 
-class FRAM9 : public FRAM {
+class Fram9 : public Fram {
  protected:
   void write_block(uint32_t memaddr, const uint8_t *obj, uint8_t size) override;
   void read_block(uint32_t memaddr, uint8_t *obj, uint8_t size) override;

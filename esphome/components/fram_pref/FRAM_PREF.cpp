@@ -75,8 +75,6 @@ class FRAMPreferenceBackend : public ESPPreferenceBackend {
   uint8_t idx_;
 };
 
-FramPref::FramPref(fram::FRAM *fram) { this->fram_ = fram; }
-
 void FramPref::set_pool(uint32_t pool_size, uint32_t pool_start = 0) {
   this->pool_size_ = pool_size;
   this->pool_start_ = pool_start;
