@@ -132,11 +132,10 @@ void I2SAudioMicrophone::read_() {
     return;
   }
   samples.resize(samples_read);
-  for (size_t i = 0; i < samples_read; i++) {
-    if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_16BIT) {
-      samples[i] = reinterpret_cast<int16_t *>(this->buffer_)[i];
-      continue;
-    } else if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_32BIT) {
+  if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_16BIT) {
+    memcpy(samples.data(), this->buffer_, bytes_read);
+  } else if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_32BIT) {
+    for (size_t i = 0; i < samples_read; i++) {
       int32_t temp = reinterpret_cast<int32_t *>(this->buffer_)[i] >> 14;
       samples[i] = clamp<int16_t>(temp, INT16_MIN, INT16_MAX);
       continue;
