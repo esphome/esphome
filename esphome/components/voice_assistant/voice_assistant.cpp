@@ -116,7 +116,18 @@ void VoiceAssistant::request_start(bool continuous) {
     this->continuous_ = false;
     return;
   }
-  this->continuous_ = continuous;
+  if (!continuous)
+    return;
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    this->continuous_ = true;
+  } else {
+#endif
+    ESP_LOGE(TAG, "Speaker not configured, cannot request continuous mode.");
+    this->continuous_ = false;
+#ifdef USE_SPEAKER
+  }
+#endif
 }
 
 void VoiceAssistant::signal_stop() {
