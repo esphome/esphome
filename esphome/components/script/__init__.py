@@ -62,7 +62,6 @@ def assign_declare_id(value):
 
 
 def parameters_to_template(args):
-
     template_args = []
     func_args = []
     script_arg_names = []

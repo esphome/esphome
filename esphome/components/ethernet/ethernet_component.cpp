@@ -26,8 +26,10 @@ EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
 void EthernetComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ethernet...");
-  // Delay here to allow power to stabilise before Ethernet is initialised.
-  delay(300);  // NOLINT
+  if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
+    // Delay here to allow power to stabilise before Ethernet is initialized.
+    delay(300);  // NOLINT
+  }
 
   esp_err_t err;
   err = esp_netif_init();
@@ -43,32 +45,38 @@ void EthernetComponent::setup() {
   eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
 
   phy_config.phy_addr = this->phy_addr_;
-  if (this->power_pin_ != -1)
-    phy_config.reset_gpio_num = this->power_pin_;
+  phy_config.reset_gpio_num = this->power_pin_;
 
   mac_config.smi_mdc_gpio_num = this->mdc_pin_;
   mac_config.smi_mdio_gpio_num = this->mdio_pin_;
-  mac_config.clock_config.rmii.clock_mode = this->clk_mode_ == EMAC_CLK_IN_GPIO ? EMAC_CLK_EXT_IN : EMAC_CLK_OUT;
-  mac_config.clock_config.rmii.clock_gpio = this->clk_mode_;
+  mac_config.clock_config.rmii.clock_mode = this->clk_mode_;
+  mac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
 
   esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
 
-  esp_eth_phy_t *phy;
   switch (this->type_) {
     case ETHERNET_TYPE_LAN8720: {
-      phy = esp_eth_phy_new_lan87xx(&phy_config);
+      this->phy_ = esp_eth_phy_new_lan87xx(&phy_config);
       break;
     }
     case ETHERNET_TYPE_RTL8201: {
-      phy = esp_eth_phy_new_rtl8201(&phy_config);
+      this->phy_ = esp_eth_phy_new_rtl8201(&phy_config);
       break;
     }
     case ETHERNET_TYPE_DP83848: {
-      phy = esp_eth_phy_new_dp83848(&phy_config);
+      this->phy_ = esp_eth_phy_new_dp83848(&phy_config);
       break;
     }
     case ETHERNET_TYPE_IP101: {
-      phy = esp_eth_phy_new_ip101(&phy_config);
+      this->phy_ = esp_eth_phy_new_ip101(&phy_config);
+      break;
+    }
+    case ETHERNET_TYPE_JL1101: {
+      this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
+      break;
+    }
+    case ETHERNET_TYPE_KSZ8081: {
+      this->phy_ = esp_eth_phy_new_ksz8081(&phy_config);
       break;
     }
     default: {
@@ -77,7 +85,7 @@ void EthernetComponent::setup() {
     }
   }
 
-  esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, phy);
+  esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, this->phy_);
   this->eth_handle_ = nullptr;
   err = esp_eth_driver_install(&eth_config, &this->eth_handle_);
   ESPHL_ERROR_CHECK(err, "ETH driver install error");
@@ -137,7 +145,7 @@ void EthernetComponent::loop() {
 }
 
 void EthernetComponent::dump_config() {
-  std::string eth_type;
+  const char *eth_type;
   switch (this->type_) {
     case ETHERNET_TYPE_LAN8720:
       eth_type = "LAN8720";
@@ -155,6 +163,14 @@ void EthernetComponent::dump_config() {
       eth_type = "IP101";
       break;
 
+    case ETHERNET_TYPE_JL1101:
+      eth_type = "JL1101";
+      break;
+
+    case ETHERNET_TYPE_KSZ8081:
+      eth_type = "KSZ8081";
+      break;
+
     default:
       eth_type = "Unknown";
       break;
@@ -167,7 +183,8 @@ void EthernetComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  MDC Pin: %u", this->mdc_pin_);
   ESP_LOGCONFIG(TAG, "  MDIO Pin: %u", this->mdio_pin_);
-  ESP_LOGCONFIG(TAG, "  Type: %s", eth_type.c_str());
+  ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
+  ESP_LOGCONFIG(TAG, "  PHY addr: %u", this->phy_addr_);
 }
 
 float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
@@ -252,14 +269,22 @@ void EthernetComponent::start_connect_() {
   if (this->manual_ip_.has_value()) {
     if (uint32_t(this->manual_ip_->dns1) != 0) {
       ip_addr_t d;
+#if LWIP_IPV6
       d.type = IPADDR_TYPE_V4;
       d.u_addr.ip4.addr = static_cast<uint32_t>(this->manual_ip_->dns1);
+#else
+      d.addr = static_cast<uint32_t>(this->manual_ip_->dns1);
+#endif
       dns_setserver(0, &d);
     }
-    if (uint32_t(this->manual_ip_->dns1) != 0) {
+    if (uint32_t(this->manual_ip_->dns2) != 0) {
       ip_addr_t d;
+#if LWIP_IPV6
       d.type = IPADDR_TYPE_V4;
       d.u_addr.ip4.addr = static_cast<uint32_t>(this->manual_ip_->dns2);
+#else
+      d.addr = static_cast<uint32_t>(this->manual_ip_->dns2);
+#endif
       dns_setserver(1, &d);
     }
   } else {
@@ -286,8 +311,13 @@ void EthernetComponent::dump_connect_params_() {
   const ip_addr_t *dns_ip1 = dns_getserver(0);
   const ip_addr_t *dns_ip2 = dns_getserver(1);
 
+#if LWIP_IPV6
   ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->u_addr.ip4.addr).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->u_addr.ip4.addr).str().c_str());
+#else
+  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->addr).str().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->addr).str().c_str());
+#endif
 
   esp_err_t err;
 
@@ -312,7 +342,10 @@ void EthernetComponent::set_power_pin(int power_pin) { this->power_pin_ = power_
 void EthernetComponent::set_mdc_pin(uint8_t mdc_pin) { this->mdc_pin_ = mdc_pin; }
 void EthernetComponent::set_mdio_pin(uint8_t mdio_pin) { this->mdio_pin_ = mdio_pin; }
 void EthernetComponent::set_type(EthernetType type) { this->type_ = type; }
-void EthernetComponent::set_clk_mode(emac_rmii_clock_gpio_t clk_mode) { this->clk_mode_ = clk_mode; }
+void EthernetComponent::set_clk_mode(emac_rmii_clock_mode_t clk_mode, emac_rmii_clock_gpio_t clk_gpio) {
+  this->clk_mode_ = clk_mode;
+  this->clk_gpio_ = clk_gpio;
+}
 void EthernetComponent::set_manual_ip(const ManualIP &manual_ip) { this->manual_ip_ = manual_ip; }
 
 std::string EthernetComponent::get_use_address() const {
@@ -323,6 +356,21 @@ std::string EthernetComponent::get_use_address() const {
 }
 
 void EthernetComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+
+bool EthernetComponent::powerdown() {
+  ESP_LOGI(TAG, "Powering down ethernet PHY");
+  if (this->phy_ == nullptr) {
+    ESP_LOGE(TAG, "Ethernet PHY not assigned");
+    return false;
+  }
+  this->connected_ = false;
+  this->started_ = false;
+  if (this->phy_->pwrctl(this->phy_, false) != ESP_OK) {
+    ESP_LOGE(TAG, "Error powering down ethernet PHY");
+    return false;
+  }
+  return true;
+}
 
 }  // namespace ethernet
 }  // namespace esphome

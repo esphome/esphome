@@ -4,7 +4,6 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/automation.h"
 #include "display_color_utils.h"
-
 #include <cstdarg>
 #include <vector>
 
@@ -83,8 +82,8 @@ enum ImageType {
   IMAGE_TYPE_BINARY = 0,
   IMAGE_TYPE_GRAYSCALE = 1,
   IMAGE_TYPE_RGB24 = 2,
-  IMAGE_TYPE_TRANSPARENT_BINARY = 3,
-  IMAGE_TYPE_RGB565 = 4,
+  IMAGE_TYPE_RGB565 = 3,
+  IMAGE_TYPE_RGBA = 4,
 };
 
 enum DisplayType {
@@ -98,6 +97,33 @@ enum DisplayRotation {
   DISPLAY_ROTATION_90_DEGREES = 90,
   DISPLAY_ROTATION_180_DEGREES = 180,
   DISPLAY_ROTATION_270_DEGREES = 270,
+};
+
+static const int16_t VALUE_NO_SET = 32766;
+
+class Rect {
+ public:
+  int16_t x;  ///< X coordinate of corner
+  int16_t y;  ///< Y coordinate of corner
+  int16_t w;  ///< Width of region
+  int16_t h;  ///< Height of region
+
+  Rect() : x(VALUE_NO_SET), y(VALUE_NO_SET), w(VALUE_NO_SET), h(VALUE_NO_SET) {}  // NOLINT
+  inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
+  inline int16_t x2() { return this->x + this->w; };  ///< X coordinate of corner
+  inline int16_t y2() { return this->y + this->h; };  ///< Y coordinate of corner
+
+  inline bool is_set() ALWAYS_INLINE { return (this->h != VALUE_NO_SET) && (this->w != VALUE_NO_SET); }
+
+  void expand(int16_t horizontal, int16_t vertical);
+
+  void extend(Rect rect);
+  void shrink(Rect rect);
+
+  bool inside(Rect rect, bool absolute = true);
+  bool inside(int16_t test_x, int16_t test_y, bool absolute = true);
+  bool equal(Rect rect);
+  void info(const std::string &prefix = "rect info:");
 };
 
 class Font;
@@ -126,6 +152,7 @@ class DisplayBuffer {
   int get_width();
   /// Get the height of the image in pixels with rotation applied.
   int get_height();
+
   /// Set a single pixel at the specified coordinates to the given color.
   void draw_pixel_at(int x, int y, Color color = COLOR_ON);
 
@@ -374,6 +401,49 @@ class DisplayBuffer {
    */
   virtual DisplayType get_display_type() = 0;
 
+  /** Set the clipping rectangle for further drawing
+   *
+   * @param[in]  rect:       Pointer to Rect for clipping (or NULL for entire screen)
+   *
+   * return true if success, false if error
+   */
+  void start_clipping(Rect rect);
+  void start_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
+    start_clipping(Rect(left, top, right - left, bottom - top));
+  };
+
+  /** Add a rectangular region to the invalidation region
+   * - This is usually called when an element has been modified
+   *
+   * @param[in]  rect: Rectangle to add to the invalidation region
+   */
+  void extend_clipping(Rect rect);
+  void extend_clipping(int16_t left, int16_t top, int16_t right, int16_t bottom) {
+    this->extend_clipping(Rect(left, top, right - left, bottom - top));
+  };
+
+  /** substract a rectangular region to the invalidation region
+   *  - This is usually called when an element has been modified
+   *
+   * @param[in]  rect: Rectangle to add to the invalidation region
+   */
+  void shrink_clipping(Rect rect);
+  void shrink_clipping(uint16_t left, uint16_t top, uint16_t right, uint16_t bottom) {
+    this->shrink_clipping(Rect(left, top, right - left, bottom - top));
+  };
+
+  /** Reset the invalidation region
+   */
+  void end_clipping();
+
+  /** Get the current the clipping rectangle
+   *
+   * return rect for active clipping region
+   */
+  Rect get_clipping();
+
+  bool is_clipping() const { return !this->clipping_rectangle_.empty(); }
+
  protected:
   void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
 
@@ -390,6 +460,7 @@ class DisplayBuffer {
   DisplayPage *previous_page_{nullptr};
   std::vector<DisplayOnPageChangeTrigger *> on_page_change_triggers_;
   bool auto_clear_enabled_{true};
+  std::vector<Rect> clipping_rectangle_;
 };
 
 class DisplayPage {
@@ -448,18 +519,20 @@ class Font {
    * @param baseline The y-offset from the top of the text to the baseline.
    * @param bottom The y-offset from the top of the text to the bottom (i.e. height).
    */
-  Font(const GlyphData *data, int data_nr, int baseline, int bottom);
+  Font(const GlyphData *data, int data_nr, int baseline, int height);
 
   int match_next_glyph(const char *str, int *match_length);
 
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
+  inline int get_baseline() { return this->baseline_; }
+  inline int get_height() { return this->height_; }
 
-  const std::vector<Glyph> &get_glyphs() const;
+  const std::vector<Glyph, ExternalRAMAllocator<Glyph>> &get_glyphs() const { return glyphs_; }
 
  protected:
-  std::vector<Glyph> glyphs_;
+  std::vector<Glyph, ExternalRAMAllocator<Glyph>> glyphs_;
   int baseline_;
-  int bottom_;
+  int height_;
 };
 
 class Image {
@@ -467,17 +540,24 @@ class Image {
   Image(const uint8_t *data_start, int width, int height, ImageType type);
   virtual bool get_pixel(int x, int y) const;
   virtual Color get_color_pixel(int x, int y) const;
+  virtual Color get_rgba_pixel(int x, int y) const;
   virtual Color get_rgb565_pixel(int x, int y) const;
   virtual Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
   ImageType get_type() const;
 
+  virtual int get_current_frame() const;
+
+  void set_transparency(bool transparent) { transparent_ = transparent; }
+  bool has_transparency() const { return transparent_; }
+
  protected:
   int width_;
   int height_;
   ImageType type_;
   const uint8_t *data_start_;
+  bool transparent_;
 };
 
 class Animation : public Image {
@@ -485,11 +565,12 @@ class Animation : public Image {
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
   bool get_pixel(int x, int y) const override;
   Color get_color_pixel(int x, int y) const override;
+  Color get_rgba_pixel(int x, int y) const override;
   Color get_rgb565_pixel(int x, int y) const override;
   Color get_grayscale_pixel(int x, int y) const override;
 
   int get_animation_frame_count() const;
-  int get_current_frame() const;
+  int get_current_frame() const override;
   void next_frame();
   void prev_frame();
 

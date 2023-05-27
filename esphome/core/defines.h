@@ -25,6 +25,7 @@
 #define USE_FAN
 #define USE_GRAPH
 #define USE_HOMEASSISTANT_TIME
+#define USE_JSON
 #define USE_LIGHT
 #define USE_LOCK
 #define USE_LOGGER
@@ -50,7 +51,6 @@
 // Arduino-specific feature flags
 #ifdef USE_ARDUINO
 #define USE_CAPTIVE_PORTAL
-#define USE_JSON
 #define USE_NEXTION_TFT_UPLOAD
 #define USE_PROMETHEUS
 #define USE_WEBSERVER
@@ -72,6 +72,9 @@
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #define USE_WIFI_11KV_SUPPORT
 #define USE_BLUETOOTH_PROXY
+#define USE_VOICE_ASSISTANT
+#define USE_MICROPHONE
+#define USE_SPEAKER
 
 #ifdef USE_ARDUINO
 #define USE_ARDUINO_VERSION_CODE VERSION_CODE(2, 0, 5)
@@ -97,6 +100,10 @@
 #define USE_SHD_FIRMWARE_DATA \
   {}
 
+#endif
+
+#ifdef USE_HOST
+#define USE_SOCKET_IMPL_BSD_SOCKETS
 #endif
 
 // Disabled feature flags

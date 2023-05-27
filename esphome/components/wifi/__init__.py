@@ -252,6 +252,7 @@ def _validate(config):
 
 
 CONF_OUTPUT_POWER = "output_power"
+CONF_PASSIVE_SCAN = "passive_scan"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -280,6 +281,7 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ENABLE_RRM, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
+            cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional("enable_mdns"): cv.invalid(
                 "This option has been removed. Please use the [disabled] option under the "
                 "new mdns component instead."
@@ -379,6 +381,7 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     cg.add(var.set_fast_connect(config[CONF_FAST_CONNECT]))
+    cg.add(var.set_passive_scan(config[CONF_PASSIVE_SCAN]))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
 

@@ -158,6 +158,25 @@ bool BluetoothConnection::gattc_event_handler(esp_gattc_cb_event_t event, esp_ga
   return true;
 }
 
+void BluetoothConnection::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
+  BLEClientBase::gap_event_handler(event, param);
+
+  switch (event) {
+    case ESP_GAP_BLE_AUTH_CMPL_EVT:
+      if (memcmp(param->ble_security.auth_cmpl.bd_addr, this->remote_bda_, 6) != 0)
+        break;
+      if (param->ble_security.auth_cmpl.success) {
+        api::global_api_server->send_bluetooth_device_pairing(this->address_, true);
+      } else {
+        api::global_api_server->send_bluetooth_device_pairing(this->address_, false,
+                                                              param->ble_security.auth_cmpl.fail_reason);
+      }
+      break;
+    default:
+      break;
+  }
+}
+
 esp_err_t BluetoothConnection::read_characteristic(uint16_t handle) {
   if (!this->connected()) {
     ESP_LOGW(TAG, "[%d] [%s] Cannot read GATT characteristic, not connected.", this->connection_index_,

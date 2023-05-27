@@ -19,19 +19,19 @@ class Wireguard : public PollingComponent {
 
   float get_setup_priority() const override { return esphome::setup_priority::AFTER_WIFI; }
 
-  void set_address(const std::string& address);
-  void set_netmask(const std::string& netmask);
-  void set_private_key(const std::string& key);
-  void set_peer_endpoint(const std::string& endpoint);
-  void set_peer_public_key(const std::string& key);
+  void set_address(const std::string &address);
+  void set_netmask(const std::string &netmask);
+  void set_private_key(const std::string &key);
+  void set_peer_endpoint(const std::string &endpoint);
+  void set_peer_public_key(const std::string &key);
   void set_peer_port(uint16_t port);
-  void set_preshared_key(const std::string& key);
+  void set_preshared_key(const std::string &key);
 
-  void add_allowed_ip(const std::string& ip, const std::string& netmask);
+  void add_allowed_ip(const std::string &ip, const std::string &netmask);
 
   void set_keepalive(uint16_t seconds);
   void set_reboot_timeout(uint32_t seconds);
-  void set_srctime(time::RealTimeClock* srctime);
+  void set_srctime(time::RealTimeClock *srctime);
 
   bool is_peer_up() const;
   time_t get_latest_handshake() const;
@@ -50,7 +50,7 @@ class Wireguard : public PollingComponent {
   uint16_t keepalive_;
   uint32_t reboot_timeout_;
 
-  time::RealTimeClock* srctime_;
+  time::RealTimeClock *srctime_;
 
   wireguard_config_t wg_config_ = ESP_WIREGUARD_CONFIG_DEFAULT();
   wireguard_ctx_t wg_ctx_ = ESP_WIREGUARD_CONTEXT_DEFAULT();

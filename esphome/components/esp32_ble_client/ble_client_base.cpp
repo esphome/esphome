@@ -40,7 +40,7 @@ void BLEClientBase::loop() {
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
-  if (device.address_uint64() != this->address_)
+  if (this->address_ == 0 || device.address_uint64() != this->address_)
     return false;
   if (this->state_ != espbt::ClientState::IDLE && this->state_ != espbt::ClientState::SEARCHING)
     return false;
@@ -62,6 +62,7 @@ bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
 void BLEClientBase::connect() {
   ESP_LOGI(TAG, "[%d] [%s] 0x%02x Attempting BLE connection", this->connection_index_, this->address_str_.c_str(),
            this->remote_addr_type_);
+  this->paired_ = false;
   auto ret = esp_ble_gattc_open(this->gattc_if_, this->remote_bda_, this->remote_addr_type_, true);
   if (ret) {
     ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_open error, status=%d", this->connection_index_, this->address_str_.c_str(),
@@ -71,6 +72,8 @@ void BLEClientBase::connect() {
     this->set_state(espbt::ClientState::CONNECTING);
   }
 }
+
+esp_err_t BLEClientBase::pair() { return esp_ble_set_encryption(this->remote_bda_, ESP_BLE_SEC_ENCRYPT); }
 
 void BLEClientBase::disconnect() {
   if (this->state_ == espbt::ClientState::IDLE || this->state_ == espbt::ClientState::DISCONNECTING)
@@ -132,15 +135,16 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         this->set_state(espbt::ClientState::IDLE);
         break;
       }
-      if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
-        this->set_state(espbt::ClientState::CONNECTED);
-        this->state_ = espbt::ClientState::ESTABLISHED;
-        break;
-      }
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->open.conn_id);
       if (ret) {
         ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
                  this->address_str_.c_str(), ret);
+      }
+      if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
+        ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
+        this->set_state(espbt::ClientState::CONNECTED);
+        this->state_ = espbt::ClientState::ESTABLISHED;
+        break;
       }
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
@@ -189,6 +193,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGV(TAG, "[%d] [%s]  start_handle: 0x%x  end_handle: 0x%x", this->connection_index_,
                  this->address_str_.c_str(), svc->start_handle, svc->end_handle);
       }
+      ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
       this->set_state(espbt::ClientState::CONNECTED);
       this->state_ = espbt::ClientState::ESTABLISHED;
       break;
@@ -245,11 +250,15 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
   switch (event) {
     // This event is sent by the server when it requests security
     case ESP_GAP_BLE_SEC_REQ_EVT:
+      if (memcmp(param->ble_security.auth_cmpl.bd_addr, this->remote_bda_, 6) != 0)
+        break;
       ESP_LOGV(TAG, "[%d] [%s] ESP_GAP_BLE_SEC_REQ_EVT %x", this->connection_index_, this->address_str_.c_str(), event);
       esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
       break;
     // This event is sent once authentication has completed
     case ESP_GAP_BLE_AUTH_CMPL_EVT:
+      if (memcmp(param->ble_security.auth_cmpl.bd_addr, this->remote_bda_, 6) != 0)
+        break;
       esp_bd_addr_t bd_addr;
       memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
       ESP_LOGI(TAG, "[%d] [%s] auth complete. remote BD_ADDR: %s", this->connection_index_, this->address_str_.c_str(),
@@ -258,6 +267,7 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
         ESP_LOGE(TAG, "[%d] [%s] auth fail reason = 0x%x", this->connection_index_, this->address_str_.c_str(),
                  param->ble_security.auth_cmpl.fail_reason);
       } else {
+        this->paired_ = true;
         ESP_LOGV(TAG, "[%d] [%s] auth success. address type = %d auth mode = %d", this->connection_index_,
                  this->address_str_.c_str(), param->ble_security.auth_cmpl.addr_type,
                  param->ble_security.auth_cmpl.auth_mode);
@@ -306,18 +316,18 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
     case 0xD:  // int12.
     case 0xE:  // int16.
       if (length > 2) {
-        return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
+        return (float) ((int16_t) (value[1] << 8) + (int16_t) value[2]);
       }
       // fall through
     case 0xF:  // int24.
       if (length > 3) {
-        return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
+        return (float) ((int32_t) (value[1] << 16) + (int32_t) (value[2] << 8) + (int32_t) (value[3]));
       }
       // fall through
     case 0x10:  // int32.
       if (length > 4) {
-        return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
-                        (int32_t)(value[4]));
+        return (float) ((int32_t) (value[1] << 24) + (int32_t) (value[2] << 16) + (int32_t) (value[3] << 8) +
+                        (int32_t) (value[4]));
       }
   }
   ESP_LOGW(TAG, "[%d] [%s] Cannot parse characteristic value of type 0x%x length %d", this->connection_index_,

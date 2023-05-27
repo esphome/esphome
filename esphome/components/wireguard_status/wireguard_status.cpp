@@ -6,15 +6,15 @@
 namespace esphome {
 namespace wireguard_status {
 
-static const char * const TAG = "wireguard_status.binary_sensor";
+static const char *const TAG = "wireguard_status.binary_sensor";
 
 void WireguardStatus::update() {
-  if(this->wireguard_ == nullptr) {
+  if (this->wireguard_ == nullptr) {
     ESP_LOGW(TAG, "wireguard component not available");
     return;
   }
 
-  if(this->wireguard_->is_failed()) {
+  if (this->wireguard_->is_failed()) {
     ESP_LOGE(TAG, "wireguard component is failed");
     this->mark_failed();
     return;

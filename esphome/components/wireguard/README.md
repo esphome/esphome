@@ -12,9 +12,9 @@ time:
 # Setup WireGuard
 wireguard:
   address: x.y.z.w
-  private_key: !secret wg_privkey
+  private_key: private_key=
   peer_endpoint: wg.server.example
-  peer_public_key: !secret wg_peer_pubkey
+  peer_public_key: public_key=
 
   # optional netmask (this is the default if omitted)
   netmask: 255.255.255.255
@@ -23,7 +23,7 @@ wireguard:
   peer_port: 51820
 
   # optional pre-shared key
-  peer_preshared_key: !secret wg_peer_shrdkey
+  peer_preshared_key: shared_key=
 
   # optional keepalive in seconds (disabled by default)
   peer_persistent_keepalive: 25

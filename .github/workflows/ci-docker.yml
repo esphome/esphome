@@ -11,6 +11,7 @@ on:
       - ".github/workflows/**"
       - "requirements*.txt"
       - "platformio.ini"
+      - "script/platformio_install_deps.py"
 
   pull_request:
     paths:
@@ -18,10 +19,16 @@ on:
       - ".github/workflows/**"
       - "requirements*.txt"
       - "platformio.ini"
+      - "script/platformio_install_deps.py"
 
 permissions:
   contents: read
   packages: read
+
+concurrency:
+  # yamllint disable-line rule:line-length
+  group: ${{ github.workflow }}-${{ github.event.pull_request.number || github.ref }}
+  cancel-in-progress: true
 
 jobs:
   check-docker:

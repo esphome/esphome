@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_REBOOT_TIMEOUT,
     CONF_SAFE_MODE,
     CONF_TRIGGER_ID,
+    CONF_OTA,
+    KEY_PAST_SAFE_MODE,
 )
 from esphome.core import CORE, coroutine_with_priority
 
@@ -76,6 +78,8 @@ CONFIG_SCHEMA = cv.Schema(
 
 @coroutine_with_priority(50.0)
 async def to_code(config):
+    CORE.data[CONF_OTA] = {}
+
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_port(config[CONF_PORT]))
     cg.add_define("USE_OTA")
@@ -90,6 +94,7 @@ async def to_code(config):
             config[CONF_NUM_ATTEMPTS], config[CONF_REBOOT_TIMEOUT]
         )
         cg.add(RawExpression(f"if ({condition}) return"))
+        CORE.data[CONF_OTA][KEY_PAST_SAFE_MODE] = True
 
     if CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("Update", None)

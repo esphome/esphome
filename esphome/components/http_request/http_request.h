@@ -31,7 +31,10 @@ struct Header {
   const char *value;
 };
 
-class HttpRequestResponseTrigger;
+class HttpRequestResponseTrigger : public Trigger<int32_t, uint32_t> {
+ public:
+  void process(int32_t status_code, uint32_t duration_ms) { this->trigger(status_code, duration_ms); }
+};
 
 class HttpRequestComponent : public Component {
  public:
@@ -136,11 +139,6 @@ template<typename... Ts> class HttpRequestSendAction : public Action<Ts...> {
   std::map<const char *, TemplatableValue<std::string, Ts...>> json_{};
   std::function<void(Ts..., JsonObject)> json_func_{nullptr};
   std::vector<HttpRequestResponseTrigger *> response_triggers_;
-};
-
-class HttpRequestResponseTrigger : public Trigger<int> {
- public:
-  void process(int status_code) { this->trigger(status_code); }
 };
 
 }  // namespace http_request

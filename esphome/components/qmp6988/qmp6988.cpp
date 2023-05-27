@@ -121,38 +121,38 @@ bool QMP6988Component::get_calibration_data_() {
   }
 
   qmp6988_data_.qmp6988_cali.COE_a0 =
-      (QMP6988_S32_t)(((a_data_uint8_tr[18] << SHIFT_LEFT_12_POSITION) |
-                       (a_data_uint8_tr[19] << SHIFT_LEFT_4_POSITION) | (a_data_uint8_tr[24] & 0x0f))
-                      << 12);
+      (QMP6988_S32_t) (((a_data_uint8_tr[18] << SHIFT_LEFT_12_POSITION) |
+                        (a_data_uint8_tr[19] << SHIFT_LEFT_4_POSITION) | (a_data_uint8_tr[24] & 0x0f))
+                       << 12);
   qmp6988_data_.qmp6988_cali.COE_a0 = qmp6988_data_.qmp6988_cali.COE_a0 >> 12;
 
   qmp6988_data_.qmp6988_cali.COE_a1 =
-      (QMP6988_S16_t)(((a_data_uint8_tr[20]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[21]);
+      (QMP6988_S16_t) (((a_data_uint8_tr[20]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[21]);
   qmp6988_data_.qmp6988_cali.COE_a2 =
-      (QMP6988_S16_t)(((a_data_uint8_tr[22]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[23]);
+      (QMP6988_S16_t) (((a_data_uint8_tr[22]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[23]);
 
   qmp6988_data_.qmp6988_cali.COE_b00 =
-      (QMP6988_S32_t)(((a_data_uint8_tr[0] << SHIFT_LEFT_12_POSITION) | (a_data_uint8_tr[1] << SHIFT_LEFT_4_POSITION) |
-                       ((a_data_uint8_tr[24] & 0xf0) >> SHIFT_RIGHT_4_POSITION))
-                      << 12);
+      (QMP6988_S32_t) (((a_data_uint8_tr[0] << SHIFT_LEFT_12_POSITION) | (a_data_uint8_tr[1] << SHIFT_LEFT_4_POSITION) |
+                        ((a_data_uint8_tr[24] & 0xf0) >> SHIFT_RIGHT_4_POSITION))
+                       << 12);
   qmp6988_data_.qmp6988_cali.COE_b00 = qmp6988_data_.qmp6988_cali.COE_b00 >> 12;
 
   qmp6988_data_.qmp6988_cali.COE_bt1 =
-      (QMP6988_S16_t)(((a_data_uint8_tr[2]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[3]);
+      (QMP6988_S16_t) (((a_data_uint8_tr[2]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[3]);
   qmp6988_data_.qmp6988_cali.COE_bt2 =
-      (QMP6988_S16_t)(((a_data_uint8_tr[4]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[5]);
+      (QMP6988_S16_t) (((a_data_uint8_tr[4]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[5]);
   qmp6988_data_.qmp6988_cali.COE_bp1 =
-      (QMP6988_S16_t)(((a_data_uint8_tr[6]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[7]);
+      (QMP6988_S16_t) (((a_data_uint8_tr[6]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[7]);
   qmp6988_data_.qmp6988_cali.COE_b11 =
-      (QMP6988_S16_t)(((a_data_uint8_tr[8]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[9]);
+      (QMP6988_S16_t) (((a_data_uint8_tr[8]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[9]);
   qmp6988_data_.qmp6988_cali.COE_bp2 =
-      (QMP6988_S16_t)(((a_data_uint8_tr[10]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[11]);
+      (QMP6988_S16_t) (((a_data_uint8_tr[10]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[11]);
   qmp6988_data_.qmp6988_cali.COE_b12 =
-      (QMP6988_S16_t)(((a_data_uint8_tr[12]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[13]);
+      (QMP6988_S16_t) (((a_data_uint8_tr[12]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[13]);
   qmp6988_data_.qmp6988_cali.COE_b21 =
-      (QMP6988_S16_t)(((a_data_uint8_tr[14]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[15]);
+      (QMP6988_S16_t) (((a_data_uint8_tr[14]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[15]);
   qmp6988_data_.qmp6988_cali.COE_bp3 =
-      (QMP6988_S16_t)(((a_data_uint8_tr[16]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[17]);
+      (QMP6988_S16_t) (((a_data_uint8_tr[16]) << SHIFT_LEFT_8_POSITION) | a_data_uint8_tr[17]);
 
   ESP_LOGV(TAG, "<-----------calibration data-------------->\r\n");
   ESP_LOGV(TAG, "COE_a0[%d] COE_a1[%d] COE_a2[%d] COE_b00[%d]\r\n", qmp6988_data_.qmp6988_cali.COE_a0,
@@ -197,7 +197,7 @@ QMP6988_S16_t QMP6988Component::get_compensated_temperature_(qmp6988_ik_data_t *
   wk2 = ((QMP6988_S64_t) ik->a2 * (QMP6988_S64_t) dt) >> 14;  // 30Q47+24-1=53 (39Q33)
   wk2 = (wk2 * (QMP6988_S64_t) dt) >> 10;                     // 39Q33+24-1=62 (52Q23)
   wk2 = ((wk1 + wk2) / 32767) >> 19;                          // 54,52->55Q23 (20Q04)
-  ret = (QMP6988_S16_t)((ik->a0 + wk2) >> 4);                 // 21Q4 -> 17Q0
+  ret = (QMP6988_S16_t) ((ik->a0 + wk2) >> 4);                // 21Q4 -> 17Q0
   return ret;
 }
 
@@ -332,13 +332,13 @@ void QMP6988Component::calculate_pressure_() {
     ESP_LOGE(TAG, "Error reading raw pressure/temp values");
     return;
   }
-  p_read = (QMP6988_U32_t)((((QMP6988_U32_t)(a_data_uint8_tr[0])) << SHIFT_LEFT_16_POSITION) |
-                           (((QMP6988_U16_t)(a_data_uint8_tr[1])) << SHIFT_LEFT_8_POSITION) | (a_data_uint8_tr[2]));
-  p_raw = (QMP6988_S32_t)(p_read - SUBTRACTOR);
+  p_read = (QMP6988_U32_t) ((((QMP6988_U32_t) (a_data_uint8_tr[0])) << SHIFT_LEFT_16_POSITION) |
+                            (((QMP6988_U16_t) (a_data_uint8_tr[1])) << SHIFT_LEFT_8_POSITION) | (a_data_uint8_tr[2]));
+  p_raw = (QMP6988_S32_t) (p_read - SUBTRACTOR);
 
-  t_read = (QMP6988_U32_t)((((QMP6988_U32_t)(a_data_uint8_tr[3])) << SHIFT_LEFT_16_POSITION) |
-                           (((QMP6988_U16_t)(a_data_uint8_tr[4])) << SHIFT_LEFT_8_POSITION) | (a_data_uint8_tr[5]));
-  t_raw = (QMP6988_S32_t)(t_read - SUBTRACTOR);
+  t_read = (QMP6988_U32_t) ((((QMP6988_U32_t) (a_data_uint8_tr[3])) << SHIFT_LEFT_16_POSITION) |
+                            (((QMP6988_U16_t) (a_data_uint8_tr[4])) << SHIFT_LEFT_8_POSITION) | (a_data_uint8_tr[5]));
+  t_raw = (QMP6988_S32_t) (t_read - SUBTRACTOR);
 
   t_int = this->get_compensated_temperature_(&(qmp6988_data_.ik), t_raw);
   p_int = this->get_compensated_pressure_(&(qmp6988_data_.ik), p_raw, t_int);

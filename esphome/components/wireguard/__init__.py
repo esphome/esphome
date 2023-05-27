@@ -49,7 +49,10 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_PEER_ALLOWED_IPS, default=["0.0.0.0/0"]): cv.ensure_list(
             _validate_cidr
         ),
-        cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default=0): cv.positive_int,
+        cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default=0): cv.Any(
+            cv.positive_time_period_seconds,
+            cv.positive_int,
+        ),
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="15min"
         ): cv.positive_time_period_milliseconds,
@@ -66,6 +69,8 @@ async def to_code(config):
     cg.add(var.set_peer_endpoint(config[CONF_PEER_ENDPOINT]))
     cg.add(var.set_peer_public_key(config[CONF_PEER_PUBLIC_KEY]))
     cg.add(var.set_peer_port(config[CONF_PEER_PORT]))
+    cg.add(var.set_keepalive(config[CONF_PEER_PERSISTENT_KEEPALIVE]))
+    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
 
     if CONF_PEER_PRESHARED_KEY in config:
         cg.add(var.set_preshared_key(config[CONF_PEER_PRESHARED_KEY]))
@@ -82,8 +87,6 @@ async def to_code(config):
     for ip in allowed_ips:
         cg.add(var.add_allowed_ip(str(ip.network_address), str(ip.netmask)))
 
-    cg.add(var.set_keepalive(config[CONF_PEER_PERSISTENT_KEEPALIVE]))
-    cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
 
     # This flag is added here because the esp_wireguard library statically
