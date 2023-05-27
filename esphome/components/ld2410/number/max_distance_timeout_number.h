@@ -1,13 +1,14 @@
 #pragma once
 
 #include "esphome/components/number/number.h"
+#include "../ld2410.h"
 
 namespace esphome {
 namespace ld2410 {
 
-class LD2410Number : public number::Number {
+class MaxDistanceTimeoutNumber : public number::Number, public Parented<LD2410Component> {
  public:
-  LD2410Number();
+  MaxDistanceTimeoutNumber() = default;
 
  protected:
   void control(float value) override;

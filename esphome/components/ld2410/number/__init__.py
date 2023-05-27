@@ -12,7 +12,9 @@ from esphome.const import (
 )
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
-LD2410Number = ld2410_ns.class_("LD2410Number", number.Number)
+GateThresholdNumber = ld2410_ns.class_("GateThresholdNumber", number.Number)
+LightThresholdNumber = ld2410_ns.class_("LightThresholdNumber", number.Number)
+MaxDistanceTimeoutNumber = ld2410_ns.class_("MaxDistanceTimeoutNumber", number.Number)
 
 CONF_MAX_MOVE_DISTANCE_GATE = "max_move_distance_gate"
 CONF_MAX_STILL_DISTANCE_GATE = "max_still_distance_gate"
@@ -52,25 +54,25 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
         cv.Optional(CONF_TIMEOUT): number.number_schema(
-            LD2410Number,
+            MaxDistanceTimeoutNumber,
             unit_of_measurement=UNIT_SECOND,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:clock-time-eight-outline",
         ),
         cv.Optional(CONF_MAX_MOVE_DISTANCE_GATE): number.number_schema(
-            LD2410Number,
+            MaxDistanceTimeoutNumber,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:motion-sensor",
         ),
         cv.Optional(CONF_MAX_STILL_DISTANCE_GATE): number.number_schema(
-            LD2410Number,
+            MaxDistanceTimeoutNumber,
             device_class=DEVICE_CLASS_DISTANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:motion-sensor-off",
         ),
         cv.Optional(CONF_LIGHT_THRESHOLD): number.number_schema(
-            LD2410Number,
+            LightThresholdNumber,
             device_class=DEVICE_CLASS_ILLUMINANCE,
             entity_category=ENTITY_CATEGORY_CONFIG,
             icon="mdi:car-light-high",
@@ -83,14 +85,14 @@ for i in range(9):
         cv.Schema(
             {
                 cv.Optional(CONF_MOVE_THRESHOLDS[i]): number.number_schema(
-                    LD2410Number,
+                    GateThresholdNumber,
                     device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     unit_of_measurement=UNIT_PERCENT,
                     entity_category=ENTITY_CATEGORY_CONFIG,
                     icon="mdi:motion-sensor",
                 ),
                 cv.Optional(CONF_STILL_THRESHOLDS[i]): number.number_schema(
-                    LD2410Number,
+                    GateThresholdNumber,
                     device_class=DEVICE_CLASS_SIGNAL_STRENGTH,
                     unit_of_measurement=UNIT_PERCENT,
                     entity_category=ENTITY_CATEGORY_CONFIG,
@@ -109,21 +111,25 @@ async def to_code(config):
         n = await number.new_number(
             config[CONF_TIMEOUT], min_value=0, max_value=65535, step=1
         )
+        await cg.register_parented(n, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_timeout_number(n))
     if CONF_MAX_MOVE_DISTANCE_GATE in config:
         n = await number.new_number(
             config[CONF_MAX_MOVE_DISTANCE_GATE], min_value=2, max_value=8, step=1
         )
+        await cg.register_parented(n, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_max_move_distance_gate_number(n))
     if CONF_MAX_STILL_DISTANCE_GATE in config:
         n = await number.new_number(
             config[CONF_MAX_STILL_DISTANCE_GATE], min_value=2, max_value=8, step=1
         )
+        await cg.register_parented(n, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_max_still_distance_gate_number(n))
     if CONF_LIGHT_THRESHOLD in config:
         n = await number.new_number(
             config[CONF_LIGHT_THRESHOLD], min_value=0, max_value=255, step=1
         )
+        await cg.register_parented(n, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_light_threshold_number(n))
     for x in range(9):
         move = CONF_MOVE_THRESHOLDS[x]
@@ -132,9 +138,13 @@ async def to_code(config):
             n = await number.new_number(
                 config[move], min_value=0, max_value=100, step=1
             )
+            await cg.register_parented(n, config[CONF_LD2410_ID])
+            cg.add(n.set_gate(x))
             cg.add(ld2410_component.set_gate_move_threshold_number(x, n))
         if still in config:
             n = await number.new_number(
                 config[still], min_value=0, max_value=100, step=1
             )
+            await cg.register_parented(n, config[CONF_LD2410_ID])
+            cg.add(n.set_gate(x))
             cg.add(ld2410_component.set_gate_still_threshold_number(x, n))
