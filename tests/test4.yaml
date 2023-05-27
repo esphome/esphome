@@ -745,3 +745,7 @@ voice_assistant:
 max6956:
   - id: max6956_1
     address: 0x40
+
+xl9535:
+  - id: xl9535_hub
+    address: 0x20
