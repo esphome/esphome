@@ -1,13 +1,14 @@
 #pragma once
 
 #include "esphome/components/button/button.h"
+#include "../ld2410.h"
 
 namespace esphome {
 namespace ld2410 {
 
-class LD2410Button : public button::Button {
+class ResetButton : public button::Button, public Parented<LD2410Component> {
  public:
-  LD2410Button();
+  ResetButton() = default;
 
  protected:
   void press_action() override;

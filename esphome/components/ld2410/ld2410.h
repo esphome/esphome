@@ -107,50 +107,6 @@ enum PeriodicDataValue : uint8_t { HEAD = 0XAA, END = 0x55, CHECK = 0x00 };
 
 enum AckDataStructure : uint8_t { COMMAND = 6, COMMAND_STATUS = 7 };
 
-#define SUB_LAMBDA_SELECT(name, cb) \
- protected: \
-  select::Select *name##_select_{nullptr}; \
-\
- public: \
-  void set_##name##_select(select::Select *select) { \
-    this->name##_select_ = select; \
-    this->name##_select_->add_on_state_callback([this](const std::string &state, size_t size) { cb; }); \
-  }
-
-#define SUB_LAMBDA_SWITCH(name, cb) \
- protected: \
-  switch_::Switch *name##_switch_{nullptr}; \
-\
- public: \
-  void set_##name##_switch(switch_::Switch *s) { \
-    this->name##_switch_ = s; \
-    this->name##_switch_->add_on_state_callback([this](bool state) { cb; }); \
-  }
-
-#define SUB_LAMBDA_BUTTON(name, cb) \
- protected: \
-  button::Button *name##_button_{nullptr}; \
-\
- public: \
-  void set_##name##_button(button::Button *b) { \
-    this->name##_button_ = b; \
-    this->name##_button_->add_on_press_callback([this]() { cb; }); \
-  }
-
-#define SUB_LAMBDA_NUMBER(name, cb) \
- protected: \
-  number::Number *name##_number_{nullptr}; \
-\
- public: \
-  void set_##name##_number(number::Number *n) { \
-    this->name##_number_ = n; \
-    this->name##_number_->add_on_state_callback([this](float state) { \
-      this->set_config_mode_(true); \
-      cb; \
-      this->set_config_mode_(false); \
-    }); \
-  }
-
 //  char cmd[2] = {enable ? 0xFF : 0xFE, 0x00};
 class LD2410Component : public Component, public uart::UARTDevice {
 #ifdef USE_SENSOR
@@ -172,67 +128,27 @@ class LD2410Component : public Component, public uart::UARTDevice {
   SUB_TEXT_SENSOR(mac)
 #endif
 #ifdef USE_SELECT
-  SUB_LAMBDA_SELECT(distance_resolution, {
-    this->set_config_mode_(true);
-    this->set_distance_resolution_(state);
-    this->set_timeout(200, [this]() { this->restart_and_read_all_info_(); });
-  })
-  SUB_LAMBDA_SELECT(baud_rate, {
-    this->set_config_mode_(true);
-    this->set_baud_rate_(state);
-    this->set_timeout(200, [this]() { this->restart_(); });
-  })
+  SUB_SELECT(distance_resolution)
+  SUB_SELECT(baud_rate)
 #ifdef USE_NUMBER
-  SUB_LAMBDA_SELECT(light_function, {
-    this->set_config_mode_(true);
-    this->set_light_control_();
-    this->set_timeout(200, [this]() { this->restart_and_read_all_info_(); });
-  })
-  SUB_LAMBDA_SELECT(out_pin_level, {
-    this->set_config_mode_(true);
-    this->set_light_control_();
-    this->set_timeout(200, [this]() { this->restart_and_read_all_info_(); });
-  })
+  SUB_SELECT(light_function)
+  SUB_SELECT(out_pin_level)
 #endif
 #endif
 #ifdef USE_SWITCH
-  SUB_LAMBDA_SWITCH(engineering_mode, {
-    this->set_config_mode_(true);
-    this->set_engineering_mode_(state);
-    this->set_config_mode_(false);
-  })
-  SUB_LAMBDA_SWITCH(bluetooth, {
-    this->set_config_mode_(true);
-    this->set_bluetooth_(state);
-    this->set_timeout(200, [this]() { this->restart_and_read_all_info_(); });
-  })
+  SUB_SWITCH(engineering_mode)
+  SUB_SWITCH(bluetooth)
 #endif
 #ifdef USE_BUTTON
-  SUB_LAMBDA_BUTTON(reset, {
-    this->set_config_mode_(true);
-    this->factory_reset_();
-    this->set_timeout(200, [this]() { this->restart_and_read_all_info_(); });
-  })
-  SUB_LAMBDA_BUTTON(restart, { this->restart_and_read_all_info_(); })
-  SUB_LAMBDA_BUTTON(query, { this->read_all_info_(); })
+  SUB_BUTTON(reset)
+  SUB_BUTTON(restart)
+  SUB_BUTTON(query)
 #endif
 #ifdef USE_NUMBER
-  SUB_LAMBDA_NUMBER(max_still_distance_gate, {
-    this->set_max_distances_timeout_();
-    this->set_timeout(200, [this]() { this->restart_and_read_all_info_(); });
-  })
-  SUB_LAMBDA_NUMBER(max_move_distance_gate, {
-    this->set_max_distances_timeout_();
-    this->set_timeout(200, [this]() { this->restart_and_read_all_info_(); });
-  })
-  SUB_LAMBDA_NUMBER(timeout, {
-    this->set_max_distances_timeout_();
-    this->set_timeout(200, [this]() { this->restart_and_read_all_info_(); });
-  })
-  SUB_LAMBDA_NUMBER(light_threshold, {
-    this->set_light_control_();
-    this->set_timeout(200, [this]() { this->restart_and_read_all_info_(); });
-  })
+  SUB_NUMBER(max_still_distance_gate)
+  SUB_NUMBER(max_move_distance_gate)
+  SUB_NUMBER(timeout)
+  SUB_NUMBER(light_threshold)
 #endif
 
  public:
@@ -243,6 +159,11 @@ class LD2410Component : public Component, public uart::UARTDevice {
 #ifdef USE_NUMBER
   void set_gate_still_threshold_number(int gate, number::Number *n);
   void set_gate_move_threshold_number(int gate, number::Number *n);
+  void set_max_distances_timeout();
+  void set_gate_threshold(uint8_t gate);
+#ifdef USE_SELECT
+  void set_light_out_control();
+#endif
 #endif
 #ifdef USE_SENSOR
   void set_gate_move_sensor(int gate, sensor::Sensor *s);
@@ -252,33 +173,26 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void set_bluetooth_password(const std::string &password);
   /// Instantiate a LD2410ComponentCall object to modify this select component's state.
   LD2410ComponentCall make_call() { return LD2410ComponentCall(this); }
+  void set_engineering_mode(bool enable);
+  void read_all_info();
+  void restart_and_read_all_info();
+  void set_bluetooth(bool enable);
+  void set_distance_resolution(const std::string &state);
+  void set_baud_rate(const std::string &state);
+  void factory_reset();
 
  protected:
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
   void send_command_(uint8_t command_str, const uint8_t *command_value, int command_value_len);
-#ifdef USE_NUMBER
-  void set_max_distances_timeout_();
-  void set_gate_threshold_(uint8_t gate);
-#ifdef USE_SELECT
-  void set_light_control_();
-#endif
-#endif
   void set_config_mode_(bool enable);
-  void set_engineering_mode_(bool enable);
   void handle_periodic_data_(uint8_t *buffer, int len);
   bool handle_ack_data_(uint8_t *buffer, int len);
   void readline_(int readch, uint8_t *buffer, int len);
   void query_parameters_();
-  void read_all_info_();
-  void restart_and_read_all_info_();
-  void set_bluetooth_(bool enable);
-  void set_distance_resolution_(const std::string &state);
-  void set_baud_rate_(const std::string &state);
   void get_version_();
   void get_mac_();
   void get_distance_resolution_();
   void get_light_control_();
-  void factory_reset_();
   void restart_();
 
   int32_t last_periodic_millis_ = millis();
@@ -286,7 +200,6 @@ class LD2410Component : public Component, public uart::UARTDevice {
   uint16_t throttle_;
   std::string version_;
   std::string mac_;
-  std::vector<uint8_t> rx_buffer_;
 #ifdef USE_NUMBER
   std::vector<number::Number *> gate_still_threshold_numbers_ = std::vector<number::Number *>(9);
   std::vector<number::Number *> gate_move_threshold_numbers_ = std::vector<number::Number *>(9);
