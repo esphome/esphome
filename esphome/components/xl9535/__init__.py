@@ -14,7 +14,7 @@ from esphome import pins
 CONF_XL9535 = "xl9535"
 
 DEPENDENCIES = ["i2c"]
-CODEOWNERS = ["@MrEditor97"]
+CODEOWNERS = ["@mreditor97"]
 
 xl9535_ns = cg.esphome_ns.namespace(CONF_XL9535)
 
