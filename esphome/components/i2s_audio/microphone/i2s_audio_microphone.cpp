@@ -16,7 +16,13 @@ static const char *const TAG = "i2s_audio.microphone";
 
 void I2SAudioMicrophone::setup() {
   ESP_LOGCONFIG(TAG, "Setting up I2S Audio Microphone...");
-  this->buffer_.resize(BUFFER_SIZE);
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  this->buffer_ = allocator.allocate(BUFFER_SIZE);
+  if (this->buffer_ == nullptr) {
+    ESP_LOGE(TAG, "Failed to allocate buffer!");
+    this->mark_failed();
+    return;
+  }
 
 #if SOC_I2S_SUPPORTS_ADC
   if (this->adc_) {
@@ -48,7 +54,7 @@ void I2SAudioMicrophone::start_() {
   i2s_driver_config_t config = {
       .mode = (i2s_mode_t) (I2S_MODE_MASTER | I2S_MODE_RX),
       .sample_rate = 16000,
-      .bits_per_sample = I2S_BITS_PER_SAMPLE_16BIT,
+      .bits_per_sample = this->bits_per_sample_,
       .channel_format = this->channel_,
       .communication_format = I2S_COMM_FORMAT_STAND_I2S,
       .intr_alloc_flags = ESP_INTR_FLAG_LEVEL1,
@@ -107,16 +113,35 @@ void I2SAudioMicrophone::stop_() {
 void I2SAudioMicrophone::read_() {
   size_t bytes_read = 0;
   esp_err_t err =
-      i2s_read(this->parent_->get_port(), this->buffer_.data(), BUFFER_SIZE, &bytes_read, (100 / portTICK_PERIOD_MS));
+      i2s_read(this->parent_->get_port(), this->buffer_, BUFFER_SIZE, &bytes_read, (100 / portTICK_PERIOD_MS));
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Error reading from I2S microphone: %s", esp_err_to_name(err));
     this->status_set_warning();
     return;
   }
-
   this->status_clear_warning();
 
-  this->data_callbacks_.call(this->buffer_);
+  std::vector<int16_t> samples;
+  size_t samples_read = 0;
+  if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_16BIT) {
+    samples_read = bytes_read / sizeof(int16_t);
+  } else if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_32BIT) {
+    samples_read = bytes_read / sizeof(int32_t);
+  } else {
+    ESP_LOGE(TAG, "Unsupported bits per sample: %d", this->bits_per_sample_);
+    return;
+  }
+  samples.resize(samples_read);
+  if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_16BIT) {
+    memcpy(samples.data(), this->buffer_, bytes_read);
+  } else if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_32BIT) {
+    for (size_t i = 0; i < samples_read; i++) {
+      int32_t temp = reinterpret_cast<int32_t *>(this->buffer_)[i] >> 14;
+      samples[i] = clamp<int16_t>(temp, INT16_MIN, INT16_MAX);
+    }
+  }
+
+  this->data_callbacks_.call(samples);
 }
 
 void I2SAudioMicrophone::loop() {
