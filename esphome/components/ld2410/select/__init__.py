@@ -4,7 +4,9 @@ import esphome.config_validation as cv
 from esphome.const import ENTITY_CATEGORY_CONFIG, CONF_BAUD_RATE
 from .. import CONF_LD2410_ID, LD2410Component, ld2410_ns
 
-LD2410Select = ld2410_ns.class_("LD2410Select", select.Select)
+BaudRateSelect = ld2410_ns.class_("BaudRateSelect", select.Select)
+DistanceResolutionSelect = ld2410_ns.class_("DistanceResolutionSelect", select.Select)
+LightOutControlSelect = ld2410_ns.class_("LightOutControlSelect", select.Select)
 
 CONF_DISTANCE_RESOLUTION = "distance_resolution"
 CONF_LIGHT_FUNCTION = "light_function"
@@ -28,22 +30,22 @@ def validate(config):
 CONFIG_SCHEMA = {
     cv.GenerateID(CONF_LD2410_ID): cv.use_id(LD2410Component),
     cv.Optional(CONF_DISTANCE_RESOLUTION): select.select_schema(
-        LD2410Select,
+        DistanceResolutionSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon="mdi:social-distance-2-meters",
     ),
     cv.Optional(CONF_LIGHT_FUNCTION): select.select_schema(
-        LD2410Select,
+        LightOutControlSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon="mdi:sun-wireless-outline",
     ),
     cv.Optional(CONF_OUT_PIN_LEVEL): select.select_schema(
-        LD2410Select,
+        LightOutControlSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon="mdi:pin",
     ),
     cv.Optional(CONF_BAUD_RATE): select.select_schema(
-        LD2410Select,
+        BaudRateSelect,
         entity_category=ENTITY_CATEGORY_CONFIG,
         icon="mdi:speedometer",
     ),
@@ -58,14 +60,17 @@ async def to_code(config):
         s = await select.new_select(
             config[CONF_DISTANCE_RESOLUTION], options=["0.2m", "0.75m"]
         )
+        await cg.register_parented(s, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_distance_resolution_select(s))
     if CONF_OUT_PIN_LEVEL in config:
         s = await select.new_select(config[CONF_OUT_PIN_LEVEL], options=["low", "high"])
+        await cg.register_parented(s, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_out_pin_level_select(s))
     if CONF_LIGHT_FUNCTION in config:
         s = await select.new_select(
             config[CONF_LIGHT_FUNCTION], options=["off", "below", "above"]
         )
+        await cg.register_parented(s, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_light_function_select(s))
     if CONF_BAUD_RATE in config:
         s = await select.new_select(
@@ -81,4 +86,5 @@ async def to_code(config):
                 "460800",
             ],
         )
+        await cg.register_parented(s, config[CONF_LD2410_ID])
         cg.add(ld2410_component.set_baud_rate_select(s))

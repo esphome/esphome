@@ -65,7 +65,7 @@ void LD2410Component::dump_config() {
   for (number::Number *n : this->gate_move_threshold_numbers_)
     LOG_NUMBER("  ", "Move Thresholds Number", n);
 #endif
-  this->read_all_info_();
+  this->read_all_info();
   ESP_LOGCONFIG(TAG, "  Throttle_ : %ums", this->throttle_);
   ESP_LOGCONFIG(TAG, "  MAC Address : %s", const_cast<char *>(this->mac_.c_str()));
   ESP_LOGCONFIG(TAG, "  Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
@@ -73,13 +73,13 @@ void LD2410Component::dump_config() {
 
 void LD2410Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up LD2410...");
-  this->read_all_info_();
+  this->read_all_info();
   ESP_LOGCONFIG(TAG, "Mac Address : %s", const_cast<char *>(this->mac_.c_str()));
   ESP_LOGCONFIG(TAG, "Firmware Version : %s", const_cast<char *>(this->version_.c_str()));
   ESP_LOGCONFIG(TAG, "LD2410 setup complete.");
 }
 
-void LD2410Component::read_all_info_() {
+void LD2410Component::read_all_info() {
   this->set_config_mode_(true);
   this->get_version_();
   this->get_mac_();
@@ -90,15 +90,15 @@ void LD2410Component::read_all_info_() {
 #ifdef USE_SELECT
   const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
   if (this->baud_rate_select_ != nullptr && this->baud_rate_select_->state != baud_rate) {
-    this->baud_rate_select_->publish_state(baud_rate);
+    this->baud_rate_select_->make_call().set_option(baud_rate).perform();
   }
 #endif
 }
 
-void LD2410Component::restart_and_read_all_info_() {
+void LD2410Component::restart_and_read_all_info() {
   this->set_config_mode_(true);
   this->restart_();
-  this->set_timeout(1000, [this]() { this->read_all_info_(); });
+  this->set_timeout(1000, [this]() { this->read_all_info(); });
 }
 
 void LD2410Component::loop() {
@@ -320,7 +320,7 @@ std::function<void(void)> set_number_value(number::Number *n, float value) {
   float normalized_value = value * 1.0;
   if (n != nullptr && (!n->has_state() || n->state != normalized_value)) {
     n->state = normalized_value;
-    return [n, normalized_value]() { n->publish_state(normalized_value); };
+    return [n, normalized_value]() { n->make_call().set_value(normalized_value).perform(); };
   }
   return []() {};
 }
@@ -376,7 +376,7 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
 #ifdef USE_SELECT
       if (this->distance_resolution_select_ != nullptr &&
           this->distance_resolution_select_->state != distance_resolution) {
-        this->distance_resolution_select_->publish_state(distance_resolution);
+        this->distance_resolution_select_->make_call().set_option(distance_resolution).perform();
       }
 #endif
     } break;
@@ -389,16 +389,16 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
       ESP_LOGV(TAG, "Out pin level is: %s", const_cast<char *>(out_pin_level.c_str()));
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr && this->light_function_select_->state != light_function) {
-        this->light_function_select_->publish_state(light_function);
+        this->light_function_select_->make_call().set_option(light_function).perform();
       }
       if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->state != out_pin_level) {
-        this->out_pin_level_select_->publish_state(out_pin_level);
+        this->out_pin_level_select_->make_call().set_option(out_pin_level).perform();
       }
 #endif
 #ifdef USE_NUMBER
       if (this->light_threshold_number_ != nullptr &&
           (!this->light_threshold_number_->has_state() || this->light_threshold_number_->state != light_threshold)) {
-        this->light_threshold_number_->publish_state(light_threshold);
+        this->light_threshold_number_->make_call().set_value(light_threshold).perform();
       }
 #endif
     } break;
@@ -513,20 +513,26 @@ void LD2410Component::set_config_mode_(bool enable) {
   this->send_command_(cmd, enable ? cmd_value : nullptr, 2);
 }
 
-void LD2410Component::set_bluetooth_(bool enable) {
+void LD2410Component::set_bluetooth(bool enable) {
+  this->set_config_mode_(true);
   uint8_t enable_cmd_value[2] = {0x01, 0x00};
   uint8_t disable_cmd_value[2] = {0x00, 0x00};
   this->send_command_(CMD_BLUETOOTH, enable ? enable_cmd_value : disable_cmd_value, 2);
+  this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
-void LD2410Component::set_distance_resolution_(const std::string &state) {
+void LD2410Component::set_distance_resolution(const std::string &state) {
+  this->set_config_mode_(true);
   uint8_t cmd_value[2] = {DISTANCE_RESOLUTION_ENUM_TO_INT.at(state), 0x00};
   this->send_command_(CMD_SET_DISTANCE_RESOLUTION, cmd_value, 2);
+  this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
 }
 
-void LD2410Component::set_baud_rate_(const std::string &state) {
+void LD2410Component::set_baud_rate(const std::string &state) {
+  this->set_config_mode_(true);
   uint8_t cmd_value[2] = {BAUD_RATE_ENUM_TO_INT.at(state), 0x00};
   this->send_command_(CMD_SET_BAUD_RATE, cmd_value, 2);
+  this->set_timeout(200, [this]() { this->restart_(); });
 }
 
 void LD2410Component::set_bluetooth_password(const std::string &password) {
@@ -541,13 +547,19 @@ void LD2410Component::set_bluetooth_password(const std::string &password) {
   this->set_config_mode_(false);
 }
 
-void LD2410Component::set_engineering_mode_(bool enable) {
+void LD2410Component::set_engineering_mode(bool enable) {
+  this->set_config_mode_(true);
   last_engineering_mode_change_millis_ = millis();
   uint8_t cmd = enable ? CMD_ENABLE_ENG : CMD_DISABLE_ENG;
   this->send_command_(cmd, nullptr, 0);
+  this->set_config_mode_(false);
 }
 
-void LD2410Component::factory_reset_() { this->send_command_(CMD_RESET, nullptr, 0); }
+void LD2410Component::factory_reset() {
+  this->set_config_mode_(true);
+  this->send_command_(CMD_RESET, nullptr, 0);
+  this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
+}
 
 void LD2410Component::restart_() { this->send_command_(CMD_RESTART, nullptr, 0); }
 
@@ -562,7 +574,7 @@ void LD2410Component::get_distance_resolution_() { this->send_command_(CMD_QUERY
 void LD2410Component::get_light_control_() { this->send_command_(CMD_QUERY_LIGHT_CONTROL, nullptr, 0); }
 
 #ifdef USE_NUMBER
-void LD2410Component::set_max_distances_timeout_() {
+void LD2410Component::set_max_distances_timeout() {
   if (!this->max_move_distance_gate_number_->has_state() || !this->max_still_distance_gate_number_->has_state() ||
       !this->timeout_number_->has_state()) {
     return;
@@ -588,12 +600,15 @@ void LD2410Component::set_max_distances_timeout_() {
                        highbyte(timeout),
                        0x00,
                        0x00};
+  this->set_config_mode_(true);
   this->send_command_(CMD_MAXDIST_DURATION, value, 18);
   delay(50);  // NOLINT
   this->query_parameters_();
+  this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
+  this->set_config_mode_(false);
 }
 
-void LD2410Component::set_gate_threshold_(uint8_t gate) {
+void LD2410Component::set_gate_threshold(uint8_t gate) {
   number::Number *motionsens = this->gate_move_threshold_numbers_[gate];
   number::Number *stillsens = this->gate_still_threshold_numbers_[gate];
 
@@ -603,6 +618,7 @@ void LD2410Component::set_gate_threshold_(uint8_t gate) {
   int motion = static_cast<int>(motionsens->state);
   int still = static_cast<int>(stillsens->state);
 
+  this->set_config_mode_(true);
   // reference
   // https://drive.google.com/drive/folders/1p4dhbEJA3YubyIjIIC7wwVsSo8x29Fq-?spm=a2g0o.detail.1000023.17.93465697yFwVxH
   //   Send data: configure the motion sensitivity of distance gate 3 to 40, and the static sensitivity of 40
@@ -618,28 +634,19 @@ void LD2410Component::set_gate_threshold_(uint8_t gate) {
   this->send_command_(CMD_GATE_SENS, value, 18);
   delay(50);  // NOLINT
   this->query_parameters_();
+  this->set_config_mode_(false);
 }
 
 void LD2410Component::set_gate_still_threshold_number(int gate, number::Number *n) {
   this->gate_still_threshold_numbers_[gate] = n;
-  this->gate_still_threshold_numbers_[gate]->add_on_state_callback([this, gate](float state) {
-    this->set_config_mode_(true);
-    this->set_gate_threshold_(gate);
-    this->set_config_mode_(false);
-  });
 }
 
 void LD2410Component::set_gate_move_threshold_number(int gate, number::Number *n) {
   this->gate_move_threshold_numbers_[gate] = n;
-  this->gate_move_threshold_numbers_[gate]->add_on_state_callback([this, gate](float state) {
-    this->set_config_mode_(true);
-    this->set_gate_threshold_(gate);
-    this->set_config_mode_(false);
-  });
 }
 
 #ifdef USE_SELECT
-void LD2410Component::set_light_control_() {
+void LD2410Component::set_light_out_control() {
   if (this->light_function_select_ == nullptr || this->out_pin_level_select_ == nullptr ||
       this->light_threshold_number_ == nullptr) {
     ESP_LOGE(TAG, "To change light control the following config must all be set: light_function, out_pin_level and "
@@ -650,6 +657,7 @@ void LD2410Component::set_light_control_() {
       !this->light_threshold_number_->has_state()) {
     return;
   }
+  this->set_config_mode_(true);
   uint8_t light_function = LIGHT_FUNCTION_ENUM_TO_INT.at(this->light_function_select_->state);
   uint8_t light_threshold = static_cast<uint8_t>(this->light_threshold_number_->state);
   uint8_t out_pin_level = OUT_PIN_LEVEL_ENUM_TO_INT.at(this->out_pin_level_select_->state);
@@ -657,6 +665,8 @@ void LD2410Component::set_light_control_() {
   this->send_command_(CMD_SET_LIGHT_CONTROL, value, 4);
   delay(50);  // NOLINT
   this->get_light_control_();
+  this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
+  this->set_config_mode_(false);
 }
 #endif
 #endif

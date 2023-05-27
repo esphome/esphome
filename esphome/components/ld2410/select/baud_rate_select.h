@@ -1,13 +1,14 @@
 #pragma once
 
 #include "esphome/components/select/select.h"
+#include "../ld2410.h"
 
 namespace esphome {
 namespace ld2410 {
 
-class LD2410Select : public select::Select {
+class BaudRateSelect : public select::Select, public Parented<LD2410Component> {
  public:
-  LD2410Select();
+  BaudRateSelect() = default;
 
  protected:
   void control(const std::string &value) override;
