@@ -22,7 +22,7 @@ class XL9535Component : public Component, public i2c::I2CDevice {
  public:
   bool digital_read(uint8_t pin);
   void digital_write(uint8_t pin, bool value);
-  void pin_mode(uint8_t pin, gpio::Flags flags);
+  void pin_mode(uint8_t pin, gpio::Flags mode);
 
   void setup() override;
   void dump_config() override;
@@ -37,7 +37,7 @@ class XL9535GPIOPin : public GPIOPin {
   void set_flags(gpio::Flags flags) { this->flags_ = flags; }
 
   void setup() override;
-  std::string dump_summary() const;
+  std::string dump_summary() const override;
   void pin_mode(gpio::Flags flags) override;
   bool digital_read() override;
   void digital_write(bool value) override;
