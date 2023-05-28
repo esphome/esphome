@@ -8,7 +8,6 @@ DEPENDENCIES = ["time"]
 ntp_server_ns = cg.esphome_ns.namespace("ntp_server")
 NTP_Server = ntp_server_ns.class_("NTP_Server", cg.Component)
 
-CONF_GPS_ID = "ntp_server_id"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
