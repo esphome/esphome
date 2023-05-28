@@ -1,4 +1,6 @@
-#include "esphome.h"
+#include "ntp_server.hpp"
+#include <WiFi.h>
+#include <WifiUDP.h>
 
 WiFiUDP Udp;
 
