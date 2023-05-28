@@ -6,13 +6,24 @@ import esphome.components.image as espImage
 from esphome.components.image import CONF_USE_TRANSPARENCY
 import esphome.config_validation as cv
 import esphome.codegen as cg
-from esphome.const import CONF_FILE, CONF_ID, CONF_RAW_DATA_ID, CONF_RESIZE, CONF_TYPE
+from esphome.const import (
+    CONF_FILE,
+    CONF_ID,
+    CONF_RAW_DATA_ID,
+    CONF_REPEAT,
+    CONF_RESIZE,
+    CONF_TYPE,
+)
 from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
 
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
+
+CONF_LOOP = "loop"
+CONF_START_FRAME = "start_frame"
+CONF_END_FRAME = "end_frame"
 
 Animation_ = display.display_ns.class_("Animation", espImage.Image_)
 
@@ -48,6 +59,13 @@ ANIMATION_SCHEMA = cv.Schema(
             # Not setting default here on purpose; the default depends on the image type,
             # and thus will be set in the "validate_cross_dependencies" validator.
             cv.Optional(CONF_USE_TRANSPARENCY): cv.boolean,
+            cv.Optional(CONF_LOOP): cv.All(
+                {
+                    cv.Optional(CONF_START_FRAME, default=0): cv.positive_int,
+                    cv.Optional(CONF_END_FRAME): cv.positive_int,
+                    cv.Optional(CONF_REPEAT): cv.positive_int,
+                }
+            ),
             cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
         },
         validate_cross_dependencies,
@@ -227,3 +245,8 @@ async def to_code(config):
         espImage.IMAGE_TYPE[config[CONF_TYPE]],
     )
     cg.add(var.set_transparency(transparent))
+    if CONF_LOOP in config:
+        start = config[CONF_LOOP][CONF_START_FRAME]
+        end = config[CONF_LOOP].get(CONF_END_FRAME, frames)
+        count = config[CONF_LOOP].get(CONF_REPEAT, -1)
+        cg.add(var.set_loop(start, end, count))
