@@ -2,8 +2,8 @@
 
 WiFiUDP Udp;
 
-static const uint8_t NTP_PORT 123
-static const uint8_t NTP_PACKET_SIZE 48
+static const uint8_t NTP_PORT = 123;
+static const uint8_t NTP_PACKET_SIZE = 48;
 // buffers for receiving and sending data
 byte packetBuffer[NTP_PACKET_SIZE];
 
@@ -103,7 +103,7 @@ void processNTP() {
     tempval = timestamp;
     packetBuffer[42] = (tempval >> 8) & 0xFF;
     tempval = timestamp;
-    packetBuffer[43] = (tempval)&0xFF;
+    packetBuffer[43] = (tempval) &0xFF;
 
     packetBuffer[44] = 0;
     packetBuffer[45] = 0;
