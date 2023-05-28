@@ -369,7 +369,7 @@ class DisplayBuffer {
    * @param menu The GraphicalDisplayMenu to draw
    * @param width Width of the menu
    * @param height Height of the menu
-  */
+   */
   void menu(int x, int y, graphical_display_menu::GraphicalDisplayMenu *menu, int width, int height);
 #endif  // USE_GRAPHICAL_DISPLAY_MENU
 
