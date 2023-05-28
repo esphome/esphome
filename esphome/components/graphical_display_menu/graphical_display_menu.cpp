@@ -104,12 +104,11 @@ void GraphicalDisplayMenu::draw(display::DisplayBuffer *display, const display::
 }
 
 void GraphicalDisplayMenu::draw_menu_internal_(display::DisplayBuffer *display, const display::Rect *bounds) {
-  ESP_LOGI(TAG, "Drawing menu at (%i, %i) with available dimensions (%i, %i)", bounds->x, bounds->y, bounds->w, bounds->h);
-
   int total_height = 0;
   int y_padding = 2;
   bool scroll_menu_items = false;
   std::vector<display::Rect> menu_dimensions;
+  int number_items_fit_to_screen = 0;
 
   for (size_t i = 0; i < this->displayed_item_->items_size(); i++) {
     auto *item = this->displayed_item_->get_item(i);
@@ -118,10 +117,14 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::DisplayBuffer *display, 
 
     menu_dimensions.push_back(item_dimensions);
     total_height += item_dimensions.h + y_padding;
-
-    // Scroll the display if the selected item or the item immediately after it overflows
-    if (((selected) || (i == this->cursor_index_ + 1)) && (total_height > bounds->h)) {
-      scroll_menu_items = true;
+    
+    if (total_height <= bounds->h) {
+      number_items_fit_to_screen++;
+    } else {
+      // Scroll the display if the selected item or the item immediately after it overflows
+      if ((selected) || (i == this->cursor_index_ + 1)) {
+        scroll_menu_items = true;
+      }
     }
   }
 
@@ -129,21 +132,26 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::DisplayBuffer *display, 
   int first_item_index = 0;
   int last_item_index = this->displayed_item_->items_size();
 
-  if (scroll_menu_items) {
-    // Attempt to draw the item after the current item (+1 for equality check in the draw loop)
-    last_item_index = std::min(this->cursor_index_ + 2, last_item_index);
+  if (number_items_fit_to_screen == 1) {
+    // If only one item can fit to the bounds draw the current cursor item
+    last_item_index = std::min(last_item_index, this->cursor_index_ + 1);
+    first_item_index = this->cursor_index_;
+  } else {
+    if (scroll_menu_items) {
+      // Attempt to draw the item after the current item (+1 for equality check in the draw loop)
+      last_item_index = std::min(this->cursor_index_ + 2, last_item_index);
 
-    // Go back through the measurements to determine how many prior items we can fit
-    int height_left_to_use = bounds->h;
-    for (int i = last_item_index - 1; i >= 0; i--) {
-      display::Rect item_dimensions = menu_dimensions[i];
-      height_left_to_use -= item_dimensions.h - y_padding;
+      // Go back through the measurements to determine how many prior items we can fit
+      int height_left_to_use = bounds->h;
+      for (int i = last_item_index - 1; i >= 0; i--) {
+        display::Rect item_dimensions = menu_dimensions[i];
+        height_left_to_use -= item_dimensions.h - y_padding;
 
-      if (height_left_to_use <= 0) {
-        // Ran out of space -  this is our first item to draw
-        first_item_index = i + 1;
-        y_offset = height_left_to_use;
-        break;
+        if (height_left_to_use <= 0) {
+          // Ran out of space -  this is our first item to draw
+          first_item_index = i + 1;
+          break;
+        }
       }
     }
   }
