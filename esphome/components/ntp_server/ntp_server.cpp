@@ -67,7 +67,7 @@ void process_ntp() {
     tempval = timestamp;
     packetBuffer[18] = (tempval >> 8) & 0xFF;
     tempval = timestamp;
-    packetBuffer[19] = (tempval)&0xFF;
+    packetBuffer[19] = (tempval) &0xFF;
 
     packetBuffer[20] = 0;
     packetBuffer[21] = 0;
@@ -91,7 +91,7 @@ void process_ntp() {
     tempval = timestamp;
     packetBuffer[34] = (tempval >> 8) & 0xFF;
     tempval = timestamp;
-    packetBuffer[35] = (tempval)&0xFF;
+    packetBuffer[35] = (tempval) &0xFF;
 
     packetBuffer[36] = 0;
     packetBuffer[37] = 0;
@@ -105,7 +105,7 @@ void process_ntp() {
     tempval = timestamp;
     packetBuffer[42] = (tempval >> 8) & 0xFF;
     tempval = timestamp;
-    packetBuffer[43] = (tempval)&0xFF;
+    packetBuffer[43] = (tempval) &0xFF;
 
     packetBuffer[44] = 0;
     packetBuffer[45] = 0;
