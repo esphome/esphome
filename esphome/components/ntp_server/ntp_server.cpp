@@ -9,7 +9,7 @@ static const uint8_t NTP_PACKET_SIZE = 48;
 // buffers for receiving and sending data
 byte packetBuffer[NTP_PACKET_SIZE];
 
-const unsigned long SEVENTY_YEARS = 2208988800UL;  // to convert unix time to epoch
+const uint32_t SEVENTY_YEARS = 2208988800UL;  // to convert unix time to epoch
 
 void start_ntp() { Udp.begin(NTP_PORT); }
 
@@ -26,7 +26,7 @@ void process_ntp() {
 
     uint32_t tempval;
     struct timeval tv;
-    gettimeofday(&tv, NULL);
+    gettimeofday(&tv, nullptr);
     time_t timestamp = tv.tv_sec + SEVENTY_YEARS;  // unix to utc
 
     packetBuffer[0] = 0b00100100;  // LI, Version, Mode
