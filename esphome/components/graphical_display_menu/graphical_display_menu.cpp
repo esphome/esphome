@@ -90,9 +90,10 @@ void GraphicalDisplayMenu::draw_and_update() {
   }
 }
 
-void GraphicalDisplayMenu::draw_menu() { 
+void GraphicalDisplayMenu::draw_menu() {
   if (this->display_buffer_ == nullptr) {
-    ESP_LOGE(TAG, "draw_menu() called without a display_buffer_. This is only available when using the menu in pop up mode");
+    ESP_LOGE(TAG,
+             "draw_menu() called without a display_buffer_. This is only available when using the menu in pop up mode");
     return;
   }
   display::Rect bounds(0, 0, this->display_buffer_->get_width(), this->display_buffer_->get_height());
@@ -117,7 +118,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::DisplayBuffer *display, 
 
     menu_dimensions.push_back(item_dimensions);
     total_height += item_dimensions.h + y_padding;
-    
+
     if (total_height <= bounds->h) {
       number_items_fit_to_screen++;
     } else {
@@ -174,7 +175,9 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::DisplayBuffer *display, 
   display->end_clipping();
 }
 
-display::Rect GraphicalDisplayMenu::measure_item(display::DisplayBuffer *display_buffer, const display_menu_base::MenuItem *item, const display::Rect *bounds, bool selected) {
+display::Rect GraphicalDisplayMenu::measure_item(display::DisplayBuffer *display_buffer,
+                                                 const display_menu_base::MenuItem *item, const display::Rect *bounds,
+                                                 bool selected) {
   display::Rect dimensions(0, 0, 0, 0);
 
   if (selected) {
@@ -194,8 +197,8 @@ display::Rect GraphicalDisplayMenu::measure_item(display::DisplayBuffer *display
   int y1;
   int width;
   int height;
-  display_buffer->get_text_bounds(0, 0, label.c_str(), this->font_, display::TextAlign::TOP_LEFT, &x1, &y1,
-                                         &width, &height);
+  display_buffer->get_text_bounds(0, 0, label.c_str(), this->font_, display::TextAlign::TOP_LEFT, &x1, &y1, &width,
+                                  &height);
 
   dimensions.w = std::min((int16_t)width, bounds->w);
   dimensions.h = std::min((int16_t)height, bounds->h);
@@ -203,7 +206,7 @@ display::Rect GraphicalDisplayMenu::measure_item(display::DisplayBuffer *display
   return dimensions;
 }
 
-inline void GraphicalDisplayMenu::draw_item(display::DisplayBuffer *display, const display_menu_base::MenuItem *item, 
+inline void GraphicalDisplayMenu::draw_item(display::DisplayBuffer *display, const display_menu_base::MenuItem *item,
                                             const display::Rect *bounds, bool selected) {
   auto background_color = selected ? this->foreground_color_ : this->background_color_;
   auto foreground_color = selected ? this->background_color_ : this->foreground_color_;
@@ -221,8 +224,7 @@ inline void GraphicalDisplayMenu::draw_item(display::DisplayBuffer *display, con
     label.append(this->menu_item_value_.value(&args));
   }
 
-  display->print(bounds->x, bounds->y, this->font_, foreground_color, display::TextAlign::TOP_LEFT,
-                               label.c_str());
+  display->print(bounds->x, bounds->y, this->font_, foreground_color, display::TextAlign::TOP_LEFT, label.c_str());
 }
 
 void GraphicalDisplayMenu::draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) {

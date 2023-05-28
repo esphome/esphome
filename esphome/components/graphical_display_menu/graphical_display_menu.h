@@ -20,7 +20,7 @@ namespace graphical_display_menu {
 
 const Color COLOR_ON(255, 255, 255, 255);
 const Color COLOR_OFF(0, 0, 0, 0);
- 
+
 struct MenuItemValueArguments {
   MenuItemValueArguments(const display_menu_base::MenuItem *item, bool is_item_selected, bool is_menu_editing) {
     this->item = item;
@@ -53,11 +53,10 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   void draw_menu() override;
   void draw_menu_internal_(display::DisplayBuffer *display, const display::Rect *bounds);
   void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) override;
-  virtual display::Rect measure_item(display::DisplayBuffer *display_buffer,
-                                  const display_menu_base::MenuItem *item,
-                                  const display::Rect *bounds, bool selected);
+  virtual display::Rect measure_item(display::DisplayBuffer *display_buffer, const display_menu_base::MenuItem *item,
+                                     const display::Rect *bounds, bool selected);
   virtual void draw_item(display::DisplayBuffer *display_buffer, const display_menu_base::MenuItem *item,
-                          const display::Rect *bounds, bool selected);
+                         const display::Rect *bounds, bool selected);
   void update() override;
 
   void on_before_show() override;
