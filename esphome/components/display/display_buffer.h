@@ -23,7 +23,6 @@
 #include "esphome/components/graphical_display_menu/graphical_display_menu.h"
 #endif
 
-
 namespace esphome {
 namespace display {
 
@@ -363,7 +362,7 @@ class DisplayBuffer {
   void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on = COLOR_ON, int scale = 1);
 #endif
 
-//#ifdef USE_GRAPHICAL_DISPLAY_MENU
+#ifdef USE_GRAPHICAL_DISPLAY_MENU
   /**
    * @param x The x coordinate of the upper left corner
    * @param y The y coordinate of the upper left corner
@@ -372,7 +371,7 @@ class DisplayBuffer {
    * @param height Height of the menu
   */
   void menu(int x, int y, graphical_display_menu::GraphicalDisplayMenu *menu, int width, int height);
-//#endif
+#endif  // USE_GRAPHICAL_DISPLAY_MENU
 
   /** Get the text bounds of the given string.
    *

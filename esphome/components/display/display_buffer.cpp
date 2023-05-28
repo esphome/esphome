@@ -365,8 +365,7 @@ void DisplayBuffer::menu(int x, int y, graphical_display_menu::GraphicalDisplayM
   Rect rect(x, y, width, height);
   menu->draw(this, &rect);
 }
-#endif
-
+#endif  // USE_GRAPHICAL_DISPLAY_MENU
 
 void DisplayBuffer::get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1,
                                     int *width, int *height) {

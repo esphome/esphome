@@ -200,8 +200,8 @@ display::Rect GraphicalDisplayMenu::measure_item(display::DisplayBuffer *display
   display_buffer->get_text_bounds(0, 0, label.c_str(), this->font_, display::TextAlign::TOP_LEFT, &x1, &y1, &width,
                                   &height);
 
-  dimensions.w = std::min((int16_t)width, bounds->w);
-  dimensions.h = std::min((int16_t)height, bounds->h);
+  dimensions.w = std::min((int16_t) width, bounds->w);
+  dimensions.h = std::min((int16_t) height, bounds->h);
 
   return dimensions;
 }
