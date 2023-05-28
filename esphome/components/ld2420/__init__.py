@@ -2,18 +2,17 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import uart
 from esphome.const import CONF_ID
-from esphome import automation
-from esphome.automation import maybe_simple_id
+
+CODEOWNERS = ["@descipher"]
 
 DEPENDENCIES = ["uart"]
-CODEOWNERS = ["@descipher"]
+
 MULTI_CONF = True
 
 ld2420_ns = cg.esphome_ns.namespace("ld2420")
 LD2420Component = ld2420_ns.class_("LD2420Component", cg.Component, uart.UARTDevice)
-LD2420Restart = ld2420_ns.class_("LD2420Restart", automation.Action)
-CONF_LD2420_ID = "ld2420_id"
 
+CONF_LD2420_ID = "ld2420_id"
 CONF_DETECTION_GATE_MIN = "detection_gate_min"
 CONF_DETECTION_GATE_MAX = "detection_gate_max"
 CONF_PRESENCE_TIME_WINDOW = "presence_time_window"
@@ -105,7 +104,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
-    "ld2420",
+    "ld2420_uart",
     require_tx=True,
     require_rx=True,
     parity="NONE",
@@ -156,10 +155,3 @@ async def to_code(config):
             config[CONF_G15_STILL_THRESHOLD],
         )
     )
-
-
-CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
-    {
-        cv.Required(CONF_ID): cv.use_id(LD2420Component),
-    }
-)
