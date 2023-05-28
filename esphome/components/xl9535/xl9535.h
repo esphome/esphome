@@ -49,5 +49,6 @@ class XL9535GPIOPin : public GPIOPin {
   bool inverted_;
   gpio::Flags flags_;
 };
+
 }  // namespace xl9535
 }  // namespace esphome
