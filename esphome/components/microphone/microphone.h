@@ -17,7 +17,7 @@ class Microphone {
  public:
   virtual void start() = 0;
   virtual void stop() = 0;
-  void add_data_callback(std::function<void(const std::vector<uint8_t> &)> &&data_callback) {
+  void add_data_callback(std::function<void(const std::vector<int16_t> &)> &&data_callback) {
     this->data_callbacks_.add(std::move(data_callback));
   }
 
@@ -26,7 +26,7 @@ class Microphone {
  protected:
   State state_{STATE_STOPPED};
 
-  CallbackManager<void(const std::vector<uint8_t> &)> data_callbacks_{};
+  CallbackManager<void(const std::vector<int16_t> &)> data_callbacks_{};
 };
 
 }  // namespace microphone
