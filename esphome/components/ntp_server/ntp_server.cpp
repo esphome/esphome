@@ -9,7 +9,7 @@ static const uint8_t NTP_PACKET_SIZE = 48;
 // buffers for receiving and sending data
 byte packetBuffer[NTP_PACKET_SIZE];
 
-const unsigned long SEVENTY_YEARS = 2208988800UL; // to convert unix time to epoch
+const unsigned long SEVENTY_YEARS = 2208988800UL;  // to convert unix time to epoch
 
 void start_ntp() { Udp.begin(NTP_PORT); }
 
@@ -27,26 +27,26 @@ void process_ntp() {
     uint32_t tempval;
     struct timeval tv;
     gettimeofday(&tv, NULL);
-    time_t timestamp = tv.tv_sec + SEVENTY_YEARS; // unix to utc
+    time_t timestamp = tv.tv_sec + SEVENTY_YEARS;  // unix to utc
 
-    packetBuffer[0] = 0b00100100; // LI, Version, Mode
+    packetBuffer[0] = 0b00100100;  // LI, Version, Mode
 
     if (tv.tv_sec < SEVENTY_YEARS / 2) {
-      packetBuffer[1] = 16; // for now - force sync
+      packetBuffer[1] = 16;  // for now - force sync
       // Serial.println("NTP Server likely has bad time (year is not recent) - setting stratum to 16 to block sync.");
     } else {
-      packetBuffer[1] = 4; // recommended because accuracy is limited to nearest second
+      packetBuffer[1] = 4;  // recommended because accuracy is limited to nearest second
     }
 
-    packetBuffer[2] = 6;    // polling minimum
-    packetBuffer[3] = 0xFA; // precision
+    packetBuffer[2] = 6;     // polling minimum
+    packetBuffer[3] = 0xFA;  // precision
 
-    packetBuffer[4] = 0; // root delay
+    packetBuffer[4] = 0;  // root delay
     packetBuffer[5] = 0;
     packetBuffer[6] = 8;
     packetBuffer[7] = 0;
 
-    packetBuffer[8] = 0; // root dispersion
+    packetBuffer[8] = 0;  // root dispersion
     packetBuffer[9] = 0;
     packetBuffer[10] = 0xC;
     packetBuffer[11] = 0;
@@ -128,7 +128,7 @@ void NtpServer::setup() {}
 bool first_loop_flag = true;
 
 void NtpServer::loop() {
-  if (first_loop_flag) { // wifi must init first...
+  if (first_loop_flag) {  // wifi must init first...
     first_loop_flag = false;
     start_ntp();
   }
@@ -136,5 +136,5 @@ void NtpServer::loop() {
   process_ntp();
 }
 
-} // namespace ntp_server
-} // namespace esphome
+}  // namespace ntp_server
+}  // namespace esphome
