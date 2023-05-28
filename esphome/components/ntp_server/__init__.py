@@ -6,12 +6,12 @@ CODEOWNERS = ["@RobertJN64"]
 DEPENDENCIES = ["time"]
 
 ntp_server_ns = cg.esphome_ns.namespace("ntp_server")
-NTP_Server = ntp_server_ns.class_("NTP_Server", cg.Component)
+NtpServer = ntp_server_ns.class_("NtpServer", cg.Component)
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
-            cv.GenerateID(): cv.declare_id(NTP_Server),
+            cv.GenerateID(): cv.declare_id(NtpServer),
         }
     )
 )

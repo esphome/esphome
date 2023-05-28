@@ -6,7 +6,7 @@
 namespace esphome {
 namespace ntp_server {
 
-class NTP_Server : public Component {
+class NtpServer : public Component {
 public:
   void setup() override; // called once
   void loop() override;  // called frequently
