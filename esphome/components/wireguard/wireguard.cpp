@@ -86,9 +86,8 @@ void Wireguard::dump_config() {
                 (this->preshared_key_.length() > 0 ? this->preshared_key_.substr(0, 5).c_str() : "NOT IN USE"),
                 (this->preshared_key_.length() > 0 ? "[...]=" : ""));
   ESP_LOGCONFIG(TAG, "  peer allowed ips:");
-  for (int i = 0; i < this->allowed_ips_.size(); i++) {
-    ESP_LOGCONFIG(TAG, "    - %s/%s", std::get<0>(this->allowed_ips_[i]).c_str(),
-                  std::get<1>(this->allowed_ips_[i]).c_str());
+  for (auto &allowed_ip : this->allowed_ips_) {
+    ESP_LOGCONFIG(TAG, "    - %s/%s", std::get<0>(allowed_ip).c_str(), std::get<1>(allowed_ip).c_str());
   }
   ESP_LOGCONFIG(TAG, "  peer persistent keepalive: %d%s", this->keepalive_,
                 (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
@@ -130,16 +129,16 @@ time_t Wireguard::get_latest_handshake() const {
   return result;
 }
 
-void Wireguard::set_address(const std::string &address) { this->address_ = std::move(address); }
-void Wireguard::set_netmask(const std::string &netmask) { this->netmask_ = std::move(netmask); }
-void Wireguard::set_private_key(const std::string &key) { this->private_key_ = std::move(key); }
-void Wireguard::set_peer_endpoint(const std::string &endpoint) { this->peer_endpoint_ = std::move(endpoint); }
-void Wireguard::set_peer_public_key(const std::string &key) { this->peer_public_key_ = std::move(key); }
+void Wireguard::set_address(const std::string &address) { this->address_ = address; }
+void Wireguard::set_netmask(const std::string &netmask) { this->netmask_ = netmask; }
+void Wireguard::set_private_key(const std::string &key) { this->private_key_ = key; }
+void Wireguard::set_peer_endpoint(const std::string &endpoint) { this->peer_endpoint_ = endpoint; }
+void Wireguard::set_peer_public_key(const std::string &key) { this->peer_public_key_ = key; }
 void Wireguard::set_peer_port(const uint16_t port) { this->peer_port_ = port; }
-void Wireguard::set_preshared_key(const std::string &key) { this->preshared_key_ = std::move(key); }
+void Wireguard::set_preshared_key(const std::string &key) { this->preshared_key_ = key; }
 
 void Wireguard::add_allowed_ip(const std::string &ip, const std::string &netmask) {
-  this->allowed_ips_.push_back(std::tuple<std::string, std::string>(std::move(ip), std::move(netmask)));
+  this->allowed_ips_.emplace_back(ip, netmask);
 }
 
 void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
