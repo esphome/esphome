@@ -11,6 +11,15 @@
 #include <esp_wireguard.h>
 #include <wireguard.h>  // REKEY_AFTER_TIME, from esp_wireguard library
 
+#if defined(USE_ESP_IDF)
+#include <esp_task_wdt.h>
+#if ESP_IDF_VERSION_MAJOR >= 5
+#include <spi_flash_mmap.h>
+#endif
+#elif defined(USE_ARDUINO)
+#include <esp32-hal.h>
+#endif
+
 namespace esphome {
 namespace wireguard {
 
@@ -165,7 +174,36 @@ void Wireguard::start_connection_() {
   }
 
   ESP_LOGD(TAG, "starting WireGuard connection...");
+  
+  // The following function can take longer than the 5 seconds timeout of WDT
+#if defined(USE_ESP_IDF)
+#if ESP_IDF_VERSION_MAJOR >= 5
+  esp_task_wdt_config_t wdtc;
+  wdtc.timeout_ms = 15000;
+  wdtc.idle_core_mask = 0;
+  wdtc.trigger_panic = false;
+  esp_task_wdt_reconfigure(&wdtc);
+#else
+  esp_task_wdt_init(15, false);
+#endif
+#elif defined(USE_ARDUINO)
+  disableLoopWDT();
+#endif
+
   this->wg_connected_ = esp_wireguard_connect(&(this->wg_ctx_));
+
+  // Set the WDT back to the configured timeout
+#if defined(USE_ESP_IDF)
+#if ESP_IDF_VERSION_MAJOR >= 5
+  wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S;
+  esp_task_wdt_reconfigure(&wdtc);
+#else
+  esp_task_wdt_init(CONFIG_ESP_TASK_WDT_TIMEOUT_S, false);
+#endif
+#elif defined(USE_ARDUINO)
+  enableLoopWDT();
+#endif
+
   if (this->wg_connected_ == ESP_OK) {
     ESP_LOGI(TAG, "WireGuard connection started");
   } else {
