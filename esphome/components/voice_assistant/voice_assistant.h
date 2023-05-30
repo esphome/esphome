@@ -15,6 +15,9 @@
 #ifdef USE_SPEAKER
 #include "esphome/components/speaker/speaker.h"
 #endif
+#ifdef USE_MEDIA_PLAYER
+#include "esphome/components/media_player/media_player.h"
+#endif
 #include "esphome/components/socket/socket.h"
 
 namespace esphome {
@@ -25,7 +28,7 @@ namespace voice_assistant {
 // Version 3: Adds continuous support
 static const uint32_t INITIAL_VERSION = 1;
 static const uint32_t SPEAKER_SUPPORT = 2;
-static const uint32_t CONTINUOUS_SUPPORT = 3;
+static const uint32_t SILENCE_DETECTION_SUPPORT = 3;
 
 class VoiceAssistant : public Component {
  public:
@@ -38,11 +41,16 @@ class VoiceAssistant : public Component {
 #ifdef USE_SPEAKER
   void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
 #endif
+#ifdef USE_MEDIA_PLAYER
+  void set_media_player(media_player::MediaPlayer *media_player) { this->media_player_ = media_player; }
+#endif
 
   uint32_t get_version() const {
 #ifdef USE_SPEAKER
     if (this->speaker_ != nullptr)
-      return CONTINUOUS_SUPPORT;
+      if (this->silence_detection_)
+        return SILENCE_DETECTION_SUPPORT;
+    return SPEAKER_SUPPORT;
 #endif
     return INITIAL_VERSION;
   }
@@ -55,6 +63,8 @@ class VoiceAssistant : public Component {
   bool is_running() const { return this->running_; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
   bool is_continuous() const { return this->continuous_; }
+
+  void set_silence_detection(bool silence_detection) { this->silence_detection_ = silence_detection; }
 
   Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
   Trigger<> *get_start_trigger() const { return this->start_trigger_; }
@@ -80,9 +90,16 @@ class VoiceAssistant : public Component {
 #ifdef USE_SPEAKER
   speaker::Speaker *speaker_{nullptr};
 #endif
+#ifdef USE_MEDIA_PLAYER
+  media_player::MediaPlayer *media_player_{nullptr};
+  bool playing_tts_{false};
+#endif
+
+  std::string conversation_id_{""};
 
   bool running_{false};
   bool continuous_{false};
+  bool silence_detection_;
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {

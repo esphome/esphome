@@ -1,16 +1,22 @@
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
-from esphome.const import CONF_ID, CONF_MICROPHONE, CONF_SPEAKER
+from esphome.const import (
+    CONF_ID,
+    CONF_MICROPHONE,
+    CONF_SPEAKER,
+    CONF_MEDIA_PLAYER,
+)
 from esphome import automation
 from esphome.automation import register_action, register_condition
-from esphome.components import microphone, speaker
+from esphome.components import microphone, speaker, media_player
 
 AUTO_LOAD = ["socket"]
 DEPENDENCIES = ["api", "microphone"]
 
 CODEOWNERS = ["@jesserockz"]
 
+CONF_SILENCE_DETECTION = "silence_detection"
 CONF_ON_LISTENING = "on_listening"
 CONF_ON_START = "on_start"
 CONF_ON_STT_END = "on_stt_end"
@@ -41,7 +47,9 @@ CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(VoiceAssistant),
         cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
-        cv.Optional(CONF_SPEAKER): cv.use_id(speaker.Speaker),
+        cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
+        cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(media_player.MediaPlayer),
+        cv.Optional(CONF_SILENCE_DETECTION, default=True): cv.boolean,
         cv.Optional(CONF_ON_LISTENING): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
         cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
@@ -63,6 +71,12 @@ async def to_code(config):
     if CONF_SPEAKER in config:
         spkr = await cg.get_variable(config[CONF_SPEAKER])
         cg.add(var.set_speaker(spkr))
+
+    if CONF_MEDIA_PLAYER in config:
+        mp = await cg.get_variable(config[CONF_MEDIA_PLAYER])
+        cg.add(var.set_media_player(mp))
+
+    cg.add(var.set_silence_detection(config[CONF_SILENCE_DETECTION]))
 
     if CONF_ON_LISTENING in config:
         await automation.build_automation(

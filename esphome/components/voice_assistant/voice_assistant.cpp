@@ -69,23 +69,42 @@ void VoiceAssistant::setup() {
 
 void VoiceAssistant::loop() {
 #ifdef USE_SPEAKER
-  if (this->speaker_ == nullptr) {
+  if (this->speaker_ != nullptr) {
+    uint8_t buf[1024];
+    auto len = this->socket_->read(buf, sizeof(buf));
+    if (len == -1) {
+      return;
+    }
+    this->speaker_->play(buf, len);
+    this->set_timeout("data-incoming", 200, [this]() {
+      if (this->continuous_) {
+        this->request_start(true);
+      }
+    });
     return;
   }
-
-  uint8_t buf[1024];
-  auto len = this->socket_->read(buf, sizeof(buf));
-  if (len == -1) {
+#endif
+#ifdef USE_MEDIA_PLAYER
+  if (this->media_player_ != nullptr) {
+    if (!this->playing_tts_ ||
+        this->media_player_->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING) {
+      return;
+    }
+    this->set_timeout("playing-media", 1000, [this]() {
+      this->playing_tts_ = false;
+      if (this->continuous_) {
+        this->request_start(true);
+      }
+    });
     return;
   }
-  this->speaker_->play(buf, len);
-  this->cancel_timeout("data-incoming");
-  this->set_timeout("data-incoming", 200, [this]() {
+#endif
+  // Set a 1 second timeout to start the voice assistant again.
+  this->set_timeout("continuous-no-sound", 1000, [this]() {
     if (this->continuous_) {
       this->request_start(true);
     }
   });
-#endif
 }
 
 void VoiceAssistant::start(struct sockaddr_storage *addr, uint16_t port) {
@@ -111,24 +130,14 @@ void VoiceAssistant::start(struct sockaddr_storage *addr, uint16_t port) {
 
 void VoiceAssistant::request_start(bool continuous) {
   ESP_LOGD(TAG, "Requesting start...");
-  if (!api::global_api_server->start_voice_assistant()) {
+  if (!api::global_api_server->start_voice_assistant(this->conversation_id_)) {
     ESP_LOGW(TAG, "Could not request start.");
     this->error_trigger_->trigger("not-connected", "Could not request start.");
     this->continuous_ = false;
     return;
   }
-  if (!continuous)
-    return;
-#ifdef USE_SPEAKER
-  if (this->speaker_ != nullptr) {
-    this->continuous_ = true;
-  } else {
-#endif
-    ESP_LOGE(TAG, "Speaker not configured, cannot request continuous mode.");
-    this->continuous_ = false;
-#ifdef USE_SPEAKER
-  }
-#endif
+  this->continuous_ = continuous;
+  this->set_timeout("reset-conversation_id", 5 * 60 * 1000, [this]() { this->conversation_id_ = ""; });
 }
 
 void VoiceAssistant::signal_stop() {
@@ -161,6 +170,14 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       this->stt_end_trigger_->trigger(text);
       break;
     }
+    case api::enums::VOICE_ASSISTANT_INTENT_END: {
+      for (auto arg : msg.data) {
+        if (arg.name == "conversation_id") {
+          this->conversation_id_ = std::move(arg.value);
+        }
+      }
+      break;
+    }
     case api::enums::VOICE_ASSISTANT_TTS_START: {
       std::string text;
       for (auto arg : msg.data) {
@@ -188,6 +205,12 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGD(TAG, "Response URL: \"%s\"", url.c_str());
+#ifdef USE_MEDIA_PLAYER
+      if (this->media_player_ != nullptr) {
+        this->playing_tts_ = true;
+        this->media_player_->make_call().set_media_url(url).perform();
+      }
+#endif
       this->tts_end_trigger_->trigger(url);
       break;
     }
