@@ -25,6 +25,7 @@ namespace esphome {
 
 namespace logger {
 
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
 /** Enum for logging UART selection
  *
  * Advanced configuration (pin selection, etc) is not supported.
@@ -58,6 +59,7 @@ enum UARTSelection {
   UART_SELECTION_USB_CDC,
 #endif  // USE_RP2040
 };
+#endif  // USE_ESP32 || USE_ESP8266
 
 class Logger : public Component {
  public:
@@ -72,10 +74,11 @@ class Logger : public Component {
 #ifdef USE_ESP_IDF
   uart_port_t get_uart_num() const { return uart_num_; }
 #endif
-
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
   void set_uart_selection(UARTSelection uart_selection) { uart_ = uart_selection; }
   /// Get the UART used by the logger.
   UARTSelection get_uart() const;
+#endif
 
   /// Set the log level of the specified tag.
   void set_log_level(const std::string &tag, int log_level);
@@ -145,7 +148,9 @@ class Logger : public Component {
   char *tx_buffer_{nullptr};
   int tx_buffer_at_{0};
   int tx_buffer_size_{0};
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
   UARTSelection uart_{UART_SELECTION_UART0};
+#endif
 #ifdef USE_ARDUINO
   Stream *hw_serial_{nullptr};
 #endif

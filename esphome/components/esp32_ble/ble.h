@@ -25,6 +25,14 @@ typedef struct {
   uint16_t mtu;
 } conn_status_t;
 
+enum IoCapability {
+  IO_CAP_OUT = ESP_IO_CAP_OUT,
+  IO_CAP_IO = ESP_IO_CAP_IO,
+  IO_CAP_IN = ESP_IO_CAP_IN,
+  IO_CAP_NONE = ESP_IO_CAP_NONE,
+  IO_CAP_KBDISP = ESP_IO_CAP_KBDISP,
+};
+
 class GAPEventHandler {
  public:
   virtual void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) = 0;
@@ -44,6 +52,8 @@ class GATTsEventHandler {
 
 class ESP32BLE : public Component {
  public:
+  void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
+
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -72,6 +82,7 @@ class ESP32BLE : public Component {
 
   Queue<BLEEvent> ble_events_;
   BLEAdvertising *advertising_;
+  esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
