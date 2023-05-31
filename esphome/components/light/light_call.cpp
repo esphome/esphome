@@ -1,3 +1,4 @@
+#include <cinttypes>
 #include "light_call.h"
 #include "light_state.h"
 #include "esphome/core/log.h"
@@ -283,7 +284,7 @@ LightColorValues LightCall::validate_() {
 
   // validate effect index
   if (this->has_effect_() && *this->effect_ > this->parent_->effects_.size()) {
-    ESP_LOGW(TAG, "'%s' - Invalid effect index %u!", name, *this->effect_);
+    ESP_LOGW(TAG, "'%s' - Invalid effect index %" PRIu32 "!", name, *this->effect_);
     this->effect_.reset();
   }
 
