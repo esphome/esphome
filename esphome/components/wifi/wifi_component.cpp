@@ -39,6 +39,8 @@ void WiFiComponent::setup() {
   this->wifi_pre_setup_();
   if (this->enable_on_boot_)
     this->start();
+  else
+    this->state_ = WIFI_COMPONENT_STATE_DISABLED;
 }
 
 void WiFiComponent::start() {
