@@ -18,7 +18,7 @@ CONF_PEER_PRESHARED_KEY = "peer_preshared_key"
 CONF_PEER_ALLOWED_IPS = "peer_allowed_ips"
 CONF_PEER_PERSISTENT_KEEPALIVE = "peer_persistent_keepalive"
 
-DEPENDENCIES = ["time"]
+DEPENDENCIES = ["time", "esp32"]
 CODEOWNERS = ["@lhoracek", "@droscy"]
 
 wireguard_ns = cg.esphome_ns.namespace("wireguard")

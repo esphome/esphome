@@ -1,5 +1,7 @@
 #include "wireguard.h"
 
+#ifdef USE_ESP32
+
 #include <ctime>
 #include <functional>
 
@@ -191,5 +193,7 @@ void Wireguard::start_connection_() {
 
 }  // namespace wireguard
 }  // namespace esphome
+
+#endif
 
 // vim: tabstop=2 shiftwidth=2 expandtab

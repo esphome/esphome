@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include <ctime>
 #include <vector>
 #include <tuple>
@@ -66,5 +68,7 @@ class Wireguard : public PollingComponent {
 
 }  // namespace wireguard
 }  // namespace esphome
+
+#endif
 
 // vim: tabstop=2 shiftwidth=2 expandtab
