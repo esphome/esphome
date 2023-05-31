@@ -2,16 +2,19 @@
 
 #include <ctime>
 #include <functional>
+
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
-#include "esp_err.h"
-#include "esp_wireguard.h"
+
+#include <esp_err.h>
+
+#include <esp_wireguard.h>
+#include <wireguard.h>  // REKEY_AFTER_TIME, from esp_wireguard library
 
 namespace esphome {
 namespace wireguard {
 
 static const char *const TAG = "wireguard";
-static const uint8_t REKEY_AFTER_TIME = 120;  // seconds, defined in wireguard specification
 
 static const char *const LOGMSG_PEER_STATUS = "WireGuard remote peer is %s (latest handshake %s)";
 static const char *const LOGMSG_ONLINE = "online";

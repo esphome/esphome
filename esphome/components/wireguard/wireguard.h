@@ -3,9 +3,11 @@
 #include <ctime>
 #include <vector>
 #include <tuple>
+
 #include "esphome/core/component.h"
 #include "esphome/components/time/real_time_clock.h"
-#include "esp_wireguard.h"
+
+#include <esp_wireguard.h>
 
 namespace esphome {
 namespace wireguard {
