@@ -20,12 +20,12 @@ static const char *const LOGMSG_OFFLINE = "offline";
 void Wireguard::setup() {
   ESP_LOGD(TAG, "initializing WireGuard...");
 
-  this->wg_config_.allowed_ip = this->address_.c_str();
+  this->wg_config_.address = this->address_.c_str();
   this->wg_config_.private_key = this->private_key_.c_str();
   this->wg_config_.endpoint = this->peer_endpoint_.c_str();
   this->wg_config_.public_key = this->peer_public_key_.c_str();
   this->wg_config_.port = this->peer_port_;
-  this->wg_config_.allowed_ip_mask = this->netmask_.c_str();
+  this->wg_config_.netmask = this->netmask_.c_str();
   this->wg_config_.persistent_keepalive = this->keepalive_;
 
   if (this->preshared_key_.length() > 0)
