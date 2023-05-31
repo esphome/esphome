@@ -106,6 +106,10 @@ void Wireguard::on_shutdown() {
   }
 }
 
+bool Wireguard::can_proceed() {
+  return (this->proceed_allowed_ || this->is_peer_up());
+}
+
 bool Wireguard::is_peer_up() const {
   return (this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) &&
          (esp_wireguardif_peer_is_up(&(this->wg_ctx_)) == ESP_OK) &&
@@ -147,6 +151,8 @@ void Wireguard::add_allowed_ip(const std::string &ip, const std::string &netmask
 void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
 void Wireguard::set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock *srctime) { this->srctime_ = srctime; }
+
+void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
 
 void Wireguard::start_connection_() {
   if (this->wg_initialized_ != ESP_OK) {

@@ -18,6 +18,7 @@ class Wireguard : public PollingComponent {
   void update() override;
   void dump_config() override;
   void on_shutdown() override;
+  bool can_proceed() override;
 
   float get_setup_priority() const override { return esphome::setup_priority::BEFORE_CONNECTION; }
 
@@ -34,6 +35,8 @@ class Wireguard : public PollingComponent {
   void set_keepalive(uint16_t seconds);
   void set_reboot_timeout(uint32_t seconds);
   void set_srctime(time::RealTimeClock *srctime);
+
+  void disable_auto_proceed();
 
   bool is_peer_up() const;
   time_t get_latest_handshake() const;
@@ -53,6 +56,8 @@ class Wireguard : public PollingComponent {
   uint32_t reboot_timeout_;
 
   time::RealTimeClock *srctime_;
+
+  bool proceed_allowed_ = true;
 
   wireguard_config_t wg_config_ = ESP_WIREGUARD_CONFIG_DEFAULT();
   wireguard_ctx_t wg_ctx_ = ESP_WIREGUARD_CONTEXT_DEFAULT();
