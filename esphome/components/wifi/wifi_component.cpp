@@ -36,9 +36,18 @@ float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 
 void WiFiComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up WiFi...");
+  this->wifi_pre_setup_();
+  if (this->enable_on_boot_) {
+    this->start();
+  } else {
+    this->state_ = WIFI_COMPONENT_STATE_DISABLED;
+  }
+}
+
+void WiFiComponent::start() {
+  ESP_LOGCONFIG(TAG, "Starting WiFi...");
   ESP_LOGCONFIG(TAG, "  Local MAC: %s", get_mac_address_pretty().c_str());
   this->last_connected_ = millis();
-  this->wifi_pre_setup_();
 
   uint32_t hash = this->has_sta() ? fnv1_hash(App.get_compilation_time()) : 88491487UL;
 
@@ -135,6 +144,8 @@ void WiFiComponent::loop() {
       case WIFI_COMPONENT_STATE_OFF:
       case WIFI_COMPONENT_STATE_AP:
         break;
+      case WIFI_COMPONENT_STATE_DISABLED:
+        return;
     }
 
     if (this->has_ap() && !this->ap_setup_) {
@@ -387,6 +398,28 @@ void WiFiComponent::print_connect_params_() {
 #endif
 }
 
+void WiFiComponent::enable() {
+  if (this->state_ != WIFI_COMPONENT_STATE_DISABLED)
+    return;
+
+  ESP_LOGD(TAG, "Enabling WIFI...");
+  this->error_from_callback_ = false;
+  this->state_ = WIFI_COMPONENT_STATE_OFF;
+  this->start();
+}
+
+void WiFiComponent::disable() {
+  if (this->state_ == WIFI_COMPONENT_STATE_DISABLED)
+    return;
+
+  ESP_LOGD(TAG, "Disabling WIFI...");
+  this->state_ = WIFI_COMPONENT_STATE_DISABLED;
+  this->wifi_disconnect_();
+  this->wifi_mode_(false, false);
+}
+
+bool WiFiComponent::is_disabled() { return this->state_ == WIFI_COMPONENT_STATE_DISABLED; }
+
 void WiFiComponent::start_scanning() {
   this->action_started_ = millis();
   ESP_LOGD(TAG, "Starting scan...");
@@ -608,7 +641,7 @@ void WiFiComponent::retry_connect() {
 }
 
 bool WiFiComponent::can_proceed() {
-  if (!this->has_sta()) {
+  if (!this->has_sta() || this->state_ == WIFI_COMPONENT_STATE_DISABLED) {
     return true;
   }
   return this->is_connected();
