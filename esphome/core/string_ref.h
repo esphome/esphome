@@ -1,8 +1,9 @@
 #pragma once
 
-#include <string>
-#include <iterator>
 #include <cstring>
+#include <iterator>
+#include <memory>
+#include <string>
 #include "esphome/core/defines.h"
 
 #ifdef USE_JSON

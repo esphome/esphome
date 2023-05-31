@@ -84,4 +84,13 @@ std::string EntityBase_DeviceClass::get_device_class() {
 
 void EntityBase_DeviceClass::set_device_class(const char *device_class) { this->device_class_ = device_class; }
 
+std::string EntityBase_UnitOfMeasurement::get_unit_of_measurement() {
+  if (this->unit_of_measurement_ == nullptr)
+    return "";
+  return this->unit_of_measurement_;
+}
+void EntityBase_UnitOfMeasurement::set_unit_of_measurement(const char *unit_of_measurement) {
+  this->unit_of_measurement_ = unit_of_measurement;
+}
+
 }  // namespace esphome

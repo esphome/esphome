@@ -84,8 +84,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await media_player.register_media_player(var, config)
 
-    parent = await cg.get_variable(config[CONF_I2S_AUDIO_ID])
-    cg.add(parent.register_audio_out(var))
+    await cg.register_parented(var, config[CONF_I2S_AUDIO_ID])
 
     if config[CONF_DAC_TYPE] == "internal":
         cg.add(var.set_internal_dac_mode(config[CONF_MODE]))
@@ -98,5 +97,5 @@ async def to_code(config):
 
     cg.add_library("WiFiClientSecure", None)
     cg.add_library("HTTPClient", None)
-    cg.add_library("esphome/ESP32-audioI2S", "2.0.6")
+    cg.add_library("esphome/ESP32-audioI2S", "2.0.7")
     cg.add_build_flag("-DAUDIO_NO_SD_FS")

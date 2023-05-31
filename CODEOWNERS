@@ -84,6 +84,7 @@ esphome/components/esp32_ble_server/* @jesserockz
 esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_improv/* @jesserockz
+esphome/components/esp32_rmt_led_strip/* @jesserockz
 esphome/components/esp8266/* @esphome/core
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/exposure_notifications/* @OttoWinter
@@ -95,6 +96,7 @@ esphome/components/feedback/* @ianchi
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/fs3000/* @kahrendt
 esphome/components/globals/* @esphome/core
+esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
@@ -105,8 +107,10 @@ esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
+esphome/components/hm3301/* @freekode
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/honeywellabp/* @RubyBailey
+esphome/components/host/* @esphome/core
 esphome/components/hrxl_maxsonar_wr/* @netmikey
 esphome/components/hte501/* @Stock-M
 esphome/components/hydreon_rgxx/* @functionpointer
@@ -115,6 +119,7 @@ esphome/components/i2c/* @esphome/core
 esphome/components/i2s_audio/* @jesserockz
 esphome/components/i2s_audio/media_player/* @jesserockz
 esphome/components/i2s_audio/microphone/* @jesserockz
+esphome/components/i2s_audio/speaker/* @jesserockz
 esphome/components/ili9xxx/* @nielsnl68
 esphome/components/improv_base/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
@@ -217,6 +222,7 @@ esphome/components/restart/* @esphome/core
 esphome/components/rf_bridge/* @jesserockz
 esphome/components/rgbct/* @jesserockz
 esphome/components/rp2040/* @jesserockz
+esphome/components/rp2040_pio_led_strip/* @Papa-DMan
 esphome/components/rp2040_pwm/* @jesserockz
 esphome/components/rtttl/* @glmnet
 esphome/components/safe_mode/* @jsuanet @paulmonigatti
@@ -238,7 +244,7 @@ esphome/components/shutdown/* @esphome/core @jsuanet
 esphome/components/sigma_delta_output/* @Cat-Ion
 esphome/components/sim800l/* @glmnet
 esphome/components/sm10bit_base/* @Cossid
-esphome/components/sm2135/* @BoukeHaarsma23
+esphome/components/sm2135/* @BoukeHaarsma23 @dd32 @matika77
 esphome/components/sm2235/* @Cossid
 esphome/components/sm2335/* @Cossid
 esphome/components/sml/* @alengwenus
@@ -246,6 +252,7 @@ esphome/components/smt100/* @piechade
 esphome/components/sn74hc165/* @jesserockz
 esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
+esphome/components/speaker/* @jesserockz
 esphome/components/spi/* @esphome/core
 esphome/components/sprinkler/* @kbx81
 esphome/components/sps30/* @martgras
@@ -277,7 +284,9 @@ esphome/components/tlc5947/* @rnauber
 esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
 esphome/components/tm1638/* @skykingjwc
+esphome/components/tm1651/* @freekode
 esphome/components/tmp102/* @timsavage
+esphome/components/tmp1075/* @sybrenstuvel
 esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
 esphome/components/toshiba/* @kbx81
