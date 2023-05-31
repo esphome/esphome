@@ -47,10 +47,12 @@ class VoiceAssistant : public Component {
 
   uint32_t get_version() const {
 #ifdef USE_SPEAKER
-    if (this->speaker_ != nullptr)
-      if (this->silence_detection_)
+    if (this->speaker_ != nullptr) {
+      if (this->silence_detection_) {
         return SILENCE_DETECTION_SUPPORT;
-    return SPEAKER_SUPPORT;
+      }
+      return SPEAKER_SUPPORT;
+    }
 #endif
     return INITIAL_VERSION;
   }
