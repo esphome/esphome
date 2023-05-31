@@ -51,7 +51,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default=0): cv.Any(
             cv.positive_time_period_seconds,
-            cv.positive_int,
+            cv.int_range(min=1, max=65535),  # uint16_t in esp_wireguard library
         ),
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="15min"
