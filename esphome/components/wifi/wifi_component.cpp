@@ -37,10 +37,11 @@ float WiFiComponent::get_setup_priority() const { return setup_priority::WIFI; }
 void WiFiComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up WiFi...");
   this->wifi_pre_setup_();
-  if (this->enable_on_boot_)
+  if (this->enable_on_boot_) {
     this->start();
-  else
+  } else {
     this->state_ = WIFI_COMPONENT_STATE_DISABLED;
+  }
 }
 
 void WiFiComponent::start() {
