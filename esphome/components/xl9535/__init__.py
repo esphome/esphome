@@ -66,9 +66,7 @@ async def xl9535_pin_to_code(config):
     parent = await cg.get_variable(config[CONF_XL9535])
 
     cg.add(var.set_parent(parent))
-
-    number = config[CONF_NUMBER]
-    cg.add(var.set_pin(number))
+    cg.add(var.set_pin(config[CONF_NUMBER]))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
 
