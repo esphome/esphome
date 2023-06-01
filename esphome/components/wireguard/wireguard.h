@@ -1,11 +1,15 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include <ctime>
 #include <vector>
 #include <tuple>
+
 #include "esphome/core/component.h"
 #include "esphome/components/time/real_time_clock.h"
-#include "esp_wireguard.h"
+
+#include <esp_wireguard.h>
 
 namespace esphome {
 namespace wireguard {
@@ -64,5 +68,7 @@ class Wireguard : public PollingComponent {
 
 }  // namespace wireguard
 }  // namespace esphome
+
+#endif
 
 // vim: tabstop=2 shiftwidth=2 expandtab

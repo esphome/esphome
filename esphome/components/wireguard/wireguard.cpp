@@ -1,17 +1,22 @@
 #include "wireguard.h"
 
+#ifdef USE_ESP32
+
 #include <ctime>
 #include <functional>
+
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
-#include "esp_err.h"
-#include "esp_wireguard.h"
+
+#include <esp_err.h>
+
+#include <esp_wireguard.h>
+#include <wireguard.h>  // REKEY_AFTER_TIME, from esp_wireguard library
 
 namespace esphome {
 namespace wireguard {
 
 static const char *const TAG = "wireguard";
-static const uint8_t REKEY_AFTER_TIME = 120;  // seconds, defined in wireguard specification
 
 static const char *const LOGMSG_PEER_STATUS = "WireGuard remote peer is %s (latest handshake %s)";
 static const char *const LOGMSG_ONLINE = "online";
@@ -20,12 +25,12 @@ static const char *const LOGMSG_OFFLINE = "offline";
 void Wireguard::setup() {
   ESP_LOGD(TAG, "initializing WireGuard...");
 
-  this->wg_config_.allowed_ip = this->address_.c_str();
+  this->wg_config_.address = this->address_.c_str();
   this->wg_config_.private_key = this->private_key_.c_str();
   this->wg_config_.endpoint = this->peer_endpoint_.c_str();
   this->wg_config_.public_key = this->peer_public_key_.c_str();
   this->wg_config_.port = this->peer_port_;
-  this->wg_config_.allowed_ip_mask = this->netmask_.c_str();
+  this->wg_config_.netmask = this->netmask_.c_str();
   this->wg_config_.persistent_keepalive = this->keepalive_;
 
   if (this->preshared_key_.length() > 0)
@@ -188,5 +193,7 @@ void Wireguard::start_connection_() {
 
 }  // namespace wireguard
 }  // namespace esphome
+
+#endif
 
 // vim: tabstop=2 shiftwidth=2 expandtab
