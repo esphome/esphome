@@ -42,7 +42,7 @@ void Wireguard::setup() {
     ESP_LOGI(TAG, "WireGuard initialized");
     this->wg_peer_offline_time_ = millis();
     this->srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection_, this));
-    this->start_connection_();
+    this->defer(std::bind(&Wireguard::start_connection_, this));  // defer to avoid blocking setup
   } else {
     ESP_LOGE(TAG, "cannot initialize WireGuard, error code %d", this->wg_initialized_);
     this->mark_failed();
