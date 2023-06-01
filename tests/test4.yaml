@@ -34,9 +34,9 @@ spi:
   miso_pin: GPIO23
 
 uart:
-    tx_pin: GPIO22
-    rx_pin: GPIO23
-    baud_rate: 115200
+  tx_pin: GPIO22
+  rx_pin: GPIO23
+  baud_rate: 115200
 
 ota:
   safe_mode: true
