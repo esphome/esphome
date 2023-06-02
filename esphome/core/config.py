@@ -32,7 +32,7 @@ from esphome.const import (
     CONF_TYPE,
     CONF_VERSION,
     KEY_CORE,
-    TARGET_PLATFORMS,
+    CONFIG_PLATFORMS,
     PLATFORM_ESP8266,
     __version__ as ESPHOME_VERSION,
 )
@@ -179,7 +179,7 @@ PRELOAD_CONFIG_SCHEMA = cv.Schema(
         # Compat options, these were moved to target-platform specific sections
         # but we'll keep these around for a long time because every config would
         # be impacted
-        cv.Optional(CONF_PLATFORM): cv.one_of(*TARGET_PLATFORMS, lower=True),
+        cv.Optional(CONF_PLATFORM): cv.one_of(*CONFIG_PLATFORMS, lower=True),
         cv.Optional(CONF_BOARD): cv.string_strict,
         cv.Optional(CONF_ESP8266_RESTORE_FROM_FLASH): cv.valid,
         cv.Optional(CONF_BOARD_FLASH_MODE): cv.valid,
@@ -202,7 +202,7 @@ def preload_core_config(config, result):
     CORE.build_path = CORE.relative_config_path(conf[CONF_BUILD_PATH])
 
     has_oldstyle = CONF_PLATFORM in conf
-    newstyle_found = [key for key in TARGET_PLATFORMS if key in config]
+    newstyle_found = [key for key in CONFIG_PLATFORMS if key in config]
     oldstyle_opts = [
         CONF_ESP8266_RESTORE_FROM_FLASH,
         CONF_BOARD_FLASH_MODE,
@@ -213,7 +213,7 @@ def preload_core_config(config, result):
     if not has_oldstyle and not newstyle_found:
         raise cv.Invalid(
             "Platform missing. You must include one of the available platform keys: "
-            + ", ".join(TARGET_PLATFORMS),
+            + ", ".join(CONFIG_PLATFORMS),
             [CONF_ESPHOME],
         )
     if has_oldstyle and newstyle_found:

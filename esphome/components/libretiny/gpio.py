@@ -1,5 +1,6 @@
-import re
-
+import esphome.codegen as cg
+import esphome.config_validation as cv
+from esphome import pins
 from esphome.const import (
     CONF_ID,
     CONF_INPUT,
@@ -11,15 +12,45 @@ from esphome.const import (
     CONF_PULLDOWN,
     CONF_PULLUP,
 )
-from esphome import pins
-import esphome.config_validation as cv
-import esphome.codegen as cg
+from esphome.core import CORE
 
-from .const import libretiny_ns
+from .const import (
+    KEY_BOARD,
+    KEY_FAMILY_OBJ,
+    KEY_LIBRETINY,
+    LibreTinyFamily,
+    libretiny_ns,
+)
 
 ArduinoInternalGPIOPin = libretiny_ns.class_(
     "ArduinoInternalGPIOPin", cg.InternalGPIOPin
 )
+
+
+def _lookup_pin(value):
+    board: str = CORE.data[KEY_LIBRETINY][KEY_BOARD]
+    family: LibreTinyFamily = CORE.data[KEY_LIBRETINY][KEY_FAMILY_OBJ]
+    board_pins = family.board_pins.get(board, {})
+
+    # Resolve aliased board pins (shorthand when two boards have the same pin configuration)
+    while isinstance(board_pins, str):
+        board_pins = board_pins[board_pins]
+
+    if isinstance(value, int):
+        if value in board_pins.values() or not board_pins:
+            # if board is not found, just accept numeric values
+            return value
+        raise cv.Invalid(f"Pin number '{value}' is not usable for board {board}.")
+    if isinstance(value, str):
+        if value in board_pins:
+            return board_pins[value]
+        if not board_pins:
+            raise cv.Invalid(
+                f"Board {board} wasn't found. "
+                f"Use 'GPIO#' (numeric value) instead of '{value}'."
+            )
+        raise cv.Invalid(f"Cannot resolve pin name '{value}' for board {board}.")
+    raise cv.Invalid(f"Unrecognized pin value '{value}'.")
 
 
 def _translate_pin(value):
@@ -28,37 +59,36 @@ def _translate_pin(value):
             "This variable only supports pin numbers, not full pin schemas "
             "(with inverted and mode)."
         )
+    if isinstance(value, int):
+        return value
     try:
-        value = int(value)
+        return int(value)
     except ValueError:
         pass
-    if isinstance(value, int):
-        raise cv.Invalid(
-            "Using raw pin numbers is ambiguous. Use either "
-            f"P{value}/GPIO{value} or D{value} - these are "
-            "different pins! Refer to the docs for details."
-        )
-    # accept only strings at this point
-    if not isinstance(value, str):
-        raise cv.Invalid(f"Pin number {value} is of an unknown type.")
-    # macros shouldn't be changed
-    if value.startswith("PIN_"):
-        return value
-    # make GPIO* equal to P*
-    if value.startswith("GPIO"):
-        value = "P" + value[4:]
-    # check the final name using a regex
-    if not re.match(r"^[A-Z]+[0-9]+$", value):
-        raise cv.Invalid("Invalid pin name")
-    # translate the name to a macro
-    return f"PIN_{value}"
+    # translate GPIO* and P* to a number, if possible
+    # otherwise return unchanged value (i.e. pin PA05)
+    try:
+        if value.startswith("GPIO"):
+            value = int(value[4:])
+        elif value.startswith("P"):
+            value = int(value[1:])
+    except ValueError:
+        pass
+    return value
 
 
 def validate_gpio_pin(value):
-    return _translate_pin(value)
+    value = _translate_pin(value)
+    value = _lookup_pin(value)
+
+    family: LibreTinyFamily = CORE.data[KEY_LIBRETINY][KEY_FAMILY_OBJ]
+    if family.pin_validation:
+        value = family.pin_validation(value)
+
+    return value
 
 
-def validate_mode(value):
+def validate_gpio_usage(value):
     mode = value[CONF_MODE]
     is_input = mode[CONF_INPUT]
     is_output = mode[CONF_OUTPUT]
@@ -87,10 +117,15 @@ def validate_mode(value):
     key = (is_input, is_output, is_open_drain, is_pullup, is_pulldown)
     if key not in supported_modes:
         raise cv.Invalid("This pin mode is not supported", [CONF_MODE])
+
+    family: LibreTinyFamily = CORE.data[KEY_LIBRETINY][KEY_FAMILY_OBJ]
+    if family.usage_validation:
+        value = family.usage_validation(value)
+
     return value
 
 
-LIBRETINY_PIN_SCHEMA = cv.All(
+BASE_PIN_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(ArduinoInternalGPIOPin),
         cv.Required(CONF_NUMBER): validate_gpio_pin,
@@ -105,16 +140,14 @@ LIBRETINY_PIN_SCHEMA = cv.All(
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
     },
-    validate_mode,
 )
 
+BASE_PIN_SCHEMA.add_extra(validate_gpio_usage)
 
-@pins.PIN_SCHEMA_REGISTRY.register("libretiny", LIBRETINY_PIN_SCHEMA)
-async def libretiny_pin_to_code(config):
+
+async def family_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
-    if not str(num).isnumeric():
-        num = cg.global_ns.namespace(num)
     cg.add(var.set_pin(num))
     cg.add(var.set_inverted(config[CONF_INVERTED]))
     cg.add(var.set_flags(pins.gpio_flags_expr(config[CONF_MODE])))
