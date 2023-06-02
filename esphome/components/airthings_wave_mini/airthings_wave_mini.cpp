@@ -26,12 +26,9 @@ void AirthingsWaveMini::read_sensors(uint8_t *raw_value, uint16_t value_len) {
     if ((this->tvoc_sensor_ != nullptr) && this->is_valid_voc_value_(value->voc)) {
       this->tvoc_sensor_->publish_state(value->voc);
     }
-
-    // This instance must not stay connected
-    // so other clients can connect to it (e.g. the
-    // mobile app).
-    this->parent()->set_enabled(false);
   }
+
+  this->response_received_();
 }
 
 void AirthingsWaveMini::dump_config() {

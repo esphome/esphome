@@ -43,15 +43,12 @@ void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
       if ((this->tvoc_sensor_ != nullptr) && this->is_valid_voc_value_(value->voc)) {
         this->tvoc_sensor_->publish_state(value->voc);
       }
-
-      // This instance must not stay connected
-      // so other clients can connect to it (e.g. the
-      // mobile app).
-      this->parent()->set_enabled(false);
     } else {
       ESP_LOGE(TAG, "Invalid payload version (%d != 1, newer version or not a Wave Plus?)", value->version);
     }
   }
+
+  this->response_received_();
 }
 
 bool AirthingsWavePlus::is_valid_radon_value_(uint16_t radon) { return 0 <= radon && radon <= 16383; }

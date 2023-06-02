@@ -34,6 +34,10 @@ void AirthingsWaveBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
       this->node_state = esp32_ble_tracker::ClientState::ESTABLISHED;
 
       this->request_read_values_();
+
+      // ensure that the client will be disconnected even if no responses arrive
+      this->set_response_timeout_();
+
       break;
     }
 
@@ -74,7 +78,30 @@ void AirthingsWaveBase::request_read_values_() {
                                         ESP_GATT_AUTH_REQ_NONE);
   if (status) {
     ESP_LOGW(TAG, "Error sending read request for sensor, status=%d", status);
+  } else {
+    this->response_pending_();
   }
+}
+
+void AirthingsWaveBase::response_pending_() {
+  this->responses_pending_++;
+  this->set_response_timeout_();
+}
+
+void AirthingsWaveBase::response_received_() {
+  if (--this->responses_pending_ == 0) {
+    // This instance must not stay connected
+    // so other clients can connect to it (e.g. the
+    // mobile app).
+    this->parent()->set_enabled(false);
+  }
+}
+
+void AirthingsWaveBase::set_response_timeout_() {
+  this->set_timeout("response_timeout", 30 * 1000, [this]() {
+    this->responses_pending_ = 1;
+    this->response_received_();
+  });
 }
 
 }  // namespace airthings_wave_base

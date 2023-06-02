@@ -42,6 +42,11 @@ class AirthingsWaveBase : public PollingComponent, public ble_client::BLEClientN
   uint16_t handle_;
   esp32_ble_tracker::ESPBTUUID service_uuid_;
   esp32_ble_tracker::ESPBTUUID sensors_data_characteristic_uuid_;
+
+  uint8_t responses_pending_{0};
+  void response_pending_();
+  void response_received_();
+  void set_response_timeout_();
 };
 
 }  // namespace airthings_wave_base
