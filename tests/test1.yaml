@@ -2810,6 +2810,7 @@ tm1651:
   dio_pin: GPIO23
 
 remote_receiver:
+  id: rcvr
   pin: GPIO32
   dump: all
 
