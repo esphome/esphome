@@ -312,7 +312,8 @@ sensor:
     id: freezer_temp_source
     reference_voltage: 3.19
     number: 0
-  - platform: airthings_wave_plus
+  - id: airthingswp
+    platform: airthings_wave_plus
     ble_client_id: airthings01
     update_interval: 5min
     temperature:
@@ -329,7 +330,8 @@ sensor:
       name: Wave Plus CO2
     tvoc:
       name: Wave Plus VOC
-  - platform: airthings_wave_mini
+  - id: airthingswm
+    platform: airthings_wave_mini
     ble_client_id: airthingsmini01
     update_interval: 5min
     temperature:
