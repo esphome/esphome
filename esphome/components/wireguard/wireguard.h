@@ -64,6 +64,10 @@ class Wireguard : public PollingComponent {
   void start_connection_();
 };
 
+// These are used for possibly long DNS resolution to temporarily suspend the watchdog
+void suspend_wdt();
+void resume_wdt();
+
 }  // namespace wireguard
 }  // namespace esphome
 
