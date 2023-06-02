@@ -25,6 +25,10 @@ class SigmaDeltaOutput : public PollingComponent, public output::FloatOutput {
 
   void set_pin(GPIOPin *pin) { this->pin_ = pin; };
   void write_state(float state) override { this->state_ = state; }
+  void setup() override {
+    if (this->pin_)
+      this->pin_->setup();
+  }
   void update() override {
     this->accum_ += this->state_;
     const bool next_value = this->accum_ > 0;
