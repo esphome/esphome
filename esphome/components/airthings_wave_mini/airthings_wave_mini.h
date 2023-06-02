@@ -17,7 +17,7 @@ class AirthingsWaveMini : public airthings_wave_base::AirthingsWaveBase {
   void dump_config() override;
 
  protected:
-  void read_sensors(uint8_t *value, uint16_t value_len) override;
+  void read_sensors(uint8_t *raw_value, uint16_t value_len) override;
 
   struct WaveMiniReadings {
     uint16_t unused01;

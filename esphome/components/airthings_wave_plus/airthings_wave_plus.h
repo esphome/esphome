@@ -24,7 +24,7 @@ class AirthingsWavePlus : public airthings_wave_base::AirthingsWaveBase {
   bool is_valid_radon_value_(uint16_t radon);
   bool is_valid_co2_value_(uint16_t co2);
 
-  void read_sensors(uint8_t *value, uint16_t value_len) override;
+  void read_sensors(uint8_t *raw_value, uint16_t value_len) override;
 
   sensor::Sensor *radon_sensor_{nullptr};
   sensor::Sensor *radon_long_term_sensor_{nullptr};

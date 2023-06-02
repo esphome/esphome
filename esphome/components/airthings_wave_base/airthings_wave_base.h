@@ -31,7 +31,7 @@ class AirthingsWaveBase : public PollingComponent, public ble_client::BLEClientN
  protected:
   bool is_valid_voc_value_(uint16_t voc);
 
-  virtual void read_sensors(uint8_t *value, uint16_t value_len) = 0;
+  virtual void read_sensors(uint8_t *raw_value, uint16_t value_len) = 0;
   void request_read_values_();
 
   sensor::Sensor *temperature_sensor_{nullptr};
