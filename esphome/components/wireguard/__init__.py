@@ -18,7 +18,7 @@ CONF_PEER_PRESHARED_KEY = "peer_preshared_key"
 CONF_PEER_ALLOWED_IPS = "peer_allowed_ips"
 CONF_PEER_PERSISTENT_KEEPALIVE = "peer_persistent_keepalive"
 
-DEPENDENCIES = ["time"]
+DEPENDENCIES = ["time", "esp32"]
 CODEOWNERS = ["@lhoracek", "@droscy"]
 
 wireguard_ns = cg.esphome_ns.namespace("wireguard")
@@ -51,7 +51,7 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default=0): cv.Any(
             cv.positive_time_period_seconds,
-            cv.int_range(min=1, max=65535),  # uint16_t in esp_wireguard library
+            cv.uint16_t,
         ),
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="15min"

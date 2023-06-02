@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include <ctime>
 #include <vector>
 #include <tuple>
@@ -70,5 +72,7 @@ void resume_wdt();
 
 }  // namespace wireguard
 }  // namespace esphome
+
+#endif
 
 // vim: tabstop=2 shiftwidth=2 expandtab
