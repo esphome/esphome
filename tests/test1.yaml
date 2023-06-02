@@ -2199,6 +2199,11 @@ climate:
     heat_mode: extended
   - platform: whynter
     name: Whynter
+  - platform: noblex
+    name: AC Living
+    id: noblex_ac
+    sensor: ${sensorname}_sensor
+    receiver_id: rcvr
 
 script:
   - id: climate_custom
