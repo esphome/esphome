@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/wireguard/wireguard.h"
@@ -22,5 +24,7 @@ class WireguardHandshake : public sensor::Sensor, public PollingComponent {
 
 }  // namespace wireguard_handshake
 }  // namespace esphome
+
+#endif
 
 // vim: tabstop=2 shiftwidth=2 expandtab

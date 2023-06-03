@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include "esphome/core/component.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/wireguard/wireguard.h"
@@ -22,5 +24,7 @@ class WireguardStatus : public binary_sensor::BinarySensor, public PollingCompon
 
 }  // namespace wireguard_status
 }  // namespace esphome
+
+#endif
 
 // vim: tabstop=2 shiftwidth=2 expandtab
