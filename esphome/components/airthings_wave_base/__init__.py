@@ -69,15 +69,15 @@ async def wave_base_to_code(var, config):
 
     await ble_client.register_ble_node(var, config)
 
-    if CONF_HUMIDITY in config:
-        sens = await sensor.new_sensor(config[CONF_HUMIDITY])
+    if config_humidity := config.get(CONF_HUMIDITY):
+        sens = await sensor.new_sensor(config_humidity)
         cg.add(var.set_humidity(sens))
-    if CONF_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
+    if config_temperature := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(config_temperature)
         cg.add(var.set_temperature(sens))
-    if CONF_PRESSURE in config:
-        sens = await sensor.new_sensor(config[CONF_PRESSURE])
+    if config_pressure := config.get(CONF_PRESSURE):
+        sens = await sensor.new_sensor(config_pressure)
         cg.add(var.set_pressure(sens))
-    if CONF_TVOC in config:
-        sens = await sensor.new_sensor(config[CONF_TVOC])
+    if config_tvoc := config.get(CONF_TVOC):
+        sens = await sensor.new_sensor(config_tvoc)
         cg.add(var.set_tvoc(sens))
