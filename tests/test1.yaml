@@ -1310,6 +1310,8 @@ sensor:
       fault_count: 1
       polarity: active_high
       function: comparator
+  - platform: wireguard_handshake
+    name: WireGuard Latest Handshake
 
 esp32_touch:
   setup_mode: false
@@ -1590,6 +1592,8 @@ binary_sensor:
       name: movement
     has_still_target:
       name: still
+  - platform: wireguard_status
+    name: WireGuard Status
 
 pca9685:
   frequency: 500
@@ -3371,3 +3375,16 @@ lcd_menu:
       on_prev:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
+
+wireguard:
+  address: 172.16.34.100
+  netmask: 255.255.255.0
+  # NEVER use the following keys for your vpn, they are now public!
+  private_key: wPBMxtNYH3mChicrbpsRpZIasIdPq3yZuthn23FbGG8=
+  peer_public_key: Hs2JfikvYU03/Kv3YoAs1hrUIPPTEkpsZKSPUljE9yc=
+  peer_preshared_key: 20fjM5GRnSolGPC5SRj9ljgIUyQfruv0B0bvLl3Yt60=
+  peer_endpoint: wg.server.example
+  peer_persistent_keepalive: 25s
+  peer_allowed_ips:
+    - 172.16.34.0/24
+    - 192.168.4.0/24
