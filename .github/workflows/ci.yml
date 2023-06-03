@@ -56,7 +56,7 @@ jobs:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
       - name: Run yamllint
-        uses: frenck/action-yamllint@v1.4.0
+        uses: frenck/action-yamllint@v1.4.1
 
   black:
     name: Check black

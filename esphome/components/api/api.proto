@@ -1399,6 +1399,7 @@ message VoiceAssistantRequest {
   option (ifdef) = "USE_VOICE_ASSISTANT";
 
   bool start = 1;
+  string conversation_id = 2;
 }
 
 message VoiceAssistantResponse {
