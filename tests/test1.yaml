@@ -228,6 +228,10 @@ uart:
     baud_rate: 256000
     parity: NONE
     stop_bits: 1
+  - id: dfrobot_mmwave_uart
+    tx_pin: 14
+    rx_pin: 27
+    baud_rate: 115200
 
 ota:
   safe_mode: true
@@ -338,6 +342,10 @@ mcp23s17:
   - id: mcp23s17_hub
     cs_pin: GPIO12
     deviceaddress: 1
+
+dfrobot_mmwave_radar:
+  - id: mmwave
+    uart_id: dfrobot_mmwave_uart
 
 sensor:
   - platform: internal_temperature
@@ -1590,6 +1598,9 @@ binary_sensor:
       name: movement
     has_still_target:
       name: still
+  - platform: dfrobot_mmwave_radar
+    id: mmwave_detected_uart
+    dfrobot_mmwave_radar_id: mmwave
 
 pca9685:
   frequency: 500
@@ -3276,6 +3287,34 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+  - platform: template
+    name: Update Mmwave Sensor Settings
+    on_press:
+      - dfrobot_mmwave_radar.settings:
+          id: mmwave
+          factory_reset: true
+          detection_segments:
+            - 0cm - 5m
+            - 600cm - 700cm
+          output_latency:
+            delay_after_detect: 0s
+            delay_after_disappear: 0s
+          start_after_power_on: true
+          turn_on_led: false
+          presence_via_uart: true
+          sensitivity: 6
+  - platform: template
+    name: Start Mmwave Sensor
+    on_press:
+      - dfrobot_mmwave_radar.start
+  - platform: template
+    name: Stop Mmwave Sensor
+    on_press:
+      - dfrobot_mmwave_radar.stop
+  - platform: template
+    name: Reset Mmwave Sensor
+    on_press:
+      - dfrobot_mmwave_radar.reset
 
 ld2410:
   id: my_ld2410
