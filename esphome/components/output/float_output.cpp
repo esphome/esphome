@@ -46,7 +46,6 @@ void FloatOutput::set_level(float state) {
   if (!(state == 0.0f && this->zero_means_zero_))  // regardless of min_power_, 0.0 means off
     state = (state * (this->max_power_ - this->min_power_)) + this->min_power_;
 
-  float adjusted_value = (state * (this->max_power_ - this->min_power_)) + this->min_power_;
   if (this->is_inverted())
     state = 1.0f - state;
   this->write_state(state);
