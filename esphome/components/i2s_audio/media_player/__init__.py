@@ -27,6 +27,7 @@ i2s_dac_mode_t = cg.global_ns.enum("i2s_dac_mode_t")
 CONF_MUTE_PIN = "mute_pin"
 CONF_AUDIO_ID = "audio_id"
 CONF_DAC_TYPE = "dac_type"
+CONF_I2S_COMM_FMT = "i2s_comm_fmt"
 
 INTERNAL_DAC_OPTIONS = {
     "left": i2s_dac_mode_t.I2S_DAC_CHANNEL_LEFT_EN,
@@ -69,6 +70,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_MODE, default="mono"): cv.one_of(
                         *EXTERNAL_DAC_OPTIONS, lower=True
                     ),
+                    cv.Optional(CONF_I2S_COMM_FMT, default=False): cv.boolean,
                 }
             ).extend(cv.COMPONENT_SCHEMA),
         },
@@ -94,6 +96,8 @@ async def to_code(config):
             pin = await cg.gpio_pin_expression(config[CONF_MUTE_PIN])
             cg.add(var.set_mute_pin(pin))
         cg.add(var.set_external_dac_channels(2 if config[CONF_MODE] == "stereo" else 1))
+        if CONF_I2S_COMM_FMT in config:
+            cg.add(var.set_i2s_comm_fmt(config[CONF_I2S_COMM_FMT]))
 
     cg.add_library("WiFiClientSecure", None)
     cg.add_library("HTTPClient", None)
