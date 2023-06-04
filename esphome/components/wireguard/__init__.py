@@ -19,7 +19,7 @@ CONF_PEER_ALLOWED_IPS = "peer_allowed_ips"
 CONF_PEER_PERSISTENT_KEEPALIVE = "peer_persistent_keepalive"
 
 DEPENDENCIES = ["time", "esp32"]
-CODEOWNERS = ["@lhoracek", "@droscy"]
+CODEOWNERS = ["@lhoracek", "@droscy", "@thomas0bernard"]
 
 wireguard_ns = cg.esphome_ns.namespace("wireguard")
 Wireguard = wireguard_ns.class_("Wireguard", cg.Component, cg.PollingComponent)
