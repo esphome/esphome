@@ -17,7 +17,7 @@
 namespace esphome {
 namespace pm {
 
-static const char *TAG = "PM";
+static const char *const TAG = "PM";
 
 void PM::setup() {
 #ifdef CONFIG_PM_ENABLE
@@ -106,7 +106,7 @@ PMLock::~PMLock() {
 #endif
 }
 
-PM *global_pm = nullptr;
+PM *global_pm = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace pm
 }  // namespace esphome

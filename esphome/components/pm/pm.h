@@ -40,7 +40,7 @@ class PM : public Component {
 #endif
 };
 
-extern PM *global_pm;
+extern PM *global_pm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace pm
 }  // namespace esphome
