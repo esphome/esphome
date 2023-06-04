@@ -47,7 +47,7 @@ void PM::setup() {
   // Disable powermanagement until startup has time to finish.
   // There may be a better way to do this
   esp_pm_lock_acquire(*this->pm_lock_);
-  delay(100);
+  delay(20);  // NOLINT
   esp_pm_lock_release(*this->pm_lock_);
 
 #else
