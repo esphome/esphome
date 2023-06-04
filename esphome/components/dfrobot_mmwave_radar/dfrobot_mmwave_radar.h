@@ -36,16 +36,16 @@ static const uint8_t COMMAND_QUEUE_SIZE = 20;
 
 class CircularCommandQueue {
  public:
-  int8_t enqueue(Command *cmd);
-  Command *dequeue();
-  Command *peek();
+  int8_t enqueue(std::unique_ptr<Command> cmd);
+  std::unique_ptr<Command> dequeue();
   bool isEmpty();
   bool isFull();
+  uint8_t process(DfrobotMmwaveRadarComponent *component);
 
  protected:
   int front_{-1};
   int rear_{-1};
-  Command *commands_[COMMAND_QUEUE_SIZE];
+  std::unique_ptr<Command> commands_[COMMAND_QUEUE_SIZE];
 };
 
 class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
@@ -60,7 +60,7 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
   }
 #endif
 
-  int8_t enqueue(Command *cmd);
+  int8_t enqueue(std::unique_ptr<Command> cmd);
 
  protected:
 #ifdef USE_BINARY_SENSOR
@@ -209,7 +209,7 @@ template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts.
 
   void set_power(bool powerState) { powerState_ = powerState; }
 
-  void play(Ts... x) { parent_->enqueue(new PowerCommand(powerState_)); }
+  void play(Ts... x) { parent_->enqueue(std::unique_ptr<PowerCommand>(new PowerCommand(powerState_))); }
 
  protected:
   DfrobotMmwaveRadarComponent *parent_;
@@ -219,7 +219,7 @@ template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts.
 template<typename... Ts> class DfrobotMmwaveRadarResetAction : public Action<Ts...> {
  public:
   DfrobotMmwaveRadarResetAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
-  void play(Ts... x) { parent_->enqueue(new ResetSystemCommand()); }
+  void play(Ts... x) { parent_->enqueue(std::unique_ptr<ResetSystemCommand>(new ResetSystemCommand())); }
 
  protected:
   DfrobotMmwaveRadarComponent *parent_;
@@ -260,31 +260,34 @@ template<typename... Ts> class DfrobotMmwaveRadarSettingsAction : public Action<
   }
 
   void play(Ts... x) {
-    parent_->enqueue(new PowerCommand(0));
+    parent_->enqueue(std::unique_ptr<PowerCommand>(new PowerCommand(0)));
     if (factory_reset_ == 1) {
-      parent_->enqueue(new FactoryResetCommand());
+      parent_->enqueue(std::unique_ptr<FactoryResetCommand>(new FactoryResetCommand()));
     }
     if (det_min1_ >= 0 && det_max1_ >= 0) {
-      parent_->enqueue(new DetRangeCfgCommand(det_min1_, det_max1_, det_min2_, det_max2_, det_min3_, det_max3_,
-                                              det_min4_, det_max4_));
+      parent_->enqueue(std::unique_ptr<DetRangeCfgCommand>(new DetRangeCfgCommand(
+        det_min1_, det_max1_,
+        det_min2_, det_max2_,
+        det_min3_, det_max3_,
+        det_min4_, det_max4_)));
     }
     if (delay_after_detect_ >= 0 && delay_after_disappear_ >= 0) {
-      parent_->enqueue(new OutputLatencyCommand(delay_after_detect_, delay_after_disappear_));
+      parent_->enqueue(std::unique_ptr<OutputLatencyCommand>(new OutputLatencyCommand(delay_after_detect_, delay_after_disappear_)));
     }
     if (start_immediately_ >= 0) {
-      parent_->enqueue(new SensorCfgStartCommand(start_immediately_));
+      parent_->enqueue(std::unique_ptr<SensorCfgStartCommand>(new SensorCfgStartCommand(start_immediately_)));
     }
     if (led_active_ >= 0) {
-      parent_->enqueue(new LedModeCommand(led_active_));
+      parent_->enqueue(std::unique_ptr<LedModeCommand>(new LedModeCommand(led_active_)));
     }
     if (presence_via_uart_ >= 0) {
-      parent_->enqueue(new UartOutputCommand(presence_via_uart_));
+      parent_->enqueue(std::unique_ptr<UartOutputCommand>(new UartOutputCommand(presence_via_uart_)));
     }
     if (sensitivity_ >= 0) {
-      parent_->enqueue(new SensitivityCommand(sensitivity_));
+      parent_->enqueue(std::unique_ptr<SensitivityCommand>(new SensitivityCommand(sensitivity_)));
     }
-    parent_->enqueue(new SaveCfgCommand());
-    parent_->enqueue(new PowerCommand(1));
+    parent_->enqueue(std::unique_ptr<SaveCfgCommand>(new SaveCfgCommand()));
+    parent_->enqueue(std::unique_ptr<PowerCommand>(new PowerCommand(1)));
   }
 
  protected:

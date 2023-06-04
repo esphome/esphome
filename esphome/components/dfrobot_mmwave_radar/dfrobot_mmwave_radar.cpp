@@ -18,23 +18,21 @@ void DfrobotMmwaveRadarComponent::dump_config() {
 void DfrobotMmwaveRadarComponent::setup() {}
 
 void DfrobotMmwaveRadarComponent::loop() {
-  Command *cmd = cmdQueue_.peek();
-  if (cmd == nullptr) {
+  if(cmdQueue_.isEmpty()) {
     // Command queue empty. Read sensor state.
-    cmdQueue_.enqueue(new ReadStateCommand());
-    cmd = cmdQueue_.peek();
+    cmdQueue_.enqueue(std::unique_ptr<ReadStateCommand>(new ReadStateCommand()));
   }
 
-  // execute of the same command might be called multiple times
-  // until it returns 1, which means it is done. Then it is removed
-  // from the queue.
-  if (cmd->execute(this)) {
+  // Commands are non-blocking and need to be called repeatedly.
+  if (cmdQueue_.process(this)) {
+    // Dequeue if command is done
     cmdQueue_.dequeue();
-    delete cmd;
   }
 }
 
-int8_t DfrobotMmwaveRadarComponent::enqueue(Command *cmd) { return cmdQueue_.enqueue(cmd); }
+int8_t DfrobotMmwaveRadarComponent::enqueue(std::unique_ptr<Command> cmd) {
+  return cmdQueue_.enqueue(std::move(cmd));  // Transfer ownership using std::move
+}
 
 uint8_t DfrobotMmwaveRadarComponent::read_message() {
   while (this->available()) {
@@ -96,39 +94,42 @@ void DfrobotMmwaveRadarComponent::set_detected_(bool detected) {
 #endif
 }
 
-int8_t CircularCommandQueue::enqueue(Command *cmd) {
+int8_t CircularCommandQueue::enqueue(std::unique_ptr<Command> cmd) {
   if (this->isFull()) {
     ESP_LOGE(TAG, "Command queue is full");
     return -1;
   } else if (this->isEmpty())
     front_++;
   rear_ = (rear_ + 1) % COMMAND_QUEUE_SIZE;
-  commands_[rear_] = cmd;
+  commands_[rear_] = std::move(cmd);  // Transfer ownership using std::move
   return 1;
 }
 
-Command *CircularCommandQueue::dequeue() {
+std::unique_ptr<Command> CircularCommandQueue::dequeue() {
   if (this->isEmpty())
     return nullptr;
-  Command *temp = commands_[front_];
+  std::unique_ptr<Command> dequeued_cmd = std::move(commands_[front_]);
   if (front_ == rear_) {
     front_ = -1;
     rear_ = -1;
   } else
     front_ = (front_ + 1) % COMMAND_QUEUE_SIZE;
 
-  return temp;
-}
-
-Command *CircularCommandQueue::peek() {
-  if (this->isEmpty())
-    return nullptr;
-  return commands_[front_];
+  return dequeued_cmd;
 }
 
 bool CircularCommandQueue::isEmpty() { return front_ == -1; }
 
 bool CircularCommandQueue::isFull() { return (rear_ + 1) % COMMAND_QUEUE_SIZE == front_; }
+
+// Run execute method of first in line command.
+// Execute is non-blocking and has to be called until it returns 1.
+uint8_t CircularCommandQueue::process(DfrobotMmwaveRadarComponent *component) {
+  if(!isEmpty())
+    return commands_[front_]->execute(component);
+  else
+    return 1;
+}
 
 uint8_t Command::execute(DfrobotMmwaveRadarComponent *component) {
   if (cmd_sent_) {
