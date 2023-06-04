@@ -6,7 +6,6 @@
 
 #ifdef USE_ESP_IDF
 #include "esp_pm.h"
-#endif
 
 namespace esphome {
 namespace pm {
@@ -45,3 +44,4 @@ extern PM *global_pm;
 
 }  // namespace pm
 }  // namespace esphome
+#endif

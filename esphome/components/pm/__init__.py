@@ -4,6 +4,7 @@ from esphome.const import CONF_ID, CONF_MIN_FREQ_MHZ, CONF_MAX_FREQ_MHZ, CONF_TI
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.core import CORE
 
+DEPENDENCIES = ["esp32"]
 
 pm_ns = cg.esphome_ns.namespace("pm")
 PM = pm_ns.class_("PM", cg.Component)

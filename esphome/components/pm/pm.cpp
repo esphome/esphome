@@ -9,7 +9,6 @@
 
 #include "esp_pm.h"
 #include "esp_sleep.h"
-#endif
 
 #include "pm.h"
 
@@ -48,7 +47,7 @@ void PM::setup() {
   // Disable powermanagement until startup has time to finish.
   // There may be a better way to do this
   esp_pm_lock_acquire(*this->pm_lock_.get());
-  delay(10);
+  delay(100);
   esp_pm_lock_release(*this->pm_lock_.get());
 
 #else
@@ -111,3 +110,4 @@ PM *global_pm = nullptr;
 
 }  // namespace pm
 }  // namespace esphome
+#endif
