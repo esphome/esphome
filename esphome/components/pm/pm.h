@@ -32,9 +32,9 @@ class PM : public Component {
   std::unique_ptr<pm::PMLock> get_lock();
 
  private:
-  uint16_t min_freq = 40;
-  uint16_t max_freq = 240;
-  bool tickless = false;
+  uint16_t min_freq_ = 40;
+  uint16_t max_freq_ = 240;
+  bool tickless_ = false;
 #ifdef USE_ESP_IDF
   std::shared_ptr<esp_pm_lock_handle_t> pm_lock_;
 #endif
