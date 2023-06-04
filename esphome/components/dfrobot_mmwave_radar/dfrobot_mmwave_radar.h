@@ -209,7 +209,7 @@ template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts.
 
   void set_power(bool powerState) { powerState_ = powerState; }
 
-  void play(Ts... x) { parent_->enqueue(std::unique_ptr<PowerCommand>(new PowerCommand(powerState_))); }
+  void play(Ts... x) { parent_->enqueue(make_unique<PowerCommand>(powerState_)); }
 
  protected:
   DfrobotMmwaveRadarComponent *parent_;
@@ -219,7 +219,7 @@ template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts.
 template<typename... Ts> class DfrobotMmwaveRadarResetAction : public Action<Ts...> {
  public:
   DfrobotMmwaveRadarResetAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
-  void play(Ts... x) { parent_->enqueue(std::unique_ptr<ResetSystemCommand>(new ResetSystemCommand())); }
+  void play(Ts... x) { parent_->enqueue(make_unique<ResetSystemCommand>()); }
 
  protected:
   DfrobotMmwaveRadarComponent *parent_;
@@ -260,32 +260,32 @@ template<typename... Ts> class DfrobotMmwaveRadarSettingsAction : public Action<
   }
 
   void play(Ts... x) {
-    parent_->enqueue(std::unique_ptr<PowerCommand>(new PowerCommand(0)));
+    parent_->enqueue(make_unique<PowerCommand>(0));
     if (factory_reset_ == 1) {
-      parent_->enqueue(std::unique_ptr<FactoryResetCommand>(new FactoryResetCommand()));
+      parent_->enqueue(make_unique<FactoryResetCommand>());
     }
     if (det_min1_ >= 0 && det_max1_ >= 0) {
-      parent_->enqueue(std::unique_ptr<DetRangeCfgCommand>(new DetRangeCfgCommand(
-          det_min1_, det_max1_, det_min2_, det_max2_, det_min3_, det_max3_, det_min4_, det_max4_)));
+      parent_->enqueue(make_unique<DetRangeCfgCommand>(
+          det_min1_, det_max1_, det_min2_, det_max2_, det_min3_, det_max3_, det_min4_, det_max4_));
     }
     if (delay_after_detect_ >= 0 && delay_after_disappear_ >= 0) {
       parent_->enqueue(
-          std::unique_ptr<OutputLatencyCommand>(new OutputLatencyCommand(delay_after_detect_, delay_after_disappear_)));
+          make_unique<OutputLatencyCommand>(delay_after_detect_, delay_after_disappear_));
     }
     if (start_immediately_ >= 0) {
-      parent_->enqueue(std::unique_ptr<SensorCfgStartCommand>(new SensorCfgStartCommand(start_immediately_)));
+      parent_->enqueue(make_unique<SensorCfgStartCommand>(start_immediately_));
     }
     if (led_active_ >= 0) {
-      parent_->enqueue(std::unique_ptr<LedModeCommand>(new LedModeCommand(led_active_)));
+      parent_->enqueue(make_unique<LedModeCommand>(led_active_));
     }
     if (presence_via_uart_ >= 0) {
-      parent_->enqueue(std::unique_ptr<UartOutputCommand>(new UartOutputCommand(presence_via_uart_)));
+      parent_->enqueue(make_unique<UartOutputCommand>(presence_via_uart_));
     }
     if (sensitivity_ >= 0) {
-      parent_->enqueue(std::unique_ptr<SensitivityCommand>(new SensitivityCommand(sensitivity_)));
+      parent_->enqueue(make_unique<SensitivityCommand>(sensitivity_));
     }
-    parent_->enqueue(std::unique_ptr<SaveCfgCommand>(new SaveCfgCommand()));
-    parent_->enqueue(std::unique_ptr<PowerCommand>(new PowerCommand(1)));
+    parent_->enqueue(make_unique<SaveCfgCommand>());
+    parent_->enqueue(make_unique<PowerCommand>(1));
   }
 
  protected:

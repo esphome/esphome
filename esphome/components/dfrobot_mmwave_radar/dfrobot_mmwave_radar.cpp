@@ -20,7 +20,7 @@ void DfrobotMmwaveRadarComponent::setup() {}
 void DfrobotMmwaveRadarComponent::loop() {
   if (cmdQueue_.isEmpty()) {
     // Command queue empty. Read sensor state.
-    cmdQueue_.enqueue(std::unique_ptr<ReadStateCommand>(new ReadStateCommand()));
+    cmdQueue_.enqueue(make_unique<ReadStateCommand>());
   }
 
   // Commands are non-blocking and need to be called repeatedly.
