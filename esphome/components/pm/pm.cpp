@@ -78,7 +78,7 @@ std::unique_ptr<pm::PMLock> PM::get_lock() { return make_unique<PMLock>(this->pm
 
 PMLock::PMLock(std::shared_ptr<esp_pm_lock_handle_t> pm_lock) {
 #ifdef CONFIG_PM_ENABLE
-  pm_lock_ = pm_lock;
+  pm_lock_ = std::move(pm_lock);
   esp_pm_lock_acquire(*this->pm_lock_);
   App.set_loop_interval(16);
   ESP_LOGD(TAG, "PM Lock Aquired");
