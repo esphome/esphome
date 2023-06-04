@@ -39,7 +39,7 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer, 
 #endif
   void set_external_dac_channels(uint8_t channels) { this->external_dac_channels_ = channels; }
 
-  void set_i2s_comm_fmt(bool fmt) { this->i2s_comm_fmt = fmt; }
+  void set_i2s_comm_fmt(bool fmt) { this->i2s_comm_fmt_ = fmt; }
 
   media_player::MediaPlayerTraits get_traits() override;
 
@@ -73,7 +73,7 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer, 
 #endif
   uint8_t external_dac_channels_;
 
-  bool i2s_comm_fmt;
+  bool i2s_comm_fmt_;
 
   HighFrequencyLoopRequester high_freq_;
 
