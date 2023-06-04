@@ -38,8 +38,8 @@ class CircularCommandQueue {
  public:
   int8_t enqueue(std::unique_ptr<Command> cmd);
   std::unique_ptr<Command> dequeue();
-  bool isEmpty();
-  bool isFull();
+  bool is_empty();
+  bool is_full();
   uint8_t process(DfrobotMmwaveRadarComponent *component);
 
  protected:
@@ -66,15 +66,15 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *detected_binary_sensor_{nullptr};
 #endif
-  bool detected_{0};
+  bool detected_{false};
   char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
   size_t read_pos_{0};
-  CircularCommandQueue cmdQueue_;
+  CircularCommandQueue cmd_queue_;
   unsigned long ts_last_cmd_sent_{0};
 
-  uint8_t read_message();
-  uint8_t find_prompt();
-  uint8_t send_cmd(const char *cmd, unsigned long duration);
+  uint8_t read_message_();
+  uint8_t find_prompt_();
+  uint8_t send_cmd_(const char *cmd, unsigned long duration);
 
   void set_detected_(bool detected);
 
@@ -93,16 +93,17 @@ class ReadStateCommand : public Command {
 
 class PowerCommand : public Command {
  public:
-  PowerCommand(bool powerOn) : powerOn_(powerOn) {
-    if (powerOn)
+  PowerCommand(bool power_on) : power_on_(power_on) {
+    if (power_on) {
       cmd_ = "sensorStart";
-    else
+    } else {
       cmd_ = "sensorStop";
+    }
   };
   uint8_t onMessage(std::string &message) override;
 
  protected:
-  bool powerOn_;
+  bool power_on_;
 };
 
 class DetRangeCfgCommand : public Command {
@@ -127,7 +128,7 @@ class OutputLatencyCommand : public Command {
 
 class SensorCfgStartCommand : public Command {
  public:
-  SensorCfgStartCommand(bool startupMode) : startupMode_(startupMode) {
+  SensorCfgStartCommand(bool startupMode) : startup_mode_(startupMode) {
     char tmp_cmd[20] = {0};
     sprintf(tmp_cmd, "sensorCfgStart %d", startupMode);
     cmd_ = std::string(tmp_cmd);
@@ -135,7 +136,7 @@ class SensorCfgStartCommand : public Command {
   uint8_t onMessage(std::string &message) override;
 
  protected:
-  bool startupMode_;
+  bool startup_mode_;
 };
 
 class FactoryResetCommand : public Command {
@@ -163,10 +164,11 @@ class SaveCfgCommand : public Command {
 class LedModeCommand : public Command {
  public:
   LedModeCommand(bool active) : active_(active) {
-    if (active)
+    if (active) {
       cmd_ = "setLedMode 1 0";
-    else
+    } else {
       cmd_ = "setLedMode 1 1";
+    }
   };
   uint8_t onMessage(std::string &message) override;
 
@@ -177,10 +179,11 @@ class LedModeCommand : public Command {
 class UartOutputCommand : public Command {
  public:
   UartOutputCommand(bool active) : active_(active) {
-    if (active)
+    if (active) {
       cmd_ = "setUartOutput 1 1";
-    else
+    } else {
       cmd_ = "setUartOutput 1 0";
+    }
   };
   uint8_t onMessage(std::string &message) override;
 
@@ -207,13 +210,13 @@ template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts.
  public:
   DfrobotMmwaveRadarPowerAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
 
-  void set_power(bool powerState) { powerState_ = powerState; }
+  void set_power(bool powerState) { power_state_ = powerState; }
 
-  void play(Ts... x) { parent_->enqueue(make_unique<PowerCommand>(powerState_)); }
+  void play(Ts... x) { parent_->enqueue(make_unique<PowerCommand>(power_state_)); }
 
  protected:
   DfrobotMmwaveRadarComponent *parent_;
-  bool powerState_;
+  bool power_state_;
 };
 
 template<typename... Ts> class DfrobotMmwaveRadarResetAction : public Action<Ts...> {

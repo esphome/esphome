@@ -1,4 +1,5 @@
 #include "dfrobot_mmwave_radar.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -18,23 +19,23 @@ void DfrobotMmwaveRadarComponent::dump_config() {
 void DfrobotMmwaveRadarComponent::setup() {}
 
 void DfrobotMmwaveRadarComponent::loop() {
-  if (cmdQueue_.isEmpty()) {
+  if (cmd_queue_.is_empty()) {
     // Command queue empty. Read sensor state.
-    cmdQueue_.enqueue(make_unique<ReadStateCommand>());
+    cmd_queue_.enqueue(make_unique<ReadStateCommand>());
   }
 
   // Commands are non-blocking and need to be called repeatedly.
-  if (cmdQueue_.process(this)) {
+  if (cmd_queue_.process(this)) {
     // Dequeue if command is done
-    cmdQueue_.dequeue();
+    cmd_queue_.dequeue();
   }
 }
 
 int8_t DfrobotMmwaveRadarComponent::enqueue(std::unique_ptr<Command> cmd) {
-  return cmdQueue_.enqueue(std::move(cmd));  // Transfer ownership using std::move
+  return cmd_queue_.enqueue(std::move(cmd));  // Transfer ownership using std::move
 }
 
-uint8_t DfrobotMmwaveRadarComponent::read_message() {
+uint8_t DfrobotMmwaveRadarComponent::read_message_() {
   while (this->available()) {
     uint8_t byte;
     this->read_byte(&byte);
@@ -65,8 +66,8 @@ uint8_t DfrobotMmwaveRadarComponent::read_message() {
   return 0;  // No full message yet
 }
 
-uint8_t DfrobotMmwaveRadarComponent::find_prompt() {
-  if (this->read_message()) {
+uint8_t DfrobotMmwaveRadarComponent::find_prompt_() {
+  if (this->read_message_()) {
     std::string message(this->read_buffer_);
     if (message.rfind("leapMMW:/>") != std::string::npos) {
       return 1;  // Prompt found
@@ -75,7 +76,7 @@ uint8_t DfrobotMmwaveRadarComponent::find_prompt() {
   return 0;  // Not found yet
 }
 
-uint8_t DfrobotMmwaveRadarComponent::send_cmd(const char *cmd, unsigned long duration) {
+uint8_t DfrobotMmwaveRadarComponent::send_cmd_(const char *cmd, unsigned long duration) {
   // The interval between two commands must be larger than the specified duration (in ms).
   if (millis() - ts_last_cmd_sent_ > duration) {
     this->write_str(cmd);
@@ -95,10 +96,10 @@ void DfrobotMmwaveRadarComponent::set_detected_(bool detected) {
 }
 
 int8_t CircularCommandQueue::enqueue(std::unique_ptr<Command> cmd) {
-  if (this->isFull()) {
+  if (this->is_full()) {
     ESP_LOGE(TAG, "Command queue is full");
     return -1;
-  } else if (this->isEmpty())
+  } else if (this->is_empty())
     front_++;
   rear_ = (rear_ + 1) % COMMAND_QUEUE_SIZE;
   commands_[rear_] = std::move(cmd);  // Transfer ownership using std::move
@@ -106,7 +107,7 @@ int8_t CircularCommandQueue::enqueue(std::unique_ptr<Command> cmd) {
 }
 
 std::unique_ptr<Command> CircularCommandQueue::dequeue() {
-  if (this->isEmpty())
+  if (this->is_empty())
     return nullptr;
   std::unique_ptr<Command> dequeued_cmd = std::move(commands_[front_]);
   if (front_ == rear_) {
@@ -118,14 +119,14 @@ std::unique_ptr<Command> CircularCommandQueue::dequeue() {
   return dequeued_cmd;
 }
 
-bool CircularCommandQueue::isEmpty() { return front_ == -1; }
+bool CircularCommandQueue::is_empty() { return front_ == -1; }
 
-bool CircularCommandQueue::isFull() { return (rear_ + 1) % COMMAND_QUEUE_SIZE == front_; }
+bool CircularCommandQueue::is_full() { return (rear_ + 1) % COMMAND_QUEUE_SIZE == front_; }
 
 // Run execute method of first in line command.
 // Execute is non-blocking and has to be called until it returns 1.
 uint8_t CircularCommandQueue::process(DfrobotMmwaveRadarComponent *component) {
-  if (!isEmpty())
+  if (!is_empty())
     return commands_[front_]->execute(component);
   else
     return 1;
@@ -133,7 +134,7 @@ uint8_t CircularCommandQueue::process(DfrobotMmwaveRadarComponent *component) {
 
 uint8_t Command::execute(DfrobotMmwaveRadarComponent *component) {
   if (cmd_sent_) {
-    if (component->read_message()) {
+    if (component->read_message_()) {
       std::string message(component->read_buffer_);
       if (message.rfind("is not recognized as a CLI command") != std::string::npos) {
         ESP_LOGD(TAG, "Command not recognized properly by sensor");
@@ -143,7 +144,7 @@ uint8_t Command::execute(DfrobotMmwaveRadarComponent *component) {
           ESP_LOGD(TAG, "Retrying...");
           return 0;
         } else {
-          component->find_prompt();
+          component->find_prompt_();
           return 1;  // Command done
         }
       }
@@ -155,13 +156,13 @@ uint8_t Command::execute(DfrobotMmwaveRadarComponent *component) {
           ESP_LOGD(TAG, "Retrying...");
           return 0;
         } else {
-          component->find_prompt();
+          component->find_prompt_();
           return 1;  // Command done
         }
       } else if (rc == 0)
         return 0;
       else {
-        component->find_prompt();
+        component->find_prompt_();
         return 1;
       }
     }
@@ -175,14 +176,14 @@ uint8_t Command::execute(DfrobotMmwaveRadarComponent *component) {
         return 1;  // Command done
       }
     }
-  } else if (component->send_cmd(cmd_.c_str(), cmd_duration_ms_)) {
+  } else if (component->send_cmd_(cmd_.c_str(), cmd_duration_ms_)) {
     cmd_sent_ = true;
   }
   return 0;  // Command not done yet
 }
 
 uint8_t ReadStateCommand::execute(DfrobotMmwaveRadarComponent *component) {
-  if (component->read_message()) {
+  if (component->read_message_()) {
     std::string message(component->read_buffer_);
     if (message.rfind("$JYBSS,0, , , *") != std::string::npos) {
       component->set_detected_(false);
@@ -211,7 +212,7 @@ uint8_t PowerCommand::onMessage(std::string &message) {
     ESP_LOGE(TAG, "Can't start sensor! (Use SaveCfgCommand to save config first)");
     return 1;  // Command done
   } else if (message == "Done") {
-    if (powerOn_)
+    if (power_on_)
       ESP_LOGI(TAG, "Started sensor");
     else
       ESP_LOGI(TAG, "Stopped sensor");
