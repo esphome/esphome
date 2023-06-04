@@ -71,6 +71,14 @@ void ESP32InternalGPIOPin::attach_interrupt(void (*func)(void *), void *arg, gpi
     isr_service_installed = true;
   }
   gpio_isr_handler_add(pin_, func, arg);
+#ifdef USE_PM
+  // gpio_wakeup_enable only supports GPIO_INTR_LOW_LEVEL and GPIO_INTR_HIGH_LEVEL
+  if (idf_type == GPIO_INTR_LOW_LEVEL || idf_type == GPIO_INTR_HIGH_LEVEL) {
+    gpio_wakeup_enable(pin_, idf_type);
+  } else {
+    ESP_LOGE(TAG, "PM Enabled, but unsupported InterruptType. Interrupts may not work on this pin %d", pin_);
+  }
+#endif
 }
 
 std::string ESP32InternalGPIOPin::dump_summary() const {

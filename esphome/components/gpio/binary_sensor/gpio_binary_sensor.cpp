@@ -9,9 +9,6 @@ static const char *const TAG = "gpio.binary_sensor";
 void GPIOBinarySensor::setup() {
   this->pin_->setup();
   this->publish_initial_state(this->pin_->digital_read());
-#ifdef USE_PM
-  gpio_wakeup_enable(this->pin_->get_pin(), GPIO_INTR_LOW_LEVEL);
-#endif
 }
 
 void GPIOBinarySensor::dump_config() {
