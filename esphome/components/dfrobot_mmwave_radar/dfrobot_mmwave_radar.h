@@ -266,13 +266,11 @@ template<typename... Ts> class DfrobotMmwaveRadarSettingsAction : public Action<
     }
     if (det_min1_ >= 0 && det_max1_ >= 0) {
       parent_->enqueue(std::unique_ptr<DetRangeCfgCommand>(new DetRangeCfgCommand(
-        det_min1_, det_max1_,
-        det_min2_, det_max2_,
-        det_min3_, det_max3_,
-        det_min4_, det_max4_)));
+          det_min1_, det_max1_, det_min2_, det_max2_, det_min3_, det_max3_, det_min4_, det_max4_)));
     }
     if (delay_after_detect_ >= 0 && delay_after_disappear_ >= 0) {
-      parent_->enqueue(std::unique_ptr<OutputLatencyCommand>(new OutputLatencyCommand(delay_after_detect_, delay_after_disappear_)));
+      parent_->enqueue(
+          std::unique_ptr<OutputLatencyCommand>(new OutputLatencyCommand(delay_after_detect_, delay_after_disappear_)));
     }
     if (start_immediately_ >= 0) {
       parent_->enqueue(std::unique_ptr<SensorCfgStartCommand>(new SensorCfgStartCommand(start_immediately_)));

@@ -18,7 +18,7 @@ void DfrobotMmwaveRadarComponent::dump_config() {
 void DfrobotMmwaveRadarComponent::setup() {}
 
 void DfrobotMmwaveRadarComponent::loop() {
-  if(cmdQueue_.isEmpty()) {
+  if (cmdQueue_.isEmpty()) {
     // Command queue empty. Read sensor state.
     cmdQueue_.enqueue(std::unique_ptr<ReadStateCommand>(new ReadStateCommand()));
   }
@@ -125,7 +125,7 @@ bool CircularCommandQueue::isFull() { return (rear_ + 1) % COMMAND_QUEUE_SIZE ==
 // Run execute method of first in line command.
 // Execute is non-blocking and has to be called until it returns 1.
 uint8_t CircularCommandQueue::process(DfrobotMmwaveRadarComponent *component) {
-  if(!isEmpty())
+  if (!isEmpty())
     return commands_[front_]->execute(component);
   else
     return 1;
