@@ -76,7 +76,7 @@ uint8_t DfrobotMmwaveRadarComponent::find_prompt_() {
   return 0;  // Not found yet
 }
 
-uint8_t DfrobotMmwaveRadarComponent::send_cmd_(const char *cmd, unsigned long duration) {
+uint8_t DfrobotMmwaveRadarComponent::send_cmd_(const char *cmd, uint32_t duration) {
   // The interval between two commands must be larger than the specified duration (in ms).
   if (millis() - ts_last_cmd_sent_ > duration) {
     this->write_str(cmd);
@@ -126,10 +126,11 @@ bool CircularCommandQueue::is_full() { return (rear_ + 1) % COMMAND_QUEUE_SIZE =
 // Run execute method of first in line command.
 // Execute is non-blocking and has to be called until it returns 1.
 uint8_t CircularCommandQueue::process(DfrobotMmwaveRadarComponent *component) {
-  if (!is_empty())
+  if (!is_empty()) {
     return commands_[front_]->execute(component);
-  else
+  } else {
     return 1;
+  }
 }
 
 uint8_t Command::execute(DfrobotMmwaveRadarComponent *component) {
@@ -148,7 +149,7 @@ uint8_t Command::execute(DfrobotMmwaveRadarComponent *component) {
           return 1;  // Command done
         }
       }
-      uint8_t rc = onMessage(message);
+      uint8_t rc = on_message(message);
       if (rc == 2) {
         if (retries_left_ > 0) {
           retries_left_ -= 1;
@@ -159,9 +160,9 @@ uint8_t Command::execute(DfrobotMmwaveRadarComponent *component) {
           component->find_prompt_();
           return 1;  // Command done
         }
-      } else if (rc == 0)
+      } else if (rc == 0) {
         return 0;
-      else {
+      } else {
         component->find_prompt_();
         return 1;
       }
@@ -199,9 +200,9 @@ uint8_t ReadStateCommand::execute(DfrobotMmwaveRadarComponent *component) {
   return 0;  // Command not done yet.
 }
 
-uint8_t ReadStateCommand::onMessage(std::string &message) { return 1; }
+uint8_t ReadStateCommand::on_message(std::string &message) { return 1; }
 
-uint8_t PowerCommand::onMessage(std::string &message) {
+uint8_t PowerCommand::on_message(std::string &message) {
   if (message == "sensor stopped already") {
     ESP_LOGI(TAG, "Stopped sensor (already stopped)");
     return 1;  // Command done
@@ -212,10 +213,11 @@ uint8_t PowerCommand::onMessage(std::string &message) {
     ESP_LOGE(TAG, "Can't start sensor! (Use SaveCfgCommand to save config first)");
     return 1;  // Command done
   } else if (message == "Done") {
-    if (power_on_)
+    if (power_on_) {
       ESP_LOGI(TAG, "Started sensor");
-    else
+    } else {
       ESP_LOGI(TAG, "Stopped sensor");
+    }
     return 1;  // Command done
   }
   return 0;  // Command not done yet.
@@ -289,7 +291,7 @@ DetRangeCfgCommand::DetRangeCfgCommand(float min1, float max1, float min2, float
   cmd_ = std::string(tmp_cmd);
 };
 
-uint8_t DetRangeCfgCommand::onMessage(std::string &message) {
+uint8_t DetRangeCfgCommand::on_message(std::string &message) {
   if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot configure range config. Sensor is not stopped!");
     return 1;  // Command done
@@ -320,7 +322,7 @@ OutputLatencyCommand::OutputLatencyCommand(float delay_after_detection, float de
   cmd_ = std::string(tmp_cmd);
 };
 
-uint8_t OutputLatencyCommand::onMessage(std::string &message) {
+uint8_t OutputLatencyCommand::on_message(std::string &message) {
   if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot configure output latency. Sensor is not stopped!");
     return 1;  // Command done
@@ -331,7 +333,7 @@ uint8_t OutputLatencyCommand::onMessage(std::string &message) {
   return 0;  // Command not done yet
 }
 
-uint8_t SensorCfgStartCommand::onMessage(std::string &message) {
+uint8_t SensorCfgStartCommand::on_message(std::string &message) {
   if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot configure sensor startup behavior. Sensor is not stopped!");
     return 1;  // Command done
@@ -342,7 +344,7 @@ uint8_t SensorCfgStartCommand::onMessage(std::string &message) {
   return 0;  // Command not done yet
 }
 
-uint8_t FactoryResetCommand::onMessage(std::string &message) {
+uint8_t FactoryResetCommand::on_message(std::string &message) {
   if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot factory reset. Sensor is not stopped!");
     return 1;  // Command done
@@ -353,7 +355,7 @@ uint8_t FactoryResetCommand::onMessage(std::string &message) {
   return 0;  // Command not done yet
 }
 
-uint8_t ResetSystemCommand::onMessage(std::string &message) {
+uint8_t ResetSystemCommand::on_message(std::string &message) {
   if (message == "leapMMW:/>") {
     ESP_LOGI(TAG, "Restarted sensor.");
     return 1;  // Command done
@@ -361,7 +363,7 @@ uint8_t ResetSystemCommand::onMessage(std::string &message) {
   return 0;  // Command not done yet
 }
 
-uint8_t SaveCfgCommand::onMessage(std::string &message) {
+uint8_t SaveCfgCommand::on_message(std::string &message) {
   if (message == "no parameter has changed") {
     ESP_LOGI(TAG, "Not saving config (no parameter changed).");
     return 1;  // Command done
@@ -372,7 +374,7 @@ uint8_t SaveCfgCommand::onMessage(std::string &message) {
   return 0;  // Command not done yet
 }
 
-uint8_t LedModeCommand::onMessage(std::string &message) {
+uint8_t LedModeCommand::on_message(std::string &message) {
   if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot set led mode. Sensor is not stopped!");
     return 1;  // Command done
@@ -383,7 +385,7 @@ uint8_t LedModeCommand::onMessage(std::string &message) {
   return 0;  // Command not done yet
 }
 
-uint8_t UartOutputCommand::onMessage(std::string &message) {
+uint8_t UartOutputCommand::on_message(std::string &message) {
   if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot set uart output mode. Sensor is not stopped!");
     return 1;  // Command done
@@ -394,7 +396,7 @@ uint8_t UartOutputCommand::onMessage(std::string &message) {
   return 0;  // Command not done yet
 }
 
-uint8_t SensitivityCommand::onMessage(std::string &message) {
+uint8_t SensitivityCommand::on_message(std::string &message) {
   if (message == "sensor is not stopped") {
     ESP_LOGE(TAG, "Cannot set sensitivity. Sensor is not stopped!");
     return 1;  // Command done

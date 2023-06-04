@@ -22,14 +22,14 @@ class Command {
  public:
   virtual ~Command() = default;
   virtual uint8_t execute(DfrobotMmwaveRadarComponent *component);
-  virtual uint8_t onMessage(std::string &message) = 0;
+  virtual uint8_t on_message(std::string &message) = 0;
 
  protected:
   std::string cmd_;
   bool cmd_sent_{false};
   int8_t retries_left_{2};
-  unsigned long cmd_duration_ms_{1000};
-  unsigned long timeout_ms_{1500};
+  uint32_t cmd_duration_ms_{1000};
+  uint32_t timeout_ms_{1500};
 };
 
 static const uint8_t COMMAND_QUEUE_SIZE = 20;
@@ -70,11 +70,11 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
   char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
   size_t read_pos_{0};
   CircularCommandQueue cmd_queue_;
-  unsigned long ts_last_cmd_sent_{0};
+  uint32_t ts_last_cmd_sent_{0};
 
   uint8_t read_message_();
   uint8_t find_prompt_();
-  uint8_t send_cmd_(const char *cmd, unsigned long duration);
+  uint8_t send_cmd_(const char *cmd, uint32_t duration);
 
   void set_detected_(bool detected);
 
@@ -85,10 +85,10 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
 class ReadStateCommand : public Command {
  public:
   uint8_t execute(DfrobotMmwaveRadarComponent *component) override;
-  uint8_t onMessage(std::string &message) override;
+  uint8_t on_message(std::string &message) override;
 
  protected:
-  unsigned long timeout_ms_{500};
+  uint32_t timeout_ms_{500};
 };
 
 class PowerCommand : public Command {
@@ -100,7 +100,7 @@ class PowerCommand : public Command {
       cmd_ = "sensorStop";
     }
   };
-  uint8_t onMessage(std::string &message) override;
+  uint8_t on_message(std::string &message) override;
 
  protected:
   bool power_on_;
@@ -109,7 +109,7 @@ class PowerCommand : public Command {
 class DetRangeCfgCommand : public Command {
  public:
   DetRangeCfgCommand(float min1, float max1, float min2, float max2, float min3, float max3, float min4, float max4);
-  uint8_t onMessage(std::string &message) override;
+  uint8_t on_message(std::string &message) override;
 
  protected:
   float min1_, max1_, min2_, max2_, min3_, max3_, min4_, max4_;
@@ -119,7 +119,7 @@ class DetRangeCfgCommand : public Command {
 class OutputLatencyCommand : public Command {
  public:
   OutputLatencyCommand(float delay_after_detection, float delay_after_disappear);
-  uint8_t onMessage(std::string &message) override;
+  uint8_t on_message(std::string &message) override;
 
  protected:
   float delay_after_detection_;
@@ -128,12 +128,12 @@ class OutputLatencyCommand : public Command {
 
 class SensorCfgStartCommand : public Command {
  public:
-  SensorCfgStartCommand(bool startupMode) : startup_mode_(startupMode) {
+  SensorCfgStartCommand(bool startup_mode) : startup_mode_(startup_mode) {
     char tmp_cmd[20] = {0};
-    sprintf(tmp_cmd, "sensorCfgStart %d", startupMode);
+    sprintf(tmp_cmd, "sensorCfgStart %d", startup_mode);
     cmd_ = std::string(tmp_cmd);
   }
-  uint8_t onMessage(std::string &message) override;
+  uint8_t on_message(std::string &message) override;
 
  protected:
   bool startup_mode_;
@@ -142,23 +142,23 @@ class SensorCfgStartCommand : public Command {
 class FactoryResetCommand : public Command {
  public:
   FactoryResetCommand() { cmd_ = "factoryReset 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89"; };
-  uint8_t onMessage(std::string &message) override;
+  uint8_t on_message(std::string &message) override;
 };
 
 class ResetSystemCommand : public Command {
  public:
   ResetSystemCommand() { cmd_ = "resetSystem"; }
-  uint8_t onMessage(std::string &message) override;
+  uint8_t on_message(std::string &message) override;
 };
 
 class SaveCfgCommand : public Command {
  public:
   SaveCfgCommand() { cmd_ = "saveCfg 0x45670123 0xCDEF89AB 0x956128C6 0xDF54AC89"; }
-  uint8_t onMessage(std::string &message) override;
+  uint8_t on_message(std::string &message) override;
 
  protected:
-  unsigned long cmd_duration_ms_{3000};
-  unsigned long timeout_ms_{3500};
+  uint32_t cmd_duration_ms_{3000};
+  uint32_t timeout_ms_{3500};
 };
 
 class LedModeCommand : public Command {
@@ -170,7 +170,7 @@ class LedModeCommand : public Command {
       cmd_ = "setLedMode 1 1";
     }
   };
-  uint8_t onMessage(std::string &message) override;
+  uint8_t on_message(std::string &message) override;
 
  protected:
   bool active_;
@@ -185,7 +185,7 @@ class UartOutputCommand : public Command {
       cmd_ = "setUartOutput 1 0";
     }
   };
-  uint8_t onMessage(std::string &message) override;
+  uint8_t on_message(std::string &message) override;
 
  protected:
   bool active_;
@@ -200,7 +200,7 @@ class SensitivityCommand : public Command {
     sprintf(tmp_cmd, "setSensitivity %d", sensitivity);
     cmd_ = std::string(tmp_cmd);
   };
-  uint8_t onMessage(std::string &message) override;
+  uint8_t on_message(std::string &message) override;
 
  protected:
   uint8_t sensitivity_;
@@ -210,7 +210,7 @@ template<typename... Ts> class DfrobotMmwaveRadarPowerAction : public Action<Ts.
  public:
   DfrobotMmwaveRadarPowerAction(DfrobotMmwaveRadarComponent *parent) : parent_(parent) {}
 
-  void set_power(bool powerState) { power_state_ = powerState; }
+  void set_power(bool power_state) { power_state_ = power_state; }
 
   void play(Ts... x) { parent_->enqueue(make_unique<PowerCommand>(power_state_)); }
 
