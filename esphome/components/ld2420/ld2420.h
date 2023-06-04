@@ -29,6 +29,7 @@ static const uint16_t CMD_READ_ABD_PARAM = 0x0008;
 static const uint16_t CMD_WRITE_SYS_PARAM = 0x0012;
 static const uint16_t CMD_READ_SYS_PARAM = 0x0013;
 static const uint16_t CMD_READ_SERIAL_NUM = 0x0011;
+static const uint16_t CMD_RESTART = 0x0068;
 static const uint16_t CMD_SYSTEM_MODE = 0x0000;
 static const uint16_t CMD_SYSTEM_MODE_TRANSPARENT = 0x0000;
 static const uint16_t CMD_SYSTEM_MODE_MTT = 0x0001;
