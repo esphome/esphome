@@ -32,17 +32,6 @@ void FloatOutput::set_level(float state) {
   }
 #endif
 
-#ifdef USE_PM
-  if (state > 0.0f) {  // ON
-    if (this->pm_ == nullptr) {
-      ESP_LOGD(TAG, "PM Lock Aquired");
-      this->pm_ = pm::global_pm->get_lock();
-    }
-  } else {  // OFF
-    this->pm_.reset();
-  }
-#endif
-
   if (!(state == 0.0f && this->zero_means_zero_))  // regardless of min_power_, 0.0 means off
     state = (state * (this->max_power_ - this->min_power_)) + this->min_power_;
 

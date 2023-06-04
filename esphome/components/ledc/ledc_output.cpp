@@ -101,6 +101,17 @@ void LEDCOutput::write_state(float state) {
   if (this->pin_->is_inverted())
     state = 1.0f - state;
 
+#ifdef USE_PM
+  if (state > 0.0f) {  // ON
+    if (this->pm_ == nullptr) {
+      ESP_LOGD(TAG, "PM Lock Aquired");
+      this->pm_ = pm::global_pm->get_lock();
+    }
+  } else {  // OFF
+    this->pm_.reset();
+  }
+#endif
+
   this->duty_ = state;
   const uint32_t max_duty = (uint32_t(1) << this->bit_depth_) - 1;
   const float duty_rounded = roundf(state * max_duty);

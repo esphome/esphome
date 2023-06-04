@@ -5,6 +5,10 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
 
+#ifdef USE_PM
+#include "esphome/components/pm/pm.h"
+#endif
+
 #ifdef USE_ESP32
 
 namespace esphome {
@@ -38,6 +42,9 @@ class LEDCOutput : public output::FloatOutput, public Component {
   float frequency_{};
   float duty_{0.0f};
   bool initialized_ = false;
+#ifdef USE_PM
+  std::unique_ptr<pm::PMLock> pm_;
+#endif
 };
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
