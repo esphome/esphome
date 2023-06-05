@@ -18,6 +18,7 @@ class Servo : public Component {
   void write(float value);
   void internal_write(float value);
   void detach() {
+    this->state_ = STATE_DETACHED;
     this->output_->set_level(0.0f);
     this->save_level_(0.0f);
   }
@@ -27,7 +28,7 @@ class Servo : public Component {
       this->rtc_ = global_preferences->make_preference<float>(global_servo_id);
       global_servo_id++;
       if (this->rtc_.load(&v)) {
-        this->output_->set_level(v);
+        this->internal_write(v);
         return;
       }
     }

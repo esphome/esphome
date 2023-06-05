@@ -24,7 +24,6 @@ void Servo::loop() {
     if (millis() - this->start_millis_ > this->auto_detach_time_) {
       this->detach();
       this->start_millis_ = 0;
-      this->state_ = STATE_DETACHED;
       ESP_LOGD(TAG, "Servo detached on auto_detach_time");
     }
   }
