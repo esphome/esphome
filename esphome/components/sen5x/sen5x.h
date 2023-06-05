@@ -94,7 +94,7 @@ class SEN5XComponent : public PollingComponent, public sensirion_common::Sensiri
   void set_temperature_compensation(float offset, float normalized_offset_slope, uint16_t time_constant) {
     TemperatureCompensation temp_comp;
     temp_comp.offset = offset * 200;
-    temp_comp.normalized_offset_slope = normalized_offset_slope * 100;
+    temp_comp.normalized_offset_slope = normalized_offset_slope * 10000;
     temp_comp.time_constant = time_constant;
     temperature_compensation_ = temp_comp;
   }

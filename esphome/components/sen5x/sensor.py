@@ -151,7 +151,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_TEMPERATURE_COMPENSATION): cv.Schema(
                 {
                     cv.Optional(CONF_OFFSET, default=0): cv.float_,
-                    cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.percentage,
+                    cv.Optional(CONF_NORMALIZED_OFFSET_SLOPE, default=0): cv.float_,
                     cv.Optional(CONF_TIME_CONSTANT, default=0): cv.int_,
                 }
             ),
