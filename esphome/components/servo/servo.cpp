@@ -25,7 +25,6 @@ void Servo::loop() {
     if (millis() - this->start_millis_ > this->auto_detach_time_) {
       this->detach();
       this->start_millis_ = 0;
-      this->state_ = STATE_DETACHED;
       ESP_LOGD(TAG, "Servo detached on auto_detach_time");
     }
   }
@@ -54,8 +53,10 @@ void Servo::loop() {
 
 void Servo::write(float value) {
   value = clamp(value, -1.0f, 1.0f);
-  if (this->target_value_ == value)
+  if ((this->state_ == STATE_DETACHED) && (this->target_value_ == value))
     this->internal_write(value);
+  else
+    this->save_level_(value);
   this->target_value_ = value;
   this->source_value_ = this->current_value_;
   this->state_ = STATE_ATTACHED;
@@ -72,9 +73,6 @@ void Servo::internal_write(float value) {
     level = lerp(value, this->idle_level_, this->max_level_);
   }
   this->output_->set_level(level);
-  if (this->target_value_ == this->current_value_) {
-    this->save_level_(level);
-  }
   this->current_value_ = value;
 }
 
