@@ -1,5 +1,7 @@
 #include "wireguard_handshake.h"
 
+#ifdef USE_ESP32
+
 #include <ctime>
 #include "esphome/core/log.h"
 #include "esphome/core/component.h"
@@ -38,5 +40,7 @@ void WireguardHandshake::dump_config() {
 
 }  // namespace wireguard_handshake
 }  // namespace esphome
+
+#endif
 
 // vim: tabstop=2 shiftwidth=2 expandtab

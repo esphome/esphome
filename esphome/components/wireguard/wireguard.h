@@ -1,5 +1,7 @@
 #pragma once
 
+#ifdef USE_ESP32
+
 #include <ctime>
 #include <vector>
 #include <tuple>
@@ -69,7 +71,13 @@ class Wireguard : public PollingComponent {
   void start_connection_();
 };
 
+// These are used for possibly long DNS resolution to temporarily suspend the watchdog
+void suspend_wdt();
+void resume_wdt();
+
 }  // namespace wireguard
 }  // namespace esphome
+
+#endif
 
 // vim: tabstop=2 shiftwidth=2 expandtab

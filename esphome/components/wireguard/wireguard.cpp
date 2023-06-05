@@ -1,5 +1,7 @@
 #include "wireguard.h"
 
+#ifdef USE_ESP32
+
 #include <ctime>
 #include <functional>
 
@@ -10,6 +12,15 @@
 
 #include <esp_wireguard.h>
 #include <wireguard.h>  // REKEY_AFTER_TIME, from esp_wireguard library
+
+#if defined(USE_ESP_IDF)
+#include <esp_task_wdt.h>
+#if ESP_IDF_VERSION_MAJOR >= 5
+#include <spi_flash_mmap.h>
+#endif
+#elif defined(USE_ARDUINO)
+#include <esp32-hal.h>
+#endif
 
 namespace esphome {
 namespace wireguard {
@@ -40,7 +51,7 @@ void Wireguard::setup() {
     ESP_LOGI(TAG, "WireGuard initialized");
     this->wg_peer_offline_time_ = millis();
     this->srctime_->add_on_time_sync_callback(std::bind(&Wireguard::start_connection_, this));
-    this->start_connection_();
+    this->defer(std::bind(&Wireguard::start_connection_, this));  // defer to avoid blocking setup
   } else {
     ESP_LOGE(TAG, "cannot initialize WireGuard, error code %d", this->wg_initialized_);
     this->mark_failed();
@@ -171,7 +182,17 @@ void Wireguard::start_connection_() {
   }
 
   ESP_LOGD(TAG, "starting WireGuard connection...");
+
+  /*
+   * The function esp_wireguard_connect() contains a DNS resolution
+   * that could trigger the watchdog, so before it we suspend (or
+   * increase the time, it depends on the platform) the wdt and
+   * then we resume the normal timeout.
+   */
+  suspend_wdt();
   this->wg_connected_ = esp_wireguard_connect(&(this->wg_ctx_));
+  resume_wdt();
+
   if (this->wg_connected_ == ESP_OK) {
     ESP_LOGI(TAG, "WireGuard connection started");
   } else {
@@ -195,7 +216,44 @@ void Wireguard::start_connection_() {
   }
 }
 
+void suspend_wdt() {
+#if defined(USE_ESP_IDF)
+#if ESP_IDF_VERSION_MAJOR >= 5
+  ESP_LOGV(TAG, "temporarily increasing wdt timeout to 15000 ms");
+  esp_task_wdt_config_t wdtc;
+  wdtc.timeout_ms = 15000;
+  wdtc.idle_core_mask = 0;
+  wdtc.trigger_panic = false;
+  esp_task_wdt_reconfigure(&wdtc);
+#else
+  ESP_LOGV(TAG, "temporarily increasing wdt timeout to 15 seconds");
+  esp_task_wdt_init(15, false);
+#endif
+#elif defined(USE_ARDUINO)
+  ESP_LOGV(TAG, "temporarily disabling the wdt");
+  disableLoopWDT();
+#endif
+}
+
+void resume_wdt() {
+#if defined(USE_ESP_IDF)
+#if ESP_IDF_VERSION_MAJOR >= 5
+  wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
+  esp_task_wdt_reconfigure(&wdtc);
+  ESP_LOGV(TAG, "wdt resumed with %d ms timeout", wdtc.timeout_ms);
+#else
+  esp_task_wdt_init(CONFIG_ESP_TASK_WDT_TIMEOUT_S, false);
+  ESP_LOGV(TAG, "wdt resumed with %d seconds timeout", CONFIG_ESP_TASK_WDT_TIMEOUT_S);
+#endif
+#elif defined(USE_ARDUINO)
+  enableLoopWDT();
+  ESP_LOGV(TAG, "wdt resumed");
+#endif
+}
+
 }  // namespace wireguard
 }  // namespace esphome
+
+#endif
 
 // vim: tabstop=2 shiftwidth=2 expandtab

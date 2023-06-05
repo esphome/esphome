@@ -1,5 +1,7 @@
 #include "wireguard_status.h"
 
+#ifdef USE_ESP32
+
 #include "esphome/core/log.h"
 #include "esphome/core/component.h"
 
@@ -30,5 +32,7 @@ void WireguardStatus::dump_config() {
 
 }  // namespace wireguard_status
 }  // namespace esphome
+
+#endif
 
 // vim: tabstop=2 shiftwidth=2 expandtab
