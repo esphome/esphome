@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_IBEACON_MAJOR,
     CONF_IBEACON_MINOR,
     CONF_IBEACON_UUID,
+    CONF_MIN_RSSI,
 )
 
 DEPENDENCIES = ["esp32_ble_tracker"]
@@ -37,6 +38,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IBEACON_MAJOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_MINOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_UUID): cv.uuid,
+            cv.Optional(CONF_MIN_RSSI): cv.All(
+                cv.decibel, cv.int_range(min=-90, max=-30)
+            ),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -50,6 +54,9 @@ async def to_code(config):
     var = await binary_sensor.new_binary_sensor(config)
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_ble_device(var, config)
+
+    if CONF_MIN_RSSI in config:
+        cg.add(var.set_minimum_rssi(config[CONF_MIN_RSSI]))
 
     if CONF_MAC_ADDRESS in config:
         cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))

@@ -223,6 +223,7 @@ bool APIConnection::send_cover_info(cover::Cover *cover) {
   msg.assumed_state = traits.get_is_assumed_state();
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
+  msg.supports_stop = traits.get_supports_stop();
   msg.device_class = cover->get_device_class();
   msg.disabled_by_default = cover->is_disabled_by_default();
   msg.icon = cover->get_icon();
@@ -894,11 +895,12 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-bool APIConnection::request_voice_assistant(bool start) {
+bool APIConnection::request_voice_assistant(bool start, const std::string &conversation_id) {
   if (!this->voice_assistant_subscription_)
     return false;
   VoiceAssistantRequest msg;
   msg.start = start;
+  msg.conversation_id = conversation_id;
   return this->send_voice_assistant_request(msg);
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
