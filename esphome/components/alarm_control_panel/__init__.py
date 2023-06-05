@@ -27,30 +27,35 @@ CONF_TRIGGER_TIME = "trigger_time"
 CONF_ON_TRIGGERED = "on_triggered"
 CONF_ON_CLEARED = "on_cleared"
 
-AlarmPanelNS = cg.esphome_ns.namespace("alarm_control_panel")
-AlarmControlPanelComponent = AlarmPanelNS.class_("AlarmControlPanel", cg.Component)
-StateTrigger = AlarmPanelNS.class_("StateTrigger", automation.Trigger.template())
-TriggeredTrigger = AlarmPanelNS.class_(
+alarm_control_panel_ns = cg.esphome_ns.namespace("alarm_control_panel")
+AlarmControlPanel = alarm_control_panel_ns.class_("AlarmControlPanel", cg.Component)
+StateTrigger = alarm_control_panel_ns.class_(
+    "StateTrigger", automation.Trigger.template()
+)
+TriggeredTrigger = alarm_control_panel_ns.class_(
     "TriggeredTrigger", automation.Trigger.template()
 )
-ClearedTrigger = AlarmPanelNS.class_("ClearedTrigger", automation.Trigger.template())
-ArmAwayAction = AlarmPanelNS.class_("ArmAwayAction", automation.Action)
-ArmHomeAction = AlarmPanelNS.class_("ArmHomeAction", automation.Action)
-DisarmAction = AlarmPanelNS.class_("DisarmAction", automation.Action)
-AlarmControlPanelCondition = AlarmPanelNS.class_(
+ClearedTrigger = alarm_control_panel_ns.class_(
+    "ClearedTrigger", automation.Trigger.template()
+)
+ArmAwayAction = alarm_control_panel_ns.class_("ArmAwayAction", automation.Action)
+ArmHomeAction = alarm_control_panel_ns.class_("ArmHomeAction", automation.Action)
+DisarmAction = alarm_control_panel_ns.class_("DisarmAction", automation.Action)
+AlarmControlPanelCondition = alarm_control_panel_ns.class_(
     "AlarmControlPanelCondition", automation.Condition
 )
 
-CONFIG_SCHEMA_BINARY_SENSOR = cv.Schema(
+CONFIG_SCHEMA_BINARY_SENSOR = cv.maybe_simple_value(
     {
         cv.Required(CONF_INPUT): cv.use_id(binary_sensor.BinarySensor),
         cv.Optional(CONF_BYPASS_ARMED_HOME, default=False): cv.boolean,
-    }
+    },
+    key=CONF_INPUT,
 )
 
 CONFIG_SCHEMA_ALARM_CONTROL_PANEL = cv.ENTITY_BASE_SCHEMA.extend(
     {
-        cv.GenerateID(): cv.declare_id(AlarmControlPanelComponent),
+        cv.GenerateID(): cv.declare_id(AlarmControlPanel),
         cv.Optional(CONF_CODES): cv.ensure_list(cv.string_strict),
         cv.Optional(CONF_REQUIRES_CODE_TO_ARM, False): cv.boolean,
         cv.Optional(CONF_ARMING_HOME_TIME, "0s"): cv.positive_time_period_seconds,
@@ -80,14 +85,14 @@ CONFIG_SCHEMA = cv.All(cv.ensure_list(CONFIG_SCHEMA_ALARM_CONTROL_PANEL))
 
 SCHEMA_ALARM_CONTROL_PANEL_ACTION = maybe_simple_id(
     {
-        cv.Required(CONF_ID): cv.use_id(AlarmControlPanelComponent),
+        cv.Required(CONF_ID): cv.use_id(AlarmControlPanel),
         cv.Optional(CONF_CODE): cv.templatable(cv.string),
     }
 )
 
 SCHEMA_ALARM_CONTROL_PANEL_CONDITION = maybe_simple_id(
     {
-        cv.Required(CONF_ID): cv.use_id(AlarmControlPanelComponent),
+        cv.Required(CONF_ID): cv.use_id(AlarmControlPanel),
     }
 )
 
@@ -176,7 +181,7 @@ async def lock_is_on_to_code(config, condition_id, template_arg, args):
 
 @coroutine_with_priority(100.0)
 async def to_code(config):
-    cg.add_global(AlarmPanelNS.using)
+    cg.add_global(alarm_control_panel_ns.using)
     cg.add_define("USE_ALARM_CONTROL_PANEL")
     for apanel in config:
         var = cg.new_Pvariable(apanel[CONF_ID])

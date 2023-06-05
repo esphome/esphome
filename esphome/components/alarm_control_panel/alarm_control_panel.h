@@ -22,6 +22,16 @@ enum AlarmControlPanelState : uint8_t {
   TRIGGERED = 9
 };
 
+enum AlarmControlPanelFeature : uint8_t {
+  // Matches Home Assistant values
+  ARM_HOME = 1,
+  ARM_AWAY = 2,
+  ARM_NIGHT = 4,
+  TRIGGER = 8,
+  ARM_CUSTOM_BYPASS = 16,
+  ARM_VACATION = 32
+};
+
 class AlarmControlPanel : public Component, public EntityBase {
  public:
   AlarmControlPanel();

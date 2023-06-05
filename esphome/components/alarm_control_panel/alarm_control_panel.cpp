@@ -37,14 +37,12 @@ void AlarmControlPanel::loop() {
       delay = this->arming_home_time_;
     }
     if ((millis() - this->last_update_) > delay) {
-      ESP_LOGD(TAG, "After Arming Time");
       this->set_panel_state(this->desired_state_);
     }
     return;
   }
   // change from PENDING to TRIGGERED after the delay_time_ has passed
   if (this->current_state_ == AlarmControlPanelState::PENDING && (millis() - this->last_update_) > this->delay_time_) {
-    ESP_LOGD(TAG, "After Delay Time");
     this->set_panel_state(AlarmControlPanelState::TRIGGERED);
     return;
   }
@@ -52,7 +50,6 @@ void AlarmControlPanel::loop() {
   // reset triggered if all clear
   if (this->current_state_ == AlarmControlPanelState::TRIGGERED && this->trigger_time_ > 0 &&
       (millis() - this->last_update_) > this->trigger_time_) {
-    ESP_LOGD(TAG, "After Trigger Time");
     future_state = this->desired_state_;
   }
   bool trigger = false;
@@ -89,6 +86,7 @@ void AlarmControlPanel::dump_config() {
   ESP_LOGCONFIG(TAG, "  Arming Home Time: %us", (this->arming_home_time_ / 1000));
   ESP_LOGCONFIG(TAG, "  Delay Time: %us", (this->delay_time_ / 1000));
   ESP_LOGCONFIG(TAG, "  Trigger Time: %us", (this->trigger_time_ / 1000));
+  ESP_LOGCONFIG(TAG, "  Supported Features: %u", this->get_supported_features());
   for (size_t i = 0; i < this->sensors_.size(); i++) {
     auto sensor = (*this->sensors_[i]);
     std::string bypass_home = "False";
@@ -174,14 +172,11 @@ void AlarmControlPanel::add_on_cleared_callback(std::function<void()> &&callback
 }
 
 uint32_t AlarmControlPanel::get_supported_features() {
-  // Home Assistant values:
-  // ARM_HOME = 1
-  // ARM_AWAY = 2
-  // ARM_NIGHT = 4
-  // TRIGGER = 8
-  // ARM_CUSTOM_BYPASS = 16
-  // ARM_VACATION = 32
-  return 1 + 2 + 8;
+  auto features = AlarmControlPanelFeature::ARM_AWAY + AlarmControlPanelFeature::TRIGGER;
+  if (!this->bypass_when_home_.empty()) {
+    features += AlarmControlPanelFeature::ARM_HOME;
+  }
+  return features;
 }
 
 void AlarmControlPanel::add_code(const std::string &code) { this->codes_.push_back(code); }

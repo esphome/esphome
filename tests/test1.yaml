@@ -3383,7 +3383,7 @@ alarm_control_panel:
     delay_time: 15s
     trigger_time: 30s
     binary_sensors:
-      - input: binary_sensor1
+      - binary_sensor1
     on_state:
       then:
         - lambda: !lambda |-

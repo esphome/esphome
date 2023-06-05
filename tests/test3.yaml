@@ -1182,6 +1182,7 @@ alarm_control_panel:
     trigger_time: 30s
     binary_sensors:
       - input: bin1
+        bypass_armed_home: true
     on_state:
       then:
         - lambda: !lambda |-
