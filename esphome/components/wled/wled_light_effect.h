@@ -8,7 +8,7 @@
 #include <vector>
 #include <memory>
 
-class UDP;
+class WiFiUDP;
 
 namespace esphome {
 namespace wled {
@@ -32,7 +32,7 @@ class WLEDLightEffect : public light::AddressableLightEffect {
   bool parse_dnrgb_frame_(light::AddressableLight &it, const uint8_t *payload, uint16_t size);
 
   uint16_t port_{0};
-  std::unique_ptr<UDP> udp_;
+  std::unique_ptr<WiFiUDP> udp_;
   uint32_t blank_at_{0};
   uint32_t dropped_{0};
 };
