@@ -51,6 +51,12 @@ void APIConnection::start() {
   helper_->set_log_info(client_info_);
 }
 
+APIConnection::~APIConnection() {
+#ifdef USE_BLUETOOTH_PROXY
+  bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
+#endif
+}
+
 void APIConnection::loop() {
   if (this->remove_)
     return;
@@ -845,9 +851,13 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 #endif
 
 #ifdef USE_BLUETOOTH_PROXY
+void APIConnection::subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->subscribe_api_connection(this);
+}
+void APIConnection::unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
+}
 bool APIConnection::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg) {
-  if (!this->bluetooth_le_advertisement_subscription_)
-    return false;
   if (this->client_api_version_major_ < 1 || this->client_api_version_minor_ < 7) {
     BluetoothLEAdvertisementResponse resp = msg;
     for (auto &service : resp.service_data) {
