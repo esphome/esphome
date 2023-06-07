@@ -62,7 +62,7 @@ BASE_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
         cv.GenerateID(): cv.declare_id(I2SAudioMicrophone),
         cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
         cv.Optional(CONF_CHANNEL, default="right"): cv.enum(CHANNELS),
-        cv.Optional(CONF_BITS_PER_SAMPLE, default="16bit"): cv.All(
+        cv.Optional(CONF_BITS_PER_SAMPLE, default="32bit"): cv.All(
             _validate_bits, cv.enum(BITS_PER_SAMPLE)
         ),
     }
