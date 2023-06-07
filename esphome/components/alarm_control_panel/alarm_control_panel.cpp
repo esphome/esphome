@@ -11,7 +11,7 @@ static const char *const TAG = "alarm_panel";
 
 AlarmControlPanelCall::AlarmControlPanelCall(AlarmControlPanel *parent) : parent_(parent) {}
 
-AlarmControlPanelCall &AlarmControlPanelCall::set_code(const std::string code) {
+AlarmControlPanelCall &AlarmControlPanelCall::set_code(const std::string &code) {
   this->code_ = code;
   return *this;
 }
