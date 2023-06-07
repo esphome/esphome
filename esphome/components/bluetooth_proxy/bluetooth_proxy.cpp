@@ -1,6 +1,7 @@
 #include "bluetooth_proxy.h"
 
 #include "esphome/core/log.h"
+#include "esphome/core/macros.h"
 
 #ifdef USE_ESP32
 
@@ -25,15 +26,37 @@ std::vector<uint64_t> get_128bit_uuid_vec(esp_bt_uuid_t uuid_source) {
 BluetoothProxy::BluetoothProxy() { global_bluetooth_proxy = this; }
 
 bool BluetoothProxy::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
-  if (!api::global_api_server->is_connected())
+  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr || this->raw_advertisements_)
     return false;
+
   ESP_LOGV(TAG, "Proxying packet from %s - %s. RSSI: %d dB", device.get_name().c_str(), device.address_str().c_str(),
            device.get_rssi());
   this->send_api_packet_(device);
-
   return true;
 }
 
+void BluetoothProxy::parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) {
+  if (!api::global_api_server->is_connected() || this->api_connection_ == nullptr || !this->raw_advertisements_)
+    return;
+
+  api::BluetoothLERawAdvertisementsResponse resp;
+  for (size_t i = 0; i < count; i++) {
+    auto &result = advertisements[i];
+    api::BluetoothLERawAdvertisement adv;
+    adv.address = esp32_ble::ble_addr_to_uint64(result.bda);
+    adv.rssi = result.rssi;
+    adv.address_type = result.ble_addr_type;
+
+    adv.data.reserve(result.adv_data_len);
+    for (uint16_t i = 0; i < result.adv_data_len; i++) {
+      adv.data.push_back(result.ble_adv[i]);
+    }
+
+    resp.advertisements.push_back(std::move(adv));
+  }
+  ESP_LOGV(TAG, "Proxying %d packets", count);
+  this->api_connection_->send_bluetooth_le_raw_advertisements_response(resp);
+}
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
   api::BluetoothLEAdvertisementResponse resp;
   resp.address = device.address_uint64();
@@ -403,12 +426,13 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
   }
 }
 
-void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection) {
+void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, bool raw_advertisements) {
   if (this->api_connection_ != nullptr) {
     ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
     return;
   }
   this->api_connection_ = api_connection;
+  this->raw_advertisements_ = raw_advertisements;
 }
 
 void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connection) {
@@ -417,6 +441,7 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
     return;
   }
   this->api_connection_ = nullptr;
+  this->raw_advertisements_ = false;
 }
 
 void BluetoothProxy::send_device_connection(uint64_t address, bool connected, uint16_t mtu, esp_err_t error) {

@@ -22,10 +22,20 @@ static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
 
 using namespace esp32_ble_client;
 
+enum BluetoothProxyFeature : uint32_t {
+  PASSIVE_SCAN = 1 << 0,
+  ACTIVE_CONNECTIONS = 1 << 1,
+  REMOTE_CACHING = 1 << 2,
+  PAIRING = 1 << 3,
+  CACHE_CLEARING = 1 << 4,
+  RAW_ADVERTISEMENTS = 1 << 5,
+};
+
 class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
  public:
   BluetoothProxy();
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
+  void parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) override;
   void dump_config() override;
   void loop() override;
 
@@ -45,7 +55,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   int get_bluetooth_connections_free();
   int get_bluetooth_connections_limit() { return this->connections_.size(); }
 
-  void subscribe_api_connection(api::APIConnection *api_connection);
+  void subscribe_api_connection(api::APIConnection *api_connection, bool raw_advertisements);
   void unsubscribe_api_connection(api::APIConnection *api_connection);
   api::APIConnection *get_api_connection() { return this->api_connection_; }
 
@@ -69,6 +79,27 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   void set_active(bool active) { this->active_ = active; }
   bool has_active() { return this->active_; }
 
+  uint32_t get_legacy_version() const {
+    if (this->active_) {
+      return LEGACY_ACTIVE_CONNECTIONS_VERSION;
+    }
+    return LEGACY_PASSIVE_ONLY_VERSION;
+  }
+
+  uint32_t get_feature_flags() const {
+    uint32_t flags = 0;
+    flags |= BluetoothProxyFeature::PASSIVE_SCAN;
+    flags |= BluetoothProxyFeature::RAW_ADVERTISEMENTS;
+    if (this->active_) {
+      flags |= BluetoothProxyFeature::ACTIVE_CONNECTIONS;
+      flags |= BluetoothProxyFeature::REMOTE_CACHING;
+      flags |= BluetoothProxyFeature::PAIRING;
+      flags |= BluetoothProxyFeature::CACHE_CLEARING;
+    }
+
+    return flags;
+  }
+
  protected:
   void send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device);
 
@@ -78,6 +109,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
   std::vector<BluetoothConnection *> connections_{};
   api::APIConnection *api_connection_{nullptr};
+  bool raw_advertisements_{false};
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
@@ -87,8 +119,8 @@ extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoi
 // Version 3: New connection API
 // Version 4: Pairing support
 // Version 5: Cache clear support
-static const uint32_t ACTIVE_CONNECTIONS_VERSION = 5;
-static const uint32_t PASSIVE_ONLY_VERSION = 1;
+static const uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
+static const uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
 
 }  // namespace bluetooth_proxy
 }  // namespace esphome
