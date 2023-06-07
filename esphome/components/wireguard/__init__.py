@@ -17,6 +17,7 @@ CONF_PEER_PORT = "peer_port"
 CONF_PEER_PRESHARED_KEY = "peer_preshared_key"
 CONF_PEER_ALLOWED_IPS = "peer_allowed_ips"
 CONF_PEER_PERSISTENT_KEEPALIVE = "peer_persistent_keepalive"
+CONF_REQUIRE_CONNECTION_TO_PROCEED = "require_connection_to_proceed"
 
 DEPENDENCIES = ["time", "esp32"]
 CODEOWNERS = ["@lhoracek", "@droscy", "@thomas0bernard"]
@@ -56,6 +57,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(
             CONF_REBOOT_TIMEOUT, default="15min"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_REQUIRE_CONNECTION_TO_PROCEED, default=False): cv.boolean,
     }
 ).extend(cv.polling_component_schema("10s"))
 
@@ -88,6 +90,9 @@ async def to_code(config):
         cg.add(var.add_allowed_ip(str(ip.network_address), str(ip.netmask)))
 
     cg.add(var.set_srctime(await cg.get_variable(config[CONF_TIME_ID])))
+
+    if config[CONF_REQUIRE_CONNECTION_TO_PROCEED]:
+        cg.add(var.disable_auto_proceed())
 
     # This flag is added here because the esp_wireguard library statically
     # set the size of its allowed_ips list at compile time using this value;
