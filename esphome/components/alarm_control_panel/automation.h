@@ -41,7 +41,6 @@ template<typename... Ts> class ArmAwayAction : public Action<Ts...> {
     }
     call.arm_home();
     call.perform();
-    // this->alarm_control_panel_->arm_away(this->code_.optional_value(x...));
   }
 
  protected:
