@@ -32,6 +32,33 @@ enum AlarmControlPanelFeature : uint8_t {
   ARM_VACATION = 32
 };
 
+class AlarmControlPanel;
+
+class AlarmControlPanelCall {
+ public:
+  AlarmControlPanelCall(AlarmControlPanel *parent);
+
+  AlarmControlPanelCall &set_code(std::string code);
+  AlarmControlPanelCall &arm_away();
+  AlarmControlPanelCall &arm_home();
+  AlarmControlPanelCall &arm_night();
+  AlarmControlPanelCall &arm_vacation();
+  AlarmControlPanelCall &arm_custom_bypass();
+  AlarmControlPanelCall &disarm();
+  AlarmControlPanelCall &pending();
+  AlarmControlPanelCall &triggered();
+
+  void perform();
+  const optional<AlarmControlPanelState> &get_state() const;
+  const optional<std::string> &get_code() const;
+
+ protected:
+  AlarmControlPanel *parent_;
+  optional<std::string> code_{};
+  optional<AlarmControlPanelState> state_{};
+  void validate_();
+};
+
 class AlarmControlPanel : public Component, public EntityBase {
  public:
   AlarmControlPanel();
@@ -39,6 +66,11 @@ class AlarmControlPanel : public Component, public EntityBase {
   void setup() override;
   void loop() override;
   void dump_config() override;
+
+  /** Make a AlarmControlPanelCall
+   *
+   */
+  AlarmControlPanelCall make_call();
 
   /** Add a binary_sensor to the alarm_panel.
    *
@@ -170,6 +202,8 @@ class AlarmControlPanel : public Component, public EntityBase {
   AlarmControlPanelState get_state();
 
  protected:
+  friend AlarmControlPanelCall;
+  void control(const AlarmControlPanelCall &call);
   // in order to store last panel state in flash
   ESPPreferenceObject pref_;
   // the list of binary sensors that the alarm_panel monitors
@@ -200,9 +234,10 @@ class AlarmControlPanel : public Component, public EntityBase {
   CallbackManager<void()> triggered_callback_{};
   // clear callback
   CallbackManager<void()> cleared_callback_{};
+  // check if the code is valid
+  bool is_code_valid_(optional<std::string> code);
 
  private:
-  bool is_code_valid_(optional<std::string> code);
   void arm_(optional<std::string> code, AlarmControlPanelState state, uint32_t delay);
 };
 

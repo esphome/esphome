@@ -33,7 +33,16 @@ template<typename... Ts> class ArmAwayAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(Ts... x) override { this->alarm_control_panel_->arm_away(this->code_.optional_value(x...)); }
+  void play(Ts... x) override {
+    auto call = this->alarm_control_panel_->make_call();
+    auto code = this->code_.optional_value(x...);
+    if (code.has_value()) {
+      call.set_code(code.value());
+    }
+    call.arm_home();
+    call.perform();
+    // this->alarm_control_panel_->arm_away(this->code_.optional_value(x...));
+  }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
@@ -45,7 +54,15 @@ template<typename... Ts> class ArmHomeAction : public Action<Ts...> {
 
   TEMPLATABLE_VALUE(std::string, code)
 
-  void play(Ts... x) override { this->alarm_control_panel_->arm_home(this->code_.optional_value(x...)); }
+  void play(Ts... x) override {
+    auto call = this->alarm_control_panel_->make_call();
+    auto code = this->code_.optional_value(x...);
+    if (code.has_value()) {
+      call.set_code(code.value());
+    }
+    call.arm_home();
+    call.perform();
+  }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
@@ -58,6 +75,26 @@ template<typename... Ts> class DisarmAction : public Action<Ts...> {
   TEMPLATABLE_VALUE(std::string, code)
 
   void play(Ts... x) override { this->alarm_control_panel_->disarm(this->code_.optional_value(x...)); }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
+};
+
+template<typename... Ts> class PendingAction : public Action<Ts...> {
+ public:
+  explicit PendingAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
+
+  void play(Ts... x) override { this->alarm_control_panel_->make_call().pending().perform(); }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
+};
+
+template<typename... Ts> class TriggeredAction : public Action<Ts...> {
+ public:
+  explicit TriggeredAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
+
+  void play(Ts... x) override { this->alarm_control_panel_->make_call().triggered().perform(); }
 
  protected:
   AlarmControlPanel *alarm_control_panel_;
