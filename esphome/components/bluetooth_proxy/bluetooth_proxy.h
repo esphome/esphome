@@ -22,6 +22,15 @@ static const esp_err_t ESP_GATT_NOT_CONNECTED = -1;
 
 using namespace esp32_ble_client;
 
+// Legacy versions:
+// Version 1: Initial version without active connections
+// Version 2: Support for active connections
+// Version 3: New connection API
+// Version 4: Pairing support
+// Version 5: Cache clear support
+static const uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
+static const uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
+
 enum BluetoothProxyFeature : uint32_t {
   PASSIVE_SCAN = 1 << 0,
   ACTIVE_CONNECTIONS = 1 << 1,
@@ -35,7 +44,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
  public:
   BluetoothProxy();
   bool parse_device(const esp32_ble_tracker::ESPBTDevice &device) override;
-  void parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) override;
+  bool parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) override;
   void dump_config() override;
   void loop() override;
 
@@ -113,14 +122,6 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 };
 
 extern BluetoothProxy *global_bluetooth_proxy;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-
-// Version 1: Initial version without active connections
-// Version 2: Support for active connections
-// Version 3: New connection API
-// Version 4: Pairing support
-// Version 5: Cache clear support
-static const uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
-static const uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
 
 }  // namespace bluetooth_proxy
 }  // namespace esphome

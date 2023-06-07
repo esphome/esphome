@@ -107,34 +107,38 @@ void ESP32BLETracker::loop() {
         ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
       }
 
+      bool bulk_parsed = false;
+
       for (auto *listener : this->listeners_) {
-        listener->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+        bulk_parsed |= listener->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
       }
       for (auto *client : this->clients_) {
-        client->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+        bulk_parsed |= client->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
       }
 
-      for (size_t i = 0; i < index; i++) {
-        ESPBTDevice device;
-        device.parse_scan_rst(this->scan_result_buffer_[i]);
+      if (!bulk_parsed) {
+        for (size_t i = 0; i < index; i++) {
+          ESPBTDevice device;
+          device.parse_scan_rst(this->scan_result_buffer_[i]);
 
-        bool found = false;
-        for (auto *listener : this->listeners_) {
-          if (listener->parse_device(device))
-            found = true;
-        }
+          bool found = false;
+          for (auto *listener : this->listeners_) {
+            if (listener->parse_device(device))
+              found = true;
+          }
 
-        for (auto *client : this->clients_) {
-          if (client->parse_device(device)) {
-            found = true;
-            if (!connecting && client->state() == ClientState::DISCOVERED) {
-              promote_to_connecting = true;
+          for (auto *client : this->clients_) {
+            if (client->parse_device(device)) {
+              found = true;
+              if (!connecting && client->state() == ClientState::DISCOVERED) {
+                promote_to_connecting = true;
+              }
             }
           }
-        }
 
-        if (!found && !this->scan_continuous_) {
-          this->print_bt_device_info(device);
+          if (!found && !this->scan_continuous_) {
+            this->print_bt_device_info(device);
+          }
         }
       }
       this->scan_result_index_ = 0;
@@ -422,7 +426,7 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
   while (offset + 2 < len) {
     const uint8_t field_length = payload[offset++];  // First byte is length of adv record
     if (field_length == 0) {
-      continue;  // Possible zero padded advertisement data
+      continue;                                      // Possible zero padded advertisement data
     }
 
     // first byte of adv record is adv record type
