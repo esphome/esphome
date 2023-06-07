@@ -680,6 +680,13 @@ image:
     type: RGB565
     use_transparency: no
 
+  - id: mdi_alert
+    file: mdi:alert-circle-outline
+    resize: 50x50
+  - id: another_alert_icon
+    file: mdi:alert-outline
+    type: BINARY
+
 cap1188:
   id: cap1188_component
   address: 0x29
