@@ -59,23 +59,10 @@ AlarmControlPanelCall &AlarmControlPanelCall::triggered() {
 const optional<AlarmControlPanelState> &AlarmControlPanelCall::get_state() const { return this->state_; }
 const optional<std::string> &AlarmControlPanelCall::get_code() const { return this->code_; }
 
-bool is_armed_state(AlarmControlPanelState state) {
-  switch (state) {
-    case AlarmControlPanelState::ARMED_AWAY:
-    case AlarmControlPanelState::ARMED_HOME:
-    case AlarmControlPanelState::ARMED_NIGHT:
-    case AlarmControlPanelState::ARMED_VACATION:
-    case AlarmControlPanelState::ARMED_CUSTOM_BYPASS:
-      return true;
-    default:
-      return false;
-  }
-};
-
 void AlarmControlPanelCall::validate_() {
   if (this->state_.has_value()) {
     auto state = *this->state_;
-    if (is_armed_state(state) && this->parent_->get_state() != AlarmControlPanelState::DISARMED) {
+    if (this->parent_->is_armed_state_(state) && this->parent_->get_state() != AlarmControlPanelState::DISARMED) {
       ESP_LOGW(TAG, "Cannot arm when not disarmed");
       this->state_.reset();
       return;
@@ -86,7 +73,8 @@ void AlarmControlPanelCall::validate_() {
       return;
     }
     if (state == AlarmControlPanelState::DISARMED &&
-        !(is_armed_state(this->parent_->get_state()) || this->parent_->get_state() == AlarmControlPanelState::PENDING ||
+        !(this->parent_->is_armed_state_(this->parent_->get_state()) ||
+          this->parent_->get_state() == AlarmControlPanelState::PENDING ||
           this->parent_->get_state() == AlarmControlPanelState::ARMING ||
           this->parent_->get_state() == AlarmControlPanelState::TRIGGERED)) {
       ESP_LOGW(TAG, "Cannot disarm when not armed");
@@ -147,6 +135,19 @@ void AlarmControlPanel::dump_config() {
   }
 }
 
+bool AlarmControlPanel::is_armed_state_(AlarmControlPanelState state) {
+  switch (state) {
+    case AlarmControlPanelState::ARMED_AWAY:
+    case AlarmControlPanelState::ARMED_HOME:
+    case AlarmControlPanelState::ARMED_NIGHT:
+    case AlarmControlPanelState::ARMED_VACATION:
+    case AlarmControlPanelState::ARMED_CUSTOM_BYPASS:
+      return true;
+    default:
+      return false;
+  }
+};
+
 void AlarmControlPanel::loop() {
   // change from ARMING to ARMED_x after the arming_time_ has passed
   if (this->current_state_ == AlarmControlPanelState::ARMING) {
@@ -171,7 +172,7 @@ void AlarmControlPanel::loop() {
     future_state = this->desired_state_;
   }
   bool trigger = false;
-  if (is_armed_state(future_state)) {
+  if (this->is_armed_state_(future_state)) {
     // TODO might be better to register change for each sensor in setup...
     for (binary_sensor::BinarySensor *sensor : this->sensors_) {
       if (sensor->state) {

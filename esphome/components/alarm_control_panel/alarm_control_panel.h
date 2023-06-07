@@ -203,6 +203,7 @@ class AlarmControlPanel : public Component, public EntityBase {
 
  protected:
   friend AlarmControlPanelCall;
+  // the call control function
   void control_(const AlarmControlPanelCall &call);
   // in order to store last panel state in flash
   ESPPreferenceObject pref_;
@@ -236,6 +237,8 @@ class AlarmControlPanel : public Component, public EntityBase {
   CallbackManager<void()> cleared_callback_{};
   // check if the code is valid
   bool is_code_valid_(optional<std::string> code);
+  // is the state one of the armed states
+  bool is_armed_state_(AlarmControlPanelState state);
 
  private:
   void arm_(optional<std::string> code, AlarmControlPanelState state, uint32_t delay);
