@@ -11,7 +11,7 @@ static const char *const TAG = "alarm_panel";
 
 AlarmControlPanelCall::AlarmControlPanelCall(AlarmControlPanel *parent) : parent_(parent) {}
 
-AlarmControlPanelCall &AlarmControlPanelCall::set_code(std::string code) {
+AlarmControlPanelCall &AlarmControlPanelCall::set_code(const std::string code) {
   this->code_ = code;
   return *this;
 }
@@ -374,13 +374,13 @@ void AlarmControlPanel::control_(const AlarmControlPanelCall &call) {
   if (call.get_state()) {
     if (call.get_state() == AlarmControlPanelState::ARMED_AWAY) {
       ESP_LOGD(TAG, "arm_away");
-      this->arm_(std::move(call.get_code()), AlarmControlPanelState::ARMED_AWAY, this->arming_away_time_);
+      this->arm_(call.get_code(), AlarmControlPanelState::ARMED_AWAY, this->arming_away_time_);
     } else if (call.get_state() == AlarmControlPanelState::ARMED_HOME) {
       ESP_LOGD(TAG, "arm_home");
-      this->arm_(std::move(call.get_code()), AlarmControlPanelState::ARMED_HOME, this->arming_home_time_);
+      this->arm_(call.get_code(), AlarmControlPanelState::ARMED_HOME, this->arming_home_time_);
     } else if (call.get_state() == AlarmControlPanelState::DISARMED) {
       ESP_LOGD(TAG, "disarm");
-      if (!this->is_code_valid_(std::move(call.get_code()))) {
+      if (!this->is_code_valid_(call.get_code())) {
         ESP_LOGW(TAG, "Not disarming code doesn't match");
         return;
       }

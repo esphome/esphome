@@ -38,7 +38,7 @@ class AlarmControlPanelCall {
  public:
   AlarmControlPanelCall(AlarmControlPanel *parent);
 
-  AlarmControlPanelCall &set_code(std::string code);
+  AlarmControlPanelCall &set_code(const std::string code);
   AlarmControlPanelCall &arm_away();
   AlarmControlPanelCall &arm_home();
   AlarmControlPanelCall &arm_night();
