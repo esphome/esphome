@@ -47,8 +47,9 @@ bool BluetoothProxy::parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_p
     adv.rssi = result.rssi;
     adv.address_type = result.ble_addr_type;
 
-    adv.data.reserve(result.adv_data_len);
-    for (uint16_t i = 0; i < result.adv_data_len; i++) {
+    uint8_t length = result.adv_data_len + result.scan_rsp_len;
+    adv.data.reserve(length);
+    for (uint16_t i = 0; i < length; i++) {
       adv.data.push_back(result.ble_adv[i]);
     }
 
