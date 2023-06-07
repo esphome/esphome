@@ -203,13 +203,13 @@ class AlarmControlPanel : public Component, public EntityBase {
 
  protected:
   friend AlarmControlPanelCall;
-  void control(const AlarmControlPanelCall &call);
+  void control_(const AlarmControlPanelCall &call);
   // in order to store last panel state in flash
   ESPPreferenceObject pref_;
   // the list of binary sensors that the alarm_panel monitors
   std::vector<binary_sensor::BinarySensor *> sensors_;
   // the list of sensor ids that the alarm_panel bypass when in armed_home
-  std::vector<uint32_t> bypass_when_home_;
+  std::vector<binary_sensor::BinarySensor *> bypass_when_home_;
   // current state
   AlarmControlPanelState current_state_;
   // the desired (or previous) state

@@ -99,7 +99,7 @@ void AlarmControlPanelCall::validate_() {
 void AlarmControlPanelCall::perform() {
   this->validate_();
   if (this->state_) {
-    this->parent_->control(*this);
+    this->parent_->control_(*this);
   }
 }
 
@@ -110,7 +110,7 @@ AlarmControlPanelCall AlarmControlPanel::make_call() { return {this}; }
 void AlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, bool bypass_when_home) {
   this->sensors_.push_back(sensor);
   if (bypass_when_home) {
-    this->bypass_when_home_.push_back(sensor->get_object_id_hash());
+    this->bypass_when_home_.push_back(sensor);
   }
 };
 
@@ -136,13 +136,13 @@ void AlarmControlPanel::dump_config() {
   ESP_LOGCONFIG(TAG, "  Trigger Time: %us", (this->trigger_time_ / 1000));
   ESP_LOGCONFIG(TAG, "  Supported Features: %u", this->get_supported_features());
   for (size_t i = 0; i < this->sensors_.size(); i++) {
-    auto sensor = (*this->sensors_[i]);
+    binary_sensor::BinarySensor *sensor = this->sensors_[i];
     std::string bypass_home = "False";
-    if (std::count(this->bypass_when_home_.begin(), this->bypass_when_home_.end(), sensor.get_object_id_hash())) {
+    if (std::count(this->bypass_when_home_.begin(), this->bypass_when_home_.end(), sensor)) {
       bypass_home = "True";
     }
     ESP_LOGCONFIG(TAG, "  Binary Sesnsor %u:", i);
-    ESP_LOGCONFIG(TAG, "    Name: %s", sensor.get_name().c_str());
+    ESP_LOGCONFIG(TAG, "    Name: %s", (*sensor).get_name().c_str());
     ESP_LOGCONFIG(TAG, "    Armed home bypass: %s", bypass_home.c_str());
   }
 }
@@ -173,10 +173,10 @@ void AlarmControlPanel::loop() {
   bool trigger = false;
   if (is_armed_state(future_state)) {
     // TODO might be better to register change for each sensor in setup...
-    for (auto *sensor : this->sensors_) {
+    for (binary_sensor::BinarySensor *sensor : this->sensors_) {
       if (sensor->state) {
         if (this->current_state_ == AlarmControlPanelState::ARMED_HOME &&
-            std::count(this->bypass_when_home_.begin(), this->bypass_when_home_.end(), sensor->get_object_id_hash())) {
+            std::count(this->bypass_when_home_.begin(), this->bypass_when_home_.end(), sensor)) {
           continue;
         }
         trigger = true;
@@ -370,7 +370,7 @@ void AlarmControlPanel::disarm(optional<std::string> code) {
   call.perform();
 }
 
-void AlarmControlPanel::control(const AlarmControlPanelCall &call) {
+void AlarmControlPanel::control_(const AlarmControlPanelCall &call) {
   if (call.get_state()) {
     if (call.get_state() == AlarmControlPanelState::ARMED_AWAY) {
       ESP_LOGD(TAG, "arm_away");
