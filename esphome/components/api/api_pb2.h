@@ -1248,7 +1248,7 @@ class MediaPlayerCommandRequest : public ProtoMessage {
 };
 class SubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
  public:
-  bool raw_advertisements{false};
+  uint32_t flags{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

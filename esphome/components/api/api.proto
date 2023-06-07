@@ -1132,7 +1132,7 @@ message SubscribeBluetoothLEAdvertisementsRequest {
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
 
-  bool raw_advertisements = 1;
+  uint32 flags = 1;
 }
 
 message BluetoothServiceData {

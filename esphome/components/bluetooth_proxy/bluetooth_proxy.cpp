@@ -428,13 +428,13 @@ void BluetoothProxy::bluetooth_gatt_notify(const api::BluetoothGATTNotifyRequest
   }
 }
 
-void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, bool raw_advertisements) {
+void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags) {
   if (this->api_connection_ != nullptr) {
     ESP_LOGE(TAG, "Only one API subscription is allowed at a time");
     return;
   }
   this->api_connection_ = api_connection;
-  this->raw_advertisements_ = raw_advertisements;
+  this->raw_advertisements_ = flags & BluetoothProxySubscriptionFlag::SUBSCRIPTION_RAW_ADVERTISEMENTS;
 }
 
 void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connection) {

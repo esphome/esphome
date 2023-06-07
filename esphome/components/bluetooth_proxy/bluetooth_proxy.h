@@ -32,12 +32,16 @@ static const uint32_t LEGACY_ACTIVE_CONNECTIONS_VERSION = 5;
 static const uint32_t LEGACY_PASSIVE_ONLY_VERSION = 1;
 
 enum BluetoothProxyFeature : uint32_t {
-  PASSIVE_SCAN = 1 << 0,
-  ACTIVE_CONNECTIONS = 1 << 1,
-  REMOTE_CACHING = 1 << 2,
-  PAIRING = 1 << 3,
-  CACHE_CLEARING = 1 << 4,
-  RAW_ADVERTISEMENTS = 1 << 5,
+  FEATURE_PASSIVE_SCAN = 1 << 0,
+  FEATURE_ACTIVE_CONNECTIONS = 1 << 1,
+  FEATURE_REMOTE_CACHING = 1 << 2,
+  FEATURE_PAIRING = 1 << 3,
+  FEATURE_CACHE_CLEARING = 1 << 4,
+  FEATURE_RAW_ADVERTISEMENTS = 1 << 5,
+};
+
+enum BluetoothProxySubscriptionFlag : uint32_t {
+  SUBSCRIPTION_RAW_ADVERTISEMENTS = 1 << 0,
 };
 
 class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Component {
@@ -64,7 +68,7 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
   int get_bluetooth_connections_free();
   int get_bluetooth_connections_limit() { return this->connections_.size(); }
 
-  void subscribe_api_connection(api::APIConnection *api_connection, bool raw_advertisements);
+  void subscribe_api_connection(api::APIConnection *api_connection, uint32_t flags);
   void unsubscribe_api_connection(api::APIConnection *api_connection);
   api::APIConnection *get_api_connection() { return this->api_connection_; }
 
@@ -97,13 +101,13 @@ class BluetoothProxy : public esp32_ble_tracker::ESPBTDeviceListener, public Com
 
   uint32_t get_feature_flags() const {
     uint32_t flags = 0;
-    flags |= BluetoothProxyFeature::PASSIVE_SCAN;
-    flags |= BluetoothProxyFeature::RAW_ADVERTISEMENTS;
+    flags |= BluetoothProxyFeature::FEATURE_PASSIVE_SCAN;
+    flags |= BluetoothProxyFeature::FEATURE_RAW_ADVERTISEMENTS;
     if (this->active_) {
-      flags |= BluetoothProxyFeature::ACTIVE_CONNECTIONS;
-      flags |= BluetoothProxyFeature::REMOTE_CACHING;
-      flags |= BluetoothProxyFeature::PAIRING;
-      flags |= BluetoothProxyFeature::CACHE_CLEARING;
+      flags |= BluetoothProxyFeature::FEATURE_ACTIVE_CONNECTIONS;
+      flags |= BluetoothProxyFeature::FEATURE_REMOTE_CACHING;
+      flags |= BluetoothProxyFeature::FEATURE_PAIRING;
+      flags |= BluetoothProxyFeature::FEATURE_CACHE_CLEARING;
     }
 
     return flags;

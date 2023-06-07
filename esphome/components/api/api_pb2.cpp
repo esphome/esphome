@@ -5054,7 +5054,7 @@ void MediaPlayerCommandRequest::dump_to(std::string &out) const {
 bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id, ProtoVarInt value) {
   switch (field_id) {
     case 1: {
-      this->raw_advertisements = value.as_bool();
+      this->flags = value.as_uint32();
       return true;
     }
     default:
@@ -5062,14 +5062,15 @@ bool SubscribeBluetoothLEAdvertisementsRequest::decode_varint(uint32_t field_id,
   }
 }
 void SubscribeBluetoothLEAdvertisementsRequest::encode(ProtoWriteBuffer buffer) const {
-  buffer.encode_bool(1, this->raw_advertisements);
+  buffer.encode_uint32(1, this->flags);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void SubscribeBluetoothLEAdvertisementsRequest::dump_to(std::string &out) const {
   __attribute__((unused)) char buffer[64];
   out.append("SubscribeBluetoothLEAdvertisementsRequest {\n");
-  out.append("  raw_advertisements: ");
-  out.append(YESNO(this->raw_advertisements));
+  out.append("  flags: ");
+  sprintf(buffer, "%u", this->flags);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }
