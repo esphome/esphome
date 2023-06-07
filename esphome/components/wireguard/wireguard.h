@@ -38,6 +38,7 @@ class Wireguard : public PollingComponent {
   void set_reboot_timeout(uint32_t seconds);
   void set_srctime(time::RealTimeClock *srctime);
 
+  /// Block the setup step until peer is connected.
   void disable_auto_proceed();
 
   bool is_peer_up() const;
@@ -59,6 +60,7 @@ class Wireguard : public PollingComponent {
 
   time::RealTimeClock *srctime_;
 
+  /// Set to false to block the setup step until peer is connected.
   bool proceed_allowed_ = true;
 
   wireguard_config_t wg_config_ = ESP_WIREGUARD_CONFIG_DEFAULT();
@@ -66,6 +68,8 @@ class Wireguard : public PollingComponent {
 
   esp_err_t wg_initialized_ = ESP_FAIL;
   esp_err_t wg_connected_ = ESP_FAIL;
+
+  /// The last time the remote peer become offline.
   uint32_t wg_peer_offline_time_ = 0;
 
   void start_connection_();

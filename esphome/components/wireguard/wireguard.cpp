@@ -107,6 +107,9 @@ void Wireguard::dump_config() {
                 (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
   ESP_LOGCONFIG(TAG, "  reboot timeout: %d%s", (this->reboot_timeout_ / 1000),
                 (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
+
+  // be careful: if proceed_allowed_ is true, require connection is false
+  ESP_LOGCONFIG(TAG, "  require connection to proceed: %s", (this->proceed_allowed_ ? "false" : "true"));
 }
 
 void Wireguard::on_shutdown() {
@@ -117,9 +120,7 @@ void Wireguard::on_shutdown() {
   }
 }
 
-bool Wireguard::can_proceed() {
-  return (this->proceed_allowed_ || this->is_peer_up());
-}
+bool Wireguard::can_proceed() { return (this->proceed_allowed_ || this->is_peer_up()); }
 
 bool Wireguard::is_peer_up() const {
   return (this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) &&
