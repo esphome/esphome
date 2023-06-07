@@ -426,7 +426,7 @@ void ESPBTDevice::parse_adv_(const esp_ble_gap_cb_param_t::ble_scan_result_evt_p
   while (offset + 2 < len) {
     const uint8_t field_length = payload[offset++];  // First byte is length of adv record
     if (field_length == 0) {
-      continue;                                      // Possible zero padded advertisement data
+      continue;  // Possible zero padded advertisement data
     }
 
     // first byte of adv record is adv record type
