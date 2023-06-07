@@ -165,6 +165,7 @@ class LD2420Component : public Component, public uart::UARTDevice {
   int get_min_max_distances_timeout_();
   u_int8_t set_config_mode_(bool enable);
   void set_system_mode_(uint16_t mode);
+  void restart_();
   uint16_t get_mode_() { return this->system_mode_; };
   void set_mode_(uint16_t mode) { this->system_mode_ = mode; };
   bool get_presence_() { return this->presence_; };

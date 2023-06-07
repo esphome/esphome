@@ -6,7 +6,7 @@ namespace ld2420 {
 
 static const char *const TAG = "ld2420";
 
-float LD2420Component::get_setup_priority() const { return setup_priority::DATA; }
+float LD2420Component::get_setup_priority() const { return setup_priority::BUS; }
 
 void LD2420Component::dump_config() {
   ESP_LOGCONFIG(TAG, "LD2420:");
@@ -14,6 +14,7 @@ void LD2420Component::dump_config() {
 }
 
 void LD2420Component::setup() {
+  bool restart{false};
   ESP_LOGCONFIG(TAG, "Setting up LD2420...");
   if (this->set_config_mode_(true) == LD2420_ERROR_TIMEOUT) {
     ESP_LOGCONFIG(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
@@ -37,10 +38,13 @@ void LD2420Component::setup() {
     for (uint8_t gate = 0; gate < 16; gate++) {
       this->set_gate_threshold_(gate);
     }
+    restart = true;
   }
 
   this->set_system_mode_(CMD_SYSTEM_MODE_NORMAL);
   this->set_config_mode_(false);
+  if (restart)
+    this->restart_();
   ESP_LOGCONFIG(TAG, "LD2420 setup complete.");
 }
 
@@ -324,6 +328,16 @@ uint8_t LD2420Component::set_config_mode_(bool enable) {
   cmd_frame.footer = CMD_FRAME_FOOTER;
   ESP_LOGD(TAG, "Sending set config %s command: %2X", enable ? "enable" : "disable", cmd_frame.command);
   return this->send_cmd_from_array(cmd_frame);
+}
+
+void LD2420Component::restart_() {
+  CmdFrameT cmd_frame;
+  cmd_frame.data_length = 0;
+  cmd_frame.header = CMD_FRAME_HEADER;
+  cmd_frame.command = CMD_RESTART;
+  cmd_frame.footer = CMD_FRAME_FOOTER;
+  ESP_LOGD(TAG, "Sending restart command: %2X", cmd_frame.command);
+  this->send_cmd_from_array(cmd_frame);
 }
 
 void LD2420Component::get_reg_value_(uint16_t reg) {
