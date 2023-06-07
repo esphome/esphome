@@ -1,3 +1,4 @@
+import re
 import ipaddress
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -22,17 +23,25 @@ CONF_REQUIRE_CONNECTION_TO_PROCEED = "require_connection_to_proceed"
 DEPENDENCIES = ["time", "esp32"]
 CODEOWNERS = ["@lhoracek", "@droscy", "@thomas0bernard"]
 
+# The key validation regex has been described by Jason Donenfeld himself
+# url: https://lists.zx2c4.com/pipermail/wireguard/2020-December/006222.html
+_WG_KEY_REGEX = re.compile(r"^[A-Za-z0-9+/]{42}[AEIMQUYcgkosw480]=$")
+
 wireguard_ns = cg.esphome_ns.namespace("wireguard")
 Wireguard = wireguard_ns.class_("Wireguard", cg.Component, cg.PollingComponent)
 
 
-def _validate_cidr(value):
+def _wireguard_key(value):
+    if _WG_KEY_REGEX.match(cv.string(value)) is not None:
+        return value
+    raise cv.Invalid(f"Invalid WireGuard key: {value}")
+
+
+def _cidr_network(value):
     try:
         ipaddress.ip_network(value, strict=False)
-
     except ValueError as err:
         raise cv.Invalid(f"Invalid network in CIDR notation: {err}")
-
     return value
 
 
@@ -42,13 +51,13 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
         cv.Required(CONF_ADDRESS): cv.ipv4,
         cv.Optional(CONF_NETMASK, default="255.255.255.255"): cv.ipv4,
-        cv.Required(CONF_PRIVATE_KEY): cv.string,
+        cv.Required(CONF_PRIVATE_KEY): _wireguard_key,
         cv.Required(CONF_PEER_ENDPOINT): cv.string,
-        cv.Required(CONF_PEER_PUBLIC_KEY): cv.string,
+        cv.Required(CONF_PEER_PUBLIC_KEY): _wireguard_key,
         cv.Optional(CONF_PEER_PORT, default=51820): cv.port,
-        cv.Optional(CONF_PEER_PRESHARED_KEY): cv.string,
+        cv.Optional(CONF_PEER_PRESHARED_KEY): _wireguard_key,
         cv.Optional(CONF_PEER_ALLOWED_IPS, default=["0.0.0.0/0"]): cv.ensure_list(
-            _validate_cidr
+            _cidr_network
         ),
         cv.Optional(CONF_PEER_PERSISTENT_KEEPALIVE, default=0): cv.Any(
             cv.positive_time_period_seconds,
