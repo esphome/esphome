@@ -3,9 +3,9 @@
 #include <utility>
 #include "esphome/core/application.h"
 #include "esphome/core/color.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace display {
@@ -490,8 +490,7 @@ void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
     this->trigger(from, to);
 }
-void DisplayBuffer::strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format,
-                             ESPTime time) {
+void DisplayBuffer::strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
