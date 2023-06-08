@@ -313,12 +313,8 @@ optional<ESPTime> Sun::calc_event_(bool rising, double zenith) {
 
 optional<ESPTime> Sun::sunrise(double elevation) { return this->calc_event_(true, 90 - elevation); }
 optional<ESPTime> Sun::sunset(double elevation) { return this->calc_event_(false, 90 - elevation); }
-optional<ESPTime> Sun::sunrise(ESPTime date, double elevation) {
-  return this->calc_event_(date, true, 90 - elevation);
-}
-optional<ESPTime> Sun::sunset(ESPTime date, double elevation) {
-  return this->calc_event_(date, false, 90 - elevation);
-}
+optional<ESPTime> Sun::sunrise(ESPTime date, double elevation) { return this->calc_event_(date, true, 90 - elevation); }
+optional<ESPTime> Sun::sunset(ESPTime date, double elevation) { return this->calc_event_(date, false, 90 - elevation); }
 double Sun::elevation() { return this->calc_coords_().elevation; }
 double Sun::azimuth() { return this->calc_coords_().azimuth; }
 
