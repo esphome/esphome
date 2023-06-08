@@ -155,7 +155,8 @@ class APIServerConnectionBase : public ProtoService {
   virtual void on_media_player_command_request(const MediaPlayerCommandRequest &value){};
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  virtual void on_subscribe_bluetooth_le_advertisements_request(const SubscribeBluetoothLEAdvertisementsRequest &value){};
+  virtual void on_subscribe_bluetooth_le_advertisements_request(
+      const SubscribeBluetoothLEAdvertisementsRequest &value){};
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   bool send_bluetooth_le_advertisement_response(const BluetoothLEAdvertisementResponse &msg);
@@ -221,7 +222,8 @@ class APIServerConnectionBase : public ProtoService {
   bool send_bluetooth_device_unpairing_response(const BluetoothDeviceUnpairingResponse &msg);
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  virtual void on_unsubscribe_bluetooth_le_advertisements_request(const UnsubscribeBluetoothLEAdvertisementsRequest &value){};
+  virtual void on_unsubscribe_bluetooth_le_advertisements_request(
+      const UnsubscribeBluetoothLEAdvertisementsRequest &value){};
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   bool send_bluetooth_device_clear_cache_response(const BluetoothDeviceClearCacheResponse &msg);
@@ -323,7 +325,8 @@ class APIServerConnection : public APIServerConnectionBase {
   virtual void bluetooth_gatt_notify(const BluetoothGATTNotifyRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  virtual BluetoothConnectionsFreeResponse subscribe_bluetooth_connections_free(const SubscribeBluetoothConnectionsFreeRequest &msg) = 0;
+  virtual BluetoothConnectionsFreeResponse subscribe_bluetooth_connections_free(
+      const SubscribeBluetoothConnectionsFreeRequest &msg) = 0;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
   virtual void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) = 0;
@@ -408,7 +411,8 @@ class APIServerConnection : public APIServerConnectionBase {
   void on_subscribe_bluetooth_connections_free_request(const SubscribeBluetoothConnectionsFreeRequest &msg) override;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  void on_unsubscribe_bluetooth_le_advertisements_request(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
+  void on_unsubscribe_bluetooth_le_advertisements_request(
+      const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
 #endif
 #ifdef USE_VOICE_ASSISTANT
   void on_subscribe_voice_assistant_request(const SubscribeVoiceAssistantRequest &msg) override;

@@ -60,7 +60,6 @@ class AlarmControlPanelCall {
 
 class AlarmControlPanel : public EntityBase {
  public:
-
   /** Make a AlarmControlPanelCall
    *
    */
