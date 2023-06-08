@@ -1461,7 +1461,7 @@ enum AlarmControlPanelStateCommand {
 }
 
 message ListEntitiesAlarmControlPanelResponse {
-  option (id) = 93;
+  option (id) = 94;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_ALARM_CONTROL_PANEL";
 
@@ -1478,7 +1478,7 @@ message ListEntitiesAlarmControlPanelResponse {
 }
 
 message AlarmControlPanelStateResponse {
-  option (id) = 94;
+  option (id) = 95;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_ALARM_CONTROL_PANEL";
   option (no_delay) = true;
@@ -1487,7 +1487,7 @@ message AlarmControlPanelStateResponse {
 }
 
 message AlarmControlPanelCommandRequest {
-  option (id) = 95;
+  option (id) = 96;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_ALARM_CONTROL_PANEL";
   option (no_delay) = true;
