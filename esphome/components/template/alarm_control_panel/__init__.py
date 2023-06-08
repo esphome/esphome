@@ -27,11 +27,10 @@ TemplateAlarmControlPanel = template_ns.class_(
 
 
 def validate_config(config):
-    for apanel in config:
-        if CONF_REQUIRES_CODE_TO_ARM in apanel and len(apanel.get(CONF_CODES, [])) == 0:
-            raise cv.Invalid(
-                f"{CONF_REQUIRES_CODE_TO_ARM} not needed when {CONF_CODES} not present."
-            )
+    if CONF_REQUIRES_CODE_TO_ARM in config and len(config.get(CONF_CODES, [])) == 0:
+        raise cv.Invalid(
+            f"{CONF_REQUIRES_CODE_TO_ARM} not needed when {CONF_CODES} not present."
+        )
     return config
 
 
