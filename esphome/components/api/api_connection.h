@@ -16,7 +16,7 @@ namespace api {
 class APIConnection : public APIServerConnection {
  public:
   APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
-  virtual ~APIConnection() = default;
+  virtual ~APIConnection();
 
   void start();
   void loop();
@@ -98,12 +98,8 @@ class APIConnection : public APIServerConnection {
     this->send_homeassistant_service_response(call);
   }
 #ifdef USE_BLUETOOTH_PROXY
-  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override {
-    this->bluetooth_le_advertisement_subscription_ = true;
-  }
-  void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override {
-    this->bluetooth_le_advertisement_subscription_ = false;
-  }
+  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
+  void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
   bool send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg);
 
   void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
@@ -211,9 +207,6 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
-#ifdef USE_BLUETOOTH_PROXY
-  bool bluetooth_le_advertisement_subscription_{false};
-#endif
 #ifdef USE_VOICE_ASSISTANT
   bool voice_assistant_subscription_{false};
 #endif
