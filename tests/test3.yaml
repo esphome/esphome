@@ -1171,7 +1171,8 @@ qr_code:
     value: https://esphome.io/index.html
 
 alarm_control_panel:
-  - id: alarmcontrolpanel1
+  - platform: template
+    id: alarmcontrolpanel1
     name: Alarm Panel
     codes:
       - "1234"
