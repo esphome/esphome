@@ -39,7 +39,7 @@ template<typename... Ts> class ArmAwayAction : public Action<Ts...> {
     if (code.has_value()) {
       call.set_code(code.value());
     }
-    call.arm_home();
+    call.arm_away();
     call.perform();
   }
 
@@ -103,8 +103,8 @@ template<typename... Ts> class AlarmControlPanelCondition : public Condition<Ts.
  public:
   AlarmControlPanelCondition(AlarmControlPanel *parent) : parent_(parent) {}
   bool check(Ts... x) override {
-    return !(this->parent_->get_state() == AlarmControlPanelState::DISARMED ||
-             this->parent_->get_state() == AlarmControlPanelState::ARMING);
+    return this->parent_->is_state_armed(this->parent_->get_state()) ||
+           this->parent_->get_state() == ACP_STATE_PENDING || this->parent_->get_state() == ACP_STATE_TRIGGERED;
   }
 
  protected:

@@ -7,7 +7,7 @@
 namespace esphome {
 namespace alarm_control_panel {
 
-static const char *const TAG = "alarm_panel";
+static const char *const TAG = "alarm_control_panel";
 
 AlarmControlPanelCall::AlarmControlPanelCall(AlarmControlPanel *parent) : parent_(parent) {}
 
@@ -17,42 +17,42 @@ AlarmControlPanelCall &AlarmControlPanelCall::set_code(const std::string &code) 
 }
 
 AlarmControlPanelCall &AlarmControlPanelCall::arm_away() {
-  this->state_ = AlarmControlPanelState::ARMED_AWAY;
+  this->state_ = ACP_STATE_ARMED_AWAY;
   return *this;
 }
 
 AlarmControlPanelCall &AlarmControlPanelCall::arm_home() {
-  this->state_ = AlarmControlPanelState::ARMED_HOME;
+  this->state_ = ACP_STATE_ARMED_HOME;
   return *this;
 }
 
 AlarmControlPanelCall &AlarmControlPanelCall::arm_night() {
-  this->state_ = AlarmControlPanelState::ARMED_NIGHT;
+  this->state_ = ACP_STATE_ARMED_NIGHT;
   return *this;
 }
 
 AlarmControlPanelCall &AlarmControlPanelCall::arm_vacation() {
-  this->state_ = AlarmControlPanelState::ARMED_VACATION;
+  this->state_ = ACP_STATE_ARMED_VACATION;
   return *this;
 }
 
 AlarmControlPanelCall &AlarmControlPanelCall::arm_custom_bypass() {
-  this->state_ = AlarmControlPanelState::ARMED_CUSTOM_BYPASS;
+  this->state_ = ACP_STATE_ARMED_CUSTOM_BYPASS;
   return *this;
 }
 
 AlarmControlPanelCall &AlarmControlPanelCall::disarm() {
-  this->state_ = AlarmControlPanelState::DISARMED;
+  this->state_ = ACP_STATE_DISARMED;
   return *this;
 }
 
 AlarmControlPanelCall &AlarmControlPanelCall::pending() {
-  this->state_ = AlarmControlPanelState::PENDING;
+  this->state_ = ACP_STATE_PENDING;
   return *this;
 }
 
 AlarmControlPanelCall &AlarmControlPanelCall::triggered() {
-  this->state_ = AlarmControlPanelState::TRIGGERED;
+  this->state_ = ACP_STATE_TRIGGERED;
   return *this;
 }
 
@@ -62,21 +62,20 @@ const optional<std::string> &AlarmControlPanelCall::get_code() const { return th
 void AlarmControlPanelCall::validate_() {
   if (this->state_.has_value()) {
     auto state = *this->state_;
-    if (this->parent_->is_armed_state_(state) && this->parent_->get_state() != AlarmControlPanelState::DISARMED) {
+    if (this->parent_->is_state_armed(state) && this->parent_->get_state() != ACP_STATE_DISARMED) {
       ESP_LOGW(TAG, "Cannot arm when not disarmed");
       this->state_.reset();
       return;
     }
-    if (state == AlarmControlPanelState::PENDING && this->parent_->get_state() == AlarmControlPanelState::DISARMED) {
+    if (state == ACP_STATE_PENDING && this->parent_->get_state() == ACP_STATE_DISARMED) {
       ESP_LOGW(TAG, "Cannot trip alarm when not disarmed");
       this->state_.reset();
       return;
     }
-    if (state == AlarmControlPanelState::DISARMED &&
-        !(this->parent_->is_armed_state_(this->parent_->get_state()) ||
-          this->parent_->get_state() == AlarmControlPanelState::PENDING ||
-          this->parent_->get_state() == AlarmControlPanelState::ARMING ||
-          this->parent_->get_state() == AlarmControlPanelState::TRIGGERED)) {
+    if (state == ACP_STATE_DISARMED &&
+        !(this->parent_->is_state_armed(this->parent_->get_state()) ||
+          this->parent_->get_state() == ACP_STATE_PENDING || this->parent_->get_state() == ACP_STATE_ARMING ||
+          this->parent_->get_state() == ACP_STATE_TRIGGERED)) {
       ESP_LOGW(TAG, "Cannot disarm when not armed");
       this->state_.reset();
       return;
@@ -87,116 +86,24 @@ void AlarmControlPanelCall::validate_() {
 void AlarmControlPanelCall::perform() {
   this->validate_();
   if (this->state_) {
-    this->parent_->control_(*this);
+    this->parent_->control(*this);
   }
 }
-
-AlarmControlPanel::AlarmControlPanel() {}
 
 AlarmControlPanelCall AlarmControlPanel::make_call() { return {this}; }
 
-void AlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, bool bypass_when_home) {
-  this->sensors_.push_back(sensor);
-  if (bypass_when_home) {
-    this->bypass_when_home_.push_back(sensor);
-  }
-};
-
-void AlarmControlPanel::setup() {
-  uint8_t value;
-  this->pref_ = global_preferences->make_preference<uint8_t>(this->get_object_id_hash());
-  if (this->pref_.load(&value)) {
-    this->current_state_ = static_cast<AlarmControlPanelState>(value);
-  } else {
-    this->current_state_ = AlarmControlPanelState::DISARMED;
-  }
-  this->desired_state_ = this->current_state_;
-}
-
-void AlarmControlPanel::dump_config() {
-  ESP_LOGCONFIG(TAG, "AlarmControlPanel:");
-  ESP_LOGCONFIG(TAG, "  Current State: %s", this->to_string(this->current_state_).c_str());
-  ESP_LOGCONFIG(TAG, "  Number of Codes: %u", this->codes_.size());
-  ESP_LOGCONFIG(TAG, "  Requires Code To Arm: %s", this->requires_code_to_arm_ ? "Yes" : "No");
-  ESP_LOGCONFIG(TAG, "  Arming Away Time: %us", (this->arming_away_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Arming Home Time: %us", (this->arming_home_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Delay Time: %us", (this->delay_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Trigger Time: %us", (this->trigger_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Supported Features: %u", this->get_supported_features());
-  for (size_t i = 0; i < this->sensors_.size(); i++) {
-    binary_sensor::BinarySensor *sensor = this->sensors_[i];
-    std::string bypass_home = "False";
-    if (std::count(this->bypass_when_home_.begin(), this->bypass_when_home_.end(), sensor)) {
-      bypass_home = "True";
-    }
-    ESP_LOGCONFIG(TAG, "  Binary Sesnsor %u:", i);
-    ESP_LOGCONFIG(TAG, "    Name: %s", (*sensor).get_name().c_str());
-    ESP_LOGCONFIG(TAG, "    Armed home bypass: %s", bypass_home.c_str());
-  }
-}
-
-bool AlarmControlPanel::is_armed_state_(AlarmControlPanelState state) {
+bool AlarmControlPanel::is_state_armed(AlarmControlPanelState state) {
   switch (state) {
-    case AlarmControlPanelState::ARMED_AWAY:
-    case AlarmControlPanelState::ARMED_HOME:
-    case AlarmControlPanelState::ARMED_NIGHT:
-    case AlarmControlPanelState::ARMED_VACATION:
-    case AlarmControlPanelState::ARMED_CUSTOM_BYPASS:
+    case ACP_STATE_ARMED_AWAY:
+    case ACP_STATE_ARMED_HOME:
+    case ACP_STATE_ARMED_NIGHT:
+    case ACP_STATE_ARMED_VACATION:
+    case ACP_STATE_ARMED_CUSTOM_BYPASS:
       return true;
     default:
       return false;
   }
 };
-
-void AlarmControlPanel::loop() {
-  // change from ARMING to ARMED_x after the arming_time_ has passed
-  if (this->current_state_ == AlarmControlPanelState::ARMING) {
-    auto delay = this->arming_away_time_;
-    if (this->desired_state_ == AlarmControlPanelState::ARMED_HOME) {
-      delay = this->arming_home_time_;
-    }
-    if ((millis() - this->last_update_) > delay) {
-      this->set_panel_state(this->desired_state_);
-    }
-    return;
-  }
-  // change from PENDING to TRIGGERED after the delay_time_ has passed
-  if (this->current_state_ == AlarmControlPanelState::PENDING && (millis() - this->last_update_) > this->delay_time_) {
-    this->set_panel_state(AlarmControlPanelState::TRIGGERED);
-    return;
-  }
-  auto future_state = this->current_state_;
-  // reset triggered if all clear
-  if (this->current_state_ == AlarmControlPanelState::TRIGGERED && this->trigger_time_ > 0 &&
-      (millis() - this->last_update_) > this->trigger_time_) {
-    future_state = this->desired_state_;
-  }
-  bool trigger = false;
-  if (this->is_armed_state_(future_state)) {
-    // TODO might be better to register change for each sensor in setup...
-    for (binary_sensor::BinarySensor *sensor : this->sensors_) {
-      if (sensor->state) {
-        if (this->current_state_ == AlarmControlPanelState::ARMED_HOME &&
-            std::count(this->bypass_when_home_.begin(), this->bypass_when_home_.end(), sensor)) {
-          continue;
-        }
-        trigger = true;
-        break;
-      }
-    }
-  }
-  if (trigger) {
-    ESP_LOGD(TAG, "trigger...");
-    if (this->delay_time_ > 0 && this->current_state_ != AlarmControlPanelState::TRIGGERED) {
-      this->set_panel_state(AlarmControlPanelState::PENDING);
-    } else {
-      this->set_panel_state(AlarmControlPanelState::TRIGGERED);
-    }
-  } else if (future_state != this->current_state_) {
-    ESP_LOGD(TAG, "need to update state...");
-    this->set_panel_state(future_state);
-  }
-}
 
 void AlarmControlPanel::set_panel_state(AlarmControlPanelState state) {
   this->last_update_ = millis();
@@ -206,10 +113,10 @@ void AlarmControlPanel::set_panel_state(AlarmControlPanelState state) {
              this->to_string(prev_state).c_str());
     this->current_state_ = state;
     this->state_callback_.call();
-    if (state == AlarmControlPanelState::TRIGGERED) {
+    if (state == ACP_STATE_TRIGGERED) {
       this->triggered_callback_.call();
     }
-    if (prev_state == AlarmControlPanelState::TRIGGERED) {
+    if (prev_state == ACP_STATE_TRIGGERED) {
       this->cleared_callback_.call();
     }
     if (state == this->desired_state_) {
@@ -222,34 +129,34 @@ void AlarmControlPanel::set_panel_state(AlarmControlPanelState state) {
 std::string AlarmControlPanel::to_string(AlarmControlPanelState state) {
   std::string str = "unknown";
   switch (state) {
-    case AlarmControlPanelState::DISARMED:
+    case ACP_STATE_DISARMED:
       str = "disarmed";
       break;
-    case AlarmControlPanelState::ARMED_HOME:
+    case ACP_STATE_ARMED_HOME:
       str = "armed_home";
       break;
-    case AlarmControlPanelState::ARMED_AWAY:
+    case ACP_STATE_ARMED_AWAY:
       str = "armed_away";
       break;
-    case AlarmControlPanelState::ARMED_NIGHT:
+    case ACP_STATE_ARMED_NIGHT:
       str = "night";
       break;
-    case AlarmControlPanelState::ARMED_VACATION:
+    case ACP_STATE_ARMED_VACATION:
       str = "armed_vacation";
       break;
-    case AlarmControlPanelState::ARMED_CUSTOM_BYPASS:
+    case ACP_STATE_ARMED_CUSTOM_BYPASS:
       str = "armed_custom_bypass";
       break;
-    case AlarmControlPanelState::PENDING:
+    case ACP_STATE_PENDING:
       str = "pending";
       break;
-    case AlarmControlPanelState::ARMING:
+    case ACP_STATE_ARMING:
       str = "arming";
       break;
-    case AlarmControlPanelState::DISARMING:
+    case ACP_STATE_DISARMING:
       str = "disarming";
       break;
-    case AlarmControlPanelState::TRIGGERED:
+    case ACP_STATE_TRIGGERED:
       str = "triggered";
       break;
   }
@@ -268,59 +175,6 @@ void AlarmControlPanel::add_on_triggered_callback(std::function<void()> &&callba
 
 void AlarmControlPanel::add_on_cleared_callback(std::function<void()> &&callback) {
   this->cleared_callback_.add(std::move(callback));
-}
-
-uint32_t AlarmControlPanel::get_supported_features() {
-  auto features = AlarmControlPanelFeature::ARM_AWAY + AlarmControlPanelFeature::TRIGGER;
-  if (!this->bypass_when_home_.empty()) {
-    features += AlarmControlPanelFeature::ARM_HOME;
-  }
-  return features;
-}
-
-void AlarmControlPanel::add_code(const std::string &code) { this->codes_.push_back(code); }
-
-bool AlarmControlPanel::is_code_valid_(optional<std::string> code) {
-  if (!this->codes_.empty()) {
-    if (code.has_value()) {
-      ESP_LOGVV(TAG, "Checking code: %s", code.value().c_str());
-      return (std::count(this->codes_.begin(), this->codes_.end(), code.value()) == 1);
-    }
-    ESP_LOGD(TAG, "No code provided");
-    return false;
-  }
-  return true;
-}
-
-bool AlarmControlPanel::get_requires_code() { return !this->codes_.empty(); }
-
-void AlarmControlPanel::set_requires_code_to_arm(bool code_to_arm) { this->requires_code_to_arm_ = code_to_arm; }
-
-bool AlarmControlPanel::get_requires_code_to_arm() { return this->requires_code_to_arm_; }
-
-void AlarmControlPanel::set_arming_away_time(uint32_t time) { this->arming_away_time_ = time * 1000; }
-
-void AlarmControlPanel::set_arming_home_time(uint32_t time) { this->arming_home_time_ = time * 1000; }
-
-void AlarmControlPanel::set_delay_time(uint32_t time) { this->delay_time_ = time * 1000; }
-
-void AlarmControlPanel::set_trigger_time(uint32_t time) { this->trigger_time_ = time * 1000; }
-
-void AlarmControlPanel::arm_(optional<std::string> code, AlarmControlPanelState state, uint32_t delay) {
-  if (this->current_state_ != AlarmControlPanelState::DISARMED) {
-    ESP_LOGW(TAG, "Cannot arm when not disarmed");
-    return;
-  }
-  if (this->requires_code_to_arm_ && !this->is_code_valid_(std::move(code))) {
-    ESP_LOGW(TAG, "Not arming code doesn't match");
-    return;
-  }
-  this->desired_state_ = state;
-  if (delay > 0) {
-    this->set_panel_state(AlarmControlPanelState::ARMING);
-  } else {
-    this->set_panel_state(state);
-  }
 }
 
 void AlarmControlPanel::arm_away(optional<std::string> code) {
@@ -369,34 +223,6 @@ void AlarmControlPanel::disarm(optional<std::string> code) {
   if (code.has_value())
     call.set_code(code.value());
   call.perform();
-}
-
-void AlarmControlPanel::control_(const AlarmControlPanelCall &call) {
-  if (call.get_state()) {
-    if (call.get_state() == AlarmControlPanelState::ARMED_AWAY) {
-      ESP_LOGD(TAG, "arm_away");
-      this->arm_(call.get_code(), AlarmControlPanelState::ARMED_AWAY, this->arming_away_time_);
-    } else if (call.get_state() == AlarmControlPanelState::ARMED_HOME) {
-      ESP_LOGD(TAG, "arm_home");
-      this->arm_(call.get_code(), AlarmControlPanelState::ARMED_HOME, this->arming_home_time_);
-    } else if (call.get_state() == AlarmControlPanelState::DISARMED) {
-      ESP_LOGD(TAG, "disarm");
-      if (!this->is_code_valid_(call.get_code())) {
-        ESP_LOGW(TAG, "Not disarming code doesn't match");
-        return;
-      }
-      this->desired_state_ = AlarmControlPanelState::DISARMED;
-      this->set_panel_state(AlarmControlPanelState::DISARMED);
-    } else if (call.get_state() == AlarmControlPanelState::TRIGGERED) {
-      ESP_LOGD(TAG, "triggered");
-      this->set_panel_state(AlarmControlPanelState::TRIGGERED);
-    } else if (call.get_state() == AlarmControlPanelState::PENDING) {
-      ESP_LOGD(TAG, "pending");
-      this->set_panel_state(AlarmControlPanelState::PENDING);
-    } else {
-      ESP_LOGE(TAG, "State not yet implemented: %s", this->to_string(*call.get_state()).c_str());
-    }
-  }
 }
 
 }  // namespace alarm_control_panel
