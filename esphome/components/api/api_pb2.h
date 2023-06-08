@@ -307,7 +307,8 @@ class DeviceInfoResponse : public ProtoMessage {
   std::string project_name{};
   std::string project_version{};
   uint32_t webserver_port{0};
-  uint32_t bluetooth_proxy_version{0};
+  uint32_t legacy_bluetooth_proxy_version{0};
+  uint32_t bluetooth_proxy_feature_flags{0};
   std::string manufacturer{};
   std::string friendly_name{};
   uint32_t voice_assistant_version{0};
@@ -1267,12 +1268,14 @@ class MediaPlayerCommandRequest : public ProtoMessage {
 };
 class SubscribeBluetoothLEAdvertisementsRequest : public ProtoMessage {
  public:
+  uint32_t flags{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;
 #endif
 
  protected:
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };
 class BluetoothServiceData : public ProtoMessage {
  public:
@@ -1305,6 +1308,32 @@ class BluetoothLEAdvertisementResponse : public ProtoMessage {
  protected:
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothLERawAdvertisement : public ProtoMessage {
+ public:
+  uint64_t address{0};
+  int32_t rssi{0};
+  uint32_t address_type{0};
+  std::string data{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class BluetoothLERawAdvertisementsResponse : public ProtoMessage {
+ public:
+  std::vector<BluetoothLERawAdvertisement> advertisements{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
 };
 class BluetoothDeviceRequest : public ProtoMessage {
  public:
