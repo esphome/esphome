@@ -3373,7 +3373,8 @@ lcd_menu:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
 
 alarm_control_panel:
-  - id: alarmcontrolpanel1
+  - platform: template
+    id: alarmcontrolpanel1
     name: Alarm Panel
     codes:
       - "1234"
