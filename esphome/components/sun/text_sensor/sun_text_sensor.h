@@ -1,6 +1,8 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/time.h"
+
 #include "esphome/components/sun/sun.h"
 #include "esphome/components/text_sensor/text_sensor.h"
 

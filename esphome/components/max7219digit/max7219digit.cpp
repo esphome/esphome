@@ -325,7 +325,6 @@ uint8_t MAX7219Component::printdigitf(const char *format, ...) {
   return 0;
 }
 
-#ifdef USE_TIME
 uint8_t MAX7219Component::strftimedigit(uint8_t pos, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
@@ -336,7 +335,6 @@ uint8_t MAX7219Component::strftimedigit(uint8_t pos, const char *format, ESPTime
 uint8_t MAX7219Component::strftimedigit(const char *format, ESPTime time) {
   return this->strftimedigit(0, format, time);
 }
-#endif
 
 }  // namespace max7219digit
 }  // namespace esphome

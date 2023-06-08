@@ -490,7 +490,6 @@ void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
     this->trigger(from, to);
 }
-#ifdef USE_TIME
 void DisplayBuffer::strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format,
                              ESPTime time) {
   char buffer[64];
@@ -507,7 +506,6 @@ void DisplayBuffer::strftime(int x, int y, Font *font, TextAlign align, const ch
 void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, ESPTime time) {
   this->strftime(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, format, time);
 }
-#endif
 
 void DisplayBuffer::start_clipping(Rect rect) {
   if (!this->clipping_rectangle_.empty()) {

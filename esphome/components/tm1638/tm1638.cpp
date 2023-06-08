@@ -211,7 +211,6 @@ uint8_t TM1638Component::printf(const char *format, ...) {
   return 0;
 }
 
-#ifdef USE_TIME
 uint8_t TM1638Component::strftime(uint8_t pos, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
@@ -220,7 +219,6 @@ uint8_t TM1638Component::strftime(uint8_t pos, const char *format, ESPTime time)
   return 0;
 }
 uint8_t TM1638Component::strftime(const char *format, ESPTime time) { return this->strftime(0, format, time); }
-#endif
 
 //////////////// SPI   ////////////////
 
