@@ -46,10 +46,10 @@ class LCDDisplay : public PollingComponent {
 
 #ifdef USE_TIME
   /// Evaluate the strftime-format and print the text at the specified column and row.
-  void strftime(uint8_t column, uint8_t row, const char *format, time::ESPTime time)
+  void strftime(uint8_t column, uint8_t row, const char *format, ESPTime time)
       __attribute__((format(strftime, 4, 0)));
   /// Evaluate the strftime-format and print the text at column=0 and row=0.
-  void strftime(const char *format, time::ESPTime time) __attribute__((format(strftime, 2, 0)));
+  void strftime(const char *format, ESPTime time) __attribute__((format(strftime, 2, 0)));
 #endif
 
   /// Load custom char to given location

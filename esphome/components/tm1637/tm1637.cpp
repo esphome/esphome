@@ -369,14 +369,14 @@ uint8_t TM1637Display::printf(const char *format, ...) {
 }
 
 #ifdef USE_TIME
-uint8_t TM1637Display::strftime(uint8_t pos, const char *format, time::ESPTime time) {
+uint8_t TM1637Display::strftime(uint8_t pos, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     return this->print(pos, buffer);
   return 0;
 }
-uint8_t TM1637Display::strftime(const char *format, time::ESPTime time) { return this->strftime(0, format, time); }
+uint8_t TM1637Display::strftime(const char *format, ESPTime time) { return this->strftime(0, format, time); }
 #endif
 
 }  // namespace tm1637

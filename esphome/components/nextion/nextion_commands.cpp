@@ -220,7 +220,7 @@ void Nextion::filled_circle(int center_x, int center_y, int radius, Color color)
 }
 
 #ifdef USE_TIME
-void Nextion::set_nextion_rtc_time(time::ESPTime time) {
+void Nextion::set_nextion_rtc_time(ESPTime time) {
   this->add_no_result_to_queue_with_printf_("rtc0", "rtc0=%u", time.year);
   this->add_no_result_to_queue_with_printf_("rtc1", "rtc1=%u", time.month);
   this->add_no_result_to_queue_with_printf_("rtc2", "rtc2=%u", time.day_of_month);

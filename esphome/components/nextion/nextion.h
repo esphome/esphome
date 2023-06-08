@@ -323,7 +323,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Send the current time to the nextion display.
    * @param time The time instance to send (get this with id(my_time).now() ).
    */
-  void set_nextion_rtc_time(time::ESPTime time);
+  void set_nextion_rtc_time(ESPTime time);
 #endif
 
   /**
