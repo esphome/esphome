@@ -14,7 +14,7 @@
 namespace esphome {
 namespace easyscale {
 
-static const char *TAG = "EasyScale";
+static const char *const TAG = "EasyScale";
 
 void EasyScale::setup_state(light::LightState *state) {
   // Disable Gamma correction, as the Easyscale device has that somewhat built in
