@@ -23,12 +23,12 @@ enum AlarmControlPanelState : uint8_t {
 
 enum AlarmControlPanelFeature : uint8_t {
   // Matches Home Assistant values
-  ACP_FEAT_ARM_HOME = 1,
-  ACP_FEAT_ARM_AWAY = 2,
-  ACP_FEAT_ARM_NIGHT = 4,
-  ACP_FEAT_TRIGGER = 8,
-  ACP_FEAT_ARM_CUSTOM_BYPASS = 16,
-  ACP_FEAT_ARM_VACATION = 32
+  ACP_FEAT_ARM_HOME = 1 << 0,
+  ACP_FEAT_ARM_AWAY = 1 << 1,
+  ACP_FEAT_ARM_NIGHT = 1 << 2,
+  ACP_FEAT_TRIGGER = 1 << 3,
+  ACP_FEAT_ARM_CUSTOM_BYPASS = 1 << 4,
+  ACP_FEAT_ARM_VACATION = 1 << 5,
 };
 
 class AlarmControlPanel;
