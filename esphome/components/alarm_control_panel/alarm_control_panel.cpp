@@ -68,7 +68,7 @@ void AlarmControlPanelCall::validate_() {
       return;
     }
     if (state == ACP_STATE_PENDING && this->parent_->get_state() == ACP_STATE_DISARMED) {
-      ESP_LOGW(TAG, "Cannot trip alarm when not disarmed");
+      ESP_LOGW(TAG, "Cannot trip alarm when disarmed");
       this->state_.reset();
       return;
     }
@@ -77,6 +77,11 @@ void AlarmControlPanelCall::validate_() {
           this->parent_->get_state() == ACP_STATE_PENDING || this->parent_->get_state() == ACP_STATE_ARMING ||
           this->parent_->get_state() == ACP_STATE_TRIGGERED)) {
       ESP_LOGW(TAG, "Cannot disarm when not armed");
+      this->state_.reset();
+      return;
+    }
+    if (state == ACP_STATE_ARMED_HOME && this->parent_->get_supported_features() & ACP_FEAT_ARM_HOME == 0) {
+      ESP_LOGW(TAG, "Cannot arm home when not supported");
       this->state_.reset();
       return;
     }
