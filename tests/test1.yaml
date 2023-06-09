@@ -3388,4 +3388,4 @@ alarm_control_panel:
     on_state:
       then:
         - lambda: !lambda |-
-            ESP_LOGD("TEST", "State change %s", id(alarmcontrolpanel1)->to_string(id(alarmcontrolpanel1)->get_state()).c_str());
+            ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(acp1)->get_state()));
