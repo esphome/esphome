@@ -11,15 +11,21 @@ from esphome.const import (
 )
 from .. import template_ns
 
-DEPENDENCIES = ["binary_sensor"]
-
 CONF_CODES = "codes"
 CONF_BYPASS_ARMED_HOME = "bypass_armed_home"
 CONF_REQUIRES_CODE_TO_ARM = "requires_code_to_arm"
 CONF_ARMING_HOME_TIME = "arming_home_time"
 CONF_ARMING_AWAY_TIME = "arming_away_time"
-CONF_DELAY_TIME = "delay_time"
+CONF_PENDING_TIME = "pending_time"
 CONF_TRIGGER_TIME = "trigger_time"
+
+FLAG_NORMAL = "normal"
+FLAG_BYPASS_ARMED_HOME = "bypass_armed_home"
+
+BinarySensorFlags = {
+    FLAG_NORMAL: 1 << 0,
+    FLAG_BYPASS_ARMED_HOME: 1 << 1,
+}
 
 TemplateAlarmControlPanel = template_ns.class_(
     "TemplateAlarmControlPanel", alarm_control_panel.AlarmControlPanel, cg.Component
@@ -27,9 +33,9 @@ TemplateAlarmControlPanel = template_ns.class_(
 
 
 def validate_config(config):
-    if CONF_REQUIRES_CODE_TO_ARM in config and len(config.get(CONF_CODES, [])) == 0:
+    if config.get(CONF_REQUIRES_CODE_TO_ARM, False) and not config.get(CONF_CODES, []):
         raise cv.Invalid(
-            f"{CONF_REQUIRES_CODE_TO_ARM} not needed when {CONF_CODES} not present."
+            f"{CONF_REQUIRES_CODE_TO_ARM} cannot be True when there are no codes."
         )
     return config
 
@@ -48,10 +54,16 @@ TEMPLATE_ALARM_CONTROL_PANEL_SCHEMA = (
             cv.GenerateID(): cv.declare_id(TemplateAlarmControlPanel),
             cv.Optional(CONF_CODES): cv.ensure_list(cv.string_strict),
             cv.Optional(CONF_REQUIRES_CODE_TO_ARM): cv.boolean,
-            cv.Optional(CONF_ARMING_HOME_TIME, "0s"): cv.positive_time_period_seconds,
-            cv.Optional(CONF_ARMING_AWAY_TIME, "0s"): cv.positive_time_period_seconds,
-            cv.Optional(CONF_DELAY_TIME, "0s"): cv.positive_time_period_seconds,
-            cv.Optional(CONF_TRIGGER_TIME, "0s"): cv.positive_time_period_seconds,
+            cv.Optional(CONF_ARMING_HOME_TIME): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_ARMING_AWAY_TIME, default="0s"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_PENDING_TIME, default="0s"
+            ): cv.positive_time_period_milliseconds,
+            cv.Optional(
+                CONF_TRIGGER_TIME, default="0s"
+            ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
                 TEMPLATE_ALARM_CONTROL_PANEL_BINARY_SENSOR_SCHEMA
             ),
@@ -70,18 +82,26 @@ async def to_code(config):
     await cg.register_component(var, config)
     await alarm_control_panel.register_alarm_control_panel(var, config)
     if CONF_CODES in config:
-        for acode in config.get(CONF_CODES, []):
+        for acode in config(CONF_CODES):
             cg.add(var.add_code(acode))
         if CONF_REQUIRES_CODE_TO_ARM in config:
             cg.add(var.set_requires_code_to_arm(config[CONF_REQUIRES_CODE_TO_ARM]))
+
+    cg.add(var.set_arming_away_time(config[CONF_ARMING_AWAY_TIME]))
+    cg.add(var.set_pending_time(config[CONF_PENDING_TIME]))
+    cg.add(var.set_trigger_time(config[CONF_TRIGGER_TIME]))
+
+    supports_arm_home = False
     if CONF_ARMING_HOME_TIME in config:
         cg.add(var.set_arming_home_time(config[CONF_ARMING_HOME_TIME]))
-    if CONF_ARMING_AWAY_TIME in config:
-        cg.add(var.set_arming_away_time(config[CONF_ARMING_AWAY_TIME]))
-    if CONF_DELAY_TIME in config:
-        cg.add(var.set_delay_time(config[CONF_DELAY_TIME]))
-    if CONF_TRIGGER_TIME in config:
-        cg.add(var.set_trigger_time(config[CONF_TRIGGER_TIME]))
+        supports_arm_home = True
+
     for sensor in config.get(CONF_BINARY_SENSORS, []):
         bs = await cg.get_variable(sensor[CONF_INPUT])
-        cg.add(var.add_sensor(bs, sensor[CONF_BYPASS_ARMED_HOME]))
+        flags = BinarySensorFlags[FLAG_NORMAL]
+        if sensor[CONF_BYPASS_ARMED_HOME]:
+            flags |= BinarySensorFlags[FLAG_BYPASS_ARMED_HOME]
+            supports_arm_home = True
+        cg.add(var.add_sensor(bs, flags))
+
+    cg.add(var.set_supports_arm_home(supports_arm_home))

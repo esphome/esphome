@@ -14,33 +14,33 @@ static const char *const TAG = "template.alarm_control_panel";
 
 TemplateAlarmControlPanel::TemplateAlarmControlPanel(){};
 
-void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, bool bypass_when_home) {
-  this->sensors_.push_back(sensor);
-  if (bypass_when_home) {
-    this->bypass_when_home_.push_back(sensor);
-  }
+#ifdef USE_BINARY_SENSOR
+void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, uint16_t flags) {
+  this->sensor_map_[sensor] = flags;
 };
+#endif
 
 void TemplateAlarmControlPanel::dump_config() {
   ESP_LOGCONFIG(TAG, "TemplateAlarmControlPanel:");
   ESP_LOGCONFIG(TAG, "  Current State: %s", this->to_string(this->current_state_).c_str());
   ESP_LOGCONFIG(TAG, "  Number of Codes: %u", this->codes_.size());
-  ESP_LOGCONFIG(TAG, "  Requires Code To Arm: %s", this->requires_code_to_arm_ ? "Yes" : "No");
+  if (!this->codes_.empty())
+    ESP_LOGCONFIG(TAG, "  Requires Code To Arm: %s", YESNO(this->requires_code_to_arm_));
   ESP_LOGCONFIG(TAG, "  Arming Away Time: %us", (this->arming_away_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Arming Home Time: %us", (this->arming_home_time_ / 1000));
-  ESP_LOGCONFIG(TAG, "  Delay Time: %us", (this->delay_time_ / 1000));
+  if (this->arming_home_time_ != 0)
+    ESP_LOGCONFIG(TAG, "  Arming Home Time: %us", (this->arming_home_time_ / 1000));
+  ESP_LOGCONFIG(TAG, "  Pending Time: %us", (this->pending_time_ / 1000));
   ESP_LOGCONFIG(TAG, "  Trigger Time: %us", (this->trigger_time_ / 1000));
   ESP_LOGCONFIG(TAG, "  Supported Features: %u", this->get_supported_features());
-  for (size_t i = 0; i < this->sensors_.size(); i++) {
-    binary_sensor::BinarySensor *sensor = this->sensors_[i];
-    std::string bypass_home = "False";
-    if (std::count(this->bypass_when_home_.begin(), this->bypass_when_home_.end(), sensor)) {
-      bypass_home = "True";
-    }
-    ESP_LOGCONFIG(TAG, "  Binary Sesnsor %u:", i);
-    ESP_LOGCONFIG(TAG, "    Name: %s", (*sensor).get_name().c_str());
-    ESP_LOGCONFIG(TAG, "    Armed home bypass: %s", bypass_home.c_str());
+#ifdef USE_BINARY_SENSOR
+  for (auto sensor_pair : this->sensor_map_) {
+    binary_sensor::BinarySensor *sensor = sensor_pair.first;
+    ESP_LOGCONFIG(TAG, "  Binary Sesnsor:");
+    ESP_LOGCONFIG(TAG, "    Name: %s", sensor_pair.first->get_name().c_str());
+    ESP_LOGCONFIG(TAG, "    Armed home bypass: %s",
+                  TRUEFALSE(sensor_pair.second & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME));
   }
+#endif
 }
 
 void TemplateAlarmControlPanel::setup() {
@@ -67,7 +67,7 @@ void TemplateAlarmControlPanel::loop() {
     return;
   }
   // change from PENDING to TRIGGERED after the delay_time_ has passed
-  if (this->current_state_ == ACP_STATE_PENDING && (millis() - this->last_update_) > this->delay_time_) {
+  if (this->current_state_ == ACP_STATE_PENDING && (millis() - this->last_update_) > this->pending_time_) {
     this->set_panel_state(ACP_STATE_TRIGGERED);
     return;
   }
@@ -78,12 +78,13 @@ void TemplateAlarmControlPanel::loop() {
     future_state = this->desired_state_;
   }
   bool trigger = false;
+#ifdef USE_BINARY_SENSOR
   if (this->is_state_armed(future_state)) {
     // TODO might be better to register change for each sensor in setup...
-    for (binary_sensor::BinarySensor *sensor : this->sensors_) {
-      if (sensor->state) {
+    for (auto sensor_pair : this->sensor_map_) {
+      if (sensor_pair.first->state) {
         if (this->current_state_ == ACP_STATE_ARMED_HOME &&
-            std::count(this->bypass_when_home_.begin(), this->bypass_when_home_.end(), sensor)) {
+            (sensor_pair.second & BINARY_SENSOR_MODE_BYPASS_ARMED_HOME)) {
           continue;
         }
         trigger = true;
@@ -91,20 +92,17 @@ void TemplateAlarmControlPanel::loop() {
       }
     }
   }
+#endif
   if (trigger) {
-    ESP_LOGD(TAG, "trigger...");
-    if (this->delay_time_ > 0 && this->current_state_ != ACP_STATE_TRIGGERED) {
+    if (this->pending_time_ > 0 && this->current_state_ != ACP_STATE_TRIGGERED) {
       this->set_panel_state(ACP_STATE_PENDING);
     } else {
       this->set_panel_state(ACP_STATE_TRIGGERED);
     }
   } else if (future_state != this->current_state_) {
-    ESP_LOGD(TAG, "need to update state...");
     this->set_panel_state(future_state);
   }
 }
-
-void TemplateAlarmControlPanel::add_code(const std::string &code) { this->codes_.push_back(code); }
 
 bool TemplateAlarmControlPanel::is_code_valid_(optional<std::string> code) {
   if (!this->codes_.empty()) {
@@ -119,28 +117,14 @@ bool TemplateAlarmControlPanel::is_code_valid_(optional<std::string> code) {
 }
 
 uint32_t TemplateAlarmControlPanel::get_supported_features() {
-  auto features = ACP_FEAT_ARM_AWAY + ACP_FEAT_TRIGGER;
-  if (!this->bypass_when_home_.empty()) {
-    features += ACP_FEAT_ARM_HOME;
+  uint32_t features = ACP_FEAT_ARM_AWAY | ACP_FEAT_TRIGGER;
+  if (this->supports_arm_home_) {
+    features |= ACP_FEAT_ARM_HOME;
   }
   return features;
 }
 
 bool TemplateAlarmControlPanel::get_requires_code() { return !this->codes_.empty(); }
-
-void TemplateAlarmControlPanel::set_requires_code_to_arm(bool code_to_arm) {
-  this->requires_code_to_arm_ = code_to_arm;
-}
-
-bool TemplateAlarmControlPanel::get_requires_code_to_arm() { return this->requires_code_to_arm_; }
-
-void TemplateAlarmControlPanel::set_arming_away_time(uint32_t time) { this->arming_away_time_ = time * 1000; }
-
-void TemplateAlarmControlPanel::set_arming_home_time(uint32_t time) { this->arming_home_time_ = time * 1000; }
-
-void TemplateAlarmControlPanel::set_delay_time(uint32_t time) { this->delay_time_ = time * 1000; }
-
-void TemplateAlarmControlPanel::set_trigger_time(uint32_t time) { this->trigger_time_ = time * 1000; }
 
 void TemplateAlarmControlPanel::arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state,
                                      uint32_t delay) {
