@@ -1,5 +1,7 @@
 #include "alarm_control_panel_call.h"
 
+#include "alarm_control_panel.h"
+
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -78,7 +80,7 @@ void AlarmControlPanelCall::validate_() {
       this->state_.reset();
       return;
     }
-    if (state == ACP_STATE_ARMED_HOME && this->parent_->get_supported_features() & ACP_FEAT_ARM_HOME == 0) {
+    if (state == ACP_STATE_ARMED_HOME && (this->parent_->get_supported_features() & ACP_FEAT_ARM_HOME) == 0) {
       ESP_LOGW(TAG, "Cannot arm home when not supported");
       this->state_.reset();
       return;
