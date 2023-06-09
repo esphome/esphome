@@ -34,7 +34,6 @@ void TemplateAlarmControlPanel::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supported Features: %u", this->get_supported_features());
 #ifdef USE_BINARY_SENSOR
   for (auto sensor_pair : this->sensor_map_) {
-    binary_sensor::BinarySensor *sensor = sensor_pair.first;
     ESP_LOGCONFIG(TAG, "  Binary Sesnsor:");
     ESP_LOGCONFIG(TAG, "    Name: %s", sensor_pair.first->get_name().c_str());
     ESP_LOGCONFIG(TAG, "    Armed home bypass: %s",
