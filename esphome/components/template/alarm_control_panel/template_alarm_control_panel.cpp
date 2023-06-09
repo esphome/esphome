@@ -1,9 +1,9 @@
 #include "template_alarm_control_panel.h"
+#include <utility>
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include <utility>
 
 namespace esphome {
 namespace template_ {
@@ -22,7 +22,7 @@ void TemplateAlarmControlPanel::add_sensor(binary_sensor::BinarySensor *sensor, 
 
 void TemplateAlarmControlPanel::dump_config() {
   ESP_LOGCONFIG(TAG, "TemplateAlarmControlPanel:");
-  ESP_LOGCONFIG(TAG, "  Current State: %s", this->to_string(this->current_state_).c_str());
+  ESP_LOGCONFIG(TAG, "  Current State: %s", LOG_STR_ARG(alarm_control_panel_state_to_string(this->current_state_)));
   ESP_LOGCONFIG(TAG, "  Number of Codes: %u", this->codes_.size());
   if (!this->codes_.empty())
     ESP_LOGCONFIG(TAG, "  Requires Code To Arm: %s", YESNO(this->requires_code_to_arm_));
@@ -62,13 +62,13 @@ void TemplateAlarmControlPanel::loop() {
       delay = this->arming_home_time_;
     }
     if ((millis() - this->last_update_) > delay) {
-      this->set_panel_state(this->desired_state_);
+      this->publish_state(this->desired_state_);
     }
     return;
   }
   // change from PENDING to TRIGGERED after the delay_time_ has passed
   if (this->current_state_ == ACP_STATE_PENDING && (millis() - this->last_update_) > this->pending_time_) {
-    this->set_panel_state(ACP_STATE_TRIGGERED);
+    this->publish_state(ACP_STATE_TRIGGERED);
     return;
   }
   auto future_state = this->current_state_;
@@ -95,12 +95,12 @@ void TemplateAlarmControlPanel::loop() {
 #endif
   if (trigger) {
     if (this->pending_time_ > 0 && this->current_state_ != ACP_STATE_TRIGGERED) {
-      this->set_panel_state(ACP_STATE_PENDING);
+      this->publish_state(ACP_STATE_PENDING);
     } else {
-      this->set_panel_state(ACP_STATE_TRIGGERED);
+      this->publish_state(ACP_STATE_TRIGGERED);
     }
   } else if (future_state != this->current_state_) {
-    this->set_panel_state(future_state);
+    this->publish_state(future_state);
   }
 }
 
@@ -116,7 +116,7 @@ bool TemplateAlarmControlPanel::is_code_valid_(optional<std::string> code) {
   return true;
 }
 
-uint32_t TemplateAlarmControlPanel::get_supported_features() {
+uint32_t TemplateAlarmControlPanel::get_supported_features() const {
   uint32_t features = ACP_FEAT_ARM_AWAY | ACP_FEAT_TRIGGER;
   if (this->supports_arm_home_) {
     features |= ACP_FEAT_ARM_HOME;
@@ -124,7 +124,7 @@ uint32_t TemplateAlarmControlPanel::get_supported_features() {
   return features;
 }
 
-bool TemplateAlarmControlPanel::get_requires_code() { return !this->codes_.empty(); }
+bool TemplateAlarmControlPanel::get_requires_code() const { return !this->codes_.empty(); }
 
 void TemplateAlarmControlPanel::arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state,
                                      uint32_t delay) {
@@ -138,36 +138,32 @@ void TemplateAlarmControlPanel::arm_(optional<std::string> code, alarm_control_p
   }
   this->desired_state_ = state;
   if (delay > 0) {
-    this->set_panel_state(ACP_STATE_ARMING);
+    this->publish_state(ACP_STATE_ARMING);
   } else {
-    this->set_panel_state(state);
+    this->publish_state(state);
   }
 }
 
 void TemplateAlarmControlPanel::control(const AlarmControlPanelCall &call) {
   if (call.get_state()) {
     if (call.get_state() == ACP_STATE_ARMED_AWAY) {
-      ESP_LOGD(TAG, "arm_away");
       this->arm_(call.get_code(), ACP_STATE_ARMED_AWAY, this->arming_away_time_);
     } else if (call.get_state() == ACP_STATE_ARMED_HOME) {
-      ESP_LOGD(TAG, "arm_home");
       this->arm_(call.get_code(), ACP_STATE_ARMED_HOME, this->arming_home_time_);
     } else if (call.get_state() == ACP_STATE_DISARMED) {
-      ESP_LOGD(TAG, "disarm");
       if (!this->is_code_valid_(call.get_code())) {
         ESP_LOGW(TAG, "Not disarming code doesn't match");
         return;
       }
       this->desired_state_ = ACP_STATE_DISARMED;
-      this->set_panel_state(ACP_STATE_DISARMED);
+      this->publish_state(ACP_STATE_DISARMED);
     } else if (call.get_state() == ACP_STATE_TRIGGERED) {
-      ESP_LOGD(TAG, "triggered");
-      this->set_panel_state(ACP_STATE_TRIGGERED);
+      this->publish_state(ACP_STATE_TRIGGERED);
     } else if (call.get_state() == ACP_STATE_PENDING) {
-      ESP_LOGD(TAG, "pending");
-      this->set_panel_state(ACP_STATE_PENDING);
+      this->publish_state(ACP_STATE_PENDING);
     } else {
-      ESP_LOGE(TAG, "State not yet implemented: %s", this->to_string(*call.get_state()).c_str());
+      ESP_LOGE(TAG, "State not yet implemented: %s",
+               LOG_STR_ARG(alarm_control_panel_state_to_string(*call.get_state())));
     }
   }
 }

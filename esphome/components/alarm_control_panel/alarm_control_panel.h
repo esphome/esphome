@@ -1,25 +1,16 @@
 #pragma once
 
+#include <map>
+
+#include "alarm_control_panel_call.h"
+#include "alarm_control_panel_state.h"
+
 #include "esphome/core/automation.h"
 #include "esphome/core/entity_base.h"
-#include <vector>
-#include <map>
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace alarm_control_panel {
-
-enum AlarmControlPanelState : uint8_t {
-  ACP_STATE_DISARMED = 0,
-  ACP_STATE_ARMED_HOME = 1,
-  ACP_STATE_ARMED_AWAY = 2,
-  ACP_STATE_ARMED_NIGHT = 3,
-  ACP_STATE_ARMED_VACATION = 4,
-  ACP_STATE_ARMED_CUSTOM_BYPASS = 5,
-  ACP_STATE_PENDING = 6,
-  ACP_STATE_ARMING = 7,
-  ACP_STATE_DISARMING = 8,
-  ACP_STATE_TRIGGERED = 9
-};
 
 enum AlarmControlPanelFeature : uint8_t {
   // Matches Home Assistant values
@@ -29,33 +20,6 @@ enum AlarmControlPanelFeature : uint8_t {
   ACP_FEAT_TRIGGER = 1 << 3,
   ACP_FEAT_ARM_CUSTOM_BYPASS = 1 << 4,
   ACP_FEAT_ARM_VACATION = 1 << 5,
-};
-
-class AlarmControlPanel;
-
-class AlarmControlPanelCall {
- public:
-  AlarmControlPanelCall(AlarmControlPanel *parent);
-
-  AlarmControlPanelCall &set_code(const std::string &code);
-  AlarmControlPanelCall &arm_away();
-  AlarmControlPanelCall &arm_home();
-  AlarmControlPanelCall &arm_night();
-  AlarmControlPanelCall &arm_vacation();
-  AlarmControlPanelCall &arm_custom_bypass();
-  AlarmControlPanelCall &disarm();
-  AlarmControlPanelCall &pending();
-  AlarmControlPanelCall &triggered();
-
-  void perform();
-  const optional<AlarmControlPanelState> &get_state() const;
-  const optional<std::string> &get_code() const;
-
- protected:
-  AlarmControlPanel *parent_;
-  optional<std::string> code_{};
-  optional<AlarmControlPanelState> state_{};
-  void validate_();
 };
 
 class AlarmControlPanel : public EntityBase {
@@ -69,13 +33,7 @@ class AlarmControlPanel : public EntityBase {
    *
    * @param state The AlarmControlPanelState.
    */
-  void set_panel_state(AlarmControlPanelState state);
-
-  /** Returns a string representation of the state.
-   *
-   * @param state The AlarmControlPanelState.
-   */
-  std::string to_string(AlarmControlPanelState state);
+  void publish_state(AlarmControlPanelState state);
 
   /** Add a callback for when the state of the alarm_control_panel changes
    *
@@ -98,17 +56,17 @@ class AlarmControlPanel : public EntityBase {
   /** A numeric representation of the supported features as per HomeAssistant
    *
    */
-  virtual uint32_t get_supported_features();
+  virtual uint32_t get_supported_features() const = 0;
 
   /** Returns if the alarm_control_panel has a code
    *
    */
-  virtual bool get_requires_code();
+  virtual bool get_requires_code() const = 0;
 
   /** Returns if the alarm_control_panel requires a code to arm
    *
    */
-  virtual bool get_requires_code_to_arm();
+  virtual bool get_requires_code_to_arm() const = 0;
 
   /** arm the alarm in away mode
    *
@@ -149,7 +107,7 @@ class AlarmControlPanel : public EntityBase {
   /** Get the state
    *
    */
-  AlarmControlPanelState get_state();
+  AlarmControlPanelState get_state() const { return this->current_state_; }
 
   // is the state one of the armed states
   bool is_state_armed(AlarmControlPanelState state);

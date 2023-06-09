@@ -28,9 +28,9 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   void dump_config() override;
   void setup() override;
   void loop() override;
-  uint32_t get_supported_features() override;
-  bool get_requires_code() override;
-  bool get_requires_code_to_arm() override { return this->requires_code_to_arm_; }
+  uint32_t get_supported_features() const override;
+  bool get_requires_code() const override;
+  bool get_requires_code_to_arm() const override { return this->requires_code_to_arm_; }
 
 #ifdef USE_BINARY_SENSOR
   /** Add a binary_sensor to the alarm_panel.
