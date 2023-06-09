@@ -3,9 +3,9 @@
 #include <utility>
 #include "esphome/core/application.h"
 #include "esphome/core/color.h"
-#include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace display {
@@ -490,24 +490,21 @@ void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
     this->trigger(from, to);
 }
-#ifdef USE_TIME
-void DisplayBuffer::strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format,
-                             time::ESPTime time) {
+void DisplayBuffer::strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     this->print(x, y, font, color, align, buffer);
 }
-void DisplayBuffer::strftime(int x, int y, Font *font, Color color, const char *format, time::ESPTime time) {
+void DisplayBuffer::strftime(int x, int y, Font *font, Color color, const char *format, ESPTime time) {
   this->strftime(x, y, font, color, TextAlign::TOP_LEFT, format, time);
 }
-void DisplayBuffer::strftime(int x, int y, Font *font, TextAlign align, const char *format, time::ESPTime time) {
+void DisplayBuffer::strftime(int x, int y, Font *font, TextAlign align, const char *format, ESPTime time) {
   this->strftime(x, y, font, COLOR_ON, align, format, time);
 }
-void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, time::ESPTime time) {
+void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, ESPTime time) {
   this->strftime(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, format, time);
 }
-#endif
 
 void DisplayBuffer::start_clipping(Rect rect) {
   if (!this->clipping_rectangle_.empty()) {
