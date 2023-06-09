@@ -3,30 +3,30 @@
 namespace esphome {
 namespace alarm_control_panel {
 
-const LogString *alarm_control_panel_state_to_string(AlarmControlPanelState state) {
+const char *alarm_control_panel_state_to_string(AlarmControlPanelState state) {
   switch (state) {
     case ACP_STATE_DISARMED:
-      return LOG_STR("DISARMED");
+      return "DISARMED";
     case ACP_STATE_ARMED_HOME:
-      return LOG_STR("ARMED_HOME");
+      return "ARMED_HOME";
     case ACP_STATE_ARMED_AWAY:
-      return LOG_STR("ARMED_AWAY");
+      return "ARMED_AWAY";
     case ACP_STATE_ARMED_NIGHT:
-      return LOG_STR("NIGHT");
+      return "NIGHT";
     case ACP_STATE_ARMED_VACATION:
-      return LOG_STR("ARMED_VACATION");
+      return "ARMED_VACATION";
     case ACP_STATE_ARMED_CUSTOM_BYPASS:
-      return LOG_STR("ARMED_CUSTOM_BYPASS");
+      return "ARMED_CUSTOM_BYPASS";
     case ACP_STATE_PENDING:
-      return LOG_STR("PENDING");
+      return "PENDING";
     case ACP_STATE_ARMING:
-      return LOG_STR("ARMING");
+      return "ARMING";
     case ACP_STATE_DISARMING:
-      return LOG_STR("DISARMING");
+      return "DISARMING";
     case ACP_STATE_TRIGGERED:
-      return LOG_STR("TRIGGERED");
+      return "TRIGGERED";
     default:
-      return LOG_STR("UNKNOWN");
+      return "UNKNOWN";
   }
 }
 

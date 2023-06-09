@@ -1004,8 +1004,8 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
                                                 alarm_control_panel::AlarmControlPanelState value,
                                                 JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-    set_json_icon_state_value(root, obj, "alarm-control-panel-" + obj->get_object_id(), obj->to_string(value), value,
-                              start_config);
+    set_json_icon_state_value(root, obj, "alarm-control-panel-" + obj->get_object_id(),
+                              alarm_control_panel_state_to_string(value), value, start_config);
   });
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {

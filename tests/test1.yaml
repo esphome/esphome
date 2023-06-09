@@ -3381,7 +3381,7 @@ alarm_control_panel:
     requires_code_to_arm: true
     arming_home_time: 1s
     arming_away_time: 15s
-    delay_time: 15s
+    pending_time: 15s
     trigger_time: 30s
     binary_sensors:
       - binary_sensor1
