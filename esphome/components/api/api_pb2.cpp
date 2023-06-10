@@ -477,6 +477,8 @@ const char *proto_enum_to_string<enums::AlarmControlPanelStateCommand>(enums::Al
       return "ALARM_CONTROL_PANEL_ARM_VACATION";
     case enums::ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS:
       return "ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS";
+    case enums::ALARM_CONTROL_PANEL_TRIGGER:
+      return "ALARM_CONTROL_PANEL_TRIGGER";
     default:
       return "UNKNOWN";
   }

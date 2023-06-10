@@ -981,6 +981,9 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
     case enums::ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS:
       call.arm_custom_bypass();
       break;
+    case enums::ALARM_CONTROL_PANEL_TRIGGER:
+      call.pending();
+      break;
   }
   call.set_code(msg.code);
   call.perform();

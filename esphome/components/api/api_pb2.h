@@ -195,6 +195,7 @@ enum AlarmControlPanelStateCommand : uint32_t {
   ALARM_CONTROL_PANEL_ARM_NIGHT = 3,
   ALARM_CONTROL_PANEL_ARM_VACATION = 4,
   ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS = 5,
+  ALARM_CONTROL_PANEL_TRIGGER = 6,
 };
 
 }  // namespace enums
