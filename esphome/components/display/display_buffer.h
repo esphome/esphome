@@ -532,11 +532,11 @@ class Font {
 class Image {
  public:
   Image(const uint8_t *data_start, int width, int height, ImageType type);
-  virtual bool get_pixel(int x, int y) const;
-  virtual Color get_color_pixel(int x, int y) const;
-  virtual Color get_rgba_pixel(int x, int y) const;
-  virtual Color get_rgb565_pixel(int x, int y) const;
-  virtual Color get_grayscale_pixel(int x, int y) const;
+  bool get_pixel(int x, int y) const;
+  Color get_color_pixel(int x, int y) const;
+  Color get_rgba_pixel(int x, int y) const;
+  Color get_rgb565_pixel(int x, int y) const;
+  Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
   int get_height() const;
   ImageType get_type() const;
@@ -557,11 +557,6 @@ class Image {
 class Animation : public Image {
  public:
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
-  bool get_pixel(int x, int y) const override;
-  Color get_color_pixel(int x, int y) const override;
-  Color get_rgba_pixel(int x, int y) const override;
-  Color get_rgb565_pixel(int x, int y) const override;
-  Color get_grayscale_pixel(int x, int y) const override;
 
   uint32_t get_animation_frame_count() const;
   int get_current_frame() const override;
@@ -577,6 +572,9 @@ class Animation : public Image {
   void set_loop(uint32_t start_frame, uint32_t end_frame, int count);
 
  protected:
+  void update_data_start_();
+
+  const uint8_t *animation_data_start_;
   int current_frame_;
   uint32_t animation_frame_count_;
   uint32_t loop_start_frame_;
