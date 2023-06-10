@@ -17,6 +17,7 @@ void MopekaProCheck::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_);
   LOG_SENSOR("  ", "Battery Level", this->battery_level_);
   LOG_SENSOR("  ", "Reading Distance", this->distance_);
+  LOG_SENSOR("  ", "Sensor Reading Quality", this->quality_level_);
 }
 
 /**
@@ -70,17 +71,15 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     uint32_t distance_value = this->parse_distance_(manu_data.data);
     SensorReadQuality quality_value = this->parse_read_quality_(manu_data.data);
     ESP_LOGD(TAG, "Distance Sensor: Quality (0x%X) Distance (%dmm)", quality_value, distance_value);
-    if (quality_value < QUALITY_HIGH && quality_value > QUALITY_LOW) {
-      ESP_LOGW(TAG, "Possibly poor sensor read quality.");
-    }
-    if (quality_value < QUALITY_MED && quality_value > QUALITY_NONE) {
-      ESP_LOGW(TAG, "Poor sensor read quality.");
-    }
     if (quality_value <= QUALITY_NONE) {
       // if really bad reading set to 0
       ESP_LOGW(TAG, "Really bad sensor read quality.");
       ESP_LOGW(TAG, "Setting distance to 0");
       distance_value = 0;
+    } else if (quality_value < QUALITY_MED ) {
+      ESP_LOGW(TAG, "Poor sensor read quality.");
+    } else if (quality_value < QUALITY_HIGH) {
+      ESP_LOGW(TAG, "Possibly poor sensor read quality.");
     }
 
     // update distance sensor
@@ -97,6 +96,20 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
         tank_level = ((100.0f / (this->full_mm_ - this->empty_mm_)) * (distance_value - this->empty_mm_));
       }
       this->level_->publish_state(tank_level);
+    }
+    // update quality level sensor
+    if (this->quality_level_ != nullptr) {
+      uint8_t quality_level_percent = 0;
+      if (quality_value = QUALITY_HIGH) {
+        quality_level_percent = 100;
+      } else if (quality_value = QUALITY_MED) {
+        quality_level_percent = 66.6;
+      } else if (quality_value = QUALITY_LOW) {
+        quality_level_percent = 33.3;
+      } else {
+        quality_level_percent = 0;
+      }
+      this->quality_level_->publish_state(quality_level_percent);
     }
   }
 
