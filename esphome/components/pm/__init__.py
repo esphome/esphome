@@ -12,9 +12,9 @@ PM = pm_ns.class_("PM", cg.Component)
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(PM),
-        cv.Optional("min_freq_mhz", default=40): cv.uint16_t,
-        cv.Optional("max_freq_mhz", default=240): cv.uint16_t,
-        cv.Optional("tickless", default=False): cv.boolean,
+        cv.Optional(CONF_MIN_FREQ_MHZ, default=40): cv.uint16_t,
+        cv.Optional(CONF_MAX_FREQ_MHZ, default=240): cv.uint16_t,
+        cv.Optional(CONF_TICKLESS, default=False): cv.boolean,
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
