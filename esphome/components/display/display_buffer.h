@@ -74,6 +74,54 @@ enum class TextAlign {
   BOTTOM_RIGHT = BOTTOM | RIGHT,
 };
 
+/** ImageAlign is used to tell the display class how to position a image. By default
+ * the coordinates you enter for the image() functions take the upper left corner of the image
+ * as the "anchor" point. You can customize this behavior to, for example, make the coordinates
+ * refer to the *center* of the image.
+ *
+ * All image alignments consist of an X and Y-coordinate alignment. For the alignment along the X-axis
+ * these options are allowed:
+ *
+ * - LEFT (x-coordinate of anchor point is on left)
+ * - CENTER_HORIZONTAL (x-coordinate of anchor point is in the horizontal center of the image)
+ * - RIGHT (x-coordinate of anchor point is on right)
+ *
+ * For the Y-Axis alignment these options are allowed:
+ *
+ * - TOP (y-coordinate of anchor is on the top of the image)
+ * - CENTER_VERTICAL (y-coordinate of anchor is in the vertical center of the image)
+ * - BOTTOM (y-coordinate of anchor is on the bottom of the image)
+ *
+ * These options are then combined to create combined TextAlignment options like:
+ * - TOP_LEFT (default)
+ * - CENTER (anchor point is in the middle of the image bounds)
+ * - ...
+ */
+enum class ImageAlign {
+  TOP = 0x00,
+  CENTER_VERTICAL = 0x01,
+  BOTTOM = 0x02,
+
+  LEFT = 0x00,
+  CENTER_HORIZONTAL = 0x04,
+  RIGHT = 0x08,
+
+  TOP_LEFT = TOP | LEFT,
+  TOP_CENTER = TOP | CENTER_HORIZONTAL,
+  TOP_RIGHT = TOP | RIGHT,
+
+  CENTER_LEFT = CENTER_VERTICAL | LEFT,
+  CENTER = CENTER_VERTICAL | CENTER_HORIZONTAL,
+  CENTER_RIGHT = CENTER_VERTICAL | RIGHT,
+
+  BOTTOM_LEFT = BOTTOM | LEFT,
+  BOTTOM_CENTER = BOTTOM | CENTER_HORIZONTAL,
+  BOTTOM_RIGHT = BOTTOM | RIGHT,
+
+  HORIZONTAL_ALIGNMENT = LEFT | CENTER_HORIZONTAL | RIGHT,
+  VERTICAL_ALIGNMENT = TOP | CENTER_VERTICAL | BOTTOM
+};
+
 enum DisplayType {
   DISPLAY_TYPE_BINARY = 1,
   DISPLAY_TYPE_GRAYSCALE = 2,
@@ -300,11 +348,22 @@ class DisplayBuffer {
    *
    * @param x The x coordinate of the upper left corner.
    * @param y The y coordinate of the upper left corner.
-   * @param image The image to draw
+   * @param image The image to draw.
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
   void image(int x, int y, BaseImage *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+
+  /** Draw the `image` at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param image The image to draw.
+   * @param align The alignment of the image.
+   * @param color_on The color to replace in binary images for the on bits.
+   * @param color_off The color to replace in binary images for the off bits.
+   */
+  void image(int x, int y, BaseImage *image, ImageAlign align, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
 #ifdef USE_GRAPH
   /** Draw the `graph` with the top-left corner at [x,y] to the screen.
