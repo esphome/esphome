@@ -7,6 +7,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/time.h"
 
 #include <esp_err.h>
 
@@ -61,7 +62,7 @@ void Wireguard::setup() {
 void Wireguard::update() {
   time_t lhs = this->get_latest_handshake();
   std::string latest_handshake =
-      (lhs > 0) ? time::ESPTime::from_epoch_local(lhs).strftime("%Y-%m-%d %H:%M:%S %Z") : "timestamp not available";
+      (lhs > 0) ? ESPTime::from_epoch_local(lhs).strftime("%Y-%m-%d %H:%M:%S %Z") : "timestamp not available";
 
   if (this->is_peer_up()) {
     if (this->wg_peer_offline_time_ != 0) {
