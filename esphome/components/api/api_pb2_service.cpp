@@ -339,6 +339,15 @@ bool APIServerConnectionBase::send_bluetooth_le_advertisement_response(const Blu
 }
 #endif
 #ifdef USE_BLUETOOTH_PROXY
+bool APIServerConnectionBase::send_bluetooth_le_raw_advertisements_response(
+    const BluetoothLERawAdvertisementsResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_bluetooth_le_raw_advertisements_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<BluetoothLERawAdvertisementsResponse>(msg, 93);
+}
+#endif
+#ifdef USE_BLUETOOTH_PROXY
 #endif
 #ifdef USE_BLUETOOTH_PROXY
 bool APIServerConnectionBase::send_bluetooth_device_connection_response(const BluetoothDeviceConnectionResponse &msg) {
