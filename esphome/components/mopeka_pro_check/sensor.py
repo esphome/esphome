@@ -15,11 +15,13 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     CONF_BATTERY_LEVEL,
     DEVICE_CLASS_BATTERY,
+    ICON_PERCENT,
 )
 
 CONF_TANK_TYPE = "tank_type"
 CONF_CUSTOM_DISTANCE_FULL = "custom_distance_full"
 CONF_CUSTOM_DISTANCE_EMPTY = "custom_distance_empty"
+CONF_SENSOR_QUALITY = "quality_level"
 
 ICON_PROPANE_TANK = "mdi:propane-tank"
 
@@ -90,6 +92,12 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_BATTERY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_SENSOR_QUALITY): sensor.sensor_schema(
+                unit_of_measurement=UNIT_PERCENT,
+                icon=ICON_PERCENT,
+                accuracy_decimals=0,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
         }
     )
     .extend(esp32_ble_tracker.ESP_BLE_DEVICE_SCHEMA)
@@ -132,3 +140,6 @@ async def to_code(config):
     if CONF_BATTERY_LEVEL in config:
         sens = await sensor.new_sensor(config[CONF_BATTERY_LEVEL])
         cg.add(var.set_battery_level(sens))
+    if CONF_SENSOR_QUALITY in config:
+        sens = await sensor.new_sensor(config[CONF_SENSOR_QUALITY])
+        cg.add(var.set_quality_level(sens))
