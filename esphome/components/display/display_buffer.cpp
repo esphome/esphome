@@ -325,63 +325,8 @@ void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign al
     this->print(x, y, font, color, align, buffer);
 }
 
-void DisplayBuffer::image(int x, int y, Image *image, Color color_on, Color color_off) {
-  bool transparent = image->has_transparency();
-
-  switch (image->get_type()) {
-    case IMAGE_TYPE_BINARY: {
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          if (image->get_pixel(img_x, img_y)) {
-            this->draw_pixel_at(x + img_x, y + img_y, color_on);
-          } else if (!transparent) {
-            this->draw_pixel_at(x + img_x, y + img_y, color_off);
-          }
-        }
-      }
-      break;
-    }
-    case IMAGE_TYPE_GRAYSCALE:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          auto color = image->get_grayscale_pixel(img_x, img_y);
-          if (color.w >= 0x80) {
-            this->draw_pixel_at(x + img_x, y + img_y, color);
-          }
-        }
-      }
-      break;
-    case IMAGE_TYPE_RGB565:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          auto color = image->get_rgb565_pixel(img_x, img_y);
-          if (color.w >= 0x80) {
-            this->draw_pixel_at(x + img_x, y + img_y, color);
-          }
-        }
-      }
-      break;
-    case IMAGE_TYPE_RGB24:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          auto color = image->get_color_pixel(img_x, img_y);
-          if (color.w >= 0x80) {
-            this->draw_pixel_at(x + img_x, y + img_y, color);
-          }
-        }
-      }
-      break;
-    case IMAGE_TYPE_RGBA:
-      for (int img_x = 0; img_x < image->get_width(); img_x++) {
-        for (int img_y = 0; img_y < image->get_height(); img_y++) {
-          auto color = image->get_rgba_pixel(img_x, img_y);
-          if (color.w >= 0x80) {
-            this->draw_pixel_at(x + img_x, y + img_y, color);
-          }
-        }
-      }
-      break;
-  }
+void DisplayBuffer::image(int x, int y, BaseImage *image, Color color_on, Color color_off) {
+  image->draw(x, y, this, color_on, color_off);
 }
 
 #ifdef USE_GRAPH
@@ -656,23 +601,91 @@ Font::Font(const GlyphData *data, int data_nr, int baseline, int height) : basel
     glyphs_.emplace_back(&data[i]);
 }
 
-bool Image::get_pixel(int x, int y) const {
+void Image::draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) {
+  switch (type_) {
+    case IMAGE_TYPE_BINARY: {
+      for (int img_x = 0; img_x < width_; img_x++) {
+        for (int img_y = 0; img_y < height_; img_y++) {
+          if (this->get_binary_pixel_(img_x, img_y)) {
+            display->draw_pixel_at(x + img_x, y + img_y, color_on);
+          } else if (!this->transparent_) {
+            display->draw_pixel_at(x + img_x, y + img_y, color_off);
+          }
+        }
+      }
+      break;
+    }
+    case IMAGE_TYPE_GRAYSCALE:
+      for (int img_x = 0; img_x < width_; img_x++) {
+        for (int img_y = 0; img_y < height_; img_y++) {
+          auto color = this->get_grayscale_pixel_(img_x, img_y);
+          if (color.w >= 0x80) {
+            display->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
+    case IMAGE_TYPE_RGB565:
+      for (int img_x = 0; img_x < width_; img_x++) {
+        for (int img_y = 0; img_y < height_; img_y++) {
+          auto color = this->get_rgb565_pixel_(img_x, img_y);
+          if (color.w >= 0x80) {
+            display->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
+    case IMAGE_TYPE_RGB24:
+      for (int img_x = 0; img_x < width_; img_x++) {
+        for (int img_y = 0; img_y < height_; img_y++) {
+          auto color = this->get_rgb24_pixel_(img_x, img_y);
+          if (color.w >= 0x80) {
+            display->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
+    case IMAGE_TYPE_RGBA:
+      for (int img_x = 0; img_x < width_; img_x++) {
+        for (int img_y = 0; img_y < height_; img_y++) {
+          auto color = this->get_rgba_pixel_(img_x, img_y);
+          if (color.w >= 0x80) {
+            display->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
+  }
+}
+Color Image::get_pixel(int x, int y, Color color_on, Color color_off) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return false;
+    return color_off;
+  switch (this->type_) {
+    case IMAGE_TYPE_BINARY:
+      return this->get_binary_pixel_(x, y) ? color_on : color_off;
+    case IMAGE_TYPE_GRAYSCALE:
+      return this->get_grayscale_pixel_(x, y);
+    case IMAGE_TYPE_RGB565:
+      return this->get_rgb565_pixel_(x, y);
+    case IMAGE_TYPE_RGB24:
+      return this->get_rgb24_pixel_(x, y);
+    case IMAGE_TYPE_RGBA:
+      return this->get_rgba_pixel_(x, y);
+    default:
+      return color_off;
+  }
+}
+bool Image::get_binary_pixel_(int x, int y) const {
   const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
   const uint32_t pos = x + y * width_8;
   return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
 }
-Color Image::get_rgba_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return Color::BLACK;
+Color Image::get_rgba_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * 4;
   return Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
                progmem_read_byte(this->data_start_ + pos + 2), progmem_read_byte(this->data_start_ + pos + 3));
 }
-Color Image::get_color_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return Color::BLACK;
+Color Image::get_rgb24_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * 3;
   Color color = Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
                       progmem_read_byte(this->data_start_ + pos + 2));
@@ -685,9 +698,7 @@ Color Image::get_color_pixel(int x, int y) const {
   }
   return color;
 }
-Color Image::get_rgb565_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return Color::BLACK;
+Color Image::get_rgb565_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_) * 2;
   uint16_t rgb565 =
       progmem_read_byte(this->data_start_ + pos + 0) << 8 | progmem_read_byte(this->data_start_ + pos + 1);
@@ -703,9 +714,7 @@ Color Image::get_rgb565_pixel(int x, int y) const {
   }
   return color;
 }
-Color Image::get_grayscale_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return Color::BLACK;
+Color Image::get_grayscale_pixel_(int x, int y) const {
   const uint32_t pos = (x + y * this->width_);
   const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
   uint8_t alpha = (gray == 1 && transparent_) ? 0 : 0xFF;
@@ -716,7 +725,6 @@ int Image::get_height() const { return this->height_; }
 ImageType Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
-int Image::get_current_frame() const { return 0; }
 
 Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type)
     : Image(data_start, width, height, type),

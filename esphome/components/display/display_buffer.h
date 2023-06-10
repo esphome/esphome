@@ -123,8 +123,8 @@ class Rect {
   void info(const std::string &prefix = "rect info:");
 };
 
+class BaseImage;
 class Font;
-class Image;
 class DisplayBuffer;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
@@ -315,7 +315,7 @@ class DisplayBuffer {
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
-  void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+  void image(int x, int y, BaseImage *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
 #ifdef USE_GRAPH
   /** Draw the `graph` with the top-left corner at [x,y] to the screen.
@@ -529,24 +529,33 @@ class Font {
   int height_;
 };
 
-class Image {
+class BaseImage {
+ public:
+  virtual void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) = 0;
+  virtual int get_width() const = 0;
+  virtual int get_height() const = 0;
+};
+
+class Image : public BaseImage {
  public:
   Image(const uint8_t *data_start, int width, int height, ImageType type);
-  bool get_pixel(int x, int y) const;
-  Color get_color_pixel(int x, int y) const;
-  Color get_rgba_pixel(int x, int y) const;
-  Color get_rgb565_pixel(int x, int y) const;
-  Color get_grayscale_pixel(int x, int y) const;
-  int get_width() const;
-  int get_height() const;
+  Color get_pixel(int x, int y, Color color_on = COLOR_ON, Color color_off = COLOR_OFF) const;
+  int get_width() const override;
+  int get_height() const override;
   ImageType get_type() const;
 
-  virtual int get_current_frame() const;
+  void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) override;
 
   void set_transparency(bool transparent) { transparent_ = transparent; }
   bool has_transparency() const { return transparent_; }
 
  protected:
+  bool get_binary_pixel_(int x, int y) const;
+  Color get_rgb24_pixel_(int x, int y) const;
+  Color get_rgba_pixel_(int x, int y) const;
+  Color get_rgb565_pixel_(int x, int y) const;
+  Color get_grayscale_pixel_(int x, int y) const;
+
   int width_;
   int height_;
   ImageType type_;
@@ -559,7 +568,7 @@ class Animation : public Image {
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
 
   uint32_t get_animation_frame_count() const;
-  int get_current_frame() const override;
+  int get_current_frame() const;
   void next_frame();
   void prev_frame();
 
