@@ -15,6 +15,25 @@ static const char *const TAG = "display";
 const Color COLOR_OFF(0, 0, 0, 255);
 const Color COLOR_ON(255, 255, 255, 255);
 
+static int image_type_to_bpp(ImageType type) {
+  switch (type) {
+    case IMAGE_TYPE_BINARY:
+      return 1;
+    case IMAGE_TYPE_GRAYSCALE:
+      return 8;
+    case IMAGE_TYPE_RGB565:
+      return 16;
+    case IMAGE_TYPE_RGB24:
+      return 24;
+    case IMAGE_TYPE_RGBA:
+      return 32;
+    default:
+      return 0;
+  }
+}
+
+static int image_type_to_width_stride(int width, ImageType type) { return (width * image_type_to_bpp(type) + 7u) / 8u; }
+
 void Rect::expand(int16_t horizontal, int16_t vertical) {
   if (this->is_set() && (this->w >= (-2 * horizontal)) && (this->h >= (-2 * vertical))) {
     this->x = this->x - horizontal;
@@ -755,35 +774,7 @@ void Animation::set_frame(int frame) {
 }
 
 void Animation::update_data_start_() {
-  int bpp = 0;
-
-  switch (this->type_) {
-    case IMAGE_TYPE_BINARY:
-      bpp = 1;
-      break;
-
-    case IMAGE_TYPE_GRAYSCALE:
-      bpp = 8;
-      break;
-
-    case IMAGE_TYPE_RGB565:
-      bpp = 16;
-      break;
-
-    case IMAGE_TYPE_RGB24:
-      bpp = 24;
-      break;
-
-    case IMAGE_TYPE_RGBA:
-      bpp = 32;
-      break;
-
-    default:
-      break;
-  }
-
-  const uint32_t width_aligned = (this->width_ * bpp + 7u) / 8u;
-  const uint32_t image_size = width_aligned * this->height_;
+  const uint32_t image_size = image_type_to_width_stride(this->width_, this->type_) * this->height_;
   this->data_start_ = this->animation_data_start_ + image_size * this->current_frame_;
 }
 
