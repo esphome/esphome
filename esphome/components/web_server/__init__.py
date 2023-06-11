@@ -84,12 +84,14 @@ CONFIG_SCHEMA = cv.All(
 
 def build_index_html(config):
     html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
-    if config[CONF_CSS_INCLUDE]:
+    css_include = config.get(CONF_CSS_INCLUDE)
+    js_include = config.get(CONF_JS_INCLUDE)
+    if css_include:
         html += '<link rel="stylesheet" href="/0.css">'
     if config[CONF_CSS_URL]:
         html += '<link rel="stylesheet" href="{config[CONF_CSS_URL]}">'
     html += "</head><body>"
-    if config[CONF_JS_INCLUDE]:
+    if js_include:
         html += '<script type="module" src="/0.js"></script>"'
     html += "<esp-app></esp-app>"
     if config[CONF_JS_URL]:
