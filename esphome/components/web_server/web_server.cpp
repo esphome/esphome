@@ -95,8 +95,12 @@ void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
 #endif
 
+#ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
+#endif
+#ifdef USE_WEBSERVER_JS_INCLUDE
 void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
+#endif
 
 void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
