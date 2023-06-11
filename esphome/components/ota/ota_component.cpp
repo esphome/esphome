@@ -148,7 +148,7 @@ void OTAComponent::handle_() {
     return;
   }
 #ifdef USE_PM
-  pm::global_pm->disable();
+  std::unique_ptr<pm::PMLock> pmlock = pm::global_pm->get_lock();
 #endif
 
   ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_->getpeername().c_str());
@@ -374,9 +374,6 @@ error:
   this->status_momentary_error("onerror", 5000);
 #ifdef USE_OTA_STATE_CALLBACK
   this->state_callback_.call(OTA_ERROR, 0.0f, static_cast<uint8_t>(error_code));
-#endif
-#ifdef USE_PM
-  pm::global_pm->setup();
 #endif
 }
 
