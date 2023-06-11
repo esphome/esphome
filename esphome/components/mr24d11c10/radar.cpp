@@ -5,27 +5,31 @@
  * License: MIT
  */
 #include "radar.h"
+#include <stdint.h>
 
-#define MESSAGE_HEAD 0x55
-#define ACTIVE_REPORT 0x04
-#define FALL_REPORT 0x06
+namespace esphome {
+namespace mr24d11c10 {
 
-#define REPORT_RADAR 0x03
-#define REPORT_OTHER 0x05
+const uint8_t MESSAGE_HEAD = 0x55;
+const uint8_t ACTIVE_REPORT = 0x04;
+const uint8_t FALL_REPORT = 0x06;
 
-#define HEARTBEAT 0x01
-#define ABNOEMAL 0x02
-#define ENVIRONMENT 0x05
-#define BODYSIGN 0x06
-#define CLOSE_AWAY 0x07
+const uint8_t REPORT_RADAR = 0x03;
+const uint8_t REPORT_OTHER = 0x05;
 
-#define CA_BE 0x01
-#define CA_CLOSE 0x02
-#define CA_AWAY 0x03
-#define SOMEBODY_BE 0x01
-#define SOMEBODY_MOVE 0x01
-#define SOMEBODY_STOP 0x00
-#define NOBODY 0x00
+const uint8_t HEARTBEAT = 0x01;
+const uint8_t ABNOEMAL = 0x02;
+const uint8_t ENVIRONMENT = 0x05;
+const uint8_t BODYSIGN = 0x06;
+const uint8_t CLOSE_AWAY = 0x07;
+
+const uint8_t CA_BE = 0x01;
+const uint8_t CA_CLOSE = 0x02;
+const uint8_t CA_AWAY = 0x03;
+const uint8_t SOMEBODY_BE = 0x01;
+const uint8_t SOMEBODY_MOVE = 0x01;
+const uint8_t SOMEBODY_STOP = 0x00;
+const uint8_t NOBODY = 0x00;
 
 const unsigned char cuc_CRCHi[256]= {
   0x00, 0xC1, 0x81, 0x40, 0x01, 0xC0, 0x80, 0x41, 0x01, 0xC0, 0x80, 0x41,
@@ -89,7 +93,7 @@ unsigned short int us_CalculateCrc16(unsigned char *lpuc_Frame, unsigned short i
   return (unsigned short int )(luc_CRCLo << 8 | luc_CRCHi);
 }
 
-char esphome::radar_ns::radar::CRC(char ad1, char ad2, char ad3, char ad4, char ad5, char ad6, char ad7){
+char radar::CRC(char ad1, char ad2, char ad3, char ad4, char ad5, char ad6, char ad7){
   unsigned char data[] = {ad1, ad2, ad3, ad4, ad5, ad6, ad7};
     unsigned short int crc_data = 0x0000;
     unsigned int lenth = sizeof(data)/sizeof(unsigned char);
@@ -104,7 +108,7 @@ typedef union
 }Float_Byte;
 
 
-int esphome::radar_ns::radar::Bodysign_val(int ad1, int ad2, int ad3, int ad4, int ad5){
+int radar::Bodysign_val(int ad1, int ad2, int ad3, int ad4, int ad5){
   if(ad1 == BODYSIGN){
       Float_Byte fb;
       fb.Byte[0] = ad2;
@@ -117,7 +121,7 @@ int esphome::radar_ns::radar::Bodysign_val(int ad1, int ad2, int ad3, int ad4, i
 }
 
 
-int esphome::radar_ns::radar::Situation_judgment(int ad1, int ad2, int ad3, int ad4, int ad5){
+int radar::Situation_judgment(int ad1, int ad2, int ad3, int ad4, int ad5){
   int result = 0;
   if(ad1 == REPORT_RADAR || ad1 == REPORT_OTHER){
         if(ad2 == ENVIRONMENT || ad2 == HEARTBEAT){
@@ -149,7 +153,7 @@ int esphome::radar_ns::radar::Situation_judgment(int ad1, int ad2, int ad3, int 
 }
 
 
-int esphome::radar_ns::radar::Fall_judgment(int ad1, int ad2, int ad3, int ad4){
+int radar::Fall_judgment(int ad1, int ad2, int ad3, int ad4){
   int result = 0;
   if(ad1 == FALL_REPORT && ad2 == 0x01){
     if(ad3 == 0x01){
@@ -183,4 +187,7 @@ int esphome::radar_ns::radar::Fall_judgment(int ad1, int ad2, int ad3, int ad4){
   }
   return result;
 }
+
+} // namespace mr24d11c10
+} // namespace esphome
 /** END of copied and changed content */

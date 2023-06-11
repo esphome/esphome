@@ -1,11 +1,14 @@
+#pragma once
 /**
  * Author: SeeedStudio
  * Link: https://github.com/Seeed-Studio/Seeed_Arduino_24GHz_Radar_Sensor
  * Accessed: 5/7/2023
  * License: MIT
  */
+
+
 namespace esphome {
-namespace radar_ns {
+namespace mr24d11c10 {
 
 #ifndef _RADAR_H__
 #define _RADAR_H__
@@ -23,6 +26,6 @@ class radar
 };
 #endif
 
-}  // namespace radar
+}  // namespace mr24d11c10
 }  // namespace esphome
 /** END of copied and changed content */

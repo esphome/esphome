@@ -1,5 +1,5 @@
 #pragma once
-#include "esphome/core/defines.h"
+#include "esphome/core/static const uint8_ts.h"
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #ifdef USE_BINARY_SENSOR
@@ -17,41 +17,41 @@ namespace esphome {
 namespace mr24d11c10 {
 
 // Header
-#define MESSAGE_HEAD 0x55
+static const uint8_t MESSAGE_HEAD = 0x55;
 
 // Funtions
-#define READ_CONFIG 0x01
-#define WRITE_CONFIG 0x02
-#define PASSIVE_REPORT 0x03
-#define ACTIVE_REPORT 0x04
+static const uint8_t READ_CONFIG = 0x01;
+static const uint8_t WRITE_CONFIG = 0x02;
+static const uint8_t PASSIVE_REPORT = 0x03;
+static const uint8_t ACTIVE_REPORT = 0x04;
 
 // Address functions 1
-#define REPORT_RADAR 0x03
-#define REPORT_OTHER 0x05
+static const uint8_t REPORT_RADAR = 0x03;
+static const uint8_t REPORT_OTHER = 0x05;
 
 // Address functions 2
-#define HEARTBEAT 0x01
-#define ABNOEMAL 0x02
-#define ENVIRONMENT 0x05
-#define BODYSIGN 0x06
-#define CLOSE_AWAY 0x07
+static const uint8_t HEARTBEAT = 0x01;
+static const uint8_t ABNOEMAL = 0x02;
+static const uint8_t ENVIRONMENT = 0x05;
+static const uint8_t BODYSIGN = 0x06;
+static const uint8_t CLOSE_AWAY = 0x07;
 
 // Movement options
-#define CA_BE 0x01
-#define CA_CLOSE 0x02
-#define CA_AWAY 0x03
-#define SOMEBODY_BE 0x01
-#define SOMEBODY_MOVE 0x01
-#define SOMEBODY_STOP 0x00
-#define NOBODY 0x00
+static const uint8_t CA_BE = 0x01;
+static const uint8_t CA_CLOSE = 0x02;
+static const uint8_t CA_AWAY = 0x03;
+static const uint8_t SOMEBODY_BE = 0x01;
+static const uint8_t SOMEBODY_MOVE = 0x01;
+static const uint8_t SOMEBODY_STOP = 0x00;
+static const uint8_t NOBODY = 0x00;
 
 // Radar informations
-#define DEVICE_ID 0x01
-#define SW_VERSION 0x02
-#define HW_VERSION 0x03
-#define PROTOCOL_VERSION 0x04
-#define SCENE 0x10
-#define DATA_OFFSET 4
+static const uint8_t DEVICE_ID = 0x01;
+static const uint8_t SW_VERSION = 0x02;
+static const uint8_t HW_VERSION = 0x03;
+static const uint8_t PROTOCOL_VERSION = 0x04;
+static const uint8_t SCENE = 0x10;
+static const uint8_t DATA_OFFSET = 4;
 
 class MR24D11C10Component : public Component, public uart::UARTDevice {
  public:
