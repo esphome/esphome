@@ -18,15 +18,33 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 
   void loop() override;
 
-  void set_din_pin(uint8_t pin) { this->din_pin_ = pin; }
+  void set_din_pin(int8_t pin) { this->din_pin_ = pin; }
+  void set_pdm(bool pdm) { this->pdm_ = pdm; }
+
+#if SOC_I2S_SUPPORTS_ADC
+  void set_adc_channel(adc1_channel_t channel) {
+    this->adc_channel_ = channel;
+    this->adc_ = true;
+  }
+#endif
+
+  void set_channel(i2s_channel_fmt_t channel) { this->channel_ = channel; }
+  void set_bits_per_sample(i2s_bits_per_sample_t bits_per_sample) { this->bits_per_sample_ = bits_per_sample; }
 
  protected:
   void start_();
   void stop_();
   void read_();
 
-  uint8_t din_pin_{0};
-  std::vector<uint8_t> buffer_;
+  int8_t din_pin_{I2S_PIN_NO_CHANGE};
+#if SOC_I2S_SUPPORTS_ADC
+  adc1_channel_t adc_channel_{ADC1_CHANNEL_MAX};
+  bool adc_{false};
+#endif
+  bool pdm_{false};
+  uint8_t *buffer_;
+  i2s_channel_fmt_t channel_;
+  i2s_bits_per_sample_t bits_per_sample_;
 
   HighFrequencyLoopRequester high_freq_;
 };

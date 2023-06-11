@@ -74,4 +74,15 @@ class EntityBase_DeviceClass {
   const char *device_class_{nullptr};  ///< Device class override
 };
 
+class EntityBase_UnitOfMeasurement {
+ public:
+  /// Get the unit of measurement, using the manual override if set.
+  std::string get_unit_of_measurement();
+  /// Manually set the unit of measurement.
+  void set_unit_of_measurement(const char *unit_of_measurement);
+
+ protected:
+  const char *unit_of_measurement_{nullptr};  ///< Unit of measurement override
+};
+
 }  // namespace esphome
