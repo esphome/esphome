@@ -30,7 +30,7 @@ void dump_locks() {
   char *line = strtok(dumpchar, "\n");
   while (line) {
     ESP_LOGV(TAG, "%s", line);
-    line = strtok(NULL, "\n");
+    line = strtok(nullptr, "\n");
   }
 }
 
