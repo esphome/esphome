@@ -104,7 +104,7 @@ def build_index_html(config) -> str:
 def add_resource_as_progmem(resource_name: str, content: str) -> None:
     """Add a resource to progmem."""
     content_gzipped = gzip.compress(content.encode("utf-8"))
-    content_gzipped_size = len(content)
+    content_gzipped_size = len(content_gzipped)
     bytes_as_int = ", ".join(str(x) for x in content_gzipped)
     uint8_t = f"const uint8_t ESPHOME_WEBSERVER_GZIPPED_{resource_name}[{content_gzipped_size}] PROGMEM = {{{bytes_as_int}}}"
     size_t = f"const size_t ESPHOME_WEBSERVER_GZIPPED_{resource_name}_SIZE = {content_gzipped_size}"
