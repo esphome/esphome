@@ -1304,7 +1304,7 @@ sensor:
     humidity:
       name: "Humidity hyt271"
   - platform: mr24d11c10
-    human_presence:
+    body_movement:
       name: "Human Presence MR24D11C10"
   - platform: tmp1075
     name: "Temperature TMP1075"
@@ -1599,7 +1599,6 @@ binary_sensor:
       name: still
   - platform: mr24d11c10
     human_presence:
-    body_movement:
 
 pca9685:
   frequency: 500
