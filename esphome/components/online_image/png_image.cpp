@@ -42,48 +42,25 @@ static void drawCallback(pngle_t *pngle, uint32_t x, uint32_t y, uint32_t w, uin
   decoder->draw(x, y, w, h, color);
 }
 
-void PngDecoder::prepare(WiFiClient *stream, uint32_t download_size) {
-  ImageDecoder::prepare(stream, download_size);
+void PngDecoder::prepare(uint32_t download_size) {
+  ImageDecoder::prepare(download_size);
   pngle_set_user_data(pngle, this);
   pngle_set_init_callback(pngle, initCallback);
   pngle_set_draw_callback(pngle, drawCallback);
 }
 
-size_t HOT PngDecoder::decode(HTTPClient &http, WiFiClient *stream, std::vector<uint8_t> &buf) {
-  int remain = 0;
-  int downloaded = 0;
-  uint8_t *buffer = buf.data();
-  while (http.connected() && (downloaded < download_size_ || download_size_ == -1)) {
-    App.feed_wdt();
-    size_t size = stream->available();
-    if (!size || size < buf.size() / 2 && download_size_ - downloaded > size) {
-      delay(40);
-      continue;
-    }
-
-    if (size > buf.size() - remain) {
-      size = buf.size() - remain;
-    }
-
-    int len = stream->readBytes(buffer + remain, size);
-    if (len > 0) {
-      downloaded += len;
-      int fed = pngle_feed(pngle, buffer, remain + len);
-      if (fed < 0) {
-        ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(pngle));
-        break;
-      }
-
-      remain = remain + len - fed;
-      if (remain > 0) {
-        memmove(buffer, buffer + fed, remain);
-      }
-    } else {
-      ESP_LOGW(TAG, "Something went wrong while reading from the HTTP stream: %d", len);
-    }
+int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
+  if (size < 512 && size < download_size_ - decoded_bytes_) {
+    ESP_LOGD(TAG, "Waiting for data");
+    return 0;
   }
-  App.feed_wdt();
-  return downloaded;
+  auto fed = pngle_feed(pngle, buffer, size);
+  if (fed < 0) {
+    ESP_LOGE(TAG, "Error decoding image: %s", pngle_error(pngle));
+  } else {
+    decoded_bytes_ += fed;
+  }
+  return fed;
 }
 
 }  // namespace online_image

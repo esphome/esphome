@@ -22,8 +22,8 @@ class PngDecoder : public ImageDecoder {
   PngDecoder(OnlineImage *image) : ImageDecoder(image), pngle(pngle_new()) {}
   virtual ~PngDecoder() { pngle_destroy(pngle); }
 
-  void prepare(WiFiClient *stream, uint32_t download_size) override;
-  size_t decode(HTTPClient &http, WiFiClient *stream, std::vector<uint8_t> &buffer) override;
+  void prepare(uint32_t download_size) override;
+  int HOT decode(uint8_t *buffer, size_t size) override;
 
  private:
   pngle_t *pngle;

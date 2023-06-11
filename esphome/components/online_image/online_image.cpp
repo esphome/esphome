@@ -63,11 +63,28 @@ OnlineImage::OnlineImage(const char *url, int width, int height, ImageFormat for
     : Image(nullptr, 0, 0, type),
       buffer_(nullptr),
       url_(url),
-      download_buffer_size_(download_buffer_size),
+      download_buffer_(download_buffer_size),
       format_(format),
       bits_per_pixel_(bits_per_pixel(type)),
       fixed_width_(width),
       fixed_height_(height) {}
+
+void OnlineImage::set_follow_redirects(bool follow, int limit) {
+#if defined(USE_ESP32) || defined(USE_ESP8266)
+  if (follow) {
+    http_.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  } else {
+    http_.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+  }
+  http_.setRedirectLimit(limit);
+#endif
+}
+
+void OnlineImage::set_useragent(const char *useragent) {
+  if (useragent != nullptr) {
+    http_.setUserAgent(useragent);
+  }
+}
 
 void OnlineImage::release() {
   if (buffer_) {
@@ -76,7 +93,10 @@ void OnlineImage::release() {
     buffer_ = nullptr;
     width_ = 0;
     height_ = 0;
+    buffer_width_ = 0;
+    buffer_height_ = 0;
     etag_ = "";
+    end_connection_();
   }
 }
 
@@ -99,14 +119,61 @@ bool OnlineImage::resize_(int width_in, int height_in) {
   delay_microseconds_safe(2000);
   buffer_ = allocator_.allocate(new_size);
   if (buffer_) {
+    buffer_width_ = width;
+    buffer_height_ = height;
     width_ = width;
-    height_ = height;
-    ESP_LOGD(TAG, "New size: (%d, %d)", this->width_, this->height_);
+    ESP_LOGD(TAG, "New size: (%d, %d)", width, height);
   } else {
-    ESP_LOGE(TAG, "allocation failed. Free Heap: %d Bytes", ESP.getFreeHeap());
+#if defined(USE_ESP8266)
+    // NOLINTNEXTLINE(readability-static-accessed-through-instance)
+    int max_block = ESP.getMaxFreeBlockSize();
+#elif defined(USE_ESP32)
+    int max_block = heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL);
+#else
+    int max_block = -1;
+#endif
+    ESP_LOGE(TAG, "allocation failed. Biggest block in heap: %d Bytes", max_block);
+    end_connection_();
     return false;
   }
   return true;
+}
+
+void OnlineImage::loop() {
+  PollingComponent::loop();
+
+  if (!decoder_) {
+    // Not decoding at the moment => nothing to do.
+    return;
+  }
+  if (!http_.connected() || decoder_->is_finished()) {
+    ESP_LOGD(TAG, "Image fully downloaded");
+    data_start_ = buffer_;
+    width_ = buffer_width_;
+    height_ = buffer_height_;
+    end_connection_();
+    return;
+  }
+  WiFiClient *stream = http_.getStreamPtr();
+  size_t available = stream->available();
+  if (available) {
+    if (available > download_buffer_.free_capacity()) {
+      available = download_buffer_.free_capacity();
+    }
+
+    auto len = stream->readBytes(download_buffer_.append(), available);
+    if (len > 0) {
+      download_buffer_.write(len);
+      auto fed = decoder_->decode(download_buffer_.data(), download_buffer_.unread());
+      if (fed < 0) {
+        // Error when decoding.
+        etag_ = "";  // Need to re-download
+        end_connection_();
+        return;
+      }
+      download_buffer_.read(fed);
+    }
+  }
 }
 
 void OnlineImage::draw_pixel_(int x, int y, Color color) {
@@ -114,7 +181,7 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
     ESP_LOGE(TAG, "Buffer not allocated!");
     return;
   }
-  if (x < 0 || y < 0 || x >= width_ || y >= height_) {
+  if (x < 0 || y < 0 || x >= buffer_width_ || y >= buffer_height_) {
     ESP_LOGE(TAG, "Tried to paint a pixel (%d,%d) outside the image!", x, y);
     return;
   }
@@ -122,7 +189,7 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
   switch (type_) {
     case display::ImageType::IMAGE_TYPE_BINARY: {
       uint32_t byte_num = pos;
-      uint8_t bit_num = (x + y * width_) % 8;
+      uint8_t bit_num = (x + y * buffer_width_) % 8;
       if ((has_transparency() && color.w > 127) || is_color_on(color)) {
         buffer_[byte_num] |= 1 << bit_num;
       } else {
@@ -185,9 +252,6 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
 }
 
 bool OnlineImage::get_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_) {
-    return false;
-  }
   uint32_t pos = x + y * width_;
   uint8_t position_offset = pos % 8;
   uint8_t mask = 1 << position_offset;
@@ -220,10 +284,6 @@ Color OnlineImage::get_rgb565_pixel(int x, int y) const {
 }
 
 Color OnlineImage::get_color_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_) {
-    ESP_LOGE(TAG, "Requested pixel (%d, %d) out of bounds!", x, y);
-    return Color(0);
-  }
   auto pos = get_position_(x, y);
   auto r = buffer_[pos + 0];
   auto g = buffer_[pos + 1];
@@ -244,92 +304,76 @@ Color OnlineImage::get_rgba_pixel(int x, int y) const {
   return Color(r, g, b, a);
 }
 
+void OnlineImage::end_connection_() {
+  http_.end();
+  decoder_.reset();
+  download_buffer_.reset();
+}
+
 void OnlineImage::update() {
-  ESP_LOGI(TAG, "Updating image");
-  HTTPClient http;
-
-  std::unique_ptr<ImageDecoder> decoder;
-
-#if defined(USE_ESP32) || defined(USE_ESP8266)
-  if (follow_redirects_) {
-    http.setFollowRedirects(HTTPC_FORCE_FOLLOW_REDIRECTS);
+  if (decoder_) {
+    ESP_LOGW(TAG, "Image already being updated.");
+    return;
   } else {
-    http.setFollowRedirects(HTTPC_DISABLE_FOLLOW_REDIRECTS);
+    ESP_LOGI(TAG, "Updating image");
   }
-  http.setRedirectLimit(redirect_limit_);
-#endif
 
-  int begin_status = http.begin(url_);
+  int begin_status = http_.begin(url_);
   if (!begin_status) {
     ESP_LOGE(TAG, "Could not download image from %s. Connection failed: %i", url_, begin_status);
     return;
   }
 
-  http.setTimeout(timeout_);
+  http_.setTimeout(timeout_);
 #if defined(USE_ESP32)
-  http.setConnectTimeout(timeout_);
+  http_.setConnectTimeout(timeout_);
 #endif
-  if (useragent_ != nullptr) {
-    http.setUserAgent(useragent_);
-  }
   if (etag_ != "") {
-    http.addHeader("If-None-Match", etag_, false, true);
+    http_.addHeader("If-None-Match", etag_, false, true);
   }
 
   const char *header_keys[] = {"Content-Type", "ETag"};
-  http.collectHeaders(header_keys, 2);
+  http_.collectHeaders(header_keys, 2);
 
-  int http_code = http.GET();
+  int http_code = http_.GET();
   if (http_code == HTTP_CODE_NOT_MODIFIED) {
     ESP_LOGI(TAG, "Image hasn't changed on server. Skipping download.");
-    http.end();
+    end_connection_();
     return;
   }
   if (http_code != HTTP_CODE_OK) {
     ESP_LOGE(TAG, "Could not download image from %s. Error code: %i", url_, http_code);
-    http.end();
+    end_connection_();
     return;
   }
 
-  String content_type = http.header("Content-Type");
-  String etag = http.header("ETag");
-  size_t total_size = http.getSize();
+  String content_type = http_.header("Content-Type");
+  String etag = http_.header("ETag");
+  size_t total_size = http_.getSize();
   ESP_LOGD(TAG, "Content Type: %s", content_type.c_str());
   ESP_LOGD(TAG, "Content Length: %d", total_size);
   ESP_LOGD(TAG, "ETag: %s", etag.c_str());
 
   if (etag != "" && etag == etag_) {
     ESP_LOGI(TAG, "Image hasn't changed on server. Skipping download.");
-    http.end();
+    end_connection_();
     return;
   }
+  etag_ = etag;
 
 #ifdef ONLINE_IMAGE_PNG_SUPPORT
   if (format_ == ImageFormat::PNG) {
-    decoder = esphome::make_unique<PngDecoder>(this);
+    decoder_ = esphome::make_unique<PngDecoder>(this);
   }
 #endif  // ONLINE_IMAGE_PNG_SUPPORT
 
-  if (!decoder) {
+  if (!decoder_) {
     ESP_LOGE(TAG, "Could not instantiate decoder. Image format unsupported.");
+    end_connection_();
     return;
   }
-  WiFiClient *stream = http.getStreamPtr();
-
-  decoder->prepare(stream, total_size);
+  decoder_->prepare(total_size);
   ESP_LOGI(TAG, "Downloading image from %s", url_);
-  std::vector<uint8_t> download_buffer(this->download_buffer_size_);
-  size_t size = decoder->decode(http, stream, download_buffer);
-  ESP_LOGI(TAG, "Decoded %d bytes", size);
-  http.end();
-  if (size != total_size) {
-    // The download was not successful; retry next time.
-    etag_ = "";
-  } else {
-    etag_ = etag;
-  }
-
-  data_start_ = buffer_;
 }
 
 }  // namespace online_image

@@ -47,41 +47,45 @@ class OnlineImage : public PollingComponent, public display::Image {
   void set_url(const char *url) { url_ = url; }
   void release();
 
-  void set_follow_redirects(bool follow, int limit) {
-    follow_redirects_ = follow;
-    redirect_limit_ = limit;
-  }
+  void set_follow_redirects(bool follow, int limit);
+  void set_useragent(const char *useragent);
 
-  void set_useragent(const char *useragent) { this->useragent_ = useragent; }
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
+
+  void loop() override;
 
  protected:
   using Allocator = ExternalRAMAllocator<uint8_t>;
   Allocator allocator_{Allocator::Flags::ALLOW_FAILURE};
 
-  uint32_t get_buffer_size_() const { return get_buffer_size_(width_, height_); }
+  uint32_t get_buffer_size_() const { return get_buffer_size_(buffer_width_, buffer_height_); }
   int get_buffer_size_(int width, int height) const { return std::ceil(bits_per_pixel_ * width * height / 8.0); }
 
-  int get_position_(int x, int y) const { return ((x + y * width_) * bits_per_pixel_) / 8; }
+  int get_position_(int x, int y) const { return ((x + y * buffer_width_) * bits_per_pixel_) / 8; }
 
   ESPHOME_ALWAYS_INLINE bool auto_resize_() const { return fixed_width_ == 0 || fixed_height_ == 0; }
 
   bool resize_(int width, int height);
   void draw_pixel_(int x, int y, Color color);
 
+  void end_connection_();
+
+  HTTPClient http_;
+  std::unique_ptr<ImageDecoder> decoder_;
+
   uint8_t *buffer_;
   const char *url_;
   String etag_ = "";
-  const uint32_t download_buffer_size_;
+  DownloadBuffer download_buffer_;
+
   const ImageFormat format_;
   const uint8_t bits_per_pixel_;
   const int fixed_width_;
   const int fixed_height_;
+  int buffer_width_;
+  int buffer_height_;
 
-  bool follow_redirects_;
-  int redirect_limit_;
   uint16_t timeout_;
-  const char *useragent_;
 
   friend void ImageDecoder::set_size(int width, int height);
   friend void ImageDecoder::draw(int x, int y, int w, int h, const Color &color);
