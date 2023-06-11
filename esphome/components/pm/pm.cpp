@@ -80,16 +80,6 @@ void PM::loop() {
   }
 }
 
-void PM::disable() {
-#ifdef CONFIG_PM_ENABLE
-  esp_pm_config_esp32_t pm_config;
-  pm_config.max_freq_mhz = 240;
-  pm_config.min_freq_mhz = 240;
-  pm_config.light_sleep_enable = false;
-  ESP_ERROR_CHECK(esp_pm_configure(&pm_config));
-#endif
-}
-
 void PM::dump_config() {
 #ifdef CONFIG_PM_ENABLE
   ESP_LOGCONFIG(TAG, "PM Support Enabled");

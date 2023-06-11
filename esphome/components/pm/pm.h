@@ -24,7 +24,6 @@ class PMLock {
 class PM : public Component {
  public:
   void setup() override;
-  void disable();
   void set_freq(uint16_t min_freq_mhz, uint16_t max_freq_mhz);
   float get_setup_priority() const { return setup_priority::BUS; }
   void set_tickless(bool tickless);
