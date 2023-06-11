@@ -87,15 +87,15 @@ def build_index_html(config):
     css_include = config.get(CONF_CSS_INCLUDE)
     js_include = config.get(CONF_JS_INCLUDE)
     if css_include:
-        html += '<link rel="stylesheet" href="/0.css">'
+        html += "<link rel=stylesheet href=/0.css>"
     if config[CONF_CSS_URL]:
-        html += '<link rel="stylesheet" href="{config[CONF_CSS_URL]}">'
+        html += '<link rel=stylesheet href="{config[CONF_CSS_URL]}">'
     html += "</head><body>"
     if js_include:
-        html += '<script type="module" src="/0.js"></script>"'
+        html += '<script type=module src=/0.js></script>"'
     html += "<esp-app></esp-app>"
     if config[CONF_JS_URL]:
-        html += f'<script type="module" src="{config[CONF_JS_URL]}"></script>"'
+        html += f'<script type=module src="{config[CONF_JS_URL]}"></script>"'
     html += "</body></html>"
     return html
 
