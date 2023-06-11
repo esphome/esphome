@@ -1,8 +1,11 @@
 #pragma once
 
-#include "esphome/components/i2c/i2c.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/nfc/automation.h"
+#include "esphome/components/nfc/nci_core.h"
+#include "esphome/components/nfc/nci_message.h"
 #include "esphome/components/nfc/nfc.h"
+#include "esphome/components/nfc/nfc_helpers.h"
 #include "esphome/core/component.h"
 #include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
@@ -12,206 +15,299 @@
 namespace esphome {
 namespace pn7150 {
 
-static const uint8_t MT_MASK = 0xE0;
+static const uint16_t NFCC_DEFAULT_TIMEOUT = 5;
+static const uint16_t NFCC_INIT_TIMEOUT = 50;
+static const uint16_t NFCC_TAG_WRITE_TIMEOUT = 15;
 
-static const uint8_t MT_COMMAND = 0x20;   // For sending commands
-static const uint8_t MT_RESPONSE = 0x40;  // Response to commands
-static const uint8_t MT_NOTIFICATION = 0x60;
+static const uint8_t NFCC_MAX_COMM_FAILS = 3;
+static const uint8_t NFCC_MAX_ERROR_COUNT = 10;
 
-static const uint8_t GID_MASK = 0x0F;
-static const uint8_t OID_MASK = 0x3F;
+static const uint8_t XCHG_DATA_OID = 0x10;
+static const uint8_t MF_SECTORSEL_OID = 0x32;
+static const uint8_t MFC_AUTHENTICATE_OID = 0x40;
+static const uint8_t TEST_PRBS_OID = 0x30;
+static const uint8_t TEST_ANTENNA_OID = 0x3D;
+static const uint8_t TEST_GET_REGISTER_OID = 0x33;
 
-static const uint8_t NCI_CORE_GID = 0x0;
+static const uint8_t MFC_AUTHENTICATE_PARAM_KS_A = 0x00;  // key select A
+static const uint8_t MFC_AUTHENTICATE_PARAM_KS_B = 0x80;  // key select B
+static const uint8_t MFC_AUTHENTICATE_PARAM_EMBED_KEY = 0x10;
 
-static const uint8_t NCI_CORE_RESET_OID = 0x00;
-static const uint8_t NCI_CORE_INIT_OID = 0x01;
-static const uint8_t NCI_CORE_SET_CONFIG_OID = 0x02;
-static const uint8_t NCI_CORE_GET_CONFIG_OID = 0x03;
-static const uint8_t NCI_CORE_CONN_CREATE_OID = 0x04;
-static const uint8_t NCI_CORE_CONN_CLOSE_OID = 0x05;
-static const uint8_t NCI_CORE_CONN_CREDITS_OID = 0x06;
-static const uint8_t NCI_CORE_GENERIC_ERROR_OID = 0x07;
-static const uint8_t NCI_CORE_INTERFACE_ERROR_OID = 0x08;
+static const uint8_t CARD_EMU_T4T_APP_SELECT[] = {0x00, 0xA4, 0x04, 0x00, 0x07, 0xD2, 0x76,
+                                                  0x00, 0x00, 0x85, 0x01, 0x01, 0x00};
+static const uint8_t CARD_EMU_T4T_CC[] = {0x00, 0x0F, 0x20, 0x00, 0xFF, 0x00, 0xFF, 0x04,
+                                          0x06, 0xE1, 0x04, 0x00, 0xFF, 0x00, 0x00};
+static const uint8_t CARD_EMU_T4T_CC_SELECT[] = {0x00, 0xA4, 0x00, 0x0C, 0x02, 0xE1, 0x03};
+static const uint8_t CARD_EMU_T4T_NDEF_SELECT[] = {0x00, 0xA4, 0x00, 0x0C, 0x02, 0xE1, 0x04};
+static const uint8_t CARD_EMU_T4T_READ[] = {0x00, 0xB0};
+static const uint8_t CARD_EMU_T4T_WRITE[] = {0x00, 0xD6};
+static const uint8_t CARD_EMU_T4T_OK[] = {0x90, 0x00};
+static const uint8_t CARD_EMU_T4T_NOK[] = {0x6A, 0x82};
 
-static const uint8_t RF_GID = 0x1;
+static const uint8_t CORE_CONFIG_SOLO[] = {0x01,    // Number of parameter fields
+                                           0x00,    // config param identifier (TOTAL_DURATION)
+                                           0x02,    // length of value
+                                           0x01,    // TOTAL_DURATION (low)...
+                                           0x00};   // TOTAL_DURATION (high): 1 ms
 
-static const uint8_t RF_DISCOVER_MAP_OID = 0x00;
-static const uint8_t RF_SET_LISTEN_MODE_ROUTING_OID = 0x01;
-static const uint8_t RF_GET_LISTEN_MODE_ROUTING_OID = 0x02;
-static const uint8_t RF_DISCOVER_OID = 0x03;
-static const uint8_t RF_DISCOVER_SELECT_OID = 0x04;
-static const uint8_t RF_INTF_ACTIVATED_OID = 0x05;
-static const uint8_t RF_DEACTIVATE_OID = 0x06;
-static const uint8_t RF_FIELD_INFO_OID = 0x07;
-static const uint8_t RF_T3T_POLLING_OID = 0x08;
-static const uint8_t RF_NFCEE_ACTION_OID = 0x09;
-static const uint8_t RF_NFCEE_DISCOVERY_REQ_OID = 0x0A;
-static const uint8_t RF_PARAMETER_UPDATE_OID = 0x0B;
+static const uint8_t CORE_CONFIG_RW_CE[] = {0x01,   // Number of parameter fields
+                                            0x00,   // config param identifier (TOTAL_DURATION)
+                                            0x02,   // length of value
+                                            0xF8,   // TOTAL_DURATION (low)...
+                                            0x02};  // TOTAL_DURATION (high): 760 ms
 
-static const uint8_t NFCEE_GID = 0x2;
+static const uint8_t PMU_CFG[] = {
+    0x01,        // Number of parameters
+    0xA0, 0x0E,  // ext. tag
+    3,           // length
+    0x06,        // VBAT1 connected to 5V (CFG2)
+    0x64,        // TVDD monitoring threshold = 5.0V; TxLDO voltage = 4.7V (in reader & card modes)
+    0x01,        // RFU; must be 0x00 for CFG1 and 0x01 for CFG2
+};
 
-static const uint8_t NFCEE_DISCOVER_OID = 0x00;
-static const uint8_t NFCEE_MODE_SET_OID = 0x01;
+static const uint8_t RF_DISCOVER_MAP_CONFIG[] = {  // poll modes
+    nfc::PROT_T1T,    nfc::RF_DISCOVER_MAP_MODE_POLL,
+    nfc::INTF_FRAME,                               // poll mode
+    nfc::PROT_T2T,    nfc::RF_DISCOVER_MAP_MODE_POLL,
+    nfc::INTF_FRAME,                               // poll mode
+    nfc::PROT_T3T,    nfc::RF_DISCOVER_MAP_MODE_POLL,
+    nfc::INTF_FRAME,                               // poll mode
+    nfc::PROT_ISODEP, nfc::RF_DISCOVER_MAP_MODE_POLL | nfc::RF_DISCOVER_MAP_MODE_LISTEN,
+    nfc::INTF_ISODEP,                              // poll & listen mode
+    nfc::PROT_MIFARE, nfc::RF_DISCOVER_MAP_MODE_POLL,
+    nfc::INTF_TAGCMD};                             // poll mode
 
-static const uint8_t PROPRIETARY_GID = 0xF;
+static const uint8_t RF_DISCOVERY_LISTEN_CONFIG[] = {nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCA,   // listen mode
+                                                     nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCB};  // listen mode
 
-static const uint8_t CORE_CONFIG[] = {0x01,                     // Number of parameters
-                                      0x00, 0x02, 0x00, 0x01};  // TOTAL_DURATION: 1ms
+static const uint8_t RF_DISCOVERY_POLL_CONFIG[] = {nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCA,            // poll mode
+                                                   nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCB};           // poll mode
 
-static const uint8_t CORE_CONF_EXTENSION[] = {
-    0x03,                     // Number of parameters
-    0xA0, 0x40, 0x01, 0x00,   // TAG_DETECTOR_CFG: Default
-    0xA0, 0x41, 0x01, 0x04,   // TAG_DETECTOR_THRESHOLD_CFG: Default
-    0xA0, 0x43, 0x01, 0x00};  // TAG_DETECTOR_FALLBACK_CNT_CFG: Hybrid mode disabled
+static const uint8_t RF_DISCOVERY_CONFIG[] = {nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCA,                 // poll mode
+                                              nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCB,                 // poll mode
+                                              nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCA,          // listen mode
+                                              nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCB};         // listen mode
 
-static const uint8_t CLOCK_CONFIG[] = {0x01,                     // Number of parameters
-                                       0xA0, 0x03, 0x01, 0x08};  // CLOCK_SEL_CFG: XTAL: 27.12MHz
+static const uint8_t RF_LISTEN_MODE_ROUTING_CONFIG[] = {0x00,  // "more" (another message is coming)
+                                                        1,     // number of table entries
+                                                        0x01,  // type = protocol-based
+                                                        3,     // length
+                                                        0,     // DH NFCEE ID, a static ID representing the DH-NFCEE
+                                                        0x01,  // power state
+                                                        nfc::PROT_ISODEP};  // protocol
 
-static const uint8_t RF_CONF[] = {0x11,                                                   // Number of parameters
-                                  0xA0, 0x0D, 0x06, 0x04, 0x35, 0x90, 0x01, 0xF4, 0x01,   //
-                                  0xA0, 0x0D, 0x06, 0x06, 0x30, 0x01, 0x90, 0x03, 0x00,   //
-                                  0xA0, 0x0D, 0x06, 0x06, 0x42, 0x02, 0x00, 0xFF, 0xFF,   //
-                                  0xA0, 0x0D, 0x06, 0x20, 0x42, 0x88, 0x00, 0xFF, 0xFF,   //
-                                  0xA0, 0x0D, 0x04, 0x22, 0x44, 0x23, 0x00,               //
-                                  0xA0, 0x0D, 0x06, 0x22, 0x2D, 0x50, 0x34, 0x0C, 0x00,   //
-                                  0xA0, 0x0D, 0x06, 0x32, 0x42, 0xF8, 0x00, 0xFF, 0xFF,   //
-                                  0xA0, 0x0D, 0x06, 0x34, 0x2D, 0x24, 0x37, 0x0C, 0x00,   //
-                                  0xA0, 0x0D, 0x06, 0x34, 0x33, 0x86, 0x80, 0x00, 0x70,   //
-                                  0xA0, 0x0D, 0x04, 0x34, 0x44, 0x22, 0x00,               //
-                                  0xA0, 0x0D, 0x06, 0x42, 0x2D, 0x15, 0x45, 0x0D, 0x00,   //
-                                  0xA0, 0x0D, 0x04, 0x46, 0x44, 0x22, 0x00,               //
-                                  0xA0, 0x0D, 0x06, 0x46, 0x2D, 0x05, 0x59, 0x0E, 0x00,   //
-                                  0xA0, 0x0D, 0x06, 0x44, 0x42, 0x88, 0x00, 0xFF, 0xFF,   //
-                                  0xA0, 0x0D, 0x06, 0x56, 0x2D, 0x05, 0x9F, 0x0C, 0x00,   //
-                                  0xA0, 0x0D, 0x06, 0x54, 0x42, 0x88, 0x00, 0xFF, 0xFF,   //
-                                  0xA0, 0x0D, 0x06, 0x0A, 0x33, 0x80, 0x86, 0x00, 0x70};  //
+enum class CardEmulationState : uint8_t {
+  CARD_EMU_IDLE,
+  CARD_EMU_NDEF_APP_SELECTED,
+  CARD_EMU_CC_SELECTED,
+  CARD_EMU_NDEF_SELECTED,
+  CARD_EMU_DESFIRE_PROD,
+};
 
-static const uint8_t RF_TVDD_CONFIG[] = {
-    0x01,                                 // Number of parameters
-    0xA0, 0x0E, 0x03, 0x06, 0x64, 0x00};  // PMU_CFG: Cfg2  Transmitter supply voltage from external 5V supply
-
-static const uint8_t MODE_POLL = 0x00;
-static const uint8_t TECH_PASSIVE_NFCA = 0;
-static const uint8_t TECH_PASSIVE_NFCB = 1;
-static const uint8_t TECH_PASSIVE_NFCF = 2;
-static const uint8_t TECH_ACTIVE_NFCA = 3;
-static const uint8_t TECH_ACTIVE_NFCF = 5;
-static const uint8_t TECH_PASSIVE_15693 = 6;
-
-static const uint8_t PROT_UNDETERMINED = 0x00;
-static const uint8_t PROT_T1T = 0x01;
-static const uint8_t PROT_T2T = 0x02;
-static const uint8_t PROT_T3T = 0x03;
-static const uint8_t PROT_ISODEP = 0x04;
-static const uint8_t PROT_NFCDEP = 0x05;
-static const uint8_t PROT_ISO15693 = 0x06;
-static const uint8_t PROT_MIFARE = 0x80;
-
-static const uint8_t INTF_UNDETERMINED = 0x0;
-static const uint8_t INTF_FRAME = 0x1;
-static const uint8_t INTF_ISODEP = 0x2;
-static const uint8_t INTF_NFCDEP = 0x3;
-static const uint8_t INTF_TAGCMD = 0x80;
-
-static const uint8_t READ_WRITE_MODE[] = {PROT_T1T,    0x01, INTF_FRAME,    // Poll Mode
-                                          PROT_T2T,    0x01, INTF_FRAME,    // Poll Mode
-                                          PROT_T3T,    0x01, INTF_FRAME,    // Poll Mode
-                                          PROT_ISODEP, 0x01, INTF_ISODEP,   // Poll Mode
-                                          PROT_MIFARE, 0x01, INTF_TAGCMD};  // Poll Mode
-
-static const uint8_t DISCOVERY_READ_WRITE[] = {MODE_POLL | TECH_PASSIVE_NFCA,    //
-                                               MODE_POLL | TECH_PASSIVE_NFCF,    //
-                                               MODE_POLL | TECH_PASSIVE_NFCB,    //
-                                               MODE_POLL | TECH_PASSIVE_15693};  //
-
-static const uint8_t DEACTIVATION_TYPE_IDLE = 0x00;
-static const uint8_t DEACTIVATION_TYPE_SLEEP = 0x01;
-static const uint8_t DEACTIVATION_TYPE_SLEEP_AF = 0x02;
-static const uint8_t DEACTIVATION_TYPE_DISCOVERY = 0x03;
-
-static const uint8_t STATUS_OK = 0x00;
-static const uint8_t STATUS_REJECTED = 0x01;
-static const uint8_t STATUS_RF_FRAME_CORRUPTED = 0x02;
-static const uint8_t STATUS_FAILED = 0x03;
-static const uint8_t STATUS_NOT_INITIALIZED = 0x04;
-
-static const uint8_t DISCOVERY_ALREADY_STARTED = 0xA1;
-static const uint8_t DISCOVERY_TARGET_ACTIVATION_FAILED = 0xA1;
-static const uint8_t DISCOVERY_TEAR_DOWN = 0xA1;
-
-enum class PN7150State : uint8_t {
+enum class NCIState : uint8_t {
   NONE = 0x00,
-  RESET,
-  INIT,
-  CONFIG,
-  SET_MODE,
-  DISCOVERY,
-  WAITING_FOR_TAG,
-  DEACTIVATING,
-  SELECTING,
-  WAITING_FOR_REMOVAL,
+  NFCC_RESET,
+  NFCC_INIT,
+  NFCC_CONFIG,
+  NFCC_SET_DISCOVER_MAP,
+  NFCC_SET_LISTEN_MODE_ROUTING,
+  RFST_IDLE,
+  RFST_DISCOVERY,
+  RFST_W4_ALL_DISCOVERIES,
+  RFST_W4_HOST_SELECT,
+  RFST_LISTEN_ACTIVE,
+  RFST_LISTEN_SLEEP,
+  RFST_POLL_ACTIVE,
+  EP_DEACTIVATING,
+  EP_SELECTING,
+  TEST = 0XFE,
   FAILED = 0XFF,
 };
 
-enum PN7150Mode : uint8_t {
-  CARD_EMULATION = 1 << 0,
-  P2P = 1 << 1,
-  READ_WRITE = 1 << 2,
+enum class TestMode : uint8_t {
+  TEST_NONE = 0x00,
+  TEST_PRBS,
+  TEST_ANTENNA,
+  TEST_GET_REGISTER,
 };
 
-class PN7150 : public Component, public i2c::I2CDevice {
+struct DiscoveredEndpoint {
+  uint8_t id;
+  uint8_t protocol;
+  uint32_t last_seen;
+  nfc::NfcTag tag;
+  bool trig_called;
+};
+
+class PN7150BinarySensor : public binary_sensor::BinarySensor {
+ public:
+  void set_ndef_match_string(const std::string &str);
+  void set_tag_name(const std::string &str);
+  void set_uid(const std::vector<uint8_t> &uid);
+
+  bool tag_match_ndef_string(const std::shared_ptr<esphome::nfc::NdefMessage> &msg);
+  bool tag_match_tag_name(const std::shared_ptr<esphome::nfc::NdefMessage> &msg);
+  bool tag_match_uid(const std::vector<uint8_t> &data);
+
+  void tag_off(nfc::NfcTag &tag);
+  void tag_on(nfc::NfcTag &tag);
+
+ protected:
+  bool match_tag_name_{false};
+  std::string match_string_;
+  std::vector<uint8_t> uid_;
+};
+
+class PN7150 : public Component {
  public:
   void setup() override;
   void dump_config() override;
+  float get_setup_priority() const { return setup_priority::DATA; }
   void loop() override;
 
   void set_irq_pin(GPIOPin *irq_pin) { this->irq_pin_ = irq_pin; }
   void set_ven_pin(GPIOPin *ven_pin) { this->ven_pin_ = ven_pin; }
 
+  void set_tag_ttl(uint32_t ttl) { this->tag_ttl_ = ttl; }
+  void set_tag_emulation_message(std::shared_ptr<nfc::NdefMessage> message);
+  void set_tag_emulation_message(const optional<std::string> message, const optional<bool> include_android_app_record);
+  void set_tag_emulation_message(const char *message, const bool include_android_app_record = true);
+  void set_tag_emulation_off();
+  void set_tag_emulation_on();
+  bool tag_emulation_enabled() { return this->listening_enabled_; }
+
+  void set_polling_off();
+  void set_polling_on();
+  bool polling_enabled() { return this->polling_enabled_; }
+
+  void register_tag(PN7150BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
   void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
+  void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
+
+  void add_on_emulated_tag_scan_callback(std::function<void()> callback) {
+    this->on_emulated_tag_scan_callback_.add(std::move(callback));
+  }
+
+  void add_on_finished_write_callback(std::function<void()> callback) {
+    this->on_finished_write_callback_.add(std::move(callback));
+  }
+
+  bool is_writing() { return this->next_task_ != EP_READ; };
+
+  void read_mode();
+  void clean_mode();
+  void format_mode();
+  void write_mode();
+  void set_tag_write_message(std::shared_ptr<nfc::NdefMessage> message);
+  void set_tag_write_message(optional<std::string> message, optional<bool> include_android_app_record);
+
+  uint8_t set_test_mode(const TestMode test_mode, const std::vector<uint8_t> &data, std::vector<uint8_t> &result);
 
  protected:
-  bool write_and_read_(uint8_t gid, uint8_t oid, const std::vector<uint8_t> &data, std::vector<uint8_t> &response,
-                       uint16_t timeout = 5, bool warn = true);
-  bool write_and_read_(uint8_t gid, uint8_t oid, const uint8_t *data, const uint8_t len, std::vector<uint8_t> &response,
-                       uint16_t timeout = 5, bool warn = true);
-  bool write_data_(const std::vector<uint8_t> &data);
-  bool read_data_(std::vector<uint8_t> &data, uint16_t timeout = 5, bool warn = true);
-  bool wait_for_irq_(uint16_t timeout = 5, bool warn = true);
+  uint8_t reset_core_(bool reset_config, bool power);
+  uint8_t init_core_();
+  uint8_t send_init_config_();
+  uint8_t send_core_config_();
+  uint8_t refresh_core_config_();
 
-  bool reset_core_(bool reset_config, bool power);
-  bool init_core_(std::vector<uint8_t> &data, PN7150State next_state = PN7150State::CONFIG);
-  bool send_config_();
+  uint8_t set_discover_map_();
 
-  bool set_mode_(PN7150Mode mode);
+  uint8_t set_listen_mode_routing_();
 
-  bool start_discovery_(PN7150Mode mode);
-  bool deactivate_(uint8_t type);
+  uint8_t start_discovery_();
+  uint8_t stop_discovery_();
+  uint8_t deactivate_(const uint8_t type, const uint16_t timeout = NFCC_DEFAULT_TIMEOUT);
 
-  void select_tag_();
+  void select_endpoint_();
 
-  std::unique_ptr<nfc::NfcTag> check_for_tag_();
+  uint8_t read_endpoint_data_(nfc::NfcTag &tag);
+  uint8_t clean_endpoint_(std::vector<uint8_t> &uid);
+  uint8_t format_endpoint_(std::vector<uint8_t> &uid);
+  uint8_t write_endpoint_(std::vector<uint8_t> &uid, std::shared_ptr<nfc::NdefMessage> message);
 
-  std::unique_ptr<nfc::NfcTag> build_tag_(uint8_t mode_tech, const std::vector<uint8_t> &data);
+  std::unique_ptr<nfc::NfcTag> build_tag_(const uint8_t mode_tech, const std::vector<uint8_t> &data);
+  optional<size_t> find_tag_uid_(const std::vector<uint8_t> &uid);
+  void purge_old_tags_();
+  void erase_tag_(const uint8_t tag_index);
 
-  bool presence_check_();
+  /// advance controller state as required
+  void nci_fsm_transition_();
+  /// set new controller state
+  void nci_fsm_set_state_(NCIState new_state);
+  /// setting controller to this state caused an error; returns true if too many errors/failures
+  bool nci_fsm_set_error_state_(NCIState new_state);
+  /// parse & process incoming messages from the NFCC
+  void process_message_();
+  void process_rf_intf_activated_oid_(nfc::NciMessage &rx);
+  void process_rf_discover_oid_(nfc::NciMessage &rx);
+  void process_rf_deactivate_oid_(nfc::NciMessage &rx);
+  void process_data_message_(nfc::NciMessage &rx);
 
-  GPIOPin *irq_pin_;
-  GPIOPin *ven_pin_;
+  void card_emu_t4t_get_response_(std::vector<uint8_t> &response, std::vector<uint8_t> &ndef_response);
 
-  uint8_t version_[3];
-  uint8_t generation_;
-  uint8_t current_protocol_{PROT_UNDETERMINED};
-  std::vector<uint8_t> current_uid_;
+  uint8_t transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint16_t timeout = NFCC_DEFAULT_TIMEOUT,
+                      const bool expect_notification = true);
+  virtual uint8_t read_nfcc_(nfc::NciMessage &rx, const uint16_t timeout = NFCC_DEFAULT_TIMEOUT) = 0;
+  virtual uint8_t write_nfcc_(nfc::NciMessage &tx) = 0;
 
-  PN7150State state_{PN7150State::RESET};
+  uint8_t wait_for_irq_(uint16_t timeout = NFCC_DEFAULT_TIMEOUT, bool pin_state = true);
 
-  /// This is used when waiting for a notification that will be read in `loop`.
-  std::function<void()> next_function_{nullptr};
+  uint8_t read_mifare_classic_tag_(nfc::NfcTag &tag);
+  uint8_t read_mifare_classic_block_(const uint8_t block_num, std::vector<uint8_t> &data);
+  uint8_t write_mifare_classic_block_(const uint8_t block_num, std::vector<uint8_t> &data);
+  uint8_t auth_mifare_classic_block_(const uint8_t block_num, const uint8_t key_num, const uint8_t *key);
+  uint8_t sect_to_auth(const uint8_t block_num);
+  uint8_t format_mifare_classic_mifare_();
+  uint8_t format_mifare_classic_ndef_();
+  uint8_t write_mifare_classic_tag_(std::shared_ptr<nfc::NdefMessage> message);
+  uint8_t halt_mifare_classic_tag_();
 
-  // PN7150State next_state_{PN7150State::NONE};
+  uint8_t read_mifare_ultralight_tag_(nfc::NfcTag &tag);
+  uint8_t read_mifare_ultralight_bytes_(const uint8_t start_page, const uint16_t num_bytes, std::vector<uint8_t> &data);
+  bool is_mifare_ultralight_formatted_(const std::vector<uint8_t> &page_3_to_6);
+  uint16_t read_mifare_ultralight_capacity_();
+  uint8_t find_mifare_ultralight_ndef_(const std::vector<uint8_t> &page_3_to_6, uint8_t &message_length,
+                                       uint8_t &message_start_index);
+  uint8_t write_mifare_ultralight_page_(const uint8_t page_num, std::vector<uint8_t> &write_data);
+  uint8_t write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, std::shared_ptr<nfc::NdefMessage> message);
+  uint8_t clean_mifare_ultralight_();
 
+  enum NfcTask : uint8_t {
+    EP_READ = 0,
+    EP_CLEAN,
+    EP_FORMAT,
+    EP_WRITE,
+  } next_task_{EP_READ};
+
+  bool config_refresh_pending_{false};
+  bool core_config_is_solo_{false};
+  bool listening_enabled_{false};
+  bool polling_enabled_{true};
+
+  uint8_t error_count_{0};
+  uint8_t fail_count_{0};
+  uint32_t last_nci_state_change_{0};
+  uint8_t selecting_endpoint_{0};
+  uint32_t tag_ttl_{250};
+
+  GPIOPin *irq_pin_{nullptr};
+  GPIOPin *ven_pin_{nullptr};
+
+  CallbackManager<void()> on_emulated_tag_scan_callback_;
+  CallbackManager<void()> on_finished_write_callback_;
+
+  std::vector<DiscoveredEndpoint> discovered_endpoint_;
+
+  CardEmulationState ce_state_{CardEmulationState::CARD_EMU_IDLE};
+  NCIState nci_state_{NCIState::NFCC_RESET};
+  NCIState nci_state_error_{NCIState::NONE};
+
+  std::shared_ptr<nfc::NdefMessage> card_emulation_message_;
+  std::shared_ptr<nfc::NdefMessage> next_task_message_to_write_;
+
+  std::vector<PN7150BinarySensor *> binary_sensors_;
   std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
 };
 
 }  // namespace pn7150

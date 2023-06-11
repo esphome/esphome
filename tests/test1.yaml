@@ -1672,6 +1672,9 @@ binary_sensor:
     pn532_id: pn532_bs
     uid: 74-10-37-94
     name: PN532 NFC Tag
+  - platform: pn7150
+    uid: 74-10-37-94
+    name: PN7150 NFC Tag
   - platform: rdm6300
     uid: 7616525
     name: RDM6300 NFC Tag
@@ -3012,6 +3015,11 @@ pn532_spi:
 
 pn532_i2c:
   i2c_id: i2c_bus
+
+pn7150_i2c:
+  i2c_id: i2c_bus
+  irq_pin: GPIO35
+  ven_pin: GPIO16
 
 rdm6300:
   uart_id: uart_0
