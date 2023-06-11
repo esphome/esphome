@@ -1,5 +1,5 @@
 #pragma once
-#include "esphome/core/static const uint8_ts.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/component.h"
 #include "esphome/components/uart/uart.h"
 #ifdef USE_BINARY_SENSOR
