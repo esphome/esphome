@@ -170,8 +170,6 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #elif USE_WEBSERVER_VERSION == 1
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncResponseStream *stream = request->beginResponseStream("text/html");
-  // All content is controlled and created by user - so allowing all origins is fine here.
-  stream->addHeader("Access-Control-Allow-Origin", "*");
   const std::string &title = App.get_name();
   stream->print(F("<!DOCTYPE html><html lang=\"en\"><head><meta charset=UTF-8><meta "
                   "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
@@ -328,7 +326,6 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML, ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE);
   // All content is controlled and created by user - so allowing all origins is fine here.
-  response->addHeader("Access-Control-Allow-Origin", "*");
   response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
@@ -347,7 +344,6 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_GZIPPED_JS_INCLUDE, ESPHOME_WEBSERVER_GZIPPED_JS_INCLUDE_SIZE);
   response->addHeader("Content-Encoding", "gzip");
-  response->addHeader("Access-Control-Allow-Origin", "*");
   request->send(response);
 }
 #endif
