@@ -28,13 +28,13 @@ class ESPPMLock : public power_management::PMLock {
 class ESP32PowerManagement : public power_management::PowerManagement {
  public:
   void setup() override;
-  void set_freq(uint16_t min_freq_mhz, uint16_t max_freq_mhz);
+  void set_freq(uint16_t min_freq_mhz, uint16_t max_freq_mhz) override;
   float get_setup_priority() const override { return setup_priority::BUS; }
-  void set_tickless(bool tickless);
+  void set_tickless(bool tickless) override;
   void loop() override;
   void dump_config() override;
 
-  std::unique_ptr<power_management::PMLock> get_lock(std::string name, power_management::PmLockType lock);
+  std::unique_ptr<power_management::PMLock> get_lock(std::string name, power_management::PmLockType lock) override;
 
  private:
   uint16_t min_freq_ = 40;
