@@ -25,6 +25,9 @@ static const uint8_t NFCC_MAX_ERROR_COUNT = 10;
 static const uint8_t XCHG_DATA_OID = 0x10;
 static const uint8_t MF_SECTORSEL_OID = 0x32;
 static const uint8_t MFC_AUTHENTICATE_OID = 0x40;
+static const uint8_t TEST_PRBS_OID = 0x30;
+static const uint8_t TEST_ANTENNA_OID = 0x3D;
+static const uint8_t TEST_GET_REGISTER_OID = 0x33;
 
 static const uint8_t MFC_AUTHENTICATE_PARAM_KS_A = 0x00;  // key select A
 static const uint8_t MFC_AUTHENTICATE_PARAM_KS_B = 0x80;  // key select B
@@ -132,7 +135,15 @@ enum class NCIState : uint8_t {
   RFST_POLL_ACTIVE,
   EP_DEACTIVATING,
   EP_SELECTING,
+  TEST = 0XFE,
   FAILED = 0XFF,
+};
+
+enum class TestMode : uint8_t {
+  TEST_NONE = 0x00,
+  TEST_PRBS,
+  TEST_ANTENNA,
+  TEST_GET_REGISTER,
 };
 
 struct DiscoveredEndpoint {
@@ -207,6 +218,8 @@ class PN7160 : public Component {
   void set_tag_write_message(std::shared_ptr<nfc::NdefMessage> message);
   void set_tag_write_message(optional<std::string> message, optional<bool> include_android_app_record);
 
+  uint8_t set_test_mode(const TestMode test_mode, const std::vector<uint8_t> &data, std::vector<uint8_t> &result);
+
  protected:
   uint8_t reset_core_(bool reset_config, bool power);
   uint8_t init_core_();
@@ -247,7 +260,7 @@ class PN7160 : public Component {
   void process_rf_deactivate_oid_(nfc::NciMessage &rx);
   void process_data_message_(nfc::NciMessage &rx);
 
-  void card_emu_t4t_get_response(std::vector<uint8_t> &response, std::vector<uint8_t> &ndef_response);
+  void card_emu_t4t_get_response_(std::vector<uint8_t> &response, std::vector<uint8_t> &ndef_response);
 
   uint8_t transceive_(nfc::NciMessage &tx, nfc::NciMessage &rx, const uint16_t timeout = NFCC_DEFAULT_TIMEOUT,
                       const bool expect_notification = true);

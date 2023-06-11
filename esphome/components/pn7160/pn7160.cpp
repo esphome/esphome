@@ -166,6 +166,67 @@ void PN7160::set_tag_write_message(optional<std::string> message, optional<bool>
   ESP_LOGD(TAG, "Message to write has been set");
 }
 
+uint8_t PN7160::set_test_mode(const TestMode test_mode, const std::vector<uint8_t> &data,
+                              std::vector<uint8_t> &result) {
+  auto test_oid = TEST_PRBS_OID;
+
+  switch (test_mode) {
+    case TestMode::TEST_PRBS:
+      // test_oid = TEST_PRBS_OID;
+      break;
+
+    case TestMode::TEST_ANTENNA:
+      test_oid = TEST_ANTENNA_OID;
+      break;
+
+    case TestMode::TEST_GET_REGISTER:
+      test_oid = TEST_GET_REGISTER_OID;
+      break;
+
+    case TestMode::TEST_NONE:
+    default:
+      ESP_LOGD(TAG, "Exiting test mode");
+      this->nci_fsm_set_state_(NCIState::NFCC_RESET);
+      return nfc::STATUS_OK;
+  }
+
+  if (this->reset_core_(true, true) != nfc::STATUS_OK) {
+    ESP_LOGE(TAG, "Failed to reset NCI core");
+    this->nci_fsm_set_error_state_(NCIState::NFCC_RESET);
+    result.clear();
+    return nfc::STATUS_FAILED;
+  } else {
+    this->nci_fsm_set_state_(NCIState::NFCC_INIT);
+  }
+  if (this->init_core_() != nfc::STATUS_OK) {
+    ESP_LOGE(TAG, "Failed to initialise NCI core");
+    this->nci_fsm_set_error_state_(NCIState::NFCC_INIT);
+    result.clear();
+    return nfc::STATUS_FAILED;
+  } else {
+    this->nci_fsm_set_state_(NCIState::TEST);
+  }
+
+  nfc::NciMessage rx;
+  nfc::NciMessage tx(nfc::NCI_PKT_MT_CTRL_COMMAND, nfc::NCI_PROPRIETARY_GID, test_oid, data);
+
+  ESP_LOGW(TAG, "Starting test mode, OID 0x%02X", test_oid);
+  auto status = this->transceive_(tx, rx, NFCC_INIT_TIMEOUT);
+
+  if (status != nfc::STATUS_OK) {
+    ESP_LOGE(TAG, "Failed to start test mode, OID 0x%02X", test_oid);
+    this->nci_fsm_set_state_(NCIState::NFCC_RESET);
+    result.clear();
+  } else {
+    result = rx.get_message();
+    result.erase(result.begin(), result.begin() + 4);  // remove NCI header
+    if (result.size()) {
+      ESP_LOGW(TAG, "Test results: %s", nfc::format_bytes(result).c_str());
+    }
+  }
+  return status;
+}
+
 uint8_t PN7160::reset_core_(const bool reset_config, const bool power) {
   if (this->dwl_req_pin_ != nullptr) {
     this->dwl_req_pin_->digital_write(false);
@@ -932,7 +993,7 @@ void PN7160::process_data_message_(nfc::NciMessage &rx) {
   ESP_LOGVV(TAG, "Received data message: %s", nfc::format_bytes(rx.get_message()).c_str());
 
   std::vector<uint8_t> ndef_response;
-  this->card_emu_t4t_get_response(rx.get_message(), ndef_response);
+  this->card_emu_t4t_get_response_(rx.get_message(), ndef_response);
 
   uint16_t ndef_response_size = ndef_response.size();
   if (!ndef_response_size) {
@@ -949,7 +1010,7 @@ void PN7160::process_data_message_(nfc::NciMessage &rx) {
   }
 }
 
-void PN7160::card_emu_t4t_get_response(std::vector<uint8_t> &response, std::vector<uint8_t> &ndef_response) {
+void PN7160::card_emu_t4t_get_response_(std::vector<uint8_t> &response, std::vector<uint8_t> &ndef_response) {
   if (this->card_emulation_message_ == nullptr) {
     ESP_LOGE(TAG, "No NDEF message is set; tag emulation not possible");
     ndef_response.clear();

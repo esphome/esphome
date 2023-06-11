@@ -1672,6 +1672,10 @@ binary_sensor:
     pn532_id: pn532_bs
     uid: 74-10-37-94
     name: PN532 NFC Tag
+  - platform: pn7160
+    pn7160_id: nfcc_pn7160_i2c
+    uid: 74-10-37-94
+    name: PN7160 NFC Tag
   - platform: rdm6300
     uid: 7616525
     name: RDM6300 NFC Tag
@@ -3012,6 +3016,27 @@ pn532_spi:
 
 pn532_i2c:
   i2c_id: i2c_bus
+
+pn7160_i2c:
+  id: nfcc_pn7160_i2c
+  i2c_id: i2c_bus
+  dwl_req_pin: GPIO17
+  irq_pin: GPIO35
+  ven_pin: GPIO16
+  wkup_req_pin: GPIO21
+  emulation_message: https://www.home-assistant.io/tag/pulse_ce
+  tag_ttl: 1000ms
+
+pn7160_spi:
+  id: nfcc_pn7160_spi
+  spi_id: spi_pn7160
+  cs_pin: GPIO15
+  dwl_req_pin: GPIO17
+  irq_pin: GPIO35
+  ven_pin: GPIO16
+  wkup_req_pin: GPIO21
+  emulation_message: https://www.home-assistant.io/tag/pulse_ce
+  tag_ttl: 1000ms
 
 rdm6300:
   uart_id: uart_0

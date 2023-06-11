@@ -56,10 +56,12 @@ uint8_t PN7160::read_mifare_ultralight_bytes_(uint8_t start_page, uint16_t num_b
 
   for (size_t i = 0; i * read_increment < num_bytes; i++) {
     tx.get_message().back() = i * nfc::MIFARE_ULTRALIGHT_READ_SIZE + start_page;
-    if (this->transceive_(tx, rx) != nfc::STATUS_OK) {
-      ESP_LOGE(TAG, "Error reading tag data");
-      return nfc::STATUS_FAILED;
-    }
+    do {  // loop because sometimes we struggle here...???...
+      if (this->transceive_(tx, rx) != nfc::STATUS_OK) {
+        ESP_LOGE(TAG, "Error reading tag data");
+        return nfc::STATUS_FAILED;
+      }
+    } while (rx.get_payload_size() < read_increment);
     uint16_t bytes_offset = (i + 1) * read_increment;
     auto pages_in_end_itr = bytes_offset <= num_bytes ? rx.get_message().end() - 1
                                                       : rx.get_message().end() - (bytes_offset - num_bytes + 1);
