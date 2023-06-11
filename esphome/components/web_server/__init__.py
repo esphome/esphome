@@ -22,10 +22,6 @@ from esphome.core import CORE, coroutine_with_priority
 AUTO_LOAD = ["json", "web_server_base"]
 
 
-def build_index_html(config):
-    return ""
-
-
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
@@ -84,6 +80,22 @@ CONFIG_SCHEMA = cv.All(
     default_url,
     validate_local,
 )
+
+
+def build_index_html(config):
+    html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
+    if config[CONF_CSS_INCLUDE]:
+        html += '<link rel="stylesheet" href="/0.css">'
+    if config[CONF_CSS_URL]:
+        html += '<link rel="stylesheet" href="{config[CONF_CSS_URL]}">'
+    html += "</head><body>"
+    if config[CONF_JS_INCLUDE]:
+        html += '<script type="module" src="/0.js"></script>"'
+    html += "<esp-app></esp-app>"
+    if config[CONF_JS_URL]:
+        html += f'<script type="module" src="{config[CONF_JS_URL]}"></script>"'
+    html += "</body></html>"
+    return html
 
 
 @coroutine_with_priority(40.0)
