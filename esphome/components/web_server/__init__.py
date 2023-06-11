@@ -122,7 +122,7 @@ async def to_code(config):
         bytes_as_int = ", ".join(str(x) for x in html_gzipped)
         cg.add_global(
             cg.RawExpression(
-                f"const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML[{html_gzipped_size}] = {{{bytes_as_int}}}"
+                f"const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML[{html_gzipped_size}] PROGMEM = {{{bytes_as_int}}}"
             )
         )
         cg.add_global(

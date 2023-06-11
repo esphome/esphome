@@ -15,7 +15,7 @@
 #include <freertos/semphr.h>
 #endif
 
-extern const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML[];
+extern const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML[] PROGMEM;
 extern const size_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE;
 
 namespace esphome {
