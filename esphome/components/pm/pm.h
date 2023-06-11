@@ -26,8 +26,10 @@ class PM : public Component {
   void setup() override;
   void disable();
   void set_freq(uint16_t min_freq_mhz, uint16_t max_freq_mhz);
-
+  float get_setup_priority() const { return setup_priority::BUS; }
   void set_tickless(bool tickless);
+  void loop();
+  void dump_config() override;
 
   std::unique_ptr<pm::PMLock> get_lock();
 
@@ -35,8 +37,10 @@ class PM : public Component {
   uint16_t min_freq_ = 40;
   uint16_t max_freq_ = 240;
   bool tickless_ = false;
+  bool setup_done_ = false;
 #ifdef USE_ESP_IDF
   std::shared_ptr<esp_pm_lock_handle_t> pm_lock_;
+  esp_pm_lock_handle_t startup_lock_;
 #endif
 };
 
