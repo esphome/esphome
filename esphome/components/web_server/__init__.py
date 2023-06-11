@@ -21,6 +21,11 @@ from esphome.core import CORE, coroutine_with_priority
 
 AUTO_LOAD = ["json", "web_server_base"]
 
+
+def build_index_html(config):
+    return ""
+
+
 web_server_ns = cg.esphome_ns.namespace("web_server")
 WebServer = web_server_ns.class_("WebServer", cg.Component, cg.Controller)
 
@@ -89,13 +94,17 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add_define("USE_WEBSERVER")
+    version = config[CONF_VERSION]
 
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
-    cg.add_define("USE_WEBSERVER_VERSION", config[CONF_VERSION])
-    cg.add(var.set_css_url(config[CONF_CSS_URL]))
-    cg.add(var.set_js_url(config[CONF_JS_URL]))
+    cg.add_define("USE_WEBSERVER_VERSION", version)
+    if version == 2:
+        cg.add(var.set_index_html(build_index_html(config)))
+    else:
+        cg.add(var.set_css_url(config[CONF_CSS_URL]))
+        cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
     if CONF_AUTH in config:
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))

@@ -90,9 +90,12 @@ WebServer::WebServer(web_server_base::WebServerBase *base)
 #endif
 }
 
+#if USE_WEBSERVER_VERSION == 1
 void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
-void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
+#endif
+
+void WebServer::set_css_include(const char *css_include) { this->css_include_ = css_include; }
 void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
 
 void WebServer::setup() {
@@ -170,9 +173,6 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
                   "name=viewport content=\"width=device-width, initial-scale=1,user-scalable=no\"><title>"));
   stream->print(title.c_str());
   stream->print(F("</title>"));
-#else
-  stream->print(F("<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"));
-#endif
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   stream->print(F("<link rel=\"stylesheet\" href=\"/0.css\">"));
 #endif
@@ -182,7 +182,6 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
     stream->print(F("\">"));
   }
   stream->print(F("</head><body>"));
-#if USE_WEBSERVER_VERSION == 1
   stream->print(F("<article class=\"markdown-body\"><h1>"));
   stream->print(title.c_str());
   stream->print(F("</h1>"));
@@ -308,24 +307,19 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
           "type=\"file\" name=\"update\"><input type=\"submit\" value=\"Update\"></form>"));
   }
   stream->print(F("<h2>Debug Log</h2><pre id=\"log\"></pre>"));
-#endif
 #ifdef USE_WEBSERVER_JS_INCLUDE
   if (this->js_include_ != nullptr) {
     stream->print(F("<script type=\"module\" src=\"/0.js\"></script>"));
   }
-#endif
-#if USE_WEBSERVER_VERSION == 2
-  stream->print(F("<esp-app></esp-app>"));
 #endif
   if (strlen(this->js_url_) > 0) {
     stream->print(F("<script src=\""));
     stream->print(this->js_url_);
     stream->print(F("\"></script>"));
   }
-#if USE_WEBSERVER_VERSION == 1
   stream->print(F("</article></body></html>"));
 #else
-  stream->print(F("</body></html>"));
+  stream->print(this->index_html_);
 #endif
 
   request->send(stream);

@@ -40,6 +40,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
  public:
   WebServer(web_server_base::WebServerBase *base);
 
+
+
+#if USE_WEBSERVER_VERSION == 1
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
    * https://esphome.io/_static/webserver-v1.min.css
    *
@@ -47,18 +50,22 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_css_url(const char *css_url);
 
-  /** Set local path to the script that's embedded in the index page. Defaults to
-   *
-   * @param css_include Local path to web server script.
-   */
-  void set_css_include(const char *css_include);
-
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://esphome.io/_static/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
-  void set_js_url(const char *js_url);
+  void set_js_url(const char *js_url);  
+#else
+  void set_index_html(const char *index_html);
+  /** Set the index HTML for v2 webservers */
+#endif
+
+  /** Set local path to the script that's embedded in the index page. Defaults to
+   *
+   * @param css_include Local path to web server script.
+   */
+  void set_css_include(const char *css_include);
 
   /** Set local path to the script that's embedded in the index page. Defaults to
    *
@@ -229,9 +236,13 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
   ListEntitiesIterator entities_iterator_;
+#if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
-  const char *css_include_{nullptr};
   const char *js_url_{nullptr};
+#else
+  const char *index_html_{nullptr};
+#endif
+  const char *css_include_{nullptr};
   const char *js_include_{nullptr};
   bool include_internal_{false};
   bool allow_ota_{true};
