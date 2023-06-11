@@ -101,6 +101,17 @@ def build_index_html(config) -> str:
     return html
 
 
+def add_resource_as_progmem(resource_name: str, content: str) -> None:
+    """Add a resource to progmem."""
+    content_gzipped = gzip.compress(content.encode("utf-8"))
+    content_gzipped_size = len(content)
+    bytes_as_int = ", ".join(str(x) for x in content_gzipped)
+    html_uint8_t = f"const uint8_t ESPHOME_WEBSERVER_GZIPPED_{resource_name}[{content_gzipped_size}] PROGMEM = {{{bytes_as_int}}}"
+    html_size_t = f"const size_t ESPHOME_WEBSERVER_GZIPPED_{resource_name}_SIZE = {content_gzipped_size}"
+    cg.add_global(cg.RawExpression(html_uint8_t))
+    cg.add_global(cg.RawExpression(html_size_t))
+
+
 @coroutine_with_priority(40.0)
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
@@ -116,13 +127,7 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version == 2:
-        html_gzipped = gzip.compress(build_index_html(config).encode("utf-8"))
-        html_gzipped_size = len(html_gzipped)
-        bytes_as_int = ", ".join(str(x) for x in html_gzipped)
-        html_uint8_t = f"const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML[{html_gzipped_size}] PROGMEM = {{{bytes_as_int}}}"
-        html_size_t = f"const size_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE = {html_gzipped_size}"
-        cg.add_global(cg.RawExpression(html_uint8_t))
-        cg.add_global(cg.RawExpression(html_size_t))
+        add_resource_as_progmem("INDEX_HTML", build_index_html(config))
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
@@ -134,12 +139,12 @@ async def to_code(config):
         cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
         with open(file=path, encoding="utf-8") as myfile:
-            cg.add(var.set_css_include(myfile.read()))
+            add_resource_as_progmem("CSS_INCLUDE", myfile.read())
     if CONF_JS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
         with open(file=path, encoding="utf-8") as myfile:
-            cg.add(var.set_js_include(myfile.read()))
+            add_resource_as_progmem("JS_INCLUDE", myfile.read())
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")

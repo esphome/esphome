@@ -324,7 +324,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(F("</article></body></html>"));
   request->send(stream);
 }
-#else // USE_WEBSERVER_VERSION == 2
+#elif USE_WEBSERVER_VERSION == 2
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML, ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE);
   response->addHeader("Content-Encoding", "gzip");
@@ -335,24 +335,18 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
-  AsyncResponseStream *stream = request->beginResponseStream("text/css");
-  if (this->css_include_ != nullptr) {
-    stream->print(this->css_include_);
-  }
-
-  request->send(stream);
+  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", ESPHOME_WEBSERVER_GZIPPED_CSS_INCLUDE, ESPHOME_WEBSERVER_GZIPPED_CSS_INCLUDE_SIZE);
+  response->addHeader("Content-Encoding", "gzip");
+  request->send(response);
 }
 #endif
 
 #ifdef USE_WEBSERVER_JS_INCLUDE
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
-  AsyncResponseStream *stream = request->beginResponseStream("text/javascript");
-  if (this->js_include_ != nullptr) {
-    stream->addHeader("Access-Control-Allow-Origin", "*");
-    stream->print(this->js_include_);
-  }
-
-  request->send(stream);
+  AsyncWebServerResponse *response = request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_GZIPPED_JS_INCLUDE, ESPHOME_WEBSERVER_GZIPPED_JS_INCLUDE_SIZE);
+  response->addHeader("Content-Encoding", "gzip");
+  response->addHeader("Access-Control-Allow-Origin", "*");
+  request->send(response);
 }
 #endif
 

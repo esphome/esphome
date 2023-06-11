@@ -15,8 +15,21 @@
 #include <freertos/semphr.h>
 #endif
 
+#ifdef USE_WEBSERVER_VERSION == 2
 extern const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML[] PROGMEM;
 extern const size_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE;
+#endif
+
+#ifdef USE_WEBSERVER_CSS_INCLUDE
+extern const uint8_t ESPHOME_WEBSERVER_GZIPPED_CSS_INCLUDE[] PROGMEM;
+extern const size_t ESPHOME_WEBSERVER_GZIPPED_CSS_INCLUDE_SIZE;
+#endif
+
+#ifdef USE_WEBSERVER_JS_INCLUDE
+extern const uint8_t ESPHOME_WEBSERVER_GZIPPED_JS_INCLUDE[] PROGMEM;
+extern const size_t ESPHOME_WEBSERVER_GZIPPED_JS_INCLUDE_SIZE;
+#endif
+
 
 namespace esphome {
 namespace web_server {
