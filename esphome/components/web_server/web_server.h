@@ -60,9 +60,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    * @param js_url The url to the web server script.
    */
   void set_js_url(const char *js_url);  
-#else
-  void set_index_gzipped(const uint8_t *index_gziped_);
-  /** Set the index gzipped HTML for v2 webservers */
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
@@ -247,8 +244,6 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
   const char *js_url_{nullptr};
-#else
-  const uint8_t *index_gziped_{nullptr};
 #endif
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   const char *css_include_{nullptr};
