@@ -6,7 +6,7 @@
 #include "esphome/components/output/float_output.h"
 
 #ifdef USE_PM
-#include "esphome/components/esp32_pm/pm.h"
+#include "esphome/components/power_management/power_management.h"
 #endif
 
 #ifdef USE_ESP32
@@ -43,7 +43,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
   float duty_{0.0f};
   bool initialized_ = false;
 #ifdef USE_PM
-  std::unique_ptr<esp32_pm::PMLock> pm_;
+  std::unique_ptr<power_management::PMLock> pm_;
 #endif
 };
 

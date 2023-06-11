@@ -10,27 +10,27 @@
 #include "esp_pm.h"
 #include "esp_sleep.h"
 
-#include "pm.h"
+#include "esp32_pm.h"
 
 #include <sstream>
 
 namespace esphome {
 namespace esp32_pm {
 
-static const char *const TAG = "PM";
+static const char *const TAG = "ESP32PowerManagement";
 
 void dump_locks() {
+  // This is somewhat slow. Really only want to use it when debugging
   char *dumpchar;
   size_t len;
   FILE *dump = open_memstream(&dumpchar, &len);
   esp_pm_dump_locks(dump);
+  fputc(0, dump);
   fflush(dump);
-  std::string tmpstr(dumpchar, len);  // length optional, but needed if there may be zero's in your data
-  std::istringstream is(tmpstr);
-
-  std::string line;
-  while (std::getline(is, line)) {
-    ESP_LOGV(TAG, "%s", line.c_str());
+  char *line = strtok(dumpchar, "\n");
+  while (line) {
+    ESP_LOGV(TAG, "%s", line);
+    line = strtok(NULL, "\n");
   }
 }
 
@@ -55,9 +55,6 @@ void ESP32PowerManagement::setup() {
 
   esp_sleep_enable_gpio_wakeup();
 
-  this->pm_lock_ = std::make_shared<esp_pm_lock_handle_t>();
-
-  esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "Output Lock", this->pm_lock_.get());
   esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "Startup Lock", &this->startup_lock_);
 
   // Disable powermanagement until startup has time to finish.
@@ -69,13 +66,17 @@ void ESP32PowerManagement::setup() {
   ESP_LOGI(TAG, "PM Support Disabled");
 #endif  // CONFIG_PM_ENABLE
   App.set_loop_interval(200);
-  global_pm = this;
+  power_management::global_pm = this;
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
+  this->set_interval(1000 * 60, dump_locks);
+#endif
 }
 
 void ESP32PowerManagement::loop() {
   // Disable the startup lock once we have looped once
   if (this->setup_done_) {
     esp_pm_lock_release(this->startup_lock_);
+    esp_pm_lock_delete(this->startup_lock_);
     this->setup_done_ = false;
   }
 }
@@ -93,7 +94,9 @@ void ESP32PowerManagement::dump_config() {
 #else
   ESP_LOGCONFIG(TAG, "Tickless Idle Support Disabled");
 #endif
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   dump_locks();
+#endif
 #else
   ESP_LOGCONFIG(TAG, "PM Support Disabled");
 #endif  // CONFIG_PM_ENABLE
@@ -106,27 +109,33 @@ void ESP32PowerManagement::set_freq(uint16_t min_freq_mhz, uint16_t max_freq_mhz
 
 void ESP32PowerManagement::set_tickless(bool tickless) { this->tickless_ = tickless; }
 
-std::unique_ptr<esp32_pm::PMLock> ESP32PowerManagement::get_lock() { return make_unique<PMLock>(this->pm_lock_); }
+std::unique_ptr<power_management::PMLock> ESP32PowerManagement::get_lock(std::string name,
+                                                                         power_management::PmLockType lock) {
+  return make_unique<ESPPMLock>(name, lock);
+}
 
-PMLock::PMLock(std::shared_ptr<esp_pm_lock_handle_t> pm_lock) {
+ESPPMLock::ESPPMLock(const std::string &name, power_management::PmLockType lock) {
+  name_ = name;
+  lock_ = lock;
 #ifdef CONFIG_PM_ENABLE
-  pm_lock_ = std::move(pm_lock);
-  esp_pm_lock_acquire(*this->pm_lock_);
+  esp_pm_lock_create(ESP_PM_NO_LIGHT_SLEEP, 0, "Output Lock", &this->pm_lock_);
+  esp_pm_lock_acquire(this->pm_lock_);
   App.set_loop_interval(16);
-  ESP_LOGD(TAG, "PM Lock Aquired");
+  ESP_LOGD(TAG, "%s PM Lock Aquired", name_.c_str());
 #endif
 }
 
-PMLock::~PMLock() {
+ESPPMLock::~ESPPMLock() {
 #ifdef CONFIG_PM_ENABLE
-  esp_pm_lock_release(*this->pm_lock_);
+  esp_pm_lock_release(this->pm_lock_);
+  esp_pm_lock_delete(this->pm_lock_);
   App.set_loop_interval(200);
-  ESP_LOGD(TAG, "PM Lock Released");
+  ESP_LOGD(TAG, "%s PM Lock Released", name_.c_str());
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE
   dump_locks();
 #endif
+#endif
 }
-
-ESP32PowerManagement *global_pm = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esp32_pm
 }  // namespace esphome

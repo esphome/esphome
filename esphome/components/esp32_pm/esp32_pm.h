@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/components/power_management/power_management.h"
 
 #include <memory>
 
@@ -10,18 +11,21 @@
 namespace esphome {
 namespace esp32_pm {
 
-class PMLock {
+class ESPPMLock : public power_management::PMLock {
  public:
-  PMLock(std::shared_ptr<esp_pm_lock_handle_t> pm_lock);
-  ~PMLock();
+  ESPPMLock(const std::string &name, power_management::PmLockType lock);
+  ~ESPPMLock();
 
  private:
+  std::string name_;
+  power_management::PmLockType lock_;
+
 #ifdef USE_ESP_IDF
-  std::shared_ptr<esp_pm_lock_handle_t> pm_lock_;
+  esp_pm_lock_handle_t pm_lock_;
 #endif
 };
 
-class ESP32PowerManagement : public Component {
+class ESP32PowerManagement : public power_management::PowerManagement {
  public:
   void setup() override;
   void set_freq(uint16_t min_freq_mhz, uint16_t max_freq_mhz);
@@ -30,7 +34,7 @@ class ESP32PowerManagement : public Component {
   void loop() override;
   void dump_config() override;
 
-  std::unique_ptr<esp32_pm::PMLock> get_lock();
+  std::unique_ptr<power_management::PMLock> get_lock(std::string name, power_management::PmLockType lock);
 
  private:
   uint16_t min_freq_ = 40;
@@ -38,12 +42,9 @@ class ESP32PowerManagement : public Component {
   bool tickless_ = false;
   bool setup_done_ = false;
 #ifdef USE_ESP_IDF
-  std::shared_ptr<esp_pm_lock_handle_t> pm_lock_;
   esp_pm_lock_handle_t startup_lock_;
 #endif
 };
-
-extern ESP32PowerManagement *global_pm;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esp32_pm
 }  // namespace esphome

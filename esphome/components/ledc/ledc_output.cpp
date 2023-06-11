@@ -103,9 +103,9 @@ void LEDCOutput::write_state(float state) {
 
 #ifdef USE_PM
   if (state > 0.0f) {  // ON
-    if (this->pm_ == nullptr) {
+    if (this->pm_) {
       ESP_LOGD(TAG, "PM Lock Aquired");
-      this->pm_ = esp32_pm::global_pm->get_lock();
+      pm_ = power_management::global_pm->get_lock("LEDC", power_management::PmLockType::NO_LIGHT_SLEEP);
     }
   } else {  // OFF
     this->pm_.reset();
