@@ -119,10 +119,8 @@ async def to_code(config):
         html_gzipped = gzip.compress(build_index_html(config).encode("utf-8"))
         html_gzipped_size = len(html_gzipped)
         bytes_as_int = ", ".join(str(x) for x in html_gzipped)
-        html_uint8_t = f"const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[{html_gzipped_size}] PROGMEM = {{{bytes_as_int}}}"
-        html_size_t = (
-            f"const size_t ESPHOME_WEBSERVER_INDEX_HTML_SIZE = {html_gzipped_size}"
-        )
+        html_uint8_t = f"const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML[{html_gzipped_size}] PROGMEM = {{{bytes_as_int}}}"
+        html_size_t = f"const size_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE = {html_gzipped_size}"
         cg.add_global(cg.RawExpression(html_uint8_t))
         cg.add_global(cg.RawExpression(html_size_t))
     else:
