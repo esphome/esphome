@@ -14,6 +14,10 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #endif
+
+extern const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML[];
+extern const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE;
+
 namespace esphome {
 namespace web_server {
 
@@ -57,8 +61,8 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_js_url(const char *js_url);  
 #else
-  void set_index_html(const char *index_html);
-  /** Set the index HTML for v2 webservers */
+  void set_index_gzipped(const uint8_t *index_gziped_);
+  /** Set the index gzipped HTML for v2 webservers */
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
@@ -244,7 +248,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   const char *css_url_{nullptr};
   const char *js_url_{nullptr};
 #else
-  const char *index_html_{nullptr};
+  const uint8_t *index_gziped_{nullptr};
 #endif
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   const char *css_include_{nullptr};

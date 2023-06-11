@@ -18,6 +18,7 @@ from esphome.const import (
     CONF_LOCAL,
 )
 from esphome.core import CORE, coroutine_with_priority
+import gzip
 
 AUTO_LOAD = ["json", "web_server_base"]
 
@@ -82,7 +83,7 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-def build_index_html(config):
+def build_index_html(config) -> str:
     html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
     css_include = config.get(CONF_CSS_INCLUDE)
     js_include = config.get(CONF_JS_INCLUDE)
@@ -115,7 +116,20 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version == 2:
-        cg.add(var.set_index_html(build_index_html(config)))
+        html = build_index_html()
+        html_gzipped = gzip.compress(html)
+        html_gzipped_size = len(html_gzipped)
+        bytes_as_int = ", ".join(x for x in html_gzipped)
+        cg.add_global(
+            cg.RawExpression(
+                f"const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML[{html_gzipped_size}] = {{{bytes_as_int}}}"
+            )
+        )
+        cg.add_global(
+            cg.RawExpression(
+                f"const size_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE = {html_gzipped_size}"
+            )
+        )
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
