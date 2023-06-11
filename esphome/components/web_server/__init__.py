@@ -116,20 +116,15 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version == 2:
-        html = build_index_html(config)
-        html_gzipped = gzip.compress(html.encode("utf-8"))
+        html_gzipped = gzip.compress(build_index_html(config).encode("utf-8"))
         html_gzipped_size = len(html_gzipped)
         bytes_as_int = ", ".join(str(x) for x in html_gzipped)
-        cg.add_global(
-            cg.RawExpression(
-                f"const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML[{html_gzipped_size}] PROGMEM = {{{bytes_as_int}}}"
-            )
+        html_uint8_t = f"const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[{html_gzipped_size}] PROGMEM = {{{bytes_as_int}}}"
+        html_size_t = (
+            f"const size_t ESPHOME_WEBSERVER_INDEX_HTML_SIZE = {html_gzipped_size}"
         )
-        cg.add_global(
-            cg.RawExpression(
-                f"const size_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE = {html_gzipped_size}"
-            )
-        )
+        cg.add_global(cg.RawExpression(html_uint8_t))
+        cg.add_global(cg.RawExpression(html_size_t))
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
