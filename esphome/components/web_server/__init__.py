@@ -93,7 +93,7 @@ def build_index_html(config) -> str:
         html += '<link rel=stylesheet href="{config[CONF_CSS_URL]}">'
     html += "</head><body>"
     if js_include:
-        html += '<script type=module src=/0.js></script>"'
+        html += "<script type=module src=/0.js></script>"
     html += "<esp-app></esp-app>"
     if config[CONF_JS_URL]:
         html += f'<script type=module src="{config[CONF_JS_URL]}"></script>"'
