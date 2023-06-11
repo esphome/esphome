@@ -93,8 +93,6 @@ WebServer::WebServer(web_server_base::WebServerBase *base)
 #if USE_WEBSERVER_VERSION == 1
 void WebServer::set_css_url(const char *css_url) { this->css_url_ = css_url; }
 void WebServer::set_js_url(const char *js_url) { this->js_url_ = js_url; }
-#else
-void WebServer::set_index_html(const char *index_html) { this->index_html_ = index_html; }
 #endif
 
 

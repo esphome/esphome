@@ -16,7 +16,7 @@
 #endif
 
 extern const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML[];
-extern const uint8_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE;
+extern const size_t ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE;
 
 namespace esphome {
 namespace web_server {
