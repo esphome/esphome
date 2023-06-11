@@ -279,7 +279,7 @@ void MAX7219Component::send64pixels(uint8_t chip, const uint8_t pixels[8]) {
       }
     } else {
       for (uint8_t i = 0; i < 8; i++) {
-          b |= ((pixels[7 - col] >> i) & 1) << (7 - i);
+        b |= ((pixels[7 - col] >> i) & 1) << (7 - i);
       }
     }
     // send this byte to display at selected chip
