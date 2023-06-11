@@ -61,17 +61,21 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   /** Set the index HTML for v2 webservers */
 #endif
 
+#ifdef USE_WEBSERVER_CSS_INCLUDE
   /** Set local path to the script that's embedded in the index page. Defaults to
    *
    * @param css_include Local path to web server script.
    */
   void set_css_include(const char *css_include);
+#endif
 
+#ifdef USE_WEBSERVER_JS_INCLUDE
   /** Set local path to the script that's embedded in the index page. Defaults to
    *
    * @param js_include Local path to web server script.
    */
   void set_js_include(const char *js_include);
+#endif
 
   /** Determine whether internal components should be displayed on the web server.
    * Defaults to false.
@@ -242,8 +246,12 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #else
   const char *index_html_{nullptr};
 #endif
+#ifdef USE_WEBSERVER_CSS_INCLUDE
   const char *css_include_{nullptr};
+#endif
+#ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
+#endif
   bool include_internal_{false};
   bool allow_ota_{true};
 #ifdef USE_ESP32
