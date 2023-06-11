@@ -106,10 +106,10 @@ def add_resource_as_progmem(resource_name: str, content: str) -> None:
     content_gzipped = gzip.compress(content.encode("utf-8"))
     content_gzipped_size = len(content)
     bytes_as_int = ", ".join(str(x) for x in content_gzipped)
-    html_uint8_t = f"const uint8_t ESPHOME_WEBSERVER_GZIPPED_{resource_name}[{content_gzipped_size}] PROGMEM = {{{bytes_as_int}}}"
-    html_size_t = f"const size_t ESPHOME_WEBSERVER_GZIPPED_{resource_name}_SIZE = {content_gzipped_size}"
-    cg.add_global(cg.RawExpression(html_uint8_t))
-    cg.add_global(cg.RawExpression(html_size_t))
+    uint8_t = f"const uint8_t ESPHOME_WEBSERVER_GZIPPED_{resource_name}[{content_gzipped_size}] PROGMEM = {{{bytes_as_int}}}"
+    size_t = f"const size_t ESPHOME_WEBSERVER_GZIPPED_{resource_name}_SIZE = {content_gzipped_size}"
+    cg.add_global(cg.RawExpression(uint8_t))
+    cg.add_global(cg.RawExpression(size_t))
 
 
 @coroutine_with_priority(40.0)
@@ -138,13 +138,13 @@ async def to_code(config):
     if CONF_CSS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
-        with open(file=path, encoding="utf-8") as myfile:
-            add_resource_as_progmem("CSS_INCLUDE", myfile.read())
+        with open(file=path, encoding="utf-8") as css_file:
+            add_resource_as_progmem("CSS_INCLUDE", css_file.read())
     if CONF_JS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
-        with open(file=path, encoding="utf-8") as myfile:
-            add_resource_as_progmem("JS_INCLUDE", myfile.read())
+        with open(file=path, encoding="utf-8") as js_file:
+            add_resource_as_progmem("JS_INCLUDE", js_file.read())
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")
