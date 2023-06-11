@@ -16,7 +16,7 @@
 #include <cstdio>
 
 #ifdef USE_PM
-#include "esphome/components/pm/pm.h"
+#include "esphome/components/esp32_pm/pm.h"
 #endif
 
 namespace esphome {
@@ -148,7 +148,7 @@ void OTAComponent::handle_() {
     return;
   }
 #ifdef USE_PM
-  std::unique_ptr<pm::PMLock> pmlock = pm::global_pm->get_lock();
+  std::unique_ptr<esp32_pm::PMLock> pmlock = esp32_pm::global_pm->get_lock();
 #endif
 
   ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_->getpeername().c_str());

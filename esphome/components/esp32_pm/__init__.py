@@ -6,8 +6,8 @@ from esphome.core import CORE
 
 DEPENDENCIES = ["esp32"]
 
-pm_ns = cg.esphome_ns.namespace("pm")
-PM = pm_ns.class_("PM", cg.Component)
+pm_ns = cg.esphome_ns.namespace("esp32_pm")
+PM = pm_ns.class_("ESP32PowerManagement", cg.Component)
 
 CONFIG_SCHEMA = cv.Schema(
     {

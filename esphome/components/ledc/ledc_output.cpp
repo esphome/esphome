@@ -105,7 +105,7 @@ void LEDCOutput::write_state(float state) {
   if (state > 0.0f) {  // ON
     if (this->pm_ == nullptr) {
       ESP_LOGD(TAG, "PM Lock Aquired");
-      this->pm_ = pm::global_pm->get_lock();
+      this->pm_ = esp32_pm::global_pm->get_lock();
     }
   } else {  // OFF
     this->pm_.reset();
