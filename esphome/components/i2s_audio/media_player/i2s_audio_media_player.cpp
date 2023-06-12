@@ -149,7 +149,6 @@ void I2SAudioMediaPlayer::start_() {
     i2s_set_pin(this->parent_->get_port(), &pin_config);
 
     this->audio_->setI2SCommFMT_LSB(this->i2s_comm_fmt_lsb_);
-    
     this->audio_->forceMono(this->external_dac_channels_ == 1);
     if (this->mute_pin_ != nullptr) {
       this->mute_pin_->setup();
