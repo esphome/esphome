@@ -39,7 +39,7 @@ EXTERNAL_DAC_OPTIONS = ["mono", "stereo"]
 
 NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
 
-I2C_COMM_FMT_OPTIONS = ["lsb", "msb"]
+I2C_COMM_FMT_OPTIONS = ["msb", "lsb"]
 
 
 def validate_esp32_variant(config):
@@ -72,7 +72,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_MODE, default="mono"): cv.one_of(
                         *EXTERNAL_DAC_OPTIONS, lower=True
                     ),
-                    cv.Optional(CONF_I2S_COMM_FMT, default="lsb"): cv.one_of(
+                    cv.Optional(CONF_I2S_COMM_FMT, default="msb"): cv.one_of(
                         *I2C_COMM_FMT_OPTIONS, lower=True
                     ),
                 }
@@ -101,11 +101,7 @@ async def to_code(config):
             cg.add(var.set_mute_pin(pin))
         cg.add(var.set_external_dac_channels(2 if config[CONF_MODE] == "stereo" else 1))
         if CONF_I2S_COMM_FMT in config:
-            cg.add(
-                var.set_i2s_comm_fmt(
-                    True if config[CONF_I2S_COMM_FMT] == "msb" else False
-                )
-            )
+            cg.add(var.set_i2s_comm_fmt(config[CONF_I2S_COMM_FMT] == "lsb"))
 
     cg.add_library("WiFiClientSecure", None)
     cg.add_library("HTTPClient", None)
