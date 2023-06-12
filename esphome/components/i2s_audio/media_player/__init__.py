@@ -39,7 +39,7 @@ EXTERNAL_DAC_OPTIONS = ["mono", "stereo"]
 
 NO_INTERNAL_DAC_VARIANTS = [esp32.const.VARIANT_ESP32S2]
 
-I2C_COMM_FMT_OPTIONS = ["msb", "lsb"]
+I2C_COMM_FMT_OPTIONS = ["lsb", "msb"]
 
 
 def validate_esp32_variant(config):
