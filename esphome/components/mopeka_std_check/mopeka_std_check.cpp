@@ -216,7 +216,7 @@ uint8_t MopekaStdCheck::parse_temperature_(const mopeka_std_package *message) {
   if (tmp == 0x0) {
     return -40;
   } else {
-    return (uint8_t)((tmp - 25.0f) * 1.776964f);
+    return (uint8_t) ((tmp - 25.0f) * 1.776964f);
   }
 }
 

@@ -123,7 +123,8 @@ uint32_t MopekaProCheck::parse_distance_(const std::vector<uint8_t> &message) {
   double raw_level = raw & 0x3FFF;
   double raw_t = (message[2] & 0x7F);
 
-  return (uint32_t)(raw_level * (MOPEKA_LPG_COEF[0] + MOPEKA_LPG_COEF[1] * raw_t + MOPEKA_LPG_COEF[2] * raw_t * raw_t));
+  return (uint32_t) (raw_level *
+                     (MOPEKA_LPG_COEF[0] + MOPEKA_LPG_COEF[1] * raw_t + MOPEKA_LPG_COEF[2] * raw_t * raw_t));
 }
 
 uint8_t MopekaProCheck::parse_temperature_(const std::vector<uint8_t> &message) { return (message[2] & 0x7F) - 40; }

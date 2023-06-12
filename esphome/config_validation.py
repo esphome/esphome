@@ -53,6 +53,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
     TYPE_GIT,
     TYPE_LOCAL,
+    VALID_SUBSTITUTIONS_CHARACTERS,
 )
 from esphome.core import (
     CORE,
@@ -78,6 +79,11 @@ from esphome.voluptuous_schema import _Schema
 from esphome.yaml_util import make_data_base
 
 _LOGGER = logging.getLogger(__name__)
+
+# pylint: disable=consider-using-f-string
+VARIABLE_PROG = re.compile(
+    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
+)
 
 # pylint: disable=invalid-name
 
@@ -211,6 +217,9 @@ RESERVED_IDS = [
     "open",
     "setup",
     "loop",
+    "uart0",
+    "uart1",
+    "uart2",
 ]
 
 
@@ -262,6 +271,14 @@ def alphanumeric(value):
 
 def valid_name(value):
     value = string_strict(value)
+
+    if CORE.vscode:
+        # If the value is a substitution, it can't be validated until the substitution
+        # is actually made.
+        sub_match = VARIABLE_PROG.search(value)
+        if sub_match:
+            return value
+
     for c in value:
         if c not in ALLOWED_NAME_CHARS:
             raise Invalid(
@@ -444,6 +461,14 @@ def validate_id_name(value):
         raise Invalid(
             "Dashes are not supported in IDs, please use underscores instead."
         )
+
+    if CORE.vscode:
+        # If the value is a substitution, it can't be validated until the substitution
+        # is actually made
+        sub_match = VARIABLE_PROG.match(value)
+        if sub_match:
+            return value
+
     valid_chars = f"{ascii_letters + digits}_"
     for char in value:
         if char not in valid_chars:
@@ -1097,7 +1122,7 @@ def possibly_negative_percentage(value):
     if isinstance(value, str):
         try:
             if value.endswith("%"):
-                has_percent_sign = False
+                has_percent_sign = True
                 value = float(value[:-1].rstrip()) / 100.0
             else:
                 value = float(value)
@@ -1452,6 +1477,7 @@ class SplitDefault(Optional):
         esp32_arduino=vol.UNDEFINED,
         esp32_idf=vol.UNDEFINED,
         rp2040=vol.UNDEFINED,
+        host=vol.UNDEFINED,
     ):
         super().__init__(key)
         self._esp8266_default = vol.default_factory(esp8266)
@@ -1462,6 +1488,7 @@ class SplitDefault(Optional):
             esp32_idf if esp32 is vol.UNDEFINED else esp32
         )
         self._rp2040_default = vol.default_factory(rp2040)
+        self._host_default = vol.default_factory(host)
 
     @property
     def default(self):
@@ -1473,6 +1500,8 @@ class SplitDefault(Optional):
             return self._esp32_idf_default
         if CORE.is_rp2040:
             return self._rp2040_default
+        if CORE.is_host:
+            return self._host_default
         raise NotImplementedError
 
     @default.setter
@@ -1511,6 +1540,8 @@ def _entity_base_validator(config):
         config[CONF_NAME] = id.id
         config[CONF_INTERNAL] = True
         return config
+    if config[CONF_NAME] is None:
+        config[CONF_NAME] = ""
     return config
 
 
@@ -1568,6 +1599,23 @@ def validate_registry_entry(name, registry):
         return value
 
     return validator
+
+
+def none(value):
+    if value in ("none", "None"):
+        return None
+    if boolean(value) is False:
+        return None
+    raise Invalid("Must be none")
+
+
+def requires_friendly_name(message):
+    def validate(value):
+        if CORE.friendly_name is None:
+            raise Invalid(message)
+        return value
+
+    return validate
 
 
 def validate_registry(name, registry):
@@ -1629,7 +1677,15 @@ MQTT_COMMAND_COMPONENT_SCHEMA = MQTT_COMPONENT_SCHEMA.extend(
 
 ENTITY_BASE_SCHEMA = Schema(
     {
-        Optional(CONF_NAME): string,
+        Optional(CONF_NAME): Any(
+            All(
+                none,
+                requires_friendly_name(
+                    "Name cannot be None when esphome->friendly_name is not set!"
+                ),
+            ),
+            string,
+        ),
         Optional(CONF_INTERNAL): boolean,
         Optional(CONF_DISABLED_BY_DEFAULT, default=False): boolean,
         Optional(CONF_ICON): icon,

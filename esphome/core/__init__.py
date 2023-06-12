@@ -409,6 +409,9 @@ class Define:
             return self.as_tuple == other.as_tuple
         return NotImplemented
 
+    def __str__(self):
+        return f"{self.name}={self.value}"
+
 
 class Library:
     def __init__(self, name, version, repository=None):
@@ -598,6 +601,10 @@ class EsphomeCore:
     @property
     def is_rp2040(self):
         return self.target_platform == "rp2040"
+
+    @property
+    def is_host(self):
+        return self.target_platform == "host"
 
     @property
     def target_framework(self):

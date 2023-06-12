@@ -74,6 +74,7 @@ class SPIComponent : public Component {
   void set_clk(GPIOPin *clk) { clk_ = clk; }
   void set_miso(GPIOPin *miso) { miso_ = miso; }
   void set_mosi(GPIOPin *mosi) { mosi_ = mosi; }
+  void set_force_sw(bool force_sw) { force_sw_ = force_sw; }
 
   void setup() override;
 
@@ -260,6 +261,7 @@ class SPIComponent : public Component {
   GPIOPin *miso_{nullptr};
   GPIOPin *mosi_{nullptr};
   GPIOPin *active_cs_{nullptr};
+  bool force_sw_{false};
 #ifdef USE_SPI_ARDUINO_BACKEND
   SPIClass *hw_spi_{nullptr};
 #endif  // USE_SPI_ARDUINO_BACKEND

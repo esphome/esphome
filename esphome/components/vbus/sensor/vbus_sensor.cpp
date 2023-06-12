@@ -12,7 +12,7 @@ static inline uint16_t get_u16(std::vector<uint8_t> &message, int start) {
 }
 
 static inline int16_t get_i16(std::vector<uint8_t> &message, int start) {
-  return (int16_t)((message[start + 1] << 8) + message[start]);
+  return (int16_t) ((message[start + 1] << 8) + message[start]);
 }
 
 void DeltaSolBSPlusSensor::dump_config() {

@@ -43,7 +43,7 @@ void SCD30Component::setup() {
            uint16_t(raw_firmware_version[0] & 0xFF));
 
   if (this->temperature_offset_ != 0) {
-    if (!this->write_command(SCD30_CMD_TEMPERATURE_OFFSET, (uint16_t)(temperature_offset_ * 100.0))) {
+    if (!this->write_command(SCD30_CMD_TEMPERATURE_OFFSET, (uint16_t) (temperature_offset_ * 100.0))) {
       ESP_LOGE(TAG, "Sensor SCD30 error setting temperature offset.");
       this->error_code_ = MEASUREMENT_INIT_FAILED;
       this->mark_failed();

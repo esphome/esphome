@@ -252,7 +252,7 @@ void SEN5XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Firmware version: %d", this->firmware_version_);
   ESP_LOGCONFIG(TAG, "  Serial number %02d.%02d.%02d", serial_number_[0], serial_number_[1], serial_number_[2]);
   if (this->auto_cleaning_interval_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Auto auto cleaning interval %d seconds", auto_cleaning_interval_.value());
+    ESP_LOGCONFIG(TAG, "  Auto cleaning interval %d seconds", auto_cleaning_interval_.value());
   }
   if (this->acceleration_mode_.has_value()) {
     switch (this->acceleration_mode_.value()) {

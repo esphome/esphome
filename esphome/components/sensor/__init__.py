@@ -25,10 +25,12 @@ from esphome.const import (
     CONF_STATE_CLASS,
     CONF_TO,
     CONF_TRIGGER_ID,
+    CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WINDOW_SIZE,
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
+    CONF_VALUE,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
@@ -43,6 +45,7 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
@@ -70,8 +73,10 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
@@ -97,6 +102,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_DURATION,
     DEVICE_CLASS_EMPTY,
     DEVICE_CLASS_ENERGY,
+    DEVICE_CLASS_ENERGY_STORAGE,
     DEVICE_CLASS_FREQUENCY,
     DEVICE_CLASS_GAS,
     DEVICE_CLASS_HUMIDITY,
@@ -124,8 +130,10 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_TIMESTAMP,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     DEVICE_CLASS_VOLTAGE,
     DEVICE_CLASS_VOLUME,
+    DEVICE_CLASS_VOLUME_STORAGE,
     DEVICE_CLASS_WATER,
     DEVICE_CLASS_WEIGHT,
     DEVICE_CLASS_WIND_SPEED,
@@ -194,6 +202,7 @@ SensorPublishAction = sensor_ns.class_("SensorPublishAction", automation.Action)
 Filter = sensor_ns.class_("Filter")
 QuantileFilter = sensor_ns.class_("QuantileFilter", Filter)
 MedianFilter = sensor_ns.class_("MedianFilter", Filter)
+SkipInitialFilter = sensor_ns.class_("SkipInitialFilter", Filter)
 MinFilter = sensor_ns.class_("MinFilter", Filter)
 MaxFilter = sensor_ns.class_("MaxFilter", Filter)
 SlidingWindowMovingAverageFilter = sensor_ns.class_(
@@ -365,6 +374,11 @@ MIN_SCHEMA = cv.All(
 )
 
 
+@FILTER_REGISTRY.register("skip_initial", SkipInitialFilter, cv.positive_not_null_int)
+async def skip_initial_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(filter_id, config)
+
+
 @FILTER_REGISTRY.register("min", MinFilter, MIN_SCHEMA)
 async def min_filter_to_code(config, filter_id):
     return cg.new_Pvariable(
@@ -466,9 +480,38 @@ async def lambda_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, lambda_)
 
 
-@FILTER_REGISTRY.register("delta", DeltaFilter, cv.float_)
+DELTA_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_VALUE): cv.positive_float,
+        cv.Optional(CONF_TYPE, default="absolute"): cv.one_of(
+            "absolute", "percentage", lower=True
+        ),
+    }
+)
+
+
+def validate_delta(config):
+    try:
+        value = cv.positive_float(config)
+        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "absolute"})
+    except cv.Invalid:
+        pass
+    try:
+        value = cv.percentage(config)
+        return DELTA_SCHEMA({CONF_VALUE: value, CONF_TYPE: "percentage"})
+    except cv.Invalid:
+        pass
+    raise cv.Invalid("Delta filter requires a positive number or percentage value.")
+
+
+@FILTER_REGISTRY.register("delta", DeltaFilter, cv.Any(DELTA_SCHEMA, validate_delta))
 async def delta_filter_to_code(config, filter_id):
-    return cg.new_Pvariable(filter_id, config)
+    percentage = config[CONF_TYPE] == "percentage"
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_VALUE],
+        percentage,
+    )
 
 
 @FILTER_REGISTRY.register("or", OrFilter, validate_filters)

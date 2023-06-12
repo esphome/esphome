@@ -316,18 +316,18 @@ float BLEClientBase::parse_char_value(uint8_t *value, uint16_t length) {
     case 0xD:  // int12.
     case 0xE:  // int16.
       if (length > 2) {
-        return (float) ((int16_t)(value[1] << 8) + (int16_t) value[2]);
+        return (float) ((int16_t) (value[1] << 8) + (int16_t) value[2]);
       }
       // fall through
     case 0xF:  // int24.
       if (length > 3) {
-        return (float) ((int32_t)(value[1] << 16) + (int32_t)(value[2] << 8) + (int32_t)(value[3]));
+        return (float) ((int32_t) (value[1] << 16) + (int32_t) (value[2] << 8) + (int32_t) (value[3]));
       }
       // fall through
     case 0x10:  // int32.
       if (length > 4) {
-        return (float) ((int32_t)(value[1] << 24) + (int32_t)(value[2] << 16) + (int32_t)(value[3] << 8) +
-                        (int32_t)(value[4]));
+        return (float) ((int32_t) (value[1] << 24) + (int32_t) (value[2] << 16) + (int32_t) (value[3] << 8) +
+                        (int32_t) (value[4]));
       }
   }
   ESP_LOGW(TAG, "[%d] [%s] Cannot parse characteristic value of type 0x%x length %d", this->connection_index_,
