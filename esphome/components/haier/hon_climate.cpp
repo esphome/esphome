@@ -14,7 +14,7 @@ using namespace esphome::uart;
 namespace esphome {
 namespace haier {
 
-const char TAG[] = "haier.climate";
+static const char *const TAG = "haier.climate";
 constexpr size_t SIGNAL_LEVEL_UPDATE_INTERVAL_MS = 10000;
 constexpr int PROTOCOL_OUTDOOR_TEMPERATURE_OFFSET = -64;
 
