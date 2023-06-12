@@ -1,15 +1,12 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
-#include "display_color_utils.h"
 #include <cstdarg>
 #include <vector>
-
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
+#include "display_color_utils.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/time.h"
 
 #ifdef USE_GRAPH
 #include "esphome/components/graph/graph.h"
@@ -82,8 +79,8 @@ enum ImageType {
   IMAGE_TYPE_BINARY = 0,
   IMAGE_TYPE_GRAYSCALE = 1,
   IMAGE_TYPE_RGB24 = 2,
-  IMAGE_TYPE_TRANSPARENT_BINARY = 3,
-  IMAGE_TYPE_RGB565 = 4,
+  IMAGE_TYPE_RGB565 = 3,
+  IMAGE_TYPE_RGBA = 4,
 };
 
 enum DisplayType {
@@ -263,7 +260,6 @@ class DisplayBuffer {
    */
   void printf(int x, int y, Font *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
 
-#ifdef USE_TIME
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
@@ -274,7 +270,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, time::ESPTime time)
+  void strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, ESPTime time)
       __attribute__((format(strftime, 7, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -286,7 +282,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, Color color, const char *format, time::ESPTime time)
+  void strftime(int x, int y, Font *font, Color color, const char *format, ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
@@ -298,7 +294,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, TextAlign align, const char *format, time::ESPTime time)
+  void strftime(int x, int y, Font *font, TextAlign align, const char *format, ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -309,9 +305,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, const char *format, time::ESPTime time)
-      __attribute__((format(strftime, 5, 0)));
-#endif
+  void strftime(int x, int y, Font *font, const char *format, ESPTime time) __attribute__((format(strftime, 5, 0)));
 
   /** Draw the `image` with the top-left corner at [x,y] to the screen.
    *
@@ -540,6 +534,7 @@ class Image {
   Image(const uint8_t *data_start, int width, int height, ImageType type);
   virtual bool get_pixel(int x, int y) const;
   virtual Color get_color_pixel(int x, int y) const;
+  virtual Color get_rgba_pixel(int x, int y) const;
   virtual Color get_rgb565_pixel(int x, int y) const;
   virtual Color get_grayscale_pixel(int x, int y) const;
   int get_width() const;
@@ -548,11 +543,15 @@ class Image {
 
   virtual int get_current_frame() const;
 
+  void set_transparency(bool transparent) { transparent_ = transparent; }
+  bool has_transparency() const { return transparent_; }
+
  protected:
   int width_;
   int height_;
   ImageType type_;
   const uint8_t *data_start_;
+  bool transparent_;
 };
 
 class Animation : public Image {
@@ -560,10 +559,11 @@ class Animation : public Image {
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
   bool get_pixel(int x, int y) const override;
   Color get_color_pixel(int x, int y) const override;
+  Color get_rgba_pixel(int x, int y) const override;
   Color get_rgb565_pixel(int x, int y) const override;
   Color get_grayscale_pixel(int x, int y) const override;
 
-  int get_animation_frame_count() const;
+  uint32_t get_animation_frame_count() const;
   int get_current_frame() const override;
   void next_frame();
   void prev_frame();
@@ -574,9 +574,15 @@ class Animation : public Image {
    */
   void set_frame(int frame);
 
+  void set_loop(uint32_t start_frame, uint32_t end_frame, int count);
+
  protected:
   int current_frame_;
-  int animation_frame_count_;
+  uint32_t animation_frame_count_;
+  uint32_t loop_start_frame_;
+  uint32_t loop_end_frame_;
+  int loop_count_;
+  int loop_current_iteration_;
 };
 
 template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
