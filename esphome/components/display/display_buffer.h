@@ -1,15 +1,12 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
-#include "display_color_utils.h"
 #include <cstdarg>
 #include <vector>
-
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
+#include "display_color_utils.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/time.h"
 
 #ifdef USE_GRAPH
 #include "esphome/components/graph/graph.h"
@@ -263,7 +260,6 @@ class DisplayBuffer {
    */
   void printf(int x, int y, Font *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
 
-#ifdef USE_TIME
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
@@ -274,7 +270,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, time::ESPTime time)
+  void strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, ESPTime time)
       __attribute__((format(strftime, 7, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -286,7 +282,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, Color color, const char *format, time::ESPTime time)
+  void strftime(int x, int y, Font *font, Color color, const char *format, ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
@@ -298,7 +294,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, TextAlign align, const char *format, time::ESPTime time)
+  void strftime(int x, int y, Font *font, TextAlign align, const char *format, ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -309,9 +305,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, const char *format, time::ESPTime time)
-      __attribute__((format(strftime, 5, 0)));
-#endif
+  void strftime(int x, int y, Font *font, const char *format, ESPTime time) __attribute__((format(strftime, 5, 0)));
 
   /** Draw the `image` with the top-left corner at [x,y] to the screen.
    *
