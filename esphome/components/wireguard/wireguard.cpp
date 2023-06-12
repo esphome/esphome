@@ -60,11 +60,12 @@ void Wireguard::setup() {
 }
 
 void Wireguard::update() {
+  bool peer_up = this->is_peer_up();
   time_t lhs = this->get_latest_handshake();
   std::string latest_handshake =
       (lhs > 0) ? ESPTime::from_epoch_local(lhs).strftime("%Y-%m-%d %H:%M:%S %Z") : "timestamp not available";
 
-  if (this->is_peer_up()) {
+  if (peer_up) {
     if (this->wg_peer_offline_time_ != 0) {
       ESP_LOGI(TAG, LOGMSG_PEER_STATUS, LOGMSG_ONLINE, latest_handshake.c_str());
       this->wg_peer_offline_time_ = 0;
@@ -86,6 +87,10 @@ void Wireguard::update() {
         App.reboot();
       }
     }
+  }
+
+  if (this->status_sensor_ != nullptr) {
+    this->status_sensor_->publish_state(peer_up);
   }
 }
 
@@ -164,6 +169,7 @@ void Wireguard::add_allowed_ip(const std::string &ip, const std::string &netmask
 void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
 void Wireguard::set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock *srctime) { this->srctime_ = srctime; }
+void Wireguard::set_status_sensor(binary_sensor::BinarySensor *sensor) { this->status_sensor_ = sensor; }
 
 void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
 
