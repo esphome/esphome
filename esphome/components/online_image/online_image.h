@@ -52,6 +52,9 @@ class OnlineImage : public PollingComponent, public display::Image {
 
   void set_timeout(uint16_t timeout) { this->timeout_ = timeout; }
 
+  void add_on_finished_callback(std::function<void()> &&callback);
+  void add_on_error_callback(std::function<void()> &&callback);
+
   void loop() override;
 
  protected:
@@ -69,6 +72,9 @@ class OnlineImage : public PollingComponent, public display::Image {
   void draw_pixel_(int x, int y, Color color);
 
   void end_connection_();
+
+  CallbackManager<void()> download_finished_callback_{};
+  CallbackManager<void()> download_error_callback_{};
 
   HTTPClient http_;
   std::unique_ptr<ImageDecoder> decoder_;
@@ -112,6 +118,20 @@ template<typename... Ts> class OnlineImageReleaseAction : public Action<Ts...> {
 
  protected:
   OnlineImage *parent_;
+};
+
+class DownloadFinishedTrigger : public Trigger<> {
+ public:
+  explicit DownloadFinishedTrigger(OnlineImage *parent) {
+    parent->add_on_finished_callback([this]() { this->trigger(); });
+  }
+};
+
+class DownloadErrorTrigger : public Trigger<> {
+ public:
+  explicit DownloadErrorTrigger(OnlineImage *parent) {
+    parent->add_on_error_callback([this]() { this->trigger(); });
+  }
 };
 
 }  // namespace online_image

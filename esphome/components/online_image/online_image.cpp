@@ -152,6 +152,7 @@ void OnlineImage::loop() {
     width_ = buffer_width_;
     height_ = buffer_height_;
     end_connection_();
+    download_finished_callback_.call();
     return;
   }
   WiFiClient *stream = http_.getStreamPtr();
@@ -166,9 +167,10 @@ void OnlineImage::loop() {
       download_buffer_.write(len);
       auto fed = decoder_->decode(download_buffer_.data(), download_buffer_.unread());
       if (fed < 0) {
-        // Error when decoding.
+        ESP_LOGE(TAG, "Error when decoding image.");
         etag_ = "";  // Need to re-download
         end_connection_();
+        download_error_callback_.call();
         return;
       }
       download_buffer_.read(fed);
@@ -344,6 +346,7 @@ void OnlineImage::update() {
   if (http_code != HTTP_CODE_OK) {
     ESP_LOGE(TAG, "Could not download image from %s. Error code: %i", url_, http_code);
     end_connection_();
+    download_error_callback_.call();
     return;
   }
 
@@ -370,10 +373,19 @@ void OnlineImage::update() {
   if (!decoder_) {
     ESP_LOGE(TAG, "Could not instantiate decoder. Image format unsupported.");
     end_connection_();
+    download_error_callback_.call();
     return;
   }
   decoder_->prepare(total_size);
   ESP_LOGI(TAG, "Downloading image from %s", url_);
+}
+
+void OnlineImage::add_on_finished_callback(std::function<void()> &&callback) {
+  download_finished_callback_.add(std::move(callback));
+}
+
+void OnlineImage::add_on_error_callback(std::function<void()> &&callback) {
+  download_error_callback_.add(std::move(callback));
 }
 
 }  // namespace online_image

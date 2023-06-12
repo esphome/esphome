@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_ESP8266_DISABLE_SSL_SUPPORT,
     CONF_FORMAT,
     CONF_ID,
+    CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_RESIZE,
     CONF_URL,
@@ -28,6 +29,8 @@ from esphome.components.http_request import (
 DEPENDENCIES = ["network", "display"]
 CODEOWNERS = ["@guillempages"]
 MULTI_CONF = True
+CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
+CONF_ON_ERROR = "on_error"
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -44,6 +47,14 @@ SetUrlAction = online_image_ns.class_(
 )
 ReleaseImageAction = online_image_ns.class_(
     "OnlineImageReleaseAction", automation.Action, cg.Parented.template(OnlineImage)
+)
+
+# Triggers
+DownloadFinishedTrigger = online_image_ns.class_(
+    "DownloadFinishedTrigger", automation.Trigger.template()
+)
+DownloadErrorTrigger = online_image_ns.class_(
+    "DownloadErrorTrigger", automation.Trigger.template()
 )
 
 ONLINE_IMAGE_SCHEMA = cv.Schema(
@@ -63,6 +74,16 @@ ONLINE_IMAGE_SCHEMA = cv.Schema(
         #
         cv.Optional(CONF_FORMAT, default="PNG"): cv.enum(IMAGE_FORMAT, upper=True),
         cv.Optional(CONF_BUFFER_SIZE, default=2048): cv.int_range(256, 65536),
+        cv.Optional(CONF_ON_DOWNLOAD_FINISHED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DownloadFinishedTrigger),
+            }
+        ),
+        cv.Optional(CONF_ON_ERROR): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DownloadErrorTrigger),
+            }
+        ),
         #
         # HTTP Request options
         #
@@ -151,3 +172,11 @@ async def to_code(config):
     )
     cg.add(var.set_timeout(config[CONF_TIMEOUT]))
     cg.add(var.set_useragent(config[CONF_USERAGENT]))
+
+    for conf in config.get(CONF_ON_DOWNLOAD_FINISHED, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_ERROR, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
