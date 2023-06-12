@@ -10,7 +10,7 @@ using namespace esphome::uart;
 namespace esphome {
 namespace haier {
 
-const char TAG[] = "haier.climate";
+static const char *const TAG = "haier.climate";
 constexpr size_t COMMUNICATION_TIMEOUT_MS = 60000;
 constexpr size_t STATUS_REQUEST_INTERVAL_MS = 5000;
 constexpr size_t PROTOCOL_INITIALIZATION_INTERVAL = 10000;
