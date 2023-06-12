@@ -813,6 +813,9 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 }
 #endif
 
+// Longest: HORIZONTAL
+#define PSTR_LOCAL(mode_s) strncpy_P(__buf, (PGM_P) ((mode_s)), 15)
+
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
   this->events_.send(this->climate_json(obj, DETAIL_STATE).c_str(), "state");
@@ -868,9 +871,6 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
   }
   request->send(404);
 }
-
-// Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) strncpy_P(__buf, (PGM_P) ((mode_s)), 15)
 
 std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
@@ -1004,8 +1004,9 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
                                                 alarm_control_panel::AlarmControlPanelState value,
                                                 JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
+    char __buf[16];
     set_json_icon_state_value(root, obj, "alarm-control-panel-" + obj->get_object_id(),
-                              alarm_control_panel_state_to_string(value), value, start_config);
+                              PSTR_LOCAL(alarm_control_panel_state_to_string(value)), value, start_config);
   });
 }
 void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {

@@ -23,7 +23,7 @@ enum AlarmControlPanelState : uint8_t {
  *
  * @param state The AlarmControlPanelState.
  */
-const char *alarm_control_panel_state_to_string(AlarmControlPanelState state);
+const LogString *alarm_control_panel_state_to_string(AlarmControlPanelState state);
 
 }  // namespace alarm_control_panel
 }  // namespace esphome
