@@ -134,8 +134,7 @@ bool ESP32BLE::ble_setup_() {
     return false;
   }
 
-  esp_ble_io_cap_t iocap = ESP_IO_CAP_NONE;
-  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &iocap, sizeof(uint8_t));
+  err = esp_ble_gap_set_security_param(ESP_BLE_SM_IOCAP_MODE, &(this->io_cap_), sizeof(uint8_t));
   if (err != ESP_OK) {
     ESP_LOGE(TAG, "esp_ble_gap_set_security_param failed: %d", err);
     return false;
@@ -215,12 +214,45 @@ float ESP32BLE::get_setup_priority() const { return setup_priority::BLUETOOTH; }
 void ESP32BLE::dump_config() {
   const uint8_t *mac_address = esp_bt_dev_get_address();
   if (mac_address) {
+    const char *io_capability_s;
+    switch (this->io_cap_) {
+      case ESP_IO_CAP_OUT:
+        io_capability_s = "display_only";
+        break;
+      case ESP_IO_CAP_IO:
+        io_capability_s = "display_yes_no";
+        break;
+      case ESP_IO_CAP_IN:
+        io_capability_s = "keyboard_only";
+        break;
+      case ESP_IO_CAP_NONE:
+        io_capability_s = "none";
+        break;
+      case ESP_IO_CAP_KBDISP:
+        io_capability_s = "keyboard_display";
+        break;
+      default:
+        io_capability_s = "invalid";
+        break;
+    }
     ESP_LOGCONFIG(TAG, "ESP32 BLE:");
     ESP_LOGCONFIG(TAG, "  MAC address: %02X:%02X:%02X:%02X:%02X:%02X", mac_address[0], mac_address[1], mac_address[2],
                   mac_address[3], mac_address[4], mac_address[5]);
+    ESP_LOGCONFIG(TAG, "  IO Capability: %s", io_capability_s);
   } else {
     ESP_LOGCONFIG(TAG, "ESP32 BLE: bluetooth stack is not enabled");
   }
+}
+
+uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
+  uint64_t u = 0;
+  u |= uint64_t(address[0] & 0xFF) << 40;
+  u |= uint64_t(address[1] & 0xFF) << 32;
+  u |= uint64_t(address[2] & 0xFF) << 24;
+  u |= uint64_t(address[3] & 0xFF) << 16;
+  u |= uint64_t(address[4] & 0xFF) << 8;
+  u |= uint64_t(address[5] & 0xFF) << 0;
+  return u;
 }
 
 ESP32BLE *global_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
