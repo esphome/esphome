@@ -244,6 +244,17 @@ void ESP32BLE::dump_config() {
   }
 }
 
+uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
+  uint64_t u = 0;
+  u |= uint64_t(address[0] & 0xFF) << 40;
+  u |= uint64_t(address[1] & 0xFF) << 32;
+  u |= uint64_t(address[2] & 0xFF) << 24;
+  u |= uint64_t(address[3] & 0xFF) << 16;
+  u |= uint64_t(address[4] & 0xFF) << 8;
+  u |= uint64_t(address[5] & 0xFF) << 0;
+  return u;
+}
+
 ESP32BLE *global_ble = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 }  // namespace esp32_ble
