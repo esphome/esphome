@@ -100,8 +100,7 @@ async def to_code(config):
             pin = await cg.gpio_pin_expression(config[CONF_MUTE_PIN])
             cg.add(var.set_mute_pin(pin))
         cg.add(var.set_external_dac_channels(2 if config[CONF_MODE] == "stereo" else 1))
-        if CONF_I2S_COMM_FMT in config:
-            cg.add(var.set_i2s_comm_fmt(config[CONF_I2S_COMM_FMT] == "lsb"))
+        cg.add(var.set_i2s_comm_fmt_lsb(config[CONF_I2S_COMM_FMT] == "lsb"))
 
     cg.add_library("WiFiClientSecure", None)
     cg.add_library("HTTPClient", None)
