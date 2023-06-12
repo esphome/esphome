@@ -7,6 +7,7 @@
 
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
+#include "esphome/core/time.h"
 
 #include <esp_err.h>
 
@@ -61,7 +62,7 @@ void Wireguard::setup() {
 void Wireguard::update() {
   time_t lhs = this->get_latest_handshake();
   std::string latest_handshake =
-      (lhs > 0) ? time::ESPTime::from_epoch_local(lhs).strftime("%Y-%m-%d %H:%M:%S %Z") : "timestamp not available";
+      (lhs > 0) ? ESPTime::from_epoch_local(lhs).strftime("%Y-%m-%d %H:%M:%S %Z") : "timestamp not available";
 
   if (this->is_peer_up()) {
     if (this->wg_peer_offline_time_ != 0) {
@@ -107,6 +108,9 @@ void Wireguard::dump_config() {
                 (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
   ESP_LOGCONFIG(TAG, "  reboot timeout: %d%s", (this->reboot_timeout_ / 1000),
                 (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
+
+  // be careful: if proceed_allowed_ is true, require connection is false
+  ESP_LOGCONFIG(TAG, "  require connection to proceed: %s", (this->proceed_allowed_ ? "false" : "true"));
 }
 
 void Wireguard::on_shutdown() {
@@ -116,6 +120,8 @@ void Wireguard::on_shutdown() {
     this->wg_connected_ = ESP_FAIL;
   }
 }
+
+bool Wireguard::can_proceed() { return (this->proceed_allowed_ || this->is_peer_up()); }
 
 bool Wireguard::is_peer_up() const {
   return (this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) &&
@@ -158,6 +164,8 @@ void Wireguard::add_allowed_ip(const std::string &ip, const std::string &netmask
 void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
 void Wireguard::set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock *srctime) { this->srctime_ = srctime; }
+
+void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
 
 void Wireguard::start_connection_() {
   if (this->wg_initialized_ != ESP_OK) {
