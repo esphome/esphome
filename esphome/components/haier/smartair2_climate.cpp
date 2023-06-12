@@ -10,7 +10,7 @@ using namespace esphome::uart;
 namespace esphome {
 namespace haier {
 
-const char TAG[] = "haier.climate";
+static const char *const TAG = "haier.climate";
 
 Smartair2Climate::Smartair2Climate()
     : last_status_message_(new uint8_t[sizeof(smartair2_protocol::HaierPacketControl)]) {
