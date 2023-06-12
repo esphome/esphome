@@ -88,15 +88,19 @@ static const uint8_t RF_DISCOVER_MAP_CONFIG[] = {  // poll modes
     nfc::INTF_TAGCMD};  // poll mode
 
 static const uint8_t RF_DISCOVERY_LISTEN_CONFIG[] = {nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCA,   // listen mode
-                                                     nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCB};  // listen mode
+                                                     nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCB,   // listen mode
+                                                     nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCF};  // listen mode
 
 static const uint8_t RF_DISCOVERY_POLL_CONFIG[] = {nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCA,   // poll mode
-                                                   nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCB};  // poll mode
+                                                   nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCB,   // poll mode
+                                                   nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCF};  // poll mode
 
 static const uint8_t RF_DISCOVERY_CONFIG[] = {nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCA,          // poll mode
                                               nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCB,          // poll mode
+                                              nfc::MODE_POLL | nfc::TECH_PASSIVE_NFCF,          // poll mode
                                               nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCA,   // listen mode
-                                              nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCB};  // listen mode
+                                              nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCB,   // listen mode
+                                              nfc::MODE_LISTEN_MASK | nfc::TECH_PASSIVE_NFCF};  // listen mode
 
 static const uint8_t RF_LISTEN_MODE_ROUTING_CONFIG[] = {0x00,  // "more" (another message is coming)
                                                         2,     // number of table entries
