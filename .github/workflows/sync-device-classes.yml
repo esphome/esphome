@@ -53,8 +53,8 @@ jobs:
           commit-message: "Synchronise Device Classes from Home Assistant"
           committer: esphomebot <esphome@nabucasa.com>
           author: esphomebot <esphome@nabucasa.com>
-          branch: sync/device-classes/
-          branch-suffix: timestamp
+          branch: sync/device-classes
           delete-branch: true
           title: "Synchronise Device Classes from Home Assistant"
           body: ${{ steps.pr-template-body.outputs.body }}
+          token: ${{ secrets.DEVICE_CLASS_SYNC_TOKEN }}

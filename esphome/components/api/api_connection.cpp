@@ -51,6 +51,14 @@ void APIConnection::start() {
   helper_->set_log_info(client_info_);
 }
 
+APIConnection::~APIConnection() {
+#ifdef USE_BLUETOOTH_PROXY
+  if (bluetooth_proxy::global_bluetooth_proxy->get_api_connection() == this) {
+    bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
+  }
+#endif
+}
+
 void APIConnection::loop() {
   if (this->remove_)
     return;
@@ -223,6 +231,7 @@ bool APIConnection::send_cover_info(cover::Cover *cover) {
   msg.assumed_state = traits.get_is_assumed_state();
   msg.supports_position = traits.get_supports_position();
   msg.supports_tilt = traits.get_supports_tilt();
+  msg.supports_stop = traits.get_supports_stop();
   msg.device_class = cover->get_device_class();
   msg.disabled_by_default = cover->is_disabled_by_default();
   msg.icon = cover->get_icon();
@@ -844,9 +853,13 @@ void APIConnection::on_get_time_response(const GetTimeResponse &value) {
 #endif
 
 #ifdef USE_BLUETOOTH_PROXY
+void APIConnection::subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->subscribe_api_connection(this, msg.flags);
+}
+void APIConnection::unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) {
+  bluetooth_proxy::global_bluetooth_proxy->unsubscribe_api_connection(this);
+}
 bool APIConnection::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg) {
-  if (!this->bluetooth_le_advertisement_subscription_)
-    return false;
   if (this->client_api_version_major_ < 1 || this->client_api_version_minor_ < 7) {
     BluetoothLEAdvertisementResponse resp = msg;
     for (auto &service : resp.service_data) {
@@ -894,11 +907,12 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-bool APIConnection::request_voice_assistant(bool start) {
+bool APIConnection::request_voice_assistant(bool start, const std::string &conversation_id) {
   if (!this->voice_assistant_subscription_)
     return false;
   VoiceAssistantRequest msg;
   msg.start = start;
+  msg.conversation_id = conversation_id;
   return this->send_voice_assistant_request(msg);
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {
@@ -941,7 +955,7 @@ HelloResponse APIConnection::hello(const HelloRequest &msg) {
 
   HelloResponse resp;
   resp.api_version_major = 1;
-  resp.api_version_minor = 8;
+  resp.api_version_minor = 9;
   resp.server_info = App.get_name() + " (esphome v" ESPHOME_VERSION ")";
   resp.name = App.get_name();
 
@@ -978,6 +992,8 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.manufacturer = "Espressif";
 #elif defined(USE_RP2040)
   resp.manufacturer = "Raspberry Pi";
+#elif defined(USE_HOST)
+  resp.manufacturer = "Host";
 #endif
   resp.model = ESPHOME_BOARD;
 #ifdef USE_DEEP_SLEEP
@@ -991,9 +1007,8 @@ DeviceInfoResponse APIConnection::device_info(const DeviceInfoRequest &msg) {
   resp.webserver_port = USE_WEBSERVER_PORT;
 #endif
 #ifdef USE_BLUETOOTH_PROXY
-  resp.bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->has_active()
-                                     ? bluetooth_proxy::ACTIVE_CONNECTIONS_VERSION
-                                     : bluetooth_proxy::PASSIVE_ONLY_VERSION;
+  resp.legacy_bluetooth_proxy_version = bluetooth_proxy::global_bluetooth_proxy->get_legacy_version();
+  resp.bluetooth_proxy_feature_flags = bluetooth_proxy::global_bluetooth_proxy->get_feature_flags();
 #endif
 #ifdef USE_VOICE_ASSISTANT
   resp.voice_assistant_version = voice_assistant::global_voice_assistant->get_version();
