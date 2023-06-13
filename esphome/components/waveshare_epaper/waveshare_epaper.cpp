@@ -816,7 +816,7 @@ void GDEW0154M09::init_internal_() {
   // VCOM Off on displ off      0
   const uint8_t panel_setting_2 = 0b01110;
 
-  const uint8_t WFT0154CZB3_LIST[] = {
+  const uint8_t wf_t0154_cz_b3_list[] = {
       11, //  11 commands in list
       CMD_PSR_PANEL_SETTING, 2, panel_setting_1, panel_setting_2,
       CMD_UNDOCUMENTED_0x4D, 1, 0x55,
@@ -832,7 +832,7 @@ void GDEW0154M09::init_internal_() {
   };
   // clang-format on
 
-  this->write_init_list_(WFT0154CZB3_LIST);
+  this->write_init_list_(wf_t0154_cz_b3_list);
   delay(100);  // NOLINT
   this->wait_until_idle_();
 }
