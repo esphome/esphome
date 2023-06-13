@@ -736,6 +736,7 @@ speaker:
     i2s_dout_pin: GPIO25
     mode: mono
 
+
 voice_assistant:
   microphone: mic_id_external
   on_start:
