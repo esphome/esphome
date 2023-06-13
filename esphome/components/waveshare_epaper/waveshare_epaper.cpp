@@ -770,7 +770,8 @@ void GDEY029T94::dump_config() {
 //  - https://v4.cecdn.yun300.cn/100001_1909185148/GDEW0154M09-200709.pdf
 //  - https://github.com/m5stack/M5Core-Ink
 // Reference code from GoodDisplay:
-//  - https://github.com/GoodDisplay/E-paper-Display-Library-of-GoodDisplay/blob/main/Monochrome_E-paper-Display/1.54inch_JD79653_GDEW0154M09_200x200/ESP32-Arduino%20IDE/GDEW0154M09_Arduino.ino
+//  - https://github.com/GoodDisplay/E-paper-Display-Library-of-GoodDisplay/
+//  -> /Monochrome_E-paper-Display/1.54inch_JD79653_GDEW0154M09_200x200/ESP32-Arduino%20IDE/GDEW0154M09_Arduino.ino
 // M5Stack Core Ink spec:
 //  - https://docs.m5stack.com/en/core/coreink
 // ========================================================
@@ -789,9 +790,9 @@ void GDEW0154M09::reset_() {
   // RST is inverse from other einks in this project
   if (this->reset_pin_ != nullptr) {
     this->reset_pin_->digital_write(false);
-    delay(10);  // NOLINT
+    delay(10);
     this->reset_pin_->digital_write(true);
-    delay(10);  // NOLINT
+    delay(10);
   }
 }
 
@@ -851,18 +852,18 @@ void GDEW0154M09::write_init_list_(const uint8_t *list) {
 void GDEW0154M09::clear_() {
   uint32_t pixsize = this->get_buffer_length_();
   uint8_t j;
-  for (j=0; j<2; j++) {
-  this->command(CMD_DTM1_DATA_START_TRANS);
-  for (int count = 0; count < pixsize; count++) {
-    this->data(0x00);
-  }
-  this->command(CMD_DTM2_DATA_START_TRANS2);
-  for (int count = 0; count < pixsize; count++) {
-    this->data(0xff);
-  }
-  this->command(CMD_DISPLAY_REFRESH);
-  delay(10);
-  this->wait_until_idle_();
+  for (j = 0; j < 2; j++) {
+    this->command(CMD_DTM1_DATA_START_TRANS);
+    for (int count = 0; count < pixsize; count++) {
+      this->data(0x00);
+    }
+    this->command(CMD_DTM2_DATA_START_TRANS2);
+    for (int count = 0; count < pixsize; count++) {
+      this->data(0xff);
+    }
+    this->command(CMD_DISPLAY_REFRESH);
+    delay(10);
+    this->wait_until_idle_();
   }
 }
 
@@ -878,7 +879,7 @@ void HOT GDEW0154M09::display() {
     this->data(this->buffer_[i]);
   }
   this->command(CMD_DISPLAY_REFRESH);
-  delay(10); // NOLINT
+  delay(10);
   this->wait_until_idle_();
   this->deep_sleep();
 }
@@ -887,7 +888,7 @@ void GDEW0154M09::deep_sleep() {
   // COMMAND DEEP SLEEP
   this->command(CMD_POF_POWER_OFF);
   this->wait_until_idle_();
-  delay(1000); // NOLINT
+  delay(1000);  // NOLINT
   this->command(CMD_DSLP_DEEP_SLEEP);
   this->data(DATA_DSLP_DEEP_SLEEP);
 }
