@@ -814,7 +814,7 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 #endif
 
 // Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) strncpy_P(_buf, (PGM_P) ((mode_s)), 15)
+#define PSTR_LOCAL(mode_s) strncpy_P(buf, (PGM_P) ((mode_s)), 15)
 
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
@@ -878,7 +878,7 @@ std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_conf
     const auto traits = obj->get_traits();
     int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
     int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
-    char _buf[16];
+    char buf[16];
 
     if (start_config == DETAIL_ALL) {
       JsonArray opt = root.createNestedArray("modes");
@@ -1004,7 +1004,7 @@ std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmContro
                                                 alarm_control_panel::AlarmControlPanelState value,
                                                 JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
-    char _buf[16];
+    char buf[16];
     set_json_icon_state_value(root, obj, "alarm-control-panel-" + obj->get_object_id(),
                               PSTR_LOCAL(alarm_control_panel_state_to_string(value)), value, start_config);
   });
