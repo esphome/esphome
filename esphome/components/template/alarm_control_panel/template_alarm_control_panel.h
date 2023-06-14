@@ -22,6 +22,11 @@ enum BinarySensorFlags : uint16_t {
 };
 #endif
 
+enum TemplateAlarmControlPanelRestoreMode {
+  ALARM_CONTROL_PANEL_ALWAYS_DISARMED,
+  ALARM_CONTROL_PANEL_RESTORE_DEFAULT_DISARMED,
+};
+
 class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel, public Component {
  public:
   TemplateAlarmControlPanel();
@@ -31,6 +36,7 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   uint32_t get_supported_features() const override;
   bool get_requires_code() const override;
   bool get_requires_code_to_arm() const override { return this->requires_code_to_arm_; }
+  void set_restore_mode(TemplateAlarmControlPanelRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
 
 #ifdef USE_BINARY_SENSOR
   /** Add a binary_sensor to the alarm_panel.
@@ -85,6 +91,8 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   // the map of binary sensors that the alarm_panel monitors with their modes
   std::map<binary_sensor::BinarySensor *, uint16_t> sensor_map_;
 #endif
+  TemplateAlarmControlPanelRestoreMode restore_mode_{};
+
   // the arming away delay
   uint32_t arming_away_time_;
   // the arming home delay

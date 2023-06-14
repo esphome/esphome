@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_ID,
     CONF_BINARY_SENSORS,
     CONF_INPUT,
+    CONF_RESTORE_MODE,
 )
 from .. import template_ns
 
@@ -32,6 +33,14 @@ BinarySensorFlags = {
 TemplateAlarmControlPanel = template_ns.class_(
     "TemplateAlarmControlPanel", alarm_control_panel.AlarmControlPanel, cg.Component
 )
+
+TemplateAlarmControlPanelRestoreMode = template_ns.enum(
+    "TemplateAlarmControlPanelRestoreMode"
+)
+RESTORE_MODES = {
+    "ALWAYS_DISARMED": TemplateAlarmControlPanelRestoreMode.ALARM_CONTROL_PANEL_ALWAYS_DISARMED,
+    "RESTORE_DEFAULT_DISARMED": TemplateAlarmControlPanelRestoreMode.ALARM_CONTROL_PANEL_RESTORE_DEFAULT_DISARMED,
+}
 
 
 def validate_config(config):
@@ -68,6 +77,9 @@ TEMPLATE_ALARM_CONTROL_PANEL_SCHEMA = (
             ): cv.positive_time_period_milliseconds,
             cv.Optional(CONF_BINARY_SENSORS): cv.ensure_list(
                 TEMPLATE_ALARM_CONTROL_PANEL_BINARY_SENSOR_SCHEMA
+            ),
+            cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_DISARMED"): cv.enum(
+                RESTORE_MODES, upper=True
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA)
@@ -107,3 +119,5 @@ async def to_code(config):
         cg.add(var.add_sensor(bs, flags))
 
     cg.add(var.set_supports_arm_home(supports_arm_home))
+
+    cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
