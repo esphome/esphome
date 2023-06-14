@@ -70,7 +70,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    *
    * @param js_url The url to the web server script.
    */
-  void set_js_url(const char *js_url);  
+  void set_js_url(const char *js_url);
 #endif
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
