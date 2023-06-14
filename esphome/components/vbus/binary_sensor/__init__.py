@@ -264,6 +264,41 @@ async def to_code(config):
             sens = await binary_sensor.new_binary_sensor(config[CONF_HQM])
             cg.add(var.set_hqm_bsensor(sens))
 
+    elif config[CONF_MODEL] == CONF_DELTASOL_BS_2009:
+        cg.add(var.set_command(0x0100))
+        cg.add(var.set_source(0x427B))
+        cg.add(var.set_dest(0x0010))
+        if CONF_SENSOR1_ERROR in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR1_ERROR])
+            cg.add(var.set_s1_error_bsensor(sens))
+        if CONF_SENSOR2_ERROR in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR2_ERROR])
+            cg.add(var.set_s2_error_bsensor(sens))
+        if CONF_SENSOR3_ERROR in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR3_ERROR])
+            cg.add(var.set_s3_error_bsensor(sens))
+        if CONF_SENSOR4_ERROR in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
+            cg.add(var.set_s4_error_bsensor(sens))
+        if CONF_COLLECTOR_MAX in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_COLLECTOR_MAX])
+            cg.add(var.set_collector_max_bsensor(sens))
+        if CONF_COLLECTOR_MIN in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_COLLECTOR_MIN])
+            cg.add(var.set_collector_min_bsensor(sens))
+        if CONF_COLLECTOR_FROST in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_COLLECTOR_FROST])
+            cg.add(var.set_collector_frost_bsensor(sens))
+        if CONF_TUBE_COLLECTOR in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_TUBE_COLLECTOR])
+            cg.add(var.set_tube_collector_bsensor(sens))
+        if CONF_RECOOLING in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_RECOOLING])
+            cg.add(var.set_recooling_bsensor(sens))
+        if CONF_HQM in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_HQM])
+            cg.add(var.set_hqm_bsensor(sens))
+
     elif config[CONF_MODEL] == CONF_DELTASOL_C:
         cg.add(var.set_command(0x0100))
         cg.add(var.set_source(0x4212))
