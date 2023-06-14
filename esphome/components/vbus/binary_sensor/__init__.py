@@ -18,12 +18,14 @@ from .. import (
     VBus,
     CONF_VBUS_ID,
     CONF_DELTASOL_BS_PLUS,
+    CONF_DELTASOL_BS_2009,
     CONF_DELTASOL_C,
     CONF_DELTASOL_CS2,
     CONF_DELTASOL_CS_PLUS,
 )
 
 DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusBSensor", cg.Component)
+DeltaSol_BS_2009 = vbus_ns.class_("DeltaSolBS2009BSensor", cg.Component)
 DeltaSol_C = vbus_ns.class_("DeltaSolCBSensor", cg.Component)
 DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2BSensor", cg.Component)
 DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusBSensor", cg.Component)
@@ -51,6 +53,46 @@ CONFIG_SCHEMA = cv.typed_schema(
                 cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
                 cv.Optional(CONF_RELAY1): binary_sensor.binary_sensor_schema(),
                 cv.Optional(CONF_RELAY2): binary_sensor.binary_sensor_schema(),
+                cv.Optional(CONF_SENSOR1_ERROR): binary_sensor.binary_sensor_schema(
+                    device_class=DEVICE_CLASS_PROBLEM,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_SENSOR2_ERROR): binary_sensor.binary_sensor_schema(
+                    device_class=DEVICE_CLASS_PROBLEM,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_SENSOR3_ERROR): binary_sensor.binary_sensor_schema(
+                    device_class=DEVICE_CLASS_PROBLEM,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_SENSOR4_ERROR): binary_sensor.binary_sensor_schema(
+                    device_class=DEVICE_CLASS_PROBLEM,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_COLLECTOR_MAX): binary_sensor.binary_sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_COLLECTOR_MIN): binary_sensor.binary_sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_COLLECTOR_FROST): binary_sensor.binary_sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_TUBE_COLLECTOR): binary_sensor.binary_sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_RECOOLING): binary_sensor.binary_sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_HQM): binary_sensor.binary_sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+            }
+        ),
+        CONF_DELTASOL_BS_2009: cv.COMPONENT_SCHEMA.extend(
+            {
+                cv.GenerateID(): cv.declare_id(DeltaSol_BS_2009),
+                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
                 cv.Optional(CONF_SENSOR1_ERROR): binary_sensor.binary_sensor_schema(
                     device_class=DEVICE_CLASS_PROBLEM,
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
