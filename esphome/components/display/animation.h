@@ -1,6 +1,8 @@
 #pragma once
 #include "image.h"
 
+#include "esphome/core/automation.h"
+
 namespace esphome {
 namespace display {
 
@@ -31,6 +33,34 @@ class Animation : public Image {
   uint32_t loop_end_frame_;
   int loop_count_;
   int loop_current_iteration_;
+};
+
+template<typename... Ts> class AnimationNextFrameAction : public Action<Ts...> {
+ public:
+  AnimationNextFrameAction(Animation *parent) : parent_(parent) {}
+  void play(Ts... x) override { this->parent_->next_frame(); }
+
+ protected:
+  Animation *parent_;
+};
+
+template<typename... Ts> class AnimationPrevFrameAction : public Action<Ts...> {
+ public:
+  AnimationPrevFrameAction(Animation *parent) : parent_(parent) {}
+  void play(Ts... x) override { this->parent_->prev_frame(); }
+
+ protected:
+  Animation *parent_;
+};
+
+template<typename... Ts> class AnimationSetFrameAction : public Action<Ts...> {
+ public:
+  AnimationSetFrameAction(Animation *parent) : parent_(parent) {}
+  TEMPLATABLE_VALUE(uint16_t, frame)
+  void play(Ts... x) override { this->parent_->set_frame(this->frame_.value(x...)); }
+
+ protected:
+  Animation *parent_;
 };
 
 }  // namespace display
