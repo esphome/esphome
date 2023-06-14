@@ -11,6 +11,8 @@ from esphome.const import (
 )
 from .. import template_ns
 
+CODEOWNERS = ["@grahambrown11"]
+
 CONF_CODES = "codes"
 CONF_BYPASS_ARMED_HOME = "bypass_armed_home"
 CONF_REQUIRES_CODE_TO_ARM = "requires_code_to_arm"
