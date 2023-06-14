@@ -15,6 +15,25 @@ static const char *const TAG = "display";
 const Color COLOR_OFF(0, 0, 0, 255);
 const Color COLOR_ON(255, 255, 255, 255);
 
+static int image_type_to_bpp(ImageType type) {
+  switch (type) {
+    case IMAGE_TYPE_BINARY:
+      return 1;
+    case IMAGE_TYPE_GRAYSCALE:
+      return 8;
+    case IMAGE_TYPE_RGB565:
+      return 16;
+    case IMAGE_TYPE_RGB24:
+      return 24;
+    case IMAGE_TYPE_RGBA:
+      return 32;
+    default:
+      return 0;
+  }
+}
+
+static int image_type_to_width_stride(int width, ImageType type) { return (width * image_type_to_bpp(type) + 7u) / 8u; }
+
 void Rect::expand(int16_t horizontal, int16_t vertical) {
   if (this->is_set() && (this->w >= (-2 * horizontal)) && (this->h >= (-2 * vertical))) {
     this->x = this->x - horizontal;
@@ -699,78 +718,9 @@ Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
 int Image::get_current_frame() const { return 0; }
 
-bool Animation::get_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return false;
-  const uint32_t width_8 = ((this->width_ + 7u) / 8u) * 8u;
-  const uint32_t frame_index = this->height_ * width_8 * this->current_frame_;
-  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
-    return false;
-  const uint32_t pos = x + y * width_8 + frame_index;
-  return progmem_read_byte(this->data_start_ + (pos / 8u)) & (0x80 >> (pos % 8u));
-}
-Color Animation::get_rgba_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return Color::BLACK;
-  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
-    return Color::BLACK;
-  const uint32_t pos = (x + y * this->width_ + frame_index) * 4;
-  return Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
-               progmem_read_byte(this->data_start_ + pos + 2), progmem_read_byte(this->data_start_ + pos + 3));
-}
-Color Animation::get_color_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return Color::BLACK;
-  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
-    return Color::BLACK;
-  const uint32_t pos = (x + y * this->width_ + frame_index) * 3;
-  Color color = Color(progmem_read_byte(this->data_start_ + pos + 0), progmem_read_byte(this->data_start_ + pos + 1),
-                      progmem_read_byte(this->data_start_ + pos + 2));
-  if (color.b == 1 && color.r == 0 && color.g == 0 && transparent_) {
-    // (0, 0, 1) has been defined as transparent color for non-alpha images.
-    // putting blue == 1 as a first condition for performance reasons (least likely value to short-cut the if)
-    color.w = 0;
-  } else {
-    color.w = 0xFF;
-  }
-  return color;
-}
-Color Animation::get_rgb565_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return Color::BLACK;
-  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
-    return Color::BLACK;
-  const uint32_t pos = (x + y * this->width_ + frame_index) * 2;
-  uint16_t rgb565 =
-      progmem_read_byte(this->data_start_ + pos + 0) << 8 | progmem_read_byte(this->data_start_ + pos + 1);
-  auto r = (rgb565 & 0xF800) >> 11;
-  auto g = (rgb565 & 0x07E0) >> 5;
-  auto b = rgb565 & 0x001F;
-  Color color = Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
-  if (rgb565 == 0x0020 && transparent_) {
-    // darkest green has been defined as transparent color for transparent RGB565 images.
-    color.w = 0;
-  } else {
-    color.w = 0xFF;
-  }
-  return color;
-}
-Color Animation::get_grayscale_pixel(int x, int y) const {
-  if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
-    return Color::BLACK;
-  const uint32_t frame_index = this->width_ * this->height_ * this->current_frame_;
-  if (frame_index >= (uint32_t) (this->width_ * this->height_ * this->animation_frame_count_))
-    return Color::BLACK;
-  const uint32_t pos = (x + y * this->width_ + frame_index);
-  const uint8_t gray = progmem_read_byte(this->data_start_ + pos);
-  uint8_t alpha = (gray == 1 && transparent_) ? 0 : 0xFF;
-  return Color(gray, gray, gray, alpha);
-}
 Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type)
     : Image(data_start, width, height, type),
+      animation_data_start_(data_start),
       current_frame_(0),
       animation_frame_count_(animation_frame_count),
       loop_start_frame_(0),
@@ -797,12 +747,16 @@ void Animation::next_frame() {
     this->loop_current_iteration_ = 1;
     this->current_frame_ = 0;
   }
+
+  this->update_data_start_();
 }
 void Animation::prev_frame() {
   this->current_frame_--;
   if (this->current_frame_ < 0) {
     this->current_frame_ = this->animation_frame_count_ - 1;
   }
+
+  this->update_data_start_();
 }
 
 void Animation::set_frame(int frame) {
@@ -815,6 +769,13 @@ void Animation::set_frame(int frame) {
       this->current_frame_ = this->animation_frame_count_ - abs_frame;
     }
   }
+
+  this->update_data_start_();
+}
+
+void Animation::update_data_start_() {
+  const uint32_t image_size = image_type_to_width_stride(this->width_, this->type_) * this->height_;
+  this->data_start_ = this->animation_data_start_ + image_size * this->current_frame_;
 }
 
 DisplayPage::DisplayPage(display_writer_t writer) : writer_(std::move(writer)) {}
