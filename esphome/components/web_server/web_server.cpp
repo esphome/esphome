@@ -326,7 +326,6 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML, ESPHOME_WEBSERVER_GZIPPED_INDEX_HTML_SIZE);
   // All content is controlled and created by user - so allowing all origins is fine here.
-  response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
 #endif
@@ -335,7 +334,6 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_CSS_INCLUDE
 void WebServer::handle_css_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/css", ESPHOME_WEBSERVER_GZIPPED_CSS_INCLUDE, ESPHOME_WEBSERVER_GZIPPED_CSS_INCLUDE_SIZE);
-  response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
 #endif
@@ -343,7 +341,6 @@ void WebServer::handle_css_request(AsyncWebServerRequest *request) {
 #ifdef USE_WEBSERVER_JS_INCLUDE
 void WebServer::handle_js_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response = request->beginResponse_P(200, "text/javascript", ESPHOME_WEBSERVER_GZIPPED_JS_INCLUDE, ESPHOME_WEBSERVER_GZIPPED_JS_INCLUDE_SIZE);
-  response->addHeader("Content-Encoding", "gzip");
   request->send(response);
 }
 #endif
