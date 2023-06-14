@@ -56,12 +56,7 @@ void DeltaSolBS2009BSensor::dump_config() {
   LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
   LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
   LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Collector Max", this->collector_max_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Collector Min", this->collector_min_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Collector Frost", this->collector_frost_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Tube Collector", this->tube_collector_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Recooling", this->recooling_bsensor_);
-  LOG_BINARY_SENSOR("  ", "Option Heat Quantity Measurement", this->hqm_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Frost Protection Active", this->frost_protection_active_bsensor_);
 }
 
 void DeltaSolBS2009BSensor::handle_message(std::vector<uint8_t> &message) {
@@ -73,18 +68,8 @@ void DeltaSolBS2009BSensor::handle_message(std::vector<uint8_t> &message) {
     this->s3_error_bsensor_->publish_state(message[20] & 4);
   if (this->s4_error_bsensor_ != nullptr)
     this->s4_error_bsensor_->publish_state(message[20] & 8);
-  if (this->collector_max_bsensor_ != nullptr)
-    this->collector_max_bsensor_->publish_state(message[24] & 1);
-  if (this->collector_min_bsensor_ != nullptr)
-    this->collector_min_bsensor_->publish_state(message[24] & 2);
-  if (this->collector_frost_bsensor_ != nullptr)
-    this->collector_frost_bsensor_->publish_state(message[24] & 4);
-  if (this->tube_collector_bsensor_ != nullptr)
-    this->tube_collector_bsensor_->publish_state(message[24] & 8);
-  if (this->recooling_bsensor_ != nullptr)
-    this->recooling_bsensor_->publish_state(message[24] & 0x10);
-  if (this->hqm_bsensor_ != nullptr)
-    this->hqm_bsensor_->publish_state(message[24] & 0x20);
+  if (this->frost_protection_active_bsensor_ != nullptr)
+    this->frost_protection_active_bsensor_->publish_state(message[25] & 1);
 }
 
 void DeltaSolCBSensor::dump_config() {

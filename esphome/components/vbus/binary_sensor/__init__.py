@@ -44,6 +44,7 @@ CONF_COLLECTOR_FROST = "collector_frost"
 CONF_TUBE_COLLECTOR = "tube_collector"
 CONF_RECOOLING = "recooling"
 CONF_HQM = "hqm"
+CONF_FROST_PROTECTION_ACTIVE = "frost_protection_active"
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
@@ -109,22 +110,7 @@ CONFIG_SCHEMA = cv.typed_schema(
                     device_class=DEVICE_CLASS_PROBLEM,
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 ),
-                cv.Optional(CONF_COLLECTOR_MAX): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_COLLECTOR_MIN): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_COLLECTOR_FROST): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_TUBE_COLLECTOR): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_RECOOLING): binary_sensor.binary_sensor_schema(
-                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
-                ),
-                cv.Optional(CONF_HQM): binary_sensor.binary_sensor_schema(
+                cv.Optional(CONF_FROST_PROTECTION_ACTIVE): binary_sensor.binary_sensor_schema(
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 ),
             }
@@ -280,24 +266,9 @@ async def to_code(config):
         if CONF_SENSOR4_ERROR in config:
             sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
             cg.add(var.set_s4_error_bsensor(sens))
-        if CONF_COLLECTOR_MAX in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_COLLECTOR_MAX])
-            cg.add(var.set_collector_max_bsensor(sens))
-        if CONF_COLLECTOR_MIN in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_COLLECTOR_MIN])
-            cg.add(var.set_collector_min_bsensor(sens))
-        if CONF_COLLECTOR_FROST in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_COLLECTOR_FROST])
-            cg.add(var.set_collector_frost_bsensor(sens))
-        if CONF_TUBE_COLLECTOR in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_TUBE_COLLECTOR])
-            cg.add(var.set_tube_collector_bsensor(sens))
-        if CONF_RECOOLING in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_RECOOLING])
-            cg.add(var.set_recooling_bsensor(sens))
-        if CONF_HQM in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_HQM])
-            cg.add(var.set_hqm_bsensor(sens))
+        if CONF_FROST_PROTECTION_ACTIVE in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_FROST_PROTECTION_ACTIVE])
+            cg.add(var.set_frost_protection_active_bsensor(sens))
 
     elif config[CONF_MODEL] == CONF_DELTASOL_C:
         cg.add(var.set_command(0x0100))
