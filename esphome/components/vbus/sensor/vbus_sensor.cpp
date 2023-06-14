@@ -90,7 +90,7 @@ void DeltaSolBS2009Sensor::handle_message(std::vector<uint8_t> &message) {
   if (this->operating_hours2_sensor_ != nullptr)
     this->operating_hours2_sensor_->publish_state(get_u16(message, 18));
   if (this->heat_quantity_sensor_ != nullptr) {
-    this->heat_quantity_sensor_->publish_state(get_u16(message, 28) + get_u16(message, 30) * 1000;
+    this->heat_quantity_sensor_->publish_state(get_u16(message, 28) + get_u16(message, 30) * 1000);
   }
   if (this->time_sensor_ != nullptr)
     this->time_sensor_->publish_state(get_u16(message, 22));
