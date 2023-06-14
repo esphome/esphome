@@ -14,6 +14,7 @@
 #include <esp_wireguard.h>
 #include <wireguard.h>  // REKEY_AFTER_TIME, from esp_wireguard library
 
+// includes for resume/suspend wdt
 #if defined(USE_ESP_IDF)
 #include <esp_task_wdt.h>
 #if ESP_IDF_VERSION_MAJOR >= 5
@@ -91,26 +92,27 @@ void Wireguard::update() {
 
 void Wireguard::dump_config() {
   ESP_LOGCONFIG(TAG, "WireGuard:");
-  ESP_LOGCONFIG(TAG, "  address: %s", this->address_.c_str());
-  ESP_LOGCONFIG(TAG, "  netmask: %s", this->netmask_.c_str());
-  ESP_LOGCONFIG(TAG, "  private key: %s[...]=", this->private_key_.substr(0, 5).c_str());
-  ESP_LOGCONFIG(TAG, "  peer endpoint: %s", this->peer_endpoint_.c_str());
-  ESP_LOGCONFIG(TAG, "  peer port: %d", this->peer_port_);
-  ESP_LOGCONFIG(TAG, "  peer public key: %s", this->peer_public_key_.c_str());
-  ESP_LOGCONFIG(TAG, "  peer preshared key: %s%s",
+  ESP_LOGCONFIG(TAG, "  Address: %s", this->address_.c_str());
+  ESP_LOGCONFIG(TAG, "  Netmask: %s", this->netmask_.c_str());
+  ESP_LOGCONFIG(TAG, "  Private Key: %s[...]=", this->private_key_.substr(0, 5).c_str());
+  ESP_LOGCONFIG(TAG, "  Peer Endpoint: %s", this->peer_endpoint_.c_str());
+  ESP_LOGCONFIG(TAG, "  Peer Port: %d", this->peer_port_);
+  ESP_LOGCONFIG(TAG, "  Peer Public Key: %s", this->peer_public_key_.c_str());
+  ESP_LOGCONFIG(TAG, "  Peer Pre-shared Key: %s%s",
                 (this->preshared_key_.length() > 0 ? this->preshared_key_.substr(0, 5).c_str() : "NOT IN USE"),
                 (this->preshared_key_.length() > 0 ? "[...]=" : ""));
-  ESP_LOGCONFIG(TAG, "  peer allowed ips:");
+  ESP_LOGCONFIG(TAG, "  Peer Allowed IPs:");
   for (auto &allowed_ip : this->allowed_ips_) {
     ESP_LOGCONFIG(TAG, "    - %s/%s", std::get<0>(allowed_ip).c_str(), std::get<1>(allowed_ip).c_str());
   }
-  ESP_LOGCONFIG(TAG, "  peer persistent keepalive: %d%s", this->keepalive_,
+  ESP_LOGCONFIG(TAG, "  Peer Persistent Keepalive: %d%s", this->keepalive_,
                 (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
-  ESP_LOGCONFIG(TAG, "  reboot timeout: %d%s", (this->reboot_timeout_ / 1000),
-                (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
 
   // be careful: if proceed_allowed_ is true, require connection is false
-  ESP_LOGCONFIG(TAG, "  require connection to proceed: %s", (this->proceed_allowed_ ? "false" : "true"));
+  ESP_LOGCONFIG(TAG, "  Require Connection to Proceed: %s", (this->proceed_allowed_ ? "NO" : "YES"));
+  ESP_LOGCONFIG(TAG, "  Reboot Timeout: %d%s", (this->reboot_timeout_ / 1000),
+                (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
+  LOG_UPDATE_INTERVAL(this);
 }
 
 void Wireguard::on_shutdown() {
