@@ -959,8 +959,7 @@ void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRe
   alarm_control_panel::AlarmControlPanel *a_alarm_control_panel = App.get_alarm_control_panel_by_key(msg.key);
   if (a_alarm_control_panel == nullptr)
     return;
-  ESP_LOGD(TAG, "got alarm control panel command for %s (key:%" PRIu32 ")",
-           a_alarm_control_panel->get_object_id().c_str(), msg.key);
+
   auto call = a_alarm_control_panel->make_call();
   switch (msg.command) {
     case enums::ALARM_CONTROL_PANEL_DISARM:
