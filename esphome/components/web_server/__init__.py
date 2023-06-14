@@ -18,7 +18,6 @@ from esphome.const import (
     CONF_LOCAL,
 )
 from esphome.core import CORE, coroutine_with_priority
-import gzip
 
 AUTO_LOAD = ["json", "web_server_base"]
 
@@ -103,11 +102,13 @@ def build_index_html(config) -> str:
 
 def add_resource_as_progmem(resource_name: str, content: str) -> None:
     """Add a resource to progmem."""
-    content_gzipped = gzip.compress(content.encode("utf-8"))
-    content_gzipped_size = len(content_gzipped)
-    bytes_as_int = ", ".join(str(x) for x in content_gzipped)
-    uint8_t = f"const uint8_t ESPHOME_WEBSERVER_GZIPPED_{resource_name}[{content_gzipped_size}] PROGMEM = {{{bytes_as_int}}}"
-    size_t = f"const size_t ESPHOME_WEBSERVER_GZIPPED_{resource_name}_SIZE = {content_gzipped_size}"
+    content_encoded = content.encode("utf-8")
+    content_encoded_size = len(content_encoded)
+    bytes_as_int = ", ".join(str(x) for x in content_encoded)
+    uint8_t = f"const uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
+    size_t = (
+        f"const size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {content_encoded_size}"
+    )
     cg.add_global(cg.RawExpression(uint8_t))
     cg.add_global(cg.RawExpression(size_t))
 
