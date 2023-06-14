@@ -69,6 +69,7 @@ class DeltaSolBS2009BSensor : public VBusListener, public Component {
 
   void handle_message(std::vector<uint8_t> &message) override;
 };
+
 class DeltaSolCBSensor : public VBusListener, public Component {
  public:
   void dump_config() override;
