@@ -12,7 +12,6 @@
 #include <esp_err.h>
 
 #include <esp_wireguard.h>
-#include <wireguard.h>  // REKEY_AFTER_TIME, from esp_wireguard library
 
 // includes for resume/suspend wdt
 #if defined(USE_ESP_IDF)
@@ -61,11 +60,12 @@ void Wireguard::setup() {
 }
 
 void Wireguard::update() {
+  bool peer_up = this->is_peer_up();
   time_t lhs = this->get_latest_handshake();
   std::string latest_handshake =
       (lhs > 0) ? ESPTime::from_epoch_local(lhs).strftime("%Y-%m-%d %H:%M:%S %Z") : "timestamp not available";
 
-  if (this->is_peer_up()) {
+  if (peer_up) {
     if (this->wg_peer_offline_time_ != 0) {
       ESP_LOGI(TAG, LOGMSG_PEER_STATUS, LOGMSG_ONLINE, latest_handshake.c_str());
       this->wg_peer_offline_time_ = 0;
@@ -86,6 +86,17 @@ void Wireguard::update() {
         ESP_LOGE(TAG, "WireGuard remote peer is unreachable, rebooting...");
         App.reboot();
       }
+    }
+  }
+
+  if (this->status_sensor_ != nullptr) {
+    this->status_sensor_->publish_state(peer_up);
+  }
+
+  if (this->handshake_sensor_ != nullptr) {
+    if (lhs > this->latest_saved_handshake_) {
+      this->latest_saved_handshake_ = lhs;
+      this->handshake_sensor_->publish_state((float) lhs);
     }
   }
 }
@@ -127,20 +138,7 @@ bool Wireguard::can_proceed() { return (this->proceed_allowed_ || this->is_peer_
 
 bool Wireguard::is_peer_up() const {
   return (this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) &&
-         (esp_wireguardif_peer_is_up(&(this->wg_ctx_)) == ESP_OK) &&
-         (
-             /*
-              * When keepalive is disabled we can rely only on the underlying
-              * library to check if the remote peer is up.
-              */
-             (this->keepalive_ == 0) ||
-             /*
-              * Otherwise we use the value 2*max(keepalive,REKEY_AFTER_TIME) as
-              * the upper limit to consider a peer online (this value has been
-              * arbitrarily chosen by authors of this component).
-              */
-             ((this->srctime_->utcnow().timestamp - this->get_latest_handshake()) <
-              2 * (this->keepalive_ > REKEY_AFTER_TIME ? this->keepalive_ : REKEY_AFTER_TIME)));
+         (esp_wireguardif_peer_is_up(&(this->wg_ctx_)) == ESP_OK);
 }
 
 time_t Wireguard::get_latest_handshake() const {
@@ -166,6 +164,8 @@ void Wireguard::add_allowed_ip(const std::string &ip, const std::string &netmask
 void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
 void Wireguard::set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock *srctime) { this->srctime_ = srctime; }
+void Wireguard::set_status_sensor(binary_sensor::BinarySensor *sensor) { this->status_sensor_ = sensor; }
+void Wireguard::set_handshake_sensor(sensor::Sensor *sensor) { this->handshake_sensor_ = sensor; }
 
 void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
 

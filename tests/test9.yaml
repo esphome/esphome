@@ -38,13 +38,13 @@ wireguard:
     - 192.168.4.0/24
 
 binary_sensor:
-  - platform: wireguard_status
-    name: 'WireGuard Status'
-    update_interval: 11s
+  - platform: wireguard
+    status:
+      name: 'WireGuard Status'
 
 sensor:
-  - platform: wireguard_handshake
-    name: 'WireGuard Latest Handshake'
-    update_interval: 34s
+  - platform: wireguard
+    latest_handshake:
+      name: 'WireGuard Latest Handshake'
 
 # vim: ts=2 sw=2 et
