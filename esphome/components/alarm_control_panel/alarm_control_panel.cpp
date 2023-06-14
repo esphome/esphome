@@ -11,7 +11,7 @@ namespace alarm_control_panel {
 
 static const char *const TAG = "alarm_control_panel";
 
-AlarmControlPanelCall AlarmControlPanel::make_call() { return {this}; }
+AlarmControlPanelCall AlarmControlPanel::make_call() { return AlarmControlPanelCall(this); }
 
 bool AlarmControlPanel::is_state_armed(AlarmControlPanelState state) {
   switch (state) {
