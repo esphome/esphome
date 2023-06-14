@@ -61,14 +61,14 @@ ALARM_CONTROL_PANEL_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
 
 ALARM_CONTROL_PANEL_ACTION_SCHEMA = maybe_simple_id(
     {
-        cv.Required(CONF_ID): cv.use_id(AlarmControlPanel),
+        cv.GenerateID(): cv.use_id(AlarmControlPanel),
         cv.Optional(CONF_CODE): cv.templatable(cv.string),
     }
 )
 
 ALARM_CONTROL_PANEL_CONDITION_SCHEMA = maybe_simple_id(
     {
-        cv.Required(CONF_ID): cv.use_id(AlarmControlPanel),
+        cv.GenerateID(): cv.use_id(AlarmControlPanel),
     }
 )
 
