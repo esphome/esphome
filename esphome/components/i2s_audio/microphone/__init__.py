@@ -20,6 +20,7 @@ DEPENDENCIES = ["i2s_audio"]
 CONF_ADC_PIN = "adc_pin"
 CONF_ADC_TYPE = "adc_type"
 CONF_PDM = "pdm"
+CONF_BITS_PER_SAMPLE = "bits_per_sample"
 
 I2SAudioMicrophone = i2s_audio_ns.class_(
     "I2SAudioMicrophone", I2SAudioIn, microphone.Microphone, cg.Component
@@ -30,9 +31,16 @@ CHANNELS = {
     "left": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_LEFT,
     "right": i2s_channel_fmt_t.I2S_CHANNEL_FMT_ONLY_RIGHT,
 }
+i2s_bits_per_sample_t = cg.global_ns.enum("i2s_bits_per_sample_t")
+BITS_PER_SAMPLE = {
+    16: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_16BIT,
+    32: i2s_bits_per_sample_t.I2S_BITS_PER_SAMPLE_32BIT,
+}
 
 INTERNAL_ADC_VARIANTS = [esp32.const.VARIANT_ESP32]
 PDM_VARIANTS = [esp32.const.VARIANT_ESP32, esp32.const.VARIANT_ESP32S3]
+
+_validate_bits = cv.float_with_unit("bits", "bit")
 
 
 def validate_esp32_variant(config):
@@ -54,6 +62,9 @@ BASE_SCHEMA = microphone.MICROPHONE_SCHEMA.extend(
         cv.GenerateID(): cv.declare_id(I2SAudioMicrophone),
         cv.GenerateID(CONF_I2S_AUDIO_ID): cv.use_id(I2SAudioComponent),
         cv.Optional(CONF_CHANNEL, default="right"): cv.enum(CHANNELS),
+        cv.Optional(CONF_BITS_PER_SAMPLE, default="32bit"): cv.All(
+            _validate_bits, cv.enum(BITS_PER_SAMPLE)
+        ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
 
@@ -93,6 +104,7 @@ async def to_code(config):
         cg.add(var.set_din_pin(config[CONF_I2S_DIN_PIN]))
         cg.add(var.set_pdm(config[CONF_PDM]))
 
-    cg.add(var.set_channel(CHANNELS[config[CONF_CHANNEL]]))
+    cg.add(var.set_channel(config[CONF_CHANNEL]))
+    cg.add(var.set_bits_per_sample(config[CONF_BITS_PER_SAMPLE]))
 
     await microphone.register_microphone(var, config)
