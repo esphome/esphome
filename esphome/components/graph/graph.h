@@ -18,7 +18,7 @@ namespace graph {
 
 class Graph;
 
-const Color COLOR_ON(255, 255, 255, 255);
+extern const Color COLOR_ON;
 
 /// Bit pattern defines the line-type
 enum LineType {

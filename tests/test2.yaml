@@ -394,8 +394,7 @@ sensor:
     ethanol:
       name: MICS-4514 C2H5OH
     ammonia:
-      name: MICS-4514 NH3
-
+      name: MICS-4514 NH
 time:
   - platform: homeassistant
     on_time:
@@ -694,6 +693,13 @@ image:
   - id: another_alert_icon
     file: mdi:alert-outline
     type: BINARY
+
+graph:
+  - id: my_graph
+    sensor: ha_hello_world_temperature
+    duration: 1h
+    width: 100
+    height: 100
 
 cap1188:
   id: cap1188_component
