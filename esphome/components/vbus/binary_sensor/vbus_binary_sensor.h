@@ -46,7 +46,9 @@ class DeltaSolBS2009BSensor : public VBusListener, public Component {
   void set_s2_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s2_error_bsensor_ = bsensor; }
   void set_s3_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s3_error_bsensor_ = bsensor; }
   void set_s4_error_bsensor(binary_sensor::BinarySensor *bsensor) { this->s4_error_bsensor_ = bsensor; }
-  void set_frost_protection_active_bsensor(binary_sensor::BinarySensor *bsensor) { this->frost_protection_active_bsensor_ = bsensor; }
+  void set_frost_protection_active_bsensor(binary_sensor::BinarySensor *bsensor) {
+    this->frost_protection_active_bsensor_ = bsensor;
+  }
 
  protected:
   binary_sensor::BinarySensor *s1_error_bsensor_{nullptr};

@@ -110,7 +110,9 @@ CONFIG_SCHEMA = cv.typed_schema(
                     device_class=DEVICE_CLASS_PROBLEM,
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 ),
-                cv.Optional(CONF_FROST_PROTECTION_ACTIVE): binary_sensor.binary_sensor_schema(
+                cv.Optional(
+                    CONF_FROST_PROTECTION_ACTIVE
+                ): binary_sensor.binary_sensor_schema(
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 ),
             }
@@ -267,7 +269,9 @@ async def to_code(config):
             sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
             cg.add(var.set_s4_error_bsensor(sens))
         if CONF_FROST_PROTECTION_ACTIVE in config:
-            sens = await binary_sensor.new_binary_sensor(config[CONF_FROST_PROTECTION_ACTIVE])
+            sens = await binary_sensor.new_binary_sensor(
+                config[CONF_FROST_PROTECTION_ACTIVE]
+            )
             cg.add(var.set_frost_protection_active_bsensor(sens))
 
     elif config[CONF_MODEL] == CONF_DELTASOL_C:
