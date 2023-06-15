@@ -8,6 +8,8 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/time/real_time_clock.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "esphome/components/sensor/sensor.h"
 
 #include <esp_wireguard.h>
 
@@ -37,6 +39,8 @@ class Wireguard : public PollingComponent {
   void set_keepalive(uint16_t seconds);
   void set_reboot_timeout(uint32_t seconds);
   void set_srctime(time::RealTimeClock *srctime);
+  void set_status_sensor(binary_sensor::BinarySensor *sensor);
+  void set_handshake_sensor(sensor::Sensor *sensor);
 
   /// Block the setup step until peer is connected.
   void disable_auto_proceed();
@@ -59,6 +63,8 @@ class Wireguard : public PollingComponent {
   uint32_t reboot_timeout_;
 
   time::RealTimeClock *srctime_;
+  binary_sensor::BinarySensor *status_sensor_ = nullptr;
+  sensor::Sensor *handshake_sensor_ = nullptr;
 
   /// Set to false to block the setup step until peer is connected.
   bool proceed_allowed_ = true;
@@ -71,6 +77,13 @@ class Wireguard : public PollingComponent {
 
   /// The last time the remote peer become offline.
   uint32_t wg_peer_offline_time_ = 0;
+
+  /** \brief The latest saved handshake.
+   *
+   * This is used to publish an update to `this->handshake_sensor_` only
+   * when a new handshake is reported by `esp_wireguard_latest_handshake`.
+   */
+  time_t latest_saved_handshake_ = 0;
 
   void start_connection_();
 };
