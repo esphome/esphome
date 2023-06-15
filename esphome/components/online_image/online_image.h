@@ -36,11 +36,7 @@ class OnlineImage : public PollingComponent, public display::Image {
   OnlineImage(const char *url, int width, int height, ImageFormat format, display::ImageType type,
               uint32_t buffer_size);
 
-  bool get_pixel(int x, int y) const override;
-  Color get_rgba_pixel(int x, int y) const override;
-  Color get_color_pixel(int x, int y) const override;
-  Color get_rgb565_pixel(int x, int y) const override;
-  Color get_grayscale_pixel(int x, int y) const override;
+  void draw(int x, int y, display::DisplayBuffer *display, Color color_on, Color color_off) override;
 
   void update() override;
 
@@ -58,6 +54,12 @@ class OnlineImage : public PollingComponent, public display::Image {
   void loop() override;
 
  protected:
+  bool get_binary_pixel_(int x, int y) const;
+  Color get_rgba_pixel_(int x, int y) const;
+  Color get_color_pixel_(int x, int y) const;
+  Color get_rgb565_pixel_(int x, int y) const;
+  Color get_grayscale_pixel_(int x, int y) const;
+
   using Allocator = ExternalRAMAllocator<uint8_t>;
   Allocator allocator_{Allocator::Flags::ALLOW_FAILURE};
 
