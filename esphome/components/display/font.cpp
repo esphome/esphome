@@ -8,25 +8,23 @@ namespace display {
 
 static const char *const TAG = "display";
 
-bool Glyph::get_pixel(int x, int y) const {
-  const int x_data = x - this->glyph_data_->offset_x;
-  const int y_data = y - this->glyph_data_->offset_y;
-  if (x_data < 0 || x_data >= this->glyph_data_->width || y_data < 0 || y_data >= this->glyph_data_->height)
-    return false;
-  const uint32_t width_8 = ((this->glyph_data_->width + 7u) / 8u) * 8u;
-  const uint32_t pos = x_data + y_data * width_8;
-  return progmem_read_byte(this->glyph_data_->data + (pos / 8u)) & (0x80 >> (pos % 8u));
-}
 void Glyph::draw(int x_at, int y_start, DisplayBuffer *display, Color color) const {
   int scan_x1, scan_y1, scan_width, scan_height;
   this->scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
 
-  const int glyph_x_max = scan_x1 + scan_width;
-  const int glyph_y_max = scan_y1 + scan_height;
-  for (int glyph_x = scan_x1; glyph_x < glyph_x_max; glyph_x++) {
-    for (int glyph_y = scan_y1; glyph_y < glyph_y_max; glyph_y++) {
-      if (this->get_pixel(glyph_x, glyph_y)) {
-        display->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
+  const unsigned char *data = this->glyph_data_->data;
+  const int max_x = x_at + scan_x1 + scan_width;
+  const int max_y = y_start + scan_y1 + scan_height;
+
+  for (int glyph_y = y_start + scan_y1; glyph_y < max_y; glyph_y++) {
+    for (int glyph_x = x_at + scan_x1; glyph_x < max_x; data++, glyph_x += 8) {
+      uint8_t pixel_data = progmem_read_byte(data);
+      const int pixel_max_x = std::min(max_x, glyph_x + 8);
+
+      for (int pixel_x = glyph_x; pixel_x < pixel_max_x && pixel_data; pixel_x++, pixel_data <<= 1) {
+        if (pixel_data & 0x80) {
+          display->draw_pixel_at(pixel_x, glyph_y, color);
+        }
       }
     }
   }
