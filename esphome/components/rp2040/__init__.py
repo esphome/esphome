@@ -157,7 +157,6 @@ async def to_code(config):
         "platform_packages",
         [
             f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}",
-            "earlephilhower/tool-pioasm-rp2040-earlephilhower",
         ],
     )
 
