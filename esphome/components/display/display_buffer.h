@@ -16,10 +16,6 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
-#include "animation.h"
-#include "font.h"
-#include "image.h"
-
 namespace esphome {
 namespace display {
 
@@ -175,6 +171,24 @@ using display_writer_t = std::function<void(DisplayBuffer &)>;
     ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
   }
 
+/// Turn the pixel OFF.
+extern const Color COLOR_OFF;
+/// Turn the pixel ON.
+extern const Color COLOR_ON;
+
+class BaseImage {
+ public:
+  virtual void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) = 0;
+  virtual int get_width() const = 0;
+  virtual int get_height() const = 0;
+};
+
+class BaseFont {
+ public:
+  virtual void print(int x, int y, DisplayBuffer *display, Color color, const char *text) = 0;
+  virtual void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) = 0;
+};
+
 class DisplayBuffer {
  public:
   /// Fill the entire screen with the given color.
@@ -221,7 +235,7 @@ class DisplayBuffer {
    * @param align The alignment of the text.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, Color color, TextAlign align, const char *text);
+  void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -231,7 +245,7 @@ class DisplayBuffer {
    * @param color The color to draw the text with.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, Color color, const char *text);
+  void print(int x, int y, BaseFont *font, Color color, const char *text);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -241,7 +255,7 @@ class DisplayBuffer {
    * @param align The alignment of the text.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, TextAlign align, const char *text);
+  void print(int x, int y, BaseFont *font, TextAlign align, const char *text);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -250,7 +264,7 @@ class DisplayBuffer {
    * @param font The font to draw the text with.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, const char *text);
+  void print(int x, int y, BaseFont *font, const char *text);
 
   /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
@@ -262,7 +276,7 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, Font *font, Color color, TextAlign align, const char *format, ...)
+  void printf(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ...)
       __attribute__((format(printf, 7, 8)));
 
   /** Evaluate the printf-format `format` and print the result with the top left at [x,y] with `font`.
@@ -274,7 +288,7 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, Font *font, Color color, const char *format, ...) __attribute__((format(printf, 6, 7)));
+  void printf(int x, int y, BaseFont *font, Color color, const char *format, ...) __attribute__((format(printf, 6, 7)));
 
   /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
@@ -285,7 +299,8 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, Font *font, TextAlign align, const char *format, ...) __attribute__((format(printf, 6, 7)));
+  void printf(int x, int y, BaseFont *font, TextAlign align, const char *format, ...)
+      __attribute__((format(printf, 6, 7)));
 
   /** Evaluate the printf-format `format` and print the result with the top left at [x,y] with `font`.
    *
@@ -295,7 +310,7 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, Font *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
+  void printf(int x, int y, BaseFont *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
 
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
@@ -307,7 +322,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, ESPTime time)
+  void strftime(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ESPTime time)
       __attribute__((format(strftime, 7, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -319,7 +334,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, Color color, const char *format, ESPTime time)
+  void strftime(int x, int y, BaseFont *font, Color color, const char *format, ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
@@ -331,7 +346,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, TextAlign align, const char *format, ESPTime time)
+  void strftime(int x, int y, BaseFont *font, TextAlign align, const char *format, ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -342,7 +357,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, const char *format, ESPTime time) __attribute__((format(strftime, 5, 0)));
+  void strftime(int x, int y, BaseFont *font, const char *format, ESPTime time) __attribute__((format(strftime, 5, 0)));
 
   /** Draw the `image` with the top-left corner at [x,y] to the screen.
    *
@@ -412,7 +427,7 @@ class DisplayBuffer {
    * @param width A pointer to store the returned text width in.
    * @param height A pointer to store the returned text height in.
    */
-  void get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1, int *width,
+  void get_text_bounds(int x, int y, const char *text, BaseFont *font, TextAlign align, int *x1, int *y1, int *width,
                        int *height);
 
   /// Internal method to set the display writer lambda.
@@ -487,7 +502,7 @@ class DisplayBuffer {
   bool is_clipping() const { return !this->clipping_rectangle_.empty(); }
 
  protected:
-  void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
+  void vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg);
 
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
 

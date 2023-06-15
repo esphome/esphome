@@ -1,5 +1,6 @@
 #pragma once
 #include "esphome/core/color.h"
+#include "display_buffer.h"
 
 namespace esphome {
 namespace display {
@@ -29,20 +30,6 @@ inline int image_type_to_bpp(ImageType type) {
 }
 
 inline int image_type_to_width_stride(int width, ImageType type) { return (width * image_type_to_bpp(type) + 7u) / 8u; }
-
-/// Turn the pixel OFF.
-extern const Color COLOR_OFF;
-/// Turn the pixel ON.
-extern const Color COLOR_ON;
-
-class DisplayBuffer;
-
-class BaseImage {
- public:
-  virtual void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) = 0;
-  virtual int get_width() const = 0;
-  virtual int get_height() const = 0;
-};
 
 class Image : public BaseImage {
  public:
