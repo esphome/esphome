@@ -30,6 +30,7 @@ from esphome.const import (
     CONF_MAGNITUDE,
     CONF_WAND_ID,
     CONF_LEVEL,
+    CONF_SPEED,
 )
 from esphome.core import coroutine
 from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
@@ -1545,3 +1546,56 @@ async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
     cg.add(var.set_data(config[CONF_DATA]))
+
+
+# VirtualWire
+VirtualWireData, VirtualWireBinarySensor, VirtualWireTrigger, VirtualWireAction, VirtualWireDumper = declare_protocol("VirtualWire")
+
+VIRTUALWIRE_TRANSMITTER_SCHEMA = cv.Schema(
+    {
+    	cv.Optional(CONF_SPEED, default=2000): cv.int_range(min=300, max=65535),
+        cv.Required(CONF_DATA): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=1, max=77),
+        ),
+    }
+)
+
+VIRTUALWIRE_RECEIVER_SCHEMA = cv.Schema(
+    {
+    	cv.Optional(CONF_SPEED, default=0): cv.Any(cv.int_range(min=300, max=65535), cv.int_range(0, 0)),
+        cv.Required(CONF_DATA): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=1, max=77),
+        ),
+    }
+)
+
+@register_binary_sensor("virtualwire", VirtualWireBinarySensor, VIRTUALWIRE_RECEIVER_SCHEMA)
+def virtualwire_binary_sensor(var, config):
+    cg.add(var.set_speed(config[CONF_SPEED]))
+    cg.add(var.set_data(config[CONF_DATA]))
+    cg.add(var.finalize())
+
+
+@register_trigger("virtualwire", VirtualWireTrigger, VirtualWireData)
+def virtualwire_trigger(var, config):
+    pass
+
+
+@register_dumper("virtualwire", VirtualWireDumper)
+def virtualwire_dumper(var, config):
+    pass
+
+
+@register_action("virtualwire", VirtualWireAction, VIRTUALWIRE_TRANSMITTER_SCHEMA)
+async def virtualwire_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_SPEED], args, cg.uint16)
+    cg.add(var.set_speed(template_))
+    
+    data_ = config[CONF_DATA]
+    if cg.is_template(data_):
+        template_ = await cg.templatable(data_, args, cg.std_vector.template(cg.uint8))
+        cg.add(var.set_data_template(template_))
+    else:
+        cg.add(var.set_data_static(data_))
