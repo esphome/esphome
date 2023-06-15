@@ -1,6 +1,7 @@
 #pragma once
 
 #include "esphome/core/datatypes.h"
+#include "display_buffer.h"
 
 namespace esphome {
 namespace display {
@@ -23,6 +24,8 @@ class Glyph {
 
   bool get_pixel(int x, int y) const;
 
+  void draw(int x, int y, DisplayBuffer *display, Color color) const;
+
   const char *get_char() const;
 
   bool compare_to(const char *str) const;
@@ -33,12 +36,11 @@ class Glyph {
 
  protected:
   friend Font;
-  friend DisplayBuffer;
 
   const GlyphData *glyph_data_;
 };
 
-class Font {
+class Font : public BaseFont {
  public:
   /** Construct the font with the given glyphs.
    *
@@ -47,6 +49,10 @@ class Font {
    * @param bottom The y-offset from the top of the text to the bottom (i.e. height).
    */
   Font(const GlyphData *data, int data_nr, int baseline, int height);
+
+  void print(int x_start, int y_start, DisplayBuffer *display, Color color, const char *text) override;
+  void get_text_bounds(int x, int y, const char *text, TextAlign align, int *x1, int *y1,
+                      int *width, int *height) override;
 
   int match_next_glyph(const char *str, int *match_length);
 
