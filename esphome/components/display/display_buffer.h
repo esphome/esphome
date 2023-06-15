@@ -1,15 +1,12 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
-#include "display_color_utils.h"
 #include <cstdarg>
 #include <vector>
-
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
+#include "display_color_utils.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/time.h"
 
 #ifdef USE_GRAPH
 #include "esphome/components/graph/graph.h"
@@ -126,8 +123,8 @@ class Rect {
   void info(const std::string &prefix = "rect info:");
 };
 
+class BaseImage;
 class Font;
-class Image;
 class DisplayBuffer;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
@@ -263,7 +260,6 @@ class DisplayBuffer {
    */
   void printf(int x, int y, Font *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
 
-#ifdef USE_TIME
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
@@ -274,7 +270,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, time::ESPTime time)
+  void strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, ESPTime time)
       __attribute__((format(strftime, 7, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -286,7 +282,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, Color color, const char *format, time::ESPTime time)
+  void strftime(int x, int y, Font *font, Color color, const char *format, ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
@@ -298,7 +294,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, TextAlign align, const char *format, time::ESPTime time)
+  void strftime(int x, int y, Font *font, TextAlign align, const char *format, ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -309,9 +305,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, const char *format, time::ESPTime time)
-      __attribute__((format(strftime, 5, 0)));
-#endif
+  void strftime(int x, int y, Font *font, const char *format, ESPTime time) __attribute__((format(strftime, 5, 0)));
 
   /** Draw the `image` with the top-left corner at [x,y] to the screen.
    *
@@ -321,7 +315,7 @@ class DisplayBuffer {
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
-  void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+  void image(int x, int y, BaseImage *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
 #ifdef USE_GRAPH
   /** Draw the `graph` with the top-left corner at [x,y] to the screen.
@@ -535,24 +529,33 @@ class Font {
   int height_;
 };
 
-class Image {
+class BaseImage {
+ public:
+  virtual void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) = 0;
+  virtual int get_width() const = 0;
+  virtual int get_height() const = 0;
+};
+
+class Image : public BaseImage {
  public:
   Image(const uint8_t *data_start, int width, int height, ImageType type);
-  virtual bool get_pixel(int x, int y) const;
-  virtual Color get_color_pixel(int x, int y) const;
-  virtual Color get_rgba_pixel(int x, int y) const;
-  virtual Color get_rgb565_pixel(int x, int y) const;
-  virtual Color get_grayscale_pixel(int x, int y) const;
-  int get_width() const;
-  int get_height() const;
+  Color get_pixel(int x, int y, Color color_on = COLOR_ON, Color color_off = COLOR_OFF) const;
+  int get_width() const override;
+  int get_height() const override;
   ImageType get_type() const;
 
-  virtual int get_current_frame() const;
+  void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) override;
 
   void set_transparency(bool transparent) { transparent_ = transparent; }
   bool has_transparency() const { return transparent_; }
 
  protected:
+  bool get_binary_pixel_(int x, int y) const;
+  Color get_rgb24_pixel_(int x, int y) const;
+  Color get_rgba_pixel_(int x, int y) const;
+  Color get_rgb565_pixel_(int x, int y) const;
+  Color get_grayscale_pixel_(int x, int y) const;
+
   int width_;
   int height_;
   ImageType type_;
@@ -563,14 +566,9 @@ class Image {
 class Animation : public Image {
  public:
   Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
-  bool get_pixel(int x, int y) const override;
-  Color get_color_pixel(int x, int y) const override;
-  Color get_rgba_pixel(int x, int y) const override;
-  Color get_rgb565_pixel(int x, int y) const override;
-  Color get_grayscale_pixel(int x, int y) const override;
 
-  int get_animation_frame_count() const;
-  int get_current_frame() const override;
+  uint32_t get_animation_frame_count() const;
+  int get_current_frame() const;
   void next_frame();
   void prev_frame();
 
@@ -580,9 +578,18 @@ class Animation : public Image {
    */
   void set_frame(int frame);
 
+  void set_loop(uint32_t start_frame, uint32_t end_frame, int count);
+
  protected:
+  void update_data_start_();
+
+  const uint8_t *animation_data_start_;
   int current_frame_;
-  int animation_frame_count_;
+  uint32_t animation_frame_count_;
+  uint32_t loop_start_frame_;
+  uint32_t loop_end_frame_;
+  int loop_count_;
+  int loop_current_iteration_;
 };
 
 template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {

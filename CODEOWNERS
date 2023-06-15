@@ -19,6 +19,7 @@ esphome/components/addressable_light/* @justfalter
 esphome/components/airthings_ble/* @jeromelaban
 esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
+esphome/components/alarm_control_panel/* @grahambrown11
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
 esphome/components/am43/sensor/* @buxtronix
@@ -277,6 +278,7 @@ esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tcl112/* @glmnet
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
+esphome/components/template/alarm_control_panel/* @grahambrown11
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
 esphome/components/tlc5947/* @rnauber
@@ -285,6 +287,7 @@ esphome/components/tm1637/* @glmnet
 esphome/components/tm1638/* @skykingjwc
 esphome/components/tm1651/* @freekode
 esphome/components/tmp102/* @timsavage
+esphome/components/tmp1075/* @sybrenstuvel
 esphome/components/tmp117/* @Azimath
 esphome/components/tof10120/* @wstrzalka
 esphome/components/toshiba/* @kbx81
