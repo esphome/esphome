@@ -2,8 +2,6 @@
 
 #include "online_image.h"
 
-#include "esphome/core/application.h"
-#include "esphome/core/color.h"
 #include "esphome/core/log.h"
 
 #ifdef USE_ESP32
@@ -68,6 +66,63 @@ OnlineImage::OnlineImage(const char *url, int width, int height, ImageFormat for
       bits_per_pixel_(bits_per_pixel(type)),
       fixed_width_(width),
       fixed_height_(height) {}
+
+void OnlineImage::draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) {
+  switch (type_) {
+    case IMAGE_TYPE_BINARY: {
+      for (int img_x = 0; img_x < width_; img_x++) {
+        for (int img_y = 0; img_y < height_; img_y++) {
+          if (this->get_binary_pixel_(img_x, img_y)) {
+            display->draw_pixel_at(x + img_x, y + img_y, color_on);
+          } else if (!this->transparent_) {
+            display->draw_pixel_at(x + img_x, y + img_y, color_off);
+          }
+        }
+      }
+      break;
+    }
+    case IMAGE_TYPE_GRAYSCALE:
+      for (int img_x = 0; img_x < width_; img_x++) {
+        for (int img_y = 0; img_y < height_; img_y++) {
+          auto color = this->get_grayscale_pixel_(img_x, img_y);
+          if (color.w >= 0x80) {
+            display->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
+    case IMAGE_TYPE_RGB565:
+      for (int img_x = 0; img_x < width_; img_x++) {
+        for (int img_y = 0; img_y < height_; img_y++) {
+          auto color = this->get_rgb565_pixel_(img_x, img_y);
+          if (color.w >= 0x80) {
+            display->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
+    case IMAGE_TYPE_RGB24:
+      for (int img_x = 0; img_x < width_; img_x++) {
+        for (int img_y = 0; img_y < height_; img_y++) {
+          auto color = this->get_rgb24_pixel_(img_x, img_y);
+          if (color.w >= 0x80) {
+            display->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
+    case IMAGE_TYPE_RGBA:
+      for (int img_x = 0; img_x < width_; img_x++) {
+        for (int img_y = 0; img_y < height_; img_y++) {
+          auto color = this->get_rgba_pixel_(img_x, img_y);
+          if (color.w >= 0x80) {
+            display->draw_pixel_at(x + img_x, y + img_y, color);
+          }
+        }
+      }
+      break;
+  }
+}
 
 void OnlineImage::set_follow_redirects(bool follow, int limit) {
 #if defined(USE_ESP32) || defined(USE_ESP8266)
@@ -253,14 +308,14 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
   }
 }
 
-bool OnlineImage::get_pixel(int x, int y) const {
+bool OnlineImage::get_binary_pixel_(int x, int y) const {
   uint32_t pos = x + y * width_;
   uint8_t position_offset = pos % 8;
   uint8_t mask = 1 << position_offset;
   return buffer_[pos / 8] & mask;
 }
 
-Color OnlineImage::get_grayscale_pixel(int x, int y) const {
+Color OnlineImage::get_grayscale_pixel_(int x, int y) const {
   auto pos = get_position_(x, y);
   uint8_t grey = buffer_[pos];
   uint8_t alpha;
@@ -272,7 +327,7 @@ Color OnlineImage::get_grayscale_pixel(int x, int y) const {
   return Color(grey, grey, grey, alpha);
 }
 
-Color OnlineImage::get_rgb565_pixel(int x, int y) const {
+Color OnlineImage::get_rgb565_pixel_(int x, int y) const {
   auto pos = get_position_(x, y);
   uint16_t col565 = encode_uint16(buffer_[pos], buffer_[pos + 1]);
   uint8_t alpha;
@@ -285,7 +340,7 @@ Color OnlineImage::get_rgb565_pixel(int x, int y) const {
                static_cast<uint8_t>((col565 & 0x1F) << 3), alpha);
 }
 
-Color OnlineImage::get_color_pixel(int x, int y) const {
+Color OnlineImage::get_color_pixel_(int x, int y) const {
   auto pos = get_position_(x, y);
   auto r = buffer_[pos + 0];
   auto g = buffer_[pos + 1];
@@ -294,7 +349,7 @@ Color OnlineImage::get_color_pixel(int x, int y) const {
   return Color(r, g, b, a);
 }
 
-Color OnlineImage::get_rgba_pixel(int x, int y) const {
+Color OnlineImage::get_rgba_pixel_(int x, int y) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_) {
     return Color(0);
   }
