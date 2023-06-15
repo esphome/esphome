@@ -166,9 +166,9 @@ void DeltaSolCSPlusSensor::handle_message(std::vector<uint8_t> &message) {
   if (this->heat_quantity_sensor_ != nullptr)
     this->heat_quantity_sensor_->publish_state((get_u16(message, 30) << 16) + get_u16(message, 28));
   if (this->time_sensor_ != nullptr)
-    this->time_sensor_->publish_state(get_u16(message, 12));
+    this->time_sensor_->publish_state(get_u16(message, 22));
   if (this->version_sensor_ != nullptr)
-    this->version_sensor_->publish_state(get_u16(message, 26) * 0.01f);
+    this->version_sensor_->publish_state(get_u16(message, 32) * 0.01f);
   if (this->flow_rate_sensor_ != nullptr)
     this->flow_rate_sensor_->publish_state(get_u16(message, 38));
 }
