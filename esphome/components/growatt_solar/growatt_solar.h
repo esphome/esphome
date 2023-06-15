@@ -18,10 +18,6 @@ enum GrowattProtocolVersion {
 };
 
 class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
- private:
-  bool waiting_to_update_;
-  uint32_t last_send_;
-
  public:
   void loop() override;
   void update() override;
@@ -60,6 +56,9 @@ class GrowattSolar : public PollingComponent, public modbus::ModbusDevice {
   }
 
  protected:
+  bool waiting_to_update_;
+  uint32_t last_send_;
+
   struct GrowattPhase {
     sensor::Sensor *voltage_sensor_{nullptr};
     sensor::Sensor *current_sensor_{nullptr};
