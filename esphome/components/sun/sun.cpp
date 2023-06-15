@@ -37,7 +37,7 @@ num_t EquatorialCoordinate::declination_rad() const { return radians(declination
 num_t HorizontalCoordinate::elevation_rad() const { return radians(elevation); }
 num_t HorizontalCoordinate::azimuth_rad() const { return radians(azimuth); }
 
-num_t julian_day(time::ESPTime moment) {
+num_t julian_day(ESPTime moment) {
   // p. 59
   // UT -> JD, TT -> JDE
   int y = moment.year;
@@ -54,7 +54,7 @@ num_t julian_day(time::ESPTime moment) {
   int b = 2 - a + a / 4;
   return ((int) (365.25 * (y + 4716))) + ((int) (30.6001 * (m + 1))) + d + b - 1524.5;
 }
-num_t delta_t(time::ESPTime moment) {
+num_t delta_t(ESPTime moment) {
   // approximation for 2005-2050 from NASA (https://eclipse.gsfc.nasa.gov/SEhelp/deltatpoly2004.html)
   int t = moment.year - 2000;
   return 62.92 + t * (0.32217 + t * 0.005589);
@@ -199,7 +199,7 @@ struct SunAtLocation {
     // see chapter 12, p. 87
     num_t jd = moment.jd();
     // eq 12.1, p.87; jd for 0h UT of this date
-    time::ESPTime moment_0h = moment.dt;
+    ESPTime moment_0h = moment.dt;
     moment_0h.hour = moment_0h.minute = moment_0h.second = 0;
     num_t jd0 = Moment{moment_0h}.jd();
     num_t t = (jd0 - 2451545) / 36525;
@@ -227,9 +227,9 @@ struct SunAtLocation {
     return HorizontalCoordinate{degrees(elevation_rad), degrees(azimuth_rad) + 180};
   }
 
-  optional<time::ESPTime> sunrise(time::ESPTime date, num_t zenith) const { return event(true, date, zenith); }
-  optional<time::ESPTime> sunset(time::ESPTime date, num_t zenith) const { return event(false, date, zenith); }
-  optional<time::ESPTime> event(bool rise, time::ESPTime date, num_t zenith) const {
+  optional<ESPTime> sunrise(ESPTime date, num_t zenith) const { return event(true, date, zenith); }
+  optional<ESPTime> sunset(ESPTime date, num_t zenith) const { return event(false, date, zenith); }
+  optional<ESPTime> event(bool rise, ESPTime date, num_t zenith) const {
     // couldn't get the method described in chapter 15 to work,
     // so instead this is based on the algorithm in time4j
     // https://github.com/MenoData/Time4J/blob/master/base/src/main/java/net/time4j/calendar/astro/StdSolarCalculator.java
@@ -244,7 +244,7 @@ struct SunAtLocation {
       new_h = *x;
     } while (std::abs(new_h - old_h) >= 15);
     time_t new_timestamp = m.timestamp + (time_t) new_h;
-    return time::ESPTime::from_epoch_local(new_timestamp);
+    return ESPTime::from_epoch_local(new_timestamp);
   }
 
  protected:
@@ -263,14 +263,14 @@ struct SunAtLocation {
     return hour_angle;
   }
 
-  time::ESPTime local_event_(time::ESPTime date, int hour) const {
+  ESPTime local_event_(ESPTime date, int hour) const {
     // input date should be in UTC, and hour/minute/second fields 0
     num_t added_d = hour / 24.0 - location.longitude / 360;
     num_t jd = julian_day(date) + added_d;
 
     num_t eot = SunAtTime(jd).equation_of_time() * 240;
     time_t new_timestamp = (time_t) (date.timestamp + added_d * 86400 - eot);
-    return time::ESPTime::from_epoch_utc(new_timestamp);
+    return ESPTime::from_epoch_utc(new_timestamp);
   }
 };
 
@@ -287,7 +287,7 @@ HorizontalCoordinate Sun::calc_coords_() {
   */
   return sun.true_coordinate(m);
 }
-optional<time::ESPTime> Sun::calc_event_(time::ESPTime date, bool rising, double zenith) {
+optional<ESPTime> Sun::calc_event_(ESPTime date, bool rising, double zenith) {
   SunAtLocation sun{location_};
   if (!date.is_valid())
     return {};
@@ -301,24 +301,20 @@ optional<time::ESPTime> Sun::calc_event_(time::ESPTime date, bool rising, double
     // We're calculating *next* sunrise/sunset, but calculated event
     // is today, so try again tomorrow
     time_t new_timestamp = today.timestamp + 24 * 60 * 60;
-    today = time::ESPTime::from_epoch_utc(new_timestamp);
+    today = ESPTime::from_epoch_utc(new_timestamp);
     it = sun.event(rising, today, zenith);
   }
   return it;
 }
-optional<time::ESPTime> Sun::calc_event_(bool rising, double zenith) {
+optional<ESPTime> Sun::calc_event_(bool rising, double zenith) {
   auto it = Sun::calc_event_(this->time_->utcnow(), rising, zenith);
   return it;
 }
 
-optional<time::ESPTime> Sun::sunrise(double elevation) { return this->calc_event_(true, 90 - elevation); }
-optional<time::ESPTime> Sun::sunset(double elevation) { return this->calc_event_(false, 90 - elevation); }
-optional<time::ESPTime> Sun::sunrise(time::ESPTime date, double elevation) {
-  return this->calc_event_(date, true, 90 - elevation);
-}
-optional<time::ESPTime> Sun::sunset(time::ESPTime date, double elevation) {
-  return this->calc_event_(date, false, 90 - elevation);
-}
+optional<ESPTime> Sun::sunrise(double elevation) { return this->calc_event_(true, 90 - elevation); }
+optional<ESPTime> Sun::sunset(double elevation) { return this->calc_event_(false, 90 - elevation); }
+optional<ESPTime> Sun::sunrise(ESPTime date, double elevation) { return this->calc_event_(date, true, 90 - elevation); }
+optional<ESPTime> Sun::sunset(ESPTime date, double elevation) { return this->calc_event_(date, false, 90 - elevation); }
 double Sun::elevation() { return this->calc_coords_().elevation; }
 double Sun::azimuth() { return this->calc_coords_().azimuth; }
 
