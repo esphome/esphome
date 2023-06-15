@@ -108,6 +108,7 @@ void SPIComponent::setup() {
     spi->setSCK(clk_pin);
     this->hw_spi_ = spi;
     this->hw_spi_->begin();
+    return;
   }
 #endif  // USE_RP2040
 #endif  // USE_SPI_ARDUINO_BACKEND
