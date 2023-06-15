@@ -55,6 +55,11 @@ bool InitialStateIterator::on_media_player(media_player::MediaPlayer *media_play
   return this->client_->send_media_player_state(media_player);
 }
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+bool InitialStateIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+  return this->client_->send_alarm_control_panel_state(a_alarm_control_panel);
+}
+#endif
 InitialStateIterator::InitialStateIterator(APIConnection *client) : client_(client) {}
 
 }  // namespace api

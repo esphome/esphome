@@ -216,6 +216,17 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   std::string lock_json(lock::Lock *obj, lock::LockState value, JsonDetail start_config);
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
+
+  /// Handle a alarm_control_panel request under '/alarm_control_panel/<id>'.
+  void handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match);
+
+  /// Dump the alarm_control_panel state with its value as a JSON string.
+  std::string alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
+                                       alarm_control_panel::AlarmControlPanelState value, JsonDetail start_config);
+#endif
+
   /// Override the web handler's canHandle method.
   bool canHandle(AsyncWebServerRequest *request) override;
   /// Override the web handler's handleRequest method.
