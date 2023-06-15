@@ -16,6 +16,10 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
+#include "animation.h"
+#include "font.h"
+#include "image.h"
+
 namespace esphome {
 namespace display {
 
@@ -70,11 +74,6 @@ enum class TextAlign {
   BOTTOM_RIGHT = BOTTOM | RIGHT,
 };
 
-/// Turn the pixel OFF.
-extern const Color COLOR_OFF;
-/// Turn the pixel ON.
-extern const Color COLOR_ON;
-
 enum DisplayType {
   DISPLAY_TYPE_BINARY = 1,
   DISPLAY_TYPE_GRAYSCALE = 2,
@@ -115,8 +114,6 @@ class Rect {
   void info(const std::string &prefix = "rect info:");
 };
 
-class BaseImage;
-class Font;
 class DisplayBuffer;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
