@@ -27,25 +27,22 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse
 
 static const char *const TAG = "remote.virtualwire";
 
-static const std::vector<tx_data_t> VIRTUALWIRE_SYMBOLS =
-{
-    0xd,  0xe,  0x13, 0x15, 0x16, 0x19, 0x1a, 0x1c, 
-    0x23, 0x25, 0x26, 0x29, 0x2a, 0x2c, 0x32, 0x34
-};
+static const std::vector<tx_data_t> VIRTUALWIRE_SYMBOLS = {0xd,  0xe,  0x13, 0x15, 0x16, 0x19, 0x1a, 0x1c,
+                                                           0x23, 0x25, 0x26, 0x29, 0x2a, 0x2c, 0x32, 0x34};
 
-
-static const std::vector<tx_data_t> VIRTUALWIRE_HEADER =
-{
-    0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x38, 0x2c
-};
+static const std::vector<tx_data_t> VIRTUALWIRE_HEADER = {0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x2a, 0x38, 0x2c};
 
 bool VirtualWireData::is_valid() const {
-  if (this->data_.size() < 4) return false;
-  if (this->data_[0] < 4) return false;
-  if (this->data_[0] > MAX_LENGTH) return false;
-  if (this->data_.size() < this->data_[0]) return false;
+  if (this->data_.size() < 4)
+    return false;
+  if (this->data_[0] < 4)
+    return false;
+  if (this->data_[0] > MAX_LENGTH)
+    return false;
+  if (this->data_.size() < this->data_[0])
+    return false;
   uint16_t crc = this->calc_crc_();
-  return (this->data_[this->data_[0] - 2] == (crc & 0xff)) && (this->data_[this->data_[0] - 1] == (crc >> 8)); 
+  return (this->data_[this->data_[0] - 2] == (crc & 0xff)) && (this->data_[this->data_[0] - 1] == (crc >> 8));
 }
 
 uint16_t VirtualWireData::calc_crc_() const {
@@ -55,8 +52,8 @@ uint16_t VirtualWireData::calc_crc_() const {
   return crc16(this->data_.data(), this->size() - 2, 0xffff, 0x8408, false, true);
 }
 
-
-void VirtualWireProtocol::encode_final_(RemoteTransmitData *dst, std::vector<tx_data_t> data, uint32_t bit_length_us) const {
+void VirtualWireProtocol::encode_final_(RemoteTransmitData *dst, std::vector<tx_data_t> data,
+                                        uint32_t bit_length_us) const {
   bool prev_level = 0;
   uint32_t prev_length = 0;
   for (const tx_data_t &d : data) {
@@ -82,7 +79,6 @@ void VirtualWireProtocol::encode_final_(RemoteTransmitData *dst, std::vector<tx_
   }
 }
 
-
 void VirtualWireProtocol::encode(RemoteTransmitData *dst, const VirtualWireData &src) {
   dst->set_carrier_frequency(0);
   dst->reserve(8 + 2 * src.size());
@@ -96,7 +92,6 @@ void VirtualWireProtocol::encode(RemoteTransmitData *dst, const VirtualWireData 
   this->encode_final_(dst, tx_buffer, src.get_bit_length());
 }
 
-
 int8_t VirtualWireProtocol::peek_mark_(RemoteReceiveData &src, uint32_t bit_length_us) {
   if (src.peek_mark(bit_length_us))
     return 1;
@@ -108,7 +103,6 @@ int8_t VirtualWireProtocol::peek_mark_(RemoteReceiveData &src, uint32_t bit_leng
     return 4;
   return 0;
 }
-
 
 int8_t VirtualWireProtocol::peek_space_(RemoteReceiveData &src, uint32_t bit_length_us) {
   if (src.peek_space(bit_length_us))
@@ -122,10 +116,8 @@ int8_t VirtualWireProtocol::peek_space_(RemoteReceiveData &src, uint32_t bit_len
   return 0;
 }
 
-
-bool VirtualWireProtocol::decode_symbol_6to4_(uint8_t symbol, uint8_t &decoded)
-{
-  for (uint8_t i = (symbol>>2) & 8, count=8; count-- ; i++)
+bool VirtualWireProtocol::decode_symbol_6to4_(uint8_t symbol, uint8_t &decoded) {
+  for (uint8_t i = (symbol >> 2) & 8, count = 8; count--; i++)
     if (symbol == VIRTUALWIRE_SYMBOLS[i]) {
       decoded = i;
       return true;
@@ -133,8 +125,8 @@ bool VirtualWireProtocol::decode_symbol_6to4_(uint8_t symbol, uint8_t &decoded)
   return false;
 }
 
-
-bool VirtualWireProtocol::decode_4bit_(RemoteReceiveData &src, int8_t &remaining, bool &last_element, uint8_t &data, uint32_t bit_length_us) {
+bool VirtualWireProtocol::decode_4bit_(RemoteReceiveData &src, int8_t &remaining, bool &last_element, uint8_t &data,
+                                       uint32_t bit_length_us) {
   std::vector<int8_t> received_data = {remaining};
   uint8_t num_elements = std::abs(remaining);
   while (num_elements < 6) {
@@ -186,15 +178,16 @@ bool VirtualWireProtocol::decode_4bit_(RemoteReceiveData &src, int8_t &remaining
   return true;
 }
 
-
-bool VirtualWireProtocol::decode_byte_(RemoteReceiveData &src, int8_t &remaining, bool &last_element, uint8_t &data, uint32_t bit_length_us) {
+bool VirtualWireProtocol::decode_byte_(RemoteReceiveData &src, int8_t &remaining, bool &last_element, uint8_t &data,
+                                       uint32_t bit_length_us) {
   uint8_t first, second;
-  if (!this->decode_4bit_(src, remaining, last_element, first, bit_length_us)) return false;
-  if (!this->decode_4bit_(src, remaining, last_element, second, bit_length_us)) return false;
+  if (!this->decode_4bit_(src, remaining, last_element, first, bit_length_us))
+    return false;
+  if (!this->decode_4bit_(src, remaining, last_element, second, bit_length_us))
+    return false;
   data = ((first & 0x3f) << 4) | second;
   return true;
 }
-
 
 optional<VirtualWireData> VirtualWireProtocol::decode(RemoteReceiveData src, uint32_t bit_length_us) {
   if (src.size() < 12)
@@ -206,24 +199,22 @@ optional<VirtualWireData> VirtualWireProtocol::decode(RemoteReceiveData src, uin
       skip = true;
       src.advance(1);
     }
-      
+
     // Speed detection
     bit_length_us = (src.peek(0) - src.peek(1) + src.peek(2) - src.peek(3) + src.peek(4) - src.peek(5)) / 6;
     ESP_LOGI(TAG, "Trying to detect speed, bit_length_us: %i, skip: %i", bit_length_us, skip);
   }
-    
-  
-  if (src.expect_item(bit_length_us, bit_length_us) &&
-      src.expect_item(bit_length_us, bit_length_us) &&
-      src.expect_item(bit_length_us, bit_length_us)) {
 
+  if (src.expect_item(bit_length_us, bit_length_us) && src.expect_item(bit_length_us, bit_length_us) &&
+      src.expect_item(bit_length_us, bit_length_us)) {
     ESP_LOGI(TAG, "Header start");
 
     while (src.peek_item(bit_length_us, bit_length_us)) {
       src.advance(2);
     }
-    
-    if (!(src.expect_item(bit_length_us, 3 * bit_length_us) && src.expect_item(3 * bit_length_us, 2 * bit_length_us) && src.expect_item(2 * bit_length_us, bit_length_us))) {
+
+    if (!(src.expect_item(bit_length_us, 3 * bit_length_us) && src.expect_item(3 * bit_length_us, 2 * bit_length_us) &&
+          src.expect_item(2 * bit_length_us, bit_length_us))) {
       ESP_LOGW(TAG, "Header error");
       return {};
     }
@@ -232,14 +223,15 @@ optional<VirtualWireData> VirtualWireProtocol::decode(RemoteReceiveData src, uin
     src.advance();
     if (mark == 0)
       return {};
-    
+
     ESP_LOGI(TAG, "Header complete");
     int8_t remaining = mark - 1;
     bool last_element = true;
     uint8_t expected_length = 4;
     uint8_t data;
 
-    if (!this->decode_byte_(src, remaining, last_element, expected_length, bit_length_us)) return {};
+    if (!this->decode_byte_(src, remaining, last_element, expected_length, bit_length_us))
+      return {};
     std::vector<uint8_t> out_data = {expected_length};
     expected_length--;
     for (; expected_length; expected_length--) {
@@ -252,7 +244,7 @@ optional<VirtualWireData> VirtualWireProtocol::decode(RemoteReceiveData src, uin
     }
     VirtualWireData out = VirtualWireData(out_data);
     out.set_bit_length(bit_length_us);
-    
+
     if (!out.is_valid()) {
       ESP_LOGW(TAG, "Checksum error");
       return {};
@@ -262,8 +254,9 @@ optional<VirtualWireData> VirtualWireProtocol::decode(RemoteReceiveData src, uin
   return {};
 }
 
-void VirtualWireProtocol::dump(const VirtualWireData &data) { ESP_LOGD(TAG, "Received VirtualWire: %s", data.to_string().c_str()); }
-
+void VirtualWireProtocol::dump(const VirtualWireData &data) {
+  ESP_LOGD(TAG, "Received VirtualWire: %s", data.to_string().c_str());
+}
 
 }  // namespace remote_base
 }  // namespace esphome

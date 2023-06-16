@@ -1549,11 +1549,17 @@ async def aeha_action(var, config, args):
 
 
 # VirtualWire
-VirtualWireData, VirtualWireBinarySensor, VirtualWireTrigger, VirtualWireAction, VirtualWireDumper = declare_protocol("VirtualWire")
+(
+    VirtualWireData,
+    VirtualWireBinarySensor,
+    VirtualWireTrigger,
+    VirtualWireAction,
+    VirtualWireDumper,
+) = declare_protocol("VirtualWire")
 
 VIRTUALWIRE_TRANSMITTER_SCHEMA = cv.Schema(
     {
-    	cv.Optional(CONF_SPEED, default=2000): cv.int_range(min=300, max=65535),
+        cv.Optional(CONF_SPEED, default=2000): cv.int_range(min=300, max=65535),
         cv.Required(CONF_DATA): cv.All(
             [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
             cv.Length(min=1, max=77),
@@ -1563,7 +1569,9 @@ VIRTUALWIRE_TRANSMITTER_SCHEMA = cv.Schema(
 
 VIRTUALWIRE_RECEIVER_SCHEMA = cv.Schema(
     {
-    	cv.Optional(CONF_SPEED, default=0): cv.Any(cv.int_range(min=300, max=65535), cv.int_range(0, 0)),
+        cv.Optional(CONF_SPEED, default=0): cv.Any(
+            cv.int_range(min=300, max=65535), cv.int_range(0, 0)
+        ),
         cv.Required(CONF_DATA): cv.All(
             [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
             cv.Length(min=1, max=77),
@@ -1571,7 +1579,10 @@ VIRTUALWIRE_RECEIVER_SCHEMA = cv.Schema(
     }
 )
 
-@register_binary_sensor("virtualwire", VirtualWireBinarySensor, VIRTUALWIRE_RECEIVER_SCHEMA)
+
+@register_binary_sensor(
+    "virtualwire", VirtualWireBinarySensor, VIRTUALWIRE_RECEIVER_SCHEMA
+)
 def virtualwire_binary_sensor(var, config):
     cg.add(var.set_speed(config[CONF_SPEED]))
     cg.add(var.set_data(config[CONF_DATA]))
@@ -1592,7 +1603,7 @@ def virtualwire_dumper(var, config):
 async def virtualwire_action(var, config, args):
     template_ = await cg.templatable(config[CONF_SPEED], args, cg.uint16)
     cg.add(var.set_speed(template_))
-    
+
     data_ = config[CONF_DATA]
     if cg.is_template(data_):
         template_ = await cg.templatable(data_, args, cg.std_vector.template(cg.uint8))
