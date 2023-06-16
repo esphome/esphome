@@ -199,6 +199,27 @@ IMAGE_SCHEMA = cv.Schema(
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, IMAGE_SCHEMA)
 
 
+def load_svg_image(file: str, resize: tuple[int, int]):
+    from PIL import Image
+
+    # This import is only needed in case of SVG images; adding it
+    # to the top would force configurations not using SVG to also have it
+    # installed for no reason.
+    from cairosvg import svg2png
+
+    if resize:
+        req_width, req_height = resize
+        svg_image = svg2png(
+            url=file,
+            output_width=req_width,
+            output_height=req_height,
+        )
+    else:
+        svg_image = svg2png(url=file)
+
+    return Image.open(io.BytesIO(svg_image))
+
+
 async def to_code(config):
     from PIL import Image
 
@@ -206,30 +227,20 @@ async def to_code(config):
 
     if conf_file[CONF_SOURCE] == SOURCE_LOCAL:
         path = CORE.relative_config_path(conf_file[CONF_PATH])
-        try:
-            image = Image.open(path)
-        except Exception as e:
-            raise core.EsphomeError(f"Could not load image file {path}: {e}")
-        if CONF_RESIZE in config:
-            image.thumbnail(config[CONF_RESIZE])
+
     elif conf_file[CONF_SOURCE] == SOURCE_MDI:
-        # Those imports are only needed in case of MDI images; adding them
-        # to the top would force configurations not using MDI to also have them
-        # installed for no reason.
-        from cairosvg import svg2png
+        path = _compute_local_icon_path(conf_file).as_posix()
 
-        svg_file = _compute_local_icon_path(conf_file)
-        if CONF_RESIZE in config:
-            req_width, req_height = config[CONF_RESIZE]
-            svg_image = svg2png(
-                url=svg_file.as_posix(),
-                output_width=req_width,
-                output_height=req_height,
-            )
+    try:
+        resize = config.get(CONF_RESIZE)
+        if path.lower().endswith(".svg"):
+            image = load_svg_image(path, resize)
         else:
-            svg_image = svg2png(url=svg_file.as_posix())
-
-        image = Image.open(io.BytesIO(svg_image))
+            image = Image.open(path)
+            if resize:
+                image.thumbnail(resize)
+    except Exception as e:
+        raise core.EsphomeError(f"Could not load image file {path}: {e}")
 
     width, height = image.size
 

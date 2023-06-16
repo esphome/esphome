@@ -56,6 +56,8 @@ service APIConnection {
   rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
 
   rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {}
+
+  rpc alarm_control_panel_command (AlarmControlPanelCommandRequest) returns (void) {}
 }
 
 
@@ -1453,4 +1455,64 @@ message VoiceAssistantEventResponse {
 
   VoiceAssistantEvent event_type = 1;
   repeated VoiceAssistantEventData data = 2;
+}
+
+// ==================== ALARM CONTROL PANEL ====================
+enum AlarmControlPanelState {
+  ALARM_STATE_DISARMED = 0;
+  ALARM_STATE_ARMED_HOME = 1;
+  ALARM_STATE_ARMED_AWAY = 2;
+  ALARM_STATE_ARMED_NIGHT = 3;
+  ALARM_STATE_ARMED_VACATION = 4;
+  ALARM_STATE_ARMED_CUSTOM_BYPASS = 5;
+  ALARM_STATE_PENDING = 6;
+  ALARM_STATE_ARMING = 7;
+  ALARM_STATE_DISARMING = 8;
+  ALARM_STATE_TRIGGERED = 9;
+}
+
+enum AlarmControlPanelStateCommand {
+  ALARM_CONTROL_PANEL_DISARM = 0;
+  ALARM_CONTROL_PANEL_ARM_AWAY = 1;
+  ALARM_CONTROL_PANEL_ARM_HOME = 2;
+  ALARM_CONTROL_PANEL_ARM_NIGHT = 3;
+  ALARM_CONTROL_PANEL_ARM_VACATION = 4;
+  ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS = 5;
+  ALARM_CONTROL_PANEL_TRIGGER = 6;
+}
+
+message ListEntitiesAlarmControlPanelResponse {
+  option (id) = 94;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_ALARM_CONTROL_PANEL";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  uint32 supported_features = 8;
+  bool requires_code = 9;
+  bool requires_code_to_arm = 10;
+}
+
+message AlarmControlPanelStateResponse {
+  option (id) = 95;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_ALARM_CONTROL_PANEL";
+  option (no_delay) = true;
+  fixed32 key = 1;
+  AlarmControlPanelState state = 2;
+}
+
+message AlarmControlPanelCommandRequest {
+  option (id) = 96;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_ALARM_CONTROL_PANEL";
+  option (no_delay) = true;
+  fixed32 key = 1;
+  AlarmControlPanelStateCommand command = 2;
+  string code = 3;
 }
