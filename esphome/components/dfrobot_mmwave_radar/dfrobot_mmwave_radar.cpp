@@ -296,7 +296,18 @@ uint8_t DetRangeCfgCommand::on_message(std::string &message) {
     ESP_LOGE(TAG, "Cannot configure range config. Sensor is not stopped!");
     return 1;  // Command done
   } else if (message == "Done") {
-    ESP_LOGI(TAG, "Updated detection area config.");
+    ESP_LOGI(TAG, "Updated detection area config:");
+    ESP_LOGI(TAG, "Detection area 1 from %.02fm to %.02fm.", min1_, max1_);
+    if (min2_ >= 0 && max2_ >= 0) {
+      ESP_LOGI(TAG, "Detection area 2 from %.02fm to %.02fm.", min2_, max2_);
+    }
+    if (min3_ >= 0 && max3_ >= 0) {
+      ESP_LOGI(TAG, "Detection area 3 from %.02fm to %.02fm.", min3_, max3_);
+    }
+    if (min4_ >= 0 && max4_ >= 0) {
+      ESP_LOGI(TAG, "Detection area 4 from %.02fm to %.02fm.", min4_, max4_);
+    }
+    ESP_LOGD(TAG, "Used command: %s", cmd_.c_str());
     return 1;  // Command done
   }
   return 0;  // Command not done yet.
@@ -327,7 +338,10 @@ uint8_t OutputLatencyCommand::on_message(std::string &message) {
     ESP_LOGE(TAG, "Cannot configure output latency. Sensor is not stopped!");
     return 1;  // Command done
   } else if (message == "Done") {
-    ESP_LOGI(TAG, "Updated output latency config.");
+    ESP_LOGI(TAG, "Updated output latency config:");
+    ESP_LOGI(TAG, "Signal that someone was detected is delayed by %.02fs.", delay_after_detection_);
+    ESP_LOGI(TAG, "Signal that nobody is detected anymore is delayed by %.02fs.", delay_after_disappear_);
+    ESP_LOGD(TAG, "Used command: %s", cmd_.c_str());
     return 1;  // Command done
   }
   return 0;  // Command not done yet
@@ -338,7 +352,13 @@ uint8_t SensorCfgStartCommand::on_message(std::string &message) {
     ESP_LOGE(TAG, "Cannot configure sensor startup behavior. Sensor is not stopped!");
     return 1;  // Command done
   } else if (message == "Done") {
-    ESP_LOGI(TAG, "Updated sensor startup behavior.");
+    ESP_LOGI(TAG, "Updated sensor startup behavior:");
+    if (startup_mode_) {
+      ESP_LOGI(TAG, "Sensor will start automatically after power-on.");
+    } else {
+      ESP_LOGI(TAG, "Sensor needs to be started manually after power-on.");
+    }
+    ESP_LOGD(TAG, "Used command: %s", cmd_.c_str());
     return 1;  // Command done
   }
   return 0;  // Command not done yet
@@ -368,7 +388,7 @@ uint8_t SaveCfgCommand::on_message(std::string &message) {
     ESP_LOGI(TAG, "Not saving config (no parameter changed).");
     return 1;  // Command done
   } else if (message == "Done") {
-    ESP_LOGI(TAG, "Saved config.");
+    ESP_LOGI(TAG, "Saved config. Saving a lot may damage the sensor.");
     return 1;  // Command done
   }
   return 0;  // Command not done yet
@@ -380,6 +400,12 @@ uint8_t LedModeCommand::on_message(std::string &message) {
     return 1;  // Command done
   } else if (message == "Done") {
     ESP_LOGI(TAG, "Set led mode done.");
+    if (active_) {
+      ESP_LOGI(TAG, "Sensor LED will blink.");
+    } else {
+      ESP_LOGI(TAG, "Turned off LED.");
+    }
+    ESP_LOGD(TAG, "Used command: %s", cmd_.c_str());
     return 1;  // Command done
   }
   return 0;  // Command not done yet
@@ -391,6 +417,12 @@ uint8_t UartOutputCommand::on_message(std::string &message) {
     return 1;  // Command done
   } else if (message == "Done") {
     ESP_LOGI(TAG, "Set uart mode done.");
+    if (active_) {
+      ESP_LOGI(TAG, "Presence information is sent via UART and GPIO.");
+    } else {
+      ESP_LOGI(TAG, "Presence information is only sent via GPIO.");
+    }
+    ESP_LOGD(TAG, "Used command: %s", cmd_.c_str());
     return 1;  // Command done
   }
   return 0;  // Command not done yet
@@ -401,7 +433,8 @@ uint8_t SensitivityCommand::on_message(std::string &message) {
     ESP_LOGE(TAG, "Cannot set sensitivity. Sensor is not stopped!");
     return 1;  // Command done
   } else if (message == "Done") {
-    ESP_LOGI(TAG, "Set sensitivity done.");
+    ESP_LOGI(TAG, "Set sensitivity done. Set to value %d.", sensitivity_);
+    ESP_LOGD(TAG, "Used command: %s", cmd_.c_str());
     return 1;  // Command done
   }
   return 0;  // Command not done yet
