@@ -15,7 +15,10 @@ void SM300D2Sensor::update() {
     this->read();
 
 // Trim 3 characters from the beginning of the response array
-  bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH -3);
+  bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
+
+  string response = SM300D2_RESPONSE_LENGTH.Substring(3);
+  Console.WriteLine(response);
 
   if (!read_success) {
     ESP_LOGW(TAG, "Reading data from SM300D2 failed!");
