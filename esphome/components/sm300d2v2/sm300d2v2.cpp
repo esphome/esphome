@@ -44,6 +44,8 @@ void SM300D2Sensor::update() {
 
   ESP_LOGD(TAG, "Successfully read SM300D2 data %u",response);
 
+  const uint16_t addr = (response[1]);
+  const uint16_t function = (response[2]) + response[3];
   const uint16_t co2 = (response[4] * 256) + response[5];
   const uint16_t formaldehyde = (response[6] * 256) + response[7];
   const uint16_t tvoc = (response[8] * 256) + response[9];
