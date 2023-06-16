@@ -16,6 +16,10 @@ void SM300D2Sensor::update() {
 
   bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
 
+// Trim 3 characters from the beginning of the response array
+byte[] trimmedResponse = new byte[SM300D2_RESPONSE_LENGTH - 3];
+Array.Copy(response, 3, trimmedResponse, 0, trimmedResponse.Length);
+
   if (!read_success) {
     ESP_LOGW(TAG, "Reading data from SM300D2 failed!");
     status_set_warning();
@@ -28,32 +32,32 @@ void SM300D2Sensor::update() {
   //  return;
   //}
 
-  uint16_t calculated_checksum = this->sm300d2_checksum_(response);
+ // uint16_t calculated_checksum = this->sm300d2_checksum_(response);
   // Occasionally the checksum has a +/- 0x80 offset. Negative temperatures are
   // responsible for some of these. The rest are unknown/undocumented.
-  if ((calculated_checksum != response[SM300D2_RESPONSE_LENGTH - 2]) &&
-      (calculated_checksum - 0x80 != response[SM300D2_RESPONSE_LENGTH - 2]) &&
-      (calculated_checksum + 0x80 != response[SM300D2_RESPONSE_LENGTH - 2])) {
-    ESP_LOGW(TAG, "SM300D2 Checksum doesn't match: 0x%02X!=0x%02X", response[SM300D2_RESPONSE_LENGTH - 2],
-             calculated_checksum);
-    this->status_set_warning();
-    return;
-  }
+ // if ((calculated_checksum != response[SM300D2_RESPONSE_LENGTH - 1]) &&
+  //    (calculated_checksum - 0x80 != response[SM300D2_RESPONSE_LENGTH - 1]) &&
+  //    (calculated_checksum + 0x80 != response[SM300D2_RESPONSE_LENGTH - 1])) {
+  //  ESP_LOGW(TAG, "SM300D2 Checksum doesn't match: 0x%02X!=0x%02X", response[SM300D2_RESPONSE_LENGTH - 1],
+  //           calculated_checksum);
+  //  this->status_set_warning();
+  //  return;
+ // }
 
   this->status_clear_warning();
 
   ESP_LOGD(TAG, "Successfully read SM300D2 data");
 
-  const uint16_t co2 = (response[4] * 256) + response[5];
-  const uint16_t formaldehyde = (response[6] * 256) + response[7];
-  const uint16_t tvoc = (response[8] * 256) + response[9];
-  const uint16_t pm_2_5 = (response[10] * 256) + response[11];
-  const uint16_t pm_10_0 = (response[12] * 256) + response[13];
+  const uint16_t co2 = (response[1] * 256) + response[2];
+  const uint16_t formaldehyde = (response[3] * 256) + response[4];
+  const uint16_t tvoc = (response[5] * 256) + response[6];
+  const uint16_t pm_2_5 = (response[7] * 256) + response[8];
+  const uint16_t pm_10_0 = (response[9] * 256) + response[10];
   // A negative value is indicated by adding 0x80 (128) to the temperature value
-  const float temperature = ((response[14] + (response[15] * 0.1f)) > 128)
-                                ? (((response[14] + (response[15] * 0.1f)) - 128) * -1)
-                                : response[14] + (response[15] * 0.1f);
-  const float humidity = response[16] + (response[17] * 0.1f);
+  const float temperature = ((response[11] + (response[12] * 0.1f)) > 128)
+                                ? (((response[11] + (response[12] * 0.1f)) - 128) * -1)
+                                : response[11] + (response[12] * 0.1f);
+  const float humidity = response[13] + (response[14] * 0.1f);
 
   ESP_LOGD(TAG, "Received CO₂: %u ppm", co2);
   if (this->co2_sensor_ != nullptr)
