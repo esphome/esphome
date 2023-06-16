@@ -14,11 +14,8 @@ void SM300D2Sensor::update() {
   while (this->available() > 0 && this->peek_byte(&peeked) && peeked != 0x01)
     this->read();
 
-  bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
-
 // Trim 3 characters from the beginning of the response array
-byte[] trimmedResponse = new byte[SM300D2_RESPONSE_LENGTH - 3];
-Array.Copy(response, 3, trimmedResponse, 0, trimmedResponse.Length);
+  bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH -3);
 
   if (!read_success) {
     ESP_LOGW(TAG, "Reading data from SM300D2 failed!");
