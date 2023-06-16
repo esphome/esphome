@@ -57,6 +57,14 @@ void SM300D2Sensor::update() {
                                 : response[14] + (response[15] * 0.1f);
   const float humidity = response[16] + (response[17] * 0.1f);
 
+  ESP_LOGD(TAG, "Received Addr: %u", addr);
+  if (this->addr_sensor_ != nullptr)
+    this->addr_sensor_->publish_state(addr);
+  
+  ESP_LOGD(TAG, "Received Func: %u ppm", function);
+  if (this->function_sensor_ != nullptr)
+    this->function_sensor_->publish_state(function);
+
   ESP_LOGD(TAG, "Received CO₂: %u ppm", co2);
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(co2);
