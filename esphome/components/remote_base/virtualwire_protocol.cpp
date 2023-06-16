@@ -52,7 +52,7 @@ uint16_t VirtualWireData::calc_crc_() const {
   return crc16(this->data_.data(), this->size() - 2, 0xffff, 0x8408, false, true);
 }
 
-void VirtualWireProtocol::encode_final_(RemoteTransmitData *dst, const std::vector<tx_data_t>& data,
+void VirtualWireProtocol::encode_final_(RemoteTransmitData *dst, const std::vector<tx_data_t> &data,
                                         uint32_t bit_length_us) const {
   bool prev_level = false;
   uint32_t prev_length = 0;
