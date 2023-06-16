@@ -29,8 +29,8 @@ void SM300D2Sensor::update() {
   //}
 
   uint16_t calculated_checksum = this->sm300d2_checksum_(response);
-   Occasionally the checksum has a +/- 0x80 offset. Negative temperatures are
-   responsible for some of these. The rest are unknown/undocumented.
+  // Occasionally the checksum has a +/- 0x80 offset. Negative temperatures are
+  // responsible for some of these. The rest are unknown/undocumented.
   if ((calculated_checksum != response[SM300D2_RESPONSE_LENGTH - 1]) &&
       (calculated_checksum - 0x80 != response[SM300D2_RESPONSE_LENGTH - 1]) &&
       (calculated_checksum + 0x80 != response[SM300D2_RESPONSE_LENGTH - 1])) {
