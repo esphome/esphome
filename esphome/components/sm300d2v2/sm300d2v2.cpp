@@ -11,7 +11,7 @@ void SM300D2Sensor::update() {
   uint8_t response[SM300D2_RESPONSE_LENGTH];
   uint8_t peeked;
 
-  while (this->available() > 0 && this->peek_byte(&peeked) && peeked != 0x03)
+  while (this->available() > 0 && this->peek_byte(&peeked) && peeked != 0x01)
     this->read();
 
   bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
@@ -44,16 +44,16 @@ void SM300D2Sensor::update() {
 
   ESP_LOGD(TAG, "Successfully read SM300D2 data %u",response);
 
-  const uint16_t co2 = (response[2] * 256) + response[3];
-  const uint16_t formaldehyde = (response[4] * 256) + response[5];
-  const uint16_t tvoc = (response[6] * 256) + response[7];
-  const uint16_t pm_2_5 = (response[8] * 256) + response[9];
-  const uint16_t pm_10_0 = (response[10] * 256) + response[11];
+  const uint16_t co2 = (response[4] * 256) + response[5];
+  const uint16_t formaldehyde = (response[6] * 256) + response[7];
+  const uint16_t tvoc = (response[8] * 256) + response[9];
+  const uint16_t pm_2_5 = (response[10] * 256) + response[11];
+  const uint16_t pm_10_0 = (response[12] * 256) + response[13];
   // A negative value is indicated by adding 0x80 (128) to the temperature value
-  const float temperature = ((response[12] + (response[13] * 0.1f)) > 128)
-                                ? (((response[12] + (response[13] * 0.1f)) - 128) * -1)
-                                : response[12] + (response[13] * 0.1f);
-  const float humidity = response[14] + (response[15] * 0.1f);
+  const float temperature = ((response[14] + (response[15] * 0.1f)) > 128)
+                                ? (((response[14] + (response[15] * 0.1f)) - 128) * -1)
+                                : response[14] + (response[15] * 0.1f);
+  const float humidity = response[16] + (response[17] * 0.1f);
 
   ESP_LOGD(TAG, "Received CO₂: %u ppm", co2);
   if (this->co2_sensor_ != nullptr)
