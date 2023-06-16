@@ -52,9 +52,9 @@ uint16_t VirtualWireData::calc_crc_() const {
   return crc16(this->data_.data(), this->size() - 2, 0xffff, 0x8408, false, true);
 }
 
-void VirtualWireProtocol::encode_final_(RemoteTransmitData *dst, std::vector<tx_data_t> data,
+void VirtualWireProtocol::encode_final_(RemoteTransmitData *dst, const std::vector<tx_data_t>& data,
                                         uint32_t bit_length_us) const {
-  bool prev_level = 0;
+  bool prev_level = false;
   uint32_t prev_length = 0;
   for (const tx_data_t &d : data) {
     for (tx_data_t mask = 1; mask & 0x3f; mask <<= 1) {
@@ -117,11 +117,12 @@ int8_t VirtualWireProtocol::peek_space_(RemoteReceiveData &src, uint32_t bit_len
 }
 
 bool VirtualWireProtocol::decode_symbol_6to4_(uint8_t symbol, uint8_t &decoded) {
-  for (uint8_t i = (symbol >> 2) & 8, count = 8; count--; i++)
+  for (uint8_t i = (symbol >> 2) & 8, count = 8; count--; i++) {
     if (symbol == VIRTUALWIRE_SYMBOLS[i]) {
       decoded = i;
       return true;
     }
+  }
   return false;
 }
 
@@ -136,13 +137,13 @@ bool VirtualWireProtocol::decode_4bit_(RemoteReceiveData &src, int8_t &remaining
       src.advance();
       ESP_LOGVV(TAG, "peek_space: %d", received_element);
       num_elements += -received_element;
-      last_element = 0;
+      last_element = false;
     } else {
       received_element = this->peek_mark_(src, bit_length_us);
       src.advance();
       ESP_LOGVV(TAG, "peek_mark: %d", received_element);
       num_elements += received_element;
-      last_element = 1;
+      last_element = true;
     }
     if (received_element == 0) {
       ESP_LOGW(TAG, "Timing out of range");
