@@ -476,6 +476,25 @@ bool APIServerConnectionBase::send_voice_assistant_request(const VoiceAssistantR
 #endif
 #ifdef USE_VOICE_ASSISTANT
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+bool APIServerConnectionBase::send_list_entities_alarm_control_panel_response(
+    const ListEntitiesAlarmControlPanelResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_list_entities_alarm_control_panel_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<ListEntitiesAlarmControlPanelResponse>(msg, 94);
+}
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+bool APIServerConnectionBase::send_alarm_control_panel_state_response(const AlarmControlPanelStateResponse &msg) {
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  ESP_LOGVV(TAG, "send_alarm_control_panel_state_response: %s", msg.dump().c_str());
+#endif
+  return this->send_message_<AlarmControlPanelStateResponse>(msg, 95);
+}
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+#endif
 bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type, uint8_t *msg_data) {
   switch (msg_type) {
     case 1: {
@@ -886,6 +905,17 @@ bool APIServerConnectionBase::read_message(uint32_t msg_size, uint32_t msg_type,
 #endif
       break;
     }
+    case 96: {
+#ifdef USE_ALARM_CONTROL_PANEL
+      AlarmControlPanelCommandRequest msg;
+      msg.decode(msg_data, msg_size);
+#ifdef HAS_PROTO_MESSAGE_DUMP
+      ESP_LOGVV(TAG, "on_alarm_control_panel_command_request: %s", msg.dump().c_str());
+#endif
+      this->on_alarm_control_panel_command_request(msg);
+#endif
+      break;
+    }
     default:
       return false;
   }
@@ -1293,6 +1323,19 @@ void APIServerConnection::on_subscribe_voice_assistant_request(const SubscribeVo
     return;
   }
   this->subscribe_voice_assistant(msg);
+}
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+void APIServerConnection::on_alarm_control_panel_command_request(const AlarmControlPanelCommandRequest &msg) {
+  if (!this->is_connection_setup()) {
+    this->on_no_setup_connection();
+    return;
+  }
+  if (!this->is_authenticated()) {
+    this->on_unauthenticated_access();
+    return;
+  }
+  this->alarm_control_panel_command(msg);
 }
 #endif
 
