@@ -3294,8 +3294,10 @@ button:
           id: mmwave
           factory_reset: true
           detection_segments:
-            - 0cm - 5m
-            - 600cm - 700cm
+            - [0cm, 5m]
+            - 600cm
+            - !lambda |-
+                return 7;
           output_latency:
             delay_after_detect: 0s
             delay_after_disappear: 0s

@@ -1,4 +1,3 @@
-import re
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -112,52 +111,51 @@ def range_segment_list(input):
     The distances need to be defined in an ascending order and they cannot contain / intersect
     each other.
     """
-    cv.check_not_templatable(input)
 
-    # Make sure input is always a list
-    if input is None or (isinstance(input, dict) and not input):
-        input = []
-    elif not isinstance(input, list):
-        input = [input]
+    # Flatten input to one dimensional list
+    flat_list = []
+    if isinstance(input, list):
+        for list_item in input:
+            if isinstance(list_item, list):
+                for item in list_item:
+                    flat_list.append(item)
+            else:
+                flat_list.append(list_item)
+    else:
+        flat_list.append(input)
 
-    if len(input) < 1:
-        raise cv.Invalid("At least one segment needs to be specified")
-    if len(input) > 4:
-        raise cv.Invalid("Four segments can be specified at max")
+    input = flat_list
+
+    if len(input) < 2:
+        raise cv.Invalid(
+            "At least two values need to be specified (start + stop distances)"
+        )
+    if len(input) % 2 != 0:
+        raise cv.Invalid(
+            "An even number of arguments must be specified (pairs of min + max)"
+        )
+    if len(input) > 8:
+        raise cv.Invalid(
+            "Maximum four segments can be specified (8 values: 4 * min + max)"
+        )
 
     largest_distance = -1
-    for segment in input:
-        # Check if two positive distances are defined, separated by '-'
-        match = re.match(r"^([+. \w]*)(\s*-\s*)([+. \w]*)$", segment)
-        if match is None:
+    for distance in input:
+        if isinstance(distance, core.Lambda):
+            continue
+        m = cv.distance(distance)
+        if m > 9:
+            raise cv.Invalid("Maximum distance is 9m")
+        if m < 0:
+            raise cv.Invalid("Minimum distance is 0m")
+        if m <= largest_distance:
             raise cv.Invalid(
-                f'Invalid range "{segment}". '
-                'Specify two positive distances separated by "-"'
+                "Distances must be delared from small to large "
+                "and they cannot contain each other"
             )
-
-        # Check validity of each distance
-        distances = segment.split("-")
-        distances = [s.strip() for s in distances]
-
-        if not len(distances) == 2:
-            raise cv.Invalid("Two distances must be specified!")
-
-        for distance in distances:
-            m = cv.distance(distance)
-            if m > 9:
-                raise cv.Invalid("Maximum distance is 9m")
-            if m < 0:
-                raise cv.Invalid("Minimum distance is 0m")
-            if m <= largest_distance:
-                raise cv.Invalid(
-                    "Distances must be delared from small to large "
-                    "and they cannot contain each other"
-                )
-            largest_distance = m
-            distances[distances.index(distance)] = m
-
-        # Overwrite input with parsed and separated distances
-        input[input.index(segment)] = distances
+        largest_distance = m
+        # Replace distance object with meters float
+        input[input.index(distance)] = m
 
     return input
 
@@ -193,20 +191,26 @@ def at_least_one_settings_option(config):
 MMWAVE_SETTINGS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.use_id(DfrobotMmwaveRadarComponent),
-        cv.Optional(FACTORY_RESET): cv.boolean,
+        cv.Optional(FACTORY_RESET): cv.templatable(cv.boolean),
         cv.Optional(DETECTION_SEGMENTS): range_segment_list,
         cv.Optional(OUTPUT_LATENCY): {
-            cv.Required(DELAY_AFTER_DETECT): cv.All(
-                cv.positive_time_period, cv.Range(max=core.TimePeriod(seconds=1638.375))
+            cv.Required(DELAY_AFTER_DETECT): cv.templatable(
+                cv.All(
+                    cv.positive_time_period,
+                    cv.Range(max=core.TimePeriod(seconds=1638.375)),
+                )
             ),
-            cv.Required(DELAY_AFTER_DISAPPEAR): cv.All(
-                cv.positive_time_period, cv.Range(max=core.TimePeriod(seconds=1638.375))
+            cv.Required(DELAY_AFTER_DISAPPEAR): cv.templatable(
+                cv.All(
+                    cv.positive_time_period,
+                    cv.Range(max=core.TimePeriod(seconds=1638.375)),
+                )
             ),
         },
-        cv.Optional(START_AFTER_POWER_ON): cv.boolean,
-        cv.Optional(TURN_ON_LED): cv.boolean,
-        cv.Optional(PRESENCE_VIA_UART): cv.boolean,
-        cv.Optional(SENSITIVITY): cv.int_range(min=0, max=9),
+        cv.Optional(START_AFTER_POWER_ON): cv.templatable(cv.boolean),
+        cv.Optional(TURN_ON_LED): cv.templatable(cv.boolean),
+        cv.Optional(PRESENCE_VIA_UART): cv.templatable(cv.boolean),
+        cv.Optional(SENSITIVITY): cv.templatable(cv.int_range(min=0, max=9)),
     }
 ).add_extra(at_least_one_settings_option)
 
@@ -221,38 +225,56 @@ async def dfrobot_mmwave_radar_settings_to_code(config, action_id, template_arg,
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
     if FACTORY_RESET in config:
-        cg.add(var.set_factory_reset(config[FACTORY_RESET]))
+        template_ = await cg.templatable(config[FACTORY_RESET], args, int)
+        cg.add(var.set_factory_reset(template_))
     if DETECTION_SEGMENTS in config:
-        segments = [[-1, -1], [-1, -1], [-1, -1], [-1, -1]]
-        for i, segment in enumerate(config[DETECTION_SEGMENTS]):
-            segments[i] = segment
+        segments = config[DETECTION_SEGMENTS]
 
-        cg.add(
-            var.set_segments(
-                segments[0][0],
-                segments[0][1],
-                segments[1][0],
-                segments[1][1],
-                segments[2][0],
-                segments[2][1],
-                segments[3][0],
-                segments[3][1],
-            )
-        )
+        if len(segments) >= 2:
+            template_ = await cg.templatable(segments[0], args, float)
+            cg.add(var.set_det_min1(template_))
+            template_ = await cg.templatable(segments[1], args, float)
+            cg.add(var.set_det_max1(template_))
+        if len(segments) >= 4:
+            template_ = await cg.templatable(segments[2], args, float)
+            cg.add(var.set_det_min2(template_))
+            template_ = await cg.templatable(segments[3], args, float)
+            cg.add(var.set_det_max2(template_))
+        if len(segments) >= 6:
+            template_ = await cg.templatable(segments[4], args, float)
+            cg.add(var.set_det_min3(template_))
+            template_ = await cg.templatable(segments[5], args, float)
+            cg.add(var.set_det_max3(template_))
+        if len(segments) >= 8:
+            template_ = await cg.templatable(segments[6], args, float)
+            cg.add(var.set_det_min4(template_))
+            template_ = await cg.templatable(segments[7], args, float)
+            cg.add(var.set_det_max4(template_))
     if OUTPUT_LATENCY in config:
-        cg.add(
-            var.set_ouput_delays(
-                config[OUTPUT_LATENCY][DELAY_AFTER_DETECT].total_milliseconds / 1000,
-                config[OUTPUT_LATENCY][DELAY_AFTER_DISAPPEAR].total_milliseconds / 1000,
-            )
+        template_ = await cg.templatable(
+            config[OUTPUT_LATENCY][DELAY_AFTER_DETECT], args, float
         )
+        if isinstance(template_, cv.TimePeriod):
+            template_ = template_.total_milliseconds / 1000
+        cg.add(var.set_delay_after_detect(template_))
+
+        template_ = await cg.templatable(
+            config[OUTPUT_LATENCY][DELAY_AFTER_DISAPPEAR], args, float
+        )
+        if isinstance(template_, cv.TimePeriod):
+            template_ = template_.total_milliseconds / 1000
+        cg.add(var.set_delay_after_disappear(template_))
     if START_AFTER_POWER_ON in config:
-        cg.add(var.set_start_immediately(config[START_AFTER_POWER_ON]))
+        template_ = await cg.templatable(config[START_AFTER_POWER_ON], args, int)
+        cg.add(var.set_start_after_power_on(template_))
     if TURN_ON_LED in config:
-        cg.add(var.set_led_active(config[TURN_ON_LED]))
+        template_ = await cg.templatable(config[TURN_ON_LED], args, int)
+        cg.add(var.set_turn_on_led(template_))
     if PRESENCE_VIA_UART in config:
-        cg.add(var.set_presence_via_uart_active(config[PRESENCE_VIA_UART]))
+        template_ = await cg.templatable(config[PRESENCE_VIA_UART], args, int)
+        cg.add(var.set_presence_via_uart(template_))
     if SENSITIVITY in config:
-        cg.add(var.set_sensitivity(config[SENSITIVITY]))
+        template_ = await cg.templatable(config[SENSITIVITY], args, int)
+        cg.add(var.set_sensitivity(template_))
 
     return var
