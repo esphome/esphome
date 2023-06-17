@@ -1,6 +1,5 @@
 #include "graph.h"
 #include "esphome/components/display/display_buffer.h"
-#include "esphome/components/display/font.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
