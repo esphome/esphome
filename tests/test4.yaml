@@ -34,9 +34,10 @@ spi:
   miso_pin: GPIO23
 
 uart:
+  id: uart0
   tx_pin: GPIO22
   rx_pin: GPIO23
-  baud_rate: 115200
+  baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -745,3 +746,36 @@ voice_assistant:
 max6956:
   - id: max6956_1
     address: 0x40
+
+sun_gtil2:
+  uart_id: uart0
+  temperature:
+    id: gtil_temperature
+    name: "Heatsink Temperature"
+    filters:
+      - throttle_average: 30s
+  dc_voltage:
+    id: gtil_dc_voltage
+    name: "DC Voltage"
+    filters:
+      - throttle_average: 30s
+  ac_voltage:
+    id: gtil_ac_voltage
+    name: "AC Voltage"
+    filters:
+      - throttle_average: 30s
+  ac_power:
+    id: gtil_ac_power
+    name: "AC Power"
+  dc_power:
+    id: gtil_dc_power
+    name: "DC Power"
+  state:
+    id: gtil_state
+    name: "State"
+  limiter_power:
+    id: gtil_limiter_power
+    internal: True
+  serial_number:
+    id: gtil_serial_number
+    internal: True

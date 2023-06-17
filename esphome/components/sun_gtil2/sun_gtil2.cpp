@@ -10,7 +10,7 @@ static const double NTC_A = 0.0011591051055979914;
 static const double NTC_B = 0.00022878183547845582;
 static const double NTC_C = 1.0396291358342124e-07;
 static const float PULLUP_RESISTANCE = 10000.0f;
-static const float ADC_MAX = 1023.0f;  // ADC of the inverter controller, not the ESP
+static const uint16_t ADC_MAX = 1023;  // ADC of the inverter controller, not the ESP
 
 #pragma pack(push, 1)
 struct SunGTIL2Message {
@@ -65,7 +65,7 @@ float SunGTIL2::calculate_temperature_(uint16_t adc_value) {
     return NAN;
   }
 
-  float ntc_resistance = PULLUP_RESISTANCE / ((ADC_MAX / adc_value) - 1.0f);
+  float ntc_resistance = PULLUP_RESISTANCE / ((static_cast<float>(ADC_MAX) / adc_value) - 1.0f);
   double lr = log(double(ntc_resistance));
   double v = NTC_A + NTC_B * lr + NTC_C * lr * lr * lr;
   return float(1.0 / v - 273.15);
