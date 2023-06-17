@@ -74,7 +74,7 @@ float SunGTIL2::calculate_temperature_(uint16_t adc_value) {
 void SunGTIL2::handle_char_(uint8_t c) {
   if (this->rx_message_.size() > 1 || c == 0x07) {
     this->rx_message_.push_back(c);
-  } else if (this->rx_message_.size() > 0) {
+  } else if (!this->rx_message_.empty()) {
     this->rx_message_.clear();
   }
   if (this->rx_message_.size() < MESSAGE_SIZE) {
