@@ -8,7 +8,7 @@
 namespace esphome {
 namespace sun_gtil2 {
 
-class SunGTIL2 : public Component,  public uart::UARTDevice {
+class SunGTIL2 : public Component, public uart::UARTDevice {
  public:
   float get_setup_priority() const override { return setup_priority::LATE; }
   void setup() override;
@@ -23,6 +23,7 @@ class SunGTIL2 : public Component,  public uart::UARTDevice {
   void set_temperature(sensor::Sensor *sensor) { temperature_ = sensor; }
   void set_state(text_sensor::TextSensor *text_sensor) { state_ = text_sensor; }
   void set_serial_number(text_sensor::TextSensor *text_sensor) { serial_number_ = text_sensor; }
+
  protected:
   std::string state_to_string_(uint8_t state);
   sensor::Sensor *ac_voltage_{nullptr};

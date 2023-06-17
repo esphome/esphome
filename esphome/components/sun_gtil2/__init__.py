@@ -1,16 +1,27 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome import automation
 from esphome.components import uart, sensor, text_sensor
-from esphome.const import CONF_ID, CONF_STATE, DEVICE_CLASS_VOLTAGE, DEVICE_CLASS_POWER, DEVICE_CLASS_TEMPERATURE, ICON_FLASH, UNIT_VOLT, ICON_THERMOMETER, UNIT_WATT, UNIT_CELSIUS, CONF_TEMPERATURE
+from esphome.const import (
+    CONF_ID,
+    CONF_STATE,
+    DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_POWER,
+    DEVICE_CLASS_TEMPERATURE,
+    ICON_FLASH,
+    UNIT_VOLT,
+    ICON_THERMOMETER,
+    UNIT_WATT,
+    UNIT_CELSIUS,
+    CONF_TEMPERATURE,
+)
 
 MULTI_CONF = True
-DEPENDENCIES = ['uart']
-AUTO_LOAD = ['sensor', 'text_sensor']
+DEPENDENCIES = ["uart"]
+AUTO_LOAD = ["sensor", "text_sensor"]
 
-sun_gtil2_ns = cg.esphome_ns.namespace('sun_gtil2')
+sun_gtil2_ns = cg.esphome_ns.namespace("sun_gtil2")
 
-SunGTIL2 = sun_gtil2_ns.class_('SunGTIL2', cg.Component, uart.UARTDevice)
+SunGTIL2 = sun_gtil2_ns.class_("SunGTIL2", cg.Component, uart.UARTDevice)
 
 
 CONF_AC_VOLTAGE = "ac_voltage"
@@ -20,48 +31,51 @@ CONF_DC_POWER = "dc_power"
 CONF_LIMITER_POWER = "limiter_power"
 CONF_SERIAL_NUMBER = "serial_number"
 
-CONFIG_SCHEMA = cv.Schema({
-    cv.GenerateID(): cv.declare_id(SunGTIL2),
-
-    cv.Optional(CONF_AC_VOLTAGE): sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT,
-        icon=ICON_FLASH,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_VOLTAGE
-    ),
-    cv.Optional(CONF_DC_VOLTAGE): sensor.sensor_schema(
-        unit_of_measurement=UNIT_VOLT,
-        icon=ICON_FLASH,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_VOLTAGE
-    ),
-    cv.Optional(CONF_AC_POWER): sensor.sensor_schema(
-        unit_of_measurement=UNIT_WATT,
-        icon=ICON_FLASH,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_POWER
-    ),
-    cv.Optional(CONF_DC_POWER): sensor.sensor_schema(
-        unit_of_measurement=UNIT_WATT,
-        icon=ICON_FLASH,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_POWER
-    ),
-    cv.Optional(CONF_LIMITER_POWER): sensor.sensor_schema(
-        unit_of_measurement=UNIT_WATT,
-        icon=ICON_FLASH,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_POWER
-    ),
-    cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
-        unit_of_measurement=UNIT_CELSIUS,
-        icon=ICON_THERMOMETER,
-        accuracy_decimals=1,
-        device_class=DEVICE_CLASS_TEMPERATURE
-    ),
-    cv.Optional(CONF_STATE): text_sensor.text_sensor_schema(text_sensor.TextSensor),
-    cv.Optional(CONF_SERIAL_NUMBER): text_sensor.text_sensor_schema(text_sensor.TextSensor),
-}).extend(uart.UART_DEVICE_SCHEMA)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(SunGTIL2),
+        cv.Optional(CONF_AC_VOLTAGE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_VOLT,
+            icon=ICON_FLASH,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_VOLTAGE,
+        ),
+        cv.Optional(CONF_DC_VOLTAGE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_VOLT,
+            icon=ICON_FLASH,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_VOLTAGE,
+        ),
+        cv.Optional(CONF_AC_POWER): sensor.sensor_schema(
+            unit_of_measurement=UNIT_WATT,
+            icon=ICON_FLASH,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_POWER,
+        ),
+        cv.Optional(CONF_DC_POWER): sensor.sensor_schema(
+            unit_of_measurement=UNIT_WATT,
+            icon=ICON_FLASH,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_POWER,
+        ),
+        cv.Optional(CONF_LIMITER_POWER): sensor.sensor_schema(
+            unit_of_measurement=UNIT_WATT,
+            icon=ICON_FLASH,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_POWER,
+        ),
+        cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+            unit_of_measurement=UNIT_CELSIUS,
+            icon=ICON_THERMOMETER,
+            accuracy_decimals=1,
+            device_class=DEVICE_CLASS_TEMPERATURE,
+        ),
+        cv.Optional(CONF_STATE): text_sensor.text_sensor_schema(text_sensor.TextSensor),
+        cv.Optional(CONF_SERIAL_NUMBER): text_sensor.text_sensor_schema(
+            text_sensor.TextSensor
+        ),
+    }
+).extend(uart.UART_DEVICE_SCHEMA)
 
 
 async def to_code(config):
@@ -93,4 +107,3 @@ async def to_code(config):
     if CONF_SERIAL_NUMBER in config:
         sens = await text_sensor.new_text_sensor(config[CONF_SERIAL_NUMBER])
         cg.add(var.set_serial_number(sens))
-

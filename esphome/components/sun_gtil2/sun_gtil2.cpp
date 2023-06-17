@@ -10,7 +10,7 @@ static const double NTC_A = 0.0011591051055979914;
 static const double NTC_B = 0.00022878183547845582;
 static const double NTC_C = 1.0396291358342124e-07;
 static const float PULLUP_RESISTANCE = 10000.0f;
-static const float ADC_MAX = 1023.0f; // ADC of the inverter controller, not the ESP
+static const float ADC_MAX = 1023.0f;  // ADC of the inverter controller, not the ESP
 
 #pragma pack(push, 1)
 struct SunGTIL2Message {
@@ -39,11 +39,7 @@ static const uint16_t MESSAGE_SIZE = sizeof(SunGTIL2Message);
 
 static_assert(MESSAGE_SIZE == 350, "Expected the message size to be 350 bytes");
 
-
-void SunGTIL2::setup() {
-  this->rx_message_.reserve(MESSAGE_SIZE);
-}
-
+void SunGTIL2::setup() { this->rx_message_.reserve(MESSAGE_SIZE); }
 
 void SunGTIL2::loop() {
   while (this->available()) {
@@ -52,7 +48,6 @@ void SunGTIL2::loop() {
     this->handle_char_(c);
   }
 }
-
 
 std::string SunGTIL2::state_to_string_(uint8_t state) {
   switch (state) {
@@ -65,18 +60,16 @@ std::string SunGTIL2::state_to_string_(uint8_t state) {
   }
 }
 
-
 float SunGTIL2::calculate_temperature_(uint16_t adc_value) {
   if (adc_value >= ADC_MAX || adc_value == 0) {
     return NAN;
   }
-  
+
   float ntc_resistance = PULLUP_RESISTANCE / ((ADC_MAX / adc_value) - 1.0f);
   double lr = log(double(ntc_resistance));
   double v = NTC_A + NTC_B * lr + NTC_C * lr * lr * lr;
   return float(1.0 / v - 273.15);
 }
-
 
 void SunGTIL2::handle_char_(uint8_t c) {
   if (this->rx_message_.size() > 1 || c == 0x07) {
@@ -87,7 +80,7 @@ void SunGTIL2::handle_char_(uint8_t c) {
   if (this->rx_message_.size() < MESSAGE_SIZE) {
     return;
   }
-  
+
   SunGTIL2Message msg;
   memcpy(&msg, this->rx_message_.data(), MESSAGE_SIZE);
   this->rx_message_.clear();
@@ -96,7 +89,8 @@ void SunGTIL2::handle_char_(uint8_t c) {
     return;
 
   ESP_LOGVV(TAG, "Frequency raw value: %02x", msg.frequency);
-  ESP_LOGVV(TAG, "Unknown values: %02x %02x %02x %02x %02x", msg.unknown1, msg.unknown2, msg.unknown3, msg.unknown4, msg.unknown5);
+  ESP_LOGVV(TAG, "Unknown values: %02x %02x %02x %02x %02x", msg.unknown1, msg.unknown2, msg.unknown3, msg.unknown4,
+            msg.unknown5);
 
   if (this->ac_voltage_ != nullptr)
     this->ac_voltage_->publish_state(__builtin_bswap16(msg.ac_voltage) / 10.0f);
@@ -119,7 +113,6 @@ void SunGTIL2::handle_char_(uint8_t c) {
     this->serial_number_->publish_state(serial_number);
   }
 }
-
 
 void SunGTIL2::dump_config() {
   LOG_SENSOR("", "AC Voltage", this->ac_voltage_);
