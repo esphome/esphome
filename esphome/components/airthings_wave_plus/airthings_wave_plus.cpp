@@ -16,19 +16,31 @@ void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
     if (value->version == 1) {
       ESP_LOGD(TAG, "ambient light = %d", value->ambientLight);
 
-      this->humidity_sensor_->publish_state(value->humidity / 2.0f);
-      if (this->is_valid_radon_value_(value->radon)) {
+      if (this->humidity_sensor_ != nullptr) {
+        this->humidity_sensor_->publish_state(value->humidity / 2.0f);
+      }
+
+      if ((this->radon_sensor_ != nullptr) && this->is_valid_radon_value_(value->radon)) {
         this->radon_sensor_->publish_state(value->radon);
       }
-      if (this->is_valid_radon_value_(value->radon_lt)) {
+
+      if ((this->radon_long_term_sensor_ != nullptr) && this->is_valid_radon_value_(value->radon_lt)) {
         this->radon_long_term_sensor_->publish_state(value->radon_lt);
       }
-      this->temperature_sensor_->publish_state(value->temperature / 100.0f);
-      this->pressure_sensor_->publish_state(value->pressure / 50.0f);
-      if (this->is_valid_co2_value_(value->co2)) {
+
+      if (this->temperature_sensor_ != nullptr) {
+        this->temperature_sensor_->publish_state(value->temperature / 100.0f);
+      }
+
+      if (this->pressure_sensor_ != nullptr) {
+        this->pressure_sensor_->publish_state(value->pressure / 50.0f);
+      }
+
+      if ((this->co2_sensor_ != nullptr) && this->is_valid_co2_value_(value->co2)) {
         this->co2_sensor_->publish_state(value->co2);
       }
-      if (this->is_valid_voc_value_(value->voc)) {
+
+      if ((this->tvoc_sensor_ != nullptr) && this->is_valid_voc_value_(value->voc)) {
         this->tvoc_sensor_->publish_state(value->voc);
       }
 
