@@ -29,6 +29,7 @@ from esphome.const import (
 )
 
 CONF_LINE_FREQUENCY = "line_frequency"
+CONF_PULSES_PER_KWH = "pulses_per_kwh"
 CONF_PL_CONST = "pl_const"
 CONF_GAIN_PGA = "gain_pga"
 CONF_GAIN_METERING = "gain_metering"
@@ -103,6 +104,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
+            cv.Optional(CONF_PULSES_PER_KWH, default=3200.0): cv.positive_float,
             cv.Optional(CONF_PL_CONST, default=1429876): cv.uint32_t,
             cv.Optional(CONF_GAIN_METERING, default=7481): cv.uint16_t,
             cv.Optional(CONF_GAIN_VOLTAGE, default=26400): cv.uint16_t,
@@ -145,6 +147,7 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_FREQUENCY])
         cg.add(var.set_freq_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
+    cg.add(var.set_pulses_per_kwh(config[CONF_PULSES_PER_KWH]))
     cg.add(var.set_pl_const(config[CONF_PL_CONST]))
     cg.add(var.set_metering_gain(config[CONF_GAIN_METERING]))
     cg.add(var.set_volt_gain(config[CONF_GAIN_VOLTAGE]))

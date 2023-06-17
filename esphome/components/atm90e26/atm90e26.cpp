@@ -212,7 +212,8 @@ float ATM90E26Component::get_forward_active_energy_() {
   } else {
     this->cumulative_forward_active_energy_ = val;
   }
-  return (this->cumulative_forward_active_energy_ / 10.0f);
+  // The register holds thenths of pulses, we want to output Wh
+  return (this->cumulative_forward_active_energy_ * 100.0f / pulses_per_kwh_);
 }
 
 float ATM90E26Component::get_reverse_active_energy_() {
@@ -222,7 +223,7 @@ float ATM90E26Component::get_reverse_active_energy_() {
   } else {
     this->cumulative_reverse_active_energy_ = val;
   }
-  return (this->cumulative_reverse_active_energy_ / 10.0f);
+  return (this->cumulative_reverse_active_energy_ * 100.0f / pulses_per_kwh_);
 }
 
 float ATM90E26Component::get_frequency_() {
