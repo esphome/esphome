@@ -34,7 +34,7 @@ spi:
   miso_pin: GPIO23
 
 uart:
-  id: uart0
+  id: my_uart
   tx_pin: GPIO22
   rx_pin: GPIO23
   baud_rate: 9600
@@ -748,7 +748,7 @@ max6956:
     address: 0x40
 
 sun_gtil2:
-  uart_id: uart0
+  uart_id: my_uart
   temperature:
     id: gtil_temperature
     name: "Heatsink Temperature"
