@@ -15,6 +15,7 @@ from esphome.const import (
     CONF_TEMPERATURE,
 )
 
+CODEOWNERS = ["@Mat931"]
 MULTI_CONF = True
 DEPENDENCIES = ["uart"]
 AUTO_LOAD = ["sensor", "text_sensor"]
