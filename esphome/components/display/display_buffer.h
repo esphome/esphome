@@ -16,6 +16,10 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
+#include "animation.h"
+#include "font.h"
+#include "image.h"
+
 namespace esphome {
 namespace display {
 
@@ -70,19 +74,6 @@ enum class TextAlign {
   BOTTOM_RIGHT = BOTTOM | RIGHT,
 };
 
-/// Turn the pixel OFF.
-extern const Color COLOR_OFF;
-/// Turn the pixel ON.
-extern const Color COLOR_ON;
-
-enum ImageType {
-  IMAGE_TYPE_BINARY = 0,
-  IMAGE_TYPE_GRAYSCALE = 1,
-  IMAGE_TYPE_RGB24 = 2,
-  IMAGE_TYPE_RGB565 = 3,
-  IMAGE_TYPE_RGBA = 4,
-};
-
 enum DisplayType {
   DISPLAY_TYPE_BINARY = 1,
   DISPLAY_TYPE_GRAYSCALE = 2,
@@ -123,8 +114,6 @@ class Rect {
   void info(const std::string &prefix = "rect info:");
 };
 
-class BaseImage;
-class Font;
 class DisplayBuffer;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
@@ -473,123 +462,6 @@ class DisplayPage {
   display_writer_t writer_;
   DisplayPage *prev_{nullptr};
   DisplayPage *next_{nullptr};
-};
-
-struct GlyphData {
-  const char *a_char;
-  const uint8_t *data;
-  int offset_x;
-  int offset_y;
-  int width;
-  int height;
-};
-
-class Glyph {
- public:
-  Glyph(const GlyphData *data) : glyph_data_(data) {}
-
-  bool get_pixel(int x, int y) const;
-
-  const char *get_char() const;
-
-  bool compare_to(const char *str) const;
-
-  int match_length(const char *str) const;
-
-  void scan_area(int *x1, int *y1, int *width, int *height) const;
-
- protected:
-  friend Font;
-  friend DisplayBuffer;
-
-  const GlyphData *glyph_data_;
-};
-
-class Font {
- public:
-  /** Construct the font with the given glyphs.
-   *
-   * @param glyphs A vector of glyphs, must be sorted lexicographically.
-   * @param baseline The y-offset from the top of the text to the baseline.
-   * @param bottom The y-offset from the top of the text to the bottom (i.e. height).
-   */
-  Font(const GlyphData *data, int data_nr, int baseline, int height);
-
-  int match_next_glyph(const char *str, int *match_length);
-
-  void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
-  inline int get_baseline() { return this->baseline_; }
-  inline int get_height() { return this->height_; }
-
-  const std::vector<Glyph, ExternalRAMAllocator<Glyph>> &get_glyphs() const { return glyphs_; }
-
- protected:
-  std::vector<Glyph, ExternalRAMAllocator<Glyph>> glyphs_;
-  int baseline_;
-  int height_;
-};
-
-class BaseImage {
- public:
-  virtual void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) = 0;
-  virtual int get_width() const = 0;
-  virtual int get_height() const = 0;
-};
-
-class Image : public BaseImage {
- public:
-  Image(const uint8_t *data_start, int width, int height, ImageType type);
-  Color get_pixel(int x, int y, Color color_on = COLOR_ON, Color color_off = COLOR_OFF) const;
-  int get_width() const override;
-  int get_height() const override;
-  ImageType get_type() const;
-
-  void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) override;
-
-  void set_transparency(bool transparent) { transparent_ = transparent; }
-  bool has_transparency() const { return transparent_; }
-
- protected:
-  bool get_binary_pixel_(int x, int y) const;
-  Color get_rgb24_pixel_(int x, int y) const;
-  Color get_rgba_pixel_(int x, int y) const;
-  Color get_rgb565_pixel_(int x, int y) const;
-  Color get_grayscale_pixel_(int x, int y) const;
-
-  int width_;
-  int height_;
-  ImageType type_;
-  const uint8_t *data_start_;
-  bool transparent_;
-};
-
-class Animation : public Image {
- public:
-  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
-
-  uint32_t get_animation_frame_count() const;
-  int get_current_frame() const;
-  void next_frame();
-  void prev_frame();
-
-  /** Selects a specific frame within the animation.
-   *
-   * @param frame If possitive, advance to the frame. If negative, recede to that frame from the end frame.
-   */
-  void set_frame(int frame);
-
-  void set_loop(uint32_t start_frame, uint32_t end_frame, int count);
-
- protected:
-  void update_data_start_();
-
-  const uint8_t *animation_data_start_;
-  int current_frame_;
-  uint32_t animation_frame_count_;
-  uint32_t loop_start_frame_;
-  uint32_t loop_end_frame_;
-  int loop_count_;
-  int loop_current_iteration_;
 };
 
 template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
