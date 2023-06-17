@@ -69,7 +69,7 @@ void ATM90E26Component::setup() {
   this->write16_(ATM90E26_REGISTER_PLCONSTH, (pl_const_ >> 16));   // PL Constant MSB
   this->write16_(ATM90E26_REGISTER_PLCONSTL, pl_const_ & 0xFFFF);  // PL Constant LSB
 
-  // TODO: Calibrate this to be 1 pulse per Wh
+  // Calibrate this to be 1 pulse per Wh
   this->write16_(ATM90E26_REGISTER_LGAIN, metering_gain_);  // L Line Calibration Gain (active power metering)
   this->write16_(ATM90E26_REGISTER_LPHI, 0x0000);           // L Line Calibration Angle
   this->write16_(ATM90E26_REGISTER_NGAIN, 0x0000);          // N Line Calibration Gain
@@ -183,7 +183,7 @@ float ATM90E26Component::get_line_current_() {
 
 float ATM90E26Component::get_line_voltage_() {
   uint16_t voltage = this->read16_(ATM90E26_REGISTER_URMS);
-  return (float) voltage / 100;
+  return voltage / 100.0f;
 }
 
 float ATM90E26Component::get_active_power_() {
@@ -199,9 +199,9 @@ float ATM90E26Component::get_reactive_power_() {
 float ATM90E26Component::get_power_factor_() {
   uint16_t val = this->read16_(ATM90E26_REGISTER_POWERF);  // signed
   if (val & 0x8000) {
-    return (float) -(val & 0x7FF) / 1000;
+    return -(val & 0x7FF) / 1000.0f;
   } else {
-    return (float) val / 1000;
+    return val / 1000.0f;
   }
 }
 
@@ -212,7 +212,7 @@ float ATM90E26Component::get_forward_active_energy_() {
   } else {
     this->cumulative_forward_active_energy_ = val;
   }
-  return ((float) this->cumulative_forward_active_energy_ / 1000);
+  return (this->cumulative_forward_active_energy_ / 10.0f);
 }
 
 float ATM90E26Component::get_reverse_active_energy_() {
@@ -222,12 +222,12 @@ float ATM90E26Component::get_reverse_active_energy_() {
   } else {
     this->cumulative_reverse_active_energy_ = val;
   }
-  return ((float) this->cumulative_reverse_active_energy_ / 1000);
+  return (this->cumulative_reverse_active_energy_ / 10.0f);
 }
 
 float ATM90E26Component::get_frequency_() {
   uint16_t freq = this->read16_(ATM90E26_REGISTER_FREQ);
-  return (float) freq / 100;
+  return freq / 100.0f;
 }
 
 }  // namespace atm90e26
