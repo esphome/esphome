@@ -85,6 +85,10 @@ class APIServer : public Component, public Controller {
   void stop_voice_assistant();
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+  void on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) override;
+#endif
+
   bool is_connected() const;
 
   struct HomeAssistantStateSubscription {

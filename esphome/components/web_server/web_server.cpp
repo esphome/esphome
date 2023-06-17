@@ -803,6 +803,9 @@ std::string WebServer::select_json(select::Select *obj, const std::string &value
 }
 #endif
 
+// Longest: HORIZONTAL
+#define PSTR_LOCAL(mode_s) strncpy_P(buf, (PGM_P) ((mode_s)), 15)
+
 #ifdef USE_CLIMATE
 void WebServer::on_climate_update(climate::Climate *obj) {
   this->events_.send(this->climate_json(obj, DETAIL_STATE).c_str(), "state");
@@ -859,16 +862,13 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
   request->send(404);
 }
 
-// Longest: HORIZONTAL
-#define PSTR_LOCAL(mode_s) strncpy_P(__buf, (PGM_P) ((mode_s)), 15)
-
 std::string WebServer::climate_json(climate::Climate *obj, JsonDetail start_config) {
   return json::build_json([obj, start_config](JsonObject root) {
     set_json_id(root, obj, "climate-" + obj->get_object_id(), start_config);
     const auto traits = obj->get_traits();
     int8_t target_accuracy = traits.get_target_temperature_accuracy_decimals();
     int8_t current_accuracy = traits.get_current_temperature_accuracy_decimals();
-    char __buf[16];
+    char buf[16];
 
     if (start_config == DETAIL_ALL) {
       JsonArray opt = root.createNestedArray("modes");
@@ -986,6 +986,34 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 }
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
+  this->events_.send(this->alarm_control_panel_json(obj, obj->get_state(), DETAIL_STATE).c_str(), "state");
+}
+std::string WebServer::alarm_control_panel_json(alarm_control_panel::AlarmControlPanel *obj,
+                                                alarm_control_panel::AlarmControlPanelState value,
+                                                JsonDetail start_config) {
+  return json::build_json([obj, value, start_config](JsonObject root) {
+    char buf[16];
+    set_json_icon_state_value(root, obj, "alarm-control-panel-" + obj->get_object_id(),
+                              PSTR_LOCAL(alarm_control_panel_state_to_string(value)), value, start_config);
+  });
+}
+void WebServer::handle_alarm_control_panel_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (alarm_control_panel::AlarmControlPanel *obj : App.get_alarm_control_panels()) {
+    if (obj->get_object_id() != match.id)
+      continue;
+
+    if (request->method() == HTTP_GET) {
+      std::string data = this->alarm_control_panel_json(obj, obj->get_state(), DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+  }
+  request->send(404);
+}
+#endif
+
 bool WebServer::canHandle(AsyncWebServerRequest *request) {
   if (request->url() == "/")
     return true;
@@ -1060,6 +1088,11 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
 
 #ifdef USE_LOCK
   if ((request->method() == HTTP_POST || request->method() == HTTP_GET) && match.domain == "lock")
+    return true;
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  if (request->method() == HTTP_GET && match.domain == "alarm_control_panel")
     return true;
 #endif
 
@@ -1166,6 +1199,14 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
 #ifdef USE_LOCK
   if (match.domain == "lock") {
     this->handle_lock_request(request, match);
+
+    return;
+  }
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  if (match.domain == "alarm_control_panel") {
+    this->handle_alarm_control_panel_request(request, match);
 
     return;
   }
