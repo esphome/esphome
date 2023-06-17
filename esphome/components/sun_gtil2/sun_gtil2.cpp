@@ -4,7 +4,7 @@
 namespace esphome {
 namespace sun_gtil2 {
 
-static const char *TAG = "sun_gtil2";
+static const char *const TAG = "sun_gtil2";
 
 static const double NTC_A = 0.0011591051055979914;
 static const double NTC_B = 0.00022878183547845582;
