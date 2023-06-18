@@ -73,7 +73,7 @@ void SM300D2Sensor::update() {
   if (this->addr_sensor_ != nullptr)
     this->addr_sensor_->publish_state(addr);
   
-  ESP_LOGD(TAG, "Received Func: %u ppm", function);
+  ESP_LOGD(TAG, "Received Function Type: %u" , function);
   if (this->function_sensor_ != nullptr)
     this->function_sensor_->publish_state(function);
 
