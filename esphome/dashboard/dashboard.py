@@ -536,7 +536,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 self.send_error(404)
                 return
 
-        filename = filename + '.gz' if compressed else filename
+        filename = filename + ".gz" if compressed else filename
 
         self.set_header("Content-Type", "application/octet-stream")
         self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
