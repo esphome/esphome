@@ -6,6 +6,9 @@
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #endif
+#ifdef USE_SWITCH
+#include "esphome/components/switch/switch.h"
+#endif
 
 namespace esphome {
 namespace dfrobot_mmwave_radar {
@@ -25,6 +28,7 @@ class Command {
   virtual uint8_t on_message(std::string &message) = 0;
 
  protected:
+  DfrobotMmwaveRadarComponent *component_{nullptr};
   std::string cmd_;
   bool cmd_sent_{false};
   int8_t retries_left_{2};
@@ -48,16 +52,41 @@ class CircularCommandQueue {
   std::unique_ptr<Command> commands_[COMMAND_QUEUE_SIZE];
 };
 
+#ifdef USE_SWITCH
+class DfrobotMmwaveRadarSwitch : public switch_::Switch, public Component {
+ public:
+  void write_state(bool state) override;
+  void set_component(DfrobotMmwaveRadarComponent *component) { component_ = component; }
+
+ protected:
+  DfrobotMmwaveRadarComponent *component_;
+};
+#endif
+
 class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
  public:
   void dump_config() override;
   void setup() override;
   void loop() override;
+  void set_active(bool active) {
+    if (active != active_) {
+#ifdef USE_SWITCH
+      if (this->active_switch_ != nullptr)
+        this->active_switch_->publish_state(active);
+#endif
+      active_ = active;
+    }
+  }
+  bool is_active() { return active_; }
 
 #ifdef USE_BINARY_SENSOR
   void set_detected_binary_sensor(binary_sensor::BinarySensor *detected_binary_sensor) {
     detected_binary_sensor_ = detected_binary_sensor;
   }
+#endif
+
+#ifdef USE_SWITCH
+  void set_active_switch(switch_::Switch *active_switch) { active_switch_ = active_switch; }
 #endif
 
   int8_t enqueue(std::unique_ptr<Command> cmd);
@@ -66,7 +95,11 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
 #ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *detected_binary_sensor_{nullptr};
 #endif
+#ifdef USE_SWITCH
+  switch_::Switch *active_switch_{nullptr};
+#endif
   bool detected_{false};
+  bool active_{false};
   char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
   size_t read_pos_{0};
   CircularCommandQueue cmd_queue_;

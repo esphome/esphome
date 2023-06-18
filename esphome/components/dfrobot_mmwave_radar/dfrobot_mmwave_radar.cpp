@@ -9,10 +9,17 @@ static const char *const TAG = "dfrobot_mmwave_radar";
 const char ASCII_CR = 0x0D;
 const char ASCII_LF = 0x0A;
 
+#ifdef USE_SWITCH
+void DfrobotMmwaveRadarSwitch::write_state(bool state) { component_->enqueue(make_unique<PowerCommand>(state)); }
+#endif
+
 void DfrobotMmwaveRadarComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Dfrobot Mmwave Radar:");
 #ifdef USE_BINARY_SENSOR
   LOG_BINARY_SENSOR("  ", "Registered", this->detected_binary_sensor_);
+#endif
+#ifdef USE_SWITCH
+  LOG_SWITCH("  ", "Registered", this->active_switch_);
 #endif
 }
 
@@ -134,6 +141,7 @@ uint8_t CircularCommandQueue::process(DfrobotMmwaveRadarComponent *component) {
 }
 
 uint8_t Command::execute(DfrobotMmwaveRadarComponent *component) {
+  component_ = component;
   if (cmd_sent_) {
     if (component->read_message_()) {
       std::string message(component->read_buffer_);
@@ -184,13 +192,16 @@ uint8_t Command::execute(DfrobotMmwaveRadarComponent *component) {
 }
 
 uint8_t ReadStateCommand::execute(DfrobotMmwaveRadarComponent *component) {
+  component_ = component;
   if (component->read_message_()) {
     std::string message(component->read_buffer_);
     if (message.rfind("$JYBSS,0, , , *") != std::string::npos) {
       component->set_detected_(false);
+      component_->set_active(true);
       return 1;  // Command done
     } else if (message.rfind("$JYBSS,1, , , *") != std::string::npos) {
       component->set_detected_(true);
+      component_->set_active(true);
       return 1;  // Command done
     }
   }
@@ -204,15 +215,19 @@ uint8_t ReadStateCommand::on_message(std::string &message) { return 1; }
 
 uint8_t PowerCommand::on_message(std::string &message) {
   if (message == "sensor stopped already") {
+    component_->set_active(false);
     ESP_LOGI(TAG, "Stopped sensor (already stopped)");
     return 1;  // Command done
   } else if (message == "sensor started already") {
+    component_->set_active(true);
     ESP_LOGI(TAG, "Started sensor (already started)");
     return 1;  // Command done
   } else if (message == "new parameter isn't save, can't startSensor") {
+    component_->set_active(false);
     ESP_LOGE(TAG, "Can't start sensor! (Use SaveCfgCommand to save config first)");
     return 1;  // Command done
   } else if (message == "Done") {
+    component_->set_active(power_on_);
     if (power_on_) {
       ESP_LOGI(TAG, "Started sensor");
     } else {
