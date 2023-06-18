@@ -11,7 +11,7 @@ void SM300D2Sensor::update() {
   uint8_t response[SM300D2_RESPONSE_LENGTH];
   uint8_t peeked;
 
-  while (this->available() > 0 && this->peek_byte(&peeked) && peeked != 0x01)
+  while (this->available() > 0 && this->peek_byte(&peeked) && peeked != \n)
     this->read();
 
   bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
