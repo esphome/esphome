@@ -25,7 +25,7 @@ class ATM90E26Component : public PollingComponent,
   void set_power_factor_sensor(sensor::Sensor *obj) { this->power_factor_sensor_ = obj; }
   void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
   void set_line_freq(int freq) { line_freq_ = freq; }
-  void set_pulses_per_kwh(float pulses) { pulses_per_kwh_ = pulses; }
+  void set_meter_constant(float val) { meter_constant_ = val; }
   void set_pl_const(uint32_t pl_const) { pl_const_ = pl_const; }
   void set_metering_gain(uint16_t gain) { this->metering_gain_ = gain; }
   void set_volt_gain(uint16_t gain) { this->volt_gain_ = gain; }
@@ -64,7 +64,7 @@ class ATM90E26Component : public PollingComponent,
   uint16_t l_line_gain_{0x4};
   uint16_t n_line_gain_{0x2};
   int line_freq_{60};
-  float pulses_per_kwh_{3200.0f};
+  float meter_constant_{3200.0f};
   uint32_t pl_const_{1429876};
 };
 
