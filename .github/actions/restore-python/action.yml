@@ -8,10 +8,10 @@ inputs:
     description: Cache key to use
     required: true
     type: string
-  outputs:
-    python-version:
-      description: Python version restored
-      value: ${{ steps.python.outputs.python-version }}
+outputs:
+  python-version:
+    description: Python version restored
+    value: ${{ steps.python.outputs.python-version }}
 runs:
   using: "composite"
   steps:
