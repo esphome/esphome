@@ -16,6 +16,10 @@
 #include "esphome/components/qr_code/qr_code.h"
 #endif
 
+#include "animation.h"
+#include "font.h"
+#include "image.h"
+
 namespace esphome {
 namespace display {
 
@@ -70,17 +74,52 @@ enum class TextAlign {
   BOTTOM_RIGHT = BOTTOM | RIGHT,
 };
 
-/// Turn the pixel OFF.
-extern const Color COLOR_OFF;
-/// Turn the pixel ON.
-extern const Color COLOR_ON;
+/** ImageAlign is used to tell the display class how to position a image. By default
+ * the coordinates you enter for the image() functions take the upper left corner of the image
+ * as the "anchor" point. You can customize this behavior to, for example, make the coordinates
+ * refer to the *center* of the image.
+ *
+ * All image alignments consist of an X and Y-coordinate alignment. For the alignment along the X-axis
+ * these options are allowed:
+ *
+ * - LEFT (x-coordinate of anchor point is on left)
+ * - CENTER_HORIZONTAL (x-coordinate of anchor point is in the horizontal center of the image)
+ * - RIGHT (x-coordinate of anchor point is on right)
+ *
+ * For the Y-Axis alignment these options are allowed:
+ *
+ * - TOP (y-coordinate of anchor is on the top of the image)
+ * - CENTER_VERTICAL (y-coordinate of anchor is in the vertical center of the image)
+ * - BOTTOM (y-coordinate of anchor is on the bottom of the image)
+ *
+ * These options are then combined to create combined TextAlignment options like:
+ * - TOP_LEFT (default)
+ * - CENTER (anchor point is in the middle of the image bounds)
+ * - ...
+ */
+enum class ImageAlign {
+  TOP = 0x00,
+  CENTER_VERTICAL = 0x01,
+  BOTTOM = 0x02,
 
-enum ImageType {
-  IMAGE_TYPE_BINARY = 0,
-  IMAGE_TYPE_GRAYSCALE = 1,
-  IMAGE_TYPE_RGB24 = 2,
-  IMAGE_TYPE_RGB565 = 3,
-  IMAGE_TYPE_RGBA = 4,
+  LEFT = 0x00,
+  CENTER_HORIZONTAL = 0x04,
+  RIGHT = 0x08,
+
+  TOP_LEFT = TOP | LEFT,
+  TOP_CENTER = TOP | CENTER_HORIZONTAL,
+  TOP_RIGHT = TOP | RIGHT,
+
+  CENTER_LEFT = CENTER_VERTICAL | LEFT,
+  CENTER = CENTER_VERTICAL | CENTER_HORIZONTAL,
+  CENTER_RIGHT = CENTER_VERTICAL | RIGHT,
+
+  BOTTOM_LEFT = BOTTOM | LEFT,
+  BOTTOM_CENTER = BOTTOM | CENTER_HORIZONTAL,
+  BOTTOM_RIGHT = BOTTOM | RIGHT,
+
+  HORIZONTAL_ALIGNMENT = LEFT | CENTER_HORIZONTAL | RIGHT,
+  VERTICAL_ALIGNMENT = TOP | CENTER_VERTICAL | BOTTOM
 };
 
 enum DisplayType {
@@ -123,8 +162,6 @@ class Rect {
   void info(const std::string &prefix = "rect info:");
 };
 
-class BaseImage;
-class Font;
 class DisplayBuffer;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
@@ -311,11 +348,22 @@ class DisplayBuffer {
    *
    * @param x The x coordinate of the upper left corner.
    * @param y The y coordinate of the upper left corner.
-   * @param image The image to draw
+   * @param image The image to draw.
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
   void image(int x, int y, BaseImage *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+
+  /** Draw the `image` at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param image The image to draw.
+   * @param align The alignment of the image.
+   * @param color_on The color to replace in binary images for the on bits.
+   * @param color_off The color to replace in binary images for the off bits.
+   */
+  void image(int x, int y, BaseImage *image, ImageAlign align, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
 #ifdef USE_GRAPH
   /** Draw the `graph` with the top-left corner at [x,y] to the screen.
@@ -473,123 +521,6 @@ class DisplayPage {
   display_writer_t writer_;
   DisplayPage *prev_{nullptr};
   DisplayPage *next_{nullptr};
-};
-
-struct GlyphData {
-  const char *a_char;
-  const uint8_t *data;
-  int offset_x;
-  int offset_y;
-  int width;
-  int height;
-};
-
-class Glyph {
- public:
-  Glyph(const GlyphData *data) : glyph_data_(data) {}
-
-  bool get_pixel(int x, int y) const;
-
-  const char *get_char() const;
-
-  bool compare_to(const char *str) const;
-
-  int match_length(const char *str) const;
-
-  void scan_area(int *x1, int *y1, int *width, int *height) const;
-
- protected:
-  friend Font;
-  friend DisplayBuffer;
-
-  const GlyphData *glyph_data_;
-};
-
-class Font {
- public:
-  /** Construct the font with the given glyphs.
-   *
-   * @param glyphs A vector of glyphs, must be sorted lexicographically.
-   * @param baseline The y-offset from the top of the text to the baseline.
-   * @param bottom The y-offset from the top of the text to the bottom (i.e. height).
-   */
-  Font(const GlyphData *data, int data_nr, int baseline, int height);
-
-  int match_next_glyph(const char *str, int *match_length);
-
-  void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
-  inline int get_baseline() { return this->baseline_; }
-  inline int get_height() { return this->height_; }
-
-  const std::vector<Glyph, ExternalRAMAllocator<Glyph>> &get_glyphs() const { return glyphs_; }
-
- protected:
-  std::vector<Glyph, ExternalRAMAllocator<Glyph>> glyphs_;
-  int baseline_;
-  int height_;
-};
-
-class BaseImage {
- public:
-  virtual void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) = 0;
-  virtual int get_width() const = 0;
-  virtual int get_height() const = 0;
-};
-
-class Image : public BaseImage {
- public:
-  Image(const uint8_t *data_start, int width, int height, ImageType type);
-  Color get_pixel(int x, int y, Color color_on = COLOR_ON, Color color_off = COLOR_OFF) const;
-  int get_width() const override;
-  int get_height() const override;
-  ImageType get_type() const;
-
-  void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) override;
-
-  void set_transparency(bool transparent) { transparent_ = transparent; }
-  bool has_transparency() const { return transparent_; }
-
- protected:
-  bool get_binary_pixel_(int x, int y) const;
-  Color get_rgb24_pixel_(int x, int y) const;
-  Color get_rgba_pixel_(int x, int y) const;
-  Color get_rgb565_pixel_(int x, int y) const;
-  Color get_grayscale_pixel_(int x, int y) const;
-
-  int width_;
-  int height_;
-  ImageType type_;
-  const uint8_t *data_start_;
-  bool transparent_;
-};
-
-class Animation : public Image {
- public:
-  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
-
-  uint32_t get_animation_frame_count() const;
-  int get_current_frame() const;
-  void next_frame();
-  void prev_frame();
-
-  /** Selects a specific frame within the animation.
-   *
-   * @param frame If possitive, advance to the frame. If negative, recede to that frame from the end frame.
-   */
-  void set_frame(int frame);
-
-  void set_loop(uint32_t start_frame, uint32_t end_frame, int count);
-
- protected:
-  void update_data_start_();
-
-  const uint8_t *animation_data_start_;
-  int current_frame_;
-  uint32_t animation_frame_count_;
-  uint32_t loop_start_frame_;
-  uint32_t loop_end_frame_;
-  int loop_count_;
-  int loop_current_iteration_;
 };
 
 template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {
