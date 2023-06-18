@@ -10,10 +10,21 @@ static const uint8_t SM300D2_RESPONSE_LENGTH = 15;
 void SM300D2Sensor::update() {
   uint8_t response[SM300D2_RESPONSE_LENGTH];
   uint8_t peeked;
-  uint8_t buffer[2]; // Buffer to store the peeked bytes
+  uint8_t previousByte = 0;
+  unsigned long previousTime = 0;
 
-  while (this->available() > 0 && this->peek_array(buffer, 2) && !(buffer[0] == 0x03 && buffer[1] == 0x0E))
+  while (this->available() > 0) {
+    this->peek_byte(&peeked);
+
+    // Check if a 1-second delay has elapsed since the previous byte
+    if (millis() - previousTime >= 100 && peeked == 0x01) {
+      break; // Exit the loop if the desired byte and delay are satisfied
+    }
+
+    previousByte = peeked;
+    previousTime = millis();
     this->read();
+  }
 
   bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
 
