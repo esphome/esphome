@@ -311,6 +311,37 @@ void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign al
 }
 
 void DisplayBuffer::image(int x, int y, BaseImage *image, Color color_on, Color color_off) {
+  this->image(x, y, image, ImageAlign::TOP_LEFT, color_on, color_off);
+}
+
+void DisplayBuffer::image(int x, int y, BaseImage *image, ImageAlign align, Color color_on, Color color_off) {
+  auto x_align = ImageAlign(int(align) & (int(ImageAlign::HORIZONTAL_ALIGNMENT)));
+  auto y_align = ImageAlign(int(align) & (int(ImageAlign::VERTICAL_ALIGNMENT)));
+
+  switch (x_align) {
+    case ImageAlign::RIGHT:
+      x -= image->get_width();
+      break;
+    case ImageAlign::CENTER_HORIZONTAL:
+      x -= image->get_width() / 2;
+      break;
+    case ImageAlign::LEFT:
+    default:
+      break;
+  }
+
+  switch (y_align) {
+    case ImageAlign::BOTTOM:
+      y -= image->get_height();
+      break;
+    case ImageAlign::CENTER_VERTICAL:
+      y -= image->get_height() / 2;
+      break;
+    case ImageAlign::TOP:
+    default:
+      break;
+  }
+
   image->draw(x, y, this, color_on, color_off);
 }
 
