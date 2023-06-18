@@ -56,18 +56,18 @@ void SM300D2Sensor::update() {
 
   ESP_LOGD(TAG, "Successfully read SM300D2 data %u",response);
 
-  const uint16_t addr = (response[1]);
-  const uint16_t function = (response[2]) + response[3];
-  const uint16_t co2 = (response[4] * 256) + response[5];
-  const uint16_t formaldehyde = (response[6] * 256) + response[7];
-  const uint16_t tvoc = (response[8] * 256) + response[9];
-  const uint16_t pm_2_5 = (response[10] * 256) + response[11];
-  const uint16_t pm_10_0 = (response[12] * 256) + response[13];
+  const uint16_t addr = (response[0]);
+  const uint16_t function = (response[1]) + response[2];
+  const uint16_t co2 = (response[3] * 256) + response[4];
+  const uint16_t formaldehyde = (response[5] * 256) + response[6];
+  const uint16_t tvoc = (response[7] * 256) + response[8];
+  const uint16_t pm_2_5 = (response[9] * 256) + response[10];
+  const uint16_t pm_10_0 = (response[11] * 256) + response[12];
   // A negative value is indicated by adding 0x80 (128) to the temperature value
-  const float temperature = ((response[14] + (response[15] * 0.1f)) > 128)
-                                ? (((response[14] + (response[15] * 0.1f)) - 128) * -1)
-                                : response[14] + (response[15] * 0.1f);
-  const float humidity = response[16] + (response[17] * 0.1f);
+  const float temperature = ((response[13] + (response[14] * 0.1f)) > 128)
+                                ? (((response[13] + (response[14] * 0.1f)) - 128) * -1)
+                                : response[13] + (response[14] * 0.1f);
+  const float humidity = response[15] + (response[14] * 0.1f);
 
   ESP_LOGD(TAG, "Received Addr: %u", addr);
   if (this->addr_sensor_ != nullptr)
