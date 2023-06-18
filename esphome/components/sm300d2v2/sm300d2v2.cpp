@@ -5,7 +5,7 @@ namespace esphome {
 namespace sm300d2v2 {
 
 static const char *const TAG = "sm300d2v2";
-static const uint8_t SM300D2_RESPONSE_LENGTH = 15;
+static const uint8_t SM300D2_RESPONSE_LENGTH = 19;
 
 void SM300D2Sensor::update() {
   uint8_t response[SM300D2_RESPONSE_LENGTH];
