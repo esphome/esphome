@@ -5,13 +5,14 @@ namespace esphome {
 namespace sm300d2v2 {
 
 static const char *const TAG = "sm300d2v2";
-static const uint8_t SM300D2_RESPONSE_LENGTH = 18;
+static const uint8_t SM300D2_RESPONSE_LENGTH = 15;
 
 void SM300D2Sensor::update() {
   uint8_t response[SM300D2_RESPONSE_LENGTH];
   uint8_t peeked;
+  uint8_t buffer[2]; // Buffer to store the peeked bytes
 
-  while (this->available() > 0 && this->peek_byte(&peeked) && peeked != '\n')
+  while (this->available() > 0 && this->peek_array(buffer, 2) && !(buffer[0] == 0x03 && buffer[1] == 0x0E))
     this->read();
 
   bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
