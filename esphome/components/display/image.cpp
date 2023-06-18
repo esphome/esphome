@@ -1,7 +1,6 @@
 #include "image.h"
 
 #include "esphome/core/hal.h"
-#include "display_buffer.h"
 
 namespace esphome {
 namespace display {
