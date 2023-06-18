@@ -695,6 +695,13 @@ image:
     file: mdi:alert-outline
     type: BINARY
 
+graph:
+  - id: my_graph
+    sensor: ha_hello_world_temperature
+    duration: 1h
+    width: 100
+    height: 100
+
 cap1188:
   id: cap1188_component
   address: 0x29
