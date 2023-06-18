@@ -22,8 +22,6 @@ class Glyph {
  public:
   Glyph(const GlyphData *data) : glyph_data_(data) {}
 
-  bool get_pixel(int x, int y) const;
-
   void draw(int x, int y, DisplayBuffer *display, Color color) const;
 
   const char *get_char() const;
