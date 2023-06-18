@@ -29,6 +29,7 @@ runs:
         key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ inputs.cache-key }}
     - name: Create Python virtual environment
       if: steps.cache-venv.outputs.cache-hit != 'true'
+      shell: bash
       run: |
         python -m venv venv
         . venv/bin/activate
