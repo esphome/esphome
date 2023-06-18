@@ -745,3 +745,5 @@ voice_assistant:
 max6956:
   - id: max6956_1
     address: 0x40
+
+es8388:
