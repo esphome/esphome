@@ -110,13 +110,9 @@ void XL9535Component::pin_mode(uint8_t pin, gpio::Flags mode) {
   }
 }
 
-void XL9535GPIOPin::setup() { pin_mode(flags_); }
+void XL9535GPIOPin::setup() { this->pin_mode(this->flags_); }
 
-std::string XL9535GPIOPin::dump_summary() const {
-  char buffer[32];
-  snprintf(buffer, sizeof(buffer), "%u via XL9535", pin_);
-  return buffer;
-}
+std::string XL9535GPIOPin::dump_summary() const { return str_snprintf("%u via XL9535", 15, this->pin_); }
 
 void XL9535GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
 bool XL9535GPIOPin::digital_read() { return this->parent_->digital_read(this->pin_) != this->inverted_; }
