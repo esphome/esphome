@@ -88,7 +88,7 @@ def build_index_html(config) -> str:
     if css_include:
         html += "<link rel=stylesheet href=/0.css>"
     if config[CONF_CSS_URL]:
-        html += '<link rel=stylesheet href="{config[CONF_CSS_URL]}">'
+        html += f'<link rel=stylesheet href="{config[CONF_CSS_URL]}">'
     html += "</head><body>"
     if js_include:
         html += "<script type=module src=/0.js></script>"
