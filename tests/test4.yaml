@@ -385,6 +385,15 @@ binary_sensor:
         pullup: true
       inverted: false
 
+  - platform: gpio
+    name: XL9535 Pin 0
+    pin:
+      xl9535: xl9535_hub
+      number: 0
+      mode:
+        input: true
+      inverted: false
+
 climate:
   - platform: tuya
     id: tuya_climate
@@ -779,3 +788,7 @@ sun_gtil2:
   serial_number:
     id: gtil_serial_number
     internal: True
+
+xl9535:
+  - id: xl9535_hub
+    address: 0x20
