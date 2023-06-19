@@ -11,7 +11,8 @@ static const uint8_t MODBUS_REGISTER_COUNT[] = {33, 95};  // indexed with enum G
 
 void GrowattSolar::loop() {
   // If update() was unable to send we retry until we can send.
-  if (!this->waiting_to_update_) return;
+  if (!this->waiting_to_update_)
+    return;
   update();
 }
 
@@ -36,11 +37,13 @@ void GrowattSolar::update() {
 void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
   // Other components might be sending commands to our device. But we don't get called with enough
   // context to know what is what. So if we didn't do a send, we ignore the data.
-  if (!this->last_send_) return;
+  if (!this->last_send_)
+    return;
   this->last_send_ = 0;
 
   // Also ignore the data if the message is too short. Otherwise we will publish invalid values.
-  if (data.size() < MODBUS_REGISTER_COUNT[this->protocol_version_] * 2) return;
+  if (data.size() < MODBUS_REGISTER_COUNT[this->protocol_version_] * 2)
+    return;
 
   auto publish_1_reg_sensor_state = [&](sensor::Sensor *sensor, size_t i, float unit) -> void {
     if (sensor == nullptr)
