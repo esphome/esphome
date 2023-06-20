@@ -114,9 +114,8 @@ void MQTTBackendIDF::mqtt_event_handler_(const Event &event) {
 
     case MQTT_EVENT_CONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_CONNECTED");
-      // TODO session present check
       this->is_connected_ = true;
-      this->on_connect_.call();
+      this->on_connect_.call(event.session_present);
       break;
     case MQTT_EVENT_DISCONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_DISCONNECTED");
