@@ -14,6 +14,22 @@
 #include <freertos/FreeRTOS.h>
 #include <freertos/semphr.h>
 #endif
+
+#if USE_WEBSERVER_VERSION == 2
+extern const uint8_t ESPHOME_WEBSERVER_INDEX_HTML[] PROGMEM;
+extern const size_t ESPHOME_WEBSERVER_INDEX_HTML_SIZE;
+#endif
+
+#ifdef USE_WEBSERVER_CSS_INCLUDE
+extern const uint8_t ESPHOME_WEBSERVER_CSS_INCLUDE[] PROGMEM;
+extern const size_t ESPHOME_WEBSERVER_CSS_INCLUDE_SIZE;
+#endif
+
+#ifdef USE_WEBSERVER_JS_INCLUDE
+extern const uint8_t ESPHOME_WEBSERVER_JS_INCLUDE[] PROGMEM;
+extern const size_t ESPHOME_WEBSERVER_JS_INCLUDE_SIZE;
+#endif
+
 namespace esphome {
 namespace web_server {
 
@@ -40,6 +56,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
  public:
   WebServer(web_server_base::WebServerBase *base);
 
+#if USE_WEBSERVER_VERSION == 1
   /** Set the URL to the CSS <link> that's sent to each client. Defaults to
    * https://esphome.io/_static/webserver-v1.min.css
    *
@@ -47,24 +64,29 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    */
   void set_css_url(const char *css_url);
 
-  /** Set local path to the script that's embedded in the index page. Defaults to
-   *
-   * @param css_include Local path to web server script.
-   */
-  void set_css_include(const char *css_include);
-
   /** Set the URL to the script that's embedded in the index page. Defaults to
    * https://esphome.io/_static/webserver-v1.min.js
    *
    * @param js_url The url to the web server script.
    */
   void set_js_url(const char *js_url);
+#endif
 
+#ifdef USE_WEBSERVER_CSS_INCLUDE
+  /** Set local path to the script that's embedded in the index page. Defaults to
+   *
+   * @param css_include Local path to web server script.
+   */
+  void set_css_include(const char *css_include);
+#endif
+
+#ifdef USE_WEBSERVER_JS_INCLUDE
   /** Set local path to the script that's embedded in the index page. Defaults to
    *
    * @param js_include Local path to web server script.
    */
   void set_js_include(const char *js_include);
+#endif
 
   /** Determine whether internal components should be displayed on the web server.
    * Defaults to false.
@@ -240,10 +262,16 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
   web_server_base::WebServerBase *base_;
   AsyncEventSource events_{"/events"};
   ListEntitiesIterator entities_iterator_;
+#if USE_WEBSERVER_VERSION == 1
   const char *css_url_{nullptr};
-  const char *css_include_{nullptr};
   const char *js_url_{nullptr};
+#endif
+#ifdef USE_WEBSERVER_CSS_INCLUDE
+  const char *css_include_{nullptr};
+#endif
+#ifdef USE_WEBSERVER_JS_INCLUDE
   const char *js_include_{nullptr};
+#endif
   bool include_internal_{false};
   bool allow_ota_{true};
 #ifdef USE_ESP32
