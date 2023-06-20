@@ -16,9 +16,9 @@ from esphome.core import CORE
 
 from .const import (
     KEY_BOARD,
-    KEY_FAMILY_OBJ,
+    KEY_COMPONENT_DATA,
     KEY_LIBRETINY,
-    LibreTinyFamily,
+    LibreTinyComponent,
     libretiny_ns,
 )
 
@@ -29,8 +29,8 @@ ArduinoInternalGPIOPin = libretiny_ns.class_(
 
 def _lookup_pin(value):
     board: str = CORE.data[KEY_LIBRETINY][KEY_BOARD]
-    family: LibreTinyFamily = CORE.data[KEY_LIBRETINY][KEY_FAMILY_OBJ]
-    board_pins = family.board_pins.get(board, {})
+    component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
+    board_pins = component.board_pins.get(board, {})
 
     # Resolve aliased board pins (shorthand when two boards have the same pin configuration)
     while isinstance(board_pins, str):
@@ -81,9 +81,9 @@ def validate_gpio_pin(value):
     value = _translate_pin(value)
     value = _lookup_pin(value)
 
-    family: LibreTinyFamily = CORE.data[KEY_LIBRETINY][KEY_FAMILY_OBJ]
-    if family.pin_validation:
-        value = family.pin_validation(value)
+    component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
+    if component.pin_validation:
+        value = component.pin_validation(value)
 
     return value
 
@@ -118,9 +118,9 @@ def validate_gpio_usage(value):
     if key not in supported_modes:
         raise cv.Invalid("This pin mode is not supported", [CONF_MODE])
 
-    family: LibreTinyFamily = CORE.data[KEY_LIBRETINY][KEY_FAMILY_OBJ]
-    if family.usage_validation:
-        value = family.usage_validation(value)
+    component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
+    if component.usage_validation:
+        value = component.usage_validation(value)
 
     return value
 
@@ -145,7 +145,7 @@ BASE_PIN_SCHEMA = cv.Schema(
 BASE_PIN_SCHEMA.add_extra(validate_gpio_usage)
 
 
-async def family_pin_to_code(config):
+async def component_pin_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     num = config[CONF_NUMBER]
     cg.add(var.set_pin(num))

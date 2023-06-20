@@ -4,13 +4,13 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
+    CONF_COMPONENT_ID,
     CONF_FAMILY,
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_NAME,
     CONF_PROJECT,
     CONF_SOURCE,
-    CONF_VARIANT,
     CONF_VERSION,
     KEY_CORE,
     KEY_FRAMEWORK_VERSION,
@@ -27,16 +27,16 @@ from .const import (
     CONF_LT_CONFIG,
     CONF_SDK_SILENT,
     CONF_SDK_SILENT_ALL,
+    FAMILIES,
+    FAMILY_COMPONENT,
+    FAMILY_FRIENDLY,
     KEY_BOARD,
+    KEY_COMPONENT,
+    KEY_COMPONENT_DATA,
     KEY_FAMILY,
-    KEY_FAMILY_OBJ,
     KEY_LIBRETINY,
-    KEY_VARIANT,
     LT_LOGLEVELS,
-    VARIANT_FAMILY,
-    VARIANT_FRIENDLY,
-    VARIANTS,
-    LibreTinyFamily,
+    LibreTinyComponent,
     LTComponent,
 )
 
@@ -48,30 +48,30 @@ AUTO_LOAD = []
 def _detect_variant(value):
     if KEY_LIBRETINY not in CORE.data:
         raise cv.Invalid("Family component didn't populate core data properly!")
-    family: LibreTinyFamily = CORE.data[KEY_LIBRETINY][KEY_FAMILY_OBJ]
+    component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
     board = value[CONF_BOARD]
-    # read board-default variant if not specified
-    if CONF_VARIANT not in value:
-        if board not in family.boards:
+    # read board-default family if not specified
+    if CONF_FAMILY not in value:
+        if board not in component.boards:
             raise cv.Invalid(
-                "This board is unknown, please set the variant manually. "
-                "Also, make sure the chosen chip is correct.",
+                "This board is unknown, please set the family manually. "
+                "Also, make sure the chosen chip component is correct.",
                 path=[CONF_BOARD],
             )
         value = value.copy()
-        value[CONF_VARIANT] = family.boards[board][KEY_VARIANT]
-    # read family name matching this variant
-    value[CONF_FAMILY] = VARIANT_FAMILY[value[CONF_VARIANT]]
-    # make sure the component matches the family
-    if value[CONF_FAMILY] != family.family:
+        value[CONF_FAMILY] = component.boards[board][KEY_FAMILY]
+    # read component name matching this family
+    value[CONF_COMPONENT_ID] = FAMILY_COMPONENT[value[CONF_FAMILY]]
+    # make sure the chosen component matches the family
+    if value[CONF_COMPONENT_ID] != component.name:
         raise cv.Invalid(
-            f"The chosen variant doesn't belong to '{family.family}' family.",
+            f"The chosen family doesn't belong to '{component.name}' component. The correct component is '{value[CONF_COMPONENT_ID]}'",
             path=["variant"],
         )
     # warn anyway if the board wasn't found
-    if board not in family.boards:
+    if board not in component.boards:
         _LOGGER.warning(
-            "This board is unknown. Make sure the chosen chip is correct.",
+            "This board is unknown. Make sure the chosen chip component is correct.",
         )
     return value
 
@@ -83,8 +83,8 @@ def _update_core_data(config):
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
     CORE.data[KEY_LIBRETINY][KEY_BOARD] = config[CONF_BOARD]
+    CORE.data[KEY_LIBRETINY][KEY_COMPONENT] = config[CONF_COMPONENT_ID]
     CORE.data[KEY_LIBRETINY][KEY_FAMILY] = config[CONF_FAMILY]
-    CORE.data[KEY_LIBRETINY][KEY_VARIANT] = config[CONF_VARIANT]
     return config
 
 
@@ -104,7 +104,7 @@ def _notify_old_style(config):
 ARDUINO_VERSIONS = {
     "dev": (cv.Version(0, 0, 0), "https://github.com/kuba2k2/libretiny.git"),
     "latest": (cv.Version(0, 0, 0), None),
-    "recommended": (cv.Version(1, 0, 0), None),
+    "recommended": (cv.Version(1, 1, 0), None),
 }
 
 
@@ -144,7 +144,7 @@ BASE_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(LTComponent),
         cv.Required(CONF_BOARD): cv.string_strict,
-        cv.Optional(CONF_VARIANT): cv.one_of(*VARIANTS, upper=True),
+        cv.Optional(CONF_FAMILY): cv.one_of(*FAMILIES, upper=True),
         cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
         cv.Optional(CONF_LT_CONFIG, default={}): {
             cv.string_strict: cv.string,
@@ -163,16 +163,16 @@ BASE_SCHEMA.add_extra(_update_core_data)
 
 
 # pylint: disable=use-dict-literal
-async def family_to_code(config):
+async def component_to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
 
     # setup board config
     cg.add_platformio_option("board", config[CONF_BOARD])
     cg.add_build_flag("-DUSE_LIBRETINY")
-    cg.add_build_flag(f"-DUSE_{config[CONF_FAMILY]}")
-    cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_VARIANT]}")
+    cg.add_build_flag(f"-DUSE_{config[CONF_COMPONENT_ID]}")
+    cg.add_build_flag(f"-DUSE_LIBRETINY_VARIANT_{config[CONF_FAMILY]}")
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
-    cg.add_define("ESPHOME_VARIANT", VARIANT_FRIENDLY[config[CONF_VARIANT]])
+    cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_FAMILY]])
 
     # setup LT logger to work nicely with ESPHome logger
     lt_config = dict(

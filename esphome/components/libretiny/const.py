@@ -5,8 +5,8 @@ import esphome.codegen as cg
 
 
 @dataclass
-class LibreTinyFamily:
-    family: str
+class LibreTinyComponent:
+    name: str
     boards: Dict[str, Dict[str, str]]
     board_pins: Dict[str, Dict[str, int]]
     pin_validation: Callable[[int], int]
@@ -32,39 +32,43 @@ LT_LOGLEVELS = [
 
 KEY_LIBRETINY = "libretiny"
 KEY_BOARD = "board"
+KEY_COMPONENT = "component"
+KEY_COMPONENT_DATA = "component_data"
 KEY_FAMILY = "family"
-KEY_VARIANT = "variant"
-KEY_FAMILY_OBJ = "family_obj"
+
+# COMPONENTS - auto-generated! Do not modify this block.
+COMPONENT_BK72XX = "BK72XX"
+COMPONENT_RTL87XX = "RTL87XX"
+# COMPONENTS - end
 
 # FAMILIES - auto-generated! Do not modify this block.
-FAMILY_BK72XX = "BK72XX"
-FAMILY_RTL87XX = "RTL87XX"
-# FAMILIES - end
-
-# VARIANTS - auto-generated! Do not modify this block.
-VARIANT_BK7231N = "BK7231N"
-VARIANT_BK7231U = "BK7231U"
-VARIANT_BK7251 = "BK7251"
-VARIANT_RTL8710B = "RTL8710B"
-VARIANTS = [
-    VARIANT_BK7231N,
-    VARIANT_BK7231U,
-    VARIANT_BK7251,
-    VARIANT_RTL8710B,
+FAMILY_BK7231N = "BK7231N"
+FAMILY_BK7231Q = "BK7231Q"
+FAMILY_BK7231T = "BK7231T"
+FAMILY_BK7251 = "BK7251"
+FAMILY_RTL8710B = "RTL8710B"
+FAMILIES = [
+    FAMILY_BK7231N,
+    FAMILY_BK7231Q,
+    FAMILY_BK7231T,
+    FAMILY_BK7251,
+    FAMILY_RTL8710B,
 ]
-VARIANT_FRIENDLY = {
-    VARIANT_BK7231N: "BK7231N",
-    VARIANT_BK7231U: "BK7231U",
-    VARIANT_BK7251: "BK7251",
-    VARIANT_RTL8710B: "RTL8710B",
+FAMILY_FRIENDLY = {
+    FAMILY_BK7231N: "BK7231N",
+    FAMILY_BK7231Q: "BK7231Q",
+    FAMILY_BK7231T: "BK7231T",
+    FAMILY_BK7251: "BK7251",
+    FAMILY_RTL8710B: "RTL8710B",
 }
-VARIANT_FAMILY = {
-    VARIANT_BK7231N: FAMILY_BK72XX,
-    VARIANT_BK7231U: FAMILY_BK72XX,
-    VARIANT_BK7251: FAMILY_BK72XX,
-    VARIANT_RTL8710B: FAMILY_RTL87XX,
+FAMILY_COMPONENT = {
+    FAMILY_BK7231N: COMPONENT_BK72XX,
+    FAMILY_BK7231Q: COMPONENT_BK72XX,
+    FAMILY_BK7231T: COMPONENT_BK72XX,
+    FAMILY_BK7251: COMPONENT_BK72XX,
+    FAMILY_RTL8710B: COMPONENT_RTL87XX,
 }
-# VARIANTS - end
+# FAMILIES - end
 
 libretiny_ns = cg.esphome_ns.namespace("libretiny")
 LTComponent = libretiny_ns.class_("LTComponent", cg.PollingComponent)
