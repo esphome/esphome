@@ -8,7 +8,7 @@ namespace animation {
 
 class Animation : public image::Image {
  public:
-  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, image::ImageType type);
+  Animation(const uint8_t *data_start, int data_size, int width, int height, uint32_t animation_frame_count, image::ImageType type);
 
   uint32_t get_animation_frame_count() const;
   int get_current_frame() const;

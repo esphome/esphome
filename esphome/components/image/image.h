@@ -11,6 +11,7 @@ enum ImageType {
   IMAGE_TYPE_RGB24 = 2,
   IMAGE_TYPE_RGB565 = 3,
   IMAGE_TYPE_RGBA = 4,
+  IMAGE_TYPE_JPEG = 5,
 };
 
 inline int image_type_to_bpp(ImageType type) {
@@ -25,6 +26,8 @@ inline int image_type_to_bpp(ImageType type) {
       return 24;
     case IMAGE_TYPE_RGBA:
       return 32;
+    case IMAGE_TYPE_JPEG:
+      return 0;
   }
   return 0;
 }
@@ -33,7 +36,7 @@ inline int image_type_to_width_stride(int width, ImageType type) { return (width
 
 class Image : public display::BaseImage {
  public:
-  Image(const uint8_t *data_start, int width, int height, ImageType type);
+  Image(const uint8_t *data_start, int data_size, int width, int height, ImageType type);
   Color get_pixel(int x, int y, Color color_on = display::COLOR_ON, Color color_off = display::COLOR_OFF) const;
   int get_width() const override;
   int get_height() const override;
@@ -50,7 +53,9 @@ class Image : public display::BaseImage {
   Color get_rgba_pixel_(int x, int y) const;
   Color get_rgb565_pixel_(int x, int y) const;
   Color get_grayscale_pixel_(int x, int y) const;
+  void draw_jpeg(int x, int y, display::DisplayBuffer *display);
 
+  int data_size_;
   int width_;
   int height_;
   ImageType type_;

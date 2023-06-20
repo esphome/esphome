@@ -1,9 +1,14 @@
 #include "image.h"
 
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+
+#include "JPEGDEC.h"
 
 namespace esphome {
 namespace image {
+
+static const char *TAG = "image";
 
 void Image::draw(int x, int y, display::DisplayBuffer *display, Color color_on, Color color_off) {
   switch (type_) {
@@ -58,6 +63,10 @@ void Image::draw(int x, int y, display::DisplayBuffer *display, Color color_on, 
           }
         }
       }
+      break;
+  
+    case IMAGE_TYPE_JPEG:
+      this->draw_jpeg(x, y, display);
       break;
   }
 }
@@ -124,11 +133,53 @@ Color Image::get_grayscale_pixel_(int x, int y) const {
   uint8_t alpha = (gray == 1 && transparent_) ? 0 : 0xFF;
   return Color(gray, gray, gray, alpha);
 }
+
+static int jpeg_draw(JPEGDRAW *pDraw)
+{
+  display::DisplayBuffer *display = (display::DisplayBuffer*)pDraw->pUser;
+
+  const uint16_t *data = pDraw->pPixels;
+  for (int y = 0; y < pDraw->iHeight; y++) {
+    for (int x = 0; x < pDraw->iWidth; x++, data++) {
+      // TODO: this is not very fast.
+      auto r = (*data & 0xF800) >> 11;
+      auto g = (*data & 0x07E0) >> 5;
+      auto b = *data & 0x001F;
+      Color color = Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
+      // if (rgb565 == 0x0020 && transparent_) {
+      //   // darkest green has been defined as transparent color for transparent RGB565 images.
+      //   color.w = 0;
+      // } else {
+        color.w = 0xFF;
+      // }
+      display->draw_pixel_at(pDraw->x + x, pDraw->y + y, color);
+    }
+  }
+  return 1;
+}
+
+void Image::draw_jpeg(int x, int y, display::DisplayBuffer *display) {
+#ifdef USE_JPEGDEC
+  JPEGDEC* jpeg = new JPEGDEC();
+
+  if (jpeg->openFLASH((uint8_t*)this->data_start_, this->data_size_, jpeg_draw)) {
+    jpeg->setUserPointer(display);
+    jpeg->setPixelType(RGB565_LITTLE_ENDIAN);
+    if (jpeg->decode(x, y, 0)) {
+      ESP_LOGV("jpeg", "Decode succeeded");
+    }
+    jpeg->close();
+  }
+  delete jpeg;
+#else // USE_JPEGDEC
+  ESP_LOGE(TAG, "JPEGDEC is not compiled in.");
+#endif // USE_JPEGDEC
+}
 int Image::get_width() const { return this->width_; }
 int Image::get_height() const { return this->height_; }
 ImageType Image::get_type() const { return this->type_; }
-Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
-    : width_(width), height_(height), type_(type), data_start_(data_start) {}
+Image::Image(const uint8_t *data_start, int data_size, int width, int height, ImageType type)
+    : data_size_(data_size), width_(width), height_(height), type_(type), data_start_(data_start) {}
 
 }  // namespace image
 }  // namespace esphome
