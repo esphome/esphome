@@ -25,7 +25,7 @@ concurrency:
 jobs:
   common:
     name: Create common environment
-    runs-on: ubuntu-latest
+    runs-on: self-hosted
     outputs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
