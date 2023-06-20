@@ -43,7 +43,7 @@ void SM300D2Sensor::update() {
   this->status_clear_warning();
 
   ESP_LOGD(TAG, "Successfully read SM300D2 data %u",response);
-  //Slave Address of device
+  //Comms Address of device
   const uint16_t addr = (response[0]);
   //Vendor Function Type
   const uint16_t function = (response[1]) + response[2];
