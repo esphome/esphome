@@ -12,18 +12,21 @@ void SM300D2Sensor::update() {
   uint8_t peeked;
   uint8_t previousByte = 0;
   unsigned long previousTime = 0;
+  unsigned long startTime = millis();
 
   while (this->available() > 0) {
     this->peek_byte(&peeked);
 
-    // Check if a 1-second delay has elapsed since the previous byte
-    if (millis() - previousTime >= 100 && peeked == 0x01) {
+    // Check if a half-second delay has elapsed since the previous byte
+    if (millis() - previousTime >= 500 && peeked == 0x01) {
       break; // Exit the loop if the desired byte and delay are satisfied
     }
 
     previousByte = peeked;
     previousTime = millis();
     this->read();
+        // Reset the start time whenever a byte is registered
+    startTime = millis();
   }
 
   bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
@@ -34,23 +37,11 @@ void SM300D2Sensor::update() {
     return;
   }
 
-  //if (response[0] != 0x3C || response[1] != 0x02) {
-  //  ESP_LOGW(TAG, "Invalid preamble for SM300D2 response!");
-  //  this->status_set_warning();
-  //  return;
-  //}
-
- // uint16_t calculated_checksum = this->sm300d2_checksum_(response);
-  // Occasionally the checksum has a +/- 0x80 offset. Negative temperatures are
-  // responsible for some of these. The rest are unknown/undocumented.
- // if ((calculated_checksum != response[SM300D2_RESPONSE_LENGTH - 1]) &&
-  //    (calculated_checksum - 0x80 != response[SM300D2_RESPONSE_LENGTH - 1]) &&
-  //    (calculated_checksum + 0x80 != response[SM300D2_RESPONSE_LENGTH - 1])) {
-  //  ESP_LOGW(TAG, "SM300D2 Checksum doesn't match: 0x%02X!=0x%02X", response[SM300D2_RESPONSE_LENGTH - 1],
-  //           calculated_checksum);
-  //  this->status_set_warning();
-  //  return;
- // }
+  // Check if 5 seconds have passed since the start of the loop
+    if (millis() - startTime >= 5000) {
+      // Reboot or take appropriate action here
+      reboot();
+    }
 
   this->status_clear_warning();
 
