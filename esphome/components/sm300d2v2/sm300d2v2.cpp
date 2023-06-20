@@ -10,24 +10,24 @@ static const uint8_t SM300D2_RESPONSE_LENGTH = 19;
 void SM300D2Sensor::update() {
   uint8_t response[SM300D2_RESPONSE_LENGTH];
   uint8_t peeked;
-  uint8_t previousByte = 0;
+  uint8_t previous_byte = 0;
   // adding timer for trigger between datasets.
-  unsigned long previousTime = 0;
-  unsigned long startTime = millis();
+  unsigned long previous_time = 0;
+  unsigned long start_time = millis();
 
   while (this->available() > 0) {
     this->peek_byte(&peeked);
 
     // Check if approx half-second delay has elapsed since the previous byte
-    if (millis() - previousTime >= 300 && peeked == 0x01) {
+    if (millis() - previous_time >= 300 && peeked == 0x01) {
       break;  // Exit the loop if the desired byte and delay are satisfied
     }
 
-    previousByte = peeked;
-    previousTime = millis();
+    previous_byte = peeked;
+    previous_time = millis();
     this->read();
     // Reset the start time whenever a byte is registered
-    startTime = millis();
+    start_time = millis();
   }
   // Reading in the 19 bytes into memory
   bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
@@ -38,8 +38,8 @@ void SM300D2Sensor::update() {
     return;
   }
   this->status_clear_warning();
-  ESP_LOGD(TAG, "Successfully read SM300D2 data %u", response);
-  // Comms Address of device
+  ESP_LOGD(TAG, "Successfully read SM300D2 data %s", response);
+  // Bitchass Address of device
   const uint16_t addr = (response[0]);
   // Vendor Function Type
   const uint16_t function = (response[1]) + response[2];
