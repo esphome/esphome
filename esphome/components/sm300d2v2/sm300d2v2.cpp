@@ -12,8 +12,8 @@ void SM300D2Sensor::update() {
   uint8_t peeked;
   uint8_t previous_byte = 0;
   // adding timer for trigger between datasets.
-  unsigned long previous_time = 0;
-  unsigned long start_time = millis();
+  uint32_t previous_time = 0;
+  uint32_t start_time = millis();
 
   while (this->available() > 0) {
     this->peek_byte(&peeked);
