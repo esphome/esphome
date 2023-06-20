@@ -16,7 +16,7 @@ void SM300D2Sensor::update() {
   while (this->available() > 0) {
     this->peek_byte(&peeked);
 
-    // Check if a 1-second delay has elapsed since the previous byte
+    // Check if a half-second delay has elapsed since the previous byte
     if (millis() - previousTime >= 500 && peeked == 0x01) {
       break; // Exit the loop if the desired byte and delay are satisfied
     }
@@ -33,12 +33,6 @@ void SM300D2Sensor::update() {
     status_set_warning();
     return;
   }
-
-  //if (response[0] != 0x3C || response[1] != 0x02) {
-  //  ESP_LOGW(TAG, "Invalid preamble for SM300D2 response!");
-  //  this->status_set_warning();
-  //  return;
-  //}
 
  // uint16_t calculated_checksum = this->sm300d2_checksum_(response);
   // Occasionally the checksum has a +/- 0x80 offset. Negative temperatures are
