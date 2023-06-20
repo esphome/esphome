@@ -7,10 +7,6 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
-#include "animation.h"
-#include "image.h"
-#include "font.h"
-
 namespace esphome {
 namespace display {
 
@@ -18,93 +14,6 @@ static const char *const TAG = "display";
 
 const Color COLOR_OFF(0, 0, 0, 255);
 const Color COLOR_ON(255, 255, 255, 255);
-
-void Rect::expand(int16_t horizontal, int16_t vertical) {
-  if (this->is_set() && (this->w >= (-2 * horizontal)) && (this->h >= (-2 * vertical))) {
-    this->x = this->x - horizontal;
-    this->y = this->y - vertical;
-    this->w = this->w + (2 * horizontal);
-    this->h = this->h + (2 * vertical);
-  }
-}
-
-void Rect::extend(Rect rect) {
-  if (!this->is_set()) {
-    this->x = rect.x;
-    this->y = rect.y;
-    this->w = rect.w;
-    this->h = rect.h;
-  } else {
-    if (this->x > rect.x) {
-      this->w = this->w + (this->x - rect.x);
-      this->x = rect.x;
-    }
-    if (this->y > rect.y) {
-      this->h = this->h + (this->y - rect.y);
-      this->y = rect.y;
-    }
-    if (this->x2() < rect.x2()) {
-      this->w = rect.x2() - this->x;
-    }
-    if (this->y2() < rect.y2()) {
-      this->h = rect.y2() - this->y;
-    }
-  }
-}
-void Rect::shrink(Rect rect) {
-  if (!this->inside(rect)) {
-    (*this) = Rect();
-  } else {
-    if (this->x2() > rect.x2()) {
-      this->w = rect.x2() - this->x;
-    }
-    if (this->x < rect.x) {
-      this->w = this->w + (this->x - rect.x);
-      this->x = rect.x;
-    }
-    if (this->y2() > rect.y2()) {
-      this->h = rect.y2() - this->y;
-    }
-    if (this->y < rect.y) {
-      this->h = this->h + (this->y - rect.y);
-      this->y = rect.y;
-    }
-  }
-}
-
-bool Rect::equal(Rect rect) {
-  return (rect.x == this->x) && (rect.w == this->w) && (rect.y == this->y) && (rect.h == this->h);
-}
-
-bool Rect::inside(int16_t test_x, int16_t test_y, bool absolute) {  // NOLINT
-  if (!this->is_set()) {
-    return true;
-  }
-  if (absolute) {
-    return ((test_x >= this->x) && (test_x <= this->x2()) && (test_y >= this->y) && (test_y <= this->y2()));
-  } else {
-    return ((test_x >= 0) && (test_x <= this->w) && (test_y >= 0) && (test_y <= this->h));
-  }
-}
-
-bool Rect::inside(Rect rect, bool absolute) {
-  if (!this->is_set() || !rect.is_set()) {
-    return true;
-  }
-  if (absolute) {
-    return ((rect.x <= this->x2()) && (rect.x2() >= this->x) && (rect.y <= this->y2()) && (rect.y2() >= this->y));
-  } else {
-    return ((rect.x <= this->w) && (rect.w >= 0) && (rect.y <= this->h) && (rect.h >= 0));
-  }
-}
-
-void Rect::info(const std::string &prefix) {
-  if (this->is_set()) {
-    ESP_LOGI(TAG, "%s [%3d,%3d,%3d,%3d] (%3d,%3d)", prefix.c_str(), this->x, this->y, this->w, this->h, this->x2(),
-             this->y2());
-  } else
-    ESP_LOGI(TAG, "%s ** IS NOT SET **", prefix.c_str());
-}
 
 void DisplayBuffer::init_internal_(uint32_t buffer_length) {
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
@@ -256,54 +165,14 @@ void DisplayBuffer::filled_circle(int center_x, int center_y, int radius, Color 
   } while (dx <= 0);
 }
 
-void DisplayBuffer::print(int x, int y, Font *font, Color color, TextAlign align, const char *text) {
+void DisplayBuffer::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text) {
   int x_start, y_start;
   int width, height;
   this->get_text_bounds(x, y, text, font, align, &x_start, &y_start, &width, &height);
-
-  int i = 0;
-  int x_at = x_start;
-  while (text[i] != '\0') {
-    int match_length;
-    int glyph_n = font->match_next_glyph(text + i, &match_length);
-    if (glyph_n < 0) {
-      // Unknown char, skip
-      ESP_LOGW(TAG, "Encountered character without representation in font: '%c'", text[i]);
-      if (!font->get_glyphs().empty()) {
-        uint8_t glyph_width = font->get_glyphs()[0].glyph_data_->width;
-        for (int glyph_x = 0; glyph_x < glyph_width; glyph_x++) {
-          for (int glyph_y = 0; glyph_y < height; glyph_y++)
-            this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
-        }
-        x_at += glyph_width;
-      }
-
-      i++;
-      continue;
-    }
-
-    const Glyph &glyph = font->get_glyphs()[glyph_n];
-    int scan_x1, scan_y1, scan_width, scan_height;
-    glyph.scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
-
-    {
-      const int glyph_x_max = scan_x1 + scan_width;
-      const int glyph_y_max = scan_y1 + scan_height;
-      for (int glyph_x = scan_x1; glyph_x < glyph_x_max; glyph_x++) {
-        for (int glyph_y = scan_y1; glyph_y < glyph_y_max; glyph_y++) {
-          if (glyph.get_pixel(glyph_x, glyph_y)) {
-            this->draw_pixel_at(glyph_x + x_at, glyph_y + y_start, color);
-          }
-        }
-      }
-    }
-
-    x_at += glyph.glyph_data_->width + glyph.glyph_data_->offset_x;
-
-    i += match_length;
-  }
+  font->print(x_start, y_start, this, color, text);
 }
-void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg) {
+void DisplayBuffer::vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format,
+                             va_list arg) {
   char buffer[256];
   int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
   if (ret > 0)
@@ -311,6 +180,37 @@ void DisplayBuffer::vprintf_(int x, int y, Font *font, Color color, TextAlign al
 }
 
 void DisplayBuffer::image(int x, int y, BaseImage *image, Color color_on, Color color_off) {
+  this->image(x, y, image, ImageAlign::TOP_LEFT, color_on, color_off);
+}
+
+void DisplayBuffer::image(int x, int y, BaseImage *image, ImageAlign align, Color color_on, Color color_off) {
+  auto x_align = ImageAlign(int(align) & (int(ImageAlign::HORIZONTAL_ALIGNMENT)));
+  auto y_align = ImageAlign(int(align) & (int(ImageAlign::VERTICAL_ALIGNMENT)));
+
+  switch (x_align) {
+    case ImageAlign::RIGHT:
+      x -= image->get_width();
+      break;
+    case ImageAlign::CENTER_HORIZONTAL:
+      x -= image->get_width() / 2;
+      break;
+    case ImageAlign::LEFT:
+    default:
+      break;
+  }
+
+  switch (y_align) {
+    case ImageAlign::BOTTOM:
+      y -= image->get_height();
+      break;
+    case ImageAlign::CENTER_VERTICAL:
+      y -= image->get_height() / 2;
+      break;
+    case ImageAlign::TOP:
+    default:
+      break;
+  }
+
   image->draw(x, y, this, color_on, color_off);
 }
 
@@ -327,7 +227,7 @@ void DisplayBuffer::qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_
 }
 #endif  // USE_QR_CODE
 
-void DisplayBuffer::get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1,
+void DisplayBuffer::get_text_bounds(int x, int y, const char *text, BaseFont *font, TextAlign align, int *x1, int *y1,
                                     int *width, int *height) {
   int x_offset, baseline;
   font->measure(text, width, &x_offset, &baseline, height);
@@ -365,34 +265,34 @@ void DisplayBuffer::get_text_bounds(int x, int y, const char *text, Font *font, 
       break;
   }
 }
-void DisplayBuffer::print(int x, int y, Font *font, Color color, const char *text) {
+void DisplayBuffer::print(int x, int y, BaseFont *font, Color color, const char *text) {
   this->print(x, y, font, color, TextAlign::TOP_LEFT, text);
 }
-void DisplayBuffer::print(int x, int y, Font *font, TextAlign align, const char *text) {
+void DisplayBuffer::print(int x, int y, BaseFont *font, TextAlign align, const char *text) {
   this->print(x, y, font, COLOR_ON, align, text);
 }
-void DisplayBuffer::print(int x, int y, Font *font, const char *text) {
+void DisplayBuffer::print(int x, int y, BaseFont *font, const char *text) {
   this->print(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, text);
 }
-void DisplayBuffer::printf(int x, int y, Font *font, Color color, TextAlign align, const char *format, ...) {
+void DisplayBuffer::printf(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, color, align, format, arg);
   va_end(arg);
 }
-void DisplayBuffer::printf(int x, int y, Font *font, Color color, const char *format, ...) {
+void DisplayBuffer::printf(int x, int y, BaseFont *font, Color color, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, color, TextAlign::TOP_LEFT, format, arg);
   va_end(arg);
 }
-void DisplayBuffer::printf(int x, int y, Font *font, TextAlign align, const char *format, ...) {
+void DisplayBuffer::printf(int x, int y, BaseFont *font, TextAlign align, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, COLOR_ON, align, format, arg);
   va_end(arg);
 }
-void DisplayBuffer::printf(int x, int y, Font *font, const char *format, ...) {
+void DisplayBuffer::printf(int x, int y, BaseFont *font, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, format, arg);
@@ -439,19 +339,20 @@ void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
     this->trigger(from, to);
 }
-void DisplayBuffer::strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, ESPTime time) {
+void DisplayBuffer::strftime(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format,
+                             ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     this->print(x, y, font, color, align, buffer);
 }
-void DisplayBuffer::strftime(int x, int y, Font *font, Color color, const char *format, ESPTime time) {
+void DisplayBuffer::strftime(int x, int y, BaseFont *font, Color color, const char *format, ESPTime time) {
   this->strftime(x, y, font, color, TextAlign::TOP_LEFT, format, time);
 }
-void DisplayBuffer::strftime(int x, int y, Font *font, TextAlign align, const char *format, ESPTime time) {
+void DisplayBuffer::strftime(int x, int y, BaseFont *font, TextAlign align, const char *format, ESPTime time) {
   this->strftime(x, y, font, COLOR_ON, align, format, time);
 }
-void DisplayBuffer::strftime(int x, int y, Font *font, const char *format, ESPTime time) {
+void DisplayBuffer::strftime(int x, int y, BaseFont *font, const char *format, ESPTime time) {
   this->strftime(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, format, time);
 }
 
