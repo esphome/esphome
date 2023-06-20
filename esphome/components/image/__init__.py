@@ -38,6 +38,7 @@ IMAGE_TYPE = {
     "RGB565": ImageType.IMAGE_TYPE_RGB565,
     "RGB24": ImageType.IMAGE_TYPE_RGB24,
     "RGBA": ImageType.IMAGE_TYPE_RGBA,
+    "JPEG": ImageType.IMAGE_TYPE_JPEG,
 }
 
 CONF_USE_TRANSPARENCY = "use_transparency"
@@ -347,6 +348,14 @@ async def to_code(config):
                     continue
                 pos = x + y * width8
                 data[pos // 8] |= 0x80 >> (pos % 8)
+    elif config[CONF_TYPE] in ["JPEG"]:
+        output = io.BytesIO()
+        image.save(output, format='JPEG')
+        data = list(output.getvalue())
+
+        cg.add_define("USE_JPEGDEC")
+        cg.add_library("JPEGDEC", "1.2.7")
+
     else:
         raise core.EsphomeError(
             f"Image f{config[CONF_ID]} has an unsupported type: {config[CONF_TYPE]}."
@@ -355,6 +364,6 @@ async def to_code(config):
     rhs = [HexInt(x) for x in data]
     prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
     var = cg.new_Pvariable(
-        config[CONF_ID], prog_arr, width, height, IMAGE_TYPE[config[CONF_TYPE]]
+        config[CONF_ID], prog_arr, len(data), width, height, IMAGE_TYPE[config[CONF_TYPE]]
     )
     cg.add(var.set_transparency(transparent))
