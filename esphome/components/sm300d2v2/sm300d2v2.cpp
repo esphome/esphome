@@ -11,7 +11,7 @@ void SM300D2Sensor::update() {
   uint8_t response[SM300D2_RESPONSE_LENGTH];
   uint8_t peeked;
   uint8_t previousByte = 0;
-  //adding timer for trigger between datasets.
+  // adding timer for trigger between datasets.
   unsigned long previousTime = 0;
   unsigned long startTime = millis();
 
@@ -20,7 +20,7 @@ void SM300D2Sensor::update() {
 
     // Check if approx half-second delay has elapsed since the previous byte
     if (millis() - previousTime >= 300 && peeked == 0x01) {
-      break; // Exit the loop if the desired byte and delay are satisfied
+      break;  // Exit the loop if the desired byte and delay are satisfied
     }
 
     previousByte = peeked;
@@ -29,7 +29,7 @@ void SM300D2Sensor::update() {
     // Reset the start time whenever a byte is registered
     startTime = millis();
   }
-  //reading in the 19 bytes into memory
+  // Reading in the 19 bytes into memory
   bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
   // If no data recieved within 1 sec. Throw error
   if (!read_success) {
@@ -38,7 +38,7 @@ void SM300D2Sensor::update() {
     return;
   }
   this->status_clear_warning();
-  ESP_LOGD(TAG, "Successfully read SM300D2 data %u",response);
+  ESP_LOGD(TAG, "Successfully read SM300D2 data %u", response);
   // Comms Address of device
   const uint16_t addr = (response[0]);
   // Vendor Function Type
@@ -59,7 +59,7 @@ void SM300D2Sensor::update() {
   ESP_LOGD(TAG, "Received Addr: %u", addr);
   if (this->addr_sensor_ != nullptr)
     this->addr_sensor_->publish_state(addr);
-  ESP_LOGD(TAG, "Received Function Type: %u" , function);
+  ESP_LOGD(TAG, "Received Function Type: %u", function);
   if (this->function_sensor_ != nullptr)
     this->function_sensor_->publish_state(function);
   ESP_LOGD(TAG, "Received CO₂: %u ppm", co2);
