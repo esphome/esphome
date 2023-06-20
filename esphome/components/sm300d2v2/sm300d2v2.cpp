@@ -10,10 +10,10 @@ static const uint8_t SM300D2_RESPONSE_LENGTH = 19;
 void SM300D2Sensor::update() {
   uint8_t response[SM300D2_RESPONSE_LENGTH];
   uint8_t peeked;
-  uint8_t previous_byte = 0;
+  // uint8_t previous_byte = 0;
   // adding timer for trigger between datasets.
   uint32_t previous_time = 0;
-  uint32_t start_time = millis();
+  // uint32_t start_time = millis();
 
   while (this->available() > 0) {
     this->peek_byte(&peeked);
@@ -23,12 +23,13 @@ void SM300D2Sensor::update() {
       break;  // Exit the loop if the desired byte and delay are satisfied
     }
 
-    previous_byte = peeked;
+    // previous_byte = peeked;
     previous_time = millis();
     this->read();
     // Reset the start time whenever a byte is registered
-    start_time = millis();
+    // start_time = millis();
   }
+
   // Reading in the 19 bytes into memory
   bool read_success = read_array(response, SM300D2_RESPONSE_LENGTH);
   // If no data recieved within 1 sec. Throw error
@@ -53,7 +54,7 @@ void SM300D2Sensor::update() {
   const float temperature = ((response[13] + (response[14] * 0.1f)) > 128)
                                 ? (((response[13] + (response[14] * 0.1f)) - 128) * -1)
                                 : response[13] + (response[14] * 0.1f);
-  const float humidity = response[15] + (response[14] * 0.1f);
+  const float humidity = response[15] + (response[14] * 0.1);
 
   // Report out to log and publish to HA
   ESP_LOGD(TAG, "Received Addr: %u", addr);
