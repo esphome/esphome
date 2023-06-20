@@ -37,12 +37,6 @@ void SM300D2Sensor::update() {
     return;
   }
 
-  // Check if 5 seconds have passed since the start of the loop
-    if (millis() - startTime >= 5000) {
-      // Reboot or take appropriate action here
-      reboot();
-    }
-
   this->status_clear_warning();
 
   ESP_LOGD(TAG, "Successfully read SM300D2 data %u",response);
