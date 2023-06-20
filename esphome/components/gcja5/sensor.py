@@ -24,9 +24,7 @@ DEPENDENCIES = ["i2c"]
 
 gcja5_ns = cg.esphome_ns.namespace("gcja5")
 
-GCJA5Component = gcja5_ns.class_(
-    "PMSA003IComponent", cg.PollingComponent, i2c.I2CDevice
-)
+GCJA5Component = gcja5_ns.class_("GCJA5Component", cg.PollingComponent, i2c.I2CDevice)
 
 CONF_STANDARD_UNITS = "standard_units"
 UNIT_COUNTS_PER_100ML = "#/0.1L"

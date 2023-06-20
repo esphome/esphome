@@ -5,7 +5,7 @@
 #include "esphome/components/i2c/i2c.h"
 
 namespace esphome {
-namespace GCJA5 {
+namespace gcja5 {
 
 /**! Structure holding Plantower's standard packet **/
 // From https://github.com/adafruit/Adafruit_PM25AQI

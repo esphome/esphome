@@ -97,9 +97,8 @@ bool GCJA5Component::read_data_(PM25AQIData *data) {
   memcpy((void *) data, (void *) buffer_u32, 12);
   memcpy((void *) data+12, (void *) buffer_u16, 12);
   memcpy((void *) data+24, (void *) buffer[24], 1);
-  
 
-  return (sum == data->checksum);
+  return true;
 }
 
 }  // namespace pmsa003i
