@@ -29,24 +29,6 @@ namespace online_image {
 
 using namespace display;
 
-inline uint8_t bits_per_pixel(ImageType type) {
-  switch (type) {
-    case display::ImageType::IMAGE_TYPE_BINARY:
-      return 1;
-    case display::ImageType::IMAGE_TYPE_GRAYSCALE:
-      return 8;
-    case display::ImageType::IMAGE_TYPE_RGB565:
-      return 16;
-    case display::ImageType::IMAGE_TYPE_RGB24:
-      return 24;
-    case display::ImageType::IMAGE_TYPE_RGBA:
-      return 32;
-    default:
-      ESP_LOGE(TAG, "Unsupported image type %d.", type);
-      return 0;
-  }
-}
-
 inline bool is_color_on(const Color &color) {
   // This produces the most accurate monochrome conversion, but is slightly slower.
   //  return (0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b) > 127;
@@ -63,7 +45,6 @@ OnlineImage::OnlineImage(const char *url, int width, int height, ImageFormat for
       url_(url),
       download_buffer_(download_buffer_size),
       format_(format),
-      bits_per_pixel_(bits_per_pixel(type)),
       fixed_width_(width),
       fixed_height_(height) {}
 
@@ -170,7 +151,6 @@ bool OnlineImage::resize_(int width_in, int height_in) {
   }
   auto new_size = get_buffer_size_(width, height);
   ESP_LOGD(TAG, "Allocating new buffer of %d Bytes...", new_size);
-  ESP_LOGD(TAG, "Bits per pixel: %d", bits_per_pixel_);
   delay_microseconds_safe(2000);
   buffer_ = allocator_.allocate(new_size);
   if (buffer_) {

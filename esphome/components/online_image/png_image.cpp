@@ -50,7 +50,7 @@ void PngDecoder::prepare(uint32_t download_size) {
 }
 
 int HOT PngDecoder::decode(uint8_t *buffer, size_t size) {
-  if (size < 512 && size < download_size_ - decoded_bytes_) {
+  if (size < 256 && size < download_size_ - decoded_bytes_) {
     ESP_LOGD(TAG, "Waiting for data");
     return 0;
   }
