@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2023.6.0b5"
+__version__ = "2023.6.0b6"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -368,6 +368,7 @@ CONF_LINE_TYPE = "line_type"
 CONF_LOADED_INTEGRATIONS = "loaded_integrations"
 CONF_LOCAL = "local"
 CONF_LOCK_ACTION = "lock_action"
+CONF_LOG = "log"
 CONF_LOG_TOPIC = "log_topic"
 CONF_LOGGER = "logger"
 CONF_LOGS = "logs"
