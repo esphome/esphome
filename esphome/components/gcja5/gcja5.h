@@ -33,8 +33,8 @@ class GCJA5Component : public PollingComponent, public uart::UARTDevice {
   uint32_t get_32_bit_uint(uint8_t start_index);
   uint16_t get_16_bit_uint(uint8_t start_index);
   uint32_t last_transmission_{0};
-  uint8_t raw_data_[32];
-  uint8_t raw_data_index_{0};
+  std::vector<uint8_t> rx_message_;
+
   bool haveGoodData{false};
   bool firstStatusLog{false};
   sensor::Sensor *pm_1_0_sensor_{nullptr};
