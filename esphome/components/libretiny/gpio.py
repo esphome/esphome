@@ -1,3 +1,4 @@
+import logging
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
@@ -22,6 +23,8 @@ from .const import (
     libretiny_ns,
 )
 
+_LOGGER = logging.getLogger(__name__)
+
 ArduinoInternalGPIOPin = libretiny_ns.class_(
     "ArduinoInternalGPIOPin", cg.InternalGPIOPin
 )
@@ -43,6 +46,11 @@ def _lookup_pin(value):
         raise cv.Invalid(f"Pin number '{value}' is not usable for board {board}.")
     if isinstance(value, str):
         if value in board_pins:
+            if value.startswith("D") or value.startswith("A"):
+                _LOGGER.warning(
+                    "Using D# and A# pin numbering is deprecated."
+                    f"Please replace '{value}' with: {board_pins[value]}",
+                )
             return board_pins[value]
         if not board_pins:
             raise cv.Invalid(

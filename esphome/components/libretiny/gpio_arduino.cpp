@@ -65,7 +65,7 @@ void ArduinoInternalGPIOPin::pin_mode(gpio::Flags flags) {
 
 std::string ArduinoInternalGPIOPin::dump_summary() const {
   char buffer[32];
-  snprintf(buffer, sizeof(buffer), "D%u", pin_);
+  snprintf(buffer, sizeof(buffer), "%u", pin_);
   return buffer;
 }
 
@@ -93,7 +93,7 @@ void IRAM_ATTR ISRInternalGPIOPin::digital_write(bool value) {
 }
 void IRAM_ATTR ISRInternalGPIOPin::clear_interrupt() {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);
-  // TODO
+  detachInterrupt(arg->pin);
 }
 void IRAM_ATTR ISRInternalGPIOPin::pin_mode(gpio::Flags flags) {
   auto *arg = reinterpret_cast<ISRPinArg *>(arg_);

@@ -10,7 +10,7 @@
 #include "esphome/components/logger/logger.h"
 #endif
 
-#ifdef LT_ARD_HAS_SOFTSERIAL
+#if LT_ARD_HAS_SOFTSERIAL
 #include <SoftwareSerial.h>
 #endif
 
@@ -56,38 +56,38 @@ void LibreTinyUARTComponent::setup() {
   if (false) {
     return;
   }
-#ifdef PIN_SERIAL0_TX
+#if LT_HW_UART0
   else if ((tx_pin == -1 || tx_pin == PIN_SERIAL0_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL0_RX)) {
     this->serial_ = &Serial0;
     this->hardware_idx_ = 0;
   }
 #endif
-#ifdef PIN_SERIAL1_TX
+#if LT_HW_UART1
   else if ((tx_pin == -1 || tx_pin == PIN_SERIAL1_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL1_RX)) {
     this->serial_ = &Serial1;
     this->hardware_idx_ = 1;
   }
 #endif
-#ifdef PIN_SERIAL2_TX
+#if LT_HW_UART2
   else if ((tx_pin == -1 || tx_pin == PIN_SERIAL2_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL2_RX)) {
     this->serial_ = &Serial2;
     this->hardware_idx_ = 2;
   }
 #endif
   else {
-#ifdef LT_ARD_HAS_SOFTSERIAL
+#if LT_ARD_HAS_SOFTSERIAL
     this->serial_ = new SoftwareSerial(rx_pin, tx_pin, rx_inverted || tx_inverted);
 #else
     this->serial_ = &Serial;
     ESP_LOGE(TAG, "  SoftwareSerial is not implemented for this chip. Only hardware pins are supported:");
-#ifdef PIN_SERIAL0_TX
-    ESP_LOGE(TAG, "    TX=D%u, RX=D%u", PIN_SERIAL0_TX, PIN_SERIAL0_RX);
+#if LT_HW_UART0
+    ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL0_TX, PIN_SERIAL0_RX);
 #endif
-#ifdef PIN_SERIAL1_TX
-    ESP_LOGE(TAG, "    TX=D%u, RX=D%u", PIN_SERIAL1_TX, PIN_SERIAL1_RX);
+#if LT_HW_UART1
+    ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL1_TX, PIN_SERIAL1_RX);
 #endif
-#ifdef PIN_SERIAL2_TX
-    ESP_LOGE(TAG, "    TX=D%u, RX=D%u", PIN_SERIAL2_TX, PIN_SERIAL2_RX);
+#if LT_HW_UART2
+    ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL2_TX, PIN_SERIAL2_RX);
 #endif
     return;
 #endif
