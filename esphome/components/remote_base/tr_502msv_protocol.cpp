@@ -63,7 +63,6 @@ void TR502MSVProtocol::encode(RemoteTransmitData *dst, const TR502MSVData &data)
 
 optional<TR502MSVData> TR502MSVProtocol::decode(RemoteReceiveData src) {
   TR502MSVData out;
-  out.set_raw(0);
   uint32_t d = 0;
   if (!src.expect_mark(BIT_ONE_MARK_US))
     return {};
