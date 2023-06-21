@@ -135,22 +135,17 @@ bool MqttRoom::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
 }
 
 std::string MqttRoom::format_device_name(const std::string &device_name) {
-  char cstr[256];
-  int i = 0;
-  bool previous_is_space = false;
-  for (const char &c : device_name) {
-    if (c == ' ' && !previous_is_space) {
-      cstr[i] = '-';
-      i++;
-      previous_is_space = true;
-    } else if (c != ' ') {
-      cstr[i] = toLowerCase(c);
-      i++;
-      previous_is_space = false;
-    }
-  }
-  cstr[i] = 0;
-  auto str = std::string(cstr);
+  auto str = device_name;
+  bool prev_is_space = false;
+
+  // Remove all double spaces from the string
+  str.erase(std::unique(str.begin(), str.end(), [](char lhs, char rhs) { return lhs == rhs == ' '; }), str.end());
+  std::transform(str.begin(), str.end(), str.begin(), [](char c) {
+    if (c == ' ')
+      return '-';
+    return (char) std::tolower(c);
+  });
+
   return str.substr(str.find_first_not_of('-'), str.find_last_not_of('-') + 1);
 }
 
