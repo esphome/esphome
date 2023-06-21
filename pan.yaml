@@ -3,16 +3,16 @@ esp32:
   framework:
     type: arduino
 
+esphome:
+  name: pannypm
+
+
+logger:
+
 uart:
   rx_pin: GPIO10
   parity: EVEN
   baud_rate: 9600
-
-esphome:
-  name: pannypm
-
-logger:
-  level: VERBOSE
 
 sensor:
   - platform: gcja5
