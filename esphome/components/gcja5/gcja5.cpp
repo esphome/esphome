@@ -107,11 +107,11 @@ void GCJA5Component::dump_config() { ; }
 void GCJA5Component::update() {
   if (haveGoodData) {
     if (this->pm_1_0_sensor_ != nullptr)
-      this->pm_1_0_sensor_->publish_state(get_32_bit_uint(1));
+      this->pm_1_0_sensor_->publish_state(get_32_bit_uint(1) / 1000.0);
     if (this->pm_2_5_sensor_ != nullptr)
-      this->pm_2_5_sensor_->publish_state(get_32_bit_uint(5));
+      this->pm_2_5_sensor_->publish_state(get_32_bit_uint(5) / 1000.0);
     if (this->pm_10_0_sensor_ != nullptr)
-      this->pm_10_0_sensor_->publish_state(get_32_bit_uint(9));
+      this->pm_10_0_sensor_->publish_state(get_32_bit_uint(9) / 1000.0);
 
     if (this->pmc_0_3_sensor_ != nullptr)
       this->pmc_0_3_sensor_->publish_state(get_16_bit_uint(13));
