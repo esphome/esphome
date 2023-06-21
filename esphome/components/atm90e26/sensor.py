@@ -104,7 +104,7 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Required(CONF_LINE_FREQUENCY): cv.enum(LINE_FREQS, upper=True),
-            cv.Optional(CONF_METER_CONSTANT, default=3200.0): cv.positive_float,
+            cv.Required(CONF_METER_CONSTANT): cv.positive_float,
             cv.Optional(CONF_PL_CONST, default=1429876): cv.uint32_t,
             cv.Optional(CONF_GAIN_METERING, default=7481): cv.uint16_t,
             cv.Optional(CONF_GAIN_VOLTAGE, default=26400): cv.uint16_t,
