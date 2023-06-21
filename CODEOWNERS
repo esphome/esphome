@@ -17,6 +17,7 @@ esphome/components/adc/* @esphome/core
 esphome/components/adc128s102/* @DeerMaximum
 esphome/components/addressable_light/* @justfalter
 esphome/components/airthings_ble/* @jeromelaban
+esphome/components/airthings_wave_base/* @jeromelaban @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
 esphome/components/alarm_control_panel/* @grahambrown11
