@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c, sensor
+from esphome.components import uart, sensor
 from esphome.const import (
     CONF_ID,
     CONF_PM_1_0,
@@ -20,11 +20,11 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@gcormier"]
-DEPENDENCIES = ["i2c"]
+DEPENDENCIES = ["uart"]
 
 gcja5_ns = cg.esphome_ns.namespace("gcja5")
 
-GCJA5Component = gcja5_ns.class_("GCJA5Component", cg.PollingComponent, i2c.I2CDevice)
+GCJA5Component = gcja5_ns.class_("GCJA5Component", cg.PollingComponent, uart.UARTDevice)
 
 CONF_PMC_0_3 = "pmc_0_3"
 CONF_PMC_5_0 = "pmc_5_0"
@@ -93,9 +93,11 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("15s"))
-    .extend(i2c.i2c_device_schema(0x33))
+    .extend(uart.UART_DEVICE_SCHEMA)
 )
-
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "gcja5", baud_rate=9600, require_rx=True, parity="EVEN"
+)
 TYPES = {
     CONF_PM_1_0: "set_pm_1_0_sensor",
     CONF_PM_2_5: "set_pm_2_5_sensor",
@@ -112,7 +114,7 @@ TYPES = {
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    await uart.register_uart_device(var, config)
 
     for key, funcName in TYPES.items():
         if key in config:

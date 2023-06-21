@@ -2,12 +2,10 @@ esp32:
   board: esp32-c3-devkitm-1
   framework:
     type: arduino
-i2c:
-  sda: GPIO6
-  scl: GPIO7
 
 uart:
   rx_pin: GPIO10
+  parity: EVEN
   baud_rate: 9600
 
 esphome:
@@ -15,10 +13,6 @@ esphome:
 
 logger:
   level: VERBOSE
-
-wifi:
-  ssid: asdfasdf
-  password: asdfasdf
 
 sensor:
   - platform: gcja5
