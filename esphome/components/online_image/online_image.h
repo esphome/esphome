@@ -22,6 +22,10 @@ enum ImageFormat {
   PNG,
 };
 
+/**
+ * @brief Download an image from a given URL, and decode it using the specified decoder.
+ * The image will then be stored in a buffer, so that it can be displayed.
+ */
 class OnlineImage : public PollingComponent, public display::Image {
  public:
   /**
@@ -39,8 +43,14 @@ class OnlineImage : public PollingComponent, public display::Image {
   void draw(int x, int y, display::DisplayBuffer *display, Color color_on, Color color_off) override;
 
   void update() override;
+  void loop() override;
 
+  /** Set the URL to download the image from. */
   void set_url(const char *url) { url_ = url; }
+  /**
+   * Release the buffer storing the image. The image will need to be downloaded again
+   * to be able to be displayed.
+   */
   void release();
 
   void set_follow_redirects(bool follow, int limit);
@@ -50,8 +60,6 @@ class OnlineImage : public PollingComponent, public display::Image {
 
   void add_on_finished_callback(std::function<void()> &&callback);
   void add_on_error_callback(std::function<void()> &&callback);
-
-  void loop() override;
 
  protected:
   bool get_binary_pixel_(int x, int y) const;
@@ -64,9 +72,9 @@ class OnlineImage : public PollingComponent, public display::Image {
   Allocator allocator_{Allocator::Flags::ALLOW_FAILURE};
 
   uint32_t get_buffer_size_() const { return get_buffer_size_(buffer_width_, buffer_height_); }
-  int get_buffer_size_(int width, int height) const { return std::ceil(bits_per_pixel_ * width * height / 8.0); }
+  int get_buffer_size_(int width, int height) const { return std::ceil(display::image_type_to_bpp(type_) * width * height / 8.0); }
 
-  int get_position_(int x, int y) const { return ((x + y * buffer_width_) * bits_per_pixel_) / 8; }
+  int get_position_(int x, int y) const { return ((x + y * buffer_width_) * display::image_type_to_bpp(type_)) / 8; }
 
   ESPHOME_ALWAYS_INLINE bool auto_resize_() const { return fixed_width_ == 0 || fixed_height_ == 0; }
 
@@ -87,10 +95,28 @@ class OnlineImage : public PollingComponent, public display::Image {
   DownloadBuffer download_buffer_;
 
   const ImageFormat format_;
-  const uint8_t bits_per_pixel_;
+
+  /** width requested on configuration, or 0 if non specified. */
   const int fixed_width_;
+  /** height requested on configuration, or 0 if non specified. */
   const int fixed_height_;
+  /**
+   * Actual width of the current image. If fixed_width_ is specified,
+   * this will be equal to it; otherwise it will be set once the decoding
+   * starts and the original size is known.
+   * This needs to be separate from "BaseImage::get_width()" because the latter
+   * must return 0 until the image has been decoded (to avoid showing partially
+   * decoded images).
+   */
   int buffer_width_;
+  /**
+   * Actual height of the current image. If fixed_height_ is specified,
+   * this will be equal to it; otherwise it will be set once the decoding
+   * starts and the original size is known.
+   * This needs to be separate from "BaseImage::get_height()" because the latter
+   * must return 0 until the image has been decoded (to avoid showing partially
+   * decoded images).
+   */
   int buffer_height_;
 
   uint16_t timeout_;
