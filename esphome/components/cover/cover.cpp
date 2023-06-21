@@ -31,7 +31,7 @@ const char *cover_operation_to_str(CoverOperation op) {
   }
 }
 
-Cover::Cover(const std::string &name) : EntityBase(name), position{COVER_OPEN} {}
+Cover::Cover() : position{COVER_OPEN} {}
 
 CoverCall::CoverCall(Cover *parent) : parent_(parent) {}
 CoverCall &CoverCall::set_command(const char *command) {
@@ -145,7 +145,7 @@ CoverCall &CoverCall::set_stop(bool stop) {
   return *this;
 }
 bool CoverCall::get_stop() const { return this->stop_; }
-void Cover::set_device_class(const std::string &device_class) { this->device_class_override_ = device_class; }
+
 CoverCall Cover::make_call() { return {this}; }
 void Cover::open() {
   auto call = this->make_call();
@@ -204,18 +204,9 @@ optional<CoverRestoreState> Cover::restore_state_() {
     return {};
   return recovered;
 }
-Cover::Cover() : Cover("") {}
-std::string Cover::get_device_class() {
-  if (this->device_class_override_.has_value())
-    return *this->device_class_override_;
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-  return this->device_class();
-#pragma GCC diagnostic pop
-}
+
 bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
 bool Cover::is_fully_closed() const { return this->position == COVER_CLOSED; }
-std::string Cover::device_class() { return ""; }
 
 CoverCall CoverRestoreState::to_call(Cover *cover) {
   auto call = cover->make_call();

@@ -89,18 +89,18 @@ uint32_t get_mifare_classic_buffer_size(uint32_t message_length) {
 }
 
 bool mifare_classic_is_first_block(uint8_t block_num) {
-  if (block_num < 128) {
-    return (block_num % 4 == 0);
+  if (block_num < MIFARE_CLASSIC_BLOCKS_PER_SECT_LOW * MIFARE_CLASSIC_16BLOCK_SECT_START) {
+    return (block_num % MIFARE_CLASSIC_BLOCKS_PER_SECT_LOW == 0);
   } else {
-    return (block_num % 16 == 0);
+    return (block_num % MIFARE_CLASSIC_BLOCKS_PER_SECT_HIGH == 0);
   }
 }
 
 bool mifare_classic_is_trailer_block(uint8_t block_num) {
-  if (block_num < 128) {
-    return ((block_num + 1) % 4 == 0);
+  if (block_num < MIFARE_CLASSIC_BLOCKS_PER_SECT_LOW * MIFARE_CLASSIC_16BLOCK_SECT_START) {
+    return ((block_num + 1) % MIFARE_CLASSIC_BLOCKS_PER_SECT_LOW == 0);
   } else {
-    return ((block_num + 1) % 16 == 0);
+    return ((block_num + 1) % MIFARE_CLASSIC_BLOCKS_PER_SECT_HIGH == 0);
   }
 }
 

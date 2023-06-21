@@ -25,15 +25,18 @@ def ensure_option_map(value):
     return value
 
 
-CONFIG_SCHEMA = select.SELECT_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TuyaSelect),
-        cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
-        cv.Required(CONF_ENUM_DATAPOINT): cv.uint8_t,
-        cv.Required(CONF_OPTIONS): ensure_option_map,
-        cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = (
+    select.select_schema(TuyaSelect)
+    .extend(
+        {
+            cv.GenerateID(CONF_TUYA_ID): cv.use_id(Tuya),
+            cv.Required(CONF_ENUM_DATAPOINT): cv.uint8_t,
+            cv.Required(CONF_OPTIONS): ensure_option_map,
+            cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
+        }
+    )
+    .extend(cv.COMPONENT_SCHEMA)
+)
 
 
 async def to_code(config):

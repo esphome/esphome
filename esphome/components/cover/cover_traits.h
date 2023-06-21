@@ -15,12 +15,15 @@ class CoverTraits {
   void set_supports_tilt(bool supports_tilt) { this->supports_tilt_ = supports_tilt; }
   bool get_supports_toggle() const { return this->supports_toggle_; }
   void set_supports_toggle(bool supports_toggle) { this->supports_toggle_ = supports_toggle; }
+  bool get_supports_stop() const { return this->supports_stop_; }
+  void set_supports_stop(bool supports_stop) { this->supports_stop_ = supports_stop; }
 
  protected:
   bool is_assumed_state_{false};
   bool supports_position_{false};
   bool supports_tilt_{false};
   bool supports_toggle_{false};
+  bool supports_stop_{false};
 };
 
 }  // namespace cover

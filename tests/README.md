@@ -26,3 +26,4 @@ Current test_.yaml file contents.
 | test5.yaml | ESP32 | wifi | ble_server
 | test6.yaml | RP2040 | wifi | N/A
 | test7.yaml | ESP32-C3 | wifi | N/A
+| test8.yaml | ESP32-S3 | wifi | None

@@ -1,18 +1,13 @@
 import logging
-import re
 
 import esphome.config_validation as cv
 from esphome import core
-from esphome.const import CONF_SUBSTITUTIONS
+from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
 from esphome.yaml_util import ESPHomeDataBase, make_data_base
 from esphome.config_helpers import merge_config
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
-
-VALID_SUBSTITUTIONS_CHARACTERS = (
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
-)
 
 
 def validate_substitution_key(value):
@@ -42,12 +37,6 @@ async def to_code(config):
     pass
 
 
-# pylint: disable=consider-using-f-string
-VARIABLE_PROG = re.compile(
-    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
-)
-
-
 def _expand_substitutions(substitutions, value, path, ignore_missing):
     if "$" not in value:
         return value
@@ -56,7 +45,7 @@ def _expand_substitutions(substitutions, value, path, ignore_missing):
 
     i = 0
     while True:
-        m = VARIABLE_PROG.search(value, i)
+        m = cv.VARIABLE_PROG.search(value, i)
         if not m:
             # Nothing more to match. Done
             break
@@ -66,7 +55,7 @@ def _expand_substitutions(substitutions, value, path, ignore_missing):
         if name.startswith("{") and name.endswith("}"):
             name = name[1:-1]
         if name not in substitutions:
-            if not ignore_missing:
+            if not ignore_missing and "password" not in path:
                 _LOGGER.warning(
                     "Found '%s' (see %s) which looks like a substitution, but '%s' was "
                     "not declared",

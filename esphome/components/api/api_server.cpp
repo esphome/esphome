@@ -45,7 +45,7 @@ void APIServer::setup() {
 
   struct sockaddr_storage server;
 
-  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), htons(this->port_));
+  socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), this->port_);
   if (sl == 0) {
     ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
     this->mark_failed();
@@ -291,79 +291,7 @@ void APIServer::send_homeassistant_service_call(const HomeassistantServiceRespon
     client->send_homeassistant_service_call(call);
   }
 }
-#ifdef USE_BLUETOOTH_PROXY
-void APIServer::send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &call) {
-  for (auto &client : this->clients_) {
-    client->send_bluetooth_le_advertisement(call);
-  }
-}
-void APIServer::send_bluetooth_device_connection(uint64_t address, bool connected, uint16_t mtu, esp_err_t error) {
-  BluetoothDeviceConnectionResponse call;
-  call.address = address;
-  call.connected = connected;
-  call.mtu = mtu;
-  call.error = error;
 
-  for (auto &client : this->clients_) {
-    client->send_bluetooth_device_connection_response(call);
-  }
-}
-
-void APIServer::send_bluetooth_connections_free(uint8_t free, uint8_t limit) {
-  BluetoothConnectionsFreeResponse call;
-  call.free = free;
-  call.limit = limit;
-
-  for (auto &client : this->clients_) {
-    client->send_bluetooth_connections_free_response(call);
-  }
-}
-
-void APIServer::send_bluetooth_gatt_read_response(const BluetoothGATTReadResponse &call) {
-  for (auto &client : this->clients_) {
-    client->send_bluetooth_gatt_read_response(call);
-  }
-}
-void APIServer::send_bluetooth_gatt_write_response(const BluetoothGATTWriteResponse &call) {
-  for (auto &client : this->clients_) {
-    client->send_bluetooth_gatt_write_response(call);
-  }
-}
-void APIServer::send_bluetooth_gatt_notify_data_response(const BluetoothGATTNotifyDataResponse &call) {
-  for (auto &client : this->clients_) {
-    client->send_bluetooth_gatt_notify_data_response(call);
-  }
-}
-void APIServer::send_bluetooth_gatt_notify_response(const BluetoothGATTNotifyResponse &call) {
-  for (auto &client : this->clients_) {
-    client->send_bluetooth_gatt_notify_response(call);
-  }
-}
-void APIServer::send_bluetooth_gatt_services(const BluetoothGATTGetServicesResponse &call) {
-  for (auto &client : this->clients_) {
-    client->send_bluetooth_gatt_get_services_response(call);
-  }
-}
-void APIServer::send_bluetooth_gatt_services_done(uint64_t address) {
-  BluetoothGATTGetServicesDoneResponse call;
-  call.address = address;
-
-  for (auto &client : this->clients_) {
-    client->send_bluetooth_gatt_get_services_done_response(call);
-  }
-}
-void APIServer::send_bluetooth_gatt_error(uint64_t address, uint16_t handle, esp_err_t error) {
-  BluetoothGATTErrorResponse call;
-  call.address = address;
-  call.handle = handle;
-  call.error = error;
-
-  for (auto &client : this->clients_) {
-    client->send_bluetooth_gatt_error_response(call);
-  }
-}
-
-#endif
 APIServer::APIServer() { global_api_server = this; }
 void APIServer::subscribe_home_assistant_state(std::string entity_id, optional<std::string> attribute,
                                                std::function<void(std::string)> f) {
@@ -393,6 +321,31 @@ void APIServer::on_shutdown() {
   }
   delay(10);
 }
+
+#ifdef USE_VOICE_ASSISTANT
+bool APIServer::start_voice_assistant(const std::string &conversation_id) {
+  for (auto &c : this->clients_) {
+    if (c->request_voice_assistant(true, conversation_id))
+      return true;
+  }
+  return false;
+}
+void APIServer::stop_voice_assistant() {
+  for (auto &c : this->clients_) {
+    if (c->request_voice_assistant(false, ""))
+      return;
+  }
+}
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+void APIServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_alarm_control_panel_state(obj);
+}
+#endif
 
 }  // namespace api
 }  // namespace esphome

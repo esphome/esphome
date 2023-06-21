@@ -79,7 +79,9 @@ def register_trigger(name, type, data_type):
     validator = automation.validate_automation(
         {
             cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(type),
-            cv.GenerateID(CONF_RECEIVER_ID): cv.use_id(RemoteReceiverBase),
+            cv.Optional(CONF_RECEIVER_ID): cv.invalid(
+                "This has been removed in ESPHome 2022.3.0 and the trigger attaches directly to the parent receiver."
+            ),
         }
     )
     registerer = TRIGGER_REGISTRY.register(f"on_{name}", validator)
@@ -87,7 +89,6 @@ def register_trigger(name, type, data_type):
     def decorator(func):
         async def new_func(config):
             var = cg.new_Pvariable(config[CONF_TRIGGER_ID])
-            await register_listener(var, config)
             await coroutine(func)(var, config)
             await automation.build_automation(var, [(data_type, "x")], config)
             return var
@@ -223,10 +224,12 @@ async def build_binary_sensor(full_config):
 
 
 async def build_triggers(full_config):
+    triggers = []
     for key in TRIGGER_REGISTRY:
         for config in full_config.get(key, []):
             func = TRIGGER_REGISTRY[key][0]
-            await func(config)
+            triggers.append(await func(config))
+    return triggers
 
 
 async def build_dumpers(config):
@@ -710,7 +713,7 @@ def sony_dumper(var, config):
 
 @register_action("sony", SonyAction, SONY_SCHEMA)
 async def sony_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
     cg.add(var.set_data(template_))
     template_ = await cg.templatable(config[CONF_NBITS], args, cg.uint32)
     cg.add(var.set_nbits(template_))
@@ -786,6 +789,57 @@ async def raw_action(var, config, args):
         cg.add(var.set_code_static(arr, len(code_)))
     templ = await cg.templatable(config[CONF_CARRIER_FREQUENCY], args, cg.uint32)
     cg.add(var.set_carrier_frequency(templ))
+
+
+# Drayton
+(
+    DraytonData,
+    DraytonBinarySensor,
+    DraytonTrigger,
+    DraytonAction,
+    DraytonDumper,
+) = declare_protocol("Drayton")
+DRAYTON_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
+        cv.Required(CONF_CHANNEL): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
+        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
+    }
+)
+
+
+@register_binary_sensor("drayton", DraytonBinarySensor, DRAYTON_SCHEMA)
+def drayton_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                DraytonData,
+                ("address", config[CONF_ADDRESS]),
+                ("channel", config[CONF_CHANNEL]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("drayton", DraytonTrigger, DraytonData)
+def drayton_trigger(var, config):
+    pass
+
+
+@register_dumper("drayton", DraytonDumper)
+def drayton_dumper(var, config):
+    pass
+
+
+@register_action("drayton", DraytonAction, DRAYTON_SCHEMA)
+async def drayton_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
+    cg.add(var.set_channel(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
 
 
 # RC5
