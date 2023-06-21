@@ -59,14 +59,13 @@ void GCJA5Component::parse_data_() {
   ESP_LOGVV(TAG, "GCJA5 Data: ");
   for (uint8_t i = 0; i < 32; i++) {
     ESP_LOGVV(TAG, "  %u: 0b" BYTE_TO_BINARY_PATTERN " (0x%02X)", i + 1, BYTE_TO_BINARY(this->raw_data_[i]),
-             this->raw_data_[i]);
+              this->raw_data_[i]);
   }
 
   if (this->raw_data_[0] != 0x02 || this->raw_data_[31] != 0x03 || !this->calculate_checksum()) {
     ESP_LOGVV(TAG, "Discarding bad packet - failed checks.");
     return;
-  }
-  else
+  } else
     ESP_LOGVV(TAG, "Good packet found.");
 
   haveGoodData = true;
@@ -84,19 +83,15 @@ void GCJA5Component::parse_data_() {
   uint16_t pmc10_0 = get_16_bit_uint(25);
 
   uint8_t status = this->raw_data_[29];
-  if (!firstStatusLog)
-  {
+  if (!firstStatusLog) {
     firstStatusLog = true;
 
-  
-
-  ESP_LOGI(TAG, "GCJA5 Status");
-  ESP_LOGI(TAG, "Overall Status : %i", (status >> 6) & 0x03);
-  ESP_LOGI(TAG, "PD Status      : %i", (status >> 4) & 0x03);
-  ESP_LOGI(TAG, "LD Status      : %i", (status >> 2) & 0x03);
-  ESP_LOGI(TAG, "Fan Status     : %i", (status >> 0) & 0x03);
+    ESP_LOGI(TAG, "GCJA5 Status");
+    ESP_LOGI(TAG, "Overall Status : %i", (status >> 6) & 0x03);
+    ESP_LOGI(TAG, "PD Status      : %i", (status >> 4) & 0x03);
+    ESP_LOGI(TAG, "LD Status      : %i", (status >> 2) & 0x03);
+    ESP_LOGI(TAG, "Fan Status     : %i", (status >> 0) & 0x03);
   }
-  
 }
 
 void GCJA5Component::dump_config() { ; }
