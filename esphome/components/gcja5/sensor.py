@@ -26,8 +26,6 @@ gcja5_ns = cg.esphome_ns.namespace("gcja5")
 
 GCJA5Component = gcja5_ns.class_("GCJA5Component", cg.PollingComponent, i2c.I2CDevice)
 
-CONF_STANDARD_UNITS = "standard_units"
-UNIT_COUNTS_PER_100ML = "#/0.1L"
 CONF_PMC_0_3 = "pmc_0_3"
 CONF_PMC_5_0 = "pmc_5_0"
 
@@ -35,7 +33,6 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(GCJA5Component),
-            cv.Optional(CONF_STANDARD_UNITS, default=True): cv.boolean,
             cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
                 unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_CHEMICAL_WEAPON,
@@ -58,44 +55,44 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_0_3): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_0_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_5_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PMC_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_COUNTS_PER_100ML,
+                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
                 icon=ICON_COUNTER,
                 accuracy_decimals=0,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
     )
-    .extend(cv.polling_component_schema("60s"))
+    .extend(cv.polling_component_schema("15s"))
     .extend(i2c.i2c_device_schema(0x33))
 )
 
@@ -116,8 +113,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-
-    cg.add(var.set_standard_units(config[CONF_STANDARD_UNITS]))
 
     for key, funcName in TYPES.items():
         if key in config:
