@@ -329,7 +329,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 #if LWIP_IPV6
   for (bool configured = false; !configured;) {
     for (auto addr : addrList) {
-      ESP_LOGV(TAG, "Adress %s", addr.toString().c_str());
+      ESP_LOGV(TAG, "Address %s", addr.toString().c_str());
       if ((configured = !addr.isLocal() && addr.isV6())) {
         break;
       }
