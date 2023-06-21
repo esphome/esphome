@@ -22,11 +22,14 @@ from esphome.const import (
     UNIT_WATT,
     DEVICE_CLASS_POWER,
     DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_CURRENT,
+    CONF_MIN_BRIGHTNESS,
+    CONF_MAX_BRIGHTNESS,
 )
 from esphome.core import HexInt, CORE
 
 DOMAIN = "shelly_dimmer"
-DEPENDENCIES = ["sensor", "uart"]
+DEPENDENCIES = ["sensor", "uart", "esp8266"]
 
 shelly_dimmer_ns = cg.esphome_ns.namespace("shelly_dimmer")
 ShellyDimmer = shelly_dimmer_ns.class_(
@@ -40,8 +43,7 @@ CONF_UPDATE = "update"
 CONF_LEADING_EDGE = "leading_edge"
 CONF_WARMUP_BRIGHTNESS = "warmup_brightness"
 # CONF_WARMUP_TIME = "warmup_time"
-CONF_MIN_BRIGHTNESS = "min_brightness"
-CONF_MAX_BRIGHTNESS = "max_brightness"
+
 
 CONF_NRST_PIN = "nrst_pin"
 CONF_BOOT0_PIN = "boot0_pin"
@@ -169,7 +171,7 @@ CONFIG_SCHEMA = (
             ),
             cv.Optional(CONF_CURRENT): sensor.sensor_schema(
                 unit_of_measurement=UNIT_AMPERE,
-                device_class=DEVICE_CLASS_POWER,
+                device_class=DEVICE_CLASS_CURRENT,
                 accuracy_decimals=2,
             ),
             # Change the default gamma_correct setting.

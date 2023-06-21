@@ -4,6 +4,7 @@ import logging
 import os
 import re
 import sys
+import time
 from datetime import datetime
 
 from esphome import const, writer, yaml_util
@@ -17,11 +18,17 @@ from esphome.const import (
     CONF_LOGGER,
     CONF_NAME,
     CONF_OTA,
+    CONF_MQTT,
+    CONF_MDNS,
+    CONF_DISABLED,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
     CONF_SUBSTITUTIONS,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
@@ -38,7 +45,7 @@ from esphome.log import color, setup_log, Fore
 _LOGGER = logging.getLogger(__name__)
 
 
-def choose_prompt(options):
+def choose_prompt(options, purpose: str = None):
     if not options:
         raise EsphomeError(
             "Found no valid options for upload/logging, please make sure relevant "
@@ -49,7 +56,9 @@ def choose_prompt(options):
     if len(options) == 1:
         return options[0][1]
 
-    safe_print("Found multiple options, please choose one:")
+    safe_print(
+        f'Found multiple options{f" for {purpose}" if purpose else ""}, please choose one:'
+    )
     for i, (desc, _) in enumerate(options):
         safe_print(f"  [{i+1}] {desc}")
 
@@ -68,7 +77,9 @@ def choose_prompt(options):
     return options[opt - 1][1]
 
 
-def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api):
+def choose_upload_log_host(
+    default, check_default, show_ota, show_mqtt, show_api, purpose: str = None
+):
     options = []
     for port in get_serial_ports():
         options.append((f"{port.path} ({port.description})", port.path))
@@ -76,7 +87,7 @@ def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == "OTA":
             return CORE.address
-    if show_mqtt and "mqtt" in CORE.config:
+    if show_mqtt and CONF_MQTT in CORE.config:
         options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
         if default == "OTA":
             return "MQTT"
@@ -84,7 +95,7 @@ def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api
         return default
     if check_default is not None and check_default in [opt[1] for opt in options]:
         return check_default
-    return choose_prompt(options)
+    return choose_prompt(options, purpose=purpose)
 
 
 def get_port_type(port):
@@ -101,11 +112,11 @@ def run_miniterm(config, port):
 
     if CONF_LOGGER not in config:
         _LOGGER.info("Logger is not enabled. Not starting UART logs.")
-        return
+        return 1
     baud_rate = config["logger"][CONF_BAUD_RATE]
     if baud_rate == 0:
         _LOGGER.info("UART logging is disabled (baud_rate=0). Not starting UART logs.")
-        return
+        return 1
     _LOGGER.info("Starting log output from %s with baud rate %s", port, baud_rate)
 
     backtrace_state = False
@@ -119,25 +130,36 @@ def run_miniterm(config, port):
         ser.dtr = False
         ser.rts = False
 
-    with ser:
-        while True:
-            try:
-                raw = ser.readline()
-            except serial.SerialException:
-                _LOGGER.error("Serial port closed!")
-                return
-            line = (
-                raw.replace(b"\r", b"")
-                .replace(b"\n", b"")
-                .decode("utf8", "backslashreplace")
-            )
-            time = datetime.now().time().strftime("[%H:%M:%S]")
-            message = time + line
-            safe_print(message)
+    tries = 0
+    while tries < 5:
+        try:
+            with ser:
+                while True:
+                    try:
+                        raw = ser.readline()
+                    except serial.SerialException:
+                        _LOGGER.error("Serial port closed!")
+                        return 0
+                    line = (
+                        raw.replace(b"\r", b"")
+                        .replace(b"\n", b"")
+                        .decode("utf8", "backslashreplace")
+                    )
+                    time_str = datetime.now().time().strftime("[%H:%M:%S]")
+                    message = time_str + line
+                    safe_print(message)
 
-            backtrace_state = platformio_api.process_stacktrace(
-                config, line, backtrace_state=backtrace_state
-            )
+                    backtrace_state = platformio_api.process_stacktrace(
+                        config, line, backtrace_state=backtrace_state
+                    )
+        except serial.SerialException:
+            tries += 1
+            time.sleep(1)
+    if tries >= 5:
+        _LOGGER.error("Could not connect to serial port %s", port)
+        return 1
+
+    return 0
 
 
 def wrap_to_code(name, comp):
@@ -241,8 +263,7 @@ def upload_using_esptool(config, port):
         if os.environ.get("ESPHOME_USE_SUBPROCESS") is None:
             import esptool
 
-            # pylint: disable=protected-access
-            return run_external_command(esptool._main, *cmd)
+            return run_external_command(esptool.main, *cmd)  # pylint: disable=no-member
 
         return run_external_process(*cmd)
 
@@ -258,11 +279,21 @@ def upload_using_esptool(config, port):
 
 
 def upload_program(config, args, host):
-    # if upload is to a serial port use platformio, otherwise assume ota
     if get_port_type(host) == "SERIAL":
-        return upload_using_esptool(config, host)
+        if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
+            return upload_using_esptool(config, host)
 
-    from esphome import espota2
+        if CORE.target_platform in (PLATFORM_RP2040):
+            from esphome import platformio_api
+
+            upload_args = ["-t", "upload"]
+            if args.device is not None:
+                upload_args += ["--upload-port", args.device]
+            return platformio_api.run_platformio_cli_run(
+                config, CORE.verbose, *upload_args
+            )
+
+        return 1  # Unknown target platform
 
     if CONF_OTA not in config:
         raise EsphomeError(
@@ -270,9 +301,24 @@ def upload_program(config, args, host):
             "component"
         )
 
+    from esphome import espota2
+
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf.get(CONF_PASSWORD, "")
+
+    if (
+        get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED]
+    ) and CONF_MQTT in config:
+        from esphome import mqtt
+
+        host = mqtt.get_esphome_device_ip(
+            config, args.username, args.password, args.client_id
+        )
+
+    if getattr(args, "file", None) is not None:
+        return espota2.run_ota(host, remote_port, password, args.file)
+
     return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
@@ -280,9 +326,15 @@ def show_logs(config, args, port):
     if "logger" not in config:
         raise EsphomeError("Logger is not configured!")
     if get_port_type(port) == "SERIAL":
-        run_miniterm(config, port)
-        return 0
+        return run_miniterm(config, port)
     if get_port_type(port) == "NETWORK" and "api" in config:
+        if config[CONF_MDNS][CONF_DISABLED] and CONF_MQTT in config:
+            from esphome import mqtt
+
+            port = mqtt.get_esphome_device_ip(
+                config, args.username, args.password, args.client_id
+            )
+
         from esphome.components.api.client import run_logs
 
         return run_logs(config, port)
@@ -314,7 +366,7 @@ def command_config(args, config):
     _LOGGER.info("Configuration is valid!")
     if not CORE.verbose:
         config = strip_default_ids(config)
-    safe_print(yaml_util.dump(config))
+    safe_print(yaml_util.dump(config, args.show_secrets))
     return 0
 
 
@@ -347,12 +399,22 @@ def command_upload(args, config):
         show_ota=True,
         show_mqtt=False,
         show_api=False,
+        purpose="uploading",
     )
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
         return exit_code
     _LOGGER.info("Successfully uploaded program.")
     return 0
+
+
+def command_discover(args, config):
+    if "mqtt" in config:
+        from esphome import mqtt
+
+        return mqtt.show_discover(config, args.username, args.password, args.client_id)
+
+    raise EsphomeError("No discover method configured (mqtt)")
 
 
 def command_logs(args, config):
@@ -362,6 +424,7 @@ def command_logs(args, config):
         show_ota=False,
         show_mqtt=True,
         show_api=True,
+        purpose="logging",
     )
     return show_logs(config, args, port)
 
@@ -380,6 +443,7 @@ def command_run(args, config):
         show_ota=True,
         show_mqtt=False,
         show_api=True,
+        purpose="uploading",
     )
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
@@ -393,6 +457,7 @@ def command_run(args, config):
         show_ota=False,
         show_mqtt=True,
         show_api=True,
+        purpose="logging",
     )
     return show_logs(config, args, port)
 
@@ -596,6 +661,7 @@ POST_CONFIG_ACTIONS = {
     "clean": command_clean,
     "idedata": command_idedata,
     "rename": command_rename,
+    "discover": command_discover,
 }
 
 
@@ -640,6 +706,9 @@ def parse_args(argv):
     parser_config.add_argument(
         "configuration", help="Your YAML configuration file(s).", nargs="+"
     )
+    parser_config.add_argument(
+        "--show-secrets", help="Show secrets in output.", action="store_true"
+    )
 
     parser_compile = subparsers.add_parser(
         "compile", help="Read the configuration and compile a program."
@@ -663,6 +732,10 @@ def parse_args(argv):
         "--device",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
     )
+    parser_upload.add_argument(
+        "--file",
+        help="Manually specify the binary file to upload.",
+    )
 
     parser_logs = subparsers.add_parser(
         "logs",
@@ -675,6 +748,15 @@ def parse_args(argv):
     parser_logs.add_argument(
         "--device",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
+    )
+
+    parser_discover = subparsers.add_parser(
+        "discover",
+        help="Validate the configuration and show all discovered devices.",
+        parents=[mqtt_options],
+    )
+    parser_discover.add_argument(
+        "configuration", help="Your YAML configuration file.", nargs=1
     )
 
     parser_run = subparsers.add_parser(
@@ -897,6 +979,8 @@ def run_esphome(argv):
         except EsphomeError as e:
             _LOGGER.error(e, exc_info=args.verbose)
             return 1
+
+    _LOGGER.info("ESPHome %s", const.__version__)
 
     for conf_path in args.configuration:
         if any(os.path.basename(conf_path) == x for x in SECRETS_FILES):

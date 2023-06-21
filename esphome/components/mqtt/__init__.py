@@ -250,6 +250,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
+    cv.only_on(["esp32", "esp8266"]),
 )
 
 

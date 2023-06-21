@@ -8,6 +8,7 @@ CODEOWNERS = ["@OttoWinter"]
 CONFIG_SCHEMA = cv.All(
     cv.Schema({}),
     cv.only_with_arduino,
+    cv.only_on(["esp32", "esp8266"]),
 )
 
 
@@ -17,5 +18,5 @@ async def to_code(config):
         # https://github.com/esphome/AsyncTCP/blob/master/library.json
         cg.add_library("esphome/AsyncTCP-esphome", "1.2.2")
     elif CORE.is_esp8266:
-        # https://github.com/OttoWinter/ESPAsyncTCP
-        cg.add_library("ottowinter/ESPAsyncTCP-esphome", "1.2.3")
+        # https://github.com/esphome/ESPAsyncTCP
+        cg.add_library("esphome/ESPAsyncTCP-esphome", "1.2.3")

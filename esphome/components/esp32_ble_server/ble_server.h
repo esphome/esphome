@@ -3,6 +3,7 @@
 #include "ble_service.h"
 #include "ble_characteristic.h"
 
+#include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble/ble_advertising.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
 #include "esphome/components/esp32_ble/queue.h"
@@ -12,6 +13,7 @@
 
 #include <map>
 #include <memory>
+#include <vector>
 
 #ifdef USE_ESP32
 
@@ -31,7 +33,7 @@ class BLEServiceComponent {
   virtual void stop();
 };
 
-class BLEServer : public Component {
+class BLEServer : public Component, public GATTsEventHandler, public Parented<ESP32BLE> {
  public:
   void setup() override;
   void loop() override;
@@ -54,7 +56,8 @@ class BLEServer : public Component {
   uint32_t get_connected_client_count() { return this->connected_clients_; }
   const std::map<uint16_t, void *> &get_clients() { return this->clients_; }
 
-  void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
+  void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
+                           esp_ble_gatts_cb_param_t *param) override;
 
   void register_service_component(BLEServiceComponent *component) { this->service_components_.push_back(component); }
 

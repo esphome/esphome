@@ -86,6 +86,8 @@ async def to_code(config):
         if CORE.is_esp32:
             cg.add_library("WiFiClientSecure", None)
             cg.add_library("HTTPClient", None)
+        if CORE.is_esp8266:
+            cg.add_library("ESP8266HTTPClient", None)
 
     if CONF_TOUCH_SLEEP_TIMEOUT in config:
         cg.add(var.set_touch_sleep_timeout_internal(config[CONF_TOUCH_SLEEP_TIMEOUT]))

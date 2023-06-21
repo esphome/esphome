@@ -55,6 +55,22 @@ FRAME_SIZES = {
     "SXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1280X1024,
     "1600X1200": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1600X1200,
     "UXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1600X1200,
+    "1920X1080": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1920X1080,
+    "FHD": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1920X1080,
+    "720X1280": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_720X1280,
+    "PHD": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_720X1280,
+    "864X1536": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_864X1536,
+    "P3MP": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_864X1536,
+    "2048X1536": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2048X1536,
+    "QXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2048X1536,
+    "2560X1440": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1440,
+    "QHD": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1440,
+    "2560X1600": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1600,
+    "WQXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1600,
+    "1080X1920": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1080X1920,
+    "PFHD": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1080X1920,
+    "2560X1920": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
+    "QSXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
 }
 ESP32GainControlMode = esp32_camera_ns.enum("ESP32GainControlMode")
 ENUM_GAIN_CONTROL_MODE = {
@@ -140,7 +156,7 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
             {
                 cv.Required(CONF_PIN): pins.internal_gpio_input_pin_number,
                 cv.Optional(CONF_FREQUENCY, default="20MHz"): cv.All(
-                    cv.frequency, cv.one_of(20e6, 10e6)
+                    cv.frequency, cv.Range(min=8e6, max=20e6)
                 ),
             }
         ),
@@ -156,7 +172,7 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_RESOLUTION, default="640X480"): cv.enum(
             FRAME_SIZES, upper=True
         ),
-        cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=10, max=63),
+        cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=6, max=63),
         cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
         cv.Optional(CONF_BRIGHTNESS, default=0): camera_range_param,
         cv.Optional(CONF_SATURATION, default=0): camera_range_param,

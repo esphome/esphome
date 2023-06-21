@@ -4,7 +4,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/sensor/sensor.h"
+
 #include <map>
+#include <vector>
 
 namespace esphome {
 namespace thermostat {
@@ -99,6 +101,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   void set_supports_fan_mode_middle(bool supports_fan_mode_middle);
   void set_supports_fan_mode_focus(bool supports_fan_mode_focus);
   void set_supports_fan_mode_diffuse(bool supports_fan_mode_diffuse);
+  void set_supports_fan_mode_quiet(bool supports_fan_mode_quiet);
   void set_supports_swing_mode_both(bool supports_swing_mode_both);
   void set_supports_swing_mode_horizontal(bool supports_swing_mode_horizontal);
   void set_supports_swing_mode_off(bool supports_swing_mode_off);
@@ -130,6 +133,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   Trigger<> *get_fan_mode_middle_trigger() const;
   Trigger<> *get_fan_mode_focus_trigger() const;
   Trigger<> *get_fan_mode_diffuse_trigger() const;
+  Trigger<> *get_fan_mode_quiet_trigger() const;
   Trigger<> *get_swing_mode_both_trigger() const;
   Trigger<> *get_swing_mode_horizontal_trigger() const;
   Trigger<> *get_swing_mode_off_trigger() const;
@@ -275,6 +279,7 @@ class ThermostatClimate : public climate::Climate, public Component {
   bool supports_fan_mode_middle_{false};
   bool supports_fan_mode_focus_{false};
   bool supports_fan_mode_diffuse_{false};
+  bool supports_fan_mode_quiet_{false};
 
   /// Whether the controller supports various swing modes.
   ///
@@ -369,6 +374,9 @@ class ThermostatClimate : public climate::Climate, public Component {
 
   /// The trigger to call when the controller should switch the fan to "diffuse" position.
   Trigger<> *fan_mode_diffuse_trigger_{nullptr};
+
+  /// The trigger to call when the controller should switch the fan to "quiet" position.
+  Trigger<> *fan_mode_quiet_trigger_{nullptr};
 
   /// The trigger to call when the controller should switch the swing mode to "both".
   Trigger<> *swing_mode_both_trigger_{nullptr};

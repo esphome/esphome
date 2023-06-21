@@ -1,4 +1,5 @@
 #pragma once
+#ifdef USE_ESP32
 
 #include "esphome/components/ble_client/ble_client.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
@@ -8,11 +9,12 @@
 #include "bedjet_child.h"
 #include "bedjet_codec.h"
 
+#include <vector>
+
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
+#include "esphome/core/time.h"
 #endif
-
-#ifdef USE_ESP32
 
 #include <esp_gattc_api.h>
 
@@ -115,7 +117,7 @@ class BedJetHub : public esphome::ble_client::BLEClientNode, public PollingCompo
   void update() override;
   void dump_config() override;
   void setup() override { this->codec_ = make_unique<BedjetCodec>(); }
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  float get_setup_priority() const override { return setup_priority::BLUETOOTH; }
 
   /** @return The BedJet's configured name, or the MAC address if not discovered yet. */
   std::string get_name() {

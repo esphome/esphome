@@ -1,15 +1,16 @@
 #include "logger.h"
+#include <cinttypes>
 
 #ifdef USE_ESP_IDF
-#include "freertos/FreeRTOS.h"
 #include <driver/uart.h>
-#endif
+#include "freertos/FreeRTOS.h"
+#endif  // USE_ESP_IDF
 
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
 #include <esp_log.h>
-#endif
-#include "esphome/core/log.h"
+#endif  // USE_ESP32_FRAMEWORK_ARDUINO || USE_ESP_IDF
 #include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace logger {
@@ -144,12 +145,14 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   if (xPortGetFreeHeapSize() < 2048)
     return;
 #endif
+#ifdef USE_HOST
+  puts(msg);
+#endif
 
   this->log_callback_.call(level, tag, msg);
 }
 
-Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size, UARTSelection uart)
-    : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size), uart_(uart) {
+Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate), tx_buffer_size_(tx_buffer_size) {
   // add 1 to buffer size for null terminator
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
 }
@@ -162,8 +165,13 @@ void Logger::pre_setup() {
 #ifdef USE_ESP8266
       case UART_SELECTION_UART0_SWAP:
 #endif
+#ifdef USE_RP2040
+        this->hw_serial_ = &Serial1;
+        Serial1.begin(this->baud_rate_);
+#else
         this->hw_serial_ = &Serial;
         Serial.begin(this->baud_rate_);
+#endif
 #ifdef USE_ESP8266
         if (this->uart_ == UART_SELECTION_UART0_SWAP) {
           Serial.swap();
@@ -172,8 +180,13 @@ void Logger::pre_setup() {
 #endif
         break;
       case UART_SELECTION_UART1:
+#ifdef USE_RP2040
+        this->hw_serial_ = &Serial2;
+        Serial2.begin(this->baud_rate_);
+#else
         this->hw_serial_ = &Serial1;
         Serial1.begin(this->baud_rate_);
+#endif
 #ifdef USE_ESP8266
         Serial1.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
 #endif
@@ -183,6 +196,12 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
         Serial2.begin(this->baud_rate_);
+        break;
+#endif
+#ifdef USE_RP2040
+      case UART_SELECTION_USB_CDC:
+        this->hw_serial_ = &Serial;
+        Serial.begin(this->baud_rate_);
         break;
 #endif
     }
@@ -246,7 +265,11 @@ void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 void Logger::set_log_level(const std::string &tag, int log_level) {
   this->log_levels_.push_back(LogLevelOverride{tag, log_level});
 }
+
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
 UARTSelection Logger::get_uart() const { return this->uart_; }
+#endif
+
 void Logger::add_on_log_callback(std::function<void(int, const char *, const char *)> &&callback) {
   this->log_callback_.add(std::move(callback));
 }
@@ -270,12 +293,18 @@ const char *const UART_SELECTIONS[] = {
 #endif  // USE_ESP32
 #ifdef USE_ESP8266
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
+#endif
+#ifdef USE_RP2040
+const char *const UART_SELECTIONS[] = {"UART0", "UART1", "USB_CDC"};
 #endif  // USE_ESP8266
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
   ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
-  ESP_LOGCONFIG(TAG, "  Log Baud Rate: %u", this->baud_rate_);
+  ESP_LOGCONFIG(TAG, "  Log Baud Rate: %" PRIu32, this->baud_rate_);
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
   ESP_LOGCONFIG(TAG, "  Hardware UART: %s", UART_SELECTIONS[this->uart_]);
+#endif
+
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);
   }

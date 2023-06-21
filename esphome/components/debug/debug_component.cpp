@@ -37,14 +37,13 @@ static uint32_t get_free_heap() {
 }
 
 void DebugComponent::dump_config() {
-  std::string device_info;
-  device_info.reserve(256);
-
 #ifndef ESPHOME_LOG_HAS_DEBUG
-  ESP_LOGE(TAG, "Debug Component requires debug log level!");
-  this->status_set_error();
-  return;
+  return;  // Can't log below if debug logging is disabled
 #endif
+
+  std::string device_info;
+  std::string reset_reason;
+  device_info.reserve(256);
 
   ESP_LOGCONFIG(TAG, "Debug component:");
 #ifdef USE_TEXT_SENSOR
@@ -146,7 +145,6 @@ void DebugComponent::dump_config() {
   device_info += "|EFuse MAC: ";
   device_info += mac;
 
-  const char *reset_reason;
   switch (rtc_get_reset_reason(0)) {
     case POWERON_RESET:
       reset_reason = "Power On Reset";
@@ -196,7 +194,7 @@ void DebugComponent::dump_config() {
     default:
       reset_reason = "Unknown Reset Reason";
   }
-  ESP_LOGD(TAG, "Reset Reason: %s", reset_reason);
+  ESP_LOGD(TAG, "Reset Reason: %s", reset_reason.c_str());
   device_info += "|Reset: ";
   device_info += reset_reason;
 
@@ -270,6 +268,8 @@ void DebugComponent::dump_config() {
   device_info += ESP.getResetReason().c_str();
   device_info += "|";
   device_info += ESP.getResetInfo().c_str();
+
+  reset_reason = ESP.getResetReason().c_str();
 #endif
 
 #ifdef USE_TEXT_SENSOR
@@ -277,6 +277,9 @@ void DebugComponent::dump_config() {
     if (device_info.length() > 255)
       device_info.resize(255);
     this->device_info_->publish_state(device_info);
+  }
+  if (this->reset_reason_ != nullptr) {
+    this->reset_reason_->publish_state(reset_reason);
   }
 #endif  // USE_TEXT_SENSOR
 }

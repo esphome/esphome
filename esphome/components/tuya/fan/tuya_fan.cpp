@@ -49,14 +49,18 @@ void TuyaFan::setup() {
 
 void TuyaFan::dump_config() {
   LOG_FAN("", "Tuya Fan", this);
-  if (this->speed_id_.has_value())
+  if (this->speed_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Speed has datapoint ID %u", *this->speed_id_);
-  if (this->switch_id_.has_value())
+  }
+  if (this->switch_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *this->switch_id_);
-  if (this->oscillation_id_.has_value())
+  }
+  if (this->oscillation_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Oscillation has datapoint ID %u", *this->oscillation_id_);
-  if (this->direction_id_.has_value())
+  }
+  if (this->direction_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Direction has datapoint ID %u", *this->direction_id_);
+  }
 }
 
 fan::FanTraits TuyaFan::get_traits() {

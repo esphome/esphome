@@ -5,6 +5,8 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/sensor/sensor.h"
 
+#include <vector>
+
 namespace esphome {
 namespace ade7953 {
 

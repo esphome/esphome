@@ -23,7 +23,6 @@ from esphome.util import Registry
 
 IS_PLATFORM_COMPONENT = True
 
-# pylint: disable=invalid-name
 text_sensor_ns = cg.esphome_ns.namespace("text_sensor")
 TextSensor = text_sensor_ns.class_("TextSensor", cg.EntityBase)
 TextSensorPtr = TextSensor.operator("ptr")

@@ -20,14 +20,18 @@ const LogString *fan_direction_to_string(FanDirection direction) {
 void FanCall::perform() {
   ESP_LOGD(TAG, "'%s' - Setting:", this->parent_.get_name().c_str());
   this->validate_();
-  if (this->binary_state_.has_value())
+  if (this->binary_state_.has_value()) {
     ESP_LOGD(TAG, "  State: %s", ONOFF(*this->binary_state_));
-  if (this->oscillating_.has_value())
+  }
+  if (this->oscillating_.has_value()) {
     ESP_LOGD(TAG, "  Oscillating: %s", YESNO(*this->oscillating_));
-  if (this->speed_.has_value())
+  }
+  if (this->speed_.has_value()) {
     ESP_LOGD(TAG, "  Speed: %d", *this->speed_);
-  if (this->direction_.has_value())
+  }
+  if (this->direction_.has_value()) {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(*this->direction_)));
+  }
 
   this->parent_.control(*this);
 }
@@ -76,9 +80,6 @@ void FanRestoreState::apply(Fan &fan) {
   fan.publish_state();
 }
 
-Fan::Fan() : EntityBase("") {}
-Fan::Fan(const std::string &name) : EntityBase(name) {}
-
 FanCall Fan::turn_on() { return this->make_call().set_state(true); }
 FanCall Fan::turn_off() { return this->make_call().set_state(false); }
 FanCall Fan::toggle() { return this->make_call().set_state(!this->state); }
@@ -90,12 +91,15 @@ void Fan::publish_state() {
 
   ESP_LOGD(TAG, "'%s' - Sending state:", this->name_.c_str());
   ESP_LOGD(TAG, "  State: %s", ONOFF(this->state));
-  if (traits.supports_speed())
+  if (traits.supports_speed()) {
     ESP_LOGD(TAG, "  Speed: %d", this->speed);
-  if (traits.supports_oscillation())
+  }
+  if (traits.supports_oscillation()) {
     ESP_LOGD(TAG, "  Oscillating: %s", YESNO(this->oscillating));
-  if (traits.supports_direction())
+  }
+  if (traits.supports_direction()) {
     ESP_LOGD(TAG, "  Direction: %s", LOG_STR_ARG(fan_direction_to_string(this->direction)));
+  }
 
   this->state_callback_.call();
   this->save_state_();
@@ -147,10 +151,12 @@ void Fan::dump_traits_(const char *tag, const char *prefix) {
     ESP_LOGCONFIG(tag, "%s  Speed: YES", prefix);
     ESP_LOGCONFIG(tag, "%s  Speed count: %d", prefix, this->get_traits().supported_speed_count());
   }
-  if (this->get_traits().supports_oscillation())
+  if (this->get_traits().supports_oscillation()) {
     ESP_LOGCONFIG(tag, "%s  Oscillation: YES", prefix);
-  if (this->get_traits().supports_direction())
+  }
+  if (this->get_traits().supports_direction()) {
     ESP_LOGCONFIG(tag, "%s  Direction: YES", prefix);
+  }
 }
 
 }  // namespace fan

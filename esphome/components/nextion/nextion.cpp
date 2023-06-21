@@ -256,8 +256,9 @@ void Nextion::loop() {
 
 bool Nextion::remove_from_q_(bool report_empty) {
   if (this->nextion_queue_.empty()) {
-    if (report_empty)
+    if (report_empty) {
       ESP_LOGE(TAG, "Nextion queue is empty!");
+    }
     return false;
   }
 

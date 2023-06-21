@@ -1,6 +1,8 @@
 #pragma once
 #include "esphome/components/i2c/i2c.h"
 
+#include <vector>
+
 namespace esphome {
 namespace sensirion_common {
 

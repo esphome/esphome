@@ -409,6 +409,9 @@ class Define:
             return self.as_tuple == other.as_tuple
         return NotImplemented
 
+    def __str__(self):
+        return f"{self.name}={self.value}"
+
 
 class Library:
     def __init__(self, name, version, repository=None):
@@ -443,7 +446,7 @@ class Library:
         return NotImplemented
 
 
-# pylint: disable=too-many-instance-attributes,too-many-public-methods
+# pylint: disable=too-many-public-methods
 class EsphomeCore:
     def __init__(self):
         # True if command is run from dashboard
@@ -453,6 +456,8 @@ class EsphomeCore:
         self.ace = False
         # The name of the node
         self.name: Optional[str] = None
+        # The friendly name of the node
+        self.friendly_name: Optional[str] = None
         # Additional data components can store temporary data in
         # The first key to this dict should always be the integration name
         self.data = {}
@@ -492,6 +497,7 @@ class EsphomeCore:
     def reset(self):
         self.dashboard = False
         self.name = None
+        self.friendly_name = None
         self.data = {}
         self.config_path = None
         self.build_path = None
@@ -553,7 +559,6 @@ class EsphomeCore:
         return os.path.basename(self.config_path)
 
     def relative_config_path(self, *path):
-        # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.config_dir, path_)
 
@@ -561,7 +566,6 @@ class EsphomeCore:
         return self.relative_config_path(".esphome", *path)
 
     def relative_build_path(self, *path):
-        # pylint: disable=no-value-for-parameter
         path_ = os.path.expanduser(os.path.join(*path))
         return os.path.join(self.build_path, path_)
 
@@ -593,6 +597,14 @@ class EsphomeCore:
     @property
     def is_esp32(self):
         return self.target_platform == "esp32"
+
+    @property
+    def is_rp2040(self):
+        return self.target_platform == "rp2040"
+
+    @property
+    def is_host(self):
+        return self.target_platform == "host"
 
     @property
     def target_framework(self):
@@ -648,7 +660,15 @@ class EsphomeCore:
                 f"Library {library} must be instance of Library, not {type(library)}"
             )
         for other in self.libraries[:]:
-            if other.name != library.name or other.name is None or library.name is None:
+            if other.name is None or library.name is None:
+                continue
+            library_name = (
+                library.name if "/" not in library.name else library.name.split("/")[1]
+            )
+            other_name = (
+                other.name if "/" not in other.name else other.name.split("/")[1]
+            )
+            if other_name != library_name:
                 continue
             if other.repository is not None:
                 if library.repository is None or other.repository == library.repository:

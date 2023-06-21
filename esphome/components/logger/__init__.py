@@ -17,6 +17,9 @@ from esphome.const import (
     CONF_TAG,
     CONF_TRIGGER_ID,
     CONF_TX_BUFFER_SIZE,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
@@ -77,6 +80,8 @@ UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
 
 ESP_IDF_UARTS = [USB_CDC, USB_SERIAL_JTAG]
 
+UART_SELECTION_RP2040 = [USB_CDC, UART0, UART1]
+
 HARDWARE_UART_TO_UART_SELECTION = {
     UART0: logger_ns.UART_SELECTION_UART0,
     UART0_SWAP: logger_ns.UART_SELECTION_UART0_SWAP,
@@ -97,15 +102,16 @@ is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
 
 
 def uart_selection(value):
-    if value.upper() in ESP_IDF_UARTS:
-        if not CORE.using_esp_idf:
-            raise cv.Invalid(f"Only esp-idf framework supports {value}.")
     if CORE.is_esp32:
+        if value.upper() in ESP_IDF_UARTS and not CORE.using_esp_idf:
+            raise cv.Invalid(f"Only esp-idf framework supports {value}.")
         variant = get_esp32_variant()
         if variant in UART_SELECTION_ESP32:
             return cv.one_of(*UART_SELECTION_ESP32[variant], upper=True)(value)
     if CORE.is_esp8266:
         return cv.one_of(*UART_SELECTION_ESP8266, upper=True)(value)
+    if CORE.is_rp2040:
+        return cv.one_of(*UART_SELECTION_RP2040, upper=True)(value)
     raise NotImplementedError
 
 
@@ -133,7 +139,15 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BAUD_RATE, default=115200): cv.positive_int,
             cv.Optional(CONF_TX_BUFFER_SIZE, default=512): cv.validate_bytes,
             cv.Optional(CONF_DEASSERT_RTS_DTR, default=False): cv.boolean,
-            cv.Optional(CONF_HARDWARE_UART, default=UART0): uart_selection,
+            cv.SplitDefault(
+                CONF_HARDWARE_UART,
+                esp8266=UART0,
+                esp32=UART0,
+                rp2040=USB_CDC,
+            ): cv.All(
+                cv.only_on([PLATFORM_ESP8266, PLATFORM_ESP32, PLATFORM_RP2040]),
+                uart_selection,
+            ),
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
             cv.Optional(CONF_LOGS, default={}): cv.Schema(
                 {
@@ -158,12 +172,13 @@ CONFIG_SCHEMA = cv.All(
 @coroutine_with_priority(90.0)
 async def to_code(config):
     baud_rate = config[CONF_BAUD_RATE]
-    rhs = Logger.new(
-        baud_rate,
-        config[CONF_TX_BUFFER_SIZE],
-        HARDWARE_UART_TO_UART_SELECTION[config[CONF_HARDWARE_UART]],
-    )
-    log = cg.Pvariable(config[CONF_ID], rhs)
+    log = cg.new_Pvariable(config[CONF_ID], baud_rate, config[CONF_TX_BUFFER_SIZE])
+    if CONF_HARDWARE_UART in config:
+        cg.add(
+            log.set_uart_selection(
+                HARDWARE_UART_TO_UART_SELECTION[config[CONF_HARDWARE_UART]]
+            )
+        )
     cg.add(log.pre_setup())
 
     for tag, level in config[CONF_LOGS].items():

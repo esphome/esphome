@@ -1,10 +1,11 @@
 #if defined(USE_ESP8266) && defined(USE_ARDUINO)
 
-#include "mdns_component.h"
-#include "esphome/core/log.h"
+#include <ESP8266mDNS.h>
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
-#include <ESP8266mDNS.h>
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
+#include "mdns_component.h"
 
 namespace esphome {
 namespace mdns {
@@ -36,6 +37,11 @@ void MDNSComponent::setup() {
 }
 
 void MDNSComponent::loop() { MDNS.update(); }
+
+void MDNSComponent::on_shutdown() {
+  MDNS.close();
+  delay(10);
+}
 
 }  // namespace mdns
 }  // namespace esphome

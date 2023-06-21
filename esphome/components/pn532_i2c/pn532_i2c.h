@@ -4,6 +4,8 @@
 #include "esphome/components/pn532/pn532.h"
 #include "esphome/components/i2c/i2c.h"
 
+#include <vector>
+
 namespace esphome {
 namespace pn532_i2c {
 

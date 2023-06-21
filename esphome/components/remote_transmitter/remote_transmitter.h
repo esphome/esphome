@@ -3,6 +3,8 @@
 #include "esphome/core/component.h"
 #include "esphome/components/remote_base/remote_base.h"
 
+#include <vector>
+
 namespace esphome {
 namespace remote_transmitter {
 

@@ -71,8 +71,9 @@ void SonoffD1Output::skip_command_() {
   }
 
   // Warn about unexpected bytes in the protocol with UART dimmer
-  if (garbage)
+  if (garbage) {
     ESP_LOGW(TAG, "[%04d] Skip %d bytes from the dimmer", this->write_count_, garbage);
+  }
 }
 
 // This assumes some data is already available

@@ -13,6 +13,8 @@ CONFIG_SCHEMA = cv.Schema(
             CONF_IMPLEMENTATION,
             esp8266=IMPLEMENTATION_LWIP_TCP,
             esp32=IMPLEMENTATION_BSD_SOCKETS,
+            rp2040=IMPLEMENTATION_LWIP_TCP,
+            host=IMPLEMENTATION_BSD_SOCKETS,
         ): cv.one_of(
             IMPLEMENTATION_LWIP_TCP, IMPLEMENTATION_BSD_SOCKETS, lower=True, space="_"
         ),
