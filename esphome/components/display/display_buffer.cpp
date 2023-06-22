@@ -16,7 +16,7 @@ namespace display {
 
 static const char *const TAG = "display";
 
-const Color COLOR_OFF(0, 0, 0, 255);
+const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
 
 void Rect::expand(int16_t horizontal, int16_t vertical) {
