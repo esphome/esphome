@@ -1,6 +1,7 @@
 #include "fluval_ble_led.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/time.h"
 
 #ifdef USE_ESP32
 
@@ -458,7 +459,7 @@ void FluvalBleLed::loop() {
 
 void FluvalBleLed::sync_time() {
   auto *time_id = *this->time_;
-  time::ESPTime now = time_id->now();
+  ESPTime now = time_id->now();
 
   if (now.is_valid()) {
     uint8_t year = now.year - 2000;
