@@ -822,7 +822,6 @@ switch:
     name: R0 Switch
     component_name: page0.r0
 
-
 climate:
   - platform: bang_bang
     name: Bang Bang Climate
@@ -945,13 +944,29 @@ climate:
       kd_multiplier: 0.0
       deadband_output_averaging_samples: 1
   - platform: haier
+    protocol: hOn
     name: Haier AC
-    supported_swing_modes:
-      - vertical
-      - horizontal
-      - both
-    update_interval: 10s
     uart_id: uart_12
+    wifi_signal: true
+    beeper: true
+    outdoor_temperature:
+      name:  Haier AC outdoor temperature
+    visual:
+      min_temperature: 16 °C
+      max_temperature: 30 °C
+      temperature_step: 1 °C
+    supported_modes:
+    - 'OFF'
+    - AUTO
+    - COOL
+    - HEAT
+    - DRY
+    - FAN_ONLY
+    supported_swing_modes:
+    - 'OFF'
+    - VERTICAL
+    - HORIZONTAL
+    - BOTH
 
 sprinkler:
   - id: yard_sprinkler_ctrlr
@@ -1106,7 +1121,6 @@ rf_bridge:
     - rf_bridge.send_raw:
         raw: "AAA5070008001000ABC12355"
 
-
 display:
   - platform: nextion
     uart_id: uart_1
@@ -1171,3 +1185,22 @@ daly_bms:
 qr_code:
   - id: homepage_qr
     value: https://esphome.io/index.html
+
+alarm_control_panel:
+  - platform: template
+    id: alarmcontrolpanel1
+    name: Alarm Panel
+    codes:
+      - "1234"
+    requires_code_to_arm: true
+    arming_home_time: 1s
+    arming_away_time: 15s
+    pending_time: 15s
+    trigger_time: 30s
+    binary_sensors:
+      - input: bin1
+        bypass_armed_home: true
+    on_state:
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));

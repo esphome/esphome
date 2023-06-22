@@ -223,16 +223,14 @@ void MAX7219Component::set_intensity(uint8_t intensity) {
 }
 void MAX7219Component::set_num_chips(uint8_t num_chips) { this->num_chips_ = num_chips; }
 
-#ifdef USE_TIME
-uint8_t MAX7219Component::strftime(uint8_t pos, const char *format, time::ESPTime time) {
+uint8_t MAX7219Component::strftime(uint8_t pos, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     return this->print(pos, buffer);
   return 0;
 }
-uint8_t MAX7219Component::strftime(const char *format, time::ESPTime time) { return this->strftime(0, format, time); }
-#endif
+uint8_t MAX7219Component::strftime(const char *format, ESPTime time) { return this->strftime(0, format, time); }
 
 }  // namespace max7219
 }  // namespace esphome
