@@ -29,6 +29,7 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
 #endif
 
   void set_channel(i2s_channel_fmt_t channel) { this->channel_ = channel; }
+  void set_bits_per_sample(i2s_bits_per_sample_t bits_per_sample) { this->bits_per_sample_ = bits_per_sample; }
 
  protected:
   void start_();
@@ -41,8 +42,9 @@ class I2SAudioMicrophone : public I2SAudioIn, public microphone::Microphone, pub
   bool adc_{false};
 #endif
   bool pdm_{false};
-  std::vector<uint8_t> buffer_;
+  uint8_t *buffer_;
   i2s_channel_fmt_t channel_;
+  i2s_bits_per_sample_t bits_per_sample_;
 
   HighFrequencyLoopRequester high_freq_;
 };
