@@ -338,5 +338,14 @@ void APIServer::stop_voice_assistant() {
 }
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+void APIServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
+  if (obj->is_internal())
+    return;
+  for (auto &c : this->clients_)
+    c->send_alarm_control_panel_state(obj);
+}
+#endif
+
 }  // namespace api
 }  // namespace esphome

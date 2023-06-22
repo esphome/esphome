@@ -384,6 +384,15 @@ binary_sensor:
         pullup: true
       inverted: false
 
+  - platform: gpio
+    name: XL9535 Pin 0
+    pin:
+      xl9535: xl9535_hub
+      number: 0
+      mode:
+        input: true
+      inverted: false
+
 climate:
   - platform: tuya
     id: tuya_climate
@@ -745,3 +754,7 @@ voice_assistant:
 max6956:
   - id: max6956_1
     address: 0x40
+
+xl9535:
+  - id: xl9535_hub
+    address: 0x20

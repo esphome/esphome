@@ -134,5 +134,15 @@ class ILI9XXXST7796 : public ILI9XXXDisplay {
   void initialize() override;
 };
 
+class ILI9XXXS3Box : public ILI9XXXDisplay {
+ protected:
+  void initialize() override;
+};
+
+class ILI9XXXS3BoxLite : public ILI9XXXDisplay {
+ protected:
+  void initialize() override;
+};
+
 }  // namespace ili9xxx
 }  // namespace esphome
