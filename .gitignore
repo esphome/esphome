@@ -130,3 +130,4 @@ sdkconfig.*
 !sdkconfig.defaults
 
 .tests/
+/.vs/ESPHome_fork/v16
