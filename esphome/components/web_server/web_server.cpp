@@ -102,6 +102,16 @@ void WebServer::set_css_include(const char *css_include) { this->css_include_ = 
 void WebServer::set_js_include(const char *js_include) { this->js_include_ = js_include; }
 #endif
 
+std::string WebServer::get_config_json() {
+  return json::build_json([this](JsonObject root) {
+    root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
+    root["comment"] = App.get_comment();
+    root["ota"] = this->allow_ota_;
+    root["log"] = this->expose_log_;
+    root["lang"] = "en";
+  });
+}
+
 void WebServer::setup() {
   ESP_LOGCONFIG(TAG, "Setting up web server...");
   this->setup_controller(this->include_internal_);
@@ -109,20 +119,13 @@ void WebServer::setup() {
 
   this->events_.onConnect([this](AsyncEventSourceClient *client) {
     // Configure reconnect timeout and send config
-
-    client->send(json::build_json([this](JsonObject root) {
-                   root["title"] = App.get_friendly_name().empty() ? App.get_name() : App.get_friendly_name();
-                   root["comment"] = App.get_comment();
-                   root["ota"] = this->allow_ota_;
-                   root["lang"] = "en";
-                 }).c_str(),
-                 "ping", millis(), 30000);
+    client->send(this->get_config_json().c_str(), "ping", millis(), 30000);
 
     this->entities_iterator_.begin(this->include_internal_);
   });
 
 #ifdef USE_LOGGER
-  if (logger::global_logger != nullptr) {
+  if (logger::global_logger != nullptr && this->expose_log_) {
     logger::global_logger->add_on_log_callback(
         [this](int level, const char *tag, const char *message) { this->events_.send(message, "log", millis()); });
   }
