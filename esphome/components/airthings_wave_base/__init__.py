@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_TVOC,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     UNIT_PARTS_PER_BILLION,
     ICON_RADIATOR,
 )
@@ -53,6 +54,7 @@ BASE_SCHEMA = (
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
+                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
         }
