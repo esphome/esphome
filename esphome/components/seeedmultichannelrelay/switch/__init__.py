@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import i2c, switch
-from esphome.const import CONF_CHANNEL, CONF_INTERLOCK, CONF_INTERLOCK_WAIT_TIME
+from esphome.const import CONF_CHANNEL, CONF_INTERLOCK
 
 from .. import (
     seeedmultichannelrelay_ns,
@@ -15,7 +15,7 @@ SeeedMultiChannelRelaySwitch = seeedmultichannelrelay_ns.class_(
     "SeeedMultiChannelRelaySwitch", cg.Component, i2c.I2CDevice, switch.Switch
 )
 
-# CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
+CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
 
 CONF_Relay_1 = 1
 CONF_Relay_2 = 2
