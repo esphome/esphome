@@ -17,14 +17,14 @@ SeeedMultiChannelRelaySwitch = seeedmultichannelrelay_ns.class_(
 
 # CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
 
-CONF_Relay_1 = "relay_1"
-CONF_Relay_2 = "relay_2"
-CONF_Relay_3 = "relay_3"
-CONF_Relay_4 = "relay_4"
-CONF_Relay_5 = "relay_5"
-CONF_Relay_6 = "relay_6"
-CONF_Relay_7 = "relay_7"
-CONF_Relay_8 = "relay_8"
+CONF_Relay_1 = 1
+CONF_Relay_2 = 2
+CONF_Relay_3 = 3
+CONF_Relay_4 = 4
+CONF_Relay_5 = 5
+CONF_Relay_6 = 6
+CONF_Relay_7 = 7
+CONF_Relay_8 = 8
 
 RelayBit_ = seeedmultichannelrelay_ns.enum("RelayBit", is_class=True)
 
