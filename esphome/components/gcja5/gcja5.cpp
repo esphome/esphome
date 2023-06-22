@@ -89,7 +89,7 @@ void GCJA5Component::parse_data_() {
   uint16_t pmc7_5 = get_16_bit_uint(23);
   uint16_t pmc10_0 = get_16_bit_uint(25);
   */
-  
+
   uint8_t status = this->rx_message_[29];
   if (!firstStatusLog) {
     firstStatusLog = true;
