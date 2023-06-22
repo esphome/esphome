@@ -2,11 +2,12 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.components import switch
-from esphome.const import CONF_INTERLOCK, CONF_PIN, CONF_INTERLOCK_WAIT_TIME
+from esphome.const import CONF_INTERLOCK, CONF_PIN
 from .. import gpio_ns
 
 GPIOSwitch = gpio_ns.class_("GPIOSwitch", switch.Switch, cg.Component)
 
+CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
 CONFIG_SCHEMA = (
     switch.switch_schema(GPIOSwitch)
     .extend(

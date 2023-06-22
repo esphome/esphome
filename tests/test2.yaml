@@ -67,9 +67,6 @@ deep_sleep:
 as3935_i2c:
   irq_pin: GPIO12
 
-m5stack4relay:
-  id: M5stackrelay_ID1
-
 mcp3008:
   - id: mcp3008_hub
     cs_pin: GPIO12
@@ -684,8 +681,3 @@ switch:
           characteristic_uuid: 6490FAFE-0734-732C-8705-91B653A081FC
           value: !lambda |-
             return {0x13, 0x37};
-  - platform: m5stack4relay
-    id: relay_1
-    name: relay1
-    channel: relay_1
-    m5stack4relay_id: M5stackrelay_ID1

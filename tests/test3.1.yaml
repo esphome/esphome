@@ -213,9 +213,6 @@ apds9960:
   address: 0x20
   update_interval: 60s
 
-m5stack4relay:
-  id: M5stackrelay_ID1
-
 mpr121:
   id: mpr121_first
   address: 0x5A
@@ -354,11 +351,7 @@ switch:
                 Content-Type: application/json
               body: Some data
               verify_ssl: false
-  - platform: m5stack4relay
-    id: relay_1
-    name: relay1
-    channel: relay_1
-    m5stack4relay_id: M5stackrelay_ID1
+
 
 custom_component:
   lambda: |-
