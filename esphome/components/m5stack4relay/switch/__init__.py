@@ -13,10 +13,10 @@ M5StackSwitch = m5stack4relay_ns.class_(
 
 CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
 
-CONF_Relay_1 = "relay_1"
-CONF_Relay_2 = "relay_2"
-CONF_Relay_3 = "relay_3"
-CONF_Relay_4 = "relay_4"
+CONF_Relay_1 = 1
+CONF_Relay_2 = 2
+CONF_Relay_3 = 3
+CONF_Relay_4 = 4
 
 CONF_INTERLOCK_WAIT_TIME = "interlock_wait_time"
 
