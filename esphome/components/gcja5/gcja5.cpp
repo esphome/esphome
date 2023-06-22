@@ -53,8 +53,10 @@ bool GCJA5Component::calculate_checksum() {
 }
 
 uint32_t GCJA5Component::get_32_bit_uint(uint8_t start_index) {
-  return (((uint32_t) this->rx_message_[start_index + 3]) << 24) | (((uint32_t) this->rx_message_[start_index + 2]) << 16) |
-         (((uint32_t) this->rx_message_[start_index + 1]) << 8) | ((uint32_t) this->rx_message_[start_index]);
+  return  (((uint32_t) this->rx_message_[start_index + 3]) << 24) | 
+          (((uint32_t) this->rx_message_[start_index + 2]) << 16) |
+          (((uint32_t) this->rx_message_[start_index + 1]) << 8) | 
+          ((uint32_t) this->rx_message_[start_index]);
 }
 
 uint16_t GCJA5Component::get_16_bit_uint(uint8_t start_index) {
@@ -83,7 +85,6 @@ void GCJA5Component::parse_data_() {
   /*uint16_t pmc0_5 = get_16_bit_uint(13);
   uint16_t pmc1_0 = get_16_bit_uint(15);
   uint16_t pmc2_5 = get_16_bit_uint(17);
-
   uint16_t pmc5_0 = get_16_bit_uint(21);
   uint16_t pmc7_5 = get_16_bit_uint(23);
   uint16_t pmc10_0 = get_16_bit_uint(25);
