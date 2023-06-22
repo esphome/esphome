@@ -38,7 +38,6 @@ void GCJA5Component::loop() {
   }
 }
 
-
 bool GCJA5Component::calculate_checksum() {
   uint8_t crc = 0;
 
