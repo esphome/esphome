@@ -27,5 +27,31 @@ void SigmaDeltaOutput::dump_config() {
   LOG_FLOAT_OUTPUT(this);
 }
 
+void SigmaDeltaOutput::update() {
+  this->accum_ += this->state_;
+  const bool next_value = this->accum_ > 0;
+
+  if (next_value) {
+    this->accum_ -= 1.;
+  }
+
+  if (next_value != this->value_) {
+    this->value_ = next_value;
+    if (this->pin_) {
+      this->pin_->digital_write(next_value);
+    }
+
+    if (this->state_change_trigger_) {
+      this->state_change_trigger_->trigger(next_value);
+    }
+
+    if (next_value && this->turn_on_trigger_) {
+      this->turn_on_trigger_->trigger();
+    } else if (!next_value && this->turn_off_trigger_) {
+      this->turn_off_trigger_->trigger();
+    }
+  }
+}
+
 }  // namespace sigma_delta_output
 }  // namespace esphome
