@@ -37,7 +37,7 @@ void PCF8563Component::read_time() {
     ESP_LOGW(TAG, "RTC halted, not syncing to system clock.");
     return;
   }
-  time::ESPTime rtc_time{
+  ESPTime rtc_time{
       .second = uint8_t(pcf8563_.reg.second + 10 * pcf8563_.reg.second_10),
       .minute = uint8_t(pcf8563_.reg.minute + 10u * pcf8563_.reg.minute_10),
       .hour = uint8_t(pcf8563_.reg.hour + 10u * pcf8563_.reg.hour_10),
