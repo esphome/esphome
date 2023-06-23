@@ -94,7 +94,8 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       if (display->draw_pixels_at(
         x, y,
         width_, height_,
-        data_start_, data_size_,
+        data_start_,
+        display::PixelRGBA8888::bytes_stride(width_),
         display::PixelFormat::RGBA8888)) {
         return;
       }
@@ -178,23 +179,45 @@ Color Image::get_grayscale_pixel_(int x, int y) const {
 }
 
 #ifdef USE_JPEGDEC
-static int jpeg_draw(JPEGDRAW *pDraw) {
-  display::Display *display = (display::Display *) pDraw->pUser;
+struct JpegData {
+  display::Display *display{nullptr};
+  int jpeg_format{-1};
+  display::PixelFormat pixel_format{display::PixelFormat::Unknown};
+  bool transparent{false};
+};
 
-  const uint16_t *data = pDraw->pPixels;
+static int jpeg_draw(JPEGDRAW *pDraw) {
+  JpegData *data = (JpegData*)pDraw->pUser;
+  display::Display *display = data->display;
+
+  if (display->draw_pixels_at(
+    pDraw->x, pDraw->y,
+    pDraw->iWidth, pDraw->iHeight,
+    (const uint8_t*)pDraw->pPixels,
+    pDraw->iBpp * pDraw->iWidth / 8,
+    data->pixel_format
+  )) {
+    return 1;
+  }
+
+  if (data->pixel_format != display::PixelFormat::RGB565_BE) {
+    return 0;
+  }
+
+  const uint16_t *pixelData = pDraw->pPixels;
   for (int y = 0; y < pDraw->iHeight; y++) {
-    for (int x = 0; x < pDraw->iWidth; x++, data++) {
+    for (int x = 0; x < pDraw->iWidth; x++, pixelData++) {
       // TODO: this is not very fast.
-      auto r = (*data & 0xF800) >> 11;
-      auto g = (*data & 0x07E0) >> 5;
-      auto b = *data & 0x001F;
+      auto r = (*pixelData & 0xF800) >> 11;
+      auto g = (*pixelData & 0x07E0) >> 5;
+      auto b = *pixelData & 0x001F;
       Color color = Color((r << 3) | (r >> 2), (g << 2) | (g >> 4), (b << 3) | (b >> 2));
-      // if (rgb565 == 0x0020 && transparent_) {
-      //   // darkest green has been defined as transparent color for transparent RGB565 images.
-      //   color.w = 0;
-      // } else {
-      color.w = 0xFF;
-      // }
+      if (*pixelData == 0x0020 && data->transparent) {
+        // darkest green has been defined as transparent color for transparent RGB565 images.
+        color.w = 0;
+      } else {
+        color.w = 0xFF;
+      }
       display->draw_pixel_at(pDraw->x + x, pDraw->y + y, color);
     }
   }
@@ -204,11 +227,37 @@ static int jpeg_draw(JPEGDRAW *pDraw) {
 
 void Image::draw_jpeg(int x, int y, display::Display *display) {
 #ifdef USE_JPEGDEC
-  JPEGDEC *jpeg = new JPEGDEC();
+  JPEGDEC* jpeg = new JPEGDEC();
+  JpegData data;
+  int nativeFormat = -1;
 
-  if (jpeg->openFLASH((uint8_t *) this->data_start_, this->data_size_, jpeg_draw)) {
-    jpeg->setUserPointer(display);
-    jpeg->setPixelType(RGB565_LITTLE_ENDIAN);
+  data.display = display;
+  data.pixel_format = display->get_native_pixel_format();
+  data.transparent = this->transparent_;
+
+  switch (data.pixel_format) {
+    case display::PixelFormat::RGB565_LE:
+      data.jpeg_format = RGB565_LITTLE_ENDIAN;
+      break;
+
+    case display::PixelFormat::RGB565_BE:
+      data.jpeg_format = RGB565_BIG_ENDIAN;
+      break;
+
+    case display::PixelFormat::W8:
+      data.jpeg_format = EIGHT_BIT_GRAYSCALE;
+      break;
+
+      // Pixel Format is not supported, fallback to RGB565_BE
+    default:
+      data.jpeg_format = RGB565_LITTLE_ENDIAN;
+      data.pixel_format = display::PixelFormat::RGB565_LE;
+      break;
+  }
+
+  if (jpeg->openFLASH((uint8_t*) this->data_start_, this->data_size_, jpeg_draw)) {
+    jpeg->setUserPointer(&data);
+    jpeg->setPixelType(data.jpeg_format);
     if (jpeg->decode(x, y, 0)) {
       ESP_LOGV("jpeg", "Decode succeeded");
     }
