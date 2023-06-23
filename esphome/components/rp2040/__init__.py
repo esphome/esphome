@@ -192,6 +192,7 @@ def generate_pio_files() -> bool:
         pio_path = CORE.relative_build_path(f"src/pio/{key}.pio")
         mkdir_p(os.path.dirname(pio_path))
         write_file(pio_path, data)
+        includes.append(f"pio/{key}.pio.h")
 
     write_file(
         CORE.relative_build_path("src/pio_includes.h"),
