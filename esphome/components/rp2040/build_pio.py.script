@@ -42,6 +42,6 @@ if PIO_FILES:
     for filename in PIO_FILES:
         if verbose:
             print(f"  {filename}")
-        subprocess.run([PIOASM_EXE, "-o", "c-sdk", filename, "{filename}.h"])
+        subprocess.run([PIOASM_EXE, "-o", "c-sdk", filename, f"{filename}.h"])
     if verbose:
         print("==============================================")
