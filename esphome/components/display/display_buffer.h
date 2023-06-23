@@ -19,6 +19,8 @@ class DisplayBuffer : public Display {
   /// Get the height of the image in pixels with rotation applied.
   int get_height() override;
 
+  PixelFormat get_native_pixel_format() override { return PixelFormat::Unknown; }
+
   /// Set a single pixel at the specified coordinates to the given color.
   void draw_pixel_at(int x, int y, Color color) override;
 

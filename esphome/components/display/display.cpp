@@ -36,6 +36,10 @@ void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
   }
 }
 void HOT Display::horizontal_line(int x, int y, int width, Color color) {
+  if (this->filled_rectangle_(x, y, width, 1, color)) {
+    return;
+  }
+
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = x; i < x + width; i++)
     this->draw_pixel_at(i, y, color);
@@ -52,6 +56,10 @@ void Display::rectangle(int x1, int y1, int width, int height, Color color) {
   this->vertical_line(x1 + width - 1, y1, height, color);
 }
 void Display::filled_rectangle(int x1, int y1, int width, int height, Color color) {
+  if (this->filled_rectangle_(x1, y1, width, height, color)) {
+    return;
+  }
+
   // Future: Use vertical_line and horizontal_line methods depending on rotation to reduce memory accesses.
   for (int i = y1; i < y1 + height; i++) {
     this->horizontal_line(x1, i, width, color);

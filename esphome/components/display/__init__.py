@@ -46,6 +46,16 @@ DISPLAY_ROTATIONS = {
     270: display_ns.DISPLAY_ROTATION_270_DEGREES,
 }
 
+PIXEL_TYPES = {
+    "BINARY": display_ns.enum("PixelW1"),
+    "W2": display_ns.enum("PixelW2"),
+    "W4": display_ns.enum("PixelW4"),
+    "GRAYSCALE": display_ns.enum("PixelW8"),
+    "RGB332": display_ns.enum("PixelRGB332"),
+    "RGB565": display_ns.enum("PixelRGB565_BE"),
+    "RGB24": display_ns.enum("PixelRGB888"),
+    "RGBA": display_ns.enum("PixelRGBA8888")
+}
 
 def validate_rotation(value):
     value = cv.string(value)

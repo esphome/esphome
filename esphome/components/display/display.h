@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "rect.h"
+#include "pixel_formats.h"
 
 #include "esphome/core/color.h"
 #include "esphome/core/automation.h"
@@ -483,7 +484,15 @@ class Display {
    */
   bool clip(int x, int y);
 
+  virtual PixelFormat get_native_pixel_format() = 0;
+  bool draw_pixels_at(int x, int y, int w, int h, const uint8_t *data, int stride, PixelFormat data_format, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+
  protected:
+  virtual uint8_t *get_native_pixels_(int y) { return nullptr; }
+  virtual bool draw_pixels_(int x, int y, int w, int h,
+    const uint8_t *data, int data_line_size, int data_stride) { return false; }
+  virtual bool filled_rectangle_(int x1, int y1, int width, int height, Color color);
+
   bool clamp_x_(int x, int w, int &min_x, int &max_x);
   bool clamp_y_(int y, int h, int &min_y, int &max_y);
   void vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg);
