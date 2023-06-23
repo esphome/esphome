@@ -15,6 +15,19 @@ void Glyph::draw(int x_at, int y_start, display::Display *display, Color color) 
   this->scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
 
   const unsigned char *data = this->glyph_data_->data;
+
+  bool done = display->draw_pixels_at(
+    x_at + scan_x1, y_start + scan_y1,
+    scan_width, scan_height,
+    data,
+    display::PixelA1::bytes_stride(scan_width),
+    display::PixelFormat::A1,
+    color
+  );
+  if (done) {
+    return;
+  }
+
   const int max_x = x_at + scan_x1 + scan_width;
   const int max_y = y_start + scan_y1 + scan_height;
 
