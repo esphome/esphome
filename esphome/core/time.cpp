@@ -2,6 +2,16 @@
 
 namespace esphome {
 
+static bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }
+
+static uint8_t days_in_month(uint8_t month, uint16_t year) {
+  static const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
+  uint8_t days = DAYS_IN_MONTH[month];
+  if (month == 2 && is_leap_year(year))
+    return 29;
+  return days;
+}
+
 size_t ESPTime::strftime(char *buffer, size_t buffer_len, const char *format) {
   struct tm c_tm = this->to_c_tm();
   return ::strftime(buffer, buffer_len, format, &c_tm);
@@ -156,16 +166,6 @@ template<typename T> bool increment_time_value(T &current, uint16_t begin, uint1
     return true;
   }
   return false;
-}
-
-static bool is_leap_year(uint32_t year) { return (year % 4) == 0 && ((year % 100) != 0 || (year % 400) == 0); }
-
-static uint8_t days_in_month(uint8_t month, uint16_t year) {
-  static const uint8_t DAYS_IN_MONTH[] = {0, 31, 28, 31, 30, 31, 30, 31, 31, 30, 31, 30, 31};
-  uint8_t days = DAYS_IN_MONTH[month];
-  if (month == 2 && is_leap_year(year))
-    return 29;
-  return days;
 }
 
 }  // namespace esphome
