@@ -94,3 +94,5 @@ async def to_code(config):
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_pressure_sensor(sens))
         cg.add(var.set_pressure_oversampling(conf[CONF_OVERSAMPLING]))
+
+    cg.add(var.set_iir_filter(config[CONF_IIR_FILTER]))
