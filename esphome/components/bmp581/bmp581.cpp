@@ -453,7 +453,7 @@ bool BMP581Component::prime_iir_filter_() {
 bool BMP581Component::read_pressure_(float &pressure) {
   // - temperature measurement is always enabled on sensor, so reads both temperature and pressure
   // - returns whether successful, where the variable parameter contains
-  //    - the measured pressure (in hPa)
+  //    - the measured pressure (in Pa)
 
   float temperature;
   return this->read_temperature_and_pressure_(temperature, pressure);
@@ -492,7 +492,7 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
   // - reads in 6 bytes of temperature data (3 for temeperature, 3 for pressure)
   // - returns whether successful, where the variable parameters contain
   //    - the measured temperature (in degrees Celsius)
-  //    - the measured pressure (in hPa)
+  //    - the measured pressure (in Pa)
 
   if (!this->check_data_readiness_()) {
     ESP_LOGW(TAG, "Data from sensor isn't ready, skipping this update");
@@ -515,8 +515,7 @@ bool BMP581Component::read_temperature_and_pressure_(float &temperature, float &
 
   // pressure MSB is in data[5], LSB is in data[4], XLSB in data[3]
   int32_t raw_press = (int32_t) data[5] << 16 | (int32_t) data[4] << 8 | (int32_t) data[3];
-  pressure = (float) ((raw_press / 64.0) /
-                      100.0);  // Divide by 2^6=64 for Pa (page 22 of datasheet), divide by 100 to convert to hPa
+  pressure = (float) (raw_press / 64.0);  // Divide by 2^6=64 for Pa (page 22 of datasheet)
 
   return true;
 }

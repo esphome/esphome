@@ -11,7 +11,7 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
+    UNIT_PASCAL,
 )
 
 CODEOWNERS = ["@kahrendt"]
@@ -67,8 +67,8 @@ CONFIG_SCHEMA = (
                 }
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
-                accuracy_decimals=1,
+                unit_of_measurement=UNIT_PASCAL,
+                accuracy_decimals=0,
                 device_class=DEVICE_CLASS_PRESSURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(

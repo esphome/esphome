@@ -102,11 +102,11 @@ class BMP581Component : public PollingComponent, public i2c::I2CDevice {
   // Flushes the IIR filter and primes an initial reading
   bool prime_iir_filter_();
 
-  // Reads pressure data from sensor and converts data to measurement in hPa
+  // Reads pressure data from sensor and converts data to measurement in Pa
   bool read_pressure_(float &pressure);
   // Reads temperature data from sensor and converts data to measurement in degrees Celsius
   bool read_temperature_(float &temperature);
-  // Reads temperature and pressure data from sensor and converts data to measurements in degrees Celsius and hPa
+  // Reads temperature and pressure data from sensor and converts data to measurements in degrees Celsius and Pa
   bool read_temperature_and_pressure_(float &temperature, float &pressure);
 
   // Soft resets the BMP581
