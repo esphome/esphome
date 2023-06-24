@@ -1,7 +1,7 @@
 import logging
 
 from esphome import automation, core
-from esphome.components import display, font
+from esphome.components import font
 import esphome.components.image as espImage
 from esphome.components.image import CONF_USE_TRANSPARENCY
 import esphome.config_validation as cv
@@ -18,6 +18,7 @@ from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
 
+AUTO_LOAD = ["image"]
 CODEOWNERS = ["@syndlex"]
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
@@ -27,16 +28,18 @@ CONF_START_FRAME = "start_frame"
 CONF_END_FRAME = "end_frame"
 CONF_FRAME = "frame"
 
-Animation_ = display.display_ns.class_("Animation", espImage.Image_)
+animation_ns = cg.esphome_ns.namespace("animation")
+
+Animation_ = animation_ns.class_("Animation", espImage.Image_)
 
 # Actions
-NextFrameAction = display.display_ns.class_(
+NextFrameAction = animation_ns.class_(
     "AnimationNextFrameAction", automation.Action, cg.Parented.template(Animation_)
 )
-PrevFrameAction = display.display_ns.class_(
+PrevFrameAction = animation_ns.class_(
     "AnimationPrevFrameAction", automation.Action, cg.Parented.template(Animation_)
 )
-SetFrameAction = display.display_ns.class_(
+SetFrameAction = animation_ns.class_(
     "AnimationSetFrameAction", automation.Action, cg.Parented.template(Animation_)
 )
 

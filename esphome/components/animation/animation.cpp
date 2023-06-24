@@ -3,9 +3,10 @@
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace display {
+namespace animation {
 
-Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type)
+Animation::Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count,
+                     image::ImageType type)
     : Image(data_start, width, height, type),
       animation_data_start_(data_start),
       current_frame_(0),
@@ -65,5 +66,5 @@ void Animation::update_data_start_() {
   this->data_start_ = this->animation_data_start_ + image_size * this->current_frame_;
 }
 
-}  // namespace display
+}  // namespace animation
 }  // namespace esphome
