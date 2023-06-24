@@ -158,10 +158,14 @@ async def light_control_to_code(config, action_id, template_arg, args):
 
 
 CONF_RELATIVE_BRIGHTNESS = "relative_brightness"
+CONF_RELATIVE_COLOR_TEMP = "relative_color_temp"
 LIGHT_DIM_RELATIVE_ACTION_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(LightState),
         cv.Required(CONF_RELATIVE_BRIGHTNESS): cv.templatable(
+            cv.possibly_negative_percentage
+        ),
+        cv.Optional(CONF_RELATIVE_COLOR_TEMP): cv.templatable(
             cv.possibly_negative_percentage
         ),
         cv.Optional(CONF_TRANSITION_LENGTH): cv.templatable(
@@ -179,6 +183,9 @@ async def light_dim_relative_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg, paren)
     templ = await cg.templatable(config[CONF_RELATIVE_BRIGHTNESS], args, float)
     cg.add(var.set_relative_brightness(templ))
+    if CONF_RELATIVE_COLOR_TEMP in config:
+        templ = await cg.templatable(config[CONF_RELATIVE_COLOR_TEMP], args, float)
+        cg.add(var.set_relative_color_temp(templ))
     if CONF_TRANSITION_LENGTH in config:
         templ = await cg.templatable(config[CONF_TRANSITION_LENGTH], args, cg.uint32)
         cg.add(var.set_transition_length(templ))

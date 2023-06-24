@@ -70,6 +70,7 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
   explicit DimRelativeAction(LightState *parent) : parent_(parent) {}
 
   TEMPLATABLE_VALUE(float, relative_brightness)
+  TEMPLATABLE_VALUE(float, relative_color_temp)
   TEMPLATABLE_VALUE(uint32_t, transition_length)
 
   void play(Ts... x) override {
@@ -78,8 +79,21 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
     float cur;
     this->parent_->remote_values.as_brightness(&cur);
     float new_brightness = clamp(cur + rel, 0.0f, 1.0f);
+
+    float rel_ct = this->relative_color_temp_.value(x...);
+    float cur_ct = this->parent_->remote_values.get_color_temperature();
+    float target_ct = cur_ct;
+    if(this->relative_color_temp_.has_value())
+    {
+        float cold_ct = this->parent_->remote_values.get_cold_white();
+        float warm_ct = this->parent_->remote_values.get_warm_white();
+        if(warm_ct - cold_ct > 0)
+            target_ct = clamp((warm_ct-cold_ct)*rel_ct + cur_ct, cold_ct, warm_ct);
+    }
+
     call.set_state(new_brightness != 0.0f);
     call.set_brightness(new_brightness);
+    call.set_color_temperature(target_ct);
 
     call.set_transition_length(this->transition_length_.optional_value(x...));
     call.perform();
