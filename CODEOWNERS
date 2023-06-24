@@ -17,8 +17,10 @@ esphome/components/adc/* @esphome/core
 esphome/components/adc128s102/* @DeerMaximum
 esphome/components/addressable_light/* @justfalter
 esphome/components/airthings_ble/* @jeromelaban
+esphome/components/airthings_wave_base/* @jeromelaban @ncareau
 esphome/components/airthings_wave_mini/* @ncareau
 esphome/components/airthings_wave_plus/* @jeromelaban
+esphome/components/alarm_control_panel/* @grahambrown11
 esphome/components/alpha3/* @jan-hofmeier
 esphome/components/am43/* @buxtronix
 esphome/components/am43/cover/* @buxtronix
@@ -102,7 +104,7 @@ esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
 esphome/components/growatt_solar/* @leeuwte
-esphome/components/haier/* @Yarikx
+esphome/components/haier/* @paveldn
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
@@ -278,6 +280,7 @@ esphome/components/tca9548a/* @andreashergert1984
 esphome/components/tcl112/* @glmnet
 esphome/components/tee501/* @Stock-M
 esphome/components/teleinfo/* @0hax
+esphome/components/template/alarm_control_panel/* @grahambrown11
 esphome/components/thermostat/* @kbx81
 esphome/components/time/* @OttoWinter
 esphome/components/tlc5947/* @rnauber
@@ -317,4 +320,5 @@ esphome/components/xiaomi_lywsd03mmc/* @ahpohl
 esphome/components/xiaomi_mhoc303/* @drug123
 esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz
+esphome/components/xl9535/* @mreditor97
 esphome/components/xpt2046/* @nielsnl68 @numo68
