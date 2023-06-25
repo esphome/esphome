@@ -99,6 +99,11 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
    * @param allow_ota.
    */
   void set_allow_ota(bool allow_ota) { this->allow_ota_ = allow_ota; }
+  /** Set whether or not the webserver should expose the Log.
+   *
+   * @param expose_log.
+   */
+  void set_expose_log(bool expose_log) { this->expose_log_ = expose_log; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
@@ -113,6 +118,9 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 
   /// Handle an index request under '/'.
   void handle_index_request(AsyncWebServerRequest *request);
+
+  /// Return the webserver configuration as JSON.
+  std::string get_config_json();
 
 #ifdef USE_WEBSERVER_CSS_INCLUDE
   /// Handle included css request under '/0.css'.
@@ -274,6 +282,7 @@ class WebServer : public Controller, public Component, public AsyncWebHandler {
 #endif
   bool include_internal_{false};
   bool allow_ota_{true};
+  bool expose_log_{true};
 #ifdef USE_ESP32
   std::deque<std::function<void()>> to_schedule_;
   SemaphoreHandle_t to_schedule_lock_;
