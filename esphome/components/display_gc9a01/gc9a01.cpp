@@ -3,6 +3,8 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
 
+#include "esphome/components/display/display_color_utils.h"
+
 #include "gc9a01_defines.h"
 
 namespace esphome {
