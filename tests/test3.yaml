@@ -944,13 +944,29 @@ climate:
       kd_multiplier: 0.0
       deadband_output_averaging_samples: 1
   - platform: haier
+    protocol: hOn
     name: Haier AC
-    supported_swing_modes:
-      - vertical
-      - horizontal
-      - both
-    update_interval: 10s
     uart_id: uart_12
+    wifi_signal: true
+    beeper: true
+    outdoor_temperature:
+      name:  Haier AC outdoor temperature
+    visual:
+      min_temperature: 16 °C
+      max_temperature: 30 °C
+      temperature_step: 1 °C
+    supported_modes:
+    - 'OFF'
+    - AUTO
+    - COOL
+    - HEAT
+    - DRY
+    - FAN_ONLY
+    supported_swing_modes:
+    - 'OFF'
+    - VERTICAL
+    - HORIZONTAL
+    - BOTH
 
 sprinkler:
   - id: yard_sprinkler_ctrlr
