@@ -1,5 +1,8 @@
 /* From snooping with a logic analyzer, the I2C on this sensor is broken. I was only able
  * to receive 1's as a response from the sensor. I was able to get the UART working.
+ *
+ * The datasheet says the values should be divided by 1000, but this must only be for the I2C
+ * implementation. Comparing UART values with another sensor, there is no need to divide by 1000.
  */
 #include "gcja5.h"
 #include "esphome/core/log.h"
@@ -77,11 +80,11 @@ void GCJA5Component::parse_data_() {
 
   haveGoodData = true;
 
+  /*
   uint32_t pm1_0 = get_32_bit_uint(1);
   uint32_t pm2_5 = get_32_bit_uint(5);
   uint32_t pm10_0 = get_32_bit_uint(9);
-
-  /*uint16_t pmc0_5 = get_16_bit_uint(13);
+  uint16_t pmc0_5 = get_16_bit_uint(13);
   uint16_t pmc1_0 = get_16_bit_uint(15);
   uint16_t pmc2_5 = get_16_bit_uint(17);
   uint16_t pmc5_0 = get_16_bit_uint(21);
