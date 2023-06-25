@@ -49,7 +49,7 @@ bool GCJA5Component::calculate_checksum_() {
 
   ESP_LOGVV(TAG, "Checksum packet was (0x%02X), calculated checksum was (0x%02X)", this->rx_message_[30], crc);
 
-  return  (crc == this->rx_message_[30]);
+  return (crc == this->rx_message_[30]);
 }
 
 uint32_t GCJA5Component::get_32_bit_uint_(uint8_t start_index) {
