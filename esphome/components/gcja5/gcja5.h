@@ -30,8 +30,8 @@ class GCJA5Component : public PollingComponent, public uart::UARTDevice {
   void parse_data_();
   bool calculate_checksum();
 
-  uint32_t get_32_bit_uint(uint8_t start_index);
-  uint16_t get_16_bit_uint(uint8_t start_index);
+  uint32_t get_32_bit_uint_(uint8_t start_index);
+  uint16_t get_16_bit_uint_(uint8_t start_index);
   uint32_t last_transmission_{0};
   std::vector<uint8_t> rx_message_;
 
