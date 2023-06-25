@@ -28,15 +28,15 @@ class GCJA5Component : public PollingComponent, public uart::UARTDevice {
 
  protected:
   void parse_data_();
-  bool calculate_checksum();
+  bool calculate_checksum_();
 
   uint32_t get_32_bit_uint_(uint8_t start_index);
   uint16_t get_16_bit_uint_(uint8_t start_index);
   uint32_t last_transmission_{0};
   std::vector<uint8_t> rx_message_;
 
-  bool haveGoodData{false};
-  bool firstStatusLog{false};
+  bool have_good_data_{false};
+  bool first_status_log_{false};
   sensor::Sensor *pm_1_0_sensor_{nullptr};
   sensor::Sensor *pm_2_5_sensor_{nullptr};
   sensor::Sensor *pm_10_0_sensor_{nullptr};

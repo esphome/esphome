@@ -41,7 +41,7 @@ void GCJA5Component::loop() {
   }
 }
 
-bool GCJA5Component::calculate_checksum() {
+bool GCJA5Component::calculate_checksum_() {
   uint8_t crc = 0;
 
   for (uint8_t i = 1; i < 30; i++)
@@ -49,10 +49,7 @@ bool GCJA5Component::calculate_checksum() {
 
   ESP_LOGVV(TAG, "Checksum packet was (0x%02X), calculated checksum was (0x%02X)", this->rx_message_[30], crc);
 
-  if (crc == this->rx_message_[30])
-    return true;
-
-  return false;
+  return  (crc == this->rx_message_[30]);
 }
 
 uint32_t GCJA5Component::get_32_bit_uint_(uint8_t start_index) {
@@ -72,13 +69,13 @@ void GCJA5Component::parse_data_() {
               this->rx_message_[i]);
   }
 
-  if (this->rx_message_[0] != 0x02 || this->rx_message_[31] != 0x03 || !this->calculate_checksum()) {
+  if (this->rx_message_[0] != 0x02 || this->rx_message_[31] != 0x03 || !this->calculate_checksum_()) {
     ESP_LOGVV(TAG, "Discarding bad packet - failed checks.");
     return;
   } else
     ESP_LOGVV(TAG, "Good packet found.");
 
-  haveGoodData = true;
+  have_good_data_ = true;
 
   /*
   uint32_t pm1_0 = get_32_bit_uint(1);
@@ -93,8 +90,8 @@ void GCJA5Component::parse_data_() {
   */
 
   uint8_t status = this->rx_message_[29];
-  if (!firstStatusLog) {
-    firstStatusLog = true;
+  if (!first_status_log_) {
+    first_status_log_ = true;
 
     ESP_LOGI(TAG, "GCJA5 Status");
     ESP_LOGI(TAG, "Overall Status : %i", (status >> 6) & 0x03);
@@ -107,7 +104,7 @@ void GCJA5Component::parse_data_() {
 void GCJA5Component::dump_config() { ; }
 
 void GCJA5Component::update() {
-  if (haveGoodData) {
+  if (have_good_data_) {
     if (this->pm_1_0_sensor_ != nullptr)
       this->pm_1_0_sensor_->publish_state(get_32_bit_uint_(1));
     if (this->pm_2_5_sensor_ != nullptr)
