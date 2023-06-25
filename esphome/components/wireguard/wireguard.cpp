@@ -89,16 +89,20 @@ void Wireguard::update() {
     }
   }
 
+#ifdef USE_BINARY_SENSOR
   if (this->status_sensor_ != nullptr) {
     this->status_sensor_->publish_state(peer_up);
   }
+#endif
 
+#ifdef USE_SENSOR
   if (this->handshake_sensor_ != nullptr) {
     if (lhs > this->latest_saved_handshake_) {
       this->latest_saved_handshake_ = lhs;
       this->handshake_sensor_->publish_state((float) lhs);
     }
   }
+#endif
 }
 
 void Wireguard::dump_config() {
@@ -164,8 +168,14 @@ void Wireguard::add_allowed_ip(const std::string &ip, const std::string &netmask
 void Wireguard::set_keepalive(const uint16_t seconds) { this->keepalive_ = seconds; }
 void Wireguard::set_reboot_timeout(const uint32_t seconds) { this->reboot_timeout_ = seconds; }
 void Wireguard::set_srctime(time::RealTimeClock *srctime) { this->srctime_ = srctime; }
+
+#ifdef USE_BINARY_SENSOR
 void Wireguard::set_status_sensor(binary_sensor::BinarySensor *sensor) { this->status_sensor_ = sensor; }
+#endif
+
+#ifdef USE_SENSOR
 void Wireguard::set_handshake_sensor(sensor::Sensor *sensor) { this->handshake_sensor_ = sensor; }
+#endif
 
 void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
 

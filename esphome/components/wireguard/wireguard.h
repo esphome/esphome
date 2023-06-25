@@ -8,8 +8,14 @@
 
 #include "esphome/core/component.h"
 #include "esphome/components/time/real_time_clock.h"
+
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
 
 #include <esp_wireguard.h>
 
@@ -39,8 +45,14 @@ class Wireguard : public PollingComponent {
   void set_keepalive(uint16_t seconds);
   void set_reboot_timeout(uint32_t seconds);
   void set_srctime(time::RealTimeClock *srctime);
+
+#ifdef USE_BINARY_SENSOR
   void set_status_sensor(binary_sensor::BinarySensor *sensor);
+#endif
+
+#ifdef USE_SENSOR
   void set_handshake_sensor(sensor::Sensor *sensor);
+#endif
 
   /// Block the setup step until peer is connected.
   void disable_auto_proceed();
@@ -63,8 +75,14 @@ class Wireguard : public PollingComponent {
   uint32_t reboot_timeout_;
 
   time::RealTimeClock *srctime_;
+
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *status_sensor_ = nullptr;
+#endif
+
+#ifdef USE_SENSOR
   sensor::Sensor *handshake_sensor_ = nullptr;
+#endif
 
   /// Set to false to block the setup step until peer is connected.
   bool proceed_allowed_ = true;
