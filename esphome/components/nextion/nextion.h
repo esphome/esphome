@@ -4,6 +4,8 @@
 #include <vector>
 
 #include "esphome/core/defines.h"
+#include "esphome/core/time.h"
+
 #include "esphome/components/uart/uart.h"
 #include "nextion_base.h"
 #include "nextion_component.h"
@@ -17,10 +19,6 @@
 #include <ESP8266HTTPClient.h>
 #include <WiFiClientSecure.h>
 #endif
-#endif
-
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
 #endif
 
 namespace esphome {
@@ -318,13 +316,11 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Changes the font of the component named `textveiw`. Font IDs are set in the Nextion Editor.
    */
   void set_component_font(const char *component, uint8_t font_id) override;
-#ifdef USE_TIME
   /**
    * Send the current time to the nextion display.
    * @param time The time instance to send (get this with id(my_time).now() ).
    */
-  void set_nextion_rtc_time(time::ESPTime time);
-#endif
+  void set_nextion_rtc_time(ESPTime time);
 
   /**
    * Show the page with a given name.

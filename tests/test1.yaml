@@ -1299,6 +1299,17 @@ sensor:
       id: temp_etuve
     humidity:
       name: "Humidity hyt271"
+  - platform: tmp1075
+    name: "Temperature TMP1075"
+    update_interval: 10s
+    i2c_id: i2c_bus
+    conversion_rate: 27.5ms
+    alert:
+      limit_low: 50
+      limit_high: 75
+      fault_count: 1
+      polarity: active_high
+      function: comparator
 
 esp32_touch:
   setup_mode: false
@@ -3360,3 +3371,21 @@ lcd_menu:
       on_prev:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
+
+alarm_control_panel:
+  - platform: template
+    id: alarmcontrolpanel1
+    name: Alarm Panel
+    codes:
+      - "1234"
+    requires_code_to_arm: true
+    arming_home_time: 1s
+    arming_away_time: 15s
+    pending_time: 15s
+    trigger_time: 30s
+    binary_sensors:
+      - binary_sensor1
+    on_state:
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));

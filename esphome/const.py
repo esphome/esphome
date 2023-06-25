@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2023.6.0-dev"
+__version__ = "2023.7.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -368,6 +368,7 @@ CONF_LINE_TYPE = "line_type"
 CONF_LOADED_INTEGRATIONS = "loaded_integrations"
 CONF_LOCAL = "local"
 CONF_LOCK_ACTION = "lock_action"
+CONF_LOG = "log"
 CONF_LOG_TOPIC = "log_topic"
 CONF_LOGGER = "logger"
 CONF_LOGS = "logs"
@@ -399,6 +400,7 @@ CONF_MAX_VOLTAGE = "max_voltage"
 CONF_MDNS = "mdns"
 CONF_MEASUREMENT_DURATION = "measurement_duration"
 CONF_MEASUREMENT_SEQUENCE_NUMBER = "measurement_sequence_number"
+CONF_MEDIA_PLAYER = "media_player"
 CONF_MEDIUM = "medium"
 CONF_MEMORY_BLOCKS = "memory_blocks"
 CONF_METHOD = "method"

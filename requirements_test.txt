@@ -5,9 +5,11 @@ pyupgrade==3.4.0  # also change in .pre-commit-config.yaml when updating
 pre-commit
 
 # Unit tests
-pytest==7.3.1
-pytest-cov==4.0.0
+pytest==7.3.2
+pytest-cov==4.1.0
 pytest-mock==3.10.0
 pytest-asyncio==0.21.0
 asyncmock==0.4.2
 hypothesis==5.49.0
+
+clang-format==13.0.1 ; platform_machine != 'armv7l'

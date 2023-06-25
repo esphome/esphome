@@ -29,6 +29,8 @@ RUN \
         git=1:2.30.2-1+deb11u2 \
         curl=7.74.0-1.3+deb11u7 \
         openssh-client=1:8.4p1-5+deb11u1 \
+        libcairo2=1.16.0-5 \
+        python3-cffi=1.14.5-1 \
     && rm -rf \
         /tmp/* \
         /var/{cache,log}/* \

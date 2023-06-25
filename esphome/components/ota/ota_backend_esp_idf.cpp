@@ -21,25 +21,35 @@ OTAResponseTypes IDFOTABackend::begin(size_t image_size) {
     return OTA_RESPONSE_ERROR_NO_UPDATE_PARTITION;
   }
 
+#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
   // The following function takes longer than the 5 seconds timeout of WDT
 #if ESP_IDF_VERSION_MAJOR >= 5
   esp_task_wdt_config_t wdtc;
-  wdtc.timeout_ms = 15000;
   wdtc.idle_core_mask = 0;
+#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU0
+  wdtc.idle_core_mask |= (1 << 0);
+#endif
+#if CONFIG_ESP_TASK_WDT_CHECK_IDLE_TASK_CPU1
+  wdtc.idle_core_mask |= (1 << 1);
+#endif
+  wdtc.timeout_ms = 15000;
   wdtc.trigger_panic = false;
   esp_task_wdt_reconfigure(&wdtc);
 #else
   esp_task_wdt_init(15, false);
 #endif
+#endif
 
   esp_err_t err = esp_ota_begin(this->partition_, image_size, &this->update_handle_);
 
+#if CONFIG_ESP_TASK_WDT_TIMEOUT_S < 15
   // Set the WDT back to the configured timeout
 #if ESP_IDF_VERSION_MAJOR >= 5
-  wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S;
+  wdtc.timeout_ms = CONFIG_ESP_TASK_WDT_TIMEOUT_S * 1000;
   esp_task_wdt_reconfigure(&wdtc);
 #else
   esp_task_wdt_init(CONFIG_ESP_TASK_WDT_TIMEOUT_S, false);
+#endif
 #endif
 
   if (err != ESP_OK) {

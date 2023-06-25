@@ -99,7 +99,7 @@ void OTAComponent::dump_config() {
 #endif
   if (this->has_safe_mode_ && this->safe_mode_rtc_value_ > 1 &&
       this->safe_mode_rtc_value_ != esphome::ota::OTAComponent::ENTER_SAFE_MODE_MAGIC) {
-    ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %d restarts",
+    ESP_LOGW(TAG, "Last Boot was an unhandled reset, will proceed to safe mode in %" PRIu32 " restarts",
              this->safe_mode_num_attempts_ - this->safe_mode_rtc_value_);
   }
 }
@@ -191,7 +191,7 @@ void OTAComponent::handle_() {
     this->writeall_(buf, 1);
     md5::MD5Digest md5{};
     md5.init();
-    sprintf(sbuf, "%08X", random_uint32());
+    sprintf(sbuf, "%08" PRIx32, random_uint32());
     md5.add(sbuf, 8);
     md5.calculate();
     md5.get_hex(sbuf);
@@ -466,7 +466,7 @@ bool OTAComponent::should_enter_safe_mode(uint8_t num_attempts, uint32_t enable_
   if (is_manual_safe_mode) {
     ESP_LOGI(TAG, "Safe mode has been entered manually");
   } else {
-    ESP_LOGCONFIG(TAG, "There have been %u suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
+    ESP_LOGCONFIG(TAG, "There have been %" PRIu32 " suspected unsuccessful boot attempts.", this->safe_mode_rtc_value_);
   }
 
   if (this->safe_mode_rtc_value_ >= num_attempts || is_manual_safe_mode) {
