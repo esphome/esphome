@@ -187,7 +187,7 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   } else if (device_uuid == 0x03bc) {  // VegTrug Grow Care Garden
     result.type = XiaomiParseResult::TYPE_GCLS002;
     result.name = "GCLS002";
-  } else if (device_uuid == 0x045b) {  // rectangular body, e-ink display
+  } else if (device_uuid == 0xFE95) {  // rectangular body, e-ink display
     result.type = XiaomiParseResult::TYPE_LYWSD02;
     result.name = "LYWSD02";
   } else if (device_uuid == 0x040a) {  // Mosquito Repellent Smart Version
