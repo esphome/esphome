@@ -1,14 +1,14 @@
 #pragma once
-#include "image.h"
+#include "esphome/components/image/image.h"
 
 #include "esphome/core/automation.h"
 
 namespace esphome {
-namespace display {
+namespace animation {
 
-class Animation : public Image {
+class Animation : public image::Image {
  public:
-  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
+  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, image::ImageType type);
 
   uint32_t get_animation_frame_count() const;
   int get_current_frame() const;
@@ -63,5 +63,5 @@ template<typename... Ts> class AnimationSetFrameAction : public Action<Ts...> {
   Animation *parent_;
 };
 
-}  // namespace display
+}  // namespace animation
 }  // namespace esphome
