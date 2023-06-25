@@ -27,7 +27,8 @@ static const char *const TAG = "online_image";
 namespace esphome {
 namespace online_image {
 
-using namespace display;
+using display::Display;
+using image::ImageType;
 
 inline bool is_color_on(const Color &color) {
   // This produces the most accurate monochrome conversion, but is slightly slower.
@@ -48,9 +49,9 @@ OnlineImage::OnlineImage(const char *url, int width, int height, ImageFormat for
       fixed_width_(width),
       fixed_height_(height) {}
 
-void OnlineImage::draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) {
+void OnlineImage::draw(int x, int y, Display *display, Color color_on, Color color_off) {
   switch (type_) {
-    case IMAGE_TYPE_BINARY: {
+    case ImageType::IMAGE_TYPE_BINARY: {
       for (int img_x = 0; img_x < width_; img_x++) {
         for (int img_y = 0; img_y < height_; img_y++) {
           if (this->get_binary_pixel_(img_x, img_y)) {
@@ -62,7 +63,7 @@ void OnlineImage::draw(int x, int y, DisplayBuffer *display, Color color_on, Col
       }
       break;
     }
-    case IMAGE_TYPE_GRAYSCALE:
+    case ImageType::IMAGE_TYPE_GRAYSCALE:
       for (int img_x = 0; img_x < width_; img_x++) {
         for (int img_y = 0; img_y < height_; img_y++) {
           auto color = this->get_grayscale_pixel_(img_x, img_y);
@@ -72,7 +73,7 @@ void OnlineImage::draw(int x, int y, DisplayBuffer *display, Color color_on, Col
         }
       }
       break;
-    case IMAGE_TYPE_RGB565:
+    case ImageType::IMAGE_TYPE_RGB565:
       for (int img_x = 0; img_x < width_; img_x++) {
         for (int img_y = 0; img_y < height_; img_y++) {
           auto color = this->get_rgb565_pixel_(img_x, img_y);
@@ -82,7 +83,7 @@ void OnlineImage::draw(int x, int y, DisplayBuffer *display, Color color_on, Col
         }
       }
       break;
-    case IMAGE_TYPE_RGB24:
+    case ImageType::IMAGE_TYPE_RGB24:
       for (int img_x = 0; img_x < width_; img_x++) {
         for (int img_y = 0; img_y < height_; img_y++) {
           auto color = this->get_rgb24_pixel_(img_x, img_y);
@@ -92,7 +93,7 @@ void OnlineImage::draw(int x, int y, DisplayBuffer *display, Color color_on, Col
         }
       }
       break;
-    case IMAGE_TYPE_RGBA:
+    case ImageType::IMAGE_TYPE_RGBA:
       for (int img_x = 0; img_x < width_; img_x++) {
         for (int img_y = 0; img_y < height_; img_y++) {
           auto color = this->get_rgba_pixel_(img_x, img_y);
@@ -224,7 +225,7 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
   }
   uint32_t pos = get_position_(x, y);
   switch (type_) {
-    case display::ImageType::IMAGE_TYPE_BINARY: {
+    case ImageType::IMAGE_TYPE_BINARY: {
       uint32_t byte_num = pos;
       uint8_t bit_num = (x + y * buffer_width_) % 8;
       if ((has_transparency() && color.w > 127) || is_color_on(color)) {
@@ -234,7 +235,7 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
       }
       break;
     }
-    case display::ImageType::IMAGE_TYPE_GRAYSCALE: {
+    case ImageType::IMAGE_TYPE_GRAYSCALE: {
       uint8_t gray = static_cast<uint8_t>(0.2125 * color.r + 0.7154 * color.g + 0.0721 * color.b);
       if (has_transparency()) {
         if (gray == 1) {
@@ -247,7 +248,7 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
       buffer_[pos] = gray;
       break;
     }
-    case display::ImageType::IMAGE_TYPE_RGB565: {
+    case ImageType::IMAGE_TYPE_RGB565: {
       uint16_t col565 = display::ColorUtil::color_to_565(color);
       if (has_transparency()) {
         if (col565 == 0x0020) {
@@ -261,14 +262,14 @@ void OnlineImage::draw_pixel_(int x, int y, Color color) {
       buffer_[pos + 1] = static_cast<uint8_t>(col565 & 0xFF);
       break;
     }
-    case display::ImageType::IMAGE_TYPE_RGBA: {
+    case ImageType::IMAGE_TYPE_RGBA: {
       buffer_[pos + 0] = color.r;
       buffer_[pos + 1] = color.g;
       buffer_[pos + 2] = color.b;
       buffer_[pos + 3] = color.w;
       break;
     }
-    case display::ImageType::IMAGE_TYPE_RGB24:
+    case ImageType::IMAGE_TYPE_RGB24:
     default: {
       if (has_transparency()) {
         if (color.b == 1 && color.r == 0 && color.g == 0) {

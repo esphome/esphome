@@ -27,8 +27,10 @@ from esphome.components.http_request import (
 )
 
 DEPENDENCIES = ["network", "display"]
+AUTO_LOAD = ["image"]
 CODEOWNERS = ["@guillempages"]
 MULTI_CONF = True
+
 CONF_ON_DOWNLOAD_FINISHED = "on_download_finished"
 CONF_ON_ERROR = "on_error"
 

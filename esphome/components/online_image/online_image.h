@@ -2,8 +2,7 @@
 #ifdef USE_ARDUINO
 
 #include "esphome/core/component.h"
-#include "esphome/components/display/display_buffer.h"
-#include "esphome/components/display/image.h"
+#include "esphome/components/image/image.h"
 #include "esphome/core/helpers.h"
 
 #include "image_decoder.h"
@@ -26,7 +25,7 @@ enum ImageFormat {
  * @brief Download an image from a given URL, and decode it using the specified decoder.
  * The image will then be stored in a buffer, so that it can be displayed.
  */
-class OnlineImage : public PollingComponent, public display::Image {
+class OnlineImage : public PollingComponent, public image::Image {
  public:
   /**
    * @brief Construct a new Online Image object.
@@ -37,10 +36,9 @@ class OnlineImage : public PollingComponent, public display::Image {
    * @param format Format that the image is encoded in (@see ImageFormat).
    * @param buffer_size Size of the buffer used to download the image.
    */
-  OnlineImage(const char *url, int width, int height, ImageFormat format, display::ImageType type,
-              uint32_t buffer_size);
+  OnlineImage(const char *url, int width, int height, ImageFormat format, image::ImageType type, uint32_t buffer_size);
 
-  void draw(int x, int y, display::DisplayBuffer *display, Color color_on, Color color_off) override;
+  void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
 
   void update() override;
   void loop() override;
@@ -72,9 +70,11 @@ class OnlineImage : public PollingComponent, public display::Image {
   Allocator allocator_{Allocator::Flags::ALLOW_FAILURE};
 
   uint32_t get_buffer_size_() const { return get_buffer_size_(buffer_width_, buffer_height_); }
-  int get_buffer_size_(int width, int height) const { return std::ceil(display::image_type_to_bpp(type_) * width * height / 8.0); }
+  int get_buffer_size_(int width, int height) const {
+    return std::ceil(image::image_type_to_bpp(type_) * width * height / 8.0);
+  }
 
-  int get_position_(int x, int y) const { return ((x + y * buffer_width_) * display::image_type_to_bpp(type_)) / 8; }
+  int get_position_(int x, int y) const { return ((x + y * buffer_width_) * image::image_type_to_bpp(type_)) / 8; }
 
   ESPHOME_ALWAYS_INLINE bool auto_resize_() const { return fixed_width_ == 0 || fixed_height_ == 0; }
 
