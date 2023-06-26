@@ -83,12 +83,11 @@ template<typename... Ts> class DimRelativeAction : public Action<Ts...> {
     float rel_ct = this->relative_color_temp_.value(x...);
     float cur_ct = this->parent_->remote_values.get_color_temperature();
     float target_ct = cur_ct;
-    if(this->relative_color_temp_.has_value())
-    {
-        float cold_ct = this->parent_->remote_values.get_cold_white();
-        float warm_ct = this->parent_->remote_values.get_warm_white();
-        if(warm_ct - cold_ct > 0)
-            target_ct = clamp((warm_ct-cold_ct)*rel_ct + cur_ct, cold_ct, warm_ct);
+    if (this->relative_color_temp_.has_value()) {
+      float cold_ct = this->parent_->remote_values.get_cold_white();
+      float warm_ct = this->parent_->remote_values.get_warm_white();
+      if (warm_ct - cold_ct > 0)
+        target_ct = clamp((warm_ct - cold_ct) * rel_ct + cur_ct, cold_ct, warm_ct);
     }
 
     call.set_state(new_brightness != 0.0f);
