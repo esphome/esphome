@@ -127,6 +127,7 @@ def time_to_cycles(time_us):
 
 CONF_PIO = "pio"
 
+AUTO_LOAD = ["rp2040_pio"]
 CODEOWNERS = ["@Papa-DMan"]
 DEPENDENCIES = ["rp2040"]
 
@@ -265,9 +266,3 @@ async def to_code(config):
                 time_to_cycles(config[CONF_BIT1_LOW]),
             ),
         )
-    cg.add_platformio_option(
-        "platform_packages",
-        [
-            "earlephilhower/tool-pioasm-rp2040-earlephilhower",
-        ],
-    )
