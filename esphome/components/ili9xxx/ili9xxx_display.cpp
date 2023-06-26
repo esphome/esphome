@@ -152,12 +152,10 @@ void ILI9XXXDisplay::update() {
     this->need_update_ = true;
     return;
   }
+  this->prossing_update_ = true;
   do {
-    this->prossing_update_ = true;
     this->need_update_ = false;
-    if (!this->need_update_) {
-      this->do_update_();
-    }
+    this->do_update_();
   } while (this->need_update_);
   this->prossing_update_ = false;
   this->display_();
