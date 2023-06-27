@@ -37,6 +37,10 @@ static uint32_t get_free_heap() {
 }
 
 void DebugComponent::dump_config() {
+#ifndef ESPHOME_LOG_HAS_DEBUG
+  return;  // Can't log below if debug logging is disabled
+#endif
+
   std::string device_info;
   std::string reset_reason;
   device_info.reserve(256);

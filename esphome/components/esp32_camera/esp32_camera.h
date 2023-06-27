@@ -103,7 +103,6 @@ class CameraImageReader {
 /* ---------------- ESP32Camera class ---------------- */
 class ESP32Camera : public Component, public EntityBase {
  public:
-  ESP32Camera(const std::string &name);
   ESP32Camera();
 
   /* setters */

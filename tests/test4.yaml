@@ -374,6 +374,25 @@ binary_sensor:
     on_press:
       - logger.log: Touched
 
+  - platform: gpio
+    name: MaxIn Pin 4
+    pin:
+      max6956: max6956_1
+      number: 4
+      mode:
+        input: true
+        pullup: true
+      inverted: false
+
+  - platform: gpio
+    name: XL9535 Pin 0
+    pin:
+      xl9535: xl9535_hub
+      number: 0
+      mode:
+        input: true
+      inverted: false
+
 climate:
   - platform: tuya
     id: tuya_climate
@@ -653,13 +672,16 @@ touchscreen:
           format: Touch at (%d, %d)
           args: [touch.x, touch.y]
 
+i2s_audio:
+  i2s_lrclk_pin: GPIO26
+  i2s_bclk_pin: GPIO27
+  i2s_mclk_pin: GPIO25
+
 media_player:
   - platform: i2s_audio
-    name: ${friendly_name}
+    name: None
     dac_type: external
-    i2s_lrclk_pin: GPIO26
     i2s_dout_pin: GPIO25
-    i2s_bclk_pin: GPIO27
     mute_pin: GPIO14
     on_state:
       - media_player.play:
@@ -685,3 +707,54 @@ prometheus:
     ha_hello_world:
       id: hellow_world
       name: Hello World
+
+microphone:
+  - platform: i2s_audio
+    id: mic_id_adc
+    adc_pin: GPIO35
+    adc_type: internal
+
+  - platform: i2s_audio
+    id: mic_id_external
+    i2s_din_pin: GPIO23
+    adc_type: external
+    pdm: false
+
+speaker:
+  - platform: i2s_audio
+    id: speaker_id
+    dac_type: external
+    i2s_dout_pin: GPIO25
+    mode: mono
+
+
+voice_assistant:
+  microphone: mic_id_external
+  on_start:
+    - logger.log: "Voice assistant started"
+  on_stt_end:
+    - logger.log:
+        format: "Voice assistant STT ended with result %s"
+        args: [x.c_str()]
+  on_tts_start:
+    - logger.log:
+        format: "Voice assistant TTS started with text %s"
+        args: [x.c_str()]
+  on_tts_end:
+    - logger.log:
+        format: "Voice assistant TTS ended with url %s"
+        args: [x.c_str()]
+  on_end:
+    - logger.log: "Voice assistant ended"
+  on_error:
+    - logger.log:
+        format: "Voice assistant error - code %s, message: %s"
+        args: [code.c_str(), message.c_str()]
+
+max6956:
+  - id: max6956_1
+    address: 0x40
+
+xl9535:
+  - id: xl9535_hub
+    address: 0x20

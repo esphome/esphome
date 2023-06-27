@@ -118,7 +118,7 @@ bool MQTTComponent::send_discovery_() {
         } else {
           if (discovery_info.unique_id_generator == MQTT_MAC_ADDRESS_UNIQUE_ID_GENERATOR) {
             char friendly_name_hash[9];
-            sprintf(friendly_name_hash, "%08x", fnv1_hash(this->friendly_name()));
+            sprintf(friendly_name_hash, "%08" PRIx32, fnv1_hash(this->friendly_name()));
             friendly_name_hash[8] = 0;  // ensure the hash-string ends with null
             root[MQTT_UNIQUE_ID] = get_mac_address() + "-" + this->component_type() + "-" + friendly_name_hash;
           } else {

@@ -395,6 +395,9 @@ template<typename T, enable_if_t<std::is_unsigned<T>::value, int> = 0> std::stri
   val = convert_big_endian(val);
   return format_hex(reinterpret_cast<uint8_t *>(&val), sizeof(T));
 }
+template<std::size_t N> std::string format_hex(const std::array<uint8_t, N> &data) {
+  return format_hex(data.data(), data.size());
+}
 
 /// Format the byte array \p data of length \p len in pretty-printed, human-readable hex.
 std::string format_hex_pretty(const uint8_t *data, size_t length);

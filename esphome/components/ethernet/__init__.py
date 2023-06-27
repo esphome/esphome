@@ -34,6 +34,7 @@ ETHERNET_TYPES = {
     "DP83848": EthernetType.ETHERNET_TYPE_DP83848,
     "IP101": EthernetType.ETHERNET_TYPE_IP101,
     "JL1101": EthernetType.ETHERNET_TYPE_JL1101,
+    "KSZ8081": EthernetType.ETHERNET_TYPE_KSZ8081,
 }
 
 emac_rmii_clock_mode_t = cg.global_ns.enum("emac_rmii_clock_mode_t")

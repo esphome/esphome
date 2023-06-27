@@ -3,6 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/hal.h"
 #include <algorithm>
+#include <cinttypes>
 
 namespace esphome {
 
@@ -194,8 +195,8 @@ void HOT Scheduler::call() {
 
     // The following should not happen unless I'm missing something
     if (to_remove_ != 0) {
-      ESP_LOGW(TAG, "to_remove_ was %u now: %u items where %zu now %zu. Please report this", to_remove_was, to_remove_,
-               items_was, items_.size());
+      ESP_LOGW(TAG, "to_remove_ was %" PRIu32 " now: %" PRIu32 " items where %zu now %zu. Please report this",
+               to_remove_was, to_remove_, items_was, items_.size());
       to_remove_ = 0;
     }
   }

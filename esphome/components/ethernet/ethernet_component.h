@@ -14,11 +14,13 @@ namespace esphome {
 namespace ethernet {
 
 enum EthernetType {
-  ETHERNET_TYPE_LAN8720 = 0,
+  ETHERNET_TYPE_UNKNOWN = 0,
+  ETHERNET_TYPE_LAN8720,
   ETHERNET_TYPE_RTL8201,
   ETHERNET_TYPE_DP83848,
   ETHERNET_TYPE_IP101,
   ETHERNET_TYPE_JL1101,
+  ETHERNET_TYPE_KSZ8081,
 };
 
 struct ManualIP {
@@ -43,6 +45,7 @@ class EthernetComponent : public Component {
   void dump_config() override;
   float get_setup_priority() const override;
   bool can_proceed() override;
+  void on_shutdown() override { powerdown(); }
   bool is_connected();
 
   void set_phy_addr(uint8_t phy_addr);
@@ -56,6 +59,7 @@ class EthernetComponent : public Component {
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
+  bool powerdown();
 
  protected:
   static void eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, void *event_data);
@@ -69,7 +73,7 @@ class EthernetComponent : public Component {
   int power_pin_{-1};
   uint8_t mdc_pin_{23};
   uint8_t mdio_pin_{18};
-  EthernetType type_{ETHERNET_TYPE_LAN8720};
+  EthernetType type_{ETHERNET_TYPE_UNKNOWN};
   emac_rmii_clock_mode_t clk_mode_{EMAC_CLK_EXT_IN};
   emac_rmii_clock_gpio_t clk_gpio_{EMAC_CLK_IN_GPIO};
   optional<ManualIP> manual_ip_{};
@@ -80,6 +84,7 @@ class EthernetComponent : public Component {
   uint32_t connect_begin_;
   esp_netif_t *eth_netif_{nullptr};
   esp_eth_handle_t eth_handle_;
+  esp_eth_phy_t *phy_{nullptr};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

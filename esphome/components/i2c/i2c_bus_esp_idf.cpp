@@ -4,7 +4,9 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/application.h"
 #include <cstring>
+#include <cinttypes>
 
 namespace esphome {
 namespace i2c {
@@ -47,7 +49,7 @@ void IDFI2CBus::dump_config() {
   ESP_LOGCONFIG(TAG, "I2C Bus:");
   ESP_LOGCONFIG(TAG, "  SDA Pin: GPIO%u", this->sda_pin_);
   ESP_LOGCONFIG(TAG, "  SCL Pin: GPIO%u", this->scl_pin_);
-  ESP_LOGCONFIG(TAG, "  Frequency: %u Hz", this->frequency_);
+  ESP_LOGCONFIG(TAG, "  Frequency: %" PRIu32 " Hz", this->frequency_);
   switch (this->recovery_result_) {
     case RECOVERY_COMPLETED:
       ESP_LOGCONFIG(TAG, "  Recovery: bus successfully recovered");
@@ -272,10 +274,14 @@ void IDFI2CBus::recover_() {
     // When SCL is kept LOW at this point, we might be looking at a device
     // that applies clock stretching. Wait for the release of the SCL line,
     // but not forever. There is no specification for the maximum allowed
-    // time. We'll stick to 500ms here.
-    auto wait = 20;
+    // time. We yield and reset the WDT, so as to avoid triggering reset.
+    // No point in trying to recover the bus by forcing a uC reset. Bus
+    // should recover in a few ms or less else not likely to recovery at
+    // all.
+    auto wait = 250;
     while (wait-- && gpio_get_level(scl_pin) == 0) {
-      delay(25);
+      App.feed_wdt();
+      delayMicroseconds(half_period_usec * 2);
     }
     if (gpio_get_level(scl_pin) == 0) {
       ESP_LOGE(TAG, "Recovery failed: SCL is held LOW during clock pulse cycle");

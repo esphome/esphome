@@ -28,6 +28,7 @@ cover::CoverTraits CopyCover::get_traits() {
   // copy traits manually so it doesn't break when new options are added
   // but the control() method hasn't implemented them yet.
   traits.set_is_assumed_state(base.get_is_assumed_state());
+  traits.set_supports_stop(base.get_supports_stop());
   traits.set_supports_position(base.get_supports_position());
   traits.set_supports_tilt(base.get_supports_tilt());
   traits.set_supports_toggle(base.get_supports_toggle());
