@@ -104,6 +104,7 @@ class Wireguard : public PollingComponent {
   time_t latest_saved_handshake_ = 0;
 
   void start_connection_();
+  void stop_connection_();
 };
 
 // These are used for possibly long DNS resolution to temporarily suspend the watchdog

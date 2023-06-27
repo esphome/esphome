@@ -122,21 +122,14 @@ void Wireguard::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  Peer Persistent Keepalive: %d%s", this->keepalive_,
                 (this->keepalive_ > 0 ? "s" : " (DISABLED)"));
-
-  // be careful: if proceed_allowed_ is true, require connection is false
-  ESP_LOGCONFIG(TAG, "  Require Connection to Proceed: %s", (this->proceed_allowed_ ? "NO" : "YES"));
   ESP_LOGCONFIG(TAG, "  Reboot Timeout: %d%s", (this->reboot_timeout_ / 1000),
                 (this->reboot_timeout_ != 0 ? "s" : " (DISABLED)"));
+  // be careful: if proceed_allowed_ is true, require connection is false
+  ESP_LOGCONFIG(TAG, "  Require Connection to Proceed: %s", (this->proceed_allowed_ ? "NO" : "YES"));
   LOG_UPDATE_INTERVAL(this);
 }
 
-void Wireguard::on_shutdown() {
-  if (this->wg_initialized_ == ESP_OK && this->wg_connected_ == ESP_OK) {
-    ESP_LOGD(TAG, "stopping WireGuard connection...");
-    esp_wireguard_disconnect(&(this->wg_ctx_));
-    this->wg_connected_ = ESP_FAIL;
-  }
-}
+void Wireguard::on_shutdown() { this->stop_connection_(); }
 
 bool Wireguard::can_proceed() { return (this->proceed_allowed_ || this->is_peer_up()); }
 
@@ -222,11 +215,19 @@ void Wireguard::start_connection_() {
   }
 
   if (allowed_ips_ok) {
-    ESP_LOGD(TAG, "allowed ips list configured correctly");
+    ESP_LOGD(TAG, "allowed IPs list configured correctly");
   } else {
-    ESP_LOGE(TAG, "cannot configure WireGuard allowed ips list, aborting...");
-    this->on_shutdown();
+    ESP_LOGE(TAG, "cannot configure WireGuard allowed IPs list, aborting...");
+    this->stop_connection_();
     this->mark_failed();
+  }
+}
+
+void Wireguard::stop_connection_() {
+  if (this->wg_initialized_ == ESP_OK && this->wg_connected_ == ESP_OK) {
+    ESP_LOGD(TAG, "stopping WireGuard connection...");
+    esp_wireguard_disconnect(&(this->wg_ctx_));
+    this->wg_connected_ = ESP_FAIL;
   }
 }
 
