@@ -495,6 +495,7 @@ sensor:
     frequency:
       name: Line Frequency
     line_frequency: 50Hz
+    meter_constant: 1000
     pl_const: 1429876
     gain_pga: 1X
     gain_metering: 7481
