@@ -550,7 +550,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
             if compressed:
                 data = gzip.compress(data, 9)
             self.write(data)
-                
+
         self.finish()
 
 
