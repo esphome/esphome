@@ -107,8 +107,8 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_METER_CONSTANT): cv.positive_float,
             cv.Optional(CONF_PL_CONST, default=1429876): cv.uint32_t,
             cv.Optional(CONF_GAIN_METERING, default=7481): cv.uint16_t,
-            cv.Optional(CONF_GAIN_VOLTAGE, default=26400): cv.uint16_t,
-            cv.Optional(CONF_GAIN_CT, default=31251): cv.int_range(min=0, max=32767),
+            cv.Optional(CONF_GAIN_VOLTAGE, default=26400): cv.int_range(min=0, max=32767),
+            cv.Optional(CONF_GAIN_CT, default=31251): cv.uint16_t,
             cv.Optional(CONF_GAIN_PGA, default="1X"): cv.enum(PGA_GAINS, upper=True),
         }
     )
@@ -149,7 +149,7 @@ async def to_code(config):
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_meter_constant(config[CONF_METER_CONSTANT]))
     cg.add(var.set_pl_const(config[CONF_PL_CONST]))
-    cg.add(var.set_metering_gain(config[CONF_GAIN_METERING]))
-    cg.add(var.set_volt_gain(config[CONF_GAIN_VOLTAGE]))
-    cg.add(var.set_ct_gain(config[CONF_GAIN_CT]))
-    cg.add(var.set_l_line_gain(config[CONF_GAIN_PGA]))
+    cg.add(var.set_gain_metering(config[CONF_GAIN_METERING]))
+    cg.add(var.set_gain_voltage(config[CONF_GAIN_VOLTAGE]))
+    cg.add(var.set_gain_ct(config[CONF_GAIN_CT]))
+    cg.add(var.set_gain_pga(config[CONF_GAIN_PGA]))

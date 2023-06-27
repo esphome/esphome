@@ -27,10 +27,10 @@ class ATM90E26Component : public PollingComponent,
   void set_line_freq(int freq) { line_freq_ = freq; }
   void set_meter_constant(float val) { meter_constant_ = val; }
   void set_pl_const(uint32_t pl_const) { pl_const_ = pl_const; }
-  void set_metering_gain(uint16_t gain) { this->metering_gain_ = gain; }
-  void set_volt_gain(uint16_t gain) { this->volt_gain_ = gain; }
-  void set_ct_gain(uint16_t gain) { this->ct_gain_ = gain; }
-  void set_l_line_gain(uint16_t gain) { l_line_gain_ = gain; }
+  void set_gain_metering(uint16_t gain) { this->gain_metering_ = gain; }
+  void set_gain_voltage(uint16_t gain) { this->gain_voltage_ = gain; }
+  void set_gain_ct(uint16_t gain) { this->gain_ct_ = gain; }
+  void set_gain_pga(uint16_t gain) { gain_pga_ = gain; }
   void set_n_line_gain(uint16_t gain) { n_line_gain_ = gain; }
 
  protected:
@@ -58,10 +58,10 @@ class ATM90E26Component : public PollingComponent,
   sensor::Sensor *reverse_active_energy_sensor_{nullptr};
   uint32_t cumulative_forward_active_energy_{0};
   uint32_t cumulative_reverse_active_energy_{0};
-  uint16_t metering_gain_{7481};
-  uint16_t volt_gain_{26400};
-  uint16_t ct_gain_{31251};
-  uint16_t l_line_gain_{0x4};
+  uint16_t gain_metering_{7481};
+  uint16_t gain_voltage_{26400};
+  uint16_t gain_ct_{31251};
+  uint16_t gain_pga_{0x4};
   uint16_t n_line_gain_{0x2};
   int line_freq_{60};
   float meter_constant_{3200.0f};

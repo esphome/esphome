@@ -45,7 +45,7 @@ void ATM90E26Component::setup() {
   this->spi_setup();
 
   uint16_t mmode = 0x422;  // default values for everything but L/N line current gains
-  mmode |= l_line_gain_ << 13;
+  mmode |= gain_pga_ << 13;
   mmode |= n_line_gain_ << 11;
 
   this->write16_(ATM90E26_REGISTER_SOFTRESET, 0x789A);  // Perform soft reset
@@ -57,7 +57,7 @@ void ATM90E26Component::setup() {
     this->mark_failed();
     return;
   }
-  // TODO: 100 * <nominal voltage, e.g. 230> * sqrt(2) * <fraction of nominal, e.g. 0.9> / (4 * volt_gain/32768)
+  // TODO: 100 * <nominal voltage, e.g. 230> * sqrt(2) * <fraction of nominal, e.g. 0.9> / (4 * gain_voltage/32768)
   this->write16_(ATM90E26_REGISTER_SAGTH, 0x17DD);  // Voltage sag threshhold 0x1F2F
 
   // Set metering calibration values
@@ -70,7 +70,7 @@ void ATM90E26Component::setup() {
   this->write16_(ATM90E26_REGISTER_PLCONSTL, pl_const_ & 0xFFFF);  // PL Constant LSB
 
   // Calibrate this to be 1 pulse per Wh
-  this->write16_(ATM90E26_REGISTER_LGAIN, metering_gain_);  // L Line Calibration Gain (active power metering)
+  this->write16_(ATM90E26_REGISTER_LGAIN, gain_metering_);  // L Line Calibration Gain (active power metering)
   this->write16_(ATM90E26_REGISTER_LPHI, 0x0000);           // L Line Calibration Angle
   this->write16_(ATM90E26_REGISTER_NGAIN, 0x0000);          // N Line Calibration Gain
   this->write16_(ATM90E26_REGISTER_NPHI, 0x0000);           // N Line Calibration Angle
@@ -83,32 +83,32 @@ void ATM90E26Component::setup() {
   // low byte = sum of all bytes
   uint16_t cs =
       ((mmode >> 8) + (mmode & 0xFF) + (pl_const_ >> 24) + ((pl_const_ >> 16) & 0xFF) + ((pl_const_ >> 8) & 0xFF) +
-       (pl_const_ & 0xFF) + (metering_gain_ >> 8) + (metering_gain_ & 0xFF) + 0x08 + 0xBD + 0x0A + 0xEC) &
+       (pl_const_ & 0xFF) + (gain_metering_ >> 8) + (gain_metering_ & 0xFF) + 0x08 + 0xBD + 0x0A + 0xEC) &
       0xFF;
   // high byte = XOR of all bytes
   cs |= ((mmode >> 8) ^ (mmode & 0xFF) ^ (pl_const_ >> 24) ^ ((pl_const_ >> 16) & 0xFF) ^ ((pl_const_ >> 8) & 0xFF) ^
-         (pl_const_ & 0xFF) ^ (metering_gain_ >> 8) ^ (metering_gain_ & 0xFF) ^ 0x08 ^ 0xBD ^ 0x0A ^ 0xEC)
+         (pl_const_ & 0xFF) ^ (gain_metering_ >> 8) ^ (gain_metering_ & 0xFF) ^ 0x08 ^ 0xBD ^ 0x0A ^ 0xEC)
         << 8;
 
   this->write16_(ATM90E26_REGISTER_CS1, cs);
   ESP_LOGVV(TAG, "Set CS1 to: 0x%04X", cs);
 
   // Set measurement calibration values
-  this->write16_(ATM90E26_REGISTER_ADJSTART, 0x5678);   // Measurement calibration startup command, registers 31-3A
-  this->write16_(ATM90E26_REGISTER_UGAIN, volt_gain_);  // Voltage RMS gain
-  this->write16_(ATM90E26_REGISTER_IGAINL, ct_gain_);   // L line current RMS gain
-  this->write16_(ATM90E26_REGISTER_IGAINN, 0x7530);     // N Line Current RMS Gain
-  this->write16_(ATM90E26_REGISTER_UOFFSET, 0x0000);    // Voltage Offset
-  this->write16_(ATM90E26_REGISTER_IOFFSETL, 0x0000);   // L Line Current Offset
-  this->write16_(ATM90E26_REGISTER_IOFFSETN, 0x0000);   // N Line Current Offse
-  this->write16_(ATM90E26_REGISTER_POFFSETL, 0x0000);   // L Line Active Power Offset
-  this->write16_(ATM90E26_REGISTER_QOFFSETL, 0x0000);   // L Line Reactive Power Offset
-  this->write16_(ATM90E26_REGISTER_POFFSETN, 0x0000);   // N Line Active Power Offset
-  this->write16_(ATM90E26_REGISTER_QOFFSETN, 0x0000);   // N Line Reactive Power Offset
+  this->write16_(ATM90E26_REGISTER_ADJSTART, 0x5678);      // Measurement calibration startup command, registers 31-3A
+  this->write16_(ATM90E26_REGISTER_UGAIN, gain_voltage_);  // Voltage RMS gain
+  this->write16_(ATM90E26_REGISTER_IGAINL, gain_ct_);      // L line current RMS gain
+  this->write16_(ATM90E26_REGISTER_IGAINN, 0x7530);        // N Line Current RMS Gain
+  this->write16_(ATM90E26_REGISTER_UOFFSET, 0x0000);       // Voltage Offset
+  this->write16_(ATM90E26_REGISTER_IOFFSETL, 0x0000);      // L Line Current Offset
+  this->write16_(ATM90E26_REGISTER_IOFFSETN, 0x0000);      // N Line Current Offse
+  this->write16_(ATM90E26_REGISTER_POFFSETL, 0x0000);      // L Line Active Power Offset
+  this->write16_(ATM90E26_REGISTER_QOFFSETL, 0x0000);      // L Line Reactive Power Offset
+  this->write16_(ATM90E26_REGISTER_POFFSETN, 0x0000);      // N Line Active Power Offset
+  this->write16_(ATM90E26_REGISTER_QOFFSETN, 0x0000);      // N Line Reactive Power Offset
 
   // Compute Checksum for the registers we set above
-  cs = ((volt_gain_ >> 8) + (volt_gain_ & 0xFF) + (ct_gain_ >> 8) + (ct_gain_ & 0xFF) + 0x75 + 0x30) & 0xFF;
-  cs |= ((volt_gain_ >> 8) ^ (volt_gain_ & 0xFF) ^ (ct_gain_ >> 8) ^ (ct_gain_ & 0xFF) ^ 0x75 ^ 0x30) << 8;
+  cs = ((gain_voltage_ >> 8) + (gain_voltage_ & 0xFF) + (gain_ct_ >> 8) + (gain_ct_ & 0xFF) + 0x75 + 0x30) & 0xFF;
+  cs |= ((gain_voltage_ >> 8) ^ (gain_voltage_ & 0xFF) ^ (gain_ct_ >> 8) ^ (gain_ct_ & 0xFF) ^ 0x75 ^ 0x30) << 8;
   this->write16_(ATM90E26_REGISTER_CS2, cs);
   ESP_LOGVV(TAG, "Set CS2 to: 0x%04X", cs);
 
