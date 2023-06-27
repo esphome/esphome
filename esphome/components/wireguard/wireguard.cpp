@@ -8,6 +8,7 @@
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
 #include "esphome/core/time.h"
+#include "esphome/components/network/util.h"
 
 #include <esp_err.h>
 
@@ -59,11 +60,31 @@ void Wireguard::setup() {
   }
 }
 
+void Wireguard::loop() {
+  PollingComponent::loop();
+
+  if ((this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) && (!network::is_connected())) {
+    ESP_LOGV(TAG, "local network connection has been lost, stopping WireGuard...");
+    this->stop_connection_();
+  }
+}
+
 void Wireguard::update() {
   bool peer_up = this->is_peer_up();
   time_t lhs = this->get_latest_handshake();
+  bool lhs_updated = (lhs > this->latest_saved_handshake_);
+
+  ESP_LOGV(TAG, "handshake: latest=%.0f, saved=%.0f, updated=%d", (double) lhs, (double) this->latest_saved_handshake_,
+           (int) lhs_updated);
+
+  if (lhs_updated) {
+    this->latest_saved_handshake_ = lhs;
+  }
+
   std::string latest_handshake =
-      (lhs > 0) ? ESPTime::from_epoch_local(lhs).strftime("%Y-%m-%d %H:%M:%S %Z") : "timestamp not available";
+      (this->latest_saved_handshake_ > 0)
+          ? ESPTime::from_epoch_local(this->latest_saved_handshake_).strftime("%Y-%m-%d %H:%M:%S %Z")
+          : "timestamp not available";
 
   if (peer_up) {
     if (this->wg_peer_offline_time_ != 0) {
@@ -78,6 +99,7 @@ void Wireguard::update() {
       this->wg_peer_offline_time_ = millis();
     } else {
       ESP_LOGD(TAG, LOGMSG_PEER_STATUS, LOGMSG_OFFLINE, latest_handshake.c_str());
+      this->start_connection_();
     }
 
     // check reboot timeout every time the peer is down
@@ -96,11 +118,8 @@ void Wireguard::update() {
 #endif
 
 #ifdef USE_SENSOR
-  if (this->handshake_sensor_ != nullptr) {
-    if (lhs > this->latest_saved_handshake_) {
-      this->latest_saved_handshake_ = lhs;
-      this->handshake_sensor_->publish_state((float) lhs);
-    }
+  if (this->handshake_sensor_ != nullptr && lhs_updated) {
+    this->handshake_sensor_->publish_state((double) this->latest_saved_handshake_);
   }
 #endif
 }
@@ -178,13 +197,18 @@ void Wireguard::start_connection_() {
     return;
   }
 
+  if (!network::is_connected()) {
+    ESP_LOGD(TAG, "WireGuard is waiting for local network connection to be available");
+    return;
+  }
+
   if (!this->srctime_->now().is_valid()) {
     ESP_LOGD(TAG, "WireGuard is waiting for system time to be synchronized");
     return;
   }
 
   if (this->wg_connected_ == ESP_OK) {
-    ESP_LOGD(TAG, "WireGuard connection already started");
+    ESP_LOGV(TAG, "WireGuard connection already started");
     return;
   }
 
@@ -197,6 +221,7 @@ void Wireguard::start_connection_() {
    * then we resume the normal timeout.
    */
   suspend_wdt();
+  ESP_LOGV(TAG, "executing esp_wireguard_connect");
   this->wg_connected_ = esp_wireguard_connect(&(this->wg_ctx_));
   resume_wdt();
 
@@ -207,7 +232,7 @@ void Wireguard::start_connection_() {
     return;
   }
 
-  ESP_LOGD(TAG, "configuring WireGuard allowed ips list...");
+  ESP_LOGD(TAG, "configuring WireGuard allowed IPs list...");
   bool allowed_ips_ok = true;
   for (std::tuple<std::string, std::string> ip : this->allowed_ips_) {
     allowed_ips_ok &=
