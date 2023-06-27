@@ -45,8 +45,8 @@ void ATM90E26Component::setup() {
   this->spi_setup();
 
   uint16_t mmode = 0x422;  // default values for everything but L/N line current gains
-  mmode |= gain_pga_ << 13;
-  mmode |= n_line_gain_ << 11;
+  mmode |= (gain_pga_ & 0x7) << 13;
+  mmode |= (n_line_gain_ & 0x3) << 11;
 
   this->write16_(ATM90E26_REGISTER_SOFTRESET, 0x789A);  // Perform soft reset
   this->write16_(ATM90E26_REGISTER_FUNCEN,
