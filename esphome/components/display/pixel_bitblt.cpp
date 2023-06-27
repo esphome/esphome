@@ -1,3 +1,4 @@
+#include "pixel_bitblt.h"
 #include "pixel_helpers.h"
 
 #include <utility>

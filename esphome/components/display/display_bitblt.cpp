@@ -1,6 +1,7 @@
 #include "display.h"
 
 #include "pixel_helpers.h"
+#include "pixel_bitblt.h"
 
 #include <utility>
 #include "esphome/core/application.h"
