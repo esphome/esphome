@@ -57,7 +57,11 @@ bool BluetoothProxy::parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_p
   }
   ESP_LOGV(TAG, "Proxying %d packets", count);
   this->api_connection_->send_bluetooth_le_raw_advertisements_response(resp);
-  return true;
+  bool searching = false;
+  for (auto *conn : this->connections_) {
+    searching |= conn->state() == espbt::ClientState::SEARCHING;
+  }
+  return !searching;
 }
 void BluetoothProxy::send_api_packet_(const esp32_ble_tracker::ESPBTDevice &device) {
   api::BluetoothLEAdvertisementResponse resp;
