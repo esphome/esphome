@@ -1,5 +1,5 @@
 import logging
-from typing import Callable, List, Optional, Any, ContextManager
+from typing import Callable, Optional, Any, ContextManager
 from types import ModuleType
 import importlib
 import importlib.util
@@ -62,19 +62,22 @@ class ComponentManifest:
         return getattr(self.module, "to_code", None)
 
     @property
-    def dependencies(self) -> List[str]:
+    def dependencies(self) -> list[str]:
         return getattr(self.module, "DEPENDENCIES", [])
 
     @property
-    def conflicts_with(self) -> List[str]:
+    def conflicts_with(self) -> list[str]:
         return getattr(self.module, "CONFLICTS_WITH", [])
 
     @property
-    def auto_load(self) -> List[str]:
-        return getattr(self.module, "AUTO_LOAD", [])
+    def auto_load(self) -> list[str]:
+        al = getattr(self.module, "AUTO_LOAD", [])
+        if callable(al):
+            return al()
+        return al
 
     @property
-    def codeowners(self) -> List[str]:
+    def codeowners(self) -> list[str]:
         return getattr(self.module, "CODEOWNERS", [])
 
     @property
@@ -87,7 +90,7 @@ class ComponentManifest:
         return getattr(self.module, "FINAL_VALIDATE_SCHEMA", None)
 
     @property
-    def resources(self) -> List[FileResource]:
+    def resources(self) -> list[FileResource]:
         """Return a list of all file resources defined in the package of this component.
 
         This will return all cpp source files that are located in the same folder as the
@@ -106,7 +109,7 @@ class ComponentManifest:
 
 class ComponentMetaFinder(importlib.abc.MetaPathFinder):
     def __init__(
-        self, components_path: Path, allowed_components: Optional[List[str]] = None
+        self, components_path: Path, allowed_components: Optional[list[str]] = None
     ) -> None:
         self._allowed_components = allowed_components
         self._finders = []
@@ -117,7 +120,7 @@ class ComponentMetaFinder(importlib.abc.MetaPathFinder):
                 continue
             self._finders.append(finder)
 
-    def find_spec(self, fullname: str, path: Optional[List[str]], target=None):
+    def find_spec(self, fullname: str, path: Optional[list[str]], target=None):
         if not fullname.startswith("esphome.components."):
             return None
         parts = fullname.split(".")
@@ -144,7 +147,7 @@ def clear_component_meta_finders():
 
 
 def install_meta_finder(
-    components_path: Path, allowed_components: Optional[List[str]] = None
+    components_path: Path, allowed_components: Optional[list[str]] = None
 ):
     sys.meta_path.insert(0, ComponentMetaFinder(components_path, allowed_components))
 
@@ -167,10 +170,10 @@ def _lookup_module(domain):
     except Exception:  # pylint: disable=broad-except
         _LOGGER.error("Unable to load component %s:", domain, exc_info=True)
         return None
-    else:
-        manif = ComponentManifest(module)
-        _COMPONENT_CACHE[domain] = manif
-        return manif
+
+    manif = ComponentManifest(module)
+    _COMPONENT_CACHE[domain] = manif
+    return manif
 
 
 def get_component(domain):

@@ -22,6 +22,7 @@ from esphome.cpp_generator import (  # noqa
     static_const_array,
     statement,
     variable,
+    with_local_variable,
     new_variable,
     Pvariable,
     new_Pvariable,
@@ -46,6 +47,7 @@ from esphome.cpp_helpers import (  # noqa
     build_registry_list,
     extract_registry_entry_config,
     register_parented,
+    past_safe_mode,
 )
 from esphome.cpp_types import (  # noqa
     global_ns,
@@ -62,7 +64,10 @@ from esphome.cpp_types import (  # noqa
     uint16,
     uint32,
     uint64,
+    int16,
     int32,
+    int64,
+    size_t,
     const_char_ptr,
     NAN,
     esphome_ns,
@@ -81,4 +86,5 @@ from esphome.cpp_types import (  # noqa
     InternalGPIOPin,
     gpio_Flags,
     EntityCategory,
+    Parented,
 )

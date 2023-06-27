@@ -25,7 +25,7 @@ void SPIComponent::setup() {
   this->clk_->digital_write(true);
 
 #ifdef USE_SPI_ARDUINO_BACKEND
-  bool use_hw_spi = true;
+  bool use_hw_spi = !this->force_sw_;
   const bool has_miso = this->miso_ != nullptr;
   const bool has_mosi = this->mosi_ != nullptr;
   int8_t clk_pin = -1, miso_pin = -1, mosi_pin = -1;
@@ -76,13 +76,41 @@ void SPIComponent::setup() {
     if (spi_bus_num == 0) {
       this->hw_spi_ = &SPI;
     } else {
-      this->hw_spi_ = new SPIClass(VSPI);  // NOLINT(cppcoreguidelines-owning-memory)
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+      this->hw_spi_ = new SPIClass(FSPI);  // NOLINT(cppcoreguidelines-owning-memory)
+#else
+      this->hw_spi_ = new SPIClass(HSPI);  // NOLINT(cppcoreguidelines-owning-memory)
+#endif  // USE_ESP32_VARIANT
     }
     spi_bus_num++;
     this->hw_spi_->begin(clk_pin, miso_pin, mosi_pin);
     return;
   }
 #endif  // USE_ESP32
+#ifdef USE_RP2040
+  static uint8_t spi_bus_num = 0;
+  if (spi_bus_num >= 2) {
+    use_hw_spi = false;
+  }
+  if (use_hw_spi) {
+    SPIClassRP2040 *spi;
+    if (spi_bus_num == 0) {
+      spi = &SPI;
+    } else {
+      spi = &SPI1;
+    }
+    spi_bus_num++;
+
+    if (miso_pin != -1)
+      spi->setRX(miso_pin);
+    if (mosi_pin != -1)
+      spi->setTX(mosi_pin);
+    spi->setSCK(clk_pin);
+    this->hw_spi_ = spi;
+    this->hw_spi_->begin();
+    return;
+  }
+#endif  // USE_RP2040
 #endif  // USE_SPI_ARDUINO_BACKEND
 
   if (this->miso_ != nullptr) {

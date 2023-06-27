@@ -3,7 +3,6 @@ import esphome.config_validation as cv
 from esphome.components import sensor, voltage_sampler
 from esphome.const import (
     CONF_SENSOR,
-    CONF_ID,
     DEVICE_CLASS_CURRENT,
     STATE_CLASS_MEASUREMENT,
     UNIT_AMPERE,
@@ -19,6 +18,7 @@ CTClampSensor = ct_clamp_ns.class_("CTClampSensor", sensor.Sensor, cg.PollingCom
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
+        CTClampSensor,
         unit_of_measurement=UNIT_AMPERE,
         accuracy_decimals=2,
         device_class=DEVICE_CLASS_CURRENT,
@@ -26,7 +26,6 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(CTClampSensor),
             cv.Required(CONF_SENSOR): cv.use_id(voltage_sampler.VoltageSampler),
             cv.Optional(
                 CONF_SAMPLE_DURATION, default="200ms"
@@ -38,9 +37,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
 
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_source(sens))

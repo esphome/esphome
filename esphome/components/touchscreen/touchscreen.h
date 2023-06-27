@@ -37,6 +37,7 @@ class Touchscreen {
     this->display_height_ = display->get_height_internal();
     this->rotation_ = static_cast<TouchRotation>(display->get_rotation());
   }
+  display::DisplayBuffer *get_display() const { return this->display_; }
 
   Trigger<TouchPoint> *get_touch_trigger() { return &this->touch_trigger_; }
 

@@ -52,13 +52,15 @@ RESTORE_MODES = {
     "ALWAYS_ON": LightRestoreMode.LIGHT_ALWAYS_ON,
     "RESTORE_INVERTED_DEFAULT_OFF": LightRestoreMode.LIGHT_RESTORE_INVERTED_DEFAULT_OFF,
     "RESTORE_INVERTED_DEFAULT_ON": LightRestoreMode.LIGHT_RESTORE_INVERTED_DEFAULT_ON,
+    "RESTORE_AND_OFF": LightRestoreMode.LIGHT_RESTORE_AND_OFF,
+    "RESTORE_AND_ON": LightRestoreMode.LIGHT_RESTORE_AND_ON,
 }
 
 LIGHT_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMMAND_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(LightState),
         cv.OnlyWith(CONF_MQTT_ID, "mqtt"): cv.declare_id(mqtt.MQTTJSONLightComponent),
-        cv.Optional(CONF_RESTORE_MODE, default="restore_default_off"): cv.enum(
+        cv.Optional(CONF_RESTORE_MODE, default="ALWAYS_OFF"): cv.enum(
             RESTORE_MODES, upper=True, space="_"
         ),
         cv.Optional(CONF_ON_TURN_ON): auto.validate_automation(

@@ -1,11 +1,10 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
+#include "esphome/core/time.h"
 
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
+#include <map>
+#include <vector>
 
 namespace esphome {
 namespace lcd_base {
@@ -18,6 +17,8 @@ class LCDDisplay : public PollingComponent {
     this->columns_ = columns;
     this->rows_ = rows;
   }
+
+  void set_user_defined_char(uint8_t pos, const std::vector<uint8_t> &data) { this->user_defined_chars_[pos] = data; }
 
   void setup() override;
   float get_setup_priority() const override;
@@ -39,13 +40,13 @@ class LCDDisplay : public PollingComponent {
   /// Evaluate the printf-format and print the text at column=0 and row=0.
   void printf(const char *format, ...) __attribute__((format(printf, 2, 3)));
 
-#ifdef USE_TIME
   /// Evaluate the strftime-format and print the text at the specified column and row.
-  void strftime(uint8_t column, uint8_t row, const char *format, time::ESPTime time)
-      __attribute__((format(strftime, 4, 0)));
+  void strftime(uint8_t column, uint8_t row, const char *format, ESPTime time) __attribute__((format(strftime, 4, 0)));
   /// Evaluate the strftime-format and print the text at column=0 and row=0.
-  void strftime(const char *format, time::ESPTime time) __attribute__((format(strftime, 2, 0)));
-#endif
+  void strftime(const char *format, ESPTime time) __attribute__((format(strftime, 2, 0)));
+
+  /// Load custom char to given location
+  void loadchar(uint8_t location, uint8_t charmap[]);
 
  protected:
   virtual bool is_four_bit_mode() = 0;
@@ -58,6 +59,7 @@ class LCDDisplay : public PollingComponent {
   uint8_t columns_;
   uint8_t rows_;
   uint8_t *buffer_{nullptr};
+  std::map<uint8_t, std::vector<uint8_t> > user_defined_chars_;
 };
 
 }  // namespace lcd_base

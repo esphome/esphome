@@ -39,17 +39,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
     if (request->method() == HTTP_GET) {
       if (request->url() == "/")
         return true;
-      if (request->url() == "/stylesheet.css")
-        return true;
-      if (request->url() == "/wifi-strength-1.svg")
-        return true;
-      if (request->url() == "/wifi-strength-2.svg")
-        return true;
-      if (request->url() == "/wifi-strength-3.svg")
-        return true;
-      if (request->url() == "/wifi-strength-4.svg")
-        return true;
-      if (request->url() == "/lock.svg")
+      if (request->url() == "/config.json")
         return true;
       if (request->url() == "/wifisave")
         return true;
@@ -58,7 +48,7 @@ class CaptivePortal : public AsyncWebHandler, public Component {
     return false;
   }
 
-  void handle_index(AsyncWebServerRequest *request);
+  void handle_config(AsyncWebServerRequest *request);
 
   void handle_wifisave(AsyncWebServerRequest *request);
 

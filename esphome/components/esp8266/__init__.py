@@ -17,11 +17,18 @@ import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.helpers import copy_file_if_changed
 
-from .const import CONF_RESTORE_FROM_FLASH, KEY_BOARD, KEY_ESP8266, esp8266_ns
-from .boards import ESP8266_FLASH_SIZES, ESP8266_LD_SCRIPTS
+from .const import (
+    CONF_RESTORE_FROM_FLASH,
+    CONF_EARLY_PIN_INIT,
+    KEY_BOARD,
+    KEY_ESP8266,
+    KEY_FLASH_SIZE,
+    KEY_PIN_INITIAL_STATES,
+    esp8266_ns,
+)
+from .boards import BOARDS, ESP8266_LD_SCRIPTS
 
-# force import gpio to register pin schema
-from .gpio import esp8266_pin_to_code  # noqa
+from .gpio import PinInitialState, add_pin_initial_states_array
 
 
 CODEOWNERS = ["@esphome/core"]
@@ -37,6 +44,9 @@ def set_core_data(config):
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
     CORE.data[KEY_ESP8266][KEY_BOARD] = config[CONF_BOARD]
+    CORE.data[KEY_ESP8266][KEY_PIN_INITIAL_STATES] = [
+        PinInitialState() for _ in range(16)
+    ]
     return config
 
 
@@ -115,7 +125,7 @@ def _parse_platform_version(value):
     try:
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
-        return f"platformio/espressif8266 @ {value}"
+        return f"platformio/espressif8266@{value}"
     except cv.Invalid:
         return value
 
@@ -140,6 +150,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_BOARD): cv.string_strict,
             cv.Optional(CONF_FRAMEWORK, default={}): ARDUINO_FRAMEWORK_SCHEMA,
             cv.Optional(CONF_RESTORE_FROM_FLASH, default=False): cv.boolean,
+            cv.Optional(CONF_EARLY_PIN_INIT, default=True): cv.boolean,
             cv.Optional(CONF_BOARD_FLASH_MODE, default="dout"): cv.one_of(
                 *BUILD_FLASH_MODES, lower=True
             ),
@@ -166,10 +177,11 @@ async def to_code(config):
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
     cg.add_build_flag("-DUSE_ESP8266_FRAMEWORK_ARDUINO")
+    cg.add_build_flag("-Wno-nonnull-compare")
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
-        [f"platformio/framework-arduinoespressif8266 @ {conf[CONF_SOURCE]}"],
+        [f"platformio/framework-arduinoespressif8266@{conf[CONF_SOURCE]}"],
     )
 
     # Default for platformio is LWIP2_LOW_MEMORY with:
@@ -188,6 +200,9 @@ async def to_code(config):
     if config[CONF_RESTORE_FROM_FLASH]:
         cg.add_define("USE_ESP8266_PREFERENCES_FLASH")
 
+    if config[CONF_EARLY_PIN_INIT]:
+        cg.add_define("USE_ESP8266_EARLY_PIN_INIT")
+
     # Arduino 2 has a non-standards conformant new that returns a nullptr instead of failing when
     # out of memory and exceptions are disabled. Since Arduino 2.6.0, this flag can be used to make
     # new abort instead. Use it so that OOM fails early (on allocation) instead of on dereference of
@@ -204,8 +219,8 @@ async def to_code(config):
         cg.RawExpression(f"VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"),
     )
 
-    if config[CONF_BOARD] in ESP8266_FLASH_SIZES:
-        flash_size = ESP8266_FLASH_SIZES[config[CONF_BOARD]]
+    if config[CONF_BOARD] in BOARDS:
+        flash_size = BOARDS[config[CONF_BOARD]][KEY_FLASH_SIZE]
         ld_scripts = ESP8266_LD_SCRIPTS[flash_size]
 
         if ver <= cv.Version(2, 3, 0):
@@ -220,10 +235,11 @@ async def to_code(config):
         if ld_script is not None:
             cg.add_platformio_option("board_build.ldscript", ld_script)
 
+    CORE.add_job(add_pin_initial_states_array)
+
 
 # Called by writer.py
 def copy_files():
-
     dir = os.path.dirname(__file__)
     post_build_file = os.path.join(dir, "post_build.py.script")
     copy_file_if_changed(

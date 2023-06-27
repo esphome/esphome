@@ -6,6 +6,8 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include <esp_idf_version.h>
 
+#include <vector>
+
 #if ESP_IDF_VERSION_MAJOR >= 4
 #include <driver/touch_sensor.h>
 #else

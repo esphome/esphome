@@ -2,6 +2,7 @@
 
 #ifdef USE_ESP32
 
+#include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
@@ -28,6 +29,14 @@ enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_1024X768,   // XGA
   ESP32_CAMERA_SIZE_1280X1024,  // SXGA
   ESP32_CAMERA_SIZE_1600X1200,  // UXGA
+  ESP32_CAMERA_SIZE_1920X1080,  // FHD
+  ESP32_CAMERA_SIZE_720X1280,   // PHD
+  ESP32_CAMERA_SIZE_864X1536,   // P3MP
+  ESP32_CAMERA_SIZE_2048X1536,  // QXGA
+  ESP32_CAMERA_SIZE_2560X1440,  // QHD
+  ESP32_CAMERA_SIZE_2560X1600,  // WQXGA
+  ESP32_CAMERA_SIZE_1080X1920,  // PFHD
+  ESP32_CAMERA_SIZE_2560X1920,  // QSXGA
 };
 
 enum ESP32AgcGainCeiling {
@@ -94,7 +103,6 @@ class CameraImageReader {
 /* ---------------- ESP32Camera class ---------------- */
 class ESP32Camera : public Component, public EntityBase {
  public:
-  ESP32Camera(const std::string &name);
   ESP32Camera();
 
   /* setters */
@@ -145,9 +153,11 @@ class ESP32Camera : public Component, public EntityBase {
   void request_image(CameraRequester requester);
   void update_camera_parameters();
 
+  void add_stream_start_callback(std::function<void()> &&callback);
+  void add_stream_stop_callback(std::function<void()> &&callback);
+
  protected:
   /* internal methods */
-  uint32_t hash_base() override;
   bool has_requested_image_() const;
   bool can_return_image_() const;
 
@@ -187,6 +197,8 @@ class ESP32Camera : public Component, public EntityBase {
   QueueHandle_t framebuffer_get_queue_;
   QueueHandle_t framebuffer_return_queue_;
   CallbackManager<void(std::shared_ptr<CameraImage>)> new_image_callback_;
+  CallbackManager<void()> stream_start_callback_{};
+  CallbackManager<void()> stream_stop_callback_{};
 
   uint32_t last_idle_request_{0};
   uint32_t last_update_{0};
@@ -194,6 +206,23 @@ class ESP32Camera : public Component, public EntityBase {
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 extern ESP32Camera *global_esp32_camera;
+
+class ESP32CameraStreamStartTrigger : public Trigger<> {
+ public:
+  explicit ESP32CameraStreamStartTrigger(ESP32Camera *parent) {
+    parent->add_stream_start_callback([this]() { this->trigger(); });
+  }
+
+ protected:
+};
+class ESP32CameraStreamStopTrigger : public Trigger<> {
+ public:
+  explicit ESP32CameraStreamStopTrigger(ESP32Camera *parent) {
+    parent->add_stream_stop_callback([this]() { this->trigger(); });
+  }
+
+ protected:
+};
 
 }  // namespace esp32_camera
 }  // namespace esphome

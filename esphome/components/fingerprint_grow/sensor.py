@@ -14,7 +14,6 @@ from esphome.const import (
     ICON_DATABASE,
     ICON_FINGERPRINT,
     ICON_SECURITY,
-    STATE_CLASS_NONE,
 )
 from . import CONF_FINGERPRINT_GROW_ID, FingerprintGrowComponent
 
@@ -26,36 +25,30 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_FINGERPRINT_COUNT): sensor.sensor_schema(
             icon=ICON_FINGERPRINT,
             accuracy_decimals=0,
-            state_class=STATE_CLASS_NONE,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_STATUS): sensor.sensor_schema(
             accuracy_decimals=0,
-            state_class=STATE_CLASS_NONE,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_CAPACITY): sensor.sensor_schema(
             icon=ICON_DATABASE,
             accuracy_decimals=0,
-            state_class=STATE_CLASS_NONE,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_SECURITY_LEVEL): sensor.sensor_schema(
             icon=ICON_SECURITY,
             accuracy_decimals=0,
-            state_class=STATE_CLASS_NONE,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_LAST_FINGER_ID): sensor.sensor_schema(
             icon=ICON_ACCOUNT,
             accuracy_decimals=0,
-            state_class=STATE_CLASS_NONE,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
         cv.Optional(CONF_LAST_CONFIDENCE): sensor.sensor_schema(
             icon=ICON_ACCOUNT_CHECK,
             accuracy_decimals=0,
-            state_class=STATE_CLASS_NONE,
             entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
         ),
     }

@@ -1,7 +1,9 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/esp32_ble_tracker/esp32_ble_tracker.h"
+#include "esphome/core/component.h"
+
+#include <vector>
 
 #ifdef USE_ESP32
 
@@ -25,7 +27,8 @@ struct XiaomiParseResult {
     TYPE_MJYD02YLA,
     TYPE_MHOC303,
     TYPE_MHOC401,
-    TYPE_CGPR1
+    TYPE_CGPR1,
+    TYPE_RTCGQ02LM,
   } type;
   std::string name;
   optional<float> temperature;
@@ -40,6 +43,7 @@ struct XiaomiParseResult {
   optional<bool> is_active;
   optional<bool> has_motion;
   optional<bool> is_light;
+  optional<bool> button_press;
   bool has_data;        // 0x40
   bool has_capability;  // 0x20
   bool has_encryption;  // 0x08
@@ -61,7 +65,7 @@ struct XiaomiAESVector {
   size_t ivsize;
 };
 
-bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result);
+bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result);
 bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult &result);
 optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::ServiceData &service_data);
 bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, const uint64_t &address);

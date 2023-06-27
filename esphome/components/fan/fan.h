@@ -16,13 +16,6 @@ namespace fan {
     (obj)->dump_traits_(TAG, prefix); \
   }
 
-/// Simple enum to represent the speed of a fan. - DEPRECATED - Will be deleted soon
-enum ESPDEPRECATED("FanSpeed is deprecated.", "2021.9") FanSpeed {
-  FAN_SPEED_LOW = 0,     ///< The fan is running on low speed.
-  FAN_SPEED_MEDIUM = 1,  ///< The fan is running on medium speed.
-  FAN_SPEED_HIGH = 2     ///< The fan is running on high/full speed.
-};
-
 /// Simple enum to represent the direction of a fan.
 enum class FanDirection { FORWARD = 0, REVERSE = 1 };
 
@@ -106,10 +99,6 @@ struct FanRestoreState {
 
 class Fan : public EntityBase {
  public:
-  Fan();
-  /// Construct the fan with name.
-  explicit Fan(const std::string &name);
-
   /// The current on/off state of the fan.
   bool state{false};
   /// The current oscillation state of the fan.
@@ -143,7 +132,6 @@ class Fan : public EntityBase {
   void save_state_();
 
   void dump_traits_(const char *tag, const char *prefix);
-  uint32_t hash_base() override;
 
   CallbackManager<void()> state_callback_{};
   ESPPreferenceObject rtc_;

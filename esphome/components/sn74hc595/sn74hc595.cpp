@@ -28,24 +28,21 @@ void SN74HC595Component::setup() {
 
 void SN74HC595Component::dump_config() { ESP_LOGCONFIG(TAG, "SN74HC595:"); }
 
-bool SN74HC595Component::digital_read_(uint8_t pin) { return this->output_bits_ >> pin; }
-
-void SN74HC595Component::digital_write_(uint8_t pin, bool value) {
-  uint32_t mask = 1UL << pin;
-  this->output_bits_ &= ~mask;
-  if (value)
-    this->output_bits_ |= mask;
+void SN74HC595Component::digital_write_(uint16_t pin, bool value) {
+  if (pin >= this->sr_count_ * 8) {
+    ESP_LOGE(TAG, "Pin %u is out of range! Maximum pin number with %u chips in series is %u", pin, this->sr_count_,
+             (this->sr_count_ * 8) - 1);
+    return;
+  }
+  this->output_bits_[pin] = value;
   this->write_gpio_();
 }
 
-bool SN74HC595Component::write_gpio_() {
-  for (int i = this->sr_count_ - 1; i >= 0; i--) {
-    uint8_t data = (uint8_t)(this->output_bits_ >> (8 * i) & 0xff);
-    for (int j = 0; j < 8; j++) {
-      this->data_pin_->digital_write(data & (1 << (7 - j)));
-      this->clock_pin_->digital_write(true);
-      this->clock_pin_->digital_write(false);
-    }
+void SN74HC595Component::write_gpio_() {
+  for (auto bit = this->output_bits_.rbegin(); bit != this->output_bits_.rend(); bit++) {
+    this->data_pin_->digital_write(*bit);
+    this->clock_pin_->digital_write(true);
+    this->clock_pin_->digital_write(false);
   }
 
   // pulse latch to activate new values
@@ -56,8 +53,6 @@ bool SN74HC595Component::write_gpio_() {
   if (this->have_oe_pin_) {
     this->oe_pin_->digital_write(false);
   }
-
-  return true;
 }
 
 float SN74HC595Component::get_setup_priority() const { return setup_priority::IO; }

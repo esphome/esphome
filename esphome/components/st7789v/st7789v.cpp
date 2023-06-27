@@ -8,6 +8,10 @@ static const char *const TAG = "st7789v";
 
 void ST7789V::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI ST7789V...");
+#ifdef USE_POWER_SUPPLY
+  this->power_.request();
+  // the PowerSupply component takes care of post turn-on delay
+#endif
   this->spi_setup();
   this->dc_pin_->setup();  // OUTPUT
 
@@ -102,7 +106,7 @@ void ST7789V::setup() {
   this->write_command_(ST7789_INVON);
 
   // Clear display - ensures we do not see garbage at power-on
-  this->draw_filled_rect_(0, 0, 239, 319, 0x0000);
+  this->draw_filled_rect_(0, 0, this->get_width_internal(), this->get_height_internal(), 0x0000);
 
   delay(120);  // NOLINT
 
@@ -117,11 +121,20 @@ void ST7789V::setup() {
 
 void ST7789V::dump_config() {
   LOG_DISPLAY("", "SPI ST7789V", this);
+  ESP_LOGCONFIG(TAG, "  Model: %s", this->model_str_());
+  if (this->model_ == ST7789V_MODEL_CUSTOM) {
+    ESP_LOGCONFIG(TAG, "  Height Offset: %u", this->offset_height_);
+    ESP_LOGCONFIG(TAG, "  Width Offset: %u", this->offset_width_);
+  }
+  ESP_LOGCONFIG(TAG, "  8-bit color mode: %s", YESNO(this->eightbitcolor_));
   LOG_PIN("  CS Pin: ", this->cs_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  B/L Pin: ", this->backlight_pin_);
   LOG_UPDATE_INTERVAL(this);
+#ifdef USE_POWER_SUPPLY
+  ESP_LOGCONFIG(TAG, "  Power Supply Configured: yes");
+#endif
 }
 
 float ST7789V::get_setup_priority() const { return setup_priority::PROCESSOR; }
@@ -131,13 +144,48 @@ void ST7789V::update() {
   this->write_display_data();
 }
 
-void ST7789V::loop() {}
+void ST7789V::set_model(ST7789VModel model) {
+  this->model_ = model;
+
+  switch (this->model_) {
+    case ST7789V_MODEL_TTGO_TDISPLAY_135_240:
+      this->height_ = 240;
+      this->width_ = 135;
+      this->offset_height_ = 52;
+      this->offset_width_ = 40;
+      break;
+
+    case ST7789V_MODEL_ADAFRUIT_FUNHOUSE_240_240:
+      this->height_ = 240;
+      this->width_ = 240;
+      this->offset_height_ = 0;
+      this->offset_width_ = 0;
+      break;
+
+    case ST7789V_MODEL_ADAFRUIT_RR_280_240:
+      this->height_ = 280;
+      this->width_ = 240;
+      this->offset_height_ = 0;
+      this->offset_width_ = 20;
+      break;
+
+    case ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135:
+      this->height_ = 240;
+      this->width_ = 135;
+      this->offset_height_ = 52;
+      this->offset_width_ = 40;
+      break;
+
+    default:
+      break;
+  }
+}
 
 void ST7789V::write_display_data() {
-  uint16_t x1 = 52;   // _offsetx
-  uint16_t x2 = 186;  // _offsetx
-  uint16_t y1 = 40;   // _offsety
-  uint16_t y2 = 279;  // _offsety
+  uint16_t x1 = this->offset_height_;
+  uint16_t x2 = x1 + get_width_internal() - 1;
+  uint16_t y1 = this->offset_width_;
+  uint16_t y2 = y1 + get_height_internal() - 1;
 
   this->enable();
 
@@ -156,7 +204,19 @@ void ST7789V::write_display_data() {
   this->write_byte(ST7789_RAMWR);
   this->dc_pin_->digital_write(true);
 
-  this->write_array(this->buffer_, this->get_buffer_length_());
+  if (this->eightbitcolor_) {
+    for (int line = 0; line < this->get_buffer_length_(); line = line + this->get_width_internal()) {
+      for (int index = 0; index < this->get_width_internal(); ++index) {
+        auto color = display::ColorUtil::color_to_565(
+            display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
+                                         display::ColorBitness::COLOR_BITNESS_332, true));
+        this->write_byte((color >> 8) & 0xff);
+        this->write_byte(color & 0xff);
+      }
+    }
+  } else {
+    this->write_array(this->buffer_, this->get_buffer_length_());
+  }
 
   this->disable();
 }
@@ -219,15 +279,10 @@ void ST7789V::write_color_(uint16_t color, uint16_t size) {
   return write_array(byte, size * 2);
 }
 
-int ST7789V::get_height_internal() {
-  return 240;  // 320;
-}
-
-int ST7789V::get_width_internal() {
-  return 135;  // 240;
-}
-
 size_t ST7789V::get_buffer_length_() {
+  if (this->eightbitcolor_) {
+    return size_t(this->get_width_internal()) * size_t(this->get_height_internal());
+  }
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) * 2;
 }
 
@@ -238,7 +293,6 @@ size_t ST7789V::get_buffer_length_() {
 // y2: End Y coordinate
 // color: color
 void ST7789V::draw_filled_rect_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t y2, uint16_t color) {
-  // ESP_LOGD(TAG,"offset(x)=%d offset(y)=%d",dev->_offsetx,dev->_offsety);
   this->enable();
   this->dc_pin_->digital_write(false);
   this->write_byte(ST7789_CASET);  // set column(x) address
@@ -263,11 +317,31 @@ void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
-  auto color565 = display::ColorUtil::color_to_565(color);
+  if (this->eightbitcolor_) {
+    auto color332 = display::ColorUtil::color_to_332(color);
+    uint32_t pos = (x + y * this->get_width_internal());
+    this->buffer_[pos] = color332;
+  } else {
+    auto color565 = display::ColorUtil::color_to_565(color);
+    uint32_t pos = (x + y * this->get_width_internal()) * 2;
+    this->buffer_[pos++] = (color565 >> 8) & 0xff;
+    this->buffer_[pos] = color565 & 0xff;
+  }
+}
 
-  uint16_t pos = (x + y * this->get_width_internal()) * 2;
-  this->buffer_[pos++] = (color565 >> 8) & 0xff;
-  this->buffer_[pos] = color565 & 0xff;
+const char *ST7789V::model_str_() {
+  switch (this->model_) {
+    case ST7789V_MODEL_TTGO_TDISPLAY_135_240:
+      return "TTGO T-Display 135x240";
+    case ST7789V_MODEL_ADAFRUIT_FUNHOUSE_240_240:
+      return "Adafruit Funhouse 240x240";
+    case ST7789V_MODEL_ADAFRUIT_RR_280_240:
+      return "Adafruit Round-Rectangular 280x240";
+    case ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135:
+      return "Adafruit ESP32-S2 TFT Feather";
+    default:
+      return "Custom";
+  }
 }
 
 }  // namespace st7789v

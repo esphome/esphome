@@ -13,6 +13,7 @@ enum SSD1306Model {
   SSD1306_MODEL_96_16,
   SSD1306_MODEL_64_48,
   SSD1306_MODEL_64_32,
+  SSD1306_MODEL_72_40,
   SH1106_MODEL_128_32,
   SH1106_MODEL_128_64,
   SH1106_MODEL_96_16,
@@ -47,6 +48,8 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void turn_off();
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void fill(Color color) override;
+
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
 
  protected:
   virtual void command(uint8_t value) = 0;

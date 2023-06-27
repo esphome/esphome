@@ -77,6 +77,7 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+venv-*/
 
 # mypy
 .mypy_cache/
@@ -127,3 +128,5 @@ tests/.esphome/
 
 sdkconfig.*
 !sdkconfig.defaults
+
+.tests/

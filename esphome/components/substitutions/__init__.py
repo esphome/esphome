@@ -1,18 +1,13 @@
 import logging
-import re
 
 import esphome.config_validation as cv
 from esphome import core
-from esphome.const import CONF_SUBSTITUTIONS
+from esphome.const import CONF_SUBSTITUTIONS, VALID_SUBSTITUTIONS_CHARACTERS
 from esphome.yaml_util import ESPHomeDataBase, make_data_base
 from esphome.config_helpers import merge_config
 
 CODEOWNERS = ["@esphome/core"]
 _LOGGER = logging.getLogger(__name__)
-
-VALID_SUBSTITUTIONS_CHARACTERS = (
-    "abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789_"
-)
 
 
 def validate_substitution_key(value):
@@ -42,13 +37,7 @@ async def to_code(config):
     pass
 
 
-# pylint: disable=consider-using-f-string
-VARIABLE_PROG = re.compile(
-    "\\$([{0}]+|\\{{[{0}]*\\}})".format(VALID_SUBSTITUTIONS_CHARACTERS)
-)
-
-
-def _expand_substitutions(substitutions, value, path):
+def _expand_substitutions(substitutions, value, path, ignore_missing):
     if "$" not in value:
         return value
 
@@ -56,7 +45,7 @@ def _expand_substitutions(substitutions, value, path):
 
     i = 0
     while True:
-        m = VARIABLE_PROG.search(value, i)
+        m = cv.VARIABLE_PROG.search(value, i)
         if not m:
             # Nothing more to match. Done
             break
@@ -66,13 +55,14 @@ def _expand_substitutions(substitutions, value, path):
         if name.startswith("{") and name.endswith("}"):
             name = name[1:-1]
         if name not in substitutions:
-            _LOGGER.warning(
-                "Found '%s' (see %s) which looks like a substitution, but '%s' was "
-                "not declared",
-                orig_value,
-                "->".join(str(x) for x in path),
-                name,
-            )
+            if not ignore_missing and "password" not in path:
+                _LOGGER.warning(
+                    "Found '%s' (see %s) which looks like a substitution, but '%s' was "
+                    "not declared",
+                    orig_value,
+                    "->".join(str(x) for x in path),
+                    name,
+                )
             i = j
             continue
 
@@ -92,37 +82,37 @@ def _expand_substitutions(substitutions, value, path):
     return value
 
 
-def _substitute_item(substitutions, item, path):
+def _substitute_item(substitutions, item, path, ignore_missing):
     if isinstance(item, list):
         for i, it in enumerate(item):
-            sub = _substitute_item(substitutions, it, path + [i])
+            sub = _substitute_item(substitutions, it, path + [i], ignore_missing)
             if sub is not None:
                 item[i] = sub
     elif isinstance(item, dict):
         replace_keys = []
         for k, v in item.items():
             if path or k != CONF_SUBSTITUTIONS:
-                sub = _substitute_item(substitutions, k, path + [k])
+                sub = _substitute_item(substitutions, k, path + [k], ignore_missing)
                 if sub is not None:
                     replace_keys.append((k, sub))
-            sub = _substitute_item(substitutions, v, path + [k])
+            sub = _substitute_item(substitutions, v, path + [k], ignore_missing)
             if sub is not None:
                 item[k] = sub
         for old, new in replace_keys:
             item[new] = merge_config(item.get(old), item.get(new))
             del item[old]
     elif isinstance(item, str):
-        sub = _expand_substitutions(substitutions, item, path)
+        sub = _expand_substitutions(substitutions, item, path, ignore_missing)
         if sub != item:
             return sub
     elif isinstance(item, core.Lambda):
-        sub = _expand_substitutions(substitutions, item.value, path)
+        sub = _expand_substitutions(substitutions, item.value, path, ignore_missing)
         if sub != item:
             item.value = sub
     return None
 
 
-def do_substitution_pass(config, command_line_substitutions):
+def do_substitution_pass(config, command_line_substitutions, ignore_missing=False):
     if CONF_SUBSTITUTIONS not in config and not command_line_substitutions:
         return
 
@@ -151,4 +141,4 @@ def do_substitution_pass(config, command_line_substitutions):
     config[CONF_SUBSTITUTIONS] = substitutions
     # Move substitutions to the first place to replace substitutions in them correctly
     config.move_to_end(CONF_SUBSTITUTIONS, False)
-    _substitute_item(substitutions, config, [])
+    _substitute_item(substitutions, config, [], ignore_missing)

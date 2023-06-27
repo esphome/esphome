@@ -47,8 +47,20 @@ bool InitialStateIterator::on_select(select::Select *select) {
   return this->client_->send_select_state(select, select->state);
 }
 #endif
-InitialStateIterator::InitialStateIterator(APIServer *server, APIConnection *client)
-    : ComponentIterator(server), client_(client) {}
+#ifdef USE_LOCK
+bool InitialStateIterator::on_lock(lock::Lock *a_lock) { return this->client_->send_lock_state(a_lock, a_lock->state); }
+#endif
+#ifdef USE_MEDIA_PLAYER
+bool InitialStateIterator::on_media_player(media_player::MediaPlayer *media_player) {
+  return this->client_->send_media_player_state(media_player);
+}
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+bool InitialStateIterator::on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+  return this->client_->send_alarm_control_panel_state(a_alarm_control_panel);
+}
+#endif
+InitialStateIterator::InitialStateIterator(APIConnection *client) : client_(client) {}
 
 }  // namespace api
 }  // namespace esphome

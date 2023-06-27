@@ -4,6 +4,8 @@
 #include "esphome/components/i2c/i2c.h"
 #include "esphome/components/binary_sensor/binary_sensor.h"
 
+#include <vector>
+
 namespace esphome {
 namespace mpr121 {
 

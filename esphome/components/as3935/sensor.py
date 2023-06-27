@@ -4,7 +4,6 @@ from esphome.components import sensor
 from esphome.const import (
     CONF_DISTANCE,
     CONF_LIGHTNING_ENERGY,
-    STATE_CLASS_NONE,
     UNIT_KILOMETER,
     ICON_SIGNAL_DISTANCE_VARIANT,
     ICON_FLASH,
@@ -20,12 +19,10 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_KILOMETER,
             icon=ICON_SIGNAL_DISTANCE_VARIANT,
             accuracy_decimals=1,
-            state_class=STATE_CLASS_NONE,
         ),
         cv.Optional(CONF_LIGHTNING_ENERGY): sensor.sensor_schema(
             icon=ICON_FLASH,
             accuracy_decimals=1,
-            state_class=STATE_CLASS_NONE,
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)

@@ -46,6 +46,14 @@ class ESPPreferences {
    */
   virtual bool sync() = 0;
 
+  /**
+   * Forget all unsaved changes and re-initialize the permanent preferences storage.
+   * Usually followed by a restart which moves the system to "factory" conditions
+   *
+   * @return true if operation is successful.
+   */
+  virtual bool reset() = 0;
+
   template<typename T, enable_if_t<is_trivially_copyable<T>::value, bool> = true>
   ESPPreferenceObject make_preference(uint32_t type, bool in_flash) {
     return this->make_preference(sizeof(T), type, in_flash);

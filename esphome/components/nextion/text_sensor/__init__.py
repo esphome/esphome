@@ -17,11 +17,7 @@ NextionTextSensor = nextion_ns.class_(
 )
 
 CONFIG_SCHEMA = (
-    text_sensor.TEXT_SENSOR_SCHEMA.extend(
-        {
-            cv.GenerateID(): cv.declare_id(NextionTextSensor),
-        }
-    )
+    text_sensor.text_sensor_schema(NextionTextSensor)
     .extend(CONFIG_TEXT_COMPONENT_SCHEMA)
     .extend(cv.polling_component_schema("never"))
 )
@@ -30,8 +26,8 @@ CONFIG_SCHEMA = (
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_NEXTION_ID])
     var = cg.new_Pvariable(config[CONF_ID], hub)
-    await cg.register_component(var, config)
     await text_sensor.register_text_sensor(var, config)
+    await cg.register_component(var, config)
 
     cg.add(hub.register_textsensor_component(var))
 

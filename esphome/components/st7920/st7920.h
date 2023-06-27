@@ -29,6 +29,8 @@ class ST7920 : public PollingComponent,
   void fill(Color color) override;
   void write_display_data();
 
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
+
  protected:
   void draw_absolute_pixel_internal(int x, int y, Color color) override;
   int get_height_internal() override;

@@ -6,9 +6,6 @@ namespace text_sensor {
 
 static const char *const TAG = "text_sensor";
 
-TextSensor::TextSensor() : TextSensor("") {}
-TextSensor::TextSensor(const std::string &name) : EntityBase(name) {}
-
 void TextSensor::publish_state(const std::string &state) {
   this->raw_state = state;
   this->raw_callback_.call(state);
@@ -70,7 +67,6 @@ void TextSensor::internal_send_state_to_frontend(const std::string &state) {
 
 std::string TextSensor::unique_id() { return ""; }
 bool TextSensor::has_state() { return this->has_state_; }
-uint32_t TextSensor::hash_base() { return 334300109UL; }
 
 }  // namespace text_sensor
 }  // namespace esphome

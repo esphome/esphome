@@ -4,8 +4,11 @@ import esphome.codegen as cg
 from esphome.components import display
 from esphome import automation
 from esphome.const import CONF_ON_TOUCH
+from esphome.core import coroutine_with_priority
 
 CODEOWNERS = ["@jesserockz"]
+DEPENDENCIES = ["display"]
+
 IS_PLATFORM_COMPONENT = True
 
 touchscreen_ns = cg.esphome_ns.namespace("touchscreen")
@@ -37,3 +40,9 @@ async def register_touchscreen(var, config):
             [(TouchPoint, "touch")],
             config[CONF_ON_TOUCH],
         )
+
+
+@coroutine_with_priority(100.0)
+async def to_code(config):
+    cg.add_global(touchscreen_ns.using)
+    cg.add_define("USE_TOUCHSCREEN")

@@ -8,7 +8,6 @@ from esphome.const import (
     CONF_PIN,
     CONF_WIND_DIRECTION_DEGREES,
     STATE_CLASS_MEASUREMENT,
-    STATE_CLASS_NONE,
     UNIT_KILOMETER_PER_HOUR,
     ICON_WEATHER_WINDY,
     ICON_SIGN_DIRECTION,
@@ -31,7 +30,6 @@ CONFIG_SCHEMA = cv.Schema(
             unit_of_measurement=UNIT_DEGREES,
             icon=ICON_SIGN_DIRECTION,
             accuracy_decimals=1,
-            state_class=STATE_CLASS_NONE,
         ),
         cv.Required(CONF_PIN): cv.All(pins.internal_gpio_input_pin_schema),
     }

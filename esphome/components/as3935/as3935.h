@@ -1,9 +1,14 @@
 #pragma once
 
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
+#endif
+#ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
 namespace esphome {
 namespace as3935 {
@@ -52,6 +57,15 @@ enum AS3935Values {
 };
 
 class AS3935Component : public Component {
+#ifdef USE_SENSOR
+  SUB_SENSOR(distance)
+  SUB_SENSOR(energy)
+#endif
+
+#ifdef USE_BINARY_SENSOR
+  SUB_BINARY_SENSOR(thunder_alert)
+#endif
+
  public:
   void setup() override;
   void dump_config() override;
@@ -59,11 +73,7 @@ class AS3935Component : public Component {
   void loop() override;
 
   void set_irq_pin(GPIOPin *irq_pin) { irq_pin_ = irq_pin; }
-  void set_distance_sensor(sensor::Sensor *distance_sensor) { distance_sensor_ = distance_sensor; }
-  void set_energy_sensor(sensor::Sensor *energy_sensor) { energy_sensor_ = energy_sensor; }
-  void set_thunder_alert_binary_sensor(binary_sensor::BinarySensor *thunder_alert_binary_sensor) {
-    thunder_alert_binary_sensor_ = thunder_alert_binary_sensor;
-  }
+
   void set_indoor(bool indoor) { indoor_ = indoor; }
   void write_indoor(bool indoor);
   void set_noise_level(uint8_t noise_level) { noise_level_ = noise_level; }
@@ -92,9 +102,6 @@ class AS3935Component : public Component {
 
   virtual void write_register(uint8_t reg, uint8_t mask, uint8_t bits, uint8_t start_position) = 0;
 
-  sensor::Sensor *distance_sensor_;
-  sensor::Sensor *energy_sensor_;
-  binary_sensor::BinarySensor *thunder_alert_binary_sensor_;
   GPIOPin *irq_pin_;
 
   bool indoor_;

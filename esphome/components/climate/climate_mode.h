@@ -62,6 +62,8 @@ enum ClimateFanMode : uint8_t {
   CLIMATE_FAN_FOCUS = 7,
   /// The fan mode is set to Diffuse
   CLIMATE_FAN_DIFFUSE = 8,
+  /// The fan mode is set to Quiet
+  CLIMATE_FAN_QUIET = 9,
 };
 
 /// Enum for all modes a climate swing can be in
@@ -76,7 +78,7 @@ enum ClimateSwingMode : uint8_t {
   CLIMATE_SWING_HORIZONTAL = 3,
 };
 
-/// Enum for all modes a climate swing can be in
+/// Enum for all preset modes
 enum ClimatePreset : uint8_t {
   /// No preset is active
   CLIMATE_PRESET_NONE = 0,
@@ -108,7 +110,7 @@ const LogString *climate_fan_mode_to_string(ClimateFanMode mode);
 /// Convert the given ClimateSwingMode to a human-readable string.
 const LogString *climate_swing_mode_to_string(ClimateSwingMode mode);
 
-/// Convert the given ClimateSwingMode to a human-readable string.
+/// Convert the given PresetMode to a human-readable string.
 const LogString *climate_preset_to_string(ClimatePreset preset);
 
 }  // namespace climate

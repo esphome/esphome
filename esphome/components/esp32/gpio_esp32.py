@@ -42,7 +42,7 @@ def esp32_validate_gpio_pin(value):
             "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
             value,
         )
-    if value in (20, 24, 28, 29, 30, 31):
+    if value in (24, 28, 29, 30, 31):
         # These pins are not exposed in GPIO mux (reason unknown)
         # but they're missing from IO_MUX list in datasheet
         raise cv.Invalid(f"The pin GPIO{value} is not usable on ESP32s.")

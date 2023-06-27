@@ -1,3 +1,10 @@
+#pragma once
+
+#include "esphome/core/component.h"
+#include "esphome/components/rc522/rc522.h"
+#include "esphome/components/spi/spi.h"
+
+namespace esphome {
 /**
  * Library based on https://github.com/miguelbalboa/rfid
  * and adapted to ESPHome by @glmnet
@@ -6,14 +13,6 @@
  *
  *
  */
-
-#pragma once
-
-#include "esphome/core/component.h"
-#include "esphome/components/rc522/rc522.h"
-#include "esphome/components/spi/spi.h"
-
-namespace esphome {
 namespace rc522_spi {
 
 class RC522Spi : public rc522::RC522,

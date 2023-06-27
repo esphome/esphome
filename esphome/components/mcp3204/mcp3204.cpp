@@ -20,7 +20,7 @@ void MCP3204::dump_config() {
 }
 
 float MCP3204::read_data(uint8_t pin) {
-  uint8_t adc_primary_config = 0b00000110 & 0b00000111;
+  uint8_t adc_primary_config = 0b00000110 | (pin >> 2);
   uint8_t adc_secondary_config = pin << 6;
   this->enable();
   this->transfer_byte(adc_primary_config);

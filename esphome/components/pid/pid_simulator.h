@@ -5,6 +5,8 @@
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/output/float_output.h"
 
+#include <vector>
+
 namespace esphome {
 namespace pid {
 

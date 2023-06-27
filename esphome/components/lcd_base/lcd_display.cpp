@@ -65,6 +65,13 @@ void LCDDisplay::setup() {
     this->command_(LCD_DISPLAY_COMMAND_FUNCTION_SET | display_function);
   }
 
+  // store user defined characters
+  for (auto &user_defined_char : this->user_defined_chars_) {
+    this->command_(LCD_DISPLAY_COMMAND_SET_CGRAM_ADDR | (user_defined_char.first << 3));
+    for (auto data : user_defined_char.second)
+      this->send(data, true);
+  }
+
   this->command_(LCD_DISPLAY_COMMAND_FUNCTION_SET | display_function);
   uint8_t display_control = LCD_DISPLAY_DISPLAY_ON;
   this->command_(LCD_DISPLAY_COMMAND_DISPLAY_CONTROL | display_control);
@@ -151,15 +158,20 @@ void LCDDisplay::clear() {
   for (uint8_t i = 0; i < this->rows_ * this->columns_; i++)
     this->buffer_[i] = ' ';
 }
-#ifdef USE_TIME
-void LCDDisplay::strftime(uint8_t column, uint8_t row, const char *format, time::ESPTime time) {
+void LCDDisplay::strftime(uint8_t column, uint8_t row, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     this->print(column, row, buffer);
 }
-void LCDDisplay::strftime(const char *format, time::ESPTime time) { this->strftime(0, 0, format, time); }
-#endif
+void LCDDisplay::strftime(const char *format, ESPTime time) { this->strftime(0, 0, format, time); }
+void LCDDisplay::loadchar(uint8_t location, uint8_t charmap[]) {
+  location &= 0x7;  // we only have 8 locations 0-7
+  this->command_(LCD_DISPLAY_COMMAND_SET_CGRAM_ADDR | (location << 3));
+  for (int i = 0; i < 8; i++) {
+    this->send(charmap[i], true);
+  }
+}
 
 }  // namespace lcd_base
 }  // namespace esphome

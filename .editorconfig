@@ -25,10 +25,9 @@ indent_size = 2
 [*.{yaml,yml}]
 indent_style = space
 indent_size = 2
-quote_type = single
+quote_type = double
 
 # JSON
 [*.json]
 indent_style = space
 indent_size = 2
-

@@ -38,9 +38,17 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   std::string unique_id() override;
 #endif
 
+#ifdef USE_RP2040
+  void set_is_temperature() { is_temperature_ = true; }
+#endif
+
  protected:
   InternalGPIOPin *pin_;
   bool output_raw_{false};
+
+#ifdef USE_RP2040
+  bool is_temperature_{false};
+#endif
 
 #ifdef USE_ESP32
   adc_atten_t attenuation_{ADC_ATTEN_DB_0};

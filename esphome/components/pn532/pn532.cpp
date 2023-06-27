@@ -19,9 +19,12 @@ void PN532::setup() {
 
   // Get version data
   if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
-    ESP_LOGE(TAG, "Error sending version command");
-    this->mark_failed();
-    return;
+    ESP_LOGW(TAG, "Error sending version command, trying again...");
+    if (!this->write_command_({PN532_COMMAND_VERSION_DATA})) {
+      ESP_LOGE(TAG, "Error sending version command");
+      this->mark_failed();
+      return;
+    }
   }
 
   std::vector<uint8_t> version_data;
@@ -78,7 +81,32 @@ void PN532::setup() {
   this->turn_off_rf_();
 }
 
+bool PN532::powerdown() {
+  updates_enabled_ = false;
+  requested_read_ = false;
+  ESP_LOGI(TAG, "Powering down PN532");
+  if (!this->write_command_({PN532_COMMAND_POWERDOWN, 0b10100000})) {  // enable i2c,spi wakeup
+    ESP_LOGE(TAG, "Error writing powerdown command to PN532");
+    return false;
+  }
+  std::vector<uint8_t> response;
+  if (!this->read_response(PN532_COMMAND_POWERDOWN, response)) {
+    ESP_LOGE(TAG, "Error reading PN532 powerdown response");
+    return false;
+  }
+  if (response[0] != 0x00) {
+    ESP_LOGE(TAG, "Error on PN532 powerdown: %02x", response[0]);
+    return false;
+  }
+  ESP_LOGV(TAG, "Powerdown successful");
+  delay(1);
+  return true;
+}
+
 void PN532::update() {
+  if (!updates_enabled_)
+    return;
+
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
 
@@ -144,9 +172,9 @@ void PN532::loop() {
   }
 
   if (nfcid.size() == this->current_uid_.size()) {
-    bool same_uid = false;
+    bool same_uid = true;
     for (size_t i = 0; i < nfcid.size(); i++)
-      same_uid |= nfcid[i] == this->current_uid_[i];
+      same_uid &= nfcid[i] == this->current_uid_[i];
     if (same_uid)
       return;
   }
@@ -375,9 +403,6 @@ bool PN532BinarySensor::process(std::vector<uint8_t> &data) {
   this->publish_state(true);
   this->found_ = true;
   return true;
-}
-void PN532OnTagTrigger::process(const std::unique_ptr<nfc::NfcTag> &tag) {
-  this->trigger(nfc::format_uid(tag->get_uid()), *tag);
 }
 
 }  // namespace pn532

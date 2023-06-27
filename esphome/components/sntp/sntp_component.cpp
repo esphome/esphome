@@ -10,6 +10,9 @@
 #ifdef USE_ESP8266
 #include "sntp.h"
 #endif
+#ifdef USE_RP2040
+#include "lwip/apps/sntp.h"
+#endif
 
 // Yes, the server names are leaked, but that's fine.
 #ifdef CLANG_TIDY

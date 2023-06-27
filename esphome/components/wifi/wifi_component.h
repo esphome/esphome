@@ -5,7 +5,9 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 #include "esphome/components/network/ip_address.h"
+
 #include <string>
+#include <vector>
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
 #include <esp_wifi.h>
@@ -24,6 +26,16 @@ extern "C" {
 #endif
 #endif
 
+#ifdef USE_RP2040
+extern "C" {
+#include "cyw43.h"
+#include "cyw43_country.h"
+#include "pico/cyw43_arch.h"
+}
+
+#include <WiFi.h>
+#endif
+
 namespace esphome {
 namespace wifi {
 
@@ -35,6 +47,8 @@ struct SavedWifiSettings {
 enum WiFiComponentState {
   /** Nothing has been initialized yet. Internal AP, if configured, is disabled at this point. */
   WIFI_COMPONENT_STATE_OFF = 0,
+  /** WiFi is disabled. */
+  WIFI_COMPONENT_STATE_DISABLED,
   /** WiFi is in cooldown mode because something went wrong, scanning will begin after a short period of time. */
   WIFI_COMPONENT_STATE_COOLDOWN,
   /** WiFi is in STA-only mode and currently scanning for APs. */
@@ -138,6 +152,8 @@ class WiFiScanResult {
   float get_priority() const { return priority_; }
   void set_priority(float priority) { priority_ = priority; }
 
+  bool operator==(const WiFiScanResult &rhs) const;
+
  protected:
   bool matches_{false};
   bssid_t bssid_;
@@ -182,7 +198,11 @@ class WiFiComponent : public Component {
    * can be made, the AP will be turned off again.
    */
   void set_ap(const WiFiAP &ap);
+  WiFiAP get_ap() { return this->ap_; }
 
+  void enable();
+  void disable();
+  bool is_disabled();
   void start_scanning();
   void check_scanning_finished();
   void start_connecting(const WiFiAP &ap, bool two);
@@ -202,11 +222,14 @@ class WiFiComponent : public Component {
   void set_power_save_mode(WiFiPowerSaveMode power_save);
   void set_output_power(float output_power) { output_power_ = output_power; }
 
+  void set_passive_scan(bool passive);
+
   void save_wifi_sta(const std::string &ssid, const std::string &password);
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
   /// Setup WiFi interface.
   void setup() override;
+  void start();
   void dump_config() override;
   /// WIFI setup_priority.
   float get_setup_priority() const override;
@@ -218,6 +241,12 @@ class WiFiComponent : public Component {
   bool has_sta() const;
   bool has_ap() const;
 
+#ifdef USE_WIFI_11KV_SUPPORT
+  void set_btm(bool btm);
+  void set_rrm(bool rrm);
+#endif
+
+  network::IPAddress get_dns_address(int num);
   network::IPAddress get_ip_address();
   std::string get_use_address() const;
   void set_use_address(const std::string &use_address);
@@ -259,6 +288,8 @@ class WiFiComponent : public Component {
 
   int8_t wifi_rssi();
 
+  void set_enable_on_boot(bool enable_on_boot) { this->enable_on_boot_ = enable_on_boot; }
+
  protected:
   static std::string format_mac_addr(const uint8_t mac[6]);
   void setup_ap_config_();
@@ -274,7 +305,7 @@ class WiFiComponent : public Component {
   bool wifi_sta_connect_(const WiFiAP &ap);
   void wifi_pre_setup_();
   WiFiSTAConnectStatus wifi_sta_connect_status_();
-  bool wifi_scan_start_();
+  bool wifi_scan_start_(bool passive);
   bool wifi_ap_ip_config_(optional<ManualIP> manual_ip);
   bool wifi_start_ap_(const WiFiAP &ap);
   bool wifi_disconnect_();
@@ -304,6 +335,11 @@ class WiFiComponent : public Component {
   void wifi_process_event_(IDFWiFiEvent *data);
 #endif
 
+#ifdef USE_RP2040
+  static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+  void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+#endif
+
   std::string use_address_;
   std::vector<WiFiAP> sta_;
   std::vector<WiFiSTAPriority> sta_priorities_;
@@ -324,20 +360,37 @@ class WiFiComponent : public Component {
   bool scan_done_{false};
   bool ap_setup_{false};
   optional<float> output_power_;
+  bool passive_scan_{false};
   ESPPreferenceObject pref_;
   bool has_saved_wifi_settings_{false};
+#ifdef USE_WIFI_11KV_SUPPORT
+  bool btm_{false};
+  bool rrm_{false};
+#endif
+  bool enable_on_boot_;
 };
 
 extern WiFiComponent *global_wifi_component;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
 template<typename... Ts> class WiFiConnectedCondition : public Condition<Ts...> {
  public:
-  bool check(Ts... x) override;
+  bool check(Ts... x) override { return global_wifi_component->is_connected(); }
 };
 
-template<typename... Ts> bool WiFiConnectedCondition<Ts...>::check(Ts... x) {
-  return global_wifi_component->is_connected();
-}
+template<typename... Ts> class WiFiEnabledCondition : public Condition<Ts...> {
+ public:
+  bool check(Ts... x) override { return !global_wifi_component->is_disabled(); }
+};
+
+template<typename... Ts> class WiFiEnableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_wifi_component->enable(); }
+};
+
+template<typename... Ts> class WiFiDisableAction : public Action<Ts...> {
+ public:
+  void play(Ts... x) override { global_wifi_component->disable(); }
+};
 
 }  // namespace wifi
 }  // namespace esphome

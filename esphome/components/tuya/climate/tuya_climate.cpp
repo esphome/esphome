@@ -1,5 +1,5 @@
-#include "esphome/core/log.h"
 #include "tuya_climate.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace tuya {
@@ -44,6 +44,10 @@ void TuyaClimate::setup() {
   if (this->target_temperature_id_.has_value()) {
     this->parent_->register_listener(*this->target_temperature_id_, [this](const TuyaDatapoint &datapoint) {
       this->manual_temperature_ = datapoint.value_int * this->target_temperature_multiplier_;
+      if (this->reports_fahrenheit_) {
+        this->manual_temperature_ = (this->manual_temperature_ - 32) * 5 / 9;
+      }
+
       ESP_LOGV(TAG, "MCU reported manual target temperature is: %.1f", this->manual_temperature_);
       this->compute_target_temperature_();
       this->compute_state_();
@@ -53,6 +57,10 @@ void TuyaClimate::setup() {
   if (this->current_temperature_id_.has_value()) {
     this->parent_->register_listener(*this->current_temperature_id_, [this](const TuyaDatapoint &datapoint) {
       this->current_temperature = datapoint.value_int * this->current_temperature_multiplier_;
+      if (this->reports_fahrenheit_) {
+        this->current_temperature = (this->current_temperature - 32) * 5 / 9;
+      }
+
       ESP_LOGV(TAG, "MCU reported current temperature is: %.1f", this->current_temperature);
       this->compute_state_();
       this->publish_state();
@@ -105,7 +113,10 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
   }
 
   if (call.get_target_temperature().has_value()) {
-    const float target_temperature = *call.get_target_temperature();
+    float target_temperature = *call.get_target_temperature();
+    if (this->reports_fahrenheit_)
+      target_temperature = (target_temperature * 9 / 5) + 32;
+
     ESP_LOGV(TAG, "Setting target temperature: %.1f", target_temperature);
     this->parent_->set_integer_datapoint_value(*this->target_temperature_id_,
                                                (int) (target_temperature / this->target_temperature_multiplier_));
@@ -138,18 +149,23 @@ climate::ClimateTraits TuyaClimate::traits() {
 
 void TuyaClimate::dump_config() {
   LOG_CLIMATE("", "Tuya Climate", this);
-  if (this->switch_id_.has_value())
+  if (this->switch_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Switch has datapoint ID %u", *this->switch_id_);
-  if (this->active_state_id_.has_value())
+  }
+  if (this->active_state_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Active state has datapoint ID %u", *this->active_state_id_);
-  if (this->target_temperature_id_.has_value())
+  }
+  if (this->target_temperature_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Target Temperature has datapoint ID %u", *this->target_temperature_id_);
-  if (this->current_temperature_id_.has_value())
+  }
+  if (this->current_temperature_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Current Temperature has datapoint ID %u", *this->current_temperature_id_);
+  }
   LOG_PIN("  Heating State Pin: ", this->heating_state_pin_);
   LOG_PIN("  Cooling State Pin: ", this->cooling_state_pin_);
-  if (this->eco_id_.has_value())
+  if (this->eco_id_.has_value()) {
     ESP_LOGCONFIG(TAG, "  Eco has datapoint ID %u", *this->eco_id_);
+  }
 }
 
 void TuyaClimate::compute_preset_() {

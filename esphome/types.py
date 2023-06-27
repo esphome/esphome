@@ -1,5 +1,5 @@
 """This helper module tracks commonly used types in the esphome python codebase."""
-from typing import Dict, Union, List
+from typing import Union
 
 from esphome.core import ID, Lambda, EsphomeCore
 
@@ -8,11 +8,11 @@ ConfigFragmentType = Union[
     int,
     float,
     None,
-    Dict[Union[str, int], "ConfigFragmentType"],
-    List["ConfigFragmentType"],
+    dict[Union[str, int], "ConfigFragmentType"],
+    list["ConfigFragmentType"],
     ID,
     Lambda,
 ]
-ConfigType = Dict[str, ConfigFragmentType]
+ConfigType = dict[str, ConfigFragmentType]
 CoreType = EsphomeCore
 ConfigPathType = Union[str, int]

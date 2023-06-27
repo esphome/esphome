@@ -20,6 +20,7 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_DAIKIN_ARC417, []() { return new DaikinHeatpumpARC417IR(); }},                 // NOLINT
     {PROTOCOL_DAIKIN_ARC480, []() { return new DaikinHeatpumpARC480A14IR(); }},              // NOLINT
     {PROTOCOL_DAIKIN, []() { return new DaikinHeatpumpIR(); }},                              // NOLINT
+    {PROTOCOL_ELECTROLUXYAL, []() { return new ElectroluxYALHeatpumpIR(); }},                // NOLINT
     {PROTOCOL_FUEGO, []() { return new FuegoHeatpumpIR(); }},                                // NOLINT
     {PROTOCOL_FUJITSU_AWYZ, []() { return new FujitsuHeatpumpIR(); }},                       // NOLINT
     {PROTOCOL_GREE, []() { return new GreeGenericHeatpumpIR(); }},                           // NOLINT
@@ -52,6 +53,7 @@ const std::map<Protocol, std::function<HeatpumpIR *()>> PROTOCOL_CONSTRUCTOR_MAP
     {PROTOCOL_SHARP, []() { return new SharpHeatpumpIR(); }},                                // NOLINT
     {PROTOCOL_TOSHIBA_DAISEIKAI, []() { return new ToshibaDaiseikaiHeatpumpIR(); }},         // NOLINT
     {PROTOCOL_TOSHIBA, []() { return new ToshibaHeatpumpIR(); }},                            // NOLINT
+    {PROTOCOL_ZHLT01, []() { return new ZHLT01HeatpumpIR(); }},                              // NOLINT
 };
 
 void HeatpumpIRClimate::setup() {

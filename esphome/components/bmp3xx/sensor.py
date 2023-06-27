@@ -25,7 +25,7 @@ OVERSAMPLING_OPTIONS = {
     "4X": Oversampling.OVERSAMPLING_X4,
     "8X": Oversampling.OVERSAMPLING_X8,
     "16X": Oversampling.OVERSAMPLING_X16,
-    "32x": Oversampling.OVERSAMPLING_X32,
+    "32X": Oversampling.OVERSAMPLING_X32,
 }
 
 IIRFilter = bmp3xx_ns.enum("IIRFilter")

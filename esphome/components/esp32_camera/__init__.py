@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome import automation
 from esphome import pins
 from esphome.const import (
     CONF_FREQUENCY,
@@ -12,6 +13,7 @@ from esphome.const import (
     CONF_RESOLUTION,
     CONF_BRIGHTNESS,
     CONF_CONTRAST,
+    CONF_TRIGGER_ID,
 )
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
@@ -23,7 +25,14 @@ AUTO_LOAD = ["psram"]
 
 esp32_camera_ns = cg.esphome_ns.namespace("esp32_camera")
 ESP32Camera = esp32_camera_ns.class_("ESP32Camera", cg.PollingComponent, cg.EntityBase)
-
+ESP32CameraStreamStartTrigger = esp32_camera_ns.class_(
+    "ESP32CameraStreamStartTrigger",
+    automation.Trigger.template(),
+)
+ESP32CameraStreamStopTrigger = esp32_camera_ns.class_(
+    "ESP32CameraStreamStopTrigger",
+    automation.Trigger.template(),
+)
 ESP32CameraFrameSize = esp32_camera_ns.enum("ESP32CameraFrameSize")
 FRAME_SIZES = {
     "160X120": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_160X120,
@@ -46,6 +55,22 @@ FRAME_SIZES = {
     "SXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1280X1024,
     "1600X1200": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1600X1200,
     "UXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1600X1200,
+    "1920X1080": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1920X1080,
+    "FHD": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1920X1080,
+    "720X1280": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_720X1280,
+    "PHD": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_720X1280,
+    "864X1536": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_864X1536,
+    "P3MP": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_864X1536,
+    "2048X1536": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2048X1536,
+    "QXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2048X1536,
+    "2560X1440": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1440,
+    "QHD": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1440,
+    "2560X1600": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1600,
+    "WQXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1600,
+    "1080X1920": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1080X1920,
+    "PFHD": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_1080X1920,
+    "2560X1920": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
+    "QSXGA": ESP32CameraFrameSize.ESP32_CAMERA_SIZE_2560X1920,
 }
 ESP32GainControlMode = esp32_camera_ns.enum("ESP32GainControlMode")
 ENUM_GAIN_CONTROL_MODE = {
@@ -111,6 +136,10 @@ CONF_TEST_PATTERN = "test_pattern"
 CONF_MAX_FRAMERATE = "max_framerate"
 CONF_IDLE_FRAMERATE = "idle_framerate"
 
+# stream trigger
+CONF_ON_STREAM_START = "on_stream_start"
+CONF_ON_STREAM_STOP = "on_stream_stop"
+
 camera_range_param = cv.int_range(min=-2, max=2)
 
 CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
@@ -127,7 +156,7 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
             {
                 cv.Required(CONF_PIN): pins.internal_gpio_input_pin_number,
                 cv.Optional(CONF_FREQUENCY, default="20MHz"): cv.All(
-                    cv.frequency, cv.one_of(20e6, 10e6)
+                    cv.frequency, cv.Range(min=8e6, max=20e6)
                 ),
             }
         ),
@@ -143,7 +172,7 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         cv.Optional(CONF_RESOLUTION, default="640X480"): cv.enum(
             FRAME_SIZES, upper=True
         ),
-        cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=10, max=63),
+        cv.Optional(CONF_JPEG_QUALITY, default=10): cv.int_range(min=6, max=63),
         cv.Optional(CONF_CONTRAST, default=0): camera_range_param,
         cv.Optional(CONF_BRIGHTNESS, default=0): camera_range_param,
         cv.Optional(CONF_SATURATION, default=0): camera_range_param,
@@ -177,6 +206,20 @@ CONFIG_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
         ),
         cv.Optional(CONF_IDLE_FRAMERATE, default="0.1 fps"): cv.All(
             cv.framerate, cv.Range(min=0, max=1)
+        ),
+        cv.Optional(CONF_ON_STREAM_START): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    ESP32CameraStreamStartTrigger
+                ),
+            }
+        ),
+        cv.Optional(CONF_ON_STREAM_STOP): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                    ESP32CameraStreamStopTrigger
+                ),
+            }
         ),
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -238,3 +281,11 @@ async def to_code(config):
     if CORE.using_esp_idf:
         cg.add_library("espressif/esp32-camera", "1.0.0")
         add_idf_sdkconfig_option("CONFIG_RTCIO_SUPPORT_RTC_GPIO_DESC", True)
+
+    for conf in config.get(CONF_ON_STREAM_START, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+
+    for conf in config.get(CONF_ON_STREAM_STOP, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)

@@ -12,11 +12,11 @@ i2c::ErrorCode TCA9548AChannel::readv(uint8_t address, i2c::ReadBuffer *buffers,
     return err;
   return parent_->bus_->readv(address, buffers, cnt);
 }
-i2c::ErrorCode TCA9548AChannel::writev(uint8_t address, i2c::WriteBuffer *buffers, size_t cnt) {
+i2c::ErrorCode TCA9548AChannel::writev(uint8_t address, i2c::WriteBuffer *buffers, size_t cnt, bool stop) {
   auto err = parent_->switch_to_channel(channel_);
   if (err != i2c::ERROR_OK)
     return err;
-  return parent_->bus_->writev(address, buffers, cnt);
+  return parent_->bus_->writev(address, buffers, cnt, stop);
 }
 
 void TCA9548AComponent::setup() {
@@ -41,7 +41,7 @@ i2c::ErrorCode TCA9548AComponent::switch_to_channel(uint8_t channel) {
     return i2c::ERROR_OK;
 
   uint8_t channel_val = 1 << channel;
-  auto err = this->write_register(0x70, &channel_val, 1);
+  auto err = this->write(&channel_val, 1);
   if (err == i2c::ERROR_OK) {
     current_channel_ = channel;
   }

@@ -10,6 +10,8 @@ from esphome.const import (
     CONF_DNS1,
     CONF_DNS2,
     CONF_DOMAIN,
+    CONF_ENABLE_BTM,
+    CONF_ENABLE_RRM,
     CONF_FAST_CONNECT,
     CONF_GATEWAY,
     CONF_HIDDEN,
@@ -32,9 +34,9 @@ from esphome.const import (
     CONF_EAP,
 )
 from esphome.core import CORE, HexInt, coroutine_with_priority
+from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components.network import IPAddress
 from . import wpa2_eap
-
 
 AUTO_LOAD = ["network"]
 
@@ -51,6 +53,9 @@ WIFI_POWER_SAVE_MODES = {
     "HIGH": WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
 }
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
+WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
+WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
+WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
 
 
 def validate_password(value):
@@ -125,6 +130,13 @@ WIFI_NETWORK_AP = WIFI_NETWORK_BASE.extend(
         ): cv.positive_time_period_milliseconds,
     }
 )
+
+
+def wifi_network_ap(value):
+    if value is None:
+        value = {}
+    return WIFI_NETWORK_AP(value)
+
 
 WIFI_NETWORK_STA = WIFI_NETWORK_BASE.extend(
     {
@@ -225,11 +237,11 @@ def _validate(config):
         if CONF_MANUAL_IP in config:
             use_address = str(config[CONF_MANUAL_IP][CONF_STATIC_IP])
         elif CONF_NETWORKS in config:
-            ips = set(
+            ips = {
                 str(net[CONF_MANUAL_IP][CONF_STATIC_IP])
                 for net in config[CONF_NETWORKS]
                 if CONF_MANUAL_IP in net
-            )
+            }
             if len(ips) > 1:
                 raise cv.Invalid(
                     "Must specify use_address when using multiple static IP addresses."
@@ -243,6 +255,8 @@ def _validate(config):
 
 
 CONF_OUTPUT_POWER = "output_power"
+CONF_PASSIVE_SCAN = "passive_scan"
+CONF_ENABLE_ON_BOOT = "enable_on_boot"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -252,23 +266,31 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PASSWORD): validate_password,
             cv.Optional(CONF_MANUAL_IP): STA_MANUAL_IP_SCHEMA,
             cv.Optional(CONF_EAP): EAP_AUTH_SCHEMA,
-            cv.Optional(CONF_AP): WIFI_NETWORK_AP,
+            cv.Optional(CONF_AP): wifi_network_ap,
             cv.Optional(CONF_DOMAIN, default=".local"): cv.domain_name,
             cv.Optional(
                 CONF_REBOOT_TIMEOUT, default="15min"
             ): cv.positive_time_period_milliseconds,
             cv.SplitDefault(
-                CONF_POWER_SAVE_MODE, esp8266="none", esp32="light"
+                CONF_POWER_SAVE_MODE, esp8266="none", esp32="light", rp2040="light"
             ): cv.enum(WIFI_POWER_SAVE_MODES, upper=True),
             cv.Optional(CONF_FAST_CONNECT, default=False): cv.boolean,
             cv.Optional(CONF_USE_ADDRESS): cv.string_strict,
             cv.SplitDefault(CONF_OUTPUT_POWER, esp8266=20.0): cv.All(
-                cv.decibel, cv.float_range(min=10.0, max=20.5)
+                cv.decibel, cv.float_range(min=8.5, max=20.5)
             ),
+            cv.SplitDefault(CONF_ENABLE_BTM, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
+            ),
+            cv.SplitDefault(CONF_ENABLE_RRM, esp32_idf=False): cv.All(
+                cv.boolean, cv.only_with_esp_idf
+            ),
+            cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional("enable_mdns"): cv.invalid(
                 "This option has been removed. Please use the [disabled] option under the "
                 "new mdns component instead."
             ),
+            cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         }
     ),
     _validate,
@@ -317,8 +339,7 @@ def manual_ip(config):
     )
 
 
-def wifi_network(config, static_ip):
-    ap = cg.variable(config[CONF_ID], WiFiAP())
+def wifi_network(config, ap, static_ip):
     if CONF_SSID in config:
         cg.add(ap.set_ssid(config[CONF_SSID]))
     if CONF_PASSWORD in config:
@@ -345,26 +366,47 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     cg.add(var.set_use_address(config[CONF_USE_ADDRESS]))
 
-    for network in config.get(CONF_NETWORKS, []):
+    def add_sta(ap, network):
         ip_config = network.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-        cg.add(var.add_sta(wifi_network(network, ip_config)))
+        cg.add(var.add_sta(wifi_network(network, ap, ip_config)))
+
+    for network in config.get(CONF_NETWORKS, []):
+        cg.with_local_variable(network[CONF_ID], WiFiAP(), add_sta, network)
 
     if CONF_AP in config:
         conf = config[CONF_AP]
-        ip_config = conf.get(CONF_MANUAL_IP, config.get(CONF_MANUAL_IP))
-        cg.add(var.set_ap(wifi_network(conf, ip_config)))
+        ip_config = conf.get(CONF_MANUAL_IP)
+        cg.with_local_variable(
+            conf[CONF_ID],
+            WiFiAP(),
+            lambda ap: cg.add(var.set_ap(wifi_network(conf, ap, ip_config))),
+        )
         cg.add(var.set_ap_timeout(conf[CONF_AP_TIMEOUT]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     cg.add(var.set_fast_connect(config[CONF_FAST_CONNECT]))
+    cg.add(var.set_passive_scan(config[CONF_PASSIVE_SCAN]))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
+
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
     elif CORE.is_esp32 and CORE.using_arduino:
         cg.add_library("WiFi", None)
+    elif CORE.is_rp2040:
+        cg.add_library("WiFi", None)
+
+    if CORE.is_esp32 and CORE.using_esp_idf:
+        if config[CONF_ENABLE_BTM] or config[CONF_ENABLE_RRM]:
+            add_idf_sdkconfig_option("CONFIG_WPA_11KV_SUPPORT", True)
+            cg.add_define("USE_WIFI_11KV_SUPPORT")
+        if config[CONF_ENABLE_BTM]:
+            cg.add(var.set_btm(config[CONF_ENABLE_BTM]))
+        if config[CONF_ENABLE_RRM]:
+            cg.add(var.set_rrm(config[CONF_ENABLE_RRM]))
 
     cg.add_define("USE_WIFI")
 
@@ -375,3 +417,18 @@ async def to_code(config):
 @automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
 async def wifi_connected_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
+
+
+@automation.register_condition("wifi.enabled", WiFiEnabledCondition, cv.Schema({}))
+async def wifi_enabled_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)
+
+
+@automation.register_action("wifi.enable", WiFiEnableAction, cv.Schema({}))
+async def wifi_enable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)
+
+
+@automation.register_action("wifi.disable", WiFiDisableAction, cv.Schema({}))
+async def wifi_disable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)

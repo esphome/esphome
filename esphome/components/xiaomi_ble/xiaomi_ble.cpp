@@ -1,6 +1,6 @@
 #include "xiaomi_ble.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP32
 
@@ -12,67 +12,74 @@ namespace xiaomi_ble {
 
 static const char *const TAG = "xiaomi_ble";
 
-bool parse_xiaomi_value(uint8_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
+bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_length, XiaomiParseResult &result) {
+  // button pressed, 3 bytes, only byte 3 is used for supported devices so far
+  if ((value_type == 0x1001) && (value_length == 3)) {
+    result.button_press = data[2] == 0;
+    return true;
+  }
   // motion detection, 1 byte, 8-bit unsigned integer
-  if ((value_type == 0x03) && (value_length == 1)) {
+  else if ((value_type == 0x0003) && (value_length == 1)) {
     result.has_motion = data[0];
   }
   // temperature, 2 bytes, 16-bit signed integer (LE), 0.1 °C
-  else if ((value_type == 0x04) && (value_length == 2)) {
-    const int16_t temperature = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
+  else if ((value_type == 0x1004) && (value_length == 2)) {
+    const int16_t temperature = encode_uint16(data[1], data[0]);
     result.temperature = temperature / 10.0f;
   }
   // humidity, 2 bytes, 16-bit signed integer (LE), 0.1 %
-  else if ((value_type == 0x06) && (value_length == 2)) {
-    const int16_t humidity = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
+  else if ((value_type == 0x1006) && (value_length == 2)) {
+    const int16_t humidity = encode_uint16(data[1], data[0]);
     result.humidity = humidity / 10.0f;
   }
   // illuminance (+ motion), 3 bytes, 24-bit unsigned integer (LE), 1 lx
-  else if (((value_type == 0x07) || (value_type == 0x0F)) && (value_length == 3)) {
-    const uint32_t illuminance = uint32_t(data[0]) | (uint32_t(data[1]) << 8) | (uint32_t(data[2]) << 16);
+  else if (((value_type == 0x1007) || (value_type == 0x000F)) && (value_length == 3)) {
+    const uint32_t illuminance = encode_uint24(data[2], data[1], data[0]);
     result.illuminance = illuminance;
-    result.is_light = illuminance == 100;
+    result.is_light = illuminance >= 100;
     if (value_type == 0x0F)
       result.has_motion = true;
   }
   // soil moisture, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((value_type == 0x08) && (value_length == 1)) {
+  else if ((value_type == 0x1008) && (value_length == 1)) {
     result.moisture = data[0];
   }
   // conductivity, 2 bytes, 16-bit unsigned integer (LE), 1 µS/cm
-  else if ((value_type == 0x09) && (value_length == 2)) {
-    const uint16_t conductivity = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
+  else if ((value_type == 0x1009) && (value_length == 2)) {
+    const uint16_t conductivity = encode_uint16(data[1], data[0]);
     result.conductivity = conductivity;
   }
   // battery, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((value_type == 0x0A) && (value_length == 1)) {
+  else if ((value_type == 0x100A) && (value_length == 1)) {
     result.battery_level = data[0];
   }
   // temperature + humidity, 4 bytes, 16-bit signed integer (LE) each, 0.1 °C, 0.1 %
-  else if ((value_type == 0x0D) && (value_length == 4)) {
-    const int16_t temperature = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
-    const int16_t humidity = uint16_t(data[2]) | (uint16_t(data[3]) << 8);
+  else if ((value_type == 0x100D) && (value_length == 4)) {
+    const int16_t temperature = encode_uint16(data[1], data[0]);
+    const int16_t humidity = encode_uint16(data[3], data[2]);
     result.temperature = temperature / 10.0f;
     result.humidity = humidity / 10.0f;
   }
   // formaldehyde, 2 bytes, 16-bit unsigned integer (LE), 0.01 mg / m3
-  else if ((value_type == 0x10) && (value_length == 2)) {
-    const uint16_t formaldehyde = uint16_t(data[0]) | (uint16_t(data[1]) << 8);
+  else if ((value_type == 0x1010) && (value_length == 2)) {
+    const uint16_t formaldehyde = encode_uint16(data[1], data[0]);
     result.formaldehyde = formaldehyde / 100.0f;
   }
   // on/off state, 1 byte, 8-bit unsigned integer
-  else if ((value_type == 0x12) && (value_length == 1)) {
+  else if ((value_type == 0x1012) && (value_length == 1)) {
     result.is_active = data[0];
   }
   // mosquito tablet, 1 byte, 8-bit unsigned integer, 1 %
-  else if ((value_type == 0x13) && (value_length == 1)) {
+  else if ((value_type == 0x1013) && (value_length == 1)) {
     result.tablet = data[0];
   }
   // idle time since last motion, 4 byte, 32-bit unsigned integer, 1 min
-  else if ((value_type == 0x17) && (value_length == 4)) {
+  else if ((value_type == 0x1017) && (value_length == 4)) {
     const uint32_t idle_time = encode_uint32(data[3], data[2], data[1], data[0]);
     result.idle_time = idle_time / 60.0f;
     result.has_motion = !idle_time;
+  } else if ((value_type == 0x1018) && (value_length == 1)) {
+    result.is_light = data[0];
   } else {
     return false;
   }
@@ -115,7 +122,7 @@ bool parse_xiaomi_message(const std::vector<uint8_t> &message, XiaomiParseResult
       break;
     }
 
-    const uint8_t value_type = payload[payload_offset + 0];
+    const uint16_t value_type = encode_uint16(payload[payload_offset + 1], payload[payload_offset + 0]);
     const uint8_t *data = &payload[payload_offset + 3];
 
     if (parse_xiaomi_value(value_type, data, value_length, result))
@@ -155,58 +162,65 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
   result.is_duplicate = false;
   result.raw_offset = result.has_capability ? 12 : 11;
 
-  if ((raw[2] == 0x98) && (raw[3] == 0x00)) {  // MiFlora
+  const uint16_t device_uuid = encode_uint16(raw[3], raw[2]);
+
+  if (device_uuid == 0x0098) {  // MiFlora
     result.type = XiaomiParseResult::TYPE_HHCCJCY01;
     result.name = "HHCCJCY01";
-  } else if ((raw[2] == 0xaa) && (raw[3] == 0x01)) {  // round body, segment LCD
+  } else if (device_uuid == 0x01aa) {  // round body, segment LCD
     result.type = XiaomiParseResult::TYPE_LYWSDCGQ;
     result.name = "LYWSDCGQ";
-  } else if ((raw[2] == 0x5d) && (raw[3] == 0x01)) {  // FlowerPot, RoPot
+  } else if (device_uuid == 0x015d) {  // FlowerPot, RoPot
     result.type = XiaomiParseResult::TYPE_HHCCPOT002;
     result.name = "HHCCPOT002";
-  } else if ((raw[2] == 0xdf) && (raw[3] == 0x02)) {  // Xiaomi (Honeywell) formaldehyde sensor, OLED display
+  } else if (device_uuid == 0x02df) {  // Xiaomi (Honeywell) formaldehyde sensor, OLED display
     result.type = XiaomiParseResult::TYPE_JQJCY01YM;
     result.name = "JQJCY01YM";
-  } else if ((raw[2] == 0xdd) && (raw[3] == 0x03)) {  // Philips/Xiaomi BLE nightlight
+  } else if (device_uuid == 0x03dd) {  // Philips/Xiaomi BLE nightlight
     result.type = XiaomiParseResult::TYPE_MUE4094RT;
     result.name = "MUE4094RT";
     result.raw_offset -= 6;
-  } else if ((raw[2] == 0x47 && raw[3] == 0x03) ||  // ClearGrass-branded, round body, e-ink display
-             (raw[2] == 0x48 && raw[3] == 0x0B)) {  // Qingping-branded, round body, e-ink display — with bindkeys
+  } else if (device_uuid == 0x0347 ||  // ClearGrass-branded, round body, e-ink display
+             device_uuid == 0x0B48) {  // Qingping-branded, round body, e-ink display — with bindkeys
     result.type = XiaomiParseResult::TYPE_CGG1;
     result.name = "CGG1";
-  } else if ((raw[2] == 0xbc) && (raw[3] == 0x03)) {  // VegTrug Grow Care Garden
+  } else if (device_uuid == 0x03bc) {  // VegTrug Grow Care Garden
     result.type = XiaomiParseResult::TYPE_GCLS002;
     result.name = "GCLS002";
-  } else if ((raw[2] == 0x5b) && (raw[3] == 0x04)) {  // rectangular body, e-ink display
+  } else if (device_uuid == 0x045b) {  // rectangular body, e-ink display
     result.type = XiaomiParseResult::TYPE_LYWSD02;
     result.name = "LYWSD02";
-  } else if ((raw[2] == 0x0a) && (raw[3] == 0x04)) {  // Mosquito Repellent Smart Version
+  } else if (device_uuid == 0x040a) {  // Mosquito Repellent Smart Version
     result.type = XiaomiParseResult::TYPE_WX08ZM;
     result.name = "WX08ZM";
-  } else if ((raw[2] == 0x76) && (raw[3] == 0x05)) {  // Cleargrass (Qingping) alarm clock, segment LCD
+  } else if (device_uuid == 0x0576) {  // Cleargrass (Qingping) alarm clock, segment LCD
     result.type = XiaomiParseResult::TYPE_CGD1;
     result.name = "CGD1";
-  } else if ((raw[2] == 0x6F) && (raw[3] == 0x06)) {  // Cleargrass (Qingping) Temp & RH Lite
+  } else if (device_uuid == 0x066F) {  // Cleargrass (Qingping) Temp & RH Lite
     result.type = XiaomiParseResult::TYPE_CGDK2;
     result.name = "CGDK2";
-  } else if ((raw[2] == 0x5b) && (raw[3] == 0x05)) {  // small square body, segment LCD, encrypted
+  } else if (device_uuid == 0x055b) {  // small square body, segment LCD, encrypted
     result.type = XiaomiParseResult::TYPE_LYWSD03MMC;
     result.name = "LYWSD03MMC";
-  } else if ((raw[2] == 0xf6) && (raw[3] == 0x07)) {  // Xiaomi-Yeelight BLE nightlight
+  } else if (device_uuid == 0x07f6) {  // Xiaomi-Yeelight BLE nightlight
     result.type = XiaomiParseResult::TYPE_MJYD02YLA;
     result.name = "MJYD02YLA";
     if (raw.size() == 19)
       result.raw_offset -= 6;
-  } else if ((raw[2] == 0xd3) && (raw[3] == 0x06)) {  // rectangular body, e-ink display with alarm
+  } else if (device_uuid == 0x06d3) {  // rectangular body, e-ink display with alarm
     result.type = XiaomiParseResult::TYPE_MHOC303;
     result.name = "MHOC303";
-  } else if ((raw[2] == 0x87) && (raw[3] == 0x03)) {  // square body, e-ink display
+  } else if (device_uuid == 0x0387) {  // square body, e-ink display
     result.type = XiaomiParseResult::TYPE_MHOC401;
     result.name = "MHOC401";
-  } else if ((raw[2] == 0x83) && (raw[3] == 0x0A)) {  // Qingping-branded, motion & ambient light sensor
+  } else if (device_uuid == 0x0A83) {  // Qingping-branded, motion & ambient light sensor
     result.type = XiaomiParseResult::TYPE_CGPR1;
     result.name = "CGPR1";
+    if (raw.size() == 19)
+      result.raw_offset -= 6;
+  } else if (device_uuid == 0x0A8D) {  // Xiaomi Mi Motion Sensor 2
+    result.type = XiaomiParseResult::TYPE_RTCGQ02LM;
+    result.name = "RTCGQ02LM";
     if (raw.size() == 19)
       result.raw_offset -= 6;
   } else {
@@ -225,12 +239,12 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
   }
 
   uint8_t mac_reverse[6] = {0};
-  mac_reverse[5] = (uint8_t)(address >> 40);
-  mac_reverse[4] = (uint8_t)(address >> 32);
-  mac_reverse[3] = (uint8_t)(address >> 24);
-  mac_reverse[2] = (uint8_t)(address >> 16);
-  mac_reverse[1] = (uint8_t)(address >> 8);
-  mac_reverse[0] = (uint8_t)(address >> 0);
+  mac_reverse[5] = (uint8_t) (address >> 40);
+  mac_reverse[4] = (uint8_t) (address >> 32);
+  mac_reverse[3] = (uint8_t) (address >> 24);
+  mac_reverse[2] = (uint8_t) (address >> 16);
+  mac_reverse[1] = (uint8_t) (address >> 8);
+  mac_reverse[0] = (uint8_t) (address >> 0);
 
   XiaomiAESVector vector{.key = {0},
                          .plaintext = {0},
@@ -342,6 +356,9 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
   }
   if (result->is_light.has_value()) {
     ESP_LOGD(TAG, "  Light: %s", (*result->is_light) ? "on" : "off");
+  }
+  if (result->button_press.has_value()) {
+    ESP_LOGD(TAG, "  Button: %s", (*result->button_press) ? "pressed" : "");
   }
 
   return true;

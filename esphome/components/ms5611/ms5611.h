@@ -22,8 +22,8 @@ class MS5611Component : public PollingComponent, public i2c::I2CDevice {
   void read_pressure_(uint32_t raw_temperature);
   void calculate_values_(uint32_t raw_temperature, uint32_t raw_pressure);
 
-  sensor::Sensor *temperature_sensor_;
-  sensor::Sensor *pressure_sensor_;
+  sensor::Sensor *temperature_sensor_{nullptr};
+  sensor::Sensor *pressure_sensor_{nullptr};
   uint16_t prom_[6];
 };
 

@@ -8,7 +8,7 @@ namespace hm3301 {
 
 class CAQICalculator : public AbstractAQICalculator {
  public:
-  uint8_t get_aqi(uint16_t pm2_5_value, uint16_t pm10_0_value) override {
+  uint16_t get_aqi(uint16_t pm2_5_value, uint16_t pm10_0_value) override {
     int pm2_5_index = calculate_index_(pm2_5_value, pm2_5_calculation_grid_);
     int pm10_0_index = calculate_index_(pm10_0_value, pm10_0_calculation_grid_);
 

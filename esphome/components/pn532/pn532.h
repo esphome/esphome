@@ -5,6 +5,9 @@
 #include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/nfc/nfc_tag.h"
 #include "esphome/components/nfc/nfc.h"
+#include "esphome/components/nfc/automation.h"
+
+#include <vector>
 
 namespace esphome {
 namespace pn532 {
@@ -14,9 +17,9 @@ static const uint8_t PN532_COMMAND_SAMCONFIGURATION = 0x14;
 static const uint8_t PN532_COMMAND_RFCONFIGURATION = 0x32;
 static const uint8_t PN532_COMMAND_INDATAEXCHANGE = 0x40;
 static const uint8_t PN532_COMMAND_INLISTPASSIVETARGET = 0x4A;
+static const uint8_t PN532_COMMAND_POWERDOWN = 0x16;
 
 class PN532BinarySensor;
-class PN532OnTagTrigger;
 
 class PN532 : public PollingComponent {
  public:
@@ -28,10 +31,11 @@ class PN532 : public PollingComponent {
   float get_setup_priority() const override;
 
   void loop() override;
+  void on_shutdown() override { powerdown(); }
 
   void register_tag(PN532BinarySensor *tag) { this->binary_sensors_.push_back(tag); }
-  void register_ontag_trigger(PN532OnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
-  void register_ontagremoved_trigger(PN532OnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
+  void register_ontag_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontag_.push_back(trig); }
+  void register_ontagremoved_trigger(nfc::NfcOnTagTrigger *trig) { this->triggers_ontagremoved_.push_back(trig); }
 
   void add_on_finished_write_callback(std::function<void()> callback) {
     this->on_finished_write_callback_.add(std::move(callback));
@@ -43,6 +47,7 @@ class PN532 : public PollingComponent {
   void clean_mode();
   void format_mode();
   void write_mode(nfc::NdefMessage *message);
+  bool powerdown();
 
  protected:
   void turn_off_rf_();
@@ -77,10 +82,11 @@ class PN532 : public PollingComponent {
   bool write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, nfc::NdefMessage *message);
   bool clean_mifare_ultralight_();
 
+  bool updates_enabled_{true};
   bool requested_read_{false};
   std::vector<PN532BinarySensor *> binary_sensors_;
-  std::vector<PN532OnTagTrigger *> triggers_ontag_;
-  std::vector<PN532OnTagTrigger *> triggers_ontagremoved_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontag_;
+  std::vector<nfc::NfcOnTagTrigger *> triggers_ontagremoved_;
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
   enum NfcTask {
@@ -113,11 +119,6 @@ class PN532BinarySensor : public binary_sensor::BinarySensor {
  protected:
   std::vector<uint8_t> uid_;
   bool found_{false};
-};
-
-class PN532OnTagTrigger : public Trigger<std::string, nfc::NfcTag> {
- public:
-  void process(const std::unique_ptr<nfc::NfcTag> &tag);
 };
 
 class PN532OnFinishedWriteTrigger : public Trigger<> {

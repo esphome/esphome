@@ -136,8 +136,14 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   }
   /* Check for saturation and mark the sample as invalid if true */
   if (c >= sat) {
-    ESP_LOGW(TAG, "Saturation too high, discarding sample with saturation %.1f and clear %d", sat, c);
-    return;
+    if (this->integration_time_auto_) {
+      ESP_LOGI(TAG, "Saturation too high, sample discarded, autogain ongoing");
+    } else {
+      ESP_LOGW(
+          TAG,
+          "Saturation too high, sample with saturation %.1f and clear %d treat values carefully or use grey filter",
+          sat, c);
+    }
   }
 
   /* AMS RGB sensors have no IR channel, so the IR content must be */
@@ -149,8 +155,14 @@ void TCS34725Component::calculate_temperature_and_lux_(uint16_t r, uint16_t g, u
   g2 = g - ir;
   b2 = b - ir;
 
+  // discarding super low values? not recemmonded, and avoided by using auto gain.
   if (r2 == 0) {
-    return;
+    // legacy code
+    if (!this->integration_time_auto_) {
+      ESP_LOGW(TAG,
+               "No light detected on red channel, switch to auto gain or adjust timing, values will be unreliable");
+      return;
+    }
   }
 
   // Lux Calculation (DN40 3.2)
@@ -189,7 +201,7 @@ void TCS34725Component::update() {
     this->status_set_warning();
     return;
   }
-  ESP_LOGV(TAG, "Raw values clear=%x red=%x green=%x blue=%x", raw_c, raw_r, raw_g, raw_b);
+  ESP_LOGV(TAG, "Raw values clear=%d red=%d green=%d blue=%d", raw_c, raw_r, raw_g, raw_b);
 
   float channel_c;
   float channel_r;
@@ -220,20 +232,95 @@ void TCS34725Component::update() {
     calculate_temperature_and_lux_(raw_r, raw_g, raw_b, raw_c);
   }
 
-  if (this->illuminance_sensor_ != nullptr)
-    this->illuminance_sensor_->publish_state(this->illuminance_);
+  // do not publish values if auto gain finding ongoing, and oversaturated
+  // so: publish when:
+  // - not auto mode
+  // - clear not oversaturated
+  // - clear oversaturated but gain and timing cannot go lower
+  if (!this->integration_time_auto_ || raw_c < 65530 || (this->gain_reg_ == 0 && this->integration_time_ < 200)) {
+    if (this->illuminance_sensor_ != nullptr)
+      this->illuminance_sensor_->publish_state(this->illuminance_);
 
-  if (this->color_temperature_sensor_ != nullptr)
-    this->color_temperature_sensor_->publish_state(this->color_temperature_);
+    if (this->color_temperature_sensor_ != nullptr)
+      this->color_temperature_sensor_->publish_state(this->color_temperature_);
+  }
 
-  ESP_LOGD(TAG, "Got Red=%.1f%%,Green=%.1f%%,Blue=%.1f%%,Clear=%.1f%% Illuminance=%.1flx Color Temperature=%.1fK",
+  ESP_LOGD(TAG,
+           "Got Red=%.1f%%,Green=%.1f%%,Blue=%.1f%%,Clear=%.1f%% Illuminance=%.1flx Color "
+           "Temperature=%.1fK",
            channel_r, channel_g, channel_b, channel_c, this->illuminance_, this->color_temperature_);
 
+  if (this->integration_time_auto_) {
+    // change integration time an gain to achieve maximum resolution an dynamic range
+    // calculate optimal integration time to achieve 70% satuaration
+    float integration_time_ideal;
+    integration_time_ideal = 60 / ((float) raw_c / 655.35) * this->integration_time_;
+
+    uint8_t gain_reg_val_new = this->gain_reg_;
+    // increase gain if less than 20% of white channel used and high integration time
+    // increase only if not already maximum
+    // do not use max gain, as ist will not get better
+    if (this->gain_reg_ < 3) {
+      if (((float) raw_c / 655.35 < 20.f) && (this->integration_time_ > 600.f)) {
+        gain_reg_val_new = this->gain_reg_ + 1;
+        // update integration time to new situation
+        integration_time_ideal = integration_time_ideal / 4;
+      }
+    }
+
+    // decrease gain, if very high clear values and integration times alreadey low
+    if (this->gain_reg_ > 0) {
+      if (70 < ((float) raw_c / 655.35) && (this->integration_time_ < 200)) {
+        gain_reg_val_new = this->gain_reg_ - 1;
+        // update integration time to new situation
+        integration_time_ideal = integration_time_ideal * 4;
+      }
+    }
+
+    // saturate integration times
+    float integration_time_next = integration_time_ideal;
+    if (integration_time_ideal > 2.4f * 256) {
+      integration_time_next = 2.4f * 256;
+    }
+    if (integration_time_ideal < 154) {
+      integration_time_next = 154;
+    }
+
+    // calculate register value from timing
+    uint8_t regval_atime = (uint8_t) (256.f - integration_time_next / 2.4f);
+    ESP_LOGD(TAG, "Integration time: %.1fms, ideal: %.1fms regval_new %d Gain: %.f Clear channel raw: %d  gain reg: %d",
+             this->integration_time_, integration_time_next, regval_atime, this->gain_, raw_c, this->gain_reg_);
+
+    if (this->integration_reg_ != regval_atime || gain_reg_val_new != this->gain_reg_) {
+      this->integration_reg_ = regval_atime;
+      this->gain_reg_ = gain_reg_val_new;
+      set_gain((TCS34725Gain) gain_reg_val_new);
+      if (this->write_config_register_(TCS34725_REGISTER_ATIME, this->integration_reg_) != i2c::ERROR_OK ||
+          this->write_config_register_(TCS34725_REGISTER_CONTROL, this->gain_reg_) != i2c::ERROR_OK) {
+        this->mark_failed();
+        ESP_LOGW(TAG, "TCS34725I update timing failed!");
+      } else {
+        this->integration_time_ = integration_time_next;
+      }
+    }
+  }
   this->status_clear_warning();
 }
 void TCS34725Component::set_integration_time(TCS34725IntegrationTime integration_time) {
-  this->integration_reg_ = integration_time;
-  this->integration_time_ = (256.f - integration_time) * 2.4f;
+  // if an integration time is 0x100, this is auto start with 154ms as this gives best starting point
+  TCS34725IntegrationTime my_integration_time_regval;
+
+  if (integration_time == TCS34725_INTEGRATION_TIME_AUTO) {
+    this->integration_time_auto_ = true;
+    this->integration_reg_ = TCS34725_INTEGRATION_TIME_154MS;
+    my_integration_time_regval = TCS34725_INTEGRATION_TIME_154MS;
+  } else {
+    this->integration_reg_ = integration_time;
+    my_integration_time_regval = integration_time;
+    this->integration_time_auto_ = false;
+  }
+  this->integration_time_ = (256.f - my_integration_time_regval) * 2.4f;
+  ESP_LOGI(TAG, "TCS34725I Integration time set to: %.1fms", this->integration_time_);
 }
 void TCS34725Component::set_gain(TCS34725Gain gain) {
   this->gain_reg_ = gain;

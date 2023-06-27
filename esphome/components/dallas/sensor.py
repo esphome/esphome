@@ -9,7 +9,6 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    CONF_ID,
 )
 from . import DallasComponent, dallas_ns
 
@@ -17,13 +16,13 @@ DallasTemperatureSensor = dallas_ns.class_("DallasTemperatureSensor", sensor.Sen
 
 CONFIG_SCHEMA = cv.All(
     sensor.sensor_schema(
+        DallasTemperatureSensor,
         unit_of_measurement=UNIT_CELSIUS,
         accuracy_decimals=1,
         device_class=DEVICE_CLASS_TEMPERATURE,
         state_class=STATE_CLASS_MEASUREMENT,
     ).extend(
         {
-            cv.GenerateID(): cv.declare_id(DallasTemperatureSensor),
             cv.GenerateID(CONF_DALLAS_ID): cv.use_id(DallasComponent),
             cv.Optional(CONF_ADDRESS): cv.hex_int,
             cv.Optional(CONF_INDEX): cv.positive_int,
@@ -36,7 +35,7 @@ CONFIG_SCHEMA = cv.All(
 
 async def to_code(config):
     hub = await cg.get_variable(config[CONF_DALLAS_ID])
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
 
     if CONF_ADDRESS in config:
         cg.add(var.set_address(config[CONF_ADDRESS]))
@@ -49,4 +48,3 @@ async def to_code(config):
     cg.add(var.set_parent(hub))
 
     cg.add(hub.register_sensor(var))
-    await sensor.register_sensor(var, config)

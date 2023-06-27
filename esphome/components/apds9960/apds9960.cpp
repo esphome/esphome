@@ -23,7 +23,7 @@ void APDS9960::setup() {
     return;
   }
 
-  if (id != 0xAB && id != 0x9C) {  // APDS9960 all should have one of these IDs
+  if (id != 0xAB && id != 0x9C && id != 0xA8) {  // APDS9960 all should have one of these IDs
     this->error_code_ = WRONG_ID;
     this->mark_failed();
     return;
@@ -46,16 +46,16 @@ void APDS9960::setup() {
   uint8_t val = 0;
   APDS9960_ERROR_CHECK(this->read_byte(0x8F, &val));
   val &= 0b00111111;
-  uint8_t led_drive = 0;  // led drive, 0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA
-  val |= (led_drive & 0b11) << 6;
+  // led drive, 0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA
+  val |= (this->led_drive_ & 0b11) << 6;
 
   val &= 0b11110011;
-  uint8_t proximity_gain = 2;  // proximity gain, 0 -> 1x, 1 -> 2X, 2 -> 4X, 4 -> 8X
-  val |= (proximity_gain & 0b11) << 2;
+  // proximity gain, 0 -> 1x, 1 -> 2X, 2 -> 4X, 3 -> 8X
+  val |= (this->proximity_gain_ & 0b11) << 2;
 
   val &= 0b11111100;
-  uint8_t ambient_gain = 1;  // ambient light gain, 0 -> 1x, 1 -> 4x, 2 -> 16x, 3 -> 64x
-  val |= (ambient_gain & 0b11) << 0;
+  // ambient light gain, 0 -> 1x, 1 -> 4x, 2 -> 16x, 3 -> 64x
+  val |= (this->ambient_gain_ & 0b11) << 0;
   APDS9960_WRITE_BYTE(0x8F, val);
 
   // Pers (0x8C) -> 0x11 (2 consecutive proximity or ALS for interrupt)
@@ -75,19 +75,18 @@ void APDS9960::setup() {
   // GConf 2 (0xA3, gesture config 2) ->
   APDS9960_ERROR_CHECK(this->read_byte(0xA3, &val));
   val &= 0b10011111;
-  uint8_t gesture_gain = 2;  // gesture gain, 0 -> 1x, 1 -> 2x, 2 -> 4x, 3 -> 8x
-  val |= (gesture_gain & 0b11) << 5;
+  // gesture gain, 0 -> 1x, 1 -> 2x, 2 -> 4x, 3 -> 8x
+  val |= (this->gesture_gain_ & 0b11) << 5;
 
   val &= 0b11100111;
-  uint8_t gesture_led_drive = 0;  // gesture led drive, 0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA
-  val |= (gesture_led_drive & 0b11) << 3;
+  // gesture led drive, 0 -> 100mA, 1 -> 50mA, 2 -> 25mA, 3 -> 12.5mA
+  val |= (this->gesture_led_drive_ & 0b11) << 3;
 
   val &= 0b11111000;
   // gesture wait time
   // 0 -> 0ms, 1 -> 2.8ms, 2 -> 5.6ms, 3 -> 8.4ms
   // 4 -> 14.0ms, 5 -> 22.4 ms, 6 -> 30.8ms, 7 -> 39.2 ms
-  uint8_t gesture_wait_time = 1;  // gesture wait time
-  val |= (gesture_wait_time & 0b111) << 0;
+  val |= (this->gesture_wait_time_ & 0b111) << 0;
   APDS9960_WRITE_BYTE(0xA3, val);
 
   // GOffsetU (0xA4) -> 0x00 (no offset)
@@ -117,8 +116,12 @@ void APDS9960::setup() {
   APDS9960_WRITE_BYTE(0x80, val);
 }
 bool APDS9960::is_color_enabled_() const {
-  return this->red_channel_ != nullptr || this->green_channel_ != nullptr || this->blue_channel_ != nullptr ||
-         this->clear_channel_ != nullptr;
+#ifdef USE_SENSOR
+  return this->red_sensor_ != nullptr || this->green_sensor_ != nullptr || this->blue_sensor_ != nullptr ||
+         this->clear_sensor_ != nullptr;
+#else
+  return false;
+#endif
 }
 
 void APDS9960::dump_config() {
@@ -126,6 +129,15 @@ void APDS9960::dump_config() {
   LOG_I2C_DEVICE(this);
 
   LOG_UPDATE_INTERVAL(this);
+
+#ifdef USE_SENSOR
+  LOG_SENSOR("  ", "Red channel", this->red_sensor_);
+  LOG_SENSOR("  ", "Green channel", this->green_sensor_);
+  LOG_SENSOR("  ", "Blue channel", this->blue_sensor_);
+  LOG_SENSOR("  ", "Clear channel", this->clear_sensor_);
+  LOG_SENSOR("  ", "Proximity", this->proximity_sensor_);
+#endif
+
   if (this->is_failed()) {
     switch (this->error_code_) {
       case COMMUNICATION_FAILED:
@@ -182,17 +194,22 @@ void APDS9960::read_color_data_(uint8_t status) {
   float blue_perc = (uint_blue / float(UINT16_MAX)) * 100.0f;
 
   ESP_LOGD(TAG, "Got clear=%.1f%% red=%.1f%% green=%.1f%% blue=%.1f%%", clear_perc, red_perc, green_perc, blue_perc);
-  if (this->clear_channel_ != nullptr)
-    this->clear_channel_->publish_state(clear_perc);
-  if (this->red_channel_ != nullptr)
-    this->red_channel_->publish_state(red_perc);
-  if (this->green_channel_ != nullptr)
-    this->green_channel_->publish_state(green_perc);
-  if (this->blue_channel_ != nullptr)
-    this->blue_channel_->publish_state(blue_perc);
+#ifdef USE_SENSOR
+  if (this->clear_sensor_ != nullptr)
+    this->clear_sensor_->publish_state(clear_perc);
+  if (this->red_sensor_ != nullptr)
+    this->red_sensor_->publish_state(red_perc);
+  if (this->green_sensor_ != nullptr)
+    this->green_sensor_->publish_state(green_perc);
+  if (this->blue_sensor_ != nullptr)
+    this->blue_sensor_->publish_state(blue_perc);
+#endif
 }
 void APDS9960::read_proximity_data_(uint8_t status) {
-  if (this->proximity_ == nullptr)
+#ifndef USE_SENSOR
+  return;
+#else
+  if (this->proximity_sensor_ == nullptr)
     return;
 
   if ((status & 0b10) == 0x00) {
@@ -205,7 +222,8 @@ void APDS9960::read_proximity_data_(uint8_t status) {
 
   float prox_perc = (prox / float(UINT8_MAX)) * 100.0f;
   ESP_LOGD(TAG, "Got proximity=%.1f%%", prox_perc);
-  this->proximity_->publish_state(prox_perc);
+  this->proximity_sensor_->publish_state(prox_perc);
+#endif
 }
 void APDS9960::read_gesture_data_() {
   if (!this->is_gesture_enabled_())
@@ -257,28 +275,29 @@ void APDS9960::read_gesture_data_() {
   }
 }
 void APDS9960::report_gesture_(int gesture) {
+#ifdef USE_BINARY_SENSOR
   binary_sensor::BinarySensor *bin;
   switch (gesture) {
     case 1:
-      bin = this->up_direction_;
+      bin = this->up_direction_binary_sensor_;
       this->gesture_up_started_ = false;
       this->gesture_down_started_ = false;
       ESP_LOGD(TAG, "Got gesture UP");
       break;
     case 2:
-      bin = this->down_direction_;
+      bin = this->down_direction_binary_sensor_;
       this->gesture_up_started_ = false;
       this->gesture_down_started_ = false;
       ESP_LOGD(TAG, "Got gesture DOWN");
       break;
     case 3:
-      bin = this->left_direction_;
+      bin = this->left_direction_binary_sensor_;
       this->gesture_left_started_ = false;
       this->gesture_right_started_ = false;
       ESP_LOGD(TAG, "Got gesture LEFT");
       break;
     case 4:
-      bin = this->right_direction_;
+      bin = this->right_direction_binary_sensor_;
       this->gesture_left_started_ = false;
       this->gesture_right_started_ = false;
       ESP_LOGD(TAG, "Got gesture RIGHT");
@@ -291,6 +310,7 @@ void APDS9960::report_gesture_(int gesture) {
     bin->publish_state(true);
     bin->publish_state(false);
   }
+#endif
 }
 void APDS9960::process_dataset_(int up, int down, int left, int right) {
   /* Algorithm: (see Figure 11 in datasheet)
@@ -366,10 +386,22 @@ void APDS9960::process_dataset_(int up, int down, int left, int right) {
   }
 }
 float APDS9960::get_setup_priority() const { return setup_priority::DATA; }
-bool APDS9960::is_proximity_enabled_() const { return this->proximity_ != nullptr || this->is_gesture_enabled_(); }
+bool APDS9960::is_proximity_enabled_() const {
+  return
+#ifdef USE_SENSOR
+      this->proximity_sensor_ != nullptr
+#else
+      false
+#endif
+      || this->is_gesture_enabled_();
+}
 bool APDS9960::is_gesture_enabled_() const {
-  return this->up_direction_ != nullptr || this->left_direction_ != nullptr || this->down_direction_ != nullptr ||
-         this->right_direction_ != nullptr;
+#ifdef USE_BINARY_SENSOR
+  return this->up_direction_binary_sensor_ != nullptr || this->left_direction_binary_sensor_ != nullptr ||
+         this->down_direction_binary_sensor_ != nullptr || this->right_direction_binary_sensor_ != nullptr;
+#else
+  return false;
+#endif
 }
 
 }  // namespace apds9960

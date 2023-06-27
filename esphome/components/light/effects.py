@@ -1,4 +1,4 @@
-from esphome.jsonschema import jschema_extractor
+from esphome.schema_extractors import SCHEMA_EXTRACT, schema_extractor
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
@@ -28,6 +28,8 @@ from esphome.const import (
     CONF_NUM_LEDS,
     CONF_RANDOM,
     CONF_SEQUENCE,
+    CONF_MAX_BRIGHTNESS,
+    CONF_MIN_BRIGHTNESS,
 )
 from esphome.util import Registry
 from .types import (
@@ -174,12 +176,19 @@ async def automation_effect_to_code(config, effect_id):
         cv.Optional(
             CONF_UPDATE_INTERVAL, default="1s"
         ): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_MIN_BRIGHTNESS, default="0%"): cv.percentage,
+        cv.Optional(CONF_MAX_BRIGHTNESS, default="100%"): cv.percentage,
     },
 )
 async def pulse_effect_to_code(config, effect_id):
     effect = cg.new_Pvariable(effect_id, config[CONF_NAME])
     cg.add(effect.set_transition_length(config[CONF_TRANSITION_LENGTH]))
     cg.add(effect.set_update_interval(config[CONF_UPDATE_INTERVAL]))
+    cg.add(
+        effect.set_min_max_brightness(
+            config[CONF_MIN_BRIGHTNESS], config[CONF_MAX_BRIGHTNESS]
+        )
+    )
     return effect
 
 
@@ -479,11 +488,11 @@ async def addressable_flicker_effect_to_code(config, effect_id):
 
 
 def validate_effects(allowed_effects):
-    @jschema_extractor("effects")
+    @schema_extractor("effects")
     def validator(value):
-        # pylint: disable=comparison-with-callable
-        if value == jschema_extractor:
+        if value == SCHEMA_EXTRACT:
             return (allowed_effects, EFFECTS_REGISTRY)
+
         value = cv.validate_registry("effect", EFFECTS_REGISTRY)(value)
         errors = []
         names = set()

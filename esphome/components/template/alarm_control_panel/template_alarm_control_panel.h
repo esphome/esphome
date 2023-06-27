@@ -1,0 +1,116 @@
+#pragma once
+
+#include <map>
+
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+
+#include "esphome/components/alarm_control_panel/alarm_control_panel.h"
+
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
+
+namespace esphome {
+namespace template_ {
+
+#ifdef USE_BINARY_SENSOR
+enum BinarySensorFlags : uint16_t {
+  BINARY_SENSOR_MODE_NORMAL = 1 << 0,
+  BINARY_SENSOR_MODE_BYPASS_ARMED_HOME = 1 << 1,
+};
+#endif
+
+enum TemplateAlarmControlPanelRestoreMode {
+  ALARM_CONTROL_PANEL_ALWAYS_DISARMED,
+  ALARM_CONTROL_PANEL_RESTORE_DEFAULT_DISARMED,
+};
+
+class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel, public Component {
+ public:
+  TemplateAlarmControlPanel();
+  void dump_config() override;
+  void setup() override;
+  void loop() override;
+  uint32_t get_supported_features() const override;
+  bool get_requires_code() const override;
+  bool get_requires_code_to_arm() const override { return this->requires_code_to_arm_; }
+  void set_restore_mode(TemplateAlarmControlPanelRestoreMode restore_mode) { this->restore_mode_ = restore_mode; }
+
+#ifdef USE_BINARY_SENSOR
+  /** Add a binary_sensor to the alarm_panel.
+   *
+   * @param sensor The BinarySensor instance.
+   * @param ignore_when_home if this should be ignored when armed_home mode
+   */
+  void add_sensor(binary_sensor::BinarySensor *sensor, uint16_t flags = 0);
+#endif
+
+  /** add a code
+   *
+   * @param code The code
+   */
+  void add_code(const std::string &code) { this->codes_.push_back(code); }
+
+  /** set requires a code to arm
+   *
+   * @param code_to_arm The requires code to arm
+   */
+  void set_requires_code_to_arm(bool code_to_arm) { this->requires_code_to_arm_ = code_to_arm; }
+
+  /** set the delay before arming away
+   *
+   * @param time The milliseconds
+   */
+  void set_arming_away_time(uint32_t time) { this->arming_away_time_ = time; }
+
+  /** set the delay before arming home
+   *
+   * @param time The milliseconds
+   */
+  void set_arming_home_time(uint32_t time) { this->arming_home_time_ = time; }
+
+  /** set the delay before triggering
+   *
+   * @param time The milliseconds
+   */
+  void set_pending_time(uint32_t time) { this->pending_time_ = time; }
+
+  /** set the delay before resetting after triggered
+   *
+   * @param time The milliseconds
+   */
+  void set_trigger_time(uint32_t time) { this->trigger_time_ = time; }
+
+  void set_supports_arm_home(bool supports_arm_home) { supports_arm_home_ = supports_arm_home; }
+
+ protected:
+  void control(const alarm_control_panel::AlarmControlPanelCall &call) override;
+#ifdef USE_BINARY_SENSOR
+  // the map of binary sensors that the alarm_panel monitors with their modes
+  std::map<binary_sensor::BinarySensor *, uint16_t> sensor_map_;
+#endif
+  TemplateAlarmControlPanelRestoreMode restore_mode_{};
+
+  // the arming away delay
+  uint32_t arming_away_time_;
+  // the arming home delay
+  uint32_t arming_home_time_{0};
+  // the trigger delay
+  uint32_t pending_time_;
+  // the time in trigger
+  uint32_t trigger_time_;
+  // a list of codes
+  std::vector<std::string> codes_;
+  // requires a code to arm
+  bool requires_code_to_arm_ = false;
+  bool supports_arm_home_ = false;
+  // check if the code is valid
+  bool is_code_valid_(optional<std::string> code);
+
+  void arm_(optional<std::string> code, alarm_control_panel::AlarmControlPanelState state, uint32_t delay);
+};
+
+}  // namespace template_
+}  // namespace esphome

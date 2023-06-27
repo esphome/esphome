@@ -1,3 +1,4 @@
+---
 esphome:
   name: test
   platform: ESP8266
@@ -7,6 +8,6 @@ sensor:
   - platform: adc
     pin: A0
     id: s_1
-    name: "test s1"
+    name: test s1
     update_interval: 60s
-    device_class: "voltage"
+    device_class: voltage

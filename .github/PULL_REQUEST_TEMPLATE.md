@@ -1,6 +1,6 @@
-# What does this implement/fix? 
+# What does this implement/fix?
 
-Quick description and explanation of changes
+<!-- Quick description and explanation of changes -->
 
 ## Types of changes
 
@@ -18,6 +18,7 @@ Quick description and explanation of changes
 - [ ] ESP32
 - [ ] ESP32 IDF
 - [ ] ESP8266
+- [ ] RP2040
 
 ## Example entry for `config.yaml`:
 <!--
@@ -35,6 +36,6 @@ Quick description and explanation of changes
 ## Checklist:
   - [ ] The code change is tested and works locally.
   - [ ] Tests have been added to verify that the new code works (under `tests/` folder).
-  
+
 If user exposed functionality or configuration variables are added/changed:
   - [ ] Documentation added/updated in [esphome-docs](https://github.com/esphome/esphome-docs).

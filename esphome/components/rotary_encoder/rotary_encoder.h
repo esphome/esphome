@@ -34,6 +34,7 @@ struct RotaryEncoderSensorStore {
   int32_t max_value{INT32_MAX};
   int32_t last_read{0};
   uint8_t state{0};
+  bool first_read{true};
 
   std::array<int8_t, 8> rotation_events{};
   bool rotation_events_overflow{false};

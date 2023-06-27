@@ -99,7 +99,7 @@ void Application::loop() {
 
   if (this->dump_config_at_ < this->components_.size()) {
     if (this->dump_config_at_ == 0) {
-      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_.c_str());
+      ESP_LOGI(TAG, "ESPHome version " ESPHOME_VERSION " compiled on %s", this->compilation_time_);
 #ifdef ESPHOME_PROJECT_NAME
       ESP_LOGI(TAG, "Project " ESPHOME_PROJECT_NAME " version " ESPHOME_PROJECT_VERSION);
 #endif
@@ -125,17 +125,24 @@ void IRAM_ATTR HOT Application::feed_wdt() {
 }
 void Application::reboot() {
   ESP_LOGI(TAG, "Forcing a reboot...");
-  for (auto *comp : this->components_)
-    comp->on_shutdown();
+  for (auto it = this->components_.rbegin(); it != this->components_.rend(); ++it) {
+    (*it)->on_shutdown();
+  }
   arch_restart();
 }
 void Application::safe_reboot() {
   ESP_LOGI(TAG, "Rebooting safely...");
-  for (auto *comp : this->components_)
-    comp->on_safe_shutdown();
-  for (auto *comp : this->components_)
-    comp->on_shutdown();
+  run_safe_shutdown_hooks();
   arch_restart();
+}
+
+void Application::run_safe_shutdown_hooks() {
+  for (auto it = this->components_.rbegin(); it != this->components_.rend(); ++it) {
+    (*it)->on_safe_shutdown();
+  }
+  for (auto it = this->components_.rbegin(); it != this->components_.rend(); ++it) {
+    (*it)->on_shutdown();
+  }
 }
 
 void Application::calculate_looping_components_() {

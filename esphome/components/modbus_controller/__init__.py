@@ -24,7 +24,6 @@ AUTO_LOAD = ["modbus"]
 
 MULTI_CONF = True
 
-# pylint: disable=invalid-name
 modbus_controller_ns = cg.esphome_ns.namespace("modbus_controller")
 ModbusController = modbus_controller_ns.class_(
     "ModbusController", cg.PollingComponent, modbus.ModbusDevice
@@ -71,9 +70,9 @@ SENSOR_VALUE_TYPE = {
     "S_DWORD": SensorValueType.S_DWORD,
     "S_DWORD_R": SensorValueType.S_DWORD_R,
     "U_QWORD": SensorValueType.U_QWORD,
-    "U_QWORDU_R": SensorValueType.U_QWORD_R,
+    "U_QWORD_R": SensorValueType.U_QWORD_R,
     "S_QWORD": SensorValueType.S_QWORD,
-    "U_QWORD_R": SensorValueType.S_QWORD_R,
+    "S_QWORD_R": SensorValueType.S_QWORD_R,
     "FP32": SensorValueType.FP32,
     "FP32_R": SensorValueType.FP32_R,
 }
@@ -87,9 +86,9 @@ TYPE_REGISTER_MAP = {
     "S_DWORD": 2,
     "S_DWORD_R": 2,
     "U_QWORD": 4,
-    "U_QWORDU_R": 4,
-    "S_QWORD": 4,
     "U_QWORD_R": 4,
+    "S_QWORD": 4,
+    "S_QWORD_R": 4,
     "FP32": 2,
     "FP32_R": 2,
 }

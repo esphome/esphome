@@ -62,6 +62,8 @@ const LogString *climate_fan_mode_to_string(ClimateFanMode fan_mode) {
       return LOG_STR("FOCUS");
     case climate::CLIMATE_FAN_DIFFUSE:
       return LOG_STR("DIFFUSE");
+    case climate::CLIMATE_FAN_QUIET:
+      return LOG_STR("QUIET");
     default:
       return LOG_STR("UNKNOWN");
   }

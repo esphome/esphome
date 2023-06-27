@@ -25,6 +25,8 @@ class SSD1331 : public PollingComponent, public display::DisplayBuffer {
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
   void fill(Color color) override;
 
+  display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
+
  protected:
   virtual void command(uint8_t value) = 0;
   virtual void write_display_data() = 0;

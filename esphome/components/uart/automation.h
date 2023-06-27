@@ -3,6 +3,8 @@
 #include "uart.h"
 #include "esphome/core/automation.h"
 
+#include <vector>
+
 namespace esphome {
 namespace uart {
 

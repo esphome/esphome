@@ -30,6 +30,8 @@ RESPONSE_ERROR_WRONG_CURRENT_FLASH_CONFIG = 134
 RESPONSE_ERROR_WRONG_NEW_FLASH_CONFIG = 135
 RESPONSE_ERROR_ESP8266_NOT_ENOUGH_SPACE = 136
 RESPONSE_ERROR_ESP32_NOT_ENOUGH_SPACE = 137
+RESPONSE_ERROR_NO_UPDATE_PARTITION = 138
+RESPONSE_ERROR_MD5_MISMATCH = 139
 RESPONSE_ERROR_UNKNOWN = 255
 
 OTA_VERSION_1_0 = 1
@@ -60,7 +62,6 @@ class ProgressBar:
         sys.stderr.write(text)
         sys.stderr.flush()
 
-    # pylint: disable=no-self-use
     def done(self):
         sys.stderr.write("\n")
         sys.stderr.flush()
@@ -150,6 +151,16 @@ def check_error(data, expect):
         raise OTAError(
             "Error: The OTA partition on the ESP is too small. ESPHome needs to resize "
             "this partition, please flash over USB."
+        )
+    if dat == RESPONSE_ERROR_NO_UPDATE_PARTITION:
+        raise OTAError(
+            "Error: The OTA partition on the ESP couldn't be found. ESPHome needs to create "
+            "this partition, please flash over USB."
+        )
+    if dat == RESPONSE_ERROR_MD5_MISMATCH:
+        raise OTAError(
+            "Error: Application MD5 code mismatch. Please try again "
+            "or flash over USB with a good quality cable."
         )
     if dat == RESPONSE_ERROR_UNKNOWN:
         raise OTAError("Unknown error from ESP")

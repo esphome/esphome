@@ -2,11 +2,11 @@
 
 #include <string>
 #include <vector>
-#include "esphome/core/defines.h"
-#include "esphome/core/preferences.h"
 #include "esphome/core/component.h"
+#include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/preferences.h"
 #include "esphome/core/scheduler.h"
 
 #ifdef USE_BINARY_SENSOR
@@ -42,19 +42,36 @@
 #ifdef USE_SELECT
 #include "esphome/components/select/select.h"
 #endif
+#ifdef USE_LOCK
+#include "esphome/components/lock/lock.h"
+#endif
+#ifdef USE_MEDIA_PLAYER
+#include "esphome/components/media_player/media_player.h"
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+#include "esphome/components/alarm_control_panel/alarm_control_panel.h"
+#endif
 
 namespace esphome {
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const char *compilation_time, bool name_add_mac_suffix) {
+  void pre_setup(const std::string &name, const std::string &friendly_name, const char *comment,
+                 const char *compilation_time, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
     if (name_add_mac_suffix) {
       this->name_ = name + "-" + get_mac_address().substr(6);
+      if (friendly_name.empty()) {
+        this->friendly_name_ = "";
+      } else {
+        this->friendly_name_ = friendly_name + " " + get_mac_address().substr(6);
+      }
     } else {
       this->name_ = name;
+      this->friendly_name_ = friendly_name;
     }
+    this->comment_ = comment;
     this->compilation_time_ = compilation_time;
   }
 
@@ -104,6 +121,20 @@ class Application {
   void register_select(select::Select *select) { this->selects_.push_back(select); }
 #endif
 
+#ifdef USE_LOCK
+  void register_lock(lock::Lock *a_lock) { this->locks_.push_back(a_lock); }
+#endif
+
+#ifdef USE_MEDIA_PLAYER
+  void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+    this->alarm_control_panels_.push_back(a_alarm_control_panel);
+  }
+#endif
+
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {
     static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
@@ -117,12 +148,17 @@ class Application {
   /// Make a loop iteration. Call this in your loop() function.
   void loop();
 
-  /// Get the name of this Application set by set_name().
+  /// Get the name of this Application set by pre_setup().
   const std::string &get_name() const { return this->name_; }
+
+  /// Get the friendly name of this Application set by pre_setup().
+  const std::string &get_friendly_name() const { return this->friendly_name_; }
+  /// Get the comment of this Application set by pre_setup().
+  std::string get_comment() const { return this->comment_; }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
-  const std::string &get_compilation_time() const { return this->compilation_time_; }
+  std::string get_compilation_time() const { return this->compilation_time_; }
 
   /** Set the target interval with which to run the loop() calls.
    * If the loop() method takes longer than the target interval, ESPHome won't
@@ -147,14 +183,7 @@ class Application {
 
   void safe_reboot();
 
-  void run_safe_shutdown_hooks() {
-    for (auto *comp : this->components_) {
-      comp->on_safe_shutdown();
-    }
-    for (auto *comp : this->components_) {
-      comp->on_shutdown();
-    }
-  }
+  void run_safe_shutdown_hooks();
 
   uint32_t get_app_state() const { return this->app_state_; }
 
@@ -257,6 +286,36 @@ class Application {
     return nullptr;
   }
 #endif
+#ifdef USE_LOCK
+  const std::vector<lock::Lock *> &get_locks() { return this->locks_; }
+  lock::Lock *get_lock_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->locks_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+#ifdef USE_MEDIA_PLAYER
+  const std::vector<media_player::MediaPlayer *> &get_media_players() { return this->media_players_; }
+  media_player::MediaPlayer *get_media_player_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->media_players_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  const std::vector<alarm_control_panel::AlarmControlPanel *> &get_alarm_control_panels() {
+    return this->alarm_control_panels_;
+  }
+  alarm_control_panel::AlarmControlPanel *get_alarm_control_panel_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->alarm_control_panels_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
 
   Scheduler scheduler;
 
@@ -305,9 +364,20 @@ class Application {
 #ifdef USE_SELECT
   std::vector<select::Select *> selects_{};
 #endif
+#ifdef USE_LOCK
+  std::vector<lock::Lock *> locks_{};
+#endif
+#ifdef USE_MEDIA_PLAYER
+  std::vector<media_player::MediaPlayer *> media_players_{};
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+  std::vector<alarm_control_panel::AlarmControlPanel *> alarm_control_panels_{};
+#endif
 
   std::string name_;
-  std::string compilation_time_;
+  std::string friendly_name_;
+  const char *comment_{nullptr};
+  const char *compilation_time_{nullptr};
   bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};

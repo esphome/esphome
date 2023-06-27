@@ -66,6 +66,9 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
   }
 
   this->client_.setTimeout(this->timeout_);
+#if defined(USE_ESP32)
+  this->client_.setConnectTimeout(this->timeout_);
+#endif
   if (this->useragent_ != nullptr) {
     this->client_.setUserAgent(this->useragent_);
   }
@@ -73,25 +76,27 @@ void HttpRequestComponent::send(const std::vector<HttpRequestResponseTrigger *> 
     this->client_.addHeader(header.name, header.value, false, true);
   }
 
+  uint32_t start_time = millis();
   int http_code = this->client_.sendRequest(this->method_, this->body_.c_str());
+  uint32_t duration = millis() - start_time;
   for (auto *trigger : response_triggers)
-    trigger->process(http_code);
+    trigger->process(http_code, duration);
 
   if (http_code < 0) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s", this->url_.c_str(),
-             HTTPClient::errorToString(http_code).c_str());
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Error: %s; Duration: %u ms", this->url_.c_str(),
+             HTTPClient::errorToString(http_code).c_str(), duration);
     this->status_set_warning();
     return;
   }
 
   if (http_code < 200 || http_code >= 300) {
-    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Code: %d", this->url_.c_str(), http_code);
+    ESP_LOGW(TAG, "HTTP Request failed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), http_code, duration);
     this->status_set_warning();
     return;
   }
 
   this->status_clear_warning();
-  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d", this->url_.c_str(), http_code);
+  ESP_LOGD(TAG, "HTTP Request completed; URL: %s; Code: %d; Duration: %u ms", this->url_.c_str(), http_code, duration);
 }
 
 #ifdef USE_ESP8266
@@ -120,10 +125,16 @@ void HttpRequestComponent::close() {
 }
 
 const char *HttpRequestComponent::get_string() {
-  // The static variable is here because HTTPClient::getString() returns a String on ESP32, and we need something to
-  // to keep a buffer alive.
-  static std::string str;
-  str = this->client_.getString().c_str();
+#if defined(ESP32)
+  // The static variable is here because HTTPClient::getString() returns a String on ESP32,
+  // and we need something to keep a buffer alive.
+  static String str;
+#else
+  // However on ESP8266, HTTPClient::getString() returns a String& to a member variable.
+  // Leaving this the default so that any new platform either doesn't copy, or encounters a compilation error.
+  auto &
+#endif
+  str = this->client_.getString();
   return str.c_str();
 }
 

@@ -4,6 +4,8 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/components/switch/switch.h"
 
+#include <vector>
+
 namespace esphome {
 namespace uart {
 

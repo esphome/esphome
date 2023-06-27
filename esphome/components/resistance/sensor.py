@@ -6,7 +6,6 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_OHM,
     ICON_FLASH,
-    CONF_ID,
 )
 
 resistance_ns = cg.esphome_ns.namespace("resistance")
@@ -24,6 +23,7 @@ CONFIGURATIONS = {
 
 CONFIG_SCHEMA = (
     sensor.sensor_schema(
+        ResistanceSensor,
         unit_of_measurement=UNIT_OHM,
         icon=ICON_FLASH,
         accuracy_decimals=1,
@@ -31,7 +31,6 @@ CONFIG_SCHEMA = (
     )
     .extend(
         {
-            cv.GenerateID(): cv.declare_id(ResistanceSensor),
             cv.Required(CONF_SENSOR): cv.use_id(sensor.Sensor),
             cv.Required(CONF_CONFIGURATION): cv.enum(CONFIGURATIONS, upper=True),
             cv.Required(CONF_RESISTOR): cv.resistance,
@@ -43,9 +42,8 @@ CONFIG_SCHEMA = (
 
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+    var = await sensor.new_sensor(config)
     await cg.register_component(var, config)
-    await sensor.register_sensor(var, config)
 
     sens = await cg.get_variable(config[CONF_SENSOR])
     cg.add(var.set_sensor(sens))

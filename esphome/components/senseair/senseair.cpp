@@ -1,4 +1,5 @@
 #include "senseair.h"
+#include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 
 namespace esphome {
@@ -42,7 +43,7 @@ void SenseAirComponent::update() {
     return;
   }
 
-  uint16_t calc_checksum = this->senseair_checksum_(response, 11);
+  uint16_t calc_checksum = crc16(response, 11);
   uint16_t resp_checksum = (uint16_t(response[12]) << 8) | response[11];
   if (resp_checksum != calc_checksum) {
     ESP_LOGW(TAG, "SenseAir checksum doesn't match: 0x%02X!=0x%02X", resp_checksum, calc_checksum);
@@ -58,23 +59,6 @@ void SenseAirComponent::update() {
   ESP_LOGD(TAG, "SenseAir Received CO₂=%uppm Status=0x%02X", ppm, status);
   if (this->co2_sensor_ != nullptr)
     this->co2_sensor_->publish_state(ppm);
-}
-
-uint16_t SenseAirComponent::senseair_checksum_(uint8_t *ptr, uint8_t length) {
-  uint16_t crc = 0xFFFF;
-  uint8_t i;
-  while (length--) {
-    crc ^= *ptr++;
-    for (i = 0; i < 8; i++) {
-      if ((crc & 0x01) != 0) {
-        crc >>= 1;
-        crc ^= 0xA001;
-      } else {
-        crc >>= 1;
-      }
-    }
-  }
-  return crc;
 }
 
 void SenseAirComponent::background_calibration() {
@@ -102,7 +86,7 @@ void SenseAirComponent::background_calibration_result() {
   }
 
   // Check if 5th bit (register CI6) is set
-  ESP_LOGD(TAG, "SenseAir Result=%s (%02x%02x%02x %02x%02x %02x%02x)", (response[4] & 0b100000) != 0 ? "OK" : "NOT_OK",
+  ESP_LOGI(TAG, "SenseAir Result=%s (%02x%02x%02x %02x%02x %02x%02x)", (response[4] & 0b100000) != 0 ? "OK" : "NOT_OK",
            response[0], response[1], response[2], response[3], response[4], response[5], response[6]);
 }
 
