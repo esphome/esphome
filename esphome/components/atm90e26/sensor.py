@@ -107,7 +107,9 @@ CONFIG_SCHEMA = (
             cv.Required(CONF_METER_CONSTANT): cv.positive_float,
             cv.Optional(CONF_PL_CONST, default=1429876): cv.uint32_t,
             cv.Optional(CONF_GAIN_METERING, default=7481): cv.uint16_t,
-            cv.Optional(CONF_GAIN_VOLTAGE, default=26400): cv.int_range(min=0, max=32767),
+            cv.Optional(CONF_GAIN_VOLTAGE, default=26400): cv.int_range(
+                min=0, max=32767
+            ),
             cv.Optional(CONF_GAIN_CT, default=31251): cv.uint16_t,
             cv.Optional(CONF_GAIN_PGA, default="1X"): cv.enum(PGA_GAINS, upper=True),
         }
