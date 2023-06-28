@@ -851,8 +851,7 @@ void GDEW0154M09::write_init_list_(const uint8_t *list) {
 
 void GDEW0154M09::clear_() {
   uint32_t pixsize = this->get_buffer_length_();
-  uint8_t j;
-  for (j = 0; j < 2; j++) {
+  for (uint8_t j = 0; j < 2; j++) {
     this->command(CMD_DTM1_DATA_START_TRANS);
     for (int count = 0; count < pixsize; count++) {
       this->data(0x00);
