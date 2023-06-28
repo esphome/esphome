@@ -44,7 +44,7 @@ void ClimateCall::perform() {
   if (this->target_temperature_high_.has_value()) {
     ESP_LOGD(TAG, "  Target Temperature High: %.2f", *this->target_temperature_high_);
   }
-  this->parent_->control_callback_.call();
+  this->parent_->control_callback_.call(*this);
   this->parent_->control(*this);
 }
 void ClimateCall::validate_() {
@@ -304,7 +304,7 @@ void Climate::add_on_state_callback(std::function<void()> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
-void Climate::add_on_control_callback(std::function<void()> &&callback) {
+void Climate::add_on_control_callback(std::function<void(ClimateCall)> &&callback) {
   this->control_callback_.add(std::move(callback));
 }
 

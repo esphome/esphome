@@ -42,10 +42,10 @@ template<typename... Ts> class ControlAction : public Action<Ts...> {
   Climate *climate_;
 };
 
-class ControlTrigger : public Trigger<> {
+class ControlTrigger : public Trigger<ClimateCall> {
  public:
   ControlTrigger(Climate *climate) {
-    climate->add_on_control_callback([this]() { this->trigger(); });
+    climate->add_on_control_callback([this](ClimateCall x) { this->trigger(x); });
   }
 };
 

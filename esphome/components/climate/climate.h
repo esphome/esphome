@@ -206,7 +206,7 @@ class Climate : public EntityBase {
    *
    * @param callback The callback to call.
    */
-  void add_on_control_callback(std::function<void()> &&callback);
+  void add_on_control_callback(std::function<void(ClimateCall)> &&callback);
 
   /** Make a climate device control call, this is used to control the climate device, see the ClimateCall description
    * for more info.
@@ -274,7 +274,7 @@ class Climate : public EntityBase {
   void dump_traits_(const char *tag);
 
   CallbackManager<void()> state_callback_{};
-  CallbackManager<void()> control_callback_{};
+  CallbackManager<void(ClimateCall)> control_callback_{};
   ESPPreferenceObject rtc_;
   optional<float> visual_min_temperature_override_{};
   optional<float> visual_max_temperature_override_{};
