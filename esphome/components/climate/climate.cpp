@@ -7,6 +7,7 @@ namespace climate {
 static const char *const TAG = "climate";
 
 void ClimateCall::perform() {
+  this->parent_->control_callback_.call(*this);
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
   if (this->mode_.has_value()) {
@@ -44,7 +45,6 @@ void ClimateCall::perform() {
   if (this->target_temperature_high_.has_value()) {
     ESP_LOGD(TAG, "  Target Temperature High: %.2f", *this->target_temperature_high_);
   }
-  this->parent_->control_callback_.call(*this);
   this->parent_->control(*this);
 }
 void ClimateCall::validate_() {
@@ -304,7 +304,7 @@ void Climate::add_on_state_callback(std::function<void()> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
-void Climate::add_on_control_callback(std::function<void(ClimateCall)> &&callback) {
+void Climate::add_on_control_callback(std::function<void(ClimateCall &)> &&callback) {
   this->control_callback_.add(std::move(callback));
 }
 
