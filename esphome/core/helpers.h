@@ -6,6 +6,7 @@
 #include <memory>
 #include <string>
 #include <type_traits>
+#include <utility>
 #include <vector>
 
 #include "esphome/core/optional.h"
@@ -487,21 +488,27 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
 template<typename T> class Deduplicator {
  public:
   /// Feeds the next item in the series to the deduplicator and returns whether this is a duplicate.
-  bool next(T value) {
-    if (this->has_value_) {
-      if (this->last_value_ == value)
-        return false;
-    }
-    this->has_value_ = true;
-    this->last_value_ = value;
+  bool next(const T &value) {
+    if (this->value_ == value)
+      return false;
+    this->value_ = value;
     return true;
   }
+  /// Feeds the next item in the series to the deduplicator and returns old-new value pair on value change.
+  optional<std::pair<T, T>> next_change(const T &value) {
+    if (this->value_ == value)
+      return {};
+    auto result = std::make_pair(this->value_.value_or(value), value);
+    this->value_ = value;
+    return result;
+  }
   /// Returns whether this deduplicator has processed any items so far.
-  bool has_value() const { return this->has_value_; }
+  bool has_value() const { return this->value_.has_value(); }
+  /// Returns last value.
+  const T &value() const { return this->value_.value(); }
 
  protected:
-  bool has_value_{false};
-  T last_value_{};
+  optional<T> value_{};
 };
 
 /// Helper class to easily give an object a parent of type \p T.
