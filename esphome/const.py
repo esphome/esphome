@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2023.6.2"
+__version__ = "2023.6.3"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -968,6 +968,7 @@ DEVICE_CLASS_GAS = "gas"
 DEVICE_CLASS_GATE = "gate"
 DEVICE_CLASS_HEAT = "heat"
 DEVICE_CLASS_HUMIDITY = "humidity"
+DEVICE_CLASS_IDENTIFY = "identify"
 DEVICE_CLASS_ILLUMINANCE = "illuminance"
 DEVICE_CLASS_IRRADIANCE = "irradiance"
 DEVICE_CLASS_LIGHT = "light"

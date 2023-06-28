@@ -546,22 +546,11 @@ class DownloadBinaryRequestHandler(BaseHandler):
             return
 
         with open(path, "rb") as f:
-            while True:
-                # For a 528KB image used as benchmark:
-                #   - using 256KB blocks resulted in the smallest file size.
-                #   - blocks larger than 256KB didn't improve the size of compressed file.
-                #   - blocks smaller than 256KB hindered compression, making the output file larger.
+            data = f.read()
+            if compressed:
+                data = gzip.compress(data, 9)
+            self.write(data)
 
-                # Read file in blocks of 256KB.
-                data = f.read(256 * 1024)
-
-                if not data:
-                    break
-
-                if compressed:
-                    data = gzip.compress(data, 9)
-
-                self.write(data)
         self.finish()
 
 
