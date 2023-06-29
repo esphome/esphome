@@ -18,6 +18,9 @@ from esphome.const import (
     CONF_LOGGER,
     CONF_NAME,
     CONF_OTA,
+    CONF_MQTT,
+    CONF_MDNS,
+    CONF_DISABLED,
     CONF_PASSWORD,
     CONF_PORT,
     CONF_ESPHOME,
@@ -42,7 +45,7 @@ from esphome.log import color, setup_log, Fore
 _LOGGER = logging.getLogger(__name__)
 
 
-def choose_prompt(options):
+def choose_prompt(options, purpose: str = None):
     if not options:
         raise EsphomeError(
             "Found no valid options for upload/logging, please make sure relevant "
@@ -53,7 +56,9 @@ def choose_prompt(options):
     if len(options) == 1:
         return options[0][1]
 
-    safe_print("Found multiple options, please choose one:")
+    safe_print(
+        f'Found multiple options{f" for {purpose}" if purpose else ""}, please choose one:'
+    )
     for i, (desc, _) in enumerate(options):
         safe_print(f"  [{i+1}] {desc}")
 
@@ -72,7 +77,9 @@ def choose_prompt(options):
     return options[opt - 1][1]
 
 
-def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api):
+def choose_upload_log_host(
+    default, check_default, show_ota, show_mqtt, show_api, purpose: str = None
+):
     options = []
     for port in get_serial_ports():
         options.append((f"{port.path} ({port.description})", port.path))
@@ -80,7 +87,7 @@ def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == "OTA":
             return CORE.address
-    if show_mqtt and "mqtt" in CORE.config:
+    if show_mqtt and CONF_MQTT in CORE.config:
         options.append((f"MQTT ({CORE.config['mqtt'][CONF_BROKER]})", "MQTT"))
         if default == "OTA":
             return "MQTT"
@@ -88,7 +95,7 @@ def choose_upload_log_host(default, check_default, show_ota, show_mqtt, show_api
         return default
     if check_default is not None and check_default in [opt[1] for opt in options]:
         return check_default
-    return choose_prompt(options)
+    return choose_prompt(options, purpose=purpose)
 
 
 def get_port_type(port):
@@ -288,19 +295,30 @@ def upload_program(config, args, host):
 
         return 1  # Unknown target platform
 
-    from esphome import espota2
-
     if CONF_OTA not in config:
         raise EsphomeError(
             "Cannot upload Over the Air as the config does not include the ota: "
             "component"
         )
 
+    from esphome import espota2
+
     ota_conf = config[CONF_OTA]
     remote_port = ota_conf[CONF_PORT]
     password = ota_conf.get(CONF_PASSWORD, "")
+
+    if (
+        get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED]
+    ) and CONF_MQTT in config:
+        from esphome import mqtt
+
+        host = mqtt.get_esphome_device_ip(
+            config, args.username, args.password, args.client_id
+        )
+
     if getattr(args, "file", None) is not None:
         return espota2.run_ota(host, remote_port, password, args.file)
+
     return espota2.run_ota(host, remote_port, password, CORE.firmware_bin)
 
 
@@ -310,6 +328,13 @@ def show_logs(config, args, port):
     if get_port_type(port) == "SERIAL":
         return run_miniterm(config, port)
     if get_port_type(port) == "NETWORK" and "api" in config:
+        if config[CONF_MDNS][CONF_DISABLED] and CONF_MQTT in config:
+            from esphome import mqtt
+
+            port = mqtt.get_esphome_device_ip(
+                config, args.username, args.password, args.client_id
+            )
+
         from esphome.components.api.client import run_logs
 
         return run_logs(config, port)
@@ -374,12 +399,22 @@ def command_upload(args, config):
         show_ota=True,
         show_mqtt=False,
         show_api=False,
+        purpose="uploading",
     )
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
         return exit_code
     _LOGGER.info("Successfully uploaded program.")
     return 0
+
+
+def command_discover(args, config):
+    if "mqtt" in config:
+        from esphome import mqtt
+
+        return mqtt.show_discover(config, args.username, args.password, args.client_id)
+
+    raise EsphomeError("No discover method configured (mqtt)")
 
 
 def command_logs(args, config):
@@ -389,6 +424,7 @@ def command_logs(args, config):
         show_ota=False,
         show_mqtt=True,
         show_api=True,
+        purpose="logging",
     )
     return show_logs(config, args, port)
 
@@ -407,6 +443,7 @@ def command_run(args, config):
         show_ota=True,
         show_mqtt=False,
         show_api=True,
+        purpose="uploading",
     )
     exit_code = upload_program(config, args, port)
     if exit_code != 0:
@@ -420,6 +457,7 @@ def command_run(args, config):
         show_ota=False,
         show_mqtt=True,
         show_api=True,
+        purpose="logging",
     )
     return show_logs(config, args, port)
 
@@ -623,6 +661,7 @@ POST_CONFIG_ACTIONS = {
     "clean": command_clean,
     "idedata": command_idedata,
     "rename": command_rename,
+    "discover": command_discover,
 }
 
 
@@ -709,6 +748,15 @@ def parse_args(argv):
     parser_logs.add_argument(
         "--device",
         help="Manually specify the serial port/address to use, for example /dev/ttyUSB0.",
+    )
+
+    parser_discover = subparsers.add_parser(
+        "discover",
+        help="Validate the configuration and show all discovered devices.",
+        parents=[mqtt_options],
+    )
+    parser_discover.add_argument(
+        "configuration", help="Your YAML configuration file.", nargs=1
     )
 
     parser_run = subparsers.add_parser(
@@ -931,6 +979,8 @@ def run_esphome(argv):
         except EsphomeError as e:
             _LOGGER.error(e, exc_info=args.verbose)
             return 1
+
+    _LOGGER.info("ESPHome %s", const.__version__)
 
     for conf_path in args.configuration:
         if any(os.path.basename(conf_path) == x for x in SECRETS_FILES):

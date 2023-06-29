@@ -13,6 +13,8 @@ namespace fingerprint_grow {
 
 static const uint16_t START_CODE = 0xEF01;
 
+static const uint16_t ENROLLMENT_SLOT_UNUSED = 0xFFFF;
+
 enum GrowPacketType {
   COMMAND = 0x01,
   DATA = 0x02,
@@ -158,7 +160,7 @@ class FingerprintGrowComponent : public PollingComponent, public uart::UARTDevic
   uint32_t new_password_ = -1;
   GPIOPin *sensing_pin_{nullptr};
   uint8_t enrollment_image_ = 0;
-  uint16_t enrollment_slot_ = 0;
+  uint16_t enrollment_slot_ = ENROLLMENT_SLOT_UNUSED;
   uint8_t enrollment_buffers_ = 5;
   bool waiting_removal_ = false;
   uint32_t last_aura_led_control_ = 0;

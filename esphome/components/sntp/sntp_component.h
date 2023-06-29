@@ -22,7 +22,7 @@ class SNTPComponent : public time::RealTimeClock {
     this->server_2_ = server_2;
     this->server_3_ = server_3;
   }
-  float get_setup_priority() const override { return setup_priority::AFTER_WIFI; }
+  float get_setup_priority() const override { return setup_priority::BEFORE_CONNECTION; }
 
   void update() override;
   void loop() override;

@@ -252,7 +252,7 @@ def _parse_platform_version(value):
     try:
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
-        return f"platformio/espressif32 @ {value}"
+        return f"platformio/espressif32@{value}"
     except cv.Invalid:
         return value
 
@@ -367,12 +367,12 @@ async def to_code(config):
         cg.add_build_flag("-Wno-nonnull-compare")
         cg.add_platformio_option(
             "platform_packages",
-            [f"platformio/framework-espidf @ {conf[CONF_SOURCE]}"],
+            [f"platformio/framework-espidf@{conf[CONF_SOURCE]}"],
         )
         # platformio/toolchain-esp32ulp does not support linux_aarch64 yet and has not been updated for over 2 years
         # This is espressif's own published version which is more up to date.
         cg.add_platformio_option(
-            "platform_packages", ["espressif/toolchain-esp32ulp @ 2.35.0-20220830"]
+            "platform_packages", ["espressif/toolchain-esp32ulp@2.35.0-20220830"]
         )
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_SINGLE_APP", False)
         add_idf_sdkconfig_option("CONFIG_PARTITION_TABLE_CUSTOM", True)
@@ -433,7 +433,7 @@ async def to_code(config):
         cg.add_build_flag("-DUSE_ESP32_FRAMEWORK_ARDUINO")
         cg.add_platformio_option(
             "platform_packages",
-            [f"platformio/framework-arduinoespressif32 @ {conf[CONF_SOURCE]}"],
+            [f"platformio/framework-arduinoespressif32@{conf[CONF_SOURCE]}"],
         )
 
         cg.add_platformio_option("board_build.partitions", "partitions.csv")

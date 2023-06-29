@@ -791,6 +791,57 @@ async def raw_action(var, config, args):
     cg.add(var.set_carrier_frequency(templ))
 
 
+# Drayton
+(
+    DraytonData,
+    DraytonBinarySensor,
+    DraytonTrigger,
+    DraytonAction,
+    DraytonDumper,
+) = declare_protocol("Drayton")
+DRAYTON_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_ADDRESS): cv.All(cv.hex_int, cv.Range(min=0, max=0xFFFF)),
+        cv.Required(CONF_CHANNEL): cv.All(cv.hex_int, cv.Range(min=0, max=0x1F)),
+        cv.Required(CONF_COMMAND): cv.All(cv.hex_int, cv.Range(min=0, max=0x7F)),
+    }
+)
+
+
+@register_binary_sensor("drayton", DraytonBinarySensor, DRAYTON_SCHEMA)
+def drayton_binary_sensor(var, config):
+    cg.add(
+        var.set_data(
+            cg.StructInitializer(
+                DraytonData,
+                ("address", config[CONF_ADDRESS]),
+                ("channel", config[CONF_CHANNEL]),
+                ("command", config[CONF_COMMAND]),
+            )
+        )
+    )
+
+
+@register_trigger("drayton", DraytonTrigger, DraytonData)
+def drayton_trigger(var, config):
+    pass
+
+
+@register_dumper("drayton", DraytonDumper)
+def drayton_dumper(var, config):
+    pass
+
+
+@register_action("drayton", DraytonAction, DRAYTON_SCHEMA)
+async def drayton_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
+    cg.add(var.set_address(template_))
+    template_ = await cg.templatable(config[CONF_CHANNEL], args, cg.uint8)
+    cg.add(var.set_channel(template_))
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
+    cg.add(var.set_command(template_))
+
+
 # RC5
 RC5Data, RC5BinarySensor, RC5Trigger, RC5Action, RC5Dumper = declare_protocol("RC5")
 RC5_SCHEMA = cv.Schema(

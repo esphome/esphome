@@ -300,6 +300,8 @@ text_sensor:
 sm2135:
   data_pin: GPIO12
   clock_pin: GPIO14
+  rgb_current: 20mA
+  cw_current: 60mA
 
 switch:
   - platform: template
