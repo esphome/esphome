@@ -1355,8 +1355,12 @@ binary_sensor:
     device_class: window
     filters:
       - invert:
+      - delayed_on_off: 40ms
       - delayed_on: 40ms
       - delayed_off: 40ms
+      - delayed_on_off: !lambda "return false;"
+      - delayed_on: !lambda "return false;"
+      - delayed_off: !lambda "return false;"
     on_press:
       then:
         - lambda: >-
@@ -2147,7 +2151,9 @@ climate:
     use_fahrenheit: true
   - platform: midea
     on_control:
-      logger.log: Control message received!
+      - logger.log: Control message received!
+      - lambda: |-
+          x.set_mode(CLIMATE_MODE_FAN_ONLY);
     on_state:
       logger.log: State changed!
     id: midea_unit
