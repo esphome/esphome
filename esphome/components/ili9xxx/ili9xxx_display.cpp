@@ -411,7 +411,7 @@ void ILI9XXXILI9488::initialize() {
   this->is_18bitdisplay_ = true;
 }
 //    40_TFT display
-void ILI9XXXILI9488_A::initialize() {
+void ILI9XXXILI9488A::initialize() {
   this->init_lcd_(INITCMD_ILI9488_A);
   if (this->width_ == 0) {
     this->width_ = 480;
