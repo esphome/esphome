@@ -1358,9 +1358,9 @@ binary_sensor:
       - delayed_on_off: 40ms
       - delayed_on: 40ms
       - delayed_off: 40ms
-      - delayed_on_off: !lambda "return false;"
-      - delayed_on: !lambda "return false;"
-      - delayed_off: !lambda "return false;"
+      - delayed_on_off: !lambda "return 10;"
+      - delayed_on: !lambda "return 1000;"
+      - delayed_off: !lambda "return 0;"
     on_press:
       then:
         - lambda: >-
