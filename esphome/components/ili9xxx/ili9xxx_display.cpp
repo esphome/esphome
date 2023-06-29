@@ -411,6 +411,17 @@ void ILI9XXXILI9488::initialize() {
   this->is_18bitdisplay_ = true;
 }
 //    40_TFT display
+void ILI9XXXILI9488_A::initialize() {
+  this->init_lcd_(INITCMD_ILI9488_A);
+  if (this->width_ == 0) {
+    this->width_ = 480;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 320;
+  }
+  this->is_18bitdisplay_ = true;
+}
+//    40_TFT display
 void ILI9XXXST7796::initialize() {
   this->init_lcd_(INITCMD_ST7796);
   if (this->width_ == 0) {
