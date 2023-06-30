@@ -42,7 +42,7 @@ void EEH210Component::update() {
       return;
     }
 
-    unsigned int raw_temperature = (arr[1] << 8) | (arr[2] & 0b11111100);
+    unsigned int raw_temperature = (i2c_response[1] << 8) | (i2c_response[2] & 0b11111100);
     float temperature = -46.85 + 175.72 * (raw_temperature / 65536.0);
 
     unsigned int raw_humidity = (i2c_response[3] << 8) | (i2c_response[4] & 0b11111100);
