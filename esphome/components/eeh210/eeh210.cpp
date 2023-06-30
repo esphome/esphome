@@ -36,11 +36,11 @@ void EEH210Component::update() {
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
     this->read(i2c_response, 6);
-    if (i2c_response[5] != calc_crc8_(i2c_response, 0, 4)) {
-      this->error_code_ = CRC_CHECK_FAILED;
-      this->status_set_warning();
-      return;
-    }
+    // if (i2c_response[5] != calc_crc8_(i2c_response, 0, 4)) {
+    //   this->error_code_ = CRC_CHECK_FAILED;
+    //   this->status_set_warning();
+    //   return;
+    // }
 
     unsigned int raw_temperature = (i2c_response[1] << 8) | (i2c_response[2] & 0b11111100);
     float temperature = -46.85 + 175.72 * (raw_temperature / 65536.0);
