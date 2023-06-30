@@ -73,5 +73,5 @@ unsigned char EEH210Component::calc_crc8_(const unsigned char buf[], unsigned ch
   }
   return crc_val;
 }
-}  // namespace hte501
+}  // namespace eeh210
 }  // namespace esphome
