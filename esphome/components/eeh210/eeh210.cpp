@@ -48,7 +48,7 @@ void EEH210Component::update() {
     unsigned int raw_humidity = (i2c_response[3] << 8) | (i2c_response[4] & 0b11111100);
     float relative_humidity = -6.0 + 125.0 * (raw_humidity / 65536.0);
 
-    ESP_LOGD(TAG, "Got temperature=%.4f°C humidity=%.4f%%", temperature, humidity);
+    ESP_LOGD(TAG, "Got temperature=%.4f°C humidity=%.4f%%", temperature, relative_humidity);
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
     if (this->humidity_sensor_ != nullptr)
