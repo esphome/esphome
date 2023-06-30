@@ -6,6 +6,17 @@ namespace eeh210 {
 
 static const char *const TAG = "eeh210.sensor";
 
+static const uint8_t EEH210_I2C_COMMAND_TRIGGER_T_RH_MEASURE_HOLD = 0xE1;
+static const uint8_t EEH210_I2C_COMMAND_TRIGGER_T_MEASURE_HOLD = 0xE3;
+static const uint8_t EEH210_I2C_COMMAND_TRIGGER_RH_MEASURE_HOLD = 0xE5;
+
+static const uint8_t EEH210_I2C_COMMAND_TRIGGER_T_RH_MEASURE_NO_HOLD = 0xF1;
+static const uint8_t EEH210_I2C_COMMAND_TRIGGER_T_MEASURE_NO_HOLD = 0xF3;
+static const uint8_t EEH210_I2C_COMMAND_TRIGGER_RH_MEASURE_NO_HOLD = 0xF5;
+
+static const uint8_t EEH210_I2C_COMMAND_WRITE_USER_REGISTER = 0xE6;
+static const uint8_t EEH210_I2C_COMMAND_READ_USER_REGISTER = 0xFE;
+
 void EEH210Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up EEH210...");
 }
@@ -31,7 +42,7 @@ void EEH210Component::dump_config() {
 
 float EEH210Component::get_setup_priority() const { return setup_priority::DATA; }
 void EEH210Component::update() {
-  uint8_t command[] = {0xE1};
+  uint8_t command[] = {EEH210_I2C_COMMAND_TRIGGER_T_RH_MEASURE_HOLD};
   this->write(command, 1, true);
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
