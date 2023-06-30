@@ -138,35 +138,49 @@ FILTER_REGISTRY = Registry()
 validate_filters = cv.validate_registry("filter", FILTER_REGISTRY)
 
 
-@FILTER_REGISTRY.register("invert", InvertFilter, {})
+def register_filter(name, filter_type, schema):
+    return FILTER_REGISTRY.register(name, filter_type, schema)
+
+
+@register_filter("invert", InvertFilter, {})
 async def invert_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id)
 
 
-@FILTER_REGISTRY.register(
-    "delayed_on_off", DelayedOnOffFilter, cv.positive_time_period_milliseconds
+@register_filter(
+    "delayed_on_off",
+    DelayedOnOffFilter,
+    cv.templatable(cv.positive_time_period_milliseconds),
 )
 async def delayed_on_off_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id, config)
+    var = cg.new_Pvariable(filter_id)
     await cg.register_component(var, {})
+    template_ = await cg.templatable(config, [], cg.uint32)
+    cg.add(var.set_delay(template_))
     return var
 
 
-@FILTER_REGISTRY.register(
-    "delayed_on", DelayedOnFilter, cv.positive_time_period_milliseconds
+@register_filter(
+    "delayed_on", DelayedOnFilter, cv.templatable(cv.positive_time_period_milliseconds)
 )
 async def delayed_on_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id, config)
+    var = cg.new_Pvariable(filter_id)
     await cg.register_component(var, {})
+    template_ = await cg.templatable(config, [], cg.uint32)
+    cg.add(var.set_delay(template_))
     return var
 
 
-@FILTER_REGISTRY.register(
-    "delayed_off", DelayedOffFilter, cv.positive_time_period_milliseconds
+@register_filter(
+    "delayed_off",
+    DelayedOffFilter,
+    cv.templatable(cv.positive_time_period_milliseconds),
 )
 async def delayed_off_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id, config)
+    var = cg.new_Pvariable(filter_id)
     await cg.register_component(var, {})
+    template_ = await cg.templatable(config, [], cg.uint32)
+    cg.add(var.set_delay(template_))
     return var
 
 
@@ -178,7 +192,7 @@ DEFAULT_TIME_OFF = "100ms"
 DEFAULT_TIME_ON = "900ms"
 
 
-@FILTER_REGISTRY.register(
+@register_filter(
     "autorepeat",
     AutorepeatFilter,
     cv.All(
@@ -215,7 +229,7 @@ async def autorepeat_filter_to_code(config, filter_id):
     return var
 
 
-@FILTER_REGISTRY.register("lambda", LambdaFilter, cv.returning_lambda)
+@register_filter("lambda", LambdaFilter, cv.returning_lambda)
 async def lambda_filter_to_code(config, filter_id):
     lambda_ = await cg.process_lambda(
         config, [(bool, "x")], return_type=cg.optional.template(bool)
