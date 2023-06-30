@@ -45,7 +45,7 @@ void EEH210Component::update() {
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
     this->read(i2c_response, 6);
-    
+
     unsigned int raw_temperature = (i2c_response[1] << 8) | (i2c_response[2] & 0b11111100);
     float temperature = -46.85 + 175.72 * (raw_temperature / 65536.0);
 
