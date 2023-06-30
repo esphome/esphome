@@ -23,6 +23,8 @@ void Filter::input(bool value, bool is_initial) {
   auto b = this->new_value(value, is_initial);
   if (b.has_value()) {
     this->output(*b, is_initial);
+  } else if (is_initial) {
+    this->parent_->send_state_internal(value, is_initial);
   }
 }
 
