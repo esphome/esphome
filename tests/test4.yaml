@@ -257,6 +257,12 @@ sensor:
       name: Ufire Temperature
     ph:
       name: Ufire pH
+  - platform: eeh210
+    id: eeh210_sensor
+    temperature:
+      name: eeh210 Temperature
+    humidity:
+      name: eeh210 Humidity
 
 #
 # platform sensor.apds9960 requires component apds9960
