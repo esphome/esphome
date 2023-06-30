@@ -6,20 +6,7 @@ namespace eeh210 {
 
 static const char *const TAG = "eeh210.sensor";
 
-static const uint8_t EEH210_I2C_COMMAND_TRIGGER_T_RH_MEASURE_HOLD = 0xE1;
-static const uint8_t EEH210_I2C_COMMAND_TRIGGER_T_MEASURE_HOLD = 0xE3;
-static const uint8_t EEH210_I2C_COMMAND_TRIGGER_RH_MEASURE_HOLD = 0xE5;
-
-static const uint8_t EEH210_I2C_COMMAND_TRIGGER_T_RH_MEASURE_NO_HOLD = 0xF1;
-static const uint8_t EEH210_I2C_COMMAND_TRIGGER_T_MEASURE_NO_HOLD = 0xF3;
-static const uint8_t EEH210_I2C_COMMAND_TRIGGER_RH_MEASURE_NO_HOLD = 0xF5;
-
-static const uint8_t EEH210_I2C_COMMAND_WRITE_USER_REGISTER = 0xE6;
-static const uint8_t EEH210_I2C_COMMAND_READ_USER_REGISTER = 0xFE;
-
-void EEH210Component::setup() {
-  ESP_LOGCONFIG(TAG, "Setting up EEH210...");
-}
+void EEH210Component::setup() { ESP_LOGCONFIG(TAG, "Setting up EEH210..."); }
 
 void EEH210Component::dump_config() {
   ESP_LOGCONFIG(TAG, "EEH210:");
@@ -41,27 +28,25 @@ void EEH210Component::dump_config() {
 }
 
 float EEH210Component::get_setup_priority() const { return setup_priority::DATA; }
+
 void EEH210Component::update() {
-  uint8_t command[] = {EEH210_I2C_COMMAND_TRIGGER_T_RH_MEASURE_HOLD};
-  this->write(command, 1, true);
+  this->write(0xE1, 1, true);
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
     this->read(i2c_response, 6);
-    
-    // todo crc is not correct...
-    // if (i2c_response[5] != calc_crc8_(i2c_response, 0, 4)) {
-    //   this->error_code_ = CRC_CHECK_FAILED;
-    //   this->status_set_warning();
-    //   return;
-    // }
+    if (i2c_response[5] != calc_crc8_(i2c_response, 0, 4)) {
+      this->error_code_ = CRC_CHECK_FAILED;
+      this->status_set_warning();
+      return;
+    }
 
-    unsigned int raw_temperature = (i2c_response[1] << 8) | (i2c_response[2] & 0b11111100);
+    unsigned int raw_temperature = (arr[1] << 8) | (arr[2] & 0b11111100);
     float temperature = -46.85 + 175.72 * (raw_temperature / 65536.0);
 
     unsigned int raw_humidity = (i2c_response[3] << 8) | (i2c_response[4] & 0b11111100);
     float relative_humidity = -6.0 + 125.0 * (raw_humidity / 65536.0);
 
-    ESP_LOGD(TAG, "Got temperature=%.4f°C humidity=%.4f%%", temperature, relative_humidity);
+    ESP_LOGD(TAG, "Got temperature=%.4f°C humidity=%.4f%%", temperature, humidity);
     if (this->temperature_sensor_ != nullptr)
       this->temperature_sensor_->publish_state(temperature);
     if (this->humidity_sensor_ != nullptr)
