@@ -32,7 +32,7 @@ void EEH210Component::dump_config() {
 float EEH210Component::get_setup_priority() const { return setup_priority::DATA; }
 void EEH210Component::update() {
   uint8_t command[] = {0xE1};
-  this->write_byte(command, 1, true);
+  this->write(command, 1, true);
   this->set_timeout(50, [this]() {
     uint8_t i2c_response[6];
     this->read(i2c_response, 6);
