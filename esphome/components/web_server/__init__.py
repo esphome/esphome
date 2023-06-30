@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_INCLUDE_INTERNAL,
     CONF_OTA,
+    CONF_LOG,
     CONF_VERSION,
     CONF_LOCAL,
 )
@@ -71,6 +72,7 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
             cv.Optional(CONF_OTA, default=True): cv.boolean,
+            cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
@@ -81,6 +83,37 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
+def build_index_html(config) -> str:
+    html = "<!DOCTYPE html><html><head><meta charset=UTF-8><link rel=icon href=data:>"
+    css_include = config.get(CONF_CSS_INCLUDE)
+    js_include = config.get(CONF_JS_INCLUDE)
+    if css_include:
+        html += "<link rel=stylesheet href=/0.css>"
+    if config[CONF_CSS_URL]:
+        html += f'<link rel=stylesheet href="{config[CONF_CSS_URL]}">'
+    html += "</head><body>"
+    if js_include:
+        html += "<script type=module src=/0.js></script>"
+    html += "<esp-app></esp-app>"
+    if config[CONF_JS_URL]:
+        html += f'<script src="{config[CONF_JS_URL]}"></script>'
+    html += "</body></html>"
+    return html
+
+
+def add_resource_as_progmem(resource_name: str, content: str) -> None:
+    """Add a resource to progmem."""
+    content_encoded = content.encode("utf-8")
+    content_encoded_size = len(content_encoded)
+    bytes_as_int = ", ".join(str(x) for x in content_encoded)
+    uint8_t = f"const uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
+    size_t = (
+        f"const size_t ESPHOME_WEBSERVER_{resource_name}_SIZE = {content_encoded_size}"
+    )
+    cg.add_global(cg.RawExpression(uint8_t))
+    cg.add_global(cg.RawExpression(size_t))
+
+
 @coroutine_with_priority(40.0)
 async def to_code(config):
     paren = await cg.get_variable(config[CONF_WEB_SERVER_BASE_ID])
@@ -89,27 +122,32 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     cg.add_define("USE_WEBSERVER")
+    version = config[CONF_VERSION]
 
     cg.add(paren.set_port(config[CONF_PORT]))
     cg.add_define("USE_WEBSERVER")
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
-    cg.add_define("USE_WEBSERVER_VERSION", config[CONF_VERSION])
-    cg.add(var.set_css_url(config[CONF_CSS_URL]))
-    cg.add(var.set_js_url(config[CONF_JS_URL]))
+    cg.add_define("USE_WEBSERVER_VERSION", version)
+    if version == 2:
+        add_resource_as_progmem("INDEX_HTML", build_index_html(config))
+    else:
+        cg.add(var.set_css_url(config[CONF_CSS_URL]))
+        cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
+    cg.add(var.set_expose_log(config[CONF_LOG]))
     if CONF_AUTH in config:
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
     if CONF_CSS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_CSS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_CSS_INCLUDE])
-        with open(file=path, encoding="utf-8") as myfile:
-            cg.add(var.set_css_include(myfile.read()))
+        with open(file=path, encoding="utf-8") as css_file:
+            add_resource_as_progmem("CSS_INCLUDE", css_file.read())
     if CONF_JS_INCLUDE in config:
         cg.add_define("USE_WEBSERVER_JS_INCLUDE")
         path = CORE.relative_config_path(config[CONF_JS_INCLUDE])
-        with open(file=path, encoding="utf-8") as myfile:
-            cg.add(var.set_js_include(myfile.read()))
+        with open(file=path, encoding="utf-8") as js_file:
+            add_resource_as_progmem("JS_INCLUDE", js_file.read())
     cg.add(var.set_include_internal(config[CONF_INCLUDE_INTERNAL]))
     if CONF_LOCAL in config and config[CONF_LOCAL]:
         cg.add_define("USE_WEBSERVER_LOCAL")

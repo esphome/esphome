@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.components import display, spi
+from esphome.components import display, spi, power_supply
 from esphome.const import (
     CONF_BACKLIGHT_PIN,
     CONF_DC_PIN,
@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_MODEL,
     CONF_RESET_PIN,
     CONF_WIDTH,
+    CONF_POWER_SUPPLY,
 )
 from . import st7789v_ns
 
@@ -32,6 +33,7 @@ MODELS = {
     "TTGO_TDISPLAY_135X240": ST7789VModel.ST7789V_MODEL_TTGO_TDISPLAY_135_240,
     "ADAFRUIT_FUNHOUSE_240X240": ST7789VModel.ST7789V_MODEL_ADAFRUIT_FUNHOUSE_240_240,
     "ADAFRUIT_RR_280X240": ST7789VModel.ST7789V_MODEL_ADAFRUIT_RR_280_240,
+    "ADAFRUIT_S2_TFT_FEATHER_240X135": ST7789VModel.ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135,
     "CUSTOM": ST7789VModel.ST7789V_MODEL_CUSTOM,
 }
 
@@ -58,6 +60,14 @@ def validate_st7789v(config):
         raise cv.Invalid(
             f'Do not specify {CONF_HEIGHT}, {CONF_WIDTH}, {CONF_OFFSET_HEIGHT} or {CONF_OFFSET_WIDTH} when using {CONF_MODEL} that is not "CUSTOM"'
         )
+
+    if (
+        config[CONF_MODEL].upper() == "ADAFRUIT_S2_TFT_FEATHER_240X135"
+        and CONF_POWER_SUPPLY not in config
+    ):
+        raise cv.Invalid(
+            f'{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is "ADAFRUIT_S2_TFT_FEATHER_240X135"'
+        )
     return config
 
 
@@ -69,6 +79,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
             cv.Optional(CONF_EIGHTBITCOLOR, default=False): cv.boolean,
             cv.Optional(CONF_HEIGHT): cv.int_,
             cv.Optional(CONF_WIDTH): cv.int_,
@@ -113,3 +124,7 @@ async def to_code(config):
             config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
+
+    if CONF_POWER_SUPPLY in config:
+        ps = await cg.get_variable(config[CONF_POWER_SUPPLY])
+        cg.add(var.set_power_supply(ps))

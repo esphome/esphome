@@ -312,7 +312,8 @@ sensor:
     id: freezer_temp_source
     reference_voltage: 3.19
     number: 0
-  - platform: airthings_wave_plus
+  - id: airthingswp
+    platform: airthings_wave_plus
     ble_client_id: airthings01
     update_interval: 5min
     temperature:
@@ -329,7 +330,8 @@ sensor:
       name: Wave Plus CO2
     tvoc:
       name: Wave Plus VOC
-  - platform: airthings_wave_mini
+  - id: airthingswm
+    platform: airthings_wave_mini
     ble_client_id: airthingsmini01
     update_interval: 5min
     temperature:
@@ -488,6 +490,14 @@ binary_sensor:
 
 esp32_ble_tracker:
   on_ble_advertise:
+    - mac_address:
+        - AA:BB:CC:DD:EE:FF
+        - FF:EE:DD:CC:BB:AA
+      then:
+        # yamllint disable rule:line-length
+        - lambda: !lambda |-
+            ESP_LOGD("main", "The device address (%s) exists in list", x.address_str().c_str());
+        # yamllint enable rule:line-length
     - mac_address: AC:37:43:77:5F:4C
       then:
         # yamllint disable rule:line-length
@@ -679,6 +689,20 @@ image:
     file: pnglogo.png
     type: RGB565
     use_transparency: no
+
+  - id: mdi_alert
+    file: mdi:alert-circle-outline
+    resize: 50x50
+  - id: another_alert_icon
+    file: mdi:alert-outline
+    type: BINARY
+
+graph:
+  - id: my_graph
+    sensor: ha_hello_world_temperature
+    duration: 1h
+    width: 100
+    height: 100
 
 cap1188:
   id: cap1188_component
