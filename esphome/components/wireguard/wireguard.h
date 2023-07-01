@@ -25,6 +25,7 @@ namespace wireguard {
 class Wireguard : public PollingComponent {
  public:
   void setup() override;
+  void loop() override;
   void update() override;
   void dump_config() override;
   void on_shutdown() override;
@@ -98,12 +99,14 @@ class Wireguard : public PollingComponent {
 
   /** \brief The latest saved handshake.
    *
-   * This is used to publish an update to `this->handshake_sensor_` only
-   * when a new handshake is reported by `esp_wireguard_latest_handshake`.
+   * This is used to save (and log) the latest completed handshake even
+   * after a full refresh of the wireguard keys (for example after a
+   * stop/start connection cycle).
    */
   time_t latest_saved_handshake_ = 0;
 
   void start_connection_();
+  void stop_connection_();
 };
 
 // These are used for possibly long DNS resolution to temporarily suspend the watchdog
