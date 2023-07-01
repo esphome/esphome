@@ -34,17 +34,6 @@ static const char *const TAG = "esp32_ble_tracker";
 
 ESP32BLETracker *global_esp32_ble_tracker = nullptr;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
-uint64_t ble_addr_to_uint64(const esp_bd_addr_t address) {
-  uint64_t u = 0;
-  u |= uint64_t(address[0] & 0xFF) << 40;
-  u |= uint64_t(address[1] & 0xFF) << 32;
-  u |= uint64_t(address[2] & 0xFF) << 24;
-  u |= uint64_t(address[3] & 0xFF) << 16;
-  u |= uint64_t(address[4] & 0xFF) << 8;
-  u |= uint64_t(address[5] & 0xFF) << 0;
-  return u;
-}
-
 float ESP32BLETracker::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 void ESP32BLETracker::setup() {
@@ -114,10 +103,20 @@ void ESP32BLETracker::loop() {
     if (this->scan_result_index_ &&  // if it looks like we have a scan result we will take the lock
         xSemaphoreTake(this->scan_result_lock_, 5L / portTICK_PERIOD_MS)) {
       uint32_t index = this->scan_result_index_;
-      if (index) {
-        if (index >= ESP32BLETracker::SCAN_RESULT_BUFFER_SIZE) {
-          ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
-        }
+      if (index >= ESP32BLETracker::SCAN_RESULT_BUFFER_SIZE) {
+        ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
+      }
+
+      bool bulk_parsed = false;
+
+      for (auto *listener : this->listeners_) {
+        bulk_parsed |= listener->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+      }
+      for (auto *client : this->clients_) {
+        bulk_parsed |= client->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+      }
+
+      if (!bulk_parsed) {
         for (size_t i = 0; i < index; i++) {
           ESPBTDevice device;
           device.parse_scan_rst(this->scan_result_buffer_[i]);
@@ -141,8 +140,8 @@ void ESP32BLETracker::loop() {
             this->print_bt_device_info(device);
           }
         }
-        this->scan_result_index_ = 0;
       }
+      this->scan_result_index_ = 0;
       xSemaphoreGive(this->scan_result_lock_);
     }
 
@@ -585,7 +584,7 @@ std::string ESPBTDevice::address_str() const {
            this->address_[3], this->address_[4], this->address_[5]);
   return mac;
 }
-uint64_t ESPBTDevice::address_uint64() const { return ble_addr_to_uint64(this->address_); }
+uint64_t ESPBTDevice::address_uint64() const { return esp32_ble::ble_addr_to_uint64(this->address_); }
 
 void ESP32BLETracker::dump_config() {
   ESP_LOGCONFIG(TAG, "BLE Tracker:");
