@@ -395,5 +395,24 @@ class CalibratePolynomialFilter : public Filter {
   std::vector<float> coefficients_;
 };
 
+class MapLinearFilter : public Filter {
+ public:
+  MapLinearFilter(std::vector<std::array<float, 3>> linear_functions) : linear_functions_(std::move(linear_functions)) {}
+  optional<float> new_value(float value) override;
+
+ protected:
+  std::vector<std::array<float, 3>> linear_functions_;
+};
+
+class ClampFilter : public Filter {
+ public:
+  ClampFilter(float min, float max);
+  optional<float> new_value(float value) override;
+
+ protected:
+  float min_{NAN};
+  float max_{NAN};
+};
+
 }  // namespace sensor
 }  // namespace esphome

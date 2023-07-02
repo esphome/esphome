@@ -418,5 +418,24 @@ optional<float> CalibratePolynomialFilter::new_value(float value) {
   return res;
 }
 
+optional<float> MapLinearFilter::new_value(float value) {
+  for (std::array<float, 3> f : this->linear_functions_) {
+    if (!std::isfinite(f[2]) || value < f[2])
+      return (value * f[0]) + f[1];
+  }
+  return NAN;
+}
+
+ClampFilter::ClampFilter(float min, float max) : min_(min), max_(max) {}
+optional<float> ClampFilter::new_value(float value) {
+  if (std::isfinite(value)) {
+    if (std::isfinite(this->min_) && value < this->min_)
+      return this->min_;
+    if (std::isfinite(this->max_) && value > this->max_)
+      return this->max_;
+  }
+  return value;
+}
+
 }  // namespace sensor
 }  // namespace esphome

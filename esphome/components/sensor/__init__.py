@@ -31,6 +31,8 @@ from esphome.const import (
     CONF_MQTT_ID,
     CONF_FORCE_UPDATE,
     CONF_VALUE,
+    CONF_MIN_VALUE,
+    CONF_MAX_VALUE,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
@@ -224,6 +226,8 @@ OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
+MapLinearFilter = sensor_ns.class_("MapLinearFilter", Filter)
+ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 
 validate_unit_of_measurement = cv.string_strict
 validate_accuracy_decimals = cv.int_
@@ -607,6 +611,58 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     return cg.new_Pvariable(filter_id, res)
 
 
+def validate_map_linear(config):
+    for i in range(len(config) - 1):
+        if (config[i][CONF_FROM] > config[i+1][CONF_FROM]):
+            raise cv.Invalid("The 'from' values of the map_linear filter must be sorted in ascending order.")
+    for i in range(len(config) - 1):
+        if (config[i][CONF_FROM] == config[i+1][CONF_FROM]):
+            raise cv.Invalid("The 'from' values of the map_linear filter must not contain duplicates.")
+    return config
+
+
+@FILTER_REGISTRY.register(
+    "map_linear",
+    MapLinearFilter,
+    cv.All(
+        cv.ensure_list(validate_datapoint), cv.Length(min=2), validate_map_linear
+    ),
+)
+async def map_linear_filter_to_code(config, filter_id):
+    x = [conf[CONF_FROM] for conf in config]
+    y = [conf[CONF_TO] for conf in config]
+    linear_functions = map_linear(x, y)
+    return cg.new_Pvariable(filter_id, linear_functions)
+
+
+def validate_clamp(config):
+    if not math.isfinite(config[CONF_MIN_VALUE]) and not math.isfinite(config[CONF_MAX_VALUE]):
+        raise cv.Invalid("Either 'min_value' or 'max_value' must be set to a number.")
+    if config[CONF_MIN_VALUE] > config[CONF_MAX_VALUE]:
+        raise cv.Invalid("The 'min_value' must not be larger than the 'max_value'.")
+    return config
+
+
+CLAMP_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.Optional(CONF_MIN_VALUE, default="NaN"): cv.float_,
+            cv.Optional(CONF_MAX_VALUE, default="NaN"): cv.float_,
+        }
+    ),
+    validate_clamp,
+)
+
+
+@FILTER_REGISTRY.register("clamp", ClampFilter, CLAMP_SCHEMA)
+async def clamp_filter_to_code(config, filter_id):
+    return cg.new_Pvariable(
+        filter_id,
+        config[CONF_MIN_VALUE],
+        config[CONF_MAX_VALUE],
+    )
+
+
 async def build_filters(config):
     return await cg.build_registry_list(FILTER_REGISTRY, config)
 
@@ -716,6 +772,22 @@ def fit_linear(x, y):
     k = r * (_std(y) / _std(x))
     b = m_y - k * m_x
     return k, b
+
+
+def map_linear(x, y):
+    assert len(x) == len(y)
+    f = []
+    for i in range(len(x) - 1):
+        slope = (y[i+1] - y[i])/(x[i+1] - x[i])
+        bias = y[i] - (slope * x[i])
+        next_x = x[i+1]
+        if i == len(x) - 2:
+            next_x = float('NaN')
+        if f and f[-1][0] == slope and f[-1][1] == bias:
+            f[-1][2] = next_x
+        else:
+            f.append([slope, bias, next_x])
+    return f
 
 
 def _mat_copy(m):
