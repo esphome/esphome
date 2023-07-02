@@ -397,7 +397,8 @@ class CalibratePolynomialFilter : public Filter {
 
 class MapLinearFilter : public Filter {
  public:
-  MapLinearFilter(std::vector<std::array<float, 3>> linear_functions) : linear_functions_(std::move(linear_functions)) {}
+  MapLinearFilter(std::vector<std::array<float, 3>> linear_functions)
+      : linear_functions_(std::move(linear_functions)) {}
   optional<float> new_value(float value) override;
 
  protected:

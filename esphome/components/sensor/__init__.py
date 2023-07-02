@@ -613,20 +613,22 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
 
 def validate_map_linear(config):
     for i in range(len(config) - 1):
-        if (config[i][CONF_FROM] > config[i+1][CONF_FROM]):
-            raise cv.Invalid("The 'from' values of the map_linear filter must be sorted in ascending order.")
+        if config[i][CONF_FROM] > config[i + 1][CONF_FROM]:
+            raise cv.Invalid(
+                "The 'from' values of the map_linear filter must be sorted in ascending order."
+            )
     for i in range(len(config) - 1):
-        if (config[i][CONF_FROM] == config[i+1][CONF_FROM]):
-            raise cv.Invalid("The 'from' values of the map_linear filter must not contain duplicates.")
+        if config[i][CONF_FROM] == config[i + 1][CONF_FROM]:
+            raise cv.Invalid(
+                "The 'from' values of the map_linear filter must not contain duplicates."
+            )
     return config
 
 
 @FILTER_REGISTRY.register(
     "map_linear",
     MapLinearFilter,
-    cv.All(
-        cv.ensure_list(validate_datapoint), cv.Length(min=2), validate_map_linear
-    ),
+    cv.All(cv.ensure_list(validate_datapoint), cv.Length(min=2), validate_map_linear),
 )
 async def map_linear_filter_to_code(config, filter_id):
     x = [conf[CONF_FROM] for conf in config]
@@ -636,7 +638,9 @@ async def map_linear_filter_to_code(config, filter_id):
 
 
 def validate_clamp(config):
-    if not math.isfinite(config[CONF_MIN_VALUE]) and not math.isfinite(config[CONF_MAX_VALUE]):
+    if not math.isfinite(config[CONF_MIN_VALUE]) and not math.isfinite(
+        config[CONF_MAX_VALUE]
+    ):
         raise cv.Invalid("Either 'min_value' or 'max_value' must be set to a number.")
     if config[CONF_MIN_VALUE] > config[CONF_MAX_VALUE]:
         raise cv.Invalid("The 'min_value' must not be larger than the 'max_value'.")
@@ -778,11 +782,11 @@ def map_linear(x, y):
     assert len(x) == len(y)
     f = []
     for i in range(len(x) - 1):
-        slope = (y[i+1] - y[i])/(x[i+1] - x[i])
+        slope = (y[i + 1] - y[i]) / (x[i + 1] - x[i])
         bias = y[i] - (slope * x[i])
-        next_x = x[i+1]
+        next_x = x[i + 1]
         if i == len(x) - 2:
-            next_x = float('NaN')
+            next_x = float("NaN")
         if f and f[-1][0] == slope and f[-1][1] == bias:
             f[-1][2] = next_x
         else:
