@@ -146,9 +146,9 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
             // This value is better than a previous one.
             best_value = measurements_value[i];
             best_time = measurement_time;
-            // Reset measurement_time or next values.
-            measurement_time = 0;
           }
+          // Reset measurement_time or next values.
+          measurement_time = 0;
         }
       }
     }
@@ -156,7 +156,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
     ESP_LOGV(TAG, "[%s] Found %u values with best data %u time %u.", device.address_str().c_str(),
              number_of_usable_values, best_value, best_time);
 
-    if (number_of_usable_values < 2 || best_value < 2 || best_time < 2) {
+    if (number_of_usable_values < 1 || best_value < 2 || best_time < 2) {
       // At least two measurement values must be present.
       ESP_LOGW(TAG, "[%s] Poor read quality. Setting distance to 0.", device.address_str().c_str());
       if (this->distance_ != nullptr) {
