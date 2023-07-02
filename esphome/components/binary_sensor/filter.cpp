@@ -21,7 +21,7 @@ void Filter::output(bool value, bool is_initial) {
 }
 void Filter::input(bool value, bool is_initial) {
   auto b = this->new_value(value, is_initial);
-  if (b.has_value()) {
+  if (b.has_value() | !this->dedup_.has_value()) {
     this->output(*b, is_initial);
   }
 }
