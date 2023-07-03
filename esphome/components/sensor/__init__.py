@@ -598,7 +598,7 @@ async def calibrate_linear_filter_to_code(config, filter_id):
     linear_functions = []
     if config[CONF_METHOD] == "least_squares":
         k, b = fit_linear(x, y)
-        linear_functions = filter_id, [k, b, float("NaN")]
+        linear_functions = [[k, b, float("NaN")]]
     elif config[CONF_METHOD] == "exact":
         linear_functions = map_linear(x, y)
     return cg.new_Pvariable(filter_id, linear_functions)
