@@ -591,10 +591,7 @@ def validate_calibrate_linear(config):
         validate_calibrate_linear,
     ),
 )
-
-
 async def calibrate_linear_filter_to_code(config, filter_id):
-
     x = [conf[CONF_FROM] for conf in config[CONF_DATAPOINTS]]
     y = [conf[CONF_TO] for conf in config[CONF_DATAPOINTS]]
 
