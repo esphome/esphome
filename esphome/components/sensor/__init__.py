@@ -553,7 +553,7 @@ CONF_DATAPOINTS = "datapoints"
 
 
 def validate_calibrate_linear(config):
-    datapoints = config[CONF_DATAPOINTS])
+    datapoints = config[CONF_DATAPOINTS]
     if config[CONF_METHOD] == "exact":
         for i in range(len(datapoints) - 1):
             if datapoints[i][CONF_FROM] > datapoints[i + 1][CONF_FROM]:
