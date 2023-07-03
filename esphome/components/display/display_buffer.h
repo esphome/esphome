@@ -1,15 +1,13 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/defines.h"
-#include "esphome/core/automation.h"
-#include "display_color_utils.h"
 #include <cstdarg>
 #include <vector>
-
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
+#include "rect.h"
+#include "display_color_utils.h"
+#include "esphome/core/automation.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/time.h"
 
 #ifdef USE_GRAPH
 #include "esphome/components/graph/graph.h"
@@ -73,17 +71,52 @@ enum class TextAlign {
   BOTTOM_RIGHT = BOTTOM | RIGHT,
 };
 
-/// Turn the pixel OFF.
-extern const Color COLOR_OFF;
-/// Turn the pixel ON.
-extern const Color COLOR_ON;
+/** ImageAlign is used to tell the display class how to position a image. By default
+ * the coordinates you enter for the image() functions take the upper left corner of the image
+ * as the "anchor" point. You can customize this behavior to, for example, make the coordinates
+ * refer to the *center* of the image.
+ *
+ * All image alignments consist of an X and Y-coordinate alignment. For the alignment along the X-axis
+ * these options are allowed:
+ *
+ * - LEFT (x-coordinate of anchor point is on left)
+ * - CENTER_HORIZONTAL (x-coordinate of anchor point is in the horizontal center of the image)
+ * - RIGHT (x-coordinate of anchor point is on right)
+ *
+ * For the Y-Axis alignment these options are allowed:
+ *
+ * - TOP (y-coordinate of anchor is on the top of the image)
+ * - CENTER_VERTICAL (y-coordinate of anchor is in the vertical center of the image)
+ * - BOTTOM (y-coordinate of anchor is on the bottom of the image)
+ *
+ * These options are then combined to create combined TextAlignment options like:
+ * - TOP_LEFT (default)
+ * - CENTER (anchor point is in the middle of the image bounds)
+ * - ...
+ */
+enum class ImageAlign {
+  TOP = 0x00,
+  CENTER_VERTICAL = 0x01,
+  BOTTOM = 0x02,
 
-enum ImageType {
-  IMAGE_TYPE_BINARY = 0,
-  IMAGE_TYPE_GRAYSCALE = 1,
-  IMAGE_TYPE_RGB24 = 2,
-  IMAGE_TYPE_RGB565 = 3,
-  IMAGE_TYPE_RGBA = 4,
+  LEFT = 0x00,
+  CENTER_HORIZONTAL = 0x04,
+  RIGHT = 0x08,
+
+  TOP_LEFT = TOP | LEFT,
+  TOP_CENTER = TOP | CENTER_HORIZONTAL,
+  TOP_RIGHT = TOP | RIGHT,
+
+  CENTER_LEFT = CENTER_VERTICAL | LEFT,
+  CENTER = CENTER_VERTICAL | CENTER_HORIZONTAL,
+  CENTER_RIGHT = CENTER_VERTICAL | RIGHT,
+
+  BOTTOM_LEFT = BOTTOM | LEFT,
+  BOTTOM_CENTER = BOTTOM | CENTER_HORIZONTAL,
+  BOTTOM_RIGHT = BOTTOM | RIGHT,
+
+  HORIZONTAL_ALIGNMENT = LEFT | CENTER_HORIZONTAL | RIGHT,
+  VERTICAL_ALIGNMENT = TOP | CENTER_VERTICAL | BOTTOM
 };
 
 enum DisplayType {
@@ -99,35 +132,6 @@ enum DisplayRotation {
   DISPLAY_ROTATION_270_DEGREES = 270,
 };
 
-static const int16_t VALUE_NO_SET = 32766;
-
-class Rect {
- public:
-  int16_t x;  ///< X coordinate of corner
-  int16_t y;  ///< Y coordinate of corner
-  int16_t w;  ///< Width of region
-  int16_t h;  ///< Height of region
-
-  Rect() : x(VALUE_NO_SET), y(VALUE_NO_SET), w(VALUE_NO_SET), h(VALUE_NO_SET) {}  // NOLINT
-  inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
-  inline int16_t x2() { return this->x + this->w; };  ///< X coordinate of corner
-  inline int16_t y2() { return this->y + this->h; };  ///< Y coordinate of corner
-
-  inline bool is_set() ALWAYS_INLINE { return (this->h != VALUE_NO_SET) && (this->w != VALUE_NO_SET); }
-
-  void expand(int16_t horizontal, int16_t vertical);
-
-  void extend(Rect rect);
-  void shrink(Rect rect);
-
-  bool inside(Rect rect, bool absolute = true);
-  bool inside(int16_t test_x, int16_t test_y, bool absolute = true);
-  bool equal(Rect rect);
-  void info(const std::string &prefix = "rect info:");
-};
-
-class Font;
-class Image;
 class DisplayBuffer;
 class DisplayPage;
 class DisplayOnPageChangeTrigger;
@@ -140,6 +144,24 @@ using display_writer_t = std::function<void(DisplayBuffer &)>;
     ESP_LOGCONFIG(TAG, "%s  Rotations: %d °", prefix, (obj)->rotation_); \
     ESP_LOGCONFIG(TAG, "%s  Dimensions: %dpx x %dpx", prefix, (obj)->get_width(), (obj)->get_height()); \
   }
+
+/// Turn the pixel OFF.
+extern const Color COLOR_OFF;
+/// Turn the pixel ON.
+extern const Color COLOR_ON;
+
+class BaseImage {
+ public:
+  virtual void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) = 0;
+  virtual int get_width() const = 0;
+  virtual int get_height() const = 0;
+};
+
+class BaseFont {
+ public:
+  virtual void print(int x, int y, DisplayBuffer *display, Color color, const char *text) = 0;
+  virtual void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) = 0;
+};
 
 class DisplayBuffer {
  public:
@@ -187,7 +209,7 @@ class DisplayBuffer {
    * @param align The alignment of the text.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, Color color, TextAlign align, const char *text);
+  void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -197,7 +219,7 @@ class DisplayBuffer {
    * @param color The color to draw the text with.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, Color color, const char *text);
+  void print(int x, int y, BaseFont *font, Color color, const char *text);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -207,7 +229,7 @@ class DisplayBuffer {
    * @param align The alignment of the text.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, TextAlign align, const char *text);
+  void print(int x, int y, BaseFont *font, TextAlign align, const char *text);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -216,7 +238,7 @@ class DisplayBuffer {
    * @param font The font to draw the text with.
    * @param text The text to draw.
    */
-  void print(int x, int y, Font *font, const char *text);
+  void print(int x, int y, BaseFont *font, const char *text);
 
   /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
@@ -228,7 +250,7 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, Font *font, Color color, TextAlign align, const char *format, ...)
+  void printf(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ...)
       __attribute__((format(printf, 7, 8)));
 
   /** Evaluate the printf-format `format` and print the result with the top left at [x,y] with `font`.
@@ -240,7 +262,7 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, Font *font, Color color, const char *format, ...) __attribute__((format(printf, 6, 7)));
+  void printf(int x, int y, BaseFont *font, Color color, const char *format, ...) __attribute__((format(printf, 6, 7)));
 
   /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
@@ -251,7 +273,8 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, Font *font, TextAlign align, const char *format, ...) __attribute__((format(printf, 6, 7)));
+  void printf(int x, int y, BaseFont *font, TextAlign align, const char *format, ...)
+      __attribute__((format(printf, 6, 7)));
 
   /** Evaluate the printf-format `format` and print the result with the top left at [x,y] with `font`.
    *
@@ -261,9 +284,8 @@ class DisplayBuffer {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, Font *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
+  void printf(int x, int y, BaseFont *font, const char *format, ...) __attribute__((format(printf, 5, 6)));
 
-#ifdef USE_TIME
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
    * @param x The x coordinate of the text alignment anchor point.
@@ -274,7 +296,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, Color color, TextAlign align, const char *format, time::ESPTime time)
+  void strftime(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ESPTime time)
       __attribute__((format(strftime, 7, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -286,7 +308,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, Color color, const char *format, time::ESPTime time)
+  void strftime(int x, int y, BaseFont *font, Color color, const char *format, ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
@@ -298,7 +320,7 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, TextAlign align, const char *format, time::ESPTime time)
+  void strftime(int x, int y, BaseFont *font, TextAlign align, const char *format, ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -309,19 +331,28 @@ class DisplayBuffer {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, Font *font, const char *format, time::ESPTime time)
-      __attribute__((format(strftime, 5, 0)));
-#endif
+  void strftime(int x, int y, BaseFont *font, const char *format, ESPTime time) __attribute__((format(strftime, 5, 0)));
 
   /** Draw the `image` with the top-left corner at [x,y] to the screen.
    *
    * @param x The x coordinate of the upper left corner.
    * @param y The y coordinate of the upper left corner.
-   * @param image The image to draw
+   * @param image The image to draw.
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
-  void image(int x, int y, Image *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+  void image(int x, int y, BaseImage *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+
+  /** Draw the `image` at [x,y] to the screen.
+   *
+   * @param x The x coordinate of the upper left corner.
+   * @param y The y coordinate of the upper left corner.
+   * @param image The image to draw.
+   * @param align The alignment of the image.
+   * @param color_on The color to replace in binary images for the on bits.
+   * @param color_off The color to replace in binary images for the off bits.
+   */
+  void image(int x, int y, BaseImage *image, ImageAlign align, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
 
 #ifdef USE_GRAPH
   /** Draw the `graph` with the top-left corner at [x,y] to the screen.
@@ -370,7 +401,7 @@ class DisplayBuffer {
    * @param width A pointer to store the returned text width in.
    * @param height A pointer to store the returned text height in.
    */
-  void get_text_bounds(int x, int y, const char *text, Font *font, TextAlign align, int *x1, int *y1, int *width,
+  void get_text_bounds(int x, int y, const char *text, BaseFont *font, TextAlign align, int *x1, int *y1, int *width,
                        int *height);
 
   /// Internal method to set the display writer lambda.
@@ -445,7 +476,7 @@ class DisplayBuffer {
   bool is_clipping() const { return !this->clipping_rectangle_.empty(); }
 
  protected:
-  void vprintf_(int x, int y, Font *font, Color color, TextAlign align, const char *format, va_list arg);
+  void vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg);
 
   virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
 
@@ -479,110 +510,6 @@ class DisplayPage {
   display_writer_t writer_;
   DisplayPage *prev_{nullptr};
   DisplayPage *next_{nullptr};
-};
-
-struct GlyphData {
-  const char *a_char;
-  const uint8_t *data;
-  int offset_x;
-  int offset_y;
-  int width;
-  int height;
-};
-
-class Glyph {
- public:
-  Glyph(const GlyphData *data) : glyph_data_(data) {}
-
-  bool get_pixel(int x, int y) const;
-
-  const char *get_char() const;
-
-  bool compare_to(const char *str) const;
-
-  int match_length(const char *str) const;
-
-  void scan_area(int *x1, int *y1, int *width, int *height) const;
-
- protected:
-  friend Font;
-  friend DisplayBuffer;
-
-  const GlyphData *glyph_data_;
-};
-
-class Font {
- public:
-  /** Construct the font with the given glyphs.
-   *
-   * @param glyphs A vector of glyphs, must be sorted lexicographically.
-   * @param baseline The y-offset from the top of the text to the baseline.
-   * @param bottom The y-offset from the top of the text to the bottom (i.e. height).
-   */
-  Font(const GlyphData *data, int data_nr, int baseline, int height);
-
-  int match_next_glyph(const char *str, int *match_length);
-
-  void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
-  inline int get_baseline() { return this->baseline_; }
-  inline int get_height() { return this->height_; }
-
-  const std::vector<Glyph, ExternalRAMAllocator<Glyph>> &get_glyphs() const { return glyphs_; }
-
- protected:
-  std::vector<Glyph, ExternalRAMAllocator<Glyph>> glyphs_;
-  int baseline_;
-  int height_;
-};
-
-class Image {
- public:
-  Image(const uint8_t *data_start, int width, int height, ImageType type);
-  virtual bool get_pixel(int x, int y) const;
-  virtual Color get_color_pixel(int x, int y) const;
-  virtual Color get_rgba_pixel(int x, int y) const;
-  virtual Color get_rgb565_pixel(int x, int y) const;
-  virtual Color get_grayscale_pixel(int x, int y) const;
-  int get_width() const;
-  int get_height() const;
-  ImageType get_type() const;
-
-  virtual int get_current_frame() const;
-
-  void set_transparency(bool transparent) { transparent_ = transparent; }
-  bool has_transparency() const { return transparent_; }
-
- protected:
-  int width_;
-  int height_;
-  ImageType type_;
-  const uint8_t *data_start_;
-  bool transparent_;
-};
-
-class Animation : public Image {
- public:
-  Animation(const uint8_t *data_start, int width, int height, uint32_t animation_frame_count, ImageType type);
-  bool get_pixel(int x, int y) const override;
-  Color get_color_pixel(int x, int y) const override;
-  Color get_rgba_pixel(int x, int y) const override;
-  Color get_rgb565_pixel(int x, int y) const override;
-  Color get_grayscale_pixel(int x, int y) const override;
-
-  int get_animation_frame_count() const;
-  int get_current_frame() const override;
-  void next_frame();
-  void prev_frame();
-
-  /** Selects a specific frame within the animation.
-   *
-   * @param frame If possitive, advance to the frame. If negative, recede to that frame from the end frame.
-   */
-  void set_frame(int frame);
-
- protected:
-  int current_frame_;
-  int animation_frame_count_;
 };
 
 template<typename... Ts> class DisplayPageShowAction : public Action<Ts...> {

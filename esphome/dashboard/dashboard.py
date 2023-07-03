@@ -3,6 +3,7 @@ import binascii
 import codecs
 import collections
 import functools
+import gzip
 import hashlib
 import hmac
 import json
@@ -485,6 +486,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
     @bind_config
     def get(self, configuration=None):
         type = self.get_argument("type", "firmware.bin")
+        compressed = self.get_argument("compressed", "0") == "1"
 
         storage_path = ext_storage_path(settings.config_dir, configuration)
         storage_json = StorageJSON.load(storage_path)
@@ -534,6 +536,8 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 self.send_error(404)
                 return
 
+        filename = filename + ".gz" if compressed else filename
+
         self.set_header("Content-Type", "application/octet-stream")
         self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.set_header("Cache-Control", "no-cache")
@@ -542,11 +546,11 @@ class DownloadBinaryRequestHandler(BaseHandler):
             return
 
         with open(path, "rb") as f:
-            while True:
-                data = f.read(16384)
-                if not data:
-                    break
-                self.write(data)
+            data = f.read()
+            if compressed:
+                data = gzip.compress(data, 9)
+            self.write(data)
+
         self.finish()
 
 

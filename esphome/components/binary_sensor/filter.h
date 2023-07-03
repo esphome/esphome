@@ -105,14 +105,6 @@ class LambdaFilter : public Filter {
   std::function<optional<bool>(bool)> f_;
 };
 
-class UniqueFilter : public Filter {
- public:
-  optional<bool> new_value(bool value, bool is_initial) override;
-
- protected:
-  optional<bool> last_value_{};
-};
-
 }  // namespace binary_sensor
 
 }  // namespace esphome

@@ -8,6 +8,10 @@ static const char *const TAG = "st7789v";
 
 void ST7789V::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI ST7789V...");
+#ifdef USE_POWER_SUPPLY
+  this->power_.request();
+  // the PowerSupply component takes care of post turn-on delay
+#endif
   this->spi_setup();
   this->dc_pin_->setup();  // OUTPUT
 
@@ -128,6 +132,9 @@ void ST7789V::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  B/L Pin: ", this->backlight_pin_);
   LOG_UPDATE_INTERVAL(this);
+#ifdef USE_POWER_SUPPLY
+  ESP_LOGCONFIG(TAG, "  Power Supply Configured: yes");
+#endif
 }
 
 float ST7789V::get_setup_priority() const { return setup_priority::PROCESSOR; }
@@ -160,6 +167,13 @@ void ST7789V::set_model(ST7789VModel model) {
       this->width_ = 240;
       this->offset_height_ = 0;
       this->offset_width_ = 20;
+      break;
+
+    case ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135:
+      this->height_ = 240;
+      this->width_ = 135;
+      this->offset_height_ = 52;
+      this->offset_width_ = 40;
       break;
 
     default:
@@ -323,6 +337,8 @@ const char *ST7789V::model_str_() {
       return "Adafruit Funhouse 240x240";
     case ST7789V_MODEL_ADAFRUIT_RR_280_240:
       return "Adafruit Round-Rectangular 280x240";
+    case ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135:
+      return "Adafruit ESP32-S2 TFT Feather";
     default:
       return "Custom";
   }

@@ -114,15 +114,6 @@ LambdaFilter::LambdaFilter(std::function<optional<bool>(bool)> f) : f_(std::move
 
 optional<bool> LambdaFilter::new_value(bool value, bool is_initial) { return this->f_(value); }
 
-optional<bool> UniqueFilter::new_value(bool value, bool is_initial) {
-  if (this->last_value_.has_value() && *this->last_value_ == value) {
-    return {};
-  } else {
-    this->last_value_ = value;
-    return value;
-  }
-}
-
 }  // namespace binary_sensor
 
 }  // namespace esphome

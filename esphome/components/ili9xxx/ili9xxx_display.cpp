@@ -421,5 +421,28 @@ void ILI9XXXST7796::initialize() {
   }
 }
 
+//   24_TFT rotated display
+void ILI9XXXS3Box::initialize() {
+  this->init_lcd_(INITCMD_S3BOX);
+  if (this->width_ == 0) {
+    this->width_ = 320;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 240;
+  }
+}
+
+//   24_TFT rotated display
+void ILI9XXXS3BoxLite::initialize() {
+  this->init_lcd_(INITCMD_S3BOXLITE);
+  if (this->width_ == 0) {
+    this->width_ = 320;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 240;
+  }
+  this->invert_display_(true);
+}
+
 }  // namespace ili9xxx
 }  // namespace esphome
