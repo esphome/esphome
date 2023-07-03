@@ -33,6 +33,7 @@ from esphome.const import (
     CONF_VALUE,
     CONF_MIN_VALUE,
     CONF_MAX_VALUE,
+    CONF_METHOD,
     DEVICE_CLASS_APPARENT_POWER,
     DEVICE_CLASS_AQI,
     DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
@@ -226,7 +227,6 @@ OrFilter = sensor_ns.class_("OrFilter", Filter)
 CalibrateLinearFilter = sensor_ns.class_("CalibrateLinearFilter", Filter)
 CalibratePolynomialFilter = sensor_ns.class_("CalibratePolynomialFilter", Filter)
 SensorInRangeCondition = sensor_ns.class_("SensorInRangeCondition", Filter)
-MapLinearFilter = sensor_ns.class_("MapLinearFilter", Filter)
 ClampFilter = sensor_ns.class_("ClampFilter", Filter)
 
 validate_unit_of_measurement = cv.string_strict
@@ -549,12 +549,28 @@ async def debounce_filter_to_code(config, filter_id):
     return var
 
 
-def validate_not_all_from_same(config):
-    if all(conf[CONF_FROM] == config[0][CONF_FROM] for conf in config):
-        raise cv.Invalid(
-            "The 'from' values of the calibrate_linear filter cannot all point "
-            "to the same value! Please add more values to the filter."
-        )
+CONF_DATAPOINTS = "datapoints"
+
+
+def validate_calibrate_linear(config):
+    datapoints = config[CONF_DATAPOINTS])
+    if config[CONF_METHOD] == "exact":
+        for i in range(len(datapoints) - 1):
+            if datapoints[i][CONF_FROM] > datapoints[i + 1][CONF_FROM]:
+                raise cv.Invalid(
+                    "The 'from' values of the calibrate_linear filter must be sorted in ascending order."
+                )
+        for i in range(len(datapoints) - 1):
+            if datapoints[i][CONF_FROM] == datapoints[i + 1][CONF_FROM]:
+                raise cv.Invalid(
+                    "The 'from' values of the calibrate_linear filter must not contain duplicates."
+                )
+    elif config[CONF_METHOD] == "least_squares":
+        if all(conf[CONF_FROM] == datapoints[0][CONF_FROM] for conf in datapoints):
+            raise cv.Invalid(
+                "The 'from' values of the calibrate_linear filter cannot all point "
+                "to the same value! Please add more values to the filter."
+            )
     return config
 
 
@@ -562,17 +578,35 @@ def validate_not_all_from_same(config):
     "calibrate_linear",
     CalibrateLinearFilter,
     cv.All(
-        cv.ensure_list(validate_datapoint), cv.Length(min=2), validate_not_all_from_same
+        cv.Schema(
+            {
+                cv.Required(CONF_DATAPOINTS): cv.All(
+                    cv.ensure_list(validate_datapoint), cv.Length(min=2)
+                ),
+                cv.Optional(CONF_METHOD, default="least_squares"): cv.one_of(
+                    "least_squares", "exact", lower=True
+                ),
+            }
+        ),
+        validate_calibrate_linear,
     ),
 )
+
+
 async def calibrate_linear_filter_to_code(config, filter_id):
-    x = [conf[CONF_FROM] for conf in config]
-    y = [conf[CONF_TO] for conf in config]
-    k, b = fit_linear(x, y)
-    return cg.new_Pvariable(filter_id, k, b)
+
+    x = [conf[CONF_FROM] for conf in config[CONF_DATAPOINTS]]
+    y = [conf[CONF_TO] for conf in config[CONF_DATAPOINTS]]
+
+    linear_functions = []
+    if config[CONF_METHOD] == "least_squares":
+        k, b = fit_linear(x, y)
+        linear_functions = filter_id, [k, b, float("NaN")]
+    elif config[CONF_METHOD] == "exact":
+        linear_functions = map_linear(x, y)
+    return cg.new_Pvariable(filter_id, linear_functions)
 
 
-CONF_DATAPOINTS = "datapoints"
 CONF_DEGREE = "degree"
 
 
@@ -609,32 +643,6 @@ async def calibrate_polynomial_filter_to_code(config, filter_id):
     b = [[v] for v in y]
     res = [v[0] for v in _lstsq(a, b)]
     return cg.new_Pvariable(filter_id, res)
-
-
-def validate_map_linear(config):
-    for i in range(len(config) - 1):
-        if config[i][CONF_FROM] > config[i + 1][CONF_FROM]:
-            raise cv.Invalid(
-                "The 'from' values of the map_linear filter must be sorted in ascending order."
-            )
-    for i in range(len(config) - 1):
-        if config[i][CONF_FROM] == config[i + 1][CONF_FROM]:
-            raise cv.Invalid(
-                "The 'from' values of the map_linear filter must not contain duplicates."
-            )
-    return config
-
-
-@FILTER_REGISTRY.register(
-    "map_linear",
-    MapLinearFilter,
-    cv.All(cv.ensure_list(validate_datapoint), cv.Length(min=2), validate_map_linear),
-)
-async def map_linear_filter_to_code(config, filter_id):
-    x = [conf[CONF_FROM] for conf in config]
-    y = [conf[CONF_TO] for conf in config]
-    linear_functions = map_linear(x, y)
-    return cg.new_Pvariable(filter_id, linear_functions)
 
 
 def validate_clamp(config):
