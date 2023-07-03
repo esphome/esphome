@@ -13,7 +13,7 @@ class TT21100Button : public binary_sensor::BinarySensor,
                       public TT21100ButtonListener,
                       public Parented<TT21100Touchscreen> {
  public:
-  void setup() override { this->parent_->register_button_listener(this); }
+  void setup() override;
   void dump_config() override;
 
   void set_index(uint8_t index) { this->index_ = index; }

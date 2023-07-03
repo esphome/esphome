@@ -6,6 +6,11 @@ namespace tt21100 {
 
 static const char *const TAG = "tt21100.binary_sensor";
 
+void TT21100Button::setup() {
+  this->parent_->register_button_listener(this);
+  this->publish_initial_state(false);
+}
+
 void TT21100Button::dump_config() {
   LOG_BINARY_SENSOR("", "TT21100 Button", this);
   ESP_LOGCONFIG(TAG, "  Index: %u", this->index_);
