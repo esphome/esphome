@@ -382,6 +382,9 @@ sensor:
             - 0.0 -> 0.0
             - 40.0 -> 45.0
             - 100.0 -> 102.5
+      - clamp:
+          min_value: -100
+          max_value: 100
       - filter_out: 42.0
       - filter_out: nan
       - median:
