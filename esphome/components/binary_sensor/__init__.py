@@ -95,6 +95,14 @@ DEVICE_CLASSES = [
 
 IS_PLATFORM_COMPONENT = True
 
+CONF_TIME_OFF = "time_off"
+CONF_TIME_ON = "time_on"
+
+DEFAULT_DELAY = "1s"
+DEFAULT_TIME_OFF = "100ms"
+DEFAULT_TIME_ON = "900ms"
+
+
 binary_sensor_ns = cg.esphome_ns.namespace("binary_sensor")
 BinarySensor = binary_sensor_ns.class_("BinarySensor", cg.EntityBase)
 BinarySensorInitiallyOff = binary_sensor_ns.class_(
@@ -150,13 +158,35 @@ async def invert_filter_to_code(config, filter_id):
 @register_filter(
     "delayed_on_off",
     DelayedOnOffFilter,
-    cv.templatable(cv.positive_time_period_milliseconds),
+    cv.Any(
+        cv.templatable(cv.positive_time_period_milliseconds),
+        cv.Schema(
+            {
+                cv.Required(CONF_TIME_ON): cv.templatable(
+                    cv.positive_time_period_milliseconds
+                ),
+                cv.Required(CONF_TIME_OFF): cv.templatable(
+                    cv.positive_time_period_milliseconds
+                ),
+            }
+        ),
+        msg="'delayed_on_off' filter requires either a delay time to be used for both "
+        "turn-on and turn-off delays, or two parameters 'time_on' and 'time_off' if "
+        "different delay times are required.",
+    ),
 )
 async def delayed_on_off_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id)
     await cg.register_component(var, {})
-    template_ = await cg.templatable(config, [], cg.uint32)
-    cg.add(var.set_delay(template_))
+    if isinstance(config, dict):
+        template_ = await cg.templatable(config[CONF_TIME_ON], [], cg.uint32)
+        cg.add(var.set_on_delay(template_))
+        template_ = await cg.templatable(config[CONF_TIME_OFF], [], cg.uint32)
+        cg.add(var.set_off_delay(template_))
+    else:
+        template_ = await cg.templatable(config, [], cg.uint32)
+        cg.add(var.set_on_delay(template_))
+        cg.add(var.set_off_delay(template_))
     return var
 
 
@@ -182,14 +212,6 @@ async def delayed_off_filter_to_code(config, filter_id):
     template_ = await cg.templatable(config, [], cg.uint32)
     cg.add(var.set_delay(template_))
     return var
-
-
-CONF_TIME_OFF = "time_off"
-CONF_TIME_ON = "time_on"
-
-DEFAULT_DELAY = "1s"
-DEFAULT_TIME_OFF = "100ms"
-DEFAULT_TIME_ON = "900ms"
 
 
 @register_filter(

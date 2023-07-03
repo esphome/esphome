@@ -27,11 +27,10 @@ void Filter::input(bool value, bool is_initial) {
 }
 
 optional<bool> DelayedOnOffFilter::new_value(bool value, bool is_initial) {
-  uint32_t delay = this->delay_.value();
   if (value) {
-    this->set_timeout("ON_OFF", delay, [this, is_initial]() { this->output(true, is_initial); });
+    this->set_timeout("ON_OFF", this->on_delay_.value(), [this, is_initial]() { this->output(true, is_initial); });
   } else {
-    this->set_timeout("ON_OFF", delay, [this, is_initial]() { this->output(false, is_initial); });
+    this->set_timeout("ON_OFF", this->off_delay_.value(), [this, is_initial]() { this->output(false, is_initial); });
   }
   return {};
 }

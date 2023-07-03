@@ -34,10 +34,12 @@ class DelayedOnOffFilter : public Filter, public Component {
 
   float get_setup_priority() const override;
 
-  template<typename T> void set_delay(T delay) { this->delay_ = delay; }
+  template<typename T> void set_on_delay(T delay) { this->on_delay_ = delay; }
+  template<typename T> void set_off_delay(T delay) { this->off_delay_ = delay; }
 
  protected:
-  TemplatableValue<uint32_t> delay_{};
+  TemplatableValue<uint32_t> on_delay_{};
+  TemplatableValue<uint32_t> off_delay_{};
 };
 
 class DelayedOnFilter : public Filter, public Component {
