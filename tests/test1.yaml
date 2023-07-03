@@ -1356,6 +1356,9 @@ binary_sensor:
     filters:
       - invert:
       - delayed_on_off: 40ms
+      - delayed_on_off:
+          time_on: 10s
+          time_off: !lambda "return 1000;"
       - delayed_on: 40ms
       - delayed_off: 40ms
       - delayed_on_off: !lambda "return 10;"
