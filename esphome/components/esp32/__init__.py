@@ -547,6 +547,8 @@ def copy_files():
                     CORE.relative_build_path(f"components/{name}"),
                     dirs_exist_ok=True,
                     ignore=shutil.ignore_patterns(".git", ".github"),
+                    symlinks=True,
+                    ignore_dangling_symlinks=True,
                 )
 
     dir = os.path.dirname(__file__)
