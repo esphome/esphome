@@ -103,13 +103,12 @@ esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
 esphome/components/growatt_solar/* @leeuwte
-esphome/components/haier/* @paveldn
+esphome/components/haier/* @Yarikx
 esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
 esphome/components/heatpumpir/* @rob-deutsch
 esphome/components/hitachi_ac424/* @sourabhjaiswal
-esphome/components/hm3301/* @freekode
 esphome/components/homeassistant/* @OttoWinter
 esphome/components/honeywellabp/* @RubyBailey
 esphome/components/host/* @esphome/core
@@ -286,7 +285,6 @@ esphome/components/tlc5947/* @rnauber
 esphome/components/tm1621/* @Philippe12
 esphome/components/tm1637/* @glmnet
 esphome/components/tm1638/* @skykingjwc
-esphome/components/tm1651/* @freekode
 esphome/components/tmp102/* @timsavage
 esphome/components/tmp1075/* @sybrenstuvel
 esphome/components/tmp117/* @Azimath
@@ -321,3 +319,4 @@ esphome/components/xiaomi_mhoc401/* @vevsvevs
 esphome/components/xiaomi_rtcgq02lm/* @jesserockz
 esphome/components/xl9535/* @mreditor97
 esphome/components/xpt2046/* @nielsnl68 @numo68
+esphome/components/zio_ultrasonic/* @kahrendt
