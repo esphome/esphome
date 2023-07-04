@@ -1355,8 +1355,15 @@ binary_sensor:
     device_class: window
     filters:
       - invert:
+      - delayed_on_off: 40ms
+      - delayed_on_off:
+          time_on: 10s
+          time_off: !lambda "return 1000;"
       - delayed_on: 40ms
       - delayed_off: 40ms
+      - delayed_on_off: !lambda "return 10;"
+      - delayed_on: !lambda "return 1000;"
+      - delayed_off: !lambda "return 0;"
     on_press:
       then:
         - lambda: >-
