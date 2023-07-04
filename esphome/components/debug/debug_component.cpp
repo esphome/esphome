@@ -22,7 +22,11 @@
 #endif  // USE_ESP32
 
 #ifdef USE_ARDUINO
+#ifdef USE_RP2040
+#include <Arduino.h>
+#else
 #include <Esp.h>
+#endif
 #endif
 
 namespace esphome {
@@ -35,6 +39,8 @@ static uint32_t get_free_heap() {
   return ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
 #elif defined(USE_ESP32)
   return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+#elif defined(USE_RP2040)
+  return rp2040.getFreeHeap();
 #endif
 }
 
@@ -65,7 +71,7 @@ void DebugComponent::dump_config() {
   this->free_heap_ = get_free_heap();
   ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
 
-#ifdef USE_ARDUINO
+#if defined(USE_ARDUINO) && !defined(USE_RP2040)
   const char *flash_mode;
   switch (ESP.getFlashChipMode()) {  // NOLINT(readability-static-accessed-through-instance)
     case FM_QIO:
@@ -273,6 +279,11 @@ void DebugComponent::dump_config() {
 
   reset_reason = ESP.getResetReason().c_str();
 #endif
+
+#ifdef USE_RP2040
+  ESP_LOGD(TAG, "CPU Frequency: %u", rp2040.f_cpu());
+  device_info += "CPU Frequency: " + to_string(rp2040.f_cpu());
+#endif  // USE_RP2040
 
 #ifdef USE_TEXT_SENSOR
   if (this->device_info_ != nullptr) {
