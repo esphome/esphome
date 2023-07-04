@@ -64,6 +64,7 @@ file_types = (
     ".yml",
     ".ini",
     ".txt",
+    ".gif",
     ".ico",
     ".svg",
     ".png",
@@ -81,7 +82,7 @@ file_types = (
     "",
 )
 cpp_include = ("*.h", "*.c", "*.cpp", "*.tcc")
-ignore_types = (".ico", ".png", ".woff", ".woff2", "")
+ignore_types = (".gif", ".ico", ".png", ".woff", ".woff2", "")
 
 LINT_FILE_CHECKS = []
 LINT_CONTENT_CHECKS = []

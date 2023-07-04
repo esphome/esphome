@@ -1186,6 +1186,12 @@ qr_code:
   - id: homepage_qr
     value: https://esphome.io/index.html
 
+animation:
+  - id: fire
+    file: fire.gif
+    type: BINARY
+    resize: 10x10
+
 alarm_control_panel:
   - platform: template
     id: alarmcontrolpanel1

@@ -1,3 +1,4 @@
 # Normalize line endings to LF in the repository
 * text eol=lf
+*.gif binary
 *.png binary
