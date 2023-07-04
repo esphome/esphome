@@ -5,6 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/version.h"
+#include <cinttypes>
 
 #ifdef USE_ESP32
 
@@ -13,6 +14,7 @@
 
 #if ESP_IDF_VERSION_MAJOR >= 4
 #include <esp32/rom/rtc.h>
+#include <esp_chip_info.h>
 #else
 #include <rom/rtc.h>
 #endif
@@ -61,7 +63,7 @@ void DebugComponent::dump_config() {
   device_info += ESPHOME_VERSION;
 
   this->free_heap_ = get_free_heap();
-  ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
+  ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
 
 #ifdef USE_ARDUINO
   const char *flash_mode;
@@ -289,7 +291,7 @@ void DebugComponent::loop() {
   uint32_t new_free_heap = get_free_heap();
   if (new_free_heap < this->free_heap_ / 2) {
     this->free_heap_ = new_free_heap;
-    ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
+    ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
     this->status_momentary_warning("heap", 1000);
   }
 
