@@ -577,18 +577,17 @@ def validate_calibrate_linear(config):
 @FILTER_REGISTRY.register(
     "calibrate_linear",
     CalibrateLinearFilter,
-    cv.All(
-        cv.Schema(
-            {
-                cv.Required(CONF_DATAPOINTS): cv.All(
-                    cv.ensure_list(validate_datapoint), cv.Length(min=2)
-                ),
-                cv.Optional(CONF_METHOD, default="least_squares"): cv.one_of(
-                    "least_squares", "exact", lower=True
-                ),
-            }
-        ),
+    cv.maybe_simple_value(
+        {
+            cv.Required(CONF_DATAPOINTS): cv.All(
+                cv.ensure_list(validate_datapoint), cv.Length(min=2)
+            ),
+            cv.Optional(CONF_METHOD, default="least_squares"): cv.one_of(
+                "least_squares", "exact", lower=True
+            ),
+        },
         validate_calibrate_linear,
+        key=CONF_DATAPOINTS,
     ),
 )
 async def calibrate_linear_filter_to_code(config, filter_id):
