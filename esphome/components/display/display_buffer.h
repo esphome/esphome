@@ -417,15 +417,15 @@ class DisplayBuffer {
 
   void add_on_page_change_trigger(DisplayOnPageChangeTrigger *t) { this->on_page_change_triggers_.push_back(t); }
 
-  /// Internal method to set the display rotation with.
-  void set_rotation(DisplayRotation rotation);
-
   // Internal method to set display auto clearing.
   void set_auto_clear(bool auto_clear_enabled) { this->auto_clear_enabled_ = auto_clear_enabled; }
 
+  /// Internal method to set the display rotation with.
+  virtual void set_rotation(DisplayRotation rotation);
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
   DisplayRotation get_rotation() const { return this->rotation_; }
+
 
   /** Get the type of display that the buffer corresponds to. In case of dynamically configurable displays,
    * returns the type the display is currently configured to.
