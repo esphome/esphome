@@ -657,7 +657,7 @@ def pronto_binary_sensor(var, config):
             cg.StructInitializer(
                 ProntoData,
                 ("data", config[CONF_DATA]),
-                ("delta",config[CONF_DELTA]),
+                ("delta", config[CONF_DELTA]),
             )
         )
     )
