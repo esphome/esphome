@@ -147,7 +147,7 @@ int SSD1351::get_width_internal() {
 size_t SSD1351::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) * size_t(SSD1351_BYTESPERPIXEL);
 }
-void HOT SSD1351::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT SSD1351::draw_absolute_pixel_internal(int x, int y, const Color &color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
   const uint32_t color565 = display::ColorUtil::color_to_565(color);
@@ -156,7 +156,7 @@ void HOT SSD1351::draw_absolute_pixel_internal(int x, int y, Color color) {
   this->buffer_[pos++] = (color565 >> 8) & 0xff;
   this->buffer_[pos] = color565 & 0xff;
 }
-void SSD1351::fill(Color color) {
+void SSD1351::fill(const Color &color) {
   const uint32_t color565 = display::ColorUtil::color_to_565(color);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++) {
     if (i & 1) {

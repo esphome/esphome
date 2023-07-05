@@ -44,7 +44,7 @@ int DisplayBuffer::get_height() {
   }
 }
 
-void HOT DisplayBuffer::draw_pixel_at(int x, int y, Color color) {
+void HOT DisplayBuffer::draw_pixel_at(int x, int y, const Color &color) {
   if (!this->get_clipping().inside(x, y))
     return;  // NOLINT
 

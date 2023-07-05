@@ -47,7 +47,7 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   void turn_on();
   void turn_off();
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
-  void fill(Color color) override;
+  void fill(const Color &color) override;
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_BINARY; }
 
@@ -59,7 +59,7 @@ class SSD1306 : public PollingComponent, public display::DisplayBuffer {
   bool is_sh1106_() const;
   bool is_ssd1305_() const;
 
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  void draw_absolute_pixel_internal(int x, int y, const Color &color) override;
 
   int get_height_internal() override;
   int get_width_internal() override;

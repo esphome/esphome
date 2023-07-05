@@ -28,7 +28,7 @@ class SSD1322 : public PollingComponent, public display::DisplayBuffer {
   void turn_off();
 
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }
-  void fill(Color color) override;
+  void fill(const Color &color) override;
 
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_GRAYSCALE; }
 
@@ -38,7 +38,7 @@ class SSD1322 : public PollingComponent, public display::DisplayBuffer {
   virtual void write_display_data() = 0;
   void init_reset_();
 
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  void draw_absolute_pixel_internal(int x, int y, const Color &color) override;
 
   int get_height_internal() override;
   int get_width_internal() override;

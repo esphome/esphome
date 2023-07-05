@@ -69,7 +69,7 @@ class ColorUtil {
   static inline Color rgb332_to_color(uint8_t rgb332_color) {
     return to_color((uint32_t) rgb332_color, COLOR_ORDER_RGB, COLOR_BITNESS_332);
   }
-  static uint8_t color_to_332(Color color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) {
+  static uint8_t color_to_332(const Color &color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) {
     uint16_t red_color, green_color, blue_color;
 
     red_color = esp_scale8(color.red, ((1 << 3) - 1));
@@ -86,7 +86,7 @@ class ColorUtil {
     }
     return 0;
   }
-  static uint16_t color_to_565(Color color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) {
+  static uint16_t color_to_565(const Color &color, ColorOrder color_order = ColorOrder::COLOR_ORDER_RGB) {
     uint16_t red_color, green_color, blue_color;
 
     red_color = esp_scale8(color.red, ((1 << 5) - 1));
@@ -103,7 +103,7 @@ class ColorUtil {
     }
     return 0;
   }
-  static uint32_t color_to_grayscale4(Color color) {
+  static uint32_t color_to_grayscale4(const Color &color) {
     uint32_t gs4 = esp_scale8(color.white, 15);
     return gs4;
   }
@@ -117,7 +117,7 @@ class ColorUtil {
    * @return The 8 bit index of the closest color (e.g. for display buffer).
    */
   // static uint8_t color_to_index8_palette888(Color color, uint8_t *palette) {
-  static uint8_t color_to_index8_palette888(Color color, const uint8_t *palette) {
+  static uint8_t color_to_index8_palette888(const Color &color, const uint8_t *palette) {
     uint8_t closest_index = 0;
     uint32_t minimum_dist2 = UINT32_MAX;  // Smallest distance^2 to the target
                                           // so far

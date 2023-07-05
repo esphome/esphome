@@ -439,7 +439,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * the color of blue. Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to
    * convert color codes to Nextion HMI colors
    */
-  void fill_area(int x1, int y1, int width, int height, Color color);
+  void fill_area(int x1, int y1, int width, int height, const Color &color);
   /**
    * Draw a line on the screen.
    * @param x1 The starting x coordinate.
@@ -477,7 +477,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI
    * colors.
    */
-  void line(int x1, int y1, int x2, int y2, Color color);
+  void line(int x1, int y1, int x2, int y2, const Color &color);
   /**
    * Draw a rectangle outline.
    * @param x1 The starting x coordinate.
@@ -515,7 +515,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to Nextion HMI
    * colors.
    */
-  void rectangle(int x1, int y1, int width, int height, Color color);
+  void rectangle(int x1, int y1, int width, int height, const Color &color);
   /**
    * Draw a circle outline
    * @param center_x The center x coordinate.
@@ -531,7 +531,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * @param radius The circle radius.
    * @param color The color to draw with (as Color).
    */
-  void circle(int center_x, int center_y, int radius, Color color);
+  void circle(int center_x, int center_y, int radius, const Color &color);
   /**
    * Draw a filled circled.
    * @param center_x The center x coordinate.
@@ -565,7 +565,7 @@ class Nextion : public NextionBase, public PollingComponent, public uart::UARTDe
    * Use this [color picker](https://nodtem66.github.io/nextion-hmi-color-convert/index.html) to convert color codes to
    * Nextion HMI colors.
    */
-  void filled_circle(int center_x, int center_y, int radius, Color color);
+  void filled_circle(int center_x, int center_y, int radius, const Color &color);
 
   /** Set the brightness of the backlight.
    *

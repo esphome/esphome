@@ -13,10 +13,10 @@ class NextionComponent : public NextionComponentBase {
 
   void update_component_settings(bool force_update) override;
 
-  void set_background_color(Color bco);
-  void set_background_pressed_color(Color bco2);
-  void set_foreground_color(Color pco);
-  void set_foreground_pressed_color(Color pco2);
+  void set_background_color(const Color &bco);
+  void set_background_pressed_color(const Color &bco2);
+  void set_foreground_color(const Color &pco);
+  void set_foreground_pressed_color(const Color &pco2);
   void set_font_id(uint8_t font_id);
   void set_visible(bool visible);
 

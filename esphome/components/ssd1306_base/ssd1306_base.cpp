@@ -266,7 +266,7 @@ int SSD1306::get_width_internal() {
 size_t SSD1306::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
 }
-void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, const Color &color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
@@ -278,7 +278,7 @@ void HOT SSD1306::draw_absolute_pixel_internal(int x, int y, Color color) {
     this->buffer_[pos] &= ~(1 << subpos);
   }
 }
-void SSD1306::fill(Color color) {
+void SSD1306::fill(const Color &color) {
   uint8_t fill = color.is_on() ? 0xFF : 0x00;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;

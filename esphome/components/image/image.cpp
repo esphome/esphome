@@ -5,7 +5,7 @@
 namespace esphome {
 namespace image {
 
-void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
+void Image::draw(int x, int y, display::Display *display, const Color &color_on, const Color &color_off) {
   switch (type_) {
     case IMAGE_TYPE_BINARY: {
       for (int img_x = 0; img_x < width_; img_x++) {
@@ -61,7 +61,7 @@ void Image::draw(int x, int y, display::Display *display, Color color_on, Color 
       break;
   }
 }
-Color Image::get_pixel(int x, int y, Color color_on, Color color_off) const {
+Color Image::get_pixel(int x, int y, const Color &color_on, const Color &color_off) const {
   if (x < 0 || x >= this->width_ || y < 0 || y >= this->height_)
     return color_off;
   switch (this->type_) {

@@ -154,21 +154,21 @@ extern const Color COLOR_ON;
 
 class BaseImage {
  public:
-  virtual void draw(int x, int y, Display *display, Color color_on, Color color_off) = 0;
+  virtual void draw(int x, int y, Display *display, const Color &color_on, const Color &color_off) = 0;
   virtual int get_width() const = 0;
   virtual int get_height() const = 0;
 };
 
 class BaseFont {
  public:
-  virtual void print(int x, int y, Display *display, Color color, const char *text) = 0;
+  virtual void print(int x, int y, Display *display, const Color &color, const char *text) = 0;
   virtual void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) = 0;
 };
 
 class Display {
  public:
   /// Fill the entire screen with the given color.
-  virtual void fill(Color color);
+  virtual void fill(const Color &color);
   /// Clear the entire screen by filling it with OFF pixels.
   void clear();
 
@@ -181,29 +181,29 @@ class Display {
   inline void draw_pixel_at(int x, int y) { this->draw_pixel_at(x, y, COLOR_ON); }
 
   /// Set a single pixel at the specified coordinates to the given color.
-  virtual void draw_pixel_at(int x, int y, Color color) = 0;
+  virtual void draw_pixel_at(int x, int y, const Color &color) = 0;
 
   /// Draw a straight line from the point [x1,y1] to [x2,y2] with the given color.
-  void line(int x1, int y1, int x2, int y2, Color color = COLOR_ON);
+  void line(int x1, int y1, int x2, int y2, const Color &color = COLOR_ON);
 
   /// Draw a horizontal line from the point [x,y] to [x+width,y] with the given color.
-  void horizontal_line(int x, int y, int width, Color color = COLOR_ON);
+  void horizontal_line(int x, int y, int width, const Color &color = COLOR_ON);
 
   /// Draw a vertical line from the point [x,y] to [x,y+width] with the given color.
-  void vertical_line(int x, int y, int height, Color color = COLOR_ON);
+  void vertical_line(int x, int y, int height, const Color &color = COLOR_ON);
 
   /// Draw the outline of a rectangle with the top left point at [x1,y1] and the bottom right point at
   /// [x1+width,y1+height].
-  void rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  void rectangle(int x1, int y1, int width, int height, const Color &color = COLOR_ON);
 
   /// Fill a rectangle with the top left point at [x1,y1] and the bottom right point at [x1+width,y1+height].
-  void filled_rectangle(int x1, int y1, int width, int height, Color color = COLOR_ON);
+  void filled_rectangle(int x1, int y1, int width, int height, const Color &color = COLOR_ON);
 
   /// Draw the outline of a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void circle(int center_x, int center_xy, int radius, Color color = COLOR_ON);
+  void circle(int center_x, int center_xy, int radius, const Color &color = COLOR_ON);
 
   /// Fill a circle centered around [center_x,center_y] with the radius radius with the given color.
-  void filled_circle(int center_x, int center_y, int radius, Color color = COLOR_ON);
+  void filled_circle(int center_x, int center_y, int radius, const Color &color = COLOR_ON);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -214,7 +214,7 @@ class Display {
    * @param align The alignment of the text.
    * @param text The text to draw.
    */
-  void print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text);
+  void print(int x, int y, BaseFont *font, const Color &color, TextAlign align, const char *text);
 
   /** Print `text` with the top left at [x,y] with `font`.
    *
@@ -224,7 +224,7 @@ class Display {
    * @param color The color to draw the text with.
    * @param text The text to draw.
    */
-  void print(int x, int y, BaseFont *font, Color color, const char *text);
+  void print(int x, int y, BaseFont *font, const Color &color, const char *text);
 
   /** Print `text` with the anchor point at [x,y] with `font`.
    *
@@ -255,7 +255,7 @@ class Display {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ...)
+  void printf(int x, int y, BaseFont *font, const Color &color, TextAlign align, const char *format, ...)
       __attribute__((format(printf, 7, 8)));
 
   /** Evaluate the printf-format `format` and print the result with the top left at [x,y] with `font`.
@@ -267,7 +267,8 @@ class Display {
    * @param format The format to use.
    * @param ... The arguments to use for the text formatting.
    */
-  void printf(int x, int y, BaseFont *font, Color color, const char *format, ...) __attribute__((format(printf, 6, 7)));
+  void printf(int x, int y, BaseFont *font, const Color &color, const char *format, ...)
+      __attribute__((format(printf, 6, 7)));
 
   /** Evaluate the printf-format `format` and print the result with the anchor point at [x,y] with `font`.
    *
@@ -301,7 +302,7 @@ class Display {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ESPTime time)
+  void strftime(int x, int y, BaseFont *font, const Color &color, TextAlign align, const char *format, ESPTime time)
       __attribute__((format(strftime, 7, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the top left at [x,y] with `font`.
@@ -313,7 +314,7 @@ class Display {
    * @param format The strftime format to use.
    * @param time The time to format.
    */
-  void strftime(int x, int y, BaseFont *font, Color color, const char *format, ESPTime time)
+  void strftime(int x, int y, BaseFont *font, const Color &color, const char *format, ESPTime time)
       __attribute__((format(strftime, 6, 0)));
 
   /** Evaluate the strftime-format `format` and print the result with the anchor point at [x,y] with `font`.
@@ -346,7 +347,7 @@ class Display {
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
-  void image(int x, int y, BaseImage *image, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+  void image(int x, int y, BaseImage *image, const Color &color_on = COLOR_ON, const Color &color_off = COLOR_OFF);
 
   /** Draw the `image` at [x,y] to the screen.
    *
@@ -357,7 +358,8 @@ class Display {
    * @param color_on The color to replace in binary images for the on bits.
    * @param color_off The color to replace in binary images for the off bits.
    */
-  void image(int x, int y, BaseImage *image, ImageAlign align, Color color_on = COLOR_ON, Color color_off = COLOR_OFF);
+  void image(int x, int y, BaseImage *image, ImageAlign align, const Color &color_on = COLOR_ON,
+             const Color &color_off = COLOR_OFF);
 
 #ifdef USE_GRAPH
   /** Draw the `graph` with the top-left corner at [x,y] to the screen.
@@ -367,7 +369,7 @@ class Display {
    * @param graph The graph id to draw
    * @param color_on The color to replace in binary images for the on bits.
    */
-  void graph(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
+  void graph(int x, int y, graph::Graph *graph, const Color &color_on = COLOR_ON);
 
   /** Draw the `legend` for graph with the top-left corner at [x,y] to the screen.
    *
@@ -380,7 +382,7 @@ class Display {
    * @param value_font The font used for the trace value and units
    * @param color_on The color of the border
    */
-  void legend(int x, int y, graph::Graph *graph, Color color_on = COLOR_ON);
+  void legend(int x, int y, graph::Graph *graph, const Color &color_on = COLOR_ON);
 #endif  // USE_GRAPH
 
 #ifdef USE_QR_CODE
@@ -391,7 +393,7 @@ class Display {
    * @param qr_code The qr_code to draw
    * @param color_on The color to replace in binary images for the on bits.
    */
-  void qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on = COLOR_ON, int scale = 1);
+  void qr_code(int x, int y, qr_code::QrCode *qr_code, const Color &color_on = COLOR_ON, int scale = 1);
 #endif
 
   /** Get the text bounds of the given string.
@@ -483,7 +485,7 @@ class Display {
   bool is_clipping() const { return !this->clipping_rectangle_.empty(); }
 
  protected:
-  void vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg);
+  void vprintf_(int x, int y, BaseFont *font, const Color &color, TextAlign align, const char *format, va_list arg);
 
   void do_update_();
 

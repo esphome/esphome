@@ -47,7 +47,7 @@ class AddressableLightDisplay : public display::DisplayBuffer, public PollingCom
  protected:
   int get_width_internal() override;
   int get_height_internal() override;
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  void draw_absolute_pixel_internal(int x, int y, const Color &color) override;
   void update() override;
 
   light::LightState *light_state_;

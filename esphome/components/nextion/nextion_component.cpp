@@ -3,7 +3,7 @@
 namespace esphome {
 namespace nextion {
 
-void NextionComponent::set_background_color(Color bco) {
+void NextionComponent::set_background_color(const Color &bco) {
   if (this->variable_name_ == this->variable_name_to_send_) {
     return;  // This is a variable. no need to set color
   }
@@ -13,7 +13,7 @@ void NextionComponent::set_background_color(Color bco) {
   this->update_component_settings();
 }
 
-void NextionComponent::set_background_pressed_color(Color bco2) {
+void NextionComponent::set_background_pressed_color(const Color &bco2) {
   if (this->variable_name_ == this->variable_name_to_send_) {
     return;  // This is a variable. no need to set color
   }
@@ -24,7 +24,7 @@ void NextionComponent::set_background_pressed_color(Color bco2) {
   this->update_component_settings();
 }
 
-void NextionComponent::set_foreground_color(Color pco) {
+void NextionComponent::set_foreground_color(const Color &pco) {
   if (this->variable_name_ == this->variable_name_to_send_) {
     return;  // This is a variable. no need to set color
   }
@@ -34,7 +34,7 @@ void NextionComponent::set_foreground_color(Color pco) {
   this->update_component_settings();
 }
 
-void NextionComponent::set_foreground_pressed_color(Color pco2) {
+void NextionComponent::set_foreground_pressed_color(const Color &pco2) {
   if (this->variable_name_ == this->variable_name_to_send_) {
     return;  // This is a variable. no need to set color
   }

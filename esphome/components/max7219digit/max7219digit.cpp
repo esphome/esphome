@@ -154,7 +154,7 @@ int MAX7219Component::get_height_internal() {
 
 int MAX7219Component::get_width_internal() { return this->num_chips_ / this->num_chip_lines_ * 8; }
 
-void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT MAX7219Component::draw_absolute_pixel_internal(int x, int y, const Color &color) {
   if (x + 1 > (int) this->max_displaybuffer_[0].size()) {  // Extend the display buffer in case required
     for (int chip_line = 0; chip_line < this->num_chip_lines_; chip_line++) {
       this->max_displaybuffer_[chip_line].resize(x + 1, this->bckgrnd_);

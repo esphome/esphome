@@ -11,7 +11,7 @@ class ESPColorCorrection {
   void set_max_brightness(const Color &max_brightness) { this->max_brightness_ = max_brightness; }
   void set_local_brightness(uint8_t local_brightness) { this->local_brightness_ = local_brightness; }
   void calculate_gamma_table(float gamma);
-  inline Color color_correct(Color color) const ALWAYS_INLINE {
+  inline Color color_correct(const Color &color) const ALWAYS_INLINE {
     // corrected = (uncorrected * max_brightness * local_brightness) ^ gamma
     return Color(this->color_correct_red(color.red), this->color_correct_green(color.green),
                  this->color_correct_blue(color.blue), this->color_correct_white(color.white));
@@ -32,7 +32,7 @@ class ESPColorCorrection {
     uint8_t res = esp_scale8(esp_scale8(white, this->max_brightness_.white), this->local_brightness_);
     return this->gamma_table_[res];
   }
-  inline Color color_uncorrect(Color color) const ALWAYS_INLINE {
+  inline Color color_uncorrect(const Color &color) const ALWAYS_INLINE {
     // uncorrected = corrected^(1/gamma) / (max_brightness * local_brightness)
     return Color(this->color_uncorrect_red(color.red), this->color_uncorrect_green(color.green),
                  this->color_uncorrect_blue(color.blue), this->color_uncorrect_white(color.white));

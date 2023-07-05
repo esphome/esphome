@@ -90,7 +90,9 @@ void HOT ST7920::write_display_data() {
   }
 }
 
-void ST7920::fill(Color color) { memset(this->buffer_, color.is_on() ? 0xFF : 0x00, this->get_buffer_length_()); }
+void ST7920::fill(const Color &color) {
+  memset(this->buffer_, color.is_on() ? 0xFF : 0x00, this->get_buffer_length_());
+}
 
 void ST7920::dump_config() {
   LOG_DISPLAY("", "ST7920", this);
@@ -116,7 +118,7 @@ size_t ST7920::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / 8u;
 }
 
-void HOT ST7920::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT ST7920::draw_absolute_pixel_internal(int x, int y, const Color &color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
     ESP_LOGW(TAG, "Position out of area: %dx%d", x, y);
     return;

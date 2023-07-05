@@ -33,7 +33,7 @@ void QrCode::generate_qr_code() {
   }
 }
 
-void QrCode::draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color, int scale) {
+void QrCode::draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, const Color &color, int scale) {
   ESP_LOGV(TAG, "Drawing QR code at (%d, %d)", x_offset, y_offset);
 
   if (this->needs_update_) {

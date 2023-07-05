@@ -147,7 +147,7 @@ void Inkplate6::update() {
   this->display();
 }
 
-void HOT Inkplate6::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT Inkplate6::draw_absolute_pixel_internal(int x, int y, const Color &color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0)
     return;
 
@@ -282,7 +282,7 @@ bool Inkplate6::read_power_status_() {
   return false;
 }
 
-void Inkplate6::fill(Color color) {
+void Inkplate6::fill(const Color &color) {
   ESP_LOGV(TAG, "Fill called");
   uint32_t start_time = millis();
 

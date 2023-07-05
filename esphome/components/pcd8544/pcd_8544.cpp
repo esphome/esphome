@@ -84,7 +84,7 @@ void HOT PCD8544::display() {
   this->command(this->PCD8544_SETYADDR);
 }
 
-void HOT PCD8544::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT PCD8544::draw_absolute_pixel_internal(int x, int y, const Color &color) {
   if (x >= this->get_width_internal() || y >= this->get_height_internal() || x < 0 || y < 0) {
     return;
   }
@@ -116,7 +116,7 @@ void PCD8544::update() {
   this->display();
 }
 
-void PCD8544::fill(Color color) {
+void PCD8544::fill(const Color &color) {
   uint8_t fill = color.is_on() ? 0xFF : 0x00;
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)
     this->buffer_[i] = fill;

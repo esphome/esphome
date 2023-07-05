@@ -115,7 +115,7 @@ class GraphTrace {
   enum LineType get_line_type() { return this->line_type_; }
   void set_line_type(enum LineType val) { this->line_type_ = val; }
   Color get_line_color() { return this->line_color_; }
-  void set_line_color(Color val) { this->line_color_ = val; }
+  void set_line_color(const Color &val) { this->line_color_ = val; }
   std::string get_name() { return name_; }
   const HistoryData *get_tracedata() { return &data_; }
 
@@ -133,8 +133,8 @@ class GraphTrace {
 
 class Graph : public Component {
  public:
-  void draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color);
-  void draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color);
+  void draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, const Color &color);
+  void draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_offset, const Color &color);
 
   void setup() override;
   float get_setup_priority() const override { return setup_priority::PROCESSOR; }

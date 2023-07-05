@@ -15,7 +15,7 @@ class Display;
 namespace qr_code {
 class QrCode : public Component {
  public:
-  void draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color, int scale);
+  void draw(display::Display *buff, uint16_t x_offset, uint16_t y_offset, const Color &color, int scale);
 
   void dump_config() override;
 

@@ -12,10 +12,10 @@ static const char *const TAG = "display";
 const Color COLOR_OFF(0, 0, 0, 0);
 const Color COLOR_ON(255, 255, 255, 255);
 
-void Display::fill(Color color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
+void Display::fill(const Color &color) { this->filled_rectangle(0, 0, this->get_width(), this->get_height(), color); }
 void Display::clear() { this->fill(COLOR_OFF); }
 void Display::set_rotation(DisplayRotation rotation) { this->rotation_ = rotation; }
-void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
+void HOT Display::line(int x1, int y1, int x2, int y2, const Color &color) {
   const int32_t dx = abs(x2 - x1), sx = x1 < x2 ? 1 : -1;
   const int32_t dy = -abs(y2 - y1), sy = y1 < y2 ? 1 : -1;
   int32_t err = dx + dy;
@@ -35,29 +35,29 @@ void HOT Display::line(int x1, int y1, int x2, int y2, Color color) {
     }
   }
 }
-void HOT Display::horizontal_line(int x, int y, int width, Color color) {
+void HOT Display::horizontal_line(int x, int y, int width, const Color &color) {
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = x; i < x + width; i++)
     this->draw_pixel_at(i, y, color);
 }
-void HOT Display::vertical_line(int x, int y, int height, Color color) {
+void HOT Display::vertical_line(int x, int y, int height, const Color &color) {
   // Future: Could be made more efficient by manipulating buffer directly in certain rotations.
   for (int i = y; i < y + height; i++)
     this->draw_pixel_at(x, i, color);
 }
-void Display::rectangle(int x1, int y1, int width, int height, Color color) {
+void Display::rectangle(int x1, int y1, int width, int height, const Color &color) {
   this->horizontal_line(x1, y1, width, color);
   this->horizontal_line(x1, y1 + height - 1, width, color);
   this->vertical_line(x1, y1, height, color);
   this->vertical_line(x1 + width - 1, y1, height, color);
 }
-void Display::filled_rectangle(int x1, int y1, int width, int height, Color color) {
+void Display::filled_rectangle(int x1, int y1, int width, int height, const Color &color) {
   // Future: Use vertical_line and horizontal_line methods depending on rotation to reduce memory accesses.
   for (int i = y1; i < y1 + height; i++) {
     this->horizontal_line(x1, i, width, color);
   }
 }
-void HOT Display::circle(int center_x, int center_xy, int radius, Color color) {
+void HOT Display::circle(int center_x, int center_xy, int radius, const Color &color) {
   int dx = -radius;
   int dy = 0;
   int err = 2 - 2 * radius;
@@ -80,7 +80,7 @@ void HOT Display::circle(int center_x, int center_xy, int radius, Color color) {
     }
   } while (dx <= 0);
 }
-void Display::filled_circle(int center_x, int center_y, int radius, Color color) {
+void Display::filled_circle(int center_x, int center_y, int radius, const Color &color) {
   int dx = -int32_t(radius);
   int dy = 0;
   int err = 2 - 2 * radius;
@@ -107,24 +107,25 @@ void Display::filled_circle(int center_x, int center_y, int radius, Color color)
   } while (dx <= 0);
 }
 
-void Display::print(int x, int y, BaseFont *font, Color color, TextAlign align, const char *text) {
+void Display::print(int x, int y, BaseFont *font, const Color &color, TextAlign align, const char *text) {
   int x_start, y_start;
   int width, height;
   this->get_text_bounds(x, y, text, font, align, &x_start, &y_start, &width, &height);
   font->print(x_start, y_start, this, color, text);
 }
-void Display::vprintf_(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, va_list arg) {
+void Display::vprintf_(int x, int y, BaseFont *font, const Color &color, TextAlign align, const char *format,
+                       va_list arg) {
   char buffer[256];
   int ret = vsnprintf(buffer, sizeof(buffer), format, arg);
   if (ret > 0)
     this->print(x, y, font, color, align, buffer);
 }
 
-void Display::image(int x, int y, BaseImage *image, Color color_on, Color color_off) {
+void Display::image(int x, int y, BaseImage *image, const Color &color_on, const Color &color_off) {
   this->image(x, y, image, ImageAlign::TOP_LEFT, color_on, color_off);
 }
 
-void Display::image(int x, int y, BaseImage *image, ImageAlign align, Color color_on, Color color_off) {
+void Display::image(int x, int y, BaseImage *image, ImageAlign align, const Color &color_on, const Color &color_off) {
   auto x_align = ImageAlign(int(align) & (int(ImageAlign::HORIZONTAL_ALIGNMENT)));
   auto y_align = ImageAlign(int(align) & (int(ImageAlign::VERTICAL_ALIGNMENT)));
 
@@ -156,12 +157,14 @@ void Display::image(int x, int y, BaseImage *image, ImageAlign align, Color colo
 }
 
 #ifdef USE_GRAPH
-void Display::graph(int x, int y, graph::Graph *graph, Color color_on) { graph->draw(this, x, y, color_on); }
-void Display::legend(int x, int y, graph::Graph *graph, Color color_on) { graph->draw_legend(this, x, y, color_on); }
+void Display::graph(int x, int y, graph::Graph *graph, const Color &color_on) { graph->draw(this, x, y, color_on); }
+void Display::legend(int x, int y, graph::Graph *graph, const Color &color_on) {
+  graph->draw_legend(this, x, y, color_on);
+}
 #endif  // USE_GRAPH
 
 #ifdef USE_QR_CODE
-void Display::qr_code(int x, int y, qr_code::QrCode *qr_code, Color color_on, int scale) {
+void Display::qr_code(int x, int y, qr_code::QrCode *qr_code, const Color &color_on, int scale) {
   qr_code->draw(this, x, y, color_on, scale);
 }
 #endif  // USE_QR_CODE
@@ -204,7 +207,7 @@ void Display::get_text_bounds(int x, int y, const char *text, BaseFont *font, Te
       break;
   }
 }
-void Display::print(int x, int y, BaseFont *font, Color color, const char *text) {
+void Display::print(int x, int y, BaseFont *font, const Color &color, const char *text) {
   this->print(x, y, font, color, TextAlign::TOP_LEFT, text);
 }
 void Display::print(int x, int y, BaseFont *font, TextAlign align, const char *text) {
@@ -213,13 +216,13 @@ void Display::print(int x, int y, BaseFont *font, TextAlign align, const char *t
 void Display::print(int x, int y, BaseFont *font, const char *text) {
   this->print(x, y, font, COLOR_ON, TextAlign::TOP_LEFT, text);
 }
-void Display::printf(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ...) {
+void Display::printf(int x, int y, BaseFont *font, const Color &color, TextAlign align, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, color, align, format, arg);
   va_end(arg);
 }
-void Display::printf(int x, int y, BaseFont *font, Color color, const char *format, ...) {
+void Display::printf(int x, int y, BaseFont *font, const Color &color, const char *format, ...) {
   va_list arg;
   va_start(arg, format);
   this->vprintf_(x, y, font, color, TextAlign::TOP_LEFT, format, arg);
@@ -278,13 +281,14 @@ void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
     this->trigger(from, to);
 }
-void Display::strftime(int x, int y, BaseFont *font, Color color, TextAlign align, const char *format, ESPTime time) {
+void Display::strftime(int x, int y, BaseFont *font, const Color &color, TextAlign align, const char *format,
+                       ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     this->print(x, y, font, color, align, buffer);
 }
-void Display::strftime(int x, int y, BaseFont *font, Color color, const char *format, ESPTime time) {
+void Display::strftime(int x, int y, BaseFont *font, const Color &color, const char *format, ESPTime time) {
   this->strftime(x, y, font, color, TextAlign::TOP_LEFT, format, time);
 }
 void Display::strftime(int x, int y, BaseFont *font, TextAlign align, const char *format, ESPTime time) {

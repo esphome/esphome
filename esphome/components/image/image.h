@@ -34,12 +34,13 @@ inline int image_type_to_width_stride(int width, ImageType type) { return (width
 class Image : public display::BaseImage {
  public:
   Image(const uint8_t *data_start, int width, int height, ImageType type);
-  Color get_pixel(int x, int y, Color color_on = display::COLOR_ON, Color color_off = display::COLOR_OFF) const;
+  Color get_pixel(int x, int y, const Color &color_on = display::COLOR_ON,
+                  const Color &color_off = display::COLOR_OFF) const;
   int get_width() const override;
   int get_height() const override;
   ImageType get_type() const;
 
-  void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
+  void draw(int x, int y, display::Display *display, const Color &color_on, const Color &color_off) override;
 
   void set_transparency(bool transparent) { transparent_ = transparent; }
   bool has_transparency() const { return transparent_; }

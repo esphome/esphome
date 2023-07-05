@@ -20,13 +20,13 @@ class DisplayBuffer : public Display {
   int get_height() override;
 
   /// Set a single pixel at the specified coordinates to the given color.
-  void draw_pixel_at(int x, int y, Color color) override;
+  void draw_pixel_at(int x, int y, const Color &color) override;
 
   virtual int get_height_internal() = 0;
   virtual int get_width_internal() = 0;
 
  protected:
-  virtual void draw_absolute_pixel_internal(int x, int y, Color color) = 0;
+  virtual void draw_absolute_pixel_internal(int x, int y, const Color &color) = 0;
 
   void init_internal_(uint32_t buffer_length);
 

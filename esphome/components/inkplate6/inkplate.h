@@ -73,7 +73,7 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
 
   void display();
   void clean();
-  void fill(Color color) override;
+  void fill(const Color &color) override;
 
   void update() override;
 
@@ -91,7 +91,7 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   }
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  void draw_absolute_pixel_internal(int x, int y, const Color &color) override;
   void display1b_();
   void display3b_();
   void initialize_();

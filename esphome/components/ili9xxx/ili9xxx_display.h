@@ -40,7 +40,7 @@ class ILI9XXXDisplay : public PollingComponent,
 
   void update() override;
 
-  void fill(Color color) override;
+  void fill(const Color &color) override;
 
   void dump_config() override;
   void setup() override;
@@ -48,7 +48,7 @@ class ILI9XXXDisplay : public PollingComponent,
   display::DisplayType get_display_type() override { return display::DisplayType::DISPLAY_TYPE_COLOR; }
 
  protected:
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
+  void draw_absolute_pixel_internal(int x, int y, const Color &color) override;
   void setup_pins_();
   virtual void initialize() = 0;
 

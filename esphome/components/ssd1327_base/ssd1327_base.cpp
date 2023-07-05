@@ -135,7 +135,7 @@ int SSD1327::get_width_internal() {
 size_t SSD1327::get_buffer_length_() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) / SSD1327_PIXELSPERBYTE;
 }
-void HOT SSD1327::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT SSD1327::draw_absolute_pixel_internal(int x, int y, const Color &color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
   uint32_t color4 = display::ColorUtil::color_to_grayscale4(color);
@@ -149,7 +149,7 @@ void HOT SSD1327::draw_absolute_pixel_internal(int x, int y, Color color) {
   // ...then lay the new nibble back on top. done!
   this->buffer_[pos] |= color4;
 }
-void SSD1327::fill(Color color) {
+void SSD1327::fill(const Color &color) {
   const uint32_t color4 = display::ColorUtil::color_to_grayscale4(color);
   uint8_t fill = (color4 & SSD1327_COLORMASK) | ((color4 & SSD1327_COLORMASK) << SSD1327_COLORSHIFT);
   for (uint32_t i = 0; i < this->get_buffer_length_(); i++)

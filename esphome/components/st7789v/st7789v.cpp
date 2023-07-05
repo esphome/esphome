@@ -313,7 +313,7 @@ void ST7789V::draw_filled_rect_(uint16_t x1, uint16_t y1, uint16_t x2, uint16_t 
   this->disable();
 }
 
-void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT ST7789V::draw_absolute_pixel_internal(int x, int y, const Color &color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 

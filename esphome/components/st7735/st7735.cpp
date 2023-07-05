@@ -307,7 +307,7 @@ size_t ST7735::get_buffer_length() {
   return size_t(this->get_width_internal()) * size_t(this->get_height_internal()) * 2;
 }
 
-void HOT ST7735::draw_absolute_pixel_internal(int x, int y, Color color) {
+void HOT ST7735::draw_absolute_pixel_internal(int x, int y, const Color &color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0)
     return;
 
