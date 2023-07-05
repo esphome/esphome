@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
     CONF_DIMENSIONS,
+    CONF_DATA_RATE,
 )
 
 DEPENDENCIES = ["spi"]
@@ -98,6 +99,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
                 cv.file_
             ),
+            cv.Optional(CONF_DATA_RATE, default="40MHz"): spi.SPI_DATA_RATE_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -176,3 +178,6 @@ async def to_code(config):
     if rhs is not None:
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
+
+    spi_data_rate = str(spi.SPI_DATA_RATE_OPTIONS[config[CONF_DATA_RATE]])
+    cg.add_define("ILI9XXXDisplay_DATA_RATE", cg.RawExpression(spi_data_rate))
