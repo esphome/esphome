@@ -6,13 +6,13 @@
 namespace esphome {
 namespace zio_ultrasonic {
 
-static const char *const TAG = "Zio Ultrasonic";
+static const char *const TAG = "zio_ultrasonic";
 
 void ZioUltrasonicComponent::dump_config() {
-  ESP_LOGCONFIG(TAG, "Zio Ultrasonic:");
+  ESP_LOGCONFIG(TAG, "Zio Ultrasonic Sensor:");
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
-  LOG_SENSOR("  ", "Distance", this);
+  LOG_SENSOR("  ", "Sensor:", this);
 }
 
 void ZioUltrasonicComponent::update() {
