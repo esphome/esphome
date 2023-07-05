@@ -128,6 +128,12 @@ class ILI9XXXILI9488 : public ILI9XXXDisplay {
   void initialize() override;
 };
 
+//-----------   ILI9XXX_35_TFT origin colors rotated display --------------
+class ILI9XXXILI9488A : public ILI9XXXDisplay {
+ protected:
+  void initialize() override;
+};
+
 //-----------   ILI9XXX_35_TFT rotated display --------------
 class ILI9XXXST7796 : public ILI9XXXDisplay {
  protected:

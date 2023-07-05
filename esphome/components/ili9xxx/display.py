@@ -43,6 +43,7 @@ MODELS = {
     "ILI9481": ili9XXX_ns.class_("ILI9XXXILI9481", ili9XXXSPI),
     "ILI9486": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
     "ILI9488": ili9XXX_ns.class_("ILI9XXXILI9488", ili9XXXSPI),
+    "ILI9488_A": ili9XXX_ns.class_("ILI9XXXILI9488A", ili9XXXSPI),
     "ST7796": ili9XXX_ns.class_("ILI9XXXST7796", ili9XXXSPI),
     "S3BOX": ili9XXX_ns.class_("ILI9XXXS3Box", ili9XXXSPI),
     "S3BOX_LITE": ili9XXX_ns.class_("ILI9XXXS3BoxLite", ili9XXXSPI),
