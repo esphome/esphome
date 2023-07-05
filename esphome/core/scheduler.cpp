@@ -154,16 +154,16 @@ void HOT Scheduler::call() {
   if (now - last_print > 2000) {
     last_print = now;
     std::vector<std::unique_ptr<SchedulerItem>> old_items;
-    ESP_LOGVV(TAG, "Items: count=%u, now=%u", this->items_.size(), now);
+    ESP_LOGVV(TAG, "Items: count=%u, now=%" PRIu32, this->items_.size(), now);
     while (!this->empty_()) {
       this->lock_.lock();
       auto item = std::move(this->items_[0]);
       this->pop_raw_();
       this->lock_.unlock();
 
-      ESP_LOGVV(TAG, "  %s '%s' interval=%u last_execution=%u (%u) next=%u (%u)", item->get_type_str(),
-                item->name.c_str(), item->interval, item->last_execution, item->last_execution_major,
-                item->next_execution(), item->next_execution_major());
+      ESP_LOGVV(TAG, "  %s '%s' interval=%" PRIu32 " last_execution=%" PRIu32 " (%u) next=%" PRIu32 " (%u)",
+                item->get_type_str(), item->name.c_str(), item->interval, item->last_execution,
+                item->last_execution_major, item->next_execution(), item->next_execution_major());
 
       old_items.push_back(std::move(item));
     }
