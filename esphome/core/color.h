@@ -43,7 +43,9 @@ struct Color {
                                                             b((colorcode >> 0) & 0xFF),
                                                             w((colorcode >> 24) & 0xFF) {}
 
-  inline bool is_on() ALWAYS_INLINE { return this->raw_32 != 0; }
+  inline Color(const Color &other) : raw_32(other.raw_32) {}
+
+  inline bool is_on() const ALWAYS_INLINE { return this->raw_32 != 0; }
 
   inline bool operator==(const Color &rhs) {  // NOLINT
     return this->raw_32 == rhs.raw_32;
