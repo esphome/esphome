@@ -29,7 +29,7 @@ void HOT Scheduler::set_timeout(Component *component, const std::string &name, u
   if (timeout == SCHEDULER_DONT_RUN)
     return;
 
-  ESP_LOGVV(TAG, "set_timeout(name='%s', timeout=%u)", name.c_str(), timeout);
+  ESP_LOGVV(TAG, "set_timeout(name='%s', timeout=%" PRIu32 ")", name.c_str(), timeout);
 
   auto item = make_unique<SchedulerItem>();
   item->component = component;
@@ -60,7 +60,7 @@ void HOT Scheduler::set_interval(Component *component, const std::string &name, 
   if (interval != 0)
     offset = (random_uint32() % interval) / 2;
 
-  ESP_LOGVV(TAG, "set_interval(name='%s', interval=%u, offset=%u)", name.c_str(), interval, offset);
+  ESP_LOGVV(TAG, "set_interval(name='%s', interval=%" PRIu32 ", offset=%" PRIu32 ")", name.c_str(), interval, offset);
 
   auto item = make_unique<SchedulerItem>();
   item->component = component;
@@ -108,8 +108,8 @@ void HOT Scheduler::set_retry(Component *component, const std::string &name, uin
   if (initial_wait_time == SCHEDULER_DONT_RUN)
     return;
 
-  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%u, max_attempts=%u, backoff_factor=%0.1f)", name.c_str(),
-            initial_wait_time, max_attempts, backoff_increase_factor);
+  ESP_LOGVV(TAG, "set_retry(name='%s', initial_wait_time=%" PRIu32 ", max_attempts=%u, backoff_factor=%0.1f)",
+            name.c_str(), initial_wait_time, max_attempts, backoff_increase_factor);
 
   if (backoff_increase_factor < 0.0001) {
     ESP_LOGE(TAG,
@@ -222,8 +222,8 @@ void HOT Scheduler::call() {
       }
 
 #ifdef ESPHOME_LOG_HAS_VERY_VERBOSE
-      ESP_LOGVV(TAG, "Running %s '%s' with interval=%u last_execution=%u (now=%u)", item->get_type_str(),
-                item->name.c_str(), item->interval, item->last_execution, now);
+      ESP_LOGVV(TAG, "Running %s '%s' with interval=%" PRIu32 " last_execution=%" PRIu32 " (now=%" PRIu32 ")",
+                item->get_type_str(), item->name.c_str(), item->interval, item->last_execution, now);
 #endif
 
       // Warning: During callback(), a lot of stuff can happen, including:

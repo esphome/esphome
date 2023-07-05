@@ -1,6 +1,10 @@
 #include "voice_assistant.h"
 
+#ifdef USE_VOICE_ASSISTANT
+
 #include "esphome/core/log.h"
+
+#include <cstdio>
 
 namespace esphome {
 namespace voice_assistant {
@@ -33,11 +37,73 @@ void VoiceAssistant::setup() {
     return;
   }
 
-  this->mic_->add_data_callback([this](const std::vector<uint8_t> &data) {
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    struct sockaddr_storage server;
+
+    socklen_t sl = socket::set_sockaddr_any((struct sockaddr *) &server, sizeof(server), 6055);
+    if (sl == 0) {
+      ESP_LOGW(TAG, "Socket unable to set sockaddr: errno %d", errno);
+      this->mark_failed();
+      return;
+    }
+    server.ss_family = AF_INET;
+
+    err = socket_->bind((struct sockaddr *) &server, sizeof(server));
+    if (err != 0) {
+      ESP_LOGW(TAG, "Socket unable to bind: errno %d", errno);
+      this->mark_failed();
+      return;
+    }
+  }
+#endif
+
+  this->mic_->add_data_callback([this](const std::vector<int16_t> &data) {
     if (!this->running_) {
       return;
     }
-    this->socket_->sendto(data.data(), data.size(), 0, (struct sockaddr *) &this->dest_addr_, sizeof(this->dest_addr_));
+    this->socket_->sendto(data.data(), data.size() * sizeof(int16_t), 0, (struct sockaddr *) &this->dest_addr_,
+                          sizeof(this->dest_addr_));
+  });
+}
+
+void VoiceAssistant::loop() {
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    uint8_t buf[1024];
+    auto len = this->socket_->read(buf, sizeof(buf));
+    if (len == -1) {
+      return;
+    }
+    this->speaker_->play(buf, len);
+    this->set_timeout("data-incoming", 200, [this]() {
+      if (this->continuous_) {
+        this->request_start(true);
+      }
+    });
+    return;
+  }
+#endif
+#ifdef USE_MEDIA_PLAYER
+  if (this->media_player_ != nullptr) {
+    if (!this->playing_tts_ ||
+        this->media_player_->state == media_player::MediaPlayerState::MEDIA_PLAYER_STATE_PLAYING) {
+      return;
+    }
+    this->set_timeout("playing-media", 1000, [this]() {
+      this->playing_tts_ = false;
+      if (this->continuous_) {
+        this->request_start(true);
+      }
+    });
+    return;
+  }
+#endif
+  // Set a 1 second timeout to start the voice assistant again.
+  this->set_timeout("continuous-no-sound", 1000, [this]() {
+    if (this->continuous_) {
+      this->request_start(true);
+    }
   });
 }
 
@@ -59,11 +125,19 @@ void VoiceAssistant::start(struct sockaddr_storage *addr, uint16_t port) {
   }
   this->running_ = true;
   this->mic_->start();
+  this->listening_trigger_->trigger();
 }
 
-void VoiceAssistant::request_start() {
+void VoiceAssistant::request_start(bool continuous) {
   ESP_LOGD(TAG, "Requesting start...");
-  api::global_api_server->start_voice_assistant();
+  if (!api::global_api_server->start_voice_assistant(this->conversation_id_)) {
+    ESP_LOGW(TAG, "Could not request start.");
+    this->error_trigger_->trigger("not-connected", "Could not request start.");
+    this->continuous_ = false;
+    return;
+  }
+  this->continuous_ = continuous;
+  this->set_timeout("reset-conversation_id", 5 * 60 * 1000, [this]() { this->conversation_id_ = ""; });
 }
 
 void VoiceAssistant::signal_stop() {
@@ -76,8 +150,9 @@ void VoiceAssistant::signal_stop() {
 
 void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
   switch (msg.event_type) {
-    case api::enums::VOICE_ASSISTANT_RUN_END:
-      ESP_LOGD(TAG, "Voice Assistant ended.");
+    case api::enums::VOICE_ASSISTANT_RUN_START:
+      ESP_LOGD(TAG, "Assist Pipeline running");
+      this->start_trigger_->trigger();
       break;
     case api::enums::VOICE_ASSISTANT_STT_END: {
       std::string text;
@@ -91,7 +166,16 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGD(TAG, "Speech recognised as: \"%s\"", text.c_str());
-      // TODO `on_stt_end` trigger
+      this->signal_stop();
+      this->stt_end_trigger_->trigger(text);
+      break;
+    }
+    case api::enums::VOICE_ASSISTANT_INTENT_END: {
+      for (auto arg : msg.data) {
+        if (arg.name == "conversation_id") {
+          this->conversation_id_ = std::move(arg.value);
+        }
+      }
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_START: {
@@ -106,7 +190,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGD(TAG, "Response: \"%s\"", text.c_str());
-      // TODO `on_tts_start` trigger
+      this->tts_start_trigger_->trigger(text);
       break;
     }
     case api::enums::VOICE_ASSISTANT_TTS_END: {
@@ -121,9 +205,19 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         return;
       }
       ESP_LOGD(TAG, "Response URL: \"%s\"", url.c_str());
-      // TODO `on_tts_end` trigger
+#ifdef USE_MEDIA_PLAYER
+      if (this->media_player_ != nullptr) {
+        this->playing_tts_ = true;
+        this->media_player_->make_call().set_media_url(url).perform();
+      }
+#endif
+      this->tts_end_trigger_->trigger(url);
       break;
     }
+    case api::enums::VOICE_ASSISTANT_RUN_END:
+      ESP_LOGD(TAG, "Assist Pipeline ended");
+      this->end_trigger_->trigger();
+      break;
     case api::enums::VOICE_ASSISTANT_ERROR: {
       std::string code = "";
       std::string message = "";
@@ -135,7 +229,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
         }
       }
       ESP_LOGE(TAG, "Error: %s - %s", code.c_str(), message.c_str());
-      // TODO `on_error` trigger
+      this->continuous_ = false;
+      this->signal_stop();
+      this->error_trigger_->trigger(code, message);
     }
     default:
       break;
@@ -146,3 +242,5 @@ VoiceAssistant *global_voice_assistant = nullptr;  // NOLINT(cppcoreguidelines-a
 
 }  // namespace voice_assistant
 }  // namespace esphome
+
+#endif  // USE_VOICE_ASSISTANT

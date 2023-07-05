@@ -8,6 +8,13 @@
 namespace esphome {
 namespace switch_ {
 
+#define SUB_SWITCH(name) \
+ protected: \
+  switch_::Switch *name##_switch_{nullptr}; \
+\
+ public: \
+  void set_##name##_switch(switch_::Switch *s) { this->name##_switch_ = s; }
+
 // bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled
 const int RESTORE_MODE_ON_MASK = 0x01;
 const int RESTORE_MODE_PERSISTENT_MASK = 0x02;
@@ -29,7 +36,7 @@ enum SwitchRestoreMode {
  * A switch is basically just a combination of a binary sensor (for reporting switch values)
  * and a write_state method that writes a state to the hardware.
  */
-class Switch : public EntityBase {
+class Switch : public EntityBase, public EntityBase_DeviceClass {
  public:
   explicit Switch();
 
@@ -103,10 +110,6 @@ class Switch : public EntityBase {
 
   bool is_inverted() const;
 
-  /// Get the device class for this switch.
-  std::string get_device_class();
-  /// Set the Home Assistant device class for this switch.
-  void set_device_class(const std::string &device_class);
   void set_restore_mode(SwitchRestoreMode restore_mode) { this->restore_mode = restore_mode; }
 
  protected:
@@ -124,7 +127,6 @@ class Switch : public EntityBase {
   bool inverted_{false};
   Deduplicator<bool> publish_dedup_;
   ESPPreferenceObject rtc_;
-  optional<std::string> device_class_;
 };
 
 #define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))

@@ -26,8 +26,10 @@ EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
 void EthernetComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ethernet...");
-  // Delay here to allow power to stabilise before Ethernet is initialised.
-  delay(300);  // NOLINT
+  if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
+    // Delay here to allow power to stabilise before Ethernet is initialized.
+    delay(300);  // NOLINT
+  }
 
   esp_err_t err;
   err = esp_netif_init();
@@ -39,43 +41,55 @@ void EthernetComponent::setup() {
   this->eth_netif_ = esp_netif_new(&cfg);
 
   // Init MAC and PHY configs to default
-  eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
   eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
-
   phy_config.phy_addr = this->phy_addr_;
   phy_config.reset_gpio_num = this->power_pin_;
 
+  eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+#if ESP_IDF_VERSION_MAJOR >= 5
+  eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+  esp32_emac_config.smi_mdc_gpio_num = this->mdc_pin_;
+  esp32_emac_config.smi_mdio_gpio_num = this->mdio_pin_;
+  esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
+  esp32_emac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
+
+  esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
+#else
   mac_config.smi_mdc_gpio_num = this->mdc_pin_;
   mac_config.smi_mdio_gpio_num = this->mdio_pin_;
   mac_config.clock_config.rmii.clock_mode = this->clk_mode_;
   mac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
 
   esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
+#endif
 
-  esp_eth_phy_t *phy;
   switch (this->type_) {
     case ETHERNET_TYPE_LAN8720: {
-      phy = esp_eth_phy_new_lan87xx(&phy_config);
+      this->phy_ = esp_eth_phy_new_lan87xx(&phy_config);
       break;
     }
     case ETHERNET_TYPE_RTL8201: {
-      phy = esp_eth_phy_new_rtl8201(&phy_config);
+      this->phy_ = esp_eth_phy_new_rtl8201(&phy_config);
       break;
     }
     case ETHERNET_TYPE_DP83848: {
-      phy = esp_eth_phy_new_dp83848(&phy_config);
+      this->phy_ = esp_eth_phy_new_dp83848(&phy_config);
       break;
     }
     case ETHERNET_TYPE_IP101: {
-      phy = esp_eth_phy_new_ip101(&phy_config);
+      this->phy_ = esp_eth_phy_new_ip101(&phy_config);
       break;
     }
     case ETHERNET_TYPE_JL1101: {
-      phy = esp_eth_phy_new_jl1101(&phy_config);
+      this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
       break;
     }
     case ETHERNET_TYPE_KSZ8081: {
-      phy = esp_eth_phy_new_ksz8081(&phy_config);
+#if ESP_IDF_VERSION_MAJOR >= 5
+      this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
+#else
+      this->phy_ = esp_eth_phy_new_ksz8081(&phy_config);
+#endif
       break;
     }
     default: {
@@ -84,7 +98,7 @@ void EthernetComponent::setup() {
     }
   }
 
-  esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, phy);
+  esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, this->phy_);
   this->eth_handle_ = nullptr;
   err = esp_eth_driver_install(&eth_config, &this->eth_handle_);
   ESPHL_ERROR_CHECK(err, "ETH driver install error");
@@ -220,13 +234,13 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
       return;
   }
 
-  ESP_LOGV(TAG, "[Ethernet event] %s (num=%d)", event_name, event);
+  ESP_LOGV(TAG, "[Ethernet event] %s (num=%" PRId32 ")", event_name, event);
 }
 
 void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                              void *event_data) {
   global_eth_component->connected_ = true;
-  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP (num=%d)", event_id);
+  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP (num=%" PRId32 ")", event_id);
 }
 
 void EthernetComponent::start_connect_() {
@@ -276,7 +290,7 @@ void EthernetComponent::start_connect_() {
 #endif
       dns_setserver(0, &d);
     }
-    if (uint32_t(this->manual_ip_->dns1) != 0) {
+    if (uint32_t(this->manual_ip_->dns2) != 0) {
       ip_addr_t d;
 #if LWIP_IPV6
       d.type = IPADDR_TYPE_V4;
@@ -355,6 +369,21 @@ std::string EthernetComponent::get_use_address() const {
 }
 
 void EthernetComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+
+bool EthernetComponent::powerdown() {
+  ESP_LOGI(TAG, "Powering down ethernet PHY");
+  if (this->phy_ == nullptr) {
+    ESP_LOGE(TAG, "Ethernet PHY not assigned");
+    return false;
+  }
+  this->connected_ = false;
+  this->started_ = false;
+  if (this->phy_->pwrctl(this->phy_, false) != ESP_OK) {
+    ESP_LOGE(TAG, "Error powering down ethernet PHY");
+    return false;
+  }
+  return true;
+}
 
 }  // namespace ethernet
 }  // namespace esphome
