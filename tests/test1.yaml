@@ -228,6 +228,10 @@ uart:
     baud_rate: 256000
     parity: NONE
     stop_bits: 1
+  - id: gcja5_uart
+    rx_pin: GPIO10
+    parity: EVEN
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -347,6 +351,7 @@ sensor:
       name: "Particulate Matter <10.0µm Concentration"
     pm_2_5:
       name: "Particulate Matter <2.5µm Concentration"
+    uart_id: gcja5_uart
   - platform: internal_temperature
     name: Internal Temperature
   - platform: ble_client
