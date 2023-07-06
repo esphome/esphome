@@ -3,10 +3,10 @@
 #include <string>
 
 #include "esphome/core/optional.h"
-#include "headers.h"
+#include "esphome/components/socket/headers.h"
 
 namespace esphome {
-namespace socket {
+namespace socket_shd {
 
 class Socket {
  public:
@@ -48,11 +48,5 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol);
 /// Create a socket in the newest available IP domain (IPv6 or IPv4) of the given type and protocol.
 std::unique_ptr<Socket> socket_ip(int type, int protocol);
 
-/// Set a sockaddr to the specified address and port for the IP version used by socket_ip().
-socklen_t set_sockaddr(struct sockaddr *addr, socklen_t addrlen, const std::string &ip_address, uint16_t port);
-
-/// Set a sockaddr to the any address and specified port for the IP version used by socket_ip().
-socklen_t set_sockaddr_any(struct sockaddr *addr, socklen_t addrlen, uint16_t port);
-
-}  // namespace socket
+}  // namespace socket_shd
 }  // namespace esphome

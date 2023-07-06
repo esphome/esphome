@@ -16,7 +16,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace socket {
+namespace socket_shd {
 
 static const char *const TAG = "socket.lwip";
 
@@ -951,7 +951,7 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   return std::unique_ptr<Socket>{sock};
 }
 
-}  // namespace socket
+}  // namespace socket_shd
 }  // namespace esphome
 
 #endif  // USE_SOCKET_IMPL_LWIP_TCP

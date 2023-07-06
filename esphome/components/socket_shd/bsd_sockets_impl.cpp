@@ -12,7 +12,7 @@
 #endif
 
 namespace esphome {
-namespace socket {
+namespace socket_shd {
 
 std::string format_sockaddr(const struct sockaddr_storage &storage) {
   if (storage.ss_family == AF_INET) {
@@ -181,7 +181,7 @@ std::unique_ptr<Socket> socket(int domain, int type, int protocol) {
   return std::unique_ptr<Socket>{new BSDSocketImpl(ret)};
 }
 
-}  // namespace socket
+}  // namespace socket_shd
 }  // namespace esphome
 
 #endif  // USE_SOCKET_IMPL_BSD_SOCKETS

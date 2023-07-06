@@ -1,0 +1,32 @@
+esphome:
+  name: "my-esp-test-1"
+  friendly_name: "my-esp-test-1"
+  includes:
+    - test-udp-sock.h
+    - test-tcp-sock.h
+  on_boot:
+    priority: 250
+    then:
+      - lambda: |-
+          test_udp_setup();
+          test_tcp_setup();
+  on_loop:
+    - lambda: |-
+        test_udp_read();
+        test_tcp_accept();
+        test_tcp_read();
+
+external_components:
+  - source: github://pr#0000
+    components: [ socket_shd ]
+
+socket_shd:
+
+button:
+  - platform: template
+    id: test_udp_send
+    name: "Test UDP Send"
+    on_press:
+      - lambda: |-
+          std::string str = "hello from my-esp-test-1";
+          test_udp_send(str.data(), str.size());
