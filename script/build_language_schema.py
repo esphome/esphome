@@ -461,8 +461,10 @@ def merge(source, destination):
 
 def is_platform_schema(schema_name):
     # added mostly because of schema_name == "microphone.MICROPHONE_SCHEMA"
+    # and "alarm_control_panel"
     # which is shrunk because there is only one component of the schema (i2s_audio)
-    return schema_name == "microphone.MICROPHONE_SCHEMA"
+    component = schema_name.split(".")[0]
+    return component in components and components[component].is_platform_component
 
 
 def shrink():
@@ -530,6 +532,10 @@ def shrink():
         elif not key_s:
             for target in paths:
                 target_s = get_arr_path_schema(target)
+                if S_SCHEMA not in target_s:
+                    # an empty schema like speaker.SPEAKER_SCHEMA
+                    target_s[S_EXTENDS].remove(x)
+                    continue
                 assert target_s[S_SCHEMA][S_EXTENDS] == [x]
                 target_s.pop(S_SCHEMA)
                 target_s.pop(S_TYPE)  # undefined
