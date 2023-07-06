@@ -7,10 +7,10 @@ namespace dfplayer {
 static const char *const TAG = "dfplayer";
 
 void DFPlayer::play_folder(uint16_t folder, uint16_t file) {
-  if (folder < 100 && file < 256) {
+  if (folder <= 10 && file <= 1000) {
     this->ack_set_is_playing_ = true;
     this->send_cmd_(0x0F, (uint8_t) folder, (uint8_t) file);
-  } else if (folder <= 10 && file <= 1000) {
+  } else if (folder < 100 && file < 256) {
     this->ack_set_is_playing_ = true;
     this->send_cmd_(0x14, (((uint16_t) folder) << 12) | file);
   } else {

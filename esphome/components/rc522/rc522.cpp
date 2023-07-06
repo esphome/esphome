@@ -256,7 +256,7 @@ void RC522::loop() {
 
       this->current_uid_ = rfid_uid;
 
-      for (auto *trigger : this->triggers_)
+      for (auto *trigger : this->triggers_ontag_)
         trigger->process(rfid_uid);
 
       if (report) {
@@ -265,6 +265,11 @@ void RC522::loop() {
       break;
     }
     case STATE_DONE: {
+      if (!this->current_uid_.empty()) {
+        ESP_LOGV(TAG, "Tag '%s' removed", format_uid(this->current_uid_).c_str());
+        for (auto *trigger : this->triggers_ontagremoved_)
+          trigger->process(this->current_uid_);
+      }
       this->current_uid_ = {};
       state_ = STATE_INIT;
       break;

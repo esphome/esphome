@@ -264,25 +264,11 @@ const optional<ClimateMode> &ClimateCall::get_mode() const { return this->mode_;
 const optional<float> &ClimateCall::get_target_temperature() const { return this->target_temperature_; }
 const optional<float> &ClimateCall::get_target_temperature_low() const { return this->target_temperature_low_; }
 const optional<float> &ClimateCall::get_target_temperature_high() const { return this->target_temperature_high_; }
-optional<bool> ClimateCall::get_away() const {
-  if (!this->preset_.has_value())
-    return {};
-  return *this->preset_ == ClimatePreset::CLIMATE_PRESET_AWAY;
-}
 const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
 const optional<std::string> &ClimateCall::get_custom_fan_mode() const { return this->custom_fan_mode_; }
 const optional<ClimatePreset> &ClimateCall::get_preset() const { return this->preset_; }
 const optional<std::string> &ClimateCall::get_custom_preset() const { return this->custom_preset_; }
 const optional<ClimateSwingMode> &ClimateCall::get_swing_mode() const { return this->swing_mode_; }
-ClimateCall &ClimateCall::set_away(bool away) {
-  this->preset_ = away ? CLIMATE_PRESET_AWAY : CLIMATE_PRESET_HOME;
-  return *this;
-}
-ClimateCall &ClimateCall::set_away(optional<bool> away) {
-  if (away.has_value())
-    this->preset_ = *away ? CLIMATE_PRESET_AWAY : CLIMATE_PRESET_HOME;
-  return *this;
-}
 ClimateCall &ClimateCall::set_target_temperature_high(optional<float> target_temperature_high) {
   this->target_temperature_high_ = target_temperature_high;
   return *this;
