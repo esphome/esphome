@@ -36,11 +36,18 @@ void test_tcp_read() {
 
   for (auto &client : tcp_clients) {
     std::string addr;
-    ssize_t len = client->sock->recvfrom(buff_tcp_recv, sizeof(buff_tcp_recv), 0, addr);
+    ssize_t len;
+
+    len = client->sock->recvfrom(buff_tcp_recv, 3, MSG_PEEK, addr);
     if (len <= 0) continue;
 
     client->msec = millis();
     ESP_LOGD("tcp_recv", "From: %s", addr.c_str());
+    ESP_LOGD("tcp_recv", "Data: %s", std::string((const char *) buff_tcp_recv, len).c_str());
+
+    len = client->sock->read(buff_tcp_recv, sizeof(buff_tcp_recv));
+    if (len <= 0) continue;
+
     ESP_LOGD("tcp_recv", "Data: %s", std::string((const char *) buff_tcp_recv, len).c_str());
   }
 }

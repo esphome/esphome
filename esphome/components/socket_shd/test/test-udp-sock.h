@@ -10,10 +10,17 @@ void test_udp_read() {
   if(!sock_udp) return;
   
   std::string addr;
-  ssize_t len = sock_udp->recvfrom(buff_udb_recv, sizeof(buff_udb_recv), 0, addr);
+  ssize_t len;
+
+  len = sock_udp->recvfrom(buff_udb_recv, 3, MSG_PEEK, addr);
   if (len <= 0) return;
 
   ESP_LOGD("udp_recv", "From: %s", addr.c_str());
+  ESP_LOGD("udp_recv", "Data: %s", std::string((const char *) buff_udb_recv, len).c_str());
+
+  len = sock_udp->read(buff_udb_recv, sizeof(buff_udb_recv));
+  if (len <= 0) return;
+
   ESP_LOGD("udp_recv", "Data: %s", std::string((const char *) buff_udb_recv, len).c_str());
 }
 
