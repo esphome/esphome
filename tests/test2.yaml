@@ -493,7 +493,7 @@ binary_sensor:
       name: Mi Motion Sensor 2 Button
   - platform: xiaomi_mccgq02hl
     name: Mi Door Window Sensor 2
-    mac_address: "12:34:56:12:34:56"
+    mac_address: 12:34:56:12:34:56
     bindkey: 48403ebe2d385db8d0c187f81e62cb64
     light:
       name: Mi Door Window Sensor 2 Light
