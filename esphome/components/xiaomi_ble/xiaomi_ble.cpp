@@ -80,6 +80,8 @@ bool parse_xiaomi_value(uint16_t value_type, const uint8_t *data, uint8_t value_
     result.has_motion = !idle_time;
   } else if ((value_type == 0x1018) && (value_length == 1)) {
     result.is_light = data[0];
+  } else if ((value_type == 0x1019) && (value_length == 1)) {
+    result.is_open = data[0];
   } else {
     return false;
   }
@@ -223,6 +225,9 @@ optional<XiaomiParseResult> parse_xiaomi_header(const esp32_ble_tracker::Service
     result.name = "RTCGQ02LM";
     if (raw.size() == 19)
       result.raw_offset -= 6;
+  } else if (device_uuid == 0x098B) {  // Xiaomi Mi Door window sensor 2
+    result.type = XiaomiParseResult::TYPE_MCCGQ02HL;
+    result.name = "TYPE_MCCGQ02HL";
   } else {
     ESP_LOGVV(TAG, "parse_xiaomi_header(): unknown device, no magic bytes.");
     return {};
@@ -359,6 +364,9 @@ bool report_xiaomi_results(const optional<XiaomiParseResult> &result, const std:
   }
   if (result->button_press.has_value()) {
     ESP_LOGD(TAG, "  Button: %s", (*result->button_press) ? "pressed" : "");
+  }
+  if (result->is_open.has_value()) {
+    ESP_LOGD(TAG, "  open: %s", (*result->is_open) ? "off" : "on");
   }
 
   return true;
