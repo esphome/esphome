@@ -17,7 +17,7 @@ def run_format(args, queue, lock, failed_files):
     """Takes filenames out of queue and runs clang-format on them."""
     while True:
         path = queue.get()
-        invocation = ["clang-format"]
+        invocation = ["clang-format-13"]
         if args.inplace:
             invocation.append("-i")
         else:
@@ -59,7 +59,7 @@ def main():
     args = parser.parse_args()
 
     try:
-        get_output("clang-format", "-version")
+        get_output("clang-format-13", "-version")
     except:
         print(
             """
