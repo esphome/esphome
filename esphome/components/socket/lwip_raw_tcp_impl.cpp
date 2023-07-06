@@ -107,7 +107,7 @@ class LWIPRawImpl : public Socket {
   }
 
  protected:
-  size_t read_(void *buf, size_t len) {
+  size_t read_(void *buf, size_t len, bool peek=false) {
     uint8_t *buf8 = reinterpret_cast<uint8_t *>(buf);
     size_t read = 0;
 
@@ -118,6 +118,11 @@ class LWIPRawImpl : public Socket {
         break;
       size_t copysize = std::min(len, pb_left);
       memcpy(buf8, reinterpret_cast<uint8_t *>(this->rx_buf_->payload) + this->rx_buf_offset_, copysize);
+
+      // read only from the first pbuf for now
+      if (peek) {
+        return copysize;
+      }
 
       if (pb_left == copysize) {
         // full pb copied, free it
@@ -461,40 +466,18 @@ class LWIPRawImplTCP : public LWIPRawImpl {
   }
 
   ssize_t read(void *buf, size_t len) override {
-    if (pcb_ == nullptr) {
-      errno = ECONNRESET;
-      return -1;
-    }
-    if (rx_closed_ && rx_buf_ == nullptr) {
-      return 0;
-    }
-    if (len == 0) {
-      return 0;
-    }
-    if (rx_buf_ == nullptr) {
-      errno = EWOULDBLOCK;
-      return -1;
-    }
-
-    size_t read = this->read_(buf, len);
-
-    if (read == 0) {
-      errno = EWOULDBLOCK;
-      return -1;
-    }
-
-    return read;
+    return this->read_internal_(buf, len);
   }
 
   ssize_t recvfrom(void *buf, size_t len, int flags, struct sockaddr *src, socklen_t *srclen) override {
-    ssize_t read = this->read(buf, len);
+    ssize_t read = this->read_internal_(buf, len, (flags & MSG_PEEK) != 0);
   	if (read == -1) return -1;
     this->getpeername(src, srclen);
     return read;
   }
 
   ssize_t recvfrom(void *buf, size_t len, int flags, std::string &addr) {
-    ssize_t read = this->read(buf, len);
+    ssize_t read = this->read_internal_(buf, len, (flags & MSG_PEEK) != 0);
   	if (read == -1) return -1;
     addr = this->getpeername();
     return read;
@@ -673,6 +656,32 @@ class LWIPRawImplTCP : public LWIPRawImpl {
     *port = &this->pcb_->local_port;
   }
 
+  ssize_t read_internal_(void *buf, size_t len, bool peek=false) {
+    if (pcb_ == nullptr) {
+      errno = ECONNRESET;
+      return -1;
+    }
+    if (rx_closed_ && rx_buf_ == nullptr) {
+      return 0;
+    }
+    if (len == 0) {
+      return 0;
+    }
+    if (rx_buf_ == nullptr) {
+      errno = EWOULDBLOCK;
+      return -1;
+    }
+
+    size_t read = this->read_(buf, len, peek);
+
+    if (read == 0) {
+      errno = EWOULDBLOCK;
+      return -1;
+    }
+
+    return read;
+  }
+
   struct tcp_pcb *pcb_;
   std::queue<std::unique_ptr<LWIPRawImplTCP>> accepted_sockets_;
   bool rx_closed_ = false;
@@ -819,26 +828,23 @@ class LWIPRawImplUDP : public LWIPRawImpl {
   }
 
   ssize_t read(void *buf, size_t len) override {
-    if(!this->read_peek_()) {
-      return -1;
-    }
     return this->read_internal_(buf, len);
   }
 
   ssize_t recvfrom(void *buf, size_t len, int flags, struct sockaddr *src, socklen_t *srclen) override {
-    if(!this->read_peek_()) {
-      return -1;
+    ssize_t read = this->read_internal_(buf, len, (flags & MSG_PEEK) != 0);
+    if (read > 0) {
+      this->ip2sockaddr_(&this->recv_addr_, this->recv_port_, src, srclen);
     }
-    this->ip2sockaddr_(&this->recv_addr_, this->recv_port_, src, srclen);
-    return this->read_internal_(buf, len);
+    return read;
   }
 
   ssize_t recvfrom(void *buf, size_t len, int flags, std::string &addr) {
-    if(!this->read_peek_()) {
-      return -1;
+    ssize_t read = this->read_internal_(buf, len, (flags & MSG_PEEK) != 0);
+    if (read > 0) {
+      addr = format_addr(&this->recv_addr_);
     }
-    addr = format_addr(&this->recv_addr_);
-    return this->read_internal_(buf, len);
+    return read;
   }
 
   ssize_t write(const void *buf, size_t len) override {
@@ -884,6 +890,7 @@ class LWIPRawImplUDP : public LWIPRawImpl {
       pbuf_free(this->rx_buf_);
     }
     this->rx_buf_ = pb;
+    this->rx_buf_offset_ = 0;
 
     this->recv_addr_ = *addr;
     this->recv_port_ = port;
@@ -904,26 +911,27 @@ class LWIPRawImplUDP : public LWIPRawImpl {
     *port = &this->pcb_->local_port;
   }
 
-  size_t read_peek_() {
+  ssize_t read_internal_(void *buf, size_t len, bool peek=false) {
     if (this->pcb_ == nullptr) {
       errno = EBADF;
-      return 0;
+      return -1;
     }
-    if (this->rx_buf_ == nullptr || !this->rx_buf_->tot_len) {
+    if (this->rx_buf_ == nullptr) {
       errno = EWOULDBLOCK;
-      return 0;
+      return -1;
     }
-    return this->rx_buf_->tot_len;
-  }
 
-  // must call read_peek_() before this
-  size_t read_internal_(void *buf, size_t len) {
-    size_t read = this->read_(buf, len);
+    size_t read = this->read_(buf, len, peek);
 
     // discard the rest
-    if (this->rx_buf_ != nullptr) {
+    if (!peek && this->rx_buf_ != nullptr) {
       pbuf_free(this->rx_buf_);
       this->rx_buf_ = nullptr;
+    }
+
+    if (!read) {
+      errno = EWOULDBLOCK;
+      return -1;
     }
 
     return read;

@@ -5,6 +5,10 @@
 #include "esphome/core/optional.h"
 #include "headers.h"
 
+#if defined(USE_SOCKET_IMPL_LWIP_TCP) && !defined(MSG_PEEK)
+#define MSG_PEEK       0x01    /* Peeks at an incoming message */
+#endif
+
 namespace esphome {
 namespace socket {
 
