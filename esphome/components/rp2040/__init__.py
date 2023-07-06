@@ -1,4 +1,7 @@
 import logging
+import os
+
+from string import ascii_letters, digits
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -12,9 +15,10 @@ from esphome.const import (
     KEY_TARGET_FRAMEWORK,
     KEY_TARGET_PLATFORM,
 )
-from esphome.core import CORE, coroutine_with_priority
+from esphome.core import CORE, coroutine_with_priority, EsphomeError
+from esphome.helpers import mkdir_p, write_file, copy_file_if_changed
 
-from .const import KEY_BOARD, KEY_RP2040, rp2040_ns
+from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 
 # force import gpio to register pin schema
 from .gpio import rp2040_pin_to_code  # noqa
@@ -32,6 +36,8 @@ def set_core_data(config):
         config[CONF_FRAMEWORK][CONF_VERSION]
     )
     CORE.data[KEY_RP2040][KEY_BOARD] = config[CONF_BOARD]
+
+    CORE.data[KEY_RP2040][KEY_PIO_FILES] = {}
 
     return config
 
@@ -148,7 +154,9 @@ async def to_code(config):
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
-        [f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}"],
+        [
+            f"earlephilhower/framework-arduinopico@{conf[CONF_SOURCE]}",
+        ],
     )
 
     cg.add_platformio_option("board_build.core", "earlephilhower")
@@ -159,3 +167,48 @@ async def to_code(config):
         "USE_ARDUINO_VERSION_CODE",
         cg.RawExpression(f"VERSION_CODE({ver.major}, {ver.minor}, {ver.patch})"),
     )
+
+
+def add_pio_file(component: str, key: str, data: str):
+    try:
+        cv.validate_id_name(key)
+    except cv.Invalid as e:
+        raise EsphomeError(
+            f"[{component}] Invalid PIO key: {key}. Allowed characters: [{ascii_letters}{digits}_]\nPlease report an issue https://github.com/esphome/issues"
+        ) from e
+    CORE.data[KEY_RP2040][KEY_PIO_FILES][key] = data
+
+
+def generate_pio_files() -> bool:
+    import shutil
+
+    shutil.rmtree(CORE.relative_build_path("src/pio"), ignore_errors=True)
+
+    includes: list[str] = []
+    files = CORE.data[KEY_RP2040][KEY_PIO_FILES]
+    if not files:
+        return False
+    for key, data in files.items():
+        pio_path = CORE.relative_build_path(f"src/pio/{key}.pio")
+        mkdir_p(os.path.dirname(pio_path))
+        write_file(pio_path, data)
+        includes.append(f"pio/{key}.pio.h")
+
+    write_file(
+        CORE.relative_build_path("src/pio_includes.h"),
+        "#pragma once\n" + "\n".join([f'#include "{include}"' for include in includes]),
+    )
+
+    dir = os.path.dirname(__file__)
+    build_pio_file = os.path.join(dir, "build_pio.py.script")
+    copy_file_if_changed(
+        build_pio_file,
+        CORE.relative_build_path("build_pio.py"),
+    )
+
+    return True
+
+
+# Called by writer.py
+def copy_files() -> bool:
+    return generate_pio_files()

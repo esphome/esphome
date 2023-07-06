@@ -136,6 +136,10 @@ void I2SAudioSpeaker::player_task(void *params) {
 void I2SAudioSpeaker::stop() {
   if (this->state_ == speaker::STATE_STOPPED)
     return;
+  if (this->state_ == speaker::STATE_STARTING) {
+    this->state_ = speaker::STATE_STOPPED;
+    return;
+  }
   this->state_ = speaker::STATE_STOPPING;
   DataEvent data;
   data.stop = true;

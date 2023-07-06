@@ -275,7 +275,7 @@ SPRINKLER_ACTION_SET_RUN_DURATION_SCHEMA = cv.Schema(
 SPRINKLER_ACTION_QUEUE_VALVE_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ID): cv.use_id(Sprinkler),
-        cv.Optional(CONF_RUN_DURATION, default=0): cv.templatable(
+        cv.Optional(CONF_RUN_DURATION, default="0s"): cv.templatable(
             cv.positive_time_period_seconds
         ),
         cv.Required(CONF_VALVE_NUMBER): cv.templatable(cv.positive_int),
@@ -599,15 +599,6 @@ async def to_code(config):
             )
             cg.add(var.set_controller_auto_adv_switch(sw_aa_var))
 
-            if CONF_QUEUE_ENABLE_SWITCH in sprinkler_controller:
-                sw_qen_var = await switch.new_switch(
-                    sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]
-                )
-                await cg.register_component(
-                    sw_qen_var, sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]
-                )
-                cg.add(var.set_controller_queue_enable_switch(sw_qen_var))
-
             if CONF_REVERSE_SWITCH in sprinkler_controller:
                 sw_rev_var = await switch.new_switch(
                     sprinkler_controller[CONF_REVERSE_SWITCH]
@@ -617,78 +608,83 @@ async def to_code(config):
                 )
                 cg.add(var.set_controller_reverse_switch(sw_rev_var))
 
-            if CONF_STANDBY_SWITCH in sprinkler_controller:
-                sw_stb_var = await switch.new_switch(
-                    sprinkler_controller[CONF_STANDBY_SWITCH]
-                )
-                await cg.register_component(
-                    sw_stb_var, sprinkler_controller[CONF_STANDBY_SWITCH]
-                )
-                cg.add(var.set_controller_standby_switch(sw_stb_var))
+        if CONF_STANDBY_SWITCH in sprinkler_controller:
+            sw_stb_var = await switch.new_switch(
+                sprinkler_controller[CONF_STANDBY_SWITCH]
+            )
+            await cg.register_component(
+                sw_stb_var, sprinkler_controller[CONF_STANDBY_SWITCH]
+            )
+            cg.add(var.set_controller_standby_switch(sw_stb_var))
 
-            if CONF_MULTIPLIER_NUMBER in sprinkler_controller:
-                num_mult_var = await number.new_number(
-                    sprinkler_controller[CONF_MULTIPLIER_NUMBER],
-                    min_value=sprinkler_controller[CONF_MULTIPLIER_NUMBER][
-                        CONF_MIN_VALUE
-                    ],
-                    max_value=sprinkler_controller[CONF_MULTIPLIER_NUMBER][
-                        CONF_MAX_VALUE
-                    ],
-                    step=sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_STEP],
-                )
-                await cg.register_component(
-                    num_mult_var, sprinkler_controller[CONF_MULTIPLIER_NUMBER]
-                )
-                cg.add(
-                    num_mult_var.set_initial_value(
-                        sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_INITIAL_VALUE]
-                    )
-                )
-                cg.add(
-                    num_mult_var.set_restore_value(
-                        sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_RESTORE_VALUE]
-                    )
-                )
+        if CONF_QUEUE_ENABLE_SWITCH in sprinkler_controller:
+            sw_qen_var = await switch.new_switch(
+                sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]
+            )
+            await cg.register_component(
+                sw_qen_var, sprinkler_controller[CONF_QUEUE_ENABLE_SWITCH]
+            )
+            cg.add(var.set_controller_queue_enable_switch(sw_qen_var))
 
-                if CONF_SET_ACTION in sprinkler_controller[CONF_MULTIPLIER_NUMBER]:
-                    await automation.build_automation(
-                        num_mult_var.get_set_trigger(),
-                        [(float, "x")],
-                        sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_SET_ACTION],
-                    )
+        if CONF_MULTIPLIER_NUMBER in sprinkler_controller:
+            num_mult_var = await number.new_number(
+                sprinkler_controller[CONF_MULTIPLIER_NUMBER],
+                min_value=sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_MIN_VALUE],
+                max_value=sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_MAX_VALUE],
+                step=sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_STEP],
+            )
+            await cg.register_component(
+                num_mult_var, sprinkler_controller[CONF_MULTIPLIER_NUMBER]
+            )
+            cg.add(
+                num_mult_var.set_initial_value(
+                    sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_INITIAL_VALUE]
+                )
+            )
+            cg.add(
+                num_mult_var.set_restore_value(
+                    sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_RESTORE_VALUE]
+                )
+            )
 
-                cg.add(var.set_controller_multiplier_number(num_mult_var))
-
-            if CONF_REPEAT_NUMBER in sprinkler_controller:
-                num_repeat_var = await number.new_number(
-                    sprinkler_controller[CONF_REPEAT_NUMBER],
-                    min_value=sprinkler_controller[CONF_REPEAT_NUMBER][CONF_MIN_VALUE],
-                    max_value=sprinkler_controller[CONF_REPEAT_NUMBER][CONF_MAX_VALUE],
-                    step=sprinkler_controller[CONF_REPEAT_NUMBER][CONF_STEP],
-                )
-                await cg.register_component(
-                    num_repeat_var, sprinkler_controller[CONF_REPEAT_NUMBER]
-                )
-                cg.add(
-                    num_repeat_var.set_initial_value(
-                        sprinkler_controller[CONF_REPEAT_NUMBER][CONF_INITIAL_VALUE]
-                    )
-                )
-                cg.add(
-                    num_repeat_var.set_restore_value(
-                        sprinkler_controller[CONF_REPEAT_NUMBER][CONF_RESTORE_VALUE]
-                    )
+            if CONF_SET_ACTION in sprinkler_controller[CONF_MULTIPLIER_NUMBER]:
+                await automation.build_automation(
+                    num_mult_var.get_set_trigger(),
+                    [(float, "x")],
+                    sprinkler_controller[CONF_MULTIPLIER_NUMBER][CONF_SET_ACTION],
                 )
 
-                if CONF_SET_ACTION in sprinkler_controller[CONF_REPEAT_NUMBER]:
-                    await automation.build_automation(
-                        num_repeat_var.get_set_trigger(),
-                        [(float, "x")],
-                        sprinkler_controller[CONF_REPEAT_NUMBER][CONF_SET_ACTION],
-                    )
+            cg.add(var.set_controller_multiplier_number(num_mult_var))
 
-                cg.add(var.set_controller_repeat_number(num_repeat_var))
+        if CONF_REPEAT_NUMBER in sprinkler_controller:
+            num_repeat_var = await number.new_number(
+                sprinkler_controller[CONF_REPEAT_NUMBER],
+                min_value=sprinkler_controller[CONF_REPEAT_NUMBER][CONF_MIN_VALUE],
+                max_value=sprinkler_controller[CONF_REPEAT_NUMBER][CONF_MAX_VALUE],
+                step=sprinkler_controller[CONF_REPEAT_NUMBER][CONF_STEP],
+            )
+            await cg.register_component(
+                num_repeat_var, sprinkler_controller[CONF_REPEAT_NUMBER]
+            )
+            cg.add(
+                num_repeat_var.set_initial_value(
+                    sprinkler_controller[CONF_REPEAT_NUMBER][CONF_INITIAL_VALUE]
+                )
+            )
+            cg.add(
+                num_repeat_var.set_restore_value(
+                    sprinkler_controller[CONF_REPEAT_NUMBER][CONF_RESTORE_VALUE]
+                )
+            )
+
+            if CONF_SET_ACTION in sprinkler_controller[CONF_REPEAT_NUMBER]:
+                await automation.build_automation(
+                    num_repeat_var.get_set_trigger(),
+                    [(float, "x")],
+                    sprinkler_controller[CONF_REPEAT_NUMBER][CONF_SET_ACTION],
+                )
+
+            cg.add(var.set_controller_repeat_number(num_repeat_var))
 
         for valve in sprinkler_controller[CONF_VALVES]:
             sw_valve_var = await switch.new_switch(valve[CONF_VALVE_SWITCH])

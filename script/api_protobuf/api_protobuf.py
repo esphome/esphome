@@ -18,6 +18,7 @@ will be generated, they still need to be formatted
 """
 
 import re
+import os
 from pathlib import Path
 from textwrap import dedent
 from subprocess import call
@@ -944,3 +945,19 @@ with open(root / "api_pb2_service.cpp", "w") as f:
     f.write(cpp)
 
 prot.unlink()
+
+try:
+    import clang_format
+
+    def exec_clang_format(path):
+        clang_format_path = os.path.join(
+            os.path.dirname(clang_format.__file__), "data", "bin", "clang-format"
+        )
+        call([clang_format_path, "-i", path])
+
+    exec_clang_format(root / "api_pb2_service.h")
+    exec_clang_format(root / "api_pb2_service.cpp")
+    exec_clang_format(root / "api_pb2.h")
+    exec_clang_format(root / "api_pb2.cpp")
+except ImportError:
+    pass

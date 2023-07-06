@@ -31,6 +31,25 @@ class I2CRegister {
   uint8_t register_;
 };
 
+class I2CRegister16 {
+ public:
+  I2CRegister16 &operator=(uint8_t value);
+  I2CRegister16 &operator&=(uint8_t value);
+  I2CRegister16 &operator|=(uint8_t value);
+
+  explicit operator uint8_t() const { return get(); }
+
+  uint8_t get() const;
+
+ protected:
+  friend class I2CDevice;
+
+  I2CRegister16(I2CDevice *parent, uint16_t a_register) : parent_(parent), register_(a_register) {}
+
+  I2CDevice *parent_;
+  uint16_t register_;
+};
+
 // like ntohs/htons but without including networking headers.
 // ("i2c" byte order is big-endian)
 inline uint16_t i2ctohs(uint16_t i2cshort) { return convert_big_endian(i2cshort); }
@@ -44,24 +63,15 @@ class I2CDevice {
   void set_i2c_bus(I2CBus *bus) { bus_ = bus; }
 
   I2CRegister reg(uint8_t a_register) { return {this, a_register}; }
+  I2CRegister16 reg16(uint16_t a_register) { return {this, a_register}; }
 
   ErrorCode read(uint8_t *data, size_t len) { return bus_->read(address_, data, len); }
-  ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len, bool stop = true) {
-    ErrorCode err = this->write(&a_register, 1, stop);
-    if (err != ERROR_OK)
-      return err;
-    return this->read(data, len);
-  }
+  ErrorCode read_register(uint8_t a_register, uint8_t *data, size_t len, bool stop = true);
+  ErrorCode read_register16(uint16_t a_register, uint8_t *data, size_t len, bool stop = true);
 
   ErrorCode write(const uint8_t *data, uint8_t len, bool stop = true) { return bus_->write(address_, data, len, stop); }
-  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop = true) {
-    WriteBuffer buffers[2];
-    buffers[0].data = &a_register;
-    buffers[0].len = 1;
-    buffers[1].data = data;
-    buffers[1].len = len;
-    return bus_->writev(address_, buffers, 2, stop);
-  }
+  ErrorCode write_register(uint8_t a_register, const uint8_t *data, size_t len, bool stop = true);
+  ErrorCode write_register16(uint16_t a_register, const uint8_t *data, size_t len, bool stop = true);
 
   // Compat APIs
 
@@ -85,13 +95,7 @@ class I2CDevice {
     return res;
   }
 
-  bool read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len) {
-    if (read_register(a_register, reinterpret_cast<uint8_t *>(data), len * 2) != ERROR_OK)
-      return false;
-    for (size_t i = 0; i < len; i++)
-      data[i] = i2ctohs(data[i]);
-    return true;
-  }
+  bool read_bytes_16(uint8_t a_register, uint16_t *data, uint8_t len);
 
   bool read_byte(uint8_t a_register, uint8_t *data, bool stop = true) {
     return read_register(a_register, data, 1, stop) == ERROR_OK;
