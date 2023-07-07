@@ -10,7 +10,7 @@ namespace font {
 
 static const char *const TAG = "font";
 
-void Glyph::draw(int x_at, int y_start, display::DisplayBuffer *display, Color color) const {
+void Glyph::draw(int x_at, int y_start, display::Display *display, Color color) const {
   int scan_x1, scan_y1, scan_width, scan_height;
   this->scan_area(&scan_x1, &scan_y1, &scan_width, &scan_height);
 
@@ -118,7 +118,7 @@ void Font::measure(const char *str, int *width, int *x_offset, int *baseline, in
   *x_offset = min_x;
   *width = x - min_x;
 }
-void Font::print(int x_start, int y_start, display::DisplayBuffer *display, Color color, const char *text) {
+void Font::print(int x_start, int y_start, display::Display *display, Color color, const char *text) {
   int i = 0;
   int x_at = x_start;
   while (text[i] != '\0') {
