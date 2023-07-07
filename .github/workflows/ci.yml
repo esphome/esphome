@@ -241,12 +241,6 @@ jobs:
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
           cache-key: ${{ needs.common.outputs.cache-key }}
-      - name: Cache platformio
-        uses: actions/cache@v3.3.1
-        with:
-          path: ~/.platformio
-          # yamllint disable-line rule:line-length
-          key: platformio-test${{ matrix.file }}-${{ hashFiles('platformio.ini') }}
       - name: Run esphome compile tests/test${{ matrix.file }}.yaml
         run: |
           . venv/bin/activate
