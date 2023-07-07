@@ -3,9 +3,9 @@
 #include "esphome/core/hal.h"
 
 namespace esphome {
-namespace display {
+namespace image {
 
-void Image::draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) {
+void Image::draw(int x, int y, display::Display *display, Color color_on, Color color_off) {
   switch (type_) {
     case IMAGE_TYPE_BINARY: {
       for (int img_x = 0; img_x < width_; img_x++) {
@@ -130,5 +130,5 @@ ImageType Image::get_type() const { return this->type_; }
 Image::Image(const uint8_t *data_start, int width, int height, ImageType type)
     : width_(width), height_(height), type_(type), data_start_(data_start) {}
 
-}  // namespace display
+}  // namespace image
 }  // namespace esphome
