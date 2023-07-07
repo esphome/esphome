@@ -763,6 +763,146 @@ void GDEY029T94::dump_config() {
   LOG_UPDATE_INTERVAL(this);
 }
 
+// ========================================================
+//     Good Display 1.54in black/white/grey GDEW0154M09
+// As used in M5Stack Core Ink
+// Datasheet:
+//  - https://v4.cecdn.yun300.cn/100001_1909185148/GDEW0154M09-200709.pdf
+//  - https://github.com/m5stack/M5Core-Ink
+// Reference code from GoodDisplay:
+//  - https://github.com/GoodDisplay/E-paper-Display-Library-of-GoodDisplay/
+//  -> /Monochrome_E-paper-Display/1.54inch_JD79653_GDEW0154M09_200x200/ESP32-Arduino%20IDE/GDEW0154M09_Arduino.ino
+// M5Stack Core Ink spec:
+//  - https://docs.m5stack.com/en/core/coreink
+// ========================================================
+
+void GDEW0154M09::initialize() {
+  this->init_internal_();
+  ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
+  this->lastbuff_ = allocator.allocate(this->get_buffer_length_());
+  if (this->lastbuff_ != nullptr) {
+    memset(this->lastbuff_, 0xff, sizeof(uint8_t) * this->get_buffer_length_());
+  }
+  this->clear_();
+}
+
+void GDEW0154M09::reset_() {
+  // RST is inverse from other einks in this project
+  if (this->reset_pin_ != nullptr) {
+    this->reset_pin_->digital_write(false);
+    delay(10);
+    this->reset_pin_->digital_write(true);
+    delay(10);
+  }
+}
+
+void GDEW0154M09::init_internal_() {
+  this->reset_();
+
+  // clang-format off
+  // 200x200 resolution:        11
+  // LUT from OTP:              0
+  // B/W mode (doesn't work):   1
+  // scan-up:                   1
+  // shift-right:               1
+  // booster ON:                1
+  // no soft reset:             1
+  const uint8_t panel_setting_1 = 0b11011111;
+
+  // VCOM status off            0
+  // Temp sensing default       1
+  // VGL Power Off Floating     1
+  // NORG expect refresh        1
+  // VCOM Off on displ off      0
+  const uint8_t panel_setting_2 = 0b01110;
+
+  const uint8_t wf_t0154_cz_b3_list[] = {
+      11, //  11 commands in list
+      CMD_PSR_PANEL_SETTING, 2, panel_setting_1, panel_setting_2,
+      CMD_UNDOCUMENTED_0x4D, 1, 0x55,
+      CMD_UNDOCUMENTED_0xAA, 1, 0x0f,
+      CMD_UNDOCUMENTED_0xE9, 1, 0x02,
+      CMD_UNDOCUMENTED_0xB6, 1, 0x11,
+      CMD_UNDOCUMENTED_0xF3, 1, 0x0a,
+      CMD_TRES_RESOLUTION_SETTING, 3, 0xc8, 0x00, 0xc8,
+      CMD_TCON_TCONSETTING, 1, 0x00,
+      CMD_CDI_VCOM_DATA_INTERVAL, 1, 0xd7,
+      CMD_PWS_POWER_SAVING, 1, 0x00,
+      CMD_PON_POWER_ON, 0
+  };
+  // clang-format on
+
+  this->write_init_list_(wf_t0154_cz_b3_list);
+  delay(100);  // NOLINT
+  this->wait_until_idle_();
+}
+
+void GDEW0154M09::write_init_list_(const uint8_t *list) {
+  uint8_t list_limit = list[0];
+  uint8_t *start_ptr = ((uint8_t *) list + 1);
+  for (uint8_t i = 0; i < list_limit; i++) {
+    this->command(*(start_ptr + 0));
+    for (uint8_t dnum = 0; dnum < *(start_ptr + 1); dnum++) {
+      this->data(*(start_ptr + 2 + dnum));
+    }
+    start_ptr += (*(start_ptr + 1) + 2);
+  }
+}
+
+void GDEW0154M09::clear_() {
+  uint32_t pixsize = this->get_buffer_length_();
+  for (uint8_t j = 0; j < 2; j++) {
+    this->command(CMD_DTM1_DATA_START_TRANS);
+    for (int count = 0; count < pixsize; count++) {
+      this->data(0x00);
+    }
+    this->command(CMD_DTM2_DATA_START_TRANS2);
+    for (int count = 0; count < pixsize; count++) {
+      this->data(0xff);
+    }
+    this->command(CMD_DISPLAY_REFRESH);
+    delay(10);
+    this->wait_until_idle_();
+  }
+}
+
+void HOT GDEW0154M09::display() {
+  this->init_internal_();
+  // "Mode 0 display" for now
+  this->command(CMD_DTM1_DATA_START_TRANS);
+  for (int i = 0; i < this->get_buffer_length_(); i++) {
+    this->data(0xff);
+  }
+  this->command(CMD_DTM2_DATA_START_TRANS2);  // write 'new' data to SRAM
+  for (int i = 0; i < this->get_buffer_length_(); i++) {
+    this->data(this->buffer_[i]);
+  }
+  this->command(CMD_DISPLAY_REFRESH);
+  delay(10);
+  this->wait_until_idle_();
+  this->deep_sleep();
+}
+
+void GDEW0154M09::deep_sleep() {
+  // COMMAND DEEP SLEEP
+  this->command(CMD_POF_POWER_OFF);
+  this->wait_until_idle_();
+  delay(1000);  // NOLINT
+  this->command(CMD_DSLP_DEEP_SLEEP);
+  this->data(DATA_DSLP_DEEP_SLEEP);
+}
+
+int GDEW0154M09::get_width_internal() { return 200; }
+int GDEW0154M09::get_height_internal() { return 200; }
+void GDEW0154M09::dump_config() {
+  LOG_DISPLAY("", "M5Stack CoreInk E-Paper (Good Display)", this);
+  ESP_LOGCONFIG(TAG, "  Model: 1.54in Greyscale GDEW0154M09");
+  LOG_PIN("  Reset Pin: ", this->reset_pin_);
+  LOG_PIN("  DC Pin: ", this->dc_pin_);
+  LOG_PIN("  Busy Pin: ", this->busy_pin_);
+  LOG_UPDATE_INTERVAL(this);
+}
+
 static const uint8_t LUT_VCOM_DC_4_2[] = {
     0x00, 0x17, 0x00, 0x00, 0x00, 0x02, 0x00, 0x17, 0x17, 0x00, 0x00, 0x02, 0x00, 0x0A, 0x01,
     0x00, 0x00, 0x01, 0x00, 0x0E, 0x0E, 0x00, 0x00, 0x02, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00,
