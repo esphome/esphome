@@ -41,18 +41,27 @@ void EthernetComponent::setup() {
   this->eth_netif_ = esp_netif_new(&cfg);
 
   // Init MAC and PHY configs to default
-  eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
   eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
-
   phy_config.phy_addr = this->phy_addr_;
   phy_config.reset_gpio_num = this->power_pin_;
 
+  eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+#if ESP_IDF_VERSION_MAJOR >= 5
+  eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+  esp32_emac_config.smi_mdc_gpio_num = this->mdc_pin_;
+  esp32_emac_config.smi_mdio_gpio_num = this->mdio_pin_;
+  esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
+  esp32_emac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
+
+  esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
+#else
   mac_config.smi_mdc_gpio_num = this->mdc_pin_;
   mac_config.smi_mdio_gpio_num = this->mdio_pin_;
   mac_config.clock_config.rmii.clock_mode = this->clk_mode_;
   mac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
 
   esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
+#endif
 
   switch (this->type_) {
     case ETHERNET_TYPE_LAN8720: {
@@ -76,7 +85,11 @@ void EthernetComponent::setup() {
       break;
     }
     case ETHERNET_TYPE_KSZ8081: {
+#if ESP_IDF_VERSION_MAJOR >= 5
+      this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
+#else
       this->phy_ = esp_eth_phy_new_ksz8081(&phy_config);
+#endif
       break;
     }
     default: {
@@ -221,13 +234,13 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
       return;
   }
 
-  ESP_LOGV(TAG, "[Ethernet event] %s (num=%d)", event_name, event);
+  ESP_LOGV(TAG, "[Ethernet event] %s (num=%" PRId32 ")", event_name, event);
 }
 
 void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                              void *event_data) {
   global_eth_component->connected_ = true;
-  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP (num=%d)", event_id);
+  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP (num=%" PRId32 ")", event_id);
 }
 
 void EthernetComponent::start_connect_() {

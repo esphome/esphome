@@ -1,3 +1,4 @@
+#include <cinttypes>
 #include "led_strip.h"
 
 #ifdef USE_ESP32
@@ -195,7 +196,7 @@ void ESP32RMTLEDStripLightOutput::dump_config() {
       break;
   }
   ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order);
-  ESP_LOGCONFIG(TAG, "  Max refresh rate: %u", *this->max_refresh_rate_);
+  ESP_LOGCONFIG(TAG, "  Max refresh rate: %" PRIu32, *this->max_refresh_rate_);
   ESP_LOGCONFIG(TAG, "  Number of LEDs: %u", this->num_leds_);
 }
 

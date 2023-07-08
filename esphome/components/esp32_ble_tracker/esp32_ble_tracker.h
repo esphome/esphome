@@ -113,6 +113,9 @@ class ESPBTDeviceListener {
  public:
   virtual void on_scan_end() {}
   virtual bool parse_device(const ESPBTDevice &device) = 0;
+  virtual bool parse_devices(esp_ble_gap_cb_param_t::ble_scan_result_evt_param *advertisements, size_t count) {
+    return false;
+  };
   void set_parent(ESP32BLETracker *parent) { parent_ = parent; }
 
  protected:
