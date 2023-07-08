@@ -334,10 +334,8 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
     }
     use_dot = *str == '.';
     if (use_dot) {
-      if (!this->inverted_) {
-        if (pos != start_pos)
-          this->buffer_[pos - 1] |= 0b10000000;
-        use_dot = false;
+      if ((!this->inverted_) && (pos != start_pos)) {
+        this->buffer_[pos - 1] |= 0b10000000;
       }
     } else {
       if (pos >= 6) {
