@@ -15,7 +15,7 @@ template<int In, int Out>
 inline ALWAYS_INLINE uint8_t shift_bits(uint8_t src) {
   if (!In || !Out) {
     return 0;
-#if 0
+#if 1
   } else if (In == 1 && In < Out) {
     // expand: fast expand
     //return src ? (0xFF >> (8 - Out)) : 0x00;

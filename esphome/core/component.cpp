@@ -169,7 +169,7 @@ float Component::get_actual_setup_priority() const {
 void Component::set_setup_priority(float priority) { this->setup_priority_override_ = priority; }
 
 bool Component::has_overridden_loop() const {
-#ifdef CLANG_TIDY
+#if defined(CLANG_TIDY) || defined(__APPLE_CC__)
   bool loop_overridden = true;
   bool call_loop_overridden = true;
 #else
