@@ -107,16 +107,16 @@ void ESP32BLETracker::loop() {
         ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
       }
 
-      bool bulk_parsed = false;
+      bool needs_single_parse = false;
 
       for (auto *listener : this->listeners_) {
-        bulk_parsed |= listener->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+        needs_single_parse |= !listener->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
       }
       for (auto *client : this->clients_) {
-        bulk_parsed |= client->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+        needs_single_parse |= !client->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
       }
 
-      if (!bulk_parsed) {
+      if (needs_single_parse) {
         for (size_t i = 0; i < index; i++) {
           ESPBTDevice device;
           device.parse_scan_rst(this->scan_result_buffer_[i]);
