@@ -54,7 +54,6 @@ class WaveshareEPaper : public PollingComponent,
     }
   }
 
-
   virtual int get_width_controller() { return this->get_width_internal(); };
 
   virtual uint32_t get_buffer_length_();  // NOLINT
@@ -217,7 +216,6 @@ class WaveshareEPaper2P7InBV2 : public WaveshareEPaperBWR {
   int get_height_internal() override;
 };
 
-
 class GDEY029T94 : public WaveshareEPaper {
  public:
   void initialize() override;
@@ -278,7 +276,6 @@ class GDEW0154M09 : public WaveshareEPaper {
   void init_internal_();
 };
 
-  
 class WaveshareEPaper2P9InB : public WaveshareEPaperBW {
  public:
   void initialize() override;
@@ -392,7 +389,6 @@ class WaveshareEPaper5P8In : public WaveshareEPaperBW {
 
   int get_height_internal() override;
 };
-
 
 class WaveshareEPaper5P8InV2 : public WaveshareEPaperBW {
  public:

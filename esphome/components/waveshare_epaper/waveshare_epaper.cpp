@@ -146,7 +146,7 @@ void HOT WaveshareEPaperBW::draw_absolute_pixel_internal(int x, int y, Color col
     this->buffer_[pos] &= ~(0x80 >> subpos);
   }
 }
-  
+
 uint32_t WaveshareEPaperBW::get_buffer_length_() {
   return this->get_width_controller() * this->get_height_internal() / 8u;
 }  // just a black buffer
