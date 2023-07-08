@@ -321,7 +321,6 @@ uint8_t TM1637Display::print(uint8_t start_pos, const char *str) {
              ((data & 0x4) ? 0x2 : 0) |               // E
              ((data & 0x2) ? 0x4 : 0) |               // F
              ((data & 0x1) ? 0x40 : 0);               // G
-      use_dot = false;
     } else {
       // XABCDEFG > XGFEDCBA
       data = ((data & 0x80) ? 0x80 : 0) |  // no move X
