@@ -48,12 +48,15 @@
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+#include "esphome/components/alarm_control_panel/alarm_control_panel.h"
+#endif
 
 namespace esphome {
 
 class Application {
  public:
-  void pre_setup(const std::string &name, const std::string &friendly_name, const std::string &comment,
+  void pre_setup(const std::string &name, const std::string &friendly_name, const char *comment,
                  const char *compilation_time, bool name_add_mac_suffix) {
     arch_init();
     this->name_add_mac_suffix_ = name_add_mac_suffix;
@@ -126,6 +129,12 @@ class Application {
   void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+  void register_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+    this->alarm_control_panels_.push_back(a_alarm_control_panel);
+  }
+#endif
+
   /// Register the component in this Application instance.
   template<class C> C *register_component(C *c) {
     static_assert(std::is_base_of<Component, C>::value, "Only Component subclasses can be registered");
@@ -145,11 +154,11 @@ class Application {
   /// Get the friendly name of this Application set by pre_setup().
   const std::string &get_friendly_name() const { return this->friendly_name_; }
   /// Get the comment of this Application set by pre_setup().
-  const std::string &get_comment() const { return this->comment_; }
+  std::string get_comment() const { return this->comment_; }
 
   bool is_name_add_mac_suffix_enabled() const { return this->name_add_mac_suffix_; }
 
-  const std::string &get_compilation_time() const { return this->compilation_time_; }
+  std::string get_compilation_time() const { return this->compilation_time_; }
 
   /** Set the target interval with which to run the loop() calls.
    * If the loop() method takes longer than the target interval, ESPHome won't
@@ -296,6 +305,18 @@ class Application {
   }
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+  const std::vector<alarm_control_panel::AlarmControlPanel *> &get_alarm_control_panels() {
+    return this->alarm_control_panels_;
+  }
+  alarm_control_panel::AlarmControlPanel *get_alarm_control_panel_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->alarm_control_panels_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+
   Scheduler scheduler;
 
  protected:
@@ -349,11 +370,14 @@ class Application {
 #ifdef USE_MEDIA_PLAYER
   std::vector<media_player::MediaPlayer *> media_players_{};
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+  std::vector<alarm_control_panel::AlarmControlPanel *> alarm_control_panels_{};
+#endif
 
   std::string name_;
   std::string friendly_name_;
-  std::string comment_;
-  std::string compilation_time_;
+  const char *comment_{nullptr};
+  const char *compilation_time_{nullptr};
   bool name_add_mac_suffix_;
   uint32_t last_loop_{0};
   uint32_t loop_interval_{16};

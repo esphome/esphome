@@ -26,7 +26,7 @@ jobs:
           days-before-issue-close: -1
           remove-stale-when-updated: true
           stale-pr-label: "stale"
-          exempt-pr-labels: "no-stale"
+          exempt-pr-labels: "not-stale"
           stale-pr-message: >
             There hasn't been any activity on this pull request recently. This
             pull request has been automatically marked as stale because of that
