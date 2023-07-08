@@ -980,6 +980,8 @@ def run_esphome(argv):
             _LOGGER.error(e, exc_info=args.verbose)
             return 1
 
+    _LOGGER.info("ESPHome %s", const.__version__)
+
     for conf_path in args.configuration:
         if any(os.path.basename(conf_path) == x for x in SECRETS_FILES):
             _LOGGER.warning("Skipping secrets file %s", conf_path)

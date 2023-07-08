@@ -34,7 +34,7 @@ class ESP32RMTLEDStripLightOutput : public light::AddressableLight {
   light::LightTraits get_traits() override {
     auto traits = light::LightTraits();
     if (this->is_rgbw_) {
-      traits.set_supported_color_modes({light::ColorMode::RGB, light::ColorMode::RGB_WHITE});
+      traits.set_supported_color_modes({light::ColorMode::RGB_WHITE, light::ColorMode::WHITE});
     } else {
       traits.set_supported_color_modes({light::ColorMode::RGB});
     }
