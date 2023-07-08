@@ -168,7 +168,7 @@ uint8_t TM1637Display::get_keys() {
     //    Bit | 7  6  5  4  3  2  1  0
     //  ------+------------------------
     //     To | 0  0  0  0  K2 S2 S1 S0
-    key_code = (uint8_t)((key_code & 0x80) >> 7 | (key_code & 0x40) >> 5 | (key_code & 0x20) >> 3 | (key_code & 0x08));
+    key_code = (uint8_t) ((key_code & 0x80) >> 7 | (key_code & 0x40) >> 5 | (key_code & 0x20) >> 3 | (key_code & 0x08));
   }
   return key_code;
 }
@@ -368,16 +368,14 @@ uint8_t TM1637Display::printf(const char *format, ...) {
   return 0;
 }
 
-#ifdef USE_TIME
-uint8_t TM1637Display::strftime(uint8_t pos, const char *format, time::ESPTime time) {
+uint8_t TM1637Display::strftime(uint8_t pos, const char *format, ESPTime time) {
   char buffer[64];
   size_t ret = time.strftime(buffer, sizeof(buffer), format);
   if (ret > 0)
     return this->print(pos, buffer);
   return 0;
 }
-uint8_t TM1637Display::strftime(const char *format, time::ESPTime time) { return this->strftime(0, format, time); }
-#endif
+uint8_t TM1637Display::strftime(const char *format, ESPTime time) { return this->strftime(0, format, time); }
 
 }  // namespace tm1637
 }  // namespace esphome

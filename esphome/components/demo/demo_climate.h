@@ -111,6 +111,7 @@ class DemoClimate : public climate::Climate, public Component {
             climate::CLIMATE_FAN_MIDDLE,
             climate::CLIMATE_FAN_FOCUS,
             climate::CLIMATE_FAN_DIFFUSE,
+            climate::CLIMATE_FAN_QUIET,
         });
         traits.set_supported_custom_fan_modes({"Auto Low", "Auto High"});
         traits.set_supported_swing_modes({

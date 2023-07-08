@@ -195,6 +195,8 @@ async def http_request_action_to_code(config, action_id, template_arg, args):
     for conf in config.get(CONF_ON_RESPONSE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID])
         cg.add(var.register_response_trigger(trigger))
-        await automation.build_automation(trigger, [(int, "status_code")], conf)
+        await automation.build_automation(
+            trigger, [(int, "status_code"), (cg.uint32, "duration_ms")], conf
+        )
 
     return var

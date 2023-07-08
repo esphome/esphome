@@ -59,6 +59,7 @@ void SSD1306::setup() {
   // Set Y offset (0xD3)
   this->command(SSD1306_COMMAND_SET_DISPLAY_OFFSET_Y);
   this->command(0x00 + this->offset_y_);
+
   // Set start line at line 0 (0x40)
   this->command(SSD1306_COMMAND_SET_START_LINE | 0x00);
 
@@ -100,6 +101,7 @@ void SSD1306::setup() {
     case SH1107_MODEL_128_64:
     case SSD1305_MODEL_128_32:
     case SSD1305_MODEL_128_64:
+    case SSD1306_MODEL_72_40:
       this->command(0x12);
       break;
   }
@@ -117,6 +119,9 @@ void SSD1306::setup() {
   switch (this->model_) {
     case SH1107_MODEL_128_64:
       this->command(0x35);
+      break;
+    case SSD1306_MODEL_72_40:
+      this->command(0x20);
       break;
     default:
       this->command(0x00);
@@ -155,6 +160,10 @@ void SSD1306::display() {
     case SSD1306_MODEL_64_32:
       this->command(0x20 + this->offset_x_);
       this->command(0x20 + this->offset_x_ + this->get_width_internal() - 1);
+      break;
+    case SSD1306_MODEL_72_40:
+      this->command(0x1C + this->offset_x_);
+      this->command(0x1C + this->offset_x_ + this->get_width_internal() - 1);
       break;
     default:
       this->command(0 + this->offset_x_);  // Page start address, 0
@@ -225,6 +234,8 @@ int SSD1306::get_height_internal() {
     case SSD1306_MODEL_64_48:
     case SH1106_MODEL_64_48:
       return 48;
+    case SSD1306_MODEL_72_40:
+      return 40;
     default:
       return 0;
   }
@@ -246,6 +257,8 @@ int SSD1306::get_width_internal() {
     case SH1106_MODEL_64_48:
     case SH1107_MODEL_128_64:
       return 64;
+    case SSD1306_MODEL_72_40:
+      return 72;
     default:
       return 0;
   }
@@ -294,6 +307,8 @@ const char *SSD1306::model_str_() {
       return "SSD1306 96x16";
     case SSD1306_MODEL_64_48:
       return "SSD1306 64x48";
+    case SSD1306_MODEL_72_40:
+      return "SSD1306 72x40";
     case SH1106_MODEL_128_32:
       return "SH1106 128x32";
     case SH1106_MODEL_128_64:

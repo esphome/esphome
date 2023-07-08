@@ -3,16 +3,16 @@
 // matter at all, as long as it compiles).
 // Not used during runtime nor for CI.
 
-#include <esphome/core/application.h>
-#include <esphome/components/logger/logger.h>
-#include <esphome/components/wifi/wifi_component.h>
-#include <esphome/components/ota/ota_component.h>
 #include <esphome/components/gpio/switch/gpio_switch.h>
+#include <esphome/components/logger/logger.h>
+#include <esphome/components/ota/ota_component.h>
+#include <esphome/components/wifi/wifi_component.h>
+#include <esphome/core/application.h>
 
 using namespace esphome;
 
 void setup() {
-  App.pre_setup("livingroom", __DATE__ ", " __TIME__, false);
+  App.pre_setup("livingroom", "LivingRoom", "comment", __DATE__ ", " __TIME__, false);
   auto *log = new logger::Logger(115200, 512);  // NOLINT
   log->pre_setup();
   log->set_uart_selection(logger::UART_SELECTION_UART0);

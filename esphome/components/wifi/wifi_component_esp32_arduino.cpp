@@ -4,19 +4,19 @@
 
 #include <esp_wifi.h>
 
-#include <utility>
 #include <algorithm>
+#include <utility>
 #ifdef USE_WIFI_WPA2_EAP
 #include <esp_wpa2.h>
 #endif
-#include "lwip/err.h"
-#include "lwip/dns.h"
 #include "lwip/apps/sntp.h"
+#include "lwip/dns.h"
+#include "lwip/err.h"
 
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/application.h"
 #include "esphome/core/util.h"
 
 namespace esphome {
@@ -128,13 +128,23 @@ bool WiFiComponent::wifi_sta_ip_config_(optional<ManualIP> manual_ip) {
   }
 
   ip_addr_t dns;
+#if LWIP_IPV6
   dns.type = IPADDR_TYPE_V4;
+#endif
   if (uint32_t(manual_ip->dns1) != 0) {
+#if LWIP_IPV6
     dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns1);
+#else
+    dns.addr = static_cast<uint32_t>(manual_ip->dns1);
+#endif
     dns_setserver(0, &dns);
   }
   if (uint32_t(manual_ip->dns2) != 0) {
+#if LWIP_IPV6
     dns.u_addr.ip4.addr = static_cast<uint32_t>(manual_ip->dns2);
+#else
+    dns.addr = static_cast<uint32_t>(manual_ip->dns2);
+#endif
     dns_setserver(1, &dns);
   }
 
@@ -608,13 +618,13 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   }
   return WiFiSTAConnectStatus::IDLE;
 }
-bool WiFiComponent::wifi_scan_start_() {
+bool WiFiComponent::wifi_scan_start_(bool passive) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
 
   // need to use WiFi because of WiFiScanClass allocations :(
-  int16_t err = WiFi.scanNetworks(true, true, false, 200);
+  int16_t err = WiFi.scanNetworks(true, true, passive, 200);
   if (err != WIFI_SCAN_RUNNING) {
     ESP_LOGV(TAG, "WiFi.scanNetworks failed! %d", err);
     return false;

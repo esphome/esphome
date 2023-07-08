@@ -156,6 +156,7 @@ void Sim800LComponent::parse_cmd_(std::string message) {
     case STATE_SEND_USSD1:
       this->send_cmd_("AT+CUSD=1, \"" + this->ussd_ + "\"");
       this->state_ = STATE_SEND_USSD2;
+      this->expect_ack_ = true;
       break;
     case STATE_SEND_USSD2:
       ESP_LOGD(TAG, "SendUssd2: '%s'", message.c_str());

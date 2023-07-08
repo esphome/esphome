@@ -7,7 +7,6 @@ import re
 import requests
 
 from esphome import core
-from esphome.components import display
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.helpers import copy_file_if_changed
@@ -29,9 +28,11 @@ DOMAIN = "font"
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
 
-Font = display.display_ns.class_("Font")
-Glyph = display.display_ns.class_("Glyph")
-GlyphData = display.display_ns.struct("GlyphData")
+font_ns = cg.esphome_ns.namespace("font")
+
+Font = font_ns.class_("Font")
+Glyph = font_ns.class_("Glyph")
+GlyphData = font_ns.struct("GlyphData")
 
 
 def validate_glyphs(value):

@@ -52,7 +52,13 @@ std::unique_ptr<nfc::NfcTag> PN532::read_mifare_classic_tag_(std::vector<uint8_t
       current_block++;
     }
   }
-  buffer.erase(buffer.begin(), buffer.begin() + message_start_index);
+
+  if (buffer.begin() + message_start_index < buffer.end()) {
+    buffer.erase(buffer.begin(), buffer.begin() + message_start_index);
+  } else {
+    return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC);
+  }
+
   return make_unique<nfc::NfcTag>(uid, nfc::MIFARE_CLASSIC, buffer);
 }
 

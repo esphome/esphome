@@ -11,6 +11,7 @@ namespace mqtt {
 static const char *const TAG = "mqtt.idf";
 
 bool MQTTBackendIDF::initialize_() {
+#if ESP_IDF_VERSION_MAJOR < 5
   mqtt_cfg_.user_context = (void *) this;
   mqtt_cfg_.buffer_size = MQTT_BUFFER_SIZE;
 
@@ -47,6 +48,41 @@ bool MQTTBackendIDF::initialize_() {
   } else {
     mqtt_cfg_.transport = MQTT_TRANSPORT_OVER_TCP;
   }
+#else
+  mqtt_cfg_.broker.address.hostname = this->host_.c_str();
+  mqtt_cfg_.broker.address.port = this->port_;
+  mqtt_cfg_.session.keepalive = this->keep_alive_;
+  mqtt_cfg_.session.disable_clean_session = !this->clean_session_;
+
+  if (!this->username_.empty()) {
+    mqtt_cfg_.credentials.username = this->username_.c_str();
+    if (!this->password_.empty()) {
+      mqtt_cfg_.credentials.authentication.password = this->password_.c_str();
+    }
+  }
+
+  if (!this->lwt_topic_.empty()) {
+    mqtt_cfg_.session.last_will.topic = this->lwt_topic_.c_str();
+    this->mqtt_cfg_.session.last_will.qos = this->lwt_qos_;
+    this->mqtt_cfg_.session.last_will.retain = this->lwt_retain_;
+
+    if (!this->lwt_message_.empty()) {
+      mqtt_cfg_.session.last_will.msg = this->lwt_message_.c_str();
+      mqtt_cfg_.session.last_will.msg_len = this->lwt_message_.size();
+    }
+  }
+
+  if (!this->client_id_.empty()) {
+    mqtt_cfg_.credentials.client_id = this->client_id_.c_str();
+  }
+  if (ca_certificate_.has_value()) {
+    mqtt_cfg_.broker.verification.certificate = ca_certificate_.value().c_str();
+    mqtt_cfg_.broker.verification.skip_cert_common_name_check = skip_cert_cn_check_;
+    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_SSL;
+  } else {
+    mqtt_cfg_.broker.address.transport = MQTT_TRANSPORT_OVER_TCP;
+  }
+#endif
   auto *mqtt_client = esp_mqtt_client_init(&mqtt_cfg_);
   if (mqtt_client) {
     handler_.reset(mqtt_client);
@@ -69,7 +105,7 @@ void MQTTBackendIDF::loop() {
   }
 }
 
-void MQTTBackendIDF::mqtt_event_handler_(const esp_mqtt_event_t &event) {
+void MQTTBackendIDF::mqtt_event_handler_(const Event &event) {
   ESP_LOGV(TAG, "Event dispatched from event loop event_id=%d", event.event_id);
   switch (event.event_id) {
     case MQTT_EVENT_BEFORE_CONNECT:
@@ -78,9 +114,8 @@ void MQTTBackendIDF::mqtt_event_handler_(const esp_mqtt_event_t &event) {
 
     case MQTT_EVENT_CONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_CONNECTED");
-      // TODO session present check
       this->is_connected_ = true;
-      this->on_connect_.call(!mqtt_cfg_.disable_clean_session);
+      this->on_connect_.call(event.session_present);
       break;
     case MQTT_EVENT_DISCONNECTED:
       ESP_LOGV(TAG, "MQTT_EVENT_DISCONNECTED");
@@ -104,28 +139,24 @@ void MQTTBackendIDF::mqtt_event_handler_(const esp_mqtt_event_t &event) {
       break;
     case MQTT_EVENT_DATA: {
       static std::string topic;
-      if (event.topic) {
-        // not 0 terminated - create a string from it
-        topic = std::string(event.topic, event.topic_len);
+      if (event.topic.length() > 0) {
+        topic = event.topic;
       }
       ESP_LOGV(TAG, "MQTT_EVENT_DATA %s", topic.c_str());
-      auto data_len = event.data_len;
-      if (data_len == 0)
-        data_len = strlen(event.data);
-      this->on_message_.call(event.topic ? const_cast<char *>(topic.c_str()) : nullptr, event.data, data_len,
+      this->on_message_.call(event.topic.length() > 0 ? topic.c_str() : nullptr, event.data.data(), event.data.size(),
                              event.current_data_offset, event.total_data_len);
     } break;
     case MQTT_EVENT_ERROR:
       ESP_LOGE(TAG, "MQTT_EVENT_ERROR");
-      if (event.error_handle->error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
-        ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event.error_handle->esp_tls_last_esp_err);
-        ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event.error_handle->esp_tls_stack_err);
-        ESP_LOGE(TAG, "Last captured errno : %d (%s)", event.error_handle->esp_transport_sock_errno,
-                 strerror(event.error_handle->esp_transport_sock_errno));
-      } else if (event.error_handle->error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
-        ESP_LOGE(TAG, "Connection refused error: 0x%x", event.error_handle->connect_return_code);
+      if (event.error_handle.error_type == MQTT_ERROR_TYPE_TCP_TRANSPORT) {
+        ESP_LOGE(TAG, "Last error code reported from esp-tls: 0x%x", event.error_handle.esp_tls_last_esp_err);
+        ESP_LOGE(TAG, "Last tls stack error number: 0x%x", event.error_handle.esp_tls_stack_err);
+        ESP_LOGE(TAG, "Last captured errno : %d (%s)", event.error_handle.esp_transport_sock_errno,
+                 strerror(event.error_handle.esp_transport_sock_errno));
+      } else if (event.error_handle.error_type == MQTT_ERROR_TYPE_CONNECTION_REFUSED) {
+        ESP_LOGE(TAG, "Connection refused error: 0x%x", event.error_handle.connect_return_code);
       } else {
-        ESP_LOGE(TAG, "Unknown error type: 0x%x", event.error_handle->error_type);
+        ESP_LOGE(TAG, "Unknown error type: 0x%x", event.error_handle.error_type);
       }
       break;
     default:
@@ -140,7 +171,7 @@ void MQTTBackendIDF::mqtt_event_handler(void *handler_args, esp_event_base_t bas
   // queue event to decouple processing
   if (instance) {
     auto event = *static_cast<esp_mqtt_event_t *>(event_data);
-    instance->mqtt_events_.push(event);
+    instance->mqtt_events_.push(Event(event));
   }
 }
 

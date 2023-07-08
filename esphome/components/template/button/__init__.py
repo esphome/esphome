@@ -1,15 +1,10 @@
-import esphome.config_validation as cv
 from esphome.components import button
 
 from .. import template_ns
 
 TemplateButton = template_ns.class_("TemplateButton", button.Button)
 
-CONFIG_SCHEMA = button.BUTTON_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(TemplateButton),
-    }
-)
+CONFIG_SCHEMA = button.button_schema(TemplateButton)
 
 
 async def to_code(config):

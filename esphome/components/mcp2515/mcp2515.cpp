@@ -148,19 +148,19 @@ canbus::Error MCP2515::set_clk_out_(const CanClkOut divisor) {
 }
 
 void MCP2515::prepare_id_(uint8_t *buffer, const bool extended, const uint32_t id) {
-  uint16_t canid = (uint16_t)(id & 0x0FFFF);
+  uint16_t canid = (uint16_t) (id & 0x0FFFF);
 
   if (extended) {
-    buffer[MCP_EID0] = (uint8_t)(canid & 0xFF);
-    buffer[MCP_EID8] = (uint8_t)(canid >> 8);
-    canid = (uint16_t)(id >> 16);
-    buffer[MCP_SIDL] = (uint8_t)(canid & 0x03);
-    buffer[MCP_SIDL] += (uint8_t)((canid & 0x1C) << 3);
+    buffer[MCP_EID0] = (uint8_t) (canid & 0xFF);
+    buffer[MCP_EID8] = (uint8_t) (canid >> 8);
+    canid = (uint16_t) (id >> 16);
+    buffer[MCP_SIDL] = (uint8_t) (canid & 0x03);
+    buffer[MCP_SIDL] += (uint8_t) ((canid & 0x1C) << 3);
     buffer[MCP_SIDL] |= TXB_EXIDE_MASK;
-    buffer[MCP_SIDH] = (uint8_t)(canid >> 5);
+    buffer[MCP_SIDH] = (uint8_t) (canid >> 5);
   } else {
-    buffer[MCP_SIDH] = (uint8_t)(canid >> 3);
-    buffer[MCP_SIDL] = (uint8_t)((canid & 0x07) << 5);
+    buffer[MCP_SIDH] = (uint8_t) (canid >> 3);
+    buffer[MCP_SIDL] = (uint8_t) ((canid & 0x07) << 5);
     buffer[MCP_EID0] = 0;
     buffer[MCP_EID8] = 0;
   }

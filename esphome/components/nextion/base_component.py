@@ -92,7 +92,6 @@ CONFIG_SWITCH_COMPONENT_SCHEMA = CONFIG_SENSOR_COMPONENT_SCHEMA.extend(
 
 
 async def setup_component_core_(var, config, arg):
-
     if CONF_VARIABLE_NAME in config:
         cg.add(var.set_variable_name(config[CONF_VARIABLE_NAME]))
     elif CONF_COMPONENT_NAME in config:

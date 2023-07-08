@@ -1,8 +1,10 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include <vector>
 #include <memory>
+
+#include "esphome/core/component.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 
@@ -16,7 +18,7 @@ class Scheduler {
   bool cancel_interval(Component *component, const std::string &name);
 
   void set_retry(Component *component, const std::string &name, uint32_t initial_wait_time, uint8_t max_attempts,
-                 std::function<RetryResult()> func, float backoff_increase_factor = 1.0f);
+                 std::function<RetryResult(uint8_t)> func, float backoff_increase_factor = 1.0f);
   bool cancel_retry(Component *component, const std::string &name);
 
   optional<uint32_t> next_schedule_in();
@@ -71,6 +73,7 @@ class Scheduler {
     return this->items_.empty();
   }
 
+  Mutex lock_;
   std::vector<std::unique_ptr<SchedulerItem>> items_;
   std::vector<std::unique_ptr<SchedulerItem>> to_add_;
   uint32_t last_millis_{0};

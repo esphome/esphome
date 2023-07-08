@@ -246,7 +246,7 @@ class SensorItem {
   uint8_t offset;
   uint8_t register_count;
   uint8_t response_bytes{0};
-  uint8_t skip_updates;
+  uint16_t skip_updates;
   std::vector<uint8_t> custom_data{};
   bool force_new_range{false};
 };
@@ -288,9 +288,9 @@ struct RegisterRange {
   uint16_t start_address;
   ModbusRegisterType register_type;
   uint8_t register_count;
-  uint8_t skip_updates;          // the config value
-  SensorSet sensors;             // all sensors of this range
-  uint8_t skip_updates_counter;  // the running value
+  uint16_t skip_updates;          // the config value
+  SensorSet sensors;              // all sensors of this range
+  uint16_t skip_updates_counter;  // the running value
 };
 
 class ModbusCommandItem {
