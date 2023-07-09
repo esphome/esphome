@@ -303,19 +303,15 @@ void ESP32BLETracker::recalculate_advertisement_parser_types() {
   this->parse_advertisements_ = false;
   for (auto *listener : this->listeners_) {
     if (listener->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
-      ESP_LOGW(TAG, "listener->parse_advertisements_ = true");
       this->parse_advertisements_ = true;
     } else {
-      ESP_LOGW(TAG, "listener->raw_advertisements_ = true");
       this->raw_advertisements_ = true;
     }
   }
   for (auto *client : this->clients_) {
     if (client->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
-      ESP_LOGW(TAG, "client->parse_advertisements_ = true");
       this->parse_advertisements_ = true;
     } else {
-      ESP_LOGW(TAG, "client->raw_advertisements_ = true");
       this->raw_advertisements_ = true;
     }
   }
