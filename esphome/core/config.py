@@ -190,8 +190,15 @@ def preload_core_config(config, result):
     CORE.data[KEY_CORE] = {}
 
     if CONF_BUILD_PATH not in conf:
-        conf[CONF_BUILD_PATH] = f"build/{CORE.name}"
-    CORE.build_path = CORE.relative_internal_path(conf[CONF_BUILD_PATH])
+        build_path_env = os.environ["ESPHOME_BUILD_PATH"]
+        # If the env var is not set, use the default
+        if build_path_env is None or build_path_env == "":
+            build_path_env = ".esphome/build"
+        # Always append the name to the build path, it will work for default and for env var
+        build_path_env = os.path.join(build_path_env, CORE.name)
+        build_path_env = os.path.expanduser(build_path_env)
+        conf[CONF_BUILD_PATH] = build_path_env
+    CORE.build_path = CORE.relative_config_path(conf[CONF_BUILD_PATH])
 
     has_oldstyle = CONF_PLATFORM in conf
     newstyle_found = [key for key in TARGET_PLATFORMS if key in config]
