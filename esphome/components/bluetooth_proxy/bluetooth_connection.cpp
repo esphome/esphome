@@ -275,10 +275,8 @@ esp_err_t BluetoothConnection::notify_characteristic(uint16_t handle, bool enabl
   return ESP_OK;
 }
 
-esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_parser_type() {
-  if (this->proxy_->raw_advertisements_)
-    return esp32_ble_tracker::AdvertisementParserType::RAW_ADVERTISEMENTS;
-  return esp32_ble_tracker::AdvertisementParserType::PARSED_ADVERTISEMENTS;
+esp32_ble_tracker::AdvertisementParserType BluetoothConnection::get_advertisement_parser_type() {
+  return this->proxy_->get_advertisement_parser_type();
 }
 
 }  // namespace bluetooth_proxy

@@ -108,18 +108,15 @@ void ESP32BLETracker::loop() {
       }
 
       if (this->raw_advertisements_) {
-        ESP_LOGD(TAG, "raw_advertisements_");
         for (auto *listener : this->listeners_) {
           listener->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
         }
         for (auto *client : this->clients_) {
           client->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
         }
-        ESP_LOGD(TAG, "done raw_advertisements_");
       }
 
       if (this->parse_advertisements_) {
-        ESP_LOGD(TAG, "parse_advertisements_");
         for (size_t i = 0; i < index; i++) {
           ESPBTDevice device;
           device.parse_scan_rst(this->scan_result_buffer_[i]);
@@ -143,8 +140,6 @@ void ESP32BLETracker::loop() {
             this->print_bt_device_info(device);
           }
         }
-      } else {
-        ESP_LOGD(TAG, "Skipping BLE device parsing");
       }
       this->scan_result_index_ = 0;
       xSemaphoreGive(this->scan_result_lock_);
