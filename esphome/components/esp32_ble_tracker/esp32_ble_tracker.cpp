@@ -289,13 +289,13 @@ void ESP32BLETracker::end_of_scan_() {
 void ESP32BLETracker::register_client(ESPBTClient *client) {
   client->app_id = ++this->app_id_;
   this->clients_.push_back(client);
-  this->_recalculate_advertisement_parser_types();
+  this->recalculate_advertisement_parser_types();
 }
 
 void ESP32BLETracker::register_listener(ESPBTDeviceListener *listener) {
   listener->set_parent(this);
   this->listeners_.push_back(listener);
-  this->_recalculate_advertisement_parser_types();
+  this->recalculate_advertisement_parser_types();
 }
 
 void ESP32BLETracker::recalculate_advertisement_parser_types() {
