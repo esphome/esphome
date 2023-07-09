@@ -194,7 +194,7 @@ class ESP32BLETracker : public Component, public GAPEventHandler, public GATTcEv
 
   void register_listener(ESPBTDeviceListener *listener);
   void register_client(ESPBTClient *client);
-  void _recalculate_advertisement_parser_types();
+  void recalculate_advertisement_parser_types();
 
   void print_bt_device_info(const ESPBTDevice &device);
 

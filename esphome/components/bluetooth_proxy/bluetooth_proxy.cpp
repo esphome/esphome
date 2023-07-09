@@ -441,6 +441,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
   }
   this->api_connection_ = api_connection;
   this->raw_advertisements_ = flags & BluetoothProxySubscriptionFlag::SUBSCRIPTION_RAW_ADVERTISEMENTS;
+  this->parent_->recalculate_advertisement_parser_types();
 }
 
 void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connection) {
@@ -450,6 +451,7 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
   }
   this->api_connection_ = nullptr;
   this->raw_advertisements_ = false;
+  this->parent_->recalculate_advertisement_parser_types();
 }
 
 void BluetoothProxy::send_device_connection(uint64_t address, bool connected, uint16_t mtu, esp_err_t error) {

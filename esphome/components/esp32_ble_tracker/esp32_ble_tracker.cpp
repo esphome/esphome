@@ -298,7 +298,7 @@ void ESP32BLETracker::register_listener(ESPBTDeviceListener *listener) {
   this->_recalculate_advertisement_parser_types();
 }
 
-void ESP32BLETracker::_recalculate_advertisement_parser_types() {
+void ESP32BLETracker::recalculate_advertisement_parser_types() {
   this->raw_advertisements_ = false;
   this->parse_advertisements_ = false;
   for (auto *listener : this->listeners_) {
