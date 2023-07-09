@@ -3,6 +3,7 @@ from pathlib import Path
 import hashlib
 import os
 import re
+from packaging import version
 
 import requests
 
@@ -69,7 +70,7 @@ def validate_pillow_installed(value):
             "(pip install pillow)"
         ) from err
 
-    if PIL.__version__[0] < "4":
+    if version.parse(PIL.__version__) < version.parse("4.0.0"):
         raise cv.Invalid(
             "Please update your pillow installation to at least 4.0.x. "
             "(pip install -U pillow)"
