@@ -198,6 +198,12 @@ void BluetoothProxy::loop() {
   }
 }
 
+AdvertisementParserType BluetoothProxy::get_advertisement_parser_type() {
+  if (this->raw_advertisements_)
+    return AdvertisementParserType::RAW_ADVERTISEMENTS;
+  return AdvertisementParserType::PARSED_ADVERTISEMENTS;
+}
+
 BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
   for (auto *connection : this->connections_) {
     if (connection->get_address() == address)
