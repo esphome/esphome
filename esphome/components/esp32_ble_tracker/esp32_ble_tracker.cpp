@@ -305,18 +305,16 @@ void ESP32BLETracker::_recalculate_advertisement_parser_types() {
     if (listener->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
       this->parse_advertisements_ = true;
     } else {
+      this->raw_advertisements_ = true;
     }
-    this->raw_advertisements_ = true;
   }
-}
-for (auto *client : this->clients_) {
-  if (client->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
-    this->parse_advertisements_ = true;
-  } else {
+  for (auto *client : this->clients_) {
+    if (client->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
+      this->parse_advertisements_ = true;
+    } else {
+      this->raw_advertisements_ = true;
+    }
   }
-  this->raw_advertisements_ = true;
-}
-}
 }
 
 void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {

@@ -198,10 +198,10 @@ void BluetoothProxy::loop() {
   }
 }
 
-AdvertisementParserType BluetoothProxy::get_advertisement_parser_type() {
+esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_parser_type() {
   if (this->raw_advertisements_)
-    return AdvertisementParserType::RAW_ADVERTISEMENTS;
-  return AdvertisementParserType::PARSED_ADVERTISEMENTS;
+    return esp32_ble_tracker::AdvertisementParserType::RAW_ADVERTISEMENTS;
+  return esp32_ble_tracker::AdvertisementParserType::PARSED_ADVERTISEMENTS;
 }
 
 BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
