@@ -7,7 +7,7 @@ from esphome.const import (
     CONF_OVERSAMPLING,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
-    DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
@@ -69,7 +69,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PASCAL,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_PRESSURE,
+                device_class=DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
                 state_class=STATE_CLASS_MEASUREMENT,
             ).extend(
                 {
