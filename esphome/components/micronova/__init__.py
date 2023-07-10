@@ -17,6 +17,7 @@ from esphome.const import (
 CODEOWNERS = ["@jorre05"]
 
 DEPENDENCIES = ["uart"]
+AUTO_LOAD = ["sensor", "text_sensor", "button", "switch"]
 
 CONF_ENABLE_RX_PIN = "enable_rx_pin"
 CONF_SCAN_MEMORY_LOCATION = "scan_memory_location"
