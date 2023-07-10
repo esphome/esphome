@@ -22,7 +22,7 @@ class Glyph {
  public:
   Glyph(const GlyphData *data) : glyph_data_(data) {}
 
-  void draw(int x, int y, display::DisplayBuffer *display, Color color) const;
+  void draw(int x, int y, display::Display *display, Color color) const;
 
   const char *get_char() const;
 
@@ -50,7 +50,7 @@ class Font : public display::BaseFont {
 
   int match_next_glyph(const char *str, int *match_length);
 
-  void print(int x_start, int y_start, display::DisplayBuffer *display, Color color, const char *text) override;
+  void print(int x_start, int y_start, display::Display *display, Color color, const char *text) override;
   void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) override;
   inline int get_baseline() { return this->baseline_; }
   inline int get_height() { return this->height_; }
