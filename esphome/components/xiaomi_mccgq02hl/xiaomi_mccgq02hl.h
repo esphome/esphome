@@ -24,12 +24,14 @@ class XiaomiMCCGQ02HL : public Component,
   float get_setup_priority() const override { return setup_priority::DATA; }
   void set_light(binary_sensor::BinarySensor *light) { is_light_ = light; }
   void set_open(binary_sensor::BinarySensor *open) { is_open_ = open; }
+  void set_battery_level(sensor::Sensor *battery_level) { battery_level_ = battery_level; }
 
  protected:
   uint64_t address_;
   uint8_t bindkey_[16];
   binary_sensor::BinarySensor *is_light_{nullptr};
   binary_sensor::BinarySensor *is_open_{nullptr};
+  sensor::Sensor *battery_level_{nullptr};
 };
 
 }  // namespace xiaomi_mccgq02hl

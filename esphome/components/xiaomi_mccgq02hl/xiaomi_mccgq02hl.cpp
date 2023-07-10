@@ -12,6 +12,7 @@ void XiaomiMCCGQ02HL::dump_config() {
   ESP_LOGCONFIG(TAG, "Xiaomi MCCGQ02HL");
   LOG_BINARY_SENSOR("  ", "Open", this->is_open_);
   LOG_BINARY_SENSOR("  ", "Light", this->is_light_);
+  LOG_BINARY_SENSOR("  ", "Battery Level", this->battery_level_);
 }
 
 bool XiaomiMCCGQ02HL::parse_device(const esp32_ble_tracker::ESPBTDevice &device) {
@@ -44,6 +45,8 @@ bool XiaomiMCCGQ02HL::parse_device(const esp32_ble_tracker::ESPBTDevice &device)
       this->is_light_->publish_state(*res->is_light);
     if (res->is_open.has_value() && this->is_open_ != nullptr)
       this->is_open_->publish_state(!*res->is_open);
+    if (res->battery_level.has_value() && this->battery_level_ != nullptr)
+      this->battery_level_->publish_state(*res->battery_level);
     success = true;
   }
   return success;
