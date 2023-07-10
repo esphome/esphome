@@ -84,7 +84,8 @@ void EthernetComponent::setup() {
       this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
       break;
     }
-    case ETHERNET_TYPE_KSZ8081: {
+    case ETHERNET_TYPE_KSZ8081:
+    case ETHERNET_TYPE_KSZ8081RNA: {
 #if ESP_IDF_VERSION_MAJOR >= 5
       this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
 #else
@@ -102,6 +103,12 @@ void EthernetComponent::setup() {
   this->eth_handle_ = nullptr;
   err = esp_eth_driver_install(&eth_config, &this->eth_handle_);
   ESPHL_ERROR_CHECK(err, "ETH driver install error");
+
+  if (this->type_ == ETHERNET_TYPE_KSZ8081RNA && this->clk_mode_ == EMAC_CLK_OUT) {
+    // KSZ8081RNA default is incorrect. It expects a 25MHz clock instead of the 50MHz we provide.
+    this->ksz8081_set_clock_reference_(mac);
+  }
+
   /* attach Ethernet driver to TCP/IP stack */
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
@@ -182,6 +189,10 @@ void EthernetComponent::dump_config() {
 
     case ETHERNET_TYPE_KSZ8081:
       eth_type = "KSZ8081";
+      break;
+
+    case ETHERNET_TYPE_KSZ8081RNA:
+      eth_type = "KSZ8081RNA";
       break;
 
     default:
@@ -383,6 +394,37 @@ bool EthernetComponent::powerdown() {
     return false;
   }
   return true;
+}
+
+void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
+#define KSZ80XX_PC2R_REG_ADDR (0x1F)
+
+  esp_err_t err;
+
+  uint32_t phy_control_2;
+  err = mac->read_phy_reg(mac, this->phy_addr_, KSZ80XX_PC2R_REG_ADDR, &(phy_control_2));
+  ESPHL_ERROR_CHECK(err, "Read PHY Control 2 failed");
+  ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
+
+  /*
+   * Bit 7 is `RMII Reference Clock Select`. Default is `0`.
+   * KSZ8081RNA:
+   *   0 - clock input to XI (Pin 8) is 25 MHz for RMII – 25 MHz clock mode.
+   *   1 - clock input to XI (Pin 8) is 50 MHz for RMII – 50 MHz clock mode.
+   * KSZ8081RND:
+   *   0 - clock input to XI (Pin 8) is 50 MHz for RMII – 50 MHz clock mode.
+   *   1 - clock input to XI (Pin 8) is 25 MHz (driven clock only, not a crystal) for RMII – 25 MHz clock mode.
+   */
+  if ((phy_control_2 & (1 << 7)) != (1 << 7)) {
+    phy_control_2 |= 1 << 7;
+    err = mac->write_phy_reg(mac, this->phy_addr_, KSZ80XX_PC2R_REG_ADDR, phy_control_2);
+    ESPHL_ERROR_CHECK(err, "Write PHY Control 2 failed");
+    err = mac->read_phy_reg(mac, this->phy_addr_, KSZ80XX_PC2R_REG_ADDR, &(phy_control_2));
+    ESPHL_ERROR_CHECK(err, "Read PHY Control 2 failed");
+    ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
+  }
+
+#undef KSZ80XX_PC2R_REG_ADDR
 }
 
 }  // namespace ethernet

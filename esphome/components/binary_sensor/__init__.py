@@ -359,6 +359,18 @@ def validate_multi_click_timing(value):
 validate_device_class = cv.one_of(*DEVICE_CLASSES, lower=True, space="_")
 
 
+def validate_click_timing(value):
+    for v in value:
+        min_length = v.get(CONF_MIN_LENGTH)
+        max_length = v.get(CONF_MAX_LENGTH)
+        if max_length < min_length:
+            raise cv.Invalid(
+                f"Max length ({max_length}) must be larger than min length ({min_length})."
+            )
+
+    return value
+
+
 BINARY_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).extend(
     {
         cv.GenerateID(): cv.declare_id(BinarySensor),
@@ -378,27 +390,33 @@ BINARY_SENSOR_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(cv.MQTT_COMPONENT_SCHEMA).ex
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ReleaseTrigger),
             }
         ),
-        cv.Optional(CONF_ON_CLICK): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClickTrigger),
-                cv.Optional(
-                    CONF_MIN_LENGTH, default="50ms"
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_MAX_LENGTH, default="350ms"
-                ): cv.positive_time_period_milliseconds,
-            }
+        cv.Optional(CONF_ON_CLICK): cv.All(
+            automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClickTrigger),
+                    cv.Optional(
+                        CONF_MIN_LENGTH, default="50ms"
+                    ): cv.positive_time_period_milliseconds,
+                    cv.Optional(
+                        CONF_MAX_LENGTH, default="350ms"
+                    ): cv.positive_time_period_milliseconds,
+                }
+            ),
+            validate_click_timing,
         ),
-        cv.Optional(CONF_ON_DOUBLE_CLICK): automation.validate_automation(
-            {
-                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DoubleClickTrigger),
-                cv.Optional(
-                    CONF_MIN_LENGTH, default="50ms"
-                ): cv.positive_time_period_milliseconds,
-                cv.Optional(
-                    CONF_MAX_LENGTH, default="350ms"
-                ): cv.positive_time_period_milliseconds,
-            }
+        cv.Optional(CONF_ON_DOUBLE_CLICK): cv.All(
+            automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DoubleClickTrigger),
+                    cv.Optional(
+                        CONF_MIN_LENGTH, default="50ms"
+                    ): cv.positive_time_period_milliseconds,
+                    cv.Optional(
+                        CONF_MAX_LENGTH, default="350ms"
+                    ): cv.positive_time_period_milliseconds,
+                }
+            ),
+            validate_click_timing,
         ),
         cv.Optional(CONF_ON_MULTI_CLICK): automation.validate_automation(
             {
