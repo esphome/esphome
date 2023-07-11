@@ -50,8 +50,7 @@ void DutyTimeSensor::set_value_(const uint32_t sec) {
   this->last_time_ = 0;
   if (this->last_state_)
     this->last_time_ = millis();  // last time with 0 ms correction
-  this->total_sec_ = sec;
-  this->publish_and_save_(0);
+  this->publish_and_save_(sec, 0);
 }
 
 void DutyTimeSensor::process_state_(const bool state) {
@@ -59,11 +58,10 @@ void DutyTimeSensor::process_state_(const bool state) {
 
   if (this->last_state_) {
     // update or falling edge
-    uint32_t ms = now - this->last_time_;
+    const uint32_t tm = now - this->last_time_;
+    const uint32_t ms = tm % 1000;
 
-    this->total_sec_ += ms / 1000;
-    ms %= 1000;
-    this->publish_and_save_(ms);
+    this->publish_and_save_(this->total_sec_ + tm / 1000, ms);
     this->last_time_ = now - ms;  // store time with ms correction
 
     if (!state) {
@@ -85,11 +83,12 @@ void DutyTimeSensor::process_state_(const bool state) {
   }
 }
 
-void DutyTimeSensor::publish_and_save_(const uint32_t fraction_ms) {
-  this->publish_state(this->total_sec_ + fraction_ms * 1e-3f);
+void DutyTimeSensor::publish_and_save_(const uint32_t sec, const uint32_t ms) {
+  this->total_sec_ = sec;
+  this->publish_state(sec + ms * 1e-3f);
 
   if (this->restore_)
-    this->pref_.save(&this->total_sec_);
+    this->pref_.save(&sec);
 }
 
 void DutyTimeSensor::dump_config() {

@@ -30,7 +30,7 @@ class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
  protected:
   void set_value_(uint32_t sec);
   void process_state_(bool state);
-  void publish_and_save_(uint32_t fraction_ms);
+  void publish_and_save_(uint32_t sec, uint32_t ms);
 
   std::function<bool()> func_{nullptr};
   sensor::Sensor *last_duty_time_sensor_{nullptr};
