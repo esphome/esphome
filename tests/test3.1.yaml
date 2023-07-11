@@ -353,6 +353,20 @@ switch:
                 Content-Type: application/json
               body: Some data
               verify_ssl: false
+  - platform: template
+    name: open_vent
+    id: open_vent
+    optimistic: True
+    on_turn_on:
+      then:
+        - grove_i2c_motor.motor_run:
+            channel: 1
+            speed: 255
+            direction: BACKWARD
+            id: test_motor
+        - delay: 10s
+        - switch.turn_on: stop_motor
+        - switch.turn_off:  open_vent
 
 
 custom_component:
@@ -605,18 +619,3 @@ grove_i2c_motor:
   id: test_motor
   address: 0x14
 
-switch:
-  - platform: template
-    name: open_vent
-    id: open_vent
-    optimistic: True
-    on_turn_on:
-      then:
-        - grove_i2c_motor.motor_run:
-            channel: 1
-            speed: 255
-            direction: BACKWARD
-            id: test_motor
-        - delay: 10s
-        - switch.turn_on: stop_motor
-        - switch.turn_off:  open_vent
