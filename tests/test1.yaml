@@ -1310,6 +1310,10 @@ sensor:
       fault_count: 1
       polarity: active_high
       function: comparator
+  - platform: zio_ultrasonic
+    name: "Distance"
+    update_interval: 60s
+    i2c_id: i2c_bus
 
 esp32_touch:
   setup_mode: false
