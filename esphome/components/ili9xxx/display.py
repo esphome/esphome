@@ -13,6 +13,7 @@ from esphome.const import (
     CONF_PAGES,
     CONF_RESET_PIN,
     CONF_DIMENSIONS,
+    CONF_DATA_RATE,
 )
 
 DEPENDENCIES = ["spi"]
@@ -43,6 +44,7 @@ MODELS = {
     "ILI9481": ili9XXX_ns.class_("ILI9XXXILI9481", ili9XXXSPI),
     "ILI9486": ili9XXX_ns.class_("ILI9XXXILI9486", ili9XXXSPI),
     "ILI9488": ili9XXX_ns.class_("ILI9XXXILI9488", ili9XXXSPI),
+    "ILI9488_A": ili9XXX_ns.class_("ILI9XXXILI9488A", ili9XXXSPI),
     "ST7796": ili9XXX_ns.class_("ILI9XXXST7796", ili9XXXSPI),
     "S3BOX": ili9XXX_ns.class_("ILI9XXXS3Box", ili9XXXSPI),
     "S3BOX_LITE": ili9XXX_ns.class_("ILI9XXXS3BoxLite", ili9XXXSPI),
@@ -97,6 +99,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_COLOR_PALETTE_IMAGES, default=[]): cv.ensure_list(
                 cv.file_
             ),
+            cv.Optional(CONF_DATA_RATE, default="40MHz"): spi.SPI_DATA_RATE_SCHEMA,
         }
     )
     .extend(cv.polling_component_schema("1s"))
@@ -118,7 +121,7 @@ async def to_code(config):
 
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))
 
@@ -175,3 +178,6 @@ async def to_code(config):
     if rhs is not None:
         prog_arr = cg.progmem_array(config[CONF_RAW_DATA_ID], rhs)
         cg.add(var.set_palette(prog_arr))
+
+    spi_data_rate = str(spi.SPI_DATA_RATE_OPTIONS[config[CONF_DATA_RATE]])
+    cg.add_define("ILI9XXXDisplay_DATA_RATE", cg.RawExpression(spi_data_rate))
