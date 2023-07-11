@@ -47,7 +47,7 @@ void DutyTimeSensor::setup() {
 }
 
 void DutyTimeSensor::set_value_(const uint32_t sec) {
-  this->last_time_ = 0;           // initial ms correction
+  this->last_time_ = 0;
   if (this->last_state_)
     this->last_time_ = millis();  // last time with 0 ms correction
   this->total_sec_ = sec;
