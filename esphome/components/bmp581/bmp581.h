@@ -83,6 +83,8 @@ class BMP581Component : public PollingComponent, public i2c::I2CDevice {
   }
   void set_pressure_iir_filter_config(IIRFilter iir_pressure_level) { this->iir_pressure_level_ = iir_pressure_level; }
 
+  void set_conversion_time(uint16_t conversion_time) { this->conversion_time_ = conversion_time; }
+
  protected:
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *pressure_sensor_{nullptr};
@@ -93,11 +95,12 @@ class BMP581Component : public PollingComponent, public i2c::I2CDevice {
   IIRFilter iir_temperature_level_;
   IIRFilter iir_pressure_level_;
 
+  // Stores the sensors conversion time needed for a measurement based on oversampling settings and datasheet (page 12)
+  // Computed in Python during codegen
+  uint16_t conversion_time_;
+
   // Checks if the BMP581 has measurement data ready by checking the sensor's interrupts
   bool check_data_readiness_();
-
-  // Determines the sensor's conversion time needed for a measurement based on oversampling settings and datasheet
-  uint16_t determine_conversion_time_(Oversampling temperature_oversampling, Oversampling pressure_oversampling);
 
   // Flushes the IIR filter and primes an initial reading
   bool prime_iir_filter_();

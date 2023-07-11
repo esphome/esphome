@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import math
 from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
@@ -46,6 +47,46 @@ IIR_FILTER_OPTIONS = {
 BMP581Component = bmp581_ns.class_(
     "BMP581Component", cg.PollingComponent, i2c.I2CDevice
 )
+
+
+def compute_measurement_conversion_time(config):
+    # - adds up sensor conversion time based on temperature and pressure oversampling rates given in datasheet
+    # - returns a rounded up time in ms
+
+    # Page 12 of datasheet
+    PRESSURE_OVERSAMPLING_CONVERSION_TIMES = {
+        "NONE": 1.0,
+        "2X": 1.7,
+        "4X": 2.9,
+        "8X": 5.4,
+        "16X": 10.4,
+        "32X": 20.4,
+        "64X": 40.4,
+        "128X": 80.4,
+    }
+
+    # Page 12 of datasheet
+    TEMPERATURE_OVERSAMPLING_CONVERSION_TIMES = {
+        "NONE": 1.0,
+        "2X": 1.1,
+        "4X": 1.5,
+        "8X": 2.1,
+        "16X": 3.3,
+        "32X": 5.8,
+        "64X": 10.8,
+        "128X": 20.8,
+    }
+
+    pressure_conversion_time = PRESSURE_OVERSAMPLING_CONVERSION_TIMES[
+        config[CONF_PRESSURE][CONF_OVERSAMPLING]
+    ]
+    temperature_conversion_time = TEMPERATURE_OVERSAMPLING_CONVERSION_TIMES[
+        config[CONF_TEMPERATURE][CONF_OVERSAMPLING]
+    ]
+
+    # Datasheet indicates a 5% possible error in each conversion time listed
+    return math.ceil(1.05 * pressure_conversion_time + temperature_conversion_time)
+
 
 CONFIG_SCHEMA = (
     cv.Schema(
@@ -105,3 +146,5 @@ async def to_code(config):
         cg.add(var.set_pressure_sensor(sens))
         cg.add(var.set_pressure_oversampling_config(conf[CONF_OVERSAMPLING]))
         cg.add(var.set_pressure_iir_filter_config(conf[CONF_IIR_FILTER]))
+
+    cg.add(var.set_conversion_time(compute_measurement_conversion_time(config)))

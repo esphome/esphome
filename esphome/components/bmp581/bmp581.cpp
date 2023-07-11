@@ -94,6 +94,8 @@ void BMP581Component::dump_config() {
   LOG_I2C_DEVICE(this);
   LOG_UPDATE_INTERVAL(this);
 
+  ESP_LOGCONFIG(TAG, "  Measurement conversion time: %ums", this->conversion_time_);
+
   if (this->temperature_sensor_) {
     LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
     ESP_LOGCONFIG(TAG, "    IIR Filter: %s", LOG_STR_ARG(iir_filter_to_str(this->iir_temperature_level_)));
@@ -297,11 +299,9 @@ void BMP581Component::update() {
   // 2) Wait for measurement to finish (based on oversampling rates) //
   //////////////////////////////////////////////////////////////////////
 
-  uint16_t measurement_time =
-      this->determine_conversion_time_(this->temperature_oversampling_, this->pressure_oversampling_);
-  ESP_LOGVV(TAG, "Measurement is expected to take %d ms to complete", measurement_time);
+  ESP_LOGVV(TAG, "Measurement is expected to take %d ms to complete", this->conversion_time_);
 
-  this->set_timeout("measurement", measurement_time, [this]() {
+  this->set_timeout("measurement", this->conversion_time_, [this]() {
     float temperature = 0.0;
     float pressure = 0.0;
 
@@ -373,21 +373,6 @@ bool BMP581Component::check_data_readiness_() {
   }
 
   return false;
-}
-
-uint16_t BMP581Component::determine_conversion_time_(Oversampling temperature_oversampling,
-                                                     Oversampling pressure_oversampling) {
-  // - adds up sensor conversion time based on temperature and pressure oversampling rates given in datasheet
-  // - returns a rounded up time in ms
-
-  float temperature_conversion_times[8] = {1.0, 1.1, 1.5, 2.1, 3.3, 5.8, 10.8, 20.8};  // page 12 of datasheet
-  float pressure_conversion_times[8] = {1.0, 1.7, 2.9, 5.4, 10.4, 20.4, 40.4, 80.4};   // page 12 of datasheet
-
-  // Datasheet indicates a 5% possible error in each conversion time listed
-  float total_time = 1.05 * (temperature_conversion_times[temperature_oversampling] +
-                             pressure_conversion_times[pressure_oversampling]);
-
-  return (uint16_t) ceilf(total_time);
 }
 
 bool BMP581Component::prime_iir_filter_() {
