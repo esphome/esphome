@@ -30,19 +30,17 @@ class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
  protected:
   void set_value_(uint32_t sec);
   void process_state_(bool state);
-  void publish_and_save_(uint32_t sec, uint32_t ms);
+  void publish_and_save_(uint32_t fraction_ms);
 
   std::function<bool()> func_{nullptr};
   sensor::Sensor *last_duty_time_sensor_{nullptr};
   ESPPreferenceObject pref_;
 
-  uint32_t last_update_;
-  uint32_t counter_ms_;
-  uint32_t counter_sec_;
-  uint32_t edge_ms_;
-  uint32_t edge_sec_;
-  bool restore_;
+  uint32_t total_sec_;
+  uint32_t last_time_;
+  uint32_t edge_time_;
   bool last_state_{false};
+  bool restore_;
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...> {

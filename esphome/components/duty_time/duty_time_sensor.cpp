@@ -47,10 +47,11 @@ void DutyTimeSensor::setup() {
 }
 
 void DutyTimeSensor::set_value_(const uint32_t sec) {
-  this->edge_ms_ = 0;
-  this->edge_sec_ = sec;
-  this->last_update_ = millis();
-  this->publish_and_save_(sec, 0);
+  this->last_time_ = 0;           // initial ms correction
+  if (this->last_state_)
+    this->last_time_ = millis();  // last time with 0 ms correction
+  this->total_sec_ = sec;
+  this->publish_and_save_(0);
 }
 
 void DutyTimeSensor::process_state_(const bool state) {
@@ -58,30 +59,37 @@ void DutyTimeSensor::process_state_(const bool state) {
 
   if (this->last_state_) {
     // update or falling edge
-    this->counter_ms_ += now - this->last_update_;
-    this->publish_and_save_(this->counter_sec_ + this->counter_ms_ / 1000, this->counter_ms_ % 1000);
+    uint32_t ms = now - this->last_time_;
 
-    if (!state && this->last_duty_time_sensor_ != nullptr) {
+    this->total_sec_ += ms / 1000;
+    ms %= 1000;
+    this->publish_and_save_(ms);
+    this->last_time_ = now - ms;  // store time with ms correction
+
+    if (!state) {
       // falling edge
-      const int32_t ms = this->counter_ms_ - this->edge_ms_;
-      const uint32_t sec = this->counter_sec_ - this->edge_sec_;
-      this->edge_ms_ = this->counter_ms_;
-      this->edge_sec_ = this->counter_sec_;
-      this->last_duty_time_sensor_->publish_state(sec + ms * 1e-3f);
-    }
-  }
+      this->last_time_ = ms;  // temporary store ms correction only
+      this->last_state_ = false;
 
-  this->last_update_ = now;
-  this->last_state_ = state;
+      if (this->last_duty_time_sensor_ != nullptr) {
+        const uint32_t turn_on_ms = now - this->edge_time_;
+        this->last_duty_time_sensor_->publish_state(turn_on_ms * 1e-3f);
+      }
+    }
+
+  } else if (state) {
+    // rising edge
+    this->last_time_ = now - this->last_time_;  // store time with ms correction
+    this->edge_time_ = now;                     // store turn-on start time
+    this->last_state_ = true;
+  }
 }
 
-void DutyTimeSensor::publish_and_save_(const uint32_t sec, const uint32_t ms) {
-  this->counter_ms_ = ms;
-  this->counter_sec_ = sec;
-  this->publish_state(sec + ms * 1e-3f);
+void DutyTimeSensor::publish_and_save_(const uint32_t fraction_ms) {
+  this->publish_state(this->total_sec_ + fraction_ms * 1e-3f);
 
   if (this->restore_)
-    this->pref_.save(&sec);
+    this->pref_.save(&this->total_sec_);
 }
 
 void DutyTimeSensor::dump_config() {
