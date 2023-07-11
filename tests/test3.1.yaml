@@ -620,3 +620,4 @@ switch:
         - delay: 10s
         - switch.turn_on: stop_motor
         - switch.turn_off:  open_vent
+        
