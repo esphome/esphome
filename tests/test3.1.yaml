@@ -303,6 +303,10 @@ sm2135:
   rgb_current: 20mA
   cw_current: 60mA
 
+grove_i2c_motor:
+  id: test_motor
+  address: 0x14
+
 switch:
   - platform: template
     name: mpr121_toggle
@@ -365,8 +369,6 @@ switch:
             direction: BACKWARD
             id: test_motor
         - delay: 10s
-        - switch.turn_on: stop_motor
-        - switch.turn_off:  open_vent
 
 
 custom_component:
@@ -615,7 +617,4 @@ cd74hc4067:
 adc128s102:
   cs_pin: GPIO12
 
-grove_i2c_motor:
-  id: test_motor
-  address: 0x14
 
