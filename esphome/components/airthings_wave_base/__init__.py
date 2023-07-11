@@ -3,25 +3,30 @@ import esphome.config_validation as cv
 from esphome.components import sensor, ble_client
 
 from esphome.const import (
-    DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_TEMPERATURE,
-    DEVICE_CLASS_PRESSURE,
-    STATE_CLASS_MEASUREMENT,
-    UNIT_PERCENT,
-    UNIT_CELSIUS,
-    UNIT_HECTOPASCAL,
+    CONF_BATTERY_VOLTAGE,
     CONF_HUMIDITY,
-    CONF_TVOC,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
+    CONF_TVOC,
+    DEVICE_CLASS_VOLTAGE,
+    DEVICE_CLASS_HUMIDITY,
+    DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_TEMPERATURE,
     DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    ENTITY_CATEGORY_DIAGNOSTIC,
+    STATE_CLASS_MEASUREMENT,
+    UNIT_CELSIUS,
+    UNIT_HECTOPASCAL,
     UNIT_PARTS_PER_BILLION,
-    ICON_RADIATOR,
+    UNIT_PERCENT,
+    UNIT_VOLT,
 )
 
-CODEOWNERS = ["@ncareau", "@jeromelaban"]
+CODEOWNERS = ["@ncareau", "@jeromelaban", "@kpfleming"]
 
 DEPENDENCIES = ["ble_client"]
+
+CONF_BATTERY_UPDATE_INTERVAL = "battery_update_interval"
 
 airthings_wave_base_ns = cg.esphome_ns.namespace("airthings_wave_base")
 AirthingsWaveBase = airthings_wave_base_ns.class_(
@@ -34,9 +39,9 @@ BASE_SCHEMA = (
         {
             cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PERCENT,
+                accuracy_decimals=0,
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
-                accuracy_decimals=0,
             ),
             cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_CELSIUS,
@@ -52,11 +57,21 @@ BASE_SCHEMA = (
             ),
             cv.Optional(CONF_TVOC): sensor.sensor_schema(
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
-                icon=ICON_RADIATOR,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_BATTERY_VOLTAGE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_VOLT,
+                accuracy_decimals=3,
+                device_class=DEVICE_CLASS_VOLTAGE,
+                state_class=STATE_CLASS_MEASUREMENT,
+                entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+            ),
+            cv.Optional(
+                CONF_BATTERY_UPDATE_INTERVAL,
+                default="24h",
+            ): cv.update_interval,
         }
     )
     .extend(cv.polling_component_schema("5min"))
@@ -81,3 +96,8 @@ async def wave_base_to_code(var, config):
     if config_tvoc := config.get(CONF_TVOC):
         sens = await sensor.new_sensor(config_tvoc)
         cg.add(var.set_tvoc(sens))
+    if config_battery_voltage := config.get(CONF_BATTERY_VOLTAGE):
+        sens = await sensor.new_sensor(config_battery_voltage)
+        cg.add(var.set_battery_voltage(sens))
+    if config_battery_update_interval := config.get(CONF_BATTERY_UPDATE_INTERVAL):
+        cg.add(var.set_battery_update_interval(config_battery_update_interval))

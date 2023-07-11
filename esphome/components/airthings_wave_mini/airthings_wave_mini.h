@@ -7,8 +7,11 @@
 namespace esphome {
 namespace airthings_wave_mini {
 
+namespace espbt = esphome::esp32_ble_tracker;
+
 static const char *const SERVICE_UUID = "b42e3882-ade7-11e4-89d3-123b93f75cba";
 static const char *const CHARACTERISTIC_UUID = "b42e3b98-ade7-11e4-89d3-123b93f75cba";
+static const char *const ACCESS_CONTROL_POINT_CHARACTERISTIC_UUID = "b42e3ef4-ade7-11e4-89d3-123b93f75cba";
 
 class AirthingsWaveMini : public airthings_wave_base::AirthingsWaveBase {
  public:
