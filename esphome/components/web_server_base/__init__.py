@@ -6,13 +6,14 @@ from esphome.core import coroutine_with_priority, CORE
 CODEOWNERS = ["@OttoWinter"]
 DEPENDENCIES = ["network"]
 
+
 def AUTO_LOAD():
     if CORE.using_arduino:
         return ["async_tcp"]
     elif CORE.using_esp_idf:
         return ["web_server_idf"]
-    else:
-        return []
+    return []
+
 
 web_server_base_ns = cg.esphome_ns.namespace("web_server_base")
 WebServerBase = web_server_base_ns.class_("WebServerBase", cg.Component)
