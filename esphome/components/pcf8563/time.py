@@ -8,7 +8,6 @@ CODEOWNERS = ["@KoenBreeman"]
 
 DEPENDENCIES = ["i2c"]
 
-CONF_I2C_ADDR = 0xA3
 
 pcf8563_ns = cg.esphome_ns.namespace("pcf8563")
 pcf8563Component = pcf8563_ns.class_(
@@ -22,7 +21,7 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(pcf8563Component),
     }
-).extend(i2c.i2c_device_schema(CONF_I2C_ADDR))
+).extend(i2c.i2c_device_schema(0xA3))
 
 
 @automation.register_action(
