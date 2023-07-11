@@ -7,6 +7,7 @@ from .. import tt21100_ns
 from ..touchscreen import TT21100Touchscreen, TT21100ButtonListener
 
 CONF_TT21100_ID = "tt21100_id"
+DEPENDENCIES = ["tt21100"]
 
 TT21100Button = tt21100_ns.class_(
     "TT21100Button",
