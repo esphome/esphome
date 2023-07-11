@@ -610,7 +610,7 @@ switch:
     name: open_vent
     id: open_vent
     optimistic: True
-    on_turn_on: 
+    on_turn_on:
       then:
         - grove_i2c_motor.motor_run:
             channel: 1
@@ -620,4 +620,3 @@ switch:
         - delay: 10s
         - switch.turn_on: stop_motor
         - switch.turn_off:  open_vent
-        
