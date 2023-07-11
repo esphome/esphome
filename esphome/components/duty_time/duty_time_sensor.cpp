@@ -88,7 +88,6 @@ void DutyTimeSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Duty Time:");
   ESP_LOGCONFIG(TAG, "  Update Interval: %dms", this->get_update_interval());
   ESP_LOGCONFIG(TAG, "  Restore: %s", ONOFF(this->restore_));
-  ESP_LOGCONFIG(TAG, "  Using Logical Source: %s", YESNO(this->func_ != nullptr));
   LOG_SENSOR("  ", "Duty Time Sensor:", this);
   LOG_SENSOR("  ", "Last Duty Time Sensor:", this->last_duty_time_sensor_);
 }
