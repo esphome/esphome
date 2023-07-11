@@ -325,6 +325,7 @@ ble_client:
             accept: True
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
+
 bedjet:
   - ble_client_id: my_bedjet_ble_client
     id: my_bedjet_client
@@ -1269,6 +1270,16 @@ sensor:
     pressure:
       name: "MPL3115A2 Pressure"
     update_interval: 10s
+  - platform: alpha3
+    ble_client_id: ble_foo
+    flow:
+      name: "Radiator Pump Flow"
+    head:
+      name: "Radiator Pump Head"
+    power:
+      name: "Radiator Pump Power"
+    speed:
+      name: "Radiator Pump Speed"
   - platform: ld2410
     moving_distance:
       name: "Moving distance (cm)"
@@ -1310,6 +1321,10 @@ sensor:
       fault_count: 1
       polarity: active_high
       function: comparator
+  - platform: zio_ultrasonic
+    name: "Distance"
+    update_interval: 60s
+    i2c_id: i2c_bus
 
 esp32_touch:
   setup_mode: false
