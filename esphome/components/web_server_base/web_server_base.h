@@ -9,6 +9,7 @@
 #ifdef USE_ARDUINO
 #include <ESPAsyncWebServer.h>
 #elif USE_ESP_IDF
+#include "esphome/core/hal.h"
 #include "esphome/components/web_server_idf/web_server_idf.h"
 #endif
 
