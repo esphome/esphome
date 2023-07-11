@@ -29,72 +29,68 @@ GCJA5Component = gcja5_ns.class_("GCJA5Component", cg.PollingComponent, uart.UAR
 CONF_PMC_0_3 = "pmc_0_3"
 CONF_PMC_5_0 = "pmc_5_0"
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(GCJA5Component),
-            cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM1,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM25,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_CHEMICAL_WEAPON,
-                accuracy_decimals=2,
-                device_class=DEVICE_CLASS_PM10,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PMC_0_3): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_COUNTER,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PMC_0_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_COUNTER,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PMC_1_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_COUNTER,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PMC_2_5): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_COUNTER,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PMC_5_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_COUNTER,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_PMC_10_0): sensor.sensor_schema(
-                unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
-                icon=ICON_COUNTER,
-                accuracy_decimals=0,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-        }
-    )
-    .extend(cv.polling_component_schema("60s"))
-    .extend(uart.UART_DEVICE_SCHEMA)
-)
+CONFIG_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(GCJA5Component),
+        cv.Optional(CONF_PM_1_0): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+            icon=ICON_CHEMICAL_WEAPON,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_PM1,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_PM_2_5): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+            icon=ICON_CHEMICAL_WEAPON,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_PM25,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_PM_10_0): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+            icon=ICON_CHEMICAL_WEAPON,
+            accuracy_decimals=2,
+            device_class=DEVICE_CLASS_PM10,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_PMC_0_3): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+            icon=ICON_COUNTER,
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_PMC_0_5): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+            icon=ICON_COUNTER,
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_PMC_1_0): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+            icon=ICON_COUNTER,
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_PMC_2_5): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+            icon=ICON_COUNTER,
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_PMC_5_0): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+            icon=ICON_COUNTER,
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+        cv.Optional(CONF_PMC_10_0): sensor.sensor_schema(
+            unit_of_measurement=UNIT_MICROGRAMS_PER_CUBIC_METER,
+            icon=ICON_COUNTER,
+            accuracy_decimals=0,
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+    }
+).extend(uart.UART_DEVICE_SCHEMA)
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     "gcja5", baud_rate=9600, require_rx=True, parity="EVEN"
 )
