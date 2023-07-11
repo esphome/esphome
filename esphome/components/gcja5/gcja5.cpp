@@ -36,6 +36,31 @@ void GCJA5Component::loop() {
     // check if rx_message_ has 32 bytes of data
     if (this->rx_message_.size() == 32) {
       this->parse_data_();
+      
+      if (have_good_data_) {
+        if (this->pm_1_0_sensor_ != nullptr)
+          this->pm_1_0_sensor_->publish_state(get_32_bit_uint_(1));
+        if (this->pm_2_5_sensor_ != nullptr)
+          this->pm_2_5_sensor_->publish_state(get_32_bit_uint_(5));
+        if (this->pm_10_0_sensor_ != nullptr)
+          this->pm_10_0_sensor_->publish_state(get_32_bit_uint_(9));
+        if (this->pmc_0_3_sensor_ != nullptr)
+          this->pmc_0_3_sensor_->publish_state(get_16_bit_uint_(13));
+        if (this->pmc_0_5_sensor_ != nullptr)
+          this->pmc_0_5_sensor_->publish_state(get_16_bit_uint_(15));
+        if (this->pmc_1_0_sensor_ != nullptr)
+          this->pmc_1_0_sensor_->publish_state(get_16_bit_uint_(17));
+        if (this->pmc_2_5_sensor_ != nullptr)
+          this->pmc_2_5_sensor_->publish_state(get_16_bit_uint_(21));
+        if (this->pmc_5_0_sensor_ != nullptr)
+          this->pmc_5_0_sensor_->publish_state(get_16_bit_uint_(23));
+        if (this->pmc_10_0_sensor_ != nullptr)
+          this->pmc_10_0_sensor_->publish_state(get_16_bit_uint_(25));
+      } else {
+        this->status_set_warning();
+        ESP_LOGV(TAG, "Have 32 bytes but not good data. Skipping.");
+      }
+
       this->rx_message_.clear();
     }
   }
@@ -103,31 +128,5 @@ void GCJA5Component::parse_data_() {
 
 void GCJA5Component::dump_config() { ; }
 
-void GCJA5Component::update() {
-  if (have_good_data_) {
-    if (this->pm_1_0_sensor_ != nullptr)
-      this->pm_1_0_sensor_->publish_state(get_32_bit_uint_(1));
-    if (this->pm_2_5_sensor_ != nullptr)
-      this->pm_2_5_sensor_->publish_state(get_32_bit_uint_(5));
-    if (this->pm_10_0_sensor_ != nullptr)
-      this->pm_10_0_sensor_->publish_state(get_32_bit_uint_(9));
-
-    if (this->pmc_0_3_sensor_ != nullptr)
-      this->pmc_0_3_sensor_->publish_state(get_16_bit_uint_(13));
-    if (this->pmc_0_5_sensor_ != nullptr)
-      this->pmc_0_5_sensor_->publish_state(get_16_bit_uint_(15));
-    if (this->pmc_1_0_sensor_ != nullptr)
-      this->pmc_1_0_sensor_->publish_state(get_16_bit_uint_(17));
-    if (this->pmc_2_5_sensor_ != nullptr)
-      this->pmc_2_5_sensor_->publish_state(get_16_bit_uint_(21));
-    if (this->pmc_5_0_sensor_ != nullptr)
-      this->pmc_5_0_sensor_->publish_state(get_16_bit_uint_(23));
-    if (this->pmc_10_0_sensor_ != nullptr)
-      this->pmc_10_0_sensor_->publish_state(get_16_bit_uint_(25));
-  } else {
-    this->status_set_warning();
-    ESP_LOGV(TAG, "No data. Skipping update.");
-  }
-}
 }  // namespace gcja5
 }  // namespace esphome
