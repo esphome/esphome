@@ -28,7 +28,7 @@ CONFIG_SCHEMA = time.TIME_SCHEMA.extend(
 @automation.register_action(
     "pcf8563.write_time",
     WriteAction,
-    cv.Schema(
+    automation.maybe_simple_id(
         {
             cv.GenerateID(): cv.use_id(pcf8563Component),
         }
