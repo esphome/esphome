@@ -36,7 +36,7 @@ void GCJA5Component::loop() {
     // check if rx_message_ has 32 bytes of data
     if (this->rx_message_.size() == 32) {
       this->parse_data_();
-      
+
       if (have_good_data_) {
         if (this->pm_1_0_sensor_ != nullptr)
           this->pm_1_0_sensor_->publish_state(get_32_bit_uint_(1));
