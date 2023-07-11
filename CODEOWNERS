@@ -201,6 +201,7 @@ esphome/components/output/* @esphome/core
 esphome/components/pca6416a/* @Mat931
 esphome/components/pca9554/* @hwstar
 esphome/components/pcf85063/* @brogon
+esphome/components/pcf8563/* @KoenBreeman
 esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
 esphome/components/pm1006/* @habbie
