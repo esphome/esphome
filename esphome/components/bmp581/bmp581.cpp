@@ -412,9 +412,10 @@ bool BMP581Component::prime_iir_filter_() {
     return false;
   }
 
-  // with oversampling disabled, the conversion time for a single measurement for pressure and temperature is
-  // ceilf(1.5*(1.0+1.0)) = 3ms
-  //  - see determine_conversion_time_ function for calculation details
+  // wait for priming measurement to complete
+  //  - with oversampling disabled, the conversion time for a single measurement for pressure and temperature is
+  //    ceilf(1.05*(1.0+1.0)) = 3ms
+  //  - see page 12 of datasheet for details
   delay(3);
 
   if (!this->check_data_readiness_()) {
