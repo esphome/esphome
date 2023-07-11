@@ -16,14 +16,6 @@ namespace lightwaverf {
 
 #ifdef USE_ESP8266
 
-// Choose whether to include EEPROM support, comment or set to 0 to disable, 1 use with library support, 2 use with
-// native support
-static const uint8_t EEPROM_EN = 0;
-// Include EEPROM if required to include storing device paramters in EEPROM
-#if EEPROM_EN == 1
-#include <../EEPROM/EEPROM.h>
-#endif
-
 class LightWaveRF : public PollingComponent {
  public:
   void set_pin(InternalGPIOPin *pin_tx, InternalGPIOPin *pin_rx) {

@@ -41,18 +41,11 @@ class LwTx {
   // Send Command
   void lwtx_cmd(uint8_t command, uint8_t parameter, uint8_t room, uint8_t device);
 
-  // Set base address for EEPROM storage
-  void lwtx_set_eepro_maddr(int addr);
-
   // Allows changing basic tick counts from their defaults
   void lw_timer_start();
 
   // Allws multiplying the gap period for creating very large gaps
   void lw_timer_stop();
-
-  const uint8_t EEPROM_ADDR_DEFAULT = 0;
-
-  int EEPROMaddr = EEPROM_ADDR_DEFAULT;
 
   // These set the pulse durationlws in ticks. ESP uses 330uSec base tick, else use 140uSec
   uint8_t tx_low_count = 3;    // total number of ticks in a low (990 uSec)

@@ -126,9 +126,6 @@ void LwTx::lwtx_send(const std::vector<uint8_t> &msg) {
 void LwTx::lwtx_setaddr(const uint8_t *addr) {
   for (uint8_t i = 0; i < 5; i++) {
     tx_buf[i + 4] = TX_NIBBLE[addr[i] & 0xF];
-#if EEPROM_EN
-    EEPROM.write(EEPROMaddr + i, tx_buf[i + 4]);
-#endif
   }
 }
 
@@ -150,12 +147,6 @@ void LwTx::lwtx_cmd(uint8_t command, uint8_t parameter, uint8_t room, uint8_t de
   Set things up to transmit LightWaveRF 434Mhz messages
 **/
 void LwTx::lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, bool inverted, int u_sec) {
-#if EEPROM_EN
-  for (int i = 0; i < 5; i++) {
-    this->tx_buf[i + 4] = EEPROM.read(this->EEPROMaddr + i);
-  }
-#endif
-
   pin->setup();
   tx_pin = pin;
 
@@ -193,11 +184,6 @@ void LwTx::lwtx_set_tick_counts(uint8_t low_count, uint8_t high_count, uint8_t t
 }
 
 void LwTx::lwtx_set_gap_multiplier(uint8_t gap_multiplier) { tx_gap_multiplier = gap_multiplier; }
-
-/**
-  Set EEPROMAddr
-**/
-void LwTx::lwtx_set_eepro_maddr(int addr) { EEPROMaddr = addr; }
 
 void LwTx::lw_timer_start() {
   {

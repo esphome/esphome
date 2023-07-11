@@ -51,7 +51,6 @@ void LightWaveRF::print_msg_(uint8_t *msg, uint8_t len) {
 
   for (int i = 0; i < len; i++) {
     sprintf(&buffer[i * 6], "0x%02x, ", msg[i]);
-    // ESP_LOGD(TAG, "%x ",   msg[i]);
   }
   ESP_LOGD(TAG, "[%s]", buffer);
 }

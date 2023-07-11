@@ -34,8 +34,6 @@ static const uint8_t RX_CMD_MOOD = 0xED;     // raw 2
 static const uint8_t RX_PAR0_ALLOFF = 0x7D;  // param 192-255 all off (12 in msb)
 static const uint8_t RX_DEV_15 = 0x6F;       // device 15
 
-static const uint8_t EEPROM_ADDR_DEFAULT = 0;
-
 static const uint8_t RX_MSGLEN = 10;  // expected length of rx message
 
 static const uint8_t RX_STATE_IDLE = 0;
@@ -84,8 +82,6 @@ class LwRx {
 
   static void rx_process_bits(LwRx *arg);
 
-  int EEPROMaddr = EEPROM_ADDR_DEFAULT;
-
   // Pairing data
   uint8_t rx_paircount = 0;
   uint8_t rx_pairs[RX_MAXPAIRS][8];
@@ -130,9 +126,6 @@ class LwRx {
   // Enable collection of stats on pulse timings
   void lwrx_setstatsenable_(bool rx_stats_enable);
 
-  // Set base address for EEPROM storage
-  void lwrx_set_eepro_maddr_(int addr);
-
   // internal support functions
   bool rx_report_message_();
   int16_t rx_find_nibble_(uint8_t data);  // int
@@ -140,7 +133,6 @@ class LwRx {
   void rx_paircommit_();
   void rx_remove_pair_(uint8_t *buf);
   int16_t rx_check_pairs_(const uint8_t *buf, bool all_devices);  // int
-  void restore_eeprom_pairing_();
 
   ISRInternalGPIOPin rx_pin_isr_;
   InternalGPIOPin *rx_pin_;

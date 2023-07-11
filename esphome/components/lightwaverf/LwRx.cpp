@@ -273,17 +273,7 @@ uint8_t LwRx::lwrx_getpair(uint8_t *pairdata, uint8_t pairnumber) {
 /**
   Clear all pairing
 **/
-void LwRx::lwrx_clearpairing_() {
-  rx_paircount = 0;
-#if EEPROM_EN
-  EEPROM.write(EEPROMaddr, 0);
-#endif
-}
-
-/**
-  Set EEPROMAddr
-**/
-void LwRx::lwrx_set_eepro_maddr_(int addr) { EEPROMaddr = addr; }
+void LwRx::lwrx_clearpairing_() { rx_paircount = 0; }
 
 /**
   Return stats on high and low pulses
@@ -374,12 +364,6 @@ void LwRx::rx_addpairfrommsg_() {
 **/
 void LwRx::rx_paircommit_() {
   if (rx_paircount == 0 || this->rx_check_pairs_(rx_pairs[rx_paircount], false) < 0) {
-#if EEPROM_EN
-    for (uint8_t i = 0; i < 8; i++) {
-      EEPROM.write(EEPROMaddr + 1 + 8 * rx_paircount + i, rx_pairs[rx_paircount][i]);
-    }
-    EEPROM.write(EEPROMaddr, rx_paircount + 1);
-#endif
     rx_paircount++;
   }
 }
@@ -432,40 +416,11 @@ void LwRx::rx_remove_pair_(uint8_t *buf) {
     while (pair < rx_paircount - 1) {
       for (uint8_t j = 0; j < 8; j++) {
         rx_pairs[pair][j] = rx_pairs[pair + 1][j];
-#if EEPROM_EN
-        if (EEPROMaddr >= 0) {
-          EEPROM.write(EEPROMaddr + 1 + 8 * pair + j, rx_pairs[pair][j]);
-        }
-#endif
       }
       pair++;
     }
     rx_paircount--;
-#if EEPROM_EN
-    if (EEPROMaddr >= 0) {
-      EEPROM.write(EEPROMaddr, rx_paircount);
-    }
-#endif
   }
-}
-
-/**
-   Retrieve and set up pairing data from EEPROM if used
-**/
-void LwRx::restore_eeprom_pairing_() {
-#if EEPROM_EN
-  rx_paircount = EEPROM.read(EEPROMaddr);
-  if (rx_paircount > rx_maxpairs) {
-    rx_paircount = 0;
-    EEPROM.write(EEPROMaddr, 0);
-  } else {
-    for (uint8_t i = 0; i < rx_paircount; i++) {
-      for (uint8_t j = 0; j < 8; j++) {
-        rx_pairs[i][j] = EEPROM.read(EEPROMaddr + 1 + 8 * i + j);
-      }
-    }
-  }
-#endif
 }
 
 }  // namespace lightwaverf
