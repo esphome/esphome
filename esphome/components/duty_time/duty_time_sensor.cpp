@@ -6,8 +6,8 @@ namespace duty_time_sensor {
 
 static const char *const TAG = "duty_time_sensor";
 
-void DutyTimeSensor::set_sensor(const binary_sensor::BinarySensor *const sensor) {
-  this->func_ = [sensor]() { return sensor->state; };
+void DutyTimeSensor::set_sensor(binary_sensor::BinarySensor *const sensor) {
+  sensor->add_on_state_callback([this](bool state) { this->process_state_(state); });
 }
 
 void DutyTimeSensor::start() {
@@ -47,9 +47,6 @@ void DutyTimeSensor::setup() {
 }
 
 void DutyTimeSensor::set_value_(const uint32_t sec) {
-  if (this->func_ != nullptr)
-    this->last_state_ = this->func_();
-
   this->edge_ms_ = 0;
   this->edge_sec_ = sec;
   this->last_update_ = millis();

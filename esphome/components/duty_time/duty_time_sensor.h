@@ -23,7 +23,7 @@ class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
   void reset() { this->set_value_(0); }
 
   void set_lambda(std::function<bool()> &&func) { this->func_ = func; }
-  void set_sensor(const binary_sensor::BinarySensor *sensor);
+  void set_sensor(binary_sensor::BinarySensor *sensor);
   void set_last_duty_time_sensor(sensor::Sensor *sensor) { this->last_duty_time_sensor_ = sensor; }
   void set_restore(bool restore) { this->restore_ = restore; }
 
