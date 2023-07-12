@@ -57,7 +57,7 @@ async def to_code(config):
 
 
 @automation.register_action(
-    "grove_i2c_motor.motor_run",
+    "grove_i2c_motor.run",
     GROVETB6612FNGMotorRunAction,
     cv.Schema(
         {
@@ -83,7 +83,7 @@ async def grove_i2c_motor_run_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "grove_i2c_motor.motor_break",
+    "grove_i2c_motor.break",
     GROVETB6612FNGMotorBrakeAction,
     cv.Schema(
         {
@@ -102,7 +102,7 @@ async def grove_i2c_motor_break_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "grove_i2c_motor.motor_stop",
+    "grove_i2c_motor.stop",
     GROVETB6612FNGMotorStopAction,
     cv.Schema(
         {
