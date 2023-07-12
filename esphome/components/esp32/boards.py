@@ -1641,6 +1641,11 @@ BOARDS = {
         "name": "Seeed Studio XIAO ESP32C3",
         "variant": VARIANT_ESP32C3,
     },
+
+    "seeed_xiao_esp32s3": {
+        "name": "Seeed Studio XIAO ESP32S3",
+        "variant": VARIANT_ESP32S3,
+    },
     "sensesiot_weizen": {
         "name": "LOGISENSES Senses Weizen",
         "variant": VARIANT_ESP32,
