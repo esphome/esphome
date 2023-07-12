@@ -104,7 +104,7 @@ esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core
 esphome/components/gps/* @coogle
 esphome/components/graph/* @synco
-esphome/components/grove_i2c_motor/* @max246
+esphome/components/grove_tb6612fng/* @max246
 esphome/components/growatt_solar/* @leeuwte
 esphome/components/haier/* @paveldn
 esphome/components/havells_solar/* @sourabhjaiswal
@@ -246,6 +246,7 @@ esphome/components/sgp4x/* @SenexCrenshaw @martgras
 esphome/components/shelly_dimmer/* @edge90 @rnauber
 esphome/components/sht4x/* @sjtrny
 esphome/components/shutdown/* @esphome/core @jsuanet
+esphome/components/si7021/* @max246
 esphome/components/sigma_delta_output/* @Cat-Ion
 esphome/components/sim800l/* @glmnet
 esphome/components/sm10bit_base/* @Cossid
