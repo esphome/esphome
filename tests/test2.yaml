@@ -416,6 +416,18 @@ sensor:
       name: Propane test distance
     battery_level:
       name: Propane test battery level
+  - platform: duty_time
+    id: duty_time1
+    name: Test Duty Time
+    restore: true
+    last_time:
+      name: Test Last Duty Time Sensor
+    sensor: ha_hello_world_binary
+  - platform: duty_time
+    id: duty_time2
+    name: Test Duty Time 2
+    restore: false
+    lambda: "return true;"
 
 time:
   - platform: homeassistant
@@ -423,6 +435,17 @@ time:
       - at: "16:00:00"
         then:
           - logger.log: It's 16:00
+          - if:
+              condition:
+                - sensor.duty_time.is_running: duty_time2
+              then:
+                - sensor.duty_time.start: duty_time1
+          - if:
+              condition:
+                - sensor.duty_time.is_not_running: duty_time1
+              then:
+                - sensor.duty_time.stop: duty_time2
+          - sensor.duty_time.reset: duty_time1
 
 esp32_touch:
   setup_mode: true
