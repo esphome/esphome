@@ -34,7 +34,7 @@
 */
 
 namespace esphome {
-namespace grove_i2c_motor {
+namespace grove_tb6612fng {
 
 enum MotorChannelTypeT {
   MOTOR_CHA = 0,
@@ -204,5 +204,5 @@ class GROVETB6612FNGMotorNoStandbyAction : public Action<Ts...>, public Parented
   void play(Ts... x) override { this->parent_->not_standby(); }
 };
 
-}  // namespace grove_i2c_motor
+}  // namespace grove_tb6612fng
 }  // namespace esphome
