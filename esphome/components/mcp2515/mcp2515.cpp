@@ -18,10 +18,10 @@ bool MCP2515::setup_internal() {
 
   if (this->reset_() != canbus::ERROR_OK)
     return false;
-  if(this->set_bitrate_(this->bit_rate_, this->mcp_clock_) != canbus::ERROR_OK)
+  if (this->set_bitrate_(this->bit_rate_, this->mcp_clock_) != canbus::ERROR_OK)
     return false;
-  if(this->set_mode_(this->mcp_mode_) != canbus::ERROR_OK)
-    return false;;
+  if (this->set_mode_(this->mcp_mode_) != canbus::ERROR_OK)
+    return false;
   uint8_t err_flags = this->get_error_flags_();
   ESP_LOGD(TAG, "mcp2515 setup done, error_flags = %02X", err_flags);
   return true;
@@ -119,7 +119,7 @@ canbus::Error MCP2515::set_mode_(const CanctrlReqopMode mode) {
   uint32_t end_time = millis() + 10;
   uint8_t new_mode = ~mode;
   while (millis() < end_time) {
-    if((read_register_(MCP_CANSTAT) & CANSTAT_OPMOD) == mode)
+    if ((read_register_(MCP_CANSTAT) & CANSTAT_OPMOD) == mode)
       return canbus::ERROR_OK;
   }
   ESP_LOGE(TAG, "Failed to set mode");
