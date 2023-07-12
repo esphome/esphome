@@ -363,12 +363,11 @@ switch:
     optimistic: True
     on_turn_on:
       then:
-        - grove_i2c_motor.motor_run:
+        - grove_i2c_motor.run:
             channel: 1
             speed: 255
             direction: BACKWARD
             id: test_motor
-        - delay: 10s
 
 
 custom_component:
@@ -616,5 +615,3 @@ cd74hc4067:
 
 adc128s102:
   cs_pin: GPIO12
-
-
