@@ -1,5 +1,6 @@
 #include "noblex.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace noblex {
@@ -29,16 +30,6 @@ using IRNoblexFan = enum IRNoblexFan {
   IR_NOBLEX_FAN_HIGH = 0b11,
 };
 
-uint8_t NoblexClimate::swap_(uint8_t num) {
-  uint8_t value = 0;
-  for (int8_t i = 7; i >= 0; i--) {
-    if (num & (1 << (7 - i))) {
-      value |= (1 << i);
-    }
-  }
-  return value;
-}
-
 // Transmit via IR the state of this climate controller.
 void NoblexClimate::transmit_state() {
   uint8_t remote_state[8] = {0x80, 0x10, 0x00, 0x0A, 0x50, 0x00, 0x20, 0x00};  // OFF, COOL, 24C, FAN_AUTO
@@ -52,7 +43,7 @@ void NoblexClimate::transmit_state() {
     this->powered_on_assumed = powered_on;
 
   auto temp = (uint8_t) roundf(clamp<float>(this->target_temperature, NOBLEX_TEMP_MIN, NOBLEX_TEMP_MAX));
-  remote_state[1] = swap_((temp - NOBLEX_TEMP_MIN) & 0x0F);
+  remote_state[1] = reverse_bits(uint8_t((temp - NOBLEX_TEMP_MIN) & 0x0F));
 
   switch (this->mode) {
     case climate::CLIMATE_MODE_HEAT_COOL:
@@ -110,9 +101,9 @@ void NoblexClimate::transmit_state() {
 
   uint8_t crc = 0;
   for (unsigned char i : remote_state) {
-    crc += swap_(i);
+    crc += reverse_bits(i);
   }
-  crc = swap_(crc & 0x0F) >> 4;
+  crc = reverse_bits(uint8_t(crc & 0x0F)) >> 4;
 
   ESP_LOGD(TAG, "Sending noblex code: %02X%02X %02X%02X %02X%02X %02X%02X", remote_state[0], remote_state[1],
            remote_state[2], remote_state[3], remote_state[4], remote_state[5], remote_state[6], remote_state[7]);
@@ -225,8 +216,8 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
   }
 
   for (unsigned char i : remote_state)
-    crc_calculated += swap_(i);
-  crc_calculated = swap_(crc_calculated & 0x0F) >> 4;
+    crc_calculated += reverse_bits(i);
+  crc_calculated = reverse_bits(uint8_t(crc_calculated & 0x0F)) >> 4;
   ESP_LOGVV(TAG, "CRC calc %02X", crc_calculated);
 
   if (crc != crc_calculated) {
@@ -276,7 +267,7 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t temp = remote_state[1];
   ESP_LOGVV(TAG, "Temperature Raw: %02X", temp);
 
-  temp = 0x0F & swap_(temp);
+  temp = 0x0F & reverse_bits(temp);
   temp += NOBLEX_TEMP_MIN;
   ESP_LOGV(TAG, "Temperature Climate: %u", temp);
   this->target_temperature = temp;
