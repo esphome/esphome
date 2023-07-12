@@ -308,8 +308,10 @@ def upload_program(config, args, host):
     password = ota_conf.get(CONF_PASSWORD, "")
 
     if (
-        get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED]
-    ) and CONF_MQTT in config:
+        CORE.address is not None
+        and (get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED])
+        and CONF_MQTT in config
+    ):
         from esphome import mqtt
 
         host = mqtt.get_esphome_device_ip(
