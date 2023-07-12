@@ -32,6 +32,7 @@ esphome/components/api/* @OttoWinter
 esphome/components/as7341/* @mrgnr
 esphome/components/async_tcp/* @OttoWinter
 esphome/components/atc_mithermometer/* @ahpohl
+esphome/components/atm90e26/* @danieltwagner
 esphome/components/b_parasite/* @rbaron
 esphome/components/ballu/* @bazuchan
 esphome/components/bang_bang/* @OttoWinter
