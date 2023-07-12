@@ -1,5 +1,3 @@
-#ifdef USE_ARDUINO
-
 #include "web_server.h"
 
 #include "esphome/components/json/json_util.h"
@@ -9,7 +7,9 @@
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
 
+#ifdef USE_ARDUINO
 #include "StreamString.h"
+#endif
 
 #include <cstdlib>
 
@@ -181,7 +181,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   stream->print(F("<link rel=\"stylesheet\" href=\"/0.css\">"));
 #endif
   if (strlen(this->css_url_) > 0) {
-    stream->print(F("<link rel=\"stylesheet\" href=\""));
+    stream->print(F(R"(<link rel="stylesheet" href=")"));
     stream->print(this->css_url_);
     stream->print(F("\">"));
   }
@@ -381,7 +381,7 @@ void WebServer::handle_sensor_request(AsyncWebServerRequest *request, const UrlM
 std::string WebServer::sensor_json(sensor::Sensor *obj, float value, JsonDetail start_config) {
   return json::build_json([obj, value, start_config](JsonObject root) {
     std::string state;
-    if (isnan(value)) {
+    if (std::isnan(value)) {
       state = "NA";
     } else {
       state = value_accuracy_to_string(value, obj->get_accuracy_decimals());
@@ -524,11 +524,8 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
       request->send(200);
     } else if (match.method == "turn_on") {
       auto call = obj->turn_on();
-      if (request->hasParam("speed")) {
-        String speed = request->getParam("speed")->value();
-      }
       if (request->hasParam("speed_level")) {
-        String speed_level = request->getParam("speed_level")->value();
+        auto speed_level = request->getParam("speed_level")->value();
         auto val = parse_number<int>(speed_level.c_str());
         if (!val.has_value()) {
           ESP_LOGW(TAG, "Can't convert '%s' to number!", speed_level.c_str());
@@ -537,7 +534,7 @@ void WebServer::handle_fan_request(AsyncWebServerRequest *request, const UrlMatc
         call.set_speed(*val);
       }
       if (request->hasParam("oscillation")) {
-        String speed = request->getParam("oscillation")->value();
+        auto speed = request->getParam("oscillation")->value();
         auto val = parse_on_off(speed.c_str());
         switch (val) {
           case PARSE_ON:
@@ -585,29 +582,54 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
       request->send(200);
     } else if (match.method == "turn_on") {
       auto call = obj->turn_on();
-      if (request->hasParam("brightness"))
-        call.set_brightness(request->getParam("brightness")->value().toFloat() / 255.0f);
-      if (request->hasParam("r"))
-        call.set_red(request->getParam("r")->value().toFloat() / 255.0f);
-      if (request->hasParam("g"))
-        call.set_green(request->getParam("g")->value().toFloat() / 255.0f);
-      if (request->hasParam("b"))
-        call.set_blue(request->getParam("b")->value().toFloat() / 255.0f);
-      if (request->hasParam("white_value"))
-        call.set_white(request->getParam("white_value")->value().toFloat() / 255.0f);
-      if (request->hasParam("color_temp"))
-        call.set_color_temperature(request->getParam("color_temp")->value().toFloat());
-
+      if (request->hasParam("brightness")) {
+        auto brightness = parse_number<float>(request->getParam("brightness")->value().c_str());
+        if (brightness.has_value()) {
+          call.set_brightness(*brightness / 255.0f);
+        }
+      }
+      if (request->hasParam("r")) {
+        auto r = parse_number<float>(request->getParam("r")->value().c_str());
+        if (r.has_value()) {
+          call.set_red(*r / 255.0f);
+        }
+      }
+      if (request->hasParam("g")) {
+        auto g = parse_number<float>(request->getParam("g")->value().c_str());
+        if (g.has_value()) {
+          call.set_green(*g / 255.0f);
+        }
+      }
+      if (request->hasParam("b")) {
+        auto b = parse_number<float>(request->getParam("b")->value().c_str());
+        if (b.has_value()) {
+          call.set_blue(*b / 255.0f);
+        }
+      }
+      if (request->hasParam("white_value")) {
+        auto white_value = parse_number<float>(request->getParam("white_value")->value().c_str());
+        if (white_value.has_value()) {
+          call.set_white(*white_value / 255.0f);
+        }
+      }
+      if (request->hasParam("color_temp")) {
+        auto color_temp = parse_number<float>(request->getParam("color_temp")->value().c_str());
+        if (color_temp.has_value()) {
+          call.set_color_temperature(*color_temp);
+        }
+      }
       if (request->hasParam("flash")) {
-        float length_s = request->getParam("flash")->value().toFloat();
-        call.set_flash_length(static_cast<uint32_t>(length_s * 1000));
+        auto flash = parse_number<uint32_t>(request->getParam("flash")->value().c_str());
+        if (flash.has_value()) {
+          call.set_flash_length(*flash * 1000);
+        }
       }
-
       if (request->hasParam("transition")) {
-        float length_s = request->getParam("transition")->value().toFloat();
-        call.set_transition_length(static_cast<uint32_t>(length_s * 1000));
+        auto transition = parse_number<uint32_t>(request->getParam("transition")->value().c_str());
+        if (transition.has_value()) {
+          call.set_transition_length(*transition * 1000);
+        }
       }
-
       if (request->hasParam("effect")) {
         const char *effect = request->getParam("effect")->value().c_str();
         call.set_effect(effect);
@@ -618,8 +640,10 @@ void WebServer::handle_light_request(AsyncWebServerRequest *request, const UrlMa
     } else if (match.method == "turn_off") {
       auto call = obj->turn_off();
       if (request->hasParam("transition")) {
-        auto length = (uint32_t) request->getParam("transition")->value().toFloat() * 1000;
-        call.set_transition_length(length);
+        auto transition = parse_number<uint32_t>(request->getParam("transition")->value().c_str());
+        if (transition.has_value()) {
+          call.set_transition_length(*transition * 1000);
+        }
       }
       this->schedule_([call]() mutable { call.perform(); });
       request->send(200);
@@ -681,10 +705,18 @@ void WebServer::handle_cover_request(AsyncWebServerRequest *request, const UrlMa
       return;
     }
 
-    if (request->hasParam("position"))
-      call.set_position(request->getParam("position")->value().toFloat());
-    if (request->hasParam("tilt"))
-      call.set_tilt(request->getParam("tilt")->value().toFloat());
+    if (request->hasParam("position")) {
+      auto position = parse_number<float>(request->getParam("position")->value().c_str());
+      if (position.has_value()) {
+        call.set_position(*position);
+      }
+    }
+    if (request->hasParam("tilt")) {
+      auto tilt = parse_number<float>(request->getParam("tilt")->value().c_str());
+      if (tilt.has_value()) {
+        call.set_tilt(*tilt);
+      }
+    }
 
     this->schedule_([call]() mutable { call.perform(); });
     request->send(200);
@@ -725,10 +757,9 @@ void WebServer::handle_number_request(AsyncWebServerRequest *request, const UrlM
 
     auto call = obj->make_call();
     if (request->hasParam("value")) {
-      String value = request->getParam("value")->value();
-      optional<float> value_f = parse_number<float>(value.c_str());
-      if (value_f.has_value())
-        call.set_value(*value_f);
+      auto value = parse_number<float>(request->getParam("value")->value().c_str());
+      if (value.has_value())
+        call.set_value(*value);
     }
 
     this->schedule_([call]() mutable { call.perform(); });
@@ -747,7 +778,7 @@ std::string WebServer::number_json(number::Number *obj, float value, JsonDetail 
       root["step"] = obj->traits.get_step();
       root["mode"] = (int) obj->traits.get_mode();
     }
-    if (isnan(value)) {
+    if (std::isnan(value)) {
       root["value"] = "\"NaN\"";
       root["state"] = "NA";
     } else {
@@ -784,7 +815,7 @@ void WebServer::handle_select_request(AsyncWebServerRequest *request, const UrlM
     auto call = obj->make_call();
 
     if (request->hasParam("option")) {
-      String option = request->getParam("option")->value();
+      auto option = request->getParam("option")->value();
       call.set_option(option.c_str());  // NOLINT(clang-diagnostic-deprecated-declarations)
     }
 
@@ -834,29 +865,26 @@ void WebServer::handle_climate_request(AsyncWebServerRequest *request, const Url
     auto call = obj->make_call();
 
     if (request->hasParam("mode")) {
-      String mode = request->getParam("mode")->value();
+      auto mode = request->getParam("mode")->value();
       call.set_mode(mode.c_str());
     }
 
     if (request->hasParam("target_temperature_high")) {
-      String value = request->getParam("target_temperature_high")->value();
-      optional<float> value_f = parse_number<float>(value.c_str());
-      if (value_f.has_value())
-        call.set_target_temperature_high(*value_f);
+      auto target_temperature_high = parse_number<float>(request->getParam("target_temperature_high")->value().c_str());
+      if (target_temperature_high.has_value())
+        call.set_target_temperature_high(*target_temperature_high);
     }
 
     if (request->hasParam("target_temperature_low")) {
-      String value = request->getParam("target_temperature_low")->value();
-      optional<float> value_f = parse_number<float>(value.c_str());
-      if (value_f.has_value())
-        call.set_target_temperature_low(*value_f);
+      auto target_temperature_low = parse_number<float>(request->getParam("target_temperature_low")->value().c_str());
+      if (target_temperature_low.has_value())
+        call.set_target_temperature_low(*target_temperature_low);
     }
 
     if (request->hasParam("target_temperature")) {
-      String value = request->getParam("target_temperature")->value();
-      optional<float> value_f = parse_number<float>(value.c_str());
-      if (value_f.has_value())
-        call.set_target_temperature(*value_f);
+      auto target_temperature = parse_number<float>(request->getParam("target_temperature")->value().c_str());
+      if (target_temperature.has_value())
+        call.set_target_temperature(*target_temperature);
     }
 
     this->schedule_([call]() mutable { call.perform(); });
@@ -1231,5 +1259,3 @@ void WebServer::schedule_(std::function<void()> &&f) {
 
 }  // namespace web_server
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

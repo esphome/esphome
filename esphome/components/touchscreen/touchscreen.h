@@ -31,13 +31,8 @@ enum TouchRotation {
 
 class Touchscreen {
  public:
-  void set_display(display::DisplayBuffer *display) {
-    this->display_ = display;
-    this->display_width_ = display->get_width_internal();
-    this->display_height_ = display->get_height_internal();
-    this->rotation_ = static_cast<TouchRotation>(display->get_rotation());
-  }
-  display::DisplayBuffer *get_display() const { return this->display_; }
+  void set_display(display::Display *display);
+  display::Display *get_display() const { return this->display_; }
 
   Trigger<TouchPoint> *get_touch_trigger() { return &this->touch_trigger_; }
 
@@ -49,7 +44,7 @@ class Touchscreen {
 
   uint16_t display_width_;
   uint16_t display_height_;
-  display::DisplayBuffer *display_;
+  display::Display *display_;
   TouchRotation rotation_;
   Trigger<TouchPoint> touch_trigger_;
   std::vector<TouchListener *> touch_listeners_;

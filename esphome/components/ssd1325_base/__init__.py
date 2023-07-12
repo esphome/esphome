@@ -50,6 +50,6 @@ async def setup_ssd1325(var, config):
         cg.add(var.set_external_vcc(config[CONF_EXTERNAL_VCC]))
     if CONF_LAMBDA in config:
         lambda_ = await cg.process_lambda(
-            config[CONF_LAMBDA], [(display.DisplayBufferRef, "it")], return_type=cg.void
+            config[CONF_LAMBDA], [(display.DisplayRef, "it")], return_type=cg.void
         )
         cg.add(var.set_writer(lambda_))

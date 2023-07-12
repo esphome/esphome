@@ -6,14 +6,12 @@ on:
   schedule:
     - cron: '45 6 * * *'
 
-permissions:
-  contents: write
-  pull-requests: write
 
 jobs:
   sync:
     name: Sync Device Classes
     runs-on: ubuntu-latest
+    if: github.repository == 'esphome/esphome'
     steps:
       - name: Checkout
         uses: actions/checkout@v3
@@ -38,15 +36,6 @@ jobs:
         run: |
           python ./script/sync-device_class.py
 
-      - name: Get PR template
-        id: pr-template-body
-        run: |
-          body=$(cat .github/PULL_REQUEST_TEMPLATE.md)
-          delimiter="$(openssl rand -hex 8)"
-          echo "body<<$delimiter" >> $GITHUB_OUTPUT
-          echo "$body" >> $GITHUB_OUTPUT
-          echo "$delimiter" >> $GITHUB_OUTPUT
-
       - name: Commit changes
         uses: peter-evans/create-pull-request@v5
         with:
@@ -56,5 +45,5 @@ jobs:
           branch: sync/device-classes
           delete-branch: true
           title: "Synchronise Device Classes from Home Assistant"
-          body: ${{ steps.pr-template-body.outputs.body }}
+          body-path: .github/PULL_REQUEST_TEMPLATE.md
           token: ${{ secrets.DEVICE_CLASS_SYNC_TOKEN }}

@@ -1,11 +1,12 @@
 #pragma once
 
 #include "esphome/core/datatypes.h"
+#include "esphome/core/color.h"
+#include "esphome/components/display/display_buffer.h"
 
 namespace esphome {
-namespace display {
+namespace font {
 
-class DisplayBuffer;
 class Font;
 
 struct GlyphData {
@@ -21,7 +22,7 @@ class Glyph {
  public:
   Glyph(const GlyphData *data) : glyph_data_(data) {}
 
-  bool get_pixel(int x, int y) const;
+  void draw(int x, int y, display::Display *display, Color color) const;
 
   const char *get_char() const;
 
@@ -33,12 +34,11 @@ class Glyph {
 
  protected:
   friend Font;
-  friend DisplayBuffer;
 
   const GlyphData *glyph_data_;
 };
 
-class Font {
+class Font : public display::BaseFont {
  public:
   /** Construct the font with the given glyphs.
    *
@@ -50,7 +50,8 @@ class Font {
 
   int match_next_glyph(const char *str, int *match_length);
 
-  void measure(const char *str, int *width, int *x_offset, int *baseline, int *height);
+  void print(int x_start, int y_start, display::Display *display, Color color, const char *text) override;
+  void measure(const char *str, int *width, int *x_offset, int *baseline, int *height) override;
   inline int get_baseline() { return this->baseline_; }
   inline int get_height() { return this->height_; }
 
@@ -62,5 +63,5 @@ class Font {
   int height_;
 };
 
-}  // namespace display
+}  // namespace font
 }  // namespace esphome
