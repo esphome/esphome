@@ -14,23 +14,23 @@ DEPENDENCIES = ["i2c"]
 
 CODEOWNERS = ["@max246"]
 
-grove_i2c_motor_ns = cg.esphome_ns.namespace("grove_i2c_motor")
-GROVE_TB6612FNG = grove_i2c_motor_ns.class_(
+grove_tb6612fng_ns = cg.esphome_ns.namespace("grove_tb6612fng")
+GROVE_TB6612FNG = grove_tb6612fng_ns.class_(
     "GroveMotorDriveTB6612FNG", cg.Component, i2c.I2CDevice
 )
-GROVETB6612FNGMotorRunAction = grove_i2c_motor_ns.class_(
+GROVETB6612FNGMotorRunAction = grove_tb6612fng_ns.class_(
     "GROVETB6612FNGMotorRunAction", automation.Action
 )
-GROVETB6612FNGMotorBrakeAction = grove_i2c_motor_ns.class_(
+GROVETB6612FNGMotorBrakeAction = grove_tb6612fng_ns.class_(
     "GROVETB6612FNGMotorBrakeAction", automation.Action
 )
-GROVETB6612FNGMotorStopAction = grove_i2c_motor_ns.class_(
+GROVETB6612FNGMotorStopAction = grove_tb6612fng_ns.class_(
     "GROVETB6612FNGMotorStopAction", automation.Action
 )
-GROVETB6612FNGMotorStandbyAction = grove_i2c_motor_ns.class_(
+GROVETB6612FNGMotorStandbyAction = grove_tb6612fng_ns.class_(
     "GROVETB6612FNGMotorStandbyAction", automation.Action
 )
-GROVETB6612FNGMotorNoStandbyAction = grove_i2c_motor_ns.class_(
+GROVETB6612FNGMotorNoStandbyAction = grove_tb6612fng_ns.class_(
     "GROVETB6612FNGMotorNoStandbyAction", automation.Action
 )
 
@@ -57,7 +57,7 @@ async def to_code(config):
 
 
 @automation.register_action(
-    "grove_i2c_motor.run",
+    "grove_tb6612fng.run",
     GROVETB6612FNGMotorRunAction,
     cv.Schema(
         {
@@ -68,7 +68,7 @@ async def to_code(config):
         }
     ),
 )
-async def grove_i2c_motor_run_to_code(config, action_id, template_arg, args):
+async def grove_tb6612fng_run_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
@@ -83,7 +83,7 @@ async def grove_i2c_motor_run_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "grove_i2c_motor.break",
+    "grove_tb6612fng.break",
     GROVETB6612FNGMotorBrakeAction,
     cv.Schema(
         {
@@ -92,7 +92,7 @@ async def grove_i2c_motor_run_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-async def grove_i2c_motor_break_to_code(config, action_id, template_arg, args):
+async def grove_tb6612fng_break_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
@@ -102,7 +102,7 @@ async def grove_i2c_motor_break_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "grove_i2c_motor.stop",
+    "grove_tb6612fng.stop",
     GROVETB6612FNGMotorStopAction,
     cv.Schema(
         {
@@ -111,7 +111,7 @@ async def grove_i2c_motor_break_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-async def grove_i2c_motor_stop_to_code(config, action_id, template_arg, args):
+async def grove_tb6612fng_stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
@@ -121,7 +121,7 @@ async def grove_i2c_motor_stop_to_code(config, action_id, template_arg, args):
 
 
 @automation.register_action(
-    "grove_i2c_motor.standby",
+    "grove_tb6612fng.standby",
     GROVETB6612FNGMotorStandbyAction,
     cv.Schema(
         {
@@ -129,7 +129,7 @@ async def grove_i2c_motor_stop_to_code(config, action_id, template_arg, args):
         }
     ),
 )
-async def grove_i2c_motor_standby_to_code(config, action_id, template_arg, args):
+async def grove_tb6612fng_standby_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 
@@ -137,7 +137,7 @@ async def grove_i2c_motor_standby_to_code(config, action_id, template_arg, args)
 
 
 @automation.register_action(
-    "grove_i2c_motor.no_standby",
+    "grove_tb6612fng.no_standby",
     GROVETB6612FNGMotorNoStandbyAction,
     cv.Schema(
         {
@@ -145,7 +145,7 @@ async def grove_i2c_motor_standby_to_code(config, action_id, template_arg, args)
         }
     ),
 )
-async def grove_i2c_motor_no_standby_to_code(config, action_id, template_arg, args):
+async def grove_tb6612fng_no_standby_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
     await cg.register_parented(var, config[CONF_ID])
 

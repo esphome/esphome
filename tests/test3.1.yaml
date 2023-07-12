@@ -303,7 +303,7 @@ sm2135:
   rgb_current: 20mA
   cw_current: 60mA
 
-grove_i2c_motor:
+grove_tb6612fng:
   id: test_motor
   address: 0x14
 
@@ -363,7 +363,7 @@ switch:
     optimistic: True
     on_turn_on:
       then:
-        - grove_i2c_motor.run:
+        - grove_tb6612fng.run:
             channel: 1
             speed: 255
             direction: BACKWARD
