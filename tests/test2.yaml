@@ -316,6 +316,7 @@ sensor:
     platform: airthings_wave_plus
     ble_client_id: airthings01
     update_interval: 5min
+    battery_update_interval: 12h
     temperature:
       name: Wave Plus Temperature
     radon:
@@ -330,10 +331,13 @@ sensor:
       name: Wave Plus CO2
     tvoc:
       name: Wave Plus VOC
+    battery_voltage:
+      name: Wave Plus Battery Voltage
   - id: airthingswm
     platform: airthings_wave_mini
     ble_client_id: airthingsmini01
     update_interval: 5min
+    battery_update_interval: 12h
     temperature:
       name: Wave Mini Temperature
     humidity:
@@ -342,6 +346,8 @@ sensor:
       name: Wave Mini Pressure
     tvoc:
       name: Wave Mini VOC
+    battery_voltage:
+      name: Wave Mini Battery Voltage
   - platform: ina260
     address: 0x40
     current:
