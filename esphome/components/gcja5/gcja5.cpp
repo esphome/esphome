@@ -101,19 +101,6 @@ void GCJA5Component::parse_data_() {
     ESP_LOGVV(TAG, "Good packet found.");
 
   have_good_data_ = true;
-
-  /*
-  uint32_t pm1_0 = get_32_bit_uint(1);
-  uint32_t pm2_5 = get_32_bit_uint(5);
-  uint32_t pm10_0 = get_32_bit_uint(9);
-  uint16_t pmc0_5 = get_16_bit_uint(13);
-  uint16_t pmc1_0 = get_16_bit_uint(15);
-  uint16_t pmc2_5 = get_16_bit_uint(17);
-  uint16_t pmc5_0 = get_16_bit_uint(21);
-  uint16_t pmc7_5 = get_16_bit_uint(23);
-  uint16_t pmc10_0 = get_16_bit_uint(25);
-  */
-
   uint8_t status = this->rx_message_[29];
   if (!first_status_log_) {
     first_status_log_ = true;
