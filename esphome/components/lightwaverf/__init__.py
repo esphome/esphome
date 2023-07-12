@@ -36,28 +36,16 @@ CONFIG_SCHEMA = cv.Schema(
 ).extend(cv.polling_component_schema("1s"))
 
 
-"""
-
 def validate_rc_switch_raw_code(value):
     if not isinstance(value, list):
         raise cv.Invalid("All Lightwave rf raw codes must a list of hex (0x00,0x00)")
     else:
-        valid_value = True
-        for i, val in enumerate(value):
-            if val < 0:
-                valid_value = False
-                break
-        if not valid_value:
+        not_valid_value = any(i for i, val in enumerate(value) if val < 0)
+        if not_valid_value:
             raise cv.Invalid("One or more values in the code are negative")
 
     return value
 
-
-
-
-
-
-"""
 
 LIGHTWAVE_SEND_SCHEMA = cv.Any(
     cv.int_range(min=1),
@@ -68,7 +56,7 @@ LIGHTWAVE_SEND_SCHEMA = cv.Any(
             cv.Required(CONF_CODE): cv.All(
                 [cv.Any(cv.hex_uint8_t)],
                 cv.Length(min=10),
-                # validate_rc_switch_raw_code,
+                validate_rc_switch_raw_code,
             ),
             cv.Optional(CONF_REPEAT, default=10): cv.int_,
             cv.Optional(CONF_INVERTED, default=False): cv.boolean,

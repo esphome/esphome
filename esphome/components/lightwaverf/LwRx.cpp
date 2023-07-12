@@ -311,7 +311,6 @@ void LwRx::lwrx_set_pair_mode(bool pair_enforce, bool pair_base_only) {
   !!! For Spark, any pin will work
 **/
 void LwRx::lwrx_setup(InternalGPIOPin *pin) {
-  restore_eeprom_pairing_();
   // rx_pin = pin;
   pin->setup();
   rx_pin_isr_ = pin->to_isr();
