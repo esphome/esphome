@@ -1,4 +1,4 @@
-#include "grove_i2c_motor.h"
+#include "grove_tb6612fng.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
