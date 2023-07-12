@@ -21,7 +21,6 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_arduino,
     cv.only_on(["esp32", "esp8266"]),
 )
 
@@ -34,8 +33,9 @@ async def to_code(config):
     await cg.register_component(var, config)
     cg.add_define("USE_CAPTIVE_PORTAL")
 
-    if CORE.is_esp32:
-        cg.add_library("DNSServer", None)
-        cg.add_library("WiFi", None)
-    if CORE.is_esp8266:
-        cg.add_library("DNSServer", None)
+    if CORE.using_arduino:
+        if CORE.is_esp32:
+            cg.add_library("DNSServer", None)
+            cg.add_library("WiFi", None)
+        if CORE.is_esp8266:
+            cg.add_library("DNSServer", None)
