@@ -246,6 +246,7 @@ def final_validate_device_schema(
     baud_rate: Optional[int] = None,
     require_tx: bool = False,
     require_rx: bool = False,
+    data_bits: Optional[int] = None,
     parity: Optional[str] = None,
     stop_bits: Optional[int] = None,
 ):
@@ -268,6 +269,13 @@ def final_validate_device_schema(
 
         return validator
 
+    def validate_data_bits(value):
+        if value != data_bits:
+            raise cv.Invalid(
+                f"Component {name} requires {data_bits} data bits for the uart bus"
+            )
+        return value
+
     def validate_parity(value):
         if value != parity:
             raise cv.Invalid(
@@ -278,7 +286,7 @@ def final_validate_device_schema(
     def validate_stop_bits(value):
         if value != stop_bits:
             raise cv.Invalid(
-                f"Component {name} requires stop bits {stop_bits} for the uart bus"
+                f"Component {name} requires {stop_bits} stop bits for the uart bus"
             )
         return value
 
@@ -304,6 +312,8 @@ def final_validate_device_schema(
             ] = validate_pin(CONF_RX_PIN, device)
         if baud_rate is not None:
             hub_schema[cv.Required(CONF_BAUD_RATE)] = validate_baud_rate
+        if data_bits is not None:
+            hub_schema[cv.Required(CONF_DATA_BITS)] = validate_data_bits
         if parity is not None:
             hub_schema[cv.Required(CONF_PARITY)] = validate_parity
         if stop_bits is not None:
