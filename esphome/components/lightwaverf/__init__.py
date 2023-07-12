@@ -39,10 +39,10 @@ CONFIG_SCHEMA = cv.Schema(
 def validate_rc_switch_raw_code(value):
     if not isinstance(value, list):
         raise cv.Invalid("All Lightwave rf raw codes must a list of hex (0x00,0x00)")
-    else:
-        not_valid_value = any(i for i, val in enumerate(value) if val < 0)
-        if not_valid_value:
-            raise cv.Invalid("One or more values in the code are negative")
+
+    not_valid_value = any(i for i, val in enumerate(value) if val < 0)
+    if not_valid_value:
+        raise cv.Invalid("One or more values in the code are negative")
 
     return value
 
