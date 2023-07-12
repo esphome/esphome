@@ -11,7 +11,7 @@ void TemplateBinarySensor::setup() {
     return;
 
   if (this->f_ != nullptr) {
-    this->publish_initial_state(*this->f_());
+    this->publish_initial_state(this->f_().value_or(false));
   } else {
     this->publish_initial_state(false);
   }

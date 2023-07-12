@@ -107,16 +107,16 @@ void ESP32BLETracker::loop() {
         ESP_LOGW(TAG, "Too many BLE events to process. Some devices may not show up.");
       }
 
-      bool bulk_parsed = false;
-
-      for (auto *listener : this->listeners_) {
-        bulk_parsed |= listener->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+      if (this->raw_advertisements_) {
+        for (auto *listener : this->listeners_) {
+          listener->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+        }
+        for (auto *client : this->clients_) {
+          client->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
+        }
       }
-      for (auto *client : this->clients_) {
-        bulk_parsed |= client->parse_devices(this->scan_result_buffer_, this->scan_result_index_);
-      }
 
-      if (!bulk_parsed) {
+      if (this->parse_advertisements_) {
         for (size_t i = 0; i < index; i++) {
           ESPBTDevice device;
           device.parse_scan_rst(this->scan_result_buffer_[i]);
@@ -284,6 +284,32 @@ void ESP32BLETracker::end_of_scan_() {
 void ESP32BLETracker::register_client(ESPBTClient *client) {
   client->app_id = ++this->app_id_;
   this->clients_.push_back(client);
+  this->recalculate_advertisement_parser_types();
+}
+
+void ESP32BLETracker::register_listener(ESPBTDeviceListener *listener) {
+  listener->set_parent(this);
+  this->listeners_.push_back(listener);
+  this->recalculate_advertisement_parser_types();
+}
+
+void ESP32BLETracker::recalculate_advertisement_parser_types() {
+  this->raw_advertisements_ = false;
+  this->parse_advertisements_ = false;
+  for (auto *listener : this->listeners_) {
+    if (listener->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
+      this->parse_advertisements_ = true;
+    } else {
+      this->raw_advertisements_ = true;
+    }
+  }
+  for (auto *client : this->clients_) {
+    if (client->get_advertisement_parser_type() == AdvertisementParserType::PARSED_ADVERTISEMENTS) {
+      this->parse_advertisements_ = true;
+    } else {
+      this->raw_advertisements_ = true;
+    }
+  }
 }
 
 void ESP32BLETracker::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {
