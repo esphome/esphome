@@ -65,8 +65,8 @@ void TT21100Touchscreen::setup() {
   }
 
   // Update display dimensions if they were updated during display setup
-  this->display_width_ = this->display_->get_width_internal();
-  this->display_height_ = this->display_->get_height_internal();
+  this->display_width_ = this->display_->get_width();
+  this->display_height_ = this->display_->get_height();
   this->rotation_ = static_cast<TouchRotation>(this->display_->get_rotation());
 
   // Trigger initial read to activate the interrupt
