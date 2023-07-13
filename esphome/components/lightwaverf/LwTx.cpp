@@ -102,22 +102,22 @@ static void IRAM_ATTR isr_t_xtimer(LwTx *arg) {
 /**
   Check for send free
 **/
-bool LwTx::lwtx_free() { return !tx_msg_active; }
+bool LwTx::lwtx_free() { return !this->tx_msg_active; }
 
 /**
   Send a LightwaveRF message (10 nibbles in bytes)
 **/
 void LwTx::lwtx_send(const std::vector<uint8_t> &msg) {
-  if (tx_translate) {
+  if (this->tx_translate) {
     for (uint8_t i = 0; i < TX_MSGLEN; i++) {
-      tx_buf[i] = TX_NIBBLE[msg[i] & 0xF];
+      this->tx_buf[i] = TX_NIBBLE[msg[i] & 0xF];
       ESP_LOGD("lightwaverf.sensor", "%x ", msg[i]);
     }
   } else {
     // memcpy(tx_buf, msg, tx_msglen);
   }
   this->lw_timer_start();
-  tx_msg_active = true;
+  this->tx_msg_active = true;
 }
 
 /**
@@ -125,7 +125,7 @@ void LwTx::lwtx_send(const std::vector<uint8_t> &msg) {
 **/
 void LwTx::lwtx_setaddr(const uint8_t *addr) {
   for (uint8_t i = 0; i < 5; i++) {
-    tx_buf[i + 4] = TX_NIBBLE[addr[i] & 0xF];
+    this->tx_buf[i + 4] = TX_NIBBLE[addr[i] & 0xF];
   }
 }
 
@@ -134,13 +134,13 @@ void LwTx::lwtx_setaddr(const uint8_t *addr) {
 **/
 void LwTx::lwtx_cmd(uint8_t command, uint8_t parameter, uint8_t room, uint8_t device) {
   // enable timer 2 interrupts
-  tx_buf[0] = TX_NIBBLE[parameter >> 4];
-  tx_buf[1] = TX_NIBBLE[parameter & 0xF];
-  tx_buf[2] = TX_NIBBLE[device & 0xF];
-  tx_buf[3] = TX_NIBBLE[command & 0xF];
-  tx_buf[9] = TX_NIBBLE[room & 0xF];
+  this->tx_buf[0] = TX_NIBBLE[parameter >> 4];
+  this->tx_buf[1] = TX_NIBBLE[parameter & 0xF];
+  this->tx_buf[2] = TX_NIBBLE[device & 0xF];
+  this->tx_buf[3] = TX_NIBBLE[command & 0xF];
+  this->tx_buf[9] = TX_NIBBLE[room & 0xF];
   this->lw_timer_start();
-  tx_msg_active = true;
+  this->tx_msg_active = true;
 }
 
 /**
@@ -154,14 +154,14 @@ void LwTx::lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, bool inverted, int 
   tx_pin->digital_write(txoff);
 
   if (repeats > 0 && repeats < 40) {
-    tx_repeats = repeats;
+    this->tx_repeats = repeats;
   }
   if (inverted) {
-    txon = 0;
-    txoff = 1;
+    this->txon = 0;
+    this->txoff = 1;
   } else {
-    txon = 1;
-    txoff = 0;
+    this->txon = 1;
+    this->txoff = 0;
   }
 
   int period1 = 330;
@@ -172,18 +172,18 @@ void LwTx::lwtx_setup(InternalGPIOPin *pin, uint8_t repeats, bool inverted, int 
     // default 330 uSec
     period1 = 330;
   }*/
-  espPeriod = 5 * period1;
+  this->espPeriod = 5 * period1;
   timer1_isr_init();
 }
 
 void LwTx::lwtx_set_tick_counts(uint8_t low_count, uint8_t high_count, uint8_t trail_count, uint8_t gap_count) {
-  tx_low_count = low_count;
-  tx_high_count = high_count;
-  tx_trail_count = trail_count;
-  tx_gap_count = gap_count;
+  this->tx_low_count = low_count;
+  this->tx_high_count = high_count;
+  this->tx_trail_count = trail_count;
+  this->tx_gap_count = gap_count;
 }
 
-void LwTx::lwtx_set_gap_multiplier(uint8_t gap_multiplier) { tx_gap_multiplier = gap_multiplier; }
+void LwTx::lwtx_set_gap_multiplier(uint8_t gap_multiplier) { this->tx_gap_multiplier = gap_multiplier; }
 
 void LwTx::lw_timer_start() {
   {
@@ -191,7 +191,7 @@ void LwTx::lw_timer_start() {
     static LwTx *arg = this;  // NOLINT
     timer1_attachInterrupt([] { isr_t_xtimer(arg); });
     timer1_enable(TIM_DIV16, TIM_EDGE, TIM_LOOP);
-    timer1_write(espPeriod);
+    timer1_write(this->espPeriod);
   }
 }
 

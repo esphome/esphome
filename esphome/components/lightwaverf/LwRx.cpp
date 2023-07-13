@@ -172,26 +172,26 @@ void IRAM_ATTR LwRx::rx_process_bits(LwRx *args) {
 /**
   Test if a message has arrived
 **/
-bool LwRx::lwrx_message() { return (rx_msgcomplete); }
+bool LwRx::lwrx_message() { return (this->rx_msgcomplete); }
 
 /**
   Set translate mode
 **/
-void LwRx::lwrx_settranslate(bool rxtranslate) { rx_translate = rxtranslate; }
+void LwRx::lwrx_settranslate(bool rxtranslate) { this->rx_translate = rxtranslate; }
 /**
   Transfer a message to user buffer
 **/
 bool LwRx::lwrx_getmessage(uint8_t *buf, uint8_t len) {
   bool ret = true;
   int16_t j = 0;  // int
-  if (rx_msgcomplete && len <= RX_MSGLEN) {
+  if (this->rx_msgcomplete && len <= RX_MSGLEN) {
     for (uint8_t i = 0; ret && i < RX_MSGLEN; i++) {
-      if (rx_translate || (len != RX_MSGLEN)) {
-        j = this->rx_find_nibble_(rx_msg[i]);
+      if (this->rx_translate || (len != RX_MSGLEN)) {
+        j = this->rx_find_nibble_(this->rx_msg[i]);
         if (j < 0)
           ret = false;
       } else {
-        j = rx_msg[i];
+        j = this->rx_msg[i];
       }
       switch (len) {
         case 4:
@@ -212,7 +212,7 @@ bool LwRx::lwrx_getmessage(uint8_t *buf, uint8_t len) {
           break;
       }
     }
-    rx_msgcomplete = false;
+    this->rx_msgcomplete = false;
   } else {
     ret = false;
   }
@@ -222,14 +222,14 @@ bool LwRx::lwrx_getmessage(uint8_t *buf, uint8_t len) {
 /**
   Return time in milliseconds since last packet received
 **/
-uint32_t LwRx::lwrx_packetinterval() { return millis() - rx_prevpkttime; }
+uint32_t LwRx::lwrx_packetinterval() { return millis() - this->rx_prevpkttime; }
 
 /**
   Set up repeat filtering of received messages
 **/
 void LwRx::lwrx_setfilter(uint8_t repeats, uint8_t timeout) {
-  rx_repeats = repeats;
-  rx_timeout = timeout;
+  this->rx_repeats = repeats;
+  this->rx_timeout = timeout;
 }
 
 /**
@@ -238,36 +238,36 @@ void LwRx::lwrx_setfilter(uint8_t repeats, uint8_t timeout) {
   pairdata is held in translated form to make comparisons quicker
 **/
 uint8_t LwRx::lwrx_addpair(const uint8_t *pairdata) {
-  if (rx_paircount < RX_MAXPAIRS) {
+  if (this->rx_paircount < RX_MAXPAIRS) {
     for (uint8_t i = 0; i < 8; i++) {
-      rx_pairs[rx_paircount][i] = RX_NIBBLE[pairdata[i]];
+      this->rx_pairs[rx_paircount][i] = RX_NIBBLE[pairdata[i]];
     }
     this->rx_paircommit_();
   }
-  return rx_paircount;
+  return this->rx_paircount;
 }
 
 /**
   Make a pair from next message successfully received
 **/
 void LwRx::lwrx_makepair(uint8_t timeout) {
-  rx_pairtimeout = timeout;
-  rx_pairstarttime = millis();
+  this->rx_pairtimeout = timeout;
+  this->rx_pairstarttime = millis();
 }
 
 /**
   Get pair data (translated back to nibble form
 **/
 uint8_t LwRx::lwrx_getpair(uint8_t *pairdata, uint8_t pairnumber) {
-  if (pairnumber < rx_paircount) {
+  if (pairnumber < this->rx_paircount) {
     int16_t j;  // int
     for (uint8_t i = 0; i < 8; i++) {
-      j = this->rx_find_nibble_(rx_pairs[pairnumber][i]);
+      j = this->rx_find_nibble_(this->rx_pairs[pairnumber][i]);
       if (j >= 0)
         pairdata[i] = j;
     }
   }
-  return rx_paircount;
+  return this->rx_paircount;
 }
 
 /**
@@ -279,8 +279,8 @@ void LwRx::lwrx_clearpairing_() { rx_paircount = 0; }
   Return stats on high and low pulses
 **/
 bool LwRx::lwrx_getstats_(uint16_t *stats) {  // unsigned int
-  if (lwrx_stats_enable) {
-    memcpy(stats, lwrx_stats, 2 * RX_STAT_COUNT);
+  if (this->lwrx_stats_enable) {
+    memcpy(stats, this->lwrx_stats, 2 * RX_STAT_COUNT);
     return true;
   } else {
     return false;
@@ -291,18 +291,18 @@ bool LwRx::lwrx_getstats_(uint16_t *stats) {  // unsigned int
   Set stats mode
 **/
 void LwRx::lwrx_setstatsenable_(bool rx_stats_enable) {
-  lwrx_stats_enable = rx_stats_enable;
-  if (!lwrx_stats_enable) {
+  this->lwrx_stats_enable = rx_stats_enable;
+  if (!this->lwrx_stats_enable) {
     // clear down stats when disabling
-    memcpy(lwrx_stats, LWRX_STATSDFLT, sizeof(LWRX_STATSDFLT));
+    memcpy(this->lwrx_stats, LWRX_STATSDFLT, sizeof(LWRX_STATSDFLT));
   }
 }
 /**
   Set pairs behaviour
 **/
 void LwRx::lwrx_set_pair_mode(bool pair_enforce, bool pair_base_only) {
-  rx_pairEnforce = pair_enforce;
-  rx_pairBaseOnly = pair_base_only;
+  this->rx_pairEnforce = pair_enforce;
+  this->rx_pairBaseOnly = pair_base_only;
 }
 
 /**
@@ -313,10 +313,10 @@ void LwRx::lwrx_set_pair_mode(bool pair_enforce, bool pair_base_only) {
 void LwRx::lwrx_setup(InternalGPIOPin *pin) {
   // rx_pin = pin;
   pin->setup();
-  rx_pin_isr_ = pin->to_isr();
+  this->rx_pin_isr_ = pin->to_isr();
   pin->attach_interrupt(&LwRx::rx_process_bits, this, gpio::INTERRUPT_ANY_EDGE);
 
-  memcpy(lwrx_stats, LWRX_STATSDFLT, sizeof(LWRX_STATSDFLT));
+  memcpy(this->lwrx_stats, LWRX_STATSDFLT, sizeof(LWRX_STATSDFLT));
 }
 
 /**
@@ -324,14 +324,14 @@ void LwRx::lwrx_setup(InternalGPIOPin *pin) {
   returns -1 if none found
 **/
 bool LwRx::rx_report_message_() {
-  if (rx_pairEnforce && rx_paircount == 0) {
+  if (this->rx_pairEnforce && this->rx_paircount == 0) {
     return false;
   } else {
     bool all_devices;
     // True if mood to device 15 or Off cmd with Allof paramater
-    all_devices = ((rx_msg[3] == RX_CMD_MOOD && rx_msg[2] == RX_DEV_15) ||
-                   (rx_msg[3] == RX_CMD_OFF && rx_msg[0] == RX_PAR0_ALLOFF));
-    return (rx_check_pairs_(&rx_msg[2], all_devices) != -1);
+    all_devices = ((this->rx_msg[3] == RX_CMD_MOOD && this->rx_msg[2] == RX_DEV_15) ||
+                   (this->rx_msg[3] == RX_CMD_OFF && this->rx_msg[0] == RX_PAR0_ALLOFF));
+    return (rx_check_pairs_(&this->rx_msg[2], all_devices) != -1);
   }
 }
 /**
@@ -352,8 +352,8 @@ int16_t LwRx::rx_find_nibble_(uint8_t data) {  // int
   add pair from message buffer
 **/
 void LwRx::rx_addpairfrommsg_() {
-  if (rx_paircount < RX_MAXPAIRS) {
-    memcpy(rx_pairs[rx_paircount], &rx_msg[2], 8);
+  if (this->rx_paircount < RX_MAXPAIRS) {
+    memcpy(this->rx_pairs[this->rx_paircount], &this->rx_msg[2], 8);
     this->rx_paircommit_();
   }
 }
@@ -362,8 +362,8 @@ void LwRx::rx_addpairfrommsg_() {
   check and commit pair
 **/
 void LwRx::rx_paircommit_() {
-  if (rx_paircount == 0 || this->rx_check_pairs_(rx_pairs[rx_paircount], false) < 0) {
-    rx_paircount++;
+  if (this->rx_paircount == 0 || this->rx_check_pairs_(this->rx_pairs[this->rx_paircount], false) < 0) {
+    this->rx_paircount++;
   }
 }
 
@@ -374,13 +374,13 @@ void LwRx::rx_paircommit_() {
   Returns matching pair number, -1 if not found, -2 if no pairs defined
 **/
 int16_t LwRx::rx_check_pairs_(const uint8_t *buf, bool all_devices) {  // int
-  if (rx_paircount == 0) {
+  if (this->rx_paircount == 0) {
     return -2;
   } else {
-    int16_t pair = rx_paircount;  // int
-    int16_t j = -1;               // int
-    int16_t jstart, jend;         // int
-    if (rx_pairBaseOnly) {
+    int16_t pair = this->rx_paircount;  // int
+    int16_t j = -1;                     // int
+    int16_t jstart, jend;               // int
+    if (this->rx_pairBaseOnly) {
       // skip room(8) and dev/cmd (0,1)
       jstart = 7;
       jend = 2;
@@ -396,7 +396,7 @@ int16_t LwRx::rx_check_pairs_(const uint8_t *buf, bool all_devices) {  // int
       while (j > jend) {
         j--;
         if (j != 1) {
-          if (rx_pairs[pair][j] != buf[j]) {
+          if (this->rx_pairs[pair][j] != buf[j]) {
             j = -1;
           }
         }
@@ -412,13 +412,13 @@ int16_t LwRx::rx_check_pairs_(const uint8_t *buf, bool all_devices) {  // int
 void LwRx::rx_remove_pair_(uint8_t *buf) {
   int16_t pair = this->rx_check_pairs_(buf, false);  // int
   if (pair >= 0) {
-    while (pair < rx_paircount - 1) {
+    while (pair < this->rx_paircount - 1) {
       for (uint8_t j = 0; j < 8; j++) {
-        rx_pairs[pair][j] = rx_pairs[pair + 1][j];
+        this->rx_pairs[pair][j] = this->rx_pairs[pair + 1][j];
       }
       pair++;
     }
-    rx_paircount--;
+    this->rx_paircount--;
   }
 }
 
