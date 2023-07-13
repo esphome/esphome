@@ -11,7 +11,27 @@ const uint8_t MITSUBISHI_TEMP_MAX = 31;  // Celsius
 
 class MitsubishiClimate : public climate_ir::ClimateIR {
  public:
-  MitsubishiClimate() : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX) {}
+  MitsubishiClimate() : climate_ir::ClimateIR(
+    MITSUBISHI_TEMP_MIN, 
+    MITSUBISHI_TEMP_MAX,
+    1.0f,
+    0,
+    0,
+    {
+      climate::CLIMATE_FAN_LOW,
+      climate::CLIMATE_FAN_MIDDLE,
+      climate::CLIMATE_FAN_HIGH,
+      climate::CLIMATE_FAN_FOCUS,
+      climate::CLIMATE_FAN_QUIET,
+      climate::CLIMATE_FAN_AUTO,
+    },
+    {
+      climate::CLIMATE_SWING_OFF, 
+      climate::CLIMATE_SWING_BOTH, 
+      climate::CLIMATE_SWING_VERTICAL, 
+      climate::CLIMATE_SWING_HORIZONTAL
+    }
+  ) {}
 
  protected:
   /// Transmit via IR the state of this climate controller.
