@@ -5,6 +5,7 @@
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/version.h"
+#include <cinttypes>
 
 #ifdef USE_ESP32
 
@@ -13,14 +14,19 @@
 
 #if ESP_IDF_VERSION_MAJOR >= 4
 #include <esp32/rom/rtc.h>
+#include <esp_chip_info.h>
 #else
 #include <rom/rtc.h>
 #endif
 
 #endif  // USE_ESP32
 
-#if defined(USE_ARDUINO) && !defined(USE_LIBRETINY)
+#ifdef USE_ARDUINO
+#ifdef USE_RP2040
+#include <Arduino.h>
+#elif !defined(USE_LIBRETINY)
 #include <Esp.h>
+#endif
 #endif
 
 namespace esphome {
@@ -33,6 +39,8 @@ static uint32_t get_free_heap() {
   return ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
 #elif defined(USE_ESP32)
   return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
+#elif defined(USE_RP2040)
+  return rp2040.getFreeHeap();
 #endif
 }
 
@@ -61,9 +69,9 @@ void DebugComponent::dump_config() {
   device_info += ESPHOME_VERSION;
 
   this->free_heap_ = get_free_heap();
-  ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
+  ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
 
-#if defined(USE_ARDUINO) && !defined(USE_LIBRETINY)
+#if defined(USE_ARDUINO) && !defined(USE_RP2040) && !defined(USE_LIBRETINY)
   const char *flash_mode;
   switch (ESP.getFlashChipMode()) {  // NOLINT(readability-static-accessed-through-instance)
     case FM_QIO:
@@ -272,6 +280,11 @@ void DebugComponent::dump_config() {
   reset_reason = ESP.getResetReason().c_str();
 #endif
 
+#ifdef USE_RP2040
+  ESP_LOGD(TAG, "CPU Frequency: %u", rp2040.f_cpu());
+  device_info += "CPU Frequency: " + to_string(rp2040.f_cpu());
+#endif  // USE_RP2040
+
 #ifdef USE_LIBRETINY
   ESP_LOGD(TAG, "LT Core Version: %s", lt_get_version());
   ESP_LOGD(TAG, "Chip: %s (%04x) @ %u MHz", lt_cpu_get_model_name(), lt_cpu_get_model(), lt_cpu_get_freq_mhz());
@@ -291,7 +304,7 @@ void DebugComponent::dump_config() {
   device_info += "|RAM: " + to_string(lt_ram_get_size() / 1024) + " KiB";
 
   reset_reason = lt_get_reboot_reason_name(lt_get_reboot_reason());
-#endif
+#endif  // USE_LIBRETINY
 
 #ifdef USE_TEXT_SENSOR
   if (this->device_info_ != nullptr) {
@@ -310,7 +323,7 @@ void DebugComponent::loop() {
   uint32_t new_free_heap = get_free_heap();
   if (new_free_heap < this->free_heap_ / 2) {
     this->free_heap_ = new_free_heap;
-    ESP_LOGD(TAG, "Free Heap Size: %u bytes", this->free_heap_);
+    ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
     this->status_momentary_warning("heap", 1000);
   }
 

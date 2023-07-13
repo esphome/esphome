@@ -108,6 +108,7 @@ ROOT_CONFIG_PATH = object()
 
 RESERVED_IDS = [
     # C++ keywords http://en.cppreference.com/w/cpp/keyword
+    "alarm",
     "alignas",
     "alignof",
     "and",
