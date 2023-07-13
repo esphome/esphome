@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Callable, Dict
+from typing import Callable
 
 import esphome.codegen as cg
 
@@ -7,8 +7,8 @@ import esphome.codegen as cg
 @dataclass
 class LibreTinyComponent:
     name: str
-    boards: Dict[str, Dict[str, str]]
-    board_pins: Dict[str, Dict[str, int]]
+    boards: dict[str, dict[str, str]]
+    board_pins: dict[str, dict[str, int]]
     pin_validation: Callable[[int], int]
     usage_validation: Callable[[dict], dict]
 

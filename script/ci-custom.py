@@ -512,7 +512,10 @@ def relative_py_search_text(fname, content):
 @lint_content_find_check(
     relative_py_search_text,
     include=["esphome/components/*.py"],
-    exclude=["esphome/components/web_server/__init__.py"],
+    exclude=[
+        "esphome/components/libretiny/generate_components.py",
+        "esphome/components/web_server/__init__.py",
+    ],
 )
 def lint_relative_py_import(fname):
     return (

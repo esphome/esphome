@@ -1,5 +1,8 @@
 # Copyright (c) Kuba Szczodrzyński 2023-06-01.
 
+# pylint: skip-file
+# flake8: noqa
+
 import json
 import re
 from pathlib import Path
