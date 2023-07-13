@@ -481,11 +481,43 @@ class ImportRequestHandler(BaseHandler):
         self.finish()
 
 
+class DownloadListRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
+        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is None:
+            self.send_error(404)
+            return
+
+        from esphome.components.esp32 import get_download_types as esp32_types
+        from esphome.components.esp8266 import get_download_types as esp8266_types
+        from esphome.components.rp2040 import get_download_types as rp2040_types
+
+        downloads = []
+        platform = storage_json.target_platform.lower()
+        if platform == const.PLATFORM_RP2040:
+            downloads = rp2040_types(storage_json)
+        elif platform == const.PLATFORM_ESP8266:
+            downloads = esp8266_types(storage_json)
+        elif platform == const.PLATFORM_ESP32:
+            downloads = esp32_types(storage_json)
+        else:
+            self.send_error(418)
+            return
+
+        self.set_status(200)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(downloads))
+        self.finish()
+        return
+
+
 class DownloadBinaryRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        get_list = self.get_argument("list", None)
         compressed = self.get_argument("compressed", "0") == "1"
 
         storage_path = ext_storage_path(settings.config_dir, configuration)
@@ -494,28 +526,12 @@ class DownloadBinaryRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        if get_list is not None:
-            from esphome.components.esp32 import get_download_types as esp32_types
-            from esphome.components.esp8266 import get_download_types as esp8266_types
-            from esphome.components.rp2040 import get_download_types as rp2040_types
-
-            downloads = []
-            if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
-                downloads = rp2040_types(storage_json)
-            elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
-                downloads = esp8266_types(storage_json)
-            else:
-                downloads = esp32_types(storage_json)
-
-            self.set_status(200)
-            self.set_header("content-type", "application/json")
-            self.write(json.dumps(downloads))
-            self.finish()
-            return
-
-        file_name = self.get_argument("file", "firmware-factory.bin")
+        file_name = self.get_argument("file", "firmware.bin")
         file_name = file_name.replace("..", "").lstrip("/")
-        download_name = self.get_argument("download", f"{storage_json.name}.bin")
+        download_name = self.get_argument(
+            "download",
+            f"{storage_json.name}-{file_name}",
+        )
         path = os.path.dirname(storage_json.firmware_bin_path)
         path = os.path.join(path, file_name)
 
@@ -1220,6 +1236,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}update-all", EsphomeUpdateAllHandler),
             (f"{rel}info", InfoRequestHandler),
             (f"{rel}edit", EditRequestHandler),
+            (f"{rel}downloads", DownloadListRequestHandler),
             (f"{rel}download.bin", DownloadBinaryRequestHandler),
             (f"{rel}serial-ports", SerialPortRequestHandler),
             (f"{rel}ping", PingRequestHandler),
