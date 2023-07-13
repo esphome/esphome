@@ -232,6 +232,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
 
         if self._use_popen:
             self._queue = tornado.queues.Queue()
+            # pylint: disable=consider-using-with
             self._proc = subprocess.Popen(
                 command,
                 stdin=subprocess.PIPE,

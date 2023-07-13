@@ -1,5 +1,4 @@
 import argparse
-import colorama
 import functools
 import logging
 import os
@@ -7,6 +6,8 @@ import re
 import sys
 import time
 from datetime import datetime
+
+import colorama
 
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
