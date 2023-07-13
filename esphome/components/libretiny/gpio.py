@@ -3,6 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
 from esphome.const import (
+    CONF_ANALOG,
     CONF_ID,
     CONF_INPUT,
     CONF_INVERTED,
@@ -30,34 +31,66 @@ ArduinoInternalGPIOPin = libretiny_ns.class_(
 )
 
 
-def _lookup_pin(value):
-    board: str = CORE.data[KEY_LIBRETINY][KEY_BOARD]
+def _is_name_deprecated(value):
+    return value[0] in "DA" and value[1:].isnumeric()
+
+
+def _lookup_board_pins(board):
     component: LibreTinyComponent = CORE.data[KEY_LIBRETINY][KEY_COMPONENT_DATA]
     board_pins = component.board_pins.get(board, {})
-
     # Resolve aliased board pins (shorthand when two boards have the same pin configuration)
     while isinstance(board_pins, str):
         board_pins = board_pins[board_pins]
+    return board_pins
 
+
+def _lookup_pin(value):
+    board: str = CORE.data[KEY_LIBRETINY][KEY_BOARD]
+    board_pins = _lookup_board_pins(board)
+
+    # check numeric pin values
     if isinstance(value, int):
         if value in board_pins.values() or not board_pins:
-            # if board is not found, just accept numeric values
+            # accept if pin number present in board pins
+            # if board is not found, just accept all numeric values
             return value
         raise cv.Invalid(f"Pin number '{value}' is not usable for board {board}.")
+
+    # check textual pin names
     if isinstance(value, str):
-        if value in board_pins:
-            if value.startswith("D") or value.startswith("A"):
-                _LOGGER.warning(
-                    "Using D# and A# pin numbering is deprecated. "
-                    f"Please replace '{value}' with: {board_pins[value]}",
-                )
-            return board_pins[value]
         if not board_pins:
+            # can't remap without known pin name
             raise cv.Invalid(
                 f"Board {board} wasn't found. "
                 f"Use 'GPIO#' (numeric value) instead of '{value}'."
             )
+
+        if value in board_pins:
+            # pin name found, remap to numeric value
+            if _is_name_deprecated(value):
+                number = board_pins[value]
+                # find all alternative pin names (except the deprecated)
+                names = (
+                    k
+                    for k, v in board_pins.items()
+                    if v == number and not _is_name_deprecated(k)
+                )
+                # sort by shortest
+                # favor P# or PA# names
+                names = sorted(
+                    names,
+                    key=lambda x: len(x) - 99 if x[0] == "P" else len(x),
+                )
+                _LOGGER.warning(
+                    "Using D# and A# pin numbering is deprecated. "
+                    f"Please replace '{value}' with one of: {', '.join(names)}",
+                )
+            return board_pins[value]
+
+        # pin name not found and not numeric
         raise cv.Invalid(f"Cannot resolve pin name '{value}' for board {board}.")
+
+    # unknown type of the value
     raise cv.Invalid(f"Unrecognized pin value '{value}'.")
 
 
@@ -98,6 +131,7 @@ def validate_gpio_pin(value):
 
 def validate_gpio_usage(value):
     mode = value[CONF_MODE]
+    is_analog = mode[CONF_ANALOG]
     is_input = mode[CONF_INPUT]
     is_output = mode[CONF_OUTPUT]
     is_open_drain = mode[CONF_OPEN_DRAIN]
@@ -108,6 +142,22 @@ def validate_gpio_usage(value):
         raise cv.Invalid(
             "Open-drain only works with output mode", [CONF_MODE, CONF_OPEN_DRAIN]
         )
+    if is_analog and not is_input:
+        raise cv.Invalid("Analog pins must be an input", [CONF_MODE, CONF_ANALOG])
+    if is_analog:
+        # expect analog pin numbers to be available as either ADC# or A#
+        number = value[CONF_NUMBER]
+        board: str = CORE.data[KEY_LIBRETINY][KEY_BOARD]
+        board_pins = _lookup_board_pins(board)
+        analog_pins = [
+            v
+            for k, v in board_pins.items()
+            if k[0] == "A" and k[1:].isnumeric() or k[0:3] == "ADC"
+        ]
+        if number not in analog_pins:
+            raise cv.Invalid(
+                f"Pin '{number}' is not an analog pin", [CONF_MODE, CONF_ANALOG]
+            )
 
     # (input, output, open_drain, pullup, pulldown)
     supported_modes = {
@@ -139,6 +189,7 @@ BASE_PIN_SCHEMA = cv.Schema(
         cv.Required(CONF_NUMBER): validate_gpio_pin,
         cv.Optional(CONF_MODE, default={}): cv.Schema(
             {
+                cv.Optional(CONF_ANALOG, default=False): cv.boolean,
                 cv.Optional(CONF_INPUT, default=False): cv.boolean,
                 cv.Optional(CONF_OUTPUT, default=False): cv.boolean,
                 cv.Optional(CONF_OPEN_DRAIN, default=False): cv.boolean,
