@@ -16,8 +16,7 @@ from esphome.const import (
     KEY_TARGET_PLATFORM,
 )
 from esphome.core import CORE, coroutine_with_priority, EsphomeError
-from esphome.helpers import mkdir_p, write_file
-import esphome.platformio_api as api
+from esphome.helpers import mkdir_p, write_file, copy_file_if_changed
 
 from .const import KEY_BOARD, KEY_PIO_FILES, KEY_RP2040, rp2040_ns
 
@@ -63,19 +62,19 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(2, 6, 4)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 3, 0)
 
 # The platformio/raspberrypi version to use for arduino frameworks
 #  - https://github.com/platformio/platform-raspberrypi/releases
 #  - https://api.registry.platformio.org/v3/packages/platformio/platform/raspberrypi
-ARDUINO_PLATFORM_VERSION = cv.Version(1, 7, 0)
+ARDUINO_PLATFORM_VERSION = cv.Version(1, 9, 0)
 
 
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(2, 6, 4), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(2, 6, 4), None),
+        "dev": (cv.Version(3, 3, 0), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(3, 3, 0), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
@@ -193,25 +192,20 @@ def generate_pio_files() -> bool:
         pio_path = CORE.relative_build_path(f"src/pio/{key}.pio")
         mkdir_p(os.path.dirname(pio_path))
         write_file(pio_path, data)
-        _LOGGER.info("Assembling PIO assembly code")
-        retval = api.run_platformio_cli(
-            "pkg",
-            "exec",
-            "--package",
-            "earlephilhower/tool-pioasm-rp2040-earlephilhower",
-            "--",
-            "pioasm",
-            pio_path,
-            pio_path + ".h",
-        )
         includes.append(f"pio/{key}.pio.h")
-        if retval != 0:
-            raise EsphomeError("PIO assembly failed")
 
     write_file(
         CORE.relative_build_path("src/pio_includes.h"),
         "#pragma once\n" + "\n".join([f'#include "{include}"' for include in includes]),
     )
+
+    dir = os.path.dirname(__file__)
+    build_pio_file = os.path.join(dir, "build_pio.py.script")
+    copy_file_if_changed(
+        build_pio_file,
+        CORE.relative_build_path("build_pio.py"),
+    )
+
     return True
 
 
