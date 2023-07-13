@@ -67,8 +67,8 @@ void MitsubishiClimate::transmit_state() {
       remote_state[9] |= MITSUBISHI_VANE_MOVE;
       break;
     case climate::CLIMATE_SWING_OFF:
-      remote_state[9] |= MITSUBISHI_VANE_MID;
     default:
+      remote_state[9] |= MITSUBISHI_VANE_MID;
       break;
   }
 
