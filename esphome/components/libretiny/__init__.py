@@ -156,7 +156,7 @@ def _notify_old_style(config):
 ARDUINO_VERSIONS = {
     "dev": (cv.Version(0, 0, 0), "https://github.com/kuba2k2/libretiny.git"),
     "latest": (cv.Version(0, 0, 0), None),
-    "recommended": (cv.Version(1, 1, 0), None),
+    "recommended": (cv.Version(1, 2, 0), None),
 }
 
 

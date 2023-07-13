@@ -48,7 +48,7 @@ def _lookup_pin(value):
         if value in board_pins:
             if value.startswith("D") or value.startswith("A"):
                 _LOGGER.warning(
-                    "Using D# and A# pin numbering is deprecated."
+                    "Using D# and A# pin numbering is deprecated. "
                     f"Please replace '{value}' with: {board_pins[value]}",
                 )
             return board_pins[value]
