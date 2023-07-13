@@ -41,6 +41,7 @@ esphome/components/bedjet/climate/* @jhansche
 esphome/components/bedjet/fan/* @jhansche
 esphome/components/bh1750/* @OttoWinter
 esphome/components/binary_sensor/* @esphome/core
+esphome/components/bk72xx/* @kuba2k2
 esphome/components/bl0939/* @ziceva
 esphome/components/bl0940/* @tobias-
 esphome/components/bl0942/* @dbuezas
@@ -231,6 +232,7 @@ esphome/components/rgbct/* @jesserockz
 esphome/components/rp2040/* @jesserockz
 esphome/components/rp2040_pio_led_strip/* @Papa-DMan
 esphome/components/rp2040_pwm/* @jesserockz
+esphome/components/rtl87xx/* @kuba2k2
 esphome/components/rtttl/* @glmnet
 esphome/components/safe_mode/* @jsuanet @paulmonigatti
 esphome/components/scd4x/* @martgras @sjtrny

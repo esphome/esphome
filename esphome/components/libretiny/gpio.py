@@ -83,7 +83,9 @@ def _lookup_pin(value):
                 )
                 _LOGGER.warning(
                     "Using D# and A# pin numbering is deprecated. "
-                    "Please replace '%s' with one of: %s" % (value, ", ".join(names)),
+                    "Please replace '%s' with one of: %s",
+                    value,
+                    ", ".join(names),
                 )
             return board_pins[value]
 
