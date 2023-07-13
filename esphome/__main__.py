@@ -1,4 +1,5 @@
 import argparse
+import colorama
 import functools
 import logging
 import os
@@ -668,6 +669,7 @@ POST_CONFIG_ACTIONS = {
 
 
 def parse_args(argv):
+    colorama.init()
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
         "-v", "--verbose", help="Enable verbose ESPHome logs.", action="store_true"
