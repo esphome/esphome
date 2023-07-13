@@ -30,6 +30,11 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32C3,
     VARIANT_ESP32S3,
 )
+from esphome.components.libretiny import get_libretiny_component, get_libretiny_family
+from esphome.components.libretiny.const import (
+    COMPONENT_BK72XX,
+    COMPONENT_RTL87XX,
+)
 
 CODEOWNERS = ["@esphome/core"]
 logger_ns = cg.esphome_ns.namespace("logger")
@@ -69,9 +74,7 @@ UART2 = "UART2"
 UART0_SWAP = "UART0_SWAP"
 USB_SERIAL_JTAG = "USB_SERIAL_JTAG"
 USB_CDC = "USB_CDC"
-SERIAL0 = "SERIAL0"
-SERIAL1 = "SERIAL1"
-SERIAL2 = "SERIAL2"
+DEFAULT = "DEFAULT"
 
 UART_SELECTION_ESP32 = {
     VARIANT_ESP32: [UART0, UART1, UART2],
@@ -81,7 +84,11 @@ UART_SELECTION_ESP32 = {
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
-UART_SELECTION_LT = [UART0, SERIAL0, SERIAL1, SERIAL2]
+
+UART_SELECTION_LIBRETINY = {
+    COMPONENT_BK72XX: [DEFAULT, UART1, UART2],
+    COMPONENT_RTL87XX: [DEFAULT, UART0, UART1, UART2],
+}
 
 ESP_IDF_UARTS = [USB_CDC, USB_SERIAL_JTAG]
 
@@ -94,9 +101,7 @@ HARDWARE_UART_TO_UART_SELECTION = {
     UART2: logger_ns.UART_SELECTION_UART2,
     USB_CDC: logger_ns.UART_SELECTION_USB_CDC,
     USB_SERIAL_JTAG: logger_ns.UART_SELECTION_USB_SERIAL_JTAG,
-    SERIAL0: logger_ns.UART_SELECTION_SERIAL0,
-    SERIAL1: logger_ns.UART_SELECTION_SERIAL1,
-    SERIAL2: logger_ns.UART_SELECTION_SERIAL2,
+    DEFAULT: logger_ns.UART_SELECTION_DEFAULT,
 }
 
 HARDWARE_UART_TO_SERIAL = {
@@ -104,9 +109,7 @@ HARDWARE_UART_TO_SERIAL = {
     UART0_SWAP: cg.global_ns.Serial,
     UART1: cg.global_ns.Serial1,
     UART2: cg.global_ns.Serial2,
-    SERIAL0: cg.global_ns.Serial0,
-    SERIAL1: cg.global_ns.Serial1,
-    SERIAL2: cg.global_ns.Serial2,
+    DEFAULT: cg.global_ns.Serial,
 }
 
 is_log_level = cv.one_of(*LOG_LEVELS, upper=True)
@@ -124,7 +127,12 @@ def uart_selection(value):
     if CORE.is_rp2040:
         return cv.one_of(*UART_SELECTION_RP2040, upper=True)(value)
     if CORE.is_libretiny:
-        return cv.one_of(*UART_SELECTION_LT, upper=True)(value)
+        family = get_libretiny_family()
+        if family in UART_SELECTION_LIBRETINY:
+            return cv.one_of(*UART_SELECTION_LIBRETINY[family], upper=True)(value)
+        component = get_libretiny_component()
+        if component in UART_SELECTION_LIBRETINY:
+            return cv.one_of(*UART_SELECTION_LIBRETINY[component], upper=True)(value)
     raise NotImplementedError
 
 
@@ -157,7 +165,7 @@ CONFIG_SCHEMA = cv.All(
                 esp8266=UART0,
                 esp32=UART0,
                 rp2040=USB_CDC,
-                libretiny=UART0,
+                libretiny=DEFAULT,
             ): cv.All(
                 cv.only_on(
                     [

@@ -286,7 +286,7 @@ void DebugComponent::dump_config() {
 #endif  // USE_RP2040
 
 #ifdef USE_LIBRETINY
-  ESP_LOGD(TAG, "LT Core Version: %s", lt_get_version());
+  ESP_LOGD(TAG, "LibreTiny Version: %s", lt_get_version());
   ESP_LOGD(TAG, "Chip: %s (%04x) @ %u MHz", lt_cpu_get_model_name(), lt_cpu_get_model(), lt_cpu_get_freq_mhz());
   ESP_LOGD(TAG, "Chip ID: 0x%06X", lt_cpu_get_mac_id());
   ESP_LOGD(TAG, "Board: %s", lt_get_board_code());

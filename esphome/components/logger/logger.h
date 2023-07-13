@@ -31,14 +31,17 @@ namespace logger {
  * Advanced configuration (pin selection, etc) is not supported.
  */
 enum UARTSelection {
-  UART_SELECTION_UART0 = 0,
 #ifdef USE_LIBRETINY
+  UART_SELECTION_DEFAULT = 0,
+  UART_SELECTION_UART0,
+  UART_SELECTION_UART1,
+  UART_SELECTION_UART2,
+#else
+  UART_SELECTION_UART0 = 0,
   UART_SELECTION_SERIAL0,
   UART_SELECTION_SERIAL1,
   UART_SELECTION_SERIAL2,
-#else
   UART_SELECTION_UART1,
-#endif
 #if defined(USE_ESP32)
 #if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
   UART_SELECTION_UART2,
@@ -58,8 +61,9 @@ enum UARTSelection {
 #ifdef USE_RP2040
   UART_SELECTION_USB_CDC,
 #endif  // USE_RP2040
+#endif  // USE_LIBRETINY
 };
-#endif  // USE_ESP32 || USE_ESP8266
+#endif  // USE_ESP32 || USE_ESP8266 || USE_RP2040 || USE_LIBRETINY
 
 class Logger : public Component {
  public:
@@ -148,8 +152,11 @@ class Logger : public Component {
   char *tx_buffer_{nullptr};
   int tx_buffer_at_{0};
   int tx_buffer_size_{0};
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
   UARTSelection uart_{UART_SELECTION_UART0};
+#endif
+#ifdef USE_LIBRETINY
+  UARTSelection uart_{UART_SELECTION_DEFAULT};
 #endif
 #ifdef USE_ARDUINO
   Stream *hw_serial_{nullptr};

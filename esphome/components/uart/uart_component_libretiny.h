@@ -2,7 +2,6 @@
 
 #ifdef USE_LIBRETINY
 
-#include <HardwareSerial.h>
 #include <vector>
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
@@ -27,6 +26,9 @@ class LibreTinyUARTComponent : public UARTComponent, public Component {
   void flush() override;
 
   uint16_t get_config();
+
+  HardwareSerial *get_hw_serial() { return this->serial_; }
+  int8_t get_hw_serial_number() { return this->hardware_idx_; }
 
  protected:
   void check_logger_conflict() override;
