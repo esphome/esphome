@@ -21,7 +21,8 @@ const std::set<climate::ClimateSwingMode> SUPPORTED_SWINGS = {climate::CLIMATE_S
 class MitsubishiClimate : public climate_ir::ClimateIR {
  public:
   MitsubishiClimate()
-      : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, 0, 0, SUPPORTED_FANS, SUPPORTED_SWINGS) {}
+      : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, false, false, SUPPORTED_FANS,
+                              SUPPORTED_SWINGS) {}
 
  protected:
   /// Transmit via IR the state of this climate controller.
