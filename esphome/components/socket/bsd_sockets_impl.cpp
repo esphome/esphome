@@ -139,6 +139,11 @@ class BSDSocketImpl : public Socket {
     return ::writev(fd_, iov, iovcnt);
 #endif
   }
+
+  ssize_t sendto(const void *buf, size_t len, int flags, const struct sockaddr *to, socklen_t tolen) override {
+    return ::sendto(fd_, buf, len, flags, to, tolen);
+  }
+
   int setblocking(bool blocking) override {
     int fl = ::fcntl(fd_, F_GETFL, 0);
     if (blocking) {

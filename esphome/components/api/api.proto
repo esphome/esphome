@@ -55,6 +55,9 @@ service APIConnection {
   rpc subscribe_bluetooth_connections_free(SubscribeBluetoothConnectionsFreeRequest) returns (BluetoothConnectionsFreeResponse) {}
   rpc unsubscribe_bluetooth_le_advertisements(UnsubscribeBluetoothLEAdvertisementsRequest) returns (void) {}
 
+  rpc subscribe_voice_assistant(SubscribeVoiceAssistantRequest) returns (void) {}
+
+  rpc alarm_control_panel_command (AlarmControlPanelCommandRequest) returns (void) {}
 }
 
 
@@ -205,11 +208,14 @@ message DeviceInfoResponse {
 
   uint32 webserver_port = 10;
 
-  uint32 bluetooth_proxy_version = 11;
+  uint32 legacy_bluetooth_proxy_version = 11;
+  uint32 bluetooth_proxy_feature_flags = 15;
 
   string manufacturer = 12;
 
   string friendly_name = 13;
+
+  uint32 voice_assistant_version = 14;
 }
 
 message ListEntitiesRequest {
@@ -285,6 +291,7 @@ message ListEntitiesCoverResponse {
   bool disabled_by_default = 9;
   string icon = 10;
   EntityCategory entity_category = 11;
+  bool supports_stop = 12;
 }
 
 enum LegacyCoverState {
@@ -858,8 +865,7 @@ message ClimateStateResponse {
   float target_temperature = 4;
   float target_temperature_low = 5;
   float target_temperature_high = 6;
-  // For older peers, equal to preset == CLIMATE_PRESET_AWAY
-  bool legacy_away = 7;
+  bool unused_legacy_away = 7;
   ClimateAction action = 8;
   ClimateFanMode fan_mode = 9;
   ClimateSwingMode swing_mode = 10;
@@ -882,9 +888,8 @@ message ClimateCommandRequest {
   float target_temperature_low = 7;
   bool has_target_temperature_high = 8;
   float target_temperature_high = 9;
-  // legacy, for older peers, newer ones should use CLIMATE_PRESET_AWAY in preset
-  bool has_legacy_away = 10;
-  bool legacy_away = 11;
+  bool unused_has_legacy_away = 10;
+  bool unused_legacy_away = 11;
   bool has_fan_mode = 12;
   ClimateFanMode fan_mode = 13;
   bool has_swing_mode = 14;
@@ -1128,6 +1133,8 @@ message SubscribeBluetoothLEAdvertisementsRequest {
   option (id) = 66;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_BLUETOOTH_PROXY";
+
+  uint32 flags = 1;
 }
 
 message BluetoothServiceData {
@@ -1150,6 +1157,23 @@ message BluetoothLEAdvertisementResponse {
   repeated BluetoothServiceData manufacturer_data = 6;
 
   uint32 address_type = 7;
+}
+
+message BluetoothLERawAdvertisement {
+  uint64 address = 1;
+  sint32 rssi = 2;
+  uint32 address_type = 3;
+
+  bytes data = 4;
+}
+
+message BluetoothLERawAdvertisementsResponse {
+  option (id) = 93;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_BLUETOOTH_PROXY";
+  option (no_delay) = true;
+
+  repeated BluetoothLERawAdvertisement advertisements = 1;
 }
 
 enum BluetoothDeviceRequestType {
@@ -1378,4 +1402,117 @@ message BluetoothDeviceClearCacheResponse {
   uint64 address = 1;
   bool success = 2;
   int32 error = 3;
+}
+
+// ==================== PUSH TO TALK ====================
+message SubscribeVoiceAssistantRequest {
+  option (id) = 89;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  bool subscribe = 1;
+}
+
+message VoiceAssistantRequest {
+  option (id) = 90;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  bool start = 1;
+  string conversation_id = 2;
+}
+
+message VoiceAssistantResponse {
+  option (id) = 91;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  uint32 port = 1;
+  bool error = 2;
+}
+
+enum VoiceAssistantEvent {
+  VOICE_ASSISTANT_ERROR = 0;
+  VOICE_ASSISTANT_RUN_START = 1;
+  VOICE_ASSISTANT_RUN_END = 2;
+  VOICE_ASSISTANT_STT_START = 3;
+  VOICE_ASSISTANT_STT_END = 4;
+  VOICE_ASSISTANT_INTENT_START = 5;
+  VOICE_ASSISTANT_INTENT_END = 6;
+  VOICE_ASSISTANT_TTS_START = 7;
+  VOICE_ASSISTANT_TTS_END = 8;
+}
+
+message VoiceAssistantEventData {
+  string name = 1;
+  string value = 2;
+}
+
+message VoiceAssistantEventResponse {
+  option (id) = 92;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_VOICE_ASSISTANT";
+
+  VoiceAssistantEvent event_type = 1;
+  repeated VoiceAssistantEventData data = 2;
+}
+
+// ==================== ALARM CONTROL PANEL ====================
+enum AlarmControlPanelState {
+  ALARM_STATE_DISARMED = 0;
+  ALARM_STATE_ARMED_HOME = 1;
+  ALARM_STATE_ARMED_AWAY = 2;
+  ALARM_STATE_ARMED_NIGHT = 3;
+  ALARM_STATE_ARMED_VACATION = 4;
+  ALARM_STATE_ARMED_CUSTOM_BYPASS = 5;
+  ALARM_STATE_PENDING = 6;
+  ALARM_STATE_ARMING = 7;
+  ALARM_STATE_DISARMING = 8;
+  ALARM_STATE_TRIGGERED = 9;
+}
+
+enum AlarmControlPanelStateCommand {
+  ALARM_CONTROL_PANEL_DISARM = 0;
+  ALARM_CONTROL_PANEL_ARM_AWAY = 1;
+  ALARM_CONTROL_PANEL_ARM_HOME = 2;
+  ALARM_CONTROL_PANEL_ARM_NIGHT = 3;
+  ALARM_CONTROL_PANEL_ARM_VACATION = 4;
+  ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS = 5;
+  ALARM_CONTROL_PANEL_TRIGGER = 6;
+}
+
+message ListEntitiesAlarmControlPanelResponse {
+  option (id) = 94;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_ALARM_CONTROL_PANEL";
+
+  string object_id = 1;
+  fixed32 key = 2;
+  string name = 3;
+  string unique_id = 4;
+  string icon = 5;
+  bool disabled_by_default = 6;
+  EntityCategory entity_category = 7;
+  uint32 supported_features = 8;
+  bool requires_code = 9;
+  bool requires_code_to_arm = 10;
+}
+
+message AlarmControlPanelStateResponse {
+  option (id) = 95;
+  option (source) = SOURCE_SERVER;
+  option (ifdef) = "USE_ALARM_CONTROL_PANEL";
+  option (no_delay) = true;
+  fixed32 key = 1;
+  AlarmControlPanelState state = 2;
+}
+
+message AlarmControlPanelCommandRequest {
+  option (id) = 96;
+  option (source) = SOURCE_CLIENT;
+  option (ifdef) = "USE_ALARM_CONTROL_PANEL";
+  option (no_delay) = true;
+  fixed32 key = 1;
+  AlarmControlPanelStateCommand command = 2;
+  string code = 3;
 }

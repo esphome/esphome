@@ -136,7 +136,7 @@ def _parse_platform_version(value):
     try:
         # if platform version is a valid version constraint, prefix the default package
         cv.platformio_version_constraint(value)
-        return f"platformio/espressif8266 @ {value}"
+        return f"platformio/espressif8266@{value}"
     except cv.Invalid:
         return value
 
@@ -192,7 +192,7 @@ async def to_code(config):
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
     cg.add_platformio_option(
         "platform_packages",
-        [f"platformio/framework-arduinoespressif8266 @ {conf[CONF_SOURCE]}"],
+        [f"platformio/framework-arduinoespressif8266@{conf[CONF_SOURCE]}"],
     )
 
     # Default for platformio is LWIP2_LOW_MEMORY with:

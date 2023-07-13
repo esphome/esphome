@@ -108,7 +108,7 @@ const char *cover_operation_to_str(CoverOperation op);
  * to control all values of the cover. Also implement get_traits() to return what operations
  * the cover supports.
  */
-class Cover : public EntityBase {
+class Cover : public EntityBase, public EntityBase_DeviceClass {
  public:
   explicit Cover();
 
@@ -140,8 +140,9 @@ class Cover : public EntityBase {
   /** Stop the cover.
    *
    * This is a legacy method and may be removed later, please use `.make_call()` instead.
+   * As per solution from issue #2885 the call should include perform()
    */
-  ESPDEPRECATED("stop() is deprecated, use make_call().set_command_stop() instead.", "2021.9")
+  ESPDEPRECATED("stop() is deprecated, use make_call().set_command_stop().perform() instead.", "2021.9")
   void stop();
 
   void add_on_state_callback(std::function<void()> &&f);
@@ -156,8 +157,6 @@ class Cover : public EntityBase {
   void publish_state(bool save = true);
 
   virtual CoverTraits get_traits() = 0;
-  void set_device_class(const std::string &device_class);
-  std::string get_device_class();
 
   /// Helper method to check if the cover is fully open. Equivalent to comparing .position against 1.0
   bool is_fully_open() const;
@@ -172,7 +171,6 @@ class Cover : public EntityBase {
   optional<CoverRestoreState> restore_state_();
 
   CallbackManager<void()> state_callback_{};
-  optional<std::string> device_class_override_{};
 
   ESPPreferenceObject rtc_;
 };

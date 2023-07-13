@@ -125,10 +125,11 @@ void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *re
   }
 }
 
-bool WiFiComponent::wifi_scan_start_() {
+bool WiFiComponent::wifi_scan_start_(bool passive) {
   this->scan_result_.clear();
   this->scan_done_ = false;
   cyw43_wifi_scan_options_t scan_options = {0};
+  scan_options.scan_type = passive ? 1 : 0;
   int err = cyw43_wifi_scan(&cyw43_state, &scan_options, nullptr, &s_wifi_scan_result);
   if (err) {
     ESP_LOGV(TAG, "cyw43_wifi_scan failed!");

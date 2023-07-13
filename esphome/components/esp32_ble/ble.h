@@ -18,12 +18,22 @@
 namespace esphome {
 namespace esp32_ble {
 
+uint64_t ble_addr_to_uint64(const esp_bd_addr_t address);
+
 // NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
   void *peer_device;
   bool connected;
   uint16_t mtu;
 } conn_status_t;
+
+enum IoCapability {
+  IO_CAP_OUT = ESP_IO_CAP_OUT,
+  IO_CAP_IO = ESP_IO_CAP_IO,
+  IO_CAP_IN = ESP_IO_CAP_IN,
+  IO_CAP_NONE = ESP_IO_CAP_NONE,
+  IO_CAP_KBDISP = ESP_IO_CAP_KBDISP,
+};
 
 class GAPEventHandler {
  public:
@@ -44,6 +54,8 @@ class GATTsEventHandler {
 
 class ESP32BLE : public Component {
  public:
+  void set_io_capability(IoCapability io_capability) { this->io_cap_ = (esp_ble_io_cap_t) io_capability; }
+
   void setup() override;
   void loop() override;
   void dump_config() override;
@@ -72,6 +84,7 @@ class ESP32BLE : public Component {
 
   Queue<BLEEvent> ble_events_;
   BLEAdvertising *advertising_;
+  esp_ble_io_cap_t io_cap_{ESP_IO_CAP_NONE};
 };
 
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)

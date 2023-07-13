@@ -618,13 +618,13 @@ WiFiSTAConnectStatus WiFiComponent::wifi_sta_connect_status_() {
   }
   return WiFiSTAConnectStatus::IDLE;
 }
-bool WiFiComponent::wifi_scan_start_() {
+bool WiFiComponent::wifi_scan_start_(bool passive) {
   // enable STA
   if (!this->wifi_mode_(true, {}))
     return false;
 
   // need to use WiFi because of WiFiScanClass allocations :(
-  int16_t err = WiFi.scanNetworks(true, true, false, 200);
+  int16_t err = WiFi.scanNetworks(true, true, passive, 200);
   if (err != WIFI_SCAN_RUNNING) {
     ESP_LOGV(TAG, "WiFi.scanNetworks failed! %d", err);
     return false;

@@ -1,7 +1,9 @@
 import base64
+import binascii
 import codecs
 import collections
 import functools
+import gzip
 import hashlib
 import hmac
 import json
@@ -75,6 +77,10 @@ class DashboardSettings:
     @property
     def status_use_ping(self):
         return get_bool_env("ESPHOME_DASHBOARD_USE_PING")
+
+    @property
+    def status_use_mqtt(self):
+        return get_bool_env("ESPHOME_DASHBOARD_USE_MQTT")
 
     @property
     def using_ha_addon_auth(self):
@@ -480,6 +486,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
     @bind_config
     def get(self, configuration=None):
         get_list = self.get_argument("list", None)
+        compressed = self.get_argument("compressed", "0") == "1"
 
         storage_path = ext_storage_path(settings.config_dir, configuration)
         storage_json = StorageJSON.load(storage_path)
@@ -534,6 +541,8 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 self.send_error(404)
                 return
 
+        download_name = download_name + ".gz" if compressed else download_name
+
         self.set_header("Content-Type", "application/octet-stream")
         self.set_header(
             "Content-Disposition", f'attachment; filename="{download_name}"'
@@ -544,11 +553,11 @@ class DownloadBinaryRequestHandler(BaseHandler):
             return
 
         with open(path, "rb") as f:
-            while True:
-                data = f.read(16384)
-                if not data:
-                    break
-                self.write(data)
+            data = f.read()
+            if compressed:
+                data = gzip.compress(data, 9)
+            self.write(data)
+
         self.finish()
 
 
@@ -589,6 +598,12 @@ class DashboardEntry:
         if self.storage is None:
             return None
         return self.storage.address
+
+    @property
+    def no_mdns(self):
+        if self.storage is None:
+            return None
+        return self.storage.no_mdns
 
     @property
     def web_port(self):
@@ -782,9 +797,12 @@ class MDNSStatusThread(threading.Thread):
         stat.start()
         while not STOP_EVENT.is_set():
             entries = _list_dashboard_entries()
-            stat.request_query(
-                {entry.filename: f"{entry.name}.local." for entry in entries}
-            )
+            hosts = {}
+            for entry in entries:
+                if entry.no_mdns is not True:
+                    hosts[entry.filename] = f"{entry.name}.local."
+
+            stat.request_query(hosts)
             IMPORT_RESULT = imports.import_state
 
             PING_REQUEST.wait()
@@ -808,6 +826,9 @@ class PingStatusThread(threading.Thread):
                 entries = _list_dashboard_entries()
                 queue = collections.deque()
                 for entry in entries:
+                    if entry.no_mdns is True:
+                        continue
+
                     if entry.address is None:
                         PING_RESULT[entry.filename] = None
                         continue
@@ -839,10 +860,67 @@ class PingStatusThread(threading.Thread):
                 PING_REQUEST.clear()
 
 
+class MqttStatusThread(threading.Thread):
+    def run(self):
+        from esphome import mqtt
+
+        entries = _list_dashboard_entries()
+
+        config = mqtt.config_from_env()
+        topic = "esphome/discover/#"
+
+        def on_message(client, userdata, msg):
+            nonlocal entries
+
+            payload = msg.payload.decode(errors="backslashreplace")
+            if len(payload) > 0:
+                data = json.loads(payload)
+                if "name" not in data:
+                    return
+                for entry in entries:
+                    if entry.name == data["name"]:
+                        PING_RESULT[entry.filename] = True
+                        return
+
+        def on_connect(client, userdata, flags, return_code):
+            client.publish("esphome/discover", None, retain=False)
+
+        mqttid = str(binascii.hexlify(os.urandom(6)).decode())
+
+        client = mqtt.prepare(
+            config,
+            [topic],
+            on_message,
+            on_connect,
+            None,
+            None,
+            f"esphome-dashboard-{mqttid}",
+        )
+        client.loop_start()
+
+        while not STOP_EVENT.wait(2):
+            # update entries
+            entries = _list_dashboard_entries()
+
+            # will be set to true on on_message
+            for entry in entries:
+                if entry.no_mdns:
+                    PING_RESULT[entry.filename] = False
+
+            client.publish("esphome/discover", None, retain=False)
+            MQTT_PING_REQUEST.wait()
+            MQTT_PING_REQUEST.clear()
+
+        client.disconnect()
+        client.loop_stop()
+
+
 class PingRequestHandler(BaseHandler):
     @authenticated
     def get(self):
         PING_REQUEST.set()
+        if settings.status_use_mqtt:
+            MQTT_PING_REQUEST.set()
         self.set_header("content-type", "application/json")
         self.write(json.dumps(PING_RESULT))
 
@@ -917,6 +995,7 @@ PING_RESULT: dict = {}
 IMPORT_RESULT = {}
 STOP_EVENT = threading.Event()
 PING_REQUEST = threading.Event()
+MQTT_PING_REQUEST = threading.Event()
 
 
 class LoginHandler(BaseHandler):
@@ -1204,6 +1283,11 @@ def start_web_server(args):
     else:
         status_thread = MDNSStatusThread()
     status_thread.start()
+
+    if settings.status_use_mqtt:
+        status_thread_mqtt = MqttStatusThread()
+        status_thread_mqtt.start()
+
     try:
         tornado.ioloop.IOLoop.current().start()
     except KeyboardInterrupt:
@@ -1211,5 +1295,8 @@ def start_web_server(args):
         STOP_EVENT.set()
         PING_REQUEST.set()
         status_thread.join()
+        if settings.status_use_mqtt:
+            status_thread_mqtt.join()
+            MQTT_PING_REQUEST.set()
         if args.socket is not None:
             os.remove(args.socket)
