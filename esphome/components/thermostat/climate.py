@@ -24,6 +24,7 @@ from esphome.const import (
     CONF_FAN_MODE_MIDDLE_ACTION,
     CONF_FAN_MODE_FOCUS_ACTION,
     CONF_FAN_MODE_DIFFUSE_ACTION,
+    CONF_FAN_MODE_QUIET_ACTION,
     CONF_FAN_ONLY_ACTION,
     CONF_FAN_ONLY_ACTION_USES_FAN_MODE_TIMER,
     CONF_FAN_ONLY_COOLING,
@@ -273,6 +274,7 @@ def validate_thermostat(config):
             CONF_FAN_MODE_MIDDLE_ACTION,
             CONF_FAN_MODE_FOCUS_ACTION,
             CONF_FAN_MODE_DIFFUSE_ACTION,
+            CONF_FAN_MODE_QUIET_ACTION,
         ],
     }
     for req_config_item, config_triggers in requirements.items():
@@ -413,6 +415,7 @@ def validate_thermostat(config):
             "MIDDLE": [CONF_FAN_MODE_MIDDLE_ACTION],
             "FOCUS": [CONF_FAN_MODE_FOCUS_ACTION],
             "DIFFUSE": [CONF_FAN_MODE_DIFFUSE_ACTION],
+            "QUIET": [CONF_FAN_MODE_QUIET_ACTION],
         }
 
         for preset_config in config[CONF_PRESET]:
@@ -500,12 +503,13 @@ def validate_thermostat(config):
             CONF_FAN_MODE_MIDDLE_ACTION,
             CONF_FAN_MODE_FOCUS_ACTION,
             CONF_FAN_MODE_DIFFUSE_ACTION,
+            CONF_FAN_MODE_QUIET_ACTION,
         ]
         for config_req_action in requirements:
             if config_req_action in config:
                 return config
         raise cv.Invalid(
-            f"At least one of {CONF_FAN_MODE_ON_ACTION}, {CONF_FAN_MODE_OFF_ACTION}, {CONF_FAN_MODE_AUTO_ACTION}, {CONF_FAN_MODE_LOW_ACTION}, {CONF_FAN_MODE_MEDIUM_ACTION}, {CONF_FAN_MODE_HIGH_ACTION}, {CONF_FAN_MODE_MIDDLE_ACTION}, {CONF_FAN_MODE_FOCUS_ACTION}, {CONF_FAN_MODE_DIFFUSE_ACTION} must be defined to use {CONF_MIN_FAN_MODE_SWITCHING_TIME}"
+            f"At least one of {CONF_FAN_MODE_ON_ACTION}, {CONF_FAN_MODE_OFF_ACTION}, {CONF_FAN_MODE_AUTO_ACTION}, {CONF_FAN_MODE_LOW_ACTION}, {CONF_FAN_MODE_MEDIUM_ACTION}, {CONF_FAN_MODE_HIGH_ACTION}, {CONF_FAN_MODE_MIDDLE_ACTION}, {CONF_FAN_MODE_FOCUS_ACTION}, {CONF_FAN_MODE_DIFFUSE_ACTION}, {CONF_FAN_MODE_QUIET_ACTION} must be defined to use {CONF_MIN_FAN_MODE_SWITCHING_TIME}"
         )
     return config
 
@@ -561,6 +565,9 @@ CONFIG_SCHEMA = cv.All(
                 single=True
             ),
             cv.Optional(CONF_FAN_MODE_DIFFUSE_ACTION): automation.validate_automation(
+                single=True
+            ),
+            cv.Optional(CONF_FAN_MODE_QUIET_ACTION): automation.validate_automation(
                 single=True
             ),
             cv.Optional(CONF_SWING_BOTH_ACTION): automation.validate_automation(
@@ -836,6 +843,11 @@ async def to_code(config):
             var.get_fan_mode_diffuse_trigger(), [], config[CONF_FAN_MODE_DIFFUSE_ACTION]
         )
         cg.add(var.set_supports_fan_mode_diffuse(True))
+    if CONF_FAN_MODE_QUIET_ACTION in config:
+        await automation.build_automation(
+            var.get_fan_mode_quiet_trigger(), [], config[CONF_FAN_MODE_QUIET_ACTION]
+        )
+        cg.add(var.set_supports_fan_mode_quiet(True))
     if CONF_SWING_BOTH_ACTION in config:
         await automation.build_automation(
             var.get_swing_mode_both_trigger(), [], config[CONF_SWING_BOTH_ACTION]

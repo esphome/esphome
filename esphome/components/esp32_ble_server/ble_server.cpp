@@ -25,7 +25,8 @@ static const uint16_t VERSION_UUID = 0x2A26;
 static const uint16_t MANUFACTURER_UUID = 0x2A29;
 
 void BLEServer::setup() {
-  if (this->is_failed()) {
+  if (this->parent_->is_failed()) {
+    this->mark_failed();
     ESP_LOGE(TAG, "BLE Server was marked failed by ESP32BLE");
     return;
   }

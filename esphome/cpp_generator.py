@@ -174,10 +174,9 @@ class ArrayInitializer(Expression):
         if not self.args:
             return "{}"
         if self.multiline:
-            cpp = "{\n"
-            for arg in self.args:
-                cpp += f"  {arg},\n"
-            cpp += "}"
+            cpp = "{\n  "
+            cpp += ",\n  ".join(str(arg) for arg in self.args)
+            cpp += ",\n}"
         else:
             cpp = f"{{{', '.join(str(arg) for arg in self.args)}}}"
         return cpp

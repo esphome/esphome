@@ -104,8 +104,8 @@ void XPT2046Component::check_touch_() {
         break;
     }
 
-    touchpoint.x = (int16_t)((int) touchpoint.x * this->display_->get_width() / 0xfff);
-    touchpoint.y = (int16_t)((int) touchpoint.y * this->display_->get_height() / 0xfff);
+    touchpoint.x = (int16_t) ((int) touchpoint.x * this->display_->get_width() / 0xfff);
+    touchpoint.y = (int16_t) ((int) touchpoint.y * this->display_->get_height() / 0xfff);
 
     if (!this->touched || (now - this->last_pos_ms_) >= this->report_millis_) {
       ESP_LOGV(TAG, "Touching at [%03X, %03X] => [%3d, %3d]", this->x_raw, this->y_raw, touchpoint.x, touchpoint.y);
@@ -185,7 +185,7 @@ int16_t XPT2046Component::normalize(int16_t val, int16_t min_val, int16_t max_va
   } else if (val >= max_val) {
     ret = 0xfff;
   } else {
-    ret = (int16_t)((int) 0xfff * (val - min_val) / (max_val - min_val));
+    ret = (int16_t) ((int) 0xfff * (val - min_val) / (max_val - min_val));
   }
 
   return ret;

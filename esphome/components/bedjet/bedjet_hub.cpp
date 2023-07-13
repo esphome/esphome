@@ -1,3 +1,5 @@
+#ifdef USE_ESP32
+
 #include "bedjet_hub.h"
 #include "bedjet_child.h"
 #include "bedjet_const.h"
@@ -440,7 +442,7 @@ uint8_t BedJetHub::write_notify_config_descriptor_(bool enable) {
 void BedJetHub::send_local_time() {
   if (this->time_id_.has_value()) {
     auto *time_id = *this->time_id_;
-    time::ESPTime now = time_id->now();
+    ESPTime now = time_id->now();
     if (now.is_valid()) {
       this->set_clock(now.hour, now.minute);
       ESP_LOGD(TAG, "Using time component to set BedJet clock: %d:%02d", now.hour, now.minute);
@@ -541,3 +543,5 @@ void BedJetHub::register_child(BedJetClient *obj) {
 
 }  // namespace bedjet
 }  // namespace esphome
+
+#endif

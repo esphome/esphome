@@ -165,7 +165,7 @@ def do_packages_pass(config: dict):
                 f"Packages must be a key to value mapping, got {type(packages)} instead"
             )
 
-        for package_name, package_config in packages.items():
+        for package_name, package_config in reversed(packages.items()):
             with cv.prepend_path(package_name):
                 recursive_package = package_config
                 if CONF_URL in package_config:

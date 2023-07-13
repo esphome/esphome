@@ -8,6 +8,7 @@ from esphome.const import (
     CONF_TRIGGER_ID,
     CONF_ON_VALUE,
     CONF_COMMAND,
+    CONF_CUSTOM,
     CONF_NUMBER,
     CONF_FORMAT,
     CONF_MODE,
@@ -32,7 +33,6 @@ CONF_BACK = "back"
 CONF_TEXT = "text"
 CONF_SELECT = "select"
 CONF_SWITCH = "switch"
-CONF_CUSTOM = "custom"
 CONF_ITEMS = "items"
 CONF_ON_TEXT = "on_text"
 CONF_OFF_TEXT = "off_text"

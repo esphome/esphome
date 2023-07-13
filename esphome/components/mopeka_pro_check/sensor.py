@@ -44,6 +44,9 @@ CONF_SUPPORTED_TANKS_MAP = {
     "20LB_V": (38, 254),  # empty/full readings for 20lb US tank
     "30LB_V": (38, 381),
     "40LB_V": (38, 508),
+    "EUROPE_6KG": (38, 336),
+    "EUROPE_11KG": (38, 366),
+    "EUROPE_14KG": (38, 467),
 }
 
 CODEOWNERS = ["@spbrogan"]
