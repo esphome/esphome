@@ -20,7 +20,6 @@ OTAResponseTypes ArduinoRP2040OTABackend::begin(size_t image_size) {
   }
 
   uint8_t error = Update.getError();
-  this->last_errno_ = error;
   if (error == UPDATE_ERROR_BOOTSTRAP)
     return OTA_RESPONSE_ERROR_INVALID_BOOTSTRAPPING;
   if (error == UPDATE_ERROR_NEW_FLASH_CONFIG)
@@ -36,7 +35,6 @@ void ArduinoRP2040OTABackend::set_update_md5(const char *md5) { Update.setMD5(md
 
 OTAResponseTypes ArduinoRP2040OTABackend::write(uint8_t *data, size_t len) {
   size_t written = Update.write(data, len);
-  this->last_errno_ = Update.getError();
   if (written != len) {
     return OTA_RESPONSE_ERROR_WRITING_FLASH;
   }
@@ -44,10 +42,8 @@ OTAResponseTypes ArduinoRP2040OTABackend::write(uint8_t *data, size_t len) {
 }
 
 OTAResponseTypes ArduinoRP2040OTABackend::end() {
-  if (!Update.end()) {
-    this->last_errno_ = Update.getError();
+  if (!Update.end())
     return OTA_RESPONSE_ERROR_UPDATE_END;
-  }
   return OTA_RESPONSE_OK;
 }
 

@@ -22,10 +22,6 @@ class ArduinoESP8266OTABackend : public OTABackend {
 #else
   bool supports_compression() override { return false; }
 #endif
-  int get_backend_errno() override { return last_errno_; }
-
- private:
-  int last_errno_;
 };
 
 }  // namespace ota
