@@ -19,7 +19,7 @@ from esphome.const import (
     CONF_PACKAGES,
     CONF_SUBSTITUTIONS,
     CONF_EXTERNAL_COMPONENTS,
-    CONFIG_PLATFORMS,
+    TARGET_PLATFORMS,
 )
 from esphome.core import CORE, EsphomeError
 from esphome.helpers import indent
@@ -740,7 +740,7 @@ def validate_config(config, command_line_substitutions) -> Config:
     result.remove_output_path([CONF_ESPHOME], CONF_ESPHOME)
 
     # First run platform validation steps
-    for key in CONFIG_PLATFORMS:
+    for key in TARGET_PLATFORMS:
         if key in config:
             result.add_validation_step(LoadValidationStep(key, config[key]))
     result.run_validation_steps()
