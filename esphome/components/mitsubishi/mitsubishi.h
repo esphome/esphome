@@ -9,19 +9,19 @@ namespace mitsubishi {
 const uint8_t MITSUBISHI_TEMP_MIN = 16;  // Celsius
 const uint8_t MITSUBISHI_TEMP_MAX = 31;  // Celsius
 
-const std::set< climate::ClimateFanMode > SUPPORTED_FANS = {
-  climate::CLIMATE_FAN_LOW,   climate::CLIMATE_FAN_MIDDLE, climate::CLIMATE_FAN_HIGH,
-  climate::CLIMATE_FAN_FOCUS, climate::CLIMATE_FAN_QUIET,  climate::CLIMATE_FAN_AUTO,
+const std::set<climate::ClimateFanMode> SUPPORTED_FANS = {
+    climate::CLIMATE_FAN_LOW,   climate::CLIMATE_FAN_MIDDLE, climate::CLIMATE_FAN_HIGH,
+    climate::CLIMATE_FAN_FOCUS, climate::CLIMATE_FAN_QUIET,  climate::CLIMATE_FAN_AUTO,
 };
 
-const std::set< climate::ClimateSwingMode > SUPPORTED_SWINGS = {
-  climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
-  climate::CLIMATE_SWING_VERTICAL, climate::CLIMATE_SWING_HORIZONTAL
-};
+const std::set<climate::ClimateSwingMode> SUPPORTED_SWINGS = {climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
+                                                              climate::CLIMATE_SWING_VERTICAL,
+                                                              climate::CLIMATE_SWING_HORIZONTAL};
 
 class MitsubishiClimate : public climate_ir::ClimateIR {
- public: 
-  MitsubishiClimate(): climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, 0, 0,SUPPORTED_FANS,SUPPORTED_SWINGS) {}
+ public:
+  MitsubishiClimate()
+      : climate_ir::ClimateIR(MITSUBISHI_TEMP_MIN, MITSUBISHI_TEMP_MAX, 1.0f, 0, 0, SUPPORTED_FANS, SUPPORTED_SWINGS) {}
 
  protected:
   /// Transmit via IR the state of this climate controller.
