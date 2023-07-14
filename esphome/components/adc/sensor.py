@@ -1,7 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
-from esphome import pins
 from esphome.core import CORE
 from esphome.components import sensor, voltage_sampler
 from esphome.components.esp32 import get_esp32_variant
@@ -16,11 +15,10 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_VOLT,
 )
-from esphome.core import CORE
-
 from . import (
     ATTENUATION_MODES,
     ESP32_VARIANT_ADC1_PIN_TO_CHANNEL,
+    ESP32_VARIANT_ADC2_PIN_TO_CHANNEL,
     validate_adc_pin,
 )
 
