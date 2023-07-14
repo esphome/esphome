@@ -90,6 +90,7 @@ esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_improv/* @jesserockz
 esphome/components/esp32_rmt_led_strip/* @jesserockz
+esphome/components/esp32_spi_led_strip/* @dentra
 esphome/components/esp8266/* @esphome/core
 esphome/components/ethernet_info/* @gtjadsonsantos
 esphome/components/exposure_notifications/* @OttoWinter
