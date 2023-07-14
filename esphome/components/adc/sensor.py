@@ -1,5 +1,8 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
+from esphome import pins
+from esphome.core import CORE
 from esphome.components import sensor, voltage_sampler
 from esphome.components.esp32 import get_esp32_variant
 from esphome.const import (
@@ -26,7 +29,21 @@ AUTO_LOAD = ["voltage_sampler"]
 
 def validate_config(config):
     if config[CONF_RAW] and config.get(CONF_ATTENUATION, None) == "auto":
-        raise cv.Invalid("Automatic attenuation cannot be used when raw output is set.")
+        raise cv.Invalid("Automatic attenuation cannot be used when raw output is set")
+
+    return config
+
+
+def final_validate_config(config):
+    variant = get_esp32_variant()
+    if (
+        CONF_WIFI in fv.full_config.get()
+        and config[CONF_PIN][CONF_NUMBER] in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
+    ):
+        raise cv.Invalid(
+            f"{variant} doesn't support ADC on this pin when Wi-Fi is configured"
+        )
+
     return config
 
 
@@ -45,9 +62,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(
         {
-            cv.Required(
-                CONF_PIN, CONF_WIFI
-            ): validate_adc_pin,  # does this work that way?
+            cv.Required(CONF_PIN): validate_adc_pin,
             cv.Optional(CONF_RAW, default=False): cv.boolean,
             cv.SplitDefault(CONF_ATTENUATION, esp32="0db"): cv.All(
                 cv.only_on_esp32, cv.enum(ATTENUATION_MODES, lower=True)
@@ -57,6 +72,8 @@ CONFIG_SCHEMA = cv.All(
     .extend(cv.polling_component_schema("60s")),
     validate_config,
 )
+
+FINAL_VALIDATE_SCHEMA = final_validate_config
 
 
 async def to_code(config):
@@ -84,6 +101,15 @@ async def to_code(config):
     if CORE.is_esp32:
         variant = get_esp32_variant()
         pin_num = config[CONF_PIN][CONF_NUMBER]
-        # need to find pin_num in adc1 or adc2 if the objects are not merged
-        chan = ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant][pin_num]
-        cg.add(var.set_channel(chan))
+        if (
+            variant in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL
+            and pin_num in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant]
+        ):
+            chan = ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant][pin_num]
+            cg.add(var.set_channel1(chan))
+        elif (
+            variant in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL
+            and pin_num in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
+        ):
+            chan = ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant][pin_num]
+            cg.add(var.set_channel2(chan))
