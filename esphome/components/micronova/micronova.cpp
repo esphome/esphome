@@ -34,7 +34,7 @@ void MicroNova::update() {
 
 void MicroNova::loop() {
   // Only read one sensor that needs update per loop
-  // Updating all sensors in the upqte() would take 600ms
+  // Updating all sensors in the update() would take 600ms
   for (auto &mv_listener : this->micronova_listeners_) {
     if (mv_listener->get_needs_update()) {
       mv_listener->read_value_from_stove();
