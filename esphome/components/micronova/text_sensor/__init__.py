@@ -39,7 +39,7 @@ async def to_code(config):
             conf = config[key]
             sens = await text_sensor.new_text_sensor(conf, mv)
             cg.add(mv.register_micronova_listener(sens))
-            cg.add(sens.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0)))
-            cg.add(sens.set_memory_address(conf[CONF_MEMORY_ADDRESS]))
             if key == CONF_STOVE_STATE:
+                cg.add(sens.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0x00)))
+                cg.add(sens.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x21)))
                 cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_STOVE_STATE))

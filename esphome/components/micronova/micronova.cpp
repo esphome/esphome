@@ -26,11 +26,20 @@ void MicroNova::dump_config() {
 }
 
 void MicroNova::update() {
-  int new_raw_value = -1;
-
+  ESP_LOGD(TAG, "Schedule sensor update");
   for (auto &mv_listener : this->micronova_listeners_) {
-    new_raw_value = this->read_address(mv_listener->get_memory_location(), mv_listener->get_memory_address());
-    mv_listener->publish_val(new_raw_value);
+    mv_listener->set_needs_update(true);
+  }
+}
+
+void MicroNova::loop() {
+  // Only read one sensor that needs update per loop
+  for (auto &mv_listener : this->micronova_listeners_) {
+    if (mv_listener->get_needs_update()) {
+      mv_listener->read_value_from_stove();
+      mv_listener->set_needs_update(false);
+      return;
+    }
   }
 }
 

@@ -11,7 +11,7 @@ namespace esphome {
 namespace micronova {
 
 static const char *const TAG = "micronova";
-static const int STOVE_REPLY_DELAY = 20;
+static const int STOVE_REPLY_DELAY = 50;
 
 static const std::string STOVE_STATES[11] = {"Off",
                                              "Start",
@@ -41,6 +41,8 @@ enum class MicroNovaFunctions {
 
 class MicroNova;
 
+//////////////////////////////////////////////////////////////////////
+// Interface classes.
 class MicroNovaBaseListener {
  public:
   MicroNovaBaseListener(MicroNova *m) { micronova_ = m; }
@@ -67,7 +69,13 @@ class MicroNovaBaseListener {
 class MicroNovaSensorListener : public MicroNovaBaseListener {
  public:
   MicroNovaSensorListener(MicroNova *m) : MicroNovaBaseListener(m) {}
-  virtual void publish_val(int new_raw_value);
+  virtual void read_value_from_stove();
+
+  void set_needs_update(bool u) { needs_update_ = u; }
+  bool get_needs_update() { return needs_update_; }
+
+ protected:
+  bool needs_update_ = false;
 };
 
 class MicroNovaSwitchListener : public MicroNovaBaseListener {
@@ -89,11 +97,14 @@ class MicroNovaButtonListener : public MicroNovaBaseListener {
   uint8_t memory_data_ = 0;
 };
 
+/////////////////////////////////////////////////////////////////////
+// Main component class
 class MicroNova : public PollingComponent, public uart::UARTDevice {
  public:
   MicroNova() {}
 
   void setup() override;
+  void loop() override;
   void update() override;
   void dump_config() override;
   void register_micronova_listener(MicroNovaSensorListener *l) { micronova_listeners_.push_back(l); }

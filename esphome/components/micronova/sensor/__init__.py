@@ -79,10 +79,6 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_MEMORY_ADDRESS_SENSOR): sensor.sensor_schema(
             MicroNovaSensor,
-            unit_of_measurement=UNIT_CELSIUS,
-            device_class=DEVICE_CLASS_TEMPERATURE,
-            state_class=STATE_CLASS_MEASUREMENT,
-            accuracy_decimals=1,
         ).extend(MICRONOVA_LISTENER_SCHEMA),
     }
 )
@@ -94,33 +90,43 @@ async def to_code(config):
         if key in config:
             conf = config[key]
             sens = await sensor.new_sensor(conf, mv)
-            cg.add(sens.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0)))
-            cg.add(sens.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0)))
             cg.add(mv.register_micronova_listener(sens))
             if key == CONF_ROOM_TEMPERATURE:
+                cg.add(sens.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0x00)))
+                cg.add(sens.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x01)))
                 cg.add(
                     sens.set_function(
                         MicroNovaFunctions.STOVE_FUNCTION_ROOM_TEMPERATURE
                     )
                 )
             if key == CONF_THERMOSTAT_TEMPERATURE:
+                cg.add(sens.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0x20)))
+                cg.add(sens.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x7D)))
                 cg.add(
                     sens.set_function(
                         MicroNovaFunctions.STOVE_FUNCTION_THERMOSTAT_TEMPERATURE
                     )
                 )
             if key == CONF_FUMES_TEMPERATURE:
+                cg.add(sens.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0x00)))
+                cg.add(sens.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x5A)))
                 cg.add(
                     sens.set_function(
                         MicroNovaFunctions.STOVE_FUNCTION_FUMES_TEMPERATURE
                     )
                 )
             if key == CONF_STOVE_POWER:
+                cg.add(sens.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0x00)))
+                cg.add(sens.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x34)))
                 cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_STOVE_POWER))
             if key == CONF_FAN_SPEED:
+                cg.add(sens.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0x00)))
+                cg.add(sens.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x37)))
                 cg.add(sens.set_function(MicroNovaFunctions.STOVE_FUNCTION_FAN_SPEED))
                 cg.add(sens.set_fan_speed_offset(conf[CONF_FAN_RPM_OFFSET]))
             if key == CONF_MEMORY_ADDRESS_SENSOR:
+                cg.add(sens.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0x00)))
+                cg.add(sens.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x00)))
                 cg.add(
                     sens.set_function(
                         MicroNovaFunctions.STOVE_FUNCTION_MEMORY_ADDRESS_SENSOR

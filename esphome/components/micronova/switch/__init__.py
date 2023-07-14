@@ -44,8 +44,8 @@ async def to_code(config):
         if key in config:
             conf = config[key]
             sw = await switch.new_switch(conf, mv)
-            cg.add(sw.set_memory_location(conf[CONF_MEMORY_LOCATION]))
-            cg.add(sw.set_memory_address(conf[CONF_MEMORY_ADDRESS]))
+            cg.add(sw.set_memory_location(conf.get(CONF_MEMORY_LOCATION, 0x80)))
+            cg.add(sw.set_memory_address(conf.get(CONF_MEMORY_ADDRESS, 0x21)))
             cg.add(sw.set_memory_data_on(conf[CONF_MEMORY_DATA_ON]))
             cg.add(sw.set_memory_data_off(conf[CONF_MEMORY_DATA_OFF]))
             if key == CONF_STOVE_SWITCH:

@@ -10,7 +10,7 @@ class MicroNovaSensor : public sensor::Sensor, public MicroNovaSensorListener {
  public:
   MicroNovaSensor(MicroNova *m) : MicroNovaSensorListener(m) {}
   void dump_config() override { LOG_SENSOR("", "Micronova sensor", this); }
-  void publish_val(int new_raw_value) override;
+  void read_value_from_stove() override;
   void set_stove_switch_state(bool v) {}
   bool get_stove_switch_state() { return false; }
 

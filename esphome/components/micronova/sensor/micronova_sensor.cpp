@@ -3,7 +3,10 @@
 namespace esphome {
 namespace micronova {
 
-void MicroNovaSensor::publish_val(int new_raw_value) {
+void MicroNovaSensor::read_value_from_stove() {
+  int new_raw_value = -1;
+
+  new_raw_value = this->micronova_->read_address(this->memory_location_, this->memory_address_);
   if (new_raw_value == -1) {
     this->publish_state(NAN);
     return;
