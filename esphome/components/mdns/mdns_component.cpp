@@ -57,6 +57,10 @@ void MDNSComponent::compile_records_() {
     service.txt_records.push_back({"network", "ethernet"});
 #endif
 
+#ifdef USE_API_NOISE
+    service.txt_records.push_back({"api_encryption", "Noise_NNpsk0_25519_ChaChaPoly_SHA256"});
+#endif
+
 #ifdef ESPHOME_PROJECT_NAME
     service.txt_records.push_back({"project_name", ESPHOME_PROJECT_NAME});
     service.txt_records.push_back({"project_version", ESPHOME_PROJECT_VERSION});

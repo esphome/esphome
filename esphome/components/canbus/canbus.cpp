@@ -30,7 +30,7 @@ void Canbus::send_data(uint32_t can_id, bool use_extended_id, bool remote_transm
   if (use_extended_id) {
     ESP_LOGD(TAG, "send extended id=0x%08x rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request), size);
   } else {
-    ESP_LOGD(TAG, "send extended id=0x%03x rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request), size);
+    ESP_LOGD(TAG, "send standard id=0x%03x rtr=%s size=%d", can_id, TRUEFALSE(remote_transmission_request), size);
   }
   if (size > CAN_MAX_DATA_LENGTH)
     size = CAN_MAX_DATA_LENGTH;

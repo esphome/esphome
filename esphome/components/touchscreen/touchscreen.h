@@ -36,9 +36,8 @@ enum TouchRotation {
 class Touchscreen {
  public:
 #ifdef USE_DISPLAY
-  void set_display(display::DisplayBuffer *display) { this->display_ = display; }
-  display::DisplayBuffer *get_display() { return this->display_; }
-
+  void set_display(display::Display *display);
+  display::Display *get_display() const { return this->display_; }
 #else
   void set_display_dimension(uint16_t width, u_int16_t height) {
     this->display_width_ = width;
@@ -90,7 +89,7 @@ class Touchscreen {
   }
 
 #ifdef USE_DISPLAY
-  display::DisplayBuffer *display_{nullptr};
+  display::Display *display_{nullptr};
 #else
   uint16_t display_width_{240};
   uint16_t display_height_{320};
