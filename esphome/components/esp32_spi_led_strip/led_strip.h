@@ -1,5 +1,5 @@
 #pragma once
-
+#ifdef USE_ESP_IDF
 #include <driver/spi_master.h>
 
 #include "esphome/components/light/addressable_light.h"
@@ -61,16 +61,18 @@ class LedStripSpi : public light::AddressableLight {
 
   bool spi_init_();
   void spi_flush_();
-  static constexpr size_t frame_size_ = 4;  // The size of a LED frame
+  static constexpr size_t FRAME_SIZE = 4;  // The size of a LED frame
   int buf_size_() const {
-    return 0                                        //
-           + (this->frame_size_)                    // Start frame
-           + (this->frame_size_ * this->num_leds_)  // LED frames
-           + (this->frame_size_)                    // Reset frame
-           + (this->num_leds_ / 16 + 1)             // Last frame
+    return 0                                 //
+           + (FRAME_SIZE)                    // Start frame
+           + (FRAME_SIZE * this->num_leds_)  // LED frames
+           + (FRAME_SIZE)                    // Reset frame
+           + (this->num_leds_ / 16 + 1)      // Last frame
         ;
   };
 };
 
 }  // namespace esp32_spi_led_strip
 }  // namespace esphome
+
+#endif

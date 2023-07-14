@@ -1,3 +1,4 @@
+#ifdef USE_ESP_IDF
 #include "esphome/core/log.h"
 
 #include "led_strip.h"
@@ -71,7 +72,7 @@ void LedStripSpi::setup() {
 
   // clear all pixels and set brightness to maximum, skipping start frame
   for (int i = 1; i <= this->num_leds_; i++) {
-    this->buf_[i * this->frame_size_] = 0xFF;
+    this->buf_[i * FRAME_SIZE] = 0xFF;
   }
   this->spi_flush_();
 }
@@ -174,7 +175,7 @@ light::ESPColorView LedStripSpi::get_view_internal(int32_t index) const {
       b = OFFSET_B;
       break;
   }
-  auto offset = (index + 1) * this->frame_size_;  // skip start frame
+  auto offset = (index + 1) * FRAME_SIZE;  // skip start frame
   return {
       this->buf_ + offset + r,     // red
       this->buf_ + offset + g,     // green
@@ -187,3 +188,4 @@ light::ESPColorView LedStripSpi::get_view_internal(int32_t index) const {
 
 }  // namespace esp32_spi_led_strip
 }  // namespace esphome
+#endif
