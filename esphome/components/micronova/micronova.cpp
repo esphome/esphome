@@ -4,125 +4,6 @@
 namespace esphome {
 namespace micronova {
 
-static const std::string STOVE_STATES[11] = {"Off",
-                                             "Start",
-                                             "Pellets loading",
-                                             "Igniton",
-                                             "Working",
-                                             "Brazier Cleaning",
-                                             "Final Cleaning",
-                                             "Stanby",
-                                             "No pellets alarm",
-                                             "No ignition alarm",
-                                             "Undefined alarm"};
-
-///////////////////////////////////////////////////////////////////////////////
-// MicroNovaSensor members
-void MicroNovaSensor::read_value_from_stove() {
-  int val = -1;
-
-  val = this->micronova_->read_address(this->memory_location_, this->memory_address_);
-
-  if (val == -1) {
-    this->publish_state(NAN);
-    return;
-  }
-
-  this->current_data_ = (float) val;
-  switch (this->get_function()) {
-    case MicroNovaFunctions::STOVE_FUNCTION_ROOM_TEMPERATURE:
-      this->current_data_ = (float) this->current_data_ / 2;
-      break;
-    case MicroNovaFunctions::STOVE_FUNCTION_THERMOSTAT_TEMPERATURE:
-      this->micronova_->set_thermostat_temperature(val);
-      break;
-    case MicroNovaFunctions::STOVE_FUNCTION_FAN_SPEED:
-      this->current_data_ = this->current_data_ == 0 ? 0 : (this->current_data_ * 10) + this->fan_speed_offset_;
-      break;
-    default:
-      break;
-  }
-  this->publish_state(this->current_data_);
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// MicroNovaTextSensor members
-void MicroNovaTextSensor::read_value_from_stove() {
-  int val = -1;
-
-  val = this->micronova_->read_address(this->memory_location_, this->memory_address_);
-
-  if (val == -1) {
-    this->publish_state("unknown");
-    return;
-  }
-
-  switch (this->get_function()) {
-    case MicroNovaFunctions::STOVE_FUNCTION_STOVE_STATE:
-      this->micronova_->set_current_stove_state(val);
-      this->publish_state(STOVE_STATES[val]);
-      // set the stove switch to on for any value but 0
-      if (val != 0 && this->micronova_->get_stove_switch() != nullptr && !this->micronova_->get_stove_switch()->state) {
-        this->micronova_->get_stove_switch()->publish_state(true);
-      } else if (val == 0 && this->micronova_->get_stove_switch() != nullptr &&
-                 this->micronova_->get_stove_switch()->state) {
-        this->micronova_->get_stove_switch()->publish_state(false);
-      }
-      break;
-    default:
-      break;
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// MicroNovaButton members
-void MicroNovaButton::press_action() {
-  uint8_t new_temp = 20;
-
-  switch (this->get_function()) {
-    case MicroNovaFunctions::STOVE_FUNCTION_TEMP_UP:
-    case MicroNovaFunctions::STOVE_FUNCTION_TEMP_DOWN:
-      new_temp = this->micronova_->get_thermostat_temperature() +
-                 (MicroNovaFunctions::STOVE_FUNCTION_TEMP_UP == this->get_function() ? 1 : -1);
-      this->micronova_->write_address(this->memory_location_, this->memory_address_, new_temp);
-      this->micronova_->update();
-      break;
-
-    default:
-      break;
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// MicroNovaSwitch members
-void MicroNovaSwitch::write_state(bool state) {
-  switch (this->get_function()) {
-    case MicroNovaFunctions::STOVE_FUNCTION_SWITCH:
-      if (state) {
-        // Only send poweron when current state is Off
-        if (micronova_->get_current_stove_state() == 0) {
-          this->micronova_->write_address(this->memory_location_, this->memory_address_, this->memory_data_on_);
-          this->publish_state(true);
-        } else
-          ESP_LOGW(TAG, "Unable to turn stove on, invalid state: %d", micronova_->get_current_stove_state());
-      } else {
-        // don't shut send power-off when statis is Off or Final cleaning
-        if (micronova_->get_current_stove_state() != 0 && micronova_->get_current_stove_state() != 6) {
-          this->micronova_->write_address(this->memory_location_, this->memory_address_, this->memory_data_off_);
-          this->publish_state(false);
-        } else
-          ESP_LOGW(TAG, "Unable to turn stove off, invalid state: %d", micronova_->get_current_stove_state());
-      }
-      this->micronova_->update();
-      break;
-
-    default:
-      break;
-  }
-}
-
-///////////////////////////////////////////////////////////////////////////////
-// MicroNova members
 void MicroNova::setup() {
   if (this->enable_rx_pin_ != nullptr) {
     this->enable_rx_pin_->setup();
@@ -137,24 +18,19 @@ void MicroNova::dump_config() {
     LOG_PIN("  Enable RX Pin: ", this->enable_rx_pin_);
   }
 
-  for (auto &mv_sensor : this->micronova_sensors_) {
+  for (auto &mv_sensor : this->micronova_listeners_) {
     mv_sensor->dump_config();
     ESP_LOGCONFIG(TAG, "    sensor location:%02X, address:%02X", mv_sensor->get_memory_location(),
                   mv_sensor->get_memory_address());
   }
-
-  if (this->scan_memory_location_ >= 0) {
-    ESP_LOGCONFIG(TAG, "  Memory %02X scan", this->scan_memory_location_);
-    for (uint8_t i = 0; i < 0x0F; i++) {
-      ESP_LOGCONFIG(TAG, "    Address %02X, Data %02X", i,
-                    this->read_address((uint8_t) this->scan_memory_location_, i));
-    }
-  }
 }
 
 void MicroNova::update() {
-  for (auto &mv_sensor : this->micronova_sensors_) {
-    mv_sensor->read_value_from_stove();
+  int new_raw_value = -1;
+
+  for (auto &mv_listener : this->micronova_listeners_) {
+    new_raw_value = this->read_address(mv_listener->get_memory_location(), mv_listener->get_memory_address());
+    mv_listener->publish_val(new_raw_value);
   }
 }
 
