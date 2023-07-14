@@ -54,7 +54,7 @@ void LedStripSpi::setup() {
   this->buf_ = allocator.allocate(this->buf_size_());
   if (this->buf_ == nullptr) {
     ESP_LOGE(TAG, "Failed allocate LED buffer");
-    free(this->effect_data_);
+    allocator.deallocate(this->effect_data_, this->num_leds_);
     this->effect_data_ = nullptr;
     this->mark_failed();
     return;
@@ -62,9 +62,9 @@ void LedStripSpi::setup() {
   memset(this->buf_, 0, this->buf_size_());
 
   if (!this->spi_init_()) {
-    free(this->effect_data_);
+    allocator.deallocate(this->effect_data_, this->num_leds_);
     this->effect_data_ = nullptr;
-    free(this->buf_);
+    allocator.deallocate(this->buf_, this->buf_size_());
     this->buf_ = nullptr;
     this->mark_failed();
     return;
