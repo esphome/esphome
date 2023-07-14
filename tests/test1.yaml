@@ -325,6 +325,7 @@ ble_client:
             accept: True
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
+
 bedjet:
   - ble_client_id: my_bedjet_ble_client
     id: my_bedjet_client
@@ -482,6 +483,25 @@ sensor:
     nir:
       name: NIR
     i2c_id: i2c_bus
+  - platform: atm90e26
+    cs_pin: 5
+    voltage:
+      name: Line Voltage
+    current:
+      name: CT Amps
+    power:
+      name: Active Watts
+    power_factor:
+      name: Power Factor
+    frequency:
+      name: Line Frequency
+    line_frequency: 50Hz
+    meter_constant: 1000
+    pl_const: 1429876
+    gain_pga: 1X
+    gain_metering: 7481
+    gain_voltage: 26400
+    gain_ct: 31251
   - platform: atm90e32
     cs_pin: 5
     phase_a:
@@ -1269,6 +1289,16 @@ sensor:
     pressure:
       name: "MPL3115A2 Pressure"
     update_interval: 10s
+  - platform: alpha3
+    ble_client_id: ble_foo
+    flow:
+      name: "Radiator Pump Flow"
+    head:
+      name: "Radiator Pump Head"
+    power:
+      name: "Radiator Pump Power"
+    speed:
+      name: "Radiator Pump Speed"
   - platform: ld2410
     moving_distance:
       name: "Moving distance (cm)"
@@ -1310,6 +1340,10 @@ sensor:
       fault_count: 1
       polarity: active_high
       function: comparator
+  - platform: zio_ultrasonic
+    name: "Distance"
+    update_interval: 60s
+    i2c_id: i2c_bus
 
 esp32_touch:
   setup_mode: false

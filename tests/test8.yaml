@@ -18,10 +18,35 @@ light:
   - platform: neopixelbus
     type: GRB
     variant: WS2812
-    pin: 33
+    pin: GPIO38
     num_leds: 1
     id: neopixel
     method: esp32_rmt
     name: neopixel-enable
     internal: false
     restore_mode: ALWAYS_OFF
+
+spi:
+  clk_pin: GPIO7
+  mosi_pin: GPIO6
+
+display:
+  - platform: ili9xxx
+    model: ili9342
+    cs_pin: GPIO5
+    dc_pin: GPIO4
+    reset_pin: GPIO48
+
+i2c:
+  scl: GPIO18
+  sda: GPIO8
+
+touchscreen:
+  - platform: tt21100
+    interrupt_pin: GPIO3
+    reset_pin: GPIO48
+
+binary_sensor:
+  - platform: tt21100
+    name: Home Button
+    index: 1
