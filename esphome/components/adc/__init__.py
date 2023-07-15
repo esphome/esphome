@@ -93,6 +93,33 @@ ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
         25: adc2_channel_t.ADC2_CHANNEL_8,
         26: adc2_channel_t.ADC2_CHANNEL_9,
     },
+    VARIANT_ESP32S2: {
+        11: adc2_channel_t.ADC2_CHANNEL_0,
+        12: adc2_channel_t.ADC2_CHANNEL_1,
+        13: adc2_channel_t.ADC2_CHANNEL_2,
+        14: adc2_channel_t.ADC2_CHANNEL_3,
+        15: adc2_channel_t.ADC2_CHANNEL_4,
+        16: adc2_channel_t.ADC2_CHANNEL_5,
+        17: adc2_channel_t.ADC2_CHANNEL_6,
+        18: adc2_channel_t.ADC2_CHANNEL_7,
+        19: adc2_channel_t.ADC2_CHANNEL_8,
+        20: adc2_channel_t.ADC2_CHANNEL_9,
+    },
+    VARIANT_ESP32S3: {
+        11: adc2_channel_t.ADC2_CHANNEL_0,
+        12: adc2_channel_t.ADC2_CHANNEL_1,
+        13: adc2_channel_t.ADC2_CHANNEL_2,
+        14: adc2_channel_t.ADC2_CHANNEL_3,
+        15: adc2_channel_t.ADC2_CHANNEL_4,
+        16: adc2_channel_t.ADC2_CHANNEL_5,
+        17: adc2_channel_t.ADC2_CHANNEL_6,
+        18: adc2_channel_t.ADC2_CHANNEL_7,
+        19: adc2_channel_t.ADC2_CHANNEL_8,
+        20: adc2_channel_t.ADC2_CHANNEL_9,
+    },
+    VARIANT_ESP32C3: {
+        5: adc2_channel_t.ADC2_CHANNEL_0,
+    },
 }
 
 
