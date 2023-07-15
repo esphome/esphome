@@ -1758,6 +1758,33 @@ sensor:
       memory_location: 0x20
       memory_address: 0x7d
       name: Adres sensor
+  - platform: statistics
+    source_id: dht_temperature
+    window:
+      type: sliding
+      window_size: 15
+      send_every: 5
+      send_first_at: 3
+    average_type: time_weighted
+    group_type: sample
+    argmax:
+      name: "DHT Temperature - Time Since Last Maximum"
+    argmin:
+      name: "DHT Temperature - Time Since Last Minimum"
+    count:
+      name: "DHT Temperature - Count of Valid Measurements"
+    duration:
+      name: "DHT Temperature - Duration"
+    max:
+      name: "DHT Temperature - Maximum"
+    min:
+      name: "DHT Temperature - Minimum"
+    mean:
+      name: "DHT Temperature - Average"
+    std_dev:
+      name: "DHT Temperature - Standard Deviation"
+    trend:
+      name: "DHT Temperature - Trend"
 
 psram:
 
