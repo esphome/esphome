@@ -22,7 +22,7 @@ void TuyaNumber::setup() {
 void TuyaNumber::control(float value) {
   ESP_LOGV(TAG, "Setting number %u: %f", this->number_id_, value);
   if (this->type_ == TuyaDatapointType::INTEGER) {
-    int integer_value = (value / this->traits.get_step()) + 0.5;
+    int integer_value = lround(value / this->traits.get_step());
     this->parent_->set_integer_datapoint_value(this->number_id_, integer_value);
   } else if (this->type_ == TuyaDatapointType::ENUM) {
     this->parent_->set_enum_datapoint_value(this->number_id_, value);
