@@ -2475,7 +2475,6 @@ switch:
           level: !lambda "return 0.5;"
     turn_off_action:
       - switch.turn_on: living_room_lights_off
-    restore_state: false
     on_turn_on:
       - switch.template.publish:
           id: livingroom_lights
@@ -2511,7 +2510,6 @@ switch:
       }
     optimistic: true
     assumed_state: false
-    restore_state: true
     on_turn_off:
       - switch.template.publish:
           id: my_switch
