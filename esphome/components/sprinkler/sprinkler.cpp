@@ -959,7 +959,7 @@ void Sprinkler::resume() {
     return;
   }
 
-  if (this->paused_valve_.has_value()) {
+  if (this->paused_valve_.has_value() && (this->resume_duration_.has_value())) {
     // Resume only if valve has not been completed yet
     if (!this->valve_cycle_complete_(this->paused_valve_.value())) {
       ESP_LOGD(TAG, "Resuming valve %u with %u seconds remaining", this->paused_valve_.value_or(0),
