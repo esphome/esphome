@@ -92,8 +92,7 @@ void GraphicalDisplayMenu::draw_and_update() {
 
 void GraphicalDisplayMenu::draw_menu() {
   if (this->display_ == nullptr) {
-    ESP_LOGE(TAG,
-             "draw_menu() called without a display_. This is only available when using the menu in pop up mode");
+    ESP_LOGE(TAG,"draw_menu() called without a display_. This is only available when using the menu in pop up mode");
     return;
   }
   display::Rect bounds(0, 0, this->display_->get_width(), this->display_->get_height());
@@ -175,9 +174,8 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const 
   display->end_clipping();
 }
 
-display::Rect GraphicalDisplayMenu::measure_item(display::Display *display,
-                                                 const display_menu_base::MenuItem *item, const display::Rect *bounds,
-                                                 bool selected) {
+display::Rect GraphicalDisplayMenu::measure_item(display::Display *display, const display_menu_base::MenuItem *item,
+                                                 const display::Rect *bounds, bool selected) {
   display::Rect dimensions(0, 0, 0, 0);
 
   if (selected) {
@@ -197,8 +195,7 @@ display::Rect GraphicalDisplayMenu::measure_item(display::Display *display,
   int y1;
   int width;
   int height;
-  display->get_text_bounds(0, 0, label.c_str(), this->font_, display::TextAlign::TOP_LEFT, &x1, &y1, &width,
-                                  &height);
+  display->get_text_bounds(0, 0, label.c_str(), this->font_, display::TextAlign::TOP_LEFT, &x1, &y1, &width, &height);
 
   dimensions.w = std::min((int16_t) width, bounds->w);
   dimensions.h = std::min((int16_t) height, bounds->h);
