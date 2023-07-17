@@ -15,7 +15,15 @@ static const int32_t BIT_ZERO_SPACE_US = 1 * TICK_US;
 static const int32_t FOOTER_MARK_US = 1 * TICK_US;
 static const int32_t FOOTER_SPACE_US = 10 * TICK_US;
 
-static void encode_data(RemoteTransmitData *dst, const CoolixData &src) {
+bool CoolixData::operator==(const CoolixData &other) const {
+  if (this->first == 0)
+    return this->second == other.first || this->second == other.second;
+  if (other.first == 0)
+    return other.second == this->first || other.second == this->second;
+  return this->first == other.first && this->second == other.second;
+}
+
+static void encode_data(RemoteTransmitData *dst, const uint32_t &src) {
   //   Break data into bytes, starting at the Most Significant
   //   Byte. Each byte then being sent normal, then followed inverted.
   for (unsigned shift = 16;; shift -= 8) {
@@ -35,16 +43,19 @@ static void encode_data(RemoteTransmitData *dst, const CoolixData &src) {
 
 void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
   dst->set_carrier_frequency(38000);
-  dst->reserve(2 + 2 * 48 + 2 + 2 + 2 * 48 + 1);
+  dst->reserve(2 + 2 * 48 + 1 + (1 + 2 + 2 * 48 + 1) * data.has_second());
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  encode_data(dst, data);
-  dst->item(FOOTER_MARK_US, FOOTER_SPACE_US);
-  dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  encode_data(dst, data);
+  encode_data(dst, data.first);
   dst->mark(FOOTER_MARK_US);
+  if (data.has_second()) {
+    dst->space(FOOTER_SPACE_US);
+    dst->item(HEADER_MARK_US, HEADER_SPACE_US);
+    encode_data(dst, data.second);
+    dst->mark(FOOTER_MARK_US);
+  }
 }
 
-static bool decode_data(RemoteReceiveData &src, CoolixData &dst) {
+static bool decode_data(RemoteReceiveData &src, uint32_t &dst) {
   uint32_t data = 0;
   for (unsigned n = 3;; data <<= 8) {
     // Read byte
@@ -71,15 +82,27 @@ static bool decode_data(RemoteReceiveData &src, CoolixData &dst) {
 }
 
 optional<CoolixData> CoolixProtocol::decode(RemoteReceiveData data) {
-  CoolixData first, second;
-  if (data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) && decode_data(data, first) &&
-      data.expect_item(FOOTER_MARK_US, FOOTER_SPACE_US) && data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) &&
-      decode_data(data, second) && data.expect_mark(FOOTER_MARK_US) && first == second)
-    return first;
-  return {};
+  CoolixData result;
+  if (!data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) || !decode_data(data, result.first) ||
+      !data.expect_mark(FOOTER_MARK_US)) {
+    return {};
+  }
+  if (!data.expect_space(FOOTER_SPACE_US) || !data.expect_item(HEADER_MARK_US, HEADER_SPACE_US) ||
+      !decode_data(data, result.second) || !data.expect_mark(FOOTER_MARK_US)) {
+    result.second = 0;
+  }
+  return result;
 }
 
-void CoolixProtocol::dump(const CoolixData &data) { ESP_LOGD(TAG, "Received Coolix: 0x%06X", data); }
+void CoolixProtocol::dump(const CoolixData &data) {
+  if (data.is_strict()) {
+    ESP_LOGD(TAG, "Received Coolix: 0x%06X", data.first);
+  } else if (data.has_second()) {
+    ESP_LOGD(TAG, "Received unstrict Coolix: [0x%06X, 0x%06X]", data.first, data.second);
+  } else {
+    ESP_LOGD(TAG, "Received unstrict Coolix: [0x%06X]", data.first);
+  }
+}
 
 }  // namespace remote_base
 }  // namespace esphome
