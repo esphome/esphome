@@ -1,4 +1,4 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include "esphome/core/log.h"
 
 #include "led_strip.h"
@@ -28,7 +28,7 @@ inline static const char *rgb_order_to_string(RGBOrder order) {
 }
 
 void LedStripSpi::dump_config() {
-  ESP_LOGCONFIG(TAG, "ESP-IDF SPI LED Strip:");
+  ESP_LOGCONFIG(TAG, "ESP32 SPI LED Strip:");
   ESP_LOGCONFIG(TAG, "  Data Pin: GPIO%d", this->data_pin_);
   ESP_LOGCONFIG(TAG, "  Clock Pin: GPIO%d", this->clock_pin_);
   ESP_LOGCONFIG(TAG, "  Number of LEDs: %d", this->num_leds_);
@@ -39,7 +39,7 @@ void LedStripSpi::dump_config() {
 }
 
 void LedStripSpi::setup() {
-  ESP_LOGD(TAG, "Setting up ESP-IDF SPI LED Strip...");
+  ESP_LOGD(TAG, "Setting up ESP32 SPI LED Strip...");
 
   ExternalRAMAllocator<uint8_t> allocator(ExternalRAMAllocator<uint8_t>::ALLOW_FAILURE);
 

@@ -12,10 +12,11 @@ from esphome.const import (
 )
 
 CODEOWNERS = ["@dentra"]
+DEPENDENCIES = ["esp32"]
 
-led_strip_spi_ns = cg.esphome_ns.namespace("esp32_spi_led_strip")
-LedStripSpi = led_strip_spi_ns.class_("LedStripSpi", light.AddressableLight)
-RGBOrder = led_strip_spi_ns.enum("RGBOrder")
+esp32_spi_led_strip_ns = cg.esphome_ns.namespace("esp32_spi_led_strip")
+LedStripSpi = esp32_spi_led_strip_ns.class_("LedStripSpi", light.AddressableLight)
+RGBOrder = esp32_spi_led_strip_ns.enum("RGBOrder")
 
 RGB_ORDERS = {
     "RGB": RGBOrder.ORDER_RGB,
@@ -37,7 +38,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
         }
     ),
-    cv.only_with_esp_idf,
+    cv.only_on_esp32,
 )
 
 

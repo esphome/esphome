@@ -1,5 +1,5 @@
 #pragma once
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 #include <driver/spi_master.h>
 
 #include "esphome/components/light/addressable_light.h"
