@@ -60,8 +60,8 @@ async def to_code(config):
     await cg.register_component(var, config)
 
     if CONF_DISPLAY in config:
-        display_buffer = await cg.get_variable(config[CONF_DISPLAY])
-        cg.add(var.set_display_buffer(display_buffer))
+        display = await cg.get_variable(config[CONF_DISPLAY])
+        cg.add(var.set_display(display))
 
     menu_font = await cg.get_variable(config[CONF_FONT])
     cg.add(var.set_font(menu_font))
