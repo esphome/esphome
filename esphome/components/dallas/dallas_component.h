@@ -9,6 +9,16 @@
 namespace esphome {
 namespace dallas {
 
+enum DallasChipset{
+  AUTO,
+  DS18S20,
+  DS1822,
+  DS18B20,
+  DS1825,
+  DS28EA00,
+  MAX31850,
+};
+
 class DallasTemperatureSensor;
 
 class DallasComponent : public PollingComponent {
@@ -50,8 +60,8 @@ class DallasTemperatureSensor : public sensor::Sensor {
   uint8_t get_resolution() const;
   /// Set the resolution for this sensor.
   void set_resolution(uint8_t resolution);
-  /// Define this sensor as the MAX31850 part (shadows the DS1825 model code)
-  void set_max31850(bool max31850);
+  /// Force the chipset of the sensor, defaults to AUTO, if not set
+  void set_chipset(DallasChipset chipset);
   /// Get the number of milliseconds we have to wait for the conversion phase.
   uint16_t millis_to_wait_for_conversion() const;
 
@@ -74,7 +84,7 @@ class DallasTemperatureSensor : public sensor::Sensor {
   uint8_t scratch_pad_[9] = {
       0,
   };
-  bool max31850_ = false;
+  DallasChipset chipset_;
 };
 
 }  // namespace dallas
