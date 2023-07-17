@@ -666,9 +666,9 @@ light:
     bit1_high: 100us
     bit1_low: 100us
   - platform: esp32_spi_led_strip
-    id: led_stripp_spi
-    data_pin: GPIO40
-    clock_pin: GPIO39
+    id: led_strip_spi
+    data_pin: GPIO23
+    clock_pin: GPIO22
     num_leds: 1
     rgb_order: RGB
     max_refresh_rate: 50us
