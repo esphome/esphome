@@ -7,8 +7,6 @@ import sys
 import time
 from datetime import datetime
 
-import colorama
-
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
 from esphome.config import iter_components, read_config, strip_default_ids
@@ -670,7 +668,6 @@ POST_CONFIG_ACTIONS = {
 
 
 def parse_args(argv):
-    colorama.init()
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
         "-v", "--verbose", help="Enable verbose ESPHome logs.", action="store_true"
