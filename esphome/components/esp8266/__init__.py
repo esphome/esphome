@@ -50,7 +50,7 @@ def set_core_data(config):
     return config
 
 
-def get_download_types(storage_json=None):
+def get_download_types(storage_json):
     return [
         {
             "title": "Standard format",

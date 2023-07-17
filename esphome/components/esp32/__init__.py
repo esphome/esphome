@@ -80,7 +80,7 @@ def get_esp32_variant(core_obj=None):
     return (core_obj or CORE).data[KEY_ESP32][KEY_VARIANT]
 
 
-def get_download_types(storage_json=None):
+def get_download_types(storage_json):
     return [
         {
             "title": "Modern format",
