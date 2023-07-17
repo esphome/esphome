@@ -355,8 +355,8 @@ async def canalsatld_action(var, config, args):
 
 COOLIX_BASE_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_FIRST): cv.hex_uint32_t,
-        cv.Optional(CONF_SECOND, default=0): cv.hex_uint32_t,
+        cv.Required(CONF_FIRST): cv.hex_int_range(0, 16777215),
+        cv.Optional(CONF_SECOND, default=0): cv.hex_int_range(0, 16777215),
         cv.Optional(CONF_DATA): cv.invalid(
             "'data' option has been removed in ESPHome 2023.7. "
             "Use the 'first' and 'second' options instead."
@@ -364,7 +364,7 @@ COOLIX_BASE_SCHEMA = cv.Schema(
     }
 )
 
-COOLIX_SENSOR_SCHEMA = cv.Any(cv.hex_uint32_t, COOLIX_BASE_SCHEMA)
+COOLIX_SENSOR_SCHEMA = cv.Any(cv.hex_int_range(0, 16777215), COOLIX_BASE_SCHEMA)
 
 
 @register_binary_sensor("coolix", CoolixBinarySensor, COOLIX_SENSOR_SCHEMA)
