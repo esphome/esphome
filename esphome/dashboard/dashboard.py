@@ -526,8 +526,11 @@ class DownloadBinaryRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        file_name = self.get_argument("file", "firmware.bin")
+        # fallback to type=, but prioritize file=
+        file_name = self.get_argument("type", "firmware.bin")
+        file_name = self.get_argument("file", file_name)
         file_name = file_name.replace("..", "").lstrip("/")
+        # get requested download name, or build it based on filename
         download_name = self.get_argument(
             "download",
             f"{storage_json.name}-{file_name}",
