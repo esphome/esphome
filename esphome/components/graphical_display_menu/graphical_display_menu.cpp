@@ -3,7 +3,7 @@
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include <cstdlib>
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
 
 namespace esphome {
 namespace graphical_display_menu {
@@ -11,8 +11,8 @@ namespace graphical_display_menu {
 static const char *const TAG = "graphical_display_menu";
 
 void GraphicalDisplayMenu::setup() {
-  if (this->display_buffer_ != nullptr) {
-    display::display_writer_t writer = [this](display::DisplayBuffer &it) { this->draw_menu(); };
+  if (this->display_ != nullptr) {
+    display::display_writer_t writer = [this](display::Display &it) { this->draw_menu(); };
     this->display_page_ = make_unique<display::DisplayPage>(writer);
   }
 
@@ -37,9 +37,9 @@ void GraphicalDisplayMenu::setup() {
 
 void GraphicalDisplayMenu::dump_config() {
   ESP_LOGCONFIG(TAG, "Graphical Display Menu");
-  ESP_LOGCONFIG(TAG, "Has Display Buffer: %s", YESNO(this->display_buffer_ != nullptr));
-  ESP_LOGCONFIG(TAG, "Popup Mode: %s", YESNO(this->display_buffer_ != nullptr));
-  ESP_LOGCONFIG(TAG, "Advanced Drawing Mode: %s", YESNO(this->display_buffer_ == nullptr));
+  ESP_LOGCONFIG(TAG, "Has Display: %s", YESNO(this->display_ != nullptr));
+  ESP_LOGCONFIG(TAG, "Popup Mode: %s", YESNO(this->display_ != nullptr));
+  ESP_LOGCONFIG(TAG, "Advanced Drawing Mode: %s", YESNO(this->display_ == nullptr));
   ESP_LOGCONFIG(TAG, "Has Font: %s", YESNO(this->font_ != nullptr));
   ESP_LOGCONFIG(TAG, "Mode: %s", this->mode_ == display_menu_base::MENU_MODE_ROTARY ? "Rotary" : "Joystick");
   ESP_LOGCONFIG(TAG, "Active: %s", YESNO(this->active_));
@@ -52,18 +52,18 @@ void GraphicalDisplayMenu::dump_config() {
   }
 }
 
-void GraphicalDisplayMenu::set_display_buffer(display::DisplayBuffer *display) { this->display_buffer_ = display; }
+void GraphicalDisplayMenu::set_display(display::Display *display) { this->display_ = display; }
 
-void GraphicalDisplayMenu::set_font(display::Font *font) { this->font_ = font; }
+void GraphicalDisplayMenu::set_font(display::BaseFont *font) { this->font_ = font; }
 
 void GraphicalDisplayMenu::set_foreground_color(Color foreground_color) { this->foreground_color_ = foreground_color; }
 void GraphicalDisplayMenu::set_background_color(Color background_color) { this->background_color_ = background_color; }
 
 void GraphicalDisplayMenu::on_before_show() {
-  if (this->display_buffer_ != nullptr) {
-    this->previous_display_page_ = this->display_buffer_->get_active_page();
-    this->display_buffer_->show_page(this->display_page_.get());
-    this->display_buffer_->clear();
+  if (this->display_ != nullptr) {
+    this->previous_display_page_ = this->display_->get_active_page();
+    this->display_->show_page(this->display_page_.get());
+    this->display_->clear();
   } else {
     this->update();
   }
@@ -71,8 +71,8 @@ void GraphicalDisplayMenu::on_before_show() {
 
 void GraphicalDisplayMenu::on_before_hide() {
   if (this->previous_display_page_ != nullptr) {
-    this->display_buffer_->show_page((display::DisplayPage *) this->previous_display_page_);
-    this->display_buffer_->clear();
+    this->display_->show_page((display::DisplayPage *) this->previous_display_page_);
+    this->display_->clear();
     this->update();
     this->previous_display_page_ = nullptr;
   } else {
@@ -83,28 +83,28 @@ void GraphicalDisplayMenu::on_before_hide() {
 void GraphicalDisplayMenu::draw_and_update() {
   this->update();
 
-  // If we're in advanced drawing mode we won't have a display buffer and will instead require the update callback to do
+  // If we're in advanced drawing mode we won't have a display and will instead require the update callback to do
   // our drawing
-  if (this->display_buffer_ != nullptr) {
+  if (this->display_ != nullptr) {
     draw_menu();
   }
 }
 
 void GraphicalDisplayMenu::draw_menu() {
-  if (this->display_buffer_ == nullptr) {
+  if (this->display_ == nullptr) {
     ESP_LOGE(TAG,
-             "draw_menu() called without a display_buffer_. This is only available when using the menu in pop up mode");
+             "draw_menu() called without a display_. This is only available when using the menu in pop up mode");
     return;
   }
-  display::Rect bounds(0, 0, this->display_buffer_->get_width(), this->display_buffer_->get_height());
-  this->draw_menu_internal_(this->display_buffer_, &bounds);
+  display::Rect bounds(0, 0, this->display_->get_width(), this->display_->get_height());
+  this->draw_menu_internal_(this->display_, &bounds);
 }
 
-void GraphicalDisplayMenu::draw(display::DisplayBuffer *display, const display::Rect *bounds) {
+void GraphicalDisplayMenu::draw(display::Display *display, const display::Rect *bounds) {
   this->draw_menu_internal_(display, bounds);
 }
 
-void GraphicalDisplayMenu::draw_menu_internal_(display::DisplayBuffer *display, const display::Rect *bounds) {
+void GraphicalDisplayMenu::draw_menu_internal_(display::Display *display, const display::Rect *bounds) {
   int total_height = 0;
   int y_padding = 2;
   bool scroll_menu_items = false;
@@ -175,7 +175,7 @@ void GraphicalDisplayMenu::draw_menu_internal_(display::DisplayBuffer *display, 
   display->end_clipping();
 }
 
-display::Rect GraphicalDisplayMenu::measure_item(display::DisplayBuffer *display_buffer,
+display::Rect GraphicalDisplayMenu::measure_item(display::Display *display,
                                                  const display_menu_base::MenuItem *item, const display::Rect *bounds,
                                                  bool selected) {
   display::Rect dimensions(0, 0, 0, 0);
@@ -197,7 +197,7 @@ display::Rect GraphicalDisplayMenu::measure_item(display::DisplayBuffer *display
   int y1;
   int width;
   int height;
-  display_buffer->get_text_bounds(0, 0, label.c_str(), this->font_, display::TextAlign::TOP_LEFT, &x1, &y1, &width,
+  display->get_text_bounds(0, 0, label.c_str(), this->font_, display::TextAlign::TOP_LEFT, &x1, &y1, &width,
                                   &height);
 
   dimensions.w = std::min((int16_t) width, bounds->w);
@@ -206,7 +206,7 @@ display::Rect GraphicalDisplayMenu::measure_item(display::DisplayBuffer *display
   return dimensions;
 }
 
-inline void GraphicalDisplayMenu::draw_item(display::DisplayBuffer *display, const display_menu_base::MenuItem *item,
+inline void GraphicalDisplayMenu::draw_item(display::Display *display, const display_menu_base::MenuItem *item,
                                             const display::Rect *bounds, bool selected) {
   auto background_color = selected ? this->foreground_color_ : this->background_color_;
   auto foreground_color = selected ? this->background_color_ : this->foreground_color_;

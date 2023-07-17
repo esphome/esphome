@@ -1,7 +1,7 @@
 import logging
 
-from esphome import core
-from esphome.components import display, font
+from esphome import automation, core
+from esphome.components import font
 import esphome.components.image as espImage
 from esphome.components.image import CONF_USE_TRANSPARENCY
 import esphome.config_validation as cv
@@ -18,14 +18,30 @@ from esphome.core import CORE, HexInt
 
 _LOGGER = logging.getLogger(__name__)
 
+AUTO_LOAD = ["image"]
+CODEOWNERS = ["@syndlex"]
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
 
 CONF_LOOP = "loop"
 CONF_START_FRAME = "start_frame"
 CONF_END_FRAME = "end_frame"
+CONF_FRAME = "frame"
 
-Animation_ = display.display_ns.class_("Animation", espImage.Image_)
+animation_ns = cg.esphome_ns.namespace("animation")
+
+Animation_ = animation_ns.class_("Animation", espImage.Image_)
+
+# Actions
+NextFrameAction = animation_ns.class_(
+    "AnimationNextFrameAction", automation.Action, cg.Parented.template(Animation_)
+)
+PrevFrameAction = animation_ns.class_(
+    "AnimationPrevFrameAction", automation.Action, cg.Parented.template(Animation_)
+)
+SetFrameAction = animation_ns.class_(
+    "AnimationSetFrameAction", automation.Action, cg.Parented.template(Animation_)
+)
 
 
 def validate_cross_dependencies(config):
@@ -74,7 +90,35 @@ ANIMATION_SCHEMA = cv.Schema(
 
 CONFIG_SCHEMA = cv.All(font.validate_pillow_installed, ANIMATION_SCHEMA)
 
-CODEOWNERS = ["@syndlex"]
+NEXT_FRAME_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(Animation_),
+    }
+)
+PREV_FRAME_SCHEMA = automation.maybe_simple_id(
+    {
+        cv.GenerateID(): cv.use_id(Animation_),
+    }
+)
+SET_FRAME_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.use_id(Animation_),
+        cv.Required(CONF_FRAME): cv.uint16_t,
+    }
+)
+
+
+@automation.register_action("animation.next_frame", NextFrameAction, NEXT_FRAME_SCHEMA)
+@automation.register_action("animation.prev_frame", PrevFrameAction, PREV_FRAME_SCHEMA)
+@automation.register_action("animation.set_frame", SetFrameAction, SET_FRAME_SCHEMA)
+async def animation_action_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+
+    if CONF_FRAME in config:
+        template_ = await cg.templatable(config[CONF_FRAME], args, cg.uint16)
+        cg.add(var.set_frame(template_))
+    return var
 
 
 async def to_code(config):

@@ -10,9 +10,9 @@ namespace esphome {
 
 // forward declare from display namespace
 namespace display {
-class DisplayBuffer;
+class Display;
 class DisplayPage;
-class Font;
+class BaseFont;
 class Rect;
 }  // namespace display
 
@@ -38,24 +38,24 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
   void setup() override;
   void dump_config() override;
 
-  void set_display_buffer(display::DisplayBuffer *display);
-  void set_font(display::Font *font);
+  void set_display(display::Display *display);
+  void set_font(display::BaseFont *font);
   template<typename V> void set_menu_item_value(V menu_item_value) { this->menu_item_value_ = menu_item_value; }
   void set_foreground_color(Color foreground_color);
   void set_background_color(Color background_color);
 
   void add_on_redraw_callback(std::function<void()> &&cb) { this->on_redraw_callbacks_.add(std::move(cb)); }
 
-  void draw(display::DisplayBuffer *display, const display::Rect *bounds);
+  void draw(display::Display *display, const display::Rect *bounds);
 
  protected:
   void draw_and_update() override;
   void draw_menu() override;
-  void draw_menu_internal_(display::DisplayBuffer *display, const display::Rect *bounds);
+  void draw_menu_internal_(display::Display *display, const display::Rect *bounds);
   void draw_item(const display_menu_base::MenuItem *item, uint8_t row, bool selected) override;
-  virtual display::Rect measure_item(display::DisplayBuffer *display_buffer, const display_menu_base::MenuItem *item,
+  virtual display::Rect measure_item(display::Display *display, const display_menu_base::MenuItem *item,
                                      const display::Rect *bounds, bool selected);
-  virtual void draw_item(display::DisplayBuffer *display_buffer, const display_menu_base::MenuItem *item,
+  virtual void draw_item(display::Display *display, const display_menu_base::MenuItem *item,
                          const display::Rect *bounds, bool selected);
   void update() override;
 
@@ -64,8 +64,8 @@ class GraphicalDisplayMenu : public display_menu_base::DisplayMenuComponent {
 
   std::unique_ptr<display::DisplayPage> display_page_{nullptr};
   const display::DisplayPage *previous_display_page_{nullptr};
-  display::DisplayBuffer *display_buffer_{nullptr};
-  display::Font *font_{nullptr};
+  display::Display *display_{nullptr};
+  display::BaseFont *font_{nullptr};
   TemplatableValue<std::string, const MenuItemValueArguments *> menu_item_value_;
   Color foreground_color_{COLOR_ON};
   Color background_color_{COLOR_OFF};

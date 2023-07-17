@@ -32,7 +32,7 @@ from esphome.const import (
     SECRETS_FILES,
 )
 from esphome.core import CORE, EsphomeError, coroutine
-from esphome.helpers import indent
+from esphome.helpers import indent, is_ip_address
 from esphome.util import (
     run_external_command,
     run_external_process,
@@ -308,8 +308,10 @@ def upload_program(config, args, host):
     password = ota_conf.get(CONF_PASSWORD, "")
 
     if (
-        get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED]
-    ) and CONF_MQTT in config:
+        not is_ip_address(CORE.address)
+        and (get_port_type(host) == "MQTT" or config[CONF_MDNS][CONF_DISABLED])
+        and CONF_MQTT in config
+    ):
         from esphome import mqtt
 
         host = mqtt.get_esphome_device_ip(
@@ -980,7 +982,7 @@ def run_esphome(argv):
             _LOGGER.error(e, exc_info=args.verbose)
             return 1
 
-    safe_print(f"ESPHome {const.__version__}")
+    _LOGGER.info("ESPHome %s", const.__version__)
 
     for conf_path in args.configuration:
         if any(os.path.basename(conf_path) == x for x in SECRETS_FILES):

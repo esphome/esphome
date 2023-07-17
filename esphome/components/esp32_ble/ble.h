@@ -18,6 +18,8 @@
 namespace esphome {
 namespace esp32_ble {
 
+uint64_t ble_addr_to_uint64(const esp_bd_addr_t address);
+
 // NOLINTNEXTLINE(modernize-use-using)
 typedef struct {
   void *peer_device;

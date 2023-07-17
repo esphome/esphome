@@ -86,6 +86,7 @@ sensor:
       - delta: 100
       - throttle: 100ms
       - debounce: 500s
+      - timeout: 10min
       - calibrate_linear:
           - 0 -> 0
           - 100 -> 100
@@ -303,6 +304,10 @@ sm2135:
   rgb_current: 20mA
   cw_current: 60mA
 
+grove_tb6612fng:
+  id: test_motor
+  address: 0x14
+
 switch:
   - platform: template
     name: mpr121_toggle
@@ -353,6 +358,17 @@ switch:
                 Content-Type: application/json
               body: Some data
               verify_ssl: false
+  - platform: template
+    name: open_vent
+    id: open_vent
+    optimistic: True
+    on_turn_on:
+      then:
+        - grove_tb6612fng.run:
+            channel: 1
+            speed: 255
+            direction: BACKWARD
+            id: test_motor
 
 
 custom_component:
