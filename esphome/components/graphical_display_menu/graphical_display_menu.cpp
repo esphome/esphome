@@ -92,7 +92,7 @@ void GraphicalDisplayMenu::draw_and_update() {
 
 void GraphicalDisplayMenu::draw_menu() {
   if (this->display_ == nullptr) {
-    ESP_LOGE(TAG,"draw_menu() called without a display_. This is only available when using the menu in pop up mode");
+    ESP_LOGE(TAG, "draw_menu() called without a display_. This is only available when using the menu in pop up mode");
     return;
   }
   display::Rect bounds(0, 0, this->display_->get_width(), this->display_->get_height());
