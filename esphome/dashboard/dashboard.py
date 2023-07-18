@@ -275,7 +275,7 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
                 if self._use_popen:
                     data = yield self._queue.get()
                     if data is None:
-                        self._proc_on_exit(self._proc.returncode)
+                        self._proc_on_exit(self._proc.poll())
                         break
                 else:
                     data = yield self._proc.stdout.read_until_regex(reg)
@@ -291,10 +291,11 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
             return
         while True:
             data = self._proc.stdout.readline()
-            if not data:
+            if data:
+                data = data.replace(b"\r", b"")
+                self._queue.put_nowait(data)
+            if self._proc.poll() is not None:
                 break
-            data = data.replace(b"\r", b"")
-            self._queue.put_nowait(data)
         self._proc.wait(1.0)
         self._queue.put_nowait(None)
 
