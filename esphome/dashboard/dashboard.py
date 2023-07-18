@@ -92,6 +92,10 @@ class DashboardSettings:
     def using_auth(self):
         return self.using_password or self.using_ha_addon_auth
 
+    @property
+    def streamer_mode(self):
+        return get_bool_env("ESPHOME_STREAMER_MODE")
+
     def check_password(self, username, password):
         if not self.using_auth:
             return True
@@ -130,7 +134,7 @@ def template_args():
         "docs_link": docs_link,
         "get_static_file_url": get_static_file_url,
         "relative_url": settings.relative_url,
-        "streamer_mode": get_bool_env("ESPHOME_STREAMER_MODE"),
+        "streamer_mode": settings.streamer_mode,
         "config_dir": settings.config_dir,
     }
 
@@ -354,7 +358,10 @@ class EsphomeCompileHandler(EsphomeCommandWebSocket):
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", "config", config_file]
+        command = ["esphome", "--dashboard", "config", config_file]
+        if not settings.streamer_mode:
+            command.append("--show-secrets")
+        return command
 
 
 class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
@@ -1105,7 +1112,7 @@ class JsonConfigRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        args = ["esphome", "config", settings.rel_path(configuration), "--show-secrets"]
+        args = ["esphome", "config", filename, "--show-secrets"]
 
         rc, stdout, _ = run_system_command(*args)
 
