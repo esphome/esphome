@@ -527,8 +527,11 @@ class DownloadBinaryRequestHandler(BaseHandler):
             return
 
         # fallback to type=, but prioritize file=
-        file_name = self.get_argument("type", "firmware.bin")
+        file_name = self.get_argument("type", None)
         file_name = self.get_argument("file", file_name)
+        if file_name is None:
+            self.send_error(400)
+            return
         file_name = file_name.replace("..", "").lstrip("/")
         # get requested download name, or build it based on filename
         download_name = self.get_argument(
