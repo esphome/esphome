@@ -8,6 +8,13 @@
 namespace esphome {
 namespace switch_ {
 
+#define SUB_SWITCH(name) \
+ protected: \
+  switch_::Switch *name##_switch_{nullptr}; \
+\
+ public: \
+  void set_##name##_switch(switch_::Switch *s) { this->name##_switch_ = s; }
+
 // bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled
 const int RESTORE_MODE_ON_MASK = 0x01;
 const int RESTORE_MODE_PERSISTENT_MASK = 0x02;

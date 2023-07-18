@@ -294,6 +294,9 @@ wled:
 
 adalight:
 
+esp32_ble:
+  io_capability: keyboard_only
+
 esp32_ble_tracker:
 
 ble_client:
@@ -307,8 +310,22 @@ ble_client:
     on_disconnect:
       then:
         - switch.turn_on: ble1_status
+    on_passkey_request:
+      then:
+        - ble_client.passkey_reply:
+            id: ble_blah
+            passkey: 123456
+    on_passkey_notification:
+      then:
+        - logger.log: "Passkey notification received"
+    on_numeric_comparison_request:
+      then:
+        - ble_client.numeric_comparison_reply:
+            id: ble_blah
+            accept: True
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
+
 bedjet:
   - ble_client_id: my_bedjet_ble_client
     id: my_bedjet_client
@@ -466,6 +483,25 @@ sensor:
     nir:
       name: NIR
     i2c_id: i2c_bus
+  - platform: atm90e26
+    cs_pin: 5
+    voltage:
+      name: Line Voltage
+    current:
+      name: CT Amps
+    power:
+      name: Active Watts
+    power_factor:
+      name: Power Factor
+    frequency:
+      name: Line Frequency
+    line_frequency: 50Hz
+    meter_constant: 1000
+    pl_const: 1429876
+    gain_pga: 1X
+    gain_metering: 7481
+    gain_voltage: 26400
+    gain_ct: 31251
   - platform: atm90e32
     cs_pin: 5
     phase_a:
@@ -1253,6 +1289,16 @@ sensor:
     pressure:
       name: "MPL3115A2 Pressure"
     update_interval: 10s
+  - platform: alpha3
+    ble_client_id: ble_foo
+    flow:
+      name: "Radiator Pump Flow"
+    head:
+      name: "Radiator Pump Head"
+    power:
+      name: "Radiator Pump Power"
+    speed:
+      name: "Radiator Pump Speed"
   - platform: ld2410
     moving_distance:
       name: "Moving distance (cm)"
@@ -1276,6 +1322,28 @@ sensor:
     name: DHT Absolute Humidity
     temperature: dht_temperature
     humidity: dht_humidity
+  - platform: hyt271
+    i2c_id: i2c_bus
+    temperature:
+      name: "Temperature hyt271"
+      id: temp_etuve
+    humidity:
+      name: "Humidity hyt271"
+  - platform: tmp1075
+    name: "Temperature TMP1075"
+    update_interval: 10s
+    i2c_id: i2c_bus
+    conversion_rate: 27.5ms
+    alert:
+      limit_low: 50
+      limit_high: 75
+      fault_count: 1
+      polarity: active_high
+      function: comparator
+  - platform: zio_ultrasonic
+    name: "Distance"
+    update_interval: 60s
+    i2c_id: i2c_bus
 
 esp32_touch:
   setup_mode: false
@@ -1321,8 +1389,15 @@ binary_sensor:
     device_class: window
     filters:
       - invert:
+      - delayed_on_off: 40ms
+      - delayed_on_off:
+          time_on: 10s
+          time_off: !lambda "return 1000;"
       - delayed_on: 40ms
       - delayed_off: 40ms
+      - delayed_on_off: !lambda "return 10;"
+      - delayed_on: !lambda "return 1000;"
+      - delayed_off: !lambda "return 0;"
     on_press:
       then:
         - lambda: >-
@@ -1447,6 +1522,13 @@ binary_sensor:
     pin:
       pca9554: pca9554_hub
       number: 1
+      mode: INPUT
+      inverted: true
+  - platform: gpio
+    name: PCA6416A binary sensor
+    pin:
+      pca6416a: pca6416a_hub
+      number: 15
       mode: INPUT
       inverted: true
   - platform: gpio
@@ -2393,7 +2475,6 @@ switch:
           level: !lambda "return 0.5;"
     turn_off_action:
       - switch.turn_on: living_room_lights_off
-    restore_state: false
     on_turn_on:
       - switch.template.publish:
           id: livingroom_lights
@@ -2429,7 +2510,6 @@ switch:
       }
     optimistic: true
     assumed_state: false
-    restore_state: true
     on_turn_off:
       - switch.template.publish:
           id: my_switch
@@ -2934,6 +3014,11 @@ pca9554:
     address: 0x3F
     i2c_id: i2c_bus
 
+pca6416a:
+  - id: pca6416a_hub
+    address: 0x21
+    i2c_id: i2c_bus
+
 mcp23017:
   - id: mcp23017_hub
     open_drain_interrupt: true
@@ -3042,6 +3127,8 @@ text_sensor:
       name: BSSID
     mac_address:
       name: Mac Address
+    dns_address:
+      name: DNS ADdress
   - platform: version
     name: ESPHome Version No Timestamp
     hide_timestamp: true
@@ -3323,3 +3410,21 @@ lcd_menu:
       on_prev:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
+
+alarm_control_panel:
+  - platform: template
+    id: alarmcontrolpanel1
+    name: Alarm Panel
+    codes:
+      - "1234"
+    requires_code_to_arm: true
+    arming_home_time: 1s
+    arming_away_time: 15s
+    pending_time: 15s
+    trigger_time: 30s
+    binary_sensors:
+      - binary_sensor1
+    on_state:
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));

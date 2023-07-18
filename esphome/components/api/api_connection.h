@@ -16,7 +16,7 @@ namespace api {
 class APIConnection : public APIServerConnection {
  public:
   APIConnection(std::unique_ptr<socket::Socket> socket, APIServer *parent);
-  virtual ~APIConnection() = default;
+  virtual ~APIConnection();
 
   void start();
   void loop();
@@ -98,12 +98,8 @@ class APIConnection : public APIServerConnection {
     this->send_homeassistant_service_response(call);
   }
 #ifdef USE_BLUETOOTH_PROXY
-  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override {
-    this->bluetooth_le_advertisement_subscription_ = true;
-  }
-  void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override {
-    this->bluetooth_le_advertisement_subscription_ = false;
-  }
+  void subscribe_bluetooth_le_advertisements(const SubscribeBluetoothLEAdvertisementsRequest &msg) override;
+  void unsubscribe_bluetooth_le_advertisements(const UnsubscribeBluetoothLEAdvertisementsRequest &msg) override;
   bool send_bluetooth_le_advertisement(const BluetoothLEAdvertisementResponse &msg);
 
   void bluetooth_device_request(const BluetoothDeviceRequest &msg) override;
@@ -128,9 +124,15 @@ class APIConnection : public APIServerConnection {
   void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override {
     this->voice_assistant_subscription_ = msg.subscribe;
   }
-  bool request_voice_assistant(bool start);
+  bool request_voice_assistant(bool start, const std::string &conversation_id);
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
+#endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
+  bool send_alarm_control_panel_info(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
+  void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
 #endif
 
   void on_disconnect_response(const DisconnectResponse &value) override;
@@ -211,9 +213,6 @@ class APIConnection : public APIServerConnection {
   uint32_t last_traffic_;
   bool sent_ping_{false};
   bool service_call_subscription_{false};
-#ifdef USE_BLUETOOTH_PROXY
-  bool bluetooth_le_advertisement_subscription_{false};
-#endif
 #ifdef USE_VOICE_ASSISTANT
   bool voice_assistant_subscription_{false};
 #endif
