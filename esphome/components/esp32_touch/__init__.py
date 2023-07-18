@@ -10,12 +10,10 @@ from esphome.const import (
     CONF_SLEEP_DURATION,
     CONF_VOLTAGE_ATTENUATION,
 )
-from esphome.core import CORE, TimePeriod
+from esphome.core import TimePeriod
 from esphome.components import esp32
 from esphome.components.esp32 import get_esp32_variant, gpio
 from esphome.components.esp32.const import (
-    KEY_ESP32,
-    KEY_VARIANT,
     VARIANT_ESP32,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
