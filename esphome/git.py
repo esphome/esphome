@@ -49,7 +49,7 @@ def clone_or_update(
     domain: str,
     username: str = None,
     password: str = None,
-    submodules: list[str] = [],
+    submodules: Optional[list[str]] = None,
 ) -> tuple[Path, Optional[Callable[[], None]]]:
     key = f"{url}@{ref}"
 
@@ -76,7 +76,7 @@ def clone_or_update(
             run_git_command(["git", "fetch", "--", "origin", ref], str(repo_dir))
             run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
 
-        if submodules:
+        if submodules is not None:
             _LOGGER.info(
                 "Initialising submodules (%s) for %s", ", ".join(submodules), key
             )
@@ -107,7 +107,7 @@ def clone_or_update(
             # Hard reset to FETCH_HEAD (short-lived git ref corresponding to most recent fetch)
             run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
 
-            if submodules:
+            if submodules is not None:
                 _LOGGER.info(
                     "Updating submodules (%s) for %s", ", ".join(submodules), key
                 )
