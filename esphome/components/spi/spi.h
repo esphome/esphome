@@ -67,6 +67,7 @@ enum SPIDataRate : uint32_t {
   DATA_RATE_10MHZ = 10000000,
   DATA_RATE_20MHZ = 20000000,
   DATA_RATE_40MHZ = 40000000,
+  DATA_RATE_80MHZ = 80000000,
 };
 
 class SPIComponent : public Component {

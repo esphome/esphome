@@ -9,6 +9,9 @@ set -x
 esphome compile tests/test1.yaml
 esphome compile tests/test2.yaml
 esphome compile tests/test3.yaml
+esphome compile tests/test3.1.yaml
 esphome compile tests/test4.yaml
 esphome compile tests/test5.yaml
+esphome compile tests/test6.yaml
+esphome compile tests/test7.yaml
 esphome compile tests/test8.yaml
