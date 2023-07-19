@@ -9,11 +9,42 @@ static const char *const TAG = "growatt_solar";
 static const uint8_t MODBUS_CMD_READ_IN_REGISTERS = 0x04;
 static const uint8_t MODBUS_REGISTER_COUNT[] = {33, 95};  // indexed with enum GrowattProtocolVersion
 
+void GrowattSolar::loop() {
+  // If update() was unable to send we retry until we can send.
+  if (!this->waiting_to_update_)
+    return;
+  update();
+}
+
 void GrowattSolar::update() {
+  // If our last send has had no reply yet, and it wasn't that long ago, do nothing.
+  uint32_t now = millis();
+  if (now - this->last_send_ < this->get_update_interval() / 2) {
+    return;
+  }
+
+  // The bus might be slow, or there might be other devices, or other components might be talking to our device.
+  if (this->waiting_for_response()) {
+    this->waiting_to_update_ = true;
+    return;
+  }
+
+  this->waiting_to_update_ = false;
   this->send(MODBUS_CMD_READ_IN_REGISTERS, 0, MODBUS_REGISTER_COUNT[this->protocol_version_]);
+  this->last_send_ = millis();
 }
 
 void GrowattSolar::on_modbus_data(const std::vector<uint8_t> &data) {
+  // Other components might be sending commands to our device. But we don't get called with enough
+  // context to know what is what. So if we didn't do a send, we ignore the data.
+  if (!this->last_send_)
+    return;
+  this->last_send_ = 0;
+
+  // Also ignore the data if the message is too short. Otherwise we will publish invalid values.
+  if (data.size() < MODBUS_REGISTER_COUNT[this->protocol_version_] * 2)
+    return;
+
   auto publish_1_reg_sensor_state = [&](sensor::Sensor *sensor, size_t i, float unit) -> void {
     if (sensor == nullptr)
       return;

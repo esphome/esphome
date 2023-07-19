@@ -39,6 +39,8 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer, 
 #endif
   void set_external_dac_channels(uint8_t channels) { this->external_dac_channels_ = channels; }
 
+  void set_i2s_comm_fmt_lsb(bool lsb) { this->i2s_comm_fmt_lsb_ = lsb; }
+
   media_player::MediaPlayerTraits get_traits() override;
 
   bool is_muted() const override { return this->muted_; }
@@ -70,6 +72,8 @@ class I2SAudioMediaPlayer : public Component, public media_player::MediaPlayer, 
   i2s_dac_mode_t internal_dac_mode_{I2S_DAC_CHANNEL_DISABLE};
 #endif
   uint8_t external_dac_channels_;
+
+  bool i2s_comm_fmt_lsb_;
 
   HighFrequencyLoopRequester high_freq_;
 
