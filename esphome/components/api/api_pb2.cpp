@@ -6348,6 +6348,10 @@ bool VoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       this->start = value.as_bool();
       return true;
     }
+    case 3: {
+      this->use_vad = value.as_bool();
+      return true;
+    }
     default:
       return false;
   }
@@ -6365,6 +6369,7 @@ bool VoiceAssistantRequest::decode_length(uint32_t field_id, ProtoLengthDelimite
 void VoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(1, this->start);
   buffer.encode_string(2, this->conversation_id);
+  buffer.encode_bool(3, this->use_vad);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void VoiceAssistantRequest::dump_to(std::string &out) const {
@@ -6376,6 +6381,10 @@ void VoiceAssistantRequest::dump_to(std::string &out) const {
 
   out.append("  conversation_id: ");
   out.append("'").append(this->conversation_id).append("'");
+  out.append("\n");
+
+  out.append("  use_vad: ");
+  out.append(YESNO(this->use_vad));
   out.append("\n");
   out.append("}");
 }
