@@ -42,6 +42,7 @@ from .const import (  # noqa
     KEY_REFRESH,
     KEY_REPO,
     KEY_SDKCONFIG_OPTIONS,
+    KEY_SUBMODULES,
     KEY_VARIANT,
     VARIANT_ESP32C3,
     VARIANT_FRIENDLY,
@@ -120,7 +121,14 @@ def add_idf_sdkconfig_option(name: str, value: SdkconfigValueType):
 
 
 def add_idf_component(
-    name: str, repo: str, ref: str = None, path: str = None, refresh: TimePeriod = None
+    *,
+    name: str,
+    repo: str,
+    ref: str = None,
+    path: str = None,
+    refresh: TimePeriod = None,
+    components: list[str] = [],
+    submodules: list[str] = [],
 ):
     """Add an esp-idf component to the project."""
     if not CORE.using_esp_idf:
@@ -131,6 +139,8 @@ def add_idf_component(
             KEY_REF: ref,
             KEY_PATH: path,
             KEY_REFRESH: refresh,
+            KEY_COMPONENTS: components,
+            KEY_SUBMODULES: submodules,
         }
 
 
@@ -536,20 +546,41 @@ def copy_files():
                     ref=component[KEY_REF],
                     refresh=component[KEY_REFRESH],
                     domain="idf_components",
+                    submodules=component[KEY_SUBMODULES],
                 )
                 mkdir_p(CORE.relative_build_path("components"))
                 component_dir = repo_dir
                 if component[KEY_PATH] is not None:
                     component_dir = component_dir / component[KEY_PATH]
 
-                shutil.copytree(
-                    component_dir,
-                    CORE.relative_build_path(f"components/{name}"),
-                    dirs_exist_ok=True,
-                    ignore=shutil.ignore_patterns(".git", ".github"),
-                    symlinks=True,
-                    ignore_dangling_symlinks=True,
-                )
+                if component[KEY_COMPONENTS] == ["*"]:
+                    shutil.copytree(
+                        component_dir,
+                        CORE.relative_build_path("components"),
+                        dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns(".git*"),
+                        symlinks=True,
+                        ignore_dangling_symlinks=True,
+                    )
+                elif len(component[KEY_COMPONENTS]) > 0:
+                    for comp in component[KEY_COMPONENTS]:
+                        shutil.copytree(
+                            component_dir / comp,
+                            CORE.relative_build_path(f"components/{comp}"),
+                            dirs_exist_ok=True,
+                            ignore=shutil.ignore_patterns(".git*"),
+                            symlinks=True,
+                            ignore_dangling_symlinks=True,
+                        )
+                else:
+                    shutil.copytree(
+                        component_dir,
+                        CORE.relative_build_path(f"components/{name}"),
+                        dirs_exist_ok=True,
+                        ignore=shutil.ignore_patterns(".git*"),
+                        symlinks=True,
+                        ignore_dangling_symlinks=True,
+                    )
 
     dir = os.path.dirname(__file__)
     post_build_file = os.path.join(dir, "post_build.py.script")
