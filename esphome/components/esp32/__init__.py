@@ -1,5 +1,5 @@
 from dataclasses import dataclass
-from typing import Union
+from typing import Union, Optional
 from pathlib import Path
 import logging
 import os
@@ -127,12 +127,14 @@ def add_idf_component(
     ref: str = None,
     path: str = None,
     refresh: TimePeriod = None,
-    components: list[str] = [],
-    submodules: list[str] = [],
+    components: Optional[list[str]] = None,
+    submodules: Optional[list[str]] = None,
 ):
     """Add an esp-idf component to the project."""
     if not CORE.using_esp_idf:
         raise ValueError("Not an esp-idf project")
+    if components is None:
+        components = []
     if name not in CORE.data[KEY_ESP32][KEY_COMPONENTS]:
         CORE.data[KEY_ESP32][KEY_COMPONENTS][name] = {
             KEY_REPO: repo,
