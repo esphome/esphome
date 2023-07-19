@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2023.7.0b3"
+__version__ = "2023.7.0"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
