@@ -51,9 +51,9 @@ void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
   this->response_received_();
 }
 
-bool AirthingsWavePlus::is_valid_radon_value_(uint16_t radon) { return 0 <= radon && radon <= 16383; }
+bool AirthingsWavePlus::is_valid_radon_value_(uint16_t radon) { return radon <= 16383; }
 
-bool AirthingsWavePlus::is_valid_co2_value_(uint16_t co2) { return 0 <= co2 && co2 <= 16383; }
+bool AirthingsWavePlus::is_valid_co2_value_(uint16_t co2) { return co2 <= 16383; }
 
 void AirthingsWavePlus::dump_config() {
   // these really don't belong here, but there doesn't seem to be a
