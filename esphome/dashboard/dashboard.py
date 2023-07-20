@@ -73,7 +73,12 @@ class DashboardSettings:
 
     @property
     def relative_url(self):
-        return os.getenv("ESPHOME_DASHBOARD_RELATIVE_URL", "/")
+        url = os.getenv("ESPHOME_DASHBOARD_RELATIVE_URL", "/")
+        if not url.startswith("/"):
+            url = f"/{url}"
+        if not url.endswith("/"):
+            url = f"{url}/"
+        return url
 
     @property
     def status_use_ping(self):
@@ -1168,6 +1173,11 @@ class JsonConfigRequestHandler(BaseHandler):
         self.finish()
 
 
+class RedirectHandler(BaseHandler):
+    def get(self):
+        self.redirect(url=settings.relative_url, permanent=True)
+
+
 def get_base_frontend_path():
     if ENV_DEV not in os.environ:
         import esphome_dashboard
@@ -1280,6 +1290,10 @@ def make_app(debug=get_bool_env(ENV_DEV)):
         ],
         **app_settings,
     )
+
+    # if relative path configured add a redirection from the root path to the new relative path
+    if rel != "/":
+        app.add_handlers(r".*", [(r"/", RedirectHandler)])
 
     return app
 
