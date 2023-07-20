@@ -670,7 +670,6 @@ POST_CONFIG_ACTIONS = {
 
 
 def parse_args(argv):
-    colorama.init()
     options_parser = argparse.ArgumentParser(add_help=False)
     options_parser.add_argument(
         "-v", "--verbose", help="Enable verbose ESPHome logs.", action="store_true"
@@ -954,6 +953,8 @@ def parse_args(argv):
 
 
 def run_esphome(argv):
+    colorama.init()
+
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
 
