@@ -24,12 +24,12 @@ bool CoolixData::operator==(const CoolixData &other) const {
 }
 
 static void encode_frame(RemoteTransmitData *dst, const uint32_t &src) {
-  // Header
+  // Append header
   dst->item(HEADER_MARK_US, HEADER_SPACE_US);
-  //   Break data into bytes, starting at the Most Significant
-  //   Byte. Each byte then being sent normal, then followed inverted.
+  // Break data into bytes, starting at the Most Significant
+  // Byte. Each byte then being sent normal, then followed inverted.
   for (unsigned shift = 16;; shift -= 8) {
-    // Grab a bytes worth of data.
+    // Grab a bytes worth of data
     const uint8_t byte = src >> shift;
     // Normal
     for (uint8_t mask = 1 << 7; mask; mask >>= 1)
@@ -37,9 +37,9 @@ static void encode_frame(RemoteTransmitData *dst, const uint32_t &src) {
     // Inverted
     for (uint8_t mask = 1 << 7; mask; mask >>= 1)
       dst->item(BIT_MARK_US, (byte & mask) ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US);
-    // Data end
+    // End of frame
     if (shift == 0) {
-      // Footer
+      // Append footer
       dst->mark(FOOTER_MARK_US);
       break;
     }
@@ -48,7 +48,7 @@ static void encode_frame(RemoteTransmitData *dst, const uint32_t &src) {
 
 void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
   dst->set_carrier_frequency(38000);
-  dst->reserve(2 + 2 * 48 + 1 + (1 + 2 + 2 * 48 + 1) * data.has_second());
+  dst->reserve(100 + 100 * data.has_second());
   encode_frame(dst, data.first);
   if (data.has_second()) {
     dst->space(FOOTER_SPACE_US);
@@ -57,13 +57,13 @@ void CoolixProtocol::encode(RemoteTransmitData *dst, const CoolixData &data) {
 }
 
 static bool decode_frame(RemoteReceiveData &src, uint32_t &dst) {
-  // Header
+  // Checking for header
   if (!src.expect_item(HEADER_MARK_US, HEADER_SPACE_US))
     return false;
-  // Data
+  // Reading data
   uint32_t data = 0;
   for (unsigned n = 3;; data <<= 8) {
-    // Read byte
+    // Reading byte
     for (uint32_t mask = 1 << 7; mask; mask >>= 1) {
       if (!src.expect_mark(BIT_MARK_US))
         return false;
@@ -73,14 +73,14 @@ static bool decode_frame(RemoteReceiveData &src, uint32_t &dst) {
         return false;
       }
     }
-    // Check for inverse byte
+    // Checking for inverted byte
     for (uint32_t mask = 1 << 7; mask; mask >>= 1) {
       if (!src.expect_item(BIT_MARK_US, (data & mask) ? BIT_ZERO_SPACE_US : BIT_ONE_SPACE_US))
         return false;
     }
-    // Checking the end of reading
+    // End of frame
     if (--n == 0) {
-      // Footer
+      // Checking for footer
       if (!src.expect_mark(FOOTER_MARK_US))
         return false;
       dst = data;
