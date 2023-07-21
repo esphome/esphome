@@ -18,7 +18,7 @@ void MQTTComponent::set_retain(bool retain) { this->retain_ = retain; }
 
 std::string MQTTComponent::get_discovery_topic_(const MQTTDiscoveryInfo &discovery_info) const {
   std::string sanitized_name = str_sanitize(App.get_name());
-  return discovery_info.prefix + "/" + this->component_type() + "/" + sanitized_name + "/" +
+  return discovery_info.prefix + "/" + this->component_type() + "/" + get_mac_address() + "/" + sanitized_name + "/" +
          this->get_default_object_id_() + "/config";
 }
 
@@ -183,6 +183,12 @@ void MQTTComponent::disable_availability() { this->set_availability("", "", "");
 void MQTTComponent::call_setup() {
   if (this->is_internal())
     return;
+
+  // replace a special topic
+  this->set_custom_state_topic(global_mqtt_client->get_topic_prefix() + "/" + get_mac_address() + "/" + this->get_default_object_id_() +
+         "/" + "state");
+  this->set_custom_command_topic(global_mqtt_client->get_topic_prefix() + "/" + get_mac_address() + "/" + this->get_default_object_id_() +
+         "/" + "command");
 
   this->setup();
 

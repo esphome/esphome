@@ -35,6 +35,17 @@ MQTTClientComponent::MQTTClientComponent() {
 // Connection
 void MQTTClientComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up MQTT...");
+
+  // replace a special topic
+  MQTTMessage message;
+  message.topic = get_mac_address() + "/status";
+  message.payload = "online";
+  message.qos = 0;
+  message.retain = true;
+  global_mqtt_client->set_birth_message(std::move(message));
+  message.payload = "online";
+  global_mqtt_client->set_last_will(std::move(message));
+
   this->mqtt_backend_.set_on_message(
       [this](const char *topic, const char *payload, size_t len, size_t index, size_t total) {
         if (index == 0)
