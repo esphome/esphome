@@ -53,8 +53,6 @@ void PCA9554Component::dump_config() {
 bool PCA9554Component::digital_read(uint8_t pin) {
   // Note: We want to avoid doing any I2C bus read transactions here
   // to conserve I2C bus bandwidth.
-  // We let loop() take care of that. It will update the input_mask_ 
-  // periodically.
   return this->input_mask_ & (1 << pin);
 }
 
