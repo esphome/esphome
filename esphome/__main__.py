@@ -7,8 +7,6 @@ import sys
 import time
 from datetime import datetime
 
-import colorama
-
 from esphome import const, writer, yaml_util
 import esphome.codegen as cg
 from esphome.config import iter_components, read_config, strip_default_ids
@@ -953,8 +951,6 @@ def parse_args(argv):
 
 
 def run_esphome(argv):
-    colorama.init()
-
     args = parse_args(argv)
     CORE.dashboard = args.dashboard
 
