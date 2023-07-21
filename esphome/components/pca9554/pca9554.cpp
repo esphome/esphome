@@ -26,7 +26,7 @@ void PCA9554Component::setup() {
   this->config_mask_ = 0;
   // Invert mask as the part sees a 1 as an input
   this->write_register_(CONFIG_REG, ~this->config_mask_);
-  // All ouputs low
+  // All outputs low
   this->output_mask_ = 0;
   this->write_register_(OUTPUT_REG, this->output_mask_);
   // Read the inputs
@@ -34,6 +34,14 @@ void PCA9554Component::setup() {
   ESP_LOGD(TAG, "Initialization complete. Warning: %d, Error: %d", this->status_has_warning(),
            this->status_has_error());
 }
+
+void PCA9554Component::loop() {
+  // Called approximately 10 ms on average (100 Hz). Note: during power up
+  // initialization it will be called at a higher rate.
+  // The read_inputs_() method will cache the input values from the chip.
+  this->read_inputs_();
+}
+
 void PCA9554Component::dump_config() {
   ESP_LOGCONFIG(TAG, "PCA9554:");
   LOG_I2C_DEVICE(this)
@@ -43,7 +51,10 @@ void PCA9554Component::dump_config() {
 }
 
 bool PCA9554Component::digital_read(uint8_t pin) {
-  this->read_inputs_();
+  // Note: We want to avoid doing any I2C bus read transactions here
+  // to conserve I2C bus bandwidth.
+  // We let loop() take care of that. It will update the input_mask_ 
+  // periodically.
   return this->input_mask_ & (1 << pin);
 }
 
