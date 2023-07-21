@@ -93,7 +93,7 @@ optional<CoolixData> CoolixProtocol::decode(RemoteReceiveData data) {
   CoolixData result;
   if ((data.size() != 200 && data.size() != 100) || !decode_frame(data, result.first))
     return {};
-  if (!data.expect_space(FOOTER_SPACE_US) || !decode_frame(data, result.second))
+  if (data.size() == 100 || !data.expect_space(FOOTER_SPACE_US) || !decode_frame(data, result.second))
     result.second = 0;
   return result;
 }
