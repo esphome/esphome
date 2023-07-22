@@ -458,12 +458,12 @@ void MQTTClientComponent::unsubscribe(const std::string &topic) {
 
 // Publish
 bool MQTTClientComponent::publish(const std::string &topic, const std::string &payload, uint8_t qos, bool retain) {
-  return this->publish(topic, payload.data(), payload.size(), qos, retain);
+  return this->publish({.topic = topic, .payload = payload, .qos = qos, .retain = retain);
 }
 
 bool MQTTClientComponent::publish(const std::string &topic, const char *payload, size_t payload_length, uint8_t qos,
                                   bool retain) {
-  return publish({.topic = topic, .payload = payload, .qos = qos, .retain = retain});
+  return publish(topic, std::string(payload, payload_length), qos, retain);
 }
 
 bool MQTTClientComponent::publish(const MQTTMessage &message) {
