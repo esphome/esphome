@@ -51,6 +51,8 @@ class ESP32TouchComponent : public Component {
   void set_iir_filter(uint32_t iir_filter) { this->iir_filter_ = iir_filter; }
 #endif
 
+  uint32_t component_touch_pad_read(touch_pad_t tp);
+
   void setup() override;
   void dump_config() override;
   void loop() override;

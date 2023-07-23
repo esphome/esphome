@@ -261,34 +261,38 @@ void ESP32TouchComponent::dump_config() {
   }
 }
 
+uint32_t ESP32TouchComponent::component_touch_pad_read(touch_pad_t tp) {
+#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+  uint32_t value = 0;
+  if (this->filter_configured_()) {
+    touch_pad_filter_read_smooth(tp, &value);
+  } else {
+    touch_pad_read_raw_data(tp, &value);
+  }
+#else
+  uint16_t value = 0;
+  if (this->iir_filter_enabled_()) {
+    touch_pad_read_filtered(tp, &value);
+  } else {
+    touch_pad_read(tp, &value);
+  }
+#endif
+  return value;
+}
+
 void ESP32TouchComponent::loop() {
   const uint32_t now = millis();
   bool should_print = this->setup_mode_ && now - this->setup_mode_last_log_print_ > 250;
   for (auto *child : this->children_) {
-#if defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-    uint32_t value = 0;
-    if (this->filter_configured_()) {
-      touch_pad_filter_read_smooth(child->get_touch_pad(), &value);
-    } else {
-      touch_pad_read_raw_data(child->get_touch_pad(), &value);
-    }
-#else
-    uint16_t value = 0;
-    if (this->iir_filter_enabled_()) {
-      touch_pad_read_filtered(child->get_touch_pad(), &value);
-    } else {
-      touch_pad_read(child->get_touch_pad(), &value);
-    }
-#endif
-    child->value_ = value;
+    child->value_ = this->component_touch_pad_read(child->get_touch_pad());
 #if !(defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3))
-    child->publish_state(value < child->get_threshold());
+    child->publish_state(child->value_ < child->get_threshold());
 #else
-    child->publish_state(value > child->get_threshold());
+    child->publish_state(child->value_ > child->get_threshold());
 #endif
 
     if (should_print) {
-      ESP_LOGD(TAG, "Touch Pad '%s' (T%u): %u", child->get_name().c_str(), child->get_touch_pad(), value);
+      ESP_LOGD(TAG, "Touch Pad '%s' (T%u): %u", child->get_name().c_str(), child->get_touch_pad(), child->value_);
     }
 
     App.feed_wdt();
