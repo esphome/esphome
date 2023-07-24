@@ -220,8 +220,7 @@ bool DallasTemperatureSensor::setup_sensor() {
   if (this->scratch_pad_[4] == this->resolution_)
     return false;
 
-  if (this->get_address8()[0] == DALLAS_MODEL_DS18S20 ||
-      this->chipset_ == DallasChipset::DS18S20) {
+  if (this->get_address8()[0] == DALLAS_MODEL_DS18S20 || this->chipset_ == DallasChipset::DS18S20) {
     // DS18S20 doesn't support resolution.
     ESP_LOGW(TAG, "DS18S20 doesn't support setting resolution.");
     return false;
@@ -269,11 +268,9 @@ bool DallasTemperatureSensor::check_scratch_pad() {
   bool chksum_validity = (crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
   bool config_validity = false;
 
-  if (this->get_address8()[0]  == DALLAS_MODEL_DS18B20 ||
-      this->chipset_ == DallasChipset::DS18B20){
+  if (this->get_address8()[0]  == DALLAS_MODEL_DS18B20 || this->chipset_ == DallasChipset::DS18B20) {
     config_validity = ((this->scratch_pad_[4] & 0x9F) == 0x1F);
-  }
-  else {
+  } else {
     config_validity = ((this->scratch_pad_[4] & 0x10) == 0x10);
   }
 
@@ -293,12 +290,11 @@ bool DallasTemperatureSensor::check_scratch_pad() {
 
 float DallasTemperatureSensor::get_temp_c() {
   int16_t temp = (int16_t(this->scratch_pad_[1]) << 11) | (int16_t(this->scratch_pad_[0]) << 3);
-  if (this->get_address8()[0] == DALLAS_MODEL_DS18S20 ||
-      this->chipset_ == DallasChipset::DS18S20) {
+  if (this->get_address8()[0] == DALLAS_MODEL_DS18S20 || this->chipset_ == DallasChipset::DS18S20) {
     int diff = (this->scratch_pad_[7] - this->scratch_pad_[6]) << 7;
     temp = ((temp & 0xFFF0) << 3) - 16 + (diff / this->scratch_pad_[7]);
   }
-  if (this->chipset_==DallasChipset::MAX31850) {
+  if (this->chipset_ == DallasChipset::MAX31850) {
     // The MXA31850 can not use the "auto" chipset ID, because it overloads the ID
     // value used by one of the Dallas chips.
     if (this->scratch_pad_[0] & 0x1) {

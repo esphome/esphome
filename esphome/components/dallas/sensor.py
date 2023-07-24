@@ -39,7 +39,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ADDRESS): cv.hex_int,
             cv.Optional(CONF_INDEX): cv.positive_int,
             cv.Optional(CONF_RESOLUTION, default=12): cv.int_range(min=9, max=12),
-            cv.Optional(CONF_CHIPSET, default="auto"): cv.enum(CONF_DALLAS_CHIPSET, lower=True)
+            cv.Optional(CONF_CHIPSET, default="auto"): cv.enum(
+                CONF_DALLAS_CHIPSET, lower=True
+            ),
         }
     ),
     cv.has_exactly_one_key(CONF_ADDRESS, CONF_INDEX),

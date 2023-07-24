@@ -9,7 +9,7 @@
 namespace esphome {
 namespace dallas {
 
-enum DallasChipset{
+enum DallasChipset {
   AUTO,
   DS18S20,
   DS1822,
