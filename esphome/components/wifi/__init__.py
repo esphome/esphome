@@ -78,6 +78,12 @@ def validate_channel(value):
     return value
 
 
+def validate_esp_idf_feature(value):
+    if value:
+        return cv.only_with_esp_idf(value)
+    return value
+
+
 AP_MANUAL_IP_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_STATIC_IP): cv.ipv4,
@@ -280,10 +286,10 @@ CONFIG_SCHEMA = cv.All(
                 cv.decibel, cv.float_range(min=8.5, max=20.5)
             ),
             cv.SplitDefault(CONF_ENABLE_BTM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+                cv.boolean, validate_esp_idf_feature
             ),
             cv.SplitDefault(CONF_ENABLE_RRM, esp32_idf=False): cv.All(
-                cv.boolean, cv.only_with_esp_idf
+                cv.boolean, validate_esp_idf_feature
             ),
             cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional("enable_mdns"): cv.invalid(
