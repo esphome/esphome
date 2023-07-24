@@ -250,6 +250,10 @@ class MQTTClientComponent : public Component {
   void set_on_connect(mqtt_on_connect_callback_t &&callback);
   void set_on_disconnect(mqtt_on_disconnect_callback_t &&callback);
 
+
+  void set_is_unique_topic(bool is_unique_topic) { this->is_unique_topic = is_unique_topic; }
+  bool get_is_unique_topic() { return is_unique_topic; }
+
  protected:
   void send_device_info_();
 
@@ -294,6 +298,9 @@ class MQTTClientComponent : public Component {
   MQTTMessage log_message_;
   std::string payload_buffer_;
   int log_level_{ESPHOME_LOG_LEVEL};
+
+  // unique topic by mac adress
+  bool is_unique_topic{false};
 
   std::vector<MQTTSubscription> subscriptions_;
 #if defined(USE_ESP_IDF)

@@ -247,6 +247,7 @@ CONFIG_SCHEMA = cv.All(
                     cv.Optional(CONF_QOS, default=0): cv.mqtt_qos,
                 }
             ),
+            cv.Optional("is_unique_topic", default=False): cv.boolean,
         }
     ),
     validate_config,
@@ -355,6 +356,9 @@ async def to_code(config):
     cg.add(var.set_keep_alive(config[CONF_KEEPALIVE]))
 
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
+
+    if "is_unique_topic" in config:
+        cg.add(var.set_is_unique_topic(config["is_unique_topic"]))
 
     # esp-idf only
     if CONF_CERTIFICATE_AUTHORITY in config:
