@@ -166,10 +166,10 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
   uint16_t output;
 
   this->enable();
-  delayMicroseconds(10);
+  //delay_microseconds_safe(15);
   this->write_byte(addrh);
   this->write_byte(addrl);
-  delayMicroseconds(4);
+  //delay_microseconds_safe(15);
   this->read_array(data, 2);
   this->disable();
 
@@ -179,9 +179,9 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
 }
 
 int ATM90E32Component::read32_(uint16_t addr_h, uint16_t addr_l) {
-  uint16_t val_h = this->read16_(addr_h);
-  uint16_t val_l = this->read16_(addr_l);
-  int32_t val = (val_h << 16) | val_l;
+  const uint16_t val_h = this->read16_(addr_h);
+  const uint16_t val_l = this->read16_(addr_l);
+  const int32_t val = (val_h << 16) | val_l;
 
   ESP_LOGVV(TAG,
             "read32_ addr_h 0x%04" PRIX16 " val_h 0x%04" PRIX16 " addr_l 0x%04" PRIX16 " val_l 0x%04" PRIX16
@@ -197,77 +197,75 @@ void ATM90E32Component::write16_(uint16_t a_register, uint16_t val) {
 
   ESP_LOGVV(TAG, "write16_ 0x%04" PRIX16 " val 0x%04" PRIX16, a_register, val);
   this->enable();
-  delayMicroseconds(10);
   this->write_byte(addrh);
   this->write_byte(addrl);
-  delayMicroseconds(4);
   this->write_byte((val >> 8) & 0xff);
   this->write_byte(val & 0xFF);
   this->disable();
 }
 
 float ATM90E32Component::get_line_voltage_a_() {
-  uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSA);
+  const uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSA);
   return (float) voltage / 100;
 }
 float ATM90E32Component::get_line_voltage_b_() {
-  uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSB);
+  const uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSB);
   return (float) voltage / 100;
 }
 float ATM90E32Component::get_line_voltage_c_() {
-  uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSC);
+  const uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSC);
   return (float) voltage / 100;
 }
 float ATM90E32Component::get_line_current_a_() {
-  uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSA);
+  const uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSA);
   return (float) current / 1000;
 }
 float ATM90E32Component::get_line_current_b_() {
-  uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSB);
+  const uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSB);
   return (float) current / 1000;
 }
 float ATM90E32Component::get_line_current_c_() {
-  uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSC);
+  const uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSC);
   return (float) current / 1000;
 }
 float ATM90E32Component::get_active_power_a_() {
-  int val = this->read32_(ATM90E32_REGISTER_PMEANA, ATM90E32_REGISTER_PMEANALSB);
+  const int val = this->read32_(ATM90E32_REGISTER_PMEANA, ATM90E32_REGISTER_PMEANALSB);
   return val * 0.00032f;
 }
 float ATM90E32Component::get_active_power_b_() {
-  int val = this->read32_(ATM90E32_REGISTER_PMEANB, ATM90E32_REGISTER_PMEANBLSB);
+  const int val = this->read32_(ATM90E32_REGISTER_PMEANB, ATM90E32_REGISTER_PMEANBLSB);
   return val * 0.00032f;
 }
 float ATM90E32Component::get_active_power_c_() {
-  int val = this->read32_(ATM90E32_REGISTER_PMEANC, ATM90E32_REGISTER_PMEANCLSB);
+  const int val = this->read32_(ATM90E32_REGISTER_PMEANC, ATM90E32_REGISTER_PMEANCLSB);
   return val * 0.00032f;
 }
 float ATM90E32Component::get_reactive_power_a_() {
-  int val = this->read32_(ATM90E32_REGISTER_QMEANA, ATM90E32_REGISTER_QMEANALSB);
+  const int val = this->read32_(ATM90E32_REGISTER_QMEANA, ATM90E32_REGISTER_QMEANALSB);
   return val * 0.00032f;
 }
 float ATM90E32Component::get_reactive_power_b_() {
-  int val = this->read32_(ATM90E32_REGISTER_QMEANB, ATM90E32_REGISTER_QMEANBLSB);
+  const int val = this->read32_(ATM90E32_REGISTER_QMEANB, ATM90E32_REGISTER_QMEANBLSB);
   return val * 0.00032f;
 }
 float ATM90E32Component::get_reactive_power_c_() {
-  int val = this->read32_(ATM90E32_REGISTER_QMEANC, ATM90E32_REGISTER_QMEANCLSB);
+  const int val = this->read32_(ATM90E32_REGISTER_QMEANC, ATM90E32_REGISTER_QMEANCLSB);
   return val * 0.00032f;
 }
 float ATM90E32Component::get_power_factor_a_() {
-  int16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANA);
-  return (float) pf / 1000;
+  const int16_t powerfactor = this->read16_(ATM90E32_REGISTER_PFMEANA);
+  return (float) powerfactor / 1000;
 }
 float ATM90E32Component::get_power_factor_b_() {
-  int16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANB);
-  return (float) pf / 1000;
+  const int16_t powerfactor = this->read16_(ATM90E32_REGISTER_PFMEANB);
+  return (float) powerfactor / 1000;
 }
 float ATM90E32Component::get_power_factor_c_() {
-  int16_t pf = this->read16_(ATM90E32_REGISTER_PFMEANC);
-  return (float) pf / 1000;
+  const int16_t powerfactor = this->read16_(ATM90E32_REGISTER_PFMEANC);
+  return (float) powerfactor / 1000;
 }
 float ATM90E32Component::get_forward_active_energy_a_() {
-  uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYA);
+  const uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYA);
   if ((UINT32_MAX - this->phase_[0].cumulative_forward_active_energy_) > val) {
     this->phase_[0].cumulative_forward_active_energy_ += val;
   } else {
@@ -276,7 +274,7 @@ float ATM90E32Component::get_forward_active_energy_a_() {
   return ((float) this->phase_[0].cumulative_forward_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_forward_active_energy_b_() {
-  uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYB);
+  const uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYB);
   if (UINT32_MAX - this->phase_[1].cumulative_forward_active_energy_ > val) {
     this->phase_[1].cumulative_forward_active_energy_ += val;
   } else {
@@ -285,7 +283,7 @@ float ATM90E32Component::get_forward_active_energy_b_() {
   return ((float) this->phase_[1].cumulative_forward_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_forward_active_energy_c_() {
-  uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYC);
+  const uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYC);
   if (UINT32_MAX - this->phase_[2].cumulative_forward_active_energy_ > val) {
     this->phase_[2].cumulative_forward_active_energy_ += val;
   } else {
@@ -294,7 +292,7 @@ float ATM90E32Component::get_forward_active_energy_c_() {
   return ((float) this->phase_[2].cumulative_forward_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_reverse_active_energy_a_() {
-  uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYA);
+  const uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYA);
   if (UINT32_MAX - this->phase_[0].cumulative_reverse_active_energy_ > val) {
     this->phase_[0].cumulative_reverse_active_energy_ += val;
   } else {
@@ -303,7 +301,7 @@ float ATM90E32Component::get_reverse_active_energy_a_() {
   return ((float) this->phase_[0].cumulative_reverse_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_reverse_active_energy_b_() {
-  uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYB);
+  const uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYB);
   if (UINT32_MAX - this->phase_[1].cumulative_reverse_active_energy_ > val) {
     this->phase_[1].cumulative_reverse_active_energy_ += val;
   } else {
@@ -312,7 +310,7 @@ float ATM90E32Component::get_reverse_active_energy_b_() {
   return ((float) this->phase_[1].cumulative_reverse_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_reverse_active_energy_c_() {
-  uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYC);
+  const uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYC);
   if (UINT32_MAX - this->phase_[2].cumulative_reverse_active_energy_ > val) {
     this->phase_[2].cumulative_reverse_active_energy_ += val;
   } else {
@@ -321,11 +319,11 @@ float ATM90E32Component::get_reverse_active_energy_c_() {
   return ((float) this->phase_[2].cumulative_reverse_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_frequency_() {
-  uint16_t freq = this->read16_(ATM90E32_REGISTER_FREQ);
+  const uint16_t freq = this->read16_(ATM90E32_REGISTER_FREQ);
   return (float) freq / 100;
 }
 float ATM90E32Component::get_chip_temperature_() {
-  uint16_t ctemp = this->read16_(ATM90E32_REGISTER_TEMP);
+  const uint16_t ctemp = this->read16_(ATM90E32_REGISTER_TEMP);
   return (float) ctemp;
 }
 }  // namespace atm90e32
