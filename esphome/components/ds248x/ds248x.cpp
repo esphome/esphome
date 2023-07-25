@@ -173,19 +173,6 @@ void DS248xComponent::update() {
 
 float DS248xComponent::get_setup_priority() const { return setup_priority::DATA; }
 
-// helper
-uint8_t DS248xComponent::read_status() {
-  std::array<uint8_t, 2> cmd;
-  cmd[0] = DS248X_COMMAND_SETREADPTR;
-  cmd[1] = DS248X_POINTER_STATUS;
-  this->write(cmd.data(), sizeof(cmd));
-
-  uint8_t status_byte;
-  this->read(&status_byte, sizeof(status_byte));
-
-  return status_byte;
-}
-
 uint8_t DS248xComponent::read_config() {
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_SETREADPTR;
@@ -211,12 +198,16 @@ bool DS248xComponent::write_config(uint8_t cfg) {
 }
 
 uint8_t DS248xComponent::wait_while_busy() {
+  std::array<uint8_t, 2> cmd;
+  cmd[0] = DS248X_COMMAND_SETREADPTR;
+  cmd[1] = DS248X_POINTER_STATUS;
+  this->write(cmd.data(), sizeof(cmd));
+
   uint8_t status;
 	for(int i=1000; i>0; i--) {
-		status = read_status();
+      this->read(&status, sizeof(status));
 		if (!(status & DS248X_STATUS_BUSY))
 			break;
-		delayMicroseconds(50);
 	}
 	return status;
 }

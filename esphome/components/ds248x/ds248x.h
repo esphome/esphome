@@ -32,7 +32,6 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
 
   std::vector<DS248xTemperatureSensor *> sensors_;
 
-  uint8_t read_status();
   uint8_t read_config();
   bool write_config(uint8_t cfg);
 
