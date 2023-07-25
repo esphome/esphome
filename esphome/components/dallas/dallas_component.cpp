@@ -268,7 +268,7 @@ bool DallasTemperatureSensor::check_scratch_pad() {
   bool chksum_validity = (crc8(this->scratch_pad_, 8) == this->scratch_pad_[8]);
   bool config_validity = false;
 
-  if (this->get_address8()[0]  == DALLAS_MODEL_DS18B20 || this->chipset_ == DallasChipset::DS18B20) {
+  if (this->get_address8()[0] == DALLAS_MODEL_DS18B20 || this->chipset_ == DallasChipset::DS18B20) {
     config_validity = ((this->scratch_pad_[4] & 0x9F) == 0x1F);
   } else {
     config_validity = ((this->scratch_pad_[4] & 0x10) == 0x10);
