@@ -258,7 +258,7 @@ void ESP32TouchComponent::dump_config() {
 
   for (auto *child : this->children_) {
     LOG_BINARY_SENSOR("  ", "Touch Pad", child);
-    ESP_LOGCONFIG(TAG, "    Pad: T%" PRIu16, child->get_touch_pad());
+    ESP_LOGCONFIG(TAG, "    Pad: T%" PRIu32, (uint32_t) child->get_touch_pad());
     ESP_LOGCONFIG(TAG, "    Threshold: %" PRIu32, child->get_threshold());
   }
 }
@@ -294,8 +294,8 @@ void ESP32TouchComponent::loop() {
 #endif
 
     if (should_print) {
-      ESP_LOGD(TAG, "Touch Pad '%s' (T%" PRIu16 "): %" PRIu32, child->get_name().c_str(), child->get_touch_pad(),
-               child->value_);
+      ESP_LOGD(TAG, "Touch Pad '%s' (T%" PRIu32 "): %" PRIu32, child->get_name().c_str(),
+               (uint32_t) child->get_touch_pad(), child->value_);
     }
 
     App.feed_wdt();
