@@ -33,7 +33,7 @@ void LedStripSpi::dump_config() {
   ESP_LOGCONFIG(TAG, "ESP32 SPI LED Strip:");
   ESP_LOGCONFIG(TAG, "  Data Pin: GPIO%d", this->data_pin_);
   ESP_LOGCONFIG(TAG, "  Clock Pin: GPIO%d", this->clock_pin_);
-  ESP_LOGCONFIG(TAG, "  Number of LEDs: %d" PRId16, this->num_leds_);
+  ESP_LOGCONFIG(TAG, "  Number of LEDs: %d", this->num_leds_);
   ESP_LOGCONFIG(TAG, "  RGB Order: %s", rgb_order_to_string(this->rgb_order_));
   if (this->max_refresh_rate_) {
     ESP_LOGCONFIG(TAG, "  Max Refresh Rate: %" PRIu32 " Hz", this->max_refresh_rate_);
