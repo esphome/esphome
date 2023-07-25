@@ -5,6 +5,8 @@
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
 
+#include <cinttypes>
+
 namespace esphome {
 namespace esp32_touch {
 
@@ -165,9 +167,9 @@ void ESP32TouchComponent::dump_config() {
         break;
     }
     ESP_LOGCONFIG(TAG, "  Filter mode: %s", filter_mode_s);
-    ESP_LOGCONFIG(TAG, "  Debounce count: %u", this->debounce_count_);
-    ESP_LOGCONFIG(TAG, "  Noise threshold coefficient: %u", this->noise_threshold_);
-    ESP_LOGCONFIG(TAG, "  Jitter filter step size: %u", this->jitter_step_);
+    ESP_LOGCONFIG(TAG, "  Debounce count: %" PRIu32, this->debounce_count_);
+    ESP_LOGCONFIG(TAG, "  Noise threshold coefficient: %" PRIu32, this->noise_threshold_);
+    ESP_LOGCONFIG(TAG, "  Jitter filter step size: %" PRIu32, this->jitter_step_);
     const char *smooth_level_s;
     switch (this->smooth_level_) {
       case TOUCH_PAD_SMOOTH_OFF:
@@ -244,7 +246,7 @@ void ESP32TouchComponent::dump_config() {
   }
 #else
   if (this->iir_filter_enabled_()) {
-    ESP_LOGCONFIG(TAG, "    IIR Filter: %ums", this->iir_filter_);
+    ESP_LOGCONFIG(TAG, "    IIR Filter: %" PRIu32 "ms", this->iir_filter_);
   } else {
     ESP_LOGCONFIG(TAG, "  IIR Filter DISABLED");
   }
@@ -256,8 +258,8 @@ void ESP32TouchComponent::dump_config() {
 
   for (auto *child : this->children_) {
     LOG_BINARY_SENSOR("  ", "Touch Pad", child);
-    ESP_LOGCONFIG(TAG, "    Pad: T%d", child->get_touch_pad());
-    ESP_LOGCONFIG(TAG, "    Threshold: %u", child->get_threshold());
+    ESP_LOGCONFIG(TAG, "    Pad: T%" PRIu16, child->get_touch_pad());
+    ESP_LOGCONFIG(TAG, "    Threshold: %" PRIu32, child->get_threshold());
   }
 }
 
@@ -292,7 +294,8 @@ void ESP32TouchComponent::loop() {
 #endif
 
     if (should_print) {
-      ESP_LOGD(TAG, "Touch Pad '%s' (T%u): %u", child->get_name().c_str(), child->get_touch_pad(), child->value_);
+      ESP_LOGD(TAG, "Touch Pad '%s' (T%" PRIu16 "): %" PRIu32, child->get_name().c_str(), child->get_touch_pad(),
+               child->value_);
     }
 
     App.feed_wdt();
