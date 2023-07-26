@@ -251,6 +251,8 @@ class MQTTClientComponent : public Component {
   void set_on_disconnect(mqtt_on_disconnect_callback_t &&callback);
 
  protected:
+  void send_device_info_();
+
   /// Reconnect to the MQTT broker if not already connected.
   void start_connect_();
   void start_dnslookup_();

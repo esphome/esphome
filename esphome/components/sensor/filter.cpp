@@ -373,6 +373,17 @@ void OrFilter::initialize(Sensor *parent, Filter *next) {
   this->phi_.initialize(parent, nullptr);
 }
 
+// TimeoutFilter
+optional<float> TimeoutFilter::new_value(float value) {
+  this->set_timeout("timeout", this->time_period_, [this]() { this->output(NAN); });
+  this->output(value);
+
+  return {};
+}
+
+TimeoutFilter::TimeoutFilter(uint32_t time_period) : time_period_(time_period) {}
+float TimeoutFilter::get_setup_priority() const { return setup_priority::HARDWARE; }
+
 // DebounceFilter
 optional<float> DebounceFilter::new_value(float value) {
   this->set_timeout("debounce", this->time_period_, [this, value]() { this->output(value); });
