@@ -31,6 +31,41 @@ static const LogString *time_conversion_factor_to_string(TimeConversionFactor fa
   }
 }
 
+static const LogString *average_type_to_string(AverageType type) {
+  switch (type) {
+    case SIMPLE_AVERAGE:
+      return LOG_STR("simple");
+    case TIME_WEIGHTED_AVERAGE:
+      return LOG_STR("time_weighted");
+    default:
+      return LOG_STR("");
+  }
+}
+
+static const LogString *group_type_to_string(GroupType type) {
+  switch (type) {
+    case SAMPLE_GROUP_TYPE:
+      return LOG_STR("sample");
+    case POPULATION_GROUP_TYPE:
+      return LOG_STR("population");
+    default:
+      return LOG_STR("");
+  }
+}
+
+static const LogString *window_type_to_string(WindowType type) {
+  switch (type) {
+    case WINDOW_TYPE_SLIDING:
+      return LOG_STR("sliding");
+    case WINDOW_TYPE_CONTINUOUS:
+      return LOG_STR("continuous");
+    case WINDOW_TYPE_CONTINUOUS_LONG_TERM:
+      return LOG_STR("continuous_long_term");
+    default:
+      return LOG_STR("");
+  }
+}
+
 //////////////////////////
 // Public Class Methods //
 //////////////////////////
@@ -40,37 +75,8 @@ void StatisticsComponent::dump_config() {
 
   LOG_SENSOR("  ", "Source Sensor:", this->source_sensor_);
 
-  if (this->window_type_ == WINDOW_TYPE_SLIDING) {
-    ESP_LOGCONFIG(TAG, "  Statistics Type: sliding");
-    ESP_LOGCONFIG(TAG, "  Window Size: %u", this->window_size_);
-  } else if (this->window_type_ == WINDOW_TYPE_CHUNKED_SLIDING) {
-    ESP_LOGCONFIG(TAG, "  Statistics Type: chunked_sliding");
-    ESP_LOGCONFIG(TAG, "  Chunks in Window: %u", this->window_size_);
-    if (this->chunk_size_) {
-      ESP_LOGCONFIG(TAG, "  Measurements per Chunk: %u", this->chunk_size_);
-    } else {
-      ESP_LOGCONFIG(TAG, "  Duration of Chunk: %u ms", this->chunk_duration_);
-    }
-  } else if (this->window_type_ == WINDOW_TYPE_CONTINUOUS) {
-    ESP_LOGCONFIG(TAG, "  Statistics Type: continuous");
-    ESP_LOGCONFIG(TAG, "  Chunks Before Reset: %u", this->window_size_);
-    if (this->chunk_size_) {
-      ESP_LOGCONFIG(TAG, "  Measurements per Chunk: %u", this->chunk_size_);
-    } else {
-      ESP_LOGCONFIG(TAG, "  Duration of Chunk: %u ms", this->chunk_duration_);
-    }
-  } else if (this->window_type_ == WINDOW_TYPE_CHUNKED_CONTINUOUS) {
-    ESP_LOGCONFIG(TAG, "  Statistics Type: chunked_continuous");
-    ESP_LOGCONFIG(TAG, "  Measurements Before Reset: %u", this->window_size_);
-  }
-
-  ESP_LOGCONFIG(TAG, "  Send Every: %u", this->send_every_);
-
-  if (this->average_type_ == SIMPLE_AVERAGE) {
-    ESP_LOGCONFIG(TAG, "  Average Type: simple");
-  } else {
-    ESP_LOGCONFIG(TAG, "  Average Type: time_weighted");
-  }
+  ESP_LOGCONFIG(TAG, "  Average Type: %s", LOG_STR_ARG(average_type_to_string(this->average_type_)));
+  ESP_LOGCONFIG(TAG, "  Group Type: %s", LOG_STR_ARG(group_type_to_string(this->group_type_)));
 
   ESP_LOGCONFIG(TAG, "  Time Unit: %s", LOG_STR_ARG(time_conversion_factor_to_string(this->time_conversion_factor_)));
 
@@ -78,15 +84,34 @@ void StatisticsComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Restore Hash: %u", this->hash_);
   }
 
+  ESP_LOGCONFIG(TAG, "  Window Configuration:");
+  ESP_LOGCONFIG(TAG, "    Type: %s", LOG_STR_ARG(window_type_to_string(this->window_type_)));
+
+  if (this->window_size_ < std::numeric_limits<size_t>::max()) {
+    ESP_LOGCONFIG(TAG, "    Window Size: %u", this->window_size_);
+  }
+  if (this->window_duration_ < std::numeric_limits<uint64_t>::max()) {
+    ESP_LOGCONFIG(TAG, "    Window Duration: %llu ms", this->window_duration_);
+  }
+
+  if (this->chunk_size_ < std::numeric_limits<size_t>::max()) {
+    ESP_LOGCONFIG(TAG, "    Chunk Size: %u", this->chunk_size_);
+  }
+  if (this->window_duration_ < std::numeric_limits<uint64_t>::max()) {
+    ESP_LOGCONFIG(TAG, "    Chunk Duration: %llu ms", this->chunk_duration_);
+  }
+
+  ESP_LOGCONFIG(TAG, "    Send Every: %u", this->send_every_);
+
   this->dump_enabled_sensors_();
 }
 
 void StatisticsComponent::setup() {
   EnabledAggregatesConfiguration config = this->determine_enabled_statistics_config_();
 
-  if ((this->window_type_ == WINDOW_TYPE_SLIDING) || (this->window_type_ == WINDOW_TYPE_CHUNKED_SLIDING)) {
+  if (this->window_type_ == WINDOW_TYPE_SLIDING) {
     this->queue_ = new DABALiteQueue();
-  } else if (this->window_type_ == WINDOW_TYPE_CHUNKED_CONTINUOUS) {
+  } else if (this->window_type_ == WINDOW_TYPE_CONTINUOUS_LONG_TERM) {
     this->queue_ = new ContinuousQueue();
   } else if (this->window_type_ == WINDOW_TYPE_CONTINUOUS) {
     this->queue_ = new ContinuousSingular();
@@ -256,19 +281,12 @@ void StatisticsComponent::handle_new_value_(float value) {
   // Evict elements or reset queue if too large //
   ////////////////////////////////////////////////
 
-  //  If window_size_ == 0, then there is a continuous queue with no automatic reset, so never evict/clear
-  if (this->window_size_ > 0) {
-    while (this->queue_->size() >= this->window_size_) {
-      this->queue_->evict();  // evict is equivalent to clearing the queue for ContinuousQueue and ContinuousSingular
-    }
+  while (this->queue_->size() >= this->window_size_) {
+    this->queue_->evict();  // evict is equivalent to clearing the queue for ContinuousQueue and ContinuousSingular
   }
 
-  // If the window_reset_duration_ == 0, then this is a sliding window queue or a continuous queue that does not reset
-  // by duration
-  if (this->window_reset_duration_ > 0) {
-    if (this->running_window_duration_ >= this->window_reset_duration_) {
-      this->reset();
-    }
+  if (this->running_window_duration_ >= this->window_duration_) {
+    this->reset();
   }
 
   ////////////////////////////////////////////
@@ -286,11 +304,10 @@ void StatisticsComponent::handle_new_value_(float value) {
   ////////////////////////////
   // Add new chunk to queue //
   ////////////////////////////
-
-  if (this->is_running_chunk_ready_()) {
+  if ((this->running_chunk_count_ >= this->chunk_size_) || (this->running_chunk_duration_ >= this->chunk_duration_)) {
     this->queue_->insert(this->running_chunk_aggregate_);
 
-    // Reset counters and chunk to a null measurement
+    // Reset counters and running_chunk_aggregate to a null measurement
     this->running_chunk_aggregate_ = Aggregate();
     this->running_chunk_count_ = 0;
     this->running_chunk_duration_ = 0;
@@ -377,22 +394,6 @@ void StatisticsComponent::publish_and_save_(Aggregate value, time_t time) {
 /////////////////////////////
 
 inline bool StatisticsComponent::is_time_weighted_() { return (this->average_type_ == TIME_WEIGHTED_AVERAGE); }
-
-inline bool StatisticsComponent::is_running_chunk_ready_() {
-  // If the chunk_size_ == 0, then the running chunk resets based on a duration
-  if (this->chunk_size_ > 0) {
-    if (this->running_chunk_count_ >= this->chunk_size_) {
-      return true;
-    }
-  } else {
-    if (this->running_chunk_duration_ >= this->chunk_duration_) {
-      if (this->running_chunk_count_ > 0)  // ensure at least one measurement is aggregated in this timespan
-        return true;
-    }
-  }
-
-  return false;
-}
 
 }  // namespace statistics
 }  // namespace esphome

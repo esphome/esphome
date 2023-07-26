@@ -1763,14 +1763,9 @@ sensor:
     window:
       type: sliding
       window_size: 15
-      send_every: 5
-      send_first_at: 3
     average_type: time_weighted
     group_type: sample
-    argmax:
-      name: "DHT Temperature - Time Since Last Maximum"
-    argmin:
-      name: "DHT Temperature - Time Since Last Minimum"
+    time_unit: "min"
     count:
       name: "DHT Temperature - Count of Valid Measurements"
     duration:
@@ -1781,10 +1776,70 @@ sensor:
       name: "DHT Temperature - Minimum"
     mean:
       name: "DHT Temperature - Average"
+    since_argmax:
+      name: "DHT Temperature - Time Since Last Maximum"
+    since_argmin:
+      name: "DHT Temperature - Time Since Last Minimum"
     std_dev:
       name: "DHT Temperature - Standard Deviation"
     trend:
       name: "DHT Temperature - Trend"
+  - platform: statistics
+    source_id: dht_temperature
+    window:
+      type: continuous
+      window_duration: 60s
+      chunk_size: 15
+      send_every: 3
+      send_first_at: 1
+    average_type: time_weighted
+    group_type: sample
+    time_unit: "h"
+    count:
+      name: "DHT Temperature - Count of Valid Measurements (over 15 min)"
+    duration:
+      name: "DHT Temperature - Duration (over 15 min)"
+    max:
+      name: "DHT Temperature - Maximum (over 15 min)"
+    min:
+      name: "DHT Temperature - Minimum (over 15 min)"
+    mean:
+      name: "DHT Temperature - Average (over 15 min)"
+    since_argmax:
+      name: "DHT Temperature - Time Since Last Maximum (over 15 min)"
+    since_argmin:
+      name: "DHT Temperature - Time Since Last Minimum (over 15 min)"
+    std_dev:
+      name: "DHT Temperature - Standard Deviation (over 15 min)"
+    trend:
+      name: "DHT Temperature - Trend (over 15 min)"
+  - platform: statistics
+    source_id: dht_temperature
+    window:
+      type: continuous_long_term
+      window_size: 0
+      chunk_duration: 60s
+      send_every: 1
+      send_first_at: 1
+      restore: true
+    average_type: simple
+    group_type: population
+    count:
+      name: "DHT Temperature - Count of Valid Measurements (all time)"
+    duration:
+      name: "DHT Temperature - Duration (all time)"
+    max:
+      name: "DHT Temperature - Maximum (all time)"
+    min:
+      name: "DHT Temperature - Minimum (all time)"
+    mean:
+      name: "DHT Temperature - Average (all time)"
+    since_argmax:
+      name: "DHT Temperature - Time Since Last Maximum (all time)"
+    since_argmin:
+      name: "DHT Temperature - Time Since Last Minimum (all time)"
+    std_dev:
+      name: "DHT Temperature - Standard Deviation (all time)"
 
 psram:
 
