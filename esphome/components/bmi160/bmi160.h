@@ -32,8 +32,10 @@ class BMI160Component : public PollingComponent, public i2c::I2CDevice {
   sensor::Sensor *gyro_x_sensor_{nullptr};
   sensor::Sensor *gyro_y_sensor_{nullptr};
   sensor::Sensor *gyro_z_sensor_{nullptr};
+
+  void internal_setup_(int stage);
+  bool setup_complete_{false};
 };
-;
 
 }  // namespace bmi160
 }  // namespace esphome
