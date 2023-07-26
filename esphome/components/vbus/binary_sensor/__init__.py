@@ -18,12 +18,14 @@ from .. import (
     VBus,
     CONF_VBUS_ID,
     CONF_DELTASOL_BS_PLUS,
+    CONF_DELTASOL_BS_2009,
     CONF_DELTASOL_C,
     CONF_DELTASOL_CS2,
     CONF_DELTASOL_CS_PLUS,
 )
 
 DeltaSol_BS_Plus = vbus_ns.class_("DeltaSolBSPlusBSensor", cg.Component)
+DeltaSol_BS_2009 = vbus_ns.class_("DeltaSolBS2009BSensor", cg.Component)
 DeltaSol_C = vbus_ns.class_("DeltaSolCBSensor", cg.Component)
 DeltaSol_CS2 = vbus_ns.class_("DeltaSolCS2BSensor", cg.Component)
 DeltaSol_CS_Plus = vbus_ns.class_("DeltaSolCSPlusBSensor", cg.Component)
@@ -42,6 +44,7 @@ CONF_COLLECTOR_FROST = "collector_frost"
 CONF_TUBE_COLLECTOR = "tube_collector"
 CONF_RECOOLING = "recooling"
 CONF_HQM = "hqm"
+CONF_FROST_PROTECTION_ACTIVE = "frost_protection_active"
 
 CONFIG_SCHEMA = cv.typed_schema(
     {
@@ -83,6 +86,33 @@ CONFIG_SCHEMA = cv.typed_schema(
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 ),
                 cv.Optional(CONF_HQM): binary_sensor.binary_sensor_schema(
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+            }
+        ),
+        CONF_DELTASOL_BS_2009: cv.COMPONENT_SCHEMA.extend(
+            {
+                cv.GenerateID(): cv.declare_id(DeltaSol_BS_2009),
+                cv.GenerateID(CONF_VBUS_ID): cv.use_id(VBus),
+                cv.Optional(CONF_SENSOR1_ERROR): binary_sensor.binary_sensor_schema(
+                    device_class=DEVICE_CLASS_PROBLEM,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_SENSOR2_ERROR): binary_sensor.binary_sensor_schema(
+                    device_class=DEVICE_CLASS_PROBLEM,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_SENSOR3_ERROR): binary_sensor.binary_sensor_schema(
+                    device_class=DEVICE_CLASS_PROBLEM,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(CONF_SENSOR4_ERROR): binary_sensor.binary_sensor_schema(
+                    device_class=DEVICE_CLASS_PROBLEM,
+                    entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
+                ),
+                cv.Optional(
+                    CONF_FROST_PROTECTION_ACTIVE
+                ): binary_sensor.binary_sensor_schema(
                     entity_category=ENTITY_CATEGORY_DIAGNOSTIC,
                 ),
             }
@@ -221,6 +251,28 @@ async def to_code(config):
         if CONF_HQM in config:
             sens = await binary_sensor.new_binary_sensor(config[CONF_HQM])
             cg.add(var.set_hqm_bsensor(sens))
+
+    elif config[CONF_MODEL] == CONF_DELTASOL_BS_2009:
+        cg.add(var.set_command(0x0100))
+        cg.add(var.set_source(0x427B))
+        cg.add(var.set_dest(0x0010))
+        if CONF_SENSOR1_ERROR in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR1_ERROR])
+            cg.add(var.set_s1_error_bsensor(sens))
+        if CONF_SENSOR2_ERROR in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR2_ERROR])
+            cg.add(var.set_s2_error_bsensor(sens))
+        if CONF_SENSOR3_ERROR in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR3_ERROR])
+            cg.add(var.set_s3_error_bsensor(sens))
+        if CONF_SENSOR4_ERROR in config:
+            sens = await binary_sensor.new_binary_sensor(config[CONF_SENSOR4_ERROR])
+            cg.add(var.set_s4_error_bsensor(sens))
+        if CONF_FROST_PROTECTION_ACTIVE in config:
+            sens = await binary_sensor.new_binary_sensor(
+                config[CONF_FROST_PROTECTION_ACTIVE]
+            )
+            cg.add(var.set_frost_protection_active_bsensor(sens))
 
     elif config[CONF_MODEL] == CONF_DELTASOL_C:
         cg.add(var.set_command(0x0100))
