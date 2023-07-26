@@ -76,7 +76,7 @@ void AirthingsWaveBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt
   }
 }
 
-bool AirthingsWaveBase::is_valid_voc_value_(uint16_t voc) { return 0 <= voc && voc <= 16383; }
+bool AirthingsWaveBase::is_valid_voc_value_(uint16_t voc) { return voc <= 16383; }
 
 void AirthingsWaveBase::update() {
   if (this->node_state != espbt::ClientState::ESTABLISHED) {
