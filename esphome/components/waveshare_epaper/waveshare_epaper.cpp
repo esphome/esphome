@@ -1344,7 +1344,7 @@ void WaveshareEPaper5P8InBV2::initialize() {
 
   // COMMAND POWER ON
   this->command(0x04);
-  delay(100);
+  delay(100);  // NOLINT
   this->wait_until_idle_();
 
   // PANNEL SETTING
@@ -1361,11 +1361,10 @@ void WaveshareEPaper5P8InBV2::initialize() {
   this->command(0x15);
   this->data(0x00);
 
-  //VCOM AND DATA INTERVAL SETTING
+  // VCOM AND DATA INTERVAL SETTING
   this->command(0x50);
   this->data(0x11);
   this->data(0x07);
-
 
   // COMMAND TCON SETTING
   this->command(0x60);
@@ -1386,7 +1385,7 @@ void HOT WaveshareEPaper5P8InBV2::display() {
   delay(2);
   this->start_data_();
   for (size_t i = 0; i < this->get_buffer_length_(); i++)
-    this->write_byte(0x00); // no red data, therefore set zeroes
+    this->write_byte(0x00);  // no red data, therefore set zeroes
   this->end_data_();
   delay(2);
 
