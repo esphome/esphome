@@ -12,9 +12,9 @@ const uint8_t BMI160_REGISTER_CHIPID = 0x00;
 const uint8_t BMI160_REGISTER_CMD = 0x7E;
 enum class Cmd : uint8_t {
   START_FOC = 0x03,
-  ACCL_SET_PMU_MODE = 0b0001'0000,  // last 2 bits are mode
-  GYRO_SET_PMU_MODE = 0b0001'0100,  // last 2 bits are mode
-  MAG_SET_PMU_MODE = 0b0001'1000,   // last 2 bits are mode
+  ACCL_SET_PMU_MODE = 0b00010000,  // last 2 bits are mode
+  GYRO_SET_PMU_MODE = 0b00010100,  // last 2 bits are mode
+  MAG_SET_PMU_MODE = 0b00011000,   // last 2 bits are mode
   PROG_NVM = 0xA0,
   FIFO_FLUSH = 0xB0,
   INT_RESET = 0xB1,
@@ -39,18 +39,18 @@ enum class MagPmuMode : uint8_t {
 
 const uint8_t BMI160_REGISTER_ACCEL_CONFIG = 0x40;
 enum class AcclFilterMode : uint8_t {
-  POWER_SAVING = 0b0000'0000,
-  PERF = 0b1000'0000,
+  POWER_SAVING = 0b00000000,
+  PERF = 0b10000000,
 };
 enum class AcclBandwidth : uint8_t {
-  OSR4_AVG1 = 0b0000'0000,
-  OSR2_AVG2 = 0b0001'0000,
-  NORMAL_AVG4 = 0b0010'0000,
-  RES_AVG8 = 0b0011'0000,
-  RES_AVG16 = 0b0100'0000,
-  RES_AVG32 = 0b0101'0000,
-  RES_AVG64 = 0b0110'0000,
-  RES_AVG128 = 0b0111'0000,
+  OSR4_AVG1 = 0b00000000,
+  OSR2_AVG2 = 0b00010000,
+  NORMAL_AVG4 = 0b00100000,
+  RES_AVG8 = 0b00110000,
+  RES_AVG16 = 0b01000000,
+  RES_AVG32 = 0b01010000,
+  RES_AVG64 = 0b01100000,
+  RES_AVG128 = 0b01110000,
 };
 enum class AccelOutputDataRate : uint8_t {
   HZ_25_32 = 0b0001,  // 25/32 Hz
@@ -121,7 +121,7 @@ void BMI160Component::internal_setup_(int stage) {
     case 0:
       ESP_LOGCONFIG(TAG, "Setting up BMI160...");
       uint8_t chipid;
-      if (!this->read_byte(BMI160_REGISTER_CHIPID, &chipid) || (chipid != 0b1101'0001)) {
+      if (!this->read_byte(BMI160_REGISTER_CHIPID, &chipid) || (chipid != 0b11010001)) {
         this->mark_failed();
         return;
       }
