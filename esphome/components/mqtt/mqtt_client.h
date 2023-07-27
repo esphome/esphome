@@ -9,7 +9,7 @@
 #include "esphome/core/log.h"
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/ip_address.h"
-#if defined(USE_ESP_IDF)
+#if defined(USE_ESP32)
 #include "mqtt_backend_idf.h"
 #elif defined(USE_ARDUINO)
 #include "mqtt_backend_arduino.h"
@@ -142,7 +142,7 @@ class MQTTClientComponent : public Component {
    */
   void add_ssl_fingerprint(const std::array<uint8_t, SHA1_SIZE> &fingerprint);
 #endif
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
   void set_ca_certificate(const char *cert) { this->mqtt_backend_.set_ca_certificate(cert); }
   void set_skip_cert_cn_check(bool skip_check) { this->mqtt_backend_.set_skip_cert_cn_check(skip_check); }
 #endif
@@ -296,7 +296,7 @@ class MQTTClientComponent : public Component {
   int log_level_{ESPHOME_LOG_LEVEL};
 
   std::vector<MQTTSubscription> subscriptions_;
-#if defined(USE_ESP_IDF)
+#if defined(USE_ESP32)
   MQTTBackendIDF mqtt_backend_;
 #elif defined(USE_ARDUINO)
   MQTTBackendArduino mqtt_backend_;
