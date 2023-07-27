@@ -26,10 +26,16 @@ jobs:
   common:
     name: Create common environment
     runs-on: ubuntu-latest
+    outputs:
+      cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
+      - name: Generate cache-key
+        id: cache-key
+        run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
       - name: Set up Python ${{ env.DEFAULT_PYTHON }}
+        id: python
         uses: actions/setup-python@v4.6.0
         with:
           python-version: ${{ env.DEFAULT_PYTHON }}
@@ -39,7 +45,7 @@ jobs:
         with:
           path: venv
           # yamllint disable-line rule:line-length
-          key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
+          key: ${{ runner.os }}-${{ steps.python.outputs.python-version }}-venv-${{ steps.cache-key.outputs.key }}
       - name: Create Python virtual environment
         if: steps.cache-venv.outputs.cache-hit != 'true'
         run: |
@@ -56,7 +62,7 @@ jobs:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
       - name: Run yamllint
-        uses: frenck/action-yamllint@v1.4.0
+        uses: frenck/action-yamllint@v1.4.1
 
   black:
     name: Check black
@@ -66,12 +72,11 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
-      - name: Restore Python virtual environment
-        uses: actions/cache/restore@v3.3.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
         with:
-          path: venv
-          # yamllint disable-line rule:line-length
-          key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Run black
         run: |
           . venv/bin/activate
@@ -88,12 +93,11 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
-      - name: Restore Python virtual environment
-        uses: actions/cache/restore@v3.3.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
         with:
-          path: venv
-          # yamllint disable-line rule:line-length
-          key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Run flake8
         run: |
           . venv/bin/activate
@@ -110,12 +114,11 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
-      - name: Restore Python virtual environment
-        uses: actions/cache/restore@v3.3.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
         with:
-          path: venv
-          # yamllint disable-line rule:line-length
-          key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Run pylint
         run: |
           . venv/bin/activate
@@ -132,12 +135,11 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
-      - name: Restore Python virtual environment
-        uses: actions/cache/restore@v3.3.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
         with:
-          path: venv
-          # yamllint disable-line rule:line-length
-          key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Run pyupgrade
         run: |
           . venv/bin/activate
@@ -154,12 +156,11 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
-      - name: Restore Python virtual environment
-        uses: actions/cache/restore@v3.3.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
         with:
-          path: venv
-          # yamllint disable-line rule:line-length
-          key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/ci-custom.json"
       - name: Run script/ci-custom
@@ -176,12 +177,11 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
-      - name: Restore Python virtual environment
-        uses: actions/cache/restore@v3.3.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
         with:
-          path: venv
-          # yamllint disable-line rule:line-length
-          key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Register matcher
         run: echo "::add-matcher::.github/workflows/matchers/pytest.json"
       - name: Run pytest
@@ -197,12 +197,11 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
-      - name: Restore Python virtual environment
-        uses: actions/cache/restore@v3.3.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
         with:
-          path: venv
-          # yamllint disable-line rule:line-length
-          key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Install clang-format
         run: |
           . venv/bin/activate
@@ -233,22 +232,15 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        file: [1, 2, 3, 3.1, 4, 5, 6, 7]
+        file: [1, 2, 3, 3.1, 4, 5, 6, 7, 8]
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
-      - name: Restore Python virtual environment
-        uses: actions/cache/restore@v3.3.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
         with:
-          path: venv
-          # yamllint disable-line rule:line-length
-          key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
-      - name: Cache platformio
-        uses: actions/cache@v3.3.1
-        with:
-          path: ~/.platformio
-          # yamllint disable-line rule:line-length
-          key: platformio-test${{ matrix.file }}-${{ hashFiles('platformio.ini') }}
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Run esphome compile tests/test${{ matrix.file }}.yaml
         run: |
           . venv/bin/activate
@@ -300,13 +292,11 @@ jobs:
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v3.5.2
-      - name: Restore Python virtual environment
-        uses: actions/cache/restore@v3.3.1
+      - name: Restore Python
+        uses: ./.github/actions/restore-python
         with:
-          path: venv
-          # yamllint disable-line rule:line-length
-          key: ${{ runner.os }}-${{ env.DEFAULT_PYTHON }}-venv-${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}
-        # Use per check platformio cache because checks use different parts
+          python-version: ${{ env.DEFAULT_PYTHON }}
+          cache-key: ${{ needs.common.outputs.cache-key }}
       - name: Cache platformio
         uses: actions/cache@v3.3.1
         with:
