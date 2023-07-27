@@ -11,7 +11,7 @@ namespace esphome {
 namespace micronova {
 
 static const char *const TAG = "micronova";
-static const int STOVE_REPLY_DELAY = 50;
+static const int STOVE_REPLY_DELAY = 60;
 
 static const std::string STOVE_STATES[11] = {"Off",
                                              "Start",
