@@ -11,8 +11,6 @@ static const char *const TAG = "fluval_ble_led_channel_sensor";
 void FluvalBleChannelSensor::setup() { ESP_LOGD(TAG, "Setup called"); }
 
 void FluvalBleChannelSensor::notify() {
-  ESP_LOGW(TAG, "IN SENSOR NOTIFY: %d / zero_if_off: %d", this->channel_, this->zero_if_off_);
-
   if (this->zero_if_off_ && this->parent_->get_status().led_on_off == 0x00) {
     this->publish_state(0);
     return;
