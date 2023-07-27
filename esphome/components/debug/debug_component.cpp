@@ -121,6 +121,18 @@ void DebugComponent::dump_config() {
     case CHIP_ESP32:
       model = "ESP32";
       break;
+    case CHIP_ESP32C3:
+      model = "ESP32-C3";
+      break;
+    case CHIP_ESP32S2:
+      model = "ESP32-S2";
+      break;
+    case CHIP_ESP32S3:
+      model = "ESP32-S3";
+      break;
+    case CHIP_ESP32H2:
+      model = "ESP32-H2";
+      break;
     default:
       model = "UNKNOWN";
   }
