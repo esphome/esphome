@@ -18,16 +18,20 @@ class TuyaClimate : public climate::Climate, public Component {
   void set_active_state_id(uint8_t state_id) { this->active_state_id_ = state_id; }
   void set_active_state_heating_value(uint8_t value) { this->active_state_heating_value_ = value; }
   void set_active_state_cooling_value(uint8_t value) { this->active_state_cooling_value_ = value; }
-  void set_active_state_drying_value(uint8_t value) {this->active_state_drying_value_ = value; }
-  void set_active_state_fanonly_value(uint8_t value) {this->active_state_fanonly_value_ = value; }
+  void set_active_state_drying_value(uint8_t value) { this->active_state_drying_value_ = value; }
+  void set_active_state_fanonly_value(uint8_t value) { this->active_state_fanonly_value_ = value; }
   void set_heating_state_pin(GPIOPin *pin) { this->heating_state_pin_ = pin; }
   void set_cooling_state_pin(GPIOPin *pin) { this->cooling_state_pin_ = pin; }
   void set_swing_vertical_id(uint8_t swing_vertical_id) { this->swing_vertical_id_ = swing_vertical_id; }
   void set_swing_horizontal_id(uint8_t swing_horizontal_id) { this->swing_horizontal_id_ = swing_horizontal_id; }
   void set_fan_speed_id(uint8_t fan_speed_id) { this->fan_speed_id_ = fan_speed_id; }
   void set_fan_speed_low_value(uint8_t fan_speed_low_value) { this->fan_speed_low_value_ = fan_speed_low_value; }
-  void set_fan_speed_medium_value(uint8_t fan_speed_medium_value) { this->fan_speed_medium_value_ = fan_speed_medium_value; }
-  void set_fan_speed_middle_value(uint8_t fan_speed_middle_value) { this->fan_speed_middle_value_ = fan_speed_middle_value; }
+  void set_fan_speed_medium_value(uint8_t fan_speed_medium_value) {
+    this->fan_speed_medium_value_ = fan_speed_medium_value;
+  }
+  void set_fan_speed_middle_value(uint8_t fan_speed_middle_value) {
+    this->fan_speed_middle_value_ = fan_speed_middle_value;
+  }
   void set_fan_speed_high_value(uint8_t fan_speed_high_value) { this->fan_speed_high_value_ = fan_speed_high_value; }
   void set_fan_speed_auto_value(uint8_t fan_speed_auto_value) { this->fan_speed_auto_value_ = fan_speed_auto_value; }
   void set_target_temperature_id(uint8_t target_temperature_id) {
@@ -45,7 +49,7 @@ class TuyaClimate : public climate::Climate, public Component {
   void set_eco_id(uint8_t eco_id) { this->eco_id_ = eco_id; }
   void set_eco_temperature(float eco_temperature) { this->eco_temperature_ = eco_temperature; }
   void set_sleep_id(uint8_t sleep_id) { this->sleep_id_ = sleep_id; }
-  
+
   void set_reports_fahrenheit() { this->reports_fahrenheit_ = true; }
 
   void set_tuya_parent(Tuya *parent) { this->parent_ = parent; }

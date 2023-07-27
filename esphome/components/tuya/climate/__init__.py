@@ -175,14 +175,14 @@ async def to_code(config):
             cg.add(
                 var.set_active_state_drying_value(
                     config[CONF_ACTIVE_STATE_DRYING_VALUE]
-                    )
                 )
+            )
         if CONF_ACTIVE_STATE_FANONLY_VALUE in config:
             cg.add(
                 var.set_active_state_fanonly_value(
                     config[CONF_ACTIVE_STATE_FANONLY_VALUE]
-                    )
                 )
+            )
     else:
         if CONF_HEATING_STATE_PIN in config:
             heating_state_pin = await cg.gpio_pin_expression(

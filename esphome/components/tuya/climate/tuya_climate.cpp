@@ -179,9 +179,9 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
       this->parent_->set_boolean_datapoint_value(*this->eco_id_, eco);
     }
     if (this->sleep_id_.has_value()) {
-    const bool sleep = preset == climate::CLIMATE_PRESET_SLEEP;
-    ESP_LOGV(TAG, "Setting sleep: %s", ONOFF(sleep));
-    this->parent_->set_boolean_datapoint_value(*this->sleep_id_, sleep);
+      const bool sleep = preset == climate::CLIMATE_PRESET_SLEEP;
+      ESP_LOGV(TAG, "Setting sleep: %s", ONOFF(sleep));
+      this->parent_->set_boolean_datapoint_value(*this->sleep_id_, sleep);
     }
   }
 }
@@ -296,32 +296,25 @@ climate::ClimateTraits TuyaClimate::traits() {
   if (this->eco_id_.has_value()) {
     traits.add_supported_preset(climate::CLIMATE_PRESET_ECO);
   }
-  if (this->sleep_id_.has_value()){
+  if (this->sleep_id_.has_value()) {
     traits.add_supported_preset(climate::CLIMATE_PRESET_SLEEP);
   }
-  if (this->sleep_id_.has_value() || this->eco_id_.has_value()){
+  if (this->sleep_id_.has_value() || this->eco_id_.has_value()) {
     traits.add_supported_preset(climate::CLIMATE_PRESET_NONE);
   }
   if (this->swing_vertical_id_.has_value() && this->swing_horizontal_id_.has_value()) {
-        std::set<climate::ClimateSwingMode> supported_swing_modes = {
-            climate::CLIMATE_SWING_OFF,
-            climate::CLIMATE_SWING_BOTH,
-            climate::CLIMATE_SWING_VERTICAL,
-            climate::CLIMATE_SWING_HORIZONTAL
-        };
-        traits.set_supported_swing_modes(std::move(supported_swing_modes));
-    } else if (this->swing_vertical_id_.has_value()) {
-        std::set<climate::ClimateSwingMode> supported_swing_modes = {
-            climate::CLIMATE_SWING_OFF,
-            climate::CLIMATE_SWING_VERTICAL
-        };
-        traits.set_supported_swing_modes(std::move(supported_swing_modes));
-    } else if (this->swing_horizontal_id_.has_value()) {
-        std::set<climate::ClimateSwingMode> supported_swing_modes = {
-            climate::CLIMATE_SWING_OFF,
-            climate::CLIMATE_SWING_HORIZONTAL
-        };
-      traits.set_supported_swing_modes(std::move(supported_swing_modes));
+    std::set<climate::ClimateSwingMode> supported_swing_modes = {
+        climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH, climate::CLIMATE_SWING_VERTICAL,
+        climate::CLIMATE_SWING_HORIZONTAL};
+    traits.set_supported_swing_modes(std::move(supported_swing_modes));
+  } else if (this->swing_vertical_id_.has_value()) {
+    std::set<climate::ClimateSwingMode> supported_swing_modes = {climate::CLIMATE_SWING_OFF,
+                                                                 climate::CLIMATE_SWING_VERTICAL};
+    traits.set_supported_swing_modes(std::move(supported_swing_modes));
+  } else if (this->swing_horizontal_id_.has_value()) {
+    std::set<climate::ClimateSwingMode> supported_swing_modes = {climate::CLIMATE_SWING_OFF,
+                                                                 climate::CLIMATE_SWING_HORIZONTAL};
+    traits.set_supported_swing_modes(std::move(supported_swing_modes));
   }
 
   if (fan_speed_id_) {
@@ -380,15 +373,15 @@ void TuyaClimate::compute_preset_() {
 }
 
 void TuyaClimate::compute_swingmode_() {
-    if (this->swing_vertical_ && this->swing_horizontal_) {
-        this->swing_mode = climate::CLIMATE_SWING_BOTH;
-    } else if (this->swing_vertical_) {
-        this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
-    } else if (this->swing_horizontal_) {
-        this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
-    } else {
-        this->swing_mode = climate::CLIMATE_SWING_OFF;
-    }
+  if (this->swing_vertical_ && this->swing_horizontal_) {
+    this->swing_mode = climate::CLIMATE_SWING_BOTH;
+  } else if (this->swing_vertical_) {
+    this->swing_mode = climate::CLIMATE_SWING_VERTICAL;
+  } else if (this->swing_horizontal_) {
+    this->swing_mode = climate::CLIMATE_SWING_HORIZONTAL;
+  } else {
+    this->swing_mode = climate::CLIMATE_SWING_OFF;
+  }
 }
 
 void TuyaClimate::compute_fanmode_() {
@@ -472,7 +465,6 @@ void TuyaClimate::compute_state_() {
   }
 
   this->switch_to_action_(target_action);
-
 }
 
 void TuyaClimate::switch_to_action_(climate::ClimateAction action) {
