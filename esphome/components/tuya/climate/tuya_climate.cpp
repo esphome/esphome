@@ -2,7 +2,7 @@
 #include "esphome/core/log.h"
 
 namespace esphome {
-namespace tuya_new {
+namespace tuya {
 
 static const char *const TAG = "tuya.climate";
 
@@ -480,5 +480,5 @@ void TuyaClimate::switch_to_action_(climate::ClimateAction action) {
   this->action = action;
 }
 
-}  // namespace tuya_new
+}  // namespace tuya
 }  // namespace esphome

@@ -10,7 +10,7 @@ from esphome.const import (
 )
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
-DEPENDENCIES = ["tuya_new"]
+DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@jesserockz"]
 
 CONF_ACTIVE_STATE_DATAPOINT = "active_state_datapoint"
@@ -244,5 +244,3 @@ async def to_code(config):
         cg.add(var.set_fan_speed_high_value(config[CONF_FAN_SPEED_HIGH_VALUE]))
     if CONF_FAN_SPEED_AUTO_VALUE in config:
         cg.add(var.set_fan_speed_auto_value(config[CONF_FAN_SPEED_AUTO_VALUE]))
-
-

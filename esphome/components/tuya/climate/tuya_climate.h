@@ -1,11 +1,11 @@
 #pragma once
 
 #include "esphome/core/component.h"
-#include "esphome/components/tuya_new/tuya_new.h"
+#include "esphome/components/tuya/tuya.h"
 #include "esphome/components/climate/climate.h"
 
 namespace esphome {
-namespace tuya_new {
+namespace tuya {
 
 class TuyaClimate : public climate::Climate, public Component {
  public:
