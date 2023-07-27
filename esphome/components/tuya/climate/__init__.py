@@ -10,12 +10,14 @@ from esphome.const import (
 )
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
-DEPENDENCIES = ["tuya"]
+DEPENDENCIES = ["tuya_new"]
 CODEOWNERS = ["@jesserockz"]
 
 CONF_ACTIVE_STATE_DATAPOINT = "active_state_datapoint"
 CONF_ACTIVE_STATE_HEATING_VALUE = "active_state_heating_value"
 CONF_ACTIVE_STATE_COOLING_VALUE = "active_state_cooling_value"
+CONF_ACTIVE_STATE_DRYING_VALUE = "active_state_drying_value"
+CONF_ACTIVE_STATE_FANONLY_VALUE = "active_state_fanonly_value"
 CONF_HEATING_STATE_PIN = "heating_state_pin"
 CONF_COOLING_STATE_PIN = "cooling_state_pin"
 CONF_TARGET_TEMPERATURE_DATAPOINT = "target_temperature_datapoint"
@@ -25,7 +27,16 @@ CONF_CURRENT_TEMPERATURE_MULTIPLIER = "current_temperature_multiplier"
 CONF_TARGET_TEMPERATURE_MULTIPLIER = "target_temperature_multiplier"
 CONF_ECO_DATAPOINT = "eco_datapoint"
 CONF_ECO_TEMPERATURE = "eco_temperature"
+CONF_SLEEP_DATAPOINT = "sleep_datapoint"
 CONF_REPORTS_FAHRENHEIT = "reports_fahrenheit"
+CONF_SWING_VERTICAL_DATAPOINT = "swing_vertical_datapoint"
+CONF_SWING_HORIZONTAL_DATAPOINT = "swing_horizontal_datapoint"
+CONF_FAN_SPEED_DATAPOINT = "fan_speed_datapoint"
+CONF_FAN_SPEED_LOW_VALUE = "fan_speed_low_value"
+CONF_FAN_SPEED_MEDIUM_VALUE = "fan_speed_medium_value"
+CONF_FAN_SPEED_MIDDLE_VALUE = "fan_speed_middle_value"
+CONF_FAN_SPEED_HIGH_VALUE = "fan_speed_high_value"
+CONF_FAN_SPEED_AUTO_VALUE = "fan_speed_auto_value"
 
 TuyaClimate = tuya_ns.class_("TuyaClimate", climate.Climate, cg.Component)
 
@@ -102,6 +113,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ACTIVE_STATE_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_ACTIVE_STATE_HEATING_VALUE, default=1): cv.uint8_t,
             cv.Optional(CONF_ACTIVE_STATE_COOLING_VALUE): cv.uint8_t,
+            cv.Optional(CONF_ACTIVE_STATE_DRYING_VALUE): cv.uint8_t,
+            cv.Optional(CONF_ACTIVE_STATE_FANONLY_VALUE): cv.uint8_t,
             cv.Optional(CONF_HEATING_STATE_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_COOLING_STATE_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_TARGET_TEMPERATURE_DATAPOINT): cv.uint8_t,
@@ -111,7 +124,16 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TARGET_TEMPERATURE_MULTIPLIER): cv.positive_float,
             cv.Optional(CONF_ECO_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_ECO_TEMPERATURE): cv.temperature,
+            cv.Optional(CONF_SLEEP_DATAPOINT): cv.uint8_t,
             cv.Optional(CONF_REPORTS_FAHRENHEIT, default=False): cv.boolean,
+            cv.Optional(CONF_SWING_VERTICAL_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_SWING_HORIZONTAL_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_FAN_SPEED_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_FAN_SPEED_LOW_VALUE, default=1): cv.uint8_t,
+            cv.Optional(CONF_FAN_SPEED_MEDIUM_VALUE, default=2): cv.uint8_t,
+            cv.Optional(CONF_FAN_SPEED_MIDDLE_VALUE, default=3): cv.uint8_t,
+            cv.Optional(CONF_FAN_SPEED_HIGH_VALUE, default=4): cv.uint8_t,
+            cv.Optional(CONF_FAN_SPEED_AUTO_VALUE, default=5): cv.uint8_t,
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TARGET_TEMPERATURE_DATAPOINT, CONF_SWITCH_DATAPOINT),
@@ -149,6 +171,18 @@ async def to_code(config):
                     config[CONF_ACTIVE_STATE_COOLING_VALUE]
                 )
             )
+        if CONF_ACTIVE_STATE_DRYING_VALUE in config:
+            cg.add(
+                var.set_active_state_drying_value(
+                    config[CONF_ACTIVE_STATE_DRYING_VALUE]
+                    )
+                )
+        if CONF_ACTIVE_STATE_FANONLY_VALUE in config:
+            cg.add(
+                var.set_active_state_fanonly_value(
+                    config[CONF_ACTIVE_STATE_FANONLY_VALUE]
+                    )
+                )
     else:
         if CONF_HEATING_STATE_PIN in config:
             heating_state_pin = await cg.gpio_pin_expression(
@@ -191,3 +225,24 @@ async def to_code(config):
 
     if config[CONF_REPORTS_FAHRENHEIT]:
         cg.add(var.set_reports_fahrenheit())
+
+    if CONF_SLEEP_DATAPOINT in config:
+        cg.add(var.set_sleep_id(config[CONF_SLEEP_DATAPOINT]))
+    if CONF_SWING_VERTICAL_DATAPOINT in config:
+        cg.add(var.set_swing_vertical_id(config[CONF_SWING_VERTICAL_DATAPOINT]))
+    if CONF_SWING_HORIZONTAL_DATAPOINT in config:
+        cg.add(var.set_swing_horizontal_id(config[CONF_SWING_HORIZONTAL_DATAPOINT]))
+    if CONF_FAN_SPEED_DATAPOINT in config:
+        cg.add(var.set_fan_speed_id(config[CONF_FAN_SPEED_DATAPOINT]))
+    if CONF_FAN_SPEED_LOW_VALUE in config:
+        cg.add(var.set_fan_speed_low_value(config[CONF_FAN_SPEED_LOW_VALUE]))
+    if CONF_FAN_SPEED_MEDIUM_VALUE in config:
+        cg.add(var.set_fan_speed_medium_value(config[CONF_FAN_SPEED_MEDIUM_VALUE]))
+    if CONF_FAN_SPEED_MIDDLE_VALUE in config:
+        cg.add(var.set_fan_speed_middle_value(config[CONF_FAN_SPEED_MIDDLE_VALUE]))
+    if CONF_FAN_SPEED_HIGH_VALUE in config:
+        cg.add(var.set_fan_speed_high_value(config[CONF_FAN_SPEED_HIGH_VALUE]))
+    if CONF_FAN_SPEED_AUTO_VALUE in config:
+        cg.add(var.set_fan_speed_auto_value(config[CONF_FAN_SPEED_AUTO_VALUE]))
+
+
