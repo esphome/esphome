@@ -81,11 +81,9 @@ int MicroNova::read_address(uint8_t addr, uint8_t reg) {
   uint8_t data[2] = {0, 0};
 
   this->enable_rx_pin_->digital_write(true);
-  ESP_LOGD(TAG, "Enable write");
   this->write_byte(addr);
   this->write_byte(reg);
   this->flush();
-  ESP_LOGD(TAG, "Flushed read request");
   this->enable_rx_pin_->digital_write(false);
   // Give the stove some time to reply
   delay(STOVE_REPLY_DELAY);  // NOLINT
