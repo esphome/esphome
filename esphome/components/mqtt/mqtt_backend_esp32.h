@@ -41,7 +41,7 @@ struct Event {
         error_handle(*event.error_handle) {}
 };
 
-class MQTTBackendIDF final : public MQTTBackend {
+class MQTTBackendESP32 final : public MQTTBackend {
  public:
   static const size_t MQTT_BUFFER_SIZE = 4096;
 

@@ -10,7 +10,7 @@
 #include "esphome/components/json/json_util.h"
 #include "esphome/components/network/ip_address.h"
 #if defined(USE_ESP32)
-#include "mqtt_backend_idf.h"
+#include "mqtt_backend_esp32.h"
 #elif defined(USE_ARDUINO)
 #include "mqtt_backend_arduino.h"
 #endif
@@ -297,7 +297,7 @@ class MQTTClientComponent : public Component {
 
   std::vector<MQTTSubscription> subscriptions_;
 #if defined(USE_ESP32)
-  MQTTBackendIDF mqtt_backend_;
+  MQTTBackendESP32 mqtt_backend_;
 #elif defined(USE_ARDUINO)
   MQTTBackendArduino mqtt_backend_;
 #endif
