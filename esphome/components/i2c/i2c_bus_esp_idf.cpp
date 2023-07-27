@@ -133,6 +133,8 @@ ErrorCode IDFI2CBus::readv(uint8_t address, ReadBuffer *buffers, size_t cnt) {
     return ERROR_UNKNOWN;
   }
   err = i2c_master_cmd_begin(port_, cmd, 20 / portTICK_PERIOD_MS);
+  // i2c_master_cmd_begin() will block for a whole second if no ack:
+  // https://github.com/espressif/esp-idf/issues/4999
   i2c_cmd_link_delete(cmd);
   if (err == ESP_FAIL) {
     // transfer not acked
