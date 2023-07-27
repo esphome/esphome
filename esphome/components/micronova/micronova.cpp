@@ -46,7 +46,6 @@ void MicroNova::loop() {
 void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
   uint8_t write_data[4] = {0, 0, 0, 0};
   uint8_t reply_data[2] = {0, 0};
-  uint8_t c;
   int checksum = 0;
 
   write_data[0] = location;
@@ -73,11 +72,12 @@ void MicroNova::write_address(uint8_t location, uint8_t address, uint8_t data) {
   this->read_byte(&reply_data[1]);
 
   this->enable_rx_pin_->digital_write(true);
-  ESP_LOGD(TAG, "First 2 bytes from [%02X:%02X] [%02X,%02X]", write_data[0], write_data[1], reply_data[0], reply_data[1]);
+  ESP_LOGD(TAG, "First 2 bytes from [%02X:%02X] [%02X,%02X]", write_data[0], write_data[1], reply_data[0],
+           reply_data[1]);
 }
 
 int MicroNova::read_address(uint8_t addr, uint8_t reg) {
-  uint8_t c, data[2] = {0, 0};
+  uint8_t data[2] = {0, 0};
 
   this->enable_rx_pin_->digital_write(true);
   ESP_LOGD(TAG, "Enable write");
@@ -96,11 +96,11 @@ int MicroNova::read_address(uint8_t addr, uint8_t reg) {
   ESP_LOGD(TAG, "First 2 bytes from [0x%02X:0x%02X] [0x%02X,0x%02X] dec: [%d,%d]", addr, reg, data[0], data[1], data[0],
            data[1]);
 
-  if ((data[0]-data[1]) != (reg+addr)) {
-    ESP_LOGE(TAG, "Checksum missmatch! From [0x%02X:0x%02X] received [0x%02X,0x%02X]. Expected %d, got %d", addr, reg, data[0], data[1],reg+addr,data[0]-data[1]);
+  if ((data[0] - data[1]) != (reg + addr)) {
+    ESP_LOGE(TAG, "Checksum missmatch! From [0x%02X:0x%02X] received [0x%02X,0x%02X]. Expected %d, got %d", addr, reg,
+             data[0], data[1], reg + addr, data[0] - data[1]);
     return -1;
-  }
-  else {
+  } else {
     return ((int) data[1]);
   }
 }
