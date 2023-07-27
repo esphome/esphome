@@ -220,7 +220,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   esp_err_t err;
   esp_wifi_get_config(WIFI_IF_STA, &current_conf);
 
-  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT(bugprone-suspicious-memory-comparison)
+  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
     err = esp_wifi_disconnect();
     if (err != ESP_OK) {
       ESP_LOGV(TAG, "esp_wifi_disconnect failed! %d", err);
