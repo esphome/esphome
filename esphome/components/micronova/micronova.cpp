@@ -39,6 +39,7 @@ void MicroNova::loop() {
     if (mv_listener->get_needs_update()) {
       mv_listener->set_needs_update(false);
       mv_listener->read_value_from_stove();
+      return;
     }
   }
 }
