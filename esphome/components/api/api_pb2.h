@@ -176,6 +176,27 @@ enum VoiceAssistantEvent : uint32_t {
   VOICE_ASSISTANT_TTS_START = 7,
   VOICE_ASSISTANT_TTS_END = 8,
 };
+enum AlarmControlPanelState : uint32_t {
+  ALARM_STATE_DISARMED = 0,
+  ALARM_STATE_ARMED_HOME = 1,
+  ALARM_STATE_ARMED_AWAY = 2,
+  ALARM_STATE_ARMED_NIGHT = 3,
+  ALARM_STATE_ARMED_VACATION = 4,
+  ALARM_STATE_ARMED_CUSTOM_BYPASS = 5,
+  ALARM_STATE_PENDING = 6,
+  ALARM_STATE_ARMING = 7,
+  ALARM_STATE_DISARMING = 8,
+  ALARM_STATE_TRIGGERED = 9,
+};
+enum AlarmControlPanelStateCommand : uint32_t {
+  ALARM_CONTROL_PANEL_DISARM = 0,
+  ALARM_CONTROL_PANEL_ARM_AWAY = 1,
+  ALARM_CONTROL_PANEL_ARM_HOME = 2,
+  ALARM_CONTROL_PANEL_ARM_NIGHT = 3,
+  ALARM_CONTROL_PANEL_ARM_VACATION = 4,
+  ALARM_CONTROL_PANEL_ARM_CUSTOM_BYPASS = 5,
+  ALARM_CONTROL_PANEL_TRIGGER = 6,
+};
 
 }  // namespace enums
 
@@ -1677,6 +1698,56 @@ class VoiceAssistantEventResponse : public ProtoMessage {
 #endif
 
  protected:
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class ListEntitiesAlarmControlPanelResponse : public ProtoMessage {
+ public:
+  std::string object_id{};
+  uint32_t key{0};
+  std::string name{};
+  std::string unique_id{};
+  std::string icon{};
+  bool disabled_by_default{false};
+  enums::EntityCategory entity_category{};
+  uint32_t supported_features{0};
+  bool requires_code{false};
+  bool requires_code_to_arm{false};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class AlarmControlPanelStateResponse : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  enums::AlarmControlPanelState state{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
+  bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
+};
+class AlarmControlPanelCommandRequest : public ProtoMessage {
+ public:
+  uint32_t key{0};
+  enums::AlarmControlPanelStateCommand command{};
+  std::string code{};
+  void encode(ProtoWriteBuffer buffer) const override;
+#ifdef HAS_PROTO_MESSAGE_DUMP
+  void dump_to(std::string &out) const override;
+#endif
+
+ protected:
+  bool decode_32bit(uint32_t field_id, Proto32Bit value) override;
   bool decode_length(uint32_t field_id, ProtoLengthDelimited value) override;
   bool decode_varint(uint32_t field_id, ProtoVarInt value) override;
 };

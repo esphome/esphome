@@ -129,6 +129,12 @@ class APIConnection : public APIServerConnection {
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+  bool send_alarm_control_panel_state(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
+  bool send_alarm_control_panel_info(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel);
+  void alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) override;
+#endif
+
   void on_disconnect_response(const DisconnectResponse &value) override;
   void on_ping_response(const PingResponse &value) override {
     // we initiated ping
