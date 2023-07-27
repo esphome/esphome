@@ -126,28 +126,42 @@ def final_validate_device_schema(
     max_timeout: cv.time_period = None,
 ):
     hub_schema = {}
-    if min_frequency is not None:
+    if (min_frequency is not None) and (max_frequency is not None):
+        hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(
+            min=cv.frequency(min_frequency),
+            min_included=True,
+            max=cv.frequency(max_frequency),
+            max_included=True,
+            msg=f"Component {name} requires a frequency between {min_frequency} and {max_frequency} for the I2C bus",
+        )
+    elif min_frequency is not None:
         hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(
             min=cv.frequency(min_frequency),
             min_included=True,
             msg=f"Component {name} requires a minimum frequency of {min_frequency} for the I2C bus",
         )
-
-    if max_frequency is not None:
+    elif max_frequency is not None:
         hub_schema[cv.Required(CONF_FREQUENCY)] = cv.Range(
             max=cv.frequency(max_frequency),
             max_included=True,
             msg=f"Component {name} cannot be used with a frequency of over {max_frequency} for the I2C bus",
         )
 
-    if min_timeout is not None:
+    if (min_timeout is not None) and (max_timeout is not None):
+        hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
+            min=cv.time_period(min_timeout),
+            min_included=True,
+            max=cv.time_period(max_timeout),
+            max_included=True,
+            msg=f"Component {name} requires a timeout between {min_timeout} and {max_timeout} for the I2C bus",
+        )
+    elif min_timeout is not None:
         hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
             min=cv.time_period(min_timeout),
             min_included=True,
             msg=f"Component {name} requires a minimum timeout of {min_timeout} for the I2C bus",
         )
-
-    if max_timeout is not None:
+    elif max_timeout is not None:
         hub_schema[cv.Required(CONF_TIMEOUT)] = cv.Range(
             max=cv.time_period(max_timeout),
             max_included=True,
