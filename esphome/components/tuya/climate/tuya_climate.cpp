@@ -158,8 +158,8 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
     }
   }
 
-  control_swing_mode(call);
-  control_fan_mode(call);
+  control_swing_mode_(call);
+  control_fan_mode_(call);
 
   if (call.get_target_temperature().has_value()) {
     float target_temperature = *call.get_target_temperature();
@@ -186,7 +186,7 @@ void TuyaClimate::control(const climate::ClimateCall &call) {
   }
 }
 
-void TuyaClimate::control_swing_mode(const climate::ClimateCall &call) {
+void TuyaClimate::control_swing_mode_(const climate::ClimateCall &call) {
   bool vertical_swing_changed = false;
   bool horizontal_swing_changed = false;
 
@@ -249,7 +249,7 @@ void TuyaClimate::control_swing_mode(const climate::ClimateCall &call) {
   this->publish_state();
 }
 
-void TuyaClimate::control_fan_mode(const climate::ClimateCall &call) {
+void TuyaClimate::control_fan_mode_(const climate::ClimateCall &call) {
   if (call.get_fan_mode().has_value()) {
     climate::ClimateFanMode fan_mode = *call.get_fan_mode();
 

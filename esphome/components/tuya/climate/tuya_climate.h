@@ -59,10 +59,10 @@ class TuyaClimate : public climate::Climate, public Component {
   void control(const climate::ClimateCall &call) override;
 
   /// Override control to change settings of swing mode.
-  void control_swing_mode(const climate::ClimateCall &call);
+  void control_swing_mode_(const climate::ClimateCall &call);
 
   /// Override control to change settings of fan mode.
-  void control_fan_mode(const climate::ClimateCall &call);
+  void control_fan_mode_(const climate::ClimateCall &call);
 
   /// Return the traits of this controller.
   climate::ClimateTraits traits() override;
