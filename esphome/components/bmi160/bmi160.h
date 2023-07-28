@@ -35,6 +35,9 @@ class BMI160Component : public PollingComponent, public i2c::I2CDevice {
 
   void internal_setup_(int stage);
   bool setup_complete_{false};
+
+  /** reads `len` 16-bit little-endian integers from the given i2c register */
+  i2c::ErrorCode read_le_int16_(uint8_t reg, int16_t *value, uint8_t len);
 };
 
 }  // namespace bmi160

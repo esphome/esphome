@@ -201,35 +201,44 @@ void BMI160Component::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
 }
 
+i2c::ErrorCode BMI160Component::read_le_int16_(uint8_t reg, int16_t *value, uint8_t len) {
+  uint8_t raw_data[len * 2];
+  // read using read_register because we have little-endian data, and read_bytes_16 will swap it
+  i2c::ErrorCode err = this->read_register(reg, raw_data, len * 2, true);
+  if (err != i2c::ERROR_OK) {
+    return err;
+  }
+  for (int i = 0; i < len; i++) {
+    value[i] = (int16_t) ((uint16_t) raw_data[i * 2] | ((uint16_t) raw_data[i * 2 + 1] << 8));
+  }
+  return err;
+}
+
 void BMI160Component::update() {
   if (!this->setup_complete_) {
     return;
   }
 
   ESP_LOGV(TAG, "    Updating BMI160...");
-  uint8_t raw_data[12];
-  // read using read_register because we have little-endian data, and read_bytes_16 will swap it
-  if (this->read_register(BMI160_REGISTER_DATA_GYRO_X_LSB, raw_data, 12, true) != i2c::ERROR_OK) {
+  int16_t data[6];
+  if (this->read_le_int16_(BMI160_REGISTER_DATA_GYRO_X_LSB, data, 6) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
-  auto *data = reinterpret_cast<int16_t *>(raw_data);
 
   float gyro_x = (float) data[0] / (float) INT16_MAX * 2000.f;
   float gyro_y = (float) data[1] / (float) INT16_MAX * 2000.f;
   float gyro_z = (float) data[2] / (float) INT16_MAX * 2000.f;
-
   float accel_x = (float) data[3] / (float) INT16_MAX * 16 * GRAVITY_EARTH;
   float accel_y = (float) data[4] / (float) INT16_MAX * 16 * GRAVITY_EARTH;
   float accel_z = (float) data[5] / (float) INT16_MAX * 16 * GRAVITY_EARTH;
 
-  uint8_t raw_temperature;
-  if (this->read_register(BMI160_REGISTER_DATA_GYRO_X_LSB, &raw_temperature, 2, true) != i2c::ERROR_OK) {
+  int16_t raw_temperature;
+  if (this->read_le_int16_(BMI160_REGISTER_DATA_TEMP_LSB, &raw_temperature, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
-  int16_t int_temperature = *reinterpret_cast<int16_t *>(&raw_temperature);
-  float temperature = (float) int_temperature / (float) INT16_MAX * 64.5f + 23.f;
+  float temperature = (float) raw_temperature / (float) INT16_MAX * 64.5f + 23.f;
 
   ESP_LOGD(TAG,
            "Got accel={x=%.3f m/s², y=%.3f m/s², z=%.3f m/s²}, "
