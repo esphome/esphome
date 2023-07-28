@@ -917,17 +917,17 @@ sensor:
     i2c_id: i2c_bus
   - platform: bmi160
     address: 0x68
-    accel_x:
+    acceleration_x:
       name: BMI160 Accel X
-    accel_y:
+    acceleration_y:
       name: BMI160 Accel Y
-    accel_z:
+    acceleration_z:
       name: BMI160 Accel z
-    gyro_x:
+    gyroscope_x:
       name: BMI160 Gyro X
-    gyro_y:
+    gyroscope_y:
       name: BMI160 Gyro Y
-    gyro_z:
+    gyroscope_z:
       name: BMI160 Gyro z
     temperature:
       name: BMI160 Temperature

@@ -30,16 +30,16 @@ BMI160Component = bmi160_ns.class_(
     "BMI160Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-accel_schema = dict(
-    unit_of_measurement=UNIT_METER_PER_SECOND_SQUARED,
-    accuracy_decimals=2,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-gyro_schema = dict(
-    unit_of_measurement=UNIT_DEGREE_PER_SECOND,
-    accuracy_decimals=2,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
+accel_schema = {
+    "unit_of_measurement": UNIT_METER_PER_SECOND_SQUARED,
+    "accuracy_decimals": 2,
+    "state_class": STATE_CLASS_MEASUREMENT,
+}
+gyro_schema = {
+    "unit_of_measurement": UNIT_DEGREE_PER_SECOND,
+    "accuracy_decimals": 2,
+    "state_class": STATE_CLASS_MEASUREMENT,
+}
 
 CONFIG_SCHEMA = (
     cv.Schema(
