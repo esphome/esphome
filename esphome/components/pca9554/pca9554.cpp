@@ -40,6 +40,9 @@ void PCA9554Component::loop() {
   // initialization it will be called at a higher rate.
   // The read_inputs_() method will cache the input values from the chip.
   this->read_inputs_();
+  // Clear all the previously read flags.
+  for(int i = 0; i < 8; i++)
+    this->was_previously_read[i] = false;
 }
 
 void PCA9554Component::dump_config() {
@@ -51,8 +54,22 @@ void PCA9554Component::dump_config() {
 }
 
 bool PCA9554Component::digital_read(uint8_t pin) {
-  // Note: We want to avoid doing any I2C bus read transactions here
-  // to conserve I2C bus bandwidth.
+  
+  // Note: We want to try and avoid doing any I2C bus read transactions here
+  // to conserve I2C bus bandwidth. So what we do is check to see if we 
+  // have seen a read during the time esphome is running this loop. If we have,
+  // we do an I2C bus transaction to get the latest value. If we haven't
+  // we return a cached value which was read at the time loop() was called.
+  
+  if(was_previously_read[pin] == true)
+    this->read_inputs_(); // Force a read of a new value
+    
+  // Indicate we saw a read request for this pin in case a 
+  // read happens later in the same loop.
+  
+  was_previously_read[pin] = true;
+  
+  
   return this->input_mask_ & (1 << pin);
 }
 
@@ -106,6 +123,10 @@ bool PCA9554Component::write_register_(uint8_t reg, uint8_t value) {
 }
 
 float PCA9554Component::get_setup_priority() const { return setup_priority::IO; }
+
+// Run our loop() method very early in the loop, so that we cache read values before
+// before other components call our digital_read() method.
+float PCA9554Component::get_loop_priority()  const {return 9.0f;} // Just after WIFI
 
 void PCA9554GPIOPin::setup() { pin_mode(flags_); }
 void PCA9554GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
