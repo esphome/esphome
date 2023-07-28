@@ -42,7 +42,7 @@ class PCA9554Component : public Component, public i2c::I2CDevice {
   /// Storage for last I2C error seen
   esphome::i2c::ErrorCode last_error_;
   /// Flags to check if read previously during this loop
-  std::vector<bool> was_previously_read = {false, false, false, false, false, false, false, false};
+  std::vector<bool> was_previously_read_ = {false, false, false, false, false, false, false, false};
 };
 
 /// Helper class to expose a PCA9554 pin as an internal input GPIO pin.
