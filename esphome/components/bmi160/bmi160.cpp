@@ -133,7 +133,8 @@ void BMI160Component::internal_setup_(int stage) {
       }
       ESP_LOGV(TAG, "  Waiting for accelerometer to wake up...");
       // need to wait (max delay in datasheet) because we can't send commands while another is in progress
-      this->set_timeout(5, [this]() { this->internal_setup_(1); });
+      // min 5ms, 10ms
+      this->set_timeout(10, [this]() { this->internal_setup_(1); });
       break;
 
     case 1:
@@ -143,8 +144,8 @@ void BMI160Component::internal_setup_(int stage) {
         return;
       }
       ESP_LOGV(TAG, "  Waiting for gyroscope to wake up...");
-      // wait between 51 & 81ms, doing 81 to be safe
-      this->set_timeout(81, [this]() { this->internal_setup_(2); });
+      // wait between 51 & 81ms, doing 100 to be safe
+      this->set_timeout(10, [this]() { this->internal_setup_(2); });
       break;
 
     case 2:
