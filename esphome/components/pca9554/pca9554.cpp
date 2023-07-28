@@ -59,7 +59,7 @@ bool PCA9554Component::digital_read(uint8_t pin) {
   // have seen a read during the time esphome is running this loop. If we have,
   // we do an I2C bus transaction to get the latest value. If we haven't
   // we return a cached value which was read at the time loop() was called.
-  if (was_previously_read[pin] == true)
+  if (was_previously_read[pin])
     this->read_inputs_();  // Force a read of a new value
   // Indicate we saw a read request for this pin in case a
   // read happens later in the same loop.
