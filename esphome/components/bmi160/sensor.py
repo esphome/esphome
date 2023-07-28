@@ -11,38 +11,33 @@ from esphome.const import (
     CONF_GYROSCOPE_Y,
     CONF_GYROSCOPE_Z,
     DEVICE_CLASS_TEMPERATURE,
-    ICON_BRIEFCASE_DOWNLOAD,
     STATE_CLASS_MEASUREMENT,
     UNIT_METER_PER_SECOND_SQUARED,
-    ICON_SCREEN_ROTATION,
+    ICON_ACCELERATION_X,
+    ICON_ACCELERATION_Y,
+    ICON_ACCELERATION_Z,
+    ICON_GYROSCOPE_X,
+    ICON_GYROSCOPE_Y,
+    ICON_GYROSCOPE_Z,
     UNIT_DEGREE_PER_SECOND,
     UNIT_CELSIUS,
 )
 
 DEPENDENCIES = ["i2c"]
 
-
 bmi160_ns = cg.esphome_ns.namespace("bmi160")
 BMI160Component = bmi160_ns.class_(
     "BMI160Component", cg.PollingComponent, i2c.I2CDevice
 )
 
-accel_schema = sensor.sensor_schema(
+accel_schema = dict(
     unit_of_measurement=UNIT_METER_PER_SECOND_SQUARED,
-    icon=ICON_BRIEFCASE_DOWNLOAD,
     accuracy_decimals=2,
     state_class=STATE_CLASS_MEASUREMENT,
 )
-gyro_schema = sensor.sensor_schema(
+gyro_schema = dict(
     unit_of_measurement=UNIT_DEGREE_PER_SECOND,
-    icon=ICON_SCREEN_ROTATION,
     accuracy_decimals=2,
-    state_class=STATE_CLASS_MEASUREMENT,
-)
-temperature_schema = sensor.sensor_schema(
-    unit_of_measurement=UNIT_CELSIUS,
-    accuracy_decimals=0,
-    device_class=DEVICE_CLASS_TEMPERATURE,
     state_class=STATE_CLASS_MEASUREMENT,
 )
 
@@ -50,13 +45,36 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BMI160Component),
-            cv.Optional(CONF_ACCELERATION_X): accel_schema,
-            cv.Optional(CONF_ACCELERATION_Y): accel_schema,
-            cv.Optional(CONF_ACCELERATION_Z): accel_schema,
-            cv.Optional(CONF_GYROSCOPE_X): gyro_schema,
-            cv.Optional(CONF_GYROSCOPE_Y): gyro_schema,
-            cv.Optional(CONF_GYROSCOPE_Z): gyro_schema,
-            cv.Optional(CONF_TEMPERATURE): temperature_schema,
+            cv.Optional(CONF_ACCELERATION_X): sensor.sensor_schema(
+                icon=ICON_ACCELERATION_X,
+                **accel_schema,
+            ),
+            cv.Optional(CONF_ACCELERATION_Y): sensor.sensor_schema(
+                icon=ICON_ACCELERATION_Y,
+                **accel_schema,
+            ),
+            cv.Optional(CONF_ACCELERATION_Z): sensor.sensor_schema(
+                icon=ICON_ACCELERATION_Z,
+                **accel_schema,
+            ),
+            cv.Optional(CONF_GYROSCOPE_X): sensor.sensor_schema(
+                icon=ICON_GYROSCOPE_X,
+                **gyro_schema,
+            ),
+            cv.Optional(CONF_GYROSCOPE_Y): sensor.sensor_schema(
+                icon=ICON_GYROSCOPE_Y,
+                **gyro_schema,
+            ),
+            cv.Optional(CONF_GYROSCOPE_Z): sensor.sensor_schema(
+                icon=ICON_GYROSCOPE_Z,
+                **gyro_schema,
+            ),
+            cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
+                unit_of_measurement=UNIT_CELSIUS,
+                accuracy_decimals=0,
+                device_class=DEVICE_CLASS_TEMPERATURE,
+                state_class=STATE_CLASS_MEASUREMENT,
+            ),
         }
     )
     .extend(cv.polling_component_schema("60s"))
