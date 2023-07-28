@@ -86,6 +86,7 @@ sensor:
       - delta: 100
       - throttle: 100ms
       - debounce: 500s
+      - timeout: 10min
       - calibrate_linear:
           - 0 -> 0
           - 100 -> 100

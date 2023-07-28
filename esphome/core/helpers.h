@@ -475,6 +475,7 @@ template<typename... Ts> class CallbackManager<void(Ts...)> {
     for (auto &cb : this->callbacks_)
       cb(args...);
   }
+  size_t size() const { return this->callbacks_.size(); }
 
   /// Call all callbacks in this manager.
   void operator()(Ts... args) { call(args...); }

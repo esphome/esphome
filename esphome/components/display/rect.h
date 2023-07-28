@@ -16,19 +16,19 @@ class Rect {
 
   Rect() : x(VALUE_NO_SET), y(VALUE_NO_SET), w(VALUE_NO_SET), h(VALUE_NO_SET) {}  // NOLINT
   inline Rect(int16_t x, int16_t y, int16_t w, int16_t h) ALWAYS_INLINE : x(x), y(y), w(w), h(h) {}
-  inline int16_t x2() { return this->x + this->w; };  ///< X coordinate of corner
-  inline int16_t y2() { return this->y + this->h; };  ///< Y coordinate of corner
+  inline int16_t x2() const { return this->x + this->w; };  ///< X coordinate of corner
+  inline int16_t y2() const { return this->y + this->h; };  ///< Y coordinate of corner
 
-  inline bool is_set() ALWAYS_INLINE { return (this->h != VALUE_NO_SET) && (this->w != VALUE_NO_SET); }
+  inline bool is_set() const ALWAYS_INLINE { return (this->h != VALUE_NO_SET) && (this->w != VALUE_NO_SET); }
 
   void expand(int16_t horizontal, int16_t vertical);
 
   void extend(Rect rect);
   void shrink(Rect rect);
 
-  bool inside(Rect rect, bool absolute = true);
-  bool inside(int16_t test_x, int16_t test_y, bool absolute = true);
-  bool equal(Rect rect);
+  bool inside(Rect rect, bool absolute = true) const;
+  bool inside(int16_t test_x, int16_t test_y, bool absolute = true) const;
+  bool equal(Rect rect) const;
   void info(const std::string &prefix = "rect info:");
 };
 
