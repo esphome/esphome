@@ -1594,6 +1594,18 @@ binary_sensor:
           -2267,
           1709,
         ]
+  - platform: remote_receiver
+    name: Coolix Test 1
+    coolix: 0xB21F98
+  - platform: remote_receiver
+    name: Coolix Test 2
+    coolix:
+      first: 0xB2E003
+  - platform: remote_receiver
+    name: Coolix Test 3
+    coolix:
+      first: 0xB2E003
+      second: 0xB21F98
   - platform: as3935
     name: Storm Alert
   - platform: analog_threshold
@@ -2265,8 +2277,16 @@ switch:
   - platform: template
     name: MIDEA_RAW
     turn_on_action:
-      remote_transmitter.transmit_midea:
-        code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+      - remote_transmitter.transmit_coolix:
+          first: 0xB21F98
+      - remote_transmitter.transmit_coolix:
+          first: 0xB21F98
+          second: 0xB21F98
+      - remote_transmitter.transmit_coolix:
+          first: !lambda "return 0xB21F98;"
+          second: !lambda "return 0xB21F98;"
+      - remote_transmitter.transmit_midea:
+          code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
   - platform: gpio
     name: "MCP23S08 Pin #0"
     pin:
@@ -2846,6 +2866,9 @@ tm1651:
 remote_receiver:
   pin: GPIO32
   dump: all
+  on_coolix:
+    then:
+      delay: !lambda "return x.first + x.second;"
 
 status_led:
   pin: GPIO2

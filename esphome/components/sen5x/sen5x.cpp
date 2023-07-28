@@ -1,6 +1,7 @@
 #include "sen5x.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace sen5x {
@@ -140,15 +141,15 @@ void SEN5XComponent::setup() {
         this->pref_ = global_preferences->make_preference<Sen5xBaselines>(hash, true);
 
         if (this->pref_.load(&this->voc_baselines_storage_)) {
-          ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04X, state1: 0x%04X", this->voc_baselines_storage_.state0,
-                   voc_baselines_storage_.state1);
+          ESP_LOGI(TAG, "Loaded VOC baseline state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
+                   this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
         }
 
         // Initialize storage timestamp
         this->seconds_since_last_store_ = 0;
 
         if (this->voc_baselines_storage_.state0 > 0 && this->voc_baselines_storage_.state1 > 0) {
-          ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04X, state1: 0x%04X",
+          ESP_LOGI(TAG, "Setting VOC baseline from save state0: 0x%04" PRIX32 ", state1: 0x%04" PRIX32,
                    this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
           uint16_t states[4];
 
@@ -252,7 +253,7 @@ void SEN5XComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Firmware version: %d", this->firmware_version_);
   ESP_LOGCONFIG(TAG, "  Serial number %02d.%02d.%02d", serial_number_[0], serial_number_[1], serial_number_[2]);
   if (this->auto_cleaning_interval_.has_value()) {
-    ESP_LOGCONFIG(TAG, "  Auto cleaning interval %d seconds", auto_cleaning_interval_.value());
+    ESP_LOGCONFIG(TAG, "  Auto cleaning interval %" PRId32 " seconds", auto_cleaning_interval_.value());
   }
   if (this->acceleration_mode_.has_value()) {
     switch (this->acceleration_mode_.value()) {
@@ -302,8 +303,8 @@ void SEN5XComponent::update() {
             this->voc_baselines_storage_.state1 = state1;
 
             if (this->pref_.save(&this->voc_baselines_storage_)) {
-              ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04X ,state1: 0x%04X", this->voc_baselines_storage_.state0,
-                       voc_baselines_storage_.state1);
+              ESP_LOGI(TAG, "Stored VOC baseline state0: 0x%04" PRIX32 " ,state1: 0x%04" PRIX32,
+                       this->voc_baselines_storage_.state0, voc_baselines_storage_.state1);
             } else {
               ESP_LOGW(TAG, "Could not store VOC baselines");
             }
