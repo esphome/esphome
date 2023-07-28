@@ -4,6 +4,12 @@ from esphome.components import i2c, sensor
 from esphome.const import (
     CONF_ID,
     CONF_TEMPERATURE,
+    CONF_ACCELERATION_X,
+    CONF_ACCELERATION_Y,
+    CONF_ACCELERATION_Z,
+    CONF_GYROSCOPE_X,
+    CONF_GYROSCOPE_Y,
+    CONF_GYROSCOPE_Z,
     DEVICE_CLASS_TEMPERATURE,
     ICON_BRIEFCASE_DOWNLOAD,
     STATE_CLASS_MEASUREMENT,
@@ -15,12 +21,6 @@ from esphome.const import (
 
 DEPENDENCIES = ["i2c"]
 
-CONF_ACCEL_X = "accel_x"
-CONF_ACCEL_Y = "accel_y"
-CONF_ACCEL_Z = "accel_z"
-CONF_GYRO_X = "gyro_x"
-CONF_GYRO_Y = "gyro_y"
-CONF_GYRO_Z = "gyro_z"
 
 bmi160_ns = cg.esphome_ns.namespace("bmi160")
 BMI160Component = bmi160_ns.class_(
@@ -50,12 +50,12 @@ CONFIG_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(BMI160Component),
-            cv.Optional(CONF_ACCEL_X): accel_schema,
-            cv.Optional(CONF_ACCEL_Y): accel_schema,
-            cv.Optional(CONF_ACCEL_Z): accel_schema,
-            cv.Optional(CONF_GYRO_X): gyro_schema,
-            cv.Optional(CONF_GYRO_Y): gyro_schema,
-            cv.Optional(CONF_GYRO_Z): gyro_schema,
+            cv.Optional(CONF_ACCELERATION_X): accel_schema,
+            cv.Optional(CONF_ACCELERATION_Y): accel_schema,
+            cv.Optional(CONF_ACCELERATION_Z): accel_schema,
+            cv.Optional(CONF_GYROSCOPE_X): gyro_schema,
+            cv.Optional(CONF_GYROSCOPE_Y): gyro_schema,
+            cv.Optional(CONF_GYROSCOPE_Z): gyro_schema,
             cv.Optional(CONF_TEMPERATURE): temperature_schema,
         }
     )
@@ -70,11 +70,11 @@ async def to_code(config):
     await i2c.register_i2c_device(var, config)
 
     for d in ["x", "y", "z"]:
-        accel_key = f"accel_{d}"
+        accel_key = f"acceleration_{d}"
         if accel_key in config:
             sens = await sensor.new_sensor(config[accel_key])
             cg.add(getattr(var, f"set_accel_{d}_sensor")(sens))
-        accel_key = f"gyro_{d}"
+        accel_key = f"gyroscope_{d}"
         if accel_key in config:
             sens = await sensor.new_sensor(config[accel_key])
             cg.add(getattr(var, f"set_gyro_{d}_sensor")(sens))
