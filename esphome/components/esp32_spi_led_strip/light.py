@@ -34,7 +34,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Required(CONF_DATA_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_CLOCK_PIN): pins.internal_gpio_output_pin_number,
             cv.Required(CONF_NUM_LEDS): cv.positive_not_null_int,
-            cv.Optional(CONF_RGB_ORDER, default="RGB"): cv.enum(RGB_ORDERS, upper=True),
+            cv.Optional(CONF_RGB_ORDER, default="BGR"): cv.enum(RGB_ORDERS, upper=True),
             cv.Optional(CONF_MAX_REFRESH_RATE): cv.positive_time_period_microseconds,
         }
     ),

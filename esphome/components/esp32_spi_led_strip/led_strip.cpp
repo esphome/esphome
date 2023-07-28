@@ -141,51 +141,54 @@ void LedStripSpi::write_state(light::LightState *state) {
   this->spi_flush_();
 }
 
-enum : size_t { OFFSET_BRIGHTNESS = 0, OFFSET_B = 1, OFFSET_G = 2, OFFSET_R = 3 };
-
 light::ESPColorView LedStripSpi::get_view_internal(int32_t index) const {
-  size_t r, g, b;
+  auto offset = (index + 1) * FRAME_SIZE;  // skip start frame
+  auto *frame = this->buf_ + offset;
+  return {
+      frame + this->rgb_offset_r_,  // red
+      frame + this->rgb_offset_g_,  // green
+      frame + this->rgb_offset_b_,  // blue
+      nullptr,                      // white
+      &this->effect_data_[index],   // effect data
+      &this->correction_,           // color correction
+  };
+}
+
+void LedStripSpi::set_rgb_order(RGBOrder rgb_order) {
+  this->rgb_order_ = rgb_order;
+
   switch (this->rgb_order_) {
     case RGBOrder::ORDER_RBG:
-      r = OFFSET_R;
-      g = OFFSET_B;
-      b = OFFSET_G;
+      this->rgb_offset_r_ = OFFSET_R;
+      this->rgb_offset_g_ = OFFSET_B;
+      this->rgb_offset_b_ = OFFSET_G;
       break;
     case RGBOrder::ORDER_GRB:
-      r = OFFSET_G;
-      g = OFFSET_R;
-      b = OFFSET_B;
+      this->rgb_offset_r_ = OFFSET_G;
+      this->rgb_offset_g_ = OFFSET_R;
+      this->rgb_offset_b_ = OFFSET_B;
       break;
     case RGBOrder::ORDER_GBR:
-      r = OFFSET_G;
-      g = OFFSET_B;
-      b = OFFSET_R;
+      this->rgb_offset_r_ = OFFSET_G;
+      this->rgb_offset_g_ = OFFSET_B;
+      this->rgb_offset_b_ = OFFSET_R;
       break;
     case RGBOrder::ORDER_BGR:
-      r = OFFSET_B;
-      g = OFFSET_G;
-      b = OFFSET_R;
+      this->rgb_offset_r_ = OFFSET_B;
+      this->rgb_offset_g_ = OFFSET_G;
+      this->rgb_offset_b_ = OFFSET_R;
       break;
     case RGBOrder::ORDER_BRG:
-      r = OFFSET_B;
-      g = OFFSET_R;
-      b = OFFSET_G;
+      this->rgb_offset_r_ = OFFSET_B;
+      this->rgb_offset_g_ = OFFSET_R;
+      this->rgb_offset_b_ = OFFSET_G;
       break;
     default:  // RGBOrder::ORDER_RGB
-      r = OFFSET_R;
-      g = OFFSET_G;
-      b = OFFSET_B;
+      this->rgb_offset_r_ = OFFSET_R;
+      this->rgb_offset_g_ = OFFSET_G;
+      this->rgb_offset_b_ = OFFSET_B;
       break;
   }
-  auto offset = (index + 1) * FRAME_SIZE;  // skip start frame
-  return {
-      this->buf_ + offset + r,     // red
-      this->buf_ + offset + g,     // green
-      this->buf_ + offset + b,     // blue
-      nullptr,                     // white
-      &this->effect_data_[index],  // effect data
-      &this->correction_,          // color correction
-  };
 }
 
 }  // namespace esp32_spi_led_strip

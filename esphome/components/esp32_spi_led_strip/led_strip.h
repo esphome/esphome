@@ -36,7 +36,7 @@ class LedStripSpi : public light::AddressableLight {
   void set_data_pin(uint8_t data_pin) { this->data_pin_ = data_pin; }
   void set_clock_pin(uint8_t clock_pin) { this->clock_pin_ = clock_pin; }
   void set_num_leds(uint16_t num_leds) { this->num_leds_ = num_leds; }
-  void set_rgb_order(RGBOrder rgb_order) { this->rgb_order_ = rgb_order; }
+  void set_rgb_order(RGBOrder rgb_order);
   /// Set a maximum refresh rate in µs as some lights do not like being updated too often.
   void set_max_refresh_rate(uint32_t interval_us) { this->max_refresh_rate_ = interval_us; }
 
@@ -49,9 +49,14 @@ class LedStripSpi : public light::AddressableLight {
   uint8_t data_pin_{};
   uint8_t clock_pin_{};
   uint16_t num_leds_{};
-  RGBOrder rgb_order_{RGBOrder::ORDER_RGB};
+  RGBOrder rgb_order_{RGBOrder::ORDER_BGR};
   uint32_t max_refresh_rate_{};
   uint32_t last_refresh_{};
+
+  enum : size_t { OFFSET_BRIGHTNESS = 0, OFFSET_R = 1, OFFSET_G = 2, OFFSET_B = 3 };
+  size_t rgb_offset_r_{OFFSET_R};
+  size_t rgb_offset_g_{OFFSET_G};
+  size_t rgb_offset_b_{OFFSET_B};
 
   uint8_t *effect_data_{};
   uint8_t *buf_{};
