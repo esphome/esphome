@@ -120,7 +120,7 @@ float PCA9554Component::get_setup_priority() const { return setup_priority::IO; 
 
 // Run our loop() method very early in the loop, so that we cache read values before
 // before other components call our digital_read() method.
-float PCA9554Component::get_loop_priority() const { return 9.0f; } // Just after WIFI
+float PCA9554Component::get_loop_priority() const { return 9.0f; }  // Just after WIFI
 
 void PCA9554GPIOPin::setup() { pin_mode(flags_); }
 void PCA9554GPIOPin::pin_mode(gpio::Flags flags) { this->parent_->pin_mode(this->pin_, flags); }
