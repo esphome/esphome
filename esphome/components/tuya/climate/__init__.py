@@ -270,9 +270,7 @@ async def to_code(config):
         swing_mode_config = config[CONF_SWING_MODE]
         if CONF_VERTICAL_DATAPOINT in swing_mode_config:
             cg.add(
-                var.set_swing_vertical_id(
-                    swing_mode_config[CONF_VERTICAL_DATAPOINT]
-                )
+                var.set_swing_vertical_id(swing_mode_config[CONF_VERTICAL_DATAPOINT])
             )
         if CONF_HORIZONTAL_DATAPOINT in swing_mode_config:
             cg.add(
