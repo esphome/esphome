@@ -34,8 +34,8 @@ CONF_ECO = "eco"
 CONF_ECO_DATAPOINT = "eco_datapoint"
 CONF_ECO_TEMPERATURE = "eco_temperature"
 CONF_REPORTS_FAHRENHEIT = "reports_fahrenheit"
-CONF_SWING_VERTICAL_DATAPOINT = "vertical_datapoint"
-CONF_SWING_HORIZONTAL_DATAPOINT = "horizontal_datapoint"
+CONF_VERTICAL_DATAPOINT = "vertical_datapoint"
+CONF_HORIZONTAL_DATAPOINT = "horizontal_datapoint"
 CONF_FAN_DATAPOINT = "fan_datapoint"
 CONF_LOW_VALUE = "low_value"
 CONF_MEDIUM_VALUE = "medium_value"
@@ -140,8 +140,8 @@ FAN_MODES = cv.Schema(
 
 SWING_MODES = cv.Schema(
     {
-        cv.Optional(CONF_SWING_VERTICAL_DATAPOINT): cv.uint8_t,
-        cv.Optional(CONF_SWING_HORIZONTAL_DATAPOINT): cv.uint8_t,
+        cv.Optional(CONF_VERTICAL_DATAPOINT): cv.uint8_t,
+        cv.Optional(CONF_HORIZONTAL_DATAPOINT): cv.uint8_t,
     }
 )
 
@@ -268,16 +268,16 @@ async def to_code(config):
 
     if CONF_SWING_MODE in config:
         swing_mode_config = config[CONF_SWING_MODE]
-        if CONF_SWING_VERTICAL_DATAPOINT in swing_mode_config:
+        if CONF_VERTICAL_DATAPOINT in swing_mode_config:
             cg.add(
                 var.set_swing_vertical_id(
-                    swing_mode_config[CONF_SWING_VERTICAL_DATAPOINT]
+                    swing_mode_config[CONF_VERTICAL_DATAPOINT]
                 )
             )
-        if CONF_SWING_HORIZONTAL_DATAPOINT in swing_mode_config:
+        if CONF_HORIZONTAL_DATAPOINT in swing_mode_config:
             cg.add(
                 var.set_swing_horizontal_id(
-                    swing_mode_config[CONF_SWING_HORIZONTAL_DATAPOINT]
+                    swing_mode_config[CONF_HORIZONTAL_DATAPOINT]
                 )
             )
     if CONF_FAN_MODE in config:
