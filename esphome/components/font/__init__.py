@@ -3,6 +3,7 @@ from pathlib import Path
 import hashlib
 import os
 import re
+from packaging import version
 
 import requests
 
@@ -66,13 +67,18 @@ def validate_pillow_installed(value):
     except ImportError as err:
         raise cv.Invalid(
             "Please install the pillow python package to use this feature. "
-            "(pip install pillow)"
+            '(pip install pillow">4.0.0,<10.0.0")'
         ) from err
 
-    if PIL.__version__[0] < "4":
+    if version.parse(PIL.__version__) < version.parse("4.0.0"):
         raise cv.Invalid(
             "Please update your pillow installation to at least 4.0.x. "
-            "(pip install -U pillow)"
+            '(pip install pillow">4.0.0,<10.0.0")'
+        )
+    if version.parse(PIL.__version__) >= version.parse("10.0.0"):
+        raise cv.Invalid(
+            "Please downgrade your pillow installation to below 10.0.0. "
+            '(pip install pillow">4.0.0,<10.0.0")'
         )
 
     return value

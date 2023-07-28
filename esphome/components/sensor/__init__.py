@@ -57,6 +57,7 @@ from esphome.const import (
     DEVICE_CLASS_NITROGEN_MONOXIDE,
     DEVICE_CLASS_NITROUS_OXIDE,
     DEVICE_CLASS_OZONE,
+    DEVICE_CLASS_PH,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
@@ -114,6 +115,7 @@ DEVICE_CLASSES = [
     DEVICE_CLASS_NITROGEN_MONOXIDE,
     DEVICE_CLASS_NITROUS_OXIDE,
     DEVICE_CLASS_OZONE,
+    DEVICE_CLASS_PH,
     DEVICE_CLASS_PM1,
     DEVICE_CLASS_PM10,
     DEVICE_CLASS_PM25,
@@ -217,6 +219,7 @@ OffsetFilter = sensor_ns.class_("OffsetFilter", Filter)
 MultiplyFilter = sensor_ns.class_("MultiplyFilter", Filter)
 FilterOutValueFilter = sensor_ns.class_("FilterOutValueFilter", Filter)
 ThrottleFilter = sensor_ns.class_("ThrottleFilter", Filter)
+TimeoutFilter = sensor_ns.class_("TimeoutFilter", Filter, cg.Component)
 DebounceFilter = sensor_ns.class_("DebounceFilter", Filter, cg.Component)
 HeartbeatFilter = sensor_ns.class_("HeartbeatFilter", Filter, cg.Component)
 DeltaFilter = sensor_ns.class_("DeltaFilter", Filter)
@@ -531,6 +534,15 @@ async def throttle_filter_to_code(config, filter_id):
     "heartbeat", HeartbeatFilter, cv.positive_time_period_milliseconds
 )
 async def heartbeat_filter_to_code(config, filter_id):
+    var = cg.new_Pvariable(filter_id, config)
+    await cg.register_component(var, {})
+    return var
+
+
+@FILTER_REGISTRY.register(
+    "timeout", TimeoutFilter, cv.positive_time_period_milliseconds
+)
+async def timeout_filter_to_code(config, filter_id):
     var = cg.new_Pvariable(filter_id, config)
     await cg.register_component(var, {})
     return var
