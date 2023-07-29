@@ -47,7 +47,7 @@ async def async_run_logs(config, address):
         except APIConnectionError:
             cli.disconnect()
 
-    async def on_disconnect():
+    async def on_disconnect(expected_disconnect: bool) -> None:
         _LOGGER.warning("Disconnected from API")
 
     zc = zeroconf.Zeroconf()

@@ -43,20 +43,17 @@ void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
       if ((this->tvoc_sensor_ != nullptr) && this->is_valid_voc_value_(value->voc)) {
         this->tvoc_sensor_->publish_state(value->voc);
       }
-
-      // This instance must not stay connected
-      // so other clients can connect to it (e.g. the
-      // mobile app).
-      this->parent()->set_enabled(false);
     } else {
       ESP_LOGE(TAG, "Invalid payload version (%d != 1, newer version or not a Wave Plus?)", value->version);
     }
   }
+
+  this->response_received_();
 }
 
-bool AirthingsWavePlus::is_valid_radon_value_(uint16_t radon) { return 0 <= radon && radon <= 16383; }
+bool AirthingsWavePlus::is_valid_radon_value_(uint16_t radon) { return radon <= 16383; }
 
-bool AirthingsWavePlus::is_valid_co2_value_(uint16_t co2) { return 0 <= co2 && co2 <= 16383; }
+bool AirthingsWavePlus::is_valid_co2_value_(uint16_t co2) { return co2 <= 16383; }
 
 void AirthingsWavePlus::dump_config() {
   // these really don't belong here, but there doesn't seem to be a
@@ -66,6 +63,7 @@ void AirthingsWavePlus::dump_config() {
   LOG_SENSOR("  ", "Temperature", this->temperature_sensor_);
   LOG_SENSOR("  ", "Pressure", this->pressure_sensor_);
   LOG_SENSOR("  ", "TVOC", this->tvoc_sensor_);
+  LOG_SENSOR("  ", "Battery Voltage", this->battery_voltage_);
 
   LOG_SENSOR("  ", "Radon", this->radon_sensor_);
   LOG_SENSOR("  ", "Radon Long Term", this->radon_long_term_sensor_);
@@ -73,8 +71,10 @@ void AirthingsWavePlus::dump_config() {
 }
 
 AirthingsWavePlus::AirthingsWavePlus() {
-  this->service_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw(SERVICE_UUID);
-  this->sensors_data_characteristic_uuid_ = esp32_ble_tracker::ESPBTUUID::from_raw(CHARACTERISTIC_UUID);
+  this->service_uuid_ = espbt::ESPBTUUID::from_raw(SERVICE_UUID);
+  this->sensors_data_characteristic_uuid_ = espbt::ESPBTUUID::from_raw(CHARACTERISTIC_UUID);
+  this->access_control_point_characteristic_uuid_ =
+      espbt::ESPBTUUID::from_raw(ACCESS_CONTROL_POINT_CHARACTERISTIC_UUID);
 }
 
 }  // namespace airthings_wave_plus
