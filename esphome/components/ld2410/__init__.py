@@ -112,7 +112,6 @@ CONFIG_SCHEMA = cv.All(
 
 FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
     "ld2410",
-    baud_rate=256000,
     require_tx=True,
     require_rx=True,
     parity="NONE",

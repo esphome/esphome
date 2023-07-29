@@ -1,5 +1,3 @@
-#ifdef USE_ARDUINO
-
 #include "list_entities.h"
 #include "esphome/core/application.h"
 #include "esphome/core/log.h"
@@ -103,5 +101,3 @@ bool ListEntitiesIterator::on_alarm_control_panel(alarm_control_panel::AlarmCont
 
 }  // namespace web_server
 }  // namespace esphome
-
-#endif  // USE_ARDUINO
