@@ -384,6 +384,15 @@ binary_sensor:
         pullup: true
       inverted: false
 
+  - platform: gpio
+    name: XL9535 Pin 0
+    pin:
+      xl9535: xl9535_hub
+      number: 0
+      mode:
+        input: true
+      inverted: false
+
 climate:
   - platform: tuya
     id: tuya_climate
@@ -493,6 +502,14 @@ display:
     reset_pin: GPIO23
     model: 2.90inv2
     full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    busy_pin: GPIO23
+    reset_pin: GPIO23
+    model: 1.54in-m5coreink-m09
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: inkplate6
@@ -745,3 +762,7 @@ voice_assistant:
 max6956:
   - id: max6956_1
     address: 0x40
+
+xl9535:
+  - id: xl9535_hub
+    address: 0x20

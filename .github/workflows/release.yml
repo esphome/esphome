@@ -49,9 +49,11 @@ jobs:
         with:
           python-version: "3.x"
       - name: Set up python environment
+        env:
+          ESPHOME_NO_VENV: 1
         run: |
           script/setup
-          pip install setuptools wheel twine
+          pip install twine
       - name: Build
         run: python setup.py sdist bdist_wheel
       - name: Upload
