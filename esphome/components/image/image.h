@@ -1,9 +1,9 @@
 #pragma once
 #include "esphome/core/color.h"
-#include "display_buffer.h"
+#include "esphome/components/display/display_buffer.h"
 
 namespace esphome {
-namespace display {
+namespace image {
 
 enum ImageType {
   IMAGE_TYPE_BINARY = 0,
@@ -31,15 +31,15 @@ inline int image_type_to_bpp(ImageType type) {
 
 inline int image_type_to_width_stride(int width, ImageType type) { return (width * image_type_to_bpp(type) + 7u) / 8u; }
 
-class Image : public BaseImage {
+class Image : public display::BaseImage {
  public:
   Image(const uint8_t *data_start, int width, int height, ImageType type);
-  Color get_pixel(int x, int y, Color color_on = COLOR_ON, Color color_off = COLOR_OFF) const;
+  Color get_pixel(int x, int y, Color color_on = display::COLOR_ON, Color color_off = display::COLOR_OFF) const;
   int get_width() const override;
   int get_height() const override;
   ImageType get_type() const;
 
-  void draw(int x, int y, DisplayBuffer *display, Color color_on, Color color_off) override;
+  void draw(int x, int y, display::Display *display, Color color_on, Color color_off) override;
 
   void set_transparency(bool transparent) { transparent_ = transparent; }
   bool has_transparency() const { return transparent_; }
@@ -58,5 +58,5 @@ class Image : public BaseImage {
   bool transparent_;
 };
 
-}  // namespace display
+}  // namespace image
 }  // namespace esphome

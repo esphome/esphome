@@ -607,7 +607,7 @@ def lint_trailing_whitespace(fname, match):
         "esphome/components/button/button.h",
         "esphome/components/climate/climate.h",
         "esphome/components/cover/cover.h",
-        "esphome/components/display/display_buffer.h",
+        "esphome/components/display/display.h",
         "esphome/components/fan/fan.h",
         "esphome/components/i2c/i2c.h",
         "esphome/components/lock/lock.h",

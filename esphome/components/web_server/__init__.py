@@ -14,6 +14,7 @@ from esphome.const import (
     CONF_PASSWORD,
     CONF_INCLUDE_INTERNAL,
     CONF_OTA,
+    CONF_LOG,
     CONF_VERSION,
     CONF_LOCAL,
 )
@@ -46,6 +47,12 @@ def validate_local(config):
     return config
 
 
+def validate_ota(config):
+    if CORE.using_esp_idf and config[CONF_OTA]:
+        raise cv.Invalid("Enabling 'ota' is not supported for IDF framework yet")
+    return config
+
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -70,14 +77,17 @@ CONFIG_SCHEMA = cv.All(
                 web_server_base.WebServerBase
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
-            cv.Optional(CONF_OTA, default=True): cv.boolean,
+            cv.SplitDefault(
+                CONF_OTA, esp8266=True, esp32_arduino=True, esp32_idf=False
+            ): cv.boolean,
+            cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_with_arduino,
     cv.only_on(["esp32", "esp8266"]),
     default_url,
     validate_local,
+    validate_ota,
 )
 
 
@@ -132,6 +142,7 @@ async def to_code(config):
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
     cg.add(var.set_allow_ota(config[CONF_OTA]))
+    cg.add(var.set_expose_log(config[CONF_LOG]))
     if CONF_AUTH in config:
         cg.add(paren.set_auth_username(config[CONF_AUTH][CONF_USERNAME]))
         cg.add(paren.set_auth_password(config[CONF_AUTH][CONF_PASSWORD]))
