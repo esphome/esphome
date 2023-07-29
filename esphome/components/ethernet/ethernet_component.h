@@ -21,6 +21,7 @@ enum EthernetType {
   ETHERNET_TYPE_IP101,
   ETHERNET_TYPE_JL1101,
   ETHERNET_TYPE_KSZ8081,
+  ETHERNET_TYPE_KSZ8081RNA,
 };
 
 struct ManualIP {
@@ -67,6 +68,8 @@ class EthernetComponent : public Component {
 
   void start_connect_();
   void dump_connect_params_();
+  /// @brief Set `RMII Reference Clock Select` bit for KSZ8081.
+  void ksz8081_set_clock_reference_(esp_eth_mac_t *mac);
 
   std::string use_address_;
   uint8_t phy_addr_{0};

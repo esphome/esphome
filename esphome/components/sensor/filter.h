@@ -313,6 +313,18 @@ class ThrottleFilter : public Filter {
   uint32_t min_time_between_inputs_;
 };
 
+class TimeoutFilter : public Filter, public Component {
+ public:
+  explicit TimeoutFilter(uint32_t time_period);
+
+  optional<float> new_value(float value) override;
+
+  float get_setup_priority() const override;
+
+ protected:
+  uint32_t time_period_;
+};
+
 class DebounceFilter : public Filter, public Component {
  public:
   explicit DebounceFilter(uint32_t time_period);

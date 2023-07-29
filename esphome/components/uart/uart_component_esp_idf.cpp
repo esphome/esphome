@@ -5,6 +5,7 @@
 #include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
+#include <cinttypes>
 
 #ifdef USE_LOGGER
 #include "esphome/components/logger/logger.h"
@@ -125,7 +126,7 @@ void IDFUARTComponent::dump_config() {
   if (this->rx_pin_ != nullptr) {
     ESP_LOGCONFIG(TAG, "  RX Buffer Size: %u", this->rx_buffer_size_);
   }
-  ESP_LOGCONFIG(TAG, "  Baud Rate: %u baud", this->baud_rate_);
+  ESP_LOGCONFIG(TAG, "  Baud Rate: %" PRIu32 " baud", this->baud_rate_);
   ESP_LOGCONFIG(TAG, "  Data Bits: %u", this->data_bits_);
   ESP_LOGCONFIG(TAG, "  Parity: %s", LOG_STR_ARG(parity_to_str(this->parity_)));
   ESP_LOGCONFIG(TAG, "  Stop bits: %u", this->stop_bits_);
@@ -150,7 +151,7 @@ bool IDFUARTComponent::peek_byte(uint8_t *data) {
   if (this->has_peek_) {
     *data = this->peek_byte_;
   } else {
-    int len = uart_read_bytes(this->uart_num_, data, 1, 20 / portTICK_RATE_MS);
+    int len = uart_read_bytes(this->uart_num_, data, 1, 20 / portTICK_PERIOD_MS);
     if (len == 0) {
       *data = 0;
     } else {
@@ -174,7 +175,7 @@ bool IDFUARTComponent::read_array(uint8_t *data, size_t len) {
     this->has_peek_ = false;
   }
   if (length_to_read > 0)
-    uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_RATE_MS);
+    uart_read_bytes(this->uart_num_, data, length_to_read, 20 / portTICK_PERIOD_MS);
   xSemaphoreGive(this->lock_);
 #ifdef USE_UART_DEBUGGER
   for (size_t i = 0; i < len; i++) {
