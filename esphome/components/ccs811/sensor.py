@@ -6,7 +6,7 @@ from esphome.const import (
     ICON_RADIATOR,
     ICON_RESTART,
     DEVICE_CLASS_CARBON_DIOXIDE,
-    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
     STATE_CLASS_MEASUREMENT,
     UNIT_PARTS_PER_MILLION,
     UNIT_PARTS_PER_BILLION,
@@ -43,7 +43,7 @@ CONFIG_SCHEMA = (
                 unit_of_measurement=UNIT_PARTS_PER_BILLION,
                 icon=ICON_RADIATOR,
                 accuracy_decimals=0,
-                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS,
+                device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_VERSION): text_sensor.text_sensor_schema(

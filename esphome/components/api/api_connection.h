@@ -124,7 +124,7 @@ class APIConnection : public APIServerConnection {
   void subscribe_voice_assistant(const SubscribeVoiceAssistantRequest &msg) override {
     this->voice_assistant_subscription_ = msg.subscribe;
   }
-  bool request_voice_assistant(bool start, const std::string &conversation_id);
+  bool request_voice_assistant(bool start, const std::string &conversation_id, bool use_vad);
   void on_voice_assistant_response(const VoiceAssistantResponse &msg) override;
   void on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) override;
 #endif
