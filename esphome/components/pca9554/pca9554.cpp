@@ -1,3 +1,4 @@
+#include <algorithm>
 #include "pca9554.h"
 #include "esphome/core/log.h"
 
@@ -41,8 +42,7 @@ void PCA9554Component::loop() {
   // The read_inputs_() method will cache the input values from the chip.
   this->read_inputs_();
   // Clear all the previously read flags.
-  for (int i = 0; i < 8; i++)
-    this->was_previously_read_[i] = false;
+  std::fill(this->was_previously_read_.begin(), this->was_previously_read_.end(), false);
 }
 
 void PCA9554Component::dump_config() {
