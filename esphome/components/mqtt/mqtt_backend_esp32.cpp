@@ -178,4 +178,4 @@ void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t b
 
 }  // namespace mqtt
 }  // namespace esphome
-#endif  // USE_ESP_ESP32
+#endif  // USE_ESP32
