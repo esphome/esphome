@@ -134,7 +134,7 @@ void SSD1306::setup() {
       case SSD1305_MODEL_128_64:
       case SSD1306_MODEL_72_40:
         this->command(0x12);
-          break;
+        break;
       case SH1107_MODEL_128_64:
       case SH1107_MODEL_128_128:
         // Not used, but prevents build warning
