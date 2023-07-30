@@ -93,7 +93,7 @@ DUTY_TIME_ID_SCHEMA = maybe_simple_id(
 @register_action("sensor.duty_time.start", StartAction, DUTY_TIME_ID_SCHEMA)
 async def sensor_runtime_start_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    await register_parented(var, config[CONF_ID])
+    await cg.register_parented(var, config[CONF_ID])
     return var
 
 
