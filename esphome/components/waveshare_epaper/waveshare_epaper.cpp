@@ -2,6 +2,7 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 #include "esphome/core/helpers.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace waveshare_epaper {
@@ -250,7 +251,7 @@ void WaveshareEPaperTypeA::dump_config() {
       ESP_LOGCONFIG(TAG, "  Model: 2.9inV2");
       break;
   }
-  ESP_LOGCONFIG(TAG, "  Full Update Every: %u", this->full_update_every_);
+  ESP_LOGCONFIG(TAG, "  Full Update Every: %" PRIu32, this->full_update_every_);
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
