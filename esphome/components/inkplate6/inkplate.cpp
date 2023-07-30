@@ -95,14 +95,14 @@ void Inkplate6::initialize_() {
       return;
     }
 
-    const auto waveform3Bit = waveform3BitAll[this->model_];
+    const auto *const waveform3_bit = waveform3BitAll[this->model_];
 
     for (int i = 0; i < glut_size; i++) {
       for (uint32_t j = 0; j < 256; j++) {
-        uint8_t z = (waveform3Bit[j & 0x07][i] << 2) | (waveform3Bit[(j >> 4) & 0x07][i]);
+        uint8_t z = (waveform3_bit[j & 0x07][i] << 2) | (waveform3_bit[(j >> 4) & 0x07][i]);
         this->glut_[i * 256 + j] = ((z & 0b00000011) << 4) | (((z & 0b00001100) >> 2) << 18) |
                                    (((z & 0b00010000) >> 4) << 23) | (((z & 0b11100000) >> 5) << 25);
-        z = ((waveform3Bit[j & 0x07][i] << 2) | (waveform3Bit[(j >> 4) & 0x07][i])) << 4;
+        z = ((waveform3_bit[j & 0x07][i] << 2) | (waveform3_bit[(j >> 4) & 0x07][i])) << 4;
         this->glut2_[i * 256 + j] = ((z & 0b00000011) << 4) | (((z & 0b00001100) >> 2) << 18) |
                                     (((z & 0b00010000) >> 4) << 23) | (((z & 0b11100000) >> 5) << 25);
       }
