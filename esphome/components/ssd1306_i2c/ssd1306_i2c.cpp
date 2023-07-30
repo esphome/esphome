@@ -41,7 +41,7 @@ void HOT I2CSSD1306::write_display_data() {
   if (this->is_sh1106_() | this->is_sh1107_()) {
     uint32_t i = 0;
     for (uint8_t page = 0; page < (uint8_t) this->get_height_internal() / 8; page++) {
-      this->command(0xB0 + page);    // row      
+      this->command(0xB0 + page);    // row
       if (this->is_sh1106_())      
         this->command(0x02);         // lower column - 0x02 is historical SH1106 value
       else

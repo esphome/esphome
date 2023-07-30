@@ -45,22 +45,22 @@ void SSD1306::setup() {
   //
   // Datasheet v2.3:
   // www.displayfuture.com/Display/datasheet/controller/SH1107.pdf
-  // Adafruit C++ driver: 
+  // Adafruit C++ driver:
   // github.com/adafruit/Adafruit_SH110x
   // Adafruit CircuitPython driver:
   // github.com/adafruit/Adafruit_CircuitPython_DisplayIO_SH1107
 
   // Turn off display during initialization (0xAE)
   this->command(SSD1306_COMMAND_DISPLAY_OFF);
-  
+
   // If SH1107, use POR defaults (0x50) = divider 1, frequency +0%
-  if (!this->is_sh1107_()) {  
+  if (!this->is_sh1107_()) {
     // Set oscillator frequency to 4'b1000 with no clock division (0xD5)
     this->command(SSD1306_COMMAND_SET_DISPLAY_CLOCK_DIV);
     // Oscillator frequency <= 4'b1000, no clock division
     this->command(0x80);
   }
-  
+
   // Enable low power display mode for SSD1305 (0xD8)
   if (this->is_ssd1305_()) {
     this->command(SSD1305_COMMAND_SET_AREA_COLOR);
@@ -74,16 +74,16 @@ void SSD1306::setup() {
   // Set Y offset (0xD3)
   this->command(SSD1306_COMMAND_SET_DISPLAY_OFFSET_Y);
   this->command(0x00 + this->offset_y_);
-   
+
   if (this->is_sh1107_()) {
     // Set start line at line 0 (0xDC)
     this->command(SH1107_COMMAND_SET_START_LINE);
     this->command(0x00);
   } else {
     // Set start line at line 0 (0x40)
-    this->command(SSD1306_COMMAND_SET_START_LINE | 0x00);    
+    this->command(SSD1306_COMMAND_SET_START_LINE | 0x00);
   }
-  
+
   if (this->is_ssd1305_()) {
     // SSD1305 does not have charge pump
   } else if (this->is_sh1107_()) {
@@ -129,7 +129,7 @@ void SSD1306::setup() {
       case SH1106_MODEL_128_64:
       case SSD1306_MODEL_64_48:
       case SSD1306_MODEL_64_32:
-      case SH1106_MODEL_64_48:    
+      case SH1106_MODEL_64_48:
       case SSD1305_MODEL_128_32:
       case SSD1305_MODEL_128_64:
       case SSD1306_MODEL_72_40:
