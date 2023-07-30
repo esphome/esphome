@@ -34,7 +34,7 @@
 #include <limits>
 #include <random>
 #endif
-#if defined(USE_ESP32)
+#ifdef USE_ESP32
 #include "esp32/rom/crc.h"
 #endif
 
@@ -52,7 +52,7 @@ static const uint16_t CRC16_A001_LE_LUT_L[] = {0x0000, 0xc0c1, 0xc181, 0x0140, 0
 static const uint16_t CRC16_A001_LE_LUT_H[] = {0x0000, 0xcc01, 0xd801, 0x1400, 0xf001, 0x3c00, 0x2800, 0xe401,
                                                0xa001, 0x6c00, 0x7800, 0xb401, 0x5000, 0x9c01, 0x8801, 0x4400};
 
-#if not defined(USE_ESP32)
+#ifndef USE_ESP32
 static const uint16_t CRC16_8408_LE_LUT_L[] = {0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
                                                0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7};
 static const uint16_t CRC16_8408_LE_LUT_H[] = {0x0000, 0x1081, 0x2102, 0x3183, 0x4204, 0x5285, 0x6306, 0x7387,
@@ -98,7 +98,7 @@ uint8_t crc8(uint8_t *data, uint8_t len) {
 }
 
 uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse_poly, bool refin, bool refout) {
-#if defined(USE_ESP32)
+#ifdef USE_ESP32
   if (reverse_poly == 0x8408) {
     crc = crc16_le(refin ? crc : (crc ^ 0xffff), data, len);
     return refout ? crc : (crc ^ 0xffff);
@@ -107,7 +107,7 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse
   if (refin) {
     crc ^= 0xffff;
   }
-#if not defined(USE_ESP32)
+#ifndef USE_ESP32
   if (reverse_poly == 0x8408) {
     while (len--) {
       uint8_t combo = crc ^ (uint8_t) *data++;
@@ -136,7 +136,7 @@ uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse
 }
 
 uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly, bool refin, bool refout) {
-#if defined(USE_ESP32)
+#ifdef USE_ESP32
   if (poly == 0x1021) {
     crc = crc16_be(refin ? crc : (crc ^ 0xffff), data, len);
     return refout ? crc : (crc ^ 0xffff);
@@ -145,7 +145,7 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
   if (refin) {
     crc ^= 0xffff;
   }
-#if not defined(USE_ESP32)
+#ifndef USE_ESP32
   if (poly == 0x1021) {
     while (len--) {
       uint8_t combo = (crc >> 8) ^ *data++;
@@ -163,7 +163,7 @@ uint16_t crc16be(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t poly,
         }
       }
     }
-#if not defined(USE_ESP32)
+#ifndef USE_ESP32
   }
 #endif
   return refout ? (crc ^ 0xffff) : crc;
