@@ -19,7 +19,6 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
-from esphome.cpp_helpers import register_parented
 
 CONF_LAST_TIME = "last_time"
 
