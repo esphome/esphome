@@ -19,8 +19,10 @@ enum SSD1306Model {
   SH1106_MODEL_96_16,
   SH1106_MODEL_64_48,
   SH1107_MODEL_128_64,
+  SH1107_MODEL_128_128,
   SSD1305_MODEL_128_32,
   SSD1305_MODEL_128_64,
+  
 };
 
 class SSD1306 : public PollingComponent, public display::DisplayBuffer {
