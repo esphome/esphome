@@ -81,7 +81,7 @@ void HonClimate::set_outdoor_temperature_sensor(esphome::sensor::Sensor *sensor)
 AirflowVerticalDirection HonClimate::get_vertical_airflow() const { return this->vertical_direction_; };
 
 void HonClimate::set_vertical_airflow(AirflowVerticalDirection direction) {
-  if (direction > AirflowVerticalDirection::DOWN) {
+  if (direction > AirflowVerticalDirection::HEALTH_DOWN) {
     this->vertical_direction_ = AirflowVerticalDirection::CENTER;
   } else {
     this->vertical_direction_ = direction;
@@ -92,7 +92,7 @@ void HonClimate::set_vertical_airflow(AirflowVerticalDirection direction) {
 AirflowHorizontalDirection HonClimate::get_horizontal_airflow() const { return this->horizontal_direction_; }
 
 void HonClimate::set_horizontal_airflow(AirflowHorizontalDirection direction) {
-  if (direction > AirflowHorizontalDirection::RIGHT) {
+  if (direction > AirflowHorizontalDirection::MAX_RIGHT) {
     this->horizontal_direction_ = AirflowHorizontalDirection::CENTER;
   } else {
     this->horizontal_direction_ = direction;
