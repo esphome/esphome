@@ -333,7 +333,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     // can continue
   }
 
-  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {
+  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
     err = esp_wifi_disconnect();
     if (err != ESP_OK) {
       ESP_LOGV(TAG, "esp_wifi_disconnect failed: %s", esp_err_to_name(err));
