@@ -100,7 +100,7 @@ async def sensor_runtime_start_to_code(config, action_id, template_arg, args):
 @register_action("sensor.duty_time.stop", StopAction, DUTY_TIME_ID_SCHEMA)
 async def sensor_runtime_stop_to_code(config, action_id, template_arg, args):
     var = cg.new_Pvariable(action_id, template_arg)
-    await register_parented(var, config[CONF_ID])
+    await cg.register_parented(var, config[CONF_ID])
     return var
 
 
