@@ -102,7 +102,7 @@ void CoolixClimate::transmit_state() {
     }
   }
   ESP_LOGV(TAG, "Sending coolix code: 0x%06X", remote_state);
-  this->transmit_data_<remote_base::CoolixProtocol>(remote_state);
+  this->transmit_<remote_base::CoolixProtocol>(remote_state);
 }
 
 bool CoolixClimate::on_coolix(climate::Climate *parent, remote_base::RemoteReceiveData data) {
