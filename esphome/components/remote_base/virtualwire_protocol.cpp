@@ -96,10 +96,10 @@ int8_t VirtualWireProtocol::peek_space_(RemoteReceiveData &src, uint32_t bit_len
   return 0;
 }
 
-bool VirtualWireProtocol::decode_symbol_6to4_(uint8_t symbol, uint8_t &decoded) {
-  for (uint8_t i = (symbol >> 2) & 8, count = 8; count--; i++) {
-    if (symbol == VIRTUALWIRE_SYMBOLS[i]) {
-      decoded = i;
+bool VirtualWireProtocol::decode_symbol_6to4_(uint8_t encoded, uint8_t &data) {
+  for (uint8_t i = (encoded >> 2) & 8, count = 8; count--; i++) {
+    if (encoded == VIRTUALWIRE_SYMBOLS[i]) {
+      data = i;
       return true;
     }
   }
