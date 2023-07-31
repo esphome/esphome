@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_PRESET,
     CONF_SWING_MODE,
     CONF_FAN_MODE,
+    CONF_TEMPERATURE,
 )
 from .. import tuya_ns, CONF_TUYA_ID, Tuya
 
@@ -17,7 +18,7 @@ DEPENDENCIES = ["tuya"]
 CODEOWNERS = ["@jesserockz"]
 
 CONF_ACTIVE_STATE = "active_state"
-CONF_STATE_DATAPOINT = "state_datapoint"
+CONF_DATAPOINT = "datapoint"
 CONF_HEATING_VALUE = "heating_value"
 CONF_COOLING_VALUE = "cooling_value"
 CONF_DRYING_VALUE = "drying_value"
@@ -29,14 +30,12 @@ CONF_CURRENT_TEMPERATURE_DATAPOINT = "current_temperature_datapoint"
 CONF_TEMPERATURE_MULTIPLIER = "temperature_multiplier"
 CONF_CURRENT_TEMPERATURE_MULTIPLIER = "current_temperature_multiplier"
 CONF_TARGET_TEMPERATURE_MULTIPLIER = "target_temperature_multiplier"
-CONF_SLEEP_DATAPOINT = "sleep_datapoint"
 CONF_ECO = "eco"
-CONF_ECO_DATAPOINT = "eco_datapoint"
-CONF_ECO_TEMPERATURE = "eco_temperature"
+CONF_SLEEP = "sleep"
+CONF_SLEEP_DATAPOINT = "sleep_datapoint"
 CONF_REPORTS_FAHRENHEIT = "reports_fahrenheit"
 CONF_VERTICAL_DATAPOINT = "vertical_datapoint"
 CONF_HORIZONTAL_DATAPOINT = "horizontal_datapoint"
-CONF_FAN_DATAPOINT = "fan_datapoint"
 CONF_LOW_VALUE = "low_value"
 CONF_MEDIUM_VALUE = "medium_value"
 CONF_MIDDLE_VALUE = "middle_value"
@@ -86,29 +85,32 @@ def validate_temperature_multipliers(value):
 def validate_cooling_values(value):
     if CONF_SUPPORTS_COOL in value:
         cooling_supported = value[CONF_SUPPORTS_COOL]
-        if CONF_ACTIVE_STATE in value:
+        if not cooling_supported and CONF_ACTIVE_STATE in value:
             active_state_config = value[CONF_ACTIVE_STATE]
-            if CONF_COOLING_VALUE in active_state_config and not cooling_supported:
+            if (
+                CONF_COOLING_VALUE in active_state_config
+                or CONF_COOLING_STATE_PIN in value
+            ):
                 raise cv.Invalid(
-                    f"device does not support cooling but "
-                    f"{CONF_COOLING_VALUE} specified"
+                    f"Device does not support cooling, but {CONF_COOLING_VALUE} or {CONF_COOLING_STATE_PIN} specified."
+                    f" Please add '{CONF_SUPPORTS_COOL}: true' to your configuration."
                 )
-            if cooling_supported:
-                if (
-                    CONF_COOLING_VALUE not in active_state_config
-                    and CONF_COOLING_STATE_PIN not in value
-                ):
-                    raise cv.Invalid(
-                        f"active_state {CONF_COOLING_VALUE} or "
-                        f"{CONF_COOLING_STATE_PIN} required if using "
-                        f"{CONF_STATE_DATAPOINT} and device supports cooling"
-                    )
+        elif cooling_supported and CONF_ACTIVE_STATE in value:
+            active_state_config = value[CONF_ACTIVE_STATE]
+            if (
+                CONF_COOLING_VALUE not in active_state_config
+                and CONF_COOLING_STATE_PIN not in value
+            ):
+                raise cv.Invalid(
+                    f"Either {CONF_ACTIVE_STATE} {CONF_COOLING_VALUE} or {CONF_COOLING_STATE_PIN} is required if"
+                    f" {CONF_SUPPORTS_COOL}: true' is in your configuration."
+                )
     return value
 
 
 ACTIVE_STATES = cv.Schema(
     {
-        cv.Required(CONF_STATE_DATAPOINT): cv.uint8_t,
+        cv.Required(CONF_DATAPOINT): cv.uint8_t,
         cv.Optional(CONF_HEATING_VALUE, default=1): cv.uint8_t,
         cv.Optional(CONF_COOLING_VALUE): cv.uint8_t,
         cv.Optional(CONF_DRYING_VALUE): cv.uint8_t,
@@ -120,16 +122,18 @@ ACTIVE_STATES = cv.Schema(
 PRESETS = cv.Schema(
     {
         cv.Optional(CONF_ECO): {
-            cv.Required(CONF_ECO_DATAPOINT): cv.uint8_t,
-            cv.Optional(CONF_ECO_TEMPERATURE): cv.temperature,
+            cv.Required(CONF_DATAPOINT): cv.uint8_t,
+            cv.Optional(CONF_TEMPERATURE): cv.temperature,
         },
-        cv.Optional(CONF_SLEEP_DATAPOINT): cv.uint8_t,
+        cv.Optional(CONF_SLEEP): {
+            cv.Optional(CONF_DATAPOINT): cv.uint8_t,
+        },
     },
 )
 
 FAN_MODES = cv.Schema(
     {
-        cv.Required(CONF_FAN_DATAPOINT): cv.uint8_t,
+        cv.Required(CONF_DATAPOINT): cv.uint8_t,
         cv.Optional(CONF_AUTO_VALUE): cv.uint8_t,
         cv.Optional(CONF_LOW_VALUE): cv.uint8_t,
         cv.Optional(CONF_MEDIUM_VALUE): cv.uint8_t,
@@ -165,13 +169,28 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_PRESET): PRESETS,
             cv.Optional(CONF_FAN_MODE): FAN_MODES,
             cv.Optional(CONF_SWING_MODE): SWING_MODES,
+            cv.Optional("active_state_datapoint"): cv.invalid(
+                "'active_state_datapoint' has been moved inside of the 'active_state' config block as 'datapoint'"
+            ),
+            cv.Optional("heating_state_datapoint"): cv.invalid(
+                "'heating_state_datapoint' has been moved inside of the 'active_state' config block as 'heating_value'"
+            ),
+            cv.Optional("cooling_state_datapoint"): cv.invalid(
+                "'cooling_state_datapoint' has been moved inside of the 'active_state' config block as 'cooling_value'"
+            ),
+            cv.Optional("eco_datapoint"): cv.invalid(
+                "'eco_datapoint' has been moved inside of the 'eco' config block under 'preset' as 'datapoint'"
+            ),
+            cv.Optional("eco_temperature"): cv.invalid(
+                "'eco_temperature' has been moved inside of the 'eco' config block under 'preset' as 'temperature'"
+            ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
     cv.has_at_least_one_key(CONF_TARGET_TEMPERATURE_DATAPOINT, CONF_SWITCH_DATAPOINT),
     validate_temperature_multipliers,
     validate_cooling_values,
-    cv.has_at_most_one_key(CONF_STATE_DATAPOINT, CONF_HEATING_STATE_PIN),
-    cv.has_at_most_one_key(CONF_STATE_DATAPOINT, CONF_COOLING_STATE_PIN),
+    cv.has_at_most_one_key(CONF_ACTIVE_STATE, CONF_HEATING_STATE_PIN),
+    cv.has_at_most_one_key(CONF_ACTIVE_STATE, CONF_COOLING_STATE_PIN),
 )
 
 
@@ -189,8 +208,8 @@ async def to_code(config):
         cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
     if CONF_ACTIVE_STATE in config:
         active_state_config = config[CONF_ACTIVE_STATE]
-        if CONF_STATE_DATAPOINT in active_state_config:
-            cg.add(var.set_active_state_id(active_state_config[CONF_STATE_DATAPOINT]))
+        if CONF_DATAPOINT in active_state_config:
+            cg.add(var.set_active_state_id(active_state_config[CONF_DATAPOINT]))
             if CONF_HEATING_VALUE in active_state_config:
                 cg.add(
                     var.set_active_state_heating_value(
@@ -256,15 +275,17 @@ async def to_code(config):
     preset_config = config.get(CONF_PRESET, {})
     if CONF_ECO in preset_config:
         eco_config = preset_config[CONF_ECO]
-        eco_datapoint = eco_config.get(CONF_ECO_DATAPOINT)
+        eco_datapoint = eco_config.get(CONF_DATAPOINT)
         if eco_datapoint is not None:
             cg.add(var.set_eco_id(eco_datapoint))
-        eco_temperature = eco_config.get(CONF_ECO_TEMPERATURE)
+        eco_temperature = eco_config.get(CONF_TEMPERATURE)
         if eco_temperature is not None:
             cg.add(var.set_eco_temperature(eco_temperature))
 
-    if CONF_SLEEP_DATAPOINT in preset_config:
-        cg.add(var.set_sleep_id(preset_config[CONF_SLEEP_DATAPOINT]))
+    sleep_preset_config = preset_config.get(CONF_SLEEP, {})
+    sleep_datapoint = sleep_preset_config.get(CONF_DATAPOINT)
+    if sleep_datapoint is not None:
+        cg.add(var.set_sleep_id(sleep_datapoint))
 
     if CONF_SWING_MODE in config:
         swing_mode_config = config[CONF_SWING_MODE]
@@ -280,8 +301,8 @@ async def to_code(config):
             )
     if CONF_FAN_MODE in config:
         fan_mode_config = config[CONF_FAN_MODE]
-        if CONF_FAN_DATAPOINT in fan_mode_config:
-            cg.add(var.set_fan_speed_id(fan_mode_config[CONF_FAN_DATAPOINT]))
+        if CONF_DATAPOINT in fan_mode_config:
+            cg.add(var.set_fan_speed_id(fan_mode_config[CONF_DATAPOINT]))
             if CONF_AUTO_VALUE in fan_mode_config:
                 cg.add(var.set_fan_speed_auto_value(fan_mode_config[CONF_AUTO_VALUE]))
             if CONF_LOW_VALUE in fan_mode_config:
