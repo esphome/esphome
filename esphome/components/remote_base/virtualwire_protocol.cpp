@@ -5,26 +5,6 @@
 namespace esphome {
 namespace remote_base {
 
-// CRC - Remove this section after PR#4798 is merged - https://github.com/esphome/esphome/pull/4798
-static const uint16_t CRC16_8408_LE_LUT_L[] = {0x0000, 0x1189, 0x2312, 0x329b, 0x4624, 0x57ad, 0x6536, 0x74bf,
-                                               0x8c48, 0x9dc1, 0xaf5a, 0xbed3, 0xca6c, 0xdbe5, 0xe97e, 0xf8f7};
-static const uint16_t CRC16_8408_LE_LUT_H[] = {0x0000, 0x1081, 0x2102, 0x3183, 0x4204, 0x5285, 0x6306, 0x7387,
-                                               0x8408, 0x9489, 0xa50a, 0xb58b, 0xc60c, 0xd68d, 0xe70e, 0xf78f};
-
-uint16_t crc16(const uint8_t *data, uint16_t len, uint16_t crc, uint16_t reverse_poly, bool refin, bool refout) {
-  if (refin) {
-    crc ^= 0xffff;
-  }
-  if (reverse_poly == 0x8408) {
-    while (len--) {
-      uint8_t combo = crc ^ (uint8_t) *data++;
-      crc = (crc >> 8) ^ CRC16_8408_LE_LUT_L[combo & 0x0F] ^ CRC16_8408_LE_LUT_H[combo >> 4];
-    }
-  }
-  return refout ? (crc ^ 0xffff) : crc;
-}
-// End of CRC
-
 static const char *const TAG = "remote.virtualwire";
 
 static const std::vector<tx_data_t> VIRTUALWIRE_SYMBOLS = {0xd,  0xe,  0x13, 0x15, 0x16, 0x19, 0x1a, 0x1c,
