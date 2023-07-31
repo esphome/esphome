@@ -172,7 +172,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional("active_state_datapoint"): cv.invalid(
                 "'active_state_datapoint' has been moved inside of the 'active_state' config block as 'datapoint'"
             ),
-            cv.Optional("heating_state_datapoint"): cv.invalid(
+            cv.Optional("active_state_heating_value"): cv.invalid(
                 "'heating_state_datapoint' has been moved inside of the 'active_state' config block as 'heating_value'"
             ),
             cv.Optional("cooling_state_datapoint"): cv.invalid(
