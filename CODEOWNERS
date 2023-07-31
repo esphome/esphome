@@ -139,7 +139,6 @@ esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
-esphome/components/kmeteriso/* @Rudd-O
 esphome/components/kuntze/* @ssieb
 esphome/components/lcd_menu/* @numo68
 esphome/components/ld2410/* @sebcaps
