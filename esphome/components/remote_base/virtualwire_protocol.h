@@ -91,7 +91,7 @@ class VirtualWireProtocol : public RemoteProtocol<VirtualWireData> {
   void encode_final_(RemoteTransmitData *dst, const std::vector<tx_data_t> &data, uint32_t bit_length_us) const;
   int8_t peek_mark_(RemoteReceiveData &src, uint32_t bit_length_us);
   int8_t peek_space_(RemoteReceiveData &src, uint32_t bit_length_us);
-  bool decode_symbol_6to4_(uint8_t symbol, uint8_t &decoded);
+  bool decode_symbol_6to4_(uint8_t encoded, uint8_t &data);
   bool decode_4bit_(RemoteReceiveData &src, int8_t &remaining, bool &last_element, uint8_t &data,
                     uint32_t bit_length_us);
   bool decode_byte_(RemoteReceiveData &src, int8_t &remaining, bool &last_element, uint8_t &data,
