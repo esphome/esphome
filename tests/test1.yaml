@@ -1788,8 +1788,8 @@ sensor:
     source_id: dht_temperature
     window:
       type: continuous
-      window_duration: 60s
-      chunk_size: 15
+      window_size: 45
+      chunk_duration: 20s
       send_every: 3
       send_first_at: 1
     average_type: time_weighted
