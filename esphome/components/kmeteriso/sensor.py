@@ -7,7 +7,6 @@ from esphome.const import (
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
-    ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
 CONF_INTERNAL_TEMPERATURE = "internal_temperature"
