@@ -22,8 +22,6 @@ class MideaData {
   MideaData(const std::vector<uint8_t> &data) {
     std::copy_n(data.begin(), std::min(data.size(), this->data_.size()), this->data_.begin());
   }
-  // Default copy constructor
-  MideaData(const MideaData &) = default;
 
   uint8_t *data() { return this->data_.data(); }
   const uint8_t *data() const { return this->data_.data(); }
