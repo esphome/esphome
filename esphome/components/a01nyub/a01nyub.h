@@ -1,5 +1,7 @@
 #pragma once
 
+#include <vector>
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/uart/uart.h"
@@ -18,7 +20,7 @@ class A01nyubComponent : public sensor::Sensor, public Component, public uart::U
  protected:
   void check_buffer_();
 
-  std::string buffer_;
+  std::vector<uint8_t> buffer_;
 };
 
 }  // namespace a01nyub
