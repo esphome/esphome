@@ -51,8 +51,6 @@ void A01nyubComponent::check_buffer_() {
 void A01nyubComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "A01nyub Sensor:");
   LOG_SENSOR("  ", "Distance", this);
-  // As specified in the sensor's data sheet
-  this->check_uart_settings(9600, 1, esphome::uart::UART_CONFIG_PARITY_NONE, 8);
 }
 
 }  // namespace a01nyub

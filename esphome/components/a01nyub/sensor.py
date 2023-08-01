@@ -22,6 +22,16 @@ CONFIG_SCHEMA = sensor.sensor_schema(
     state_class=STATE_CLASS_MEASUREMENT,
 ).extend(uart.UART_DEVICE_SCHEMA)
 
+FINAL_VALIDATE_SCHEMA = uart.final_validate_device_schema(
+    "a01nyub",
+    baud_rate=9600,
+    require_tx=True,
+    require_rx=True,
+    data_bits=8,
+    parity=None,
+    stop_bits=1,
+)
+
 
 async def to_code(config):
     var = await sensor.new_sensor(config)
