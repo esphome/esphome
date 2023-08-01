@@ -1,19 +1,52 @@
 #pragma once
 
+#define USE_SPEAKER
+
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+#ifdef USE_OUTPUT
 #include "esphome/components/output/float_output.h"
+#endif
+
+#ifdef USE_SPEAKER
+#include "esphome/components/speaker/speaker.h"
+#endif
 
 namespace esphome {
 namespace rtttl {
+#ifdef USE_SPEAKER
+static const size_t SAMPLE_BUFFER_SIZE = 255;
+
+struct SpeakerSample {
+  int16_t left {0};
+  int16_t right {0};
+};
+
+#endif
 
 class Rtttl : public Component {
  public:
+#ifdef USE_OUTPUT
   void set_output(output::FloatOutput *output) { output_ = output; }
+#endif
+#ifdef USE_SPEAKER
+  void set_speaker(speaker::Speaker *speaker) {speaker_ = speaker; }
+#endif
   void play(std::string rtttl);
   void stop() {
     note_duration_ = 0;
-    output_->set_level(0.0);
+#ifdef USE_OUTPUT
+    if (output_ != nullptr) {
+      output_->set_level(0.0);
+    }
+#endif
+#ifdef USE_SPEAKER
+    if (this->speaker_ != nullptr ) {
+      if (this->speaker_->is_running()) {
+        this->speaker_->stop();
+      }
+    }
+#endif
   }
   void dump_config() override;
 
@@ -33,8 +66,8 @@ class Rtttl : public Component {
     return ret;
   }
 
-  std::string rtttl_;
-  size_t position_;
+  std::string rtttl_{""};
+  size_t position_{0};
   uint16_t wholenote_;
   uint16_t default_duration_;
   uint16_t default_octave_;
@@ -42,7 +75,22 @@ class Rtttl : public Component {
   uint16_t note_duration_;
 
   uint32_t output_freq_;
+
+#ifdef USE_OUTPUT
   output::FloatOutput *output_;
+#endif
+
+  void play_output_();
+
+#ifdef USE_SPEAKER
+  speaker::Speaker *speaker_;
+  void play_speaker_();
+  int sample_rate_ {16000};
+  int ttlSamplesPerWave_ {0};
+  int ttlSamplesSent_ {0};
+  int ttlSamples_ {0};
+  int ttGapFirst_ {0};
+#endif
 
   CallbackManager<void()> on_finished_playback_callback_;
 };

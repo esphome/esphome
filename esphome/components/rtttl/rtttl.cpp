@@ -1,3 +1,4 @@
+#include <cmath>
 #include "rtttl.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/log.h"
@@ -15,13 +16,27 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
                                  1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 
+#undef HALF_PI
+static const double HALF_PI = 1.5707963267948966192313216916398;
+
+inline double deg2rad (double degrees) {
+    static const double PI_ON_180 = 4.0 * atan (1.0) / 180.0;
+    return degrees * PI_ON_180;
+}
+
 void Rtttl::dump_config() { ESP_LOGCONFIG(TAG, "Rtttl"); }
 
 void Rtttl::play(std::string rtttl) {
+  if (rtttl_[position_])
+    // RTTTL is already playing
+    return;
+
   rtttl_ = std::move(rtttl);
 
   default_duration_ = 4;
   default_octave_ = 6;
+  note_duration_ = 0;
+
   int bpm = 63;
   uint8_t num;
 
@@ -83,17 +98,78 @@ void Rtttl::play(std::string rtttl) {
   output_freq_ = 0;
   last_note_ = millis();
   note_duration_ = 1;
+
+#ifdef USE_SPEAKER
+  ttlSamplesSent_ = 0;
+  ttlSamples_ = 0;
+#endif
 }
 
 void Rtttl::loop() {
-  if (note_duration_ == 0 || millis() - last_note_ < note_duration_)
+  if (this->note_duration_ == 0)
+    return;
+
+#ifdef USE_SPEAKER
+  if (this->speaker_ != nullptr) {
+    // this->speaker_->loop();
+
+    if (ttlSamplesSent_ != ttlSamples_) {
+      speaker::SpeakerSample sample[SAMPLE_BUFFER_SIZE + 1];
+      int x = 0;
+      double rem = 0.0;
+     // ESP_LOGI(TAG, "Samples %10d, %10d, %10d", ttlSamplesSent_ , ttlSamples_,  this->ttlSamplesPerWave_);
+
+      while (true) {
+        // Try and send out the remainder of the existing note, one per loop()
+
+        if (this->ttlSamplesPerWave_ != 0) {  // Play note// && ttlSamplesSent_ >= ttGapFirst_
+
+          int samplesSentFP10 = ttlSamplesSent_ << 10;
+          rem =  (samplesSentFP10 % this->ttlSamplesPerWave_)  * (360.0/ this->ttlSamplesPerWave_ );
+
+          //int16_t val = (rem > this->ttlSamplesPerWave_ / 2) ? 8192 : -8192;
+
+          int16_t val  = 8192 * sin(deg2rad(rem));
+//          sample[x] = hi(val);
+//          sample[x] = val;
+//          sample[x] = val;
+//          sample[x] = val;
+          sample[x].left = val;
+          sample[x].right = val;
+//          ESP_LOGV(TAG, "add Samples %10d, %7.2f, %10d", x , rem,  val);
+        } else {
+          sample[x].left = 0;
+          sample[x].right = 0;
+        }
+
+        if (x >= SAMPLE_BUFFER_SIZE || ttlSamplesSent_ >= ttlSamples_) {
+          break;
+        }
+        ttlSamplesSent_++;
+        x ++;
+      }
+      if (x > 0) {
+        if (!this->speaker_->play((uint8_t *) (&sample), x * 4)) {
+           ESP_LOGI(TAG, "samples where not added");
+        } else
+           ESP_LOGI(TAG, "Played %d samples", x);
+        return;
+      }
+    }
+  }
+#endif
+  if (millis() - this->last_note_ < this->note_duration_)
     return;
 
   if (!rtttl_[position_]) {
-    output_->set_level(0.0);
+    note_duration_ = 0;
+#ifdef USE_OUTPUT
+    if (output_ != nullptr) {
+      output_->set_level(0.0);
+    }
+#endif
     ESP_LOGD(TAG, "Playback finished");
     this->on_finished_playback_callback_.call();
-    note_duration_ = 0;
     return;
   }
 
@@ -157,32 +233,63 @@ void Rtttl::loop() {
   if (scale == 0)
     scale = default_octave_;
 
+#ifdef USE_SPEAKER
+  ttlSamplesSent_ = 0;
+  ttlSamples_ = (sample_rate_ * note_duration_) / 1000;
+  ttGapFirst_ = 0;
+#endif
+
   // Now play the note
   if (note) {
     auto note_index = (scale - 4) * 12 + note;
     if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
       ESP_LOGE(TAG, "Note out of valid range");
+      ttlSamples_ = 0;
       return;
     }
     auto freq = NOTES[note_index];
 
     if (freq == output_freq_) {
       // Add small silence gap between same note
-      output_->set_level(0.0);
-      delay(DOUBLE_NOTE_GAP_MS);
-      note_duration_ -= DOUBLE_NOTE_GAP_MS;
+#ifdef USE_OUTPUT
+      if (output_ != nullptr) {
+        output_->set_level(0.0);
+        delay(DOUBLE_NOTE_GAP_MS);
+        note_duration_ -= DOUBLE_NOTE_GAP_MS;
+      }
+#endif
+#ifdef USE_SPEAKER
+      ttGapFirst_ = (sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1000;
+#endif
     }
     output_freq_ = freq;
 
-    ESP_LOGVV(TAG, "playing note: %d for %dms", note, note_duration_);
-    output_->update_frequency(freq);
-    output_->set_level(0.5);
+    ESP_LOGV(TAG, "playing note: %d for %dms", note, note_duration_);
+#ifdef USE_OUTPUT
+    if (output_ != nullptr) {
+      output_->update_frequency(freq);
+      output_->set_level(0.5);
+    }
+#endif
+#ifdef USE_SPEAKER
+    // Convert from frequency in Hz to high and low samples in fixed point
+     ttlSamplesPerWave_ = (sample_rate_ << 10) / freq;
+#endif
   } else {
-    ESP_LOGVV(TAG, "waiting: %dms", note_duration_);
-    output_->set_level(0.0);
+    ESP_LOGV(TAG, "waiting: %dms", note_duration_);
+#ifdef USE_OUTPUT
+    if (output_ != nullptr) {
+      output_->set_level(0.0);
+    }
+#endif
+#ifdef USE_SPEAKER
+    ttlSamplesPerWave_ = 0;
+#endif
+    output_freq_ = 0;
   }
 
   last_note_ = millis();
 }
+
 }  // namespace rtttl
 }  // namespace esphome
