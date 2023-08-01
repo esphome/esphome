@@ -20,8 +20,8 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
 static const double HALF_PI = 1.5707963267948966192313216916398;
 
 inline double deg2rad (double degrees) {
-    static const double PI_ON_180 = 4.0 * atan (1.0) / 180.0;
-    return degrees * PI_ON_180;
+  static const double PI_ON_180 = 4.0 * atan (1.0) / 180.0;
+  return degrees * PI_ON_180;
 }
 
 void Rtttl::dump_config() { ESP_LOGCONFIG(TAG, "Rtttl"); }
@@ -114,10 +114,9 @@ void Rtttl::loop() {
     // this->speaker_->loop();
 
     if (ttlSamplesSent_ != ttlSamples_) {
-      speaker::SpeakerSample sample[SAMPLE_BUFFER_SIZE + 1];
+      speakerSample sample[SAMPLE_BUFFER_SIZE + 1];
       int x = 0;
       double rem = 0.0;
-     // ESP_LOGI(TAG, "Samples %10d, %10d, %10d", ttlSamplesSent_ , ttlSamples_,  this->ttlSamplesPerWave_);
 
       while (true) {
         // Try and send out the remainder of the existing note, one per loop()
@@ -125,18 +124,13 @@ void Rtttl::loop() {
         if (this->ttlSamplesPerWave_ != 0) {  // Play note// && ttlSamplesSent_ >= ttGapFirst_
 
           int samplesSentFP10 = ttlSamplesSent_ << 10;
-          rem =  (samplesSentFP10 % this->ttlSamplesPerWave_)  * (360.0/ this->ttlSamplesPerWave_ );
-
-          //int16_t val = (rem > this->ttlSamplesPerWave_ / 2) ? 8192 : -8192;
+          rem = (samplesSentFP10 % this->ttlSamplesPerWave_) * (360.0 / this->ttlSamplesPerWave_);
 
           int16_t val  = 8192 * sin(deg2rad(rem));
-//          sample[x] = hi(val);
-//          sample[x] = val;
-//          sample[x] = val;
-//          sample[x] = val;
+
           sample[x].left = val;
           sample[x].right = val;
-//          ESP_LOGV(TAG, "add Samples %10d, %7.2f, %10d", x , rem,  val);
+
         } else {
           sample[x].left = 0;
           sample[x].right = 0;
@@ -146,13 +140,13 @@ void Rtttl::loop() {
           break;
         }
         ttlSamplesSent_++;
-        x ++;
+        x++;
       }
       if (x > 0) {
         if (!this->speaker_->play((uint8_t *) (&sample), x * 4)) {
-           ESP_LOGI(TAG, "samples where not added");
+          ESP_LOGI(TAG, "samples where not added");
         } else
-           ESP_LOGI(TAG, "Played %d samples", x);
+          ESP_LOGI(TAG, "Played %d samples", x);
         return;
       }
     }
@@ -273,7 +267,7 @@ void Rtttl::loop() {
 #endif
 #ifdef USE_SPEAKER
     // Convert from frequency in Hz to high and low samples in fixed point
-     ttlSamplesPerWave_ = (sample_rate_ << 10) / freq;
+    ttlSamplesPerWave_ = (sample_rate_ << 10) / freq;
 #endif
   } else {
     ESP_LOGV(TAG, "waiting: %dms", note_duration_);

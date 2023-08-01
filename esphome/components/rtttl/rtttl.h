@@ -18,8 +18,8 @@ namespace rtttl {
 static const size_t SAMPLE_BUFFER_SIZE = 255;
 
 struct SpeakerSample {
-  int16_t left {0};
-  int16_t right {0};
+  int16_t left{0};
+  int16_t right{0};
 };
 
 #endif
@@ -30,7 +30,7 @@ class Rtttl : public Component {
   void set_output(output::FloatOutput *output) { output_ = output; }
 #endif
 #ifdef USE_SPEAKER
-  void set_speaker(speaker::Speaker *speaker) {speaker_ = speaker; }
+  void set_speaker(speaker::Speaker *speaker) { speaker_ = speaker; }
 #endif
   void play(std::string rtttl);
   void stop() {
@@ -41,7 +41,7 @@ class Rtttl : public Component {
     }
 #endif
 #ifdef USE_SPEAKER
-    if (this->speaker_ != nullptr ) {
+    if (this->speaker_ != nullptr) {
       if (this->speaker_->is_running()) {
         this->speaker_->stop();
       }
@@ -85,11 +85,11 @@ class Rtttl : public Component {
 #ifdef USE_SPEAKER
   speaker::Speaker *speaker_;
   void play_speaker_();
-  int sample_rate_ {16000};
-  int ttlSamplesPerWave_ {0};
-  int ttlSamplesSent_ {0};
-  int ttlSamples_ {0};
-  int ttGapFirst_ {0};
+  int sample_rate_{16000};
+  int ttlSamplesPerWave_{0};
+  int ttlSamplesSent_{0};
+  int ttlSamples_{0};
+  int ttGapFirst_{0};
 #endif
 
   CallbackManager<void()> on_finished_playback_callback_;
