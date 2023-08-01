@@ -379,9 +379,13 @@ sensor:
       - offset: 2.0
       - multiply: 1.2
       - calibrate_linear:
-          - 0.0 -> 0.0
-          - 40.0 -> 45.0
-          - 100.0 -> 102.5
+          datapoints:
+            - 0.0 -> 0.0
+            - 40.0 -> 45.0
+            - 100.0 -> 102.5
+      - clamp:
+          min_value: -100
+          max_value: 100
       - filter_out: 42.0
       - filter_out: nan
       - median:
@@ -2200,9 +2204,14 @@ climate:
     use_fahrenheit: true
   - platform: midea
     on_control:
-      logger.log: Control message received!
+      - logger.log: Control message received!
+      - lambda: |-
+          x.set_mode(CLIMATE_MODE_FAN_ONLY);
     on_state:
-      logger.log: State changed!
+      - logger.log: State changed!
+      - lambda: |-
+          if (x.mode == CLIMATE_MODE_FAN_ONLY)
+            id(binary_sensor1).publish_state(true);
     id: midea_unit
     uart_id: uart_0
     name: Midea Climate

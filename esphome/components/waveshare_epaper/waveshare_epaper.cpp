@@ -1493,11 +1493,10 @@ void WaveshareEPaper7P5InV2alt::initialize() {
   this->command(0x01);
 
   // 1-0=11: internal power
-  this->data(0x17);
-
+  this->data(0x07);
   this->data(0x17);  // VGH&VGL
   this->data(0x3F);  // VSH
-  this->data(0x3F);  // VSL
+  this->data(0x26);  // VSL
   this->data(0x11);  // VSHR
 
   // VCOM DC Setting
@@ -1510,10 +1509,6 @@ void WaveshareEPaper7P5InV2alt::initialize() {
   this->data(0x27);
   this->data(0x2F);
   this->data(0x17);
-
-  // OSC Setting
-  this->command(0x30);
-  this->data(0x06);  // 2-0=100: N=4  ; 5-3=111: M=7  ;  3C=50Hz     3A=100HZ
 
   // POWER ON
   this->command(0x04);
@@ -1536,7 +1531,7 @@ void WaveshareEPaper7P5InV2alt::initialize() {
   // COMMAND VCOM AND DATA INTERVAL SETTING
   this->command(0x50);
   this->data(0x10);
-  this->data(0x07);
+  this->data(0x00);
   // COMMAND TCON SETTING
   this->command(0x60);
   this->data(0x22);

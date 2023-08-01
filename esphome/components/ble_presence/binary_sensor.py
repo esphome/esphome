@@ -39,7 +39,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_IBEACON_MINOR): cv.uint16_t,
             cv.Optional(CONF_IBEACON_UUID): cv.uuid,
             cv.Optional(CONF_MIN_RSSI): cv.All(
-                cv.decibel, cv.int_range(min=-90, max=-30)
+                cv.decibel, cv.int_range(min=-100, max=-30)
             ),
         }
     )
