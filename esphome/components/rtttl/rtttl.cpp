@@ -19,7 +19,7 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
 #undef HALF_PI
 static const double HALF_PI = 1.5707963267948966192313216916398;
 
-inline double deg2rad (double degrees) {
+inline double deg2rad(double degrees) {
   static const double PI_ON_180 = 4.0 * atan(1.0) / 180.0;
   return degrees * PI_ON_180;
 }
