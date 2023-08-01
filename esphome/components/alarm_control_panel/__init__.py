@@ -31,6 +31,7 @@ ClearedTrigger = alarm_control_panel_ns.class_(
 )
 ArmAwayAction = alarm_control_panel_ns.class_("ArmAwayAction", automation.Action)
 ArmHomeAction = alarm_control_panel_ns.class_("ArmHomeAction", automation.Action)
+ArmNightAction = alarm_control_panel_ns.class_("ArmNightAction", automation.Action)
 DisarmAction = alarm_control_panel_ns.class_("DisarmAction", automation.Action)
 PendingAction = alarm_control_panel_ns.class_("PendingAction", automation.Action)
 TriggeredAction = alarm_control_panel_ns.class_("TriggeredAction", automation.Action)
@@ -116,6 +117,16 @@ async def alarm_action_arm_home_to_code(config, action_id, template_arg, args):
         cg.add(var.set_code(templatable_))
     return var
 
+@automation.register_action(
+    "alarm_control_panel.arm_night", ArmNightAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
+)
+async def alarm_action_arm_night_to_code(config, action_id, template_arg, args):
+    paren = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, paren)
+    if CONF_CODE in config:
+        templatable_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
+        cg.add(var.set_code(templatable_))
+    return var
 
 @automation.register_action(
     "alarm_control_panel.disarm", DisarmAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
