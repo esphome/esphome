@@ -1,7 +1,5 @@
 #pragma once
 
-#define USE_SPEAKER
-
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
 #ifdef USE_OUTPUT
