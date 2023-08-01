@@ -260,13 +260,6 @@ sensor:
   - platform: a01nyub
     id: a01nyub_sensor
     name: "a01nyub Distance"
-    filters:
-      - sliding_window_moving_average:
-          window_size: 12
-          send_every: 12
-      - or:
-        - throttle: "20min"
-        - delta: 0.02
 
 #
 # platform sensor.apds9960 requires component apds9960
