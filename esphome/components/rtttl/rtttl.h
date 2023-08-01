@@ -2,6 +2,7 @@
 
 #include "esphome/core/component.h"
 #include "esphome/core/automation.h"
+
 #ifdef USE_OUTPUT
 #include "esphome/components/output/float_output.h"
 #endif
@@ -12,6 +13,7 @@
 
 namespace esphome {
 namespace rtttl {
+
 #ifdef USE_SPEAKER
 static const size_t SAMPLE_BUFFER_SIZE = 255;
 
@@ -19,7 +21,6 @@ struct SpeakerSample {
   int16_t left{0};
   int16_t right{0};
 };
-
 #endif
 
 class Rtttl : public Component {

@@ -27,10 +27,6 @@ inline double deg2rad(double degrees) {
 void Rtttl::dump_config() { ESP_LOGCONFIG(TAG, "Rtttl"); }
 
 void Rtttl::play(std::string rtttl) {
-  if (rtttl_[position_])
-    // RTTTL is already playing
-    return;
-
   rtttl_ = std::move(rtttl);
 
   default_duration_ = 4;
@@ -238,7 +234,7 @@ void Rtttl::loop() {
     auto note_index = (scale - 4) * 12 + note;
     if (note_index < 0 || note_index >= (int) sizeof(NOTES)) {
       ESP_LOGE(TAG, "Note out of valid range");
-      ttlSamples_ = 0;
+      note_duration_ = 0;
       return;
     }
     auto freq = NOTES[note_index];
