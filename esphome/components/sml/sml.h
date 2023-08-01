@@ -38,9 +38,6 @@ class Sml : public Component, public uart::UARTDevice {
 };
 
 bool check_sml_data(const bytes &buffer);
-uint16_t calc_crc16_p1021(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum);
-uint16_t calc_crc16_x25(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum);
-uint16_t calc_crc16_kermit(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum);
 
 uint8_t get_code(uint8_t byte);
 }  // namespace sml
