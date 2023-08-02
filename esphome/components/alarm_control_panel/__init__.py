@@ -117,6 +117,7 @@ async def alarm_action_arm_home_to_code(config, action_id, template_arg, args):
         cg.add(var.set_code(templatable_))
     return var
 
+
 @automation.register_action(
     "alarm_control_panel.arm_night", ArmNightAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
 )
@@ -127,6 +128,7 @@ async def alarm_action_arm_night_to_code(config, action_id, template_arg, args):
         templatable_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
         cg.add(var.set_code(templatable_))
     return var
+
 
 @automation.register_action(
     "alarm_control_panel.disarm", DisarmAction, ALARM_CONTROL_PANEL_ACTION_SCHEMA
