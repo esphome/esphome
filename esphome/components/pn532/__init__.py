@@ -83,7 +83,11 @@ async def setup_pn532(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
 
-    cg.add(var.set_card_standard(config.get(CONF_CARD_STANDARD, "ISO14443A")))
+    cg.add(
+        var.set_card_standard(
+            config.get(CONF_CARD_STANDARD, CardStandard.CARD_STANDARD_ISO14443A)
+        )
+    )
 
 
 @automation.register_condition(
