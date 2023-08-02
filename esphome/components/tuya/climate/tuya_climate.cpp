@@ -196,8 +196,8 @@ void TuyaClimate::control_swing_mode_(const climate::ClimateCall &call) {
     switch (swing_mode) {
       case climate::CLIMATE_SWING_OFF:
         if (swing_vertical_ || swing_horizontal_) {
-          swing_vertical_ = false;
-          swing_horizontal_ = false;
+          this->swing_vertical_ = false;
+          this->swing_horizontal_ = false;
           vertical_swing_changed = true;
           horizontal_swing_changed = true;
         }
@@ -205,8 +205,8 @@ void TuyaClimate::control_swing_mode_(const climate::ClimateCall &call) {
 
       case climate::CLIMATE_SWING_BOTH:
         if (!swing_vertical_ || !swing_horizontal_) {
-          swing_vertical_ = true;
-          swing_horizontal_ = true;
+          this->swing_vertical_ = true;
+          this->swing_horizontal_ = true;
           vertical_swing_changed = true;
           horizontal_swing_changed = true;
         }
@@ -214,8 +214,8 @@ void TuyaClimate::control_swing_mode_(const climate::ClimateCall &call) {
 
       case climate::CLIMATE_SWING_VERTICAL:
         if (!swing_vertical_ || swing_horizontal_) {
-          swing_vertical_ = true;
-          swing_horizontal_ = false;
+          this->swing_vertical_ = true;
+          this->swing_horizontal_ = false;
           vertical_swing_changed = true;
           horizontal_swing_changed = true;
         }
@@ -223,8 +223,8 @@ void TuyaClimate::control_swing_mode_(const climate::ClimateCall &call) {
 
       case climate::CLIMATE_SWING_HORIZONTAL:
         if (swing_vertical_ || !swing_horizontal_) {
-          swing_vertical_ = false;
-          swing_horizontal_ = true;
+          this->swing_vertical_ = false;
+          this->swing_horizontal_ = true;
           vertical_swing_changed = true;
           horizontal_swing_changed = true;
         }
