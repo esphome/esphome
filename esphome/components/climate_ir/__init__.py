@@ -45,6 +45,6 @@ async def register_climate_ir(var, config):
     cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
     if remote_base.CONF_RECEIVER_ID in config:
         await remote_base.register_listener(var, config)
-    if CONF_SENSOR in config:
-        sens = await cg.get_variable(config[CONF_SENSOR])
+    if sensor_id := config.get(CONF_SENSOR):
+        sens = await cg.get_variable(sensor_id)
         cg.add(var.set_sensor(sens))
