@@ -108,7 +108,7 @@ size_t I2SAudioMicrophone::read(int16_t *buf, size_t len) {
   if (err != ESP_OK) {
     ESP_LOGW(TAG, "Error reading from I2S microphone: %s", esp_err_to_name(err));
     this->status_set_warning();
-    return;
+    return 0;
   }
   this->status_clear_warning();
   if (this->bits_per_sample_ == I2S_BITS_PER_SAMPLE_16BIT) {
