@@ -133,5 +133,6 @@ async def to_code(config):
         cg.add(var.add_sensor(bs, flags))
 
     cg.add(var.set_supports_arm_home(supports_arm_home))
+    cg.add(var.set_supports_arm_night(supports_arm_night))
 
     cg.add(var.set_restore_mode(config[CONF_RESTORE_MODE]))
