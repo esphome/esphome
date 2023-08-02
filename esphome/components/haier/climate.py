@@ -54,18 +54,23 @@ HonClimate = haier_ns.class_("HonClimate", HaierClimateBase)
 Smartair2Climate = haier_ns.class_("Smartair2Climate", HaierClimateBase)
 
 
-AirflowVerticalDirection = haier_ns.enum("AirflowVerticalDirection")
+AirflowVerticalDirection = haier_ns.enum("AirflowVerticalDirection", True)
 AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
+    "HEALTH_UP": AirflowVerticalDirection.HEALTH_UP,
+    "MAX_UP": AirflowVerticalDirection.MAX_UP,
     "UP": AirflowVerticalDirection.UP,
     "CENTER": AirflowVerticalDirection.CENTER,
     "DOWN": AirflowVerticalDirection.DOWN,
+    "HEALTH_DOWN": AirflowVerticalDirection.HEALTH_DOWN,
 }
 
-AirflowHorizontalDirection = haier_ns.enum("AirflowHorizontalDirection")
+AirflowHorizontalDirection = haier_ns.enum("AirflowHorizontalDirection", True)
 AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = {
+    "MAX_LEFT": AirflowHorizontalDirection.MAX_LEFT,
     "LEFT": AirflowHorizontalDirection.LEFT,
     "CENTER": AirflowHorizontalDirection.CENTER,
     "RIGHT": AirflowHorizontalDirection.RIGHT,
+    "MAX_RIGHT": AirflowHorizontalDirection.MAX_RIGHT,
 }
 
 SUPPORTED_SWING_MODES_OPTIONS = {
