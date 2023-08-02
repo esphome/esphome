@@ -45,6 +45,9 @@ static const uint8_t MIFARE_CMD_NAK_CRC_ERROR_XFER_BUFF_VALID = 0x01;
 static const uint8_t MIFARE_CMD_NAK_INVALID_XFER_BUFF_INVALID = 0x04;
 static const uint8_t MIFARE_CMD_NAK_CRC_ERROR_XFER_BUFF_INVALID = 0x05;
 
+// FeliCa Commands
+static const uint8_t FELICA_CMD_REQUEST_SERVICE = 0x02;
+
 static const char *const MIFARE_CLASSIC = "Mifare Classic";
 static const char *const NFC_FORUM_TYPE_2 = "NFC Forum Type 2";
 static const char *const ERROR = "Error";
