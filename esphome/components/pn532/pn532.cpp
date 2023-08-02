@@ -341,7 +341,7 @@ int8_t PN532::read_ready_(bool block) {
   }
 
   int8_t rdy = ready;
-  if (block || ready != -1) {
+  if (block || ready == 0) {
     start_time = 0;
     ready = -1;
   }
