@@ -12,8 +12,8 @@ enum State : uint8_t {
 
 class Speaker {
  public:
-  virtual bool play(const uint8_t *data, size_t length) = 0;
-  virtual bool play(const std::vector<uint8_t> &data) { return this->play(data.data(), data.size()); }
+  virtual size_t play(const uint8_t *data, size_t length) = 0;
+  virtual size_t play(const std::vector<uint8_t> &data) { return this->play(data.data(), data.size()); }
 
   virtual void stop() = 0;
 
