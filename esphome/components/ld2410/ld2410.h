@@ -7,12 +7,25 @@
 #ifdef USE_SENSOR
 #include "esphome/components/sensor/sensor.h"
 #endif
+#ifdef USE_TEXT_SENSOR
+#include "esphome/components/text_sensor/text_sensor.h"
+#endif
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
 
 namespace esphome {
 namespace ld2410 {
+
+static const int NUM_GATES = 9;
+
+enum LD2410NumType {
+  LD2410_THRES_MOVE,
+  LD2410_THRES_STILL,
+  LD2410_MAXDIST_MOVE,
+  LD2410_MAXDIST_STILL,
+  LD2410_TIMEOUT,
+};
 
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
 
@@ -80,33 +93,68 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void set_still_target_sensor(binary_sensor::BinarySensor *sens) { this->still_binary_sensor_ = sens; };
 #endif
 
+#ifdef USE_TEXT_SENSOR
+  void set_fw_version_sensor(text_sensor::TextSensor *sens) { this->fw_version_sensor_ = sens; };
+  void set_info_query_sensor(text_sensor::TextSensor *sens) { this->info_query_sensor_ = sens; };
+#endif
+
   void set_timeout(uint16_t value) { this->timeout_ = value; };
   void set_max_move_distance(uint8_t value) { this->max_move_distance_ = value; };
   void set_max_still_distance(uint8_t value) { this->max_still_distance_ = value; };
   void set_range_config(int rg0_move, int rg0_still, int rg1_move, int rg1_still, int rg2_move, int rg2_still,
                         int rg3_move, int rg3_still, int rg4_move, int rg4_still, int rg5_move, int rg5_still,
                         int rg6_move, int rg6_still, int rg7_move, int rg7_still, int rg8_move, int rg8_still) {
-    this->rg0_move_threshold_ = rg0_move;
-    this->rg0_still_threshold_ = rg0_still;
-    this->rg1_move_threshold_ = rg1_move;
-    this->rg1_still_threshold_ = rg1_still;
-    this->rg2_move_threshold_ = rg2_move;
-    this->rg2_still_threshold_ = rg2_still;
-    this->rg3_move_threshold_ = rg3_move;
-    this->rg3_still_threshold_ = rg3_still;
-    this->rg4_move_threshold_ = rg4_move;
-    this->rg4_still_threshold_ = rg4_still;
-    this->rg5_move_threshold_ = rg5_move;
-    this->rg5_still_threshold_ = rg5_still;
-    this->rg6_move_threshold_ = rg6_move;
-    this->rg6_still_threshold_ = rg6_still;
-    this->rg7_move_threshold_ = rg7_move;
-    this->rg7_still_threshold_ = rg7_still;
-    this->rg8_move_threshold_ = rg8_move;
-    this->rg8_still_threshold_ = rg8_still;
+    this->rg_move_threshold_[0] = rg0_move;
+    this->rg_still_threshold_[0] = rg0_still;
+    this->rg_move_threshold_[1] = rg1_move;
+    this->rg_still_threshold_[1] = rg1_still;
+    this->rg_move_threshold_[2] = rg2_move;
+    this->rg_still_threshold_[2] = rg2_still;
+    this->rg_move_threshold_[3] = rg3_move;
+    this->rg_still_threshold_[3] = rg3_still;
+    this->rg_move_threshold_[4] = rg4_move;
+    this->rg_still_threshold_[4] = rg4_still;
+    this->rg_move_threshold_[5] = rg5_move;
+    this->rg_still_threshold_[5] = rg5_still;
+    this->rg_move_threshold_[6] = rg6_move;
+    this->rg_still_threshold_[6] = rg6_still;
+    this->rg_move_threshold_[7] = rg7_move;
+    this->rg_still_threshold_[7] = rg7_still;
+    this->rg_move_threshold_[8] = rg8_move;
+    this->rg_still_threshold_[8] = rg8_still;
   };
-  int moving_sensitivities[9] = {0};
-  int still_sensitivities[9] = {0};
+
+  void query_parameters();
+#ifdef USE_NUMBER
+  void set_threshold(uint8_t gate, enum LD2410NumType type, uint8_t thres);
+  void set_max_distances_timeout(enum LD2410NumType type, uint16_t value);
+  uint8_t get_threshold(uint8_t gate, enum LD2410NumType type) {
+    if (gate > 8)
+      return 0;
+    if (type != LD2410_THRES_MOVE && type != LD2410_THRES_STILL)
+      return 0;
+    return type == LD2410_THRES_MOVE ? rg_move_threshold_[gate] : rg_still_threshold_[gate];
+  };
+  uint16_t get_max_distance_timeout(enum LD2410NumType type) {
+    switch (type) {
+      case LD2410_MAXDIST_MOVE:
+        return this->max_move_distance_;
+        break;
+      case LD2410_MAXDIST_STILL:
+        return this->max_still_distance_;
+        break;
+      case LD2410_TIMEOUT:
+        return this->timeout_;
+        break;
+      default:
+        return 0;
+    }
+    return 0;
+  }
+#endif
+
+  int moving_sensitivities[NUM_GATES] = {0};
+  int still_sensitivities[NUM_GATES] = {0};
 
   int32_t last_periodic_millis = millis();
 
@@ -115,6 +163,10 @@ class LD2410Component : public Component, public uart::UARTDevice {
   binary_sensor::BinarySensor *target_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *moving_binary_sensor_{nullptr};
   binary_sensor::BinarySensor *still_binary_sensor_{nullptr};
+#endif
+#ifdef USE_TEXT_SENSOR
+  text_sensor::TextSensor *fw_version_sensor_{nullptr};
+  text_sensor::TextSensor *info_query_sensor_{nullptr};
 #endif
 
   std::vector<uint8_t> rx_buffer_;
@@ -135,11 +187,10 @@ class LD2410Component : public Component, public uart::UARTDevice {
   uint8_t max_move_distance_;
   uint8_t max_still_distance_;
 
-  uint8_t version_[6];
-  uint8_t rg0_move_threshold_, rg0_still_threshold_, rg1_move_threshold_, rg1_still_threshold_, rg2_move_threshold_,
-      rg2_still_threshold_, rg3_move_threshold_, rg3_still_threshold_, rg4_move_threshold_, rg4_still_threshold_,
-      rg5_move_threshold_, rg5_still_threshold_, rg6_move_threshold_, rg6_still_threshold_, rg7_move_threshold_,
-      rg7_still_threshold_, rg8_move_threshold_, rg8_still_threshold_;
+  uint8_t version_major_{0};
+  uint8_t version_minor_{0};
+  uint32_t version_build_{0};
+  uint8_t rg_move_threshold_[NUM_GATES], rg_still_threshold_[NUM_GATES];
 };
 
 }  // namespace ld2410
