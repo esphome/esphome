@@ -24,6 +24,7 @@ ATTENUATION_MODES = {
 }
 
 adc1_channel_t = cg.global_ns.enum("adc1_channel_t")
+adc2_channel_t = cg.global_ns.enum("adc2_channel_t")
 
 # From https://github.com/espressif/esp-idf/blob/master/components/driver/include/driver/adc_common.h
 # pin to adc1 channel mapping
@@ -78,6 +79,49 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
     },
 }
 
+ESP32_VARIANT_ADC2_PIN_TO_CHANNEL = {
+    # TODO: add other variants
+    VARIANT_ESP32: {
+        4: adc2_channel_t.ADC2_CHANNEL_0,
+        0: adc2_channel_t.ADC2_CHANNEL_1,
+        2: adc2_channel_t.ADC2_CHANNEL_2,
+        15: adc2_channel_t.ADC2_CHANNEL_3,
+        13: adc2_channel_t.ADC2_CHANNEL_4,
+        12: adc2_channel_t.ADC2_CHANNEL_5,
+        14: adc2_channel_t.ADC2_CHANNEL_6,
+        27: adc2_channel_t.ADC2_CHANNEL_7,
+        25: adc2_channel_t.ADC2_CHANNEL_8,
+        26: adc2_channel_t.ADC2_CHANNEL_9,
+    },
+    VARIANT_ESP32S2: {
+        11: adc2_channel_t.ADC2_CHANNEL_0,
+        12: adc2_channel_t.ADC2_CHANNEL_1,
+        13: adc2_channel_t.ADC2_CHANNEL_2,
+        14: adc2_channel_t.ADC2_CHANNEL_3,
+        15: adc2_channel_t.ADC2_CHANNEL_4,
+        16: adc2_channel_t.ADC2_CHANNEL_5,
+        17: adc2_channel_t.ADC2_CHANNEL_6,
+        18: adc2_channel_t.ADC2_CHANNEL_7,
+        19: adc2_channel_t.ADC2_CHANNEL_8,
+        20: adc2_channel_t.ADC2_CHANNEL_9,
+    },
+    VARIANT_ESP32S3: {
+        11: adc2_channel_t.ADC2_CHANNEL_0,
+        12: adc2_channel_t.ADC2_CHANNEL_1,
+        13: adc2_channel_t.ADC2_CHANNEL_2,
+        14: adc2_channel_t.ADC2_CHANNEL_3,
+        15: adc2_channel_t.ADC2_CHANNEL_4,
+        16: adc2_channel_t.ADC2_CHANNEL_5,
+        17: adc2_channel_t.ADC2_CHANNEL_6,
+        18: adc2_channel_t.ADC2_CHANNEL_7,
+        19: adc2_channel_t.ADC2_CHANNEL_8,
+        20: adc2_channel_t.ADC2_CHANNEL_9,
+    },
+    VARIANT_ESP32C3: {
+        5: adc2_channel_t.ADC2_CHANNEL_0,
+    },
+}
+
 
 def validate_adc_pin(value):
     if str(value).upper() == "VCC":
@@ -89,11 +133,18 @@ def validate_adc_pin(value):
     if CORE.is_esp32:
         value = pins.internal_gpio_input_pin_number(value)
         variant = get_esp32_variant()
-        if variant not in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL:
+        if (
+            variant not in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL
+            and variant not in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL
+        ):
             raise cv.Invalid(f"This ESP32 variant ({variant}) is not supported")
 
-        if value not in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant]:
+        if (
+            value not in ESP32_VARIANT_ADC1_PIN_TO_CHANNEL[variant]
+            and value not in ESP32_VARIANT_ADC2_PIN_TO_CHANNEL[variant]
+        ):
             raise cv.Invalid(f"{variant} doesn't support ADC on this pin")
+
         return pins.internal_gpio_input_pin_schema(value)
 
     if CORE.is_esp8266:
@@ -104,7 +155,7 @@ def validate_adc_pin(value):
         )
 
         if value != 17:  # A0
-            raise cv.Invalid("ESP8266: Only pin A0 (GPIO17) supports ADC.")
+            raise cv.Invalid("ESP8266: Only pin A0 (GPIO17) supports ADC")
         return pins.gpio_pin_schema(
             {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
         )(value)
@@ -112,7 +163,7 @@ def validate_adc_pin(value):
     if CORE.is_rp2040:
         value = pins.internal_gpio_input_pin_number(value)
         if value not in (26, 27, 28, 29):
-            raise cv.Invalid("RP2040: Only pins 26, 27, 28 and 29 support ADC.")
+            raise cv.Invalid("RP2040: Only pins 26, 27, 28 and 29 support ADC")
         return pins.internal_gpio_input_pin_schema(value)
 
     raise NotImplementedError
