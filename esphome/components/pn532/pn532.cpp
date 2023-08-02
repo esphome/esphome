@@ -176,14 +176,16 @@ void PN532::loop() {
       return;
     }
   } else {
-    uint8_t resp_length = read[1];
-    if (read.size() < 18U) {
+    uint8_t resp_length = read[2];
+    if (read.size() < 20U || resp_length < 18U) {
       // oops, pn532 returned invalid data
       return;
     }
     // felica has static 8 byte id lengths
     nfcid.assign(read.begin() + 4, read.begin() + 4 + 8);
 
+    // reading the trip history causes the apple wallet ui
+    // to stop infinite spinning and show a green checkmark
     std::vector<uint8_t> service_data;
     read_felica_service_(nfcid, {0x090f}, service_data);
   }
@@ -410,13 +412,13 @@ bool PN532::read_felica_service_(const std::vector<uint8_t> &uid, const std::vec
   });
   data.insert(data.end(), uid.begin(), uid.end());
   data.push_back(service_code.size());
-  for (auto i = service_code.begin(); i != service_code.end(); i++) {
-    data.push_back(*i & 0xff);
-    data.push_back((*i >> 8) & 0xff);
+  for (uint16_t i : service_code) {
+    data.push_back(i & 0xff);
+    data.push_back((i >> 8) & 0xff);
   }
   data[2] = data.size() - 2;
 
-  if (!this->write_command_(service_data)) {
+  if (!this->write_command_(data)) {
     ESP_LOGE(TAG, "Error writing request service");
     return false;
   }
