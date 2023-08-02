@@ -145,7 +145,9 @@ void I2SAudioMicrophone::loop() {
       this->start_();
       break;
     case microphone::STATE_RUNNING:
-      this->read_();
+      if (this->data_callbacks_.size() > 0) {
+        this->read_();
+      }
       break;
     case microphone::STATE_STOPPING:
       this->stop_();
