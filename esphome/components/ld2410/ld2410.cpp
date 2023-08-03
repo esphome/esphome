@@ -32,10 +32,14 @@ void LD2410Component::dump_config() {
 void LD2410Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up LD2410...");
   this->set_config_mode_(true);
-  this->set_max_distances_timeout_(this->max_move_distance_, this->max_still_distance_, this->timeout_);
-  // Configure Gates sensitivity
-  for (int i = 0; i < NUM_GATES; i++) {
-    this->set_gate_threshold_(i, this->rg_move_threshold_[i], this->rg_still_threshold_[i]);
+  if (this->restore_settings_) {
+    this->query_parameters_();
+  } else {
+    this->set_max_distances_timeout_(this->max_move_distance_, this->max_still_distance_, this->timeout_);
+    // Configure Gates sensitivity
+    for (int i = 0; i < NUM_GATES; i++) {
+      this->set_gate_threshold_(i, this->rg_move_threshold_[i], this->rg_still_threshold_[i]);
+    }
   }
   this->get_version_();
   this->set_config_mode_(false);
@@ -223,32 +227,31 @@ void LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
         Moving Sensitivities: 15~23th bytes
         Still Sensitivities: 24~32th bytes
       */
+      max_move_distance_ = buffer[12];
+      max_still_distance_ = buffer[13];
+      timeout_ = buffer[32] + (buffer[33] << 8);
 #ifdef USE_TEXT_SENSOR
       if (this->info_query_sensor_ != nullptr) {
         msgcnt += snprintf(msg + msgcnt, 200 - msgcnt,
-                           "Max Moving Distance:%u; Max Still Distance:%u; Moving: ", buffer[12], buffer[13]);
+                           "Max Move Distance:%u; Max Still Distance:%u; Timeout:%u; <Move Still>:", max_move_distance_,
+                           max_still_distance_, timeout_);
       }
+      maxdist_move_number_cb_->publish_state((float) max_move_distance_);
+      maxdist_still_number_cb_->publish_state((float) max_still_distance_);
+      timeout_number_cb_->publish_state((float) timeout_);
 #endif
       for (int i = 0; i < NUM_GATES; i++) {
-        moving_sensitivities[i] = buffer[14 + i];
+        rg_move_threshold_[i] = buffer[14 + i];
+        rg_still_threshold_[i] = buffer[23 + i];
 #ifdef USE_TEXT_SENSOR
         if (this->info_query_sensor_ != nullptr) {
           msgcnt +=
-              snprintf(msg + msgcnt, 200 - msgcnt, "%u%c", moving_sensitivities[i], i == (NUM_GATES - 1) ? ';' : ',');
+              snprintf(msg + msgcnt, 200 - msgcnt, " Gate%u<%u %u>", i, rg_move_threshold_[i], rg_still_threshold_[i]);
         }
-#endif
-      }
-#ifdef USE_TEXT_SENSOR
-      if (this->info_query_sensor_ != nullptr)
-        msgcnt += snprintf(msg + msgcnt, 200 - msgcnt, " Still: ");
-#endif
-      for (int i = 0; i < NUM_GATES; i++) {
-        still_sensitivities[i] = buffer[23 + i];
-#ifdef USE_TEXT_SENSOR
-        if (this->info_query_sensor_ != nullptr) {
-          msgcnt +=
-              snprintf(msg + msgcnt, 200 - msgcnt, "%u%c", still_sensitivities[i], i == (NUM_GATES - 1) ? ';' : ',');
-        }
+        if (thres_move_number_cb_[i])
+          thres_move_number_cb_[i]->publish_state(rg_move_threshold_[i]);
+        if (thres_still_number_cb_[i])
+          thres_still_number_cb_[i]->publish_state(rg_still_threshold_[i]);
 #endif
       }
 #ifdef USE_TEXT_SENSOR
@@ -384,6 +387,32 @@ void LD2410Component::set_max_distances_timeout(enum LD2410NumType type, uint16_
   this->set_config_mode_(true);
   set_max_distances_timeout_(move_dist, still_dist, timeo);
   this->set_config_mode_(false);
+}
+
+void LD2410Component::set_number_cb(uint8_t gate, enum LD2410NumType type, number::Number *cb) {
+  switch (type) {
+    case LD2410_MAXDIST_MOVE:
+      maxdist_move_number_cb_ = cb;
+      break;
+    case LD2410_MAXDIST_STILL:
+      maxdist_still_number_cb_ = cb;
+      break;
+    case LD2410_TIMEOUT:
+      timeout_number_cb_ = cb;
+      break;
+    case LD2410_THRES_MOVE:
+      if (gate >= NUM_GATES)
+        return;
+      thres_move_number_cb_[gate] = cb;
+      break;
+    case LD2410_THRES_STILL:
+      if (gate >= NUM_GATES)
+        return;
+      thres_still_number_cb_[gate] = cb;
+      break;
+    default:
+      return;
+  }
 }
 #endif
 

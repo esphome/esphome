@@ -10,6 +10,9 @@
 #ifdef USE_TEXT_SENSOR
 #include "esphome/components/text_sensor/text_sensor.h"
 #endif
+#ifdef USE_NUMBER
+#include "esphome/components/number/number.h"
+#endif
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
@@ -123,9 +126,10 @@ class LD2410Component : public Component, public uart::UARTDevice {
     this->rg_move_threshold_[8] = rg8_move;
     this->rg_still_threshold_[8] = rg8_still;
   };
-
+  void set_restore_settings(bool restore) { this->restore_settings_ = restore; };
   void query_parameters();
 #ifdef USE_NUMBER
+  void set_number_cb(uint8_t gate, enum LD2410NumType type, number::Number *cb);
   void set_threshold(uint8_t gate, enum LD2410NumType type, uint8_t thres);
   void set_max_distances_timeout(enum LD2410NumType type, uint16_t value);
   uint8_t get_threshold(uint8_t gate, enum LD2410NumType type) {
@@ -153,9 +157,6 @@ class LD2410Component : public Component, public uart::UARTDevice {
   }
 #endif
 
-  int moving_sensitivities[NUM_GATES] = {0};
-  int still_sensitivities[NUM_GATES] = {0};
-
   int32_t last_periodic_millis = millis();
 
  protected:
@@ -168,7 +169,13 @@ class LD2410Component : public Component, public uart::UARTDevice {
   text_sensor::TextSensor *fw_version_sensor_{nullptr};
   text_sensor::TextSensor *info_query_sensor_{nullptr};
 #endif
-
+#ifdef USE_NUMBER
+  number::Number *thres_move_number_cb_[NUM_GATES]{nullptr};
+  number::Number *thres_still_number_cb_[NUM_GATES]{nullptr};
+  number::Number *maxdist_move_number_cb_{nullptr};
+  number::Number *maxdist_still_number_cb_{nullptr};
+  number::Number *timeout_number_cb_{nullptr};
+#endif
   std::vector<uint8_t> rx_buffer_;
   int two_byte_to_int_(char firstbyte, char secondbyte) { return (int16_t) (secondbyte << 8) + firstbyte; }
   void send_command_(uint8_t command_str, uint8_t *command_value, int command_value_len);
@@ -191,6 +198,7 @@ class LD2410Component : public Component, public uart::UARTDevice {
   uint8_t version_minor_{0};
   uint32_t version_build_{0};
   uint8_t rg_move_threshold_[NUM_GATES], rg_still_threshold_[NUM_GATES];
+  bool restore_settings_{false};
 };
 
 }  // namespace ld2410
