@@ -3,8 +3,10 @@
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
 #include "esphome/core/preferences.h"
-#include "esphome/components/binary_sensor/binary_sensor.h"
 #include "esphome/components/sensor/sensor.h"
+#ifdef USE_BINARY_SENSOR
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#endif
 
 namespace esphome {
 namespace duty_time_sensor {
@@ -22,8 +24,10 @@ class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
   bool is_running() const { return this->last_state_; }
   void reset() { this->set_value_(0); }
 
-  void set_lambda(std::function<bool()> &&func) { this->func_ = func; }
+#ifdef USE_BINARY_SENSOR
   void set_sensor(binary_sensor::BinarySensor *sensor);
+#endif
+  void set_lambda(std::function<bool()> &&func) { this->func_ = func; }
   void set_last_duty_time_sensor(sensor::Sensor *sensor) { this->last_duty_time_sensor_ = sensor; }
   void set_restore(bool restore) { this->restore_ = restore; }
 
@@ -43,44 +47,26 @@ class DutyTimeSensor : public sensor::Sensor, public PollingComponent {
   bool restore_;
 };
 
-template<typename... Ts> class StartAction : public Action<Ts...> {
- public:
-  explicit StartAction(DutyTimeSensor *parent) : parent_(parent) {}
+template<typename... Ts> class BaseAction : public Action<Ts...>, public Parented<DutyTimeSensor> {};
 
+template<typename... Ts> class StartAction : public BaseAction<Ts...> {
   void play(Ts... x) override { this->parent_->start(); }
-
- protected:
-  DutyTimeSensor *parent_;
 };
 
-template<typename... Ts> class StopAction : public Action<Ts...> {
- public:
-  explicit StopAction(DutyTimeSensor *parent) : parent_(parent) {}
-
+template<typename... Ts> class StopAction : public BaseAction<Ts...> {
   void play(Ts... x) override { this->parent_->stop(); }
-
- protected:
-  DutyTimeSensor *parent_;
 };
 
-template<typename... Ts> class ResetAction : public Action<Ts...> {
- public:
-  explicit ResetAction(DutyTimeSensor *parent) : parent_(parent) {}
-
+template<typename... Ts> class ResetAction : public BaseAction<Ts...> {
   void play(Ts... x) override { this->parent_->reset(); }
-
- protected:
-  DutyTimeSensor *parent_;
 };
 
-template<typename... Ts> class RunningCondition : public Condition<Ts...> {
+template<typename... Ts> class RunningCondition : public Condition<Ts...>, public Parented<DutyTimeSensor> {
  public:
-  explicit RunningCondition(DutyTimeSensor *parent, bool state) : parent_(parent), state_(state) {}
-
-  bool check(Ts... x) override { return this->parent_->is_running() == this->state_; }
+  explicit RunningCondition(DutyTimeSensor *parent, bool state) : Parented(parent), state_(state) {}
 
  protected:
-  DutyTimeSensor *parent_;
+  bool check(Ts... x) override { return this->parent_->is_running() == this->state_; }
   bool state_;
 };
 

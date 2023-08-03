@@ -124,29 +124,29 @@ async def to_code(config):
     await cg.register_component(var, config)
     await spi.register_spi_device(var, config)
 
-    if CONF_VOLTAGE in config:
-        sens = await sensor.new_sensor(config[CONF_VOLTAGE])
+    if voltage_config := config.get(CONF_VOLTAGE):
+        sens = await sensor.new_sensor(voltage_config)
         cg.add(var.set_voltage_sensor(sens))
-    if CONF_CURRENT in config:
-        sens = await sensor.new_sensor(config[CONF_CURRENT])
+    if current_config := config.get(CONF_CURRENT):
+        sens = await sensor.new_sensor(current_config)
         cg.add(var.set_current_sensor(sens))
-    if CONF_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_POWER])
+    if power_config := config.get(CONF_POWER):
+        sens = await sensor.new_sensor(power_config)
         cg.add(var.set_power_sensor(sens))
-    if CONF_REACTIVE_POWER in config:
-        sens = await sensor.new_sensor(config[CONF_REACTIVE_POWER])
+    if reactive_power_config := config.get(CONF_REACTIVE_POWER):
+        sens = await sensor.new_sensor(reactive_power_config)
         cg.add(var.set_reactive_power_sensor(sens))
-    if CONF_POWER_FACTOR in config:
-        sens = await sensor.new_sensor(config[CONF_POWER_FACTOR])
+    if power_factor_config := config.get(CONF_POWER_FACTOR):
+        sens = await sensor.new_sensor(power_factor_config)
         cg.add(var.set_power_factor_sensor(sens))
-    if CONF_FORWARD_ACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_FORWARD_ACTIVE_ENERGY])
+    if forward_active_energy_config := config.get(CONF_FORWARD_ACTIVE_ENERGY):
+        sens = await sensor.new_sensor(forward_active_energy_config)
         cg.add(var.set_forward_active_energy_sensor(sens))
-    if CONF_REVERSE_ACTIVE_ENERGY in config:
-        sens = await sensor.new_sensor(config[CONF_REVERSE_ACTIVE_ENERGY])
+    if reverse_active_energy_config := config.get(CONF_REVERSE_ACTIVE_ENERGY):
+        sens = await sensor.new_sensor(reverse_active_energy_config)
         cg.add(var.set_reverse_active_energy_sensor(sens))
-    if CONF_FREQUENCY in config:
-        sens = await sensor.new_sensor(config[CONF_FREQUENCY])
+    if frequency_config := config.get(CONF_FREQUENCY):
+        sens = await sensor.new_sensor(frequency_config)
         cg.add(var.set_freq_sensor(sens))
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_meter_constant(config[CONF_METER_CONSTANT]))
