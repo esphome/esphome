@@ -127,31 +127,31 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
     cg.add(var.set_restore_settings(config[CONF_RESTORE_SETTINGS]))
     if not config[CONF_RESTORE_SETTINGS]:
-      cg.add(var.set_timeout(config[CONF_TIMEOUT]))
-      cg.add(var.set_max_move_distance(int(config[CONF_MAX_MOVE_DISTANCE] / 0.75)))
-      cg.add(var.set_max_still_distance(int(config[CONF_MAX_STILL_DISTANCE] / 0.75)))
-      cg.add(
-          var.set_range_config(
-              config[CONF_G0_MOVE_THRESHOLD],
-              config[CONF_G0_STILL_THRESHOLD],
-              config[CONF_G1_MOVE_THRESHOLD],
-              config[CONF_G1_STILL_THRESHOLD],
-              config[CONF_G2_MOVE_THRESHOLD],
-              config[CONF_G2_STILL_THRESHOLD],
-              config[CONF_G3_MOVE_THRESHOLD],
-              config[CONF_G3_STILL_THRESHOLD],
-              config[CONF_G4_MOVE_THRESHOLD],
-              config[CONF_G4_STILL_THRESHOLD],
-              config[CONF_G5_MOVE_THRESHOLD],
-              config[CONF_G5_STILL_THRESHOLD],
-              config[CONF_G6_MOVE_THRESHOLD],
-              config[CONF_G6_STILL_THRESHOLD],
-              config[CONF_G7_MOVE_THRESHOLD],
-              config[CONF_G7_STILL_THRESHOLD],
-              config[CONF_G8_MOVE_THRESHOLD],
-              config[CONF_G8_STILL_THRESHOLD],
-          )
-      )
+        cg.add(var.set_timeout(config[CONF_TIMEOUT]))
+        cg.add(var.set_max_move_distance(int(config[CONF_MAX_MOVE_DISTANCE] / 0.75)))
+        cg.add(var.set_max_still_distance(int(config[CONF_MAX_STILL_DISTANCE] / 0.75)))
+        cg.add(
+            var.set_range_config(
+                config[CONF_G0_MOVE_THRESHOLD],
+                config[CONF_G0_STILL_THRESHOLD],
+                config[CONF_G1_MOVE_THRESHOLD],
+                config[CONF_G1_STILL_THRESHOLD],
+                config[CONF_G2_MOVE_THRESHOLD],
+                config[CONF_G2_STILL_THRESHOLD],
+                config[CONF_G3_MOVE_THRESHOLD],
+                config[CONF_G3_STILL_THRESHOLD],
+                config[CONF_G4_MOVE_THRESHOLD],
+                config[CONF_G4_STILL_THRESHOLD],
+                config[CONF_G5_MOVE_THRESHOLD],
+                config[CONF_G5_STILL_THRESHOLD],
+                config[CONF_G6_MOVE_THRESHOLD],
+                config[CONF_G6_STILL_THRESHOLD],
+                config[CONF_G7_MOVE_THRESHOLD],
+                config[CONF_G7_STILL_THRESHOLD],
+                config[CONF_G8_MOVE_THRESHOLD],
+                config[CONF_G8_STILL_THRESHOLD],
+            )
+        )
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
