@@ -162,6 +162,13 @@ void MQTTComponent::subscribe_json(const std::string &topic, const mqtt_json_cal
 
 MQTTComponent::MQTTComponent() = default;
 
+void MQTTComponent::set_internal_mqtt(bool option) {
+  if (option)
+    this->internal_mqtt_ = MQTT_INTERNAL;  // force entity to be internal wrt MQTT; i.e., never publish the entity
+  else
+    this->internal_mqtt_ = MQTT_EXTERNAL;  // force entity to be external wrt MQTT; i.e., always publish the entity
+}
+
 float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
 void MQTTComponent::disable_discovery() { this->discovery_enabled_ = false; }
 void MQTTComponent::set_custom_state_topic(const std::string &custom_state_topic) {
@@ -235,7 +242,25 @@ bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connec
 std::string MQTTComponent::friendly_name() const { return this->get_entity()->get_name(); }
 std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
 bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
-bool MQTTComponent::is_internal() { return this->get_entity()->is_internal(); }
+bool MQTTComponent::is_internal() {
+  if (this->internal_mqtt_ != MQTT_COPY) {
+    // internal_mqtt_ has been configured, always use it's setting
+    if (this->internal_mqtt_ == MQTT_INTERNAL)
+      return true;
+    else
+      return false;
+  } else {
+    // internal_mqtt_ hasn't been configured, so follow the global MQTT default
+    switch (global_mqtt_client->get_internal_mqtt_default()) {
+      case MQTT_INTERNAL:
+        return true;
+      case MQTT_EXTERNAL:
+        return false;
+      default:
+        return this->get_entity()->is_internal();
+    }
+  }
+}
 
 }  // namespace mqtt
 }  // namespace esphome

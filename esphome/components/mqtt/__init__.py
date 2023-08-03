@@ -19,6 +19,8 @@ from esphome.const import (
     CONF_DISCOVERY_UNIQUE_ID_GENERATOR,
     CONF_DISCOVERY_OBJECT_ID_GENERATOR,
     CONF_ID,
+    CONF_INTERNAL_MQTT,
+    CONF_INTERNAL_MQTT_DEFAULT,
     CONF_KEEPALIVE,
     CONF_LEVEL,
     CONF_LOG_TOPIC,
@@ -124,6 +126,13 @@ MQTT_DISCOVERY_OBJECT_ID_GENERATOR_OPTIONS = {
     "device_name": MQTTDiscoveryObjectIdGenerator.MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
 }
 
+MQTTInternalOptions = mqtt_ns.enum("MQTTInternalOptions")
+MQTT_INTERNAL_OPTIONS = {
+    "internal": MQTTInternalOptions.MQTT_INTERNAL,
+    "external": MQTTInternalOptions.MQTT_EXTERNAL,
+    "copy": MQTTInternalOptions.MQTT_COPY,
+}
+
 
 def validate_config(value):
     # Populate default fields
@@ -201,6 +210,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_BIRTH_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_WILL_MESSAGE): MQTT_MESSAGE_SCHEMA,
             cv.Optional(CONF_SHUTDOWN_MESSAGE): MQTT_MESSAGE_SCHEMA,
+            cv.Optional(CONF_INTERNAL_MQTT_DEFAULT, default="copy"): cv.enum(
+                MQTT_INTERNAL_OPTIONS, lower=True
+            ),
             cv.Optional(CONF_TOPIC_PREFIX, default=lambda: CORE.name): cv.publish_topic,
             cv.Optional(CONF_LOG_TOPIC): cv.Any(
                 None,
@@ -335,6 +347,9 @@ async def to_code(config):
     else:
         cg.add(var.set_shutdown_message(exp_mqtt_message(shutdown_message)))
 
+    if CONF_INTERNAL_MQTT_DEFAULT in config:
+        cg.add(var.set_internal_mqtt_default(config[CONF_INTERNAL_MQTT_DEFAULT]))
+
     log_topic = config[CONF_LOG_TOPIC]
     if not log_topic:
         cg.add(var.disable_log_message())
@@ -462,6 +477,8 @@ async def register_mqtt_component(var, config):
 
     if CONF_RETAIN in config:
         cg.add(var.set_retain(config[CONF_RETAIN]))
+    if CONF_INTERNAL_MQTT in config:
+        cg.add(var.set_internal_mqtt(config[CONF_INTERNAL_MQTT]))
     if not config.get(CONF_DISCOVERY, True):
         cg.add(var.disable_discovery())
     if CONF_STATE_TOPIC in config:

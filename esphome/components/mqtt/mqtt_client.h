@@ -70,6 +70,13 @@ enum MQTTDiscoveryObjectIdGenerator {
   MQTT_DEVICE_NAME_OBJECT_ID_GENERATOR,
 };
 
+/// Available options for setting an entity internal with respect to MQTT publishing
+enum MQTTInternalOptions {
+  MQTT_INTERNAL,
+  MQTT_EXTERNAL,
+  MQTT_COPY,  // copy the entity's internal setting
+};
+
 /** Internal struct for MQTT Home Assistant discovery
  *
  * See <a href="https://www.home-assistant.io/docs/mqtt/discovery/">MQTT Discovery</a>.
@@ -250,6 +257,9 @@ class MQTTClientComponent : public Component {
   void set_on_connect(mqtt_on_connect_callback_t &&callback);
   void set_on_disconnect(mqtt_on_disconnect_callback_t &&callback);
 
+  MQTTInternalOptions get_internal_mqtt_default() { return this->internal_mqtt_default_; }
+  void set_internal_mqtt_default(MQTTInternalOptions option) { this->internal_mqtt_default_ = option; }
+
  protected:
   void send_device_info_();
 
@@ -310,8 +320,9 @@ class MQTTClientComponent : public Component {
   uint32_t reboot_timeout_{300000};
   uint32_t connect_begin_;
   uint32_t last_connected_{0};
+  MQTTInternalOptions internal_mqtt_default_{};
   optional<MQTTClientDisconnectReason> disconnect_reason_{};
-};
+};  // namespace mqtt
 
 extern MQTTClientComponent *global_mqtt_client;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 

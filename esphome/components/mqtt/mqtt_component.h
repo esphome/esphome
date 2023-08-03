@@ -87,6 +87,9 @@ class MQTTComponent : public Component {
   /// Override this method to return the component type (e.g. "light", "sensor", ...)
   virtual std::string component_type() const = 0;
 
+  /// Set MQTT entity to be internal; i.e., do not publish sensor via MQTT
+  void set_internal_mqtt(bool option);
+
   /// Set a custom state topic. Set to "" for default behavior.
   void set_custom_state_topic(const std::string &custom_state_topic);
   /// Set a custom command topic. Set to "" for default behavior.
@@ -190,11 +193,15 @@ class MQTTComponent : public Component {
 
   std::string custom_state_topic_{};
   std::string custom_command_topic_{};
+
   bool command_retain_{false};
   bool retain_{true};
   bool discovery_enabled_{true};
   std::unique_ptr<Availability> availability_;
   bool resend_state_{false};
+
+  /// Whether to publish the MQTT or not; defaults to copy the entity's internal state
+  MQTTInternalOptions internal_mqtt_{MQTT_COPY};
 };
 
 }  // namespace mqtt
