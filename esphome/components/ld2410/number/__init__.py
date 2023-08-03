@@ -17,8 +17,8 @@ LD2410Number = ld2410_ns.class_("LD2410Number", number.Number, cg.Component)
 LD2410NumType = ld2410_ns.enum("LD2410NumType")
 
 THRESHOLD_TYPE = {
-    "move" : LD2410NumType.LD2410_THRES_MOVE,
-    "still" : LD2410NumType.LD2410_THRES_STILL,
+    "move": LD2410NumType.LD2410_THRES_MOVE,
+    "still": LD2410NumType.LD2410_THRES_STILL,
 }
 
 CONF_GATE_NUM = "gate_num"
@@ -36,9 +36,7 @@ THRES_SCHEMA = cv.All(
     .extend(cv.COMPONENT_SCHEMA)
 )
 
-DIST_SCHEMA = cv.All(
-    number.number_schema(LD2410Number).extend(cv.COMPONENT_SCHEMA)
-)
+DIST_SCHEMA = cv.All(number.number_schema(LD2410Number).extend(cv.COMPONENT_SCHEMA))
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -52,7 +50,6 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def to_code(config):
-
     paren = await cg.get_variable(config[CONF_LD2410_ID])
 
     if CONF_THRESHOLD in config.keys():
@@ -62,9 +59,9 @@ async def to_code(config):
             await number.register_number(
                 var,
                 dev,
-                min_value = 0,
-                max_value = 100,
-                step = 1,
+                min_value=0,
+                max_value=100,
+                step=1,
             )
             cg.add(var.set_ld2410_parent(paren))
             cg.add(paren.set_number_cb(dev[CONF_GATE_NUM], dev[CONF_TYPE], var))
@@ -76,9 +73,9 @@ async def to_code(config):
         await number.register_number(
             var,
             dev,
-            min_value = 1,
-            max_value = 3600,
-            step = 1,
+            min_value=1,
+            max_value=3600,
+            step=1,
         )
         cg.add(var.set_ld2410_parent(paren))
         cg.add(paren.set_number_cb(-1, LD2410NumType.LD2410_TIMEOUT, var))
@@ -90,9 +87,9 @@ async def to_code(config):
         await number.register_number(
             var,
             dev,
-            min_value = 1,
-            max_value = 8,
-            step = 1,
+            min_value=1,
+            max_value=8,
+            step=1,
         )
         cg.add(var.set_ld2410_parent(paren))
         cg.add(paren.set_number_cb(-1, LD2410NumType.LD2410_MAXDIST_STILL, var))
@@ -104,9 +101,9 @@ async def to_code(config):
         await number.register_number(
             var,
             dev,
-            min_value = 1,
-            max_value = 8,
-            step = 1,
+            min_value=1,
+            max_value=8,
+            step=1,
         )
         cg.add(var.set_ld2410_parent(paren))
         cg.add(paren.set_number_cb(-1, LD2410NumType.LD2410_MAXDIST_MOVE, var))
