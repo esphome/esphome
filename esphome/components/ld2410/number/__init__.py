@@ -74,6 +74,7 @@ async def to_code(config):
               step=1,
           )
           cg.add(var.set_ld2410_parent(paren))
+          cg.add(paren.set_number_cb(dev[CONF_GATE_NUM], dev[CONF_TYPE], var))
 
     if CONF_TIMEOUT in config.keys():
       dev = config[CONF_TIMEOUT]
@@ -87,6 +88,7 @@ async def to_code(config):
           step=1,
       )
       cg.add(var.set_ld2410_parent(paren))
+      cg.add(paren.set_number_cb(-1, LD2410NumType.LD2410_TIMEOUT, var))
 
     if CONF_MAXDIST_STILL in config.keys():
       dev = config[CONF_MAXDIST_STILL]
@@ -100,6 +102,7 @@ async def to_code(config):
           step=1,
       )
       cg.add(var.set_ld2410_parent(paren))
+      cg.add(paren.set_number_cb(-1, LD2410NumType.LD2410_MAXDIST_STILL, var))
 
     if CONF_MAXDIST_MOVE in config.keys():
       dev = config[CONF_MAXDIST_MOVE]
@@ -113,4 +116,5 @@ async def to_code(config):
           step=1,
       )
       cg.add(var.set_ld2410_parent(paren))
+      cg.add(paren.set_number_cb(-1, LD2410NumType.LD2410_MAXDIST_MOVE, var))
 

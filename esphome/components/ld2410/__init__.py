@@ -33,6 +33,7 @@ CONF_G7_MOVE_THRESHOLD = "g7_move_threshold"
 CONF_G7_STILL_THRESHOLD = "g7_still_threshold"
 CONF_G8_MOVE_THRESHOLD = "g8_move_threshold"
 CONF_G8_STILL_THRESHOLD = "g8_still_threshold"
+CONF_RESTORE_SETTINGS = "restore_settings"
 
 DISTANCES = [0.75, 1.5, 2.25, 3, 3.75, 4.5, 5.25, 6]
 
@@ -104,6 +105,7 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_G8_STILL_THRESHOLD, default=15): cv.int_range(
                 min=0, max=100
             ),
+            cv.Optional(CONF_RESTORE_SETTINGS, default=False): cv.boolean,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -123,31 +125,33 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
-    cg.add(var.set_timeout(config[CONF_TIMEOUT]))
-    cg.add(var.set_max_move_distance(int(config[CONF_MAX_MOVE_DISTANCE] / 0.75)))
-    cg.add(var.set_max_still_distance(int(config[CONF_MAX_STILL_DISTANCE] / 0.75)))
-    cg.add(
-        var.set_range_config(
-            config[CONF_G0_MOVE_THRESHOLD],
-            config[CONF_G0_STILL_THRESHOLD],
-            config[CONF_G1_MOVE_THRESHOLD],
-            config[CONF_G1_STILL_THRESHOLD],
-            config[CONF_G2_MOVE_THRESHOLD],
-            config[CONF_G2_STILL_THRESHOLD],
-            config[CONF_G3_MOVE_THRESHOLD],
-            config[CONF_G3_STILL_THRESHOLD],
-            config[CONF_G4_MOVE_THRESHOLD],
-            config[CONF_G4_STILL_THRESHOLD],
-            config[CONF_G5_MOVE_THRESHOLD],
-            config[CONF_G5_STILL_THRESHOLD],
-            config[CONF_G6_MOVE_THRESHOLD],
-            config[CONF_G6_STILL_THRESHOLD],
-            config[CONF_G7_MOVE_THRESHOLD],
-            config[CONF_G7_STILL_THRESHOLD],
-            config[CONF_G8_MOVE_THRESHOLD],
-            config[CONF_G8_STILL_THRESHOLD],
-        )
-    )
+    cg.add(var.set_restore_settings(config[CONF_RESTORE_SETTINGS]))
+    if not config[CONF_RESTORE_SETTINGS]:
+      cg.add(var.set_timeout(config[CONF_TIMEOUT]))
+      cg.add(var.set_max_move_distance(int(config[CONF_MAX_MOVE_DISTANCE] / 0.75)))
+      cg.add(var.set_max_still_distance(int(config[CONF_MAX_STILL_DISTANCE] / 0.75)))
+      cg.add(
+          var.set_range_config(
+              config[CONF_G0_MOVE_THRESHOLD],
+              config[CONF_G0_STILL_THRESHOLD],
+              config[CONF_G1_MOVE_THRESHOLD],
+              config[CONF_G1_STILL_THRESHOLD],
+              config[CONF_G2_MOVE_THRESHOLD],
+              config[CONF_G2_STILL_THRESHOLD],
+              config[CONF_G3_MOVE_THRESHOLD],
+              config[CONF_G3_STILL_THRESHOLD],
+              config[CONF_G4_MOVE_THRESHOLD],
+              config[CONF_G4_STILL_THRESHOLD],
+              config[CONF_G5_MOVE_THRESHOLD],
+              config[CONF_G5_STILL_THRESHOLD],
+              config[CONF_G6_MOVE_THRESHOLD],
+              config[CONF_G6_STILL_THRESHOLD],
+              config[CONF_G7_MOVE_THRESHOLD],
+              config[CONF_G7_STILL_THRESHOLD],
+              config[CONF_G8_MOVE_THRESHOLD],
+              config[CONF_G8_STILL_THRESHOLD],
+          )
+      )
 
 
 CALIBRATION_ACTION_SCHEMA = maybe_simple_id(
