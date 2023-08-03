@@ -7,7 +7,7 @@
 namespace esphome {
 namespace iaqcore {
 
-class IAQCore: public PollingComponent, public i2c::I2CDevice {
+class IAQCore : public PollingComponent, public i2c::I2CDevice {
  public:
   void set_co2(sensor::Sensor *co2) { co2_ = co2; }
   void set_tvoc(sensor::Sensor *tvoc) { tvoc_ = tvoc; }

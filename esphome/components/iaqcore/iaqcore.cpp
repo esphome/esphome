@@ -7,14 +7,7 @@ namespace iaqcore {
 
 static const char *const TAG = "iaqcore";
 
-
-enum IAQCoreErrorCode: uint8_t {
-  ERROR_OK = 0,
-  ERROR_RUNIN = 0x10,
-  ERROR_BUSY = 0x01,
-  ERROR_ERROR = 0x80
-};
-
+enum IAQCoreErrorCode : uint8_t { ERROR_OK = 0, ERROR_RUNIN = 0x10, ERROR_BUSY = 0x01, ERROR_ERROR = 0x80 };
 
 struct SensorData {
   uint16_t co2;
@@ -22,14 +15,13 @@ struct SensorData {
   int32_t resistance;
   uint16_t tvoc;
 
-  SensorData(uint8_t* buffer) {
+  SensorData(uint8_t *buffer) {
     this->co2 = (buffer[0] << 8) | buffer[1];
     this->status = static_cast<IAQCoreErrorCode>(buffer[2]);
     this->resistance = (buffer[3] << 24) | (buffer[4] << 16) | (buffer[5] << 8) | buffer[6];
     this->tvoc = (buffer[7] << 8) | buffer[8];
   }
 };
-
 
 void IAQCore::setup() {
   if (this->write(nullptr, 0) != i2c::ERROR_OK) {
@@ -38,7 +30,6 @@ void IAQCore::setup() {
     return;
   }
 }
-
 
 void IAQCore::update() {
   uint8_t buffer[sizeof(SensorData)];
@@ -83,7 +74,6 @@ void IAQCore::update() {
   this->status_clear_warning();
 }
 
-
 void IAQCore::publish_nans_() {
   if (this->co2_ != nullptr) {
     this->co2_->publish_state(NAN);
@@ -92,7 +82,6 @@ void IAQCore::publish_nans_() {
     this->tvoc_->publish_state(NAN);
   }
 }
-
 
 void IAQCore::dump_config() {
   ESP_LOGCONFIG(TAG, "AMS iAQ Core:");
@@ -105,5 +94,5 @@ void IAQCore::dump_config() {
   LOG_SENSOR("  ", "TVOC", this->tvoc_);
 }
 
-} // namespace iaqcore
-} // namespace esphome
+}  // namespace iaqcore
+}  // namespace esphome
