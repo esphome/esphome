@@ -3159,6 +3159,9 @@ text_sensor:
     tag_name: OPTARIF
     name: optarif
     teleinfo_id: myteleinfo
+  - platform: ld2410
+    fw_version:
+      name: FW Version
 
 sn74hc595:
   - id: sn74hc595_hub
@@ -3263,6 +3266,14 @@ number:
     step: 1
     max_value: 10
     optimistic: true
+  - platform: ld2410
+    threshold:
+      - gate_num: 0
+        type: move
+        name: Gate 0 Move Threshold
+      - gate_num: 8
+        type: still
+        name: Gate 8 Still Threshold
 
 select:
   - platform: template
