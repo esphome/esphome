@@ -126,7 +126,7 @@ PRESETS = cv.Schema(
             cv.Optional(CONF_TEMPERATURE): cv.temperature,
         },
         cv.Optional(CONF_SLEEP): {
-            cv.Optional(CONF_DATAPOINT): cv.uint8_t,
+            cv.Required(CONF_DATAPOINT): cv.uint8_t,
         },
     },
 )
@@ -146,7 +146,7 @@ SWING_MODES = cv.Schema(
     {
         cv.Optional(CONF_VERTICAL_DATAPOINT): cv.uint8_t,
         cv.Optional(CONF_HORIZONTAL_DATAPOINT): cv.uint8_t,
-    }
+    },
 )
 
 CONFIG_SCHEMA = cv.All(
@@ -204,116 +204,70 @@ async def to_code(config):
 
     cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
     cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
-    if CONF_SWITCH_DATAPOINT in config:
-        cg.add(var.set_switch_id(config[CONF_SWITCH_DATAPOINT]))
-    if CONF_ACTIVE_STATE in config:
-        active_state_config = config[CONF_ACTIVE_STATE]
-        if CONF_DATAPOINT in active_state_config:
-            cg.add(var.set_active_state_id(active_state_config[CONF_DATAPOINT]))
-            if CONF_HEATING_VALUE in active_state_config:
-                cg.add(
-                    var.set_active_state_heating_value(
-                        active_state_config[CONF_HEATING_VALUE]
-                    )
-                )
-            if CONF_COOLING_VALUE in active_state_config:
-                cg.add(
-                    var.set_active_state_cooling_value(
-                        active_state_config[CONF_COOLING_VALUE]
-                    )
-                )
-            if CONF_DRYING_VALUE in active_state_config:
-                cg.add(
-                    var.set_active_state_drying_value(
-                        active_state_config[CONF_DRYING_VALUE]
-                    )
-                )
-            if CONF_FANONLY_VALUE in active_state_config:
-                cg.add(
-                    var.set_active_state_fanonly_value(
-                        active_state_config[CONF_FANONLY_VALUE]
-                    )
-                )
+    if switch_datapoint := config.get(CONF_SWITCH_DATAPOINT):
+        cg.add(var.set_switch_id(switch_datapoint))
+
+    if active_state_config := config.get(CONF_ACTIVE_STATE):
+        cg.add(var.set_active_state_id(CONF_DATAPOINT))
+        if (heating_value := active_state_config.get(CONF_HEATING_VALUE)) is not None:
+            cg.add(var.set_active_state_heating_value(heating_value))
+        if (cooling_value := active_state_config.get(CONF_COOLING_VALUE)) is not None:
+            cg.add(var.set_active_state_cooling_value(cooling_value))
+        if (drying_value := active_state_config.get(CONF_DRYING_VALUE)) is not None:
+            cg.add(var.set_active_state_drying_value(drying_value))
+        if (fanonly_value := active_state_config.get(CONF_FANONLY_VALUE)) is not None:
+            cg.add(var.set_active_state_fanonly_value(fanonly_value))
     else:
-        if CONF_HEATING_STATE_PIN in config:
+        if heating_state_pin_config := config.get(CONF_HEATING_STATE_PIN):
             heating_state_pin = await cg.gpio_pin_expression(
-                config[CONF_HEATING_STATE_PIN]
+                config(heating_state_pin_config)
             )
             cg.add(var.set_heating_state_pin(heating_state_pin))
-        if CONF_COOLING_STATE_PIN in config:
+        if cooling_state_pin_config := config.get(CONF_COOLING_STATE_PIN):
             cooling_state_pin = await cg.gpio_pin_expression(
-                config[CONF_COOLING_STATE_PIN]
+                config(cooling_state_pin_config)
             )
             cg.add(var.set_cooling_state_pin(cooling_state_pin))
-    if CONF_TARGET_TEMPERATURE_DATAPOINT in config:
-        cg.add(var.set_target_temperature_id(config[CONF_TARGET_TEMPERATURE_DATAPOINT]))
-    if CONF_CURRENT_TEMPERATURE_DATAPOINT in config:
-        cg.add(
-            var.set_current_temperature_id(config[CONF_CURRENT_TEMPERATURE_DATAPOINT])
-        )
-    if CONF_TEMPERATURE_MULTIPLIER in config:
-        cg.add(
-            var.set_target_temperature_multiplier(config[CONF_TEMPERATURE_MULTIPLIER])
-        )
-        cg.add(
-            var.set_current_temperature_multiplier(config[CONF_TEMPERATURE_MULTIPLIER])
-        )
+
+    if target_temperature_datapoint := config.get(CONF_TARGET_TEMPERATURE_DATAPOINT):
+        cg.add(var.set_target_temperature_id(target_temperature_datapoint))
+    if current_temperature_datapoint := config.get(CONF_CURRENT_TEMPERATURE_DATAPOINT):
+        cg.add(var.set_current_temperature_id(current_temperature_datapoint))
+
+    if temperature_multiplier := config.get(CONF_TEMPERATURE_MULTIPLIER):
+        cg.add(var.set_target_temperature_multiplier(temperature_multiplier))
+        cg.add(var.set_current_temperature_multiplier(temperature_multiplier))
     else:
-        cg.add(
-            var.set_current_temperature_multiplier(
-                config[CONF_CURRENT_TEMPERATURE_MULTIPLIER]
-            )
-        )
-        cg.add(
-            var.set_target_temperature_multiplier(
-                config[CONF_TARGET_TEMPERATURE_MULTIPLIER]
-            )
-        )
+        cg.add(var.set_current_temperature_multiplier(temperature_multiplier))
+        cg.add(var.set_target_temperature_multiplier(temperature_multiplier))
+
     if config[CONF_REPORTS_FAHRENHEIT]:
         cg.add(var.set_reports_fahrenheit())
 
-    preset_config = config.get(CONF_PRESET, {})
-    if CONF_ECO in preset_config:
-        eco_config = preset_config[CONF_ECO]
-        eco_datapoint = eco_config.get(CONF_DATAPOINT)
-        if eco_datapoint is not None:
-            cg.add(var.set_eco_id(eco_datapoint))
-        eco_temperature = eco_config.get(CONF_TEMPERATURE)
-        if eco_temperature is not None:
-            cg.add(var.set_eco_temperature(eco_temperature))
+    if preset_config := config.get(CONF_PRESET, {}):
+        if eco_config := preset_config.get(CONF_ECO, {}):
+            cg.add(var.set_eco_id(CONF_DATAPOINT))
+            if eco_temperature := eco_config.get(CONF_TEMPERATURE):
+                cg.add(var.set_eco_temperature(eco_temperature))
+        if CONF_SLEEP in preset_config:
+            cg.add(var.set_sleep_id(CONF_DATAPOINT))
 
-    sleep_preset_config = preset_config.get(CONF_SLEEP, {})
-    sleep_datapoint = sleep_preset_config.get(CONF_DATAPOINT)
-    if sleep_datapoint is not None:
-        cg.add(var.set_sleep_id(sleep_datapoint))
-
-    if CONF_SWING_MODE in config:
-        swing_mode_config = config[CONF_SWING_MODE]
-        if CONF_VERTICAL_DATAPOINT in swing_mode_config:
-            cg.add(
-                var.set_swing_vertical_id(swing_mode_config[CONF_VERTICAL_DATAPOINT])
-            )
-        if CONF_HORIZONTAL_DATAPOINT in swing_mode_config:
-            cg.add(
-                var.set_swing_horizontal_id(
-                    swing_mode_config[CONF_HORIZONTAL_DATAPOINT]
-                )
-            )
-    if CONF_FAN_MODE in config:
-        fan_mode_config = config[CONF_FAN_MODE]
-        if CONF_DATAPOINT in fan_mode_config:
-            cg.add(var.set_fan_speed_id(fan_mode_config[CONF_DATAPOINT]))
-            if CONF_AUTO_VALUE in fan_mode_config:
-                cg.add(var.set_fan_speed_auto_value(fan_mode_config[CONF_AUTO_VALUE]))
-            if CONF_LOW_VALUE in fan_mode_config:
-                cg.add(var.set_fan_speed_low_value(fan_mode_config[CONF_LOW_VALUE]))
-            if CONF_MEDIUM_VALUE in fan_mode_config:
-                cg.add(
-                    var.set_fan_speed_medium_value(fan_mode_config[CONF_MEDIUM_VALUE])
-                )
-            if CONF_MIDDLE_VALUE in fan_mode_config:
-                cg.add(
-                    var.set_fan_speed_middle_value(fan_mode_config[CONF_MIDDLE_VALUE])
-                )
-            if CONF_HIGH_VALUE in fan_mode_config:
-                cg.add(var.set_fan_speed_high_value(fan_mode_config[CONF_HIGH_VALUE]))
+    if swing_mode_config := config.get(CONF_SWING_MODE):
+        if swing_vertical_datapoint := swing_mode_config.get(CONF_VERTICAL_DATAPOINT):
+            cg.add(var.set_swing_vertical_id(swing_vertical_datapoint))
+        if swing_horizontal_datapoint := swing_mode_config.get(
+            CONF_HORIZONTAL_DATAPOINT
+        ):
+            cg.add(var.set_swing_horizontal_id(swing_horizontal_datapoint))
+    if fan_mode_config := config.get(CONF_FAN_MODE):
+        cg.add(var.set_fan_speed_id(CONF_DATAPOINT))
+        if (fan_auto_value := fan_mode_config.get(CONF_AUTO_VALUE)) is not None:
+            cg.add(var.set_fan_speed_auto_value(fan_auto_value))
+        if (fan_low_value := fan_mode_config.get(CONF_LOW_VALUE)) is not None:
+            cg.add(var.set_fan_speed_low_value(fan_low_value))
+        if (fan_medium_value := fan_mode_config.get(CONF_MEDIUM_VALUE)) is not None:
+            cg.add(var.set_fan_speed_medium_value(fan_medium_value))
+        if (fan_middle_value := fan_mode_config.get(CONF_MIDDLE_VALUE)) is not None:
+            cg.add(var.set_fan_speed_middle_value(fan_middle_value))
+        if (fan_high_value := fan_mode_config.get(CONF_HIGH_VALUE)) is not None:
+            cg.add(var.set_fan_speed_high_value(fan_high_value))
