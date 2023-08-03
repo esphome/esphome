@@ -5,7 +5,10 @@ import esphome.codegen as cg
 from esphome.const import (
     CONF_ID,
     CONF_TYPE,
+    CONF_TIMEOUT,
+    CONF_THRESHOLD,
 )
+
 from .. import ld2410_ns, CONF_LD2410_ID, LD2410Component
 
 DEPENDENCIES = ["ld2410"]
@@ -15,15 +18,13 @@ LD2410Number = ld2410_ns.class_("LD2410Number", number.Number, cg.Component)
 LD2410NumType = ld2410_ns.enum("LD2410NumType");
 
 THRESHOLD_TYPE = {
-	"move" : LD2410NumType.LD2410_THRES_MOVE,
-	"still" : LD2410NumType.LD2410_THRES_STILL,
+    "move" : LD2410NumType.LD2410_THRES_MOVE,
+    "still" : LD2410NumType.LD2410_THRES_STILL,
 }
 
-CONF_THRESHOLD = "threshold"
 CONF_GATE_NUM = "gate_num"
 CONF_MAXDIST_STILL = "maxdist_still"
 CONF_MAXDIST_MOVE = "maxdist_move"
-CONF_TIMEOUT = "timeout"
 
 THRES_SCHEMA = cv.All(
         number.number_schema(LD2410Number)
@@ -40,12 +41,6 @@ THRES_SCHEMA = cv.All(
 DIST_SCHEMA = cv.All(
         number.number_schema(LD2410Number).extend(cv.COMPONENT_SCHEMA)
 )
-
-def validate_min_max(config):
-    if config[CONF_MAX_VALUE] <= config[CONF_MIN_VALUE]:
-        raise cv.Invalid("max_value must be greater than min_value")
-    return config
-
 
 CONFIG_SCHEMA = cv.Schema(
     {

@@ -13,6 +13,7 @@ CONFIG_SCHEMA = {
     cv.Optional(CONF_INFO_QUERY): text_sensor.text_sensor_schema(),
 }
 
+
 async def to_code(config):
     ld2410_component = await cg.get_variable(config[CONF_LD2410_ID])
     if CONF_FW_VERSION in config:
