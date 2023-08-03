@@ -110,7 +110,7 @@ void Rtttl::loop() {
     // this->speaker_->loop();
 
     if (ttlSamplesSent_ != ttlSamples_) {
-      speakerSample sample[SAMPLE_BUFFER_SIZE + 1];
+      SpeakerSample sample[SAMPLE_BUFFER_SIZE + 1];
       int x = 0;
       double rem = 0.0;
 
