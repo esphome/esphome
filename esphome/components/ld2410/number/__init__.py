@@ -11,6 +11,7 @@ from esphome.const import (
 from .. import ld2410_ns, CONF_LD2410_ID, LD2410Component
 
 DEPENDENCIES = ["ld2410"]
+CODEOWNERS = ["@sebcaps"]
 
 LD2410Number = ld2410_ns.class_("LD2410Number", number.Number, cg.Component)
 
