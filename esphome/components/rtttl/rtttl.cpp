@@ -140,7 +140,7 @@ void Rtttl::loop() {
       }
       if (x > 0) {
         int send = this->speaker_->play((uint8_t *) (&sample), x * 4);
-        if (send != x * 4  {
+        if (send != x * 4) {
           ESP_LOGI(TAG, "samples where not added");
           ttlSamplesSent_ -= (x - (send / 4));
         } else
