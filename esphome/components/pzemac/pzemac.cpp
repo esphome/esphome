@@ -32,6 +32,11 @@ void PZEMAC::on_modbus_data(const std::vector<uint8_t> &data) {
   uint16_t raw_voltage = pzem_get_16bit(0);
   float voltage = raw_voltage / 10.0f;  // max 6553.5 V
 
+  // Check if the voltage is nan (Not a Number)
+  if (std::isnan(voltage)) {
+    voltage = 0.0f; // If nan, set voltage to zero
+  }
+  
   uint32_t raw_current = pzem_get_32bit(2);
   float current = raw_current / 1000.0f;  // max 4294967.295 A
 
