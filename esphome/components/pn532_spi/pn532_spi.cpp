@@ -21,7 +21,7 @@ void PN532Spi::setup() {
   PN532::setup();
 }
 
-bool PN532Spi::is_read_ready_() {
+bool PN532Spi::is_read_ready() {
   this->enable();
   this->write_byte(0x02);
   bool ready = this->read_byte() == 0x01;

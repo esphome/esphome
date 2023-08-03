@@ -12,7 +12,7 @@ namespace pn532_i2c {
 
 static const char *const TAG = "pn532_i2c";
 
-bool PN532I2C::is_read_ready_() {
+bool PN532I2C::is_read_ready() {
   uint8_t ready;
   if (!this->read_bytes_raw(&ready, 1)) {
     return false;

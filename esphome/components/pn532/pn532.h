@@ -57,7 +57,7 @@ class PN532 : public PollingComponent {
   void send_nack_();
 
   int8_t read_ready_(bool block);
-  virtual bool is_read_ready_() = 0;
+  virtual bool is_read_ready() = 0;
   virtual bool write_data(const std::vector<uint8_t> &data) = 0;
   virtual bool read_data(std::vector<uint8_t> &data, uint8_t len) = 0;
   virtual bool read_response(uint8_t command, std::vector<uint8_t> &data) = 0;

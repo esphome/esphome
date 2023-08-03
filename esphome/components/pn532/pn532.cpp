@@ -134,10 +134,11 @@ void PN532::loop() {
   bool success = false;
   std::vector<uint8_t> read;
 
-  if (ready)
+  if (ready) {
     success = this->read_response(PN532_COMMAND_INLISTPASSIVETARGET, read);
-  else
+  } else {
     this->send_ack_();  // abort still running InListPassiveTarget
+  }
 
   this->requested_read_ = false;
 
@@ -323,7 +324,7 @@ int8_t PN532::read_ready_(bool block) {
   }
 
   while (true) {
-    if (this->is_read_ready_()) {
+    if (this->is_read_ready()) {
       ready = 1;
       break;
     }
