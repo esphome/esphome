@@ -163,10 +163,11 @@ void MQTTComponent::subscribe_json(const std::string &topic, const mqtt_json_cal
 MQTTComponent::MQTTComponent() = default;
 
 void MQTTComponent::set_internal_mqtt(bool option) {
-  if (option)
+  if (option) {
     this->internal_mqtt_ = MQTT_INTERNAL;  // force entity to be internal wrt MQTT; i.e., never publish the entity
-  else
+  } else {
     this->internal_mqtt_ = MQTT_EXTERNAL;  // force entity to be external wrt MQTT; i.e., always publish the entity
+  }
 }
 
 float MQTTComponent::get_setup_priority() const { return setup_priority::AFTER_CONNECTION; }
@@ -179,8 +180,8 @@ void MQTTComponent::set_custom_command_topic(const std::string &custom_command_t
 }
 void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
-void MQTTComponent::set_availability(std::string topic, std::string payload_available,
-                                     std::string payload_not_available) {
+void MQTTComponent::set_availability(const std::string &topic, const std::string &payload_available,
+                                     const std::string &payload_not_available) {
   this->availability_ = make_unique<Availability>();
   this->availability_->topic = std::move(topic);
   this->availability_->payload_available = std::move(payload_available);
@@ -245,10 +246,7 @@ bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->
 bool MQTTComponent::is_internal() {
   if (this->internal_mqtt_ != MQTT_COPY) {
     // internal_mqtt_ has been configured, always use it's setting
-    if (this->internal_mqtt_ == MQTT_INTERNAL)
-      return true;
-    else
-      return false;
+    return this->internal_mqtt_ == MQTT_INTERNAL;
   } else {
     // internal_mqtt_ hasn't been configured, so follow the global MQTT default
     switch (global_mqtt_client->get_internal_mqtt_default()) {

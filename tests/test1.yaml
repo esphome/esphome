@@ -101,6 +101,7 @@ mqtt:
   discovery_prefix: discovery
   discovery_unique_id_generator: legacy
   topic_prefix: helloworld
+  internal_mqtt_default: copy
   log_topic:
     topic: helloworld/hi
     level: INFO
@@ -1344,6 +1345,11 @@ sensor:
     name: "Distance"
     update_interval: 60s
     i2c_id: i2c_bus
+  - platform: copy
+    source_id: dht_temperature
+    name: "DHT Temperature published via MQTT only"
+    internal: true
+    internal_mqtt: false
 
 esp32_touch:
   setup_mode: false
