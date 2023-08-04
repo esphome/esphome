@@ -26,11 +26,11 @@ static const uint8_t AHT10_MEASURE_CMD[] = {0xAC, 0x33, 0x00};
 static const uint8_t AHT10_DEFAULT_DELAY = 5;    // ms, for calibration and temperature measurement
 static const uint8_t AHT10_HUMIDITY_DELAY = 30;  // ms
 static const uint8_t AHT10_ATTEMPTS = 3;         // safety margin, normally 3 attempts are enough: 3*30=90ms
-static const uint8_t AHT10_CAL_ATTEMPTS = 10; 
+static const uint8_t AHT10_CAL_ATTEMPTS = 10;
 static const uint8_t AHT10_STATUS_BUSY = 0x80;
 
 void AHT10Component::setup() {
-  const uint8_t * calibrate_cmd = AHT10_CALIBRATE_CMD;
+  const uint8_t *calibrate_cmd = AHT10_CALIBRATE_CMD;
   if (this->variant_ == "aht20") {
     calibrate_cmd = AHT20_CALIBRATE_CMD;
   }
@@ -44,7 +44,7 @@ void AHT10Component::setup() {
   }
   uint8_t data = AHT10_STATUS_BUSY;
   int cal_attempts = 0;
-  while(data & AHT10_STATUS_BUSY) {
+  while (data & AHT10_STATUS_BUSY) {
     delay(AHT10_DEFAULT_DELAY);
     if (this->read(&data, 1) != i2c::ERROR_OK) {
       ESP_LOGE(TAG, "Communication with AHT10 failed!");
