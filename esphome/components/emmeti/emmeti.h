@@ -9,30 +9,38 @@ const uint8_t EMMETI_TEMP_MIN = 16;  // Celsius
 const uint8_t EMMETI_TEMP_MAX = 30;  // Celsius
 
 // Modes
-const uint8_t EMMETI_MODE_HEAT_COOL = 0x00;
-const uint8_t EMMETI_MODE_COOL = 0x01;
-const uint8_t EMMETI_MODE_DRY  = 0x02;
-const uint8_t EMMETI_MODE_FAN  = 0x03;
-const uint8_t EMMETI_MODE_HEAT = 0x04;
+
+enum EmmetiMode : uint8_t {
+  EMMETI_MODE_HEAT_COOL = 0x00,
+  EMMETI_MODE_COOL = 0x01,
+  EMMETI_MODE_DRY  = 0x02,
+  EMMETI_MODE_FAN  = 0x03,
+  EMMETI_MODE_HEAT = 0x04,
+};
 
 // Fan Speed
-const uint8_t EMMETI_FAN_AUTO = 0x00;
-const uint8_t EMMETI_FAN_1 = 0x01;
-const uint8_t EMMETI_FAN_2 = 0x02;
-const uint8_t EMMETI_FAN_3 = 0x03;
+
+enum EmmetiFanMode : uint8_t {
+  EMMETI_FAN_AUTO = 0x00,
+  EMMETI_FAN_1 = 0x01,
+  EMMETI_FAN_2 = 0x02,
+  EMMETI_FAN_3 = 0x03,
+};
 
 // Fan Position
 
-const uint8_t EMMETI_BLADES_STOP  = 0x00;
-const uint8_t EMMETI_BLADES_FULL  = 0x01;
-const uint8_t EMMETI_BLADES_1     = 0x02;
-const uint8_t EMMETI_BLADES_2     = 0x03;
-const uint8_t EMMETI_BLADES_3     = 0x04;
-const uint8_t EMMETI_BLADES_4     = 0x05;
-const uint8_t EMMETI_BLADES_5     = 0x06;
-const uint8_t EMMETI_BLADES_LOW   = 0x07;
-const uint8_t EMMETI_BLADES_MID   = 0x09;
-const uint8_t EMMETI_BLADES_HIGH  = 0x11;
+enum EmmetiBlades : uint8_t {
+  EMMETI_BLADES_STOP  = 0x00,
+  EMMETI_BLADES_FULL  = 0x01,
+  EMMETI_BLADES_1     = 0x02,
+  EMMETI_BLADES_2     = 0x03,
+  EMMETI_BLADES_3     = 0x04,
+  EMMETI_BLADES_4     = 0x05,
+  EMMETI_BLADES_5     = 0x06,
+  EMMETI_BLADES_LOW   = 0x07,
+  EMMETI_BLADES_MID   = 0x09,
+  EMMETI_BLADES_HIGH  = 0x11,
+};
 
 // IR Transmission
 const uint32_t EMMETI_IR_FREQUENCY = 38000;
