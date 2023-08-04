@@ -51,7 +51,7 @@ const uint32_t EMMETI_ONE_SPACE = 1630;
 const uint32_t EMMETI_ZERO_SPACE = 530;
 const uint32_t EMMETI_MESSAGE_SPACE = 20000;
 
-typedef struct state {
+using state = struct state {
   uint8_t mode = 0;
   uint8_t bitmap = 0;
   uint8_t fan_speed = 0;
@@ -59,7 +59,7 @@ typedef struct state {
   uint8_t fan_pos = 0;
   uint8_t th = 0;
   uint8_t checksum = 0;
-} state;
+};
 
 class EmmetiClimate : public climate_ir::ClimateIR {
  public:

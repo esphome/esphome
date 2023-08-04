@@ -267,7 +267,7 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   for (size_t pos = 0; pos < 2; pos++) {
     if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)) {
-      curr_state.bitmap |= 1 << pos + 1;
+      curr_state.bitmap |= 1 << (pos + 1);
     } else if (!data.expect_item(EMMETI_BIT_MARK, EMMETI_ZERO_SPACE)) {
       return false;
     }
@@ -294,7 +294,7 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data) {
 
   for (size_t pos = 0; pos < 4; pos++) {
     if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)) {
-      curr_state.bitmap |= 1 << pos + 3;
+      curr_state.bitmap |= 1 << (pos + 3);
     } else if (!data.expect_item(EMMETI_BIT_MARK, EMMETI_ZERO_SPACE)) {
       return false;
     }
