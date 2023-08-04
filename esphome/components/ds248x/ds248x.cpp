@@ -27,9 +27,10 @@ static const uint8_t DS248X_STATUS_DIR           = (1 << 7);
 static const uint8_t DS248X_POINTER_DATA         = 0xE1;
 
 static const uint8_t DS248X_POINTER_CONFIG       = 0xC3;
-static const uint8_t DS248X_CONFIG_APU           = (1 << 0);
-static const uint8_t DS248X_CONFIG_SPU           = (1 << 2);
-static const uint8_t DS248X_CONFIG_1WS           = (1 << 3);
+static const uint8_t DS248X_CONFIG_ACTIVE_PULLUP = (1 << 0);
+static const uint8_t DS248X_CONFIG_POWER_DOWN    = (1 << 1);
+static const uint8_t DS248X_CONFIG_STRONG_PULLUP = (1 << 2);
+static const uint8_t DS248X_CONFIG_1WIRE_SPEED   = (1 << 3);
 
 static const uint8_t WIRE_COMMAND_SKIP           = 0xCC;
 static const uint8_t WIRE_COMMAND_SELECT         = 0x55;
@@ -56,8 +57,10 @@ static const char *const TAG = "ds248x";
 void DS248xComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up DS248x...");
 
-  this->pin_->setup();
-  this->pin_->pin_mode(esphome::gpio::FLAG_OUTPUT);
+  if (this->sleep_pin_) {
+    this->sleep_pin_->setup();
+    this->sleep_pin_->pin_mode(esphome::gpio::FLAG_OUTPUT);
+  }
 
   this->reset_hub();
   uint64_t address = 0;
@@ -98,7 +101,9 @@ void DS248xComponent::setup() {
 
 void DS248xComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "DS248x:");
-  LOG_PIN("  Sleep Pin: ", this->pin_);
+  if (this->sleep_pin_) {
+    LOG_PIN("  Sleep Pin: ", this->sleep_pin_);
+  }
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with DS248x failed!");
@@ -132,6 +137,10 @@ void DS248xComponent::register_sensor(DS248xTemperatureSensor *sensor) { this->s
 void DS248xComponent::update() {
   this->status_clear_warning();
 
+  if (this->enable_bus_sleep_) {
+    this->write_config(this->read_config() & ~DS248X_CONFIG_POWER_DOWN);
+  }
+
   bool result = this->reset_devices();
   if (!result) {
     this->status_set_warning();
@@ -142,6 +151,10 @@ void DS248xComponent::update() {
   this->write_to_wire(WIRE_COMMAND_SKIP);
   this->write_to_wire(DALLAS_COMMAND_START_CONVERSION);
 
+  if (this->enable_strong_pullup_) {
+    this->write_config(this->read_config() | DS248X_CONFIG_STRONG_PULLUP);
+  }
+
   uint16_t max_wait_time = 0;
 
   for (auto *sensor : this->sensors_) {
@@ -149,6 +162,9 @@ void DS248xComponent::update() {
   }
 
   this->set_timeout(TAG, max_wait_time, [this] {
+    if (this->enable_strong_pullup_) {
+      this->write_config(this->read_config() & ~DS248X_CONFIG_STRONG_PULLUP);
+    }
     for (auto *sensor : this->sensors_) {
       bool res = sensor->read_scratch_pad();
 
@@ -167,6 +183,10 @@ void DS248xComponent::update() {
       float tempc = sensor->get_temp_c();
       ESP_LOGD(TAG, "'%s': Got Temperature=%.1f°C", sensor->get_name().c_str(), tempc);
       sensor->publish_state(tempc);
+    }
+
+    if (this->enable_bus_sleep_) {
+      this->write_config(this->read_config() | DS248X_CONFIG_POWER_DOWN);
     }
   });
 }
@@ -214,12 +234,16 @@ uint8_t DS248xComponent::wait_while_busy() {
 
 
 void DS248xComponent::reset_hub() {
-  this->pin_->digital_write(true);
+  if (this->sleep_pin_) {
+    this->sleep_pin_->digital_write(true);
+  }
 
   uint8_t cmd = DS248X_COMMAND_RESET;
   auto result = this->write(&cmd, sizeof(cmd));
 
-  ESP_LOGD(TAG, "Reset result: %i", result);
+  if (this->enable_active_pullup_) {
+    this->write_config(DS248X_CONFIG_ACTIVE_PULLUP);
+  }
 
   last_device_found = false;
   searchAddress = 0;
@@ -234,8 +258,8 @@ bool DS248xComponent::reset_devices() {
     return false;
   }
   uint8_t config = read_config();
-  if (config & DS248X_CONFIG_SPU) {
-    bool cfg_ok = write_config(config & ~DS248X_CONFIG_SPU);
+  if (config & DS248X_CONFIG_STRONG_PULLUP) {
+    bool cfg_ok = write_config(config & ~DS248X_CONFIG_STRONG_PULLUP);
 
     if (!cfg_ok) {
       ESP_LOGE(TAG, "Master config write failed");
@@ -261,7 +285,7 @@ bool DS248xComponent::reset_devices() {
     return false;
   }
 
-  if (config & DS248X_CONFIG_SPU) {
+  if (config & DS248X_CONFIG_STRONG_PULLUP) {
     bool cfg_ok = write_config(config);
 
     if (!cfg_ok) {

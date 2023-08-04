@@ -18,7 +18,12 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   float get_setup_priority() const override;
 
-  void set_pin(InternalGPIOPin *pin) { pin_ = pin; }
+  void set_sleep_pin(InternalGPIOPin *pin) { sleep_pin_ = pin; }
+
+  void set_bus_sleep(bool enabled) { enable_bus_sleep_ = enabled; }
+  void set_hub_sleep(bool enabled) { enable_hub_sleep_ = enabled; }
+  void set_active_pullup(bool enabled) { enable_active_pullup_ = enabled; }
+  void set_strong_pullup(bool enabled) { enable_strong_pullup_ = enabled; }
 
   void register_sensor(DS248xTemperatureSensor *sensor);
 
@@ -27,7 +32,13 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t searchLastDiscrepancy;
   bool last_device_found;
 
-  InternalGPIOPin *pin_;
+  InternalGPIOPin *sleep_pin_;
+
+  bool enable_bus_sleep_ = false;
+  bool enable_hub_sleep_ = false;
+  bool enable_active_pullup_ = false;
+  bool enable_strong_pullup_ = false;
+
   std::vector<uint64_t> found_sensors_;
 
   std::vector<DS248xTemperatureSensor *> sensors_;
