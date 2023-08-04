@@ -6,7 +6,6 @@
 
 #include "esphome/core/automation.h"
 #include "esphome/core/component.h"
-#include "esphome/core/defines.h"
 #include "esphome/core/helpers.h"
 
 #include "esphome/components/api/api_pb2.h"
@@ -25,10 +24,9 @@ namespace voice_assistant {
 
 // Version 1: Initial version
 // Version 2: Adds raw speaker support
-// Version 3: Adds continuous support
+// Version 3: Unused/skip
 static const uint32_t INITIAL_VERSION = 1;
 static const uint32_t SPEAKER_SUPPORT = 2;
-static const uint32_t SILENCE_DETECTION_SUPPORT = 3;
 
 class VoiceAssistant : public Component {
  public:
@@ -48,9 +46,6 @@ class VoiceAssistant : public Component {
   uint32_t get_version() const {
 #ifdef USE_SPEAKER
     if (this->speaker_ != nullptr) {
-      if (this->silence_detection_) {
-        return SILENCE_DETECTION_SUPPORT;
-      }
       return SPEAKER_SUPPORT;
     }
 #endif

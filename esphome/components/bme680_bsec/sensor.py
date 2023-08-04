@@ -6,8 +6,10 @@ from esphome.const import (
     CONF_HUMIDITY,
     CONF_PRESSURE,
     CONF_TEMPERATURE,
+    DEVICE_CLASS_CARBON_DIOXIDE,
     DEVICE_CLASS_HUMIDITY,
-    DEVICE_CLASS_PRESSURE,
+    DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
+    DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
     DEVICE_CLASS_TEMPERATURE,
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
@@ -17,8 +19,6 @@ from esphome.const import (
     UNIT_PERCENT,
     ICON_GAS_CYLINDER,
     ICON_GAUGE,
-    ICON_THERMOMETER,
-    ICON_WATER_PERCENT,
 )
 from . import (
     BME680BSECComponent,
@@ -35,7 +35,6 @@ CONF_CO2_EQUIVALENT = "co2_equivalent"
 CONF_BREATH_VOC_EQUIVALENT = "breath_voc_equivalent"
 UNIT_IAQ = "IAQ"
 ICON_ACCURACY = "mdi:checkbox-marked-circle-outline"
-ICON_TEST_TUBE = "mdi:test-tube"
 
 TYPES = [
     CONF_TEMPERATURE,
@@ -53,7 +52,6 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_BME680_BSEC_ID): cv.use_id(BME680BSECComponent),
         cv.Optional(CONF_TEMPERATURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_CELSIUS,
-            icon=ICON_THERMOMETER,
             accuracy_decimals=1,
             device_class=DEVICE_CLASS_TEMPERATURE,
             state_class=STATE_CLASS_MEASUREMENT,
@@ -62,16 +60,14 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
             unit_of_measurement=UNIT_HECTOPASCAL,
-            icon=ICON_GAUGE,
             accuracy_decimals=1,
-            device_class=DEVICE_CLASS_PRESSURE,
+            device_class=DEVICE_CLASS_ATMOSPHERIC_PRESSURE,
             state_class=STATE_CLASS_MEASUREMENT,
         ).extend(
             {cv.Optional(CONF_SAMPLE_RATE): cv.enum(SAMPLE_RATE_OPTIONS, upper=True)}
         ),
         cv.Optional(CONF_HUMIDITY): sensor.sensor_schema(
             unit_of_measurement=UNIT_PERCENT,
-            icon=ICON_WATER_PERCENT,
             accuracy_decimals=1,
             device_class=DEVICE_CLASS_HUMIDITY,
             state_class=STATE_CLASS_MEASUREMENT,
@@ -97,14 +93,14 @@ CONFIG_SCHEMA = cv.Schema(
         ),
         cv.Optional(CONF_CO2_EQUIVALENT): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
-            icon=ICON_TEST_TUBE,
             accuracy_decimals=1,
+            device_class=DEVICE_CLASS_CARBON_DIOXIDE,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
         cv.Optional(CONF_BREATH_VOC_EQUIVALENT): sensor.sensor_schema(
             unit_of_measurement=UNIT_PARTS_PER_MILLION,
-            icon=ICON_TEST_TUBE,
             accuracy_decimals=1,
+            device_class=DEVICE_CLASS_VOLATILE_ORGANIC_COMPOUNDS_PARTS,
             state_class=STATE_CLASS_MEASUREMENT,
         ),
     }
@@ -112,12 +108,13 @@ CONFIG_SCHEMA = cv.Schema(
 
 
 async def setup_conf(config, key, hub):
-    if key in config:
-        conf = config[key]
-        sens = await sensor.new_sensor(conf)
+    if sensor_config := config.get(key):
+        sens = await sensor.new_sensor(sensor_config)
         cg.add(getattr(hub, f"set_{key}_sensor")(sens))
-        if CONF_SAMPLE_RATE in conf:
-            cg.add(getattr(hub, f"set_{key}_sample_rate")(conf[CONF_SAMPLE_RATE]))
+        if CONF_SAMPLE_RATE in sensor_config:
+            cg.add(
+                getattr(hub, f"set_{key}_sample_rate")(sensor_config[CONF_SAMPLE_RATE])
+            )
 
 
 async def to_code(config):
