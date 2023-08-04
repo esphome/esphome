@@ -1,5 +1,7 @@
 #pragma once
 
+#include <utility>
+
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/i2c/i2c.h"
@@ -13,7 +15,7 @@ class AHT10Component : public PollingComponent, public i2c::I2CDevice {
   void update() override;
   void dump_config() override;
   float get_setup_priority() const override;
-  void set_variant(std::string variant) { this->variant_ = variant; }
+  void set_variant(std::string variant) { this->variant_ = std::move(variant); }
 
   void set_temperature_sensor(sensor::Sensor *temperature_sensor) { temperature_sensor_ = temperature_sensor; }
   void set_humidity_sensor(sensor::Sensor *humidity_sensor) { humidity_sensor_ = humidity_sensor; }

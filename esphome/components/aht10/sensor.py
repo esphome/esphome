@@ -34,7 +34,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Optional(CONF_VARIANT): cv.one_of("aht10", "aht20"),
+            cv.Optional(CONF_VARIANT, "aht10"): cv.one_of("aht10", "aht20"),
         }
     )
     .extend(cv.polling_component_schema("60s"))
