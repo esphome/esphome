@@ -10,6 +10,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
+    CONF_VARIANT
 )
 
 DEPENDENCIES = ["i2c"]
@@ -33,6 +34,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_VARIANT): cv.one_of('aht10', 'aht20'),
         }
     )
     .extend(cv.polling_component_schema("60s"))
@@ -44,6 +46,7 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+    cg.add(var.set_variant(config[CONF_VARIANT]))
 
     if temperature := config.get(CONF_TEMPERATURE):
         sens = await sensor.new_sensor(temperature)
