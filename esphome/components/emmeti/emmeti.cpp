@@ -224,12 +224,15 @@ bool EmmetiClimate::parse_state_frame_(state curr_state){
   if(!(curr_state.bitmap & 0x01)){
     this->mode = climate::CLIMATE_MODE_OFF;
   }
-  /*if(this->check_checksum_(curr_state.checksum)){
+  
+  /** @brief TODO: read checksum */
+  /*if(this->check_checksum_(curr_state.checksum)){ 
     this->publish_state();
     ESP_LOGD(TAG, "Published state");
     return true;
   }
   return false;*/
+
   this->publish_state();
   return true;
 
@@ -323,7 +326,10 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data){
   if (control_data != 0x250){
     return false;
   }
-
+  /**
+   * @brief TODO: Read data after the long 20ms pause
+   * 
+   */
   /*
   if(!data.expect_item(EMMETI_BIT_MARK, EMMETI_MESSAGE_SPACE)){
     return false;
