@@ -105,11 +105,11 @@ climate::ClimateMode EmmetiClimate::get_mode_(uint8_t mode){
     case EMMETI_MODE_HEAT:
       return climate::CLIMATE_MODE_HEAT;
     case EMMETI_MODE_HEAT_COOL:
-      return climate::CLIMATE_MODE_AUTO;
+      return climate::CLIMATE_MODE_HEAT_COOL;
     case EMMETI_MODE_FAN:
       return climate::CLIMATE_MODE_FAN_ONLY;
     default:
-      return climate::CLIMATE_MODE_AUTO;
+      return climate::CLIMATE_MODE_HEAT_COOL;
   }
 }
 
@@ -160,7 +160,11 @@ void EmmetiClimate::reverse_add_(T val, size_t len, esphome::remote_base::Remote
 }
 
 bool EmmetiClimate::check_checksum_(uint8_t checksum){
-  return checksum == this->gen_checksum_();
+  uint8_t expected = this->gen_checksum_();
+  ESP_LOGD(TAG, "Expected checksum: %X", expected);
+  ESP_LOGD(TAG, "Checksum received: %X", checksum);
+
+  return checksum == expected;
 }
 
 void EmmetiClimate::transmit_state() {
@@ -216,17 +220,26 @@ bool EmmetiClimate::parse_state_frame_(state curr_state){
   this->fan_mode = this->get_fan_speed_(curr_state.fan_speed);
   this->target_temperature = this->get_temp_(curr_state.temp);
   this->swing_mode = this->get_swing_(curr_state.bitmap);
-  this->blades_ = curr_state.fan_pos;
+  //this->blades_ = curr_state.fan_pos;
   if(!(curr_state.bitmap & 0x01)){
     this->mode = climate::CLIMATE_MODE_OFF;
   }
-  return this->check_checksum_(curr_state.checksum);
+  /*if(this->check_checksum_(curr_state.checksum)){
+    this->publish_state();
+    ESP_LOGD(TAG, "Published state");
+    return true;
+  }
+  return false;*/
+  this->publish_state();
+  return true;
+
 }
 
 bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data){
   if (!data.expect_item(EMMETI_HEADER_MARK, EMMETI_HEADER_SPACE)) {
     return false;
   }
+  ESP_LOGD(TAG, "Received emmeti frame");
 
   state curr_state;
 
@@ -238,11 +251,15 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data){
     }
   }
 
+  ESP_LOGD(TAG, "Mode: %d", curr_state.mode);
+
   if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)){
     curr_state.bitmap |= 1 << 0;
   }else if(!data.expect_item(EMMETI_BIT_MARK, EMMETI_ZERO_SPACE)){
     return false;
   }
+
+  ESP_LOGD(TAG, "On: %d", curr_state.bitmap & 0x01);
 
   for (size_t pos = 0; pos < 2; pos++){
     if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)){
@@ -252,6 +269,8 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data){
     }
   }
 
+  ESP_LOGD(TAG, "Fan speed: %d", curr_state.fan_speed);
+
   for (size_t pos = 0; pos < 2; pos++){
     if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)){
       curr_state.bitmap |= 1 << pos + 1;
@@ -260,6 +279,9 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data){
     }
   }
 
+  ESP_LOGD(TAG, "Swing: %d", (curr_state.bitmap>>1) & 0x01);
+  ESP_LOGD(TAG, "Sleep: %d", (curr_state.bitmap>>2) & 0x01);
+
   for (size_t pos = 0; pos < 4; pos++){
     if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)){
       curr_state.temp |= 1 << pos;
@@ -267,6 +289,8 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data){
       return false;
     }
   }
+
+  ESP_LOGD(TAG, "Temp: %d", curr_state.temp);
 
   for (size_t pos = 0; pos < 8; pos++){
     if (!data.expect_item(EMMETI_BIT_MARK, EMMETI_ZERO_SPACE)){
@@ -282,6 +306,11 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data){
     }
   }
 
+  ESP_LOGD(TAG, "Turbo: %d", (curr_state.bitmap>>3) & 0x01);
+  ESP_LOGD(TAG, "Light: %d", (curr_state.bitmap>>4) & 0x01);
+  ESP_LOGD(TAG, "Tree: %d", (curr_state.bitmap>>5) & 0x01);
+  ESP_LOGD(TAG, "Blow: %d", (curr_state.bitmap>>6) & 0x01);
+
   uint16_t control_data = 0;
   for (size_t pos = 0; pos < 11; pos++){
     if (data.expect_item(EMMETI_BIT_MARK, EMMETI_ONE_SPACE)){
@@ -289,10 +318,13 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data){
     }else if(!data.expect_item(EMMETI_BIT_MARK, EMMETI_ZERO_SPACE)){
       return false;
     }
-  }if (control_data != 0x52){
+  }
+
+  if (control_data != 0x250){
     return false;
   }
 
+  /*
   if(!data.expect_item(EMMETI_BIT_MARK, EMMETI_MESSAGE_SPACE)){
     return false;
   }
@@ -331,7 +363,7 @@ bool EmmetiClimate::on_receive(remote_base::RemoteReceiveData data){
     }else if(!data.expect_item(EMMETI_BIT_MARK, EMMETI_ZERO_SPACE)){
       return false;
     }
-  }
+  }*/
 
   return this->parse_state_frame_(curr_state);
 
