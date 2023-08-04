@@ -70,7 +70,7 @@ void SlowPWMOutput::dump_config() {
 void SlowPWMOutput::write_state(float state) {
   this->state_ = state;
   if (this->restart_cycle_on_state_change_)
-    this->period_start_time_ = millis();
+    this->restart_cycle();
 }
 
 }  // namespace slow_pwm

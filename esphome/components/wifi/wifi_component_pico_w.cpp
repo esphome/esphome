@@ -125,10 +125,11 @@ void WiFiComponent::wifi_scan_result(void *env, const cyw43_ev_scan_result_t *re
   }
 }
 
-bool WiFiComponent::wifi_scan_start_() {
+bool WiFiComponent::wifi_scan_start_(bool passive) {
   this->scan_result_.clear();
   this->scan_done_ = false;
   cyw43_wifi_scan_options_t scan_options = {0};
+  scan_options.scan_type = passive ? 1 : 0;
   int err = cyw43_wifi_scan(&cyw43_state, &scan_options, nullptr, &s_wifi_scan_result);
   if (err) {
     ESP_LOGV(TAG, "cyw43_wifi_scan failed!");
@@ -156,7 +157,7 @@ bool WiFiComponent::wifi_disconnect_() {
   int err = cyw43_wifi_leave(&cyw43_state, CYW43_ITF_STA);
   return err == 0;
 }
-// NOTE: The driver does not provide an interface to get this
+
 bssid_t WiFiComponent::wifi_bssid() {
   bssid_t bssid{};
   uint8_t raw_bssid[6];
@@ -165,12 +166,10 @@ bssid_t WiFiComponent::wifi_bssid() {
     bssid[i] = raw_bssid[i];
   return bssid;
 }
-// NOTE: The driver does not provide an interface to get this
-std::string WiFiComponent::wifi_ssid() { return WiFi.SSID(); }
-// NOTE: The driver does not provide an interface to get this
+std::string WiFiComponent::wifi_ssid() { return WiFi.SSID().c_str(); }
 int8_t WiFiComponent::wifi_rssi() { return WiFi.RSSI(); }
-// NOTE: The driver does not provide an interface to get this
-int32_t WiFiComponent::wifi_channel_() { return 0; }
+int32_t WiFiComponent::wifi_channel_() { return WiFi.channel(); }
+
 network::IPAddress WiFiComponent::wifi_sta_ip() { return {WiFi.localIP()}; }
 network::IPAddress WiFiComponent::wifi_subnet_mask_() { return {WiFi.subnetMask()}; }
 network::IPAddress WiFiComponent::wifi_gateway_ip_() { return {WiFi.gatewayIP()}; }

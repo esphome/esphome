@@ -53,6 +53,7 @@ bool MopekaProCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   // Now parse the data - See Datasheet for definition
 
   if (static_cast<SensorType>(manu_data.data[0]) != STANDARD_BOTTOM_UP &&
+      static_cast<SensorType>(manu_data.data[0]) != LIPPERT_BOTTOM_UP &&
       static_cast<SensorType>(manu_data.data[0]) != PLUS_BOTTOM_UP) {
     ESP_LOGE(TAG, "Unsupported Sensor Type (0x%X)", manu_data.data[0]);
     return false;
@@ -122,7 +123,8 @@ uint32_t MopekaProCheck::parse_distance_(const std::vector<uint8_t> &message) {
   double raw_level = raw & 0x3FFF;
   double raw_t = (message[2] & 0x7F);
 
-  return (uint32_t)(raw_level * (MOPEKA_LPG_COEF[0] + MOPEKA_LPG_COEF[1] * raw_t + MOPEKA_LPG_COEF[2] * raw_t * raw_t));
+  return (uint32_t) (raw_level *
+                     (MOPEKA_LPG_COEF[0] + MOPEKA_LPG_COEF[1] * raw_t + MOPEKA_LPG_COEF[2] * raw_t * raw_t));
 }
 
 uint8_t MopekaProCheck::parse_temperature_(const std::vector<uint8_t> &message) { return (message[2] & 0x7F) - 40; }
