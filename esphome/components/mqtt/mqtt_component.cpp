@@ -180,85 +180,86 @@ void MQTTComponent::set_custom_command_topic(const std::string &custom_command_t
 }
 void MQTTComponent::set_command_retain(bool command_retain) { this->command_retain_ = command_retain; }
 
-void MQTTComponent::set_availability(const std::string &topic, const std::string &payload_available,
-                                     const std::string &payload_not_available) {
-  this->availability_ = make_unique<Availability>();
-  this->availability_->topic = std::move(topic);
-  this->availability_->payload_available = std::move(payload_available);
-  this->availability_->payload_not_available = std::move(payload_not_available);
-}
-void MQTTComponent::disable_availability() { this->set_availability("", "", ""); }
-void MQTTComponent::call_setup() {
-  if (this->is_internal())
-    return;
+void MQTTComponent::set_availability(std::string topic, std::string payload_available,
+                                     std::string payload_not_available) {
+  {
+    this->availability_ = make_unique<Availability>();
+    this->availability_->topic = std::move(topic);
+    this->availability_->payload_available = std::move(payload_available);
+    this->availability_->payload_not_available = std::move(payload_not_available);
+  }
+  void MQTTComponent::disable_availability() { this->set_availability("", "", ""); }
+  void MQTTComponent::call_setup() {
+    if (this->is_internal())
+      return;
 
-  this->setup();
+    this->setup();
 
-  global_mqtt_client->register_mqtt_component(this);
+    global_mqtt_client->register_mqtt_component(this);
 
-  if (!this->is_connected_())
-    return;
+    if (!this->is_connected_())
+      return;
 
-  if (this->is_discovery_enabled()) {
-    if (!this->send_discovery_()) {
+    if (this->is_discovery_enabled()) {
+      if (!this->send_discovery_()) {
+        this->schedule_resend_state();
+      }
+    }
+    if (!this->send_initial_state()) {
       this->schedule_resend_state();
     }
   }
-  if (!this->send_initial_state()) {
-    this->schedule_resend_state();
-  }
-}
 
-void MQTTComponent::call_loop() {
-  if (this->is_internal())
-    return;
+  void MQTTComponent::call_loop() {
+    if (this->is_internal())
+      return;
 
-  this->loop();
+    this->loop();
 
-  if (!this->resend_state_ || !this->is_connected_()) {
-    return;
-  }
+    if (!this->resend_state_ || !this->is_connected_()) {
+      return;
+    }
 
-  this->resend_state_ = false;
-  if (this->is_discovery_enabled()) {
-    if (!this->send_discovery_()) {
+    this->resend_state_ = false;
+    if (this->is_discovery_enabled()) {
+      if (!this->send_discovery_()) {
+        this->schedule_resend_state();
+      }
+    }
+    if (!this->send_initial_state()) {
       this->schedule_resend_state();
     }
   }
-  if (!this->send_initial_state()) {
-    this->schedule_resend_state();
+  void MQTTComponent::call_dump_config() {
+    if (this->is_internal())
+      return;
+
+    this->dump_config();
   }
-}
-void MQTTComponent::call_dump_config() {
-  if (this->is_internal())
-    return;
+  void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
+  std::string MQTTComponent::unique_id() { return ""; }
+  bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
 
-  this->dump_config();
-}
-void MQTTComponent::schedule_resend_state() { this->resend_state_ = true; }
-std::string MQTTComponent::unique_id() { return ""; }
-bool MQTTComponent::is_connected_() const { return global_mqtt_client->is_connected(); }
-
-// Pull these properties from EntityBase if not overridden
-std::string MQTTComponent::friendly_name() const { return this->get_entity()->get_name(); }
-std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
-bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
-bool MQTTComponent::is_internal() {
-  if (this->internal_mqtt_ != MQTT_COPY) {
-    // internal_mqtt_ has been configured, always use it's setting
-    return this->internal_mqtt_ == MQTT_INTERNAL;
-  } else {
-    // internal_mqtt_ hasn't been configured, so follow the global MQTT default
-    switch (global_mqtt_client->get_internal_mqtt_default()) {
-      case MQTT_INTERNAL:
-        return true;
-      case MQTT_EXTERNAL:
-        return false;
-      default:
-        return this->get_entity()->is_internal();
+  // Pull these properties from EntityBase if not overridden
+  std::string MQTTComponent::friendly_name() const { return this->get_entity()->get_name(); }
+  std::string MQTTComponent::get_icon() const { return this->get_entity()->get_icon(); }
+  bool MQTTComponent::is_disabled_by_default() const { return this->get_entity()->is_disabled_by_default(); }
+  bool MQTTComponent::is_internal() {
+    if (this->internal_mqtt_ != MQTT_COPY) {
+      // internal_mqtt_ has been configured, always use it's setting
+      return this->internal_mqtt_ == MQTT_INTERNAL;
+    } else {
+      // internal_mqtt_ hasn't been configured, so follow the global MQTT default
+      switch (global_mqtt_client->get_internal_mqtt_default()) {
+        case MQTT_INTERNAL:
+          return true;
+        case MQTT_EXTERNAL:
+          return false;
+        default:
+          return this->get_entity()->is_internal();
+      }
     }
   }
-}
 
 }  // namespace mqtt
 }  // namespace esphome
