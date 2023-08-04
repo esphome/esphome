@@ -467,14 +467,14 @@ def binary_sensor_schema(
 async def setup_binary_sensor_core_(var, config):
     await setup_entity(var, config)
 
-    if CONF_DEVICE_CLASS in config:
-        cg.add(var.set_device_class(config[CONF_DEVICE_CLASS]))
-    if CONF_PUBLISH_INITIAL_STATE in config:
-        cg.add(var.set_publish_initial_state(config[CONF_PUBLISH_INITIAL_STATE]))
-    if CONF_INVERTED in config:
-        cg.add(var.set_inverted(config[CONF_INVERTED]))
-    if CONF_FILTERS in config:
-        filters = await cg.build_registry_list(FILTER_REGISTRY, config[CONF_FILTERS])
+    if device_class := config.get(CONF_DEVICE_CLASS):
+        cg.add(var.set_device_class(device_class))
+    if publish_initial_state := config.get(CONF_PUBLISH_INITIAL_STATE):
+        cg.add(var.set_publish_initial_state(publish_initial_state))
+    if inverted := config.get(CONF_INVERTED):
+        cg.add(var.set_inverted(inverted))
+    if filters_config := config.get(CONF_FILTERS):
+        filters = await cg.build_registry_list(FILTER_REGISTRY, filters_config)
         cg.add(var.add_filters(filters))
 
     for conf in config.get(CONF_ON_PRESS, []):
@@ -518,8 +518,8 @@ async def setup_binary_sensor_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [(bool, "x")], conf)
 
-    if CONF_MQTT_ID in config:
-        mqtt_ = cg.new_Pvariable(config[CONF_MQTT_ID], var)
+    if mqtt_id := config.get(CONF_MQTT_ID):
+        mqtt_ = cg.new_Pvariable(mqtt_id, var)
         await mqtt.register_mqtt_component(mqtt_, config)
 
 

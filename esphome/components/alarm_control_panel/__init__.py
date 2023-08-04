@@ -99,8 +99,8 @@ async def register_alarm_control_panel(var, config):
 async def alarm_action_arm_away_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_CODE in config:
-        templatable_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
+    if code_config := config.get(CONF_CODE):
+        templatable_ = await cg.templatable(code_config, args, cg.std_string)
         cg.add(var.set_code(templatable_))
     return var
 
@@ -111,8 +111,8 @@ async def alarm_action_arm_away_to_code(config, action_id, template_arg, args):
 async def alarm_action_arm_home_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_CODE in config:
-        templatable_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
+    if code_config := config.get(CONF_CODE):
+        templatable_ = await cg.templatable(code_config, args, cg.std_string)
         cg.add(var.set_code(templatable_))
     return var
 
@@ -123,8 +123,8 @@ async def alarm_action_arm_home_to_code(config, action_id, template_arg, args):
 async def alarm_action_disarm_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
-    if CONF_CODE in config:
-        templatable_ = await cg.templatable(config[CONF_CODE], args, cg.std_string)
+    if code_config := config.get(CONF_CODE):
+        templatable_ = await cg.templatable(code_config, args, cg.std_string)
         cg.add(var.set_code(templatable_))
     return var
 
