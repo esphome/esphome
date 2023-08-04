@@ -26,7 +26,7 @@ QwiicPIRComponent = qwiic_pir_ns.class_(
 )
 
 
-def validate_no_debounce_unless_built_in(config):
+def validate_no_debounce_unless_native(config):
     if CONF_DEBOUNCE in config:
         if config[CONF_DEBOUNCE_MODE] != "NATIVE":
             raise cv.Invalid("debounce can only be set if debounce_mode is NATIVE")
@@ -51,7 +51,7 @@ CONFIG_SCHEMA = cv.All(
     )
     .extend(cv.COMPONENT_SCHEMA)
     .extend(i2c.i2c_device_schema(0x12)),
-    validate_no_debounce_unless_built_in,
+    validate_no_debounce_unless_native,
 )
 
 
@@ -62,4 +62,6 @@ async def to_code(config):
 
     if debounce_time_setting := config.get(CONF_DEBOUNCE):
         cg.add(var.set_debounce_time(debounce_time_setting.total_milliseconds))
+    else:
+        cg.add(var.set_debounce_time(1))  # default to 1 ms if not configured
     cg.add(var.set_debounce_mode(config[CONF_DEBOUNCE_MODE]))

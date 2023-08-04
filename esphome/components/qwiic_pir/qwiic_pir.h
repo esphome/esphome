@@ -42,7 +42,7 @@ class QwiicPIRComponent : public Component, public i2c::I2CDevice, public binary
   void set_debounce_mode(DebounceMode mode) { this->debounce_mode_ = mode; }
 
  protected:
-  uint16_t debounce_time_{1};  // use a default of 1 ms if not configured in YAML
+  uint16_t debounce_time_{};
 
   DebounceMode debounce_mode_{};
 

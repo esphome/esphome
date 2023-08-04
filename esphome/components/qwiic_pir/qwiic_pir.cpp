@@ -89,19 +89,13 @@ void QwiicPIRComponent::loop() {
 void QwiicPIRComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Qwiic PIR:");
 
-  switch (this->debounce_mode_) {
-    case RAW_DEBOUNCE_MODE:
-      ESP_LOGCONFIG(TAG, "  Debounce Mode: RAW");
-      break;
-    case NATIVE_DEBOUNCE_MODE:
-      ESP_LOGCONFIG(TAG, "  Debounce Mode: NATIVE");
-      ESP_LOGCONFIG(TAG, "  Debounce Time: %ums", this->debounce_time_);
-      break;
-    case HYBRID_DEBOUNCE_MODE:
-      ESP_LOGCONFIG(TAG, "  Debounce Mode: HYBRID");
-      break;
-    default:
-      break;
+  if (this->debounce_mode_ == RAW_DEBOUNCE_MODE) {
+    ESP_LOGCONFIG(TAG, "  Debounce Mode: RAW");
+  } else if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
+    ESP_LOGCONFIG(TAG, "  Debounce Mode: NATIVE");
+    ESP_LOGCONFIG(TAG, "  Debounce Time: %ums", this->debounce_time_);
+  } else if (this->debounce_mode_ == HYBRID_DEBOUNCE_MODE) {
+    ESP_LOGCONFIG(TAG, "  Debounce Mode: HYBRID");
   }
 
   switch (this->error_code_) {
