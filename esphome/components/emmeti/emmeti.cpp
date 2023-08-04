@@ -171,28 +171,39 @@ void EmmetiClimate::transmit_state() {
     data->mark(EMMETI_HEADER_MARK);
     data->space(EMMETI_HEADER_SPACE);
 
-    reverse_add_(this->set_mode_(), 3, data);
-    add_(this->mode != climate::CLIMATE_MODE_OFF, data);
-    reverse_add_(this->set_fan_speed_(), 2, data);
-    add_(this->swing_mode != climate::CLIMATE_SWING_OFF, data);
-    add_(0, data);    // sleep mode
-    reverse_add_(this->set_temp_(), 4, data);
-    add_(0, 8, data); // zeros
-    add_(0, data);    // turbo mode
-    add_(1, data);    // light
-    add_(1, data);    // tree icon thingy
-    add_(0, data);    // blow mode
-    add_(0x52, 11, data); // idk
+    if(this->mode != climate::CLIMATE_MODE_OFF){
+      reverse_add_(this->set_mode_(), 3, data);
+      add_(1, data);
+      reverse_add_(this->set_fan_speed_(), 2, data);
+      add_(this->swing_mode != climate::CLIMATE_SWING_OFF, data);
+      add_(0, data);    // sleep mode
+      reverse_add_(this->set_temp_(), 4, data);
+      add_(0, 8, data); // zeros
+      add_(0, data);    // turbo mode
+      add_(1, data);    // light
+      add_(1, data);    // tree icon thingy
+      add_(0, data);    // blow mode
+      add_(0x52, 11, data); // idk
 
-    data->mark(EMMETI_BIT_MARK);
-    data->space(EMMETI_MESSAGE_SPACE);
+      data->mark(EMMETI_BIT_MARK);
+      data->space(EMMETI_MESSAGE_SPACE);
 
-    reverse_add_(this->set_blades_(), 4, data);
-    add_(0, 4, data); // zeros
-    reverse_add_(2, 2, data); // thermometer
-    add_(0, 18, data);  //zeros
-    reverse_add_(this->gen_checksum_(), 4, data);
-
+      reverse_add_(this->set_blades_(), 4, data);
+      add_(0, 4, data); // zeros
+      reverse_add_(2, 2, data); // thermometer
+      add_(0, 18, data);  //zeros
+      reverse_add_(this->gen_checksum_(), 4, data);
+    }else{
+      add_(9, 12, data);
+      add_(0, 8, data);
+      add_(0x2052, 15, data);
+      data->mark(EMMETI_BIT_MARK);
+      data->space(EMMETI_MESSAGE_SPACE);
+      add_(0, 8, data);
+      add_(1, 2, data);
+      add_(0, 18, data);
+      add_(0x0C, 4, data);
+    }
     data->mark(EMMETI_BIT_MARK);
     data->space(0);
 
