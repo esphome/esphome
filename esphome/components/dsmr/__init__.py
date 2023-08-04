@@ -87,7 +87,7 @@ async def to_code(config):
     cg.add_build_flag("-DDSMR_WATER_MBUS_ID=" + str(config[CONF_WATER_MBUS_ID]))
 
     # DSMR Parser
-    cg.add_library("glmnet/Dsmr", "0.7")
+    cg.add_library("glmnet/Dsmr", "0.8")
 
     # Crypto
     cg.add_library("rweather/Crypto", "0.4.0")
