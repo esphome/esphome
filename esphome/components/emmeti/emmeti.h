@@ -51,7 +51,7 @@ const uint32_t EMMETI_ONE_SPACE = 1630;
 const uint32_t EMMETI_ZERO_SPACE = 530;
 const uint32_t EMMETI_MESSAGE_SPACE = 20000;
 
-using state = struct state {
+using state = struct State {
   uint8_t mode = 0;
   uint8_t bitmap = 0;
   uint8_t fan_speed = 0;
