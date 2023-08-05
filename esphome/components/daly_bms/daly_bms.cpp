@@ -35,12 +35,12 @@ void DalyBmsComponent::update() {
   this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
   this->request_data_(DALY_REQUEST_TEMPERATURE);
 
-  std::vector<uint8_t> get_battery_level_data;
   int available_data = this->available();
   if (available_data >= DALY_FRAME_SIZE) {
     get_battery_level_data.resize(available_data);
     this->read_array(get_battery_level_data.data(), available_data);
     this->decode_data_(get_battery_level_data);
+    get_battery_level_data.resize(0);
   }
 }
 
