@@ -79,6 +79,7 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   void decode_data_(std::vector<uint8_t> data);
 
   std::vector<uint8_t> get_battery_level_data;
+  uint8_t requestid=0;
 
   uint8_t addr_;
 

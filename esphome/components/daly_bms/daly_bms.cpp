@@ -22,7 +22,7 @@ static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 void DalyBmsComponent::setup() {}
 
 // to reflect that 7 requests need to be done to get all data
-void DalyBmsComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval / 7; }
+void DalyBmsComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval / 8; }
 
 void DalyBmsComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Daly BMS:");
@@ -30,13 +30,39 @@ void DalyBmsComponent::dump_config() {
 }
 
 void DalyBmsComponent::update() {
-  this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
-  this->request_data_(DALY_REQUEST_MIN_MAX_VOLTAGE);
-  this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
-  this->request_data_(DALY_REQUEST_MOS);
-  this->request_data_(DALY_REQUEST_STATUS);
-  this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
-  this->request_data_(DALY_REQUEST_TEMPERATURE);
+  switch(this->requestid) {
+    case 0: 
+      this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
+      break;
+    case 1: 
+      this->request_data_(DALY_REQUEST_MIN_MAX_VOLTAGE);
+      break;
+    case 2: 
+      this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
+      break;
+    case 3: 
+      this->request_data_(DALY_REQUEST_MOS);
+      break;
+    case 4: 
+      this->request_data_(DALY_REQUEST_STATUS);
+      break;
+    case 5: 
+      this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
+      break;
+    case 6: 
+      this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
+      break;
+    case 7: 
+      this->request_data_(DALY_REQUEST_TEMPERATURE);
+      break;
+  }
+  this->requestid = (this->requestid + 1) % 8;
+  
+  
+  
+  
+  
+  
 
   int available_data = this->available();
   if (available_data >= DALY_FRAME_SIZE) {
