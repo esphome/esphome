@@ -21,7 +21,7 @@ static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
 void DalyBmsComponent::setup() {}
 
-// to reflect that 7 requests need to be done to get all data
+// to reflect that 8 requests need to be done to get all data
 void DalyBmsComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval / 8; }
 
 void DalyBmsComponent::dump_config() {
