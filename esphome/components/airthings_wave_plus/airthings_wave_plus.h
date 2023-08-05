@@ -22,6 +22,7 @@ class AirthingsWavePlus : public airthings_wave_base::AirthingsWaveBase {
   void set_radon(sensor::Sensor *radon) { radon_sensor_ = radon; }
   void set_radon_long_term(sensor::Sensor *radon_long_term) { radon_long_term_sensor_ = radon_long_term; }
   void set_co2(sensor::Sensor *co2) { co2_sensor_ = co2; }
+  void set_illuminance(sensor::Sensor *illuminance) { illuminance_sensor_ = illuminance; }
 
  protected:
   bool is_valid_radon_value_(uint16_t radon);
@@ -32,6 +33,7 @@ class AirthingsWavePlus : public airthings_wave_base::AirthingsWaveBase {
   sensor::Sensor *radon_sensor_{nullptr};
   sensor::Sensor *radon_long_term_sensor_{nullptr};
   sensor::Sensor *co2_sensor_{nullptr};
+  sensor::Sensor *illuminance_sensor_{nullptr};
 
   struct WavePlusReadings {
     uint8_t version;
