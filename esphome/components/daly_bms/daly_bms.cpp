@@ -30,7 +30,7 @@ void DalyBmsComponent::dump_config() {
 }
 
 void DalyBmsComponent::update() {
-  switch(this->requestid) {
+  switch (this->requestid) {
     case 0:
       this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
       break;
