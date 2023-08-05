@@ -30,7 +30,7 @@ void DalyBmsComponent::dump_config() {
 }
 
 void DalyBmsComponent::update() {
-  switch (this->requestid) {
+  switch (this->requestid_) {
     case 0:
       this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
       break;
@@ -56,13 +56,13 @@ void DalyBmsComponent::update() {
       this->request_data_(DALY_REQUEST_TEMPERATURE);
       break;
   }
-  this->requestid = (this->requestid + 1) % 8;
+  this->requestid_ = (this->requestid_ + 1) % 8;
   int available_data = this->available();
   if (available_data >= DALY_FRAME_SIZE) {
-    get_battery_level_data.resize(available_data);
-    this->read_array(get_battery_level_data.data(), available_data);
-    this->decode_data_(get_battery_level_data);
-    get_battery_level_data.resize(0);
+    get_battery_level_data_.resize(available_data);
+    this->read_array(get_battery_level_data_.data(), available_data);
+    this->decode_data_(get_battery_level_data_);
+    get_battery_level_data_.resize(0);
   }
 }
 
