@@ -101,13 +101,14 @@ void ATM90E32Component::setup() {
   }
 
   this->write16_(ATM90E32_REGISTER_SOFTRESET, 0x789A);    // Perform soft reset
+  delay(6);                                               // Wait for the minimum 5ms + 1ms
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x55AA);  // enable register config access
-  this->write16_(ATM90E32_REGISTER_METEREN, 0x0001);      // Enable Metering
-  if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != 0x0001) {
+  if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != 0x55AA) {
     ESP_LOGW(TAG, "Could not initialize ATM90E32 IC, check SPI settings");
     this->mark_failed();
     return;
   }
+  this->write16_(ATM90E32_REGISTER_METEREN, 0x0001);      // Enable Metering
   this->write16_(ATM90E32_REGISTER_PLCONSTH, 0x0861);   // PL Constant MSB (default) = 140625000
   this->write16_(ATM90E32_REGISTER_PLCONSTL, 0xC468);   // PL Constant LSB (default)
   this->write16_(ATM90E32_REGISTER_ZXCONFIG, 0xD654);   // ZX2, ZX1, ZX0 pin config
@@ -118,10 +119,13 @@ void ATM90E32Component::setup() {
   this->write16_(ATM90E32_REGISTER_PPHASETH, 0x02EE);   // Each Phase Active Phase Threshold - 0.002A/0.00032 = 750
   this->write16_(ATM90E32_REGISTER_QPHASETH, 0x02EE);   // Each phase Reactive Phase Threshold - 10%
   this->write16_(ATM90E32_REGISTER_UGAINA, this->phase_[0].volt_gain_);  // A Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_UOFFSETA, this->phase_[0].offset_voltage_);  // A Voltage offset rms
   this->write16_(ATM90E32_REGISTER_IGAINA, this->phase_[0].ct_gain_);    // A line current gain
   this->write16_(ATM90E32_REGISTER_UGAINB, this->phase_[1].volt_gain_);  // B Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_UOFFSETB, this->phase_[1].offset_voltage_);  // A Voltage offset rms
   this->write16_(ATM90E32_REGISTER_IGAINB, this->phase_[1].ct_gain_);    // B line current gain
   this->write16_(ATM90E32_REGISTER_UGAINC, this->phase_[2].volt_gain_);  // C Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_UOFFSETC, this->phase_[2].offset_voltage_);  // A Voltage offset rms
   this->write16_(ATM90E32_REGISTER_IGAINC, this->phase_[2].ct_gain_);    // C line current gain
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);                 // end configuration
 }

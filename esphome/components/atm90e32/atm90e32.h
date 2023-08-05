@@ -28,6 +28,7 @@ class ATM90E32Component : public PollingComponent,
   }
   void set_power_factor_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].power_factor_sensor_ = obj; }
   void set_volt_gain(int phase, uint16_t gain) { this->phase_[phase].volt_gain_ = gain; }
+  void set_offset_voltage(int phase, uint16_t offset) { this->phase_[phase].offset_voltage_ = offset; }
   void set_ct_gain(int phase, uint16_t gain) { this->phase_[phase].ct_gain_ = gain; }
 
   void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
@@ -70,6 +71,7 @@ class ATM90E32Component : public PollingComponent,
   struct ATM90E32Phase {
     uint16_t volt_gain_{7305};
     uint16_t ct_gain_{27961};
+    uint16_t offset_voltage_ {0};
     sensor::Sensor *voltage_sensor_{nullptr};
     sensor::Sensor *current_sensor_{nullptr};
     sensor::Sensor *power_sensor_{nullptr};
