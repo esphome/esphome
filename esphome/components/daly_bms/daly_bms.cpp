@@ -31,39 +31,32 @@ void DalyBmsComponent::dump_config() {
 
 void DalyBmsComponent::update() {
   switch(this->requestid) {
-    case 0: 
+    case 0:
       this->request_data_(DALY_REQUEST_BATTERY_LEVEL);
       break;
-    case 1: 
+    case 1:
       this->request_data_(DALY_REQUEST_MIN_MAX_VOLTAGE);
       break;
-    case 2: 
+    case 2:
       this->request_data_(DALY_REQUEST_MIN_MAX_TEMPERATURE);
       break;
-    case 3: 
+    case 3:
       this->request_data_(DALY_REQUEST_MOS);
       break;
-    case 4: 
+    case 4:
       this->request_data_(DALY_REQUEST_STATUS);
       break;
-    case 5: 
+    case 5:
       this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
       break;
-    case 6: 
+    case 6:
       this->request_data_(DALY_REQUEST_CELL_VOLTAGE);
       break;
-    case 7: 
+    case 7:
       this->request_data_(DALY_REQUEST_TEMPERATURE);
       break;
   }
   this->requestid = (this->requestid + 1) % 8;
-  
-  
-  
-  
-  
-  
-
   int available_data = this->available();
   if (available_data >= DALY_FRAME_SIZE) {
     get_battery_level_data.resize(available_data);
