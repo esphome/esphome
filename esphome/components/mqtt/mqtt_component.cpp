@@ -134,7 +134,7 @@ bool MQTTComponent::send_discovery_() {
 
         JsonObject device_info = root.createNestedObject(MQTT_DEVICE);
         device_info[MQTT_DEVICE_IDENTIFIERS] = get_mac_address();
-        device_info[MQTT_DEVICE_NAME] = node_name;
+        device_info[MQTT_DEVICE_NAME] = App.get_friendly_name();
         device_info[MQTT_DEVICE_SW_VERSION] = "esphome v" ESPHOME_VERSION " " + App.get_compilation_time();
         device_info[MQTT_DEVICE_MODEL] = ESPHOME_BOARD;
         device_info[MQTT_DEVICE_MANUFACTURER] = "espressif";
