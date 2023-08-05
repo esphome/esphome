@@ -89,10 +89,11 @@ void SSD1306::setup() {
   } else if (this->is_sh1107_()) {
     // Enable charge pump (0xAD)
     this->command(SH1107_COMMAND_CHARGE_PUMP);
-    if (this->external_vcc_)
+    if (this->external_vcc_) {
       this->command(0x8A);
-    else
+    } else {
       this->command(0x8B);
+    }
   } else {
     // Enable charge pump (0x8D)
     this->command(SSD1306_COMMAND_CHARGE_PUMP);
@@ -105,10 +106,10 @@ void SSD1306::setup() {
 
   // Set addressing mode to horizontal (0x20)
   this->command(SSD1306_COMMAND_MEMORY_MODE);
-  if (!this->is_sh1107_())
+  if (!this->is_sh1107_()) {
     // SH1107 memory mode is a 1 byte command
     this->command(0x00);
-
+  }
   // X flip mode (0xA0, 0xA1)
   this->command(SSD1306_COMMAND_SEGRE_MAP | this->flip_x_);
 
@@ -186,7 +187,7 @@ void SSD1306::setup() {
   this->turn_on();
 }
 void SSD1306::display() {
-  if (this->is_sh1106_() | this->is_sh1107_()) {
+  if (this->is_sh1106_() || this->is_sh1107_()) {
     this->write_display_data();
     return;
   }
