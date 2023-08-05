@@ -21,6 +21,9 @@ static const uint8_t DALY_REQUEST_TEMPERATURE = 0x96;
 
 void DalyBmsComponent::setup() {}
 
+// to reflect that 7 requests need to be done to get all data
+void DalyBmsComponent::set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval / 7; }
+
 void DalyBmsComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "Daly BMS:");
   this->check_uart_settings(9600);

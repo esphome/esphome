@@ -14,6 +14,7 @@ namespace daly_bms {
 class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
  public:
   DalyBmsComponent() = default;
+  virtual void set_update_interval(uint32_t update_interval);
 
   // SENSORS
   void set_voltage_sensor(sensor::Sensor *voltage_sensor) { voltage_sensor_ = voltage_sensor; }
