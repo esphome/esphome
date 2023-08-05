@@ -14,7 +14,7 @@ from esphome.const import (
     UNIT_PARTS_PER_MILLION,
     CONF_ILLUMINANCE,
     UNIT_LUX,
-    DEVICE_CLASS_ILLUMINANCE
+    DEVICE_CLASS_ILLUMINANCE,
 )
 
 DEPENDENCIES = airthings_wave_base.DEPENDENCIES
@@ -53,7 +53,7 @@ CONFIG_SCHEMA = airthings_wave_base.BASE_SCHEMA.extend(
             accuracy_decimals=0,
             device_class=DEVICE_CLASS_ILLUMINANCE,
             state_class=STATE_CLASS_MEASUREMENT,
-        )
+        ),
     }
 )
 

@@ -14,8 +14,6 @@ void AirthingsWavePlus::read_sensors(uint8_t *raw_value, uint16_t value_len) {
     ESP_LOGD(TAG, "version = %d", value->version);
 
     if (value->version == 1) {
-      ESP_LOGD(TAG, "ambient light = %d", value->ambientLight);
-
       if (this->humidity_sensor_ != nullptr) {
         this->humidity_sensor_->publish_state(value->humidity / 2.0f);
       }
