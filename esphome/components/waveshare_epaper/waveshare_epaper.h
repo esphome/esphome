@@ -442,7 +442,7 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
       this->reset_pin_->digital_write(false);
       delay(5);
       this->reset_pin_->digital_write(true);
-      delay(200);
+      delay(200);  // NOLINT
     }
   };
 };

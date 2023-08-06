@@ -1343,7 +1343,7 @@ bool WaveshareEPaper7P5InBV3::wait_until_idle_() {
     }
     delay(10);
   }
-  delay(200);
+  delay(200);  // NOLINT
   return true;
 };
 void WaveshareEPaper7P5InBV3::initialize() {
@@ -1458,14 +1458,14 @@ void WaveshareEPaper7P5InBV3::initialize() {
 void HOT WaveshareEPaper7P5InBV3::display() {
   uint32_t buf_len = this->get_buffer_length_();
 
-  this->command(0x13); // Start Transmission
+  this->command(0x13);  // Start Transmission
   delay(2);
   for (uint32_t i = 0; i < buf_len; i++) {
     this->data(~(this->buffer_[i]));
   }
 
-  this->command(0x12); // Display Refresh
-  delay(100);  // NOLINT
+  this->command(0x12);  // Display Refresh
+  delay(100);           // NOLINT
   this->wait_until_idle_();
 }
 int WaveshareEPaper7P5InBV3::get_width_internal() { return 800; }
