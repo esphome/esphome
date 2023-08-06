@@ -149,11 +149,10 @@ void DS248xComponent::update() {
   }
 
   this->write_to_wire(WIRE_COMMAND_SKIP);
-  this->write_to_wire(DALLAS_COMMAND_START_CONVERSION);
-
   if (this->enable_strong_pullup_) {
     this->write_config(this->read_config() | DS248X_CONFIG_STRONG_PULLUP);
   }
+  this->write_to_wire(DALLAS_COMMAND_START_CONVERSION);
 
   uint16_t max_wait_time = 0;
 
@@ -162,9 +161,6 @@ void DS248xComponent::update() {
   }
 
   this->set_timeout(TAG, max_wait_time, [this] {
-    if (this->enable_strong_pullup_) {
-      this->write_config(this->read_config() & ~DS248X_CONFIG_STRONG_PULLUP);
-    }
     for (auto *sensor : this->sensors_) {
       bool res = sensor->read_scratch_pad();
 
@@ -205,16 +201,11 @@ uint8_t DS248xComponent::read_config() {
   return cfg_byte;
 }
 
-bool DS248xComponent::write_config(uint8_t cfg) {
+void DS248xComponent::write_config(uint8_t cfg) {
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_WRITECONFIG;
   cmd[1] = cfg | ((~cfg) << 4);
   this->write(cmd.data(), sizeof(cmd));
-
-  uint8_t cfg_byte;
-  this->read(&cfg_byte, sizeof(cfg_byte));
-
-  return cfg_byte == cfg;
 }
 
 uint8_t DS248xComponent::wait_while_busy() {
@@ -250,21 +241,11 @@ void DS248xComponent::reset_hub() {
   searchLastDiscrepancy = 0;
 }
 
-
 bool DS248xComponent::reset_devices() {
   auto status = wait_while_busy();
   if (status & DS248X_STATUS_BUSY) {
     ESP_LOGE(TAG, "Master never finished command");
     return false;
-  }
-  uint8_t config = read_config();
-  if (config & DS248X_CONFIG_STRONG_PULLUP) {
-    bool cfg_ok = write_config(config & ~DS248X_CONFIG_STRONG_PULLUP);
-
-    if (!cfg_ok) {
-      ESP_LOGE(TAG, "Master config write failed");
-      return false;
-    }
   }
 
   uint8_t cmd = DS248X_COMMAND_RESETWIRE;
@@ -285,14 +266,6 @@ bool DS248xComponent::reset_devices() {
     return false;
   }
 
-  if (config & DS248X_CONFIG_STRONG_PULLUP) {
-    bool cfg_ok = write_config(config);
-
-    if (!cfg_ok) {
-      ESP_LOGE(TAG, "Master config write failed");
-      return false;
-    }
-  }
   return true;
 }
 
@@ -326,6 +299,10 @@ uint8_t DS248xComponent::read_from_wire() {
 
   if (status & DS248X_STATUS_BUSY) {
     return 0; // TODO: error handling
+  }
+
+  if (this->enable_strong_pullup_) {
+    this->write_config(this->read_config() | DS248X_CONFIG_STRONG_PULLUP);
   }
 
   uint8_t command = DS248X_COMMAND_READBYTE;
@@ -375,7 +352,7 @@ bool DS248xComponent::search(uint64_t* address) {
     write_command(DS248X_COMMAND_TRIPLET, direction ? 0x80 : 0x00);
 
     uint8_t status = wait_while_busy();
-    ESP_LOGD(TAG, "Search: i: %i dir: %i, status: %i bit: %llu", i, direction, status, searchBit);
+    ESP_LOGD(TAG, "Search: i: %i dir: %i, status: %i bit: %llX", i, direction, status, searchBit);
 
 		uint8_t id = status & DS248X_STATUS_SBR;
 		uint8_t comp_id = status & DS248X_STATUS_TSB;
