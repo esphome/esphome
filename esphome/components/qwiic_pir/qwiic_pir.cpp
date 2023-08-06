@@ -39,9 +39,20 @@ void QwiicPIRComponent::setup() {
     return;
   }
 
-  // Publish initial state of sensor; if in NATIVE debounce mode, then state would otherwise be unknown until the
-  // first motion event
-  this->publish_initial_state(false);
+  if (this->debounce_mode_ == NATIVE_DEBOUNCE_MODE) {
+    // Publish the starting raw state of the PIR sensor
+    // If NATIVE mode, the binary_sensor state would be unknown until a motion event
+    if (!this->read_byte(QWIIC_PIR_EVENT_STATUS, &this->event_register_.reg)) {
+      ESP_LOGE(TAG, "Failed to read initial sensor state.");
+
+      this->error_code_ = ERROR_COMMUNICATION_FAILED;
+      this->mark_failed();
+
+      return;
+    }
+
+    this->publish_state(this->event_register_.raw_reading);
+  }
 }
 
 void QwiicPIRComponent::loop() {
