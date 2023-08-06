@@ -289,8 +289,8 @@ async def to_code(config):
         espImage.IMAGE_TYPE[config[CONF_TYPE]],
     )
     cg.add(var.set_transparency(transparent))
-    if CONF_LOOP in config:
-        start = config[CONF_LOOP][CONF_START_FRAME]
-        end = config[CONF_LOOP].get(CONF_END_FRAME, frames)
-        count = config[CONF_LOOP].get(CONF_REPEAT, -1)
+    if loop_config := config.get(CONF_LOOP):
+        start = loop_config[CONF_START_FRAME]
+        end = loop_config.get(CONF_END_FRAME, frames)
+        count = loop_config.get(CONF_REPEAT, -1)
         cg.add(var.set_loop(start, end, count))
