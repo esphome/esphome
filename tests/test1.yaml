@@ -798,6 +798,7 @@ sensor:
     internal_temperature:
       name: Internal Ttemperature
     update_interval: 15s
+    i2c_id: i2c_bus
   - platform: kalman_combinator
     name: Kalman-filtered temperature
     process_std_dev: 0.00139
