@@ -40,7 +40,6 @@ CONF_GAIN_PGA = "gain_pga"
 CONF_CURRENT_PHASES = "current_phases"
 CONF_GAIN_VOLTAGE = "gain_voltage"
 CONF_GAIN_CT = "gain_ct"
-CONF_OFFSET_VOLTAGE = "offset_voltage"
 LINE_FREQS = {
     "50HZ": 50,
     "60HZ": 60,
@@ -104,7 +103,6 @@ ATM90E32_PHASE_SCHEMA = cv.Schema(
             state_class=STATE_CLASS_TOTAL_INCREASING,
         ),
         cv.Optional(CONF_GAIN_VOLTAGE, default=7305): cv.uint16_t,
-        cv.Optional(CONF_OFFSET_VOLTAGE, default=0): cv.uint16_t,
         cv.Optional(CONF_GAIN_CT, default=27961): cv.uint16_t,
     }
 )
@@ -151,7 +149,6 @@ async def to_code(config):
             continue
         conf = config[phase]
         cg.add(var.set_volt_gain(i, conf[CONF_GAIN_VOLTAGE]))
-        cg.add(var.set_offset_voltage(i, conf[CONF_OFFSET_VOLTAGE]))
         cg.add(var.set_ct_gain(i, conf[CONF_GAIN_CT]))
         if voltage_config := conf.get(CONF_VOLTAGE):
             sens = await sensor.new_sensor(voltage_config)

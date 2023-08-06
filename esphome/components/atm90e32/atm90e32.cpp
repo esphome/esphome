@@ -7,75 +7,90 @@ namespace esphome {
 namespace atm90e32 {
 
 static const char *const TAG = "atm90e32";
+void ATM90E32Component::loop() {
+  const int32_t current_millis = millis();
+  if (current_millis - last_periodic_millis < 500)
+    return;
+  last_periodic_millis = current_millis;
+  if (this->phase_[PHASEA].voltage_sensor_ != nullptr) {
+    this->phase_[PHASEA].voltage_ = this->get_line_voltage_avg(PHASEA);
+  }
+  if (this->phase_[PHASEB].voltage_sensor_ != nullptr) {
+    this->phase_[PHASEB].voltage_ = this->get_line_voltage_avg(PHASEB);
+  }
+  if (this->phase_[PHASEC].voltage_sensor_ != nullptr) {
+    this->phase_[PHASEC].voltage_ = this->get_line_voltage_avg(PHASEC);
+  }
+  if (this->phase_[PHASEA].current_sensor_ != nullptr) {
+    this->phase_[PHASEA].current_ = this->get_line_current_avg(PHASEA);
+  }
+  if (this->phase_[PHASEB].current_sensor_ != nullptr) {
+    this->phase_[PHASEB].current_ = this->get_line_current_avg(PHASEB);
+  }
+  if (this->phase_[PHASEC].current_sensor_ != nullptr) {
+    this->phase_[PHASEC].current_ = this->get_line_current_avg(PHASEC);
+  }
+}
 
 void ATM90E32Component::update() {
   if (this->read16_(ATM90E32_REGISTER_METEREN) != 1) {
     this->status_set_warning();
     return;
   }
-
-  if (this->phase_[0].voltage_sensor_ != nullptr) {
-    this->phase_[0].voltage_sensor_->publish_state(this->get_line_voltage_a_());
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].voltage_sensor_ != nullptr) {
+      this->phase_[phase].voltage_sensor_->publish_state(this->get_phase_voltage_(phase));
+    }
   }
-  if (this->phase_[1].voltage_sensor_ != nullptr) {
-    this->phase_[1].voltage_sensor_->publish_state(this->get_line_voltage_b_());
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].current_sensor_ != nullptr) {
+      this->phase_[phase].current_sensor_->publish_state(this->get_phase_current_(phase));
+    }
   }
-  if (this->phase_[2].voltage_sensor_ != nullptr) {
-    this->phase_[2].voltage_sensor_->publish_state(this->get_line_voltage_c_());
+  if (this->phase_[PHASEA].power_sensor_ != nullptr) {
+    this->phase_[PHASEA].power_sensor_->publish_state(this->get_active_power_a_());
   }
-  if (this->phase_[0].current_sensor_ != nullptr) {
-    this->phase_[0].current_sensor_->publish_state(this->get_line_current_a_());
+  if (this->phase_[PHASEB].power_sensor_ != nullptr) {
+    this->phase_[PHASEB].power_sensor_->publish_state(this->get_active_power_b_());
   }
-  if (this->phase_[1].current_sensor_ != nullptr) {
-    this->phase_[1].current_sensor_->publish_state(this->get_line_current_b_());
+  if (this->phase_[PHASEC].power_sensor_ != nullptr) {
+    this->phase_[PHASEC].power_sensor_->publish_state(this->get_active_power_c_());
   }
-  if (this->phase_[2].current_sensor_ != nullptr) {
-    this->phase_[2].current_sensor_->publish_state(this->get_line_current_c_());
+  if (this->phase_[PHASEA].reactive_power_sensor_ != nullptr) {
+    this->phase_[PHASEA].reactive_power_sensor_->publish_state(this->get_reactive_power_a_());
   }
-  if (this->phase_[0].power_sensor_ != nullptr) {
-    this->phase_[0].power_sensor_->publish_state(this->get_active_power_a_());
+  if (this->phase_[PHASEB].reactive_power_sensor_ != nullptr) {
+    this->phase_[PHASEB].reactive_power_sensor_->publish_state(this->get_reactive_power_b_());
   }
-  if (this->phase_[1].power_sensor_ != nullptr) {
-    this->phase_[1].power_sensor_->publish_state(this->get_active_power_b_());
+  if (this->phase_[PHASEC].reactive_power_sensor_ != nullptr) {
+    this->phase_[PHASEC].reactive_power_sensor_->publish_state(this->get_reactive_power_c_());
   }
-  if (this->phase_[2].power_sensor_ != nullptr) {
-    this->phase_[2].power_sensor_->publish_state(this->get_active_power_c_());
+  if (this->phase_[PHASEA].power_factor_sensor_ != nullptr) {
+    this->phase_[PHASEA].power_factor_sensor_->publish_state(this->get_power_factor_a_());
   }
-  if (this->phase_[0].reactive_power_sensor_ != nullptr) {
-    this->phase_[0].reactive_power_sensor_->publish_state(this->get_reactive_power_a_());
+  if (this->phase_[PHASEB].power_factor_sensor_ != nullptr) {
+    this->phase_[PHASEB].power_factor_sensor_->publish_state(this->get_power_factor_b_());
   }
-  if (this->phase_[1].reactive_power_sensor_ != nullptr) {
-    this->phase_[1].reactive_power_sensor_->publish_state(this->get_reactive_power_b_());
+  if (this->phase_[PHASEC].power_factor_sensor_ != nullptr) {
+    this->phase_[PHASEC].power_factor_sensor_->publish_state(this->get_power_factor_c_());
   }
-  if (this->phase_[2].reactive_power_sensor_ != nullptr) {
-    this->phase_[2].reactive_power_sensor_->publish_state(this->get_reactive_power_c_());
+  if (this->phase_[PHASEA].forward_active_energy_sensor_ != nullptr) {
+    this->phase_[PHASEA].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_a_());
   }
-  if (this->phase_[0].power_factor_sensor_ != nullptr) {
-    this->phase_[0].power_factor_sensor_->publish_state(this->get_power_factor_a_());
+  if (this->phase_[PHASEB].forward_active_energy_sensor_ != nullptr) {
+    this->phase_[PHASEB].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_b_());
   }
-  if (this->phase_[1].power_factor_sensor_ != nullptr) {
-    this->phase_[1].power_factor_sensor_->publish_state(this->get_power_factor_b_());
+  if (this->phase_[PHASEC].forward_active_energy_sensor_ != nullptr) {
+    this->phase_[PHASEC].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_c_());
   }
-  if (this->phase_[2].power_factor_sensor_ != nullptr) {
-    this->phase_[2].power_factor_sensor_->publish_state(this->get_power_factor_c_());
+  if (this->phase_[PHASEA].reverse_active_energy_sensor_ != nullptr) {
+    this->phase_[PHASEA].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_a_());
   }
-  if (this->phase_[0].forward_active_energy_sensor_ != nullptr) {
-    this->phase_[0].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_a_());
+  if (this->phase_[PHASEB].reverse_active_energy_sensor_ != nullptr) {
+    this->phase_[PHASEB].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_b_());
   }
-  if (this->phase_[1].forward_active_energy_sensor_ != nullptr) {
-    this->phase_[1].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_b_());
-  }
-  if (this->phase_[2].forward_active_energy_sensor_ != nullptr) {
-    this->phase_[2].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_c_());
-  }
-  if (this->phase_[0].reverse_active_energy_sensor_ != nullptr) {
-    this->phase_[0].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_a_());
-  }
-  if (this->phase_[1].reverse_active_energy_sensor_ != nullptr) {
-    this->phase_[1].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_b_());
-  }
-  if (this->phase_[2].reverse_active_energy_sensor_ != nullptr) {
-    this->phase_[2].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_c_());
+  if (this->phase_[PHASEC].reverse_active_energy_sensor_ != nullptr) {
+    this->phase_[PHASEC].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_c_());
   }
   if (this->freq_sensor_ != nullptr) {
     this->freq_sensor_->publish_state(this->get_frequency_());
@@ -108,6 +123,7 @@ void ATM90E32Component::setup() {
     this->mark_failed();
     return;
   }
+
   this->write16_(ATM90E32_REGISTER_METEREN, 0x0001);      // Enable Metering
   this->write16_(ATM90E32_REGISTER_PLCONSTH, 0x0861);   // PL Constant MSB (default) = 140625000
   this->write16_(ATM90E32_REGISTER_PLCONSTL, 0xC468);   // PL Constant LSB (default)
@@ -118,15 +134,30 @@ void ATM90E32Component::setup() {
   this->write16_(ATM90E32_REGISTER_QSTARTTH, 0x1D4C);   // All Reactive Startup Power Threshold - 50%
   this->write16_(ATM90E32_REGISTER_PPHASETH, 0x02EE);   // Each Phase Active Phase Threshold - 0.002A/0.00032 = 750
   this->write16_(ATM90E32_REGISTER_QPHASETH, 0x02EE);   // Each phase Reactive Phase Threshold - 10%
-  this->write16_(ATM90E32_REGISTER_UGAINA, this->phase_[0].volt_gain_);  // A Voltage rms gain
-  this->write16_(ATM90E32_REGISTER_UOFFSETA, this->phase_[0].offset_voltage_);  // A Voltage offset rms
-  this->write16_(ATM90E32_REGISTER_IGAINA, this->phase_[0].ct_gain_);    // A line current gain
-  this->write16_(ATM90E32_REGISTER_UGAINB, this->phase_[1].volt_gain_);  // B Voltage rms gain
-  this->write16_(ATM90E32_REGISTER_UOFFSETB, this->phase_[1].offset_voltage_);  // A Voltage offset rms
-  this->write16_(ATM90E32_REGISTER_IGAINB, this->phase_[1].ct_gain_);    // B line current gain
-  this->write16_(ATM90E32_REGISTER_UGAINC, this->phase_[2].volt_gain_);  // C Voltage rms gain
-  this->write16_(ATM90E32_REGISTER_UOFFSETC, this->phase_[2].offset_voltage_);  // A Voltage offset rms
-  this->write16_(ATM90E32_REGISTER_IGAINC, this->phase_[2].ct_gain_);    // C line current gain
+  // Setup voltage and current calibration offsets for PHASE A
+  this->phase_[PHASEA].voltage_offset_ = calibrateVoltageOffsetPhase(PHASEA);
+  this->write16_(ATM90E32_REGISTER_UOFFSETA, this->phase_[PHASEA].voltage_offset_);  // A Voltage offset
+  this->phase_[PHASEA].current_offset_ = calibrateCurrentOffsetPhase(PHASEA);
+  this->write16_(ATM90E32_REGISTER_IOFFSETA, this->phase_[PHASEA].current_offset_);  // A Current offset
+  // Setup voltage and current gain for PHASE A
+  this->write16_(ATM90E32_REGISTER_UGAINA, this->phase_[PHASEA].voltage_gain_);  // A Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_IGAINA, this->phase_[PHASEA].ct_gain_);    // A line current gain
+  // Setup voltage and current calibration offsets for PHASE B
+  this->phase_[PHASEB].voltage_offset_ = calibrateVoltageOffsetPhase(PHASEB);
+  this->write16_(ATM90E32_REGISTER_UOFFSETB, this->phase_[PHASEB].voltage_offset_);  // B Voltage offset
+  this->phase_[PHASEB].current_offset_ = calibrateCurrentOffsetPhase(PHASEB);
+  this->write16_(ATM90E32_REGISTER_IOFFSETB, this->phase_[PHASEB].current_offset_);  // B Current offset
+  // Setup voltage and current gain for PHASE B
+  this->write16_(ATM90E32_REGISTER_UGAINB, this->phase_[PHASEB].voltage_gain_);  // B Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_IGAINB, this->phase_[PHASEB].ct_gain_);    // B line current gain
+  // Setup voltage and current calibration offsets for PHASE C
+  this->phase_[PHASEC].voltage_offset_ = calibrateVoltageOffsetPhase(PHASEC);
+  this->write16_(ATM90E32_REGISTER_UOFFSETC, this->phase_[PHASEC].voltage_offset_);  // C Voltage offset
+  this->phase_[PHASEC].current_offset_ = calibrateCurrentOffsetPhase(PHASEC);
+  this->write16_(ATM90E32_REGISTER_IOFFSETC, this->phase_[PHASEC].current_offset_);  // C Current offset
+  // Setup voltage and current gain for PHASE C
+  this->write16_(ATM90E32_REGISTER_UGAINC, this->phase_[PHASEC].voltage_gain_);  // C Voltage rms gain
+  this->write16_(ATM90E32_REGISTER_IGAINC, this->phase_[PHASEC].ct_gain_);    // C line current gain
   this->write16_(ATM90E32_REGISTER_CFGREGACCEN, 0x0000);                 // end configuration
 }
 
@@ -168,12 +199,10 @@ uint16_t ATM90E32Component::read16_(uint16_t a_register) {
   uint8_t addrl = (a_register & 0xFF);
   uint8_t data[2];
   uint16_t output;
-
   this->enable();
-  //delay_microseconds_safe(15);
+  delay_microseconds_safe(10);
   this->write_byte(addrh);
   this->write_byte(addrl);
-  //delay_microseconds_safe(15);
   this->read_array(data, 2);
   this->disable();
 
@@ -196,40 +225,53 @@ int ATM90E32Component::read32_(uint16_t addr_h, uint16_t addr_l) {
 }
 
 void ATM90E32Component::write16_(uint16_t a_register, uint16_t val) {
-  uint8_t addrh = (a_register >> 8) & 0x03;
-  uint8_t addrl = (a_register & 0xFF);
-
   ESP_LOGVV(TAG, "write16_ 0x%04" PRIX16 " val 0x%04" PRIX16, a_register, val);
   this->enable();
-  this->write_byte(addrh);
-  this->write_byte(addrl);
-  this->write_byte((val >> 8) & 0xff);
-  this->write_byte(val & 0xFF);
+  this->write_byte16(a_register);
+  this->write_byte16(val);
   this->disable();
+  if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != val) ESP_LOGW(TAG, "SPI write error 0x%04X val 0x%04X", a_register, val);
 }
-
-float ATM90E32Component::get_line_voltage_a_() {
-  const uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSA);
+float ATM90E32Component::get_phase_voltage_(uint8_t phase) {
+  return this->phase_[phase].voltage_;
+}
+float ATM90E32Component::get_phase_current_(uint8_t phase) {
+  return this->phase_[phase].current_;
+}
+float ATM90E32Component::get_line_voltage_(uint8_t phase) {
+  const uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMS + phase);
+  if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != voltage) ESP_LOGW(TAG, "SPI RMS voltage read error");
   return (float) voltage / 100;
 }
-float ATM90E32Component::get_line_voltage_b_() {
-  const uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSB);
-  return (float) voltage / 100;
+float ATM90E32Component::get_line_voltage_avg(uint8_t phase) {
+  const uint8_t reads = 10;
+  uint32_t accumulation = 0;
+  uint16_t voltage = 0;
+  for (uint8_t i = 0; i < reads; i++) {
+    voltage = this->read16_(ATM90E32_REGISTER_URMS + phase);
+    if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != voltage) ESP_LOGW(TAG, "SPI RMS voltage read error");
+    accumulation += voltage;
+  }
+  voltage = accumulation / reads;
+  this->phase_[phase].voltage_ = (float) voltage / 100;
+  return this->phase_[phase].voltage_;
 }
-float ATM90E32Component::get_line_voltage_c_() {
-  const uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMSC);
-  return (float) voltage / 100;
+float ATM90E32Component::get_line_current_avg(uint8_t phase) {
+  const uint8_t reads = 10;
+  uint32_t accumulation = 0;
+  uint16_t current = 0;
+  for (uint8_t i = 0; i < reads; i++) {
+    current = this->read16_(ATM90E32_REGISTER_IRMS + phase);
+    if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != current) ESP_LOGW(TAG, "SPI RMS current read error");
+    accumulation += current;
+  }
+  current = accumulation / reads;
+  this->phase_[phase].current_ = (float) current / 1000;
+  return this->phase_[phase].current_;
 }
-float ATM90E32Component::get_line_current_a_() {
-  const uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSA);
-  return (float) current / 1000;
-}
-float ATM90E32Component::get_line_current_b_() {
-  const uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSB);
-  return (float) current / 1000;
-}
-float ATM90E32Component::get_line_current_c_() {
-  const uint16_t current = this->read16_(ATM90E32_REGISTER_IRMSC);
+float ATM90E32Component::get_line_current_(uint8_t phase) {
+  const uint16_t current = this->read16_(ATM90E32_REGISTER_IRMS + phase);
+  if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != current) ESP_LOGW(TAG, "SPI RMS current read error");
   return (float) current / 1000;
 }
 float ATM90E32Component::get_active_power_a_() {
