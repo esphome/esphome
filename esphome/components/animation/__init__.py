@@ -115,7 +115,7 @@ async def animation_action_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     var = cg.new_Pvariable(action_id, template_arg, paren)
 
-    if frame := config.get(CONF_FRAME):
+    if (frame := config.get(CONF_FRAME)) is not None:
         template_ = await cg.templatable(frame, args, cg.uint16)
         cg.add(var.set_frame(template_))
     return var
