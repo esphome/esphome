@@ -23,11 +23,11 @@ void IDFI2CBus::setup() {
   next_port = I2C_NUM_MAX;
 #endif
 
-if (port_ == I2C_NUM_MAX) {
-  ESP_LOGE(TAG, "Too many I2C buses configured");
-  this->mark_failed();
-  return;
-}
+  if (port_ == I2C_NUM_MAX) {
+    ESP_LOGE(TAG, "Too many I2C buses configured");
+    this->mark_failed();
+    return;
+  }
 
   recover_();
 
