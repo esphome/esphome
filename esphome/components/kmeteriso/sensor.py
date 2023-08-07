@@ -49,7 +49,6 @@ async def to_code(config):
         conf = config[CONF_TEMPERATURE]
         sens = await sensor.new_sensor(conf)
         cg.add(var.set_temperature_sensor(sens))
-    if CONF_INTERNAL_TEMPERATURE in config:
-        conf = config[CONF_INTERNAL_TEMPERATURE]
-        sens = await sensor.new_sensor(conf)
+    if internal_temperature_config := config.get(CONF_INTERNAL_TEMPERATURE):
+        sens = await sensor.new_sensor(internal_temperature_config)
         cg.add(var.set_internal_temperature_sensor(sens))
