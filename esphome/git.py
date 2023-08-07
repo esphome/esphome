@@ -15,6 +15,7 @@ _LOGGER = logging.getLogger(__name__)
 
 
 def run_git_command(cmd, cwd=None) -> str:
+    _LOGGER.debug("Running git command: %s", " ".join(cmd))
     try:
         ret = subprocess.run(cmd, cwd=cwd, capture_output=True, check=False)
     except FileNotFoundError as err:
@@ -48,6 +49,7 @@ def clone_or_update(
     domain: str,
     username: str = None,
     password: str = None,
+    submodules: Optional[list[str]] = None,
 ) -> tuple[Path, Optional[Callable[[], None]]]:
     key = f"{url}@{ref}"
 
@@ -74,6 +76,14 @@ def clone_or_update(
             run_git_command(["git", "fetch", "--", "origin", ref], str(repo_dir))
             run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
 
+        if submodules is not None:
+            _LOGGER.info(
+                "Initialising submodules (%s) for %s", ", ".join(submodules), key
+            )
+            run_git_command(
+                ["git", "submodule", "update", "--init"] + submodules, str(repo_dir)
+            )
+
     else:
         # Check refresh needed
         file_timestamp = Path(repo_dir / ".git" / "FETCH_HEAD")
@@ -96,6 +106,14 @@ def clone_or_update(
             run_git_command(cmd, str(repo_dir))
             # Hard reset to FETCH_HEAD (short-lived git ref corresponding to most recent fetch)
             run_git_command(["git", "reset", "--hard", "FETCH_HEAD"], str(repo_dir))
+
+            if submodules is not None:
+                _LOGGER.info(
+                    "Updating submodules (%s) for %s", ", ".join(submodules), key
+                )
+                run_git_command(
+                    ["git", "submodule", "update", "--init"] + submodules, str(repo_dir)
+                )
 
             def revert():
                 _LOGGER.info("Reverting changes to %s -> %s", key, old_sha)

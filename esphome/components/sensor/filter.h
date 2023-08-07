@@ -390,12 +390,12 @@ class OrFilter : public Filter {
 
 class CalibrateLinearFilter : public Filter {
  public:
-  CalibrateLinearFilter(float slope, float bias);
+  CalibrateLinearFilter(std::vector<std::array<float, 3>> linear_functions)
+      : linear_functions_(std::move(linear_functions)) {}
   optional<float> new_value(float value) override;
 
  protected:
-  float slope_;
-  float bias_;
+  std::vector<std::array<float, 3>> linear_functions_;
 };
 
 class CalibratePolynomialFilter : public Filter {
@@ -405,6 +405,16 @@ class CalibratePolynomialFilter : public Filter {
 
  protected:
   std::vector<float> coefficients_;
+};
+
+class ClampFilter : public Filter {
+ public:
+  ClampFilter(float min, float max);
+  optional<float> new_value(float value) override;
+
+ protected:
+  float min_{NAN};
+  float max_{NAN};
 };
 
 }  // namespace sensor
