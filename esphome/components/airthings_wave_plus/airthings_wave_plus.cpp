@@ -70,7 +70,7 @@ void AirthingsWavePlus::dump_config() {
   LOG_SENSOR("  ", "Radon", this->radon_sensor_);
   LOG_SENSOR("  ", "Radon Long Term", this->radon_long_term_sensor_);
   LOG_SENSOR("  ", "CO2", this->co2_sensor_);
-  LOG_SENSOR("  ", "ILLUMINANCE", this->illuminance_sensor_);
+  LOG_SENSOR("  ", "Illuminance", this->illuminance_sensor_);
 }
 
 AirthingsWavePlus::AirthingsWavePlus() {
