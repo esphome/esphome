@@ -54,25 +54,27 @@ float KMeterISOComponent::get_setup_priority() const { return setup_priority::DA
 void KMeterISOComponent::update() {
   uint8_t read_buf[4];
 
-  if (!this->read_bytes(KMETER_TEMP_VAL_REG, read_buf, 4)) {
-    ESP_LOGW(TAG, "Error reading temperature.");
-  } else {
-    int32_t temp = encode_uint32(read_buf[3], read_buf[2], read_buf[1], read_buf[0]);
-    float temp_f = temp / 100.0;
-    ESP_LOGV(TAG, "Got temperature=%.2f °C", temp_f);
-    if (this->temperature_sensor_ != nullptr)
+  if (this->temperature_sensor_ != nullptr) {
+    if (!this->read_bytes(KMETER_TEMP_VAL_REG, read_buf, 4)) {
+      ESP_LOGW(TAG, "Error reading temperature.");
+    } else {
+      int32_t temp = encode_uint32(read_buf[3], read_buf[2], read_buf[1], read_buf[0]);
+      float temp_f = temp / 100.0;
+      ESP_LOGV(TAG, "Got temperature=%.2f °C", temp_f);
       this->temperature_sensor_->publish_state(temp_f);
+    }
   }
 
-  if (!this->read_bytes(KMETER_INTERNAL_TEMP_VAL_REG, read_buf, 4)) {
-    ESP_LOGW(TAG, "Error reading internal temperature.");
-    return;
-  } else {
-    int32_t internal_temp = encode_uint32(read_buf[3], read_buf[2], read_buf[1], read_buf[0]);
-    float internal_temp_f = internal_temp / 100.0;
-    ESP_LOGV(TAG, "Got internal temperature=%.2f °C", internal_temp_f);
-    if (this->internal_temperature_sensor_ != nullptr)
+  if (this->internal_temperature_sensor_ != nullptr) {
+    if (!this->read_bytes(KMETER_INTERNAL_TEMP_VAL_REG, read_buf, 4)) {
+      ESP_LOGW(TAG, "Error reading internal temperature.");
+      return;
+    } else {
+      int32_t internal_temp = encode_uint32(read_buf[3], read_buf[2], read_buf[1], read_buf[0]);
+      float internal_temp_f = internal_temp / 100.0;
+      ESP_LOGV(TAG, "Got internal temperature=%.2f °C", internal_temp_f);
       this->internal_temperature_sensor_->publish_state(internal_temp_f);
+    }
   }
 }
 
