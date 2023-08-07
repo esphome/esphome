@@ -21,9 +21,6 @@ class KMeterISOComponent : public PollingComponent, public i2c::I2CDevice {
   void update() override;
 
  protected:
-  /// Read the temperature value and store the calculated ambient temperature in t_fine.
-  float read_temperature_(const uint8_t *data, int32_t *t_fine);
-
   sensor::Sensor *temperature_sensor_{nullptr};
   sensor::Sensor *internal_temperature_sensor_{nullptr};
   enum ErrorCode {
