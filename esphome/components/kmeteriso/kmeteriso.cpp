@@ -7,7 +7,7 @@ namespace kmeteriso {
 
 static const char *const TAG = "kmeteriso.sensor";
 
-static const uint8_t KMETER_KMETER_ERROR_STATUS_REG = 0x20;
+static const uint8_t KMETER_ERROR_STATUS_REG = 0x20;
 static const uint8_t KMETER_TEMP_VAL_REG = 0x00;
 static const uint8_t KMETER_INTERNAL_TEMP_VAL_REG = 0x10;
 static const uint8_t KMETER_FIRMWARE_VERSION_REG = 0xFE;
