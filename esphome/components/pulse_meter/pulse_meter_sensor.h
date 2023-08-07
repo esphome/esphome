@@ -15,12 +15,12 @@ class PulseMeterSensor : public sensor::Sensor, public Component {
     FILTER_PULSE,
   };
 
-  inline void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
-  inline void set_filter_us(uint32_t filter) { this->filter_us_ = filter; }
-  inline void set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
-  inline void set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
-  inline void set_filter_mode(InternalFilterMode mode) { this->filter_mode_ = mode; }
-  inline void set_total_pulses(uint32_t pulses) { this->total_pulses_ = pulses; }
+  void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
+  void set_filter_us(uint32_t filter) { this->filter_us_ = filter; }
+  void set_timeout_us(uint32_t timeout) { this->timeout_us_ = timeout; }
+  void set_total_sensor(sensor::Sensor *sensor) { this->total_sensor_ = sensor; }
+  void set_filter_mode(InternalFilterMode mode) { this->filter_mode_ = mode; }
+  void set_total_pulses(uint32_t pulses) { this->total_pulses_ = pulses; }
 
   void setup() override;
   void loop() override;
