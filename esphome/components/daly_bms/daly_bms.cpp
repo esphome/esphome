@@ -119,8 +119,8 @@ void DalyBmsComponent::request_data_(uint8_t data_id) {
   request_message[9] = 0x00;     //     |
   request_message[10] = 0x00;    //     |
   request_message[11] = 0x00;    // Empty Data
-  request_message[12] = (uint8_t)(request_message[0] + request_message[1] + request_message[2] +
-                                  request_message[3]);  // Checksum (Lower byte of the other bytes sum)
+  request_message[12] = (uint8_t) (request_message[0] + request_message[1] + request_message[2] +
+                                   request_message[3]);  // Checksum (Lower byte of the other bytes sum)
 
   ESP_LOGV(TAG, "Request datapacket Nr %x", data_id);
   this->write_array(request_message, sizeof(request_message));

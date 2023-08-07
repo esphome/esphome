@@ -23,20 +23,23 @@ CONF_PROCESS_STD_DEV = "process_std_dev"
 CONF_STD_DEV = "std_dev"
 
 
-CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(cv.COMPONENT_SCHEMA).extend(
-    {
-        cv.GenerateID(): cv.declare_id(KalmanCombinatorComponent),
-        cv.Required(CONF_PROCESS_STD_DEV): cv.positive_float,
-        cv.Required(CONF_SOURCES): cv.ensure_list(
-            cv.Schema(
-                {
-                    cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
-                    cv.Required(CONF_ERROR): cv.templatable(cv.positive_float),
-                }
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(KalmanCombinatorComponent)
+    .extend(cv.COMPONENT_SCHEMA)
+    .extend(
+        {
+            cv.Required(CONF_PROCESS_STD_DEV): cv.positive_float,
+            cv.Required(CONF_SOURCES): cv.ensure_list(
+                cv.Schema(
+                    {
+                        cv.Required(CONF_SOURCE): cv.use_id(sensor.Sensor),
+                        cv.Required(CONF_ERROR): cv.templatable(cv.positive_float),
+                    }
+                ),
             ),
-        ),
-        cv.Optional(CONF_STD_DEV): sensor.SENSOR_SCHEMA,
-    }
+            cv.Optional(CONF_STD_DEV): sensor.sensor_schema(),
+        }
+    )
 )
 
 # Inherit some sensor values from the first source, for both the state and the error value

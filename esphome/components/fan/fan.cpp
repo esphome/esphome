@@ -80,9 +80,6 @@ void FanRestoreState::apply(Fan &fan) {
   fan.publish_state();
 }
 
-Fan::Fan() : EntityBase("") {}
-Fan::Fan(const std::string &name) : EntityBase(name) {}
-
 FanCall Fan::turn_on() { return this->make_call().set_state(true); }
 FanCall Fan::turn_off() { return this->make_call().set_state(false); }
 FanCall Fan::toggle() { return this->make_call().set_state(!this->state); }

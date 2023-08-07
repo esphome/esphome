@@ -247,6 +247,21 @@ void ComponentIterator::advance() {
       }
       break;
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+    case IteratorState::ALARM_CONTROL_PANEL:
+      if (this->at_ >= App.get_alarm_control_panels().size()) {
+        advance_platform = true;
+      } else {
+        auto *a_alarm_control_panel = App.get_alarm_control_panels()[this->at_];
+        if (a_alarm_control_panel->is_internal() && !this->include_internal_) {
+          success = true;
+          break;
+        } else {
+          success = this->on_alarm_control_panel(a_alarm_control_panel);
+        }
+      }
+      break;
+#endif
     case IteratorState::MAX:
       if (this->on_end()) {
         this->state_ = IteratorState::NONE;

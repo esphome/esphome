@@ -161,13 +161,13 @@ mqtt:
                 id: ${roomname}_lights
                 relative_brightness: 5%
             - uart.write:
-                id: uart0
+                id: uart_0
                 data: Hello World
             - uart.write:
-                id: uart0
+                id: uart_0
                 data: [0x00, 0x20, 0x30]
             - uart.write:
-                id: uart0
+                id: uart_0
                 data: !lambda |-
                   return {};
   on_connect:
@@ -199,7 +199,7 @@ uart:
       number: GPIO23
       inverted: true
     baud_rate: 115200
-    id: uart0
+    id: uart_0
     parity: NONE
     data_bits: 8
     stop_bits: 1
@@ -222,6 +222,12 @@ uart:
     rx_pin: GPIO26
     baud_rate: 115200
     rx_buffer_size: 1024
+  - id: ld2410_uart
+    tx_pin: 18
+    rx_pin: 23
+    baud_rate: 256000
+    parity: NONE
+    stop_bits: 1
 
 ota:
   safe_mode: true
@@ -288,6 +294,9 @@ wled:
 
 adalight:
 
+esp32_ble:
+  io_capability: keyboard_only
+
 esp32_ble_tracker:
 
 ble_client:
@@ -301,8 +310,22 @@ ble_client:
     on_disconnect:
       then:
         - switch.turn_on: ble1_status
+    on_passkey_request:
+      then:
+        - ble_client.passkey_reply:
+            id: ble_blah
+            passkey: 123456
+    on_passkey_notification:
+      then:
+        - logger.log: "Passkey notification received"
+    on_numeric_comparison_request:
+      then:
+        - ble_client.numeric_comparison_reply:
+            id: ble_blah
+            accept: True
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
+
 bedjet:
   - ble_client_id: my_bedjet_ble_client
     id: my_bedjet_client
@@ -318,6 +341,8 @@ mcp23s17:
     deviceaddress: 1
 
 sensor:
+  - platform: internal_temperature
+    name: Internal Temperature
   - platform: ble_client
     type: characteristic
     ble_client_id: ble_foo
@@ -354,9 +379,13 @@ sensor:
       - offset: 2.0
       - multiply: 1.2
       - calibrate_linear:
-          - 0.0 -> 0.0
-          - 40.0 -> 45.0
-          - 100.0 -> 102.5
+          datapoints:
+            - 0.0 -> 0.0
+            - 40.0 -> 45.0
+            - 100.0 -> 102.5
+      - clamp:
+          min_value: -100
+          max_value: 100
       - filter_out: 42.0
       - filter_out: nan
       - median:
@@ -384,6 +413,7 @@ sensor:
       - heartbeat: 5s
       - debounce: 0.1s
       - delta: 5.0
+      - delta: 1%
       - or:
           - throttle: 1s
           - delta: 5.0
@@ -431,6 +461,51 @@ sensor:
     state_topic: hi/me
     retain: false
     availability:
+  - platform: as7341
+    update_interval: 15s
+    gain: X8
+    atime: 120
+    astep: 99
+    f1:
+      name: F1
+    f2:
+      name: F2
+    f3:
+      name: F3
+    f4:
+      name: F4
+    f5:
+      name: F5
+    f6:
+      name: F6
+    f7:
+      name: F7
+    f8:
+      name: F8
+    clear:
+      name: Clear
+    nir:
+      name: NIR
+    i2c_id: i2c_bus
+  - platform: atm90e26
+    cs_pin: 5
+    voltage:
+      name: Line Voltage
+    current:
+      name: CT Amps
+    power:
+      name: Active Watts
+    power_factor:
+      name: Power Factor
+    frequency:
+      name: Line Frequency
+    line_frequency: 50Hz
+    meter_constant: 1000
+    pl_const: 1429876
+    gain_pga: 1X
+    gain_metering: 7481
+    gain_voltage: 26400
+    gain_ct: 31251
   - platform: atm90e32
     cs_pin: 5
     phase_a:
@@ -755,7 +830,7 @@ sensor:
     reference_resistance: 430 Ω
     rtd_nominal_resistance: 100 Ω
   - platform: mhz19
-    uart_id: uart0
+    uart_id: uart_0
     co2:
       name: MH-Z19 CO2 Value
     temperature:
@@ -795,6 +870,15 @@ sensor:
       name: MPU6886 Gyro z
     temperature:
       name: MPU6886 Temperature
+    i2c_id: i2c_bus
+  - platform: mmc5603
+    address: 0x30
+    field_strength_x:
+      name: HMC5883L Field Strength X
+    field_strength_y:
+      name: HMC5883L Field Strength Y
+    field_strength_z:
+      name: HMC5883L Field Strength Z
     i2c_id: i2c_bus
   - platform: dps310
     temperature:
@@ -895,7 +979,7 @@ sensor:
     name: Pulse Width
     pin: GPIO12
   - platform: sm300d2
-    uart_id: uart0
+    uart_id: uart_0
     co2:
       name: SM300D2 CO2 Value
     formaldehyde:
@@ -1070,6 +1154,8 @@ sensor:
     id: ultrasonic_sensor1
   - platform: uptime
     name: Uptime Sensor
+  - id: !extend ${devicename}_uptime_pcg
+    unit_of_measurement: s
   - platform: wifi_signal
     name: WiFi Signal Sensor
     update_interval: 15s
@@ -1085,7 +1171,7 @@ sensor:
             root["key"] = id(the_sensor).state;
             root["greeting"] = "Hello World";
   - platform: sds011
-    uart_id: uart0
+    uart_id: uart_0
     pm_2_5:
       name: SDS011 PM2.5
     pm_10_0:
@@ -1193,6 +1279,13 @@ sensor:
     temperature:
       name: Max9611 Temp
     update_interval: 1s
+  - platform: mlx90614
+    i2c_id: i2c_bus
+    ambient:
+      name: Ambient
+    object:
+      name: Object
+      emissivity: 1.0
   - platform: mpl3115a2
     i2c_id: i2c_bus
     temperature:
@@ -1200,6 +1293,61 @@ sensor:
     pressure:
       name: "MPL3115A2 Pressure"
     update_interval: 10s
+  - platform: alpha3
+    ble_client_id: ble_foo
+    flow:
+      name: "Radiator Pump Flow"
+    head:
+      name: "Radiator Pump Head"
+    power:
+      name: "Radiator Pump Power"
+    speed:
+      name: "Radiator Pump Speed"
+  - platform: ld2410
+    moving_distance:
+      name: "Moving distance (cm)"
+    still_distance:
+      name: "Still Distance (cm)"
+    moving_energy:
+      name: "Move Energy"
+    still_energy:
+      name: "Still Energy"
+    detection_distance:
+      name: "Distance Detection"
+  - platform: sen21231
+    name: "Person Sensor"
+    i2c_id: i2c_bus
+  - platform: fs3000
+    name: "Air Velocity"
+    model: 1005
+    update_interval: 60s
+    i2c_id: i2c_bus
+  - platform: absolute_humidity
+    name: DHT Absolute Humidity
+    temperature: dht_temperature
+    humidity: dht_humidity
+  - platform: hyt271
+    i2c_id: i2c_bus
+    temperature:
+      name: "Temperature hyt271"
+      id: temp_etuve
+    humidity:
+      name: "Humidity hyt271"
+  - platform: tmp1075
+    name: "Temperature TMP1075"
+    update_interval: 10s
+    i2c_id: i2c_bus
+    conversion_rate: 27.5ms
+    alert:
+      limit_low: 50
+      limit_high: 75
+      fault_count: 1
+      polarity: active_high
+      function: comparator
+  - platform: zio_ultrasonic
+    name: "Distance"
+    update_interval: 60s
+    i2c_id: i2c_bus
 
 esp32_touch:
   setup_mode: false
@@ -1245,8 +1393,15 @@ binary_sensor:
     device_class: window
     filters:
       - invert:
+      - delayed_on_off: 40ms
+      - delayed_on_off:
+          time_on: 10s
+          time_off: !lambda "return 1000;"
       - delayed_on: 40ms
       - delayed_off: 40ms
+      - delayed_on_off: !lambda "return 10;"
+      - delayed_on: !lambda "return 1000;"
+      - delayed_off: !lambda "return 0;"
     on_press:
       then:
         - lambda: >-
@@ -1304,6 +1459,11 @@ binary_sensor:
       number: GPIO9
       mode: INPUT_PULLUP
     name: Living Room Window 2
+  - platform: gpio
+    pin:
+      number: GPIO9
+      mode: INPUT_OUTPUT_OPEN_DRAIN
+    name: Living Room Button
   - platform: status
     name: Living Room Status
   - platform: esp32_touch
@@ -1369,6 +1529,13 @@ binary_sensor:
       mode: INPUT
       inverted: true
   - platform: gpio
+    name: PCA6416A binary sensor
+    pin:
+      pca6416a: pca6416a_hub
+      number: 15
+      mode: INPUT
+      inverted: true
+  - platform: gpio
     name: MCP21 binary sensor
     pin:
       mcp23xxx: mcp23017_hub
@@ -1431,6 +1598,18 @@ binary_sensor:
           -2267,
           1709,
         ]
+  - platform: remote_receiver
+    name: Coolix Test 1
+    coolix: 0xB21F98
+  - platform: remote_receiver
+    name: Coolix Test 2
+    coolix:
+      first: 0xB2E003
+  - platform: remote_receiver
+    name: Coolix Test 3
+    coolix:
+      first: 0xB2E003
+      second: 0xB21F98
   - platform: as3935
     name: Storm Alert
   - platform: analog_threshold
@@ -1461,6 +1640,13 @@ binary_sensor:
     id: close_sensor
   - platform: template
     id: close_obstacle_sensor
+  - platform: ld2410
+    has_target:
+      name: presence
+    has_moving_target:
+      name: movement
+    has_still_target:
+      name: still
 
 pca9685:
   frequency: 500
@@ -2017,10 +2203,17 @@ climate:
     name: Midea IR
     use_fahrenheit: true
   - platform: midea
+    on_control:
+      - logger.log: Control message received!
+      - lambda: |-
+          x.set_mode(CLIMATE_MODE_FAN_ONLY);
     on_state:
-      logger.log: State changed!
+      - logger.log: State changed!
+      - lambda: |-
+          if (x.mode == CLIMATE_MODE_FAN_ONLY)
+            id(binary_sensor1).publish_state(true);
     id: midea_unit
-    uart_id: uart0
+    uart_id: uart_0
     name: Midea Climate
     transmitter_id:
     period: 1s
@@ -2093,8 +2286,16 @@ switch:
   - platform: template
     name: MIDEA_RAW
     turn_on_action:
-      remote_transmitter.transmit_midea:
-        code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+      - remote_transmitter.transmit_coolix:
+          first: 0xB21F98
+      - remote_transmitter.transmit_coolix:
+          first: 0xB21F98
+          second: 0xB21F98
+      - remote_transmitter.transmit_coolix:
+          first: !lambda "return 0xB21F98;"
+          second: !lambda "return 0xB21F98;"
+      - remote_transmitter.transmit_midea:
+          code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
   - platform: gpio
     name: "MCP23S08 Pin #0"
     pin:
@@ -2303,7 +2504,6 @@ switch:
           level: !lambda "return 0.5;"
     turn_off_action:
       - switch.turn_on: living_room_lights_off
-    restore_state: false
     on_turn_on:
       - switch.template.publish:
           id: livingroom_lights
@@ -2339,21 +2539,20 @@ switch:
       }
     optimistic: true
     assumed_state: false
-    restore_state: true
     on_turn_off:
       - switch.template.publish:
           id: my_switch
           state: !lambda "return false;"
   - platform: uart
-    uart_id: uart0
+    uart_id: uart_0
     name: UART String Output
     data: DataToSend
   - platform: uart
-    uart_id: uart0
+    uart_id: uart_0
     name: UART Bytes Output
     data: [0xDE, 0xAD, 0xBE, 0xEF]
   - platform: uart
-    uart_id: uart0
+    uart_id: uart_0
     name: UART Recurring Output
     data: [0xDE, 0xAD, 0xBE, 0xEF]
     send_every: 1s
@@ -2455,6 +2654,8 @@ color:
     red: 0%
     green: 1%
     blue: 100%
+  - id: kbx_green
+    hex: "3DEC55"
 
 display:
   - platform: lcd_gpio
@@ -2620,24 +2821,18 @@ display:
     row_start: 0
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: ili9341
+  - platform: ili9xxx
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4
     reset_pin: GPIO22
-    led_pin:
-      number: GPIO15
-      inverted: true
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
-  - platform: ili9341
+  - platform: ili9xxx
     model: TFT 2.4
     cs_pin: GPIO5
     dc_pin: GPIO4
     reset_pin: GPIO22
-    led_pin:
-      number: GPIO15
-      inverted: true
     auto_clear_enabled: false
     rotation: 90
     lambda: |-
@@ -2680,6 +2875,9 @@ tm1651:
 remote_receiver:
   pin: GPIO32
   dump: all
+  on_coolix:
+    then:
+      delay: !lambda "return x.first + x.second;"
 
 status_led:
   pin: GPIO2
@@ -2705,7 +2903,7 @@ pn532_i2c:
   i2c_id: i2c_bus
 
 rdm6300:
-  uart_id: uart0
+  uart_id: uart_0
 
 rc522_spi:
   cs_pin: GPIO23
@@ -2734,7 +2932,7 @@ mcp4728:
     i2c_id: i2c_bus
 
 gps:
-  uart_id: uart0
+  uart_id: uart_0
 
 time:
   - platform: sntp
@@ -2848,6 +3046,11 @@ pca9554:
     address: 0x3F
     i2c_id: i2c_bus
 
+pca6416a:
+  - id: pca6416a_hub
+    address: 0x21
+    i2c_id: i2c_bus
+
 mcp23017:
   - id: mcp23017_hub
     open_drain_interrupt: true
@@ -2956,6 +3159,8 @@ text_sensor:
       name: BSSID
     mac_address:
       name: Mac Address
+    dns_address:
+      name: DNS ADdress
   - platform: version
     name: ESPHome Version No Timestamp
     hide_timestamp: true
@@ -3054,7 +3259,7 @@ canbus:
 
 teleinfo:
   id: myteleinfo
-  uart_id: uart0
+  uart_id: uart_0
   update_interval: 60s
   historical_mode: true
 
@@ -3143,6 +3348,19 @@ button:
     on_press:
       midea_ac.power_toggle:
 
+ld2410:
+  id: my_ld2410
+  uart_id: ld2410_uart
+  timeout: 150s
+  max_move_distance: 6m
+  max_still_distance: 0.75m
+  g0_move_threshold: 10
+  g0_still_threshold: 20
+  g2_move_threshold: 20
+  g2_still_threshold: 21
+  g8_move_threshold: 80
+  g8_still_threshold: 81
+
 lcd_menu:
   display_id: my_lcd_gpio
   mark_back: 0x5e
@@ -3159,25 +3377,25 @@ lcd_menu:
       lambda: 'ESP_LOGI("lcd_menu", "root leave");'
   items:
     - type: back
-      text: 'Back'
+      text: Back
     - type: label
     - type: menu
-      text: 'Submenu 1'
+      text: Submenu 1
       items:
         - type: back
-          text: 'Back'
+          text: Back
         - type: menu
-          text: 'Submenu 21'
+          text: Submenu 21
           items:
             - type: back
-              text: 'Back'
+              text: Back
             - type: command
-              text: 'Show Main'
+              text: Show Main
               on_value:
                 then:
                   - display_menu.show_main:
     - type: select
-      text: 'Enum Item'
+      text: Enum Item
       immediate_edit: true
       select: test_select
       on_enter:
@@ -3190,7 +3408,7 @@ lcd_menu:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "select value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: number
-      text: 'Number'
+      text: Number
       number: test_number
       on_enter:
         then:
@@ -3202,15 +3420,15 @@ lcd_menu:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "number value: %s, %s", it->get_text().c_str(), it->get_value_text().c_str());'
     - type: command
-      text: 'Hide'
+      text: Hide
       on_value:
         then:
           - display_menu.hide:
     - type: switch
-      text: 'Switch'
+      text: Switch
       switch: my_switch
-      on_text: 'Bright'
-      off_text: 'Dark'
+      on_text: Bright
+      off_text: Dark
       immediate_edit: false
       on_value:
         then:
@@ -3224,3 +3442,21 @@ lcd_menu:
       on_prev:
         then:
           lambda: 'ESP_LOGI("lcd_menu", "custom prev: %s", it->get_text().c_str());'
+
+alarm_control_panel:
+  - platform: template
+    id: alarmcontrolpanel1
+    name: Alarm Panel
+    codes:
+      - "1234"
+    requires_code_to_arm: true
+    arming_home_time: 1s
+    arming_away_time: 15s
+    pending_time: 15s
+    trigger_time: 30s
+    binary_sensors:
+      - binary_sensor1
+    on_state:
+      then:
+        - lambda: !lambda |-
+            ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));

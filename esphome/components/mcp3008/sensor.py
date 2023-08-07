@@ -14,14 +14,17 @@ MCP3008Sensor = mcp3008_ns.class_(
 CONF_REFERENCE_VOLTAGE = "reference_voltage"
 CONF_MCP3008_ID = "mcp3008_id"
 
-CONFIG_SCHEMA = sensor.SENSOR_SCHEMA.extend(
-    {
-        cv.GenerateID(): cv.declare_id(MCP3008Sensor),
-        cv.GenerateID(CONF_MCP3008_ID): cv.use_id(MCP3008),
-        cv.Required(CONF_NUMBER): cv.int_,
-        cv.Optional(CONF_REFERENCE_VOLTAGE, default="3.3V"): cv.voltage,
-    }
-).extend(cv.polling_component_schema("1s"))
+CONFIG_SCHEMA = (
+    sensor.sensor_schema(MCP3008Sensor)
+    .extend(
+        {
+            cv.GenerateID(CONF_MCP3008_ID): cv.use_id(MCP3008),
+            cv.Required(CONF_NUMBER): cv.int_,
+            cv.Optional(CONF_REFERENCE_VOLTAGE, default="3.3V"): cv.voltage,
+        }
+    )
+    .extend(cv.polling_component_schema("1s"))
+)
 
 
 async def to_code(config):
