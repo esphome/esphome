@@ -30,12 +30,17 @@ static const uint8_t AHT10_CAL_ATTEMPTS = 10;
 static const uint8_t AHT10_STATUS_BUSY = 0x80;
 
 void AHT10Component::setup() {
-  const uint8_t *calibrate_cmd = AHT10_CALIBRATE_CMD;
-  if (this->variant_ == "aht20") {
-    calibrate_cmd = AHT20_CALIBRATE_CMD;
+  const uint8_t *calibrate_cmd;
+  switch (this->variant_) {
+    case AHT10Variant::AHT20:
+      calibrate_cmd = AHT20_CALIBRATE_CMD;
+      ESP_LOGCONFIG(TAG, "Setting up AHT20");
+      break;
+    case AHT10Variant::AHT10:
+    default:
+      calibrate_cmd = AHT10_CALIBRATE_CMD;
+      ESP_LOGCONFIG(TAG, "Setting up AHT10");
   }
-
-  ESP_LOGCONFIG(TAG, "Setting up AHT10 (variant: %s)", this->variant_.c_str());
 
   if (this->write(calibrate_cmd, sizeof(AHT10_CALIBRATE_CMD)) != i2c::ERROR_OK) {
     ESP_LOGE(TAG, "Communication with AHT10 failed!");
@@ -53,7 +58,7 @@ void AHT10Component::setup() {
     }
     ++cal_attempts;
     if (cal_attempts > AHT10_CAL_ATTEMPTS) {
-      ESP_LOGE(TAG, "AHT10 calibration hung!");
+      ESP_LOGE(TAG, "AHT10 calibration timed out!");
       this->mark_failed();
       return;
     }
