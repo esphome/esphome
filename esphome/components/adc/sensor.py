@@ -89,8 +89,7 @@ async def to_code(config):
         pin = await cg.gpio_pin_expression(config[CONF_PIN])
         cg.add(var.set_pin(pin))
 
-    if raw := config.get(CONF_RAW):
-        cg.add(var.set_output_raw(raw))
+    cg.add(var.set_output_raw(config[CONF_RAW]))
 
     if attenuation := config.get(CONF_ATTENUATION):
         if attenuation == "auto":
