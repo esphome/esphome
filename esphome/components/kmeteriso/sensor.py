@@ -35,10 +35,8 @@ CONFIG_SCHEMA = (
             ),
         }
     )
-    .extend(cv.polling_component_schema("5s"))
+    .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x66))
-    # Unsure how the polling frequency could be dynamically
-    # changed by the end user of this component.
 )
 
 
