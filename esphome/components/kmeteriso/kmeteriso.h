@@ -11,8 +11,8 @@ namespace kmeteriso {
 /// This class implements support for the KMeterISO thermocouple sensor.
 class KMeterISOComponent : public PollingComponent, public i2c::I2CDevice {
  public:
-  void set_temperature_sensor(sensor::Sensor *t) { temperature_sensor_ = t; }
-  void set_internal_temperature_sensor(sensor::Sensor *t) { internal_temperature_sensor_ = t; }
+  void set_temperature_sensor(sensor::Sensor *t) { this->temperature_sensor_ = t; }
+  void set_internal_temperature_sensor(sensor::Sensor *t) { this->internal_temperature_sensor_ = t; }
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
