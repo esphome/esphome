@@ -17,11 +17,11 @@ CONF_ON_FRAME = "on_frame"
 
 
 def validate_id(config):
-    if can_id := config.get(CONF_CAN_ID):
-        id_ext = config[CONF_USE_EXTENDED_ID]
-        if not id_ext:
-            if can_id > 0x7FF:
-                raise cv.Invalid("Standard IDs must be 11 Bit (0x000-0x7ff / 0-2047)")
+    can_id = config[CONF_CAN_ID]
+    id_ext = config[CONF_USE_EXTENDED_ID]
+    if not id_ext:
+        if can_id > 0x7FF:
+            raise cv.Invalid("Standard IDs must be 11 Bit (0x000-0x7ff / 0-2047)")
     return config
 
 
