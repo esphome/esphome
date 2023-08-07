@@ -68,7 +68,7 @@ void KMeterISOComponent::update() {
     ESP_LOGW(TAG, "Error reading internal temperature.");
     return;
   } else {
-    int32_t internal_temp = (read_buf[3] << 24) | (read_buf[2] << 16) | (read_buf[1] << 8) | read_buf[0];
+    int32_t internal_temp = encode_uint32(read_buf[3], read_buf[2], read_buf[1], read_buf[0]);
     float internal_temp_f = internal_temp / 100.0;
     ESP_LOGV(TAG, "Got internal temperature=%.2f °C", internal_temp_f);
     if (this->internal_temperature_sensor_ != nullptr)
