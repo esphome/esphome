@@ -57,7 +57,7 @@ void KMeterISOComponent::update() {
   if (!this->read_bytes(KMETER_TEMP_VAL_REG, read_buf, 4)) {
     ESP_LOGW(TAG, "Error reading temperature.");
   } else {
-    int32_t temp = (read_buf[3] << 24) | (read_buf[2] << 16) | (read_buf[1] << 8) | read_buf[0];
+    int32_t temp = encode_uint32(read_buf[3], read_buf[2], read_buf[1], read_buf[0]);
     float temp_f = temp / 100.0;
     ESP_LOGV(TAG, "Got temperature=%.2f °C", temp_f);
     if (this->temperature_sensor_ != nullptr)
