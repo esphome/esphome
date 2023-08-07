@@ -220,7 +220,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   esp_err_t err;
   esp_wifi_get_config(WIFI_IF_STA, &current_conf);
 
-  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {
+  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
     err = esp_wifi_disconnect();
     if (err != ESP_OK) {
       ESP_LOGV(TAG, "esp_wifi_disconnect failed! %d", err);
@@ -485,6 +485,9 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       buf[it.ssid_len] = '\0';
       ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
+#if LWIP_IPV6
+      WiFi.enableIpV6();
+#endif /* LWIP_IPV6 */
 
       break;
     }
@@ -547,6 +550,13 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       s_sta_connecting = false;
       break;
     }
+#if LWIP_IPV6
+    case ESPHOME_EVENT_ID_WIFI_STA_GOT_IP6: {
+      auto it = info.got_ip6.ip6_info;
+      ESP_LOGV(TAG, "Got IPv6 address=" IPV6STR, IPV62STR(it.ip));
+      break;
+    }
+#endif /* LWIP_IPV6 */
     case ESPHOME_EVENT_ID_WIFI_STA_LOST_IP: {
       ESP_LOGV(TAG, "Event: Lost IP");
       break;

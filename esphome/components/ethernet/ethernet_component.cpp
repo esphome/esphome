@@ -118,6 +118,10 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "ETH event handler register error");
   err = esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &EthernetComponent::got_ip_event_handler, nullptr);
   ESPHL_ERROR_CHECK(err, "GOT IP event handler register error");
+#if LWIP_IPV6
+  err = esp_event_handler_register(IP_EVENT, IP_EVENT_GOT_IP6, &EthernetComponent::got_ip6_event_handler, nullptr);
+  ESPHL_ERROR_CHECK(err, "GOT IP6 event handler register error");
+#endif /* LWIP_IPV6 */
 
   /* start Ethernet driver state machine */
   err = esp_eth_start(this->eth_handle_);
@@ -160,6 +164,20 @@ void EthernetComponent::loop() {
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
       }
+#if LWIP_IPV6
+      else if (this->got_ipv6_) {
+        esp_ip6_addr_t ip6_addr;
+        if (esp_netif_get_ip6_global(this->eth_netif_, &ip6_addr) == 0 &&
+            esp_netif_ip6_get_addr_type(&ip6_addr) == ESP_IP6_ADDR_IS_GLOBAL) {
+          ESP_LOGCONFIG(TAG, "IPv6 Addr (Global): " IPV6STR, IPV62STR(ip6_addr));
+        } else {
+          esp_netif_get_ip6_linklocal(this->eth_netif_, &ip6_addr);
+          ESP_LOGCONFIG(TAG, " IPv6: " IPV6STR, IPV62STR(ip6_addr));
+        }
+
+        this->got_ipv6_ = false;
+      }
+#endif /* LWIP_IPV6 */
       break;
   }
 }
@@ -254,6 +272,15 @@ void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_b
   ESP_LOGV(TAG, "[Ethernet event] ETH Got IP (num=%" PRId32 ")", event_id);
 }
 
+#if LWIP_IPV6
+void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
+                                              void *event_data) {
+  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP6 (num=%d)", event_id);
+  global_eth_component->got_ipv6_ = true;
+  global_eth_component->ipv6_count_ += 1;
+}
+#endif /* LWIP_IPV6 */
+
 void EthernetComponent::start_connect_() {
   this->connect_begin_ = millis();
   this->status_set_warning();
@@ -316,6 +343,12 @@ void EthernetComponent::start_connect_() {
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
+#if LWIP_IPV6
+    err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+    if (err != ESP_OK) {
+      ESPHL_ERROR_CHECK(err, "IPv6 local failed");
+    }
+#endif /* LWIP_IPV6 */
   }
 
   this->connect_begin_ = millis();
@@ -342,6 +375,19 @@ void EthernetComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->addr).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->addr).str().c_str());
 #endif
+
+#if LWIP_IPV6
+  if (this->ipv6_count_ > 0) {
+    esp_ip6_addr_t ip6_addr;
+    esp_netif_get_ip6_linklocal(this->eth_netif_, &ip6_addr);
+    ESP_LOGCONFIG(TAG, " IPv6: " IPV6STR, IPV62STR(ip6_addr));
+
+    if (esp_netif_get_ip6_global(this->eth_netif_, &ip6_addr) == 0 &&
+        esp_netif_ip6_get_addr_type(&ip6_addr) == ESP_IP6_ADDR_IS_GLOBAL) {
+      ESP_LOGCONFIG(TAG, "IPv6 Addr (Global): " IPV6STR, IPV62STR(ip6_addr));
+    }
+  }
+#endif /* LWIP_IPV6 */
 
   esp_err_t err;
 

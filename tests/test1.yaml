@@ -379,9 +379,13 @@ sensor:
       - offset: 2.0
       - multiply: 1.2
       - calibrate_linear:
-          - 0.0 -> 0.0
-          - 40.0 -> 45.0
-          - 100.0 -> 102.5
+          datapoints:
+            - 0.0 -> 0.0
+            - 40.0 -> 45.0
+            - 100.0 -> 102.5
+      - clamp:
+          min_value: -100
+          max_value: 100
       - filter_out: 42.0
       - filter_out: nan
       - median:
@@ -1594,6 +1598,18 @@ binary_sensor:
           -2267,
           1709,
         ]
+  - platform: remote_receiver
+    name: Coolix Test 1
+    coolix: 0xB21F98
+  - platform: remote_receiver
+    name: Coolix Test 2
+    coolix:
+      first: 0xB2E003
+  - platform: remote_receiver
+    name: Coolix Test 3
+    coolix:
+      first: 0xB2E003
+      second: 0xB21F98
   - platform: as3935
     name: Storm Alert
   - platform: analog_threshold
@@ -2188,9 +2204,14 @@ climate:
     use_fahrenheit: true
   - platform: midea
     on_control:
-      logger.log: Control message received!
+      - logger.log: Control message received!
+      - lambda: |-
+          x.set_mode(CLIMATE_MODE_FAN_ONLY);
     on_state:
-      logger.log: State changed!
+      - logger.log: State changed!
+      - lambda: |-
+          if (x.mode == CLIMATE_MODE_FAN_ONLY)
+            id(binary_sensor1).publish_state(true);
     id: midea_unit
     uart_id: uart_0
     name: Midea Climate
@@ -2265,8 +2286,16 @@ switch:
   - platform: template
     name: MIDEA_RAW
     turn_on_action:
-      remote_transmitter.transmit_midea:
-        code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+      - remote_transmitter.transmit_coolix:
+          first: 0xB21F98
+      - remote_transmitter.transmit_coolix:
+          first: 0xB21F98
+          second: 0xB21F98
+      - remote_transmitter.transmit_coolix:
+          first: !lambda "return 0xB21F98;"
+          second: !lambda "return 0xB21F98;"
+      - remote_transmitter.transmit_midea:
+          code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
   - platform: gpio
     name: "MCP23S08 Pin #0"
     pin:
@@ -2475,7 +2504,6 @@ switch:
           level: !lambda "return 0.5;"
     turn_off_action:
       - switch.turn_on: living_room_lights_off
-    restore_state: false
     on_turn_on:
       - switch.template.publish:
           id: livingroom_lights
@@ -2511,7 +2539,6 @@ switch:
       }
     optimistic: true
     assumed_state: false
-    restore_state: true
     on_turn_off:
       - switch.template.publish:
           id: my_switch
@@ -2848,6 +2875,9 @@ tm1651:
 remote_receiver:
   pin: GPIO32
   dump: all
+  on_coolix:
+    then:
+      delay: !lambda "return x.first + x.second;"
 
 status_led:
   pin: GPIO2
