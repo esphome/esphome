@@ -238,8 +238,16 @@ async def to_code(config):
         cg.add(var.set_target_temperature_multiplier(temperature_multiplier))
         cg.add(var.set_current_temperature_multiplier(temperature_multiplier))
     else:
-        cg.add(var.set_current_temperature_multiplier(temperature_multiplier))
-        cg.add(var.set_target_temperature_multiplier(temperature_multiplier))
+        if current_temperature_multiplier := config.get(
+            CONF_CURRENT_TEMPERATURE_MULTIPLIER
+        ):
+            cg.add(
+                var.set_current_temperature_multiplier(current_temperature_multiplier)
+            )
+        if target_temperature_multiplier := config.get(
+            CONF_TARGET_TEMPERATURE_MULTIPLIER
+        ):
+            cg.add(var.set_target_temperature_multiplier(target_temperature_multiplier))
 
     if config[CONF_REPORTS_FAHRENHEIT]:
         cg.add(var.set_reports_fahrenheit())
