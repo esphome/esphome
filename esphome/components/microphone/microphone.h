@@ -22,6 +22,7 @@ class Microphone {
   }
 
   bool is_running() const { return this->state_ == STATE_RUNNING; }
+  bool is_stopped() const { return this->state_ == STATE_STOPPED; }
 
  protected:
   State state_{STATE_STOPPED};

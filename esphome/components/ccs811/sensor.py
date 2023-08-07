@@ -69,16 +69,16 @@ async def to_code(config):
     sens = await sensor.new_sensor(config[CONF_TVOC])
     cg.add(var.set_tvoc(sens))
 
-    if CONF_VERSION in config:
-        sens = await text_sensor.new_text_sensor(config[CONF_VERSION])
+    if version_config := config.get(CONF_VERSION):
+        sens = await text_sensor.new_text_sensor(version_config)
         cg.add(var.set_version(sens))
 
-    if CONF_BASELINE in config:
-        cg.add(var.set_baseline(config[CONF_BASELINE]))
+    if (baseline := config.get(CONF_BASELINE)) is not None:
+        cg.add(var.set_baseline(baseline))
 
-    if CONF_TEMPERATURE in config:
-        sens = await cg.get_variable(config[CONF_TEMPERATURE])
+    if temperature_id := config.get(CONF_TEMPERATURE):
+        sens = await cg.get_variable(temperature_id)
         cg.add(var.set_temperature(sens))
-    if CONF_HUMIDITY in config:
-        sens = await cg.get_variable(config[CONF_HUMIDITY])
+    if humidity_id := config.get(CONF_HUMIDITY):
+        sens = await cg.get_variable(humidity_id)
         cg.add(var.set_humidity(sens))
