@@ -23,46 +23,46 @@ class DalyBmsComponent : public PollingComponent, public uart::UARTDevice {
   DalyBmsComponent() = default;
 
 #ifdef USE_SENSOR
-  SUB_SENSOR(voltage);
-  SUB_SENSOR(current);
-  SUB_SENSOR(battery_level);
-  SUB_SENSOR(max_cell_voltage);
-  SUB_SENSOR(max_cell_voltage_number);
-  SUB_SENSOR(min_cell_voltage);
-  SUB_SENSOR(min_cell_voltage_number);
-  SUB_SENSOR(max_temperature);
-  SUB_SENSOR(max_temperature_probe_number);
-  SUB_SENSOR(min_temperature);
-  SUB_SENSOR(min_temperature_probe_number);
-  SUB_SENSOR(remaining_capacity);
-  SUB_SENSOR(cells_number);
-  SUB_SENSOR(temperature_1);
-  SUB_SENSOR(temperature_2);
-  SUB_SENSOR(cell_1_voltage);
-  SUB_SENSOR(cell_2_voltage);
-  SUB_SENSOR(cell_3_voltage);
-  SUB_SENSOR(cell_4_voltage);
-  SUB_SENSOR(cell_5_voltage);
-  SUB_SENSOR(cell_6_voltage);
-  SUB_SENSOR(cell_7_voltage);
-  SUB_SENSOR(cell_8_voltage);
-  SUB_SENSOR(cell_9_voltage);
-  SUB_SENSOR(cell_10_voltage);
-  SUB_SENSOR(cell_11_voltage);
-  SUB_SENSOR(cell_12_voltage);
-  SUB_SENSOR(cell_13_voltage);
-  SUB_SENSOR(cell_14_voltage);
-  SUB_SENSOR(cell_15_voltage);
-  SUB_SENSOR(cell_16_voltage);
+  SUB_SENSOR(voltage)
+  SUB_SENSOR(current)
+  SUB_SENSOR(battery_level)
+  SUB_SENSOR(max_cell_voltage)
+  SUB_SENSOR(max_cell_voltage_number)
+  SUB_SENSOR(min_cell_voltage)
+  SUB_SENSOR(min_cell_voltage_number)
+  SUB_SENSOR(max_temperature)
+  SUB_SENSOR(max_temperature_probe_number)
+  SUB_SENSOR(min_temperature)
+  SUB_SENSOR(min_temperature_probe_number)
+  SUB_SENSOR(remaining_capacity)
+  SUB_SENSOR(cells_number)
+  SUB_SENSOR(temperature_1)
+  SUB_SENSOR(temperature_2)
+  SUB_SENSOR(cell_1_voltage)
+  SUB_SENSOR(cell_2_voltage)
+  SUB_SENSOR(cell_3_voltage)
+  SUB_SENSOR(cell_4_voltage)
+  SUB_SENSOR(cell_5_voltage)
+  SUB_SENSOR(cell_6_voltage)
+  SUB_SENSOR(cell_7_voltage)
+  SUB_SENSOR(cell_8_voltage)
+  SUB_SENSOR(cell_9_voltage)
+  SUB_SENSOR(cell_10_voltage)
+  SUB_SENSOR(cell_11_voltage)
+  SUB_SENSOR(cell_12_voltage)
+  SUB_SENSOR(cell_13_voltage)
+  SUB_SENSOR(cell_14_voltage)
+  SUB_SENSOR(cell_15_voltage)
+  SUB_SENSOR(cell_16_voltage)
 #endif
 
 #ifdef USE_TEXT_SENSOR
-  SUB_TEXT_SENSOR(status);
+  SUB_TEXT_SENSOR(status)
 #endif
 
 #ifdef USE_BINARY_SENSOR
-  SUB_BINARY_SENSOR(charging_mos_enabled);
-  SUB_BINARY_SENSOR(discharging_mos_enabled);
+  SUB_BINARY_SENSOR(charging_mos_enabled)
+  SUB_BINARY_SENSOR(discharging_mos_enabled)
 #endif
 
   void setup() override;
