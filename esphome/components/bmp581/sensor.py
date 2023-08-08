@@ -77,15 +77,24 @@ def compute_measurement_conversion_time(config):
         "128X": 20.8,
     }
 
-    pressure_conversion_time = PRESSURE_OVERSAMPLING_CONVERSION_TIMES[
-        config[CONF_PRESSURE][CONF_OVERSAMPLING]
-    ]
-    temperature_conversion_time = TEMPERATURE_OVERSAMPLING_CONVERSION_TIMES[
-        config[CONF_TEMPERATURE][CONF_OVERSAMPLING]
-    ]
+    pressure_conversion_time = (
+        0.0  # No conversion time necessary without a pressure sensor
+    )
+    if pressure_config := config.get(CONF_PRESSURE):
+        pressure_conversion_time = PRESSURE_OVERSAMPLING_CONVERSION_TIMES[
+            pressure_config.get(CONF_OVERSAMPLING)
+        ]
+
+    temperature_conversion_time = (
+        1.0  # BMP581 always samples the temperature even if only reading pressure
+    )
+    if temperature_config := config.get(CONF_TEMPERATURE):
+        temperature_conversion_time = TEMPERATURE_OVERSAMPLING_CONVERSION_TIMES[
+            temperature_config.get(CONF_OVERSAMPLING)
+        ]
 
     # Datasheet indicates a 5% possible error in each conversion time listed
-    return math.ceil(1.05 * pressure_conversion_time + temperature_conversion_time)
+    return math.ceil(1.05 * (pressure_conversion_time + temperature_conversion_time))
 
 
 CONFIG_SCHEMA = (
@@ -133,18 +142,22 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
-    if CONF_TEMPERATURE in config:
-        conf = config[CONF_TEMPERATURE]
-        sens = await sensor.new_sensor(conf)
+    if temperature_config := config.get(CONF_TEMPERATURE):
+        sens = await sensor.new_sensor(temperature_config)
         cg.add(var.set_temperature_sensor(sens))
-        cg.add(var.set_temperature_oversampling_config(conf[CONF_OVERSAMPLING]))
-        cg.add(var.set_temperature_iir_filter_config(conf[CONF_IIR_FILTER]))
+        cg.add(
+            var.set_temperature_oversampling_config(
+                temperature_config[CONF_OVERSAMPLING]
+            )
+        )
+        cg.add(
+            var.set_temperature_iir_filter_config(temperature_config[CONF_IIR_FILTER])
+        )
 
-    if CONF_PRESSURE in config:
-        conf = config[CONF_PRESSURE]
-        sens = await sensor.new_sensor(conf)
+    if pressure_config := config.get(CONF_PRESSURE):
+        sens = await sensor.new_sensor(pressure_config)
         cg.add(var.set_pressure_sensor(sens))
-        cg.add(var.set_pressure_oversampling_config(conf[CONF_OVERSAMPLING]))
-        cg.add(var.set_pressure_iir_filter_config(conf[CONF_IIR_FILTER]))
+        cg.add(var.set_pressure_oversampling_config(pressure_config[CONF_OVERSAMPLING]))
+        cg.add(var.set_pressure_iir_filter_config(pressure_config[CONF_IIR_FILTER]))
 
     cg.add(var.set_conversion_time(compute_measurement_conversion_time(config)))
