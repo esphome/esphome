@@ -55,7 +55,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 
   /// @brief WK2132Component ctor. We store the I²C base address of the
   /// component and we increment the number of instances of this class.
-  WK2132Component() : base_address_{this->address_} { ++counter_; }
+  WK2132Component() : base_address_{this->address_} { ++counter; }
 
   void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
   void set_test_mode(int test_mode) { this->test_mode_ = test_mode; }
@@ -71,7 +71,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 
  protected:
   friend class WK2132Channel;
-  const char *reg_to_str(int val);  // for debug
+  const char *reg_to_str_(int val);  // for debug
 
   /// @brief All write calls to I2C registers are performed through this method
   /// @param reg_address the register address
@@ -79,15 +79,15 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   /// @param buffer pointer to a buffer
   /// @param len length of the buffer
   /// @return the i2c error codes
-  void write_wk2132_register_(uint8_t reg_address, uint8_t channel, const uint8_t *buffer, size_t len);
+  void write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t len);
 
   /// @brief All read calls to I2C registers are performed through this method
-  /// @param reg_address the register address
+  /// @param number the register number
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer the buffer pointer
   /// @param len length of the buffer
   /// @return the i2c error codes
-  uint8_t read_wk2132_register_(uint8_t reg_address, uint8_t channel, uint8_t *buffer, size_t len);
+  uint8_t read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t len);
 
   int get_num_() const { return num_; }
 
@@ -95,8 +95,8 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   uint8_t base_address_;                     ///< base address of I2C device
   int test_mode_{0};                         ///< debug flag
   uint8_t data_;                             ///< temporary buffer
-  static int counter_;                       ///< count number of instances
-  int num_{counter_};                        ///< current counter
+  static int counter;                       ///< count number of instances
+  int num_{counter};                        ///< current counter
   bool page1_{false};                        ///< set to true when in page1 mode
   bool initialized_{false};                  ///< true when initialization is finished
   std::vector<WK2132Channel *> children_{};  ///< @brief the list of WK2132Channel UART children
@@ -142,12 +142,12 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief Return the number of bytes available for reading from the serial port.
   /// @return the number of bytes available in the receiver fifo
-  int available() override { return rx_in_fifo(); }
+  int available() override { return rx_in_fifo_(); }
 
   /// @brief Flush the output fifo. This is the only way to wait until all the bytes
   /// in the transmit FIFO have been sent. The method timeout after 100 ms. Therefore
   /// at very low speed you can't be sure all characters are gone.
-  virtual void flush();
+  void flush() override;
 
   //
   // overriden UARTComponent functions
@@ -164,27 +164,27 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief Returns the number of bytes available in the receiver fifo
   /// @return the number of bytes we can read
-  size_t rx_in_fifo();
+  size_t rx_in_fifo_();
 
   /// @brief Returns the number of bytes available in the transmitter fifo
   /// @return the number of bytes we can write
-  size_t tx_in_fifo();
+  size_t tx_in_fifo_();
 
   /// @brief Reads data from the receiver fifo to a buffer
   /// @param buffer the buffer
   /// @param len the number of bytes we want to read
   /// @return true if succeed false otherwise
-  bool read_data(uint8_t *buffer, size_t len);
+  bool read_data_(uint8_t *buffer, size_t len);
 
   /// @brief Writes data from a buffer to the transmitter fifo
   /// @param buffer the buffer
   /// @param len the number of bytes we want to write
   /// @return true if succeed false otherwise
-  bool write_data(const uint8_t *buffer, size_t len);
+  bool write_data_(const uint8_t *buffer, size_t len);
 
   /// @brief Return the size of the component's fifo
   /// @return the size
-  const size_t fifo_size() const { return 128; }
+  const size_t fifo_size_() const { return 128; }
 
   bool safe_{true};  // false will speed up operation but is unsafe
   struct PeekBuffer {
@@ -192,8 +192,8 @@ class WK2132Channel : public uart::UARTComponent {
     bool empty{true};
   } peek_buffer_;  // temporary storage when you peek data
 
-  void uart_send_test(char *preamble);
-  void uart_receive_test(char *preamnle, bool print_buf = true);
+  void uart_send_test_(char *preamble);
+  void uart_receive_test_(char *preamble, bool print_buf = true);
 
   WK2132Component *parent_;  ///< Our WK2132component parent
   uint8_t channel_;          ///< Our Channel number
