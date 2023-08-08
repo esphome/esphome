@@ -41,6 +41,13 @@ class ArmedHomeTrigger : public Trigger<> {
   }
 };
 
+class ArmedNightTrigger : public Trigger<> {
+ public:
+  explicit ArmedNightTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_armed_night_callback([this]() { this->trigger(); });
+  }
+};
+
 class ClearedTrigger : public Trigger<> {
  public:
   explicit ClearedTrigger(AlarmControlPanel *alarm_control_panel) {
