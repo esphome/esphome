@@ -50,6 +50,28 @@ void DeltaSolBSPlusBSensor::handle_message(std::vector<uint8_t> &message) {
     this->hqm_bsensor_->publish_state(message[15] & 0x20);
 }
 
+void DeltaSolBS2009BSensor::dump_config() {
+  ESP_LOGCONFIG(TAG, "Deltasol BS 2009:");
+  LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 2 Error", this->s2_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 3 Error", this->s3_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Sensor 4 Error", this->s4_error_bsensor_);
+  LOG_BINARY_SENSOR("  ", "Frost Protection Active", this->frost_protection_active_bsensor_);
+}
+
+void DeltaSolBS2009BSensor::handle_message(std::vector<uint8_t> &message) {
+  if (this->s1_error_bsensor_ != nullptr)
+    this->s1_error_bsensor_->publish_state(message[20] & 1);
+  if (this->s2_error_bsensor_ != nullptr)
+    this->s2_error_bsensor_->publish_state(message[20] & 2);
+  if (this->s3_error_bsensor_ != nullptr)
+    this->s3_error_bsensor_->publish_state(message[20] & 4);
+  if (this->s4_error_bsensor_ != nullptr)
+    this->s4_error_bsensor_->publish_state(message[20] & 8);
+  if (this->frost_protection_active_bsensor_ != nullptr)
+    this->frost_protection_active_bsensor_->publish_state(message[25] & 1);
+}
+
 void DeltaSolCBSensor::dump_config() {
   ESP_LOGCONFIG(TAG, "Deltasol C:");
   LOG_BINARY_SENSOR("  ", "Sensor 1 Error", this->s1_error_bsensor_);
@@ -125,8 +147,9 @@ void VBusCustomBSensor::dump_config() {
     ESP_LOGCONFIG(TAG, "  Command: 0x%04x", this->command_);
   }
   ESP_LOGCONFIG(TAG, "  Binary Sensors:");
-  for (VBusCustomSubBSensor *bsensor : this->bsensors_)
+  for (VBusCustomSubBSensor *bsensor : this->bsensors_) {
     LOG_BINARY_SENSOR("  ", "-", bsensor);
+  }
 }
 
 void VBusCustomBSensor::handle_message(std::vector<uint8_t> &message) {
