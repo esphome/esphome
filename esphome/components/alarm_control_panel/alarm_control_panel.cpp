@@ -36,23 +36,17 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
     this->state_callback_.call();
     if (state == ACP_STATE_TRIGGERED) {
       this->triggered_callback_.call();
-    }
-    else if (state == ACP_STATE_ARMING) {
+    } else if (state == ACP_STATE_ARMING) {
       this->arming_callback_.call();
-    }
-    else if (state == ACP_STATE_PENDING) {
+    } else if (state == ACP_STATE_PENDING) {
       this->pending_callback_.call();
-    }
-    else if (state == ACP_STATE_ARMED_HOME) {
+    } else if (state == ACP_STATE_ARMED_HOME) {
       this->armed_home_callback_.call();
-    }
-    else if (state == ACP_STATE_ARMED_NIGHT) {
+    } else if (state == ACP_STATE_ARMED_NIGHT) {
       this->armed_night_callback_.call();
-    }
-    else if (state == ACP_STATE_ARMED_AWAY) {
+    } else if (state == ACP_STATE_ARMED_AWAY) {
       this->armed_away_callback_.call();
-    }
-    else if (state == ACP_STATE_DISARMED) {
+    } else if (state == ACP_STATE_DISARMED) {
       this->disarmed_callback_.call();
     }
 
