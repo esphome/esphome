@@ -21,6 +21,7 @@ CONF_ON_PENDING = "on_pending"
 CONF_ON_ARMED_HOME = "on_armed_home"
 CONF_ON_ARMED_NIGHT = "on_armed_night"
 CONF_ON_ARMED_AWAY = "on_armed_away"
+CONF_ON_DISARMED = "on_disarmed"
 
 alarm_control_panel_ns = cg.esphome_ns.namespace("alarm_control_panel")
 AlarmControlPanel = alarm_control_panel_ns.class_("AlarmControlPanel", cg.EntityBase)
@@ -48,6 +49,9 @@ ArmedNightTrigger = alarm_control_panel_ns.class_(
 )
 ArmedAwayTrigger = alarm_control_panel_ns.class_(
     "ArmedAwayTrigger", automation.Trigger.template()
+)
+DisarmedTrigger = alarm_control_panel_ns.class_(
+    "DisarmedTrigger", automation.Trigger.template()
 )
 ArmAwayAction = alarm_control_panel_ns.class_("ArmAwayAction", automation.Action)
 ArmHomeAction = alarm_control_panel_ns.class_("ArmHomeAction", automation.Action)
@@ -97,6 +101,11 @@ ALARM_CONTROL_PANEL_SCHEMA = cv.ENTITY_BASE_SCHEMA.extend(
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ArmedAwayTrigger),
             }
         ),
+        cv.Optional(CONF_ON_DISARMED): automation.validate_automation(
+            {
+                cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(DisarmedTrigger),
+            }
+        ),
         cv.Optional(CONF_ON_CLEARED): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(ClearedTrigger),
@@ -140,6 +149,9 @@ async def setup_alarm_control_panel_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_ARMED_AWAY, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [], conf)
+    for conf in config.get(CONF_ON_DISARMED, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)
     for conf in config.get(CONF_ON_CLEARED, []):

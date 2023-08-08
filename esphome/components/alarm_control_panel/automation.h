@@ -55,6 +55,13 @@ class ArmedAwayTrigger : public Trigger<> {
   }
 };
 
+class DisarmedTrigger : public Trigger<> {
+ public:
+  explicit DisarmedTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_disarmed_callback([this]() { this->trigger(); });
+  }
+};
+
 class ClearedTrigger : public Trigger<> {
  public:
   explicit ClearedTrigger(AlarmControlPanel *alarm_control_panel) {

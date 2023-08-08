@@ -52,6 +52,9 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
     else if (state == ACP_STATE_ARMED_AWAY) {
       this->armed_away_callback_.call();
     }
+    else if (state == ACP_STATE_DISARMED) {
+      this->disarmed_callback_.call();
+    }
 
     if (prev_state == ACP_STATE_TRIGGERED) {
       this->cleared_callback_.call();
@@ -89,6 +92,10 @@ void AlarmControlPanel::add_on_armed_away_callback(std::function<void()> &&callb
 
 void AlarmControlPanel::add_on_pending_callback(std::function<void()> &&callback) {
   this->pending_callback_.add(std::move(callback));
+}
+
+void AlarmControlPanel::add_on_disarmed_callback(std::function<void()> &&callback) {
+  this->disarmed_callback_.add(std::move(callback));
 }
 
 void AlarmControlPanel::add_on_cleared_callback(std::function<void()> &&callback) {

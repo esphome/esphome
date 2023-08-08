@@ -77,6 +77,12 @@ class AlarmControlPanel : public EntityBase {
    */
   void add_on_armed_away_callback(std::function<void()> &&callback);
 
+  /** Add a callback for when the state of the alarm_control_panel changes to disarmed
+   *
+   * @param callback The callback function
+   */
+  void add_on_disarmed_callback(std::function<void()> &&callback);
+
   /** Add a callback for when the state of the alarm_control_panel clears from triggered
    *
    * @param callback The callback function
@@ -168,6 +174,8 @@ class AlarmControlPanel : public EntityBase {
   CallbackManager<void()> armed_night_callback_{};
   // armed_away callback
   CallbackManager<void()> armed_away_callback_{};
+  // disarmed callback
+  CallbackManager<void()> disarmed_callback_{};
   // clear callback
   CallbackManager<void()> cleared_callback_{};
 };
