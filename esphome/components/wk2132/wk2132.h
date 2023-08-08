@@ -95,11 +95,16 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   uint8_t base_address_;                     ///< base address of I2C device
   int test_mode_{0};                         ///< debug flag
   uint8_t data_;                             ///< temporary buffer
-  static int counter;                        ///< count number of instances
   int num_{counter};                         ///< current counter
   bool page1_{false};                        ///< set to true when in page1 mode
   bool initialized_{false};                  ///< true when initialization is finished
   std::vector<WK2132Channel *> children_{};  ///< @brief the list of WK2132Channel UART children
+  // below is a tricky declaration for which we need C++17
+  // if counter is not inline we need to add a line in .cpp to initialize it but this declaration
+  // is rejected in clang-tidy for declaration of a globally accessible non constant variable.
+  // The only way I found was to use the new inline c++17 capability. For more info see
+  // https://stackoverflow.com/questions/185844/how-to-initialize-private-static-members-in-c
+  inline static int counter = 0;  ///< count number of instances
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -184,7 +189,7 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief Return the size of the component's fifo
   /// @return the size
-  const size_t fifo_size_() const { return 128; }
+  const size_t fifo_size_() { return 128; }
 
   bool safe_{true};  // false will speed up operation but is unsafe
   struct PeekBuffer {
