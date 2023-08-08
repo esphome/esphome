@@ -1194,12 +1194,14 @@ alarm_control_panel:
       - "1234"
     requires_code_to_arm: true
     arming_home_time: 1s
+    arming_night_time: 1s
     arming_away_time: 15s
     pending_time: 15s
     trigger_time: 30s
     binary_sensors:
       - input: bin1
         bypass_armed_home: true
+        bypass_armed_night: true
     on_state:
       then:
         - lambda: !lambda |-
