@@ -3263,6 +3263,20 @@ teleinfo:
   update_interval: 60s
   historical_mode: true
 
+wk2132:
+  - id: wk2132_0
+    address: 0x70
+    i2c_id: i2c_bus
+    uart:
+      - uart_id: uart_id_wk2132_0_0
+        channel: 0
+        baud_rate: 115200
+        stop_bits: 1
+        parity: none
+      - uart_id: uart_id_wk2132_0_1
+        channel: 1
+        baud_rate: 19200
+
 number:
   - platform: template
     id: test_number
