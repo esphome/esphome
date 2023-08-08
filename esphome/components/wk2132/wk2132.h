@@ -95,8 +95,8 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   uint8_t base_address_;                     ///< base address of I2C device
   int test_mode_{0};                         ///< debug flag
   uint8_t data_;                             ///< temporary buffer
-  static int counter;                       ///< count number of instances
-  int num_{counter};                        ///< current counter
+  static int counter;                        ///< count number of instances
+  int num_{counter};                         ///< current counter
   bool page1_{false};                        ///< set to true when in page1 mode
   bool initialized_{false};                  ///< true when initialization is finished
   std::vector<WK2132Channel *> children_{};  ///< @brief the list of WK2132Channel UART children

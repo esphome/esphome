@@ -397,7 +397,7 @@ void WK2132Channel::uart_send_test_(char *preamble) {
   auto start_exec = millis();
   uint8_t to_send = fifo_size_() - tx_in_fifo_();
   uint8_t to_flush = tx_in_fifo_();  // byte in buffer before execution
-  this->flush();                    // we wait until they are gone
+  this->flush();                     // we wait until they are gone
   uint8_t remains = tx_in_fifo_();   // remaining bytes if not null => flush timeout
 
   if (to_send > 0) {
