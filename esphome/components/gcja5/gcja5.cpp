@@ -100,10 +100,10 @@ void GCJA5Component::parse_data_() {
   } else
     ESP_LOGVV(TAG, "Good packet found.");
 
-  have_good_data_ = true;
+  this->have_good_data_ = true;
   uint8_t status = this->rx_message_[29];
   if (!first_status_log_) {
-    first_status_log_ = true;
+    this->first_status_log_ = true;
 
     ESP_LOGI(TAG, "GCJA5 Status");
     ESP_LOGI(TAG, "Overall Status : %i", (status >> 6) & 0x03);
