@@ -34,6 +34,13 @@ class PendingTrigger : public Trigger<> {
   }
 };
 
+class ArmedHomeTrigger : public Trigger<> {
+ public:
+  explicit ArmedHomeTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_armed_home_callback([this]() { this->trigger(); });
+  }
+};
+
 class ClearedTrigger : public Trigger<> {
  public:
   explicit ClearedTrigger(AlarmControlPanel *alarm_control_panel) {
