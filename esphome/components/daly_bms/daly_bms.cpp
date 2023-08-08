@@ -107,18 +107,19 @@ float DalyBmsComponent::get_setup_priority() const { return setup_priority::DATA
 void DalyBmsComponent::request_data_(uint8_t data_id) {
   uint8_t request_message[DALY_FRAME_SIZE];
 
-  request_message[0] = 0xA5;                             // Start Flag
-  request_message[1] = this->addr_;                      // Communication Module Address
-  request_message[2] = data_id;                          // Data ID
-  request_message[3] = 0x08;                             // Data Length (Fixed)
-  request_message[4] = 0x00;                             // Empty Data
-  request_message[5] = 0x00;                             //     |
-  request_message[6] = 0x00;                             //     |
-  request_message[7] = 0x00;                             //     |
-  request_message[8] = 0x00;                             //     |
-  request_message[9] = 0x00;                             //     |
-  request_message[10] = 0x00;                            //     |
-  request_message[11] = 0x00;                            // Empty Data
+  request_message[0] = 0xA5;         // Start Flag
+  request_message[1] = this->addr_;  // Communication Module Address
+  request_message[2] = data_id;      // Data ID
+  request_message[3] = 0x08;         // Data Length (Fixed)
+  request_message[4] = 0x00;         // Empty Data
+  request_message[5] = 0x00;         //     |
+  request_message[6] = 0x00;         //     |
+  request_message[7] = 0x00;         //     |
+  request_message[8] = 0x00;         //     |
+  request_message[9] = 0x00;         //     |
+  request_message[10] = 0x00;        //     |
+  request_message[11] = 0x00;        // Empty Data
+
   request_message[12] = (uint8_t) (request_message[0] + request_message[1] + request_message[2] +
                                    request_message[3]);  // Checksum (Lower byte of the other bytes sum)
 
