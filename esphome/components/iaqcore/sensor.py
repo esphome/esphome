@@ -46,12 +46,12 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
 
-    if CONF_CO2 in config:
-        sens = await sensor.new_sensor(config[CONF_CO2])
+    if co2_config := config.get(CONF_CO2):
+        sens = await sensor.new_sensor(co2_config)
         cg.add(var.set_co2(sens))
 
-    if CONF_TVOC in config:
-        sens = await sensor.new_sensor(config[CONF_TVOC])
+    if tvoc_config := config.get(CONF_TVOC):
+        sens = await sensor.new_sensor(tvoc_config)
         cg.add(var.set_tvoc(sens))
 
     await i2c.register_i2c_device(var, config)
