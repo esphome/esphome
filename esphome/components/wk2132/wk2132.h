@@ -55,7 +55,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 
   /// @brief WK2132Component ctor. We store the I²C base address of the
   /// component and we increment the number of instances of this class.
-  WK2132Component() : base_address_{this->address_} { ++counter; }
+  WK2132Component() : base_address_{this->address_} {}
 
   void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
   void set_test_mode(int test_mode) { this->test_mode_ = test_mode; }
@@ -89,22 +89,15 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   /// @return the i2c error codes
   uint8_t read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t len);
 
-  int get_num_() const { return num_; }
+  int get_num_() const { return int(this); }
 
   uint32_t crystal_{14745600L};              ///< crystal default value;
   uint8_t base_address_;                     ///< base address of I2C device
   int test_mode_{0};                         ///< debug flag
   uint8_t data_;                             ///< temporary buffer
-  int num_{counter};                         ///< current counter
   bool page1_{false};                        ///< set to true when in page1 mode
   bool initialized_{false};                  ///< true when initialization is finished
   std::vector<WK2132Channel *> children_{};  ///< @brief the list of WK2132Channel UART children
-  // below is a tricky declaration for which we need C++17
-  // if counter is not inline we need to add a line in .cpp to initialize it but this declaration
-  // is rejected in clang-tidy for declaration of a globally accessible non constant variable.
-  // The only way I found was to use the new inline c++17 capability. For more info see
-  // https://stackoverflow.com/questions/185844/how-to-initialize-private-static-members-in-c
-  inline static int counter = 0;  ///< count number of instances
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -189,7 +182,7 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief Return the size of the component's fifo
   /// @return the size
-  const size_t fifo_size_() { return 128; }
+  size_t fifo_size_() { return 128; }
 
   bool safe_{true};  // false will speed up operation but is unsafe
   struct PeekBuffer {
