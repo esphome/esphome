@@ -436,15 +436,6 @@ bool BMP581Component::prime_iir_filter_() {
   return this->write_oversampling_settings_(current_temperature_oversampling, current_pressure_oversampling);
 }
 
-bool BMP581Component::read_pressure_(float &pressure) {
-  // - temperature measurement is always enabled on sensor, so reads both temperature and pressure
-  // - returns whether successful, where the variable parameter contains
-  //    - the measured pressure (in Pa)
-
-  float temperature;
-  return this->read_temperature_and_pressure_(temperature, pressure);
-}
-
 bool BMP581Component::read_temperature_(float &temperature) {
   // - verifies data is ready to be read
   // - reads in 3 bytes of temperature data
