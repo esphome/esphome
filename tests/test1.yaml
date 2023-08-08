@@ -1355,6 +1355,14 @@ sensor:
     name: "Distance"
     update_interval: 60s
     i2c_id: i2c_bus
+  - platform: bmp581
+    i2c_id: i2c_bus
+    temperature:
+      name: "BMP581 Temperature"
+      iir_filter: 2x
+    pressure:
+      name: "BMP581 Pressure"
+      oversampling: 128x
 
 esp32_touch:
   setup_mode: false
