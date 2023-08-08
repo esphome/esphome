@@ -333,7 +333,7 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
     // can continue
   }
 
-  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {
+  if (memcmp(&current_conf, &conf, sizeof(wifi_config_t)) != 0) {  // NOLINT
     err = esp_wifi_disconnect();
     if (err != ESP_OK) {
       ESP_LOGV(TAG, "esp_wifi_disconnect failed: %s", esp_err_to_name(err));
@@ -569,6 +569,8 @@ const char *get_disconnect_reason_str(uint8_t reason) {
       return "Handshake Failed";
     case WIFI_REASON_CONNECTION_FAIL:
       return "Connection Failed";
+    case WIFI_REASON_ROAMING:
+      return "Station Roaming";
     case WIFI_REASON_UNSPECIFIED:
     default:
       return "Unspecified";
@@ -631,7 +633,9 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
     if (it.reason == WIFI_REASON_NO_AP_FOUND) {
       ESP_LOGW(TAG, "Event: Disconnected ssid='%s' reason='Probe Request Unsuccessful'", buf);
       s_sta_connect_not_found = true;
-
+    } else if (it.reason == WIFI_REASON_ROAMING) {
+      ESP_LOGI(TAG, "Event: Disconnected ssid='%s' reason='Station Roaming'", buf);
+      return;
     } else {
       ESP_LOGW(TAG, "Event: Disconnected ssid='%s' bssid=" LOG_SECRET("%s") " reason='%s'", buf,
                format_mac_addr(it.bssid).c_str(), get_disconnect_reason_str(it.reason));
