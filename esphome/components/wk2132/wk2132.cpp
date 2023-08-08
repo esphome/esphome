@@ -14,10 +14,7 @@ static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "S
 static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL"};
 
 // convert an int to binary string
-const char *i2s(uint8_t val) {
-  std::string str = std::bitset<8>(val).to_string();
-  return str.c_str();
-}
+inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 
 /// @brief Computes the I²C Address to access the component
 /// @param base_address the base address of the component as set by the A1 A0 pins
@@ -30,7 +27,7 @@ inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) 
   // - CC is the channel number (in practice only 00 or 01)
   // - F is 0 when accessing register one when accessing FIFO
   uint8_t addr = base_address | channel << 1 | fifo;
-  // ESP_LOGI(TAG, "i2c_address %02X [%s] => b=%02X c=%02X f=%d", addr, i2s_(addr), base_address, channel, fifo);
+  // ESP_LOGI(TAG, "i2c_address %02X [%s] => b=%02X c=%02X f=%d", addr, i2s(addr).c_str(), base_address, channel, fifo);
   return addr;
 }
 
@@ -64,11 +61,11 @@ void WK2132Component::write_wk2132_register_(uint8_t reg_number, uint8_t channel
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
     ESP_LOGVV(TAG, "write_wk2132_register_(@%02X %s, %d b=%02X [%s], len=%d): I2C code %d", address_,
-              reg_to_str_(reg_number), channel, *buffer, i2s(*buffer), len, (int) error);
+              reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
   } else {  // error
     this->status_set_warning();
     ESP_LOGE(TAG, "write_wk2132_register_(@%02X %s, %d b=%02X [%s], len=%d): I2C code %d", address_,
-             reg_to_str_(reg_number), channel, *buffer, i2s(*buffer), len, (int) error);
+             reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
   }
 }
 
@@ -78,11 +75,11 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
     ESP_LOGVV(TAG, "read_wk2132_register_(@%02X %s, %d b=%02X [%s], len=%d): I2C code %d", address_,
-              reg_to_str_(reg_number), channel, *buffer, i2s(*buffer), len, (int) error);
+              reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
   } else {  // error
     this->status_set_warning();
     ESP_LOGE(TAG, "read_wk2132_register_(@%02X %s, %d b=%02X [%s], len=%d): I2C code %d", address_,
-             reg_to_str_(reg_number), channel, *buffer, i2s(*buffer), len, (int) error);
+             reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
   }
   return *buffer;
 }
@@ -230,7 +227,7 @@ void WK2132Channel::set_line_param_() {
   }
   parent_->write_wk2132_register_(REG_WK2132_LCR, channel_, &lcr, 1);
   ESP_LOGCONFIG(TAG, "  line config: %d data_bits, %d stop_bits, parity %s register [%s]", data_bits_, stop_bits_,
-                parity2string(parity_), i2s(lcr));
+                parity2string(parity_), i2s(lcr).c_str());
 }
 
 size_t WK2132Channel::tx_in_fifo_() {
@@ -242,7 +239,7 @@ size_t WK2132Channel::tx_in_fifo_() {
 
   uint8_t fsr = parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
   uint8_t tfcnt = parent_->read_wk2132_register_(REG_WK2132_TFCNT, channel_, &data_, 1);
-  ESP_LOGVV(TAG, "tx_in_fifo=%d status %s", tfcnt, i2s(fsr));
+  ESP_LOGVV(TAG, "tx_in_fifo=%d status %s", tfcnt, i2s(fsr).c_str());
   return tfcnt;
 }
 
@@ -269,8 +266,8 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
   auto error = parent_->read(buffer, len);
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
-    ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer), len,
-             (int) error);
+    ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
+             len, (int) error);
     return true;
   } else {  // error
     parent_->status_set_warning();
@@ -289,13 +286,13 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   auto error = parent_->write(buffer, len);
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
-    ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer), len,
-             (int) error);
+    ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
+             len, (int) error);
     return true;
   } else {  // error
     parent_->status_set_warning();
-    ESP_LOGE(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer), len,
-             (int) error);
+    ESP_LOGE(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
+             len, (int) error);
     return false;
   }
 }
@@ -448,6 +445,8 @@ void WK2132Component::loop() {
   ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }
 
+#else
+void WK2132Component::loop() {}
 #endif
 
 }  // namespace wk2132
