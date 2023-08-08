@@ -37,7 +37,7 @@ void GCJA5Component::loop() {
     if (this->rx_message_.size() == 32) {
       this->parse_data_();
 
-      if (have_good_data_) {
+      if (this->have_good_data_) {
         if (this->pm_1_0_sensor_ != nullptr)
           this->pm_1_0_sensor_->publish_state(get_32_bit_uint_(1));
         if (this->pm_2_5_sensor_ != nullptr)
@@ -102,7 +102,7 @@ void GCJA5Component::parse_data_() {
 
   this->have_good_data_ = true;
   uint8_t status = this->rx_message_[29];
-  if (!first_status_log_) {
+  if (!this->first_status_log_) {
     this->first_status_log_ = true;
 
     ESP_LOGI(TAG, "GCJA5 Status");
