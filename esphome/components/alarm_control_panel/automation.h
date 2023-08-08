@@ -67,6 +67,26 @@ template<typename... Ts> class ArmHomeAction : public Action<Ts...> {
   AlarmControlPanel *alarm_control_panel_;
 };
 
+template<typename... Ts> class ArmNightAction : public Action<Ts...> {
+ public:
+  explicit ArmNightAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
+
+  TEMPLATABLE_VALUE(std::string, code)
+
+  void play(Ts... x) override {
+    auto call = this->alarm_control_panel_->make_call();
+    auto code = this->code_.optional_value(x...);
+    if (code.has_value()) {
+      call.set_code(code.value());
+    }
+    call.arm_night();
+    call.perform();
+  }
+
+ protected:
+  AlarmControlPanel *alarm_control_panel_;
+};
+
 template<typename... Ts> class DisarmAction : public Action<Ts...> {
  public:
   explicit DisarmAction(AlarmControlPanel *alarm_control_panel) : alarm_control_panel_(alarm_control_panel) {}
