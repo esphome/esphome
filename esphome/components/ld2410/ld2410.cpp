@@ -14,6 +14,8 @@
 namespace esphome {
 namespace ld2410 {
 
+static const char *const TAG = "ld2410";
+
 LD2410Component::LD2410Component() {}
 
 void LD2410Component::dump_config() {
@@ -40,10 +42,12 @@ void LD2410Component::dump_config() {
   LOG_SENSOR("  ", "MovingTargetEnergySensor", this->moving_target_energy_sensor_);
   LOG_SENSOR("  ", "StillTargetEnergySensor", this->still_target_energy_sensor_);
   LOG_SENSOR("  ", "DetectionDistanceSensor", this->detection_distance_sensor_);
-  for (sensor::Sensor *s : this->gate_still_sensors_)
+  for (sensor::Sensor *s : this->gate_still_sensors_) {
     LOG_SENSOR("  ", "NthGateStillSesnsor", s);
-  for (sensor::Sensor *s : this->gate_move_sensors_)
+  }
+  for (sensor::Sensor *s : this->gate_move_sensors_) {
     LOG_SENSOR("  ", "NthGateMoveSesnsor", s);
+  }
 #endif
 #ifdef USE_TEXT_SENSOR
   LOG_TEXT_SENSOR("  ", "VersionTextSensor", this->version_text_sensor_);
@@ -60,10 +64,12 @@ void LD2410Component::dump_config() {
   LOG_NUMBER("  ", "MaxStillDistanceGateNumber", this->max_still_distance_gate_number_);
   LOG_NUMBER("  ", "MaxMoveDistanceGateNumber", this->max_move_distance_gate_number_);
   LOG_NUMBER("  ", "TimeoutNumber", this->timeout_number_);
-  for (number::Number *n : this->gate_still_threshold_numbers_)
+  for (number::Number *n : this->gate_still_threshold_numbers_) {
     LOG_NUMBER("  ", "Still Thresholds Number", n);
-  for (number::Number *n : this->gate_move_threshold_numbers_)
+  }
+  for (number::Number *n : this->gate_move_threshold_numbers_) {
     LOG_NUMBER("  ", "Move Thresholds Number", n);
+  }
 #endif
   this->read_all_info();
   ESP_LOGCONFIG(TAG, "  Throttle_ : %ums", this->throttle_);
@@ -251,14 +257,12 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
         this->light_sensor_->publish_state(new_light_sensor);
     }
   } else {
-    for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_move_sensors_.size(); i++) {
-      sensor::Sensor *s = this->gate_move_sensors_[i];
+    for (auto *s : this->gate_move_sensors_) {
       if (s != nullptr && !std::isnan(s->get_state())) {
         s->publish_state(NAN);
       }
     }
-    for (std::vector<sensor::Sensor *>::size_type i = 0; i != this->gate_still_sensors_.size(); i++) {
-      sensor::Sensor *s = this->gate_still_sensors_[i];
+    for (auto *s : this->gate_still_sensors_) {
       if (s != nullptr && !std::isnan(s->get_state())) {
         s->publish_state(NAN);
       }
@@ -381,24 +385,25 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
 #endif
     } break;
     case lowbyte(CMD_QUERY_LIGHT_CONTROL): {
-      const std::string &light_function = LIGHT_FUNCTION_INT_TO_ENUM.at(buffer[10]);
-      float light_threshold = buffer[11] * 1.0;
-      const std::string &out_pin_level = OUT_PIN_LEVEL_INT_TO_ENUM.at(buffer[12]);
-      ESP_LOGV(TAG, "Light function is: %s", const_cast<char *>(light_function.c_str()));
-      ESP_LOGV(TAG, "Light threshold is: %f", light_threshold);
-      ESP_LOGV(TAG, "Out pin level is: %s", const_cast<char *>(out_pin_level.c_str()));
+      this->light_function_ = LIGHT_FUNCTION_INT_TO_ENUM.at(buffer[10]);
+      this->light_threshold_ = buffer[11] * 1.0;
+      this->out_pin_level_ = OUT_PIN_LEVEL_INT_TO_ENUM.at(buffer[12]);
+      ESP_LOGV(TAG, "Light function is: %s", const_cast<char *>(this->light_function_.c_str()));
+      ESP_LOGV(TAG, "Light threshold is: %f", this->light_threshold_);
+      ESP_LOGV(TAG, "Out pin level is: %s", const_cast<char *>(this->out_pin_level_.c_str()));
 #ifdef USE_SELECT
-      if (this->light_function_select_ != nullptr && this->light_function_select_->state != light_function) {
-        this->light_function_select_->make_call().set_option(light_function).perform();
+      if (this->light_function_select_ != nullptr && this->light_function_select_->state != this->light_function_) {
+        this->light_function_select_->make_call().set_option(this->light_function_).perform();
       }
-      if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->state != out_pin_level) {
-        this->out_pin_level_select_->make_call().set_option(out_pin_level).perform();
+      if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->state != this->out_pin_level_) {
+        this->out_pin_level_select_->make_call().set_option(this->out_pin_level_).perform();
       }
 #endif
 #ifdef USE_NUMBER
       if (this->light_threshold_number_ != nullptr &&
-          (!this->light_threshold_number_->has_state() || this->light_threshold_number_->state != light_threshold)) {
-        this->light_threshold_number_->make_call().set_value(light_threshold).perform();
+          (!this->light_threshold_number_->has_state() ||
+           this->light_threshold_number_->state != this->light_threshold_)) {
+        this->light_threshold_number_->make_call().set_value(this->light_threshold_).perform();
       }
 #endif
     } break;
@@ -467,8 +472,8 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
         None Duration: 33~34th bytes
       */
       updates.push_back(set_number_value(this->timeout_number_, this->two_byte_to_int_(buffer[32], buffer[33])));
-      for (std::vector<std::function<void(void)>>::size_type i = 0; i != updates.size(); i++) {
-        updates[i]();
+      for (auto &update : updates) {
+        update();
       }
 #endif
     } break;
@@ -644,23 +649,29 @@ void LD2410Component::set_gate_still_threshold_number(int gate, number::Number *
 void LD2410Component::set_gate_move_threshold_number(int gate, number::Number *n) {
   this->gate_move_threshold_numbers_[gate] = n;
 }
+#endif
 
-#ifdef USE_SELECT
 void LD2410Component::set_light_out_control() {
-  if (this->light_function_select_ == nullptr || this->out_pin_level_select_ == nullptr ||
-      this->light_threshold_number_ == nullptr) {
-    ESP_LOGE(TAG, "To change light control the following config must all be set: light_function, out_pin_level and "
-                  "light_threshold");
-    return;
+#ifdef USE_NUMBER
+  if (this->light_threshold_number_ != nullptr && this->light_threshold_number_->has_state()) {
+    this->light_threshold_ = this->light_threshold_number_->state;
   }
-  if (!this->light_function_select_->has_state() || !this->out_pin_level_select_->has_state() ||
-      !this->light_threshold_number_->has_state()) {
+#endif
+#ifdef USE_SELECT
+  if (this->light_function_select_ != nullptr && this->light_function_select_->has_state()) {
+    this->light_function_ = this->light_function_select_->state;
+  }
+  if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->has_state()) {
+    this->out_pin_level_ = this->out_pin_level_select_->state;
+  }
+#endif
+  if (this->light_function_.empty() || this->out_pin_level_.empty() || this->light_threshold_ < 0) {
     return;
   }
   this->set_config_mode_(true);
-  uint8_t light_function = LIGHT_FUNCTION_ENUM_TO_INT.at(this->light_function_select_->state);
-  uint8_t light_threshold = static_cast<uint8_t>(this->light_threshold_number_->state);
-  uint8_t out_pin_level = OUT_PIN_LEVEL_ENUM_TO_INT.at(this->out_pin_level_select_->state);
+  uint8_t light_function = LIGHT_FUNCTION_ENUM_TO_INT.at(this->light_function_);
+  uint8_t light_threshold = static_cast<uint8_t>(this->light_threshold_);
+  uint8_t out_pin_level = OUT_PIN_LEVEL_ENUM_TO_INT.at(this->out_pin_level_);
   uint8_t value[4] = {light_function, light_threshold, out_pin_level, 0x00};
   this->send_command_(CMD_SET_LIGHT_CONTROL, value, 4);
   delay(50);  // NOLINT
@@ -668,8 +679,6 @@ void LD2410Component::set_light_out_control() {
   this->set_timeout(200, [this]() { this->restart_and_read_all_info(); });
   this->set_config_mode_(false);
 }
-#endif
-#endif
 
 #ifdef USE_SENSOR
 void LD2410Component::set_gate_move_sensor(int gate, sensor::Sensor *s) { this->gate_move_sensors_[gate] = s; }

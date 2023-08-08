@@ -25,7 +25,6 @@
 #include "esphome/components/uart/uart.h"
 #include "esphome/core/automation.h"
 #include "esphome/core/helpers.h"
-#include "ld2410_call.h"
 
 #include <map>
 
@@ -33,8 +32,6 @@ namespace esphome {
 namespace ld2410 {
 
 #define CHECK_BIT(var, pos) (((var) >> (pos)) & 1)
-
-static const char *const TAG = "ld2410";
 
 // Commands
 static const uint8_t CMD_ENABLE_CONF = 0x00FF;
@@ -56,17 +53,46 @@ static const uint8_t CMD_RESET = 0x00A2;
 static const uint8_t CMD_RESTART = 0x00A3;
 static const uint8_t CMD_BLUETOOTH = 0x00A4;
 
+enum BaudRateStructure : uint8_t {
+  BAUD_RATE_9600 = 1,
+  BAUD_RATE_19200 = 2,
+  BAUD_RATE_38400 = 3,
+  BAUD_RATE_57600 = 4,
+  BAUD_RATE_115200 = 5,
+  BAUD_RATE_230400 = 6,
+  BAUD_RATE_256000 = 7,
+  BAUD_RATE_460800 = 8
+};
+
 static const std::map<std::string, uint8_t> BAUD_RATE_ENUM_TO_INT{
-    {"9600", 1}, {"19200", 2}, {"38400", 3}, {"57600", 4}, {"115200", 5}, {"230400", 6}, {"256000", 7}, {"460800", 8}};
+    {"9600", BAUD_RATE_9600},     {"19200", BAUD_RATE_19200},   {"38400", BAUD_RATE_38400},
+    {"57600", BAUD_RATE_57600},   {"115200", BAUD_RATE_115200}, {"230400", BAUD_RATE_230400},
+    {"256000", BAUD_RATE_256000}, {"460800", BAUD_RATE_460800}};
 
-static const std::map<std::string, uint8_t> DISTANCE_RESOLUTION_ENUM_TO_INT{{"0.2m", 0x01}, {"0.75m", 0x00}};
-static const std::map<uint8_t, std::string> DISTANCE_RESOLUTION_INT_TO_ENUM{{0x01, "0.2m"}, {0x00, "0.75m"}};
+enum DistanceResolutionStructure : uint8_t { DISTANCE_RESOLUTION_0_2 = 0x01, DISTANCE_RESOLUTION_0_75 = 0x00 };
 
-static const std::map<std::string, uint8_t> LIGHT_FUNCTION_ENUM_TO_INT{{"off", 0x00}, {"below", 0x01}, {"above", 0x02}};
-static const std::map<uint8_t, std::string> LIGHT_FUNCTION_INT_TO_ENUM{{0x0, "off"}, {0x01, "below"}, {0x02, "above"}};
+static const std::map<std::string, uint8_t> DISTANCE_RESOLUTION_ENUM_TO_INT{{"0.2m", DISTANCE_RESOLUTION_0_2},
+                                                                            {"0.75m", DISTANCE_RESOLUTION_0_75}};
+static const std::map<uint8_t, std::string> DISTANCE_RESOLUTION_INT_TO_ENUM{{DISTANCE_RESOLUTION_0_2, "0.2m"},
+                                                                            {DISTANCE_RESOLUTION_0_75, "0.75m"}};
 
-static const std::map<std::string, uint8_t> OUT_PIN_LEVEL_ENUM_TO_INT{{"low", 0x00}, {"high", 0x01}};
-static const std::map<uint8_t, std::string> OUT_PIN_LEVEL_INT_TO_ENUM{{0x0, "low"}, {0x01, "high"}};
+enum LightFunctionStructure : uint8_t {
+  LIGHT_FUNCTION_OFF = 0x00,
+  LIGHT_FUNCTION_BELOW = 0x01,
+  LIGHT_FUNCTION_ABOVE = 0x02
+};
+
+static const std::map<std::string, uint8_t> LIGHT_FUNCTION_ENUM_TO_INT{
+    {"off", LIGHT_FUNCTION_OFF}, {"below", LIGHT_FUNCTION_BELOW}, {"above", LIGHT_FUNCTION_ABOVE}};
+static const std::map<uint8_t, std::string> LIGHT_FUNCTION_INT_TO_ENUM{
+    {LIGHT_FUNCTION_OFF, "off"}, {LIGHT_FUNCTION_BELOW, "below"}, {LIGHT_FUNCTION_ABOVE, "above"}};
+
+enum OutPinLevelStructure : uint8_t { OUT_PIN_LEVEL_LOW = 0x00, OUT_PIN_LEVEL_HIGH = 0x01 };
+
+static const std::map<std::string, uint8_t> OUT_PIN_LEVEL_ENUM_TO_INT{{"low", OUT_PIN_LEVEL_LOW},
+                                                                      {"high", OUT_PIN_LEVEL_HIGH}};
+static const std::map<uint8_t, std::string> OUT_PIN_LEVEL_INT_TO_ENUM{{OUT_PIN_LEVEL_LOW, "low"},
+                                                                      {OUT_PIN_LEVEL_HIGH, "high"}};
 
 // Commands values
 static const uint8_t CMD_MAX_MOVE_VALUE = 0x0000;
@@ -130,10 +156,8 @@ class LD2410Component : public Component, public uart::UARTDevice {
 #ifdef USE_SELECT
   SUB_SELECT(distance_resolution)
   SUB_SELECT(baud_rate)
-#ifdef USE_NUMBER
   SUB_SELECT(light_function)
   SUB_SELECT(out_pin_level)
-#endif
 #endif
 #ifdef USE_SWITCH
   SUB_SWITCH(engineering_mode)
@@ -156,14 +180,12 @@ class LD2410Component : public Component, public uart::UARTDevice {
   void setup() override;
   void dump_config() override;
   void loop() override;
+  void set_light_out_control();
 #ifdef USE_NUMBER
   void set_gate_still_threshold_number(int gate, number::Number *n);
   void set_gate_move_threshold_number(int gate, number::Number *n);
   void set_max_distances_timeout();
   void set_gate_threshold(uint8_t gate);
-#ifdef USE_SELECT
-  void set_light_out_control();
-#endif
 #endif
 #ifdef USE_SENSOR
   void set_gate_move_sensor(int gate, sensor::Sensor *s);
@@ -171,8 +193,6 @@ class LD2410Component : public Component, public uart::UARTDevice {
 #endif
   void set_throttle(uint16_t value) { this->throttle_ = value; };
   void set_bluetooth_password(const std::string &password);
-  /// Instantiate a LD2410ComponentCall object to modify this select component's state.
-  LD2410ComponentCall make_call() { return LD2410ComponentCall(this); }
   void set_engineering_mode(bool enable);
   void read_all_info();
   void restart_and_read_all_info();
@@ -200,6 +220,9 @@ class LD2410Component : public Component, public uart::UARTDevice {
   uint16_t throttle_;
   std::string version_;
   std::string mac_;
+  std::string out_pin_level_;
+  std::string light_function_;
+  float light_threshold_ = -1;
 #ifdef USE_NUMBER
   std::vector<number::Number *> gate_still_threshold_numbers_ = std::vector<number::Number *>(9);
   std::vector<number::Number *> gate_move_threshold_numbers_ = std::vector<number::Number *>(9);
