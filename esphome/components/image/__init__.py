@@ -19,6 +19,7 @@ from esphome.const import (
     CONF_RESIZE,
     CONF_SOURCE,
     CONF_TYPE,
+    CONF_URL
 )
 from esphome.core import CORE, HexInt
 
@@ -47,6 +48,8 @@ MDI_DOWNLOAD_TIMEOUT = 30  # seconds
 
 SOURCE_LOCAL = "local"
 SOURCE_MDI = "mdi"
+SOURCE_WEB = "web"
+CONF_FILETYPE = "filetype"
 
 Image_ = image_ns.class_("Image")
 
@@ -68,6 +71,54 @@ def download_mdi(value):
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(f"Could not download MDI image {mdi_id} from {url}: {e}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(req.content)
+    return value
+
+def get_filename_from_url(url):
+    # Regular expression pattern to match the file name at the end of the URL
+    pattern = r'/([^/]+)$'
+    match = re.search(pattern, url)
+    if match:
+        file_name = match.group(1)
+        file_name = re.sub(r'%20', '', file_name)  # Replace %20 with empty string
+        
+        # Remove the file extension
+        file_name = re.sub(r'\.[^.]+$', '', file_name)
+        
+        return file_name
+    else:
+        return None
+    
+def get_file_type(file_name):
+    # Regular expression pattern to match the file extension
+    pattern = r'\.([^.]+)$'
+    match = re.search(pattern, file_name)
+    if match:
+        file_type = match.group(1)
+        return file_type
+    else:
+        return None
+
+def _compute_local_image_path(value) -> Path:
+    image_id = get_filename_from_url(value[CONF_URL])
+    filetype = get_file_type(value[CONF_URL])
+    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN / f"{filetype}"
+    return base_dir / f"{image_id}.{filetype}"
+
+def download_image(value):
+    image_id = get_filename_from_url(value[CONF_URL])
+    path = _compute_local_image_path(value)
+    if path.is_file():
+        return value
+    url = value[CONF_URL]
+    _LOGGER.debug("Downloading %s image from %s", image_id, url)
+    try:
+        req = requests.get(url, timeout=MDI_DOWNLOAD_TIMEOUT)
+        req.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise cv.Invalid(f"Could not download image {image_id} from {url}: {e}")
 
     path.parent.mkdir(parents=True, exist_ok=True)
     path.write_bytes(req.content)
@@ -139,6 +190,19 @@ def validate_file_shorthand(value):
                 CONF_ICON: icon,
             }
         )
+    if value.startswith("https"):
+        validate_cairosvg_installed(value)
+
+        # match = re.search(r"([a-zA-Z0-9\-]+)", value)
+        # if match is None:
+        #     raise cv.Invalid("Could not parse mdi icon name.")
+        # icon = match.group(1)
+        return FILE_SCHEMA(
+            {
+                CONF_SOURCE: SOURCE_WEB,
+                CONF_URL: value,
+            }
+        )
     return FILE_SCHEMA(
         {
             CONF_SOURCE: SOURCE_LOCAL,
@@ -160,10 +224,18 @@ MDI_SCHEMA = cv.All(
     download_mdi,
 )
 
+WEB_SCHEMA = cv.All(
+    {
+        cv.Required(CONF_URL): cv.string,
+    },
+    download_image,
+)
+
 TYPED_FILE_SCHEMA = cv.typed_schema(
     {
         SOURCE_LOCAL: LOCAL_SCHEMA,
         SOURCE_MDI: MDI_SCHEMA,
+        SOURCE_WEB: WEB_SCHEMA,
     },
     key=CONF_SOURCE,
 )
@@ -232,6 +304,9 @@ async def to_code(config):
 
     elif conf_file[CONF_SOURCE] == SOURCE_MDI:
         path = _compute_local_icon_path(conf_file).as_posix()
+
+    elif conf_file[CONF_SOURCE] == SOURCE_WEB:
+        path = _compute_local_image_path(conf_file).as_posix()
 
     try:
         resize = config.get(CONF_RESIZE)
