@@ -1239,9 +1239,9 @@ alarm_control_panel:
     on_armed_away:
       then:
         - logger.log: "### ARMED AWAY ###"
-    on_armed_triggered:
+    on_triggered:
       then:
         - logger.log: "### TRIGGERED ###"
-    on_armed_cleared:
+    on_cleared:
       then:
         - logger.log: "### CLEARED ###"
