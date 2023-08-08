@@ -18,7 +18,7 @@ struct SensorData {
   SensorData(const uint8_t *buffer) {
     this->co2 = (buffer[0] << 8) | buffer[1];
     this->status = static_cast<IAQCoreErrorCode>(buffer[2]);
-    this->resistance = (buffer[3] << 24) | (buffer[4] << 16) | (buffer[5] << 8) | buffer[6];
+    this->resistance = encode_uint32_t(buffer[3], buffer[4], buffer[5], buffer[6]);
     this->tvoc = (buffer[7] << 8) | buffer[8];
   }
 };
