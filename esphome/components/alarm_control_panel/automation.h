@@ -20,6 +20,13 @@ class TriggeredTrigger : public Trigger<> {
   }
 };
 
+class ArmingTrigger : public Trigger<> {
+ public:
+  explicit ArmingTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_arming_callback([this]() { this->trigger(); });
+  }
+};
+
 class ClearedTrigger : public Trigger<> {
  public:
   explicit ClearedTrigger(AlarmControlPanel *alarm_control_panel) {

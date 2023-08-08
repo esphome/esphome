@@ -47,6 +47,12 @@ class AlarmControlPanel : public EntityBase {
    */
   void add_on_triggered_callback(std::function<void()> &&callback);
 
+  /** Add a callback for when the state of the alarm_control_panel chanes to arming
+   *
+   * @param callback The callback function
+   */
+  void add_on_arming_callback(std::function<void()> &&callback);
+
   /** Add a callback for when the state of the alarm_control_panel clears from triggered
    *
    * @param callback The callback function
@@ -128,6 +134,8 @@ class AlarmControlPanel : public EntityBase {
   CallbackManager<void()> state_callback_{};
   // trigger callback
   CallbackManager<void()> triggered_callback_{};
+  // arming callback
+  CallbackManager<void()> arming_callback_{};
   // clear callback
   CallbackManager<void()> cleared_callback_{};
 };
