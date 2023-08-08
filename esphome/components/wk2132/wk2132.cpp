@@ -9,17 +9,15 @@ namespace wk2132 {
 
 static const char *const TAG = "wk2132";
 
-static const char *const reg_to_str_p0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
+static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
                                             "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
-static const char *const reg_to_str_p1[] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL"};
+static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL"};
 
 // convert an int to binary string
 const char *i2s(uint8_t val) {
   std::string str = std::bitset<8>(val).to_string();
   return str.c_str();
 }
-
-// int WK2132Component::counter{0};  // init static counter of instances
 
 /// @brief Computes the I²C Address to access the component
 /// @param base_address the base address of the component as set by the A1 A0 pins
@@ -58,7 +56,7 @@ const char *parity2string(uart::UARTParityOptions parity) {
 ///////////////////////////////////////////////////////////////////////////////
 
 // method used in log messages ...
-inline const char *WK2132Component::reg_to_str_(int val) { return page1_ ? reg_to_str_p1[val] : reg_to_str_p0[val]; }
+inline const char *WK2132Component::reg_to_str_(int val) { return page1_ ? REG_TO_STR_P1[val] : REG_TO_STR_P0[val]; }
 
 void WK2132Component::write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t len) {
   address_ = i2c_address(base_address_, channel, 0);  // update the i2c address
@@ -104,7 +102,8 @@ void WK2132Component::setup() {
 }
 
 void WK2132Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "Configuration WK2132:%d with %d UARTs...", get_num_(), (int) children_.size());
+  ESP_LOGCONFIG(TAG, "Initialization of configuration WK2132:%d with %d UARTs completed", get_num_(),
+                (int) children_.size());
   ESP_LOGCONFIG(TAG, "  crystal %d", crystal_);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
@@ -112,7 +111,7 @@ void WK2132Component::dump_config() {
   }
 
   for (auto i = 0; i < children_.size(); i++) {
-    ESP_LOGCONFIG(TAG, "  UART bus %d:%d...", get_num_(), i);
+    ESP_LOGCONFIG(TAG, "  UART %d:%d...", get_num_(), i);
     ESP_LOGCONFIG(TAG, "    baudrate %d Bd", children_[i]->baud_rate_);
     ESP_LOGCONFIG(TAG, "    data_bits %d", children_[i]->data_bits_);
     ESP_LOGCONFIG(TAG, "    stop_bits %d", children_[i]->stop_bits_);
