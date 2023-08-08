@@ -9,21 +9,24 @@ namespace wk2132 {
 
 static const char *const TAG = "wk2132";
 
-static const char *reg_to_str_p0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
-                                      "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
-static const char *reg_to_str_p1[] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL"};
+static const char *const reg_to_str_p0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
+                                            "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
+static const char *const reg_to_str_p1[] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL"};
 
 // convert an int to binary string
-inline const char *i2s(uint8_t val) { return std::bitset<8>(val).to_string().c_str(); }
+const char *i2s(uint8_t val) {
+  std::string str = std::bitset<8>(val).to_string();
+  return str.c_str();
+}
 
-int WK2132Component::counter{0};  // init static counter of instances
+// int WK2132Component::counter{0};  // init static counter of instances
 
 /// @brief Computes the I²C Address to access the component
 /// @param base_address the base address of the component as set by the A1 A0 pins
 /// @param channel (0-3) the UART channel
 /// @param fifo (0-1) if 0 access to internal register, if 1 direct access to fifo
 /// @return the i2c address to use
-inline const uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) {
+inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) {
   // the address of the device is 0AA1 0CCF (eg: 0001 0000) where:
   // - AA is the address read from A1,A0
   // - CC is the channel number (in practice only 00 or 01)
@@ -246,13 +249,13 @@ size_t WK2132Channel::tx_in_fifo_() {
 
 size_t WK2132Channel::rx_in_fifo_() {
   uint8_t available = 0;
-  uint8_t fsr = parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
+  uint8_t fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
   if (fsr & 0x8)
-    available = parent_->read_wk2132_register_(REG_WK2132_RFCNT, channel_, &data_, 1);
+    available = this->parent_->read_wk2132_register_(REG_WK2132_RFCNT, channel_, &data_, 1);
   if (!peek_buffer_.empty)
     available++;
-  if (available > fifo_size_())  // no more than what is set in the fifo_size
-    available = fifo_size_();
+  if (available > this->fifo_size_())  // no more than what is set in the fifo_size
+    available = this->fifo_size_();
 
   ESP_LOGVV(TAG, "tx_in_fifo %d (byte in buffer: %s) status %s", available, peek_buffer_.empty ? "no" : "yes",
             i2s(fsr));
@@ -414,7 +417,7 @@ void WK2132Channel::uart_send_test_(char *preamble) {
 void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
   auto start_exec = millis();
   bool status = true;
-  uint8_t to_read = rx_in_fifo_();
+  uint8_t to_read = this->rx_in_fifo_();
 
   if (to_read > 0) {
     std::vector<uint8_t> buffer(to_read);
