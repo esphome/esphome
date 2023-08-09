@@ -23,6 +23,7 @@ CODEOWNERS = ["@stevebaxter", "@cstaahl"]
 
 pulse_meter_ns = cg.esphome_ns.namespace("pulse_meter")
 
+CONF_FADE = "fade"
 
 PulseMeterSensor = pulse_meter_ns.class_(
     "PulseMeterSensor", sensor.Sensor, cg.Component
@@ -77,6 +78,7 @@ CONFIG_SCHEMA = sensor.sensor_schema(
         cv.Optional(CONF_INTERNAL_FILTER_MODE, default="EDGE"): cv.enum(
             FILTER_MODES, upper=True
         ),
+        cv.Optional(CONF_FADE, default=False): cv.boolean,
     }
 )
 
@@ -90,6 +92,7 @@ async def to_code(config):
     cg.add(var.set_filter_us(config[CONF_INTERNAL_FILTER]))
     cg.add(var.set_timeout_us(config[CONF_TIMEOUT]))
     cg.add(var.set_filter_mode(config[CONF_INTERNAL_FILTER_MODE]))
+    cg.add(var.set_fade(config[CONF_FADE]))
 
     if CONF_TOTAL in config:
         sens = await sensor.new_sensor(config[CONF_TOTAL])
