@@ -254,7 +254,7 @@ size_t WK2132Channel::rx_in_fifo_() {
     available = this->fifo_size_();
 
   ESP_LOGVV(TAG, "tx_in_fifo %d (byte in buffer: %s) status %s", available, peek_buffer_.empty ? "no" : "yes",
-            i2s(fsr));
+            i2s(fsr).c_str());
   return available;
 }
 
@@ -271,8 +271,8 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
     return true;
   } else {  // error
     parent_->status_set_warning();
-    ESP_LOGE(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer), len,
-             (int) error);
+    ESP_LOGE(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
+             len, (int) error);
     return false;
   }
 }
