@@ -27,7 +27,7 @@ bool PN532I2C::write_data(const std::vector<uint8_t> &data) {
 bool PN532I2C::read_data(std::vector<uint8_t> &data, uint8_t len) {
   delay(1);
 
-  if (!this->read_ready_(true)) {
+  if (this->read_ready_(true) != pn532::PN532ReadReady::READY) {
     return false;
   }
 

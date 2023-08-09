@@ -42,7 +42,7 @@ bool PN532Spi::write_data(const std::vector<uint8_t> &data) {
 }
 
 bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
-  if (!this->read_ready_(true)) {
+  if (this->read_ready_(true) != pn532::PN532ReadReady::READY) {
     return false;
   }
 
@@ -64,7 +64,7 @@ bool PN532Spi::read_data(std::vector<uint8_t> &data, uint8_t len) {
 bool PN532Spi::read_response(uint8_t command, std::vector<uint8_t> &data) {
   ESP_LOGV(TAG, "Reading response");
 
-  if (!this->read_ready_(true)) {
+  if (this->read_ready_(true) != pn532::PN532ReadReady::READY) {
     return false;
   }
 
