@@ -25,14 +25,6 @@ esphome:
     then:
       - lambda: >-
           ESP_LOGV("main", "ON LOOP!");
-      - light.addressable_set:
-          id: addr1
-          range_from: 0
-          range_to: 100
-          red: 100%
-          green: !lambda "return 255;"
-          blue: 0%
-          white: 100%
       - http_request.get:
           url: https://esphome.io
           headers:
