@@ -11,7 +11,8 @@ static const char *const TAG = "wk2132";
 
 static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
                                             "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
-static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT", "SPAGE", "BAUD1", "BAUD0", "PRES", "RFTL", "TFTL"};
+static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "BAUD1", "BAUD0", "PRES",
+                                            "RFTL", "TFTL", "_INV_", "_INV_", "_INV_", "_INV_"};
 
 // convert an int to binary string
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
@@ -53,12 +54,7 @@ const char *parity2string(uart::UARTParityOptions parity) {
 ///////////////////////////////////////////////////////////////////////////////
 
 // method used in log messages ...
-const char *WK2132Component::reg_to_str_(int val) {
-  if (page1_)
-    return REG_TO_STR_P1[val];
-  else
-    return REG_TO_STR_P0[val];
-}
+const char *WK2132Component::reg_to_str_(int val) { return page1_ ? REG_TO_STR_P1[val] : REG_TO_STR_P0[val]; }
 
 void WK2132Component::write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t len) {
   address_ = i2c_address(base_address_, channel, 0);  // update the i2c address
