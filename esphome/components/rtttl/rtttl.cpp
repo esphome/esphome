@@ -228,7 +228,7 @@ void Rtttl::loop() {
 
 #ifdef USE_SPEAKER
   ttlSamplesSent_ = 0;
-  ttlSamples_ = (sample_rate_ * note_duration_) / 1000;
+  ttlSamples_ = (sample_rate_ * note_duration_) / 10000;
   ttGapFirst_ = 0;
 #endif
 
