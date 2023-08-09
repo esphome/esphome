@@ -228,7 +228,7 @@ void Rtttl::loop() {
 
 #ifdef USE_SPEAKER
   ttlSamplesSent_ = 0;
-  ttlSamples_ = (sample_rate_ * note_duration_) / 2500;
+  ttlSamples_ = (sample_rate_ * note_duration_) / 2000;
   ttGapFirst_ = 0;
 #endif
 
@@ -252,7 +252,7 @@ void Rtttl::loop() {
       }
 #endif
 #ifdef USE_SPEAKER
-      ttGapFirst_ = (sample_rate_ * DOUBLE_NOTE_GAP_MS) / 1000;
+      ttGapFirst_ = (sample_rate_ * DOUBLE_NOTE_GAP_MS) / 2000;
 #endif
     }
     output_freq_ = freq;
