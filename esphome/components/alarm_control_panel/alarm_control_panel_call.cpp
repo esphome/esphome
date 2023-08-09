@@ -85,6 +85,11 @@ void AlarmControlPanelCall::validate_() {
       this->state_.reset();
       return;
     }
+    if (state == ACP_STATE_ARMED_NIGHT && (this->parent_->get_supported_features() & ACP_FEAT_ARM_NIGHT) == 0) {
+      ESP_LOGW(TAG, "Cannot arm night when not supported");
+      this->state_.reset();
+      return;
+    }
   }
 }
 
