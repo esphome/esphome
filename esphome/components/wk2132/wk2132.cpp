@@ -53,19 +53,24 @@ const char *parity2string(uart::UARTParityOptions parity) {
 ///////////////////////////////////////////////////////////////////////////////
 
 // method used in log messages ...
-inline const char *WK2132Component::reg_to_str_(int val) { return page1_ ? REG_TO_STR_P1[val] : REG_TO_STR_P0[val]; }
+const char *WK2132Component::reg_to_str_(int val) {
+  if (page1_)
+    return REG_TO_STR_P1[val];
+  else
+    return REG_TO_STR_P0[val];
+}
 
 void WK2132Component::write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t len) {
   address_ = i2c_address(base_address_, channel, 0);  // update the i2c address
   auto error = this->write_register(reg_number, buffer, len);
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
-    ESP_LOGVV(TAG, "write_wk2132_register_(@%02X %s, %d b=%02X [%s], len=%d): I2C code %d", address_,
-              reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
+    ESP_LOGVV(TAG, "write_wk2132_register_(@%02X %s, ch=%d b=%02X [%s], len=%d): I2C code %d", address_,
+              this->reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
   } else {  // error
     this->status_set_warning();
-    ESP_LOGE(TAG, "write_wk2132_register_(@%02X %s, %d b=%02X [%s], len=%d): I2C code %d", address_,
-             reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
+    ESP_LOGE(TAG, "write_wk2132_register_(@%02X %s, ch=%d b=%02X [%s], len=%d): I2C code %d", address_,
+             this->reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
   }
 }
 
@@ -74,12 +79,12 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
   auto error = this->read_register(reg_number, buffer, len);
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
-    ESP_LOGVV(TAG, "read_wk2132_register_(@%02X %s, %d b=%02X [%s], len=%d): I2C code %d", address_,
-              reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
+    ESP_LOGVV(TAG, "read_wk2132_register_(@%02X %s, ch=%d b=%02X [%s], len=%d): I2C code %d", address_,
+              this->reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
   } else {  // error
     this->status_set_warning();
-    ESP_LOGE(TAG, "read_wk2132_register_(@%02X %s, %d b=%02X [%s], len=%d): I2C code %d", address_,
-             reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
+    ESP_LOGE(TAG, "read_wk2132_register_(@%02X %s, ch=%d b=%02X [%s], len=%d): I2C code %d", address_,
+             this->reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
   }
   return *buffer;
 }
@@ -237,8 +242,8 @@ size_t WK2132Channel::tx_in_fifo_() {
   //  * |  RFOE  |  RFBI  |  RFFE  |  RFPE  |  RDAT  |  TDAT  |  TFULL |  TBUSY |
   //  * -------------------------------------------------------------------------
 
-  uint8_t fsr = parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
-  uint8_t tfcnt = parent_->read_wk2132_register_(REG_WK2132_TFCNT, channel_, &data_, 1);
+  uint8_t fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
+  uint8_t tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, channel_, &data_, 1);
   ESP_LOGVV(TAG, "tx_in_fifo=%d status %s", tfcnt, i2s(fsr).c_str());
   return tfcnt;
 }
@@ -313,10 +318,10 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
   bool status = true;
   uint32_t start_time = millis();
   // in safe mode we check that we have received the requested characters
-  while (safe_ && rx_in_fifo_() < len) {
+  while (safe_ && this->rx_in_fifo_() < len) {
     if (millis() - start_time > 100) {  // we wait as much as 100 ms
-      ESP_LOGE(TAG, "Read buffer underrun: requested %d bytes only received %d ...", len, rx_in_fifo_());
-      len = rx_in_fifo_();  // set length to what is in the buffer
+      ESP_LOGE(TAG, "Read buffer underrun: requested %d bytes only received %d ...", len, this->rx_in_fifo_());
+      len = this->rx_in_fifo_();  // set length to what is in the buffer
       status = false;
       break;
     }
@@ -327,7 +332,7 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
 }
 
 bool WK2132Channel::peek_byte(uint8_t *buffer) {
-  if (safe_ && peek_buffer_.empty && available() == 0)
+  if (safe_ && peek_buffer_.empty && this->available() == 0)
     return false;
   if (peek_buffer_.empty) {
     peek_buffer_.empty = false;

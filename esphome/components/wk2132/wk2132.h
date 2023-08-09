@@ -140,7 +140,7 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief Return the number of bytes available for reading from the serial port.
   /// @return the number of bytes available in the receiver fifo
-  int available() override { return rx_in_fifo_(); }
+  int available() override { return this->rx_in_fifo_(); }
 
   /// @brief Flush the output fifo. This is the only way to wait until all the bytes
   /// in the transmit FIFO have been sent. The method timeout after 100 ms. Therefore
