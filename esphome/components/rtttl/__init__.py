@@ -36,8 +36,8 @@ MULTI_CONF = True
 CONFIG_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.declare_id(Rtttl),
-        cv.Exclusive(CONF_OUTPUT, "outputXGZ"): cv.use_id(FloatOutput),
-        cv.Exclusive(CONF_SPEAKER, "outputXGZ"): cv.use_id(Speaker),
+        cv.Exclusive(CONF_OUTPUT, "output"): cv.use_id(FloatOutput),
+        cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(Speaker),
         cv.Optional(CONF_ON_FINISHED_PLAYBACK): automation.validate_automation(
             {
                 cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(FinishedPlaybackTrigger),
@@ -78,10 +78,10 @@ def validate_parent_output_config(value):
 
 FINAL_VALIDATE_SCHEMA = cv.Schema(
     {
-        cv.Exclusive(CONF_OUTPUT, "outputXGZ"): fv.id_declaration_match_schema(
+        cv.Exclusive(CONF_OUTPUT, "output"): fv.id_declaration_match_schema(
             validate_parent_output_config
         ),
-        cv.Exclusive(CONF_SPEAKER, "outputXGZ"): fv.id_declaration_match_schema(
+        cv.Exclusive(CONF_SPEAKER, "output"): fv.id_declaration_match_schema(
             validate_parent_speaker_config
         ),
     },

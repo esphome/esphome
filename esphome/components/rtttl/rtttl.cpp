@@ -150,9 +150,10 @@ void Rtttl::loop() {
     }
   }
 #endif
-  if (millis() - this->last_note_ < this->note_duration_)
+#ifdef USE_OUTPUT
+  if (output_ != nullptr && millis() - this->last_note_ < this->note_duration_)
     return;
-
+#endif
   if (!rtttl_[position_]) {
     note_duration_ = 0;
 #ifdef USE_OUTPUT
