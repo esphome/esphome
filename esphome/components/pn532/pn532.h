@@ -99,7 +99,7 @@ class PN532 : public PollingComponent {
   std::vector<uint8_t> current_uid_;
   nfc::NdefMessage *next_task_message_to_write_;
   uint32_t rd_start_time_{0};
-  enum PN532ReadReady rd_ready_{WOULDBLOCK};
+  enum PN532ReadReady rd_ready_ { WOULDBLOCK };
   enum NfcTask {
     READ = 0,
     CLEAN,
