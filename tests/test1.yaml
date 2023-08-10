@@ -228,6 +228,10 @@ uart:
     baud_rate: 256000
     parity: NONE
     stop_bits: 1
+  - id: gcja5_uart
+    rx_pin: GPIO10
+    parity: EVEN
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -341,6 +345,24 @@ mcp23s17:
     deviceaddress: 1
 
 sensor:
+  - platform: gcja5
+    pm_1_0:
+      name: "Particulate Matter <1.0µm Concentration"
+    pm_2_5:
+      name: "Particulate Matter <2.5µm Concentration"
+    pm_10_0:
+      name: "Particulate Matter <10.0µm Concentration"
+    pmc_0_5:
+      name: "PMC 0.5"
+    pmc_1_0:
+      name: "PMC 1.0"
+    pmc_2_5:
+      name: "PMC 2.5"
+    pmc_5_0:
+      name: "PMC 5.0"
+    pmc_10_0:
+      name: "PMC 10.0"
+    uart_id: gcja5_uart
   - platform: internal_temperature
     name: Internal Temperature
   - platform: ble_client
@@ -790,6 +812,13 @@ sensor:
         name: INA3221 Channel 1 Bus Voltage
       shunt_voltage:
         name: INA3221 Channel 1 Shunt Voltage
+    update_interval: 15s
+    i2c_id: i2c_bus
+  - platform: kmeteriso
+    temperature:
+      name: Outside Temperature
+    internal_temperature:
+      name: Internal Ttemperature
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: kalman_combinator
@@ -1348,6 +1377,14 @@ sensor:
     name: "Distance"
     update_interval: 60s
     i2c_id: i2c_bus
+  - platform: bmp581
+    i2c_id: i2c_bus
+    temperature:
+      name: "BMP581 Temperature"
+      iir_filter: 2x
+    pressure:
+      name: "BMP581 Pressure"
+      oversampling: 128x
 
 esp32_touch:
   setup_mode: false

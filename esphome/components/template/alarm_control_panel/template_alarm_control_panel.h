@@ -19,6 +19,7 @@ namespace template_ {
 enum BinarySensorFlags : uint16_t {
   BINARY_SENSOR_MODE_NORMAL = 1 << 0,
   BINARY_SENSOR_MODE_BYPASS_ARMED_HOME = 1 << 1,
+  BINARY_SENSOR_MODE_BYPASS_ARMED_NIGHT = 1 << 2,
 };
 #endif
 
@@ -71,6 +72,12 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
    */
   void set_arming_home_time(uint32_t time) { this->arming_home_time_ = time; }
 
+  /** set the delay before arming night
+   *
+   * @param time The milliseconds
+   */
+  void set_arming_night_time(uint32_t time) { this->arming_night_time_ = time; }
+
   /** set the delay before triggering
    *
    * @param time The milliseconds
@@ -85,6 +92,8 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
 
   void set_supports_arm_home(bool supports_arm_home) { supports_arm_home_ = supports_arm_home; }
 
+  void set_supports_arm_night(bool supports_arm_night) { supports_arm_night_ = supports_arm_night; }
+
  protected:
   void control(const alarm_control_panel::AlarmControlPanelCall &call) override;
 #ifdef USE_BINARY_SENSOR
@@ -97,6 +106,8 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   uint32_t arming_away_time_;
   // the arming home delay
   uint32_t arming_home_time_{0};
+  // the arming night delay
+  uint32_t arming_night_time_{0};
   // the trigger delay
   uint32_t pending_time_;
   // the time in trigger
@@ -106,6 +117,7 @@ class TemplateAlarmControlPanel : public alarm_control_panel::AlarmControlPanel,
   // requires a code to arm
   bool requires_code_to_arm_ = false;
   bool supports_arm_home_ = false;
+  bool supports_arm_night_ = false;
   // check if the code is valid
   bool is_code_valid_(optional<std::string> code);
 
