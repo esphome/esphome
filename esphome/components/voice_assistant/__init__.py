@@ -24,6 +24,7 @@ CONF_ON_TTS_START = "on_tts_start"
 CONF_ON_TTS_END = "on_tts_end"
 CONF_ON_END = "on_end"
 CONF_ON_ERROR = "on_error"
+CONF_USE_WAKE_WORD = "use_wake_word"
 
 
 voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
@@ -43,22 +44,40 @@ IsRunningCondition = voice_assistant_ns.class_(
 )
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(VoiceAssistant),
-        cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
-        cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
-        cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(media_player.MediaPlayer),
-        cv.Optional(CONF_SILENCE_DETECTION, default=True): cv.boolean,
-        cv.Optional(CONF_ON_LISTENING): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_TTS_START): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_TTS_END): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_END): automation.validate_automation(single=True),
-        cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
-    }
-).extend(cv.COMPONENT_SCHEMA)
+def _valdidate_wake_word(config):
+    if use_wake_word := config.get(CONF_USE_WAKE_WORD):
+        if use_wake_word and not config[CONF_SILENCE_DETECTION]:
+            raise cv.Invalid(
+                "Can't use wake word without silence detection. "
+                "Please set silence_detection to True."
+            )
+    return config
+
+
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(VoiceAssistant),
+            cv.GenerateID(CONF_MICROPHONE): cv.use_id(microphone.Microphone),
+            cv.Exclusive(CONF_SPEAKER, "output"): cv.use_id(speaker.Speaker),
+            cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(
+                media_player.MediaPlayer
+            ),
+            cv.Optional(CONF_SILENCE_DETECTION, default=True): cv.boolean,
+            cv.Optional(CONF_USE_WAKE_WORD): cv.All(
+                cv.requires_component("esp_adf"), cv.only_with_esp_idf, cv.boolean
+            ),
+            cv.Optional(CONF_ON_LISTENING): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_TTS_START): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_TTS_END): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_END): automation.validate_automation(single=True),
+            cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    _valdidate_wake_word,
+)
 
 
 async def to_code(config):
@@ -77,6 +96,8 @@ async def to_code(config):
         cg.add(var.set_media_player(mp))
 
     cg.add(var.set_silence_detection(config[CONF_SILENCE_DETECTION]))
+    if (use_wake_word := config.get(CONF_USE_WAKE_WORD)) is not None:
+        cg.add(var.set_use_wake_word(use_wake_word))
 
     if CONF_ON_LISTENING in config:
         await automation.build_automation(

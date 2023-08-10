@@ -165,6 +165,11 @@ enum BluetoothDeviceRequestType : uint32_t {
   BLUETOOTH_DEVICE_REQUEST_TYPE_CONNECT_V3_WITHOUT_CACHE = 5,
   BLUETOOTH_DEVICE_REQUEST_TYPE_CLEAR_CACHE = 6,
 };
+enum VoiceAssistantRequestFlag : uint32_t {
+  VOICE_ASSISTANT_REQUEST_NONE = 0,
+  VOICE_ASSISTANT_REQUEST_USE_VAD = 1,
+  VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD = 2,
+};
 enum VoiceAssistantEvent : uint32_t {
   VOICE_ASSISTANT_ERROR = 0,
   VOICE_ASSISTANT_RUN_START = 1,
@@ -1657,7 +1662,7 @@ class VoiceAssistantRequest : public ProtoMessage {
  public:
   bool start{false};
   std::string conversation_id{};
-  bool use_vad{false};
+  int32_t flags{0};
   void encode(ProtoWriteBuffer buffer) const override;
 #ifdef HAS_PROTO_MESSAGE_DUMP
   void dump_to(std::string &out) const override;

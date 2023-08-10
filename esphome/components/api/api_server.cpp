@@ -323,16 +323,16 @@ void APIServer::on_shutdown() {
 }
 
 #ifdef USE_VOICE_ASSISTANT
-bool APIServer::start_voice_assistant(const std::string &conversation_id, bool use_vad) {
+bool APIServer::start_voice_assistant(const std::string &conversation_id, uint32_t flags) {
   for (auto &c : this->clients_) {
-    if (c->request_voice_assistant(true, conversation_id, use_vad))
+    if (c->request_voice_assistant(true, conversation_id, flags))
       return true;
   }
   return false;
 }
 void APIServer::stop_voice_assistant() {
   for (auto &c : this->clients_) {
-    if (c->request_voice_assistant(false, "", false))
+    if (c->request_voice_assistant(false))
       return;
   }
 }

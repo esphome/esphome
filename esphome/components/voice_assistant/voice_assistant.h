@@ -19,6 +19,11 @@
 #endif
 #include "esphome/components/socket/socket.h"
 
+#ifdef USE_ESP_ADF
+#include <esp_vad.h>
+#include <ringbuf.h>
+#endif
+
 namespace esphome {
 namespace voice_assistant {
 
@@ -27,6 +32,19 @@ namespace voice_assistant {
 // Version 3: Unused/skip
 static const uint32_t INITIAL_VERSION = 1;
 static const uint32_t SPEAKER_SUPPORT = 2;
+
+enum class State {
+  IDLE,
+  START_MICROPHONE,
+  STARTING_MICROPHONE,
+  WAITING_FOR_VAD,
+  START_PIPELINE,
+  STARTING_PIPELINE,
+  STREAMING_MICROPHONE,
+  STOPPING_MICROPHONE,
+  AWAITING_RESPONSE,
+  STREAMING_RESPONSE,
+};
 
 class VoiceAssistant : public Component {
  public:
@@ -37,10 +55,16 @@ class VoiceAssistant : public Component {
 
   void set_microphone(microphone::Microphone *mic) { this->mic_ = mic; }
 #ifdef USE_SPEAKER
-  void set_speaker(speaker::Speaker *speaker) { this->speaker_ = speaker; }
+  void set_speaker(speaker::Speaker *speaker) {
+    this->speaker_ = speaker;
+    this->local_output_ = true;
+  }
 #endif
 #ifdef USE_MEDIA_PLAYER
-  void set_media_player(media_player::MediaPlayer *media_player) { this->media_player_ = media_player; }
+  void set_media_player(media_player::MediaPlayer *media_player) {
+    this->media_player_ = media_player;
+    this->local_output_ = true;
+  }
 #endif
 
   uint32_t get_version() const {
@@ -57,11 +81,14 @@ class VoiceAssistant : public Component {
 
   void on_event(const api::VoiceAssistantEventResponse &msg);
 
-  bool is_running() const { return this->running_; }
+  bool is_running() const { return this->state_ != State::IDLE; }
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
   bool is_continuous() const { return this->continuous_; }
 
   void set_silence_detection(bool silence_detection) { this->silence_detection_ = silence_detection; }
+#ifdef USE_ESP_ADF
+  void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
+#endif
 
   Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
   Trigger<> *get_start_trigger() const { return this->start_trigger_; }
@@ -72,6 +99,10 @@ class VoiceAssistant : public Component {
   Trigger<std::string, std::string> *get_error_trigger() const { return this->error_trigger_; }
 
  protected:
+  int read_microphone_();
+  void set_state_(State state);
+  void set_state_(State state, State desired_state);
+
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
 
@@ -86,17 +117,34 @@ class VoiceAssistant : public Component {
   microphone::Microphone *mic_{nullptr};
 #ifdef USE_SPEAKER
   speaker::Speaker *speaker_{nullptr};
+  uint8_t *speaker_buffer_;
+  size_t speaker_buffer_index_{0};
+  size_t speaker_buffer_size_{0};
 #endif
 #ifdef USE_MEDIA_PLAYER
   media_player::MediaPlayer *media_player_{nullptr};
   bool playing_tts_{false};
 #endif
 
+  bool local_output_{false};
+
   std::string conversation_id_{""};
 
-  bool running_{false};
+  HighFrequencyLoopRequester high_freq_;
+
+#ifdef USE_ESP_ADF
+  vad_handle_t vad_instance_;
+  ringbuf_handle_t ring_buffer_;
+  bool use_wake_word_{false};
+#endif
+  uint8_t *send_buffer_;
+  int16_t *input_buffer_;
+
   bool continuous_{false};
   bool silence_detection_;
+
+  State state_{State::IDLE};
+  State desired_state_{State::IDLE};
 };
 
 template<typename... Ts> class StartAction : public Action<Ts...>, public Parented<VoiceAssistant> {

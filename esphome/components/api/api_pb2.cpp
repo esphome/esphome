@@ -408,6 +408,20 @@ const char *proto_enum_to_string<enums::BluetoothDeviceRequestType>(enums::Bluet
 }
 #endif
 #ifdef HAS_PROTO_MESSAGE_DUMP
+template<> const char *proto_enum_to_string<enums::VoiceAssistantRequestFlag>(enums::VoiceAssistantRequestFlag value) {
+  switch (value) {
+    case enums::VOICE_ASSISTANT_REQUEST_NONE:
+      return "VOICE_ASSISTANT_REQUEST_NONE";
+    case enums::VOICE_ASSISTANT_REQUEST_USE_VAD:
+      return "VOICE_ASSISTANT_REQUEST_USE_VAD";
+    case enums::VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD:
+      return "VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD";
+    default:
+      return "UNKNOWN";
+  }
+}
+#endif
+#ifdef HAS_PROTO_MESSAGE_DUMP
 template<> const char *proto_enum_to_string<enums::VoiceAssistantEvent>(enums::VoiceAssistantEvent value) {
   switch (value) {
     case enums::VOICE_ASSISTANT_ERROR:
@@ -6353,7 +6367,7 @@ bool VoiceAssistantRequest::decode_varint(uint32_t field_id, ProtoVarInt value) 
       return true;
     }
     case 3: {
-      this->use_vad = value.as_bool();
+      this->flags = value.as_int32();
       return true;
     }
     default:
@@ -6373,7 +6387,7 @@ bool VoiceAssistantRequest::decode_length(uint32_t field_id, ProtoLengthDelimite
 void VoiceAssistantRequest::encode(ProtoWriteBuffer buffer) const {
   buffer.encode_bool(1, this->start);
   buffer.encode_string(2, this->conversation_id);
-  buffer.encode_bool(3, this->use_vad);
+  buffer.encode_int32(3, this->flags);
 }
 #ifdef HAS_PROTO_MESSAGE_DUMP
 void VoiceAssistantRequest::dump_to(std::string &out) const {
@@ -6387,8 +6401,9 @@ void VoiceAssistantRequest::dump_to(std::string &out) const {
   out.append("'").append(this->conversation_id).append("'");
   out.append("\n");
 
-  out.append("  use_vad: ");
-  out.append(YESNO(this->use_vad));
+  out.append("  flags: ");
+  sprintf(buffer, "%d", this->flags);
+  out.append(buffer);
   out.append("\n");
   out.append("}");
 }

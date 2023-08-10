@@ -81,7 +81,7 @@ class APIServer : public Component, public Controller {
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-  bool start_voice_assistant(const std::string &conversation_id, bool use_vad);
+  bool start_voice_assistant(const std::string &conversation_id, uint32_t flags);
   void stop_voice_assistant();
 #endif
 
