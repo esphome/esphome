@@ -561,15 +561,6 @@ async def timeout_filter_to_code(config, filter_id):
 
 
 @FILTER_REGISTRY.register(
-    "timeout", TimeoutFilter, cv.positive_time_period_milliseconds
-)
-async def timeout_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id, config)
-    await cg.register_component(var, {})
-    return var
-
-
-@FILTER_REGISTRY.register(
     "debounce", DebounceFilter, cv.positive_time_period_milliseconds
 )
 async def debounce_filter_to_code(config, filter_id):
