@@ -305,7 +305,7 @@ jobs:
           key: platformio-${{ matrix.pio_cache_key }}-${{ hashFiles('platformio.ini') }}
 
       - name: Install clang-tidy
-        run: sudo apt-get install clang-tidy-11
+        run: sudo apt-get install clang-tidy-14
 
       - name: Register problem matchers
         run: |

@@ -36,7 +36,20 @@ void AlarmControlPanel::publish_state(AlarmControlPanelState state) {
     this->state_callback_.call();
     if (state == ACP_STATE_TRIGGERED) {
       this->triggered_callback_.call();
+    } else if (state == ACP_STATE_ARMING) {
+      this->arming_callback_.call();
+    } else if (state == ACP_STATE_PENDING) {
+      this->pending_callback_.call();
+    } else if (state == ACP_STATE_ARMED_HOME) {
+      this->armed_home_callback_.call();
+    } else if (state == ACP_STATE_ARMED_NIGHT) {
+      this->armed_night_callback_.call();
+    } else if (state == ACP_STATE_ARMED_AWAY) {
+      this->armed_away_callback_.call();
+    } else if (state == ACP_STATE_DISARMED) {
+      this->disarmed_callback_.call();
     }
+
     if (prev_state == ACP_STATE_TRIGGERED) {
       this->cleared_callback_.call();
     }
@@ -53,6 +66,30 @@ void AlarmControlPanel::add_on_state_callback(std::function<void()> &&callback) 
 
 void AlarmControlPanel::add_on_triggered_callback(std::function<void()> &&callback) {
   this->triggered_callback_.add(std::move(callback));
+}
+
+void AlarmControlPanel::add_on_arming_callback(std::function<void()> &&callback) {
+  this->arming_callback_.add(std::move(callback));
+}
+
+void AlarmControlPanel::add_on_armed_home_callback(std::function<void()> &&callback) {
+  this->armed_home_callback_.add(std::move(callback));
+}
+
+void AlarmControlPanel::add_on_armed_night_callback(std::function<void()> &&callback) {
+  this->armed_night_callback_.add(std::move(callback));
+}
+
+void AlarmControlPanel::add_on_armed_away_callback(std::function<void()> &&callback) {
+  this->armed_away_callback_.add(std::move(callback));
+}
+
+void AlarmControlPanel::add_on_pending_callback(std::function<void()> &&callback) {
+  this->pending_callback_.add(std::move(callback));
+}
+
+void AlarmControlPanel::add_on_disarmed_callback(std::function<void()> &&callback) {
+  this->disarmed_callback_.add(std::move(callback));
 }
 
 void AlarmControlPanel::add_on_cleared_callback(std::function<void()> &&callback) {
