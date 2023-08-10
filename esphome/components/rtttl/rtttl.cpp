@@ -96,8 +96,8 @@ void Rtttl::play(std::string rtttl) {
   note_duration_ = 1;
 
 #ifdef USE_SPEAKER
-  ttlSamplesSent_ = 0;
-  ttlSamples_ = 0;
+  samples_sent_ = 0;
+  samples_count_ = 0;
 #endif
 }
 
@@ -109,7 +109,7 @@ void Rtttl::loop() {
   if (this->speaker_ != nullptr) {
     // this->speaker_->loop();
 
-    if (ttlSamplesSent_ != ttlSamples_) {
+    if (samples_sent_ != samples_count_) {
       SpeakerSample sample[SAMPLE_BUFFER_SIZE + 1];
       int x = 0;
       double rem = 0.0;
@@ -117,10 +117,10 @@ void Rtttl::loop() {
       while (true) {
         // Try and send out the remainder of the existing note, one per loop()
 
-        if (this->ttlSamplesPerWave_ != 0) {  // Play note// && ttlSamplesSent_ >= ttGapFirst_
+        if (this->samples_per_wave_ != 0) {  // Play note// && samples_sent_ >= samples_gap_
 
-          int samplesSentFP10 = ttlSamplesSent_ << 10;
-          rem = (samplesSentFP10 % this->ttlSamplesPerWave_) * (360.0 / this->ttlSamplesPerWave_);
+          int samplesSentFP10 = samples_sent_ << 10;
+          rem = (samplesSentFP10 % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
           int16_t val = 8192 * sin(deg2rad(rem));
 
@@ -132,17 +132,17 @@ void Rtttl::loop() {
           sample[x].right = 0;
         }
 
-        if (x >= SAMPLE_BUFFER_SIZE || ttlSamplesSent_ >= ttlSamples_) {
+        if (x >= SAMPLE_BUFFER_SIZE || samples_sent_ >= samples_count_) {
           break;
         }
-        ttlSamplesSent_++;
+        samples_sent_++;
         x++;
       }
       if (x > 0) {
         int send = this->speaker_->play((uint8_t *) (&sample), x * 4);
         if (send != x * 4) {
           ESP_LOGI(TAG, "samples where not added %d, %d", send, x * 4);
-          ttlSamplesSent_ -= (x - (send / 4));
+          samples_sent_ -= (x - (send / 4));
         } else
           ESP_LOGI(TAG, "Played %d samples", x);
         return;
@@ -227,9 +227,9 @@ void Rtttl::loop() {
     scale = default_octave_;
 
 #ifdef USE_SPEAKER
-  ttlSamplesSent_ = 0;
-  ttlSamples_ = (sample_rate_ * note_duration_) / 2000;
-  ttGapFirst_ = 0;
+  samples_sent_ = 0;
+  samples_count_ = (sample_rate_ * note_duration_) / 2000;
+  samples_gap_ = 0;
 #endif
 
   // Now play the note
@@ -252,7 +252,7 @@ void Rtttl::loop() {
       }
 #endif
 #ifdef USE_SPEAKER
-      ttGapFirst_ = (sample_rate_ * DOUBLE_NOTE_GAP_MS) / 2000;
+      samples_gap_ = (sample_rate_ * DOUBLE_NOTE_GAP_MS) / 2000;
 #endif
     }
     output_freq_ = freq;
@@ -266,7 +266,7 @@ void Rtttl::loop() {
 #endif
 #ifdef USE_SPEAKER
     // Convert from frequency in Hz to high and low samples in fixed point
-    ttlSamplesPerWave_ = (sample_rate_ << 10) / freq;
+    samples_per_wave_ = (sample_rate_ << 10) / freq;
 #endif
   } else {
     ESP_LOGV(TAG, "waiting: %dms", note_duration_);
@@ -276,7 +276,7 @@ void Rtttl::loop() {
     }
 #endif
 #ifdef USE_SPEAKER
-    ttlSamplesPerWave_ = 0;
+    samples_per_wave_ = 0;
 #endif
     output_freq_ = 0;
   }

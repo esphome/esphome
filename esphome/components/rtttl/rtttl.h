@@ -85,10 +85,10 @@ class Rtttl : public Component {
   speaker::Speaker *speaker_;
   void play_speaker_();
   int sample_rate_{16000};
-  int ttlSamplesPerWave_{0};
-  int ttlSamplesSent_{0};
-  int ttlSamples_{0};
-  int ttGapFirst_{0};
+  int samples_per_wave_{0};
+  int samples_sent_{0};
+  int samples_count_{0};
+  int samples_gap_{0};
 #endif
 
   CallbackManager<void()> on_finished_playback_callback_;
