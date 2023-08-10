@@ -96,7 +96,7 @@ void LD2410Component::read_all_info() {
 #ifdef USE_SELECT
   const auto baud_rate = std::to_string(this->parent_->get_baud_rate());
   if (this->baud_rate_select_ != nullptr && this->baud_rate_select_->state != baud_rate) {
-    this->baud_rate_select_->make_call().set_option(baud_rate).perform();
+    this->baud_rate_select_->publish_state(baud_rate);
   }
 #endif
 }
@@ -168,11 +168,7 @@ void LD2410Component::handle_periodic_data_(uint8_t *buffer, int len) {
 #ifdef USE_SWITCH
   if (this->engineering_mode_switch_ != nullptr &&
       current_millis - last_engineering_mode_change_millis_ > this->throttle_) {
-    if (engineering_mode && !this->engineering_mode_switch_->state) {
-      this->engineering_mode_switch_->turn_on();
-    } else if (!engineering_mode && this->engineering_mode_switch_->state) {
-      this->engineering_mode_switch_->turn_off();
-    }
+    this->engineering_mode_switch_->publish_state(engineering_mode);
   }
 #endif
 #ifdef USE_BINARY_SENSOR
@@ -324,7 +320,7 @@ std::function<void(void)> set_number_value(number::Number *n, float value) {
   float normalized_value = value * 1.0;
   if (n != nullptr && (!n->has_state() || n->state != normalized_value)) {
     n->state = normalized_value;
-    return [n, normalized_value]() { n->make_call().set_value(normalized_value).perform(); };
+    return [n, normalized_value]() { n->publish_state(normalized_value); };
   }
   return []() {};
 }
@@ -380,7 +376,7 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
 #ifdef USE_SELECT
       if (this->distance_resolution_select_ != nullptr &&
           this->distance_resolution_select_->state != distance_resolution) {
-        this->distance_resolution_select_->make_call().set_option(distance_resolution).perform();
+        this->distance_resolution_select_->publish_state(distance_resolution);
       }
 #endif
     } break;
@@ -393,17 +389,17 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
       ESP_LOGV(TAG, "Out pin level is: %s", const_cast<char *>(this->out_pin_level_.c_str()));
 #ifdef USE_SELECT
       if (this->light_function_select_ != nullptr && this->light_function_select_->state != this->light_function_) {
-        this->light_function_select_->make_call().set_option(this->light_function_).perform();
+        this->light_function_select_->publish_state(this->light_function_);
       }
       if (this->out_pin_level_select_ != nullptr && this->out_pin_level_select_->state != this->out_pin_level_) {
-        this->out_pin_level_select_->make_call().set_option(this->out_pin_level_).perform();
+        this->out_pin_level_select_->publish_state(this->out_pin_level_);
       }
 #endif
 #ifdef USE_NUMBER
       if (this->light_threshold_number_ != nullptr &&
           (!this->light_threshold_number_->has_state() ||
            this->light_threshold_number_->state != this->light_threshold_)) {
-        this->light_threshold_number_->make_call().set_value(this->light_threshold_).perform();
+        this->light_threshold_number_->publish_state(this->light_threshold_);
       }
 #endif
     } break;
@@ -420,12 +416,7 @@ bool LD2410Component::handle_ack_data_(uint8_t *buffer, int len) {
 #endif
 #ifdef USE_SWITCH
       if (this->bluetooth_switch_ != nullptr) {
-        bool bluetooth = this->mac_ != UNKNOWN_MAC;
-        if (bluetooth && !this->bluetooth_switch_->state) {
-          this->bluetooth_switch_->turn_on();
-        } else if (!bluetooth && this->bluetooth_switch_->state) {
-          this->bluetooth_switch_->turn_off();
-        }
+        this->bluetooth_switch_->publish_state(this->mac_ != UNKNOWN_MAC);
       }
 #endif
       break;
