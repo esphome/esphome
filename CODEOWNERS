@@ -11,6 +11,7 @@ esphome/*.py @esphome/core
 esphome/core/* @esphome/core
 
 # Integrations
+esphome/components/a01nyub/* @MrSuicideParrot
 esphome/components/absolute_humidity/* @DAVe3283
 esphome/components/ac_dimmer/* @glmnet
 esphome/components/adc/* @esphome/core
@@ -48,6 +49,7 @@ esphome/components/ble_client/* @buxtronix
 esphome/components/bluetooth_proxy/* @jesserockz
 esphome/components/bme680_bsec/* @trvrnrth
 esphome/components/bmp3xx/* @martgras
+esphome/components/bmp581/* @kahrendt
 esphome/components/bp1658cj/* @Cossid
 esphome/components/bp5758d/* @Cossid
 esphome/components/button/* @esphome/core
@@ -100,6 +102,7 @@ esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/fs3000/* @kahrendt
+esphome/components/gcja5/* @gcormier
 esphome/components/globals/* @esphome/core
 esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core

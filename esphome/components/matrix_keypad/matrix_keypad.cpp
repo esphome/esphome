@@ -89,11 +89,13 @@ void MatrixKeypad::loop() {
 void MatrixKeypad::dump_config() {
   ESP_LOGCONFIG(TAG, "Matrix Keypad:");
   ESP_LOGCONFIG(TAG, " Rows:");
-  for (auto &pin : this->rows_)
+  for (auto &pin : this->rows_) {
     LOG_PIN("  Pin: ", pin);
+  }
   ESP_LOGCONFIG(TAG, " Cols:");
-  for (auto &pin : this->columns_)
+  for (auto &pin : this->columns_) {
     LOG_PIN("  Pin: ", pin);
+  }
 }
 
 void MatrixKeypad::register_listener(MatrixKeypadListener *listener) { this->listeners_.push_back(listener); }
