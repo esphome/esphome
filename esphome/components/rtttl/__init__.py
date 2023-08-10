@@ -92,9 +92,12 @@ FINAL_VALIDATE_SCHEMA = cv.Schema(
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
+
     if CONF_OUTPUT in config:
         out = await cg.get_variable(config[CONF_OUTPUT])
         cg.add(var.set_output(out))
+        cg.add_define("USE_OUTPUT")
+
     if CONF_SPEAKER in config:
         out = await cg.get_variable(config[CONF_SPEAKER])
         cg.add(var.set_speaker(out))
