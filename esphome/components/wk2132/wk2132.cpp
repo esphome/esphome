@@ -27,7 +27,7 @@ inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) 
   // - AA is the address read from A1,A0
   // - CC is the channel number (in practice only 00 or 01)
   // - F is 0 when accessing register one when accessing FIFO
-  uint8_t addr = base_address | channel << 1 | fifo;
+  uint8_t const addr = base_address | channel << 1 | fifo;
   // ESP_LOGI(TAG, "i2c_address %02X [%s] => b=%02X c=%02X f=%d", addr, i2s(addr).c_str(), base_address, channel, fifo);
   return addr;
 }
@@ -153,7 +153,7 @@ void WK2132Channel::setup_channel() {
   // now we initialize the channel register
 
   // set page 0
-  uint8_t page = 0;
+  uint8_t const page = 0;
   parent_->page1_ = false;
   parent_->write_wk2132_register_(REG_WK2132_SPAGE, channel_, &page, 1);
 
@@ -163,7 +163,7 @@ void WK2132Channel::setup_channel() {
   // -------------------------------------------------------------------------
   // |      TFTRIG     |      RFTRIG     |  TFEN  |  RFEN  |  TFRST |  RFRST |
   // -------------------------------------------------------------------------
-  uint8_t fsr = 0x0F;  // 0000 1111 reset fifo and enable the two fifo ...
+  uint8_t const fsr = 0x0F;  // 0000 1111 reset fifo and enable the two fifo ...
   parent_->write_wk2132_register_(REG_WK2132_FCR, channel_, &fsr, 1);
 
   // SCR description of UART control register:
@@ -172,7 +172,7 @@ void WK2132Channel::setup_channel() {
   //  -------------------------------------------------------------------------
   //  |                     RSV                    | SLEEPEN|  TXEN  |  RXEN  |
   //  -------------------------------------------------------------------------
-  uint8_t scr = 0x3;  // 0000 0011 enable receive and transmit
+  uint8_t const scr = 0x3;  // 0000 0011 enable receive and transmit
   parent_->write_wk2132_register_(REG_WK2132_SCR, channel_, &scr, 1);
 
   set_baudrate_();
@@ -180,13 +180,13 @@ void WK2132Channel::setup_channel() {
 }
 
 void WK2132Channel::set_baudrate_() {
-  uint16_t val_int = parent_->crystal_ / (baud_rate_ * 16) - 1;
+  uint16_t const val_int = parent_->crystal_ / (baud_rate_ * 16) - 1;
   uint16_t val_dec = (parent_->crystal_ % (baud_rate_ * 16)) / (baud_rate_ * 16);
-  uint8_t baud_high = (uint8_t) (val_int >> 8);
-  uint8_t baud_low = (uint8_t) (val_int & 0xFF);
+  uint8_t const baud_high = (uint8_t) (val_int >> 8);
+  uint8_t const baud_low = (uint8_t) (val_int & 0xFF);
   while (val_dec > 0x0A)
     val_dec /= 0x0A;
-  uint8_t baud_dec = (uint8_t) (val_dec);
+  uint8_t const baud_dec = (uint8_t) (val_dec);
 
   uint8_t page = 1;  // switch to page 1
   parent_->write_wk2132_register_(REG_WK2132_SPAGE, channel_, &page, 1);
@@ -238,15 +238,15 @@ size_t WK2132Channel::tx_in_fifo_() {
   //  * |  RFOE  |  RFBI  |  RFFE  |  RFPE  |  RDAT  |  TDAT  |  TFULL |  TBUSY |
   //  * -------------------------------------------------------------------------
 
-  uint8_t fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
-  uint8_t tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, channel_, &data_, 1);
+  uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
+  uint8_t const tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, channel_, &data_, 1);
   ESP_LOGVV(TAG, "tx_in_fifo=%d status %s", tfcnt, i2s(fsr).c_str());
   return tfcnt;
 }
 
 size_t WK2132Channel::rx_in_fifo_() {
   uint8_t available = 0;
-  uint8_t fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
+  uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
   if (fsr & 0x8)
     available = this->parent_->read_wk2132_register_(REG_WK2132_RFCNT, channel_, &data_, 1);
   if (!peek_buffer_.empty)
@@ -312,7 +312,7 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
   }
 
   bool status = true;
-  uint32_t start_time = millis();
+  uint32_t const start_time = millis();
   // in safe mode we check that we have received the requested characters
   while (safe_ && this->rx_in_fifo_() < len) {
     if (millis() - start_time > 100) {  // we wait as much as 100 ms
@@ -351,7 +351,7 @@ void WK2132Channel::write_array(const uint8_t *buffer, size_t len) {
 }
 
 void WK2132Channel::flush() {
-  uint32_t start_time = millis();
+  uint32_t const start_time = millis();
   while (tx_in_fifo_()) {  // wait until buffer empty
     if (millis() - start_time > 100) {
       ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", fifo_size_() - tx_in_fifo_());
@@ -395,10 +395,10 @@ void print_buffer(std::vector<uint8_t> buffer) {
 /// @brief test the write_array method
 void WK2132Channel::uart_send_test_(char *preamble) {
   auto start_exec = millis();
-  uint8_t to_send = fifo_size_() - tx_in_fifo_();
-  uint8_t to_flush = tx_in_fifo_();  // byte in buffer before execution
-  this->flush();                     // we wait until they are gone
-  uint8_t remains = tx_in_fifo_();   // remaining bytes if not null => flush timeout
+  uint8_t const to_send = fifo_size_() - tx_in_fifo_();
+  uint8_t const to_flush = tx_in_fifo_();  // byte in buffer before execution
+  this->flush();                           // we wait until they are gone
+  uint8_t const remains = tx_in_fifo_();   // remaining bytes if not null => flush timeout
 
   if (to_send > 0) {
     std::vector<uint8_t> output_buffer(to_send);
@@ -414,7 +414,7 @@ void WK2132Channel::uart_send_test_(char *preamble) {
 void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
   auto start_exec = millis();
   bool status = true;
-  uint8_t to_read = this->rx_in_fifo_();
+  uint8_t const to_read = this->rx_in_fifo_();
 
   if (to_read > 0) {
     std::vector<uint8_t> buffer(to_read);
