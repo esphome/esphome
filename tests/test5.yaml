@@ -69,6 +69,8 @@ mqtt:
 vbus:
   - uart_id: uart_2
 
+esp32_bt_classic:
+
 binary_sensor:
   - platform: gpio
     pin: GPIO0
@@ -202,6 +204,10 @@ binary_sensor:
       - id: vcustom_b
         name: VBus Custom Binary Sensor
         lambda: return x[0] & 1;
+
+  - platform: bt_classic_presence
+    name: BT Classic Presence T0
+    mac_address: 1a:2b:3c:4d:5e:6f
 
 tlc5947:
   data_pin: GPIO12

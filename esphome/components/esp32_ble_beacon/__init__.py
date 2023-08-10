@@ -5,6 +5,7 @@ from esphome.core import CORE, TimePeriod
 from esphome.components.esp32 import add_idf_sdkconfig_option
 from esphome.components import esp32_ble
 
+AUTO_LOAD = ["esp32_bt_common"]
 DEPENDENCIES = ["esp32"]
 CONFLICTS_WITH = ["esp32_ble_tracker"]
 

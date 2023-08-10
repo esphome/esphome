@@ -25,6 +25,15 @@ mdns:
   disabled: true
 
 api:
+  services:
+    - service: scan_bt_devices
+      variables:
+        addresses: string[]
+        num_scans: int
+      then:
+        - bt_classic.bt_classic_scan:
+            mac_address: !lambda "return addresses;"
+            num_scans: !lambda "return num_scans;"
 
 i2c:
   sda: 21
@@ -76,6 +85,16 @@ output:
     id: dimmer1
     gate_pin: GPIO5
     zero_cross_pin: GPIO12
+
+button:
+  - platform: template
+    name: "BT Scan"
+    on_press:
+      - bt_classic.bt_classic_scan:
+          mac_address:
+            - a1:b2:c3:d4:e5:f6
+            - 1a:2b:3c:4d:5e:6f
+          num_scans: 5
 
 sensor:
   - platform: homeassistant
@@ -475,6 +494,14 @@ binary_sensor:
     ibeacon_major: 100
     ibeacon_minor: 1
     name: BLE Test iBeacon Presence
+  - platform: bt_classic_presence
+    name: BT Classic Presence T1
+    mac_address: a1:b2:c3:d4:e5:f6
+    num_scans: 3
+    update_interval: 30s
+  - platform: bt_classic_presence
+    name: BT Classic Presence T2
+    mac_address: 1a:2b:3c:4d:5e:6f
   - platform: esp32_touch
     name: ESP32 Touch Pad GPIO27
     pin: GPIO27
@@ -582,6 +609,26 @@ mopeka_ble:
 
 bluetooth_proxy:
   active: true
+
+esp32_bt_classic:
+  on_scan_start:
+    - logger.log: "BT Classic Scan started."
+  on_scan_result:
+    - then:
+        - lambda: |-
+            ESP_LOGD("BT_SCAN_RESULT", "Unfiltered BT Classic scan result:");
+            ESP_LOGD("BT_SCAN_RESULT", "  address: %s", address.c_str());
+            ESP_LOGD("BT_SCAN_RESULT", "  name: %s", name);
+            ESP_LOGD("BT_SCAN_RESULT", "  status: %s (%d)", status.c_str(), status.bt_status());
+    - mac_address:
+        - 11:22:33:44:55:66
+        - aa:bb:cc:dd:ee:ff
+      then:
+        - lambda: |-
+            ESP_LOGD("BT_SCAN_RESULT", "Filtered BT Classic scan result:");
+            ESP_LOGD("BT_SCAN_RESULT", "  address: %s", address.c_str());
+            ESP_LOGD("BT_SCAN_RESULT", "  name: %s", name);
+            ESP_LOGD("BT_SCAN_RESULT", "  status: %s (%d)", status.c_str(), status.bt_status());
 
 xiaomi_rtcgq02lm:
   - id: motion_rtcgq02lm

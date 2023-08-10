@@ -4,6 +4,7 @@ from esphome.const import CONF_ID
 from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant, const
 
+AUTO_LOAD = ["esp32_bt_common"]
 DEPENDENCIES = ["esp32"]
 CODEOWNERS = ["@jesserockz"]
 CONFLICTS_WITH = ["esp32_ble_beacon"]
