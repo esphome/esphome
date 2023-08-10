@@ -102,6 +102,7 @@ esphome/components/fastled_base/* @OttoWinter
 esphome/components/feedback/* @ianchi
 esphome/components/fingerprint_grow/* @OnFreund @loongyh
 esphome/components/fs3000/* @kahrendt
+esphome/components/gcja5/* @gcormier
 esphome/components/globals/* @esphome/core
 esphome/components/gp8403/* @jesserockz
 esphome/components/gpio/* @esphome/core
