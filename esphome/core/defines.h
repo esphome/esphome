@@ -62,6 +62,7 @@
 // IDF-specific feature flags
 #ifdef USE_ESP_IDF
 #define USE_MQTT_IDF_ENQUEUE
+#define USE_ESP_ADF
 #endif
 
 // ESP32-specific feature flags
