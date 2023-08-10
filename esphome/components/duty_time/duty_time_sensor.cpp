@@ -6,9 +6,11 @@ namespace duty_time_sensor {
 
 static const char *const TAG = "duty_time_sensor";
 
+#ifdef USE_BINARY_SENSOR
 void DutyTimeSensor::set_sensor(binary_sensor::BinarySensor *const sensor) {
   sensor->add_on_state_callback([this](bool state) { this->process_state_(state); });
 }
+#endif
 
 void DutyTimeSensor::start() {
   if (!this->last_state_)
