@@ -20,6 +20,48 @@ class TriggeredTrigger : public Trigger<> {
   }
 };
 
+class ArmingTrigger : public Trigger<> {
+ public:
+  explicit ArmingTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_arming_callback([this]() { this->trigger(); });
+  }
+};
+
+class PendingTrigger : public Trigger<> {
+ public:
+  explicit PendingTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_pending_callback([this]() { this->trigger(); });
+  }
+};
+
+class ArmedHomeTrigger : public Trigger<> {
+ public:
+  explicit ArmedHomeTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_armed_home_callback([this]() { this->trigger(); });
+  }
+};
+
+class ArmedNightTrigger : public Trigger<> {
+ public:
+  explicit ArmedNightTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_armed_night_callback([this]() { this->trigger(); });
+  }
+};
+
+class ArmedAwayTrigger : public Trigger<> {
+ public:
+  explicit ArmedAwayTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_armed_away_callback([this]() { this->trigger(); });
+  }
+};
+
+class DisarmedTrigger : public Trigger<> {
+ public:
+  explicit DisarmedTrigger(AlarmControlPanel *alarm_control_panel) {
+    alarm_control_panel->add_on_disarmed_callback([this]() { this->trigger(); });
+  }
+};
+
 class ClearedTrigger : public Trigger<> {
  public:
   explicit ClearedTrigger(AlarmControlPanel *alarm_control_panel) {
