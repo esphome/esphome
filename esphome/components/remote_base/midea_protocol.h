@@ -1,11 +1,11 @@
 #pragma once
 
+#include <array>
+#include <vector>
+
 #include "esphome/core/component.h"
 #include "esphome/core/helpers.h"
 #include "remote_base.h"
-#include <array>
-#include <utility>
-#include <vector>
 
 namespace esphome {
 namespace remote_base {
@@ -84,23 +84,12 @@ using MideaDumper = RemoteReceiverDumper<MideaProtocol, MideaData>;
 
 template<typename... Ts> class MideaAction : public RemoteTransmitterActionBase<Ts...> {
   TEMPLATABLE_VALUE(std::vector<uint8_t>, code)
-  void set_code_static(std::vector<uint8_t> code) { code_static_ = std::move(code); }
-  void set_code_template(std::function<std::vector<uint8_t>(Ts...)> func) { this->code_func_ = func; }
 
   void encode(RemoteTransmitData *dst, Ts... x) override {
-    MideaData data;
-    if (!this->code_static_.empty()) {
-      data = MideaData(this->code_static_);
-    } else {
-      data = MideaData(this->code_func_(x...));
-    }
+    MideaData data(this->code_.value(x...));
     data.finalize();
     MideaProtocol().encode(dst, data);
   }
-
- protected:
-  std::function<std::vector<uint8_t>(Ts...)> code_func_{};
-  std::vector<uint8_t> code_static_{};
 };
 
 }  // namespace remote_base
