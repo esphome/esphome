@@ -39,10 +39,10 @@ class PCA9554Component : public Component, public i2c::I2CDevice {
   uint8_t output_mask_{0x00};
   /// The state of the actual input pin states - 1 means HIGH, 0 means LOW
   uint8_t input_mask_{0x00};
+  /// Flags to check if read previously during this loop
+  uint8_t was_previously_read_ = {0x00};
   /// Storage for last I2C error seen
   esphome::i2c::ErrorCode last_error_;
-  /// Flags to check if read previously during this loop
-  std::vector<bool> was_previously_read_ = {false, false, false, false, false, false, false, false};
 };
 
 /// Helper class to expose a PCA9554 pin as an internal input GPIO pin.
