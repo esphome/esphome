@@ -83,7 +83,9 @@ pipsolar:
 
 pylontech:
   - id: pylontech0
+    uart_id: uart115200
   - id: pylontech1
+    uart_id: uart115200
 
 sx1509:
   - id: sx1509_hub
