@@ -117,10 +117,8 @@ void Rtttl::loop() {
       while (true) {
         // Try and send out the remainder of the existing note, one per loop()
 
-        if (this->samples_per_wave_ != 0) {  // Play note// && samples_sent_ >= samples_gap_
-
-          int samplesSentFP10 = samples_sent_ << 10;
-          rem = (samplesSentFP10 % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
+        if (this->samples_per_wave_ != 0 && samples_sent_ >= samples_gap_) {  // Play note//
+          rem = ((samples_sent_ << 10) % this->samples_per_wave_) * (360.0 / this->samples_per_wave_);
 
           int16_t val = 8192 * sin(deg2rad(rem));
 
