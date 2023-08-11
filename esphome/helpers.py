@@ -145,10 +145,12 @@ def resolve_ip_address(host):
 
 def get_bool_env(var, default=False):
     value = os.getenv(var, default)
-    if value in ["1", "true", "True", "TRUE"]:
-        return True
-    if value in ["0", "false", "False", "FALSE"]:
-        return False
+    if isinstance(value, str):
+        value = value.lower()
+        if value in ["1", "true"]:
+            return True
+        if value in ["0", "false"]:
+            return False
     return bool(value)
 
 

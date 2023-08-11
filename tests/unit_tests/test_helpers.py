@@ -111,6 +111,7 @@ def test_is_ip_address__valid(value):
         ("FOO", "False", False, False),
         ("FOO", "True", False, True),
         ("FOO", "FALSE", True, False),
+        ("FOO", "fAlSe", True, False),
         ("FOO", "Yes", False, True),
         ("FOO", "123", False, True),
     ),
