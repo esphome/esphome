@@ -1569,4 +1569,7 @@ def aeha_dumper(var, config):
 async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
-    cg.add(var.set_data(config[CONF_DATA]))
+    template_ = await cg.templatable(
+        config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
+    )
+    cg.add(var.set_data(template_))
