@@ -336,6 +336,10 @@ mcp23s17:
     cs_pin: GPIO12
     deviceaddress: 1
 
+micronova:
+  enable_rx_pin: 4
+  uart_id: uart_0
+
 dfrobot_sen0395:
   - id: mmwave
     uart_id: dfrobot_mmwave_uart
@@ -1509,6 +1513,25 @@ sensor:
     field_strength_z:
       name: "Magnet Z"
       id: magnet_z
+  - platform: micronova
+    room_temperature:
+      name: Room Temperature
+    fumes_temperature:
+      name: Fumes Temperature
+    stove_power:
+      name: Stove Power
+    fan_speed:
+      fan_rpm_offset: 240
+      name: Fan RPM
+    memory_address_sensor:
+      memory_location: 0x20
+      memory_address: 0x7d
+      name: Adres sensor
+    water_temperature:
+      name: Watertemperature
+    water_pressure:
+      name: Waterpressure
+
 
 esp32_touch:
   setup_mode: false
@@ -2696,6 +2719,9 @@ switch:
       name: "control ld2410 engineering mode"
     bluetooth:
       name: "control ld2410 bluetooth"
+  - platform: micronova
+    stove_switch:
+      name: Stove on/off
 
 fan:
   - platform: binary
@@ -3480,6 +3506,12 @@ number:
         name: g8 move threshold
       still_threshold:
         name: g8 still threshold
+  - platform: micronova
+    thermostat_temperature:
+      name: Micronova Thermostaat
+      step: 1
+    power_level:
+      name: Micronova Power level
 
 select:
   - platform: template
@@ -3610,6 +3642,12 @@ button:
     uart_id: uart_0
     name: UART button
     data: "Pressed\r\n"
+  - platform: micronova
+    custom_button:
+      name: Custom Micronova Button
+      memory_location: 0xA0
+      memory_address: 0x7D
+      memory_data: 0x0F
 
 ld2410:
   id: my_ld2410
@@ -3715,43 +3753,3 @@ alarm_control_panel:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
 
-micronova:
-  uart_id: uart_0
-  enable_rx_pin: 4
-  update_interval: 10s
-  scan_memory_location: 0x00
-  room_temperature:
-    memory_address: 0x01
-    name: Ambient temperature
-    id: ambient_temperature
-  thermostat_temperature:
-    name: Stove thermostat temperature
-  fumes_temperature:
-    name: Smoke temperature
-  stove_power:
-    name: Stove current power
-  fan_speed:
-    fan_rpm_offset: 240
-    name: Fan RPM
-    id: fan_rpm
-  memory_address_sensor:
-    memory_location: 0x20
-    memory_address: 0x7d
-    name: Memory Adres sensor
-    id: mem_adres_sensor
-  stove_state:
-    memory_address: 0x21
-    name: Stove Status
-  stove_switch:
-    memory_location: 0x80
-    memory_address: 0x21
-    memory_data_on: 0x01
-    memory_data_off: 0x06
-    name: Switch stove on/off
-  but_temp_up:
-    name: Increase thermostat
-    memory_location: 0xA0
-    memory_address: 0x7D
-    memory_data: 0x21
-  but_temp_down:
-      name: Decrease thermostat
