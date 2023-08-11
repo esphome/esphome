@@ -87,6 +87,9 @@ sensor:
       - throttle: 100ms
       - debounce: 500s
       - timeout: 10min
+      - timeout:
+          timeout: 10min
+          value: 0
       - calibrate_linear:
           method: exact
           datapoints:

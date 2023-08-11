@@ -23,6 +23,7 @@ from esphome.const import (
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
     CONF_STATE_CLASS,
+    CONF_TIMEOUT,
     CONF_TO,
     CONF_TRIGGER_ID,
     CONF_TYPE,
@@ -543,11 +544,18 @@ async def heartbeat_filter_to_code(config, filter_id):
     return var
 
 
-@FILTER_REGISTRY.register(
-    "timeout", TimeoutFilter, cv.positive_time_period_milliseconds
+TIMEOUT_SCHEMA = cv.maybe_simple_value(
+    {
+        cv.Required(CONF_TIMEOUT): cv.positive_time_period_milliseconds,
+        cv.Optional(CONF_VALUE, default="nan"): cv.float_,
+    },
+    key=CONF_TIMEOUT,
 )
+
+
+@FILTER_REGISTRY.register("timeout", TimeoutFilter, TIMEOUT_SCHEMA)
 async def timeout_filter_to_code(config, filter_id):
-    var = cg.new_Pvariable(filter_id, config)
+    var = cg.new_Pvariable(filter_id, config[CONF_TIMEOUT], config[CONF_VALUE])
     await cg.register_component(var, {})
     return var
 
