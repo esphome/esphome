@@ -28,6 +28,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   void register_sensor(DS248xTemperatureSensor *sensor);
 
  protected:
+  uint32_t readIdx;
   uint64_t searchAddress;
   uint8_t searchLastDiscrepancy;
   bool last_device_found;

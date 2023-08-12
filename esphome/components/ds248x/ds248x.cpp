@@ -161,9 +161,23 @@ void DS248xComponent::update() {
     if (max_wait_time < sensorWaitTime) {
       max_wait_time = sensorWaitTime;
   }
+  }
+
+  readIdx = 0;
 
   this->set_timeout(TAG, max_wait_time, [this] {
-    for (auto *sensor : this->sensors_) {
+    this->set_interval(TAG, 50, [this]() {
+      if (sensors_.size() <= readIdx) {
+        if (this->enable_bus_sleep_) {
+          this->write_config(this->read_config() | DS248X_CONFIG_POWER_DOWN);
+        }
+        this->cancel_interval(TAG);
+        return;
+    }
+
+    DS248xTemperatureSensor* sensor = sensors_[readIdx];
+    readIdx++;
+
       bool res = sensor->read_scratch_pad();
 
       if (!res) {
@@ -181,11 +195,7 @@ void DS248xComponent::update() {
       float tempc = sensor->get_temp_c();
       ESP_LOGD(TAG, "'%s': Got Temperature=%.1f°C", sensor->get_name().c_str(), tempc);
       sensor->publish_state(tempc);
-    }
-
-    if (this->enable_bus_sleep_) {
-      this->write_config(this->read_config() | DS248X_CONFIG_POWER_DOWN);
-    }
+    });
   });
 }
 
