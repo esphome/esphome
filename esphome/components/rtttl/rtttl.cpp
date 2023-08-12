@@ -224,12 +224,7 @@ void Rtttl::loop() {
   uint8_t scale = get_integer_();
   if (scale == 0)
     scale = default_octave_;
-
-#ifdef USE_SPEAKER
-  samples_sent_ = 0;
-  samples_count_ = (sample_rate_ * note_duration_) / I2S_SPEED;
-  samples_gap_ = 0;
-#endif
+  bool need_note_gap = false;
 
   // Now play the note
   if (note) {
@@ -240,45 +235,45 @@ void Rtttl::loop() {
       return;
     }
     auto freq = NOTES[note_index];
+    need_note_gap = freq == output_freq_;
 
-    if (freq == output_freq_) {
-      // Add small silence gap between same note
-#ifdef USE_OUTPUT
-      if (output_ != nullptr) {
-        output_->set_level(0.0);
-        delay(DOUBLE_NOTE_GAP_MS);
-        note_duration_ -= DOUBLE_NOTE_GAP_MS;
-      }
-#endif
-#ifdef USE_SPEAKER
-      samples_gap_ = (sample_rate_ * DOUBLE_NOTE_GAP_MS) / I2S_SPEED;
-#endif
-    }
+    // Add small silence gap between same note
     output_freq_ = freq;
 
     ESP_LOGV(TAG, "playing note: %d for %dms", note, note_duration_);
-#ifdef USE_OUTPUT
-    if (output_ != nullptr) {
-      output_->update_frequency(freq);
-      output_->set_level(0.5);
-    }
-#endif
-#ifdef USE_SPEAKER
-    // Convert from frequency in Hz to high and low samples in fixed point
-    samples_per_wave_ = (sample_rate_ << 10) / freq;
-#endif
   } else {
     ESP_LOGV(TAG, "waiting: %dms", note_duration_);
-#ifdef USE_OUTPUT
-    if (output_ != nullptr) {
-      output_->set_level(0.0);
-    }
-#endif
-#ifdef USE_SPEAKER
-    samples_per_wave_ = 0;
-#endif
     output_freq_ = 0;
   }
+
+#ifdef USE_OUTPUT
+  if (need_note_gap) {
+    output_->set_level(0.0);
+    delay(DOUBLE_NOTE_GAP_MS);
+    note_duration_ -= DOUBLE_NOTE_GAP_MS;
+  }
+  if (output_freq_ != 0) {
+    output_->update_frequency(output_freq_);
+    output_->set_level(0.5);
+  } else {
+    output_->set_level(0.0);
+  }
+#endif
+#ifdef USE_SPEAKER
+  samples_sent_ = 0;
+  samples_count_ = (sample_rate_ * note_duration_) / I2S_SPEED;
+  // Convert from frequency in Hz to high and low samples in fixed point
+  if (output_freq_ != 0) {
+    samples_per_wave_ = (sample_rate_ << 10) / output_freq_;
+  } else {
+    samples_per_wave_ = 0;
+  }
+  if (need_note_gap) {
+    samples_gap_ = (sample_rate_ * DOUBLE_NOTE_GAP_MS) / I2S_SPEED;
+  } else {
+    samples_gap_ = 0;
+  }
+#endif
 
   last_note_ = millis();
 }
