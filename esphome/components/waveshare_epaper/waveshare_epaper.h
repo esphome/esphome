@@ -448,8 +448,7 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
     }
   };
 
- private:
-  void init_internal_();
+  void init_display_();
 };
 
 class WaveshareEPaper7P5InBC : public WaveshareEPaper {

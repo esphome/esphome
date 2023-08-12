@@ -1330,7 +1330,7 @@ void WaveshareEPaper7P5InBV2::dump_config() {
 }
 
 void WaveshareEPaper7P5InBV3::initialize() {
-  this->init_internal_();
+  this->init_display_();
   this->clear_screen();
 }
 bool WaveshareEPaper7P5InBV3::wait_until_idle_() {
@@ -1350,7 +1350,7 @@ bool WaveshareEPaper7P5InBV3::wait_until_idle_() {
   delay(200);  // NOLINT
   return true;
 };
-void WaveshareEPaper7P5InBV3::init_internal_() {
+void WaveshareEPaper7P5InBV3::init_display_() {
   this->reset_();
 
   // COMMAND POWER SETTING
@@ -1453,7 +1453,7 @@ void WaveshareEPaper7P5InBV3::init_internal_() {
     this->data(lut_bb_7_i_n5_v2[count]);
 };
 void HOT WaveshareEPaper7P5InBV3::display() {
-  this->init_internal_();
+  this->init_display_();
   uint32_t buf_len = this->get_buffer_length_();
 
   this->command(0x10);
