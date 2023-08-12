@@ -1,4 +1,3 @@
-#include <algorithm>
 #include "pca9554.h"
 #include "esphome/core/log.h"
 
@@ -37,8 +36,6 @@ void PCA9554Component::setup() {
 }
 
 void PCA9554Component::loop() {
-  // Called approximately 10 ms on average (100 Hz). Note: during power up
-  // initialization it will be called at a higher rate.
   // The read_inputs_() method will cache the input values from the chip.
   this->read_inputs_();
   // Clear all the previously read flags.
