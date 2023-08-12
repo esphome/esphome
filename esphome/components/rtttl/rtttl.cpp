@@ -16,6 +16,7 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
                                  1109, 1175, 1245, 1319, 1397, 1480, 1568, 1661, 1760, 1865, 1976, 2093, 2217,
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 
+static const uint16_t I2S_SPEED = 1600;
 #undef HALF_PI
 static const double HALF_PI = 1.5707963267948966192313216916398;
 
@@ -139,10 +140,8 @@ void Rtttl::loop() {
       if (x > 0) {
         int send = this->speaker_->play((uint8_t *) (&sample), x * 4);
         if (send != x * 4) {
-          ESP_LOGI(TAG, "samples where not added %d, %d", send, x * 4);
+          ESP_LOGE(TAG, "samples where not added %d, %d", send, x * 4);
           samples_sent_ -= (x - (send / 4));
-        } else
-          ESP_LOGI(TAG, "Played %d samples", x);
         return;
       }
     }
@@ -226,7 +225,7 @@ void Rtttl::loop() {
 
 #ifdef USE_SPEAKER
   samples_sent_ = 0;
-  samples_count_ = (sample_rate_ * note_duration_) / 2000;
+  samples_count_ = (sample_rate_ * note_duration_) / I2S_SPEED;
   samples_gap_ = 0;
 #endif
 
@@ -250,7 +249,7 @@ void Rtttl::loop() {
       }
 #endif
 #ifdef USE_SPEAKER
-      samples_gap_ = (sample_rate_ * DOUBLE_NOTE_GAP_MS) / 2000;
+      samples_gap_ = (sample_rate_ * DOUBLE_NOTE_GAP_MS) / I2S_SPEED;
 #endif
     }
     output_freq_ = freq;
