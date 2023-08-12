@@ -1457,7 +1457,7 @@ void HOT WaveshareEPaper7P5InBV3::display() {
   uint32_t buf_len = this->get_buffer_length_();
 
   this->command(0x10);
-  for (uint32_t i = 0; i < 800 * 480 / 8; i++) {
+  for (uint32_t i = 0; i < buf_len; i++) {
     this->data(0xFF);
   }
 
