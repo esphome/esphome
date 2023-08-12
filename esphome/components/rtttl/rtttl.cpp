@@ -17,6 +17,7 @@ static const uint16_t NOTES[] = {0,    262,  277,  294,  311,  330,  349,  370, 
                                  2349, 2489, 2637, 2794, 2960, 3136, 3322, 3520, 3729, 3951};
 
 static const uint16_t I2S_SPEED = 1600;
+
 #undef HALF_PI
 static const double HALF_PI = 1.5707963267948966192313216916398;
 
@@ -142,6 +143,7 @@ void Rtttl::loop() {
         if (send != x * 4) {
           ESP_LOGE(TAG, "samples where not added %d, %d", send, x * 4);
           samples_sent_ -= (x - (send / 4));
+        }
         return;
       }
     }
