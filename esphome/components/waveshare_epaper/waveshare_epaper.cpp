@@ -1487,7 +1487,7 @@ void WaveshareEPaper7P5InBV3::clear() {
   }
 
   this->command(0x12);
-  delay(100);
+  delay(100);  // NOLINT
 }
 int WaveshareEPaper7P5InBV3::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InBV3::get_height_internal() { return 480; }
