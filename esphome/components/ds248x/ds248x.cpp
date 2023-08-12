@@ -352,7 +352,7 @@ bool DS248xComponent::search(uint64_t* address) {
     write_command(DS248X_COMMAND_TRIPLET, direction ? 0x80 : 0x00);
 
     uint8_t status = wait_while_busy();
-    ESP_LOGD(TAG, "Search: i: %i dir: %i, status: %i bit: %llX", i, direction, status, searchBit);
+    ESP_LOGVV(TAG, "Search: i: %i dir: %i, status: %i bit: %llu", i, direction, status, searchBit);
 
 		uint8_t id = status & DS248X_STATUS_SBR;
 		uint8_t comp_id = status & DS248X_STATUS_TSB;
