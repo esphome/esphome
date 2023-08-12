@@ -1475,21 +1475,6 @@ void HOT WaveshareEPaper7P5InBV3::display() {
 void WaveshareEPaper7P5InBV3::clear_screen() {
   this->clear();
   this->display();
-  // uint32_t pixsize = this->get_buffer_length_();
-  // this->command(0x10);
-  // delay(2);
-  // for (int count = 0; count < pixsize; count++) {
-  //   this->data(0x00);
-  // }
-
-  // this->command(0x13);
-  // delay(2);
-  // for (int count = 0; count < pixsize; count++) {
-  //   this->data(0x00);
-  // }
-
-  // this->command(0x12);
-  // delay(100);  // NOLINT
 }
 int WaveshareEPaper7P5InBV3::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InBV3::get_height_internal() { return 480; }
