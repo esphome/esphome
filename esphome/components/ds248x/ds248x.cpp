@@ -157,7 +157,9 @@ void DS248xComponent::update() {
   uint16_t max_wait_time = 0;
 
   for (auto *sensor : this->sensors_) {
-    max_wait_time += sensor->millis_to_wait_for_conversion();
+    auto sensorWaitTime = sensor->millis_to_wait_for_conversion();
+    if (max_wait_time < sensorWaitTime) {
+      max_wait_time = sensorWaitTime;
   }
 
   this->set_timeout(TAG, max_wait_time, [this] {
