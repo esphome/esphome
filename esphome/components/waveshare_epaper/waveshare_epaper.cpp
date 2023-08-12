@@ -1331,7 +1331,7 @@ void WaveshareEPaper7P5InBV2::dump_config() {
 
 void WaveshareEPaper7P5InBV3::initialize() {
   this->init_internal_();
-  this->clear();
+  this->clear_screen();
 }
 bool WaveshareEPaper7P5InBV3::wait_until_idle_() {
   if (this->busy_pin_ == nullptr) {
@@ -1472,22 +1472,24 @@ void HOT WaveshareEPaper7P5InBV3::display() {
   this->wait_until_idle_();
   this->deep_sleep();
 }
-void WaveshareEPaper7P5InBV3::clear() {
-  uint32_t pixsize = this->get_buffer_length_();
-  this->command(0x10);
-  delay(2);
-  for (int count = 0; count < pixsize; count++) {
-    this->data(0x00);
-  }
+void WaveshareEPaper7P5InBV3::clear_screen() {
+  this->clear();
+  this->display();
+  // uint32_t pixsize = this->get_buffer_length_();
+  // this->command(0x10);
+  // delay(2);
+  // for (int count = 0; count < pixsize; count++) {
+  //   this->data(0x00);
+  // }
 
-  this->command(0x13);
-  delay(2);
-  for (int count = 0; count < pixsize; count++) {
-    this->data(0x00);
-  }
+  // this->command(0x13);
+  // delay(2);
+  // for (int count = 0; count < pixsize; count++) {
+  //   this->data(0x00);
+  // }
 
-  this->command(0x12);
-  delay(100);  // NOLINT
+  // this->command(0x12);
+  // delay(100);  // NOLINT
 }
 int WaveshareEPaper7P5InBV3::get_width_internal() { return 800; }
 int WaveshareEPaper7P5InBV3::get_height_internal() { return 480; }

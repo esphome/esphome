@@ -430,7 +430,7 @@ class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
     this->data(0xA5);
   }
 
-  void clear();
+  void clear_screen();
 
  protected:
   int get_width_internal() override;
