@@ -2334,9 +2334,7 @@ switch:
       - remote_transmitter.transmit_midea:
           code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
       - remote_transmitter.transmit_midea:
-          code: !lambda |-
-            const uint8_t tmp = static_cast<uint8_t>(id(pulse_meter_sensor).state) + 1;
-            return {0xA4, 0x82, 0x48, 0x7F, tmp};
+          code: !lambda "return {0xA2, 0x08, 0xFF, 0xFF, 0xFF};"
   - platform: gpio
     name: "MCP23S08 Pin #0"
     pin:
