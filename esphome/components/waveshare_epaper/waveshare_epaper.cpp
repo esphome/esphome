@@ -1473,7 +1473,7 @@ void HOT WaveshareEPaper7P5InBV3::display() {
   this->deep_sleep();
 }
 void WaveshareEPaper7P5InBV3::clear_screen() {
-  this->clear();
+  this->fill(Color::WHITE);
   this->display();
 }
 int WaveshareEPaper7P5InBV3::get_width_internal() { return 800; }
