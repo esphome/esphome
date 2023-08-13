@@ -246,8 +246,13 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
 #ifdef USE_TIME
       if (this->time_id_.has_value()) {
         this->send_local_time_();
-        auto *time_id = *this->time_id_;
-        time_id->add_on_time_sync_callback([this] { this->send_local_time_(); });
+
+        if (!this->time_sync_callback_registered_) {
+          // tuya mcu supports time, so we let them know when our time changed
+          auto *time_id = *this->time_id_;
+          time_id->add_on_time_sync_callback([this] { this->send_local_time_(); });
+          this->time_sync_callback_registered_ = true;
+        }
       } else {
         ESP_LOGW(TAG, "LOCAL_TIME_QUERY is not handled because time is not configured");
       }
