@@ -1,9 +1,9 @@
 #include "tuya.h"
 #include "esphome/components/network/util.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
-#include "esphome/core/gpio.h"
 
 #ifdef USE_WIFI
 #include "esphome/components/wifi/wifi_component.h"
@@ -253,12 +253,11 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
           time_id->add_on_time_sync_callback([this] { this->send_local_time_(); });
           this->time_sync_callback_registered_ = true;
         }
-      } else {
+      } else
+#endif
+      {
         ESP_LOGW(TAG, "LOCAL_TIME_QUERY is not handled because time is not configured");
       }
-#else
-      ESP_LOGE(TAG, "LOCAL_TIME_QUERY is not handled");
-#endif
       break;
     case TuyaCommandType::VACUUM_MAP_UPLOAD:
       this->send_command_(
