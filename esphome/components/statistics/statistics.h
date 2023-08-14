@@ -104,16 +104,19 @@ class StatisticsComponent : public Component {
   /// options.
   void setup() override;
 
-  /// @brief Reset the window by clearing it.
-  void reset();
+  /// @brief Add a callback that will be called after all sensors have finished updating
+  void add_on_update_callback(std::function<void(Aggregate)> &&callback);
 
   /// @brief Forces sensor updates using the current aggregate from the queue combined with the running chunk aggregate.
   void force_publish();
 
-  // source sensor of measurements
+  /// @brief Reset the window by clearing it.
+  void reset();
+
+  // Source sensor of measurements
   void set_source_sensor(sensor::Sensor *source_sensor) { this->source_sensor_ = source_sensor; }
 
-  // sensors for aggregate statistics
+  // Sensors for aggregate statistics
   void set_count_sensor(sensor::Sensor *count_sensor) { this->count_sensor_ = count_sensor; }
   void set_duration_sensor(sensor::Sensor *duration_sensor) { this->duration_sensor_ = duration_sensor; }
   void set_max_sensor(sensor::Sensor *max_sensor) { this->max_sensor_ = max_sensor; }
@@ -159,6 +162,9 @@ class StatisticsComponent : public Component {
 
   // Time component for since_argmax and since_argmin
   time::RealTimeClock *time_{nullptr};
+
+  // Storage for callbacks on sensor updates
+  CallbackManager<void(Aggregate)> callback_;
 
   // Stores the Aggregates
   AggregateQueue *queue_{nullptr};

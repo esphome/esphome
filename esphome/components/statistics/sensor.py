@@ -1,6 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import automation
+from esphome.core import CORE
 from esphome.components import sensor
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
@@ -14,6 +15,7 @@ from esphome.const import (
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
     CONF_SOURCE_ID,
+    CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
     CONF_WINDOW_SIZE,
@@ -28,18 +30,36 @@ from esphome.core.entity_helpers import inherit_property_from
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["time"]
 
+
+def AUTO_LOAD():
+    if CORE.is_esp32:
+        return ["psram"]
+    return []
+
+
 statistics_ns = cg.esphome_ns.namespace("statistics")
 StatisticsComponent = statistics_ns.class_("StatisticsComponent", cg.Component)
 
-######################
-# Automation Actions #
-######################
+Aggregate = statistics_ns.class_("Aggregate")
+
+###############
+# Automations #
+###############
+
+CONF_ON_UPDATE = "on_update"
+
+# Trigger for after statistics sensors are updated
+StatisticsUpdateTrigger = statistics_ns.class_(
+    "StatisticsUpdateTrigger", automation.Trigger.template(Aggregate)
+)
+
+# Force all sensors to publish
+ForcePublishAction = statistics_ns.class_("ForcePublishAction", automation.Action)
+
 
 # Reset action that clears all queued aggragates
 ResetAction = statistics_ns.class_("ResetAction", automation.Action)
 
-# Force all sensors to publish
-ForcePublishAction = statistics_ns.class_("ForcePublishAction", automation.Action)
 
 #####################
 # Definable sensors #
@@ -319,6 +339,13 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_TREND): sensor.sensor_schema(
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
+            cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
+                {
+                    cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
+                        StatisticsUpdateTrigger
+                    ),
+                }
+            ),
         },
     ).extend(cv.COMPONENT_SCHEMA),
     validate_no_trend_and_restore,
@@ -395,6 +422,11 @@ async def to_code(config):
     if restore_setting := window_config.get(CONF_RESTORE):
         cg.add(var.set_restore(restore_setting))
 
+    # Setup triggers
+    for conf in config.get(CONF_ON_UPDATE, []):
+        trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
+        await automation.build_automation(trigger, [(Aggregate, "x")], conf)
+
     ############################
     # Setup Configured Sensors #
     ############################
@@ -441,15 +473,6 @@ async def to_code(config):
 
 
 @automation.register_action(
-    "sensor.statistics.reset",
-    ResetAction,
-    automation.maybe_simple_id(
-        {
-            cv.Required(CONF_ID): cv.use_id(StatisticsComponent),
-        }
-    ),
-)
-@automation.register_action(
     "sensor.statistics.force_publish",
     ForcePublishAction,
     automation.maybe_simple_id(
@@ -458,13 +481,22 @@ async def to_code(config):
         }
     ),
 )
-async def sensor_statistics_reset_to_code(config, action_id, template_arg, args):
+async def sensor_statistics_force_publish_to_code(
+    config, action_id, template_arg, args
+):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)
 
 
-async def sensor_statistics_force_publish_to_code(
-    config, action_id, template_arg, args
-):
+@automation.register_action(
+    "sensor.statistics.reset",
+    ResetAction,
+    automation.maybe_simple_id(
+        {
+            cv.Required(CONF_ID): cv.use_id(StatisticsComponent),
+        }
+    ),
+)
+async def sensor_statistics_reset_to_code(config, action_id, template_arg, args):
     paren = await cg.get_variable(config[CONF_ID])
     return cg.new_Pvariable(action_id, template_arg, paren)

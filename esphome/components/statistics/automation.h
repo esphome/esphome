@@ -30,5 +30,13 @@ template<typename... Ts> class ForcePublishAction : public Action<Ts...> {
   StatisticsComponent *parent_;
 };
 
+// Trigger for after statistics sensors are updated
+class StatisticsUpdateTrigger : public Trigger<Aggregate> {
+ public:
+  explicit StatisticsUpdateTrigger(StatisticsComponent *parent) {
+    parent->add_on_update_callback([this](Aggregate value) { this->trigger(value); });
+  }
+};
+
 }  // namespace statistics
 }  // namespace esphome

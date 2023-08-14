@@ -15,6 +15,7 @@ namespace statistics {
 static const char *const TAG = "statistics";
 static const uint32_t NEVER_BOUND = 4294967295UL;  // uint32_t maximum
 
+#if ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_CONFIG
 static const LogString *time_conversion_factor_to_string(TimeConversionFactor factor) {
   switch (factor) {
     case FACTOR_MS:
@@ -33,25 +34,17 @@ static const LogString *time_conversion_factor_to_string(TimeConversionFactor fa
 }
 
 static const LogString *average_type_to_string(AverageType type) {
-  switch (type) {
-    case SIMPLE_AVERAGE:
-      return LOG_STR("simple");
-    case TIME_WEIGHTED_AVERAGE:
-      return LOG_STR("time_weighted");
-    default:
-      return LOG_STR("");
-  }
+  if (type == SIMPLE_AVERAGE)
+    return LOG_STR("simple");
+
+  return LOG_STR("time_weighted");
 }
 
 static const LogString *group_type_to_string(GroupType type) {
-  switch (type) {
-    case SAMPLE_GROUP_TYPE:
-      return LOG_STR("sample");
-    case POPULATION_GROUP_TYPE:
-      return LOG_STR("population");
-    default:
-      return LOG_STR("");
-  }
+  if (type == SAMPLE_GROUP_TYPE)
+    return LOG_STR("sample");
+
+  return LOG_STR("population");
 }
 
 static const LogString *window_type_to_string(WindowType type) {
@@ -66,6 +59,7 @@ static const LogString *window_type_to_string(WindowType type) {
       return LOG_STR("");
   }
 }
+#endif
 
 //////////////////////////
 // Public Class Methods //
@@ -144,9 +138,6 @@ void StatisticsComponent::setup() {
     this->force_publish();
   }
 
-  // On every source sensor update, call handle_new_value_()
-  this->source_sensor_->add_on_state_callback([this](float value) -> void { this->handle_new_value_(value); });
-
   // If chunk_duration is configured, use an interval timer to handle running chunk insertion
   if (this->chunk_duration_ < NEVER_BOUND) {
     this->set_interval(this->chunk_duration_, [this] { this->insert_running_chunk_(); });
@@ -154,6 +145,15 @@ void StatisticsComponent::setup() {
 
   // Ensure the first sensor update is when configured
   this->set_first_at(this->send_every_ - this->send_at_chunks_counter_);
+
+  // On every source sensor update, call handle_new_value_()
+  this->source_sensor_->add_on_state_callback([this](float value) -> void { this->handle_new_value_(value); });
+}
+
+// Automations
+
+void StatisticsComponent::add_on_update_callback(std::function<void(Aggregate)> &&callback) {
+  this->callback_.add(std::move(callback));
 }
 
 void StatisticsComponent::force_publish() {
@@ -414,12 +414,13 @@ void StatisticsComponent::publish_and_save_(Aggregate value) {
       this->trend_sensor_->publish_state(converted_trend);
     }
 
-    //////////////////////////////
-    // Save to flash if enabled //
-    //////////////////////////////
-
+    /////////////////////////////////////////
+    // Save to flash and execute callbacks //
+    /////////////////////////////////////////
     if (this->restore_)
       this->pref_.save(&value);
+
+    this->callback_.call(value);
   }
 }
 
