@@ -3,10 +3,7 @@
 #include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/spi/spi.h"
-#define PHASEA 0
-#define PHASEB 1
-#define PHASEC 2
-
+#include "atm90e32_reg.h"
 
 namespace esphome {
 namespace atm90e32 {
@@ -15,6 +12,9 @@ class ATM90E32Component : public PollingComponent,
                           public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH,
                                                 spi::CLOCK_PHASE_TRAILING, spi::DATA_RATE_2MHZ> {
  public:
+  static const uint8_t PHASEA = 0;
+  static const uint8_t PHASEB = 1;
+  static const uint8_t PHASEC = 2;
   void loop() override;
   void setup() override;
   void dump_config() override;
@@ -33,7 +33,6 @@ class ATM90E32Component : public PollingComponent,
   }
   void set_power_factor_sensor(int phase, sensor::Sensor *obj) { this->phase_[phase].power_factor_sensor_ = obj; }
   void set_volt_gain(int phase, uint16_t gain) { this->phase_[phase].voltage_gain_ = gain; }
-  void set_offset_voltage(int phase, uint16_t offset) { this->phase_[phase].voltage_offset_ = offset; }
   void set_ct_gain(int phase, uint16_t gain) { this->phase_[phase].ct_gain_ = gain; }
 
   void set_freq_sensor(sensor::Sensor *freq_sensor) { freq_sensor_ = freq_sensor; }
@@ -43,29 +42,30 @@ class ATM90E32Component : public PollingComponent,
   void set_line_freq(int freq) { line_freq_ = freq; }
   void set_current_phases(int phases) { current_phases_ = phases; }
   void set_pga_gain(uint16_t gain) { pga_gain_ = gain; }
-    // Function to calibrate the voltage offset for phase A
-  uint16_t calibrateVoltageOffsetPhase(uint8_t phase) {
-    uint8_t numReads = 5;
-    uint32_t totalValue = 0;
-    for (int i = 0; i < numReads; ++i) {
-      uint32_t measurementValue = get_line_voltage_(phase);
-        totalValue += measurementValue;
-      }
-    uint32_t averageValue = totalValue / numReads;
-    uint32_t shiftedValue = averageValue >> 7;
-    uint32_t voltageOffset = ~shiftedValue + 1;
-    return voltageOffset & 0xFFFF; // Take the lower 16 bits
-  }
-  uint16_t calibrateCurrentOffsetPhase(uint8_t phase) {
-    uint8_t numReads = 5;
-    uint32_t totalValue = 0;
-    for (int i = 0; i < numReads; ++i) {
-      uint32_t measurementValue = get_line_current_(phase);
-      totalValue += measurementValue;
+
+  uint16_t calibrate_voltage_offset_phase(uint8_t phase) {
+    uint8_t num_reads = 5;
+    uint64_t total_value = 0;
+    for (int i = 0; i < num_reads; ++i) {
+      uint32_t measurement_value = read32_(ATM90E32_REGISTER_URMS + phase, ATM90E32_REGISTER_URMSLSB + phase);
+      total_value += measurement_value;
     }
-    uint32_t averageValue = totalValue / numReads;
-    uint32_t currentOffset = ~averageValue + 1;
-    return currentOffset & 0xFFFF; // Take the lower 16 bits
+    uint32_t average_value = total_value / num_reads;
+    uint32_t shifted_value = average_value >> 7;
+    uint32_t voltage_offset = ~shifted_value + 1;
+    return voltage_offset & 0xFFFF;  // Take the lower 16 bits
+  }
+
+  uint16_t calibrate_current_offset_phase(uint8_t phase) {
+    uint8_t num_reads = 5;
+    uint64_t total_value = 0;
+    for (int i = 0; i < num_reads; ++i) {
+      uint32_t measurement_value = read32_(ATM90E32_REGISTER_IRMS + phase, ATM90E32_REGISTER_IRMSLSB + phase);
+      total_value += measurement_value;
+    }
+    uint32_t average_value = total_value / num_reads;
+    uint32_t current_offset = ~average_value + 1;
+    return current_offset & 0xFFFF;  // Take the lower 16 bits
   }
 
   int32_t last_periodic_millis = millis();
@@ -74,37 +74,37 @@ class ATM90E32Component : public PollingComponent,
   uint16_t read16_(uint16_t a_register);
   int read32_(uint16_t addr_h, uint16_t addr_l);
   void write16_(uint16_t a_register, uint16_t val);
-  float get_phase_voltage_(uint8_t);
-  float get_phase_current_(uint8_t);
-  float get_phase_active_power_(uint8_t);
-  float get_phase_reactive_power_(uint8_t);
-  float get_phase_power_factor_(uint8_t);
-  float get_phase_forward_active_energy_(uint8_t);
-  float get_phase_reverse_active_energy_(uint8_t);
-  float get_line_voltage_(uint8_t);
-  float get_line_voltage_avg(uint8_t);
-  float get_line_current_(uint8_t);
-  float get_line_current_avg(uint8_t);
-  float get_active_power_(uint8_t);
-  float get_reactive_power_(uint8_t);
-  float get_power_factor_(uint8_t);
-  float get_forward_active_energy_(uint8_t);
-  float get_reverse_active_energy_(uint8_t);
+  float get_local_phase_voltage_(uint8_t /*phase*/);
+  float get_local_phase_current_(uint8_t /*phase*/);
+  float get_local_phase_active_power_(uint8_t /*phase*/);
+  float get_local_phase_reactive_power_(uint8_t /*phase*/);
+  float get_local_phase_power_factor_(uint8_t /*phase*/);
+  float get_local_phase_forward_active_energy_(uint8_t /*phase*/);
+  float get_local_phase_reverse_active_energy_(uint8_t /*phase*/);
+  float get_phase_voltage_(uint8_t /*phase*/);
+  float get_phase_voltage_avg_(uint8_t /*phase*/);
+  float get_phase_current_(uint8_t /*phase*/);
+  float get_phase_current_avg_(uint8_t /*phase*/);
+  float get_phase_active_power_(uint8_t /*phase*/);
+  float get_phase_reactive_power_(uint8_t /*phase*/);
+  float get_phase_power_factor_(uint8_t /*phase*/);
+  float get_phase_forward_active_energy_(uint8_t /*phase*/);
+  float get_phase_reverse_active_energy_(uint8_t /*phase*/);
   float get_frequency_();
   float get_chip_temperature_();
 
   struct ATM90E32Phase {
     uint16_t voltage_gain_{7305};
     uint16_t ct_gain_{27961};
-    uint16_t voltage_offset_ {0};
-    uint16_t current_offset_ {0};
-    float voltage_ {0};
-    float current_ {0};
-    float active_power_ {0};
-    float reactive_power_ {0};
-    float power_factor_ {0};
-    float forward_active_energy_ {0};
-    float reverse_active_energy_ {0};
+    uint16_t voltage_offset_{0};
+    uint16_t current_offset_{0};
+    float voltage_{0};
+    float current_{0};
+    float active_power_{0};
+    float reactive_power_{0};
+    float power_factor_{0};
+    float forward_active_energy_{0};
+    float reverse_active_energy_{0};
     sensor::Sensor *voltage_sensor_{nullptr};
     sensor::Sensor *current_sensor_{nullptr};
     sensor::Sensor *power_sensor_{nullptr};
@@ -115,6 +115,7 @@ class ATM90E32Component : public PollingComponent,
     uint32_t cumulative_forward_active_energy_{0};
     uint32_t cumulative_reverse_active_energy_{0};
   } phase_[3];
+
   sensor::Sensor *freq_sensor_{nullptr};
   sensor::Sensor *chip_temperature_sensor_{nullptr};
   uint16_t pga_gain_{0x15};
