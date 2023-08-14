@@ -17,7 +17,7 @@ static const char *const TAG = "voice_assistant";
 
 static const size_t SAMPLE_RATE_HZ = 16000;
 static const size_t INPUT_BUFFER_SIZE = 30 * SAMPLE_RATE_HZ / 1000;  // 30ms * 16kHz / 1000ms
-static const size_t BUFFER_SIZE = 100 * SAMPLE_RATE_HZ / 1000;       // 100ms
+static const size_t BUFFER_SIZE = 1000 * SAMPLE_RATE_HZ / 1000;      // 1s
 static const size_t SEND_BUFFER_SIZE = 50 * SAMPLE_RATE_HZ / 1000;   // 50ms * 16kHz / 1000ms
 static const size_t SPEAKER_BUFFER_SIZE = 8192;
 
@@ -182,8 +182,10 @@ void VoiceAssistant::loop() {
       uint32_t flags = 0;
       if (this->silence_detection_)
         flags |= api::enums::VOICE_ASSISTANT_REQUEST_USE_VAD;
+#ifdef USE_ESP_ADF
       if (this->use_wake_word_)
         flags |= api::enums::VOICE_ASSISTANT_REQUEST_USE_WAKE_WORD;
+#endif
       if (!api::global_api_server->start_voice_assistant(this->conversation_id_, flags)) {
         ESP_LOGW(TAG, "Could not request start.");
         this->error_trigger_->trigger("not-connected", "Could not request start.");
