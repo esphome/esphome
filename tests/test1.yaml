@@ -2333,6 +2333,8 @@ switch:
           second: !lambda "return 0xB21F98;"
       - remote_transmitter.transmit_midea:
           code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+      - remote_transmitter.transmit_midea:
+          code: !lambda "return {0xA2, 0x08, 0xFF, 0xFF, 0xFF};"
   - platform: gpio
     name: "MCP23S08 Pin #0"
     pin:
