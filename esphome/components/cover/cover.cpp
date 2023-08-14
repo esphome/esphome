@@ -145,7 +145,7 @@ CoverCall &CoverCall::set_stop(bool stop) {
   return *this;
 }
 bool CoverCall::get_stop() const { return this->stop_; }
-void Cover::set_device_class(const std::string &device_class) { this->device_class_override_ = device_class; }
+
 CoverCall Cover::make_call() { return {this}; }
 void Cover::open() {
   auto call = this->make_call();
@@ -204,11 +204,7 @@ optional<CoverRestoreState> Cover::restore_state_() {
     return {};
   return recovered;
 }
-std::string Cover::get_device_class() {
-  if (this->device_class_override_.has_value())
-    return *this->device_class_override_;
-  return "";
-}
+
 bool Cover::is_fully_open() const { return this->position == COVER_OPEN; }
 bool Cover::is_fully_closed() const { return this->position == COVER_CLOSED; }
 

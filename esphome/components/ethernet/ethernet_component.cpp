@@ -26,8 +26,10 @@ EthernetComponent::EthernetComponent() { global_eth_component = this; }
 
 void EthernetComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up Ethernet...");
-  // Delay here to allow power to stabilise before Ethernet is initialised.
-  delay(300);  // NOLINT
+  if (esp_reset_reason() != ESP_RST_DEEPSLEEP) {
+    // Delay here to allow power to stabilise before Ethernet is initialized.
+    delay(300);  // NOLINT
+  }
 
   esp_err_t err;
   err = esp_netif_init();
@@ -39,39 +41,56 @@ void EthernetComponent::setup() {
   this->eth_netif_ = esp_netif_new(&cfg);
 
   // Init MAC and PHY configs to default
-  eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
   eth_phy_config_t phy_config = ETH_PHY_DEFAULT_CONFIG();
-
   phy_config.phy_addr = this->phy_addr_;
   phy_config.reset_gpio_num = this->power_pin_;
 
+  eth_mac_config_t mac_config = ETH_MAC_DEFAULT_CONFIG();
+#if ESP_IDF_VERSION_MAJOR >= 5
+  eth_esp32_emac_config_t esp32_emac_config = ETH_ESP32_EMAC_DEFAULT_CONFIG();
+  esp32_emac_config.smi_mdc_gpio_num = this->mdc_pin_;
+  esp32_emac_config.smi_mdio_gpio_num = this->mdio_pin_;
+  esp32_emac_config.clock_config.rmii.clock_mode = this->clk_mode_;
+  esp32_emac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
+
+  esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&esp32_emac_config, &mac_config);
+#else
   mac_config.smi_mdc_gpio_num = this->mdc_pin_;
   mac_config.smi_mdio_gpio_num = this->mdio_pin_;
   mac_config.clock_config.rmii.clock_mode = this->clk_mode_;
   mac_config.clock_config.rmii.clock_gpio = this->clk_gpio_;
 
   esp_eth_mac_t *mac = esp_eth_mac_new_esp32(&mac_config);
+#endif
 
-  esp_eth_phy_t *phy;
   switch (this->type_) {
     case ETHERNET_TYPE_LAN8720: {
-      phy = esp_eth_phy_new_lan87xx(&phy_config);
+      this->phy_ = esp_eth_phy_new_lan87xx(&phy_config);
       break;
     }
     case ETHERNET_TYPE_RTL8201: {
-      phy = esp_eth_phy_new_rtl8201(&phy_config);
+      this->phy_ = esp_eth_phy_new_rtl8201(&phy_config);
       break;
     }
     case ETHERNET_TYPE_DP83848: {
-      phy = esp_eth_phy_new_dp83848(&phy_config);
+      this->phy_ = esp_eth_phy_new_dp83848(&phy_config);
       break;
     }
     case ETHERNET_TYPE_IP101: {
-      phy = esp_eth_phy_new_ip101(&phy_config);
+      this->phy_ = esp_eth_phy_new_ip101(&phy_config);
       break;
     }
     case ETHERNET_TYPE_JL1101: {
-      phy = esp_eth_phy_new_jl1101(&phy_config);
+      this->phy_ = esp_eth_phy_new_jl1101(&phy_config);
+      break;
+    }
+    case ETHERNET_TYPE_KSZ8081:
+    case ETHERNET_TYPE_KSZ8081RNA: {
+#if ESP_IDF_VERSION_MAJOR >= 5
+      this->phy_ = esp_eth_phy_new_ksz80xx(&phy_config);
+#else
+      this->phy_ = esp_eth_phy_new_ksz8081(&phy_config);
+#endif
       break;
     }
     default: {
@@ -80,10 +99,16 @@ void EthernetComponent::setup() {
     }
   }
 
-  esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, phy);
+  esp_eth_config_t eth_config = ETH_DEFAULT_CONFIG(mac, this->phy_);
   this->eth_handle_ = nullptr;
   err = esp_eth_driver_install(&eth_config, &this->eth_handle_);
   ESPHL_ERROR_CHECK(err, "ETH driver install error");
+
+  if (this->type_ == ETHERNET_TYPE_KSZ8081RNA && this->clk_mode_ == EMAC_CLK_OUT) {
+    // KSZ8081RNA default is incorrect. It expects a 25MHz clock instead of the 50MHz we provide.
+    this->ksz8081_set_clock_reference_(mac);
+  }
+
   /* attach Ethernet driver to TCP/IP stack */
   err = esp_netif_attach(this->eth_netif_, esp_eth_new_netif_glue(this->eth_handle_));
   ESPHL_ERROR_CHECK(err, "ETH netif attach error");
@@ -93,6 +118,10 @@ void EthernetComponent::setup() {
   ESPHL_ERROR_CHECK(err, "ETH event handler register error");
   err = esp_event_handler_register(IP_EVENT, IP_EVENT_ETH_GOT_IP, &EthernetComponent::got_ip_event_handler, nullptr);
   ESPHL_ERROR_CHECK(err, "GOT IP event handler register error");
+#if LWIP_IPV6
+  err = esp_event_handler_register(IP_EVENT, IP_EVENT_GOT_IP6, &EthernetComponent::got_ip6_event_handler, nullptr);
+  ESPHL_ERROR_CHECK(err, "GOT IP6 event handler register error");
+#endif /* LWIP_IPV6 */
 
   /* start Ethernet driver state machine */
   err = esp_eth_start(this->eth_handle_);
@@ -135,12 +164,26 @@ void EthernetComponent::loop() {
         this->state_ = EthernetComponentState::CONNECTING;
         this->start_connect_();
       }
+#if LWIP_IPV6
+      else if (this->got_ipv6_) {
+        esp_ip6_addr_t ip6_addr;
+        if (esp_netif_get_ip6_global(this->eth_netif_, &ip6_addr) == 0 &&
+            esp_netif_ip6_get_addr_type(&ip6_addr) == ESP_IP6_ADDR_IS_GLOBAL) {
+          ESP_LOGCONFIG(TAG, "IPv6 Addr (Global): " IPV6STR, IPV62STR(ip6_addr));
+        } else {
+          esp_netif_get_ip6_linklocal(this->eth_netif_, &ip6_addr);
+          ESP_LOGCONFIG(TAG, " IPv6: " IPV6STR, IPV62STR(ip6_addr));
+        }
+
+        this->got_ipv6_ = false;
+      }
+#endif /* LWIP_IPV6 */
       break;
   }
 }
 
 void EthernetComponent::dump_config() {
-  std::string eth_type;
+  const char *eth_type;
   switch (this->type_) {
     case ETHERNET_TYPE_LAN8720:
       eth_type = "LAN8720";
@@ -158,6 +201,18 @@ void EthernetComponent::dump_config() {
       eth_type = "IP101";
       break;
 
+    case ETHERNET_TYPE_JL1101:
+      eth_type = "JL1101";
+      break;
+
+    case ETHERNET_TYPE_KSZ8081:
+      eth_type = "KSZ8081";
+      break;
+
+    case ETHERNET_TYPE_KSZ8081RNA:
+      eth_type = "KSZ8081RNA";
+      break;
+
     default:
       eth_type = "Unknown";
       break;
@@ -170,7 +225,8 @@ void EthernetComponent::dump_config() {
   }
   ESP_LOGCONFIG(TAG, "  MDC Pin: %u", this->mdc_pin_);
   ESP_LOGCONFIG(TAG, "  MDIO Pin: %u", this->mdio_pin_);
-  ESP_LOGCONFIG(TAG, "  Type: %s", eth_type.c_str());
+  ESP_LOGCONFIG(TAG, "  Type: %s", eth_type);
+  ESP_LOGCONFIG(TAG, "  PHY addr: %u", this->phy_addr_);
 }
 
 float EthernetComponent::get_setup_priority() const { return setup_priority::WIFI; }
@@ -207,14 +263,23 @@ void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base
       return;
   }
 
-  ESP_LOGV(TAG, "[Ethernet event] %s (num=%d)", event_name, event);
+  ESP_LOGV(TAG, "[Ethernet event] %s (num=%" PRId32 ")", event_name, event);
 }
 
 void EthernetComponent::got_ip_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
                                              void *event_data) {
   global_eth_component->connected_ = true;
-  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP (num=%d)", event_id);
+  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP (num=%" PRId32 ")", event_id);
 }
+
+#if LWIP_IPV6
+void EthernetComponent::got_ip6_event_handler(void *arg, esp_event_base_t event_base, int32_t event_id,
+                                              void *event_data) {
+  ESP_LOGV(TAG, "[Ethernet event] ETH Got IP6 (num=%d)", event_id);
+  global_eth_component->got_ipv6_ = true;
+  global_eth_component->ipv6_count_ += 1;
+}
+#endif /* LWIP_IPV6 */
 
 void EthernetComponent::start_connect_() {
   this->connect_begin_ = millis();
@@ -263,7 +328,7 @@ void EthernetComponent::start_connect_() {
 #endif
       dns_setserver(0, &d);
     }
-    if (uint32_t(this->manual_ip_->dns1) != 0) {
+    if (uint32_t(this->manual_ip_->dns2) != 0) {
       ip_addr_t d;
 #if LWIP_IPV6
       d.type = IPADDR_TYPE_V4;
@@ -278,6 +343,12 @@ void EthernetComponent::start_connect_() {
     if (err != ESP_ERR_ESP_NETIF_DHCP_ALREADY_STARTED) {
       ESPHL_ERROR_CHECK(err, "DHCPC start error");
     }
+#if LWIP_IPV6
+    err = esp_netif_create_ip6_linklocal(this->eth_netif_);
+    if (err != ESP_OK) {
+      ESPHL_ERROR_CHECK(err, "IPv6 local failed");
+    }
+#endif /* LWIP_IPV6 */
   }
 
   this->connect_begin_ = millis();
@@ -304,6 +375,19 @@ void EthernetComponent::dump_connect_params_() {
   ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->addr).str().c_str());
   ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->addr).str().c_str());
 #endif
+
+#if LWIP_IPV6
+  if (this->ipv6_count_ > 0) {
+    esp_ip6_addr_t ip6_addr;
+    esp_netif_get_ip6_linklocal(this->eth_netif_, &ip6_addr);
+    ESP_LOGCONFIG(TAG, " IPv6: " IPV6STR, IPV62STR(ip6_addr));
+
+    if (esp_netif_get_ip6_global(this->eth_netif_, &ip6_addr) == 0 &&
+        esp_netif_ip6_get_addr_type(&ip6_addr) == ESP_IP6_ADDR_IS_GLOBAL) {
+      ESP_LOGCONFIG(TAG, "IPv6 Addr (Global): " IPV6STR, IPV62STR(ip6_addr));
+    }
+  }
+#endif /* LWIP_IPV6 */
 
   esp_err_t err;
 
@@ -342,6 +426,52 @@ std::string EthernetComponent::get_use_address() const {
 }
 
 void EthernetComponent::set_use_address(const std::string &use_address) { this->use_address_ = use_address; }
+
+bool EthernetComponent::powerdown() {
+  ESP_LOGI(TAG, "Powering down ethernet PHY");
+  if (this->phy_ == nullptr) {
+    ESP_LOGE(TAG, "Ethernet PHY not assigned");
+    return false;
+  }
+  this->connected_ = false;
+  this->started_ = false;
+  if (this->phy_->pwrctl(this->phy_, false) != ESP_OK) {
+    ESP_LOGE(TAG, "Error powering down ethernet PHY");
+    return false;
+  }
+  return true;
+}
+
+void EthernetComponent::ksz8081_set_clock_reference_(esp_eth_mac_t *mac) {
+#define KSZ80XX_PC2R_REG_ADDR (0x1F)
+
+  esp_err_t err;
+
+  uint32_t phy_control_2;
+  err = mac->read_phy_reg(mac, this->phy_addr_, KSZ80XX_PC2R_REG_ADDR, &(phy_control_2));
+  ESPHL_ERROR_CHECK(err, "Read PHY Control 2 failed");
+  ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
+
+  /*
+   * Bit 7 is `RMII Reference Clock Select`. Default is `0`.
+   * KSZ8081RNA:
+   *   0 - clock input to XI (Pin 8) is 25 MHz for RMII – 25 MHz clock mode.
+   *   1 - clock input to XI (Pin 8) is 50 MHz for RMII – 50 MHz clock mode.
+   * KSZ8081RND:
+   *   0 - clock input to XI (Pin 8) is 50 MHz for RMII – 50 MHz clock mode.
+   *   1 - clock input to XI (Pin 8) is 25 MHz (driven clock only, not a crystal) for RMII – 25 MHz clock mode.
+   */
+  if ((phy_control_2 & (1 << 7)) != (1 << 7)) {
+    phy_control_2 |= 1 << 7;
+    err = mac->write_phy_reg(mac, this->phy_addr_, KSZ80XX_PC2R_REG_ADDR, phy_control_2);
+    ESPHL_ERROR_CHECK(err, "Write PHY Control 2 failed");
+    err = mac->read_phy_reg(mac, this->phy_addr_, KSZ80XX_PC2R_REG_ADDR, &(phy_control_2));
+    ESPHL_ERROR_CHECK(err, "Read PHY Control 2 failed");
+    ESP_LOGVV(TAG, "KSZ8081 PHY Control 2: %s", format_hex_pretty((u_int8_t *) &phy_control_2, 2).c_str());
+  }
+
+#undef KSZ80XX_PC2R_REG_ADDR
+}
 
 }  // namespace ethernet
 }  // namespace esphome

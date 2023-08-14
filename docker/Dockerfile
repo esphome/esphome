@@ -22,13 +22,22 @@ RUN \
         python3=3.9.2-3 \
         python3-pip=20.3.4-4+deb11u1 \
         python3-setuptools=52.0.0-4 \
-        python3-pil=8.1.2+dfsg-0.3+deb11u1 \
         python3-cryptography=3.3.2-1 \
+        python3-venv=3.9.2-3 \
         iputils-ping=3:20210202-1 \
-        git=1:2.30.2-1 \
+        git=1:2.30.2-1+deb11u2 \
         curl=7.74.0-1.3+deb11u7 \
         openssh-client=1:8.4p1-5+deb11u1 \
-    && rm -rf \
+        python3-cffi=1.14.5-1; \
+    if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        apt-get install -y --no-install-recommends \
+          build-essential=12.9 \
+          python3-dev=3.9.2-3 \
+          zlib1g-dev=1:1.2.11.dfsg-2+deb11u2 \
+          libjpeg-dev=1:2.0.6-4 \
+          libcairo2=1.16.0-5; \
+    fi; \
+    rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
         /var/lib/apt/lists/*
@@ -51,7 +60,7 @@ RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install --no-cache-dir \
         wheel==0.37.1 \
-        platformio==6.1.6 \
+        platformio==6.1.7 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
@@ -59,10 +68,10 @@ RUN \
 
 
 # First install requirements to leverage caching when requirements don't change
-COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
+COPY requirements.txt requirements_optional.txt script/platformio_install_deps.py platformio.ini /
 RUN \
     pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
-    && /platformio_install_deps.py /platformio.ini
+    && /platformio_install_deps.py /platformio.ini --libraries
 
 
 # ======================= docker-type image =======================
