@@ -1488,11 +1488,9 @@ MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_p
 MideaAction = ns.class_("MideaAction", RemoteTransmitterActionBase)
 MIDEA_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CODE): cv.templatable(
-            cv.All(
-                [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
-                cv.Length(min=5, max=5),
-            )
+        cv.Required(CONF_CODE): cv.All(
+            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
+            cv.Length(min=5, max=5),
         ),
     }
 )
@@ -1519,12 +1517,10 @@ def midea_dumper(var, config):
     MIDEA_SCHEMA,
 )
 async def midea_action(var, config, args):
-    code_ = config[CONF_CODE]
-    if cg.is_template(code_):
-        template_ = await cg.templatable(code_, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_code_template(template_))
-    else:
-        cg.add(var.set_code_static(code_))
+    template_ = await cg.templatable(
+        config[CONF_CODE], args, cg.std_vector.template(cg.uint8)
+    )
+    cg.add(var.set_code(template_))
 
 
 # AEHA
