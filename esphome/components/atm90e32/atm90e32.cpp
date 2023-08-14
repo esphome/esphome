@@ -9,29 +9,45 @@ namespace atm90e32 {
 static const char *const TAG = "atm90e32";
 void ATM90E32Component::loop() {
   const int32_t current_millis = millis();
-  if (current_millis - last_periodic_millis < 500)
+  if (current_millis - last_periodic_millis < 100)
     return;
   last_periodic_millis = current_millis;
-  if (this->phase_[PHASEA].voltage_sensor_ != nullptr) {
-    this->phase_[PHASEA].voltage_ = this->get_line_voltage_avg(PHASEA);
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].voltage_sensor_ != nullptr) {
+      this->phase_[phase].voltage_ = this->get_line_voltage_avg(phase);
+    }
   }
-  if (this->phase_[PHASEB].voltage_sensor_ != nullptr) {
-    this->phase_[PHASEB].voltage_ = this->get_line_voltage_avg(PHASEB);
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].current_sensor_ != nullptr) {
+      this->phase_[phase].current_ = this->get_line_current_avg(phase);
+    }
   }
-  if (this->phase_[PHASEC].voltage_sensor_ != nullptr) {
-    this->phase_[PHASEC].voltage_ = this->get_line_voltage_avg(PHASEC);
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].power_sensor_ != nullptr) {
+      this->phase_[phase].active_power_ = this->get_active_power_(phase);
+    }
   }
-  if (this->phase_[PHASEA].current_sensor_ != nullptr) {
-    this->phase_[PHASEA].current_ = this->get_line_current_avg(PHASEA);
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].power_factor_sensor_ != nullptr) {
+      this->phase_[phase].power_factor_ = this->get_power_factor_(phase);
+    }
   }
-  if (this->phase_[PHASEB].current_sensor_ != nullptr) {
-    this->phase_[PHASEB].current_ = this->get_line_current_avg(PHASEB);
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].reactive_power_sensor_ != nullptr) {
+      this->phase_[phase].reactive_power_ = this->get_reactive_power_(phase);
+    }
   }
-  if (this->phase_[PHASEC].current_sensor_ != nullptr) {
-    this->phase_[PHASEC].current_ = this->get_line_current_avg(PHASEC);
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].forward_active_energy_sensor_ != nullptr) {
+      this->phase_[phase].forward_active_energy_ = this->get_forward_active_energy_(phase);
+    }
+  }
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].reverse_active_energy_sensor_ != nullptr) {
+      this->phase_[phase].reverse_active_energy_ = this->get_reverse_active_energy_(phase);
+    }
   }
 }
-
 void ATM90E32Component::update() {
   if (this->read16_(ATM90E32_REGISTER_METEREN) != 1) {
     this->status_set_warning();
@@ -47,50 +63,30 @@ void ATM90E32Component::update() {
       this->phase_[phase].current_sensor_->publish_state(this->get_phase_current_(phase));
     }
   }
-  if (this->phase_[PHASEA].power_sensor_ != nullptr) {
-    this->phase_[PHASEA].power_sensor_->publish_state(this->get_active_power_a_());
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].power_sensor_ != nullptr) {
+      this->phase_[phase].power_sensor_->publish_state(this->get_phase_active_power_(phase));
+    }
   }
-  if (this->phase_[PHASEB].power_sensor_ != nullptr) {
-    this->phase_[PHASEB].power_sensor_->publish_state(this->get_active_power_b_());
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].power_factor_sensor_ != nullptr) {
+      this->phase_[phase].power_factor_sensor_->publish_state(this->get_phase_power_factor_(phase));
+    }
   }
-  if (this->phase_[PHASEC].power_sensor_ != nullptr) {
-    this->phase_[PHASEC].power_sensor_->publish_state(this->get_active_power_c_());
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].reactive_power_sensor_ != nullptr) {
+      this->phase_[phase].reactive_power_sensor_->publish_state(this->get_phase_reactive_power_(phase));
+    }
   }
-  if (this->phase_[PHASEA].reactive_power_sensor_ != nullptr) {
-    this->phase_[PHASEA].reactive_power_sensor_->publish_state(this->get_reactive_power_a_());
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].forward_active_energy_sensor_ != nullptr) {
+      this->phase_[phase].forward_active_energy_sensor_->publish_state(this->get_phase_forward_active_energy_(phase));
+    }
   }
-  if (this->phase_[PHASEB].reactive_power_sensor_ != nullptr) {
-    this->phase_[PHASEB].reactive_power_sensor_->publish_state(this->get_reactive_power_b_());
-  }
-  if (this->phase_[PHASEC].reactive_power_sensor_ != nullptr) {
-    this->phase_[PHASEC].reactive_power_sensor_->publish_state(this->get_reactive_power_c_());
-  }
-  if (this->phase_[PHASEA].power_factor_sensor_ != nullptr) {
-    this->phase_[PHASEA].power_factor_sensor_->publish_state(this->get_power_factor_a_());
-  }
-  if (this->phase_[PHASEB].power_factor_sensor_ != nullptr) {
-    this->phase_[PHASEB].power_factor_sensor_->publish_state(this->get_power_factor_b_());
-  }
-  if (this->phase_[PHASEC].power_factor_sensor_ != nullptr) {
-    this->phase_[PHASEC].power_factor_sensor_->publish_state(this->get_power_factor_c_());
-  }
-  if (this->phase_[PHASEA].forward_active_energy_sensor_ != nullptr) {
-    this->phase_[PHASEA].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_a_());
-  }
-  if (this->phase_[PHASEB].forward_active_energy_sensor_ != nullptr) {
-    this->phase_[PHASEB].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_b_());
-  }
-  if (this->phase_[PHASEC].forward_active_energy_sensor_ != nullptr) {
-    this->phase_[PHASEC].forward_active_energy_sensor_->publish_state(this->get_forward_active_energy_c_());
-  }
-  if (this->phase_[PHASEA].reverse_active_energy_sensor_ != nullptr) {
-    this->phase_[PHASEA].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_a_());
-  }
-  if (this->phase_[PHASEB].reverse_active_energy_sensor_ != nullptr) {
-    this->phase_[PHASEB].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_b_());
-  }
-  if (this->phase_[PHASEC].reverse_active_energy_sensor_ != nullptr) {
-    this->phase_[PHASEC].reverse_active_energy_sensor_->publish_state(this->get_reverse_active_energy_c_());
+  for (uint8_t phase = 0; phase < 3; phase++) {
+    if (this->phase_[phase].reverse_active_energy_sensor_ != nullptr) {
+      this->phase_[phase].reverse_active_energy_sensor_->publish_state(this->get_phase_reverse_active_energy_(phase));
+    }
   }
   if (this->freq_sensor_ != nullptr) {
     this->freq_sensor_->publish_state(this->get_frequency_());
@@ -192,7 +188,7 @@ void ATM90E32Component::dump_config() {
   LOG_SENSOR("  ", "Frequency", this->freq_sensor_);
   LOG_SENSOR("  ", "Chip Temp", this->chip_temperature_sensor_);
 }
-float ATM90E32Component::get_setup_priority() const { return setup_priority::DATA; }
+float ATM90E32Component::get_setup_priority() const { return setup_priority::BUS; }
 
 uint16_t ATM90E32Component::read16_(uint16_t a_register) {
   uint8_t addrh = (1 << 7) | ((a_register >> 8) & 0x03);
@@ -238,9 +234,24 @@ float ATM90E32Component::get_phase_voltage_(uint8_t phase) {
 float ATM90E32Component::get_phase_current_(uint8_t phase) {
   return this->phase_[phase].current_;
 }
+float ATM90E32Component::get_phase_active_power_(uint8_t phase) {
+  return this->phase_[phase].active_power_;
+}
+float ATM90E32Component::get_phase_reactive_power_(uint8_t phase) {
+  return this->phase_[phase].reactive_power_;
+}
+float ATM90E32Component::get_phase_power_factor_(uint8_t phase) {
+  return this->phase_[phase].power_factor_;
+}
+float ATM90E32Component::get_phase_forward_active_energy_(uint8_t phase) {
+  return this->phase_[phase].forward_active_energy_;
+}
+float ATM90E32Component::get_phase_reverse_active_energy_(uint8_t phase) {
+  return this->phase_[phase].reverse_active_energy_;
+}
 float ATM90E32Component::get_line_voltage_(uint8_t phase) {
   const uint16_t voltage = this->read16_(ATM90E32_REGISTER_URMS + phase);
-  if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != voltage) ESP_LOGW(TAG, "SPI RMS voltage read error");
+  if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != voltage) ESP_LOGW(TAG, "SPI URMS voltage register read error.");
   return (float) voltage / 100;
 }
 float ATM90E32Component::get_line_voltage_avg(uint8_t phase) {
@@ -249,7 +260,7 @@ float ATM90E32Component::get_line_voltage_avg(uint8_t phase) {
   uint16_t voltage = 0;
   for (uint8_t i = 0; i < reads; i++) {
     voltage = this->read16_(ATM90E32_REGISTER_URMS + phase);
-    if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != voltage) ESP_LOGW(TAG, "SPI RMS voltage read error");
+    if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != voltage) ESP_LOGW(TAG, "SPI URMS voltage register read error.");
     accumulation += voltage;
   }
   voltage = accumulation / reads;
@@ -262,7 +273,7 @@ float ATM90E32Component::get_line_current_avg(uint8_t phase) {
   uint16_t current = 0;
   for (uint8_t i = 0; i < reads; i++) {
     current = this->read16_(ATM90E32_REGISTER_IRMS + phase);
-    if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != current) ESP_LOGW(TAG, "SPI RMS current read error");
+    if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != current) ESP_LOGW(TAG, "SPI IRMS current register read error.");
     accumulation += current;
   }
   current = accumulation / reads;
@@ -271,98 +282,39 @@ float ATM90E32Component::get_line_current_avg(uint8_t phase) {
 }
 float ATM90E32Component::get_line_current_(uint8_t phase) {
   const uint16_t current = this->read16_(ATM90E32_REGISTER_IRMS + phase);
-  if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != current) ESP_LOGW(TAG, "SPI RMS current read error");
+  if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != current) ESP_LOGW(TAG, "SPI IRMS current register read error.");
   return (float) current / 1000;
 }
-float ATM90E32Component::get_active_power_a_() {
-  const int val = this->read32_(ATM90E32_REGISTER_PMEANA, ATM90E32_REGISTER_PMEANALSB);
+float ATM90E32Component::get_active_power_(uint8_t phase) {
+  const int val = this->read32_(ATM90E32_REGISTER_PMEAN + phase, ATM90E32_REGISTER_PMEANLSB + phase);
   return val * 0.00032f;
 }
-float ATM90E32Component::get_active_power_b_() {
-  const int val = this->read32_(ATM90E32_REGISTER_PMEANB, ATM90E32_REGISTER_PMEANBLSB);
+float ATM90E32Component::get_reactive_power_(uint8_t phase) {
+  const int val = this->read32_(ATM90E32_REGISTER_QMEAN + phase , ATM90E32_REGISTER_QMEANLSB + phase);
   return val * 0.00032f;
 }
-float ATM90E32Component::get_active_power_c_() {
-  const int val = this->read32_(ATM90E32_REGISTER_PMEANC, ATM90E32_REGISTER_PMEANCLSB);
-  return val * 0.00032f;
-}
-float ATM90E32Component::get_reactive_power_a_() {
-  const int val = this->read32_(ATM90E32_REGISTER_QMEANA, ATM90E32_REGISTER_QMEANALSB);
-  return val * 0.00032f;
-}
-float ATM90E32Component::get_reactive_power_b_() {
-  const int val = this->read32_(ATM90E32_REGISTER_QMEANB, ATM90E32_REGISTER_QMEANBLSB);
-  return val * 0.00032f;
-}
-float ATM90E32Component::get_reactive_power_c_() {
-  const int val = this->read32_(ATM90E32_REGISTER_QMEANC, ATM90E32_REGISTER_QMEANCLSB);
-  return val * 0.00032f;
-}
-float ATM90E32Component::get_power_factor_a_() {
-  const int16_t powerfactor = this->read16_(ATM90E32_REGISTER_PFMEANA);
+float ATM90E32Component::get_power_factor_(uint8_t phase) {
+  const int16_t powerfactor = this->read16_(ATM90E32_REGISTER_PFMEAN + phase);
+  if (this->read16_(ATM90E32_REGISTER_LASTSPIDATA) != powerfactor) ESP_LOGW(TAG, "SPI power factor read error.");
   return (float) powerfactor / 1000;
 }
-float ATM90E32Component::get_power_factor_b_() {
-  const int16_t powerfactor = this->read16_(ATM90E32_REGISTER_PFMEANB);
-  return (float) powerfactor / 1000;
-}
-float ATM90E32Component::get_power_factor_c_() {
-  const int16_t powerfactor = this->read16_(ATM90E32_REGISTER_PFMEANC);
-  return (float) powerfactor / 1000;
-}
-float ATM90E32Component::get_forward_active_energy_a_() {
-  const uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYA);
-  if ((UINT32_MAX - this->phase_[0].cumulative_forward_active_energy_) > val) {
-    this->phase_[0].cumulative_forward_active_energy_ += val;
+float ATM90E32Component::get_forward_active_energy_(uint8_t phase) {
+  const uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGY + phase);
+  if ((UINT32_MAX - this->phase_[phase].cumulative_forward_active_energy_) > val) {
+    this->phase_[phase].cumulative_forward_active_energy_ += val;
   } else {
-    this->phase_[0].cumulative_forward_active_energy_ = val;
+    this->phase_[phase].cumulative_forward_active_energy_ = val;
   }
-  return ((float) this->phase_[0].cumulative_forward_active_energy_ * 10 / 3200);
+  return ((float) this->phase_[phase].cumulative_forward_active_energy_ * 10 / 3200);
 }
-float ATM90E32Component::get_forward_active_energy_b_() {
-  const uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYB);
-  if (UINT32_MAX - this->phase_[1].cumulative_forward_active_energy_ > val) {
-    this->phase_[1].cumulative_forward_active_energy_ += val;
+float ATM90E32Component::get_reverse_active_energy_(uint8_t phase) {
+  const uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGY);
+  if (UINT32_MAX - this->phase_[phase].cumulative_reverse_active_energy_ > val) {
+    this->phase_[phase].cumulative_reverse_active_energy_ += val;
   } else {
-    this->phase_[1].cumulative_forward_active_energy_ = val;
+    this->phase_[phase].cumulative_reverse_active_energy_ = val;
   }
-  return ((float) this->phase_[1].cumulative_forward_active_energy_ * 10 / 3200);
-}
-float ATM90E32Component::get_forward_active_energy_c_() {
-  const uint16_t val = this->read16_(ATM90E32_REGISTER_APENERGYC);
-  if (UINT32_MAX - this->phase_[2].cumulative_forward_active_energy_ > val) {
-    this->phase_[2].cumulative_forward_active_energy_ += val;
-  } else {
-    this->phase_[2].cumulative_forward_active_energy_ = val;
-  }
-  return ((float) this->phase_[2].cumulative_forward_active_energy_ * 10 / 3200);
-}
-float ATM90E32Component::get_reverse_active_energy_a_() {
-  const uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYA);
-  if (UINT32_MAX - this->phase_[0].cumulative_reverse_active_energy_ > val) {
-    this->phase_[0].cumulative_reverse_active_energy_ += val;
-  } else {
-    this->phase_[0].cumulative_reverse_active_energy_ = val;
-  }
-  return ((float) this->phase_[0].cumulative_reverse_active_energy_ * 10 / 3200);
-}
-float ATM90E32Component::get_reverse_active_energy_b_() {
-  const uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYB);
-  if (UINT32_MAX - this->phase_[1].cumulative_reverse_active_energy_ > val) {
-    this->phase_[1].cumulative_reverse_active_energy_ += val;
-  } else {
-    this->phase_[1].cumulative_reverse_active_energy_ = val;
-  }
-  return ((float) this->phase_[1].cumulative_reverse_active_energy_ * 10 / 3200);
-}
-float ATM90E32Component::get_reverse_active_energy_c_() {
-  const uint16_t val = this->read16_(ATM90E32_REGISTER_ANENERGYC);
-  if (UINT32_MAX - this->phase_[2].cumulative_reverse_active_energy_ > val) {
-    this->phase_[2].cumulative_reverse_active_energy_ += val;
-  } else {
-    this->phase_[2].cumulative_reverse_active_energy_ = val;
-  }
-  return ((float) this->phase_[2].cumulative_reverse_active_energy_ * 10 / 3200);
+  return ((float) this->phase_[phase].cumulative_reverse_active_energy_ * 10 / 3200);
 }
 float ATM90E32Component::get_frequency_() {
   const uint16_t freq = this->read16_(ATM90E32_REGISTER_FREQ);

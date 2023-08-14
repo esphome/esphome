@@ -131,10 +131,12 @@ static const uint16_t ATM90E32_REGISTER_IOFFSETN = 0x6E;  // N Current Offset
 
 /* ENERGY REGISTERS */
 static const uint16_t ATM90E32_REGISTER_APENERGYT = 0x80;  // Total Forward Active
+static const uint16_t ATM90E32_REGISTER_APENERGY = 0x81;   // Forward Active Reg Base
 static const uint16_t ATM90E32_REGISTER_APENERGYA = 0x81;  // A Forward Active
 static const uint16_t ATM90E32_REGISTER_APENERGYB = 0x82;  // B Forward Active
 static const uint16_t ATM90E32_REGISTER_APENERGYC = 0x83;  // C Forward Active
 static const uint16_t ATM90E32_REGISTER_ANENERGYT = 0x84;  // Total Reverse Active
+static const uint16_t ATM90E32_REGISTER_ANENERGY = 0x85;   // Reverse Active Reg Base
 static const uint16_t ATM90E32_REGISTER_ANENERGYA = 0x85;  // A Reverse Active
 static const uint16_t ATM90E32_REGISTER_ANENERGYB = 0x86;  // B Reverse Active
 static const uint16_t ATM90E32_REGISTER_ANENERGYC = 0x87;  // C Reverse Active
@@ -172,10 +174,12 @@ static const uint16_t ATM90E32_REGISTER_ANENERGYCH = 0xAF;  // C Reverse Harm. E
 
 /* POWER & P.F. REGISTERS */
 static const uint16_t ATM90E32_REGISTER_PMEANT = 0xB0;   // Total Mean Power (P)
+static const uint16_t ATM90E32_REGISTER_PMEAN = 0xB1;   // Mean Power Reg Base (P)
 static const uint16_t ATM90E32_REGISTER_PMEANA = 0xB1;   // A Mean Power (P)
 static const uint16_t ATM90E32_REGISTER_PMEANB = 0xB2;   // B Mean Power (P)
 static const uint16_t ATM90E32_REGISTER_PMEANC = 0xB3;   // C Mean Power (P)
 static const uint16_t ATM90E32_REGISTER_QMEANT = 0xB4;   // Total Mean Power (Q)
+static const uint16_t ATM90E32_REGISTER_QMEAN = 0xB5;   // Mean Power Reg Base (Q)
 static const uint16_t ATM90E32_REGISTER_QMEANA = 0xB5;   // A Mean Power (Q)
 static const uint16_t ATM90E32_REGISTER_QMEANB = 0xB6;   // B Mean Power (Q)
 static const uint16_t ATM90E32_REGISTER_QMEANC = 0xB7;   // C Mean Power (Q)
@@ -184,15 +188,18 @@ static const uint16_t ATM90E32_REGISTER_SMEANA = 0xB9;   // A Mean Power (S)
 static const uint16_t ATM90E32_REGISTER_SMEANB = 0xBA;   // B Mean Power (S)
 static const uint16_t ATM90E32_REGISTER_SMEANC = 0xBB;   // C Mean Power (S)
 static const uint16_t ATM90E32_REGISTER_PFMEANT = 0xBC;  // Mean Power Factor
+static const uint16_t ATM90E32_REGISTER_PFMEAN = 0xBD;  // Power Factor Reg Base
 static const uint16_t ATM90E32_REGISTER_PFMEANA = 0xBD;  // A Power Factor
 static const uint16_t ATM90E32_REGISTER_PFMEANB = 0xBE;  // B Power Factor
 static const uint16_t ATM90E32_REGISTER_PFMEANC = 0xBF;  // C Power Factor
 
 static const uint16_t ATM90E32_REGISTER_PMEANTLSB = 0xC0;   // Lower Word (Tot. Act. Power)
+static const uint16_t ATM90E32_REGISTER_PMEANLSB = 0xC1;   // Lower Word Reg Base (Active Power)
 static const uint16_t ATM90E32_REGISTER_PMEANALSB = 0xC1;   // Lower Word (A Act. Power)
 static const uint16_t ATM90E32_REGISTER_PMEANBLSB = 0xC2;   // Lower Word (B Act. Power)
 static const uint16_t ATM90E32_REGISTER_PMEANCLSB = 0xC3;   // Lower Word (C Act. Power)
 static const uint16_t ATM90E32_REGISTER_QMEANTLSB = 0xC4;   // Lower Word (Tot. React. Power)
+static const uint16_t ATM90E32_REGISTER_QMEANLSB = 0xC5;   // Lower Word Reg Base (Reactive Power)
 static const uint16_t ATM90E32_REGISTER_QMEANALSB = 0xC5;   // Lower Word (A React. Power)
 static const uint16_t ATM90E32_REGISTER_QMEANBLSB = 0xC6;   // Lower Word (B React. Power)
 static const uint16_t ATM90E32_REGISTER_QMEANCLSB = 0xC7;   // Lower Word (C React. Power)
