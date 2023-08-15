@@ -6,7 +6,7 @@ from esphome.core import CORE
 from esphome.components.esp32 import add_idf_sdkconfig_option
 
 AUTO_LOAD = ["esp32_ble"]
-CODEOWNERS = ["@jesserockz"]
+CODEOWNERS = ["@jesserockz", "@clydebarrow"]
 CONFLICTS_WITH = ["esp32_ble_beacon"]
 DEPENDENCIES = ["esp32"]
 
@@ -28,7 +28,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(BLEServer),
         cv.GenerateID(esp32_ble.CONF_BLE_ID): cv.use_id(esp32_ble.ESP32BLE),
         cv.Optional(CONF_MANUFACTURER, default="ESPHome"): cv.string,
-        cv.Optional(CONF_MANUFACTURER_DATA): cv.ensure_list(cv.hex_uint8_t),
+        cv.Optional(CONF_MANUFACTURER_DATA): cv.Schema([cv.hex_uint8_t]),
         cv.Optional(CONF_MODEL): cv.string,
     }
 ).extend(cv.COMPONENT_SCHEMA)
