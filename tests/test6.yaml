@@ -60,7 +60,3 @@ switch:
 sensor:
   - platform: internal_temperature
     name: Internal Temperature
-
-esp32_ble_server:
-  id: ble
-  manufacturer_data: [0x72, 0x4, 0x00, 0x23]

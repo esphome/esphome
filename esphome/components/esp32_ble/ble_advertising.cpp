@@ -43,12 +43,10 @@ void BLEAdvertising::remove_service_uuid(ESPBTUUID uuid) {
 }
 
 void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
-  if (this->advertising_data_.p_manufacturer_data != nullptr)
-    delete[] this->advertising_data_.p_manufacturer_data;
+  delete[] this->advertising_data_.p_manufacturer_data;
+  this->advertising_data_.p_manufacturer_data = nullptr;
   this->advertising_data_.manufacturer_len = data.size();
-  if (data.size() == 0)
-    this->advertising_data_.p_manufacturer_data = nullptr;
-  else {
+  if (!data.empty()) {
     // NOLINTNEXTLINE(cppcoreguidelines-owning-memory)
     this->advertising_data_.p_manufacturer_data = new uint8_t[data.size()];
     memcpy(this->advertising_data_.p_manufacturer_data, data.data(), data.size());
