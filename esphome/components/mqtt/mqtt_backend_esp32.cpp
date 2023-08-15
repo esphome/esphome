@@ -1,7 +1,7 @@
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include <string>
-#include "mqtt_backend_idf.h"
+#include "mqtt_backend_esp32.h"
 #include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
 
@@ -10,7 +10,7 @@ namespace mqtt {
 
 static const char *const TAG = "mqtt.idf";
 
-bool MQTTBackendIDF::initialize_() {
+bool MQTTBackendESP32::initialize_() {
 #if ESP_IDF_VERSION_MAJOR < 5
   mqtt_cfg_.user_context = (void *) this;
   mqtt_cfg_.buffer_size = MQTT_BUFFER_SIZE;
@@ -95,7 +95,7 @@ bool MQTTBackendIDF::initialize_() {
   }
 }
 
-void MQTTBackendIDF::loop() {
+void MQTTBackendESP32::loop() {
   // process new events
   // handle only 1 message per loop iteration
   if (!mqtt_events_.empty()) {
@@ -105,7 +105,7 @@ void MQTTBackendIDF::loop() {
   }
 }
 
-void MQTTBackendIDF::mqtt_event_handler_(const Event &event) {
+void MQTTBackendESP32::mqtt_event_handler_(const Event &event) {
   ESP_LOGV(TAG, "Event dispatched from event loop event_id=%d", event.event_id);
   switch (event.event_id) {
     case MQTT_EVENT_BEFORE_CONNECT:
@@ -166,8 +166,9 @@ void MQTTBackendIDF::mqtt_event_handler_(const Event &event) {
 }
 
 /// static - Dispatch event to instance method
-void MQTTBackendIDF::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id, void *event_data) {
-  MQTTBackendIDF *instance = static_cast<MQTTBackendIDF *>(handler_args);
+void MQTTBackendESP32::mqtt_event_handler(void *handler_args, esp_event_base_t base, int32_t event_id,
+                                          void *event_data) {
+  MQTTBackendESP32 *instance = static_cast<MQTTBackendESP32 *>(handler_args);
   // queue event to decouple processing
   if (instance) {
     auto event = *static_cast<esp_mqtt_event_t *>(event_data);
@@ -177,4 +178,4 @@ void MQTTBackendIDF::mqtt_event_handler(void *handler_args, esp_event_base_t bas
 
 }  // namespace mqtt
 }  // namespace esphome
-#endif  // USE_ESP_IDF
+#endif  // USE_ESP32

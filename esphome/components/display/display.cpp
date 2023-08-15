@@ -269,10 +269,7 @@ void Display::do_update_() {
   } else if (this->writer_.has_value()) {
     (*this->writer_)(*this);
   }
-  // remove all not ended clipping regions
-  while (is_clipping()) {
-    end_clipping();
-  }
+  this->clear_clipping_();
 }
 void DisplayOnPageChangeTrigger::process(DisplayPage *from, DisplayPage *to) {
   if ((this->from_ == nullptr || this->from_ == from) && (this->to_ == nullptr || this->to_ == to))
@@ -322,12 +319,50 @@ void Display::shrink_clipping(Rect add_rect) {
     this->clipping_rectangle_.back().shrink(add_rect);
   }
 }
-Rect Display::get_clipping() {
+Rect Display::get_clipping() const {
   if (this->clipping_rectangle_.empty()) {
     return Rect();
   } else {
     return this->clipping_rectangle_.back();
   }
+}
+void Display::clear_clipping_() { this->clipping_rectangle_.clear(); }
+bool Display::clip(int x, int y) {
+  if (x < 0 || x >= this->get_width() || y < 0 || y >= this->get_height())
+    return false;
+  if (!this->get_clipping().inside(x, y))
+    return false;
+  return true;
+}
+bool Display::clamp_x_(int x, int w, int &min_x, int &max_x) {
+  min_x = std::max(x, 0);
+  max_x = std::min(x + w, this->get_width());
+
+  if (!this->clipping_rectangle_.empty()) {
+    const auto &rect = this->clipping_rectangle_.back();
+    if (!rect.is_set())
+      return false;
+
+    min_x = std::max(min_x, (int) rect.x);
+    max_x = std::min(max_x, (int) rect.x2());
+  }
+
+  return min_x < max_x;
+}
+bool Display::clamp_y_(int y, int h, int &min_y, int &max_y) {
+  min_y = std::max(y, 0);
+  max_y = std::min(y + h, this->get_height());
+
+  if (!this->clipping_rectangle_.empty()) {
+    const auto &rect = this->clipping_rectangle_.back();
+    if (!rect.is_set())
+      return false;
+
+    min_y = std::max(min_y, (int) rect.y);
+    max_y = std::min(max_y, (int) rect.y2());
+  }
+
+  return min_y < max_y;
 }
 
 DisplayPage::DisplayPage(display_writer_t writer) : writer_(std::move(writer)) {}
