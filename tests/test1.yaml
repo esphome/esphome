@@ -2376,7 +2376,7 @@ switch:
     turn_on_action:
       remote_transmitter.transmit_nec:
         address: 0x4242
-        command: 0x8484
+        command: 0x84
   - platform: template
     name: LG
     turn_on_action:

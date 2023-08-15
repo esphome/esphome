@@ -575,7 +575,7 @@ NECData, NECBinarySensor, NECTrigger, NECAction, NECDumper = declare_protocol("N
 NEC_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
-        cv.Required(CONF_COMMAND): cv.hex_uint16_t,
+        cv.Required(CONF_COMMAND): cv.hex_uint8_t,
     }
 )
 
@@ -607,7 +607,7 @@ def nec_dumper(var, config):
 async def nec_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
-    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint16)
+    template_ = await cg.templatable(config[CONF_COMMAND], args, cg.uint8)
     cg.add(var.set_command(template_))
 
 

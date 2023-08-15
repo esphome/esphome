@@ -25,11 +25,19 @@ void NECProtocol::encode(RemoteTransmitData *dst, const NECData &data) {
     }
   }
 
-  for (uint16_t mask = 1; mask; mask <<= 1) {
+  for (uint8_t mask = 1; mask; mask <<= 1) {
     if (data.command & mask) {
       dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
     } else {
       dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    }
+  }
+
+  for (uint8_t mask = 1; mask; mask <<= 1) {
+    if (data.command & mask) {
+      dst->item(BIT_HIGH_US, BIT_ZERO_LOW_US);
+    } else {
+      dst->item(BIT_HIGH_US, BIT_ONE_LOW_US);
     }
   }
 
@@ -40,6 +48,8 @@ optional<NECData> NECProtocol::decode(RemoteReceiveData src) {
       .address = 0,
       .command = 0,
   };
+  uint8_t inverse_command{0};
+
   if (!src.expect_item(HEADER_HIGH_US, HEADER_LOW_US))
     return {};
 
@@ -53,7 +63,7 @@ optional<NECData> NECProtocol::decode(RemoteReceiveData src) {
     }
   }
 
-  for (uint16_t mask = 1; mask; mask <<= 1) {
+  for (uint8_t mask = 1; mask; mask <<= 1) {
     if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
       data.command |= mask;
     } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
@@ -63,11 +73,26 @@ optional<NECData> NECProtocol::decode(RemoteReceiveData src) {
     }
   }
 
+  for (uint8_t mask = 1; mask; mask <<= 1) {
+    if (src.expect_item(BIT_HIGH_US, BIT_ONE_LOW_US)) {
+      inverse_command |= mask;
+    } else if (src.expect_item(BIT_HIGH_US, BIT_ZERO_LOW_US)) {
+      inverse_command &= ~mask;
+    } else {
+      return {};
+    }
+  }
+
   src.expect_mark(BIT_HIGH_US);
+
+  if ((data.command & inverse_command) != 0) {
+    return {};
+  }
+
   return data;
 }
 void NECProtocol::dump(const NECData &data) {
-  ESP_LOGD(TAG, "Received NEC: address=0x%04X, command=0x%04X", data.address, data.command);
+  ESP_LOGD(TAG, "Received NEC: address=0x%04X, command=0x%02X", data.address, data.command);
 }
 
 }  // namespace remote_base
