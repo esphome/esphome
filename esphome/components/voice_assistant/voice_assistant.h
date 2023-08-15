@@ -37,10 +37,12 @@ enum class State {
   IDLE,
   START_MICROPHONE,
   STARTING_MICROPHONE,
+  WAIT_FOR_VAD,
   WAITING_FOR_VAD,
   START_PIPELINE,
   STARTING_PIPELINE,
   STREAMING_MICROPHONE,
+  STOP_MICROPHONE,
   STOPPING_MICROPHONE,
   AWAITING_RESPONSE,
   STREAMING_RESPONSE,
@@ -77,7 +79,7 @@ class VoiceAssistant : public Component {
   }
 
   void request_start(bool continuous = false);
-  void signal_stop();
+  void request_stop();
 
   void on_event(const api::VoiceAssistantEventResponse &msg);
 
@@ -85,7 +87,6 @@ class VoiceAssistant : public Component {
   void set_continuous(bool continuous) { this->continuous_ = continuous; }
   bool is_continuous() const { return this->continuous_; }
 
-  void set_silence_detection(bool silence_detection) { this->silence_detection_ = silence_detection; }
 #ifdef USE_ESP_ADF
   void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
 #endif
@@ -102,6 +103,7 @@ class VoiceAssistant : public Component {
   int read_microphone_();
   void set_state_(State state);
   void set_state_(State state, State desired_state);
+  void signal_stop_();
 
   std::unique_ptr<socket::Socket> socket_ = nullptr;
   struct sockaddr_storage dest_addr_;
@@ -141,7 +143,6 @@ class VoiceAssistant : public Component {
   int16_t *input_buffer_;
 
   bool continuous_{false};
-  bool silence_detection_;
 
   State state_{State::IDLE};
   State desired_state_{State::IDLE};
@@ -160,8 +161,7 @@ template<typename... Ts> class StartContinuousAction : public Action<Ts...>, pub
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
   void play(Ts... x) override {
-    this->parent_->set_continuous(false);
-    this->parent_->signal_stop();
+    this->parent_->request_stop();
   }
 };
 

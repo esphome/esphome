@@ -43,17 +43,6 @@ IsRunningCondition = voice_assistant_ns.class_(
     "IsRunningCondition", automation.Condition, cg.Parented.template(VoiceAssistant)
 )
 
-
-def _valdidate_wake_word(config):
-    if use_wake_word := config.get(CONF_USE_WAKE_WORD):
-        if use_wake_word and not config[CONF_SILENCE_DETECTION]:
-            raise cv.Invalid(
-                "Can't use wake word without silence detection. "
-                "Please set silence_detection to True."
-            )
-    return config
-
-
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -63,7 +52,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Exclusive(CONF_MEDIA_PLAYER, "output"): cv.use_id(
                 media_player.MediaPlayer
             ),
-            cv.Optional(CONF_SILENCE_DETECTION, default=True): cv.boolean,
             cv.Optional(CONF_USE_WAKE_WORD): cv.All(
                 cv.requires_component("esp_adf"), cv.only_with_esp_idf, cv.boolean
             ),
@@ -76,7 +64,6 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_ON_ERROR): automation.validate_automation(single=True),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    _valdidate_wake_word,
 )
 
 
@@ -95,7 +82,6 @@ async def to_code(config):
         mp = await cg.get_variable(config[CONF_MEDIA_PLAYER])
         cg.add(var.set_media_player(mp))
 
-    cg.add(var.set_silence_detection(config[CONF_SILENCE_DETECTION]))
     if (use_wake_word := config.get(CONF_USE_WAKE_WORD)) is not None:
         cg.add(var.set_use_wake_word(use_wake_word))
 
