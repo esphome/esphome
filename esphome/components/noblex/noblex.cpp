@@ -100,7 +100,7 @@ void NoblexClimate::transmit_state() {
   }
 
   uint8_t crc = 0;
-  for (unsigned char i : remote_state) {
+  for (uint8_t i : remote_state) {
     crc += reverse_bits(i);
   }
   crc = reverse_bits(uint8_t(crc & 0x0F)) >> 4;
@@ -145,8 +145,8 @@ void NoblexClimate::transmit_state() {
 
 // Handle received IR Buffer
 bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
-  static bool receiving = false;
-  static uint8_t remote_state[8] = {0};
+  bool receiving = false;
+  uint8_t remote_state[8] = {0};
   uint8_t crc = 0, crc_calculated = 0;
 
   if (!receiving) {
@@ -215,7 +215,7 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
     receiving = false;
   }
 
-  for (unsigned char i : remote_state)
+  for (uint8_t i : remote_state)
     crc_calculated += reverse_bits(i);
   crc_calculated = reverse_bits(uint8_t(crc_calculated & 0x0F)) >> 4;
   ESP_LOGVV(TAG, "CRC calc %02X", crc_calculated);
@@ -300,7 +300,7 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
     this->swing_mode = climate::CLIMATE_SWING_OFF;
   }
 
-  for (unsigned char &i : remote_state)
+  for (uint8_t &i : remote_state)
     i = 0;
   this->publish_state();
   return true;
