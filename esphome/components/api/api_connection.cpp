@@ -921,7 +921,7 @@ void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &ms
     struct sockaddr_storage storage;
     socklen_t len = sizeof(storage);
     this->helper_->getpeername((struct sockaddr *) &storage, &len);
-    voice_assistant::global_voice_assistant->start(&storage, msg.port);
+    voice_assistant::global_voice_assistant->start_streaming(&storage, msg.port);
   }
 };
 void APIConnection::on_voice_assistant_event_response(const VoiceAssistantEventResponse &msg) {

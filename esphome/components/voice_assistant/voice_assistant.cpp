@@ -276,7 +276,7 @@ void VoiceAssistant::set_state_(State state, State desired_state) {
   ESP_LOGD(TAG, "Desired state set to %d", static_cast<uint8_t>(desired_state));
 }
 
-void VoiceAssistant::start(struct sockaddr_storage *addr, uint16_t port) {
+void VoiceAssistant::start_streaming(struct sockaddr_storage * addr, uint16_t port) {
   ESP_LOGD(TAG, "Client started, streaming microphone");
 
   memcpy(&this->dest_addr_, addr, sizeof(this->dest_addr_));
