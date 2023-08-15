@@ -87,7 +87,7 @@ esphome/components/ens210/* @itn3rd77
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @jesserockz
 esphome/components/esp32_ble_client/* @jesserockz
-esphome/components/esp32_ble_server/* @jesserockz
+esphome/components/esp32_ble_server/* @clydebarrow @jesserockz
 esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_improv/* @jesserockz

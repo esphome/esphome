@@ -43,7 +43,7 @@ void BLEAdvertising::remove_service_uuid(ESPBTUUID uuid) {
 }
 
 void BLEAdvertising::set_manufacturer_data(const std::vector<uint8_t> &data) {
-  if(this->advertising_data_.p_manufacturer_data != nullptr)
+  if (this->advertising_data_.p_manufacturer_data != nullptr)
     delete[] this->advertising_data_.p_manufacturer_data;
   this->advertising_data_.manufacturer_len = data.size();
   if (data.size() == 0)
@@ -87,7 +87,7 @@ void BLEAdvertising::start() {
     this->scan_response_data_.set_scan_rsp = true;
     this->scan_response_data_.include_name = true;
     this->scan_response_data_.include_txpower = true;
-    this->scan_response_data_.min_interval = 0;   // don't repeat this data
+    this->scan_response_data_.min_interval = 0;
     this->scan_response_data_.max_interval = 0;
     this->scan_response_data_.manufacturer_len = 0;
     this->scan_response_data_.appearance = 0;
