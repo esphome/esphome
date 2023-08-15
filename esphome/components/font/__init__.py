@@ -21,6 +21,7 @@ from esphome.const import (
     CONF_SIZE,
     CONF_PATH,
     CONF_WEIGHT,
+    CONF_URL
 )
 from esphome.core import CORE, HexInt
 
@@ -108,10 +109,41 @@ def _compute_gfonts_local_path(value) -> Path:
     name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
     return _compute_local_font_dir(name) / "font.ttf"
 
+def get_filename_from_url(url):
+    # Regular expression pattern to match the file name at the end of the URL
+    pattern = r'/([^/]+)$'
+    match = re.search(pattern, url)
+    if match:
+        file_name = match.group(1)
+        file_name = re.sub(r'%20', '', file_name)  # Replace %20 with empty string
+        
+        # Remove the file extension
+        file_name = re.sub(r'\.[^.]+$', '', file_name)
+        
+        return file_name
+    else:
+        return None
+    
+def get_file_type(file_name):
+    # Regular expression pattern to match the file extension
+    pattern = r'\.([^.]+)$'
+    match = re.search(pattern, file_name)
+    if match:
+        file_type = match.group(1)
+        return file_type
+    else:
+        return None
+
+def _compute_local_image_path(value) -> Path:
+    font_id = get_filename_from_url(value[CONF_URL])
+    name = f"{font_id}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
+    file_name = font_id + "." + get_file_type(value[CONF_URL])
+    return _compute_local_font_dir(name) / file_name
 
 TYPE_LOCAL = "local"
 TYPE_LOCAL_BITMAP = "local_bitmap"
 TYPE_GFONTS = "gfonts"
+TYPE_WEB = "web"
 LOCAL_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_PATH): validate_truetype_file,
@@ -140,7 +172,6 @@ FONT_WEIGHTS = {
 
 def validate_weight_name(value):
     return FONT_WEIGHTS[cv.one_of(*FONT_WEIGHTS, lower=True, space="-")(value)]
-
 
 def download_gfonts(value):
     wght = value[CONF_WEIGHT]
@@ -190,6 +221,32 @@ GFONTS_SCHEMA = cv.All(
     download_gfonts,
 )
 
+def download_font(value):
+    font_id = get_filename_from_url(value[CONF_URL])
+    path = _compute_local_image_path(value)
+    if path.is_file():
+        return value
+    url = value[CONF_URL]
+    try:
+        req = requests.get(url, timeout=30)
+        req.raise_for_status()
+    except requests.exceptions.RequestException as e:
+        raise cv.Invalid(f"Could not download font {font_id} from {url}: {e}")
+
+    path.parent.mkdir(parents=True, exist_ok=True)
+    path.write_bytes(req.content)
+    return value
+
+WEB_FONT_SCHEMA = cv.All(
+    {
+        cv.Required(CONF_URL): cv.string_strict,
+        cv.Optional(CONF_WEIGHT, default="regular"): cv.Any(
+            cv.int_, validate_weight_name
+        ),
+        cv.Optional(CONF_ITALIC, default=False): cv.boolean,
+    },
+    download_font,
+)
 
 def validate_file_shorthand(value):
     value = cv.string_strict(value)
@@ -206,6 +263,15 @@ def validate_file_shorthand(value):
         if weight is not None:
             data[CONF_WEIGHT] = weight[1:]
         return FILE_SCHEMA(data)
+
+    if value.startswith("https"):
+        return FILE_SCHEMA(
+            {
+                CONF_TYPE: TYPE_WEB,
+                CONF_URL: value,
+            }
+        )
+
 
     if value.endswith(".pcf") or value.endswith(".bdf"):
         return FILE_SCHEMA(
@@ -228,6 +294,7 @@ TYPED_FILE_SCHEMA = cv.typed_schema(
         TYPE_LOCAL: LOCAL_SCHEMA,
         TYPE_GFONTS: GFONTS_SCHEMA,
         TYPE_LOCAL_BITMAP: LOCAL_BITMAP_SCHEMA,
+        TYPE_WEB: WEB_FONT_SCHEMA,
     }
 )
 
@@ -363,6 +430,9 @@ async def to_code(config):
         font = load_ttf_font(path, config[CONF_SIZE])
     elif conf[CONF_TYPE] == TYPE_GFONTS:
         path = _compute_gfonts_local_path(conf)
+        font = load_ttf_font(path, config[CONF_SIZE])
+    elif conf[CONF_TYPE] == TYPE_WEB:
+        path = _compute_local_image_path(conf).as_posix()
         font = load_ttf_font(path, config[CONF_SIZE])
     else:
         raise core.EsphomeError(f"Could not load font: unknown type: {conf[CONF_TYPE]}")
