@@ -232,6 +232,8 @@ class RemoteReceiverTrigger : public Trigger<typename T::ProtocolData>, public R
 
 class RemoteTransmittable {
  public:
+  RemoteTransmittable() {}
+  RemoteTransmittable(RemoteTransmitterBase *transmitter) : transmitter_(transmitter) {}
   void set_transmitter(RemoteTransmitterBase *transmitter) { this->transmitter_ = transmitter; }
 
  protected:
