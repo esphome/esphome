@@ -1488,10 +1488,7 @@ MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_p
 MideaAction = ns.class_("MideaAction", RemoteTransmitterActionBase)
 MIDEA_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CODE): cv.All(
-            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
-            cv.Length(min=5, max=5),
-        ),
+        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=5, max=5)),
     }
 )
 
@@ -1511,15 +1508,10 @@ def midea_dumper(var, config):
     pass
 
 
-@register_action(
-    "midea",
-    MideaAction,
-    MIDEA_SCHEMA,
-)
+@register_action("midea", MideaAction, MIDEA_SCHEMA)
 async def midea_action(var, config, args):
-    template_ = await cg.templatable(
-        config[CONF_CODE], args, cg.std_vector.template(cg.uint8)
-    )
+    vec_ = cg.std_vector.template(cg.uint8)
+    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
     cg.add(var.set_code(template_))
 
 
@@ -1530,10 +1522,7 @@ AEHAData, AEHABinarySensor, AEHATrigger, AEHAAction, AEHADumper = declare_protoc
 AEHA_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
-        cv.Required(CONF_DATA): cv.All(
-            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
-            cv.Length(min=2, max=35),
-        ),
+        cv.Required(CONF_DATA): cv.All([cv.hex_uint8_t], cv.Length(min=2, max=35)),
     }
 )
 
