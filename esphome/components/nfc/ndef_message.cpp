@@ -44,6 +44,11 @@ NdefMessage::NdefMessage(std::vector<uint8_t> &data) {
       index += id_length;
     }
 
+    if ((data.begin() + index > data.end()) || (data.begin() + index + payload_length > data.end())) {
+      ESP_LOGE(TAG, "Corrupt record encountered; NdefMessage constructor aborting");
+      break;
+    }
+
     std::vector<uint8_t> payload_data(data.begin() + index, data.begin() + index + payload_length);
 
     std::unique_ptr<NdefRecord> record;

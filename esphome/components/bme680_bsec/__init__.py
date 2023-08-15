@@ -1,6 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import i2c
+from esphome.components import i2c, esp32
 from esphome.const import CONF_ID
 
 CODEOWNERS = ["@trvrnrth"]
@@ -32,22 +32,31 @@ BME680BSECComponent = bme680_bsec_ns.class_(
     "BME680BSECComponent", cg.Component, i2c.I2CDevice
 )
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): cv.declare_id(BME680BSECComponent),
-        cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
-        cv.Optional(CONF_IAQ_MODE, default="STATIC"): cv.enum(
-            IAQ_MODE_OPTIONS, upper=True
-        ),
-        cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
-            SAMPLE_RATE_OPTIONS, upper=True
-        ),
-        cv.Optional(
-            CONF_STATE_SAVE_INTERVAL, default="6hours"
-        ): cv.positive_time_period_minutes,
-    },
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(BME680BSECComponent),
+            cv.Optional(CONF_TEMPERATURE_OFFSET, default=0): cv.temperature,
+            cv.Optional(CONF_IAQ_MODE, default="STATIC"): cv.enum(
+                IAQ_MODE_OPTIONS, upper=True
+            ),
+            cv.Optional(CONF_SAMPLE_RATE, default="LP"): cv.enum(
+                SAMPLE_RATE_OPTIONS, upper=True
+            ),
+            cv.Optional(
+                CONF_STATE_SAVE_INTERVAL, default="6hours"
+            ): cv.positive_time_period_minutes,
+        }
+    ).extend(i2c.i2c_device_schema(0x76)),
     cv.only_with_arduino,
-).extend(i2c.i2c_device_schema(0x76))
+    cv.Any(
+        cv.only_on_esp8266,
+        cv.All(
+            cv.only_on_esp32,
+            esp32.only_on_variant(supported=[esp32.const.VARIANT_ESP32]),
+        ),
+    ),
+)
 
 
 async def to_code(config):

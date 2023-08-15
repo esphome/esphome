@@ -50,7 +50,7 @@ void SCD4XComponent::setup() {
                uint16_t(raw_serial_number[0] & 0xFF), (uint16_t(raw_serial_number[1]) >> 8));
 
       if (!this->write_command(SCD4X_CMD_TEMPERATURE_OFFSET,
-                               (uint16_t)(temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
+                               (uint16_t) (temperature_offset_ * SCD4X_TEMPERATURE_OFFSET_MULTIPLIER))) {
         ESP_LOGE(TAG, "Error setting temperature offset.");
         this->error_code_ = MEASUREMENT_INIT_FAILED;
         this->mark_failed();

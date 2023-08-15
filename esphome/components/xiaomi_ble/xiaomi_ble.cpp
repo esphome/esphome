@@ -239,12 +239,12 @@ bool decrypt_xiaomi_payload(std::vector<uint8_t> &raw, const uint8_t *bindkey, c
   }
 
   uint8_t mac_reverse[6] = {0};
-  mac_reverse[5] = (uint8_t)(address >> 40);
-  mac_reverse[4] = (uint8_t)(address >> 32);
-  mac_reverse[3] = (uint8_t)(address >> 24);
-  mac_reverse[2] = (uint8_t)(address >> 16);
-  mac_reverse[1] = (uint8_t)(address >> 8);
-  mac_reverse[0] = (uint8_t)(address >> 0);
+  mac_reverse[5] = (uint8_t) (address >> 40);
+  mac_reverse[4] = (uint8_t) (address >> 32);
+  mac_reverse[3] = (uint8_t) (address >> 24);
+  mac_reverse[2] = (uint8_t) (address >> 16);
+  mac_reverse[1] = (uint8_t) (address >> 8);
+  mac_reverse[0] = (uint8_t) (address >> 0);
 
   XiaomiAESVector vector{.key = {0},
                          .plaintext = {0},

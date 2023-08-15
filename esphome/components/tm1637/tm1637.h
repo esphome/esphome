@@ -3,12 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/core/defines.h"
 #include "esphome/core/hal.h"
+#include "esphome/core/time.h"
 
 #include <vector>
-
-#ifdef USE_TIME
-#include "esphome/components/time/real_time_clock.h"
-#endif
 
 #ifdef USE_BINARY_SENSOR
 #include "esphome/components/binary_sensor/binary_sensor.h"
@@ -61,12 +58,10 @@ class TM1637Display : public PollingComponent {
   void add_tm1637_key(TM1637Key *tm1637_key) { this->tm1637_keys_.push_back(tm1637_key); }
 #endif
 
-#ifdef USE_TIME
   /// Evaluate the strftime-format and print the result at the given position.
-  uint8_t strftime(uint8_t pos, const char *format, time::ESPTime time) __attribute__((format(strftime, 3, 0)));
+  uint8_t strftime(uint8_t pos, const char *format, ESPTime time) __attribute__((format(strftime, 3, 0)));
   /// Evaluate the strftime-format and print the result at position 0.
-  uint8_t strftime(const char *format, time::ESPTime time) __attribute__((format(strftime, 2, 0)));
-#endif
+  uint8_t strftime(const char *format, ESPTime time) __attribute__((format(strftime, 2, 0)));
 
  protected:
   void bit_delay_();

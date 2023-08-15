@@ -30,9 +30,6 @@ namespace text_sensor {
 
 class TextSensor : public EntityBase {
  public:
-  explicit TextSensor();
-  explicit TextSensor(const std::string &name);
-
   /// Getter-syntax for .state.
   std::string get_state() const;
   /// Getter-syntax for .raw_state

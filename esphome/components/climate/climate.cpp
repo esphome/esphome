@@ -7,6 +7,7 @@ namespace climate {
 static const char *const TAG = "climate";
 
 void ClimateCall::perform() {
+  this->parent_->control_callback_.call(*this);
   ESP_LOGD(TAG, "'%s' - Setting", this->parent_->get_name().c_str());
   this->validate_();
   if (this->mode_.has_value()) {
@@ -44,7 +45,6 @@ void ClimateCall::perform() {
   if (this->target_temperature_high_.has_value()) {
     ESP_LOGD(TAG, "  Target Temperature High: %.2f", *this->target_temperature_high_);
   }
-  this->parent_->control_callback_.call();
   this->parent_->control(*this);
 }
 void ClimateCall::validate_() {
@@ -264,25 +264,11 @@ const optional<ClimateMode> &ClimateCall::get_mode() const { return this->mode_;
 const optional<float> &ClimateCall::get_target_temperature() const { return this->target_temperature_; }
 const optional<float> &ClimateCall::get_target_temperature_low() const { return this->target_temperature_low_; }
 const optional<float> &ClimateCall::get_target_temperature_high() const { return this->target_temperature_high_; }
-optional<bool> ClimateCall::get_away() const {
-  if (!this->preset_.has_value())
-    return {};
-  return *this->preset_ == ClimatePreset::CLIMATE_PRESET_AWAY;
-}
 const optional<ClimateFanMode> &ClimateCall::get_fan_mode() const { return this->fan_mode_; }
 const optional<std::string> &ClimateCall::get_custom_fan_mode() const { return this->custom_fan_mode_; }
 const optional<ClimatePreset> &ClimateCall::get_preset() const { return this->preset_; }
 const optional<std::string> &ClimateCall::get_custom_preset() const { return this->custom_preset_; }
 const optional<ClimateSwingMode> &ClimateCall::get_swing_mode() const { return this->swing_mode_; }
-ClimateCall &ClimateCall::set_away(bool away) {
-  this->preset_ = away ? CLIMATE_PRESET_AWAY : CLIMATE_PRESET_HOME;
-  return *this;
-}
-ClimateCall &ClimateCall::set_away(optional<bool> away) {
-  if (away.has_value())
-    this->preset_ = *away ? CLIMATE_PRESET_AWAY : CLIMATE_PRESET_HOME;
-  return *this;
-}
 ClimateCall &ClimateCall::set_target_temperature_high(optional<float> target_temperature_high) {
   this->target_temperature_high_ = target_temperature_high;
   return *this;
@@ -314,11 +300,11 @@ ClimateCall &ClimateCall::set_swing_mode(optional<ClimateSwingMode> swing_mode) 
   return *this;
 }
 
-void Climate::add_on_state_callback(std::function<void()> &&callback) {
+void Climate::add_on_state_callback(std::function<void(Climate &)> &&callback) {
   this->state_callback_.add(std::move(callback));
 }
 
-void Climate::add_on_control_callback(std::function<void()> &&callback) {
+void Climate::add_on_control_callback(std::function<void(ClimateCall &)> &&callback) {
   this->control_callback_.add(std::move(callback));
 }
 
@@ -422,7 +408,7 @@ void Climate::publish_state() {
   }
 
   // Send state to frontend
-  this->state_callback_.call();
+  this->state_callback_.call(*this);
   // Save state
   this->save_state_();
 }
@@ -453,12 +439,7 @@ void Climate::set_visual_temperature_step_override(float target, float current) 
   this->visual_target_temperature_step_override_ = target;
   this->visual_current_temperature_step_override_ = current;
 }
-#pragma GCC diagnostic push
-#pragma GCC diagnostic ignored "-Wdeprecated-declarations"
-Climate::Climate(const std::string &name) : EntityBase(name) {}
-#pragma GCC diagnostic pop
 
-Climate::Climate() : Climate("") {}
 ClimateCall Climate::make_call() { return ClimateCall(this); }
 
 ClimateCall ClimateDeviceRestoreState::to_call(Climate *climate) {
