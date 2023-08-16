@@ -53,8 +53,8 @@ struct HaierPacketControl {
   uint8_t : 2;
   uint8_t health_mode : 1;  // Health mode on or off
   uint8_t compressor : 1;   // Compressor on or off ???
-  uint8_t : 1;
-  uint8_t ten_degree : 1;  // 10 degree status (only work in heat mode)
+  uint8_t half_degree : 1;  // Use half degree
+  uint8_t ten_degree : 1;   // 10 degree status (only work in heat mode)
   uint8_t : 0;
   // 28
   uint8_t : 8;
@@ -88,6 +88,9 @@ enum class FrameType : uint8_t {
   INVALID = 0x03,
   CONFIRM = 0x05,
   GET_DEVICE_VERSION = 0x61,
+  GET_DEVICE_VERSION_RESPONSE = 0x62,
+  GET_DEVICE_ID = 0x70,
+  GET_DEVICE_ID_RESPONSE = 0x71,
   REPORT_NETWORK_STATUS = 0xF7,
   NO_COMMAND = 0xFF,
 };
