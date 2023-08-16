@@ -58,6 +58,7 @@ CONF_ACCEPT = "accept"
 CONF_ON_PASSKEY_REQUEST = "on_passkey_request"
 CONF_ON_PASSKEY_NOTIFICATION = "on_passkey_notification"
 CONF_ON_NUMERIC_COMPARISON_REQUEST = "on_numeric_comparison_request"
+CONF_AUTO_CONNECT = "auto_connect"
 
 # Espressif platformio framework is built with MAX_BLE_CONN to 3, so
 # enforce this in yaml checks.
@@ -69,6 +70,7 @@ CONFIG_SCHEMA = (
             cv.GenerateID(): cv.declare_id(BLEClient),
             cv.Required(CONF_MAC_ADDRESS): cv.mac_address,
             cv.Optional(CONF_NAME): cv.string,
+            cv.Optional(CONF_AUTO_CONNECT, default=True): cv.boolean,
             cv.Optional(CONF_ON_CONNECT): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -261,6 +263,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await esp32_ble_tracker.register_client(var, config)
     cg.add(var.set_address(config[CONF_MAC_ADDRESS].as_hex))
+    cg.add(var.set_auto_connect(config[CONF_AUTO_CONNECT]))
     for conf in config.get(CONF_ON_CONNECT, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(trigger, [], conf)

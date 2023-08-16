@@ -40,21 +40,19 @@ void BLEClientBase::loop() {
 float BLEClientBase::get_setup_priority() const { return setup_priority::AFTER_BLUETOOTH; }
 
 bool BLEClientBase::parse_device(const espbt::ESPBTDevice &device) {
+  if (!this->auto_connect_)
+    return false;
   if (this->address_ == 0 || device.address_uint64() != this->address_)
     return false;
   if (this->state_ != espbt::ClientState::IDLE && this->state_ != espbt::ClientState::SEARCHING)
     return false;
 
   ESP_LOGD(TAG, "[%d] [%s] Found device", this->connection_index_, this->address_str_.c_str());
-  this->set_state(espbt::ClientState::DISCOVERED);
+  if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_DEBUG)
+    esp32_ble_tracker::global_esp32_ble_tracker->print_bt_device_info(device);
 
-  auto addr = device.address_uint64();
-  this->remote_bda_[0] = (addr >> 40) & 0xFF;
-  this->remote_bda_[1] = (addr >> 32) & 0xFF;
-  this->remote_bda_[2] = (addr >> 24) & 0xFF;
-  this->remote_bda_[3] = (addr >> 16) & 0xFF;
-  this->remote_bda_[4] = (addr >> 8) & 0xFF;
-  this->remote_bda_[5] = (addr >> 0) & 0xFF;
+  this->set_state(espbt::ClientState::DISCOVERED);
+  this->set_address(device.address_uint64());
   this->remote_addr_type_ = device.get_address_type();
   return true;
 }
