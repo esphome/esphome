@@ -148,11 +148,11 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
   uint8_t remote_state[8] = {0};
   uint8_t crc = 0, crc_calculated = 0;
 
-  if (!receiving) {
+  if (!receiving_) {
     // Validate header
     if (data.expect_item(NOBLEX_HEADER_MARK, NOBLEX_HEADER_SPACE)) {
       ESP_LOGV(TAG, "Header");
-      receiving = true;
+      receiving_ = true;
       // Read first 36 bits
       for (int i = 0; i < 5; i++) {
         // Read bit
@@ -174,7 +174,7 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
 
     } else {
       ESP_LOGV(TAG, "Header fail");
-      receiving = false;
+      receiving_ = false;
       return false;
     }
 
@@ -211,7 +211,7 @@ bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
       ESP_LOGV(TAG, "Footer fail");
       return false;
     }
-    receiving = false;
+    receiving_ = false;
   }
 
   for (uint8_t i : remote_state)
