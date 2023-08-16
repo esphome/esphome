@@ -124,7 +124,9 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
-      ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT", this->connection_index_, this->address_str_.c_str());
+      if (!this->check_addr_(param->open.remote_bda))
+        return false;
+      ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT", this->connection_index_, this->address_str_.c_str());
       this->conn_id_ = param->open.conn_id;
       this->service_count_ = 0;
       if (param->open.status != ESP_GATT_OK && param->open.status != ESP_GATT_ALREADY_OPEN) {
@@ -138,31 +140,38 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_send_mtu_req failed, status=%x", this->connection_index_,
                  this->address_str_.c_str(), ret);
       }
+      this->set_state(espbt::ClientState::CONNECTED);
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
         ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
-        this->set_state(espbt::ClientState::CONNECTED);
-        this->state_ = espbt::ClientState::ESTABLISHED;
+        this->set_state(espbt::ClientState::ESTABLISHED);
         break;
       }
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
     }
+    case ESP_GATTC_CLOSE_EVT: {
+      if (!this->check_addr_(param->open.remote_bda))
+        return false;
+      ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_CLOSE_EVT", this->connection_index_, this->address_str_.c_str());
+      break;
+    }
+
     case ESP_GATTC_CFG_MTU_EVT: {
       if (param->cfg_mtu.status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "[%d] [%s] cfg_mtu failed, mtu %d, status %d", this->connection_index_,
                  this->address_str_.c_str(), param->cfg_mtu.mtu, param->cfg_mtu.status);
-        this->set_state(espbt::ClientState::IDLE);
+        // No state change required here - disconnect event will follow if needed.
         break;
       }
-      ESP_LOGV(TAG, "[%d] [%s] cfg_mtu status %d, mtu %d", this->connection_index_, this->address_str_.c_str(),
+      ESP_LOGD(TAG, "[%d] [%s] cfg_mtu status %d, mtu %d", this->connection_index_, this->address_str_.c_str(),
                param->cfg_mtu.status, param->cfg_mtu.mtu);
       this->mtu_ = param->cfg_mtu.mtu;
       break;
     }
     case ESP_GATTC_DISCONNECT_EVT: {
-      if (memcmp(param->disconnect.remote_bda, this->remote_bda_, 6) != 0)
+      if (!this->check_addr_(param->disconnect.remote_bda))
         return false;
-      ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason %d", this->connection_index_,
+      ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason %d", this->connection_index_,
                this->address_str_.c_str(), param->disconnect.reason);
       this->release_services();
       this->set_state(espbt::ClientState::IDLE);
@@ -184,7 +193,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_SEARCH_CMPL_EVT: {
-      ESP_LOGV(TAG, "[%d] [%s] ESP_GATTC_SEARCH_CMPL_EVT", this->connection_index_, this->address_str_.c_str());
+      ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_SEARCH_CMPL_EVT", this->connection_index_, this->address_str_.c_str());
       for (auto &svc : this->services_) {
         ESP_LOGV(TAG, "[%d] [%s] Service UUID: %s", this->connection_index_, this->address_str_.c_str(),
                  svc->uuid.to_string().c_str());
@@ -192,11 +201,12 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                  this->address_str_.c_str(), svc->start_handle, svc->end_handle);
       }
       ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
-      this->set_state(espbt::ClientState::CONNECTED);
-      this->state_ = espbt::ClientState::ESTABLISHED;
+      this->set_state(espbt::ClientState::ESTABLISHED);
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
+      if (!this->check_addr_(param->notify.remote_bda))
+        return false;
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
           this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
         // Client is responsible for flipping the descriptor value
@@ -248,9 +258,10 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
   switch (event) {
     // This event is sent by the server when it requests security
     case ESP_GAP_BLE_SEC_REQ_EVT:
+      if (!this->check_addr_(param->open.remote_bda))
       if (memcmp(param->ble_security.auth_cmpl.bd_addr, this->remote_bda_, 6) != 0)
         break;
-      ESP_LOGV(TAG, "[%d] [%s] ESP_GAP_BLE_SEC_REQ_EVT %x", this->connection_index_, this->address_str_.c_str(), event);
+      ESP_LOGD(TAG, "[%d] [%s] ESP_GAP_BLE_SEC_REQ_EVT %x", this->connection_index_, this->address_str_.c_str(), event);
       esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
       break;
     // This event is sent once authentication has completed
@@ -266,7 +277,7 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
                  param->ble_security.auth_cmpl.fail_reason);
       } else {
         this->paired_ = true;
-        ESP_LOGV(TAG, "[%d] [%s] auth success. address type = %d auth mode = %d", this->connection_index_,
+        ESP_LOGD(TAG, "[%d] [%s] auth success. address type = %d auth mode = %d", this->connection_index_,
                  this->address_str_.c_str(), param->ble_security.auth_cmpl.addr_type,
                  param->ble_security.auth_cmpl.auth_mode);
       }

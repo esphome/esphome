@@ -43,6 +43,10 @@ BLEClientNumericComparisonRequestTrigger = ble_client_ns.class_(
 
 # Actions
 BLEWriteAction = ble_client_ns.class_("BLEClientWriteAction", automation.Action)
+BLEConnectAction = ble_client_ns.class_("BLEClientConnectAction", automation.Action)
+BLEDisconnectAction = ble_client_ns.class_(
+    "BLEClientDisconnectAction", automation.Action
+)
 BLEPasskeyReplyAction = ble_client_ns.class_(
     "BLEClientPasskeyReplyAction", automation.Action
 )
@@ -137,6 +141,12 @@ BLE_WRITE_ACTION_SCHEMA = cv.Schema(
     }
 )
 
+BLE_CONNECT_ACTION_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
+    }
+)
+
 BLE_NUMERIC_COMPARISON_REPLY_ACTION_SCHEMA = cv.Schema(
     {
         cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
@@ -157,6 +167,24 @@ BLE_REMOVE_BOND_ACTION_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
     }
 )
+
+
+@automation.register_action(
+    "ble_client.ble_disconnect", BLEDisconnectAction, BLE_CONNECT_ACTION_SCHEMA
+)
+async def ble_disconnect_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    return var
+
+
+@automation.register_action(
+    "ble_client.ble_connect", BLEConnectAction, BLE_CONNECT_ACTION_SCHEMA
+)
+async def ble_connect_to_code(config, action_id, template_arg, args):
+    parent = await cg.get_variable(config[CONF_ID])
+    var = cg.new_Pvariable(action_id, template_arg, parent)
+    return var
 
 
 @automation.register_action(

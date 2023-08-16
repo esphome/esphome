@@ -103,6 +103,10 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   espbt::ConnectionType connection_type_{espbt::ConnectionType::V1};
 
   std::vector<BLEService *> services_;
+
+  bool check_addr_(esp_bd_addr_t *addr) {
+    return memcmp(addr, this->remote_bda_, sizeof(esp_bd_addr_t)) == 0;
+  }
 };
 
 }  // namespace esp32_ble_client
