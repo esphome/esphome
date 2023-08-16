@@ -316,10 +316,6 @@ uint8_t DS248xComponent::read_from_wire() {
     return 0; // TODO: error handling
   }
 
-  if (this->enable_strong_pullup_) {
-    this->write_config(this->read_config() | DS248X_CONFIG_STRONG_PULLUP);
-  }
-
   uint8_t command = DS248X_COMMAND_READBYTE;
   this->write(&command, sizeof(command));
 
