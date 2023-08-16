@@ -33,7 +33,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       }
       break;
     }
-    case ESP_GATTC_DISCONNECT_EVT: {
+    case ESP_GATTC_CLOSE_EVT: {
       ESP_LOGW(TAG, "[%s] Disconnected!", this->get_name().c_str());
       this->status_set_warning();
       this->publish_state(NAN);
@@ -68,8 +68,6 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         if (status) {
           ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         }
-      } else {
-        this->node_state = espbt::ClientState::ESTABLISHED;
       }
       break;
     }
@@ -95,7 +93,7 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      this->node_state = espbt::ClientState::ESTABLISHED;
+      ESP_LOGD(TAG, "Register for notify on %s complete", this->char_uuid_.to_string().c_str());
       break;
     }
     default:

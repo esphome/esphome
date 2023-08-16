@@ -36,8 +36,7 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       break;
     }
-    case ESP_GATTC_DISCONNECT_EVT: {
-      ESP_LOGW(TAG, "[%s] Disconnected!", this->get_name().c_str());
+    case ESP_GATTC_CLOSE_EVT: {
       this->status_set_warning();
       this->publish_state(EMPTY);
       break;

@@ -57,12 +57,6 @@ bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
   for (auto *node : this->nodes_)
     node->gattc_event_handler(event, esp_gattc_if, param);
 
-  // Delete characteristics after clients have used them to save RAM.
-  if (!all_established && this->all_nodes_established_()) {
-    for (auto &svc : this->services_)
-      delete svc;  // NOLINT(cppcoreguidelines-owning-memory)
-    this->services_.clear();
-  }
   return true;
 }
 

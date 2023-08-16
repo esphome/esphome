@@ -20,11 +20,7 @@ void BLEClientSwitch::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
     case ESP_GATTC_REG_EVT:
       this->publish_state(this->parent_->enabled);
       break;
-    case ESP_GATTC_OPEN_EVT:
-      this->node_state = espbt::ClientState::ESTABLISHED;
-      break;
-    case ESP_GATTC_DISCONNECT_EVT:
-      this->node_state = espbt::ClientState::IDLE;
+    case ESP_GATTC_CLOSE_EVT:
       this->publish_state(this->parent_->enabled);
       break;
     default:

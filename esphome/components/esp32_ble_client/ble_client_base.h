@@ -88,6 +88,9 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   virtual void set_connection_type(espbt::ConnectionType ct) { this->connection_type_ = ct; }
 
+  bool check_addr(esp_bd_addr_t &addr) {
+    return memcmp(addr, this->remote_bda_, sizeof(esp_bd_addr_t)) == 0;
+  }
  protected:
   int gattc_if_;
   esp_bd_addr_t remote_bda_;
@@ -104,9 +107,6 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   std::vector<BLEService *> services_;
 
-  bool check_addr_(esp_bd_addr_t *addr) {
-    return memcmp(addr, this->remote_bda_, sizeof(esp_bd_addr_t)) == 0;
-  }
 };
 
 }  // namespace esp32_ble_client

@@ -36,7 +36,7 @@ class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
   void loop() override {}
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
-    if (event == ESP_GATTC_DISCONNECT_EVT)
+    if (event == ESP_GATTC_CLOSE_EVT)
       this->trigger();
   }
 };
@@ -46,7 +46,7 @@ class BLEClientPasskeyRequestTrigger : public Trigger<>, public BLEClientNode {
   explicit BLEClientPasskeyRequestTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override {
-    if (event == ESP_GAP_BLE_PASSKEY_REQ_EVT)
+    if (event == ESP_GAP_BLE_PASSKEY_REQ_EVT && this->parent_->check_addr(param->ble_security.auth_cmpl.bd_addr))
       this->trigger();
   }
 };
@@ -56,10 +56,8 @@ class BLEClientPasskeyNotificationTrigger : public Trigger<uint32_t>, public BLE
   explicit BLEClientPasskeyNotificationTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override {
-    if (event == ESP_GAP_BLE_PASSKEY_NOTIF_EVT &&
-        memcmp(param->ble_security.auth_cmpl.bd_addr, this->parent_->get_remote_bda(), 6) == 0) {
-      uint32_t passkey = param->ble_security.key_notif.passkey;
-      this->trigger(passkey);
+    if (event == ESP_GAP_BLE_PASSKEY_NOTIF_EVT && this->parent_->check_addr(param->ble_security.auth_cmpl.bd_addr)) {
+      this->trigger(param->ble_security.key_notif.passkey);
     }
   }
 };
@@ -69,17 +67,10 @@ class BLEClientNumericComparisonRequestTrigger : public Trigger<uint32_t>, publi
   explicit BLEClientNumericComparisonRequestTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
   void gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) override {
-    if (event == ESP_GAP_BLE_NC_REQ_EVT &&
-        memcmp(param->ble_security.auth_cmpl.bd_addr, this->parent_->get_remote_bda(), 6) == 0) {
-      uint32_t passkey = param->ble_security.key_notif.passkey;
-      this->trigger(passkey);
+    if (event == ESP_GAP_BLE_NC_REQ_EVT && this->parent_->check_addr(param->ble_security.auth_cmpl.bd_addr)) {
+      this->trigger(param->ble_security.key_notif.passkey);
     }
   }
-};
-
-class BLEWriterClientNode : public BLEClientNode {
- public:
-
 };
 
 template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, public BLEClientNode {
@@ -88,9 +79,6 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
     ble_client->register_ble_node(this);
     ble_client_ = ble_client;
   }
-
-  // Attempts to write the contents of value to char_uuid_.
-  void write(const std::vector<uint8_t> &value);
 
   void set_service_uuid16(uint16_t uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_uint16(uuid); }
   void set_service_uuid32(uint32_t uuid) { this->service_uuid_ = espbt::ESPBTUUID::from_uint32(uuid); }
@@ -116,8 +104,9 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
     this->num_running_++;
     this->var_ = std::make_tuple(x...);
     auto value = this->has_simple_value_ ? this->value_simple_ : this->value_template_(x...);
+    // on write failure, continue the automation chain rather than stopping so that e.g. disconnect can work.
     if (!write(value))
-      this->stop_complex();
+        this->play_next_(x...);
   }
 
   bool write(const std::vector<uint8_t> &value) {
@@ -125,15 +114,16 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
       ESP_LOGW(Automation::TAG, "Cannot write to BLE characteristic - not connected");
       return false;
     }
-    if (this->ble_char_handle_ == 0) {
-      ESP_LOGW(Automation::TAG, "Cannot write to BLE characteristic - characteristic not found");
+    auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
+    if (chr == nullptr) {
+      ESP_LOGW(Automation::TAG, "Characteristic %s not found", this->char_uuid_.to_string().c_str());
       return false;
     }
     esp_gatt_write_type_t write_type;
-    if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE) {
+    if (chr->properties & ESP_GATT_CHAR_PROP_BIT_WRITE) {
       write_type = ESP_GATT_WRITE_TYPE_RSP;
       ESP_LOGD(Automation::TAG, "Write type: ESP_GATT_WRITE_TYPE_RSP");
-    } else if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE_NR) {
+    } else if (chr->properties & ESP_GATT_CHAR_PROP_BIT_WRITE_NR) {
       write_type = ESP_GATT_WRITE_TYPE_NO_RSP;
       ESP_LOGD(Automation::TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
     } else {
@@ -142,7 +132,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
     }
     ESP_LOGVV(Automation::TAG, "Will write %d bytes: %s", value.size(), format_hex_pretty(value).c_str());
     esp_err_t err =
-        esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->ble_char_handle_,
+        esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), chr->handle,
                                  value.size(), const_cast<uint8_t *>(value.data()), write_type, ESP_GATT_AUTH_REQ_NONE);
     if (err != ESP_OK) {
       ESP_LOGE(Automation::TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
@@ -153,15 +143,15 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                                 esp_ble_gattc_cb_param_t *param) override {
+    if (!this->is_running())
+      return;
     switch (event) {
+      case ESP_GATTC_WRITE_CHAR_EVT:
+        this->play_next_tuple_(this->var_);
+        break;
       case ESP_GATTC_DISCONNECT_EVT:
-        this->ble_char_handle_ = 0;
         this->stop_complex();
         break;
-
-      case ESP_GATTC_WRITE_CHAR_EVT:
-          this->play_next_tuple_(this->var_);
-          break;
 
       default:
         break;
@@ -172,8 +162,6 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   bool has_simple_value_ = true;
   std::vector<uint8_t> value_simple_;
   std::function<std::vector<uint8_t>(Ts...)> value_template_{};
-  int ble_char_handle_ = 0;
-  esp_gatt_char_prop_t char_props_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
   std::tuple<Ts...> var_{};
@@ -273,6 +261,7 @@ template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, pu
       case ESP_GATTC_SEARCH_CMPL_EVT:
         this->play_next_tuple_(this->var_);
         break;
+      // if the connection is closed, terminate the automation chain.
       case ESP_GATTC_DISCONNECT_EVT:
         this->stop_complex();
         break;
@@ -310,6 +299,7 @@ template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>,
     if (!this->is_running())
       return;
     switch (event) {
+      case ESP_GATTC_CLOSE_EVT:
       case ESP_GATTC_DISCONNECT_EVT:
         this->play_next_tuple_(this->var_);
         break;

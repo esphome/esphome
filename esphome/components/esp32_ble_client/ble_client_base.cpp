@@ -124,7 +124,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_OPEN_EVT: {
-      if (!this->check_addr_(param->open.remote_bda))
+      if (!this->check_addr(param->open.remote_bda))
         return false;
       ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_OPEN_EVT", this->connection_index_, this->address_str_.c_str());
       this->conn_id_ = param->open.conn_id;
@@ -133,7 +133,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
         ESP_LOGW(TAG, "[%d] [%s] Connection failed, status=%d", this->connection_index_, this->address_str_.c_str(),
                  param->open.status);
         this->set_state(espbt::ClientState::IDLE);
-        break;
+        return false;
       }
       auto ret = esp_ble_gattc_send_mtu_req(this->gattc_if_, param->open.conn_id);
       if (ret) {
@@ -149,10 +149,13 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
       break;
     }
-    case ESP_GATTC_CLOSE_EVT: {
-      if (!this->check_addr_(param->open.remote_bda))
+    case ESP_GATTC_DISCONNECT_EVT: {
+      if (!this->check_addr(param->disconnect.remote_bda))
         return false;
-      ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_CLOSE_EVT", this->connection_index_, this->address_str_.c_str());
+      ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason %d", this->connection_index_,
+               this->address_str_.c_str(), param->disconnect.reason);
+      this->release_services();
+      this->set_state(espbt::ClientState::IDLE);
       break;
     }
 
@@ -168,11 +171,10 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       this->mtu_ = param->cfg_mtu.mtu;
       break;
     }
-    case ESP_GATTC_DISCONNECT_EVT: {
-      if (!this->check_addr_(param->disconnect.remote_bda))
+    case ESP_GATTC_CLOSE_EVT: {
+      if (!this->check_addr(param->close.remote_bda))
         return false;
-      ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_DISCONNECT_EVT, reason %d", this->connection_index_,
-               this->address_str_.c_str(), param->disconnect.reason);
+      ESP_LOGD(TAG, "[%d] [%s] ESP_GATTC_CLOSE_EVT", this->connection_index_, this->address_str_.c_str());
       this->release_services();
       this->set_state(espbt::ClientState::IDLE);
       break;
@@ -205,7 +207,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
-      if (!this->check_addr_(param->notify.remote_bda))
+      if (!this->check_addr(param->notify.remote_bda))
         return false;
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE ||
           this->connection_type_ == espbt::ConnectionType::V3_WITHOUT_CACHE) {
@@ -258,16 +260,15 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
   switch (event) {
     // This event is sent by the server when it requests security
     case ESP_GAP_BLE_SEC_REQ_EVT:
-      if (!this->check_addr_(param->open.remote_bda))
-      if (memcmp(param->ble_security.auth_cmpl.bd_addr, this->remote_bda_, 6) != 0)
-        break;
-      ESP_LOGD(TAG, "[%d] [%s] ESP_GAP_BLE_SEC_REQ_EVT %x", this->connection_index_, this->address_str_.c_str(), event);
+      if (!this->check_addr(param->ble_security.auth_cmpl.bd_addr))
+        return;
+      ESP_LOGV(TAG, "[%d] [%s] ESP_GAP_BLE_SEC_REQ_EVT %x", this->connection_index_, this->address_str_.c_str(), event);
       esp_ble_gap_security_rsp(param->ble_security.ble_req.bd_addr, true);
       break;
     // This event is sent once authentication has completed
     case ESP_GAP_BLE_AUTH_CMPL_EVT:
-      if (memcmp(param->ble_security.auth_cmpl.bd_addr, this->remote_bda_, 6) != 0)
-        break;
+      if (!this->check_addr(param->ble_security.auth_cmpl.bd_addr))
+        return;
       esp_bd_addr_t bd_addr;
       memcpy(bd_addr, param->ble_security.auth_cmpl.bd_addr, sizeof(esp_bd_addr_t));
       ESP_LOGI(TAG, "[%d] [%s] auth complete. remote BD_ADDR: %s", this->connection_index_, this->address_str_.c_str(),
@@ -282,6 +283,7 @@ void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_
                  param->ble_security.auth_cmpl.auth_mode);
       }
       break;
+
     // There are other events we'll want to implement at some point to support things like pass key
     // https://github.com/espressif/esp-idf/blob/cba69dd088344ed9d26739f04736ae7a37541b3a/examples/bluetooth/bluedroid/ble/gatt_security_client/tutorial/Gatt_Security_Client_Example_Walkthrough.md
     default:
