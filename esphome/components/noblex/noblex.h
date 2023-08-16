@@ -34,7 +34,7 @@ class NoblexClimate : public climate_ir::ClimateIR {
   // used to track when to send the power toggle command.
   bool powered_on_assumed;
 
- protected: 
+ protected:
   /// Transmit via IR the state of this climate controller.
   void transmit_state() override;
   /// Handle received IR Buffer.
