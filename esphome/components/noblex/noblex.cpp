@@ -145,7 +145,6 @@ void NoblexClimate::transmit_state() {
 
 // Handle received IR Buffer
 bool NoblexClimate::on_receive(remote_base::RemoteReceiveData data) {
-  bool receiving = false;
   uint8_t remote_state[8] = {0};
   uint8_t crc = 0, crc_calculated = 0;
 
