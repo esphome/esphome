@@ -39,6 +39,7 @@ class NoblexClimate : public climate_ir::ClimateIR {
   void transmit_state() override;
   /// Handle received IR Buffer.
   bool on_receive(remote_base::RemoteReceiveData data) override;
+  bool send_swing_cmd_{false};
 };
 
 }  // namespace noblex
