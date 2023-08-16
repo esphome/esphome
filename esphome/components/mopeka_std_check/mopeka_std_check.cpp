@@ -54,16 +54,16 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
   const auto &manu_datas = device.get_manufacturer_datas();
 
   if (manu_datas.size() != 1) {
-    ESP_LOGE(TAG, "%s: Unexpected manu_datas size (%d)", device.address_str().c_str(), manu_datas.size());
+    ESP_LOGE(TAG, "[%s] Unexpected manu_datas size (%d)", device.address_str().c_str(), manu_datas.size());
     return false;
   }
 
   const auto &manu_data = manu_datas[0];
 
-  ESP_LOGVV(TAG, "%s: Manufacturer data: %s", device.address_str().c_str(), format_hex_pretty(manu_data.data).c_str());
+  ESP_LOGVV(TAG, "[%s] Manufacturer data: %s", device.address_str().c_str(), format_hex_pretty(manu_data.data).c_str());
 
   if (manu_data.data.size() != MANUFACTURER_DATA_LENGTH) {
-    ESP_LOGE(TAG, "%s: Unexpected manu_data size (%d)", device.address_str().c_str(), manu_data.data.size());
+    ESP_LOGE(TAG, "[%s] Unexpected manu_data size (%d)", device.address_str().c_str(), manu_data.data.size());
     return false;
   }
 
@@ -72,20 +72,20 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
 
   const u_int8_t hardware_id = mopeka_data->data_1 & 0xCF;
   if (static_cast<SensorType>(hardware_id) != STANDARD && static_cast<SensorType>(hardware_id) != XL) {
-    ESP_LOGE(TAG, "%s: Unsupported Sensor Type (0x%X)", device.address_str().c_str(), hardware_id);
+    ESP_LOGE(TAG, "[%s] Unsupported Sensor Type (0x%X)", device.address_str().c_str(), hardware_id);
     return false;
   }
 
-  ESP_LOGVV(TAG, "%s: Sensor slow update rate: %d", device.address_str().c_str(), mopeka_data->slow_update_rate);
-  ESP_LOGVV(TAG, "%s: Sensor sync pressed: %d", device.address_str().c_str(), mopeka_data->sync_pressed);
+  ESP_LOGVV(TAG, "[%s] Sensor slow update rate: %d", device.address_str().c_str(), mopeka_data->slow_update_rate);
+  ESP_LOGVV(TAG, "[%s] Sensor sync pressed: %d", device.address_str().c_str(), mopeka_data->sync_pressed);
   for (u_int8_t i = 0; i < 3; i++) {
-    ESP_LOGVV(TAG, "%s: %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 1,
+    ESP_LOGVV(TAG, "[%s] %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 1,
               mopeka_data->val[i].value_0, mopeka_data->val[i].time_0);
-    ESP_LOGVV(TAG, "%s: %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 2,
+    ESP_LOGVV(TAG, "[%s] %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 2,
               mopeka_data->val[i].value_1, mopeka_data->val[i].time_1);
-    ESP_LOGVV(TAG, "%s: %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 3,
+    ESP_LOGVV(TAG, "[%s] %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 3,
               mopeka_data->val[i].value_2, mopeka_data->val[i].time_2);
-    ESP_LOGVV(TAG, "%s: %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 4,
+    ESP_LOGVV(TAG, "[%s] %u. Sensor data %u time %u.", device.address_str().c_str(), (i * 4) + 4,
               mopeka_data->val[i].value_3, mopeka_data->val[i].time_3);
   }
 
@@ -146,19 +146,19 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
             // This value is better than a previous one.
             best_value = measurements_value[i];
             best_time = measurement_time;
-            // Reset measurement_time or next values.
-            measurement_time = 0;
           }
+          // Reset measurement_time or next values.
+          measurement_time = 0;
         }
       }
     }
 
-    ESP_LOGV(TAG, "%s: Found %u values with best data %u time %u.", device.address_str().c_str(),
+    ESP_LOGV(TAG, "[%s] Found %u values with best data %u time %u.", device.address_str().c_str(),
              number_of_usable_values, best_value, best_time);
 
-    if (number_of_usable_values < 2 || best_value < 2 || best_time < 2) {
+    if (number_of_usable_values < 1 || best_value < 2 || best_time < 2) {
       // At least two measurement values must be present.
-      ESP_LOGW(TAG, "%s: Poor read quality. Setting distance to 0.", device.address_str().c_str());
+      ESP_LOGW(TAG, "[%s] Poor read quality. Setting distance to 0.", device.address_str().c_str());
       if (this->distance_ != nullptr) {
         this->distance_->publish_state(0);
       }
@@ -167,7 +167,7 @@ bool MopekaStdCheck::parse_device(const esp32_ble_tracker::ESPBTDevice &device) 
       }
     } else {
       float lpg_speed_of_sound = this->get_lpg_speed_of_sound_(temp_in_c);
-      ESP_LOGV(TAG, "%s: Speed of sound in current fluid %f m/s", device.address_str().c_str(), lpg_speed_of_sound);
+      ESP_LOGV(TAG, "[%s] Speed of sound in current fluid %f m/s", device.address_str().c_str(), lpg_speed_of_sound);
 
       uint32_t distance_value = lpg_speed_of_sound * best_time / 100.0f;
 

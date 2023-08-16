@@ -3,6 +3,9 @@
 #include "esphome/core/component.h"
 #include "esphome/components/spi/spi.h"
 #include "esphome/components/display/display_buffer.h"
+#ifdef USE_POWER_SUPPLY
+#include "esphome/components/power_supply/power_supply.h"
+#endif
 
 namespace esphome {
 namespace st7789v {
@@ -11,6 +14,7 @@ enum ST7789VModel {
   ST7789V_MODEL_TTGO_TDISPLAY_135_240,
   ST7789V_MODEL_ADAFRUIT_FUNHOUSE_240_240,
   ST7789V_MODEL_ADAFRUIT_RR_280_240,
+  ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135,
   ST7789V_MODEL_CUSTOM
 };
 
@@ -120,6 +124,9 @@ class ST7789V : public PollingComponent,
   void set_dc_pin(GPIOPin *dc_pin) { this->dc_pin_ = dc_pin; }
   void set_reset_pin(GPIOPin *reset_pin) { this->reset_pin_ = reset_pin; }
   void set_backlight_pin(GPIOPin *backlight_pin) { this->backlight_pin_ = backlight_pin; }
+#ifdef USE_POWER_SUPPLY
+  void set_power_supply(power_supply::PowerSupply *power_supply) { this->power_.set_parent(power_supply); }
+#endif
 
   void set_eightbitcolor(bool eightbitcolor) { this->eightbitcolor_ = eightbitcolor; }
   void set_height(uint32_t height) { this->height_ = height; }
@@ -143,6 +150,9 @@ class ST7789V : public PollingComponent,
   GPIOPin *dc_pin_{nullptr};
   GPIOPin *reset_pin_{nullptr};
   GPIOPin *backlight_pin_{nullptr};
+#ifdef USE_POWER_SUPPLY
+  power_supply::PowerSupplyRequester power_;
+#endif
 
   bool eightbitcolor_{false};
   uint16_t height_{0};
