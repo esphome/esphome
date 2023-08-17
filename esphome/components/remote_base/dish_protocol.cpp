@@ -87,7 +87,7 @@ optional<DishData> DishProtocol::decode(RemoteReceiveData src) {
 }
 
 void DishProtocol::dump(const DishData &data) {
-  ESP_LOGD(TAG, "Received Dish: address=0x%02X, command=0x%02X", data.address, data.command);
+  ESP_LOGI(TAG, "Received Dish: address=0x%02X, command=0x%02X", data.address, data.command);
 }
 
 }  // namespace remote_base
