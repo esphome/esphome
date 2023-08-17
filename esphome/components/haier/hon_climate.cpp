@@ -458,7 +458,7 @@ haier_protocol::HaierMessage HonClimate::get_control_message() {
         case CLIMATE_MODE_OFF:
           out_data->ac_power = 0;
           break;
-        case CLIMATE_MODE_AUTO:
+        case CLIMATE_MODE_HEAT_COOL:
           out_data->ac_power = 1;
           out_data->ac_mode = (uint8_t) hon_protocol::ConditioningMode::AUTO;
           out_data->fan_mode = this->other_modes_fan_speed_;
@@ -758,7 +758,7 @@ haier_protocol::HandlerError HonClimate::process_status_message_(const uint8_t *
           this->mode = CLIMATE_MODE_FAN_ONLY;
           break;
         case (uint8_t) hon_protocol::ConditioningMode::AUTO:
-          this->mode = CLIMATE_MODE_AUTO;
+          this->mode = CLIMATE_MODE_HEAT_COOL;
           break;
       }
     }
