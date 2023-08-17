@@ -486,7 +486,7 @@ void WiFiComponent::wifi_event_callback_(esphome_wifi_event_id_t event, esphome_
       ESP_LOGV(TAG, "Event: Connected ssid='%s' bssid=" LOG_SECRET("%s") " channel=%u, authmode=%s", buf,
                format_mac_addr(it.bssid).c_str(), it.channel, get_auth_mode_str(it.authmode));
 #if LWIP_IPV6
-      WiFi.enableIpV6();
+      this->set_timeout(100, [] { WiFi.enableIpV6(); });
 #endif /* LWIP_IPV6 */
 
       break;
