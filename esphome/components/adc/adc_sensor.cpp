@@ -32,8 +32,8 @@ static const int32_t SOC_ADC_RTC_MAX_BITWIDTH = 12;
 #endif
 #endif
 
-static const int32_t ADC_MAX = (1 << SOC_ADC_RTC_MAX_BITWIDTH) - 1;    // 4095 (12 bit) or 8191 (13 bit)
-static const int32_t ADC_HALF = (1 << SOC_ADC_RTC_MAX_BITWIDTH) >> 1;  // 2048 (12 bit) or 4096 (13 bit)
+static const int ADC_MAX = (1 << SOC_ADC_RTC_MAX_BITWIDTH) - 1;    // 4095 (12 bit) or 8191 (13 bit)
+static const int ADC_HALF = (1 << SOC_ADC_RTC_MAX_BITWIDTH) >> 1;  // 2048 (12 bit) or 4096 (13 bit)
 #endif
 
 #ifdef USE_RP2040
@@ -59,7 +59,7 @@ extern "C"
   }
 
   // load characteristics for each attenuation
-  for (int32_t i = 0; i < (int32_t) ADC_ATTEN_MAX; i++) {
+  for (int32_t i = 0; i <= ADC_ATTEN_DB_11; i++) {
     auto adc_unit = channel1_ != ADC1_CHANNEL_MAX ? ADC_UNIT_1 : ADC_UNIT_2;
     auto cal_value = esp_adc_cal_characterize(adc_unit, (adc_atten_t) i, ADC_WIDTH_MAX_SOC_BITS,
                                               1100,  // default vref
@@ -157,7 +157,7 @@ float ADCSensor::sample() {
 #ifdef USE_ESP32
 float ADCSensor::sample() {
   if (!autorange_) {
-    int32_t raw = -1;
+    int raw = -1;
     if (channel1_ != ADC1_CHANNEL_MAX) {
       raw = adc1_get_raw(channel1_);
     } else if (channel2_ != ADC2_CHANNEL_MAX) {
@@ -174,7 +174,7 @@ float ADCSensor::sample() {
     return mv / 1000.0f;
   }
 
-  int32_t raw11 = ADC_MAX, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
+  int raw11 = ADC_MAX, raw6 = ADC_MAX, raw2 = ADC_MAX, raw0 = ADC_MAX;
 
   if (channel1_ != ADC1_CHANNEL_MAX) {
     adc1_config_channel_atten(channel1_, ADC_ATTEN_DB_11);

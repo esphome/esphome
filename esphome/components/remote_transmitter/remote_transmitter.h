@@ -48,7 +48,7 @@ class RemoteTransmitterComponent : public remote_base::RemoteTransmitterBase,
   esp_err_t error_code_{ESP_OK};
   bool inverted_{false};
 #endif
-  uint8_t carrier_duty_percent_{50};
+  uint8_t carrier_duty_percent_;
 };
 
 }  // namespace remote_transmitter

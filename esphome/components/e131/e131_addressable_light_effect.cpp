@@ -51,7 +51,7 @@ bool E131AddressableLightEffect::process_(int universe, const E131Packet &packet
   if (universe < first_universe_ || universe > get_last_universe())
     return false;
 
-  int output_offset = (universe - first_universe_) * get_lights_per_universe();
+  int32_t output_offset = (universe - first_universe_) * get_lights_per_universe();
   // limit amount of lights per universe and received
   int output_end =
       std::min(it->size(), std::min(output_offset + get_lights_per_universe(), output_offset + packet.count - 1));

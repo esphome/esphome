@@ -125,7 +125,7 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
 #elif defined(USE_ESP32_VARIANT_ESP32S3)
         uart_ == UART_SELECTION_USB_CDC || uart_ == UART_SELECTION_USB_SERIAL_JTAG
 #else
-        /* DISABLES CODE */ (false)
+        /* DISABLES CODE */ (false)  // NOLINT
 #endif
     ) {
       puts(msg);

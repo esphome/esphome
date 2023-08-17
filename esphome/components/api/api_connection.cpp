@@ -907,12 +907,13 @@ BluetoothConnectionsFreeResponse APIConnection::subscribe_bluetooth_connections_
 #endif
 
 #ifdef USE_VOICE_ASSISTANT
-bool APIConnection::request_voice_assistant(bool start, const std::string &conversation_id) {
+bool APIConnection::request_voice_assistant(bool start, const std::string &conversation_id, bool use_vad) {
   if (!this->voice_assistant_subscription_)
     return false;
   VoiceAssistantRequest msg;
   msg.start = start;
   msg.conversation_id = conversation_id;
+  msg.use_vad = use_vad;
   return this->send_voice_assistant_request(msg);
 }
 void APIConnection::on_voice_assistant_response(const VoiceAssistantResponse &msg) {

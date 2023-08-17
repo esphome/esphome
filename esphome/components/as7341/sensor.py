@@ -107,6 +107,6 @@ async def to_code(config):
     cg.add(var.set_astep(config[CONF_ASTEP]))
 
     for conf_id, set_sensor_func in SENSORS.items():
-        if conf_id in config:
-            sens = await sensor.new_sensor(config[conf_id])
+        if sens_config := config.get(conf_id):
+            sens = await sensor.new_sensor(sens_config)
             cg.add(getattr(var, set_sensor_func)(sens))
