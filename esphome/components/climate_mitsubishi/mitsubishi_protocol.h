@@ -20,12 +20,7 @@ const uint8_t temperature_inject_header[] = {0xfc, 0x41, 0x01, 0x30, 0x10, 0x07}
 const size_t info_header_len = 5;
 const uint8_t info_header[] = {0xfc, 0x42, 0x01, 0x30, 0x10};
 
-enum class InfoType : uint8_t {
-  SETTINGS = 2,
-  ROOM_TEMP = 3,
-  STATUS = 6,
-  SENSORS = 9
-};
+enum class InfoType : uint8_t { SETTINGS = 2, ROOM_TEMP = 3, STATUS = 6, SENSORS = 9 };
 
 enum class Offset : int {
   INFO_TYPE = 5,
@@ -54,35 +49,13 @@ enum class Offset : int {
   FAN_VELOCITY = 9,
 };
 
-enum class SettingsMask1 : uint8_t {
-  POWER = 0x01,
-  MODE = 0x02,
-  TARGET_TEMP = 0x04,
-  FAN = 0x08,
-  VERTICAL_VANE = 0x10
-};
+enum class SettingsMask1 : uint8_t { POWER = 0x01, MODE = 0x02, TARGET_TEMP = 0x04, FAN = 0x08, VERTICAL_VANE = 0x10 };
 
-enum class Power : uint8_t {
-  ON = 1,
-  OFF = 0
-};
+enum class Power : uint8_t { ON = 1, OFF = 0 };
 
-enum class Mode : uint8_t {
-  HEAT = 1,
-  DRY = 2,
-  COOL = 3,
-  FAN = 7,
-  AUTO = 8
-};
+enum class Mode : uint8_t { HEAT = 1, DRY = 2, COOL = 3, FAN = 7, AUTO = 8 };
 
-enum class FanMode : uint8_t {
-  AUTO = 0,
-  FAN_QUIET = 1,
-  FAN_1 = 2,
-  FAN_2 = 3,
-  FAN_3 = 5,
-  FAN_4 = 6
-};
+enum class FanMode : uint8_t { AUTO = 0, FAN_QUIET = 1, FAN_1 = 2, FAN_2 = 3, FAN_3 = 5, FAN_4 = 6 };
 
 enum class VerticalVaneMode : uint8_t {
   VANE_AUTO = 0,
@@ -96,11 +69,8 @@ enum class VerticalVaneMode : uint8_t {
   VANE_EXPERIMENTAL_8 = 8,
 };
 
-enum class LoopFlagsMask : uint8_t {
-  PREHEAT = 0x04,
-  CONFLICT = 0x08
-};
+enum class LoopFlagsMask : uint8_t { PREHEAT = 0x04, CONFLICT = 0x08 };
 
-}
-}
-}
+}  // namespace mitsubishi_protocol
+}  // namespace climate_mitsubishi
+}  // namespace esphome

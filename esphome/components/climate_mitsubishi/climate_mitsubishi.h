@@ -28,7 +28,7 @@ enum class PacketType {
 class ClimateMitsubishi : public esphome::Component,
                           public esphome::climate::Climate,
                           public esphome::uart::UARTDevice {
-  public:
+ public:
   ClimateMitsubishi();
 
   void setup() override;
@@ -39,27 +39,18 @@ class ClimateMitsubishi : public esphome::Component,
   void set_inject_enable(bool state);
 
   size_t read_array(uint8_t *data, size_t len) noexcept {
-      return esphome::uart::UARTDevice::read_array(data, len) ? len : 0;
+    return esphome::uart::UARTDevice::read_array(data, len) ? len : 0;
   };
-  size_t available() noexcept {
-      return esphome::uart::UARTDevice::available();
-  };
-  void write_array(const uint8_t *data, size_t len) noexcept {
-      esphome::uart::UARTDevice::write_array(data, len);
-  };
-  void flush() noexcept {
-      esphome::uart::UARTDevice::flush();
-  }
-  inline int read() {
-      return esphome::uart::UARTDevice::read();
-  };
+  size_t available() noexcept { return esphome::uart::UARTDevice::available(); };
+  void write_array(const uint8_t *data, size_t len) noexcept { esphome::uart::UARTDevice::write_array(data, len); };
+  void flush() noexcept { esphome::uart::UARTDevice::flush(); }
+  inline int read() { return esphome::uart::UARTDevice::read(); };
 
   void set_compressor_frequency_sensor(esphome::sensor::Sensor *sensor);
   void set_fan_velocity_sensor(esphome::sensor::Sensor *sensor);
   void set_conflicted_sensor(esphome::binary_sensor::BinarySensor *sensor);
   void set_preheat_sensor(esphome::binary_sensor::BinarySensor *sensor);
   void set_control_temperature_sensor(esphome::sensor::Sensor *sensor);
-
 
   void set_vertical_airflow_select(esphome::select::Select *select);
 
@@ -68,7 +59,7 @@ class ClimateMitsubishi : public esphome::Component,
   void set_temperature_offset(float offset);
   void disable_injection();
 
-  protected:
+ protected:
   esphome::climate::ClimateTraits traits() override;
 
   esphome::climate::ClimateMode mode_to_climate_mode(uint8_t mode);
@@ -119,46 +110,42 @@ class ClimateMitsubishi : public esphome::Component,
   float temperature_offset_;
 };
 
-class ClimateMitsubishiInjectEnableSwitch : public esphome::Component,
-                                            public esphome::switch_::Switch {
-  public:
+class ClimateMitsubishiInjectEnableSwitch : public esphome::Component, public esphome::switch_::Switch {
+ public:
   void write_state(bool state) override;
   void set_climate(ClimateMitsubishi *climate);
 
-  protected:
+ protected:
   ClimateMitsubishi *climate_;
 };
 
-class ClimateMitsubishiRemoteTemperatureNumber :  public esphome::Component,
-                                                  public esphome::number::Number {
-  public:
+class ClimateMitsubishiRemoteTemperatureNumber : public esphome::Component, public esphome::number::Number {
+ public:
   void control(float value) override;
   void set_climate(ClimateMitsubishi *climate);
 
-  protected:
+ protected:
   ClimateMitsubishi *climate_;
 };
 
-class ClimateMitsubishiTemperatureOffsetNumber :  public esphome::Component,
-                                                  public esphome::number::Number {
-  public:
+class ClimateMitsubishiTemperatureOffsetNumber : public esphome::Component, public esphome::number::Number {
+ public:
   ClimateMitsubishiTemperatureOffsetNumber();
   void control(float value) override;
   void set_climate(ClimateMitsubishi *climate);
 
-  protected:
+ protected:
   ClimateMitsubishi *climate_;
 };
 
-class ClimateMitsubishiVerticalAirflowSelect :  public esphome::Component,
-                                                public esphome::select::Select {
-  public:
+class ClimateMitsubishiVerticalAirflowSelect : public esphome::Component, public esphome::select::Select {
+ public:
   void set_climate(ClimateMitsubishi *climate);
   void control(const std::string &value) override;
 
-  protected:
+ protected:
   ClimateMitsubishi *climate_;
 };
 
-}
-}
+}  // namespace climate_mitsubishi
+}  // namespace esphome

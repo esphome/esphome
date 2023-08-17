@@ -77,14 +77,14 @@ CONFIG_SCHEMA = (
                 icon=ICON_SINE,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_FREQUENCY,
-                state_class=STATE_CLASS_MEASUREMENT
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_FAN_VELOCITY): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 icon=ICON_FAN,
                 accuracy_decimals=0,
                 device_class=DEVICE_CLASS_FREQUENCY,
-                state_class=STATE_CLASS_MEASUREMENT
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_CONFLICTED): binary_sensor.binary_sensor_schema(
                 icon=ICON_ALERT,
@@ -98,24 +98,41 @@ CONFIG_SCHEMA = (
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PREHEAT): binary_sensor.binary_sensor_schema(),
-            cv.Optional(CONF_REMOTE_TEMPERATURE): cv.Schema({
-                cv.GenerateID(CONF_ID): cv.declare_id(ClimateMitsubishiRemoteTemperatureNumber)
-            })
+            cv.Optional(CONF_REMOTE_TEMPERATURE): cv.Schema(
+                {
+                    cv.GenerateID(CONF_ID): cv.declare_id(
+                        ClimateMitsubishiRemoteTemperatureNumber
+                    )
+                }
+            )
             .extend(cv.COMPONENT_SCHEMA)
             .extend(number.NUMBER_SCHEMA),
-            cv.Optional(CONF_TEMPERATURE_OFFSET): cv.Schema({
-                cv.GenerateID(CONF_ID): cv.declare_id(ClimateMitsubishiTemperatureOffsetNumber)
-            })
-            .extend(cv.COMPONENT_SCHEMA).
-            extend(number.NUMBER_SCHEMA),
-            cv.Optional(CONF_INJECT_ENABLE): cv.Schema({
-                cv.GenerateID(CONF_ID): cv.declare_id(ClimateMitsubishiInjectEnableSwitch),
-            })
+            cv.Optional(CONF_TEMPERATURE_OFFSET): cv.Schema(
+                {
+                    cv.GenerateID(CONF_ID): cv.declare_id(
+                        ClimateMitsubishiTemperatureOffsetNumber
+                    )
+                }
+            )
+            .extend(cv.COMPONENT_SCHEMA)
+            .extend(number.NUMBER_SCHEMA),
+            cv.Optional(CONF_INJECT_ENABLE): cv.Schema(
+                {
+                    cv.GenerateID(CONF_ID): cv.declare_id(
+                        ClimateMitsubishiInjectEnableSwitch
+                    ),
+                }
+            )
             .extend(cv.COMPONENT_SCHEMA)
             .extend(switch.SWITCH_SCHEMA),
-            cv.Optional(CONF_VERTICAL_AIRFLOW): select.select_schema().extend({
-                cv.GenerateID(CONF_ID): cv.declare_id(ClimateMitsubishiVerticalAirflowSelect),
-            })
+            cv.Optional(CONF_VERTICAL_AIRFLOW): select.select_schema()
+            .extend(
+                {
+                    cv.GenerateID(CONF_ID): cv.declare_id(
+                        ClimateMitsubishiVerticalAirflowSelect
+                    ),
+                }
+            )
             .extend(select.SELECT_SCHEMA)
             .extend(cv.COMPONENT_SCHEMA),
         }
@@ -172,8 +189,8 @@ def to_code(config):
     if CONF_VERTICAL_AIRFLOW in config:
         print(config[CONF_VERTICAL_AIRFLOW])
         vertical_airflow_select = yield select.new_select(
-            config[CONF_VERTICAL_AIRFLOW], 
-            options=["Auto", "1", "2", "3", "4", "5", "Swing"]
+            config[CONF_VERTICAL_AIRFLOW],
+            options=["Auto", "1", "2", "3", "4", "5", "Swing"],
         )
         cg.add(vertical_airflow_select.set_climate(var))
         cg.add(var.set_vertical_airflow_select(vertical_airflow_select))
