@@ -14,10 +14,6 @@ class BLESensorNotifyTrigger : public Trigger<float>, public BLESensor {
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
     switch (event) {
-      case ESP_GATTC_SEARCH_CMPL_EVT: {
-        this->sensor_->node_state = espbt::ClientState::ESTABLISHED;
-        break;
-      }
       case ESP_GATTC_NOTIFY_EVT: {
         if (param->notify.conn_id != this->sensor_->parent()->get_conn_id() ||
             param->notify.handle != this->sensor_->handle)

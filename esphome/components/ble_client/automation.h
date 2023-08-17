@@ -12,9 +12,10 @@
 namespace esphome {
 namespace ble_client {
 
-// placeholder class for static TAG.
+// placeholder class for static TAG .
 class Automation {
  public:
+  // could be made inline with C++17
   static const char *const TAG;
 };
 
@@ -30,12 +31,15 @@ class BLEClientConnectTrigger : public Trigger<>, public BLEClientNode {
   }
 };
 
+// on_disconnect automation
 class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
  public:
   explicit BLEClientDisconnectTrigger(BLEClient *parent) { parent->register_ble_node(this); }
   void loop() override {}
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
+    // test for CLOSE and not DISCONNECT - DISCONNECT can occur even if no virtual connection (OPEN event) occurred.
+    // So this will not trigger unless a complete open has previously succeeded.
     if (event == ESP_GATTC_CLOSE_EVT)
       this->trigger();
   }
@@ -73,6 +77,7 @@ class BLEClientNumericComparisonRequestTrigger : public Trigger<uint32_t>, publi
   }
 };
 
+// implement the ble_client.ble_write action.
 template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, public BLEClientNode {
  public:
   BLEClientWriteAction(BLEClient *ble_client) {
@@ -109,6 +114,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
         this->play_next_(x...);
   }
 
+  // initiate the write. Return true if all went well, will be followed by a WRITE_CHAR event.
   bool write(const std::vector<uint8_t> &value) {
     if (this->node_state != espbt::ClientState::ESTABLISHED) {
       ESP_LOGW(Automation::TAG, "Cannot write to BLE characteristic - not connected");
@@ -119,6 +125,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
       ESP_LOGW(Automation::TAG, "Characteristic %s not found", this->char_uuid_.to_string().c_str());
       return false;
     }
+    this->char_handle_ = chr->handle;
     esp_gatt_write_type_t write_type;
     if (chr->properties & ESP_GATT_CHAR_PROP_BIT_WRITE) {
       write_type = ESP_GATT_WRITE_TYPE_RSP;
@@ -143,11 +150,13 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                                 esp_ble_gattc_cb_param_t *param) override {
-    if (!this->is_running())
+    if (this->num_running_ == 0)
       return;
     switch (event) {
       case ESP_GATTC_WRITE_CHAR_EVT:
-        this->play_next_tuple_(this->var_);
+        // upstream code checked the MAC address, verify the characteristic.
+        if (param->write.handle == this->char_handle_)
+          this->play_next_tuple_(this->var_);
         break;
       case ESP_GATTC_DISCONNECT_EVT:
         this->stop_complex();
@@ -165,6 +174,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
   std::tuple<Ts...> var_{};
+  uint16_t char_handle_{};
 };
 
 template<typename... Ts> class BLEClientPasskeyReplyAction : public Action<Ts...> {
@@ -255,7 +265,7 @@ template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, pu
   }
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
-    if (!this->is_running())
+    if (this->num_running_ == 0)
       return;
     switch (event) {
       case ESP_GATTC_SEARCH_CMPL_EVT:
@@ -274,6 +284,13 @@ template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, pu
   void play(Ts... x) override {}
 
   void play_complex(Ts... x) override {
+    // it makes no sense to have multiple instances of this running at the same time.
+    // this would occur only if the same automation was re-triggered while still
+    // running. So just cancel the second chain if this is detected.
+    if (this->num_running_ != 0) {
+      this->stop_complex();
+      return;
+    }
     this->num_running_++;
     if (this->node_state == espbt::ClientState::ESTABLISHED) {
       this->play_next_(x...);
@@ -296,7 +313,7 @@ template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>,
   }
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
-    if (!this->is_running())
+    if (this->num_running_ == 0)
       return;
     switch (event) {
       case ESP_GATTC_CLOSE_EVT:
