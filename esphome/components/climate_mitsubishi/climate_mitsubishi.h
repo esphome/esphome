@@ -1,5 +1,6 @@
 #pragma once
 
+#include <chrono>
 #include <utility>
 
 #include "esphome/components/climate/climate.h"
