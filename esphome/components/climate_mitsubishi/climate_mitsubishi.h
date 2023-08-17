@@ -77,6 +77,7 @@ class ClimateMitsubishi : public esphome::Component,
   uint8_t climate_mode_to_mode(esphome::climate::ClimateMode mode);
   uint8_t custom_fan_mode_to_fan(std::string fan_mode);
   uint8_t vertical_airflow_select_to_vertical_vane(std::string option);
+  int convert_fan_velocity(uint8_t velocity);
 
   float room_temp_to_celsius(uint8_t temp);
   float temp_05_to_celsius(uint8_t temp);

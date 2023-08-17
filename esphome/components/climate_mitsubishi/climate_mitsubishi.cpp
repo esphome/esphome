@@ -200,6 +200,12 @@ uint8_t ClimateMitsubishi::vertical_airflow_select_to_vertical_vane(std::string 
   return (uint8_t)mitsubishi_protocol::VerticalVaneMode::VANE_AUTO;
 }
 
+int ClimateMitsubishi::convert_fan_velocity(uint8_t velocity) {
+  velocity = (velocity!=0)? velocity+1:0;
+  velocity = (velocity==7)? 1:velocity;
+  return velocity;
+}
+
 float ClimateMitsubishi::temp_05_to_celsius(uint8_t temp) {
   temp -= 128;
   return (float)temp / 2;
@@ -541,7 +547,7 @@ PacketType ClimateMitsubishi::read_packet() {
             this->conflicted_sensor_->publish_state(packet[(int)mitsubishi_protocol::Offset::LOOP_FLAGS] & (uint8_t)mitsubishi_protocol::LoopFlagsMask::CONFLICT);
           }
           if(this->fan_velocity_sensor_ != nullptr) {
-            this->fan_velocity_sensor_->publish_state((float)packet[(int)mitsubishi_protocol::Offset::FAN_VELOCITY]);
+            this->fan_velocity_sensor_->publish_state((float)convert_fan_velocity(packet[(int)mitsubishi_protocol::Offset::FAN_VELOCITY]));
           }
           return PacketType::sensors;
           break;
