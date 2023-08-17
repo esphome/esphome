@@ -1,6 +1,6 @@
 """Constants used by esphome."""
 
-__version__ = "2023.8.0-dev"
+__version__ = "2023.9.0-dev"
 
 ALLOWED_NAME_CHARS = "abcdefghijklmnopqrstuvwxyz0123456789-_"
 VALID_SUBSTITUTIONS_CHARACTERS = (
@@ -988,6 +988,7 @@ DEVICE_CLASS_OCCUPANCY = "occupancy"
 DEVICE_CLASS_OPENING = "opening"
 DEVICE_CLASS_OUTLET = "outlet"
 DEVICE_CLASS_OZONE = "ozone"
+DEVICE_CLASS_PH = "ph"
 DEVICE_CLASS_PLUG = "plug"
 DEVICE_CLASS_PM1 = "pm1"
 DEVICE_CLASS_PM10 = "pm10"
