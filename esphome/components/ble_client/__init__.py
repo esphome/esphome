@@ -1,5 +1,6 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+from esphome.automation import maybe_simple_id
 from esphome.components import esp32_ble_tracker, esp32_ble_client
 from esphome.const import (
     CONF_CHARACTERISTIC_UUID,
@@ -141,7 +142,7 @@ BLE_WRITE_ACTION_SCHEMA = cv.Schema(
     }
 )
 
-BLE_CONNECT_ACTION_SCHEMA = cv.Schema(
+BLE_CONNECT_ACTION_SCHEMA = maybe_simple_id(
     {
         cv.GenerateID(CONF_ID): cv.use_id(BLEClient),
     }

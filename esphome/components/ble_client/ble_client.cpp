@@ -49,14 +49,15 @@ void BLEClient::set_enabled(bool enabled) {
 
 bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
                                     esp_ble_gattc_cb_param_t *param) {
-  bool all_established = this->all_nodes_established_();
-
   if (!BLEClientBase::gattc_event_handler(event, esp_gattc_if, param))
     return false;
 
   for (auto *node : this->nodes_)
     node->gattc_event_handler(event, esp_gattc_if, param);
 
+  if (!this->services_.empty() && this->all_nodes_established_()) {
+    this->release_services();
+  }
   return true;
 }
 

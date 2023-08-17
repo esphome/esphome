@@ -147,7 +147,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       this->set_state(espbt::ClientState::CONNECTED);
       if (this->connection_type_ == espbt::ConnectionType::V3_WITH_CACHE) {
         ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
-        this->set_state(espbt::ClientState::ESTABLISHED);
+        // only set our state, subclients might have more stuff to do yet.
+        this->state_ = espbt::ClientState::ESTABLISHED;
         break;
       }
       esp_ble_gattc_search_service(esp_gattc_if, param->cfg_mtu.conn_id, nullptr);
@@ -219,7 +220,7 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
                  this->address_str_.c_str(), svc->start_handle, svc->end_handle);
       }
       ESP_LOGI(TAG, "[%d] [%s] Connected", this->connection_index_, this->address_str_.c_str());
-      this->set_state(espbt::ClientState::ESTABLISHED);
+      this->state_ = espbt::ClientState::ESTABLISHED;
       break;
     }
     case ESP_GATTC_READ_DESCR_EVT: {
@@ -302,6 +303,11 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
   }
   return true;
+}
+
+// clients can't call defer() directly since it's protected.
+void BLEClientBase::run_later(std::function<void()> &&f) {  // NOLINT
+  this->defer(std::move(f));
 }
 
 void BLEClientBase::gap_event_handler(esp_gap_ble_cb_event_t event, esp_ble_gap_cb_param_t *param) {

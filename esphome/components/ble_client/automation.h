@@ -26,7 +26,7 @@ class BLEClientConnectTrigger : public Trigger<>, public BLEClientNode {
   void loop() override {}
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
-    if (event == ESP_GATTC_SEARCH_CMPL_EVT && this->node_state == espbt::ClientState::ESTABLISHED)
+    if (event == ESP_GATTC_SEARCH_CMPL_EVT)
       this->trigger();
   }
 };
@@ -120,27 +120,10 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
       ESP_LOGW(Automation::TAG, "Cannot write to BLE characteristic - not connected");
       return false;
     }
-    auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
-    if (chr == nullptr) {
-      ESP_LOGW(Automation::TAG, "Characteristic %s not found", this->char_uuid_.to_string().c_str());
-      return false;
-    }
-    this->char_handle_ = chr->handle;
-    esp_gatt_write_type_t write_type;
-    if (chr->properties & ESP_GATT_CHAR_PROP_BIT_WRITE) {
-      write_type = ESP_GATT_WRITE_TYPE_RSP;
-      ESP_LOGD(Automation::TAG, "Write type: ESP_GATT_WRITE_TYPE_RSP");
-    } else if (chr->properties & ESP_GATT_CHAR_PROP_BIT_WRITE_NR) {
-      write_type = ESP_GATT_WRITE_TYPE_NO_RSP;
-      ESP_LOGD(Automation::TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
-    } else {
-      ESP_LOGE(Automation::TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_string().c_str());
-      return false;
-    }
     ESP_LOGVV(Automation::TAG, "Will write %d bytes: %s", value.size(), format_hex_pretty(value).c_str());
     esp_err_t err =
-        esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), chr->handle,
-                                 value.size(), const_cast<uint8_t *>(value.data()), write_type, ESP_GATT_AUTH_REQ_NONE);
+        esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_,
+                                 value.size(), const_cast<uint8_t *>(value.data()), this->write_type_, ESP_GATT_AUTH_REQ_NONE);
     if (err != ESP_OK) {
       ESP_LOGE(Automation::TAG, "Error writing to characteristic: %s!", esp_err_to_name(err));
       return false;
@@ -150,18 +133,42 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
 
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                                 esp_ble_gattc_cb_param_t *param) override {
-    if (this->num_running_ == 0)
-      return;
     switch (event) {
       case ESP_GATTC_WRITE_CHAR_EVT:
         // upstream code checked the MAC address, verify the characteristic.
         if (param->write.handle == this->char_handle_)
-          this->play_next_tuple_(this->var_);
+          this->parent()->run_later([this] () {
+            this->play_next_tuple_(this->var_);
+          });
         break;
       case ESP_GATTC_DISCONNECT_EVT:
-        this->stop_complex();
+        if (this->num_running_ != 0)
+          this->stop_complex();
         break;
-
+      case ESP_GATTC_SEARCH_CMPL_EVT: {
+        auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
+        if (chr == nullptr) {
+          ESP_LOGW("ble_write_action", "Characteristic %s was not found in service %s",
+                   this->char_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
+          break;
+        }
+        this->char_handle_ = chr->handle;
+        this->char_props_ = chr->properties;
+        if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE) {
+          this->write_type_ = ESP_GATT_WRITE_TYPE_RSP;
+          ESP_LOGD(Automation::TAG, "Write type: ESP_GATT_WRITE_TYPE_RSP");
+        } else if (this->char_props_ & ESP_GATT_CHAR_PROP_BIT_WRITE_NR) {
+          this->write_type_ = ESP_GATT_WRITE_TYPE_NO_RSP;
+          ESP_LOGD(Automation::TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
+        } else {
+          ESP_LOGE(Automation::TAG, "Characteristic %s does not allow writing", this->char_uuid_.to_string().c_str());
+          break;
+        }
+        this->node_state = espbt::ClientState::ESTABLISHED;
+        ESP_LOGD(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
+                 ble_client_->address_str().c_str());
+        break;
+      }
       default:
         break;
     }
@@ -175,6 +182,8 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   espbt::ESPBTUUID char_uuid_;
   std::tuple<Ts...> var_{};
   uint16_t char_handle_{};
+  esp_gatt_char_prop_t char_props_{};
+  esp_gatt_write_type_t write_type_{};
 };
 
 template<typename... Ts> class BLEClientPasskeyReplyAction : public Action<Ts...> {
@@ -269,7 +278,10 @@ template<typename... Ts> class BLEClientConnectAction : public Action<Ts...>, pu
       return;
     switch (event) {
       case ESP_GATTC_SEARCH_CMPL_EVT:
-        this->play_next_tuple_(this->var_);
+        this->node_state = espbt::ClientState::ESTABLISHED;
+        this->parent()->run_later([this] () {
+          this->play_next_tuple_(this->var_);
+        });
         break;
       // if the connection is closed, terminate the automation chain.
       case ESP_GATTC_DISCONNECT_EVT:
@@ -318,7 +330,9 @@ template<typename... Ts> class BLEClientDisconnectAction : public Action<Ts...>,
     switch (event) {
       case ESP_GATTC_CLOSE_EVT:
       case ESP_GATTC_DISCONNECT_EVT:
-        this->play_next_tuple_(this->var_);
+        this->parent()->run_later([this] () {
+          this->play_next_tuple_(this->var_);
+        });
         break;
       default:
         break;

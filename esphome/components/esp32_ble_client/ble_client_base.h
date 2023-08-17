@@ -27,6 +27,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   void loop() override;
   float get_setup_priority() const override;
 
+  void run_later(std::function<void()> &&f);  // NOLINT
   bool parse_device(const espbt::ESPBTDevice &device) override;
   void on_scan_end() override {}
   bool gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,

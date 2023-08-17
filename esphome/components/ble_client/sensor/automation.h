@@ -20,6 +20,12 @@ class BLESensorNotifyTrigger : public Trigger<float>, public BLESensor {
           break;
         this->trigger(this->sensor_->parent()->parse_char_value(param->notify.value, param->notify.value_len));
       }
+      break;
+      case ESP_GATTC_WRITE_DESCR_EVT: {
+        // confirms notifications have been enabled.
+        this->node_state = espbt::ClientState::ESTABLISHED;
+        break;
+      }
       default:
         break;
     }

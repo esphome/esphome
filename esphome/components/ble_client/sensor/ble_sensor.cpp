@@ -68,6 +68,8 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
         if (status) {
           ESP_LOGW(TAG, "esp_ble_gattc_register_for_notify failed, status=%d", status);
         }
+      } else {
+        this->node_state = espbt::ClientState::ESTABLISHED;
       }
       break;
     }
@@ -96,8 +98,12 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
                param->reg_for_notify.handle, param->reg_for_notify.status);
         break;
       }
-
       ESP_LOGD(TAG, "Register for notify on %s complete", this->char_uuid_.to_string().c_str());
+      break;
+    }
+    case ESP_GATTC_WRITE_DESCR_EVT: {
+      ESP_LOGD(TAG, "Notifications on %s enabled", this->char_uuid_.to_string().c_str());
+      this->node_state = espbt::ClientState::ESTABLISHED;
       break;
     }
     default:
