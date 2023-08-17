@@ -137,9 +137,7 @@ uint8_t ClimateMitsubishi::climate_mode_to_mode_(ClimateMode mode) {
 }
 
 uint8_t ClimateMitsubishi::custom_fan_mode_to_fan_(const std::string &fan_mode) {
-  if (str_equals_case_insensitive("Auto", fan_mode)) {
-    return (uint8_t) mitsubishi_protocol::FanMode::AUTO;
-  } else if (str_equals_case_insensitive("Quiet", fan_mode)) {
+  if (str_equals_case_insensitive("Quiet", fan_mode)) {
     return (uint8_t) mitsubishi_protocol::FanMode::FAN_QUIET;
   } else if (str_equals_case_insensitive("1", fan_mode)) {
     return (uint8_t) mitsubishi_protocol::FanMode::FAN_1;
@@ -155,9 +153,7 @@ uint8_t ClimateMitsubishi::custom_fan_mode_to_fan_(const std::string &fan_mode) 
 }
 
 uint8_t fan_mode_to_fan(climate::ClimateFanMode fan_mode) {
-  if (fan_mode == climate::CLIMATE_FAN_AUTO) {
-    return (uint8_t) mitsubishi_protocol::FanMode::AUTO;
-  } else if (fan_mode == climate::CLIMATE_FAN_QUIET) {
+  if (fan_mode == climate::CLIMATE_FAN_QUIET) {
     return (uint8_t) mitsubishi_protocol::FanMode::FAN_QUIET;
   } else {
     return (uint8_t) mitsubishi_protocol::FanMode::AUTO;
@@ -381,11 +377,12 @@ void ClimateMitsubishi::request_info_(uint8_t type) {
 
 PacketType ClimateMitsubishi::read_packet_() {
   ESP_LOGD(TAG, "parsing packet");
-  uint8_t packet[mitsubishi_protocol::PACKET_LEN + mitsubishi_protocol::INFO_HEADER_LEN];
+  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
   uint8_t data_length;
 
-  int delay_count = 0;
-  if (available() == 0) {
+  memset(packet, 0, mitsubishi_protocol::PACKET_LEN);
+
+  if (available() < 1) {
     return PacketType::NO_RESPONSE;
   }
 
