@@ -14,15 +14,15 @@ namespace esphome {
 namespace climate_mitsubishi {
 
 enum class PacketType {
-  no_response,
-  invalid,
-  unknown,
-  connect_success,
-  set_success,
-  settings,
-  room_temp,
-  status,
-  sensors
+  NO_RESPONSE,
+  INVALID,
+  UNKNOWN,
+  CONNECT_SUCCESS,
+  SET_SUCCESS,
+  SETTINGS,
+  ROOM_TEMP,
+  STATUS,
+  SENSORS
 };
 
 class ClimateMitsubishi : public esphome::Component,
@@ -36,7 +36,7 @@ class ClimateMitsubishi : public esphome::Component,
   void control(const esphome::climate::ClimateCall &call) override;
   void set_vertical_airflow_direction(const std::string &direction);
 
-  void set_inject_enable(bool state);
+  void set_inject_enable(bool enable);
 
   size_t read_array(uint8_t *data, size_t len) noexcept {
     return esphome::uart::UARTDevice::read_array(data, len) ? len : 0;
@@ -62,29 +62,29 @@ class ClimateMitsubishi : public esphome::Component,
  protected:
   esphome::climate::ClimateTraits traits() override;
 
-  esphome::climate::ClimateMode mode_to_climate_mode(uint8_t mode);
-  std::string fan_to_custom_fan_mode(uint8_t fan);
-  std::string vertical_vane_to_vertical_airflow_select(uint8_t vertical_vane);
-  uint8_t climate_mode_to_mode(esphome::climate::ClimateMode mode);
-  uint8_t custom_fan_mode_to_fan(std::string fan_mode);
-  uint8_t vertical_airflow_select_to_vertical_vane(std::string option);
-  int convert_fan_velocity(uint8_t velocity);
+  esphome::climate::ClimateMode mode_to_climate_mode_(uint8_t mode);
+  std::string fan_to_custom_fan_mode_(uint8_t fan);
+  std::string vertical_vane_to_vertical_airflow_select_(uint8_t vertical_vane);
+  uint8_t climate_mode_to_mode_(esphome::climate::ClimateMode mode);
+  uint8_t custom_fan_mode_to_fan_(const std::string& fan_mode);
+  uint8_t vertical_airflow_select_to_vertical_vane_(const std::string& swing_mode);
+  int convert_fan_velocity_(uint8_t velocity);
 
-  float room_temp_to_celsius(uint8_t temp);
-  float temp_05_to_celsius(uint8_t temp);
-  float setting_temp_to_celsius(uint8_t temp);
-  uint8_t celsius_to_temp_05(float celsius);
-  uint8_t celsius_to_setting_temp(float celsius);
+  float room_temp_to_celsius_(uint8_t temp);
+  float temp_05_to_celsius_(uint8_t temp);
+  float setting_temp_to_celsius_(uint8_t temp);
+  uint8_t celsius_to_temp_05_(float celsius);
+  uint8_t celsius_to_setting_temp_(float celsius);
 
-  PacketType read_packet();
-  void parse_status_packet(uint8_t *data);
-  void parse_roomtemp_packet(uint8_t *data);
-  void parse_sensors_packet(uint8_t *data);
-  void parse_settings_packet(uint8_t *data);
+  PacketType read_packet_();
+  void parse_status_packet_(uint8_t *data);
+  void parse_roomtemp_packet_(uint8_t *data);
+  void parse_sensors_packet_(uint8_t *data);
+  void parse_settings_packet_(uint8_t *data);
 
-  void request_info(uint8_t type);
+  void request_info_(uint8_t type);
 
-  uint8_t checksum(uint8_t *packet, size_t len);
+  uint8_t checksum_(const uint8_t *packet, size_t len);
 
   esphome::sensor::Sensor *compressor_frequency_sensor_;
   esphome::sensor::Sensor *fan_velocity_sensor_;
@@ -98,8 +98,8 @@ class ClimateMitsubishi : public esphome::Component,
 
   esphome::climate::ClimateTraits traits_;
 
-  bool power;
-  bool high_precision_temp_setting;
+  bool power_;
+  bool high_precision_temp_setting_;
   bool connected_;
   bool inject_enable_;
   int last_connect_attempt_;

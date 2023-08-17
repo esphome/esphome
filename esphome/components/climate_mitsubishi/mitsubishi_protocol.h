@@ -6,19 +6,19 @@ namespace esphome {
 namespace climate_mitsubishi {
 namespace mitsubishi_protocol {
 
-const size_t packet_len = 22;
+const size_t PACKET_LEN = 22;
 
-const size_t connect_len = 8;
-const uint8_t connect_packet[connect_len] = {0xfc, 0x5a, 0x01, 0x30, 0x02, 0xca, 0x01, 0xa8};
+const size_t CONNECT_LEN = 8;
+const uint8_t CONNECT_PACKET[CONNECT_LEN] = {0xfc, 0x5a, 0x01, 0x30, 0x02, 0xca, 0x01, 0xa8};
 
-const size_t set_request_header_len = 6;
-const uint8_t set_request_header[] = {0xfc, 0x41, 0x01, 0x30, 0x10, 0x01};
+const size_t SET_REQUEST_HEADER_LEN = 6;
+const uint8_t SET_REQUEST_HEADER[] = {0xfc, 0x41, 0x01, 0x30, 0x10, 0x01};
 
-const size_t temperature_inject_header_len = 6;
-const uint8_t temperature_inject_header[] = {0xfc, 0x41, 0x01, 0x30, 0x10, 0x07};
+const size_t TEMPERATURE_INJECT_HEADER_LEN = 6;
+const uint8_t TEMPERATURE_INJECT_HEADER[] = {0xfc, 0x41, 0x01, 0x30, 0x10, 0x07};
 
-const size_t info_header_len = 5;
-const uint8_t info_header[] = {0xfc, 0x42, 0x01, 0x30, 0x10};
+const size_t INFO_HEADER_LEN = 5;
+const uint8_t INFO_HEADER[] = {0xfc, 0x42, 0x01, 0x30, 0x10};
 
 enum class InfoType : uint8_t { SETTINGS = 2, ROOM_TEMP = 3, STATUS = 6, SENSORS = 9 };
 

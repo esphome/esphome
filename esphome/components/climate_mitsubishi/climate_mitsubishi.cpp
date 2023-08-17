@@ -25,7 +25,7 @@ ClimateMitsubishi::ClimateMitsubishi()
       inject_enable_switch_(nullptr),
       remote_temperature_number_(nullptr),
       vertical_airflow_select_(nullptr),
-      high_precision_temp_setting(false),
+      high_precision_temp_setting_(false),
       last_status_request_(0),
       last_settings_request_(0),
       status_rotation_(0),
@@ -44,7 +44,7 @@ ClimateMitsubishi::ClimateMitsubishi()
 
 ClimateTraits ClimateMitsubishi::traits() { return traits_; }
 
-ClimateMode ClimateMitsubishi::mode_to_climate_mode(uint8_t mode) {
+ClimateMode ClimateMitsubishi::mode_to_climate_mode_(uint8_t mode) {
   switch (mode) {
     case (uint8_t) mitsubishi_protocol::Mode::HEAT:
       return ClimateMode::CLIMATE_MODE_HEAT;
@@ -67,7 +67,7 @@ ClimateMode ClimateMitsubishi::mode_to_climate_mode(uint8_t mode) {
   }
 }
 
-std::string ClimateMitsubishi::fan_to_custom_fan_mode(uint8_t fan) {
+std::string ClimateMitsubishi::fan_to_custom_fan_mode_(uint8_t fan) {
   switch (fan) {
     case (uint8_t) mitsubishi_protocol::FanMode::AUTO:
       return "Auto";
@@ -93,7 +93,7 @@ std::string ClimateMitsubishi::fan_to_custom_fan_mode(uint8_t fan) {
   }
 }
 
-std::string ClimateMitsubishi::vertical_vane_to_vertical_airflow_select(uint8_t vertical_vane) {
+std::string ClimateMitsubishi::vertical_vane_to_vertical_airflow_select_(uint8_t vertical_vane) {
   switch (vertical_vane) {
     case (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_AUTO:
       return "Auto";
@@ -119,7 +119,7 @@ std::string ClimateMitsubishi::vertical_vane_to_vertical_airflow_select(uint8_t 
   }
 }
 
-uint8_t ClimateMitsubishi::climate_mode_to_mode(ClimateMode mode) {
+uint8_t ClimateMitsubishi::climate_mode_to_mode_(ClimateMode mode) {
   switch (mode) {
     case CLIMATE_MODE_HEAT:
       return (uint8_t) mitsubishi_protocol::Mode::HEAT;
@@ -136,7 +136,7 @@ uint8_t ClimateMitsubishi::climate_mode_to_mode(ClimateMode mode) {
   }
 }
 
-uint8_t ClimateMitsubishi::custom_fan_mode_to_fan(std::string fan_mode) {
+uint8_t ClimateMitsubishi::custom_fan_mode_to_fan_(const std::string& fan_mode) {
   if (str_equals_case_insensitive("Auto", fan_mode)) {
     return (uint8_t) mitsubishi_protocol::FanMode::AUTO;
   } else if (str_equals_case_insensitive("Quiet", fan_mode)) {
@@ -164,7 +164,7 @@ uint8_t fan_mode_to_fan(climate::ClimateFanMode fan_mode) {
   }
 }
 
-uint8_t ClimateMitsubishi::vertical_airflow_select_to_vertical_vane(std::string swing_mode) {
+uint8_t ClimateMitsubishi::vertical_airflow_select_to_vertical_vane_(const std::string& swing_mode) {
   if (str_equals_case_insensitive("Auto", swing_mode)) {
     return (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_AUTO;
   } else if (str_equals_case_insensitive("1", swing_mode)) {
@@ -187,42 +187,42 @@ uint8_t ClimateMitsubishi::vertical_airflow_select_to_vertical_vane(std::string 
   return (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_AUTO;
 }
 
-int ClimateMitsubishi::convert_fan_velocity(uint8_t velocity) {
+int ClimateMitsubishi::convert_fan_velocity_(uint8_t velocity) {
   velocity = (velocity != 0) ? velocity + 1 : 0;
   velocity = (velocity == 7) ? 1 : velocity;
   return velocity;
 }
 
-float ClimateMitsubishi::temp_05_to_celsius(uint8_t temp) {
+float ClimateMitsubishi::temp_05_to_celsius_(uint8_t temp) {
   temp -= 128;
   return (float) temp / 2;
 }
-float ClimateMitsubishi::room_temp_to_celsius(uint8_t temp) { return (float) temp + 10.0; }
+float ClimateMitsubishi::room_temp_to_celsius_(uint8_t temp) { return (float) temp + 10.0; }
 
-float ClimateMitsubishi::setting_temp_to_celsius(uint8_t temp) { return 31.0 - (float) temp; }
+float ClimateMitsubishi::setting_temp_to_celsius_(uint8_t temp) { return 31.0 - (float) temp; }
 
-uint8_t ClimateMitsubishi::celsius_to_temp_05(float celsius) { return ((int) (celsius * 2)) + 128; }
+uint8_t ClimateMitsubishi::celsius_to_temp_05_(float celsius) { return ((int) (celsius * 2)) + 128; }
 
-uint8_t ClimateMitsubishi::celsius_to_setting_temp(float celsius) { return (int) celsius - 31; }
+uint8_t ClimateMitsubishi::celsius_to_setting_temp_(float celsius) { return (int) celsius - 31; }
 
 void ClimateMitsubishi::setup() {
   // flush read buffer
   this->read_array(nullptr, available());
   // send setup packet
   ESP_LOGD(TAG, "writing connect packet");
-  this->write_array(mitsubishi_protocol::connect_packet, mitsubishi_protocol::connect_len);
+  this->write_array(mitsubishi_protocol::CONNECT_PACKET, mitsubishi_protocol::CONNECT_LEN);
   this->flush();
 
   ESP_LOGD(TAG, "reading response");
-  if (read_packet() != PacketType::connect_success) {
+  if (read_packet_() != PacketType::CONNECT_SUCCESS) {
     ESP_LOGE(TAG, "Invalid response to connect request received");
     this->connected_ = false;
     return;
   }
   ESP_LOGD(TAG, "valid response");
   this->connected_ = true;
-  request_info((uint8_t) mitsubishi_protocol::InfoType::SENSORS);
-  read_packet();
+  request_info_((uint8_t) mitsubishi_protocol::InfoType::SENSORS);
+  read_packet_();
   this->read_array(nullptr, available());
 }
 
@@ -232,21 +232,21 @@ void ClimateMitsubishi::loop() {
     last_connect_attempt_ = millis();
   }
   while (available() != 0) {
-    read_packet();
+    read_packet_();
   }
   if (millis() > last_status_request_ + 400) {
     switch (status_rotation_) {
       case 0:
-        request_info((uint8_t) mitsubishi_protocol::InfoType::STATUS);
-        read_packet();
+        request_info_((uint8_t) mitsubishi_protocol::InfoType::STATUS);
+        read_packet_();
         break;
       case 1:
-        request_info((uint8_t) mitsubishi_protocol::InfoType::SENSORS);
-        read_packet();
+        request_info_((uint8_t) mitsubishi_protocol::InfoType::SENSORS);
+        read_packet_();
         break;
       case 2:
-        request_info((uint8_t) mitsubishi_protocol::InfoType::ROOM_TEMP);
-        read_packet();
+        request_info_((uint8_t) mitsubishi_protocol::InfoType::ROOM_TEMP);
+        read_packet_();
         break;
     }
     status_rotation_++;
@@ -256,16 +256,16 @@ void ClimateMitsubishi::loop() {
   }
 
   if (millis() > last_settings_request_ + 5000) {
-    request_info((uint8_t) mitsubishi_protocol::InfoType::SETTINGS);
-    read_packet();
+    request_info_((uint8_t) mitsubishi_protocol::InfoType::SETTINGS);
+    read_packet_();
     last_settings_request_ = 0;
   }
 }
 
 void ClimateMitsubishi::control(const esphome::climate::ClimateCall &call) {
-  uint8_t packet[mitsubishi_protocol::packet_len];
-  memset(packet, 0, mitsubishi_protocol::packet_len);
-  memcpy(packet, mitsubishi_protocol::set_request_header, mitsubishi_protocol::set_request_header_len);
+  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
+  memset(packet, 0, mitsubishi_protocol::PACKET_LEN);
+  memcpy(packet, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
 
   ESP_LOGD(TAG, "got control request");
 
@@ -276,49 +276,49 @@ void ClimateMitsubishi::control(const esphome::climate::ClimateCall &call) {
       packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::POWER;
       packet[(int) mitsubishi_protocol::Offset::POWER] = (uint8_t) mitsubishi_protocol::Power::OFF;
     } else {
-      if (!power) {
+      if (!power_) {
         ESP_LOGD(TAG, "powering on");
         packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] +=
             (uint8_t) mitsubishi_protocol::SettingsMask1::POWER;
         packet[(int) mitsubishi_protocol::Offset::POWER] = (uint8_t) mitsubishi_protocol::Power::ON;
       }
       packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::MODE;
-      packet[(int) mitsubishi_protocol::Offset::MODE] = climate_mode_to_mode(call.get_mode().value());
+      packet[(int) mitsubishi_protocol::Offset::MODE] = climate_mode_to_mode_(call.get_mode().value());
     }
   }
   if (call.get_target_temperature().has_value()) {
     packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] +=
         (uint8_t) mitsubishi_protocol::SettingsMask1::TARGET_TEMP;
-    if (high_precision_temp_setting) {
+    if (high_precision_temp_setting_) {
       packet[(int) mitsubishi_protocol::Offset::TARGET_TEMP_SET_05] =
-          celsius_to_temp_05(call.get_target_temperature().value());
+          celsius_to_temp_05_(call.get_target_temperature().value());
     } else {
       packet[(int) mitsubishi_protocol::Offset::TARGET_TEMP] =
-          celsius_to_setting_temp(call.get_target_temperature().value());
+          celsius_to_setting_temp_(call.get_target_temperature().value());
     }
   }
   if (call.get_custom_fan_mode().has_value()) {
     packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::FAN;
-    packet[(int) mitsubishi_protocol::Offset::FAN] = custom_fan_mode_to_fan(call.get_custom_fan_mode().value());
+    packet[(int) mitsubishi_protocol::Offset::FAN] = custom_fan_mode_to_fan_(call.get_custom_fan_mode().value());
   } else if (call.get_fan_mode().has_value()) {
     packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::FAN;
     packet[(int) mitsubishi_protocol::Offset::FAN] = fan_mode_to_fan(call.get_fan_mode().value());
   }
-  packet[mitsubishi_protocol::packet_len - 1] = checksum(packet, mitsubishi_protocol::packet_len - 1);
-  write_array(packet, mitsubishi_protocol::packet_len);
+  packet[mitsubishi_protocol::PACKET_LEN - 1] = checksum_(packet, mitsubishi_protocol::PACKET_LEN - 1);
+  write_array(packet, mitsubishi_protocol::PACKET_LEN);
 }
 
 void ClimateMitsubishi::set_vertical_airflow_direction(const std::string &direction) {
-  uint8_t packet[mitsubishi_protocol::packet_len];
-  memset(packet, 0, mitsubishi_protocol::packet_len);
-  memcpy(packet, mitsubishi_protocol::set_request_header, mitsubishi_protocol::set_request_header_len);
+  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
+  memset(packet, 0, mitsubishi_protocol::PACKET_LEN);
+  memcpy(packet, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
 
   packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] +=
       (uint8_t) mitsubishi_protocol::SettingsMask1::VERTICAL_VANE;
-  packet[(int) mitsubishi_protocol::Offset::VERTICAL_VANE] = this->vertical_airflow_select_to_vertical_vane(direction);
+  packet[(int) mitsubishi_protocol::Offset::VERTICAL_VANE] = this->vertical_airflow_select_to_vertical_vane_(direction);
 
-  packet[mitsubishi_protocol::packet_len - 1] = checksum(packet, mitsubishi_protocol::packet_len - 1);
-  write_array(packet, mitsubishi_protocol::packet_len);
+  packet[mitsubishi_protocol::PACKET_LEN - 1] = checksum_(packet, mitsubishi_protocol::PACKET_LEN - 1);
+  write_array(packet, mitsubishi_protocol::PACKET_LEN);
 }
 
 void ClimateMitsubishi::set_temperature_offset(float offset) { this->temperature_offset_ = offset; }
@@ -334,8 +334,8 @@ void ClimateMitsubishi::inject_temperature(float temperature) {
   this->current_temperature = temperature;
 
   temperature += this->temperature_offset_;
-  uint8_t packet[mitsubishi_protocol::packet_len];
-  memcpy(packet, mitsubishi_protocol::temperature_inject_header, mitsubishi_protocol::temperature_inject_header_len);
+  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
+  memcpy(packet, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER_LEN);
 
   packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_ENABLE] = true;
 
@@ -345,29 +345,29 @@ void ClimateMitsubishi::inject_temperature(float temperature) {
   temperature = temperature / 2;
 
   packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_1] = (uint8_t) (3 + ((temperature - 10) * 2));
-  packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_2] = celsius_to_temp_05(temperature);
+  packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_2] = celsius_to_temp_05_(temperature);
 
-  packet[mitsubishi_protocol::packet_len - 1] = checksum(packet, mitsubishi_protocol::packet_len - 1);
-  write_array(packet, mitsubishi_protocol::packet_len);
+  packet[mitsubishi_protocol::PACKET_LEN - 1] = checksum_(packet, mitsubishi_protocol::PACKET_LEN - 1);
+  write_array(packet, mitsubishi_protocol::PACKET_LEN);
 }
 
 void ClimateMitsubishi::disable_injection() {
-  uint8_t packet[mitsubishi_protocol::packet_len];
-  memcpy(packet, mitsubishi_protocol::temperature_inject_header, mitsubishi_protocol::temperature_inject_header_len);
+  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
+  memcpy(packet, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER_LEN);
 
   packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_ENABLE] = false;
 
   packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_1] = 0;
   packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_2] = 0x80;
 
-  packet[mitsubishi_protocol::packet_len - 1] = checksum(packet, mitsubishi_protocol::packet_len - 1);
-  write_array(packet, mitsubishi_protocol::packet_len);
+  packet[mitsubishi_protocol::PACKET_LEN - 1] = checksum_(packet, mitsubishi_protocol::PACKET_LEN - 1);
+  write_array(packet, mitsubishi_protocol::PACKET_LEN);
 }
 
-void ClimateMitsubishi::request_info(uint8_t type) {
+void ClimateMitsubishi::request_info_(uint8_t type) {
   ESP_LOGD(TAG, "requesting info");
-  uint8_t packet[mitsubishi_protocol::packet_len];
-  memcpy(packet, mitsubishi_protocol::info_header, mitsubishi_protocol::info_header_len);
+  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
+  memcpy(packet, mitsubishi_protocol::INFO_HEADER, mitsubishi_protocol::INFO_HEADER_LEN);
 
   packet[(int) mitsubishi_protocol::Offset::INFO_TYPE] = type;
 
@@ -375,18 +375,18 @@ void ClimateMitsubishi::request_info(uint8_t type) {
     packet[i] = 0x00;
   }
 
-  packet[mitsubishi_protocol::packet_len - 1] = checksum(packet, mitsubishi_protocol::packet_len - 1);
-  write_array(packet, mitsubishi_protocol::packet_len);
+  packet[mitsubishi_protocol::PACKET_LEN - 1] = checksum_(packet, mitsubishi_protocol::PACKET_LEN - 1);
+  write_array(packet, mitsubishi_protocol::PACKET_LEN);
 }
 
-PacketType ClimateMitsubishi::read_packet() {
+PacketType ClimateMitsubishi::read_packet_() {
   ESP_LOGD(TAG, "parsing packet");
-  uint8_t packet[mitsubishi_protocol::packet_len + mitsubishi_protocol::info_header_len];
+  uint8_t packet[mitsubishi_protocol::PACKET_LEN + mitsubishi_protocol::INFO_HEADER_LEN];
   uint8_t data_length;
 
   int delay_count = 0;
   if (available() == 0) {
-    return PacketType::no_response;
+    return PacketType::NO_RESPONSE;
   }
 
   // seek for first header byte
@@ -394,7 +394,7 @@ PacketType ClimateMitsubishi::read_packet() {
   while (available() > 0) {
     packet[0] = read();
     ESP_LOGD(TAG, "attempting read first byte: %i", packet[0]);
-    if (packet[0] == mitsubishi_protocol::info_header[0]) {
+    if (packet[0] == mitsubishi_protocol::INFO_HEADER[0]) {
       ESP_LOGD(TAG, "found first byte");
       found_first_byte = true;
       break;
@@ -402,48 +402,48 @@ PacketType ClimateMitsubishi::read_packet() {
   }
   if (!found_first_byte) {
     ESP_LOGD(TAG, "did not find first byte: %i", packet[0]);
-    return PacketType::no_response;
+    return PacketType::NO_RESPONSE;
   }
 
-  read_array(&packet[1], mitsubishi_protocol::info_header_len - 1);
+  read_array(&packet[1], mitsubishi_protocol::INFO_HEADER_LEN - 1);
 
-  if (packet[0] != mitsubishi_protocol::info_header[0] || packet[2] != mitsubishi_protocol::info_header[2] ||
-      packet[3] != mitsubishi_protocol::info_header[3]) {
+  if (packet[0] != mitsubishi_protocol::INFO_HEADER[0] || packet[2] != mitsubishi_protocol::INFO_HEADER[2] ||
+      packet[3] != mitsubishi_protocol::INFO_HEADER[3]) {
     ESP_LOGD(TAG, "invalid header");
-    return PacketType::invalid;
+    return PacketType::INVALID;
   }
 
   data_length = packet[4];
   read_array(&packet[5], data_length);
 
-  packet[data_length + mitsubishi_protocol::info_header_len] = read();
+  packet[data_length + mitsubishi_protocol::INFO_HEADER_LEN] = read();
 
-  if (packet[data_length + mitsubishi_protocol::info_header_len] !=
-      checksum(packet, data_length + mitsubishi_protocol::info_header_len)) {
+  if (packet[data_length + mitsubishi_protocol::INFO_HEADER_LEN] !=
+      checksum_(packet, data_length + mitsubishi_protocol::INFO_HEADER_LEN)) {
     ESP_LOGD(TAG, "checksum invalid");
   }
 
   switch (packet[1]) {
     case 0x7a:  // connect success
       ESP_LOGD(TAG, "connect success");
-      return PacketType::connect_success;
+      return PacketType::CONNECT_SUCCESS;
       break;
     case 0x61:  // set success
       ESP_LOGD(TAG, "set success");
-      request_info((uint8_t) mitsubishi_protocol::InfoType::SETTINGS);
-      read_packet();
-      return PacketType::set_success;
+      request_info_((uint8_t) mitsubishi_protocol::InfoType::SETTINGS);
+      read_packet_();
+      return PacketType::SET_SUCCESS;
       break;
     case 0x62:  // info packet
       ESP_LOGD(TAG, "got info packet");
       switch (packet[(int) mitsubishi_protocol::Offset::INFO_TYPE]) {
         case (uint8_t) mitsubishi_protocol::InfoType::SETTINGS:
           ESP_LOGD(TAG, "got settings info");
-          this->power = packet[(int) mitsubishi_protocol::Offset::POWER];
+          this->power_ = packet[(int) mitsubishi_protocol::Offset::POWER];
           if (packet[(int) mitsubishi_protocol::Offset::POWER] == (uint8_t) mitsubishi_protocol::Power::OFF) {
             this->mode = ClimateMode::CLIMATE_MODE_OFF;
           } else {
-            this->mode = mode_to_climate_mode(packet[(int) mitsubishi_protocol::Offset::MODE]);
+            this->mode = mode_to_climate_mode_(packet[(int) mitsubishi_protocol::Offset::MODE]);
           }
           if (packet[(int) mitsubishi_protocol::Offset::FAN] == (uint8_t) mitsubishi_protocol::FanMode::AUTO) {
             this->fan_mode = climate::CLIMATE_FAN_AUTO;
@@ -454,32 +454,32 @@ PacketType ClimateMitsubishi::read_packet() {
             this->custom_fan_mode.reset();
           } else {
             this->fan_mode.reset();
-            this->custom_fan_mode = fan_to_custom_fan_mode(packet[(int) mitsubishi_protocol::Offset::FAN]);
+            this->custom_fan_mode = fan_to_custom_fan_mode_(packet[(int) mitsubishi_protocol::Offset::FAN]);
           }
           if (this->vertical_airflow_select_ != nullptr) {
             this->vertical_airflow_select_->publish_state(
-                vertical_vane_to_vertical_airflow_select(packet[(int) mitsubishi_protocol::Offset::VERTICAL_VANE]));
+                vertical_vane_to_vertical_airflow_select_(packet[(int) mitsubishi_protocol::Offset::VERTICAL_VANE]));
           }
 
           if (packet[(int) mitsubishi_protocol::Offset::TARGET_TEMP_GET_05] != 0) {
-            this->high_precision_temp_setting = true;
+            this->high_precision_temp_setting_ = true;
             this->traits_.set_visual_target_temperature_step(0.5);
             this->target_temperature =
-                temp_05_to_celsius(packet[(int) mitsubishi_protocol::Offset::TARGET_TEMP_GET_05]);
+                temp_05_to_celsius_(packet[(int) mitsubishi_protocol::Offset::TARGET_TEMP_GET_05]);
           } else {
-            this->target_temperature = setting_temp_to_celsius(packet[(int) mitsubishi_protocol::Offset::TARGET_TEMP]);
+            this->target_temperature = setting_temp_to_celsius_(packet[(int) mitsubishi_protocol::Offset::TARGET_TEMP]);
           }
 
           this->publish_state();
-          return PacketType::settings;
+          return PacketType::SETTINGS;
           break;
         case (uint8_t) mitsubishi_protocol::InfoType::ROOM_TEMP:
           ESP_LOGD(TAG, "got room temp info");
           float temperature;
           if (packet[(int) mitsubishi_protocol::Offset::ROOM_TEMP_05] != 0) {
-            temperature = temp_05_to_celsius(packet[(int) mitsubishi_protocol::Offset::ROOM_TEMP_05]);
+            temperature = temp_05_to_celsius_(packet[(int) mitsubishi_protocol::Offset::ROOM_TEMP_05]);
           } else {
-            temperature = room_temp_to_celsius(packet[(int) mitsubishi_protocol::Offset::ROOM_TEMP]);
+            temperature = room_temp_to_celsius_(packet[(int) mitsubishi_protocol::Offset::ROOM_TEMP]);
           }
           if (!this->inject_enable_) {
             this->current_temperature = temperature;
@@ -491,7 +491,7 @@ PacketType ClimateMitsubishi::read_packet() {
           if (this->control_temperature_sensor_ != nullptr) {
             this->control_temperature_sensor_->publish_state(temperature);
           }
-          return PacketType::room_temp;
+          return PacketType::ROOM_TEMP;
           break;
         case (uint8_t) mitsubishi_protocol::InfoType::STATUS:
           ESP_LOGD(TAG, "got status info");
@@ -519,7 +519,7 @@ PacketType ClimateMitsubishi::read_packet() {
             }
           }
           this->publish_state();
-          return PacketType::status;
+          return PacketType::STATUS;
           break;
         case (uint8_t) mitsubishi_protocol::InfoType::SENSORS:
           ESP_LOGD(TAG, "got room sensors info");
@@ -533,25 +533,25 @@ PacketType ClimateMitsubishi::read_packet() {
           }
           if (this->fan_velocity_sensor_ != nullptr) {
             this->fan_velocity_sensor_->publish_state(
-                (float) convert_fan_velocity(packet[(int) mitsubishi_protocol::Offset::FAN_VELOCITY]));
+                (float) convert_fan_velocity_(packet[(int) mitsubishi_protocol::Offset::FAN_VELOCITY]));
           }
-          return PacketType::sensors;
+          return PacketType::SENSORS;
           break;
         default:
           ESP_LOGD(TAG, "got unknown info: %i", packet[(int) mitsubishi_protocol::Offset::INFO_TYPE]);
-          return PacketType::unknown;
+          return PacketType::UNKNOWN;
           break;
       }
       break;
     default:
       ESP_LOGD(TAG, "unknown packet type");
-      return PacketType::unknown;
+      return PacketType::UNKNOWN;
       break;
   }
-  return PacketType::unknown;
+  return PacketType::UNKNOWN;
 }
 
-uint8_t ClimateMitsubishi::checksum(uint8_t *packet, size_t len) {
+uint8_t ClimateMitsubishi::checksum_(const uint8_t *packet, size_t len) {
   uint8_t sum = 0;
   for (int i = 0; i < len; i++) {
     sum += packet[i];
