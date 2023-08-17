@@ -441,6 +441,7 @@ PacketType ClimateMitsubishi::read_packet() {
   switch(packet[1]) {
     case 0x7a: //connect success
       ESP_LOGD(TAG, "connect success");
+      this->connected_ = true;
       return PacketType::connect_success;
       break;
     case 0x61: //set success
