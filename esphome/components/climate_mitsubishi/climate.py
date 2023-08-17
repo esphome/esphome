@@ -133,7 +133,6 @@ CONFIG_SCHEMA = (
                     ),
                 }
             )
-            .extend(select.SELECT_SCHEMA)
             .extend(cv.COMPONENT_SCHEMA),
         }
     )
