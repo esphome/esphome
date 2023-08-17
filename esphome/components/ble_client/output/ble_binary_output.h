@@ -32,7 +32,6 @@ class BLEBinaryOutput : public output::BinaryOutput, public BLEClientNode, publi
   bool require_response_;
   espbt::ESPBTUUID service_uuid_;
   espbt::ESPBTUUID char_uuid_;
-  espbt::ClientState client_state_;
 };
 
 }  // namespace ble_client

@@ -18,6 +18,7 @@ void BLEBinaryOutput::dump_config() {
 
 void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                           esp_ble_gattc_cb_param_t *param) {
+  ESP_LOGD(TAG, "[%s] Event %d.", this->char_uuid_.to_string().c_str(), event);
   switch (event) {
     case ESP_GATTC_WRITE_CHAR_EVT: {
       if (param->write.status == 0) {
@@ -40,7 +41,7 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
 }
 
 void BLEBinaryOutput::write_state(bool state) {
-  if (this->client_state_ != espbt::ClientState::ESTABLISHED) {
+  if (this->node_state != espbt::ClientState::ESTABLISHED) {
     ESP_LOGW(TAG, "[%s] Not connected to BLE client.  State update can not be written.",
              this->char_uuid_.to_string().c_str());
     return;
