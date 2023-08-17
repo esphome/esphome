@@ -89,7 +89,7 @@ SUPPORTED_SWING_MODES_OPTIONS = {
 
 SUPPORTED_CLIMATE_MODES_OPTIONS = {
     "OFF": ClimateMode.CLIMATE_MODE_OFF,  # always available
-    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,  # always available
+    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,  # always available
     "COOL": ClimateMode.CLIMATE_MODE_COOL,
     "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
     "DRY": ClimateMode.CLIMATE_MODE_DRY,

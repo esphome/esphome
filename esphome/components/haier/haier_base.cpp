@@ -171,8 +171,8 @@ void HaierClimateBase::set_answer_timeout(uint32_t timeout) {
 
 void HaierClimateBase::set_supported_modes(const std::set<climate::ClimateMode> &modes) {
   this->traits_.set_supported_modes(modes);
-  this->traits_.add_supported_mode(climate::CLIMATE_MODE_OFF);   // Always available
-  this->traits_.add_supported_mode(climate::CLIMATE_MODE_AUTO);  // Always available
+  this->traits_.add_supported_mode(climate::CLIMATE_MODE_OFF);        // Always available
+  this->traits_.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);  // Always available
 }
 
 void HaierClimateBase::set_supported_presets(const std::set<climate::ClimatePreset> &presets) {
