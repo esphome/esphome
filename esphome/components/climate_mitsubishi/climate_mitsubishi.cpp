@@ -1,3 +1,4 @@
+#include <chrono>
 #include <string>
 #include "esphome/components/climate/climate.h"
 #include "esphome/components/climate/climate_mode.h"
@@ -15,6 +16,9 @@ namespace esphome {
 namespace climate_mitsubishi {
 
 static const char *const TAG = "mitsubishi.climate";
+constexpr size_t CONNECT_RETRY_INTERVAL_MS = 10000;
+constexpr size_t INFO_REQUEST_INTERVAL_MS = 400;
+constexpr size_t SETTINGS_REQUEST_INTERVAL_MS = 5000;
 
 ClimateMitsubishi::ClimateMitsubishi()
     : compressor_frequency_sensor_(nullptr),
@@ -26,8 +30,6 @@ ClimateMitsubishi::ClimateMitsubishi()
       remote_temperature_number_(nullptr),
       vertical_airflow_select_(nullptr),
       high_precision_temp_setting_(false),
-      last_status_request_(0),
-      last_settings_request_(0),
       status_rotation_(0),
       temperature_offset_(0) {
   this->traits_ = climate::ClimateTraits();
@@ -223,14 +225,19 @@ void ClimateMitsubishi::setup() {
 }
 
 void ClimateMitsubishi::loop() {
-  if (!this->connected_ && millis() > last_connect_attempt_ + 3000) {
+  std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
+  if ((!this->connected_) &&
+      (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_connect_attempt_timestamp_).count() >
+       CONNECT_RETRY_INTERVAL_MS)) {
     this->setup();
-    last_connect_attempt_ = millis();
+    this->last_connect_attempt_timestamp_ = now;
+    return;
   }
   while (available() != 0) {
     read_packet_();
   }
-  if (millis() > last_status_request_ + 400) {
+  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_status_request_timestamp_).count() >
+      INFO_REQUEST_INTERVAL_MS) {
     switch (status_rotation_) {
       case 0:
         request_info_((uint8_t) mitsubishi_protocol::InfoType::STATUS);
@@ -248,13 +255,14 @@ void ClimateMitsubishi::loop() {
     status_rotation_++;
     if (status_rotation_ > 3)
       status_rotation_ = 0;
-    last_status_request_ = millis();
+    last_status_request_timestamp_ = now;
   }
 
-  if (millis() > last_settings_request_ + 5000) {
+  if (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_settings_request_timestamp_).count() >
+      SETTINGS_REQUEST_INTERVAL_MS) {
     request_info_((uint8_t) mitsubishi_protocol::InfoType::SETTINGS);
     read_packet_();
-    last_settings_request_ = 0;
+    last_settings_request_timestamp_ = now;
   }
 }
 

@@ -102,9 +102,9 @@ class ClimateMitsubishi : public esphome::Component,
   bool high_precision_temp_setting_;
   bool connected_;
   bool inject_enable_;
-  int last_connect_attempt_;
-  int last_status_request_;
-  int last_settings_request_;
+  std::chrono::steady_clock::time_point last_connect_attempt_timestamp_;
+  std::chrono::steady_clock::time_point last_status_request_timestamp_;
+  std::chrono::steady_clock::time_point last_settings_request_timestamp_;
   int status_rotation_;
   float last_control_temperature_;
   float temperature_offset_;
