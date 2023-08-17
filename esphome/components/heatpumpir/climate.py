@@ -33,6 +33,7 @@ PROTOCOLS = {
     "greeya": Protocol.PROTOCOL_GREEYAA,
     "greeyan": Protocol.PROTOCOL_GREEYAN,
     "greeyac": Protocol.PROTOCOL_GREEYAC,
+    "greeyt": Protocol.PROTOCOL_GREEYT,
     "hisense_aud": Protocol.PROTOCOL_HISENSE_AUD,
     "hitachi": Protocol.PROTOCOL_HITACHI,
     "hyundai": Protocol.PROTOCOL_HYUNDAI,
