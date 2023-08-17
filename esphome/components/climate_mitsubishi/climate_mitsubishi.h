@@ -70,7 +70,7 @@ class ClimateMitsubishi : public esphome::Component,
 
   protected:
   esphome::climate::ClimateTraits traits() override;
-  
+
   esphome::climate::ClimateMode mode_to_climate_mode(uint8_t mode);
   std::string fan_to_custom_fan_mode(uint8_t fan);
   std::string vertical_vane_to_vertical_airflow_select(uint8_t vertical_vane);
@@ -119,7 +119,7 @@ class ClimateMitsubishi : public esphome::Component,
   float temperature_offset_;
 };
 
-class ClimateMitsubishiInjectEnableSwitch : public esphome::Component, 
+class ClimateMitsubishiInjectEnableSwitch : public esphome::Component,
                                             public esphome::switch_::Switch {
   public:
   void write_state(bool state) override;

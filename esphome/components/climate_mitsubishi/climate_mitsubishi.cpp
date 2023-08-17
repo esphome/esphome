@@ -27,8 +27,8 @@ ClimateMitsubishi::ClimateMitsubishi()
     vertical_airflow_select_(nullptr),
     high_precision_temp_setting(false),
     last_status_request_(0),
-    last_settings_request_(0), 
-    status_rotation_(0), 
+    last_settings_request_(0),
+    status_rotation_(0),
     temperature_offset_(0) {
   this->traits_ = climate::ClimateTraits();
   this->traits_.set_supported_modes({climate::CLIMATE_MODE_OFF,
@@ -233,7 +233,7 @@ void ClimateMitsubishi::setup() {
   ESP_LOGD(TAG, "writing connect packet");
   this->write_array(mitsubishi_protocol::connect_packet, mitsubishi_protocol::connect_len);
   this->flush();
-  
+
   ESP_LOGD(TAG, "reading response");
   if(read_packet() != PacketType::connect_success) {
     ESP_LOGE(TAG, "Invalid response to connect request received");
@@ -403,13 +403,8 @@ PacketType ClimateMitsubishi::read_packet() {
   uint8_t data_length;
 
   int delay_count = 0;
-  while(available() == 0) {
-    delay(50);
-    delay_count++;
-    if(delay_count > 10) {
-      ESP_LOGE(TAG, "timed out waiting for packet");
-      return PacketType::no_response;
-    }
+  if(available() == 0) {
+    return PacketType::no_response;
   }
 
   //seek for first header byte

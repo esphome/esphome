@@ -1,5 +1,7 @@
 #include "climate_mitsubishi.h"
 
+#pragma once
+
 namespace esphome {
 namespace climate_mitsubishi {
 namespace mitsubishi_protocol {
