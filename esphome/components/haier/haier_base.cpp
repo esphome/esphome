@@ -72,7 +72,7 @@ HaierClimateBase::HaierClimateBase()
   this->traits_ = climate::ClimateTraits();
   this->traits_.set_supported_modes({climate::CLIMATE_MODE_OFF, climate::CLIMATE_MODE_COOL, climate::CLIMATE_MODE_HEAT,
                                      climate::CLIMATE_MODE_FAN_ONLY, climate::CLIMATE_MODE_DRY,
-                                     climate::CLIMATE_MODE_AUTO});
+                                     climate::CLIMATE_MODE_HEAT_COOL});
   this->traits_.set_supported_fan_modes(
       {climate::CLIMATE_FAN_AUTO, climate::CLIMATE_FAN_LOW, climate::CLIMATE_FAN_MEDIUM, climate::CLIMATE_FAN_HIGH});
   this->traits_.set_supported_swing_modes({climate::CLIMATE_SWING_OFF, climate::CLIMATE_SWING_BOTH,
@@ -171,8 +171,8 @@ void HaierClimateBase::set_answer_timeout(uint32_t timeout) {
 
 void HaierClimateBase::set_supported_modes(const std::set<climate::ClimateMode> &modes) {
   this->traits_.set_supported_modes(modes);
-  this->traits_.add_supported_mode(climate::CLIMATE_MODE_OFF);   // Always available
-  this->traits_.add_supported_mode(climate::CLIMATE_MODE_AUTO);  // Always available
+  this->traits_.add_supported_mode(climate::CLIMATE_MODE_OFF);        // Always available
+  this->traits_.add_supported_mode(climate::CLIMATE_MODE_HEAT_COOL);  // Always available
 }
 
 void HaierClimateBase::set_supported_presets(const std::set<climate::ClimatePreset> &presets) {
