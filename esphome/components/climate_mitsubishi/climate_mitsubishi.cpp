@@ -136,7 +136,7 @@ uint8_t ClimateMitsubishi::climate_mode_to_mode_(ClimateMode mode) {
   }
 }
 
-uint8_t ClimateMitsubishi::custom_fan_mode_to_fan_(const std::string& fan_mode) {
+uint8_t ClimateMitsubishi::custom_fan_mode_to_fan_(const std::string &fan_mode) {
   if (str_equals_case_insensitive("Auto", fan_mode)) {
     return (uint8_t) mitsubishi_protocol::FanMode::AUTO;
   } else if (str_equals_case_insensitive("Quiet", fan_mode)) {
@@ -164,7 +164,7 @@ uint8_t fan_mode_to_fan(climate::ClimateFanMode fan_mode) {
   }
 }
 
-uint8_t ClimateMitsubishi::vertical_airflow_select_to_vertical_vane_(const std::string& swing_mode) {
+uint8_t ClimateMitsubishi::vertical_airflow_select_to_vertical_vane_(const std::string &swing_mode) {
   if (str_equals_case_insensitive("Auto", swing_mode)) {
     return (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_AUTO;
   } else if (str_equals_case_insensitive("1", swing_mode)) {
