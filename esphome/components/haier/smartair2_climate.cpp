@@ -178,7 +178,9 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
       break;
 #else
     case ProtocolPhases::SENDING_SIGNAL_LEVEL:
-    case ProtocolPhases::WAITING_SIGNAL_LEVEL_ANSWER this->set_phase(ProtocolPhases::IDLE); break;
+    case ProtocolPhases::WAITING_SIGNAL_LEVEL_ANSWER:
+      this->set_phase(ProtocolPhases::IDLE);
+      break;
 #endif
     case ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST:
     case ProtocolPhases::WAITING_UPDATE_SIGNAL_ANSWER:
