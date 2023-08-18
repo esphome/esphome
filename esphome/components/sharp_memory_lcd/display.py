@@ -14,7 +14,6 @@ SharpMemoryLCD = sharp_memory_lcd_ns.class_(
 SharpMemoryLCDRef = SharpMemoryLCD.operator("ref")
 
 CONF_DISP_PIN = "disp_pin"
-CONF_SHARP_CS_PIN = "sharp_cs_pin"
 CONF_EXTMODE_PIN = "extmode_pin"
 CONF_EXTCOMIN_PIN = "extcomin_pin"
 CONF_INVERT_COLOR = "invert_color"
