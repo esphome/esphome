@@ -108,7 +108,6 @@ size_t SharpMemoryLCD::get_buffer_length_() {
 
 void HOT SharpMemoryLCD::draw_absolute_pixel_internal(int x, int y, Color color) {
   if (x >= this->get_width_internal() || x < 0 || y >= this->get_height_internal() || y < 0) {
-    ESP_LOGW(TAG, "Position out of area: %dx%d", x, y);
     return;
   }
   int width = this->get_width_internal() / 8u;
