@@ -12,12 +12,8 @@
 #include <esp_heap_caps.h>
 #include <esp_system.h>
 
-#if ESP_IDF_VERSION_MAJOR >= 4
 #include <esp32/rom/rtc.h>
 #include <esp_chip_info.h>
-#else
-#include <rom/rtc.h>
-#endif
 
 #endif  // USE_ESP32
 
