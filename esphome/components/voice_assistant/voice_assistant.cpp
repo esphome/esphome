@@ -204,10 +204,11 @@ void VoiceAssistant::loop() {
       break;
     }
     case State::STARTING_PIPELINE: {
+      this->read_microphone_();
       break;  // State changed when udp server port received
     }
     case State::STREAMING_MICROPHONE: {
-      this->read_microphone_();
+      size_t bytes_read = this->read_microphone_();
 #ifdef USE_ESP_ADF
       if (rb_bytes_filled(this->ring_buffer_) >= SEND_BUFFER_SIZE) {
         rb_read(this->ring_buffer_, (char *) this->send_buffer_, SEND_BUFFER_SIZE, 0);
@@ -215,8 +216,8 @@ void VoiceAssistant::loop() {
                               sizeof(this->dest_addr_));
       }
 #else
-      this->socket_->sendto(this->input_buffer_, INPUT_BUFFER_SIZE * sizeof(int16_t), 0,
-                            (struct sockaddr *) &this->dest_addr_, sizeof(this->dest_addr_));
+      this->socket_->sendto(this->input_buffer_, bytes_read, 0, (struct sockaddr *) &this->dest_addr_,
+                            sizeof(this->dest_addr_));
 #endif
       break;
     }
