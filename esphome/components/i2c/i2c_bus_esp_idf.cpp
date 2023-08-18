@@ -202,11 +202,13 @@ ErrorCode IDFI2CBus::writev(uint8_t address, WriteBuffer *buffers, size_t cnt, b
       return ERROR_UNKNOWN;
     }
   }
-  err = i2c_master_stop(cmd);
-  if (err != ESP_OK) {
-    ESP_LOGVV(TAG, "TX to %02X master stop failed: %s", address, esp_err_to_name(err));
-    i2c_cmd_link_delete(cmd);
-    return ERROR_UNKNOWN;
+  if (stop) {
+    err = i2c_master_stop(cmd);
+    if (err != ESP_OK) {
+      ESP_LOGVV(TAG, "TX to %02X master stop failed: %s", address, esp_err_to_name(err));
+      i2c_cmd_link_delete(cmd);
+      return ERROR_UNKNOWN;
+    }
   }
   err = i2c_master_cmd_begin(port_, cmd, 20 / portTICK_PERIOD_MS);
   i2c_cmd_link_delete(cmd);
