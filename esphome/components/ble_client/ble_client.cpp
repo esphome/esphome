@@ -57,6 +57,7 @@ bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t es
 
   if (!this->services_.empty() && this->all_nodes_established_()) {
     this->release_services();
+    ESP_LOGD(TAG, "All clients established, services released");
   }
   return true;
 }

@@ -15,15 +15,15 @@ class BLESensorNotifyTrigger : public Trigger<float>, public BLESensor {
                            esp_ble_gattc_cb_param_t *param) override {
     switch (event) {
       case ESP_GATTC_NOTIFY_EVT: {
-        if (param->notify.conn_id != this->sensor_->parent()->get_conn_id() ||
-            param->notify.handle != this->sensor_->handle)
-          break;
-        this->trigger(this->sensor_->parent()->parse_char_value(param->notify.value, param->notify.value_len));
+        if (param->notify.handle == this->sensor_->handle)
+          this->trigger(this->sensor_->parent()->parse_char_value(param->notify.value, param->notify.value_len));
+        break;
       }
-      break;
-      case ESP_GATTC_WRITE_DESCR_EVT: {
-        // confirms notifications have been enabled.
-        this->node_state = espbt::ClientState::ESTABLISHED;
+      case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
+        // confirms notifications are being listened for. While enabling of notifications may still be in
+        // progress by the parent, we assume it will happen.
+        if (param->reg_for_notify.status == ESP_GATT_OK && param->reg_for_notify.handle == this->sensor_->handle)
+          this->node_state = espbt::ClientState::ESTABLISHED;
         break;
       }
       default:

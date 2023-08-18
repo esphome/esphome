@@ -18,7 +18,6 @@ void BLEBinaryOutput::dump_config() {
 
 void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                                           esp_ble_gattc_cb_param_t *param) {
-  ESP_LOGD(TAG, "[%s] Event %d.", this->char_uuid_.to_string().c_str(), event);
   switch (event) {
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
