@@ -6,6 +6,10 @@
 namespace esphome {
 namespace sharp_memory_lcd {
 
+static const uint8_t SHARPMEM_BIT_WRITECMD = 0x01;  // 0x80 in LSB format
+static const uint8_t SHARPMEM_BIT_VCOM = 0x02;      // 0x40 in LSB format
+static const uint8_t SHARPMEM_BIT_CLEAR = 0x04;     // 0x20 in LSB format
+
 static const char *const TAG = "sharp_memory_lcd";
 
 #define TOGGLE_VCOM \
