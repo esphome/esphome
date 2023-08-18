@@ -28,7 +28,7 @@ CONFIG_SCHEMA = (
             cv.Optional(CONF_EXTCOMIN_PIN): pins.gpio_output_pin_schema,
             cv.Required(CONF_WIDTH): cv.int_,
             cv.Required(CONF_HEIGHT): cv.int_,
-            cv.Optional(CONF_INVERT_COLOR): cv.boolean,
+            cv.Optional(CONF_INVERT_COLOR, default=False): cv.boolean,
         }
     )
     .extend(cv.polling_component_schema("1s"))
