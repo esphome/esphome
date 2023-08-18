@@ -22,8 +22,8 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
     case ESP_GATTC_SEARCH_CMPL_EVT: {
       auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
       if (chr == nullptr) {
-        ESP_LOGW(TAG, "Characteristic %s was not found in service %s",
-                 this->char_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
+        ESP_LOGW(TAG, "Characteristic %s was not found in service %s", this->char_uuid_.to_string().c_str(),
+                 this->service_uuid_.to_string().c_str());
         break;
       }
       this->char_handle_ = chr->handle;
@@ -35,8 +35,8 @@ void BLEBinaryOutput::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_i
         this->write_type_ = ESP_GATT_WRITE_TYPE_NO_RSP;
         ESP_LOGD(TAG, "Write type: ESP_GATT_WRITE_TYPE_NO_RSP");
       } else {
-        ESP_LOGE(TAG, "Characteristic %s does not allow writing with%s response",
-                 this->char_uuid_.to_string().c_str(), this->require_response_ ? "" : "out");
+        ESP_LOGE(TAG, "Characteristic %s does not allow writing with%s response", this->char_uuid_.to_string().c_str(),
+                 this->require_response_ ? "" : "out");
         break;
       }
       this->node_state = espbt::ClientState::ESTABLISHED;
@@ -67,7 +67,7 @@ void BLEBinaryOutput::write_state(bool state) {
   ESP_LOGV(TAG, "[%s] Write State: %d", this->char_uuid_.to_string().c_str(), state_as_uint);
   esp_err_t err =
       esp_ble_gattc_write_char(this->parent()->get_gattc_if(), this->parent()->get_conn_id(), this->char_handle_,
-                             sizeof(state_as_uint), &state_as_uint, this->write_type_, ESP_GATT_AUTH_REQ_NONE);
+                               sizeof(state_as_uint), &state_as_uint, this->write_type_, ESP_GATT_AUTH_REQ_NONE);
 }
 
 }  // namespace ble_client

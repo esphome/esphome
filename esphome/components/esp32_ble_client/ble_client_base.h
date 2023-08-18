@@ -40,9 +40,7 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   bool connected() { return this->state_ == espbt::ClientState::ESTABLISHED; }
 
-  void set_auto_connect(bool auto_connect) {
-    this->auto_connect_ = auto_connect;
-  }
+  void set_auto_connect(bool auto_connect) { this->auto_connect_ = auto_connect; }
 
   void set_address(uint64_t address) {
     this->address_ = address;
@@ -89,9 +87,8 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
 
   virtual void set_connection_type(espbt::ConnectionType ct) { this->connection_type_ = ct; }
 
-  bool check_addr(esp_bd_addr_t &addr) {
-    return memcmp(addr, this->remote_bda_, sizeof(esp_bd_addr_t)) == 0;
-  }
+  bool check_addr(esp_bd_addr_t &addr) { return memcmp(addr, this->remote_bda_, sizeof(esp_bd_addr_t)) == 0; }
+
  protected:
   int gattc_if_;
   esp_bd_addr_t remote_bda_;
@@ -108,7 +105,6 @@ class BLEClientBase : public espbt::ESPBTClient, public Component {
   std::vector<BLEService *> services_;
 
   void log_event_(const char *name);
-
 };
 
 }  // namespace esp32_ble_client

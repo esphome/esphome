@@ -95,8 +95,8 @@ void BLESensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t ga
     case ESP_GATTC_REG_FOR_NOTIFY_EVT: {
       if (param->reg_for_notify.handle == this->handle) {
         if (param->reg_for_notify.status != ESP_GATT_OK) {
-          ESP_LOGW(TAG, "Error registering for notifications at handle %d, status=%d",
-                 param->reg_for_notify.handle, param->reg_for_notify.status);
+          ESP_LOGW(TAG, "Error registering for notifications at handle %d, status=%d", param->reg_for_notify.handle,
+                   param->reg_for_notify.status);
           break;
         }
         this->node_state = espbt::ClientState::ESTABLISHED;
