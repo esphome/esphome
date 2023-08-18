@@ -9,7 +9,6 @@
 namespace esphome {
 namespace sharp_memory_lcd {
 
-
 class SharpMemoryLCD;
 
 using sharp_memory_lcd_writer_t = std::function<void(SharpMemoryLCD &)>;
