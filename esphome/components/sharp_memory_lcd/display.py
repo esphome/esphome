@@ -33,7 +33,7 @@ CONFIG_SCHEMA = (
         }
     )
     .extend(cv.polling_component_schema("1s"))
-    .extend(spi.spi_device_schema())
+    .extend(spi.spi_device_schema(cs_pin_required=True))
 )
 
 
