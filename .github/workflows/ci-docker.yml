@@ -5,7 +5,7 @@ name: CI for docker images
 # yamllint disable-line rule:truthy
 on:
   push:
-    branches: [dev, beta, release, testing]
+    branches: [dev, beta, release]
     paths:
       - "docker/**"
       - ".github/workflows/**"
