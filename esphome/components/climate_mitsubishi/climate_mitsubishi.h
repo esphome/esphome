@@ -1,6 +1,7 @@
 #pragma once
 
 #include <chrono>
+#include <list>
 #include <utility>
 
 #include "esphome/components/climate/climate.h"
@@ -10,11 +11,12 @@
 #include "esphome/components/number/number.h"
 #include "esphome/components/select/select.h"
 #include "esphome/components/uart/uart.h"
+#include "mitsubishi_protocol.h"
 
 namespace esphome {
 namespace climate_mitsubishi {
 
-enum class PacketType {
+enum class ResponseType {
   NO_RESPONSE,
   INVALID,
   UNKNOWN,
@@ -24,6 +26,24 @@ enum class PacketType {
   ROOM_TEMP,
   STATUS,
   SENSORS
+};
+
+enum class RequestState {
+  CONSTRUCTED,
+  QUEUED,
+  WRITING,
+  WAITING,
+  READING
+};
+
+struct RequestSlot {
+  uint8_t request_packet_[mitsubishi_protocol::PACKET_LEN];
+
+  RequestState state_;
+  ResponseType response_type_;
+  ResponseType expected_response_type_;
+
+  std::chrono::steady_clock::time_point transmit_timestamp_;
 };
 
 class ClimateMitsubishi : public esphome::Component,
@@ -77,11 +97,10 @@ class ClimateMitsubishi : public esphome::Component,
   uint8_t celsius_to_temp_05_(float celsius);
   uint8_t celsius_to_setting_temp_(float celsius);
 
-  PacketType read_packet_();
-  void parse_status_packet_(uint8_t *data);
-  void parse_roomtemp_packet_(uint8_t *data);
-  void parse_sensors_packet_(uint8_t *data);
-  void parse_settings_packet_(uint8_t *data);
+  ResponseType read_packet_();
+
+  RequestSlot *new_request_slot_();
+  void prepare_request_slot_(RequestSlot *slot);
 
   void request_info_(uint8_t type);
 
@@ -106,6 +125,8 @@ class ClimateMitsubishi : public esphome::Component,
   std::chrono::steady_clock::time_point last_connect_attempt_timestamp_;
   std::chrono::steady_clock::time_point last_status_request_timestamp_;
   std::chrono::steady_clock::time_point last_settings_request_timestamp_;
+  std::list<RequestSlot*> pending_requests_;
+  RequestSlot active_request_;
   int status_rotation_;
   float last_control_temperature_;
   float temperature_offset_;

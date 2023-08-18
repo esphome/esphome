@@ -18,7 +18,8 @@ namespace climate_mitsubishi {
 static const char *const TAG = "mitsubishi.climate";
 constexpr size_t CONNECT_RETRY_INTERVAL_MS = 10000;
 constexpr size_t INFO_REQUEST_INTERVAL_MS = 400;
-constexpr size_t SETTINGS_REQUEST_INTERVAL_MS = 5000;
+constexpr size_t SETTINGS_REQUEST_INTERVAL_MS = 2000;
+constexpr size_t REQUEST_TIMEOUT_MS = 1000;
 
 ClimateMitsubishi::ClimateMitsubishi()
     : compressor_frequency_sensor_(nullptr),
@@ -211,8 +212,18 @@ void ClimateMitsubishi::setup() {
   this->write_array(mitsubishi_protocol::CONNECT_PACKET, mitsubishi_protocol::CONNECT_LEN);
   this->flush();
 
-  ESP_LOGD(TAG, "reading response");
-  if (read_packet_() != PacketType::CONNECT_SUCCESS) {
+  ESP_LOGD(TAG, "blocking until response received");
+  int delay_count = 0;
+  while (available() < 1) {
+    delay(10);
+    delay_count++;
+    if(delay_count>20) {
+      ESP_LOGE(TAG, "timed out waiting for connect response");
+      return;
+    }
+  }
+  
+  if (read_packet_() != ResponseType::CONNECT_SUCCESS) {
     ESP_LOGE(TAG, "Invalid response to connect request received");
     this->connected_ = false;
     return;
@@ -226,103 +237,125 @@ void ClimateMitsubishi::setup() {
 
 void ClimateMitsubishi::loop() {
   std::chrono::steady_clock::time_point now = std::chrono::steady_clock::now();
-  if ((!this->connected_) &&
-      (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_connect_attempt_timestamp_).count() >
-       CONNECT_RETRY_INTERVAL_MS)) {
-    this->setup();
-    this->last_connect_attempt_timestamp_ = now;
+  if (!this->connected_){
+    if (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_connect_attempt_timestamp_).count() >
+        CONNECT_RETRY_INTERVAL_MS) {
+      this->setup();
+      this->last_connect_attempt_timestamp_ = now;
+    }
     return;
   }
-  while (available() != 0) {
-    read_packet_();
+
+  if(this->pending_requests_.front() != nullptr) {
+    switch(this->pending_requests_.front()->state_) {
+      case RequestState::QUEUED:
+      case RequestState::WRITING:
+        ESP_LOGD(TAG, "writing request");
+        this->pending_requests_.front()->state_ = RequestState::WRITING;
+        write_array(this->pending_requests_.front()->request_packet_, mitsubishi_protocol::PACKET_LEN);
+        this->pending_requests_.front()->transmit_timestamp_ = now;
+        this->pending_requests_.front()->state_ = RequestState::WAITING;
+        break;
+      case RequestState::READING:
+      case RequestState::WAITING:
+        if(available() > 0) {
+          ESP_LOGD(TAG, "reading request response");
+          this->pending_requests_.front()->state_ = RequestState::READING;
+          read_packet_();
+          free(this->pending_requests_.front());
+          this->pending_requests_.pop_front();
+          break;
+        }
+        if (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->pending_requests_.front()->transmit_timestamp_).count() >
+            REQUEST_TIMEOUT_MS) {
+          free(this->pending_requests_.front());
+          this->pending_requests_.pop_front();
+          ESP_LOGE(TAG, "timed out waiting for request response");
+        }
+        break;
+      default:
+        break;
+    }
   }
+
   if (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_status_request_timestamp_).count() >
       INFO_REQUEST_INTERVAL_MS) {
     switch (status_rotation_) {
       case 0:
         request_info_((uint8_t) mitsubishi_protocol::InfoType::STATUS);
-        read_packet_();
         break;
       case 1:
         request_info_((uint8_t) mitsubishi_protocol::InfoType::SENSORS);
-        read_packet_();
         break;
       case 2:
         request_info_((uint8_t) mitsubishi_protocol::InfoType::ROOM_TEMP);
-        read_packet_();
         break;
     }
     status_rotation_++;
     if (status_rotation_ > 3)
       status_rotation_ = 0;
     last_status_request_timestamp_ = now;
+    return;
   }
 
   if (std::chrono::duration_cast<std::chrono::milliseconds>(now - this->last_settings_request_timestamp_).count() >
       SETTINGS_REQUEST_INTERVAL_MS) {
     request_info_((uint8_t) mitsubishi_protocol::InfoType::SETTINGS);
-    read_packet_();
     last_settings_request_timestamp_ = now;
   }
 }
 
 void ClimateMitsubishi::control(const esphome::climate::ClimateCall &call) {
-  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
-  memset(packet, 0, mitsubishi_protocol::PACKET_LEN);
-  memcpy(packet, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
-
-  ESP_LOGD(TAG, "got control request");
+  RequestSlot *slot = this->new_request_slot_();
+  memcpy(slot->request_packet_, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
 
   if (call.get_mode().has_value()) {
     // packet[(int)mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t)mitsubishi_protocol::SettingsMask1::POWER;
     if (call.get_mode() == ClimateMode::CLIMATE_MODE_OFF) {
       ESP_LOGD(TAG, "powering off");
-      packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::POWER;
-      packet[(int) mitsubishi_protocol::Offset::POWER] = (uint8_t) mitsubishi_protocol::Power::OFF;
+      slot->request_packet_[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::POWER;
+      slot->request_packet_[(int) mitsubishi_protocol::Offset::POWER] = (uint8_t) mitsubishi_protocol::Power::OFF;
     } else {
       if (!power_) {
         ESP_LOGD(TAG, "powering on");
-        packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] +=
+        slot->request_packet_[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] +=
             (uint8_t) mitsubishi_protocol::SettingsMask1::POWER;
-        packet[(int) mitsubishi_protocol::Offset::POWER] = (uint8_t) mitsubishi_protocol::Power::ON;
+        slot->request_packet_[(int) mitsubishi_protocol::Offset::POWER] = (uint8_t) mitsubishi_protocol::Power::ON;
       }
-      packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::MODE;
-      packet[(int) mitsubishi_protocol::Offset::MODE] = climate_mode_to_mode_(call.get_mode().value());
+      slot->request_packet_[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::MODE;
+      slot->request_packet_[(int) mitsubishi_protocol::Offset::MODE] = climate_mode_to_mode_(call.get_mode().value());
     }
   }
   if (call.get_target_temperature().has_value()) {
-    packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] +=
+    slot->request_packet_[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] +=
         (uint8_t) mitsubishi_protocol::SettingsMask1::TARGET_TEMP;
     if (high_precision_temp_setting_) {
-      packet[(int) mitsubishi_protocol::Offset::TARGET_TEMP_SET_05] =
+      slot->request_packet_[(int) mitsubishi_protocol::Offset::TARGET_TEMP_SET_05] =
           celsius_to_temp_05_(call.get_target_temperature().value());
     } else {
-      packet[(int) mitsubishi_protocol::Offset::TARGET_TEMP] =
+      slot->request_packet_[(int) mitsubishi_protocol::Offset::TARGET_TEMP] =
           celsius_to_setting_temp_(call.get_target_temperature().value());
     }
   }
   if (call.get_custom_fan_mode().has_value()) {
-    packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::FAN;
-    packet[(int) mitsubishi_protocol::Offset::FAN] = custom_fan_mode_to_fan_(call.get_custom_fan_mode().value());
+    slot->request_packet_[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::FAN;
+    slot->request_packet_[(int) mitsubishi_protocol::Offset::FAN] = custom_fan_mode_to_fan_(call.get_custom_fan_mode().value());
   } else if (call.get_fan_mode().has_value()) {
-    packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::FAN;
-    packet[(int) mitsubishi_protocol::Offset::FAN] = fan_mode_to_fan(call.get_fan_mode().value());
+    slot->request_packet_[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] += (uint8_t) mitsubishi_protocol::SettingsMask1::FAN;
+    slot->request_packet_[(int) mitsubishi_protocol::Offset::FAN] = fan_mode_to_fan(call.get_fan_mode().value());
   }
-  packet[mitsubishi_protocol::PACKET_LEN - 1] = checksum_(packet, mitsubishi_protocol::PACKET_LEN - 1);
-  write_array(packet, mitsubishi_protocol::PACKET_LEN);
+  this->prepare_request_slot_(slot);
 }
 
 void ClimateMitsubishi::set_vertical_airflow_direction(const std::string &direction) {
-  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
-  memset(packet, 0, mitsubishi_protocol::PACKET_LEN);
-  memcpy(packet, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
+  RequestSlot *slot = this->new_request_slot_();
+  memcpy(slot->request_packet_, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
 
-  packet[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] +=
+  slot->request_packet_[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] +=
       (uint8_t) mitsubishi_protocol::SettingsMask1::VERTICAL_VANE;
-  packet[(int) mitsubishi_protocol::Offset::VERTICAL_VANE] = this->vertical_airflow_select_to_vertical_vane_(direction);
+  slot->request_packet_[(int) mitsubishi_protocol::Offset::VERTICAL_VANE] = this->vertical_airflow_select_to_vertical_vane_(direction);
 
-  packet[mitsubishi_protocol::PACKET_LEN - 1] = checksum_(packet, mitsubishi_protocol::PACKET_LEN - 1);
-  write_array(packet, mitsubishi_protocol::PACKET_LEN);
+  this->prepare_request_slot_(slot);
 }
 
 void ClimateMitsubishi::set_temperature_offset(float offset) { this->temperature_offset_ = offset; }
@@ -338,52 +371,65 @@ void ClimateMitsubishi::inject_temperature(float temperature) {
   this->current_temperature = temperature;
 
   temperature += this->temperature_offset_;
-  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
-  memcpy(packet, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER_LEN);
+  RequestSlot *slot = this->new_request_slot_();
+  memcpy(slot->request_packet_, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER_LEN);
 
-  packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_ENABLE] = true;
+  slot->request_packet_[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_ENABLE] = true;
 
   // round to 0.5 increments
   temperature = temperature * 2;
   temperature = (float) (int) temperature;
   temperature = temperature / 2;
 
-  packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_1] = (uint8_t) (3 + ((temperature - 10) * 2));
-  packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_2] = celsius_to_temp_05_(temperature);
+  slot->request_packet_[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_1] = (uint8_t) (3 + ((temperature - 10) * 2));
+  slot->request_packet_[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_2] = celsius_to_temp_05_(temperature);
 
-  packet[mitsubishi_protocol::PACKET_LEN - 1] = checksum_(packet, mitsubishi_protocol::PACKET_LEN - 1);
-  write_array(packet, mitsubishi_protocol::PACKET_LEN);
+  this->prepare_request_slot_(slot);
 }
 
 void ClimateMitsubishi::disable_injection() {
-  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
-  memcpy(packet, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER_LEN);
+  RequestSlot *slot = this->new_request_slot_();
+  memcpy(slot->request_packet_, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER_LEN);
 
-  packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_ENABLE] = false;
+  slot->request_packet_[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_ENABLE] = false;
 
-  packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_1] = 0;
-  packet[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_2] = 0x80;
+  slot->request_packet_[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_1] = 0;
+  slot->request_packet_[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_2] = 0x80;
 
-  packet[mitsubishi_protocol::PACKET_LEN - 1] = checksum_(packet, mitsubishi_protocol::PACKET_LEN - 1);
-  write_array(packet, mitsubishi_protocol::PACKET_LEN);
+  this->prepare_request_slot_(slot);
 }
 
 void ClimateMitsubishi::request_info_(uint8_t type) {
   ESP_LOGD(TAG, "requesting info");
-  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
-  memcpy(packet, mitsubishi_protocol::INFO_HEADER, mitsubishi_protocol::INFO_HEADER_LEN);
+  RequestSlot *slot = this->new_request_slot_();
+  
+  memcpy(slot->request_packet_, mitsubishi_protocol::INFO_HEADER, mitsubishi_protocol::INFO_HEADER_LEN);
 
-  packet[(int) mitsubishi_protocol::Offset::INFO_TYPE] = type;
+  slot->request_packet_[(int) mitsubishi_protocol::Offset::INFO_TYPE] = type;
 
   for (int i = 6; i < 21; i++) {
-    packet[i] = 0x00;
+    slot->request_packet_[i] = 0x00;
   }
-
-  packet[mitsubishi_protocol::PACKET_LEN - 1] = checksum_(packet, mitsubishi_protocol::PACKET_LEN - 1);
-  write_array(packet, mitsubishi_protocol::PACKET_LEN);
+  this->prepare_request_slot_(slot);
 }
 
-PacketType ClimateMitsubishi::read_packet_() {
+RequestSlot *ClimateMitsubishi::new_request_slot_() {
+  RequestSlot *slot = (RequestSlot*)malloc(sizeof(RequestSlot));
+  memset(slot->request_packet_, 0, mitsubishi_protocol::PACKET_LEN);
+
+  slot->state_ = RequestState::CONSTRUCTED;
+
+  this->pending_requests_.push_back(slot);
+  if(this->pending_requests_.size() > 3) ESP_LOGW(TAG, "large queue size: %i", this->pending_requests_.size());
+  return slot;
+}
+
+void ClimateMitsubishi::prepare_request_slot_(RequestSlot *slot) {
+  slot->request_packet_[mitsubishi_protocol::PACKET_LEN - 1] = checksum_(slot->request_packet_, mitsubishi_protocol::PACKET_LEN - 1);
+  slot->state_ = RequestState::QUEUED;
+}
+
+ResponseType ClimateMitsubishi::read_packet_() {
   ESP_LOGD(TAG, "parsing packet");
   uint8_t packet[mitsubishi_protocol::PACKET_LEN];
   uint8_t data_length;
@@ -391,23 +437,22 @@ PacketType ClimateMitsubishi::read_packet_() {
   memset(packet, 0, mitsubishi_protocol::PACKET_LEN);
 
   if (available() < 1) {
-    return PacketType::NO_RESPONSE;
+    ESP_LOGE(TAG, "read_packet_ called when no serial data available");
+    return ResponseType::NO_RESPONSE;
   }
 
   // seek for first header byte
   bool found_first_byte = false;
   while (available() > 0) {
     packet[0] = read();
-    ESP_LOGD(TAG, "attempting read first byte: %i", packet[0]);
     if (packet[0] == mitsubishi_protocol::INFO_HEADER[0]) {
-      ESP_LOGD(TAG, "found first byte");
       found_first_byte = true;
       break;
     }
   }
   if (!found_first_byte) {
-    ESP_LOGD(TAG, "did not find first byte: %i", packet[0]);
-    return PacketType::NO_RESPONSE;
+    ESP_LOGE(TAG, "unable to find packet start");
+    return ResponseType::NO_RESPONSE;
   }
 
   read_array(&packet[1], mitsubishi_protocol::INFO_HEADER_LEN - 1);
@@ -415,7 +460,7 @@ PacketType ClimateMitsubishi::read_packet_() {
   if (packet[0] != mitsubishi_protocol::INFO_HEADER[0] || packet[2] != mitsubishi_protocol::INFO_HEADER[2] ||
       packet[3] != mitsubishi_protocol::INFO_HEADER[3]) {
     ESP_LOGD(TAG, "invalid header");
-    return PacketType::INVALID;
+    return ResponseType::INVALID;
   }
 
   data_length = packet[4];
@@ -431,16 +476,14 @@ PacketType ClimateMitsubishi::read_packet_() {
   switch (packet[1]) {
     case 0x7a:  // connect success
       ESP_LOGD(TAG, "connect success");
-      return PacketType::CONNECT_SUCCESS;
+      return ResponseType::CONNECT_SUCCESS;
       break;
     case 0x61:  // set success
       ESP_LOGD(TAG, "set success");
       request_info_((uint8_t) mitsubishi_protocol::InfoType::SETTINGS);
-      read_packet_();
-      return PacketType::SET_SUCCESS;
+      return ResponseType::SET_SUCCESS;
       break;
     case 0x62:  // info packet
-      ESP_LOGD(TAG, "got info packet");
       switch (packet[(int) mitsubishi_protocol::Offset::INFO_TYPE]) {
         case (uint8_t) mitsubishi_protocol::InfoType::SETTINGS:
           ESP_LOGD(TAG, "got settings info");
@@ -474,9 +517,8 @@ PacketType ClimateMitsubishi::read_packet_() {
           } else {
             this->target_temperature = setting_temp_to_celsius_(packet[(int) mitsubishi_protocol::Offset::TARGET_TEMP]);
           }
-
           this->publish_state();
-          return PacketType::SETTINGS;
+          return ResponseType::SETTINGS;
           break;
         case (uint8_t) mitsubishi_protocol::InfoType::ROOM_TEMP:
           ESP_LOGD(TAG, "got room temp info");
@@ -496,7 +538,7 @@ PacketType ClimateMitsubishi::read_packet_() {
           if (this->control_temperature_sensor_ != nullptr) {
             this->control_temperature_sensor_->publish_state(temperature);
           }
-          return PacketType::ROOM_TEMP;
+          return ResponseType::ROOM_TEMP;
           break;
         case (uint8_t) mitsubishi_protocol::InfoType::STATUS:
           ESP_LOGD(TAG, "got status info");
@@ -524,7 +566,7 @@ PacketType ClimateMitsubishi::read_packet_() {
             }
           }
           this->publish_state();
-          return PacketType::STATUS;
+          return ResponseType::STATUS;
           break;
         case (uint8_t) mitsubishi_protocol::InfoType::SENSORS:
           ESP_LOGD(TAG, "got room sensors info");
@@ -540,20 +582,20 @@ PacketType ClimateMitsubishi::read_packet_() {
             this->fan_velocity_sensor_->publish_state(
                 (float) convert_fan_velocity_(packet[(int) mitsubishi_protocol::Offset::FAN_VELOCITY]));
           }
-          return PacketType::SENSORS;
+          return ResponseType::SENSORS;
           break;
         default:
-          ESP_LOGD(TAG, "got unknown info: %i", packet[(int) mitsubishi_protocol::Offset::INFO_TYPE]);
-          return PacketType::UNKNOWN;
+          ESP_LOGW(TAG, "got unknown info: %i", packet[(int) mitsubishi_protocol::Offset::INFO_TYPE]);
+          return ResponseType::UNKNOWN;
           break;
       }
       break;
     default:
-      ESP_LOGD(TAG, "unknown packet type");
-      return PacketType::UNKNOWN;
+      ESP_LOGW(TAG, "unknown packet type");
+      return ResponseType::UNKNOWN;
       break;
   }
-  return PacketType::UNKNOWN;
+  return ResponseType::UNKNOWN;
 }
 
 uint8_t ClimateMitsubishi::checksum_(const uint8_t *packet, size_t len) {
