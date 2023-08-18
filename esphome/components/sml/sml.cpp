@@ -100,14 +100,14 @@ bool check_sml_data(const bytes &buffer) {
   }
 
   uint16_t crc_received = (buffer.at(buffer.size() - 2) << 8) | buffer.at(buffer.size() - 1);
-  uint16_t crc_calculated = crc16(buffer.data(), buffer.size(), 0x6e23, 0x8408, true, true);
+  uint16_t crc_calculated = crc16(buffer.data(), buffer.size() - 2, 0x6e23, 0x8408, true, true);
   crc_calculated = (crc_calculated >> 8) | (crc_calculated << 8);
   if (crc_received == crc_calculated) {
     ESP_LOGV(TAG, "Checksum verification successful with CRC16/X25.");
     return true;
   }
 
-  crc_calculated = crc16(buffer.data(), buffer.size(), 0xed50, 0x8408);
+  crc_calculated = crc16(buffer.data(), buffer.size() - 2, 0xed50, 0x8408);
   if (crc_received == crc_calculated) {
     ESP_LOGV(TAG, "Checksum verification successful with CRC16/KERMIT.");
     return true;

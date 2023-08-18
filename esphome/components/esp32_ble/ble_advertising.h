@@ -20,7 +20,7 @@ class BLEAdvertising {
   void remove_service_uuid(ESPBTUUID uuid);
   void set_scan_response(bool scan_response) { this->scan_response_ = scan_response; }
   void set_min_preferred_interval(uint16_t interval) { this->advertising_data_.min_interval = interval; }
-  void set_manufacturer_data(uint8_t *data, uint16_t size);
+  void set_manufacturer_data(const std::vector<uint8_t> &data);
 
   void start();
   void stop();

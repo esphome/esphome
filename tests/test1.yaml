@@ -348,6 +348,16 @@ mcp23s17:
     deviceaddress: 1
 
 sensor:
+  - platform: pmwcs3
+    i2c_id: i2c_bus
+    e25:
+      name: pmwcs3_e25
+    ec:
+      name: pmwcs3_ec
+    temperature:
+      name: pmwcs3_temperature
+    vwc:
+      name: pmwcs3_vwc
   - platform: gcja5
     pm_1_0:
       name: "Particulate Matter <1.0µm Concentration"
