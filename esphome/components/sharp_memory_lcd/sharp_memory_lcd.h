@@ -9,9 +9,6 @@
 namespace esphome {
 namespace sharp_memory_lcd {
 
-#define SHARPMEM_BIT_WRITECMD (0x01)  // 0x80 in LSB format
-#define SHARPMEM_BIT_VCOM (0x02)      // 0x40 in LSB format
-#define SHARPMEM_BIT_CLEAR (0x04)     // 0x20 in LSB format
 
 class SharpMemoryLCD;
 
