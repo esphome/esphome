@@ -36,12 +36,12 @@ CAN_SPEEDS_ESP32 = {
 }
 
 CAN_SPEEDS_ESP32_S2 = {
-    "12K5BPS": CanSpeed.CAN_12K5BPS,
-    "16KBPS": CanSpeed.CAN_16KBPS,
-    "20KBPS": CanSpeed.CAN_20KBPS,
     "1KBPS": CanSpeed.CAN_1KBPS,
     "5KBPS": CanSpeed.CAN_5KBPS,
     "10KBPS": CanSpeed.CAN_10KBPS,
+    "12K5BPS": CanSpeed.CAN_12K5BPS,
+    "16KBPS": CanSpeed.CAN_16KBPS,
+    "20KBPS": CanSpeed.CAN_20KBPS,
     **CAN_SPEEDS_ESP32,
 }
 
