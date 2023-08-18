@@ -87,7 +87,7 @@ void BLETextSensor::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       break;
     }
     case ESP_GATTC_NOTIFY_EVT: {
-      if ( param->notify.handle != this->handle)
+      if (param->notify.handle != this->handle)
         break;
       ESP_LOGV(TAG, "[%s] ESP_GATTC_NOTIFY_EVT: handle=0x%x, value=0x%x", this->get_name().c_str(),
                param->notify.handle, param->notify.value[0]);

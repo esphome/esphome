@@ -102,7 +102,7 @@ void BLEClientBase::release_services() {
 }
 
 void BLEClientBase::log_event_(const char *name) {
-      ESP_LOGD(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_.c_str(), name);
+  ESP_LOGD(TAG, "[%d] [%s] %s", this->connection_index_, this->address_str_.c_str(), name);
 }
 
 bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
@@ -263,9 +263,8 @@ bool BLEClientBase::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_
       }
       esp_gattc_descr_elem_t desc_result;
       uint16_t count = 1;
-      esp_gatt_status_t descr_status =
-          esp_ble_gattc_get_descr_by_char_handle(this->gattc_if_, this->conn_id_, param->reg_for_notify.handle,
-                                                 NOTIFY_DESC_UUID, &desc_result, &count);
+      esp_gatt_status_t descr_status = esp_ble_gattc_get_descr_by_char_handle(
+          this->gattc_if_, this->conn_id_, param->reg_for_notify.handle, NOTIFY_DESC_UUID, &desc_result, &count);
       if (descr_status != ESP_GATT_OK) {
         ESP_LOGW(TAG, "[%d] [%s] esp_ble_gattc_get_descr_by_char_handle error, status=%d", this->connection_index_,
                  this->address_str_.c_str(), descr_status);
