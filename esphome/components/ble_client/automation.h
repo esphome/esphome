@@ -26,8 +26,10 @@ class BLEClientConnectTrigger : public Trigger<>, public BLEClientNode {
   void loop() override {}
   void gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t gattc_if,
                            esp_ble_gattc_cb_param_t *param) override {
-    if (event == ESP_GATTC_SEARCH_CMPL_EVT)
+    if (event == ESP_GATTC_SEARCH_CMPL_EVT) {
+      this->node_state = espbt::ClientState::ESTABLISHED;
       this->trigger();
+    }
   }
 };
 
@@ -40,8 +42,16 @@ class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
                            esp_ble_gattc_cb_param_t *param) override {
     // test for CLOSE and not DISCONNECT - DISCONNECT can occur even if no virtual connection (OPEN event) occurred.
     // So this will not trigger unless a complete open has previously succeeded.
-    if (event == ESP_GATTC_CLOSE_EVT)
-      this->trigger();
+    switch (event) {
+      case ESP_GATTC_SEARCH_CMPL_EVT: {
+        this->node_state = espbt::ClientState::ESTABLISHED;
+        break;
+      }
+      case ESP_GATTC_CLOSE_EVT: {
+        this->trigger();
+        break;
+      }
+    }
   }
 };
 
