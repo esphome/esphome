@@ -22,7 +22,6 @@ void SharpMemoryLCD::setup() {
   this->dump_config();
   this->spi_setup();
   this->init_internal_(this->get_buffer_length_());
-  this->cs_->digital_write(false);
 
   if (this->extmode_) {
     this->extmode_->digital_write(false);
