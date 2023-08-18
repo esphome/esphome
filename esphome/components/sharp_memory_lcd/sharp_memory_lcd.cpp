@@ -46,8 +46,8 @@ void HOT SharpMemoryLCD::write_display_data() {
   // Send the write command, this display has active HIGH
   this->cs_->digital_write(true);
 
-  this->transfer_byte(_sharpmem_vcom | SHARPMEM_BIT_WRITECMD);
-  TOGGLE_VCOM;
+  this->transfer_byte(this->sharpmem_vcom_ | SHARPMEM_BIT_WRITECMD);
+  this->sharpmem_vcom_ = this->sharpmem_vcom_ ? 0x00 : SHARPMEM_BIT_VCOM;
 
   uint16_t width = this->get_width_internal();
   uint16_t height = this->get_height_internal();
