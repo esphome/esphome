@@ -4,7 +4,6 @@ from esphome import pins
 from esphome.components import display, spi
 from esphome.const import CONF_ID, CONF_LAMBDA, CONF_WIDTH, CONF_HEIGHT, CONF_CS_PIN
 
-AUTO_LOAD = ["display"]
 CODEOWNERS = ["@skaldo"]
 DEPENDENCIES = ["spi"]
 
