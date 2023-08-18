@@ -7,7 +7,7 @@
  * Additionally, it defines several virtual methods that child classes implement. These virtual methods allow for
  * uniform calls regardless of the specific child queue structure used.
  *
- * Implemented by Kevin Ahrendt for the ESPHome project, June and July 2023
+ * Implemented by Kevin Ahrendt for the ESPHome project, 2023
  */
 
 #pragma once
@@ -18,29 +18,33 @@ namespace esphome {
 namespace statistics {
 
 /// @brief Configure statistics to store in the queue.
-struct EnabledAggregatesConfiguration {
-  bool argmax{false};
-  bool argmin{false};
-  bool c2{false};
-  bool duration{false};
-  bool duration_squared{false};
-  bool m2{false};
-  bool max{false};
-  bool mean{false};
-  bool min{false};
-  bool timestamp_m2{false};
-  bool timestamp_mean{false};
-  bool timestamp_reference{false};
+struct TrackedStatisticsConfiguration {
+  uint16_t argmax : 1;
+  uint16_t argmin : 1;
+  uint16_t c2 : 1;
+  uint16_t duration : 1;
+  uint16_t duration_squared : 1;
+  uint16_t m2 : 1;
+  uint16_t max : 1;
+  uint16_t mean : 1;
+  uint16_t min : 1;
+  uint16_t timestamp_m2 : 1;
+  uint16_t timestamp_mean : 1;
+  uint16_t timestamp_reference : 1;
 };
 
 class AggregateQueue {
  public:
+  AggregateQueue(StatisticsCalculationConfig statistics_calculation_config) {
+    this->statistics_calculation_config_ = statistics_calculation_config;
+  }
+
   //////////////////////////////////////
   // Virtual methods to be overloaded //
   //////////////////////////////////////
 
   /// @brief Set the queue's capacity and preallocates memory.
-  virtual bool set_capacity(size_t capacity, EnabledAggregatesConfiguration config) = 0;
+  virtual bool set_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) = 0;
 
   /// @brief Clear all aggregates in the queue.
   virtual void clear() = 0;
@@ -54,9 +58,9 @@ class AggregateQueue {
   /// @brief Return the Aggregate summarizing all entries in the queue.
   virtual Aggregate compute_current_aggregate() = 0;
 
-  /////////////////////////////
-  // Directly usable methods //
-  /////////////////////////////
+  ////////////////////////////////////
+  // Directly usable public methods //
+  ////////////////////////////////////
 
   /** Store an aggregate at an index in the queue.
    *
@@ -74,35 +78,19 @@ class AggregateQueue {
    */
   Aggregate lower(size_t index);
 
-  /** Allocate memory for the queue.
-   *
-   * Only allocates memory for statistics set in <config>. Attempts to allocate in ExternalRAM if present, otherwise it
-   * falls back to built-in memory.
-   * @param capacity the maximum number of Aggregates to store in the queue
-   * @param config which summary statistics to save into the queue
-   * @return true if the memory allocation was successful, false otherwise
-   */
-  bool allocate_memory(size_t capacity, EnabledAggregatesConfiguration config);
-
   /** Return the number of aggregates inserted into the queue.
    *
    * @return amount of aggregates inserted and aggregated into the queue
    */
   size_t size() const { return this->size_; };
 
-  /// @brief Enable averages to be weighted by the measurement's duration.
-  void enable_time_weighted() { this->time_weighted_ = true; }
-
  protected:
-  // Determines whether measurements are weighted by duration (true) or be of equal weight (false)
-  bool time_weighted_{false};
-
   // Stores the number of aggregates inserted into the queue
   size_t size_{0};
 
-  /////////////////////////////////////////////
-  // Queues for storing aggregate statistics //
-  /////////////////////////////////////////////
+  ////////////////////////////////////////////////////////
+  // Queues for storing individual aggregate statistics //
+  ////////////////////////////////////////////////////////
   size_t *count_queue_{nullptr};
 
   time_t *argmax_queue_{nullptr};
@@ -126,6 +114,19 @@ class AggregateQueue {
   float *max_queue_{nullptr};
   float *mean_queue_{nullptr};
   float *min_queue_{nullptr};
+
+  // Determines how measurements are weighted and the type of the group of measurements
+  StatisticsCalculationConfig statistics_calculation_config_{};
+
+  /** Allocate memory for the queue.
+   *
+   * Only allocates memory for statistics set in <config>. Attempts to allocate in ExternalRAM if present, otherwise it
+   * falls back to built-in memory.
+   * @param capacity the maximum number of Aggregates to store in the queue
+   * @param config which summary statistics to save into the queue
+   * @return true if the memory allocation was successful, false otherwise
+   */
+  bool allocate_memory_(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config);
 };
 
 }  // namespace statistics

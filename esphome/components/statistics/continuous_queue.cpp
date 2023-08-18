@@ -10,12 +10,12 @@ namespace statistics {
 //////////////////////////////////////////////////////////
 
 Aggregate ContinuousQueue::compute_current_aggregate() {
-  Aggregate total = Aggregate();
+  Aggregate total = Aggregate(this->statistics_calculation_config_);
 
   // Starts with the most recent Aggregates so that the combine operations have as close to equal weights as possible
   //  - helps avoid floating point precision issues
   for (int i = this->index_ - 1; i >= 0; --i) {
-    total = total.combine_with(this->lower(i), this->time_weighted_);
+    total = total.combine_with(this->lower(i));
   }
 
   return total;
@@ -33,7 +33,7 @@ void ContinuousQueue::insert(Aggregate value) {
   // consolidate
   while ((this->index_ > 0) && (most_recent.get_count() <= value.get_count())) {
     // Combine value with most_recent
-    value = value.combine_with(most_recent, this->time_weighted_);
+    value = value.combine_with(most_recent);
 
     // Store the next most recent Aggregate in the queue in most_recent
     --this->index_;
@@ -56,12 +56,12 @@ void ContinuousQueue::insert(Aggregate value) {
   ++this->size_;   // increase the count of number of stored aggregate chunks
 }
 
-bool ContinuousQueue::set_capacity(size_t chunk_capacity, EnabledAggregatesConfiguration enabled_config) {
+bool ContinuousQueue::set_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) {
   uint8_t queue_capacity = QUEUE_CAPACITY_IF_NONE_SPECIFIED;
-  if (chunk_capacity > 0)
-    queue_capacity = std::ceil(std::log2(chunk_capacity)) + 1;
+  if (capacity > 0)
+    queue_capacity = std::ceil(std::log2(capacity)) + 1;
 
-  if (!this->allocate_memory(queue_capacity, enabled_config))
+  if (!this->allocate_memory_(queue_capacity, tracked_statistics_config))
     return false;
 
   this->max_index_ = queue_capacity;
@@ -76,7 +76,7 @@ bool ContinuousQueue::set_capacity(size_t chunk_capacity, EnabledAggregatesConfi
 //////////////////////////////////////////
 
 inline Aggregate ContinuousQueue::get_end_() {
-  return (this->index_ == 0) ? Aggregate() : this->lower(this->index_ - 1);
+  return (this->index_ == 0) ? Aggregate(this->statistics_calculation_config_) : this->lower(this->index_ - 1);
 }
 
 }  // namespace statistics

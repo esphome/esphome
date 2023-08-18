@@ -17,16 +17,16 @@
  * The measurements/aggregate chunks are stored in a pre-allocated circular queue. The DABA Lite algorithm keeps track
  * of 6 indices, and the CircularQueueIndex class implements the details.
  *
- * Time complexity (for n aggregate chunks, where each may aggregate multiple measurements):
+ * Time complexity for n aggregate chunks:
  *  - insertion of new measurement/aggregate chunk: O(1)
  *  - evicting oldest measurement/aggregate chunk: O(1)
  *  - clearing entire queue: O(1)
  *  - computing current aggregate: O(1)
  *
- * Memory usage (for n aggregate chunks, where each may aggregate multiple measurements):
+ * Memory usage for n aggregate chunks:
  *  - n+2 aggregates
  *
- * Implemented by Kevin Ahrendt for the ESPHome project, June and July 2023
+ * Implemented by Kevin Ahrendt for the ESPHome project, 2023
  */
 
 #pragma once
@@ -105,6 +105,12 @@ class CircularQueueIndex {
 
 class DABALiteQueue : public AggregateQueue {
  public:
+  DABALiteQueue(StatisticsCalculationConfig statistics_calculation_config)
+      : AggregateQueue(statistics_calculation_config) {
+    this->mid_sum_ = make_unique<Aggregate>(statistics_calculation_config_);
+    this->back_sum_ = make_unique<Aggregate>(statistics_calculation_config_);
+  }
+
   //////////////////////////////////////////////////////////
   // Overridden virtual methods from AggregateQueue class //
   //////////////////////////////////////////////////////////
@@ -137,11 +143,11 @@ class DABALiteQueue : public AggregateQueue {
 
   /** Set the queue's size and pre-allocate memory.
    *
-   * @param window_size the total amount of Aggregates that can be inserted into the queue
-   * @param config which summary statistics are in the queue
+   * @param capacity the total amount of Aggregates that can be inserted into the queue
+   * @param tracked_statistics_config which summary statistics are in the queue
    * @return true if memory was successfully allocated, false otherwise
    */
-  bool set_capacity(size_t window_size, EnabledAggregatesConfiguration config) override;
+  bool set_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) override;
 
  protected:
   // Maximum window capacity; i.e., the total number of Aggregates that can be inserted
@@ -155,11 +161,9 @@ class DABALiteQueue : public AggregateQueue {
   CircularQueueIndex b_;
   CircularQueueIndex e_;  // end of queue (one past the most recently inserted measurement)
 
-  // Default values for an empty set of measurements
-  const Aggregate identity_class_;
-
   // Running aggregates for the DABA Lite algorithm
-  Aggregate mid_sum_, back_sum_;
+  std::unique_ptr<Aggregate> mid_sum_;
+  std::unique_ptr<Aggregate> back_sum_;
 
   //////////////////////////////////////////////
   // Internal Methods for DABA Lite algorithm //

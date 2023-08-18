@@ -46,7 +46,7 @@ void AggregateQueue::emplace(const Aggregate &value, size_t index) {
 }
 
 Aggregate AggregateQueue::lower(size_t index) {
-  Aggregate aggregate = Aggregate();
+  Aggregate aggregate = Aggregate(this->statistics_calculation_config_);
 
   // Count queue is always enabled
   aggregate.set_count(this->count_queue_[index]);
@@ -87,7 +87,7 @@ Aggregate AggregateQueue::lower(size_t index) {
   return aggregate;
 }
 
-bool AggregateQueue::allocate_memory(size_t capacity, EnabledAggregatesConfiguration config) {
+bool AggregateQueue::allocate_memory_(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) {
   // Mimics ESPHome's rp2040_pio_led_strip component's buf_ code (accessed June 2023)
   ExternalRAMAllocator<double> double_allocator(ExternalRAMAllocator<double>::ALLOW_FAILURE);
   ExternalRAMAllocator<float> float_allocator(ExternalRAMAllocator<float>::ALLOW_FAILURE);
@@ -98,79 +98,78 @@ bool AggregateQueue::allocate_memory(size_t capacity, EnabledAggregatesConfigura
 
   // Count is always enabled as it is necessary for the combine Aggregate method
   this->count_queue_ = size_t_allocator.allocate(capacity);
+  if (this->count_queue_ == nullptr)
+    return false;
 
-  if (config.argmax) {
+  if (tracked_statistics_config.argmax) {
     this->argmax_queue_ = time_t_allocator.allocate(capacity);
     if (this->argmax_queue_ == nullptr)
       return false;
   }
 
-  if (config.argmin) {
+  if (tracked_statistics_config.argmin) {
     this->argmin_queue_ = time_t_allocator.allocate(capacity);
     if (this->argmin_queue_ == nullptr)
       return false;
   }
 
-  if (this->count_queue_ == nullptr)
-    return false;
-
-  if (config.c2) {
+  if (tracked_statistics_config.c2) {
     this->c2_queue_ = double_allocator.allocate(capacity);
     if (this->c2_queue_ == nullptr)
       return false;
   }
 
-  if (config.duration) {
+  if (tracked_statistics_config.duration) {
     this->duration_queue_ = uint64_t_allocator.allocate(capacity);
     if (this->duration_queue_ == nullptr)
       return false;
   }
 
-  if (config.duration_squared) {
+  if (tracked_statistics_config.duration_squared) {
     this->duration_squared_queue_ = uint64_t_allocator.allocate(capacity);
 
     if (this->duration_squared_queue_ == nullptr)
       return false;
   }
 
-  if (config.m2) {
+  if (tracked_statistics_config.m2) {
     this->m2_queue_ = double_allocator.allocate(capacity);
     if (this->m2_queue_ == nullptr)
       return false;
   }
 
-  if (config.max) {
+  if (tracked_statistics_config.max) {
     this->max_queue_ = float_allocator.allocate(capacity);
     if (this->max_queue_ == nullptr)
       return false;
   }
 
-  if (config.mean) {
+  if (tracked_statistics_config.mean) {
     this->mean_queue_ = float_allocator.allocate(capacity);
 
     if (this->mean_queue_ == nullptr)
       return false;
   }
 
-  if (config.min) {
+  if (tracked_statistics_config.min) {
     this->min_queue_ = float_allocator.allocate(capacity);
     if (this->min_queue_ == nullptr)
       return false;
   }
 
-  if (config.timestamp_m2) {
+  if (tracked_statistics_config.timestamp_m2) {
     this->timestamp_m2_queue_ = double_allocator.allocate(capacity);
     if (this->timestamp_m2_queue_ == nullptr)
       return false;
   }
 
-  if (config.timestamp_mean) {
+  if (tracked_statistics_config.timestamp_mean) {
     this->timestamp_mean_queue_ = double_allocator.allocate(capacity);
     if (this->timestamp_mean_queue_ == nullptr)
       return false;
   }
 
-  if (config.timestamp_reference) {
+  if (tracked_statistics_config.timestamp_reference) {
     this->timestamp_reference_queue_ = uint32_t_allocator.allocate(capacity);
     if (this->timestamp_reference_queue_ == nullptr)
       return false;

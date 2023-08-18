@@ -10,6 +10,7 @@
  *  - min: minimum of the set of measurements
  *  - mean: average of the set of measurements
  *  - max: maximum of the set of measurements
+ *  - quadrature: average value of the set of measurements times duration
  *  - since_argmax: the time in seconds since the most recent maximum value
  *  - since_argmin: the time in seconds since the most recent minimum value
  *  - std_dev: sample or population standard deviation of the set of measurements
@@ -37,28 +38,28 @@
  *    window queue
  *  - continuous queue: a queue that can only insert new Aggregates and reset
  *  - continuous aggregate: an Aggregate that stores the summary statistics for all Aggregates in a continuous queue
- *  - simple average: every measurement has equal weight when computing summary statistics
- *  - time-weighted average: each measurement is weighted by the time until the next observed measurement
+ *  - simple weight type: every measurement has equal weight when computing summary statistics
+ *  - duration weight type: each measurement is weighted by the time until the next observed measurement
  *  - window: a sliding window queue or a continuous queue
  *
  * Component code structure: (see specific header files for more detailed descriptions):
  *  - statistics.h - Statistics is a class that sets up the component by allocating memory for a configured queue and
  *    handles new measurements
- *  - automation.h - Handles the ESPHome automation for resetting the window
+ *  - automation.h - Handles ESPHome automations
  *  - aggregate.h - Aggregate is a class that stores a collection of summary statistics and can combine two aggregates
  *    into one
- *  - aggregate_queue.h - AggregateQueue is a class that allocates memory for a set of Aggregates for the enabled
- *    sensors, as well as store and retrieve Aggregates from the memory
+ *  - aggregate_queue.h - AggregateQueue is a class that allocates memory for specified track raw statistics and handles
+ *    storing and retrieving Aggregates from the memory
  *  - daba_lite_queue.h - DABALiteQueue is a child of AggregateQueue. It implements the De-Amortized Banker's Aggregator
  *    (DABA) Lite algorithm for sliding window queues
  *  - continuous_queue.h - ContinuousQueue is a child of AggregateQueue. It stores Aggregates and combines them when
  *    they have the same number of measurements. Numerically stable for long-term aggregation of measurements in a
  *    continuous queue, but not as efficient computationally or memory-wise
  *  - continous_singular.h - ContinuousSingular is a child of AggregateQueue. It stores a single running Aggregate.
- *    Memory and computationally efficient for continuous aggregates, but is not numerically stable for long-term
+ *    Memory and computationally efficient for continuous aggregation, but is not numerically stable for long-term
  *    aggregation of measurements.
  *
- * Implemented by Kevin Ahrendt for the ESPHome project, June and July of 2023
+ * Implemented by Kevin Ahrendt for the ESPHome project, 2023
  */
 
 #pragma once
@@ -75,23 +76,29 @@
 namespace esphome {
 namespace statistics {
 
-enum AverageType {
-  SIMPLE_AVERAGE,
-  TIME_WEIGHTED_AVERAGE,
-};
-
 enum WindowType {
   WINDOW_TYPE_SLIDING,
   WINDOW_TYPE_CONTINUOUS,
   WINDOW_TYPE_CONTINUOUS_LONG_TERM,
 };
 
-enum TimeConversionFactor {
-  FACTOR_MS = 1,          // timestamps already are in ms
-  FACTOR_S = 1000,        // 1000 ms per second
-  FACTOR_MIN = 60000,     // 60000 ms per minute
-  FACTOR_HOUR = 3600000,  // 3600000 ms per hour
-  FACTOR_DAY = 86400000,  // 86400000 ms per day
+enum StatisticType {
+  STATISTIC_MEAN,
+  STATISTIC_MAX,
+  STATISTIC_MIN,
+  STATISTIC_STD_DEV,
+  STATISTIC_COUNT,
+  STATISTIC_DURATION,
+  STATISTIC_SINCE_ARGMAX,
+  STATISTIC_SINCE_ARGMIN,
+  STATISTIC_TREND,
+  STATISTIC_QUADRATURE,
+};
+
+struct StatisticSensorTuple {
+  sensor::Sensor *sens;
+  std::function<float(Aggregate)> lambda_fnctn;
+  StatisticType type;
 };
 
 class StatisticsComponent : public Component {
@@ -113,52 +120,54 @@ class StatisticsComponent : public Component {
   /// @brief Reset the window by clearing it.
   void reset();
 
-  // Source sensor of measurements
+  /// @brief Source sensor of measurements
   void set_source_sensor(sensor::Sensor *source_sensor) { this->source_sensor_ = source_sensor; }
 
-  // Sensors for aggregate statistics
-  void set_count_sensor(sensor::Sensor *count_sensor) { this->count_sensor_ = count_sensor; }
-  void set_duration_sensor(sensor::Sensor *duration_sensor) { this->duration_sensor_ = duration_sensor; }
-  void set_max_sensor(sensor::Sensor *max_sensor) { this->max_sensor_ = max_sensor; }
-  void set_mean_sensor(sensor::Sensor *mean_sensor) { this->mean_sensor_ = mean_sensor; }
-  void set_min_sensor(sensor::Sensor *min_sensor) { this->min_sensor_ = min_sensor; }
-  void set_since_argmax_sensor(sensor::Sensor *argmax_sensor) { this->since_argmax_sensor_ = argmax_sensor; }
-  void set_since_argmin_sensor(sensor::Sensor *argmin_sensor) { this->since_argmin_sensor_ = argmin_sensor; }
-  void set_std_dev_sensor(sensor::Sensor *std_dev_sensor) { this->std_dev_sensor_ = std_dev_sensor; }
-  void set_trend_sensor(sensor::Sensor *trend_sensor) { this->trend_sensor_ = trend_sensor; }
+  /// @brief Configure which raw statistics are tracked in the queue.
+  void set_tracked_statistics(TrackedStatisticsConfiguration &&tracked_statistics) {
+    this->tracked_statistics_ = tracked_statistics;
+  }
 
+  /// @brief Set the time component used for argmax and argmin
+  void set_time(time::RealTimeClock *time) { this->time_ = time; }
+
+  // Window configuration
+  void set_window_type(WindowType type) { this->window_type_ = type; }
   void set_window_size(size_t window_size) { this->window_size_ = window_size; }
-
   void set_chunk_size(size_t size) { this->chunk_size_ = size; }
   void set_chunk_duration(uint32_t time_delta) { this->chunk_duration_ = time_delta; }
-
   void set_send_every(size_t send_every) { this->send_every_ = send_every; }
   void set_first_at(size_t send_first_at) { this->send_at_chunks_counter_ = send_first_at; }
 
-  void set_average_type(AverageType type) { this->average_type_ = type; }
-  void set_group_type(GroupType type) { this->group_type_ = type; }
-  void set_window_type(WindowType type) { this->window_type_ = type; }
-  void set_time_conversion_factor(TimeConversionFactor conversion_factor) {
-    this->time_conversion_factor_ = conversion_factor;
+  // Configure statistic calculations
+  void set_statistics_calculation_config(StatisticsCalculationConfig &&config) {
+    this->statistics_calculation_config_ = config;
   }
 
+  // Configure saving state to flash
   void set_hash(const std::string &config_id) { this->hash_ = fnv1_hash("statistics_component_" + config_id); }
   void set_restore(bool restore) { this->restore_ = restore; }
+
+  /// @brief Add a statistic sensor with the appropriate lambda call to compute it
+  void add_sensor(sensor::Sensor *sensor, std::function<float(Aggregate)> const &func, StatisticType type) {
+    struct StatisticSensorTuple sens = {
+        .sens = sensor,
+        .lambda_fnctn = func,
+        .type = type,
+    };
+    this->sensors_.emplace_back(sens);
+  }
 
  protected:
   // Source sensor of measurement data
   sensor::Sensor *source_sensor_{nullptr};
 
-  // Sensors for aggregate statistics from measurements in window
-  sensor::Sensor *count_sensor_{nullptr};
-  sensor::Sensor *duration_sensor_{nullptr};
-  sensor::Sensor *max_sensor_{nullptr};
-  sensor::Sensor *mean_sensor_{nullptr};
-  sensor::Sensor *min_sensor_{nullptr};
-  sensor::Sensor *since_argmax_sensor_{nullptr};
-  sensor::Sensor *since_argmin_sensor_{nullptr};
-  sensor::Sensor *std_dev_sensor_{nullptr};
-  sensor::Sensor *trend_sensor_{nullptr};
+  // Stores added statistic sensors
+  std::vector<StatisticSensorTuple> sensors_;
+
+  // Statistics configuration
+  TrackedStatisticsConfiguration tracked_statistics_;
+  StatisticsCalculationConfig statistics_calculation_config_;
 
   // Time component for since_argmax and since_argmin
   time::RealTimeClock *time_{nullptr};
@@ -171,14 +180,11 @@ class StatisticsComponent : public Component {
 
   // Restore continuous aggregate statistics from flash
   ESPPreferenceObject pref_{};
-  bool restore_{false};
   uint32_t hash_{};
+  bool restore_{false};
 
   // Configuration options for how statistics are calculated
-  AverageType average_type_{};                     // either simple or time-weighted
-  GroupType group_type_{};                         // measurements come from either a population or a sample
-  WindowType window_type_{};                       // type of queue to store measurements/chunks in
-  TimeConversionFactor time_conversion_factor_{};  // time unit conversion trend
+  WindowType window_type_{};  // type of queue to store measurements/chunks in
 
   // Window configuration options
   size_t window_size_{};
@@ -192,11 +198,11 @@ class StatisticsComponent : public Component {
   size_t send_at_chunks_counter_{};
 
   // Running Aggregate chunk
-  Aggregate running_chunk_aggregate_{};
+  std::unique_ptr<Aggregate> running_chunk_aggregate_;
   size_t measurements_in_running_chunk_count_{0};  // number of measurements currently
                                                    // stored in the running Aggregate chunk
 
-  // If the Aggregates are time-weighted, store info about the previous observation
+  // Store information about the previous observation for duration weighted statistics
   float previous_value_{NAN};
   uint32_t previous_timestamp_{0};
 
@@ -204,16 +210,7 @@ class StatisticsComponent : public Component {
   // Internal Methods //
   //////////////////////
 
-  /// @brief  Use log_sensor to dump information about all enabled statistics sensors.
-  void dump_enabled_sensors_();
-
-  /** Enable the statistics needed for the configured sensors.
-   *
-   * @return EnabledAggregatesConfiguration for AggregateQueue children classes
-   */
-  EnabledAggregatesConfiguration determine_enabled_statistics_config_();
-
-  /// @brief Insert new sensor measurements and update sensors.
+  /// @brief Insert new sensor measurements into running chunk and potentially update sensors.
   void handle_new_value_(float value);
 
   /// @brief Insert running chunk into the AggregateQueue.
@@ -222,13 +219,11 @@ class StatisticsComponent : public Component {
   /** Publish sensor values and save to flash memory (if configured).
    *
    * Saves value to flash memory only if <restore_> is true.
+   * After all sensors publish, on_update triggers callbacks.
    * @param value aggregate value to published and saved
    */
   void publish_and_save_(Aggregate value);
-
-  /// @brief Return if averages are weighted by measurement duration.
-  inline bool is_time_weighted_();
-};
+};  // namespace statistics
 
 }  // namespace statistics
 }  // namespace esphome

@@ -1,8 +1,9 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
+import esphome.final_validate as fv
 from esphome import automation
-from esphome.core import CORE
-from esphome.components import sensor
+from esphome.core import CORE, Lambda
+from esphome.components import sensor, time
 from esphome.const import (
     CONF_ACCURACY_DECIMALS,
     CONF_COUNT,
@@ -15,6 +16,7 @@ from esphome.const import (
     CONF_SEND_EVERY,
     CONF_SEND_FIRST_AT,
     CONF_SOURCE_ID,
+    CONF_TIME_ID,
     CONF_TRIGGER_ID,
     CONF_TYPE,
     CONF_UNIT_OF_MEASUREMENT,
@@ -22,15 +24,19 @@ from esphome.const import (
     DEVICE_CLASS_DURATION,
     STATE_CLASS_MEASUREMENT,
     STATE_CLASS_TOTAL,
+    STATE_CLASS_TOTAL_INCREASING,
     UNIT_MILLISECOND,
     UNIT_SECOND,
+    UNIT_MINUTE,
+    UNIT_HOUR,
 )
-from esphome.core.entity_helpers import inherit_property_from
+
 
 CODEOWNERS = ["@kahrendt"]
 DEPENDENCIES = ["time"]
 
 
+# Borrowed from ili9xxx/display.py, accessed August 2023
 def AUTO_LOAD():
     if CORE.is_esp32:
         return ["psram"]
@@ -70,6 +76,8 @@ CONF_MEAN = "mean"
 CONF_MIN = "min"
 CONF_SINCE_ARGMAX = "since_argmax"
 CONF_SINCE_ARGMIN = "since_argmin"
+CONF_QUADRATURE = "quadrature"
+CONF_STATISTICS = "statistics"
 CONF_STD_DEV = "std_dev"
 CONF_TREND = "trend"
 
@@ -89,82 +97,54 @@ WINDOW_TYPES = {
     CONF_CONTINUOUS_LONG_TERM: WindowType.WINDOW_TYPE_CONTINUOUS_LONG_TERM,
 }
 
-################################################
-# Configuration Options for Chunks and Windows #
-################################################
+####################################
+# Configuration Options for Chunks #
+####################################
 
 CONF_CHUNK_SIZE = "chunk_size"
 CONF_CHUNK_DURATION = "chunk_duration"
 
-##########################
-# Measurement Group Type #
-##########################
+############################
+# Statistics Configuration #
+############################
 
+# Struct stores group type and weight type
+StatisticsCalculationConfig = statistics_ns.struct("StatisticsCalculationConfig")
+
+# Group Type
 CONF_GROUP_TYPE = "group_type"
 
 GroupType = statistics_ns.enum("GroupType")
 GROUP_TYPES = {
-    "sample": GroupType.SAMPLE_GROUP_TYPE,
-    "population": GroupType.POPULATION_GROUP_TYPE,
+    "sample": GroupType.GROUP_TYPE_SAMPLE,
+    "population": GroupType.GROUP_TYPE_POPULATION,
+}
+
+# Weight Type
+CONF_WEIGHT_TYPE = "weight_type"
+WeightType = statistics_ns.enum("WeightTye")
+WEIGHT_TYPES = {
+    "simple": WeightType.WEIGHT_TYPE_SIMPLE,
+    "duration": WeightType.WEIGHT_TYPE_DURATION,
 }
 
 
-#################
-# Average Types #
-#################
-
-CONF_AVERAGE_TYPE = "average_type"
-
-AverageType = statistics_ns.enum("AverageType")
-AVERAGE_TYPES = {
-    "simple": AverageType.SIMPLE_AVERAGE,
-    "time_weighted": AverageType.TIME_WEIGHTED_AVERAGE,
-}
-
-########################
-# Time Units for Trend #
-########################
+####################################################
+# Time Unit Conversion for Sensors with Time Units #
+####################################################
 
 CONF_TIME_UNIT = "time_unit"
 
-TimeConversionFactor = statistics_ns.enum("TimeConversionFactor")
+UNIT_DAY = "d"
+
 TIME_CONVERSION_FACTORS = {
-    "ms": TimeConversionFactor.FACTOR_MS,
-    "s": TimeConversionFactor.FACTOR_S,
-    "min": TimeConversionFactor.FACTOR_MIN,
-    "h": TimeConversionFactor.FACTOR_HOUR,
-    "d": TimeConversionFactor.FACTOR_DAY,
+    UNIT_MILLISECOND: 1.0,
+    UNIT_SECOND: 1000.0,
+    UNIT_MINUTE: 60000.0,
+    UNIT_HOUR: 3600000.0,
+    UNIT_DAY: 86400000.0,
 }
 
-#########################################
-# Sensor Lists for Property Inheritance #
-#########################################
-
-SENSOR_LIST_WITH_ORIGINAL_UNITS = [
-    CONF_MAX,
-    CONF_MEAN,
-    CONF_MIN,
-    CONF_STD_DEV,
-]
-
-SENSOR_LIST_WITH_MODIFIED_UNITS = [
-    CONF_COUNT,
-    CONF_DURATION,
-    CONF_SINCE_ARGMAX,
-    CONF_SINCE_ARGMIN,
-    CONF_TREND,
-]
-
-SENSOR_LIST_WITH_SAME_ACCURACY_DECIMALS = [
-    CONF_MAX,
-    CONF_MEAN,
-    CONF_MIN,
-]
-
-SENSOR_LIST_WITH_INCREASED_ACCURACY_DECIMALS = [
-    CONF_STD_DEV,
-    CONF_TREND,
-]
 
 #####################################################
 # Transformation Functions for Inherited Properties #
@@ -172,9 +152,13 @@ SENSOR_LIST_WITH_INCREASED_ACCURACY_DECIMALS = [
 
 
 # Trend's unit is in original unit of measurement divides by time unit of measurement
-def transform_trend_unit_of_measurement(uom, config):
-    denominator = config.get(CONF_TIME_UNIT)
-    return uom + "/" + denominator
+def transform_trend_unit_of_measurement(time_unit, uom, config):
+    return uom + "/" + time_unit
+
+
+# Quadrature's unit is in original unit of measurement multiplied by the time unit of measurement
+def transform_quadrature_unit_of_measurement(time_unit, uom, config):
+    return uom + time_unit
 
 
 # Increases accuracy decimals by 2
@@ -183,9 +167,283 @@ def transform_accuracy_decimals(decimals, config):
     return decimals + 2
 
 
-#####################################
-# Confiuration Validation Functions #
-#####################################
+#######################################
+# Raw Statistics Stored in Aggregates #
+#######################################
+
+TrackedStatisticsConfiguration = statistics_ns.struct("TrackedStatisticsConfiguration")
+
+RAW_STAT_ARGMAX = "argmax"
+RAW_STAT_ARGMIN = "argmin"
+RAW_STAT_C2 = "c2"
+RAW_STAT_DURATION = "duration"
+RAW_STAT_DURATION_SQUARED = "duration_squared"
+RAW_STAT_M2 = "m2"
+RAW_STAT_MAX = "max"
+RAW_STAT_MEAN = "mean"
+RAW_STAT_MIN = "min"
+RAW_STAT_TIMESTAMP_M2 = "timestamp_m2"
+RAW_STAT_TIMESTAMP_MEAN = "timestamp_mean"
+RAW_STAT_TIMESTAMP_REFERENCE = "timestamp_reference"
+
+
+#################################
+# Statistic Type Configurations #
+#################################
+
+StatisticType = statistics_ns.enum("StatisticType")
+
+STAT_TYPE_CONF_RETURN_LAMBDA = "return_lambda"
+STAT_TYPE_CONF_INHERITED_PROPERTIES = "inhertited_properties"
+STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM = "accuracy_decimals_transform"
+STAT_TYPE_CONF_UOM_TRANSFORM = "uom_transform"
+STAT_TYPE_CONF_REQUIRED_RAW_STATS = "required_raw_stats"
+STAT_TYPE_CONF_ENUM_TYPE = "enum_type"
+STAT_TYPE_CONF_SENSOR_SCHEMA = "sensor_schema"
+
+STATISTIC_TYPE_CONFIGS = {
+    CONF_COUNT: {
+        STAT_TYPE_CONF_RETURN_LAMBDA: "agg.get_count()",
+        STAT_TYPE_CONF_INHERITED_PROPERTIES: [
+            CONF_ENTITY_CATEGORY,
+        ],
+        STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM: None,
+        STAT_TYPE_CONF_UOM_TRANSFORM: None,
+        STAT_TYPE_CONF_REQUIRED_RAW_STATS: {},
+        STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_COUNT,
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema(
+            state_class=STATE_CLASS_TOTAL_INCREASING,
+        ),
+    },
+    CONF_DURATION: {
+        STAT_TYPE_CONF_RETURN_LAMBDA: "agg.get_duration()/{time_conversion}",
+        STAT_TYPE_CONF_INHERITED_PROPERTIES: [
+            CONF_ENTITY_CATEGORY,
+            CONF_UNIT_OF_MEASUREMENT,
+        ],
+        STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM: None,
+        STAT_TYPE_CONF_UOM_TRANSFORM: CONF_TIME_UNIT,
+        STAT_TYPE_CONF_REQUIRED_RAW_STATS: {RAW_STAT_DURATION},
+        STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_DURATION,
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema(
+            state_class=STATE_CLASS_MEASUREMENT,
+            device_class=DEVICE_CLASS_DURATION,
+        ).extend(
+            {
+                cv.Optional(CONF_TIME_UNIT, default=UNIT_SECOND): cv.enum(
+                    TIME_CONVERSION_FACTORS, lower=True
+                ),
+            }
+        ),
+    },
+    CONF_MAX: {
+        STAT_TYPE_CONF_RETURN_LAMBDA: "agg.get_max()",
+        STAT_TYPE_CONF_INHERITED_PROPERTIES: [
+            CONF_ACCURACY_DECIMALS,
+            CONF_DEVICE_CLASS,
+            CONF_ENTITY_CATEGORY,
+            CONF_ICON,
+            CONF_UNIT_OF_MEASUREMENT,
+        ],
+        STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM: None,
+        STAT_TYPE_CONF_UOM_TRANSFORM: None,
+        STAT_TYPE_CONF_REQUIRED_RAW_STATS: {RAW_STAT_MAX},
+        STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_MAX,
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema(
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+    },
+    CONF_MEAN: {
+        STAT_TYPE_CONF_RETURN_LAMBDA: "agg.get_mean()",
+        STAT_TYPE_CONF_INHERITED_PROPERTIES: [
+            CONF_ACCURACY_DECIMALS,
+            CONF_DEVICE_CLASS,
+            CONF_ENTITY_CATEGORY,
+            CONF_ICON,
+            CONF_UNIT_OF_MEASUREMENT,
+        ],
+        STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM: None,
+        STAT_TYPE_CONF_UOM_TRANSFORM: None,
+        STAT_TYPE_CONF_REQUIRED_RAW_STATS: {RAW_STAT_MEAN},
+        STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_MEAN,
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema(
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+    },
+    CONF_MIN: {
+        STAT_TYPE_CONF_RETURN_LAMBDA: "agg.get_min()",
+        STAT_TYPE_CONF_INHERITED_PROPERTIES: [
+            CONF_ACCURACY_DECIMALS,
+            CONF_DEVICE_CLASS,
+            CONF_ENTITY_CATEGORY,
+            CONF_ICON,
+            CONF_UNIT_OF_MEASUREMENT,
+        ],
+        STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM: None,
+        STAT_TYPE_CONF_UOM_TRANSFORM: None,
+        STAT_TYPE_CONF_REQUIRED_RAW_STATS: {RAW_STAT_MIN},
+        STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_MIN,
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema(
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+    },
+    CONF_QUADRATURE: {
+        STAT_TYPE_CONF_RETURN_LAMBDA: "agg.compute_quadrature()/{time_conversion}",
+        STAT_TYPE_CONF_INHERITED_PROPERTIES: [
+            CONF_ACCURACY_DECIMALS,
+            CONF_ENTITY_CATEGORY,
+            CONF_UNIT_OF_MEASUREMENT,
+        ],
+        STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM: transform_accuracy_decimals,
+        STAT_TYPE_CONF_UOM_TRANSFORM: transform_quadrature_unit_of_measurement,
+        STAT_TYPE_CONF_REQUIRED_RAW_STATS: {RAW_STAT_DURATION, RAW_STAT_MEAN},
+        STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_QUADRATURE,
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema(
+            state_class=STATE_CLASS_TOTAL,
+        ).extend(
+            {
+                cv.Optional(CONF_TIME_UNIT, default=UNIT_SECOND): cv.enum(
+                    TIME_CONVERSION_FACTORS, lower=True
+                ),
+            }
+        ),
+    },
+    CONF_SINCE_ARGMAX: {
+        STAT_TYPE_CONF_RETURN_LAMBDA: "({time_component}->timestamp_now() - agg.get_argmax())*1000.0/{time_conversion}",
+        STAT_TYPE_CONF_INHERITED_PROPERTIES: [
+            CONF_ENTITY_CATEGORY,
+            CONF_UNIT_OF_MEASUREMENT,
+        ],
+        STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM: None,
+        STAT_TYPE_CONF_UOM_TRANSFORM: CONF_TIME_UNIT,
+        STAT_TYPE_CONF_REQUIRED_RAW_STATS: {RAW_STAT_ARGMAX, RAW_STAT_MAX},
+        STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_SINCE_ARGMAX,
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema(
+            state_class=STATE_CLASS_MEASUREMENT,
+            device_class=DEVICE_CLASS_DURATION,
+        ).extend(
+            {
+                cv.Optional(CONF_TIME_UNIT, default=UNIT_SECOND): cv.enum(
+                    TIME_CONVERSION_FACTORS, lower=True
+                ),
+            }
+        ),
+    },
+    CONF_SINCE_ARGMIN: {
+        STAT_TYPE_CONF_RETURN_LAMBDA: "({time_component}->timestamp_now() - agg.get_argmin())*1000.0/{time_conversion}",
+        STAT_TYPE_CONF_INHERITED_PROPERTIES: [
+            CONF_ENTITY_CATEGORY,
+            CONF_UNIT_OF_MEASUREMENT,
+        ],
+        STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM: None,
+        STAT_TYPE_CONF_UOM_TRANSFORM: CONF_TIME_UNIT,
+        STAT_TYPE_CONF_REQUIRED_RAW_STATS: {RAW_STAT_ARGMIN, RAW_STAT_MIN},
+        STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_SINCE_ARGMIN,
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema(
+            state_class=STATE_CLASS_MEASUREMENT,
+            device_class=DEVICE_CLASS_DURATION,
+        ).extend(
+            {
+                cv.Optional(CONF_TIME_UNIT, default=UNIT_SECOND): cv.enum(
+                    TIME_CONVERSION_FACTORS, lower=True
+                ),
+            }
+        ),
+    },
+    CONF_STD_DEV: {
+        STAT_TYPE_CONF_RETURN_LAMBDA: "agg.compute_std_dev()",
+        STAT_TYPE_CONF_INHERITED_PROPERTIES: [
+            CONF_ACCURACY_DECIMALS,
+            CONF_DEVICE_CLASS,
+            CONF_ENTITY_CATEGORY,
+            CONF_ICON,
+            CONF_UNIT_OF_MEASUREMENT,
+        ],
+        STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM: transform_accuracy_decimals,
+        STAT_TYPE_CONF_UOM_TRANSFORM: None,
+        STAT_TYPE_CONF_REQUIRED_RAW_STATS: {RAW_STAT_M2, RAW_STAT_MEAN},
+        STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_STD_DEV,
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema(
+            state_class=STATE_CLASS_MEASUREMENT,
+        ),
+    },
+    CONF_TREND: {
+        STAT_TYPE_CONF_RETURN_LAMBDA: "agg.compute_trend()*{time_conversion}",
+        STAT_TYPE_CONF_INHERITED_PROPERTIES: [
+            CONF_ACCURACY_DECIMALS,
+            CONF_ENTITY_CATEGORY,
+            CONF_UNIT_OF_MEASUREMENT,
+        ],
+        STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM: transform_accuracy_decimals,
+        STAT_TYPE_CONF_UOM_TRANSFORM: transform_trend_unit_of_measurement,
+        STAT_TYPE_CONF_REQUIRED_RAW_STATS: {
+            RAW_STAT_C2,
+            RAW_STAT_M2,
+            RAW_STAT_MEAN,
+            RAW_STAT_TIMESTAMP_M2,
+            RAW_STAT_TIMESTAMP_MEAN,
+            RAW_STAT_TIMESTAMP_REFERENCE,
+        },
+        STAT_TYPE_CONF_ENUM_TYPE: StatisticType.STATISTIC_TREND,
+        STAT_TYPE_CONF_SENSOR_SCHEMA: sensor.sensor_schema(
+            state_class=STATE_CLASS_MEASUREMENT,
+        ).extend(
+            {
+                cv.Optional(CONF_TIME_UNIT, default=UNIT_SECOND): cv.enum(
+                    TIME_CONVERSION_FACTORS, lower=True
+                ),
+            }
+        ),
+    },
+}
+
+
+######################################
+# Configuration Validation Functions #
+######################################
+
+
+# based on inherit_property_from function from core/entity_helpers.py (accessed September 2023)
+def set_property(property_to_inherit, property_value):
+    """Validator that sets a provided configuration property, for use with FINAL_VALIDATE_SCHEMA.
+    If a property is already set, it will not be inherited.
+    Keyword arguments:
+    property_to_inherit -- the name or path of the property to inherit, e.g. CONF_ICON or [CONF_SENSOR, 0, CONF_ICON]
+                           (the parent must exist, otherwise nothing is done).
+    property_value -- the value to set the property to
+    """
+
+    def _walk_config(config, path):
+        walk = [path] if not isinstance(path, list) else path
+        for item_or_index in walk:
+            config = config[item_or_index]
+        return config
+
+    def inherit_property(config):
+        # Split the property into its path and name
+        if not isinstance(property_to_inherit, list):
+            property_path, property = [], property_to_inherit
+        else:
+            property_path, property = property_to_inherit[:-1], property_to_inherit[-1]
+
+        # Check if the property to inherit is accessible
+        try:
+            config_part = _walk_config(config, property_path)
+        except KeyError:
+            return config
+
+        # Only inherit the property if it does not exist yet
+        if property not in config_part:
+            fconf = fv.full_config.get()
+
+            path = fconf.get_path_for_id(config[CONF_ID])[:-1]
+
+            this_config = _walk_config(fconf.get_config_for_path(path), property_path)
+
+            this_config[property] = property_value
+        return config
+
+    return inherit_property
 
 
 # Borrowed from sensor/__init__.py (accessed July 2023)
@@ -204,51 +462,15 @@ def validate_send_first_at(config):
 def validate_no_trend_and_restore(config):
     window_config = config.get(CONF_WINDOW)
 
-    if (CONF_RESTORE in window_config) and (CONF_TREND in config):
-        raise cv.Invalid("The trend sensor cannot be configured if restore is enabled")
+    if CONF_RESTORE in window_config:
+        if stats_list := config.get(CONF_STATISTICS):
+            for sens in stats_list:
+                if sens.get("type") == CONF_TREND:
+                    raise cv.Invalid(
+                        "A trend sensor cannot be configured if restore is enabled."
+                    )
     return config
 
-
-###################
-# Inherit Schemas #
-###################
-
-PROPERTIES_TO_INHERIT_WITH_ORIGINAL_UNIT_SENSORS = [
-    CONF_DEVICE_CLASS,
-    CONF_ENTITY_CATEGORY,
-    CONF_ICON,
-    CONF_UNIT_OF_MEASUREMENT,
-]
-
-PROPERTIES_TO_INHERIT_WITH_MODIFIED_UNIT_SENSORS = [
-    CONF_ENTITY_CATEGORY,
-    CONF_ICON,
-]
-
-inherit_schema_for_same_unit_sensors = [
-    inherit_property_from([sensor_config, property], CONF_SOURCE_ID)
-    for property in PROPERTIES_TO_INHERIT_WITH_ORIGINAL_UNIT_SENSORS
-    for sensor_config in SENSOR_LIST_WITH_ORIGINAL_UNITS
-]
-inherit_schema_for_new_unit_sensors = [
-    inherit_property_from([sensor_config, property], CONF_SOURCE_ID)
-    for property in PROPERTIES_TO_INHERIT_WITH_MODIFIED_UNIT_SENSORS
-    for sensor_config in SENSOR_LIST_WITH_MODIFIED_UNITS
-]
-
-inherit_accuracy_decimals_without_transformation = [
-    inherit_property_from([sensor_config, CONF_ACCURACY_DECIMALS], CONF_SOURCE_ID)
-    for sensor_config in SENSOR_LIST_WITH_SAME_ACCURACY_DECIMALS
-]
-
-inherit_accuracy_decimals_with_transformation = [
-    inherit_property_from(
-        [sensor_config, CONF_ACCURACY_DECIMALS],
-        CONF_SOURCE_ID,
-        transform=transform_accuracy_decimals,
-    )
-    for sensor_config in SENSOR_LIST_WITH_INCREASED_ACCURACY_DECIMALS
-]
 
 #########################
 # Configuration Schemas #
@@ -261,7 +483,7 @@ SLIDING_WINDOW_SCHEMA = cv.All(
             cv.Required(CONF_WINDOW_SIZE): cv.positive_not_null_int,
             cv.Optional(CONF_CHUNK_SIZE): cv.positive_not_null_int,
             cv.Optional(CONF_CHUNK_DURATION): cv.time_period,
-            cv.Optional(CONF_SEND_EVERY, default=1): cv.positive_int,
+            cv.Optional(CONF_SEND_EVERY, default=1): cv.positive_not_null_int,
             cv.Optional(CONF_SEND_FIRST_AT, default=1): cv.positive_not_null_int,
         },
     ),
@@ -285,10 +507,36 @@ CONTINUOUS_WINDOW_SCHEMA = cv.All(
     cv.has_at_most_one_key(CONF_CHUNK_SIZE, CONF_CHUNK_DURATION),
 )
 
+SENSOR_TYPE_SCHEMA = cv.typed_schema(
+    {
+        CONF_SINCE_ARGMAX: STATISTIC_TYPE_CONFIGS[CONF_SINCE_ARGMAX][
+            STAT_TYPE_CONF_SENSOR_SCHEMA
+        ],
+        CONF_SINCE_ARGMIN: STATISTIC_TYPE_CONFIGS[CONF_SINCE_ARGMIN][
+            STAT_TYPE_CONF_SENSOR_SCHEMA
+        ],
+        CONF_COUNT: STATISTIC_TYPE_CONFIGS[CONF_COUNT][STAT_TYPE_CONF_SENSOR_SCHEMA],
+        CONF_DURATION: STATISTIC_TYPE_CONFIGS[CONF_DURATION][
+            STAT_TYPE_CONF_SENSOR_SCHEMA
+        ],
+        CONF_MAX: STATISTIC_TYPE_CONFIGS[CONF_MAX][STAT_TYPE_CONF_SENSOR_SCHEMA],
+        CONF_MEAN: STATISTIC_TYPE_CONFIGS[CONF_MEAN][STAT_TYPE_CONF_SENSOR_SCHEMA],
+        CONF_MIN: STATISTIC_TYPE_CONFIGS[CONF_MIN][STAT_TYPE_CONF_SENSOR_SCHEMA],
+        CONF_QUADRATURE: STATISTIC_TYPE_CONFIGS[CONF_QUADRATURE][
+            STAT_TYPE_CONF_SENSOR_SCHEMA
+        ],
+        CONF_STD_DEV: STATISTIC_TYPE_CONFIGS[CONF_STD_DEV][
+            STAT_TYPE_CONF_SENSOR_SCHEMA
+        ],
+        CONF_TREND: STATISTIC_TYPE_CONFIGS[CONF_TREND][STAT_TYPE_CONF_SENSOR_SCHEMA],
+    }
+)
+
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(StatisticsComponent),
+            cv.GenerateID(CONF_TIME_ID): cv.use_id(time.RealTimeClock),
             cv.Required(CONF_SOURCE_ID): cv.use_id(sensor.Sensor),
             cv.Required(CONF_WINDOW): cv.typed_schema(
                 {
@@ -297,48 +545,13 @@ CONFIG_SCHEMA = cv.All(
                     CONF_CONTINUOUS_LONG_TERM: CONTINUOUS_WINDOW_SCHEMA,
                 }
             ),
-            cv.Optional(CONF_AVERAGE_TYPE, default="simple"): cv.enum(
-                AVERAGE_TYPES, lower=True
+            cv.Optional(CONF_WEIGHT_TYPE, default="simple"): cv.enum(
+                WEIGHT_TYPES, lower=True
             ),
             cv.Optional(CONF_GROUP_TYPE, default="sample"): cv.enum(
                 GROUP_TYPES, lower=True
             ),
-            cv.Optional(CONF_TIME_UNIT, default="s"): cv.enum(
-                TIME_CONVERSION_FACTORS, lower=True
-            ),
-            cv.Optional(CONF_SINCE_ARGMAX): sensor.sensor_schema(
-                state_class=STATE_CLASS_MEASUREMENT,
-                device_class=DEVICE_CLASS_DURATION,
-                unit_of_measurement=UNIT_SECOND,
-            ),
-            cv.Optional(CONF_SINCE_ARGMIN): sensor.sensor_schema(
-                state_class=STATE_CLASS_MEASUREMENT,
-                device_class=DEVICE_CLASS_DURATION,
-                unit_of_measurement=UNIT_SECOND,
-            ),
-            cv.Optional(CONF_COUNT): sensor.sensor_schema(
-                state_class=STATE_CLASS_TOTAL,
-            ),
-            cv.Optional(CONF_DURATION): sensor.sensor_schema(
-                state_class=STATE_CLASS_MEASUREMENT,
-                device_class=DEVICE_CLASS_DURATION,
-                unit_of_measurement=UNIT_MILLISECOND,
-            ),
-            cv.Optional(CONF_MAX): sensor.sensor_schema(
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_MEAN): sensor.sensor_schema(
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_MIN): sensor.sensor_schema(
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_STD_DEV): sensor.sensor_schema(
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-            cv.Optional(CONF_TREND): sensor.sensor_schema(
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
+            cv.Optional(CONF_STATISTICS): cv.ensure_list(SENSOR_TYPE_SCHEMA),
             cv.Optional(CONF_ON_UPDATE): automation.validate_automation(
                 {
                     cv.GenerateID(CONF_TRIGGER_ID): cv.declare_id(
@@ -352,17 +565,115 @@ CONFIG_SCHEMA = cv.All(
 )
 
 
-# Handles inheriting properties from the source sensor
-FINAL_VALIDATE_SCHEMA = cv.All(
-    *inherit_schema_for_new_unit_sensors,
-    *inherit_schema_for_same_unit_sensors,
-    *inherit_accuracy_decimals_without_transformation,
-    *inherit_accuracy_decimals_with_transformation,
-    inherit_property_from(
-        [CONF_TREND, CONF_UNIT_OF_MEASUREMENT],
-        CONF_SOURCE_ID,
-        transform=transform_trend_unit_of_measurement,
-    ),
+def inherit_property_from_id(property_to_inherit, parent_id, transform=None):
+    """Validator that inherits a configuration property from another entity, for use with FINAL_VALIDATE_SCHEMA.
+    If a property is already set, it will not be inherited.
+    Keyword arguments:
+    property_to_inherit -- the name or path of the property to inherit, e.g. CONF_ICON or [CONF_SENSOR, 0, CONF_ICON]
+                           (the parent must exist, otherwise nothing is done).
+    parent_id_property -- the name or path of the property that holds the ID of the parent, e.g. CONF_POWER_ID or
+                          [CONF_SENSOR, 1, CONF_POWER_ID].
+    """
+
+    def _walk_config(config, path):
+        walk = [path] if not isinstance(path, list) else path
+        for item_or_index in walk:
+            config = config[item_or_index]
+        return config
+
+    def inherit_property(config):
+        # Split the property into its path and name
+        if not isinstance(property_to_inherit, list):
+            property_path, property = [], property_to_inherit
+        else:
+            property_path, property = property_to_inherit[:-1], property_to_inherit[-1]
+
+        # Check if the property to inherit is accessible
+        try:
+            config_part = _walk_config(config, property_path)
+        except KeyError:
+            return config
+
+        # Only inherit the property if it does not exist yet
+        if property not in config_part:
+            fconf = fv.full_config.get()
+
+            # Get config for the parent entity
+            # parent_id = _walk_config(config, parent_id_property)
+            parent_path = fconf.get_path_for_id(parent_id)[:-1]
+            parent_config = fconf.get_config_for_path(parent_path)
+
+            # If parent sensor has the property set, inherit it
+            if property in parent_config:
+                path = fconf.get_path_for_id(config[CONF_ID])[:-1]
+                this_config = _walk_config(
+                    fconf.get_config_for_path(path), property_path
+                )
+                value = parent_config[property]
+                if transform:
+                    value = transform(value, config)
+                this_config[property] = value
+
+        return config
+
+    return inherit_property
+
+
+def return_uom_transform_function(base_function, time_unit):
+    if callable(base_function):
+        return lambda uom, config: base_function(
+            time_unit=time_unit,
+            uom=uom,
+            config=config,
+        )
+
+    return time_unit
+
+
+def validate_statistic_sensor(config):
+    fconf = fv.full_config.get()
+
+    # Get ID for source sensor
+    path = fconf.get_path_for_id(config[CONF_ID])[:-3]
+    path.append(CONF_SOURCE_ID)
+    source_id = fconf.get_config_for_path(path)
+
+    stats_type = STATISTIC_TYPE_CONFIGS[config.get(CONF_TYPE)]
+
+    for property_to_inherit in stats_type[STAT_TYPE_CONF_INHERITED_PROPERTIES]:
+        inherit_function = inherit_property_from_id(property_to_inherit, source_id)
+        if property_to_inherit == CONF_UNIT_OF_MEASUREMENT:
+            if time_unit := config.get(CONF_TIME_UNIT):
+                uom_transform = return_uom_transform_function(
+                    stats_type.get(STAT_TYPE_CONF_UOM_TRANSFORM), time_unit
+                )
+
+                if callable(uom_transform):
+                    inherit_function = inherit_property_from_id(
+                        CONF_UNIT_OF_MEASUREMENT, source_id, transform=uom_transform
+                    )
+                else:
+                    inherit_function = set_property(
+                        CONF_UNIT_OF_MEASUREMENT,
+                        str(config[CONF_TIME_UNIT]),
+                    )
+        elif property_to_inherit == CONF_ACCURACY_DECIMALS:
+            inherit_function = inherit_property_from_id(
+                CONF_ACCURACY_DECIMALS,
+                source_id,
+                transform=stats_type[STAT_TYPE_CONF_ACCURACY_DECIMALS_TRANSFORM],
+            )
+
+        inherit_function(config)
+
+    return config
+
+
+FINAL_VALIDATE_SCHEMA = cv.Schema(
+    {
+        cv.Optional(CONF_STATISTICS): [validate_statistic_sensor],
+    },
+    extra=cv.ALLOW_EXTRA,
 )
 
 ###################
@@ -376,13 +687,22 @@ async def to_code(config):
 
     source = await cg.get_variable(config[CONF_SOURCE_ID])
 
+    time_ = await cg.get_variable(config[CONF_TIME_ID])
+    cg.add(var.set_time(time_))
+
     cg.add(var.set_hash(str(config[CONF_ID])))
 
     cg.add(var.set_source_sensor(source))
 
-    cg.add(var.set_average_type(config.get(CONF_AVERAGE_TYPE)))
-    cg.add(var.set_group_type(config.get(CONF_GROUP_TYPE)))
-    cg.add(var.set_time_conversion_factor(config.get(CONF_TIME_UNIT)))
+    cg.add(
+        var.set_statistics_calculation_config(
+            cg.StructInitializer(
+                StatisticsCalculationConfig,
+                ("group_type", config.get(CONF_GROUP_TYPE)),
+                ("weight_type", config.get(CONF_WEIGHT_TYPE)),
+            ),
+        )
+    )
 
     ####################
     # Configure Window #
@@ -430,41 +750,71 @@ async def to_code(config):
     ############################
     # Setup Configured Sensors #
     ############################
-    if count_sensor := config.get(CONF_COUNT):
-        sens = await sensor.new_sensor(count_sensor)
-        cg.add(var.set_count_sensor(sens))
+    tracked_stats = set()
 
-    if duration_sensor := config.get(CONF_DURATION):
-        sens = await sensor.new_sensor(duration_sensor)
-        cg.add(var.set_duration_sensor(sens))
+    if config.get(CONF_WEIGHT_TYPE) == "duration":
+        tracked_stats.add(RAW_STAT_DURATION)
+        tracked_stats.add(RAW_STAT_DURATION_SQUARED)
 
-    if max_sensor := config.get(CONF_MAX):
-        sens = await sensor.new_sensor(max_sensor)
-        cg.add(var.set_max_sensor(sens))
+    if stat_sensor_list := config.get(CONF_STATISTICS):
+        for stat_sensor in stat_sensor_list:
+            sens = await sensor.new_sensor(stat_sensor)
 
-    if mean_sensor := config.get(CONF_MEAN):
-        sens = await sensor.new_sensor(mean_sensor)
-        cg.add(var.set_mean_sensor(sens))
+            return_string = STATISTIC_TYPE_CONFIGS[stat_sensor.get(CONF_TYPE)][
+                STAT_TYPE_CONF_RETURN_LAMBDA
+            ].format(
+                time_conversion=TIME_CONVERSION_FACTORS[stat_sensor.get(CONF_TIME_UNIT)]
+                if (CONF_TIME_UNIT in stat_sensor)
+                else 1,
+                time_component=time_,
+            )
 
-    if min_sensor := config.get(CONF_MIN):
-        sens = await sensor.new_sensor(min_sensor)
-        cg.add(var.set_min_sensor(sens))
+            func = await cg.process_lambda(
+                Lambda(f"return {return_string};"),
+                [(Aggregate, "agg")],
+                return_type=cg.float_,
+            )
 
-    if since_argmax_sensor := config.get(CONF_SINCE_ARGMAX):
-        sens = await sensor.new_sensor(since_argmax_sensor)
-        cg.add(var.set_since_argmax_sensor(sens))
+            tracked_stats.update(
+                STATISTIC_TYPE_CONFIGS[stat_sensor.get(CONF_TYPE)][
+                    STAT_TYPE_CONF_REQUIRED_RAW_STATS
+                ]
+            )
 
-    if since_argmin_sensor := config.get(CONF_SINCE_ARGMIN):
-        sens = await sensor.new_sensor(since_argmin_sensor)
-        cg.add(var.set_since_argmin_sensor(sens))
+            statistic_type = STATISTIC_TYPE_CONFIGS[stat_sensor.get(CONF_TYPE)][
+                STAT_TYPE_CONF_ENUM_TYPE
+            ]
 
-    if std_dev_sensor := config.get(CONF_STD_DEV):
-        sens = await sensor.new_sensor(std_dev_sensor)
-        cg.add(var.set_std_dev_sensor(sens))
+            cg.add(
+                var.add_sensor(
+                    sens,
+                    func,
+                    statistic_type,
+                )
+            )
 
-    if trend_sensor := config.get(CONF_TREND):
-        sens = await sensor.new_sensor(trend_sensor)
-        cg.add(var.set_trend_sensor(sens))
+    cg.add(
+        var.set_tracked_statistics(
+            cg.StructInitializer(
+                TrackedStatisticsConfiguration,
+                (RAW_STAT_ARGMAX, RAW_STAT_ARGMAX in tracked_stats),
+                (RAW_STAT_ARGMIN, RAW_STAT_ARGMIN in tracked_stats),
+                (RAW_STAT_C2, RAW_STAT_C2 in tracked_stats),
+                (RAW_STAT_DURATION, RAW_STAT_DURATION in tracked_stats),
+                (RAW_STAT_DURATION_SQUARED, RAW_STAT_DURATION_SQUARED in tracked_stats),
+                (RAW_STAT_M2, RAW_STAT_M2 in tracked_stats),
+                (RAW_STAT_MAX, RAW_STAT_MAX in tracked_stats),
+                (RAW_STAT_MEAN, RAW_STAT_MEAN in tracked_stats),
+                (RAW_STAT_MIN, RAW_STAT_MIN in tracked_stats),
+                (RAW_STAT_TIMESTAMP_M2, RAW_STAT_TIMESTAMP_M2 in tracked_stats),
+                (RAW_STAT_TIMESTAMP_MEAN, RAW_STAT_TIMESTAMP_MEAN in tracked_stats),
+                (
+                    RAW_STAT_TIMESTAMP_REFERENCE,
+                    RAW_STAT_TIMESTAMP_REFERENCE in tracked_stats,
+                ),
+            )
+        )
+    )
 
 
 ######################

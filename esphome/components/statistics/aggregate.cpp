@@ -7,10 +7,11 @@
 namespace esphome {
 namespace statistics {
 
-Aggregate::Aggregate(double value, uint64_t duration, uint32_t timestamp, time_t time) {
+Aggregate::Aggregate(StatisticsCalculationConfig statistics_config, double value, uint64_t duration, uint32_t timestamp,
+                     time_t unix_time) {
   if (!std::isnan(value)) {
-    this->argmax_ = time;
-    this->argmin_ = time;
+    this->argmax_ = unix_time;
+    this->argmin_ = unix_time;
     this->c2_ = 0.0;
     this->count_ = 1;
     this->m2_ = 0.0;
@@ -23,9 +24,10 @@ Aggregate::Aggregate(double value, uint64_t duration, uint32_t timestamp, time_t
     this->duration_ = duration;
     this->duration_squared_ = duration * duration;
   }
+  this->statistics_calculation_config_ = statistics_config;
 }
 
-Aggregate Aggregate::combine_with(const Aggregate &b, bool time_weighted) {
+Aggregate Aggregate::combine_with(const Aggregate &b) {
   // If either of the Aggregates is the identity, return the other Aggregate.
   if (b.get_count() == 0) {
     return *this;
@@ -33,7 +35,7 @@ Aggregate Aggregate::combine_with(const Aggregate &b, bool time_weighted) {
     return b;
   }
 
-  Aggregate combined;
+  Aggregate combined(this->statistics_calculation_config_);
 
   combined.count_ = this->get_count() + b.get_count();
   combined.duration_ = this->get_duration() + b.get_duration();
@@ -48,8 +50,7 @@ Aggregate Aggregate::combine_with(const Aggregate &b, bool time_weighted) {
     combined.argmax_ = this->get_argmax();
   } else {  // the Aggregate's maximums are equal; use the more recent timestamp for argmax
     combined.max_ = this->get_max();
-
-    combined.argmax_ = std::max(this->get_argmax(), b.get_argmax());
+    combined.argmax_ = std::max(this->get_argmax(), b.get_argmax());  // use the more recent UTC Unix time
   }
 
   // Combine min and argmin
@@ -61,8 +62,7 @@ Aggregate Aggregate::combine_with(const Aggregate &b, bool time_weighted) {
     combined.argmin_ = b.get_argmin();
   } else {  // the Aggregate's minimums are equal; use the more recent timestamp for argmin
     combined.min_ = this->get_min();
-    combined.argmin_ =
-        std::max(this->get_argmin(), b.get_argmin());  // use the more recent UTC Unix time; i.e., std::max
+    combined.argmin_ = std::max(this->get_argmin(), b.get_argmin());  // use the more recent UTC Unix time
   }
 
   double a_weight, b_weight, combined_weight;
@@ -76,7 +76,7 @@ Aggregate Aggregate::combine_with(const Aggregate &b, bool time_weighted) {
 
   // If the averages are time-weighted, then use measurement durations.
   // Otherwise, use the Aggregates' counts as the weights.
-  if (time_weighted) {
+  if (this->statistics_calculation_config_.weight_type == WEIGHT_TYPE_DURATION) {
     a_weight = static_cast<double>(this->get_duration());
     b_weight = static_cast<double>(b.get_duration());
     combined_weight = static_cast<double>(combined.duration_);
@@ -115,16 +115,16 @@ Aggregate Aggregate::combine_with(const Aggregate &b, bool time_weighted) {
   return combined;
 }
 
-double Aggregate::compute_covariance(bool time_weighted, GroupType type) const {
+double Aggregate::compute_covariance() const {
   if (this->count_ > 1)
-    return this->c2_ / this->denominator_(time_weighted, type);
+    return this->c2_ / this->denominator_();
 
   return NAN;
 }
 
-double Aggregate::compute_std_dev(bool time_weighted, GroupType type) const {
-  return std::sqrt(this->compute_variance(time_weighted, type));
-}
+double Aggregate::compute_quadrature() const { return this->mean_ * static_cast<double>(this->duration_); }
+
+double Aggregate::compute_std_dev() const { return std::sqrt(this->compute_variance()); }
 
 double Aggregate::compute_trend() const {
   if (this->count_ > 1)
@@ -132,9 +132,9 @@ double Aggregate::compute_trend() const {
   return NAN;
 }
 
-double Aggregate::compute_variance(bool time_weighted, GroupType type) const {
+double Aggregate::compute_variance() const {
   if (this->count_ > 1)
-    return this->m2_ / this->denominator_(time_weighted, type);
+    return this->m2_ / this->denominator_();
 
   return NAN;
 }
@@ -143,22 +143,23 @@ double Aggregate::compute_variance(bool time_weighted, GroupType type) const {
 // Internal Methods //
 //////////////////////
 
-double Aggregate::denominator_(bool time_weighted, GroupType type) const {
+double Aggregate::denominator_() const {
   // Bessel's correction for non-time weighted samples (https://en.wikipedia.org/wiki/Bessel%27s_correction, accessed
   // June 2023)
-  double denominator = this->count_ - 1;
+  double denominator = this->count_ - 1;  // GROUP_TYPE_SAMPLE and WEIGHT_TYPE_SIMPLE
 
-  if (!time_weighted) {
-    if (type == POPULATION_GROUP_TYPE)
-      denominator = static_cast<double>(this->count_);
+  if (this->statistics_calculation_config_.weight_type != WEIGHT_TYPE_DURATION) {
+    if (this->statistics_calculation_config_.group_type == GROUP_TYPE_POPULATION)
+      denominator = static_cast<double>(this->count_);  // GROUP_TYPE_POPULATION and WEIGHT_TYPE_SIMPLE
   } else {
-    if (type == SAMPLE_GROUP_TYPE) {
+    if (this->statistics_calculation_config_.group_type == GROUP_TYPE_SAMPLE) {
       // Reliability weights for weighted samples
       // (http://en.wikipedia.org/wiki/Weighted_arithmetic_mean#Weighted_sample_variance, accessed June 2023)
       denominator = static_cast<double>(this->duration_) -
-                    static_cast<double>(this->duration_squared_) / static_cast<double>(this->duration_);
-    } else if (type == POPULATION_GROUP_TYPE)
-      denominator = static_cast<double>(this->duration_);
+                    static_cast<double>(this->duration_squared_) /
+                        static_cast<double>(this->duration_);  // GROUP_TYPE_SAMPLE and WEIGHT_TYPE_DURATION
+    } else if (this->statistics_calculation_config_.group_type == GROUP_TYPE_POPULATION)
+      denominator = static_cast<double>(this->duration_);  // GROUP_TYPE_POPULATION and WEIGHT_TYPE_DURATION
   }
 
   return denominator;

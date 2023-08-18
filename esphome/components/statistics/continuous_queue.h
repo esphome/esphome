@@ -40,16 +40,16 @@
  *     queue_ = {8}     // right-most elements have the same count, so they are combined
  *
  *
- * Time complexity (for n aggregate chunks, where each may aggregate multiple measurements):
+ * Time complexity for n aggregate chunks:
  *  - insertion of new measurement: worst case O(log(n))
  *  - clear queue: O(1)
  *  - computing current aggregate: worst case O(log(n))
  *
- * Memory usage (for n aggregate chunks, where each may aggregate multiple measurements):
+ * Memory usage for n aggregate chunks:
  *  - log(n)+1 aggregates
  *
  *
- * Implemented by Kevin Ahrendt for the ESPHome project, June and July 2023
+ * Implemented by Kevin Ahrendt for the ESPHome project, 2023
  */
 
 #pragma once
@@ -66,6 +66,9 @@ static const uint8_t QUEUE_CAPACITY_IF_NONE_SPECIFIED = 32;
 
 class ContinuousQueue : public AggregateQueue {
  public:
+  ContinuousQueue(StatisticsCalculationConfig statistics_calculation_config)
+      : AggregateQueue(statistics_calculation_config) {}
+
   //////////////////////////////////////////////////////////
   // Overridden virtual methods from AggregateQueue class //
   //////////////////////////////////////////////////////////
@@ -93,11 +96,11 @@ class ContinuousQueue : public AggregateQueue {
   /** Set the queue's size and pre-allocate memory.
    *
    * This queue uses at most log_2(<window_size>)+1 aggregates to store <chunk_capacity> aggregate chunks.
-   * @param chunk_capacity the total amount of Aggregate chunks that can be inserted into the queue before an overflow
-   * @param config which summary statistics are saved in the queue
+   * @param capacity the total amount of Aggregate chunks that can be inserted into the queue before an overflow
+   * @param tracked_statistics_config which summary statistics are saved in the queue
    * @return true if memory was successfully allocated, false otherwise
    */
-  bool set_capacity(size_t chunk_capacity, EnabledAggregatesConfiguration enabled_config) override;
+  bool set_capacity(size_t capacity, TrackedStatisticsConfiguration tracked_statistics_config) override;
 
  protected:
   // Largest possible index before running out of memory

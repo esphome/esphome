@@ -13,29 +13,31 @@
  *      - Use get_* methods for retrieval
  *    - Some of the stored summary statistics in the monoid are not useful immediately but can be combined with other
  *      stored measurements to compute a useful statistic
- *      - Covariance uses the stored count (or duration if time-weighted) and C2 statistics
- *        - C2 uses the mean, count (or duration if time-weighted), and timestamp mean for the combine operation
- *      - Linear correlation of deterimination uses C2, M2, and timestamp M2 statistics
+ *      - Covariance uses the stored count (or duration if duration weighted) and C2 statistics
+ *        - C2 uses the mean, count (or duration if duration weighted), and timestamp mean for the combine operation
+ *      - Quadrature is the area under the curve and uses the duration and measurement mean statistics
  *      - Trend is computed using C2 and timestamp M2 statistics
- *        - timestamp M2 statistic additionally requires the timestamp mean and count (or duration if time-weighted)
+ *        - timestamp M2 statistic additionally requires the timestamp mean and count (or duration if duration weighted)
  *          for the combine operation
- *      - Variance and standard deviation are computed using the stored count (or duration if time-weighted) and M2
+ *      - Variance and standard deviation are computed using the stored count (or duration if duration weighted) and M2
  *        statistics
- *        - M2 requires the mean statistic and count (or duration if time-weighted) for the combine operation
+ *        - M2 requires the mean statistic and count (or duration if duration weighted) for the combine operation
  *      - Use compute_* methods for retrieval
  *
  * For any statistic that uses timestamp_mean, the Aggregate also stores timestamp_reference.
  *  - timestamp_reference is the offset (in milliseconds) for the timestamp_mean
- *  - timestamp_means need to be normalized before combined so that they reference the same timestamp
+ *  - Both timestamp_means need to be normalized before combined so that they reference the same timestamp
  *    - The normalizing process involves finding the time delta between the two references; this avoids issues from
  *      millis() rolling over
  *  - This approach ensures one of the timestamp_reference's is 0 when combining two Aggregates
- *    - This makes timestamp_mean as small as possible to minimize floating point precision issues
+ *    - This makes timestamp_mean as small as possible to minimize potential floating point precision issues
  *
- * Implemented by Kevin Ahrendt for the ESPHome project, June and July 2023
+ * Implemented by Kevin Ahrendt for the ESPHome project, 2023
  */
 
 #pragma once
+
+#include "esphome/core/helpers.h"  // necessary for ExternalRAMAllocator
 
 #include <cmath>    // necessary for NaN
 #include <cstdint>  // necessary for uint32_t
@@ -45,50 +47,72 @@
 namespace esphome {
 namespace statistics {
 
-enum GroupType {
-  SAMPLE_GROUP_TYPE,
-  POPULATION_GROUP_TYPE,
+// Group type determines whether to apply Bessel's correction (for simple weights) or relaibility weights (for duration
+// weights)
+enum GroupType : uint8_t {
+  GROUP_TYPE_SAMPLE,
+  GROUP_TYPE_POPULATION,
+};
+
+// Weight type determines how measurements are weighted. For simple weighted, all measuremens have a weight of 1. For
+// duration weighted, each measurement uses its duration as its weight.
+enum WeightType : uint8_t {
+  WEIGHT_TYPE_SIMPLE,
+  WEIGHT_TYPE_DURATION,
+};
+
+struct StatisticsCalculationConfig {
+  enum GroupType group_type;
+  enum WeightType weight_type;
 };
 
 class Aggregate {
  public:
   /// @brief Construct a null measurement Aggregate.
-  Aggregate(){};
+  Aggregate(StatisticsCalculationConfig statistics_calculation_config) {
+    this->statistics_calculation_config_ = statistics_calculation_config;
+  }
 
   /** Construct an Aggregate.
    *
    * @param value sensor measurement
    * @param duration length of time (in milliseconds) for measurement
    * @param timestamp timestamp (in milliseconds) since boot; i.e., millis()
-   * @param time UTC Unix time for measurement (in seconds)
+   * @param unix_time UTC Unix time for measurement (in seconds)
    */
-  Aggregate(double value, uint64_t duration, uint32_t timestamp, time_t time);
+  Aggregate(StatisticsCalculationConfig statistics_config, double value, uint64_t duration, uint32_t timestamp,
+            time_t unix_time);
 
   /** Combine Aggregate with another.
    *
    * Binary operation that combines two aggregates that store statistics from non-overlapping sets of measurements.
-   * @param b aggregate to combine with
-   * @param time_weighted true if averages use duration as weight
+   * @param b Aggregate to combine with
+   * @return combined Aggregate
    */
-  Aggregate combine_with(const Aggregate &b, bool time_weighted = false);
+  Aggregate combine_with(const Aggregate &b);
 
   /** Compute the covariance of the set of measurements with respect to timestamps.
    *
-   * Applies Bessel's correction or implements reliability weights if the group type is a sample.
-   * @param time_weighted true if averages use duration as weight
-   * @param type group type of the set of measurements. It can be a sample or a population.
+   * Unused in component but available for lambdas.
+   * Uses count if WEIGHT_TYPE_SIMPLE and duration if WEIGHT_TYPE_DURATION.
+   * Applies Bessel's correction or implements reliability weights if GROUP_TYPE_SAMPLE.
    * @return covariance of the set of measurements
    */
-  double compute_covariance(bool time_weighted, GroupType type) const;
+  double compute_covariance() const;
+
+  /** Compute the area under the curve of the measurements.
+   *
+   * @return area under the curve in units of the sensor times milliseconds
+   */
+  double compute_quadrature() const;
 
   /** Compute the standard deviation of the set of measurements.
    *
-   * Applies Bessel's correction or implements reliability weights if the group type is a sample.
-   * @param time_weighted true if averages use duration as weight
-   * @param type group type of the set of measurements. It can be a sample or a population.
+   * Uses count if WEIGHT_TYPE_SIMPLE and duration if WEIGHT_TYPE_DURATION.
+   * Applies Bessel's correction or implements reliability weights if GROUP_TYPE_SAMPLE.
    * @return standard deviation of the set of measurements
    */
-  double compute_std_dev(bool time_weighted, GroupType type) const;
+  double compute_std_dev() const;
 
   /** Compute the slope of the line of best fit
    *
@@ -98,12 +122,11 @@ class Aggregate {
 
   /** Compute the variance of the set of measurements.
    *
-   * Applies Bessel's correction or implements reliability weights if the group type is a sample.
-   * @param time_weighted true if averages use duration as weight
-   * @param type group type of the set of measurements. It can be a sample or a population
+   * Uses count if WEIGHT_TYPE_SIMPLE and duration if WEIGHT_TYPE_DURATION.
+   * Applies Bessel's correction or implements reliability weights if GROUP_TYPE_SAMPLE.
    * @return variance of the set of measurements
    */
-  double compute_variance(bool time_weighted, GroupType type) const;
+  double compute_variance() const;
 
   // The UTC Unix time of the most recent maximum value in the set of measurements
   time_t get_argmax() const { return this->argmax_; }
@@ -125,8 +148,8 @@ class Aggregate {
   uint64_t get_duration() const { return this->duration_; }
   void set_duration(uint64_t duration) { this->duration_ = duration; }
 
-  // The duration of measurements in the Aggregate squared in milliseconds squared; used for computing reliability
-  // weights
+  // The sum of the duration of measurements in the Aggregate squared in milliseconds squared; used for computing
+  // reliability weights
   uint64_t get_duration_squared() const { return this->duration_squared_; }
   void set_duration_squared(uint64_t duration_squared) { this->duration_squared_ = duration_squared; }
 
@@ -135,16 +158,16 @@ class Aggregate {
   void set_m2(double m2) { this->m2_ = m2; }
 
   // Maximum value of the measurements in the Aggregate
-  double get_max() const { return this->max_; }
-  void set_max(double max) { this->max_ = max; }
+  float get_max() const { return this->max_; }
+  void set_max(float max) { this->max_ = max; }
 
   // Average value of the measurements in the Aggregate
   double get_mean() const { return this->mean_; }
   void set_mean(double mean) { this->mean_ = mean; }
 
   // Minimum value of the measurements in the Aggregate
-  double get_min() const { return this->min_; }
-  void set_min(double min) { this->min_ = min; }
+  float get_min() const { return this->min_; }
+  void set_min(float min) { this->min_ = min; }
 
   // M2 from Welford's algorithm for timestamps; used to compute variance of timestamps
   double get_timestamp_m2() const { return this->timestamp_m2_; }
@@ -169,8 +192,8 @@ class Aggregate {
   uint32_t timestamp_reference_{0};
 
   // The UTC Unix times for the most recent extreme values in the set of measurements
-  time_t argmin_{0};
-  time_t argmax_{0};
+  time_t argmin_{std::numeric_limits<time_t>::infinity() * (-1)};
+  time_t argmax_{std::numeric_limits<time_t>::infinity() * (-1)};
 
   // Count of non-NaN measurements in the set of measurements
   size_t count_{0};
@@ -187,8 +210,8 @@ class Aggregate {
   double c2_{NAN};
 
   // Extrema of the Aggregate's set of measurements
-  double max_{std::numeric_limits<double>::infinity() * (-1)};  // the supremum of the empty set is -infinity
-  double min_{std::numeric_limits<double>::infinity()};         // the infimum of the empty set is +infinity
+  float max_{std::numeric_limits<float>::infinity() * (-1)};  // the supremum of the empty set is -infinity
+  float min_{std::numeric_limits<float>::infinity()};         // the infimum of the empty set is +infinity
 
   // Quantity used in Welford's algorithm for finding the variance of the Aggregate's set of measurements
   double m2_{NAN};
@@ -201,18 +224,19 @@ class Aggregate {
 
   double timestamp_mean_{NAN};
 
+  StatisticsCalculationConfig statistics_calculation_config_{};
+
   //////////////////////
   // Internal Methods //
   //////////////////////
 
   /** Compute the denominator for the variance and covariance calculations.
    *
-   * Applies Bessel's correction or implements reliability weights if the group type is a sample.
-   * @param time_weighted true if averages use duration as weight
-   * @param type group type of the set of measurements. It can be a sample or a population.
+   * Uses count if WEIGHT_TYPE_SIMPLE and duration if WEIGHT_TYPE_DURATION.
+   * Applies Bessel's correction or implements reliability weights if GROUP_TYPE_SAMPLE.
    * @return denominator used in variance and covariance calculations
    */
-  double denominator_(bool time_weighted, GroupType type) const;
+  double denominator_() const;
 
   /** Normalize two timestamp means.
    *
