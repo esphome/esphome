@@ -51,6 +51,9 @@ class BLEClientDisconnectTrigger : public Trigger<>, public BLEClientNode {
         this->trigger();
         break;
       }
+      default: {
+        break;
+      }
     }
   }
 };
