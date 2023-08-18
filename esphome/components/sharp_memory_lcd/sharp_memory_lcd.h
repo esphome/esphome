@@ -53,7 +53,7 @@ class SharpMemoryLCD : public PollingComponent,
   GPIOPin *extmode_;
   GPIOPin *extcomin_;
   GPIOPin *disp_;
-  bool invert_color_ = false;
+  bool invert_color_;
 
   optional<sharp_memory_lcd_writer_t> writer_local_{};
 
