@@ -28,13 +28,7 @@ enum class ResponseType {
   SENSORS
 };
 
-enum class RequestState {
-  CONSTRUCTED,
-  QUEUED,
-  WRITING,
-  WAITING,
-  READING
-};
+enum class RequestState { CONSTRUCTED, QUEUED, WRITING, WAITING, READING };
 
 struct RequestSlot {
   uint8_t request_packet_[mitsubishi_protocol::PACKET_LEN];
@@ -125,7 +119,7 @@ class ClimateMitsubishi : public esphome::Component,
   std::chrono::steady_clock::time_point last_connect_attempt_timestamp_;
   std::chrono::steady_clock::time_point last_status_request_timestamp_;
   std::chrono::steady_clock::time_point last_settings_request_timestamp_;
-  std::list<RequestSlot*> pending_requests_;
+  std::list<RequestSlot *> pending_requests_;
   RequestSlot active_request_;
   int status_rotation_;
   float last_control_temperature_;
