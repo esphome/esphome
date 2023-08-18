@@ -135,7 +135,7 @@ void HOT SharpMemoryLCD::draw_absolute_pixel_internal(int x, int y, Color color)
 void SharpMemoryLCD::display_init_() {
   ESP_LOGD(TAG, "Initializing display...");
   // Set the vcom bit to a defined state
-  _sharpmem_vcom = SHARPMEM_BIT_VCOM;
+  this->sharpmem_vcom_ = SHARPMEM_BIT_VCOM;
   this->write_display_data();
 }
 
