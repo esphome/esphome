@@ -115,8 +115,9 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
   }
 
   /**
-   * Note about logging: the esph_log_X macros are used here because the CI checks complain about use of ESP_LOG* in
-   * header files. Not sure why, because they seem to work just fine.
+   * Note about logging: the esph_log_X macros are used here because the CI checks complain about use of the ESP LOG
+   * macros in header files (Can't even write it in a comment!)
+   * Not sure why, because they seem to work just fine.
    * The problem is that the implementation of a templated class can't be placed in a .cpp file when using C++ less than
    * 17, so the methods have to be here.  The esph_log_X macros are equivalent in function, but don't trigger the CI
    * errors.
