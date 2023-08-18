@@ -147,7 +147,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
         auto *chr = this->parent()->get_characteristic(this->service_uuid_, this->char_uuid_);
         if (chr == nullptr) {
           esph_log_w("ble_write_action", "Characteristic %s was not found in service %s",
-                    this->char_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
+                     this->char_uuid_.to_string().c_str(), this->service_uuid_.to_string().c_str());
           break;
         }
         this->char_handle_ = chr->handle;
@@ -164,7 +164,7 @@ template<typename... Ts> class BLEClientWriteAction : public Action<Ts...>, publ
         }
         this->node_state = espbt::ClientState::ESTABLISHED;
         esph_log_d(Automation::TAG, "Found characteristic %s on device %s", this->char_uuid_.to_string().c_str(),
-                  ble_client_->address_str().c_str());
+                   ble_client_->address_str().c_str());
         break;
       }
       default:
