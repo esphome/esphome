@@ -72,12 +72,6 @@ class Aggregate {
    */
   Aggregate combine_with(const Aggregate &b, bool time_weighted = false);
 
-  /** Compute the linear coeffecient of determination (r^2) of the set of measurements and timestamps.
-   *
-   * @return linear coeffecient of determination of the set of measurements and timestamps
-   */
-  double compute_coeffecient_of_determination() const;
-
   /** Compute the covariance of the set of measurements with respect to timestamps.
    *
    * Applies Bessel's correction or implements reliability weights if the group type is a sample.
