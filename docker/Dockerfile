@@ -35,7 +35,8 @@ RUN \
           python3-dev=3.9.2-3 \
           zlib1g-dev=1:1.2.11.dfsg-2+deb11u2 \
           libjpeg-dev=1:2.0.6-4 \
-          libcairo2=1.16.0-5; \
+          libcairo2=1.16.0-5 \
+          libfreetype-dev=2.10.4+dfsg-1+deb11u1; \
     fi; \
     rm -rf \
         /tmp/* \

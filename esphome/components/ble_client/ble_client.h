@@ -32,9 +32,6 @@ class BLEClientNode {
   virtual void loop() {}
   void set_address(uint64_t address) { address_ = address; }
   espbt::ESPBTClient *client;
-  // This should be transitioned to Established once the node no longer needs
-  // the services/descriptors/characteristics of the parent client. This will
-  // allow some memory to be freed.
   espbt::ClientState node_state;
 
   BLEClient *parent() { return this->parent_; }
