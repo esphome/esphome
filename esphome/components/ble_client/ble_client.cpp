@@ -37,14 +37,11 @@ bool BLEClient::parse_device(const espbt::ESPBTDevice &device) {
 void BLEClient::set_enabled(bool enabled) {
   if (enabled == this->enabled)
     return;
-  if (!enabled && this->state() != espbt::ClientState::IDLE) {
-    ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str().c_str());
-    auto ret = esp_ble_gattc_close(this->gattc_if_, this->conn_id_);
-    if (ret) {
-      ESP_LOGW(TAG, "esp_ble_gattc_close error, address=%s status=%d", this->address_str().c_str(), ret);
-    }
-  }
   this->enabled = enabled;
+  if (!enabled) {
+    ESP_LOGI(TAG, "[%s] Disabling BLE client.", this->address_str().c_str());
+    this->disconnect();
+  }
 }
 
 bool BLEClient::gattc_event_handler(esp_gattc_cb_event_t event, esp_gatt_if_t esp_gattc_if,
