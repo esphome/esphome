@@ -16,7 +16,7 @@ from esphome.const import (
 from esphome import automation
 
 AUTO_LOAD = ["esp32_ble_client"]
-CODEOWNERS = ["@buxtronix"]
+CODEOWNERS = ["@buxtronix", "@clydebarrow"]
 DEPENDENCIES = ["esp32_ble_tracker"]
 
 ble_client_ns = cg.esphome_ns.namespace("ble_client")
