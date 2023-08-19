@@ -19,7 +19,7 @@ from esphome.const import (
     CONF_RESIZE,
     CONF_SOURCE,
     CONF_TYPE,
-    CONF_URL
+    CONF_URL,
 )
 from esphome.core import CORE, HexInt
 
@@ -76,36 +76,38 @@ def download_mdi(value):
     path.write_bytes(req.content)
     return value
 
+
 def get_filename_from_url(url):
     # Regular expression pattern to match the file name at the end of the URL
-    pattern = r'/([^/]+)$'
+    pattern = r"/([^/]+)$"
     match = re.search(pattern, url)
     if match:
         file_name = match.group(1)
-        file_name = re.sub(r'%20', '', file_name)  # Replace %20 with empty string
-        
+        file_name = re.sub(r"%20", "", file_name)  # Replace %20 with empty string
+
         # Remove the file extension
-        file_name = re.sub(r'\.[^.]+$', '', file_name)
-        
+        file_name = re.sub(r"\.[^.]+$", "", file_name)
+
         return file_name
-    else:
-        return None
-    
+    return None
+
+
 def get_file_type(file_name):
     # Regular expression pattern to match the file extension
-    pattern = r'\.([^.]+)$'
+    pattern = r"\.([^.]+)$"
     match = re.search(pattern, file_name)
     if match:
         file_type = match.group(1)
         return file_type
-    else:
-        return None
+    return None
+
 
 def _compute_local_image_path(value) -> Path:
     image_id = get_filename_from_url(value[CONF_URL])
     filetype = get_file_type(value[CONF_URL])
     base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN / f"{filetype}"
     return base_dir / f"{image_id}.{filetype}"
+
 
 def download_image(value):
     image_id = get_filename_from_url(value[CONF_URL])
