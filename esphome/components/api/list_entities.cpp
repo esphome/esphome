@@ -56,6 +56,12 @@ ListEntitiesIterator::ListEntitiesIterator(APIConnection *client) : client_(clie
   on_entity_callback(
       [this](media_player::MediaPlayer *media_player) { return this->client_->send_media_player_info(media_player); });
 #endif
+
+#ifdef USE_ALARM_CONTROL_PANEL
+  on_entity_callback([this](alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) {
+    return this->client_->send_alarm_control_panel_info(a_alarm_control_panel);
+  });
+#endif
 }
 
 bool ListEntitiesIterator::on_service(UserServiceDescriptor *service) {

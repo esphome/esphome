@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP_IDF
+#ifdef USE_ESP32
 
 #include <string>
 #include <queue>
@@ -22,6 +22,7 @@ struct Event {
   bool retain;
   int qos;
   bool dup;
+  bool session_present;
   esp_mqtt_error_codes_t error_handle;
 
   // Construct from esp_mqtt_event_t
@@ -36,10 +37,11 @@ struct Event {
         retain(event.retain),
         qos(event.qos),
         dup(event.dup),
+        session_present(event.session_present),
         error_handle(*event.error_handle) {}
 };
 
-class MQTTBackendIDF final : public MQTTBackend {
+class MQTTBackendESP32 final : public MQTTBackend {
  public:
   static const size_t MQTT_BUFFER_SIZE = 4096;
 

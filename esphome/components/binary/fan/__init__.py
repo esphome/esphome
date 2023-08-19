@@ -29,10 +29,10 @@ async def to_code(config):
     output_ = await cg.get_variable(config[CONF_OUTPUT])
     cg.add(var.set_output(output_))
 
-    if CONF_OSCILLATION_OUTPUT in config:
-        oscillation_output = await cg.get_variable(config[CONF_OSCILLATION_OUTPUT])
+    if oscillation_output_id := config.get(CONF_OSCILLATION_OUTPUT):
+        oscillation_output = await cg.get_variable(oscillation_output_id)
         cg.add(var.set_oscillating(oscillation_output))
 
-    if CONF_DIRECTION_OUTPUT in config:
-        direction_output = await cg.get_variable(config[CONF_DIRECTION_OUTPUT])
+    if direction_output_id := config.get(CONF_DIRECTION_OUTPUT):
+        direction_output = await cg.get_variable(direction_output_id)
         cg.add(var.set_direction(direction_output))

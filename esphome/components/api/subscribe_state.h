@@ -13,7 +13,6 @@ class APIConnection;
 class InitialStateIterator : public ComponentIterator {
  public:
   InitialStateIterator(APIConnection *client);
-
  protected:
   APIConnection *client_;
 };

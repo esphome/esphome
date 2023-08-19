@@ -12,7 +12,7 @@ class Controller {
       this->cb = cb;
       this->entity = entity;
     }
-    template<typename... T> void operator()(T...) const { cb(entity); }
+    template<typename... T> void operator()(const T &...) const { cb(entity); }
 
    private:
     std::function<void(Entity *)> cb;

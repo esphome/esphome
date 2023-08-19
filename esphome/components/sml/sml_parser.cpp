@@ -88,6 +88,11 @@ uint64_t bytes_to_uint(const bytes &buffer) {
   for (auto const value : buffer) {
     val = (val << 8) + value;
   }
+  // Some smart meters send 24 bit signed integers. Sign extend to 64 bit if the
+  // 24 bit value is negative.
+  if (buffer.size() == 3 && buffer[0] & 0x80) {
+    val |= 0xFFFFFFFFFF000000;
+  }
   return val;
 }
 
