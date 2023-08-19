@@ -48,6 +48,9 @@
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+#include "esphome/components/alarm_control_panel/alarm_control_panel.h"
+#endif
 
 namespace esphome {
 namespace api {

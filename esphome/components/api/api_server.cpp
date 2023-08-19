@@ -108,6 +108,13 @@ void APIServer::setup() {
   });
 #endif
 
+#ifdef USE_ALARM_CONTROL_PANEL
+  Controller::add_on_state_callback([this](alarm_control_panel::AlarmControlPanel *obj) {
+    for (auto &c : this->clients_)
+      c->send_alarm_control_panel_state(obj);
+  });
+#endif
+
   socket_ = socket::socket_ip(SOCK_STREAM, 0);
   if (socket_ == nullptr) {
     ESP_LOGW(TAG, "Could not create socket.");
@@ -312,15 +319,6 @@ void APIServer::stop_voice_assistant() {
     if (c->request_voice_assistant(false, "", false))
       return;
   }
-}
-#endif
-
-#ifdef USE_ALARM_CONTROL_PANEL
-void APIServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
-  if (obj->is_internal())
-    return;
-  for (auto &c : this->clients_)
-    c->send_alarm_control_panel_state(obj);
 }
 #endif
 

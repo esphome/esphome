@@ -957,7 +957,7 @@ bool APIConnection::send_alarm_control_panel_info(alarm_control_panel::AlarmCont
   return this->send_list_entities_alarm_control_panel_response(msg);
 }
 void APIConnection::alarm_control_panel_command(const AlarmControlPanelCommandRequest &msg) {
-  alarm_control_panel::AlarmControlPanel *a_alarm_control_panel = App.get_alarm_control_panel_by_key(msg.key);
+  auto *a_alarm_control_panel = App.get_entity_by_key<alarm_control_panel::AlarmControlPanel>(msg.key);
   if (a_alarm_control_panel == nullptr)
     return;
 
