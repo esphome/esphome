@@ -117,25 +117,19 @@ void DebugComponent::dump_config() {
   esp_chip_info_t info;
   esp_chip_info(&info);
   const char *model;
-  switch (info.model) {
-    case CHIP_ESP32:
-      model = "ESP32";
-      break;
-    case CHIP_ESP32C3:
-      model = "ESP32-C3";
-      break;
-    case CHIP_ESP32S2:
-      model = "ESP32-S2";
-      break;
-    case CHIP_ESP32S3:
-      model = "ESP32-S3";
-      break;
-    case CHIP_ESP32H2:
-      model = "ESP32-H2";
-      break;
-    default:
-      model = "UNKNOWN";
-  }
+#if defined(USE_ESP32_VARIANT_ESP32)
+  model = "ESP32";
+#elif defined(USE_ESP32_VARIANT_ESP32C3)
+  model = "ESP32-C3";
+#elif defined(USE_ESP32_VARIANT_ESP32S2)
+  model = "ESP32-S2";
+#elif defined(USE_ESP32_VARIANT_ESP32S3)
+  model = "ESP32-S3";
+#elif defined(USE_ESP32_VARIANT_ESP32H2)
+  model = "ESP32-H2";
+#else
+  model = "UNKNOWN";
+#endif
   std::string features;
   if (info.features & CHIP_FEATURE_EMB_FLASH) {
     features += "EMB_FLASH,";
