@@ -324,11 +324,7 @@ class WiFiComponent : public Component {
 #endif
 
 #ifdef USE_ESP32_FRAMEWORK_ARDUINO
-#if ESP_IDF_VERSION_MAJOR >= 4
   void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
-#else
-  void wifi_event_callback_(system_event_id_t event, system_event_info_t info);
-#endif
   void wifi_scan_done_callback_();
 #endif
 #ifdef USE_ESP_IDF
