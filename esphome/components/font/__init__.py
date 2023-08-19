@@ -122,8 +122,7 @@ def get_filename_from_url(url):
         file_name = re.sub(r"\.[^.]+$", "", file_name)
 
         return file_name
-    else:
-        return None
+    return None
 
 
 def get_file_type(file_name):
@@ -133,8 +132,7 @@ def get_file_type(file_name):
     if match:
         file_type = match.group(1)
         return file_type
-    else:
-        return None
+    return None
 
 
 def _compute_local_image_path(value) -> Path:
