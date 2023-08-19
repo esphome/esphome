@@ -14,7 +14,10 @@ from esphome.const import (
     CONF_MIN_TEMPERATURE,
     CONF_PROTOCOL,
     CONF_SUPPORTED_MODES,
+    CONF_SUPPORTED_PRESETS,
     CONF_SUPPORTED_SWING_MODES,
+    CONF_TARGET_TEMPERATURE,
+    CONF_TEMPERATURE_STEP,
     CONF_VISUAL,
     CONF_WIFI,
     DEVICE_CLASS_TEMPERATURE,
@@ -23,24 +26,28 @@ from esphome.const import (
     UNIT_CELSIUS,
 )
 from esphome.components.climate import (
-    ClimateSwingMode,
     ClimateMode,
+    ClimatePreset,
+    ClimateSwingMode,
+    CONF_CURRENT_TEMPERATURE,
 )
 
 _LOGGER = logging.getLogger(__name__)
 
 PROTOCOL_MIN_TEMPERATURE = 16.0
 PROTOCOL_MAX_TEMPERATURE = 30.0
-PROTOCOL_TEMPERATURE_STEP = 1.0
+PROTOCOL_TARGET_TEMPERATURE_STEP = 1.0
+PROTOCOL_CURRENT_TEMPERATURE_STEP = 0.5
 
 CODEOWNERS = ["@paveldn"]
 AUTO_LOAD = ["sensor"]
 DEPENDENCIES = ["climate", "uart"]
 CONF_WIFI_SIGNAL = "wifi_signal"
+CONF_ANSWER_TIMEOUT = "answer_timeout"
+CONF_DISPLAY = "display"
 CONF_OUTDOOR_TEMPERATURE = "outdoor_temperature"
 CONF_VERTICAL_AIRFLOW = "vertical_airflow"
 CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
-
 
 PROTOCOL_HON = "HON"
 PROTOCOL_SMARTAIR2 = "SMARTAIR2"
@@ -54,18 +61,23 @@ HonClimate = haier_ns.class_("HonClimate", HaierClimateBase)
 Smartair2Climate = haier_ns.class_("Smartair2Climate", HaierClimateBase)
 
 
-AirflowVerticalDirection = haier_ns.enum("AirflowVerticalDirection")
+AirflowVerticalDirection = haier_ns.enum("AirflowVerticalDirection", True)
 AIRFLOW_VERTICAL_DIRECTION_OPTIONS = {
+    "HEALTH_UP": AirflowVerticalDirection.HEALTH_UP,
+    "MAX_UP": AirflowVerticalDirection.MAX_UP,
     "UP": AirflowVerticalDirection.UP,
     "CENTER": AirflowVerticalDirection.CENTER,
     "DOWN": AirflowVerticalDirection.DOWN,
+    "HEALTH_DOWN": AirflowVerticalDirection.HEALTH_DOWN,
 }
 
-AirflowHorizontalDirection = haier_ns.enum("AirflowHorizontalDirection")
+AirflowHorizontalDirection = haier_ns.enum("AirflowHorizontalDirection", True)
 AIRFLOW_HORIZONTAL_DIRECTION_OPTIONS = {
+    "MAX_LEFT": AirflowHorizontalDirection.MAX_LEFT,
     "LEFT": AirflowHorizontalDirection.LEFT,
     "CENTER": AirflowHorizontalDirection.CENTER,
     "RIGHT": AirflowHorizontalDirection.RIGHT,
+    "MAX_RIGHT": AirflowHorizontalDirection.MAX_RIGHT,
 }
 
 SUPPORTED_SWING_MODES_OPTIONS = {
@@ -77,11 +89,22 @@ SUPPORTED_SWING_MODES_OPTIONS = {
 
 SUPPORTED_CLIMATE_MODES_OPTIONS = {
     "OFF": ClimateMode.CLIMATE_MODE_OFF,  # always available
-    "AUTO": ClimateMode.CLIMATE_MODE_AUTO,  # always available
+    "HEAT_COOL": ClimateMode.CLIMATE_MODE_HEAT_COOL,  # always available
     "COOL": ClimateMode.CLIMATE_MODE_COOL,
     "HEAT": ClimateMode.CLIMATE_MODE_HEAT,
     "DRY": ClimateMode.CLIMATE_MODE_DRY,
     "FAN_ONLY": ClimateMode.CLIMATE_MODE_FAN_ONLY,
+}
+
+SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS = {
+    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
+    "COMFORT": ClimatePreset.CLIMATE_PRESET_COMFORT,
+}
+
+SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS = {
+    "ECO": ClimatePreset.CLIMATE_PRESET_ECO,
+    "BOOST": ClimatePreset.CLIMATE_PRESET_BOOST,
+    "SLEEP": ClimatePreset.CLIMATE_PRESET_SLEEP,
 }
 
 
@@ -104,10 +127,29 @@ def validate_visual(config):
                 )
         else:
             config[CONF_VISUAL][CONF_MAX_TEMPERATURE] = PROTOCOL_MAX_TEMPERATURE
+        if CONF_TEMPERATURE_STEP in visual_config:
+            temp_step = config[CONF_VISUAL][CONF_TEMPERATURE_STEP][
+                CONF_TARGET_TEMPERATURE
+            ]
+            if ((int)(temp_step * 2)) / 2 != temp_step:
+                raise cv.Invalid(
+                    f"Configured visual temperature step {temp_step} is wrong, it should be a multiple of 0.5"
+                )
+        else:
+            config[CONF_VISUAL][CONF_TEMPERATURE_STEP] = (
+                {
+                    CONF_TARGET_TEMPERATURE: PROTOCOL_TARGET_TEMPERATURE_STEP,
+                    CONF_CURRENT_TEMPERATURE: PROTOCOL_CURRENT_TEMPERATURE_STEP,
+                },
+            )
     else:
         config[CONF_VISUAL] = {
             CONF_MIN_TEMPERATURE: PROTOCOL_MIN_TEMPERATURE,
             CONF_MAX_TEMPERATURE: PROTOCOL_MAX_TEMPERATURE,
+            CONF_TEMPERATURE_STEP: {
+                CONF_TARGET_TEMPERATURE: PROTOCOL_TARGET_TEMPERATURE_STEP,
+                CONF_CURRENT_TEMPERATURE: PROTOCOL_CURRENT_TEMPERATURE_STEP,
+            },
         }
     return config
 
@@ -127,6 +169,11 @@ BASE_CONFIG_SCHEMA = (
                     "BOTH",
                 ],
             ): cv.ensure_list(cv.enum(SUPPORTED_SWING_MODES_OPTIONS, upper=True)),
+            cv.Optional(CONF_WIFI_SIGNAL, default=False): cv.boolean,
+            cv.Optional(CONF_DISPLAY): cv.boolean,
+            cv.Optional(
+                CONF_ANSWER_TIMEOUT,
+            ): cv.positive_time_period_milliseconds,
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -139,13 +186,26 @@ CONFIG_SCHEMA = cv.All(
             PROTOCOL_SMARTAIR2: BASE_CONFIG_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(Smartair2Climate),
+                    cv.Optional(
+                        CONF_SUPPORTED_PRESETS,
+                        default=list(
+                            SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS.keys()
+                        ),
+                    ): cv.ensure_list(
+                        cv.enum(SUPPORTED_CLIMATE_PRESETS_SMARTAIR2_OPTIONS, upper=True)
+                    ),
                 }
             ),
             PROTOCOL_HON: BASE_CONFIG_SCHEMA.extend(
                 {
                     cv.GenerateID(): cv.declare_id(HonClimate),
-                    cv.Optional(CONF_WIFI_SIGNAL, default=True): cv.boolean,
                     cv.Optional(CONF_BEEPER, default=True): cv.boolean,
+                    cv.Optional(
+                        CONF_SUPPORTED_PRESETS,
+                        default=list(SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS.keys()),
+                    ): cv.ensure_list(
+                        cv.enum(SUPPORTED_CLIMATE_PRESETS_HON_OPTIONS, upper=True)
+                    ),
                     cv.Optional(CONF_OUTDOOR_TEMPERATURE): sensor.sensor_schema(
                         unit_of_measurement=UNIT_CELSIUS,
                         icon=ICON_THERMOMETER,
@@ -349,10 +409,11 @@ async def to_code(config):
     await uart.register_uart_device(var, config)
     await climate.register_climate(var, config)
 
-    if (CONF_WIFI_SIGNAL in config) and (config[CONF_WIFI_SIGNAL]):
-        cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
+    cg.add(var.set_send_wifi(config[CONF_WIFI_SIGNAL]))
     if CONF_BEEPER in config:
         cg.add(var.set_beeper_state(config[CONF_BEEPER]))
+    if CONF_DISPLAY in config:
+        cg.add(var.set_display_state(config[CONF_DISPLAY]))
     if CONF_OUTDOOR_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_OUTDOOR_TEMPERATURE])
         cg.add(var.set_outdoor_temperature_sensor(sens))
@@ -360,5 +421,9 @@ async def to_code(config):
         cg.add(var.set_supported_modes(config[CONF_SUPPORTED_MODES]))
     if CONF_SUPPORTED_SWING_MODES in config:
         cg.add(var.set_supported_swing_modes(config[CONF_SUPPORTED_SWING_MODES]))
+    if CONF_SUPPORTED_PRESETS in config:
+        cg.add(var.set_supported_presets(config[CONF_SUPPORTED_PRESETS]))
+    if CONF_ANSWER_TIMEOUT in config:
+        cg.add(var.set_answer_timeout(config[CONF_ANSWER_TIMEOUT]))
     # https://github.com/paveldn/HaierProtocol
-    cg.add_library("pavlodn/HaierProtocol", "0.9.18")
+    cg.add_library("pavlodn/HaierProtocol", "0.9.20")

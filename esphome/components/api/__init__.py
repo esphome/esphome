@@ -116,9 +116,8 @@ async def to_code(config):
         cg.add(var.register_user_service(trigger))
         await automation.build_automation(trigger, func_args, conf)
 
-    if CONF_ENCRYPTION in config:
-        conf = config[CONF_ENCRYPTION]
-        decoded = base64.b64decode(conf[CONF_KEY])
+    if encryption_config := config.get(CONF_ENCRYPTION):
+        decoded = base64.b64decode(encryption_config[CONF_KEY])
         cg.add(var.set_noise_psk(list(decoded)))
         cg.add_define("USE_API_NOISE")
         cg.add_library("esphome/noise-c", "0.1.4")
