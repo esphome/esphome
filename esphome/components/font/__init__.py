@@ -21,7 +21,7 @@ from esphome.const import (
     CONF_SIZE,
     CONF_PATH,
     CONF_WEIGHT,
-    CONF_URL
+    CONF_URL,
 )
 from esphome.core import CORE, HexInt
 
@@ -109,24 +109,26 @@ def _compute_gfonts_local_path(value) -> Path:
     name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
     return _compute_local_font_dir(name) / "font.ttf"
 
+
 def get_filename_from_url(url):
     # Regular expression pattern to match the file name at the end of the URL
-    pattern = r'/([^/]+)$'
+    pattern = r"/([^/]+)$"
     match = re.search(pattern, url)
     if match:
         file_name = match.group(1)
-        file_name = re.sub(r'%20', '', file_name)  # Replace %20 with empty string
-        
+        file_name = re.sub(r"%20", "", file_name)  # Replace %20 with empty string
+
         # Remove the file extension
-        file_name = re.sub(r'\.[^.]+$', '', file_name)
-        
+        file_name = re.sub(r"\.[^.]+$", "", file_name)
+
         return file_name
     else:
         return None
-    
+
+
 def get_file_type(file_name):
     # Regular expression pattern to match the file extension
-    pattern = r'\.([^.]+)$'
+    pattern = r"\.([^.]+)$"
     match = re.search(pattern, file_name)
     if match:
         file_type = match.group(1)
@@ -134,11 +136,13 @@ def get_file_type(file_name):
     else:
         return None
 
+
 def _compute_local_image_path(value) -> Path:
     font_id = get_filename_from_url(value[CONF_URL])
     name = f"{font_id}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
     file_name = font_id + "." + get_file_type(value[CONF_URL])
     return _compute_local_font_dir(name) / file_name
+
 
 TYPE_LOCAL = "local"
 TYPE_LOCAL_BITMAP = "local_bitmap"
@@ -172,6 +176,7 @@ FONT_WEIGHTS = {
 
 def validate_weight_name(value):
     return FONT_WEIGHTS[cv.one_of(*FONT_WEIGHTS, lower=True, space="-")(value)]
+
 
 def download_gfonts(value):
     wght = value[CONF_WEIGHT]
@@ -221,6 +226,7 @@ GFONTS_SCHEMA = cv.All(
     download_gfonts,
 )
 
+
 def download_font(value):
     font_id = get_filename_from_url(value[CONF_URL])
     path = _compute_local_image_path(value)
@@ -237,6 +243,7 @@ def download_font(value):
     path.write_bytes(req.content)
     return value
 
+
 WEB_FONT_SCHEMA = cv.All(
     {
         cv.Required(CONF_URL): cv.string_strict,
@@ -247,6 +254,7 @@ WEB_FONT_SCHEMA = cv.All(
     },
     download_font,
 )
+
 
 def validate_file_shorthand(value):
     value = cv.string_strict(value)
@@ -271,7 +279,6 @@ def validate_file_shorthand(value):
                 CONF_URL: value,
             }
         )
-
 
     if value.endswith(".pcf") or value.endswith(".bdf"):
         return FILE_SCHEMA(
