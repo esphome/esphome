@@ -12,7 +12,7 @@ const LogString *alarm_control_panel_state_to_string(AlarmControlPanelState stat
     case ACP_STATE_ARMED_AWAY:
       return LOG_STR("ARMED_AWAY");
     case ACP_STATE_ARMED_NIGHT:
-      return LOG_STR("NIGHT");
+      return LOG_STR("ARMED_NIGHT");
     case ACP_STATE_ARMED_VACATION:
       return LOG_STR("ARMED_VACATION");
     case ACP_STATE_ARMED_CUSTOM_BYPASS:
