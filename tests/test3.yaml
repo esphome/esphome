@@ -957,7 +957,7 @@ climate:
       temperature_step: 1 °C
     supported_modes:
     - 'OFF'
-    - AUTO
+    - HEAT_COOL
     - COOL
     - HEAT
     - DRY
