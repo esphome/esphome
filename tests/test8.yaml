@@ -28,7 +28,9 @@ light:
 
 spi:
   clk_pin: GPIO7
-  mosi_pin: GPIO6
+  mosi_pin:
+    number: GPIO6
+    strapping: true
 
 display:
   - platform: ili9xxx
