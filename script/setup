@@ -10,6 +10,11 @@ if [ ! -n "$DEVCONTAINER" ] && [ ! -n "$VIRTUAL_ENV" ] && [ ! "$ESPHOME_NO_VENV"
   source venv/bin/activate
 fi
 
+# Avoid unsafe git error when running inside devcontainer
+if [ -n "$DEVCONTAINER" ];then
+  git config --global --add safe.directory "$PWD"
+fi
+
 pip3 install -r requirements.txt -r requirements_optional.txt -r requirements_test.txt
 pip3 install setuptools wheel
 pip3 install --no-use-pep517 -e .

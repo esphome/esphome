@@ -198,6 +198,12 @@ void BluetoothProxy::loop() {
   }
 }
 
+esp32_ble_tracker::AdvertisementParserType BluetoothProxy::get_advertisement_parser_type() {
+  if (this->raw_advertisements_)
+    return esp32_ble_tracker::AdvertisementParserType::RAW_ADVERTISEMENTS;
+  return esp32_ble_tracker::AdvertisementParserType::PARSED_ADVERTISEMENTS;
+}
+
 BluetoothConnection *BluetoothProxy::get_connection_(uint64_t address, bool reserve) {
   for (auto *connection : this->connections_) {
     if (connection->get_address() == address)
@@ -435,6 +441,7 @@ void BluetoothProxy::subscribe_api_connection(api::APIConnection *api_connection
   }
   this->api_connection_ = api_connection;
   this->raw_advertisements_ = flags & BluetoothProxySubscriptionFlag::SUBSCRIPTION_RAW_ADVERTISEMENTS;
+  this->parent_->recalculate_advertisement_parser_types();
 }
 
 void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connection) {
@@ -444,6 +451,7 @@ void BluetoothProxy::unsubscribe_api_connection(api::APIConnection *api_connecti
   }
   this->api_connection_ = nullptr;
   this->raw_advertisements_ = false;
+  this->parent_->recalculate_advertisement_parser_types();
 }
 
 void BluetoothProxy::send_device_connection(uint64_t address, bool connected, uint16_t mtu, esp_err_t error) {
