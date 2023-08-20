@@ -28,13 +28,6 @@ def esp32_c3_validate_gpio_pin(value):
         raise cv.Invalid(
             f"This pin cannot be used on ESP32-C3s and is already used by the SPI/PSRAM interface (function: {_ESP32C3_SPI_PSRAM_PINS[value]})"
         )
-    if value in _ESP32C3_STRAPPING_PINS:
-        _LOGGER.warning(
-            "GPIO%d is a Strapping PIN and should be avoided.\n"
-            "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
-            "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
-            value,
-        )
 
     return value
 
@@ -48,6 +41,11 @@ def esp32_c3_validate_supports(value):
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-21)")
 
     if is_input:
-        # All ESP32 pins support input mode
-        pass
+        if num in _ESP32C3_STRAPPING_PINS:
+            _LOGGER.warning(
+                "GPIO%d is a strapping PIN and should be avoided.\n"
+                "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
+                "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
+                num,
+            )
     return value

@@ -34,13 +34,6 @@ def esp32_s2_validate_gpio_pin(value):
         raise cv.Invalid(
             f"This pin cannot be used on ESP32-S2s and is already used by the SPI/PSRAM interface (function: {_ESP32S2_SPI_PSRAM_PINS[value]})"
         )
-    if value in _ESP32S2_STRAPPING_PINS:
-        _LOGGER.warning(
-            "GPIO%d is a Strapping PIN and should be avoided.\n"
-            "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
-            "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
-            value,
-        )
 
     if value in (22, 23, 24, 25):
         # These pins are not exposed in GPIO mux (reason unknown)
@@ -62,7 +55,13 @@ def esp32_s2_validate_supports(value):
         raise cv.Invalid(f"Invalid pin number: {num} (must be 0-46)")
     if is_input:
         # All ESP32 pins support input mode
-        pass
+        if num in _ESP32S2_STRAPPING_PINS:
+            _LOGGER.warning(
+                "GPIO%d is a strapping PIN and should be avoided.\n"
+                "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
+                "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
+                num,
+            )
     if is_output and num == 46:
         raise cv.Invalid(
             f"GPIO{num} does not support output pin mode.",
