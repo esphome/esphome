@@ -77,11 +77,12 @@ async def to_code(config):
 @automation.register_action(
     "htu21d.set_heater_level",
     SetHeaterLevelAction,
-    cv.Schema(
+    cv.maybe_simple_value(
         {
             cv.GenerateID(): cv.use_id(HTU21DComponent),
             cv.Required(CONF_LEVEL): cv.templatable(cv.int_),
-        }
+        },
+        key=CONF_LEVEL,
     ),
 )
 async def set_heater_level_to_code(config, action_id, template_arg, args):
