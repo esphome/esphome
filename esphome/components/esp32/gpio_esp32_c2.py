@@ -12,14 +12,6 @@ _LOGGER = logging.getLogger(__name__)
 def esp32_c2_validate_gpio_pin(value):
     if value < 0 or value > 20:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-20)")
-    if value in _ESP32C2_STRAPPING_PINS:
-        _LOGGER.warning(
-            "GPIO%d is a Strapping PIN and should be avoided.\n"
-            "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
-            "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
-            value,
-        )
-
     return value
 
 
@@ -33,5 +25,12 @@ def esp32_c2_validate_supports(value):
 
     if is_input:
         # All ESP32 pins support input mode
-        pass
+        if num in _ESP32C2_STRAPPING_PINS:
+            _LOGGER.warning(
+                "GPIO%d is a Strapping PIN and should be avoided.\n"
+                "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
+                "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
+                num,
+            )
+
     return value
