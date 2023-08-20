@@ -4,24 +4,14 @@
 #include "esphome/core/component.h"
 #include "esphome/core/hal.h"
 #include "esphome/core/automation.h"
-#include "LOLIN_HP303B.h"
 #include "esphome/components/sensor/sensor.h"
 
 namespace esphome {
 namespace hp303b {
-static const char *TAG = "hp303b";
-
-const int32_t LOLIN_HP303B::scaling_facts[HP303B__NUM_OF_SCAL_FACTS] = {524288, 1572864, 3670016, 7864320,
-                                                                        253952, 516096,  1040384, 2088960};
+static const char *TAG = "hp303b.sensor";
 
 // general Constants
 static const int16_t HP303B__PROD_ID = 0U;
-
-static const uint8_t HP303B__STD_SLAVE_ADDRESS = 0x77U;
-static const uint8_t HP303B__SPI_WRITE_CMD = 0x00U;
-static const uint8_t HP303B__SPI_READ_CMD = 0x80U;
-static const uint8_t HP303B__SPI_RW_MASK = 0x80U;
-static const uint8_t HP303B__SPI_MAX_FREQ = 100000U;
 
 static const uint8_t HP303B__LSB = 0x01U;
 
@@ -36,7 +26,7 @@ static const uint8_t HP303B__BUSYTIME_SCALING = 10U;
 // this is for error prevention on friday-afternoon-products :D
 // can set it to 0 if you dare, but there is no warranty that it will still work
 static const uint8_t HP303B__BUSYTIME_FAILSAFE = 10U;
-static const uint8_t HP303B__MAX_BUSYTIME = ((1000U - HP303B__BUSYTIME_FAILSAFE) * HP303B__BUSYTIME_SCALING);
+static const uint16_t HP303B__MAX_BUSYTIME = ((1000 - HP303B__BUSYTIME_FAILSAFE) * HP303B__BUSYTIME_SCALING);
 static const uint8_t HP303B__NUM_OF_SCAL_FACTS = 8;
 
 static const uint8_t HP303B__SUCCEEDED = 0;
@@ -51,95 +41,83 @@ static const uint8_t HP303B__REG_ADR_SPI3W = 0x09U;
 static const uint8_t HP303B__REG_CONTENT_SPI3W = 0x01U;
 
 // product id
-static const uint8_t HP303B__REG_INFO_PROD_ID = HP303B__REG_ADR_PROD_ID, HP303B__REG_MASK_PROD_ID,
-                     HP303B__REG_SHIFT_PROD_ID;
-static const uint8_t HP303B__REG_ADR_PROD_ID = 0x0DU;
-static const uint8_t HP303B__REG_MASK_PROD_ID = 0x0FU;
-static const uint8_t HP303B__REG_SHIFT_PROD_ID = 0U;
-
+#define HP303B__REG_ADR_PROD_ID 0x0DU
+#define HP303B__REG_MASK_PROD_ID 0x0FU
+#define HP303B__REG_SHIFT_PROD_ID 0U
+#define HP303B__REG_INFO_PROD_ID HP303B__REG_ADR_PROD_ID, HP303B__REG_MASK_PROD_ID, HP303B__REG_SHIFT_PROD_ID
 // revision id
-static const uint8_t HP303B__REG_INFO_REV_ID = HP303B__REG_ADR_REV_ID, HP303B__REG_MASK_REV_ID,
-                     HP303B__REG_SHIFT_REV_ID;
-static const uint8_t HP303B__REG_ADR_REV_ID = 0x0DU;
-static const uint8_t HP303B__REG_MASK_REV_ID = 0xF0U;
-static const uint8_t HP303B__REG_SHIFT_REV_ID = 4U;
+#define HP303B__REG_ADR_REV_ID 0x0DU
+#define HP303B__REG_MASK_REV_ID 0xF0U
+#define HP303B__REG_SHIFT_REV_ID 4U
+#define HP303B__REG_INFO_REV_ID HP303B__REG_ADR_REV_ID, HP303B__REG_MASK_REV_ID, HP303B__REG_SHIFT_REV_ID
 
 // operating mode
-static const uint8_t HP303B__REG_INFO_OPMODE = HP303B__REG_ADR_OPMODE, HP303B__REG_MASK_OPMODE,
-                     HP303B__REG_SHIFT_OPMODE;
-static const uint8_t HP303B__REG_ADR_OPMODE = 0x08U;
-static const uint8_t HP303B__REG_MASK_OPMODE = 0x07U;
-static const uint8_t HP303B__REG_SHIFT_OPMODE = 0U;
+#define HP303B__REG_ADR_OPMODE 0x08U
+#define HP303B__REG_MASK_OPMODE 0x07U
+#define HP303B__REG_SHIFT_OPMODE 0U
+#define HP303B__REG_INFO_OPMODE HP303B__REG_ADR_OPMODE, HP303B__REG_MASK_OPMODE, HP303B__REG_SHIFT_OPMODE
 
 // temperature measure rate
-static const uint8_t HP303B__REG_INFO_TEMP_MR = HP303B__REG_ADR_TEMP_MR, HP303B__REG_MASK_TEMP_MR,
-                     HP303B__REG_SHIFT_TEMP_MR;
-static const uint8_t HP303B__REG_ADR_TEMP_MR = 0x07U;
-static const uint8_t HP303B__REG_MASK_TEMP_MR = 0x70U;
-static const uint8_t HP303B__REG_SHIFT_TEMP_MR = 4U;
+#define HP303B__REG_ADR_TEMP_MR 0x07U
+#define HP303B__REG_MASK_TEMP_MR 0x70U
+#define HP303B__REG_SHIFT_TEMP_MR 4U
+#define HP303B__REG_INFO_TEMP_MR HP303B__REG_ADR_TEMP_MR, HP303B__REG_MASK_TEMP_MR, HP303B__REG_SHIFT_TEMP_MR
 
 // temperature oversampling rate
-static const uint8_t HP303B__REG_INFO_TEMP_OSR = HP303B__REG_ADR_TEMP_OSR, HP303B__REG_MASK_TEMP_OSR,
-                     HP303B__REG_SHIFT_TEMP_OSR;
-static const uint8_t HP303B__REG_ADR_TEMP_OSR = 0x07U;
-static const uint8_t HP303B__REG_MASK_TEMP_OSR = 0x07U;
-static const uint8_t HP303B__REG_SHIFT_TEMP_OSR = 0U;
+#define HP303B__REG_ADR_TEMP_OSR 0x07U
+#define HP303B__REG_MASK_TEMP_OSR 0x07U
+#define HP303B__REG_SHIFT_TEMP_OSR 0U
+#define HP303B__REG_INFO_TEMP_OSR HP303B__REG_ADR_TEMP_OSR, HP303B__REG_MASK_TEMP_OSR, HP303B__REG_SHIFT_TEMP_OSR
 
 // temperature sensor
-static const uint8_t HP303B__REG_INFO_TEMP_SENSOR = HP303B__REG_ADR_TEMP_SENSOR, HP303B__REG_MASK_TEMP_SENSOR,
-                     HP303B__REG_SHIFT_TEMP_SENSOR;
-static const uint8_t HP303B__REG_ADR_TEMP_SENSOR = 0x07U;
-static const uint8_t HP303B__REG_MASK_TEMP_SENSOR = 0x80U;
-static const uint8_t HP303B__REG_SHIFT_TEMP_SENSOR = 7U;
+#define HP303B__REG_ADR_TEMP_SENSOR 0x07U
+#define HP303B__REG_MASK_TEMP_SENSOR 0x80U
+#define HP303B__REG_SHIFT_TEMP_SENSOR 7U
+#define HP303B__REG_INFO_TEMP_SENSOR \
+  HP303B__REG_ADR_TEMP_SENSOR, HP303B__REG_MASK_TEMP_SENSOR, HP303B__REG_SHIFT_TEMP_SENSOR
 
 // temperature sensor recommendation
-static const uint8_t HP303B__REG_INFO_TEMP_SENSORREC = HP303B__REG_ADR_TEMP_SENSORREC, HP303B__REG_MASK_TEMP_SENSORREC,
-                     HP303B__REG_SHIFT_TEMP_SENSORREC;
-static const uint8_t HP303B__REG_ADR_TEMP_SENSORREC = 0x28U;
-static const uint8_t HP303B__REG_MASK_TEMP_SENSORREC = 0x80U;
-static const uint8_t HP303B__REG_SHIFT_TEMP_SENSORREC = 7U;
+#define HP303B__REG_ADR_TEMP_SENSORREC 0x28U
+#define HP303B__REG_MASK_TEMP_SENSORREC 0x80U
+#define HP303B__REG_SHIFT_TEMP_SENSORREC 7U
+#define HP303B__REG_INFO_TEMP_SENSORREC \
+  HP303B__REG_ADR_TEMP_SENSORREC, HP303B__REG_MASK_TEMP_SENSORREC, HP303B__REG_SHIFT_TEMP_SENSORREC
 
 // temperature shift enable (if temp_osr>3)
-static const uint8_t HP303B__REG_INFO_TEMP_SE = HP303B__REG_ADR_TEMP_SE, HP303B__REG_MASK_TEMP_SE,
-                     HP303B__REG_SHIFT_TEMP_SE;
-static const uint8_t HP303B__REG_ADR_TEMP_SE = 0x09U;
-static const uint8_t HP303B__REG_MASK_TEMP_SE = 0x08U;
-static const uint8_t HP303B__REG_SHIFT_TEMP_SE = 3U;
+#define HP303B__REG_ADR_TEMP_SE 0x09U
+#define HP303B__REG_MASK_TEMP_SE 0x08U
+#define HP303B__REG_SHIFT_TEMP_SE 3U
+#define HP303B__REG_INFO_TEMP_SE HP303B__REG_ADR_TEMP_SE, HP303B__REG_MASK_TEMP_SE, HP303B__REG_SHIFT_TEMP_SE
 
 // pressure measure rate
-static const uint8_t HP303B__REG_INFO_PRS_MR = HP303B__REG_ADR_PRS_MR, HP303B__REG_MASK_PRS_MR,
-                     HP303B__REG_SHIFT_PRS_MR;
-static const uint8_t HP303B__REG_ADR_PRS_MR = 0x06U;
-static const uint8_t HP303B__REG_MASK_PRS_MR = 0x70U;
-static const uint8_t HP303B__REG_SHIFT_PRS_MR = 4U;
+#define HP303B__REG_ADR_PRS_MR 0x06U
+#define HP303B__REG_MASK_PRS_MR 0x70U
+#define HP303B__REG_SHIFT_PRS_MR 4U
+#define HP303B__REG_INFO_PRS_MR HP303B__REG_ADR_PRS_MR, HP303B__REG_MASK_PRS_MR, HP303B__REG_SHIFT_PRS_MR
 
 // pressure oversampling rate
-static const uint8_t HP303B__REG_INFO_PRS_OSR = HP303B__REG_ADR_PRS_OSR, HP303B__REG_MASK_PRS_OSR,
-                     HP303B__REG_SHIFT_PRS_OSR;
-static const uint8_t HP303B__REG_ADR_PRS_OSR = 0x06U;
-static const uint8_t HP303B__REG_MASK_PRS_OSR = 0x07U;
-static const uint8_t HP303B__REG_SHIFT_PRS_OSR = 0U;
+#define HP303B__REG_ADR_PRS_OSR 0x06U
+#define HP303B__REG_MASK_PRS_OSR 0x07U
+#define HP303B__REG_SHIFT_PRS_OSR 0U
+#define HP303B__REG_INFO_PRS_OSR HP303B__REG_ADR_PRS_OSR, HP303B__REG_MASK_PRS_OSR, HP303B__REG_SHIFT_PRS_OSR
 
 // pressure shift enable (if prs_osr>3)
-static const uint8_t HP303B__REG_INFO_PRS_SE = HP303B__REG_ADR_PRS_SE, HP303B__REG_MASK_PRS_SE,
-                     HP303B__REG_SHIFT_PRS_SE;
-static const uint8_t HP303B__REG_ADR_PRS_SE = 0x09U;
-static const uint8_t HP303B__REG_MASK_PRS_SE = 0x04U;
-static const uint8_t HP303B__REG_SHIFT_PRS_SE = 2U;
+#define HP303B__REG_ADR_PRS_SE 0x09U
+#define HP303B__REG_MASK_PRS_SE 0x04U
+#define HP303B__REG_SHIFT_PRS_SE 2U
+#define HP303B__REG_INFO_PRS_SE HP303B__REG_ADR_PRS_SE, HP303B__REG_MASK_PRS_SE, HP303B__REG_SHIFT_PRS_SE
 
 // temperature ready flag
-static const uint8_t HP303B__REG_INFO_TEMP_RDY = HP303B__REG_ADR_TEMP_RDY, HP303B__REG_MASK_TEMP_RDY,
-                     HP303B__REG_SHIFT_TEMP_RDY;
-static const uint8_t HP303B__REG_ADR_TEMP_RDY = 0x08U;
-static const uint8_t HP303B__REG_MASK_TEMP_RDY = 0x20U;
-static const uint8_t HP303B__REG_SHIFT_TEMP_RDY = 5U;
+#define HP303B__REG_ADR_TEMP_RDY 0x08U
+#define HP303B__REG_MASK_TEMP_RDY 0x20U
+#define HP303B__REG_SHIFT_TEMP_RDY 5U
+#define HP303B__REG_INFO_TEMP_RDY HP303B__REG_ADR_TEMP_RDY, HP303B__REG_MASK_TEMP_RDY, HP303B__REG_SHIFT_TEMP_RDY
 
 // pressure ready flag
-static const uint8_t HP303B__REG_INFO_PRS_RDY = HP303B__REG_ADR_PRS_RDY, HP303B__REG_MASK_PRS_RDY,
-                     HP303B__REG_SHIFT_PRS_RDY;
-static const uint8_t HP303B__REG_ADR_PRS_RDY = 0x08U;
-static const uint8_t HP303B__REG_MASK_PRS_RDY = 0x10U;
-static const uint8_t HP303B__REG_SHIFT_PRS_RDY = 4U;
+#define HP303B__REG_ADR_PRS_RDY 0x08U
+#define HP303B__REG_MASK_PRS_RDY 0x10U
+#define HP303B__REG_SHIFT_PRS_RDY 4U
+#define HP303B__REG_INFO_PRS_RDY HP303B__REG_ADR_PRS_RDY, HP303B__REG_MASK_PRS_RDY, HP303B__REG_SHIFT_PRS_RDY
 
 // pressure value
 static const uint8_t HP303B__REG_ADR_PRS = 0x00U;
@@ -154,81 +132,80 @@ static const uint8_t HP303B__REG_ADR_COEF = 0x10U;
 static const uint8_t HP303B__REG_LEN_COEF = 18;
 
 // FIFO enable
-static const uint8_t HP303B__REG_INFO_FIFO_EN = HP303B__REG_ADR_FIFO_EN, HP303B__REG_MASK_FIFO_EN,
-                     HP303B__REG_SHIFT_FIFO_EN;
 static const uint8_t HP303B__REG_ADR_FIFO_EN = 0x09U;
 static const uint8_t HP303B__REG_MASK_FIFO_EN = 0x02U;
 static const uint8_t HP303B__REG_SHIFT_FIFO_EN = 1U;
+static const uint8_t HP303B__REG_INFO_FIFO_EN = HP303B__REG_ADR_FIFO_EN, HP303B__REG_MASK_FIFO_EN,
+                     HP303B__REG_SHIFT_FIFO_EN;
 
 // FIFO flush
-static const uint8_t HP303B__REG_INFO_FIFO_FL = HP303B__REG_ADR_FIFO_EN, HP303B__REG_MASK_FIFO_EN,
-                     HP303B__REG_SHIFT_FIFO_EN;
 static const uint8_t HP303B__REG_ADR_FIFO_FL = 0x0CU;
 static const uint8_t HP303B__REG_MASK_FIFO_FL = 0x80U;
 static const uint8_t HP303B__REG_SHIFT_FIFO_FL = 7U;
+static const uint8_t HP303B__REG_INFO_FIFO_FL = HP303B__REG_ADR_FIFO_EN, HP303B__REG_MASK_FIFO_EN,
+                     HP303B__REG_SHIFT_FIFO_EN;
 
 // FIFO empty
-static const uint8_t HP303B__REG_INFO_FIFO_EMPTY = HP303B__REG_ADR_FIFO_EMPTY, HP303B__REG_MASK_FIFO_EMPTY,
-                     HP303B__REG_SHIFT_FIFO_EMPTY;
 static const uint8_t HP303B__REG_ADR_FIFO_EMPTY = 0x0BU;
 static const uint8_t HP303B__REG_MASK_FIFO_EMPTY = 0x01U;
 static const uint8_t HP303B__REG_SHIFT_FIFO_EMPTY = 0U;
+static const uint8_t HP303B__REG_INFO_FIFO_EMPTY = HP303B__REG_ADR_FIFO_EMPTY, HP303B__REG_MASK_FIFO_EMPTY,
+                     HP303B__REG_SHIFT_FIFO_EMPTY;
 
 // FIFO full
-static const uint8_t HP303B__REG_INFO_FIFO_FULL = HP303B__REG_ADR_FIFO_FULL, HP303B__REG_MASK_FIFO_FULL,
-                     HP303B__REG_SHIFT_FIFO_FULL;
-static const uint8_t HP303B__REG_ADR_FIFO_FULL = 0x0BU;
-static const uint8_t HP303B__REG_MASK_FIFO_FULL = 0x02U;
-static const uint8_t HP303B__REG_SHIFT_FIFO_FULL = 1U;
+#define HP303B__REG_ADR_FIFO_FULL = 0x0BU;
+#define HP303B__REG_MASK_FIFO_FULL = 0x02U;
+#define HP303B__REG_SHIFT_FIFO_FULL = 1U;
+#define HP303B__REG_INFO_FIFO_FULL HP303B__REG_ADR_FIFO_FULL, HP303B__REG_MASK_FIFO_FULL, HP303B__REG_SHIFT_FIFO_FULL;
 
 // INT HL
-static const uint8_t HP303B__REG_INFO_INT_HL = HP303B__REG_ADR_INT_HL, HP303B__REG_MASK_INT_HL,
-                     HP303B__REG_SHIFT_INT_HL;
 static const uint8_t HP303B__REG_ADR_INT_HL = 0x09U;
 static const uint8_t HP303B__REG_MASK_INT_HL = 0x80U;
 static const uint8_t HP303B__REG_SHIFT_INT_HL = 7U;
+static const uint8_t HP303B__REG_INFO_INT_HL = HP303B__REG_ADR_INT_HL, HP303B__REG_MASK_INT_HL,
+                     HP303B__REG_SHIFT_INT_HL;
 
 // INT FIFO enable
-static const uint8_t HP303B__REG_INFO_INT_EN_FIFO = HP303B__REG_ADR_INT_EN_FIFO, HP303B__REG_MASK_INT_EN_FIFO,
-                     HP303B__REG_SHIFT_INT_EN_FIFO;
 static const uint8_t HP303B__REG_ADR_INT_EN_FIFO = 0x09U;
 static const uint8_t HP303B__REG_MASK_INT_EN_FIFO = 0x40U;
 static const uint8_t HP303B__REG_SHIFT_INT_EN_FIFO = 6U;
+static const uint8_t HP303B__REG_INFO_INT_EN_FIFO = HP303B__REG_ADR_INT_EN_FIFO, HP303B__REG_MASK_INT_EN_FIFO,
+                     HP303B__REG_SHIFT_INT_EN_FIFO;
 
 // INT TEMP enable
-static const uint8_t HP303B__REG_INFO_INT_EN_TEMP = HP303B__REG_ADR_INT_EN_TEMP, HP303B__REG_MASK_INT_EN_TEMP,
-                     HP303B__REG_SHIFT_INT_EN_TEMP;
 static const uint8_t HP303B__REG_ADR_INT_EN_TEMP = 0x09U;
 static const uint8_t HP303B__REG_MASK_INT_EN_TEMP = 0x20U;
 static const uint8_t HP303B__REG_SHIFT_INT_EN_TEMP = 5U;
+static const uint8_t HP303B__REG_INFO_INT_EN_TEMP = HP303B__REG_ADR_INT_EN_TEMP, HP303B__REG_MASK_INT_EN_TEMP,
+                     HP303B__REG_SHIFT_INT_EN_TEMP;
 
 // INT PRS enable
-static const uint8_t HP303B__REG_INFO_INT_EN_PRS = HP303B__REG_ADR_INT_EN_PRS, HP303B__REG_MASK_INT_EN_PRS,
-                     HP303B__REG_SHIFT_INT_EN_PRS;
 static const uint8_t HP303B__REG_ADR_INT_EN_PRS = 0x09U;
 static const uint8_t HP303B__REG_MASK_INT_EN_PRS = 0x10U;
 static const uint8_t HP303B__REG_SHIFT_INT_EN_PRS = 4U;
+static const uint8_t HP303B__REG_INFO_INT_EN_PRS = HP303B__REG_ADR_INT_EN_PRS, HP303B__REG_MASK_INT_EN_PRS,
+                     HP303B__REG_SHIFT_INT_EN_PRS;
 
 // INT FIFO flag
-static const uint8_t HP303B__REG_INFO_INT_FLAG_FIFO = HP303B__REG_ADR_INT_FLAG_FIFO, HP303B__REG_MASK_INT_FLAG_FIFO,
-                     HP303B__REG_SHIFT_INT_FLAG_FIFO;
 static const uint8_t HP303B__REG_ADR_INT_FLAG_FIFO = 0x0AU;
 static const uint8_t HP303B__REG_MASK_INT_FLAG_FIFO = 0x04U;
 static const uint8_t HP303B__REG_SHIFT_INT_FLAG_FIFO = 2U;
+static const uint8_t HP303B__REG_INFO_INT_FLAG_FIFO = HP303B__REG_ADR_INT_FLAG_FIFO, HP303B__REG_MASK_INT_FLAG_FIFO,
+                     HP303B__REG_SHIFT_INT_FLAG_FIFO;
 
 // INT TMP flag
-static const uint8_t HP303B__REG_INFO_INT_FLAG_TEMP = HP303B__REG_ADR_INT_FLAG_TEMP, HP303B__REG_MASK_INT_FLAG_TEMP,
-                     HP303B__REG_SHIFT_INT_FLAG_TEMP;
 static const uint8_t HP303B__REG_ADR_INT_FLAG_TEMP = 0x0AU;
 static const uint8_t HP303B__REG_MASK_INT_FLAG_TEMP = 0x02U;
 static const uint8_t HP303B__REG_SHIFT_INT_FLAG_TEMP = 1U;
+static const uint8_t HP303B__REG_INFO_INT_FLAG_TEMP = HP303B__REG_ADR_INT_FLAG_TEMP, HP303B__REG_MASK_INT_FLAG_TEMP,
+                     HP303B__REG_SHIFT_INT_FLAG_TEMP;
 
 // INT PRS flag
-static const uint8_t HP303B__REG_INFO_INT_FLAG_PRS = HP303B__REG_ADR_INT_FLAG_PRS, HP303B__REG_MASK_INT_FLAG_PRS,
-                     HP303B__REG_SHIFT_INT_FLAG_PRS;
 static const uint8_t HP303B__REG_ADR_INT_FLAG_PRS = 0x0AU;
 static const uint8_t HP303B__REG_MASK_INT_FLAG_PRS = 0x01U;
 static const uint8_t HP303B__REG_SHIFT_INT_FLAG_PRS = 0U;
+static const uint8_t HP303B__REG_INFO_INT_FLAG_PRS = HP303B__REG_ADR_INT_FLAG_PRS, HP303B__REG_MASK_INT_FLAG_PRS,
+                     HP303B__REG_SHIFT_INT_FLAG_PRS;
 
 class HP303BComponent : public PollingComponent {
  public:
@@ -244,7 +221,7 @@ class HP303BComponent : public PollingComponent {
 
   void standby();
 
-  virtual int16_t set_interrupt_polarity(uint8_t polarity) = 0;
+  virtual int set_interrupt_polarity(uint8_t polarity) = 0;
 
   int16_t measure_pressureOnce(int32_t &result, uint8_t oversampling_rate);
   int16_t measure_pressureOnce(int32_t &result) { return measurePressureOnce(result, m_prs_osr); }
@@ -255,10 +232,10 @@ class HP303BComponent : public PollingComponent {
   int16_t write_byte_bitfield(uint8_t data, uint8_t reg_address, uint8_t mask, uint8_t shift, uint8_t check);
   int16_t write_byte_bitfield(uint8_t data, uint8_t reg_address, uint8_t mask, uint8_t shift);
 
-  virtual write_byte(uint8_t reg_address, uint8_t data, uint8_t check) = 0;
+  virtual int write_byte(uint8_t reg_address, uint8_t data, uint8_t check) = 0;
   int16_t write_byte(uint8_t reg_address, uint8_t data);
-  virtual read_block(uint8_t reg_address, uint8_t length, uint8_t *buffer) = 0;
-  virtual read_byte(uint8_t reg_address) = 0;
+  virtual int read_block(uint8_t reg_address, uint8_t length, uint8_t *buffer) = 0;
+  virtual int read_byte(uint8_t reg_address) = 0;
   int32_t calc_pressure(int32_t raw);
   int32_t calc_temp(int32_t raw);
   int16_t getFIFOvalue(int32_t *value);
@@ -272,7 +249,8 @@ class HP303BComponent : public PollingComponent {
   sensor::Sensor *pressure_{nullptr};
 
   // scaling factor table
-  static const int32_t scaling_facts[HP303B__NUM_OF_SCAL_FACTS];
+  static const int32_t scaling_facts[HP303B__NUM_OF_SCAL_FACTS] = {524288, 1572864, 3670016, 7864320,
+                                                                   253952, 516096,  1040384, 2088960};
 
   // enum for operating mode
   enum Mode {
