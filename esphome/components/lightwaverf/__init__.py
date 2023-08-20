@@ -15,7 +15,6 @@ from esphome.const import (
 )
 from esphome.cpp_helpers import gpio_pin_expression
 
-
 CODEOWNERS = ["@max246"]
 
 lightwaverf_ns = cg.esphome_ns.namespace("lightwaverf")
