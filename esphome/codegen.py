@@ -36,7 +36,7 @@ from esphome.cpp_generator import (  # noqa
     get_variable,
     get_variable_with_full_id,
     process_lambda,
-    set_cpp_version,
+    set_cpp_standard,
     is_template,
     templatable,
     MockObj,
