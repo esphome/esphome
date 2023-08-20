@@ -46,9 +46,12 @@ class Lock;
 namespace media_player {
 class MediaPlayer;
 }
+namespace alarm_control_panel {
+class AlarmControlPanel;
+}
 
-using entities_t =
-    std::tuple<binary_sensor::BinarySensor *, sensor::Sensor *, switch_::Switch *, button::Button *,
-               text_sensor::TextSensor *, fan::Fan *, climate::Climate *, light::LightState *, cover::Cover *,
-               number::Number *, select::Select *, lock::Lock *, media_player::MediaPlayer *>;
+using entities_t = std::tuple<binary_sensor::BinarySensor *, sensor::Sensor *, switch_::Switch *, button::Button *,
+                              text_sensor::TextSensor *, fan::Fan *, climate::Climate *, light::LightState *,
+                              cover::Cover *, number::Number *, select::Select *, lock::Lock *,
+                              media_player::MediaPlayer *, alarm_control_panel::AlarmControlPanel *>;
 }  // namespace esphome
