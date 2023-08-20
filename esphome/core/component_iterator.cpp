@@ -259,39 +259,51 @@ void ComponentIterator::advance() {
           break;
         } else {
           success = this->on_keyboard(keyboard);
+#endif
+#endif
+#ifdef USE_ALARM_CONTROL_PANEL
+          case IteratorState::ALARM_CONTROL_PANEL:
+            if (this->at_ >= App.get_alarm_control_panels().size()) {
+              advance_platform = true;
+            } else {
+              auto *a_alarm_control_panel = App.get_alarm_control_panels()[this->at_];
+              if (a_alarm_control_panel->is_internal() && !this->include_internal_) {
+                success = true;
+                break;
+              } else {
+                success = this->on_alarm_control_panel(a_alarm_control_panel);
+              }
+            }
+            break;
+#endif
+          case IteratorState::MAX:
+            if (this->on_end()) {
+              this->state_ = IteratorState::NONE;
+            }
+            return;
+        }
+
+        if (advance_platform) {
+          this->state_ = static_cast<IteratorState>(static_cast<uint32_t>(this->state_) + 1);
+          this->at_ = 0;
+        } else if (success) {
+          this->at_++;
         }
       }
-      break;
-#endif
-#endif
-    case IteratorState::MAX:
-      if (this->on_end()) {
-        this->state_ = IteratorState::NONE;
-      }
-      return;
-  }
-
-  if (advance_platform) {
-    this->state_ = static_cast<IteratorState>(static_cast<uint32_t>(this->state_) + 1);
-    this->at_ = 0;
-  } else if (success) {
-    this->at_++;
-  }
-}
-bool ComponentIterator::on_end() { return true; }
-bool ComponentIterator::on_begin() { return true; }
+      bool ComponentIterator::on_end() { return true; }
+      bool ComponentIterator::on_begin() { return true; }
 #ifdef USE_API
-bool ComponentIterator::on_service(api::UserServiceDescriptor *service) { return true; }
+      bool ComponentIterator::on_service(api::UserServiceDescriptor * service) { return true; }
 #endif
 #ifdef USE_ESP32_CAMERA
-bool ComponentIterator::on_camera(esp32_camera::ESP32Camera *camera) { return true; }
+      bool ComponentIterator::on_camera(esp32_camera::ESP32Camera * camera) { return true; }
 #endif
 #ifdef USE_MEDIA_PLAYER
-bool ComponentIterator::on_media_player(media_player::MediaPlayer *media_player) { return true; }
+      bool ComponentIterator::on_media_player(media_player::MediaPlayer * media_player) { return true; }
 #endif
 #ifdef REMOVE_AFTER_REVIEW
 #ifdef USE_KEYBOARD
-bool ComponentIterator::on_keyboard(keyboard::Keyboard *keyboard) { return true; }
+      bool ComponentIterator::on_keyboard(keyboard::Keyboard * keyboard) { return true; }
 #endif
 #endif
-}  // namespace esphome
+  }  // namespace esphome

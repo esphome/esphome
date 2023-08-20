@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
 #include "esphome/core/defines.h"
@@ -59,6 +57,9 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_KEYBOARD
   bool on_keyboard(keyboard::Keyboard *keyboard);
 #endif
+#ifdef USE_ALARM_CONTROL_PANEL
+  bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) override;
+#endif
 
  protected:
   WebServer *web_server_;
@@ -69,5 +70,3 @@ class ListEntitiesIterator : public ComponentIterator {
 
 }  // namespace web_server
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

@@ -21,7 +21,7 @@ light:
   - platform: neopixelbus
     type: GRB
     variant: WS2812
-    pin: 33
+    pin: GPIO38
     num_leds: 1
     id: neopixel
     method: esp32_rmt
@@ -92,7 +92,37 @@ hid:
         - keyboard
         - media_keys
 
+switch:
+  - platform: usb_device
+    detach:
+      name: Detach USB device
+    wake_up:
+      name: Wake up host
+
+spi:
+  clk_pin: GPIO7
+  mosi_pin: GPIO6
+
+display:
+  - platform: ili9xxx
+    model: ili9342
+    cs_pin: GPIO5
+    dc_pin: GPIO4
+    reset_pin: GPIO48
+
+i2c:
+  scl: GPIO18
+  sda: GPIO8
+
+touchscreen:
+  - platform: tt21100
+    interrupt_pin: GPIO3
+    reset_pin: GPIO48
+
 binary_sensor:
+  - platform: tt21100
+    name: Home Button
+    index: 1
   - platform: usb_device
     mounted:
       name: USB is mounted
@@ -108,10 +138,3 @@ binary_sensor:
       name: numlock
     scrollock:
       name: scrollock
-
-switch:
-  - platform: usb_device
-    detach:
-      name: Detach USB device
-    wake_up:
-      name: Wake up host
