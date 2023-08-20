@@ -44,7 +44,7 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-            cv.Required(CONF_HEATER): sensor.sensor_schema(
+            cv.Optional(CONF_HEATER): sensor.sensor_schema(
                 unit_of_measurement=UNIT_EMPTY,
                 accuracy_decimals=1,
                 state_class=STATE_CLASS_MEASUREMENT,
