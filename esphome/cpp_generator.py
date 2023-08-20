@@ -605,6 +605,17 @@ def add_build_flag(build_flag: str):
     CORE.add_build_flag(build_flag)
 
 
+def add_build_unflag(build_unflag: str):
+    """Add a global build unflag to the compiler flags."""
+    CORE.add_build_unflag(build_unflag)
+
+
+def set_cpp_version(version: str):
+    """Set C++ version via compiler flag `-std={version}`."""
+    CORE.add_build_unflag("-std=gnu++11")
+    CORE.add_build_flag(f"-std={version}")
+
+
 def add_define(name: str, value: SafeExpType = None):
     """Add a global define to the auto-generated defines.h file.
 
