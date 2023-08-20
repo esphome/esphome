@@ -282,9 +282,8 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     this->var_ = std::make_tuple(x...);
 
     if (this->timeout_value_.has_value()) {
-      this->set_timeout("timeout", this->timeout_value_.value(x...), [this, x = std::tuple<Ts...>(x...)]() {
-        std::apply([this](auto &...x) { this->play_next_(x...); }, x);
-      });
+      this->set_timeout("timeout", this->timeout_value_.value(x...),
+                        [this]() { std::apply([this](auto &...x) { this->play_next_(x...); }, this->var_); });
     }
 
     this->loop();
