@@ -108,12 +108,6 @@ gpio_output_pin_schema = _schema_creator(
         CONF_OUTPUT: True,
     }
 )
-gpio_output_strapping_pin_schema = _schema_creator(
-    {
-        CONF_OUTPUT: True,
-        CONF_STRAPPING: True,
-    }
-)
 gpio_input_pin_schema = _schema_creator(
     {
         CONF_INPUT: True,
@@ -154,9 +148,9 @@ internal_gpio_input_pullup_pin_number = _internal_number_creator(
 )
 
 
-def check_strapping_pin(conf, strappings, logger):
+def check_strapping_pin(conf, strapping_pin_list, logger):
     num = conf[CONF_NUMBER]
-    if num in strappings and not conf.get(CONF_STRAPPING):
+    if num in strapping_pin_list and not conf.get(CONF_STRAPPING):
         logger.warning(
             "GPIO%d is a strapping PIN and should only be used for I/O with care.\n"
             "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"

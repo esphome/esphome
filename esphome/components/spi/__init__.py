@@ -41,9 +41,9 @@ CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(SPIComponent),
-            cv.Required(CONF_CLK_PIN): pins.gpio_output_strapping_pin_schema,
+            cv.Required(CONF_CLK_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
-            cv.Optional(CONF_MOSI_PIN): pins.gpio_output_strapping_pin_schema,
+            cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_FORCE_SW, default=False): cv.boolean,
         }
     ),
