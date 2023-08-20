@@ -267,11 +267,10 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
   auto error = parent_->read(buffer, len);
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
-    if (parent_->test_mode_ == 2)
-      ESP_LOGI(TAG, "reading %d chars %02X... (%c) on channel %d", len, *buffer, *buffer, channel_);
-    else
-      ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer,
-               i2s(*buffer).c_str(), len, (int) error);
+    if (parent_->test_mode_.test(1))  // test print (bit 1)
+      ESP_LOGI(TAG, "reading %d chars %02X... on channel %d", len, *buffer, channel_);
+    ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
+             len, (int) error);
     return true;
   } else {  // error
     parent_->status_set_warning();
@@ -290,11 +289,10 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   auto error = parent_->write(buffer, len);
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
-    if (parent_->test_mode_ == 2)
-      ESP_LOGI(TAG, "sending %d chars %02X... (%c) on channel %d", len, *buffer, *buffer, channel_);
-    else
-      ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer,
-               i2s(*buffer).c_str(), len, (int) error);
+    if (parent_->test_mode_.test(1))  // test print (bit 1)
+      ESP_LOGI(TAG, "sending %d chars %02X... on channel %d", len, *buffer, channel_);
+    ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
+             len, (int) error);
     return true;
   } else {  // error
     parent_->status_set_warning();
@@ -436,7 +434,10 @@ void WK2132Component::loop() {
   //
   // This loop is used only if the wk2132 component is in test mode otherwise we return immediately
   //
-  if (!initialized_ || !test_mode_)
+  if (!initialized_ || test_mode_.none())
+    return;
+
+  if (!test_mode_.test(0))  // test loop mode (bit 0)
     return;
 
   static int32_t loop_time = 0;

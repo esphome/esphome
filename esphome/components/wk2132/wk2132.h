@@ -91,9 +91,10 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 
   int get_num_() const { return int(this); }
 
-  uint32_t crystal_{14745600L};              ///< crystal default value;
-  uint8_t base_address_;                     ///< base address of I2C device
-  int test_mode_{0};                         ///< debug flag
+  uint32_t crystal_{14745600L};  ///< crystal default value;
+  uint8_t base_address_;         ///< base address of I2C device
+  /// debug flag xxxx xxpl - p=print l=loop
+  std::bitset<8> test_mode_{0};
   uint8_t data_;                             ///< temporary buffer
   bool page1_{false};                        ///< set to true when in page1 mode
   bool initialized_{false};                  ///< true when initialization is finished
