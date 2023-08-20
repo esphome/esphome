@@ -267,8 +267,11 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
   auto error = parent_->read(buffer, len);
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
-    ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
-             len, (int) error);
+    if (parent_->test_mode_ == 2)
+      ESP_LOGI(TAG, "reading %d chars %02X... (%c) on channel %d", len, *buffer, *buffer, channel_);
+    else
+      ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer,
+               i2s(*buffer).c_str(), len, (int) error);
     return true;
   } else {  // error
     parent_->status_set_warning();
@@ -287,8 +290,11 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   auto error = parent_->write(buffer, len);
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
-    ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
-             len, (int) error);
+    if (parent_->test_mode_ == 2)
+      ESP_LOGI(TAG, "sending %d chars %02X... (%c) on channel %d", len, *buffer, *buffer, channel_);
+    else
+      ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer,
+               i2s(*buffer).c_str(), len, (int) error);
     return true;
   } else {  // error
     parent_->status_set_warning();
