@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 
 #include <vector>
+#include <tuple>
 
 namespace esphome {
 
@@ -116,9 +117,10 @@ template<typename... Ts> class DelayAction : public Action<Ts...>, public Compon
   TEMPLATABLE_VALUE(uint32_t, delay)
 
   void play_complex(Ts... x) override {
-    auto f = std::bind(&DelayAction<Ts...>::play_next_, this, x...);
     this->num_running_++;
-    this->set_timeout(this->delay_.value(x...), f);
+    this->set_timeout(this->delay_.value(x...), [this, x = std::tuple<Ts...>(x...)]() {
+      std::apply([this](auto &...x) { this->play_next_(x...); }, x);
+    });
   }
   float get_setup_priority() const override { return setup_priority::HARDWARE; }
 
@@ -280,8 +282,9 @@ template<typename... Ts> class WaitUntilAction : public Action<Ts...>, public Co
     this->var_ = std::make_tuple(x...);
 
     if (this->timeout_value_.has_value()) {
-      auto f = std::bind(&WaitUntilAction<Ts...>::play_next_, this, x...);
-      this->set_timeout("timeout", this->timeout_value_.value(x...), f);
+      this->set_timeout("timeout", this->timeout_value_.value(x...), [this, x = std::tuple<Ts...>(x...)]() {
+        std::apply([this](auto &...x) { this->play_next_(x...); }, x);
+      });
     }
 
     this->loop();
