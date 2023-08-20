@@ -113,13 +113,28 @@ std::string ClimateMitsubishi::vertical_vane_to_vertical_airflow_select_(uint8_t
       return "5";
     case (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_SWING:
       return "Swing";
-    case (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_EXPERIMENTAL_6:
-      return "Experimental 6";
-    case (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_EXPERIMENTAL_8:
-      return "Experimental 8";
     default:
       return "Auto";
       break;
+  }
+}
+
+std::string ClimateMitsubishi::horizontal_vane_to_horizontal_airflow_select_(uint8_t vertical_vane) {
+  switch (vertical_vane) {
+    case (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_LEFT_2:
+      return "<<";
+    case (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_LEFT_1:
+      return "<";
+    case (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_CENTER:
+      return "|";
+    case (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_RIGHT_1:
+      return ">";
+    case (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_RIGHT_2:
+      return ">>";
+    case (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_SPLIT:
+      return "<>";
+    case (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_SWING:
+      return "Swing";
   }
 }
 
@@ -179,12 +194,27 @@ uint8_t ClimateMitsubishi::vertical_airflow_select_to_vertical_vane_(const std::
     return (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_5;
   } else if (str_equals_case_insensitive("Swing", swing_mode)) {
     return (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_SWING;
-  } else if (str_equals_case_insensitive("Experimental 6", swing_mode)) {
-    return (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_EXPERIMENTAL_6;
-  } else if (str_equals_case_insensitive("Experimental 8", swing_mode)) {
-    return (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_EXPERIMENTAL_8;
   }
   return (uint8_t) mitsubishi_protocol::VerticalVaneMode::VANE_AUTO;
+}
+
+uint8_t ClimateMitsubishi::horizontal_airflow_select_to_horizontal_vane_(const std::string &swing_mode) {
+  if (str_equals_case_insensitive("<<", swing_mode)) {
+    return (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_LEFT_2;
+  } else if (str_equals_case_insensitive("<", swing_mode)) {
+    return (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_LEFT_1;
+  } else if (str_equals_case_insensitive("|", swing_mode)) {
+    return (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_CENTER;
+  } else if (str_equals_case_insensitive(">", swing_mode)) {
+    return (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_RIGHT_1;
+  } else if (str_equals_case_insensitive(">>", swing_mode)) {
+    return (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_RIGHT_2;
+  } else if (str_equals_case_insensitive("<>", swing_mode)) {
+    return (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_SPLIT;
+  } else if (str_equals_case_insensitive("Swing", swing_mode)) {
+    return (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_SWING;
+  }
+  return (uint8_t) mitsubishi_protocol::HorizontalVaneMode::VANE_CENTER;
 }
 
 int ClimateMitsubishi::convert_fan_velocity_(uint8_t velocity) {
@@ -216,7 +246,7 @@ void ClimateMitsubishi::setup() {
   slot->state_ = RequestState::RESPONSE_MAGIC_BYTE;
 
   int delay_count = 0;
-  while (!read_packet(slot)) {
+  while (!read_packet_(slot)) {
     delay(10);
     delay_count++;
     if (delay_count > 20) {
@@ -260,7 +290,7 @@ void ClimateMitsubishi::loop() {
       case RequestState::RESPONSE_MAGIC_BYTE:
       case RequestState::RESPONSE_HEADER:
       case RequestState::RESPONSE_DATA:
-        if (this->read_packet(this->pending_requests_.front())) {
+        if (this->read_packet_(this->pending_requests_.front())) {
           delete this->pending_requests_.front();
           this->pending_requests_.pop_front();
           break;
@@ -364,6 +394,18 @@ void ClimateMitsubishi::set_vertical_airflow_direction(const std::string &direct
   this->register_request_slot_(slot);
 }
 
+void ClimateMitsubishi::set_horizontal_airflow_direction(const std::string &direction) {
+  RequestSlot *slot = new RequestSlot();
+  memcpy(slot->request_packet_, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
+
+  slot->request_packet_[(int) mitsubishi_protocol::Offset::SETTING_MASK_2] +=
+      (uint8_t) mitsubishi_protocol::SettingsMask2::HORIZONTAL_VANE;
+  slot->request_packet_[(int) mitsubishi_protocol::Offset::HORIZONTAL_VANE_SET] =
+      this->horizontal_airflow_select_to_horizontal_vane_(direction);
+
+  this->register_request_slot_(slot);
+}
+
 void ClimateMitsubishi::set_temperature_offset(float offset) { this->temperature_offset_ = offset; }
 
 void ClimateMitsubishi::inject_temperature(float temperature) {
@@ -436,10 +478,9 @@ void ClimateMitsubishi::register_request_slot_(RequestSlot *slot) {
   this->pending_requests_.push_back(slot);
   if (this->pending_requests_.size() > 3)
     ESP_LOGW(TAG, "large queue size: %i", this->pending_requests_.size());
-  return;
 }
 
-bool ClimateMitsubishi::read_packet(RequestSlot *slot) {
+bool ClimateMitsubishi::read_packet_(RequestSlot *slot) {
   if (!available())
     return false;
   size_t bytes_to_read = 0;
@@ -450,7 +491,7 @@ bool ClimateMitsubishi::read_packet(RequestSlot *slot) {
         if (slot->response_packet_[0] == mitsubishi_protocol::INFO_HEADER[0]) {
           slot->state_ = RequestState::RESPONSE_HEADER;
           slot->good_response_bytes_ = 1;
-          return this->read_packet(slot);
+          return this->read_packet_(slot);
         }
       }
       return false;
@@ -473,7 +514,7 @@ bool ClimateMitsubishi::read_packet(RequestSlot *slot) {
         ESP_LOGW(TAG, "invalid header");
         return true;
       }
-      return this->read_packet(slot);
+      return this->read_packet_(slot);
       break;
 
     case RequestState::RESPONSE_DATA:
@@ -573,6 +614,10 @@ ResponseType ClimateMitsubishi::parse_packet_(uint8_t *packet) {
           if (this->vertical_airflow_select_ != nullptr) {
             this->vertical_airflow_select_->publish_state(
                 vertical_vane_to_vertical_airflow_select_(packet[(int) mitsubishi_protocol::Offset::VERTICAL_VANE]));
+          }
+          if (this->horizontal_airflow_select_ != nullptr) {
+            this->horizontal_airflow_select_->publish_state(horizontal_vane_to_horizontal_airflow_select_(
+                packet[(int) mitsubishi_protocol::Offset::HORIZONTAL_VANE_GET]));
           }
 
           if (packet[(int) mitsubishi_protocol::Offset::TARGET_TEMP_GET_05] != 0) {
@@ -697,6 +742,10 @@ void ClimateMitsubishi::set_vertical_airflow_select(esphome::select::Select *sel
   this->vertical_airflow_select_ = select;
 }
 
+void ClimateMitsubishi::set_horizontal_airflow_select(esphome::select::Select *select) {
+  this->horizontal_airflow_select_ = select;
+}
+
 void ClimateMitsubishi::set_inject_enable(bool enable) {
   inject_enable_ = enable;
   if (!enable) {
@@ -728,6 +777,10 @@ void ClimateMitsubishiVerticalAirflowSelect::control(const std::string &value) {
   this->climate_->set_vertical_airflow_direction(value);
 }
 
+void ClimateMitsubishiHorizontalAirflowSelect::control(const std::string &value) {
+  this->climate_->set_vertical_airflow_direction(value);
+}
+
 void ClimateMitsubishiInjectEnableSwitch::set_climate(ClimateMitsubishi *climate) { this->climate_ = climate; }
 
 void ClimateMitsubishiRemoteTemperatureNumber::set_climate(ClimateMitsubishi *climate) { this->climate_ = climate; }
@@ -735,6 +788,8 @@ void ClimateMitsubishiRemoteTemperatureNumber::set_climate(ClimateMitsubishi *cl
 void ClimateMitsubishiTemperatureOffsetNumber::set_climate(ClimateMitsubishi *climate) { this->climate_ = climate; }
 
 void ClimateMitsubishiVerticalAirflowSelect::set_climate(ClimateMitsubishi *climate) { this->climate_ = climate; }
+
+void ClimateMitsubishiHorizontalAirflowSelect::set_climate(ClimateMitsubishi *climate) { this->climate_ = climate; }
 
 }  // namespace climate_mitsubishi
 }  // namespace esphome

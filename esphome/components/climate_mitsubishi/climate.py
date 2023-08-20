@@ -36,6 +36,7 @@ CONF_FAN_VELOCITY = "fan_velocity"
 CONF_CONFLICTED = "conflicted"
 CONF_PREHEAT = "preheat"
 CONF_VERTICAL_AIRFLOW = "vertical_airflow"
+CONF_HORIZONTAL_AIRFLOW = "horizontal_airflow"
 CONF_INJECT_ENABLE = "inject_enable"
 CONF_REMOTE_TEMPERATURE = "remote_temperature"
 CONF_CONTROL_TEMPERATURE = "control_temperature"
@@ -56,6 +57,9 @@ ClimateMitsubishiTemperatureOffsetNumber = climate_mistubishi_ns.class_(
 )
 ClimateMitsubishiVerticalAirflowSelect = climate_mistubishi_ns.class_(
     "ClimateMitsubishiVerticalAirflowSelect", select.Select, cg.Component
+)
+ClimateMitsubishiHorizontalAirflowSelect = climate_mistubishi_ns.class_(
+    "ClimateMitsubishiHorizontalAirflowSelect", select.Select, cg.Component
 )
 
 AirflowVerticalDirection = climate_mistubishi_ns.enum("AirflowVerticalDirection", True)
@@ -134,6 +138,15 @@ CONFIG_SCHEMA = (
                 }
             )
             .extend(cv.COMPONENT_SCHEMA),
+            cv.Optional(CONF_HORIZONTAL_AIRFLOW): select.select_schema()
+            .extend(
+                {
+                    cv.GenerateID(CONF_ID): cv.declare_id(
+                        ClimateMitsubishiHorizontalAirflowSelect
+                    ),
+                }
+            )
+            .extend(cv.COMPONENT_SCHEMA),
         }
     )
     .extend(uart.UART_DEVICE_SCHEMA)
@@ -193,3 +206,12 @@ def to_code(config):
         )
         cg.add(vertical_airflow_select.set_climate(var))
         cg.add(var.set_vertical_airflow_select(vertical_airflow_select))
+
+    if CONF_HORIZONTAL_AIRFLOW in config:
+        print(config[CONF_HORIZONTAL_AIRFLOW])
+        horizontal_airflow_select = yield select.new_select(
+            config[CONF_HORIZONTAL_AIRFLOW],
+            options=["<<", "<", "|", ">", ">>", "<>", "Swing"],
+        )
+        cg.add(horizontal_airflow_select.set_climate(var))
+        cg.add(var.set_horizontal_airflow_select(horizontal_airflow_select))

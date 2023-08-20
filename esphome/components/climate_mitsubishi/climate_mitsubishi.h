@@ -61,6 +61,7 @@ class ClimateMitsubishi : public esphome::Component,
   void loop() override;
   void control(const esphome::climate::ClimateCall &call) override;
   void set_vertical_airflow_direction(const std::string &direction);
+  void set_horizontal_airflow_direction(const std::string &direction);
 
   void set_inject_enable(bool enable);
 
@@ -79,6 +80,7 @@ class ClimateMitsubishi : public esphome::Component,
   void set_control_temperature_sensor(esphome::sensor::Sensor *sensor);
 
   void set_vertical_airflow_select(esphome::select::Select *select);
+  void set_horizontal_airflow_select(esphome::select::Select *select);
 
   void set_remote_temperature_number(esphome::number::Number *number);
   void inject_temperature(float temperature);
@@ -91,9 +93,11 @@ class ClimateMitsubishi : public esphome::Component,
   esphome::climate::ClimateMode mode_to_climate_mode_(uint8_t mode);
   std::string fan_to_custom_fan_mode_(uint8_t fan);
   std::string vertical_vane_to_vertical_airflow_select_(uint8_t vertical_vane);
+  std::string horizontal_vane_to_horizontal_airflow_select_(uint8_t vertical_vane);
   uint8_t climate_mode_to_mode_(esphome::climate::ClimateMode mode);
   uint8_t custom_fan_mode_to_fan_(const std::string &fan_mode);
   uint8_t vertical_airflow_select_to_vertical_vane_(const std::string &swing_mode);
+  uint8_t horizontal_airflow_select_to_horizontal_vane_(const std::string &swing_mode);
   int convert_fan_velocity_(uint8_t velocity);
 
   float room_temp_to_celsius_(uint8_t temp);
@@ -103,7 +107,7 @@ class ClimateMitsubishi : public esphome::Component,
   uint8_t celsius_to_setting_temp_(float celsius);
 
   ResponseType parse_packet_(uint8_t *packet);
-  bool read_packet(RequestSlot *slot);
+  bool read_packet_(RequestSlot *slot);
 
   void register_request_slot_(RequestSlot *slot);
 
@@ -119,7 +123,9 @@ class ClimateMitsubishi : public esphome::Component,
 
   esphome::switch_::Switch *inject_enable_switch_;
   esphome::number::Number *remote_temperature_number_;
+
   esphome::select::Select *vertical_airflow_select_;
+  esphome::select::Select *horizontal_airflow_select_;
 
   esphome::climate::ClimateTraits traits_;
 
@@ -166,6 +172,15 @@ class ClimateMitsubishiTemperatureOffsetNumber : public esphome::Component, publ
 };
 
 class ClimateMitsubishiVerticalAirflowSelect : public esphome::Component, public esphome::select::Select {
+ public:
+  void set_climate(ClimateMitsubishi *climate);
+  void control(const std::string &value) override;
+
+ protected:
+  ClimateMitsubishi *climate_;
+};
+
+class ClimateMitsubishiHorizontalAirflowSelect : public esphome::Component, public esphome::select::Select {
  public:
   void set_climate(ClimateMitsubishi *climate);
   void control(const std::string &value) override;

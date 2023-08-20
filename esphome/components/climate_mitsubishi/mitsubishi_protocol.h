@@ -27,6 +27,7 @@ enum class Offset : int {
   DATA_LENGTH = 4,
 
   SETTING_MASK_1 = 6,
+  SETTING_MASK_2 = 7,
   POWER = 8,
   MODE = 9,
   TARGET_TEMP = 10,
@@ -34,6 +35,8 @@ enum class Offset : int {
   TARGET_TEMP_GET_05 = 16,
   FAN = 11,
   VERTICAL_VANE = 12,
+  HORIZONTAL_VANE_GET = 15,
+  HORIZONTAL_VANE_SET = 18,
 
   ROOM_TEMP_05 = 11,
   ROOM_TEMP = 8,
@@ -51,6 +54,8 @@ enum class Offset : int {
 
 enum class SettingsMask1 : uint8_t { POWER = 0x01, MODE = 0x02, TARGET_TEMP = 0x04, FAN = 0x08, VERTICAL_VANE = 0x10 };
 
+enum class SettingsMask2 : uint8_t { HORIZONTAL_VANE = 0x01 };
+
 enum class Power : uint8_t { ON = 1, OFF = 0 };
 
 enum class Mode : uint8_t { HEAT = 1, DRY = 2, COOL = 3, FAN = 7, AUTO = 8 };
@@ -64,9 +69,17 @@ enum class VerticalVaneMode : uint8_t {
   VANE_3 = 3,
   VANE_4 = 4,
   VANE_5 = 5,
-  VANE_EXPERIMENTAL_6 = 6,
   VANE_SWING = 7,
-  VANE_EXPERIMENTAL_8 = 8,
+};
+
+enum class HorizontalVaneMode : uint8_t {
+  VANE_LEFT_2 = 0x01,
+  VANE_LEFT_1 = 0x02,
+  VANE_CENTER = 0x03,
+  VANE_RIGHT_1 = 0x04,
+  VANE_RIGHT_2 = 0x05,
+  VANE_SPLIT = 0x08,
+  VANE_SWING = 0x0c,
 };
 
 enum class LoopFlagsMask : uint8_t { PREHEAT = 0x04, CONFLICT = 0x08 };
