@@ -130,7 +130,7 @@ void VoiceAssistant::start(struct sockaddr_storage *addr, uint16_t port) {
 
 void VoiceAssistant::request_start(bool continuous) {
   ESP_LOGD(TAG, "Requesting start...");
-  if (!api::global_api_server->start_voice_assistant(this->conversation_id_)) {
+  if (!api::global_api_server->start_voice_assistant(this->conversation_id_, this->silence_detection_)) {
     ESP_LOGW(TAG, "Could not request start.");
     this->error_trigger_->trigger("not-connected", "Could not request start.");
     this->continuous_ = false;

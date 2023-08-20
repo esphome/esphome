@@ -1,5 +1,6 @@
 #include "sml.h"
 #include "esphome/core/log.h"
+#include "esphome/core/helpers.h"
 #include "sml_parser.h"
 
 namespace esphome {
@@ -99,34 +100,21 @@ bool check_sml_data(const bytes &buffer) {
   }
 
   uint16_t crc_received = (buffer.at(buffer.size() - 2) << 8) | buffer.at(buffer.size() - 1);
-  if (crc_received == calc_crc16_x25(buffer.begin(), buffer.end() - 2, 0x6e23)) {
+  uint16_t crc_calculated = crc16(buffer.data(), buffer.size() - 2, 0x6e23, 0x8408, true, true);
+  crc_calculated = (crc_calculated >> 8) | (crc_calculated << 8);
+  if (crc_received == crc_calculated) {
     ESP_LOGV(TAG, "Checksum verification successful with CRC16/X25.");
     return true;
   }
 
-  if (crc_received == calc_crc16_kermit(buffer.begin(), buffer.end() - 2, 0xed50)) {
+  crc_calculated = crc16(buffer.data(), buffer.size() - 2, 0xed50, 0x8408);
+  if (crc_received == crc_calculated) {
     ESP_LOGV(TAG, "Checksum verification successful with CRC16/KERMIT.");
     return true;
   }
 
   ESP_LOGW(TAG, "Checksum error in received SML data.");
   return false;
-}
-
-uint16_t calc_crc16_p1021(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum) {
-  for (auto it = begin; it != end; it++) {
-    crcsum = (crcsum >> 8) ^ CRC16_X25_TABLE[(crcsum & 0xff) ^ *it];
-  }
-  return crcsum;
-}
-
-uint16_t calc_crc16_x25(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum = 0) {
-  crcsum = calc_crc16_p1021(begin, end, crcsum ^ 0xffff) ^ 0xffff;
-  return (crcsum >> 8) | ((crcsum & 0xff) << 8);
-}
-
-uint16_t calc_crc16_kermit(bytes::const_iterator begin, bytes::const_iterator end, uint16_t crcsum = 0) {
-  return calc_crc16_p1021(begin, end, crcsum);
 }
 
 uint8_t get_code(uint8_t byte) {
