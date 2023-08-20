@@ -23,4 +23,4 @@ async def to_code(config):
     await spi.register_spi_device(var, config)
     await cg.register_component(var, config)
     spi_data_rate = str(spi.SPI_DATA_RATE_OPTIONS[config[CONF_DATA_RATE]])
-    cg.add_define("APA102_DATA_RATE", spi_data_rate)
+    cg.add_define("APA102_DATA_RATE", cg.RawExpression(spi_data_rate))
