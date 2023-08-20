@@ -30,7 +30,7 @@ ClimateMitsubishi::ClimateMitsubishi()
       inject_enable_switch_(nullptr),
       remote_temperature_number_(nullptr),
       vertical_airflow_select_(nullptr),
-      high_precision_temp_setting_(false),
+      high_precision_temp_setting_(true),
       status_rotation_(0),
       temperature_offset_(0) {
   this->traits_ = climate::ClimateTraits();
@@ -42,7 +42,8 @@ ClimateMitsubishi::ClimateMitsubishi()
   this->traits_.set_supports_current_temperature(true);
   this->traits_.set_supports_action(true);
   this->traits_.set_visual_current_temperature_step(0.1);
-  this->traits_.set_visual_target_temperature_step(1);
+  this->traits_.set_visual_target_temperature_step(0.5);
+  this->pending_requests_ = std::list<RequestSlot *>();
 }
 
 ClimateTraits ClimateMitsubishi::traits() { return traits_; }
@@ -208,13 +209,14 @@ void ClimateMitsubishi::setup() {
   // flush read buffer
   this->read_array(nullptr, available());
   // send setup packet
-  ESP_LOGD(TAG, "writing connect packet");
   this->write_array(mitsubishi_protocol::CONNECT_PACKET, mitsubishi_protocol::CONNECT_LEN);
   this->flush();
 
-  ESP_LOGD(TAG, "blocking until response received");
+  RequestSlot *slot = new RequestSlot();
+  slot->state_ = RequestState::RESPONSE_MAGIC_BYTE;
+
   int delay_count = 0;
-  while (available() < 1) {
+  while (!read_packet(slot)) {
     delay(10);
     delay_count++;
     if (delay_count > 20) {
@@ -223,16 +225,13 @@ void ClimateMitsubishi::setup() {
     }
   }
 
-  if (read_packet_() != ResponseType::CONNECT_SUCCESS) {
+  if (slot->response_type_ != ResponseType::CONNECT_SUCCESS) {
     ESP_LOGE(TAG, "Invalid response to connect request received");
     this->connected_ = false;
     return;
   }
-  ESP_LOGD(TAG, "valid response");
+  ESP_LOGD(TAG, "connected");
   this->connected_ = true;
-  request_info_((uint8_t) mitsubishi_protocol::InfoType::SENSORS);
-  read_packet_();
-  this->read_array(nullptr, available());
 }
 
 void ClimateMitsubishi::loop() {
@@ -246,30 +245,30 @@ void ClimateMitsubishi::loop() {
     return;
   }
 
-  if (this->pending_requests_.front() != nullptr) {
+  if (!this->pending_requests_.empty()) {
     switch (this->pending_requests_.front()->state_) {
       case RequestState::QUEUED:
       case RequestState::WRITING:
-        ESP_LOGD(TAG, "writing request");
         this->pending_requests_.front()->state_ = RequestState::WRITING;
+        this->pending_requests_.front()->request_packet_[mitsubishi_protocol::PACKET_LEN - 1] =
+            checksum_(this->pending_requests_.front()->request_packet_, mitsubishi_protocol::PACKET_LEN - 1);
+        ESP_LOGD(TAG, "writing request %i", this->pending_requests_.front()->request_packet_[1]);
         write_array(this->pending_requests_.front()->request_packet_, mitsubishi_protocol::PACKET_LEN);
         this->pending_requests_.front()->transmit_timestamp_ = now;
-        this->pending_requests_.front()->state_ = RequestState::WAITING;
+        this->pending_requests_.front()->state_ = RequestState::RESPONSE_MAGIC_BYTE;
         break;
-      case RequestState::READING:
-      case RequestState::WAITING:
-        if (available() > 0) {
-          ESP_LOGD(TAG, "reading request response");
-          this->pending_requests_.front()->state_ = RequestState::READING;
-          read_packet_();
-          free(this->pending_requests_.front());
+      case RequestState::RESPONSE_MAGIC_BYTE:
+      case RequestState::RESPONSE_HEADER:
+      case RequestState::RESPONSE_DATA:
+        if (this->read_packet(this->pending_requests_.front())) {
+          delete this->pending_requests_.front();
           this->pending_requests_.pop_front();
           break;
         }
         if (std::chrono::duration_cast<std::chrono::milliseconds>(now -
                                                                   this->pending_requests_.front()->transmit_timestamp_)
                 .count() > REQUEST_TIMEOUT_MS) {
-          free(this->pending_requests_.front());
+          delete this->pending_requests_.front();
           this->pending_requests_.pop_front();
           ESP_LOGE(TAG, "timed out waiting for request response");
         }
@@ -307,7 +306,7 @@ void ClimateMitsubishi::loop() {
 }
 
 void ClimateMitsubishi::control(const esphome::climate::ClimateCall &call) {
-  RequestSlot *slot = this->new_request_slot_();
+  RequestSlot *slot = new RequestSlot();
   memcpy(slot->request_packet_, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
 
   if (call.get_mode().has_value()) {
@@ -350,11 +349,11 @@ void ClimateMitsubishi::control(const esphome::climate::ClimateCall &call) {
         (uint8_t) mitsubishi_protocol::SettingsMask1::FAN;
     slot->request_packet_[(int) mitsubishi_protocol::Offset::FAN] = fan_mode_to_fan(call.get_fan_mode().value());
   }
-  this->prepare_request_slot_(slot);
+  this->register_request_slot_(slot);
 }
 
 void ClimateMitsubishi::set_vertical_airflow_direction(const std::string &direction) {
-  RequestSlot *slot = this->new_request_slot_();
+  RequestSlot *slot = new RequestSlot();
   memcpy(slot->request_packet_, mitsubishi_protocol::SET_REQUEST_HEADER, mitsubishi_protocol::SET_REQUEST_HEADER_LEN);
 
   slot->request_packet_[(int) mitsubishi_protocol::Offset::SETTING_MASK_1] +=
@@ -362,7 +361,7 @@ void ClimateMitsubishi::set_vertical_airflow_direction(const std::string &direct
   slot->request_packet_[(int) mitsubishi_protocol::Offset::VERTICAL_VANE] =
       this->vertical_airflow_select_to_vertical_vane_(direction);
 
-  this->prepare_request_slot_(slot);
+  this->register_request_slot_(slot);
 }
 
 void ClimateMitsubishi::set_temperature_offset(float offset) { this->temperature_offset_ = offset; }
@@ -378,7 +377,7 @@ void ClimateMitsubishi::inject_temperature(float temperature) {
   this->current_temperature = temperature;
 
   temperature += this->temperature_offset_;
-  RequestSlot *slot = this->new_request_slot_();
+  RequestSlot *slot = new RequestSlot();
   memcpy(slot->request_packet_, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER,
          mitsubishi_protocol::TEMPERATURE_INJECT_HEADER_LEN);
 
@@ -394,11 +393,11 @@ void ClimateMitsubishi::inject_temperature(float temperature) {
   slot->request_packet_[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_2] =
       celsius_to_temp_05_(temperature);
 
-  this->prepare_request_slot_(slot);
+  this->register_request_slot_(slot);
 }
 
 void ClimateMitsubishi::disable_injection() {
-  RequestSlot *slot = this->new_request_slot_();
+  RequestSlot *slot = new RequestSlot();
   memcpy(slot->request_packet_, mitsubishi_protocol::TEMPERATURE_INJECT_HEADER,
          mitsubishi_protocol::TEMPERATURE_INJECT_HEADER_LEN);
 
@@ -407,48 +406,104 @@ void ClimateMitsubishi::disable_injection() {
   slot->request_packet_[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_1] = 0;
   slot->request_packet_[(int) mitsubishi_protocol::Offset::TEMPERATURE_INJECT_TEMP_2] = 0x80;
 
-  this->prepare_request_slot_(slot);
+  this->register_request_slot_(slot);
 }
 
 void ClimateMitsubishi::request_info_(uint8_t type) {
-  ESP_LOGD(TAG, "requesting info");
-  RequestSlot *slot = this->new_request_slot_();
+  RequestSlot *slot = new RequestSlot();
 
   memcpy(slot->request_packet_, mitsubishi_protocol::INFO_HEADER, mitsubishi_protocol::INFO_HEADER_LEN);
-
   slot->request_packet_[(int) mitsubishi_protocol::Offset::INFO_TYPE] = type;
 
   for (int i = 6; i < 21; i++) {
     slot->request_packet_[i] = 0x00;
   }
-  this->prepare_request_slot_(slot);
+
+  this->register_request_slot_(slot);
 }
 
-RequestSlot *ClimateMitsubishi::new_request_slot_() {
-  RequestSlot *slot = (RequestSlot *) malloc(sizeof(RequestSlot));
-  memset(slot->request_packet_, 0, mitsubishi_protocol::PACKET_LEN);
+RequestSlot::RequestSlot() {
+  this->request_packet_ = new uint8_t[mitsubishi_protocol::PACKET_LEN];
+  this->response_packet_ = new uint8_t[mitsubishi_protocol::PACKET_LEN];
+  memset(this->request_packet_, 0, mitsubishi_protocol::PACKET_LEN);
+  memset(this->response_packet_, 0, mitsubishi_protocol::PACKET_LEN);
+  this->state_ = RequestState::CONSTRUCTED;
+  this->good_response_bytes_ = 0;
+}
 
-  slot->state_ = RequestState::CONSTRUCTED;
-
+void ClimateMitsubishi::register_request_slot_(RequestSlot *slot) {
+  slot->state_ = RequestState::QUEUED;
   this->pending_requests_.push_back(slot);
   if (this->pending_requests_.size() > 3)
     ESP_LOGW(TAG, "large queue size: %i", this->pending_requests_.size());
-  return slot;
+  return;
 }
 
-void ClimateMitsubishi::prepare_request_slot_(RequestSlot *slot) {
-  slot->request_packet_[mitsubishi_protocol::PACKET_LEN - 1] =
-      checksum_(slot->request_packet_, mitsubishi_protocol::PACKET_LEN - 1);
-  slot->state_ = RequestState::QUEUED;
+bool ClimateMitsubishi::read_packet(RequestSlot *slot) {
+  if (!available())
+    return false;
+  size_t bytes_to_read = 0;
+  switch (slot->state_) {
+    case RequestState::RESPONSE_MAGIC_BYTE:
+      while (available() > 0) {
+        slot->response_packet_[0] = read();
+        if (slot->response_packet_[0] == mitsubishi_protocol::INFO_HEADER[0]) {
+          slot->state_ = RequestState::RESPONSE_HEADER;
+          slot->good_response_bytes_ = 1;
+          return this->read_packet(slot);
+        }
+      }
+      return false;
+      break;
+
+    case RequestState::RESPONSE_HEADER:
+      bytes_to_read = mitsubishi_protocol::INFO_HEADER_LEN - slot->good_response_bytes_;
+      bytes_to_read = (bytes_to_read < available()) ? bytes_to_read : available();
+      if (!read_array(&slot->response_packet_[slot->good_response_bytes_], bytes_to_read)) {
+        return false;
+      }
+      slot->good_response_bytes_ += bytes_to_read;
+      if (slot->good_response_bytes_ < mitsubishi_protocol::INFO_HEADER_LEN)
+        return false;
+      slot->state_ = RequestState::RESPONSE_DATA;
+      slot->data_len_ = slot->response_packet_[4];
+      if (slot->response_packet_[0] != mitsubishi_protocol::INFO_HEADER[0] ||
+          slot->response_packet_[2] != mitsubishi_protocol::INFO_HEADER[2] ||
+          slot->response_packet_[3] != mitsubishi_protocol::INFO_HEADER[3]) {
+        ESP_LOGW(TAG, "invalid header");
+        return true;
+      }
+      return this->read_packet(slot);
+      break;
+
+    case RequestState::RESPONSE_DATA:
+      bytes_to_read = (mitsubishi_protocol::INFO_HEADER_LEN + slot->data_len_) - slot->good_response_bytes_;
+      bytes_to_read = (bytes_to_read < available()) ? bytes_to_read : available();
+      if (!read_array(&slot->response_packet_[slot->good_response_bytes_], bytes_to_read)) {
+        return false;
+      }
+      slot->good_response_bytes_ += bytes_to_read;
+      if (slot->good_response_bytes_ < mitsubishi_protocol::INFO_HEADER_LEN + slot->data_len_)
+        return false;
+      // got the whole packet, parse
+      slot->response_type_ = parse_packet_(slot->response_packet_);
+      ESP_LOGD(TAG, "good parse");
+      return true;
+      break;
+    default:
+      ESP_LOGW(TAG, "unknown state %i", slot->state_);
+      break;
+  }
+
+  return true;
 }
 
-ResponseType ClimateMitsubishi::read_packet_() {
-  ESP_LOGD(TAG, "parsing packet");
-  uint8_t packet[mitsubishi_protocol::PACKET_LEN];
-  uint8_t data_length;
+ResponseType ClimateMitsubishi::parse_packet_(uint8_t *packet) {
+  // uint8_t packet[mitsubishi_protocol::PACKET_LEN];
+  // uint8_t data_length;
 
-  memset(packet, 0, mitsubishi_protocol::PACKET_LEN);
-
+  // memset(packet, 0, mitsubishi_protocol::PACKET_LEN);
+  /*
   if (available() < 1) {
     ESP_LOGE(TAG, "read_packet_ called when no serial data available");
     return ResponseType::NO_RESPONSE;
@@ -480,12 +535,11 @@ ResponseType ClimateMitsubishi::read_packet_() {
   read_array(&packet[5], data_length);
 
   packet[data_length + mitsubishi_protocol::INFO_HEADER_LEN] = read();
-
   if (packet[data_length + mitsubishi_protocol::INFO_HEADER_LEN] !=
       checksum_(packet, data_length + mitsubishi_protocol::INFO_HEADER_LEN)) {
-    ESP_LOGD(TAG, "checksum invalid");
+    ESP_LOGW(TAG, "checksum invalid");
   }
-
+  */
   switch (packet[1]) {
     case 0x7a:  // connect success
       ESP_LOGD(TAG, "connect success");
@@ -499,7 +553,6 @@ ResponseType ClimateMitsubishi::read_packet_() {
     case 0x62:  // info packet
       switch (packet[(int) mitsubishi_protocol::Offset::INFO_TYPE]) {
         case (uint8_t) mitsubishi_protocol::InfoType::SETTINGS:
-          ESP_LOGD(TAG, "got settings info");
           this->power_ = packet[(int) mitsubishi_protocol::Offset::POWER];
           if (packet[(int) mitsubishi_protocol::Offset::POWER] == (uint8_t) mitsubishi_protocol::Power::OFF) {
             this->mode = ClimateMode::CLIMATE_MODE_OFF;
@@ -534,7 +587,6 @@ ResponseType ClimateMitsubishi::read_packet_() {
           return ResponseType::SETTINGS;
           break;
         case (uint8_t) mitsubishi_protocol::InfoType::ROOM_TEMP:
-          ESP_LOGD(TAG, "got room temp info");
           float temperature;
           if (packet[(int) mitsubishi_protocol::Offset::ROOM_TEMP_05] != 0) {
             temperature = temp_05_to_celsius_(packet[(int) mitsubishi_protocol::Offset::ROOM_TEMP_05]);
@@ -554,7 +606,6 @@ ResponseType ClimateMitsubishi::read_packet_() {
           return ResponseType::ROOM_TEMP;
           break;
         case (uint8_t) mitsubishi_protocol::InfoType::STATUS:
-          ESP_LOGD(TAG, "got status info");
           if (this->compressor_frequency_sensor_ != nullptr) {
             this->compressor_frequency_sensor_->publish_state(
                 (float) packet[(int) mitsubishi_protocol::Offset::COMPRESSOR_FREQUENCY]);
@@ -582,7 +633,6 @@ ResponseType ClimateMitsubishi::read_packet_() {
           return ResponseType::STATUS;
           break;
         case (uint8_t) mitsubishi_protocol::InfoType::SENSORS:
-          ESP_LOGD(TAG, "got room sensors info");
           if (this->preheat_sensor_ != nullptr) {
             this->preheat_sensor_->publish_state(packet[(int) mitsubishi_protocol::Offset::LOOP_FLAGS] &
                                                  (uint8_t) mitsubishi_protocol::LoopFlagsMask::PREHEAT);

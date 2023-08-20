@@ -28,16 +28,27 @@ enum class ResponseType {
   SENSORS
 };
 
-enum class RequestState { CONSTRUCTED, QUEUED, WRITING, WAITING, READING };
+enum class RequestState { CONSTRUCTED, QUEUED, WRITING, RESPONSE_MAGIC_BYTE, RESPONSE_HEADER, RESPONSE_DATA, READING };
 
-struct RequestSlot {
-  uint8_t request_packet_[mitsubishi_protocol::PACKET_LEN];
+class RequestSlot {
+ public:
+  RequestSlot();
+
+  uint8_t *request_packet_;
+  uint8_t *response_packet_;
+
+  size_t good_response_bytes_;
+  size_t data_len_;
 
   RequestState state_;
   ResponseType response_type_;
   ResponseType expected_response_type_;
 
   std::chrono::steady_clock::time_point transmit_timestamp_;
+  ~RequestSlot() {
+    delete[] request_packet_;
+    delete[] response_packet_;
+  };
 };
 
 class ClimateMitsubishi : public esphome::Component,
@@ -91,10 +102,10 @@ class ClimateMitsubishi : public esphome::Component,
   uint8_t celsius_to_temp_05_(float celsius);
   uint8_t celsius_to_setting_temp_(float celsius);
 
-  ResponseType read_packet_();
+  ResponseType parse_packet_(uint8_t *packet);
+  bool read_packet(RequestSlot *slot);
 
-  RequestSlot *new_request_slot_();
-  void prepare_request_slot_(RequestSlot *slot);
+  void register_request_slot_(RequestSlot *slot);
 
   void request_info_(uint8_t type);
 
