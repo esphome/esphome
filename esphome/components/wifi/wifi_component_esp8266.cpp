@@ -21,7 +21,8 @@ extern "C" {
 #include "lwip/netif.h"  // struct netif
 #include <AddrList.h>
 #endif
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
+
+#if USE_ARDUINO_VERSION_CODE < VERSION_CODE(3, 1, 0) && USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
 #include "LwipDhcpServer.h"
 #define wifi_softap_set_dhcps_lease(lease) dhcpSoftAP.set_dhcps_lease(lease)
 #define wifi_softap_set_dhcps_lease_time(time) dhcpSoftAP.set_dhcps_lease_time(time)
@@ -715,7 +716,13 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     return false;
   }
 
-#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)
+  auto& server = WiFi.softAPDhcpServer();
+  if (!server.isRunning())
+  {
+    server.begin();
+  }
+#elif USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 0, 0)
   dhcpSoftAP.begin(&info);
 #endif
 
@@ -728,6 +735,16 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
   start_address += 100;
   lease.end_ip = start_address;
   ESP_LOGV(TAG, "DHCP server IP lease end: %s", start_address.str().c_str());
+
+#if USE_ARDUINO_VERSION_CODE >= VERSION_CODE(3, 1, 0)
+  if (!server.set_dhcps_lease(&lease)) {
+    ESP_LOGV(TAG, "Setting SoftAP DHCP lease failed!");
+    return false;
+  }
+
+  server.setLeaseTime(1440);
+  server.setRouter(true);
+#else
   if (!wifi_softap_set_dhcps_lease(&lease)) {
     ESP_LOGV(TAG, "Setting SoftAP DHCP lease failed!");
     return false;
@@ -745,6 +762,7 @@ bool WiFiComponent::wifi_ap_ip_config_(optional<ManualIP> manual_ip) {
     ESP_LOGV(TAG, "wifi_softap_set_dhcps_offer_option failed!");
     return false;
   }
+#endif
 
   if (!wifi_softap_dhcps_start()) {
     ESP_LOGV(TAG, "Starting SoftAP DHCPS failed!");

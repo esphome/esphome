@@ -96,7 +96,7 @@ def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
         "dev": (cv.Version(3, 0, 2), "https://github.com/esp8266/Arduino.git"),
-        "latest": (cv.Version(3, 0, 2), None),
+        "latest": (cv.Version(3, 1, 2), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
