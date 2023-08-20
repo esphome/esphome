@@ -9,10 +9,10 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    CONF_STRAPPING,
 )
 from esphome.util import SimpleRegistry
 from esphome.core import CORE
-
 
 PIN_SCHEMA_REGISTRY = SimpleRegistry()
 
@@ -108,6 +108,12 @@ gpio_output_pin_schema = _schema_creator(
         CONF_OUTPUT: True,
     }
 )
+gpio_output_strapping_pin_schema = _schema_creator(
+    {
+        CONF_OUTPUT: True,
+        CONF_STRAPPING: True,
+    }
+)
 gpio_input_pin_schema = _schema_creator(
     {
         CONF_INPUT: True,
@@ -146,3 +152,15 @@ internal_gpio_input_pullup_pin_number = _internal_number_creator(
         CONF_PULLUP: True,
     }
 )
+
+
+def check_strapping_pin(conf, strappings, logger):
+    num = conf[CONF_NUMBER]
+    if num in strappings and not conf.get(CONF_STRAPPING):
+        logger.warning(
+            "GPIO%d is a strapping PIN and should only be used for I/O with care.\n"
+            "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
+            "This warning can be suppressed with strapping: true in the pin config.\n"
+            "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
+            num,
+        )

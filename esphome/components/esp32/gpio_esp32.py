@@ -9,6 +9,7 @@ from esphome.const import (
     CONF_PULLUP,
 )
 import esphome.config_validation as cv
+from esphome.pins import check_strapping_pin
 
 
 _ESP_SDIO_PINS = {
@@ -51,13 +52,7 @@ def esp32_validate_supports(value):
     is_pulldown = mode[CONF_PULLDOWN]
 
     if is_input:
-        if num in _ESP32_STRAPPING_PINS:
-            _LOGGER.warning(
-                "GPIO%d is a strapping PIN and should be avoided.\n"
-                "Attaching external pullup/down resistors to strapping pins can cause unexpected failures.\n"
-                "See https://esphome.io/guides/faq.html#why-am-i-getting-a-warning-about-strapping-pins",
-                num,
-            )
+        pass
     if is_output and 34 <= num <= 39:
         raise cv.Invalid(
             f"GPIO{num} (34-39) does not support output pin mode.",
@@ -72,4 +67,5 @@ def esp32_validate_supports(value):
             f"GPIO{num} (34-39) does not support pulldowns.", [CONF_MODE, CONF_PULLDOWN]
         )
 
+    check_strapping_pin(value, _ESP32_STRAPPING_PINS, _LOGGER)
     return value

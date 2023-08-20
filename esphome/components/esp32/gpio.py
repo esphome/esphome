@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_OUTPUT,
     CONF_PULLDOWN,
     CONF_PULLUP,
+    CONF_STRAPPING,
 )
 from esphome import pins
 from esphome.core import CORE
@@ -173,6 +174,7 @@ ESP32_PIN_SCHEMA = cv.All(
                 cv.Optional(CONF_OPEN_DRAIN, default=False): cv.boolean,
                 cv.Optional(CONF_PULLUP, default=False): cv.boolean,
                 cv.Optional(CONF_PULLDOWN, default=False): cv.boolean,
+                cv.Optional(CONF_STRAPPING): cv.boolean,
             }
         ),
         cv.Optional(CONF_INVERTED, default=False): cv.boolean,
