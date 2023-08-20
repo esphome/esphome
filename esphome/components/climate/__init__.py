@@ -127,8 +127,12 @@ def single_visual_temperature(value):
 
 # Actions
 ControlAction = climate_ns.class_("ControlAction", automation.Action)
-StateTrigger = climate_ns.class_("StateTrigger", automation.Trigger.template())
-ControlTrigger = climate_ns.class_("ControlTrigger", automation.Trigger.template())
+StateTrigger = climate_ns.class_(
+    "StateTrigger", automation.Trigger.template(Climate.operator("ref"))
+)
+ControlTrigger = climate_ns.class_(
+    "ControlTrigger", automation.Trigger.template(ClimateCall.operator("ref"))
+)
 
 VISUAL_TEMPERATURE_STEP_SCHEMA = cv.Any(
     single_visual_temperature,
@@ -322,11 +326,15 @@ async def setup_climate_core_(var, config):
 
     for conf in config.get(CONF_ON_STATE, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(
+            trigger, [(Climate.operator("ref"), "x")], conf
+        )
 
     for conf in config.get(CONF_ON_CONTROL, []):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
-        await automation.build_automation(trigger, [], conf)
+        await automation.build_automation(
+            trigger, [(ClimateCall.operator("ref"), "x")], conf
+        )
 
 
 async def register_climate(var, config):
