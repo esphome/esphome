@@ -81,6 +81,7 @@ HttpResponse HttpRequestIDF::send() {
   }
 
   HttpResponse response = {};  // used as user_data, by http_event_handler, in esp_http_client_perform
+  response.data.reserve(this->rx_buffer_size_);
   esp_http_client_config_t config = {};
 
   config.url = this->url_.c_str();
