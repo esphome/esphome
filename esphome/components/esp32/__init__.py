@@ -44,7 +44,6 @@ from .const import (  # noqa
     KEY_SDKCONFIG_OPTIONS,
     KEY_SUBMODULES,
     KEY_VARIANT,
-    VARIANT_ESP32C3,
     VARIANT_FRIENDLY,
     VARIANTS,
 )
