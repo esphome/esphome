@@ -4,7 +4,7 @@ name: CI
 # yamllint disable-line rule:truthy
 on:
   push:
-    branches: [dev, beta, release, testing]
+    branches: [dev, beta, release]
 
   pull_request:
   merge_group:
