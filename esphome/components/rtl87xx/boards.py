@@ -1386,3 +1386,5 @@ RTL87XX_BOARD_PINS = {
         "A1": 41,
     },
 }
+
+BOARDS = RTL87XX_BOARDS

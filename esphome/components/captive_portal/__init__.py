@@ -21,7 +21,7 @@ CONFIG_SCHEMA = cv.All(
             ),
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on(["esp32", "esp8266", "libretiny"]),
+    cv.only_on(["esp32", "esp8266", "bk72xx", "rtl87xx"]),
 )
 
 

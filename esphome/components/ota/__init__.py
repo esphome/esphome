@@ -42,7 +42,12 @@ CONFIG_SCHEMA = cv.Schema(
         cv.GenerateID(): cv.declare_id(OTAComponent),
         cv.Optional(CONF_SAFE_MODE, default=True): cv.boolean,
         cv.SplitDefault(
-            CONF_PORT, esp8266=8266, esp32=3232, rp2040=2040, libretiny=8892
+            CONF_PORT,
+            esp8266=8266,
+            esp32=3232,
+            rp2040=2040,
+            bk72xx=8892,
+            rtl87xx=8892,
         ): cv.port,
         cv.Optional(CONF_PASSWORD): cv.string,
         cv.Optional(

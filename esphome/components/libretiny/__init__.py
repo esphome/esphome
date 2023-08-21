@@ -77,7 +77,7 @@ def _detect_variant(value):
 
 
 def _update_core_data(config):
-    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = "libretiny"
+    CORE.data[KEY_CORE][KEY_TARGET_PLATFORM] = config[CONF_COMPONENT_ID]
     CORE.data[KEY_CORE][KEY_TARGET_FRAMEWORK] = "arduino"
     CORE.data[KEY_CORE][KEY_FRAMEWORK_VERSION] = cv.Version.parse(
         config[CONF_FRAMEWORK][CONF_VERSION]
@@ -94,28 +94,6 @@ def get_libretiny_component(core_obj=None):
 
 def get_libretiny_family(core_obj=None):
     return (core_obj or CORE).data[KEY_LIBRETINY][KEY_FAMILY]
-
-
-def only_on_component(*, supported=None, unsupported=None):
-    """Config validator for features only available on some LibreTiny root families."""
-    if supported is not None and not isinstance(supported, list):
-        supported = [supported]
-    if unsupported is not None and not isinstance(unsupported, list):
-        unsupported = [unsupported]
-
-    def validator_(obj):
-        component = get_libretiny_component()
-        if supported is not None and component not in supported:
-            raise cv.Invalid(
-                f"This feature is only available on {', '.join(supported)}"
-            )
-        if unsupported is not None and component in unsupported:
-            raise cv.Invalid(
-                f"This feature is not available on {', '.join(unsupported)}"
-            )
-        return obj
-
-    return validator_
 
 
 def only_on_family(*, supported=None, unsupported=None):

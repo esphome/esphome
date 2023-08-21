@@ -605,8 +605,16 @@ class EsphomeCore:
         return self.target_platform == "rp2040"
 
     @property
+    def is_bk72xx(self):
+        return self.target_platform == "bk72xx"
+
+    @property
+    def is_rtl87xx(self):
+        return self.target_platform == "rtl87xx"
+
+    @property
     def is_libretiny(self):
-        return self.target_platform == "libretiny"
+        return self.is_bk72xx or self.is_rtl87xx
 
     @property
     def is_host(self):

@@ -61,7 +61,7 @@ async def to_code(config):
     return await libretiny.component_to_code(config)
 
 
-@pins.PIN_SCHEMA_REGISTRY.register(CONF_LIBRETINY, PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register("{COMPONENT_LOWER}", PIN_SCHEMA)
 async def pin_to_code(config):
     return await libretiny.gpio.component_pin_to_code(config)
 """
@@ -75,6 +75,8 @@ from esphome.components.libretiny.const import {FAMILIES}
 {COMPONENT}_BOARDS = {BOARDS_JSON}
 
 {COMPONENT}_BOARD_PINS = {PINS_JSON}
+
+BOARDS = {COMPONENT}_BOARDS
 """
 
 # variable names in component extension code
@@ -140,6 +142,7 @@ def write_component_code(
     # substitution values
     values = dict(
         COMPONENT=component.upper(),
+        COMPONENT_LOWER=component.lower(),
         SCHEMA=SCHEMA_BASE,
         PIN_SCHEMA=PIN_SCHEMA_BASE,
         PIN_VALIDATION="None",
@@ -260,7 +263,7 @@ def write_const(
     # regex for finding the component list block
     comp_regex = r"(# COMPONENTS.+?\n)(.*?)(\n# COMPONENTS)"
     # build component constants
-    comp_str = "\n".join(f'COMPONENT_{f} = "{f}"' for f in components)
+    comp_str = "\n".join(f'COMPONENT_{f} = "{f.lower()}"' for f in components)
     # replace the 2nd regex group only
     repl = lambda m: m.group(1) + comp_str + m.group(3)
     code = re.sub(comp_regex, repl, code, flags=re.DOTALL | re.MULTILINE)

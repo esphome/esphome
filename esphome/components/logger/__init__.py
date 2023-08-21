@@ -17,9 +17,10 @@ from esphome.const import (
     CONF_TAG,
     CONF_TRIGGER_ID,
     CONF_TX_BUFFER_SIZE,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
-    PLATFORM_LIBRETINY,
     PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
@@ -169,14 +170,16 @@ CONFIG_SCHEMA = cv.All(
                 esp8266=UART0,
                 esp32=UART0,
                 rp2040=USB_CDC,
-                libretiny=DEFAULT,
+                bk72xx=DEFAULT,
+                rtl87xx=DEFAULT,
             ): cv.All(
                 cv.only_on(
                     [
                         PLATFORM_ESP8266,
                         PLATFORM_ESP32,
                         PLATFORM_RP2040,
-                        PLATFORM_LIBRETINY,
+                        PLATFORM_BK72XX,
+                        PLATFORM_RTL87XX,
                     ]
                 ),
                 uart_selection,

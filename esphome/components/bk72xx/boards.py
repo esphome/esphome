@@ -1260,3 +1260,5 @@ BK72XX_BOARD_PINS = {
         "A0": 23,
     },
 }
+
+BOARDS = BK72XX_BOARDS

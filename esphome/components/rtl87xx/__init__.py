@@ -47,6 +47,6 @@ async def to_code(config):
     return await libretiny.component_to_code(config)
 
 
-@pins.PIN_SCHEMA_REGISTRY.register(CONF_LIBRETINY, PIN_SCHEMA)
+@pins.PIN_SCHEMA_REGISTRY.register("rtl87xx", PIN_SCHEMA)
 async def pin_to_code(config):
     return await libretiny.gpio.component_pin_to_code(config)

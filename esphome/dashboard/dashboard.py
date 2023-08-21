@@ -543,7 +543,13 @@ class DownloadBinaryRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
+        platforms_uf2 = [
+            const.PLATFORM_RP2040,
+            const.PLATFORM_BK72XX,
+            const.PLATFORM_RTL87XX,
+        ]
+
+        if storage_json.target_platform.lower() in platforms_uf2:
             filename = f"{storage_json.name}.uf2"
             path = storage_json.firmware_bin_path.replace(
                 "firmware.bin", "firmware.uf2"
@@ -552,12 +558,6 @@ class DownloadBinaryRequestHandler(BaseHandler):
         elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
             filename = f"{storage_json.name}.bin"
             path = storage_json.firmware_bin_path
-
-        elif storage_json.target_platform.lower() == const.PLATFORM_LIBRETINY:
-            filename = f"{storage_json.name}.uf2"
-            path = storage_json.firmware_bin_path.replace(
-                "firmware.bin", "firmware.uf2"
-            )
 
         elif type == "firmware.bin":
             filename = f"{storage_json.name}.bin"

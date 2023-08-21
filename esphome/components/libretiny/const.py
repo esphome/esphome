@@ -37,8 +37,8 @@ KEY_COMPONENT_DATA = "component_data"
 KEY_FAMILY = "family"
 
 # COMPONENTS - auto-generated! Do not modify this block.
-COMPONENT_BK72XX = "BK72XX"
-COMPONENT_RTL87XX = "RTL87XX"
+COMPONENT_BK72XX = "bk72xx"
+COMPONENT_RTL87XX = "rtl87xx"
 # COMPONENTS - end
 
 # FAMILIES - auto-generated! Do not modify this block.
