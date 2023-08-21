@@ -15,7 +15,7 @@ IPAddress = network_ns.class_("IPAddress")
 
 CONFIG_SCHEMA = cv.Schema(
     {
-        cv.Optional(CONF_ENABLE_IPV6): cv.boolean,
+        cv.Optional(CONF_ENABLE_IPV6, default=False): cv.boolean,
     }
 )
 
@@ -31,7 +31,7 @@ async def to_code(config):
         else:
             cg.add_build_flag("-DCONFIG_LWIP_IPV6")
             cg.add_build_flag("-DCONFIG_LWIP_IPV6_AUTOCONFIG")
-        if CORE.is_rp2040:
-            cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
-        if CORE.is_esp8266:
-            cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
+            if CORE.is_rp2040:
+                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_ENABLE_IPV6")
+            if CORE.is_esp8266:
+                cg.add_build_flag("-DPIO_FRAMEWORK_ARDUINO_LWIP2_IPV6_LOW_MEMORY")
