@@ -68,12 +68,20 @@ void BLEServer::loop() {
       if (this->device_information_service_->is_running()) {
         this->state_ = RUNNING;
         this->can_proceed_ = true;
+        this->restart_advertising_();
         ESP_LOGD(TAG, "BLE server setup successfully");
       } else if (!this->device_information_service_->is_starting()) {
         this->device_information_service_->start();
       }
       break;
     }
+  }
+}
+
+void BLEServer::restart_advertising_() {
+  if (this->state_ == RUNNING) {
+    esp32_ble::global_ble->get_advertising()->set_manufacturer_data(this->manufacturer_data_);
+    esp32_ble::global_ble->get_advertising()->start();
   }
 }
 

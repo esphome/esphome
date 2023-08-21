@@ -120,12 +120,12 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
     if (
 #if defined(USE_ESP32_VARIANT_ESP32S2)
         uart_ == UART_SELECTION_USB_CDC
-#elif defined(USE_ESP32_VARIANT_ESP32C3)
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6)
         uart_ == UART_SELECTION_USB_SERIAL_JTAG
 #elif defined(USE_ESP32_VARIANT_ESP32S3)
         uart_ == UART_SELECTION_USB_CDC || uart_ == UART_SELECTION_USB_SERIAL_JTAG
 #else
-        /* DISABLES CODE */ (false)
+        /* DISABLES CODE */ (false)  // NOLINT
 #endif
     ) {
       puts(msg);
@@ -144,6 +144,9 @@ void HOT Logger::log_message_(int level, const char *tag, int offset) {
   // See issue #1234 for analysis.
   if (xPortGetFreeHeapSize() < 2048)
     return;
+#endif
+#ifdef USE_HOST
+  puts(msg);
 #endif
 
   this->log_callback_.call(level, tag, msg);
@@ -188,8 +191,8 @@ void Logger::pre_setup() {
         Serial1.setDebugOutput(ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE);
 #endif
         break;
-#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2) && \
-    !defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32) && !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
+    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_UART2:
         this->hw_serial_ = &Serial2;
         Serial2.begin(this->baud_rate_);
@@ -212,7 +215,8 @@ void Logger::pre_setup() {
       case UART_SELECTION_UART1:
         uart_num_ = UART_NUM_1;
         break;
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
+    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_UART2:
         uart_num_ = UART_NUM_2;
         break;
@@ -222,11 +226,11 @@ void Logger::pre_setup() {
         uart_num_ = -1;
         break;
 #endif  // USE_ESP32_VARIANT_ESP32S2 || USE_ESP32_VARIANT_ESP32S3
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C6) || defined(USE_ESP32_VARIANT_ESP32S3)
       case UART_SELECTION_USB_SERIAL_JTAG:
         uart_num_ = -1;
         break;
-#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32S3
+#endif  // USE_ESP32_VARIANT_ESP32C3 || USE_ESP32_VARIANT_ESP32C6 || USE_ESP32_VARIANT_ESP32S3
     }
     if (uart_num_ >= 0) {
       uart_config_t uart_config{};
@@ -262,7 +266,11 @@ void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 void Logger::set_log_level(const std::string &tag, int log_level) {
   this->log_levels_.push_back(LogLevelOverride{tag, log_level});
 }
+
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
 UARTSelection Logger::get_uart() const { return this->uart_; }
+#endif
+
 void Logger::add_on_log_callback(std::function<void(int, const char *, const char *)> &&callback) {
   this->log_callback_.add(std::move(callback));
 }
@@ -271,7 +279,8 @@ const char *const LOG_LEVELS[] = {"NONE", "ERROR", "WARN", "INFO", "CONFIG", "DE
 #ifdef USE_ESP32
 const char *const UART_SELECTIONS[] = {
     "UART0",           "UART1",
-#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
+#if !defined(USE_ESP32_VARIANT_ESP32C3) && !defined(USE_ESP32_VARIANT_ESP32C6) && \
+    !defined(USE_ESP32_VARIANT_ESP32S2) && !defined(USE_ESP32_VARIANT_ESP32S3)
     "UART2",
 #endif  // !USE_ESP32_VARIANT_ESP32C3 && !USE_ESP32_VARIANT_ESP32S2 && !USE_ESP32_VARIANT_ESP32S3
 #if defined(USE_ESP_IDF)
@@ -294,7 +303,10 @@ void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
   ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
   ESP_LOGCONFIG(TAG, "  Log Baud Rate: %" PRIu32, this->baud_rate_);
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
   ESP_LOGCONFIG(TAG, "  Hardware UART: %s", UART_SELECTIONS[this->uart_]);
+#endif
+
   for (auto &it : this->log_levels_) {
     ESP_LOGCONFIG(TAG, "  Level for '%s': %s", it.tag.c_str(), LOG_LEVELS[it.level]);
   }

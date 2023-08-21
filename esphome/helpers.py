@@ -144,7 +144,22 @@ def resolve_ip_address(host):
 
 
 def get_bool_env(var, default=False):
-    return bool(os.getenv(var, default))
+    value = os.getenv(var, default)
+    if isinstance(value, str):
+        value = value.lower()
+        if value in ["1", "true"]:
+            return True
+        if value in ["0", "false"]:
+            return False
+    return bool(value)
+
+
+def get_str_env(var, default=None):
+    return str(os.getenv(var, default))
+
+
+def get_int_env(var, default=0):
+    return int(os.getenv(var, default))
 
 
 def is_ha_addon():

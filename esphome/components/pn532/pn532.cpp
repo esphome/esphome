@@ -81,7 +81,32 @@ void PN532::setup() {
   this->turn_off_rf_();
 }
 
+bool PN532::powerdown() {
+  updates_enabled_ = false;
+  requested_read_ = false;
+  ESP_LOGI(TAG, "Powering down PN532");
+  if (!this->write_command_({PN532_COMMAND_POWERDOWN, 0b10100000})) {  // enable i2c,spi wakeup
+    ESP_LOGE(TAG, "Error writing powerdown command to PN532");
+    return false;
+  }
+  std::vector<uint8_t> response;
+  if (!this->read_response(PN532_COMMAND_POWERDOWN, response)) {
+    ESP_LOGE(TAG, "Error reading PN532 powerdown response");
+    return false;
+  }
+  if (response[0] != 0x00) {
+    ESP_LOGE(TAG, "Error on PN532 powerdown: %02x", response[0]);
+    return false;
+  }
+  ESP_LOGV(TAG, "Powerdown successful");
+  delay(1);
+  return true;
+}
+
 void PN532::update() {
+  if (!updates_enabled_)
+    return;
+
   for (auto *obj : this->binary_sensors_)
     obj->on_scan_end();
 

@@ -25,7 +25,7 @@ class PulseLightEffect : public LightEffect {
       return;
     }
     auto call = this->state_->turn_on();
-    float out = this->on_ ? 1.0 : 0.0;
+    float out = this->on_ ? this->max_brightness : this->min_brightness;
     call.set_brightness_if_supported(out);
     this->on_ = !this->on_;
     call.set_transition_length_if_supported(this->transition_length_);
@@ -41,11 +41,18 @@ class PulseLightEffect : public LightEffect {
 
   void set_update_interval(uint32_t update_interval) { this->update_interval_ = update_interval; }
 
+  void set_min_max_brightness(float min, float max) {
+    this->min_brightness = min;
+    this->max_brightness = max;
+  }
+
  protected:
   bool on_ = false;
   uint32_t last_color_change_{0};
   uint32_t transition_length_{};
   uint32_t update_interval_{};
+  float min_brightness{0.0};
+  float max_brightness{1.0};
 };
 
 /// Random effect. Sets random colors every 10 seconds and slowly transitions between them.

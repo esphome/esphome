@@ -41,7 +41,7 @@ async def setup_microphone_core_(var, config):
         trigger = cg.new_Pvariable(conf[CONF_TRIGGER_ID], var)
         await automation.build_automation(
             trigger,
-            [(cg.std_vector.template(cg.uint8).operator("ref").operator("const"), "x")],
+            [(cg.std_vector.template(cg.int16).operator("ref").operator("const"), "x")],
             conf,
         )
 

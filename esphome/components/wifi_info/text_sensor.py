@@ -7,6 +7,7 @@ from esphome.const import (
     CONF_SCAN_RESULTS,
     CONF_SSID,
     CONF_MAC_ADDRESS,
+    CONF_DNS_ADDRESS,
     ENTITY_CATEGORY_DIAGNOSTIC,
 )
 
@@ -28,6 +29,9 @@ BSSIDWiFiInfo = wifi_info_ns.class_(
 MacAddressWifiInfo = wifi_info_ns.class_(
     "MacAddressWifiInfo", text_sensor.TextSensor, cg.Component
 )
+DNSAddressWifiInfo = wifi_info_ns.class_(
+    "DNSAddressWifiInfo", text_sensor.TextSensor, cg.PollingComponent
+)
 
 CONFIG_SCHEMA = cv.Schema(
     {
@@ -46,6 +50,9 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_MAC_ADDRESS): text_sensor.text_sensor_schema(
             MacAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
         ),
+        cv.Optional(CONF_DNS_ADDRESS): text_sensor.text_sensor_schema(
+            DNSAddressWifiInfo, entity_category=ENTITY_CATEGORY_DIAGNOSTIC
+        ).extend(cv.polling_component_schema("1s")),
     }
 )
 
@@ -63,3 +70,4 @@ async def to_code(config):
     await setup_conf(config, CONF_BSSID)
     await setup_conf(config, CONF_MAC_ADDRESS)
     await setup_conf(config, CONF_SCAN_RESULTS)
+    await setup_conf(config, CONF_DNS_ADDRESS)
