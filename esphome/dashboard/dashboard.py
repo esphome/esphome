@@ -800,22 +800,18 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
 class BoardsRequestHandler(BaseHandler):
     @authenticated
     def get(self, platform: str):
-        if platform == "libretiny":
-            from esphome.components.libretiny.boards import fetch_board_list
-
-            output = fetch_board_list()
-            self.set_header("content-type", "application/json")
-            self.write(json.dumps(output))
-            return
-
         from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
         from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
         from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
+        from esphome.components.bk72xx.boards import BOARDS as BK72XX_BOARDS
+        from esphome.components.rtl87xx.boards import BOARDS as RTL87XX_BOARDS
 
         platform_to_boards = {
             "esp32": ESP32_BOARDS,
             "esp8266": ESP8266_BOARDS,
             "rp2040": RP2040_BOARDS,
+            "bk72xx": BK72XX_BOARDS,
+            "rtl87xx": RTL87XX_BOARDS,
         }
         # filter all ESP32 variants by requested platform
         if platform.startswith("esp32"):

@@ -4,6 +4,8 @@ import esphome.wizard as wz
 import pytest
 from esphome.components.esp8266.boards import ESP8266_BOARD_PINS
 from esphome.components.esp32.boards import ESP32_BOARD_PINS
+from esphome.components.bk72xx.boards import BK72XX_BOARD_PINS
+from esphome.components.rtl87xx.boards import RTL87XX_BOARD_PINS
 from unittest.mock import MagicMock
 
 
@@ -157,15 +159,15 @@ def test_wizard_write_defaults_platform_from_board_esp32(
     assert "esp32:" in generated_config
 
 
-def test_wizard_write_defaults_platform_from_board_libretiny(
+def test_wizard_write_defaults_platform_from_board_bk72xx(
     default_config, tmp_path, monkeypatch
 ):
     """
-    If the platform is not explicitly set, use LibreTiny if the board is not one of ESP32 and ESP8266 boards
+    If the platform is not explicitly set, use "BK72XX" if the board is one of BK72XX boards
     """
     # Given
     del default_config["platform"]
-    default_config["board"] = "foo"
+    default_config["board"] = [*BK72XX_BOARD_PINS][0]
 
     monkeypatch.setattr(wz, "write_file", MagicMock())
 
@@ -174,7 +176,27 @@ def test_wizard_write_defaults_platform_from_board_libretiny(
 
     # Then
     generated_config = wz.write_file.call_args.args[1]
-    assert "libretiny:" in generated_config
+    assert "bk72xx:" in generated_config
+
+
+def test_wizard_write_defaults_platform_from_board_rtl87xx(
+    default_config, tmp_path, monkeypatch
+):
+    """
+    If the platform is not explicitly set, use "RTL87XX" if the board is one of RTL87XX boards
+    """
+    # Given
+    del default_config["platform"]
+    default_config["board"] = [*RTL87XX_BOARD_PINS][0]
+
+    monkeypatch.setattr(wz, "write_file", MagicMock())
+
+    # When
+    wz.wizard_write(tmp_path, **default_config)
+
+    # Then
+    generated_config = wz.write_file.call_args.args[1]
+    assert "rtl87xx:" in generated_config
 
 
 def test_safe_print_step_prints_step_number_and_description(monkeypatch):
