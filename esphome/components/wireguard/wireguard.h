@@ -116,4 +116,4 @@ void resume_wdt();
 }  // namespace wireguard
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32

@@ -61,8 +61,6 @@ void Wireguard::setup() {
 }
 
 void Wireguard::loop() {
-  PollingComponent::loop();
-
   if ((this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) && (!network::is_connected())) {
     ESP_LOGV(TAG, "local network connection has been lost, stopping WireGuard...");
     this->stop_connection_();
@@ -294,4 +292,4 @@ void resume_wdt() {
 }  // namespace wireguard
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP32
