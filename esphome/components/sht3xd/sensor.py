@@ -38,6 +38,11 @@ CONFIG_SCHEMA = (
             ),
         }
     )
+    .extend(
+        {
+            cv.Required("heater_enabled", default=True): cv.boolean,
+        }
+    )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x44))
 )
@@ -47,6 +52,8 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
+
+    cg.add(var.set_heater_enabled(config["heater_enabled"]))
 
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
