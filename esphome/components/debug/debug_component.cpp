@@ -28,7 +28,7 @@
 #ifdef USE_ARDUINO
 #ifdef USE_RP2040
 #include <Arduino.h>
-#elif !defined(USE_LIBRETINY)
+#elif defined(USE_ESP32) || defined(USE_ESP8266)
 #include <Esp.h>
 #endif
 #endif
@@ -39,12 +39,14 @@ namespace debug {
 static const char *const TAG = "debug";
 
 static uint32_t get_free_heap() {
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+#if defined(USE_ESP8266)
   return ESP.getFreeHeap();  // NOLINT(readability-static-accessed-through-instance)
 #elif defined(USE_ESP32)
   return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
 #elif defined(USE_RP2040)
   return rp2040.getFreeHeap();
+#elif defined(USE_LIBRETINY)
+  return lt_heap_get_free();
 #endif
 }
 
@@ -75,7 +77,7 @@ void DebugComponent::dump_config() {
   this->free_heap_ = get_free_heap();
   ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
 
-#if defined(USE_ARDUINO) && !defined(USE_RP2040) && !defined(USE_LIBRETINY)
+#if defined(USE_ARDUINO) && (defined(USE_ESP32) || defined(USE_ESP8266))
   const char *flash_mode;
   switch (ESP.getFlashChipMode()) {  // NOLINT(readability-static-accessed-through-instance)
     case FM_QIO:
@@ -107,7 +109,7 @@ void DebugComponent::dump_config() {
   device_info += "|Flash: " + to_string(ESP.getFlashChipSize() / 1024) +                    // NOLINT
                  "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) + "MHz Mode:";  // NOLINT
   device_info += flash_mode;
-#endif  // USE_ARDUINO && !USE_LIBRETINY
+#endif  // USE_ARDUINO && (USE_ESP32 || USE_ESP8266)
 
 #ifdef USE_ESP32
   esp_chip_info_t info;
@@ -400,11 +402,13 @@ void DebugComponent::update() {
   }
 
   if (this->block_sensor_ != nullptr) {
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+#if defined(USE_ESP8266)
     // NOLINTNEXTLINE(readability-static-accessed-through-instance)
     this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
 #elif defined(USE_ESP32)
     this->block_sensor_->publish_state(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+#elif defined(USE_LIBRETINY)
+    this->block_sensor_->publish_state(lt_heap_get_max_alloc());
 #endif
   }
 
