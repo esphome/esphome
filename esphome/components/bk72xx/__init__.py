@@ -9,7 +9,6 @@ from esphome import pins
 from esphome.components import libretiny
 from esphome.components.libretiny.const import (
     COMPONENT_BK72XX,
-    CONF_LIBRETINY,
     KEY_COMPONENT_DATA,
     KEY_LIBRETINY,
     LibreTinyComponent,
