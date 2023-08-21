@@ -21,10 +21,6 @@ void LTComponent::dump_config() {
 #endif  // USE_TEXT_SENSOR
 }
 
-void LTComponent::loop() {}
-
-void LTComponent::update() {}
-
 float LTComponent::get_setup_priority() const { return setup_priority::LATE; }
 
 }  // namespace libretiny

@@ -272,13 +272,11 @@ def include_file(path, basename):
 
 
 ARDUINO_GLUE_CODE = """\
-#ifndef USE_LIBRETINY
 #define yield() esphome::yield()
 #define millis() esphome::millis()
 #define micros() esphome::micros()
 #define delay(x) esphome::delay(x)
 #define delayMicroseconds(x) esphome::delayMicroseconds(x)
-#endif
 """
 
 
@@ -382,7 +380,7 @@ async def to_code(config):
     cg.add_build_flag("-Wno-unused-but-set-variable")
     cg.add_build_flag("-Wno-sign-compare")
 
-    if CORE.using_arduino:
+    if CORE.using_arduino and not CORE.is_bk72xx:
         CORE.add_job(add_arduino_global_workaround)
 
     if config[CONF_INCLUDES]:

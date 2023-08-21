@@ -15,10 +15,8 @@
 namespace esphome {
 namespace libretiny {
 
-class LTComponent : public PollingComponent {
+class LTComponent : public Component {
  public:
-  void loop() override;
-  void update() override;
   float get_setup_priority() const override;
   void dump_config() override;
 

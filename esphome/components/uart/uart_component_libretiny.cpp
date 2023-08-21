@@ -53,9 +53,8 @@ void LibreTinyUARTComponent::setup() {
   bool tx_inverted = tx_pin_ != nullptr && tx_pin_->is_inverted();
   bool rx_inverted = rx_pin_ != nullptr && rx_pin_->is_inverted();
 
-  if (false) {
+  if (false)
     return;
-  }
 #if LT_HW_UART0
   else if ((tx_pin == -1 || tx_pin == PIN_SERIAL0_TX) && (rx_pin == -1 || rx_pin == PIN_SERIAL0_RX)) {
     this->serial_ = &Serial0;
@@ -89,6 +88,7 @@ void LibreTinyUARTComponent::setup() {
 #if LT_HW_UART2
     ESP_LOGE(TAG, "    TX=%u, RX=%u", PIN_SERIAL2_TX, PIN_SERIAL2_RX);
 #endif
+    this->mark_failed();
     return;
 #endif
   }
