@@ -160,4 +160,4 @@ def check_strapping_pin(conf, strapping_pin_list, logger):
         )
     # mitigate undisciplined use of strapping:
     if num not in strapping_pin_list and conf.get(CONF_STRAPPING):
-        raise cv.Invalid(f"'GPIO{num}' is not a strapping pin")
+        raise cv.Invalid(f"GPIO{num} is not a strapping pin")
