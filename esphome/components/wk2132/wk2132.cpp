@@ -438,13 +438,12 @@ void WK2132Component::loop() {
   //
   if (!initialized_ || test_mode_.none())
     return;
-
   static uint16_t loop_calls = 0;
-  static uint32_t loop_time = 0;
-  ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
-  loop_time = millis();
 
   if (test_mode_.test(0)) {  // test loop mode (bit 0)
+    static uint32_t loop_time = 0;
+    loop_time = millis();
+    ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
     static uint8_t loop_count = 0;
     char preamble[64];
     if (loop_count++ > 3)
@@ -454,6 +453,7 @@ void WK2132Component::loop() {
       children_[i]->uart_send_test_(preamble);
       children_[i]->uart_receive_test_(preamble);
     }
+    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
   }
 
   if (test_mode_.test(2)) {  // test echo mode (bit 2)
@@ -469,8 +469,6 @@ void WK2132Component::loop() {
 
   if (test_mode_.test(4)) {  // test calls
   }
-
-  ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 }
 
 #else
