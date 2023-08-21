@@ -54,7 +54,7 @@ esphome/components/bp1658cj/* @Cossid
 esphome/components/bp5758d/* @Cossid
 esphome/components/button/* @esphome/core
 esphome/components/canbus/* @danielschramm @mvturnho
-esphome/components/cap1188/* @MrEditor97
+esphome/components/cap1188/* @mreditor97
 esphome/components/captive_portal/* @OttoWinter
 esphome/components/ccs811/* @habbie
 esphome/components/cd74hc4067/* @asoehlke
@@ -87,7 +87,7 @@ esphome/components/ens210/* @itn3rd77
 esphome/components/esp32/* @esphome/core
 esphome/components/esp32_ble/* @jesserockz
 esphome/components/esp32_ble_client/* @jesserockz
-esphome/components/esp32_ble_server/* @jesserockz
+esphome/components/esp32_ble_server/* @clydebarrow @jesserockz
 esphome/components/esp32_camera_web_server/* @ayufan
 esphome/components/esp32_can/* @Sympatron
 esphome/components/esp32_improv/* @jesserockz
@@ -132,7 +132,7 @@ esphome/components/i2s_audio/speaker/* @jesserockz
 esphome/components/ili9xxx/* @nielsnl68
 esphome/components/improv_base/* @esphome/core
 esphome/components/improv_serial/* @esphome/core
-esphome/components/ina260/* @MrEditor97
+esphome/components/ina260/* @mreditor97
 esphome/components/inkbird_ibsth1_mini/* @fkirill
 esphome/components/inkplate6/* @jesserockz
 esphome/components/integration/* @OttoWinter
@@ -144,7 +144,7 @@ esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
 esphome/components/kuntze/* @ssieb
 esphome/components/lcd_menu/* @numo68
-esphome/components/ld2410/* @sebcaps
+esphome/components/ld2410/* @regevbr @sebcaps
 esphome/components/ledc/* @OttoWinter
 esphome/components/light/* @esphome/core
 esphome/components/lilygo_t5_47/touchscreen/* @jesserockz
@@ -168,7 +168,7 @@ esphome/components/mcp2515/* @danielschramm @mvturnho
 esphome/components/mcp3204/* @rsumner
 esphome/components/mcp4728/* @berfenger
 esphome/components/mcp47a1/* @jesserockz
-esphome/components/mcp9600/* @MrEditor97
+esphome/components/mcp9600/* @mreditor97
 esphome/components/mcp9808/* @k7hpn
 esphome/components/md5/* @esphome/core
 esphome/components/mdns/* @esphome/core
@@ -212,6 +212,7 @@ esphome/components/pid/* @OttoWinter
 esphome/components/pipsolar/* @andreashergert1984
 esphome/components/pm1006/* @habbie
 esphome/components/pmsa003i/* @sjtrny
+esphome/components/pmwcs3/* @SeByDocKy
 esphome/components/pn532/* @OttoWinter @jesserockz
 esphome/components/pn532_i2c/* @OttoWinter @jesserockz
 esphome/components/pn532_spi/* @OttoWinter @jesserockz

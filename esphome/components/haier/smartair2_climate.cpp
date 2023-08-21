@@ -178,7 +178,9 @@ void Smartair2Climate::process_phase(std::chrono::steady_clock::time_point now) 
       break;
 #else
     case ProtocolPhases::SENDING_SIGNAL_LEVEL:
-    case ProtocolPhases::WAITING_SIGNAL_LEVEL_ANSWER this->set_phase(ProtocolPhases::IDLE); break;
+    case ProtocolPhases::WAITING_SIGNAL_LEVEL_ANSWER:
+      this->set_phase(ProtocolPhases::IDLE);
+      break;
 #endif
     case ProtocolPhases::SENDING_UPDATE_SIGNAL_REQUEST:
     case ProtocolPhases::WAITING_UPDATE_SIGNAL_ANSWER:
@@ -268,7 +270,7 @@ haier_protocol::HaierMessage Smartair2Climate::get_control_message() {
           out_data->ac_power = 0;
           break;
 
-        case CLIMATE_MODE_AUTO:
+        case CLIMATE_MODE_HEAT_COOL:
           out_data->ac_power = 1;
           out_data->ac_mode = (uint8_t) smartair2_protocol::ConditioningMode::AUTO;
           out_data->fan_mode = this->other_modes_fan_speed_;
@@ -485,7 +487,7 @@ haier_protocol::HandlerError Smartair2Climate::process_status_message_(const uin
           this->mode = CLIMATE_MODE_FAN_ONLY;
           break;
         case (uint8_t) smartair2_protocol::ConditioningMode::AUTO:
-          this->mode = CLIMATE_MODE_AUTO;
+          this->mode = CLIMATE_MODE_HEAT_COOL;
           break;
       }
     }
