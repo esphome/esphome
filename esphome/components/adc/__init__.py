@@ -7,7 +7,9 @@ from esphome.core import CORE
 from esphome.components.esp32 import get_esp32_variant
 from esphome.components.esp32.const import (
     VARIANT_ESP32,
+    VARIANT_ESP32C2,
     VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
     VARIANT_ESP32H2,
     VARIANT_ESP32S2,
     VARIANT_ESP32S3,
@@ -69,6 +71,22 @@ ESP32_VARIANT_ADC1_PIN_TO_CHANNEL = {
         2: adc1_channel_t.ADC1_CHANNEL_2,
         3: adc1_channel_t.ADC1_CHANNEL_3,
         4: adc1_channel_t.ADC1_CHANNEL_4,
+    },
+    VARIANT_ESP32C2: {
+        0: adc1_channel_t.ADC1_CHANNEL_0,
+        1: adc1_channel_t.ADC1_CHANNEL_1,
+        2: adc1_channel_t.ADC1_CHANNEL_2,
+        3: adc1_channel_t.ADC1_CHANNEL_3,
+        4: adc1_channel_t.ADC1_CHANNEL_4,
+    },
+    VARIANT_ESP32C6: {
+        0: adc1_channel_t.ADC1_CHANNEL_0,
+        1: adc1_channel_t.ADC1_CHANNEL_1,
+        2: adc1_channel_t.ADC1_CHANNEL_2,
+        3: adc1_channel_t.ADC1_CHANNEL_3,
+        4: adc1_channel_t.ADC1_CHANNEL_4,
+        5: adc1_channel_t.ADC1_CHANNEL_5,
+        6: adc1_channel_t.ADC1_CHANNEL_6,
     },
     VARIANT_ESP32H2: {
         0: adc1_channel_t.ADC1_CHANNEL_0,

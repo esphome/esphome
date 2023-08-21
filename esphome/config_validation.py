@@ -125,6 +125,7 @@ RESERVED_IDS = [
     "char16_t",
     "char32_t",
     "class",
+    "clock",
     "compl",
     "concept",
     "const",

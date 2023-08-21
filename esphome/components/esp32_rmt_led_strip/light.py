@@ -63,6 +63,7 @@ RMT_CHANNELS = {
     esp32.const.VARIANT_ESP32S2: [0, 1, 2, 3],
     esp32.const.VARIANT_ESP32S3: [0, 1, 2, 3],
     esp32.const.VARIANT_ESP32C3: [0, 1],
+    esp32.const.VARIANT_ESP32C6: [0, 1],
 }
 
 

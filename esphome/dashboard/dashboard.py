@@ -882,9 +882,6 @@ class PingStatusThread(threading.Thread):
                 entries = _list_dashboard_entries()
                 queue = collections.deque()
                 for entry in entries:
-                    if entry.no_mdns is True:
-                        continue
-
                     if entry.address is None:
                         PING_RESULT[entry.filename] = None
                         continue
