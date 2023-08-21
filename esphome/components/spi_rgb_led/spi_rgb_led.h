@@ -66,6 +66,7 @@ class SpiRgbLed : public light::AddressableLight,
       esph_log_v(TAG, "write_state: buf = %s", strbuf);
     }
     this->write_array(this->buf_, this->buffer_size_);
+    this->disable();
   }
 
   void clear_effect_data() override {
