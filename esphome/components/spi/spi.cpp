@@ -9,11 +9,9 @@ namespace spi {
 static const char *const TAG = "spi";
 
 void IRAM_ATTR HOT SPIComponent::disable() {
-#ifdef USE_SPI_ARDUINO_BACKEND
   if (this->hw_spi_ != nullptr) {
     this->hw_spi_->endTransaction();
   }
-#endif  // USE_SPI_ARDUINO_BACKEND
   if (this->active_cs_) {
     this->active_cs_->digital_write(true);
     this->active_cs_ = nullptr;
@@ -24,7 +22,6 @@ void SPIComponent::setup() {
   this->clk_->setup();
   this->clk_->digital_write(true);
 
-#ifdef USE_SPI_ARDUINO_BACKEND
   bool use_hw_spi = !this->force_sw_;
   const bool has_miso = this->miso_ != nullptr;
   const bool has_mosi = this->mosi_ != nullptr;
@@ -112,7 +109,6 @@ void SPIComponent::setup() {
     return;
   }
 #endif  // USE_RP2040
-#endif  // USE_SPI_ARDUINO_BACKEND
 
   if (this->miso_ != nullptr) {
     this->miso_->setup();
@@ -127,9 +123,7 @@ void SPIComponent::dump_config() {
   LOG_PIN("  CLK Pin: ", this->clk_);
   LOG_PIN("  MISO Pin: ", this->miso_);
   LOG_PIN("  MOSI Pin: ", this->mosi_);
-#ifdef USE_SPI_ARDUINO_BACKEND
   ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->hw_spi_ != nullptr));
-#endif  // USE_SPI_ARDUINO_BACKEND
 }
 float SPIComponent::get_setup_priority() const { return setup_priority::BUS; }
 
