@@ -28,9 +28,7 @@ light:
 
 spi:
   clk_pin: GPIO7
-  mosi_pin:
-    number: GPIO6
-    strapping: true
+  mosi_pin: GPIO6
 
 display:
   - platform: ili9xxx
@@ -45,7 +43,9 @@ i2c:
 
 touchscreen:
   - platform: tt21100
-    interrupt_pin: GPIO3
+    interrupt_pin:
+      number: GPIO3
+      strapping: true
     reset_pin: GPIO48
 
 binary_sensor:
