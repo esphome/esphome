@@ -36,12 +36,8 @@ CONFIG_SCHEMA = (
                 device_class=DEVICE_CLASS_HUMIDITY,
                 state_class=STATE_CLASS_MEASUREMENT,
             ),
-        }
-    )
-    .extend(
-        {
-            cv.Required("heater_enabled", default=True): cv.boolean,
-        }
+        },
+        cv.Optional(CONF_HEATER_ENABLED, default=True): cv.boolean,
     )
     .extend(cv.polling_component_schema("60s"))
     .extend(i2c.i2c_device_schema(0x44))
