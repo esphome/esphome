@@ -6,7 +6,7 @@ tornado==6.3.2
 tzlocal==5.0.1    # from time
 tzdata>=2021.1  # from time
 pyserial==3.5
-platformio==6.1.9  # When updating platformio, also update Dockerfile
+platformio==6.1.10  # When updating platformio, also update Dockerfile
 esptool==4.6.2
 click==8.1.7
 esphome-dashboard==20230711.0
