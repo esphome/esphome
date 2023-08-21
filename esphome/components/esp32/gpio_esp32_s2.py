@@ -55,6 +55,7 @@ def esp32_s2_validate_supports(value):
     if num < 0 or num > 46:
         raise cv.Invalid(f"Invalid pin number: {num} (must be 0-46)")
     if is_input:
+        # All ESP32 pins support input mode
         pass
     if is_output and num == 46:
         raise cv.Invalid(

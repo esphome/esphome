@@ -39,6 +39,7 @@ def esp32_c6_validate_supports(value):
     if num < 0 or num > 23:
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-23)")
     if is_input:
+        # All ESP32 pins support input mode
         pass
 
     check_strapping_pin(value, _ESP32C6_STRAPPING_PINS, _LOGGER)

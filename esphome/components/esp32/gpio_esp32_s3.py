@@ -62,6 +62,7 @@ def esp32_s3_validate_supports(value):
     if num < 0 or num > 48:
         raise cv.Invalid(f"Invalid pin number: {num} (must be 0-46)")
     if is_input:
+        # All ESP32 pins support input mode
         pass
 
     check_strapping_pin(value, _ESP_32S3_STRAPPING_PINS, _LOGGER)

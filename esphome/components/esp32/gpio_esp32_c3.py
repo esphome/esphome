@@ -42,6 +42,7 @@ def esp32_c3_validate_supports(value):
         raise cv.Invalid(f"Invalid pin number: {value} (must be 0-21)")
 
     if is_input:
+        # All ESP32 pins support input mode
         pass
 
     check_strapping_pin(value, _ESP32C3_STRAPPING_PINS, _LOGGER)
