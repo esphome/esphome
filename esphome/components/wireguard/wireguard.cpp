@@ -295,5 +295,3 @@ void resume_wdt() {
 }  // namespace esphome
 
 #endif
-
-// vim: tabstop=2 shiftwidth=2 expandtab
