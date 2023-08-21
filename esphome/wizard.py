@@ -336,7 +336,7 @@ def wizard(path):
 
     wizard_platforms = ["ESP32", "ESP8266", "BK72XX", "RTL87XX"]
     safe_print(
-        f"Please choose one of the supported microcontrollers "
+        "Please choose one of the supported microcontrollers "
         "(Use ESP8266 for Sonoff devices)."
     )
     while True:
