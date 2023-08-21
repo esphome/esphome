@@ -49,7 +49,7 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    cg.add(var.set_heater_enabled(config["heater_enabled"]))
+    cg.add(var.set_heater_enabled(config[CONF_HEATER_ENABLED]))
 
     if CONF_TEMPERATURE in config:
         sens = await sensor.new_sensor(config[CONF_TEMPERATURE])
