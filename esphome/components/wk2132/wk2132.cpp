@@ -103,7 +103,7 @@ void WK2132Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Initialization of configuration WK2132:@%02X with %d UARTs completed", get_num_(),
                 (int) children_.size());
   ESP_LOGCONFIG(TAG, "  crystal %d", crystal_);
-  ESP_LOGCONFIG(TAG, "  test_mode %d (%s)", test_mode_, i2c((uint8_t) test_mode_.to_ulong()));
+  ESP_LOGCONFIG(TAG, "  test_mode %d", test_mode_);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with WK2132 failed!");
@@ -255,7 +255,7 @@ size_t WK2132Channel::rx_in_fifo_() {
   if (available > this->fifo_size_())  // no more than what is set in the fifo_size
     available = this->fifo_size_();
 
-  ESP_LOGVV(TAG, "rx_in_fifo %d (byte in buffer: %s) FSR=%s", available, peek_buffer_.empty ? "no" : "yes", i2c(fsr));
+  ESP_LOGV(TAG, "rx_in_fifo %d (byte in buffer: %s) FSR=%s", available, peek_buffer_.empty ? "no" : "yes", i2c(fsr));
   return available;
 }
 
@@ -465,9 +465,6 @@ void WK2132Component::loop() {
         child->write_byte(data);
       }
     }
-  }
-
-  if (test_mode_.test(4)) {  // test calls
   }
 }
 

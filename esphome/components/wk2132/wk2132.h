@@ -51,10 +51,7 @@ class WK2132Channel;  // forward declaration
 ///////////////////////////////////////////////////////////////////////////////
 class WK2132Component : public Component, public i2c::I2CDevice {
  public:
-  // we store the base_address and we increment number of instances
-
-  /// @brief WK2132Component ctor. We store the I²C base address of the
-  /// component and we increment the number of instances of this class.
+  /// @brief WK2132Component ctor. We store the I²C base address of the component
   WK2132Component() : base_address_{this->address_} {}
 
   void set_crystal(uint32_t crystal) { this->crystal_ = crystal; }
@@ -93,7 +90,6 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 
   uint32_t crystal_{14745600L};  ///< crystal default value;
   uint8_t base_address_;         ///< base address of I2C device
-  /// debug flag xxxx xxpl - p=print l=loop
   std::bitset<8> test_mode_{0};
   uint8_t data_;                             ///< temporary buffer
   bool page1_{false};                        ///< set to true when in page1 mode
