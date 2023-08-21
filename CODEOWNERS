@@ -29,7 +29,6 @@ esphome/components/am43/sensor/* @buxtronix
 esphome/components/analog_threshold/* @ianchi
 esphome/components/animation/* @syndlex
 esphome/components/anova/* @buxtronix
-esphome/components/apa102/* @clydebarrow
 esphome/components/api/* @OttoWinter
 esphome/components/as7341/* @mrgnr
 esphome/components/async_tcp/* @OttoWinter
@@ -265,6 +264,7 @@ esphome/components/socket/* @esphome/core
 esphome/components/sonoff_d1/* @anatoly-savchenkov
 esphome/components/speaker/* @jesserockz
 esphome/components/spi/* @esphome/core
+esphome/components/spi_rgb_led/* @clydebarrow
 esphome/components/sprinkler/* @kbx81
 esphome/components/sps30/* @martgras
 esphome/components/ssd1322_base/* @kbx81
