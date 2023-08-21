@@ -14,8 +14,8 @@ namespace spi_rgb_led {
 
 static const char *const TAG = "spi_rgb_led";
 class SpiRgbLed : public light::AddressableLight,
-               public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
-                                     SPIRGBLED_DATA_RATE> {
+                  public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
+                                        SPIRGBLED_DATA_RATE> {
  public:
   void setup() {}
 
