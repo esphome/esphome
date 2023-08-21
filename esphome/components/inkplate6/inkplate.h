@@ -14,6 +14,7 @@ enum InkplateModel : uint8_t {
   INKPLATE_6 = 0,
   INKPLATE_10 = 1,
   INKPLATE_6_PLUS = 2,
+  INKPLATE_6_V2 = 3,
 };
 
 class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public i2c::I2CDevice {
@@ -28,13 +29,42 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   const uint8_t pixelMaskLUT[8] = {0x1, 0x2, 0x4, 0x8, 0x10, 0x20, 0x40, 0x80};
   const uint8_t pixelMaskGLUT[2] = {0x0F, 0xF0};
 
-  const uint8_t waveform3Bit[8][8] = {{0, 1, 1, 0, 0, 1, 1, 0}, {0, 1, 2, 1, 1, 2, 1, 0}, {1, 1, 1, 2, 2, 1, 0, 0},
-                                      {0, 0, 0, 1, 1, 1, 2, 0}, {2, 1, 1, 1, 2, 1, 2, 0}, {2, 2, 1, 1, 2, 1, 2, 0},
-                                      {1, 1, 1, 2, 1, 2, 2, 0}, {0, 0, 0, 0, 0, 0, 2, 0}};
-  const uint8_t waveform3Bit6Plus[8][9] = {{0, 0, 0, 0, 0, 2, 1, 1, 0}, {0, 0, 2, 1, 1, 1, 2, 1, 0},
-                                           {0, 2, 2, 2, 1, 1, 2, 1, 0}, {0, 0, 2, 2, 2, 1, 2, 1, 0},
-                                           {0, 0, 0, 0, 2, 2, 2, 1, 0}, {0, 0, 2, 1, 2, 1, 1, 2, 0},
-                                           {0, 0, 2, 2, 2, 1, 1, 2, 0}, {0, 0, 0, 0, 2, 2, 2, 2, 0}};
+  const uint8_t waveform3BitAll[4][8][9] = {// INKPLATE_6
+                                            {{0, 1, 1, 0, 0, 1, 1, 0, 0},
+                                             {0, 1, 2, 1, 1, 2, 1, 0, 0},
+                                             {1, 1, 1, 2, 2, 1, 0, 0, 0},
+                                             {0, 0, 0, 1, 1, 1, 2, 0, 0},
+                                             {2, 1, 1, 1, 2, 1, 2, 0, 0},
+                                             {2, 2, 1, 1, 2, 1, 2, 0, 0},
+                                             {1, 1, 1, 2, 1, 2, 2, 0, 0},
+                                             {0, 0, 0, 0, 0, 0, 2, 0, 0}},
+                                            // INKPLATE_10
+                                            {{0, 0, 0, 0, 0, 0, 0, 1, 0},
+                                             {0, 0, 0, 2, 2, 2, 1, 1, 0},
+                                             {0, 0, 2, 1, 1, 2, 2, 1, 0},
+                                             {0, 1, 2, 2, 1, 2, 2, 1, 0},
+                                             {0, 0, 2, 1, 2, 2, 2, 1, 0},
+                                             {0, 2, 2, 2, 2, 2, 2, 1, 0},
+                                             {0, 0, 0, 0, 0, 2, 1, 2, 0},
+                                             {0, 0, 0, 2, 2, 2, 2, 2, 0}},
+                                            // INKPLATE_6_PLUS
+                                            {{0, 0, 0, 0, 0, 2, 1, 1, 0},
+                                             {0, 0, 2, 1, 1, 1, 2, 1, 0},
+                                             {0, 2, 2, 2, 1, 1, 2, 1, 0},
+                                             {0, 0, 2, 2, 2, 1, 2, 1, 0},
+                                             {0, 0, 0, 0, 2, 2, 2, 1, 0},
+                                             {0, 0, 2, 1, 2, 1, 1, 2, 0},
+                                             {0, 0, 2, 2, 2, 1, 1, 2, 0},
+                                             {0, 0, 0, 0, 2, 2, 2, 2, 0}},
+                                            // INKPLATE_6_V2
+                                            {{1, 0, 1, 0, 1, 1, 1, 0, 0},
+                                             {0, 0, 0, 1, 1, 1, 1, 0, 0},
+                                             {1, 1, 1, 1, 0, 2, 1, 0, 0},
+                                             {1, 1, 1, 2, 2, 1, 1, 0, 0},
+                                             {1, 1, 1, 1, 2, 2, 1, 0, 0},
+                                             {0, 1, 1, 1, 2, 2, 1, 0, 0},
+                                             {0, 0, 0, 0, 1, 1, 2, 0, 0},
+                                             {0, 0, 0, 0, 0, 1, 2, 0, 0}}};
 
   void set_greyscale(bool greyscale) {
     this->greyscale_ = greyscale;
@@ -111,7 +141,7 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   void pins_as_outputs_();
 
   int get_width_internal() override {
-    if (this->model_ == INKPLATE_6) {
+    if (this->model_ == INKPLATE_6 || this->model_ == INKPLATE_6_V2) {
       return 800;
     } else if (this->model_ == INKPLATE_10) {
       return 1200;
@@ -122,7 +152,7 @@ class Inkplate6 : public PollingComponent, public display::DisplayBuffer, public
   }
 
   int get_height_internal() override {
-    if (this->model_ == INKPLATE_6) {
+    if (this->model_ == INKPLATE_6 || this->model_ == INKPLATE_6_V2) {
       return 600;
     } else if (this->model_ == INKPLATE_10) {
       return 825;

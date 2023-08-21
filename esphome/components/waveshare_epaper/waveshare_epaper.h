@@ -170,6 +170,46 @@ class GDEY029T94 : public WaveshareEPaper {
   int get_height_internal() override;
 };
 
+class GDEW0154M09 : public WaveshareEPaper {
+ public:
+  void initialize() override;
+  void display() override;
+  void dump_config() override;
+  void deep_sleep() override;
+
+ protected:
+  int get_width_internal() override;
+  int get_height_internal() override;
+
+ private:
+  static const uint8_t CMD_DTM1_DATA_START_TRANS = 0x10;
+  static const uint8_t CMD_DTM2_DATA_START_TRANS2 = 0x13;
+  static const uint8_t CMD_DISPLAY_REFRESH = 0x12;
+  static const uint8_t CMD_AUTO_SEQ = 0x17;
+  static const uint8_t DATA_AUTO_PON_DSR_POF_DSLP = 0xA7;
+  static const uint8_t CMD_PSR_PANEL_SETTING = 0x00;
+  static const uint8_t CMD_UNDOCUMENTED_0x4D = 0x4D;  //  NOLINT
+  static const uint8_t CMD_UNDOCUMENTED_0xAA = 0xaa;  //  NOLINT
+  static const uint8_t CMD_UNDOCUMENTED_0xE9 = 0xe9;  //  NOLINT
+  static const uint8_t CMD_UNDOCUMENTED_0xB6 = 0xb6;  //  NOLINT
+  static const uint8_t CMD_UNDOCUMENTED_0xF3 = 0xf3;  //  NOLINT
+  static const uint8_t CMD_TRES_RESOLUTION_SETTING = 0x61;
+  static const uint8_t CMD_TCON_TCONSETTING = 0x60;
+  static const uint8_t CMD_CDI_VCOM_DATA_INTERVAL = 0x50;
+  static const uint8_t CMD_POF_POWER_OFF = 0x02;
+  static const uint8_t CMD_DSLP_DEEP_SLEEP = 0x07;
+  static const uint8_t DATA_DSLP_DEEP_SLEEP = 0xA5;
+  static const uint8_t CMD_PWS_POWER_SAVING = 0xe3;
+  static const uint8_t CMD_PON_POWER_ON = 0x04;
+  static const uint8_t CMD_PTL_PARTIAL_WINDOW = 0x90;
+
+  uint8_t *lastbuff_ = nullptr;
+  void reset_();
+  void clear_();
+  void write_init_list_(const uint8_t *list);
+  void init_internal_();
+};
+
 class WaveshareEPaper2P9InB : public WaveshareEPaper {
  public:
   void initialize() override;
@@ -371,6 +411,40 @@ class WaveshareEPaper7P5InBV2 : public WaveshareEPaper {
   int get_width_internal() override;
 
   int get_height_internal() override;
+};
+
+class WaveshareEPaper7P5InBV3 : public WaveshareEPaper {
+ public:
+  bool wait_until_idle_();
+
+  void initialize() override;
+
+  void display() override;
+
+  void dump_config() override;
+
+  void deep_sleep() override {
+    this->command(0x02);  // Power off
+    this->wait_until_idle_();
+    this->command(0x07);  // Deep sleep
+    this->data(0xA5);
+  }
+
+ protected:
+  int get_width_internal() override;
+
+  int get_height_internal() override;
+
+  void reset_() {
+    if (this->reset_pin_ != nullptr) {
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+      this->reset_pin_->digital_write(false);
+      delay(5);
+      this->reset_pin_->digital_write(true);
+      delay(200);  // NOLINT
+    }
+  };
 };
 
 class WaveshareEPaper7P5InBC : public WaveshareEPaper {

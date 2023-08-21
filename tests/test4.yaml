@@ -34,9 +34,14 @@ spi:
   miso_pin: GPIO23
 
 uart:
-  tx_pin: GPIO22
-  rx_pin: GPIO23
-  baud_rate: 115200
+  - id: uart115200
+    tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 115200
+  - id: uart9600
+    tx_pin: GPIO22
+    rx_pin: GPIO23
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -58,6 +63,7 @@ time:
 
 tuya:
   time_id: sntp_time
+  uart_id: uart115200
   status_pin:
     number: 14
     inverted: true
@@ -73,6 +79,7 @@ select:
 
 pipsolar:
   id: inverter0
+  uart_id: uart115200
 
 sx1509:
   - id: sx1509_hub
@@ -229,6 +236,7 @@ sensor:
       name: inverter0_pv_charging_power
   - platform: hrxl_maxsonar_wr
     name: Rainwater Tank Level
+    uart_id: uart115200
     filters:
       - sliding_window_moving_average:
           window_size: 12
@@ -257,6 +265,10 @@ sensor:
       name: Ufire Temperature
     ph:
       name: Ufire pH
+  - platform: a01nyub
+    id: a01nyub_sensor
+    name: "a01nyub Distance"
+    uart_id: uart9600
 
 #
 # platform sensor.apds9960 requires component apds9960
@@ -502,6 +514,14 @@ display:
     reset_pin: GPIO23
     model: 2.90inv2
     full_update_every: 30
+    lambda: |-
+      it.rectangle(0, 0, it.get_width(), it.get_height());
+  - platform: waveshare_epaper
+    cs_pin: GPIO23
+    dc_pin: GPIO23
+    busy_pin: GPIO23
+    reset_pin: GPIO23
+    model: 1.54in-m5coreink-m09
     lambda: |-
       it.rectangle(0, 0, it.get_width(), it.get_height());
   - platform: inkplate6

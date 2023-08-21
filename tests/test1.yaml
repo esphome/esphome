@@ -170,6 +170,9 @@ mqtt:
                 id: uart_0
                 data: !lambda |-
                   return {};
+            - bluetooth_password.set:
+                id: my_ld2410
+                password: abcdef
   on_connect:
     - light.turn_on: ${roomname}_lights
     - mqtt.publish:
@@ -228,6 +231,10 @@ uart:
     baud_rate: 256000
     parity: NONE
     stop_bits: 1
+  - id: gcja5_uart
+    rx_pin: GPIO10
+    parity: EVEN
+    baud_rate: 9600
 
 ota:
   safe_mode: true
@@ -325,6 +332,7 @@ ble_client:
             accept: True
   - mac_address: C4:4F:33:11:22:33
     id: my_bedjet_ble_client
+
 bedjet:
   - ble_client_id: my_bedjet_ble_client
     id: my_bedjet_client
@@ -340,6 +348,34 @@ mcp23s17:
     deviceaddress: 1
 
 sensor:
+  - platform: pmwcs3
+    i2c_id: i2c_bus
+    e25:
+      name: pmwcs3_e25
+    ec:
+      name: pmwcs3_ec
+    temperature:
+      name: pmwcs3_temperature
+    vwc:
+      name: pmwcs3_vwc
+  - platform: gcja5
+    pm_1_0:
+      name: "Particulate Matter <1.0µm Concentration"
+    pm_2_5:
+      name: "Particulate Matter <2.5µm Concentration"
+    pm_10_0:
+      name: "Particulate Matter <10.0µm Concentration"
+    pmc_0_5:
+      name: "PMC 0.5"
+    pmc_1_0:
+      name: "PMC 1.0"
+    pmc_2_5:
+      name: "PMC 2.5"
+    pmc_5_0:
+      name: "PMC 5.0"
+    pmc_10_0:
+      name: "PMC 10.0"
+    uart_id: gcja5_uart
   - platform: internal_temperature
     name: Internal Temperature
   - platform: ble_client
@@ -378,9 +414,13 @@ sensor:
       - offset: 2.0
       - multiply: 1.2
       - calibrate_linear:
-          - 0.0 -> 0.0
-          - 40.0 -> 45.0
-          - 100.0 -> 102.5
+          datapoints:
+            - 0.0 -> 0.0
+            - 40.0 -> 45.0
+            - 100.0 -> 102.5
+      - clamp:
+          min_value: -100
+          max_value: 100
       - filter_out: 42.0
       - filter_out: nan
       - median:
@@ -482,6 +522,25 @@ sensor:
     nir:
       name: NIR
     i2c_id: i2c_bus
+  - platform: atm90e26
+    cs_pin: 5
+    voltage:
+      name: Line Voltage
+    current:
+      name: CT Amps
+    power:
+      name: Active Watts
+    power_factor:
+      name: Power Factor
+    frequency:
+      name: Line Frequency
+    line_frequency: 50Hz
+    meter_constant: 1000
+    pl_const: 1429876
+    gain_pga: 1X
+    gain_metering: 7481
+    gain_voltage: 26400
+    gain_ct: 31251
   - platform: atm90e32
     cs_pin: 5
     phase_a:
@@ -766,6 +825,13 @@ sensor:
         name: INA3221 Channel 1 Bus Voltage
       shunt_voltage:
         name: INA3221 Channel 1 Shunt Voltage
+    update_interval: 15s
+    i2c_id: i2c_bus
+  - platform: kmeteriso
+    temperature:
+      name: Outside Temperature
+    internal_temperature:
+      name: Internal Ttemperature
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: kalman_combinator
@@ -1269,17 +1335,75 @@ sensor:
     pressure:
       name: "MPL3115A2 Pressure"
     update_interval: 10s
+  - platform: alpha3
+    ble_client_id: ble_foo
+    flow:
+      name: "Radiator Pump Flow"
+    head:
+      name: "Radiator Pump Head"
+    power:
+      name: "Radiator Pump Power"
+    speed:
+      name: "Radiator Pump Speed"
   - platform: ld2410
+    light:
+      name: light
     moving_distance:
       name: "Moving distance (cm)"
     still_distance:
       name: "Still Distance (cm)"
     moving_energy:
-      name: "Move Energy"
+      name: "Move Energy (%)"
     still_energy:
-      name: "Still Energy"
+      name: "Still Energy (%)"
     detection_distance:
-      name: "Distance Detection"
+      name: "Distance Detection (cm)"
+    g0:
+      move_energy:
+        name: g0 move energy
+      still_energy:
+        name: g0 still energy
+    g1:
+      move_energy:
+        name: g1 move energy
+      still_energy:
+        name: g1 still energy
+    g2:
+      move_energy:
+        name: g2 move energy
+      still_energy:
+        name: g2 still energy
+    g3:
+      move_energy:
+        name: g3 move energy
+      still_energy:
+        name: g3 still energy
+    g4:
+      move_energy:
+        name: g4 move energy
+      still_energy:
+        name: g4 still energy
+    g5:
+      move_energy:
+        name: g5 move energy
+      still_energy:
+        name: g5 still energy
+    g6:
+      move_energy:
+        name: g6 move energy
+      still_energy:
+        name: g6 still energy
+    g7:
+      move_energy:
+        name: g7 move energy
+      still_energy:
+        name: g7 still energy
+    g8:
+      move_energy:
+        name: g8 move energy
+      still_energy:
+        name: g8 still energy
+
   - platform: sen21231
     name: "Person Sensor"
     i2c_id: i2c_bus
@@ -1310,6 +1434,18 @@ sensor:
       fault_count: 1
       polarity: active_high
       function: comparator
+  - platform: zio_ultrasonic
+    name: "Distance"
+    update_interval: 60s
+    i2c_id: i2c_bus
+  - platform: bmp581
+    i2c_id: i2c_bus
+    temperature:
+      name: "BMP581 Temperature"
+      iir_filter: 2x
+    pressure:
+      name: "BMP581 Pressure"
+      oversampling: 128x
 
 esp32_touch:
   setup_mode: false
@@ -1355,8 +1491,15 @@ binary_sensor:
     device_class: window
     filters:
       - invert:
+      - delayed_on_off: 40ms
+      - delayed_on_off:
+          time_on: 10s
+          time_off: !lambda "return 1000;"
       - delayed_on: 40ms
       - delayed_off: 40ms
+      - delayed_on_off: !lambda "return 10;"
+      - delayed_on: !lambda "return 1000;"
+      - delayed_off: !lambda "return 0;"
     on_press:
       then:
         - lambda: >-
@@ -1553,6 +1696,18 @@ binary_sensor:
           -2267,
           1709,
         ]
+  - platform: remote_receiver
+    name: Coolix Test 1
+    coolix: 0xB21F98
+  - platform: remote_receiver
+    name: Coolix Test 2
+    coolix:
+      first: 0xB2E003
+  - platform: remote_receiver
+    name: Coolix Test 3
+    coolix:
+      first: 0xB2E003
+      second: 0xB21F98
   - platform: as3935
     name: Storm Alert
   - platform: analog_threshold
@@ -1590,6 +1745,8 @@ binary_sensor:
       name: movement
     has_still_target:
       name: still
+    out_pin_presence_status:
+      name: out pin presence status
 
 pca9685:
   frequency: 500
@@ -2142,14 +2299,26 @@ climate:
     name: HeatpumpIR Climate
     min_temperature: 18
     max_temperature: 30
+  - platform: heatpumpir
+    protocol: greeyt
+    horizontal_default: left
+    vertical_default: up
+    name: HeatpumpIR Climate
+    min_temperature: 18
+    max_temperature: 30
   - platform: midea_ir
     name: Midea IR
     use_fahrenheit: true
   - platform: midea
     on_control:
-      logger.log: Control message received!
+      - logger.log: Control message received!
+      - lambda: |-
+          x.set_mode(CLIMATE_MODE_FAN_ONLY);
     on_state:
-      logger.log: State changed!
+      - logger.log: State changed!
+      - lambda: |-
+          if (x.mode == CLIMATE_MODE_FAN_ONLY)
+            id(binary_sensor1).publish_state(true);
     id: midea_unit
     uart_id: uart_0
     name: Midea Climate
@@ -2224,8 +2393,18 @@ switch:
   - platform: template
     name: MIDEA_RAW
     turn_on_action:
-      remote_transmitter.transmit_midea:
-        code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+      - remote_transmitter.transmit_coolix:
+          first: 0xB21F98
+      - remote_transmitter.transmit_coolix:
+          first: 0xB21F98
+          second: 0xB21F98
+      - remote_transmitter.transmit_coolix:
+          first: !lambda "return 0xB21F98;"
+          second: !lambda "return 0xB21F98;"
+      - remote_transmitter.transmit_midea:
+          code: [0xA2, 0x08, 0xFF, 0xFF, 0xFF]
+      - remote_transmitter.transmit_midea:
+          code: !lambda "return {0xA2, 0x08, 0xFF, 0xFF, 0xFF};"
   - platform: gpio
     name: "MCP23S08 Pin #0"
     pin:
@@ -2434,7 +2613,6 @@ switch:
           level: !lambda "return 0.5;"
     turn_off_action:
       - switch.turn_on: living_room_lights_off
-    restore_state: false
     on_turn_on:
       - switch.template.publish:
           id: livingroom_lights
@@ -2470,7 +2648,6 @@ switch:
       }
     optimistic: true
     assumed_state: false
-    restore_state: true
     on_turn_off:
       - switch.template.publish:
           id: my_switch
@@ -2519,6 +2696,11 @@ switch:
     id: outlet_switch
     optimistic: true
     device_class: outlet
+  - platform: ld2410
+    engineering_mode:
+      name: "control ld2410 engineering mode"
+    bluetooth:
+      name: "control ld2410 bluetooth"
 
 fan:
   - platform: binary
@@ -2807,6 +2989,9 @@ tm1651:
 remote_receiver:
   pin: GPIO32
   dump: all
+  on_coolix:
+    then:
+      delay: !lambda "return x.first + x.second;"
 
 status_led:
   pin: GPIO2
@@ -3097,6 +3282,11 @@ text_sensor:
     tag_name: OPTARIF
     name: optarif
     teleinfo_id: myteleinfo
+  - platform: ld2410
+    version:
+      name: "presenece sensor version"
+    mac_address:
+      name: "presenece sensor mac address"
 
 sn74hc595:
   - id: sn74hc595_hub
@@ -3201,6 +3391,61 @@ number:
     step: 1
     max_value: 10
     optimistic: true
+  - platform: ld2410
+    light_threshold:
+      name: light threshold
+    timeout:
+      name: timeout
+    max_move_distance_gate:
+      name: max move distance gate
+    max_still_distance_gate:
+      name: max still distance gate
+    g0:
+      move_threshold:
+        name: g0 move threshold
+      still_threshold:
+        name: g0 still threshold
+    g1:
+      move_threshold:
+        name: g1 move threshold
+      still_threshold:
+        name: g1 still threshold
+    g2:
+      move_threshold:
+        name: g2 move threshold
+      still_threshold:
+        name: g2 still threshold
+    g3:
+      move_threshold:
+        name: g3 move threshold
+      still_threshold:
+        name: g3 still threshold
+    g4:
+      move_threshold:
+        name: g4 move threshold
+      still_threshold:
+        name: g4 still threshold
+    g5:
+      move_threshold:
+        name: g5 move threshold
+      still_threshold:
+        name: g5 still threshold
+    g6:
+      move_threshold:
+        name: g6 move threshold
+      still_threshold:
+        name: g6 still threshold
+    g7:
+      move_threshold:
+        name: g7 move threshold
+      still_threshold:
+        name: g7 still threshold
+    g8:
+      move_threshold:
+        name: g8 move threshold
+      still_threshold:
+        name: g8 still threshold
+
 
 select:
   - platform: template
@@ -3214,6 +3459,15 @@ select:
   - platform: copy
     source_id: test_select
     name: Test Select Copy
+  - platform: ld2410
+    distance_resolution:
+      name: distance resolution
+    baud_rate:
+      name: baud rate
+    light_function:
+      name: light function
+    out_pin_level:
+      name: out ping level
 
 qr_code:
   - id: homepage_qr
@@ -3276,19 +3530,17 @@ button:
     name: Midea Power Inverse
     on_press:
       midea_ac.power_toggle:
+  - platform: ld2410
+    factory_reset:
+      name: "factory reset"
+    restart:
+      name: "restart"
+    query_params:
+      name: query params
 
 ld2410:
   id: my_ld2410
   uart_id: ld2410_uart
-  timeout: 150s
-  max_move_distance: 6m
-  max_still_distance: 0.75m
-  g0_move_threshold: 10
-  g0_still_threshold: 20
-  g2_move_threshold: 20
-  g2_still_threshold: 21
-  g8_move_threshold: 80
-  g8_still_threshold: 81
 
 lcd_menu:
   display_id: my_lcd_gpio
