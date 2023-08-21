@@ -22,7 +22,7 @@ void SHT3XDComponent::setup() {
     this->mark_failed();
     return;
   }
-  if (!this->write_command(SHT3XD_COMMAND_HEATER_DISABLE)) {
+  if (!this->write_command(heater_enabled_ ? SHT3XD_COMMAND_HEATER_ENABLE : SHT3XD_COMMAND_HEATER_DISABLE)) {
     this->mark_failed();
     return;
   }
