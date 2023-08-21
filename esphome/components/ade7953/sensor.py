@@ -72,8 +72,8 @@ async def to_code(config):
     await cg.register_component(var, config)
     await i2c.register_i2c_device(var, config)
 
-    if CONF_IRQ_PIN in config:
-        irq_pin = await cg.gpio_pin_expression(config[CONF_IRQ_PIN])
+    if irq_pin_config := config.get(CONF_IRQ_PIN):
+        irq_pin = await cg.gpio_pin_expression(irq_pin_config)
         cg.add(var.set_irq_pin(irq_pin))
 
     for key in [

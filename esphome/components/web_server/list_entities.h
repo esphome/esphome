@@ -1,7 +1,5 @@
 #pragma once
 
-#ifdef USE_ARDUINO
-
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
 #include "esphome/core/defines.h"
@@ -59,5 +57,3 @@ class ListEntitiesIterator : public ComponentIterator {
 
 }  // namespace web_server
 }  // namespace esphome
-
-#endif  // USE_ARDUINO

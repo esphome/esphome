@@ -44,11 +44,11 @@ async def register_climate_ir(var, config):
 
     cg.add(var.set_supports_cool(config[CONF_SUPPORTS_COOL]))
     cg.add(var.set_supports_heat(config[CONF_SUPPORTS_HEAT]))
-    if CONF_SENSOR in config:
-        sens = await cg.get_variable(config[CONF_SENSOR])
+    if sensor_id := config.get(CONF_SENSOR):
+        sens = await cg.get_variable(sensor_id)
         cg.add(var.set_sensor(sens))
-    if CONF_RECEIVER_ID in config:
-        receiver = await cg.get_variable(config[CONF_RECEIVER_ID])
+    if receiver_id := config.get(CONF_RECEIVER_ID):
+        receiver = await cg.get_variable(receiver_id)
         cg.add(receiver.register_listener(var))
 
     transmitter = await cg.get_variable(config[CONF_TRANSMITTER_ID])

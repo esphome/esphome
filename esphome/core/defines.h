@@ -103,6 +103,11 @@
 
 #endif
 
+#ifdef USE_RP2040
+#define USE_ARDUINO_VERSION_CODE VERSION_CODE(3, 3, 0)
+#define USE_SOCKET_IMPL_LWIP_TCP
+#endif
+
 #ifdef USE_HOST
 #define USE_SOCKET_IMPL_BSD_SOCKETS
 #endif

@@ -1,6 +1,7 @@
 #include "ina226.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
+#include <cinttypes>
 
 namespace esphome {
 namespace ina226 {
@@ -68,7 +69,7 @@ void INA226Component::setup() {
 
   auto calibration = uint32_t(0.00512 / (lsb * this->shunt_resistance_ohm_ / 1000000.0f));
 
-  ESP_LOGV(TAG, "    Using LSB=%u calibration=%u", lsb, calibration);
+  ESP_LOGV(TAG, "    Using LSB=%" PRIu32 " calibration=%" PRIu32, lsb, calibration);
 
   if (!this->write_byte_16(INA226_REGISTER_CALIBRATION, calibration)) {
     this->mark_failed();

@@ -1,5 +1,5 @@
 #include "graph.h"
-#include "esphome/components/display/display_buffer.h"
+#include "esphome/components/display/display.h"
 #include "esphome/core/color.h"
 #include "esphome/core/log.h"
 #include "esphome/core/hal.h"
@@ -56,7 +56,7 @@ void GraphTrace::init(Graph *g) {
   this->data_.set_update_time_ms(g->get_duration() * 1000 / g->get_width());
 }
 
-void Graph::draw(DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
+void Graph::draw(Display *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
   /// Plot border
   if (this->border_) {
     buff->horizontal_line(x_offset, y_offset, this->width_, color);
@@ -303,7 +303,7 @@ void GraphLegend::init(Graph *g) {
   }
 }
 
-void Graph::draw_legend(display::DisplayBuffer *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
+void Graph::draw_legend(display::Display *buff, uint16_t x_offset, uint16_t y_offset, Color color) {
   if (!legend_)
     return;
 
