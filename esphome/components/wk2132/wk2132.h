@@ -89,7 +89,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   /// @return the i2c error codes
   uint8_t read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t len);
 
-  int get_num_() const { return int(this); }
+  int get_num_() const { return base_address_; }
 
   uint32_t crystal_{14745600L};  ///< crystal default value;
   uint8_t base_address_;         ///< base address of I2C device
@@ -113,7 +113,6 @@ class WK2132Channel : public uart::UARTComponent {
     this->parent_->children_.push_back(this);  // add ourself to the list (vector)
   }
   void set_channel(uint8_t channel) { this->channel_ = channel; }
-  void setup_channel();
 
   ///
   /// ** Important remark about the maximum buffer size **
@@ -160,6 +159,7 @@ class WK2132Channel : public uart::UARTComponent {
 
   void set_line_param_();
   void set_baudrate_();
+  void setup_channel_();
 
   /// @brief Returns the number of bytes available in the receiver fifo
   /// @return the number of bytes we can read
