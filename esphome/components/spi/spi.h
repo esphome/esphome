@@ -6,7 +6,10 @@
 
 #ifdef USE_ARDUINO
 #include <SPI.h>
-#else
+#endif
+
+#ifdef USE_ESP_IDF
+#define USE_ESP_IDF_HW_SPI
 #include "esp_idf_spi.h"
 #endif
 
