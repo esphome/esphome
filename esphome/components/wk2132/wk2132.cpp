@@ -268,8 +268,8 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
     if (parent_->test_mode_.test(1) && parent_->initialized_)  // test sniff (bit 1)
-      ESP_LOGI(TAG, "sniff reading %d chars %02X... on UART @%02X channel %d", len, *buffer, parent_->base_address_,
-               channel_);
+      ESP_LOGI(TAG, "sniffing: received %d chars %02X... on UART @%02X channel %d", len, *buffer,
+               parent_->base_address_, channel_);
     ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2c(*buffer), len,
              (int) error);
     return true;
@@ -291,7 +291,7 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
     if (parent_->test_mode_.test(1) && parent_->initialized_)  // test sniff (bit 1)
-      ESP_LOGI(TAG, "sniff sending %d chars %02X... on UART @%02X channel %d", len, *buffer, parent_->base_address_,
+      ESP_LOGI(TAG, "sniffing: sent %d chars %02X... on UART @%02X channel %d", len, *buffer, parent_->base_address_,
                channel_);
     ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2c(*buffer), len,
              (int) error);
