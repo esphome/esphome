@@ -12,6 +12,8 @@ from esphome.const import (
     UNIT_PERCENT,
 )
 
+CONF_HEATER_ENABLED = "heater_enabled"
+
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["sensirion_common"]
 
