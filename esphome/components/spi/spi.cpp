@@ -76,7 +76,8 @@ void SPIComponent::setup() {
     if (spi_bus_num == 0) {
       this->hw_spi_ = &SPI;
     } else {
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
       this->hw_spi_ = new SPIClass(FSPI);  // NOLINT(cppcoreguidelines-owning-memory)
 #else
       this->hw_spi_ = new SPIClass(HSPI);  // NOLINT(cppcoreguidelines-owning-memory)
