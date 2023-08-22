@@ -236,7 +236,7 @@ bool EthernetComponent::can_proceed() { return this->is_connected(); }
 network::IPAddress EthernetComponent::get_ip_address() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
-  return {ip.ip.addr};
+  return network::IPAddress(&ip.ip);
 }
 
 void EthernetComponent::eth_event_handler(void *arg, esp_event_base_t event_base, int32_t event, void *event_data) {
@@ -350,21 +350,16 @@ bool EthernetComponent::is_connected() { return this->state_ == EthernetComponen
 void EthernetComponent::dump_connect_params_() {
   esp_netif_ip_info_t ip;
   esp_netif_get_ip_info(this->eth_netif_, &ip);
-  ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(ip.ip.addr).str().c_str());
+  ESP_LOGCONFIG(TAG, "  IP Address: %s", network::IPAddress(&ip.ip).str().c_str());
   ESP_LOGCONFIG(TAG, "  Hostname: '%s'", App.get_name().c_str());
-  ESP_LOGCONFIG(TAG, "  Subnet: %s", network::IPAddress(ip.netmask.addr).str().c_str());
-  ESP_LOGCONFIG(TAG, "  Gateway: %s", network::IPAddress(ip.gw.addr).str().c_str());
+  ESP_LOGCONFIG(TAG, "  Subnet: %s", network::IPAddress(&ip.netmask).str().c_str());
+  ESP_LOGCONFIG(TAG, "  Gateway: %s", network::IPAddress(&ip.gw).str().c_str());
 
   const ip_addr_t *dns_ip1 = dns_getserver(0);
   const ip_addr_t *dns_ip2 = dns_getserver(1);
 
-#if LWIP_IPV6
-  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->u_addr.ip4.addr).str().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->u_addr.ip4.addr).str().c_str());
-#else
-  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1->addr).str().c_str());
-  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2->addr).str().c_str());
-#endif
+  ESP_LOGCONFIG(TAG, "  DNS1: %s", network::IPAddress(dns_ip1).str().c_str());
+  ESP_LOGCONFIG(TAG, "  DNS2: %s", network::IPAddress(dns_ip2).str().c_str());
 
 #if ENABLE_IPV6
   if (this->ipv6_count_ > 0) {
