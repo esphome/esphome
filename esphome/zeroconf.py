@@ -41,7 +41,7 @@ class HostResolver(RecordUpdateListener):
         for record_update in records:
             record, _ = record_update
             if record is None:
-                return
+                continue
             if record.type == _TYPE_A:
                 assert isinstance(record, DNSAddress)
                 if record.name == self.name:
