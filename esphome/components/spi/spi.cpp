@@ -128,13 +128,13 @@ void SPIComponent::dump_config() {
 float SPIComponent::get_setup_priority() const { return setup_priority::BUS; }
 
 void SPIComponent::cycle_clock_(bool value) {
-  uint32_t start = arch_get_cpu_cycle_count();
-  while (start - arch_get_cpu_cycle_count() < this->wait_cycle_)
+  while (this->last_transition_ - arch_get_cpu_cycle_count() < this->wait_cycle_)
     ;
   this->clk_->digital_write(value);
-  start += this->wait_cycle_;
-  while (start - arch_get_cpu_cycle_count() < this->wait_cycle_)
+  this->last_transition_ += this->wait_cycle_;
+  while (this->last_transition_ - arch_get_cpu_cycle_count() < this->wait_cycle_)
     ;
+  this->last_transition_ += this->wait_cycle_;
 }
 
 // NOLINTNEXTLINE
