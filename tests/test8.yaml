@@ -45,7 +45,7 @@ touchscreen:
   - platform: tt21100
     interrupt_pin:
       number: GPIO3
-      strapping: true
+      ignore_strapping_warning: true
     reset_pin: GPIO48
 
 binary_sensor:
