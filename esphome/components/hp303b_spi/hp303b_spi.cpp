@@ -19,7 +19,7 @@ void HP303BComponentSPI::dump_config() {
   LOG_PIN("  CS Pin: ", this->cs_);
 }
 
-int HP303BComponentSPI::read_byte(uint8_t reg_address) override {
+int16_t HP303BComponentSPI::read_byte(uint8_t reg_address) {
   // this function is only made for communication via SPI
 
   // mask regAddress
@@ -35,7 +35,7 @@ int HP303BComponentSPI::read_byte(uint8_t reg_address) override {
   return ret;
 }
 
-int HP303BComponentSPI::read_block(uint8_t reg_address, uint8_t length, uint8_t *buffer) override {
+int16_t HP303BComponentSPI::read_block(uint8_t reg_address, uint8_t length, uint8_t *buffer) {
   // this function is only made for communication via SPI
 
   // do not read if there is no buffer
@@ -59,7 +59,7 @@ int HP303BComponentSPI::read_block(uint8_t reg_address, uint8_t length, uint8_t 
   return length;
 }
 
-int HP303BComponentSPI::write_byte(uint8_t reg_address, uint8_t data, uint8_t check) override {
+int16_t HP303BComponentSPI::write_byte(uint8_t reg_address, uint8_t data, uint8_t check) {
   // this function is only made for communication via SPI
 
   // mask regAddress
@@ -77,21 +77,19 @@ int HP303BComponentSPI::write_byte(uint8_t reg_address, uint8_t data, uint8_t ch
   // check if necessary
   if (check == 0) {
     // no checking necessary
-    return HP303B__SUCCEEDED;
+    return hp303b::HP303B__SUCCEEDED;
   }
   // checking necessary
   if (read_byte(reg_address) == data) {
     // check passed
-    return HP303B__SUCCEEDED;
+    return hp303b::HP303B__SUCCEEDED;
   } else {
     // check failed
-    return HP303B__FAIL_UNKNOWN;
+    return hp303b::HP303B__FAIL_UNKNOWN;
   }
 }
 
-int HP303BComponentSPI::set_interrupt_polarity(uint8_t polarity) override {
-  return HP303BComponent::P303B__FAIL_UNKNOWN;
-}
+int16_t HP303BComponentSPI::set_interrupt_polarity(uint8_t polarity) { return hp303b::HP303B__FAIL_UNKNOWN; }
 
 }  // namespace hp303b_spi
 }  // namespace esphome

@@ -1,41 +1,33 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
-from esphome.components import sensor
 
-from esphome.const import (
-    CONF_ID,
-    CONF_PRESSURE,
-    UNIT_HECTOPASCAL,
-    DEVICE_CLASS_PRESSURE,
-    STATE_CLASS_MEASUREMENT,
-)
 
 CODEOWNERS = ["@max246"]
+AUTO_LOAD = ["sensor"]
+MULTI_CONF = True
+
+
+CONF_HP303B_ID = "hp3030b_id"
+
 
 hp303b_ns = cg.esphome_ns.namespace("hp303b")
 HP303BComponent = hp303b_ns.class_("HP303BComponent", cg.PollingComponent)
 
-CONFIG_SCHEMA = (
-    cv.Schema(
-        {
-            cv.GenerateID(): cv.declare_id(HP303BComponent),
-            cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
-                unit_of_measurement=UNIT_HECTOPASCAL,
-                accuracy_decimals=1,
-                device_class=DEVICE_CLASS_PRESSURE,
-                state_class=STATE_CLASS_MEASUREMENT,
-            ),
-        }
-    )
-    .extend(cv.polling_component_schema("60s"))
-    .extend(cv.COMPONENT_SCHEMA)
-)
+
+HB303B_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(): cv.declare_id(HP303BComponent),
+    }
+).extend(cv.polling_component_schema("60s"))
 
 
-async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
+def CONFIG_SCHEMA(conf):
+    if conf:
+        raise cv.Invalid(
+            "This component has been moved in 1.16, please see the docs for updated "
+            "instructions. https://esphome.io/components/binary_sensor/pn532.html"
+        )
+
+
+async def setup_hp303b(var, config):
     await cg.register_component(var, config)
-
-    if CONF_PRESSURE in config:
-        sens = await sensor.new_sensor(config[CONF_PRESSURE])
-        cg.add(var.set_pressure(sens))

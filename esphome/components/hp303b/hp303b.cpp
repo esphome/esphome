@@ -8,7 +8,7 @@ namespace hp303b {
 /**
  * Standard Constructor
  */
-HP303BComponent::HP303BComponent(void) {
+HP303BComponent::HP303BComponent() {
   // assume that initialization has failed before it has been done
   m_init_fail = 1U;
 }
@@ -16,7 +16,7 @@ HP303BComponent::HP303BComponent(void) {
 /**
  * Standard Destructor
  */
-HP303BComponent::~HP303BComponent(void) { end(); }
+HP303BComponent::~HP303BComponent() { this->end(); }
 
 void HP303BComponent::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HP303B...");
@@ -24,20 +24,20 @@ void HP303BComponent::setup() {
 }
 
 void HP303BComponent::init(void) {
-  int16_t prodId = read_byte_bitfield(HP303B__REG_INFO_PROD_ID);
-  if (prodId != HP303B__PROD_ID) {
+  int16_t prod_id = read_byte_bitfield(HP303B__REG_INFO_PROD_ID);
+  if (prod_id != HP303B__PROD_ID) {
     // Connected device is not a HP303B
     m_init_fail = 1U;
     return;
   }
-  m_productID = prodId;
+  m_product_id = prod_id;
 
-  int16_t revId = read_byte_bitfield(HP303B__REG_INFO_REV_ID);
-  if (revId < 0) {
+  int16_t rev_id = read_byte_bitfield(HP303B__REG_INFO_REV_ID);
+  if (rev_id < 0) {
     m_init_fail = 1U;
     return;
   }
-  m_revisionID = revId;
+  m_revision_id = rev_id;
 
   // find out which temperature sensor is calibrated with coefficients...
   int16_t sensor = read_byte_bitfield(HP303B__REG_INFO_TEMP_SENSORREC);
@@ -47,7 +47,7 @@ void HP303BComponent::init(void) {
   }
 
   //...and use this sensor for temperature measurement
-  m_tempSensor = sensor;
+  m_temp_sensor = sensor;
   if (write_byte_bitfield((uint8_t) sensor, HP303B__REG_INFO_TEMP_SENSOR) < 0) {
     m_init_fail = 1U;
     return;
@@ -92,9 +92,9 @@ void HP303BComponent::update() {
   this->status_clear_warning();
 }
 
-int16_t HP303BComponent::standby(void) {
+int16_t HP303BComponent::standby() {
   // abort if initialization failed
-  if (m_initFail) {
+  if (m_init_fail) {
     return HP303B__FAIL_INIT_FAILED;
   }
   // set device to idling mode
@@ -113,9 +113,9 @@ int16_t HP303BComponent::standby(void) {
 }
 
 void HP303BComponent::end(void) { standby(); }
-uint8_t HP303BComponent::get_product_id(void) { return m_product_id; }
-uint8_t HP303BComponent::get_revision_id(void) { return m_revision_id; }
-int16_t HP303BComponent::measure_temp_once(int32_t &result) { return measure - temp_once(result, m_temp_osr); }
+uint8_t HP303BComponent::get_product_id() { return m_product_id; }
+uint8_t HP303BComponent::get_revision_id() { return m_revision_id; }
+int16_t HP303BComponent::measure_temp_once(int32_t &result) { return measure_temp_once(result, m_temp_osr); }
 int16_t HP303BComponent::measure_temp_once(int32_t &result, uint8_t oversampling_rate) {
   // Start measurement
   int16_t ret = start_measure_temp_once(oversampling_rate);
@@ -134,7 +134,7 @@ int16_t HP303BComponent::measure_temp_once(int32_t &result, uint8_t oversampling
   return ret;
 }
 
-int16_t HP303BComponent::start_measure_temp_once(void) { return start_measure_temp_once(m_temp_osr); }
+int16_t HP303BComponent::start_measure_temp_once() { return start_measure_temp_once(m_temp_osr); }
 int16_t HP303BComponent::start_measure_temp_once(uint8_t oversampling_rate) {
   // abort if initialization failed
   if (m_init_fail) {
@@ -153,10 +153,9 @@ int16_t HP303BComponent::start_measure_temp_once(uint8_t oversampling_rate) {
   }
 
   // set device to temperature measuring mode
-  return set_op_mode(0U, 1U, 0U);
+  return set_op_mode(0, 1, 0);
 }
 
-int16_t HP303BComponent::measure_pressure_once(int32_t &result) { return measure_pressure_once(result, m_prsOsr); }
 int16_t HP303BComponent::measure_pressure_once(int32_t &result, uint8_t oversamplingRate) {
   // start the measurement
   int16_t ret = start_measure_pressure_once(oversamplingRate);
@@ -165,7 +164,7 @@ int16_t HP303BComponent::measure_pressure_once(int32_t &result, uint8_t oversamp
   }
 
   // wait until measurement is finished
-  delay(calc_busy_time(0U, m_prsOsr) / HP303B__BUSYTIME_SCALING);
+  delay(calc_busy_time(0U, m_prs_osr) / HP303B__BUSYTIME_SCALING);
   delay(HP303B__BUSYTIME_FAILSAFE);
 
   ret = get_single_result(result);
@@ -175,7 +174,6 @@ int16_t HP303BComponent::measure_pressure_once(int32_t &result, uint8_t oversamp
   return ret;
 }
 
-int16_t HP303BComponent::start_measure_pressure_once(void) { return start_measure_pressure_once(m_prs_osr); }
 int16_t HP303BComponent::start_measure_pressure_once(uint8_t oversampling_rate) {
   // abort if initialization failed
   if (m_init_fail) {
@@ -192,7 +190,7 @@ int16_t HP303BComponent::start_measure_pressure_once(uint8_t oversampling_rate) 
     }
   }
   // set device to pressure measuring mode
-  return set_op_mode(0U, 0U, 1U);
+  return set_op_mode(0, 0, 1);
 }
 
 int16_t HP303BComponent::get_single_result(int32_t &result) {
@@ -221,7 +219,7 @@ int16_t HP303BComponent::get_single_result(int32_t &result) {
     case 0:  // ready flag not set, measurement still in progress
       return HP303B__FAIL_UNFINISHED;
     case 1:  // measurement ready, expected case
-      LOLIN_HP303B::Mode old_mode = m_op_mode;
+      Mode old_mode = m_op_mode;
       m_op_mode = IDLE;  // opcode was automatically reseted by HP303B
       switch (old_mode) {
         case CMD_TEMP:                   // temperature
@@ -244,11 +242,11 @@ int16_t HP303BComponent::start_measure_temp_cont(uint8_t measure_rate, uint8_t o
     return HP303B__FAIL_TOOBUSY;
   }
   // abort if speed and precision are too high
-  if (calc_busy_time(measure_rate, oversampling_Rate) >= HP303B__MAX_BUSYTIME) {
+  if (calc_busy_time(measure_rate, oversampling_rate) >= HP303B__MAX_BUSYTIME) {
     return HP303B__FAIL_UNFINISHED;
   }
   // update precision and measuring rate
-  if (config_temp(measureRate, oversampling_rate)) {
+  if (config_temp(measure_rate, oversampling_rate)) {
     return HP303B__FAIL_UNKNOWN;
   }
   // enable result FIFO
@@ -256,7 +254,7 @@ int16_t HP303BComponent::start_measure_temp_cont(uint8_t measure_rate, uint8_t o
     return HP303B__FAIL_UNKNOWN;
   }
   // Start measuring in background mode
-  if (set_op_mode(1U, 1U, 0U)) {
+  if (set_op_mode(1, 1, 0)) {
     return HP303B__FAIL_UNKNOWN;
   }
   return HP303B__SUCCEEDED;
@@ -272,7 +270,7 @@ int16_t HP303BComponent::start_measure_pressure_cont(uint8_t measure_rate, uint8
     return HP303B__FAIL_TOOBUSY;
   }
   // abort if speed and precision are too high
-  if (calc_Busy_time(measure_Rate, oversampling_rate) >= HP303B__MAX_BUSYTIME) {
+  if (calc_busy_time(measure_rate, oversampling_rate) >= HP303B__MAX_BUSYTIME) {
     return HP303B__FAIL_UNFINISHED;
   }
   // update precision and measuring rate
@@ -283,7 +281,7 @@ int16_t HP303BComponent::start_measure_pressure_cont(uint8_t measure_rate, uint8
     return HP303B__FAIL_UNKNOWN;
   }
   // Start measuring in background mode
-  if (set_op_mode(1U, 0U, 1U)) {
+  if (set_op_mode(1, 0, 1)) {
     return HP303B__FAIL_UNKNOWN;
   }
   return HP303B__SUCCEEDED;
@@ -298,11 +296,11 @@ int16_t HP303BComponent::start_measure_both_cont(uint8_t temp_mr, uint8_t temp_o
     return HP303B__FAIL_TOOBUSY;
   }
   // abort if speed and precision are too high
-  if (calc_busy_time(temp_mr, temp_osr) + calc_busy_Time(prs_mr, prs_osr) >= HP303B__MAX_BUSYTIME) {
+  if (calc_busy_time(temp_mr, temp_osr) + calc_busy_time(prs_mr, prs_osr) >= HP303B__MAX_BUSYTIME) {
     return HP303B__FAIL_UNFINISHED;
   }
   // update precision and measuring rate
-  if (config_Temp(temp_mr, temp_osr)) {
+  if (config_temp(temp_mr, temp_osr)) {
     return HP303B__FAIL_UNKNOWN;
   }
   // update precision and measuring rate
@@ -313,13 +311,13 @@ int16_t HP303BComponent::start_measure_both_cont(uint8_t temp_mr, uint8_t temp_o
     return HP303B__FAIL_UNKNOWN;
   }
   // Start measuring in background mode
-  if (set_op_mode(1U, 1U, 1U)) {
+  if (set_op_mode(1, 1, 1)) {
     return HP303B__FAIL_UNKNOWN;
   }
   return HP303B__SUCCEEDED;
 }
 
-int16_t HP303BComponent::get_cont_results(int32_t *temp_Buffer, uint8_t &temp_Count, int32_t *prs_Buffer,
+int16_t HP303BComponent::get_cont_results(int32_t *temp_buffer, uint8_t &temp_count, int32_t *prs_buffer,
                                           uint8_t &prs_count) {
   if (m_init_fail) {
     return HP303B__FAIL_INIT_FAILED;
@@ -332,7 +330,7 @@ int16_t HP303BComponent::get_cont_results(int32_t *temp_Buffer, uint8_t &temp_Co
   // prepare parameters for buffer length and count
   uint8_t temp_len = temp_count;
   uint8_t prs_len = prs_count;
-  temp_Count = 0U;
+  temp_count = 0U;
   prs_count = 0U;
 
   // while FIFO is not empty
@@ -348,7 +346,7 @@ int16_t HP303BComponent::get_cont_results(int32_t *temp_Buffer, uint8_t &temp_Co
         // write result to buffer and increase temperature result counter
         if (temp_buffer != NULL) {
           if (temp_count < temp_len) {
-            temp_Buffer[temp_count++] = result;
+            temp_buffer[temp_count++] = result;
           }
         }
         break;
@@ -357,8 +355,8 @@ int16_t HP303BComponent::get_cont_results(int32_t *temp_Buffer, uint8_t &temp_Co
         result = calc_pressure(result);
         // if buffer exists and is not full
         // write result to buffer and increase pressure result counter
-        if (prs_Buffer != NULL) {
-          if (prs_Count < prs_len) {
+        if (prs_buffer != NULL) {
+          if (prs_count < prs_len) {
             prs_buffer[prs_count++] = result;
           }
         }
@@ -377,10 +375,6 @@ int16_t HP303BComponent::set_interrupt_sources(uint8_t fifo_full, uint8_t temp_r
   // Interrupts are not supported with 4 Wire SPI
   return HP303B__FAIL_UNKNOWN;
 }
-
-int16_t HP303BComponent::get_int_status_fifo_full(void) { return read_byte_bitfield(HP303B__REG_INFO_INT_FLAG_FIFO); }
-int16_t HP303BComponent::get_int_status_temp_ready(void) { return read_byte_bitfield(HP303B__REG_INFO_INT_FLAG_TEMP); }
-int16_t HP303BComponent::get_int_status_prs_ready(void) { return read_byte_bitfield(HP303B__REG_INFO_INT_FLAG_PRS); }
 
 int16_t HP303BComponent::correct_temp(void) {
   if (m_init_fail) {
@@ -480,7 +474,7 @@ int16_t HP303BComponent::set_op_mode(uint8_t op_mode) {
   if (write_byte(HP303B__REG_ADR_OPMODE, op_mode)) {
     return HP303B__FAIL_UNKNOWN;
   }
-  m_op_mode = (LOLIN_HP303B::Mode) op_mode;
+  m_op_mode = (HP303BComponent::Mode) op_mode;
   return HP303B__SUCCEEDED;
 }
 int16_t HP303BComponent::config_temp(uint8_t temp_mr, uint8_t temp_osr) {
@@ -492,7 +486,7 @@ int16_t HP303BComponent::config_temp(uint8_t temp_mr, uint8_t temp_osr) {
   uint8_t to_write = temp_mr << HP303B__REG_SHIFT_TEMP_MR;
   to_write |= temp_osr << HP303B__REG_SHIFT_TEMP_OSR;
   // using recommended temperature sensor
-  to_write |= HP303B__REG_MASK_TEMP_SENSOR & (m_tempSensor << HP303B__REG_SHIFT_TEMP_SENSOR);
+  to_write |= HP303B__REG_MASK_TEMP_SENSOR & (m_temp_sensor << HP303B__REG_SHIFT_TEMP_SENSOR);
   int16_t ret = write_byte(HP303B__REG_ADR_TEMP_MR, to_write);
   // abort immediately on fail
   if (ret != HP303B__SUCCEEDED) {
@@ -542,13 +536,13 @@ int16_t HP303BComponent::config_pressure(uint8_t prsMr, uint8_t prsOsr) {
   }
 
   if (ret == HP303B__SUCCEEDED) {  // save new settings
-    m_prsMr = prsMr;
-    m_prsOsr = prsOsr;
+    m_prs_mr = prsMr;
+    m_prs_osr = prsOsr;
   } else {  // try to rollback on fail avoiding endless recursion
     // this is to make sure that shift enable and oversampling rate
     // are always consistent
-    if (prsMr != m_prsMr || prsOsr != m_prsOsr) {
-      config_pressure(m_prsMr, m_prsOsr);
+    if (prsMr != m_prs_mr || prsOsr != m_prs_osr) {
+      config_pressure(m_prs_mr, m_prs_osr);
     }
   }
   return ret;
@@ -637,11 +631,11 @@ int32_t HP303BComponent::calc_temp(int32_t raw) {
   double temp = raw;
 
   // scale temperature according to scaling table and oversampling
-  temp /= scaling_facts[m_tempOsr];
+  temp /= scaling_facts[m_temp_osr];
 
   // update last measured temperature
   // it will be used for pressure compensation
-  m_lastTempScal = temp;
+  m_last_temp_scal = temp;
 
   // Calculate compensated temperature
   temp = m_c0Half + m_c1 * temp;
@@ -654,20 +648,16 @@ int32_t HP303BComponent::calc_pressure(int32_t raw) {
   double prs = raw;
 
   // scale pressure according to scaling table and oversampling
-  prs /= scaling_facts[m_prsOsr];
+  prs /= scaling_facts[m_prs_osr];
 
   // Calculate compensated pressure
-  prs = m_c00 + prs * (m_c10 + prs * (m_c20 + prs * m_c30)) + m_lastTempScal * (m_c01 + prs * (m_c11 + prs * m_c21));
+  prs = m_c00 + prs * (m_c10 + prs * (m_c20 + prs * m_c30)) + m_last_temp_scal * (m_c01 + prs * (m_c11 + prs * m_c21));
 
   // return pressure
   return (int32_t) prs;
 }
 
 int16_t HP303BComponent::write_byte(uint8_t reg_address, uint8_t data) { return write_byte(reg_address, data, 0U); }
-
-int16_t HP303BComponent::write_byte_bitfield(uint8_t data, uint8_t reg_address, uint8_t mask, uint8_t shift) {
-  return write_byte_bitfield(data, reg_address, mask, shift, 0U);
-}
 
 int16_t HP303BComponent::write_byte_bitfield(uint8_t data, uint8_t reg_address, uint8_t mask, uint8_t shift,
                                              uint8_t check) {
@@ -676,7 +666,7 @@ int16_t HP303BComponent::write_byte_bitfield(uint8_t data, uint8_t reg_address, 
     // fail while reading
     return old;
   }
-  return read_byte(reg_address, ((uint8_t) old & ~mask) | ((data << shift) & mask), check);
+  return write_byte(reg_address, ((uint8_t) old & ~mask) | ((data << shift) & mask), check);
 }
 
 int16_t HP303BComponent::write_byte_bitfield(uint8_t reg_address, uint8_t mask, uint8_t shift) {
@@ -685,6 +675,20 @@ int16_t HP303BComponent::write_byte_bitfield(uint8_t reg_address, uint8_t mask, 
     return ret;
   }
   return (((uint8_t) ret) & mask) >> shift;
+}
+
+bool HP303BSensor::process(std::vector<uint8_t> &data) {
+  if (data.size() != this->uid_.size())
+    return false;
+
+  for (size_t i = 0; i < data.size(); i++) {
+    if (data[i] != this->uid_[i])
+      return false;
+  }
+
+  this->publish_state(true);
+  this->found_ = true;
+  return true;
 }
 
 }  // namespace hp303b

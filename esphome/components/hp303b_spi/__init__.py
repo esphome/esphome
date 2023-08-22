@@ -6,6 +6,8 @@ from esphome.const import CONF_ID
 AUTO_LOAD = ["hp303b"]
 CODEOWNERS = ["@max246"]
 DEPENDENCIES = ["spi"]
+MULTI_CONF = True
+
 
 hp303b_spi_ns = cg.esphome_ns.namespace("hp303b_spi")
 HP303BComponentSPI = hp303b_spi_ns.class_(
@@ -13,7 +15,7 @@ HP303BComponentSPI = hp303b_spi_ns.class_(
 )
 
 CONFIG_SCHEMA = cv.All(
-    hp303b.CONFIG_SCHEMA.extend(
+    hp303b.HB303B_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(HP303BComponentSPI),
         }
@@ -22,5 +24,7 @@ CONFIG_SCHEMA = cv.All(
 
 
 async def to_code(config):
+    print(config)
     var = cg.new_Pvariable(config[CONF_ID])
+    await hp303b.setup_hp303b(var, config)
     await spi.register_spi_device(var, config)
