@@ -268,7 +268,7 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
   auto error = parent_->read(buffer, len);
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
-    if (parent_->test_mode_.test(1) && parent_->initialized_)  // test sniff (bit 1)
+    if (parent_->test_mode_.test(0) && parent_->initialized_)  // test sniff (bit 0)
       ESP_LOGI(TAG, "snif: received %d chars %02X... on UART @%02X channel %d", len, *buffer, parent_->base_address_,
                channel_);
     ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, I2CS(*buffer), len,
@@ -291,7 +291,7 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   auto error = parent_->write(buffer, len);
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
-    if (parent_->test_mode_.test(1) && parent_->initialized_)  // test sniff (bit 1)
+    if (parent_->test_mode_.test(0) && parent_->initialized_)  // test sniff (bit 0)
       ESP_LOGI(TAG, "sniff: sent %d chars %02X... on UART @%02X channel %d", len, *buffer, parent_->base_address_,
                channel_);
     ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, I2CS(*buffer), len,
@@ -332,13 +332,6 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
   }
   read_data_(buffer, len);
   return status;
-}
-
-int WK2132Channel::available() {
-  auto available = this->rx_in_fifo_();
-  if (parent_->test_mode_.test(1) && parent_->initialized_)  // test sniff (bit 1)
-    ESP_LOGI(TAG, "sniff: %d chars available in UART@%02X channel %d", available, parent_->base_address_, channel_);
-  return available;
 }
 
 bool WK2132Channel::peek_byte(uint8_t *buffer) {
@@ -445,33 +438,30 @@ void WK2132Component::loop() {
   //
   if (!initialized_ || test_mode_.none())
     return;
-  static uint16_t loop_calls = 0;
 
-  if (test_mode_.test(0)) {  // test loop mode (bit 0)
+  if (test_mode_.test(1)) {  // test echo mode (bit 1)
+    for (auto *child : this->children_) {
+      uint8_t data;
+      if (child->available()) {
+        child->read_byte(&data);
+        ESP_LOGI(TAG, "echo mode: read/send %02X", data);
+        child->write_byte(data);
+      }
+    }
+  }
+
+  static uint16_t loop_calls = 0;
+  if (test_mode_.test(2)) {  // test loop mode (bit 2)
     static uint32_t loop_time = 0;
     loop_time = millis();
     ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
-    static uint8_t loop_count = 0;
     char preamble[64];
-    if (loop_count++ > 3)
-      test_mode_.reset(0);  // we reset the loop bit
     for (size_t i = 0; i < children_.size(); i++) {
       snprintf(preamble, sizeof(preamble), "WK2132_@%02X_Ch_%d", get_num_(), i);
       children_[i]->uart_send_test_(preamble);
       children_[i]->uart_receive_test_(preamble);
     }
     ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
-  }
-
-  if (test_mode_.test(2)) {  // test echo mode (bit 2)
-    for (auto *child : this->children_) {
-      uint8_t data;
-      if (child->available()) {
-        child->read_byte(&data);
-        ESP_LOGI(TAG, "echo received one char %0X", data);
-        child->write_byte(data);
-      }
-    }
   }
 }
 
