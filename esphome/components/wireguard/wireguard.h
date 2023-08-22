@@ -113,6 +113,9 @@ class Wireguard : public PollingComponent {
 void suspend_wdt();
 void resume_wdt();
 
+/// Strip most part of the key only for secure printing
+std::string mask_key(const std::string& key);
+
 }  // namespace wireguard
 }  // namespace esphome
 
