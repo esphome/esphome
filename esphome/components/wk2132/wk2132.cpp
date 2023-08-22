@@ -255,7 +255,8 @@ size_t WK2132Channel::rx_in_fifo_() {
   if (available > this->fifo_size_())  // no more than what is set in the fifo_size
     available = this->fifo_size_();
 
-  ESP_LOGV(TAG, "rx_in_fifo %d (byte in buffer: %s) FSR=%s", available, peek_buffer_.empty ? "no" : "yes", I2CS(fsr));
+  ESP_LOGVV(TAG, "rx_in_fifo %d (byte in peek_buffer: %s) FSR=%s", available, peek_buffer_.empty ? "no" : "yes",
+            I2CS(fsr));
   return available;
 }
 
@@ -268,8 +269,8 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
     if (parent_->test_mode_.test(1) && parent_->initialized_)  // test sniff (bit 1)
-      ESP_LOGI(TAG, "sniffing: received %d chars %02X... on UART @%02X channel %d", len, *buffer,
-               parent_->base_address_, channel_);
+      ESP_LOGI(TAG, "snif: received %d chars %02X... on UART @%02X channel %d", len, *buffer, parent_->base_address_,
+               channel_);
     ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, I2CS(*buffer), len,
              (int) error);
     return true;
@@ -291,7 +292,7 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
     if (parent_->test_mode_.test(1) && parent_->initialized_)  // test sniff (bit 1)
-      ESP_LOGI(TAG, "sniffing: sent %d chars %02X... on UART @%02X channel %d", len, *buffer, parent_->base_address_,
+      ESP_LOGI(TAG, "sniff: sent %d chars %02X... on UART @%02X channel %d", len, *buffer, parent_->base_address_,
                channel_);
     ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, I2CS(*buffer), len,
              (int) error);
@@ -331,6 +332,13 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
   }
   read_data_(buffer, len);
   return status;
+}
+
+int WK2132Channel::available() {
+  auto available = this->rx_in_fifo_();
+  if (parent_->test_mode_.test(1) && parent_->initialized_)  // test sniff (bit 1)
+    ESP_LOGI(TAG, "sniff: %d chars available in UART@%02X channel %d", available, parent_->base_address_, channel_);
+  return available;
 }
 
 bool WK2132Channel::peek_byte(uint8_t *buffer) {
@@ -420,16 +428,15 @@ void WK2132Channel::uart_send_test_(char *preamble) {
 void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
   auto start_exec = millis();
   bool status = true;
-  uint8_t const to_read = this->rx_in_fifo_();
-
+  uint8_t const to_read = this->available();
+  ESP_LOGI(TAG, "%s => %d bytes received status %s - exec time %d ms ...", preamble, to_read, status ? "OK" : "ERROR",
+           millis() - start_exec);
   if (to_read > 0) {
     std::vector<uint8_t> buffer(to_read);
     status = read_array(&buffer[0], to_read);
     if (print_buf)
       print_buffer(buffer);
   }
-  ESP_LOGI(TAG, "%s => %d bytes received status %s - exec time %d ms ...", preamble, to_read, status ? "OK" : "ERROR",
-           millis() - start_exec);
 }
 
 void WK2132Component::loop() {
