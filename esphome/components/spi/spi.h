@@ -4,17 +4,23 @@
 #include "esphome/core/hal.h"
 #include <vector>
 
+namespace esphome {
+namespace spi {
+
 #ifdef USE_ARDUINO
+#define USE_SPI_ARDUINO_BACKEND
 #include <SPI.h>
 #endif
 
 #ifdef USE_ESP_IDF
 #define USE_ESP_IDF_HW_SPI
-#include "esp_idf_spi.h"
+enum SPIMode {
+  SPI_MODE0,
+  SPI_MODE1,
+  SPI_MODE2,
+  SPI_MODE3,
+};
 #endif
-
-namespace esphome {
-namespace spi {
 
 /// The bit-order for SPI devices. This defines how the data read from and written to the device is interpreted.
 enum SPIBitOrder {
@@ -72,18 +78,36 @@ enum SPIDataRate : uint32_t {
   DATA_RATE_80MHZ = 80000000,
 };
 
+// represents a device attached to an SPI bus, with a defined clock rate, mode and bit order. On Arduino this is
+// a thin wrapper over SPIClass.
+class SPIHwDevice {
+ public:
+
+  SPIHwDevice(uint32_t clock = 1000000, SPIBitOrder bitOrder = BIT_ORDER_MSB_FIRST, SPIMode dataMode = SPI_MODE0)
+    : clock_(clock),
+      bit_order_(bitOrder), data_mode_(dataMode);
+
+  uint32_t clock_;
+  SPIBitOrder bit_order_;
+  SPIMode data_mode_;
+};
+
 class SPIComponent : public Component {
  public:
   void set_clk(GPIOPin *clk) { clk_ = clk; }
+
   void set_miso(GPIOPin *miso) { miso_ = miso; }
+
   void set_mosi(GPIOPin *mosi) { mosi_ = mosi; }
+
   void set_force_sw(bool force_sw) { force_sw_ = force_sw; }
 
   void setup() override;
 
   void dump_config() override;
 
-  template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE> uint8_t read_byte() {
+  template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE>
+  uint8_t read_byte() {
     if (this->hw_spi_ != nullptr) {
       return this->hw_spi_->transfer(0x00);
     }
@@ -211,7 +235,7 @@ class SPIComponent : public Component {
         data_mode = SPI_MODE3;
       }
 #ifdef USE_RP2040
-      SPISettings settings(DATA_RATE, static_cast<BitOrder>(BIT_ORDER), data_mode);
+      SPIHwDevice settings(DATA_RATE, static_cast<BitOrder>(BIT_ORDER), data_mode);
 #else
       SPISettings settings(DATA_RATE, BIT_ORDER, data_mode);
 #endif
@@ -245,15 +269,19 @@ class SPIComponent : public Component {
   bool force_sw_{false};
   SPIClass *hw_spi_{nullptr};
   uint32_t wait_cycle_;
+  uint32_t last_transition_{0};
+
 };
 
 template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, SPIDataRate DATA_RATE>
 class SPIDevice {
  public:
   SPIDevice() = default;
+
   SPIDevice(SPIComponent *parent, GPIOPin *cs) : parent_(parent), cs_(cs) {}
 
   void set_spi_parent(SPIComponent *parent) { parent_ = parent; }
+
   void set_cs_pin(GPIOPin *cs) { cs_ = cs; }
 
   void spi_setup() {
@@ -273,7 +301,8 @@ class SPIDevice {
     return this->parent_->template read_array<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data, length);
   }
 
-  template<size_t N> std::array<uint8_t, N> read_array() {
+  template<size_t N>
+  std::array<uint8_t, N> read_array() {
     std::array<uint8_t, N> data;
     this->read_array(data.data(), N);
     return data;
@@ -295,7 +324,8 @@ class SPIDevice {
     this->parent_->template write_array<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data, length);
   }
 
-  template<size_t N> void write_array(const std::array<uint8_t, N> &data) { this->write_array(data.data(), N); }
+  template<size_t N>
+  void write_array(const std::array<uint8_t, N> &data) { this->write_array(data.data(), N); }
 
   void write_array(const std::vector<uint8_t> &data) { this->write_array(data.data(), data.size()); }
 
@@ -307,7 +337,8 @@ class SPIDevice {
     this->parent_->template transfer_array<BIT_ORDER, CLOCK_POLARITY, CLOCK_PHASE>(data, length);
   }
 
-  template<size_t N> void transfer_array(std::array<uint8_t, N> &data) { this->transfer_array(data.data(), N); }
+  template<size_t N>
+  void transfer_array(std::array<uint8_t, N> &data) { this->transfer_array(data.data(), N); }
 
  protected:
   SPIComponent *parent_{nullptr};
