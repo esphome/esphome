@@ -42,11 +42,11 @@ async def to_code(config):
     restore = config[CONF_RESTORE_VALUE]
 
     # Special casing the strings to their own class with a different save/restore mechanism
-    if str(type_) == "std::string":
+    if str(type_) == "std::string" and restore:
         template_args = cg.TemplateArguments(
             type_, config.get(CONF_MAX_RESTORE_DATA_LENGTH, 63) + 1
         )
-        type = RestoringGlobalStringComponent if restore else GlobalsComponent
+        type = RestoringGlobalStringComponent
     else:
         template_args = cg.TemplateArguments(type_)
         type = RestoringGlobalsComponent if restore else GlobalsComponent
