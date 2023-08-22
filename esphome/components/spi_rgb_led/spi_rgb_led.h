@@ -53,7 +53,6 @@ class SpiRgbLed : public light::AddressableLight,
   }
 
   void write_state(light::LightState *state) override {
-    this->enable();
     if (this->is_failed())
       return;
     if (ESPHOME_LOG_LEVEL >= ESPHOME_LOG_LEVEL_VERBOSE) {
@@ -65,6 +64,7 @@ class SpiRgbLed : public light::AddressableLight,
       }
       esph_log_v(TAG, "write_state: buf = %s", strbuf);
     }
+    this->enable();
     this->write_array(this->buf_, this->buffer_size_);
     this->disable();
   }
