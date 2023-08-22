@@ -27,8 +27,6 @@ class WaveshareEPaper : public PollingComponent,
 
   void update() override;
 
-  void fill(Color color) override;
-
   void setup() override {
     this->setup_pins_();
     this->initialize();
@@ -36,11 +34,7 @@ class WaveshareEPaper : public PollingComponent,
 
   void on_safe_shutdown() override;
 
-  display::DisplayType get_display_type() override;
-
  protected:
-  void draw_absolute_pixel_internal(int x, int y, Color color) override;
-
   bool wait_until_idle_();
 
   void setup_pins_();
@@ -56,7 +50,7 @@ class WaveshareEPaper : public PollingComponent,
 
   virtual int get_width_controller() { return this->get_width_internal(); };
 
-  virtual uint32_t get_buffer_length_();  // NOLINT
+  virtual uint32_t get_buffer_length_() = 0;  // NOLINT
   uint32_t reset_duration_{200};
 
   void start_command_();
