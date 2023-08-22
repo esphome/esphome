@@ -52,8 +52,11 @@ int HOT esp_idf_log_vprintf_(const char *format, va_list args) {  // NOLINT
   auto *log = logger::global_logger;
   if (log == nullptr)
     return 0;
-
+#if defined(USE_ESP32_FRAMEWORK_ARDUINO)
+  log->log_vprintf_(ESPHOME_LOG_LEVEL, "esp-arduino", 0, format, args);
+#else
   log->log_vprintf_(ESPHOME_LOG_LEVEL, "esp-idf", 0, format, args);
+#endif
 #endif
   return 0;
 }
