@@ -5,6 +5,13 @@ esphome:
   board: nodemcu-32s
   build_path: build/test2
 
+globals:
+  - id: my_global_string
+    type: std::string
+    restore_value: yes
+    max_restore_data_length: 70
+    initial_value: '"DefaultValue"'
+
 substitutions:
   devicename: test2
 
