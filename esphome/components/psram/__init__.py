@@ -21,7 +21,8 @@ async def to_code(config):
         cg.add_build_flag("-DBOARD_HAS_PSRAM")
 
     if CORE.using_esp_idf:
-        add_idf_sdkconfig_option("CONFIG_ESP32_SPIRAM_SUPPORT", True)
+        add_idf_sdkconfig_option("CONFIG_SPIRAM", True)
+        add_idf_sdkconfig_option("CONFIG_SPIRAM_USE", True)
         add_idf_sdkconfig_option("CONFIG_SPIRAM_USE_CAPS_ALLOC", True)
         add_idf_sdkconfig_option("CONFIG_SPIRAM_IGNORE_NOTFOUND", True)
 
