@@ -937,14 +937,13 @@ def temperature_delta(value):
         err = orig_err
 
     try:
-        kelvin = _temperature_k(value)
-        return kelvin - 273.15
+        return _temperature_k(value)
     except Invalid:
         pass
 
     try:
         fahrenheit = _temperature_f(value)
-        return (fahrenheit) * (5 / 9)
+        return fahrenheit * (5 / 9)
     except Invalid:
         pass
 
