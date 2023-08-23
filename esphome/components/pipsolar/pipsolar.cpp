@@ -826,7 +826,7 @@ void Pipsolar::send_next_poll_() {
   this->empty_uart_buffer_();
   this->read_pos_ = 0;
   crc16 = this->pipsolar_crc_(this->used_polling_commands_[this->last_polling_command_].command,
-                             this->used_polling_commands_[this->last_polling_command_].length);
+                              this->used_polling_commands_[this->last_polling_command_].length);
   this->write_array(this->used_polling_commands_[this->last_polling_command_].command,
                     this->used_polling_commands_[this->last_polling_command_].length);
   // checksum
