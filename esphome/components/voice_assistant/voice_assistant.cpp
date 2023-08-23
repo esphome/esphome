@@ -288,7 +288,7 @@ void VoiceAssistant::set_state_(State state, State desired_state) {
   ESP_LOGV(TAG, "Desired state set to %d", static_cast<uint8_t>(desired_state));
 }
 
-void VoiceAssistant::start_streaming(struct sockaddr_storage * addr, uint16_t port) {
+void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t port) {
   if (this->state_ != State::STARTING_PIPELINE) {
     this->signal_stop_();
     return;
