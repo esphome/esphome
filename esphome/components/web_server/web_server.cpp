@@ -328,7 +328,7 @@ void WebServer::handle_index_request(AsyncWebServerRequest *request) {
 void WebServer::handle_index_request(AsyncWebServerRequest *request) {
   AsyncWebServerResponse *response =
       request->beginResponse_P(200, "text/html", ESPHOME_WEBSERVER_INDEX_HTML, ESPHOME_WEBSERVER_INDEX_HTML_SIZE);
-  response->addHeader("Content-Encoding", "gzip");
+  // No gzip header here because the HTML file is so small
   request->send(response);
 }
 #endif
