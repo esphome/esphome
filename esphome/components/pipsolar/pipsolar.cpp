@@ -770,16 +770,25 @@ uint8_t Pipsolar::check_incoming_length_(uint8_t length) {
 uint8_t Pipsolar::check_incoming_crc_() {
   uint16_t crc16;
   crc16 = crc16be(read_buffer_, read_pos_ - 3);
+
+  /* voltronic/pipsolar inverters block certain characters from CRC */
+  uint8_t b_crc_high = ((crc16) >> 8);
+  uint8_t b_crc_low  = ((crc16) & 0xff);
+  if (b_crc_high == 0x28 || b_crc_high == 0x0d || b_crc_high == 0x0a)
+    b_crc_high++;
+  if (b_crc_low == 0x28 || b_crc_low == 0x0d || b_crc_low == 0x0a)
+    b_crc_low++;
+
   ESP_LOGD(TAG, "checking crc on incoming message");
-  if (((uint8_t) ((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
-      ((uint8_t) ((crc16) &0xff)) == read_buffer_[read_pos_ - 2]) {
+  if ((b_crc_high == read_buffer_[read_pos_ - 3]) &&
+      (b_crc_low  == read_buffer_[read_pos_ - 2])) {
     ESP_LOGD(TAG, "CRC OK");
     read_buffer_[read_pos_ - 1] = 0;
     read_buffer_[read_pos_ - 2] = 0;
     read_buffer_[read_pos_ - 3] = 0;
     return 1;
   }
-  ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X", ((uint8_t) ((crc16) >> 8)), ((uint8_t) ((crc16) &0xff)),
+  ESP_LOGD(TAG, "CRC NOK expected: %X %X but got: %X %X", b_crc_high, b_crc_low,
            read_buffer_[read_pos_ - 3], read_buffer_[read_pos_ - 2]);
   return 0;
 }
@@ -800,9 +809,19 @@ uint8_t Pipsolar::send_next_command_() {
     this->read_pos_ = 0;
     crc16 = crc16be(byte_command, length);
     this->write_str(command);
+
+    /* voltronic/pipsolar inverters block certain characters from CRC */
+    uint8_t b_crc_high = ((crc16) >> 8);
+    uint8_t b_crc_low  = ((crc16) & 0xff);
+    if (b_crc_high == 0x28 || b_crc_high == 0x0d || b_crc_high == 0x0a)
+      b_crc_high++;
+    if (b_crc_low == 0x28 || b_crc_low == 0x0d || b_crc_low == 0x0a)
+      b_crc_low++;
+
     // checksum
-    this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
-    this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
+    this->write(b_crc_high);   // highbyte
+    this->write(b_crc_low);    // lowbyte
+
     // end Byte
     this->write(0x0D);
     ESP_LOGD(TAG, "Sending command from queue: %s with length %d", command, length);
@@ -829,9 +848,18 @@ void Pipsolar::send_next_poll_() {
                   this->used_polling_commands_[this->last_polling_command_].length);
   this->write_array(this->used_polling_commands_[this->last_polling_command_].command,
                     this->used_polling_commands_[this->last_polling_command_].length);
+    /* voltronic/pipsolar inverters block certain characters from CRC */
+  uint8_t b_crc_high = ((crc16) >> 8);
+  uint8_t b_crc_low  = ((crc16) & 0xff);
+  if (b_crc_high == 0x28 || b_crc_high == 0x0d || b_crc_high == 0x0a)
+    b_crc_high++;
+  if (b_crc_low == 0x28 || b_crc_low == 0x0d || b_crc_low == 0x0a)
+    b_crc_low++;
+
   // checksum
-  this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
-  this->write(((uint8_t) ((crc16) &0xff)));  // lowbyte
+  this->write(b_crc_high);   // highbyte
+  this->write(b_crc_low);    // lowbyte
+
   // end Byte
   this->write(0x0D);
   ESP_LOGD(TAG, "Sending polling command : %s with length %d",
