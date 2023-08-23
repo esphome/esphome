@@ -769,7 +769,7 @@ uint8_t Pipsolar::check_incoming_length_(uint8_t length) {
 
 uint8_t Pipsolar::check_incoming_crc_() {
   uint16_t crc16;
-  crc16 = this->pipsolar_crc(read_buffer_, read_pos_ - 3);
+  crc16 = this->pipsolar_crc_(read_buffer_, read_pos_ - 3);
   ESP_LOGD(TAG, "checking crc on incoming message");
   if (((uint8_t) ((crc16) >> 8)) == read_buffer_[read_pos_ - 3] &&
       ((uint8_t) ((crc16) &0xff)) == read_buffer_[read_pos_ - 2]) {
@@ -798,7 +798,7 @@ uint8_t Pipsolar::send_next_command_() {
     this->command_start_millis_ = millis();
     this->empty_uart_buffer_();
     this->read_pos_ = 0;
-    crc16 = this->pipsolar_crc(byte_command, length);
+    crc16 = this->pipsolar_crc_(byte_command, length);
     this->write_str(command);
     // checksum
     this->write(((uint8_t) ((crc16) >> 8)));   // highbyte
@@ -825,7 +825,7 @@ void Pipsolar::send_next_poll_() {
   this->command_start_millis_ = millis();
   this->empty_uart_buffer_();
   this->read_pos_ = 0;
-  crc16 = this->pipsolar_crc(this->used_polling_commands_[this->last_polling_command_].command,
+  crc16 = this->pipsolar_crc_(this->used_polling_commands_[this->last_polling_command_].command,
                              this->used_polling_commands_[this->last_polling_command_].length);
   this->write_array(this->used_polling_commands_[this->last_polling_command_].command,
                     this->used_polling_commands_[this->last_polling_command_].length);
@@ -893,7 +893,7 @@ void Pipsolar::add_polling_command_(const char *command, ENUMPollingCommand poll
   }
 }
 
-uint16_t Pipsolar::pipsolar_crc(uint8_t *msg, uint8_t len) {
+uint16_t Pipsolar::pipsolar_crc_(uint8_t *msg, uint8_t len) {
   uint16_t crc = crc16be(msg, len);
   uint8_t crc_low = crc & 0xff;
   uint8_t crc_high = crc >> 8;
