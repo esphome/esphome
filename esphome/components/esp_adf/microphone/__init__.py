@@ -6,7 +6,6 @@ from esphome.const import CONF_ID
 from .. import CONF_ESP_ADF_ID, ESPADF, ESPADFPipeline, esp_adf_ns
 
 AUTO_LOAD = ["esp_adf"]
-CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
 
 ESPADFMicrophone = esp_adf_ns.class_(

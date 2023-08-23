@@ -5,7 +5,8 @@ from esphome.components import esp32
 
 from esphome.const import CONF_ID
 
-# CONFLICTS_WITH = ["i2s_audio"]
+CONFLICTS_WITH = ["i2s_audio"]
+CODEOWNERS = ["@jesserockz"]
 DEPENDENCIES = ["esp32"]
 
 CONF_ESP_ADF_ID = "esp_adf_id"
