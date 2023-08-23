@@ -1,11 +1,11 @@
-#ifdef USE_RP2040
+#ifdef USE_LIBRETINY
 
 #include "esphome/components/network/ip_address.h"
 #include "esphome/components/network/util.h"
 #include "esphome/core/log.h"
 #include "mdns_component.h"
 
-#include <ESP8266mDNS.h>
+#include <mDNS.h>
 
 namespace esphome {
 namespace mdns {
@@ -13,8 +13,7 @@ namespace mdns {
 void MDNSComponent::setup() {
   this->compile_records_();
 
-  network::IPAddress addr = network::get_ip_address();
-  MDNS.begin(this->hostname_.c_str(), (uint32_t) addr);
+  MDNS.begin(this->hostname_.c_str());
 
   for (const auto &service : this->services_) {
     // Strip the leading underscore from the proto and service_type. While it is
@@ -36,12 +35,7 @@ void MDNSComponent::setup() {
   }
 }
 
-void MDNSComponent::loop() { MDNS.update(); }
-
-void MDNSComponent::on_shutdown() {
-  MDNS.close();
-  delay(40);
-}
+void MDNSComponent::on_shutdown() {}
 
 }  // namespace mdns
 }  // namespace esphome

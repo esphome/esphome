@@ -250,7 +250,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_on(["esp32", "esp8266", "bk72xx", "rtl87xx"]),
+    cv.only_on(["esp32", "esp8266"]),
 )
 
 
@@ -271,14 +271,10 @@ def exp_mqtt_message(config):
 async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
-    # Add required libraries for ESP8266 and LibreTiny
-    if CORE.is_esp8266 or CORE.is_libretiny:
+    # Add required libraries for ESP8266
+    if CORE.is_esp8266:
         # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
-        cg.add_library(
-            "AsyncMqttClient-esphome",
-            None,
-            "https://github.com/libretiny-eu/async-mqtt-client",
-        )
+        cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.6")
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)

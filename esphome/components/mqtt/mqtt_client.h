@@ -11,7 +11,7 @@
 #include "esphome/components/network/ip_address.h"
 #if defined(USE_ESP32)
 #include "mqtt_backend_esp32.h"
-#elif defined(USE_ESP8266) || defined(USE_LIBRETINY)
+#elif defined(USE_ESP8266)
 #include "mqtt_backend_esp8266.h"
 #endif
 #include "lwip/ip_addr.h"
@@ -298,7 +298,7 @@ class MQTTClientComponent : public Component {
   std::vector<MQTTSubscription> subscriptions_;
 #if defined(USE_ESP32)
   MQTTBackendESP32 mqtt_backend_;
-#elif defined(USE_ESP8266) || defined(USE_LIBRETINY)
+#elif defined(USE_ESP8266)
   MQTTBackendESP8266 mqtt_backend_;
 #endif
 

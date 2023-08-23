@@ -1,6 +1,6 @@
 #pragma once
 
-#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
+#ifdef USE_ESP8266
 
 #include "mqtt_backend.h"
 #include <AsyncMqttClient.h>
