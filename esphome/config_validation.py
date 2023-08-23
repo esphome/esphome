@@ -125,6 +125,7 @@ RESERVED_IDS = [
     "char16_t",
     "char32_t",
     "class",
+    "clock",
     "compl",
     "concept",
     "const",
@@ -922,6 +923,27 @@ def temperature(value):
     try:
         fahrenheit = _temperature_f(value)
         return (fahrenheit - 32) * (5 / 9)
+    except Invalid:
+        pass
+
+    raise err
+
+
+def temperature_delta(value):
+    err = None
+    try:
+        return _temperature_c(value)
+    except Invalid as orig_err:
+        err = orig_err
+
+    try:
+        return _temperature_k(value)
+    except Invalid:
+        pass
+
+    try:
+        fahrenheit = _temperature_f(value)
+        return fahrenheit * (5 / 9)
     except Invalid:
         pass
 

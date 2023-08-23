@@ -44,7 +44,6 @@ from .const import (  # noqa
     KEY_SDKCONFIG_OPTIONS,
     KEY_SUBMODULES,
     KEY_VARIANT,
-    VARIANT_ESP32C3,
     VARIANT_FRIENDLY,
     VARIANTS,
 )
@@ -79,6 +78,10 @@ def set_core_data(config):
 
 def get_esp32_variant(core_obj=None):
     return (core_obj or CORE).data[KEY_ESP32][KEY_VARIANT]
+
+
+def get_board(core_obj=None):
+    return (core_obj or CORE).data[KEY_ESP32][KEY_BOARD]
 
 
 def only_on_variant(*, supported=None, unsupported=None):
