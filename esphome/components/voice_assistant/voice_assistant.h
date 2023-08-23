@@ -160,9 +160,7 @@ template<typename... Ts> class StartContinuousAction : public Action<Ts...>, pub
 
 template<typename... Ts> class StopAction : public Action<Ts...>, public Parented<VoiceAssistant> {
  public:
-  void play(Ts... x) override {
-    this->parent_->request_stop();
-  }
+  void play(Ts... x) override { this->parent_->request_stop(); }
 };
 
 template<typename... Ts> class IsRunningCondition : public Condition<Ts...>, public Parented<VoiceAssistant> {
