@@ -13,6 +13,7 @@
 
 #ifdef USE_TIME
 #include "esphome/components/time/real_time_clock.h"
+#include "esphome/core/time.h"
 #endif
 
 #include <esp_gattc_api.h>
