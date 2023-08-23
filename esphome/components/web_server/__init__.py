@@ -110,7 +110,9 @@ def build_index_html(config) -> str:
     return html
 
 
-def add_resource_as_progmem(resource_name: str, content: str, compress: bool = True) -> None:
+def add_resource_as_progmem(
+    resource_name: str, content: str, compress: bool = True
+) -> None:
     """Add a resource to progmem."""
     content_encoded = content.encode("utf-8")
     if compress:
