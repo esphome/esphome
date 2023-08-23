@@ -101,6 +101,18 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 /// @brief Describes a UART channel of a WK2132 I²C component.
 ///
 /// This class derives from the virtual @ref gen_uart::UARTComponent class.
+///
+/// Unfortunately I have not found **any documentation** about the uart::UARTDevice and
+/// uart::UARTComponent classes of @ref ESPHome.
+/// @n However it seems that both of them are based on Arduino library.\n
+///
+/// Most of the interfaces provided by the Arduino Serial library are **poorly
+/// defined** and it seems that the API has even \b changed over time!\n
+/// The esphome::uart::UARTDevice class directly relates to the **Serial Class**
+/// in Arduino and derives from **Stream class**.\n
+/// For compatibility reason (?) many helper methods are made available in ESPHome to
+/// read and write. Unfortunately in many cases these helpers are missing the critical
+/// status information and therefore are even more unsafe to use...\n
 ///////////////////////////////////////////////////////////////////////////////
 class WK2132Channel : public uart::UARTComponent {
  public:
@@ -120,27 +132,75 @@ class WK2132Channel : public uart::UARTComponent {
   /// @brief Write a specified number of bytes from a buffer to a serial port
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to write
+  ///
+  /// This method sends 'len' characters from the buffer to the serial line.
+  /// Unfortunately (unlike the Arduino equivalent) this method
+  /// does not return any indicator and therefore it is not possible
+  /// to know if the bytes has been transmitted correctly.
+  /// Another problem is that it is not possible to know how many bytes we
+  /// can safely send as there is no tx_available() method provided!
+  /// To avoid overrun when using the write method you should use flush()
+  /// to wait until the transmit fifo is empty.
+  ///
+  /// Typical usage could be:
+  /// @code
+  ///   // ...
+  ///   uint8_t buffer[64];
+  ///   // ...
+  ///   flush();
+  ///   write_array(&buffer, len);
+  ///   // ...
+  /// @endcode
   void write_array(const uint8_t *buffer, size_t len) override;
 
   /// @brief Read a specified number of bytes from a serial port to a buffer
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to read
   /// @return true if succeed, false otherwise
+  ///
+  /// This method receives 'len' characters from the uart and transfer them into
+  /// a buffer. It returns
+  /// - true if requested number of characters have been transferred,
+  /// - false if we have a timeout condition\n
+  ///
+  /// Note: If the characters requested are available in the fifo we read them otherwise
+  /// we wait up to 100 ms to get them. To avoid problems it is highly recommended to call
+  /// read() with the length set to the number of bytes returned by available()
+  ///
+  /// Typical usage:
+  /// @code
+  ///   // ...
+  ///   auto len = available();
+  ///   uint8_t buffer[64];
+  ///   if (len > 0) {
+  ///     auto status = read_array(&buffer, len)
+  ///   }
+  ///   // test status ...
+  /// @endcode
   bool read_array(uint8_t *buffer, size_t len) override;
 
   /// @brief Read next byte available from serial buffer without removing it
   /// from the FIFO
   /// @param buffer pointer to the byte
   /// @return true if succeed reading one byte, false if no character available
+  ///
+  /// This method returns the next byte from incoming serial line without
+  /// removing it from the internal fifo. It returns: true if a character
+  /// is available and has been read, false otherwise.\n
   bool peek_byte(uint8_t *buffer) override;
 
   /// @brief Return the number of bytes available for reading from the serial port.
   /// @return the number of bytes available in the receiver fifo
   int available() override { return this->rx_in_fifo_(); }
 
-  /// @brief Flush the output fifo. This is the only way to wait until all the bytes
-  /// in the transmit FIFO have been sent. The method timeout after 100 ms. Therefore
-  /// at very low speed you can't be sure all characters are gone.
+  /// @brief Flush the output fifo.
+  ///
+  /// If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
+  /// of outgoing serial data to complete. (Prior to Arduino 1.0, this the method was
+  /// removing any buffered incoming serial data.). **
+  /// The method tries to waits until all characters inside the fifo have been sent.
+  /// It timeout after 100 ms and therefore at very low speed you can't be sure that
+  /// all the characters have correctly been sent
   void flush() override;
 
   //
