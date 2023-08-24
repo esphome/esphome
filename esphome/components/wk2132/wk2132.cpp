@@ -91,8 +91,11 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
 void WK2132Component::setup() {
   this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
   ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", this->get_num_(), (int) this->children_.size());
-  // we test communication with device
-  this->read_wk2132_register_(REG_WK2132_GENA, 0, &data_, 1);
+  // we read anything just to test communication
+  if (read_wk2132_register_(REG_WK2132_GENA, 0, &data_, 1) != i2c::ERROR_OK) {
+    ESP_LOGCONFIG(TAG, "WK2132 failed to communicate");
+    this->mark_failed();
+  }
 
   // we setup our children
   for (auto *child : this->children_)
