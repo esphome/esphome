@@ -1,11 +1,10 @@
-from esphome import pins, automation
+from esphome import automation
 from esphome.components import output
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.const import (
     CONF_FREQUENCY,
     CONF_ID,
-    CONF_PIN,
 )
 
 DEPENDENCIES = ["esp8266"]
@@ -21,7 +20,6 @@ validate_frequency = cv.All(cv.frequency, cv.Range(min=1.0e-6))
 CONFIG_SCHEMA = output.FLOAT_OUTPUT_SCHEMA.extend(
     {
         cv.Required(CONF_ID): cv.declare_id(ESP8266HWPWM),
-        cv.Required(CONF_PIN): pins.internal_gpio_output_pin_schema,
         cv.Optional(CONF_FREQUENCY, default="1kHz"): validate_frequency,
     }
 ).extend(cv.COMPONENT_SCHEMA)
@@ -31,9 +29,6 @@ async def to_code(config):
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
     await output.register_output(var, config)
-
-    pin = await cg.gpio_pin_expression(config[CONF_PIN])
-    cg.add(var.set_pin(pin))
 
     cg.add(var.set_frequency(config[CONF_FREQUENCY]))
 
