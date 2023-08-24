@@ -53,7 +53,7 @@ class SharpMemoryLCD : public PollingComponent,
 
   optional<sharp_memory_lcd_writer_t> writer_local_{};
 
-  uint8_t _sharpmem_vcom;
+  uint8_t sharpmem_vcom_;
 };
 
 }  // namespace sharp_memory_lcd
