@@ -91,12 +91,6 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
 void WK2132Component::setup() {
   this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
   ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", this->get_num_(), (int) this->children_.size());
-  // we read anything just to test communication
-  if (read_wk2132_register_(REG_WK2132_GENA, 0, &data_, 1) != i2c::ERROR_OK) {
-    ESP_LOGCONFIG(TAG, "WK2132 failed to communicate");
-    this->mark_failed();
-  }
-
   // we setup our children
   for (auto *child : this->children_)
     child->setup_channel_();
@@ -109,9 +103,6 @@ void WK2132Component::dump_config() {
   int tm = this->test_mode_.to_ulong();
   ESP_LOGCONFIG(TAG, "  test_mode %d", tm);
   LOG_I2C_DEVICE(this);
-  if (this->is_failed()) {
-    ESP_LOGE(TAG, "Communication with WK2132 failed!");
-  }
 
   for (auto i = 0; i < this->children_.size(); i++) {
     ESP_LOGCONFIG(TAG, "  UART @%02X:%d...", this->get_num_(), i);
@@ -120,7 +111,6 @@ void WK2132Component::dump_config() {
     ESP_LOGCONFIG(TAG, "    stop_bits %d", this->children_[i]->stop_bits_);
     ESP_LOGCONFIG(TAG, "    parity %s", parity2string(this->children_[i]->parity_));
   }
-  this->initialized_ = true;  // ths is the end of the initialization for our component
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -243,7 +233,7 @@ size_t WK2132Channel::tx_in_fifo_() {
   //  * -------------------------------------------------------------------------
   //  * |  RFOE  |  RFBI  |  RFFE  |  RFPE  |  RDAT  |  TDAT  |  TFULL |  TBUSY |
   //  * -------------------------------------------------------------------------
-  uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
+  uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &this->data_, 1);
   if (fsr & 0x04) {
     size_t const tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
     ESP_LOGVV(TAG, "tx_in_fifo=%d FSR=%s", tfcnt, I2CS(fsr));
@@ -275,7 +265,7 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
   auto error = this->parent_->read(buffer, len);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
-    if (this->parent_->test_mode_.test(0) && this->parent_->initialized_) {  // test sniff (bit 0)
+    if (this->parent_->test_mode_.test(0) && this->parent_->is_ready()) {  // test sniff (bit 0)
       ESP_LOGI(TAG, "snif: received %d chars %02X... on UART @%02X channel %d", len, *buffer,
                this->parent_->base_address_, this->channel_);
     }
@@ -299,7 +289,7 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   auto error = this->parent_->write(buffer, len);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
-    if (this->parent_->test_mode_.test(0) && this->parent_->initialized_) {  // test sniff (bit 0)
+    if (this->parent_->test_mode_.test(0) && this->parent_->is_ready()) {  // test sniff (bit 0)
       ESP_LOGI(TAG, "sniff: sent %d chars %02X... on UART @%02X channel %d", len, *buffer, this->parent_->base_address_,
                channel_);
     }
@@ -445,7 +435,7 @@ void WK2132Component::loop() {
   //
   // This loop is used only if the wk2132 component is in test mode otherwise we return immediately
   //
-  if (!this->initialized_ || this->test_mode_.none())
+  if (!this->is_ready() || this->test_mode_.none())
     return;
 
   if (this->test_mode_.test(1)) {  // test echo mode (bit 1)

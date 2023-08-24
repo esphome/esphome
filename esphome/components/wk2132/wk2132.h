@@ -93,7 +93,6 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   std::bitset<8> test_mode_;                 ///< test mode 0 -> no tests
   uint8_t data_;                             ///< temporary buffer
   bool page1_{false};                        ///< set to true when in page1 mode
-  bool initialized_{false};                  ///< true when initialization is finished
   std::vector<WK2132Channel *> children_{};  ///< @brief the list of WK2132Channel UART children
 };
 
