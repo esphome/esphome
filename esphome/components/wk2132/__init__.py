@@ -25,28 +25,24 @@ CONF_CRYSTAL = "crystal"
 CONF_UART = "uart"
 CONF_TEST_MODE = "test_mode"
 
-
 def post_validate(value):
     if (
         len(value[CONF_UART]) > 1
         and value[CONF_UART][0][CONF_CHANNEL] == value[CONF_UART][1][CONF_CHANNEL]
     ):
         raise cv.Invalid("Duplicate channel number")
-    if CONF_CRYSTAL not in value:
-        value[CONF_CRYSTAL] = 14745600
     return value
-
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(WK2132Component),
-            cv.Optional(CONF_CRYSTAL): cv.int_,
+            cv.Optional(CONF_CRYSTAL, default=14745600): cv.int_,
             cv.Optional(CONF_TEST_MODE, default=0): cv.int_,
             cv.Required(CONF_UART): cv.ensure_list(
                 {
                     cv.Required(CONF_UART_ID): cv.declare_id(WK2132Channel),
-                    cv.Optional(CONF_CHANNEL): cv.int_range(min=0, max=1),
+                    cv.Optional(CONF_CHANNEL, default=0): cv.int_range(min=0, max=1),
                     cv.Required(CONF_BAUD_RATE): cv.int_range(min=1),
                     cv.Optional(CONF_STOP_BITS, default=1): cv.one_of(1, 2, int=True),
                     cv.Optional(CONF_PARITY, default="NONE"): cv.enum(
