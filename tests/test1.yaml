@@ -2299,6 +2299,13 @@ climate:
     name: HeatpumpIR Climate
     min_temperature: 18
     max_temperature: 30
+  - platform: heatpumpir
+    protocol: greeyt
+    horizontal_default: left
+    vertical_default: up
+    name: HeatpumpIR Climate
+    min_temperature: 18
+    max_temperature: 30
   - platform: midea_ir
     name: Midea IR
     use_fahrenheit: true

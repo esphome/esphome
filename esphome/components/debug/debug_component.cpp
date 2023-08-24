@@ -12,8 +12,16 @@
 #include <esp_heap_caps.h>
 #include <esp_system.h>
 
-#include <esp32/rom/rtc.h>
 #include <esp_chip_info.h>
+#if defined(USE_ESP32_VARIANT_ESP32)
+#include <esp32/rom/rtc.h>
+#elif defined(USE_ESP32_VARIANT_ESP32C3)
+#include <esp32c3/rom/rtc.h>
+#elif defined(USE_ESP32_VARIANT_ESP32S2)
+#include <esp32s2/rom/rtc.h>
+#elif defined(USE_ESP32_VARIANT_ESP32S3)
+#include <esp32s3/rom/rtc.h>
+#endif
 
 #endif  // USE_ESP32
 
@@ -105,13 +113,19 @@ void DebugComponent::dump_config() {
   esp_chip_info_t info;
   esp_chip_info(&info);
   const char *model;
-  switch (info.model) {
-    case CHIP_ESP32:
-      model = "ESP32";
-      break;
-    default:
-      model = "UNKNOWN";
-  }
+#if defined(USE_ESP32_VARIANT_ESP32)
+  model = "ESP32";
+#elif defined(USE_ESP32_VARIANT_ESP32C3)
+  model = "ESP32-C3";
+#elif defined(USE_ESP32_VARIANT_ESP32S2)
+  model = "ESP32-S2";
+#elif defined(USE_ESP32_VARIANT_ESP32S3)
+  model = "ESP32-S3";
+#elif defined(USE_ESP32_VARIANT_ESP32H2)
+  model = "ESP32-H2";
+#else
+  model = "UNKNOWN";
+#endif
   std::string features;
   if (info.features & CHIP_FEATURE_EMB_FLASH) {
     features += "EMB_FLASH,";
@@ -153,18 +167,26 @@ void DebugComponent::dump_config() {
     case POWERON_RESET:
       reset_reason = "Power On Reset";
       break;
+#if defined(USE_ESP32_VARIANT_ESP32)
     case SW_RESET:
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+    case RTC_SW_SYS_RESET:
+#endif
       reset_reason = "Software Reset Digital Core";
       break;
+#if defined(USE_ESP32_VARIANT_ESP32)
     case OWDT_RESET:
       reset_reason = "Watch Dog Reset Digital Core";
       break;
+#endif
     case DEEPSLEEP_RESET:
       reset_reason = "Deep Sleep Reset Digital Core";
       break;
+#if defined(USE_ESP32_VARIANT_ESP32)
     case SDIO_RESET:
       reset_reason = "SLC Module Reset Digital Core";
       break;
+#endif
     case TG0WDT_SYS_RESET:
       reset_reason = "Timer Group 0 Watch Dog Reset Digital Core";
       break;
@@ -177,24 +199,61 @@ void DebugComponent::dump_config() {
     case INTRUSION_RESET:
       reset_reason = "Intrusion Reset CPU";
       break;
+#if defined(USE_ESP32_VARIANT_ESP32)
     case TGWDT_CPU_RESET:
       reset_reason = "Timer Group Reset CPU";
       break;
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+    case TG0WDT_CPU_RESET:
+      reset_reason = "Timer Group 0 Reset CPU";
+      break;
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32)
     case SW_CPU_RESET:
+#elif defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+    case RTC_SW_CPU_RESET:
+#endif
       reset_reason = "Software Reset CPU";
       break;
     case RTCWDT_CPU_RESET:
       reset_reason = "RTC Watch Dog Reset CPU";
       break;
+#if defined(USE_ESP32_VARIANT_ESP32)
     case EXT_CPU_RESET:
       reset_reason = "External CPU Reset";
       break;
+#endif
     case RTCWDT_BROWN_OUT_RESET:
       reset_reason = "Voltage Unstable Reset";
       break;
     case RTCWDT_RTC_RESET:
       reset_reason = "RTC Watch Dog Reset Digital Core And RTC Module";
       break;
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
+    case TG1WDT_CPU_RESET:
+      reset_reason = "Timer Group 1 Reset CPU";
+      break;
+    case SUPER_WDT_RESET:
+      reset_reason = "Super Watchdog Reset Digital Core And RTC Module";
+      break;
+    case GLITCH_RTC_RESET:
+      reset_reason = "Glitch Reset Digital Core And RTC Module";
+      break;
+    case EFUSE_RESET:
+      reset_reason = "eFuse Reset Digital Core";
+      break;
+#endif
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S3)
+    case USB_UART_CHIP_RESET:
+      reset_reason = "USB UART Reset Digital Core";
+      break;
+    case USB_JTAG_CHIP_RESET:
+      reset_reason = "USB JTAG Reset Digital Core";
+      break;
+    case POWER_GLITCH_RESET:
+      reset_reason = "Power Glitch Reset Digital Core And RTC Module";
+      break;
+#endif
     default:
       reset_reason = "Unknown Reset Reason";
   }
