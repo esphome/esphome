@@ -17,7 +17,9 @@ class SpiRgbLed : public light::AddressableLight,
                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
                                         SPIRGBLED_DATA_RATE> {
  public:
-  void setup() {}
+  void setup() {
+    this->spi_setup();
+  }
 
   int32_t size() const override { return this->num_leds_; }
 
