@@ -1,6 +1,6 @@
 #pragma once
 
-#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include "../esp_adf.h"
 
@@ -65,4 +65,4 @@ class ESPADFSpeaker : public ESPADFPipeline, public speaker::Speaker, public Com
 }  // namespace esp_adf
 }  // namespace esphome
 
-#endif  // USE_ESP32
+#endif  // USE_ESP_IDF

@@ -1,6 +1,6 @@
 #include "esp_adf_speaker.h"
 
-#ifdef USE_ESP32
+#ifdef USE_ESP_IDF
 
 #include <driver/i2s.h>
 
@@ -269,4 +269,4 @@ size_t ESPADFSpeaker::play(const uint8_t *data, size_t length) {
 }  // namespace esp_adf
 }  // namespace esphome
 
-#endif  // USE_ESP32
+#endif  // USE_ESP_IDF

@@ -28,4 +28,4 @@ class ESPADF : public Component {
 }  // namespace esp_adf
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP_IDF

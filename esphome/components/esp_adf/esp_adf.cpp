@@ -23,4 +23,4 @@ float ESPADF::get_setup_priority() const { return setup_priority::HARDWARE; }
 }  // namespace esp_adf
 }  // namespace esphome
 
-#endif
+#endif  // USE_ESP_IDF
