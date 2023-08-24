@@ -90,7 +90,7 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
 //
 void WK2132Component::setup() {
   this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
-  ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", get_num_(), base_address_, (int) children_.size());
+  ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", get_num_(), (int) children_.size());
   // we test communication with device
   read_wk2132_register_(REG_WK2132_GENA, 0, &data_, 1);
 
@@ -103,7 +103,8 @@ void WK2132Component::dump_config() {
   ESP_LOGCONFIG(TAG, "Initialization of configuration WK2132:@%02X with %d UARTs completed", get_num_(),
                 (int) children_.size());
   ESP_LOGCONFIG(TAG, "  crystal %d", crystal_);
-  ESP_LOGCONFIG(TAG, "  test_mode %d", test_mode_);
+  int tm = test_mode_.to_ulong();
+  ESP_LOGCONFIG(TAG, "  test_mode %d", tm);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with WK2132 failed!");
