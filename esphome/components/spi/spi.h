@@ -63,10 +63,7 @@ enum SPIMode {
   MODE2 = SPI_MODE2,
   MODE3 = SPI_MODE3,
 };
-/** The SPI clock signal data rate. This defines for what duration the clock signal is HIGH/LOW.
- * So effectively the rate of bytes can be calculated using
- *
- * effective_byte_rate = spi_data_rate / 16
+/** The SPI clock signal frequency, which determines the transfer bit rate/second.
  *
  * Implementations can use the pre-defined constants here, or use an integer in the template definition
  * to manually use a specific data rate.
@@ -86,35 +83,81 @@ enum SPIDataRate : uint32_t {
   DATA_RATE_80MHZ = 80000000,
 };
 
+class Modes {
+ public:
+  static SPIMode get_mode(SPIClockPolarity polarity, SPIClockPhase phase) {
+    if (polarity == CLOCK_POLARITY_HIGH) {
+      return phase == CLOCK_PHASE_LEADING ? MODE2 : MODE3;
+    }
+    return phase == CLOCK_PHASE_LEADING ? MODE0 : MODE1;
+  }
+
+  static SPIClockPhase get_phase(SPIMode mode) {
+    switch (mode) {
+      case MODE0:
+      case MODE2:
+        return CLOCK_PHASE_LEADING;
+      default:
+        return CLOCK_PHASE_TRAILING;
+    }
+  }
+
+  static SPIClockPolarity get_polarity(SPIMode mode) {
+    switch (mode) {
+      case MODE0:
+      case MODE1:
+        return CLOCK_POLARITY_LOW;
+      default:
+        return CLOCK_POLARITY_HIGH;
+    }
+  }
+};
+
+/**
+ * A pin to replace those that don't exist.
+ */
+class NullPin : public GPIOPin {
+ public:
+  void setup() override {}
+
+  void pin_mode(gpio::Flags flags) override {}
+
+  bool digital_read() override { return false; }
+
+  void digital_write(bool value) override {}
+
+  std::string dump_summary() const override { return std::string(); }
+
+  static GPIOPin *null_pin;
+};
+
+class SPIDelegateDummy;
+
 // represents a device attached to an SPI bus, with a defined clock rate, mode and bit order. On Arduino this is
 // a thin wrapper over SPIClass.
 class SPIDelegate {
  public:
 
-  SPIDelegate(uint32_t data_rate, SPIBitOrder bit_order, SPIClockPhase clock_phase, SPIClockPolarity clock_polarity,
-              GPIOPin *cs_pin)
-    : data_rate_(data_rate), bit_order_(bit_order), clock_phase_(clock_phase), clock_polarity_(clock_polarity),
-      cs_pin_(cs_pin) {
-    if (this->cs_pin_ != nullptr) {
-      this->cs_pin_->setup();
-      this->cs_pin_->digital_write(true);
-    }
+  SPIDelegate() = default;
+
+  SPIDelegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
+    : bit_order_(bit_order), data_rate_(data_rate), mode_(mode), cs_pin_(cs_pin) {
+    if (this->cs_pin_ == nullptr)
+      this->cs_pin_ = NullPin::null_pin;
+    this->cs_pin_->setup();
+    this->cs_pin_->digital_write(true);
   }
 
   virtual ~SPIDelegate() {};
 
   // enable CS if configured.
   virtual void begin_transaction() {
-    if (this->cs_pin_ != nullptr) {
-      this->cs_pin_->digital_write(false);
-    }
+    this->cs_pin_->digital_write(false);
   }
 
   // end the transaction
   virtual void end_transaction() {
-    if (this->cs_pin_ != nullptr) {
-      this->cs_pin_->digital_write(true);
-    }
+    this->cs_pin_->digital_write(true);
   }
 
   // transfer one byte, return the byte that was read.
@@ -145,12 +188,27 @@ class SPIDelegate {
       ptr[i] = this->transfer(0);
   }
 
+  static SPIDelegateDummy null_delegate;
+
  protected:
-  SPIBitOrder bit_order_;
-  SPIClockPhase clock_phase_;
-  SPIClockPolarity clock_polarity_;
-  GPIOPin *cs_pin_{};
-  uint32_t data_rate_;
+  SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
+  uint32_t data_rate_{1000000};
+  SPIMode mode_{MODE0};
+  GPIOPin *cs_pin_{NullPin::null_pin};
+
+};
+
+/**
+ * A null_delegate SPIDelegate that complains if it's used.
+ */
+
+class SPIDelegateDummy : public SPIDelegate {
+ public:
+  SPIDelegateDummy() = default;
+
+  uint8_t transfer(uint8_t data) override { return 0; }
+
+  void begin_transaction() override;
 
 };
 
@@ -160,11 +218,17 @@ class SPIDelegate {
  */
 class SPIDelegateBitBash : public SPIDelegate {
  public:
-  SPIDelegateBitBash(uint32_t clock, SPIBitOrder bit_order, SPIClockPhase clock_phase, SPIClockPolarity clock_polarity,
+  SPIDelegateBitBash(uint32_t clock, SPIBitOrder bit_order, SPIMode mode,
                      GPIOPin *cs_pin, GPIOPin *clk_pin, GPIOPin *sdo_pin, GPIOPin *sdi_pin)
-    : SPIDelegate(clock, bit_order, clock_phase, clock_polarity, cs_pin), clk_pin_(clk_pin), sdo_pin_(sdo_pin),
+    : SPIDelegate(clock, bit_order, mode, cs_pin), clk_pin_(clk_pin), sdo_pin_(sdo_pin),
       sdi_pin_(sdi_pin) {
     this->wait_cycle_ = uint32_t(arch_get_cpu_freq_hz()) / this->data_rate_ / 2ULL;
+    if (this->sdo_pin_ == nullptr)
+      this->sdo_pin_ = NullPin::null_pin;
+    if (this->sdi_pin_ == nullptr)
+      this->sdi_pin_ = NullPin::null_pin;
+    this->clock_polarity_ = Modes::get_polarity(this->mode_);
+    this->clock_phase_ = Modes::get_phase(this->mode_);
   }
 
   uint8_t transfer(uint8_t data) override {
@@ -182,20 +246,16 @@ class SPIDelegateBitBash : public SPIDelegate {
 
       if (clock_phase_ == CLOCK_PHASE_LEADING) {
         // sampling on leading edge
-        if (this->sdo_pin_ != nullptr)
-          this->sdo_pin_->digital_write(data & (1 << shift));
+        this->sdo_pin_->digital_write(data & (1 << shift));
         this->cycle_clock_(!clock_polarity_);
-        if (this->sdi_pin_ != nullptr)
-          out_data |= uint8_t(this->sdi_pin_->digital_read()) << shift;
+        out_data |= uint8_t(this->sdi_pin_->digital_read()) << shift;
         this->cycle_clock_(clock_polarity_);
       } else {
         // sampling on trailing edge
         this->cycle_clock_(!clock_polarity_);
-        if (this->sdo_pin_ != nullptr)
-          this->sdo_pin_->digital_write(data & (1 << shift));
+        this->sdo_pin_->digital_write(data & (1 << shift));
         this->cycle_clock_(clock_polarity_);
-        if (this->sdi_pin_ != nullptr)
-          out_data |= uint8_t(this->sdi_pin_->digital_read()) << shift;
+        out_data |= uint8_t(this->sdi_pin_->digital_read()) << shift;
       }
     }
     App.feed_wdt();
@@ -203,13 +263,15 @@ class SPIDelegateBitBash : public SPIDelegate {
   }
 
  protected:
-  GPIOPin *clk_pin_{};
-  GPIOPin *sdo_pin_{};
-  GPIOPin *sdi_pin_{};
-  uint32_t last_transition_{};
+  GPIOPin *clk_pin_;
+  GPIOPin *sdo_pin_;
+  GPIOPin *sdi_pin_;
+  uint32_t last_transition_{0};
   uint32_t wait_cycle_;
+  SPIClockPolarity clock_polarity_;
+  SPIClockPhase clock_phase_;
 
-  inline void cycle_clock_(bool value) {
+  void cycle_clock_(bool value) {
     while (this->last_transition_ - arch_get_cpu_cycle_count() < this->wait_cycle_)
       continue;
     this->clk_pin_->digital_write(value);
@@ -220,14 +282,37 @@ class SPIDelegateBitBash : public SPIDelegate {
   }
 };
 
+#ifdef  USE_ARDUINO
+
+class SPIHWDelegate : public SPIDelegate {
+ public:
+  SPIHWDelegate(SPIClass *channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode,
+                GPIOPin *cs_pin) : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
+
+  void begin_transaction() override {
+    SPIDelegate::begin_transaction();
+#ifdef USE_RP2040
+    SPISettings settings(this->data_rate_, static_cast<BitOrder>(this->bit_order_), this->mode_);
+#else
+    SPISettings settings(this->data_rate_, this->bit_order_, this->mode_);
+#endif
+    this->channel_->beginTransaction(settings);
+  }
+
+  void end_transaction() override { this->channel_->endTransaction(); }
+
+  uint8_t transfer(uint8_t data) override { return this->channel_->transfer(data); }
+
+ protected:
+  SPIClass *channel_{};
+};
+
+#endif
 
 class SPIClient;
 
 class SPIComponent : public Component {
  public:
-  static SPIClockPhase get_phase(SPIMode mode);
-  static SPIMode get_mode(SPIClockPolarity polarity, SPIClockPhase phase);
-  static SPIClockPolarity get_polarity(SPIMode mode);
   SPIDelegate *register_device(SPIClient *device,
                                SPIMode mode,
                                SPIBitOrder bit_order,
@@ -257,6 +342,9 @@ class SPIComponent : public Component {
   std::map<SPIClient *, SPIDelegate *> devices_;
 };
 
+/**
+ * Base class for SPIClient, un-templated.
+ */
 class SPIClient {
  public:
   SPIClient(SPIBitOrder bit_order, SPIMode mode, uint32_t data_rate) :
@@ -276,7 +364,7 @@ class SPIClient {
 
   void spi_teardown() {
     this->parent_->unregister_device(this);
-    this->delegate_ = nullptr;
+    this->delegate_ = &SPIDelegate::null_delegate;
   }
 
   void enable();
@@ -294,27 +382,35 @@ class SPIClient {
 
   uint8_t transfer_byte(uint8_t data) { return this->delegate_->transfer(data); }
 
-  ESPDEPRECATED("The semantics of write_byte16() are not well-defined", "2023")
+  ESPDEPRECATED("The semantics of write_byte16() are not well-defined", "2023.8")
   void write_byte16(uint16_t data) { this->delegate_->transfer16(data); }
 
-  ESPDEPRECATED("The semantics of write_array16() are not well-defined", "2023")
+  ESPDEPRECATED("The semantics of write_array16() are not well-defined", "2023.8")
   void write_array16(const uint16_t *data, size_t length) {
     this->delegate_->write_array((uint8_t *) data, length * 2);
   }
 
  protected:
+  SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
+  SPIMode mode_{MODE0};
+  uint32_t data_rate_{1000000};
   SPIComponent *parent_{nullptr};
   GPIOPin *cs_{nullptr};
-  uint32_t data_rate_{1000000};
-  SPIMode mode_{MODE0};
-  SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
-  SPIDelegate *delegate_{};
+  SPIDelegate *delegate_{&SPIDelegate::null_delegate};
 };
 
+/**
+ * The SPIDevice is what components using the SPI will create.
+ *
+ * @tparam BIT_ORDER
+ * @tparam CLOCK_POLARITY
+ * @tparam CLOCK_PHASE
+ * @tparam DATA_RATE
+ */
 template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, SPIDataRate DATA_RATE>
 class SPIDevice : public SPIClient {
  public:
-  SPIDevice() : SPIClient(BIT_ORDER, SPIComponent::get_mode(CLOCK_POLARITY, CLOCK_PHASE), DATA_RATE) {}
+  SPIDevice() : SPIClient(BIT_ORDER, Modes::get_mode(CLOCK_POLARITY, CLOCK_PHASE), DATA_RATE) {}
 
   SPIDevice(SPIComponent *parent, GPIOPin *cs_pin) {
     this->set_spi_parent(parent);
