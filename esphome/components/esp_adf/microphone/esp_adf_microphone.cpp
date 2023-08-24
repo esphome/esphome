@@ -150,10 +150,13 @@ void ESPADFMicrophone::stop_() {
 size_t ESPADFMicrophone::read(int16_t *buf, size_t len) {
   int bytes_read = raw_stream_read(this->raw_read_, (char *) buf, len);
 
-  if (bytes_read == ESP_FAIL) {
+  if (bytes_read == -2 || bytes_read == 0) {
+    // No data in buffers to read.
+    return 0;
+  } else if (bytes_read < 0) {
     ESP_LOGW(TAG, "Error reading from I2S microphone");
     this->status_set_warning();
-    return ESP_FAIL;
+    return 0;
   }
   this->status_clear_warning();
 
