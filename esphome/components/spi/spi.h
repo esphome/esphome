@@ -169,11 +169,17 @@ class SPIDelegate {
       ptr[i] = this->transfer(ptr[i]);
   }
 
-  // write 16 bits, return read data
-  // Question, what is the expected byte order? Implemented as little-endian.
+  // write 16 bits, return read data. Byte order taken from bit order.
   virtual uint16_t transfer16(uint16_t data) {
-    uint16_t const out_data = this->transfer((uint8_t) data);
-    return out_data | this->transfer((uint8_t) (data >> 8)) << 8;
+    uint16_t out_data;
+    if (this->bit_order_ == BIT_ORDER_MSB_FIRST) {
+      out_data = this->transfer((uint8_t) (data >> 8)) << 8;
+      out_data |= this->transfer((uint8_t) data);
+    } else {
+      out_data = this->transfer((uint8_t) data);
+      out_data |= this->transfer((uint8_t) (data >> 8)) << 8;
+    }
+    return out_data;
   }
 
   // write the contents of a buffer, ignore read data (buffer is unchanged.)
@@ -223,44 +229,11 @@ class SPIDelegateBitBash : public SPIDelegate {
     : SPIDelegate(clock, bit_order, mode, cs_pin), clk_pin_(clk_pin), sdo_pin_(sdo_pin),
       sdi_pin_(sdi_pin) {
     this->wait_cycle_ = uint32_t(arch_get_cpu_freq_hz()) / this->data_rate_ / 2ULL;
-    if (this->sdo_pin_ == nullptr)
-      this->sdo_pin_ = NullPin::null_pin;
-    if (this->sdi_pin_ == nullptr)
-      this->sdi_pin_ = NullPin::null_pin;
     this->clock_polarity_ = Modes::get_polarity(this->mode_);
     this->clock_phase_ = Modes::get_phase(this->mode_);
   }
 
-  uint8_t transfer(uint8_t data) override {
-    // Clock starts out at idle level
-    this->clk_pin_->digital_write(clock_polarity_);
-    uint8_t out_data = 0;
-
-    for (uint8_t i = 0; i < 8; i++) {
-      uint8_t shift;
-      if (bit_order_ == BIT_ORDER_MSB_FIRST) {
-        shift = 7 - i;
-      } else {
-        shift = i;
-      }
-
-      if (clock_phase_ == CLOCK_PHASE_LEADING) {
-        // sampling on leading edge
-        this->sdo_pin_->digital_write(data & (1 << shift));
-        this->cycle_clock_(!clock_polarity_);
-        out_data |= uint8_t(this->sdi_pin_->digital_read()) << shift;
-        this->cycle_clock_(clock_polarity_);
-      } else {
-        // sampling on trailing edge
-        this->cycle_clock_(!clock_polarity_);
-        this->sdo_pin_->digital_write(data & (1 << shift));
-        this->cycle_clock_(clock_polarity_);
-        out_data |= uint8_t(this->sdi_pin_->digital_read()) << shift;
-      }
-    }
-    App.feed_wdt();
-    return out_data;
-  }
+  uint8_t transfer(uint8_t data) override;
 
  protected:
   GPIOPin *clk_pin_;
@@ -271,11 +244,7 @@ class SPIDelegateBitBash : public SPIDelegate {
   SPIClockPolarity clock_polarity_;
   SPIClockPhase clock_phase_;
 
-  void cycle_clock_(bool value) {
-    while (this->last_transition_ - arch_get_cpu_cycle_count() < this->wait_cycle_)
-      continue;
-    this->clk_pin_->digital_write(value);
-    this->last_transition_ += this->wait_cycle_;
+  void HOT cycle_clock_() {
     while (this->last_transition_ - arch_get_cpu_cycle_count() < this->wait_cycle_)
       continue;
     this->last_transition_ += this->wait_cycle_;
@@ -294,7 +263,7 @@ class SPIHWDelegate : public SPIDelegate {
 #ifdef USE_RP2040
     SPISettings settings(this->data_rate_, static_cast<BitOrder>(this->bit_order_), this->mode_);
 #else
-    SPISettings settings(this->data_rate_, this->bit_order_, this->mode_);
+    SPISettings const settings(this->data_rate_, this->bit_order_, this->mode_);
 #endif
     this->channel_->beginTransaction(settings);
   }
@@ -302,6 +271,12 @@ class SPIHWDelegate : public SPIDelegate {
   void end_transaction() override { this->channel_->endTransaction(); }
 
   uint8_t transfer(uint8_t data) override { return this->channel_->transfer(data); }
+
+  uint16_t transfer16(uint16_t data) override { return this->channel_->transfer(data); }
+
+  void write_array(const uint8_t *ptr, size_t length) override { this->channel_->writeBytes(ptr, length); }
+
+  void read_array(uint8_t *ptr, size_t length) override { this->channel_->transfer(ptr, length); }
 
  protected:
   SPIClass *channel_{};
@@ -372,9 +347,7 @@ class SPIClient {
 
   uint8_t read_byte() { return this->delegate_->transfer(0); }
 
-  void read_array(uint8_t *data, size_t length) {
-    return this->delegate_->read_array(data, length);
-  }
+  void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
 
   void write_byte(uint8_t data) { this->delegate_->transfer(data); }
 
@@ -382,7 +355,6 @@ class SPIClient {
 
   uint8_t transfer_byte(uint8_t data) { return this->delegate_->transfer(data); }
 
-  ESPDEPRECATED("The semantics of write_byte16() are not well-defined", "2023.8")
   void write_byte16(uint16_t data) { this->delegate_->transfer16(data); }
 
   ESPDEPRECATED("The semantics of write_array16() are not well-defined", "2023.8")
@@ -418,13 +390,6 @@ class SPIDevice : public SPIClient {
   }
 
   void write_array(const uint8_t *data, size_t length) { this->delegate_->write_array(data, length); }
-
-  template<size_t N>
-  std::array<uint8_t, N> read_array() {
-    std::array<uint8_t, N> data;
-    this->read_array(data.data(), N);
-    return data;
-  }
 
   template<size_t N>
   void write_array(const std::array<uint8_t, N> &data) { this->write_array(data.data(), N); }
