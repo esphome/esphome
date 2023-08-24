@@ -25,6 +25,7 @@ CONF_CRYSTAL = "crystal"
 CONF_UART = "uart"
 CONF_TEST_MODE = "test_mode"
 
+
 def post_validate(value):
     if (
         len(value[CONF_UART]) > 1
@@ -32,6 +33,7 @@ def post_validate(value):
     ):
         raise cv.Invalid("Duplicate channel number")
     return value
+
 
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
