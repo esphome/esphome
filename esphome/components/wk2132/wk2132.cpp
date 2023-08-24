@@ -241,9 +241,12 @@ size_t WK2132Channel::tx_in_fifo_() {
   //  * |  RFOE  |  RFBI  |  RFFE  |  RFPE  |  RDAT  |  TDAT  |  TFULL |  TBUSY |
   //  * -------------------------------------------------------------------------
   uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
-  uint8_t const tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, channel_, &data_, 1);
-  ESP_LOGVV(TAG, "tx_in_fifo=%d FSR=%s", tfcnt, I2CS(fsr));
-  return tfcnt;
+  if (fsr & 0x04) {
+    size_t const tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, channel_, &data_, 1);
+    ESP_LOGVV(TAG, "tx_in_fifo=%d FSR=%s", tfcnt, I2CS(fsr));
+    return tfcnt;
+  }
+  return 0;
 }
 
 size_t WK2132Channel::rx_in_fifo_() {
@@ -253,8 +256,8 @@ size_t WK2132Channel::rx_in_fifo_() {
     available = this->parent_->read_wk2132_register_(REG_WK2132_RFCNT, channel_, &data_, 1);
   if (!peek_buffer_.empty)
     available++;
-  if (available > this->fifo_size_())  // no more than what is set in the fifo_size
-    available = this->fifo_size_();
+  if (available > this->fifo_size_)  // no more than what is set in the fifo_size
+    available = this->fifo_size_;
 
   ESP_LOGVV(TAG, "rx_in_fifo %d (byte in peek_buffer: %s) FSR=%s", available, peek_buffer_.empty ? "no" : "yes",
             I2CS(fsr));
@@ -309,8 +312,8 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
 }
 
 bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
-  if (len > fifo_size_()) {
-    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, fifo_size_());
+  if (len > fifo_size_) {
+    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, fifo_size_);
     return false;
   }
 
@@ -349,12 +352,12 @@ bool WK2132Channel::peek_byte(uint8_t *buffer) {
 }
 
 void WK2132Channel::write_array(const uint8_t *buffer, size_t len) {
-  if (len > fifo_size_()) {
-    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, fifo_size_());
-    len = fifo_size_();
+  if (len > fifo_size_) {
+    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, fifo_size_);
+    len = fifo_size_;
   }
-  if (safe_ && (len > (fifo_size_() - tx_in_fifo_()))) {
-    len = fifo_size_() - tx_in_fifo_();  // send as much as possible
+  if (safe_ && (len > (fifo_size_ - tx_in_fifo_()))) {
+    len = fifo_size_ - tx_in_fifo_();  // send as much as possible
     ESP_LOGE(TAG, "Write buffer overrun: can only send %d bytes ...", len);
   }
   write_data_(buffer, len);
@@ -364,7 +367,7 @@ void WK2132Channel::flush() {
   uint32_t const start_time = millis();
   while (tx_in_fifo_()) {  // wait until buffer empty
     if (millis() - start_time > 100) {
-      ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", fifo_size_() - tx_in_fifo_());
+      ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", tx_in_fifo_());
       return;
     }
     yield();  // reschedule thread to avoid blocking
@@ -405,10 +408,10 @@ void print_buffer(std::vector<uint8_t> buffer) {
 /// @brief test the write_array method
 void WK2132Channel::uart_send_test_(char *preamble) {
   auto start_exec = millis();
-  uint8_t const to_send = fifo_size_() - tx_in_fifo_();
-  uint8_t const to_flush = tx_in_fifo_();  // byte in buffer before execution
-  this->flush();                           // we wait until they are gone
-  uint8_t const remains = tx_in_fifo_();   // remaining bytes if not null => flush timeout
+  size_t const to_send = fifo_size_ - tx_in_fifo_();
+  size_t const to_flush = tx_in_fifo_();  // byte in buffer before execution
+  this->flush();                          // we wait until they are gone
+  size_t const remains = tx_in_fifo_();   // remaining bytes if not null => flush timeout
 
   if (to_send > 0) {
     std::vector<uint8_t> output_buffer(to_send);
@@ -423,16 +426,16 @@ void WK2132Channel::uart_send_test_(char *preamble) {
 /// @brief test read_array method
 void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
   auto start_exec = millis();
-  bool status = true;
+  bool status = false;
   uint8_t const to_read = this->available();
-  ESP_LOGI(TAG, "%s => %d bytes received status %s - exec time %d ms ...", preamble, to_read, status ? "OK" : "ERROR",
-           millis() - start_exec);
   if (to_read > 0) {
     std::vector<uint8_t> buffer(to_read);
     status = read_array(&buffer[0], to_read);
     if (print_buf)
       print_buffer(buffer);
   }
+  ESP_LOGI(TAG, "%s => %d bytes received status %s - exec time %d ms ...", preamble, to_read, status ? "OK" : "ERROR",
+           millis() - start_exec);
 }
 
 void WK2132Component::loop() {
@@ -456,8 +459,8 @@ void WK2132Component::loop() {
   static uint16_t loop_calls = 0;
   if (test_mode_.test(2)) {  // test loop mode (bit 2)
     static uint32_t loop_time = 0;
-    loop_time = millis();
     ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
+    loop_time = millis();
     char preamble[64];
     for (size_t i = 0; i < children_.size(); i++) {
       snprintf(preamble, sizeof(preamble), "WK2132_@%02X_Ch_%d", get_num_(), i);

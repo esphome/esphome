@@ -237,9 +237,8 @@ class WK2132Channel : public uart::UARTComponent {
   /// @return true if succeed false otherwise
   bool write_data_(const uint8_t *buffer, size_t len);
 
-  /// @brief Return the size of the component's fifo
-  /// @return the size
-  size_t fifo_size_() { return 128; }
+  /// @brief the size of the component's fifo
+  const size_t fifo_size_{128};
 
   bool safe_{true};  // false will speed up operation but is unsafe
   struct PeekBuffer {
