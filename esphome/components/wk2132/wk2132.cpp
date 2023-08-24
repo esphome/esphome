@@ -16,6 +16,7 @@ static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "B
 
 // convert an int to binary string
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
+#define I2CS(val) (i2s(val).c_str())
 
 /// @brief Computes the I²C Address to access the component
 /// @param base_address the base address of the component as set by the A1 A0 pins
@@ -28,7 +29,6 @@ inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) 
   // - CC is the channel number (in practice only 00 or 01)
   // - F is 0 when accessing register one when accessing FIFO
   uint8_t const addr = base_address | channel << 1 | fifo;
-  // ESP_LOGI(TAG, "i2c_address %02X [%s] => b=%02X c=%02X f=%d", addr, i2s(addr).c_str(), base_address, channel, fifo);
   return addr;
 }
 
@@ -62,11 +62,11 @@ void WK2132Component::write_wk2132_register_(uint8_t reg_number, uint8_t channel
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
     ESP_LOGVV(TAG, "write_wk2132_register_(@%02X %s, ch=%d b=%02X [%s], len=%d): I2C code %d", address_,
-              this->reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
+              this->reg_to_str_(reg_number), channel, *buffer, I2CS(*buffer), len, (int) error);
   } else {  // error
     this->status_set_warning();
     ESP_LOGE(TAG, "write_wk2132_register_(@%02X %s, ch=%d b=%02X [%s], len=%d): I2C code %d", address_,
-             this->reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
+             this->reg_to_str_(reg_number), channel, *buffer, I2CS(*buffer), len, (int) error);
   }
 }
 
@@ -76,11 +76,11 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
     ESP_LOGVV(TAG, "read_wk2132_register_(@%02X %s, ch=%d b=%02X [%s], len=%d): I2C code %d", address_,
-              this->reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
+              this->reg_to_str_(reg_number), channel, *buffer, I2CS(*buffer), len, (int) error);
   } else {  // error
     this->status_set_warning();
     ESP_LOGE(TAG, "read_wk2132_register_(@%02X %s, ch=%d b=%02X [%s], len=%d): I2C code %d", address_,
-             this->reg_to_str_(reg_number), channel, *buffer, i2s(*buffer).c_str(), len, (int) error);
+             this->reg_to_str_(reg_number), channel, *buffer, I2CS(*buffer), len, (int) error);
   }
   return *buffer;
 }
@@ -90,26 +90,27 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
 //
 void WK2132Component::setup() {
   this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
-  ESP_LOGCONFIG(TAG, "Setting up WK2132:%d @%02X with %d UARTs...", get_num_(), base_address_, (int) children_.size());
+  ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", get_num_(), base_address_, (int) children_.size());
   // we test communication with device
   read_wk2132_register_(REG_WK2132_GENA, 0, &data_, 1);
 
   // we setup our children
   for (auto *child : this->children_)
-    child->setup_channel();
+    child->setup_channel_();
 }
 
 void WK2132Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "Initialization of configuration WK2132:%d with %d UARTs completed", get_num_(),
+  ESP_LOGCONFIG(TAG, "Initialization of configuration WK2132:@%02X with %d UARTs completed", get_num_(),
                 (int) children_.size());
   ESP_LOGCONFIG(TAG, "  crystal %d", crystal_);
+  ESP_LOGCONFIG(TAG, "  test_mode %d", test_mode_);
   LOG_I2C_DEVICE(this);
   if (this->is_failed()) {
     ESP_LOGE(TAG, "Communication with WK2132 failed!");
   }
 
   for (auto i = 0; i < children_.size(); i++) {
-    ESP_LOGCONFIG(TAG, "  UART %d:%d...", get_num_(), i);
+    ESP_LOGCONFIG(TAG, "  UART @%02X:%d...", get_num_(), i);
     ESP_LOGCONFIG(TAG, "    baudrate %d Bd", children_[i]->baud_rate_);
     ESP_LOGCONFIG(TAG, "    data_bits %d", children_[i]->data_bits_);
     ESP_LOGCONFIG(TAG, "    stop_bits %d", children_[i]->stop_bits_);
@@ -122,8 +123,8 @@ void WK2132Component::dump_config() {
 // The WK2132Channel methods
 ///////////////////////////////////////////////////////////////////////////////
 
-void WK2132Channel::setup_channel() {
-  ESP_LOGCONFIG(TAG, "  Setting up UART %d:%d...", parent_->get_num_(), channel_);
+void WK2132Channel::setup_channel_() {
+  ESP_LOGCONFIG(TAG, "  Setting up UART @%02X:%d...", parent_->get_num_(), channel_);
 
   // we first do the global register (common to both channel)
 
@@ -228,19 +229,19 @@ void WK2132Channel::set_line_param_() {
   }
   parent_->write_wk2132_register_(REG_WK2132_LCR, channel_, &lcr, 1);
   ESP_LOGCONFIG(TAG, "  line config: %d data_bits, %d stop_bits, parity %s register [%s]", data_bits_, stop_bits_,
-                parity2string(parity_), i2s(lcr).c_str());
+                parity2string(parity_), I2CS(lcr));
 }
 
 size_t WK2132Channel::tx_in_fifo_() {
+  // FSR description of line configuration register:
   //  * -------------------------------------------------------------------------
   //  * |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
   //  * -------------------------------------------------------------------------
   //  * |  RFOE  |  RFBI  |  RFFE  |  RFPE  |  RDAT  |  TDAT  |  TFULL |  TBUSY |
   //  * -------------------------------------------------------------------------
-
   uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &data_, 1);
   uint8_t const tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, channel_, &data_, 1);
-  ESP_LOGVV(TAG, "tx_in_fifo=%d status %s", tfcnt, i2s(fsr).c_str());
+  ESP_LOGVV(TAG, "tx_in_fifo=%d FSR=%s", tfcnt, I2CS(fsr));
   return tfcnt;
 }
 
@@ -254,8 +255,8 @@ size_t WK2132Channel::rx_in_fifo_() {
   if (available > this->fifo_size_())  // no more than what is set in the fifo_size
     available = this->fifo_size_();
 
-  ESP_LOGVV(TAG, "tx_in_fifo %d (byte in buffer: %s) status %s", available, peek_buffer_.empty ? "no" : "yes",
-            i2s(fsr).c_str());
+  ESP_LOGVV(TAG, "rx_in_fifo %d (byte in peek_buffer: %s) FSR=%s", available, peek_buffer_.empty ? "no" : "yes",
+            I2CS(fsr));
   return available;
 }
 
@@ -267,13 +268,16 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
   auto error = parent_->read(buffer, len);
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
-    ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
-             len, (int) error);
+    if (parent_->test_mode_.test(0) && parent_->initialized_)  // test sniff (bit 0)
+      ESP_LOGI(TAG, "snif: received %d chars %02X... on UART @%02X channel %d", len, *buffer, parent_->base_address_,
+               channel_);
+    ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, I2CS(*buffer), len,
+             (int) error);
     return true;
   } else {  // error
     parent_->status_set_warning();
-    ESP_LOGE(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
-             len, (int) error);
+    ESP_LOGE(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, I2CS(*buffer), len,
+             (int) error);
     return false;
   }
 }
@@ -287,13 +291,16 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   auto error = parent_->write(buffer, len);
   if (error == i2c::ERROR_OK) {
     parent_->status_clear_warning();
-    ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
-             len, (int) error);
+    if (parent_->test_mode_.test(0) && parent_->initialized_)  // test sniff (bit 0)
+      ESP_LOGI(TAG, "sniff: sent %d chars %02X... on UART @%02X channel %d", len, *buffer, parent_->base_address_,
+               channel_);
+    ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, I2CS(*buffer), len,
+             (int) error);
     return true;
   } else {  // error
     parent_->status_set_warning();
-    ESP_LOGE(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, i2s(*buffer).c_str(),
-             len, (int) error);
+    ESP_LOGE(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", channel_, *buffer, I2CS(*buffer), len,
+             (int) error);
     return false;
   }
 }
@@ -414,36 +421,48 @@ void WK2132Channel::uart_send_test_(char *preamble) {
 void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
   auto start_exec = millis();
   bool status = true;
-  uint8_t const to_read = this->rx_in_fifo_();
-
+  uint8_t const to_read = this->available();
+  ESP_LOGI(TAG, "%s => %d bytes received status %s - exec time %d ms ...", preamble, to_read, status ? "OK" : "ERROR",
+           millis() - start_exec);
   if (to_read > 0) {
     std::vector<uint8_t> buffer(to_read);
     status = read_array(&buffer[0], to_read);
     if (print_buf)
       print_buffer(buffer);
   }
-  ESP_LOGI(TAG, "%s => %d bytes received status %s - exec time %d ms ...", preamble, to_read, status ? "OK" : "ERROR",
-           millis() - start_exec);
 }
 
 void WK2132Component::loop() {
   //
   // This loop is used only if the wk2132 component is in test mode otherwise we return immediately
   //
-  if (!initialized_ || !test_mode_)
+  if (!initialized_ || test_mode_.none())
     return;
 
-  static int32_t loop_time = 0;
-  char preamble[64];
-  ESP_LOGI(TAG, "%d ms since last loop call ...", millis() - loop_time);
-  loop_time = millis();
-
-  for (size_t i = 0; i < children_.size(); i++) {
-    snprintf(preamble, sizeof(preamble), "WK2132_%d_Ch_%d", get_num_(), i);
-    children_[i]->uart_send_test_(preamble);
-    children_[i]->uart_receive_test_(preamble);
+  if (test_mode_.test(1)) {  // test echo mode (bit 1)
+    for (auto *child : this->children_) {
+      uint8_t data;
+      if (child->available()) {
+        child->read_byte(&data);
+        ESP_LOGI(TAG, "echo mode: read/send %02X", data);
+        child->write_byte(data);
+      }
+    }
   }
-  ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
+
+  static uint16_t loop_calls = 0;
+  if (test_mode_.test(2)) {  // test loop mode (bit 2)
+    static uint32_t loop_time = 0;
+    loop_time = millis();
+    ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
+    char preamble[64];
+    for (size_t i = 0; i < children_.size(); i++) {
+      snprintf(preamble, sizeof(preamble), "WK2132_@%02X_Ch_%d", get_num_(), i);
+      children_[i]->uart_send_test_(preamble);
+      children_[i]->uart_receive_test_(preamble);
+    }
+    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
+  }
 }
 
 #else
