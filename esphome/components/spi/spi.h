@@ -205,7 +205,7 @@ class SPIDelegate {
 };
 
 /**
- * A null_delegate SPIDelegate that complains if it's used.
+ * A dummy SPIDelegate that complains if it's used.
  */
 
 class SPIDelegateDummy : public SPIDelegate {
@@ -228,6 +228,7 @@ class SPIDelegateBitBash : public SPIDelegate {
                      GPIOPin *cs_pin, GPIOPin *clk_pin, GPIOPin *sdo_pin, GPIOPin *sdi_pin)
     : SPIDelegate(clock, bit_order, mode, cs_pin), clk_pin_(clk_pin), sdo_pin_(sdo_pin),
       sdi_pin_(sdi_pin) {
+    // this calculation is pretty meaningless except at very low bit rates.
     this->wait_cycle_ = uint32_t(arch_get_cpu_freq_hz()) / this->data_rate_ / 2ULL;
     this->clock_polarity_ = Modes::get_polarity(this->mode_);
     this->clock_phase_ = Modes::get_phase(this->mode_);
@@ -259,16 +260,23 @@ class SPIHWDelegate : public SPIDelegate {
                 GPIOPin *cs_pin) : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
 
   void begin_transaction() override {
-    SPIDelegate::begin_transaction();
 #ifdef USE_RP2040
     SPISettings settings(this->data_rate_, static_cast<BitOrder>(this->bit_order_), this->mode_);
 #else
     SPISettings const settings(this->data_rate_, this->bit_order_, this->mode_);
 #endif
+    SPIDelegate::begin_transaction();
     this->channel_->beginTransaction(settings);
   }
 
-  void end_transaction() override { this->channel_->endTransaction(); }
+  void transfer(uint8_t *ptr, size_t length) override {
+    this->channel_->transfer(ptr, length);
+  }
+
+  void end_transaction() override {
+    this->channel_->endTransaction();
+    SPIDelegate::end_transaction();
+  }
 
   uint8_t transfer(uint8_t data) override { return this->channel_->transfer(data); }
 
@@ -295,18 +303,18 @@ class SPIComponent : public Component {
                                GPIOPin *cs_pin);
   void unregister_device(SPIClient *device);
 
-  void set_clk(GPIOPin *clk) { clk_pin_ = clk; }
+  void set_clk(GPIOPin *clk) { this->clk_pin_ = clk; }
 
-  void set_miso(GPIOPin *miso) { sdi_pin_ = miso; }
+  void set_miso(GPIOPin *sdi) { this->sdi_pin_ = sdi; }
 
-  void set_mosi(GPIOPin *mosi) { sdo_pin_ = mosi; }
+  void set_mosi(GPIOPin *sdo) { this->sdo_pin_ = sdo; }
 
-  void set_force_sw(bool force_sw) { force_sw_ = force_sw; }
+  void set_force_sw(bool force_sw) { this->force_sw_ = force_sw; }
 
+  float get_setup_priority() const { return setup_priority::BUS; }
 
   void setup() override;
   void dump_config() override;
-  float get_setup_priority() const override;
 
  protected:
   GPIOPin *clk_pin_{nullptr};
@@ -318,49 +326,12 @@ class SPIComponent : public Component {
 };
 
 /**
- * Base class for SPIClient, un-templated.
+ * Base class for SPIDevice, un-templated.
  */
 class SPIClient {
  public:
   SPIClient(SPIBitOrder bit_order, SPIMode mode, uint32_t data_rate) :
     bit_order_(bit_order), mode_(mode), data_rate_(data_rate) {}
-
-  void set_spi_parent(SPIComponent *parent) { this->parent_ = parent; }
-
-  void set_cs_pin(GPIOPin *cs) { this->cs_ = cs; }
-
-  void set_data_rate(uint32_t data_rate) { this->data_rate_ = data_rate; }
-
-  void set_mode(SPIMode mode) { this->mode_ = mode; }
-
-  void spi_setup() {
-    this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_);
-  }
-
-  void spi_teardown() {
-    this->parent_->unregister_device(this);
-    this->delegate_ = &SPIDelegate::null_delegate;
-  }
-
-  void enable();
-  void disable();
-
-  uint8_t read_byte() { return this->delegate_->transfer(0); }
-
-  void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
-
-  void write_byte(uint8_t data) { this->delegate_->transfer(data); }
-
-  void transfer_array(uint8_t *data, size_t length) { this->delegate_->transfer(data, length); }
-
-  uint8_t transfer_byte(uint8_t data) { return this->delegate_->transfer(data); }
-
-  void write_byte16(uint16_t data) { this->delegate_->transfer16(data); }
-
-  ESPDEPRECATED("The semantics of write_array16() are not well-defined", "2023.8")
-  void write_array16(const uint16_t *data, size_t length) {
-    this->delegate_->write_array((uint8_t *) data, length * 2);
-  }
 
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
@@ -388,6 +359,46 @@ class SPIDevice : public SPIClient {
     this->set_spi_parent(parent);
     this->set_cs_pin(cs_pin);
   }
+
+  void spi_setup() {
+    this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_);
+  }
+
+  void spi_teardown() {
+    this->parent_->unregister_device(this);
+    this->delegate_ = &SPIDelegate::null_delegate;
+  }
+
+  void set_spi_parent(SPIComponent *parent) { this->parent_ = parent; }
+
+  void set_cs_pin(GPIOPin *cs) { this->cs_ = cs; }
+
+  void set_data_rate(uint32_t data_rate) { this->data_rate_ = data_rate; }
+
+  void set_mode(SPIMode mode) { this->mode_ = mode; }
+
+  uint8_t read_byte() { return this->delegate_->transfer(0); }
+
+  void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
+
+  void write_byte(uint8_t data) { this->delegate_->transfer(data); }
+
+  void transfer_array(uint8_t *data, size_t length) { this->delegate_->transfer(data, length); }
+
+  uint8_t transfer_byte(uint8_t data) { return this->delegate_->transfer(data); }
+
+  // the driver will byte-swap if required.
+  void write_byte16(uint16_t data) { this->delegate_->transfer16(data); }
+
+  // avoid use of this if possible. It's inefficient and ugly.
+  void write_array16(const uint16_t *data, size_t length) {
+    for (size_t i = 0; i != length; i++)
+      this->delegate_->transfer16(data[i]);
+  }
+
+  void enable() { this->delegate_->begin_transaction(); }
+
+  void disable() { this->delegate_->end_transaction(); }
 
   void write_array(const uint8_t *data, size_t length) { this->delegate_->write_array(data, length); }
 
