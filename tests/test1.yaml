@@ -1801,6 +1801,8 @@ binary_sensor:
       name: movement
     has_still_target:
       name: still
+    out_pin_presence_status:
+      name: out pin presence status
   - platform: qwiic_pir
     i2c_id: i2c_bus
     name: "Qwiic PIR Motion Sensor"
