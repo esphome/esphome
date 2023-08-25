@@ -8,7 +8,6 @@ namespace spi {
 
 static uint8_t spi_bus_num = 0;
 const char *const TAG = "spi";
-static char message[64];
 
 SPIDelegateDummy SPIDelegate::null_delegate;
 GPIOPin *NullPin::null_pin = new NullPin();
@@ -156,27 +155,17 @@ void SPIComponent::dump_config() {
   LOG_PIN("  CLK Pin: ", this->clk_pin_)
   LOG_PIN("  SDI Pin: ", this->sdi_pin_)
   LOG_PIN("  SDO Pin: ", this->sdo_pin_)
-  ESP_LOGCONFIG(TAG, "  Using HW SPI: %s: %s", YESNO(this->spi_channel_ != nullptr), message);
+  ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->spi_channel_ != nullptr));
 }
 
-float SPIComponent::get_setup_priority() const { return setup_priority::BUS; }
 
 void SPIDelegateDummy::begin_transaction() {
   ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?");
 }
 
-void SPIClient::enable() {
-  this->delegate_->begin_transaction();
-}
-
-void SPIClient::disable() {
-  this->delegate_->end_transaction();
-}
-
 uint8_t SPIDelegateBitBash::transfer(uint8_t data) {
 // Clock starts out at idle level
-  this->clk_pin_->
-    digital_write(clock_polarity_);
+  this->clk_pin_-> digital_write(clock_polarity_);
   uint8_t out_data = 0;
 
   for (
@@ -191,40 +180,24 @@ uint8_t SPIDelegateBitBash::transfer(uint8_t data) {
 
     if (clock_phase_ == CLOCK_PHASE_LEADING) {
 // sampling on leading edge
-      this->sdo_pin_->
-        digital_write(data
-                      & (1 << shift));
-      this->
-        cycle_clock_();
-      out_data |= uint8_t(this->sdi_pin_->
-        digital_read()
-      ) <<
-        shift;
+      this->sdo_pin_->digital_write(data & (1 << shift));
+      this->cycle_clock_();
+      out_data |= uint8_t(this->sdi_pin_->digital_read()) << shift;
       this->clk_pin_->digital_write(!this->clock_polarity_);
-      this->
-        cycle_clock_();
+      this->cycle_clock_();
       this->clk_pin_->digital_write(this->clock_polarity_);
     } else {
 // sampling on trailing edge
-      this->
-        cycle_clock_();
+      this->cycle_clock_();
       this->clk_pin_->digital_write(!this->clock_polarity_);
-      this->sdo_pin_->
-        digital_write(data
-                      & (1 << shift));
-      this->
-        cycle_clock_();
-      out_data |= uint8_t(this->sdi_pin_->
-        digital_read()
-      ) <<
-        shift;
+      this->sdo_pin_->digital_write(data & (1 << shift));
+      this->cycle_clock_();
+      out_data |= uint8_t(this->sdi_pin_->digital_read()) << shift;
       this->clk_pin_->digital_write(this->clock_polarity_);
     }
   }
-  App.
-    feed_wdt();
-  return
-    out_data;
+  App.feed_wdt();
+  return out_data;
 }
 
 }  // namespace spi
