@@ -15,8 +15,7 @@ namespace esp32_camera {
 
 class ESP32Camera;
 
-/* ---------------- enum classes ---------------- */
-enum CameraRequester { IDLE, API_REQUESTER, WEB_REQUESTER };
+enum CameraRequester { IDLE, API_REQUESTER, WEB_REQUESTER, RTSP_REQUESTER };
 
 enum ESP32CameraFrameSize {
   ESP32_CAMERA_SIZE_160X120,    // QQVGA
@@ -148,6 +147,7 @@ class ESP32Camera : public Component, public EntityBase {
   float get_setup_priority() const override;
   /* public API (specific) */
   void add_image_callback(std::function<void(std::shared_ptr<CameraImage>)> &&f);
+  camera_config_t get_camera_config();
   void start_stream(CameraRequester requester);
   void stop_stream(CameraRequester requester);
   void request_image(CameraRequester requester);

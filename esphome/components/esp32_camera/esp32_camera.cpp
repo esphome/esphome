@@ -306,6 +306,7 @@ void ESP32Camera::set_frame_size(ESP32CameraFrameSize size) {
       break;
   }
 }
+camera_config_t ESP32Camera::get_camera_config() { return this->config_; }
 void ESP32Camera::set_jpeg_quality(uint8_t quality) { this->config_.jpeg_quality = quality; }
 void ESP32Camera::set_vertical_flip(bool vertical_flip) { this->vertical_flip_ = vertical_flip; }
 void ESP32Camera::set_horizontal_mirror(bool horizontal_mirror) { this->horizontal_mirror_ = horizontal_mirror; }
