@@ -104,12 +104,6 @@ def _compute_local_font_dir(name) -> Path:
     h.update(name.encode())
     return base_dir / h.hexdigest()[:8]
 
-
-def _compute_gfonts_local_path(value) -> Path:
-    name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
-    return _compute_local_font_dir(name) / "font.ttf"
-
-
 def get_file_name_from_url(url):
     # Regular expression pattern to match the file name at the end of the URL
     pattern = r"/([^/]+)$"
@@ -133,14 +127,6 @@ def get_file_type(file_name):
         file_type = match.group(1)
         return file_type
     return None
-
-
-def _compute_local_image_path(value) -> Path:
-    font_id = get_file_name_from_url(value[CONF_URL])
-    name = f"{font_id}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
-    file_name = font_id + "." + get_file_type(value[CONF_URL])
-    return _compute_local_font_dir(name) / file_name
-
 
 TYPE_LOCAL = "local"
 TYPE_LOCAL_BITMAP = "local_bitmap"
@@ -194,9 +180,13 @@ def get_font_name(value):
 
 def get_font_path(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
-        return _compute_gfonts_local_path(value)
+        name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
+        return _compute_local_font_dir(name) / "font.ttf"
     elif value[CONF_TYPE] == TYPE_WEB:
-        return _compute_local_image_path(value)
+        font_id = get_file_name_from_url(value[CONF_URL])
+        name = f"{font_id}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
+        file_name = font_id + "." + get_file_type(value[CONF_URL])
+        return _compute_local_font_dir(name) / file_name
     else:
         return ""
 
@@ -442,11 +432,8 @@ async def to_code(config):
     elif conf[CONF_TYPE] == TYPE_LOCAL:
         path = CORE.relative_config_path(conf[CONF_PATH])
         font = load_ttf_font(path, config[CONF_SIZE])
-    elif conf[CONF_TYPE] == TYPE_GFONTS:
-        path = _compute_gfonts_local_path(conf)
-        font = load_ttf_font(path, config[CONF_SIZE])
-    elif conf[CONF_TYPE] == TYPE_WEB:
-        path = _compute_local_image_path(conf).as_posix()
+    elif conf[CONF_TYPE] == TYPE_GFONTS or conf[CONF_TYPE] == TYPE_WEB:
+        path = get_font_path(conf)
         font = load_ttf_font(path, config[CONF_SIZE])
     else:
         raise core.EsphomeError(f"Could not load font: unknown type: {conf[CONF_TYPE]}")
