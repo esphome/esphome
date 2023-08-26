@@ -7,15 +7,15 @@
 #include <vector>
 #include <map>
 
-#ifdef  USE_ARDUINO
+#ifdef USE_ARDUINO
 
 #include <SPI.h>
 
 #endif
 
-#ifdef  USE_ESP_IDF
+#ifdef USE_ESP_IDF
 #include "driver/spi_master.h"
-#endif // USE_ESP_IDF
+#endif  // USE_ESP_IDF
 
 /**
  * Implementation of SPI Controller mode.
@@ -147,7 +147,7 @@ class NullPin : public GPIOPin {
 
   std::string dump_summary() const override { return std::string(); }
 
-  static GPIOPin * const null_pin;
+  static GPIOPin *const null_pin;
 };
 
 class SPIDelegateDummy;
@@ -156,18 +156,17 @@ class SPIDelegateDummy;
 // a thin wrapper over SPIClass.
 class SPIDelegate {
  public:
-
   SPIDelegate() = default;
 
   SPIDelegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
-    : bit_order_(bit_order), data_rate_(data_rate), mode_(mode), cs_pin_(cs_pin) {
+      : bit_order_(bit_order), data_rate_(data_rate), mode_(mode), cs_pin_(cs_pin) {
     if (this->cs_pin_ == nullptr)
       this->cs_pin_ = NullPin::null_pin;
     this->cs_pin_->setup();
     this->cs_pin_->digital_write(true);
   }
 
-  virtual ~SPIDelegate() {};
+  virtual ~SPIDelegate(){};
 
   // enable CS if configured.
   virtual void begin_transaction() { this->cs_pin_->digital_write(false); }
@@ -209,14 +208,13 @@ class SPIDelegate {
       ptr[i] = this->transfer(0);
   }
 
-  static SPIDelegate * null_delegate;
+  static SPIDelegate *null_delegate;
 
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
   GPIOPin *cs_pin_{NullPin::null_pin};
-
 };
 
 /**
@@ -230,7 +228,6 @@ class SPIDelegateDummy : public SPIDelegate {
   uint8_t transfer(uint8_t data) override { return 0; }
 
   void begin_transaction() override;
-
 };
 
 /**
@@ -239,10 +236,9 @@ class SPIDelegateDummy : public SPIDelegate {
  */
 class SPIDelegateBitBash : public SPIDelegate {
  public:
-  SPIDelegateBitBash(uint32_t clock, SPIBitOrder bit_order, SPIMode mode,
-                     GPIOPin *cs_pin, GPIOPin *clk_pin, GPIOPin *sdo_pin, GPIOPin *sdi_pin)
-    : SPIDelegate(clock, bit_order, mode, cs_pin), clk_pin_(clk_pin), sdo_pin_(sdo_pin),
-      sdi_pin_(sdi_pin) {
+  SPIDelegateBitBash(uint32_t clock, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin, GPIOPin *clk_pin,
+                     GPIOPin *sdo_pin, GPIOPin *sdi_pin)
+      : SPIDelegate(clock, bit_order, mode, cs_pin), clk_pin_(clk_pin), sdo_pin_(sdo_pin), sdi_pin_(sdi_pin) {
     // this calculation is pretty meaningless except at very low bit rates.
     this->wait_cycle_ = uint32_t(arch_get_cpu_freq_hz()) / this->data_rate_ / 2ULL;
     this->clock_polarity_ = Utility::get_polarity(this->mode_);
@@ -287,10 +283,7 @@ class SPIClient;
 
 class SPIComponent : public Component {
  public:
-  SPIDelegate *register_device(SPIClient *device,
-                               SPIMode mode,
-                               SPIBitOrder bit_order,
-                               uint32_t data_rate,
+  SPIDelegate *register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                GPIOPin *cs_pin);
   void unregister_device(SPIClient *device);
 
@@ -323,8 +316,8 @@ class SPIComponent : public Component {
  */
 class SPIClient {
  public:
-  SPIClient(SPIBitOrder bit_order, SPIMode mode, uint32_t data_rate) :
-    bit_order_(bit_order), mode_(mode), data_rate_(data_rate) {}
+  SPIClient(SPIBitOrder bit_order, SPIMode mode, uint32_t data_rate)
+      : bit_order_(bit_order), mode_(mode), data_rate_(data_rate) {}
 
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
@@ -395,14 +388,11 @@ class SPIDevice : public SPIClient {
 
   void write_array(const uint8_t *data, size_t length) { this->delegate_->write_array(data, length); }
 
-  template<size_t N>
-  void write_array(const std::array<uint8_t, N> &data) { this->write_array(data.data(), N); }
+  template<size_t N> void write_array(const std::array<uint8_t, N> &data) { this->write_array(data.data(), N); }
 
   void write_array(const std::vector<uint8_t> &data) { this->write_array(data.data(), data.size()); }
 
-  template<size_t N>
-  void transfer_array(std::array<uint8_t, N> &data) { this->transfer_array(data.data(), N); }
-
+  template<size_t N> void transfer_array(std::array<uint8_t, N> &data) { this->transfer_array(data.data(), N); }
 };
 
 }  // namespace spi

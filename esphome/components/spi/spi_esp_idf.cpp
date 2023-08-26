@@ -4,16 +4,15 @@
 namespace esphome {
 namespace spi {
 
-#ifdef  USE_ESP_IDF
+#ifdef USE_ESP_IDF
 const char *const TAG = "spi-esp-idf";
 
 class SPIDelegateHw : public SPIDelegate {
  public:
-  SPIDelegateHw(spi_host_device_t channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode,
-                GPIOPin *cs_pin) : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {
-
+  SPIDelegateHw(spi_host_device_t channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
+      : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {
     spi_device_interface_config_t config = {};
-    config.mode = static_cast<uint8_t >(mode);
+    config.mode = static_cast<uint8_t>(mode);
     config.clock_speed_hz = static_cast<int>(data_rate);
     config.spics_io_num = -1;
     config.flags = 0;
@@ -37,9 +36,7 @@ class SPIDelegateHw : public SPIDelegate {
       ESP_LOGE(TAG, "Transmit failed - err %d", err);
   }
 
-  void transfer(uint8_t *ptr, size_t length) override {
-    this->transfer(ptr, ptr, length);
-  }
+  void transfer(uint8_t *ptr, size_t length) override { this->transfer(ptr, ptr, length); }
 
   uint8_t transfer(uint8_t data) override {
     uint8_t rxbuf;
@@ -63,12 +60,10 @@ class SPIDelegateHw : public SPIDelegate {
   spi_device_handle_t handle_{};
 };
 
-
 class SPIBusHw : public SPIBus {
  public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, spi_host_device_t channel) : SPIBus(clk, sdo, sdi),
-                                                                                  channel_(channel) {
-
+  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, spi_host_device_t channel)
+      : SPIBus(clk, sdo, sdi), channel_(channel) {
     spi_bus_config_t buscfg = {};
     buscfg.mosi_io_num = Utility::get_pin_no(sdo);
     buscfg.miso_io_num = Utility::get_pin_no(sdi);
