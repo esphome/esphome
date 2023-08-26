@@ -12,17 +12,6 @@ namespace optolink {
 class Optolink;
 
 class OptolinkSensorBase {
- protected:
-  Optolink *optolink_;
-  bool writeable_;
-  IDatapoint *datapoint_ = nullptr;
-  uint32_t address_;
-  int bytes_;
-  int div_ratio_ = 1;
-
-  void setup_datapoint_();
-  void update_datapoint_(float value);
-
  public:
   OptolinkSensorBase(Optolink *optolink, bool writeable = false) {
     optolink_ = optolink;
@@ -34,8 +23,31 @@ class OptolinkSensorBase {
   void set_div_ratio(int div_ratio) { div_ratio_ = div_ratio; }
 
  protected:
-  virtual const StringRef &get_sensor_name() = 0;
-  virtual void value_changed(float state) = 0;
+  Optolink *optolink_;
+  bool writeable_;
+  IDatapoint *datapoint_ = nullptr;
+  uint32_t address_;
+  size_t bytes_;
+  size_t div_ratio_ = 0;
+
+  virtual const StringRef &get_component_name() = 0;
+  void setup_datapoint();
+  virtual void value_changed(float value);
+  virtual void value_changed(uint8_t value);
+  virtual void value_changed(uint16_t value);
+  virtual void value_changed(uint32_t value);
+  virtual void value_changed(std::string value);
+  virtual void value_changed(uint8_t *value, size_t length);
+  void update_datapoint(float value);
+  void update_datapoint(uint8_t value);
+  void update_datapoint(uint16_t value);
+  void update_datapoint(uint32_t value);
+  void update_datapoint(uint8_t *value, size_t length);
+
+  void unfitting_value_type();
+
+ private:
+  void update_datapoint(DPValue dp_value);
 };
 
 // NOLINTNEXTLINE

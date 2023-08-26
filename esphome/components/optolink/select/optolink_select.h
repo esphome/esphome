@@ -25,10 +25,14 @@ class OptolinkSelect : public OptolinkSensorBase, public esphome::select::Select
   };
 
  protected:
-  void setup() override { setup_datapoint_(); }
+  void setup() override { setup_datapoint(); }
   void update() override { optolink_->read_value(datapoint_); }
 
-  const StringRef &get_sensor_name() override { return get_name(); }
+  const StringRef &get_component_name() override { return get_name(); }
+  void value_changed(std::string state) override;
+  void value_changed(uint8_t state) override;
+  void value_changed(uint16_t state) override;
+  void value_changed(uint32_t state) override;
   void value_changed(float state) override;
 
   void control(const std::string &value) override;

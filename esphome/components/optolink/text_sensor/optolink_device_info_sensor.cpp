@@ -6,11 +6,13 @@
 namespace esphome {
 namespace optolink {
 
+static const char *const TAG = "optolink.text_sensor";
+
 void OptolinkDeviceInfoSensor::setup() {
   datapoint_ = new Datapoint<conv4_1_UL>(get_name().c_str(), "optolink", 0x00f8, false);
   datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {
     uint32_t value = dp_value.getU32();
-    ESP_LOGD("OptolinkTextSensor", "Datapoint %s - %s: %d", dp.getGroup(), dp.getName(), value);
+    ESP_LOGI(TAG, "recieved data for datapoint %s: %d", dp.getName(), value);
     uint8_t *bytes = (uint8_t *) &value;
     uint16_t tmp = esphome::byteswap(*((uint16_t *) bytes));
     std::string geraetekennung = esphome::format_hex_pretty(&tmp, 1);

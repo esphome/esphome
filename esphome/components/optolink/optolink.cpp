@@ -15,10 +15,12 @@ VitoWiFiClass<P300> VitoWiFi;  // this is not really a fallback but dedicated to
 namespace esphome {
 namespace optolink {
 
+static const char *const TAG = "optolink";
+
 void Optolink::comm_() {
-  ESP_LOGD("Optolink", "enter _comm");
+  ESP_LOGD(TAG, "enter _comm");
   VitoWiFi.readAll();
-  ESP_LOGD("Optolink", "exit _comm");
+  ESP_LOGD(TAG, "exit _comm");
 }
 
 void Optolink::setup() {
@@ -52,7 +54,7 @@ void Optolink::set_error(const char *format, ...) {
 
 void Optolink::read_value(IDatapoint *datapoint) {
   if (datapoint != nullptr) {
-    ESP_LOGI("Optolink", " read value of datapoint %s", datapoint->getName());
+    ESP_LOGI("Optolink", "requesting value of datapoint %s", datapoint->getName());
     VitoWiFi.readDatapoint(*datapoint);
   }
 }
@@ -61,7 +63,7 @@ void Optolink::write_value(IDatapoint *datapoint, DPValue dp_value) {
   if (datapoint != nullptr) {
     char buffer[64];
     dp_value.getString(buffer, sizeof(buffer));
-    ESP_LOGI("Optolink", " write value %s of datapoint %s", buffer, datapoint->getName());
+    ESP_LOGI("Optolink", "sending value %s to datapoint %s", buffer, datapoint->getName());
     VitoWiFi.writeDatapoint(*datapoint, dp_value);
   }
 }

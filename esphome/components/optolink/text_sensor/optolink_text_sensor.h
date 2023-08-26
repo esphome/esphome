@@ -10,7 +10,7 @@
 namespace esphome {
 namespace optolink {
 
-enum TextSensorMode { MAP, RAW, DAY_SCHEDULE };
+enum TextSensorMode { MAP, RAW, DAY_SCHEDULE, DAY_SCHEDULE_SYNCHRONIZED };
 
 class OptolinkTextSensor : public OptolinkSensorBase,
                            public esphome::text_sensor::TextSensor,
@@ -20,17 +20,23 @@ class OptolinkTextSensor : public OptolinkSensorBase,
 
   void set_mode(TextSensorMode mode) { mode_ = mode; }
   void set_day_of_week(int dow) { dow_ = dow; }
+  void set_entity_id(const std::string &entity_id) { entity_id_ = entity_id; }
 
  protected:
   void setup() override;
   void update() override { optolink_->read_value(datapoint_); }
 
-  const StringRef &get_sensor_name() override { return get_name(); }
-  void value_changed(float state) override { publish_state(std::to_string((uint32_t) state)); };
+  const StringRef &get_component_name() override { return get_name(); }
+  void value_changed(float state) override { publish_state(std::to_string(state)); };
+  void value_changed(uint8_t state) override { publish_state(std::to_string(state)); };
+  void value_changed(uint16_t state) override { publish_state(std::to_string(state)); };
+  void value_changed(uint32_t state) override { publish_state(std::to_string(state)); };
+  void value_changed(uint8_t *state, size_t length) override;
 
  private:
   TextSensorMode mode_ = MAP;
   int dow_ = 0;
+  std::string entity_id_;
 };
 
 }  // namespace optolink

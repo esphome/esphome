@@ -17,11 +17,14 @@ class OptolinkSensor : public OptolinkSensorBase, public esphome::sensor::Sensor
   }
 
  protected:
-  void setup() { setup_datapoint_(); }
+  void setup() { setup_datapoint(); }
   void update() override { optolink_->read_value(datapoint_); }
 
-  const StringRef &get_sensor_name() override { return get_name(); }
+  const StringRef &get_component_name() override { return get_name(); }
   void value_changed(float state) override { publish_state(state); };
+  void value_changed(uint8_t state) override { publish_state(state); };
+  void value_changed(uint16_t state) override { publish_state(state); };
+  void value_changed(uint32_t state) override { publish_state(state); };
 };
 }  // namespace optolink
 }  // namespace esphome

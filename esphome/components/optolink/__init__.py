@@ -34,7 +34,6 @@ DeviceInfoSensor = optolink_ns.class_(
     "OptolinkDeviceInfoSensor", ts.TextSensor, cg.PollingComponent
 )
 DEVICE_INFO_SENSOR_ID = "device_info_sensor_id"
-
 CONF_OPTOLINK_ID = "optolink_id"
 SENSOR_BASE_SCHEMA = cv.Schema(
     {
