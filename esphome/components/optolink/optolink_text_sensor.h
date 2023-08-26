@@ -10,23 +10,27 @@
 namespace esphome {
 namespace optolink {
 
+enum TextSensorMode { MAP, RAW, DAY_SCHEDULE };
+
 class OptolinkTextSensor : public OptolinkSensorBase,
                            public esphome::text_sensor::TextSensor,
                            public esphome::PollingComponent {
  public:
   OptolinkTextSensor(Optolink *optolink) : OptolinkSensorBase(optolink) {}
 
-  void set_raw(bool raw) { raw_ = raw; }
+  void set_mode(TextSensorMode mode) { mode_ = mode; }
+  void set_day_of_week(int dow) { dow_ = dow; }
 
  protected:
   void setup() override;
   void update() override { optolink_->read_value(datapoint_); }
 
   const StringRef &get_sensor_name() override { return get_name(); }
-  void value_changed(float state) override { publish_state(std::to_string(state)); };
+  void value_changed(float state) override { publish_state(std::to_string((uint32_t) state)); };
 
  private:
-  bool raw_ = false;
+  TextSensorMode mode_ = MAP;
+  int dow_ = 0;
 };
 
 }  // namespace optolink

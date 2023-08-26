@@ -1,14 +1,18 @@
+from esphome import core
 from esphome import pins
 import esphome.codegen as cg
 from esphome.components import text_sensor as ts
 import esphome.config_validation as cv
 from esphome.const import (
+    CONF_ADDRESS,
+    CONF_DIV_RATIO,
     CONF_ID,
     CONF_LOGGER,
     CONF_PROTOCOL,
     CONF_RX_PIN,
     CONF_STATE,
     CONF_TX_PIN,
+    CONF_UPDATE_INTERVAL,
 )
 from esphome.core import CORE
 
@@ -30,6 +34,20 @@ DeviceInfoSensor = optolink_ns.class_(
     "OptolinkDeviceInfoSensor", ts.TextSensor, cg.PollingComponent
 )
 DEVICE_INFO_SENSOR_ID = "device_info_sensor_id"
+
+CONF_OPTOLINK_ID = "optolink_id"
+SENSOR_BASE_SCHEMA = cv.Schema(
+    {
+        cv.GenerateID(CONF_OPTOLINK_ID): cv.use_id(OptolinkComponent),
+        cv.Optional(CONF_UPDATE_INTERVAL, default="10s"): cv.All(
+            cv.positive_time_period_milliseconds,
+            cv.Range(min=core.TimePeriod(seconds=1), max=core.TimePeriod(seconds=1800)),
+        ),
+        cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
+        # cv.Required(CONF_BYTES): cv.one_of(1, 2, 4, int=True),
+        cv.Optional(CONF_DIV_RATIO, default=1): cv.one_of(1, 10, 100, 3600, int=True),
+    }
+)
 
 
 def required_on_esp32(attribute):
