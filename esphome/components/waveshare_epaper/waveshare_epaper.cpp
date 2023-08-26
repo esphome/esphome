@@ -1561,66 +1561,7 @@ void WaveshareEPaper7P5In::dump_config() {
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
   LOG_UPDATE_INTERVAL(this);
 }
-void WaveshareEPaper7P5InV2::initialize() {
-  // COMMAND POWER SETTING
-  this->command(0x01);
-  this->data(0x07);
-  this->data(0x07);
-  this->data(0x3f);
-  this->data(0x3f);
-  this->command(0x04);
-
-  delay(100);  // NOLINT
-  this->wait_until_idle_();
-  // COMMAND PANEL SETTING
-  this->command(0x00);
-  this->data(0x1F);
-
-  // COMMAND RESOLUTION SETTING
-  this->command(0x61);
-  this->data(0x03);
-  this->data(0x20);
-  this->data(0x01);
-  this->data(0xE0);
-  // COMMAND ...?
-  this->command(0x15);
-  this->data(0x00);
-  // COMMAND VCOM AND DATA INTERVAL SETTING
-  this->command(0x50);
-  this->data(0x10);
-  this->data(0x07);
-  // COMMAND TCON SETTING
-  this->command(0x60);
-  this->data(0x22);
-}
-void HOT WaveshareEPaper7P5InV2::display() {
-  uint32_t buf_len = this->get_buffer_length_();
-  // COMMAND DATA START TRANSMISSION NEW DATA
-  this->command(0x13);
-  delay(2);
-  for (uint32_t i = 0; i < buf_len; i++) {
-    this->data(~(this->buffer_[i]));
-  }
-
-  // COMMAND DISPLAY REFRESH
-  this->command(0x12);
-  delay(100);  // NOLINT
-  this->wait_until_idle_();
-}
-
-int WaveshareEPaper7P5InV2::get_width_internal() { return 800; }
-int WaveshareEPaper7P5InV2::get_height_internal() { return 480; }
-void WaveshareEPaper7P5InV2::dump_config() {
-  LOG_DISPLAY("", "Waveshare E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model: 7.5inV2rev2");
-  LOG_PIN("  Reset Pin: ", this->reset_pin_);
-  LOG_PIN("  DC Pin: ", this->dc_pin_);
-  LOG_PIN("  Busy Pin: ", this->busy_pin_);
-  LOG_UPDATE_INTERVAL(this);
-}
-
-/* 7.50inV2Fixed */
-bool WaveshareEPaper7P5InV2Fixed::wait_until_idle_() {
+bool WaveshareEPaper7P5InV2::wait_until_idle_() {
   if (this->busy_pin_ == nullptr) {
     return true;
   }
@@ -1628,7 +1569,7 @@ bool WaveshareEPaper7P5InV2Fixed::wait_until_idle_() {
   const uint32_t start = millis();
   while (this->busy_pin_->digital_read()) {
     this->command(0x71);
-    if (millis() - start > 10000) {
+    if (millis() - start > this->idle_timeout_()) {
       ESP_LOGE(TAG, "Timeout while displaying image!");
       return false;
     }
@@ -1637,8 +1578,7 @@ bool WaveshareEPaper7P5InV2Fixed::wait_until_idle_() {
   }
   return true;
 }
-void WaveshareEPaper7P5InV2Fixed::initialize() {
-
+void WaveshareEPaper7P5InV2::initialize() {
   // COMMAND POWER SETTING
   this->command(0x01);
   this->data(0x07);
@@ -1647,11 +1587,10 @@ void WaveshareEPaper7P5InV2Fixed::initialize() {
   this->data(0x3f);
 
   //we don't want the display to be powered at this point
-  //this->command(0x04); 
 
   delay(100);  // NOLINT
   this->wait_until_idle_();
-  
+
   // COMMAND VCOM AND DATA INTERVAL SETTING
   this->command(0x50);
   this->data(0x10);
@@ -1677,35 +1616,34 @@ void WaveshareEPaper7P5InV2Fixed::initialize() {
   this->data(0x00);
 
   // COMMAND POWER DRIVER HAT DOWN
-  // This command will turn off booster, controller, source driver, gate driver, VCOM, and 
-  // temperature sensor, but register data will be kept until VDD turned OFF or Deep Sleep Mode. 
+  // This command will turn off booster, controller, source driver, gate driver, VCOM, and
+  // temperature sensor, but register data will be kept until VDD turned OFF or Deep Sleep Mode.
   // Source/Gate/Border/VCOM will be released to floating.
   this->command(0x02);
 }
-
-void HOT WaveshareEPaper7P5InV2Fixed::display() {
+void HOT WaveshareEPaper7P5InV2::display() {
   uint32_t buf_len = this->get_buffer_length_();
 
   // COMMAND POWER ON
   ESP_LOGI(TAG, "Power on the display and hat");
 
-  // This command will turn on booster, controller, regulators, and temperature sensor will be 
-  // activated for one-time sensing before enabling booster. When all voltages are ready, the 
+  // This command will turn on booster, controller, regulators, and temperature sensor will be
+  // activated for one-time sensing before enabling booster. When all voltages are ready, the
   // BUSY_N signal will return to high.
   this->command(0x04);
   delay(200);  // NOLINT
   this->wait_until_idle_();
-  
+
   // COMMAND DATA START TRANSMISSION NEW DATA
   this->command(0x13);
   delay(2);
   for (uint32_t i = 0; i < buf_len; i++) {
     this->data(~(this->buffer_[i]));
   }
-  
+
   delay(100);  // NOLINT
   this->wait_until_idle_();
-  
+
   // COMMAND DISPLAY REFRESH
   this->command(0x12);
   delay(100);  // NOLINT
@@ -1717,11 +1655,12 @@ void HOT WaveshareEPaper7P5InV2Fixed::display() {
   ESP_LOGI(TAG, "After command(0x02) (>> power off)");
 }
 
-int WaveshareEPaper7P5InV2Fixed::get_width_internal() { return 800; }
-int WaveshareEPaper7P5InV2Fixed::get_height_internal() { return 480; }
-void WaveshareEPaper7P5InV2Fixed::dump_config() {
+int WaveshareEPaper7P5InV2::get_width_internal() { return 800; }
+int WaveshareEPaper7P5InV2::get_height_internal() { return 480; }
+uint32_t WaveshareEPaper7P5InV2::idle_timeout_() { return 10000; }
+void WaveshareEPaper7P5InV2::dump_config() {
   LOG_DISPLAY("", "Waveshare E-Paper", this);
-  ESP_LOGCONFIG(TAG, "  Model: 7.5inV2Fixed");
+  ESP_LOGCONFIG(TAG, "  Model: 7.5inV2rev2");
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  DC Pin: ", this->dc_pin_);
   LOG_PIN("  Busy Pin: ", this->busy_pin_);
