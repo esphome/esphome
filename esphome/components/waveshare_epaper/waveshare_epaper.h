@@ -489,7 +489,7 @@ class WaveshareEPaper7P5InV2 : public WaveshareEPaper {
     this->data(0xA5);  // check byte
   }
 
- protected:  
+ protected:
   int get_width_internal() override;
 
   int get_height_internal() override;
