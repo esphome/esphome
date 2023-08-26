@@ -1,7 +1,7 @@
 #ifdef USE_ARDUINO
 
 #include "optolink_number.h"
-#include "optolink.h"
+#include "../optolink.h"
 #include "VitoWiFi.h"
 
 namespace esphome {

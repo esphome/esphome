@@ -8,8 +8,7 @@ from esphome.const import (
     CONF_ID,
     CONF_MODE,
 )
-from . import optolink_ns, CONF_OPTOLINK_ID
-from .sensor import SENSOR_BASE_SCHEMA
+from .. import optolink_ns, CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA
 
 OptolinkTextSensor = optolink_ns.class_(
     "OptolinkTextSensor", text_sensor.TextSensor, cg.PollingComponent

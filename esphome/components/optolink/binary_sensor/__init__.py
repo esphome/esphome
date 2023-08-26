@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 from esphome.components import binary_sensor
 from esphome.const import CONF_ADDRESS, CONF_ID
-from . import SENSOR_BASE_SCHEMA, optolink_ns, CONF_OPTOLINK_ID
+from .. import SENSOR_BASE_SCHEMA, optolink_ns, CONF_OPTOLINK_ID
 
 OptolinkBinarySensor = optolink_ns.class_(
     "OptolinkBinarySensor", binary_sensor.BinarySensor, cg.PollingComponent

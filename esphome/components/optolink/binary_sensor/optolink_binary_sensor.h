@@ -2,17 +2,22 @@
 
 #ifdef USE_ARDUINO
 
-#include "esphome/components/number/number.h"
-#include "optolink_sensor_base.h"
-#include "optolink.h"
+#include "esphome/components/binary_sensor/binary_sensor.h"
+#include "../optolink.h"
+#include "../optolink_sensor_base.h"
 #include "VitoWiFi.h"
 
 namespace esphome {
 namespace optolink {
 
-class OptolinkNumber : public OptolinkSensorBase, public esphome::number::Number, public esphome::PollingComponent {
+class OptolinkBinarySensor : public OptolinkSensorBase,
+                             public esphome::binary_sensor::BinarySensor,
+                             public esphome::PollingComponent {
  public:
-  OptolinkNumber(Optolink *optolink) : OptolinkSensorBase(optolink, true) {}
+  OptolinkBinarySensor(Optolink *optolink) : OptolinkSensorBase(optolink) {
+    bytes_ = 1;
+    div_ratio_ = 1;
+  }
 
  protected:
   void setup() override { setup_datapoint_(); }
@@ -20,10 +25,7 @@ class OptolinkNumber : public OptolinkSensorBase, public esphome::number::Number
 
   const StringRef &get_sensor_name() override { return get_name(); }
   void value_changed(float state) override { publish_state(state); };
-
-  void control(float value) override;
 };
-
 }  // namespace optolink
 }  // namespace esphome
 

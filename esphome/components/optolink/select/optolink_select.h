@@ -4,8 +4,8 @@
 
 #include <map>
 #include "esphome/components/select/select.h"
-#include "optolink.h"
-#include "optolink_sensor_base.h"
+#include "../optolink.h"
+#include "../optolink_sensor_base.h"
 #include "VitoWiFi.h"
 
 namespace esphome {

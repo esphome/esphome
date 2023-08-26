@@ -7,7 +7,7 @@ from esphome.const import (
     CONF_DIV_RATIO,
     CONF_ID,
 )
-from . import CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA, optolink_ns
+from .. import CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA, optolink_ns
 
 OptolinkSensor = optolink_ns.class_(
     "OptolinkSensor", sensor.Sensor, cg.PollingComponent

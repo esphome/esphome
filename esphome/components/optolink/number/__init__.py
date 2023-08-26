@@ -10,8 +10,7 @@ from esphome.const import (
     CONF_MIN_VALUE,
     CONF_STEP,
 )
-from .sensor import SENSOR_BASE_SCHEMA
-from . import optolink_ns, CONF_OPTOLINK_ID
+from .. import optolink_ns, CONF_OPTOLINK_ID, SENSOR_BASE_SCHEMA
 
 OptolinkNumber = optolink_ns.class_(
     "OptolinkNumber", number.Number, cg.PollingComponent

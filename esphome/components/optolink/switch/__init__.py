@@ -3,7 +3,7 @@ import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import switch
 from esphome.const import CONF_ADDRESS, CONF_ID, CONF_UPDATE_INTERVAL
-from . import OptolinkComponent, optolink_ns
+from .. import OptolinkComponent, optolink_ns
 
 OptolinkSwitch = optolink_ns.class_(
     "OptolinkSwitch", switch.Switch, cg.PollingComponent
