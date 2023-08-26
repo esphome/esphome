@@ -29,7 +29,7 @@ DAY_OF_WEEK = {
     "SATURDAY": 5,
     "SUNDAY": 6,
 }
-CONF_DOW = "day_of_week"
+CONF_DAY_OF_WEEK = "day_of_week"
 
 OptolinkTextSensor = optolink_ns.class_(
     "OptolinkTextSensor", text_sensor.TextSensor, cg.PollingComponent
@@ -55,15 +55,15 @@ def check_dow():
     def validator_(config):
         if (
             config[CONF_MODE] in ["DAY_SCHEDULE", "DAY_SCHEDULE_SYNCHRONIZED"]
-            and CONF_DOW not in config
+            and CONF_DAY_OF_WEEK not in config
         ):
-            raise cv.Invalid(f"{CONF_DOW} is required in mode DAY_SCHEDULE")
+            raise cv.Invalid(f"{CONF_DAY_OF_WEEK} is required in mode DAY_SCHEDULE")
         if (
             config[CONF_MODE] not in ["DAY_SCHEDULE", "DAY_SCHEDULE_SYNCHRONIZED"]
-            and CONF_DOW in config
+            and CONF_DAY_OF_WEEK in config
         ):
             raise cv.Invalid(
-                f"{CONF_DOW} is only allowed in mode DAY_SCHEDULE or DAY_SCHEDULE_SYNCHRONIZED"
+                f"{CONF_DAY_OF_WEEK} is only allowed in mode DAY_SCHEDULE or DAY_SCHEDULE_SYNCHRONIZED"
             )
         return config
 
@@ -97,7 +97,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.Optional(CONF_MODE, default="MAP"): cv.enum(MODE, upper=True),
             cv.Optional(CONF_BYTES): cv.int_range(min=1, max=9),
-            cv.Optional(CONF_DOW): cv.enum(DAY_OF_WEEK, upper=True),
+            cv.Optional(CONF_DAY_OF_WEEK): cv.enum(DAY_OF_WEEK, upper=True),
             cv.Optional(CONF_ENTITY_ID): cv.entity_id,
         }
     )
@@ -120,7 +120,7 @@ async def to_code(config):
     cg.add(var.set_div_ratio(config[CONF_DIV_RATIO]))
     if CONF_BYTES in config:
         cg.add(var.set_bytes(config[CONF_BYTES]))
-    if CONF_DOW in config:
-        cg.add(var.set_day_of_week(config[CONF_DOW]))
+    if CONF_DAY_OF_WEEK in config:
+        cg.add(var.set_day_of_week(config[CONF_DAY_OF_WEEK]))
     if CONF_ENTITY_ID in config:
         cg.add(var.set_entity_id(config[CONF_ENTITY_ID]))
