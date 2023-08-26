@@ -1586,7 +1586,7 @@ void WaveshareEPaper7P5InV2::initialize() {
   this->data(0x3f);
   this->data(0x3f);
 
-  //we don't want the display to be powered at this point
+  // We don't want the display to be powered at this point
 
   delay(100);  // NOLINT
   this->wait_until_idle_();
