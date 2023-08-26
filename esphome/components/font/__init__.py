@@ -206,9 +206,9 @@ def download_gfont_ttf(value):
         raise cv.Invalid(f"Could not download ttf file for {name} ({ttf_url}): {e}")
 
 def download_web_font(value):
-    name = get_font_name(value[CONF_FILE])
-    url = get_font_url(value[CONF_FILE])
-    path = get_font_path(value[CONF_FILE])
+    name = get_font_name(value)
+    url = get_font_url(value)
+    path = get_font_path(value)
     if path.is_file():
         return value
     try:
@@ -301,10 +301,13 @@ TYPED_FILE_SCHEMA = cv.typed_schema(
 def _file_schema(value):
     if isinstance(value, str):
         return validate_file_shorthand(value)
-    return TYPED_FILE_SCHEMA(value)
+    typed_schema = TYPED_FILE_SCHEMA(value)
+    if typed_schema[CONF_TYPE] == TYPE_WEB or typed_schema[CONF_TYPE] == TYPE_GFONTS:
+        download_web_font(typed_schema)
+    return typed_schema
 
 
-FILE_SCHEMA = cv.Schema(_file_schema)
+FILE_SCHEMA = cv.All(_file_schema)
 
 
 DEFAULT_GLYPHS = (
@@ -321,13 +324,11 @@ FONT_SCHEMA = cv.Schema(
         cv.GenerateID(CONF_RAW_DATA_ID): cv.declare_id(cg.uint8),
         cv.GenerateID(CONF_RAW_GLYPH_ID): cv.declare_id(GlyphData),
     },
-    download_web_font,
 )
 
 CONFIG_SCHEMA = cv.All(
     validate_pillow_installed, 
     FONT_SCHEMA,
-    download_web_font
 )
 
 # PIL doesn't provide a consistent interface for both TrueType and bitmap
