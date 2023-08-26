@@ -2,7 +2,6 @@
 #include "esphome/core/log.h"
 #include "esphome/core/application.h"
 
-
 namespace esphome {
 namespace spi {
 
@@ -18,20 +17,16 @@ static const unsigned MAX_SPI_BUS_CNT = 1;
 static const unsigned MAX_SPI_BUS_CNT = 2;
 #endif
 
-SPIDelegate * SPIDelegate::null_delegate = new SPIDelegateDummy();
-GPIOPin * const NullPin::null_pin = new NullPin();
+SPIDelegate *SPIDelegate::null_delegate = new SPIDelegateDummy();
+GPIOPin *const NullPin::null_pin = new NullPin();
 
-SPIDelegate *SPIComponent::register_device(SPIClient *device,
-                                           SPIMode mode,
-                                           SPIBitOrder bit_order,
-                                           uint32_t data_rate,
+SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin) {
-
   if (this->devices_.count(device) != 0) {
     ESP_LOGE(TAG, "SPI device already registered");
     return this->devices_[device];
   }
-  SPIDelegate *delegate = this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin); //NOLINT
+  SPIDelegate *delegate = this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin);  // NOLINT
   this->devices_[device] = delegate;
   return delegate;
 }
@@ -41,7 +36,7 @@ void SPIComponent::unregister_device(SPIClient *device) {
     esph_log_e(TAG, "SPI device not registered");
     return;
   }
-  delete this->devices_[device];  //NOLINT
+  delete this->devices_[device];  // NOLINT
   this->devices_.erase(device);
 }
 
@@ -73,15 +68,15 @@ void SPIComponent::setup() {
   int8_t sdo_pin = Utility::get_pin_no(this->sdo_pin_);
   int8_t sdi_pin = Utility::get_pin_no(this->sdi_pin_);
   if (!(clk_pin == 6 && sdi_pin == 7 && sdo_pin == 8) &&
-    !(clk_pin == 14 && (!has_sdi || sdi_pin == 12) && (!has_sdo || sdo_pin == 13))) {
-      use_hw_spi = false;
+      !(clk_pin == 14 && (!has_sdi || sdi_pin == 12) && (!has_sdo || sdo_pin == 13))) {
+    use_hw_spi = false;
   }
 #endif
 
   if (use_hw_spi && spi_bus_num != MAX_SPI_BUS_CNT) {
     this->spi_bus_ = SPIComponent::get_next_bus(spi_bus_num++, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   } else {
-    this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);  //NOLINT
+    this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);  // NOLINT
     this->sdo_pin_->setup();
     this->sdi_pin_->setup();
   }
@@ -95,18 +90,14 @@ void SPIComponent::dump_config() {
   ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->spi_bus_ != nullptr));
 }
 
-void SPIDelegateDummy::begin_transaction() {
-  ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?");
-}
+void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?"); }
 
 uint8_t SPIDelegateBitBash::transfer(uint8_t data) {
-// Clock starts out at idle level
+  // Clock starts out at idle level
   this->clk_pin_->digital_write(clock_polarity_);
   uint8_t out_data = 0;
 
-  for (
-    uint8_t i = 0;
-    i < 8; i++) {
+  for (uint8_t i = 0; i < 8; i++) {
     uint8_t shift;
     if (bit_order_ == BIT_ORDER_MSB_FIRST) {
       shift = 7 - i;
@@ -115,7 +106,7 @@ uint8_t SPIDelegateBitBash::transfer(uint8_t data) {
     }
 
     if (clock_phase_ == CLOCK_PHASE_LEADING) {
-// sampling on leading edge
+      // sampling on leading edge
       this->sdo_pin_->digital_write(data & (1 << shift));
       this->cycle_clock_();
       out_data |= uint8_t(this->sdi_pin_->digital_read()) << shift;
@@ -123,7 +114,7 @@ uint8_t SPIDelegateBitBash::transfer(uint8_t data) {
       this->cycle_clock_();
       this->clk_pin_->digital_write(this->clock_polarity_);
     } else {
-// sampling on trailing edge
+      // sampling on trailing edge
       this->cycle_clock_();
       this->clk_pin_->digital_write(!this->clock_polarity_);
       this->sdo_pin_->digital_write(data & (1 << shift));

@@ -4,12 +4,12 @@
 namespace esphome {
 namespace spi {
 
-#ifdef  USE_ARDUINO
+#ifdef USE_ARDUINO
 
 class SPIDelegateHw : public SPIDelegate {
  public:
-  SPIDelegateHw(SPIClass *channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode,
-                GPIOPin *cs_pin) : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
+  SPIDelegateHw(SPIClass *channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
+      : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
 
   void begin_transaction() override {
 #ifdef USE_RP2040
@@ -21,9 +21,7 @@ class SPIDelegateHw : public SPIDelegate {
     this->channel_->beginTransaction(settings);
   }
 
-  void transfer(uint8_t *ptr, size_t length) override {
-    this->channel_->transfer(ptr, length);
-  }
+  void transfer(uint8_t *ptr, size_t length) override { this->channel_->transfer(ptr, length); }
 
   void end_transaction() override {
     this->channel_->endTransaction();
@@ -42,12 +40,9 @@ class SPIDelegateHw : public SPIDelegate {
   SPIClass *channel_{};
 };
 
-
 class SPIBusHw : public SPIBus {
  public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIClass *channel) : SPIBus(clk, sdo, sdi),
-                                                                          channel_(channel) {
-
+  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIClass *channel) : SPIBus(clk, sdo, sdi), channel_(channel) {
 #ifdef USE_ESP8266
     channel->pins(Utility::get_pin_no(clk), Utility::get_pin_no(sdi), Utility::get_pin_no(sdo), -1);
     channel->begin();
@@ -94,6 +89,6 @@ SPIBus *SPIComponent::get_next_bus(unsigned int num, GPIOPin *clk, GPIOPin *sdo,
   return new SPIBusHw(clk, sdo, sdi, channel);
 }
 
-#endif  //USE_ARDUINO
+#endif  // USE_ARDUINO
 }  // namespace spi
 }  // namespace esphome
