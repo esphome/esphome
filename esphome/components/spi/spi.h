@@ -7,11 +7,16 @@
 #include <vector>
 #include <map>
 
-#ifdef USE_ARDUINO
+#ifdef  USE_ARDUINO
 
 #include <SPI.h>
 
 #endif
+
+#ifdef  USE_ESP_IDF
+#include "driver/spi_master.h"
+#endif // USE_ESP_IDF
+
 /**
  * Implementation of SPI Controller mode.
  */
@@ -58,10 +63,10 @@ enum SPIClockPhase {
  */
 
 enum SPIMode {
-  MODE0 = SPI_MODE0,
-  MODE1 = SPI_MODE1,
-  MODE2 = SPI_MODE2,
-  MODE3 = SPI_MODE3,
+  MODE0 = 0,
+  MODE1 = 1,
+  MODE2 = 2,
+  MODE3 = 3,
 };
 /** The SPI clock signal frequency, which determines the transfer bit rate/second.
  *
@@ -83,8 +88,22 @@ enum SPIDataRate : uint32_t {
   DATA_RATE_80MHZ = 80000000,
 };
 
-class Modes {
+class Utility {
  public:
+  static int get_pin_no(GPIOPin *pin) {
+    if (pin == nullptr || !pin->is_internal())
+      return -1;
+    if (((InternalGPIOPin *) pin)->is_inverted())
+      return -1;
+    return ((InternalGPIOPin *) pin)->get_pin();
+  }
+
+  static bool is_pin_inverted(GPIOPin *pin) {
+    if (pin == nullptr || !pin->is_internal())
+      return false;
+    return ((InternalGPIOPin *) pin)->is_inverted();
+  }
+
   static SPIMode get_mode(SPIClockPolarity polarity, SPIClockPhase phase) {
     if (polarity == CLOCK_POLARITY_HIGH) {
       return phase == CLOCK_PHASE_LEADING ? MODE2 : MODE3;
@@ -128,7 +147,7 @@ class NullPin : public GPIOPin {
 
   std::string dump_summary() const override { return std::string(); }
 
-  static GPIOPin *null_pin;
+  static GPIOPin * const null_pin;
 };
 
 class SPIDelegateDummy;
@@ -151,14 +170,10 @@ class SPIDelegate {
   virtual ~SPIDelegate() {};
 
   // enable CS if configured.
-  virtual void begin_transaction() {
-    this->cs_pin_->digital_write(false);
-  }
+  virtual void begin_transaction() { this->cs_pin_->digital_write(false); }
 
   // end the transaction
-  virtual void end_transaction() {
-    this->cs_pin_->digital_write(true);
-  }
+  virtual void end_transaction() { this->cs_pin_->digital_write(true); }
 
   // transfer one byte, return the byte that was read.
   virtual uint8_t transfer(uint8_t data) = 0;
@@ -194,7 +209,7 @@ class SPIDelegate {
       ptr[i] = this->transfer(0);
   }
 
-  static SPIDelegateDummy null_delegate;
+  static SPIDelegate * null_delegate;
 
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
@@ -230,8 +245,8 @@ class SPIDelegateBitBash : public SPIDelegate {
       sdi_pin_(sdi_pin) {
     // this calculation is pretty meaningless except at very low bit rates.
     this->wait_cycle_ = uint32_t(arch_get_cpu_freq_hz()) / this->data_rate_ / 2ULL;
-    this->clock_polarity_ = Modes::get_polarity(this->mode_);
-    this->clock_phase_ = Modes::get_phase(this->mode_);
+    this->clock_polarity_ = Utility::get_polarity(this->mode_);
+    this->clock_phase_ = Utility::get_phase(this->mode_);
   }
 
   uint8_t transfer(uint8_t data) override;
@@ -252,45 +267,21 @@ class SPIDelegateBitBash : public SPIDelegate {
   }
 };
 
-#ifdef  USE_ARDUINO
-
-class SPIHWDelegate : public SPIDelegate {
+class SPIBus {
  public:
-  SPIHWDelegate(SPIClass *channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode,
-                GPIOPin *cs_pin) : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
+  SPIBus() = default;
 
-  void begin_transaction() override {
-#ifdef USE_RP2040
-    SPISettings settings(this->data_rate_, static_cast<BitOrder>(this->bit_order_), this->mode_);
-#else
-    SPISettings const settings(this->data_rate_, this->bit_order_, this->mode_);
-#endif
-    SPIDelegate::begin_transaction();
-    this->channel_->beginTransaction(settings);
+  SPIBus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) : clk_pin_(clk), sdo_pin_(sdo), sdi_pin_(sdi) {}
+
+  virtual SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin) {
+    return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   }
-
-  void transfer(uint8_t *ptr, size_t length) override {
-    this->channel_->transfer(ptr, length);
-  }
-
-  void end_transaction() override {
-    this->channel_->endTransaction();
-    SPIDelegate::end_transaction();
-  }
-
-  uint8_t transfer(uint8_t data) override { return this->channel_->transfer(data); }
-
-  uint16_t transfer16(uint16_t data) override { return this->channel_->transfer(data); }
-
-  void write_array(const uint8_t *ptr, size_t length) override { this->channel_->writeBytes(ptr, length); }
-
-  void read_array(uint8_t *ptr, size_t length) override { this->channel_->transfer(ptr, length); }
 
  protected:
-  SPIClass *channel_{};
+  GPIOPin *clk_pin_{};
+  GPIOPin *sdo_pin_{};
+  GPIOPin *sdi_pin_{};
 };
-
-#endif
 
 class SPIClient;
 
@@ -311,7 +302,7 @@ class SPIComponent : public Component {
 
   void set_force_sw(bool force_sw) { this->force_sw_ = force_sw; }
 
-  float get_setup_priority() const { return setup_priority::BUS; }
+  float get_setup_priority() const override { return setup_priority::BUS; }
 
   void setup() override;
   void dump_config() override;
@@ -321,8 +312,10 @@ class SPIComponent : public Component {
   GPIOPin *sdi_pin_{nullptr};
   GPIOPin *sdo_pin_{nullptr};
   bool force_sw_{false};
-  SPIClass *spi_channel_{};
+  SPIBus *spi_bus_{};
   std::map<SPIClient *, SPIDelegate *> devices_;
+
+  static SPIBus *get_next_bus(unsigned int num, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi);
 };
 
 /**
@@ -339,7 +332,7 @@ class SPIClient {
   uint32_t data_rate_{1000000};
   SPIComponent *parent_{nullptr};
   GPIOPin *cs_{nullptr};
-  SPIDelegate *delegate_{&SPIDelegate::null_delegate};
+  SPIDelegate *delegate_{SPIDelegate::null_delegate};
 };
 
 /**
@@ -353,7 +346,7 @@ class SPIClient {
 template<SPIBitOrder BIT_ORDER, SPIClockPolarity CLOCK_POLARITY, SPIClockPhase CLOCK_PHASE, SPIDataRate DATA_RATE>
 class SPIDevice : public SPIClient {
  public:
-  SPIDevice() : SPIClient(BIT_ORDER, Modes::get_mode(CLOCK_POLARITY, CLOCK_PHASE), DATA_RATE) {}
+  SPIDevice() : SPIClient(BIT_ORDER, Utility::get_mode(CLOCK_POLARITY, CLOCK_PHASE), DATA_RATE) {}
 
   SPIDevice(SPIComponent *parent, GPIOPin *cs_pin) {
     this->set_spi_parent(parent);
@@ -366,7 +359,7 @@ class SPIDevice : public SPIClient {
 
   void spi_teardown() {
     this->parent_->unregister_device(this);
-    this->delegate_ = &SPIDelegate::null_delegate;
+    this->delegate_ = SPIDelegate::null_delegate;
   }
 
   void set_spi_parent(SPIComponent *parent) { this->parent_ = parent; }

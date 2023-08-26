@@ -8,9 +8,18 @@ namespace spi {
 
 static uint8_t spi_bus_num = 0;
 const char *const TAG = "spi";
+#ifdef USE_ESP32
+static const unsigned MAX_SPI_BUS_CNT = 2;
+#endif
+#ifdef USE_ESP8266
+static const unsigned MAX_SPI_BUS_CNT = 1;
+#endif
+#ifdef USE_RP2040
+static const unsigned MAX_SPI_BUS_CNT = 2;
+#endif
 
-SPIDelegateDummy SPIDelegate::null_delegate;
-GPIOPin *NullPin::null_pin = new NullPin();
+SPIDelegate * SPIDelegate::null_delegate = new SPIDelegateDummy();
+GPIOPin * const NullPin::null_pin = new NullPin();
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device,
                                            SPIMode mode,
@@ -22,13 +31,7 @@ SPIDelegate *SPIComponent::register_device(SPIClient *device,
     ESP_LOGE(TAG, "SPI device already registered");
     return this->devices_[device];
   }
-  SPIDelegate *delegate;
-  if (this->spi_channel_ == nullptr) {
-    // NOLINT
-    delegate = new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_,
-                                      this->sdi_pin_);
-  } else
-    delegate = new SPIHWDelegate(this->spi_channel_, data_rate, bit_order, mode, cs_pin); //NOLINT
+  SPIDelegate *delegate = this->spi_bus_->get_delegate(data_rate, bit_order, mode, cs_pin); //NOLINT
   this->devices_[device] = delegate;
   return delegate;
 }
@@ -47,106 +50,40 @@ void SPIComponent::setup() {
   this->clk_pin_->setup();
   this->clk_pin_->digital_write(true);
 
-  bool use_hw_spi = !this->force_sw_;
-  const bool has_sdi = this->sdi_pin_ != nullptr;
-  const bool has_sdo = this->sdo_pin_ != nullptr;
-  int8_t clk_pin = -1, sdi_pin = -1, sdo_pin = -1;
-
-  if (!this->clk_pin_->is_internal())
-    use_hw_spi = false;
-  if (has_sdi && !sdi_pin_->is_internal())
-    use_hw_spi = false;
-  if (has_sdo && !sdo_pin_->is_internal())
-    use_hw_spi = false;
-  if (use_hw_spi) {
-    auto *clk_internal = (InternalGPIOPin *) clk_pin_;
-    auto *sdi_internal = (InternalGPIOPin *) sdi_pin_;
-    auto *sdo_internal = (InternalGPIOPin *) sdo_pin_;
-
-    if (clk_internal->is_inverted())
-      use_hw_spi = false;
-    if (has_sdi && sdi_internal->is_inverted())
-      use_hw_spi = false;
-    if (has_sdo && sdo_internal->is_inverted())
-      use_hw_spi = false;
-
-    if (use_hw_spi) {
-      clk_pin = clk_internal->get_pin();
-      sdi_pin = has_sdi ? sdi_internal->get_pin() : -1;
-      sdo_pin = has_sdo ? sdo_internal->get_pin() : -1;
-    }
+  if (this->sdo_pin_ == nullptr)
+    this->sdo_pin_ = NullPin::null_pin;
+  if (this->sdi_pin_ == nullptr)
+    this->sdi_pin_ = NullPin::null_pin;
+  if (this->clk_pin_ == nullptr) {
+    ESP_LOGE(TAG, "No clock pin for SPI");
+    this->mark_failed();
+    return;
   }
+  bool use_hw_spi = !this->force_sw_;
+
+  if (!this->clk_pin_->is_internal() || Utility::is_pin_inverted(this->clk_pin_))
+    use_hw_spi = false;
+  if (!sdo_pin_->is_internal() || Utility::is_pin_inverted(this->sdo_pin_))
+    use_hw_spi = false;
+  if (!sdi_pin_->is_internal() || Utility::is_pin_inverted(this->sdi_pin_))
+    use_hw_spi = false;
 
 #ifdef USE_ESP8266
+  int8_t clk_pin = Utility::get_pin_no(this->clk_pin_);
+  int8_t sdo_pin = Utility::get_pin_no(this->sdo_pin_);
+  int8_t sdi_pin = Utility::get_pin_no(this->sdi_pin_);
   if (!(clk_pin == 6 && sdi_pin == 7 && sdo_pin == 8) &&
-      !(clk_pin == 14 && (!has_sdi || sdi_pin == 12) && (!has_sdo || sdo_pin == 13))) {
-    use_hw_spi = false;
+    !(clk_pin == 14 && (!has_sdi || sdi_pin == 12) && (!has_sdo || sdo_pin == 13))) {
+      use_hw_spi = false;
   }
+#endif
 
-  if (use_hw_spi) {
-    this->spi_channel_ = &SPI;
-    this->spi_channel_->pins(clk_pin, sdi_pin, sdo_pin, 0);
-    this->spi_channel_->begin();
-    return;
-  }
-#endif  // USE_ESP8266
-#ifdef USE_ESP32
-
-  if (spi_bus_num >= 2) {
-    use_hw_spi = false;
-  }
-
-  if (use_hw_spi) {
-    if (spi_bus_num == 0) {
-      this->spi_channel_ = &SPI;
-    } else {
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
-      this->hw_spi_ = new SPIClass(FSPI);  // NOLINT(cppcoreguidelines-owning-memory)
-#else
-      this->spi_channel_ = new SPIClass(HSPI);  // NOLINT(cppcoreguidelines-owning-memory)
-#endif  // USE_ESP32_VARIANT
-    }
-    spi_bus_num++;
-    this->spi_channel_->begin(clk_pin, sdi_pin, sdo_pin);
-    return;
-  }
-#endif  // USE_ESP32
-#ifdef USE_RP2040
-  static uint8_t spi_bus_num = 0;
-  if (spi_bus_num >= 2) {
-    use_hw_spi = false;
-  }
-  if (use_hw_spi) {
-    SPIClassRP2040 *spi;
-    if (spi_bus_num == 0) {
-      spi = &SPI;
-    } else {
-      spi = &SPI1;
-    }
-    spi_bus_num++;
-
-    if (sdi_pin != -1)
-      spi->setRX(sdi_pin);
-    if (sdo_pin != -1)
-      spi->setTX(sdo_pin);
-    spi->setSCK(clk_pin);
-    this->spi_channel_ = spi;
-    this->hw_spi_->begin();
-    return;
-  }
-#endif  // USE_RP2040
-
-  if (this->sdi_pin_ != nullptr) {
-    this->sdi_pin_->setup();
+  if (use_hw_spi && spi_bus_num != MAX_SPI_BUS_CNT) {
+    this->spi_bus_ = SPIComponent::get_next_bus(spi_bus_num++, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   } else {
-    this->sdi_pin_ = NullPin::null_pin;
-  }
-  if (this->sdo_pin_ != nullptr) {
+    this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);  //NOLINT
     this->sdo_pin_->setup();
-    this->sdo_pin_->digital_write(false);
-  } else {
-    this->sdo_pin_ = NullPin::null_pin;
+    this->sdi_pin_->setup();
   }
 }
 
@@ -155,9 +92,8 @@ void SPIComponent::dump_config() {
   LOG_PIN("  CLK Pin: ", this->clk_pin_)
   LOG_PIN("  SDI Pin: ", this->sdi_pin_)
   LOG_PIN("  SDO Pin: ", this->sdo_pin_)
-  ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->spi_channel_ != nullptr));
+  ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->spi_bus_ != nullptr));
 }
-
 
 void SPIDelegateDummy::begin_transaction() {
   ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?");
@@ -165,7 +101,7 @@ void SPIDelegateDummy::begin_transaction() {
 
 uint8_t SPIDelegateBitBash::transfer(uint8_t data) {
 // Clock starts out at idle level
-  this->clk_pin_-> digital_write(clock_polarity_);
+  this->clk_pin_->digital_write(clock_polarity_);
   uint8_t out_data = 0;
 
   for (
