@@ -104,6 +104,7 @@ def _compute_local_font_dir(name) -> Path:
     h.update(name.encode())
     return base_dir / h.hexdigest()[:8]
 
+
 def get_file_name_from_url(url):
     # Regular expression pattern to match the file name at the end of the URL
     pattern = r"/([^/]+)$"
@@ -127,6 +128,7 @@ def get_file_type(file_name):
         file_type = match.group(1)
         return file_type
     return None
+
 
 TYPE_LOCAL = "local"
 TYPE_LOCAL_BITMAP = "local_bitmap"
@@ -161,37 +163,41 @@ FONT_WEIGHTS = {
 def validate_weight_name(value):
     return FONT_WEIGHTS[cv.one_of(*FONT_WEIGHTS, lower=True, space="-")(value)]
 
+
 def get_font_url(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
         wght = value[CONF_FILE][CONF_WEIGHT]
-        return f"https://fonts.googleapis.com/css2?family={value[CONF_FAMILY]}:wght@{wght}"
-    elif value[CONF_TYPE] == TYPE_WEB:
+        return (
+            f"https://fonts.googleapis.com/css2?family={value[CONF_FAMILY]}:wght@{wght}"
+        )
+    if value[CONF_TYPE] == TYPE_WEB:
         return value[CONF_URL]
-    else:
-        return ""
+    return ""
+
 
 def get_font_name(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
         return f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}"
-    elif value[CONF_TYPE] == TYPE_WEB:
+    if value[CONF_TYPE] == TYPE_WEB:
         return get_file_name_from_url(value[CONF_URL])
-    else:
-        return ""
+    return ""
+
 
 def get_font_path(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
         name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
         return _compute_local_font_dir(name) / "font.ttf"
-    elif value[CONF_TYPE] == TYPE_WEB:
+    if value[CONF_TYPE] == TYPE_WEB:
         font_id = get_file_name_from_url(value[CONF_URL])
         name = f"{font_id}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
         file_name = font_id + "." + get_file_type(value[CONF_URL])
         return _compute_local_font_dir(name) / file_name
-    else:
-        return ""
+    return ""
 
-def download_gfont_ttf(value):
+
+def download_gfont_ttf(value, req):
     match = re.search(r"src:\s+url\((.+)\)\s+format\('truetype'\);", req.text)
+    name = get_font_name(value)
     if match is None:
         raise cv.Invalid(
             f"Could not extract ttf file from gfonts response for {name}, "
@@ -204,6 +210,7 @@ def download_gfont_ttf(value):
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(f"Could not download ttf file for {name} ({ttf_url}): {e}")
+
 
 def download_web_font(value):
     name = get_font_name(value)
@@ -219,13 +226,14 @@ def download_web_font(value):
             f"Could not download font for {name}, please check the fonts exists "
             f"at google fonts ({e})"
         )
-    
+
     if value[CONF_TYPE] == TYPE_GFONTS:
-        download_gfont_ttf(value)
+        download_gfont_ttf(value, req)
 
     path.parent.mkdir(exist_ok=True, parents=True)
     path.write_bytes(req.content)
     return value
+
 
 GFONTS_SCHEMA = cv.All(
     {
@@ -327,7 +335,7 @@ FONT_SCHEMA = cv.Schema(
 )
 
 CONFIG_SCHEMA = cv.All(
-    validate_pillow_installed, 
+    validate_pillow_installed,
     FONT_SCHEMA,
 )
 
