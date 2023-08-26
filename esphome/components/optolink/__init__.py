@@ -44,7 +44,9 @@ SENSOR_BASE_SCHEMA = cv.Schema(
         ),
         cv.Required(CONF_ADDRESS): cv.hex_uint32_t,
         # cv.Required(CONF_BYTES): cv.one_of(1, 2, 4, int=True),
-        cv.Optional(CONF_DIV_RATIO, default=1): cv.one_of(1, 10, 100, 3600, int=True),
+        cv.Optional(CONF_DIV_RATIO, default=1): cv.one_of(
+            1, 10, 100, 1000, 3600, int=True
+        ),
     }
 )
 

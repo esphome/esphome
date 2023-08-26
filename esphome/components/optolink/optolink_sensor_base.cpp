@@ -84,6 +84,17 @@ void OptolinkSensorBase::setup_datapoint() {
           unfitting_value_type();
       }
       break;
+    case 1000:
+      switch (bytes_) {
+        case 4:
+          datapoint_ = new Datapoint<conv4_1000_F>(get_component_name().c_str(), "optolink", address_, writeable_);
+          datapoint_->setCallback([this](const IDatapoint &dp, DPValue dp_value) {
+            ESP_LOGI(TAG, "recieved data for datapoint %s: %f", dp.getName(), dp_value.getFloat());
+            value_changed(dp_value.getFloat());
+          });
+          break;
+      }
+      break;
     case 3600:
       switch (bytes_) {
         case 4:
@@ -94,6 +105,7 @@ void OptolinkSensorBase::setup_datapoint() {
           });
           break;
       }
+      break;
     default:
       unfitting_value_type();
   }
@@ -206,6 +218,20 @@ void conv2_100_F::encode(uint8_t *out, DPValue in) {
 DPValue conv2_100_F::decode(const uint8_t *in) {
   int16_t tmp = in[1] << 8 | in[0];
   DPValue out(tmp / 100.0f);
+  return out;
+}
+
+void conv4_1000_F::encode(uint8_t *out, DPValue in) {
+  int32_t tmp = floor((in.getFloat() * 1000) + 0.5);
+  out[3] = tmp >> 24;
+  out[2] = tmp >> 16;
+  out[1] = tmp >> 8;
+  out[0] = tmp & 0xFF;
+}
+
+DPValue conv4_1000_F::decode(const uint8_t *in) {
+  int32_t tmp = in[3] << 24 | in[2] << 16 | in[1] << 8 | in[0];
+  DPValue out(tmp / 1000.0f);
   return out;
 }
 

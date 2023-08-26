@@ -58,6 +58,14 @@ class conv2_100_F : public DPType {
   size_t get_length() const { return 2; }
 };
 
+// NOLINTNEXTLINE
+class conv4_1000_F : public DPType {
+ public:
+  void encode(uint8_t *out, DPValue in);
+  DPValue decode(const uint8_t *in);
+  const size_t getLength() const { return 4; }
+};
+
 }  // namespace optolink
 }  // namespace esphome
 
