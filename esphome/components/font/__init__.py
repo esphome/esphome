@@ -136,7 +136,7 @@ def validate_weight_name(value):
 
 def get_font_url(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
-        wght = value[CONF_FILE][CONF_WEIGHT]
+        wght = value[CONF_WEIGHT]
         return (
             f"https://fonts.googleapis.com/css2?family={value[CONF_FAMILY]}:wght@{wght}"
         )
@@ -157,7 +157,9 @@ def get_font_path(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
         name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
         return (
-            external_files.compute_local_file_dir(name, DOMAIN, value[CONF_REFRESH])
+            Path(
+                external_files.compute_local_file_dir(name, DOMAIN, value[CONF_REFRESH])
+            )
             / "font.ttf"
         )
     if value[CONF_TYPE] == TYPE_WEB:
@@ -186,6 +188,7 @@ def download_gfont_ttf(value, req):
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(f"Could not download ttf file for {name} ({ttf_url}): {e}")
+    return req
 
 
 def download_web_font(value):
@@ -204,7 +207,7 @@ def download_web_font(value):
         )
 
     if value[CONF_TYPE] == TYPE_GFONTS:
-        download_gfont_ttf(value, req)
+        req = download_gfont_ttf(value, req)
 
     path.parent.mkdir(exist_ok=True, parents=True)
     path.write_bytes(req.content)
