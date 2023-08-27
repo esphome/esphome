@@ -1,15 +1,29 @@
 #include "spi.h"
-#include "esphome/core/log.h"
+#include <vector>
 
 namespace esphome {
 namespace spi {
 
+
 #ifdef USE_ARDUINO
+
+// list of available buses
+#ifdef USE_ESP8266
+static std::vector<std::function<SPIClass* ()>> bus_list = {[]{return &SPI;}};
+#endif
+#ifdef USE_ESP32
+#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
+    defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
+static std::vector<std::function<SPIClass *()>> bus_list = {[] { return new SPIClass(FSPI); }, [] { return &SPI; }}; // NOLINT
+#else
+static std::vector<std::function<SPIClass *()>> bus_list = {[] { return new SPIClass(HSPI); }, [] { return &SPI; }}; // NOLINT
+#endif  // USE_ESP32_VARIANT
+#endif
 
 class SPIDelegateHw : public SPIDelegate {
  public:
   SPIDelegateHw(SPIClass *channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
-      : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
+    : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
 
   void begin_transaction() override {
 #ifdef USE_RP2040
@@ -71,21 +85,10 @@ class SPIBusHw : public SPIBus {
 SPIBus *SPIComponent::get_next_bus(unsigned int num, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
   SPIClass *channel;
 
-#ifdef USE_ESP8266
-  channel = &SPI;
-#endif  // USE_ESP8266
-#ifdef USE_ESP32
-  if (num == 0) {
-    channel = &SPI;
-  } else {
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
-    defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
-    channel = new SPIClass(FSPI);  // NOLINT(cppcoreguidelines-owning-memory)
-#else
-    channel = new SPIClass(HSPI);  // NOLINT(cppcoreguidelines-owning-memory)
-#endif  // USE_ESP32_VARIANT
-  }
-#endif  // USE_ESP32
+  if (bus_list.empty())
+    return nullptr;
+  channel = bus_list.back()();
+  bus_list.pop_back();
   return new SPIBusHw(clk, sdo, sdi, channel);
 }
 

@@ -68,13 +68,16 @@ void SPIComponent::setup() {
   int8_t sdo_pin = Utility::get_pin_no(this->sdo_pin_);
   int8_t sdi_pin = Utility::get_pin_no(this->sdi_pin_);
   if (!(clk_pin == 6 && sdi_pin == 7 && sdo_pin == 8) &&
-      !(clk_pin == 14 && (!has_sdi || sdi_pin == 12) && (!has_sdo || sdo_pin == 13))) {
+      !(clk_pin == 14 && sdi_pin == 12 && sdo_pin == 13)) {
     use_hw_spi = false;
   }
 #endif
 
-  if (use_hw_spi && spi_bus_num != MAX_SPI_BUS_CNT) {
-    this->spi_bus_ = SPIComponent::get_next_bus(spi_bus_num++, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
+  SPIBus * bus = nullptr;
+  if (use_hw_spi)
+    bus = SPIComponent::get_next_bus(spi_bus_num++, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
+  if (bus != nullptr) {
+    this->spi_bus_ = bus;
   } else {
     this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);  // NOLINT
     this->sdo_pin_->setup();
