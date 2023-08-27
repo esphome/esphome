@@ -170,7 +170,7 @@ def get_font_path(value):
             external_files.compute_local_file_dir(name, DOMAIN, value[CONF_REFRESH])
         )
         return file_path / file_name
-    return ""
+    return None
 
 
 def download_gfont_ttf(value, req):
