@@ -4,6 +4,8 @@ import os
 from datetime import datetime
 from esphome.core import CORE, TimePeriodSeconds
 
+CODEOWNERS = ["@landonr"]
+
 
 def is_directory_recent(directory_path: str, refresh: TimePeriodSeconds) -> bool:
     if os.path.exists(directory_path):
