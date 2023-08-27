@@ -1,16 +1,25 @@
 #include "spi.h"
-#include "esphome/core/log.h"
+#include <vector>
 
 namespace esphome {
 namespace spi {
 
 #ifdef USE_ESP_IDF
-const char *const TAG = "spi-esp-idf";
+static const char *const TAG = "spi-esp-idf";
+
+// list of available buses
+#ifdef USE_ESP8266
+static std::vector<spi_host_device_t> bus_list = {SPI1_HOST};
+#endif
+#ifdef USE_ESP32
+static std::vector<spi_host_device_t> bus_list = {SPI3_HOST, SPI2_HOST};
+#endif
+
 
 class SPIDelegateHw : public SPIDelegate {
  public:
   SPIDelegateHw(spi_host_device_t channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
-      : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {
+    : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {
     spi_device_interface_config_t config = {};
     config.mode = static_cast<uint8_t>(mode);
     config.clock_speed_hz = static_cast<int>(data_rate);
@@ -63,7 +72,7 @@ class SPIDelegateHw : public SPIDelegate {
 class SPIBusHw : public SPIBus {
  public:
   SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, spi_host_device_t channel)
-      : SPIBus(clk, sdo, sdi), channel_(channel) {
+    : SPIBus(clk, sdo, sdi), channel_(channel) {
     spi_bus_config_t buscfg = {};
     buscfg.mosi_io_num = Utility::get_pin_no(sdo);
     buscfg.miso_io_num = Utility::get_pin_no(sdi);
@@ -87,15 +96,10 @@ class SPIBusHw : public SPIBus {
 SPIBus *SPIComponent::get_next_bus(unsigned int num, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
   spi_host_device_t channel;
 
-#ifdef USE_ESP8266
-  channel = SPI1_HOST;
-#endif  // USE_ESP8266
-#ifdef USE_ESP32
-  if (num == 0) {
-    channel = SPI2_HOST;
-  } else
-    channel = SPI3_HOST;
-#endif  // USE_ESP32
+  if (bus_list.empty())
+    return nullptr;
+  channel = bus_list.back();
+  bus_list.pop_back();
   return new SPIBusHw(clk, sdo, sdi, channel);
 }
 
