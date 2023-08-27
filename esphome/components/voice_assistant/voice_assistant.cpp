@@ -108,6 +108,10 @@ int VoiceAssistant::read_microphone_() {
   size_t bytes_read = 0;
   if (this->mic_->is_running()) {  // Read audio into input buffer
     bytes_read = this->mic_->read(this->input_buffer_, INPUT_BUFFER_SIZE * sizeof(int16_t));
+    if (bytes_read == 0) {
+      memset(this->input_buffer_, 0, INPUT_BUFFER_SIZE * sizeof(int16_t));
+      return 0;
+    }
 #ifdef USE_ESP_ADF
     // Write audio into ring buffer
     int available = rb_bytes_available(this->ring_buffer_);
@@ -216,8 +220,10 @@ void VoiceAssistant::loop() {
                               sizeof(this->dest_addr_));
       }
 #else
-      this->socket_->sendto(this->input_buffer_, bytes_read, 0, (struct sockaddr *) &this->dest_addr_,
-                            sizeof(this->dest_addr_));
+      if (bytes_read > 0) {
+        this->socket_->sendto(this->input_buffer_, bytes_read, 0, (struct sockaddr *) &this->dest_addr_,
+                              sizeof(this->dest_addr_));
+      }
 #endif
       break;
     }
