@@ -28,9 +28,17 @@ class SPIDelegateHw : public SPIDelegate {
     config.queue_size = 1;
     config.pre_cb = nullptr;
     config.post_cb = nullptr;
+    if (bit_order == BIT_ORDER_LSB_FIRST)
+      config.flags |= SPI_DEVICE_BIT_LSBFIRST;
     esp_err_t const err = spi_bus_add_device(channel, &config, &this->handle_);
     if (err != ESP_OK)
       ESP_LOGE(TAG, "Add device failed - err %d", err);
+  }
+
+  ~SPIDelegateHw() override {
+    esp_err_t const err = spi_bus_remove_device(this->handle_);
+    if (err != ESP_OK)
+      ESP_LOGE(TAG, "Remove device failed - err %d", err);
   }
 
   void transfer(const void *txbuf, void *rxbuf, size_t length) {
@@ -91,6 +99,7 @@ class SPIBusHw : public SPIBus {
 
  protected:
   spi_host_device_t channel_{};
+  bool is_hw_() override { return true; }
 };
 
 SPIBus *SPIComponent::get_next_bus(unsigned int num, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
