@@ -156,12 +156,17 @@ def get_font_name(value):
 def get_font_path(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
         name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
-        return external_files.compute_local_file_dir(name, DOMAIN, value[CONF_REFRESH]) / "font.ttf"
+        return (
+            external_files.compute_local_file_dir(name, DOMAIN, value[CONF_REFRESH])
+            / "font.ttf"
+        )
     if value[CONF_TYPE] == TYPE_WEB:
         font_id = external_files.get_file_name_from_url(value[CONF_URL])
         name = f"{font_id}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
         file_name = font_id + "." + external_files.get_file_type(value[CONF_URL])
-        file_path = Path(external_files.compute_local_file_dir(name, DOMAIN, value[CONF_REFRESH]))
+        file_path = Path(
+            external_files.compute_local_file_dir(name, DOMAIN, value[CONF_REFRESH])
+        )
         return file_path / file_name
     return ""
 
@@ -212,7 +217,9 @@ EXTERNAL_FONT_SCHEMA = cv.Schema(
             cv.int_, validate_weight_name
         ),
         cv.Optional(CONF_ITALIC, default=False): cv.boolean,
-        cv.Optional(CONF_REFRESH, default="never"): cv.All(cv.string, cv.source_refresh),
+        cv.Optional(CONF_REFRESH, default="never"): cv.All(
+            cv.string, cv.source_refresh
+        ),
     }
 )
 
