@@ -4,9 +4,6 @@
 #include "../optolink.h"
 #include "esphome/components/api/api_server.h"
 #include "VitoWiFi.h"
-#include <iostream>
-#include <sstream>
-#include <vector>
 
 namespace esphome {
 namespace optolink {
@@ -30,23 +27,19 @@ bool check_time_values(const Time &time) {
 }
 
 uint8_t *encode_time_string(std::string input) {
-  std::istringstream iss(input);
-  std::vector<Time> time_values;
-
+  char buffer[49];
+  strncpy(buffer, input.c_str(), sizeof(buffer));
+  buffer[sizeof(buffer) - 1] = 0x00;
+  Time time_values[8];
   Time prev_time = {0, 0};
+  int time_count = 0;
 
-  while (iss) {
-    std::string time_string;
-    iss >> time_string;
-
-    if (time_string.empty()) {
-      break;
-    }
-
+  char *token = strtok(buffer, " ");
+  while (token && time_count < 8) {
     Time current_time;
-    if (sscanf(time_string.c_str(), "%d:%d", &current_time.hours, &current_time.minutes) == 2) {
+    if (sscanf(token, "%d:%d", &current_time.hours, &current_time.minutes) == 2) {
       if (check_time_values(current_time) && check_time_sequence(prev_time, current_time)) {
-        time_values.push_back(current_time);
+        time_values[time_count++] = current_time;
         prev_time = current_time;
       } else {
         ESP_LOGE(
@@ -58,18 +51,16 @@ uint8_t *encode_time_string(std::string input) {
       ESP_LOGE(TAG, "Invalid time format");
       return 0;
     }
+    token = strtok(nullptr, " ");
   }
-  if (time_values.size() > 8) {
-    ESP_LOGE(TAG, "Maximum 8 time values allowed");
-    return 0;
-  }
-  if (time_values.size() % 2) {
+
+  if (time_count % 2) {
     ESP_LOGE(TAG, "Number of time values must be even");
     return 0;
   }
 
-  while (time_values.size() < 8) {
-    time_values.push_back({31, 70});
+  while (time_count < 8) {
+    time_values[time_count++] = {31, 70};
   }
 
   static uint8_t data[8];
