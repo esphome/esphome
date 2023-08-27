@@ -7,16 +7,6 @@ namespace spi {
 
 static uint8_t spi_bus_num = 0;
 const char *const TAG = "spi";
-#ifdef USE_ESP32
-static const unsigned MAX_SPI_BUS_CNT = 2;
-#endif
-#ifdef USE_ESP8266
-static const unsigned MAX_SPI_BUS_CNT = 1;
-#endif
-#ifdef USE_RP2040
-static const unsigned MAX_SPI_BUS_CNT = 2;
-#endif
-
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin) {
