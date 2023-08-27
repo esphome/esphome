@@ -8,6 +8,7 @@ from packaging import version
 import requests
 
 from esphome import core
+from esphome.components import external_files
 import esphome.config_validation as cv
 import esphome.codegen as cg
 from esphome.helpers import copy_file_if_changed
@@ -18,6 +19,7 @@ from esphome.const import (
     CONF_ID,
     CONF_RAW_DATA_ID,
     CONF_TYPE,
+    CONF_REFRESH,
     CONF_SIZE,
     CONF_PATH,
     CONF_WEIGHT,
@@ -98,38 +100,6 @@ def validate_truetype_file(value):
     return cv.file_(value)
 
 
-def _compute_local_font_dir(name) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN
-    h = hashlib.new("sha256")
-    h.update(name.encode())
-    return base_dir / h.hexdigest()[:8]
-
-
-def get_file_name_from_url(url):
-    # Regular expression pattern to match the file name at the end of the URL
-    pattern = r"/([^/]+)$"
-    match = re.search(pattern, url)
-    if match:
-        file_name = match.group(1)
-        file_name = re.sub(r"%20", "_", file_name)  # Replace %20 with '_'
-
-        # Remove the file extension
-        file_name = re.sub(r"\.[^.]+$", "", file_name)
-
-        return file_name
-    return None
-
-
-def get_file_type(file_name):
-    # Regular expression pattern to match the file extension
-    pattern = r"\.([^.]+)$"
-    match = re.search(pattern, file_name)
-    if match:
-        file_type = match.group(1)
-        return file_type
-    return None
-
-
 TYPE_LOCAL = "local"
 TYPE_LOCAL_BITMAP = "local_bitmap"
 TYPE_GFONTS = "gfonts"
@@ -179,19 +149,20 @@ def get_font_name(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
         return f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}"
     if value[CONF_TYPE] == TYPE_WEB:
-        return get_file_name_from_url(value[CONF_URL])
+        return external_files.get_file_name_from_url(value[CONF_URL])
     return ""
 
 
 def get_font_path(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
         name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
-        return _compute_local_font_dir(name) / "font.ttf"
+        return external_files.compute_local_file_dir(name, DOMAIN, value[CONF_REFRESH]) / "font.ttf"
     if value[CONF_TYPE] == TYPE_WEB:
-        font_id = get_file_name_from_url(value[CONF_URL])
+        font_id = external_files.get_file_name_from_url(value[CONF_URL])
         name = f"{font_id}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
-        file_name = font_id + "." + get_file_type(value[CONF_URL])
-        return _compute_local_font_dir(name) / file_name
+        file_name = font_id + "." + external_files.get_file_type(value[CONF_URL])
+        file_path = Path(external_files.compute_local_file_dir(name, DOMAIN, value[CONF_REFRESH]))
+        return file_path / file_name
     return ""
 
 
@@ -235,25 +206,21 @@ def download_web_font(value):
     return value
 
 
-GFONTS_SCHEMA = cv.All(
+EXTERNAL_FONT_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_FAMILY): cv.string_strict,
         cv.Optional(CONF_WEIGHT, default="regular"): cv.Any(
             cv.int_, validate_weight_name
         ),
         cv.Optional(CONF_ITALIC, default=False): cv.boolean,
+        cv.Optional(CONF_REFRESH, default="never"): cv.All(cv.string, cv.source_refresh),
     }
 )
 
-WEB_FONT_SCHEMA = cv.All(
-    {
-        cv.Required(CONF_URL): cv.string_strict,
-        cv.Optional(CONF_WEIGHT, default="regular"): cv.Any(
-            cv.int_, validate_weight_name
-        ),
-        cv.Optional(CONF_ITALIC, default=False): cv.boolean,
-    }
+GFONTS_SCHEMA = EXTERNAL_FONT_SCHEMA.extend(
+    {cv.Required(CONF_FAMILY): cv.string_strict}
 )
+
+WEB_FONT_SCHEMA = EXTERNAL_FONT_SCHEMA.extend({cv.Required(CONF_URL): cv.string_strict})
 
 
 def validate_file_shorthand(value):
@@ -377,6 +344,13 @@ class BitmapFontWrapper:
             if height > max_height:
                 max_height = height
         return (max_height, 0)
+
+
+def _compute_local_font_dir(name) -> Path:
+    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN
+    h = hashlib.new("sha256")
+    h.update(name.encode())
+    return base_dir / h.hexdigest()[:8]
 
 
 def convert_bitmap_to_pillow_font(filepath):
