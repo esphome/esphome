@@ -15,11 +15,10 @@ static std::vector<spi_host_device_t> bus_list = {SPI1_HOST};
 static std::vector<spi_host_device_t> bus_list = {SPI3_HOST, SPI2_HOST};
 #endif
 
-
 class SPIDelegateHw : public SPIDelegate {
  public:
   SPIDelegateHw(spi_host_device_t channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
-    : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {
+      : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {
     spi_device_interface_config_t config = {};
     config.mode = static_cast<uint8_t>(mode);
     config.clock_speed_hz = static_cast<int>(data_rate);
@@ -84,7 +83,7 @@ class SPIDelegateHw : public SPIDelegate {
 class SPIBusHw : public SPIBus {
  public:
   SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, spi_host_device_t channel)
-    : SPIBus(clk, sdo, sdi), channel_(channel) {
+      : SPIBus(clk, sdo, sdi), channel_(channel) {
     spi_bus_config_t buscfg = {};
     buscfg.mosi_io_num = Utility::get_pin_no(sdo);
     buscfg.miso_io_num = Utility::get_pin_no(sdi);
@@ -104,7 +103,7 @@ class SPIBusHw : public SPIBus {
  protected:
   spi_host_device_t channel_{};
 
-  bool is_hw_() override { return true; }
+  bool is_hw() override { return true; }
 };
 
 SPIBus *SPIComponent::get_next_bus(unsigned int num, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
