@@ -4,26 +4,27 @@
 namespace esphome {
 namespace spi {
 
-
 #ifdef USE_ARDUINO
 
 // list of available buses
 #ifdef USE_ESP8266
-static std::vector<std::function<SPIClass* ()>> bus_list = {[]{return &SPI;}};
+static std::vector<std::function<SPIClass *()>> bus_list = {[] { return &SPI; }};
 #endif
 #ifdef USE_ESP32
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
-static std::vector<std::function<SPIClass *()>> bus_list = {[] { return new SPIClass(FSPI); }, [] { return &SPI; }}; // NOLINT
+// NOLINT
+static std::vector<std::function<SPIClass *()>> bus_list = {[] { return new SPIClass(FSPI); }, [] { return &SPI; }};
 #else
-static std::vector<std::function<SPIClass *()>> bus_list = {[] { return new SPIClass(HSPI); }, [] { return &SPI; }}; // NOLINT
+// NOLINT
+static std::vector<std::function<SPIClass *()>> bus_list = {[] { return new SPIClass(HSPI); }, [] { return &SPI; }};
 #endif  // USE_ESP32_VARIANT
 #endif
 
 class SPIDelegateHw : public SPIDelegate {
  public:
   SPIDelegateHw(SPIClass *channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
-    : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
+      : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
 
   void begin_transaction() override {
 #ifdef USE_RP2040

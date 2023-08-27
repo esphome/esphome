@@ -21,7 +21,7 @@ void SPIDeviceComponent::dump_config() {
     ESP_LOGCONFIG(TAG, "  Data rate: %dkHz", this->data_rate_ / 1000);
   } else {
     ESP_LOGCONFIG(TAG, "  Data rate: %dMHz", this->data_rate_ / 1000000);
-}
+  }
 }
 
 float SPIDeviceComponent::get_setup_priority() const { return setup_priority::DATA; }

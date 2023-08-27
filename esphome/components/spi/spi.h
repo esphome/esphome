@@ -149,7 +149,7 @@ class NullPin : public GPIOPin {
 
   std::string dump_summary() const override { return std::string(); }
 
-  static GPIOPin *const null_pin;
+  static GPIOPin *const NULL_PIN;
 };
 
 class SPIDelegateDummy;
@@ -161,14 +161,14 @@ class SPIDelegate {
   SPIDelegate() = default;
 
   SPIDelegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
-    : bit_order_(bit_order), data_rate_(data_rate), mode_(mode), cs_pin_(cs_pin) {
+      : bit_order_(bit_order), data_rate_(data_rate), mode_(mode), cs_pin_(cs_pin) {
     if (this->cs_pin_ == nullptr)
-      this->cs_pin_ = NullPin::null_pin;
+      this->cs_pin_ = NullPin::NULL_PIN;
     this->cs_pin_->setup();
     this->cs_pin_->digital_write(true);
   }
 
-  virtual ~SPIDelegate() {};
+  virtual ~SPIDelegate(){};
 
   // enable CS if configured.
   virtual void begin_transaction() { this->cs_pin_->digital_write(false); }
@@ -210,13 +210,13 @@ class SPIDelegate {
       ptr[i] = this->transfer(0);
   }
 
-  static SPIDelegate *null_delegate;
+  static SPIDelegate *const NULL_DELEGATE;
 
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
-  GPIOPin *cs_pin_{NullPin::null_pin};
+  GPIOPin *cs_pin_{NullPin::NULL_PIN};
 };
 
 /**
@@ -275,7 +275,7 @@ class SPIBus {
     return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   }
 
-  virtual bool is_hw_() { return false; }
+  virtual bool is_hw() { return false; }
 
  protected:
   GPIOPin *clk_pin_{};
@@ -329,7 +329,7 @@ class SPIClient {
   uint32_t data_rate_{1000000};
   SPIComponent *parent_{nullptr};
   GPIOPin *cs_{nullptr};
-  SPIDelegate *delegate_{SPIDelegate::null_delegate};
+  SPIDelegate *delegate_{SPIDelegate::NULL_DELEGATE};
 };
 
 /**
@@ -356,7 +356,7 @@ class SPIDevice : public SPIClient {
 
   void spi_teardown() {
     this->parent_->unregister_device(this);
-    this->delegate_ = SPIDelegate::null_delegate;
+    this->delegate_ = SPIDelegate::NULL_DELEGATE;
   }
 
   void set_spi_parent(SPIComponent *parent) { this->parent_ = parent; }
@@ -365,7 +365,10 @@ class SPIDevice : public SPIClient {
 
   void set_data_rate(uint32_t data_rate) { this->data_rate_ = data_rate; }
 
-  void set_bit_order(SPIBitOrder order) { this->bit_order_ = order; esph_log_d("spi.h", "bit order set to %d", order); }
+  void set_bit_order(SPIBitOrder order) {
+    this->bit_order_ = order;
+    esph_log_d("spi.h", "bit order set to %d", order);
+  }
 
   void set_mode(SPIMode mode) { this->mode_ = mode; }
 

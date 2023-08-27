@@ -17,8 +17,6 @@ static const unsigned MAX_SPI_BUS_CNT = 1;
 static const unsigned MAX_SPI_BUS_CNT = 2;
 #endif
 
-SPIDelegate *SPIDelegate::null_delegate = new SPIDelegateDummy();
-GPIOPin *const NullPin::null_pin = new NullPin();
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin) {
@@ -46,9 +44,9 @@ void SPIComponent::setup() {
   this->clk_pin_->digital_write(true);
 
   if (this->sdo_pin_ == nullptr)
-    this->sdo_pin_ = NullPin::null_pin;
+    this->sdo_pin_ = NullPin::NULL_PIN;
   if (this->sdi_pin_ == nullptr)
-    this->sdi_pin_ = NullPin::null_pin;
+    this->sdi_pin_ = NullPin::NULL_PIN;
   if (this->clk_pin_ == nullptr) {
     ESP_LOGE(TAG, "No clock pin for SPI");
     this->mark_failed();
@@ -67,13 +65,12 @@ void SPIComponent::setup() {
   int8_t clk_pin = Utility::get_pin_no(this->clk_pin_);
   int8_t sdo_pin = Utility::get_pin_no(this->sdo_pin_);
   int8_t sdi_pin = Utility::get_pin_no(this->sdi_pin_);
-  if (!(clk_pin == 6 && sdi_pin == 7 && sdo_pin == 8) &&
-      !(clk_pin == 14 && sdi_pin == 12 && sdo_pin == 13)) {
+  if (!(clk_pin == 6 && sdi_pin == 7 && sdo_pin == 8) && !(clk_pin == 14 && sdi_pin == 12 && sdo_pin == 13)) {
     use_hw_spi = false;
   }
 #endif
 
-  SPIBus * bus = nullptr;
+  SPIBus *bus = nullptr;
   if (use_hw_spi)
     bus = SPIComponent::get_next_bus(spi_bus_num++, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   if (bus != nullptr) {
@@ -90,7 +87,7 @@ void SPIComponent::dump_config() {
   LOG_PIN("  CLK Pin: ", this->clk_pin_)
   LOG_PIN("  SDI Pin: ", this->sdi_pin_)
   LOG_PIN("  SDO Pin: ", this->sdo_pin_)
-  ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->spi_bus_->is_hw_()));
+  ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->spi_bus_->is_hw()));
 }
 
 void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?"); }
