@@ -467,7 +467,7 @@ def binary_sensor_schema(
 async def setup_binary_sensor_core_(var, config):
     await setup_entity(var, config)
 
-    if device_class := config.get(CONF_DEVICE_CLASS):
+    if (device_class := config.get(CONF_DEVICE_CLASS)) is not None:
         cg.add(var.set_device_class(device_class))
     if publish_initial_state := config.get(CONF_PUBLISH_INITIAL_STATE):
         cg.add(var.set_publish_initial_state(publish_initial_state))
