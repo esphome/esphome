@@ -1,5 +1,4 @@
 from pathlib import Path
-import hashlib
 import re
 import os
 from datetime import datetime
