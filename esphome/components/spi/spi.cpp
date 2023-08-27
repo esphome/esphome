@@ -10,7 +10,6 @@ const char *const TAG = "spi";
 SPIDelegate *const SPIDelegate::NULL_DELEGATE = new SPIDelegateDummy();
 GPIOPin *const NullPin::NULL_PIN = new NullPin();
 
-
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin) {
   if (this->devices_.count(device) != 0) {

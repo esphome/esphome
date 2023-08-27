@@ -37,7 +37,7 @@ spi_device:
   spi_id: spi1
   mode: 3
   bit_order: lsb_first
-  
+
 display:
   - platform: ili9xxx
     model: ili9342
