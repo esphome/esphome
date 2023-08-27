@@ -63,9 +63,13 @@ class SPIDelegateHw : public SPIDelegate {
 
   uint16_t transfer16(uint16_t data) override {
     uint16_t rxbuf;
-    uint16_t txbuf = SPI_SWAP_DATA_TX(data, 16);
-    this->transfer(&txbuf, &rxbuf, 2);
-    return SPI_SWAP_DATA_RX(rxbuf, 16);
+    if (this->bit_order_ == BIT_ORDER_MSB_FIRST) {
+      uint16_t txbuf = SPI_SWAP_DATA_TX(data, 16);
+      this->transfer(&txbuf, &rxbuf, 2);
+      return SPI_SWAP_DATA_RX(rxbuf, 16);
+    }
+    this->transfer(&data, &rxbuf, 2);
+    return rxbuf;
   }
 
   void write_array(const uint8_t *ptr, size_t length) override { this->transfer(ptr, nullptr, length); }
@@ -99,6 +103,7 @@ class SPIBusHw : public SPIBus {
 
  protected:
   spi_host_device_t channel_{};
+
   bool is_hw_() override { return true; }
 };
 
