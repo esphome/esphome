@@ -382,9 +382,9 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       ESP_LOGD(TAG, "Assist Pipeline running");
       this->start_trigger_->trigger();
       break;
-    case api::enums::VOICE_ASSISTANT_WAKE_START:
+    case api::enums::VOICE_ASSISTANT_WAKE_WORD_START:
       break;
-    case api::enums::VOICE_ASSISTANT_WAKE_END: {
+    case api::enums::VOICE_ASSISTANT_WAKE_WORD_END: {
       ESP_LOGD(TAG, "Wake word detected");
       break;
     }
@@ -483,7 +483,7 @@ void VoiceAssistant::on_event(const api::VoiceAssistantEventResponse &msg) {
       break;
     }
     default:
-      ESP_LOGD(TAG, "Unknown event type: %d", msg.event_type);
+      ESP_LOGD(TAG, "Unhandled event type: %d", msg.event_type);
       break;
   }
 }

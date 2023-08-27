@@ -442,10 +442,14 @@ template<> const char *proto_enum_to_string<enums::VoiceAssistantEvent>(enums::V
       return "VOICE_ASSISTANT_TTS_START";
     case enums::VOICE_ASSISTANT_TTS_END:
       return "VOICE_ASSISTANT_TTS_END";
-    case enums::VOICE_ASSISTANT_WAKE_START:
-      return "VOICE_ASSISTANT_WAKE_START";
-    case enums::VOICE_ASSISTANT_WAKE_END:
-      return "VOICE_ASSISTANT_WAKE_END";
+    case enums::VOICE_ASSISTANT_WAKE_WORD_START:
+      return "VOICE_ASSISTANT_WAKE_WORD_START";
+    case enums::VOICE_ASSISTANT_WAKE_WORD_END:
+      return "VOICE_ASSISTANT_WAKE_WORD_END";
+    case enums::VOICE_ASSISTANT_STT_VAD_START:
+      return "VOICE_ASSISTANT_STT_VAD_START";
+    case enums::VOICE_ASSISTANT_STT_VAD_END:
+      return "VOICE_ASSISTANT_STT_VAD_END";
     default:
       return "UNKNOWN";
   }
