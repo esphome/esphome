@@ -312,7 +312,7 @@ class SPIComponent : public Component {
   SPIBus *spi_bus_{};
   std::map<SPIClient *, SPIDelegate *> devices_;
 
-  static SPIBus *get_next_bus(unsigned int num, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi);
+  static SPIBus *get_next_bus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi);
 };
 
 /**

@@ -106,7 +106,7 @@ class SPIBusHw : public SPIBus {
   bool is_hw() override { return true; }
 };
 
-SPIBus *SPIComponent::get_next_bus(unsigned int num, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
+SPIBus *SPIComponent::get_next_bus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
   spi_host_device_t channel;
 
   if (bus_list.empty())

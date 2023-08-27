@@ -5,8 +5,11 @@
 namespace esphome {
 namespace spi {
 
-static uint8_t spi_bus_num = 0;
 const char *const TAG = "spi";
+
+SPIDelegate *const SPIDelegate::NULL_DELEGATE = new SPIDelegateDummy();
+GPIOPin *const NullPin::NULL_PIN = new NullPin();
+
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin) {
@@ -62,7 +65,7 @@ void SPIComponent::setup() {
 
   SPIBus *bus = nullptr;
   if (use_hw_spi)
-    bus = SPIComponent::get_next_bus(spi_bus_num++, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
+    bus = SPIComponent::get_next_bus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   if (bus != nullptr) {
     this->spi_bus_ = bus;
   } else {
