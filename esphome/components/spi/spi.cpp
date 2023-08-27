@@ -90,7 +90,7 @@ void SPIComponent::dump_config() {
   LOG_PIN("  CLK Pin: ", this->clk_pin_)
   LOG_PIN("  SDI Pin: ", this->sdi_pin_)
   LOG_PIN("  SDO Pin: ", this->sdo_pin_)
-  ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->spi_bus_ != nullptr));
+  ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->spi_bus_->is_hw_()));
 }
 
 void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?"); }

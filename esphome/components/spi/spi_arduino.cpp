@@ -44,7 +44,7 @@ class SPIDelegateHw : public SPIDelegate {
 
   uint8_t transfer(uint8_t data) override { return this->channel_->transfer(data); }
 
-  uint16_t transfer16(uint16_t data) override { return this->channel_->transfer(data); }
+  uint16_t transfer16(uint16_t data) override { return this->channel_->transfer16(data); }
 
   void write_array(const uint8_t *ptr, size_t length) override { this->channel_->writeBytes(ptr, length); }
 
@@ -80,6 +80,7 @@ class SPIBusHw : public SPIBus {
 
  protected:
   SPIClass *channel_{};
+  bool is_hw_() override { return true; }
 };
 
 SPIBus *SPIComponent::get_next_bus(unsigned int num, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {

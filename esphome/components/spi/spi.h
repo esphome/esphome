@@ -14,7 +14,9 @@
 #endif
 
 #ifdef USE_ESP_IDF
+
 #include "driver/spi_master.h"
+
 #endif  // USE_ESP_IDF
 
 /**
@@ -159,14 +161,14 @@ class SPIDelegate {
   SPIDelegate() = default;
 
   SPIDelegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
-      : bit_order_(bit_order), data_rate_(data_rate), mode_(mode), cs_pin_(cs_pin) {
+    : bit_order_(bit_order), data_rate_(data_rate), mode_(mode), cs_pin_(cs_pin) {
     if (this->cs_pin_ == nullptr)
       this->cs_pin_ = NullPin::null_pin;
     this->cs_pin_->setup();
     this->cs_pin_->digital_write(true);
   }
 
-  virtual ~SPIDelegate(){};
+  virtual ~SPIDelegate() {};
 
   // enable CS if configured.
   virtual void begin_transaction() { this->cs_pin_->digital_write(false); }
@@ -273,6 +275,8 @@ class SPIBus {
     return new SPIDelegateBitBash(data_rate, bit_order, mode, cs_pin, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
   }
 
+  virtual bool is_hw_() { return false; }
+
  protected:
   GPIOPin *clk_pin_{};
   GPIOPin *sdo_pin_{};
@@ -360,6 +364,8 @@ class SPIDevice : public SPIClient {
   void set_cs_pin(GPIOPin *cs) { this->cs_ = cs; }
 
   void set_data_rate(uint32_t data_rate) { this->data_rate_ = data_rate; }
+
+  void set_bit_order(SPIBitOrder order) { this->bit_order_ = order; esph_log_d("spi.h", "bit order set to %d", order); }
 
   void set_mode(SPIMode mode) { this->mode_ = mode; }
 
