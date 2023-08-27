@@ -6,6 +6,7 @@ from esphome.const import CONF_ID, CONF_DATA_RATE, CONF_MODE
 DEPENDENCIES = ["spi"]
 CODEOWNERS = ["@clydebarrow"]
 
+MULTI_CONF = True
 spi_device_ns = cg.esphome_ns.namespace("spi_device")
 
 spi_device = spi_device_ns.class_("SPIDeviceComponent", cg.Component, spi.SPIDevice)
