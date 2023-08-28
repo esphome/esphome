@@ -7,7 +7,7 @@ namespace spi {
 #ifdef USE_ARDUINO
 
 // list of available buses
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables, cppcoreguidelines-interfaces-global-init)
 static std::vector<std::function<SPIClass *()>> bus_list = {
 #ifdef USE_ESP32
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
