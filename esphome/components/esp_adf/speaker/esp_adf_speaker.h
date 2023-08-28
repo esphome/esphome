@@ -17,28 +17,6 @@
 namespace esphome {
 namespace esp_adf {
 
-static const size_t BUFFER_SIZE = 1024;
-
-enum class TaskEventType : uint8_t {
-  STARTING = 0,
-  STARTED,
-  PLAYING,
-  STOPPING,
-  STOPPED,
-  WARNING = 255,
-};
-
-struct TaskEvent {
-  TaskEventType type;
-  esp_err_t err;
-};
-
-struct DataEvent {
-  bool stop;
-  size_t len;
-  uint8_t data[BUFFER_SIZE];
-};
-
 class ESPADFSpeaker : public ESPADFPipeline, public speaker::Speaker, public Component {
  public:
   float get_setup_priority() const override { return esphome::setup_priority::LATE; }

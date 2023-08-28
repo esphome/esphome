@@ -165,7 +165,7 @@ void ESPADFSpeaker::player_task(void *params) {
       current += bytes_written;
     }
 
-    event.type = TaskEventType::PLAYING;
+    event.type = TaskEventType::RUNNING;
     xQueueSend(this_speaker->event_queue_, &event, 0);
   }
 
@@ -214,7 +214,7 @@ void ESPADFSpeaker::watch_() {
       case TaskEventType::STARTED:
       case TaskEventType::STOPPING:
         break;
-      case TaskEventType::PLAYING:
+      case TaskEventType::RUNNING:
         this->status_clear_warning();
         break;
       case TaskEventType::STOPPED:

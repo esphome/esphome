@@ -7,6 +7,33 @@
 
 namespace esphome {
 namespace esp_adf {
+
+static const size_t BUFFER_SIZE = 1024;
+
+enum class TaskEventType : uint8_t {
+  STARTING = 0,
+  STARTED,
+  RUNNING,
+  STOPPING,
+  STOPPED,
+  WARNING = 255,
+};
+
+struct TaskEvent {
+  TaskEventType type;
+  esp_err_t err;
+};
+
+struct CommandEvent {
+  bool stop;
+};
+
+struct DataEvent {
+  bool stop;
+  size_t len;
+  uint8_t data[BUFFER_SIZE];
+};
+
 class ESPADF;
 
 class ESPADFPipeline : public Parented<ESPADF> {};
