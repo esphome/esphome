@@ -14,10 +14,17 @@ static std::vector<std::function<SPIClass *()>> bus_list = {[] { return &SPI; }}
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
 // NOLINT
-static std::vector<std::function<SPIClass *()>> bus_list = {[] { return new SPIClass(FSPI); }, [] { return &SPI; }};
+static std::vector<std::function<SPIClass *()>> bus_list = {
+    [] { return new SPIClass(FSPI); },
+    [] {
+      return &SPI;
+    }};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables) https://bugs.llvm.org/show_bug.cgi?id=48040
 #else
-// NOLINT
-static std::vector<std::function<SPIClass *()>> bus_list = {[] { return new SPIClass(HSPI); }, [] { return &SPI; }};
+static std::vector<std::function<SPIClass *()>> bus_list = {
+    [] { return new SPIClass(HSPI); },
+    [] {
+      return &SPI;
+    }};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables) https://bugs.llvm.org/show_bug.cgi?id=48040
 #endif  // USE_ESP32_VARIANT
 #endif
 

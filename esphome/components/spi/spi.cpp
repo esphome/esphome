@@ -7,8 +7,11 @@ namespace spi {
 
 const char *const TAG = "spi";
 
-SPIDelegate *const SPIDelegate::NULL_DELEGATE = new SPIDelegateDummy();
-GPIOPin *const NullPin::NULL_PIN = new NullPin();
+SPIDelegate *const SPIDelegate::NULL_DELEGATE =
+    new SPIDelegateDummy();                        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+                                                   // https://bugs.llvm.org/show_bug.cgi?id=48040
+GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+                                                   // https://bugs.llvm.org/show_bug.cgi?id=48040
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin) {

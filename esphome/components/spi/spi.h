@@ -149,7 +149,8 @@ class NullPin : public GPIOPin {
 
   std::string dump_summary() const override { return std::string(); }
 
-  static GPIOPin *const NULL_PIN;
+  static GPIOPin *const NULL_PIN;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+                                   // https://bugs.llvm.org/show_bug.cgi?id=48040
 };
 
 class SPIDelegateDummy;
@@ -210,7 +211,8 @@ class SPIDelegate {
       ptr[i] = this->transfer(0);
   }
 
-  static SPIDelegate *const NULL_DELEGATE;
+  static SPIDelegate *const NULL_DELEGATE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+                                            // https://bugs.llvm.org/show_bug.cgi?id=48040
 
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
