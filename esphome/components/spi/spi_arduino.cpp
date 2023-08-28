@@ -7,18 +7,17 @@ namespace spi {
 #ifdef USE_ARDUINO
 
 // list of available buses
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static std::vector<std::function<SPIClass *()>> bus_list = {
 #ifdef USE_ESP32
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
-    [] { return new SPIClass(FSPI); },
+    [] { return new SPIClass(FSPI); }, // NOLINT(cppcoreguidelines-owning-memory,-warnings-as-errors)
 #else
-    [] { return new SPIClass(HSPI); },
+    [] { return new SPIClass(HSPI); }, // NOLINT(cppcoreguidelines-owning-memory,-warnings-as-errors)
 #endif  // USE_ESP32_VARIANT
 #endif
-    [] {
-      return &SPI;
-    }};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables) https://bugs.llvm.org/show_bug.cgi?id=48040
+    [] { return &SPI; }};
 
 class SPIDelegateHw : public SPIDelegate {
  public:

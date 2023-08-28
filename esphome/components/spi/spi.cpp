@@ -7,9 +7,9 @@ namespace spi {
 
 const char *const TAG = "spi";
 
-SPIDelegate *const SPIDelegate::NULL_DELEGATE =
-    new SPIDelegateDummy();                        // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-                                                   // https://bugs.llvm.org/show_bug.cgi?id=48040
+SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+    new SPIDelegateDummy();                      // https://bugs.llvm.org/show_bug.cgi?id=48040
+
 GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
                                                    // https://bugs.llvm.org/show_bug.cgi?id=48040
 
@@ -57,9 +57,9 @@ void SPIComponent::setup() {
     use_hw_spi = false;
 
 #ifdef USE_ESP8266
-  int8_t clk_pin = Utility::get_pin_no(this->clk_pin_);
-  int8_t sdo_pin = Utility::get_pin_no(this->sdo_pin_);
-  int8_t sdi_pin = Utility::get_pin_no(this->sdi_pin_);
+  const int8_t clk_pin = Utility::get_pin_no(this->clk_pin_);
+  const int8_t sdo_pin = Utility::get_pin_no(this->sdo_pin_);
+  const int8_t sdi_pin = Utility::get_pin_no(this->sdi_pin_);
   if (!(clk_pin == 6 && sdi_pin == 7 && sdo_pin == 8) && !(clk_pin == 14 && sdi_pin == 12 && sdo_pin == 13)) {
     use_hw_spi = false;
   }

@@ -8,6 +8,8 @@ namespace spi {
 static const char *const TAG = "spi-esp-idf";
 
 // list of available buses
+// https://bugs.llvm.org/show_bug.cgi?id=48040
+// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
 static std::vector<spi_host_device_t> bus_list = {
 #ifdef USE_ESP8266
     SPI1_HOST,
@@ -15,8 +17,7 @@ static std::vector<spi_host_device_t> bus_list = {
 #ifdef USE_ESP32
     SPI3_HOST, SPI2_HOST
 #endif
-};  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    // https://bugs.llvm.org/show_bug.cgi?id=48040
+};
 
 class SPIDelegateHw : public SPIDelegate {
  public:
