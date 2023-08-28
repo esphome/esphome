@@ -8,7 +8,7 @@ CODEOWNERS = ["@OttoWinter"]
 CONFIG_SCHEMA = cv.All(
     cv.Schema({}),
     cv.only_with_arduino,
-    cv.only_on(["esp32", "esp8266"]),
+    cv.only_on(["esp32", "esp8266", "rp2040"]),
 )
 
 
@@ -20,3 +20,10 @@ async def to_code(config):
     elif CORE.is_esp8266:
         # https://github.com/esphome/ESPAsyncTCP
         cg.add_library("esphome/ESPAsyncTCP-esphome", "1.2.3")
+    elif CORE.is_rp2040:
+        # https://github.com/khoih-prog/AsyncTCP_RP2040W.git
+        cg.add_library(
+            None,
+            None,
+            "https://github.com/khoih-prog/AsyncTCP_RP2040W.git",
+        )

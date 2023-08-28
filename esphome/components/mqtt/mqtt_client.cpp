@@ -103,6 +103,9 @@ void MQTTClientComponent::send_device_info_() {
 #ifdef USE_ESP32
         root["platform"] = "ESP32";
 #endif
+#ifdef USE_RP2040
+        root["platform"] = "RP2040";
+#endif
 
         root["board"] = ESPHOME_BOARD;
 #if defined(USE_WIFI)
@@ -161,6 +164,10 @@ void MQTTClientComponent::start_dnslookup_() {
   err_t err = dns_gethostbyname(this->credentials_.address.c_str(), &addr,
                                 esphome::mqtt::MQTTClientComponent::dns_found_callback, this);
 #endif
+#ifdef USE_RP2040
+  err_t err = dns_gethostbyname(this->credentials_.address.c_str(), &addr,
+                                esphome::mqtt::MQTTClientComponent::dns_found_callback, this);
+#endif
   switch (err) {
     case ERR_OK: {
       // Got IP immediately
@@ -173,6 +180,9 @@ void MQTTClientComponent::start_dnslookup_() {
 #endif
 #endif
 #ifdef USE_ESP8266
+      this->ip_ = addr.addr;
+#endif
+#ifdef USE_RP2040
       this->ip_ = addr.addr;
 #endif
       this->start_connect_();
@@ -233,6 +243,9 @@ void MQTTClientComponent::dns_found_callback(const char *name, const ip_addr_t *
 #endif
 #endif  // USE_ESP32
 #ifdef USE_ESP8266
+    a_this->ip_ = ipaddr->addr;
+#endif
+#ifdef USE_RP2040
     a_this->ip_ = ipaddr->addr;
 #endif
     a_this->dns_resolved_ = true;

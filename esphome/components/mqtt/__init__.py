@@ -250,7 +250,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     validate_config,
-    cv.only_on(["esp32", "esp8266"]),
+    cv.only_on(["esp32", "esp8266", "rp2040"]),
 )
 
 
@@ -275,6 +275,13 @@ async def to_code(config):
     if CORE.is_esp8266:
         # https://github.com/OttoWinter/async-mqtt-client/blob/master/library.json
         cg.add_library("ottowinter/AsyncMqttClient-esphome", "0.8.6")
+    elif CORE.is_rp2040:
+        # https://github.com/skilau/async-mqtt-client/blob/master/library.json
+        cg.add_library(
+            None,
+            None,
+            "https://github.com/skilau/async-mqtt-client.git",
+        )
 
     cg.add_define("USE_MQTT")
     cg.add_global(mqtt_ns.using)
