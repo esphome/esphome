@@ -288,9 +288,7 @@ void resume_wdt() {
 #endif
 }
 
-std::string mask_key(const std::string& key) {
-  return (key.substr(0, 5) + "[...]=");
-}
+std::string mask_key(const std::string &key) { return (key.substr(0, 5) + "[...]="); }
 
 }  // namespace wireguard
 }  // namespace esphome
