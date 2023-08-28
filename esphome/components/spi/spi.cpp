@@ -11,7 +11,6 @@ SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avo
     new SPIDelegateDummy();                      // https://bugs.llvm.org/show_bug.cgi?id=48040
 
 GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-                                                   // https://bugs.llvm.org/show_bug.cgi?id=48040
 
 SPIDelegate *SPIComponent::register_device(SPIClient *device, SPIMode mode, SPIBitOrder bit_order, uint32_t data_rate,
                                            GPIOPin *cs_pin) {
@@ -49,20 +48,28 @@ void SPIComponent::setup() {
   }
   bool use_hw_spi = !this->force_sw_;
 
-  if (!this->clk_pin_->is_internal() || Utility::is_pin_inverted(this->clk_pin_))
-    use_hw_spi = false;
-  if (!sdo_pin_->is_internal() || Utility::is_pin_inverted(this->sdo_pin_))
-    use_hw_spi = false;
-  if (!sdi_pin_->is_internal() || Utility::is_pin_inverted(this->sdi_pin_))
-    use_hw_spi = false;
-
-#ifdef USE_ESP8266
   const int8_t clk_pin = Utility::get_pin_no(this->clk_pin_);
   const int8_t sdo_pin = Utility::get_pin_no(this->sdo_pin_);
   const int8_t sdi_pin = Utility::get_pin_no(this->sdi_pin_);
-  if (!(clk_pin == 6 && sdi_pin == 7 && sdo_pin == 8) && !(clk_pin == 14 && sdi_pin == 12 && sdo_pin == 13)) {
+  if (clk_pin == -1)
     use_hw_spi = false;
+#ifdef ESP8266
+  switch (clk_pin) {
+    case 6:
+      use_hw_spi &= this->sdo_pin_ == NullPin::NULL_PIN || sdo_pin == 8;
+      use_hw_spi &= this->sdi_pin_ == NullPin::NULL_PIN || sdi_pin == 7;
+      break;
+    case 14:
+      use_hw_spi &= this->sdo_pin_ == NullPin::NULL_PIN || sdo_pin == 13;
+      use_hw_spi &= this->sdi_pin_ == NullPin::NULL_PIN || sdi_pin == 12;
+      break;
+    default:
+      use_hw_spi = false;
+      break;
   }
+#else
+  use_hw_spi &= this->sdo_pin_ == NullPin::NULL_PIN || sdo_pin >= 0;
+  use_hw_spi &= this->sdi_pin_ == NullPin::NULL_PIN || sdi_pin >= 0;
 #endif
 
   SPIBus *bus = nullptr;

@@ -90,6 +90,32 @@ enum SPIDataRate : uint32_t {
   DATA_RATE_80MHZ = 80000000,
 };
 
+/**
+ * A pin to replace those that don't exist.
+ */
+class NullPin : public GPIOPin {
+  friend class SPIComponent;
+
+  friend class SPIDelegate;
+
+  friend class Utility;
+
+ public:
+  void setup() override {}
+
+  void pin_mode(gpio::Flags flags) override {}
+
+  bool digital_read() override { return false; }
+
+  void digital_write(bool value) override {}
+
+  std::string dump_summary() const override { return std::string(); }
+
+ protected:
+  static GPIOPin *const NULL_PIN;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
+  // https://bugs.llvm.org/show_bug.cgi?id=48040
+};
+
 class Utility {
  public:
   static int get_pin_no(GPIOPin *pin) {
@@ -98,12 +124,6 @@ class Utility {
     if (((InternalGPIOPin *) pin)->is_inverted())
       return -1;
     return ((InternalGPIOPin *) pin)->get_pin();
-  }
-
-  static bool is_pin_inverted(GPIOPin *pin) {
-    if (pin == nullptr || !pin->is_internal())
-      return false;
-    return ((InternalGPIOPin *) pin)->is_inverted();
   }
 
   static SPIMode get_mode(SPIClockPolarity polarity, SPIClockPhase phase) {
@@ -134,30 +154,13 @@ class Utility {
   }
 };
 
-/**
- * A pin to replace those that don't exist.
- */
-class NullPin : public GPIOPin {
- public:
-  void setup() override {}
-
-  void pin_mode(gpio::Flags flags) override {}
-
-  bool digital_read() override { return false; }
-
-  void digital_write(bool value) override {}
-
-  std::string dump_summary() const override { return std::string(); }
-
-  static GPIOPin *const NULL_PIN;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-                                   // https://bugs.llvm.org/show_bug.cgi?id=48040
-};
-
 class SPIDelegateDummy;
 
 // represents a device attached to an SPI bus, with a defined clock rate, mode and bit order. On Arduino this is
 // a thin wrapper over SPIClass.
 class SPIDelegate {
+  friend class SPIClient;
+
  public:
   SPIDelegate() = default;
 
@@ -211,14 +214,12 @@ class SPIDelegate {
       ptr[i] = this->transfer(0);
   }
 
-  static SPIDelegate *const NULL_DELEGATE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-                                            // https://bugs.llvm.org/show_bug.cgi?id=48040
-
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
   uint32_t data_rate_{1000000};
   SPIMode mode_{MODE0};
   GPIOPin *cs_pin_{NullPin::NULL_PIN};
+  static SPIDelegate *const NULL_DELEGATE;  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 };
 
 /**
@@ -325,6 +326,15 @@ class SPIClient {
   SPIClient(SPIBitOrder bit_order, SPIMode mode, uint32_t data_rate)
       : bit_order_(bit_order), mode_(mode), data_rate_(data_rate) {}
 
+  virtual void spi_setup() {
+    this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_);
+  }
+
+  virtual void spi_teardown() {
+    this->parent_->unregister_device(this);
+    this->delegate_ = SPIDelegate::NULL_DELEGATE;
+  }
+
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
   SPIMode mode_{MODE0};
@@ -352,14 +362,9 @@ class SPIDevice : public SPIClient {
     this->set_cs_pin(cs_pin);
   }
 
-  void spi_setup() {
-    this->delegate_ = this->parent_->register_device(this, this->mode_, this->bit_order_, this->data_rate_, this->cs_);
-  }
+  void spi_setup() override { SPIClient::spi_setup(); }
 
-  void spi_teardown() {
-    this->parent_->unregister_device(this);
-    this->delegate_ = SPIDelegate::NULL_DELEGATE;
-  }
+  void spi_teardown() override { SPIClient::spi_teardown(); }
 
   void set_spi_parent(SPIComponent *parent) { this->parent_ = parent; }
 
