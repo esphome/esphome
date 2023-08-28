@@ -61,6 +61,10 @@ void Wireguard::setup() {
 }
 
 void Wireguard::loop() {
+  if (!this->enabled_) {
+    return;
+  }
+
   if ((this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) && (!network::is_connected())) {
     ESP_LOGV(TAG, "local network connection has been lost, stopping WireGuard...");
     this->stop_connection_();
@@ -68,6 +72,10 @@ void Wireguard::loop() {
 }
 
 void Wireguard::update() {
+  if (!this->enabled_) {
+    return;
+  }
+
   bool peer_up = this->is_peer_up();
   time_t lhs = this->get_latest_handshake();
   bool lhs_updated = (lhs > this->latest_saved_handshake_);
@@ -147,7 +155,7 @@ void Wireguard::dump_config() {
 
 void Wireguard::on_shutdown() { this->stop_connection_(); }
 
-bool Wireguard::can_proceed() { return (this->proceed_allowed_ || this->is_peer_up()); }
+bool Wireguard::can_proceed() { return (this->proceed_allowed_ || this->is_peer_up() || !this->enabled_); }
 
 bool Wireguard::is_peer_up() const {
   return (this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) &&
@@ -188,7 +196,25 @@ void Wireguard::set_handshake_sensor(sensor::Sensor *sensor) { this->handshake_s
 
 void Wireguard::disable_auto_proceed() { this->proceed_allowed_ = false; }
 
+void Wireguard::enable() {
+  this->enabled_ = true;
+  ESP_LOGI(TAG, "WireGuard enabled");
+}
+
+void Wireguard::disable() {
+  this->enabled_ = false;
+  this->stop_connection_();
+  ESP_LOGI(TAG, "WireGuard disabled");
+}
+
+bool Wireguard::is_enabled() { return this->enabled_; }
+
 void Wireguard::start_connection_() {
+  if (!this->enabled_) {
+    ESP_LOGV(TAG, "WireGuard is disabled");
+    return;
+  }
+
   if (this->wg_initialized_ != ESP_OK) {
     ESP_LOGE(TAG, "cannot start WireGuard, initialization in error with code %d", this->wg_initialized_);
     return;

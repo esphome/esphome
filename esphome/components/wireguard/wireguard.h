@@ -58,6 +58,15 @@ class Wireguard : public PollingComponent {
   /// Block the setup step until peer is connected.
   void disable_auto_proceed();
 
+  /// Enable the WireGuard component
+  void enable();
+
+  /// Stop running connection and disable the WireGuard component
+  void disable();
+
+  /// Return if the WireGuard component is or is not enabled
+  bool is_enabled();
+
   bool is_peer_up() const;
   time_t get_latest_handshake() const;
 
@@ -87,6 +96,9 @@ class Wireguard : public PollingComponent {
 
   /// Set to false to block the setup step until peer is connected.
   bool proceed_allowed_ = true;
+
+  /// When false the wireguard link will not be established
+  bool enabled_ = true;
 
   wireguard_config_t wg_config_ = ESP_WIREGUARD_CONFIG_DEFAULT();
   wireguard_ctx_t wg_ctx_ = ESP_WIREGUARD_CONTEXT_DEFAULT();
