@@ -9,9 +9,8 @@ namespace spi {
 #ifdef USE_RP2040
 using SPIBusDelegate = SPIClassRP2040;
 #else
-using SPIBusDelegate = SPIClass
+using SPIBusDelegate = SPIClass;
 #endif
-
 
 // list of available buses
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables, cppcoreguidelines-interfaces-global-init)
@@ -24,7 +23,7 @@ static std::vector<std::function<SPIBusDelegate *()>> bus_list = {
     [] { return new SPIClass(HSPI); },  // NOLINT(cppcoreguidelines-owning-memory)
 #endif  // USE_ESP32_VARIANT
 #ifdef USE_RP2040
-    [] { return &SPI1; }};  // NOLINT(cppcoreguidelines-interfaces-global-init)
+    [] { return &SPI1; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
 #endif
 #endif
     [] { return &SPI; }};  // NOLINT(cppcoreguidelines-interfaces-global-init)
@@ -59,7 +58,7 @@ class SPIDelegateHw : public SPIDelegate {
   void write_array(const uint8_t *ptr, size_t length) override {
     uint8_t *rxbuf = new uint8_t[length];
     memcpy(rxbuf, ptr, length);
-    this->channel_->transfer((void *)rxbuf, length);
+    this->channel_->transfer((void *) rxbuf, length);
   }
 #else
   void write_array(const uint8_t *ptr, size_t length) override { this->channel_->writeBytes(ptr, length); }
@@ -73,7 +72,8 @@ class SPIDelegateHw : public SPIDelegate {
 
 class SPIBusHw : public SPIBus {
  public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIBusDelegate *channel) : SPIBus(clk, sdo, sdi), channel_(channel) {
+  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIBusDelegate *channel)
+      : SPIBus(clk, sdo, sdi), channel_(channel) {
 #ifdef USE_ESP8266
     channel->pins(Utility::get_pin_no(clk), Utility::get_pin_no(sdi), Utility::get_pin_no(sdo), -1);
     channel->begin();
