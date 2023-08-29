@@ -21,12 +21,14 @@ static std::vector<std::function<SPIBusDelegate *()>> bus_list = {
     [] { return new SPIClass(FSPI); },  // NOLINT(cppcoreguidelines-owning-memory)
 #else
     [] { return new SPIClass(HSPI); },  // NOLINT(cppcoreguidelines-owning-memory)
-#endif  // USE_ESP32_VARIANT
+#endif                    // USE_ESP32_VARIANT
+    [] { return &SPI; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
+#endif                    // USE_ESP32
 #ifdef USE_RP2040
-    [] { return &SPI1; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
+// Doesn't seem to be defined.
+//  [] { return &SPI1; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
 #endif
-#endif
-    [] { return &SPI; }};  // NOLINT(cppcoreguidelines-interfaces-global-init)
+};
 
 class SPIDelegateHw : public SPIDelegate {
  public:
