@@ -20,8 +20,8 @@ SPIRAM_MODES = {
 
 SPIRAM_SPEEDS = {
     40e6: "CONFIG_SPIRAM_SPEED_40M",
-    80e6": "CONFIG_SPIRAM_SPEED_80M",
-    120e6": "CONFIG_SPIRAM_SPEED_120M",
+    80e6: "CONFIG_SPIRAM_SPEED_80M",
+    120e6: "CONFIG_SPIRAM_SPEED_120M",
 }
 
 CONFIG_SCHEMA = cv.All(
@@ -29,7 +29,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(PsramComponent),
             cv.Optional(CONF_MODE): cv.enum(SPIRAM_MODES, lower=True),
-            cv.Optional(CONF_SPEED): cv.all(cv.frequency, cv.one_of(*SPIRAM_SPEEDS)),
+            cv.Optional(CONF_SPEED): cv.All(cv.frequency, cv.one_of(*SPIRAM_SPEEDS)),
         }
     ),
     cv.only_on_esp32,
