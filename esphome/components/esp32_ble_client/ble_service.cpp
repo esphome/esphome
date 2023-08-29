@@ -29,6 +29,13 @@ BLEService::~BLEService() {
     delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
+void BLEService::release_characteristics() {
+  this->parsed = false;
+  for (auto &chr : this->characteristics)
+    delete chr;  // NOLINT(cppcoreguidelines-owning-memory)
+  this->characteristics.clear();
+}
+
 void BLEService::parse_characteristics() {
   this->parsed = true;
   uint16_t offset = 0;

@@ -63,10 +63,12 @@ enum SPIDataRate : uint32_t {
   DATA_RATE_1MHZ = 1000000,
   DATA_RATE_2MHZ = 2000000,
   DATA_RATE_4MHZ = 4000000,
+  DATA_RATE_5MHZ = 5000000,
   DATA_RATE_8MHZ = 8000000,
   DATA_RATE_10MHZ = 10000000,
   DATA_RATE_20MHZ = 20000000,
   DATA_RATE_40MHZ = 40000000,
+  DATA_RATE_80MHZ = 80000000,
 };
 
 class SPIComponent : public Component {
@@ -74,6 +76,7 @@ class SPIComponent : public Component {
   void set_clk(GPIOPin *clk) { clk_ = clk; }
   void set_miso(GPIOPin *miso) { miso_ = miso; }
   void set_mosi(GPIOPin *mosi) { mosi_ = mosi; }
+  void set_force_sw(bool force_sw) { force_sw_ = force_sw; }
 
   void setup() override;
 
@@ -260,6 +263,7 @@ class SPIComponent : public Component {
   GPIOPin *miso_{nullptr};
   GPIOPin *mosi_{nullptr};
   GPIOPin *active_cs_{nullptr};
+  bool force_sw_{false};
 #ifdef USE_SPI_ARDUINO_BACKEND
   SPIClass *hw_spi_{nullptr};
 #endif  // USE_SPI_ARDUINO_BACKEND

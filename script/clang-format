@@ -17,7 +17,7 @@ def run_format(args, queue, lock, failed_files):
     """Takes filenames out of queue and runs clang-format on them."""
     while True:
         path = queue.get()
-        invocation = ["clang-format-11"]
+        invocation = ["clang-format-13"]
         if args.inplace:
             invocation.append("-i")
         else:
@@ -59,14 +59,14 @@ def main():
     args = parser.parse_args()
 
     try:
-        get_output("clang-format-11", "-version")
+        get_output("clang-format-13", "-version")
     except:
         print(
             """
         Oops. It looks like clang-format is not installed. 
         
-        Please check you can run "clang-format-11 -version" in your terminal and install
-        clang-format (v11) if necessary.
+        Please check you can run "clang-format-13 -version" in your terminal and install
+        clang-format (v13) if necessary.
         
         Note you can also upload your code as a pull request on GitHub and see the CI check
         output to apply clang-format.

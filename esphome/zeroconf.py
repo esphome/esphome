@@ -1,19 +1,19 @@
+import logging
 import socket
 import threading
 import time
-from typing import Optional
-import logging
 from dataclasses import dataclass
+from typing import Optional
 
 from zeroconf import (
     DNSAddress,
     DNSOutgoing,
-    DNSRecord,
     DNSQuestion,
+    RecordUpdate,
     RecordUpdateListener,
-    Zeroconf,
     ServiceBrowser,
     ServiceStateChange,
+    Zeroconf,
     current_time_millis,
 )
 
@@ -24,17 +24,28 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class HostResolver(RecordUpdateListener):
+    """Resolve a host name to an IP address."""
+
     def __init__(self, name: str):
         self.name = name
         self.address: Optional[bytes] = None
 
-    def update_record(self, zc: Zeroconf, now: float, record: DNSRecord) -> None:
-        if record is None:
-            return
-        if record.type == _TYPE_A:
-            assert isinstance(record, DNSAddress)
-            if record.name == self.name:
-                self.address = record.address
+    def async_update_records(
+        self, zc: Zeroconf, now: float, records: list[RecordUpdate]
+    ) -> None:
+        """Update multiple records in one shot.
+
+        This will run in zeroconf's event loop thread so it
+        must be thread-safe.
+        """
+        for record_update in records:
+            record, _ = record_update
+            if record is None:
+                continue
+            if record.type == _TYPE_A:
+                assert isinstance(record, DNSAddress)
+                if record.name == self.name:
+                    self.address = record.address
 
     def request(self, zc: Zeroconf, timeout: float) -> bool:
         now = time.time()
@@ -119,10 +130,12 @@ TXT_RECORD_PACKAGE_IMPORT_URL = b"package_import_url"
 TXT_RECORD_PROJECT_NAME = b"project_name"
 TXT_RECORD_PROJECT_VERSION = b"project_version"
 TXT_RECORD_NETWORK = b"network"
+TXT_RECORD_FRIENDLY_NAME = b"friendly_name"
 
 
 @dataclass
 class DiscoveredImport:
+    friendly_name: Optional[str]
     device_name: str
     package_import_url: str
     project_name: str
@@ -155,6 +168,11 @@ class DashboardImportDiscovery:
             return
         if state_change == ServiceStateChange.Removed:
             self.import_state.pop(name, None)
+            return
+
+        if state_change == ServiceStateChange.Updated and name not in self.import_state:
+            # Ignore updates for devices that are not in the import state
+            return
 
         info = zeroconf.get_service_info(service_type, name)
         _LOGGER.debug("-> resolved info: %s", info)
@@ -174,8 +192,12 @@ class DashboardImportDiscovery:
         project_name = info.properties[TXT_RECORD_PROJECT_NAME].decode()
         project_version = info.properties[TXT_RECORD_PROJECT_VERSION].decode()
         network = info.properties.get(TXT_RECORD_NETWORK, b"wifi").decode()
+        friendly_name = info.properties.get(TXT_RECORD_FRIENDLY_NAME)
+        if friendly_name is not None:
+            friendly_name = friendly_name.decode()
 
         self.import_state[name] = DiscoveredImport(
+            friendly_name=friendly_name,
             device_name=node_name,
             package_import_url=import_url,
             project_name=project_name,

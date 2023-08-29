@@ -8,32 +8,37 @@
 namespace esphome {
 namespace switch_ {
 
-#define LOG_SWITCH(prefix, type, obj) \
-  if ((obj) != nullptr) { \
-    ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
-    if (!(obj)->get_icon().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
-    } \
-    if ((obj)->assumed_state()) { \
-      ESP_LOGCONFIG(TAG, "%s  Assumed State: YES", prefix); \
-    } \
-    if ((obj)->is_inverted()) { \
-      ESP_LOGCONFIG(TAG, "%s  Inverted: YES", prefix); \
-    } \
-    if (!(obj)->get_device_class().empty()) { \
-      ESP_LOGCONFIG(TAG, "%s  Device Class: '%s'", prefix, (obj)->get_device_class().c_str()); \
-    } \
-  }
+#define SUB_SWITCH(name) \
+ protected: \
+  switch_::Switch *name##_switch_{nullptr}; \
+\
+ public: \
+  void set_##name##_switch(switch_::Switch *s) { this->name##_switch_ = s; }
+
+// bit0: on/off. bit1: persistent. bit2: inverted. bit3: disabled
+const int RESTORE_MODE_ON_MASK = 0x01;
+const int RESTORE_MODE_PERSISTENT_MASK = 0x02;
+const int RESTORE_MODE_INVERTED_MASK = 0x04;
+const int RESTORE_MODE_DISABLED_MASK = 0x08;
+
+enum SwitchRestoreMode {
+  SWITCH_ALWAYS_OFF = !RESTORE_MODE_ON_MASK,
+  SWITCH_ALWAYS_ON = RESTORE_MODE_ON_MASK,
+  SWITCH_RESTORE_DEFAULT_OFF = RESTORE_MODE_PERSISTENT_MASK,
+  SWITCH_RESTORE_DEFAULT_ON = RESTORE_MODE_PERSISTENT_MASK | RESTORE_MODE_ON_MASK,
+  SWITCH_RESTORE_INVERTED_DEFAULT_OFF = RESTORE_MODE_PERSISTENT_MASK | RESTORE_MODE_INVERTED_MASK,
+  SWITCH_RESTORE_INVERTED_DEFAULT_ON = RESTORE_MODE_PERSISTENT_MASK | RESTORE_MODE_INVERTED_MASK | RESTORE_MODE_ON_MASK,
+  SWITCH_RESTORE_DISABLED = RESTORE_MODE_DISABLED_MASK,
+};
 
 /** Base class for all switches.
  *
  * A switch is basically just a combination of a binary sensor (for reporting switch values)
  * and a write_state method that writes a state to the hardware.
  */
-class Switch : public EntityBase {
+class Switch : public EntityBase, public EntityBase_DeviceClass {
  public:
   explicit Switch();
-  explicit Switch(const std::string &name);
 
   /** Publish a state to the front-end from the back-end.
    *
@@ -46,6 +51,9 @@ class Switch : public EntityBase {
 
   /// The current reported state of the binary sensor.
   bool state;
+
+  /// Indicates whether or not state is to be retrieved from flash and how
+  SwitchRestoreMode restore_mode{SWITCH_RESTORE_DEFAULT_OFF};
 
   /** Turn this switch on. This is called by the front-end.
    *
@@ -80,7 +88,18 @@ class Switch : public EntityBase {
    */
   void add_on_state_callback(std::function<void(bool)> &&callback);
 
+  /** Returns the initial state of the switch, as persisted previously,
+    or empty if never persisted.
+   */
   optional<bool> get_initial_state();
+
+  /** Returns the initial state of the switch, after applying restore mode rules.
+   * If restore mode is disabled, this function will return an optional with no value
+   * (.has_value() is false), leaving it up to the component to decide the state.
+   * For example, the component could read the state from hardware and determine the current
+   * state.
+   */
+  optional<bool> get_initial_state_with_restore_mode();
 
   /** Return whether this switch uses an assumed state - i.e. if both the ON/OFF actions should be displayed in Home
    * Assistant because the real state is unknown.
@@ -91,10 +110,7 @@ class Switch : public EntityBase {
 
   bool is_inverted() const;
 
-  /// Get the device class for this switch.
-  std::string get_device_class();
-  /// Set the Home Assistant device class for this switch.
-  void set_device_class(const std::string &device_class);
+  void set_restore_mode(SwitchRestoreMode restore_mode) { this->restore_mode = restore_mode; }
 
  protected:
   /** Write the given state to hardware. You should implement this
@@ -111,8 +127,10 @@ class Switch : public EntityBase {
   bool inverted_{false};
   Deduplicator<bool> publish_dedup_;
   ESPPreferenceObject rtc_;
-  optional<std::string> device_class_;
 };
+
+#define LOG_SWITCH(prefix, type, obj) log_switch((TAG), (prefix), LOG_STR_LITERAL(type), (obj))
+void log_switch(const char *tag, const char *prefix, const char *type, Switch *obj);
 
 }  // namespace switch_
 }  // namespace esphome

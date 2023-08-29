@@ -247,6 +247,8 @@ climate::ClimateTraits ThermostatClimate::traits() {
     traits.add_supported_fan_mode(climate::CLIMATE_FAN_FOCUS);
   if (supports_fan_mode_diffuse_)
     traits.add_supported_fan_mode(climate::CLIMATE_FAN_DIFFUSE);
+  if (supports_fan_mode_quiet_)
+    traits.add_supported_fan_mode(climate::CLIMATE_FAN_QUIET);
 
   if (supports_swing_mode_both_)
     traits.add_supported_swing_mode(climate::CLIMATE_SWING_BOTH);
@@ -593,6 +595,10 @@ void ThermostatClimate::switch_to_fan_mode_(climate::ClimateFanMode fan_mode, bo
       case climate::CLIMATE_FAN_DIFFUSE:
         trig = this->fan_mode_diffuse_trigger_;
         ESP_LOGVV(TAG, "Switching to FAN_DIFFUSE mode");
+        break;
+      case climate::CLIMATE_FAN_QUIET:
+        trig = this->fan_mode_quiet_trigger_;
+        ESP_LOGVV(TAG, "Switching to FAN_QUIET mode");
         break;
       default:
         // we cannot report an invalid mode back to HA (even if it asked for one)
@@ -1093,6 +1099,7 @@ ThermostatClimate::ThermostatClimate()
       fan_mode_middle_trigger_(new Trigger<>()),
       fan_mode_focus_trigger_(new Trigger<>()),
       fan_mode_diffuse_trigger_(new Trigger<>()),
+      fan_mode_quiet_trigger_(new Trigger<>()),
       swing_mode_both_trigger_(new Trigger<>()),
       swing_mode_off_trigger_(new Trigger<>()),
       swing_mode_horizontal_trigger_(new Trigger<>()),
@@ -1208,6 +1215,9 @@ void ThermostatClimate::set_supports_fan_mode_focus(bool supports_fan_mode_focus
 void ThermostatClimate::set_supports_fan_mode_diffuse(bool supports_fan_mode_diffuse) {
   this->supports_fan_mode_diffuse_ = supports_fan_mode_diffuse;
 }
+void ThermostatClimate::set_supports_fan_mode_quiet(bool supports_fan_mode_quiet) {
+  this->supports_fan_mode_quiet_ = supports_fan_mode_quiet;
+}
 void ThermostatClimate::set_supports_swing_mode_both(bool supports_swing_mode_both) {
   this->supports_swing_mode_both_ = supports_swing_mode_both;
 }
@@ -1250,6 +1260,7 @@ Trigger<> *ThermostatClimate::get_fan_mode_high_trigger() const { return this->f
 Trigger<> *ThermostatClimate::get_fan_mode_middle_trigger() const { return this->fan_mode_middle_trigger_; }
 Trigger<> *ThermostatClimate::get_fan_mode_focus_trigger() const { return this->fan_mode_focus_trigger_; }
 Trigger<> *ThermostatClimate::get_fan_mode_diffuse_trigger() const { return this->fan_mode_diffuse_trigger_; }
+Trigger<> *ThermostatClimate::get_fan_mode_quiet_trigger() const { return this->fan_mode_quiet_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_both_trigger() const { return this->swing_mode_both_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_off_trigger() const { return this->swing_mode_off_trigger_; }
 Trigger<> *ThermostatClimate::get_swing_mode_horizontal_trigger() const { return this->swing_mode_horizontal_trigger_; }
@@ -1294,7 +1305,8 @@ void ThermostatClimate::dump_config() {
   }
   if (this->supports_fan_mode_on_ || this->supports_fan_mode_off_ || this->supports_fan_mode_auto_ ||
       this->supports_fan_mode_low_ || this->supports_fan_mode_medium_ || this->supports_fan_mode_high_ ||
-      this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_) {
+      this->supports_fan_mode_middle_ || this->supports_fan_mode_focus_ || this->supports_fan_mode_diffuse_ ||
+      this->supports_fan_mode_quiet_) {
     ESP_LOGCONFIG(TAG, "  Minimum Fan Mode Switching Time: %us",
                   this->timer_duration_(thermostat::TIMER_FAN_MODE) / 1000);
   }
@@ -1323,6 +1335,7 @@ void ThermostatClimate::dump_config() {
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE MIDDLE: %s", YESNO(this->supports_fan_mode_middle_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE FOCUS: %s", YESNO(this->supports_fan_mode_focus_));
   ESP_LOGCONFIG(TAG, "  Supports FAN MODE DIFFUSE: %s", YESNO(this->supports_fan_mode_diffuse_));
+  ESP_LOGCONFIG(TAG, "  Supports FAN MODE QUIET: %s", YESNO(this->supports_fan_mode_quiet_));
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE BOTH: %s", YESNO(this->supports_swing_mode_both_));
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE OFF: %s", YESNO(this->supports_swing_mode_off_));
   ESP_LOGCONFIG(TAG, "  Supports SWING MODE HORIZONTAL: %s", YESNO(this->supports_swing_mode_horizontal_));

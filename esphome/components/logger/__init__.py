@@ -17,6 +17,9 @@ from esphome.const import (
     CONF_TAG,
     CONF_TRIGGER_ID,
     CONF_TX_BUFFER_SIZE,
+    PLATFORM_ESP32,
+    PLATFORM_ESP8266,
+    PLATFORM_RP2040,
 )
 from esphome.core import CORE, EsphomeError, Lambda, coroutine_with_priority
 from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
@@ -25,6 +28,8 @@ from esphome.components.esp32.const import (
     VARIANT_ESP32S2,
     VARIANT_ESP32C3,
     VARIANT_ESP32S3,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C6,
 )
 
 CODEOWNERS = ["@esphome/core"]
@@ -71,6 +76,8 @@ UART_SELECTION_ESP32 = {
     VARIANT_ESP32S2: [UART0, UART1, USB_CDC],
     VARIANT_ESP32S3: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
     VARIANT_ESP32C3: [UART0, UART1, USB_SERIAL_JTAG],
+    VARIANT_ESP32C2: [UART0, UART1],
+    VARIANT_ESP32C6: [UART0, UART1, USB_CDC, USB_SERIAL_JTAG],
 }
 
 UART_SELECTION_ESP8266 = [UART0, UART0_SWAP, UART1]
@@ -141,7 +148,10 @@ CONFIG_SCHEMA = cv.All(
                 esp8266=UART0,
                 esp32=UART0,
                 rp2040=USB_CDC,
-            ): uart_selection,
+            ): cv.All(
+                cv.only_on([PLATFORM_ESP8266, PLATFORM_ESP32, PLATFORM_RP2040]),
+                uart_selection,
+            ),
             cv.Optional(CONF_LEVEL, default="DEBUG"): is_log_level,
             cv.Optional(CONF_LOGS, default={}): cv.Schema(
                 {

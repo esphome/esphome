@@ -13,7 +13,7 @@ CONF_HOT_JUNCTION = "hot_junction"
 CONF_COLD_JUNCTION = "cold_junction"
 
 DEPENDENCIES = ["i2c"]
-CODEOWNERS = ["@MrEditor97"]
+CODEOWNERS = ["@mreditor97"]
 
 mcp9600_ns = cg.esphome_ns.namespace("mcp9600")
 MCP9600Component = mcp9600_ns.class_(
@@ -58,7 +58,7 @@ CONFIG_SCHEMA = (
 )
 
 FINAL_VALIDATE_SCHEMA = i2c.final_validate_device_schema(
-    "mcp9600", min_frequency="100khz"
+    "mcp9600", min_frequency="10khz"
 )
 
 

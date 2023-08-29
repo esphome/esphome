@@ -25,6 +25,7 @@ class BLEService {
   std::vector<BLECharacteristic *> characteristics;
   BLEClientBase *client;
   void parse_characteristics();
+  void release_characteristics();
   BLECharacteristic *get_characteristic(espbt::ESPBTUUID uuid);
   BLECharacteristic *get_characteristic(uint16_t uuid);
 };

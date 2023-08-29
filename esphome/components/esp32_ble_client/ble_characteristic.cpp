@@ -16,6 +16,13 @@ BLECharacteristic::~BLECharacteristic() {
     delete desc;  // NOLINT(cppcoreguidelines-owning-memory)
 }
 
+void BLECharacteristic::release_descriptors() {
+  this->parsed = false;
+  for (auto &desc : this->descriptors)
+    delete desc;  // NOLINT(cppcoreguidelines-owning-memory)
+  this->descriptors.clear();
+}
+
 void BLECharacteristic::parse_descriptors() {
   this->parsed = true;
   uint16_t offset = 0;

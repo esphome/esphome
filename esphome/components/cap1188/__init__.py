@@ -9,7 +9,7 @@ CONF_ALLOW_MULTIPLE_TOUCHES = "allow_multiple_touches"
 
 DEPENDENCIES = ["i2c"]
 AUTO_LOAD = ["binary_sensor", "output"]
-CODEOWNERS = ["@MrEditor97"]
+CODEOWNERS = ["@mreditor97"]
 
 cap1188_ns = cg.esphome_ns.namespace("cap1188")
 CONF_CAP1188_ID = "cap1188_id"
@@ -37,8 +37,8 @@ async def to_code(config):
     cg.add(var.set_touch_threshold(config[CONF_TOUCH_THRESHOLD]))
     cg.add(var.set_allow_multiple_touches(config[CONF_ALLOW_MULTIPLE_TOUCHES]))
 
-    if CONF_RESET_PIN in config:
-        pin = await cg.gpio_pin_expression(config[CONF_RESET_PIN])
+    if reset_pin_config := config.get(CONF_RESET_PIN):
+        pin = await cg.gpio_pin_expression(reset_pin_config)
         cg.add(var.set_reset_pin(pin))
 
     await cg.register_component(var, config)

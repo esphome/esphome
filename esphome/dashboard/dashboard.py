@@ -1,7 +1,9 @@
 import base64
+import binascii
 import codecs
 import collections
 import functools
+import gzip
 import hashlib
 import hmac
 import json
@@ -23,12 +25,13 @@ import tornado.ioloop
 import tornado.iostream
 import tornado.netutil
 import tornado.process
+import tornado.queues
 import tornado.web
 import tornado.websocket
+import yaml
 from tornado.log import access_log
 
 from esphome import const, platformio_api, util, yaml_util
-from esphome.core import EsphomeError
 from esphome.helpers import get_bool_env, mkdir_p, run_system_command
 from esphome.storage_json import (
     EsphomeStorageJSON,
@@ -40,7 +43,7 @@ from esphome.storage_json import (
 from esphome.util import get_serial_ports, shlex_quote
 from esphome.zeroconf import DashboardImportDiscovery, DashboardStatus, EsphomeZeroconf
 
-from .util import password_hash
+from .util import friendly_name_slugify, password_hash
 
 _LOGGER = logging.getLogger(__name__)
 
@@ -55,6 +58,7 @@ class DashboardSettings:
         self.using_password = False
         self.on_ha_addon = False
         self.cookie_secret = None
+        self.absolute_config_dir = None
 
     def parse_args(self, args):
         self.on_ha_addon = args.ha_addon
@@ -65,6 +69,7 @@ class DashboardSettings:
         if self.using_password:
             self.password_hash = password_hash(password)
         self.config_dir = args.configuration
+        self.absolute_config_dir = Path(self.config_dir).resolve()
 
     @property
     def relative_url(self):
@@ -73,6 +78,10 @@ class DashboardSettings:
     @property
     def status_use_ping(self):
         return get_bool_env("ESPHOME_DASHBOARD_USE_PING")
+
+    @property
+    def status_use_mqtt(self):
+        return get_bool_env("ESPHOME_DASHBOARD_USE_MQTT")
 
     @property
     def using_ha_addon_auth(self):
@@ -84,6 +93,10 @@ class DashboardSettings:
     def using_auth(self):
         return self.using_password or self.using_ha_addon_auth
 
+    @property
+    def streamer_mode(self):
+        return get_bool_env("ESPHOME_STREAMER_MODE")
+
     def check_password(self, username, password):
         if not self.using_auth:
             return True
@@ -94,7 +107,10 @@ class DashboardSettings:
         return hmac.compare_digest(self.password_hash, password_hash(password))
 
     def rel_path(self, *args):
-        return os.path.join(self.config_dir, *args)
+        joined_path = os.path.join(self.config_dir, *args)
+        # Raises ValueError if not relative to ESPHome config folder
+        Path(joined_path).resolve().relative_to(self.absolute_config_dir)
+        return joined_path
 
     def list_yaml_files(self):
         return util.list_yaml_files([self.config_dir])
@@ -119,7 +135,7 @@ def template_args():
         "docs_link": docs_link,
         "get_static_file_url": get_static_file_url,
         "relative_url": settings.relative_url,
-        "streamer_mode": get_bool_env("ESPHOME_STREAMER_MODE"),
+        "streamer_mode": settings.streamer_mode,
         "config_dir": settings.config_dir,
     }
 
@@ -191,7 +207,11 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
     def __init__(self, application, request, **kwargs):
         super().__init__(application, request, **kwargs)
         self._proc = None
+        self._queue = None
         self._is_closed = False
+        # Windows doesn't support non-blocking pipes,
+        # use Popen() with a reading thread instead
+        self._use_popen = os.name == "nt"
 
     @authenticated
     def on_message(self, message):
@@ -213,13 +233,28 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
             return
         command = self.build_command(json_message)
         _LOGGER.info("Running command '%s'", " ".join(shlex_quote(x) for x in command))
-        self._proc = tornado.process.Subprocess(
-            command,
-            stdout=tornado.process.Subprocess.STREAM,
-            stderr=subprocess.STDOUT,
-            stdin=tornado.process.Subprocess.STREAM,
-        )
-        self._proc.set_exit_callback(self._proc_on_exit)
+
+        if self._use_popen:
+            self._queue = tornado.queues.Queue()
+            # pylint: disable=consider-using-with
+            self._proc = subprocess.Popen(
+                command,
+                stdin=subprocess.PIPE,
+                stdout=subprocess.PIPE,
+                stderr=subprocess.STDOUT,
+            )
+            stdout_thread = threading.Thread(target=self._stdout_thread)
+            stdout_thread.daemon = True
+            stdout_thread.start()
+        else:
+            self._proc = tornado.process.Subprocess(
+                command,
+                stdout=tornado.process.Subprocess.STREAM,
+                stderr=subprocess.STDOUT,
+                stdin=tornado.process.Subprocess.STREAM,
+            )
+            self._proc.set_exit_callback(self._proc_on_exit)
+
         tornado.ioloop.IOLoop.current().spawn_callback(self._redirect_stdout)
 
     @property
@@ -241,13 +276,32 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
 
         while True:
             try:
-                data = yield self._proc.stdout.read_until_regex(reg)
+                if self._use_popen:
+                    data = yield self._queue.get()
+                    if data is None:
+                        self._proc_on_exit(self._proc.poll())
+                        break
+                else:
+                    data = yield self._proc.stdout.read_until_regex(reg)
             except tornado.iostream.StreamClosedError:
                 break
             data = codecs.decode(data, "utf8", "replace")
 
             _LOGGER.debug("> stdout: %s", data)
             self.write_message({"event": "line", "data": data})
+
+    def _stdout_thread(self):
+        if not self._use_popen:
+            return
+        while True:
+            data = self._proc.stdout.readline()
+            if data:
+                data = data.replace(b"\r", b"")
+                self._queue.put_nowait(data)
+            if self._proc.poll() is not None:
+                break
+        self._proc.wait(1.0)
+        self._queue.put_nowait(None)
 
     def _proc_on_exit(self, returncode):
         if not self._is_closed:
@@ -259,7 +313,10 @@ class EsphomeCommandWebSocket(tornado.websocket.WebSocketHandler):
         # Check if proc exists (if 'start' has been run)
         if self.is_process_active:
             _LOGGER.debug("Terminating process")
-            self._proc.proc.terminate()
+            if self._use_popen:
+                self._proc.terminate()
+            else:
+                self._proc.proc.terminate()
         # Shutdown proc on WS close
         self._is_closed = True
 
@@ -281,8 +338,11 @@ class EsphomeLogsHandler(EsphomeCommandWebSocket):
 
 
 class EsphomeRenameHandler(EsphomeCommandWebSocket):
+    old_name: str
+
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
+        self.old_name = json_message["configuration"]
         return [
             "esphome",
             "--dashboard",
@@ -291,8 +351,30 @@ class EsphomeRenameHandler(EsphomeCommandWebSocket):
             json_message["newName"],
         ]
 
+    def _proc_on_exit(self, returncode):
+        super()._proc_on_exit(returncode)
+
+        if returncode != 0:
+            return
+
+        # Remove the old ping result from the cache
+        PING_RESULT.pop(self.old_name, None)
+
 
 class EsphomeUploadHandler(EsphomeCommandWebSocket):
+    def build_command(self, json_message):
+        config_file = settings.rel_path(json_message["configuration"])
+        return [
+            "esphome",
+            "--dashboard",
+            "upload",
+            config_file,
+            "--device",
+            json_message["port"],
+        ]
+
+
+class EsphomeRunHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
         return [
@@ -318,7 +400,10 @@ class EsphomeCompileHandler(EsphomeCommandWebSocket):
 class EsphomeValidateHandler(EsphomeCommandWebSocket):
     def build_command(self, json_message):
         config_file = settings.rel_path(json_message["configuration"])
-        return ["esphome", "--dashboard", "config", config_file]
+        command = ["esphome", "--dashboard", "config", config_file]
+        if not settings.streamer_mode:
+            command.append("--show-secrets")
+        return command
 
 
 class EsphomeCleanMqttHandler(EsphomeCommandWebSocket):
@@ -378,12 +463,24 @@ class WizardRequestHandler(BaseHandler):
             for k, v in json.loads(self.request.body.decode()).items()
             if k in ("name", "platform", "board", "ssid", "psk", "password")
         }
+        if not kwargs["name"]:
+            self.set_status(422)
+            self.set_header("content-type", "application/json")
+            self.write(json.dumps({"error": "Name is required"}))
+            return
+
+        kwargs["friendly_name"] = kwargs["name"]
+        kwargs["name"] = friendly_name_slugify(kwargs["friendly_name"])
+
         kwargs["ota_password"] = secrets.token_hex(16)
         noise_psk = secrets.token_bytes(32)
         kwargs["api_encryption_key"] = base64.b64encode(noise_psk).decode()
-        destination = settings.rel_path(f"{kwargs['name']}.yaml")
+        filename = f"{kwargs['name']}.yaml"
+        destination = settings.rel_path(filename)
         wizard.wizard_write(path=destination, **kwargs)
         self.set_status(200)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps({"configuration": filename}))
         self.finish()
 
 
@@ -395,6 +492,8 @@ class ImportRequestHandler(BaseHandler):
         args = json.loads(self.request.body.decode())
         try:
             name = args["name"]
+            friendly_name = args.get("friendly_name")
+            encryption = args.get("encryption", False)
 
             imported_device = next(
                 (res for res in IMPORT_RESULT.values() if res.device_name == name), None
@@ -402,22 +501,32 @@ class ImportRequestHandler(BaseHandler):
 
             if imported_device is not None:
                 network = imported_device.network
+                if friendly_name is None:
+                    friendly_name = imported_device.friendly_name
             else:
                 network = const.CONF_WIFI
 
             import_config(
                 settings.rel_path(f"{name}.yaml"),
                 name,
+                friendly_name,
                 args["project_name"],
                 args["package_import_url"],
                 network,
+                encryption,
             )
         except FileExistsError:
             self.set_status(500)
             self.write("File already exists")
             return
+        except ValueError:
+            self.set_status(422)
+            self.write("Invalid package url")
+            return
 
         self.set_status(200)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps({"configuration": f"{name}.yaml"}))
         self.finish()
 
 
@@ -426,6 +535,7 @@ class DownloadBinaryRequestHandler(BaseHandler):
     @bind_config
     def get(self, configuration=None):
         type = self.get_argument("type", "firmware.bin")
+        compressed = self.get_argument("compressed", "0") == "1"
 
         storage_path = ext_storage_path(settings.config_dir, configuration)
         storage_json = StorageJSON.load(storage_path)
@@ -475,6 +585,8 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 self.send_error(404)
                 return
 
+        filename = filename + ".gz" if compressed else filename
+
         self.set_header("Content-Type", "application/octet-stream")
         self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
         self.set_header("Cache-Control", "no-cache")
@@ -483,43 +595,19 @@ class DownloadBinaryRequestHandler(BaseHandler):
             return
 
         with open(path, "rb") as f:
-            while True:
-                data = f.read(16384)
-                if not data:
-                    break
-                self.write(data)
+            data = f.read()
+            if compressed:
+                data = gzip.compress(data, 9)
+            self.write(data)
+
         self.finish()
 
 
-class ManifestRequestHandler(BaseHandler):
+class EsphomeVersionHandler(BaseHandler):
     @authenticated
-    @bind_config
-    def get(self, configuration=None):
-        args = ["esphome", "idedata", settings.rel_path(configuration)]
-        rc, stdout, _ = run_system_command(*args)
-
-        if rc != 0:
-            self.send_error(404 if rc == 2 else 500)
-            return
-
-        idedata = platformio_api.IDEData(json.loads(stdout))
-
-        firmware_offset = "0x10000" if idedata.extra_flash_images else "0x0"
-        flash_images = [
-            {
-                "path": f"./download.bin?configuration={configuration}&type=firmware.bin",
-                "offset": firmware_offset,
-            }
-        ] + [
-            {
-                "path": f"./download.bin?configuration={configuration}&type={os.path.basename(image.path)}",
-                "offset": image.offset,
-            }
-            for image in idedata.extra_flash_images
-        ]
-
+    def get(self):
         self.set_header("Content-Type", "application/json")
-        self.write(json.dumps(flash_images))
+        self.write(json.dumps({"version": const.__version__}))
         self.finish()
 
 
@@ -554,6 +642,12 @@ class DashboardEntry:
         return self.storage.address
 
     @property
+    def no_mdns(self):
+        if self.storage is None:
+            return None
+        return self.storage.no_mdns
+
+    @property
     def web_port(self):
         if self.storage is None:
             return None
@@ -564,6 +658,12 @@ class DashboardEntry:
         if self.storage is None:
             return self.filename.replace(".yml", "").replace(".yaml", "")
         return self.storage.name
+
+    @property
+    def friendly_name(self):
+        if self.storage is None:
+            return self.name
+        return self.storage.friendly_name
 
     @property
     def comment(self):
@@ -612,6 +712,7 @@ class ListDevicesHandler(BaseHandler):
                     "configured": [
                         {
                             "name": entry.name,
+                            "friendly_name": entry.friendly_name,
                             "configuration": entry.filename,
                             "loaded_integrations": entry.loaded_integrations,
                             "deployed_version": entry.update_old,
@@ -627,6 +728,7 @@ class ListDevicesHandler(BaseHandler):
                     "importable": [
                         {
                             "name": res.device_name,
+                            "friendly_name": res.friendly_name,
                             "package_import_url": res.package_import_url,
                             "project_name": res.project_name,
                             "project_version": res.project_version,
@@ -689,6 +791,38 @@ class PrometheusServiceDiscoveryHandler(BaseHandler):
         self.write(json.dumps(sd))
 
 
+class BoardsRequestHandler(BaseHandler):
+    @authenticated
+    def get(self, platform: str):
+        from esphome.components.esp32.boards import BOARDS as ESP32_BOARDS
+        from esphome.components.esp8266.boards import BOARDS as ESP8266_BOARDS
+        from esphome.components.rp2040.boards import BOARDS as RP2040_BOARDS
+
+        platform_to_boards = {
+            "esp32": ESP32_BOARDS,
+            "esp8266": ESP8266_BOARDS,
+            "rp2040": RP2040_BOARDS,
+        }
+        # filter all ESP32 variants by requested platform
+        if platform.startswith("esp32"):
+            boards = {
+                k: v
+                for k, v in platform_to_boards["esp32"].items()
+                if v[const.KEY_VARIANT] == platform.upper()
+            }
+        else:
+            boards = platform_to_boards[platform]
+
+        # map to a {board_name: board_title} dict
+        platform_boards = {key: val[const.KEY_NAME] for key, val in boards.items()}
+        # sort by board title
+        boards_items = sorted(platform_boards.items(), key=lambda item: item[1])
+        output = [{"items": dict(boards_items)}]
+
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(output))
+
+
 class MDNSStatusThread(threading.Thread):
     def run(self):
         global IMPORT_RESULT
@@ -705,9 +839,12 @@ class MDNSStatusThread(threading.Thread):
         stat.start()
         while not STOP_EVENT.is_set():
             entries = _list_dashboard_entries()
-            stat.request_query(
-                {entry.filename: f"{entry.name}.local." for entry in entries}
-            )
+            hosts = {}
+            for entry in entries:
+                if entry.no_mdns is not True:
+                    hosts[entry.filename] = f"{entry.name}.local."
+
+            stat.request_query(hosts)
             IMPORT_RESULT = imports.import_state
 
             PING_REQUEST.wait()
@@ -762,10 +899,67 @@ class PingStatusThread(threading.Thread):
                 PING_REQUEST.clear()
 
 
+class MqttStatusThread(threading.Thread):
+    def run(self):
+        from esphome import mqtt
+
+        entries = _list_dashboard_entries()
+
+        config = mqtt.config_from_env()
+        topic = "esphome/discover/#"
+
+        def on_message(client, userdata, msg):
+            nonlocal entries
+
+            payload = msg.payload.decode(errors="backslashreplace")
+            if len(payload) > 0:
+                data = json.loads(payload)
+                if "name" not in data:
+                    return
+                for entry in entries:
+                    if entry.name == data["name"]:
+                        PING_RESULT[entry.filename] = True
+                        return
+
+        def on_connect(client, userdata, flags, return_code):
+            client.publish("esphome/discover", None, retain=False)
+
+        mqttid = str(binascii.hexlify(os.urandom(6)).decode())
+
+        client = mqtt.prepare(
+            config,
+            [topic],
+            on_message,
+            on_connect,
+            None,
+            None,
+            f"esphome-dashboard-{mqttid}",
+        )
+        client.loop_start()
+
+        while not STOP_EVENT.wait(2):
+            # update entries
+            entries = _list_dashboard_entries()
+
+            # will be set to true on on_message
+            for entry in entries:
+                if entry.no_mdns:
+                    PING_RESULT[entry.filename] = False
+
+            client.publish("esphome/discover", None, retain=False)
+            MQTT_PING_REQUEST.wait()
+            MQTT_PING_REQUEST.clear()
+
+        client.disconnect()
+        client.loop_stop()
+
+
 class PingRequestHandler(BaseHandler):
     @authenticated
     def get(self):
         PING_REQUEST.set()
+        if settings.status_use_mqtt:
+            MQTT_PING_REQUEST.set()
         self.set_header("content-type", "application/json")
         self.write(json.dumps(PING_RESULT))
 
@@ -823,6 +1017,9 @@ class DeleteRequestHandler(BaseHandler):
             if build_folder is not None:
                 shutil.rmtree(build_folder, os.path.join(trash_path, name))
 
+        # Remove the old ping result from the cache
+        PING_RESULT.pop(configuration, None)
+
 
 class UndoDeleteRequestHandler(BaseHandler):
     @authenticated
@@ -837,12 +1034,13 @@ PING_RESULT: dict = {}
 IMPORT_RESULT = {}
 STOP_EVENT = threading.Event()
 PING_REQUEST = threading.Event()
+MQTT_PING_REQUEST = threading.Event()
 
 
 class LoginHandler(BaseHandler):
     def get(self):
         if is_authenticated(self):
-            self.redirect("/")
+            self.redirect("./")
         else:
             self.render_login_page()
 
@@ -887,7 +1085,7 @@ class LoginHandler(BaseHandler):
         password = self.get_argument("password", "")
         if settings.check_password(username, password):
             self.set_secure_cookie("authenticated", cookie_authenticated_yes)
-            self.redirect("/")
+            self.redirect("./")
             return
         error_str = (
             "Invalid username or password" if settings.username else "Invalid password"
@@ -912,7 +1110,6 @@ class LogoutHandler(BaseHandler):
 class SecretKeysRequestHandler(BaseHandler):
     @authenticated
     def get(self):
-
         filename = None
 
         for secret_filename in const.SECRETS_FILES:
@@ -931,6 +1128,20 @@ class SecretKeysRequestHandler(BaseHandler):
         self.write(json.dumps(secret_keys))
 
 
+class SafeLoaderIgnoreUnknown(yaml.SafeLoader):
+    def ignore_unknown(self, node):
+        return f"{node.tag} {node.value}"
+
+    def construct_yaml_binary(self, node) -> str:
+        return super().construct_yaml_binary(node).decode("ascii")
+
+
+SafeLoaderIgnoreUnknown.add_constructor(None, SafeLoaderIgnoreUnknown.ignore_unknown)
+SafeLoaderIgnoreUnknown.add_constructor(
+    "tag:yaml.org,2002:binary", SafeLoaderIgnoreUnknown.construct_yaml_binary
+)
+
+
 class JsonConfigRequestHandler(BaseHandler):
     @authenticated
     @bind_config
@@ -940,16 +1151,18 @@ class JsonConfigRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        try:
-            content = yaml_util.load_yaml(filename, clear_secrets=False)
-            json_content = json.dumps(
-                content, default=lambda o: {"__type": str(type(o)), "repr": repr(o)}
-            )
-            self.set_header("content-type", "application/json")
-            self.write(json_content)
-        except EsphomeError as err:
-            _LOGGER.warning("Error translating file %s to JSON: %s", filename, err)
-            self.send_error(500)
+        args = ["esphome", "config", filename, "--show-secrets"]
+
+        rc, stdout, _ = run_system_command(*args)
+
+        if rc != 0:
+            self.send_error(422)
+            return
+
+        data = yaml.load(stdout, Loader=SafeLoaderIgnoreUnknown)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(data))
+        self.finish()
 
 
 def get_base_frontend_path():
@@ -1036,6 +1249,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}logout", LogoutHandler),
             (f"{rel}logs", EsphomeLogsHandler),
             (f"{rel}upload", EsphomeUploadHandler),
+            (f"{rel}run", EsphomeRunHandler),
             (f"{rel}compile", EsphomeCompileHandler),
             (f"{rel}validate", EsphomeValidateHandler),
             (f"{rel}clean-mqtt", EsphomeCleanMqttHandler),
@@ -1046,7 +1260,6 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}info", InfoRequestHandler),
             (f"{rel}edit", EditRequestHandler),
             (f"{rel}download.bin", DownloadBinaryRequestHandler),
-            (f"{rel}manifest.json", ManifestRequestHandler),
             (f"{rel}serial-ports", SerialPortRequestHandler),
             (f"{rel}ping", PingRequestHandler),
             (f"{rel}delete", DeleteRequestHandler),
@@ -1059,6 +1272,8 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}json-config", JsonConfigRequestHandler),
             (f"{rel}rename", EsphomeRenameHandler),
             (f"{rel}prometheus-sd", PrometheusServiceDiscoveryHandler),
+            (f"{rel}boards/([a-z0-9]+)", BoardsRequestHandler),
+            (f"{rel}version", EsphomeVersionHandler),
         ],
         **app_settings,
     )
@@ -1107,6 +1322,11 @@ def start_web_server(args):
     else:
         status_thread = MDNSStatusThread()
     status_thread.start()
+
+    if settings.status_use_mqtt:
+        status_thread_mqtt = MqttStatusThread()
+        status_thread_mqtt.start()
+
     try:
         tornado.ioloop.IOLoop.current().start()
     except KeyboardInterrupt:
@@ -1114,5 +1334,8 @@ def start_web_server(args):
         STOP_EVENT.set()
         PING_REQUEST.set()
         status_thread.join()
+        if settings.status_use_mqtt:
+            status_thread_mqtt.join()
+            MQTT_PING_REQUEST.set()
         if args.socket is not None:
             os.remove(args.socket)

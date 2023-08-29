@@ -25,7 +25,8 @@ static const uint16_t VERSION_UUID = 0x2A26;
 static const uint16_t MANUFACTURER_UUID = 0x2A29;
 
 void BLEServer::setup() {
-  if (this->is_failed()) {
+  if (this->parent_->is_failed()) {
+    this->mark_failed();
     ESP_LOGE(TAG, "BLE Server was marked failed by ESP32BLE");
     return;
   }
@@ -67,12 +68,20 @@ void BLEServer::loop() {
       if (this->device_information_service_->is_running()) {
         this->state_ = RUNNING;
         this->can_proceed_ = true;
+        this->restart_advertising_();
         ESP_LOGD(TAG, "BLE server setup successfully");
       } else if (!this->device_information_service_->is_starting()) {
         this->device_information_service_->start();
       }
       break;
     }
+  }
+}
+
+void BLEServer::restart_advertising_() {
+  if (this->state_ == RUNNING) {
+    esp32_ble::global_ble->get_advertising()->set_manufacturer_data(this->manufacturer_data_);
+    esp32_ble::global_ble->get_advertising()->start();
   }
 }
 

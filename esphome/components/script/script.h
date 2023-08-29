@@ -4,6 +4,7 @@
 #include "esphome/core/component.h"
 #include "esphome/core/log.h"
 
+#include <queue>
 namespace esphome {
 namespace script {
 
@@ -88,7 +89,7 @@ template<typename... Ts> class RestartScript : public Script<Ts...> {
 template<typename... Ts> class QueueingScript : public Script<Ts...>, public Component {
  public:
   void execute(Ts... x) override {
-    if (this->is_action_running()) {
+    if (this->is_action_running() || this->num_runs_ > 0) {
       // num_runs_ is the number of *queued* instances, so total number of instances is
       // num_runs_ + 1
       if (this->max_runs_ != 0 && this->num_runs_ + 1 >= this->max_runs_) {
@@ -98,6 +99,7 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
 
       this->esp_logd_(__LINE__, "Script '%s' queueing new instance (mode: queued)", this->name_.c_str());
       this->num_runs_++;
+      this->var_queue_.push(std::make_tuple(x...));
       return;
     }
 
@@ -114,15 +116,22 @@ template<typename... Ts> class QueueingScript : public Script<Ts...>, public Com
   void loop() override {
     if (this->num_runs_ != 0 && !this->is_action_running()) {
       this->num_runs_--;
-      this->trigger();
+      auto &vars = this->var_queue_.front();
+      this->var_queue_.pop();
+      this->trigger_tuple_(vars, typename gens<sizeof...(Ts)>::type());
     }
   }
 
   void set_max_runs(int max_runs) { max_runs_ = max_runs; }
 
  protected:
+  template<int... S> void trigger_tuple_(const std::tuple<Ts...> &tuple, seq<S...> /*unused*/) {
+    this->trigger(std::get<S>(tuple)...);
+  }
+
   int num_runs_ = 0;
   int max_runs_ = 0;
+  std::queue<std::tuple<Ts...>> var_queue_;
 };
 
 /** A script type that executes new instances in parallel.

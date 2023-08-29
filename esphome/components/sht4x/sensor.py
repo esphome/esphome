@@ -98,7 +98,6 @@ async def to_code(config):
     cg.add(var.set_heater_duty_value(config[CONF_HEATER_MAX_DUTY]))
 
     for key, funcName in TYPES.items():
-
         if key in config:
             sens = await sensor.new_sensor(config[key])
             cg.add(getattr(var, funcName)(sens))

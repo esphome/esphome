@@ -6,11 +6,14 @@
 ARG BASEIMGTYPE=docker
 
 # https://github.com/hassio-addons/addon-debian-base/releases
-FROM ghcr.io/hassio-addons/debian-base:6.1.3 AS base-hassio
+FROM ghcr.io/hassio-addons/debian-base:6.2.3 AS base-hassio
 # https://hub.docker.com/_/debian?tab=tags&page=1&name=bullseye
-FROM debian:bullseye-20221024-slim AS base-docker
+FROM debian:bullseye-20230208-slim AS base-docker
 
 FROM base-${BASEIMGTYPE} AS base
+
+ARG TARGETARCH
+ARG TARGETVARIANT
 
 RUN \
     apt-get update \
@@ -19,13 +22,23 @@ RUN \
         python3=3.9.2-3 \
         python3-pip=20.3.4-4+deb11u1 \
         python3-setuptools=52.0.0-4 \
-        python3-pil=8.1.2+dfsg-0.3+deb11u1 \
         python3-cryptography=3.3.2-1 \
+        python3-venv=3.9.2-3 \
         iputils-ping=3:20210202-1 \
-        git=1:2.30.2-1 \
-        curl=7.74.0-1.3+deb11u3 \
+        git=1:2.30.2-1+deb11u2 \
+        curl=7.74.0-1.3+deb11u7 \
         openssh-client=1:8.4p1-5+deb11u1 \
-    && rm -rf \
+        python3-cffi=1.14.5-1 \
+        libcairo2=1.16.0-5; \
+    if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        apt-get install -y --no-install-recommends \
+          build-essential=12.9 \
+          python3-dev=3.9.2-3 \
+          zlib1g-dev=1:1.2.11.dfsg-2+deb11u2 \
+          libjpeg-dev=1:2.0.6-4 \
+          libfreetype-dev=2.10.4+dfsg-1+deb11u1; \
+    fi; \
+    rm -rf \
         /tmp/* \
         /var/{cache,log}/* \
         /var/lib/apt/lists/*
@@ -36,11 +49,19 @@ ENV \
   # Store globally installed pio libs in /piolibs
   PLATFORMIO_GLOBALLIB_DIR=/piolibs
 
+# Support legacy binaries on Debian multiarch system. There is no "correct" way
+# to do this, other than using properly built toolchains...
+# See: https://unix.stackexchange.com/questions/553743/correct-way-to-add-lib-ld-linux-so-3-in-debian
+RUN \
+    if [ "$TARGETARCH$TARGETVARIANT" = "armv7" ]; then \
+        ln -s /lib/arm-linux-gnueabihf/ld-linux.so.3 /lib/ld-linux.so.3; \
+    fi
+
 RUN \
     # Ubuntu python3-pip is missing wheel
     pip3 install --no-cache-dir \
         wheel==0.37.1 \
-        platformio==6.1.5 \
+        platformio==6.1.10 \
     # Change some platformio settings
     && platformio settings set enable_telemetry No \
     && platformio settings set check_platformio_interval 1000000 \
@@ -48,10 +69,10 @@ RUN \
 
 
 # First install requirements to leverage caching when requirements don't change
-COPY requirements.txt requirements_optional.txt docker/platformio_install_deps.py platformio.ini /
+COPY requirements.txt requirements_optional.txt script/platformio_install_deps.py platformio.ini /
 RUN \
     pip3 install --no-cache-dir -r /requirements.txt -r /requirements_optional.txt \
-    && /platformio_install_deps.py /platformio.ini
+    && /platformio_install_deps.py /platformio.ini --libraries
 
 
 # ======================= docker-type image =======================
@@ -124,11 +145,11 @@ RUN \
     apt-get update \
     # Use pinned versions so that we get updates with build caching
     && apt-get install -y --no-install-recommends \
-        clang-format-11=1:11.0.1-2 \
+        clang-format-13=1:13.0.1-6~deb11u1 \
         clang-tidy-11=1:11.0.1-2 \
         patch=2.7.6-7 \
         software-properties-common=0.96.20.2-2.1 \
-        nano=5.4-2+deb11u1 \
+        nano=5.4-2+deb11u2 \
         build-essential=12.9 \
         python3-dev=3.9.2-3 \
     && rm -rf \

@@ -3,6 +3,7 @@
 #include "ble_service.h"
 #include "ble_characteristic.h"
 
+#include "esphome/components/esp32_ble/ble.h"
 #include "esphome/components/esp32_ble/ble_advertising.h"
 #include "esphome/components/esp32_ble/ble_uuid.h"
 #include "esphome/components/esp32_ble/queue.h"
@@ -32,7 +33,7 @@ class BLEServiceComponent {
   virtual void stop();
 };
 
-class BLEServer : public Component {
+class BLEServer : public Component, public GATTsEventHandler, public Parented<ESP32BLE> {
  public:
   void setup() override;
   void loop() override;
@@ -44,6 +45,10 @@ class BLEServer : public Component {
 
   void set_manufacturer(const std::string &manufacturer) { this->manufacturer_ = manufacturer; }
   void set_model(const std::string &model) { this->model_ = model; }
+  void set_manufacturer_data(const std::vector<uint8_t> &data) {
+    this->manufacturer_data_ = data;
+    this->restart_advertising_();
+  }
 
   std::shared_ptr<BLEService> create_service(const uint8_t *uuid, bool advertise = false);
   std::shared_ptr<BLEService> create_service(uint16_t uuid, bool advertise = false);
@@ -55,12 +60,14 @@ class BLEServer : public Component {
   uint32_t get_connected_client_count() { return this->connected_clients_; }
   const std::map<uint16_t, void *> &get_clients() { return this->clients_; }
 
-  void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if, esp_ble_gatts_cb_param_t *param);
+  void gatts_event_handler(esp_gatts_cb_event_t event, esp_gatt_if_t gatts_if,
+                           esp_ble_gatts_cb_param_t *param) override;
 
   void register_service_component(BLEServiceComponent *component) { this->service_components_.push_back(component); }
 
  protected:
   bool create_device_characteristics_();
+  void restart_advertising_();
 
   void add_client_(uint16_t conn_id, void *client) {
     this->clients_.insert(std::pair<uint16_t, void *>(conn_id, client));
@@ -71,6 +78,7 @@ class BLEServer : public Component {
 
   std::string manufacturer_;
   optional<std::string> model_;
+  std::vector<uint8_t> manufacturer_data_;
   esp_gatt_if_t gatts_if_{0};
   bool registered_{false};
 
