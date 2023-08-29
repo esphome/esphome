@@ -6,6 +6,7 @@ namespace spi {
 
 #ifdef USE_ESP_IDF
 static const char *const TAG = "spi-esp-idf";
+static const size_t MAX_TRANSFER_SIZE = 4092;  // dictated by ESP-IDF API.
 
 // list of available buses
 // https://bugs.llvm.org/show_bug.cgi?id=48040
@@ -44,16 +45,30 @@ class SPIDelegateHw : public SPIDelegate {
       ESP_LOGE(TAG, "Remove device failed - err %d", err);
   }
 
-  void transfer(const void *txbuf, void *rxbuf, size_t length) {
+  // do a transfer. either txbuf or rxbuf (but not both) may be null.
+  // transfers above the maximum size will be split.
+  // TODO - make use of the queue for interrupt transfers to provide a (short) pipeline of blocks
+  // when splitting is required.
+  void transfer(const uint8_t *txbuf, uint8_t *rxbuf, size_t length) {
     spi_transaction_t desc = {};
     desc.flags = 0;
-    desc.length = length * 8;
-    desc.rxlength = length * 8;
-    desc.tx_buffer = txbuf;
-    desc.rx_buffer = rxbuf;
-    esp_err_t const err = spi_device_transmit(this->handle_, &desc);
-    if (err != ESP_OK)
-      ESP_LOGE(TAG, "Transmit failed - err %d", err);
+    while (length != 0) {
+      size_t const partial = std::min(length, MAX_TRANSFER_SIZE);
+      desc.length = partial * 8;
+      desc.rxlength = partial * 8;
+      desc.tx_buffer = txbuf;
+      desc.rx_buffer = rxbuf;
+      esp_err_t const err = spi_device_transmit(this->handle_, &desc);
+      if (err != ESP_OK) {
+        ESP_LOGE(TAG, "Transmit failed - err %d", err);
+        break;
+      }
+      length -= partial;
+      if (txbuf != nullptr)
+        txbuf += partial;
+      if (rxbuf != nullptr)
+        rxbuf += partial;
+    }
   }
 
   void transfer(uint8_t *ptr, size_t length) override { this->transfer(ptr, ptr, length); }
@@ -68,10 +83,10 @@ class SPIDelegateHw : public SPIDelegate {
     uint16_t rxbuf;
     if (this->bit_order_ == BIT_ORDER_MSB_FIRST) {
       uint16_t txbuf = SPI_SWAP_DATA_TX(data, 16);
-      this->transfer(&txbuf, &rxbuf, 2);
+      this->transfer((uint8_t *) &txbuf, (uint8_t *) &rxbuf, 2);
       return SPI_SWAP_DATA_RX(rxbuf, 16);
     }
-    this->transfer(&data, &rxbuf, 2);
+    this->transfer((uint8_t *) &data, (uint8_t *) &rxbuf, 2);
     return rxbuf;
   }
 
@@ -94,7 +109,7 @@ class SPIBusHw : public SPIBus {
     buscfg.sclk_io_num = Utility::get_pin_no(clk);
     buscfg.quadwp_io_num = -1;
     buscfg.quadhd_io_num = -1;
-    buscfg.max_transfer_sz = 32;
+    buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
     auto err = spi_bus_initialize(channel, &buscfg, SPI_DMA_CH_AUTO);
     if (err != ESP_OK)
       ESP_LOGE(TAG, "Bus init failed - err %d", err);
