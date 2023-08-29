@@ -15,6 +15,10 @@
 #include <cerrno>
 #include <cstdio>
 
+#ifdef USE_PM
+#include "esphome/components/power_management/power_management.h"
+#endif
+
 namespace esphome {
 namespace ota {
 
@@ -143,6 +147,10 @@ void OTAComponent::handle_() {
     ESP_LOGW(TAG, "Socket could not enable tcp nodelay, errno: %d", errno);
     return;
   }
+#ifdef USE_PM
+  std::unique_ptr<power_management::PMLock> pmlock =
+      power_management::global_pm->get_lock("OTA", power_management::PmLockType::NO_LIGHT_SLEEP);
+#endif
 
   ESP_LOGD(TAG, "Starting OTA Update from %s...", this->client_->getpeername().c_str());
   this->status_set_warning();

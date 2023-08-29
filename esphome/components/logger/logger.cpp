@@ -239,6 +239,7 @@ void Logger::pre_setup() {
       uart_config.parity = UART_PARITY_DISABLE;
       uart_config.stop_bits = UART_STOP_BITS_1;
       uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+      uart_config.source_clk = UART_SCLK_REF_TICK;
       uart_param_config(uart_num_, &uart_config);
       const int uart_buffer_size = tx_buffer_size_;
       // Install UART driver using an event queue here
