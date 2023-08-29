@@ -4,6 +4,8 @@ from esphome.components.esp32 import add_idf_sdkconfig_option, get_esp32_variant
 from esphome.core import CORE
 from esphome.const import (
     CONF_ID,
+    CONF_MODE,
+    CONF_SPEED,
 )
 
 CODEOWNERS = ["@esphome/core"]
@@ -11,8 +13,26 @@ CODEOWNERS = ["@esphome/core"]
 psram_ns = cg.esphome_ns.namespace("psram")
 PsramComponent = psram_ns.class_("PsramComponent", cg.Component)
 
+SPIRAM_MODES = {
+    "quad": cg.global_ns.SPIRAM_MODE_QUAD,
+    "oct": cg.global_ns.SPIRAM_MODE_OCT,
+}
+
+SPIRAM_SPEEDS = {
+    "40m": cg.global_ns.SPIRAM_SPEED_40M,
+    "80m": cg.global_ns.SPIRAM_SPEED_80M,
+    "120m": cg.global_ns.SPIRAM_SPEED_120M,
+}
+
 CONFIG_SCHEMA = cv.All(
-    cv.Schema({cv.GenerateID(): cv.declare_id(PsramComponent)}), cv.only_on_esp32
+    cv.Schema(
+        {
+            cv.GenerateID(): cv.declare_id(PsramComponent),
+            cv.Optional(CONF_MODE): cv.enum(SPIRAM_MODES, lower=True),
+            cv.Optional(CONF_SPEED): cv.enum(SPIRAM_SPEEDS, lower=True),
+        }
+    ),
+    cv.only_on_esp32,
 )
 
 
@@ -28,6 +48,15 @@ async def to_code(config):
         add_idf_sdkconfig_option("CONFIG_SPIRAM_USE", True)
         add_idf_sdkconfig_option("CONFIG_SPIRAM_USE_CAPS_ALLOC", True)
         add_idf_sdkconfig_option("CONFIG_SPIRAM_IGNORE_NOTFOUND", True)
+
+        if CONF_MODE in config:
+            add_idf_sdkconfig_option(
+                f"CONFIG_SPIRAM_MODE_{config[CONF_MODE].upper()}", True
+            )
+        if CONF_SPEED in config:
+            add_idf_sdkconfig_option(
+                f"CONFIG_SPIRAM_SPEED_{config[CONF_SPEED].upper()}", True
+            )
 
     var = cg.new_Pvariable(config[CONF_ID])
     await cg.register_component(var, config)
