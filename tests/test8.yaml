@@ -27,14 +27,14 @@ light:
     restore_mode: ALWAYS_OFF
 
 spi:
-  id: spi1
+  id: spi_id_1
   clk_pin: GPIO7
   mosi_pin: GPIO6
 
 spi_device:
   id: spidev
   data_rate: 2MHz
-  spi_id: spi1
+  spi_id: spi_id_1
   mode: 3
   bit_order: lsb_first
 
