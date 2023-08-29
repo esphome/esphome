@@ -316,6 +316,7 @@ sensor:
     platform: airthings_wave_plus
     ble_client_id: airthings01
     update_interval: 5min
+    battery_update_interval: 12h
     temperature:
       name: Wave Plus Temperature
     radon:
@@ -330,10 +331,13 @@ sensor:
       name: Wave Plus CO2
     tvoc:
       name: Wave Plus VOC
+    battery_voltage:
+      name: Wave Plus Battery Voltage
   - id: airthingswm
     platform: airthings_wave_mini
     ble_client_id: airthingsmini01
     update_interval: 5min
+    battery_update_interval: 12h
     temperature:
       name: Wave Mini Temperature
     humidity:
@@ -342,6 +346,8 @@ sensor:
       name: Wave Mini Pressure
     tvoc:
       name: Wave Mini VOC
+    battery_voltage:
+      name: Wave Mini Battery Voltage
   - platform: ina260
     address: 0x40
     current:
@@ -397,6 +403,31 @@ sensor:
       name: MICS-4514 C2H5OH
     ammonia:
       name: MICS-4514 NH3
+  - platform: mopeka_std_check
+    mac_address: D3:75:F2:DC:16:91
+    tank_type: CUSTOM
+    custom_distance_full: 40cm
+    custom_distance_empty: 10mm
+    temperature:
+      name: Propane test temp
+    level:
+      name: Propane test level
+    distance:
+      name: Propane test distance
+    battery_level:
+      name: Propane test battery level
+  - platform: duty_time
+    id: duty_time1
+    name: Test Duty Time
+    restore: true
+    last_time:
+      name: Test Last Duty Time Sensor
+    sensor: ha_hello_world_binary
+  - platform: duty_time
+    id: duty_time2
+    name: Test Duty Time 2
+    restore: false
+    lambda: "return true;"
 
 time:
   - platform: homeassistant
@@ -404,6 +435,17 @@ time:
       - at: "16:00:00"
         then:
           - logger.log: It's 16:00
+          - if:
+              condition:
+                - sensor.duty_time.is_running: duty_time2
+              then:
+                - sensor.duty_time.start: duty_time1
+          - if:
+              condition:
+                - sensor.duty_time.is_not_running: duty_time1
+              then:
+                - sensor.duty_time.stop: duty_time2
+          - sensor.duty_time.reset: duty_time1
 
 esp32_touch:
   setup_mode: true
@@ -726,3 +768,8 @@ switch:
           characteristic_uuid: 6490FAFE-0734-732C-8705-91B653A081FC
           value: !lambda |-
             return {0x13, 0x37};
+
+
+esp32_ble_server:
+  id: ble
+  manufacturer_data: [0x72, 0x4, 0x00, 0x23]
