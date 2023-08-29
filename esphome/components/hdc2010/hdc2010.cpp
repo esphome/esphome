@@ -16,6 +16,8 @@ static const uint8_t HDC2010_CMD_TEMPERATURE_HIGH = 0x01;
 static const uint8_t HDC2010_CMD_HUMIDITY_LOW = 0x02;
 static const uint8_t HDC2010_CMD_HUMIDITY_HIGH = 0x03;
 static const uint8_t HDC2010_CMD_HEATER_HEAT0 = 0x5A;
+// static const uint8_t HDC2010_TEMP_OFFSET_ADJUST = 0x08;
+// static const uint8_t HDC2010_HUM_OFFSET_ADJUST = 0x09;
 
 void HDC2010Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up HDC2010...");
@@ -43,8 +45,14 @@ void HDC2010Component::dump_config() {
   LOG_SENSOR("  ", "Humidity", this->humidity_);
 }
 void HDC2010Component::update() {
+
+//Temperature
   uint16_t raw_temp;
-  if (this->write(&HDC2010_CMD_TEMPERATURE, 1) != i2c::ERROR_OK) {
+  if (this->write(&HDC2010_CMD_TEMPERATURE_LOW, 1) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  if (this->write(&HDC2010_CMD_TEMPERATURE_HIGH, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
@@ -53,12 +61,22 @@ void HDC2010Component::update() {
     this->status_set_warning();
     return;
   }
+  raw_temp = (unsigned int)(HDC2010_CMD_TEMPERATURE_HIGH) << 8 | (unsigned int)(HDC2010_CMD_TEMPERATURE_LOW);
   raw_temp = i2c::i2ctohs(raw_temp);
-  float temp = raw_temp * 0.0025177f - 40.0f;  // raw * 2^-16 * 165 - 40
+  
+  float temp = raw_temp * 0.0025177001953125f - 40.0f;  // raw * 2^-16 * 165 - 40
   this->temperature_->publish_state(temp);
 
+
+
+//Humidity
+
   uint16_t raw_humidity;
-  if (this->write(&HDC2010_CMD_HUMIDITY, 1) != i2c::ERROR_OK) {
+  if (this->write(&HDC2010_CMD_HUMIDITY_LOW, 1) != i2c::ERROR_OK) {
+    this->status_set_warning();
+    return;
+  }
+  if (this->write(&HDC2010_CMD_HUMIDITY_HIGH, 1) != i2c::ERROR_OK) {
     this->status_set_warning();
     return;
   }
@@ -67,92 +85,42 @@ void HDC2010Component::update() {
     this->status_set_warning();
     return;
   }
+  raw_humidity = (unsigned int) HDC2010_CMD_HUMIDITY_HIGH << 8 | HDC2010_CMD_HUMIDITY_LOW;
   raw_humidity = i2c::i2ctohs(raw_humidity);
-  float humidity = raw_humidity * 0.001525879f;  // raw * 2^-16 * 100
+  float humidity = raw_humidity * 0.00152587890625f;  // raw * 2^-16 * 100
   this->humidity_->publish_state(humidity);
 
   ESP_LOGD(TAG, "Got temperature=%.1f°C humidity=%.1f%%", temp, humidity);
   this->status_clear_warning();
-  
-  void HDC2010::enableHeater(void)
-{
-	uint8_t configContents;	//Stores current contents of config register
-	
-	configContents = readReg(CONFIG);
-	
-	//set bit 3 to 1 to enable heater
-	configContents = (configContents | 0x08);
-	
-	writeReg(CONFIG, configContents);
-	
+
 }
 
-void HDC2010::disableHeater(void)
-{
-	uint8_t configContents;	//Stores current contents of config register
+// void HDC2010::enableHeater()
+// {
+// 	uint16_t configContents;	//Stores current contents of config register
 	
-	configContents = readReg(CONFIG);
+// 	configContents = readReg(CONFIG);
 	
-	//set bit 3 to 0 to disable heater (all other bits 1)
-	configContents = (configContents & 0xF7);
-	writeReg(CONFIG, configContents);
+// 	//set bit 3 to 1 to enable heater
+// 	configContents = (configContents | 0x08);
 	
-}
-  /*float HDC2010::readTemp(void)
-{
-	uint8_t byte[2];
-	uint16_t temp;
-	byte[0] = readReg(TEMP_LOW);
-	byte[1] = readReg(TEMP_HIGH);
-	temp = byte[1];
-	temp = (temp << 8) | byte[0];
-	float f = temp;
-	f = ((f * 165.0f) / 65536.0f) - 40.0f;
-	return f;
-}
-	float HDC2010::readHumidity(void)
-{
-	uint8_t byte[2];
-	uint16_t humidity;
-	byte[0] = readReg(HUMID_LOW);
-	byte[1] = readReg(HUMID_HIGH);
-	humidity = byte[1];
-	humidity = (humidity << 8) | byte[0];
-	float f = humidity;
-	f = (f / 65536.0f) * 100.0f;
+// 	writeReg(CONFIG, configContents);
+	
+// }
 
-	return f;
-}
-*/
-float HDC2010::readTemp(void)
-{
-	uint8_t byte[2];
-	uint16_t temp;
-	byte[0] = readReg(HDC2010_CMD_TEMPERATURE_LOW);
-	byte[1] = readReg(HDC2010_CMD_TEMPERATURE_HIGH);
+// void HDC2010::disableHeater()
+// {
+// 	uint16_t configContents;	//Stores current contents of config register
 	
-	temp = (unsigned int)byte[1] << 8 | byte[0];
+// 	configContents = readReg(CONFIG);
 	
-	return (float)(temp) * 165 / 65536 - 40;
+// 	//set bit 3 to 0 to disable heater (all other bits 1)
+// 	configContents = (configContents & 0xF7);
+// 	writeReg(CONFIG, configContents);
 	
-}
+// }
 
-float HDC2010::readHumidity(void)
-{
-	uint8_t byte[2];
-	uint16_t humidity;
-	byte[0] = readReg(HDC2010_CMD_HUMIDITY_LOW);
-	byte[1] = readReg(HDC2010_CMD_HUMIDITY_HIGH);
-	
-	humidity = (unsigned int)byte[1] << 8 | byte[0];
-	
-	return (float)(humidity)/( 65536 )* 100;
-	
-}
-}
-float HDC2010Component::get_setup_priority() const { 
-return setup_priority::DATA;
- }
+float HDC2010Component::get_setup_priority() const { return setup_priority::DATA;}
 
 }  // namespace hdc2010
 }  // namespace esphome
