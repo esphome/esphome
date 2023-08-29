@@ -5,24 +5,20 @@
 #include "esphome/core/automation.h"
 #include "esphome/components/output/float_output.h"
 
-#ifdef USE_ESP32
+#ifdef USE_LIBRETINY
 
 namespace esphome {
-namespace ledc {
+namespace libretiny_pwm {
 
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-extern uint8_t next_ledc_channel;
-
-class LEDCOutput : public output::FloatOutput, public Component {
+class LibreTinyPWM : public output::FloatOutput, public Component {
  public:
-  explicit LEDCOutput(InternalGPIOPin *pin) : pin_(pin) { this->channel_ = next_ledc_channel++; }
+  explicit LibreTinyPWM(InternalGPIOPin *pin) : pin_(pin) {}
 
-  void set_channel(uint8_t channel) { this->channel_ = channel; }
   void set_frequency(float frequency) { this->frequency_ = frequency; }
   /// Dynamically change frequency at runtime
   void update_frequency(float frequency) override;
 
-  /// Setup LEDC.
+  /// Setup LibreTinyPWM.
   void setup() override;
   void dump_config() override;
   /// HARDWARE setup priority
@@ -33,8 +29,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
 
  protected:
   InternalGPIOPin *pin_;
-  uint8_t channel_{};
-  uint8_t bit_depth_{};
+  uint8_t bit_depth_{10};
   float frequency_{};
   float duty_{0.0f};
   bool initialized_ = false;
@@ -42,7 +37,7 @@ class LEDCOutput : public output::FloatOutput, public Component {
 
 template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
  public:
-  SetFrequencyAction(LEDCOutput *parent) : parent_(parent) {}
+  SetFrequencyAction(LibreTinyPWM *parent) : parent_(parent) {}
   TEMPLATABLE_VALUE(float, frequency);
 
   void play(Ts... x) {
@@ -51,10 +46,10 @@ template<typename... Ts> class SetFrequencyAction : public Action<Ts...> {
   }
 
  protected:
-  LEDCOutput *parent_;
+  LibreTinyPWM *parent_;
 };
 
-}  // namespace ledc
+}  // namespace libretiny_pwm
 }  // namespace esphome
 
 #endif
