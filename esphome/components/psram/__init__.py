@@ -15,7 +15,7 @@ PsramComponent = psram_ns.class_("PsramComponent", cg.Component)
 
 SPIRAM_MODES = {
     "quad": "CONFIG_SPIRAM_MODE_QUAD",
-    "oct": "CONFIG_SPIRAM_MODE_OCT",
+    "octal": "CONFIG_SPIRAM_MODE_OCT",
 }
 
 SPIRAM_SPEEDS = {
