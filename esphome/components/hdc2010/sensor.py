@@ -10,7 +10,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_CELSIUS,
     UNIT_PERCENT,
-    CONF_HEATER,
+    # CONF_HEATER,
 )
 
 DEPENDENCIES = ["i2c"]
@@ -57,9 +57,9 @@ async def to_code(config):
         sens = await sensor.new_sensor(config[CONF_HUMIDITY])
         cg.add(var.set_humidity(sens))
         
-    if CONF_HEATER in config:
-        conf = config[CONF_HEATER]
-        if not conf:
-            cg.add(var.set_heater(0, 0))
-        else:
-            cg.add(var.set_heater(conf[CONF_TEMPERATURE], conf[CONF_DURATION]))
+    # if CONF_HEATER in config:
+    #     conf = config[CONF_HEATER]
+    #     if not conf:
+    #         cg.add(var.set_heater(0, 0))
+    #     else:
+    #         cg.add(var.set_heater(conf[CONF_TEMPERATURE], conf[CONF_DURATION]))
