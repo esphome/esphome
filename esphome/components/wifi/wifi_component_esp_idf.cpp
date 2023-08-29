@@ -312,12 +312,10 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
   // Units: AP beacon intervals. Defaults to 3 if set to 0.
   conf.sta.listen_interval = 0;
 
-#if ESP_IDF_VERSION_MAJOR >= 4
   // Protected Management Frame
   // Device will prefer to connect in PMF mode if other device also advertises PMF capability.
   conf.sta.pmf_cfg.capable = true;
   conf.sta.pmf_cfg.required = false;
-#endif
 
   // note, we do our own filtering
   // The minimum rssi to accept in the fast scan mode
@@ -838,10 +836,8 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
     strncpy(reinterpret_cast<char *>(conf.ap.password), ap.get_password().c_str(), sizeof(conf.ap.password));
   }
 
-#if ESP_IDF_VERSION_MAJOR >= 4
   // pairwise cipher of SoftAP, group cipher will be derived using this.
   conf.ap.pairwise_cipher = WIFI_CIPHER_TYPE_CCMP;
-#endif
 
   esp_err_t err = esp_wifi_set_config(WIFI_IF_AP, &conf);
   if (err != ESP_OK) {
