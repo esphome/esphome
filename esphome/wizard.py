@@ -252,8 +252,7 @@ def safe_print_step(step, big):
 def default_input(text, default):
     safe_print()
     safe_print(f"Press ENTER for default ({default})")
-    safe_print(text.format(default), end="")
-    return input() or default
+    return input(text.format(default)) or default
 
 
 # From https://stackoverflow.com/a/518232/8924614
@@ -304,8 +303,7 @@ def wizard(path):
     )
     safe_print()
     sleep(1)
-    safe_print(color(Fore.BOLD_WHITE, "(name): "), end="")
-    name = input()
+    name = input(color(Fore.BOLD_WHITE, "(name): "))
 
     while True:
         try:
@@ -342,8 +340,7 @@ def wizard(path):
     while True:
         sleep(0.5)
         safe_print()
-        safe_print(color(Fore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): "), end="")
-        platform = input()
+        platform = input(color(Fore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): "))
         try:
             platform = vol.All(vol.Upper, vol.Any(*wizard_platforms))(platform.upper())
             break
@@ -397,8 +394,7 @@ def wizard(path):
         boards.append(board_id)
 
     while True:
-        safe_print(color(Fore.BOLD_WHITE, "(board): "), end="")
-        board = input()
+        board = input(color(Fore.BOLD_WHITE, "(board): "))
         try:
             board = vol.All(vol.Lower, vol.Any(*boards))(board)
             break
@@ -424,8 +420,7 @@ def wizard(path):
     sleep(1.5)
     safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'Abraham Linksys')}\".")
     while True:
-        safe_print(color(Fore.BOLD_WHITE, "(ssid): "), end="")
-        ssid = input()
+        ssid = input(color(Fore.BOLD_WHITE, "(ssid): "))
         try:
             ssid = cv.ssid(ssid)
             break
@@ -451,8 +446,7 @@ def wizard(path):
     safe_print()
     safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'PASSWORD42')}\"")
     sleep(0.5)
-    safe_print(color(Fore.BOLD_WHITE, "(PSK): "), end="")
-    psk = input()
+    psk = input(color(Fore.BOLD_WHITE, "(PSK): "))
     safe_print(
         "Perfect! WiFi is now set up (you can create static IPs and so on later)."
     )
@@ -469,8 +463,7 @@ def wizard(path):
     safe_print()
     sleep(0.25)
     safe_print("Press ENTER for no password")
-    safe_print(color(Fore.BOLD_WHITE, "(password): "), end="")
-    password = input()
+    password = input(color(Fore.BOLD_WHITE, "(password): "))
 
     if not wizard_write(
         path=path,

@@ -57,7 +57,7 @@ class SimpleRegistry(dict):
         return decorator
 
 
-def safe_print(message="", end="\n"):
+def safe_print(message=""):
     from esphome.core import CORE
 
     if CORE.dashboard:
@@ -67,16 +67,16 @@ def safe_print(message="", end="\n"):
             pass
 
     try:
-        print(message, end=end)
+        print(message)
         return
     except UnicodeEncodeError:
         pass
 
     try:
-        print(message.encode("utf-8", "backslashreplace"), end=end)
+        print(message.encode("utf-8", "backslashreplace"))
     except UnicodeEncodeError:
         try:
-            print(message.encode("ascii", "backslashreplace"), end=end)
+            print(message.encode("ascii", "backslashreplace"))
         except UnicodeEncodeError:
             print("Cannot print line because of invalid locale!")
 
