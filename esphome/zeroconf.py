@@ -1,19 +1,19 @@
+import logging
 import socket
 import threading
 import time
-from typing import Optional
-import logging
 from dataclasses import dataclass
+from typing import Optional
 
 from zeroconf import (
     DNSAddress,
     DNSOutgoing,
-    DNSRecord,
     DNSQuestion,
+    RecordUpdate,
     RecordUpdateListener,
-    Zeroconf,
     ServiceBrowser,
     ServiceStateChange,
+    Zeroconf,
     current_time_millis,
 )
 
@@ -24,17 +24,28 @@ _LOGGER = logging.getLogger(__name__)
 
 
 class HostResolver(RecordUpdateListener):
+    """Resolve a host name to an IP address."""
+
     def __init__(self, name: str):
         self.name = name
         self.address: Optional[bytes] = None
 
-    def update_record(self, zc: Zeroconf, now: float, record: DNSRecord) -> None:
-        if record is None:
-            return
-        if record.type == _TYPE_A:
-            assert isinstance(record, DNSAddress)
-            if record.name == self.name:
-                self.address = record.address
+    def async_update_records(
+        self, zc: Zeroconf, now: float, records: list[RecordUpdate]
+    ) -> None:
+        """Update multiple records in one shot.
+
+        This will run in zeroconf's event loop thread so it
+        must be thread-safe.
+        """
+        for record_update in records:
+            record, _ = record_update
+            if record is None:
+                continue
+            if record.type == _TYPE_A:
+                assert isinstance(record, DNSAddress)
+                if record.name == self.name:
+                    self.address = record.address
 
     def request(self, zc: Zeroconf, timeout: float) -> bool:
         now = time.time()
