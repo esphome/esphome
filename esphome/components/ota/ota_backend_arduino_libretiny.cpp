@@ -22,9 +22,7 @@ OTAResponseTypes ArduinoLibreTinyOTABackend::begin(size_t image_size) {
   return OTA_RESPONSE_ERROR_UNKNOWN;
 }
 
-void ArduinoLibreTinyOTABackend::set_update_md5(const char *md5) {
-  // not yet implemented
-}
+void ArduinoLibreTinyOTABackend::set_update_md5(const char *md5) { Update.setMD5(md5); }
 
 OTAResponseTypes ArduinoLibreTinyOTABackend::write(uint8_t *data, size_t len) {
   size_t written = Update.write(data, len);
