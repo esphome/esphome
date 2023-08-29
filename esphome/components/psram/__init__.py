@@ -29,7 +29,7 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(PsramComponent),
             cv.Optional(CONF_MODE): cv.enum(SPIRAM_MODES, lower=True),
-            cv.Optional(CONF_SPEED): cv.enum(SPIRAM_SPEEDS, lower=True),
+            cv.Optional(CONF_SPEED): cv.all(cv.frequency, cv.one_of(*SPIRAM_SPEEDS)),
         }
     ),
     cv.only_on_esp32,
