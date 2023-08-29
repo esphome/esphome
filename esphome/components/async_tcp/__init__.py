@@ -16,11 +16,7 @@ CONFIG_SCHEMA = cv.All(
 async def to_code(config):
     if CORE.is_esp32:
         # https://github.com/esphome/AsyncTCP/blob/master/library.json
-        cg.add_library(
-            "AsyncTCP-esphome",
-            None,
-            "https://github.com/libretiny-eu/AsyncTCP",
-        )
+        cg.add_library("esphome/AsyncTCP-esphome", "1.2.2")
     elif CORE.is_esp8266:
         # https://github.com/esphome/ESPAsyncTCP
         cg.add_library("esphome/ESPAsyncTCP-esphome", "1.2.3")

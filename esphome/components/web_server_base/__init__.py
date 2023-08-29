@@ -37,8 +37,4 @@ async def to_code(config):
             cg.add_library("FS", None)
             cg.add_library("Update", None)
         # https://github.com/esphome/ESPAsyncWebServer/blob/master/library.json
-        cg.add_library(
-            "ESPAsyncWebServer-esphome",
-            None,
-            "https://github.com/libretiny-eu/ESPAsyncWebServer",
-        )
+        cg.add_library("esphome/ESPAsyncWebServer-esphome", "2.1.0")
