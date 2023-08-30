@@ -239,7 +239,6 @@ class WK2132Channel : public uart::UARTComponent {
   /// @brief the size of the component's fifo
   const size_t fifo_size_{128};
 
-  bool safe_{true};  // false will speed up operation but is unsafe
   struct PeekBuffer {
     uint8_t data;
     bool empty{true};

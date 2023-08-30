@@ -259,19 +259,22 @@ size_t WK2132Channel::tx_in_fifo_() {
 
 size_t WK2132Channel::rx_in_fifo_() {
   size_t available = 0;
-  uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
-  if (fsr & 0x8) {  // if RDAT bit is set we read RFCNT
-    available = this->parent_->read_wk2132_register_(REG_WK2132_RFCNT, this->channel_, &this->data_, 1);
-    if (available == 0)  // if RDAT is set and count=0 we set it to 256
+
+  available = this->parent_->read_wk2132_register_(REG_WK2132_RFCNT, this->channel_, &this->data_, 1);
+  if (available == 0) {
+    uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
+    if (fsr & 0x8) {  // if RDAT bit is set we set available to 256
+      ESP_LOGVV(TAG, "rx_in_fifo FSR=%s in overflow (256)", I2CS(fsr));
       available = 256;
+    }
   }
+
   if (!this->peek_buffer_.empty)
     available++;
   if (available > this->fifo_size_)  // no more than what is set in the fifo_size
     available = this->fifo_size_;
 
-  ESP_LOGVV(TAG, "rx_in_fifo %d (byte in peek_buffer: %s) FSR=%s", available, this->peek_buffer_.empty ? "no" : "yes",
-            I2CS(fsr));
+  ESP_LOGVV(TAG, "rx_in_fifo %d (byte in peek_buffer: %s)", available, this->peek_buffer_.empty ? "no" : "yes");
   return available;
 }
 
@@ -335,41 +338,23 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
       return true;
   }
 
-  bool status = true;
-  uint32_t const start_time = millis();
-  // in safe mode we check that we have received the requested characters
-  while (safe_ && this->rx_in_fifo_() < len) {
-    if (millis() - start_time > 100) {  // we wait as much as 100 ms
-      ESP_LOGE(TAG, "Read buffer underrun: requested %d bytes only received %d ...", len, this->rx_in_fifo_());
-      len = this->rx_in_fifo_();  // set length to what is in the buffer
-      status = false;
-      break;
-    }
-    yield();  // reschedule our thread at end of queue
-  }
-  this->read_data_(buffer, len);
-  return status;
+  return this->read_data_(buffer, len);
 }
 
 bool WK2132Channel::peek_byte(uint8_t *buffer) {
-  if (safe_ && this->peek_buffer_.empty && this->available() == 0)
-    return false;
+  bool status = true;
   if (this->peek_buffer_.empty) {
     this->peek_buffer_.empty = false;
-    this->read_data_(&this->peek_buffer_.data, 1);
+    status = this->read_data_(&this->peek_buffer_.data, 1);
   }
   *buffer = this->peek_buffer_.data;
-  return true;
+  return status;
 }
 
 void WK2132Channel::write_array(const uint8_t *buffer, size_t len) {
   if (len > this->fifo_size_) {
     ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size_);
     len = this->fifo_size_;
-  }
-  if (safe_ && (len > (this->fifo_size_ - this->tx_in_fifo_()))) {
-    len = this->fifo_size_ - this->tx_in_fifo_();  // send as much as possible
-    ESP_LOGE(TAG, "Write buffer overrun: can only send %d bytes ...", len);
   }
   this->write_data_(buffer, len);
 }
