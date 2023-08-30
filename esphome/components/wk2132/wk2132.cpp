@@ -23,7 +23,7 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 /// @param channel (0-3) the UART channel
 /// @param fifo (0-1) if 0 access to internal register, if 1 direct access to fifo
 /// @return the i2c address to use
-inline const uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) {
+inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) {
   // the address of the device is:
   // +----+----+----+----+----+----+----+----+
   // |  0 | A1 | A0 |  1 |  0 | C1 | C0 |  F |
@@ -162,8 +162,8 @@ void WK2132Channel::setup_channel_() {
   // -------------------------------------------------------------------------
   // |      TFTRIG     |      RFTRIG     |  TFEN  |  RFEN  |  TFRST |  RFRST |
   // -------------------------------------------------------------------------
-  uint8_t const fsr = 0x0F;  // 0000 1111 reset fifo and enable the two fifo ...
-  this->parent_->write_wk2132_register_(REG_WK2132_FCR, channel_, &fsr, 1);
+  uint8_t const fcr = 0x0F;  // 0000 1111 reset fifo and enable the two fifo ...
+  this->parent_->write_wk2132_register_(REG_WK2132_FCR, channel_, &fcr, 1);
 
   // SCR description of UART control register:
   //  -------------------------------------------------------------------------
@@ -272,7 +272,7 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
     if (this->parent_->test_mode_.test(0) && this->parent_->is_ready()) {  // test sniff (bit 0)
-      ESP_LOGI(TAG, "snif: received %d chars %02X... on UART @%02X channel %d", len, *buffer,
+      ESP_LOGI(TAG, "sniff: received %d chars %02X... on UART @%02X channel %d", len, *buffer,
                this->parent_->base_address_, this->channel_);
     }
     ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", this->channel_, *buffer, I2CS(*buffer),
