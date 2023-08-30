@@ -96,7 +96,6 @@ def validate_hw_pins(spi):
 
 
 def validate_spi_config(config):
-    print(CORE.data)
     available = list(range(get_hw_interface_cnt()))
     for spi in config:
         interface = spi[CONF_INTERFACE]
