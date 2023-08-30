@@ -36,13 +36,13 @@ class SPIDelegateHw : public SPIDelegate {
       config.flags |= SPI_DEVICE_BIT_LSBFIRST;
     esp_err_t const err = spi_bus_add_device(channel, &config, &this->handle_);
     if (err != ESP_OK)
-      ESP_LOGE(TAG, "Add device failed - err %d", err);
+      ESP_LOGE(TAG, "Add device failed - err %X", err);
   }
 
   ~SPIDelegateHw() override {
     esp_err_t const err = spi_bus_remove_device(this->handle_);
     if (err != ESP_OK)
-      ESP_LOGE(TAG, "Remove device failed - err %d", err);
+      ESP_LOGE(TAG, "Remove device failed - err %X", err);
   }
 
   // do a transfer. either txbuf or rxbuf (but not both) may be null.
@@ -60,7 +60,7 @@ class SPIDelegateHw : public SPIDelegate {
       desc.rx_buffer = rxbuf;
       esp_err_t const err = spi_device_transmit(this->handle_, &desc);
       if (err != ESP_OK) {
-        ESP_LOGE(TAG, "Transmit failed - err %d", err);
+        ESP_LOGE(TAG, "Transmit failed - err %X", err);
         break;
       }
       length -= partial;
@@ -128,7 +128,7 @@ class SPIBusHw : public SPIBus {
     buscfg.max_transfer_sz = MAX_TRANSFER_SIZE;
     auto err = spi_bus_initialize(channel, &buscfg, SPI_DMA_CH_AUTO);
     if (err != ESP_OK)
-      ESP_LOGE(TAG, "Bus init failed - err %d", err);
+      ESP_LOGE(TAG, "Bus init failed - err %X", err);
   }
 
   SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin) override {
