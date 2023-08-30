@@ -11,10 +11,9 @@ tca9548a_ns = cg.esphome_ns.namespace("tca9548a")
 TCA9548AComponent = tca9548a_ns.class_("TCA9548AComponent", cg.Component, i2c.I2CDevice)
 TCA9548AChannel = tca9548a_ns.class_("TCA9548AChannel", i2c.I2CBus)
 
-MULTI_CONF = True
-
 CONF_BUS_ID = "bus_id"
-CONFIG_SCHEMA = (
+
+TCA9548A_COMPONENT_SCHEMA = (
     cv.Schema(
         {
             cv.GenerateID(): cv.declare_id(TCA9548AComponent),
@@ -31,13 +30,18 @@ CONFIG_SCHEMA = (
     .extend(cv.COMPONENT_SCHEMA)
 )
 
+CONFIG_SCHEMA = cv.ensure_list(TCA9548A_COMPONENT_SCHEMA)
+
 
 async def to_code(config):
-    var = cg.new_Pvariable(config[CONF_ID])
-    await cg.register_component(var, config)
-    await i2c.register_i2c_device(var, config)
+    for component in config:
+        var = cg.new_Pvariable(component[CONF_ID])
+        await cg.register_component(var, component)
+        await i2c.register_i2c_device(var, component)
 
-    for conf in config[CONF_CHANNELS]:
-        chan = cg.new_Pvariable(conf[CONF_BUS_ID])
-        cg.add(chan.set_parent(var))
-        cg.add(chan.set_channel(conf[CONF_CHANNEL]))
+        # If more than one tca9548a is configured, disable all channels after all IO to avoid address conflicts
+        cg.add(var.set_disable_channels_after_io(len(config) > 1))
+        for conf in component[CONF_CHANNELS]:
+            chan = cg.new_Pvariable(conf[CONF_BUS_ID])
+            cg.add(chan.set_parent(var))
+            cg.add(chan.set_channel(conf[CONF_CHANNEL]))
