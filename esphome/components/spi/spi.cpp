@@ -46,37 +46,13 @@ void SPIComponent::setup() {
     this->mark_failed();
     return;
   }
-  bool use_hw_spi = !this->force_sw_;
 
-  const int8_t clk_pin = Utility::get_pin_no(this->clk_pin_);
-  const int8_t sdo_pin = Utility::get_pin_no(this->sdo_pin_);
-  const int8_t sdi_pin = Utility::get_pin_no(this->sdi_pin_);
-  if (clk_pin == -1)
-    use_hw_spi = false;
-#ifdef ESP8266
-  switch (clk_pin) {
-    case 6:
-      use_hw_spi &= this->sdo_pin_ == NullPin::NULL_PIN || sdo_pin == 8;
-      use_hw_spi &= this->sdi_pin_ == NullPin::NULL_PIN || sdi_pin == 7;
-      break;
-    case 14:
-      use_hw_spi &= this->sdo_pin_ == NullPin::NULL_PIN || sdo_pin == 13;
-      use_hw_spi &= this->sdi_pin_ == NullPin::NULL_PIN || sdi_pin == 12;
-      break;
-    default:
-      use_hw_spi = false;
-      break;
-  }
-#else
-  use_hw_spi &= this->sdo_pin_ == NullPin::NULL_PIN || sdo_pin >= 0;
-  use_hw_spi &= this->sdi_pin_ == NullPin::NULL_PIN || sdi_pin >= 0;
-#endif
-
-  SPIBus *bus = nullptr;
-  if (use_hw_spi)
-    bus = SPIComponent::get_next_bus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
-  if (bus != nullptr) {
-    this->spi_bus_ = bus;
+  if (this->interface_ >= 0) {
+    this->spi_bus_ = SPIComponent::get_bus(this->interface_, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
+    if (this->spi_bus_ == nullptr) {
+      ESP_LOGE(TAG, "Unable to allocate SPI interface %d", this->interface_);
+      this->mark_failed();
+    }
   } else {
     this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);  // NOLINT
     this->sdo_pin_->setup();
@@ -89,7 +65,11 @@ void SPIComponent::dump_config() {
   LOG_PIN("  CLK Pin: ", this->clk_pin_)
   LOG_PIN("  SDI Pin: ", this->sdi_pin_)
   LOG_PIN("  SDO Pin: ", this->sdo_pin_)
-  ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", YESNO(this->spi_bus_->is_hw()));
+  if (this->spi_bus_->is_hw()) {
+    ESP_LOGCONFIG(TAG, "  Using HW SPI: %d", this->interface_);
+  } else {
+    ESP_LOGCONFIG(TAG, "  Using software SPI");
+  }
 }
 
 void SPIDelegateDummy::begin_transaction() { ESP_LOGE(TAG, "SPIDevice not initialised - did you call spi_setup()?"); }

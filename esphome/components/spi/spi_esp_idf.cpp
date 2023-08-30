@@ -16,7 +16,7 @@ static std::vector<spi_host_device_t> bus_list = {
     SPI1_HOST,
 #endif
 #ifdef USE_ESP32
-    SPI3_HOST, SPI2_HOST
+    SPI2_HOST, SPI3_HOST
 #endif
 };
 
@@ -125,13 +125,15 @@ class SPIBusHw : public SPIBus {
   bool is_hw() override { return true; }
 };
 
-SPIBus *SPIComponent::get_next_bus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
+SPIBus *SPIComponent::get_bus(int interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
   spi_host_device_t channel;
 
-  if (bus_list.empty())
+  ESP_LOGD(TAG, "Initialise bus %d", interface);
+  if (interface >= bus_list.size()) {
+    ESP_LOGE(TAG, "Invalid interface %d", interface);
     return nullptr;
-  channel = bus_list.back();
-  bus_list.pop_back();
+  }
+  channel = bus_list[interface];
   return new SPIBusHw(clk, sdo, sdi, channel);
 }
 

@@ -6,6 +6,7 @@ namespace spi {
 
 #ifdef USE_ARDUINO
 
+static const char *const TAG = "spi-esp-arduino";
 #ifdef USE_RP2040
 using SPIBusDelegate = SPIClassRP2040;
 #else
@@ -16,14 +17,14 @@ using SPIBusDelegate = SPIClass;
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables, cppcoreguidelines-interfaces-global-init)
 static std::vector<std::function<SPIBusDelegate *()>> bus_list = {
 #ifdef USE_ESP32
+    [] { return &SPI; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3) || \
     defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
     [] { return new SPIClass(FSPI); },  // NOLINT(cppcoreguidelines-owning-memory)
 #else
     [] { return new SPIClass(HSPI); },  // NOLINT(cppcoreguidelines-owning-memory)
-#endif                    // USE_ESP32_VARIANT
-    [] { return &SPI; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
-#endif                    // USE_ESP32
+#endif  // USE_ESP32_VARIANT
+#endif  // USE_ESP32
 #ifdef USE_RP2040
 // Doesn't seem to be defined.
 //  [] { return &SPI1; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
@@ -102,13 +103,14 @@ class SPIBusHw : public SPIBus {
   bool is_hw() override { return true; }
 };
 
-SPIBus *SPIComponent::get_next_bus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
+SPIBus *SPIComponent::get_bus(int interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
   SPIBusDelegate *channel;
 
-  if (bus_list.empty())
+  if (interface >= bus_list.size()) {
+    ESP_LOGE(TAG, "Invalid interface %d", interface);
     return nullptr;
-  channel = bus_list.back()();
-  bus_list.pop_back();
+  }
+  channel = bus_list[interface]();
   return new SPIBusHw(clk, sdo, sdi, channel);
 }
 

@@ -300,7 +300,7 @@ class SPIComponent : public Component {
 
   void set_mosi(GPIOPin *sdo) { this->sdo_pin_ = sdo; }
 
-  void set_force_sw(bool force_sw) { this->force_sw_ = force_sw; }
+  void set_interface(int interface) { this->interface_ = interface; }
 
   float get_setup_priority() const override { return setup_priority::BUS; }
 
@@ -311,11 +311,11 @@ class SPIComponent : public Component {
   GPIOPin *clk_pin_{nullptr};
   GPIOPin *sdi_pin_{nullptr};
   GPIOPin *sdo_pin_{nullptr};
-  bool force_sw_{false};
+  int interface_{-1};
   SPIBus *spi_bus_{};
   std::map<SPIClient *, SPIDelegate *> devices_;
 
-  static SPIBus *get_next_bus(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi);
+  static SPIBus *get_bus(int interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi);
 };
 
 /**
