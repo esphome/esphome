@@ -48,7 +48,7 @@ TYPES = [
     CONF_COOLING_SUPPORTED,
     CONF_DHW_STORAGE_TANK,
     CONF_DEVICE_LOWOFF_PUMP_CONTROL,
-    CONF_CH_2_PRESENT
+    CONF_CH_2_PRESENT,
 ]
 
 CONFIG_SCHEMA = cv.All(
@@ -91,7 +91,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_AIR_PRESSURE_FAULT): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_PROBLEM,
             ),
-            cv.Optional(CONF_WATER_OVER_TEMPERATURE_FAULT): binary_sensor.binary_sensor_schema(
+            cv.Optional(
+                CONF_WATER_OVER_TEMPERATURE_FAULT
+            ): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_PROBLEM,
             ),
             cv.Optional(CONF_DHW_PRESENT): binary_sensor.binary_sensor_schema(
@@ -106,7 +108,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_DHW_STORAGE_TANK): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_EMPTY,
             ),
-            cv.Optional(CONF_DEVICE_LOWOFF_PUMP_CONTROL): binary_sensor.binary_sensor_schema(
+            cv.Optional(
+                CONF_DEVICE_LOWOFF_PUMP_CONTROL
+            ): binary_sensor.binary_sensor_schema(
                 device_class=DEVICE_CLASS_EMPTY,
             ),
             cv.Optional(CONF_CH_2_PRESENT): binary_sensor.binary_sensor_schema(

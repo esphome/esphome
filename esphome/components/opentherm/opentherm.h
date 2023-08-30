@@ -132,9 +132,7 @@ class OpenThermComponent : public PollingComponent {
   void set_service_request_binary_sensor(binary_sensor::BinarySensor *sensor) {
     service_request_binary_sensor_ = sensor;
   }
-  void set_lockout_reset_binary_sensor(binary_sensor::BinarySensor *sensor) {
-    lockout_reset_binary_sensor_ = sensor;
-  }
+  void set_lockout_reset_binary_sensor(binary_sensor::BinarySensor *sensor) { lockout_reset_binary_sensor_ = sensor; }
   void set_water_pressure_fault_binary_sensor(binary_sensor::BinarySensor *sensor) {
     water_pressure_fault_binary_sensor_ = sensor;
   }
@@ -149,8 +147,12 @@ class OpenThermComponent : public PollingComponent {
   }
   void set_dhw_present_binary_sensor(binary_sensor::BinarySensor *sensor) { dhw_present_binary_sensor_ = sensor; }
   void set_modulating_binary_sensor(binary_sensor::BinarySensor *sensor) { modulating_binary_sensor_ = sensor; }
-  void set_cooling_supported_binary_sensor(binary_sensor::BinarySensor *sensor) { cooling_supported_binary_sensor_ = sensor; }
-  void set_dhw_storage_tank_binary_sensor(binary_sensor::BinarySensor *sensor) { dhw_storage_tank_binary_sensor_ = sensor; }
+  void set_cooling_supported_binary_sensor(binary_sensor::BinarySensor *sensor) {
+    cooling_supported_binary_sensor_ = sensor;
+  }
+  void set_dhw_storage_tank_binary_sensor(binary_sensor::BinarySensor *sensor) {
+    dhw_storage_tank_binary_sensor_ = sensor;
+  }
   void set_device_lowoff_pump_control_binary_sensor(binary_sensor::BinarySensor *sensor) {
     device_lowoff_pump_control_binary_sensor_ = sensor;
   }

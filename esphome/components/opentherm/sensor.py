@@ -14,7 +14,7 @@ from esphome.const import (
     STATE_CLASS_MEASUREMENT,
     UNIT_PERCENT,
     UNIT_CELSIUS,
-    UNIT_EMPTY
+    UNIT_EMPTY,
 )
 from . import OpenThermComponent, CONF_OPENTHERM_ID
 
@@ -107,7 +107,7 @@ CONFIG_SCHEMA = cv.All(
                 unit_of_measurement=UNIT_LITERS_PER_MIN,
                 icon=ICON_GAUGE,
                 accuracy_decimals=1,
-                state_class=STATE_CLASS_MEASUREMENT
+                state_class=STATE_CLASS_MEASUREMENT,
             ),
             cv.Optional(CONF_PRESSURE): sensor.sensor_schema(
                 unit_of_measurement=UNIT_BAR,
