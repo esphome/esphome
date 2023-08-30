@@ -12,7 +12,7 @@ class CustomNumber : public Component, public number::Number {
   void set_restore_value(bool restore_value) { this->restore_value_ = restore_value; }
   void set_initial_value(float initial_value) { this->initial_value_ = initial_value; }
   void setup() override;
-  void dump_custom_config(const char *prefix, const char *type);
+  void dump_custom_config(const char *prefix);
 
  protected:
   bool restore_value_{false};

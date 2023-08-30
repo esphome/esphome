@@ -27,8 +27,7 @@ void CustomNumber::control(float value) {
   }
 };
 
-void CustomNumber::dump_custom_config(const char *prefix, const char *type) {
-  LOG_NUMBER(prefix, type, this);
+void CustomNumber::dump_custom_config(const char *prefix) {
   if (!std::isnan(this->initial_value_)) {
     ESP_LOGCONFIG(TAG, "%s  Initial value: '%f'", prefix, this->initial_value_);
   }
