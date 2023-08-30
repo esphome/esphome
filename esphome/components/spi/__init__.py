@@ -11,6 +11,8 @@ from esphome.const import (
     CONF_CS_PIN,
     CONF_NUMBER,
     CONF_INVERTED,
+    KEY_CORE,
+    KEY_TARGET_PLATFORM,
 )
 from esphome.core import coroutine_with_priority, CORE
 
@@ -40,12 +42,21 @@ CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 
 
+def get_target_platform():
+    return (
+        CORE.data[KEY_CORE][KEY_TARGET_PLATFORM]
+        if KEY_TARGET_PLATFORM in CORE.data[KEY_CORE]
+        else ""
+    )
+
+
 def get_hw_interface_cnt():
-    if CORE.is_esp8266:
+    target_platform = get_target_platform()
+    if target_platform == "esp8266":
         return 1
-    if CORE.is_esp32:
+    if target_platform == "esp32":
         return 2
-    if CORE.is_rp2040:
+    if target_platform == "rp2040":
         return 2
     return 0
 
@@ -70,27 +81,24 @@ def validate_hw_pins(spi):
             return False
         sdi_pin_no = sdi_pin[CONF_NUMBER]
 
-    if CORE.is_esp8266:
+    target_platform = get_target_platform()
+    if target_platform == "esp8266":
         if clk_pin_no == 6:
-            return (sdo_pin_no == -1 or sdo_pin_no == 8) and (
-                sdi_pin_no == -1 or sdi_pin_no == 7
-            )
-        elif clk_pin_no == 14:
-            return (sdo_pin_no == -1 or sdo_pin_no == 13) and (
-                sdi_pin_no == -1 or sdi_pin_no == 12
-            )
-        else:
-            return False
+            return sdo_pin_no in (-1, 8) and sdi_pin_no in (-1, 7)
+        if clk_pin_no == 14:
+            return sdo_pin_no in (-1, 13) and sdi_pin_no in (-1, 12)
+        return False
 
-    if CORE.is_esp32:
+    if target_platform == "esp32":
         return clk_pin_no >= 0
 
     return False
 
 
 def validate_spi_config(config):
+    print(CORE.data)
     available = list(range(get_hw_interface_cnt()))
-    for spi_index, spi in enumerate(config):
+    for spi in config:
         interface = spi[CONF_INTERFACE]
         is_sw = spi[CONF_FORCE_SW] or interface == "software"
         if interface == "any":
@@ -108,7 +116,7 @@ def validate_spi_config(config):
             available.remove(interface)
 
     # Second time around, assign interfaces if required
-    for spi_index, spi in enumerate(config):
+    for spi in config:
         if spi[CONF_INTERFACE] == "any" and len(available) != 0:
             interface = available[0]
             spi[CONF_INTERFACE] = interface
