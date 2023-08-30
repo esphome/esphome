@@ -237,10 +237,21 @@ size_t WK2132Channel::tx_in_fifo_() {
   //  * -------------------------------------------------------------------------
   //  * |  RFOE  |  RFBI  |  RFFE  |  RFPE  |  RDAT  |  TDAT  |  TFULL |  TBUSY |
   //  * -------------------------------------------------------------------------
+  // WARNING:
+  // The received buffer can hold 256 bytes. However the RFCNT reg is 8 bit so 256 = 0 !
+  // Therefore the count can be when there is 256 bytes in the buffer. So if we have
+  // RXDAT = 1 and RFCNT = 0 it should be interpreted as the is 256 bytes in the FIFO
+  // Note that in case of overflow the RFOE goes to one **but** as soon as you read
+  // the FSR this bit is cleared (Overflow can be read only once)
+  //
+  // The same remark is valid for the transmit buffer so if TDAT is set and TFCNT is 0
+  // this should be interpreted as 256
   uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &this->data_, 1);
   if (fsr & 0x04) {
-    size_t const tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
+    uint8_t const tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
     ESP_LOGVV(TAG, "tx_in_fifo=%d FSR=%s", tfcnt, I2CS(fsr));
+    if (tfcnt == 0)
+      return 256;
     return tfcnt;
   }
   return 0;
@@ -249,10 +260,11 @@ size_t WK2132Channel::tx_in_fifo_() {
 size_t WK2132Channel::rx_in_fifo_() {
   size_t available = 0;
   uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
-  if (fsr & 0x8)  // if RDAT bit is set we read RFCNT
+  if (fsr & 0x8) {  // if RDAT bit is set we read RFCNT
     available = this->parent_->read_wk2132_register_(REG_WK2132_RFCNT, this->channel_, &this->data_, 1);
-  if (fsr & 0x80)  // if RFOE bit is set the RDAT is incorrectly set to 00 instead of 256
-    available = 256;
+    if (available == 0)  // if RDAT is set and count=0 we set it to 256
+      available = 256;
+  }
   if (!this->peek_buffer_.empty)
     available++;
   if (available > this->fifo_size_)  // no more than what is set in the fifo_size
@@ -267,7 +279,7 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
   this->parent_->address_ = i2c_address(this->parent_->base_address_, this->channel_, 1);  // set fifo flag
   // With the WK2132 we need to read data directly from the fifo buffer without passing through a register
   // note: that theoretically it should be possible to read through the REG_WK2132_FDA register
-  // but beware that it does not seems to work !
+  // but beware that it does not work !
   auto error = this->parent_->read(buffer, len);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
@@ -463,6 +475,25 @@ void WK2132Component::loop() {
     char preamble[64];
     for (size_t i = 0; i < this->children_.size(); i++) {
       snprintf(preamble, sizeof(preamble), "WK2132_@%02X_Ch_%d", this->get_num_(), i);
+      this->children_[i]->uart_send_test_(preamble);
+      this->children_[i]->uart_receive_test_(preamble);
+    }
+    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
+  }
+
+  if (test_mode_.test(3)) {  // test loop & overflow mode (bit 3)
+                             // in this mode we saturate the receive buffer to
+                             // check the overflow mechanism
+    static uint32_t loop_time = 0;
+    ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
+    loop_time = millis();
+    char preamble[64];
+    for (size_t i = 0; i < this->children_.size(); i++) {
+      snprintf(preamble, sizeof(preamble), "WK2132_@%02X_Ch_%d", this->get_num_(), i);
+      this->children_[i]->uart_send_test_(preamble);
+      this->children_[i]->uart_send_test_(preamble);
+      this->children_[i]->uart_send_test_(preamble);
+      this->children_[i]->uart_send_test_(preamble);
       this->children_[i]->uart_send_test_(preamble);
       this->children_[i]->uart_receive_test_(preamble);
     }
