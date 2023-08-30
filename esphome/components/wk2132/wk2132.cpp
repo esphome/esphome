@@ -23,11 +23,15 @@ inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
 /// @param channel (0-3) the UART channel
 /// @param fifo (0-1) if 0 access to internal register, if 1 direct access to fifo
 /// @return the i2c address to use
-inline uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) {
-  // the address of the device is 0AA1 0CCF (eg: 0001 0000) where:
-  // - AA is the address read from A1,A0
-  // - CC is the channel number (in practice only 00 or 01)
-  // - F is 0 when accessing register one when accessing FIFO
+inline const uint8_t i2c_address(uint8_t base_address, uint8_t channel, uint8_t fifo) {
+  // the address of the device is:
+  // +----+----+----+----+----+----+----+----+
+  // |  0 | A1 | A0 |  1 |  0 | C1 | C0 |  F |
+  // +----+----+----+----+----+----+----+----+
+  // where:
+  // - A1,A0 is the address read from A1,A0 switch
+  // - C1,C0 is the channel number (in practice only 00 or 01)
+  // - F is: 0 when accessing register, one when accessing FIFO
   uint8_t const addr = base_address | channel << 1 | fifo;
   return addr;
 }
@@ -243,10 +247,12 @@ size_t WK2132Channel::tx_in_fifo_() {
 }
 
 size_t WK2132Channel::rx_in_fifo_() {
-  uint8_t available = 0;
+  size_t available = 0;
   uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
-  if (fsr & 0x8)
+  if (fsr & 0x8)  // if RDAT bit is set we read RFCNT
     available = this->parent_->read_wk2132_register_(REG_WK2132_RFCNT, this->channel_, &this->data_, 1);
+  if (fsr & 0x80)  // if RFOE bit is set the RDAT is incorrectly set to 00 instead of 256
+    available = 256;
   if (!this->peek_buffer_.empty)
     available++;
   if (available > this->fifo_size_)  // no more than what is set in the fifo_size
