@@ -238,23 +238,23 @@ size_t WK2132Channel::tx_in_fifo_() {
   //  * |  RFOE  |  RFBI  |  RFFE  |  RFPE  |  RDAT  |  TDAT  |  TFULL |  TBUSY |
   //  * -------------------------------------------------------------------------
   // WARNING:
-  // The received buffer can hold 256 bytes. However the RFCNT reg is 8 bit so 256 = 0 !
-  // Therefore the count can be when there is 256 bytes in the buffer. So if we have
-  // RXDAT = 1 and RFCNT = 0 it should be interpreted as the is 256 bytes in the FIFO
+  // The received buffer can hold 256 bytes. However, as the RFCNT reg is 8 bit,
+  // in this case the value 256 is reported as 0 ! Therefore the RFCNT count can be
+  // o when there is 0 byte or 256 bytes in the buffer. So if we have RXDAT = 1
+  // and RFCNT = 0 it should be interpreted as there is 256 bytes in the FIFO.
   // Note that in case of overflow the RFOE goes to one **but** as soon as you read
-  // the FSR this bit is cleared (Overflow can be read only once)
+  // the FSR this bit is cleared. Therefore Overflow can be read only once even if
+  // still in overflow.
   //
-  // The same remark is valid for the transmit buffer so if TDAT is set and TFCNT is 0
-  // this should be interpreted as 256
+  // The same remark is valid for the transmit buffer but here we have to check the
+  // TFULL flag. So if TFULL is set and TFCNT is 0 this should be interpreted as 256
+  size_t const tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
   uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &this->data_, 1);
-  if (fsr & 0x04) {
-    uint8_t const tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
-    ESP_LOGVV(TAG, "tx_in_fifo=%d FSR=%s", tfcnt, I2CS(fsr));
-    if (tfcnt == 0)
-      return 256;
-    return tfcnt;
+  if ((fsr & 0x02) && (tfcnt == 0)) {
+    ESP_LOGVV(TAG, "tx_in_fifo overflow (256) FSR=%s", I2CS(fsr));
+    tfcnt = 256;
   }
-  return 0;
+  return tfcnt;
 }
 
 size_t WK2132Channel::rx_in_fifo_() {
@@ -264,7 +264,7 @@ size_t WK2132Channel::rx_in_fifo_() {
   if (available == 0) {
     uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
     if (fsr & 0x8) {  // if RDAT bit is set we set available to 256
-      ESP_LOGVV(TAG, "rx_in_fifo FSR=%s in overflow (256)", I2CS(fsr));
+      ESP_LOGVV(TAG, "rx_in_fifo overflow (256) FSR=%s", I2CS(fsr));
       available = 256;
     }
   }
