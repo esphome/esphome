@@ -590,6 +590,7 @@ display:
 
 time:
   - platform: pcf85063
+  - platform: pcf8563
 
 text_sensor:
   - platform: ezo_pmp

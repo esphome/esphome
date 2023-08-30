@@ -5,7 +5,6 @@ from esphome.const import CONF_ID, CONF_ADDRESS
 
 CODEOWNERS = ["@s1lvi0"]
 DEPENDENCIES = ["uart"]
-AUTO_LOAD = ["sensor", "text_sensor", "binary_sensor"]
 
 CONF_BMS_DALY_ID = "bms_daly_id"
 

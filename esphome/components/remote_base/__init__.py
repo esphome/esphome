@@ -17,6 +17,7 @@ from esphome.const import (
     CONF_PROTOCOL,
     CONF_GROUP,
     CONF_DEVICE,
+    CONF_SECOND,
     CONF_STATE,
     CONF_CHANNEL,
     CONF_FAMILY,
@@ -39,6 +40,7 @@ AUTO_LOAD = ["binary_sensor"]
 
 CONF_RECEIVER_ID = "receiver_id"
 CONF_TRANSMITTER_ID = "transmitter_id"
+CONF_FIRST = "first"
 
 ns = remote_base_ns = cg.esphome_ns.namespace("remote_base")
 RemoteProtocol = ns.class_("RemoteProtocol")
@@ -349,19 +351,48 @@ async def canalsatld_action(var, config, args):
     CoolixAction,
     CoolixDumper,
 ) = declare_protocol("Coolix")
-COOLIX_SCHEMA = cv.Schema({cv.Required(CONF_DATA): cv.hex_uint32_t})
 
 
-@register_binary_sensor("coolix", CoolixBinarySensor, COOLIX_SCHEMA)
+COOLIX_BASE_SCHEMA = cv.Schema(
+    {
+        cv.Required(CONF_FIRST): cv.hex_int_range(0, 16777215),
+        cv.Optional(CONF_SECOND, default=0): cv.hex_int_range(0, 16777215),
+        cv.Optional(CONF_DATA): cv.invalid(
+            "'data' option has been removed in ESPHome 2023.8. "
+            "Use the 'first' and 'second' options instead."
+        ),
+    }
+)
+
+COOLIX_SENSOR_SCHEMA = cv.Any(cv.hex_int_range(0, 16777215), COOLIX_BASE_SCHEMA)
+
+
+@register_binary_sensor("coolix", CoolixBinarySensor, COOLIX_SENSOR_SCHEMA)
 def coolix_binary_sensor(var, config):
-    cg.add(
-        var.set_data(
-            cg.StructInitializer(
-                CoolixData,
-                ("data", config[CONF_DATA]),
+    if isinstance(config, dict):
+        cg.add(
+            var.set_data(
+                cg.StructInitializer(
+                    CoolixData,
+                    ("first", config[CONF_FIRST]),
+                    ("second", config[CONF_SECOND]),
+                )
             )
         )
-    )
+    else:
+        cg.add(
+            var.set_data(
+                cg.StructInitializer(CoolixData, ("first", 0), ("second", config))
+            )
+        )
+
+
+@register_action("coolix", CoolixAction, COOLIX_BASE_SCHEMA)
+async def coolix_action(var, config, args):
+    template_ = await cg.templatable(config[CONF_FIRST], args, cg.uint32)
+    cg.add(var.set_first(template_))
+    template_ = await cg.templatable(config[CONF_SECOND], args, cg.uint32)
+    cg.add(var.set_second(template_))
 
 
 @register_trigger("coolix", CoolixTrigger, CoolixData)
@@ -372,12 +403,6 @@ def coolix_trigger(var, config):
 @register_dumper("coolix", CoolixDumper)
 def coolix_dumper(var, config):
     pass
-
-
-@register_action("coolix", CoolixAction, COOLIX_SCHEMA)
-async def coolix_action(var, config, args):
-    template_ = await cg.templatable(config[CONF_DATA], args, cg.uint32)
-    cg.add(var.set_data(template_))
 
 
 # Dish
@@ -1463,12 +1488,7 @@ MideaData, MideaBinarySensor, MideaTrigger, MideaAction, MideaDumper = declare_p
 MideaAction = ns.class_("MideaAction", RemoteTransmitterActionBase)
 MIDEA_SCHEMA = cv.Schema(
     {
-        cv.Required(CONF_CODE): cv.templatable(
-            cv.All(
-                [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
-                cv.Length(min=5, max=5),
-            )
-        ),
+        cv.Required(CONF_CODE): cv.All([cv.hex_uint8_t], cv.Length(min=5, max=5)),
     }
 )
 
@@ -1488,18 +1508,11 @@ def midea_dumper(var, config):
     pass
 
 
-@register_action(
-    "midea",
-    MideaAction,
-    MIDEA_SCHEMA,
-)
+@register_action("midea", MideaAction, MIDEA_SCHEMA)
 async def midea_action(var, config, args):
-    code_ = config[CONF_CODE]
-    if cg.is_template(code_):
-        template_ = await cg.templatable(code_, args, cg.std_vector.template(cg.uint8))
-        cg.add(var.set_code_template(template_))
-    else:
-        cg.add(var.set_code_static(code_))
+    vec_ = cg.std_vector.template(cg.uint8)
+    template_ = await cg.templatable(config[CONF_CODE], args, vec_, vec_)
+    cg.add(var.set_code(template_))
 
 
 # AEHA
@@ -1509,10 +1522,7 @@ AEHAData, AEHABinarySensor, AEHATrigger, AEHAAction, AEHADumper = declare_protoc
 AEHA_SCHEMA = cv.Schema(
     {
         cv.Required(CONF_ADDRESS): cv.hex_uint16_t,
-        cv.Required(CONF_DATA): cv.All(
-            [cv.Any(cv.hex_uint8_t, cv.uint8_t)],
-            cv.Length(min=2, max=35),
-        ),
+        cv.Required(CONF_DATA): cv.All([cv.hex_uint8_t], cv.Length(min=2, max=35)),
     }
 )
 
@@ -1544,4 +1554,7 @@ def aeha_dumper(var, config):
 async def aeha_action(var, config, args):
     template_ = await cg.templatable(config[CONF_ADDRESS], args, cg.uint16)
     cg.add(var.set_address(template_))
-    cg.add(var.set_data(config[CONF_DATA]))
+    template_ = await cg.templatable(
+        config[CONF_DATA], args, cg.std_vector.template(cg.uint8)
+    )
+    cg.add(var.set_data(template_))
