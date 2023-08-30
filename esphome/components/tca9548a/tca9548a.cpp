@@ -44,7 +44,13 @@ i2c::ErrorCode TCA9548AComponent::switch_to_channel(uint8_t channel) {
   if (current_channel_ == channel)
     return i2c::ERROR_OK;
 
-  uint8_t channel_val = 1 << channel;  // if channel > 7, then channel_val = 0, which disables all channels
+  uint8_t channel_val = 0;  // 0 disables all channels
+
+  // If it is a valid channel, shift 1 to the corresponding channel bit to enable it
+  if (channel < 8) {
+    channel_val = 1 << channel;
+  }
+
   auto err = this->write(&channel_val, 1);
   if (err == i2c::ERROR_OK) {
     this->current_channel_ = channel;
