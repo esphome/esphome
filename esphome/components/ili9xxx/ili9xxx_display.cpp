@@ -152,12 +152,10 @@ void ILI9XXXDisplay::update() {
     this->need_update_ = true;
     return;
   }
+  this->prossing_update_ = true;
   do {
-    this->prossing_update_ = true;
     this->need_update_ = false;
-    if (!this->need_update_) {
-      this->do_update_();
-    }
+    this->do_update_();
   } while (this->need_update_);
   this->prossing_update_ = false;
   this->display_();
@@ -402,6 +400,17 @@ void ILI9XXXILI9486::initialize() {
 //    40_TFT display
 void ILI9XXXILI9488::initialize() {
   this->init_lcd_(INITCMD_ILI9488);
+  if (this->width_ == 0) {
+    this->width_ = 480;
+  }
+  if (this->height_ == 0) {
+    this->height_ = 320;
+  }
+  this->is_18bitdisplay_ = true;
+}
+//    40_TFT display
+void ILI9XXXILI9488A::initialize() {
+  this->init_lcd_(INITCMD_ILI9488_A);
   if (this->width_ == 0) {
     this->width_ = 480;
   }

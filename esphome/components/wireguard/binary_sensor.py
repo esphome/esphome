@@ -23,6 +23,6 @@ CONFIG_SCHEMA = {
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_WIREGUARD_ID])
 
-    if CONF_STATUS:
-        sens = await binary_sensor.new_binary_sensor(config[CONF_STATUS])
+    if status_config := config.get(CONF_STATUS):
+        sens = await binary_sensor.new_binary_sensor(status_config)
         cg.add(parent.set_status_sensor(sens))

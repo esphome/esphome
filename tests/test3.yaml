@@ -957,7 +957,7 @@ climate:
       temperature_step: 1 °C
     supported_modes:
     - 'OFF'
-    - AUTO
+    - HEAT_COOL
     - COOL
     - HEAT
     - DRY
@@ -1194,13 +1194,54 @@ alarm_control_panel:
       - "1234"
     requires_code_to_arm: true
     arming_home_time: 1s
+    arming_night_time: 1s
     arming_away_time: 15s
     pending_time: 15s
     trigger_time: 30s
     binary_sensors:
       - input: bin1
         bypass_armed_home: true
+        bypass_armed_night: true
     on_state:
       then:
         - lambda: !lambda |-
             ESP_LOGD("TEST", "State change %s", alarm_control_panel_state_to_string(id(alarmcontrolpanel1)->get_state()));
+  - platform: template
+    id: alarmcontrolpanel2
+    name: Alarm Panel
+    codes:
+      - "1234"
+    requires_code_to_arm: true
+    arming_home_time: 1s
+    arming_night_time: 1s
+    arming_away_time: 15s
+    pending_time: 15s
+    trigger_time: 30s
+    binary_sensors:
+      - input: bin1
+        bypass_armed_home: true
+        bypass_armed_night: true
+    on_disarmed:
+      then:
+        - logger.log: "### DISARMED ###"
+    on_pending:
+      then:
+        - logger.log: "### PENDING ###"
+    on_arming:
+      then:
+        - logger.log: "### ARMING ###"
+    on_armed_home:
+      then:
+        - logger.log: "### ARMED HOME ###"
+    on_armed_night:
+      then:
+        - logger.log: "### ARMED NIGHT ###"
+    on_armed_away:
+      then:
+        - logger.log: "### ARMED AWAY ###"
+    on_triggered:
+      then:
+        - logger.log: "### TRIGGERED ###"
+    on_cleared:
+      then:
+        - logger.log: "### CLEARED ###"

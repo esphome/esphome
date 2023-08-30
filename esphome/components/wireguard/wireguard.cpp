@@ -61,8 +61,6 @@ void Wireguard::setup() {
 }
 
 void Wireguard::loop() {
-  PollingComponent::loop();
-
   if ((this->wg_initialized_ == ESP_OK) && (this->wg_connected_ == ESP_OK) && (!network::is_connected())) {
     ESP_LOGV(TAG, "local network connection has been lost, stopping WireGuard...");
     this->stop_connection_();
@@ -128,13 +126,12 @@ void Wireguard::dump_config() {
   ESP_LOGCONFIG(TAG, "WireGuard:");
   ESP_LOGCONFIG(TAG, "  Address: %s", this->address_.c_str());
   ESP_LOGCONFIG(TAG, "  Netmask: %s", this->netmask_.c_str());
-  ESP_LOGCONFIG(TAG, "  Private Key: %s[...]=", this->private_key_.substr(0, 5).c_str());
-  ESP_LOGCONFIG(TAG, "  Peer Endpoint: %s", this->peer_endpoint_.c_str());
-  ESP_LOGCONFIG(TAG, "  Peer Port: %d", this->peer_port_);
-  ESP_LOGCONFIG(TAG, "  Peer Public Key: %s", this->peer_public_key_.c_str());
-  ESP_LOGCONFIG(TAG, "  Peer Pre-shared Key: %s%s",
-                (this->preshared_key_.length() > 0 ? this->preshared_key_.substr(0, 5).c_str() : "NOT IN USE"),
-                (this->preshared_key_.length() > 0 ? "[...]=" : ""));
+  ESP_LOGCONFIG(TAG, "  Private Key: " LOG_SECRET("%s"), mask_key(this->private_key_).c_str());
+  ESP_LOGCONFIG(TAG, "  Peer Endpoint: " LOG_SECRET("%s"), this->peer_endpoint_.c_str());
+  ESP_LOGCONFIG(TAG, "  Peer Port: " LOG_SECRET("%d"), this->peer_port_);
+  ESP_LOGCONFIG(TAG, "  Peer Public Key: " LOG_SECRET("%s"), this->peer_public_key_.c_str());
+  ESP_LOGCONFIG(TAG, "  Peer Pre-shared Key: " LOG_SECRET("%s"),
+                (this->preshared_key_.length() > 0 ? mask_key(this->preshared_key_).c_str() : "NOT IN USE"));
   ESP_LOGCONFIG(TAG, "  Peer Allowed IPs:");
   for (auto &allowed_ip : this->allowed_ips_) {
     ESP_LOGCONFIG(TAG, "    - %s/%s", std::get<0>(allowed_ip).c_str(), std::get<1>(allowed_ip).c_str());
@@ -291,9 +288,9 @@ void resume_wdt() {
 #endif
 }
 
+std::string mask_key(const std::string &key) { return (key.substr(0, 5) + "[...]="); }
+
 }  // namespace wireguard
 }  // namespace esphome
 
-#endif
-
-// vim: tabstop=2 shiftwidth=2 expandtab
+#endif  // USE_ESP32

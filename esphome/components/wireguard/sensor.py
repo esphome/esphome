@@ -25,6 +25,6 @@ CONFIG_SCHEMA = {
 async def to_code(config):
     parent = await cg.get_variable(config[CONF_WIREGUARD_ID])
 
-    if CONF_LATEST_HANDSHAKE:
-        sens = await sensor.new_sensor(config[CONF_LATEST_HANDSHAKE])
+    if latest_handshake_config := config.get(CONF_LATEST_HANDSHAKE):
+        sens = await sensor.new_sensor(latest_handshake_config)
         cg.add(parent.set_handshake_sensor(sens))

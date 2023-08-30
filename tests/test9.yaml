@@ -46,5 +46,3 @@ sensor:
   - platform: wireguard
     latest_handshake:
       name: 'WireGuard Latest Handshake'
-
-# vim: ts=2 sw=2 et
