@@ -10,6 +10,7 @@ from esphome.const import (
     CONF_SPI_ID,
     CONF_CS_PIN,
     CONF_NUMBER,
+    CONF_INVERTED,
 )
 from esphome.core import coroutine_with_priority, CORE
 
@@ -39,35 +40,56 @@ CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
 
 
-def get_spi_interface_list():
+def get_hw_interface_cnt():
     if CORE.is_esp8266:
-        return [1]
+        return 1
     if CORE.is_esp32:
-        return [2, 3]
+        return 2
     if CORE.is_rp2040:
-        return [0, 1]
+        return 2
     return 0
 
 
 # Check that pins are suitable for HW spi
+# TODO verify that the pins are internal
 def validate_hw_pins(spi):
-    clk_pin = spi[CONF_CLK_PIN][CONF_NUMBER]
-    sdo_pin = spi[CONF_MOSI_PIN][CONF_NUMBER] if CONF_MOSI_PIN in spi else -1
-    sdi_pin = spi[CONF_MISO_PIN][CONF_NUMBER] if CONF_MISO_PIN in spi else -1
+    clk_pin = spi[CONF_CLK_PIN]
+    if clk_pin[CONF_INVERTED]:
+        return False
+    clk_pin_no = clk_pin[CONF_NUMBER]
+    sdo_pin_no = -1
+    sdi_pin_no = -1
+    if CONF_MOSI_PIN in spi:
+        sdo_pin = spi[CONF_MOSI_PIN]
+        if sdo_pin[CONF_INVERTED]:
+            return False
+        sdo_pin_no = sdo_pin[CONF_NUMBER]
+    if CONF_MISO_PIN in spi:
+        sdi_pin = spi[CONF_MISO_PIN]
+        if sdi_pin[CONF_INVERTED]:
+            return False
+        sdi_pin_no = sdi_pin[CONF_NUMBER]
 
     if CORE.is_esp8266:
-        match spi[CONF_MOSI_PIN][CONF_NUMBER]:
-            case 6:
-                return sdo_pin == -1 or sdo_pin == 8 and sdi_pin == -1 or sdi_pin == 7
-            case 14:
-                return sdo_pin == -1 or sdo_pin == 13 and sdi_pin == -1 or sdi_pin == 12
-            case _:
-                return False
-    return clk_pin >= 0
+        if clk_pin_no == 6:
+            return (sdo_pin_no == -1 or sdo_pin_no == 8) and (
+                sdi_pin_no == -1 or sdi_pin_no == 7
+            )
+        elif clk_pin_no == 14:
+            return (sdo_pin_no == -1 or sdo_pin_no == 13) and (
+                sdi_pin_no == -1 or sdi_pin_no == 12
+            )
+        else:
+            return False
+
+    if CORE.is_esp32:
+        return clk_pin_no >= 0
+
+    return False
 
 
 def validate_spi_config(config):
-    available = get_spi_interface_list()
+    available = list(range(get_hw_interface_cnt()))
     for spi_index, spi in enumerate(config):
         interface = spi[CONF_INTERFACE]
         is_sw = spi[CONF_FORCE_SW] or interface == "software"
@@ -79,6 +101,10 @@ def validate_spi_config(config):
                 raise cv.Invalid("Software SPI does not use hardware interface")
             if interface not in available:
                 raise cv.Invalid(f"SPI interface {interface} already claimed")
+            if not validate_hw_pins(spi):
+                raise cv.Invalid(
+                    f"Invalid pin selections for hardware SPI interface {interface}"
+                )
             available.remove(interface)
 
     # Second time around, assign interfaces if required
@@ -102,7 +128,7 @@ SPI_SCHEMA = cv.All(
             cv.Optional(CONF_INTERFACE, default="any"): cv.Any(
                 cv.string("any"),
                 cv.string("software"),
-                cv.int_range(get_spi_interface_list()[0], get_spi_interface_list()[-1]),
+                cv.int_range(0, get_hw_interface_cnt(), max_included=False),
             ),
         }
     ),
@@ -133,7 +159,6 @@ async def to_code(configs):
         interface = config[CONF_INTERFACE]
         if isinstance(interface, int):
             # zero-index so can be used to index the array.
-            interface = interface - get_spi_interface_list()[0]
             cg.add(var.set_interface(interface))
 
     if CORE.using_arduino:
