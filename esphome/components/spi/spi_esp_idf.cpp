@@ -92,6 +92,22 @@ class SPIDelegateHw : public SPIDelegate {
 
   void write_array(const uint8_t *ptr, size_t length) override { this->transfer(ptr, nullptr, length); }
 
+  void write_array16(const uint16_t *data, size_t length) override {
+    if (this->bit_order_ == BIT_ORDER_LSB_FIRST) {
+      this->write_array((uint8_t *) data, length * 2);
+    } else {
+      uint16_t buffer[MAX_TRANSFER_SIZE / 2];
+      while (length != 0) {
+        size_t const partial = std::min(length, MAX_TRANSFER_SIZE / 2);
+        for (size_t i = 0; i != partial; i++) {
+          buffer[i] = SPI_SWAP_DATA_TX(*data++, 16);
+        }
+        this->write_array((const uint8_t *) buffer, partial * 2);
+        length -= partial;
+      }
+    }
+  }
+
   void read_array(uint8_t *ptr, size_t length) override { this->transfer(nullptr, ptr, length); }
 
  protected:
@@ -129,7 +145,7 @@ SPIBus *SPIComponent::get_bus(int interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin
   spi_host_device_t channel;
 
   ESP_LOGD(TAG, "Initialise bus %d", interface);
-  if (interface >= bus_list.size()) {
+  if ((size_t) interface >= bus_list.size()) {
     ESP_LOGE(TAG, "Invalid interface %d", interface);
     return nullptr;
   }

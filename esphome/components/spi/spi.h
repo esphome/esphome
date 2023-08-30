@@ -202,6 +202,12 @@ class SPIDelegate {
     return out_data;
   }
 
+  virtual void write_array16(const uint16_t *data, size_t length) {
+    for (size_t i = 0; i != length; i++) {
+      this->transfer16(data[i]);
+    }
+  }
+
   // write the contents of a buffer, ignore read data (buffer is unchanged.)
   virtual void write_array(const uint8_t *ptr, size_t length) {
     for (size_t i = 0; i != length; i++)
@@ -393,10 +399,7 @@ class SPIDevice : public SPIClient {
   void write_byte16(uint16_t data) { this->delegate_->transfer16(data); }
 
   // avoid use of this if possible. It's inefficient and ugly.
-  void write_array16(const uint16_t *data, size_t length) {
-    for (size_t i = 0; i != length; i++)
-      this->delegate_->transfer16(data[i]);
-  }
+  void write_array16(const uint16_t *data, size_t length) { this->delegate_->write_array16(data, length); }
 
   void enable() { this->delegate_->begin_transaction(); }
 

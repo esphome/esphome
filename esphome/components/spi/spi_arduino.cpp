@@ -106,7 +106,7 @@ class SPIBusHw : public SPIBus {
 SPIBus *SPIComponent::get_bus(int interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
   SPIBusDelegate *channel;
 
-  if (interface >= bus_list.size()) {
+  if ((size_t) interface >= bus_list.size()) {
     ESP_LOGE(TAG, "Invalid interface %d", interface);
     return nullptr;
   }
