@@ -1,6 +1,12 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
+from esphome.components.esp32.const import (
+    KEY_ESP32,
+    VARIANT_ESP32C2,
+    VARIANT_ESP32C3,
+    VARIANT_ESP32C6,
+)
 from esphome import pins
 from esphome.const import (
     CONF_CLK_PIN,
@@ -13,6 +19,7 @@ from esphome.const import (
     CONF_INVERTED,
     KEY_CORE,
     KEY_TARGET_PLATFORM,
+    KEY_VARIANT,
 )
 from esphome.core import coroutine_with_priority, CORE
 
@@ -50,11 +57,19 @@ def get_target_platform():
     )
 
 
+def get_target_variant():
+    return (
+        CORE.data[KEY_ESP32][KEY_VARIANT] if KEY_VARIANT in CORE.data[KEY_ESP32] else ""
+    )
+
+
 def get_hw_interface_cnt():
     target_platform = get_target_platform()
     if target_platform == "esp8266":
         return 1
     if target_platform == "esp32":
+        if get_target_variant() in [VARIANT_ESP32C2, VARIANT_ESP32C3, VARIANT_ESP32C6]:
+            return 1
         return 2
     if target_platform == "rp2040":
         return 2

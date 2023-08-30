@@ -16,8 +16,11 @@ static std::vector<spi_host_device_t> bus_list = {
     SPI1_HOST,
 #endif
 #ifdef USE_ESP32
-    SPI2_HOST, SPI3_HOST
-#endif
+    SPI2_HOST,
+#if !(defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6))
+    SPI3_HOST
+#endif  // VARIANTS
+#endif  // USE_ESP32
 };
 
 class SPIDelegateHw : public SPIDelegate {
