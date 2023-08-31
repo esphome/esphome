@@ -19,7 +19,6 @@ void ST7789V::setup() {
 
   this->write_command_(ST7789_SLPOUT);  // Sleep out
   delay(120);                           // NOLINT
-  this->write_command_(ST7789_SLPOUT);  //
 
   this->write_command_(ST7789_NORON);  // Normal display mode on
 
@@ -232,6 +231,7 @@ void ST7789V::init_reset_() {
     delay(1);
     // Wake up
     this->reset_pin_->digital_write(true);
+    delay(5);
   }
 }
 
