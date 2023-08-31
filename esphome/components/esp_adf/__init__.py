@@ -1,3 +1,5 @@
+import os
+
 import esphome.config_validation as cv
 import esphome.codegen as cg
 
@@ -59,3 +61,13 @@ async def to_code(config):
         "board_build.embed_txtfiles", "components/dueros_service/duer_profile"
     )
     esp32.add_idf_sdkconfig_option(SUPPORTED_BOARDS[esp32.get_board()], True)
+
+    esp32.add_extra_script(
+        "pre",
+        "apply_adf_patches.py",
+        os.path.join(os.path.dirname(__file__), "apply_adf_patches.py.script"),
+    )
+    esp32.add_extra_build_file(
+        "esp_adf_patches/idf_v4.4_freertos.patch",
+        "https://github.com/espressif/esp-adf/raw/v2.5/idf_patches/idf_v4.4_freertos.patch",
+    )
