@@ -152,21 +152,24 @@ def add_idf_component(
             KEY_SUBMODULES: submodules,
         }
 
+
 def add_extra_script(stage: str, filename: str, path: str):
     """Add an extra script to the project."""
     key = f"{stage}:{filename}"
     if add_extra_build_file(filename, path):
         cg.add_platformio_option("extra_scripts", [key])
 
+
 def add_extra_build_file(filename: str, path: str) -> bool:
     """Add an extra build file to the project."""
     if filename not in CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES]:
         CORE.data[KEY_ESP32][KEY_EXTRA_BUILD_FILES][filename] = {
             KEY_NAME: filename,
-            KEY_PATH: path
+            KEY_PATH: path,
         }
         return True
     return False
+
 
 def _format_framework_arduino_version(ver: cv.Version) -> str:
     # format the given arduino (https://github.com/espressif/arduino-esp32/releases) version to
@@ -392,7 +395,11 @@ async def to_code(config):
     conf = config[CONF_FRAMEWORK]
     cg.add_platformio_option("platform", conf[CONF_PLATFORM_VERSION])
 
-    add_extra_script("post", "post_build2.py", os.path.join(os.path.dirname(__file__), "post_build.py.script"))
+    add_extra_script(
+        "post",
+        "post_build2.py",
+        os.path.join(os.path.dirname(__file__), "post_build.py.script"),
+    )
 
     if conf[CONF_TYPE] == FRAMEWORK_ESP_IDF:
         cg.add_platformio_option("framework", "espidf")
@@ -612,7 +619,7 @@ def copy_files():
 
             mkdir_p(CORE.relative_build_path(os.path.dirname(file[KEY_NAME])))
             with open(CORE.relative_build_path(file[KEY_NAME]), "wb") as f:
-                f.write(requests.get(file[KEY_PATH]).content)
+                f.write(requests.get(file[KEY_PATH], timeout=30).content)
         else:
             copy_file_if_changed(
                 file[KEY_PATH],
