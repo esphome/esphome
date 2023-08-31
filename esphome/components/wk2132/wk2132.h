@@ -246,6 +246,7 @@ class WK2132Channel : public uart::UARTComponent {
 
   void uart_send_test_(char *preamble);
   void uart_receive_test_(char *preamble, bool print_buf = true);
+  void uart_receive_one_by_one_test_(char *preamble, bool print_buf = true);
 
   WK2132Component *parent_;  ///< Our WK2132component parent
   uint8_t channel_;          ///< Our Channel number

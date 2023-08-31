@@ -248,7 +248,7 @@ size_t WK2132Channel::tx_in_fifo_() {
   //
   // The same remark is valid for the transmit buffer but here we have to check the
   // TFULL flag. So if TFULL is set and TFCNT is 0 this should be interpreted as 256
-  size_t const tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
+  size_t tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
   uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &this->data_, 1);
   if ((fsr & 0x02) && (tfcnt == 0)) {
     ESP_LOGVV(TAG, "tx_in_fifo overflow (256) FSR=%s", I2CS(fsr));
@@ -434,6 +434,22 @@ void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
            millis() - start_exec);
 }
 
+/// @brief test read_array method
+void WK2132Channel::uart_receive_one_by_one_test_(char *preamble, bool print_buf) {
+  auto start_exec = millis();
+  bool status = false;
+  uint8_t const to_read = this->available();
+  if (to_read > 0) {
+    std::vector<uint8_t> buffer(to_read);
+    while (this->available())
+      status = this->read_array(&buffer[0], 1);  // read one by one
+    if (print_buf)
+      print_buffer(buffer);
+  }
+  ESP_LOGI(TAG, "%s => %d bytes received (read 1 by 1) status %s - exec time %d ms ...", preamble, to_read,
+           status ? "OK" : "ERROR", millis() - start_exec);
+}
+
 void WK2132Component::loop() {
   //
   // This loop is used only if the wk2132 component is in test mode otherwise we return immediately
@@ -466,7 +482,21 @@ void WK2132Component::loop() {
     ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
   }
 
-  if (test_mode_.test(3)) {  // test loop & overflow mode (bit 3)
+  if (test_mode_.test(3)) {  // test loop read 1 by 1 (bit 3)
+                             // in this mode we read the byte one by one
+    static uint32_t loop_time = 0;
+    ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
+    loop_time = millis();
+    char preamble[64];
+    for (size_t i = 0; i < this->children_.size(); i++) {
+      snprintf(preamble, sizeof(preamble), "WK2132_@%02X_Ch_%d", this->get_num_(), i);
+      this->children_[i]->uart_send_test_(preamble);
+      this->children_[i]->uart_receive_one_by_one_test_(preamble);
+    }
+    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
+  }
+
+  if (test_mode_.test(4)) {  // test loop & overflow mode (bit 4)
                              // in this mode we saturate the receive buffer to
                              // check the overflow mechanism
     static uint32_t loop_time = 0;
