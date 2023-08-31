@@ -62,7 +62,7 @@ def _format_framework_arduino_version(ver: cv.Version) -> str:
 # The default/recommended arduino framework version
 #  - https://github.com/earlephilhower/arduino-pico/releases
 #  - https://api.registry.platformio.org/v3/packages/earlephilhower/tool/framework-arduinopico
-RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 3, 0)
+RECOMMENDED_ARDUINO_FRAMEWORK_VERSION = cv.Version(3, 4, 0)
 
 # The platformio/raspberrypi version to use for arduino frameworks
 #  - https://github.com/platformio/platform-raspberrypi/releases
@@ -73,8 +73,8 @@ ARDUINO_PLATFORM_VERSION = cv.Version(1, 9, 0)
 def _arduino_check_versions(value):
     value = value.copy()
     lookups = {
-        "dev": (cv.Version(3, 3, 0), "https://github.com/earlephilhower/arduino-pico"),
-        "latest": (cv.Version(3, 3, 0), None),
+        "dev": (cv.Version(3, 4, 0), "https://github.com/earlephilhower/arduino-pico"),
+        "latest": (cv.Version(3, 4, 0), None),
         "recommended": (RECOMMENDED_ARDUINO_FRAMEWORK_VERSION, None),
     }
 
