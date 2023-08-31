@@ -385,18 +385,16 @@ void print_buffer(std::vector<uint8_t> buffer) {
 /// @brief test the write_array method
 void WK2132Channel::uart_send_test_(char *preamble) {
   auto start_exec = millis();
+  // we send the maximum possible
+  this->flush();
   size_t const to_send = this->fifo_size_ - tx_in_fifo_();
-  size_t const to_flush = this->tx_in_fifo_();  // byte in buffer before execution
-  this->flush();                                // we wait until they are gone
-  size_t const remains = this->tx_in_fifo_();   // remaining bytes if not null => flush timeout
-
   if (to_send > 0) {
     std::vector<uint8_t> output_buffer(to_send);
     generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
     output_buffer[0] = to_send;                     // we send as the first byte the length of the buffer
     this->write_array(&output_buffer[0], to_send);  // we send the buffer
-    ESP_LOGI(TAG, "%s pre flushing %d, remains %d => sending %d bytes - exec time %d ms ...", preamble, to_flush,
-             remains, to_send, millis() - start_exec);
+    this->flush();                                  // we wait until they are gone
+    ESP_LOGI(TAG, "%s => sending  %d bytes - exec time %d ms ...", preamble, to_send, millis() - start_exec);
   }
 }
 
@@ -411,8 +409,7 @@ void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
     if (print_buf)
       print_buffer(buffer);
   }
-  ESP_LOGI(TAG, "%s => %d bytes received status %s - exec time %d ms ...", preamble, to_read, status ? "OK" : "ERROR",
-           millis() - start_exec);
+  ESP_LOGI(TAG, "%s => received %d bytes - exec time %d ms ...", preamble, to_read, millis() - start_exec);
 }
 
 #endif
