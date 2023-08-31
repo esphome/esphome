@@ -48,16 +48,17 @@ class SPIDelegateHw : public SPIDelegate {
     if (this->is_ready()) {
       if (spi_device_acquire_bus(this->handle_, portMAX_DELAY) != ESP_OK)
         ESP_LOGE(TAG, "Failed to acquire SPI bus");
+      SPIDelegate::begin_transaction();
     } else {
       ESP_LOGW(TAG, "spi_setup called before initialisation");
     }
-    SPIDelegate::begin_transaction();
   }
 
   void end_transaction() override {
-    SPIDelegate::end_transaction();
-    if (this->is_ready())
+    if (this->is_ready()) {
+      SPIDelegate::end_transaction();
       spi_device_release_bus(this->handle_);
+    }
   }
 
   ~SPIDelegateHw() override {
