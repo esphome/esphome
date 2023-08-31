@@ -32,19 +32,15 @@ std::vector<uint8_t> NciMessage::encode() {
 
 void NciMessage::reset() { this->nci_message_ = {0, 0, 0}; }
 
-const uint8_t NciMessage::get_message_type() const {
+uint8_t NciMessage::get_message_type() const {
   return this->nci_message_[nfc::NCI_PKT_MT_GID_OFFSET] & nfc::NCI_PKT_MT_MASK;
 }
 
-const uint8_t NciMessage::get_gid() const {
-  return this->nci_message_[nfc::NCI_PKT_MT_GID_OFFSET] & nfc::NCI_PKT_GID_MASK;
-}
+uint8_t NciMessage::get_gid() const { return this->nci_message_[nfc::NCI_PKT_MT_GID_OFFSET] & nfc::NCI_PKT_GID_MASK; }
 
-const uint8_t NciMessage::get_oid() const {
-  return this->nci_message_[nfc::NCI_PKT_OID_OFFSET] & nfc::NCI_PKT_OID_MASK;
-}
+uint8_t NciMessage::get_oid() const { return this->nci_message_[nfc::NCI_PKT_OID_OFFSET] & nfc::NCI_PKT_OID_MASK; }
 
-const uint8_t NciMessage::get_payload_size(const bool recompute) {
+uint8_t NciMessage::get_payload_size(const bool recompute) {
   if (!this->nci_message_.empty()) {
     if (recompute) {
       this->nci_message_[nfc::NCI_PKT_LENGTH_OFFSET] = this->nci_message_.size() - nfc::NCI_PKT_HEADER_SIZE;
@@ -54,14 +50,14 @@ const uint8_t NciMessage::get_payload_size(const bool recompute) {
   return 0;
 }
 
-const uint8_t NciMessage::get_simple_status_response() const {
+uint8_t NciMessage::get_simple_status_response() const {
   if (this->nci_message_.size() > nfc::NCI_PKT_PAYLOAD_OFFSET) {
     return this->nci_message_[nfc::NCI_PKT_PAYLOAD_OFFSET];
   }
   return STATUS_FAILED;
 }
 
-const uint8_t NciMessage::get_message_byte(const uint8_t offset) const {
+uint8_t NciMessage::get_message_byte(const uint8_t offset) const {
   if (this->nci_message_.size() > offset) {
     return this->nci_message_[offset];
   }
@@ -70,16 +66,16 @@ const uint8_t NciMessage::get_message_byte(const uint8_t offset) const {
 
 std::vector<uint8_t> &NciMessage::get_message() { return this->nci_message_; }
 
-const bool NciMessage::has_payload() const { return this->nci_message_.size() > nfc::NCI_PKT_HEADER_SIZE; }
+bool NciMessage::has_payload() const { return this->nci_message_.size() > nfc::NCI_PKT_HEADER_SIZE; }
 
-const bool NciMessage::message_type_is(const uint8_t message_type) const {
+bool NciMessage::message_type_is(const uint8_t message_type) const {
   if (!this->nci_message_.empty()) {
     return message_type == (this->nci_message_[nfc::NCI_PKT_MT_GID_OFFSET] & nfc::NCI_PKT_MT_MASK);
   }
   return false;
 }
 
-const bool NciMessage::message_length_is(const uint8_t message_length, const bool recompute) {
+bool NciMessage::message_length_is(const uint8_t message_length, const bool recompute) {
   if (this->nci_message_.size() > nfc::NCI_PKT_LENGTH_OFFSET) {
     if (recompute) {
       this->nci_message_[nfc::NCI_PKT_LENGTH_OFFSET] = this->nci_message_.size() - nfc::NCI_PKT_HEADER_SIZE;
@@ -89,21 +85,21 @@ const bool NciMessage::message_length_is(const uint8_t message_length, const boo
   return false;
 }
 
-const bool NciMessage::gid_is(const uint8_t gid) const {
+bool NciMessage::gid_is(const uint8_t gid) const {
   if (this->nci_message_.size() > nfc::NCI_PKT_MT_GID_OFFSET) {
     return gid == (this->nci_message_[nfc::NCI_PKT_MT_GID_OFFSET] & nfc::NCI_PKT_GID_MASK);
   }
   return false;
 }
 
-const bool NciMessage::oid_is(const uint8_t oid) const {
+bool NciMessage::oid_is(const uint8_t oid) const {
   if (this->nci_message_.size() > nfc::NCI_PKT_OID_OFFSET) {
     return oid == (this->nci_message_[nfc::NCI_PKT_OID_OFFSET] & nfc::NCI_PKT_OID_MASK);
   }
   return false;
 }
 
-const bool NciMessage::simple_status_response_is(const uint8_t response) const {
+bool NciMessage::simple_status_response_is(const uint8_t response) const {
   if (this->nci_message_.size() > nfc::NCI_PKT_PAYLOAD_OFFSET) {
     return response == this->nci_message_[nfc::NCI_PKT_PAYLOAD_OFFSET];
   }

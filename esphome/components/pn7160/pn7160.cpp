@@ -568,7 +568,7 @@ std::unique_ptr<nfc::NfcTag> PN7160::build_tag_(const uint8_t mode_tech, const s
 optional<size_t> PN7160::find_tag_uid_(const std::vector<uint8_t> &uid) {
   if (this->discovered_endpoint_.size()) {
     for (size_t i = 0; i < this->discovered_endpoint_.size(); i++) {
-      auto existing_tag_uid = this->discovered_endpoint_[i].tag.get_uid();
+      auto existing_tag_uid = this->discovered_endpoint_[i].tag->get_uid();
       bool uid_match = (uid.size() == existing_tag_uid.size());
 
       if (uid_match) {
@@ -595,12 +595,12 @@ void PN7160::purge_old_tags_() {
 void PN7160::erase_tag_(const uint8_t tag_index) {
   if (tag_index < this->discovered_endpoint_.size()) {
     for (auto *trigger : this->triggers_ontagremoved_) {
-      trigger->process(make_unique<nfc::NfcTag>(this->discovered_endpoint_[tag_index].tag));
+      trigger->process(this->discovered_endpoint_[tag_index].tag);
     }
     for (auto *bs : this->binary_sensors_) {
-      bs->tag_off(this->discovered_endpoint_[tag_index].tag);
+      bs->tag_off(*this->discovered_endpoint_[tag_index].tag.get());
     }
-    ESP_LOGI(TAG, "Tag %s removed", nfc::format_uid(this->discovered_endpoint_[tag_index].tag.get_uid()).c_str());
+    ESP_LOGI(TAG, "Tag %s removed", nfc::format_uid(this->discovered_endpoint_[tag_index].tag->get_uid()).c_str());
     this->discovered_endpoint_.erase(this->discovered_endpoint_.begin() + tag_index);
   }
 }
@@ -850,8 +850,7 @@ void PN7160::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
       this->discovered_endpoint_[tag_loc.value()].last_seen = millis();
       ESP_LOGVV(TAG, "Tag cache updated");
     } else {
-      DiscoveredEndpoint disc_endpoint{discovery_id, protocol, millis(), *incoming_tag.get(), false};
-      this->discovered_endpoint_.push_back(disc_endpoint);
+      this->discovered_endpoint_.emplace_back(discovery_id, protocol, millis(), std::move(incoming_tag), false);
       tag_loc = this->discovered_endpoint_.size() - 1;
       ESP_LOGVV(TAG, "Tag added to cache");
     }
@@ -861,7 +860,7 @@ void PN7160::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
     switch (this->next_task_) {
       case EP_CLEAN:
         ESP_LOGD(TAG, "  Tag cleaning...");
-        if (this->clean_endpoint_(working_endpoint.tag.get_uid()) != nfc::STATUS_OK) {
+        if (this->clean_endpoint_(working_endpoint.tag->get_uid()) != nfc::STATUS_OK) {
           ESP_LOGE(TAG, "  Tag cleaning incomplete");
         }
         ESP_LOGD(TAG, "  Tag cleaned!");
@@ -869,7 +868,7 @@ void PN7160::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
 
       case EP_FORMAT:
         ESP_LOGD(TAG, "  Tag formatting...");
-        if (this->format_endpoint_(working_endpoint.tag.get_uid()) != nfc::STATUS_OK) {
+        if (this->format_endpoint_(working_endpoint.tag->get_uid()) != nfc::STATUS_OK) {
           ESP_LOGE(TAG, "Error formatting tag as NDEF");
         }
         ESP_LOGD(TAG, "  Tag formatted!");
@@ -879,11 +878,11 @@ void PN7160::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
         if (this->next_task_message_to_write_ != nullptr) {
           ESP_LOGD(TAG, "  Tag writing...");
           ESP_LOGD(TAG, "  Tag formatting...");
-          if (this->format_endpoint_(working_endpoint.tag.get_uid()) != nfc::STATUS_OK) {
+          if (this->format_endpoint_(working_endpoint.tag->get_uid()) != nfc::STATUS_OK) {
             ESP_LOGE(TAG, "  Tag could not be formatted for writing");
           } else {
             ESP_LOGD(TAG, "  Writing NDEF data");
-            if (this->write_endpoint_(working_endpoint.tag.get_uid(), this->next_task_message_to_write_) !=
+            if (this->write_endpoint_(working_endpoint.tag->get_uid(), this->next_task_message_to_write_) !=
                 nfc::STATUS_OK) {
               ESP_LOGE(TAG, "  Failed to write message to tag");
             }
@@ -897,31 +896,31 @@ void PN7160::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
       case EP_READ:
       default:
         if (!working_endpoint.trig_called) {
-          ESP_LOGI(TAG, "Read tag type %s with UID %s", working_endpoint.tag.get_tag_type().c_str(),
-                   nfc::format_uid(working_endpoint.tag.get_uid()).c_str());
-          if (this->read_endpoint_data_(working_endpoint.tag) != nfc::STATUS_OK) {
+          ESP_LOGI(TAG, "Read tag type %s with UID %s", working_endpoint.tag->get_tag_type().c_str(),
+                   nfc::format_uid(working_endpoint.tag->get_uid()).c_str());
+          if (this->read_endpoint_data_(*working_endpoint.tag.get()) != nfc::STATUS_OK) {
             ESP_LOGW(TAG, "  Unable to read NDEF record(s)");
-          } else if (working_endpoint.tag.has_ndef_message()) {
-            const auto message = working_endpoint.tag.get_ndef_message();
+          } else if (working_endpoint.tag->has_ndef_message()) {
+            const auto message = working_endpoint.tag->get_ndef_message();
             const auto records = message->get_records();
             ESP_LOGD(TAG, "  NDEF record(s):");
-            for (const auto record : records) {
+            for (auto record : records) {
               ESP_LOGD(TAG, "    %s - %s", record->get_type().c_str(), record->get_payload().c_str());
             }
           } else {
             ESP_LOGW(TAG, "  No NDEF records found");
           }
           for (auto *trigger : this->triggers_ontag_) {
-            trigger->process(make_unique<nfc::NfcTag>(working_endpoint.tag));
+            trigger->process(working_endpoint.tag);
           }
           for (auto *bs : this->binary_sensors_) {
-            bs->tag_on(working_endpoint.tag);
+            bs->tag_on(*working_endpoint.tag.get());
           }
           working_endpoint.trig_called = true;
           break;
         }
     }
-    if (working_endpoint.tag.get_tag_type() == nfc::MIFARE_CLASSIC) {
+    if (working_endpoint.tag->get_tag_type() == nfc::MIFARE_CLASSIC) {
       this->halt_mifare_classic_tag_();
     }
   }
@@ -947,10 +946,9 @@ void PN7160::process_rf_discover_oid_(nfc::NciMessage &rx) {
       this->discovered_endpoint_[tag_loc.value()].last_seen = millis();
       ESP_LOGVV(TAG, "Tag found & updated");
     } else {
-      DiscoveredEndpoint disc_endpoint{rx.get_message_byte(nfc::RF_DISCOVER_NTF_DISCOVERY_ID),
-                                       rx.get_message_byte(nfc::RF_DISCOVER_NTF_PROTOCOL), millis(),
-                                       *incoming_tag.get(), false};
-      this->discovered_endpoint_.push_back(disc_endpoint);
+      this->discovered_endpoint_.emplace_back(rx.get_message_byte(nfc::RF_DISCOVER_NTF_DISCOVERY_ID),
+                                              rx.get_message_byte(nfc::RF_DISCOVER_NTF_PROTOCOL), millis(),
+                                              std::move(incoming_tag), false);
       ESP_LOGVV(TAG, "Tag saved");
     }
   }

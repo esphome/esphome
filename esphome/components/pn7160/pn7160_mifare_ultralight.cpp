@@ -122,7 +122,7 @@ uint8_t PN7160::write_mifare_ultralight_tag_(std::vector<uint8_t> &uid, std::sha
   uint32_t buffer_length = nfc::get_mifare_ultralight_buffer_size(message_length);
 
   if (buffer_length > capacity) {
-    ESP_LOGE(TAG, "Message length exceeds tag capacity %u > %u", buffer_length, capacity);
+    ESP_LOGE(TAG, "Message length exceeds tag capacity %" PRIu32 " > %" PRIu32, buffer_length, capacity);
     return nfc::STATUS_FAILED;
   }
 

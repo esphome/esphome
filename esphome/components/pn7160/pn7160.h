@@ -154,7 +154,7 @@ struct DiscoveredEndpoint {
   uint8_t id;
   uint8_t protocol;
   uint32_t last_seen;
-  nfc::NfcTag tag;
+  std::unique_ptr<nfc::NfcTag> tag;
   bool trig_called;
 };
 
