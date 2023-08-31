@@ -57,7 +57,7 @@ const char *parity2string(uart::UARTParityOptions parity) {
 // The WK2132Component methods
 ///////////////////////////////////////////////////////////////////////////////
 
-// method used in log messages ...
+// method to print registers as text: used in log messages ...
 const char *WK2132Component::reg_to_str_(int val) { return page1_ ? REG_TO_STR_P1[val] : REG_TO_STR_P0[val]; }
 
 void WK2132Component::write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t len) {
@@ -115,7 +115,7 @@ void WK2132Component::dump_config() {
     ESP_LOGCONFIG(TAG, "    stop_bits %d", this->children_[i]->stop_bits_);
     ESP_LOGCONFIG(TAG, "    parity %s", parity2string(this->children_[i]->parity_));
   }
-  this->initialized_ = true;
+  this->initialized_ = true;  // we can safely use the wk2132
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -249,6 +249,7 @@ size_t WK2132Channel::tx_in_fifo_() {
   //
   // The same remark is valid for the transmit buffer but here we have to check the
   // TFULL flag. So if TFULL is set and TFCNT is 0 this should be interpreted as 256
+  //
   size_t tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
   uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &this->data_, 1);
   if ((fsr & 0x02) && (tfcnt == 0)) {
@@ -285,10 +286,6 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
   auto error = this->parent_->read(buffer, len);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
-    if (this->parent_->test_mode_.test(0) && this->parent_->is_ready()) {  // test sniff (bit 0)
-      ESP_LOGI(TAG, "sniff: received %d chars %02X... on UART @%02X channel %d", len, *buffer,
-               this->parent_->base_address_, this->channel_);
-    }
     ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", this->channel_, *buffer, I2CS(*buffer),
              len, (int) error);
     return true;
@@ -309,10 +306,6 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   auto error = this->parent_->write(buffer, len);
   if (error == i2c::ERROR_OK) {
     this->parent_->status_clear_warning();
-    if (this->parent_->test_mode_.test(0) && this->parent_->is_ready()) {  // test sniff (bit 0)
-      ESP_LOGI(TAG, "sniff: sent %d chars %02X... on UART @%02X channel %d", len, *buffer, this->parent_->base_address_,
-               channel_);
-    }
     ESP_LOGV(TAG, "write_data(ch=%d buffer[0]=%02X [%s], len=%d): I2C code %d", this->channel_, *buffer, I2CS(*buffer),
              len, (int) error);
     return true;
@@ -330,9 +323,8 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
     return false;
   }
   auto count = this->receive_buffer.count();
-  // now we read from ring buffer
   if (len > count) {
-    ESP_LOGE(TAG, "read_array underflow requested %d available %d ...", len, count);
+    ESP_LOGE(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, count);
     len = count;
   }
   for (size_t i = 0; i < len; i++) {
@@ -340,8 +332,6 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
   }
   return true;
 }
-
-bool WK2132Channel::peek_byte(uint8_t *buffer) { return this->receive_buffer.peek(buffer); }
 
 void WK2132Channel::write_array(const uint8_t *buffer, size_t len) {
   if (len > this->fifo_size_) {
@@ -365,7 +355,6 @@ void WK2132Channel::flush() {
 ///////////////////////////////////////////////////////////////////////////////
 /// AUTOTEST FUNCTIONS BELOW
 ///////////////////////////////////////////////////////////////////////////////
-#define AUTOTEST_COMPONENT
 #ifdef AUTOTEST_COMPONENT
 
 class Increment {  // A "Functor" (A class object that acts like a method with state!)
@@ -426,45 +415,22 @@ void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
            millis() - start_exec);
 }
 
-#define NO_SPEED
-/// @brief test read_array method
-void WK2132Channel::uart_receive_one_by_one_test_(char *preamble, bool print_buf) {
-  auto start_exec = millis();
-  bool status = false;
-  uint8_t const to_read = this->available();
-  if (to_read > 0) {
-    std::vector<uint8_t> buffer(to_read);
-#ifndef SPEED
-    while (this->available())
-      status = this->read_array(&buffer[0], 1);  // read one by one
-#else
-    std::vector<uint8_t> dummy(to_read);
-    status = this->read_array(&dummy[0], 1);  // all
-    for (size_t i = 0; i < to_read; i++) {
-      buffer[i] = dummy[i];  // transfert one by one
-    }
 #endif
-    if (print_buf)
-      print_buffer(buffer);
-  }
-  ESP_LOGI(TAG, "%s => %d bytes received (read 1 by 1) status %s - exec time %d ms ...", preamble, to_read,
-           status ? "OK" : "ERROR", millis() - start_exec);
-}
 
 void WK2132Component::loop() {
-  if (!this->is_ready() || !this->initialized_)
+  if (!this->initialized_)
     return;
 
-  // here we transfer from/to fifo to/from ring buffer
+  // here we transfer from fifo to ring buffer
   for (auto *child : this->children_) {
-    uint8_t data[RING_BUF_SIZE];
+    uint8_t data[RING_BUFFER_SIZE];
     // we look if some characters has been received by the line
     if (auto to_transfer = child->rx_in_fifo_()) {
       child->read_data_(data, to_transfer);
       auto free = child->receive_buffer.free();
       if (to_transfer > free) {
         ESP_LOGV(TAG, "Ring buffer full --> requested %d available %d", to_transfer, free);
-        to_transfer = free;
+        to_transfer = free;  // hopefully will do the rest next time
       }
       ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
       for (size_t i = 0; i < to_transfer; i++)
@@ -472,74 +438,37 @@ void WK2132Component::loop() {
     }
   }
 
+#ifdef AUTOTEST_COMPONENT
   //
-  // This loop is used only if the wk2132 component is in test mode otherwise we return immediately
+  // This loop is used only if the wk2132 component is in test mode
   //
-  if (!this->is_ready() || this->test_mode_.none())
-    return;
 
-  if (this->test_mode_.test(1)) {  // test echo mode (bit 1)
+  if (this->test_mode_.test(0)) {  // test echo mode (bit 0)
     for (auto *child : this->children_) {
       uint8_t data;
       if (child->available()) {
         child->read_byte(&data);
-        ESP_LOGI(TAG, "echo mode: read/send %02X", data);
+        ESP_LOGI(TAG, "echo mode: read -> send %02X", data);
         child->write_byte(data);
       }
     }
   }
 
   static uint16_t loop_calls = 0;
-  if (test_mode_.test(2)) {  // test loop mode (bit 2)
+  if (test_mode_.test(1)) {  // test loop mode (bit 1)
     static uint32_t loop_time = 0;
     ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
     loop_time = millis();
     char preamble[64];
     for (size_t i = 0; i < this->children_.size(); i++) {
       snprintf(preamble, sizeof(preamble), "WK2132_@%02X_Ch_%d", this->get_num_(), i);
-      this->children_[i]->uart_send_test_(preamble);
       this->children_[i]->uart_receive_test_(preamble);
+      this->children_[i]->uart_send_test_(preamble);
     }
     ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
   }
-
-  if (test_mode_.test(3)) {  // test loop read 1 by 1 (bit 3)
-                             // in this mode we read the byte one by one
-    static uint32_t loop_time = 0;
-    ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
-    loop_time = millis();
-    char preamble[64];
-    for (size_t i = 0; i < this->children_.size(); i++) {
-      snprintf(preamble, sizeof(preamble), "WK2132_@%02X_Ch_%d", this->get_num_(), i);
-      this->children_[i]->uart_send_test_(preamble);
-      this->children_[i]->uart_receive_one_by_one_test_(preamble);
-    }
-    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
-  }
-
-  if (test_mode_.test(4)) {  // test loop & overflow mode (bit 4)
-                             // in this mode we saturate the receive buffer to
-                             // check the overflow mechanism
-    static uint32_t loop_time = 0;
-    ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
-    loop_time = millis();
-    char preamble[64];
-    for (size_t i = 0; i < this->children_.size(); i++) {
-      snprintf(preamble, sizeof(preamble), "WK2132_@%02X_Ch_%d", this->get_num_(), i);
-      this->children_[i]->uart_send_test_(preamble);
-      this->children_[i]->uart_send_test_(preamble);
-      this->children_[i]->uart_send_test_(preamble);
-      this->children_[i]->uart_send_test_(preamble);
-      this->children_[i]->uart_send_test_(preamble);
-      this->children_[i]->uart_receive_test_(preamble);
-    }
-    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
-  }
-}
-
-#else
-void WK2132Component::loop() {}
 #endif
+}
 
 }  // namespace wk2132
 }  // namespace esphome
