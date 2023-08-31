@@ -228,7 +228,7 @@ void ST7789V::init_reset_() {
     delay(1);
     // Trigger Reset
     this->reset_pin_->digital_write(false);
-    delay(10);
+    delay(1);
     // Wake up
     this->reset_pin_->digital_write(true);
   }
