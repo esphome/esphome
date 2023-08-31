@@ -37,6 +37,67 @@ constexpr uint8_t REG_WK2132_BRD = 0x06;  ///< Channel baud rate configuration r
 constexpr uint8_t REG_WK2132_RFI = 0x07;  ///< Channel receive FIFO interrupt trigger configuration register
 constexpr uint8_t REG_WK2132_TFI = 0x08;  ///< Channel transmit FIFO interrupt trigger configuration register
 
+constexpr size_t RING_BUF_SIZE = 128;
+///////////////////////////////////////////////////////////////////////////////
+/// @brief This is an helper class that provides a simple ring buffers
+///////////////////////////////////////////////////////////////////////////////
+template<typename T, int SIZE> class RingBuffer {
+ public:
+  /// @brief pushes an item in the buffer
+  /// @param item item to push
+  /// @return true if item has been pushed, false il item was not pushed (buffer full)
+  bool push(const T item) {
+    if (is_full())
+      return false;
+    rb_[head_] = item;
+    head_ = (head_ + 1) % SIZE;
+    count_++;
+    return true;
+  }
+
+  /// @brief remove an item from the buffer
+  /// @param item item read
+  /// @return true if item has been retrieved, false il no item was found (buffer empty)
+  bool pop(T &item) {
+    if (is_empty())
+      return false;
+    item = rb_[tail_];
+    tail_ = (tail_ + 1) % SIZE;
+    count_--;
+    return true;
+  }
+
+  /// @brief return the value of the last item without removing it
+  /// @param item pointer to item to return
+  /// @return true if item has been retrieved, false il no item was found (buffer empty)
+  bool peek(T *item) {
+    if (is_empty())
+      return false;
+    *item = rb_[tail_];
+    return true;
+  }
+
+  /// @brief is the Ring Buffer empty ?
+  /// @return true if empty
+  const bool is_empty() { return (count_ == 0); }
+
+  /// @brief is the ring buffer full ?
+  /// @return true if full
+  const bool is_full() { return (count_ == SIZE); }
+
+  /// @brief return the number of item in the ring buffer
+  /// @return the count
+  const size_t count() { return count_; }
+
+  const size_t free() { return SIZE - count_; }
+
+ private:
+  std::array<T, SIZE> rb_{0};
+  int head_{0};      // points to the next element to write
+  int tail_{0};      // points to the next element to read
+  size_t count_{0};  // count number of element in the buffer
+};
+
 class WK2132Channel;  // forward declaration
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief This class describes a WK2132 I²C component.
@@ -94,6 +155,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   uint8_t data_;                             ///< temporary buffer
   bool page1_{false};                        ///< set to true when in page1 mode
   std::vector<WK2132Channel *> children_{};  ///< @brief the list of WK2132Channel UART children
+  bool initialized_{false};
 };
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -190,7 +252,7 @@ class WK2132Channel : public uart::UARTComponent {
 
   /// @brief Return the number of bytes available for reading from the serial port.
   /// @return the number of bytes available in the receiver fifo
-  int available() override { return this->rx_in_fifo_(); }
+  int available() override { return this->receive_buffer.count(); }
 
   /// @brief Flush the output fifo.
   ///
@@ -239,10 +301,11 @@ class WK2132Channel : public uart::UARTComponent {
   /// @brief the size of the component's fifo
   const size_t fifo_size_{128};
 
-  struct PeekBuffer {
-    uint8_t data;
-    bool empty{true};
-  } peek_buffer_;  // temporary storage when you peek data
+  /// @brief the buffer where we store temporarily the bytes received
+  RingBuffer<uint8_t, RING_BUF_SIZE> receive_buffer;
+
+  /// @brief the buffer where we store temporarily the bytes to send
+  RingBuffer<uint8_t, RING_BUF_SIZE> transmit_buffer;
 
   void uart_send_test_(char *preamble);
   void uart_receive_test_(char *preamble, bool print_buf = true);

@@ -115,6 +115,7 @@ void WK2132Component::dump_config() {
     ESP_LOGCONFIG(TAG, "    stop_bits %d", this->children_[i]->stop_bits_);
     ESP_LOGCONFIG(TAG, "    parity %s", parity2string(this->children_[i]->parity_));
   }
+  this->initialized_ = true;
 }
 
 ///////////////////////////////////////////////////////////////////////////////
@@ -269,12 +270,10 @@ size_t WK2132Channel::rx_in_fifo_() {
     }
   }
 
-  if (!this->peek_buffer_.empty)
-    available++;
   if (available > this->fifo_size_)  // no more than what is set in the fifo_size
     available = this->fifo_size_;
 
-  ESP_LOGVV(TAG, "rx_in_fifo %d (byte in peek_buffer: %s)", available, this->peek_buffer_.empty ? "no" : "yes");
+  ESP_LOGVV(TAG, "rx_in_fifo %d", available);
   return available;
 }
 
@@ -330,26 +329,19 @@ bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
     ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size_);
     return false;
   }
-
-  if (!peek_buffer_.empty) {  // test peek buffer
-    *buffer++ = this->peek_buffer_.data;
-    this->peek_buffer_.empty = true;
-    if (len-- == 1)
-      return true;
+  auto count = this->receive_buffer.count();
+  // now we read from ring buffer
+  if (len > count) {
+    ESP_LOGE(TAG, "read_array underflow requested %d available %d ...", len, count);
+    len = count;
   }
-
-  return this->read_data_(buffer, len);
+  for (size_t i = 0; i < len; i++) {
+    this->receive_buffer.pop(buffer[i]);
+  }
+  return true;
 }
 
-bool WK2132Channel::peek_byte(uint8_t *buffer) {
-  bool status = true;
-  if (this->peek_buffer_.empty) {
-    this->peek_buffer_.empty = false;
-    status = this->read_data_(&this->peek_buffer_.data, 1);
-  }
-  *buffer = this->peek_buffer_.data;
-  return status;
-}
+bool WK2132Channel::peek_byte(uint8_t *buffer) { return this->receive_buffer.peek(buffer); }
 
 void WK2132Channel::write_array(const uint8_t *buffer, size_t len) {
   if (len > this->fifo_size_) {
@@ -460,6 +452,26 @@ void WK2132Channel::uart_receive_one_by_one_test_(char *preamble, bool print_buf
 }
 
 void WK2132Component::loop() {
+  if (!this->is_ready() || !this->initialized_)
+    return;
+
+  // here we transfer from/to fifo to/from ring buffer
+  for (auto *child : this->children_) {
+    uint8_t data[RING_BUF_SIZE];
+    // we look if some characters has been received by the line
+    if (auto to_transfer = child->rx_in_fifo_()) {
+      child->read_data_(data, to_transfer);
+      auto free = child->receive_buffer.free();
+      if (to_transfer > free) {
+        ESP_LOGV(TAG, "Ring buffer full --> requested %d available %d", to_transfer, free);
+        to_transfer = free;
+      }
+      ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
+      for (size_t i = 0; i < to_transfer; i++)
+        child->receive_buffer.push(data[i]);
+    }
+  }
+
   //
   // This loop is used only if the wk2132 component is in test mode otherwise we return immediately
   //
