@@ -434,6 +434,7 @@ void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
            millis() - start_exec);
 }
 
+#define NO_SPEED
 /// @brief test read_array method
 void WK2132Channel::uart_receive_one_by_one_test_(char *preamble, bool print_buf) {
   auto start_exec = millis();
@@ -441,8 +442,16 @@ void WK2132Channel::uart_receive_one_by_one_test_(char *preamble, bool print_buf
   uint8_t const to_read = this->available();
   if (to_read > 0) {
     std::vector<uint8_t> buffer(to_read);
+#ifndef SPEED
     while (this->available())
       status = this->read_array(&buffer[0], 1);  // read one by one
+#else
+    std::vector<uint8_t> dummy(to_read);
+    status = this->read_array(&dummy[0], 1);  // all
+    for (size_t i = 0; i < to_read; i++) {
+      buffer[i] = dummy[i];  // transfert one by one
+    }
+#endif
     if (print_buf)
       print_buffer(buffer);
   }
