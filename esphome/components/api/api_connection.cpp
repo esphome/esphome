@@ -161,7 +161,7 @@ void APIConnection::loop() {
 }
 
 std::string get_default_unique_id(const std::string &component_type, EntityBase *entity) {
-  return App.get_name() + component_type + entity->get_object_id();
+  return get_mac_address_pretty() + "-" + component_type + "-" + entity->get_object_id();
 }
 
 DisconnectResponse APIConnection::disconnect(const DisconnectRequest &msg) {
@@ -437,9 +437,7 @@ bool APIConnection::send_sensor_info(sensor::Sensor *sensor) {
   msg.object_id = sensor->get_object_id();
   if (sensor->has_own_name())
     msg.name = sensor->get_name();
-  msg.unique_id = sensor->unique_id();
-  if (msg.unique_id.empty())
-    msg.unique_id = get_default_unique_id("sensor", sensor);
+  msg.unique_id = get_default_unique_id("sensor", sensor);
   msg.icon = sensor->get_icon();
   msg.unit_of_measurement = sensor->get_unit_of_measurement();
   msg.accuracy_decimals = sensor->get_accuracy_decimals();
@@ -505,9 +503,7 @@ bool APIConnection::send_text_sensor_info(text_sensor::TextSensor *text_sensor) 
   msg.key = text_sensor->get_object_id_hash();
   msg.object_id = text_sensor->get_object_id();
   msg.name = text_sensor->get_name();
-  msg.unique_id = text_sensor->unique_id();
-  if (msg.unique_id.empty())
-    msg.unique_id = get_default_unique_id("text_sensor", text_sensor);
+  msg.unique_id = get_default_unique_id("text_sensor", text_sensor);
   msg.icon = text_sensor->get_icon();
   msg.disabled_by_default = text_sensor->is_disabled_by_default();
   msg.entity_category = static_cast<enums::EntityCategory>(text_sensor->get_entity_category());
