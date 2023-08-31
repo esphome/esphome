@@ -7,10 +7,6 @@
 #include "esphome/components/microphone/microphone.h"
 #include "esphome/core/component.h"
 
-#include <audio_element.h>
-#include <audio_pipeline.h>
-#include <esp_afe_sr_iface.h>
-#include <esp_afe_sr_models.h>
 #include <ringbuf.h>
 
 namespace esphome {
@@ -28,25 +24,16 @@ class ESPADFMicrophone : public ESPADFPipeline, public microphone::Microphone, p
 
  protected:
   void start_();
-  void stop_();
   void read_();
   void watch_();
 
-  static void feed_task(void *params);
-  static void fetch_task(void *params);
-
-  const esp_afe_sr_iface_t *afe_handle_{&ESP_AFE_SR_HANDLE};
-  esp_afe_sr_data_t *afe_data_{nullptr};
-  size_t afe_chunk_size_{0};
+  static void read_task(void *params);
 
   ringbuf_handle_t ring_buffer_;
 
-  TaskHandle_t feed_task_handle_{nullptr};
-  QueueHandle_t feed_event_queue_;
-  QueueHandle_t feed_command_queue_;
-
-  TaskHandle_t fetch_task_handle_{nullptr};
-  QueueHandle_t fetch_command_queue_;
+  TaskHandle_t read_task_handle_{nullptr};
+  QueueHandle_t read_event_queue_;
+  QueueHandle_t read_command_queue_;
 };
 
 }  // namespace esp_adf

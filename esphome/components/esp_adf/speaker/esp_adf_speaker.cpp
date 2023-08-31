@@ -32,7 +32,6 @@ void ESPADFSpeaker::start_() {
   if (!this->parent_->try_lock()) {
     return;  // Waiting for another i2s component to return lock
   }
-  this->state_ = speaker::STATE_RUNNING;
 
   xTaskCreate(ESPADFSpeaker::player_task, "speaker_task", 8192, (void *) this, 0, &this->player_task_handle_);
 }
@@ -211,8 +210,10 @@ void ESPADFSpeaker::watch_() {
   if (xQueueReceive(this->event_queue_, &event, 0) == pdTRUE) {
     switch (event.type) {
       case TaskEventType::STARTING:
-      case TaskEventType::STARTED:
       case TaskEventType::STOPPING:
+        break;
+      case TaskEventType::STARTED:
+        this->state_ = speaker::STATE_RUNNING;
         break;
       case TaskEventType::RUNNING:
         this->status_clear_warning();
@@ -232,13 +233,12 @@ void ESPADFSpeaker::watch_() {
 }
 
 void ESPADFSpeaker::loop() {
+  this->watch_();
   switch (this->state_) {
     case speaker::STATE_STARTING:
       this->start_();
       break;
     case speaker::STATE_RUNNING:
-      this->watch_();
-      break;
     case speaker::STATE_STOPPING:
     case speaker::STATE_STOPPED:
       break;
