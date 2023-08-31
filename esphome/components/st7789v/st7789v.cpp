@@ -5,7 +5,7 @@ namespace esphome {
 namespace st7789v {
 
 static const char *const TAG = "st7789v";
-static const size_t TEMP_BUFFER_SIZE = 512;
+static const size_t TEMP_BUFFER_SIZE = 128;
 
 void ST7789V::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI ST7789V...");
