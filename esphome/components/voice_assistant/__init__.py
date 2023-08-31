@@ -25,6 +25,7 @@ CONF_ON_TTS_END = "on_tts_end"
 CONF_ON_END = "on_end"
 CONF_ON_ERROR = "on_error"
 CONF_USE_WAKE_WORD = "use_wake_word"
+CONF_VAD_THRESHOLD = "vad_threshold"
 
 
 voice_assistant_ns = cg.esphome_ns.namespace("voice_assistant")
@@ -55,6 +56,9 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_USE_WAKE_WORD): cv.All(
                 cv.requires_component("esp_adf"), cv.only_with_esp_idf, cv.boolean
             ),
+            cv.Optional(CONF_VAD_THRESHOLD): cv.All(
+                cv.requires_component("esp_adf"), cv.only_with_esp_idf, cv.uint8_t
+            ),
             cv.Optional(CONF_ON_LISTENING): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_START): automation.validate_automation(single=True),
             cv.Optional(CONF_ON_STT_END): automation.validate_automation(single=True),
@@ -84,6 +88,9 @@ async def to_code(config):
 
     if (use_wake_word := config.get(CONF_USE_WAKE_WORD)) is not None:
         cg.add(var.set_use_wake_word(use_wake_word))
+
+    if (vad_threshold := config.get(CONF_VAD_THRESHOLD)) is not None:
+        cg.add(var.set_vad_threshold(vad_threshold))
 
     if CONF_ON_LISTENING in config:
         await automation.build_automation(

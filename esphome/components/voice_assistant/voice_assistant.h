@@ -89,6 +89,7 @@ class VoiceAssistant : public Component {
 
 #ifdef USE_ESP_ADF
   void set_use_wake_word(bool use_wake_word) { this->use_wake_word_ = use_wake_word; }
+  void set_vad_threshold(uint8_t vad_threshold) { this->vad_threshold_ = vad_threshold; }
 #endif
 
   Trigger<> *get_listening_trigger() const { return this->listening_trigger_; }
@@ -137,6 +138,8 @@ class VoiceAssistant : public Component {
 #ifdef USE_ESP_ADF
   vad_handle_t vad_instance_;
   ringbuf_handle_t ring_buffer_;
+  uint8_t vad_threshold_{5};
+  uint8_t vad_counter_{0};
   bool use_wake_word_{false};
 #endif
   uint8_t *send_buffer_;

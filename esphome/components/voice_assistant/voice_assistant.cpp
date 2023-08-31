@@ -120,6 +120,8 @@ int VoiceAssistant::read_microphone_() {
     }
     rb_write(this->ring_buffer_, (char *) this->input_buffer_, bytes_read, 0);
 #endif
+  } else {
+    ESP_LOGD(TAG, "microphone not running");
   }
   return bytes_read;
 }
@@ -181,8 +183,16 @@ void VoiceAssistant::loop() {
         vad_state_t vad_state =
             vad_process(this->vad_instance_, this->input_buffer_, SAMPLE_RATE_HZ, VAD_FRAME_LENGTH_MS);
         if (vad_state == VAD_SPEECH) {
-          ESP_LOGD(TAG, "VAD detected speech");
-          this->set_state_(State::START_PIPELINE, State::STREAMING_MICROPHONE);
+          if (this->vad_counter_ < this->vad_threshold_) {
+            this->vad_counter_++;
+          } else {
+            ESP_LOGD(TAG, "VAD detected speech");
+            this->set_state_(State::START_PIPELINE, State::STREAMING_MICROPHONE);
+          }
+        } else {
+          if (this->vad_counter_ > 0) {
+            this->vad_counter_--;
+          }
         }
       }
       break;
@@ -285,13 +295,13 @@ void VoiceAssistant::loop() {
 void VoiceAssistant::set_state_(State state) {
   State old_state = this->state_;
   this->state_ = state;
-  ESP_LOGV(TAG, "State changed from %d to %d", static_cast<uint8_t>(old_state), static_cast<uint8_t>(state));
+  ESP_LOGD(TAG, "State changed from %d to %d", static_cast<uint8_t>(old_state), static_cast<uint8_t>(state));
 }
 
 void VoiceAssistant::set_state_(State state, State desired_state) {
   this->set_state_(state);
   this->desired_state_ = desired_state;
-  ESP_LOGV(TAG, "Desired state set to %d", static_cast<uint8_t>(desired_state));
+  ESP_LOGD(TAG, "Desired state set to %d", static_cast<uint8_t>(desired_state));
 }
 
 void VoiceAssistant::start_streaming(struct sockaddr_storage *addr, uint16_t port) {
