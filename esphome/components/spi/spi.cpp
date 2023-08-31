@@ -8,7 +8,10 @@ namespace spi {
 const char *const TAG = "spi";
 
 SPIDelegate *const SPIDelegate::NULL_DELEGATE =  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
-    new SPIDelegateDummy();                      // https://bugs.llvm.org/show_bug.cgi?id=48040
+    new SPIDelegateDummy();
+// https://bugs.llvm.org/show_bug.cgi?id=48040
+
+bool SPIDelegate::is_ready() { return true; }
 
 GPIOPin *const NullPin::NULL_PIN = new NullPin();  // NOLINT(cppcoreguidelines-avoid-non-const-global-variables)
 
@@ -34,8 +37,6 @@ void SPIComponent::unregister_device(SPIClient *device) {
 
 void SPIComponent::setup() {
   ESP_LOGD(TAG, "Setting up SPI bus...");
-  this->clk_pin_->setup();
-  this->clk_pin_->digital_write(true);
 
   if (this->sdo_pin_ == nullptr)
     this->sdo_pin_ = NullPin::NULL_PIN;
@@ -55,6 +56,8 @@ void SPIComponent::setup() {
     }
   } else {
     this->spi_bus_ = new SPIBus(this->clk_pin_, this->sdo_pin_, this->sdi_pin_);  // NOLINT
+    this->clk_pin_->setup();
+    this->clk_pin_->digital_write(true);
     this->sdo_pin_->setup();
     this->sdi_pin_->setup();
   }

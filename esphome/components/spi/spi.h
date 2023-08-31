@@ -220,6 +220,9 @@ class SPIDelegate {
       ptr[i] = this->transfer(0);
   }
 
+  // check if device is ready
+  virtual bool is_ready();
+
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};
   uint32_t data_rate_{1000000};
@@ -340,6 +343,8 @@ class SPIClient {
     this->parent_->unregister_device(this);
     this->delegate_ = SPIDelegate::NULL_DELEGATE;
   }
+
+  bool spi_is_ready() { return this->delegate_->is_ready(); }
 
  protected:
   SPIBitOrder bit_order_{BIT_ORDER_MSB_FIRST};

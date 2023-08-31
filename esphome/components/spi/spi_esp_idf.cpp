@@ -42,6 +42,24 @@ class SPIDelegateHw : public SPIDelegate {
       ESP_LOGE(TAG, "Add device failed - err %X", err);
   }
 
+  bool is_ready() override { return this->handle_ != nullptr; }
+
+  void begin_transaction() override {
+    if (this->is_ready()) {
+      if (spi_device_acquire_bus(this->handle_, portMAX_DELAY) != ESP_OK)
+        ESP_LOGE(TAG, "Failed to acquire SPI bus");
+    } else {
+      ESP_LOGW(TAG, "spi_setup called before initialisation");
+    }
+    SPIDelegate::begin_transaction();
+  }
+
+  void end_transaction() override {
+    SPIDelegate::end_transaction();
+    if (this->is_ready())
+      spi_device_release_bus(this->handle_);
+  }
+
   ~SPIDelegateHw() override {
     esp_err_t const err = spi_bus_remove_device(this->handle_);
     if (err != ESP_OK)

@@ -42,8 +42,8 @@ class SPIDelegateHw : public SPIDelegate {
 #else
     SPISettings const settings(this->data_rate_, this->bit_order_, this->mode_);
 #endif
-    SPIDelegate::begin_transaction();
     this->channel_->beginTransaction(settings);
+    SPIDelegate::begin_transaction();
   }
 
   void transfer(uint8_t *ptr, size_t length) override { this->channel_->transfer(ptr, length); }
