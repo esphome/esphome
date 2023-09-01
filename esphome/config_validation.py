@@ -929,6 +929,27 @@ def temperature(value):
     raise err
 
 
+def temperature_delta(value):
+    err = None
+    try:
+        return _temperature_c(value)
+    except Invalid as orig_err:
+        err = orig_err
+
+    try:
+        return _temperature_k(value)
+    except Invalid:
+        pass
+
+    try:
+        fahrenheit = _temperature_f(value)
+        return fahrenheit * (5 / 9)
+    except Invalid:
+        pass
+
+    raise err
+
+
 _color_temperature_mireds = float_with_unit("Color Temperature", r"(mireds|Mireds)")
 _color_temperature_kelvin = float_with_unit("Color Temperature", r"(K|Kelvin)")
 
