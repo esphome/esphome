@@ -1,14 +1,14 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/defines.h"
 #include "esphome/components/sensor/sensor.h"
 #include "esphome/components/voltage_sampler/voltage_sampler.h"
+#include "esphome/core/component.h"
+#include "esphome/core/defines.h"
+#include "esphome/core/hal.h"
 
 #ifdef USE_ESP32
-#include "driver/adc.h"
 #include <esp_adc_cal.h>
+#include "driver/adc.h"
 #endif
 
 namespace esphome {
@@ -40,10 +40,6 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
   void set_output_raw(bool output_raw) { output_raw_ = output_raw; }
   float sample() override;
-
-#ifdef USE_ESP8266
-  std::string unique_id() override;
-#endif
 
 #ifdef USE_RP2040
   void set_is_temperature() { is_temperature_ = true; }

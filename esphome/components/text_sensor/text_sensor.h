@@ -1,9 +1,9 @@
 #pragma once
 
+#include "esphome/components/text_sensor/filter.h"
 #include "esphome/core/component.h"
 #include "esphome/core/entity_base.h"
 #include "esphome/core/helpers.h"
-#include "esphome/components/text_sensor/filter.h"
 
 #include <vector>
 
@@ -15,9 +15,6 @@ namespace text_sensor {
     ESP_LOGCONFIG(TAG, "%s%s '%s'", prefix, LOG_STR_LITERAL(type), (obj)->get_name().c_str()); \
     if (!(obj)->get_icon().empty()) { \
       ESP_LOGCONFIG(TAG, "%s  Icon: '%s'", prefix, (obj)->get_icon().c_str()); \
-    } \
-    if (!(obj)->unique_id().empty()) { \
-      ESP_LOGV(TAG, "%s  Unique ID: '%s'", prefix, (obj)->unique_id().c_str()); \
     } \
   }
 
@@ -58,12 +55,6 @@ class TextSensor : public EntityBase {
 
   // ========== INTERNAL METHODS ==========
   // (In most use cases you won't need these)
-  /** Override this method to set the unique ID of this sensor.
-   *
-   * @deprecated Do not use for new sensors, a suitable unique ID is automatically generated (2023.4).
-   */
-  virtual std::string unique_id();
-
   bool has_state();
 
   void internal_send_state_to_frontend(const std::string &state);

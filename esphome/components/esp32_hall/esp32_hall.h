@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
 
 #ifdef USE_ESP32
 
@@ -13,8 +13,6 @@ class ESP32HallSensor : public sensor::Sensor, public PollingComponent {
   void dump_config() override;
 
   void update() override;
-
-  std::string unique_id() override;
 };
 
 }  // namespace esp32_hall

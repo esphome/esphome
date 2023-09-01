@@ -1,6 +1,6 @@
 #include "adc_sensor.h"
-#include "esphome/core/log.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 
 #ifdef USE_ESP8266
 #ifdef USE_ADC_SENSOR_VCC
@@ -252,10 +252,6 @@ float ADCSensor::sample() {
   }
   return raw * 3.3f / 4096.0f;
 }
-#endif
-
-#ifdef USE_ESP8266
-std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }
 #endif
 
 }  // namespace adc

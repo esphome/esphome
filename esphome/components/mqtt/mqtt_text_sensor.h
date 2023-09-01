@@ -28,7 +28,6 @@ class MQTTTextSensor : public mqtt::MQTTComponent {
  protected:
   std::string component_type() const override;
   const EntityBase *get_entity() const override;
-  std::string unique_id() override;
 
   text_sensor::TextSensor *sensor_;
 };

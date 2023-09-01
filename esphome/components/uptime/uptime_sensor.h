@@ -1,7 +1,7 @@
 #pragma once
 
-#include "esphome/core/component.h"
 #include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
 
 namespace esphome {
 namespace uptime {
@@ -12,8 +12,6 @@ class UptimeSensor : public sensor::Sensor, public PollingComponent {
   void dump_config() override;
 
   float get_setup_priority() const override;
-
-  std::string unique_id() override;
 
  protected:
   uint64_t uptime_{0};

@@ -1,8 +1,8 @@
 #pragma once
 
-#include "esphome/core/component.h"
-#include "esphome/components/sensor/sensor.h"
 #include "esp_one_wire.h"
+#include "esphome/components/sensor/sensor.h"
+#include "esphome/core/component.h"
 
 #include <vector>
 
@@ -59,8 +59,6 @@ class DallasTemperatureSensor : public sensor::Sensor {
   bool check_scratch_pad();
 
   float get_temp_c();
-
-  std::string unique_id() override;
 
  protected:
   DallasComponent *parent_;

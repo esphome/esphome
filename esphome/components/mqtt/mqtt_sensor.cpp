@@ -1,5 +1,5 @@
-#include <cinttypes>
 #include "mqtt_sensor.h"
+#include <cinttypes>
 #include "esphome/core/log.h"
 
 #include "mqtt_const.h"
@@ -72,7 +72,6 @@ bool MQTTSensorComponent::publish_state(float value) {
   int8_t accuracy = this->sensor_->get_accuracy_decimals();
   return this->publish(this->get_state_topic_(), value_accuracy_to_string(value, accuracy));
 }
-std::string MQTTSensorComponent::unique_id() { return this->sensor_->unique_id(); }
 
 }  // namespace mqtt
 }  // namespace esphome

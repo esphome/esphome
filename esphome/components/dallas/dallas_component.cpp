@@ -273,7 +273,6 @@ float DallasTemperatureSensor::get_temp_c() {
 
   return temp / 128.0f;
 }
-std::string DallasTemperatureSensor::unique_id() { return "dallas-" + str_lower_case(format_hex(this->address_)); }
 
 }  // namespace dallas
 }  // namespace esphome

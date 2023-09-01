@@ -1,8 +1,8 @@
 #ifdef USE_ESP32
 #include "esp32_hall.h"
-#include "esphome/core/log.h"
-#include "esphome/core/hal.h"
 #include <driver/adc.h>
+#include "esphome/core/hal.h"
+#include "esphome/core/log.h"
 
 namespace esphome {
 namespace esp32_hall {
@@ -16,7 +16,6 @@ void ESP32HallSensor::update() {
   ESP_LOGD(TAG, "'%s': Got reading %.0f µT", this->name_.c_str(), value);
   this->publish_state(value);
 }
-std::string ESP32HallSensor::unique_id() { return get_mac_address() + "-hall"; }
 void ESP32HallSensor::dump_config() { LOG_SENSOR("", "ESP32 Hall Sensor", this); }
 
 }  // namespace esp32_hall
