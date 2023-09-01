@@ -7,10 +7,12 @@ import esphome.config_validation as cv
 from esphome.const import (
     CONF_BOARD,
     CONF_COMPONENT_ID,
+    CONF_DEBUG,
     CONF_FAMILY,
     CONF_FRAMEWORK,
     CONF_ID,
     CONF_NAME,
+    CONF_OPTIONS,
     CONF_PROJECT,
     CONF_SOURCE,
     CONF_VERSION,
@@ -26,9 +28,8 @@ from . import gpio  # noqa
 from .const import (
     CONF_GPIO_RECOVER,
     CONF_LOGLEVEL,
-    CONF_LT_CONFIG,
     CONF_SDK_SILENT,
-    CONF_SDK_SILENT_ALL,
+    CONF_UART_PORT,
     FAMILIES,
     FAMILY_COMPONENT,
     FAMILY_FRIENDLY,
@@ -37,6 +38,7 @@ from .const import (
     KEY_COMPONENT_DATA,
     KEY_FAMILY,
     KEY_LIBRETINY,
+    LT_DEBUG_MODULES,
     LT_LOGLEVELS,
     LibreTinyComponent,
     LTComponent,
@@ -68,7 +70,7 @@ def _detect_variant(value):
     if value[CONF_COMPONENT_ID] != component.name:
         raise cv.Invalid(
             f"The chosen family doesn't belong to '{component.name}' component. The correct component is '{value[CONF_COMPONENT_ID]}'",
-            path=["variant"],
+            path=[CONF_FAMILY],
         )
     # warn anyway if the board wasn't found
     if board not in component.boards:
@@ -192,14 +194,39 @@ def _check_framework_version(value):
     return value
 
 
+def _check_debug_order(value):
+    debug = value[CONF_DEBUG]
+    if "NONE" in debug and "NONE" in debug[1:]:
+        raise cv.Invalid(
+            "'none' has to be specified before other modules, and only once",
+            path=[CONF_DEBUG],
+        )
+    return value
+
+
 FRAMEWORK_SCHEMA = cv.All(
     cv.Schema(
         {
             cv.Optional(CONF_VERSION, default="recommended"): cv.string_strict,
             cv.Optional(CONF_SOURCE): cv.string_strict,
+            cv.Optional(CONF_LOGLEVEL, default="warn"): (
+                cv.one_of(*LT_LOGLEVELS, upper=True)
+            ),
+            cv.Optional(CONF_DEBUG, default=[]): cv.ensure_list(
+                cv.one_of("NONE", *LT_DEBUG_MODULES, upper=True)
+            ),
+            cv.Optional(CONF_SDK_SILENT, default="all"): (
+                cv.one_of("all", "auto", "none", lower=True)
+            ),
+            cv.Optional(CONF_UART_PORT, default=None): cv.one_of(0, 1, 2, int=True),
+            cv.Optional(CONF_GPIO_RECOVER, default=True): cv.boolean,
+            cv.Optional(CONF_OPTIONS, default={}): {
+                cv.string_strict: cv.string,
+            },
         }
     ),
     _check_framework_version,
+    _check_debug_order,
 )
 
 CONFIG_SCHEMA = cv.All(_notify_old_style)
@@ -210,15 +237,6 @@ BASE_SCHEMA = cv.Schema(
         cv.Required(CONF_BOARD): cv.string_strict,
         cv.Optional(CONF_FAMILY): cv.one_of(*FAMILIES, upper=True),
         cv.Optional(CONF_FRAMEWORK, default={}): FRAMEWORK_SCHEMA,
-        cv.Optional(CONF_LT_CONFIG, default={}): {
-            cv.string_strict: cv.string,
-        },
-        cv.Optional(CONF_LOGLEVEL, default="warn"): cv.one_of(
-            *LT_LOGLEVELS, upper=True
-        ),
-        cv.Optional(CONF_SDK_SILENT, default=True): cv.boolean,
-        cv.Optional(CONF_SDK_SILENT_ALL, default=True): cv.boolean,
-        cv.Optional(CONF_GPIO_RECOVER, default=True): cv.boolean,
     },
 )
 
@@ -238,19 +256,6 @@ async def component_to_code(config):
     cg.add_define("ESPHOME_BOARD", config[CONF_BOARD])
     cg.add_define("ESPHOME_VARIANT", FAMILY_FRIENDLY[config[CONF_FAMILY]])
 
-    # setup LT logger to work nicely with ESPHome logger
-    lt_config = dict(
-        LT_LOGLEVEL="LT_LEVEL_" + config[CONF_LOGLEVEL],
-        LT_LOGGER_CALLER=0,
-        LT_LOGGER_TASK=0,
-        LT_LOGGER_COLOR=1,
-        LT_DEBUG_ALL=1,
-        LT_UART_SILENT_ENABLED=int(config[CONF_SDK_SILENT]),
-        LT_UART_SILENT_ALL=int(config[CONF_SDK_SILENT_ALL]),
-        LT_USE_TIME=1,
-    )
-    lt_config.update(config[CONF_LT_CONFIG])
-
     # force using arduino framework
     cg.add_platformio_option("framework", "arduino")
     cg.add_build_flag("-DUSE_ARDUINO")
@@ -259,7 +264,12 @@ async def component_to_code(config):
     cg.add_platformio_option("lib_ldf_mode", "off")
     # include <Arduino.h> in every file
     cg.add_platformio_option("build_src_flags", "-include Arduino.h")
+    # dummy version code
+    cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
+    # decrease web server stack size (16k words -> 4k words)
+    cg.add_build_flag("-DCONFIG_ASYNC_TCP_STACK_SIZE=4096")
 
+    # build framework version
     # if platform version is a valid version constraint, prefix the default package
     framework = config[CONF_FRAMEWORK]
     cv.platformio_version_constraint(framework[CONF_VERSION])
@@ -270,18 +280,46 @@ async def component_to_code(config):
     else:
         cg.add_platformio_option("platform", "libretiny")
 
-    # add LT configuration options
-    for name, value in sorted(lt_config.items()):
+    # apply LibreTiny options from framework: block
+    # setup LT logger to work nicely with ESPHome logger
+    lt_options = dict(
+        LT_LOGLEVEL="LT_LEVEL_" + framework[CONF_LOGLEVEL],
+        LT_LOGGER_CALLER=0,
+        LT_LOGGER_TASK=0,
+        LT_LOGGER_COLOR=1,
+        LT_USE_TIME=1,
+    )
+    # enable/disable per-module debugging
+    for module in framework[CONF_DEBUG]:
+        if module == "NONE":
+            # disable all modules
+            for module in LT_DEBUG_MODULES:
+                lt_options[f"LT_DEBUG_{module}"] = 0
+        else:
+            # enable one module
+            lt_options[f"LT_DEBUG_{module}"] = 1
+    # set SDK silencing mode
+    if framework[CONF_SDK_SILENT] == "all":
+        lt_options["LT_UART_SILENT_ENABLED"] = 1
+        lt_options["LT_UART_SILENT_ALL"] = 1
+    elif framework[CONF_SDK_SILENT] == "auto":
+        lt_options["LT_UART_SILENT_ENABLED"] = 1
+        lt_options["LT_UART_SILENT_ALL"] = 0
+    else:
+        lt_options["LT_UART_SILENT_ENABLED"] = 0
+        lt_options["LT_UART_SILENT_ALL"] = 0
+    # set default UART port
+    if framework[CONF_UART_PORT] is not None:
+        lt_options["LT_UART_DEFAULT_PORT"] = framework[CONF_UART_PORT]
+    # add custom options
+    lt_options.update(framework[CONF_OPTIONS])
+
+    # apply ESPHome options from framework: block
+    cg.add_define("LT_GPIO_RECOVER", int(framework[CONF_GPIO_RECOVER]))
+
+    # build PlatformIO compiler flags
+    for name, value in sorted(lt_options.items()):
         cg.add_build_flag(f"-D{name}={value}")
-
-    # add ESPHome LT-related options
-    cg.add_define("LT_GPIO_RECOVER", int(config[CONF_GPIO_RECOVER]))
-
-    # dummy version code
-    cg.add_define("USE_ARDUINO_VERSION_CODE", cg.RawExpression("VERSION_CODE(0, 0, 0)"))
-
-    # decrease web server stack size (16k words -> 4k words)
-    cg.add_build_flag("-DCONFIG_ASYNC_TCP_STACK_SIZE=4096")
 
     # custom output firmware name and version
     if CONF_PROJECT in config:

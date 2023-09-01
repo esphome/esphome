@@ -14,11 +14,10 @@ class LibreTinyComponent:
 
 
 CONF_LIBRETINY = "libretiny"
-CONF_LT_CONFIG = "lt_config"
 CONF_LOGLEVEL = "loglevel"
 CONF_SDK_SILENT = "sdk_silent"
-CONF_SDK_SILENT_ALL = "sdk_silent_all"
 CONF_GPIO_RECOVER = "gpio_recover"
+CONF_UART_PORT = "uart_port"
 
 LT_LOGLEVELS = [
     "VERBOSE",
@@ -28,6 +27,19 @@ LT_LOGLEVELS = [
     "WARN",
     "ERROR",
     "FATAL",
+    "NONE",
+]
+
+LT_DEBUG_MODULES = [
+    "WIFI",
+    "CLIENT",
+    "SERVER",
+    "SSL",
+    "OTA",
+    "FDB",
+    "MDNS",
+    "LWIP",
+    "LWIP_ASSERT",
 ]
 
 KEY_LIBRETINY = "libretiny"
