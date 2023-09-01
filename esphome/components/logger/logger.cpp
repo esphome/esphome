@@ -4,6 +4,7 @@
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
 #include "freertos/FreeRTOS.h"
+#include "esp_idf_version.h"
 #endif  // USE_ESP_IDF
 
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
@@ -239,6 +240,9 @@ void Logger::pre_setup() {
       uart_config.parity = UART_PARITY_DISABLE;
       uart_config.stop_bits = UART_STOP_BITS_1;
       uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+      uart_config.source_clk = UART_SCLK_DEFAULT;
+#endif
       uart_param_config(uart_num_, &uart_config);
       const int uart_buffer_size = tx_buffer_size_;
       // Install UART driver using an event queue here
