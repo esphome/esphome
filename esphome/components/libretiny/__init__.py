@@ -1,4 +1,6 @@
+import json
 import logging
+from os.path import dirname, isfile, join
 
 import esphome.codegen as cg
 import esphome.config_validation as cv
@@ -116,6 +118,38 @@ def only_on_family(*, supported=None, unsupported=None):
         return obj
 
     return validator_
+
+
+def get_download_types(storage_json=None):
+    types = [
+        {
+            "title": "UF2 package (recommended)",
+            "description": "For flashing via web_server OTA or with ltchiptool (UART)",
+            "file": "firmware.uf2",
+            "download": f"{storage_json.name}.uf2",
+        },
+    ]
+
+    build_dir = dirname(storage_json.firmware_bin_path)
+    outputs = join(build_dir, "firmware.json")
+    if not isfile(outputs):
+        return types
+    with open(outputs, "r") as f:
+        outputs = json.load(f)
+    for output in outputs:
+        if not output["public"]:
+            continue
+        suffix = output["filename"].partition(".")[2]
+        suffix = f"-{suffix}" if "." in suffix else f".{suffix}"
+        types.append(
+            {
+                "title": output["title"],
+                "description": output["description"],
+                "file": output["filename"],
+                "download": storage_json.name + suffix,
+            }
+        )
+    return types
 
 
 def _notify_old_style(config):
