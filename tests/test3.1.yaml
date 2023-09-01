@@ -21,6 +21,10 @@ wifi:
   ssid: "MySSID"
   password: "password1"
 
+web_server:
+  port: 80
+  version: 2
+
 i2c:
   sda: 4
   scl: 5
