@@ -184,9 +184,7 @@ class SPIDelegate {
   virtual uint8_t transfer(uint8_t data) = 0;
 
   // transfer a buffer, replace the contents with read data
-  virtual void transfer(uint8_t *ptr, size_t length) {
-      this->transfer(ptr, ptr, length);
-  }
+  virtual void transfer(uint8_t *ptr, size_t length) { this->transfer(ptr, ptr, length); }
 
   virtual void transfer(const uint8_t *txbuf, uint8_t *rxbuf, size_t length) {
     for (size_t i = 0; i != length; i++)

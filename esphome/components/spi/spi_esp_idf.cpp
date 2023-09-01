@@ -28,7 +28,6 @@ class SPIDelegateHw : public SPIDelegate {
   SPIDelegateHw(spi_host_device_t channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
                 bool write_only)
       : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel), write_only_(write_only) {
-
     spi_device_interface_config_t config = {};
     config.mode = static_cast<uint8_t>(mode);
     config.clock_speed_hz = static_cast<int>(data_rate);
