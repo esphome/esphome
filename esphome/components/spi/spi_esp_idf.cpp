@@ -84,7 +84,7 @@ class SPIDelegateHw : public SPIDelegate {
     while (length != 0) {
       size_t const partial = std::min(length, MAX_TRANSFER_SIZE);
       desc.length = partial * 8;
-      desc.rxlength = this->write_only ? 0 : partial * 8;
+      desc.rxlength = this->write_only_ ? 0 : partial * 8;
       desc.tx_buffer = txbuf;
       desc.rx_buffer = rxbuf;
       esp_err_t const err = spi_device_transmit(this->handle_, &desc);
