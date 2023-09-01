@@ -44,6 +44,7 @@ class HaierClimateBase : public esphome::Component,
   void reset_protocol() { this->reset_protocol_request_ = true; };
   void set_supported_modes(const std::set<esphome::climate::ClimateMode> &modes);
   void set_supported_swing_modes(const std::set<esphome::climate::ClimateSwingMode> &modes);
+  void set_supported_presets(const std::set<esphome::climate::ClimatePreset> &presets);
   size_t available() noexcept override { return esphome::uart::UARTDevice::available(); };
   size_t read_array(uint8_t *data, size_t len) noexcept override {
     return esphome::uart::UARTDevice::read_array(data, len) ? len : 0;
@@ -52,39 +53,41 @@ class HaierClimateBase : public esphome::Component,
     esphome::uart::UARTDevice::write_array(data, len);
   };
   bool can_send_message() const { return haier_protocol_.get_outgoing_queue_size() == 0; };
+  void set_answer_timeout(uint32_t timeout);
+  void set_send_wifi(bool send_wifi);
 
  protected:
   enum class ProtocolPhases {
     UNKNOWN = -1,
     // INITIALIZATION
     SENDING_INIT_1 = 0,
-    WAITING_ANSWER_INIT_1 = 1,
+    WAITING_INIT_1_ANSWER = 1,
     SENDING_INIT_2 = 2,
-    WAITING_ANSWER_INIT_2 = 3,
+    WAITING_INIT_2_ANSWER = 3,
     SENDING_FIRST_STATUS_REQUEST = 4,
     WAITING_FIRST_STATUS_ANSWER = 5,
     SENDING_ALARM_STATUS_REQUEST = 6,
     WAITING_ALARM_STATUS_ANSWER = 7,
     // FUNCTIONAL STATE
     IDLE = 8,
-    SENDING_STATUS_REQUEST = 9,
-    WAITING_STATUS_ANSWER = 10,
-    SENDING_UPDATE_SIGNAL_REQUEST = 11,
-    WAITING_UPDATE_SIGNAL_ANSWER = 12,
-    SENDING_SIGNAL_LEVEL = 13,
-    WAITING_SIGNAL_LEVEL_ANSWER = 14,
-    SENDING_CONTROL = 15,
-    WAITING_CONTROL_ANSWER = 16,
-    SENDING_POWER_ON_COMMAND = 17,
-    WAITING_POWER_ON_ANSWER = 18,
-    SENDING_POWER_OFF_COMMAND = 19,
-    WAITING_POWER_OFF_ANSWER = 20,
+    SENDING_STATUS_REQUEST = 10,
+    WAITING_STATUS_ANSWER = 11,
+    SENDING_UPDATE_SIGNAL_REQUEST = 12,
+    WAITING_UPDATE_SIGNAL_ANSWER = 13,
+    SENDING_SIGNAL_LEVEL = 14,
+    WAITING_SIGNAL_LEVEL_ANSWER = 15,
+    SENDING_CONTROL = 16,
+    WAITING_CONTROL_ANSWER = 17,
+    SENDING_POWER_ON_COMMAND = 18,
+    WAITING_POWER_ON_ANSWER = 19,
+    SENDING_POWER_OFF_COMMAND = 20,
+    WAITING_POWER_OFF_ANSWER = 21,
     NUM_PROTOCOL_PHASES
   };
 #if (HAIER_LOG_LEVEL > 4)
   const char *phase_to_string_(ProtocolPhases phase);
 #endif
-  virtual void set_answers_handlers() = 0;
+  virtual void set_handlers() = 0;
   virtual void process_phase(std::chrono::steady_clock::time_point now) = 0;
   virtual haier_protocol::HaierMessage get_control_message() = 0;
   virtual bool is_message_invalid(uint8_t message_type) = 0;
@@ -99,14 +102,17 @@ class HaierClimateBase : public esphome::Component,
   // Helper functions
   void set_force_send_control_(bool status);
   void send_message_(const haier_protocol::HaierMessage &command, bool use_crc);
-  void set_phase_(ProtocolPhases phase);
+  virtual void set_phase(ProtocolPhases phase);
   bool check_timeout_(std::chrono::steady_clock::time_point now, std::chrono::steady_clock::time_point tpoint,
                       size_t timeout);
   bool is_message_interval_exceeded_(std::chrono::steady_clock::time_point now);
   bool is_status_request_interval_exceeded_(std::chrono::steady_clock::time_point now);
   bool is_control_message_timeout_exceeded_(std::chrono::steady_clock::time_point now);
   bool is_control_message_interval_exceeded_(std::chrono::steady_clock::time_point now);
-  bool is_protocol_initialisation_interval_exceded_(std::chrono::steady_clock::time_point now);
+  bool is_protocol_initialisation_interval_exceeded_(std::chrono::steady_clock::time_point now);
+#ifdef USE_WIFI
+  haier_protocol::HaierMessage get_wifi_signal_message_(uint8_t message_type);
+#endif
 
   struct HvacSettings {
     esphome::optional<esphome::climate::ClimateMode> mode;
@@ -136,6 +142,9 @@ class HaierClimateBase : public esphome::Component,
   std::chrono::steady_clock::time_point last_valid_status_timestamp_;  // For protocol timeout
   std::chrono::steady_clock::time_point last_status_request_;          // To request AC status
   std::chrono::steady_clock::time_point control_request_timestamp_;    // To send control message
+  optional<std::chrono::milliseconds> answer_timeout_;                 // Message answer timeout
+  bool send_wifi_signal_;
+  std::chrono::steady_clock::time_point last_signal_request_;  // To send WiFI signal level
 };
 
 }  // namespace haier

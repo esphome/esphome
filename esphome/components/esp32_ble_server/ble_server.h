@@ -45,6 +45,10 @@ class BLEServer : public Component, public GATTsEventHandler, public Parented<ES
 
   void set_manufacturer(const std::string &manufacturer) { this->manufacturer_ = manufacturer; }
   void set_model(const std::string &model) { this->model_ = model; }
+  void set_manufacturer_data(const std::vector<uint8_t> &data) {
+    this->manufacturer_data_ = data;
+    this->restart_advertising_();
+  }
 
   std::shared_ptr<BLEService> create_service(const uint8_t *uuid, bool advertise = false);
   std::shared_ptr<BLEService> create_service(uint16_t uuid, bool advertise = false);
@@ -63,6 +67,7 @@ class BLEServer : public Component, public GATTsEventHandler, public Parented<ES
 
  protected:
   bool create_device_characteristics_();
+  void restart_advertising_();
 
   void add_client_(uint16_t conn_id, void *client) {
     this->clients_.insert(std::pair<uint16_t, void *>(conn_id, client));
@@ -73,6 +78,7 @@ class BLEServer : public Component, public GATTsEventHandler, public Parented<ES
 
   std::string manufacturer_;
   optional<std::string> model_;
+  std::vector<uint8_t> manufacturer_data_;
   esp_gatt_if_t gatts_if_{0};
   bool registered_{false};
 

@@ -96,7 +96,7 @@ optional<Samsung36Data> Samsung36Protocol::decode(RemoteReceiveData src) {
   return out;
 }
 void Samsung36Protocol::dump(const Samsung36Data &data) {
-  ESP_LOGD(TAG, "Received Samsung36: address=0x%04X, command=0x%08X", data.address, data.command);
+  ESP_LOGI(TAG, "Received Samsung36: address=0x%04X, command=0x%08X", data.address, data.command);
 }
 
 }  // namespace remote_base
