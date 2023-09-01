@@ -1,3 +1,4 @@
+import gzip
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome.components import web_server_base
@@ -109,9 +110,13 @@ def build_index_html(config) -> str:
     return html
 
 
-def add_resource_as_progmem(resource_name: str, content: str) -> None:
+def add_resource_as_progmem(
+    resource_name: str, content: str, compress: bool = True
+) -> None:
     """Add a resource to progmem."""
     content_encoded = content.encode("utf-8")
+    if compress:
+        content_encoded = gzip.compress(content_encoded)
     content_encoded_size = len(content_encoded)
     bytes_as_int = ", ".join(str(x) for x in content_encoded)
     uint8_t = f"const uint8_t ESPHOME_WEBSERVER_{resource_name}[{content_encoded_size}] PROGMEM = {{{bytes_as_int}}}"
@@ -137,7 +142,8 @@ async def to_code(config):
     cg.add_define("USE_WEBSERVER_PORT", config[CONF_PORT])
     cg.add_define("USE_WEBSERVER_VERSION", version)
     if version == 2:
-        add_resource_as_progmem("INDEX_HTML", build_index_html(config))
+        # Don't compress the index HTML as the data sizes are almost the same.
+        add_resource_as_progmem("INDEX_HTML", build_index_html(config), compress=False)
     else:
         cg.add(var.set_css_url(config[CONF_CSS_URL]))
         cg.add(var.set_js_url(config[CONF_JS_URL]))
