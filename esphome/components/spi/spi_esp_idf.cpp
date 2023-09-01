@@ -74,7 +74,7 @@ class SPIDelegateHw : public SPIDelegate {
   // transfers above the maximum size will be split.
   // TODO - make use of the queue for interrupt transfers to provide a (short) pipeline of blocks
   // when splitting is required.
-  void transfer(const uint8_t *txbuf, uint8_t *rxbuf, size_t length) {
+  void transfer(const uint8_t *txbuf, uint8_t *rxbuf, size_t length) override {
     if (rxbuf != nullptr && this->write_only_) {
       ESP_LOGE(TAG, "Attempted read from write-only channel");
       return;
