@@ -6,6 +6,8 @@
 namespace esphome {
 namespace tca9548a {
 
+static const uint8_t TCA9548A_DISABLE_CHANNELS_COMMAND = 0x00;
+
 class TCA9548AComponent;
 class TCA9548AChannel : public i2c::I2CBus {
  public:
@@ -27,15 +29,11 @@ class TCA9548AComponent : public Component, public i2c::I2CDevice {
   float get_setup_priority() const override { return setup_priority::IO; }
   void update();
 
-  void set_disable_channels_after_io(bool disable) { this->disable_channels_after_io_ = disable; }
-
   i2c::ErrorCode switch_to_channel(uint8_t channel);
   void disable_all_channels();
 
  protected:
   friend class TCA9548AChannel;
-  uint8_t current_channel_{255};
-  bool disable_channels_after_io_{};  // Disable channels after any IO; use when multiple tca9548a are used
 };
 }  // namespace tca9548a
 }  // namespace esphome

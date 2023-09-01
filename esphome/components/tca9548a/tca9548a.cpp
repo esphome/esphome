@@ -41,29 +41,15 @@ void TCA9548AComponent::dump_config() {
 i2c::ErrorCode TCA9548AComponent::switch_to_channel(uint8_t channel) {
   if (this->is_failed())
     return i2c::ERROR_NOT_INITIALIZED;
-  if (current_channel_ == channel)
-    return i2c::ERROR_OK;
 
-  uint8_t channel_val = 0;  // 0 disables all channels
-
-  // If it is a valid channel, shift 1 to the corresponding channel bit to enable it
-  if (channel < 8) {
-    channel_val = 1 << channel;
-  }
-
-  auto err = this->write(&channel_val, 1);
-  if (err == i2c::ERROR_OK) {
-    this->current_channel_ = channel;
-  }
-  return err;
+  uint8_t channel_val = 1 << channel;
+  return this->write(&channel_val, 1);
 }
 
 void TCA9548AComponent::disable_all_channels() {
-  if (this->disable_channels_after_io_) {
-    if (this->switch_to_channel(255) != i2c::ERROR_OK) {
-      this->mark_failed();  // couldn't disable channels, mark entire component failed to avoid future address conflicts
-      ESP_LOGE(TAG, "Failed to disable all channels.");
-    }
+  if (this->write(&TCA9548A_DISABLE_CHANNELS_COMMAND, 1) != i2c::ERROR_OK) {
+    ESP_LOGE(TAG, "Failed to disable all channels.");
+    this->status_set_error();  // couldn't disable channels, set error status
   }
 }
 
