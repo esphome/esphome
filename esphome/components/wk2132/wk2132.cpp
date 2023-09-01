@@ -58,11 +58,11 @@ const char *parity2string(uart::UARTParityOptions parity) {
 ///////////////////////////////////////////////////////////////////////////////
 
 // method to print registers as text: used in log messages ...
-const char *WK2132Component::reg_to_str_(int val) { return page1_ ? REG_TO_STR_P1[val] : REG_TO_STR_P0[val]; }
+const char *WK2132Component::reg_to_str_(int val) { return this->page1_ ? REG_TO_STR_P1[val] : REG_TO_STR_P0[val]; }
 
 void WK2132Component::write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t len) {
-  this->address_ = i2c_address(this->base_address_, channel, 0);  // update the i2c address
-  auto error = this->write_register(reg_number, buffer, len);
+  this->address_ = i2c_address(this->base_address_, channel, 0);  // update the I²C address
+  auto error = this->write_register(reg_number, buffer, len);     // write to the register
   if (error == i2c::ERROR_OK) {
     this->status_clear_warning();
     ESP_LOGVV(TAG, "write_wk2132_register_(@%02X %s, ch=%d b=%02X [%s], len=%d): I2C code %d", this->address_,
@@ -92,6 +92,7 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
 //
 // overloaded methods from Component
 //
+
 void WK2132Component::setup() {
   this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
   ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", this->get_num_(), (int) this->children_.size());
@@ -151,8 +152,6 @@ void WK2132Channel::setup_channel_() {
   this->parent_->write_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
 
   // now we initialize the channel register
-
-  // set page 0
   uint8_t const page = 0;
   this->parent_->page1_ = false;
   this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, channel_, &page, 1);
@@ -164,7 +163,7 @@ void WK2132Channel::setup_channel_() {
   // |      TFTRIG     |      RFTRIG     |  TFEN  |  RFEN  |  TFRST |  RFRST |
   // -------------------------------------------------------------------------
   uint8_t const fcr = 0x0F;  // 0000 1111 reset fifo and enable the two fifo ...
-  this->parent_->write_wk2132_register_(REG_WK2132_FCR, channel_, &fcr, 1);
+  this->parent_->write_wk2132_register_(REG_WK2132_FCR, this->channel_, &fcr, 1);
 
   // SCR description of UART control register:
   //  -------------------------------------------------------------------------
@@ -173,7 +172,7 @@ void WK2132Channel::setup_channel_() {
   //  |                     RSV                    | SLEEPEN|  TXEN  |  RXEN  |
   //  -------------------------------------------------------------------------
   uint8_t const scr = 0x3;  // 0000 0011 enable receive and transmit
-  this->parent_->write_wk2132_register_(REG_WK2132_SCR, channel_, &scr, 1);
+  this->parent_->write_wk2132_register_(REG_WK2132_SCR, this->channel_, &scr, 1);
 
   this->set_baudrate_();
   this->set_line_param_();
@@ -189,13 +188,13 @@ void WK2132Channel::set_baudrate_() {
   uint8_t const baud_dec = (uint8_t) (val_dec);
 
   uint8_t page = 1;  // switch to page 1
-  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, channel_, &page, 1);
+  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
   this->parent_->page1_ = true;
-  this->parent_->write_wk2132_register_(REG_WK2132_BRH, channel_, &baud_high, 1);
-  this->parent_->write_wk2132_register_(REG_WK2132_BRL, channel_, &baud_low, 1);
-  this->parent_->write_wk2132_register_(REG_WK2132_BRD, channel_, &baud_dec, 1);
+  this->parent_->write_wk2132_register_(REG_WK2132_BRH, this->channel_, &baud_high, 1);
+  this->parent_->write_wk2132_register_(REG_WK2132_BRL, this->channel_, &baud_low, 1);
+  this->parent_->write_wk2132_register_(REG_WK2132_BRD, this->channel_, &baud_dec, 1);
   page = 0;  // switch back to page 0
-  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, channel_, &page, 1);
+  this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, this->channel_, &page, 1);
   this->parent_->page1_ = false;
 
   ESP_LOGCONFIG(TAG, "  Crystal=%d baudrate=%d => registers [%d %d %d]", this->parent_->crystal_, this->baud_rate_,
@@ -203,9 +202,9 @@ void WK2132Channel::set_baudrate_() {
 }
 
 void WK2132Channel::set_line_param_() {
-  data_bits_ = 8;  // always 8 for WK2132
+  this->data_bits_ = 8;  // always 8 for WK2132
   uint8_t lcr;
-  this->parent_->read_wk2132_register_(REG_WK2132_LCR, channel_, &lcr, 1);
+  this->parent_->read_wk2132_register_(REG_WK2132_LCR, this->channel_, &lcr, 1);
   // LCR description of line configuration register:
   //  -------------------------------------------------------------------------
   //  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
@@ -226,9 +225,9 @@ void WK2132Channel::set_line_param_() {
     default:
       break;  // no parity 000x
   }
-  this->parent_->write_wk2132_register_(REG_WK2132_LCR, channel_, &lcr, 1);
+  this->parent_->write_wk2132_register_(REG_WK2132_LCR, this->channel_, &lcr, 1);
   ESP_LOGCONFIG(TAG, "  line config: %d data_bits, %d stop_bits, parity %s register [%s]", this->data_bits_,
-                this->stop_bits_, parity2string(parity_), I2CS(lcr));
+                this->stop_bits_, parity2string(this->parity_), I2CS(lcr));
 }
 
 size_t WK2132Channel::tx_in_fifo_() {
@@ -239,7 +238,7 @@ size_t WK2132Channel::tx_in_fifo_() {
   //  * |  RFOE  |  RFBI  |  RFFE  |  RFPE  |  RDAT  |  TDAT  |  TFULL |  TBUSY |
   //  * -------------------------------------------------------------------------
   // WARNING:
-  // The received buffer can hold 256 bytes. However, as the RFCNT reg is 8 bit,
+  // The received buffer can hold 256 bytes. However, as the RFCNT reg is 8 bits,
   // in this case the value 256 is reported as 0 ! Therefore the RFCNT count can be
   // o when there is 0 byte or 256 bytes in the buffer. So if we have RXDAT = 1
   // and RFCNT = 0 it should be interpreted as there is 256 bytes in the FIFO.
@@ -251,7 +250,7 @@ size_t WK2132Channel::tx_in_fifo_() {
   // TFULL flag. So if TFULL is set and TFCNT is 0 this should be interpreted as 256
   //
   size_t tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
-  uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, channel_, &this->data_, 1);
+  uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
   if ((fsr & 0x02) && (tfcnt == 0)) {
     ESP_LOGVV(TAG, "tx_in_fifo overflow (256) FSR=%s", I2CS(fsr));
     tfcnt = 256;
@@ -271,8 +270,8 @@ size_t WK2132Channel::rx_in_fifo_() {
     }
   }
 
-  if (available > this->fifo_size_)  // no more than what is set in the fifo_size
-    available = this->fifo_size_;
+  if (available > MAX_SIZE)  // no more than what is set in the fifo_size
+    available = MAX_SIZE;
 
   ESP_LOGVV(TAG, "rx_in_fifo %d", available);
   return available;
@@ -318,25 +317,25 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
 }
 
 bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
-  if (len > fifo_size_) {
-    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size_);
+  if (len > MAX_SIZE) {
+    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, MAX_SIZE);
     return false;
   }
-  auto count = this->receive_buffer.count();
-  if (len > count) {
-    ESP_LOGE(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, count);
-    len = count;
+  auto available = this->receive_buffer_.count();
+  if (len > available) {
+    ESP_LOGE(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, available);
+    len = available;
   }
   for (size_t i = 0; i < len; i++) {
-    this->receive_buffer.pop(buffer[i]);
+    this->receive_buffer_.pop(buffer[i]);
   }
   return true;
 }
 
 void WK2132Channel::write_array(const uint8_t *buffer, size_t len) {
-  if (len > this->fifo_size_) {
-    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size_);
-    len = this->fifo_size_;
+  if (len > MAX_SIZE) {
+    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, MAX_SIZE);
+    len = MAX_SIZE;
   }
   this->write_data_(buffer, len);
 }
@@ -387,7 +386,7 @@ void WK2132Channel::uart_send_test_(char *preamble) {
   auto start_exec = millis();
   // we send the maximum possible
   this->flush();
-  size_t const to_send = this->fifo_size_ - tx_in_fifo_();
+  size_t const to_send = MAX_SIZE - tx_in_fifo_();
   if (to_send > 0) {
     std::vector<uint8_t> output_buffer(to_send);
     generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
@@ -415,23 +414,24 @@ void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
 #endif
 
 void WK2132Component::loop() {
+  // if the component is not fully initialized we return
   if (!this->initialized_)
     return;
 
   // here we transfer from fifo to ring buffer
   for (auto *child : this->children_) {
     uint8_t data[RING_BUFFER_SIZE];
-    // we look if some characters has been received by the line
+    // we look if some characters has been received in the fifo
     if (auto to_transfer = child->rx_in_fifo_()) {
       child->read_data_(data, to_transfer);
-      auto free = child->receive_buffer.free();
+      auto free = child->receive_buffer_.free();
       if (to_transfer > free) {
         ESP_LOGV(TAG, "Ring buffer full --> requested %d available %d", to_transfer, free);
         to_transfer = free;  // hopefully will do the rest next time
       }
       ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
       for (size_t i = 0; i < to_transfer; i++)
-        child->receive_buffer.push(data[i]);
+        child->receive_buffer_.push(data[i]);
     }
   }
 
@@ -439,6 +439,7 @@ void WK2132Component::loop() {
   //
   // This loop is used only if the wk2132 component is in test mode
   //
+  static uint16_t loop_calls = 0;
 
   if (this->test_mode_.test(0)) {  // test echo mode (bit 0)
     for (auto *child : this->children_) {
@@ -451,14 +452,14 @@ void WK2132Component::loop() {
     }
   }
 
-  static uint16_t loop_calls = 0;
   if (test_mode_.test(1)) {  // test loop mode (bit 1)
     static uint32_t loop_time = 0;
     ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
     loop_time = millis();
+
     char preamble[64];
     for (size_t i = 0; i < this->children_.size(); i++) {
-      snprintf(preamble, sizeof(preamble), "WK2132_@%02X_Ch_%d", this->get_num_(), i);
+      snprintf(preamble, sizeof(preamble), "WK2132@%02X:%d", this->get_num_(), i);
       this->children_[i]->uart_receive_test_(preamble);
       this->children_[i]->uart_send_test_(preamble);
     }

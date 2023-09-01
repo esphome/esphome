@@ -40,16 +40,32 @@ constexpr uint8_t REG_WK2132_BRD = 0x06;  ///< Channel baud rate configuration r
 constexpr uint8_t REG_WK2132_RFI = 0x07;  ///< Channel receive FIFO interrupt trigger configuration register
 constexpr uint8_t REG_WK2132_TFI = 0x08;  ///< Channel transmit FIFO interrupt trigger configuration register
 
-/// @brief size of the buffer for exchange between fifo and ring buffer
+/// @brief size of the ring buffer
 constexpr size_t RING_BUFFER_SIZE = 128;
+/// @brief the max size we allow for transmissions
+constexpr size_t MAX_SIZE = 128;
 
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief This is an helper class that provides a simple ring buffers
-/// that implement a FIFO function
+/// that implements a FIFO function
+///
+/// This ring buffer is used to buffer the exchanges between the receive HW fifo
+/// and the client. Without this buffer for reading one character usually, you
+/// first check that bytes were received and if so you read one character.
+/// This is fine if the registers are located on the chip but with a
+/// device like the wk2132 these registers are remote and therefore accessing
+/// them requires transactions on the I²C bus which is relatively slow. One
+/// solution would be for the client to check the number of bytes available
+/// and to read all of them using the read_array() method. Unfortunately
+/// most client I have reviewed are reading one character at a time in a
+/// while loop. Therefore the solution I have chosen to implement is to
+/// store received bytes locally in a buffer as soon as they arrive. With
+/// this solution the number of bytes received and the bytes themselves
+/// are stored locally and therefore accessible very quickly
 ///////////////////////////////////////////////////////////////////////////////
 template<typename T, int SIZE> class RingBuffer {
  public:
-  /// @brief pushes an item at the queue of the fifo
+  /// @brief pushes an item at the tail of the fifo
   /// @param item item to push
   /// @return true if item has been pushed, false il item was not pushed (buffer full)
   bool push(const T item) {
@@ -139,23 +155,23 @@ class WK2132Component : public Component, public i2c::I2CDevice {
   friend class WK2132Channel;
   const char *reg_to_str_(int val);  // for debug
 
-  /// @brief All write calls to I2C registers are performed through this method
+  /// @brief All write calls to I²C registers are performed through this method
   /// @param reg_address the register address
-  /// @param channel the channel number. Only significant for UART registers
+  /// @param channel the channel number (0-1). Only significant for UART registers
   /// @param buffer pointer to a buffer
   /// @param len length of the buffer
-  /// @return the i2c error codes
+  /// @return the I²C error codes
   void write_wk2132_register_(uint8_t reg_number, uint8_t channel, const uint8_t *buffer, size_t len);
 
-  /// @brief All read calls to I2C registers are performed through this method
+  /// @brief All read calls to I²C registers are performed through this method
   /// @param number the register number
   /// @param channel the channel number. Only significant for UART registers
   /// @param buffer the buffer pointer
   /// @param len length of the buffer
-  /// @return the i2c error codes
+  /// @return the I²C error codes
   uint8_t read_wk2132_register_(uint8_t reg_number, uint8_t channel, uint8_t *buffer, size_t len);
 
-  /// @brief for debug return the address of the device on the I²C bus
+  /// @brief for debug: returns the address of the device on the I²C bus
   /// @return the address
   int get_num_() const { return base_address_; }
 
@@ -193,14 +209,14 @@ class WK2132Channel : public uart::UARTComponent {
   }
   void set_channel(uint8_t channel) { this->channel_ = channel; }
 
-  /// @brief Write a specified number of bytes from a buffer to a serial port
+  /// @brief Writes a specified number of bytes from a buffer to a serial port
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to write
   ///
   /// This method sends 'len' characters from the buffer to the serial line.
   /// Unfortunately (unlike the Arduino equivalent) this method
   /// does not return any indicator and therefore it is not possible
-  /// to know if any/all bytes has been transmitted correctly. Another problem
+  /// to know if any/all bytes have been transmitted correctly. Another problem
   /// is that it is not possible to know ahead of time how many bytes we
   /// can safely send as there is no tx_available() method provided!
   /// To avoid overrun when using the write method you can use the flush()
@@ -209,7 +225,7 @@ class WK2132Channel : public uart::UARTComponent {
   /// Typical usage could be:
   /// @code
   ///   // ...
-  ///   uint8_t buffer[64];
+  ///   uint8_t buffer[128];
   ///   // ...
   ///   write_array(&buffer, len);
   ///   flush();
@@ -217,7 +233,7 @@ class WK2132Channel : public uart::UARTComponent {
   /// @endcode
   void write_array(const uint8_t *buffer, size_t len) override;
 
-  /// @brief Read a specified number of bytes from a serial port to a buffer
+  /// @brief Reads a specified number of bytes from a serial port to a buffer
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to read
   /// @return true if succeed, false otherwise
@@ -234,25 +250,25 @@ class WK2132Channel : public uart::UARTComponent {
   /// @endcode
   bool read_array(uint8_t *buffer, size_t len) override;
 
-  /// @brief Read first byte in FIFO without removing it
+  /// @brief Reads first byte in FIFO without removing it
   /// @param buffer pointer to the byte
   /// @return true if succeed reading one byte, false if no character available
   ///
-  /// This method returns the next byte from receive buffer without
-  /// removing it from the internal fifo. It returns: true if a character
+  /// This method returns the next byte from receiving buffer without
+  /// removing it from the internal fifo. It returns true if a character
   /// is available and has been read, false otherwise.\n
-  bool peek_byte(uint8_t *buffer) override { return this->receive_buffer.peek(*buffer); }
+  bool peek_byte(uint8_t *buffer) override { return this->receive_buffer_.peek(*buffer); }
 
-  /// @brief Return the number of bytes in the receive buffer
+  /// @brief Returns the number of bytes in the receive buffer
   /// @return the number of bytes available in the receiver fifo
-  int available() override { return this->receive_buffer.count(); }
+  int available() override { return this->receive_buffer_.count(); }
 
   /// @brief Flush the output fifo.
   ///
   /// If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
   /// of outgoing serial data to complete. (Prior to Arduino 1.0, this the method was
   /// removing any buffered incoming serial data.). **
-  /// The method tries to waits until all characters inside the fifo have been sent.
+  /// The method tries to wait until all characters inside the fifo have been sent.
   /// It timeout after 100 ms and therefore at very low speed you can't be sure that
   /// all the characters have correctly been sent
   void flush() override;
@@ -271,31 +287,28 @@ class WK2132Channel : public uart::UARTComponent {
   void set_baudrate_();
   void setup_channel_();
 
-  /// @brief Returns the number of bytes available in the receiver fifo
-  /// @return the number of bytes we can read
+  /// @brief Returns the number of bytes in the receive fifo
+  /// @return the number of bytes in the fifo
   size_t rx_in_fifo_();
 
-  /// @brief Returns the number of bytes available in the transmitter fifo
-  /// @return the number of bytes we can write
+  /// @brief Returns the number of bytes in the transmit fifo
+  /// @return the number of bytes in the fifo
   size_t tx_in_fifo_();
 
-  /// @brief Reads data from the receiver fifo to a buffer
+  /// @brief Reads data from the receive fifo to a buffer
   /// @param buffer the buffer
   /// @param len the number of bytes we want to read
   /// @return true if succeed false otherwise
   bool read_data_(uint8_t *buffer, size_t len);
 
-  /// @brief Writes data from a buffer to the transmitter fifo
+  /// @brief Writes data from a buffer to the transmit fifo
   /// @param buffer the buffer
   /// @param len the number of bytes we want to write
   /// @return true if succeed false otherwise
   bool write_data_(const uint8_t *buffer, size_t len);
 
-  /// @brief the size of the component's fifo
-  const size_t fifo_size_{128};
-
   /// @brief the buffer where we store temporarily the bytes received
-  RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer;
+  RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
 
 #ifdef AUTOTEST_COMPONENT
   void uart_send_test_(char *preamble);
