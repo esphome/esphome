@@ -409,8 +409,6 @@ class ModbusCommandItem {
 
 class ModbusController : public PollingComponent, public modbus::ModbusDevice {
  public:
-  ModbusController(uint16_t throttle = 0, uint16_t offline_skip_updates = 0)
-      : command_throttle_(throttle), offline_skip_updates_(offline_skip_updates){};
   void dump_config() override;
   void loop() override;
   void setup() override;

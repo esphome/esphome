@@ -208,11 +208,9 @@ async def add_modbus_base_properties(
 
 
 async def to_code(config):
-    command_throttle = config[CONF_COMMAND_THROTTLE]
-    offline_skip_updates = config[CONF_OFFLINE_SKIP_UPDATES]
-    var = cg.new_Pvariable(config[CONF_ID], command_throttle, offline_skip_updates)
-    cg.add(var.set_command_throttle(command_throttle))
-    cg.add(var.set_offline_skip_updates(offline_skip_updates))
+    var = cg.new_Pvariable(config[CONF_ID])
+    cg.add(var.set_command_throttle(config[CONF_COMMAND_THROTTLE]))
+    cg.add(var.set_offline_skip_updates(config[CONF_OFFLINE_SKIP_UPDATES]))
     await register_modbus_device(var, config)
 
 
