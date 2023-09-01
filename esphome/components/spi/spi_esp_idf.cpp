@@ -25,8 +25,10 @@ static std::vector<spi_host_device_t> bus_list = {
 
 class SPIDelegateHw : public SPIDelegate {
  public:
-  SPIDelegateHw(spi_host_device_t channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
-      : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {
+  SPIDelegateHw(spi_host_device_t channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+                bool write_only)
+      : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel), write_only_(write_only) {
+
     spi_device_interface_config_t config = {};
     config.mode = static_cast<uint8_t>(mode);
     config.clock_speed_hz = static_cast<int>(data_rate);
@@ -37,6 +39,8 @@ class SPIDelegateHw : public SPIDelegate {
     config.post_cb = nullptr;
     if (bit_order == BIT_ORDER_LSB_FIRST)
       config.flags |= SPI_DEVICE_BIT_LSBFIRST;
+    if (write_only)
+      config.flags |= SPI_DEVICE_HALFDUPLEX | SPI_DEVICE_NO_DUMMY;
     esp_err_t const err = spi_bus_add_device(channel, &config, &this->handle_);
     if (err != ESP_OK)
       ESP_LOGE(TAG, "Add device failed - err %X", err);
@@ -72,12 +76,16 @@ class SPIDelegateHw : public SPIDelegate {
   // TODO - make use of the queue for interrupt transfers to provide a (short) pipeline of blocks
   // when splitting is required.
   void transfer(const uint8_t *txbuf, uint8_t *rxbuf, size_t length) {
+    if (rxbuf != nullptr && this->write_only_) {
+      ESP_LOGE(TAG, "Attempted read from write-only channel");
+      return;
+    }
     spi_transaction_t desc = {};
     desc.flags = 0;
     while (length != 0) {
       size_t const partial = std::min(length, MAX_TRANSFER_SIZE);
-      desc.length = partial * 8;
-      desc.rxlength = partial * 8;
+      desc.length = txbuf != nullptr ? partial * 8 : 0;
+      desc.rxlength = rxbuf != nullptr ? partial * 8 : 0;
       desc.tx_buffer = txbuf;
       desc.rx_buffer = rxbuf;
       esp_err_t const err = spi_device_transmit(this->handle_, &desc);
@@ -101,15 +109,13 @@ class SPIDelegateHw : public SPIDelegate {
     return rxbuf;
   }
 
-  uint16_t transfer16(uint16_t data) override {
-    uint16_t rxbuf;
+  void write16(uint16_t data) override {
     if (this->bit_order_ == BIT_ORDER_MSB_FIRST) {
       uint16_t txbuf = SPI_SWAP_DATA_TX(data, 16);
-      this->transfer((uint8_t *) &txbuf, (uint8_t *) &rxbuf, 2);
-      return SPI_SWAP_DATA_RX(rxbuf, 16);
+      this->transfer((uint8_t *) &txbuf, nullptr, 2);
+    } else {
+      this->transfer((uint8_t *) &data, nullptr, 2);
     }
-    this->transfer((uint8_t *) &data, (uint8_t *) &rxbuf, 2);
-    return rxbuf;
   }
 
   void write_array(const uint8_t *ptr, size_t length) override { this->transfer(ptr, nullptr, length); }
@@ -135,6 +141,7 @@ class SPIDelegateHw : public SPIDelegate {
  protected:
   spi_host_device_t channel_{};
   spi_device_handle_t handle_{};
+  bool write_only_{false};
 };
 
 class SPIBusHw : public SPIBus {
@@ -154,7 +161,8 @@ class SPIBusHw : public SPIBus {
   }
 
   SPIDelegate *get_delegate(uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin) override {
-    return new SPIDelegateHw(this->channel_, data_rate, bit_order, mode, cs_pin);
+    return new SPIDelegateHw(this->channel_, data_rate, bit_order, mode, cs_pin,
+                             Utility::get_pin_no(this->sdi_pin_) == -1);
   }
 
  protected:

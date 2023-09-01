@@ -185,26 +185,28 @@ class SPIDelegate {
 
   // transfer a buffer, replace the contents with read data
   virtual void transfer(uint8_t *ptr, size_t length) {
-    for (size_t i = 0; i != length; i++)
-      ptr[i] = this->transfer(ptr[i]);
+      this->transfer(ptr, ptr, length);
   }
 
-  // write 16 bits, return read data. Byte order taken from bit order.
-  virtual uint16_t transfer16(uint16_t data) {
-    uint16_t out_data;
+  virtual void transfer(const uint8_t *txbuf, uint8_t *rxbuf, size_t length) {
+    for (size_t i = 0; i != length; i++)
+      rxbuf[i] = this->transfer(txbuf[i]);
+  }
+
+  // write 16 bits
+  virtual void write16(uint16_t data) {
     if (this->bit_order_ == BIT_ORDER_MSB_FIRST) {
-      out_data = this->transfer((uint8_t) (data >> 8)) << 8;
-      out_data |= this->transfer((uint8_t) data);
+      uint16_t buffer;
+      buffer = (data >> 8) | (data << 8);
+      this->write_array(reinterpret_cast<const uint8_t *>(&buffer), 2);
     } else {
-      out_data = this->transfer((uint8_t) data);
-      out_data |= this->transfer((uint8_t) (data >> 8)) << 8;
+      this->write_array(reinterpret_cast<const uint8_t *>(&data), 2);
     }
-    return out_data;
   }
 
   virtual void write_array16(const uint16_t *data, size_t length) {
     for (size_t i = 0; i != length; i++) {
-      this->transfer16(data[i]);
+      this->write16(data[i]);
     }
   }
 
@@ -394,14 +396,14 @@ class SPIDevice : public SPIClient {
 
   void read_array(uint8_t *data, size_t length) { return this->delegate_->read_array(data, length); }
 
-  void write_byte(uint8_t data) { this->delegate_->transfer(data); }
+  void write_byte(uint8_t data) { this->delegate_->write_array(&data, 1); }
 
   void transfer_array(uint8_t *data, size_t length) { this->delegate_->transfer(data, length); }
 
   uint8_t transfer_byte(uint8_t data) { return this->delegate_->transfer(data); }
 
   // the driver will byte-swap if required.
-  void write_byte16(uint16_t data) { this->delegate_->transfer16(data); }
+  void write_byte16(uint16_t data) { this->delegate_->write16(data); }
 
   // avoid use of this if possible. It's inefficient and ugly.
   void write_array16(const uint16_t *data, size_t length) { this->delegate_->write_array16(data, length); }

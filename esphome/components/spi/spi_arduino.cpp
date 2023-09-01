@@ -55,7 +55,7 @@ class SPIDelegateHw : public SPIDelegate {
 
   uint8_t transfer(uint8_t data) override { return this->channel_->transfer(data); }
 
-  uint16_t transfer16(uint16_t data) override { return this->channel_->transfer16(data); }
+  void write16(uint16_t data) override { this->channel_->transfer16(data); }
 
 #ifdef USE_RP2040
   void write_array(const uint8_t *ptr, size_t length) override {
