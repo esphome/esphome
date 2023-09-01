@@ -134,7 +134,7 @@ def get_download_types(storage_json=None):
     outputs = join(build_dir, "firmware.json")
     if not isfile(outputs):
         return types
-    with open(outputs, "r") as f:
+    with open(outputs, encoding="utf-8") as f:
         outputs = json.load(f)
     for output in outputs:
         if not output["public"]:
