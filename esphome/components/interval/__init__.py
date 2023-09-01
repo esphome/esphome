@@ -14,7 +14,7 @@ CONFIG_SCHEMA = automation.validate_automation(
         {
             cv.GenerateID(): cv.declare_id(IntervalTrigger),
             cv.Optional(
-                CONF_STARTUP_DELAY, default=0
+                CONF_STARTUP_DELAY, default="0s"
             ): cv.positive_time_period_milliseconds,
             cv.Required(CONF_INTERVAL): cv.positive_time_period_milliseconds,
         }
