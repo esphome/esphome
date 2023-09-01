@@ -101,19 +101,19 @@ template<typename T, int SIZE> class RingBuffer {
 
   /// @brief test is the Ring Buffer is empty ?
   /// @return true if empty
-  const bool is_empty() { return (count_ == 0); }
+  bool is_empty() { return (count_ == 0); }
 
   /// @brief test is the ring buffer is full ?
   /// @return true if full
-  const bool is_full() { return (count_ == SIZE); }
+  bool is_full() { return (count_ == SIZE); }
 
   /// @brief return the number of item in the ring buffer
   /// @return the count
-  const size_t count() { return count_; }
+  size_t count() { return count_; }
 
   /// @brief returns the free positions in the buffer
   /// @return how many item can still be added
-  const size_t free() { return SIZE - count_; }
+  size_t free() { return SIZE - count_; }
 
  private:
   std::array<T, SIZE> rb_{0};

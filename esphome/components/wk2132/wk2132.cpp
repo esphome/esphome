@@ -400,11 +400,11 @@ void WK2132Channel::uart_send_test_(char *preamble) {
 /// @brief test read_array method
 void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
   auto start_exec = millis();
-  bool status = false;
+  // bool status = false; todo
   uint8_t const to_read = this->available();
   if (to_read > 0) {
     std::vector<uint8_t> buffer(to_read);
-    status = this->read_array(&buffer[0], to_read);
+    this->read_array(&buffer[0], to_read);
     if (print_buf)
       print_buffer(buffer);
   }
