@@ -850,7 +850,8 @@ void PN7160::process_rf_intf_activated_oid_(nfc::NciMessage &rx) {  // an endpoi
       this->discovered_endpoint_[tag_loc.value()].last_seen = millis();
       ESP_LOGVV(TAG, "Tag cache updated");
     } else {
-      this->discovered_endpoint_.emplace_back(discovery_id, protocol, millis(), std::move(incoming_tag), false);
+      this->discovered_endpoint_.emplace_back(
+          DiscoveredEndpoint{discovery_id, protocol, millis(), std::move(incoming_tag), false});
       tag_loc = this->discovered_endpoint_.size() - 1;
       ESP_LOGVV(TAG, "Tag added to cache");
     }
@@ -946,9 +947,9 @@ void PN7160::process_rf_discover_oid_(nfc::NciMessage &rx) {
       this->discovered_endpoint_[tag_loc.value()].last_seen = millis();
       ESP_LOGVV(TAG, "Tag found & updated");
     } else {
-      this->discovered_endpoint_.emplace_back(rx.get_message_byte(nfc::RF_DISCOVER_NTF_DISCOVERY_ID),
-                                              rx.get_message_byte(nfc::RF_DISCOVER_NTF_PROTOCOL), millis(),
-                                              std::move(incoming_tag), false);
+      this->discovered_endpoint_.emplace_back(DiscoveredEndpoint{rx.get_message_byte(nfc::RF_DISCOVER_NTF_DISCOVERY_ID),
+                                                                 rx.get_message_byte(nfc::RF_DISCOVER_NTF_PROTOCOL),
+                                                                 millis(), std::move(incoming_tag), false});
       ESP_LOGVV(TAG, "Tag saved");
     }
   }

@@ -1,3 +1,4 @@
+#include <inttypes.h>
 #include <memory>
 
 #include "pn7160.h"
