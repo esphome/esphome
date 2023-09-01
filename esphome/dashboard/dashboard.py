@@ -530,11 +530,43 @@ class ImportRequestHandler(BaseHandler):
         self.finish()
 
 
+class DownloadListRequestHandler(BaseHandler):
+    @authenticated
+    @bind_config
+    def get(self, configuration=None):
+        storage_path = ext_storage_path(settings.config_dir, configuration)
+        storage_json = StorageJSON.load(storage_path)
+        if storage_json is None:
+            self.send_error(404)
+            return
+
+        from esphome.components.esp32 import get_download_types as esp32_types
+        from esphome.components.esp8266 import get_download_types as esp8266_types
+        from esphome.components.rp2040 import get_download_types as rp2040_types
+
+        downloads = []
+        platform = storage_json.target_platform.lower()
+        if platform == const.PLATFORM_RP2040:
+            downloads = rp2040_types(storage_json)
+        elif platform == const.PLATFORM_ESP8266:
+            downloads = esp8266_types(storage_json)
+        elif platform == const.PLATFORM_ESP32:
+            downloads = esp32_types(storage_json)
+        else:
+            self.send_error(418)
+            return
+
+        self.set_status(200)
+        self.set_header("content-type", "application/json")
+        self.write(json.dumps(downloads))
+        self.finish()
+        return
+
+
 class DownloadBinaryRequestHandler(BaseHandler):
     @authenticated
     @bind_config
     def get(self, configuration=None):
-        type = self.get_argument("type", "firmware.bin")
         compressed = self.get_argument("compressed", "0") == "1"
 
         storage_path = ext_storage_path(settings.config_dir, configuration)
@@ -543,27 +575,22 @@ class DownloadBinaryRequestHandler(BaseHandler):
             self.send_error(404)
             return
 
-        if storage_json.target_platform.lower() == const.PLATFORM_RP2040:
-            filename = f"{storage_json.name}.uf2"
-            path = storage_json.firmware_bin_path.replace(
-                "firmware.bin", "firmware.uf2"
-            )
+        # fallback to type=, but prioritize file=
+        file_name = self.get_argument("type", None)
+        file_name = self.get_argument("file", file_name)
+        if file_name is None:
+            self.send_error(400)
+            return
+        file_name = file_name.replace("..", "").lstrip("/")
+        # get requested download name, or build it based on filename
+        download_name = self.get_argument(
+            "download",
+            f"{storage_json.name}-{file_name}",
+        )
+        path = os.path.dirname(storage_json.firmware_bin_path)
+        path = os.path.join(path, file_name)
 
-        elif storage_json.target_platform.lower() == const.PLATFORM_ESP8266:
-            filename = f"{storage_json.name}.bin"
-            path = storage_json.firmware_bin_path
-
-        elif type == "firmware.bin":
-            filename = f"{storage_json.name}.bin"
-            path = storage_json.firmware_bin_path
-
-        elif type == "firmware-factory.bin":
-            filename = f"{storage_json.name}-factory.bin"
-            path = storage_json.firmware_bin_path.replace(
-                "firmware.bin", "firmware-factory.bin"
-            )
-
-        else:
+        if not Path(path).is_file():
             args = ["esphome", "idedata", settings.rel_path(configuration)]
             rc, stdout, _ = run_system_command(*args)
 
@@ -575,9 +602,9 @@ class DownloadBinaryRequestHandler(BaseHandler):
 
             found = False
             for image in idedata.extra_flash_images:
-                if image.path.endswith(type):
+                if image.path.endswith(file_name):
                     path = image.path
-                    filename = type
+                    download_name = file_name
                     found = True
                     break
 
@@ -585,10 +612,12 @@ class DownloadBinaryRequestHandler(BaseHandler):
                 self.send_error(404)
                 return
 
-        filename = filename + ".gz" if compressed else filename
+        download_name = download_name + ".gz" if compressed else download_name
 
         self.set_header("Content-Type", "application/octet-stream")
-        self.set_header("Content-Disposition", f'attachment; filename="{filename}"')
+        self.set_header(
+            "Content-Disposition", f'attachment; filename="{download_name}"'
+        )
         self.set_header("Cache-Control", "no-cache")
         if not Path(path).is_file():
             self.send_error(404)
@@ -1259,6 +1288,7 @@ def make_app(debug=get_bool_env(ENV_DEV)):
             (f"{rel}update-all", EsphomeUpdateAllHandler),
             (f"{rel}info", InfoRequestHandler),
             (f"{rel}edit", EditRequestHandler),
+            (f"{rel}downloads", DownloadListRequestHandler),
             (f"{rel}download.bin", DownloadBinaryRequestHandler),
             (f"{rel}serial-ports", SerialPortRequestHandler),
             (f"{rel}ping", PingRequestHandler),

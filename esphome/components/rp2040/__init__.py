@@ -42,6 +42,17 @@ def set_core_data(config):
     return config
 
 
+def get_download_types(storage_json):
+    return [
+        {
+            "title": "UF2 format",
+            "description": "For copying to RP2040 over USB.",
+            "file": "firmware.uf2",
+            "download": f"{storage_json.name}.uf2",
+        },
+    ]
+
+
 def _format_framework_arduino_version(ver: cv.Version) -> str:
     # The most recent releases have not been uploaded to platformio so grabbing them directly from
     # the GitHub release is one path forward for now.
