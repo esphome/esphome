@@ -16,7 +16,11 @@ from .. import template_ns
 
 TemplateText = template_ns.class_("TemplateText", text.Text, cg.PollingComponent)
 
+TextSaverBase = template_ns.class_("TemplateTextSaverBase")
+TextSaverTemplate = template_ns.class_("TextSaver", TextSaverBase)
+
 CONF_SET_ACTION = "set_action"
+CONF_MAX_RESTORE_DATA_LENGTH = "max_restore_data_length"
 
 
 def validate(config):
@@ -48,7 +52,8 @@ CONFIG_SCHEMA = cv.All(
             cv.Optional(CONF_OPTIMISTIC, default=False): cv.boolean,
             cv.Optional(CONF_SET_ACTION): automation.validate_automation(single=True),
             cv.Optional(CONF_INITIAL_VALUE, default=""): cv.string_strict,
-            cv.Optional(CONF_RESTORE_VALUE): cv.boolean,
+            cv.Optional(CONF_RESTORE_VALUE, default=False): cv.boolean,
+            cv.Optional(CONF_MAX_RESTORE_DATA_LENGTH, default=64): cv.int_range(0, 255),
         }
     ).extend(cv.polling_component_schema("60s")),
     validate,
@@ -75,8 +80,10 @@ async def to_code(config):
     else:
         cg.add(var.set_optimistic(config[CONF_OPTIMISTIC]))
         cg.add(var.set_initial_value(config[CONF_INITIAL_VALUE]))
-        if CONF_RESTORE_VALUE in config:
-            cg.add(var.set_restore_value(config[CONF_RESTORE_VALUE]))
+        if config[CONF_RESTORE_VALUE]:
+            args = cg.TemplateArguments(config[CONF_MAX_RESTORE_DATA_LENGTH])
+            saver = TextSaverTemplate.template(args).new()
+            cg.add(var.set_value_saver(saver))
 
     if CONF_SET_ACTION in config:
         await automation.build_automation(
