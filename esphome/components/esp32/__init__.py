@@ -84,6 +84,23 @@ def get_board(core_obj=None):
     return (core_obj or CORE).data[KEY_ESP32][KEY_BOARD]
 
 
+def get_download_types(storage_json):
+    return [
+        {
+            "title": "Modern format",
+            "description": "For use with ESPHome Web and other tools.",
+            "file": "firmware-factory.bin",
+            "download": f"{storage_json.name}-factory.bin",
+        },
+        {
+            "title": "Legacy format",
+            "description": "For use with ESPHome Flasher.",
+            "file": "firmware.bin",
+            "download": f"{storage_json.name}.bin",
+        },
+    ]
+
+
 def only_on_variant(*, supported=None, unsupported=None):
     """Config validator for features only available on some ESP32 variants."""
     if supported is not None and not isinstance(supported, list):

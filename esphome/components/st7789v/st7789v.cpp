@@ -5,6 +5,7 @@ namespace esphome {
 namespace st7789v {
 
 static const char *const TAG = "st7789v";
+static const size_t TEMP_BUFFER_SIZE = 128;
 
 void ST7789V::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI ST7789V...");
@@ -205,15 +206,23 @@ void ST7789V::write_display_data() {
   this->dc_pin_->digital_write(true);
 
   if (this->eightbitcolor_) {
+    uint8_t temp_buffer[TEMP_BUFFER_SIZE];
+    size_t temp_index = 0;
     for (int line = 0; line < this->get_buffer_length_(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
         auto color = display::ColorUtil::color_to_565(
             display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
                                          display::ColorBitness::COLOR_BITNESS_332, true));
-        this->write_byte((color >> 8) & 0xff);
-        this->write_byte(color & 0xff);
+        temp_buffer[temp_index++] = (uint8_t) (color >> 8);
+        temp_buffer[temp_index++] = (uint8_t) color;
+        if (temp_index == TEMP_BUFFER_SIZE) {
+          this->write_array(temp_buffer, TEMP_BUFFER_SIZE);
+          temp_index = 0;
+        }
       }
     }
+    if (temp_index != 0)
+      this->write_array(temp_buffer, temp_index);
   } else {
     this->write_array(this->buffer_, this->get_buffer_length_());
   }
@@ -228,9 +237,10 @@ void ST7789V::init_reset_() {
     delay(1);
     // Trigger Reset
     this->reset_pin_->digital_write(false);
-    delay(10);
+    delay(1);
     // Wake up
     this->reset_pin_->digital_write(true);
+    delay(5);
   }
 }
 
