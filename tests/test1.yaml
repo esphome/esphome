@@ -854,6 +854,8 @@ sensor:
       name: Living Room Temperature 6
     humidity:
       name: Living Room Humidity 6
+    heater:
+      name: Living Room Heater 6
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: max6675
