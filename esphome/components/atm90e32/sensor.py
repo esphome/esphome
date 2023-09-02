@@ -151,33 +151,35 @@ async def to_code(config):
         conf = config[phase]
         cg.add(var.set_volt_gain(i, conf[CONF_GAIN_VOLTAGE]))
         cg.add(var.set_ct_gain(i, conf[CONF_GAIN_CT]))
-        if CONF_VOLTAGE in conf:
-            sens = await sensor.new_sensor(conf[CONF_VOLTAGE])
+        if voltage_config := conf.get(CONF_VOLTAGE):
+            sens = await sensor.new_sensor(voltage_config)
             cg.add(var.set_voltage_sensor(i, sens))
-        if CONF_CURRENT in conf:
-            sens = await sensor.new_sensor(conf[CONF_CURRENT])
+        if current_config := conf.get(CONF_CURRENT):
+            sens = await sensor.new_sensor(current_config)
             cg.add(var.set_current_sensor(i, sens))
-        if CONF_POWER in conf:
-            sens = await sensor.new_sensor(conf[CONF_POWER])
+        if power_config := conf.get(CONF_POWER):
+            sens = await sensor.new_sensor(power_config)
             cg.add(var.set_power_sensor(i, sens))
-        if CONF_REACTIVE_POWER in conf:
-            sens = await sensor.new_sensor(conf[CONF_REACTIVE_POWER])
+        if reactive_power_config := conf.get(CONF_REACTIVE_POWER):
+            sens = await sensor.new_sensor(reactive_power_config)
             cg.add(var.set_reactive_power_sensor(i, sens))
-        if CONF_POWER_FACTOR in conf:
-            sens = await sensor.new_sensor(conf[CONF_POWER_FACTOR])
+        if power_factor_config := conf.get(CONF_POWER_FACTOR):
+            sens = await sensor.new_sensor(power_factor_config)
             cg.add(var.set_power_factor_sensor(i, sens))
-        if CONF_FORWARD_ACTIVE_ENERGY in conf:
-            sens = await sensor.new_sensor(conf[CONF_FORWARD_ACTIVE_ENERGY])
+        if forward_active_energy_config := conf.get(CONF_FORWARD_ACTIVE_ENERGY):
+            sens = await sensor.new_sensor(forward_active_energy_config)
             cg.add(var.set_forward_active_energy_sensor(i, sens))
-        if CONF_REVERSE_ACTIVE_ENERGY in conf:
-            sens = await sensor.new_sensor(conf[CONF_REVERSE_ACTIVE_ENERGY])
+        if reverse_active_energy_config := conf.get(CONF_REVERSE_ACTIVE_ENERGY):
+            sens = await sensor.new_sensor(reverse_active_energy_config)
             cg.add(var.set_reverse_active_energy_sensor(i, sens))
-    if CONF_FREQUENCY in config:
-        sens = await sensor.new_sensor(config[CONF_FREQUENCY])
+
+    if frequency_config := config.get(CONF_FREQUENCY):
+        sens = await sensor.new_sensor(frequency_config)
         cg.add(var.set_freq_sensor(sens))
-    if CONF_CHIP_TEMPERATURE in config:
-        sens = await sensor.new_sensor(config[CONF_CHIP_TEMPERATURE])
+    if chip_temperature_config := config.get(CONF_CHIP_TEMPERATURE):
+        sens = await sensor.new_sensor(chip_temperature_config)
         cg.add(var.set_chip_temperature_sensor(sens))
+
     cg.add(var.set_line_freq(config[CONF_LINE_FREQUENCY]))
     cg.add(var.set_current_phases(config[CONF_CURRENT_PHASES]))
     cg.add(var.set_pga_gain(config[CONF_GAIN_PGA]))

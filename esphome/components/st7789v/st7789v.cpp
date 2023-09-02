@@ -5,9 +5,14 @@ namespace esphome {
 namespace st7789v {
 
 static const char *const TAG = "st7789v";
+static const size_t TEMP_BUFFER_SIZE = 128;
 
 void ST7789V::setup() {
   ESP_LOGCONFIG(TAG, "Setting up SPI ST7789V...");
+#ifdef USE_POWER_SUPPLY
+  this->power_.request();
+  // the PowerSupply component takes care of post turn-on delay
+#endif
   this->spi_setup();
   this->dc_pin_->setup();  // OUTPUT
 
@@ -128,6 +133,9 @@ void ST7789V::dump_config() {
   LOG_PIN("  Reset Pin: ", this->reset_pin_);
   LOG_PIN("  B/L Pin: ", this->backlight_pin_);
   LOG_UPDATE_INTERVAL(this);
+#ifdef USE_POWER_SUPPLY
+  ESP_LOGCONFIG(TAG, "  Power Supply Configured: yes");
+#endif
 }
 
 float ST7789V::get_setup_priority() const { return setup_priority::PROCESSOR; }
@@ -162,6 +170,13 @@ void ST7789V::set_model(ST7789VModel model) {
       this->offset_width_ = 20;
       break;
 
+    case ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135:
+      this->height_ = 240;
+      this->width_ = 135;
+      this->offset_height_ = 52;
+      this->offset_width_ = 40;
+      break;
+
     default:
       break;
   }
@@ -191,15 +206,23 @@ void ST7789V::write_display_data() {
   this->dc_pin_->digital_write(true);
 
   if (this->eightbitcolor_) {
+    uint8_t temp_buffer[TEMP_BUFFER_SIZE];
+    size_t temp_index = 0;
     for (int line = 0; line < this->get_buffer_length_(); line = line + this->get_width_internal()) {
       for (int index = 0; index < this->get_width_internal(); ++index) {
         auto color = display::ColorUtil::color_to_565(
             display::ColorUtil::to_color(this->buffer_[index + line], display::ColorOrder::COLOR_ORDER_RGB,
                                          display::ColorBitness::COLOR_BITNESS_332, true));
-        this->write_byte((color >> 8) & 0xff);
-        this->write_byte(color & 0xff);
+        temp_buffer[temp_index++] = (uint8_t) (color >> 8);
+        temp_buffer[temp_index++] = (uint8_t) color;
+        if (temp_index == TEMP_BUFFER_SIZE) {
+          this->write_array(temp_buffer, TEMP_BUFFER_SIZE);
+          temp_index = 0;
+        }
       }
     }
+    if (temp_index != 0)
+      this->write_array(temp_buffer, temp_index);
   } else {
     this->write_array(this->buffer_, this->get_buffer_length_());
   }
@@ -214,9 +237,10 @@ void ST7789V::init_reset_() {
     delay(1);
     // Trigger Reset
     this->reset_pin_->digital_write(false);
-    delay(10);
+    delay(1);
     // Wake up
     this->reset_pin_->digital_write(true);
+    delay(5);
   }
 }
 
@@ -323,6 +347,8 @@ const char *ST7789V::model_str_() {
       return "Adafruit Funhouse 240x240";
     case ST7789V_MODEL_ADAFRUIT_RR_280_240:
       return "Adafruit Round-Rectangular 280x240";
+    case ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135:
+      return "Adafruit ESP32-S2 TFT Feather";
     default:
       return "Custom";
   }

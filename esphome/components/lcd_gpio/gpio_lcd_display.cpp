@@ -17,7 +17,7 @@ void GPIOLCDDisplay::setup() {
   this->enable_pin_->setup();  // OUTPUT
   this->enable_pin_->digital_write(false);
 
-  for (uint8_t i = 0; i < (uint8_t)(this->is_four_bit_mode() ? 4u : 8u); i++) {
+  for (uint8_t i = 0; i < (uint8_t) (this->is_four_bit_mode() ? 4u : 8u); i++) {
     this->data_pins_[i]->setup();  // OUTPUT
     this->data_pins_[i]->digital_write(false);
   }

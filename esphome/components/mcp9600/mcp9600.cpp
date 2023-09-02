@@ -32,7 +32,7 @@ void MCP9600Component::setup() {
 
   uint16_t dev_id = 0;
   this->read_byte_16(MCP9600_REGISTER_DEVICE_ID, &dev_id);
-  this->device_id_ = (uint8_t)(dev_id >> 8);
+  this->device_id_ = (uint8_t) (dev_id >> 8);
 
   // Allows both MCP9600's and MCP9601's to be connected.
   if (this->device_id_ != (uint8_t) 0x40 && this->device_id_ != (uint8_t) 0x41) {

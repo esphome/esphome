@@ -53,6 +53,9 @@ WIFI_POWER_SAVE_MODES = {
     "HIGH": WiFiPowerSaveMode.WIFI_POWER_SAVE_HIGH,
 }
 WiFiConnectedCondition = wifi_ns.class_("WiFiConnectedCondition", Condition)
+WiFiEnabledCondition = wifi_ns.class_("WiFiEnabledCondition", Condition)
+WiFiEnableAction = wifi_ns.class_("WiFiEnableAction", automation.Action)
+WiFiDisableAction = wifi_ns.class_("WiFiDisableAction", automation.Action)
 
 
 def validate_password(value):
@@ -252,6 +255,8 @@ def _validate(config):
 
 
 CONF_OUTPUT_POWER = "output_power"
+CONF_PASSIVE_SCAN = "passive_scan"
+CONF_ENABLE_ON_BOOT = "enable_on_boot"
 CONFIG_SCHEMA = cv.All(
     cv.Schema(
         {
@@ -280,10 +285,12 @@ CONFIG_SCHEMA = cv.All(
             cv.SplitDefault(CONF_ENABLE_RRM, esp32_idf=False): cv.All(
                 cv.boolean, cv.only_with_esp_idf
             ),
+            cv.Optional(CONF_PASSIVE_SCAN, default=False): cv.boolean,
             cv.Optional("enable_mdns"): cv.invalid(
                 "This option has been removed. Please use the [disabled] option under the "
                 "new mdns component instead."
             ),
+            cv.Optional(CONF_ENABLE_ON_BOOT, default=True): cv.boolean,
         }
     ),
     _validate,
@@ -379,8 +386,11 @@ async def to_code(config):
     cg.add(var.set_reboot_timeout(config[CONF_REBOOT_TIMEOUT]))
     cg.add(var.set_power_save_mode(config[CONF_POWER_SAVE_MODE]))
     cg.add(var.set_fast_connect(config[CONF_FAST_CONNECT]))
+    cg.add(var.set_passive_scan(config[CONF_PASSIVE_SCAN]))
     if CONF_OUTPUT_POWER in config:
         cg.add(var.set_output_power(config[CONF_OUTPUT_POWER]))
+
+    cg.add(var.set_enable_on_boot(config[CONF_ENABLE_ON_BOOT]))
 
     if CORE.is_esp8266:
         cg.add_library("ESP8266WiFi", None)
@@ -407,3 +417,18 @@ async def to_code(config):
 @automation.register_condition("wifi.connected", WiFiConnectedCondition, cv.Schema({}))
 async def wifi_connected_to_code(config, condition_id, template_arg, args):
     return cg.new_Pvariable(condition_id, template_arg)
+
+
+@automation.register_condition("wifi.enabled", WiFiEnabledCondition, cv.Schema({}))
+async def wifi_enabled_to_code(config, condition_id, template_arg, args):
+    return cg.new_Pvariable(condition_id, template_arg)
+
+
+@automation.register_action("wifi.enable", WiFiEnableAction, cv.Schema({}))
+async def wifi_enable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)
+
+
+@automation.register_action("wifi.disable", WiFiDisableAction, cv.Schema({}))
+async def wifi_disable_to_code(config, action_id, template_arg, args):
+    return cg.new_Pvariable(action_id, template_arg)

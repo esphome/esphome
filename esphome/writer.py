@@ -142,7 +142,10 @@ def get_ini_content():
     # Sort to avoid changing build flags order
     CORE.add_platformio_option("build_flags", sorted(CORE.build_flags))
 
-    content = f"[env:{CORE.name}]\n"
+    content = "[platformio]\n"
+    content += f"description = ESPHome {__version__}\n"
+
+    content += f"[env:{CORE.name}]\n"
     content += format_ini(CORE.platformio_options)
 
     return content
@@ -295,6 +298,16 @@ def copy_src_tree():
         from esphome.components.esp8266 import copy_files
 
         copy_files()
+
+    elif CORE.is_rp2040:
+        from esphome.components.rp2040 import copy_files
+
+        (pio) = copy_files()
+        if pio:
+            write_file_if_changed(
+                CORE.relative_src_path("esphome.h"),
+                ESPHOME_H_FORMAT.format(include_s + '\n#include "pio_includes.h"'),
+            )
 
 
 def generate_defines_h():

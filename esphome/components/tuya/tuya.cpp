@@ -1,9 +1,17 @@
 #include "tuya.h"
 #include "esphome/components/network/util.h"
+#include "esphome/core/gpio.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
 #include "esphome/core/util.h"
-#include "esphome/core/gpio.h"
+
+#ifdef USE_WIFI
+#include "esphome/components/wifi/wifi_component.h"
+#endif
+
+#ifdef USE_CAPTIVE_PORTAL
+#include "esphome/components/captive_portal/captive_portal.h"
+#endif
 
 namespace esphome {
 namespace tuya {
@@ -230,19 +238,40 @@ void Tuya::handle_command_(uint8_t command, uint8_t version, const uint8_t *buff
     case TuyaCommandType::WIFI_TEST:
       this->send_command_(TuyaCommand{.cmd = TuyaCommandType::WIFI_TEST, .payload = std::vector<uint8_t>{0x00, 0x00}});
       break;
+    case TuyaCommandType::WIFI_RSSI:
+      this->send_command_(
+          TuyaCommand{.cmd = TuyaCommandType::WIFI_RSSI, .payload = std::vector<uint8_t>{get_wifi_rssi_()}});
+      break;
     case TuyaCommandType::LOCAL_TIME_QUERY:
 #ifdef USE_TIME
       if (this->time_id_.has_value()) {
         this->send_local_time_();
-        auto *time_id = *this->time_id_;
-        time_id->add_on_time_sync_callback([this] { this->send_local_time_(); });
-      } else {
+
+        if (!this->time_sync_callback_registered_) {
+          // tuya mcu supports time, so we let them know when our time changed
+          auto *time_id = *this->time_id_;
+          time_id->add_on_time_sync_callback([this] { this->send_local_time_(); });
+          this->time_sync_callback_registered_ = true;
+        }
+      } else
+#endif
+      {
         ESP_LOGW(TAG, "LOCAL_TIME_QUERY is not handled because time is not configured");
       }
-#else
-      ESP_LOGE(TAG, "LOCAL_TIME_QUERY is not handled");
-#endif
       break;
+    case TuyaCommandType::VACUUM_MAP_UPLOAD:
+      this->send_command_(
+          TuyaCommand{.cmd = TuyaCommandType::VACUUM_MAP_UPLOAD, .payload = std::vector<uint8_t>{0x01}});
+      ESP_LOGW(TAG, "Vacuum map upload requested, responding that it is not enabled.");
+      break;
+    case TuyaCommandType::GET_NETWORK_STATUS: {
+      uint8_t wifi_status = this->get_wifi_status_code_();
+
+      this->send_command_(
+          TuyaCommand{.cmd = TuyaCommandType::GET_NETWORK_STATUS, .payload = std::vector<uint8_t>{wifi_status}});
+      ESP_LOGV(TAG, "Network status requested, reported as %i", wifi_status);
+      break;
+    }
     default:
       ESP_LOGE(TAG, "Invalid command (0x%02X) received", command);
   }
@@ -356,8 +385,8 @@ void Tuya::handle_datapoints_(const uint8_t *buffer, size_t len) {
 }
 
 void Tuya::send_raw_command_(TuyaCommand command) {
-  uint8_t len_hi = (uint8_t)(command.payload.size() >> 8);
-  uint8_t len_lo = (uint8_t)(command.payload.size() & 0xFF);
+  uint8_t len_hi = (uint8_t) (command.payload.size() >> 8);
+  uint8_t len_lo = (uint8_t) (command.payload.size() & 0xFF);
   uint8_t version = 0;
 
   this->last_command_timestamp_ = millis();
@@ -437,8 +466,9 @@ void Tuya::set_status_pin_() {
   this->status_pin_.value()->digital_write(is_network_ready);
 }
 
-void Tuya::send_wifi_status_() {
+uint8_t Tuya::get_wifi_status_code_() {
   uint8_t status = 0x02;
+
   if (network::is_connected()) {
     status = 0x03;
 
@@ -446,7 +476,28 @@ void Tuya::send_wifi_status_() {
     if (this->protocol_version_ >= 0x03 && remote_is_connected()) {
       status = 0x04;
     }
-  }
+  } else {
+#ifdef USE_CAPTIVE_PORTAL
+    if (captive_portal::global_captive_portal != nullptr && captive_portal::global_captive_portal->is_active()) {
+      status = 0x01;
+    }
+#endif
+  };
+
+  return status;
+}
+
+uint8_t Tuya::get_wifi_rssi_() {
+#ifdef USE_WIFI
+  if (wifi::global_wifi_component != nullptr)
+    return wifi::global_wifi_component->wifi_rssi();
+#endif
+
+  return 0;
+}
+
+void Tuya::send_wifi_status_() {
+  uint8_t status = this->get_wifi_status_code_();
 
   if (status == this->wifi_status_) {
     return;
@@ -461,7 +512,7 @@ void Tuya::send_wifi_status_() {
 void Tuya::send_local_time_() {
   std::vector<uint8_t> payload;
   auto *time_id = *this->time_id_;
-  time::ESPTime now = time_id->now();
+  ESPTime now = time_id->now();
   if (now.is_valid()) {
     uint8_t year = now.year - 2000;
     uint8_t month = now.month;

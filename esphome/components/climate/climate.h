@@ -64,10 +64,6 @@ class ClimateCall {
    * For climate devices with two point target temperature control
    */
   ClimateCall &set_target_temperature_high(optional<float> target_temperature_high);
-  ESPDEPRECATED("set_away() is deprecated, please use .set_preset(CLIMATE_PRESET_AWAY) instead", "v1.20")
-  ClimateCall &set_away(bool away);
-  ESPDEPRECATED("set_away() is deprecated, please use .set_preset(CLIMATE_PRESET_AWAY) instead", "v1.20")
-  ClimateCall &set_away(optional<bool> away);
   /// Set the fan mode of the climate device.
   ClimateCall &set_fan_mode(ClimateFanMode fan_mode);
   /// Set the fan mode of the climate device.
@@ -97,8 +93,6 @@ class ClimateCall {
   const optional<float> &get_target_temperature() const;
   const optional<float> &get_target_temperature_low() const;
   const optional<float> &get_target_temperature_high() const;
-  ESPDEPRECATED("get_away() is deprecated, please use .get_preset() instead", "v1.20")
-  optional<bool> get_away() const;
   const optional<ClimateFanMode> &get_fan_mode() const;
   const optional<ClimateSwingMode> &get_swing_mode() const;
   const optional<std::string> &get_custom_fan_mode() const;
@@ -166,11 +160,6 @@ struct ClimateDeviceRestoreState {
  */
 class Climate : public EntityBase {
  public:
-  /// Construct a climate device with empty name (will be set later).
-  Climate();
-  /// Construct a climate device with a name.
-  Climate(const std::string &name);
-
   /// The active mode of the climate device.
   ClimateMode mode{CLIMATE_MODE_OFF};
   /// The active state of the climate device.
@@ -188,14 +177,6 @@ class Climate : public EntityBase {
       float target_temperature_high;
     };
   };
-
-  /** Whether the climate device is in away mode.
-   *
-   * Away allows climate devices to have two different target temperature configs:
-   * one for normal mode and one for away mode.
-   */
-  ESPDEPRECATED("away is deprecated, use preset instead", "v1.20")
-  bool away{false};
 
   /// The active fan mode of the climate device.
   optional<ClimateFanMode> fan_mode;
@@ -217,7 +198,15 @@ class Climate : public EntityBase {
    *
    * @param callback The callback to call.
    */
-  void add_on_state_callback(std::function<void()> &&callback);
+  void add_on_state_callback(std::function<void(Climate &)> &&callback);
+
+  /**
+   * Add a callback for the climate device configuration; each time the configuration parameters of a climate device
+   * is updated (using perform() of a ClimateCall), this callback will be called, before any on_state callback.
+   *
+   * @param callback The callback to call.
+   */
+  void add_on_control_callback(std::function<void(ClimateCall &)> &&callback);
 
   /** Make a climate device control call, this is used to control the climate device, see the ClimateCall description
    * for more info.
@@ -241,7 +230,7 @@ class Climate : public EntityBase {
 
   void set_visual_min_temperature_override(float visual_min_temperature_override);
   void set_visual_max_temperature_override(float visual_max_temperature_override);
-  void set_visual_temperature_step_override(float visual_temperature_step_override);
+  void set_visual_temperature_step_override(float target, float current);
 
  protected:
   friend ClimateCall;
@@ -284,11 +273,13 @@ class Climate : public EntityBase {
 
   void dump_traits_(const char *tag);
 
-  CallbackManager<void()> state_callback_{};
+  CallbackManager<void(Climate &)> state_callback_{};
+  CallbackManager<void(ClimateCall &)> control_callback_{};
   ESPPreferenceObject rtc_;
   optional<float> visual_min_temperature_override_{};
   optional<float> visual_max_temperature_override_{};
-  optional<float> visual_temperature_step_override_{};
+  optional<float> visual_target_temperature_step_override_{};
+  optional<float> visual_current_temperature_step_override_{};
 };
 
 }  // namespace climate
