@@ -7,8 +7,10 @@ namespace template_ {
 static const char *const TAG = "template.text";
 
 void TemplateText::setup() {
-  if (this->f_.has_value())
-    return;
+  if (!(this->f_ == nullptr)) {
+    if (this->f_.has_value())
+      return;
+  }
 
   std::string value;
   ESP_LOGD(TAG, "Setting up Template Text Input");
@@ -22,6 +24,9 @@ void TemplateText::setup() {
 }
 
 void TemplateText::update() {
+  if (this->f_ == nullptr)
+    return;
+
   if (!this->f_.has_value())
     return;
 
@@ -38,12 +43,11 @@ void TemplateText::control(const std::string &value) {
   if (this->optimistic_)
     this->publish_state(value);
 
-  if (this->pref_)
-    {
-      if(!this->pref_->save(value)){
-          ESP_LOGW(TAG, "Text value too long to save");
-      }
+  if (this->pref_) {
+    if (!this->pref_->save(value)) {
+      ESP_LOGW(TAG, "Text value too long to save");
     }
+  }
 }
 void TemplateText::dump_config() {
   LOG_TEXT("", "Template Text Input", this);
