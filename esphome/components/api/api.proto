@@ -1526,7 +1526,7 @@ enum TextMode {
   TEXT_MODE_PASSWORD = 2;
 }
 message ListEntitiesTextResponse {
-  option (id) = 85;
+  option (id) = 97;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_TEXT";
 
@@ -1544,7 +1544,7 @@ message ListEntitiesTextResponse {
   TextMode mode = 12;
 }
 message TextStateResponse {
-  option (id) = 86;
+  option (id) = 98;
   option (source) = SOURCE_SERVER;
   option (ifdef) = "USE_TEXT";
   option (no_delay) = true;
@@ -1556,7 +1556,7 @@ message TextStateResponse {
   bool missing_state = 3;
 }
 message TextCommandRequest {
-  option (id) = 87;
+  option (id) = 99;
   option (source) = SOURCE_CLIENT;
   option (ifdef) = "USE_TEXT";
   option (no_delay) = true;
