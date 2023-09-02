@@ -143,6 +143,10 @@ void DebugComponent::dump_config() {
     features += "BT,";
     info.features &= ~CHIP_FEATURE_BT;
   }
+  if (info.features & CHIP_FEATURE_EMB_PSRAM) {
+    features += "EMB_PSRAM,";
+    info.features &= ~CHIP_FEATURE_EMB_PSRAM;
+  }
   if (info.features)
     features += "Other:" + format_hex(info.features);
   ESP_LOGD(TAG, "Chip: Model=%s, Features=%s Cores=%u, Revision=%u", model, features.c_str(), info.cores,
@@ -398,6 +402,12 @@ void DebugComponent::update() {
     this->loop_time_sensor_->publish_state(this->max_loop_time_);
     this->max_loop_time_ = 0;
   }
+
+#ifdef USE_ESP32
+  if (this->psram_sensor_ != nullptr) {
+    this->psram_sensor_->publish_state(heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+  }
+#endif  // USE_ESP32
 #endif  // USE_SENSOR
 }
 
