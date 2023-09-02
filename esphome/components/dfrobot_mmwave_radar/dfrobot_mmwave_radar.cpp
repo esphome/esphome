@@ -10,7 +10,15 @@ const char ASCII_CR = 0x0D;
 const char ASCII_LF = 0x0A;
 
 #ifdef USE_SWITCH
-void DfrobotMmwaveRadarSwitch::write_state(bool state) { component_->enqueue(make_unique<PowerCommand>(state)); }
+void DfrobotMmwaveRadarSwitch::set_type(const char *type) {
+  if(strncmp(type, "turn_on_sensor", 14) == 0) {
+    type_ = TURN_ON_SENSOR;
+  }
+}
+void DfrobotMmwaveRadarSwitch::write_state(bool state) {
+  if(type_ == TURN_ON_SENSOR)
+    component_->enqueue(make_unique<PowerCommand>(state));
+}
 #endif
 
 void DfrobotMmwaveRadarComponent::dump_config() {
@@ -19,7 +27,8 @@ void DfrobotMmwaveRadarComponent::dump_config() {
   LOG_BINARY_SENSOR("  ", "Registered", this->detected_binary_sensor_);
 #endif
 #ifdef USE_SWITCH
-  LOG_SWITCH("  ", "Registered", this->active_switch_);
+  if (this->active_switch_ != nullptr)
+    LOG_SWITCH("  ", "Registered", this->active_switch_);
 #endif
 }
 

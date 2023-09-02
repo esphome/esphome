@@ -10,17 +10,24 @@ DfrobotMmwaveRadarSwitch = dfrobot_mmwave_radar_ns.class_(
     "DfrobotMmwaveRadarSwitch", switch.Switch, cg.Component
 )
 
+TYPE = "type"
+TYPES = {
+    "turn_on_sensor": "turn_on_sensor",
+}
+
 CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
     {
         cv.GenerateID(): cv.declare_id(DfrobotMmwaveRadarSwitch),
         cv.GenerateID(DFROBOT_MMWAVE_RADAR_ID): cv.use_id(DfrobotMmwaveRadarComponent),
+        cv.Required(TYPE): cv.enum(TYPES),
     }
 ).extend(cv.COMPONENT_SCHEMA)
-
 
 async def to_code(config):
     dfr_mmwave_component = await cg.get_variable(config[DFROBOT_MMWAVE_RADAR_ID])
     sw = await switch.new_switch(config)
     await cg.register_component(sw, config)
-    cg.add(dfr_mmwave_component.set_active_switch(sw))
     cg.add(sw.set_component(dfr_mmwave_component))
+    cg.add(sw.set_type(config[TYPE]))
+    if config[TYPE] == "turn_on_sensor":
+        cg.add(dfr_mmwave_component.set_active_switch(sw))

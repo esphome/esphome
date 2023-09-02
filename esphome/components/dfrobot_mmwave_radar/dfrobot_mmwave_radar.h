@@ -54,12 +54,18 @@ class CircularCommandQueue {
 
 #ifdef USE_SWITCH
 class DfrobotMmwaveRadarSwitch : public switch_::Switch, public Component {
+  enum SWITCH_TYPE {
+    UNKNOWN,
+    TURN_ON_SENSOR
+  };
  public:
+  void set_type(const char *type);
   void write_state(bool state) override;
   void set_component(DfrobotMmwaveRadarComponent *component) { component_ = component; }
 
  protected:
   DfrobotMmwaveRadarComponent *component_;
+  enum SWITCH_TYPE type_{UNKNOWN};
 };
 #endif
 
