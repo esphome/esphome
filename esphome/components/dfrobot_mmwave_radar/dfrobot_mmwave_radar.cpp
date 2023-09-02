@@ -17,6 +17,9 @@ void DfrobotMmwaveRadarSwitch::set_type(const char *type) {
   else if(strncmp(type, "turn_on_led", 11) == 0) {
     type_ = TURN_ON_LED;
   }
+  else if(strncmp(type, "presence_via_uart", 17) == 0) {
+    type_ = PRESENCE_VIA_UART;
+  }
 }
 void DfrobotMmwaveRadarSwitch::write_state(bool state) {
   if(type_ == TURN_ON_SENSOR)
@@ -28,6 +31,18 @@ void DfrobotMmwaveRadarSwitch::write_state(bool state) {
       component_->enqueue(make_unique<PowerCommand>(0));
     }
     component_->enqueue(make_unique<LedModeCommand>(state));
+    component_->enqueue(make_unique<SaveCfgCommand>());
+    if(wasActive) {
+      component_->enqueue(make_unique<PowerCommand>(1));
+    }
+  }
+  if(type_ == PRESENCE_VIA_UART) {
+    bool wasActive = false;
+    if(component_->is_active()) {
+      wasActive = true;
+      component_->enqueue(make_unique<PowerCommand>(0));
+    }
+    component_->enqueue(make_unique<UartOutputCommand>(state));
     component_->enqueue(make_unique<SaveCfgCommand>());
     if(wasActive) {
       component_->enqueue(make_unique<PowerCommand>(1));
@@ -46,6 +61,8 @@ void DfrobotMmwaveRadarComponent::dump_config() {
     LOG_SWITCH("  ", "Registered", this->active_switch_);
   if (this->led_switch_ != nullptr)
     LOG_SWITCH("  ", "Registered", this->led_switch_);
+  if (this->uart_switch_ != nullptr)
+    LOG_SWITCH("  ", "Registered", this->uart_switch_);
 #endif
 }
 
@@ -461,8 +478,10 @@ uint8_t UartOutputCommand::on_message(std::string &message) {
   } else if (message == "Done") {
     ESP_LOGI(TAG, "Set uart mode done.");
     if (active_) {
+      component_->set_uart_presence_active(true);
       ESP_LOGI(TAG, "Presence information is sent via UART and GPIO.");
     } else {
+      component_->set_uart_presence_active(false);
       ESP_LOGI(TAG, "Presence information is only sent via GPIO.");
     }
     ESP_LOGD(TAG, "Used command: %s", cmd_.c_str());
