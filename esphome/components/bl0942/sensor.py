@@ -71,23 +71,18 @@ async def to_code(config):
     await cg.register_component(var, config)
     await uart.register_uart_device(var, config)
 
-    if CONF_VOLTAGE in config:
-        conf = config[CONF_VOLTAGE]
-        sens = await sensor.new_sensor(conf)
+    if voltage_config := config.get(CONF_VOLTAGE):
+        sens = await sensor.new_sensor(voltage_config)
         cg.add(var.set_voltage_sensor(sens))
-    if CONF_CURRENT in config:
-        conf = config[CONF_CURRENT]
-        sens = await sensor.new_sensor(conf)
+    if current_config := config.get(CONF_CURRENT):
+        sens = await sensor.new_sensor(current_config)
         cg.add(var.set_current_sensor(sens))
-    if CONF_POWER in config:
-        conf = config[CONF_POWER]
-        sens = await sensor.new_sensor(conf)
+    if power_config := config.get(CONF_POWER):
+        sens = await sensor.new_sensor(power_config)
         cg.add(var.set_power_sensor(sens))
-    if CONF_ENERGY in config:
-        conf = config[CONF_ENERGY]
-        sens = await sensor.new_sensor(conf)
+    if energy_config := config.get(CONF_ENERGY):
+        sens = await sensor.new_sensor(energy_config)
         cg.add(var.set_energy_sensor(sens))
-    if CONF_FREQUENCY in config:
-        conf = config[CONF_FREQUENCY]
-        sens = await sensor.new_sensor(conf)
+    if frequency_config := config.get(CONF_FREQUENCY):
+        sens = await sensor.new_sensor(frequency_config)
         cg.add(var.set_frequency_sensor(sens))
