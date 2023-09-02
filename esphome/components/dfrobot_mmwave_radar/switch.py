@@ -13,6 +13,7 @@ DfrobotMmwaveRadarSwitch = dfrobot_mmwave_radar_ns.class_(
 TYPE = "type"
 TYPES = {
     "turn_on_sensor": "turn_on_sensor",
+    "turn_on_led": "turn_on_led",
 }
 
 CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
@@ -31,3 +32,5 @@ async def to_code(config):
     cg.add(sw.set_type(config[TYPE]))
     if config[TYPE] == "turn_on_sensor":
         cg.add(dfr_mmwave_component.set_active_switch(sw))
+    if config[TYPE] == "turn_on_led":
+        cg.add(dfr_mmwave_component.set_led_switch(sw))

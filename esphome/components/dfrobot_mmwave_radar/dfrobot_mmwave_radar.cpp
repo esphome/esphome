@@ -14,10 +14,25 @@ void DfrobotMmwaveRadarSwitch::set_type(const char *type) {
   if(strncmp(type, "turn_on_sensor", 14) == 0) {
     type_ = TURN_ON_SENSOR;
   }
+  else if(strncmp(type, "turn_on_led", 11) == 0) {
+    type_ = TURN_ON_LED;
+  }
 }
 void DfrobotMmwaveRadarSwitch::write_state(bool state) {
   if(type_ == TURN_ON_SENSOR)
     component_->enqueue(make_unique<PowerCommand>(state));
+  if(type_ == TURN_ON_LED) {
+    bool wasActive = false;
+    if(component_->is_active()) {
+      wasActive = true;
+      component_->enqueue(make_unique<PowerCommand>(0));
+    }
+    component_->enqueue(make_unique<LedModeCommand>(state));
+    component_->enqueue(make_unique<SaveCfgCommand>());
+    if(wasActive) {
+      component_->enqueue(make_unique<PowerCommand>(1));
+    }
+  }
 }
 #endif
 
@@ -29,6 +44,8 @@ void DfrobotMmwaveRadarComponent::dump_config() {
 #ifdef USE_SWITCH
   if (this->active_switch_ != nullptr)
     LOG_SWITCH("  ", "Registered", this->active_switch_);
+  if (this->led_switch_ != nullptr)
+    LOG_SWITCH("  ", "Registered", this->led_switch_);
 #endif
 }
 
@@ -425,8 +442,10 @@ uint8_t LedModeCommand::on_message(std::string &message) {
   } else if (message == "Done") {
     ESP_LOGI(TAG, "Set led mode done.");
     if (active_) {
+      component_->set_led_active(true);
       ESP_LOGI(TAG, "Sensor LED will blink.");
     } else {
+      component_->set_led_active(false);
       ESP_LOGI(TAG, "Turned off LED.");
     }
     ESP_LOGD(TAG, "Used command: %s", cmd_.c_str());
