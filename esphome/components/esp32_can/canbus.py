@@ -58,15 +58,14 @@ CAN_SPEEDS = {
 }
 
 
-def validate_bit_rate():
+def validate_bit_rate(value):
     variant = get_esp32_variant()
-
-    def validator(value):
-        if variant not in CAN_SPEEDS:
-            raise cv.Invalid(f"{variant} is not supported by component {esp32_can_ns}")
-        return cv.enum(CAN_SPEEDS[variant], upper=True)
-
-    return validator
+    if variant not in CAN_SPEEDS:
+        raise cv.Invalid(f"{variant} is not supported by component {esp32_can_ns}")
+    value = value.upper()
+    if value not in CAN_SPEEDS[variant]:
+        raise cv.Invalid(f"Bit rate {value} is not supported on {variant}")
+    return value
 
 
 CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
