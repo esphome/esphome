@@ -55,6 +55,8 @@ ota:
 logger:
   level: DEBUG
 
+debug:
+
 deep_sleep:
   run_duration:
     default: 20s
