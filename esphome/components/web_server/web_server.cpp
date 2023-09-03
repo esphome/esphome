@@ -859,6 +859,9 @@ std::string WebServer::text_json(text::Text *obj, const std::string &value, Json
     if (start_config == DETAIL_ALL) {
       root["mode"] = (int) obj->traits.get_mode();
     }
+    root["min_length"] = obj->traits.get_min_length();
+    root["max_length"] = obj->traits.get_max_length();
+    root["pattern"] = obj->traits.get_pattern();
     root["state"] = value;
     root["value"] = value;
   });
