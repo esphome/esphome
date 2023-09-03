@@ -12,6 +12,8 @@ from esphome.const import (
     CONF_RESET_PIN,
     CONF_WIDTH,
     CONF_POWER_SUPPLY,
+    CONF_ROTATION,
+    CONF_CS_PIN,
 )
 from . import st7789v_ns
 
@@ -34,6 +36,7 @@ MODELS = {
     "ADAFRUIT_FUNHOUSE_240X240": ST7789VModel.ST7789V_MODEL_ADAFRUIT_FUNHOUSE_240_240,
     "ADAFRUIT_RR_280X240": ST7789VModel.ST7789V_MODEL_ADAFRUIT_RR_280_240,
     "ADAFRUIT_S2_TFT_FEATHER_240X135": ST7789VModel.ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135,
+    "LILYGO_T_EMBED_170X320": ST7789VModel.ST7789V_MODEL_LILYGO_T_EMBED_170_320,
     "CUSTOM": ST7789VModel.ST7789V_MODEL_CUSTOM,
 }
 
@@ -41,7 +44,7 @@ ST7789V_MODEL = cv.enum(MODELS, upper=True, space="_")
 
 
 def validate_st7789v(config):
-    if config[CONF_MODEL].upper() == "CUSTOM" and (
+    if config[CONF_MODEL] == "CUSTOM" and (
         CONF_HEIGHT not in config
         or CONF_WIDTH not in config
         or CONF_OFFSET_HEIGHT not in config
@@ -51,7 +54,7 @@ def validate_st7789v(config):
             f'{CONF_HEIGHT}, {CONF_WIDTH}, {CONF_OFFSET_HEIGHT} and {CONF_OFFSET_WIDTH} must be specified when {CONF_MODEL} is "CUSTOM"'
         )
 
-    if config[CONF_MODEL].upper() != "CUSTOM" and (
+    if config[CONF_MODEL] != "CUSTOM" and (
         CONF_HEIGHT in config
         or CONF_WIDTH in config
         or CONF_OFFSET_HEIGHT in config
@@ -62,12 +65,26 @@ def validate_st7789v(config):
         )
 
     if (
-        config[CONF_MODEL].upper() == "ADAFRUIT_S2_TFT_FEATHER_240X135"
+        config[CONF_MODEL] == "ADAFRUIT_S2_TFT_FEATHER_240X135"
         and CONF_POWER_SUPPLY not in config
     ):
         raise cv.Invalid(
             f'{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is "ADAFRUIT_S2_TFT_FEATHER_240X135"'
         )
+    if config[CONF_MODEL] == "LILYGO_T_EMBED_170X320":
+        config[CONF_ROTATION] = 270
+        config[CONF_BACKLIGHT_PIN] = pins.gpio_output_pin_schema("GPIO15")
+        config[CONF_CS_PIN] = pins.gpio_output_pin_schema("GPIO10")
+        config[CONF_DC_PIN] = pins.gpio_output_pin_schema("GPIO13")
+        config[CONF_RESET_PIN] = pins.gpio_output_pin_schema("GPIO9")
+        if CONF_POWER_SUPPLY not in config:
+            raise cv.Invalid(
+                f'{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is "LILYGO_T_EMBED_170X320"'
+            )
+
+    if CONF_DC_PIN not in config or CONF_RESET_PIN not in config:
+        raise cv.Invalid(f"both {CONF_DC_PIN} and {CONF_RESET_PIN} must be specified")
+
     return config
 
 
@@ -76,8 +93,8 @@ CONFIG_SCHEMA = cv.All(
         {
             cv.GenerateID(): cv.declare_id(ST7789V),
             cv.Required(CONF_MODEL): ST7789V_MODEL,
-            cv.Required(CONF_RESET_PIN): pins.gpio_output_pin_schema,
-            cv.Required(CONF_DC_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
+            cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_POWER_SUPPLY): cv.use_id(power_supply.PowerSupply),
             cv.Optional(CONF_EIGHTBITCOLOR, default=False): cv.boolean,
@@ -101,7 +118,7 @@ async def to_code(config):
 
     cg.add(var.set_model(config[CONF_MODEL]))
 
-    if config[CONF_MODEL].upper() == "CUSTOM":
+    if config[CONF_MODEL] == "CUSTOM":
         cg.add(var.set_height(config[CONF_HEIGHT]))
         cg.add(var.set_width(config[CONF_WIDTH]))
         cg.add(var.set_offset_height(config[CONF_OFFSET_HEIGHT]))

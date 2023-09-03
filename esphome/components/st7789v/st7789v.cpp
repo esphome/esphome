@@ -177,6 +177,13 @@ void ST7789V::set_model(ST7789VModel model) {
       this->offset_width_ = 40;
       break;
 
+    case ST7789V_MODEL_LILYGO_T_EMBED_170_320:
+      this->height_ = 320;
+      this->width_ = 170;
+      this->offset_width_ = 0;
+      this->offset_height_ = 35;
+      break;
+
     default:
       break;
   }
@@ -349,6 +356,8 @@ const char *ST7789V::model_str_() {
       return "Adafruit Round-Rectangular 280x240";
     case ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135:
       return "Adafruit ESP32-S2 TFT Feather";
+    case ST7789V_MODEL_LILYGO_T_EMBED_170_320:
+      return "Lilygo T-Embed 170x320";
     default:
       return "Custom";
   }
