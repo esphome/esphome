@@ -1,0 +1,96 @@
+diff --git a/esphome/components/wk2132/gen_uart.cpp b/esphome/components/wk2132/gen_uart.cpp
+index 6e779b2..915f1c6 100644
+--- a/esphome/components/wk2132/gen_uart.cpp
++++ b/esphome/components/wk2132/gen_uart.cpp
+@@ -14,8 +14,8 @@ static const char *const TAG = "gen_uart";
+ ///////////////////////////////////////////////////////////////////////////////
+ 
+ bool GenericUART::read_array(uint8_t *buffer, size_t len) {
+-  if (len > this->fifo_size_()) {
+-    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size_());
++  if (len > this->fifo_size()) {
++    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size());
+     return false;
+   }
+   auto available = this->receive_buffer_.count();
+@@ -31,9 +31,9 @@ bool GenericUART::read_array(uint8_t *buffer, size_t len) {
+ }
+ 
+ void GenericUART::write_array(const uint8_t *buffer, size_t len) {
+-  if (len > this->fifo_size_()) {
+-    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size_());
+-    len = this->fifo_size_();
++  if (len > this->fifo_size()) {
++    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size());
++    len = this->fifo_size();
+   }
+ 
+   auto free = this->transmit_buffer_.free();
+@@ -84,7 +84,7 @@ void GenericUART::uart_send_test_(char *preamble) {
+   auto start_exec = millis();
+   // we send the maximum possible
+   this->flush();
+-  size_t const to_send = this->fifo_size_();
++  size_t const to_send = this->fifo_size();
+   if (to_send > 0) {
+     std::vector<uint8_t> output_buffer(to_send);
+     generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
+diff --git a/esphome/components/wk2132/gen_uart.h b/esphome/components/wk2132/gen_uart.h
+index 413a485..c7284fd 100644
+--- a/esphome/components/wk2132/gen_uart.h
++++ b/esphome/components/wk2132/gen_uart.h
+@@ -188,7 +188,7 @@ class GenericUART : public uart::UARTComponent {
+ 
+   /// @brief returns the size of the HW fifo
+   /// @return the size
+-  virtual size_t fifo_size_() = 0;
++  virtual size_t fifo_size() = 0;
+ 
+   ///
+   /// below are our private attributes / methods
+diff --git a/esphome/components/wk2132/wk2132.cpp b/esphome/components/wk2132/wk2132.cpp
+index 09a2ed0..cf243da 100644
+--- a/esphome/components/wk2132/wk2132.cpp
++++ b/esphome/components/wk2132/wk2132.cpp
+@@ -2,8 +2,8 @@
+ /// @author DrCoolzic
+ /// @brief wk2132 classes implementation
+ 
+-#include <assert.h>
+ #include "wk2132.h"
++#include <cassert>
+ 
+ namespace esphome {
+ namespace wk2132 {
+@@ -98,7 +98,7 @@ void WK2132Component::setup() {
+   this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
+   ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", this->get_num_(), (int) this->children_.size());
+   // sanity check: the fifo should not be bigger that the ring buffer
+-  assert(RING_BUFFER_SIZE >= FIFO_SIZE);
++  static_assert(RING_BUFFER_SIZE >= FIFO_SIZE, "");
+   // we setup our children
+   for (auto *child : this->children_)
+     child->setup_channel_();
+@@ -355,7 +355,7 @@ void WK2132Channel::ring_to_tx_fifo_() {
+   // here we transfer from ring buffer to fifo
+   auto count = this->transmit_buffer_.count();
+   uint8_t data[RING_BUFFER_SIZE];
+-  if (auto available = this->fifo_size_() - this->tx_in_fifo_()) {
++  if (auto available = this->fifo_size() - this->tx_in_fifo_()) {
+     if (count > available) {
+       ESP_LOGV(TAG, "Transmit fifo overrun --> requested %d available %d", count, available);
+       count = available;
+diff --git a/esphome/components/wk2132/wk2132.h b/esphome/components/wk2132/wk2132.h
+index 6210488..126b3ac 100644
+--- a/esphome/components/wk2132/wk2132.h
++++ b/esphome/components/wk2132/wk2132.h
+@@ -173,6 +173,6 @@ class WK2132Channel : public wk2132::GenericUART {
+   /// @brief we transfer the bytes in the rx_fifo to the ring buffer
+   void ring_to_tx_fifo_();
+ 
+-  size_t fifo_size_() { return FIFO_SIZE; }
++  size_t fifo_size() override { return FIFO_SIZE; }
+   WK2132Component *parent_;  ///< Our WK2132component parent
+   uint8_t channel_;          ///< Our Channel number
+   uint8_t data_;             ///< one byte buffer
+   

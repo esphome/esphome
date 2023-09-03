@@ -14,8 +14,8 @@ static const char *const TAG = "gen_uart";
 ///////////////////////////////////////////////////////////////////////////////
 
 bool GenericUART::read_array(uint8_t *buffer, size_t len) {
-  if (len > this->fifo_size_()) {
-    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size_());
+  if (len > this->fifo_size()) {
+    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size());
     return false;
   }
   auto available = this->receive_buffer_.count();
@@ -31,9 +31,9 @@ bool GenericUART::read_array(uint8_t *buffer, size_t len) {
 }
 
 void GenericUART::write_array(const uint8_t *buffer, size_t len) {
-  if (len > this->fifo_size_()) {
-    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size_());
-    len = this->fifo_size_();
+  if (len > this->fifo_size()) {
+    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size());
+    len = this->fifo_size();
   }
 
   auto free = this->transmit_buffer_.free();
@@ -84,7 +84,7 @@ void GenericUART::uart_send_test_(char *preamble) {
   auto start_exec = millis();
   // we send the maximum possible
   this->flush();
-  size_t const to_send = this->fifo_size_();
+  size_t const to_send = this->fifo_size();
   if (to_send > 0) {
     std::vector<uint8_t> output_buffer(to_send);
     generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number

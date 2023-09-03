@@ -173,7 +173,7 @@ class WK2132Channel : public wk2132::GenericUART {
   /// @brief we transfer the bytes in the rx_fifo to the ring buffer
   void ring_to_tx_fifo_();
 
-  size_t fifo_size_() { return FIFO_SIZE; }
+  size_t fifo_size() override { return FIFO_SIZE; }
   WK2132Component *parent_;  ///< Our WK2132component parent
   uint8_t channel_;          ///< Our Channel number
   uint8_t data_;             ///< one byte buffer

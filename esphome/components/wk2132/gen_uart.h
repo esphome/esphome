@@ -188,7 +188,7 @@ class GenericUART : public uart::UARTComponent {
 
   /// @brief returns the size of the HW fifo
   /// @return the size
-  virtual size_t fifo_size_() = 0;
+  virtual size_t fifo_size() = 0;
 
   ///
   /// below are our private attributes / methods

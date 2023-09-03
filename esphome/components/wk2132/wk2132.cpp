@@ -2,8 +2,8 @@
 /// @author DrCoolzic
 /// @brief wk2132 classes implementation
 
-#include <assert.h>
 #include "wk2132.h"
+#include <cassert>
 
 namespace esphome {
 namespace wk2132 {
@@ -98,7 +98,7 @@ void WK2132Component::setup() {
   this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
   ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", this->get_num_(), (int) this->children_.size());
   // sanity check: the fifo should not be bigger that the ring buffer
-  assert(RING_BUFFER_SIZE >= FIFO_SIZE);
+  static_assert(RING_BUFFER_SIZE >= FIFO_SIZE, "Fifo too large for buffer");
   // we setup our children
   for (auto *child : this->children_)
     child->setup_channel_();
@@ -355,7 +355,7 @@ void WK2132Channel::ring_to_tx_fifo_() {
   // here we transfer from ring buffer to fifo
   auto count = this->transmit_buffer_.count();
   uint8_t data[RING_BUFFER_SIZE];
-  if (auto available = this->fifo_size_() - this->tx_in_fifo_()) {
+  if (auto available = this->fifo_size() - this->tx_in_fifo_()) {
     if (count > available) {
       ESP_LOGV(TAG, "Transmit fifo overrun --> requested %d available %d", count, available);
       count = available;
