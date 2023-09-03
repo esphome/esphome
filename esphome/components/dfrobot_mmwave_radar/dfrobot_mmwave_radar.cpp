@@ -20,6 +20,9 @@ void DfrobotMmwaveRadarSwitch::set_type(const char *type) {
   else if(strncmp(type, "presence_via_uart", 17) == 0) {
     type_ = PRESENCE_VIA_UART;
   }
+  else if(strncmp(type, "start_after_boot", 16) == 0) {
+    type_ = START_AFTER_BOOT;
+  }
 }
 void DfrobotMmwaveRadarSwitch::write_state(bool state) {
   if(type_ == TURN_ON_SENSOR)
@@ -48,6 +51,18 @@ void DfrobotMmwaveRadarSwitch::write_state(bool state) {
       component_->enqueue(make_unique<PowerCommand>(1));
     }
   }
+  if(type_ == START_AFTER_BOOT) {
+    bool wasActive = false;
+    if(component_->is_active()) {
+      wasActive = true;
+      component_->enqueue(make_unique<PowerCommand>(0));
+    }
+    component_->enqueue(make_unique<SensorCfgStartCommand>(state));
+    component_->enqueue(make_unique<SaveCfgCommand>());
+    if(wasActive) {
+      component_->enqueue(make_unique<PowerCommand>(1));
+    }
+  }
 }
 #endif
 
@@ -63,6 +78,8 @@ void DfrobotMmwaveRadarComponent::dump_config() {
     LOG_SWITCH("  ", "Registered", this->led_switch_);
   if (this->uart_switch_ != nullptr)
     LOG_SWITCH("  ", "Registered", this->uart_switch_);
+  if (this->boot_start_switch_ != nullptr)
+    LOG_SWITCH("  ", "Registered", this->boot_start_switch_);
 #endif
 }
 
@@ -412,8 +429,10 @@ uint8_t SensorCfgStartCommand::on_message(std::string &message) {
   } else if (message == "Done") {
     ESP_LOGI(TAG, "Updated sensor startup behavior:");
     if (startup_mode_) {
+      component_->set_start_after_boot(true);
       ESP_LOGI(TAG, "Sensor will start automatically after power-on.");
     } else {
+      component_->set_start_after_boot(false);
       ESP_LOGI(TAG, "Sensor needs to be started manually after power-on.");
     }
     ESP_LOGD(TAG, "Used command: %s", cmd_.c_str());

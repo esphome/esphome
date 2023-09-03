@@ -15,6 +15,7 @@ TYPES = {
     "turn_on_sensor": "turn_on_sensor",
     "turn_on_led": "turn_on_led",
     "presence_via_uart": "presence_via_uart",
+    "start_after_boot": "start_after_boot",
 }
 
 CONFIG_SCHEMA = switch.SWITCH_SCHEMA.extend(
@@ -37,3 +38,5 @@ async def to_code(config):
         cg.add(dfr_mmwave_component.set_led_switch(sw))
     if config[TYPE] == "presence_via_uart":
         cg.add(dfr_mmwave_component.set_uart_switch(sw))
+    if config[TYPE] == "start_after_boot":
+        cg.add(dfr_mmwave_component.set_boot_start_switch(sw))

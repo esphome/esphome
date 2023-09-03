@@ -58,7 +58,8 @@ class DfrobotMmwaveRadarSwitch : public switch_::Switch, public Component {
     UNKNOWN,
     TURN_ON_SENSOR,
     TURN_ON_LED,
-    PRESENCE_VIA_UART
+    PRESENCE_VIA_UART,
+    START_AFTER_BOOT
   };
  public:
   void set_type(const char *type);
@@ -104,6 +105,14 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
 #endif
   }
   bool is_uart_presence_active() { return uart_presence_active_; }
+  void set_start_after_boot(bool start) {
+    start_after_boot_ = start;
+#ifdef USE_SWITCH
+      if (this->boot_start_switch_ != nullptr)
+        this->boot_start_switch_->publish_state(start);
+#endif
+  }
+  bool does_start_after_boot() { return start_after_boot_; }
 
 #ifdef USE_BINARY_SENSOR
   void set_detected_binary_sensor(binary_sensor::BinarySensor *detected_binary_sensor) {
@@ -115,6 +124,7 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
   void set_active_switch(switch_::Switch *active_switch) { active_switch_ = active_switch; }
   void set_led_switch(switch_::Switch *led_switch) { led_switch_ = led_switch; }
   void set_uart_switch(switch_::Switch *uart_switch) { uart_switch_ = uart_switch; }
+  void set_boot_start_switch(switch_::Switch *boot_start_switch) { boot_start_switch_ = boot_start_switch; }
 #endif
 
   int8_t enqueue(std::unique_ptr<Command> cmd);
@@ -127,11 +137,13 @@ class DfrobotMmwaveRadarComponent : public uart::UARTDevice, public Component {
   switch_::Switch *active_switch_{nullptr};
   switch_::Switch *led_switch_{nullptr};
   switch_::Switch *uart_switch_{nullptr};
+  switch_::Switch *boot_start_switch_{nullptr};
 #endif
   bool detected_{false};
   bool active_{false};
   bool led_active_{false};
   bool uart_presence_active_{false};
+  bool start_after_boot_{false};
   char read_buffer_[MMWAVE_READ_BUFFER_LENGTH];
   size_t read_pos_{0};
   CircularCommandQueue cmd_queue_;
