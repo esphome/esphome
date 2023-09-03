@@ -98,27 +98,42 @@ void FT63X6Touchscreen::check_touch_() {
 
   uint16_t w = this->display_->get_width();
   uint16_t h = this->display_->get_height();
+  auto rotation = static_cast<TouchRotation>(this->display_->get_rotation());
+  uint16_t x_resolution, y_resolution;
+    switch (rotation) {
+      case ROTATE_0_DEGREES:
+      case ROTATE_180_DEGREES:
+        x_resolution = this->x_resolution_;
+        y_resolution = this->y_resolution_;
+        break;
+
+      case ROTATE_90_DEGREES:
+      case ROTATE_270_DEGREES:
+        x_resolution = this->y_resolution_;
+        y_resolution = this->x_resolution_;
+        break;
+    }
 
   for (uint8_t i = first_touch_id; i < (touch_count + first_touch_id); i++) {
-    uint32_t raw_x = touch_point_.tp[i].x * w / this->x_resolution_;
-    uint32_t raw_y = touch_point_.tp[i].y * h / this->y_resolution_;
+    uint32_t raw_x = touch_point_.tp[i].x * w / x_resolution;
+    uint32_t raw_y = touch_point_.tp[i].y * h / y_resolution;
 
     TouchPoint tp;
-    switch (static_cast<TouchRotation>(this->display_->get_rotation())) {
+    switch (rotation) {
       case ROTATE_0_DEGREES:
         tp.x = raw_x;
         tp.y = raw_y;
         break;
       case ROTATE_90_DEGREES:
         tp.x = raw_y;
-        tp.y = w - std::min<uint32_t>(raw_x, w);
+        tp.y = h - std::min<uint32_t>(raw_x, h);
         break;
       case ROTATE_180_DEGREES:
         tp.x = w - std::min<uint32_t>(raw_x, w);
         tp.y = h - std::min<uint32_t>(raw_y, h);
         break;
       case ROTATE_270_DEGREES:
-        tp.x = h - std::min<uint32_t>(raw_y, h);
+        tp.x = w - std::min<uint32_t>(raw_y, w);
         tp.y = raw_x;
         break;
     }
