@@ -72,17 +72,17 @@ void DS248xComponent::setup() {
     this->sleep_pin_->pin_mode(esphome::gpio::FLAG_OUTPUT);
   }
 
-  this->reset_hub();
+  this->reset_hub(); // selects channel 0 on hub
   uint64_t address = 0;
   uint8_t channel = 0;
   bool search = false;
   std::vector<foundDevice_t> raw_sensors;
-  while((search = this->search(&address)) || channel < 7) {
-    if (!search) {
+  while((search = this->search(&address)) || channel < channel_count_ - 1) {
+    if (!search) { // if condidition is true here with no address found, no more devices on channel
       channel++;
       select_channel(channel);
-      search = this->search(&address);
-      if (!search) break;
+      address = 0;
+      continue;
     }
     foundDevice_t found;
     found.channel = channel;
@@ -171,6 +171,18 @@ void DS248xComponent::update() {
     this->write_config(this->read_config() & ~DS248X_CONFIG_POWER_DOWN);
   }
 
+  readIdx = 0;
+  updateChannel(0);
+}
+
+void DS248xComponent::updateChannel(uint8_t channel) {
+  ESP_LOGV(TAG, "Updating channel %i...", channel);
+  if (!select_channel(channel)) {
+    this->status_set_warning();
+    ESP_LOGE(TAG, "Select channel failed");
+    return;
+  }
+
   bool result = this->reset_devices();
   if (!result) {
     this->status_set_warning();
@@ -187,29 +199,33 @@ void DS248xComponent::update() {
   uint16_t max_wait_time = 0;
 
   for (auto *sensor : this->sensors_) {
+    if (sensor->get_channel() != channel) continue;
     auto sensorWaitTime = sensor->millis_to_wait_for_conversion();
     if (max_wait_time < sensorWaitTime) {
       max_wait_time = sensorWaitTime;
     }
   }
 
-  readIdx = 0;
-
   this->set_timeout(TAG, max_wait_time, [this] {
     ESP_LOGV(TAG, "Sensors read completed");
-    this->set_interval(TAG, 50, [this]() {
-      if (sensors_.size() <= readIdx) {
+    this->set_interval(TAG, 50, [this] {
+      if (readIdx >= sensors_.size()) {
+        this->cancel_interval(TAG);
         if (this->enable_bus_sleep_) {
           this->write_config(this->read_config() | DS248X_CONFIG_POWER_DOWN);
         }
-        this->cancel_interval(TAG);
         return;
       }
-      ESP_LOGV(TAG, "Update Sensor idx: %i", readIdx);
-
       DS248xTemperatureSensor* sensor = sensors_[readIdx];
+      if (sensor->get_channel() != selectedChannel) { // selected sensor is from different channel
+        // cancel this interval and continue with this sensor on the next channel
+        this->cancel_interval(TAG);
+        updateChannel(sensor->get_channel());
+        return;
+      }
       readIdx++;
 
+      ESP_LOGV(TAG, "Update Sensor idx: %i", readIdx);
       bool res = sensor->read_scratch_pad();
 
       if (!res) {
@@ -267,17 +283,32 @@ uint8_t DS248xComponent::wait_while_busy() {
 	return status;
 }
 
-void DS248xComponent::select_channel(uint8_t channel)
+bool DS248xComponent::select_channel(uint8_t channel)
 {
   if (channel == selectedChannel) {
-    return;
+    return true;
   }
+  auto status = wait_while_busy();
+  if (status & DS248X_STATUS_BUSY) {
+    ESP_LOGW(TAG, "Master never finished command");
+    return false;
+  }
+
   std::array<uint8_t, 2> cmd;
   cmd[0] = DS248X_COMMAND_CHANNELSELECT;
   cmd[1] = DS248X_CODE_CHANNEL0 - (channel << 4) + channel;
   this->write(cmd.data(), sizeof(cmd));
+
+  uint8_t selected;
+  this->read(&selected, sizeof(selected));
+  if (selected != DS248X_CODE_CHANNEL7 + (7 * (7 - channel))) {
+    ESP_LOGD(TAG, "select_channel failed: wrote %02xh read back %02xh", cmd[1], selected);
+    return false;
+  }
+
   selectedChannel = channel;
   last_device_found = false;
+  return true;
 }
 
 
@@ -587,9 +618,8 @@ float DS248xTemperatureSensor::get_temp_c() {
 }
 std::string DS248xTemperatureSensor::unique_id() { return "dallas-" + str_lower_case(format_hex(this->address_)); }
 
-void DS248xTemperatureSensor::set_channel(uint8_t channel) {
-  channel_ = channel;
-}
+void DS248xTemperatureSensor::set_channel(uint8_t channel) { channel_ = channel; }
+uint8_t DS248xTemperatureSensor::get_channel() { return channel_; }
 
 }  // namespace ds248x
 }  // namespace esphome

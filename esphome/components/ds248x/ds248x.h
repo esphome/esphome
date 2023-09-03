@@ -29,6 +29,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   void set_hub_sleep(bool enabled) { enable_hub_sleep_ = enabled; }
   void set_active_pullup(bool enabled) { enable_active_pullup_ = enabled; }
   void set_strong_pullup(bool enabled) { enable_strong_pullup_ = enabled; }
+  void set_channel_count(uint8_t count) { channel_count_ = count; }
 
   void register_sensor(DS248xTemperatureSensor *sensor);
 
@@ -45,6 +46,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   bool enable_hub_sleep_ = false;
   bool enable_active_pullup_ = false;
   bool enable_strong_pullup_ = false;
+  uint8_t channel_count_ = 1;
 
   std::vector<foundDevice_t> found_sensors_;
 
@@ -60,7 +62,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
 
   void write_command(uint8_t command, uint8_t data);
 
-  void select_channel(uint8_t channel);
+  bool select_channel(uint8_t channel);
 
   void select(uint8_t channel, uint64_t address);
 
@@ -69,6 +71,9 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   uint8_t read_from_wire();
 
   bool search(uint64_t *address);
+
+private:
+  void updateChannel(uint8_t channel);
 };
 
 class DS248xTemperatureSensor : public sensor::Sensor {
@@ -81,6 +86,8 @@ class DS248xTemperatureSensor : public sensor::Sensor {
 
   // Set the 8-bit unsigned channel, the sensor is connected to.
   void set_channel(uint8_t channel);
+  // Get the 8-bit unsigned channel, the sensor is connected to.
+  uint8_t get_channel();
   /// Set the 64-bit unsigned address for this sensor.
   void set_address(uint64_t device);
   /// Get the 64-bit unsigned address of the sensor.
