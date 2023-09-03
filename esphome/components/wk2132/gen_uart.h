@@ -32,6 +32,7 @@ constexpr size_t RING_BUFFER_SIZE = 128;
 /// store received bytes locally in a buffer as soon as they arrive. With
 /// this solution the bytes are stored locally and therefore accessible
 /// very quickly when requested one by one.
+/// @image html read_cycles.png
 ///////////////////////////////////////////////////////////////////////////////
 template<typename T, int SIZE> class RingBuffer {
  public:

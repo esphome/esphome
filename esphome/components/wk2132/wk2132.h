@@ -54,6 +54,9 @@ class WK2132Channel;  // forward declaration
 ///
 /// We have one related class :
 /// - The @ref WK2132Channel class that takes cares of the UART related methods
+///
+/// The image below shows some relationship between UART related classes
+///  @image html uart.png width=1024px
 ///////////////////////////////////////////////////////////////////////////////
 class WK2132Component : public Component, public i2c::I2CDevice {
  public:
