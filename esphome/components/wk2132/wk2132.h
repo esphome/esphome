@@ -123,7 +123,7 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 /// are missing the critical status information and therefore are even
 /// more unsafe to use...\n
 ///////////////////////////////////////////////////////////////////////////////
-class WK2132Channel : public gen_uart::GenericUART {
+class WK2132Channel : public wk2132::GenericUART {
  public:
   void set_parent(WK2132Component *parent) {
     this->parent_ = parent;

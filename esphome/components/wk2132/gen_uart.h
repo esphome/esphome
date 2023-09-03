@@ -7,7 +7,7 @@
 #include "esphome/components/uart/uart.h"
 
 namespace esphome {
-namespace gen_uart {
+namespace wk2132 {
 
 // here we indicate if we want to include the auto tests (recommended)
 #define AUTOTEST_COMPONENT
@@ -210,5 +210,5 @@ class GenericUART : public uart::UARTComponent {
 #endif
 };
 
-}  // namespace gen_uart
+}  // namespace wk2132
 }  // namespace esphome

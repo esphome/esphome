@@ -5,7 +5,7 @@
 #include "gen_uart.h"
 
 namespace esphome {
-namespace gen_uart {
+namespace wk2132 {
 
 static const char *const TAG = "gen_uart";
 
@@ -110,5 +110,5 @@ void GenericUART::uart_receive_test_(char *preamble, bool print_buf) {
 
 #endif
 
-}  // namespace gen_uart
+}  // namespace wk2132
 }  // namespace esphome

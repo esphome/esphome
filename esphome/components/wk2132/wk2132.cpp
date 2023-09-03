@@ -98,7 +98,7 @@ void WK2132Component::setup() {
   this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
   ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", this->get_num_(), (int) this->children_.size());
   // sanity check: the fifo should not be bigger that the ring buffer
-  assert(gen_uart::RING_BUFFER_SIZE >= FIFO_SIZE);
+  assert(RING_BUFFER_SIZE >= FIFO_SIZE);
   // we setup our children
   for (auto *child : this->children_)
     child->setup_channel_();
@@ -336,7 +336,7 @@ void WK2132Channel::flush() {
 void WK2132Channel::rx_fifo_to_ring_() {
   // here we transfer from fifo to ring buffer
 
-  uint8_t data[gen_uart::RING_BUFFER_SIZE];
+  uint8_t data[RING_BUFFER_SIZE];
   // we look if some characters has been received in the fifo
   if (auto to_transfer = this->rx_in_fifo_()) {
     this->read_data_(data, to_transfer);
@@ -354,7 +354,7 @@ void WK2132Channel::rx_fifo_to_ring_() {
 void WK2132Channel::ring_to_tx_fifo_() {
   // here we transfer from ring buffer to fifo
   auto count = this->transmit_buffer_.count();
-  uint8_t data[gen_uart::RING_BUFFER_SIZE];
+  uint8_t data[RING_BUFFER_SIZE];
   if (auto available = this->fifo_size_() - this->tx_in_fifo_()) {
     if (count > available) {
       ESP_LOGV(TAG, "Transmit fifo overrun --> requested %d available %d", count, available);
