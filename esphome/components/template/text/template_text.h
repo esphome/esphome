@@ -23,7 +23,7 @@ class TemplateTextSaverBase {
 
 template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
  public:
-  virtual bool save(const std::string &value) override {
+  bool save(const std::string &value) override {
     int diff = value.compare(this->prev_);
     if (diff != 0) {
       // If string is bigger than the allocation, do not save it.
@@ -45,7 +45,7 @@ template<uint8_t SZ> class TextSaver : public TemplateTextSaverBase {
 
   // Make the preference object.  Fill the provided location with the saved data
   // If it is available, else leave it alone
-  virtual void setup(uint32_t id, std::string &value) override {
+  void setup(uint32_t id, std::string &value) override {
     this->pref_ = global_preferences->make_preference<uint8_t[SZ + 1]>(id);
 
     char temp[SZ + 1];
@@ -80,7 +80,7 @@ class TemplateText : public text::Text, public PollingComponent {
   Trigger<std::string> *set_trigger_ = new Trigger<std::string>();
   optional<std::function<optional<std::string>()>> f_{nullptr};
 
-  TemplateTextSaverBase *pref_ = 0;
+  TemplateTextSaverBase *pref_ = nullptr;
 };
 
 }  // namespace template_
