@@ -14,11 +14,13 @@ text:
     id: "it_2"
     icon: "mdi:text"
     optimistic: true
-    min: 5
-    max: 255
+    min_length: 5
+    max_length: 255
     internal: false
     initial_value: "Welcome ESPHOME"
-
+    restore_value: true
+    max_restore_data_length: 24
+    
   - platform: template
     name: "test 3 key"
     id: "it_3"
@@ -26,4 +28,4 @@ text:
     mode: "password"
     optimistic: true
     internal: true
-    max: 255
+    max_length: 255

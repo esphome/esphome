@@ -19,6 +19,7 @@ from esphome.const import (
     ENTITY_CATEGORY_CONFIG,
     UNIT_MINUTE,
     UNIT_SECOND,
+    CONF_SET_ACTION,
 )
 
 AUTO_LOAD = ["number", "switch"]
@@ -46,7 +47,6 @@ CONF_QUEUE_ENABLE_SWITCH = "queue_enable_switch"
 CONF_REPEAT_NUMBER = "repeat_number"
 CONF_REVERSE_SWITCH = "reverse_switch"
 CONF_RUN_DURATION_NUMBER = "run_duration_number"
-CONF_SET_ACTION = "set_action"
 CONF_STANDBY_SWITCH = "standby_switch"
 CONF_VALVE_NUMBER = "valve_number"
 CONF_VALVE_OPEN_DELAY = "valve_open_delay"

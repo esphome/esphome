@@ -11,6 +11,7 @@ from esphome.const import (
     CONF_MAX_LENGTH,
     CONF_MIN_LENGTH,
     CONF_PATTERN,
+    CONF_SET_ACTION,
 )
 from .. import template_ns
 
@@ -19,7 +20,6 @@ TemplateText = template_ns.class_("TemplateText", text.Text, cg.PollingComponent
 TextSaverBase = template_ns.class_("TemplateTextSaverBase")
 TextSaverTemplate = template_ns.class_("TextSaver", TextSaverBase)
 
-CONF_SET_ACTION = "set_action"
 CONF_MAX_RESTORE_DATA_LENGTH = "max_restore_data_length"
 
 
