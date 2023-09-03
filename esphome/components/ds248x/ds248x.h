@@ -10,6 +10,11 @@ namespace ds248x {
 
 class DS248xTemperatureSensor;
 
+typedef struct {
+  uint8_t channel = 0;
+  uint64_t address = 0;
+} foundDevice_t;
+
 class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   friend class DS248xTemperatureSensor;
  public:
@@ -29,6 +34,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
 
  protected:
   uint32_t readIdx;
+  uint8_t selectedChannel;
   uint64_t searchAddress;
   uint8_t searchLastDiscrepancy;
   bool last_device_found;
@@ -40,7 +46,7 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
   bool enable_active_pullup_ = false;
   bool enable_strong_pullup_ = false;
 
-  std::vector<uint64_t> found_sensors_;
+  std::vector<foundDevice_t> found_sensors_;
 
   std::vector<DS248xTemperatureSensor *> sensors_;
 
@@ -54,7 +60,9 @@ class DS248xComponent : public PollingComponent, public i2c::I2CDevice {
 
   void write_command(uint8_t command, uint8_t data);
 
-  void select(uint64_t address);
+  void select_channel(uint8_t channel);
+
+  void select(uint8_t channel, uint64_t address);
 
   void write_to_wire(uint8_t data);
 
@@ -71,8 +79,12 @@ class DS248xTemperatureSensor : public sensor::Sensor {
   /// Helper to create (and cache) the name for this sensor. For example "0xfe0000031f1eaf29".
   const std::string &get_address_name();
 
+  // Set the 8-bit unsigned channel, the sensor is connected to.
+  void set_channel(uint8_t channel);
   /// Set the 64-bit unsigned address for this sensor.
-  void set_address(uint64_t address);
+  void set_address(uint64_t device);
+  /// Get the 64-bit unsigned address of the sensor.
+  uint64_t get_address();
   /// Get the index of this sensor. (0 if using address.)
   optional<uint8_t> get_index() const;
   /// Set the index of this sensor. If using index, address will be set after setup.
@@ -95,6 +107,7 @@ class DS248xTemperatureSensor : public sensor::Sensor {
 
  protected:
   DS248xComponent *parent_;
+  uint8_t channel_;
   uint64_t address_;
   optional<uint8_t> index_;
 

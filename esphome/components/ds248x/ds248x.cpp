@@ -5,14 +5,24 @@
 
 namespace esphome {
 namespace ds248x {
-static const uint8_t DS248X_COMMAND_RESET        = 0xF0;
-static const uint8_t DS248X_COMMAND_SETREADPTR   = 0xE1;
-static const uint8_t DS248X_COMMAND_WRITECONFIG  = 0xD2;
-static const uint8_t DS248X_COMMAND_RESETWIRE    = 0xB4;
-static const uint8_t DS248X_COMMAND_WRITEBYTE    = 0xA5;
-static const uint8_t DS248X_COMMAND_READBYTE     = 0x96;
-static const uint8_t DS248X_COMMAND_SINGLEBIT    = 0x87;
-static const uint8_t DS248X_COMMAND_TRIPLET      = 0x78;
+static const uint8_t DS248X_COMMAND_RESET         = 0xF0;
+static const uint8_t DS248X_COMMAND_SETREADPTR    = 0xE1;
+static const uint8_t DS248X_COMMAND_WRITECONFIG   = 0xD2;
+static const uint8_t DS248X_COMMAND_CHANNELSELECT = 0xC3;
+static const uint8_t DS248X_COMMAND_RESETWIRE     = 0xB4;
+static const uint8_t DS248X_COMMAND_WRITEBYTE     = 0xA5;
+static const uint8_t DS248X_COMMAND_READBYTE      = 0x96;
+static const uint8_t DS248X_COMMAND_SINGLEBIT     = 0x87;
+static const uint8_t DS248X_COMMAND_TRIPLET       = 0x78;
+
+static const uint8_t DS248X_CODE_CHANNEL0         = 0xF0;
+static const uint8_t DS248X_CODE_CHANNEL1         = 0xE1;
+static const uint8_t DS248X_CODE_CHANNEL2         = 0xD2;
+static const uint8_t DS248X_CODE_CHANNEL3         = 0xC3;
+static const uint8_t DS248X_CODE_CHANNEL4         = 0xB4;
+static const uint8_t DS248X_CODE_CHANNEL5         = 0xA5;
+static const uint8_t DS248X_CODE_CHANNEL6         = 0x96;
+static const uint8_t DS248X_CODE_CHANNEL7         = 0x87;
 
 static const uint8_t DS248X_POINTER_STATUS       = 0xF0;
 static const uint8_t DS248X_STATUS_BUSY          = (1 << 0);
@@ -64,13 +74,24 @@ void DS248xComponent::setup() {
 
   this->reset_hub();
   uint64_t address = 0;
-  std::vector<uint64_t> raw_sensors;
-  while(this->search(&address)) {
-    raw_sensors.push_back(address);
+  uint8_t channel = 0;
+  bool search = false;
+  std::vector<foundDevice_t> raw_sensors;
+  while((search = this->search(&address)) || channel < 7) {
+    if (!search) {
+      channel++;
+      select_channel(channel);
+      search = this->search(&address);
+      if (!search) break;
+    }
+    foundDevice_t found;
+    found.channel = channel;
+    found.address = address;
+    raw_sensors.push_back(found);
   }
 
-  for (auto &address : raw_sensors) {
-    auto *address8 = reinterpret_cast<uint8_t *>(&address);
+  for (auto &device : raw_sensors) {
+    auto *address8 = reinterpret_cast<uint8_t *>(&device.address);
     if (crc8(address8, 7) != address8[7]) {
       ESP_LOGW(TAG, "Dallas device 0x%s has invalid CRC.", format_hex(address).c_str());
       continue;
@@ -81,7 +102,7 @@ void DS248xComponent::setup() {
       ESP_LOGW(TAG, "Unknown device type 0x%02X.", address8[0]);
       continue;
     }
-    this->found_sensors_.push_back(address);
+    this->found_sensors_.push_back(device);
   }
 
   for (auto *sensor : this->sensors_) {
@@ -90,7 +111,15 @@ void DS248xComponent::setup() {
         this->status_set_error();
         continue;
       }
-      sensor->set_address(this->found_sensors_[*sensor->get_index()]);
+      sensor->set_address(this->found_sensors_[*sensor->get_index()].address);
+      sensor->set_channel(this->found_sensors_[*sensor->get_index()].channel);
+    } else {
+      for (auto fsensor : this->found_sensors_) {
+        if (fsensor.address == sensor->get_address()){
+          sensor->set_channel(fsensor.channel);
+          break;
+        }
+      }
     }
 
     if (!sensor->setup_sensor()) {
@@ -112,8 +141,8 @@ void DS248xComponent::dump_config() {
     ESP_LOGW(TAG, "  Found no sensors!");
   } else {
     ESP_LOGD(TAG, "  Found sensors:");
-    for (auto &address : this->found_sensors_) {
-      ESP_LOGD(TAG, "    0x%s", format_hex(address).c_str());
+    for (auto &device : this->found_sensors_) {
+      ESP_LOGD(TAG, "    0x%s (channel: %d)", format_hex(device.address).c_str(), device.channel);
     }
   }
   LOG_UPDATE_INTERVAL(this);
@@ -175,29 +204,29 @@ void DS248xComponent::update() {
         }
         this->cancel_interval(TAG);
         return;
-    }
-    ESP_LOGV(TAG, "Update Sensor idx: %i", readIdx);
+      }
+      ESP_LOGV(TAG, "Update Sensor idx: %i", readIdx);
 
-    DS248xTemperatureSensor* sensor = sensors_[readIdx];
-    readIdx++;
+      DS248xTemperatureSensor* sensor = sensors_[readIdx];
+      readIdx++;
 
-    bool res = sensor->read_scratch_pad();
+      bool res = sensor->read_scratch_pad();
 
-     if (!res) {
-      ESP_LOGW(TAG, "'%s' - Resetting bus for read failed!", sensor->get_name().c_str());
-      sensor->publish_state(NAN);
-      this->status_set_warning();
-      return;
-    }
-    if (!sensor->check_scratch_pad()) {
-      sensor->publish_state(NAN);
-      this->status_set_warning();
-      return;
-    }
+      if (!res) {
+        ESP_LOGW(TAG, "'%s' - Resetting bus for read failed!", sensor->get_name().c_str());
+        sensor->publish_state(NAN);
+        this->status_set_warning();
+        return;
+      }
+      if (!sensor->check_scratch_pad()) {
+        sensor->publish_state(NAN);
+        this->status_set_warning();
+        return;
+      }
 
-    float tempc = sensor->get_temp_c();
-    ESP_LOGD(TAG, "'%s': Got Temperature=%.1f°C", sensor->get_name().c_str(), tempc);
-    sensor->publish_state(tempc);
+      float tempc = sensor->get_temp_c();
+      ESP_LOGD(TAG, "'%s': Got Temperature=%.1f°C", sensor->get_name().c_str(), tempc);
+      sensor->publish_state(tempc);
     });
   });
 }
@@ -236,6 +265,19 @@ uint8_t DS248xComponent::wait_while_busy() {
 			break;
 	}
 	return status;
+}
+
+void DS248xComponent::select_channel(uint8_t channel)
+{
+  if (channel == selectedChannel) {
+    return;
+  }
+  std::array<uint8_t, 2> cmd;
+  cmd[0] = DS248X_COMMAND_CHANNELSELECT;
+  cmd[1] = DS248X_CODE_CHANNEL0 - (channel << 4) + channel;
+  this->write(cmd.data(), sizeof(cmd));
+  selectedChannel = channel;
+  last_device_found = false;
 }
 
 
@@ -297,7 +339,8 @@ void DS248xComponent::write_command(uint8_t command, uint8_t data) {
   this->write(cmd.data(), sizeof(cmd));
 }
 
-void DS248xComponent::select(uint64_t address) {
+void DS248xComponent::select(uint8_t channel, uint64_t address) {
+  select_channel(channel);
   this->write_command(DS248X_COMMAND_WRITEBYTE, WIRE_COMMAND_SELECT);
 
   for (int i = 0; i < 8; i++) {
@@ -394,6 +437,7 @@ bool DS248xComponent::search(uint64_t* address) {
 }
 
 void DS248xTemperatureSensor::set_address(uint64_t address) { this->address_ = address; }
+uint64_t DS248xTemperatureSensor::get_address() { return address_; };
 uint8_t DS248xTemperatureSensor::get_resolution() const { return this->resolution_; }
 void DS248xTemperatureSensor::set_resolution(uint8_t resolution) { this->resolution_ = resolution; }
 optional<uint8_t> DS248xTemperatureSensor::get_index() const { return this->index_; }
@@ -428,7 +472,7 @@ bool IRAM_ATTR DS248xTemperatureSensor::read_scratch_pad() {
     return false;
   }
 
-  this->parent_->select(this->address_);
+  this->parent_->select(this->channel_, this->address_);
   this->parent_->write_to_wire(DALLAS_COMMAND_READ_SCRATCH_PAD);
 
   for (uint8_t &i : this->scratch_pad_) {
@@ -482,7 +526,7 @@ bool DS248xTemperatureSensor::setup_sensor() {
     return false;
   }
 
-  this->parent_->select(this->address_);
+  this->parent_->select(this->channel_, this->address_);
   this->parent_->write_to_wire(DALLAS_COMMAND_WRITE_SCRATCH_PAD);
   this->parent_->write_to_wire(this->scratch_pad_[2]);  // high alarm temp
   this->parent_->write_to_wire(this->scratch_pad_[3]);  // low alarm temp
@@ -494,7 +538,7 @@ bool DS248xTemperatureSensor::setup_sensor() {
     return false;
   }
 
-  this->parent_->select(this->address_);
+  this->parent_->select(this->channel_, this->address_);
   this->parent_->write_to_wire(DALLAS_COMMAND_SAVE_EEPROM);
 
   delay(20);  // allow it to finish operation
@@ -542,6 +586,10 @@ float DS248xTemperatureSensor::get_temp_c() {
   return temp / 128.0f;
 }
 std::string DS248xTemperatureSensor::unique_id() { return "dallas-" + str_lower_case(format_hex(this->address_)); }
+
+void DS248xTemperatureSensor::set_channel(uint8_t channel) {
+  channel_ = channel;
+}
 
 }  // namespace ds248x
 }  // namespace esphome
