@@ -66,25 +66,28 @@ void MQTTClientComponent::setup() {
   }
 #endif
 
-  this->subscribe(
-      "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
-      2);
+  if (this->is_discovery_enabled()) {
+    this->subscribe(
+        "esphome/discover", [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); },
+        2);
 
-  std::string topic = "esphome/ping/";
-  topic.append(App.get_name());
-  this->subscribe(
-      topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
+    std::string topic = "esphome/ping/";
+    topic.append(App.get_name());
+    this->subscribe(
+        topic, [this](const std::string &topic, const std::string &payload) { this->send_device_info_(); }, 2);
+  }
 
   this->last_connected_ = millis();
   this->start_dnslookup_();
 }
 
 void MQTTClientComponent::send_device_info_() {
-  if (!this->is_connected()) {
+  if (!this->is_connected() or !this->is_discovery_enabled()) {
     return;
   }
   std::string topic = "esphome/discover/";
   topic.append(App.get_name());
+
   this->publish_json(
       topic,
       [](JsonObject root) {
