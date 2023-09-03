@@ -332,7 +332,7 @@ void WK2132Channel::flush() {
 void WK2132Channel::rx_fifo_to_ring_() {
   // here we transfer from fifo to ring buffer
 
-  uint8_t data[RING_BUFFER_SIZE];
+  uint8_t data[RING_BUFFER_SIZE]{0};
   // we look if some characters has been received in the fifo
   if (auto to_transfer = this->rx_in_fifo_()) {
     this->read_data_(data, to_transfer);
@@ -350,7 +350,7 @@ void WK2132Channel::rx_fifo_to_ring_() {
 void WK2132Channel::ring_to_tx_fifo_() {
   // here we transfer from ring buffer to fifo
   auto count = this->transmit_buffer_.count();
-  uint8_t data[RING_BUFFER_SIZE];
+  uint8_t data[RING_BUFFER_SIZE]{0};
   auto available = this->fifo_size() - this->tx_in_fifo_();
   if (available) {
     if (count > available) {
