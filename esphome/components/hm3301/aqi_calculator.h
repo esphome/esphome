@@ -1,7 +1,6 @@
 #pragma once
 
 #include "abstract_aqi_calculator.h"
-
 //https://www.airnow.gov/sites/default/files/2020-05/aqi-technical-assistance-document-sept2018.pdf
 
 namespace esphome {
