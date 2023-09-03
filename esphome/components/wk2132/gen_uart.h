@@ -18,19 +18,20 @@ constexpr size_t RING_BUFFER_SIZE = 128;
 /// @brief This is an helper class that provides a simple ring buffers
 /// that implements a FIFO function
 ///
-/// This ring buffer is used to buffer the exchanges between the receive HW fifo
-/// and the client. Without this buffer for reading one character usually, you
-/// first check if bytes were received and if so you read one character.
+/// This ring buffer is used to buffer the exchanges between the receiver
+/// HW fifo and the client. Usually to read one character you first
+/// check if bytes were received and if so you read one character.
 /// This is fine if the registers are located on the chip but with a
 /// device like the wk2132 these registers are remote and therefore accessing
 /// them requires transactions on the I²C bus which is relatively slow. One
 /// solution would be for the client to check the number of bytes available
 /// and to read all of them using the read_array() method. Unfortunately
 /// most client I have reviewed are reading one character at a time in a
-/// while loop. Therefore the solution I have chosen to implement is to
+/// while loop which is the most inefficient way of doing things.
+/// Therefore the solution I have chosen to implement is to
 /// store received bytes locally in a buffer as soon as they arrive. With
 /// this solution the bytes are stored locally and therefore accessible
-/// very quickly
+/// very quickly when requested one by one.
 ///////////////////////////////////////////////////////////////////////////////
 template<typename T, int SIZE> class RingBuffer {
  public:
@@ -96,12 +97,16 @@ template<typename T, int SIZE> class RingBuffer {
 ///
 /// This class is created to avoid code duplication for external UART components.
 /// It implements all the virtual methods of the factory class UARTComponent at
-/// one level of abstraction above the hardware level. The children derived class
-/// will deal with access to component registers. At this level of abstraction
+/// one level of abstraction above the hardware level. It lets to the children
+/// derived classes access to HW component registers. At this level of abstraction
 /// we do not care about the physical details and therefore it should work for
 /// any kind of bus implementation (I²C, SPI, UART, ...) between the micro-
-/// controller and the component.
-/// So the hierarchy of classes will look like this
+/// controller and the component. To further decouple this class and to improve
+/// the performance the GenericUART class only deals with two ring buffers.
+/// **Therefore it is assumed that the derived class will fill the receive buffer
+/// and will empty the transmit buffer as soon as possible **
+///
+/// Therefore the hierarchy of classes will look like this
 /// UARTComponent
 /// - GenericUART
 ///   + wk2132 i2c
@@ -112,14 +117,14 @@ template<typename T, int SIZE> class RingBuffer {
 ///////////////////////////////////////////////////////////////////////////////
 class GenericUART : public uart::UARTComponent {
  public:
-  /// @brief Writes a specified number of bytes from a buffer to a serial port
+  /// @brief Writes a specified number of bytes toward a serial port
   /// @param buffer pointer to the buffer
   /// @param len number of bytes to write
   ///
   /// This method sends 'len' characters from the buffer to the serial line.
   /// Unfortunately (unlike the Arduino equivalent) this method
-  /// does not return any indicator and therefore it is not possible
-  /// to know if any/all bytes have been transmitted correctly. Another problem
+  /// does not return any flag and therefore it is not possible to know
+  /// if any/all bytes have been transmitted correctly. Another problem
   /// is that it is not possible to know ahead of time how many bytes we
   /// can safely send as there is no tx_available() method provided!
   /// To avoid overrun when using the write method you can use the flush()
@@ -136,8 +141,8 @@ class GenericUART : public uart::UARTComponent {
   /// @endcode
   void write_array(const uint8_t *buffer, size_t len) override;
 
-  /// @brief Reads a specified number of bytes from a serial port to a buffer
-  /// @param buffer pointer to the buffer
+  /// @brief Reads a specified number of bytes from a serial port
+  /// @param buffer buffer to store the bytes
   /// @param len number of bytes to read
   /// @return true if succeed, false otherwise
   ///
@@ -145,11 +150,11 @@ class GenericUART : public uart::UARTComponent {
   /// @code
   ///   // ...
   ///   auto len = available();
-  ///   uint8_t buffer[64];
+  ///   uint8_t buffer[128];
   ///   if (len > 0) {
   ///     auto status = read_array(&buffer, len)
+  ///     // test status ...
   ///   }
-  ///   // test status ...
   /// @endcode
   bool read_array(uint8_t *buffer, size_t len) override;
 
@@ -167,14 +172,9 @@ class GenericUART : public uart::UARTComponent {
   int available() override { return this->receive_buffer_.count(); }
 
   /// @brief Flush the output fifo.
-  ///
-  /// If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
-  /// of outgoing serial data to complete. (Prior to Arduino 1.0, this the method was
-  /// removing any buffered incoming serial data.). **
-  /// The method tries to wait until all characters inside the fifo have been sent.
-  /// It timeout after 100 ms and therefore at very low speed you can't be sure that
-  /// all the characters have correctly been sent
-  void flush() override;
+  /// Flush cannot be implemented at this level has it has to verify
+  /// that all bytes are gone at HW level
+  /// void flush() override;
 
  protected:
   friend class WK2132Component;
@@ -186,34 +186,13 @@ class GenericUART : public uart::UARTComponent {
   // below are the virtual methods that derived class must implement
   //
 
-  /// @brief Returns the number of bytes in the receive fifo
-  /// @return the number of bytes in the fifo
-  virtual size_t rx_in_fifo_() = 0;
-
-  /// @brief Returns the number of bytes in the transmit fifo
-  /// @return the number of bytes in the fifo
-  virtual size_t tx_in_fifo_() = 0;
-
-  /// @brief Reads data from the receive fifo to a buffer
-  /// @param buffer the buffer
-  /// @param len the number of bytes we want to read
-  /// @return true if succeed false otherwise
-  virtual bool read_data_(uint8_t *buffer, size_t len) = 0;
-
-  /// @brief Writes data from a buffer to the transmit fifo
-  /// @param buffer the buffer
-  /// @param len the number of bytes we want to write
-  /// @return true if succeed false otherwise
-  virtual bool write_data_(const uint8_t *buffer, size_t len) = 0;
-
-  virtual size_t max_size_() = 0;
+  /// @brief returns the size of the HW fifo
+  /// @return the size
+  virtual size_t fifo_size_() = 0;
 
   ///
   /// below are our private attributes / methods
   ///
-
-  /// @brief we transfer the bytes in the rx_fifo to the ring buffer
-  void rx_fifo_to_ring_();
 
   /// @brief the buffer where we store temporarily the bytes received
   RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
@@ -221,9 +200,12 @@ class GenericUART : public uart::UARTComponent {
   RingBuffer<uint8_t, RING_BUFFER_SIZE> transmit_buffer_;
 
 #ifdef AUTOTEST_COMPONENT
-  /// @brief Test UART in loop mode
+  /// @brief Sends bytes to the UART in loop mode
   /// @param preamble info to print about the uart address and channel
   void uart_send_test_(char *preamble);
+  /// @brief Receive bytes from the UART in loop mode
+  /// @param preamble info to print about the uart address and channel
+  /// @param print_buf whether or not we display the buffer content
   void uart_receive_test_(char *preamble, bool print_buf = true);
 #endif
 };

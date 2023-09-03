@@ -41,7 +41,7 @@ constexpr uint8_t REG_WK2132_RFI = 0x07;  ///< Channel receive FIFO interrupt tr
 constexpr uint8_t REG_WK2132_TFI = 0x08;  ///< Channel transmit FIFO interrupt trigger configuration register
 
 /// @brief the max size we allow for transmissions
-constexpr size_t MAX_SIZE = 128;
+constexpr size_t FIFO_SIZE = 128;
 
 class WK2132Channel;  // forward declaration
 ///////////////////////////////////////////////////////////////////////////////
@@ -108,19 +108,20 @@ class WK2132Component : public Component, public i2c::I2CDevice {
 ///////////////////////////////////////////////////////////////////////////////
 /// @brief Describes a UART channel of a WK2132 I²C component.
 ///
-/// This class derives from the virtual @ref gen_uart::UARTComponent class.
+/// This class derives from the virtual @ref gen_uart::GenericUART class.
 ///
-/// Unfortunately I have not found **any documentation** about the uart::UARTDevice and
-/// uart::UARTComponent classes of @ref ESPHome.
-/// @n However it seems that both of them are based on Arduino library.\n
+/// Unfortunately I have not found **any documentation** about the
+/// uart::UARTDevice and uart::UARTComponent classes of @ref ESPHome.\n
+/// However it seems that both of them are based on Arduino library.\n
 ///
 /// Most of the interfaces provided by the Arduino Serial library are **poorly
 /// defined** and it seems that the API has even \b changed over time!\n
 /// The esphome::uart::UARTDevice class directly relates to the **Serial Class**
-/// in Arduino and derives from **Stream class**.\n
-/// For compatibility reason (?) many helper methods are made available in ESPHome to
-/// read and write. Unfortunately in many cases these helpers are missing the critical
-/// status information and therefore are even more unsafe to use...\n
+/// in Arduino and that derives from **Stream class**.\n
+/// For compatibility reason (?) many helper methods are made available in
+/// ESPHome to read and write. Unfortunately in many cases these helpers
+/// are missing the critical status information and therefore are even
+/// more unsafe to use...\n
 ///////////////////////////////////////////////////////////////////////////////
 class WK2132Channel : public gen_uart::GenericUART {
  public:
@@ -133,12 +134,19 @@ class WK2132Channel : public gen_uart::GenericUART {
  protected:
   friend class WK2132Component;
 
-  /// @brief cannot happen with external uart
-  void check_logger_conflict() override {}
-
   void set_line_param_();
   void set_baudrate_();
   void setup_channel_();
+
+  /// @brief Flush the output fifo.
+  ///
+  /// If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
+  /// of outgoing serial data to complete. (Prior to Arduino 1.0, this the method was
+  /// removing any buffered incoming serial data.). **
+  /// The method tries to wait until all characters inside the fifo have been sent.
+  /// It timeout after 100 ms and therefore at very low speed you can't be sure that
+  /// all the characters have correctly been sent
+  void flush() override;
 
   /// @brief Returns the number of bytes in the receive fifo
   /// @return the number of bytes in the fifo
@@ -160,8 +168,12 @@ class WK2132Channel : public gen_uart::GenericUART {
   /// @return true if succeed false otherwise
   bool write_data_(const uint8_t *buffer, size_t len);
 
-  size_t max_size_() { return MAX_SIZE; }
+  /// @brief we transfer the bytes in the rx_fifo to the ring buffer
+  void rx_fifo_to_ring_();
+  /// @brief we transfer the bytes in the rx_fifo to the ring buffer
+  void ring_to_tx_fifo_();
 
+  size_t fifo_size_() { return FIFO_SIZE; }
   WK2132Component *parent_;  ///< Our WK2132component parent
   uint8_t channel_;          ///< Our Channel number
   uint8_t data_;             ///< one byte buffer

@@ -12,9 +12,10 @@ static const char *const TAG = "gen_uart";
 ///////////////////////////////////////////////////////////////////////////////
 // The GenericUART methods
 ///////////////////////////////////////////////////////////////////////////////
+
 bool GenericUART::read_array(uint8_t *buffer, size_t len) {
-  if (len > this->max_size_()) {
-    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, this->max_size_());
+  if (len > this->fifo_size_()) {
+    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size_());
     return false;
   }
   auto available = this->receive_buffer_.count();
@@ -22,6 +23,7 @@ bool GenericUART::read_array(uint8_t *buffer, size_t len) {
     ESP_LOGE(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, available);
     len = available;
   }
+  // retrieve the bytes from ring buffer
   for (size_t i = 0; i < len; i++) {
     this->receive_buffer_.pop(buffer[i]);
   }
@@ -29,48 +31,29 @@ bool GenericUART::read_array(uint8_t *buffer, size_t len) {
 }
 
 void GenericUART::write_array(const uint8_t *buffer, size_t len) {
-  if (len > this->max_size_()) {
-    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, this->max_size_());
-    len = this->max_size_();
+  if (len > this->fifo_size_()) {
+    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, this->fifo_size_());
+    len = this->fifo_size_();
   }
 
-  this->write_data_(buffer, len);
-}
-
-void GenericUART::flush() {
-  uint32_t const start_time = millis();
-  while (this->tx_in_fifo_()) {  // wait until buffer empty
-    if (millis() - start_time > 100) {
-      ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", this->tx_in_fifo_());
-      return;
-    }
-    yield();  // reschedule thread to avoid blocking
+  auto free = this->transmit_buffer_.free();
+  if (len > free) {
+    ESP_LOGE(TAG, "write_array buffer overflow requested %d bytes available %d ...", len, free);
+    len = free;
   }
-}
 
-void GenericUART::rx_fifo_to_ring_() {
-  // here we transfer from fifo to ring buffer
-
-  uint8_t data[RING_BUFFER_SIZE];
-  // we look if some characters has been received in the fifo
-  if (auto to_transfer = this->rx_in_fifo_()) {
-    this->read_data_(data, to_transfer);
-    auto free = this->receive_buffer_.free();
-    if (to_transfer > free) {
-      ESP_LOGV(TAG, "Ring buffer overrun --> requested %d available %d", to_transfer, free);
-      to_transfer = free;  // hopefully will do the rest next time
-    }
-    ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
-    for (size_t i = 0; i < to_transfer; i++)
-      this->receive_buffer_.push(data[i]);
+  // transfers the bytes from the ring buffer
+  for (size_t i = 0; i < len; i++) {
+    this->transmit_buffer_.push(buffer[i]);
   }
 }
 
 ///////////////////////////////////////////////////////////////////////////////
-/// AUTOTEST FUNCTIONS BELOW
+// AUTOTEST FUNCTIONS BELOW
 ///////////////////////////////////////////////////////////////////////////////
 #ifdef AUTOTEST_COMPONENT
 
+/// @brief A Functor class that return incremented numbers
 class Increment {  // A "Functor" (A class object that acts like a method with state!)
  public:
   Increment() : i_(0) {}
@@ -101,7 +84,7 @@ void GenericUART::uart_send_test_(char *preamble) {
   auto start_exec = millis();
   // we send the maximum possible
   this->flush();
-  size_t const to_send = this->max_size_() - tx_in_fifo_();
+  size_t const to_send = this->fifo_size_();
   if (to_send > 0) {
     std::vector<uint8_t> output_buffer(to_send);
     generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number

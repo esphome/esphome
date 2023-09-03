@@ -2,6 +2,7 @@
 /// @author DrCoolzic
 /// @brief wk2132 classes implementation
 
+#include <assert.h>
 #include "wk2132.h"
 
 namespace esphome {
@@ -96,6 +97,8 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
 void WK2132Component::setup() {
   this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
   ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", this->get_num_(), (int) this->children_.size());
+  // sanity check: the fifo should not be bigger that the ring buffer
+  assert(gen_uart::RING_BUFFER_SIZE >= FIFO_SIZE);
   // we setup our children
   for (auto *child : this->children_)
     child->setup_channel_();
@@ -252,8 +255,8 @@ size_t WK2132Channel::tx_in_fifo_() {
   size_t tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
   uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
   if ((fsr & 0x02) && (tfcnt == 0)) {
-    ESP_LOGVV(TAG, "tx_in_fifo overflow (256) FSR=%s", I2CS(fsr));
-    tfcnt = 256;
+    ESP_LOGVV(TAG, "tx_in_fifo overflow FSR=%s", I2CS(fsr));
+    tfcnt = FIFO_SIZE;
   }
   return tfcnt;
 }
@@ -265,13 +268,13 @@ size_t WK2132Channel::rx_in_fifo_() {
   if (available == 0) {
     uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
     if (fsr & 0x8) {  // if RDAT bit is set we set available to 256
-      ESP_LOGVV(TAG, "rx_in_fifo overflow (256) FSR=%s", I2CS(fsr));
-      available = 256;
+      ESP_LOGVV(TAG, "rx_in_fifo overflow FSR=%s", I2CS(fsr));
+      available = FIFO_SIZE;
     }
   }
 
-  if (available > MAX_SIZE)  // no more than what is set in the fifo_size
-    available = MAX_SIZE;
+  if (available > FIFO_SIZE)  // no more than what is set in the fifo_size
+    available = FIFO_SIZE;
 
   ESP_LOGVV(TAG, "rx_in_fifo %d", available);
   return available;
@@ -316,19 +319,68 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   }
 }
 
-///////////////////////////////////////////////////////////////////////////////
-/// AUTOTEST FUNCTIONS BELOW
-///////////////////////////////////////////////////////////////////////////////
+void WK2132Channel::flush() {
+  uint32_t const start_time = millis();
+  ring_to_tx_fifo_();  // we already push as much as possible in fifo
+  while (this->transmit_buffer_.count()) {
+    while (this->tx_in_fifo_()) {  // wait until buffer empty
+      if (millis() - start_time > 100) {
+        ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", this->tx_in_fifo_());
+        return;
+      }
+    }
+    yield();  // reschedule our thread to avoid blocking
+  }
+}
+
+void WK2132Channel::rx_fifo_to_ring_() {
+  // here we transfer from fifo to ring buffer
+
+  uint8_t data[gen_uart::RING_BUFFER_SIZE];
+  // we look if some characters has been received in the fifo
+  if (auto to_transfer = this->rx_in_fifo_()) {
+    this->read_data_(data, to_transfer);
+    auto free = this->receive_buffer_.free();
+    if (to_transfer > free) {
+      ESP_LOGV(TAG, "Ring buffer overrun --> requested %d available %d", to_transfer, free);
+      to_transfer = free;  // hopefully will do the rest next time
+    }
+    ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
+    for (size_t i = 0; i < to_transfer; i++)
+      this->receive_buffer_.push(data[i]);
+  }
+}
+
+void WK2132Channel::ring_to_tx_fifo_() {
+  // here we transfer from ring buffer to fifo
+  auto count = this->transmit_buffer_.count();
+  uint8_t data[gen_uart::RING_BUFFER_SIZE];
+  if (auto available = this->fifo_size_() - this->tx_in_fifo_()) {
+    if (count > available) {
+      ESP_LOGV(TAG, "Transmit fifo overrun --> requested %d available %d", count, available);
+      count = available;
+    }
+    ESP_LOGV(TAG, "Transferred %d bytes from ring buffer to fifo", count);
+    for (size_t i = 0; i < count; i++)
+      this->transmit_buffer_.pop(data[i]);
+  }
+  this->write_data_(data, count);
+}
+
 void WK2132Component::loop() {
   // if the component is not fully initialized we return
   if (!this->initialized_)
     return;
 
-  // here we transfer from fifo to ring buffer
+  // here we transfer between fifos and ring buffers
   for (auto *child : this->children_) {
+    child->rx_fifo_to_ring_();
     child->rx_fifo_to_ring_();
   }
 
+///////////////////////////////////////////////////////////////////////////////
+/// AUTOTEST FUNCTIONS BELOW
+///////////////////////////////////////////////////////////////////////////////
 #ifdef AUTOTEST_COMPONENT
   //
   // This loop is used only if the wk2132 component is in test mode
