@@ -6,7 +6,6 @@
 #include <bitset>
 #include "esphome/core/component.h"
 #include "esphome/components/i2c/i2c.h"
-#include "esphome/components/uart/uart.h"
 #include "gen_uart.h"
 
 namespace esphome {

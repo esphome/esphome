@@ -235,12 +235,14 @@ void WK2132Channel::set_line_param_() {
 
 size_t WK2132Channel::tx_in_fifo_() {
   /// FSR description of line configuration register:
+  /// @code
   /// * -------------------------------------------------------------------------
   /// * |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
   /// * -------------------------------------------------------------------------
   /// * |  RFOE  |  RFBI  |  RFFE  |  RFPE  |  RDAT  |  TDAT  |  TFULL |  TBUSY |
   /// * -------------------------------------------------------------------------
-  /// WARNING:
+  /// @endcode
+  /// WARNING:\n
   /// The received buffer can hold 256 bytes. However, as the RFCNT reg is 8 bits,
   /// in this case the value 256 is reported as 0 ! Therefore the RFCNT count can be
   /// zero when there is 0 byte or 256 bytes in the buffer. So if we have RXDAT = 1
@@ -250,7 +252,7 @@ size_t WK2132Channel::tx_in_fifo_() {
   /// still in overflow.
   ///
   /// The same remark is valid for the transmit buffer but here we have to check the
-  // /TFULL flag. So if TFULL is set and TFCNT is 0 this should be interpreted as 256
+  /// TFULL flag. So if TFULL is set and TFCNT is 0 this should be interpreted as 256
   /// @image html write_cycles.png
   ///
   size_t tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);

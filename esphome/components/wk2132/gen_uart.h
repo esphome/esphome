@@ -82,8 +82,8 @@ template<typename T, int SIZE> class RingBuffer {
   /// @return the count
   size_t count() { return count_; }
 
-  /// @brief returns the free positions in the buffer
-  /// @return how many item can still be added
+  /// @brief returns the number of free positions in the buffer
+  /// @return how many items can be added
   size_t free() { return SIZE - count_; }
 
  private:
@@ -172,10 +172,9 @@ class GenericUART : public uart::UARTComponent {
   /// @return the number of bytes available in the receiver fifo
   int available() override { return this->receive_buffer_.count(); }
 
-  /// @brief Flush the output fifo.
-  /// Flush cannot be implemented at this level has it has to verify
-  /// that all bytes are gone at HW level
-  /// void flush() override;
+  // Flush cannot be implemented at this level has it has to verify
+  // that all bytes are gone at HW level
+  // void flush() override;
 
  protected:
   friend class WK2132Component;
@@ -191,9 +190,9 @@ class GenericUART : public uart::UARTComponent {
   /// @return the size
   virtual size_t fifo_size() = 0;
 
-  ///
-  /// below are our private attributes / methods
-  ///
+  //
+  // below are our private attributes / methods
+  //
 
   /// @brief the buffer where we store temporarily the bytes received
   RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
@@ -201,6 +200,7 @@ class GenericUART : public uart::UARTComponent {
   RingBuffer<uint8_t, RING_BUFFER_SIZE> transmit_buffer_;
 
 #ifdef AUTOTEST_COMPONENT
+
   /// @brief Sends bytes to the UART in loop mode
   /// @param preamble info to print about the uart address and channel
   void uart_send_test_(char *preamble);
