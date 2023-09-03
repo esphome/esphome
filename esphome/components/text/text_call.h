@@ -18,6 +18,7 @@ class TextCall {
  protected:
   Text *const parent_;
   optional<std::string> value_;
+  void validate_();
 };
 
 }  // namespace text
