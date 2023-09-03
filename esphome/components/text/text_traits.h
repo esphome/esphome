@@ -16,14 +16,14 @@ enum TextMode : uint8_t {
 class TextTraits {
  public:
   // Set/get the number value boundaries.
-  void set_min_length(int min_length) { min_length_ = min_length; }
-  int get_min_length() const { return min_length_; }
-  void set_max_length(int max_length) { max_length_ = max_length; }
-  int get_max_length() const { return max_length_; }
+  void set_min_length(int min_length) { this->min_length_ = min_length; }
+  int get_min_length() const { return this->min_length_; }
+  void set_max_length(int max_length) { this->max_length_ = max_length; }
+  int get_max_length() const { return this->max_length_; }
 
   // Set/get the pattern.
-  void set_pattern(std::string pattern) { pattern_ = std::move(pattern); }
-  std::string get_pattern() const { return pattern_; }
+  void set_pattern(std::string pattern) { this->pattern_ = std::move(pattern); }
+  std::string get_pattern() const { return this->pattern_; }
 
   // Set/get the frontend mode.
   void set_mode(TextMode mode) { this->mode_ = mode; }
