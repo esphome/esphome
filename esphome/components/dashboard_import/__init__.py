@@ -107,11 +107,11 @@ def import_config(
         contents = req.text
 
         if contents.find("name_add_mac_suffix: true") != -1:
-            contents = re.sub(r"name: (.*)", "name: {name}", contents)
+            contents = re.sub(r"name: (.*)", f"name: {name}", contents)
 
             if friendly_name is not None:
                 contents = re.sub(
-                    r"friendly_name: (.*)", "friendly_name: {friendly_name}", contents
+                    r"friendly_name: (.*)", f"friendly_name: {friendly_name}", contents
                 )
 
             contents = contents.replace(
