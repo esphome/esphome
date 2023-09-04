@@ -61,6 +61,9 @@ MODELS = {
             CONF_WIDTH: 240,
             CONF_OFFSET_HEIGHT: 0,
             CONF_OFFSET_WIDTH: 0,
+            CONF_CS_PIN: "GPIO40",
+            CONF_DC_PIN: "GPIO39",
+            CONF_RESET_PIN: "GPIO41",
         }
     ),
     "ADAFRUIT_RR_280X240": model_spec(
