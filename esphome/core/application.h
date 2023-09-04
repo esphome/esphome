@@ -48,6 +48,11 @@
 #ifdef USE_MEDIA_PLAYER
 #include "esphome/components/media_player/media_player.h"
 #endif
+#ifdef REMOVE_AFTER_REVIEW
+#ifdef USE_KEYBOARD
+#include "esphome/components/keyboard/keyboard.h"
+#endif
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
 #include "esphome/components/alarm_control_panel/alarm_control_panel.h"
 #endif
@@ -127,6 +132,11 @@ class Application {
 
 #ifdef USE_MEDIA_PLAYER
   void register_media_player(media_player::MediaPlayer *media_player) { this->media_players_.push_back(media_player); }
+#endif
+#ifdef REMOVE_AFTER_REVIEW
+#ifdef USE_KEYBOARD
+  void register_keyboard(keyboard::Keyboard *keyboard) { this->keyboards_.push_back(keyboard); }
+#endif
 #endif
 
 #ifdef USE_ALARM_CONTROL_PANEL
@@ -304,7 +314,17 @@ class Application {
     return nullptr;
   }
 #endif
-
+#ifdef REMOVE_AFTER_REVIEW
+#ifdef USE_KEYBOARD
+  const std::vector<keyboard::Keyboard *> &get_keyboards() { return this->keyboards_; }
+  keyboard::Keyboard *get_keyboard_by_key(uint32_t key, bool include_internal = false) {
+    for (auto *obj : this->keyboards_)
+      if (obj->get_object_id_hash() == key && (include_internal || !obj->is_internal()))
+        return obj;
+    return nullptr;
+  }
+#endif
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   const std::vector<alarm_control_panel::AlarmControlPanel *> &get_alarm_control_panels() {
     return this->alarm_control_panels_;
@@ -369,6 +389,11 @@ class Application {
 #endif
 #ifdef USE_MEDIA_PLAYER
   std::vector<media_player::MediaPlayer *> media_players_{};
+#endif
+#ifdef REMOVE_AFTER_REVIEW
+#ifdef USE_KEYBOARD
+  std::vector<keyboard::Keyboard *> keyboards_{};
+#endif
 #endif
 #ifdef USE_ALARM_CONTROL_PANEL
   std::vector<alarm_control_panel::AlarmControlPanel *> alarm_control_panels_{};

@@ -115,6 +115,7 @@ esphome/components/havells_solar/* @sourabhjaiswal
 esphome/components/hbridge/fan/* @WeekendWarrior
 esphome/components/hbridge/light/* @DotNetDann
 esphome/components/heatpumpir/* @rob-deutsch
+esphome/components/hid/keyboard/* @tomaszduda23
 esphome/components/hitachi_ac424/* @sourabhjaiswal
 esphome/components/hm3301/* @freekode
 esphome/components/homeassistant/* @OttoWinter
@@ -142,6 +143,7 @@ esphome/components/json/* @OttoWinter
 esphome/components/kalman_combinator/* @Cat-Ion
 esphome/components/key_collector/* @ssieb
 esphome/components/key_provider/* @ssieb
+esphome/components/keyboard/* @tomaszduda23
 esphome/components/kuntze/* @ssieb
 esphome/components/lcd_menu/* @numo68
 esphome/components/ld2410/* @regevbr @sebcaps
@@ -315,6 +317,8 @@ esphome/components/uart/* @esphome/core
 esphome/components/ufire_ec/* @pvizeli
 esphome/components/ufire_ise/* @pvizeli
 esphome/components/ultrasonic/* @OttoWinter
+esphome/components/usb_device/* @tomaszduda23
+esphome/components/usb_device/hid/* @tomaszduda23
 esphome/components/vbus/* @ssieb
 esphome/components/version/* @esphome/core
 esphome/components/voice_assistant/* @jesserockz

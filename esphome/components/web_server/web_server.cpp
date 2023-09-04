@@ -1021,6 +1021,28 @@ void WebServer::handle_lock_request(AsyncWebServerRequest *request, const UrlMat
 }
 #endif
 
+#ifdef USE_KEYBOARD
+void WebServer::handle_keyboard_request(AsyncWebServerRequest *request, const UrlMatch &match) {
+  for (keyboard::Keyboard *obj : keyboard::keyboards) {
+    if (obj->get_object_id() != match.id)
+      continue;
+    if (request->method() == HTTP_GET) {
+      std::string data = this->keyboard_json(obj, DETAIL_STATE);
+      request->send(200, "application/json", data.c_str());
+      return;
+    }
+  }
+  request->send(404);
+}
+
+std::string WebServer::keyboard_json(keyboard::Keyboard *obj, JsonDetail start_config) {
+  return json::build_json([obj, start_config](JsonObject root) {
+    set_json_id(root, obj, "keyboard-" + obj->get_object_id(), start_config);
+  });
+}
+
+#endif
+
 #ifdef USE_ALARM_CONTROL_PANEL
 void WebServer::on_alarm_control_panel_update(alarm_control_panel::AlarmControlPanel *obj) {
   this->events_.send(this->alarm_control_panel_json(obj, obj->get_state(), DETAIL_STATE).c_str(), "state");
@@ -1126,6 +1148,10 @@ bool WebServer::canHandle(AsyncWebServerRequest *request) {
     return true;
 #endif
 
+#ifdef USE_KEYBOARD
+  if ((request->method() == HTTP_GET && !request->isExpectedRequestedConnType(RCT_WS)) && match.domain == "keyboard")
+    return true;
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   if (request->method() == HTTP_GET && match.domain == "alarm_control_panel")
     return true;
@@ -1239,6 +1265,13 @@ void WebServer::handleRequest(AsyncWebServerRequest *request) {
   }
 #endif
 
+#ifdef USE_KEYBOARD
+  if (match.domain == "keyboard") {
+    this->handle_keyboard_request(request, match);
+
+    return;
+  }
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   if (match.domain == "alarm_control_panel") {
     this->handle_alarm_control_panel_request(request, match);

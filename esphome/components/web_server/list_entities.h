@@ -3,6 +3,11 @@
 #include "esphome/core/component.h"
 #include "esphome/core/component_iterator.h"
 #include "esphome/core/defines.h"
+// begin - TODO remove after review
+#ifdef USE_KEYBOARD
+#include "esphome/components/keyboard/keyboard.h"
+#endif
+// end
 namespace esphome {
 namespace web_server {
 
@@ -11,6 +16,8 @@ class WebServer;
 class ListEntitiesIterator : public ComponentIterator {
  public:
   ListEntitiesIterator(WebServer *web_server);
+  void begin(bool include_internal);
+  bool on_begin() override;
 #ifdef USE_BINARY_SENSOR
   bool on_binary_sensor(binary_sensor::BinarySensor *binary_sensor) override;
 #endif
@@ -47,12 +54,18 @@ class ListEntitiesIterator : public ComponentIterator {
 #ifdef USE_LOCK
   bool on_lock(lock::Lock *a_lock) override;
 #endif
+#ifdef USE_KEYBOARD
+  bool on_keyboard(keyboard::Keyboard *keyboard);
+#endif
 #ifdef USE_ALARM_CONTROL_PANEL
   bool on_alarm_control_panel(alarm_control_panel::AlarmControlPanel *a_alarm_control_panel) override;
 #endif
 
  protected:
   WebServer *web_server_;
+#ifdef USE_KEYBOARD
+  size_t at_{0};
+#endif
 };
 
 }  // namespace web_server
