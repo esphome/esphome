@@ -105,6 +105,7 @@ void DFPlayer::loop() {
               ESP_LOGV(TAG, "File not found");
               this->is_playing_ = false;
             }
+            break;
           case 0x41:
             ESP_LOGV(TAG, "Ack ok");
             this->is_playing_ |= this->ack_set_is_playing_;
