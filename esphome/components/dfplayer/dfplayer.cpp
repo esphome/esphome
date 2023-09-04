@@ -103,7 +103,7 @@ void DFPlayer::loop() {
             this->ack_reset_is_playing_ = false;
             if (argument == 6) {
               ESP_LOGV(TAG, "File not found");
-              this->is_playing_  = false;
+              this->is_playing_ = false;
             }
           case 0x41:
             ESP_LOGV(TAG, "Ack ok");
