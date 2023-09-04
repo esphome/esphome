@@ -16,6 +16,8 @@ logger:
 
 debug:
 
+psram:
+
 light:
   - platform: neopixelbus
     type: GRB

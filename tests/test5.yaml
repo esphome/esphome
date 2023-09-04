@@ -30,6 +30,8 @@ logger:
 
 debug:
 
+psram:
+
 uart:
   - id: uart_1
     tx_pin: 1
