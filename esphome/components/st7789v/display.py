@@ -78,6 +78,10 @@ MODELS = {
             CONF_WIDTH: 135,
             CONF_OFFSET_HEIGHT: 52,
             CONF_OFFSET_WIDTH: 40,
+            CONF_BACKLIGHT_PIN: "GPIO45",
+            CONF_CS_PIN: "GPIO7",
+            CONF_DC_PIN: "GPIO39",
+            CONF_RESET_PIN: "GPIO40",
         },
     ),
     "LILYGO_T-EMBED_170X320": model_spec(
