@@ -78,15 +78,18 @@ void DS248xComponent::setup() {
   bool search = false;
   std::vector<foundDevice_t> raw_sensors;
   while((search = this->search(&address)) || channel < channel_count_ - 1) {
-    if (!search) { // if condidition is true here with no address found, no more devices on channel
+    if (!search) { // if condition is true here with no address found, no more devices on channel
       channel++;
-      select_channel(channel);
-      address = 0;
+      reset_hub();
+      if (!select_channel(channel)) {
+        ESP_LOGW(TAG, "failed switching to channel %d while scan...", channel);
+      }
       continue;
     }
     foundDevice_t found;
     found.channel = channel;
     found.address = address;
+    ESP_LOGI(TAG, "found device 0x%s (channel: %d)", format_hex(address).c_str(), channel);
     raw_sensors.push_back(found);
   }
 
@@ -307,7 +310,6 @@ bool DS248xComponent::select_channel(uint8_t channel)
   }
 
   selectedChannel = channel;
-  last_device_found = false;
   return true;
 }
 
@@ -601,6 +603,10 @@ bool DS248xTemperatureSensor::check_scratch_pad() {
             crc8(this->scratch_pad_, 8));
 #endif
   if (!chksum_validity) {
+    ESP_LOGD(TAG, "Scratch pad: %02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X.%02X (%02X)", this->scratch_pad_[0],
+              this->scratch_pad_[1], this->scratch_pad_[2], this->scratch_pad_[3], this->scratch_pad_[4],
+              this->scratch_pad_[5], this->scratch_pad_[6], this->scratch_pad_[7], this->scratch_pad_[8],
+              crc8(this->scratch_pad_, 8));
     ESP_LOGW(TAG, "'%s' - Scratch pad checksum invalid!", this->get_name().c_str());
   } else if (!config_validity) {
     ESP_LOGW(TAG, "'%s' - Scratch pad config register invalid!", this->get_name().c_str());
