@@ -34,7 +34,7 @@ constexpr size_t RING_BUFFER_SIZE = 128;
 /// very quickly when requested one by one.
 /// @image html read_cycles.png
 ///////////////////////////////////////////////////////////////////////////////
-template<typename T, int SIZE> class RingBuffer {
+template<typename T, size_t SIZE> class RingBuffer {
  public:
   /// @brief pushes an item at the tail of the fifo
   /// @param item item to push
@@ -85,6 +85,9 @@ template<typename T, int SIZE> class RingBuffer {
   /// @brief returns the number of free positions in the buffer
   /// @return how many items can be added
   size_t free() { return SIZE - count_; }
+
+  /// @brief clear the buffer content
+  void clear() { head_ = tail_ = count_ = 0; }
 
  private:
   std::array<T, SIZE> rb_{0};

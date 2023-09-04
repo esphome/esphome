@@ -136,6 +136,7 @@ class WK2132Channel : public wk2132::GenericUART {
  protected:
   friend class WK2132Component;
 
+  void reset_fifo_();
   void set_line_param_();
   void set_baudrate_();
   void setup_channel_();

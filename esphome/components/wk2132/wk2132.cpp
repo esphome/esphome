@@ -118,6 +118,10 @@ void WK2132Component::dump_config() {
     ESP_LOGCONFIG(TAG, "    data_bits %d", this->children_[i]->data_bits_);
     ESP_LOGCONFIG(TAG, "    stop_bits %d", this->children_[i]->stop_bits_);
     ESP_LOGCONFIG(TAG, "    parity %s", parity2string(this->children_[i]->parity_));
+    // here we reset the buffers and the fifos
+    children_[i]->transmit_buffer_.clear();
+    children_[i]->receive_buffer_.clear();
+    children_[i]->reset_fifo_();
   }
   this->initialized_ = true;  // we can safely use the wk2132
 }
@@ -129,7 +133,9 @@ void WK2132Component::dump_config() {
 void WK2132Channel::setup_channel_() {
   ESP_LOGCONFIG(TAG, "  Setting up UART @%02X:%d...", this->parent_->get_num_(), this->channel_);
 
+  //
   // we first do the global register (common to both channel)
+  //
 
   //  GENA description of global control register:
   //  * -------------------------------------------------------------------------
@@ -139,7 +145,7 @@ void WK2132Channel::setup_channel_() {
   //  * -------------------------------------------------------------------------
   uint8_t gena;
   this->parent_->read_wk2132_register_(REG_WK2132_GENA, 0, &gena, 1);
-  (this->channel_ == 0) ? gena |= 0x01 : gena |= 0x02;
+  (this->channel_ == 0) ? gena |= 0x01 : gena |= 0x02;  // enable channel 1 or 2
   this->parent_->write_wk2132_register_(REG_WK2132_GENA, 0, &gena, 1);
 
   //  GRST description of global reset register:
@@ -151,22 +157,17 @@ void WK2132Channel::setup_channel_() {
   // software reset UART channels
   uint8_t grst = 0;
   this->parent_->read_wk2132_register_(REG_WK2132_GRST, 0, &gena, 1);
-  (this->channel_ == 0) ? grst |= 0x01 : grst |= 0x02;
+  (this->channel_ == 0) ? grst |= 0x01 : grst |= 0x02;  // reset channel 1 or 2
   this->parent_->write_wk2132_register_(REG_WK2132_GRST, 0, &grst, 1);
 
-  // now we initialize the channel register
+  //
+  // now we do the register linked to a specific channel
+  //
+
+  // initialize the spage register to page 0
   uint8_t const page = 0;
   this->parent_->page1_ = false;
   this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, channel_, &page, 1);
-
-  // FCR description of UART FIFO control register:
-  // -------------------------------------------------------------------------
-  // |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-  // -------------------------------------------------------------------------
-  // |      TFTRIG     |      RFTRIG     |  TFEN  |  RFEN  |  TFRST |  RFRST |
-  // -------------------------------------------------------------------------
-  uint8_t const fcr = 0x0F;  // 0000 1111 reset fifo and enable the two fifo ...
-  this->parent_->write_wk2132_register_(REG_WK2132_FCR, this->channel_, &fcr, 1);
 
   // SCR description of UART control register:
   //  -------------------------------------------------------------------------
@@ -179,6 +180,19 @@ void WK2132Channel::setup_channel_() {
 
   this->set_baudrate_();
   this->set_line_param_();
+  this->reset_fifo_();
+}
+
+void WK2132Channel::reset_fifo_() {
+  // FCR description of UART FIFO control register:
+  // -------------------------------------------------------------------------
+  // |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
+  // -------------------------------------------------------------------------
+  // |      TFTRIG     |      RFTRIG     |  TFEN  |  RFEN  |  TFRST |  RFRST |
+  // -------------------------------------------------------------------------
+  // we reset and enable the fifo ... FCR => 0000 1111
+  uint8_t const fcr = 0b00001111;
+  this->parent_->write_wk2132_register_(REG_WK2132_FCR, this->channel_, &fcr, 1);
 }
 
 void WK2132Channel::set_baudrate_() {
@@ -323,11 +337,13 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
 
 void WK2132Channel::flush() {
   uint32_t const start_time = millis();
-  this->ring_to_tx_fifo_();  // we already push as much as possible in fifo
+  this->ring_to_tx_fifo_();  // we first push as much as we can in fifo
+
   while (this->transmit_buffer_.count()) {
     while (this->tx_in_fifo_()) {  // wait until buffer empty
       if (millis() - start_time > 100) {
-        ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", this->tx_in_fifo_());
+        ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...",
+                 (this->tx_in_fifo_() + this->transmit_buffer_.count()));
         return;
       }
     }
@@ -338,9 +354,9 @@ void WK2132Channel::flush() {
 void WK2132Channel::rx_fifo_to_ring_() {
   // here we transfer from fifo to ring buffer
 
-  uint8_t data[RING_BUFFER_SIZE]{0};
   // we look if some characters has been received in the fifo
   if (auto to_transfer = this->rx_in_fifo_()) {
+    uint8_t data[to_transfer]{0};
     this->read_data_(data, to_transfer);
     auto free = this->receive_buffer_.free();
     if (to_transfer > free) {
@@ -356,7 +372,7 @@ void WK2132Channel::rx_fifo_to_ring_() {
 void WK2132Channel::ring_to_tx_fifo_() {
   // here we transfer from ring buffer to fifo
   auto count = this->transmit_buffer_.count();
-  uint8_t data[RING_BUFFER_SIZE]{0};
+  uint8_t data[count]{0};
   auto available = this->fifo_size() - this->tx_in_fifo_();
   if (available) {
     if (count > available) {
