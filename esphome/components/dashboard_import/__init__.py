@@ -2,6 +2,7 @@ import base64
 import secrets
 from pathlib import Path
 from typing import Optional
+import re
 
 import requests
 
@@ -106,16 +107,16 @@ def import_config(
         contents = req.text
 
         if contents.find("name_add_mac_suffix: true") != -1:
-            # remove mac suffix (-######) to get original name
-            original_name = name[:-7]
-            contents = contents.replace(original_name, name)
+            contents = re.sub(r"name: (.*)", "name: {name}", contents)
 
             if friendly_name is not None:
-                # remove mac suffix ( ######) to get original friendly name
-                original_friendly_name = friendly_name[:-7]
-                contents = contents.replace(original_friendly_name, friendly_name)
+                contents = re.sub(
+                    r"friendly_name: (.*)", "friendly_name: {friendly_name}", contents
+                )
 
-            contents.replace("name_add_mac_suffix: true", "name_add_mac_suffix: false")
+            contents = contents.replace(
+                "name_add_mac_suffix: true", "name_add_mac_suffix: false"
+            )
 
         p.write_text(contents, encoding="utf8")
 
