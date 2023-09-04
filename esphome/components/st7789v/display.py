@@ -31,57 +31,96 @@ ST7789V = st7789v_ns.class_(
 ST7789VRef = ST7789V.operator("ref")
 ST7789VModel = st7789v_ns.enum("ST7789VModel")
 
-MODELS = {
-    "TTGO_TDISPLAY_135X240": ST7789VModel.ST7789V_MODEL_TTGO_TDISPLAY_135_240,
-    "ADAFRUIT_FUNHOUSE_240X240": ST7789VModel.ST7789V_MODEL_ADAFRUIT_FUNHOUSE_240_240,
-    "ADAFRUIT_RR_280X240": ST7789VModel.ST7789V_MODEL_ADAFRUIT_RR_280_240,
-    "ADAFRUIT_S2_TFT_FEATHER_240X135": ST7789VModel.ST7789V_MODEL_ADAFRUIT_S2_TFT_FEATHER_240_135,
-    "LILYGO_T_EMBED_170X320": ST7789VModel.ST7789V_MODEL_LILYGO_T_EMBED_170_320,
-    "CUSTOM": ST7789VModel.ST7789V_MODEL_CUSTOM,
-}
+MODEL_ENUM = "model_enum"
+MODEL_PRESETS = "model_presets"
+REQUIRE_PS = "require_ps"
 
-ST7789V_MODEL = cv.enum(MODELS, upper=True, space="_")
+
+def model_spec(require_ps=False, presets=None):
+    if presets is None:
+        presets = {}
+    return {MODEL_PRESETS: presets, REQUIRE_PS: require_ps}
+
+
+MODELS = {
+    "TTGO_TDISPLAY_135X240": model_spec(
+        presets={
+            CONF_BACKLIGHT_PIN: "GPIO4",
+            CONF_CS_PIN: "GPIO5",
+            CONF_DC_PIN: "GPIO16",
+            CONF_RESET_PIN: "GPIO23",
+            CONF_HEIGHT: 240,
+            CONF_WIDTH: 135,
+            CONF_OFFSET_HEIGHT: 52,
+            CONF_OFFSET_WIDTH: 40,
+        }
+    ),
+    "ADAFRUIT_FUNHOUSE_240X240": model_spec(
+        presets={
+            CONF_HEIGHT: 240,
+            CONF_WIDTH: 240,
+            CONF_OFFSET_HEIGHT: 0,
+            CONF_OFFSET_WIDTH: 0,
+        }
+    ),
+    "ADAFRUIT_RR_280X240": model_spec(
+        presets={
+            CONF_HEIGHT: 280,
+            CONF_WIDTH: 240,
+            CONF_OFFSET_HEIGHT: 0,
+            CONF_OFFSET_WIDTH: 20,
+        }
+    ),
+    "ADAFRUIT_S2_TFT_FEATHER_240X135": model_spec(
+        require_ps=True,
+        presets={
+            CONF_HEIGHT: 240,
+            CONF_WIDTH: 135,
+            CONF_OFFSET_HEIGHT: 52,
+            CONF_OFFSET_WIDTH: 40,
+        },
+    ),
+    "LILYGO_T-EMBED_170X320": model_spec(
+        presets={
+            CONF_ROTATION: 270,
+            CONF_BACKLIGHT_PIN: "GPIO15",
+            CONF_CS_PIN: "GPIO10",
+            CONF_DC_PIN: "GPIO13",
+            CONF_RESET_PIN: "GPIO9",
+            CONF_HEIGHT: 320,
+            CONF_WIDTH: 170,
+            CONF_OFFSET_WIDTH: 0,
+            CONF_OFFSET_HEIGHT: 35,
+        }
+    ),
+    "CUSTOM": model_spec(),
+}
 
 
 def validate_st7789v(config):
-    if config[CONF_MODEL] == "CUSTOM" and (
-        CONF_HEIGHT not in config
-        or CONF_WIDTH not in config
-        or CONF_OFFSET_HEIGHT not in config
-        or CONF_OFFSET_WIDTH not in config
-    ):
-        raise cv.Invalid(
-            f'{CONF_HEIGHT}, {CONF_WIDTH}, {CONF_OFFSET_HEIGHT} and {CONF_OFFSET_WIDTH} must be specified when {CONF_MODEL} is "CUSTOM"'
-        )
+    model_data = MODELS[config[CONF_MODEL]]
+    presets = model_data[MODEL_PRESETS]
+    for key, value in presets.items():
+        if key not in config:
+            if key.endswith("pin"):
+                # All pins are output.
+                value = pins.gpio_output_pin_schema(value)
+            config[key] = value
 
-    if config[CONF_MODEL] != "CUSTOM" and (
-        CONF_HEIGHT in config
-        or CONF_WIDTH in config
-        or CONF_OFFSET_HEIGHT in config
-        or CONF_OFFSET_WIDTH in config
-    ):
+    if model_data[REQUIRE_PS] and CONF_POWER_SUPPLY not in config:
         raise cv.Invalid(
-            f'Do not specify {CONF_HEIGHT}, {CONF_WIDTH}, {CONF_OFFSET_HEIGHT} or {CONF_OFFSET_WIDTH} when using {CONF_MODEL} that is not "CUSTOM"'
+            f'{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is {config[CONF_MODEL]}"'
         )
 
     if (
-        config[CONF_MODEL] == "ADAFRUIT_S2_TFT_FEATHER_240X135"
-        and CONF_POWER_SUPPLY not in config
+        CONF_OFFSET_WIDTH not in config
+        or CONF_OFFSET_HEIGHT not in config
+        or CONF_HEIGHT not in config
+        or CONF_WIDTH not in config
     ):
         raise cv.Invalid(
-            f'{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is "ADAFRUIT_S2_TFT_FEATHER_240X135"'
+            f"{CONF_HEIGHT}, {CONF_WIDTH}, {CONF_OFFSET_HEIGHT} and {CONF_OFFSET_WIDTH} must all be specified"
         )
-    if config[CONF_MODEL] == "LILYGO_T_EMBED_170X320":
-        config[CONF_ROTATION] = 270
-        config[CONF_BACKLIGHT_PIN] = pins.gpio_output_pin_schema("GPIO15")
-        config[CONF_CS_PIN] = pins.gpio_output_pin_schema("GPIO10")
-        config[CONF_DC_PIN] = pins.gpio_output_pin_schema("GPIO13")
-        config[CONF_RESET_PIN] = pins.gpio_output_pin_schema("GPIO9")
-        if CONF_POWER_SUPPLY not in config:
-            raise cv.Invalid(
-                f'{CONF_POWER_SUPPLY} must be specified when {CONF_MODEL} is "LILYGO_T_EMBED_170X320"'
-            )
-
     if CONF_DC_PIN not in config or CONF_RESET_PIN not in config:
         raise cv.Invalid(f"both {CONF_DC_PIN} and {CONF_RESET_PIN} must be specified")
 
@@ -92,7 +131,7 @@ CONFIG_SCHEMA = cv.All(
     display.FULL_DISPLAY_SCHEMA.extend(
         {
             cv.GenerateID(): cv.declare_id(ST7789V),
-            cv.Required(CONF_MODEL): ST7789V_MODEL,
+            cv.Required(CONF_MODEL): cv.one_of(*MODELS.keys(), upper=True, space="_"),
             cv.Optional(CONF_RESET_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_DC_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_BACKLIGHT_PIN): pins.gpio_output_pin_schema,
@@ -116,13 +155,12 @@ async def to_code(config):
     await display.register_display(var, config)
     await spi.register_spi_device(var, config)
 
-    cg.add(var.set_model(config[CONF_MODEL]))
+    cg.add(var.set_model_str(config[CONF_MODEL]))
 
-    if config[CONF_MODEL] == "CUSTOM":
-        cg.add(var.set_height(config[CONF_HEIGHT]))
-        cg.add(var.set_width(config[CONF_WIDTH]))
-        cg.add(var.set_offset_height(config[CONF_OFFSET_HEIGHT]))
-        cg.add(var.set_offset_width(config[CONF_OFFSET_WIDTH]))
+    cg.add(var.set_height(config[CONF_HEIGHT]))
+    cg.add(var.set_width(config[CONF_WIDTH]))
+    cg.add(var.set_offset_height(config[CONF_OFFSET_HEIGHT]))
+    cg.add(var.set_offset_width(config[CONF_OFFSET_WIDTH]))
 
     cg.add(var.set_eightbitcolor(config[CONF_EIGHTBITCOLOR]))
 
