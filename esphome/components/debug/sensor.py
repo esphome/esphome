@@ -51,6 +51,7 @@ CONFIG_SCHEMA = {
     ),
     cv.Optional(CONF_PSRAM): cv.All(
         cv.only_on_esp32,
+        cv.requires_component("psram"),
         sensor.sensor_schema(
             unit_of_measurement=UNIT_BYTES,
             icon=ICON_COUNTER,
