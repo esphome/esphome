@@ -79,13 +79,18 @@ CONFIG_SCHEMA = cv.All(
             ),
             cv.Optional(CONF_INCLUDE_INTERNAL, default=False): cv.boolean,
             cv.SplitDefault(
-                CONF_OTA, esp8266=True, esp32_arduino=True, esp32_idf=False
+                CONF_OTA,
+                esp8266=True,
+                esp32_arduino=True,
+                esp32_idf=False,
+                bk72xx=True,
+                rtl87xx=True,
             ): cv.boolean,
             cv.Optional(CONF_LOG, default=True): cv.boolean,
             cv.Optional(CONF_LOCAL): cv.boolean,
         }
     ).extend(cv.COMPONENT_SCHEMA),
-    cv.only_on(["esp32", "esp8266"]),
+    cv.only_on(["esp32", "esp8266", "bk72xx", "rtl87xx"]),
     default_url,
     validate_local,
     validate_ota,
