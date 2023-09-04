@@ -65,7 +65,7 @@ def validate_bit_rate(value):
     value = value.upper()
     if value not in CAN_SPEEDS[variant]:
         raise cv.Invalid(f"Bit rate {value} is not supported on {variant}")
-    return value
+    return cv.enum(CAN_SPEEDS[variant])(value)
 
 
 CONFIG_SCHEMA = canbus.CANBUS_SCHEMA.extend(
