@@ -48,7 +48,7 @@ uint8_t ImprovSerialComponent::read_byte_() {
   this->hw_serial_->readBytes(&data, 1);
 #endif
 #ifdef USE_ESP_IDF
-  uart_read_bytes(this->uart_num_, &data, 1, 20 / portTICK_RATE_MS);
+  uart_read_bytes(this->uart_num_, &data, 1, 20 / portTICK_PERIOD_MS);
 #endif
   return data;
 }
