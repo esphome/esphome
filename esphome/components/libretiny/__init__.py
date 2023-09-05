@@ -218,7 +218,7 @@ FRAMEWORK_SCHEMA = cv.All(
             cv.Optional(CONF_SDK_SILENT, default="all"): (
                 cv.one_of("all", "auto", "none", lower=True)
             ),
-            cv.Optional(CONF_UART_PORT, default=None): cv.one_of(0, 1, 2, int=True),
+            cv.Optional(CONF_UART_PORT): cv.one_of(0, 1, 2, int=True),
             cv.Optional(CONF_GPIO_RECOVER, default=True): cv.boolean,
             cv.Optional(CONF_OPTIONS, default={}): {
                 cv.string_strict: cv.string,
@@ -309,8 +309,8 @@ async def component_to_code(config):
         lt_options["LT_UART_SILENT_ENABLED"] = 0
         lt_options["LT_UART_SILENT_ALL"] = 0
     # set default UART port
-    if framework[CONF_UART_PORT] is not None:
-        lt_options["LT_UART_DEFAULT_PORT"] = framework[CONF_UART_PORT]
+    if uart_port := framework.get(CONF_UART_PORT, None) is not None:
+        lt_options["LT_UART_DEFAULT_PORT"] = uart_port
     # add custom options
     lt_options.update(framework[CONF_OPTIONS])
 
