@@ -17,7 +17,8 @@ void LD2420Component::setup() {
   bool restart{false};
   ESP_LOGCONFIG(TAG, "Setting up LD2420...");
   if (this->set_config_mode_(true) == LD2420_ERROR_TIMEOUT) {
-    ESP_LOGCONFIG(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
+    ESP_LOGE(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
+    mark_failed();
     return;
   }
   this->get_min_max_distances_timeout_();
