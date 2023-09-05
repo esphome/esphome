@@ -45,14 +45,14 @@ def model_spec(require_ps=False, presets=None):
 MODELS = {
     "TTGO_TDISPLAY_135X240": model_spec(
         presets={
-            CONF_BACKLIGHT_PIN: "GPIO4",
-            CONF_CS_PIN: "GPIO5",
-            CONF_DC_PIN: "GPIO16",
-            CONF_RESET_PIN: "GPIO23",
             CONF_HEIGHT: 240,
             CONF_WIDTH: 135,
             CONF_OFFSET_HEIGHT: 52,
             CONF_OFFSET_WIDTH: 40,
+            CONF_CS_PIN: "GPIO5",
+            CONF_DC_PIN: "GPIO16",
+            CONF_RESET_PIN: "GPIO23",
+            CONF_BACKLIGHT_PIN: "GPIO4",
         }
     ),
     "ADAFRUIT_FUNHOUSE_240X240": model_spec(
@@ -81,23 +81,23 @@ MODELS = {
             CONF_WIDTH: 135,
             CONF_OFFSET_HEIGHT: 52,
             CONF_OFFSET_WIDTH: 40,
-            CONF_BACKLIGHT_PIN: "GPIO45",
             CONF_CS_PIN: "GPIO7",
             CONF_DC_PIN: "GPIO39",
             CONF_RESET_PIN: "GPIO40",
+            CONF_BACKLIGHT_PIN: "GPIO45",
         },
     ),
     "LILYGO_T-EMBED_170X320": model_spec(
         presets={
+            CONF_HEIGHT: 320,
+            CONF_WIDTH: 170,
+            CONF_OFFSET_HEIGHT: 35,
+            CONF_OFFSET_WIDTH: 0,
             CONF_ROTATION: 270,
-            CONF_BACKLIGHT_PIN: "GPIO15",
             CONF_CS_PIN: "GPIO10",
             CONF_DC_PIN: "GPIO13",
             CONF_RESET_PIN: "GPIO9",
-            CONF_HEIGHT: 320,
-            CONF_WIDTH: 170,
-            CONF_OFFSET_WIDTH: 0,
-            CONF_OFFSET_HEIGHT: 35,
+            CONF_BACKLIGHT_PIN: "GPIO15",
         }
     ),
     "CUSTOM": model_spec(),
