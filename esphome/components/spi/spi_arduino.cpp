@@ -19,6 +19,7 @@ static std::vector<std::function<SPIBusDelegate *()>> bus_list = {
 #ifdef USE_ESP32
     [] { return &SPI; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
+  // No second SPI on Cx variants
 #elif defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
     [] { return new SPIClass(FSPI); },  // NOLINT(cppcoreguidelines-owning-memory)
 #else
