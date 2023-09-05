@@ -9,7 +9,7 @@ namespace esphome {
 namespace ld2420 {
 
 // Local const's
-static const uint8_t REFRESH_RATE_MS = 1000;
+static const uint16_t REFRESH_RATE_MS = 1000;
 
 // Command sets
 static const uint8_t CMD_ABD_DATA_REPLY_SIZE = 0x04;
@@ -29,11 +29,12 @@ static const uint16_t CMD_READ_VERSION = 0x0000;
 static const uint8_t CMD_REG_DATA_REPLY_SIZE = 0x02;
 static const uint16_t CMD_RESTART = 0x0068;
 static const uint16_t CMD_SYSTEM_MODE = 0x0000;
-static const uint16_t CMD_SYSTEM_MODE_TRANSPARENT = 0x0000;
-static const uint16_t CMD_SYSTEM_MODE_MTT = 0x0001;
-static const uint16_t CMD_SYSTEM_MODE_VS = 0x0002;
 static const uint16_t CMD_SYSTEM_MODE_GR = 0x0003;
+static const uint16_t CMD_SYSTEM_MODE_MTT = 0x0001;
+static const uint16_t CMD_SYSTEM_MODE_TRANSPARENT = 0x0000;
 static const uint16_t CMD_SYSTEM_MODE_NORMAL = 0x0064;
+static const uint16_t CMD_SYSTEM_MODE_REPORT = 0x0004;
+static const uint16_t CMD_SYSTEM_MODE_VS = 0x0002;
 static const uint16_t CMD_WRITE_ABD_PARAM = 0x0007;
 static const uint16_t CMD_WRITE_REGISTER = 0x0001;
 static const uint16_t CMD_WRITE_SYS_PARAM = 0x0012;

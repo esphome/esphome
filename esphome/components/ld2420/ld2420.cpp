@@ -18,12 +18,12 @@ void LD2420Component::setup() {
   ESP_LOGCONFIG(TAG, "Setting up LD2420...");
   if (this->set_config_mode_(true) == LD2420_ERROR_TIMEOUT) {
     ESP_LOGE(TAG, "LD2420 module has failed to respond, check baud rate and serial connections.");
-    mark_failed();
+    this->mark_failed();
     return;
   }
   this->get_min_max_distances_timeout_();
   this->get_firmware_version_();
-  for (uint8_t gate = 0; gate < 16; gate++) {
+  for (uint8_t gate = 0; gate < LD2420_TOTAL_GATES; gate++) {
     this->get_gate_threshold_(gate);
   }
 
@@ -36,7 +36,7 @@ void LD2420Component::setup() {
     ESP_LOGD(TAG, "Config changed, writing update to LD2420.");
     this->set_min_max_distances_timeout_(this->new_config_.max_gate, this->new_config_.min_gate,
                                          this->new_config_.timeout);
-    for (uint8_t gate = 0; gate < 16; gate++) {
+    for (uint8_t gate = 0; gate < LD2420_TOTAL_GATES; gate++) {
       this->set_gate_threshold_(gate);
     }
     restart = true;
@@ -122,7 +122,8 @@ void LD2420Component::readline_(uint8_t rx_data, uint8_t *buffer, int len) {
       } else if (buffer[pos - 2] == 0x0D && buffer[pos - 1] == 0x0A) {
         this->handle_normal_mode_(buffer, pos);
         pos = 0;
-      } else if ((pos >= 64 && (memcmp(&buffer[pos - 5], &CMD_FRAME_HEADER, sizeof(CMD_FRAME_HEADER)) == 0) &&
+      } else if ((pos >= CMD_MAX_BYTES &&
+                  (memcmp(&buffer[pos - 5], &CMD_FRAME_HEADER, sizeof(CMD_FRAME_HEADER)) == 0) &&
                   buffer[pos - 1] == 0xFA) &&
                  get_mode_() == 0) {
         ESP_LOGD(TAG, "Rx: %s", format_hex_pretty(buffer, pos).c_str());
@@ -194,11 +195,11 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
   uint8_t reg_element = 0;
   uint8_t data_element = 0;
   uint16_t data_pos = 0;
-  if (cmd_reply_.length > 64) {
-    ESP_LOGD(TAG, "LD2420 reply - received frame is corrupt, data lenght exceeds 64 bytes.");
+  if (cmd_reply_.length > CMD_MAX_BYTES) {
+    ESP_LOGD(TAG, "LD2420 reply - received frame is corrupt, data length exceeds 64 bytes.");
     return;
   } else if (cmd_reply_.length < 2) {
-    ESP_LOGD(TAG, "LD2420 reply - received frame is corrupt, data lenght is less than 2 bytes.");
+    ESP_LOGD(TAG, "LD2420 reply - received frame is corrupt, data length is less than 2 bytes.");
     return;
   }
   memcpy(&cmd_reply_.error, &buffer[CMD_ERROR_WORD], sizeof(cmd_reply_.error));
