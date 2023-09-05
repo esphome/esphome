@@ -92,13 +92,13 @@ extern "C"
 
 void ADCSensor::dump_config() {
   LOG_SENSOR("", "ADC Sensor", this);
-#ifdef USE_ESP8266
+#if defined(USE_ESP8266) || defined(USE_LIBRETINY)
 #ifdef USE_ADC_SENSOR_VCC
   ESP_LOGCONFIG(TAG, "  Pin: VCC");
 #else
   LOG_PIN("  Pin: ", pin_);
 #endif
-#endif  // USE_ESP8266
+#endif  // USE_ESP8266 || USE_LIBRETINY
 
 #ifdef USE_ESP32
   LOG_PIN("  Pin: ", pin_);
@@ -253,6 +253,15 @@ float ADCSensor::sample() {
   return raw * 3.3f / 4096.0f;
 }
 #endif
+
+#ifdef USE_LIBRETINY
+float ADCSensor::sample() {
+  if (output_raw_) {
+    return analogRead(this->pin_->get_pin());  // NOLINT
+  }
+  return analogReadVoltage(this->pin_->get_pin()) / 1000.0f;  // NOLINT
+}
+#endif  // USE_LIBRETINY
 
 #ifdef USE_ESP8266
 std::string ADCSensor::unique_id() { return get_mac_address() + "-adc"; }

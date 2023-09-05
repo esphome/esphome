@@ -1,7 +1,7 @@
 import esphome.codegen as cg
 import esphome.config_validation as cv
 from esphome import pins
-from esphome.const import CONF_INPUT
+from esphome.const import CONF_ANALOG, CONF_INPUT
 
 from esphome.core import CORE
 from esphome.components.esp32 import get_esp32_variant
@@ -166,8 +166,6 @@ def validate_adc_pin(value):
         return pins.internal_gpio_input_pin_schema(value)
 
     if CORE.is_esp8266:
-        from esphome.components.esp8266.gpio import CONF_ANALOG
-
         value = pins.internal_gpio_pin_number({CONF_ANALOG: True, CONF_INPUT: True})(
             value
         )
@@ -183,5 +181,10 @@ def validate_adc_pin(value):
         if value not in (26, 27, 28, 29):
             raise cv.Invalid("RP2040: Only pins 26, 27, 28 and 29 support ADC")
         return pins.internal_gpio_input_pin_schema(value)
+
+    if CORE.is_libretiny:
+        return pins.gpio_pin_schema(
+            {CONF_ANALOG: True, CONF_INPUT: True}, internal=True
+        )(value)
 
     raise NotImplementedError
