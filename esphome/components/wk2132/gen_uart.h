@@ -12,6 +12,9 @@ namespace wk2132 {
 // here we indicate if we want to include the auto tests (recommended)
 #define AUTOTEST_COMPONENT
 
+// here we indicate that we do not want to use a ring buffer on transmit
+#undef USE_TX_BUFFER
+
 /// @brief size of the ring buffer
 constexpr size_t RING_BUFFER_SIZE = 128;
 ///////////////////////////////////////////////////////////////////////////////
@@ -199,8 +202,13 @@ class GenericUART : public uart::UARTComponent {
 
   /// @brief the buffer where we store temporarily the bytes received
   RingBuffer<uint8_t, RING_BUFFER_SIZE> receive_buffer_;
+
+#ifdef USE_TX_BUFFER
   /// @brief the buffer where we store temporarily the bytes to transmit
   RingBuffer<uint8_t, RING_BUFFER_SIZE> transmit_buffer_;
+#else
+  virtual bool write_data_(const uint8_t *buffer, size_t len) = 0;
+#endif
 
 #ifdef AUTOTEST_COMPONENT
 

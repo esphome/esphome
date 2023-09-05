@@ -36,6 +36,7 @@ void GenericUART::write_array(const uint8_t *buffer, size_t len) {
     len = this->fifo_size();
   }
 
+#ifdef USE_TX_BUFFER
   auto free = this->transmit_buffer_.free();
   if (len > free) {
     ESP_LOGE(TAG, "write_array buffer overflow requested %d bytes available %d ...", len, free);
@@ -46,6 +47,9 @@ void GenericUART::write_array(const uint8_t *buffer, size_t len) {
   for (size_t i = 0; i < len; i++) {
     this->transmit_buffer_.push(buffer[i]);
   }
+#else
+  this->write_data_(buffer, len);
+#endif
 }
 
 ///////////////////////////////////////////////////////////////////////////////

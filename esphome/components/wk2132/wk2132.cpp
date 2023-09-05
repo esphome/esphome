@@ -118,8 +118,11 @@ void WK2132Component::dump_config() {
     ESP_LOGCONFIG(TAG, "    data_bits %d", this->children_[i]->data_bits_);
     ESP_LOGCONFIG(TAG, "    stop_bits %d", this->children_[i]->stop_bits_);
     ESP_LOGCONFIG(TAG, "    parity %s", parity2string(this->children_[i]->parity_));
+
     // here we reset the buffers and the fifos
+#ifdef USE_TX_BUFFER
     children_[i]->transmit_buffer_.clear();
+#endif
     children_[i]->receive_buffer_.clear();
     children_[i]->reset_fifo_();
   }
@@ -337,8 +340,9 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
 
 void WK2132Channel::flush() {
   uint32_t const start_time = millis();
-  this->ring_to_tx_fifo_();  // we first push as much as we can in fifo
 
+#ifdef USE_TX_BUFFER
+  this->ring_to_tx_fifo_();  // we first push as much as we can in fifo
   while (this->transmit_buffer_.count()) {
     while (this->tx_in_fifo_()) {  // wait until buffer empty
       if (millis() - start_time > 100) {
@@ -349,6 +353,15 @@ void WK2132Channel::flush() {
     }
     yield();  // reschedule our thread to avoid blocking
   }
+#else
+  while (this->tx_in_fifo_()) {  // wait until buffer empty
+    if (millis() - start_time > 100) {
+      ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", this->tx_in_fifo_());
+      return;
+    }
+  }
+  yield();  // reschedule our thread to avoid blocking
+#endif
 }
 
 void WK2132Channel::rx_fifo_to_ring_() {
@@ -369,6 +382,7 @@ void WK2132Channel::rx_fifo_to_ring_() {
   }
 }
 
+#ifdef USE_TX_BUFFER
 void WK2132Channel::ring_to_tx_fifo_() {
   // here we transfer from ring buffer to fifo
   auto count = this->transmit_buffer_.count();
@@ -385,12 +399,15 @@ void WK2132Channel::ring_to_tx_fifo_() {
     this->write_data_(data, count);
   }
 }
+#endif
 
 void WK2132Component::loop() {
   // if the component is not fully initialized we return
   if (!this->initialized_) {
     for (auto *child : this->children_) {
+#ifdef USE_TX_BUFFER
       child->transmit_buffer_.clear();
+#endif
       child->receive_buffer_.clear();
     }
     return;
@@ -398,7 +415,9 @@ void WK2132Component::loop() {
 
   // here we transfer between fifos and ring buffers
   for (auto *child : this->children_) {
+#ifdef USE_TX_BUFFER
     child->ring_to_tx_fifo_();
+#endif
     child->rx_fifo_to_ring_();
   }
 
