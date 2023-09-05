@@ -28,10 +28,7 @@ DEPENDENCIES = ["spi"]
 ST7789V = st7789v_ns.class_(
     "ST7789V", cg.PollingComponent, spi.SPIDevice, display.DisplayBuffer
 )
-ST7789VRef = ST7789V.operator("ref")
-ST7789VModel = st7789v_ns.enum("ST7789VModel")
 
-MODEL_ENUM = "model_enum"
 MODEL_PRESETS = "model_presets"
 REQUIRE_PS = "require_ps"
 
