@@ -710,6 +710,14 @@ interval:
     - logger.log: Interval Run
 
 display:
+  - platform: st7789v
+    model: LILYGO_T-EMBED_170X320
+    height: 320
+    width: 170
+    offset_height: 35
+    offset_width: 0
+    dc_pin: GPIO13
+    reset_pin: GPIO9
 
 image:
   - id: binary_image
