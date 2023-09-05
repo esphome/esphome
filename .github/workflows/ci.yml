@@ -30,7 +30,7 @@ jobs:
       cache-key: ${{ steps.cache-key.outputs.key }}
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4
       - name: Generate cache-key
         id: cache-key
         run: echo key="${{ hashFiles('requirements.txt', 'requirements_optional.txt', 'requirements_test.txt') }}" >> $GITHUB_OUTPUT
@@ -60,7 +60,7 @@ jobs:
     runs-on: ubuntu-latest
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4
       - name: Run yamllint
         uses: frenck/action-yamllint@v1.4.1
 
@@ -71,7 +71,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -92,7 +92,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -113,7 +113,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -134,7 +134,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -155,7 +155,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -176,7 +176,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -196,7 +196,7 @@ jobs:
       - common
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -235,7 +235,7 @@ jobs:
         file: [1, 2, 3, 3.1, 4, 5, 6, 7, 8]
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:
@@ -291,7 +291,7 @@ jobs:
 
     steps:
       - name: Check out code from GitHub
-        uses: actions/checkout@v3.5.2
+        uses: actions/checkout@v4
       - name: Restore Python
         uses: ./.github/actions/restore-python
         with:

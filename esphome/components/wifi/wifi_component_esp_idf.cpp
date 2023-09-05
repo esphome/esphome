@@ -58,9 +58,9 @@ struct IDFWiFiEvent {
     wifi_event_ap_probe_req_rx_t ap_probe_req_rx;
     wifi_event_bss_rssi_low_t bss_rssi_low;
     ip_event_got_ip_t ip_got_ip;
-#if LWIP_IPV6
+#if ENABLE_IPV6
     ip_event_got_ip6_t ip_got_ip6;
-#endif
+#endif /* ENABLE_IPV6 */
     ip_event_ap_staipassigned_t ip_ap_staipassigned;
   } data;
 };
@@ -84,7 +84,7 @@ void event_handler(void *arg, esp_event_base_t event_base, int32_t event_id, voi
     memcpy(&event.data.sta_disconnected, event_data, sizeof(wifi_event_sta_disconnected_t));
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_STA_GOT_IP) {
     memcpy(&event.data.ip_got_ip, event_data, sizeof(ip_event_got_ip_t));
-#if LWIP_IPV6
+#if ENABLE_IPV6
   } else if (event_base == IP_EVENT && event_id == IP_EVENT_GOT_IP6) {
     memcpy(&event.data.ip_got_ip6, event_data, sizeof(ip_event_got_ip6_t));
 #endif
@@ -645,18 +645,18 @@ void WiFiComponent::wifi_process_event_(IDFWiFiEvent *data) {
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_GOT_IP) {
     const auto &it = data->data.ip_got_ip;
-#if LWIP_IPV6_AUTOCONFIG
+#if ENABLE_IPV6
     esp_netif_create_ip6_linklocal(s_sta_netif);
-#endif
+#endif /* ENABLE_IPV6 */
     ESP_LOGV(TAG, "Event: Got IP static_ip=%s gateway=%s", format_ip4_addr(it.ip_info.ip).c_str(),
              format_ip4_addr(it.ip_info.gw).c_str());
     s_sta_got_ip = true;
 
-#if LWIP_IPV6
+#if ENABLE_IPV6
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_GOT_IP6) {
     const auto &it = data->data.ip_got_ip6;
     ESP_LOGV(TAG, "Event: Got IPv6 address=%s", format_ip6_addr(it.ip6_info.ip).c_str());
-#endif
+#endif /* ENABLE_IPV6 */
 
   } else if (data->event_base == IP_EVENT && data->event_id == IP_EVENT_STA_LOST_IP) {
     ESP_LOGV(TAG, "Event: Lost IP");
