@@ -93,12 +93,24 @@ rp2040:
     platform_version: https://github.com/maxgerhardt/platform-raspberrypi.git
 """
 
+BK72XX_CONFIG = """
+bk72xx:
+  board: {board}
+"""
+
+RTL87XX_CONFIG = """
+rtl87xx:
+  board: {board}
+"""
+
 HARDWARE_BASE_CONFIGS = {
     "ESP8266": ESP8266_CONFIG,
     "ESP32": ESP32_CONFIG,
     "ESP32S2": ESP32S2_CONFIG,
     "ESP32C3": ESP32C3_CONFIG,
     "RP2040": RP2040_CONFIG,
+    "BK72XX": BK72XX_CONFIG,
+    "RTL87XX": RTL87XX_CONFIG,
 }
 
 
@@ -156,7 +168,7 @@ def wizard_file(**kwargs):
 """
 
     # pylint: disable=consider-using-f-string
-    if kwargs["platform"] in ["ESP8266", "ESP32"]:
+    if kwargs["platform"] in ["ESP8266", "ESP32", "BK72XX", "RTL87XX"]:
         config += """
   # Enable fallback hotspot (captive portal) in case wifi connection fails
   ap:
@@ -182,7 +194,10 @@ captive_portal:
 
 def wizard_write(path, **kwargs):
     from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.rp2040 import boards as rp2040_boards
+    from esphome.components.bk72xx import boards as bk72xx_boards
+    from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     name = kwargs["name"]
     board = kwargs["board"]
@@ -192,12 +207,19 @@ def wizard_write(path, **kwargs):
             kwargs[key] = sanitize_double_quotes(kwargs[key])
 
     if "platform" not in kwargs:
-        if board in esp8266_boards.ESP8266_BOARD_PINS:
+        if board in esp8266_boards.BOARDS:
             platform = "ESP8266"
-        elif board in rp2040_boards.RP2040_BOARD_PINS:
-            platform = "RP2040"
-        else:
+        elif board in esp32_boards.BOARDS:
             platform = "ESP32"
+        elif board in rp2040_boards.BOARDS:
+            platform = "RP2040"
+        elif board in bk72xx_boards.BOARDS:
+            platform = "BK72XX"
+        elif board in rtl87xx_boards.BOARDS:
+            platform = "RTL87XX"
+        else:
+            safe_print(color(Fore.RED, f'The board "{board}" is unknown.'))
+            return False
         kwargs["platform"] = platform
     hardware = kwargs["platform"]
 
@@ -205,6 +227,8 @@ def wizard_write(path, **kwargs):
     storage = StorageJSON.from_wizard(name, name, f"{name}.local", hardware)
     storage_path = ext_storage_path(os.path.dirname(path), os.path.basename(path))
     storage.save(storage_path)
+
+    return True
 
 
 if get_bool_env(ENV_QUICKWIZARD):
@@ -243,6 +267,8 @@ def strip_accents(value):
 def wizard(path):
     from esphome.components.esp32 import boards as esp32_boards
     from esphome.components.esp8266 import boards as esp8266_boards
+    from esphome.components.bk72xx import boards as bk72xx_boards
+    from esphome.components.rtl87xx import boards as rtl87xx_boards
 
     if not path.endswith(".yaml") and not path.endswith(".yml"):
         safe_print(
@@ -262,7 +288,7 @@ def wizard(path):
     sleep(2.0)
     safe_print(
         "In 4 steps I'm going to guide you through creating a basic "
-        "configuration file for your custom ESP8266/ESP32 firmware. Yay!"
+        "configuration file for your custom firmware. Yay!"
     )
     sleep(3.0)
     safe_print()
@@ -305,16 +331,18 @@ def wizard(path):
         "Now I'd like to know what microcontroller you're using so that I can compile "
         "firmwares for it."
     )
+
+    wizard_platforms = ["ESP32", "ESP8266", "BK72XX", "RTL87XX"]
     safe_print(
-        f"Are you using an {color(Fore.GREEN, 'ESP32')} or {color(Fore.GREEN, 'ESP8266')} platform? (Choose ESP8266 for Sonoff devices)"
+        "Please choose one of the supported microcontrollers "
+        "(Use ESP8266 for Sonoff devices)."
     )
     while True:
         sleep(0.5)
         safe_print()
-        safe_print("Please enter either ESP32 or ESP8266.")
-        platform = input(color(Fore.BOLD_WHITE, "(ESP32/ESP8266): "))
+        platform = input(color(Fore.BOLD_WHITE, f"({'/'.join(wizard_platforms)}): "))
         try:
-            platform = vol.All(vol.Upper, vol.Any("ESP32", "ESP8266"))(platform)
+            platform = vol.All(vol.Upper, vol.Any(*wizard_platforms))(platform.upper())
             break
         except vol.Invalid:
             safe_print(
@@ -328,10 +356,14 @@ def wizard(path):
         board_link = (
             "http://docs.platformio.org/en/latest/platforms/espressif32.html#boards"
         )
-    else:
+    elif platform == "ESP8266":
         board_link = (
             "http://docs.platformio.org/en/latest/platforms/espressif8266.html#boards"
         )
+    elif platform in ["BK72XX", "RTL87XX"]:
+        board_link = "https://docs.libretiny.eu/docs/status/supported/"
+    else:
+        raise NotImplementedError("Unknown platform!")
 
     safe_print(f"Next, I need to know what {color(Fore.GREEN, 'board')} you're using.")
     sleep(0.5)
@@ -342,11 +374,24 @@ def wizard(path):
     # Don't sleep because user needs to copy link
     if platform == "ESP32":
         safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'nodemcu-32s')}\".")
-        boards = list(esp32_boards.ESP32_BOARD_PINS.keys())
-    else:
+        boards_list = esp32_boards.BOARDS.items()
+    elif platform == "ESP8266":
         safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'nodemcuv2')}\".")
-        boards = list(esp8266_boards.ESP8266_BOARD_PINS.keys())
-    safe_print(f"Options: {', '.join(sorted(boards))}")
+        boards_list = esp8266_boards.BOARDS.items()
+    elif platform == "BK72XX":
+        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'cb2s')}\".")
+        boards_list = bk72xx_boards.BOARDS.items()
+    elif platform == "RTL87XX":
+        safe_print(f"For example \"{color(Fore.BOLD_WHITE, 'wr3')}\".")
+        boards_list = rtl87xx_boards.BOARDS.items()
+    else:
+        raise NotImplementedError("Unknown platform!")
+
+    boards = []
+    safe_print("Options:")
+    for board_id, board_data in boards_list:
+        safe_print(f" - {board_id} - {board_data['name']}")
+        boards.append(board_id)
 
     while True:
         board = input(color(Fore.BOLD_WHITE, "(board): "))
@@ -420,7 +465,7 @@ def wizard(path):
     safe_print("Press ENTER for no password")
     password = input(color(Fore.BOLD_WHITE, "(password): "))
 
-    wizard_write(
+    if not wizard_write(
         path=path,
         name=name,
         platform=platform,
@@ -428,7 +473,8 @@ def wizard(path):
         ssid=ssid,
         psk=psk,
         password=password,
-    )
+    ):
+        return 1
 
     safe_print()
     safe_print(

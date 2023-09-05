@@ -14,6 +14,10 @@ esphome:
 
 logger:
 
+debug:
+
+psram:
+
 light:
   - platform: neopixelbus
     type: GRB
@@ -50,3 +54,14 @@ binary_sensor:
   - platform: tt21100
     name: Home Button
     index: 1
+
+sensor:
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Max Block Free"
+    loop_time:
+      name: "Loop Time"
+    psram:
+      name: "PSRAM Free"
