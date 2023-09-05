@@ -4,7 +4,7 @@ from esphome.components import light
 from esphome.components import spi
 from esphome.const import CONF_OUTPUT_ID, CONF_NUM_LEDS, CONF_DATA_RATE
 
-spi_rgb_led_ns = cg.esphome_ns.namespace("spi_rgb_led")
+spi_rgb_led_ns = cg.esphome_ns.namespace("spi_led_strip")
 SpiRgbLed = spi_rgb_led_ns.class_("SpiRgbLed", light.AddressableLight, spi.SPIDevice)
 
 CONFIG_SCHEMA = light.ADDRESSABLE_LIGHT_SCHEMA.extend(

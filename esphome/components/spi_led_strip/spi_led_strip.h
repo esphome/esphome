@@ -6,13 +6,13 @@
 #include "esphome/components/spi/spi.h"
 
 namespace esphome {
-namespace spi_rgb_led {
+namespace spi_led_strip {
 
 #ifndef SPIRGBLED_DATA_RATE
 #define SPIRGBLED_DATA_RATE spi::DATA_RATE_1MHZ
 #endif  // SPIRGBLED_DATA_RATE
 
-static const char *const TAG = "spi_rgb_led";
+static const char *const TAG = "spi_led_strip";
 class SpiRgbLed : public light::AddressableLight,
                   public spi::SPIDevice<spi::BIT_ORDER_MSB_FIRST, spi::CLOCK_POLARITY_HIGH, spi::CLOCK_PHASE_TRAILING,
                                         SPIRGBLED_DATA_RATE> {
@@ -48,7 +48,7 @@ class SpiRgbLed : public light::AddressableLight,
   }
 
   void dump_config() {
-    esph_log_config(TAG, "spi_rgb_led:");
+    esph_log_config(TAG, "spi_led_strip:");
     esph_log_config(TAG, "NumLeds: %d", this->num_leds_);
   }
 
@@ -87,5 +87,5 @@ class SpiRgbLed : public light::AddressableLight,
   uint16_t num_leds_;
 };
 
-}  // namespace spi_rgb_led
+}  // namespace spi_led_strip
 }  // namespace esphome
