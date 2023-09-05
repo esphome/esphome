@@ -388,12 +388,17 @@ void WK2132Channel::ring_to_tx_fifo_() {
 
 void WK2132Component::loop() {
   // if the component is not fully initialized we return
-  if (!this->initialized_)
+  if (!this->initialized_) {
+    for (auto *child : this->children_) {
+      child->transmit_buffer_.clear();
+      child->receive_buffer_.clear();
+    }
     return;
+  }
 
   // here we transfer between fifos and ring buffers
   for (auto *child : this->children_) {
-    child->rx_fifo_to_ring_();
+    child->ring_to_tx_fifo_();
     child->rx_fifo_to_ring_();
   }
 
