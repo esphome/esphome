@@ -48,6 +48,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
+    cv.only_on(["esp32", "esp8266", "rp2040"]),
 )
 
 

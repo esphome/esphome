@@ -50,6 +50,8 @@ ota:
 logger:
   level: DEBUG
 
+debug:
+
 web_server:
   ota: false
   auth:
