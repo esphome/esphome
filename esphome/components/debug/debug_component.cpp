@@ -28,7 +28,7 @@
 #ifdef USE_ARDUINO
 #ifdef USE_RP2040
 #include <Arduino.h>
-#else
+#elif defined(USE_ESP32) || defined(USE_ESP8266)
 #include <Esp.h>
 #endif
 #endif
@@ -45,6 +45,8 @@ static uint32_t get_free_heap() {
   return heap_caps_get_free_size(MALLOC_CAP_INTERNAL);
 #elif defined(USE_RP2040)
   return rp2040.getFreeHeap();
+#elif defined(USE_LIBRETINY)
+  return lt_heap_get_free();
 #endif
 }
 
@@ -75,7 +77,7 @@ void DebugComponent::dump_config() {
   this->free_heap_ = get_free_heap();
   ESP_LOGD(TAG, "Free Heap Size: %" PRIu32 " bytes", this->free_heap_);
 
-#if defined(USE_ARDUINO) && !defined(USE_RP2040)
+#if defined(USE_ARDUINO) && (defined(USE_ESP32) || defined(USE_ESP8266))
   const char *flash_mode;
   switch (ESP.getFlashChipMode()) {  // NOLINT(readability-static-accessed-through-instance)
     case FM_QIO:
@@ -107,7 +109,7 @@ void DebugComponent::dump_config() {
   device_info += "|Flash: " + to_string(ESP.getFlashChipSize() / 1024) +                    // NOLINT
                  "kB Speed:" + to_string(ESP.getFlashChipSpeed() / 1000000) + "MHz Mode:";  // NOLINT
   device_info += flash_mode;
-#endif  // USE_ARDUINO
+#endif  // USE_ARDUINO && (USE_ESP32 || USE_ESP8266)
 
 #ifdef USE_ESP32
   esp_chip_info_t info;
@@ -142,6 +144,10 @@ void DebugComponent::dump_config() {
   if (info.features & CHIP_FEATURE_BT) {
     features += "BT,";
     info.features &= ~CHIP_FEATURE_BT;
+  }
+  if (info.features & CHIP_FEATURE_EMB_PSRAM) {
+    features += "EMB_PSRAM,";
+    info.features &= ~CHIP_FEATURE_EMB_PSRAM;
   }
   if (info.features)
     features += "Other:" + format_hex(info.features);
@@ -340,6 +346,27 @@ void DebugComponent::dump_config() {
   device_info += "CPU Frequency: " + to_string(rp2040.f_cpu());
 #endif  // USE_RP2040
 
+#ifdef USE_LIBRETINY
+  ESP_LOGD(TAG, "LibreTiny Version: %s", lt_get_version());
+  ESP_LOGD(TAG, "Chip: %s (%04x) @ %u MHz", lt_cpu_get_model_name(), lt_cpu_get_model(), lt_cpu_get_freq_mhz());
+  ESP_LOGD(TAG, "Chip ID: 0x%06X", lt_cpu_get_mac_id());
+  ESP_LOGD(TAG, "Board: %s", lt_get_board_code());
+  ESP_LOGD(TAG, "Flash: %u KiB / RAM: %u KiB", lt_flash_get_size() / 1024, lt_ram_get_size() / 1024);
+  ESP_LOGD(TAG, "Reset Reason: %s", lt_get_reboot_reason_name(lt_get_reboot_reason()));
+
+  device_info += "|Version: ";
+  device_info += LT_BANNER_STR + 10;
+  device_info += "|Reset Reason: ";
+  device_info += lt_get_reboot_reason_name(lt_get_reboot_reason());
+  device_info += "|Chip Name: ";
+  device_info += lt_cpu_get_model_name();
+  device_info += "|Chip ID: 0x" + format_hex(lt_cpu_get_mac_id());
+  device_info += "|Flash: " + to_string(lt_flash_get_size() / 1024) + " KiB";
+  device_info += "|RAM: " + to_string(lt_ram_get_size() / 1024) + " KiB";
+
+  reset_reason = lt_get_reboot_reason_name(lt_get_reboot_reason());
+#endif  // USE_LIBRETINY
+
 #ifdef USE_TEXT_SENSOR
   if (this->device_info_ != nullptr) {
     if (device_info.length() > 255)
@@ -384,6 +411,8 @@ void DebugComponent::update() {
     this->block_sensor_->publish_state(ESP.getMaxFreeBlockSize());
 #elif defined(USE_ESP32)
     this->block_sensor_->publish_state(heap_caps_get_largest_free_block(MALLOC_CAP_INTERNAL));
+#elif defined(USE_LIBRETINY)
+    this->block_sensor_->publish_state(lt_heap_get_max_alloc());
 #endif
   }
 
@@ -398,6 +427,12 @@ void DebugComponent::update() {
     this->loop_time_sensor_->publish_state(this->max_loop_time_);
     this->max_loop_time_ = 0;
   }
+
+#ifdef USE_ESP32
+  if (this->psram_sensor_ != nullptr) {
+    this->psram_sensor_->publish_state(heap_caps_get_free_size(MALLOC_CAP_SPIRAM));
+  }
+#endif  // USE_ESP32
 #endif  // USE_SENSOR
 }
 
