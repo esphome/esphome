@@ -14,8 +14,8 @@ from .. import (
 
 MicroNovaButton = micronova_ns.class_("MicroNovaButton", button.Button, cg.Component)
 
-CONF_BUT_TEMP_UP = "but_temp_up"
-CONF_BUT_TEMP_DOWN = "but_temp_down"
+CONF_TEMPERATURE_UP = "temperature_up"
+CONF_TEMPERATURE_DOWN = "temperature_down"
 CONF_MEMORY_DATA = "memory_data"
 
 TYPES = [
