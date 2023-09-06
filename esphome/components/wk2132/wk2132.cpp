@@ -441,16 +441,26 @@ void WK2132Component::loop() {
     }
   }
 
+  uint32_t time;
+  auto elapsed = [&time]() {
+    auto e = millis() - time;
+    time = millis();
+    return e;
+  };
+
+  static uint32_t loop_time = 0;
   if (test_mode_.test(1)) {  // test loop mode (bit 1)
-    static uint32_t loop_time = 0;
     ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
     loop_time = millis();
 
     char preamble[64];
     for (size_t i = 0; i < this->children_.size(); i++) {
       snprintf(preamble, sizeof(preamble), "WK2132@%02X:%d", this->get_num_(), i);
-      this->children_[i]->uart_receive_test_(preamble);
+      elapsed();
+      this->children_[i]->uart_receive_test_(preamble, false);
+      ESP_LOGI(TAG, "receive execution time %d ms...", elapsed());
       this->children_[i]->uart_send_test_(preamble);
+      ESP_LOGI(TAG, "transmit execution time %d ms...", elapsed());
     }
     ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
   }
