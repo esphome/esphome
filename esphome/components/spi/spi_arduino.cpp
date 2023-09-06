@@ -16,6 +16,9 @@ using SPIBusDelegate = SPIClass;
 // list of available buses
 // NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables, cppcoreguidelines-interfaces-global-init)
 static std::vector<std::function<SPIBusDelegate *()>> bus_list = {
+#ifdef USE_ESP8266
+  [] { return &SPI; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
+#endif
 #ifdef USE_ESP32
     [] { return &SPI; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
 #if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
