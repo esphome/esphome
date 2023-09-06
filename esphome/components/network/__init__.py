@@ -24,6 +24,7 @@ CONFIG_SCHEMA = cv.Schema(
 
 async def to_code(config):
     if CONF_ENABLE_IPV6 in config:
+        cg.add_define("ENABLE_IPV6", config[CONF_ENABLE_IPV6])
         if CORE.using_esp_idf:
             add_idf_sdkconfig_option("CONFIG_LWIP_IPV6", config[CONF_ENABLE_IPV6])
             add_idf_sdkconfig_option(

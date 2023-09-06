@@ -23,7 +23,9 @@ SPI_DATA_RATE_OPTIONS = {
     40e6: SPIDataRate.DATA_RATE_40MHZ,
     20e6: SPIDataRate.DATA_RATE_20MHZ,
     10e6: SPIDataRate.DATA_RATE_10MHZ,
+    8e6: SPIDataRate.DATA_RATE_8MHZ,
     5e6: SPIDataRate.DATA_RATE_5MHZ,
+    4e6: SPIDataRate.DATA_RATE_4MHZ,
     2e6: SPIDataRate.DATA_RATE_2MHZ,
     1e6: SPIDataRate.DATA_RATE_1MHZ,
     2e5: SPIDataRate.DATA_RATE_200KHZ,
@@ -46,6 +48,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
+    cv.only_on(["esp32", "esp8266", "rp2040"]),
 )
 
 

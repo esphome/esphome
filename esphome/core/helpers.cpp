@@ -38,9 +38,13 @@
 #include "esp32/rom/crc.h"
 #endif
 
-#ifdef USE_ESP32_IGNORE_EFUSE_MAC_CRC
+#if defined(CONFIG_SOC_IEEE802154_SUPPORTED) || defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
 #include "esp_efuse.h"
 #include "esp_efuse_table.h"
+#endif
+
+#ifdef USE_LIBRETINY
+#include <WiFi.h>  // for macAddress()
 #endif
 
 namespace esphome {
@@ -190,6 +194,8 @@ uint32_t random_uint32() {
     result |= rosc_hw->randombit;
   }
   return result;
+#elif defined(USE_LIBRETINY)
+  return rand();
 #elif defined(USE_HOST)
   std::random_device dev;
   std::mt19937 rng(dev());
@@ -215,6 +221,9 @@ bool random_bytes(uint8_t *data, size_t len) {
     }
     *data++ = result;
   }
+  return true;
+#elif defined(USE_LIBRETINY)
+  lt_rand_bytes(data, len);
   return true;
 #elif defined(USE_HOST)
   FILE *fp = fopen("/dev/urandom", "r");
@@ -503,7 +512,7 @@ Mutex::Mutex() {}
 void Mutex::lock() {}
 bool Mutex::try_lock() { return true; }
 void Mutex::unlock() {}
-#elif defined(USE_ESP32)
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
 Mutex::Mutex() { handle_ = xSemaphoreCreateMutex(); }
 void Mutex::lock() { xSemaphoreTake(this->handle_, portMAX_DELAY); }
 bool Mutex::try_lock() { return xSemaphoreTake(this->handle_, 0) == pdTRUE; }
@@ -513,7 +522,7 @@ void Mutex::unlock() { xSemaphoreGive(this->handle_); }
 #if defined(USE_ESP8266)
 IRAM_ATTR InterruptLock::InterruptLock() { state_ = xt_rsil(15); }
 IRAM_ATTR InterruptLock::~InterruptLock() { xt_wsr_ps(state_); }
-#elif defined(USE_ESP32)
+#elif defined(USE_ESP32) || defined(USE_LIBRETINY)
 // only affects the executing core
 // so should not be used as a mutex lock, only to get accurate timing
 IRAM_ATTR InterruptLock::InterruptLock() { portDISABLE_INTERRUPTS(); }
@@ -540,7 +549,9 @@ bool HighFrequencyLoopRequester::is_high_frequency() { return num_requests > 0; 
 
 void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parameter)
 #if defined(USE_ESP32)
-#if defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
+#if defined(CONFIG_SOC_IEEE802154_SUPPORTED) || defined(USE_ESP32_IGNORE_EFUSE_MAC_CRC)
+  // When CONFIG_SOC_IEEE802154_SUPPORTED is defined, esp_efuse_mac_get_default
+  // returns the 802.15.4 EUI-64 address. Read directly from eFuse instead.
   // On some devices, the MAC address that is burnt into EFuse does not
   // match the CRC that goes along with it. For those devices, this
   // work-around reads and uses the MAC address as-is from EFuse,
@@ -552,6 +563,8 @@ void get_mac_address_raw(uint8_t *mac) {  // NOLINT(readability-non-const-parame
 #elif defined(USE_ESP8266)
   wifi_get_macaddr(STATION_IF, mac);
 #elif defined(USE_RP2040) && defined(USE_WIFI)
+  WiFi.macAddress(mac);
+#elif defined(USE_LIBRETINY)
   WiFi.macAddress(mac);
 #endif
 }

@@ -17,11 +17,11 @@ CONF_ON_FRAME = "on_frame"
 
 
 def validate_id(config):
-    if can_id := config.get(CONF_CAN_ID):
-        id_ext = config[CONF_USE_EXTENDED_ID]
-        if not id_ext:
-            if can_id > 0x7FF:
-                raise cv.Invalid("Standard IDs must be 11 Bit (0x000-0x7ff / 0-2047)")
+    can_id = config[CONF_CAN_ID]
+    id_ext = config[CONF_USE_EXTENDED_ID]
+    if not id_ext:
+        if can_id > 0x7FF:
+            raise cv.Invalid("Standard IDs must be 11 Bit (0x000-0x7ff / 0-2047)")
     return config
 
 
@@ -45,9 +45,13 @@ CanbusTrigger = canbus_ns.class_(
 CanSpeed = canbus_ns.enum("CAN_SPEED")
 
 CAN_SPEEDS = {
+    "1KBPS": CanSpeed.CAN_1KBPS,
     "5KBPS": CanSpeed.CAN_5KBPS,
     "10KBPS": CanSpeed.CAN_10KBPS,
+    "12K5BPS": CanSpeed.CAN_12K5BPS,
+    "16KBPS": CanSpeed.CAN_16KBPS,
     "20KBPS": CanSpeed.CAN_20KBPS,
+    "25KBPS": CanSpeed.CAN_25KBPS,
     "31K25BPS": CanSpeed.CAN_31K25BPS,
     "33KBPS": CanSpeed.CAN_33KBPS,
     "40KBPS": CanSpeed.CAN_40KBPS,
@@ -60,9 +64,9 @@ CAN_SPEEDS = {
     "200KBPS": CanSpeed.CAN_200KBPS,
     "250KBPS": CanSpeed.CAN_250KBPS,
     "500KBPS": CanSpeed.CAN_500KBPS,
+    "800KBPS": CanSpeed.CAN_800KBPS,
     "1000KBPS": CanSpeed.CAN_1000KBPS,
 }
-
 CANBUS_SCHEMA = cv.Schema(
     {
         cv.GenerateID(): cv.declare_id(CanbusComponent),
