@@ -3,7 +3,6 @@
 /// @brief wk2132 classes implementation
 
 #include "wk2132.h"
-#include <cassert>
 
 namespace esphome {
 namespace wk2132 {
@@ -96,16 +95,14 @@ uint8_t WK2132Component::read_wk2132_register_(uint8_t reg_number, uint8_t chann
 
 void WK2132Component::setup() {
   this->base_address_ = this->address_;  // TODO should not be necessary done in the ctor
-  ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", this->get_num_(), (int) this->children_.size());
-  // sanity check: the fifo should not be bigger that the ring buffer
-  static_assert(RING_BUFFER_SIZE >= FIFO_SIZE, "Fifo too large for buffer");
+  ESP_LOGCONFIG(TAG, "Setting up WK2132:@%02X with %d UARTs...", this->get_base_addr_(), (int) this->children_.size());
   // we setup our children
   for (auto *child : this->children_)
     child->setup_channel_();
 }
 
 void WK2132Component::dump_config() {
-  ESP_LOGCONFIG(TAG, "Initialization of configuration WK2132:@%02X with %d UARTs completed", this->get_num_(),
+  ESP_LOGCONFIG(TAG, "Initialization of configuration WK2132:@%02X with %d UARTs completed", this->get_base_addr_(),
                 (int) this->children_.size());
   ESP_LOGCONFIG(TAG, "  crystal %d", this->crystal_);
   int tm = this->test_mode_.to_ulong();
@@ -113,17 +110,15 @@ void WK2132Component::dump_config() {
   LOG_I2C_DEVICE(this);
 
   for (auto i = 0; i < this->children_.size(); i++) {
-    ESP_LOGCONFIG(TAG, "  UART @%02X:%d...", this->get_num_(), i);
+    ESP_LOGCONFIG(TAG, "  UART @%02X:%d...", this->get_base_addr_(), i);
     ESP_LOGCONFIG(TAG, "    baudrate %d Bd", this->children_[i]->baud_rate_);
     ESP_LOGCONFIG(TAG, "    data_bits %d", this->children_[i]->data_bits_);
     ESP_LOGCONFIG(TAG, "    stop_bits %d", this->children_[i]->stop_bits_);
     ESP_LOGCONFIG(TAG, "    parity %s", parity2string(this->children_[i]->parity_));
 
     // here we reset the buffers and the fifos
-#ifdef USE_TX_BUFFER
-    children_[i]->transmit_buffer_.clear();
-#endif
     children_[i]->receive_buffer_.clear();
+    children_[i]->flush_requested = false;
     children_[i]->reset_fifo_();
   }
   this->initialized_ = true;  // we can safely use the wk2132
@@ -134,29 +129,15 @@ void WK2132Component::dump_config() {
 ///////////////////////////////////////////////////////////////////////////////
 
 void WK2132Channel::setup_channel_() {
-  ESP_LOGCONFIG(TAG, "  Setting up UART @%02X:%d...", this->parent_->get_num_(), this->channel_);
+  ESP_LOGCONFIG(TAG, "  Setting up UART @%02X:%d...", this->parent_->get_base_addr_(), this->channel_);
 
   //
   // we first do the global register (common to both channel)
   //
-
-  //  GENA description of global control register:
-  //  * -------------------------------------------------------------------------
-  //  * |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-  //  * -------------------------------------------------------------------------
-  //  * |   M1   |   M0   |              RESERVED             |  UT2EN |  UT1EN |
-  //  * -------------------------------------------------------------------------
   uint8_t gena;
   this->parent_->read_wk2132_register_(REG_WK2132_GENA, 0, &gena, 1);
   (this->channel_ == 0) ? gena |= 0x01 : gena |= 0x02;  // enable channel 1 or 2
   this->parent_->write_wk2132_register_(REG_WK2132_GENA, 0, &gena, 1);
-
-  //  GRST description of global reset register:
-  //  * -------------------------------------------------------------------------
-  //  * |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-  //  * -------------------------------------------------------------------------
-  //  * |       RSV       | UT2SLE | UT1SLE |       RSV       | UT2RST | UT1RST |
-  //  * -------------------------------------------------------------------------
   // software reset UART channels
   uint8_t grst = 0;
   this->parent_->read_wk2132_register_(REG_WK2132_GRST, 0, &gena, 1);
@@ -166,18 +147,11 @@ void WK2132Channel::setup_channel_() {
   //
   // now we do the register linked to a specific channel
   //
-
   // initialize the spage register to page 0
   uint8_t const page = 0;
   this->parent_->page1_ = false;
   this->parent_->write_wk2132_register_(REG_WK2132_SPAGE, channel_, &page, 1);
-
-  // SCR description of UART control register:
-  //  -------------------------------------------------------------------------
-  //  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-  //  -------------------------------------------------------------------------
-  //  |                     RSV                    | SLEEPEN|  TXEN  |  RXEN  |
-  //  -------------------------------------------------------------------------
+  // we enable both channel
   uint8_t const scr = 0x3;  // 0000 0011 enable receive and transmit
   this->parent_->write_wk2132_register_(REG_WK2132_SCR, this->channel_, &scr, 1);
 
@@ -187,13 +161,7 @@ void WK2132Channel::setup_channel_() {
 }
 
 void WK2132Channel::reset_fifo_() {
-  // FCR description of UART FIFO control register:
-  // -------------------------------------------------------------------------
-  // |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-  // -------------------------------------------------------------------------
-  // |      TFTRIG     |      RFTRIG     |  TFEN  |  RFEN  |  TFRST |  RFRST |
-  // -------------------------------------------------------------------------
-  // we reset and enable the fifo ... FCR => 0000 1111
+  // we reset and enable all fifo ... FCR => 0000 1111
   uint8_t const fcr = 0b00001111;
   this->parent_->write_wk2132_register_(REG_WK2132_FCR, this->channel_, &fcr, 1);
 }
@@ -225,12 +193,7 @@ void WK2132Channel::set_line_param_() {
   this->data_bits_ = 8;  // always 8 for WK2132
   uint8_t lcr;
   this->parent_->read_wk2132_register_(REG_WK2132_LCR, this->channel_, &lcr, 1);
-  // LCR description of line configuration register:
-  //  -------------------------------------------------------------------------
-  //  |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-  //  -------------------------------------------------------------------------
-  //  |        RSV      |  BREAK |  IREN  |  PAEN  |      PAM        |  STPL  |
-  //  -------------------------------------------------------------------------
+
   lcr &= 0xF0;  // Clear the lower 4 bit of LCR
   if (this->stop_bits_ == 2)
     lcr |= 0x01;  // 0001
@@ -250,28 +213,11 @@ void WK2132Channel::set_line_param_() {
                 this->stop_bits_, parity2string(this->parity_), I2CS(lcr));
 }
 
+inline bool WK2132Channel::tx_fifo_is_not_empty_() {
+  return this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1) & 0x4;
+}
+
 size_t WK2132Channel::tx_in_fifo_() {
-  /// FSR description of line configuration register:
-  /// @code
-  /// * -------------------------------------------------------------------------
-  /// * |   b7   |   b6   |   b5   |   b4   |   b3   |   b2   |   b1   |   b0   |
-  /// * -------------------------------------------------------------------------
-  /// * |  RFOE  |  RFBI  |  RFFE  |  RFPE  |  RDAT  |  TDAT  |  TFULL |  TBUSY |
-  /// * -------------------------------------------------------------------------
-  /// @endcode
-  /// WARNING:\n
-  /// The received buffer can hold 256 bytes. However, as the RFCNT reg is 8 bits,
-  /// in this case the value 256 is reported as 0 ! Therefore the RFCNT count can be
-  /// zero when there is 0 byte or 256 bytes in the buffer. So if we have RXDAT = 1
-  /// and RFCNT = 0 it should be interpreted as there is 256 bytes in the FIFO.
-  /// Note that in case of overflow the RFOE goes to one **but** as soon as you read
-  /// the FSR this bit is cleared. Therefore Overflow can be read only once even if
-  /// still in overflow.
-  ///
-  /// The same remark is valid for the transmit buffer but here we have to check the
-  /// TFULL flag. So if TFULL is set and TFCNT is 0 this should be interpreted as 256
-  /// @image html write_cycles.png
-  ///
   size_t tfcnt = this->parent_->read_wk2132_register_(REG_WK2132_TFCNT, this->channel_, &this->data_, 1);
   uint8_t const fsr = this->parent_->read_wk2132_register_(REG_WK2132_FSR, this->channel_, &this->data_, 1);
   if ((fsr & 0x02) && (tfcnt == 0)) {
@@ -338,99 +284,169 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
   }
 }
 
-void WK2132Channel::flush() {
-  uint32_t const start_time = millis();
+bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
+  if (len > FIFO_SIZE) {
+    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, FIFO_SIZE);
+    return false;
+  }
+  auto available = this->receive_buffer_.count();
+  if (len > available) {
+    ESP_LOGE(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, available);
+    len = available;
+  }
+  // retrieve the bytes from ring buffer
+  for (size_t i = 0; i < len; i++) {
+    this->receive_buffer_.pop(buffer[i]);
+  }
+  return true;
+}
 
-#ifdef USE_TX_BUFFER
-  this->ring_to_tx_fifo_();  // we first push as much as we can in fifo
-  while (this->transmit_buffer_.count()) {
-    while (this->tx_in_fifo_()) {  // wait until buffer empty
-      if (millis() - start_time > 100) {
-        ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...",
-                 (this->tx_in_fifo_() + this->transmit_buffer_.count()));
-        return;
+void WK2132Channel::write_array(const uint8_t *buffer, size_t len) {
+  if (len > FIFO_SIZE) {
+    ESP_LOGE(TAG, "Write buffer invalid call: requested %d bytes max size %d ...", len, FIFO_SIZE);
+    len = FIFO_SIZE;
+  }
+
+  // if we had a flush request it is time to check it has been honored
+  if (this->flush_requested) {
+    if (this->tx_fifo_is_not_empty_()) {
+      // despite the fact that we have waited a max the fifo is still not empty
+      // therefore we now have to wait until it gets empty
+      uint32_t const start_time = millis();
+      while (this->tx_fifo_is_not_empty_()) {  // wait until buffer empty
+        if (millis() - start_time > 100) {
+          ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", this->tx_in_fifo_());
+          return;
+        }
+        yield();  // reschedule our thread to avoid blocking
       }
-    }
-    yield();  // reschedule our thread to avoid blocking
+    } else
+      this->flush_requested = false;  // we are all set
   }
-#else
-  while (this->tx_in_fifo_()) {  // wait until buffer empty
-    if (millis() - start_time > 100) {
-      ESP_LOGE(TAG, "Flush timed out: still %d bytes not sent...", this->tx_in_fifo_());
-      return;
-    }
+
+  this->write_data_(buffer, len);
+}
+
+void WK2132Channel::flush() {
+  // here we just record the request but we do not wait at this time.
+  // Tje next write_array() call will first check that everything
+  // is gone otherwise it will wait. This gives time for the bytes
+  // to go
+  this->flush_requested = true;
+}
+
+///////////////////////////////////////////////////////////////////////////////
+// AUTOTEST FUNCTIONS BELOW
+///////////////////////////////////////////////////////////////////////////////
+#ifdef AUTOTEST_COMPONENT
+
+/// @brief A Functor class that return incremented numbers
+class Increment {  // A "Functor" (A class object that acts like a method with state!)
+ public:
+  Increment() : i_(0) {}
+  uint8_t operator()() { return i_++; }
+
+ private:
+  uint8_t i_;
+};
+
+void print_buffer(std::vector<uint8_t> buffer) {
+  // quick and ugly hex converter to display buffer in hex format
+  char hex_buffer[80];
+  hex_buffer[50] = 0;
+  for (size_t i = 0; i < buffer.size(); i++) {
+    snprintf(&hex_buffer[3 * (i % 16)], sizeof(hex_buffer), "%02X ", buffer[i]);
+    if (i % 16 == 15)
+      ESP_LOGI(TAG, "   %s", hex_buffer);
   }
-  yield();  // reschedule our thread to avoid blocking
+  if (buffer.size() % 16) {
+    // null terminate if incomplete line
+    hex_buffer[3 * (buffer.size() % 16) + 2] = 0;
+    ESP_LOGI(TAG, "   %s", hex_buffer);
+  }
+}
+
+/// @brief test the write_array method
+void WK2132Channel::uart_send_test_(char *preamble) {
+  auto start_exec = millis();
+  // we send the maximum possible
+  this->flush();
+  size_t const to_send = FIFO_SIZE;
+  if (to_send > 0) {
+    std::vector<uint8_t> output_buffer(to_send);
+    generate(output_buffer.begin(), output_buffer.end(), Increment());  // fill with incrementing number
+    output_buffer[0] = to_send;                     // we send as the first byte the length of the buffer
+    this->write_array(&output_buffer[0], to_send);  // we send the buffer
+    this->flush();                                  // we wait until they are gone
+    ESP_LOGI(TAG, "%s => sending  %d bytes - exec time %d ms ...", preamble, to_send, millis() - start_exec);
+  }
+}
+
+/// @brief test the read_array method
+void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
+  auto start_exec = millis();
+  uint8_t const to_read = this->available();
+  if (to_read > 0) {
+    std::vector<uint8_t> buffer(to_read);
+    this->read_array(&buffer[0], to_read);
+    if (print_buf)
+      print_buffer(buffer);
+  }
+  ESP_LOGI(TAG, "%s => received %d bytes - exec time %d ms ...", preamble, to_read, millis() - start_exec);
+}
 #endif
-}
 
-void WK2132Channel::rx_fifo_to_ring_() {
-  // here we transfer from fifo to ring buffer
-
-  // we look if some characters has been received in the fifo
-  if (auto to_transfer = this->rx_in_fifo_()) {
-    uint8_t data[to_transfer]{0};
-    this->read_data_(data, to_transfer);
-    auto free = this->receive_buffer_.free();
-    if (to_transfer > free) {
-      ESP_LOGV(TAG, "Ring buffer overrun --> requested %d available %d", to_transfer, free);
-      to_transfer = free;  // hopefully will do the rest next time
-    }
-    ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
-    for (size_t i = 0; i < to_transfer; i++)
-      this->receive_buffer_.push(data[i]);
-  }
-}
-
-#ifdef USE_TX_BUFFER
-void WK2132Channel::ring_to_tx_fifo_() {
-  // here we transfer from ring buffer to fifo
-  auto count = this->transmit_buffer_.count();
-  uint8_t data[count]{0};
-  auto available = this->fifo_size() - this->tx_in_fifo_();
-  if (available) {
-    if (count > available) {
-      ESP_LOGV(TAG, "Transmit fifo overrun --> requested %d available %d", count, available);
-      count = available;
-    }
-    ESP_LOGV(TAG, "Transferred %d bytes from ring buffer to fifo", count);
-    for (size_t i = 0; i < count; i++)
-      this->transmit_buffer_.pop(data[i]);
-    this->write_data_(data, count);
-  }
-}
-#endif
-
+//
+// This is the WK2132Component loop() method
+//
 void WK2132Component::loop() {
-  // if the component is not fully initialized we return
+  static uint16_t loop_calls = 0;
+  static uint32_t loop_time = 0;
+  uint32_t time;
+  auto elapsed = [&time]() {
+    auto e = millis() - time;
+    time = millis();
+    return e;
+  };
+  if (this->test_mode_.any())
+    ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
+  loop_time = millis();
+
+  // if the component is not fully initialized we clear and return
   if (!this->initialized_) {
     for (auto *child : this->children_) {
-#ifdef USE_TX_BUFFER
-      child->transmit_buffer_.clear();
-#endif
       child->receive_buffer_.clear();
     }
     return;
   }
 
-  // here we transfer between fifos and ring buffers
+  // here we transfer bytes from fifo to ring buffers
+  elapsed();
   for (auto *child : this->children_) {
-#ifdef USE_TX_BUFFER
-    child->ring_to_tx_fifo_();
-#endif
-    child->rx_fifo_to_ring_();
+    // we look if some characters has been received in the fifo
+    if (auto to_transfer = child->rx_in_fifo_()) {
+      uint8_t data[to_transfer]{0};
+      child->read_data_(data, to_transfer);
+      auto free = child->receive_buffer_.free();
+      if (to_transfer > free) {
+        ESP_LOGV(TAG, "Ring buffer overrun --> requested %d available %d", to_transfer, free);
+        to_transfer = free;  // hopefully will do the rest next time
+      }
+      ESP_LOGV(TAG, "Transferred %d bytes from rx_fifo to buffer ring", to_transfer);
+      for (size_t i = 0; i < to_transfer; i++)
+        child->receive_buffer_.push(data[i]);
+    }
   }
+  if (this->test_mode_.any())
+    ESP_LOGI(TAG, "transfer all fifo to ring execution time %d ms...", elapsed());
 
-///////////////////////////////////////////////////////////////////////////////
-/// AUTOTEST FUNCTIONS BELOW
-///////////////////////////////////////////////////////////////////////////////
 #ifdef AUTOTEST_COMPONENT
   //
   // This loop is used only if the wk2132 component is in test mode
   //
-  static uint16_t loop_calls = 0;
 
   if (this->test_mode_.test(0)) {  // test echo mode (bit 0)
+    elapsed();
     for (auto *child : this->children_) {
       uint8_t data;
       if (child->available()) {
@@ -439,31 +455,22 @@ void WK2132Component::loop() {
         child->write_byte(data);
       }
     }
+    ESP_LOGI(TAG, "echo execution time %d ms...", elapsed());
   }
 
-  uint32_t time;
-  auto elapsed = [&time]() {
-    auto e = millis() - time;
-    time = millis();
-    return e;
-  };
-
-  static uint32_t loop_time = 0;
   if (test_mode_.test(1)) {  // test loop mode (bit 1)
-    ESP_LOGI(TAG, "loop %d : %d ms since last call ...", loop_calls++, millis() - loop_time);
-    loop_time = millis();
-
     char preamble[64];
     for (size_t i = 0; i < this->children_.size(); i++) {
-      snprintf(preamble, sizeof(preamble), "WK2132@%02X:%d", this->get_num_(), i);
+      snprintf(preamble, sizeof(preamble), "WK2132@%02X:%d", this->get_base_addr_(), i);
       elapsed();
-      this->children_[i]->uart_receive_test_(preamble, false);
+      this->children_[i]->uart_receive_test_(preamble, true);
       ESP_LOGI(TAG, "receive execution time %d ms...", elapsed());
       this->children_[i]->uart_send_test_(preamble);
       ESP_LOGI(TAG, "transmit execution time %d ms...", elapsed());
     }
-    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
   }
+  if (this->test_mode_.any())
+    ESP_LOGI(TAG, "loop execution time %d ms...", millis() - loop_time);
 #endif
 }
 
