@@ -232,7 +232,7 @@ jobs:
       fail-fast: false
       max-parallel: 2
       matrix:
-        file: [1, 2, 3, 3.1, 4, 5, 6, 7, 8]
+        file: [1, 2, 3, 3.1, 4, 5, 6, 7, 8, 9, 9.1]
     steps:
       - name: Check out code from GitHub
         uses: actions/checkout@v4
@@ -288,6 +288,10 @@ jobs:
             name: Run script/clang-tidy for ESP32 IDF
             options: --environment esp32-idf-tidy --grep USE_ESP_IDF
             pio_cache_key: tidyesp32-idf
+          - id: clang-tidy
+            name: Run script/clang-tidy for LibreTiny
+            options: --environment bk72xx-arduino --grep USE_LIBRETINY
+            pio_cache_key: tidylibretiny
 
     steps:
       - name: Check out code from GitHub
