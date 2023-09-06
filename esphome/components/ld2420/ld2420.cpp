@@ -115,7 +115,6 @@ void LD2420Component::readline_(uint8_t rx_data, uint8_t *buffer, int len) {
     }
     if (pos >= 4) {
       if (memcmp(&buffer[pos - 4], &CMD_FRAME_FOOTER, sizeof(CMD_FRAME_FOOTER)) == 0) {
-        ESP_LOGD(TAG, "Rx: %s", format_hex_pretty(buffer, pos).c_str());
         set_cmd_active_(false);  // Set command state to inactive after responce.
         this->handle_ack_data_(buffer, pos);
         pos = 0;
@@ -126,7 +125,6 @@ void LD2420Component::readline_(uint8_t rx_data, uint8_t *buffer, int len) {
                   (memcmp(&buffer[pos - 5], &CMD_FRAME_HEADER, sizeof(CMD_FRAME_HEADER)) == 0) &&
                   buffer[pos - 1] == 0xFA) &&
                  get_mode_() == 0) {
-        ESP_LOGD(TAG, "Rx: %s", format_hex_pretty(buffer, pos).c_str());
         this->handle_stream_data_(buffer, pos);
         pos = 0;
       }
@@ -196,10 +194,10 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
   uint8_t data_element = 0;
   uint16_t data_pos = 0;
   if (cmd_reply_.length > CMD_MAX_BYTES) {
-    ESP_LOGD(TAG, "LD2420 reply - received frame is corrupt, data length exceeds 64 bytes.");
+    ESP_LOGW(TAG, "LD2420 reply - received frame is corrupt, data length exceeds 64 bytes.");
     return;
   } else if (cmd_reply_.length < 2) {
-    ESP_LOGD(TAG, "LD2420 reply - received frame is corrupt, data length is less than 2 bytes.");
+    ESP_LOGW(TAG, "LD2420 reply - received frame is corrupt, data length is less than 2 bytes.");
     return;
   }
   memcpy(&cmd_reply_.error, &buffer[CMD_ERROR_WORD], sizeof(cmd_reply_.error));
@@ -224,7 +222,6 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
            index += CMD_REG_DATA_REPLY_SIZE) {
         memcpy(&cmd_reply_.data[reg_element], &buffer[data_pos + index], sizeof(CMD_REG_DATA_REPLY_SIZE));
         byteswap(cmd_reply_.data[reg_element]);
-        ESP_LOGD(TAG, "Data[%2X]: %s", reg_element, format_hex_pretty(cmd_reply_.data[reg_element]).c_str());
         reg_element++;
       }
       break;
@@ -242,7 +239,6 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
            index += CMD_ABD_DATA_REPLY_SIZE) {
         memcpy(&cmd_reply_.data[data_element], &buffer[data_pos + index], sizeof(cmd_reply_.data[data_element]));
         byteswap(cmd_reply_.data[data_element]);
-        ESP_LOGD(TAG, "Data[%2X]: %s", data_element, format_hex_pretty(cmd_reply_.data[data_element]).c_str());
         data_element++;
       }
       break;
@@ -250,7 +246,7 @@ void LD2420Component::handle_ack_data_(uint8_t *buffer, int len) {
       ESP_LOGD(TAG, "LD2420 reply - set system parameter(s): %2X %s", CMD_WRITE_SYS_PARAM, result);
       break;
     case (CMD_READ_VERSION):
-      // &buffer[12] - start of version string  buffer[10] sting length
+      // &buffer[12] - start of version string  buffer[10] string length
       memcpy(this->ld2420_firmware_ver_, &buffer[12], buffer[10]);
       ESP_LOGD(TAG, "LD2420 reply - module firmware version: %7s %s", this->ld2420_firmware_ver_, result);
       break;
@@ -293,8 +289,6 @@ int LD2420Component::send_cmd_from_array(CmdFrameT frame) {
     for (uint16_t index = 0; index < frame.length; index++) {
       this->write_byte(cmd_buffer[index]);
     }
-
-    ESP_LOGD(TAG, "Tx: %s", format_hex_pretty(cmd_buffer, frame.length).c_str());
 
     delay_microseconds_safe(500);  // give the module a moment to process it
     error = 0;
