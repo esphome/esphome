@@ -15,6 +15,10 @@
 #include <WiFi.h>
 #endif
 
+#ifdef USE_LIBRETINY
+#include <WiFi.h>
+#endif
+
 #ifdef USE_ESP8266
 #include <ESP8266WiFi.h>
 #include <ESP8266WiFiType.h>
@@ -334,6 +338,11 @@ class WiFiComponent : public Component {
 #ifdef USE_RP2040
   static int s_wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
   void wifi_scan_result(void *env, const cyw43_ev_scan_result_t *result);
+#endif
+
+#ifdef USE_LIBRETINY
+  void wifi_event_callback_(arduino_event_id_t event, arduino_event_info_t info);
+  void wifi_scan_done_callback_();
 #endif
 
   std::string use_address_;
