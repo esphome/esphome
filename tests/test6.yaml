@@ -22,6 +22,8 @@ ota:
 
 logger:
 
+debug:
+
 binary_sensor:
   - platform: gpio
     pin: GPIO5
