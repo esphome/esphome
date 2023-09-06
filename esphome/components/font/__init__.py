@@ -1,6 +1,5 @@
 import functools
 from pathlib import Path
-import hashlib
 import os
 import re
 from packaging import version
@@ -31,6 +30,7 @@ from esphome.core import CORE, HexInt
 DOMAIN = "font"
 DEPENDENCIES = ["display"]
 MULTI_CONF = True
+NETWORK_TIMEOUT = 30
 
 font_ns = cg.esphome_ns.namespace("font")
 
@@ -136,7 +136,7 @@ def validate_weight_name(value):
 
 def get_font_url(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
-        wght = value[CONF_WEIGHT]
+        wght = value[CONF_FILE][CONF_WEIGHT]
         return (
             f"https://fonts.googleapis.com/css2?family={value[CONF_FAMILY]}:wght@{wght}"
         )
@@ -149,27 +149,23 @@ def get_font_name(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
         return f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}"
     if value[CONF_TYPE] == TYPE_WEB:
-        return external_files.get_file_name_from_url(value[CONF_URL])
+        file_name, _ = external_files.get_file_info_from_url(value[CONF_URL])
+        return file_name
     return ""
 
 
 def get_font_path(value):
     if value[CONF_TYPE] == TYPE_GFONTS:
-        name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
-        return (
-            Path(
-                external_files.compute_local_file_dir(name, DOMAIN, value[CONF_REFRESH])
-            )
-            / "font.ttf"
-        )
+        name = f"{value[CONF_FAMILY]}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}"
+        return external_files.compute_local_file_dir(name, DOMAIN) / "font.ttf"
     if value[CONF_TYPE] == TYPE_WEB:
-        font_id = external_files.get_file_name_from_url(value[CONF_URL])
-        name = f"{font_id}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}@v1"
-        file_name = font_id + "." + external_files.get_file_type(value[CONF_URL])
-        file_path = Path(
-            external_files.compute_local_file_dir(name, DOMAIN, value[CONF_REFRESH])
+        file_name, file_extension = external_files.get_file_info_from_url(
+            value[CONF_URL]
         )
-        return file_path / file_name
+        name = f"{file_name}@{value[CONF_WEIGHT]}@{value[CONF_ITALIC]}"
+        file_path = Path(external_files.compute_local_file_dir(name, DOMAIN))
+        output_file_name = f"{file_name}{file_extension}"
+        return file_path / output_file_name
     return None
 
 
@@ -184,21 +180,20 @@ def download_gfont_ttf(value, req):
 
     ttf_url = match.group(1)
     try:
-        req = requests.get(ttf_url, timeout=30)
+        req = requests.get(ttf_url, timeout=NETWORK_TIMEOUT)
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(f"Could not download ttf file for {name} ({ttf_url}): {e}")
-    return req
 
 
 def download_web_font(value):
     name = get_font_name(value)
     url = get_font_url(value)
     path = get_font_path(value)
-    if path.is_file():
+    if external_files.is_file_recent(path, value[CONF_REFRESH]):
         return value
     try:
-        req = requests.get(url, timeout=30)
+        req = requests.get(url, timeout=NETWORK_TIMEOUT)
         req.raise_for_status()
     except requests.exceptions.RequestException as e:
         raise cv.Invalid(
@@ -207,7 +202,7 @@ def download_web_font(value):
         )
 
     if value[CONF_TYPE] == TYPE_GFONTS:
-        req = download_gfont_ttf(value, req)
+        download_gfont_ttf(value, req)
 
     path.parent.mkdir(exist_ok=True, parents=True)
     path.write_bytes(req.content)
@@ -356,19 +351,13 @@ class BitmapFontWrapper:
         return (max_height, 0)
 
 
-def _compute_local_font_dir(name) -> Path:
-    base_dir = Path(CORE.config_dir) / ".esphome" / DOMAIN
-    h = hashlib.new("sha256")
-    h.update(name.encode())
-    return base_dir / h.hexdigest()[:8]
-
-
 def convert_bitmap_to_pillow_font(filepath):
     from PIL import PcfFontFile, BdfFontFile
 
-    local_bitmap_font_file = _compute_local_font_dir(filepath) / os.path.basename(
-        filepath
-    )
+    local_bitmap_font_file = external_files.compute_local_file_dir(
+        filepath,
+        DOMAIN,
+    ) / os.path.basename(filepath)
 
     copy_file_if_changed(filepath, local_bitmap_font_file)
 
