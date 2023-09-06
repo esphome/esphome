@@ -2,14 +2,14 @@ voluptuous==0.13.1
 PyYAML==6.0.1
 paho-mqtt==1.6.1
 colorama==0.4.6
-tornado==6.3.2
+tornado==6.3.3
 tzlocal==5.0.1    # from time
 tzdata>=2021.1  # from time
 pyserial==3.5
-platformio==6.1.10  # When updating platformio, also update Dockerfile
+platformio==6.1.11  # When updating platformio, also update Dockerfile
 esptool==4.6.2
 click==8.1.7
-esphome-dashboard==20230711.0
+esphome-dashboard==20230904.0
 aioesphomeapi==15.0.0
 zeroconf==0.88.0
 

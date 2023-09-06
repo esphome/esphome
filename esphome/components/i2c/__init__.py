@@ -42,23 +42,26 @@ pin_with_input_and_output_support = cv.All(
 )
 
 
-CONFIG_SCHEMA = cv.Schema(
-    {
-        cv.GenerateID(): _bus_declare_type,
-        cv.Optional(CONF_SDA, default="SDA"): pin_with_input_and_output_support,
-        cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32_idf=True): cv.All(
-            cv.only_with_esp_idf, cv.boolean
-        ),
-        cv.Optional(CONF_SCL, default="SCL"): pin_with_input_and_output_support,
-        cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32_idf=True): cv.All(
-            cv.only_with_esp_idf, cv.boolean
-        ),
-        cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
-            cv.frequency, cv.Range(min=0, min_included=False)
-        ),
-        cv.Optional(CONF_SCAN, default=True): cv.boolean,
-    }
-).extend(cv.COMPONENT_SCHEMA)
+CONFIG_SCHEMA = cv.All(
+    cv.Schema(
+        {
+            cv.GenerateID(): _bus_declare_type,
+            cv.Optional(CONF_SDA, default="SDA"): pin_with_input_and_output_support,
+            cv.SplitDefault(CONF_SDA_PULLUP_ENABLED, esp32_idf=True): cv.All(
+                cv.only_with_esp_idf, cv.boolean
+            ),
+            cv.Optional(CONF_SCL, default="SCL"): pin_with_input_and_output_support,
+            cv.SplitDefault(CONF_SCL_PULLUP_ENABLED, esp32_idf=True): cv.All(
+                cv.only_with_esp_idf, cv.boolean
+            ),
+            cv.Optional(CONF_FREQUENCY, default="50kHz"): cv.All(
+                cv.frequency, cv.Range(min=0, min_included=False)
+            ),
+            cv.Optional(CONF_SCAN, default=True): cv.boolean,
+        }
+    ).extend(cv.COMPONENT_SCHEMA),
+    cv.only_on(["esp32", "esp8266", "rp2040"]),
+)
 
 
 @coroutine_with_priority(1.0)

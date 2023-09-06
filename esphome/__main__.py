@@ -26,6 +26,8 @@ from esphome.const import (
     CONF_ESPHOME,
     CONF_PLATFORMIO_OPTIONS,
     CONF_SUBSTITUTIONS,
+    PLATFORM_BK72XX,
+    PLATFORM_RTL87XX,
     PLATFORM_ESP32,
     PLATFORM_ESP8266,
     PLATFORM_RP2040,
@@ -278,20 +280,25 @@ def upload_using_esptool(config, port):
     return run_esptool(115200)
 
 
+def upload_using_platformio(config, port):
+    from esphome import platformio_api
+
+    upload_args = ["-t", "upload", "-t", "nobuild"]
+    if port is not None:
+        upload_args += ["--upload-port", port]
+    return platformio_api.run_platformio_cli_run(config, CORE.verbose, *upload_args)
+
+
 def upload_program(config, args, host):
     if get_port_type(host) == "SERIAL":
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
             return upload_using_esptool(config, host)
 
         if CORE.target_platform in (PLATFORM_RP2040):
-            from esphome import platformio_api
+            return upload_using_platformio(config, args.device)
 
-            upload_args = ["-t", "upload"]
-            if args.device is not None:
-                upload_args += ["--upload-port", args.device]
-            return platformio_api.run_platformio_cli_run(
-                config, CORE.verbose, *upload_args
-            )
+        if CORE.target_platform in (PLATFORM_BK72XX, PLATFORM_RTL87XX):
+            return upload_using_platformio(config, host)
 
         return 1  # Unknown target platform
 
