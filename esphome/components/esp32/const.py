@@ -10,6 +10,7 @@ KEY_REF = "ref"
 KEY_REFRESH = "refresh"
 KEY_PATH = "path"
 KEY_SUBMODULES = "submodules"
+KEY_EXTRA_BUILD_FILES = "extra_build_files"
 
 VARIANT_ESP32 = "ESP32"
 VARIANT_ESP32S2 = "ESP32S2"
