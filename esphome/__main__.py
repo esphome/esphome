@@ -85,6 +85,8 @@ def choose_upload_log_host(
     options = []
     for port in get_serial_ports():
         options.append((f"{port.path} ({port.description})", port.path))
+    if default == "SERIAL":
+        return choose_prompt(options, purpose=purpose)
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == "OTA":
