@@ -71,7 +71,7 @@ CONFIG_SCHEMA = cv.Schema(
         cv.Optional(CONF_FAN_SPEED): sensor.sensor_schema(
             MicroNovaSensor,
             state_class=STATE_CLASS_MEASUREMENT,
-            unit_of_measurement=UNIT_RPM,
+            unit_of_measurement=UNIT_REVOLUTIONS_PER_MINUTE,
         )
         .extend(MICRONOVA_LISTENER_SCHEMA)
         .extend(
