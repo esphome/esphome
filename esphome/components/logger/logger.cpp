@@ -4,6 +4,7 @@
 #ifdef USE_ESP_IDF
 #include <driver/uart.h>
 #include "freertos/FreeRTOS.h"
+#include "esp_idf_version.h"
 #endif  // USE_ESP_IDF
 
 #if defined(USE_ESP32_FRAMEWORK_ARDUINO) || defined(USE_ESP_IDF)
@@ -157,6 +158,7 @@ Logger::Logger(uint32_t baud_rate, size_t tx_buffer_size) : baud_rate_(baud_rate
   this->tx_buffer_ = new char[this->tx_buffer_size_ + 1];  // NOLINT
 }
 
+#ifndef USE_LIBRETINY
 void Logger::pre_setup() {
   if (this->baud_rate_ > 0) {
 #ifdef USE_ARDUINO
@@ -239,6 +241,9 @@ void Logger::pre_setup() {
       uart_config.parity = UART_PARITY_DISABLE;
       uart_config.stop_bits = UART_STOP_BITS_1;
       uart_config.flow_ctrl = UART_HW_FLOWCTRL_DISABLE;
+#if ESP_IDF_VERSION >= ESP_IDF_VERSION_VAL(5, 0, 0)
+      uart_config.source_clk = UART_SCLK_DEFAULT;
+#endif
       uart_param_config(uart_num_, &uart_config);
       const int uart_buffer_size = tx_buffer_size_;
       // Install UART driver using an event queue here
@@ -262,12 +267,58 @@ void Logger::pre_setup() {
 
   ESP_LOGI(TAG, "Log initialized");
 }
+#else  // USE_LIBRETINY
+void Logger::pre_setup() {
+  if (this->baud_rate_ > 0) {
+    switch (this->uart_) {
+#if LT_HW_UART0
+      case UART_SELECTION_UART0:
+        this->hw_serial_ = &Serial0;
+        Serial0.begin(this->baud_rate_);
+        break;
+#endif
+#if LT_HW_UART1
+      case UART_SELECTION_UART1:
+        this->hw_serial_ = &Serial1;
+        Serial1.begin(this->baud_rate_);
+        break;
+#endif
+#if LT_HW_UART2
+      case UART_SELECTION_UART2:
+        this->hw_serial_ = &Serial2;
+        Serial2.begin(this->baud_rate_);
+        break;
+#endif
+      default:
+        this->hw_serial_ = &Serial;
+        Serial.begin(this->baud_rate_);
+        if (this->uart_ != UART_SELECTION_DEFAULT) {
+          ESP_LOGW(TAG, "  The chosen logger UART port is not available on this board."
+                        "The default port was used instead.");
+        }
+        break;
+    }
+
+    // change lt_log() port to match default Serial
+    if (this->uart_ == UART_SELECTION_DEFAULT) {
+      this->uart_ = (UARTSelection) (LT_UART_DEFAULT_SERIAL + 1);
+      lt_log_set_port(LT_UART_DEFAULT_SERIAL);
+    } else {
+      lt_log_set_port(this->uart_ - 1);
+    }
+  }
+
+  global_logger = this;
+  ESP_LOGI(TAG, "Log initialized");
+}
+#endif  // USE_LIBRETINY
+
 void Logger::set_baud_rate(uint32_t baud_rate) { this->baud_rate_ = baud_rate; }
 void Logger::set_log_level(const std::string &tag, int log_level) {
   this->log_levels_.push_back(LogLevelOverride{tag, log_level});
 }
 
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
 UARTSelection Logger::get_uart() const { return this->uart_; }
 #endif
 
@@ -295,15 +346,18 @@ const char *const UART_SELECTIONS[] = {
 #endif  // USE_ESP32
 #ifdef USE_ESP8266
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "UART0_SWAP"};
-#endif
+#endif  // USE_ESP8266
 #ifdef USE_RP2040
 const char *const UART_SELECTIONS[] = {"UART0", "UART1", "USB_CDC"};
-#endif  // USE_ESP8266
+#endif  // USE_RP2040
+#ifdef USE_LIBRETINY
+const char *const UART_SELECTIONS[] = {"DEFAULT", "UART0", "UART1", "UART2"};
+#endif  // USE_LIBRETINY
 void Logger::dump_config() {
   ESP_LOGCONFIG(TAG, "Logger:");
   ESP_LOGCONFIG(TAG, "  Level: %s", LOG_LEVELS[ESPHOME_LOG_LEVEL]);
   ESP_LOGCONFIG(TAG, "  Log Baud Rate: %" PRIu32, this->baud_rate_);
-#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040)
+#if defined(USE_ESP32) || defined(USE_ESP8266) || defined(USE_RP2040) || defined(USE_LIBRETINY)
   ESP_LOGCONFIG(TAG, "  Hardware UART: %s", UART_SELECTIONS[this->uart_]);
 #endif
 

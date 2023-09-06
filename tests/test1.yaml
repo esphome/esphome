@@ -848,6 +848,8 @@ sensor:
       name: Living Room Temperature 6
     humidity:
       name: Living Room Humidity 6
+    heater:
+      name: Living Room Heater 6
     update_interval: 15s
     i2c_id: i2c_bus
   - platform: max6675
@@ -1078,6 +1080,11 @@ sensor:
     altitude_compensation: 10m
     ambient_pressure_compensation: 961mBar
     temperature_offset: 4.2C
+    i2c_id: i2c_bus
+  - platform: sen0321
+    name: Workshop Ozone Sensor
+    id: sen0321_ozone
+    update_interval: 10s
     i2c_id: i2c_bus
   - platform: sgp30
     eco2:
@@ -1446,6 +1453,15 @@ sensor:
     pressure:
       name: "BMP581 Pressure"
       oversampling: 128x
+  - platform: debug
+    free:
+      name: "Heap Free"
+    block:
+      name: "Heap Max Block"
+    loop_time:
+      name: "Loop Time"
+    psram:
+      name: "PSRAM Free"
 
 esp32_touch:
   setup_mode: false
@@ -3445,7 +3461,6 @@ number:
         name: g8 move threshold
       still_threshold:
         name: g8 still threshold
-
 
 select:
   - platform: template
