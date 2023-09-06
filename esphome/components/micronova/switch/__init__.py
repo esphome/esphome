@@ -12,7 +12,7 @@ from .. import (
     micronova_ns,
 )
 
-CONF_STOVE_SWITCH = "stove_switch"
+CONF_STOVE = "stove"
 CONF_MEMORY_DATA_ON = "memory_data_on"
 CONF_MEMORY_DATA_OFF = "memory_data_off"
 
