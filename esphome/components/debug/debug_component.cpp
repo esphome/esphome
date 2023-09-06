@@ -1,11 +1,11 @@
 #include "debug_component.h"
 
 #include <algorithm>
-#include "esphome/core/log.h"
+#include <cinttypes>
 #include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
+#include "esphome/core/log.h"
 #include "esphome/core/version.h"
-#include <cinttypes>
 
 #ifdef USE_ESP32
 
@@ -355,7 +355,7 @@ void DebugComponent::dump_config() {
   ESP_LOGD(TAG, "Reset Reason: %s", lt_get_reboot_reason_name(lt_get_reboot_reason()));
 
   device_info += "|Version: ";
-  device_info += LT_BANNER_STR + 10;
+  device_info += &LT_BANNER_STR[10];
   device_info += "|Reset Reason: ";
   device_info += lt_get_reboot_reason_name(lt_get_reboot_reason());
   device_info += "|Chip Name: ";

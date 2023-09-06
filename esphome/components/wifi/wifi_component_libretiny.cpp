@@ -2,16 +2,16 @@
 
 #ifdef USE_LIBRETINY
 
-#include <utility>
 #include <algorithm>
-#include "lwip/ip_addr.h"
-#include "lwip/err.h"
+#include <utility>
 #include "lwip/dns.h"
+#include "lwip/err.h"
+#include "lwip/ip_addr.h"
 
+#include "esphome/core/application.h"
+#include "esphome/core/hal.h"
 #include "esphome/core/helpers.h"
 #include "esphome/core/log.h"
-#include "esphome/core/hal.h"
-#include "esphome/core/application.h"
 #include "esphome/core/util.h"
 
 namespace esphome {
@@ -112,9 +112,9 @@ bool WiFiComponent::wifi_sta_connect_(const WiFiAP &ap) {
 
   s_sta_connecting = true;
 
-  WiFiStatus status = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
+  WiFiStatus status = WiFi.begin(ap.get_ssid().c_str(), ap.get_password().empty() ? nullptr : ap.get_password().c_str(),
                                  ap.get_channel().has_value() ? *ap.get_channel() : 0,
-                                 ap.get_bssid().has_value() ? ap.get_bssid()->data() : NULL);
+                                 ap.get_bssid().has_value() ? ap.get_bssid()->data() : nullptr);
   if (status != WL_CONNECTED) {
     ESP_LOGW(TAG, "esp_wifi_connect failed! %d", status);
     return false;
@@ -438,7 +438,7 @@ bool WiFiComponent::wifi_start_ap_(const WiFiAP &ap) {
 
   yield();
 
-  return WiFi.softAP(ap.get_ssid().c_str(), ap.get_password().empty() ? NULL : ap.get_password().c_str(),
+  return WiFi.softAP(ap.get_ssid().c_str(), ap.get_password().empty() ? nullptr : ap.get_password().c_str(),
                      ap.get_channel().value_or(1), ap.get_hidden());
 }
 network::IPAddress WiFiComponent::wifi_soft_ap_ip() { return {WiFi.softAPIP()}; }
