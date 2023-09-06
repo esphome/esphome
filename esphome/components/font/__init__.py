@@ -306,10 +306,7 @@ FONT_SCHEMA = cv.Schema(
     },
 )
 
-CONFIG_SCHEMA = cv.All(
-    validate_pillow_installed,
-    FONT_SCHEMA,
-)
+CONFIG_SCHEMA = cv.All(validate_pillow_installed, FONT_SCHEMA)
 
 # PIL doesn't provide a consistent interface for both TrueType and bitmap
 # fonts. So, we use our own wrappers to give us the consistency that we need.
