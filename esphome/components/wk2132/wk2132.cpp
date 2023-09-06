@@ -7,12 +7,235 @@
 namespace esphome {
 namespace wk2132 {
 
+/*! @mainpage WK2132 Documentation
+ This page gives some information about the details of the implementation of
+ the WK2132Component in ESPHome. This component uses two main classes:
+ WK2132Component and  WK2132Channel classes as well as the  RingBuffer helper
+ class. Below you will find a short description of these three classes.
+
+ @n But before that let see how the different classes interact with ESPHome.
+ We have the following UML class diagram:
+
+ <img src="UART.png" align="left" width="1024">
+ <div style="clear: both"></div>
+
+ As you can see, the WK2132Component class derives from the two ESPHome classes:
+ esphome::Component and the i2c::I2CDevice. Therefore this class has to implement all the
+ virtual methods from these two classes.
+ @n @n Another important class is the WK2132Channel class. The relationship between
+ WK2132Component and WK2132Channel is an aggregation. The WK2132Component is
+ a container that contains one or two WK2132Channel instances. However there
+ is not a strong dependency as the WK2132Channel instances continue to live
+ if the WK2132Component it belongs to is destroyed (which never happen in ESPHome).
+ The list of associated WK2132Channel instances in a WK2132Component is kept in
+ the WK2132Component::children_ attribute.
+ @n The WK2132Channel derives from the ESPHome uart::UARTComponent class.
+ Therefore it has to implement all the virtual methods from this class.
+ There is a composition relationship between the WK2132Channel class and the
+ RingBuffer helper class. Therefore destroying a WK2132Channel instance
+ also destroys the associated RingBuffer instance.
+ @n @n The last class defined in the WK2132 component is a helper class
+ called RingBuffer. It is a very simple container that implements the
+ functionality of a FIFO : bytes are pushed into the container on one side
+ and they are popped from the other side in the same order as they entered.
+
+ @section WK2132Component The WK2132Component class
+TODO
+
+ @section WK2132Channel_ The WK2132Channel class
+ We have one instance of this class per UART channel. This class implements
+ all the virtual methods of the ESPHome uart::UARTComponent class.
+ Unfortunately as far as I know there is **no documentation** about the uart::UARTDevice and
+ uart::UARTComponent classes of @ref ESPHome. However it seems that both of them are based
+ on equivalent Arduino classes.\n
+ This help a little bit in terms of documentation as we can look for the methods counterpart
+ in the Arduino library. However the interfaces provided by the Arduino Serial library
+ are **poorly defined** and have even \b changed over time!\n
+ Note that for compatibility reason (?) many helper methods are made available in ESPHome
+ to read and write. Unfortunately in many cases these helpers are missing the critical
+ status information and therefore are even more unsafe to use than the original...\n
+ You can review each of these function in the list provided below.
+ But first lets describe the optimum usage of these methods to get the best performance.
+
+ Usually UART are used to communicate with remote devices following this protocol:
+   -# the master (usually the microcontroller) asks the remote slave device for information
+   by sending a specific command.
+   -# in response the slave send back the information requested by the master as a frame
+   of many bytes
+   -# the master process the information received and prepare the next request.
+   -# and these steps repeat forever
+
+ With such protocol and the available methods, the optimum would look like this:
+ @code
+  constexpr size_t CMD_SIZE = 23;
+  uint8_t command_buffer[CMD_SIZE];
+  auto uart = new uart::UARTDevice();
+
+  // infinite loop to do requests and get responses
+  while (true) {
+    //
+    // prepare the command buffer
+    // ...
+    uart->flush();  // we get rid of bytes in UART FIFO if needed
+    uart->write_array(command_buffer, CMD_SIZE); // we send all bytes
+    int available = 0;
+    // loop until all bytes processed
+    while ((available = uart->available())) {
+      uint8_t rec_buffer[available];
+      uart->read_array(rec_buffer, available);
+      // here we loop for all received bytes
+      for (auto byte : rec_buffer) {
+        //
+        // here we process each byte received
+        // ...
+      }
+    }
+  }
+ @endcode
+
+ But unfortunately all the code I have reviewed are not written like that.
+ They actually look more like this:
+ @code
+  constexpr size_t CMD_SIZE = 23;
+  uint8_t command_buffer[CMD_SIZE];
+  auto uart = new uart::UARTDevice();
+
+  // infinite loop to do requests and get responses
+  while (true) {
+    //
+    // prepare the command buffer
+    // ...
+    uart->write_array(command_buffer, CMD_SIZE);
+    uart->flush();  // we get rid of bytes still in UART FIFO just after write!
+    while (uart->available()) {
+      uint8_t byte = uart->read();
+      //
+      // here we process each byte received
+      // ...
+    }
+  }
+ @endcode
+
+ So what is wrong about this last code ?
+  -# using write_array() followed immediately by a flush() method is
+  asking the UART to wait for all bytes in the fifo to be gone. And
+  this can take a lot of time especially if the line speed is low.
+    - In the optimum code, we reverse the call: we do the flush() first
+    and the write_array() after. In this case the flush() should return
+    immediately because there is plenty of time spend in receiving and
+    processing the bytes before we do the flush() in the next loop.
+  -# using available() followed by reading one byte with read() in a
+  loop is very inefficient because it causes a lot of useless calls.
+  If you are using an UART directly located on the micro-processor
+  this  is not too bad as the response time is quick. However if the
+  UART is located remotely and communicating through an I²C bus then
+  it becomes very problematic because we will need a lot of transactions
+  on the bus before getting just one byte.
+    - In the optimum code, we ask how many bytes are available and then
+    we read them all in one shot. This alone could improve the speed
+    by a factor of more than six.
+
+  So what can be done to make the remote device works efficiently
+  without asking the WK2132's client to rewrite its code?
+  I have been testing a lot of different strategies measuring
+  timings and I finally came up with solutions for the transmission
+  problem as well as for the reception problem:
+    - For transmission if there is a flush() immediately after the
+    write_array() what I do is to defer the blocking until the
+    next write_array(). As I said that gives usually plenty of time,
+    so flush() should almost never block.
+    - For reception what I do is to buffer the received bytes into
+    a ring buffer. Therefore even if the client is reading bytes
+    one by one as I have the bytes locally I do not need to do
+    transactions on the bus for each byte.
+
+ @subsection _x_ The WK2132Channel methods
+  - bool WK2132Channel::flush()
+  - void WK2132Channel::write_array(const uint8_t *buffer, size_t len);
+  - int WK2132Channel::available()
+  - bool WK2132Channel::read_array(uint8_t *buffer, size_t len);
+  - bool WK2132Channel::peek_byte(uint8_t *buffer);
+
+This method sends 'len' characters from the buffer to the serial line.
+Unfortunately (unlike the Arduino equivalent) this method
+does not return any value and therefore it is not possible
+to know if the bytes has been transmitted correctly.
+Another problem is that it is not possible to know how many bytes we
+can safely send as there is no tx_available() method provided!
+To avoid overrun when using write use flush() to wait until fifo is
+empty.
+
+Typical usage could be:
+@code
+  // ...
+  uint8_t buffer[64];
+  // ...
+  flush();
+  write_array(&buffer, len);
+  // ...
+@endcode
+
+ bool flush();
+
+If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
+of outgoing serial data to complete. (Prior to Arduino 1.0, this instead removed
+any buffered incoming serial data.). **
+
+The method waits until all characters inside the fifo have been sent.
+Timeout  after 100 ms
+
+Typical usage see @ref wa_ss_
+
+@image html UART.png "UML Class Diagram" width=1024px
+
+*/
+
 static const char *const TAG = "wk2132";
 
 static const char *const REG_TO_STR_P0[] = {"GENA", "GRST", "GMUT",  "SPAGE", "SCR", "LCR", "FCR",
                                             "SIER", "SIFR", "TFCNT", "RFCNT", "FSR", "LSR", "FDAT"};
 static const char *const REG_TO_STR_P1[] = {"GENA", "GRST", "GMUT",  "SPAGE", "BAUD1", "BAUD0", "PRES",
                                             "RFTL", "TFTL", "_INV_", "_INV_", "_INV_", "_INV_"};
+void do_work() {
+  constexpr size_t CMD_SIZE = 23;
+  uint8_t command_buffer[CMD_SIZE];
+  auto uart = new uart::UARTDevice();
+
+  // infinite loop to do requests and get responses
+  while (true) {
+    // prepare the command buffer
+    // ...
+    uart->flush();  // we get rid of bytes still in UART FIFO
+    uart->write_array(command_buffer, CMD_SIZE);
+    bool end_of_frame = false;
+    int available = 0;
+    while (!end_of_frame && (available = uart->available())) {
+      uint8_t rec_buffer[available];
+      uart->read_array(rec_buffer, available);
+      // here we loop for all received bytes
+      for (auto byte : rec_buffer) {
+        // here we process each byte received
+        // ...
+        // based on certain conditions we set end_of frame
+      }
+    }
+  }
+
+  // infinite loop to do requests and get responses
+  while (true) {
+    // prepare the command buffer
+    // ...
+    uart->write_array(command_buffer, CMD_SIZE);
+    uart->flush();  // we get rid of bytes still in UART FIFO
+    bool end_of_frame = false;
+    while (!end_of_frame && uart->available()) {
+      uint8_t byte = uart->read();
+      // here we process each byte received
+      // ...
+      // based on certain conditions we set end_of frame
+    }
+  }
+}
 
 // convert an int to binary string
 inline std::string i2s(uint8_t val) { return std::bitset<8>(val).to_string(); }
@@ -250,7 +473,8 @@ size_t WK2132Channel::rx_in_fifo_() {
 }
 
 bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
-  this->parent_->address_ = i2c_address(this->parent_->base_address_, this->channel_, 1);  // set fifo flag
+  this->parent_->address_ = i2c_address(this->parent_->base_address_, this->channel_, 1);  // fifo flag is set
+
   // With the WK2132 we need to read data directly from the fifo buffer without passing through a register
   // note: that theoretically it should be possible to read through the REG_WK2132_FDA register
   // but beware that it does not work !
@@ -259,7 +483,7 @@ bool WK2132Channel::read_data_(uint8_t *buffer, size_t len) {
     this->parent_->status_clear_warning();
     ESP_LOGV(TAG, "read_data(ch=%d buffer[0]=%02X, len=%d): I2C code %d", this->channel_, *buffer, len, (int) error);
     return true;
-  } else {  // error
+  } else {  // error found
     this->parent_->status_set_warning();
     ESP_LOGE(TAG, "read_data(ch=%d buffer[0]=%02X, len=%d): I2C code %d", this->channel_, *buffer, len, (int) error);
     return false;
@@ -285,20 +509,18 @@ bool WK2132Channel::write_data_(const uint8_t *buffer, size_t len) {
 }
 
 bool WK2132Channel::read_array(uint8_t *buffer, size_t len) {
-  if (len > FIFO_SIZE) {
-    ESP_LOGE(TAG, "Read buffer invalid call: requested %d bytes max size %d ...", len, FIFO_SIZE);
-    return false;
-  }
+  bool status = true;
   auto available = this->receive_buffer_.count();
-  if (len > available) {
+  if ((len > FIFO_SIZE) || (len > available)) {
     ESP_LOGE(TAG, "read_array buffer underflow requested %d bytes available %d ...", len, available);
     len = available;
+    status = false;
   }
   // retrieve the bytes from ring buffer
   for (size_t i = 0; i < len; i++) {
     this->receive_buffer_.pop(buffer[i]);
   }
-  return true;
+  return status;
 }
 
 void WK2132Channel::write_array(const uint8_t *buffer, size_t len) {
