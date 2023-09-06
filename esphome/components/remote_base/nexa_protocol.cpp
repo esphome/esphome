@@ -232,7 +232,7 @@ optional<NexaData> NexaProtocol::decode(RemoteReceiveData src) {
 }
 
 void NexaProtocol::dump(const NexaData &data) {
-  ESP_LOGD(TAG, "Received NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", data.device, data.group,
+  ESP_LOGI(TAG, "Received NEXA: device=0x%04X group=%d state=%d channel=%d level=%d", data.device, data.group,
            data.state, data.channel, data.level);
 }
 

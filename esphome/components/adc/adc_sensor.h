@@ -19,16 +19,23 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 #ifdef USE_ESP32
   /// Set the attenuation for this pin. Only available on the ESP32.
   void set_attenuation(adc_atten_t attenuation) { attenuation_ = attenuation; }
-  void set_channel(adc1_channel_t channel) { channel_ = channel; }
+  void set_channel1(adc1_channel_t channel) {
+    channel1_ = channel;
+    channel2_ = ADC2_CHANNEL_MAX;
+  }
+  void set_channel2(adc2_channel_t channel) {
+    channel2_ = channel;
+    channel1_ = ADC1_CHANNEL_MAX;
+  }
   void set_autorange(bool autorange) { autorange_ = autorange; }
 #endif
 
-  /// Update adc values.
+  /// Update ADC values
   void update() override;
-  /// Setup ADc
+  /// Setup ADC
   void setup() override;
   void dump_config() override;
-  /// `HARDWARE_LATE` setup priority.
+  /// `HARDWARE_LATE` setup priority
   float get_setup_priority() const override;
   void set_pin(InternalGPIOPin *pin) { this->pin_ = pin; }
   void set_output_raw(bool output_raw) { output_raw_ = output_raw; }
@@ -52,9 +59,10 @@ class ADCSensor : public sensor::Sensor, public PollingComponent, public voltage
 
 #ifdef USE_ESP32
   adc_atten_t attenuation_{ADC_ATTEN_DB_0};
-  adc1_channel_t channel_{};
+  adc1_channel_t channel1_{ADC1_CHANNEL_MAX};
+  adc2_channel_t channel2_{ADC2_CHANNEL_MAX};
   bool autorange_{false};
-  esp_adc_cal_characteristics_t cal_characteristics_[(int) ADC_ATTEN_MAX] = {};
+  esp_adc_cal_characteristics_t cal_characteristics_[ADC_ATTEN_MAX] = {};
 #endif
 };
 

@@ -16,6 +16,24 @@ CODEOWNERS = ["@esphome/core"]
 spi_ns = cg.esphome_ns.namespace("spi")
 SPIComponent = spi_ns.class_("SPIComponent", cg.Component)
 SPIDevice = spi_ns.class_("SPIDevice")
+SPIDataRate = spi_ns.enum("SPIDataRate")
+
+SPI_DATA_RATE_OPTIONS = {
+    80e6: SPIDataRate.DATA_RATE_80MHZ,
+    40e6: SPIDataRate.DATA_RATE_40MHZ,
+    20e6: SPIDataRate.DATA_RATE_20MHZ,
+    10e6: SPIDataRate.DATA_RATE_10MHZ,
+    8e6: SPIDataRate.DATA_RATE_8MHZ,
+    5e6: SPIDataRate.DATA_RATE_5MHZ,
+    4e6: SPIDataRate.DATA_RATE_4MHZ,
+    2e6: SPIDataRate.DATA_RATE_2MHZ,
+    1e6: SPIDataRate.DATA_RATE_1MHZ,
+    2e5: SPIDataRate.DATA_RATE_200KHZ,
+    75e3: SPIDataRate.DATA_RATE_75KHZ,
+    1e3: SPIDataRate.DATA_RATE_1KHZ,
+}
+SPI_DATA_RATE_SCHEMA = cv.All(cv.frequency, cv.enum(SPI_DATA_RATE_OPTIONS))
+
 MULTI_CONF = True
 CONF_FORCE_SW = "force_sw"
 
@@ -30,6 +48,7 @@ CONFIG_SCHEMA = cv.All(
         }
     ),
     cv.has_at_least_one_key(CONF_MISO_PIN, CONF_MOSI_PIN),
+    cv.only_on(["esp32", "esp8266", "rp2040"]),
 )
 
 
