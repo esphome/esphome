@@ -40,7 +40,7 @@ namespace wk2132 {
  and they are popped from the other side in the same order as they entered.
 
  @section WK2132Component The WK2132Component class
-TODO
+ TODO
 
  @section WK2132Channel_ The WK2132Channel class
  We have one instance of this class per UART channel. This class implements
@@ -66,7 +66,7 @@ TODO
    -# and these steps repeat forever
 
  With such protocol and the available methods, the optimum would look like this:
- @code
+  @code
   constexpr size_t CMD_SIZE = 23;
   uint8_t command_buffer[CMD_SIZE];
   auto uart = new uart::UARTDevice();
@@ -91,11 +91,11 @@ TODO
       }
     }
   }
- @endcode
+  @endcode
 
  But unfortunately all the code I have reviewed are not written like that.
  They actually look more like this:
- @code
+  @code
   constexpr size_t CMD_SIZE = 23;
   uint8_t command_buffer[CMD_SIZE];
   auto uart = new uart::UARTDevice();
@@ -114,7 +114,7 @@ TODO
       // ...
     }
   }
- @endcode
+  @endcode
 
  So what is wrong about this last code ?
   -# using write_array() followed immediately by a flush() method is
@@ -155,38 +155,6 @@ TODO
   - int WK2132Channel::available()
   - bool WK2132Channel::read_array(uint8_t *buffer, size_t len);
   - bool WK2132Channel::peek_byte(uint8_t *buffer);
-
-This method sends 'len' characters from the buffer to the serial line.
-Unfortunately (unlike the Arduino equivalent) this method
-does not return any value and therefore it is not possible
-to know if the bytes has been transmitted correctly.
-Another problem is that it is not possible to know how many bytes we
-can safely send as there is no tx_available() method provided!
-To avoid overrun when using write use flush() to wait until fifo is
-empty.
-
-Typical usage could be:
-@code
-  // ...
-  uint8_t buffer[64];
-  // ...
-  flush();
-  write_array(&buffer, len);
-  // ...
-@endcode
-
- bool flush();
-
-If we refer to Serial.flush() in Arduino it says: ** Waits for the transmission
-of outgoing serial data to complete. (Prior to Arduino 1.0, this instead removed
-any buffered incoming serial data.). **
-
-The method waits until all characters inside the fifo have been sent.
-Timeout  after 100 ms
-
-Typical usage see @ref wa_ss_
-
-@image html UART.png "UML Class Diagram" width=1024px
 
 */
 
@@ -590,7 +558,7 @@ void print_buffer(std::vector<uint8_t> buffer) {
 
 /// @brief test the write_array method
 void WK2132Channel::uart_send_test_(char *preamble) {
-  auto start_exec = millis();
+  auto start_exec = micros();
   // we send the maximum possible
   this->flush();
   size_t const to_send = FIFO_SIZE;
@@ -600,13 +568,13 @@ void WK2132Channel::uart_send_test_(char *preamble) {
     output_buffer[0] = to_send;                     // we send as the first byte the length of the buffer
     this->write_array(&output_buffer[0], to_send);  // we send the buffer
     this->flush();                                  // we wait until they are gone
-    ESP_LOGI(TAG, "%s => sending  %d bytes - exec time %d ms ...", preamble, to_send, millis() - start_exec);
+    ESP_LOGI(TAG, "%s => sending  %d bytes - exec time %d µs ...", preamble, to_send, micros() - start_exec);
   }
 }
 
 /// @brief test the read_array method
 void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
-  auto start_exec = millis();
+  auto start_exec = micros();
   uint8_t const to_read = this->available();
   if (to_read > 0) {
     std::vector<uint8_t> buffer(to_read);
@@ -614,7 +582,7 @@ void WK2132Channel::uart_receive_test_(char *preamble, bool print_buf) {
     if (print_buf)
       print_buffer(buffer);
   }
-  ESP_LOGI(TAG, "%s => received %d bytes - exec time %d ms ...", preamble, to_read, millis() - start_exec);
+  ESP_LOGI(TAG, "%s => received %d bytes - exec time %d µs ...", preamble, to_read, micros() - start_exec);
 }
 #endif
 
@@ -625,9 +593,9 @@ void WK2132Component::loop() {
   static uint16_t loop_calls = 0;
   static uint32_t loop_time = 0;
   uint32_t time;
-  auto elapsed = [&time]() {
-    auto e = millis() - time;
-    time = millis();
+  auto elapsed = [](uint32_t &t) {
+    auto e = micros() - t;
+    t = micros();
     return e;
   };
   if (this->test_mode_.any())
@@ -643,7 +611,7 @@ void WK2132Component::loop() {
   }
 
   // here we transfer bytes from fifo to ring buffers
-  elapsed();
+  elapsed(time);
   for (auto *child : this->children_) {
     // we look if some characters has been received in the fifo
     if (auto to_transfer = child->rx_in_fifo_()) {
@@ -660,7 +628,7 @@ void WK2132Component::loop() {
     }
   }
   if (this->test_mode_.any())
-    ESP_LOGI(TAG, "transfer all fifo to ring execution time %d ms...", elapsed());
+    ESP_LOGI(TAG, "transfer all fifo to ring execution time %d µs...", elapsed(time));
 
 #ifdef AUTOTEST_COMPONENT
   //
@@ -668,7 +636,7 @@ void WK2132Component::loop() {
   //
 
   if (this->test_mode_.test(0)) {  // test echo mode (bit 0)
-    elapsed();
+    elapsed(time);
     for (auto *child : this->children_) {
       uint8_t data;
       if (child->available()) {
@@ -677,18 +645,18 @@ void WK2132Component::loop() {
         child->write_byte(data);
       }
     }
-    ESP_LOGI(TAG, "echo execution time %d ms...", elapsed());
+    ESP_LOGI(TAG, "echo execution time %d µs...", elapsed(time));
   }
 
   if (test_mode_.test(1)) {  // test loop mode (bit 1)
     char preamble[64];
     for (size_t i = 0; i < this->children_.size(); i++) {
       snprintf(preamble, sizeof(preamble), "WK2132@%02X:%d", this->get_base_addr_(), i);
-      elapsed();
+      elapsed(time);
       this->children_[i]->uart_receive_test_(preamble, true);
-      ESP_LOGI(TAG, "receive execution time %d ms...", elapsed());
+      ESP_LOGI(TAG, "receive execution time %d µs...", elapsed(time));
       this->children_[i]->uart_send_test_(preamble);
-      ESP_LOGI(TAG, "transmit execution time %d ms...", elapsed());
+      ESP_LOGI(TAG, "transmit execution time %d µs...", elapsed(time));
     }
   }
   if (this->test_mode_.any())
