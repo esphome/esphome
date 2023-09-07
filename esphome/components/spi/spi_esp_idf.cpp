@@ -8,24 +8,9 @@ namespace spi {
 static const char *const TAG = "spi-esp-idf";
 static const size_t MAX_TRANSFER_SIZE = 4092;  // dictated by ESP-IDF API.
 
-// list of available buses
-// https://bugs.llvm.org/show_bug.cgi?id=48040
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables)
-static std::vector<spi_host_device_t> bus_list = {
-#ifdef USE_ESP8266
-    SPI1_HOST,
-#endif
-#ifdef USE_ESP32
-    SPI2_HOST,
-#if !(defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6))
-    SPI3_HOST
-#endif  // VARIANTS
-#endif  // USE_ESP32
-};
-
 class SPIDelegateHw : public SPIDelegate {
  public:
-  SPIDelegateHw(spi_host_device_t channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
+  SPIDelegateHw(SPIInterface channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin,
                 bool write_only)
       : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel), write_only_(write_only) {
     spi_device_interface_config_t config = {};
@@ -138,15 +123,14 @@ class SPIDelegateHw : public SPIDelegate {
   void read_array(uint8_t *ptr, size_t length) override { this->transfer(nullptr, ptr, length); }
 
  protected:
-  spi_host_device_t channel_{};
+  SPIInterface channel_{};
   spi_device_handle_t handle_{};
   bool write_only_{false};
 };
 
 class SPIBusHw : public SPIBus {
  public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, spi_host_device_t channel)
-      : SPIBus(clk, sdo, sdi), channel_(channel) {
+  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel) : SPIBus(clk, sdo, sdi), channel_(channel) {
     spi_bus_config_t buscfg = {};
     buscfg.mosi_io_num = Utility::get_pin_no(sdo);
     buscfg.miso_io_num = Utility::get_pin_no(sdi);
@@ -165,21 +149,13 @@ class SPIBusHw : public SPIBus {
   }
 
  protected:
-  spi_host_device_t channel_{};
+  SPIInterface channel_{};
 
   bool is_hw() override { return true; }
 };
 
-SPIBus *SPIComponent::get_bus(int interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
-  spi_host_device_t channel;
-
-  ESP_LOGD(TAG, "Initialise bus %d", interface);
-  if ((size_t) interface >= bus_list.size()) {
-    ESP_LOGE(TAG, "Invalid interface %d", interface);
-    return nullptr;
-  }
-  channel = bus_list[interface];
-  return new SPIBusHw(clk, sdo, sdi, channel);
+SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
+  return new SPIBusHw(clk, sdo, sdi, interface);
 }
 
 #endif

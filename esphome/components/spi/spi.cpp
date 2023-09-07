@@ -48,10 +48,10 @@ void SPIComponent::setup() {
     return;
   }
 
-  if (this->interface_ >= 0) {
+  if (this->using_hw_) {
     this->spi_bus_ = SPIComponent::get_bus(this->interface_, this->clk_pin_, this->sdo_pin_, this->sdi_pin_);
     if (this->spi_bus_ == nullptr) {
-      ESP_LOGE(TAG, "Unable to allocate SPI interface %d", this->interface_);
+      ESP_LOGE(TAG, "Unable to allocate SPI interface");
       this->mark_failed();
     }
   } else {
@@ -69,7 +69,7 @@ void SPIComponent::dump_config() {
   LOG_PIN("  SDI Pin: ", this->sdi_pin_)
   LOG_PIN("  SDO Pin: ", this->sdo_pin_)
   if (this->spi_bus_->is_hw()) {
-    ESP_LOGCONFIG(TAG, "  Using HW SPI: %d", this->interface_);
+    ESP_LOGCONFIG(TAG, "  Using HW SPI: %s", this->interface_name_);
   } else {
     ESP_LOGCONFIG(TAG, "  Using software SPI");
   }

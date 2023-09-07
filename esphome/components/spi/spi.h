@@ -11,11 +11,15 @@
 
 #include <SPI.h>
 
+using SPIInterface = SPIClass *;
+
 #endif
 
 #ifdef USE_ESP_IDF
 
 #include "driver/spi_master.h"
+
+using SPIInterface = spi_host_device_t;
 
 #endif  // USE_ESP_IDF
 
@@ -309,7 +313,12 @@ class SPIComponent : public Component {
 
   void set_mosi(GPIOPin *sdo) { this->sdo_pin_ = sdo; }
 
-  void set_interface(int interface) { this->interface_ = interface; }
+  void set_interface(SPIInterface interface) {
+    this->interface_ = interface;
+    this->using_hw_ = true;
+  }
+
+  void set_interface_name(const char *name) { this->interface_name_ = name; }
 
   float get_setup_priority() const override { return setup_priority::BUS; }
 
@@ -320,11 +329,13 @@ class SPIComponent : public Component {
   GPIOPin *clk_pin_{nullptr};
   GPIOPin *sdi_pin_{nullptr};
   GPIOPin *sdo_pin_{nullptr};
-  int interface_{-1};
+  SPIInterface interface_{};
+  bool using_hw_{false};
+  const char *interface_name_{nullptr};
   SPIBus *spi_bus_{};
   std::map<SPIClient *, SPIDelegate *> devices_;
 
-  static SPIBus *get_bus(int interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi);
+  static SPIBus *get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi);
 };
 
 /**

@@ -13,28 +13,6 @@ using SPIBusDelegate = SPIClassRP2040;
 using SPIBusDelegate = SPIClass;
 #endif
 
-// list of available buses
-// NOLINTNEXTLINE(cppcoreguidelines-avoid-non-const-global-variables, cppcoreguidelines-interfaces-global-init)
-static std::vector<std::function<SPIBusDelegate *()>> bus_list = {
-#ifdef USE_ESP8266
-    [] { return &SPI; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
-#endif
-#ifdef USE_ESP32
-    [] { return &SPI; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
-#if defined(USE_ESP32_VARIANT_ESP32C3) || defined(USE_ESP32_VARIANT_ESP32C2) || defined(USE_ESP32_VARIANT_ESP32C6)
-// No second SPI on Cx variants
-#elif defined(USE_ESP32_VARIANT_ESP32S2) || defined(USE_ESP32_VARIANT_ESP32S3)
-    [] { return new SPIClass(FSPI); },  // NOLINT(cppcoreguidelines-owning-memory)
-#else
-    [] { return new SPIClass(HSPI); },  // NOLINT(cppcoreguidelines-owning-memory)
-#endif  // USE_ESP32_VARIANT
-#endif  // USE_ESP32
-#ifdef USE_RP2040
-// Doesn't seem to be defined.
-//  [] { return &SPI1; },  // NOLINT(cppcoreguidelines-interfaces-global-init)
-#endif
-};
-
 class SPIDelegateHw : public SPIDelegate {
  public:
   SPIDelegateHw(SPIBusDelegate *channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
@@ -107,15 +85,8 @@ class SPIBusHw : public SPIBus {
   bool is_hw() override { return true; }
 };
 
-SPIBus *SPIComponent::get_bus(int interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
-  SPIBusDelegate *channel;
-
-  if ((size_t) interface >= bus_list.size()) {
-    ESP_LOGE(TAG, "Invalid interface %d", interface);
-    return nullptr;
-  }
-  channel = bus_list[interface]();
-  return new SPIBusHw(clk, sdo, sdi, channel);
+SPIBus *SPIComponent::get_bus(SPIInterface interface, GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi) {
+  return new SPIBusHw(clk, sdo, sdi, interface);
 }
 
 #endif  // USE_ARDUINO

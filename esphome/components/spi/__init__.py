@@ -1,11 +1,16 @@
+import re
+
 import esphome.codegen as cg
 import esphome.config_validation as cv
 import esphome.final_validate as fv
 from esphome.components.esp32.const import (
     KEY_ESP32,
+    VARIANT_ESP32S2,
+    VARIANT_ESP32S3,
     VARIANT_ESP32C2,
     VARIANT_ESP32C3,
     VARIANT_ESP32C6,
+    VARIANT_ESP32H2,
 )
 from esphome import pins
 from esphome.const import (
@@ -47,6 +52,7 @@ SPI_DATA_RATE_SCHEMA = cv.All(cv.frequency, cv.enum(SPI_DATA_RATE_OPTIONS))
 
 CONF_FORCE_SW = "force_sw"
 CONF_INTERFACE = "interface"
+CONF_INTERFACE_INDEX = "interface_index"
 
 
 def get_target_platform():
@@ -63,17 +69,33 @@ def get_target_variant():
     )
 
 
-def get_hw_interface_cnt():
+# Get a list of available hardware interfaces based on target and variant.
+# The returned value is a list of lists of names
+def get_hw_interface_list():
     target_platform = get_target_platform()
     if target_platform == "esp8266":
-        return 1
+        return [["spi", "hspi"]]
     if target_platform == "esp32":
-        if get_target_variant() in [VARIANT_ESP32C2, VARIANT_ESP32C3, VARIANT_ESP32C6]:
-            return 1
-        return 2
+        if get_target_variant() in [
+            VARIANT_ESP32C2,
+            VARIANT_ESP32C3,
+            VARIANT_ESP32C6,
+            VARIANT_ESP32H2,
+        ]:
+            return [["spi", "spi2"]]
+        return [["spi", "spi2"], ["spi3"]]
     if target_platform == "rp2040":
-        return 2
-    return 0
+        return [["spi"]]
+    return []
+
+
+# Given an SPI name, return the index of it in the available list
+def get_spi_index(name):
+    for i, ilist in enumerate(get_hw_interface_list()):
+        if name in ilist:
+            return i
+    # Should never get to here.
+    raise cv.Invalid(f"{name} is not an available SPI")
 
 
 # Check that pins are suitable for HW spi
@@ -111,32 +133,60 @@ def validate_hw_pins(spi):
 
 
 def validate_spi_config(config):
-    available = list(range(get_hw_interface_cnt()))
+    available = list(range(len(get_hw_interface_list())))
     for spi in config:
         interface = spi[CONF_INTERFACE]
-        is_sw = spi[CONF_FORCE_SW] or interface == "software"
-        if interface == "any":
-            if is_sw or not validate_hw_pins(spi):
-                spi[CONF_INTERFACE] = "software"
-        if isinstance(interface, int):
-            if is_sw:
-                raise cv.Invalid("Software SPI does not use hardware interface")
-            if interface not in available:
-                raise cv.Invalid(f"SPI interface {interface} already claimed")
+        if spi[CONF_FORCE_SW]:
+            if interface == "any":
+                spi[CONF_INTERFACE] = interface = "software"
+            elif interface != "software":
+                raise cv.Invalid("force_sw is deprecated - use interface: software")
+        if interface == "software":
+            pass
+        elif interface == "any":
             if not validate_hw_pins(spi):
+                spi[CONF_INTERFACE] = "software"
+        elif interface == "hardware":
+            if len(available) == 0:
+                raise cv.Invalid("No hardware interface available")
+            index = spi[CONF_INTERFACE_INDEX] = available[0]
+            available.remove(index)
+        else:
+            # Must be a specific name
+            index = spi[CONF_INTERFACE_INDEX] = get_spi_index(interface)
+            if index not in available:
                 raise cv.Invalid(
-                    f"Invalid pin selections for hardware SPI interface {interface}"
+                    f"SPI interface {interface} not available here (may be already claimed)"
                 )
-            available.remove(interface)
 
     # Second time around, assign interfaces if required
     for spi in config:
         if spi[CONF_INTERFACE] == "any" and len(available) != 0:
-            interface = available[0]
-            spi[CONF_INTERFACE] = interface
-            available.remove(interface)
+            index = available[0]
+            spi[CONF_INTERFACE_INDEX] = index
+            available.remove(index)
+        if CONF_INTERFACE_INDEX in spi and not validate_hw_pins(spi):
+            raise cv.Invalid("Invalid pin selections for hardware SPI interface")
 
     return config
+
+
+# Given an SPI index, convert to a string that represents the C++ object for it.
+
+
+def get_spi_interface(index):
+    if CORE.using_esp_idf:
+        return ["SPI2_HOST", "SPI3_HOST"][index]
+    # Arduino code follows
+    platform = get_target_platform()
+    if platform == "rp2040":
+        return "&SPI1"
+    if index == 0:
+        return "&SPI"
+    # Following code can't apply to C2, H2 or 8266 since they have only one SPI
+    if get_target_variant() in (VARIANT_ESP32S3, VARIANT_ESP32S2):
+        return "new SPIClass(FSPI)"
+    return "return new SPIClass(HSPI)"
 
 
 SPI_SCHEMA = cv.All(
@@ -147,10 +197,9 @@ SPI_SCHEMA = cv.All(
             cv.Optional(CONF_MISO_PIN): pins.gpio_input_pin_schema,
             cv.Optional(CONF_MOSI_PIN): pins.gpio_output_pin_schema,
             cv.Optional(CONF_FORCE_SW, default=False): cv.boolean,
-            cv.Optional(CONF_INTERFACE, default="any"): cv.Any(
-                cv.string("any"),
-                cv.string("software"),
-                cv.int_range(0, get_hw_interface_cnt(), max_included=False),
+            cv.Optional(CONF_INTERFACE, default="any"): cv.one_of(
+                *sum(get_hw_interface_list(), ["software", "hardware", "any"]),
+                lower=True,
             ),
         }
     ),
@@ -167,22 +216,28 @@ CONFIG_SCHEMA = cv.All(
 @coroutine_with_priority(1.0)
 async def to_code(configs):
     cg.add_global(spi_ns.using)
-    for config in configs:
-        var = cg.new_Pvariable(config[CONF_ID])
-        await cg.register_component(var, config)
+    for spi in configs:
+        var = cg.new_Pvariable(spi[CONF_ID])
+        await cg.register_component(var, spi)
 
-        clk = await cg.gpio_pin_expression(config[CONF_CLK_PIN])
+        clk = await cg.gpio_pin_expression(spi[CONF_CLK_PIN])
         cg.add(var.set_clk(clk))
-        if CONF_MISO_PIN in config:
-            miso = await cg.gpio_pin_expression(config[CONF_MISO_PIN])
+        if CONF_MISO_PIN in spi:
+            miso = await cg.gpio_pin_expression(spi[CONF_MISO_PIN])
             cg.add(var.set_miso(miso))
-        if CONF_MOSI_PIN in config:
-            mosi = await cg.gpio_pin_expression(config[CONF_MOSI_PIN])
+        if CONF_MOSI_PIN in spi:
+            mosi = await cg.gpio_pin_expression(spi[CONF_MOSI_PIN])
             cg.add(var.set_mosi(mosi))
-        interface = config[CONF_INTERFACE]
-        if isinstance(interface, int):
-            # zero-index so can be used to index the array.
-            cg.add(var.set_interface(interface))
+        if CONF_INTERFACE_INDEX in spi:
+            index = spi[CONF_INTERFACE_INDEX]
+            cg.add(var.set_interface(cg.RawExpression(get_spi_interface(index))))
+            cg.add(
+                var.set_interface_name(
+                    re.sub(
+                        r"\W", "", get_spi_interface(index).replace("new SPIClass", "")
+                    )
+                )
+            )
 
     if CORE.using_arduino:
         cg.add_library("SPI", None)
