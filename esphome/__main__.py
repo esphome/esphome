@@ -85,6 +85,8 @@ def choose_upload_log_host(
     options = []
     for port in get_serial_ports():
         options.append((f"{port.path} ({port.description})", port.path))
+    if default == "SERIAL":
+        return choose_prompt(options, purpose=purpose)
     if (show_ota and "ota" in CORE.config) or (show_api and "api" in CORE.config):
         options.append((f"Over The Air ({CORE.address})", CORE.address))
         if default == "OTA":
@@ -218,14 +220,16 @@ def compile_program(args, config):
     return 0 if idedata is not None else 1
 
 
-def upload_using_esptool(config, port):
+def upload_using_esptool(config, port, file):
     from esphome import platformio_api
 
     first_baudrate = config[CONF_ESPHOME][CONF_PLATFORMIO_OPTIONS].get(
         "upload_speed", 460800
     )
 
-    def run_esptool(baud_rate):
+    if file is not None:
+        flash_images = [platformio_api.FlashImage(path=file, offset="0x0")]
+    else:
         idedata = platformio_api.get_idedata(config)
 
         firmware_offset = "0x10000" if CORE.is_esp32 else "0x0"
@@ -236,12 +240,13 @@ def upload_using_esptool(config, port):
             *idedata.extra_flash_images,
         ]
 
-        mcu = "esp8266"
-        if CORE.is_esp32:
-            from esphome.components.esp32 import get_esp32_variant
+    mcu = "esp8266"
+    if CORE.is_esp32:
+        from esphome.components.esp32 import get_esp32_variant
 
-            mcu = get_esp32_variant().lower()
+        mcu = get_esp32_variant().lower()
 
+    def run_esptool(baud_rate):
         cmd = [
             "esptool.py",
             "--before",
@@ -292,7 +297,8 @@ def upload_using_platformio(config, port):
 def upload_program(config, args, host):
     if get_port_type(host) == "SERIAL":
         if CORE.target_platform in (PLATFORM_ESP32, PLATFORM_ESP8266):
-            return upload_using_esptool(config, host)
+            file = getattr(args, "file", None)
+            return upload_using_esptool(config, host, file)
 
         if CORE.target_platform in (PLATFORM_RP2040):
             return upload_using_platformio(config, args.device)
