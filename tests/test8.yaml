@@ -34,6 +34,7 @@ spi:
   id: spi_id_1
   clk_pin: GPIO7
   mosi_pin: GPIO6
+  interface: any
 
 spi_device:
   id: spidev
