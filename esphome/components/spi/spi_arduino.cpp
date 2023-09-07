@@ -7,15 +7,9 @@ namespace spi {
 #ifdef USE_ARDUINO
 
 static const char *const TAG = "spi-esp-arduino";
-#ifdef USE_RP2040
-using SPIBusDelegate = SPIClassRP2040;
-#else
-using SPIBusDelegate = SPIClass;
-#endif
-
 class SPIDelegateHw : public SPIDelegate {
  public:
-  SPIDelegateHw(SPIBusDelegate *channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
+  SPIDelegateHw(SPIInterface channel, uint32_t data_rate, SPIBitOrder bit_order, SPIMode mode, GPIOPin *cs_pin)
       : SPIDelegate(data_rate, bit_order, mode, cs_pin), channel_(channel) {}
 
   void begin_transaction() override {
@@ -41,9 +35,11 @@ class SPIDelegateHw : public SPIDelegate {
 
 #ifdef USE_RP2040
   void write_array(const uint8_t *ptr, size_t length) override {
-    uint8_t *rxbuf = new uint8_t[length];
+    // avoid overwriting the supplied buffer
+    uint8_t *rxbuf = new uint8_t[length];  // NOLINT(cppcoreguidelines-owning-memory)
     memcpy(rxbuf, ptr, length);
     this->channel_->transfer((void *) rxbuf, length);
+    delete[] rxbuf;  // NOLINT(cppcoreguidelines-owning-memory)
   }
 #else
   void write_array(const uint8_t *ptr, size_t length) override { this->channel_->writeBytes(ptr, length); }
@@ -52,13 +48,12 @@ class SPIDelegateHw : public SPIDelegate {
   void read_array(uint8_t *ptr, size_t length) override { this->channel_->transfer(ptr, length); }
 
  protected:
-  SPIBusDelegate *channel_{};
+  SPIInterface channel_{};
 };
 
 class SPIBusHw : public SPIBus {
  public:
-  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIBusDelegate *channel)
-      : SPIBus(clk, sdo, sdi), channel_(channel) {
+  SPIBusHw(GPIOPin *clk, GPIOPin *sdo, GPIOPin *sdi, SPIInterface channel) : SPIBus(clk, sdo, sdi), channel_(channel) {
 #ifdef USE_ESP8266
     channel->pins(Utility::get_pin_no(clk), Utility::get_pin_no(sdi), Utility::get_pin_no(sdo), -1);
     channel->begin();
@@ -81,7 +76,7 @@ class SPIBusHw : public SPIBus {
   }
 
  protected:
-  SPIBusDelegate *channel_{};
+  SPIInterface channel_{};
   bool is_hw() override { return true; }
 };
 

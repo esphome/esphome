@@ -11,7 +11,11 @@
 
 #include <SPI.h>
 
+#ifdef USE_RP2040
+using SPIInterface = SPIClassRP2040 *;
+#else
 using SPIInterface = SPIClass *;
+#endif
 
 #endif
 

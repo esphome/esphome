@@ -156,10 +156,13 @@ def validate_spi_config(config):
             index = spi[CONF_INTERFACE_INDEX] = get_spi_index(interface)
             if index not in available:
                 raise cv.Invalid(
-                    f"SPI interface {interface} not available here (may be already claimed)"
+                    f"interface '{interface}' not available here (may be already assigned)"
                 )
+            available.remove(index)
 
-    # Second time around, assign interfaces if required
+    # Second time around:
+    # Any specific names and any 'hardware' requests will have already been filled,
+    # so just need to assign remaining hardware to 'any' requests.
     for spi in config:
         if spi[CONF_INTERFACE] == "any" and len(available) != 0:
             index = available[0]
@@ -172,15 +175,13 @@ def validate_spi_config(config):
 
 
 # Given an SPI index, convert to a string that represents the C++ object for it.
-
-
 def get_spi_interface(index):
     if CORE.using_esp_idf:
         return ["SPI2_HOST", "SPI3_HOST"][index]
     # Arduino code follows
     platform = get_target_platform()
     if platform == "rp2040":
-        return "&SPI1"
+        return "&spi1"
     if index == 0:
         return "&SPI"
     # Following code can't apply to C2, H2 or 8266 since they have only one SPI
